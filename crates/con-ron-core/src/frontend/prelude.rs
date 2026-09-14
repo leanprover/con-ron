@@ -39,7 +39,11 @@
 //! * con-leche's `builtinPreludeText` is an `include_str` of
 //!   `pins/<toolchain>.prelude.ndjson`; the port's is a generated constant in
 //!   the crate (`prelude_text`, `scripts/gen-prelude.sh`, gated by
-//!   `--check`), for the reason `kernel/pins_text.rs` gives for the pin list.
+//!   `--check`), for the reason `kernel/pins_text.rs` gives for the pin list,
+//!   and a `[u8; N]` rather than that module's `&str` for the reason
+//!   `prelude_text`'s own note gives — in fact thirty-four of them, joined by
+//!   `prelude_text::prelude_text()`.  So this is `parse_bytes` of those bytes
+//!   where con-leche is `parseExportD` of a `String`.
 //! * the parse needs a **modeller** (`in_model_rec::Modeller`), because the
 //!   parse in general does; the prelude has no mutual or nested block, so
 //!   which modeller is passed cannot change the result, and the CLI passes
@@ -47,7 +51,7 @@
 
 use crate::frontend::export_c;
 use crate::frontend::in_model_rec::Modeller;
-use crate::frontend::prelude_text::PRELUDE_TEXT;
+use crate::frontend::prelude_text::prelude_text;
 use crate::frontend::prepare::PreludeIx;
 use crate::kernel::core_types::CheckError;
 
@@ -58,7 +62,8 @@ use crate::kernel::core_types::CheckError;
 /// alone since con-leche task #293 — the by-name and by-kind tables the
 /// dropped dedupe needed are gone with it.
 pub fn builtin_prelude_e<M: Modeller>(m: &M) -> Result<PreludeIx, (CheckError, u64)> {
-    match export_c::parse_export_d(m, PRELUDE_TEXT, true, false) {
+    let text: Vec<u8> = prelude_text();
+    match export_c::parse_bytes(m, &text, true, false) {
         Err(e) => Err(e),
         Ok(r) => Ok(PreludeIx { decls: r.decls }),
     }
@@ -90,15 +95,24 @@ mod tests {
     /// fact where `cargo test` sees it.
     #[test]
     fn prelude_text_is_the_committed_ndjson() {
-        let b = PRELUDE_TEXT.as_bytes();
-        assert_eq!(b.len(), 16922);
-        assert_eq!(b[b.len() - 1], b'\n');
-        let lines: Vec<&str> = PRELUDE_TEXT.lines().collect();
+        let bytes = prelude_text();
+        assert_eq!(bytes.len(), 16922);
+        assert_eq!(bytes[bytes.len() - 1], b'\n');
+        let text = std::str::from_utf8(&bytes).expect("the prelude is UTF-8");
+        let lines: Vec<&str> = text.lines().collect();
         assert_eq!(lines.len(), 267);
         assert!(lines[0].contains("con-leche-prelude"));
         assert!(lines[266].starts_with("{\"inductive\":"));
-        assert!(PRELUDE_TEXT.contains("\u{3b1}"));
-        assert!(PRELUDE_TEXT.contains("\u{3b2}"));
+        assert!(text.contains("\u{3b1}"));
+        assert!(text.contains("\u{3b2}"));
+        // and it IS the committed file, byte for byte
+        let p = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../vendor/con-leche/pins/leanprover-lean4-v4.33.0.prelude.ndjson"
+        );
+        if let Ok(f) = std::fs::read(p) {
+            assert_eq!(&f[..], &bytes[..]);
+        }
     }
 
     /// The prelude parses, and holds the declarations the fold expects of it.

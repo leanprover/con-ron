@@ -31,8 +31,8 @@ use con_ron_core::kernel::level::Level;
 use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::Name;
 
-use crate::frontend::export::name_str;
-use crate::frontend::proj_rec;
+use crate::render::name_str;
+use con_ron_core::frontend::proj_rec;
 use crate::in_model::kit;
 use crate::in_model::kit::{
     app2, bm, const_p, dup_all, get_d, iota_name, mentions_any, mk_lams, mk_pis, model_name,
@@ -171,7 +171,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
         if t.is_reflexive {
             return Err(format!("reflexive member {}", name_str(&t.cv.name)));
         }
-        if !crate::frontend::export::names_beq(&t.cv.level_params, &lps) || t.n_p != n_p {
+        if !con_ron_core::frontend::export::names_beq(&t.cv.level_params, &lps) || t.n_p != n_p {
             return Err(format!(
                 "member {}: level parameters or parameter count differ",
                 name_str(&t.cv.name)
@@ -240,7 +240,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
                         name_str(&t.cv.name)
                     )
                 })?;
-            if c.n_p != n_p || !crate::frontend::export::names_beq(&c.cv.level_params, &lps) {
+            if c.n_p != n_p || !con_ron_core::frontend::export::names_beq(&c.cv.level_params, &lps) {
                 return Err(format!(
                     "constructor {}: parameter count or level parameters differ",
                     name_str(cn)
@@ -278,7 +278,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
         let r0 = rec_of(0)?;
         match r0.cv.level_params.split_first() {
             Some((e, rest)) => {
-                if crate::frontend::export::names_beq(&kit::dup_names(rest), &lps)
+                if con_ron_core::frontend::export::names_beq(&kit::dup_names(rest), &lps)
                     && !lps.iter().any(|x| name::beq(x, e))
                 {
                     Some(name::dup(e))
@@ -311,7 +311,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
                 name_str(&r.cv.name)
             ));
         }
-        if !crate::frontend::export::names_beq(&r.cv.level_params, &rlps) {
+        if !con_ron_core::frontend::export::names_beq(&r.cv.level_params, &rlps) {
             return Err(format!(
                 "recursor {}: eliminator shape differs",
                 name_str(&r.cv.name)

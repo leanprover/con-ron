@@ -51,6 +51,7 @@ pub mod export_c;
 pub mod in_model_rec;
 pub mod nat_decimal;
 pub mod nat_op_ground;
+pub mod prelude;
 pub mod prelude_text;
 pub mod prepare;
 pub mod proj_rec;

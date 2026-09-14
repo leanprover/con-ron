@@ -49185,6 +49185,20632 @@ def cached.state_c.is_non_zero_l_m
     ok (r, { s with lnz_c := hm })
   | some r => ok (r, s)
 
+/-- [con_ron_core::frontend::export::record_verdict_to_error]:
+    Source: 'crates/con-ron-core/src/frontend/export.rs', lines 65:0-70:1
+    Visibility: public -/
+def frontend.export.record_verdict_to_error
+  (v : frontend.export.RecordVerdict) :
+  Result kernel.core_types.CheckError
+  := do
+  match v with
+  | frontend.export.RecordVerdict.Declined what =>
+    kernel.core_types.not_implemented what
+  | frontend.export.RecordVerdict.Invalid what =>
+    kernel.core_types.invalid what
+
+/-- [con_ron_core::frontend::export::names_beq]:
+    Source: 'crates/con-ron-core/src/frontend/export.rs', lines 75:0-77:1
+    Visibility: public -/
+def frontend.export.names_beq
+  (a : alloc.vec.Vec kernel.name.Name) (b : alloc.vec.Vec kernel.name.Name) :
+  Result Bool
+  := do
+  kernel.prop_when.names_beq a b
+
+/-- [con_ron_core::frontend::export_c::merr]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 171:0-173:1
+    Visibility: public -/
+def frontend.export_c.merr
+  (T : Type) (msg : alloc.vec.Vec Std.U32) :
+  Result (core.result.Result T frontend.export_c.LineErr)
+  := do
+  ok (core.result.Result.Err (frontend.export_c.LineErr.Msg msg))
+
+/-- [con_ron_core::frontend::export_c::declined]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 177:0-179:1
+    Visibility: public -/
+def frontend.export_c.declined
+  (T : Type) (what : alloc.vec.Vec Std.U32) :
+  Result (core.result.Result T frontend.export_c.LineErr)
+  := do
+  ok (core.result.Result.Err (frontend.export_c.LineErr.Verdict
+    (frontend.export.RecordVerdict.Declined what)))
+
+/-- [con_ron_core::frontend::export_c::invalid]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 183:0-185:1
+    Visibility: public -/
+def frontend.export_c.invalid
+  (T : Type) (what : alloc.vec.Vec Std.U32) :
+  Result (core.result.Result T frontend.export_c.LineErr)
+  := do
+  ok (core.result.Result.Err (frontend.export_c.LineErr.Verdict
+    (frontend.export.RecordVerdict.Invalid what)))
+
+/-- [con_ron_core::frontend::export_c::line_err_to_check]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 190:0-195:1
+    Visibility: public -/
+def frontend.export_c.line_err_to_check
+  (e : frontend.export_c.LineErr) (line_no : Std.U64) :
+  Result (kernel.core_types.CheckError × Std.U64)
+  := do
+  match e with
+  | frontend.export_c.LineErr.Msg m =>
+    let ce ← kernel.core_types.internal m
+    ok (ce, line_no)
+  | frontend.export_c.LineErr.Verdict v =>
+    let ce ← frontend.export.record_verdict_to_error v
+    ok (ce, line_no)
+
+/-- [con_ron_core::frontend::export_c::bool_str::F]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 204:8-204:53 -/
+@[global_simps, irreducible]
+def frontend.export_c.bool_str.F : Array Std.U32 5#usize :=
+  Array.make 5#usize [ 102#u32, 97#u32, 108#u32, 115#u32, 101#u32 ]
+
+/-- [con_ron_core::frontend::export_c::bool_str::T]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 201:8-201:49 -/
+@[global_simps, irreducible]
+def frontend.export_c.bool_str.T : Array Std.U32 4#usize :=
+  Array.make 4#usize [ 116#u32, 114#u32, 117#u32, 101#u32 ]
+
+/-- [con_ron_core::frontend::export_c::bool_str]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 199:0-207:1
+    Visibility: public -/
+def frontend.export_c.bool_str
+  (b : Bool) : Result (alloc.vec.Vec Std.U32) := do
+  if b
+  then
+    let s ← lift (Array.to_slice frontend.export_c.bool_str.T)
+    kernel.core_types.code_points s
+  else
+    let s ← lift (Array.to_slice frontend.export_c.bool_str.F)
+    kernel.core_types.code_points s
+
+/-- [con_ron_core::frontend::scan_types::id_table_singleton]:
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 667:0-674:1
+    Visibility: public -/
+def frontend.scan_types.id_table_singleton
+  {T : Type} (x : T) : Result (frontend.scan_types.IdTable T) := do
+  let dense ← alloc.vec.Vec.push (alloc.vec.Vec.new T) x
+  let hm ← ron.hashmap.HashMap.new Std.U64 T
+  ok { dense, sparse := hm }
+
+/-- [con_ron_core::frontend::scan_types::id_table_empty]:
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 632:0-637:1
+    Visibility: public -/
+def frontend.scan_types.id_table_empty
+  (T : Type) : Result (frontend.scan_types.IdTable T) := do
+  let hm ← ron.hashmap.HashMap.new Std.U64 T
+  ok { dense := (alloc.vec.Vec.new T), sparse := hm }
+
+/-- [con_ron_core::frontend::export_c::state_d_init]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 258:0-278:1
+    Visibility: public -/
+def frontend.export_c.state_d_init
+  (in_model : Bool) (census : Bool) : Result frontend.export_c.StateD := do
+  let n ← kernel.name.anonymous
+  let it ← frontend.scan_types.id_table_singleton n
+  let l ← kernel.level.zero
+  let it1 ← frontend.scan_types.id_table_singleton l
+  let it2 ← frontend.scan_types.id_table_empty kernel.expr.Expr
+  let hm ←
+    ron.hashmap.HashMap.new kernel.name.Name frontend.proj_rec.ProjRecOwner
+  let hm1 ← ron.hashmap.HashMap.new kernel.name.Name kernel.level.Level
+  let hm2 ←
+    ron.hashmap.HashMap.new kernel.name.Name ((alloc.vec.Vec kernel.name.Name)
+      × kernel.expr.Expr)
+  let hm3 ← ron.hashmap.HashMap.new kernel.name.Name Std.U64
+  let hm4 ← ron.hashmap.HashMap.new kernel.name.Name kernel.name.Name
+  let hm5 ←
+    ron.hashmap.HashMap.new kernel.name.Name (alloc.sync.Arc
+      frontend.in_model_rec.BlockRec)
+  ok
+    {
+      names := it,
+      levels := it1,
+      exprs := it2,
+      decls := (alloc.vec.Vec.new kernel.env.Declaration),
+      proj_owners := hm,
+      proj_levels := hm1,
+      proj_rewrites := (alloc.vec.Vec.new kernel.name.Name),
+      const_types := hm2,
+      heights := hm3,
+      in_model,
+      in_modelled := (alloc.vec.Vec.new kernel.name.Name),
+      gen_records := 0#u64,
+      gen_owner := hm4,
+      ind_count := 0#u64,
+      ind_blocks := hm5,
+      in_model_census := census,
+      in_model_declined :=
+        (alloc.vec.Vec.new (kernel.name.Name × (alloc.vec.Vec Std.U32)))
+    }
+
+/-- [con_ron_core::frontend::export_c::state_const_type]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 286:0-288:1
+    Visibility: public -/
+def frontend.export_c.state_const_type
+  (st : frontend.export_c.StateD) (n : kernel.name.Name) :
+  Result (Option ((alloc.vec.Vec kernel.name.Name) × kernel.expr.Expr))
+  := do
+  ron.hashmap.HashMap.get kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
+    kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 st.const_types n
+
+/-- [con_ron_core::frontend::export_c::state_height]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 292:0-297:1
+    Visibility: public -/
+def frontend.export_c.state_height
+  (st : frontend.export_c.StateD) (n : kernel.name.Name) : Result Std.U64 := do
+  let o ←
+    ron.hashmap.HashMap.get
+      kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
+      kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 st.heights n
+  match o with
+  | none => ok 0#u64
+  | some h => ok h
+
+/-- [con_ron_core::frontend::export_c::state_ind_block]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 301:0-306:1
+    Visibility: public -/
+def frontend.export_c.state_ind_block
+  (st : frontend.export_c.StateD) (n : kernel.name.Name) :
+  Result (Option frontend.in_model_rec.BlockRec)
+  := do
+  let o ←
+    ron.hashmap.HashMap.get
+      kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
+      kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 st.ind_blocks n
+  match o with
+  | none => ok none
+  | some p =>
+    let br ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global p
+    ok (some br)
+
+/-- [con_ron_core::frontend::export_c::state_model_ctx]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 311:0-317:1
+    Visibility: public -/
+def frontend.export_c.state_model_ctx
+  (st : frontend.export_c.StateD) : Result frontend.in_model_rec.ModelCtx := do
+  ok { tbl := st.const_types, heights := st.heights, blocks := st.ind_blocks }
+
+/-- [con_ron_core::frontend::in_model_rec::hint_height]:
+    Source: 'crates/con-ron-core/src/frontend/in_model_rec.rs', lines 186:0-192:1
+    Visibility: public -/
+def frontend.in_model_rec.hint_height
+  (h : kernel.env.ReducibilityHint) : Result Std.U64 := do
+  match h with
+  | kernel.env.ReducibilityHint.Opaque => ok 0#u64
+  | kernel.env.ReducibilityHint.Abbrev => ok 0#u64
+  | kernel.env.ReducibilityHint.Regular n => ok n
+
+/-- [con_ron_core::frontend::export_c::note_block]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 362:4-371:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.note_block_loop
+  (bl : alloc.vec.Vec kernel.env.ConstantInfo)
+  (out : alloc.vec.Vec (kernel.name.Name × (alloc.vec.Vec kernel.name.Name) ×
+  kernel.expr.Expr × (Option Std.U64))) (n : Std.Usize) (k : Std.Usize) :
+  Result (alloc.vec.Vec (kernel.name.Name × (alloc.vec.Vec kernel.name.Name)
+    × kernel.expr.Expr × (Option Std.U64)))
+  := do
+  if k < n
+  then
+    let ci ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.env.ConstantInfo) bl k
+    let cv ← kernel.env.to_constant_val ci
+    let n1 ← kernel.name.dup cv.name
+    let v ← kernel.prop_when.names_copy cv.level_params
+    let e ← kernel.expr.dup cv.ty
+    let out1 ← alloc.vec.Vec.push out (n1, v, e, none)
+    let k1 ← k + 1#usize
+    frontend.export_c.note_block_loop bl out1 n k1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::note_block]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 354:0-373:1
+    Visibility: public -/
+def frontend.export_c.note_block
+  (bl : alloc.vec.Vec kernel.env.ConstantInfo) (i : Std.Usize)
+  (out : alloc.vec.Vec (kernel.name.Name × (alloc.vec.Vec kernel.name.Name) ×
+  kernel.expr.Expr × (Option Std.U64))) :
+  Result (alloc.vec.Vec (kernel.name.Name × (alloc.vec.Vec kernel.name.Name)
+    × kernel.expr.Expr × (Option Std.U64)))
+  := do
+  let n := alloc.vec.Vec.len bl
+  frontend.export_c.note_block_loop bl out n i
+
+/-- [con_ron_core::frontend::export_c::note_one]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 340:0-349:1
+    Visibility: public -/
+def frontend.export_c.note_one
+  (cv : kernel.env.ConstantVal) (h : Option Std.U64) :
+  Result (alloc.vec.Vec (kernel.name.Name × (alloc.vec.Vec kernel.name.Name)
+    × kernel.expr.Expr × (Option Std.U64)))
+  := do
+  let n ← kernel.name.dup cv.name
+  let v ← kernel.prop_when.names_copy cv.level_params
+  let e ← kernel.expr.dup cv.ty
+  alloc.vec.Vec.push (alloc.vec.Vec.new (kernel.name.Name × (alloc.vec.Vec
+    kernel.name.Name) × kernel.expr.Expr × (Option Std.U64))) (n, v, e, h)
+
+/-- [con_ron_core::frontend::export_c::note_decl_entries]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 324:0-334:1
+    Visibility: public -/
+def frontend.export_c.note_decl_entries
+  (d : kernel.env.Declaration) :
+  Result (alloc.vec.Vec (kernel.name.Name × (alloc.vec.Vec kernel.name.Name)
+    × kernel.expr.Expr × (Option Std.U64)))
+  := do
+  match d with
+  | kernel.env.Declaration.AxiomDecl cv => frontend.export_c.note_one cv none
+  | kernel.env.Declaration.DefnDecl cv _ h =>
+    let i ← frontend.in_model_rec.hint_height h
+    frontend.export_c.note_one cv (some i)
+  | kernel.env.Declaration.ThmDecl cv _ => frontend.export_c.note_one cv none
+  | kernel.env.Declaration.OpaqueDecl cv _ =>
+    frontend.export_c.note_one cv none
+  | kernel.env.Declaration.BasisDecl k =>
+    let v ← kernel.basis_raw.basis_kind_decls k
+    frontend.export_c.note_block v 0#usize (alloc.vec.Vec.new (kernel.name.Name
+      × (alloc.vec.Vec kernel.name.Name) × kernel.expr.Expr × (Option
+      Std.U64)))
+  | kernel.env.Declaration.IndDecl bl _ =>
+    frontend.export_c.note_block bl 0#usize (alloc.vec.Vec.new
+      (kernel.name.Name × (alloc.vec.Vec kernel.name.Name) × kernel.expr.Expr
+      × (Option Std.U64)))
+  | kernel.env.Declaration.QuotDecl _ cv => frontend.export_c.note_one cv none
+
+/-- [con_ron_core::frontend::export_c::note_entries]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 387:4-400:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.note_entries_loop
+  (st : frontend.export_c.StateD)
+  (es : alloc.vec.Vec (kernel.name.Name × (alloc.vec.Vec kernel.name.Name) ×
+  kernel.expr.Expr × (Option Std.U64))) (n : Std.Usize) (i : Std.Usize) :
+  Result frontend.export_c.StateD
+  := do
+  if i < n
+  then
+    let (n1, v, e, o) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (kernel.name.Name × (alloc.vec.Vec kernel.name.Name) ×
+        kernel.expr.Expr × (Option Std.U64))) es i
+    let st1 ←
+      match o with
+      | none => ok st
+      | some hv =>
+        do
+        let n2 ← kernel.name.dup n1
+        let (_, hm) ←
+          ron.hashmap.HashMap.insert
+            kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
+            kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 st.heights n2 hv
+        ok { st with heights := hm }
+    let n2 ← kernel.name.dup n1
+    let v1 ← kernel.prop_when.names_copy v
+    let e1 ← kernel.expr.dup e
+    let (_, hm) ←
+      ron.hashmap.HashMap.insert
+        kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
+        kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 st1.const_types n2
+        (v1, e1)
+    let i1 ← i + 1#usize
+    frontend.export_c.note_entries_loop { st1 with const_types := hm } es n i1
+  else ok st
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::note_entries]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 384:0-401:1
+    Visibility: public -/
+def frontend.export_c.note_entries
+  (st : frontend.export_c.StateD)
+  (es : alloc.vec.Vec (kernel.name.Name × (alloc.vec.Vec kernel.name.Name) ×
+  kernel.expr.Expr × (Option Std.U64))) :
+  Result frontend.export_c.StateD
+  := do
+  let n := alloc.vec.Vec.len es
+  frontend.export_c.note_entries_loop st es n 0#usize
+
+/-- [con_ron_core::frontend::export_c::note_decl]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 406:0-409:1
+    Visibility: public -/
+def frontend.export_c.note_decl
+  (st : frontend.export_c.StateD) (d : kernel.env.Declaration) :
+  Result frontend.export_c.StateD
+  := do
+  let es ← frontend.export_c.note_decl_entries d
+  frontend.export_c.note_entries st es
+
+/-- [con_ron_core::frontend::export_c::push_decl]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 418:0-421:1
+    Visibility: public -/
+def frontend.export_c.push_decl
+  (st : frontend.export_c.StateD) (d : kernel.env.Declaration) :
+  Result frontend.export_c.StateD
+  := do
+  let st1 ← frontend.export_c.note_decl st d
+  let v ← alloc.vec.Vec.push st1.decls d
+  ok { st1 with decls := v }
+
+/-- [con_ron_core::frontend::text::u64_str]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 47:4-50:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.text.u64_str_loop0
+  (rev : alloc.vec.Vec Std.U32) (k : Std.U64) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  if k > 0#u64
+  then
+    let i ← k % 10#u64
+    let i1 ← lift (UScalar.cast .U32 i)
+    let i2 ← 48#u32 + i1
+    let rev1 ← alloc.vec.Vec.push rev i2
+    let k1 ← k / 10#u64
+    frontend.text.u64_str_loop0 rev1 k1
+  else ok rev
+partial_fixpoint
+
+/-- [con_ron_core::frontend::text::u64_str]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 53:4-56:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.text.u64_str_loop1
+  (rev : alloc.vec.Vec Std.U32) (out : alloc.vec.Vec Std.U32) (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  if i > 0#usize
+  then
+    let i1 ← i - 1#usize
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) rev
+        i1
+    let out1 ← alloc.vec.Vec.push out i2
+    frontend.text.u64_str_loop1 rev out1 i1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::text::u64_str]:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 39:0-58:1
+    Visibility: public -/
+def frontend.text.u64_str (n : Std.U64) : Result (alloc.vec.Vec Std.U32) := do
+  if n = 0#u64
+  then alloc.vec.Vec.push (alloc.vec.Vec.new Std.U32) 48#u32
+  else
+    let rev ← frontend.text.u64_str_loop0 (alloc.vec.Vec.new Std.U32) n
+    let i := alloc.vec.Vec.len rev
+    let out := alloc.vec.Vec.with_capacity Std.U32 i
+    let i1 := alloc.vec.Vec.len rev
+    frontend.text.u64_str_loop1 rev out i1
+
+/-- [con_ron_core::frontend::text::cat]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 24:4-27:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.text.cat_loop
+  (b : alloc.vec.Vec Std.U32) (out : alloc.vec.Vec Std.U32) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  if i < n
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) b i
+    let out1 ← alloc.vec.Vec.push out i1
+    let i2 ← i + 1#usize
+    frontend.text.cat_loop b out1 n i2
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::text::cat]:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 20:0-29:1
+    Visibility: public -/
+def frontend.text.cat
+  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  let n := alloc.vec.Vec.len b
+  frontend.text.cat_loop b a n 0#usize
+
+/-- [con_ron_core::frontend::scan_types::id_table_get]:
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 641:0-648:1
+    Visibility: public -/
+def frontend.scan_types.id_table_get
+  {T : Type} (t : frontend.scan_types.IdTable T) (i : Std.U64) :
+  Result (Option T)
+  := do
+  let k ← lift (UScalar.cast .Usize i)
+  let i1 ← lift (UScalar.cast .U64 k)
+  if i1 = i
+  then
+    let i2 := alloc.vec.Vec.len t.dense
+    if k < i2
+    then
+      let t1 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice T) t.dense k
+      ok (some t1)
+    else
+      ron.hashmap.HashMap.get U64.Insts.Con_ron_coreRonHashmapHashable
+        U64.Insts.Con_ron_coreRonHashmapEq2 t.sparse i
+  else
+    ron.hashmap.HashMap.get U64.Insts.Con_ron_coreRonHashmapHashable
+      U64.Insts.Con_ron_coreRonHashmapEq2 t.sparse i
+
+/-- [con_ron_core::frontend::export_c::st_name::M]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 428:12-431:14 -/
+@[global_simps, irreducible]
+def frontend.export_c.st_name.M : Array Std.U32 21#usize :=
+  Array.make 21#usize [
+    117#u32, 110#u32, 100#u32, 101#u32, 102#u32, 105#u32, 110#u32, 101#u32,
+    100#u32, 32#u32, 110#u32, 97#u32, 109#u32, 101#u32, 32#u32, 105#u32,
+    110#u32, 100#u32, 101#u32, 120#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::st_name]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 424:0-435:1
+    Visibility: public -/
+def frontend.export_c.st_name
+  (st : frontend.export_c.StateD) (i : Std.U64) :
+  Result (core.result.Result kernel.name.Name frontend.export_c.LineErr)
+  := do
+  let o ← frontend.scan_types.id_table_get st.names i
+  match o with
+  | none =>
+    let s ← lift (Array.to_slice frontend.export_c.st_name.M)
+    let v ← kernel.core_types.code_points s
+    let v1 ← frontend.text.u64_str i
+    let v2 ← frontend.text.cat v v1
+    frontend.export_c.merr kernel.name.Name v2
+  | some n => let n1 ← kernel.name.dup n
+              ok (core.result.Result.Ok n1)
+
+/-- [con_ron_core::frontend::export_c::st_level::M]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 442:12-445:14 -/
+@[global_simps, irreducible]
+def frontend.export_c.st_level.M : Array Std.U32 22#usize :=
+  Array.make 22#usize [
+    117#u32, 110#u32, 100#u32, 101#u32, 102#u32, 105#u32, 110#u32, 101#u32,
+    100#u32, 32#u32, 108#u32, 101#u32, 118#u32, 101#u32, 108#u32, 32#u32,
+    105#u32, 110#u32, 100#u32, 101#u32, 120#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::st_level]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 438:0-449:1
+    Visibility: public -/
+def frontend.export_c.st_level
+  (st : frontend.export_c.StateD) (i : Std.U64) :
+  Result (core.result.Result kernel.level.Level frontend.export_c.LineErr)
+  := do
+  let o ← frontend.scan_types.id_table_get st.levels i
+  match o with
+  | none =>
+    let s ← lift (Array.to_slice frontend.export_c.st_level.M)
+    let v ← kernel.core_types.code_points s
+    let v1 ← frontend.text.u64_str i
+    let v2 ← frontend.text.cat v v1
+    frontend.export_c.merr kernel.level.Level v2
+  | some l => let l1 ← kernel.level.dup l
+              ok (core.result.Result.Ok l1)
+
+/-- [con_ron_core::frontend::export_c::st_expr::M]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 456:12-459:14 -/
+@[global_simps, irreducible]
+def frontend.export_c.st_expr.M : Array Std.U32 21#usize :=
+  Array.make 21#usize [
+    117#u32, 110#u32, 100#u32, 101#u32, 102#u32, 105#u32, 110#u32, 101#u32,
+    100#u32, 32#u32, 101#u32, 120#u32, 112#u32, 114#u32, 32#u32, 105#u32,
+    110#u32, 100#u32, 101#u32, 120#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::st_expr]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 452:0-463:1
+    Visibility: public -/
+def frontend.export_c.st_expr
+  (st : frontend.export_c.StateD) (i : Std.U64) :
+  Result (core.result.Result kernel.expr.Expr frontend.export_c.LineErr)
+  := do
+  let o ← frontend.scan_types.id_table_get st.exprs i
+  match o with
+  | none =>
+    let s ← lift (Array.to_slice frontend.export_c.st_expr.M)
+    let v ← kernel.core_types.code_points s
+    let v1 ← frontend.text.u64_str i
+    let v2 ← frontend.text.cat v v1
+    frontend.export_c.merr kernel.expr.Expr v2
+  | some e => let e1 ← kernel.expr.dup e
+              ok (core.result.Result.Ok e1)
+
+/-- [con_ron_core::frontend::export_c::st_names]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 472:4-480:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.st_names_loop
+  (st : frontend.export_c.StateD) (is : alloc.vec.Vec Std.U64)
+  (out : alloc.vec.Vec kernel.name.Name) (n : Std.Usize) (i : Std.Usize) :
+  Result (core.result.Result (alloc.vec.Vec kernel.name.Name)
+    frontend.export_c.LineErr)
+  := do
+  if i < n
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) is i
+    let r ← frontend.export_c.st_name st i1
+    match r with
+    | core.result.Result.Ok v =>
+      let out1 ← alloc.vec.Vec.push out v
+      let i2 ← i + 1#usize
+      frontend.export_c.st_names_loop st is out1 n i2
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  else ok (core.result.Result.Ok out)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::st_names]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 468:0-480:1
+    Visibility: public -/
+def frontend.export_c.st_names
+  (st : frontend.export_c.StateD) (is : alloc.vec.Vec Std.U64) :
+  Result (core.result.Result (alloc.vec.Vec kernel.name.Name)
+    frontend.export_c.LineErr)
+  := do
+  let i := alloc.vec.Vec.len is
+  let out := alloc.vec.Vec.with_capacity kernel.name.Name i
+  let n := alloc.vec.Vec.len is
+  frontend.export_c.st_names_loop st is out n 0#usize
+
+/-- [con_ron_core::frontend::export_c::st_levels]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 487:4-495:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.st_levels_loop
+  (st : frontend.export_c.StateD) (is : alloc.vec.Vec Std.U64)
+  (out : alloc.vec.Vec kernel.level.Level) (n : Std.Usize) (i : Std.Usize) :
+  Result (core.result.Result (alloc.vec.Vec kernel.level.Level)
+    frontend.export_c.LineErr)
+  := do
+  if i < n
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) is i
+    let r ← frontend.export_c.st_level st i1
+    match r with
+    | core.result.Result.Ok v =>
+      let out1 ← alloc.vec.Vec.push out v
+      let i2 ← i + 1#usize
+      frontend.export_c.st_levels_loop st is out1 n i2
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  else ok (core.result.Result.Ok out)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::st_levels]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 483:0-495:1
+    Visibility: public -/
+def frontend.export_c.st_levels
+  (st : frontend.export_c.StateD) (is : alloc.vec.Vec Std.U64) :
+  Result (core.result.Result (alloc.vec.Vec kernel.level.Level)
+    frontend.export_c.LineErr)
+  := do
+  let i := alloc.vec.Vec.len is
+  let out := alloc.vec.Vec.with_capacity kernel.level.Level i
+  let n := alloc.vec.Vec.len is
+  frontend.export_c.st_levels_loop st is out n 0#usize
+
+/-- [con_ron_core::frontend::export_c::get_decl_d]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 502:0-504:1
+    Visibility: public -/
+def frontend.export_c.get_decl_d
+  (st : frontend.export_c.StateD) (i : Std.U64) :
+  Result (core.result.Result kernel.expr.Expr frontend.export_c.LineErr)
+  := do
+  frontend.export_c.st_expr st i
+
+/-- [con_ron_core::frontend::export_c::parse_pw_d]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 508:0-516:1
+    Visibility: public -/
+def frontend.export_c.parse_pw_d
+  (st : frontend.export_c.StateD) (r : frontend.scan_types.PwRec) :
+  Result (core.result.Result kernel.prop_when.PropWhen
+    frontend.export_c.LineErr)
+  := do
+  match r with
+  | frontend.scan_types.PwRec.Never =>
+    let pw ← kernel.prop_when.never
+    ok (core.result.Result.Ok pw)
+  | frontend.scan_types.PwRec.IfAllZero ns =>
+    let r1 ← frontend.export_c.st_names st ns
+    match r1 with
+    | core.result.Result.Ok out =>
+      let pw ← kernel.prop_when.if_all_zero out
+      ok (core.result.Result.Ok pw)
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+
+/-- [con_ron_core::frontend::text::cat3]:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 32:0-34:1
+    Visibility: public -/
+def frontend.text.cat3
+  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32)
+  (c : alloc.vec.Vec Std.U32) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  let v ← frontend.text.cat a b
+  frontend.text.cat v c
+
+/-- [con_ron_core::frontend::export_c::rebound_error::B]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 523:4-525:6 -/
+@[global_simps, irreducible]
+def frontend.export_c.rebound_error.B : Array Std.U32 17#usize :=
+  Array.make 17#usize [
+    32#u32, 105#u32, 115#u32, 32#u32, 97#u32, 108#u32, 114#u32, 101#u32,
+    97#u32, 100#u32, 121#u32, 32#u32, 98#u32, 111#u32, 117#u32, 110#u32,
+    100#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::rebound_error::A]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 522:4-522:58 -/
+@[global_simps, irreducible]
+def frontend.export_c.rebound_error.A : Array Std.U32 7#usize :=
+  Array.make 7#usize [
+    32#u32, 105#u32, 110#u32, 100#u32, 101#u32, 120#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::rebound_error]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 521:0-532:1
+    Visibility: public -/
+def frontend.export_c.rebound_error
+  (what : Slice Std.U32) (i : Std.U64) : Result (alloc.vec.Vec Std.U32) := do
+  let v ← kernel.core_types.code_points what
+  let s ← lift (Array.to_slice frontend.export_c.rebound_error.A)
+  let v1 ← kernel.core_types.code_points s
+  let v2 ← frontend.text.u64_str i
+  let s1 ← frontend.text.cat3 v v1 v2
+  let s2 ← lift (Array.to_slice frontend.export_c.rebound_error.B)
+  let v3 ← kernel.core_types.code_points s2
+  frontend.text.cat s1 v3
+
+/-- [con_ron_core::frontend::export_c::st_fresh_name::W]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 550:12-550:52 -/
+@[global_simps, irreducible]
+def frontend.export_c.st_fresh_name.W : Array Std.U32 4#usize :=
+  Array.make 4#usize [ 110#u32, 97#u32, 109#u32, 101#u32 ]
+
+/-- [con_ron_core::frontend::export_c::st_fresh_name]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 547:0-555:1
+    Visibility: public -/
+def frontend.export_c.st_fresh_name
+  (st : frontend.export_c.StateD) (i : Std.U64) :
+  Result (core.result.Result Unit frontend.export_c.LineErr)
+  := do
+  let o ← frontend.scan_types.id_table_get st.names i
+  match o with
+  | none => ok (core.result.Result.Ok ())
+  | some _ =>
+    let s ← lift (Array.to_slice frontend.export_c.st_fresh_name.W)
+    let v ← frontend.export_c.rebound_error s i
+    frontend.export_c.merr Unit v
+
+/-- [con_ron_core::frontend::export_c::st_fresh_level::W]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 563:12-563:58 -/
+@[global_simps, irreducible]
+def frontend.export_c.st_fresh_level.W : Array Std.U32 5#usize :=
+  Array.make 5#usize [ 108#u32, 101#u32, 118#u32, 101#u32, 108#u32 ]
+
+/-- [con_ron_core::frontend::export_c::st_fresh_level]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 560:0-568:1
+    Visibility: public -/
+def frontend.export_c.st_fresh_level
+  (st : frontend.export_c.StateD) (i : Std.U64) :
+  Result (core.result.Result Unit frontend.export_c.LineErr)
+  := do
+  let o ← frontend.scan_types.id_table_get st.levels i
+  match o with
+  | none => ok (core.result.Result.Ok ())
+  | some _ =>
+    let s ← lift (Array.to_slice frontend.export_c.st_fresh_level.W)
+    let v ← frontend.export_c.rebound_error s i
+    frontend.export_c.merr Unit v
+
+/-- [con_ron_core::frontend::export_c::st_fresh_expr::W]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 576:12-576:84 -/
+@[global_simps, irreducible]
+def frontend.export_c.st_fresh_expr.W : Array Std.U32 10#usize :=
+  Array.make 10#usize [
+    101#u32, 120#u32, 112#u32, 114#u32, 101#u32, 115#u32, 115#u32, 105#u32,
+    111#u32, 110#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::st_fresh_expr]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 573:0-581:1
+    Visibility: public -/
+def frontend.export_c.st_fresh_expr
+  (st : frontend.export_c.StateD) (i : Std.U64) :
+  Result (core.result.Result Unit frontend.export_c.LineErr)
+  := do
+  let o ← frontend.scan_types.id_table_get st.exprs i
+  match o with
+  | none => ok (core.result.Result.Ok ())
+  | some _ =>
+    let s ← lift (Array.to_slice frontend.export_c.st_fresh_expr.W)
+    let v ← frontend.export_c.rebound_error s i
+    frontend.export_c.merr Unit v
+
+/-- [con_ron_core::frontend::scan_types::id_table_insert]:
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 653:0-662:1
+    Visibility: public -/
+def frontend.scan_types.id_table_insert
+  {T : Type} (t : frontend.scan_types.IdTable T) (i : Std.U64) (x : T) :
+  Result (frontend.scan_types.IdTable T)
+  := do
+  let i1 := alloc.vec.Vec.len t.dense
+  let n ← lift (UScalar.cast .U64 i1)
+  if i = n
+  then let v ← alloc.vec.Vec.push t.dense x
+       ok { t with dense := v }
+  else
+    if i < n
+    then
+      let i2 ← lift (UScalar.cast .Usize i)
+      let (_, index_mut_back) ←
+        alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice T)
+          t.dense i2
+      let v := index_mut_back x
+      ok { t with dense := v }
+    else
+      let (_, hm) ←
+        ron.hashmap.HashMap.insert U64.Insts.Con_ron_coreRonHashmapHashable
+          U64.Insts.Con_ron_coreRonHashmapEq2 t.sparse i x
+      ok { t with sparse := hm }
+
+/-- [con_ron_core::frontend::export_c::parse_name_entry_d]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 586:0-605:1
+    Visibility: public -/
+def frontend.export_c.parse_name_entry_d
+  (st : frontend.export_c.StateD) (i : Std.U64)
+  (r : frontend.scan_types.NameRec) :
+  Result ((core.result.Result Unit frontend.export_c.LineErr) ×
+    frontend.export_c.StateD)
+  := do
+  match r with
+  | frontend.scan_types.NameRec.Str pre s =>
+    let r1 ← frontend.export_c.st_name st pre
+    match r1 with
+    | core.result.Result.Ok p =>
+      let r2 ← frontend.export_c.st_fresh_name st i
+      match r2 with
+      | core.result.Result.Ok _ =>
+        let s1 := alloc.vec.Vec.deref s
+        let v ← kernel.core_types.code_points s1
+        let v1 ← kernel.name.mk_str p v
+        let it ← frontend.scan_types.id_table_insert st.names i v1
+        ok (core.result.Result.Ok (), { st with names := it })
+      | core.result.Result.Err _ => ok (r2, st)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, st)
+  | frontend.scan_types.NameRec.Num pre k =>
+    let r1 ← frontend.export_c.st_name st pre
+    match r1 with
+    | core.result.Result.Ok p =>
+      let r2 ← frontend.export_c.st_fresh_name st i
+      match r2 with
+      | core.result.Result.Ok _ =>
+        let v ← kernel.name.mk_num p k
+        let it ← frontend.scan_types.id_table_insert st.names i v
+        ok (core.result.Result.Ok (), { st with names := it })
+      | core.result.Result.Err _ => ok (r2, st)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, st)
+
+/-- [con_ron_core::frontend::export_c::parse_level_rec_d]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 626:0-651:1
+    Visibility: public -/
+def frontend.export_c.parse_level_rec_d
+  (st : frontend.export_c.StateD) (r : frontend.scan_types.LevelRec) :
+  Result (core.result.Result kernel.level.Level frontend.export_c.LineErr)
+  := do
+  match r with
+  | frontend.scan_types.LevelRec.Succ u =>
+    let r1 ← frontend.export_c.st_level st u
+    match r1 with
+    | core.result.Result.Ok a =>
+      let l ← kernel.level.succ a
+      ok (core.result.Result.Ok l)
+    | core.result.Result.Err _ => ok r1
+  | frontend.scan_types.LevelRec.Max a b =>
+    let r1 ← frontend.export_c.st_level st a
+    match r1 with
+    | core.result.Result.Ok x =>
+      let r2 ← frontend.export_c.st_level st b
+      match r2 with
+      | core.result.Result.Ok y =>
+        let l ← kernel.level.max x y
+        ok (core.result.Result.Ok l)
+      | core.result.Result.Err _ => ok r2
+    | core.result.Result.Err _ => ok r1
+  | frontend.scan_types.LevelRec.Imax a b =>
+    let r1 ← frontend.export_c.st_level st a
+    match r1 with
+    | core.result.Result.Ok x =>
+      let r2 ← frontend.export_c.st_level st b
+      match r2 with
+      | core.result.Result.Ok y =>
+        let l ← kernel.level.imax x y
+        ok (core.result.Result.Ok l)
+      | core.result.Result.Err _ => ok r2
+    | core.result.Result.Err _ => ok r1
+  | frontend.scan_types.LevelRec.Param n =>
+    let r1 ← frontend.export_c.st_name st n
+    match r1 with
+    | core.result.Result.Ok p =>
+      let l ← kernel.level.param p
+      ok (core.result.Result.Ok l)
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+
+/-- [con_ron_core::frontend::export_c::parse_level_entry_d]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 609:0-620:1
+    Visibility: public -/
+def frontend.export_c.parse_level_entry_d
+  (st : frontend.export_c.StateD) (i : Std.U64)
+  (r : frontend.scan_types.LevelRec) :
+  Result ((core.result.Result Unit frontend.export_c.LineErr) ×
+    frontend.export_c.StateD)
+  := do
+  let r1 ← frontend.export_c.st_fresh_level st i
+  match r1 with
+  | core.result.Result.Ok _ =>
+    let r2 ← frontend.export_c.parse_level_rec_d st r
+    match r2 with
+    | core.result.Result.Ok l =>
+      let it ← frontend.scan_types.id_table_insert st.levels i l
+      ok (core.result.Result.Ok (), { st with levels := it })
+    | core.result.Result.Err e => ok (core.result.Result.Err e, st)
+  | core.result.Result.Err _ => ok (r1, st)
+
+/-- [con_ron_core::kernel::expr::literal_str]:
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 176:0-178:1
+    Visibility: public -/
+def kernel.expr.literal_str
+  (s : alloc.vec.Vec Std.U32) : Result kernel.expr.Literal := do
+  let a ← ron.ptr.new s
+  ok (kernel.expr.Literal.StrVal a)
+
+/-- [con_ron_core::frontend::scan_types::err_tag_describe::M#20]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 300:12-305:14 -/
+@[global_simps, irreducible]
+def frontend.scan_types.err_tag_describe.M_20 : Array Std.U32 51#usize :=
+  Array.make 51#usize [
+    110#u32, 117#u32, 109#u32, 98#u32, 101#u32, 114#u32, 32#u32, 100#u32,
+    111#u32, 101#u32, 115#u32, 32#u32, 110#u32, 111#u32, 116#u32, 32#u32,
+    102#u32, 105#u32, 116#u32, 32#u32, 97#u32, 32#u32, 54#u32, 52#u32, 45#u32,
+    98#u32, 105#u32, 116#u32, 32#u32, 105#u32, 110#u32, 100#u32, 101#u32,
+    120#u32, 32#u32, 40#u32, 68#u32, 69#u32, 83#u32, 73#u32, 71#u32, 78#u32,
+    46#u32, 109#u32, 100#u32, 32#u32, 167#u32, 51#u32, 46#u32, 51#u32, 41#u32
+    ]
+
+/-- [con_ron_core::frontend::scan_types::err_tag_describe::M#19]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 292:12-296:14 -/
+@[global_simps, irreducible]
+def frontend.scan_types.err_tag_describe.M_19 : Array Std.U32 26#usize :=
+  Array.make 26#usize [
+    97#u32, 32#u32, 115#u32, 99#u32, 97#u32, 110#u32, 110#u32, 101#u32,
+    114#u32, 32#u32, 109#u32, 97#u32, 100#u32, 101#u32, 32#u32, 110#u32,
+    111#u32, 32#u32, 112#u32, 114#u32, 111#u32, 103#u32, 114#u32, 101#u32,
+    115#u32, 115#u32
+    ]
+
+/-- [con_ron_core::frontend::scan_types::err_tag_describe::M#18]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 284:12-288:14 -/
+@[global_simps, irreducible]
+def frontend.scan_types.err_tag_describe.M_18 : Array Std.U32 31#usize :=
+  Array.make 31#usize [
+    116#u32, 114#u32, 97#u32, 105#u32, 108#u32, 105#u32, 110#u32, 103#u32,
+    32#u32, 98#u32, 121#u32, 116#u32, 101#u32, 115#u32, 32#u32, 97#u32,
+    102#u32, 116#u32, 101#u32, 114#u32, 32#u32, 116#u32, 104#u32, 101#u32,
+    32#u32, 114#u32, 101#u32, 99#u32, 111#u32, 114#u32, 100#u32
+    ]
+
+/-- [con_ron_core::frontend::scan_types::err_tag_describe::M#17]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 277:12-280:14 -/
+@[global_simps, irreducible]
+def frontend.scan_types.err_tag_describe.M_17 : Array Std.U32 24#usize :=
+  Array.make 24#usize [
+    109#u32, 97#u32, 108#u32, 102#u32, 111#u32, 114#u32, 109#u32, 101#u32,
+    100#u32, 32#u32, 110#u32, 97#u32, 116#u32, 86#u32, 97#u32, 108#u32, 32#u32,
+    108#u32, 105#u32, 116#u32, 101#u32, 114#u32, 97#u32, 108#u32
+    ]
+
+/-- [con_ron_core::frontend::scan_types::err_tag_describe::M#16]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 270:12-273:14 -/
+@[global_simps, irreducible]
+def frontend.scan_types.err_tag_describe.M_16 : Array Std.U32 18#usize :=
+  Array.make 18#usize [
+    109#u32, 97#u32, 108#u32, 102#u32, 111#u32, 114#u32, 109#u32, 101#u32,
+    100#u32, 32#u32, 112#u32, 119#u32, 32#u32, 102#u32, 105#u32, 101#u32,
+    108#u32, 100#u32
+    ]
+
+/-- [con_ron_core::frontend::scan_types::err_tag_describe::M#15]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 263:12-266:14 -/
+@[global_simps, irreducible]
+def frontend.scan_types.err_tag_describe.M_15 : Array Std.U32 21#usize :=
+  Array.make 21#usize [
+    109#u32, 97#u32, 108#u32, 102#u32, 111#u32, 114#u32, 109#u32, 101#u32,
+    100#u32, 32#u32, 104#u32, 105#u32, 110#u32, 116#u32, 115#u32, 32#u32,
+    102#u32, 105#u32, 101#u32, 108#u32, 100#u32
+    ]
+
+/-- [con_ron_core::frontend::scan_types::err_tag_describe::M#14]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 256:12-259:14 -/
+@[global_simps, irreducible]
+def frontend.scan_types.err_tag_describe.M_14 : Array Std.U32 18#usize :=
+  Array.make 18#usize [
+    117#u32, 110#u32, 107#u32, 110#u32, 111#u32, 119#u32, 110#u32, 32#u32,
+    98#u32, 105#u32, 110#u32, 100#u32, 101#u32, 114#u32, 73#u32, 110#u32,
+    102#u32, 111#u32
+    ]
+
+/-- [con_ron_core::frontend::scan_types::err_tag_describe::M#13]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 249:12-252:14 -/
+@[global_simps, irreducible]
+def frontend.scan_types.err_tag_describe.M_13 : Array Std.U32 25#usize :=
+  Array.make 25#usize [
+    115#u32, 116#u32, 114#u32, 105#u32, 110#u32, 103#u32, 32#u32, 105#u32,
+    115#u32, 32#u32, 110#u32, 111#u32, 116#u32, 32#u32, 118#u32, 97#u32,
+    108#u32, 105#u32, 100#u32, 32#u32, 85#u32, 84#u32, 70#u32, 45#u32, 56#u32
+    ]
+
+/-- [con_ron_core::frontend::scan_types::err_tag_describe::M#12]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 242:12-245:14 -/
+@[global_simps, irreducible]
+def frontend.scan_types.err_tag_describe.M_12 : Array Std.U32 21#usize :=
+  Array.make 21#usize [
+    117#u32, 110#u32, 107#u32, 110#u32, 111#u32, 119#u32, 110#u32, 32#u32,
+    115#u32, 116#u32, 114#u32, 105#u32, 110#u32, 103#u32, 32#u32, 101#u32,
+    115#u32, 99#u32, 97#u32, 112#u32, 101#u32
+    ]
+
+/-- [con_ron_core::frontend::scan_types::err_tag_describe::M#11]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 235:12-238:14 -/
+@[global_simps, irreducible]
+def frontend.scan_types.err_tag_describe.M_11 : Array Std.U32 22#usize :=
+  Array.make 22#usize [
+    101#u32, 120#u32, 112#u32, 101#u32, 99#u32, 116#u32, 101#u32, 100#u32,
+    32#u32, 116#u32, 114#u32, 117#u32, 101#u32, 32#u32, 111#u32, 114#u32,
+    32#u32, 102#u32, 97#u32, 108#u32, 115#u32, 101#u32
+    ]
+
+/-- [con_ron_core::frontend::scan_types::err_tag_describe::M#10]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 228:12-231:14 -/
+@[global_simps, irreducible]
+def frontend.scan_types.err_tag_describe.M_10 : Array Std.U32 22#usize :=
+  Array.make 22#usize [
+    101#u32, 120#u32, 112#u32, 101#u32, 99#u32, 116#u32, 101#u32, 100#u32,
+    32#u32, 97#u32, 32#u32, 74#u32, 83#u32, 79#u32, 78#u32, 32#u32, 115#u32,
+    116#u32, 114#u32, 105#u32, 110#u32, 103#u32
+    ]
+
+/-- [con_ron_core::frontend::scan_types::err_tag_describe::M#9]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 220:12-224:14 -/
+@[global_simps, irreducible]
+def frontend.scan_types.err_tag_describe.M_9 : Array Std.U32 25#usize :=
+  Array.make 25#usize [
+    101#u32, 120#u32, 112#u32, 101#u32, 99#u32, 116#u32, 101#u32, 100#u32,
+    32#u32, 97#u32, 32#u32, 100#u32, 101#u32, 99#u32, 105#u32, 109#u32, 97#u32,
+    108#u32, 32#u32, 110#u32, 117#u32, 109#u32, 98#u32, 101#u32, 114#u32
+    ]
+
+/-- [con_ron_core::frontend::scan_types::err_tag_describe::M#8]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 211:12-216:14 -/
+@[global_simps, irreducible]
+def frontend.scan_types.err_tag_describe.M_8 : Array Std.U32 46#usize :=
+  Array.make 46#usize [
+    107#u32, 101#u32, 121#u32, 115#u32, 32#u32, 111#u32, 102#u32, 32#u32,
+    116#u32, 119#u32, 111#u32, 32#u32, 100#u32, 105#u32, 102#u32, 102#u32,
+    101#u32, 114#u32, 101#u32, 110#u32, 116#u32, 32#u32, 114#u32, 101#u32,
+    99#u32, 111#u32, 114#u32, 100#u32, 32#u32, 107#u32, 105#u32, 110#u32,
+    100#u32, 115#u32, 32#u32, 105#u32, 110#u32, 32#u32, 111#u32, 110#u32,
+    101#u32, 32#u32, 108#u32, 105#u32, 110#u32, 101#u32
+    ]
+
+/-- [con_ron_core::frontend::scan_types::err_tag_describe::M#7]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 205:12-207:14 -/
+@[global_simps, irreducible]
+def frontend.scan_types.err_tag_describe.M_7 : Array Std.U32 11#usize :=
+  Array.make 11#usize [
+    109#u32, 105#u32, 115#u32, 115#u32, 105#u32, 110#u32, 103#u32, 32#u32,
+    107#u32, 101#u32, 121#u32
+    ]
+
+/-- [con_ron_core::frontend::scan_types::err_tag_describe::M#6]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 198:12-201:14 -/
+@[global_simps, irreducible]
+def frontend.scan_types.err_tag_describe.M_6 : Array Std.U32 13#usize :=
+  Array.make 13#usize [
+    100#u32, 117#u32, 112#u32, 108#u32, 105#u32, 99#u32, 97#u32, 116#u32,
+    101#u32, 32#u32, 107#u32, 101#u32, 121#u32
+    ]
+
+/-- [con_ron_core::frontend::scan_types::err_tag_describe::M#5]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 192:12-194:14 -/
+@[global_simps, irreducible]
+def frontend.scan_types.err_tag_describe.M_5 : Array Std.U32 11#usize :=
+  Array.make 11#usize [
+    117#u32, 110#u32, 107#u32, 110#u32, 111#u32, 119#u32, 110#u32, 32#u32,
+    107#u32, 101#u32, 121#u32
+    ]
+
+/-- [con_ron_core::frontend::scan_types::err_tag_describe::M#4]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 185:12-188:14 -/
+@[global_simps, irreducible]
+def frontend.scan_types.err_tag_describe.M_4 : Array Std.U32 20#usize :=
+  Array.make 20#usize [
+    101#u32, 120#u32, 112#u32, 101#u32, 99#u32, 116#u32, 101#u32, 100#u32,
+    32#u32, 97#u32, 32#u32, 74#u32, 83#u32, 79#u32, 78#u32, 32#u32, 108#u32,
+    105#u32, 115#u32, 116#u32
+    ]
+
+/-- [con_ron_core::frontend::scan_types::err_tag_describe::M#3]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 178:12-181:14 -/
+@[global_simps, irreducible]
+def frontend.scan_types.err_tag_describe.M_3 : Array Std.U32 19#usize :=
+  Array.make 19#usize [
+    101#u32, 120#u32, 112#u32, 101#u32, 99#u32, 116#u32, 101#u32, 100#u32,
+    32#u32, 39#u32, 44#u32, 39#u32, 32#u32, 111#u32, 114#u32, 32#u32, 39#u32,
+    125#u32, 39#u32
+    ]
+
+/-- [con_ron_core::frontend::scan_types::err_tag_describe::M#2]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 171:12-174:14 -/
+@[global_simps, irreducible]
+def frontend.scan_types.err_tag_describe.M_2 : Array Std.U32 24#usize :=
+  Array.make 24#usize [
+    101#u32, 120#u32, 112#u32, 101#u32, 99#u32, 116#u32, 101#u32, 100#u32,
+    32#u32, 39#u32, 58#u32, 39#u32, 32#u32, 97#u32, 102#u32, 116#u32, 101#u32,
+    114#u32, 32#u32, 97#u32, 32#u32, 107#u32, 101#u32, 121#u32
+    ]
+
+/-- [con_ron_core::frontend::scan_types::err_tag_describe::M#1]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 164:12-167:14 -/
+@[global_simps, irreducible]
+def frontend.scan_types.err_tag_describe.M_1 : Array Std.U32 14#usize :=
+  Array.make 14#usize [
+    101#u32, 120#u32, 112#u32, 101#u32, 99#u32, 116#u32, 101#u32, 100#u32,
+    32#u32, 97#u32, 32#u32, 107#u32, 101#u32, 121#u32
+    ]
+
+/-- [con_ron_core::frontend::scan_types::err_tag_describe::M]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 157:12-160:14 -/
+@[global_simps, irreducible]
+def frontend.scan_types.err_tag_describe.M : Array Std.U32 22#usize :=
+  Array.make 22#usize [
+    101#u32, 120#u32, 112#u32, 101#u32, 99#u32, 116#u32, 101#u32, 100#u32,
+    32#u32, 97#u32, 32#u32, 74#u32, 83#u32, 79#u32, 78#u32, 32#u32, 111#u32,
+    98#u32, 106#u32, 101#u32, 99#u32, 116#u32
+    ]
+
+/-- [con_ron_core::frontend::scan_types::err_tag_describe]:
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 154:0-309:1
+    Visibility: public -/
+def frontend.scan_types.err_tag_describe
+  (t : frontend.scan_types.ErrTag) : Result (alloc.vec.Vec Std.U32) := do
+  match t with
+  | frontend.scan_types.ErrTag.ExpectedObject =>
+    let s ← lift (Array.to_slice frontend.scan_types.err_tag_describe.M)
+    kernel.core_types.code_points s
+  | frontend.scan_types.ErrTag.ExpectedKey =>
+    let s ← lift (Array.to_slice frontend.scan_types.err_tag_describe.M_1)
+    kernel.core_types.code_points s
+  | frontend.scan_types.ErrTag.ExpectedColon =>
+    let s ← lift (Array.to_slice frontend.scan_types.err_tag_describe.M_2)
+    kernel.core_types.code_points s
+  | frontend.scan_types.ErrTag.ExpectedComma =>
+    let s ← lift (Array.to_slice frontend.scan_types.err_tag_describe.M_3)
+    kernel.core_types.code_points s
+  | frontend.scan_types.ErrTag.ExpectedList =>
+    let s ← lift (Array.to_slice frontend.scan_types.err_tag_describe.M_4)
+    kernel.core_types.code_points s
+  | frontend.scan_types.ErrTag.UnknownKey =>
+    let s ← lift (Array.to_slice frontend.scan_types.err_tag_describe.M_5)
+    kernel.core_types.code_points s
+  | frontend.scan_types.ErrTag.DuplicateKey =>
+    let s ← lift (Array.to_slice frontend.scan_types.err_tag_describe.M_6)
+    kernel.core_types.code_points s
+  | frontend.scan_types.ErrTag.MissingKey =>
+    let s ← lift (Array.to_slice frontend.scan_types.err_tag_describe.M_7)
+    kernel.core_types.code_points s
+  | frontend.scan_types.ErrTag.MixedKeys =>
+    let s ← lift (Array.to_slice frontend.scan_types.err_tag_describe.M_8)
+    kernel.core_types.code_points s
+  | frontend.scan_types.ErrTag.ExpectedNat =>
+    let s ← lift (Array.to_slice frontend.scan_types.err_tag_describe.M_9)
+    kernel.core_types.code_points s
+  | frontend.scan_types.ErrTag.ExpectedString =>
+    let s ← lift (Array.to_slice frontend.scan_types.err_tag_describe.M_10)
+    kernel.core_types.code_points s
+  | frontend.scan_types.ErrTag.ExpectedBool =>
+    let s ← lift (Array.to_slice frontend.scan_types.err_tag_describe.M_11)
+    kernel.core_types.code_points s
+  | frontend.scan_types.ErrTag.BadEscape =>
+    let s ← lift (Array.to_slice frontend.scan_types.err_tag_describe.M_12)
+    kernel.core_types.code_points s
+  | frontend.scan_types.ErrTag.BadUtf8 =>
+    let s ← lift (Array.to_slice frontend.scan_types.err_tag_describe.M_13)
+    kernel.core_types.code_points s
+  | frontend.scan_types.ErrTag.BadBinderInfo =>
+    let s ← lift (Array.to_slice frontend.scan_types.err_tag_describe.M_14)
+    kernel.core_types.code_points s
+  | frontend.scan_types.ErrTag.BadHints =>
+    let s ← lift (Array.to_slice frontend.scan_types.err_tag_describe.M_15)
+    kernel.core_types.code_points s
+  | frontend.scan_types.ErrTag.BadPw =>
+    let s ← lift (Array.to_slice frontend.scan_types.err_tag_describe.M_16)
+    kernel.core_types.code_points s
+  | frontend.scan_types.ErrTag.BadNatVal =>
+    let s ← lift (Array.to_slice frontend.scan_types.err_tag_describe.M_17)
+    kernel.core_types.code_points s
+  | frontend.scan_types.ErrTag.Trailing =>
+    let s ← lift (Array.to_slice frontend.scan_types.err_tag_describe.M_18)
+    kernel.core_types.code_points s
+  | frontend.scan_types.ErrTag.NoProgress =>
+    let s ← lift (Array.to_slice frontend.scan_types.err_tag_describe.M_19)
+    kernel.core_types.code_points s
+  | frontend.scan_types.ErrTag.IndexOverflow =>
+    let s ← lift (Array.to_slice frontend.scan_types.err_tag_describe.M_20)
+    kernel.core_types.code_points s
+
+/-- [con_ron_core::frontend::nat_decimal::mul_add_small]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 45:4-51:5 -/
+@[rust_loop]
+def frontend.nat_decimal.mul_add_small_loop
+  (limbs : alloc.vec.Vec Std.U64) (m : Std.U64) (n : Std.Usize)
+  (out : alloc.vec.Vec Std.U64) (carry : Std.U64) (i : Std.Usize) :
+  Result ((alloc.vec.Vec Std.U64) × Std.U64)
+  := do
+  if i < n
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) limbs
+        i
+    let i2 ← lift (UScalar.cast .U128 i1)
+    let i3 ← lift (UScalar.cast .U128 m)
+    let i4 ← i2 * i3
+    let i5 ← lift (UScalar.cast .U128 carry)
+    let t ← i4 + i5
+    let lo ← lift (UScalar.cast .U64 t)
+    let out1 ← alloc.vec.Vec.push out lo
+    let i6 ← t >>> 64#i32
+    let carry1 ← lift (UScalar.cast .U64 i6)
+    let i7 ← i + 1#usize
+    frontend.nat_decimal.mul_add_small_loop limbs m n out1 carry1 i7
+  else ok (out, carry)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_decimal::mul_add_small]:
+    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 40:0-56:1 -/
+def frontend.nat_decimal.mul_add_small
+  (limbs : alloc.vec.Vec Std.U64) (m : Std.U64) (a : Std.U64) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  let n := alloc.vec.Vec.len limbs
+  let i ← n + 1#usize
+  let out := alloc.vec.Vec.with_capacity Std.U64 i
+  let (out1, carry) ←
+    frontend.nat_decimal.mul_add_small_loop limbs m n out a 0#usize
+  if carry != 0#u64
+  then alloc.vec.Vec.push out1 carry
+  else ok out1
+
+/-- [con_ron_core::frontend::nat_decimal::CHUNK_DIGITS]
+    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 33:0-33:31 -/
+@[global_simps, irreducible]
+def frontend.nat_decimal.CHUNK_DIGITS : Std.Usize := 19#usize
+
+/-- [con_ron_core::frontend::nat_decimal::from_decimal_go]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 106:8-110:9 -/
+@[rust_loop]
+def frontend.nat_decimal.from_decimal_go_loop0_loop0
+  (digits : Slice Std.U8) (i : Std.Usize) (k : Std.Usize) (chunk : Std.U64)
+  (pow : Std.U64) (j : Std.Usize) :
+  Result (Std.U64 × Std.U64)
+  := do
+  if j < k
+  then
+    let i1 ← chunk * 10#u64
+    let i2 ← i + j
+    let i3 ← Slice.index_usize digits i2
+    let i4 ← i3 - 48#u8
+    let i5 ← lift (UScalar.cast .U64 i4)
+    let chunk1 ← i1 + i5
+    let pow1 ← pow * 10#u64
+    let j1 ← j + 1#usize
+    frontend.nat_decimal.from_decimal_go_loop0_loop0 digits i k chunk1 pow1 j1
+  else ok (chunk, pow)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_decimal::from_decimal_go]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 98:4-113:5 -/
+@[rust_loop]
+def frontend.nat_decimal.from_decimal_go_loop0
+  (digits : Slice Std.U8) (n : Std.Usize) (limbs : alloc.vec.Vec Std.U64)
+  (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  if i < n
+  then
+    let k ← n - i
+    let k1 ←
+      if k > frontend.nat_decimal.CHUNK_DIGITS
+      then ok frontend.nat_decimal.CHUNK_DIGITS
+      else ok k
+    let (chunk, pow) ←
+      frontend.nat_decimal.from_decimal_go_loop0_loop0 digits i k1 0#u64 1#u64
+        0#usize
+    let limbs1 ← frontend.nat_decimal.mul_add_small limbs pow chunk
+    let i1 ← i + k1
+    frontend.nat_decimal.from_decimal_go_loop0 digits n limbs1 i1
+  else ok limbs
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_decimal::from_decimal_go]:
+    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 94:0-115:1 -/
+def frontend.nat_decimal.from_decimal_go
+  (digits : Slice Std.U8) (start : Std.Usize) (acc : alloc.vec.Vec Std.U64) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  let n := Slice.len digits
+  frontend.nat_decimal.from_decimal_go_loop0 digits n acc start
+
+/-- [con_ron_core::frontend::nat_decimal::all_digits]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 81:4-89:1 -/
+@[rust_loop]
+def frontend.nat_decimal.all_digits_loop
+  (digits : Slice Std.U8) (n : Std.Usize) (i : Std.Usize) : Result Bool := do
+  if i < n
+  then
+    let c ← Slice.index_usize digits i
+    if c < 48#u8
+    then ok false
+    else
+      if c > 57#u8
+      then ok false
+      else
+        let i1 ← i + 1#usize
+        frontend.nat_decimal.all_digits_loop digits n i1
+  else ok true
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_decimal::all_digits]:
+    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 78:0-89:1 -/
+def frontend.nat_decimal.all_digits (digits : Slice Std.U8) : Result Bool := do
+  let n := Slice.len digits
+  frontend.nat_decimal.all_digits_loop digits n 0#usize
+
+/-- [con_ron_core::frontend::nat_decimal::from_decimal]:
+    Source: 'crates/con-ron-core/src/frontend/nat_decimal.rs', lines 63:0-72:1
+    Visibility: public -/
+def frontend.nat_decimal.from_decimal
+  (digits : Slice Std.U8) : Result (Option ron.nat.Nat) := do
+  let i := Slice.len digits
+  if i = 0#usize
+  then ok none
+  else
+    let b ← frontend.nat_decimal.all_digits digits
+    if b
+    then
+      let v ←
+        frontend.nat_decimal.from_decimal_go digits 0#usize (alloc.vec.Vec.new
+          Std.U64)
+      let n ← ron.nat.norm v
+      ok (some n)
+    else ok none
+
+/-- [con_ron_core::frontend::export_c::parse_expr_rec_d]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 673:0-737:1
+    Visibility: public -/
+def frontend.export_c.parse_expr_rec_d
+  (st : frontend.export_c.StateD) (r : frontend.scan_types.ExprRec) :
+  Result (core.result.Result kernel.expr.Expr frontend.export_c.LineErr)
+  := do
+  match r with
+  | frontend.scan_types.ExprRec.Bvar k =>
+    let e ← kernel.expr.mk_bvar k
+    ok (core.result.Result.Ok e)
+  | frontend.scan_types.ExprRec.Sort u =>
+    let r1 ← frontend.export_c.st_level st u
+    match r1 with
+    | core.result.Result.Ok l =>
+      let e ← kernel.expr.sort l
+      ok (core.result.Result.Ok e)
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  | frontend.scan_types.ExprRec.Const n us =>
+    let r1 ← frontend.export_c.st_name st n
+    match r1 with
+    | core.result.Result.Ok nm =>
+      let r2 ← frontend.export_c.st_levels st us
+      match r2 with
+      | core.result.Result.Ok ls =>
+        let e ← kernel.expr.mk_const nm ls
+        ok (core.result.Result.Ok e)
+      | core.result.Result.Err e => ok (core.result.Result.Err e)
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  | frontend.scan_types.ExprRec.App f a =>
+    let r1 ← frontend.export_c.st_expr st f
+    match r1 with
+    | core.result.Result.Ok x =>
+      let r2 ← frontend.export_c.st_expr st a
+      match r2 with
+      | core.result.Result.Ok y =>
+        let e ← kernel.expr.app x y
+        ok (core.result.Result.Ok e)
+      | core.result.Result.Err _ => ok r2
+    | core.result.Result.Err _ => ok r1
+  | frontend.scan_types.ExprRec.Lam ty bd pw =>
+    let r1 ← frontend.export_c.st_expr st ty
+    match r1 with
+    | core.result.Result.Ok t =>
+      let r2 ← frontend.export_c.st_expr st bd
+      match r2 with
+      | core.result.Result.Ok b =>
+        let r3 ← frontend.export_c.parse_pw_d st pw
+        match r3 with
+        | core.result.Result.Ok p =>
+          let bm ← kernel.expr.binder_meta p
+          let e ← kernel.expr.lam t b bm
+          ok (core.result.Result.Ok e)
+        | core.result.Result.Err e => ok (core.result.Result.Err e)
+      | core.result.Result.Err _ => ok r2
+    | core.result.Result.Err _ => ok r1
+  | frontend.scan_types.ExprRec.ForallE ty bd pw =>
+    let r1 ← frontend.export_c.st_expr st ty
+    match r1 with
+    | core.result.Result.Ok t =>
+      let r2 ← frontend.export_c.st_expr st bd
+      match r2 with
+      | core.result.Result.Ok b =>
+        let r3 ← frontend.export_c.parse_pw_d st pw
+        match r3 with
+        | core.result.Result.Ok p =>
+          let bm ← kernel.expr.binder_meta p
+          let e ← kernel.expr.forall_e t b bm
+          ok (core.result.Result.Ok e)
+        | core.result.Result.Err e => ok (core.result.Result.Err e)
+      | core.result.Result.Err _ => ok r2
+    | core.result.Result.Err _ => ok r1
+  | frontend.scan_types.ExprRec.LetE ty vl bd =>
+    let r1 ← frontend.export_c.st_expr st ty
+    match r1 with
+    | core.result.Result.Ok t =>
+      let r2 ← frontend.export_c.st_expr st vl
+      match r2 with
+      | core.result.Result.Ok v =>
+        let r3 ← frontend.export_c.st_expr st bd
+        match r3 with
+        | core.result.Result.Ok b =>
+          let e ← kernel.expr.let_e t v b
+          ok (core.result.Result.Ok e)
+        | core.result.Result.Err _ => ok r3
+      | core.result.Result.Err _ => ok r2
+    | core.result.Result.Err _ => ok r1
+  | frontend.scan_types.ExprRec.Proj tn ix s =>
+    let r1 ← frontend.export_c.st_name st tn
+    match r1 with
+    | core.result.Result.Ok t =>
+      let r2 ← frontend.export_c.st_expr st s
+      match r2 with
+      | core.result.Result.Ok x =>
+        let e ← kernel.expr.proj t ix x
+        ok (core.result.Result.Ok e)
+      | core.result.Result.Err _ => ok r2
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  | frontend.scan_types.ExprRec.NatVal digits =>
+    let s := alloc.vec.Vec.deref digits
+    let o ← frontend.nat_decimal.from_decimal s
+    match o with
+    | none =>
+      let v ←
+        frontend.scan_types.err_tag_describe
+          frontend.scan_types.ErrTag.BadNatVal
+      frontend.export_c.merr kernel.expr.Expr v
+    | some n =>
+      let l ← kernel.expr.literal_nat n
+      let e ← kernel.expr.lit l
+      ok (core.result.Result.Ok e)
+  | frontend.scan_types.ExprRec.StrVal s =>
+    let s1 := alloc.vec.Vec.deref s
+    let v ← kernel.core_types.code_points s1
+    let l ← kernel.expr.literal_str v
+    let e ← kernel.expr.lit l
+    ok (core.result.Result.Ok e)
+
+/-- [con_ron_core::frontend::export_c::parse_expr_entry_d]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 658:0-669:1
+    Visibility: public -/
+def frontend.export_c.parse_expr_entry_d
+  (st : frontend.export_c.StateD) (i : Std.U64)
+  (r : frontend.scan_types.ExprRec) :
+  Result ((core.result.Result Unit frontend.export_c.LineErr) ×
+    frontend.export_c.StateD)
+  := do
+  let r1 ← frontend.export_c.st_fresh_expr st i
+  match r1 with
+  | core.result.Result.Ok _ =>
+    let r2 ← frontend.export_c.parse_expr_rec_d st r
+    match r2 with
+    | core.result.Result.Ok e =>
+      let it ← frontend.scan_types.id_table_insert st.exprs i e
+      ok (core.result.Result.Ok (), { st with exprs := it })
+    | core.result.Result.Err e => ok (core.result.Result.Err e, st)
+  | core.result.Result.Err _ => ok (r1, st)
+
+/-- [con_ron_core::frontend::export_c::parse_cv_d]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 741:0-756:1
+    Visibility: public -/
+def frontend.export_c.parse_cv_d
+  (st : frontend.export_c.StateD) (cv : frontend.scan_types.CVRec) :
+  Result (core.result.Result kernel.env.ConstantVal frontend.export_c.LineErr)
+  := do
+  let r ← frontend.export_c.st_name st cv.name
+  match r with
+  | core.result.Result.Ok nm =>
+    let r1 ← frontend.export_c.get_decl_d st cv.ty
+    match r1 with
+    | core.result.Result.Ok ty =>
+      let r2 ← frontend.export_c.st_names st cv.level_params
+      match r2 with
+      | core.result.Result.Ok lps =>
+        ok (core.result.Result.Ok { «name» := nm, level_params := lps, ty })
+      | core.result.Result.Err e => ok (core.result.Result.Err e)
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  | core.result.Result.Err e => ok (core.result.Result.Err e)
+
+/-- [con_ron_core::frontend::proj_rec::append_exprs]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 558:4-561:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.proj_rec.append_exprs_loop
+  (xs : alloc.vec.Vec kernel.expr.Expr) (out : alloc.vec.Vec kernel.expr.Expr)
+  (n : Std.Usize) (i : Std.Usize) :
+  Result (alloc.vec.Vec kernel.expr.Expr)
+  := do
+  if i < n
+  then
+    let e ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.expr.Expr) xs i
+    let e1 ← kernel.expr.dup e
+    let out1 ← alloc.vec.Vec.push out e1
+    let i1 ← i + 1#usize
+    frontend.proj_rec.append_exprs_loop xs out1 n i1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::proj_rec::append_exprs]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 554:0-563:1
+    Visibility: public -/
+def frontend.proj_rec.append_exprs
+  (out : alloc.vec.Vec kernel.expr.Expr) (xs : alloc.vec.Vec kernel.expr.Expr)
+  :
+  Result (alloc.vec.Vec kernel.expr.Expr)
+  := do
+  let n := alloc.vec.Vec.len xs
+  frontend.proj_rec.append_exprs_loop xs out n 0#usize
+
+/-- [con_ron_core::frontend::proj_rec::head_is]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 427:0-432:1
+    Visibility: public -/
+def frontend.proj_rec.head_is
+  (t : kernel.name.Name) (e : kernel.expr.Expr) : Result Bool := do
+  let e1 ← kernel.expr_ops.get_app_fn e
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e1._0
+  match en.kind with
+  | kernel.expr.ExprKind.Bvar _ => ok false
+  | kernel.expr.ExprKind.Fvar _ _ => ok false
+  | kernel.expr.ExprKind.Sort _ => ok false
+  | kernel.expr.ExprKind.Const n _ => kernel.name.beq n t
+  | kernel.expr.ExprKind.App _ _ => ok false
+  | kernel.expr.ExprKind.Lam _ _ _ => ok false
+  | kernel.expr.ExprKind.ForallE _ _ _ => ok false
+  | kernel.expr.ExprKind.LetE _ _ _ => ok false
+  | kernel.expr.ExprKind.Lit _ => ok false
+  | kernel.expr.ExprKind.Proj _ _ _ => ok false
+
+/-- [con_ron_core::frontend::proj_rec::mk_lams]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 296:4-299:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.proj_rec.mk_lams_loop
+  (bs : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.BinderMeta))
+  (acc : kernel.expr.Expr) (i : Std.Usize) :
+  Result kernel.expr.Expr
+  := do
+  if i > 0#usize
+  then
+    let i1 ← i - 1#usize
+    let (e, bm) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (kernel.expr.Expr × kernel.expr.BinderMeta)) bs i1
+    let e1 ← kernel.expr.dup e
+    let bm1 ← kernel.expr.binder_meta_dup bm
+    let acc1 ← kernel.expr.lam e1 acc bm1
+    frontend.proj_rec.mk_lams_loop bs acc1 i1
+  else ok acc
+partial_fixpoint
+
+/-- [con_ron_core::frontend::proj_rec::mk_lams]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 293:0-301:1
+    Visibility: public -/
+def frontend.proj_rec.mk_lams
+  (bs : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.BinderMeta))
+  (body : kernel.expr.Expr) :
+  Result kernel.expr.Expr
+  := do
+  let i := alloc.vec.Vec.len bs
+  frontend.proj_rec.mk_lams_loop bs body i
+
+/-- [con_ron_core::frontend::proj_rec::proj_rec_value_major]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 651:0-679:1
+    Visibility: public -/
+def frontend.proj_rec.proj_rec_value_major
+  (o : frontend.proj_rec.ProjRecOwner) (lus : alloc.vec.Vec kernel.level.Level)
+  (params : alloc.vec.Vec kernel.expr.Expr)
+  (motives : alloc.vec.Vec kernel.expr.Expr)
+  (minors : alloc.vec.Vec kernel.expr.Expr)
+  (lbs : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.BinderMeta))
+  (rty : kernel.expr.Expr) :
+  Result (Option kernel.expr.Expr)
+  := do
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global rty._0
+  match en.kind with
+  | kernel.expr.ExprKind.Bvar _ => ok none
+  | kernel.expr.ExprKind.Fvar _ _ => ok none
+  | kernel.expr.ExprKind.Sort _ => ok none
+  | kernel.expr.ExprKind.Const _ _ => ok none
+  | kernel.expr.ExprKind.App _ _ => ok none
+  | kernel.expr.ExprKind.Lam _ _ _ => ok none
+  | kernel.expr.ExprKind.ForallE maj_dom _ _ =>
+    let b ← frontend.proj_rec.head_is o.t maj_dom
+    if b
+    then
+      let args ←
+        frontend.proj_rec.append_exprs (alloc.vec.Vec.new kernel.expr.Expr)
+          params
+      let args1 ← frontend.proj_rec.append_exprs args motives
+      let args2 ← frontend.proj_rec.append_exprs args1 minors
+      let e ← kernel.expr.mk_bvar 0#u64
+      let args3 ← alloc.vec.Vec.push args2 e
+      let n ← kernel.name.dup o.rec_name
+      let v ← kernel.expr_ops.levels_copy lus
+      let e1 ← kernel.expr.mk_const n v
+      let app ← kernel.expr_ops.mk_app_n e1 args3
+      let e2 ← frontend.proj_rec.mk_lams lbs app
+      ok (some e2)
+    else ok none
+  | kernel.expr.ExprKind.LetE _ _ _ => ok none
+  | kernel.expr.ExprKind.Lit _ => ok none
+  | kernel.expr.ExprKind.Proj _ _ _ => ok none
+
+/-- [con_ron_core::frontend::proj_rec::append_levels]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 639:4-642:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.proj_rec.append_levels_loop
+  (us : alloc.vec.Vec kernel.level.Level)
+  (out : alloc.vec.Vec kernel.level.Level) (n : Std.Usize) (i : Std.Usize) :
+  Result (alloc.vec.Vec kernel.level.Level)
+  := do
+  if i < n
+  then
+    let l ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.level.Level) us i
+    let l1 ← kernel.level.dup l
+    let out1 ← alloc.vec.Vec.push out l1
+    let i1 ← i + 1#usize
+    frontend.proj_rec.append_levels_loop us out1 n i1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::proj_rec::append_levels]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 635:0-644:1
+    Visibility: public -/
+def frontend.proj_rec.append_levels
+  (out : alloc.vec.Vec kernel.level.Level)
+  (us : alloc.vec.Vec kernel.level.Level) :
+  Result (alloc.vec.Vec kernel.level.Level)
+  := do
+  let n := alloc.vec.Vec.len us
+  frontend.proj_rec.append_levels_loop us out n 0#usize
+
+/-- [con_ron_core::frontend::proj_rec::bvar_params]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 545:4-548:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.proj_rec.bvar_params_loop
+  (n_p : Std.U64) (out : alloc.vec.Vec kernel.expr.Expr) (k : Std.U64) :
+  Result (alloc.vec.Vec kernel.expr.Expr)
+  := do
+  if k < n_p
+  then
+    let i ← n_p - k
+    let e ← kernel.expr.mk_bvar i
+    let out1 ← alloc.vec.Vec.push out e
+    let k1 ← k + 1#u64
+    frontend.proj_rec.bvar_params_loop n_p out1 k1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::proj_rec::bvar_params]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 542:0-550:1
+    Visibility: public -/
+def frontend.proj_rec.bvar_params
+  (n_p : Std.U64) : Result (alloc.vec.Vec kernel.expr.Expr) := do
+  let i ← lift (UScalar.cast .Usize n_p)
+  let out := alloc.vec.Vec.with_capacity kernel.expr.Expr i
+  frontend.proj_rec.bvar_params_loop n_p out 0#u64
+
+/-- [con_ron_core::frontend::proj_rec::one_level]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 441:0-445:1
+    Visibility: public -/
+def frontend.proj_rec.one_level
+  (l : kernel.level.Level) : Result (alloc.vec.Vec kernel.level.Level) := do
+  let us := alloc.vec.Vec.with_capacity kernel.level.Level 1#usize
+  let l1 ← kernel.level.dup l
+  alloc.vec.Vec.push us l1
+
+/-- [con_ron_core::frontend::proj_rec::punit_unit_at]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 455:0-457:1
+    Visibility: public -/
+def frontend.proj_rec.punit_unit_at
+  (l : kernel.level.Level) : Result kernel.expr.Expr := do
+  let n ← kernel.basis_names.punit_unit_name
+  let v ← frontend.proj_rec.one_level l
+  kernel.expr.mk_const n v
+
+/-- [con_ron_core::frontend::proj_rec::strip_pis_all]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 270:4-286:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.proj_rec.strip_pis_all_loop
+  (bs : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.BinderMeta))
+  (cur : kernel.expr.Expr) (more : Bool) :
+  Result ((alloc.vec.Vec (kernel.expr.Expr × kernel.expr.BinderMeta)) ×
+    kernel.expr.Expr)
+  := do
+  if more
+  then
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global cur._0
+    let (bs1, next) ←
+      match en.kind with
+      | kernel.expr.ExprKind.Bvar _ => ok (bs, none)
+      | kernel.expr.ExprKind.Fvar _ _ => ok (bs, none)
+      | kernel.expr.ExprKind.Sort _ => ok (bs, none)
+      | kernel.expr.ExprKind.Const _ _ => ok (bs, none)
+      | kernel.expr.ExprKind.App _ _ => ok (bs, none)
+      | kernel.expr.ExprKind.Lam _ _ _ => ok (bs, none)
+      | kernel.expr.ExprKind.ForallE ty b m =>
+        do
+        let e ← kernel.expr.dup ty
+        let bm ← kernel.expr.binder_meta_dup m
+        let bs2 ← alloc.vec.Vec.push bs (e, bm)
+        let e1 ← kernel.expr.dup b
+        ok (bs2, some e1)
+      | kernel.expr.ExprKind.LetE _ _ _ => ok (bs, none)
+      | kernel.expr.ExprKind.Lit _ => ok (bs, none)
+      | kernel.expr.ExprKind.Proj _ _ _ => ok (bs, none)
+    match next with
+    | none => frontend.proj_rec.strip_pis_all_loop bs1 cur false
+    | some x => frontend.proj_rec.strip_pis_all_loop bs1 x true
+  else ok (bs, cur)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::proj_rec::strip_pis_all]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 266:0-288:1
+    Visibility: public -/
+def frontend.proj_rec.strip_pis_all
+  (e : kernel.expr.Expr) :
+  Result ((alloc.vec.Vec (kernel.expr.Expr × kernel.expr.BinderMeta)) ×
+    kernel.expr.Expr)
+  := do
+  let cur ← kernel.expr.dup e
+  frontend.proj_rec.strip_pis_all_loop (alloc.vec.Vec.new (kernel.expr.Expr ×
+    kernel.expr.BinderMeta)) cur true
+
+/-- [con_ron_core::frontend::proj_rec::{impl con_ron_core::frontend::proj_rec::MkBinder for con_ron_core::frontend::proj_rec::MkMinor}::binder]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 518:4-535:5
+    Visibility: public -/
+def frontend.proj_rec.MkMinor.Insts.Con_ron_coreFrontendProj_recMkBinder.binder
+  (self : frontend.proj_rec.MkMinor) (dom : kernel.expr.Expr) :
+  Result (Option kernel.expr.Expr)
+  := do
+  let (v, e) ← frontend.proj_rec.strip_pis_all dom
+  let args ← kernel.expr_ops.get_app_args e
+  let i := alloc.vec.Vec.len args
+  if i = 0#usize
+  then ok none
+  else
+    let i1 := alloc.vec.Vec.len args
+    let i2 ← i1 - 1#usize
+    let e1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.expr.Expr) args i2
+    let b ← frontend.proj_rec.head_is self.ctor e1
+    if b
+    then
+      let i3 := alloc.vec.Vec.len v
+      let i4 ← lift (UScalar.cast .U64 i3)
+      if self.i < i4
+      then
+        let i5 := alloc.vec.Vec.len v
+        let i6 ← lift (UScalar.cast .U64 i5)
+        let i7 ← i6 - 1#u64
+        let i8 ← i7 - self.i
+        let e2 ← kernel.expr.mk_bvar i8
+        let e3 ← frontend.proj_rec.mk_lams v e2
+        ok (some e3)
+      else ok none
+    else
+      let e2 ← frontend.proj_rec.punit_unit_at self.l
+      let e3 ← frontend.proj_rec.mk_lams v e2
+      ok (some e3)
+
+/-- Trait implementation: [con_ron_core::frontend::proj_rec::{impl con_ron_core::frontend::proj_rec::MkBinder for con_ron_core::frontend::proj_rec::MkMinor}]
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 514:0-536:1 -/
+@[reducible]
+def frontend.proj_rec.MkMinor.Insts.Con_ron_coreFrontendProj_recMkBinder :
+  frontend.proj_rec.MkBinder frontend.proj_rec.MkMinor := {
+  binder :=
+    frontend.proj_rec.MkMinor.Insts.Con_ron_coreFrontendProj_recMkBinder.binder
+}
+
+/-- [con_ron_core::frontend::proj_rec::punit_at]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 449:0-451:1
+    Visibility: public -/
+def frontend.proj_rec.punit_at
+  (l : kernel.level.Level) : Result kernel.expr.Expr := do
+  let n ← kernel.basis_names.punit_name
+  let v ← frontend.proj_rec.one_level l
+  kernel.expr.mk_const n v
+
+/-- [con_ron_core::frontend::proj_rec::{impl con_ron_core::frontend::proj_rec::MkBinder for con_ron_core::frontend::proj_rec::MkMotive}::binder]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 474:4-498:5
+    Visibility: public -/
+def
+  frontend.proj_rec.MkMotive.Insts.Con_ron_coreFrontendProj_recMkBinder.binder
+  (self : frontend.proj_rec.MkMotive) (dom : kernel.expr.Expr) :
+  Result (Option kernel.expr.Expr)
+  := do
+  let (v, e) ← frontend.proj_rec.strip_pis_all dom
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
+  match en.kind with
+  | kernel.expr.ExprKind.Bvar _ => ok none
+  | kernel.expr.ExprKind.Fvar _ _ => ok none
+  | kernel.expr.ExprKind.Sort _ =>
+    let i := alloc.vec.Vec.len v
+    if i = 1#usize
+    then
+      let (e1, bm) ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+          (kernel.expr.Expr × kernel.expr.BinderMeta)) v 0#usize
+      let b ← frontend.proj_rec.head_is self.t e1
+      if b
+      then
+        let e2 ← kernel.expr.dup e1
+        let e3 ← kernel.expr_ops.lift_loose_bvars 1#u64 1#u64 self.r
+        let bm1 ← kernel.expr.binder_meta_dup bm
+        let e4 ← kernel.expr.lam e2 e3 bm1
+        ok (some e4)
+      else
+        let e2 ← kernel.expr.dup e1
+        let e3 ← frontend.proj_rec.punit_at self.l
+        let bm1 ← kernel.expr.binder_meta_dup bm
+        let e4 ← kernel.expr.lam e2 e3 bm1
+        ok (some e4)
+    else
+      let e1 ← frontend.proj_rec.punit_at self.l
+      let e2 ← frontend.proj_rec.mk_lams v e1
+      ok (some e2)
+  | kernel.expr.ExprKind.Const _ _ => ok none
+  | kernel.expr.ExprKind.App _ _ => ok none
+  | kernel.expr.ExprKind.Lam _ _ _ => ok none
+  | kernel.expr.ExprKind.ForallE _ _ _ => ok none
+  | kernel.expr.ExprKind.LetE _ _ _ => ok none
+  | kernel.expr.ExprKind.Lit _ => ok none
+  | kernel.expr.ExprKind.Proj _ _ _ => ok none
+
+/-- Trait implementation: [con_ron_core::frontend::proj_rec::{impl con_ron_core::frontend::proj_rec::MkBinder for con_ron_core::frontend::proj_rec::MkMotive}]
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 471:0-499:1 -/
+@[reducible]
+def frontend.proj_rec.MkMotive.Insts.Con_ron_coreFrontendProj_recMkBinder :
+  frontend.proj_rec.MkBinder frontend.proj_rec.MkMotive := {
+  binder :=
+    frontend.proj_rec.MkMotive.Insts.Con_ron_coreFrontendProj_recMkBinder.binder
+}
+
+/-- [con_ron_core::frontend::proj_rec::build_binders_done]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 416:0-422:1
+    Visibility: public -/
+def frontend.proj_rec.build_binders_done
+  (ok1 : Bool) (out : alloc.vec.Vec kernel.expr.Expr) (cur : kernel.expr.Expr)
+  :
+  Result (Option ((alloc.vec.Vec kernel.expr.Expr) × kernel.expr.Expr))
+  := do
+  if ok1
+  then ok (some (out, cur))
+  else ok none
+
+/-- [con_ron_core::frontend::proj_rec::build_binders_step_at]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 399:0-411:1
+    Visibility: public -/
+def frontend.proj_rec.build_binders_step_at
+  {M : Type} (MkBinderInst : frontend.proj_rec.MkBinder M) (mk : M)
+  (dom : kernel.expr.Expr) (body : kernel.expr.Expr) :
+  Result (Option (kernel.expr.Expr × kernel.expr.Expr))
+  := do
+  let o ← MkBinderInst.binder mk dom
+  match o with
+  | none => ok none
+  | some t =>
+    let b ← cached.expr_ops_c.instantiate1_lift body t 0#u64
+    ok (some (t, b))
+
+/-- [con_ron_core::frontend::proj_rec::build_binders_step]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 388:0-393:1
+    Visibility: public -/
+def frontend.proj_rec.build_binders_step
+  {M : Type} (MkBinderInst : frontend.proj_rec.MkBinder M) (mk : M)
+  (cur : kernel.expr.Expr) :
+  Result (Option (kernel.expr.Expr × kernel.expr.Expr))
+  := do
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global cur._0
+  match en.kind with
+  | kernel.expr.ExprKind.Bvar _ => ok none
+  | kernel.expr.ExprKind.Fvar _ _ => ok none
+  | kernel.expr.ExprKind.Sort _ => ok none
+  | kernel.expr.ExprKind.Const _ _ => ok none
+  | kernel.expr.ExprKind.App _ _ => ok none
+  | kernel.expr.ExprKind.Lam _ _ _ => ok none
+  | kernel.expr.ExprKind.ForallE dom body _ =>
+    frontend.proj_rec.build_binders_step_at MkBinderInst mk dom body
+  | kernel.expr.ExprKind.LetE _ _ _ => ok none
+  | kernel.expr.ExprKind.Lit _ => ok none
+  | kernel.expr.ExprKind.Proj _ _ _ => ok none
+
+/-- [con_ron_core::frontend::proj_rec::build_binders]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 366:4-377:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.proj_rec.build_binders_loop
+  {M : Type} (MkBinderInst : frontend.proj_rec.MkBinder M) (mk : M)
+  (k : Std.U64) (out : alloc.vec.Vec kernel.expr.Expr) (cur : kernel.expr.Expr)
+  (i : Std.U64) (ok1 : Bool) :
+  Result ((alloc.vec.Vec kernel.expr.Expr) × kernel.expr.Expr × Bool)
+  := do
+  if i < k
+  then
+    if ok1
+    then
+      let o ← frontend.proj_rec.build_binders_step MkBinderInst mk cur
+      match o with
+      | none =>
+        frontend.proj_rec.build_binders_loop MkBinderInst mk k out cur i false
+      | some p =>
+        let (t, b) := p
+        let out1 ← alloc.vec.Vec.push out t
+        let i1 ← i + 1#u64
+        frontend.proj_rec.build_binders_loop MkBinderInst mk k out1 b i1 true
+    else ok (out, cur, false)
+  else ok (out, cur, ok1)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::proj_rec::build_binders]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 361:0-379:1
+    Visibility: public -/
+def frontend.proj_rec.build_binders
+  {M : Type} (MkBinderInst : frontend.proj_rec.MkBinder M) (mk : M)
+  (k : Std.U64) (e : kernel.expr.Expr) :
+  Result (Option ((alloc.vec.Vec kernel.expr.Expr) × kernel.expr.Expr))
+  := do
+  let cur ← kernel.expr.dup e
+  let (out, cur1, ok1) ←
+    frontend.proj_rec.build_binders_loop MkBinderInst mk k (alloc.vec.Vec.new
+      kernel.expr.Expr) cur 0#u64 true
+  frontend.proj_rec.build_binders_done ok1 out cur1
+
+/-- [con_ron_core::frontend::proj_rec::inst_pis_open_done]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 335:0-341:1
+    Visibility: public -/
+def frontend.proj_rec.inst_pis_open_done
+  (ok1 : Bool) (cur : kernel.expr.Expr) :
+  Result (Option kernel.expr.Expr)
+  := do
+  if ok1
+  then ok (some cur)
+  else ok none
+
+/-- [con_ron_core::frontend::proj_rec::inst_pis_open]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 312:4-328:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.proj_rec.inst_pis_open_loop
+  (args : alloc.vec.Vec kernel.expr.Expr) (cur : kernel.expr.Expr)
+  (n : Std.Usize) (i : Std.Usize) (ok1 : Bool) :
+  Result (kernel.expr.Expr × Bool)
+  := do
+  if i < n
+  then
+    if ok1
+    then
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global cur._0
+      let next ←
+        match en.kind with
+        | kernel.expr.ExprKind.Bvar _ => ok none
+        | kernel.expr.ExprKind.Fvar _ _ => ok none
+        | kernel.expr.ExprKind.Sort _ => ok none
+        | kernel.expr.ExprKind.Const _ _ => ok none
+        | kernel.expr.ExprKind.App _ _ => ok none
+        | kernel.expr.ExprKind.Lam _ _ _ => ok none
+        | kernel.expr.ExprKind.ForallE _ body _ =>
+          do
+          let e ←
+            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+              kernel.expr.Expr) args i
+          let e1 ← cached.expr_ops_c.instantiate1_lift body e 0#u64
+          ok (some e1)
+        | kernel.expr.ExprKind.LetE _ _ _ => ok none
+        | kernel.expr.ExprKind.Lit _ => ok none
+        | kernel.expr.ExprKind.Proj _ _ _ => ok none
+      match next with
+      | none => frontend.proj_rec.inst_pis_open_loop args cur n i false
+      | some x =>
+        let i1 ← i + 1#usize
+        frontend.proj_rec.inst_pis_open_loop args x n i1 true
+    else ok (cur, false)
+  else ok (cur, ok1)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::proj_rec::inst_pis_open]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 307:0-330:1
+    Visibility: public -/
+def frontend.proj_rec.inst_pis_open
+  (e : kernel.expr.Expr) (args : alloc.vec.Vec kernel.expr.Expr) :
+  Result (Option kernel.expr.Expr)
+  := do
+  let cur ← kernel.expr.dup e
+  let n := alloc.vec.Vec.len args
+  let (cur1, ok1) ←
+    frontend.proj_rec.inst_pis_open_loop args cur n 0#usize true
+  frontend.proj_rec.inst_pis_open_done ok1 cur1
+
+/-- [con_ron_core::frontend::proj_rec::proj_rec_value_at]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 594:0-631:1
+    Visibility: public -/
+def frontend.proj_rec.proj_rec_value_at
+  (o : frontend.proj_rec.ProjRecOwner) (l : kernel.level.Level)
+  (r : kernel.expr.Expr)
+  (lbs : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.BinderMeta))
+  (i : Std.U64) :
+  Result (Option kernel.expr.Expr)
+  := do
+  let us ← kernel.inductives.struct_parts.params_of o.lps
+  let v ← frontend.proj_rec.one_level l
+  let lus ← frontend.proj_rec.append_levels v us
+  let rty0 ←
+    kernel.expr_ops.instantiate_level_params o.rec_lps lus o.rec_type
+  let params ← frontend.proj_rec.bvar_params o.n_p
+  let o1 ← frontend.proj_rec.inst_pis_open rty0 params
+  match o1 with
+  | none => ok none
+  | some rty1 =>
+    let n ← kernel.name.dup o.t
+    let e ← kernel.expr.dup r
+    let l1 ← kernel.level.dup l
+    let o2 ←
+      frontend.proj_rec.build_binders
+        frontend.proj_rec.MkMotive.Insts.Con_ron_coreFrontendProj_recMkBinder
+        { t := n, r := e, l := l1 } o.num_motives rty1
+    match o2 with
+    | none => ok none
+    | some mrt =>
+      let n1 ← kernel.name.dup o.ctor
+      let (v1, e1) := mrt
+      let o3 ←
+        frontend.proj_rec.build_binders
+          frontend.proj_rec.MkMinor.Insts.Con_ron_coreFrontendProj_recMkBinder
+          { ctor := n1, i, l := l1 } o.num_minors e1
+      match o3 with
+      | none => ok none
+      | some nrt =>
+        let (v2, e2) := nrt
+        frontend.proj_rec.proj_rec_value_major o lus params v1 v2 lbs e2
+
+/-- [con_ron_core::frontend::proj_rec::proj_rec_value]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 571:0-588:1
+    Visibility: public -/
+def frontend.proj_rec.proj_rec_value
+  (o : frontend.proj_rec.ProjRecOwner) (l : kernel.level.Level)
+  (ty : kernel.expr.Expr) (val : kernel.expr.Expr) (i : Std.U64) :
+  Result (Option kernel.expr.Expr)
+  := do
+  let i1 ← o.n_p + 1#u64
+  let o1 ← kernel.expr_ops.strip_lams i1 val
+  match o1 with
+  | none => ok none
+  | some lbsb =>
+    let n ← kernel.name.dup o.t
+    let e ← kernel.expr.mk_bvar 0#u64
+    let want ← kernel.expr.proj n i e
+    let (v, e1) := lbsb
+    let b ← kernel.expr.beq e1 want
+    if b
+    then
+      if i >= o.n_f
+      then ok none
+      else
+        let o2 ← kernel.expr_ops.strip_pis i1 ty
+        match o2 with
+        | none => ok none
+        | some r =>
+          let (_, e2) := r
+          frontend.proj_rec.proj_rec_value_at o l e2 v i
+    else ok none
+
+/-- [con_ron_core::frontend::proj_rec::lam_body]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 255:0-260:1
+    Visibility: public -/
+def frontend.proj_rec.lam_body
+  (e : kernel.expr.Expr) : Result kernel.expr.Expr := do
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
+  match en.kind with
+  | kernel.expr.ExprKind.Bvar _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Fvar _ _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Sort _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Const _ _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.App _ _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Lam _ b _ => frontend.proj_rec.lam_body b
+  | kernel.expr.ExprKind.ForallE _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.LetE _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Lit _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Proj _ _ _ => kernel.expr.dup e
+partial_fixpoint
+
+/-- [con_ron_core::frontend::proj_rec::proj_iota_name::IOTA]
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 117:4-117:47 -/
+@[global_simps, irreducible]
+def frontend.proj_rec.proj_iota_name.IOTA : Array Std.U32 4#usize :=
+  Array.make 4#usize [ 105#u32, 111#u32, 116#u32, 97#u32 ]
+
+/-- [con_ron_core::frontend::proj_rec::proj_iota_name::PROJ]
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 116:4-116:52 -/
+@[global_simps, irreducible]
+def frontend.proj_rec.proj_iota_name.PROJ : Array Std.U32 5#usize :=
+  Array.make 5#usize [ 112#u32, 114#u32, 111#u32, 106#u32, 95#u32 ]
+
+/-- [con_ron_core::frontend::proj_rec::proj_iota_name::MODEL]
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 115:4-115:58 -/
+@[global_simps, irreducible]
+def frontend.proj_rec.proj_iota_name.MODEL : Array Std.U32 6#usize :=
+  Array.make 6#usize [ 95#u32, 109#u32, 111#u32, 100#u32, 101#u32, 108#u32 ]
+
+/-- [con_ron_core::frontend::proj_rec::proj_iota_name]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 114:0-124:1
+    Visibility: public -/
+def frontend.proj_rec.proj_iota_name
+  (t : kernel.name.Name) (i : Std.U64) : Result kernel.name.Name := do
+  let n ← kernel.name.dup t
+  let s ← lift (Array.to_slice frontend.proj_rec.proj_iota_name.MODEL)
+  let v ← kernel.core_types.code_points s
+  let a ← kernel.name.mk_str n v
+  let s1 ← lift (Array.to_slice frontend.proj_rec.proj_iota_name.PROJ)
+  let v1 ← kernel.core_types.code_points s1
+  let v2 ← frontend.text.u64_str i
+  let v3 ← frontend.text.cat v1 v2
+  let b ← kernel.name.mk_str a v3
+  let s2 ← lift (Array.to_slice frontend.proj_rec.proj_iota_name.IOTA)
+  let v4 ← kernel.core_types.code_points s2
+  kernel.name.mk_str b v4
+
+/-- [con_ron_core::frontend::export_c::proj_rewrite_d]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 770:0-797:1
+    Visibility: public -/
+def frontend.export_c.proj_rewrite_d
+  (st : frontend.export_c.StateD) (cv : kernel.env.ConstantVal)
+  (vl : kernel.expr.Expr) :
+  Result (Option kernel.expr.Expr)
+  := do
+  let body ← frontend.proj_rec.lam_body vl
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global body._0
+  match en.kind with
+  | kernel.expr.ExprKind.Bvar _ => ok none
+  | kernel.expr.ExprKind.Fvar _ _ => ok none
+  | kernel.expr.ExprKind.Sort _ => ok none
+  | kernel.expr.ExprKind.Const _ _ => ok none
+  | kernel.expr.ExprKind.App _ _ => ok none
+  | kernel.expr.ExprKind.Lam _ _ _ => ok none
+  | kernel.expr.ExprKind.ForallE _ _ _ => ok none
+  | kernel.expr.ExprKind.LetE _ _ _ => ok none
+  | kernel.expr.ExprKind.Lit _ => ok none
+  | kernel.expr.ExprKind.Proj t i sub =>
+    let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global sub._0
+    match en1.kind with
+    | kernel.expr.ExprKind.Bvar k =>
+      if k = 0#u64
+      then
+        let t1 ← kernel.name.dup t
+        let o ←
+          ron.hashmap.HashMap.get
+            kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
+            kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 st.proj_owners t1
+        match o with
+        | none => ok none
+        | some o1 =>
+          let b ← frontend.export.names_beq cv.level_params o1.lps
+          if b
+          then
+            let n ← frontend.proj_rec.proj_iota_name t1 i
+            let o2 ←
+              ron.hashmap.HashMap.get
+                kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
+                kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 st.proj_levels
+                n
+            match o2 with
+            | none => ok none
+            | some l => frontend.proj_rec.proj_rec_value o1 l cv.ty vl i
+          else ok none
+      else ok none
+    | kernel.expr.ExprKind.Fvar _ _ => ok none
+    | kernel.expr.ExprKind.Sort _ => ok none
+    | kernel.expr.ExprKind.Const _ _ => ok none
+    | kernel.expr.ExprKind.App _ _ => ok none
+    | kernel.expr.ExprKind.Lam _ _ _ => ok none
+    | kernel.expr.ExprKind.ForallE _ _ _ => ok none
+    | kernel.expr.ExprKind.LetE _ _ _ => ok none
+    | kernel.expr.ExprKind.Lit _ => ok none
+    | kernel.expr.ExprKind.Proj _ _ _ => ok none
+
+/-- [con_ron_core::frontend::proj_rec::proj_iota_level]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 156:0-168:1
+    Visibility: public -/
+def frontend.proj_rec.proj_iota_level
+  (ty : kernel.expr.Expr) : Result (Option kernel.level.Level) := do
+  let e ← kernel.expr_ops.pi_result ty
+  let head ← kernel.expr_ops.get_app_fn e
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global head._0
+  match en.kind with
+  | kernel.expr.ExprKind.Bvar _ => ok none
+  | kernel.expr.ExprKind.Fvar _ _ => ok none
+  | kernel.expr.ExprKind.Sort _ => ok none
+  | kernel.expr.ExprKind.Const n us =>
+    let v ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global us
+    let i := alloc.vec.Vec.len v
+    if i = 1#usize
+    then
+      let n1 ← kernel.basis_names.eq_name
+      let b ← kernel.name.beq n n1
+      if b
+      then
+        let l ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            kernel.level.Level) v 0#usize
+        let l1 ← kernel.level.dup l
+        ok (some l1)
+      else ok none
+    else ok none
+  | kernel.expr.ExprKind.App _ _ => ok none
+  | kernel.expr.ExprKind.Lam _ _ _ => ok none
+  | kernel.expr.ExprKind.ForallE _ _ _ => ok none
+  | kernel.expr.ExprKind.LetE _ _ _ => ok none
+  | kernel.expr.ExprKind.Lit _ => ok none
+  | kernel.expr.ExprKind.Proj _ _ _ => ok none
+
+/-- [con_ron_core::frontend::text::cps_beq]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 70:4-77:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.text.cps_beq_loop
+  (s : alloc.vec.Vec Std.U32) (lit : Slice Std.U32) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result Bool
+  := do
+  if i < n
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
+    let i2 ← Slice.index_usize lit i
+    if i1 != i2
+    then ok false
+    else let i3 ← i + 1#usize
+         frontend.text.cps_beq_loop s lit n i3
+  else ok true
+partial_fixpoint
+
+/-- [con_ron_core::frontend::text::cps_beq]:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 64:0-77:1
+    Visibility: public -/
+def frontend.text.cps_beq
+  (s : alloc.vec.Vec Std.U32) (lit : Slice Std.U32) : Result Bool := do
+  let i := alloc.vec.Vec.len s
+  let i1 := Slice.len lit
+  if i != i1
+  then ok false
+  else let n := alloc.vec.Vec.len s
+       frontend.text.cps_beq_loop s lit n 0#usize
+
+/-- [con_ron_core::frontend::proj_rec::is_proj_iota_name::IOTA]
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 132:4-132:47 -/
+@[global_simps, irreducible]
+def frontend.proj_rec.is_proj_iota_name.IOTA : Array Std.U32 4#usize :=
+  Array.make 4#usize [ 105#u32, 111#u32, 116#u32, 97#u32 ]
+
+/-- [con_ron_core::frontend::proj_rec::is_proj_iota_name::PROJ]
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 131:4-131:52 -/
+@[global_simps, irreducible]
+def frontend.proj_rec.is_proj_iota_name.PROJ : Array Std.U32 5#usize :=
+  Array.make 5#usize [ 112#u32, 114#u32, 111#u32, 106#u32, 95#u32 ]
+
+/-- [con_ron_core::frontend::proj_rec::is_proj_iota_name::MODEL]
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 130:4-130:58 -/
+@[global_simps, irreducible]
+def frontend.proj_rec.is_proj_iota_name.MODEL : Array Std.U32 6#usize :=
+  Array.make 6#usize [ 95#u32, 109#u32, 111#u32, 100#u32, 101#u32, 108#u32 ]
+
+/-- [con_ron_core::frontend::proj_rec::cps_starts_with]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 101:4-108:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.proj_rec.cps_starts_with_loop
+  (s : alloc.vec.Vec Std.U32) (lit : Slice Std.U32) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result Bool
+  := do
+  if i < n
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U32) s i
+    let i2 ← Slice.index_usize lit i
+    if i1 != i2
+    then ok false
+    else
+      let i3 ← i + 1#usize
+      frontend.proj_rec.cps_starts_with_loop s lit n i3
+  else ok true
+partial_fixpoint
+
+/-- [con_ron_core::frontend::proj_rec::cps_starts_with]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 95:0-108:1
+    Visibility: public -/
+def frontend.proj_rec.cps_starts_with
+  (s : alloc.vec.Vec Std.U32) (lit : Slice Std.U32) : Result Bool := do
+  let i := alloc.vec.Vec.len s
+  let i1 := Slice.len lit
+  if i < i1
+  then ok false
+  else
+    let n := Slice.len lit
+    frontend.proj_rec.cps_starts_with_loop s lit n 0#usize
+
+/-- [con_ron_core::frontend::proj_rec::is_proj_iota_name]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 129:0-151:1
+    Visibility: public -/
+def frontend.proj_rec.is_proj_iota_name
+  (n : kernel.name.Name) : Result Bool := do
+  let nn ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global n._0
+  match nn.kind with
+  | kernel.name.NameKind.Anonymous => ok false
+  | kernel.name.NameKind.Str p1 last =>
+    let s ← lift (Array.to_slice frontend.proj_rec.is_proj_iota_name.IOTA)
+    let b ← frontend.text.cps_beq last s
+    if b
+    then
+      let nn1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global p1._0
+      match nn1.kind with
+      | kernel.name.NameKind.Anonymous => ok false
+      | kernel.name.NameKind.Str p2 s1 =>
+        let nn2 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global p2._0
+        match nn2.kind with
+        | kernel.name.NameKind.Anonymous => ok false
+        | kernel.name.NameKind.Str _ m =>
+          let s2 ←
+            lift (Array.to_slice frontend.proj_rec.is_proj_iota_name.MODEL)
+          let b1 ← frontend.text.cps_beq m s2
+          if b1
+          then
+            let s3 ←
+              lift (Array.to_slice frontend.proj_rec.is_proj_iota_name.PROJ)
+            frontend.proj_rec.cps_starts_with s1 s3
+          else ok false
+        | kernel.name.NameKind.Num _ _ => ok false
+      | kernel.name.NameKind.Num _ _ => ok false
+    else ok false
+  | kernel.name.NameKind.Num _ _ => ok false
+
+/-- [con_ron_core::frontend::export_c::note_proj_iota]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 803:0-812:1
+    Visibility: public -/
+def frontend.export_c.note_proj_iota
+  (st : frontend.export_c.StateD) (cvp : kernel.env.ConstantVal) :
+  Result frontend.export_c.StateD
+  := do
+  let b ← frontend.proj_rec.is_proj_iota_name cvp.name
+  if b
+  then
+    let o ← frontend.proj_rec.proj_iota_level cvp.ty
+    match o with
+    | none => ok st
+    | some l =>
+      let n ← kernel.name.dup cvp.name
+      let (_, hm) ←
+        ron.hashmap.HashMap.insert
+          kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
+          kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 st.proj_levels n l
+      ok { st with proj_levels := hm }
+  else ok st
+
+/-- [con_ron_core::frontend::export_c::push_gen_d]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 818:0-827:1
+    Visibility: public -/
+def frontend.export_c.push_gen_d
+  (st : frontend.export_c.StateD) (d : kernel.env.Declaration) :
+  Result frontend.export_c.StateD
+  := do
+  let st1 ←
+    match d with
+    | kernel.env.Declaration.AxiomDecl _ => ok st
+    | kernel.env.Declaration.DefnDecl _ _ _ => ok st
+    | kernel.env.Declaration.ThmDecl cv _ =>
+      do
+      let cv2 ← kernel.env.constant_val_dup cv
+      frontend.export_c.note_proj_iota st cv2
+    | kernel.env.Declaration.OpaqueDecl _ _ => ok st
+    | kernel.env.Declaration.BasisDecl _ => ok st
+    | kernel.env.Declaration.IndDecl _ _ => ok st
+    | kernel.env.Declaration.QuotDecl _ _ => ok st
+  frontend.export_c.push_decl st1 d
+
+/-- [con_ron_core::kernel::env::declaration_names]:
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 961:0-975:1
+    Visibility: public -/
+def kernel.env.declaration_names
+  (d : kernel.env.Declaration) : Result (alloc.vec.Vec kernel.name.Name) := do
+  match d with
+  | kernel.env.Declaration.AxiomDecl cv =>
+    let n ← kernel.name.dup cv.name
+    alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
+  | kernel.env.Declaration.DefnDecl cv _ _ =>
+    let n ← kernel.name.dup cv.name
+    alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
+  | kernel.env.Declaration.ThmDecl cv _ =>
+    let n ← kernel.name.dup cv.name
+    alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
+  | kernel.env.Declaration.OpaqueDecl cv _ =>
+    let n ← kernel.name.dup cv.name
+    alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
+  | kernel.env.Declaration.BasisDecl _ =>
+    ok (alloc.vec.Vec.new kernel.name.Name)
+  | kernel.env.Declaration.IndDecl block _ =>
+    kernel.env.constant_info_names_from block 0#usize (alloc.vec.Vec.new
+      kernel.name.Name)
+  | kernel.env.Declaration.QuotDecl _ cv =>
+    let n ← kernel.name.dup cv.name
+    alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
+
+/-- [con_ron_core::frontend::export_c::note_gen_names]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 847:4-850:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.note_gen_names_loop
+  (hm : ron.hashmap.HashMap kernel.name.Name kernel.name.Name)
+  (names : alloc.vec.Vec kernel.name.Name) (t0 : kernel.name.Name)
+  (n : Std.Usize) (i : Std.Usize) :
+  Result (ron.hashmap.HashMap kernel.name.Name kernel.name.Name)
+  := do
+  if i < n
+  then
+    let n1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.name.Name) names i
+    let n2 ← kernel.name.dup n1
+    let n3 ← kernel.name.dup t0
+    let (_, hm1) ←
+      ron.hashmap.HashMap.insert
+        kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
+        kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 hm n2 n3
+    let i1 ← i + 1#usize
+    frontend.export_c.note_gen_names_loop hm1 names t0 n i1
+  else ok hm
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::note_gen_names]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 843:0-851:1
+    Visibility: public -/
+def frontend.export_c.note_gen_names
+  (st : frontend.export_c.StateD) (names : alloc.vec.Vec kernel.name.Name)
+  (t0 : kernel.name.Name) :
+  Result frontend.export_c.StateD
+  := do
+  let i ← st.gen_records + 1#u64
+  let n := alloc.vec.Vec.len names
+  let hm ←
+    frontend.export_c.note_gen_names_loop st.gen_owner names t0 n 0#usize
+  ok { st with gen_records := i, gen_owner := hm }
+
+/-- [con_ron_core::frontend::export_c::note_gen]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 834:0-836:1
+    Visibility: public -/
+def frontend.export_c.note_gen
+  (st : frontend.export_c.StateD) (d : kernel.env.Declaration)
+  (t0 : kernel.name.Name) :
+  Result frontend.export_c.StateD
+  := do
+  let v ← kernel.env.declaration_names d
+  frontend.export_c.note_gen_names st v t0
+
+/-- [con_ron_core::kernel::env::quot_kind_dup]:
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 909:0-917:1
+    Visibility: public -/
+def kernel.env.quot_kind_dup
+  (k : kernel.env.QuotKind) : Result kernel.env.QuotKind := do
+  match k with
+  | kernel.env.QuotKind.Type => ok kernel.env.QuotKind.Type
+  | kernel.env.QuotKind.Ctor => ok kernel.env.QuotKind.Ctor
+  | kernel.env.QuotKind.Lift => ok kernel.env.QuotKind.Lift
+  | kernel.env.QuotKind.Ind => ok kernel.env.QuotKind.Ind
+  | kernel.env.QuotKind.Sound => ok kernel.env.QuotKind.Sound
+
+/-- [con_ron_core::frontend::export_c::constant_infos_dup]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 901:4-904:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.constant_infos_dup_loop
+  (bl : alloc.vec.Vec kernel.env.ConstantInfo)
+  (out : alloc.vec.Vec kernel.env.ConstantInfo) (n : Std.Usize) (i : Std.Usize)
+  :
+  Result (alloc.vec.Vec kernel.env.ConstantInfo)
+  := do
+  if i < n
+  then
+    let ci ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.env.ConstantInfo) bl i
+    let ci1 ← kernel.env.constant_info_dup ci
+    let out1 ← alloc.vec.Vec.push out ci1
+    let i1 ← i + 1#usize
+    frontend.export_c.constant_infos_dup_loop bl out1 n i1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::constant_infos_dup]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 897:0-906:1
+    Visibility: public -/
+def frontend.export_c.constant_infos_dup
+  (bl : alloc.vec.Vec kernel.env.ConstantInfo) :
+  Result (alloc.vec.Vec kernel.env.ConstantInfo)
+  := do
+  let i := alloc.vec.Vec.len bl
+  let out := alloc.vec.Vec.with_capacity kernel.env.ConstantInfo i
+  let n := alloc.vec.Vec.len bl
+  frontend.export_c.constant_infos_dup_loop bl out n 0#usize
+
+/-- [con_ron_core::frontend::export_c::declaration_dup]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 874:0-894:1
+    Visibility: public -/
+def frontend.export_c.declaration_dup
+  (d : kernel.env.Declaration) : Result kernel.env.Declaration := do
+  match d with
+  | kernel.env.Declaration.AxiomDecl cv =>
+    let cv1 ← kernel.env.constant_val_dup cv
+    ok (kernel.env.Declaration.AxiomDecl cv1)
+  | kernel.env.Declaration.DefnDecl cv v h =>
+    let cv1 ← kernel.env.constant_val_dup cv
+    let e ← kernel.expr.dup v
+    let rh ← kernel.env.reducibility_hint_dup h
+    ok (kernel.env.Declaration.DefnDecl cv1 e rh)
+  | kernel.env.Declaration.ThmDecl cv v =>
+    let cv1 ← kernel.env.constant_val_dup cv
+    let e ← kernel.expr.dup v
+    ok (kernel.env.Declaration.ThmDecl cv1 e)
+  | kernel.env.Declaration.OpaqueDecl cv v =>
+    let cv1 ← kernel.env.constant_val_dup cv
+    let e ← kernel.expr.dup v
+    ok (kernel.env.Declaration.OpaqueDecl cv1 e)
+  | kernel.env.Declaration.BasisDecl k =>
+    let bk ← kernel.env.basis_kind_dup k
+    ok (kernel.env.Declaration.BasisDecl bk)
+  | kernel.env.Declaration.IndDecl bl n =>
+    let v ← frontend.export_c.constant_infos_dup bl
+    ok (kernel.env.Declaration.IndDecl v n)
+  | kernel.env.Declaration.QuotDecl k cv =>
+    let qk ← kernel.env.quot_kind_dup k
+    let cv1 ← kernel.env.constant_val_dup cv
+    ok (kernel.env.Declaration.QuotDecl qk cv1)
+
+/-- [con_ron_core::frontend::export_c::push_gen_list]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 862:4-867:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.push_gen_list_loop
+  (st : frontend.export_c.StateD) (gen : alloc.vec.Vec kernel.env.Declaration)
+  (t0 : kernel.name.Name) (n : Std.Usize) (i : Std.Usize) :
+  Result frontend.export_c.StateD
+  := do
+  if i < n
+  then
+    let d ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.env.Declaration) gen i
+    let names ← kernel.env.declaration_names d
+    let d1 ← frontend.export_c.declaration_dup d
+    let st1 ← frontend.export_c.push_gen_d st d1
+    let st2 ← frontend.export_c.note_gen_names st1 names t0
+    let i1 ← i + 1#usize
+    frontend.export_c.push_gen_list_loop st2 gen t0 n i1
+  else ok st
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::push_gen_list]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 859:0-868:1
+    Visibility: public -/
+def frontend.export_c.push_gen_list
+  (st : frontend.export_c.StateD) (gen : alloc.vec.Vec kernel.env.Declaration)
+  (t0 : kernel.name.Name) :
+  Result frontend.export_c.StateD
+  := do
+  let n := alloc.vec.Vec.len gen
+  frontend.export_c.push_gen_list_loop st gen t0 n 0#usize
+
+/-- [con_ron_core::frontend::export_c::ind_pi_body]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 929:0-934:1 -/
+def frontend.export_c.ind_pi_body
+  (e : kernel.expr.Expr) : Result kernel.expr.Expr := do
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
+  match en.kind with
+  | kernel.expr.ExprKind.Bvar _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Fvar _ _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Sort _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Const _ _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.App _ _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Lam _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.ForallE _ b _ => kernel.expr.dup b
+  | kernel.expr.ExprKind.LetE _ _ _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Lit _ => kernel.expr.dup e
+  | kernel.expr.ExprKind.Proj _ _ _ => kernel.expr.dup e
+
+/-- [con_ron_core::frontend::export_c::ind_pi_tele_len]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 915:4-918:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.ind_pi_tele_len_loop
+  (n : Std.U64) (cur : kernel.expr.Expr) : Result Std.U64 := do
+  let b ← kernel.core_k.is_forall cur
+  if b
+  then
+    let cur1 ← frontend.export_c.ind_pi_body cur
+    let n1 ← n + 1#u64
+    frontend.export_c.ind_pi_tele_len_loop n1 cur1
+  else ok n
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::ind_pi_tele_len]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 912:0-920:1
+    Visibility: public -/
+def frontend.export_c.ind_pi_tele_len
+  (e : kernel.expr.Expr) : Result Std.U64 := do
+  let cur ← kernel.expr.dup e
+  frontend.export_c.ind_pi_tele_len_loop 0#u64 cur
+
+/-- [con_ron_core::frontend::export_c::parse_rule_d]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 938:0-946:1
+    Visibility: public -/
+def frontend.export_c.parse_rule_d
+  (st : frontend.export_c.StateD) (ru : frontend.scan_types.RuleRec) :
+  Result (core.result.Result kernel.env.RecRule frontend.export_c.LineErr)
+  := do
+  let r ← frontend.export_c.st_name st ru.ctor
+  match r with
+  | core.result.Result.Ok c =>
+    let r1 ← frontend.export_c.get_decl_d st ru.rhs
+    match r1 with
+    | core.result.Result.Ok rhs =>
+      let rr ← kernel.env.rec_rule_parsed c ru.nfields rhs
+      ok (core.result.Result.Ok rr)
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  | core.result.Result.Err e => ok (core.result.Result.Err e)
+
+/-- [con_ron_core::frontend::export_c::parse_rules_d]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 954:4-962:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.parse_rules_d_loop
+  (st : frontend.export_c.StateD)
+  (rus : alloc.vec.Vec frontend.scan_types.RuleRec)
+  (out : alloc.vec.Vec kernel.env.RecRule) (n : Std.Usize) (i : Std.Usize) :
+  Result (core.result.Result (alloc.vec.Vec kernel.env.RecRule)
+    frontend.export_c.LineErr)
+  := do
+  if i < n
+  then
+    let rr ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.scan_types.RuleRec) rus i
+    let r ← frontend.export_c.parse_rule_d st rr
+    match r with
+    | core.result.Result.Ok r1 =>
+      let out1 ← alloc.vec.Vec.push out r1
+      let i1 ← i + 1#usize
+      frontend.export_c.parse_rules_d_loop st rus out1 n i1
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  else ok (core.result.Result.Ok out)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::parse_rules_d]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 950:0-962:1
+    Visibility: public -/
+def frontend.export_c.parse_rules_d
+  (st : frontend.export_c.StateD)
+  (rus : alloc.vec.Vec frontend.scan_types.RuleRec) :
+  Result (core.result.Result (alloc.vec.Vec kernel.env.RecRule)
+    frontend.export_c.LineErr)
+  := do
+  let i := alloc.vec.Vec.len rus
+  let out := alloc.vec.Vec.with_capacity kernel.env.RecRule i
+  let n := alloc.vec.Vec.len rus
+  frontend.export_c.parse_rules_d_loop st rus out n 0#usize
+
+/-- [con_ron_core::frontend::export_c::sat_sub]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 969:0-975:1
+    Visibility: public -/
+def frontend.export_c.sat_sub
+  (a : Std.U64) (b : Std.U64) : Result Std.U64 := do
+  if a >= b
+  then a - b
+  else ok 0#u64
+
+/-- [con_ron_core::frontend::export_c::rel_offset]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 979:0-985:1
+    Visibility: public -/
+def frontend.export_c.rel_offset
+  (off : Std.Usize) (i : Std.Usize) : Result Std.Usize := do
+  if off >= i
+  then off - i
+  else ok 0#usize
+
+/-- [con_ron_core::frontend::export_c::cv_rec_dup]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 994:4-997:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.cv_rec_dup_loop
+  (v : alloc.vec.Vec Std.U64) (lps : alloc.vec.Vec Std.U64) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  if i < n
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) v i
+    let lps1 ← alloc.vec.Vec.push lps i1
+    let i2 ← i + 1#usize
+    frontend.export_c.cv_rec_dup_loop v lps1 n i2
+  else ok lps
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::cv_rec_dup]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 990:0-1003:1
+    Visibility: public -/
+def frontend.export_c.cv_rec_dup
+  (cv : frontend.scan_types.CVRec) : Result frontend.scan_types.CVRec := do
+  let i := alloc.vec.Vec.len cv.level_params
+  let lps := alloc.vec.Vec.with_capacity Std.U64 i
+  let n := alloc.vec.Vec.len cv.level_params
+  let lps1 ← frontend.export_c.cv_rec_dup_loop cv.level_params lps n 0#usize
+  ok { cv with level_params := lps1 }
+
+/-- [con_ron_core::frontend::export_c::ind_ctor_rec_dup]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1007:0-1016:1
+    Visibility: public -/
+def frontend.export_c.ind_ctor_rec_dup
+  (c : frontend.scan_types.IndCtorRec) :
+  Result frontend.scan_types.IndCtorRec
+  := do
+  let c1 ← frontend.export_c.cv_rec_dup c.cv
+  ok { c with cv := c1 }
+
+/-- [con_ron_core::frontend::export_c::proj_rec_owner_dup]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1022:0-1035:1
+    Visibility: public -/
+def frontend.export_c.proj_rec_owner_dup
+  (o : frontend.proj_rec.ProjRecOwner) :
+  Result frontend.proj_rec.ProjRecOwner
+  := do
+  let n ← kernel.name.dup o.t
+  let v ← kernel.prop_when.names_copy o.lps
+  let n1 ← kernel.name.dup o.ctor
+  let n2 ← kernel.name.dup o.rec_name
+  let v1 ← kernel.prop_when.names_copy o.rec_lps
+  let e ← kernel.expr.dup o.rec_type
+  ok
+    {
+      o
+        with
+        t := n,
+        lps := v,
+        ctor := n1,
+        rec_name := n2,
+        rec_lps := v1,
+        rec_type := e
+    }
+
+/-- [con_ron_core::frontend::export_c::block_rec_recs]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1127:4-1147:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.block_rec_recs_loop
+  (st : frontend.export_c.StateD)
+  (recs : alloc.vec.Vec frontend.scan_types.IndRecRec)
+  (out : alloc.vec.Vec frontend.in_model_rec.IndRecRec) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result (core.result.Result (alloc.vec.Vec frontend.in_model_rec.IndRecRec)
+    frontend.export_c.LineErr)
+  := do
+  if i < n
+  then
+    let r ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.scan_types.IndRecRec) recs i
+    let r1 ← frontend.export_c.parse_rules_d st r.rules
+    match r1 with
+    | core.result.Result.Ok v =>
+      let r2 ← frontend.export_c.parse_cv_d st r.cv
+      match r2 with
+      | core.result.Result.Ok cv =>
+        let out1 ←
+          alloc.vec.Vec.push out
+            ({
+               cv,
+               n_p := r.num_params,
+               n_m := r.num_motives,
+               nm := r.num_minors,
+               n_i := r.num_indices,
+               rules := v
+             } : frontend.in_model_rec.IndRecRec)
+        let i1 ← i + 1#usize
+        frontend.export_c.block_rec_recs_loop st recs out1 n i1
+      | core.result.Result.Err e => ok (core.result.Result.Err e)
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  else ok (core.result.Result.Ok out)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::block_rec_recs]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1120:0-1147:1
+    Visibility: public -/
+def frontend.export_c.block_rec_recs
+  (st : frontend.export_c.StateD)
+  (recs : alloc.vec.Vec frontend.scan_types.IndRecRec) :
+  Result (core.result.Result (alloc.vec.Vec frontend.in_model_rec.IndRecRec)
+    frontend.export_c.LineErr)
+  := do
+  let i := alloc.vec.Vec.len recs
+  let out := alloc.vec.Vec.with_capacity frontend.in_model_rec.IndRecRec i
+  let n := alloc.vec.Vec.len recs
+  frontend.export_c.block_rec_recs_loop st recs out n 0#usize
+
+/-- [con_ron_core::frontend::export_c::block_rec_ctors]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1103:4-1116:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.block_rec_ctors_loop
+  (st : frontend.export_c.StateD)
+  (ctors : alloc.vec.Vec frontend.scan_types.IndCtorRec)
+  (out : alloc.vec.Vec frontend.in_model_rec.IndCtorRec) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result (core.result.Result (alloc.vec.Vec frontend.in_model_rec.IndCtorRec)
+    frontend.export_c.LineErr)
+  := do
+  if i < n
+  then
+    let c ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.scan_types.IndCtorRec) ctors i
+    let r ← frontend.export_c.parse_cv_d st c.cv
+    match r with
+    | core.result.Result.Ok cv =>
+      let out1 ←
+        alloc.vec.Vec.push out
+          ({ cv, n_p := c.num_params, n_f := c.num_fields } :
+          frontend.in_model_rec.IndCtorRec)
+      let i1 ← i + 1#usize
+      frontend.export_c.block_rec_ctors_loop st ctors out1 n i1
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  else ok (core.result.Result.Ok out)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::block_rec_ctors]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1096:0-1116:1
+    Visibility: public -/
+def frontend.export_c.block_rec_ctors
+  (st : frontend.export_c.StateD)
+  (ctors : alloc.vec.Vec frontend.scan_types.IndCtorRec) :
+  Result (core.result.Result (alloc.vec.Vec frontend.in_model_rec.IndCtorRec)
+    frontend.export_c.LineErr)
+  := do
+  let i := alloc.vec.Vec.len ctors
+  let out := alloc.vec.Vec.with_capacity frontend.in_model_rec.IndCtorRec i
+  let n := alloc.vec.Vec.len ctors
+  frontend.export_c.block_rec_ctors_loop st ctors out n 0#usize
+
+/-- [con_ron_core::frontend::export_c::block_rec_types]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1071:4-1092:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.block_rec_types_loop
+  (st : frontend.export_c.StateD)
+  (types : alloc.vec.Vec frontend.scan_types.IndTypeRec)
+  (out : alloc.vec.Vec frontend.in_model_rec.IndTypeRec) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result (core.result.Result (alloc.vec.Vec frontend.in_model_rec.IndTypeRec)
+    frontend.export_c.LineErr)
+  := do
+  if i < n
+  then
+    let t ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.scan_types.IndTypeRec) types i
+    let r ← frontend.export_c.st_names st t.ctors
+    match r with
+    | core.result.Result.Ok v =>
+      let r1 ← frontend.export_c.parse_cv_d st t.cv
+      match r1 with
+      | core.result.Result.Ok cv =>
+        let out1 ←
+          alloc.vec.Vec.push out
+            ({
+               cv,
+               n_p := t.num_params,
+               n_idx := t.num_indices,
+               ctors := v,
+               is_rec := t.is_rec,
+               is_reflexive := t.is_reflexive,
+               num_nested := t.num_nested
+             } : frontend.in_model_rec.IndTypeRec)
+        let i1 ← i + 1#usize
+        frontend.export_c.block_rec_types_loop st types out1 n i1
+      | core.result.Result.Err e => ok (core.result.Result.Err e)
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  else ok (core.result.Result.Ok out)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::block_rec_types]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1064:0-1092:1
+    Visibility: public -/
+def frontend.export_c.block_rec_types
+  (st : frontend.export_c.StateD)
+  (types : alloc.vec.Vec frontend.scan_types.IndTypeRec) :
+  Result (core.result.Result (alloc.vec.Vec frontend.in_model_rec.IndTypeRec)
+    frontend.export_c.LineErr)
+  := do
+  let i := alloc.vec.Vec.len types
+  let out := alloc.vec.Vec.with_capacity frontend.in_model_rec.IndTypeRec i
+  let n := alloc.vec.Vec.len types
+  frontend.export_c.block_rec_types_loop st types out n 0#usize
+
+/-- [con_ron_core::frontend::export_c::block_rec_of]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1040:0-1060:1
+    Visibility: public -/
+def frontend.export_c.block_rec_of
+  (st : frontend.export_c.StateD)
+  (types : alloc.vec.Vec frontend.scan_types.IndTypeRec)
+  (ctors : alloc.vec.Vec frontend.scan_types.IndCtorRec)
+  (recs : alloc.vec.Vec frontend.scan_types.IndRecRec) :
+  Result (core.result.Result frontend.in_model_rec.BlockRec
+    frontend.export_c.LineErr)
+  := do
+  let r ← frontend.export_c.block_rec_types st types
+  match r with
+  | core.result.Result.Ok ts =>
+    let r1 ← frontend.export_c.block_rec_ctors st ctors
+    match r1 with
+    | core.result.Result.Ok cs =>
+      let r2 ← frontend.export_c.block_rec_recs st recs
+      match r2 with
+      | core.result.Result.Ok rs =>
+        ok (core.result.Result.Ok { types := ts, ctors := cs, recs := rs })
+      | core.result.Result.Err e => ok (core.result.Result.Err e)
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  | core.result.Result.Err e => ok (core.result.Result.Err e)
+
+/-- [con_ron_core::kernel::inductives::struct_parts::struct_shape_major]:
+    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 372:0-383:1
+    Visibility: public -/
+def kernel.inductives.struct_parts.struct_shape_major
+  (t : kernel.name.Name) (lps : alloc.vec.Vec kernel.name.Name) (n_p : Std.U64)
+  (rbs : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.BinderMeta)) :
+  Result Bool
+  := do
+  let i ← lift (UScalar.cast .Usize n_p)
+  let i1 ← i + 2#usize
+  let i2 := alloc.vec.Vec.len rbs
+  if i1 < i2
+  then
+    let i3 ← lift (UScalar.cast .Usize n_p)
+    let i4 ← i3 + 2#usize
+    let (e, _) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (kernel.expr.Expr × kernel.expr.BinderMeta)) rbs i4
+    let e1 ← kernel.inductives.struct_parts.struct_fam t lps n_p 2#u64
+    kernel.expr.beq e e1
+  else ok false
+
+/-- [con_ron_core::kernel::inductives::struct_parts::struct_ctor_spine]:
+    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 138:0-140:1
+    Visibility: public -/
+def kernel.inductives.struct_parts.struct_ctor_spine
+  (c : kernel.name.Name) (lps : alloc.vec.Vec kernel.name.Name) (n_p : Std.U64)
+  (n_f : Std.U64) :
+  Result kernel.expr.Expr
+  := do
+  kernel.inductives.struct_parts.struct_ctor_spine_at c lps 1#u64 n_p n_f
+
+/-- [con_ron_core::kernel::inductives::struct_parts::struct_shape_minor]:
+    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 349:0-367:1
+    Visibility: public -/
+def kernel.inductives.struct_parts.struct_shape_minor
+  (c : kernel.name.Name) (lps : alloc.vec.Vec kernel.name.Name) (n_p : Std.U64)
+  (n_f : Std.U64)
+  (rbs : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.BinderMeta)) :
+  Result Bool
+  := do
+  let i ← lift (UScalar.cast .Usize n_p)
+  let i1 ← i + 1#usize
+  let i2 := alloc.vec.Vec.len rbs
+  if i1 < i2
+  then
+    let i3 ← lift (UScalar.cast .Usize n_p)
+    let i4 ← i3 + 1#usize
+    let (e, _) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (kernel.expr.Expr × kernel.expr.BinderMeta)) rbs i4
+    let o ← kernel.expr_ops.strip_pis n_f e
+    match o with
+    | none => ok false
+    | some q =>
+      let (_, e1) := q
+      let e2 ← kernel.expr.bvar n_f
+      let e3 ← kernel.inductives.struct_parts.struct_ctor_spine c lps n_p n_f
+      let e4 ← kernel.expr.app e2 e3
+      kernel.expr.beq e1 e4
+  else ok false
+
+/-- [con_ron_core::kernel::inductives::struct_parts::struct_shape_motive]:
+    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 314:0-344:1
+    Visibility: public -/
+def kernel.inductives.struct_parts.struct_shape_motive
+  (t : kernel.name.Name) (lps : alloc.vec.Vec kernel.name.Name)
+  (elim : kernel.name.Name) (large : Bool) (n_p : Std.U64)
+  (rbs : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.BinderMeta)) :
+  Result Bool
+  := do
+  let i ← lift (UScalar.cast .Usize n_p)
+  let i1 := alloc.vec.Vec.len rbs
+  if i < i1
+  then
+    let i2 ← lift (UScalar.cast .Usize n_p)
+    let (e, _) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (kernel.expr.Expr × kernel.expr.BinderMeta)) rbs i2
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
+    match en.kind with
+    | kernel.expr.ExprKind.Bvar _ => ok false
+    | kernel.expr.ExprKind.Fvar _ _ => ok false
+    | kernel.expr.ExprKind.Sort _ => ok false
+    | kernel.expr.ExprKind.Const _ _ => ok false
+    | kernel.expr.ExprKind.App _ _ => ok false
+    | kernel.expr.ExprKind.Lam _ _ _ => ok false
+    | kernel.expr.ExprKind.ForallE mmaj cod _ =>
+      let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global cod._0
+      match en1.kind with
+      | kernel.expr.ExprKind.Bvar _ => ok false
+      | kernel.expr.ExprKind.Fvar _ _ => ok false
+      | kernel.expr.ExprKind.Sort s2 =>
+        let ok1 ←
+          if large
+          then
+            do
+            let n ← kernel.name.dup elim
+            let l ← kernel.level.param n
+            kernel.level.beq s2 l
+          else do
+               let l ← kernel.level.zero
+               kernel.level.beq s2 l
+        if ok1
+        then
+          let e1 ← kernel.inductives.struct_parts.struct_fam t lps n_p 0#u64
+          kernel.expr.beq mmaj e1
+        else ok false
+      | kernel.expr.ExprKind.Const _ _ => ok false
+      | kernel.expr.ExprKind.App _ _ => ok false
+      | kernel.expr.ExprKind.Lam _ _ _ => ok false
+      | kernel.expr.ExprKind.ForallE _ _ _ => ok false
+      | kernel.expr.ExprKind.LetE _ _ _ => ok false
+      | kernel.expr.ExprKind.Lit _ => ok false
+      | kernel.expr.ExprKind.Proj _ _ _ => ok false
+    | kernel.expr.ExprKind.LetE _ _ _ => ok false
+    | kernel.expr.ExprKind.Lit _ => ok false
+    | kernel.expr.ExprKind.Proj _ _ _ => ok false
+  else ok false
+
+/-- [con_ron_core::kernel::inductives::struct_parts::struct_shape]:
+    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 389:0-435:1
+    Visibility: public -/
+def kernel.inductives.struct_parts.struct_shape
+  (t : kernel.name.Name) (c : kernel.name.Name)
+  (lps : alloc.vec.Vec kernel.name.Name) (elim : kernel.name.Name)
+  (large : Bool) (n_p : Std.U64) (n_f : Std.U64) (tty : kernel.expr.Expr)
+  (cty : kernel.expr.Expr) (rty : kernel.expr.Expr) :
+  Result Bool
+  := do
+  let o ← kernel.expr_ops.strip_pis n_p tty
+  match o with
+  | none => ok false
+  | some tq =>
+    let (_, e) := tq
+    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
+    match en.kind with
+    | kernel.expr.ExprKind.Bvar _ => ok false
+    | kernel.expr.ExprKind.Fvar _ _ => ok false
+    | kernel.expr.ExprKind.Sort _ =>
+      let i ← n_p + n_f
+      let o1 ← kernel.expr_ops.strip_pis i cty
+      match o1 with
+      | none => ok false
+      | some cq =>
+        let i1 ← n_p + 3#u64
+        let o2 ← kernel.expr_ops.strip_pis i1 rty
+        match o2 with
+        | none => ok false
+        | some rq =>
+          let (_, e1) := cq
+          let e2 ← kernel.inductives.struct_parts.struct_fam t lps n_p n_f
+          let b ← kernel.expr.beq e1 e2
+          if b
+          then
+            let (v, e3) := rq
+            let e4 ← kernel.expr.bvar 2#u64
+            let e5 ← kernel.expr.bvar 0#u64
+            let e6 ← kernel.expr.app e4 e5
+            let b1 ← kernel.expr.beq e3 e6
+            if b1
+            then
+              let b2 ←
+                kernel.inductives.struct_parts.struct_shape_motive t lps elim
+                  large n_p v
+              if b2
+              then
+                let b3 ←
+                  kernel.inductives.struct_parts.struct_shape_minor c lps n_p
+                    n_f v
+                if b3
+                then
+                  kernel.inductives.struct_parts.struct_shape_major t lps n_p v
+                else ok false
+              else ok false
+            else ok false
+          else ok false
+    | kernel.expr.ExprKind.Const _ _ => ok false
+    | kernel.expr.ExprKind.App _ _ => ok false
+    | kernel.expr.ExprKind.Lam _ _ _ => ok false
+    | kernel.expr.ExprKind.ForallE _ _ _ => ok false
+    | kernel.expr.ExprKind.LetE _ _ _ => ok false
+    | kernel.expr.ExprKind.Lit _ => ok false
+    | kernel.expr.ExprKind.Proj _ _ _ => ok false
+
+/-- [con_ron_core::kernel::inductives::struct_parts::struct_parts_small_ok]:
+    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 551:0-574:1
+    Visibility: public -/
+def kernel.inductives.struct_parts.struct_parts_small_ok
+  (cv_t : kernel.env.ConstantVal) (cv_c : kernel.env.ConstantVal)
+  (cv_r : kernel.env.ConstantVal) (n_p : Std.U64) (n_f : Std.U64) :
+  Result Bool
+  := do
+  let b ← kernel.prop_when.names_beq cv_r.level_params cv_t.level_params
+  if b
+  then
+    let n ← kernel.name.anonymous
+    kernel.inductives.struct_parts.struct_shape cv_t.name cv_c.name
+      cv_t.level_params n false n_p n_f cv_t.ty cv_c.ty cv_r.ty
+  else ok false
+
+/-- [con_ron_core::kernel::inductives::struct_parts::struct_parts_large]:
+    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 505:0-543:1
+    Visibility: public -/
+def kernel.inductives.struct_parts.struct_parts_large
+  (cv_t : kernel.env.ConstantVal) (cv_c : kernel.env.ConstantVal)
+  (cv_r : kernel.env.ConstantVal) (n_p : Std.U64) (n_f : Std.U64) :
+  Result (Option kernel.name.Name)
+  := do
+  let i := alloc.vec.Vec.len cv_r.level_params
+  if i = 0#usize
+  then ok none
+  else
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.name.Name) cv_r.level_params 0#usize
+    let elim ← kernel.name.dup n
+    let relps ←
+      kernel.prop_when.append_from cv_r.level_params 1#usize (alloc.vec.Vec.new
+        kernel.name.Name)
+    let b ← kernel.prop_when.names_beq relps cv_t.level_params
+    if b
+    then
+      let b1 ← kernel.name.contains cv_t.level_params elim
+      if b1
+      then ok none
+      else
+        let b2 ←
+          kernel.inductives.struct_parts.struct_shape cv_t.name cv_c.name
+            cv_t.level_params elim true n_p n_f cv_t.ty cv_c.ty cv_r.ty
+        if b2
+        then ok (some elim)
+        else ok none
+    else ok none
+
+/-- [con_ron_core::kernel::inductives::struct_parts::struct_parts_front_ok::REC]
+    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 453:4-453:41 -/
+@[global_simps, irreducible]
+def kernel.inductives.struct_parts.struct_parts_front_ok.REC
+  : Array Std.U32 3#usize :=
+  Array.make 3#usize [ 114#u32, 101#u32, 99#u32 ]
+
+/-- [con_ron_core::kernel::inductives::struct_parts::struct_rule_body]:
+    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 158:0-160:1
+    Visibility: public -/
+def kernel.inductives.struct_parts.struct_rule_body
+  (n_f : Std.U64) : Result kernel.expr.Expr := do
+  let e ← kernel.expr.bvar n_f
+  let v ← kernel.inductives.struct_parts.field_spine n_f
+  kernel.expr_ops.mk_app_n e v
+
+/-- [con_ron_core::kernel::inductives::struct_parts::struct_parts_front_ok]:
+    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 443:0-499:1
+    Visibility: public -/
+def kernel.inductives.struct_parts.struct_parts_front_ok
+  (cv_t : kernel.env.ConstantVal) (cv_c : kernel.env.ConstantVal)
+  (cv_r : kernel.env.ConstantVal) (n_p : Std.U64) (n_f : Std.U64)
+  (m_i : Std.U64) (r_p : Std.U64) (rule : kernel.env.RecRule) :
+  Result Bool
+  := do
+  let t ← kernel.name.dup cv_t.name
+  let s ←
+    lift (Array.to_slice
+      kernel.inductives.struct_parts.struct_parts_front_ok.REC)
+  let v ← kernel.core_types.code_points s
+  let expected_rec ← kernel.name.mk_str t v
+  let reserved ← kernel.basis_names.reserved_basis_names
+  let b ← kernel.name.beq cv_r.name expected_rec
+  if b
+  then
+    let b1 ← kernel.prop_when.names_beq cv_c.level_params cv_t.level_params
+    if b1
+    then
+      let b2 ← kernel.name.contains reserved cv_t.name
+      if b2
+      then ok false
+      else
+        let b3 ← kernel.name.contains reserved cv_c.name
+        if b3
+        then ok false
+        else
+          let b4 ← kernel.name.contains reserved cv_r.name
+          if b4
+          then ok false
+          else
+            let i ← n_p + 2#u64
+            if m_i = i
+            then
+              if r_p = i
+              then
+                let b5 ← kernel.name.beq rule.ctor cv_c.name
+                if b5
+                then
+                  if rule.nfields = n_f
+                  then
+                    let i1 ← i + n_f
+                    let o ← kernel.expr_ops.strip_lams i1 rule.rhs
+                    match o with
+                    | none => ok false
+                    | some q =>
+                      let (_, e) := q
+                      let e1 ←
+                        kernel.inductives.struct_parts.struct_rule_body n_f
+                      kernel.expr.beq e e1
+                  else ok false
+                else ok false
+              else ok false
+            else ok false
+    else ok false
+  else ok false
+
+/-- [con_ron_core::kernel::inductives::struct_parts::struct_parts_core]:
+    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 585:0-650:1
+    Visibility: public -/
+def kernel.inductives.struct_parts.struct_parts_core
+  (block : alloc.vec.Vec kernel.env.ConstantInfo) :
+  Result (Option kernel.inductives.struct_parts.StructParts)
+  := do
+  let i := alloc.vec.Vec.len block
+  if i != 3#usize
+  then ok none
+  else
+    let ci ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.env.ConstantInfo) block 0#usize
+    let ci1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.env.ConstantInfo) block 1#usize
+    let ci2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.env.ConstantInfo) block 2#usize
+    match ci with
+    | kernel.env.ConstantInfo.AxiomInfo _ => ok none
+    | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok none
+    | kernel.env.ConstantInfo.ThmInfo _ _ => ok none
+    | kernel.env.ConstantInfo.IndInfo cv_t _ =>
+      match ci1 with
+      | kernel.env.ConstantInfo.AxiomInfo _ => ok none
+      | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok none
+      | kernel.env.ConstantInfo.ThmInfo _ _ => ok none
+      | kernel.env.ConstantInfo.IndInfo _ _ => ok none
+      | kernel.env.ConstantInfo.CtorInfo cv_c n_p n_f =>
+        match ci2 with
+        | kernel.env.ConstantInfo.AxiomInfo _ => ok none
+        | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok none
+        | kernel.env.ConstantInfo.ThmInfo _ _ => ok none
+        | kernel.env.ConstantInfo.IndInfo _ _ => ok none
+        | kernel.env.ConstantInfo.CtorInfo _ _ _ => ok none
+        | kernel.env.ConstantInfo.RecInfo cv_r m_i r_p rules =>
+          let i1 := alloc.vec.Vec.len rules
+          if i1 != 1#usize
+          then ok none
+          else
+            let rr ←
+              alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                kernel.env.RecRule) rules 0#usize
+            let b ←
+              kernel.inductives.struct_parts.struct_parts_front_ok cv_t cv_c
+                cv_r n_p n_f m_i r_p rr
+            if b
+            then
+              let o ← kernel.expr_ops.strip_pis n_p cv_t.ty
+              match o with
+              | none => ok none
+              | some q =>
+                let (_, e) := q
+                let en ←
+                  alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
+                match en.kind with
+                | kernel.expr.ExprKind.Bvar _ => ok none
+                | kernel.expr.ExprKind.Fvar _ _ => ok none
+                | kernel.expr.ExprKind.Sort s =>
+                  let is_prop ←
+                    kernel.inductives.struct_parts.level_is_prop s
+                  let o1 ←
+                    kernel.inductives.struct_parts.struct_parts_large cv_t cv_c
+                      cv_r n_p n_f
+                  match o1 with
+                  | none =>
+                    let b1 ←
+                      kernel.inductives.struct_parts.struct_parts_small_ok cv_t
+                        cv_c cv_r n_p n_f
+                    if b1
+                    then
+                      let cv ← kernel.env.constant_val_dup cv_t
+                      let cv1 ← kernel.env.constant_val_dup cv_c
+                      let cv2 ← kernel.env.constant_val_dup cv_r
+                      let n ← kernel.name.anonymous
+                      let l ← kernel.level.dup s
+                      let e1 ← kernel.expr.dup rr.rhs
+                      ok (some
+                        {
+                          cv_t := cv,
+                          cv_c := cv1,
+                          n_p,
+                          n_f,
+                          cv_r := cv2,
+                          elim := n,
+                          res_sort := l,
+                          rhs := e1,
+                          large := false,
+                          is_prop
+                        })
+                    else ok none
+                  | some elim =>
+                    let cv ← kernel.env.constant_val_dup cv_t
+                    let cv1 ← kernel.env.constant_val_dup cv_c
+                    let cv2 ← kernel.env.constant_val_dup cv_r
+                    let l ← kernel.level.dup s
+                    let e1 ← kernel.expr.dup rr.rhs
+                    ok (some
+                      {
+                        cv_t := cv,
+                        cv_c := cv1,
+                        n_p,
+                        n_f,
+                        cv_r := cv2,
+                        elim,
+                        res_sort := l,
+                        rhs := e1,
+                        large := true,
+                        is_prop
+                      })
+                | kernel.expr.ExprKind.Const _ _ => ok none
+                | kernel.expr.ExprKind.App _ _ => ok none
+                | kernel.expr.ExprKind.Lam _ _ _ => ok none
+                | kernel.expr.ExprKind.ForallE _ _ _ => ok none
+                | kernel.expr.ExprKind.LetE _ _ _ => ok none
+                | kernel.expr.ExprKind.Lit _ => ok none
+                | kernel.expr.ExprKind.Proj _ _ _ => ok none
+            else ok none
+        | kernel.env.ConstantInfo.ProjInfo _ => ok none
+      | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok none
+      | kernel.env.ConstantInfo.ProjInfo _ => ok none
+    | kernel.env.ConstantInfo.CtorInfo _ _ _ => ok none
+    | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok none
+    | kernel.env.ConstantInfo.ProjInfo _ => ok none
+
+/-- [con_ron_core::frontend::proj_rec::proj_rec_owner_at::REC]
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 853:4-853:41 -/
+@[global_simps, irreducible]
+def frontend.proj_rec.proj_rec_owner_at.REC : Array Std.U32 3#usize :=
+  Array.make 3#usize [ 114#u32, 101#u32, 99#u32 ]
+
+/-- [con_ron_core::frontend::proj_rec::find_rec]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 814:4-821:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.proj_rec.find_rec_loop
+  (recs : Slice frontend.proj_rec.ProjRecRec) (n : kernel.name.Name)
+  (m : Std.Usize) (i : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  if i < m
+  then
+    let prr ← Slice.index_usize recs i
+    let b ← kernel.name.beq prr.name n
+    if b
+    then ok (some i)
+    else let i1 ← i + 1#usize
+         frontend.proj_rec.find_rec_loop recs n m i1
+  else ok none
+partial_fixpoint
+
+/-- [con_ron_core::frontend::proj_rec::find_rec]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 811:0-821:1
+    Visibility: public -/
+def frontend.proj_rec.find_rec
+  (recs : Slice frontend.proj_rec.ProjRecRec) (n : kernel.name.Name) :
+  Result (Option Std.Usize)
+  := do
+  let m := Slice.len recs
+  frontend.proj_rec.find_rec_loop recs n m 0#usize
+
+/-- [con_ron_core::frontend::proj_rec::find_ctor]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 800:4-807:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.proj_rec.find_ctor_loop
+  (ctors : Slice frontend.proj_rec.ProjCtorRec) (n : kernel.name.Name)
+  (m : Std.Usize) (i : Std.Usize) :
+  Result (Option Std.Usize)
+  := do
+  if i < m
+  then
+    let pcr ← Slice.index_usize ctors i
+    let b ← kernel.name.beq pcr.name n
+    if b
+    then ok (some i)
+    else let i1 ← i + 1#usize
+         frontend.proj_rec.find_ctor_loop ctors n m i1
+  else ok none
+partial_fixpoint
+
+/-- [con_ron_core::frontend::proj_rec::find_ctor]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 797:0-807:1
+    Visibility: public -/
+def frontend.proj_rec.find_ctor
+  (ctors : Slice frontend.proj_rec.ProjCtorRec) (n : kernel.name.Name) :
+  Result (Option Std.Usize)
+  := do
+  let m := Slice.len ctors
+  frontend.proj_rec.find_ctor_loop ctors n m 0#usize
+
+/-- [con_ron_core::frontend::proj_rec::proj_rec_owner_at]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 827:0-874:1
+    Visibility: public -/
+def frontend.proj_rec.proj_rec_owner_at
+  (t : frontend.proj_rec.ProjTypeRec)
+  (ctors : Slice frontend.proj_rec.ProjCtorRec)
+  (recs : Slice frontend.proj_rec.ProjRecRec) :
+  Result (Option frontend.proj_rec.ProjRecOwner)
+  := do
+  let i := alloc.vec.Vec.len t.ctors
+  if i != 1#usize
+  then ok none
+  else
+    if t.n_i != 0#u64
+    then ok none
+    else
+      let o ← kernel.expr_ops.strip_pis t.n_p t.ty
+      match o with
+      | none => ok none
+      | some b =>
+        let (_, e) := b
+        let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
+        match en.kind with
+        | kernel.expr.ExprKind.Bvar _ => ok none
+        | kernel.expr.ExprKind.Fvar _ _ => ok none
+        | kernel.expr.ExprKind.Sort s =>
+          let s1 ← kernel.level.dup s
+          let l ← kernel.level.zero
+          let o1 ← kernel.level.is_equiv s1 l
+          match o1 with
+          | none =>
+            let n ←
+              alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                kernel.name.Name) t.ctors 0#usize
+            let o2 ← frontend.proj_rec.find_ctor ctors n
+            match o2 with
+            | none => ok none
+            | some j =>
+              let n1 ← kernel.name.dup t.name
+              let s2 ←
+                lift (Array.to_slice frontend.proj_rec.proj_rec_owner_at.REC)
+              let v ← kernel.core_types.code_points s2
+              let want_rec ← kernel.name.mk_str n1 v
+              let o3 ← frontend.proj_rec.find_rec recs want_rec
+              match o3 with
+              | none => ok none
+              | some j1 =>
+                let prr ← Slice.index_usize recs j1
+                let i1 := alloc.vec.Vec.len prr.lps
+                let i2 := alloc.vec.Vec.len t.lps
+                let i3 ← i2 + 1#usize
+                if i1 != i3
+                then ok none
+                else
+                  let v1 ← kernel.prop_when.names_copy t.lps
+                  let n2 ← kernel.name.dup n
+                  let pcr ← Slice.index_usize ctors j
+                  let n3 ← kernel.name.dup prr.name
+                  let v2 ← kernel.prop_when.names_copy prr.lps
+                  let e1 ← kernel.expr.dup prr.ty
+                  ok (some
+                    {
+                      t := n1,
+                      lps := v1,
+                      n_p := t.n_p,
+                      ctor := n2,
+                      n_f := pcr.n_f,
+                      rec_name := n3,
+                      rec_lps := v2,
+                      rec_type := e1,
+                      num_motives := prr.n_m,
+                      num_minors := prr.nm
+                    })
+          | some b1 =>
+            if b1
+            then ok none
+            else
+              let n ←
+                alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                  kernel.name.Name) t.ctors 0#usize
+              let o2 ← frontend.proj_rec.find_ctor ctors n
+              match o2 with
+              | none => ok none
+              | some j =>
+                let n1 ← kernel.name.dup t.name
+                let s2 ←
+                  lift (Array.to_slice frontend.proj_rec.proj_rec_owner_at.REC)
+                let v ← kernel.core_types.code_points s2
+                let want_rec ← kernel.name.mk_str n1 v
+                let o3 ← frontend.proj_rec.find_rec recs want_rec
+                match o3 with
+                | none => ok none
+                | some j1 =>
+                  let prr ← Slice.index_usize recs j1
+                  let i1 := alloc.vec.Vec.len prr.lps
+                  let i2 := alloc.vec.Vec.len t.lps
+                  let i3 ← i2 + 1#usize
+                  if i1 != i3
+                  then ok none
+                  else
+                    let v1 ← kernel.prop_when.names_copy t.lps
+                    let n2 ← kernel.name.dup n
+                    let pcr ← Slice.index_usize ctors j
+                    let n3 ← kernel.name.dup prr.name
+                    let v2 ← kernel.prop_when.names_copy prr.lps
+                    let e1 ← kernel.expr.dup prr.ty
+                    ok (some
+                      {
+                        t := n1,
+                        lps := v1,
+                        n_p := t.n_p,
+                        ctor := n2,
+                        n_f := pcr.n_f,
+                        rec_name := n3,
+                        rec_lps := v2,
+                        rec_type := e1,
+                        num_motives := prr.n_m,
+                        num_minors := prr.nm
+                      })
+        | kernel.expr.ExprKind.Const _ _ => ok none
+        | kernel.expr.ExprKind.App _ _ => ok none
+        | kernel.expr.ExprKind.Lam _ _ _ => ok none
+        | kernel.expr.ExprKind.ForallE _ _ _ => ok none
+        | kernel.expr.ExprKind.LetE _ _ _ => ok none
+        | kernel.expr.ExprKind.Lit _ => ok none
+        | kernel.expr.ExprKind.Proj _ _ _ => ok none
+
+/-- [con_ron_core::frontend::proj_rec::proj_rec_owners_go]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 920:4-926:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.proj_rec.proj_rec_owners_go_loop
+  (types : Slice frontend.proj_rec.ProjTypeRec)
+  (ctors : Slice frontend.proj_rec.ProjCtorRec)
+  (recs : Slice frontend.proj_rec.ProjRecRec) (n : Std.Usize)
+  (out : alloc.vec.Vec frontend.proj_rec.ProjRecOwner) (i : Std.Usize) :
+  Result (alloc.vec.Vec frontend.proj_rec.ProjRecOwner)
+  := do
+  if i < n
+  then
+    let ptr ← Slice.index_usize types i
+    let o ← frontend.proj_rec.proj_rec_owner_at ptr ctors recs
+    let out1 ←
+      match o with
+      | none => ok out
+      | some o1 => alloc.vec.Vec.push out o1
+    let i1 ← i + 1#usize
+    frontend.proj_rec.proj_rec_owners_go_loop types ctors recs n out1 i1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::proj_rec::proj_rec_owners_go]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 912:0-928:1
+    Visibility: public -/
+def frontend.proj_rec.proj_rec_owners_go
+  (types : Slice frontend.proj_rec.ProjTypeRec)
+  (ctors : Slice frontend.proj_rec.ProjCtorRec)
+  (recs : Slice frontend.proj_rec.ProjRecRec) :
+  Result (alloc.vec.Vec frontend.proj_rec.ProjRecOwner)
+  := do
+  let n := Slice.len types
+  frontend.proj_rec.proj_rec_owners_go_loop types ctors recs n
+    (alloc.vec.Vec.new frontend.proj_rec.ProjRecOwner) 0#usize
+
+/-- [con_ron_core::ron::hashmap::{con_ron_core::ron::hashmap::HashMap<K, V>}::contains_key]:
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 423:4-428:5
+    Visibility: public -/
+def ron.hashmap.HashMap.contains_key
+  {K : Type} {V : Type} (HashableInst : ron.hashmap.Hashable K) (Eq2Inst :
+  ron.hashmap.Eq2 K) (self : ron.hashmap.HashMap K V) (key : K) :
+  Result Bool
+  := do
+  let o ← ron.hashmap.HashMap.get HashableInst Eq2Inst self key
+  match o with
+  | none => ok false
+  | some _ => ok true
+
+mutual
+
+/-- [con_ron_core::frontend::proj_rec::occurs_const_go]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 193:0-212:1
+    Visibility: public -/
+def frontend.proj_rec.occurs_const_go
+  (n : kernel.name.Name) (seen : ron.hashmap.HashMap kernel.expr.Expr Bool)
+  (e : kernel.expr.Expr) :
+  Result (Bool × (ron.hashmap.HashMap kernel.expr.Expr Bool))
+  := do
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
+  match en.kind with
+  | kernel.expr.ExprKind.Bvar _ => ok (false, seen)
+  | kernel.expr.ExprKind.Fvar _ _ => ok (false, seen)
+  | kernel.expr.ExprKind.Sort _ => ok (false, seen)
+  | kernel.expr.ExprKind.Const m _ =>
+    let b ← kernel.name.beq m n
+    ok (b, seen)
+  | kernel.expr.ExprKind.App _ _ =>
+    let b ←
+      ron.hashmap.HashMap.contains_key
+        kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+        kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 seen e
+    if b
+    then ok (false, seen)
+    else
+      let (hit, seen1) ← frontend.proj_rec.occurs_const_node n seen e
+      if hit
+      then ok (true, seen1)
+      else
+        let e1 ← kernel.expr.dup e
+        let (_, seen2) ←
+          ron.hashmap.HashMap.insert
+            kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+            kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 seen1 e1 false
+        ok (false, seen2)
+  | kernel.expr.ExprKind.Lam _ _ _ =>
+    let b ←
+      ron.hashmap.HashMap.contains_key
+        kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+        kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 seen e
+    if b
+    then ok (false, seen)
+    else
+      let (hit, seen1) ← frontend.proj_rec.occurs_const_node n seen e
+      if hit
+      then ok (true, seen1)
+      else
+        let e1 ← kernel.expr.dup e
+        let (_, seen2) ←
+          ron.hashmap.HashMap.insert
+            kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+            kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 seen1 e1 false
+        ok (false, seen2)
+  | kernel.expr.ExprKind.ForallE _ _ _ =>
+    let b ←
+      ron.hashmap.HashMap.contains_key
+        kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+        kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 seen e
+    if b
+    then ok (false, seen)
+    else
+      let (hit, seen1) ← frontend.proj_rec.occurs_const_node n seen e
+      if hit
+      then ok (true, seen1)
+      else
+        let e1 ← kernel.expr.dup e
+        let (_, seen2) ←
+          ron.hashmap.HashMap.insert
+            kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+            kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 seen1 e1 false
+        ok (false, seen2)
+  | kernel.expr.ExprKind.LetE _ _ _ =>
+    let b ←
+      ron.hashmap.HashMap.contains_key
+        kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+        kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 seen e
+    if b
+    then ok (false, seen)
+    else
+      let (hit, seen1) ← frontend.proj_rec.occurs_const_node n seen e
+      if hit
+      then ok (true, seen1)
+      else
+        let e1 ← kernel.expr.dup e
+        let (_, seen2) ←
+          ron.hashmap.HashMap.insert
+            kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+            kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 seen1 e1 false
+        ok (false, seen2)
+  | kernel.expr.ExprKind.Lit _ => ok (false, seen)
+  | kernel.expr.ExprKind.Proj _ _ _ =>
+    let b ←
+      ron.hashmap.HashMap.contains_key
+        kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+        kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 seen e
+    if b
+    then ok (false, seen)
+    else
+      let (hit, seen1) ← frontend.proj_rec.occurs_const_node n seen e
+      if hit
+      then ok (true, seen1)
+      else
+        let e1 ← kernel.expr.dup e
+        let (_, seen2) ←
+          ron.hashmap.HashMap.insert
+            kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+            kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 seen1 e1 false
+        ok (false, seen2)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::proj_rec::occurs_const_node]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 218:0-246:1
+    Visibility: public -/
+def frontend.proj_rec.occurs_const_node
+  (n : kernel.name.Name) (seen : ron.hashmap.HashMap kernel.expr.Expr Bool)
+  (e : kernel.expr.Expr) :
+  Result (Bool × (ron.hashmap.HashMap kernel.expr.Expr Bool))
+  := do
+  let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
+  match en.kind with
+  | kernel.expr.ExprKind.Bvar _ => ok (false, seen)
+  | kernel.expr.ExprKind.Fvar _ _ => ok (false, seen)
+  | kernel.expr.ExprKind.Sort _ => ok (false, seen)
+  | kernel.expr.ExprKind.Const _ _ => ok (false, seen)
+  | kernel.expr.ExprKind.App f a =>
+    let (b, seen1) ← frontend.proj_rec.occurs_const_go n seen f
+    if b
+    then ok (true, seen1)
+    else frontend.proj_rec.occurs_const_go n seen1 a
+  | kernel.expr.ExprKind.Lam ty b _ =>
+    let (b1, seen1) ← frontend.proj_rec.occurs_const_go n seen ty
+    if b1
+    then ok (true, seen1)
+    else frontend.proj_rec.occurs_const_go n seen1 b
+  | kernel.expr.ExprKind.ForallE ty b _ =>
+    let (b1, seen1) ← frontend.proj_rec.occurs_const_go n seen ty
+    if b1
+    then ok (true, seen1)
+    else frontend.proj_rec.occurs_const_go n seen1 b
+  | kernel.expr.ExprKind.LetE t v b =>
+    let (b1, seen1) ← frontend.proj_rec.occurs_const_go n seen t
+    if b1
+    then ok (true, seen1)
+    else
+      let (b2, seen2) ← frontend.proj_rec.occurs_const_go n seen1 v
+      if b2
+      then ok (true, seen2)
+      else frontend.proj_rec.occurs_const_go n seen2 b
+  | kernel.expr.ExprKind.Lit _ => ok (false, seen)
+  | kernel.expr.ExprKind.Proj _ _ sub =>
+    frontend.proj_rec.occurs_const_go n seen sub
+partial_fixpoint
+
+end
+
+/-- [con_ron_core::frontend::proj_rec::occurs_const_fast]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 184:0-187:1
+    Visibility: public -/
+def frontend.proj_rec.occurs_const_fast
+  (n : kernel.name.Name) (e : kernel.expr.Expr) : Result Bool := do
+  let seen ← ron.hashmap.HashMap.new kernel.expr.Expr Bool
+  let (b, _) ← frontend.proj_rec.occurs_const_go n seen e
+  ok b
+
+/-- [con_ron_core::frontend::proj_rec::any_name_mentions]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 785:4-792:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.proj_rec.any_name_mentions_loop
+  (block_names : alloc.vec.Vec kernel.name.Name) (d : kernel.expr.Expr)
+  (m : Std.Usize) (j : Std.Usize) :
+  Result Bool
+  := do
+  if j < m
+  then
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.name.Name) block_names j
+    let b ← frontend.proj_rec.occurs_const_fast n d
+    if b
+    then ok true
+    else
+      let j1 ← j + 1#usize
+      frontend.proj_rec.any_name_mentions_loop block_names d m j1
+  else ok false
+partial_fixpoint
+
+/-- [con_ron_core::frontend::proj_rec::any_name_mentions]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 782:0-792:1
+    Visibility: public -/
+def frontend.proj_rec.any_name_mentions
+  (block_names : alloc.vec.Vec kernel.name.Name) (d : kernel.expr.Expr) :
+  Result Bool
+  := do
+  let m := alloc.vec.Vec.len block_names
+  frontend.proj_rec.any_name_mentions_loop block_names d m 0#usize
+
+/-- [con_ron_core::frontend::proj_rec::any_dom_mentions]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 767:4-774:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.proj_rec.any_dom_mentions_loop
+  (block_names : alloc.vec.Vec kernel.name.Name)
+  (bs : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.BinderMeta))
+  (n : Std.Usize) (i : Std.Usize) :
+  Result Bool
+  := do
+  if i < n
+  then
+    let (e, _) ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        (kernel.expr.Expr × kernel.expr.BinderMeta)) bs i
+    let b ← frontend.proj_rec.any_name_mentions block_names e
+    if b
+    then ok true
+    else
+      let i1 ← i + 1#usize
+      frontend.proj_rec.any_dom_mentions_loop block_names bs n i1
+  else ok false
+partial_fixpoint
+
+/-- [con_ron_core::frontend::proj_rec::any_dom_mentions]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 764:0-774:1
+    Visibility: public -/
+def frontend.proj_rec.any_dom_mentions
+  (block_names : alloc.vec.Vec kernel.name.Name)
+  (bs : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.BinderMeta)) :
+  Result Bool
+  := do
+  let n := alloc.vec.Vec.len bs
+  frontend.proj_rec.any_dom_mentions_loop block_names bs n 0#usize
+
+/-- [con_ron_core::frontend::proj_rec::any_ctor_mentions]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 752:4-760:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.proj_rec.any_ctor_mentions_loop
+  (block_names : alloc.vec.Vec kernel.name.Name)
+  (ctors : Slice frontend.proj_rec.ProjCtorRec) (n : Std.Usize) (i : Std.Usize)
+  :
+  Result Bool
+  := do
+  if i < n
+  then
+    let pcr ← Slice.index_usize ctors i
+    let (v, _) ← frontend.proj_rec.strip_pis_all pcr.ty
+    let b ← frontend.proj_rec.any_dom_mentions block_names v
+    if b
+    then ok true
+    else
+      let i1 ← i + 1#usize
+      frontend.proj_rec.any_ctor_mentions_loop block_names ctors n i1
+  else ok false
+partial_fixpoint
+
+/-- [con_ron_core::frontend::proj_rec::any_ctor_mentions]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 749:0-760:1
+    Visibility: public -/
+def frontend.proj_rec.any_ctor_mentions
+  (block_names : alloc.vec.Vec kernel.name.Name)
+  (ctors : Slice frontend.proj_rec.ProjCtorRec) :
+  Result Bool
+  := do
+  let n := Slice.len ctors
+  frontend.proj_rec.any_ctor_mentions_loop block_names ctors n 0#usize
+
+/-- [con_ron_core::frontend::proj_rec::any_is_rec]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 736:4-743:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.proj_rec.any_is_rec_loop
+  (types : Slice frontend.proj_rec.ProjTypeRec) (n : Std.Usize) (i : Std.Usize)
+  :
+  Result Bool
+  := do
+  if i < n
+  then
+    let ptr ← Slice.index_usize types i
+    if ptr.is_rec
+    then ok true
+    else let i1 ← i + 1#usize
+         frontend.proj_rec.any_is_rec_loop types n i1
+  else ok false
+partial_fixpoint
+
+/-- [con_ron_core::frontend::proj_rec::any_is_rec]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 733:0-743:1
+    Visibility: public -/
+def frontend.proj_rec.any_is_rec
+  (types : Slice frontend.proj_rec.ProjTypeRec) : Result Bool := do
+  let n := Slice.len types
+  frontend.proj_rec.any_is_rec_loop types n 0#usize
+
+/-- [con_ron_core::frontend::proj_rec::type_names]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 723:4-726:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.proj_rec.type_names_loop
+  (types : Slice frontend.proj_rec.ProjTypeRec) (n : Std.Usize)
+  (out : alloc.vec.Vec kernel.name.Name) (i : Std.Usize) :
+  Result (alloc.vec.Vec kernel.name.Name)
+  := do
+  if i < n
+  then
+    let ptr ← Slice.index_usize types i
+    let n1 ← kernel.name.dup ptr.name
+    let out1 ← alloc.vec.Vec.push out n1
+    let i1 ← i + 1#usize
+    frontend.proj_rec.type_names_loop types n out1 i1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::proj_rec::type_names]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 719:0-728:1
+    Visibility: public -/
+def frontend.proj_rec.type_names
+  (types : Slice frontend.proj_rec.ProjTypeRec) :
+  Result (alloc.vec.Vec kernel.name.Name)
+  := do
+  let n := Slice.len types
+  let out := alloc.vec.Vec.with_capacity kernel.name.Name n
+  frontend.proj_rec.type_names_loop types n out 0#usize
+
+/-- [con_ron_core::frontend::proj_rec::proj_rec_owners]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 884:0-908:1
+    Visibility: public -/
+def frontend.proj_rec.proj_rec_owners
+  (block : alloc.vec.Vec kernel.env.ConstantInfo)
+  (types : Slice frontend.proj_rec.ProjTypeRec)
+  (ctors : Slice frontend.proj_rec.ProjCtorRec)
+  (recs : Slice frontend.proj_rec.ProjRecRec) :
+  Result (alloc.vec.Vec frontend.proj_rec.ProjRecOwner)
+  := do
+  let block_names ← frontend.proj_rec.type_names types
+  let b ← frontend.proj_rec.any_is_rec types
+  let recursive ←
+    if b
+    then ok true
+    else frontend.proj_rec.any_ctor_mentions block_names ctors
+  let o ← kernel.inductives.struct_parts.struct_parts_core block
+  let direct ← match o with
+                 | none => ok false
+                 | some _ => ok true
+  if direct
+  then
+    if recursive
+    then
+      let i := Slice.len types
+      let n_pd ←
+        if i = 0#usize
+        then ok 0#u64
+        else do
+             let ptr ← Slice.index_usize types 0#usize
+             ok ptr.n_p
+      let o1 ← kernel.inductives.native_parts.native_parts n_pd block
+      match o1 with
+      | none => frontend.proj_rec.proj_rec_owners_go types ctors recs
+      | some _ => ok (alloc.vec.Vec.new frontend.proj_rec.ProjRecOwner)
+    else ok (alloc.vec.Vec.new frontend.proj_rec.ProjRecOwner)
+  else
+    let i := Slice.len types
+    let n_pd ←
+      if i = 0#usize
+      then ok 0#u64
+      else do
+           let ptr ← Slice.index_usize types 0#usize
+           ok ptr.n_p
+    let o1 ← kernel.inductives.native_parts.native_parts n_pd block
+    match o1 with
+    | none => frontend.proj_rec.proj_rec_owners_go types ctors recs
+    | some _ => ok (alloc.vec.Vec.new frontend.proj_rec.ProjRecOwner)
+
+/-- [con_ron_core::frontend::export_c::insert_proj_owners]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1264:4-1268:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.insert_proj_owners_loop
+  (st : frontend.export_c.StateD)
+  (owners : alloc.vec.Vec frontend.proj_rec.ProjRecOwner) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result frontend.export_c.StateD
+  := do
+  if i < n
+  then
+    let pro ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.proj_rec.ProjRecOwner) owners i
+    let n1 ← kernel.name.dup pro.t
+    let pro1 ← frontend.export_c.proj_rec_owner_dup pro
+    let (_, hm) ←
+      ron.hashmap.HashMap.insert
+        kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
+        kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 st.proj_owners n1 pro1
+    let i1 ← i + 1#usize
+    frontend.export_c.insert_proj_owners_loop { st with proj_owners := hm }
+      owners n i1
+  else ok st
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::insert_proj_owners]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1261:0-1269:1
+    Visibility: public -/
+def frontend.export_c.insert_proj_owners
+  (st : frontend.export_c.StateD)
+  (owners : alloc.vec.Vec frontend.proj_rec.ProjRecOwner) :
+  Result frontend.export_c.StateD
+  := do
+  let n := alloc.vec.Vec.len owners
+  frontend.export_c.insert_proj_owners_loop st owners n 0#usize
+
+/-- [con_ron_core::frontend::export_c::proj_rec_recs_of]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1242:4-1257:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.proj_rec_recs_of_loop
+  (st : frontend.export_c.StateD)
+  (rcs : alloc.vec.Vec frontend.scan_types.IndRecRec)
+  (out : alloc.vec.Vec frontend.proj_rec.ProjRecRec) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result (core.result.Result (alloc.vec.Vec frontend.proj_rec.ProjRecRec)
+    frontend.export_c.LineErr)
+  := do
+  if i < n
+  then
+    let r ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.scan_types.IndRecRec) rcs i
+    let r1 ← frontend.export_c.parse_cv_d st r.cv
+    match r1 with
+    | core.result.Result.Ok cv =>
+      let n1 ← kernel.name.dup cv.name
+      let v ← kernel.prop_when.names_copy cv.level_params
+      let e ← kernel.expr.dup cv.ty
+      let out1 ←
+        alloc.vec.Vec.push out
+          ({
+             «name» := n1,
+             lps := v,
+             ty := e,
+             n_m := r.num_motives,
+             nm := r.num_minors
+           } : frontend.proj_rec.ProjRecRec)
+      let i1 ← i + 1#usize
+      frontend.export_c.proj_rec_recs_of_loop st rcs out1 n i1
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  else ok (core.result.Result.Ok out)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::proj_rec_recs_of]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1235:0-1257:1
+    Visibility: public -/
+def frontend.export_c.proj_rec_recs_of
+  (st : frontend.export_c.StateD)
+  (rcs : alloc.vec.Vec frontend.scan_types.IndRecRec) :
+  Result (core.result.Result (alloc.vec.Vec frontend.proj_rec.ProjRecRec)
+    frontend.export_c.LineErr)
+  := do
+  let i := alloc.vec.Vec.len rcs
+  let out := alloc.vec.Vec.with_capacity frontend.proj_rec.ProjRecRec i
+  let n := alloc.vec.Vec.len rcs
+  frontend.export_c.proj_rec_recs_of_loop st rcs out n 0#usize
+
+/-- [con_ron_core::frontend::export_c::proj_ctor_recs_of]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1218:4-1231:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.proj_ctor_recs_of_loop
+  (st : frontend.export_c.StateD)
+  (cts : alloc.vec.Vec frontend.scan_types.IndCtorRec)
+  (out : alloc.vec.Vec frontend.proj_rec.ProjCtorRec) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result (core.result.Result (alloc.vec.Vec frontend.proj_rec.ProjCtorRec)
+    frontend.export_c.LineErr)
+  := do
+  if i < n
+  then
+    let c ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.scan_types.IndCtorRec) cts i
+    let r ← frontend.export_c.parse_cv_d st c.cv
+    match r with
+    | core.result.Result.Ok cv =>
+      let n1 ← kernel.name.dup cv.name
+      let e ← kernel.expr.dup cv.ty
+      let out1 ←
+        alloc.vec.Vec.push out
+          ({ «name» := n1, n_f := c.num_fields, ty := e } :
+          frontend.proj_rec.ProjCtorRec)
+      let i1 ← i + 1#usize
+      frontend.export_c.proj_ctor_recs_of_loop st cts out1 n i1
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  else ok (core.result.Result.Ok out)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::proj_ctor_recs_of]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1211:0-1231:1
+    Visibility: public -/
+def frontend.export_c.proj_ctor_recs_of
+  (st : frontend.export_c.StateD)
+  (cts : alloc.vec.Vec frontend.scan_types.IndCtorRec) :
+  Result (core.result.Result (alloc.vec.Vec frontend.proj_rec.ProjCtorRec)
+    frontend.export_c.LineErr)
+  := do
+  let i := alloc.vec.Vec.len cts
+  let out := alloc.vec.Vec.with_capacity frontend.proj_rec.ProjCtorRec i
+  let n := alloc.vec.Vec.len cts
+  frontend.export_c.proj_ctor_recs_of_loop st cts out n 0#usize
+
+/-- [con_ron_core::frontend::export_c::proj_type_recs_of]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1185:4-1207:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.proj_type_recs_of_loop
+  (st : frontend.export_c.StateD)
+  (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec)
+  (out : alloc.vec.Vec frontend.proj_rec.ProjTypeRec) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result (core.result.Result (alloc.vec.Vec frontend.proj_rec.ProjTypeRec)
+    frontend.export_c.LineErr)
+  := do
+  if i < n
+  then
+    let t ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.scan_types.IndTypeRec) tys i
+    let r ← frontend.export_c.parse_cv_d st t.cv
+    match r with
+    | core.result.Result.Ok v =>
+      let r1 ← frontend.export_c.st_names st t.ctors
+      match r1 with
+      | core.result.Result.Ok v1 =>
+        let n1 ← kernel.name.dup v.name
+        let v2 ← kernel.prop_when.names_copy v.level_params
+        let e ← kernel.expr.dup v.ty
+        let out1 ←
+          alloc.vec.Vec.push out
+            ({
+               «name» := n1,
+               lps := v2,
+               ty := e,
+               n_p := t.num_params,
+               n_i := t.num_indices,
+               ctors := v1,
+               is_rec := t.is_rec
+             } : frontend.proj_rec.ProjTypeRec)
+        let i1 ← i + 1#usize
+        frontend.export_c.proj_type_recs_of_loop st tys out1 n i1
+      | core.result.Result.Err e => ok (core.result.Result.Err e)
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  else ok (core.result.Result.Ok out)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::proj_type_recs_of]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1178:0-1207:1
+    Visibility: public -/
+def frontend.export_c.proj_type_recs_of
+  (st : frontend.export_c.StateD)
+  (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec) :
+  Result (core.result.Result (alloc.vec.Vec frontend.proj_rec.ProjTypeRec)
+    frontend.export_c.LineErr)
+  := do
+  let i := alloc.vec.Vec.len tys
+  let out := alloc.vec.Vec.with_capacity frontend.proj_rec.ProjTypeRec i
+  let n := alloc.vec.Vec.len tys
+  frontend.export_c.proj_type_recs_of_loop st tys out n 0#usize
+
+/-- [con_ron_core::frontend::export_c::register_proj_owners]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1152:0-1174:1
+    Visibility: public -/
+def frontend.export_c.register_proj_owners
+  (st : frontend.export_c.StateD)
+  (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec)
+  (cts : alloc.vec.Vec frontend.scan_types.IndCtorRec)
+  (rcs : alloc.vec.Vec frontend.scan_types.IndRecRec)
+  (block : alloc.vec.Vec kernel.env.ConstantInfo) :
+  Result ((core.result.Result Unit frontend.export_c.LineErr) ×
+    frontend.export_c.StateD)
+  := do
+  let r ← frontend.export_c.proj_type_recs_of st tys
+  match r with
+  | core.result.Result.Ok v =>
+    let r1 ← frontend.export_c.proj_ctor_recs_of st cts
+    match r1 with
+    | core.result.Result.Ok v1 =>
+      let r2 ← frontend.export_c.proj_rec_recs_of st rcs
+      match r2 with
+      | core.result.Result.Ok v2 =>
+        let s := alloc.vec.Vec.deref v
+        let s1 := alloc.vec.Vec.deref v1
+        let s2 := alloc.vec.Vec.deref v2
+        let owners ← frontend.proj_rec.proj_rec_owners block s s1 s2
+        let st1 ← frontend.export_c.insert_proj_owners st owners
+        ok (core.result.Result.Ok (), st1)
+      | core.result.Result.Err e => ok (core.result.Result.Err e, st)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, st)
+  | core.result.Result.Err e => ok (core.result.Result.Err e, st)
+
+/-- [con_ron_core::frontend::export_c::any_ty_unsafe]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1280:4-1287:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.any_ty_unsafe_loop
+  (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result Bool
+  := do
+  if i < n
+  then
+    let itr ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.scan_types.IndTypeRec) tys i
+    if itr.is_unsafe
+    then ok true
+    else let i1 ← i + 1#usize
+         frontend.export_c.any_ty_unsafe_loop tys n i1
+  else ok false
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::any_ty_unsafe]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1277:0-1287:1
+    Visibility: public -/
+def frontend.export_c.any_ty_unsafe
+  (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec) : Result Bool := do
+  let n := alloc.vec.Vec.len tys
+  frontend.export_c.any_ty_unsafe_loop tys n 0#usize
+
+/-- [con_ron_core::frontend::export_c::any_ty_nested]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1294:4-1301:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.any_ty_nested_loop
+  (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result Bool
+  := do
+  if i < n
+  then
+    let itr ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.scan_types.IndTypeRec) tys i
+    if itr.num_nested != 0#u64
+    then ok true
+    else let i1 ← i + 1#usize
+         frontend.export_c.any_ty_nested_loop tys n i1
+  else ok false
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::any_ty_nested]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1291:0-1301:1
+    Visibility: public -/
+def frontend.export_c.any_ty_nested
+  (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec) : Result Bool := do
+  let n := alloc.vec.Vec.len tys
+  frontend.export_c.any_ty_nested_loop tys n 0#usize
+
+/-- [con_ron_core::frontend::export_c::all_num_params]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1308:4-1315:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.all_num_params_loop
+  (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec) (n_pd : Std.U64)
+  (n : Std.Usize) (i : Std.Usize) :
+  Result Bool
+  := do
+  if i < n
+  then
+    let itr ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.scan_types.IndTypeRec) tys i
+    if itr.num_params != n_pd
+    then ok false
+    else
+      let i1 ← i + 1#usize
+      frontend.export_c.all_num_params_loop tys n_pd n i1
+  else ok true
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::all_num_params]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1305:0-1315:1
+    Visibility: public -/
+def frontend.export_c.all_num_params
+  (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec) (n_pd : Std.U64) :
+  Result Bool
+  := do
+  let n := alloc.vec.Vec.len tys
+  frontend.export_c.all_num_params_loop tys n_pd n 0#usize
+
+/-- [con_ron_core::frontend::export_c::ty_names_of]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1323:4-1331:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.ty_names_of_loop
+  (st : frontend.export_c.StateD)
+  (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec)
+  (out : alloc.vec.Vec kernel.name.Name) (n : Std.Usize) (i : Std.Usize) :
+  Result (core.result.Result (alloc.vec.Vec kernel.name.Name)
+    frontend.export_c.LineErr)
+  := do
+  if i < n
+  then
+    let itr ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.scan_types.IndTypeRec) tys i
+    let r ← frontend.export_c.st_name st itr.cv.name
+    match r with
+    | core.result.Result.Ok v =>
+      let out1 ← alloc.vec.Vec.push out v
+      let i1 ← i + 1#usize
+      frontend.export_c.ty_names_of_loop st tys out1 n i1
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  else ok (core.result.Result.Ok out)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::ty_names_of]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1319:0-1331:1
+    Visibility: public -/
+def frontend.export_c.ty_names_of
+  (st : frontend.export_c.StateD)
+  (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec) :
+  Result (core.result.Result (alloc.vec.Vec kernel.name.Name)
+    frontend.export_c.LineErr)
+  := do
+  let i := alloc.vec.Vec.len tys
+  let out := alloc.vec.Vec.with_capacity kernel.name.Name i
+  let n := alloc.vec.Vec.len tys
+  frontend.export_c.ty_names_of_loop st tys out n 0#usize
+
+/-- [con_ron_core::frontend::export_c::ty_types_of]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1339:4-1347:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.ty_types_of_loop
+  (st : frontend.export_c.StateD)
+  (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec)
+  (out : alloc.vec.Vec kernel.expr.Expr) (n : Std.Usize) (i : Std.Usize) :
+  Result (core.result.Result (alloc.vec.Vec kernel.expr.Expr)
+    frontend.export_c.LineErr)
+  := do
+  if i < n
+  then
+    let itr ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.scan_types.IndTypeRec) tys i
+    let r ← frontend.export_c.get_decl_d st itr.cv.ty
+    match r with
+    | core.result.Result.Ok v =>
+      let out1 ← alloc.vec.Vec.push out v
+      let i1 ← i + 1#usize
+      frontend.export_c.ty_types_of_loop st tys out1 n i1
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  else ok (core.result.Result.Ok out)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::ty_types_of]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1335:0-1347:1
+    Visibility: public -/
+def frontend.export_c.ty_types_of
+  (st : frontend.export_c.StateD)
+  (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec) :
+  Result (core.result.Result (alloc.vec.Vec kernel.expr.Expr)
+    frontend.export_c.LineErr)
+  := do
+  let i := alloc.vec.Vec.len tys
+  let out := alloc.vec.Vec.with_capacity kernel.expr.Expr i
+  let n := alloc.vec.Vec.len tys
+  frontend.export_c.ty_types_of_loop st tys out n 0#usize
+
+/-- [con_ron_core::frontend::export_c::listed_ctors_of]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1355:4-1363:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.listed_ctors_of_loop
+  (st : frontend.export_c.StateD)
+  (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec)
+  (out : alloc.vec.Vec (alloc.vec.Vec kernel.name.Name)) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result (core.result.Result (alloc.vec.Vec (alloc.vec.Vec kernel.name.Name))
+    frontend.export_c.LineErr)
+  := do
+  if i < n
+  then
+    let itr ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.scan_types.IndTypeRec) tys i
+    let r ← frontend.export_c.st_names st itr.ctors
+    match r with
+    | core.result.Result.Ok v =>
+      let out1 ← alloc.vec.Vec.push out v
+      let i1 ← i + 1#usize
+      frontend.export_c.listed_ctors_of_loop st tys out1 n i1
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  else ok (core.result.Result.Ok out)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::listed_ctors_of]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1351:0-1363:1
+    Visibility: public -/
+def frontend.export_c.listed_ctors_of
+  (st : frontend.export_c.StateD)
+  (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec) :
+  Result (core.result.Result (alloc.vec.Vec (alloc.vec.Vec kernel.name.Name))
+    frontend.export_c.LineErr)
+  := do
+  let i := alloc.vec.Vec.len tys
+  let out := alloc.vec.Vec.with_capacity (alloc.vec.Vec kernel.name.Name) i
+  let n := alloc.vec.Vec.len tys
+  frontend.export_c.listed_ctors_of_loop st tys out n 0#usize
+
+/-- [con_ron_core::frontend::export_c::ctor_names_of]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1371:4-1379:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.ctor_names_of_loop
+  (st : frontend.export_c.StateD)
+  (cts : alloc.vec.Vec frontend.scan_types.IndCtorRec)
+  (out : alloc.vec.Vec kernel.name.Name) (n : Std.Usize) (i : Std.Usize) :
+  Result (core.result.Result (alloc.vec.Vec kernel.name.Name)
+    frontend.export_c.LineErr)
+  := do
+  if i < n
+  then
+    let icr ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.scan_types.IndCtorRec) cts i
+    let r ← frontend.export_c.st_name st icr.cv.name
+    match r with
+    | core.result.Result.Ok v =>
+      let out1 ← alloc.vec.Vec.push out v
+      let i1 ← i + 1#usize
+      frontend.export_c.ctor_names_of_loop st cts out1 n i1
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  else ok (core.result.Result.Ok out)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::ctor_names_of]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1367:0-1379:1
+    Visibility: public -/
+def frontend.export_c.ctor_names_of
+  (st : frontend.export_c.StateD)
+  (cts : alloc.vec.Vec frontend.scan_types.IndCtorRec) :
+  Result (core.result.Result (alloc.vec.Vec kernel.name.Name)
+    frontend.export_c.LineErr)
+  := do
+  let i := alloc.vec.Vec.len cts
+  let out := alloc.vec.Vec.with_capacity kernel.name.Name i
+  let n := alloc.vec.Vec.len cts
+  frontend.export_c.ctor_names_of_loop st cts out n 0#usize
+
+/-- [con_ron_core::frontend::export_c::flatten_listed]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1391:8-1394:9
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.flatten_listed_loop0_loop0
+  (out : alloc.vec.Vec kernel.name.Name)
+  (inner : alloc.vec.Vec kernel.name.Name) (k : Std.Usize) (j : Std.Usize) :
+  Result (alloc.vec.Vec kernel.name.Name)
+  := do
+  if j < k
+  then
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.name.Name) inner j
+    let n1 ← kernel.name.dup n
+    let out1 ← alloc.vec.Vec.push out n1
+    let j1 ← j + 1#usize
+    frontend.export_c.flatten_listed_loop0_loop0 out1 inner k j1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::flatten_listed]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1387:4-1396:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.flatten_listed_loop0
+  (listed : alloc.vec.Vec (alloc.vec.Vec kernel.name.Name))
+  (out : alloc.vec.Vec kernel.name.Name) (n : Std.Usize) (i : Std.Usize) :
+  Result (alloc.vec.Vec kernel.name.Name)
+  := do
+  if i < n
+  then
+    let inner ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
+        kernel.name.Name)) listed i
+    let k := alloc.vec.Vec.len inner
+    let out1 ←
+      frontend.export_c.flatten_listed_loop0_loop0 out inner k 0#usize
+    let i1 ← i + 1#usize
+    frontend.export_c.flatten_listed_loop0 listed out1 n i1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::flatten_listed]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1383:0-1398:1
+    Visibility: public -/
+def frontend.export_c.flatten_listed
+  (listed : alloc.vec.Vec (alloc.vec.Vec kernel.name.Name)) :
+  Result (alloc.vec.Vec kernel.name.Name)
+  := do
+  let n := alloc.vec.Vec.len listed
+  frontend.export_c.flatten_listed_loop0 listed (alloc.vec.Vec.new
+    kernel.name.Name) n 0#usize
+
+/-- [con_ron_core::frontend::export_c::names_have_dup]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1407:4-1415:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.names_have_dup_loop
+  (flat : alloc.vec.Vec kernel.name.Name)
+  (seen : ron.hashmap.HashMap kernel.name.Name Bool) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result Bool
+  := do
+  if i < n
+  then
+    let n1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.name.Name) flat i
+    let b ←
+      ron.hashmap.HashMap.contains_key
+        kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
+        kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 seen n1
+    if b
+    then ok true
+    else
+      let n2 ← kernel.name.dup n1
+      let (_, seen1) ←
+        ron.hashmap.HashMap.insert
+          kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
+          kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 seen n2 true
+      let i1 ← i + 1#usize
+      frontend.export_c.names_have_dup_loop flat seen1 n i1
+  else ok false
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::names_have_dup]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1403:0-1415:1
+    Visibility: public -/
+def frontend.export_c.names_have_dup
+  (flat : alloc.vec.Vec kernel.name.Name) : Result Bool := do
+  let seen ← ron.hashmap.HashMap.new kernel.name.Name Bool
+  let n := alloc.vec.Vec.len flat
+  frontend.export_c.names_have_dup_loop flat seen n 0#usize
+
+/-- [con_ron_core::frontend::export_c::ctor_index_of]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1424:4-1429:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.ctor_index_of_loop
+  (ns : alloc.vec.Vec kernel.name.Name)
+  (m : ron.hashmap.HashMap kernel.name.Name Std.U64) (n : Std.Usize)
+  (k : Std.Usize) :
+  Result (ron.hashmap.HashMap kernel.name.Name Std.U64)
+  := do
+  if k < n
+  then
+    let n1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.name.Name) ns k
+    let b ←
+      ron.hashmap.HashMap.contains_key
+        kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
+        kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 m n1
+    let m1 ←
+      if b
+      then ok m
+      else
+        do
+        let n2 ← kernel.name.dup n1
+        let i ← lift (UScalar.cast .U64 k)
+        let (_, m2) ←
+          ron.hashmap.HashMap.insert
+            kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
+            kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 m n2 i
+        ok m2
+    let k1 ← k + 1#usize
+    frontend.export_c.ctor_index_of_loop ns m1 n k1
+  else ok m
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::ctor_index_of]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1420:0-1431:1
+    Visibility: public -/
+def frontend.export_c.ctor_index_of
+  (ns : alloc.vec.Vec kernel.name.Name) :
+  Result (ron.hashmap.HashMap kernel.name.Name Std.U64)
+  := do
+  let m ← ron.hashmap.HashMap.new kernel.name.Name Std.U64
+  let n := alloc.vec.Vec.len ns
+  frontend.export_c.ctor_index_of_loop ns m n 0#usize
+
+/-- [con_ron_core::frontend::text::name_str::DOT#1]
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 109:16-109:43 -/
+@[global_simps, irreducible]
+def frontend.text.name_str.DOT_1 : Array Std.U32 1#usize :=
+  Array.make 1#usize [ 46#u32 ]
+
+/-- [con_ron_core::frontend::text::name_str::DOT]
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 98:16-98:43 -/
+@[global_simps, irreducible]
+def frontend.text.name_str.DOT : Array Std.U32 1#usize :=
+  Array.make 1#usize [ 46#u32 ]
+
+/-- [con_ron_core::frontend::text::name_str::A]
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 92:12-92:86 -/
+@[global_simps, irreducible]
+def frontend.text.name_str.A : Array Std.U32 11#usize :=
+  Array.make 11#usize [
+    91#u32, 97#u32, 110#u32, 111#u32, 110#u32, 121#u32, 109#u32, 111#u32,
+    117#u32, 115#u32, 93#u32
+    ]
+
+/-- [con_ron_core::frontend::text::name_str]:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 89:0-118:1
+    Visibility: public -/
+def frontend.text.name_str
+  (n : kernel.name.Name) : Result (alloc.vec.Vec Std.U32) := do
+  let nn ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global n._0
+  match nn.kind with
+  | kernel.name.NameKind.Anonymous =>
+    let s ← lift (Array.to_slice frontend.text.name_str.A)
+    kernel.core_types.code_points s
+  | kernel.name.NameKind.Str p s =>
+    let nn1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global p._0
+    match nn1.kind with
+    | kernel.name.NameKind.Anonymous =>
+      frontend.text.cat (alloc.vec.Vec.new Std.U32) s
+    | kernel.name.NameKind.Str _ _ =>
+      let v ← frontend.text.name_str p
+      let s1 ← lift (Array.to_slice frontend.text.name_str.DOT)
+      let v1 ← kernel.core_types.code_points s1
+      frontend.text.cat3 v v1 s
+    | kernel.name.NameKind.Num _ _ =>
+      let v ← frontend.text.name_str p
+      let s1 ← lift (Array.to_slice frontend.text.name_str.DOT)
+      let v1 ← kernel.core_types.code_points s1
+      frontend.text.cat3 v v1 s
+  | kernel.name.NameKind.Num p k =>
+    let nn1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global p._0
+    match nn1.kind with
+    | kernel.name.NameKind.Anonymous => frontend.text.u64_str k
+    | kernel.name.NameKind.Str _ _ =>
+      let v ← frontend.text.name_str p
+      let s ← lift (Array.to_slice frontend.text.name_str.DOT_1)
+      let v1 ← kernel.core_types.code_points s
+      let v2 ← frontend.text.u64_str k
+      frontend.text.cat3 v v1 v2
+    | kernel.name.NameKind.Num _ _ =>
+      let v ← frontend.text.name_str p
+      let s ← lift (Array.to_slice frontend.text.name_str.DOT_1)
+      let v1 ← kernel.core_types.code_points s
+      let v2 ← frontend.text.u64_str k
+      frontend.text.cat3 v v1 v2
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::no_such_ctor_error::A]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1436:4-1439:6 -/
+@[global_simps, irreducible]
+def frontend.export_c.no_such_ctor_error.A : Array Std.U32 20#usize :=
+  Array.make 20#usize [
+    78#u32, 111#u32, 32#u32, 115#u32, 117#u32, 99#u32, 104#u32, 32#u32, 99#u32,
+    111#u32, 110#u32, 115#u32, 116#u32, 114#u32, 117#u32, 99#u32, 116#u32,
+    111#u32, 114#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::no_such_ctor_error]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1435:0-1441:1
+    Visibility: public -/
+def frontend.export_c.no_such_ctor_error
+  (n : kernel.name.Name) : Result (alloc.vec.Vec Std.U32) := do
+  let s ← lift (Array.to_slice frontend.export_c.no_such_ctor_error.A)
+  let v ← kernel.core_types.code_points s
+  let v1 ← frontend.text.name_str n
+  frontend.text.cat v v1
+
+/-- [con_ron_core::frontend::export_c::ctor_count_error::C]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1455:4-1458:6 -/
+@[global_simps, irreducible]
+def frontend.export_c.ctor_count_error.C : Array Std.U32 20#usize :=
+  Array.make 20#usize [
+    32#u32, 99#u32, 111#u32, 110#u32, 115#u32, 116#u32, 114#u32, 117#u32,
+    99#u32, 116#u32, 111#u32, 114#u32, 32#u32, 114#u32, 101#u32, 99#u32,
+    111#u32, 114#u32, 100#u32, 115#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::ctor_count_error::B]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1451:4-1454:6 -/
+@[global_simps, irreducible]
+def frontend.export_c.ctor_count_error.B : Array Std.U32 26#usize :=
+  Array.make 26#usize [
+    32#u32, 99#u32, 111#u32, 110#u32, 115#u32, 116#u32, 114#u32, 117#u32,
+    99#u32, 116#u32, 111#u32, 114#u32, 115#u32, 32#u32, 97#u32, 110#u32,
+    100#u32, 32#u32, 99#u32, 97#u32, 114#u32, 114#u32, 105#u32, 101#u32,
+    115#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::ctor_count_error::A]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1447:4-1450:6 -/
+@[global_simps, irreducible]
+def frontend.export_c.ctor_count_error.A : Array Std.U32 26#usize :=
+  Array.make 26#usize [
+    116#u32, 104#u32, 101#u32, 32#u32, 105#u32, 110#u32, 100#u32, 117#u32,
+    99#u32, 116#u32, 105#u32, 118#u32, 101#u32, 32#u32, 98#u32, 108#u32,
+    111#u32, 99#u32, 107#u32, 32#u32, 108#u32, 105#u32, 115#u32, 116#u32,
+    115#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::ctor_count_error]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1446:0-1465:1
+    Visibility: public -/
+def frontend.export_c.ctor_count_error
+  (a : Std.U64) (b : Std.U64) : Result (alloc.vec.Vec Std.U32) := do
+  let s ← lift (Array.to_slice frontend.export_c.ctor_count_error.A)
+  let v ← kernel.core_types.code_points s
+  let v1 ← frontend.text.u64_str a
+  let s1 ← lift (Array.to_slice frontend.export_c.ctor_count_error.B)
+  let v2 ← kernel.core_types.code_points s1
+  let s2 ← frontend.text.cat3 v v1 v2
+  let v3 ← frontend.text.u64_str b
+  let s3 ← lift (Array.to_slice frontend.export_c.ctor_count_error.C)
+  let v4 ← kernel.core_types.code_points s3
+  frontend.text.cat3 s2 v3 v4
+
+/-- [con_ron_core::frontend::export_c::cidx_error::D]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1476:4-1476:43 -/
+@[global_simps, irreducible]
+def frontend.export_c.cidx_error.D : Array Std.U32 4#usize :=
+  Array.make 4#usize [ 32#u32, 111#u32, 102#u32, 32#u32 ]
+
+/-- [con_ron_core::frontend::export_c::cidx_error::C]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1472:4-1475:6 -/
+@[global_simps, irreducible]
+def frontend.export_c.cidx_error.C : Array Std.U32 20#usize :=
+  Array.make 20#usize [
+    59#u32, 32#u32, 105#u32, 116#u32, 32#u32, 105#u32, 115#u32, 32#u32, 99#u32,
+    111#u32, 110#u32, 115#u32, 116#u32, 114#u32, 117#u32, 99#u32, 116#u32,
+    111#u32, 114#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::cidx_error::B]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1471:4-1471:95 -/
+@[global_simps, irreducible]
+def frontend.export_c.cidx_error.B : Array Std.U32 15#usize :=
+  Array.make 15#usize [
+    32#u32, 100#u32, 101#u32, 99#u32, 108#u32, 97#u32, 114#u32, 101#u32,
+    115#u32, 32#u32, 99#u32, 105#u32, 100#u32, 120#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::cidx_error::A]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1470:4-1470:83 -/
+@[global_simps, irreducible]
+def frontend.export_c.cidx_error.A : Array Std.U32 12#usize :=
+  Array.make 12#usize [
+    99#u32, 111#u32, 110#u32, 115#u32, 116#u32, 114#u32, 117#u32, 99#u32,
+    116#u32, 111#u32, 114#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::cidx_error]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1469:0-1485:1
+    Visibility: public -/
+def frontend.export_c.cidx_error
+  (n : kernel.name.Name) (ci : Std.U64) (j : Std.U64) (t : kernel.name.Name) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  let s ← lift (Array.to_slice frontend.export_c.cidx_error.A)
+  let v ← kernel.core_types.code_points s
+  let v1 ← frontend.text.name_str n
+  let s1 ← lift (Array.to_slice frontend.export_c.cidx_error.B)
+  let v2 ← kernel.core_types.code_points s1
+  let s2 ← frontend.text.cat3 v v1 v2
+  let v3 ← frontend.text.u64_str ci
+  let s3 ← lift (Array.to_slice frontend.export_c.cidx_error.C)
+  let v4 ← kernel.core_types.code_points s3
+  let s4 ← frontend.text.cat3 s2 v3 v4
+  let v5 ← frontend.text.u64_str j
+  let s5 ← lift (Array.to_slice frontend.export_c.cidx_error.D)
+  let v6 ← kernel.core_types.code_points s5
+  let s6 ← frontend.text.cat3 s4 v5 v6
+  let v7 ← frontend.text.name_str t
+  frontend.text.cat s6 v7
+
+/-- [con_ron_core::frontend::export_c::induct_error::C]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1494:4-1497:6 -/
+@[global_simps, irreducible]
+def frontend.export_c.induct_error.C : Array Std.U32 25#usize :=
+  Array.make 25#usize [
+    59#u32, 32#u32, 105#u32, 116#u32, 32#u32, 105#u32, 115#u32, 32#u32, 97#u32,
+    32#u32, 99#u32, 111#u32, 110#u32, 115#u32, 116#u32, 114#u32, 117#u32,
+    99#u32, 116#u32, 111#u32, 114#u32, 32#u32, 111#u32, 102#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::induct_error::B]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1491:4-1493:6 -/
+@[global_simps, irreducible]
+def frontend.export_c.induct_error.B : Array Std.U32 17#usize :=
+  Array.make 17#usize [
+    32#u32, 100#u32, 101#u32, 99#u32, 108#u32, 97#u32, 114#u32, 101#u32,
+    115#u32, 32#u32, 105#u32, 110#u32, 100#u32, 117#u32, 99#u32, 116#u32,
+    32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::induct_error::A]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1490:4-1490:83 -/
+@[global_simps, irreducible]
+def frontend.export_c.induct_error.A : Array Std.U32 12#usize :=
+  Array.make 12#usize [
+    99#u32, 111#u32, 110#u32, 115#u32, 116#u32, 114#u32, 117#u32, 99#u32,
+    116#u32, 111#u32, 114#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::induct_error]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1489:0-1505:1
+    Visibility: public -/
+def frontend.export_c.induct_error
+  (n : kernel.name.Name) (iw : kernel.name.Name) (t : kernel.name.Name) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  let s ← lift (Array.to_slice frontend.export_c.induct_error.A)
+  let v ← kernel.core_types.code_points s
+  let v1 ← frontend.text.name_str n
+  let s1 ← lift (Array.to_slice frontend.export_c.induct_error.B)
+  let v2 ← kernel.core_types.code_points s1
+  let s2 ← frontend.text.cat3 v v1 v2
+  let v3 ← frontend.text.name_str iw
+  let s3 ← lift (Array.to_slice frontend.export_c.induct_error.C)
+  let v4 ← kernel.core_types.code_points s3
+  let s4 ← frontend.text.cat3 s2 v3 v4
+  let v5 ← frontend.text.name_str t
+  frontend.text.cat s4 v5
+
+/-- [con_ron_core::frontend::export_c::fields_error::E]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1518:4-1518:63 -/
+@[global_simps, irreducible]
+def frontend.export_c.fields_error.E : Array Std.U32 8#usize :=
+  Array.make 8#usize [
+    32#u32, 98#u32, 105#u32, 110#u32, 100#u32, 101#u32, 114#u32, 115#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::fields_error::D]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1514:4-1517:6 -/
+@[global_simps, irreducible]
+def frontend.export_c.fields_error.D : Array Std.U32 26#usize :=
+  Array.make 26#usize [
+    32#u32, 112#u32, 97#u32, 114#u32, 97#u32, 109#u32, 101#u32, 116#u32,
+    101#u32, 114#u32, 115#u32, 59#u32, 32#u32, 105#u32, 116#u32, 115#u32,
+    32#u32, 116#u32, 121#u32, 112#u32, 101#u32, 32#u32, 104#u32, 97#u32,
+    115#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::fields_error::C]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1513:4-1513:77 -/
+@[global_simps, irreducible]
+def frontend.export_c.fields_error.C : Array Std.U32 11#usize :=
+  Array.make 11#usize [
+    32#u32, 102#u32, 105#u32, 101#u32, 108#u32, 100#u32, 115#u32, 32#u32,
+    97#u32, 116#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::fields_error::B]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1512:4-1512:72 -/
+@[global_simps, irreducible]
+def frontend.export_c.fields_error.B : Array Std.U32 10#usize :=
+  Array.make 10#usize [
+    32#u32, 100#u32, 101#u32, 99#u32, 108#u32, 97#u32, 114#u32, 101#u32,
+    115#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::fields_error::A]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1511:4-1511:83 -/
+@[global_simps, irreducible]
+def frontend.export_c.fields_error.A : Array Std.U32 12#usize :=
+  Array.make 12#usize [
+    99#u32, 111#u32, 110#u32, 115#u32, 116#u32, 114#u32, 117#u32, 99#u32,
+    116#u32, 111#u32, 114#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::fields_error]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1510:0-1527:1
+    Visibility: public -/
+def frontend.export_c.fields_error
+  (n : kernel.name.Name) (f : Std.U64) (p : Std.U64) (b : Std.U64) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  let s ← lift (Array.to_slice frontend.export_c.fields_error.A)
+  let v ← kernel.core_types.code_points s
+  let v1 ← frontend.text.name_str n
+  let s1 ← lift (Array.to_slice frontend.export_c.fields_error.B)
+  let v2 ← kernel.core_types.code_points s1
+  let s2 ← frontend.text.cat3 v v1 v2
+  let v3 ← frontend.text.u64_str f
+  let s3 ← lift (Array.to_slice frontend.export_c.fields_error.C)
+  let v4 ← kernel.core_types.code_points s3
+  let s4 ← frontend.text.cat3 s2 v3 v4
+  let v5 ← frontend.text.u64_str p
+  let s5 ← lift (Array.to_slice frontend.export_c.fields_error.D)
+  let v6 ← kernel.core_types.code_points s5
+  let s6 ← frontend.text.cat3 s4 v5 v6
+  let v7 ← frontend.text.u64_str b
+  let s7 ← lift (Array.to_slice frontend.export_c.fields_error.E)
+  let v8 ← kernel.core_types.code_points s7
+  frontend.text.cat3 s6 v7 v8
+
+/-- [con_ron_core::frontend::export_c::check_one_ctor]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1532:0-1572:1
+    Visibility: public -/
+def frontend.export_c.check_one_ctor
+  (st : frontend.export_c.StateD) (n : kernel.name.Name) (t : kernel.name.Name)
+  (c : frontend.scan_types.IndCtorRec) (j : Std.U64) (n_pd : Std.U64) :
+  Result (core.result.Result Unit frontend.export_c.LineErr)
+  := do
+  match c.cidx with
+  | none =>
+    match c.induct with
+    | none =>
+      let r ← frontend.export_c.get_decl_d st c.cv.ty
+      match r with
+      | core.result.Result.Ok v =>
+        let b ← frontend.export_c.ind_pi_tele_len v
+        let i ← n_pd + c.num_fields
+        if i != b
+        then
+          let v1 ← frontend.export_c.fields_error n c.num_fields n_pd b
+          frontend.export_c.invalid Unit v1
+        else ok (core.result.Result.Ok ())
+      | core.result.Result.Err e => ok (core.result.Result.Err e)
+    | some iw =>
+      let r ← frontend.export_c.st_name st iw
+      match r with
+      | core.result.Result.Ok v =>
+        let b ← kernel.name.beq v t
+        if b
+        then
+          let r1 ← frontend.export_c.get_decl_d st c.cv.ty
+          match r1 with
+          | core.result.Result.Ok v1 =>
+            let b1 ← frontend.export_c.ind_pi_tele_len v1
+            let i ← n_pd + c.num_fields
+            if i != b1
+            then
+              let v2 ← frontend.export_c.fields_error n c.num_fields n_pd b1
+              frontend.export_c.invalid Unit v2
+            else ok (core.result.Result.Ok ())
+          | core.result.Result.Err e => ok (core.result.Result.Err e)
+        else
+          let v1 ← frontend.export_c.induct_error n v t
+          frontend.export_c.invalid Unit v1
+      | core.result.Result.Err e => ok (core.result.Result.Err e)
+  | some ci =>
+    if ci != j
+    then
+      let v ← frontend.export_c.cidx_error n ci j t
+      frontend.export_c.invalid Unit v
+    else
+      match c.induct with
+      | none =>
+        let r ← frontend.export_c.get_decl_d st c.cv.ty
+        match r with
+        | core.result.Result.Ok v =>
+          let b ← frontend.export_c.ind_pi_tele_len v
+          let i ← n_pd + c.num_fields
+          if i != b
+          then
+            let v1 ← frontend.export_c.fields_error n c.num_fields n_pd b
+            frontend.export_c.invalid Unit v1
+          else ok (core.result.Result.Ok ())
+        | core.result.Result.Err e => ok (core.result.Result.Err e)
+      | some iw =>
+        let r ← frontend.export_c.st_name st iw
+        match r with
+        | core.result.Result.Ok v =>
+          let b ← kernel.name.beq v t
+          if b
+          then
+            let r1 ← frontend.export_c.get_decl_d st c.cv.ty
+            match r1 with
+            | core.result.Result.Ok v1 =>
+              let b1 ← frontend.export_c.ind_pi_tele_len v1
+              let i ← n_pd + c.num_fields
+              if i != b1
+              then
+                let v2 ←
+                  frontend.export_c.fields_error n c.num_fields n_pd b1
+                frontend.export_c.invalid Unit v2
+              else ok (core.result.Result.Ok ())
+            | core.result.Result.Err e => ok (core.result.Result.Err e)
+          else
+            let v1 ← frontend.export_c.induct_error n v t
+            frontend.export_c.invalid Unit v1
+        | core.result.Result.Err e => ok (core.result.Result.Err e)
+
+/-- [con_ron_core::frontend::export_c::order_type_ctors]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1590:4-1608:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.order_type_ctors_loop
+  (st : frontend.export_c.StateD) (t : kernel.name.Name)
+  (ns : alloc.vec.Vec kernel.name.Name)
+  (cts : alloc.vec.Vec frontend.scan_types.IndCtorRec)
+  (ctor_ix : ron.hashmap.HashMap kernel.name.Name Std.U64) (n_pd : Std.U64)
+  (out : alloc.vec.Vec frontend.scan_types.IndCtorRec) (n : Std.Usize)
+  (j : Std.U64) (i : Std.Usize) :
+  Result (core.result.Result (alloc.vec.Vec frontend.scan_types.IndCtorRec)
+    frontend.export_c.LineErr)
+  := do
+  if i < n
+  then
+    let nm ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.name.Name) ns i
+    let o ←
+      ron.hashmap.HashMap.get
+        kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
+        kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 ctor_ix nm
+    match o with
+    | none =>
+      let v ← frontend.export_c.no_such_ctor_error nm
+      frontend.export_c.invalid (alloc.vec.Vec frontend.scan_types.IndCtorRec)
+        v
+    | some k =>
+      let k1 ← lift (UScalar.cast .Usize k)
+      let i1 := alloc.vec.Vec.len cts
+      if k1 >= i1
+      then
+        let v ← frontend.export_c.no_such_ctor_error nm
+        frontend.export_c.invalid (alloc.vec.Vec
+          frontend.scan_types.IndCtorRec) v
+      else
+        let icr ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            frontend.scan_types.IndCtorRec) cts k1
+        let r ← frontend.export_c.check_one_ctor st nm t icr j n_pd
+        match r with
+        | core.result.Result.Ok _ =>
+          let icr1 ← frontend.export_c.ind_ctor_rec_dup icr
+          let out1 ← alloc.vec.Vec.push out icr1
+          let j1 ← j + 1#u64
+          let i2 ← i + 1#usize
+          frontend.export_c.order_type_ctors_loop st t ns cts ctor_ix n_pd out1
+            n j1 i2
+        | core.result.Result.Err e => ok (core.result.Result.Err e)
+  else ok (core.result.Result.Ok out)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::order_type_ctors]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1577:0-1608:1
+    Visibility: public -/
+def frontend.export_c.order_type_ctors
+  (st : frontend.export_c.StateD) (t : kernel.name.Name)
+  (ns : alloc.vec.Vec kernel.name.Name)
+  (cts : alloc.vec.Vec frontend.scan_types.IndCtorRec)
+  (ctor_ix : ron.hashmap.HashMap kernel.name.Name Std.U64) (n_pd : Std.U64)
+  (out : alloc.vec.Vec frontend.scan_types.IndCtorRec) :
+  Result (core.result.Result (alloc.vec.Vec frontend.scan_types.IndCtorRec)
+    frontend.export_c.LineErr)
+  := do
+  let n := alloc.vec.Vec.len ns
+  frontend.export_c.order_type_ctors_loop st t ns cts ctor_ix n_pd out n 0#u64
+    0#usize
+
+/-- [con_ron_core::frontend::export_c::order_block_ctors]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1625:4-1633:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.order_block_ctors_loop
+  (st : frontend.export_c.StateD) (ty_names : alloc.vec.Vec kernel.name.Name)
+  (listed : alloc.vec.Vec (alloc.vec.Vec kernel.name.Name))
+  (cts : alloc.vec.Vec frontend.scan_types.IndCtorRec)
+  (ctor_ix : ron.hashmap.HashMap kernel.name.Name Std.U64) (n_pd : Std.U64)
+  (out : alloc.vec.Vec frontend.scan_types.IndCtorRec) (n : Std.Usize)
+  (t_at : Std.Usize) :
+  Result (core.result.Result (alloc.vec.Vec frontend.scan_types.IndCtorRec)
+    frontend.export_c.LineErr)
+  := do
+  if t_at < n
+  then
+    let n1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.name.Name) ty_names t_at
+    let v ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
+        kernel.name.Name)) listed t_at
+    let r ← frontend.export_c.order_type_ctors st n1 v cts ctor_ix n_pd out
+    match r with
+    | core.result.Result.Ok o =>
+      let t_at1 ← t_at + 1#usize
+      frontend.export_c.order_block_ctors_loop st ty_names listed cts ctor_ix
+        n_pd o n t_at1
+    | core.result.Result.Err _ => ok r
+  else ok (core.result.Result.Ok out)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::order_block_ctors]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1614:0-1633:1
+    Visibility: public -/
+def frontend.export_c.order_block_ctors
+  (st : frontend.export_c.StateD) (ty_names : alloc.vec.Vec kernel.name.Name)
+  (listed : alloc.vec.Vec (alloc.vec.Vec kernel.name.Name))
+  (cts : alloc.vec.Vec frontend.scan_types.IndCtorRec)
+  (ctor_ix : ron.hashmap.HashMap kernel.name.Name Std.U64) (n_pd : Std.U64) :
+  Result (core.result.Result (alloc.vec.Vec frontend.scan_types.IndCtorRec)
+    frontend.export_c.LineErr)
+  := do
+  let n := alloc.vec.Vec.len ty_names
+  frontend.export_c.order_block_ctors_loop st ty_names listed cts ctor_ix n_pd
+    (alloc.vec.Vec.new frontend.scan_types.IndCtorRec) n 0#usize
+
+/-- [con_ron_core::frontend::export_c::k_expected_of]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1640:0-1663:1
+    Visibility: public -/
+def frontend.export_c.k_expected_of
+  (ty_types : alloc.vec.Vec kernel.expr.Expr)
+  (listed : alloc.vec.Vec (alloc.vec.Vec kernel.name.Name))
+  (cts : alloc.vec.Vec frontend.scan_types.IndCtorRec) :
+  Result (Option Bool)
+  := do
+  let i := alloc.vec.Vec.len ty_types
+  if i != 1#usize
+  then ok (some false)
+  else
+    let i1 := alloc.vec.Vec.len listed
+    if i1 != 1#usize
+    then ok (some false)
+    else
+      let i2 := alloc.vec.Vec.len cts
+      if i2 != 1#usize
+      then ok (some false)
+      else
+        let v ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            (alloc.vec.Vec kernel.name.Name)) listed 0#usize
+        let i3 := alloc.vec.Vec.len v
+        if i3 != 1#usize
+        then ok (some false)
+        else
+          let e ←
+            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+              kernel.expr.Expr) ty_types 0#usize
+          let res ← kernel.expr_ops.pi_result e
+          let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global res._0
+          match en.kind with
+          | kernel.expr.ExprKind.Bvar _ => ok none
+          | kernel.expr.ExprKind.Fvar _ _ => ok none
+          | kernel.expr.ExprKind.Sort s =>
+            let z ← kernel.level.zero
+            let o ← kernel.level.is_equiv s z
+            let is_prop ← match o with
+                            | none => ok false
+                            | some b => ok b
+            let icr ←
+              alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                frontend.scan_types.IndCtorRec) cts 0#usize
+            if icr.num_fields = 0#u64
+            then ok (some is_prop)
+            else ok (some false)
+          | kernel.expr.ExprKind.Const _ _ => ok none
+          | kernel.expr.ExprKind.App _ _ => ok none
+          | kernel.expr.ExprKind.Lam _ _ _ => ok none
+          | kernel.expr.ExprKind.ForallE _ _ _ => ok none
+          | kernel.expr.ExprKind.LetE _ _ _ => ok none
+          | kernel.expr.ExprKind.Lit _ => ok none
+          | kernel.expr.ExprKind.Proj _ _ _ => ok none
+
+/-- [con_ron_core::frontend::export_c::rec_params_error::C]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1670:4-1673:6 -/
+@[global_simps, irreducible]
+def frontend.export_c.rec_params_error.C : Array Std.U32 32#usize :=
+  Array.make 32#usize [
+    32#u32, 112#u32, 97#u32, 114#u32, 97#u32, 109#u32, 101#u32, 116#u32,
+    101#u32, 114#u32, 115#u32, 59#u32, 32#u32, 116#u32, 104#u32, 101#u32,
+    32#u32, 98#u32, 108#u32, 111#u32, 99#u32, 107#u32, 32#u32, 100#u32,
+    101#u32, 99#u32, 108#u32, 97#u32, 114#u32, 101#u32, 115#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::rec_params_error::B]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1669:4-1669:72 -/
+@[global_simps, irreducible]
+def frontend.export_c.rec_params_error.B : Array Std.U32 10#usize :=
+  Array.make 10#usize [
+    32#u32, 100#u32, 101#u32, 99#u32, 108#u32, 97#u32, 114#u32, 101#u32,
+    115#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::rec_params_error::A]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1668:4-1668:68 -/
+@[global_simps, irreducible]
+def frontend.export_c.rec_params_error.A : Array Std.U32 9#usize :=
+  Array.make 9#usize [
+    114#u32, 101#u32, 99#u32, 117#u32, 114#u32, 115#u32, 111#u32, 114#u32,
+    32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::rec_params_error]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1667:0-1681:1
+    Visibility: public -/
+def frontend.export_c.rec_params_error
+  (rn : kernel.name.Name) (a : Std.U64) (b : Std.U64) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  let s ← lift (Array.to_slice frontend.export_c.rec_params_error.A)
+  let v ← kernel.core_types.code_points s
+  let v1 ← frontend.text.name_str rn
+  let s1 ← lift (Array.to_slice frontend.export_c.rec_params_error.B)
+  let v2 ← kernel.core_types.code_points s1
+  let s2 ← frontend.text.cat3 v v1 v2
+  let v3 ← frontend.text.u64_str a
+  let s3 ← lift (Array.to_slice frontend.export_c.rec_params_error.C)
+  let v4 ← kernel.core_types.code_points s3
+  let s4 ← frontend.text.cat3 s2 v3 v4
+  let v5 ← frontend.text.u64_str b
+  frontend.text.cat s4 v5
+
+/-- [con_ron_core::frontend::export_c::rec_motives_error::D]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1692:4-1694:6 -/
+@[global_simps, irreducible]
+def frontend.export_c.rec_motives_error.D : Array Std.U32 16#usize :=
+  Array.make 16#usize [
+    32#u32, 105#u32, 110#u32, 100#u32, 117#u32, 99#u32, 116#u32, 105#u32,
+    118#u32, 101#u32, 32#u32, 116#u32, 121#u32, 112#u32, 101#u32, 115#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::rec_motives_error::C]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1688:4-1691:6 -/
+@[global_simps, irreducible]
+def frontend.export_c.rec_motives_error.C : Array Std.U32 24#usize :=
+  Array.make 24#usize [
+    32#u32, 109#u32, 111#u32, 116#u32, 105#u32, 118#u32, 101#u32, 115#u32,
+    59#u32, 32#u32, 116#u32, 104#u32, 101#u32, 32#u32, 98#u32, 108#u32,
+    111#u32, 99#u32, 107#u32, 32#u32, 104#u32, 97#u32, 115#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::rec_motives_error::B]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1687:4-1687:72 -/
+@[global_simps, irreducible]
+def frontend.export_c.rec_motives_error.B : Array Std.U32 10#usize :=
+  Array.make 10#usize [
+    32#u32, 100#u32, 101#u32, 99#u32, 108#u32, 97#u32, 114#u32, 101#u32,
+    115#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::rec_motives_error::A]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1686:4-1686:68 -/
+@[global_simps, irreducible]
+def frontend.export_c.rec_motives_error.A : Array Std.U32 9#usize :=
+  Array.make 9#usize [
+    114#u32, 101#u32, 99#u32, 117#u32, 114#u32, 115#u32, 111#u32, 114#u32,
+    32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::rec_motives_error]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1685:0-1702:1
+    Visibility: public -/
+def frontend.export_c.rec_motives_error
+  (rn : kernel.name.Name) (a : Std.U64) (b : Std.U64) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  let s ← lift (Array.to_slice frontend.export_c.rec_motives_error.A)
+  let v ← kernel.core_types.code_points s
+  let v1 ← frontend.text.name_str rn
+  let s1 ← lift (Array.to_slice frontend.export_c.rec_motives_error.B)
+  let v2 ← kernel.core_types.code_points s1
+  let s2 ← frontend.text.cat3 v v1 v2
+  let v3 ← frontend.text.u64_str a
+  let s3 ← lift (Array.to_slice frontend.export_c.rec_motives_error.C)
+  let v4 ← kernel.core_types.code_points s3
+  let s4 ← frontend.text.cat3 s2 v3 v4
+  let v5 ← frontend.text.u64_str b
+  let s5 ← lift (Array.to_slice frontend.export_c.rec_motives_error.D)
+  let v6 ← kernel.core_types.code_points s5
+  frontend.text.cat3 s4 v5 v6
+
+/-- [con_ron_core::frontend::export_c::rec_minors_error::D]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1714:4-1714:88 -/
+@[global_simps, irreducible]
+def frontend.export_c.rec_minors_error.D : Array Std.U32 13#usize :=
+  Array.make 13#usize [
+    32#u32, 99#u32, 111#u32, 110#u32, 115#u32, 116#u32, 114#u32, 117#u32,
+    99#u32, 116#u32, 111#u32, 114#u32, 115#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::rec_minors_error::C]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1710:4-1713:6 -/
+@[global_simps, irreducible]
+def frontend.export_c.rec_minors_error.C : Array Std.U32 31#usize :=
+  Array.make 31#usize [
+    32#u32, 109#u32, 105#u32, 110#u32, 111#u32, 114#u32, 32#u32, 112#u32,
+    114#u32, 101#u32, 109#u32, 105#u32, 115#u32, 101#u32, 115#u32, 59#u32,
+    32#u32, 116#u32, 104#u32, 101#u32, 32#u32, 98#u32, 108#u32, 111#u32,
+    99#u32, 107#u32, 32#u32, 104#u32, 97#u32, 115#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::rec_minors_error::B]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1709:4-1709:72 -/
+@[global_simps, irreducible]
+def frontend.export_c.rec_minors_error.B : Array Std.U32 10#usize :=
+  Array.make 10#usize [
+    32#u32, 100#u32, 101#u32, 99#u32, 108#u32, 97#u32, 114#u32, 101#u32,
+    115#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::rec_minors_error::A]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1708:4-1708:68 -/
+@[global_simps, irreducible]
+def frontend.export_c.rec_minors_error.A : Array Std.U32 9#usize :=
+  Array.make 9#usize [
+    114#u32, 101#u32, 99#u32, 117#u32, 114#u32, 115#u32, 111#u32, 114#u32,
+    32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::rec_minors_error]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1707:0-1722:1
+    Visibility: public -/
+def frontend.export_c.rec_minors_error
+  (rn : kernel.name.Name) (a : Std.U64) (b : Std.U64) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  let s ← lift (Array.to_slice frontend.export_c.rec_minors_error.A)
+  let v ← kernel.core_types.code_points s
+  let v1 ← frontend.text.name_str rn
+  let s1 ← lift (Array.to_slice frontend.export_c.rec_minors_error.B)
+  let v2 ← kernel.core_types.code_points s1
+  let s2 ← frontend.text.cat3 v v1 v2
+  let v3 ← frontend.text.u64_str a
+  let s3 ← lift (Array.to_slice frontend.export_c.rec_minors_error.C)
+  let v4 ← kernel.core_types.code_points s3
+  let s4 ← frontend.text.cat3 s2 v3 v4
+  let v5 ← frontend.text.u64_str b
+  let s5 ← lift (Array.to_slice frontend.export_c.rec_minors_error.D)
+  let v6 ← kernel.core_types.code_points s5
+  frontend.text.cat3 s4 v5 v6
+
+/-- [con_ron_core::frontend::export_c::rec_k_error::E]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1736:4-1736:57 -/
+@[global_simps, irreducible]
+def frontend.export_c.rec_k_error.E : Array Std.U32 7#usize :=
+  Array.make 7#usize [
+    32#u32, 75#u32, 45#u32, 108#u32, 105#u32, 107#u32, 101#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::rec_k_error::D]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1735:4-1735:44 -/
+@[global_simps, irreducible]
+def frontend.export_c.rec_k_error.D : Array Std.U32 4#usize :=
+  Array.make 4#usize [ 32#u32, 110#u32, 111#u32, 116#u32 ]
+
+/-- [con_ron_core::frontend::export_c::rec_k_error::C]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1730:4-1734:6 -/
+@[global_simps, irreducible]
+def frontend.export_c.rec_k_error.C : Array Std.U32 41#usize :=
+  Array.make 41#usize [
+    59#u32, 32#u32, 116#u32, 104#u32, 101#u32, 32#u32, 103#u32, 101#u32,
+    110#u32, 101#u32, 114#u32, 97#u32, 116#u32, 101#u32, 100#u32, 32#u32,
+    114#u32, 101#u32, 99#u32, 117#u32, 114#u32, 115#u32, 111#u32, 114#u32,
+    32#u32, 111#u32, 102#u32, 32#u32, 116#u32, 104#u32, 105#u32, 115#u32,
+    32#u32, 98#u32, 108#u32, 111#u32, 99#u32, 107#u32, 32#u32, 105#u32, 115#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::rec_k_error::B]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1729:4-1729:93 -/
+@[global_simps, irreducible]
+def frontend.export_c.rec_k_error.B : Array Std.U32 15#usize :=
+  Array.make 15#usize [
+    32#u32, 100#u32, 101#u32, 99#u32, 108#u32, 97#u32, 114#u32, 101#u32,
+    115#u32, 32#u32, 107#u32, 32#u32, 58#u32, 61#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::rec_k_error::A]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1728:4-1728:68 -/
+@[global_simps, irreducible]
+def frontend.export_c.rec_k_error.A : Array Std.U32 9#usize :=
+  Array.make 9#usize [
+    114#u32, 101#u32, 99#u32, 117#u32, 114#u32, 115#u32, 111#u32, 114#u32,
+    32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::rec_k_error]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1727:0-1749:1
+    Visibility: public -/
+def frontend.export_c.rec_k_error
+  (rn : kernel.name.Name) (k : Bool) (k_e : Bool) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  let s ← lift (Array.to_slice frontend.export_c.rec_k_error.A)
+  let v ← kernel.core_types.code_points s
+  let v1 ← frontend.text.name_str rn
+  let s1 ← lift (Array.to_slice frontend.export_c.rec_k_error.B)
+  let v2 ← kernel.core_types.code_points s1
+  let s2 ← frontend.text.cat3 v v1 v2
+  let v3 ← frontend.export_c.bool_str k
+  let s3 ← lift (Array.to_slice frontend.export_c.rec_k_error.C)
+  let v4 ← kernel.core_types.code_points s3
+  let s4 ← frontend.text.cat3 s2 v3 v4
+  let s5 ←
+    if k_e
+    then ok s4
+    else
+      do
+      let s6 ← lift (Array.to_slice frontend.export_c.rec_k_error.D)
+      let v5 ← kernel.core_types.code_points s6
+      frontend.text.cat s4 v5
+  let s6 ← lift (Array.to_slice frontend.export_c.rec_k_error.E)
+  let v5 ← kernel.core_types.code_points s6
+  frontend.text.cat s5 v5
+
+/-- [con_ron_core::frontend::export_c::rec_indices_error::F]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1759:4-1759:78 -/
+@[global_simps, irreducible]
+def frontend.export_c.rec_indices_error.F : Array Std.U32 11#usize :=
+  Array.make 11#usize [
+    32#u32, 112#u32, 97#u32, 114#u32, 97#u32, 109#u32, 101#u32, 116#u32,
+    101#u32, 114#u32, 115#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::rec_indices_error::E]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1758:4-1758:42 -/
+@[global_simps, irreducible]
+def frontend.export_c.rec_indices_error.E : Array Std.U32 4#usize :=
+  Array.make 4#usize [ 32#u32, 97#u32, 116#u32, 32#u32 ]
+
+/-- [con_ron_core::frontend::export_c::rec_indices_error::D]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1757:4-1757:47 -/
+@[global_simps, irreducible]
+def frontend.export_c.rec_indices_error.D : Array Std.U32 5#usize :=
+  Array.make 5#usize [ 32#u32, 104#u32, 97#u32, 115#u32, 32#u32 ]
+
+/-- [con_ron_core::frontend::export_c::rec_indices_error::C]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1756:4-1756:72 -/
+@[global_simps, irreducible]
+def frontend.export_c.rec_indices_error.C : Array Std.U32 10#usize :=
+  Array.make 10#usize [
+    32#u32, 105#u32, 110#u32, 100#u32, 105#u32, 99#u32, 101#u32, 115#u32,
+    59#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::rec_indices_error::B]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1755:4-1755:72 -/
+@[global_simps, irreducible]
+def frontend.export_c.rec_indices_error.B : Array Std.U32 10#usize :=
+  Array.make 10#usize [
+    32#u32, 100#u32, 101#u32, 99#u32, 108#u32, 97#u32, 114#u32, 101#u32,
+    115#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::rec_indices_error::A]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1754:4-1754:68 -/
+@[global_simps, irreducible]
+def frontend.export_c.rec_indices_error.A : Array Std.U32 9#usize :=
+  Array.make 9#usize [
+    114#u32, 101#u32, 99#u32, 117#u32, 114#u32, 115#u32, 111#u32, 114#u32,
+    32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::rec_indices_error]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1753:0-1769:1
+    Visibility: public -/
+def frontend.export_c.rec_indices_error
+  (rn : kernel.name.Name) (a : Std.U64) (t : kernel.name.Name) (b : Std.U64)
+  (p : Std.U64) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  let s ← lift (Array.to_slice frontend.export_c.rec_indices_error.A)
+  let v ← kernel.core_types.code_points s
+  let v1 ← frontend.text.name_str rn
+  let s1 ← lift (Array.to_slice frontend.export_c.rec_indices_error.B)
+  let v2 ← kernel.core_types.code_points s1
+  let s2 ← frontend.text.cat3 v v1 v2
+  let v3 ← frontend.text.u64_str a
+  let s3 ← lift (Array.to_slice frontend.export_c.rec_indices_error.C)
+  let v4 ← kernel.core_types.code_points s3
+  let s4 ← frontend.text.cat3 s2 v3 v4
+  let v5 ← frontend.text.name_str t
+  let s5 ← lift (Array.to_slice frontend.export_c.rec_indices_error.D)
+  let v6 ← kernel.core_types.code_points s5
+  let s6 ← frontend.text.cat3 s4 v5 v6
+  let v7 ← frontend.text.u64_str b
+  let s7 ← lift (Array.to_slice frontend.export_c.rec_indices_error.E)
+  let v8 ← kernel.core_types.code_points s7
+  let s8 ← frontend.text.cat3 s6 v7 v8
+  let v9 ← frontend.text.u64_str p
+  let s9 ← lift (Array.to_slice frontend.export_c.rec_indices_error.F)
+  let v10 ← kernel.core_types.code_points s9
+  frontend.text.cat3 s8 v9 v10
+
+/-- [con_ron_core::frontend::export_c::check_rec_indices]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1785:4-1805:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.check_rec_indices_loop
+  (rn : kernel.name.Name) (t_pre : kernel.name.Name) (num_indices : Std.U64)
+  (ty_names : alloc.vec.Vec kernel.name.Name)
+  (ty_types : alloc.vec.Vec kernel.expr.Expr) (n_pd : Std.U64) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result (core.result.Result Unit frontend.export_c.LineErr)
+  := do
+  if i < n
+  then
+    let n1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.name.Name) ty_names i
+    let b ← kernel.name.beq n1 t_pre
+    if b
+    then
+      let e ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+          kernel.expr.Expr) ty_types i
+      let o ← kernel.env.pi_sort_tele_len e
+      match o with
+      | none =>
+        let i1 ← i + 1#usize
+        frontend.export_c.check_rec_indices_loop rn t_pre num_indices ty_names
+          ty_types n_pd n i1
+      | some k =>
+        let i1 ← n_pd + num_indices
+        if i1 != k
+        then
+          let i2 ← frontend.export_c.sat_sub k n_pd
+          let v ←
+            frontend.export_c.rec_indices_error rn num_indices t_pre i2 n_pd
+          frontend.export_c.invalid Unit v
+        else
+          let i2 ← i + 1#usize
+          frontend.export_c.check_rec_indices_loop rn t_pre num_indices
+            ty_names ty_types n_pd n i2
+    else
+      let i1 ← i + 1#usize
+      frontend.export_c.check_rec_indices_loop rn t_pre num_indices ty_names
+        ty_types n_pd n i1
+  else ok (core.result.Result.Ok ())
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::check_rec_indices]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1775:0-1805:1
+    Visibility: public -/
+def frontend.export_c.check_rec_indices
+  (rn : kernel.name.Name) (t_pre : kernel.name.Name) (num_indices : Std.U64)
+  (ty_names : alloc.vec.Vec kernel.name.Name)
+  (ty_types : alloc.vec.Vec kernel.expr.Expr) (n_pd : Std.U64) :
+  Result (core.result.Result Unit frontend.export_c.LineErr)
+  := do
+  let n := alloc.vec.Vec.len ty_names
+  frontend.export_c.check_rec_indices_loop rn t_pre num_indices ty_names
+    ty_types n_pd n 0#usize
+
+/-- [con_ron_core::frontend::export_c::check_one_rec::R]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1843:12-1843:47 -/
+@[global_simps, irreducible]
+def frontend.export_c.check_one_rec.R : Array Std.U32 3#usize :=
+  Array.make 3#usize [ 114#u32, 101#u32, 99#u32 ]
+
+/-- [con_ron_core::frontend::export_c::check_one_rec]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1810:0-1852:1
+    Visibility: public -/
+def frontend.export_c.check_one_rec
+  (st : frontend.export_c.StateD) (r : frontend.scan_types.IndRecRec)
+  (ty_names : alloc.vec.Vec kernel.name.Name)
+  (ty_types : alloc.vec.Vec kernel.expr.Expr) (n_pd : Std.U64)
+  (n_types : Std.U64) (n_ctors : Std.U64) (k_exp : Option Bool) :
+  Result (core.result.Result Unit frontend.export_c.LineErr)
+  := do
+  let r1 ← frontend.export_c.st_name st r.cv.name
+  match r1 with
+  | core.result.Result.Ok v =>
+    if r.num_params != n_pd
+    then
+      let v1 ← frontend.export_c.rec_params_error v r.num_params n_pd
+      frontend.export_c.invalid Unit v1
+    else
+      if r.num_motives != n_types
+      then
+        let v1 ← frontend.export_c.rec_motives_error v r.num_motives n_types
+        frontend.export_c.invalid Unit v1
+      else
+        if r.num_minors != n_ctors
+        then
+          let v1 ← frontend.export_c.rec_minors_error v r.num_minors n_ctors
+          frontend.export_c.invalid Unit v1
+        else
+          match k_exp with
+          | none =>
+            let nn ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global v._0
+            match nn.kind with
+            | kernel.name.NameKind.Anonymous => ok (core.result.Result.Ok ())
+            | kernel.name.NameKind.Str t_pre last =>
+              let s ← lift (Array.to_slice frontend.export_c.check_one_rec.R)
+              let b ← frontend.text.cps_beq last s
+              if b
+              then
+                frontend.export_c.check_rec_indices v t_pre r.num_indices
+                  ty_names ty_types n_pd
+              else ok (core.result.Result.Ok ())
+            | kernel.name.NameKind.Num _ _ => ok (core.result.Result.Ok ())
+          | some k_e =>
+            if r.k != k_e
+            then
+              let v1 ← frontend.export_c.rec_k_error v r.k k_e
+              frontend.export_c.invalid Unit v1
+            else
+              let nn ←
+                alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global v._0
+              match nn.kind with
+              | kernel.name.NameKind.Anonymous => ok (core.result.Result.Ok ())
+              | kernel.name.NameKind.Str t_pre last =>
+                let s ←
+                  lift (Array.to_slice frontend.export_c.check_one_rec.R)
+                let b ← frontend.text.cps_beq last s
+                if b
+                then
+                  frontend.export_c.check_rec_indices v t_pre r.num_indices
+                    ty_names ty_types n_pd
+                else ok (core.result.Result.Ok ())
+              | kernel.name.NameKind.Num _ _ => ok (core.result.Result.Ok ())
+  | core.result.Result.Err e => ok (core.result.Result.Err e)
+
+/-- [con_ron_core::frontend::export_c::check_rec_records]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1871:4-1879:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.check_rec_records_loop
+  (st : frontend.export_c.StateD)
+  (rcs : alloc.vec.Vec frontend.scan_types.IndRecRec)
+  (ty_names : alloc.vec.Vec kernel.name.Name)
+  (ty_types : alloc.vec.Vec kernel.expr.Expr) (n_pd : Std.U64)
+  (n_types : Std.U64) (n_ctors : Std.U64) (k_exp : Option Bool) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result (core.result.Result Unit frontend.export_c.LineErr)
+  := do
+  if i < n
+  then
+    let irr ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.scan_types.IndRecRec) rcs i
+    let r ←
+      frontend.export_c.check_one_rec st irr ty_names ty_types n_pd n_types
+        n_ctors k_exp
+    match r with
+    | core.result.Result.Ok _ =>
+      let i1 ← i + 1#usize
+      frontend.export_c.check_rec_records_loop st rcs ty_names ty_types n_pd
+        n_types n_ctors k_exp n i1
+    | core.result.Result.Err _ => ok r
+  else ok (core.result.Result.Ok ())
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::check_rec_records]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1859:0-1879:1
+    Visibility: public -/
+def frontend.export_c.check_rec_records
+  (st : frontend.export_c.StateD)
+  (rcs : alloc.vec.Vec frontend.scan_types.IndRecRec)
+  (ty_names : alloc.vec.Vec kernel.name.Name)
+  (ty_types : alloc.vec.Vec kernel.expr.Expr) (n_pd : Std.U64)
+  (n_types : Std.U64) (n_ctors : Std.U64) (k_exp : Option Bool) :
+  Result (core.result.Result Unit frontend.export_c.LineErr)
+  := do
+  let n := alloc.vec.Vec.len rcs
+  frontend.export_c.check_rec_records_loop st rcs ty_names ty_types n_pd
+    n_types n_ctors k_exp n 0#usize
+
+/-- [con_ron_core::frontend::export_c::validate_ind_d::M3]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1943:8-1948:10 -/
+@[global_simps, irreducible]
+def frontend.export_c.validate_ind_d.M3 : Array Std.U32 55#usize :=
+  Array.make 55#usize [
+    100#u32, 117#u32, 112#u32, 108#u32, 105#u32, 99#u32, 97#u32, 116#u32,
+    101#u32, 32#u32, 99#u32, 111#u32, 110#u32, 115#u32, 116#u32, 114#u32,
+    117#u32, 99#u32, 116#u32, 111#u32, 114#u32, 32#u32, 110#u32, 97#u32,
+    109#u32, 101#u32, 32#u32, 105#u32, 110#u32, 32#u32, 97#u32, 110#u32,
+    32#u32, 105#u32, 110#u32, 100#u32, 117#u32, 99#u32, 116#u32, 105#u32,
+    118#u32, 101#u32, 32#u32, 116#u32, 121#u32, 112#u32, 101#u32, 39#u32,
+    115#u32, 32#u32, 99#u32, 116#u32, 111#u32, 114#u32, 115#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::validate_ind_d::M2]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1913:8-1918:10 -/
+@[global_simps, irreducible]
+def frontend.export_c.validate_ind_d.M2 : Array Std.U32 56#usize :=
+  Array.make 56#usize [
+    105#u32, 110#u32, 100#u32, 117#u32, 99#u32, 116#u32, 105#u32, 118#u32,
+    101#u32, 32#u32, 98#u32, 108#u32, 111#u32, 99#u32, 107#u32, 32#u32,
+    119#u32, 104#u32, 111#u32, 115#u32, 101#u32, 32#u32, 116#u32, 121#u32,
+    112#u32, 101#u32, 32#u32, 114#u32, 101#u32, 99#u32, 111#u32, 114#u32,
+    100#u32, 115#u32, 32#u32, 100#u32, 105#u32, 115#u32, 97#u32, 103#u32,
+    114#u32, 101#u32, 101#u32, 32#u32, 111#u32, 110#u32, 32#u32, 110#u32,
+    117#u32, 109#u32, 80#u32, 97#u32, 114#u32, 97#u32, 109#u32, 115#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::validate_ind_d::M1]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1902:8-1905:10 -/
+@[global_simps, irreducible]
+def frontend.export_c.validate_ind_d.M1 : Array Std.U32 28#usize :=
+  Array.make 28#usize [
+    117#u32, 110#u32, 115#u32, 97#u32, 102#u32, 101#u32, 32#u32, 105#u32,
+    110#u32, 100#u32, 117#u32, 99#u32, 116#u32, 105#u32, 118#u32, 101#u32,
+    32#u32, 100#u32, 101#u32, 99#u32, 108#u32, 97#u32, 114#u32, 97#u32,
+    116#u32, 105#u32, 111#u32, 110#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::validate_ind_d]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1892:0-1972:1
+    Visibility: public -/
+def frontend.export_c.validate_ind_d
+  (st : frontend.export_c.StateD)
+  (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec)
+  (cts : alloc.vec.Vec frontend.scan_types.IndCtorRec)
+  (rcs : alloc.vec.Vec frontend.scan_types.IndRecRec) :
+  Result (core.result.Result ((alloc.vec.Vec frontend.scan_types.IndCtorRec) ×
+    Std.U64) frontend.export_c.LineErr)
+  := do
+  let b ← frontend.export_c.any_ty_unsafe tys
+  if b
+  then
+    let s ← lift (Array.to_slice frontend.export_c.validate_ind_d.M1)
+    let v ← kernel.core_types.code_points s
+    frontend.export_c.declined ((alloc.vec.Vec frontend.scan_types.IndCtorRec)
+      × Std.U64) v
+  else
+    let i := alloc.vec.Vec.len tys
+    let n_pd ←
+      if i = 0#usize
+      then ok 0#u64
+      else
+        do
+        let itr ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            frontend.scan_types.IndTypeRec) tys 0#usize
+        ok itr.num_params
+    let b1 ← frontend.export_c.all_num_params tys n_pd
+    if b1
+    then
+      let r ← frontend.export_c.ty_names_of st tys
+      match r with
+      | core.result.Result.Ok v =>
+        let r1 ← frontend.export_c.ty_types_of st tys
+        match r1 with
+        | core.result.Result.Ok v1 =>
+          let r2 ← frontend.export_c.listed_ctors_of st tys
+          match r2 with
+          | core.result.Result.Ok v2 =>
+            let r3 ← frontend.export_c.ctor_names_of st cts
+            match r3 with
+            | core.result.Result.Ok v3 =>
+              let flat ← frontend.export_c.flatten_listed v2
+              let b2 ← frontend.export_c.names_have_dup flat
+              if b2
+              then
+                let s ←
+                  lift (Array.to_slice frontend.export_c.validate_ind_d.M3)
+                let v4 ← kernel.core_types.code_points s
+                frontend.export_c.invalid ((alloc.vec.Vec
+                  frontend.scan_types.IndCtorRec) × Std.U64) v4
+              else
+                let i1 := alloc.vec.Vec.len flat
+                let i2 := alloc.vec.Vec.len cts
+                if i1 != i2
+                then
+                  let i3 := alloc.vec.Vec.len flat
+                  let i4 ← lift (UScalar.cast .U64 i3)
+                  let i5 := alloc.vec.Vec.len cts
+                  let i6 ← lift (UScalar.cast .U64 i5)
+                  let v4 ← frontend.export_c.ctor_count_error i4 i6
+                  frontend.export_c.invalid ((alloc.vec.Vec
+                    frontend.scan_types.IndCtorRec) × Std.U64) v4
+                else
+                  let ctor_ix ← frontend.export_c.ctor_index_of v3
+                  let r4 ←
+                    frontend.export_c.order_block_ctors st v v2 cts ctor_ix
+                      n_pd
+                  match r4 with
+                  | core.result.Result.Ok v4 =>
+                    let nested ← frontend.export_c.any_ty_nested tys
+                    let i3 := alloc.vec.Vec.len tys
+                    let n_types ← lift (UScalar.cast .U64 i3)
+                    let i4 := alloc.vec.Vec.len v4
+                    let n_ctors ← lift (UScalar.cast .U64 i4)
+                    let k_exp ← frontend.export_c.k_expected_of v1 v2 v4
+                    if nested
+                    then ok (core.result.Result.Ok (v4, n_pd))
+                    else
+                      let r5 ←
+                        frontend.export_c.check_rec_records st rcs v v1 n_pd
+                          n_types n_ctors k_exp
+                      match r5 with
+                      | core.result.Result.Ok _ =>
+                        ok (core.result.Result.Ok (v4, n_pd))
+                      | core.result.Result.Err e =>
+                        ok (core.result.Result.Err e)
+                  | core.result.Result.Err e => ok (core.result.Result.Err e)
+            | core.result.Result.Err e => ok (core.result.Result.Err e)
+          | core.result.Result.Err e => ok (core.result.Result.Err e)
+        | core.result.Result.Err e => ok (core.result.Result.Err e)
+      | core.result.Result.Err e => ok (core.result.Result.Err e)
+    else
+      let s ← lift (Array.to_slice frontend.export_c.validate_ind_d.M2)
+      let v ← kernel.core_types.code_points s
+      frontend.export_c.declined ((alloc.vec.Vec
+        frontend.scan_types.IndCtorRec) × Std.U64) v
+
+/-- [con_ron_core::frontend::export_c::ind_block_recs]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2047:4-2065:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.ind_block_recs_loop
+  (st : frontend.export_c.StateD)
+  (rcs : alloc.vec.Vec frontend.scan_types.IndRecRec)
+  (out : alloc.vec.Vec kernel.env.ConstantInfo) (n : Std.Usize) (i : Std.Usize)
+  :
+  Result (core.result.Result (alloc.vec.Vec kernel.env.ConstantInfo)
+    frontend.export_c.LineErr)
+  := do
+  if i < n
+  then
+    let r ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.scan_types.IndRecRec) rcs i
+    let r1 ← frontend.export_c.parse_rules_d st r.rules
+    match r1 with
+    | core.result.Result.Ok v =>
+      let r2 ← frontend.export_c.parse_cv_d st r.cv
+      match r2 with
+      | core.result.Result.Ok cv =>
+        let i1 ← r.num_params + r.num_motives
+        let i2 ← i1 + r.num_minors
+        let i3 ← i2 + r.num_indices
+        let i4 ← i1 + r.num_minors
+        let out1 ←
+          alloc.vec.Vec.push out (kernel.env.ConstantInfo.RecInfo cv i3 i4 v)
+        let i5 ← i + 1#usize
+        frontend.export_c.ind_block_recs_loop st rcs out1 n i5
+      | core.result.Result.Err e => ok (core.result.Result.Err e)
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  else ok (core.result.Result.Ok out)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::ind_block_recs]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2039:0-2065:1
+    Visibility: public -/
+def frontend.export_c.ind_block_recs
+  (st : frontend.export_c.StateD)
+  (rcs : alloc.vec.Vec frontend.scan_types.IndRecRec)
+  (out : alloc.vec.Vec kernel.env.ConstantInfo) :
+  Result (core.result.Result (alloc.vec.Vec kernel.env.ConstantInfo)
+    frontend.export_c.LineErr)
+  := do
+  let n := alloc.vec.Vec.len rcs
+  frontend.export_c.ind_block_recs_loop st rcs out n 0#usize
+
+/-- [con_ron_core::frontend::export_c::ind_block_ctors]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2026:4-2035:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.ind_block_ctors_loop
+  (st : frontend.export_c.StateD)
+  (cts : alloc.vec.Vec frontend.scan_types.IndCtorRec)
+  (out : alloc.vec.Vec kernel.env.ConstantInfo) (n : Std.Usize) (i : Std.Usize)
+  :
+  Result (core.result.Result (alloc.vec.Vec kernel.env.ConstantInfo)
+    frontend.export_c.LineErr)
+  := do
+  if i < n
+  then
+    let c ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.scan_types.IndCtorRec) cts i
+    let r ← frontend.export_c.parse_cv_d st c.cv
+    match r with
+    | core.result.Result.Ok cv =>
+      let out1 ←
+        alloc.vec.Vec.push out (kernel.env.ConstantInfo.CtorInfo cv
+          c.num_params c.num_fields)
+      let i1 ← i + 1#usize
+      frontend.export_c.ind_block_ctors_loop st cts out1 n i1
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  else ok (core.result.Result.Ok out)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::ind_block_ctors]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2018:0-2035:1
+    Visibility: public -/
+def frontend.export_c.ind_block_ctors
+  (st : frontend.export_c.StateD)
+  (cts : alloc.vec.Vec frontend.scan_types.IndCtorRec)
+  (out : alloc.vec.Vec kernel.env.ConstantInfo) :
+  Result (core.result.Result (alloc.vec.Vec kernel.env.ConstantInfo)
+    frontend.export_c.LineErr)
+  := do
+  let n := alloc.vec.Vec.len cts
+  frontend.export_c.ind_block_ctors_loop st cts out n 0#usize
+
+/-- [con_ron_core::frontend::export_c::ind_block_types]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2006:4-2014:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.ind_block_types_loop
+  (st : frontend.export_c.StateD)
+  (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec)
+  (out : alloc.vec.Vec kernel.env.ConstantInfo) (n : Std.Usize) (i : Std.Usize)
+  :
+  Result (core.result.Result (alloc.vec.Vec kernel.env.ConstantInfo)
+    frontend.export_c.LineErr)
+  := do
+  if i < n
+  then
+    let itr ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.scan_types.IndTypeRec) tys i
+    let r ← frontend.export_c.parse_cv_d st itr.cv
+    match r with
+    | core.result.Result.Ok cv =>
+      let ic ← kernel.env.ind_caps_default
+      let out1 ←
+        alloc.vec.Vec.push out (kernel.env.ConstantInfo.IndInfo cv ic)
+      let i1 ← i + 1#usize
+      frontend.export_c.ind_block_types_loop st tys out1 n i1
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  else ok (core.result.Result.Ok out)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::ind_block_types]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1998:0-2014:1
+    Visibility: public -/
+def frontend.export_c.ind_block_types
+  (st : frontend.export_c.StateD)
+  (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec)
+  (out : alloc.vec.Vec kernel.env.ConstantInfo) :
+  Result (core.result.Result (alloc.vec.Vec kernel.env.ConstantInfo)
+    frontend.export_c.LineErr)
+  := do
+  let n := alloc.vec.Vec.len tys
+  frontend.export_c.ind_block_types_loop st tys out n 0#usize
+
+/-- [con_ron_core::frontend::export_c::ind_block_of]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 1981:0-1994:1
+    Visibility: public -/
+def frontend.export_c.ind_block_of
+  (st : frontend.export_c.StateD)
+  (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec)
+  (cts : alloc.vec.Vec frontend.scan_types.IndCtorRec)
+  (rcs : alloc.vec.Vec frontend.scan_types.IndRecRec) :
+  Result (core.result.Result (alloc.vec.Vec kernel.env.ConstantInfo)
+    frontend.export_c.LineErr)
+  := do
+  let r ←
+    frontend.export_c.ind_block_types st tys (alloc.vec.Vec.new
+      kernel.env.ConstantInfo)
+  match r with
+  | core.result.Result.Ok b =>
+    let r1 ← frontend.export_c.ind_block_ctors st cts b
+    match r1 with
+    | core.result.Result.Ok b2 => frontend.export_c.ind_block_recs st rcs b2
+    | core.result.Result.Err _ => ok r1
+  | core.result.Result.Err _ => ok r
+
+/-- [con_ron_core::frontend::export_c::note_ind_blocks]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2073:4-2077:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.note_ind_blocks_loop
+  (st : frontend.export_c.StateD)
+  (b : alloc.sync.Arc frontend.in_model_rec.BlockRec) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result frontend.export_c.StateD
+  := do
+  if i < n
+  then
+    let br ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global b
+    let itr ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.in_model_rec.IndTypeRec) br.types i
+    let n1 ← kernel.name.dup itr.cv.name
+    let a ← ron.ptr.clone b
+    let (_, hm) ←
+      ron.hashmap.HashMap.insert
+        kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
+        kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 st.ind_blocks n1 a
+    let i1 ← i + 1#usize
+    frontend.export_c.note_ind_blocks_loop { st with ind_blocks := hm } b n i1
+  else ok st
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::note_ind_blocks]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2070:0-2078:1
+    Visibility: public -/
+def frontend.export_c.note_ind_blocks
+  (st : frontend.export_c.StateD)
+  (b : alloc.sync.Arc frontend.in_model_rec.BlockRec) :
+  Result frontend.export_c.StateD
+  := do
+  let br ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global b
+  let n := alloc.vec.Vec.len br.types
+  frontend.export_c.note_ind_blocks_loop st b n 0#usize
+
+/-- [con_ron_core::frontend::export_c::in_model_decline::B]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2087:4-2087:33 -/
+@[global_simps, irreducible]
+def frontend.export_c.in_model_decline.B : Array Std.U32 2#usize :=
+  Array.make 2#usize [ 58#u32, 32#u32 ]
+
+/-- [con_ron_core::frontend::export_c::in_model_decline::A]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2083:4-2086:6 -/
+@[global_simps, irreducible]
+def frontend.export_c.in_model_decline.A : Array Std.U32 20#usize :=
+  Array.make 20#usize [
+    105#u32, 110#u32, 45#u32, 112#u32, 114#u32, 111#u32, 99#u32, 101#u32,
+    115#u32, 115#u32, 32#u32, 109#u32, 111#u32, 100#u32, 101#u32, 108#u32,
+    32#u32, 111#u32, 102#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::in_model_decline]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2082:0-2094:1
+    Visibility: public -/
+def frontend.export_c.in_model_decline
+  (t0 : kernel.name.Name) (why : alloc.vec.Vec Std.U32) :
+  Result (alloc.vec.Vec Std.U32)
+  := do
+  let s ← lift (Array.to_slice frontend.export_c.in_model_decline.A)
+  let v ← kernel.core_types.code_points s
+  let v1 ← frontend.text.name_str t0
+  let s1 ← lift (Array.to_slice frontend.export_c.in_model_decline.B)
+  let v2 ← kernel.core_types.code_points s1
+  let s2 ← frontend.text.cat3 v v1 v2
+  frontend.text.cat s2 why
+
+/-- [con_ron_core::frontend::export_c::install_gen]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2106:0-2138:1
+    Visibility: public -/
+def frontend.export_c.install_gen
+  {G : Type} (in_model_recModellerInst : frontend.in_model_rec.Modeller G)
+  (m : G) (st : frontend.export_c.StateD)
+  (block : alloc.vec.Vec kernel.env.ConstantInfo) (n_pd : Std.U64)
+  (t0 : kernel.name.Name) (b : alloc.sync.Arc frontend.in_model_rec.BlockRec) :
+  Result ((core.result.Result Unit frontend.export_c.LineErr) ×
+    frontend.export_c.StateD)
+  := do
+  let ctx ← frontend.export_c.state_model_ctx st
+  let br ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global b
+  let gen ← in_model_recModellerInst.generate m ctx br
+  match gen with
+  | core.result.Result.Ok gen2 =>
+    let st1 ← frontend.export_c.push_gen_list st gen2 t0
+    let n ← kernel.name.dup t0
+    let v ← alloc.vec.Vec.push st1.in_modelled n
+    let st2 ←
+      frontend.export_c.push_decl { st1 with in_modelled := v }
+        (kernel.env.Declaration.IndDecl block n_pd)
+    ok (core.result.Result.Ok (), st2)
+  | core.result.Result.Err why =>
+    if st.in_model_census
+    then
+      let n ← kernel.name.dup t0
+      let v ← alloc.vec.Vec.push st.in_model_declined (n, why)
+      let st1 ←
+        frontend.export_c.push_decl { st with in_model_declined := v }
+          (kernel.env.Declaration.IndDecl block n_pd)
+      ok (core.result.Result.Ok (), st1)
+    else
+      let v ← frontend.export_c.in_model_decline t0 why
+      let r ← frontend.export_c.declined Unit v
+      ok (r, st)
+
+/-- [con_ron_core::frontend::in_model_rec::wants]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/in_model_rec.rs', lines 203:4-210:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.in_model_rec.wants_loop
+  (v : alloc.vec.Vec frontend.in_model_rec.IndTypeRec) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result Bool
+  := do
+  if i < n
+  then
+    let itr ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.in_model_rec.IndTypeRec) v i
+    if itr.num_nested > 0#u64
+    then ok true
+    else let i1 ← i + 1#usize
+         frontend.in_model_rec.wants_loop v n i1
+  else ok false
+partial_fixpoint
+
+/-- [con_ron_core::frontend::in_model_rec::wants]:
+    Source: 'crates/con-ron-core/src/frontend/in_model_rec.rs', lines 197:0-210:1
+    Visibility: public -/
+def frontend.in_model_rec.wants
+  (b : frontend.in_model_rec.BlockRec) : Result Bool := do
+  let i := alloc.vec.Vec.len b.types
+  if i > 1#usize
+  then ok true
+  else
+    let n := alloc.vec.Vec.len b.types
+    frontend.in_model_rec.wants_loop b.types n 0#usize
+
+/-- [con_ron_core::frontend::export_c::install_ind_d]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2151:0-2184:1
+    Visibility: public -/
+def frontend.export_c.install_ind_d
+  {G : Type} (in_model_recModellerInst : frontend.in_model_rec.Modeller G)
+  (m : G) (st : frontend.export_c.StateD)
+  (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec)
+  (cts : alloc.vec.Vec frontend.scan_types.IndCtorRec)
+  (rcs : alloc.vec.Vec frontend.scan_types.IndRecRec) (n_pd : Std.U64) :
+  Result ((core.result.Result Unit frontend.export_c.LineErr) ×
+    frontend.export_c.StateD)
+  := do
+  let r ← frontend.export_c.ind_block_of st tys cts rcs
+  match r with
+  | core.result.Result.Ok v =>
+    let (r1, st1) ← frontend.export_c.register_proj_owners st tys cts rcs v
+    match r1 with
+    | core.result.Result.Ok _ =>
+      let i := alloc.vec.Vec.len v
+      let t0 ←
+        if i = 0#usize
+        then kernel.name.anonymous
+        else
+          do
+          let ci ←
+            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+              kernel.env.ConstantInfo) v 0#usize
+          kernel.env.constant_info_name ci
+      let r2 ← frontend.export_c.block_rec_of st1 tys cts rcs
+      match r2 with
+      | core.result.Result.Ok v1 =>
+        let b ← ron.ptr.new v1
+        let st2 ← frontend.export_c.note_ind_blocks st1 b
+        if st2.in_model
+        then
+          let br ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global b
+          let b1 ← frontend.in_model_rec.wants br
+          if b1
+          then
+            frontend.export_c.install_gen in_model_recModellerInst m st2 v n_pd
+              t0 b
+          else
+            let st3 ←
+              frontend.export_c.push_decl st2 (kernel.env.Declaration.IndDecl v
+                n_pd)
+            ok (core.result.Result.Ok (), st3)
+        else
+          let st3 ←
+            frontend.export_c.push_decl st2 (kernel.env.Declaration.IndDecl v
+              n_pd)
+          ok (core.result.Result.Ok (), st3)
+      | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
+    | core.result.Result.Err _ => ok (r1, st1)
+  | core.result.Result.Err e => ok (core.result.Result.Err e, st)
+
+/-- [con_ron_core::frontend::export_c::safety_error::B]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2197:4-2197:29 -/
+@[global_simps, irreducible]
+def frontend.export_c.safety_error.B : Array Std.U32 1#usize :=
+  Array.make 1#usize [ 39#u32 ]
+
+/-- [con_ron_core::frontend::export_c::safety_error::A]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2193:4-2196:6 -/
+@[global_simps, irreducible]
+def frontend.export_c.safety_error.A : Array Std.U32 24#usize :=
+  Array.make 24#usize [
+    100#u32, 101#u32, 102#u32, 105#u32, 110#u32, 105#u32, 116#u32, 105#u32,
+    111#u32, 110#u32, 32#u32, 119#u32, 105#u32, 116#u32, 104#u32, 32#u32,
+    115#u32, 97#u32, 102#u32, 101#u32, 116#u32, 121#u32, 32#u32, 39#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::safety_error]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2192:0-2199:1
+    Visibility: public -/
+def frontend.export_c.safety_error
+  (s : alloc.vec.Vec Std.U32) : Result (alloc.vec.Vec Std.U32) := do
+  let s1 ← lift (Array.to_slice frontend.export_c.safety_error.A)
+  let v ← kernel.core_types.code_points s1
+  let s2 ← lift (Array.to_slice frontend.export_c.safety_error.B)
+  let v1 ← kernel.core_types.code_points s2
+  frontend.text.cat3 v s v1
+
+/-- [con_ron_core::frontend::export_c::quot_kind_error::B]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2208:4-2208:29 -/
+@[global_simps, irreducible]
+def frontend.export_c.quot_kind_error.B : Array Std.U32 1#usize :=
+  Array.make 1#usize [ 39#u32 ]
+
+/-- [con_ron_core::frontend::export_c::quot_kind_error::A]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2204:4-2207:6 -/
+@[global_simps, irreducible]
+def frontend.export_c.quot_kind_error.A : Array Std.U32 23#usize :=
+  Array.make 23#usize [
+    117#u32, 110#u32, 107#u32, 110#u32, 111#u32, 119#u32, 110#u32, 32#u32,
+    113#u32, 117#u32, 111#u32, 116#u32, 105#u32, 101#u32, 110#u32, 116#u32,
+    32#u32, 107#u32, 105#u32, 110#u32, 100#u32, 32#u32, 39#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::quot_kind_error]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2203:0-2210:1
+    Visibility: public -/
+def frontend.export_c.quot_kind_error
+  (k : alloc.vec.Vec Std.U32) : Result (alloc.vec.Vec Std.U32) := do
+  let s ← lift (Array.to_slice frontend.export_c.quot_kind_error.A)
+  let v ← kernel.core_types.code_points s
+  let s1 ← lift (Array.to_slice frontend.export_c.quot_kind_error.B)
+  let v1 ← kernel.core_types.code_points s1
+  frontend.text.cat3 v k v1
+
+/-- [con_ron_core::frontend::export_c::quot_kind_of::I]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2218:4-2218:40 -/
+@[global_simps, irreducible]
+def frontend.export_c.quot_kind_of.I : Array Std.U32 3#usize :=
+  Array.make 3#usize [ 105#u32, 110#u32, 100#u32 ]
+
+/-- [con_ron_core::frontend::export_c::quot_kind_of::L]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2217:4-2217:45 -/
+@[global_simps, irreducible]
+def frontend.export_c.quot_kind_of.L : Array Std.U32 4#usize :=
+  Array.make 4#usize [ 108#u32, 105#u32, 102#u32, 116#u32 ]
+
+/-- [con_ron_core::frontend::export_c::quot_kind_of::C]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2216:4-2216:44 -/
+@[global_simps, irreducible]
+def frontend.export_c.quot_kind_of.C : Array Std.U32 4#usize :=
+  Array.make 4#usize [ 99#u32, 116#u32, 111#u32, 114#u32 ]
+
+/-- [con_ron_core::frontend::export_c::quot_kind_of::T]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2215:4-2215:45 -/
+@[global_simps, irreducible]
+def frontend.export_c.quot_kind_of.T : Array Std.U32 4#usize :=
+  Array.make 4#usize [ 116#u32, 121#u32, 112#u32, 101#u32 ]
+
+/-- [con_ron_core::frontend::export_c::quot_kind_of]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2214:0-2230:1
+    Visibility: public -/
+def frontend.export_c.quot_kind_of
+  (k : alloc.vec.Vec Std.U32) : Result (Option kernel.env.QuotKind) := do
+  let s ← lift (Array.to_slice frontend.export_c.quot_kind_of.T)
+  let b ← frontend.text.cps_beq k s
+  if b
+  then ok (some kernel.env.QuotKind.Type)
+  else
+    let s1 ← lift (Array.to_slice frontend.export_c.quot_kind_of.C)
+    let b1 ← frontend.text.cps_beq k s1
+    if b1
+    then ok (some kernel.env.QuotKind.Ctor)
+    else
+      let s2 ← lift (Array.to_slice frontend.export_c.quot_kind_of.L)
+      let b2 ← frontend.text.cps_beq k s2
+      if b2
+      then ok (some kernel.env.QuotKind.Lift)
+      else
+        let s3 ← lift (Array.to_slice frontend.export_c.quot_kind_of.I)
+        let b3 ← frontend.text.cps_beq k s3
+        if b3
+        then ok (some kernel.env.QuotKind.Ind)
+        else ok none
+
+/-- [con_ron_core::frontend::export_c::process_line_core_d::M2]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2326:16-2329:18 -/
+@[global_simps, irreducible]
+def frontend.export_c.process_line_core_d.M2 : Array Std.U32 25#usize :=
+  Array.make 25#usize [
+    117#u32, 110#u32, 115#u32, 97#u32, 102#u32, 101#u32, 32#u32, 111#u32,
+    112#u32, 97#u32, 113#u32, 117#u32, 101#u32, 32#u32, 100#u32, 101#u32,
+    99#u32, 108#u32, 97#u32, 114#u32, 97#u32, 116#u32, 105#u32, 111#u32,
+    110#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::process_line_core_d::SAFE]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2266:12-2266:55 -/
+@[global_simps, irreducible]
+def frontend.export_c.process_line_core_d.SAFE : Array Std.U32 4#usize :=
+  Array.make 4#usize [ 115#u32, 97#u32, 102#u32, 101#u32 ]
+
+/-- [con_ron_core::frontend::export_c::process_line_core_d::M1]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2249:16-2249:96 -/
+@[global_simps, irreducible]
+def frontend.export_c.process_line_core_d.M1 : Array Std.U32 12#usize :=
+  Array.make 12#usize [
+    117#u32, 110#u32, 115#u32, 97#u32, 102#u32, 101#u32, 32#u32, 97#u32,
+    120#u32, 105#u32, 111#u32, 109#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::process_line_core_d]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2237:0-2366:1
+    Visibility: public -/
+def frontend.export_c.process_line_core_d
+  {G : Type} (in_model_recModellerInst : frontend.in_model_rec.Modeller G)
+  (m : G) (st : frontend.export_c.StateD) (d : frontend.scan_types.DeclRec) :
+  Result ((core.result.Result Unit frontend.export_c.LineErr) ×
+    frontend.export_c.StateD)
+  := do
+  match d with
+  | frontend.scan_types.DeclRec.Ax cvr is_unsafe =>
+    let r ← frontend.export_c.parse_cv_d st cvr
+    match r with
+    | core.result.Result.Ok v =>
+      if is_unsafe
+      then
+        let s ←
+          lift (Array.to_slice frontend.export_c.process_line_core_d.M1)
+        let v1 ← kernel.core_types.code_points s
+        let r1 ← frontend.export_c.declined Unit v1
+        ok (r1, st)
+      else
+        let st1 ←
+          frontend.export_c.push_decl st (kernel.env.Declaration.AxiomDecl v)
+        ok (core.result.Result.Ok (), st1)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, st)
+  | frontend.scan_types.DeclRec.Defn cvr value hints safety =>
+    let r ← frontend.export_c.parse_cv_d st cvr
+    match r with
+    | core.result.Result.Ok v =>
+      let s ←
+        lift (Array.to_slice frontend.export_c.process_line_core_d.SAFE)
+      let b ← frontend.text.cps_beq safety s
+      if b
+      then
+        let r1 ← frontend.export_c.get_decl_d st value
+        match r1 with
+        | core.result.Result.Ok v1 =>
+          let h ←
+            match hints with
+            | frontend.scan_types.HintsRec.Abbrev =>
+              ok kernel.env.ReducibilityHint.Abbrev
+            | frontend.scan_types.HintsRec.Opaque =>
+              ok kernel.env.ReducibilityHint.Opaque
+            | frontend.scan_types.HintsRec.Regular n =>
+              ok (kernel.env.ReducibilityHint.Regular n)
+          let o ← frontend.export_c.proj_rewrite_d st v v1
+          match o with
+          | none =>
+            let st1 ←
+              frontend.export_c.push_decl st (kernel.env.Declaration.DefnDecl v
+                v1 h)
+            ok (core.result.Result.Ok (), st1)
+          | some vl2 =>
+            let n ← kernel.name.dup v.name
+            let st1 ←
+              frontend.export_c.push_decl st (kernel.env.Declaration.DefnDecl v
+                vl2 h)
+            let v2 ← alloc.vec.Vec.push st1.proj_rewrites n
+            ok (core.result.Result.Ok (), { st1 with proj_rewrites := v2 })
+        | core.result.Result.Err e => ok (core.result.Result.Err e, st)
+      else
+        let v1 ← frontend.export_c.safety_error safety
+        let r1 ← frontend.export_c.declined Unit v1
+        ok (r1, st)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, st)
+  | frontend.scan_types.DeclRec.Thm cvr value =>
+    let r ← frontend.export_c.parse_cv_d st cvr
+    match r with
+    | core.result.Result.Ok v =>
+      let r1 ← frontend.export_c.get_decl_d st value
+      match r1 with
+      | core.result.Result.Ok v1 =>
+        let o ← frontend.export_c.proj_rewrite_d st v v1
+        match o with
+        | none =>
+          let st1 ←
+            frontend.export_c.push_decl st (kernel.env.Declaration.ThmDecl v
+              v1)
+          ok (core.result.Result.Ok (), st1)
+        | some vl2 =>
+          let n ← kernel.name.dup v.name
+          let st1 ←
+            frontend.export_c.push_decl st (kernel.env.Declaration.ThmDecl v
+              vl2)
+          let v2 ← alloc.vec.Vec.push st1.proj_rewrites n
+          ok (core.result.Result.Ok (), { st1 with proj_rewrites := v2 })
+      | core.result.Result.Err e => ok (core.result.Result.Err e, st)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, st)
+  | frontend.scan_types.DeclRec.Opaq cvr value is_unsafe =>
+    let r ← frontend.export_c.parse_cv_d st cvr
+    match r with
+    | core.result.Result.Ok v =>
+      if is_unsafe
+      then
+        let s ←
+          lift (Array.to_slice frontend.export_c.process_line_core_d.M2)
+        let v1 ← kernel.core_types.code_points s
+        let r1 ← frontend.export_c.declined Unit v1
+        ok (r1, st)
+      else
+        let r1 ← frontend.export_c.get_decl_d st value
+        match r1 with
+        | core.result.Result.Ok v1 =>
+          let st1 ←
+            frontend.export_c.push_decl st (kernel.env.Declaration.OpaqueDecl v
+              v1)
+          ok (core.result.Result.Ok (), st1)
+        | core.result.Result.Err e => ok (core.result.Result.Err e, st)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, st)
+  | frontend.scan_types.DeclRec.Quot cvr kind =>
+    let r ← frontend.export_c.parse_cv_d st cvr
+    match r with
+    | core.result.Result.Ok v =>
+      let o ← frontend.export_c.quot_kind_of kind
+      match o with
+      | none =>
+        let v1 ← frontend.export_c.quot_kind_error kind
+        let r1 ← frontend.export_c.merr Unit v1
+        ok (r1, st)
+      | some qk =>
+        let st1 ←
+          frontend.export_c.push_decl st (kernel.env.Declaration.QuotDecl qk v)
+        ok (core.result.Result.Ok (), st1)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, st)
+  | frontend.scan_types.DeclRec.Ind tys cts rcs =>
+    let i ← st.ind_count + 1#u64
+    let r ←
+      frontend.export_c.validate_ind_d { st with ind_count := i } tys cts rcs
+    match r with
+    | core.result.Result.Ok p =>
+      let (cts2, n_pd) := p
+      frontend.export_c.install_ind_d in_model_recModellerInst m
+        { st with ind_count := i } tys cts2 rcs n_pd
+    | core.result.Result.Err e =>
+      ok (core.result.Result.Err e, { st with ind_count := i })
+
+/-- [con_ron_core::frontend::export_c::apply_decl_d]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2378:0-2380:1
+    Visibility: public -/
+def frontend.export_c.apply_decl_d
+  {G : Type} (in_model_recModellerInst : frontend.in_model_rec.Modeller G)
+  (m : G) (st : frontend.export_c.StateD) (d : frontend.scan_types.DeclRec) :
+  Result ((core.result.Result Unit frontend.export_c.LineErr) ×
+    frontend.export_c.StateD)
+  := do
+  frontend.export_c.process_line_core_d in_model_recModellerInst m st d
+
+/-- [con_ron_core::frontend::export_c::apply_line]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2384:0-2393:1
+    Visibility: public -/
+def frontend.export_c.apply_line
+  {G : Type} (in_model_recModellerInst : frontend.in_model_rec.Modeller G)
+  (m : G) (st : frontend.export_c.StateD) (r : frontend.scan_types.LineRec) :
+  Result ((core.result.Result Unit frontend.export_c.LineErr) ×
+    frontend.export_c.StateD)
+  := do
+  match r with
+  | frontend.scan_types.LineRec.Name i n =>
+    frontend.export_c.parse_name_entry_d st i n
+  | frontend.scan_types.LineRec.Level i l =>
+    frontend.export_c.parse_level_entry_d st i l
+  | frontend.scan_types.LineRec.Expr i e =>
+    frontend.export_c.parse_expr_entry_d st i e
+  | frontend.scan_types.LineRec.Decl d =>
+    frontend.export_c.apply_decl_d in_model_recModellerInst m st d
+  | frontend.scan_types.LineRec.Header => ok (core.result.Result.Ok (), st)
+  | frontend.scan_types.LineRec.Blank => ok (core.result.Result.Ok (), st)
+
+/-- [con_ron_core::frontend::export_c::parse_result_of_state]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2419:0-2428:1
+    Visibility: public -/
+def frontend.export_c.parse_result_of_state
+  (st : frontend.export_c.StateD) : Result frontend.export_c.ParseResultD := do
+  ok
+    {
+      decls := st.decls,
+      proj_rewrites := st.proj_rewrites,
+      in_modelled := st.in_modelled,
+      gen_records := st.gen_records,
+      gen_owner := st.gen_owner,
+      in_model_declined := st.in_model_declined
+    }
+
+/-- [con_ron_core::frontend::scan_types::scan_err_render::CLOSE]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 321:4-321:33 -/
+@[global_simps, irreducible]
+def frontend.scan_types.scan_err_render.CLOSE : Array Std.U32 1#usize :=
+  Array.make 1#usize [ 41#u32 ]
+
+/-- [con_ron_core::frontend::scan_types::scan_err_render::OPEN]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 320:4-320:59 -/
+@[global_simps, irreducible]
+def frontend.scan_types.scan_err_render.OPEN : Array Std.U32 7#usize :=
+  Array.make 7#usize [
+    32#u32, 40#u32, 98#u32, 121#u32, 116#u32, 101#u32, 32#u32
+    ]
+
+/-- [con_ron_core::frontend::scan_types::scan_err_render]:
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 319:0-328:1
+    Visibility: public -/
+def frontend.scan_types.scan_err_render
+  (e : frontend.scan_types.ScanErr) : Result (alloc.vec.Vec Std.U32) := do
+  let v ← frontend.scan_types.err_tag_describe e.what
+  let s ← lift (Array.to_slice frontend.scan_types.scan_err_render.OPEN)
+  let v1 ← kernel.core_types.code_points s
+  let a ← frontend.text.cat v v1
+  let i ← lift (UScalar.cast .U64 e.offset)
+  let v2 ← frontend.text.u64_str i
+  let b ← frontend.text.cat a v2
+  let s1 ← lift (Array.to_slice frontend.scan_types.scan_err_render.CLOSE)
+  let v3 ← kernel.core_types.code_points s1
+  frontend.text.cat b v3
+
+/-- [con_ron_core::frontend::scan_types::key_code]:
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 542:0-612:1
+    Visibility: public -/
+def frontend.scan_types.key_code
+  (k : frontend.scan_types.Key) : Result Std.U64 := do
+  match k with
+  | frontend.scan_types.Key.KUnknown => ok 0#u64
+  | frontend.scan_types.Key.KAll => ok 1#u64
+  | frontend.scan_types.Key.KApp => ok 2#u64
+  | frontend.scan_types.Key.KArg => ok 3#u64
+  | frontend.scan_types.Key.KAxiom => ok 4#u64
+  | frontend.scan_types.Key.KBinderInfo => ok 5#u64
+  | frontend.scan_types.Key.KBody => ok 6#u64
+  | frontend.scan_types.Key.KBvar => ok 7#u64
+  | frontend.scan_types.Key.KCidx => ok 8#u64
+  | frontend.scan_types.Key.KConst => ok 9#u64
+  | frontend.scan_types.Key.KCtor => ok 10#u64
+  | frontend.scan_types.Key.KCtors => ok 11#u64
+  | frontend.scan_types.Key.KDef => ok 12#u64
+  | frontend.scan_types.Key.KFn => ok 13#u64
+  | frontend.scan_types.Key.KForallE => ok 14#u64
+  | frontend.scan_types.Key.KHints => ok 15#u64
+  | frontend.scan_types.Key.KI => ok 16#u64
+  | frontend.scan_types.Key.KIdx => ok 17#u64
+  | frontend.scan_types.Key.KIe => ok 18#u64
+  | frontend.scan_types.Key.KIl => ok 19#u64
+  | frontend.scan_types.Key.KImax => ok 20#u64
+  | frontend.scan_types.Key.KIn => ok 21#u64
+  | frontend.scan_types.Key.KInduct => ok 22#u64
+  | frontend.scan_types.Key.KInductive => ok 23#u64
+  | frontend.scan_types.Key.KIsRec => ok 24#u64
+  | frontend.scan_types.Key.KIsReflexive => ok 25#u64
+  | frontend.scan_types.Key.KIsUnsafe => ok 26#u64
+  | frontend.scan_types.Key.KK => ok 27#u64
+  | frontend.scan_types.Key.KKind => ok 28#u64
+  | frontend.scan_types.Key.KLam => ok 29#u64
+  | frontend.scan_types.Key.KLetE => ok 30#u64
+  | frontend.scan_types.Key.KLevelParams => ok 31#u64
+  | frontend.scan_types.Key.KMax => ok 32#u64
+  | frontend.scan_types.Key.KMeta => ok 33#u64
+  | frontend.scan_types.Key.KName => ok 34#u64
+  | frontend.scan_types.Key.KNatVal => ok 35#u64
+  | frontend.scan_types.Key.KNfields => ok 36#u64
+  | frontend.scan_types.Key.KNondep => ok 37#u64
+  | frontend.scan_types.Key.KNum => ok 38#u64
+  | frontend.scan_types.Key.KNumFields => ok 39#u64
+  | frontend.scan_types.Key.KNumIndices => ok 40#u64
+  | frontend.scan_types.Key.KNumMinors => ok 41#u64
+  | frontend.scan_types.Key.KNumMotives => ok 42#u64
+  | frontend.scan_types.Key.KNumNested => ok 43#u64
+  | frontend.scan_types.Key.KNumParams => ok 44#u64
+  | frontend.scan_types.Key.KOpaque => ok 45#u64
+  | frontend.scan_types.Key.KParam => ok 46#u64
+  | frontend.scan_types.Key.KPre => ok 47#u64
+  | frontend.scan_types.Key.KProj => ok 48#u64
+  | frontend.scan_types.Key.KPw => ok 49#u64
+  | frontend.scan_types.Key.KQuot => ok 50#u64
+  | frontend.scan_types.Key.KRecs => ok 51#u64
+  | frontend.scan_types.Key.KRegular => ok 52#u64
+  | frontend.scan_types.Key.KRhs => ok 53#u64
+  | frontend.scan_types.Key.KRules => ok 54#u64
+  | frontend.scan_types.Key.KSafety => ok 55#u64
+  | frontend.scan_types.Key.KSort => ok 56#u64
+  | frontend.scan_types.Key.KStr => ok 57#u64
+  | frontend.scan_types.Key.KStrVal => ok 58#u64
+  | frontend.scan_types.Key.KStruct => ok 59#u64
+  | frontend.scan_types.Key.KSucc => ok 60#u64
+  | frontend.scan_types.Key.KThm => ok 61#u64
+  | frontend.scan_types.Key.KType => ok 62#u64
+  | frontend.scan_types.Key.KTypeName => ok 63#u64
+  | frontend.scan_types.Key.KTypes => ok 64#u64
+  | frontend.scan_types.Key.KUs => ok 65#u64
+  | frontend.scan_types.Key.KValue => ok 66#u64
+
+/-- [con_ron_core::frontend::scan_types::key_beq]:
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 615:0-617:1
+    Visibility: public -/
+def frontend.scan_types.key_beq
+  (a : frontend.scan_types.Key) (b : frontend.scan_types.Key) :
+  Result Bool
+  := do
+  let i ← frontend.scan_types.key_code a
+  let i1 ← frontend.scan_types.key_code b
+  ok (i = i1)
+
+/-- [con_ron_core::frontend::scan_fast::line_payload_is_absent]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3795:0-3800:1
+    Visibility: public -/
+def frontend.scan_fast.line_payload_is_absent
+  (p : frontend.scan_fast.LinePayload) : Result Bool := do
+  match p with
+  | frontend.scan_fast.LinePayload.Absent => ok true
+  | frontend.scan_fast.LinePayload.Name _ => ok false
+  | frontend.scan_fast.LinePayload.Level _ => ok false
+  | frontend.scan_fast.LinePayload.Expr _ => ok false
+  | frontend.scan_fast.LinePayload.Decl _ => ok false
+  | frontend.scan_fast.LinePayload.Header => ok false
+
+/-- [con_ron_core::frontend::scan_fast::prog]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1438:0-1440:1
+    Visibility: public -/
+def frontend.scan_fast.prog
+  (ks : Std.Usize) (e : Std.Usize) : Result Bool := do
+  ok (ks < e)
+
+/-- [con_ron_core::frontend::scan_fast::read_nat_at]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 754:4-776:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.read_nat_at_loop
+  (b : Slice Std.U8) (i : Std.Usize) (e : Std.Usize) (acc : Std.U64)
+  (k : Std.Usize) :
+  Result (core.result.Result Std.U64 frontend.scan_types.ScanErr)
+  := do
+  if k < e
+  then
+    let i1 := Slice.len b
+    if k < i1
+    then
+      let o ← lift (U64.checked_mul acc 10#u64)
+      match o with
+      | none =>
+        ok (core.result.Result.Err
+          { offset := i, what := frontend.scan_types.ErrTag.IndexOverflow })
+      | some x =>
+        let i2 ← Slice.index_usize b k
+        let i3 ← i2 - 48#u8
+        let i4 ← lift (UScalar.cast .U64 i3)
+        let o1 ← lift (U64.checked_add x i4)
+        match o1 with
+        | none =>
+          ok (core.result.Result.Err
+            { offset := i, what := frontend.scan_types.ErrTag.IndexOverflow })
+        | some x1 =>
+          let k1 ← k + 1#usize
+          frontend.scan_fast.read_nat_at_loop b i e x1 k1
+    else ok (core.result.Result.Ok acc)
+  else ok (core.result.Result.Ok acc)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::read_nat_at]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 751:0-776:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.read_nat_at
+  (b : Slice Std.U8) (i : Std.Usize) (e : Std.Usize) :
+  Result (core.result.Result Std.U64 frontend.scan_types.ScanErr)
+  := do
+  frontend.scan_fast.read_nat_at_loop b i e 0#u64 i
+
+/-- [con_ron_core::frontend::scan_fast::is_digit]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 91:0-93:1
+    Visibility: public -/
+def frontend.scan_fast.is_digit (c : Std.U8) : Result Bool := do
+  if 48#u8 <= c
+  then ok (c <= 57#u8)
+  else ok false
+
+/-- [con_ron_core::frontend::scan_fast::skip_digits]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 110:4-112:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.skip_digits_loop
+  (b : Slice Std.U8) (i : Std.Usize) : Result Std.Usize := do
+  let i1 := Slice.len b
+  if i < i1
+  then
+    let i2 ← Slice.index_usize b i
+    let b1 ← frontend.scan_fast.is_digit i2
+    if b1
+    then let i3 ← i + 1#usize
+         frontend.scan_fast.skip_digits_loop b i3
+    else ok i
+  else ok i
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::skip_digits]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 108:0-114:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.skip_digits
+  (b : Slice Std.U8) (i : Std.Usize) : Result Std.Usize := do
+  frontend.scan_fast.skip_digits_loop b i
+
+/-- [con_ron_core::frontend::scan_fast::byte_at]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 75:0-81:1
+    Visibility: public -/
+def frontend.scan_fast.byte_at
+  (b : Slice Std.U8) (i : Std.Usize) : Result Std.U8 := do
+  let i1 := Slice.len b
+  if i < i1
+  then Slice.index_usize b i
+  else ok 0#u8
+
+/-- [con_ron_core::frontend::scan_fast::num_end]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 730:0-739:1
+    Visibility: public -/
+def frontend.scan_fast.num_end
+  (b : Slice Std.U8) (i : Std.Usize) : Result Std.Usize := do
+  let e ← frontend.scan_fast.skip_digits b i
+  if e = i
+  then ok i
+  else
+    let i1 ← frontend.scan_fast.byte_at b i
+    if i1 = 48#u8
+    then let i2 ← i + 1#usize
+         if e != i2
+         then ok i
+         else ok e
+    else ok e
+
+/-- [con_ron_core::frontend::scan_fast::err]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 67:0-69:1
+    Visibility: public -/
+def frontend.scan_fast.err
+  (T : Type) (offset : Std.Usize) (what : frontend.scan_types.ErrTag) :
+  Result (core.result.Result (T × Std.Usize) frontend.scan_types.ScanErr)
+  := do
+  ok (core.result.Result.Err { offset, what })
+
+/-- [con_ron_core::frontend::scan_fast::slot_nat]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1444:0-1456:1
+    Visibility: public -/
+def frontend.scan_fast.slot_nat
+  (b : Slice Std.U8) (ks : Std.Usize) (v : Std.Usize) :
+  Result (core.result.Result (Std.U64 × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let e ← frontend.scan_fast.num_end b v
+  if e = v
+  then frontend.scan_fast.err Std.U64 v frontend.scan_types.ErrTag.ExpectedNat
+  else
+    let b1 ← frontend.scan_fast.prog ks e
+    if b1
+    then
+      let r ← frontend.scan_fast.read_nat_at b v e
+      match r with
+      | core.result.Result.Ok x => ok (core.result.Result.Ok (x, e))
+      | core.result.Result.Err er => ok (core.result.Result.Err er)
+    else
+      frontend.scan_fast.err Std.U64 ks frontend.scan_types.ErrTag.NoProgress
+
+/-- [con_ron_core::frontend::scan_fast::dup]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1430:0-1432:1
+    Visibility: public -/
+def frontend.scan_fast.dup (seen : Std.U32) (bit : Std.U32) : Result Bool := do
+  let i ← lift (seen &&& bit)
+  ok (i != 0#u32)
+
+/-- [con_ron_core::frontend::scan_fast::is_ws]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 86:0-88:1
+    Visibility: public -/
+def frontend.scan_fast.is_ws (c : Std.U8) : Result Bool := do
+  if c = 32#u8
+  then ok true
+  else if c = 9#u8
+       then ok true
+       else ok (c = 13#u8)
+
+/-- [con_ron_core::frontend::scan_fast::skip_ws]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 99:4-101:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.skip_ws_loop
+  (b : Slice Std.U8) (i : Std.Usize) : Result Std.Usize := do
+  let i1 := Slice.len b
+  if i < i1
+  then
+    let i2 ← Slice.index_usize b i
+    let b1 ← frontend.scan_fast.is_ws i2
+    if b1
+    then let i3 ← i + 1#usize
+         frontend.scan_fast.skip_ws_loop b i3
+    else ok i
+  else ok i
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::skip_ws]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 97:0-103:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.skip_ws
+  (b : Slice Std.U8) (i : Std.Usize) : Result Std.Usize := do
+  frontend.scan_fast.skip_ws_loop b i
+
+/-- [con_ron_core::frontend::scan_fast::value_at]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 701:0-708:1
+    Visibility: public -/
+def frontend.scan_fast.value_at
+  (b : Slice Std.U8) (i : Std.Usize) (ke : Std.Usize) : Result Std.Usize := do
+  let i1 ← ke + 1#usize
+  let p ← frontend.scan_fast.skip_ws b i1
+  let i2 ← frontend.scan_fast.byte_at b p
+  if i2 = 58#u8
+  then let i3 ← p + 1#usize
+       frontend.scan_fast.skip_ws b i3
+  else ok i
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_VALUE]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 682:16-682:46 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_VALUE : Str := toStr "value"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_US]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 669:16-669:40 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_US : Str := toStr "us"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_TYPENAME]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 656:16-656:52 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_TYPENAME : Str := toStr "typeName"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_TYPES]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 649:16-649:46 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_TYPES : Str := toStr "types"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_TYPE]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 642:16-642:44 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_TYPE : Str := toStr "type"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_THM]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 635:16-635:42 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_THM : Str := toStr "thm"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_STRUCT]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 618:16-618:48 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_STRUCT : Str := toStr "struct"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_STRVAL]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 617:16-617:48 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_STRVAL : Str := toStr "strVal"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_SAFETY]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 616:16-616:48 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_SAFETY : Str := toStr "safety"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_SUCC]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 607:16-607:44 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_SUCC : Str := toStr "succ"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_SORT]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 606:16-606:44 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_SORT : Str := toStr "sort"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_STR]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 599:16-599:42 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_STR : Str := toStr "str"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_REGULAR]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 586:16-586:50 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_REGULAR : Str := toStr "regular"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_RULES]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 579:16-579:46 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_RULES : Str := toStr "rules"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_RECS]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 572:16-572:44 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_RECS : Str := toStr "recs"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_RHS]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 565:16-565:42 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_RHS : Str := toStr "rhs"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_QUOT]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 552:16-552:44 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_QUOT : Str := toStr "quot"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_PARAM]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 539:16-539:46 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_PARAM : Str := toStr "param"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_PROJ]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 532:16-532:44 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_PROJ : Str := toStr "proj"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_PRE]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 525:16-525:42 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_PRE : Str := toStr "pre"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_PW]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 518:16-518:40 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_PW : Str := toStr "pw"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_OPAQUE]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 505:16-505:48 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_OPAQUE : Str := toStr "opaque"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_NUMMOTIVES]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 490:16-490:56 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_NUMMOTIVES : Str := toStr "numMotives"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_NUMINDICES]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 489:16-489:56 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_NUMINDICES : Str := toStr "numIndices"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_NUMPARAMS]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 476:16-476:54 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_NUMPARAMS : Str := toStr "numParams"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_NUMNESTED]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 475:16-475:54 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_NUMNESTED : Str := toStr "numNested"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_NUMMINORS]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 474:16-474:54 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_NUMMINORS : Str := toStr "numMinors"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_NUMFIELDS]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 473:16-473:54 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_NUMFIELDS : Str := toStr "numFields"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_NFIELDS]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 466:16-466:50 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_NFIELDS : Str := toStr "nfields"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_NONDEP]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 457:16-457:48 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_NONDEP : Str := toStr "nondep"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_NATVAL]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 456:16-456:48 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_NATVAL : Str := toStr "natVal"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_NAME]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 449:16-449:44 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_NAME : Str := toStr "name"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_NUM]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 442:16-442:42 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_NUM : Str := toStr "num"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_META]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 429:16-429:44 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_META : Str := toStr "meta"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_MAX]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 422:16-422:42 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_MAX : Str := toStr "max"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_LEVELPARAMS]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 409:16-409:58 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_LEVELPARAMS : Str := toStr "levelParams"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_LETE]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 402:16-402:44 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_LETE : Str := toStr "letE"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_LAM]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 395:16-395:42 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_LAM : Str := toStr "lam"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_KIND]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 382:16-382:44 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_KIND : Str := toStr "kind"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_K]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 375:16-375:38 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_K : Str := toStr "k"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_ISREFLEXIVE]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 362:16-362:58 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_ISREFLEXIVE : Str := toStr "isReflexive"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_INDUCTIVE]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 355:16-355:54 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_INDUCTIVE : Str := toStr "inductive"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_ISUNSAFE]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 348:16-348:52 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_ISUNSAFE : Str := toStr "isUnsafe"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_INDUCT]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 341:16-341:48 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_INDUCT : Str := toStr "induct"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_ISREC]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 334:16-334:46 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_ISREC : Str := toStr "isRec"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_IMAX]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 327:16-327:44 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_IMAX : Str := toStr "imax"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_IDX]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 320:16-320:42 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_IDX : Str := toStr "idx"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_IN]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 309:16-309:40 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_IN : Str := toStr "in"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_IL]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 308:16-308:40 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_IL : Str := toStr "il"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_IE]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 307:16-307:40 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_IE : Str := toStr "ie"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_I]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 300:16-300:38 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_I : Str := toStr "i"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_HINTS]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 287:16-287:46 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_HINTS : Str := toStr "hints"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_FORALLE]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 274:16-274:50 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_FORALLE : Str := toStr "forallE"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_FN]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 267:16-267:40 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_FN : Str := toStr "fn"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_DEF]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 254:16-254:42 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_DEF : Str := toStr "def"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_CTORS]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 239:16-239:46 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_CTORS : Str := toStr "ctors"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_CONST]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 238:16-238:46 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_CONST : Str := toStr "const"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_CTOR]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 229:16-229:44 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_CTOR : Str := toStr "ctor"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_CIDX]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 228:16-228:44 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_CIDX : Str := toStr "cidx"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_BINDERINFO]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 215:16-215:56 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_BINDERINFO : Str := toStr "binderInfo"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_BVAR]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 206:16-206:44 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_BVAR : Str := toStr "bvar"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_BODY]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 205:16-205:44 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_BODY : Str := toStr "body"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_AXIOM]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 192:16-192:46 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_AXIOM : Str := toStr "axiom"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_ARG]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 181:16-181:42 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_ARG : Str := toStr "arg"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_APP]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 180:16-180:42 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_APP : Str := toStr "app"
+
+/-- [con_ron_core::frontend::scan_fast::key_at::S_ALL]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 179:16-179:42 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.key_at.S_ALL : Str := toStr "all"
+
+/-- [con_ron_core::frontend::scan_fast::match_lit]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 125:4-132:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.match_lit_loop
+  (b : Slice Std.U8) (i : Std.Usize) (lit : Slice Std.U8) (n : Std.Usize)
+  (k : Std.Usize) :
+  Result Bool
+  := do
+  if k < n
+  then
+    let i1 ← i + k
+    let i2 ← frontend.scan_fast.byte_at b i1
+    let i3 ← Slice.index_usize lit k
+    if i2 != i3
+    then ok false
+    else let k1 ← k + 1#usize
+         frontend.scan_fast.match_lit_loop b i lit n k1
+  else ok true
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::match_lit]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 122:0-132:1
+    Visibility: public -/
+def frontend.scan_fast.match_lit
+  (b : Slice Std.U8) (i : Std.Usize) (lit : Slice Std.U8) : Result Bool := do
+  let n := Slice.len lit
+  frontend.scan_fast.match_lit_loop b i lit n 0#usize
+
+/-- [con_ron_core::frontend::scan_fast::key_at]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 173:0-694:1
+    Visibility: public -/
+def frontend.scan_fast.key_at
+  (b : Slice Std.U8) (i : Std.Usize) (kl : Std.Usize) :
+  Result frontend.scan_types.Key
+  := do
+  let j ← i + 1#usize
+  let i1 ← frontend.scan_fast.byte_at b j
+  match i1 with
+  | 97#uscalar =>
+    if kl = 3#usize
+    then
+      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_ALL
+      let b1 ← frontend.scan_fast.match_lit b j s
+      if b1
+      then ok frontend.scan_types.Key.KAll
+      else
+        let s1 ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_APP
+        let b2 ← frontend.scan_fast.match_lit b j s1
+        if b2
+        then ok frontend.scan_types.Key.KApp
+        else
+          let s2 ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_ARG
+          let b3 ← frontend.scan_fast.match_lit b j s2
+          if b3
+          then ok frontend.scan_types.Key.KArg
+          else ok frontend.scan_types.Key.KUnknown
+    else
+      if kl = 5#usize
+      then
+        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_AXIOM
+        let b1 ← frontend.scan_fast.match_lit b j s
+        if b1
+        then ok frontend.scan_types.Key.KAxiom
+        else ok frontend.scan_types.Key.KUnknown
+      else ok frontend.scan_types.Key.KUnknown
+  | 98#uscalar =>
+    if kl = 4#usize
+    then
+      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_BODY
+      let b1 ← frontend.scan_fast.match_lit b j s
+      if b1
+      then ok frontend.scan_types.Key.KBody
+      else
+        let s1 ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_BVAR
+        let b2 ← frontend.scan_fast.match_lit b j s1
+        if b2
+        then ok frontend.scan_types.Key.KBvar
+        else ok frontend.scan_types.Key.KUnknown
+    else
+      if kl = 10#usize
+      then
+        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_BINDERINFO
+        let b1 ← frontend.scan_fast.match_lit b j s
+        if b1
+        then ok frontend.scan_types.Key.KBinderInfo
+        else ok frontend.scan_types.Key.KUnknown
+      else ok frontend.scan_types.Key.KUnknown
+  | 99#uscalar =>
+    if kl = 4#usize
+    then
+      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_CIDX
+      let b1 ← frontend.scan_fast.match_lit b j s
+      if b1
+      then ok frontend.scan_types.Key.KCidx
+      else
+        let s1 ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_CTOR
+        let b2 ← frontend.scan_fast.match_lit b j s1
+        if b2
+        then ok frontend.scan_types.Key.KCtor
+        else ok frontend.scan_types.Key.KUnknown
+    else
+      if kl = 5#usize
+      then
+        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_CONST
+        let b1 ← frontend.scan_fast.match_lit b j s
+        if b1
+        then ok frontend.scan_types.Key.KConst
+        else
+          let s1 ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_CTORS
+          let b2 ← frontend.scan_fast.match_lit b j s1
+          if b2
+          then ok frontend.scan_types.Key.KCtors
+          else ok frontend.scan_types.Key.KUnknown
+      else ok frontend.scan_types.Key.KUnknown
+  | 100#uscalar =>
+    if kl = 3#usize
+    then
+      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_DEF
+      let b1 ← frontend.scan_fast.match_lit b j s
+      if b1
+      then ok frontend.scan_types.Key.KDef
+      else ok frontend.scan_types.Key.KUnknown
+    else ok frontend.scan_types.Key.KUnknown
+  | 102#uscalar =>
+    if kl = 2#usize
+    then
+      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_FN
+      let b1 ← frontend.scan_fast.match_lit b j s
+      if b1
+      then ok frontend.scan_types.Key.KFn
+      else ok frontend.scan_types.Key.KUnknown
+    else
+      if kl = 7#usize
+      then
+        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_FORALLE
+        let b1 ← frontend.scan_fast.match_lit b j s
+        if b1
+        then ok frontend.scan_types.Key.KForallE
+        else ok frontend.scan_types.Key.KUnknown
+      else ok frontend.scan_types.Key.KUnknown
+  | 104#uscalar =>
+    if kl = 5#usize
+    then
+      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_HINTS
+      let b1 ← frontend.scan_fast.match_lit b j s
+      if b1
+      then ok frontend.scan_types.Key.KHints
+      else ok frontend.scan_types.Key.KUnknown
+    else ok frontend.scan_types.Key.KUnknown
+  | 105#uscalar =>
+    if kl = 1#usize
+    then
+      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_I
+      let b1 ← frontend.scan_fast.match_lit b j s
+      if b1
+      then ok frontend.scan_types.Key.KI
+      else ok frontend.scan_types.Key.KUnknown
+    else
+      if kl = 2#usize
+      then
+        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_IE
+        let b1 ← frontend.scan_fast.match_lit b j s
+        if b1
+        then ok frontend.scan_types.Key.KIe
+        else
+          let s1 ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_IL
+          let b2 ← frontend.scan_fast.match_lit b j s1
+          if b2
+          then ok frontend.scan_types.Key.KIl
+          else
+            let s2 ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_IN
+            let b3 ← frontend.scan_fast.match_lit b j s2
+            if b3
+            then ok frontend.scan_types.Key.KIn
+            else ok frontend.scan_types.Key.KUnknown
+      else
+        if kl = 3#usize
+        then
+          let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_IDX
+          let b1 ← frontend.scan_fast.match_lit b j s
+          if b1
+          then ok frontend.scan_types.Key.KIdx
+          else ok frontend.scan_types.Key.KUnknown
+        else
+          if kl = 4#usize
+          then
+            let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_IMAX
+            let b1 ← frontend.scan_fast.match_lit b j s
+            if b1
+            then ok frontend.scan_types.Key.KImax
+            else ok frontend.scan_types.Key.KUnknown
+          else
+            if kl = 5#usize
+            then
+              let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_ISREC
+              let b1 ← frontend.scan_fast.match_lit b j s
+              if b1
+              then ok frontend.scan_types.Key.KIsRec
+              else ok frontend.scan_types.Key.KUnknown
+            else
+              if kl = 6#usize
+              then
+                let s ←
+                  core.str.Str.as_bytes frontend.scan_fast.key_at.S_INDUCT
+                let b1 ← frontend.scan_fast.match_lit b j s
+                if b1
+                then ok frontend.scan_types.Key.KInduct
+                else ok frontend.scan_types.Key.KUnknown
+              else
+                if kl = 8#usize
+                then
+                  let s ←
+                    core.str.Str.as_bytes frontend.scan_fast.key_at.S_ISUNSAFE
+                  let b1 ← frontend.scan_fast.match_lit b j s
+                  if b1
+                  then ok frontend.scan_types.Key.KIsUnsafe
+                  else ok frontend.scan_types.Key.KUnknown
+                else
+                  if kl = 9#usize
+                  then
+                    let s ←
+                      core.str.Str.as_bytes
+                        frontend.scan_fast.key_at.S_INDUCTIVE
+                    let b1 ← frontend.scan_fast.match_lit b j s
+                    if b1
+                    then ok frontend.scan_types.Key.KInductive
+                    else ok frontend.scan_types.Key.KUnknown
+                  else
+                    if kl = 11#usize
+                    then
+                      let s ←
+                        core.str.Str.as_bytes
+                          frontend.scan_fast.key_at.S_ISREFLEXIVE
+                      let b1 ← frontend.scan_fast.match_lit b j s
+                      if b1
+                      then ok frontend.scan_types.Key.KIsReflexive
+                      else ok frontend.scan_types.Key.KUnknown
+                    else ok frontend.scan_types.Key.KUnknown
+  | 107#uscalar =>
+    if kl = 1#usize
+    then
+      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_K
+      let b1 ← frontend.scan_fast.match_lit b j s
+      if b1
+      then ok frontend.scan_types.Key.KK
+      else ok frontend.scan_types.Key.KUnknown
+    else
+      if kl = 4#usize
+      then
+        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_KIND
+        let b1 ← frontend.scan_fast.match_lit b j s
+        if b1
+        then ok frontend.scan_types.Key.KKind
+        else ok frontend.scan_types.Key.KUnknown
+      else ok frontend.scan_types.Key.KUnknown
+  | 108#uscalar =>
+    if kl = 3#usize
+    then
+      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_LAM
+      let b1 ← frontend.scan_fast.match_lit b j s
+      if b1
+      then ok frontend.scan_types.Key.KLam
+      else ok frontend.scan_types.Key.KUnknown
+    else
+      if kl = 4#usize
+      then
+        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_LETE
+        let b1 ← frontend.scan_fast.match_lit b j s
+        if b1
+        then ok frontend.scan_types.Key.KLetE
+        else ok frontend.scan_types.Key.KUnknown
+      else
+        if kl = 11#usize
+        then
+          let s ←
+            core.str.Str.as_bytes frontend.scan_fast.key_at.S_LEVELPARAMS
+          let b1 ← frontend.scan_fast.match_lit b j s
+          if b1
+          then ok frontend.scan_types.Key.KLevelParams
+          else ok frontend.scan_types.Key.KUnknown
+        else ok frontend.scan_types.Key.KUnknown
+  | 109#uscalar =>
+    if kl = 3#usize
+    then
+      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_MAX
+      let b1 ← frontend.scan_fast.match_lit b j s
+      if b1
+      then ok frontend.scan_types.Key.KMax
+      else ok frontend.scan_types.Key.KUnknown
+    else
+      if kl = 4#usize
+      then
+        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_META
+        let b1 ← frontend.scan_fast.match_lit b j s
+        if b1
+        then ok frontend.scan_types.Key.KMeta
+        else ok frontend.scan_types.Key.KUnknown
+      else ok frontend.scan_types.Key.KUnknown
+  | 110#uscalar =>
+    if kl = 3#usize
+    then
+      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_NUM
+      let b1 ← frontend.scan_fast.match_lit b j s
+      if b1
+      then ok frontend.scan_types.Key.KNum
+      else ok frontend.scan_types.Key.KUnknown
+    else
+      if kl = 4#usize
+      then
+        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_NAME
+        let b1 ← frontend.scan_fast.match_lit b j s
+        if b1
+        then ok frontend.scan_types.Key.KName
+        else ok frontend.scan_types.Key.KUnknown
+      else
+        if kl = 6#usize
+        then
+          let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_NATVAL
+          let b1 ← frontend.scan_fast.match_lit b j s
+          if b1
+          then ok frontend.scan_types.Key.KNatVal
+          else
+            let s1 ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_NONDEP
+            let b2 ← frontend.scan_fast.match_lit b j s1
+            if b2
+            then ok frontend.scan_types.Key.KNondep
+            else ok frontend.scan_types.Key.KUnknown
+        else
+          if kl = 7#usize
+          then
+            let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_NFIELDS
+            let b1 ← frontend.scan_fast.match_lit b j s
+            if b1
+            then ok frontend.scan_types.Key.KNfields
+            else ok frontend.scan_types.Key.KUnknown
+          else
+            if kl = 9#usize
+            then
+              let s ←
+                core.str.Str.as_bytes frontend.scan_fast.key_at.S_NUMFIELDS
+              let b1 ← frontend.scan_fast.match_lit b j s
+              if b1
+              then ok frontend.scan_types.Key.KNumFields
+              else
+                let s1 ←
+                  core.str.Str.as_bytes frontend.scan_fast.key_at.S_NUMMINORS
+                let b2 ← frontend.scan_fast.match_lit b j s1
+                if b2
+                then ok frontend.scan_types.Key.KNumMinors
+                else
+                  let s2 ←
+                    core.str.Str.as_bytes frontend.scan_fast.key_at.S_NUMNESTED
+                  let b3 ← frontend.scan_fast.match_lit b j s2
+                  if b3
+                  then ok frontend.scan_types.Key.KNumNested
+                  else
+                    let s3 ←
+                      core.str.Str.as_bytes
+                        frontend.scan_fast.key_at.S_NUMPARAMS
+                    let b4 ← frontend.scan_fast.match_lit b j s3
+                    if b4
+                    then ok frontend.scan_types.Key.KNumParams
+                    else ok frontend.scan_types.Key.KUnknown
+            else
+              if kl = 10#usize
+              then
+                let s ←
+                  core.str.Str.as_bytes frontend.scan_fast.key_at.S_NUMINDICES
+                let b1 ← frontend.scan_fast.match_lit b j s
+                if b1
+                then ok frontend.scan_types.Key.KNumIndices
+                else
+                  let s1 ←
+                    core.str.Str.as_bytes
+                      frontend.scan_fast.key_at.S_NUMMOTIVES
+                  let b2 ← frontend.scan_fast.match_lit b j s1
+                  if b2
+                  then ok frontend.scan_types.Key.KNumMotives
+                  else ok frontend.scan_types.Key.KUnknown
+              else ok frontend.scan_types.Key.KUnknown
+  | 111#uscalar =>
+    if kl = 6#usize
+    then
+      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_OPAQUE
+      let b1 ← frontend.scan_fast.match_lit b j s
+      if b1
+      then ok frontend.scan_types.Key.KOpaque
+      else ok frontend.scan_types.Key.KUnknown
+    else ok frontend.scan_types.Key.KUnknown
+  | 112#uscalar =>
+    if kl = 2#usize
+    then
+      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_PW
+      let b1 ← frontend.scan_fast.match_lit b j s
+      if b1
+      then ok frontend.scan_types.Key.KPw
+      else ok frontend.scan_types.Key.KUnknown
+    else
+      if kl = 3#usize
+      then
+        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_PRE
+        let b1 ← frontend.scan_fast.match_lit b j s
+        if b1
+        then ok frontend.scan_types.Key.KPre
+        else ok frontend.scan_types.Key.KUnknown
+      else
+        if kl = 4#usize
+        then
+          let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_PROJ
+          let b1 ← frontend.scan_fast.match_lit b j s
+          if b1
+          then ok frontend.scan_types.Key.KProj
+          else ok frontend.scan_types.Key.KUnknown
+        else
+          if kl = 5#usize
+          then
+            let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_PARAM
+            let b1 ← frontend.scan_fast.match_lit b j s
+            if b1
+            then ok frontend.scan_types.Key.KParam
+            else ok frontend.scan_types.Key.KUnknown
+          else ok frontend.scan_types.Key.KUnknown
+  | 113#uscalar =>
+    if kl = 4#usize
+    then
+      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_QUOT
+      let b1 ← frontend.scan_fast.match_lit b j s
+      if b1
+      then ok frontend.scan_types.Key.KQuot
+      else ok frontend.scan_types.Key.KUnknown
+    else ok frontend.scan_types.Key.KUnknown
+  | 114#uscalar =>
+    if kl = 3#usize
+    then
+      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_RHS
+      let b1 ← frontend.scan_fast.match_lit b j s
+      if b1
+      then ok frontend.scan_types.Key.KRhs
+      else ok frontend.scan_types.Key.KUnknown
+    else
+      if kl = 4#usize
+      then
+        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_RECS
+        let b1 ← frontend.scan_fast.match_lit b j s
+        if b1
+        then ok frontend.scan_types.Key.KRecs
+        else ok frontend.scan_types.Key.KUnknown
+      else
+        if kl = 5#usize
+        then
+          let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_RULES
+          let b1 ← frontend.scan_fast.match_lit b j s
+          if b1
+          then ok frontend.scan_types.Key.KRules
+          else ok frontend.scan_types.Key.KUnknown
+        else
+          if kl = 7#usize
+          then
+            let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_REGULAR
+            let b1 ← frontend.scan_fast.match_lit b j s
+            if b1
+            then ok frontend.scan_types.Key.KRegular
+            else ok frontend.scan_types.Key.KUnknown
+          else ok frontend.scan_types.Key.KUnknown
+  | 115#uscalar =>
+    if kl = 3#usize
+    then
+      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_STR
+      let b1 ← frontend.scan_fast.match_lit b j s
+      if b1
+      then ok frontend.scan_types.Key.KStr
+      else ok frontend.scan_types.Key.KUnknown
+    else
+      if kl = 4#usize
+      then
+        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_SORT
+        let b1 ← frontend.scan_fast.match_lit b j s
+        if b1
+        then ok frontend.scan_types.Key.KSort
+        else
+          let s1 ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_SUCC
+          let b2 ← frontend.scan_fast.match_lit b j s1
+          if b2
+          then ok frontend.scan_types.Key.KSucc
+          else ok frontend.scan_types.Key.KUnknown
+      else
+        if kl = 6#usize
+        then
+          let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_SAFETY
+          let b1 ← frontend.scan_fast.match_lit b j s
+          if b1
+          then ok frontend.scan_types.Key.KSafety
+          else
+            let s1 ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_STRVAL
+            let b2 ← frontend.scan_fast.match_lit b j s1
+            if b2
+            then ok frontend.scan_types.Key.KStrVal
+            else
+              let s2 ←
+                core.str.Str.as_bytes frontend.scan_fast.key_at.S_STRUCT
+              let b3 ← frontend.scan_fast.match_lit b j s2
+              if b3
+              then ok frontend.scan_types.Key.KStruct
+              else ok frontend.scan_types.Key.KUnknown
+        else ok frontend.scan_types.Key.KUnknown
+  | 116#uscalar =>
+    if kl = 3#usize
+    then
+      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_THM
+      let b1 ← frontend.scan_fast.match_lit b j s
+      if b1
+      then ok frontend.scan_types.Key.KThm
+      else ok frontend.scan_types.Key.KUnknown
+    else
+      if kl = 4#usize
+      then
+        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_TYPE
+        let b1 ← frontend.scan_fast.match_lit b j s
+        if b1
+        then ok frontend.scan_types.Key.KType
+        else ok frontend.scan_types.Key.KUnknown
+      else
+        if kl = 5#usize
+        then
+          let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_TYPES
+          let b1 ← frontend.scan_fast.match_lit b j s
+          if b1
+          then ok frontend.scan_types.Key.KTypes
+          else ok frontend.scan_types.Key.KUnknown
+        else
+          if kl = 8#usize
+          then
+            let s ←
+              core.str.Str.as_bytes frontend.scan_fast.key_at.S_TYPENAME
+            let b1 ← frontend.scan_fast.match_lit b j s
+            if b1
+            then ok frontend.scan_types.Key.KTypeName
+            else ok frontend.scan_types.Key.KUnknown
+          else ok frontend.scan_types.Key.KUnknown
+  | 117#uscalar =>
+    if kl = 2#usize
+    then
+      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_US
+      let b1 ← frontend.scan_fast.match_lit b j s
+      if b1
+      then ok frontend.scan_types.Key.KUs
+      else ok frontend.scan_types.Key.KUnknown
+    else ok frontend.scan_types.Key.KUnknown
+  | 118#uscalar =>
+    if kl = 5#usize
+    then
+      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_VALUE
+      let b1 ← frontend.scan_fast.match_lit b j s
+      if b1
+      then ok frontend.scan_types.Key.KValue
+      else ok frontend.scan_types.Key.KUnknown
+    else ok frontend.scan_types.Key.KUnknown
+  | _ => ok frontend.scan_types.Key.KUnknown
+
+/-- [con_ron_core::frontend::scan_fast::key_end]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 141:4-152:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.key_end_loop
+  (b : Slice Std.U8) (j : Std.Usize) : Result Std.Usize := do
+  let i := Slice.len b
+  if j < i
+  then
+    let c ← Slice.index_usize b j
+    if c = 34#u8
+    then ok j
+    else
+      if c < 32#u8
+      then ok 0#usize
+      else
+        if c = 92#u8
+        then ok 0#usize
+        else let j1 ← j + 1#usize
+             frontend.scan_fast.key_end_loop b j1
+  else ok 0#usize
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::key_end]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 139:0-152:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.key_end
+  (b : Slice Std.U8) (j : Std.Usize) : Result Std.Usize := do
+  frontend.scan_fast.key_end_loop b j
+
+/-- [con_ron_core::frontend::scan_fast::next_member]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1371:4-1425:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.next_member_loop
+  (b : Slice Std.U8) (i : Std.Usize) (want_member : Bool) :
+  Result (core.result.Result (frontend.scan_fast.Member × Std.Usize × Bool)
+    frontend.scan_types.ScanErr)
+  := do
+  let i1 := Slice.len b
+  if i >= i1
+  then
+    ok (core.result.Result.Err
+      { offset := i, what := frontend.scan_types.ErrTag.ExpectedComma })
+  else
+    let c ← Slice.index_usize b i
+    let b1 ← frontend.scan_fast.is_ws c
+    if b1
+    then
+      let i2 ← i + 1#usize
+      frontend.scan_fast.next_member_loop b i2 want_member
+    else
+      if c = 125#u8
+      then
+        ok (core.result.Result.Ok (frontend.scan_fast.Member.Close, i,
+          want_member))
+      else
+        if c = 44#u8
+        then
+          if want_member
+          then
+            ok (core.result.Result.Err
+              { offset := i, what := frontend.scan_types.ErrTag.ExpectedKey })
+          else
+            let i2 ← i + 1#usize
+            frontend.scan_fast.next_member_loop b i2 true
+        else
+          if c = 34#u8
+          then
+            if want_member
+            then
+              let i2 ← i + 1#usize
+              let ke ← frontend.scan_fast.key_end b i2
+              if ke = 0#usize
+              then
+                ok (core.result.Result.Err
+                  { offset := i, what := frontend.scan_types.ErrTag.ExpectedKey
+                  })
+              else
+                let v ← frontend.scan_fast.value_at b i ke
+                if v = i
+                then
+                  ok (core.result.Result.Err
+                    {
+                      offset := i,
+                      what := frontend.scan_types.ErrTag.ExpectedColon
+                    })
+                else
+                  let i3 ← ke - i2
+                  let k ← frontend.scan_fast.key_at b i i3
+                  ok (core.result.Result.Ok (frontend.scan_fast.Member.Key k i
+                    v, i, true))
+            else
+              ok (core.result.Result.Err
+                { offset := i, what := frontend.scan_types.ErrTag.ExpectedComma
+                })
+          else
+            ok (core.result.Result.Err
+              { offset := i, what := frontend.scan_types.ErrTag.ExpectedComma })
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::next_member]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1364:0-1425:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.next_member
+  (b : Slice Std.U8) (i : Std.Usize) (want_member : Bool) :
+  Result (core.result.Result (frontend.scan_fast.Member × Std.Usize × Bool)
+    frontend.scan_types.ScanErr)
+  := do
+  frontend.scan_fast.next_member_loop b i want_member
+
+/-- [con_ron_core::frontend::scan_fast::scan_nat_list_loop]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1163:4-1199:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.scan_nat_list_loop_loop
+  (b : Slice Std.U8) (i : Std.Usize) (acc : alloc.vec.Vec Std.U64)
+  (want_item : Bool) :
+  Result (core.result.Result ((alloc.vec.Vec Std.U64) × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let i1 := Slice.len b
+  if i >= i1
+  then
+    frontend.scan_fast.err (alloc.vec.Vec Std.U64) i
+      frontend.scan_types.ErrTag.ExpectedList
+  else
+    let c ← Slice.index_usize b i
+    let b1 ← frontend.scan_fast.is_ws c
+    if b1
+    then
+      let i2 ← i + 1#usize
+      frontend.scan_fast.scan_nat_list_loop_loop b i2 acc want_item
+    else
+      if c = 93#u8
+      then
+        if want_item
+        then
+          let i2 := alloc.vec.Vec.len acc
+          if i2 != 0#usize
+          then
+            frontend.scan_fast.err (alloc.vec.Vec Std.U64) i
+              frontend.scan_types.ErrTag.ExpectedList
+          else let i3 ← i + 1#usize
+               ok (core.result.Result.Ok (acc, i3))
+        else let i2 ← i + 1#usize
+             ok (core.result.Result.Ok (acc, i2))
+      else
+        if c = 44#u8
+        then
+          if want_item
+          then
+            frontend.scan_fast.err (alloc.vec.Vec Std.U64) i
+              frontend.scan_types.ErrTag.ExpectedList
+          else
+            let i2 ← i + 1#usize
+            frontend.scan_fast.scan_nat_list_loop_loop b i2 acc true
+        else
+          let b2 ← frontend.scan_fast.is_digit c
+          if b2
+          then
+            if want_item
+            then
+              let e ← frontend.scan_fast.num_end b i
+              if e = i
+              then
+                frontend.scan_fast.err (alloc.vec.Vec Std.U64) i
+                  frontend.scan_types.ErrTag.ExpectedNat
+              else
+                let r ← frontend.scan_fast.read_nat_at b i e
+                match r with
+                | core.result.Result.Ok p =>
+                  let acc1 ← alloc.vec.Vec.push acc p
+                  frontend.scan_fast.scan_nat_list_loop_loop b e acc1 false
+                | core.result.Result.Err er => ok (core.result.Result.Err er)
+            else
+              frontend.scan_fast.err (alloc.vec.Vec Std.U64) i
+                frontend.scan_types.ErrTag.ExpectedList
+          else
+            frontend.scan_fast.err (alloc.vec.Vec Std.U64) i
+              frontend.scan_types.ErrTag.ExpectedList
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::scan_nat_list_loop]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1159:0-1200:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.scan_nat_list_loop
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result ((alloc.vec.Vec Std.U64) × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  frontend.scan_fast.scan_nat_list_loop_loop b i (alloc.vec.Vec.new Std.U64)
+    true
+
+/-- [con_ron_core::frontend::scan_fast::scan_nat_list]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1205:0-1211:1
+    Visibility: public -/
+def frontend.scan_fast.scan_nat_list
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result ((alloc.vec.Vec Std.U64) × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 = 91#u8
+  then let i2 ← i + 1#usize
+       frontend.scan_fast.scan_nat_list_loop b i2
+  else
+    frontend.scan_fast.err (alloc.vec.Vec Std.U64) i
+      frontend.scan_types.ErrTag.ExpectedList
+
+/-- [con_ron_core::frontend::scan_fast::scan_bool::S_FALSE]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 715:4-715:34 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.scan_bool.S_FALSE : Str := toStr "false"
+
+/-- [con_ron_core::frontend::scan_fast::scan_bool::S_TRUE]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 714:4-714:32 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.scan_bool.S_TRUE : Str := toStr "true"
+
+/-- [con_ron_core::frontend::scan_fast::scan_bool]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 713:0-723:1
+    Visibility: public -/
+def frontend.scan_fast.scan_bool
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (Bool × Std.Usize) frontend.scan_types.ScanErr)
+  := do
+  let s ← core.str.Str.as_bytes frontend.scan_fast.scan_bool.S_TRUE
+  let b1 ← frontend.scan_fast.match_lit b i s
+  if b1
+  then let i1 ← i + 4#usize
+       ok (core.result.Result.Ok (true, i1))
+  else
+    let s1 ← core.str.Str.as_bytes frontend.scan_fast.scan_bool.S_FALSE
+    let b2 ← frontend.scan_fast.match_lit b i s1
+    if b2
+    then let i1 ← i + 5#usize
+         ok (core.result.Result.Ok (false, i1))
+    else frontend.scan_fast.err Bool i frontend.scan_types.ErrTag.ExpectedBool
+
+/-- [con_ron_core::frontend::scan_fast::scan_ind_ctor_loop]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2787:4-2932:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.scan_ind_ctor_loop_loop
+  (want_member : Bool) (b : Slice Std.U8) (i : Std.Usize) (seen : Std.U32)
+  (is_uns : Bool) (lps : alloc.vec.Vec Std.U64) (nm : Std.U64) (n_f : Std.U64)
+  (n_p : Std.U64) (ty : Std.U64) (ci : Option Std.U64) (ind : Option Std.U64) :
+  Result (core.result.Result (frontend.scan_types.IndCtorRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let r ← frontend.scan_fast.next_member b i want_member
+  match r with
+  | core.result.Result.Ok p =>
+    let (mem, ni, nw) := p
+    match mem with
+    | frontend.scan_fast.Member.Close =>
+      if nw
+      then
+        if seen != 0#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.IndCtorRec ni
+            frontend.scan_types.ErrTag.ExpectedKey
+        else
+          let i1 ← lift (seen &&& 252#u32)
+          if i1 != 252#u32
+          then
+            frontend.scan_fast.err frontend.scan_types.IndCtorRec ni
+              frontend.scan_types.ErrTag.MissingKey
+          else
+            let i2 ← ni + 1#usize
+            ok (core.result.Result.Ok
+              ({
+                 cv := { «name» := nm, level_params := lps, ty },
+                 is_unsafe := is_uns,
+                 num_fields := n_f,
+                 num_params := n_p,
+                 cidx := ci,
+                 induct := ind
+               }, i2))
+      else
+        let i1 ← lift (seen &&& 252#u32)
+        if i1 != 252#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.IndCtorRec ni
+            frontend.scan_types.ErrTag.MissingKey
+        else
+          let i2 ← ni + 1#usize
+          ok (core.result.Result.Ok
+            ({
+               cv := { «name» := nm, level_params := lps, ty },
+               is_unsafe := is_uns,
+               num_fields := n_f,
+               num_params := n_p,
+               cidx := ci,
+               induct := ind
+             }, i2))
+    | frontend.scan_fast.Member.Key k ks v =>
+      match k with
+      | frontend.scan_types.Key.KUnknown =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAll =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KApp =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KArg =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAxiom =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBinderInfo =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBody =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBvar =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCidx =>
+        let b1 ← frontend.scan_fast.dup seen 1#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 1#u32)
+            frontend.scan_fast.scan_ind_ctor_loop_loop false b e seen1 is_uns
+              lps nm n_f n_p ty (some x) ind
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KConst =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtor =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtors =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KDef =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KFn =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KForallE =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KHints =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KI =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIdx =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIe =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIl =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KImax =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIn =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInduct =>
+        let b1 ← frontend.scan_fast.dup seen 2#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 2#u32)
+            frontend.scan_fast.scan_ind_ctor_loop_loop false b e seen1 is_uns
+              lps nm n_f n_p ty ci (some x)
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KInductive =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsRec =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsReflexive =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsUnsafe =>
+        let b1 ← frontend.scan_fast.dup seen 4#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_bool b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 4#u32)
+              frontend.scan_fast.scan_ind_ctor_loop_loop false b e seen1 x lps
+                nm n_f n_p ty ci ind
+            else
+              frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KK =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KKind =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLam =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLetE =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLevelParams =>
+        let b1 ← frontend.scan_fast.dup seen 8#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_nat_list b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 8#u32)
+              frontend.scan_fast.scan_ind_ctor_loop_loop false b e seen1 is_uns
+                x nm n_f n_p ty ci ind
+            else
+              frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KMax =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMeta =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KName =>
+        let b1 ← frontend.scan_fast.dup seen 16#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 16#u32)
+            frontend.scan_fast.scan_ind_ctor_loop_loop false b e seen1 is_uns
+              lps x n_f n_p ty ci ind
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KNatVal =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNfields =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNondep =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNum =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumFields =>
+        let b1 ← frontend.scan_fast.dup seen 32#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 32#u32)
+            frontend.scan_fast.scan_ind_ctor_loop_loop false b e seen1 is_uns
+              lps nm x n_p ty ci ind
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KNumIndices =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMinors =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMotives =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumNested =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumParams =>
+        let b1 ← frontend.scan_fast.dup seen 64#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 64#u32)
+            frontend.scan_fast.scan_ind_ctor_loop_loop false b e seen1 is_uns
+              lps nm n_f x ty ci ind
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KOpaque =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KParam =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPre =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KProj =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPw =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KQuot =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRecs =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRegular =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRhs =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRules =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSafety =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSort =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStr =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStrVal =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStruct =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSucc =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KThm =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KType =>
+        let b1 ← frontend.scan_fast.dup seen 128#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 128#u32)
+            frontend.scan_fast.scan_ind_ctor_loop_loop false b e seen1 is_uns
+              lps nm n_f n_p x ci ind
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KTypeName =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KTypes =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KUs =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KValue =>
+        frontend.scan_fast.err frontend.scan_types.IndCtorRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+  | core.result.Result.Err er => ok (core.result.Result.Err er)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::scan_ind_ctor_loop]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2775:0-2933:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.scan_ind_ctor_loop
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.IndCtorRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  frontend.scan_fast.scan_ind_ctor_loop_loop true b i 0#u32 false
+    (alloc.vec.Vec.new Std.U64) 0#u64 0#u64 0#u64 0#u64 none none
+
+/-- [con_ron_core::frontend::scan_fast::scan_ind_ctor]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2939:0-2945:1
+    Visibility: public -/
+def frontend.scan_fast.scan_ind_ctor
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.IndCtorRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 = 123#u8
+  then let i2 ← i + 1#usize
+       frontend.scan_fast.scan_ind_ctor_loop b i2
+  else
+    frontend.scan_fast.err frontend.scan_types.IndCtorRec i
+      frontend.scan_types.ErrTag.ExpectedObject
+
+/-- [con_ron_core::frontend::scan_fast::scan_ind_ctor_list_loop]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2954:4-2989:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.scan_ind_ctor_list_loop_loop
+  (b : Slice Std.U8) (i : Std.Usize)
+  (acc : alloc.vec.Vec frontend.scan_types.IndCtorRec) (want_item : Bool) :
+  Result (core.result.Result ((alloc.vec.Vec frontend.scan_types.IndCtorRec) ×
+    Std.Usize) frontend.scan_types.ScanErr)
+  := do
+  let i1 := Slice.len b
+  if i >= i1
+  then
+    frontend.scan_fast.err (alloc.vec.Vec frontend.scan_types.IndCtorRec) i
+      frontend.scan_types.ErrTag.ExpectedList
+  else
+    let c ← Slice.index_usize b i
+    let b1 ← frontend.scan_fast.is_ws c
+    if b1
+    then
+      let i2 ← i + 1#usize
+      frontend.scan_fast.scan_ind_ctor_list_loop_loop b i2 acc want_item
+    else
+      if c = 93#u8
+      then
+        if want_item
+        then
+          let i2 := alloc.vec.Vec.len acc
+          if i2 != 0#usize
+          then
+            frontend.scan_fast.err (alloc.vec.Vec
+              frontend.scan_types.IndCtorRec) i
+              frontend.scan_types.ErrTag.ExpectedList
+          else let i3 ← i + 1#usize
+               ok (core.result.Result.Ok (acc, i3))
+        else let i2 ← i + 1#usize
+             ok (core.result.Result.Ok (acc, i2))
+      else
+        if c = 44#u8
+        then
+          if want_item
+          then
+            frontend.scan_fast.err (alloc.vec.Vec
+              frontend.scan_types.IndCtorRec) i
+              frontend.scan_types.ErrTag.ExpectedList
+          else
+            let i2 ← i + 1#usize
+            frontend.scan_fast.scan_ind_ctor_list_loop_loop b i2 acc true
+        else
+          if c = 123#u8
+          then
+            if want_item
+            then
+              let r ← frontend.scan_fast.scan_ind_ctor b i
+              match r with
+              | core.result.Result.Ok p =>
+                let (x, e) := p
+                let b2 ← frontend.scan_fast.prog i e
+                if b2
+                then
+                  let acc1 ← alloc.vec.Vec.push acc x
+                  frontend.scan_fast.scan_ind_ctor_list_loop_loop b e acc1
+                    false
+                else
+                  frontend.scan_fast.err (alloc.vec.Vec
+                    frontend.scan_types.IndCtorRec) i
+                    frontend.scan_types.ErrTag.NoProgress
+              | core.result.Result.Err er => ok (core.result.Result.Err er)
+            else
+              frontend.scan_fast.err (alloc.vec.Vec
+                frontend.scan_types.IndCtorRec) i
+                frontend.scan_types.ErrTag.ExpectedList
+          else
+            frontend.scan_fast.err (alloc.vec.Vec
+              frontend.scan_types.IndCtorRec) i
+              frontend.scan_types.ErrTag.ExpectedList
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::scan_ind_ctor_list_loop]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2950:0-2990:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.scan_ind_ctor_list_loop
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result ((alloc.vec.Vec frontend.scan_types.IndCtorRec) ×
+    Std.Usize) frontend.scan_types.ScanErr)
+  := do
+  frontend.scan_fast.scan_ind_ctor_list_loop_loop b i (alloc.vec.Vec.new
+    frontend.scan_types.IndCtorRec) true
+
+/-- [con_ron_core::frontend::scan_fast::scan_ind_ctors]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2995:0-3001:1
+    Visibility: public -/
+def frontend.scan_fast.scan_ind_ctors
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result ((alloc.vec.Vec frontend.scan_types.IndCtorRec) ×
+    Std.Usize) frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 = 91#u8
+  then let i2 ← i + 1#usize
+       frontend.scan_fast.scan_ind_ctor_list_loop b i2
+  else
+    frontend.scan_fast.err (alloc.vec.Vec frontend.scan_types.IndCtorRec) i
+      frontend.scan_types.ErrTag.ExpectedList
+
+/-- [con_ron_core::frontend::scan_fast::scan_ind_type_loop]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2507:4-2704:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.scan_ind_type_loop_loop
+  (want_member : Bool) (b : Slice Std.U8) (i : Std.Usize) (seen : Std.U32)
+  (ctors : alloc.vec.Vec Std.U64) (is_rec : Bool) (is_refl : Bool)
+  (is_uns : Bool) (lps : alloc.vec.Vec Std.U64) (nm : Std.U64)
+  (n_idx : Std.U64) (n_nest : Std.U64) (n_p : Std.U64) (ty : Std.U64) :
+  Result (core.result.Result (frontend.scan_types.IndTypeRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let r ← frontend.scan_fast.next_member b i want_member
+  match r with
+  | core.result.Result.Ok p =>
+    let (mem, ni, nw) := p
+    match mem with
+    | frontend.scan_fast.Member.Close =>
+      if nw
+      then
+        if seen != 0#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.IndTypeRec ni
+            frontend.scan_types.ErrTag.ExpectedKey
+        else
+          let i1 ← lift (seen &&& 2046#u32)
+          if i1 != 2046#u32
+          then
+            frontend.scan_fast.err frontend.scan_types.IndTypeRec ni
+              frontend.scan_types.ErrTag.MissingKey
+          else
+            let i2 ← ni + 1#usize
+            ok (core.result.Result.Ok
+              ({
+                 cv := { «name» := nm, level_params := lps, ty },
+                 ctors,
+                 is_rec,
+                 is_reflexive := is_refl,
+                 is_unsafe := is_uns,
+                 num_indices := n_idx,
+                 num_nested := n_nest,
+                 num_params := n_p
+               }, i2))
+      else
+        let i1 ← lift (seen &&& 2046#u32)
+        if i1 != 2046#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.IndTypeRec ni
+            frontend.scan_types.ErrTag.MissingKey
+        else
+          let i2 ← ni + 1#usize
+          ok (core.result.Result.Ok
+            ({
+               cv := { «name» := nm, level_params := lps, ty },
+               ctors,
+               is_rec,
+               is_reflexive := is_refl,
+               is_unsafe := is_uns,
+               num_indices := n_idx,
+               num_nested := n_nest,
+               num_params := n_p
+             }, i2))
+    | frontend.scan_fast.Member.Key k ks v =>
+      match k with
+      | frontend.scan_types.Key.KUnknown =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAll =>
+        let b1 ← frontend.scan_fast.dup seen 1#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_nat_list b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (_, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 1#u32)
+              frontend.scan_fast.scan_ind_type_loop_loop false b e seen1 ctors
+                is_rec is_refl is_uns lps nm n_idx n_nest n_p ty
+            else
+              frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KApp =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KArg =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAxiom =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBinderInfo =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBody =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBvar =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCidx =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KConst =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtor =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtors =>
+        let b1 ← frontend.scan_fast.dup seen 2#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_nat_list b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 2#u32)
+              frontend.scan_fast.scan_ind_type_loop_loop false b e seen1 x
+                is_rec is_refl is_uns lps nm n_idx n_nest n_p ty
+            else
+              frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KDef =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KFn =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KForallE =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KHints =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KI =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIdx =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIe =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIl =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KImax =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIn =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInduct =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInductive =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsRec =>
+        let b1 ← frontend.scan_fast.dup seen 4#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_bool b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 4#u32)
+              frontend.scan_fast.scan_ind_type_loop_loop false b e seen1 ctors
+                x is_refl is_uns lps nm n_idx n_nest n_p ty
+            else
+              frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KIsReflexive =>
+        let b1 ← frontend.scan_fast.dup seen 8#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_bool b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 8#u32)
+              frontend.scan_fast.scan_ind_type_loop_loop false b e seen1 ctors
+                is_rec x is_uns lps nm n_idx n_nest n_p ty
+            else
+              frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KIsUnsafe =>
+        let b1 ← frontend.scan_fast.dup seen 16#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_bool b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 16#u32)
+              frontend.scan_fast.scan_ind_type_loop_loop false b e seen1 ctors
+                is_rec is_refl x lps nm n_idx n_nest n_p ty
+            else
+              frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KK =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KKind =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLam =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLetE =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLevelParams =>
+        let b1 ← frontend.scan_fast.dup seen 32#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_nat_list b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 32#u32)
+              frontend.scan_fast.scan_ind_type_loop_loop false b e seen1 ctors
+                is_rec is_refl is_uns x nm n_idx n_nest n_p ty
+            else
+              frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KMax =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMeta =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KName =>
+        let b1 ← frontend.scan_fast.dup seen 64#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 64#u32)
+            frontend.scan_fast.scan_ind_type_loop_loop false b e seen1 ctors
+              is_rec is_refl is_uns lps x n_idx n_nest n_p ty
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KNatVal =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNfields =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNondep =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNum =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumFields =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumIndices =>
+        let b1 ← frontend.scan_fast.dup seen 128#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 128#u32)
+            frontend.scan_fast.scan_ind_type_loop_loop false b e seen1 ctors
+              is_rec is_refl is_uns lps nm x n_nest n_p ty
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KNumMinors =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMotives =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumNested =>
+        let b1 ← frontend.scan_fast.dup seen 256#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 256#u32)
+            frontend.scan_fast.scan_ind_type_loop_loop false b e seen1 ctors
+              is_rec is_refl is_uns lps nm n_idx x n_p ty
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KNumParams =>
+        let b1 ← frontend.scan_fast.dup seen 512#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 512#u32)
+            frontend.scan_fast.scan_ind_type_loop_loop false b e seen1 ctors
+              is_rec is_refl is_uns lps nm n_idx n_nest x ty
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KOpaque =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KParam =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPre =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KProj =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPw =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KQuot =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRecs =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRegular =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRhs =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRules =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSafety =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSort =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStr =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStrVal =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStruct =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSucc =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KThm =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KType =>
+        let b1 ← frontend.scan_fast.dup seen 1024#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 1024#u32)
+            frontend.scan_fast.scan_ind_type_loop_loop false b e seen1 ctors
+              is_rec is_refl is_uns lps nm n_idx n_nest n_p x
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KTypeName =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KTypes =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KUs =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KValue =>
+        frontend.scan_fast.err frontend.scan_types.IndTypeRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+  | core.result.Result.Err er => ok (core.result.Result.Err er)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::scan_ind_type_loop]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2493:0-2705:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.scan_ind_type_loop
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.IndTypeRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  frontend.scan_fast.scan_ind_type_loop_loop true b i 0#u32 (alloc.vec.Vec.new
+    Std.U64) false false false (alloc.vec.Vec.new Std.U64) 0#u64 0#u64 0#u64
+    0#u64 0#u64
+
+/-- [con_ron_core::frontend::scan_fast::scan_ind_type]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2710:0-2716:1
+    Visibility: public -/
+def frontend.scan_fast.scan_ind_type
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.IndTypeRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 = 123#u8
+  then let i2 ← i + 1#usize
+       frontend.scan_fast.scan_ind_type_loop b i2
+  else
+    frontend.scan_fast.err frontend.scan_types.IndTypeRec i
+      frontend.scan_types.ErrTag.ExpectedObject
+
+/-- [con_ron_core::frontend::scan_fast::scan_ind_type_list_loop]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2725:4-2760:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.scan_ind_type_list_loop_loop
+  (b : Slice Std.U8) (i : Std.Usize)
+  (acc : alloc.vec.Vec frontend.scan_types.IndTypeRec) (want_item : Bool) :
+  Result (core.result.Result ((alloc.vec.Vec frontend.scan_types.IndTypeRec) ×
+    Std.Usize) frontend.scan_types.ScanErr)
+  := do
+  let i1 := Slice.len b
+  if i >= i1
+  then
+    frontend.scan_fast.err (alloc.vec.Vec frontend.scan_types.IndTypeRec) i
+      frontend.scan_types.ErrTag.ExpectedList
+  else
+    let c ← Slice.index_usize b i
+    let b1 ← frontend.scan_fast.is_ws c
+    if b1
+    then
+      let i2 ← i + 1#usize
+      frontend.scan_fast.scan_ind_type_list_loop_loop b i2 acc want_item
+    else
+      if c = 93#u8
+      then
+        if want_item
+        then
+          let i2 := alloc.vec.Vec.len acc
+          if i2 != 0#usize
+          then
+            frontend.scan_fast.err (alloc.vec.Vec
+              frontend.scan_types.IndTypeRec) i
+              frontend.scan_types.ErrTag.ExpectedList
+          else let i3 ← i + 1#usize
+               ok (core.result.Result.Ok (acc, i3))
+        else let i2 ← i + 1#usize
+             ok (core.result.Result.Ok (acc, i2))
+      else
+        if c = 44#u8
+        then
+          if want_item
+          then
+            frontend.scan_fast.err (alloc.vec.Vec
+              frontend.scan_types.IndTypeRec) i
+              frontend.scan_types.ErrTag.ExpectedList
+          else
+            let i2 ← i + 1#usize
+            frontend.scan_fast.scan_ind_type_list_loop_loop b i2 acc true
+        else
+          if c = 123#u8
+          then
+            if want_item
+            then
+              let r ← frontend.scan_fast.scan_ind_type b i
+              match r with
+              | core.result.Result.Ok p =>
+                let (x, e) := p
+                let b2 ← frontend.scan_fast.prog i e
+                if b2
+                then
+                  let acc1 ← alloc.vec.Vec.push acc x
+                  frontend.scan_fast.scan_ind_type_list_loop_loop b e acc1
+                    false
+                else
+                  frontend.scan_fast.err (alloc.vec.Vec
+                    frontend.scan_types.IndTypeRec) i
+                    frontend.scan_types.ErrTag.NoProgress
+              | core.result.Result.Err er => ok (core.result.Result.Err er)
+            else
+              frontend.scan_fast.err (alloc.vec.Vec
+                frontend.scan_types.IndTypeRec) i
+                frontend.scan_types.ErrTag.ExpectedList
+          else
+            frontend.scan_fast.err (alloc.vec.Vec
+              frontend.scan_types.IndTypeRec) i
+              frontend.scan_types.ErrTag.ExpectedList
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::scan_ind_type_list_loop]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2721:0-2761:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.scan_ind_type_list_loop
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result ((alloc.vec.Vec frontend.scan_types.IndTypeRec) ×
+    Std.Usize) frontend.scan_types.ScanErr)
+  := do
+  frontend.scan_fast.scan_ind_type_list_loop_loop b i (alloc.vec.Vec.new
+    frontend.scan_types.IndTypeRec) true
+
+/-- [con_ron_core::frontend::scan_fast::scan_ind_types]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2766:0-2772:1
+    Visibility: public -/
+def frontend.scan_fast.scan_ind_types
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result ((alloc.vec.Vec frontend.scan_types.IndTypeRec) ×
+    Std.Usize) frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 = 91#u8
+  then let i2 ← i + 1#usize
+       frontend.scan_fast.scan_ind_type_list_loop b i2
+  else
+    frontend.scan_fast.err (alloc.vec.Vec frontend.scan_types.IndTypeRec) i
+      frontend.scan_types.ErrTag.ExpectedList
+
+/-- [con_ron_core::frontend::scan_fast::scan_rule_loop]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2072:4-2140:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.scan_rule_loop_loop
+  (want_member : Bool) (b : Slice Std.U8) (i : Std.Usize) (seen : Std.U32)
+  (ct : Std.U64) (nf : Std.U64) (rhs : Std.U64) :
+  Result (core.result.Result (frontend.scan_types.RuleRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let r ← frontend.scan_fast.next_member b i want_member
+  match r with
+  | core.result.Result.Ok p =>
+    let (mem, ni, nw) := p
+    match mem with
+    | frontend.scan_fast.Member.Close =>
+      if nw
+      then
+        if seen != 0#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.RuleRec ni
+            frontend.scan_types.ErrTag.ExpectedKey
+        else
+          let i1 ← lift (seen &&& 7#u32)
+          if i1 != 7#u32
+          then
+            frontend.scan_fast.err frontend.scan_types.RuleRec ni
+              frontend.scan_types.ErrTag.MissingKey
+          else
+            let i2 ← ni + 1#usize
+            ok (core.result.Result.Ok ({ ctor := ct, nfields := nf, rhs }, i2))
+      else
+        let i1 ← lift (seen &&& 7#u32)
+        if i1 != 7#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.RuleRec ni
+            frontend.scan_types.ErrTag.MissingKey
+        else
+          let i2 ← ni + 1#usize
+          ok (core.result.Result.Ok ({ ctor := ct, nfields := nf, rhs }, i2))
+    | frontend.scan_fast.Member.Key k ks v =>
+      match k with
+      | frontend.scan_types.Key.KUnknown =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAll =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KApp =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KArg =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAxiom =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBinderInfo =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBody =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBvar =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCidx =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KConst =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtor =>
+        let b1 ← frontend.scan_fast.dup seen 1#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.RuleRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 1#u32)
+            frontend.scan_fast.scan_rule_loop_loop false b e seen1 x nf rhs
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KCtors =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KDef =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KFn =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KForallE =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KHints =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KI =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIdx =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIe =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIl =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KImax =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIn =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInduct =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInductive =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsRec =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsReflexive =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsUnsafe =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KK =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KKind =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLam =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLetE =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLevelParams =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMax =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMeta =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KName =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNatVal =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNfields =>
+        let b1 ← frontend.scan_fast.dup seen 2#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.RuleRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 2#u32)
+            frontend.scan_fast.scan_rule_loop_loop false b e seen1 ct x rhs
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KNondep =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNum =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumFields =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumIndices =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMinors =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMotives =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumNested =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumParams =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KOpaque =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KParam =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPre =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KProj =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPw =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KQuot =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRecs =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRegular =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRhs =>
+        let b1 ← frontend.scan_fast.dup seen 4#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.RuleRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 4#u32)
+            frontend.scan_fast.scan_rule_loop_loop false b e seen1 ct nf x
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KRules =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSafety =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSort =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStr =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStrVal =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStruct =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSucc =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KThm =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KType =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KTypeName =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KTypes =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KUs =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KValue =>
+        frontend.scan_fast.err frontend.scan_types.RuleRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+  | core.result.Result.Err er => ok (core.result.Result.Err er)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::scan_rule_loop]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2065:0-2140:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.scan_rule_loop
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.RuleRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  frontend.scan_fast.scan_rule_loop_loop true b i 0#u32 0#u64 0#u64 0#u64
+
+/-- [con_ron_core::frontend::scan_fast::scan_rule]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2145:0-2151:1
+    Visibility: public -/
+def frontend.scan_fast.scan_rule
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.RuleRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 = 123#u8
+  then let i2 ← i + 1#usize
+       frontend.scan_fast.scan_rule_loop b i2
+  else
+    frontend.scan_fast.err frontend.scan_types.RuleRec i
+      frontend.scan_types.ErrTag.ExpectedObject
+
+/-- [con_ron_core::frontend::scan_fast::scan_rule_list_loop]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2164:4-2199:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.scan_rule_list_loop_loop
+  (b : Slice Std.U8) (i : Std.Usize)
+  (acc : alloc.vec.Vec frontend.scan_types.RuleRec) (want_item : Bool) :
+  Result (core.result.Result ((alloc.vec.Vec frontend.scan_types.RuleRec) ×
+    Std.Usize) frontend.scan_types.ScanErr)
+  := do
+  let i1 := Slice.len b
+  if i >= i1
+  then
+    frontend.scan_fast.err (alloc.vec.Vec frontend.scan_types.RuleRec) i
+      frontend.scan_types.ErrTag.ExpectedList
+  else
+    let c ← Slice.index_usize b i
+    let b1 ← frontend.scan_fast.is_ws c
+    if b1
+    then
+      let i2 ← i + 1#usize
+      frontend.scan_fast.scan_rule_list_loop_loop b i2 acc want_item
+    else
+      if c = 93#u8
+      then
+        if want_item
+        then
+          let i2 := alloc.vec.Vec.len acc
+          if i2 != 0#usize
+          then
+            frontend.scan_fast.err (alloc.vec.Vec frontend.scan_types.RuleRec)
+              i frontend.scan_types.ErrTag.ExpectedList
+          else let i3 ← i + 1#usize
+               ok (core.result.Result.Ok (acc, i3))
+        else let i2 ← i + 1#usize
+             ok (core.result.Result.Ok (acc, i2))
+      else
+        if c = 44#u8
+        then
+          if want_item
+          then
+            frontend.scan_fast.err (alloc.vec.Vec frontend.scan_types.RuleRec)
+              i frontend.scan_types.ErrTag.ExpectedList
+          else
+            let i2 ← i + 1#usize
+            frontend.scan_fast.scan_rule_list_loop_loop b i2 acc true
+        else
+          if c = 123#u8
+          then
+            if want_item
+            then
+              let r ← frontend.scan_fast.scan_rule b i
+              match r with
+              | core.result.Result.Ok p =>
+                let (x, e) := p
+                let b2 ← frontend.scan_fast.prog i e
+                if b2
+                then
+                  let acc1 ← alloc.vec.Vec.push acc x
+                  frontend.scan_fast.scan_rule_list_loop_loop b e acc1 false
+                else
+                  frontend.scan_fast.err (alloc.vec.Vec
+                    frontend.scan_types.RuleRec) i
+                    frontend.scan_types.ErrTag.NoProgress
+              | core.result.Result.Err er => ok (core.result.Result.Err er)
+            else
+              frontend.scan_fast.err (alloc.vec.Vec
+                frontend.scan_types.RuleRec) i
+                frontend.scan_types.ErrTag.ExpectedList
+          else
+            frontend.scan_fast.err (alloc.vec.Vec frontend.scan_types.RuleRec)
+              i frontend.scan_types.ErrTag.ExpectedList
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::scan_rule_list_loop]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2160:0-2200:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.scan_rule_list_loop
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result ((alloc.vec.Vec frontend.scan_types.RuleRec) ×
+    Std.Usize) frontend.scan_types.ScanErr)
+  := do
+  frontend.scan_fast.scan_rule_list_loop_loop b i (alloc.vec.Vec.new
+    frontend.scan_types.RuleRec) true
+
+/-- [con_ron_core::frontend::scan_fast::scan_rules]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2205:0-2211:1
+    Visibility: public -/
+def frontend.scan_fast.scan_rules
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result ((alloc.vec.Vec frontend.scan_types.RuleRec) ×
+    Std.Usize) frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 = 91#u8
+  then let i2 ← i + 1#usize
+       frontend.scan_fast.scan_rule_list_loop b i2
+  else
+    frontend.scan_fast.err (alloc.vec.Vec frontend.scan_types.RuleRec) i
+      frontend.scan_types.ErrTag.ExpectedList
+
+/-- [con_ron_core::frontend::scan_fast::scan_ind_rec_loop]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2228:4-2422:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.scan_ind_rec_loop_loop
+  (want_member : Bool) (b : Slice Std.U8) (i : Std.Usize) (seen : Std.U32)
+  (is_uns : Bool) (kf : Bool) (lps : alloc.vec.Vec Std.U64) (nm : Std.U64)
+  (n_idx : Std.U64) (n_min : Std.U64) (n_mot : Std.U64) (n_p : Std.U64)
+  (rules : alloc.vec.Vec frontend.scan_types.RuleRec) (ty : Std.U64) :
+  Result (core.result.Result (frontend.scan_types.IndRecRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let r ← frontend.scan_fast.next_member b i want_member
+  match r with
+  | core.result.Result.Ok p =>
+    let (mem, ni, nw) := p
+    match mem with
+    | frontend.scan_fast.Member.Close =>
+      if nw
+      then
+        if seen != 0#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.IndRecRec ni
+            frontend.scan_types.ErrTag.ExpectedKey
+        else
+          let i1 ← lift (seen &&& 2046#u32)
+          if i1 != 2046#u32
+          then
+            frontend.scan_fast.err frontend.scan_types.IndRecRec ni
+              frontend.scan_types.ErrTag.MissingKey
+          else
+            let i2 ← ni + 1#usize
+            ok (core.result.Result.Ok
+              ({
+                 cv := { «name» := nm, level_params := lps, ty },
+                 is_unsafe := is_uns,
+                 k := kf,
+                 num_indices := n_idx,
+                 num_minors := n_min,
+                 num_motives := n_mot,
+                 num_params := n_p,
+                 rules
+               }, i2))
+      else
+        let i1 ← lift (seen &&& 2046#u32)
+        if i1 != 2046#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.IndRecRec ni
+            frontend.scan_types.ErrTag.MissingKey
+        else
+          let i2 ← ni + 1#usize
+          ok (core.result.Result.Ok
+            ({
+               cv := { «name» := nm, level_params := lps, ty },
+               is_unsafe := is_uns,
+               k := kf,
+               num_indices := n_idx,
+               num_minors := n_min,
+               num_motives := n_mot,
+               num_params := n_p,
+               rules
+             }, i2))
+    | frontend.scan_fast.Member.Key k ks v =>
+      match k with
+      | frontend.scan_types.Key.KUnknown =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAll =>
+        let b1 ← frontend.scan_fast.dup seen 1#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_nat_list b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (_, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 1#u32)
+              frontend.scan_fast.scan_ind_rec_loop_loop false b e seen1 is_uns
+                kf lps nm n_idx n_min n_mot n_p rules ty
+            else
+              frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KApp =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KArg =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAxiom =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBinderInfo =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBody =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBvar =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCidx =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KConst =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtor =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtors =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KDef =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KFn =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KForallE =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KHints =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KI =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIdx =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIe =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIl =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KImax =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIn =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInduct =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInductive =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsRec =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsReflexive =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsUnsafe =>
+        let b1 ← frontend.scan_fast.dup seen 2#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_bool b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 2#u32)
+              frontend.scan_fast.scan_ind_rec_loop_loop false b e seen1 x kf
+                lps nm n_idx n_min n_mot n_p rules ty
+            else
+              frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KK =>
+        let b1 ← frontend.scan_fast.dup seen 4#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_bool b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 4#u32)
+              frontend.scan_fast.scan_ind_rec_loop_loop false b e seen1 is_uns
+                x lps nm n_idx n_min n_mot n_p rules ty
+            else
+              frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KKind =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLam =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLetE =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLevelParams =>
+        let b1 ← frontend.scan_fast.dup seen 8#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_nat_list b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 8#u32)
+              frontend.scan_fast.scan_ind_rec_loop_loop false b e seen1 is_uns
+                kf x nm n_idx n_min n_mot n_p rules ty
+            else
+              frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KMax =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMeta =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KName =>
+        let b1 ← frontend.scan_fast.dup seen 16#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 16#u32)
+            frontend.scan_fast.scan_ind_rec_loop_loop false b e seen1 is_uns kf
+              lps x n_idx n_min n_mot n_p rules ty
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KNatVal =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNfields =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNondep =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNum =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumFields =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumIndices =>
+        let b1 ← frontend.scan_fast.dup seen 32#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 32#u32)
+            frontend.scan_fast.scan_ind_rec_loop_loop false b e seen1 is_uns kf
+              lps nm x n_min n_mot n_p rules ty
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KNumMinors =>
+        let b1 ← frontend.scan_fast.dup seen 64#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 64#u32)
+            frontend.scan_fast.scan_ind_rec_loop_loop false b e seen1 is_uns kf
+              lps nm n_idx x n_mot n_p rules ty
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KNumMotives =>
+        let b1 ← frontend.scan_fast.dup seen 128#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 128#u32)
+            frontend.scan_fast.scan_ind_rec_loop_loop false b e seen1 is_uns kf
+              lps nm n_idx n_min x n_p rules ty
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KNumNested =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumParams =>
+        let b1 ← frontend.scan_fast.dup seen 256#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 256#u32)
+            frontend.scan_fast.scan_ind_rec_loop_loop false b e seen1 is_uns kf
+              lps nm n_idx n_min n_mot x rules ty
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KOpaque =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KParam =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPre =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KProj =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPw =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KQuot =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRecs =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRegular =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRhs =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRules =>
+        let b1 ← frontend.scan_fast.dup seen 512#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_rules b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 512#u32)
+              frontend.scan_fast.scan_ind_rec_loop_loop false b e seen1 is_uns
+                kf lps nm n_idx n_min n_mot n_p x ty
+            else
+              frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KSafety =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSort =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStr =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStrVal =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStruct =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSucc =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KThm =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KType =>
+        let b1 ← frontend.scan_fast.dup seen 1024#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 1024#u32)
+            frontend.scan_fast.scan_ind_rec_loop_loop false b e seen1 is_uns kf
+              lps nm n_idx n_min n_mot n_p rules x
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KTypeName =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KTypes =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KUs =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KValue =>
+        frontend.scan_fast.err frontend.scan_types.IndRecRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+  | core.result.Result.Err er => ok (core.result.Result.Err er)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::scan_ind_rec_loop]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2214:0-2423:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.scan_ind_rec_loop
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.IndRecRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  frontend.scan_fast.scan_ind_rec_loop_loop true b i 0#u32 false false
+    (alloc.vec.Vec.new Std.U64) 0#u64 0#u64 0#u64 0#u64 0#u64
+    (alloc.vec.Vec.new frontend.scan_types.RuleRec) 0#u64
+
+/-- [con_ron_core::frontend::scan_fast::scan_ind_rec]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2428:0-2434:1
+    Visibility: public -/
+def frontend.scan_fast.scan_ind_rec
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.IndRecRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 = 123#u8
+  then let i2 ← i + 1#usize
+       frontend.scan_fast.scan_ind_rec_loop b i2
+  else
+    frontend.scan_fast.err frontend.scan_types.IndRecRec i
+      frontend.scan_types.ErrTag.ExpectedObject
+
+/-- [con_ron_core::frontend::scan_fast::scan_ind_rec_list_loop]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2443:4-2478:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.scan_ind_rec_list_loop_loop
+  (b : Slice Std.U8) (i : Std.Usize)
+  (acc : alloc.vec.Vec frontend.scan_types.IndRecRec) (want_item : Bool) :
+  Result (core.result.Result ((alloc.vec.Vec frontend.scan_types.IndRecRec) ×
+    Std.Usize) frontend.scan_types.ScanErr)
+  := do
+  let i1 := Slice.len b
+  if i >= i1
+  then
+    frontend.scan_fast.err (alloc.vec.Vec frontend.scan_types.IndRecRec) i
+      frontend.scan_types.ErrTag.ExpectedList
+  else
+    let c ← Slice.index_usize b i
+    let b1 ← frontend.scan_fast.is_ws c
+    if b1
+    then
+      let i2 ← i + 1#usize
+      frontend.scan_fast.scan_ind_rec_list_loop_loop b i2 acc want_item
+    else
+      if c = 93#u8
+      then
+        if want_item
+        then
+          let i2 := alloc.vec.Vec.len acc
+          if i2 != 0#usize
+          then
+            frontend.scan_fast.err (alloc.vec.Vec
+              frontend.scan_types.IndRecRec) i
+              frontend.scan_types.ErrTag.ExpectedList
+          else let i3 ← i + 1#usize
+               ok (core.result.Result.Ok (acc, i3))
+        else let i2 ← i + 1#usize
+             ok (core.result.Result.Ok (acc, i2))
+      else
+        if c = 44#u8
+        then
+          if want_item
+          then
+            frontend.scan_fast.err (alloc.vec.Vec
+              frontend.scan_types.IndRecRec) i
+              frontend.scan_types.ErrTag.ExpectedList
+          else
+            let i2 ← i + 1#usize
+            frontend.scan_fast.scan_ind_rec_list_loop_loop b i2 acc true
+        else
+          if c = 123#u8
+          then
+            if want_item
+            then
+              let r ← frontend.scan_fast.scan_ind_rec b i
+              match r with
+              | core.result.Result.Ok p =>
+                let (x, e) := p
+                let b2 ← frontend.scan_fast.prog i e
+                if b2
+                then
+                  let acc1 ← alloc.vec.Vec.push acc x
+                  frontend.scan_fast.scan_ind_rec_list_loop_loop b e acc1 false
+                else
+                  frontend.scan_fast.err (alloc.vec.Vec
+                    frontend.scan_types.IndRecRec) i
+                    frontend.scan_types.ErrTag.NoProgress
+              | core.result.Result.Err er => ok (core.result.Result.Err er)
+            else
+              frontend.scan_fast.err (alloc.vec.Vec
+                frontend.scan_types.IndRecRec) i
+                frontend.scan_types.ErrTag.ExpectedList
+          else
+            frontend.scan_fast.err (alloc.vec.Vec
+              frontend.scan_types.IndRecRec) i
+              frontend.scan_types.ErrTag.ExpectedList
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::scan_ind_rec_list_loop]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2439:0-2479:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.scan_ind_rec_list_loop
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result ((alloc.vec.Vec frontend.scan_types.IndRecRec) ×
+    Std.Usize) frontend.scan_types.ScanErr)
+  := do
+  frontend.scan_fast.scan_ind_rec_list_loop_loop b i (alloc.vec.Vec.new
+    frontend.scan_types.IndRecRec) true
+
+/-- [con_ron_core::frontend::scan_fast::scan_ind_recs]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2484:0-2490:1
+    Visibility: public -/
+def frontend.scan_fast.scan_ind_recs
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result ((alloc.vec.Vec frontend.scan_types.IndRecRec) ×
+    Std.Usize) frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 = 91#u8
+  then let i2 ← i + 1#usize
+       frontend.scan_fast.scan_ind_rec_list_loop b i2
+  else
+    frontend.scan_fast.err (alloc.vec.Vec frontend.scan_types.IndRecRec) i
+      frontend.scan_types.ErrTag.ExpectedList
+
+/-- [con_ron_core::frontend::scan_fast::scan_ind_decl_loop]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3662:4-3761:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.scan_ind_decl_loop_loop
+  (want_member : Bool) (b : Slice Std.U8) (i : Std.Usize) (seen : Std.U32)
+  (ctors : alloc.vec.Vec frontend.scan_types.IndCtorRec)
+  (recs : alloc.vec.Vec frontend.scan_types.IndRecRec)
+  (types : alloc.vec.Vec frontend.scan_types.IndTypeRec) :
+  Result (core.result.Result (frontend.scan_types.DeclRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let r ← frontend.scan_fast.next_member b i want_member
+  match r with
+  | core.result.Result.Ok p =>
+    let (mem, ni, nw) := p
+    match mem with
+    | frontend.scan_fast.Member.Close =>
+      if nw
+      then
+        if seen != 0#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ni
+            frontend.scan_types.ErrTag.ExpectedKey
+        else
+          let i1 ← lift (seen &&& 26#u32)
+          if i1 != 26#u32
+          then
+            frontend.scan_fast.err frontend.scan_types.DeclRec ni
+              frontend.scan_types.ErrTag.MissingKey
+          else
+            let i2 ← ni + 1#usize
+            ok (core.result.Result.Ok (frontend.scan_types.DeclRec.Ind types
+              ctors recs, i2))
+      else
+        let i1 ← lift (seen &&& 26#u32)
+        if i1 != 26#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ni
+            frontend.scan_types.ErrTag.MissingKey
+        else
+          let i2 ← ni + 1#usize
+          ok (core.result.Result.Ok (frontend.scan_types.DeclRec.Ind types
+            ctors recs, i2))
+    | frontend.scan_fast.Member.Key k ks v =>
+      match k with
+      | frontend.scan_types.Key.KUnknown =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAll =>
+        let b1 ← frontend.scan_fast.dup seen 1#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_nat_list b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (_, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 1#u32)
+              frontend.scan_fast.scan_ind_decl_loop_loop false b e seen1 ctors
+                recs types
+            else
+              frontend.scan_fast.err frontend.scan_types.DeclRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KApp =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KArg =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAxiom =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBinderInfo =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBody =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBvar =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCidx =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KConst =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtor =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtors =>
+        let b1 ← frontend.scan_fast.dup seen 2#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_ind_ctors b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 2#u32)
+              frontend.scan_fast.scan_ind_decl_loop_loop false b e seen1 x recs
+                types
+            else
+              frontend.scan_fast.err frontend.scan_types.DeclRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KDef =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KFn =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KForallE =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KHints =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KI =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIdx =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIe =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIl =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KImax =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIn =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInduct =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInductive =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsRec =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsReflexive =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsUnsafe =>
+        let b1 ← frontend.scan_fast.dup seen 4#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_bool b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (_, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 4#u32)
+              frontend.scan_fast.scan_ind_decl_loop_loop false b e seen1 ctors
+                recs types
+            else
+              frontend.scan_fast.err frontend.scan_types.DeclRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KK =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KKind =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLam =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLetE =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLevelParams =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMax =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMeta =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KName =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNatVal =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNfields =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNondep =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNum =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumFields =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumIndices =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMinors =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMotives =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumNested =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumParams =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KOpaque =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KParam =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPre =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KProj =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPw =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KQuot =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRecs =>
+        let b1 ← frontend.scan_fast.dup seen 8#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_ind_recs b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 8#u32)
+              frontend.scan_fast.scan_ind_decl_loop_loop false b e seen1 ctors
+                x types
+            else
+              frontend.scan_fast.err frontend.scan_types.DeclRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KRegular =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRhs =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRules =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSafety =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSort =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStr =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStrVal =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStruct =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSucc =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KThm =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KType =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KTypeName =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KTypes =>
+        let b1 ← frontend.scan_fast.dup seen 16#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_ind_types b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 16#u32)
+              frontend.scan_fast.scan_ind_decl_loop_loop false b e seen1 ctors
+                recs x
+            else
+              frontend.scan_fast.err frontend.scan_types.DeclRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KUs =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KValue =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+  | core.result.Result.Err er => ok (core.result.Result.Err er)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::scan_ind_decl_loop]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3655:0-3762:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.scan_ind_decl_loop
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.DeclRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  frontend.scan_fast.scan_ind_decl_loop_loop true b i 0#u32 (alloc.vec.Vec.new
+    frontend.scan_types.IndCtorRec) (alloc.vec.Vec.new
+    frontend.scan_types.IndRecRec) (alloc.vec.Vec.new
+    frontend.scan_types.IndTypeRec)
+
+/-- [con_ron_core::frontend::scan_fast::scan_ind_decl]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3767:0-3773:1
+    Visibility: public -/
+def frontend.scan_fast.scan_ind_decl
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.DeclRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 = 123#u8
+  then let i2 ← i + 1#usize
+       frontend.scan_fast.scan_ind_decl_loop b i2
+  else
+    frontend.scan_fast.err frontend.scan_types.DeclRec i
+      frontend.scan_types.ErrTag.ExpectedObject
+
+/-- [con_ron_core::frontend::scan_fast::REPLACEMENT_CHAR]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 980:0-980:41
+    Visibility: public -/
+@[global_simps, irreducible]
+def frontend.scan_fast.REPLACEMENT_CHAR : Std.U32 := 65533#u32
+
+/-- [con_ron_core::frontend::scan_fast::utf8_of]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 888:0-906:1
+    Visibility: public -/
+def frontend.scan_fast.utf8_of
+  (acc : alloc.vec.Vec Std.U8) (val : Std.U32) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  if val < 128#u32
+  then let i ← lift (UScalar.cast .U8 val)
+       alloc.vec.Vec.push acc i
+  else
+    if val < 2048#u32
+    then
+      let i ← val >>> 6#i32
+      let i1 ← lift (192#u32 ||| i)
+      let i2 ← lift (UScalar.cast .U8 i1)
+      let acc1 ← alloc.vec.Vec.push acc i2
+      let i3 ← lift (val &&& 63#u32)
+      let i4 ← lift (128#u32 ||| i3)
+      let i5 ← lift (UScalar.cast .U8 i4)
+      alloc.vec.Vec.push acc1 i5
+    else
+      if val < 65536#u32
+      then
+        let i ← val >>> 12#i32
+        let i1 ← lift (224#u32 ||| i)
+        let i2 ← lift (UScalar.cast .U8 i1)
+        let acc1 ← alloc.vec.Vec.push acc i2
+        let i3 ← val >>> 6#i32
+        let i4 ← lift (i3 &&& 63#u32)
+        let i5 ← lift (128#u32 ||| i4)
+        let i6 ← lift (UScalar.cast .U8 i5)
+        let acc2 ← alloc.vec.Vec.push acc1 i6
+        let i7 ← lift (val &&& 63#u32)
+        let i8 ← lift (128#u32 ||| i7)
+        let i9 ← lift (UScalar.cast .U8 i8)
+        alloc.vec.Vec.push acc2 i9
+      else
+        let i ← val >>> 18#i32
+        let i1 ← lift (240#u32 ||| i)
+        let i2 ← lift (UScalar.cast .U8 i1)
+        let acc1 ← alloc.vec.Vec.push acc i2
+        let i3 ← val >>> 12#i32
+        let i4 ← lift (i3 &&& 63#u32)
+        let i5 ← lift (128#u32 ||| i4)
+        let i6 ← lift (UScalar.cast .U8 i5)
+        let acc2 ← alloc.vec.Vec.push acc1 i6
+        let i7 ← val >>> 6#i32
+        let i8 ← lift (i7 &&& 63#u32)
+        let i9 ← lift (128#u32 ||| i8)
+        let i10 ← lift (UScalar.cast .U8 i9)
+        let acc3 ← alloc.vec.Vec.push acc2 i10
+        let i11 ← lift (val &&& 63#u32)
+        let i12 ← lift (128#u32 ||| i11)
+        let i13 ← lift (UScalar.cast .U8 i12)
+        alloc.vec.Vec.push acc3 i13
+
+/-- [con_ron_core::frontend::scan_fast::hex_val]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 828:0-838:1
+    Visibility: public -/
+def frontend.scan_fast.hex_val (c : Std.U8) : Result (Option Std.U32) := do
+  if 48#u8 <= c
+  then
+    if c <= 57#u8
+    then let i ← c - 48#u8
+         let i1 ← lift (UScalar.cast .U32 i)
+         ok (some i1)
+    else
+      if 97#u8 <= c
+      then
+        if c <= 102#u8
+        then
+          let i ← c - 87#u8
+          let i1 ← lift (UScalar.cast .U32 i)
+          ok (some i1)
+        else
+          if 65#u8 <= c
+          then
+            if c <= 70#u8
+            then
+              let i ← c - 55#u8
+              let i1 ← lift (UScalar.cast .U32 i)
+              ok (some i1)
+            else ok none
+          else ok none
+      else
+        if 65#u8 <= c
+        then
+          if c <= 70#u8
+          then
+            let i ← c - 55#u8
+            let i1 ← lift (UScalar.cast .U32 i)
+            ok (some i1)
+          else ok none
+        else ok none
+  else
+    if 97#u8 <= c
+    then
+      if c <= 102#u8
+      then
+        let i ← c - 87#u8
+        let i1 ← lift (UScalar.cast .U32 i)
+        ok (some i1)
+      else
+        if 65#u8 <= c
+        then
+          if c <= 70#u8
+          then
+            let i ← c - 55#u8
+            let i1 ← lift (UScalar.cast .U32 i)
+            ok (some i1)
+          else ok none
+        else ok none
+    else
+      if 65#u8 <= c
+      then
+        if c <= 70#u8
+        then
+          let i ← c - 55#u8
+          let i1 ← lift (UScalar.cast .U32 i)
+          ok (some i1)
+        else ok none
+      else ok none
+
+/-- [con_ron_core::frontend::scan_fast::hex3]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 865:0-879:1
+    Visibility: public -/
+def frontend.scan_fast.hex3
+  (b : Slice Std.U8) (j : Std.Usize) : Result (Option Std.U32) := do
+  let i ← frontend.scan_fast.byte_at b j
+  let o ← frontend.scan_fast.hex_val i
+  match o with
+  | none => ok none
+  | some x =>
+    let i1 ← j + 1#usize
+    let i2 ← frontend.scan_fast.byte_at b i1
+    let o1 ← frontend.scan_fast.hex_val i2
+    match o1 with
+    | none => ok none
+    | some x1 =>
+      let i3 ← j + 2#usize
+      let i4 ← frontend.scan_fast.byte_at b i3
+      let o2 ← frontend.scan_fast.hex_val i4
+      match o2 with
+      | none => ok none
+      | some x2 =>
+        let i5 ← x <<< 8#i32
+        let i6 ← x1 <<< 4#i32
+        let i7 ← lift (i5 ||| i6)
+        let i8 ← lift (i7 ||| x2)
+        ok (some i8)
+
+/-- [con_ron_core::frontend::scan_fast::hex4]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 842:0-860:1
+    Visibility: public -/
+def frontend.scan_fast.hex4
+  (b : Slice Std.U8) (j : Std.Usize) : Result (Option Std.U32) := do
+  let i ← frontend.scan_fast.byte_at b j
+  let o ← frontend.scan_fast.hex_val i
+  match o with
+  | none => ok none
+  | some x =>
+    let i1 ← j + 1#usize
+    let i2 ← frontend.scan_fast.byte_at b i1
+    let o1 ← frontend.scan_fast.hex_val i2
+    match o1 with
+    | none => ok none
+    | some x1 =>
+      let i3 ← j + 2#usize
+      let i4 ← frontend.scan_fast.byte_at b i3
+      let o2 ← frontend.scan_fast.hex_val i4
+      match o2 with
+      | none => ok none
+      | some x2 =>
+        let i5 ← j + 3#usize
+        let i6 ← frontend.scan_fast.byte_at b i5
+        let o3 ← frontend.scan_fast.hex_val i6
+        match o3 with
+        | none => ok none
+        | some x3 =>
+          let i7 ← x <<< 12#i32
+          let i8 ← x1 <<< 8#i32
+          let i9 ← lift (i7 ||| i8)
+          let i10 ← x2 <<< 4#i32
+          let i11 ← lift (i9 ||| i10)
+          let i12 ← lift (i11 ||| x3)
+          ok (some i12)
+
+/-- [con_ron_core::frontend::scan_fast::unescape_bytes]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 991:4-1058:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.unescape_bytes_loop
+  (b : Slice Std.U8) (e : Std.Usize) (acc : alloc.vec.Vec Std.U8)
+  (j : Std.Usize) :
+  Result (Option (alloc.vec.Vec Std.U8))
+  := do
+  let i := Slice.len b
+  if j < i
+  then
+    if j < e
+    then
+      let c ← Slice.index_usize b j
+      if c != 92#u8
+      then
+        let acc1 ← alloc.vec.Vec.push acc c
+        let j1 ← j + 1#usize
+        frontend.scan_fast.unescape_bytes_loop b e acc1 j1
+      else
+        let i1 ← j + 1#usize
+        let d ← frontend.scan_fast.byte_at b i1
+        let simple ←
+          match d with
+          | 34#uscalar => ok (some 34#u32)
+          | 92#uscalar => ok (some 92#u32)
+          | 47#uscalar => ok (some 47#u32)
+          | 98#uscalar => ok (some 8#u32)
+          | 102#uscalar => ok (some 12#u32)
+          | 110#uscalar => ok (some 10#u32)
+          | 114#uscalar => ok (some 13#u32)
+          | 116#uscalar => ok (some 9#u32)
+          | _ => ok none
+        match simple with
+        | none =>
+          if d != 117#u8
+          then ok none
+          else
+            let i2 ← j + 2#usize
+            let o ← frontend.scan_fast.hex4 b i2
+            match o with
+            | none => ok none
+            | some x =>
+              let j6 ← j + 6#usize
+              if x < 55296#u32
+              then
+                let acc1 ← frontend.scan_fast.utf8_of acc x
+                frontend.scan_fast.unescape_bytes_loop b e acc1 j6
+              else
+                if 57344#u32 <= x
+                then
+                  let acc1 ← frontend.scan_fast.utf8_of acc x
+                  frontend.scan_fast.unescape_bytes_loop b e acc1 j6
+                else
+                  if 56320#u32 <= x
+                  then
+                    let acc1 ←
+                      frontend.scan_fast.utf8_of acc
+                        frontend.scan_fast.REPLACEMENT_CHAR
+                    frontend.scan_fast.unescape_bytes_loop b e acc1 j6
+                  else
+                    let i3 ← frontend.scan_fast.byte_at b j6
+                    let cont1 ←
+                      if i3 = 92#u8
+                      then
+                        do
+                        let i4 ← j6 + 1#usize
+                        let i5 ← frontend.scan_fast.byte_at b i4
+                        if i5 = 117#u8
+                        then
+                          let i6 ← j6 + 2#usize
+                          let i7 ← frontend.scan_fast.byte_at b i6
+                          if i7 = 100#u8
+                          then ok true
+                          else
+                            let i8 ← frontend.scan_fast.byte_at b i6
+                            ok (i8 = 68#u8)
+                        else ok false
+                      else ok false
+                    let v2 ←
+                      if cont1
+                      then
+                        do
+                        let i4 ← j6 + 3#usize
+                        frontend.scan_fast.hex3 b i4
+                      else ok none
+                    match v2 with
+                    | none =>
+                      let acc1 ←
+                        frontend.scan_fast.utf8_of acc
+                          frontend.scan_fast.REPLACEMENT_CHAR
+                      frontend.scan_fast.unescape_bytes_loop b e acc1 j6
+                    | some w =>
+                      if w < 3072#u32
+                      then
+                        let acc1 ←
+                          frontend.scan_fast.utf8_of acc
+                            frontend.scan_fast.REPLACEMENT_CHAR
+                        frontend.scan_fast.unescape_bytes_loop b e acc1 j6
+                      else
+                        let i4 ← lift (x &&& 1023#u32)
+                        let i5 ← i4 <<< 10#i32
+                        let i6 ← lift (w &&& 1023#u32)
+                        let i7 ← lift (i5 ||| i6)
+                        let cv ← i7 + 65536#u32
+                        let acc1 ← frontend.scan_fast.utf8_of acc cv
+                        let j1 ← j6 + 6#usize
+                        frontend.scan_fast.unescape_bytes_loop b e acc1 j1
+        | some val =>
+          let acc1 ← frontend.scan_fast.utf8_of acc val
+          let j1 ← j + 2#usize
+          frontend.scan_fast.unescape_bytes_loop b e acc1 j1
+    else ok (some acc)
+  else ok (some acc)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::unescape_bytes]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 988:0-1058:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.unescape_bytes
+  (b : Slice Std.U8) (j : Std.Usize) (e : Std.Usize) :
+  Result (Option (alloc.vec.Vec Std.U8))
+  := do
+  frontend.scan_fast.unescape_bytes_loop b e (alloc.vec.Vec.new Std.U8) j
+
+/-- [con_ron_core::frontend::scan_fast::utf8_decode]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 918:4-975:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.utf8_decode_loop
+  (b : Slice Std.U8) (n : Std.Usize) (out : alloc.vec.Vec Std.U32)
+  (k : Std.Usize) :
+  Result (Option (alloc.vec.Vec Std.U32))
+  := do
+  if k < n
+  then
+    let c0 ← Slice.index_usize b k
+    if c0 < 128#u8
+    then
+      let i ← lift (UScalar.cast .U32 c0)
+      let out1 ← alloc.vec.Vec.push out i
+      let k1 ← k + 1#usize
+      frontend.scan_fast.utf8_decode_loop b n out1 k1
+    else
+      if c0 < 194#u8
+      then ok none
+      else
+        if c0 < 224#u8
+        then
+          let i ← k + 1#usize
+          if n <= i
+          then ok none
+          else
+            let c1 ← Slice.index_usize b i
+            if c1 < 128#u8
+            then ok none
+            else
+              if 192#u8 <= c1
+              then ok none
+              else
+                let i1 ← lift (UScalar.cast .U32 c0)
+                let i2 ← lift (i1 &&& 31#u32)
+                let i3 ← i2 <<< 6#i32
+                let i4 ← lift (UScalar.cast .U32 c1)
+                let i5 ← lift (i4 &&& 63#u32)
+                let i6 ← lift (i3 ||| i5)
+                let out1 ← alloc.vec.Vec.push out i6
+                let k1 ← k + 2#usize
+                frontend.scan_fast.utf8_decode_loop b n out1 k1
+        else
+          if c0 < 240#u8
+          then
+            let i ← k + 2#usize
+            if n <= i
+            then ok none
+            else
+              let i1 ← k + 1#usize
+              let c1 ← Slice.index_usize b i1
+              let c2 ← Slice.index_usize b i
+              if c1 < 128#u8
+              then ok none
+              else
+                if 192#u8 <= c1
+                then ok none
+                else
+                  if c2 < 128#u8
+                  then ok none
+                  else
+                    if 192#u8 <= c2
+                    then ok none
+                    else
+                      let i2 ← lift (UScalar.cast .U32 c0)
+                      let i3 ← lift (i2 &&& 15#u32)
+                      let i4 ← i3 <<< 12#i32
+                      let i5 ← lift (UScalar.cast .U32 c1)
+                      let i6 ← lift (i5 &&& 63#u32)
+                      let i7 ← i6 <<< 6#i32
+                      let i8 ← lift (i4 ||| i7)
+                      let i9 ← lift (UScalar.cast .U32 c2)
+                      let i10 ← lift (i9 &&& 63#u32)
+                      let v ← lift (i8 ||| i10)
+                      if v < 2048#u32
+                      then ok none
+                      else
+                        if 55296#u32 <= v
+                        then
+                          if v < 57344#u32
+                          then ok none
+                          else
+                            let out1 ← alloc.vec.Vec.push out v
+                            let k1 ← k + 3#usize
+                            frontend.scan_fast.utf8_decode_loop b n out1 k1
+                        else
+                          let out1 ← alloc.vec.Vec.push out v
+                          let k1 ← k + 3#usize
+                          frontend.scan_fast.utf8_decode_loop b n out1 k1
+          else
+            if c0 < 245#u8
+            then
+              let i ← k + 3#usize
+              if n <= i
+              then ok none
+              else
+                let i1 ← k + 1#usize
+                let c1 ← Slice.index_usize b i1
+                let i2 ← k + 2#usize
+                let c2 ← Slice.index_usize b i2
+                let c3 ← Slice.index_usize b i
+                if c1 < 128#u8
+                then ok none
+                else
+                  if 192#u8 <= c1
+                  then ok none
+                  else
+                    if c2 < 128#u8
+                    then ok none
+                    else
+                      if 192#u8 <= c2
+                      then ok none
+                      else
+                        if c3 < 128#u8
+                        then ok none
+                        else
+                          if 192#u8 <= c3
+                          then ok none
+                          else
+                            let i3 ← lift (UScalar.cast .U32 c0)
+                            let i4 ← lift (i3 &&& 7#u32)
+                            let i5 ← i4 <<< 18#i32
+                            let i6 ← lift (UScalar.cast .U32 c1)
+                            let i7 ← lift (i6 &&& 63#u32)
+                            let i8 ← i7 <<< 12#i32
+                            let i9 ← lift (i5 ||| i8)
+                            let i10 ← lift (UScalar.cast .U32 c2)
+                            let i11 ← lift (i10 &&& 63#u32)
+                            let i12 ← i11 <<< 6#i32
+                            let i13 ← lift (i9 ||| i12)
+                            let i14 ← lift (UScalar.cast .U32 c3)
+                            let i15 ← lift (i14 &&& 63#u32)
+                            let v ← lift (i13 ||| i15)
+                            if v < 65536#u32
+                            then ok none
+                            else
+                              if 1114111#u32 < v
+                              then ok none
+                              else
+                                let out1 ← alloc.vec.Vec.push out v
+                                let k1 ← k + 4#usize
+                                frontend.scan_fast.utf8_decode_loop b n out1 k1
+            else ok none
+  else ok (some out)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::utf8_decode]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 914:0-975:1
+    Visibility: public -/
+def frontend.scan_fast.utf8_decode
+  (b : Slice Std.U8) (j : Std.Usize) (e : Std.Usize) :
+  Result (Option (alloc.vec.Vec Std.U32))
+  := do
+  let i := Slice.len b
+  let n ← if e < i
+            then ok e
+            else ok (Slice.len b)
+  frontend.scan_fast.utf8_decode_loop b n (alloc.vec.Vec.new Std.U32) j
+
+/-- [con_ron_core::frontend::scan_fast::unescape]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1066:0-1071:1
+    Visibility: public -/
+def frontend.scan_fast.unescape
+  (b : Slice Std.U8) (j : Std.Usize) (e : Std.Usize) :
+  Result (Option (alloc.vec.Vec Std.U32))
+  := do
+  let o ← frontend.scan_fast.unescape_bytes b j e
+  match o with
+  | none => ok none
+  | some acc =>
+    let s := alloc.vec.Vec.deref acc
+    let i := alloc.vec.Vec.len acc
+    frontend.scan_fast.utf8_decode s 0#usize i
+
+/-- [con_ron_core::frontend::scan_fast::has_escape]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 817:4-824:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.has_escape_loop
+  (b : Slice Std.U8) (e : Std.Usize) (j : Std.Usize) : Result Bool := do
+  let i := Slice.len b
+  if j < i
+  then
+    if j < e
+    then
+      let i1 ← Slice.index_usize b j
+      if i1 = 92#u8
+      then ok true
+      else let j1 ← j + 1#usize
+           frontend.scan_fast.has_escape_loop b e j1
+    else ok false
+  else ok false
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::has_escape]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 815:0-824:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.has_escape
+  (b : Slice Std.U8) (j : Std.Usize) (e : Std.Usize) : Result Bool := do
+  frontend.scan_fast.has_escape_loop b e j
+
+/-- [con_ron_core::frontend::scan_fast::str_close]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 791:4-811:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.str_close_loop
+  (b : Slice Std.U8) (j : Std.Usize) : Result Std.Usize := do
+  let i := Slice.len b
+  if j < i
+  then
+    let c ← Slice.index_usize b j
+    if c = 34#u8
+    then ok j
+    else
+      if c = 92#u8
+      then
+        let i1 ← j + 1#usize
+        let i2 := Slice.len b
+        if i1 < i2
+        then
+          let i3 ← Slice.index_usize b i1
+          if i3 < 32#u8
+          then ok 0#usize
+          else let j1 ← j + 2#usize
+               frontend.scan_fast.str_close_loop b j1
+        else ok 0#usize
+      else
+        if c < 32#u8
+        then ok 0#usize
+        else let j1 ← j + 1#usize
+             frontend.scan_fast.str_close_loop b j1
+  else ok 0#usize
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::str_close]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 789:0-811:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.str_close
+  (b : Slice Std.U8) (j : Std.Usize) : Result Std.Usize := do
+  frontend.scan_fast.str_close_loop b j
+
+/-- [con_ron_core::frontend::scan_fast::scan_string]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1084:0-1104:1
+    Visibility: public -/
+def frontend.scan_fast.scan_string
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result ((alloc.vec.Vec Std.U32) × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 != 34#u8
+  then
+    frontend.scan_fast.err (alloc.vec.Vec Std.U32) i
+      frontend.scan_types.ErrTag.ExpectedString
+  else
+    let i2 ← i + 1#usize
+    let e ← frontend.scan_fast.str_close b i2
+    if e = 0#usize
+    then
+      frontend.scan_fast.err (alloc.vec.Vec Std.U32) i
+        frontend.scan_types.ErrTag.ExpectedString
+    else
+      let b1 ← frontend.scan_fast.has_escape b i2 e
+      if b1
+      then
+        let body ←
+          core.slice.index.Slice.index
+            (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) b
+            { start := i2, «end» := e }
+        let i3 := Slice.len body
+        let o ← frontend.scan_fast.unescape body 0#usize i3
+        match o with
+        | none =>
+          frontend.scan_fast.err (alloc.vec.Vec Std.U32) i
+            frontend.scan_types.ErrTag.BadEscape
+        | some s => let i4 ← e + 1#usize
+                    ok (core.result.Result.Ok (s, i4))
+      else
+        let o ← frontend.scan_fast.utf8_decode b i2 e
+        match o with
+        | none =>
+          frontend.scan_fast.err (alloc.vec.Vec Std.U32) i
+            frontend.scan_types.ErrTag.BadUtf8
+        | some s => let i3 ← e + 1#usize
+                    ok (core.result.Result.Ok (s, i3))
+
+/-- [con_ron_core::frontend::scan_fast::scan_quot_decl_loop]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3551:4-3640:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.scan_quot_decl_loop_loop
+  (want_member : Bool) (b : Slice Std.U8) (i : Std.Usize) (seen : Std.U32)
+  (kind : alloc.vec.Vec Std.U32) (lps : alloc.vec.Vec Std.U64) (nm : Std.U64)
+  (ty : Std.U64) :
+  Result (core.result.Result (frontend.scan_types.DeclRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let r ← frontend.scan_fast.next_member b i want_member
+  match r with
+  | core.result.Result.Ok p =>
+    let (mem, ni, nw) := p
+    match mem with
+    | frontend.scan_fast.Member.Close =>
+      if nw
+      then
+        if seen != 0#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ni
+            frontend.scan_types.ErrTag.ExpectedKey
+        else
+          let i1 ← lift (seen &&& 15#u32)
+          if i1 != 15#u32
+          then
+            frontend.scan_fast.err frontend.scan_types.DeclRec ni
+              frontend.scan_types.ErrTag.MissingKey
+          else
+            let i2 ← ni + 1#usize
+            ok (core.result.Result.Ok (frontend.scan_types.DeclRec.Quot
+              { «name» := nm, level_params := lps, ty } kind, i2))
+      else
+        let i1 ← lift (seen &&& 15#u32)
+        if i1 != 15#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ni
+            frontend.scan_types.ErrTag.MissingKey
+        else
+          let i2 ← ni + 1#usize
+          ok (core.result.Result.Ok (frontend.scan_types.DeclRec.Quot
+            { «name» := nm, level_params := lps, ty } kind, i2))
+    | frontend.scan_fast.Member.Key k ks v =>
+      match k with
+      | frontend.scan_types.Key.KUnknown =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAll =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KApp =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KArg =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAxiom =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBinderInfo =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBody =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBvar =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCidx =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KConst =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtor =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtors =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KDef =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KFn =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KForallE =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KHints =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KI =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIdx =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIe =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIl =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KImax =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIn =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInduct =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInductive =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsRec =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsReflexive =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsUnsafe =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KK =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KKind =>
+        let b1 ← frontend.scan_fast.dup seen 1#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_string b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 1#u32)
+              frontend.scan_fast.scan_quot_decl_loop_loop false b e seen1 x lps
+                nm ty
+            else
+              frontend.scan_fast.err frontend.scan_types.DeclRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KLam =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLetE =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLevelParams =>
+        let b1 ← frontend.scan_fast.dup seen 2#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_nat_list b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 2#u32)
+              frontend.scan_fast.scan_quot_decl_loop_loop false b e seen1 kind
+                x nm ty
+            else
+              frontend.scan_fast.err frontend.scan_types.DeclRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KMax =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMeta =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KName =>
+        let b1 ← frontend.scan_fast.dup seen 4#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 4#u32)
+            frontend.scan_fast.scan_quot_decl_loop_loop false b e seen1 kind
+              lps x ty
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KNatVal =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNfields =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNondep =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNum =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumFields =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumIndices =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMinors =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMotives =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumNested =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumParams =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KOpaque =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KParam =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPre =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KProj =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPw =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KQuot =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRecs =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRegular =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRhs =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRules =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSafety =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSort =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStr =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStrVal =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStruct =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSucc =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KThm =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KType =>
+        let b1 ← frontend.scan_fast.dup seen 8#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 8#u32)
+            frontend.scan_fast.scan_quot_decl_loop_loop false b e seen1 kind
+              lps nm x
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KTypeName =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KTypes =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KUs =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KValue =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+  | core.result.Result.Err er => ok (core.result.Result.Err er)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::scan_quot_decl_loop]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3543:0-3641:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.scan_quot_decl_loop
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.DeclRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  frontend.scan_fast.scan_quot_decl_loop_loop true b i 0#u32 (alloc.vec.Vec.new
+    Std.U32) (alloc.vec.Vec.new Std.U64) 0#u64 0#u64
+
+/-- [con_ron_core::frontend::scan_fast::scan_quot_decl]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3646:0-3652:1
+    Visibility: public -/
+def frontend.scan_fast.scan_quot_decl
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.DeclRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 = 123#u8
+  then let i2 ← i + 1#usize
+       frontend.scan_fast.scan_quot_decl_loop b i2
+  else
+    frontend.scan_fast.err frontend.scan_types.DeclRec i
+      frontend.scan_types.ErrTag.ExpectedObject
+
+/-- [con_ron_core::frontend::scan_fast::scan_opaque_decl_loop]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3410:4-3528:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.scan_opaque_decl_loop_loop
+  (want_member : Bool) (b : Slice Std.U8) (i : Std.Usize) (seen : Std.U32)
+  (is_uns : Bool) (lps : alloc.vec.Vec Std.U64) (nm : Std.U64) (ty : Std.U64)
+  (vl : Std.U64) :
+  Result (core.result.Result (frontend.scan_types.DeclRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let r ← frontend.scan_fast.next_member b i want_member
+  match r with
+  | core.result.Result.Ok p =>
+    let (mem, ni, nw) := p
+    match mem with
+    | frontend.scan_fast.Member.Close =>
+      if nw
+      then
+        if seen != 0#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ni
+            frontend.scan_types.ErrTag.ExpectedKey
+        else
+          let i1 ← lift (seen &&& 62#u32)
+          if i1 != 62#u32
+          then
+            frontend.scan_fast.err frontend.scan_types.DeclRec ni
+              frontend.scan_types.ErrTag.MissingKey
+          else
+            let i2 ← ni + 1#usize
+            ok (core.result.Result.Ok (frontend.scan_types.DeclRec.Opaq
+              { «name» := nm, level_params := lps, ty } vl is_uns, i2))
+      else
+        let i1 ← lift (seen &&& 62#u32)
+        if i1 != 62#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ni
+            frontend.scan_types.ErrTag.MissingKey
+        else
+          let i2 ← ni + 1#usize
+          ok (core.result.Result.Ok (frontend.scan_types.DeclRec.Opaq
+            { «name» := nm, level_params := lps, ty } vl is_uns, i2))
+    | frontend.scan_fast.Member.Key k ks v =>
+      match k with
+      | frontend.scan_types.Key.KUnknown =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAll =>
+        let b1 ← frontend.scan_fast.dup seen 1#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_nat_list b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (_, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 1#u32)
+              frontend.scan_fast.scan_opaque_decl_loop_loop false b e seen1
+                is_uns lps nm ty vl
+            else
+              frontend.scan_fast.err frontend.scan_types.DeclRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KApp =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KArg =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAxiom =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBinderInfo =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBody =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBvar =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCidx =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KConst =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtor =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtors =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KDef =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KFn =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KForallE =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KHints =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KI =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIdx =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIe =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIl =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KImax =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIn =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInduct =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInductive =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsRec =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsReflexive =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsUnsafe =>
+        let b1 ← frontend.scan_fast.dup seen 2#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_bool b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 2#u32)
+              frontend.scan_fast.scan_opaque_decl_loop_loop false b e seen1 x
+                lps nm ty vl
+            else
+              frontend.scan_fast.err frontend.scan_types.DeclRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KK =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KKind =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLam =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLetE =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLevelParams =>
+        let b1 ← frontend.scan_fast.dup seen 4#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_nat_list b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 4#u32)
+              frontend.scan_fast.scan_opaque_decl_loop_loop false b e seen1
+                is_uns x nm ty vl
+            else
+              frontend.scan_fast.err frontend.scan_types.DeclRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KMax =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMeta =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KName =>
+        let b1 ← frontend.scan_fast.dup seen 8#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 8#u32)
+            frontend.scan_fast.scan_opaque_decl_loop_loop false b e seen1
+              is_uns lps x ty vl
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KNatVal =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNfields =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNondep =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNum =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumFields =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumIndices =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMinors =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMotives =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumNested =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumParams =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KOpaque =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KParam =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPre =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KProj =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPw =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KQuot =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRecs =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRegular =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRhs =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRules =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSafety =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSort =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStr =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStrVal =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStruct =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSucc =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KThm =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KType =>
+        let b1 ← frontend.scan_fast.dup seen 16#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 16#u32)
+            frontend.scan_fast.scan_opaque_decl_loop_loop false b e seen1
+              is_uns lps nm x vl
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KTypeName =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KTypes =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KUs =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KValue =>
+        let b1 ← frontend.scan_fast.dup seen 32#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 32#u32)
+            frontend.scan_fast.scan_opaque_decl_loop_loop false b e seen1
+              is_uns lps nm ty x
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+  | core.result.Result.Err er => ok (core.result.Result.Err er)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::scan_opaque_decl_loop]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3401:0-3529:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.scan_opaque_decl_loop
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.DeclRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  frontend.scan_fast.scan_opaque_decl_loop_loop true b i 0#u32 false
+    (alloc.vec.Vec.new Std.U64) 0#u64 0#u64 0#u64
+
+/-- [con_ron_core::frontend::scan_fast::scan_opaque_decl]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3534:0-3540:1
+    Visibility: public -/
+def frontend.scan_fast.scan_opaque_decl
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.DeclRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 = 123#u8
+  then let i2 ← i + 1#usize
+       frontend.scan_fast.scan_opaque_decl_loop b i2
+  else
+    frontend.scan_fast.err frontend.scan_types.DeclRec i
+      frontend.scan_types.ErrTag.ExpectedObject
+
+/-- [con_ron_core::frontend::scan_fast::scan_thm_decl_loop]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3285:4-3386:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.scan_thm_decl_loop_loop
+  (want_member : Bool) (b : Slice Std.U8) (i : Std.Usize) (seen : Std.U32)
+  (lps : alloc.vec.Vec Std.U64) (nm : Std.U64) (ty : Std.U64) (vl : Std.U64) :
+  Result (core.result.Result (frontend.scan_types.DeclRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let r ← frontend.scan_fast.next_member b i want_member
+  match r with
+  | core.result.Result.Ok p =>
+    let (mem, ni, nw) := p
+    match mem with
+    | frontend.scan_fast.Member.Close =>
+      if nw
+      then
+        if seen != 0#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ni
+            frontend.scan_types.ErrTag.ExpectedKey
+        else
+          let i1 ← lift (seen &&& 30#u32)
+          if i1 != 30#u32
+          then
+            frontend.scan_fast.err frontend.scan_types.DeclRec ni
+              frontend.scan_types.ErrTag.MissingKey
+          else
+            let i2 ← ni + 1#usize
+            ok (core.result.Result.Ok (frontend.scan_types.DeclRec.Thm
+              { «name» := nm, level_params := lps, ty } vl, i2))
+      else
+        let i1 ← lift (seen &&& 30#u32)
+        if i1 != 30#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ni
+            frontend.scan_types.ErrTag.MissingKey
+        else
+          let i2 ← ni + 1#usize
+          ok (core.result.Result.Ok (frontend.scan_types.DeclRec.Thm
+            { «name» := nm, level_params := lps, ty } vl, i2))
+    | frontend.scan_fast.Member.Key k ks v =>
+      match k with
+      | frontend.scan_types.Key.KUnknown =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAll =>
+        let b1 ← frontend.scan_fast.dup seen 1#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_nat_list b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (_, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 1#u32)
+              frontend.scan_fast.scan_thm_decl_loop_loop false b e seen1 lps nm
+                ty vl
+            else
+              frontend.scan_fast.err frontend.scan_types.DeclRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KApp =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KArg =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAxiom =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBinderInfo =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBody =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBvar =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCidx =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KConst =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtor =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtors =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KDef =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KFn =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KForallE =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KHints =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KI =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIdx =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIe =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIl =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KImax =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIn =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInduct =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInductive =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsRec =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsReflexive =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsUnsafe =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KK =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KKind =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLam =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLetE =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLevelParams =>
+        let b1 ← frontend.scan_fast.dup seen 2#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_nat_list b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 2#u32)
+              frontend.scan_fast.scan_thm_decl_loop_loop false b e seen1 x nm
+                ty vl
+            else
+              frontend.scan_fast.err frontend.scan_types.DeclRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KMax =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMeta =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KName =>
+        let b1 ← frontend.scan_fast.dup seen 4#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 4#u32)
+            frontend.scan_fast.scan_thm_decl_loop_loop false b e seen1 lps x ty
+              vl
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KNatVal =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNfields =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNondep =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNum =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumFields =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumIndices =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMinors =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMotives =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumNested =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumParams =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KOpaque =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KParam =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPre =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KProj =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPw =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KQuot =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRecs =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRegular =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRhs =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRules =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSafety =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSort =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStr =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStrVal =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStruct =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSucc =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KThm =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KType =>
+        let b1 ← frontend.scan_fast.dup seen 8#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 8#u32)
+            frontend.scan_fast.scan_thm_decl_loop_loop false b e seen1 lps nm x
+              vl
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KTypeName =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KTypes =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KUs =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KValue =>
+        let b1 ← frontend.scan_fast.dup seen 16#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 16#u32)
+            frontend.scan_fast.scan_thm_decl_loop_loop false b e seen1 lps nm
+              ty x
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+  | core.result.Result.Err er => ok (core.result.Result.Err er)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::scan_thm_decl_loop]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3277:0-3387:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.scan_thm_decl_loop
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.DeclRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  frontend.scan_fast.scan_thm_decl_loop_loop true b i 0#u32 (alloc.vec.Vec.new
+    Std.U64) 0#u64 0#u64 0#u64
+
+/-- [con_ron_core::frontend::scan_fast::scan_thm_decl]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3392:0-3398:1
+    Visibility: public -/
+def frontend.scan_fast.scan_thm_decl
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.DeclRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 = 123#u8
+  then let i2 ← i + 1#usize
+       frontend.scan_fast.scan_thm_decl_loop b i2
+  else
+    frontend.scan_fast.err frontend.scan_types.DeclRec i
+      frontend.scan_types.ErrTag.ExpectedObject
+
+/-- [con_ron_core::frontend::scan_fast::scan_hints::S_OPAQUE]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1252:4-1252:64 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.scan_hints.S_OPAQUE : Array Std.U8 7#usize :=
+  Array.make 7#usize [ 111#u8, 112#u8, 97#u8, 113#u8, 117#u8, 101#u8, 34#u8 ]
+
+/-- [con_ron_core::frontend::scan_fast::scan_hints::S_ABBREV]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1251:4-1251:62 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.scan_hints.S_ABBREV : Array Std.U8 7#usize :=
+  Array.make 7#usize [ 97#u8, 98#u8, 98#u8, 114#u8, 101#u8, 118#u8, 34#u8 ]
+
+/-- [con_ron_core::frontend::scan_fast::scan_hints]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1244:0-1296:1
+    Visibility: public -/
+def frontend.scan_fast.scan_hints
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.HintsRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 = 34#u8
+  then
+    let i2 ← i + 1#usize
+    let s ← lift (Array.to_slice frontend.scan_fast.scan_hints.S_ABBREV)
+    let b1 ← frontend.scan_fast.match_lit b i2 s
+    if b1
+    then
+      let i3 ← i + 8#usize
+      ok (core.result.Result.Ok (frontend.scan_types.HintsRec.Abbrev, i3))
+    else
+      let s1 ← lift (Array.to_slice frontend.scan_fast.scan_hints.S_OPAQUE)
+      let b2 ← frontend.scan_fast.match_lit b i2 s1
+      if b2
+      then
+        let i3 ← i + 8#usize
+        ok (core.result.Result.Ok (frontend.scan_types.HintsRec.Opaque, i3))
+      else
+        frontend.scan_fast.err frontend.scan_types.HintsRec i
+          frontend.scan_types.ErrTag.BadHints
+  else
+    if i1 = 123#u8
+    then
+      let i2 ← i + 1#usize
+      let p ← frontend.scan_fast.skip_ws b i2
+      let i3 ← frontend.scan_fast.byte_at b p
+      if i3 != 34#u8
+      then
+        frontend.scan_fast.err frontend.scan_types.HintsRec i
+          frontend.scan_types.ErrTag.BadHints
+      else
+        let i4 ← p + 1#usize
+        let ke ← frontend.scan_fast.key_end b i4
+        if ke = 0#usize
+        then
+          frontend.scan_fast.err frontend.scan_types.HintsRec p
+            frontend.scan_types.ErrTag.BadHints
+        else
+          let i5 ← ke - i4
+          let k ← frontend.scan_fast.key_at b p i5
+          match k with
+          | frontend.scan_types.Key.KUnknown =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KAll =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KApp =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KArg =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KAxiom =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KBinderInfo =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KBody =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KBvar =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KCidx =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KConst =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KCtor =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KCtors =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KDef =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KFn =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KForallE =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KHints =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KI =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KIdx =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KIe =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KIl =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KImax =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KIn =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KInduct =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KInductive =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KIsRec =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KIsReflexive =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KIsUnsafe =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KK =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KKind =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KLam =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KLetE =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KLevelParams =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KMax =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KMeta =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KName =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KNatVal =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KNfields =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KNondep =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KNum =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KNumFields =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KNumIndices =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KNumMinors =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KNumMotives =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KNumNested =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KNumParams =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KOpaque =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KParam =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KPre =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KProj =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KPw =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KQuot =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KRecs =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KRegular =>
+            let v ← frontend.scan_fast.value_at b p ke
+            if v = p
+            then
+              frontend.scan_fast.err frontend.scan_types.HintsRec p
+                frontend.scan_types.ErrTag.ExpectedColon
+            else
+              let e ← frontend.scan_fast.num_end b v
+              if e = v
+              then
+                frontend.scan_fast.err frontend.scan_types.HintsRec v
+                  frontend.scan_types.ErrTag.ExpectedNat
+              else
+                let r ← frontend.scan_fast.read_nat_at b v e
+                match r with
+                | core.result.Result.Ok x =>
+                  let q ← frontend.scan_fast.skip_ws b e
+                  let i6 ← frontend.scan_fast.byte_at b q
+                  if i6 = 125#u8
+                  then
+                    let i7 ← q + 1#usize
+                    ok (core.result.Result.Ok
+                      (frontend.scan_types.HintsRec.Regular x, i7))
+                  else
+                    frontend.scan_fast.err frontend.scan_types.HintsRec q
+                      frontend.scan_types.ErrTag.ExpectedComma
+                | core.result.Result.Err er => ok (core.result.Result.Err er)
+          | frontend.scan_types.Key.KRhs =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KRules =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KSafety =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KSort =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KStr =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KStrVal =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KStruct =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KSucc =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KThm =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KType =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KTypeName =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KTypes =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KUs =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+          | frontend.scan_types.Key.KValue =>
+            frontend.scan_fast.err frontend.scan_types.HintsRec p
+              frontend.scan_types.ErrTag.BadHints
+    else
+      frontend.scan_fast.err frontend.scan_types.HintsRec i
+        frontend.scan_types.ErrTag.BadHints
+
+/-- [con_ron_core::frontend::scan_fast::scan_def_decl_loop]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3126:4-3261:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.scan_def_decl_loop_loop
+  (want_member : Bool) (b : Slice Std.U8) (i : Std.Usize) (seen : Std.U32)
+  (hints : frontend.scan_types.HintsRec) (lps : alloc.vec.Vec Std.U64)
+  (nm : Std.U64) (safety : alloc.vec.Vec Std.U32) (ty : Std.U64) (vl : Std.U64)
+  :
+  Result (core.result.Result (frontend.scan_types.DeclRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let r ← frontend.scan_fast.next_member b i want_member
+  match r with
+  | core.result.Result.Ok p =>
+    let (mem, ni, nw) := p
+    match mem with
+    | frontend.scan_fast.Member.Close =>
+      if nw
+      then
+        if seen != 0#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ni
+            frontend.scan_types.ErrTag.ExpectedKey
+        else
+          let i1 ← lift (seen &&& 124#u32)
+          if i1 != 124#u32
+          then
+            frontend.scan_fast.err frontend.scan_types.DeclRec ni
+              frontend.scan_types.ErrTag.MissingKey
+          else
+            let i2 ← ni + 1#usize
+            ok (core.result.Result.Ok (frontend.scan_types.DeclRec.Defn
+              { «name» := nm, level_params := lps, ty } vl hints safety, i2))
+      else
+        let i1 ← lift (seen &&& 124#u32)
+        if i1 != 124#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ni
+            frontend.scan_types.ErrTag.MissingKey
+        else
+          let i2 ← ni + 1#usize
+          ok (core.result.Result.Ok (frontend.scan_types.DeclRec.Defn
+            { «name» := nm, level_params := lps, ty } vl hints safety, i2))
+    | frontend.scan_fast.Member.Key k ks v =>
+      match k with
+      | frontend.scan_types.Key.KUnknown =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAll =>
+        let b1 ← frontend.scan_fast.dup seen 1#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_nat_list b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (_, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 1#u32)
+              frontend.scan_fast.scan_def_decl_loop_loop false b e seen1 hints
+                lps nm safety ty vl
+            else
+              frontend.scan_fast.err frontend.scan_types.DeclRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KApp =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KArg =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAxiom =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBinderInfo =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBody =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBvar =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCidx =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KConst =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtor =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtors =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KDef =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KFn =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KForallE =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KHints =>
+        let b1 ← frontend.scan_fast.dup seen 2#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_hints b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 2#u32)
+              frontend.scan_fast.scan_def_decl_loop_loop false b e seen1 x lps
+                nm safety ty vl
+            else
+              frontend.scan_fast.err frontend.scan_types.DeclRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KI =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIdx =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIe =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIl =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KImax =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIn =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInduct =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInductive =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsRec =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsReflexive =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsUnsafe =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KK =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KKind =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLam =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLetE =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLevelParams =>
+        let b1 ← frontend.scan_fast.dup seen 4#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_nat_list b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 4#u32)
+              frontend.scan_fast.scan_def_decl_loop_loop false b e seen1 hints
+                x nm safety ty vl
+            else
+              frontend.scan_fast.err frontend.scan_types.DeclRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KMax =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMeta =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KName =>
+        let b1 ← frontend.scan_fast.dup seen 8#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 8#u32)
+            frontend.scan_fast.scan_def_decl_loop_loop false b e seen1 hints
+              lps x safety ty vl
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KNatVal =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNfields =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNondep =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNum =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumFields =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumIndices =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMinors =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMotives =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumNested =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumParams =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KOpaque =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KParam =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPre =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KProj =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPw =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KQuot =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRecs =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRegular =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRhs =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRules =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSafety =>
+        let b1 ← frontend.scan_fast.dup seen 16#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_string b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 16#u32)
+              frontend.scan_fast.scan_def_decl_loop_loop false b e seen1 hints
+                lps nm x ty vl
+            else
+              frontend.scan_fast.err frontend.scan_types.DeclRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KSort =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStr =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStrVal =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStruct =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSucc =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KThm =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KType =>
+        let b1 ← frontend.scan_fast.dup seen 32#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 32#u32)
+            frontend.scan_fast.scan_def_decl_loop_loop false b e seen1 hints
+              lps nm safety x vl
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KTypeName =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KTypes =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KUs =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KValue =>
+        let b1 ← frontend.scan_fast.dup seen 64#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 64#u32)
+            frontend.scan_fast.scan_def_decl_loop_loop false b e seen1 hints
+              lps nm safety ty x
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+  | core.result.Result.Err er => ok (core.result.Result.Err er)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::scan_def_decl_loop]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3116:0-3262:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.scan_def_decl_loop
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.DeclRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  frontend.scan_fast.scan_def_decl_loop_loop true b i 0#u32
+    (frontend.scan_types.HintsRec.Regular 0#u64) (alloc.vec.Vec.new Std.U64)
+    0#u64 (alloc.vec.Vec.new Std.U32) 0#u64 0#u64
+
+/-- [con_ron_core::frontend::scan_fast::scan_def_decl]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3268:0-3274:1
+    Visibility: public -/
+def frontend.scan_fast.scan_def_decl
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.DeclRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 = 123#u8
+  then let i2 ← i + 1#usize
+       frontend.scan_fast.scan_def_decl_loop b i2
+  else
+    frontend.scan_fast.err frontend.scan_types.DeclRec i
+      frontend.scan_types.ErrTag.ExpectedObject
+
+/-- [con_ron_core::frontend::scan_fast::scan_axiom_decl_loop]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3012:4-3101:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.scan_axiom_decl_loop_loop
+  (want_member : Bool) (b : Slice Std.U8) (i : Std.Usize) (seen : Std.U32)
+  (is_uns : Bool) (lps : alloc.vec.Vec Std.U64) (nm : Std.U64) (ty : Std.U64) :
+  Result (core.result.Result (frontend.scan_types.DeclRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let r ← frontend.scan_fast.next_member b i want_member
+  match r with
+  | core.result.Result.Ok p =>
+    let (mem, ni, nw) := p
+    match mem with
+    | frontend.scan_fast.Member.Close =>
+      if nw
+      then
+        if seen != 0#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ni
+            frontend.scan_types.ErrTag.ExpectedKey
+        else
+          let i1 ← lift (seen &&& 15#u32)
+          if i1 != 15#u32
+          then
+            frontend.scan_fast.err frontend.scan_types.DeclRec ni
+              frontend.scan_types.ErrTag.MissingKey
+          else
+            let i2 ← ni + 1#usize
+            ok (core.result.Result.Ok (frontend.scan_types.DeclRec.Ax
+              { «name» := nm, level_params := lps, ty } is_uns, i2))
+      else
+        let i1 ← lift (seen &&& 15#u32)
+        if i1 != 15#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ni
+            frontend.scan_types.ErrTag.MissingKey
+        else
+          let i2 ← ni + 1#usize
+          ok (core.result.Result.Ok (frontend.scan_types.DeclRec.Ax
+            { «name» := nm, level_params := lps, ty } is_uns, i2))
+    | frontend.scan_fast.Member.Key k ks v =>
+      match k with
+      | frontend.scan_types.Key.KUnknown =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAll =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KApp =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KArg =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAxiom =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBinderInfo =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBody =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBvar =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCidx =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KConst =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtor =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtors =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KDef =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KFn =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KForallE =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KHints =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KI =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIdx =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIe =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIl =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KImax =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIn =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInduct =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInductive =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsRec =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsReflexive =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsUnsafe =>
+        let b1 ← frontend.scan_fast.dup seen 1#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_bool b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 1#u32)
+              frontend.scan_fast.scan_axiom_decl_loop_loop false b e seen1 x
+                lps nm ty
+            else
+              frontend.scan_fast.err frontend.scan_types.DeclRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KK =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KKind =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLam =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLetE =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLevelParams =>
+        let b1 ← frontend.scan_fast.dup seen 2#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_nat_list b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 2#u32)
+              frontend.scan_fast.scan_axiom_decl_loop_loop false b e seen1
+                is_uns x nm ty
+            else
+              frontend.scan_fast.err frontend.scan_types.DeclRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KMax =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMeta =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KName =>
+        let b1 ← frontend.scan_fast.dup seen 4#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 4#u32)
+            frontend.scan_fast.scan_axiom_decl_loop_loop false b e seen1 is_uns
+              lps x ty
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KNatVal =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNfields =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNondep =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNum =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumFields =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumIndices =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMinors =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMotives =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumNested =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumParams =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KOpaque =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KParam =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPre =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KProj =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPw =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KQuot =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRecs =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRegular =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRhs =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRules =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSafety =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSort =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStr =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStrVal =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStruct =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSucc =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KThm =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KType =>
+        let b1 ← frontend.scan_fast.dup seen 8#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.DeclRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 8#u32)
+            frontend.scan_fast.scan_axiom_decl_loop_loop false b e seen1 is_uns
+              lps nm x
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KTypeName =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KTypes =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KUs =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KValue =>
+        frontend.scan_fast.err frontend.scan_types.DeclRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+  | core.result.Result.Err er => ok (core.result.Result.Err er)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::scan_axiom_decl_loop]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3004:0-3102:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.scan_axiom_decl_loop
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.DeclRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  frontend.scan_fast.scan_axiom_decl_loop_loop true b i 0#u32 false
+    (alloc.vec.Vec.new Std.U64) 0#u64 0#u64
+
+/-- [con_ron_core::frontend::scan_fast::scan_axiom_decl]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3107:0-3113:1
+    Visibility: public -/
+def frontend.scan_fast.scan_axiom_decl
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.DeclRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 = 123#u8
+  then let i2 ← i + 1#usize
+       frontend.scan_fast.scan_axiom_decl_loop b i2
+  else
+    frontend.scan_fast.err frontend.scan_types.DeclRec i
+      frontend.scan_types.ErrTag.ExpectedObject
+
+/-- [con_ron_core::frontend::scan_fast::scan_proj_expr_loop]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1990:4-2051:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.scan_proj_expr_loop_loop
+  (want_member : Bool) (b : Slice Std.U8) (i : Std.Usize) (seen : Std.U32)
+  (ix : Std.U64) (st : Std.U64) (tn : Std.U64) :
+  Result (core.result.Result (frontend.scan_types.ExprRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let r ← frontend.scan_fast.next_member b i want_member
+  match r with
+  | core.result.Result.Ok p =>
+    let (mem, ni, nw) := p
+    match mem with
+    | frontend.scan_fast.Member.Close =>
+      if nw
+      then
+        if seen != 0#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ni
+            frontend.scan_types.ErrTag.ExpectedKey
+        else
+          let i1 ← lift (seen &&& 7#u32)
+          if i1 != 7#u32
+          then
+            frontend.scan_fast.err frontend.scan_types.ExprRec ni
+              frontend.scan_types.ErrTag.MissingKey
+          else
+            let i2 ← ni + 1#usize
+            ok (core.result.Result.Ok (frontend.scan_types.ExprRec.Proj tn ix
+              st, i2))
+      else
+        let i1 ← lift (seen &&& 7#u32)
+        if i1 != 7#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ni
+            frontend.scan_types.ErrTag.MissingKey
+        else
+          let i2 ← ni + 1#usize
+          ok (core.result.Result.Ok (frontend.scan_types.ExprRec.Proj tn ix st,
+            i2))
+    | frontend.scan_fast.Member.Key k ks v =>
+      match k with
+      | frontend.scan_types.Key.KUnknown =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAll =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KApp =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KArg =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAxiom =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBinderInfo =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBody =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBvar =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCidx =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KConst =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtor =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtors =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KDef =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KFn =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KForallE =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KHints =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KI =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIdx =>
+        let b1 ← frontend.scan_fast.dup seen 1#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 1#u32)
+            frontend.scan_fast.scan_proj_expr_loop_loop false b e seen1 x st tn
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KIe =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIl =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KImax =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIn =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInduct =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInductive =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsRec =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsReflexive =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsUnsafe =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KK =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KKind =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLam =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLetE =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLevelParams =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMax =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMeta =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KName =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNatVal =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNfields =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNondep =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNum =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumFields =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumIndices =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMinors =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMotives =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumNested =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumParams =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KOpaque =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KParam =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPre =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KProj =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPw =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KQuot =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRecs =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRegular =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRhs =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRules =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSafety =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSort =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStr =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStrVal =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStruct =>
+        let b1 ← frontend.scan_fast.dup seen 2#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 2#u32)
+            frontend.scan_fast.scan_proj_expr_loop_loop false b e seen1 ix x tn
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KSucc =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KThm =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KType =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KTypeName =>
+        let b1 ← frontend.scan_fast.dup seen 4#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 4#u32)
+            frontend.scan_fast.scan_proj_expr_loop_loop false b e seen1 ix st x
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KTypes =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KUs =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KValue =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+  | core.result.Result.Err er => ok (core.result.Result.Err er)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::scan_proj_expr_loop]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1983:0-2051:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.scan_proj_expr_loop
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.ExprRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  frontend.scan_fast.scan_proj_expr_loop_loop true b i 0#u32 0#u64 0#u64 0#u64
+
+/-- [con_ron_core::frontend::scan_fast::scan_proj_expr]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2056:0-2062:1
+    Visibility: public -/
+def frontend.scan_fast.scan_proj_expr
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.ExprRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 = 123#u8
+  then let i2 ← i + 1#usize
+       frontend.scan_fast.scan_proj_expr_loop b i2
+  else
+    frontend.scan_fast.err frontend.scan_types.ExprRec i
+      frontend.scan_types.ErrTag.ExpectedObject
+
+/-- [con_ron_core::frontend::scan_fast::scan_const_expr_loop]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1918:4-1968:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.scan_const_expr_loop_loop
+  (want_member : Bool) (b : Slice Std.U8) (i : Std.Usize) (seen : Std.U32)
+  (nm : Std.U64) (us : alloc.vec.Vec Std.U64) :
+  Result (core.result.Result (frontend.scan_types.ExprRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let r ← frontend.scan_fast.next_member b i want_member
+  match r with
+  | core.result.Result.Ok p =>
+    let (mem, ni, nw) := p
+    match mem with
+    | frontend.scan_fast.Member.Close =>
+      if nw
+      then
+        if seen != 0#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ni
+            frontend.scan_types.ErrTag.ExpectedKey
+        else
+          let i1 ← lift (seen &&& 3#u32)
+          if i1 != 3#u32
+          then
+            frontend.scan_fast.err frontend.scan_types.ExprRec ni
+              frontend.scan_types.ErrTag.MissingKey
+          else
+            let i2 ← ni + 1#usize
+            ok (core.result.Result.Ok (frontend.scan_types.ExprRec.Const nm us,
+              i2))
+      else
+        let i1 ← lift (seen &&& 3#u32)
+        if i1 != 3#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ni
+            frontend.scan_types.ErrTag.MissingKey
+        else
+          let i2 ← ni + 1#usize
+          ok (core.result.Result.Ok (frontend.scan_types.ExprRec.Const nm us,
+            i2))
+    | frontend.scan_fast.Member.Key k ks v =>
+      match k with
+      | frontend.scan_types.Key.KUnknown =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAll =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KApp =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KArg =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAxiom =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBinderInfo =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBody =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBvar =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCidx =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KConst =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtor =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtors =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KDef =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KFn =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KForallE =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KHints =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KI =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIdx =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIe =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIl =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KImax =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIn =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInduct =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInductive =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsRec =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsReflexive =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsUnsafe =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KK =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KKind =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLam =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLetE =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLevelParams =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMax =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMeta =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KName =>
+        let b1 ← frontend.scan_fast.dup seen 1#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 1#u32)
+            frontend.scan_fast.scan_const_expr_loop_loop false b e seen1 x us
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KNatVal =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNfields =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNondep =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNum =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumFields =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumIndices =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMinors =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMotives =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumNested =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumParams =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KOpaque =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KParam =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPre =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KProj =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPw =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KQuot =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRecs =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRegular =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRhs =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRules =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSafety =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSort =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStr =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStrVal =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStruct =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSucc =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KThm =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KType =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KTypeName =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KTypes =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KUs =>
+        let b1 ← frontend.scan_fast.dup seen 2#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_nat_list b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 2#u32)
+              frontend.scan_fast.scan_const_expr_loop_loop false b e seen1 nm x
+            else
+              frontend.scan_fast.err frontend.scan_types.ExprRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KValue =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+  | core.result.Result.Err er => ok (core.result.Result.Err er)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::scan_const_expr_loop]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1912:0-1969:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.scan_const_expr_loop
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.ExprRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  frontend.scan_fast.scan_const_expr_loop_loop true b i 0#u32 0#u64
+    (alloc.vec.Vec.new Std.U64)
+
+/-- [con_ron_core::frontend::scan_fast::scan_const_expr]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1974:0-1980:1
+    Visibility: public -/
+def frontend.scan_fast.scan_const_expr
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.ExprRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 = 123#u8
+  then let i2 ← i + 1#usize
+       frontend.scan_fast.scan_const_expr_loop b i2
+  else
+    frontend.scan_fast.err frontend.scan_types.ExprRec i
+      frontend.scan_types.ErrTag.ExpectedObject
+
+/-- [con_ron_core::frontend::scan_fast::scan_let_expr_loop]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1810:4-1898:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.scan_let_expr_loop_loop
+  (want_member : Bool) (b : Slice Std.U8) (i : Std.Usize) (seen : Std.U32)
+  (bd : Std.U64) (ty : Std.U64) (vl : Std.U64) :
+  Result (core.result.Result (frontend.scan_types.ExprRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let r ← frontend.scan_fast.next_member b i want_member
+  match r with
+  | core.result.Result.Ok p =>
+    let (mem, ni, nw) := p
+    match mem with
+    | frontend.scan_fast.Member.Close =>
+      if nw
+      then
+        if seen != 0#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ni
+            frontend.scan_types.ErrTag.ExpectedKey
+        else
+          let i1 ← lift (seen &&& 27#u32)
+          if i1 != 27#u32
+          then
+            frontend.scan_fast.err frontend.scan_types.ExprRec ni
+              frontend.scan_types.ErrTag.MissingKey
+          else
+            let i2 ← ni + 1#usize
+            ok (core.result.Result.Ok (frontend.scan_types.ExprRec.LetE ty vl
+              bd, i2))
+      else
+        let i1 ← lift (seen &&& 27#u32)
+        if i1 != 27#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ni
+            frontend.scan_types.ErrTag.MissingKey
+        else
+          let i2 ← ni + 1#usize
+          ok (core.result.Result.Ok (frontend.scan_types.ExprRec.LetE ty vl bd,
+            i2))
+    | frontend.scan_fast.Member.Key k ks v =>
+      match k with
+      | frontend.scan_types.Key.KUnknown =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAll =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KApp =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KArg =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAxiom =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBinderInfo =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBody =>
+        let b1 ← frontend.scan_fast.dup seen 1#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 1#u32)
+            frontend.scan_fast.scan_let_expr_loop_loop false b e seen1 x ty vl
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KBvar =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCidx =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KConst =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtor =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtors =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KDef =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KFn =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KForallE =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KHints =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KI =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIdx =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIe =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIl =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KImax =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIn =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInduct =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInductive =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsRec =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsReflexive =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsUnsafe =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KK =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KKind =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLam =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLetE =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLevelParams =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMax =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMeta =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KName =>
+        let b1 ← frontend.scan_fast.dup seen 2#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (_, e) := p1
+            let seen1 ← lift (seen ||| 2#u32)
+            frontend.scan_fast.scan_let_expr_loop_loop false b e seen1 bd ty vl
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KNatVal =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNfields =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNondep =>
+        let b1 ← frontend.scan_fast.dup seen 4#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_bool b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (_, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 4#u32)
+              frontend.scan_fast.scan_let_expr_loop_loop false b e seen1 bd ty
+                vl
+            else
+              frontend.scan_fast.err frontend.scan_types.ExprRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KNum =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumFields =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumIndices =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMinors =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMotives =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumNested =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumParams =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KOpaque =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KParam =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPre =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KProj =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPw =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KQuot =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRecs =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRegular =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRhs =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRules =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSafety =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSort =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStr =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStrVal =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStruct =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSucc =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KThm =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KType =>
+        let b1 ← frontend.scan_fast.dup seen 8#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 8#u32)
+            frontend.scan_fast.scan_let_expr_loop_loop false b e seen1 bd x vl
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KTypeName =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KTypes =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KUs =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KValue =>
+        let b1 ← frontend.scan_fast.dup seen 16#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 16#u32)
+            frontend.scan_fast.scan_let_expr_loop_loop false b e seen1 bd ty x
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+  | core.result.Result.Err er => ok (core.result.Result.Err er)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::scan_let_expr_loop]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1803:0-1898:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.scan_let_expr_loop
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.ExprRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  frontend.scan_fast.scan_let_expr_loop_loop true b i 0#u32 0#u64 0#u64 0#u64
+
+/-- [con_ron_core::frontend::scan_fast::scan_let_expr]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1903:0-1909:1
+    Visibility: public -/
+def frontend.scan_fast.scan_let_expr
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.ExprRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 = 123#u8
+  then let i2 ← i + 1#usize
+       frontend.scan_fast.scan_let_expr_loop b i2
+  else
+    frontend.scan_fast.err frontend.scan_types.ExprRec i
+      frontend.scan_types.ErrTag.ExpectedObject
+
+/-- [con_ron_core::frontend::scan_fast::scan_pw::S_NEVER]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1223:4-1223:59 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.scan_pw.S_NEVER : Array Std.U8 6#usize :=
+  Array.make 6#usize [ 110#u8, 101#u8, 118#u8, 101#u8, 114#u8, 34#u8 ]
+
+/-- [con_ron_core::frontend::scan_fast::scan_pw]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1216:0-1239:1
+    Visibility: public -/
+def frontend.scan_fast.scan_pw
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.PwRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 = 91#u8
+  then
+    let i2 ← i + 1#usize
+    let r ← frontend.scan_fast.scan_nat_list_loop b i2
+    match r with
+    | core.result.Result.Ok p =>
+      let (ns, j) := p
+      ok (core.result.Result.Ok (frontend.scan_types.PwRec.IfAllZero ns, j))
+    | core.result.Result.Err er => ok (core.result.Result.Err er)
+  else
+    if i1 = 34#u8
+    then
+      let i2 ← i + 1#usize
+      let s ← lift (Array.to_slice frontend.scan_fast.scan_pw.S_NEVER)
+      let b1 ← frontend.scan_fast.match_lit b i2 s
+      if b1
+      then
+        let i3 ← i + 7#usize
+        ok (core.result.Result.Ok (frontend.scan_types.PwRec.Never, i3))
+      else
+        frontend.scan_fast.err frontend.scan_types.PwRec i
+          frontend.scan_types.ErrTag.BadPw
+    else
+      frontend.scan_fast.err frontend.scan_types.PwRec i
+        frontend.scan_types.ErrTag.BadPw
+
+/-- [con_ron_core::frontend::scan_fast::scan_binder_info::S_INST]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1139:4-1139:92 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.scan_binder_info.S_INST : Array Std.U8 13#usize :=
+  Array.make 13#usize [
+    105#u8, 110#u8, 115#u8, 116#u8, 73#u8, 109#u8, 112#u8, 108#u8, 105#u8,
+    99#u8, 105#u8, 116#u8, 34#u8
+    ]
+
+/-- [con_ron_core::frontend::scan_fast::scan_binder_info::S_STRICT]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1138:4-1138:103 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.scan_binder_info.S_STRICT : Array Std.U8 15#usize :=
+  Array.make 15#usize [
+    115#u8, 116#u8, 114#u8, 105#u8, 99#u8, 116#u8, 73#u8, 109#u8, 112#u8,
+    108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8
+    ]
+
+/-- [con_ron_core::frontend::scan_fast::scan_binder_info::S_IMPLICIT]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1137:4-1137:76 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.scan_binder_info.S_IMPLICIT : Array Std.U8 9#usize :=
+  Array.make 9#usize [
+    105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8
+    ]
+
+/-- [con_ron_core::frontend::scan_fast::scan_binder_info::S_DEFAULT]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1136:4-1136:70 -/
+@[global_simps, irreducible]
+def frontend.scan_fast.scan_binder_info.S_DEFAULT : Array Std.U8 8#usize :=
+  Array.make 8#usize [
+    100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8
+    ]
+
+/-- [con_ron_core::frontend::scan_fast::scan_binder_info]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1129:0-1153:1
+    Visibility: public -/
+def frontend.scan_fast.scan_binder_info
+  (b : Slice Std.U8) (i : Std.Usize) : Result Std.Usize := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 != 34#u8
+  then ok 0#usize
+  else
+    let i2 ← i + 1#usize
+    let s ←
+      lift (Array.to_slice frontend.scan_fast.scan_binder_info.S_DEFAULT)
+    let b1 ← frontend.scan_fast.match_lit b i2 s
+    if b1
+    then i + 9#usize
+    else
+      let s1 ←
+        lift (Array.to_slice frontend.scan_fast.scan_binder_info.S_IMPLICIT)
+      let b2 ← frontend.scan_fast.match_lit b i2 s1
+      if b2
+      then i + 10#usize
+      else
+        let s2 ←
+          lift (Array.to_slice frontend.scan_fast.scan_binder_info.S_STRICT)
+        let b3 ← frontend.scan_fast.match_lit b i2 s2
+        if b3
+        then i + 16#usize
+        else
+          let s3 ←
+            lift (Array.to_slice frontend.scan_fast.scan_binder_info.S_INST)
+          let b4 ← frontend.scan_fast.match_lit b i2 s3
+          if b4
+          then i + 14#usize
+          else ok 0#usize
+
+/-- [con_ron_core::frontend::scan_fast::scan_binder_expr_loop]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1678:4-1775:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.scan_binder_expr_loop_loop
+  (want_member : Bool) (b : Slice Std.U8) (lam : Bool) (i : Std.Usize)
+  (seen : Std.U32) (bd : Std.U64) (ty : Std.U64)
+  (pw : frontend.scan_types.PwRec) :
+  Result (core.result.Result (frontend.scan_types.ExprRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let r ← frontend.scan_fast.next_member b i want_member
+  match r with
+  | core.result.Result.Ok p =>
+    let (mem, ni, nw) := p
+    match mem with
+    | frontend.scan_fast.Member.Close =>
+      if nw
+      then
+        if seen != 0#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ni
+            frontend.scan_types.ErrTag.ExpectedKey
+        else
+          let i1 ← lift (seen &&& 15#u32)
+          if i1 != 15#u32
+          then
+            frontend.scan_fast.err frontend.scan_types.ExprRec ni
+              frontend.scan_types.ErrTag.MissingKey
+          else
+            let er ←
+              if lam
+              then ok (frontend.scan_types.ExprRec.Lam ty bd pw)
+              else ok (frontend.scan_types.ExprRec.ForallE ty bd pw)
+            let i2 ← ni + 1#usize
+            ok (core.result.Result.Ok (er, i2))
+      else
+        let i1 ← lift (seen &&& 15#u32)
+        if i1 != 15#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ni
+            frontend.scan_types.ErrTag.MissingKey
+        else
+          let er ←
+            if lam
+            then ok (frontend.scan_types.ExprRec.Lam ty bd pw)
+            else ok (frontend.scan_types.ExprRec.ForallE ty bd pw)
+          let i2 ← ni + 1#usize
+          ok (core.result.Result.Ok (er, i2))
+    | frontend.scan_fast.Member.Key k ks v =>
+      match k with
+      | frontend.scan_types.Key.KUnknown =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAll =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KApp =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KArg =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAxiom =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBinderInfo =>
+        let b1 ← frontend.scan_fast.dup seen 1#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let e ← frontend.scan_fast.scan_binder_info b v
+          if e = 0#usize
+          then
+            frontend.scan_fast.err frontend.scan_types.ExprRec v
+              frontend.scan_types.ErrTag.BadBinderInfo
+          else
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 1#u32)
+              frontend.scan_fast.scan_binder_expr_loop_loop false b lam e seen1
+                bd ty pw
+            else
+              frontend.scan_fast.err frontend.scan_types.ExprRec ks
+                frontend.scan_types.ErrTag.NoProgress
+      | frontend.scan_types.Key.KBody =>
+        let b1 ← frontend.scan_fast.dup seen 2#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 2#u32)
+            frontend.scan_fast.scan_binder_expr_loop_loop false b lam e seen1 x
+              ty pw
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KBvar =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCidx =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KConst =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtor =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtors =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KDef =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KFn =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KForallE =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KHints =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KI =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIdx =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIe =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIl =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KImax =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIn =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInduct =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInductive =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsRec =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsReflexive =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsUnsafe =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KK =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KKind =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLam =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLetE =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLevelParams =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMax =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMeta =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KName =>
+        let b1 ← frontend.scan_fast.dup seen 4#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (_, e) := p1
+            let seen1 ← lift (seen ||| 4#u32)
+            frontend.scan_fast.scan_binder_expr_loop_loop false b lam e seen1
+              bd ty pw
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KNatVal =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNfields =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNondep =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNum =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumFields =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumIndices =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMinors =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMotives =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumNested =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumParams =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KOpaque =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KParam =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPre =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KProj =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPw =>
+        let b1 ← frontend.scan_fast.dup seen 16#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_pw b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 16#u32)
+              frontend.scan_fast.scan_binder_expr_loop_loop false b lam e seen1
+                bd ty x
+            else
+              frontend.scan_fast.err frontend.scan_types.ExprRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KQuot =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRecs =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRegular =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRhs =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRules =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSafety =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSort =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStr =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStrVal =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStruct =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSucc =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KThm =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KType =>
+        let b1 ← frontend.scan_fast.dup seen 8#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 8#u32)
+            frontend.scan_fast.scan_binder_expr_loop_loop false b lam e seen1
+              bd x pw
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KTypeName =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KTypes =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KUs =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KValue =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+  | core.result.Result.Err er => ok (core.result.Result.Err er)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::scan_binder_expr_loop]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1671:0-1776:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.scan_binder_expr_loop
+  (b : Slice Std.U8) (i : Std.Usize) (lam : Bool) :
+  Result (core.result.Result (frontend.scan_types.ExprRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  frontend.scan_fast.scan_binder_expr_loop_loop true b lam i 0#u32 0#u64 0#u64
+    frontend.scan_types.PwRec.Never
+
+/-- [con_ron_core::frontend::scan_fast::scan_forall_expr]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1794:0-1800:1
+    Visibility: public -/
+def frontend.scan_fast.scan_forall_expr
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.ExprRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 = 123#u8
+  then
+    let i2 ← i + 1#usize
+    frontend.scan_fast.scan_binder_expr_loop b i2 false
+  else
+    frontend.scan_fast.err frontend.scan_types.ExprRec i
+      frontend.scan_types.ErrTag.ExpectedObject
+
+/-- [con_ron_core::frontend::scan_fast::scan_lam_expr]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1783:0-1789:1
+    Visibility: public -/
+def frontend.scan_fast.scan_lam_expr
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.ExprRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 = 123#u8
+  then
+    let i2 ← i + 1#usize
+    frontend.scan_fast.scan_binder_expr_loop b i2 true
+  else
+    frontend.scan_fast.err frontend.scan_types.ExprRec i
+      frontend.scan_types.ErrTag.ExpectedObject
+
+/-- [con_ron_core::frontend::scan_fast::scan_app_expr_loop]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1604:4-1652:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.scan_app_expr_loop_loop
+  (want_member : Bool) (b : Slice Std.U8) (i : Std.Usize) (seen : Std.U32)
+  (arg : Std.U64) (fnx : Std.U64) :
+  Result (core.result.Result (frontend.scan_types.ExprRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let r ← frontend.scan_fast.next_member b i want_member
+  match r with
+  | core.result.Result.Ok p =>
+    let (mem, ni, nw) := p
+    match mem with
+    | frontend.scan_fast.Member.Close =>
+      if nw
+      then
+        if seen != 0#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ni
+            frontend.scan_types.ErrTag.ExpectedKey
+        else
+          let i1 ← lift (seen &&& 3#u32)
+          if i1 != 3#u32
+          then
+            frontend.scan_fast.err frontend.scan_types.ExprRec ni
+              frontend.scan_types.ErrTag.MissingKey
+          else
+            let i2 ← ni + 1#usize
+            ok (core.result.Result.Ok (frontend.scan_types.ExprRec.App fnx arg,
+              i2))
+      else
+        let i1 ← lift (seen &&& 3#u32)
+        if i1 != 3#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ni
+            frontend.scan_types.ErrTag.MissingKey
+        else
+          let i2 ← ni + 1#usize
+          ok (core.result.Result.Ok (frontend.scan_types.ExprRec.App fnx arg,
+            i2))
+    | frontend.scan_fast.Member.Key k ks v =>
+      match k with
+      | frontend.scan_types.Key.KUnknown =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAll =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KApp =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KArg =>
+        let b1 ← frontend.scan_fast.dup seen 1#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 1#u32)
+            frontend.scan_fast.scan_app_expr_loop_loop false b e seen1 x fnx
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KAxiom =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBinderInfo =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBody =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBvar =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCidx =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KConst =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtor =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtors =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KDef =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KFn =>
+        let b1 ← frontend.scan_fast.dup seen 2#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.ExprRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 2#u32)
+            frontend.scan_fast.scan_app_expr_loop_loop false b e seen1 arg x
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KForallE =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KHints =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KI =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIdx =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIe =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIl =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KImax =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIn =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInduct =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInductive =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsRec =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsReflexive =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsUnsafe =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KK =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KKind =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLam =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLetE =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLevelParams =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMax =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMeta =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KName =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNatVal =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNfields =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNondep =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNum =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumFields =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumIndices =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMinors =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMotives =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumNested =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumParams =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KOpaque =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KParam =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPre =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KProj =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPw =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KQuot =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRecs =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRegular =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRhs =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRules =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSafety =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSort =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStr =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStrVal =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStruct =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSucc =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KThm =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KType =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KTypeName =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KTypes =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KUs =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KValue =>
+        frontend.scan_fast.err frontend.scan_types.ExprRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+  | core.result.Result.Err er => ok (core.result.Result.Err er)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::scan_app_expr_loop]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1598:0-1652:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.scan_app_expr_loop
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.ExprRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  frontend.scan_fast.scan_app_expr_loop_loop true b i 0#u32 0#u64 0#u64
+
+/-- [con_ron_core::frontend::scan_fast::scan_app_expr]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1657:0-1663:1
+    Visibility: public -/
+def frontend.scan_fast.scan_app_expr
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.ExprRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 = 123#u8
+  then let i2 ← i + 1#usize
+       frontend.scan_fast.scan_app_expr_loop b i2
+  else
+    frontend.scan_fast.err frontend.scan_types.ExprRec i
+      frontend.scan_types.ErrTag.ExpectedObject
+
+/-- [con_ron_core::frontend::scan_fast::scan_num_name_loop]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1536:4-1584:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.scan_num_name_loop_loop
+  (want_member : Bool) (b : Slice Std.U8) (i : Std.Usize) (seen : Std.U32)
+  (n : Std.U64) (pre : Std.U64) :
+  Result (core.result.Result (frontend.scan_types.NameRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let r ← frontend.scan_fast.next_member b i want_member
+  match r with
+  | core.result.Result.Ok p =>
+    let (mem, ni, nw) := p
+    match mem with
+    | frontend.scan_fast.Member.Close =>
+      if nw
+      then
+        if seen != 0#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.NameRec ni
+            frontend.scan_types.ErrTag.ExpectedKey
+        else
+          let i1 ← lift (seen &&& 3#u32)
+          if i1 != 3#u32
+          then
+            frontend.scan_fast.err frontend.scan_types.NameRec ni
+              frontend.scan_types.ErrTag.MissingKey
+          else
+            let i2 ← ni + 1#usize
+            ok (core.result.Result.Ok (frontend.scan_types.NameRec.Num pre n,
+              i2))
+      else
+        let i1 ← lift (seen &&& 3#u32)
+        if i1 != 3#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.NameRec ni
+            frontend.scan_types.ErrTag.MissingKey
+        else
+          let i2 ← ni + 1#usize
+          ok (core.result.Result.Ok (frontend.scan_types.NameRec.Num pre n,
+            i2))
+    | frontend.scan_fast.Member.Key k ks v =>
+      match k with
+      | frontend.scan_types.Key.KUnknown =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAll =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KApp =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KArg =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAxiom =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBinderInfo =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBody =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBvar =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCidx =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KConst =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtor =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtors =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KDef =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KFn =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KForallE =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KHints =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KI =>
+        let b1 ← frontend.scan_fast.dup seen 1#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.NameRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 1#u32)
+            frontend.scan_fast.scan_num_name_loop_loop false b e seen1 x pre
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KIdx =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIe =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIl =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KImax =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIn =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInduct =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInductive =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsRec =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsReflexive =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsUnsafe =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KK =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KKind =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLam =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLetE =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLevelParams =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMax =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMeta =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KName =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNatVal =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNfields =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNondep =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNum =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumFields =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumIndices =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMinors =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMotives =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumNested =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumParams =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KOpaque =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KParam =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPre =>
+        let b1 ← frontend.scan_fast.dup seen 2#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.NameRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 2#u32)
+            frontend.scan_fast.scan_num_name_loop_loop false b e seen1 n x
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KProj =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPw =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KQuot =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRecs =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRegular =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRhs =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRules =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSafety =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSort =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStr =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStrVal =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStruct =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSucc =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KThm =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KType =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KTypeName =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KTypes =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KUs =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KValue =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+  | core.result.Result.Err er => ok (core.result.Result.Err er)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::scan_num_name_loop]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1530:0-1584:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.scan_num_name_loop
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.NameRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  frontend.scan_fast.scan_num_name_loop_loop true b i 0#u32 0#u64 0#u64
+
+/-- [con_ron_core::frontend::scan_fast::scan_num_name]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1589:0-1595:1
+    Visibility: public -/
+def frontend.scan_fast.scan_num_name
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.NameRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 = 123#u8
+  then let i2 ← i + 1#usize
+       frontend.scan_fast.scan_num_name_loop b i2
+  else
+    frontend.scan_fast.err frontend.scan_types.NameRec i
+      frontend.scan_types.ErrTag.ExpectedObject
+
+/-- [con_ron_core::frontend::scan_fast::scan_str_name_loop]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1465:4-1515:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.scan_str_name_loop_loop
+  (want_member : Bool) (b : Slice Std.U8) (i : Std.Usize) (seen : Std.U32)
+  (pre : Std.U64) (s : alloc.vec.Vec Std.U32) :
+  Result (core.result.Result (frontend.scan_types.NameRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let r ← frontend.scan_fast.next_member b i want_member
+  match r with
+  | core.result.Result.Ok p =>
+    let (mem, ni, nw) := p
+    match mem with
+    | frontend.scan_fast.Member.Close =>
+      if nw
+      then
+        if seen != 0#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.NameRec ni
+            frontend.scan_types.ErrTag.ExpectedKey
+        else
+          let i1 ← lift (seen &&& 3#u32)
+          if i1 != 3#u32
+          then
+            frontend.scan_fast.err frontend.scan_types.NameRec ni
+              frontend.scan_types.ErrTag.MissingKey
+          else
+            let i2 ← ni + 1#usize
+            ok (core.result.Result.Ok (frontend.scan_types.NameRec.Str pre s,
+              i2))
+      else
+        let i1 ← lift (seen &&& 3#u32)
+        if i1 != 3#u32
+        then
+          frontend.scan_fast.err frontend.scan_types.NameRec ni
+            frontend.scan_types.ErrTag.MissingKey
+        else
+          let i2 ← ni + 1#usize
+          ok (core.result.Result.Ok (frontend.scan_types.NameRec.Str pre s,
+            i2))
+    | frontend.scan_fast.Member.Key k ks v =>
+      match k with
+      | frontend.scan_types.Key.KUnknown =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAll =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KApp =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KArg =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAxiom =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBinderInfo =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBody =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBvar =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCidx =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KConst =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtor =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtors =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KDef =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KFn =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KForallE =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KHints =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KI =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIdx =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIe =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIl =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KImax =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIn =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInduct =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInductive =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsRec =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsReflexive =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsUnsafe =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KK =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KKind =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLam =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLetE =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLevelParams =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMax =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMeta =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KName =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNatVal =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNfields =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNondep =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNum =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumFields =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumIndices =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMinors =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMotives =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumNested =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumParams =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KOpaque =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KParam =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPre =>
+        let b1 ← frontend.scan_fast.dup seen 1#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.NameRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let seen1 ← lift (seen ||| 1#u32)
+            frontend.scan_fast.scan_str_name_loop_loop false b e seen1 x s
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KProj =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KPw =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KQuot =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRecs =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRegular =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRhs =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRules =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSafety =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSort =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStr =>
+        let b1 ← frontend.scan_fast.dup seen 2#u32
+        if b1
+        then
+          frontend.scan_fast.err frontend.scan_types.NameRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.scan_string b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (x, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              let seen1 ← lift (seen ||| 2#u32)
+              frontend.scan_fast.scan_str_name_loop_loop false b e seen1 pre x
+            else
+              frontend.scan_fast.err frontend.scan_types.NameRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KStrVal =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KStruct =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSucc =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KThm =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KType =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KTypeName =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KTypes =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KUs =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KValue =>
+        frontend.scan_fast.err frontend.scan_types.NameRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+  | core.result.Result.Err er => ok (core.result.Result.Err er)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::scan_str_name_loop]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1459:0-1516:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.scan_str_name_loop
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.NameRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  frontend.scan_fast.scan_str_name_loop_loop true b i 0#u32 0#u64
+    (alloc.vec.Vec.new Std.U32)
+
+/-- [con_ron_core::frontend::scan_fast::scan_str_name]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1521:0-1527:1
+    Visibility: public -/
+def frontend.scan_fast.scan_str_name
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.NameRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 = 123#u8
+  then let i2 ← i + 1#usize
+       frontend.scan_fast.scan_str_name_loop b i2
+  else
+    frontend.scan_fast.err frontend.scan_types.NameRec i
+      frontend.scan_types.ErrTag.ExpectedObject
+
+/-- [con_ron_core::frontend::scan_fast::skip_braced]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1311:4-1335:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.skip_braced_loop
+  (b : Slice Std.U8) (i : Std.Usize) (depth : Std.U64) : Result Std.Usize := do
+  let i1 := Slice.len b
+  if i < i1
+  then
+    let c ← Slice.index_usize b i
+    if c = 34#u8
+    then
+      let i2 ← i + 1#usize
+      let e ← frontend.scan_fast.str_close b i2
+      if e = 0#usize
+      then ok 0#usize
+      else
+        let i3 ← e + 1#usize
+        frontend.scan_fast.skip_braced_loop b i3 depth
+    else
+      if c = 10#u8
+      then ok 0#usize
+      else
+        if c = 123#u8
+        then
+          let i2 ← i + 1#usize
+          let depth1 ← depth + 1#u64
+          frontend.scan_fast.skip_braced_loop b i2 depth1
+        else
+          if c = 91#u8
+          then
+            let i2 ← i + 1#usize
+            let depth1 ← depth + 1#u64
+            frontend.scan_fast.skip_braced_loop b i2 depth1
+          else
+            if c = 125#u8
+            then
+              if depth = 0#u64
+              then i + 1#usize
+              else
+                let i2 ← i + 1#usize
+                let depth1 ← depth - 1#u64
+                frontend.scan_fast.skip_braced_loop b i2 depth1
+            else
+              if c = 93#u8
+              then
+                if depth = 0#u64
+                then i + 1#usize
+                else
+                  let i2 ← i + 1#usize
+                  let depth1 ← depth - 1#u64
+                  frontend.scan_fast.skip_braced_loop b i2 depth1
+              else
+                let i2 ← i + 1#usize
+                frontend.scan_fast.skip_braced_loop b i2 depth
+  else ok 0#usize
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::skip_braced]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1308:0-1335:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.skip_braced
+  (b : Slice Std.U8) (i : Std.Usize) (depth : Std.U64) : Result Std.Usize := do
+  frontend.scan_fast.skip_braced_loop b i depth
+
+/-- [con_ron_core::frontend::scan_fast::scan_quoted_nat]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1113:0-1122:1
+    Visibility: public -/
+def frontend.scan_fast.scan_quoted_nat
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result ((alloc.vec.Vec Std.U8) × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let i1 ← frontend.scan_fast.byte_at b i
+  if i1 != 34#u8
+  then
+    frontend.scan_fast.err (alloc.vec.Vec Std.U8) i
+      frontend.scan_types.ErrTag.BadNatVal
+  else
+    let i2 ← i + 1#usize
+    let e ← frontend.scan_fast.skip_digits b i2
+    if e = i2
+    then
+      frontend.scan_fast.err (alloc.vec.Vec Std.U8) i
+        frontend.scan_types.ErrTag.BadNatVal
+    else
+      let i3 ← frontend.scan_fast.byte_at b e
+      if i3 != 34#u8
+      then
+        frontend.scan_fast.err (alloc.vec.Vec Std.U8) i
+          frontend.scan_types.ErrTag.BadNatVal
+      else
+        let s ←
+          core.slice.index.Slice.index
+            (core.slice.index.SliceIndexRangeUsizeSlice Std.U8) b
+            { start := i2, «end» := e }
+        let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 s
+        let i4 ← e + 1#usize
+        ok (core.result.Result.Ok (v, i4))
+
+/-- [con_ron_core::frontend::scan_fast::scan_line_loop]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3816:4-4076:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.scan_line_loop_loop
+  (want_member : Bool) (b : Slice Std.U8) (i : Std.Usize) (idx_kind : Std.U8)
+  (idx : Std.U64) (pl : frontend.scan_fast.LinePayload) :
+  Result (core.result.Result (frontend.scan_types.LineRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let r ← frontend.scan_fast.next_member b i want_member
+  match r with
+  | core.result.Result.Ok p =>
+    let (mem, ni, nw) := p
+    match mem with
+    | frontend.scan_fast.Member.Close =>
+      if nw
+      then
+        if idx_kind != 0#u8
+        then
+          frontend.scan_fast.err frontend.scan_types.LineRec ni
+            frontend.scan_types.ErrTag.ExpectedKey
+        else
+          let b1 ← frontend.scan_fast.line_payload_is_absent pl
+          if b1
+          then
+            match pl with
+            | frontend.scan_fast.LinePayload.Absent =>
+              frontend.scan_fast.err frontend.scan_types.LineRec ni
+                frontend.scan_types.ErrTag.MissingKey
+            | frontend.scan_fast.LinePayload.Name r1 =>
+              if idx_kind = 1#u8
+              then
+                let i1 ← ni + 1#usize
+                ok (core.result.Result.Ok (frontend.scan_types.LineRec.Name idx
+                  r1, i1))
+              else
+                frontend.scan_fast.err frontend.scan_types.LineRec ni
+                  frontend.scan_types.ErrTag.MixedKeys
+            | frontend.scan_fast.LinePayload.Level r1 =>
+              if idx_kind = 2#u8
+              then
+                let i1 ← ni + 1#usize
+                ok (core.result.Result.Ok (frontend.scan_types.LineRec.Level
+                  idx r1, i1))
+              else
+                frontend.scan_fast.err frontend.scan_types.LineRec ni
+                  frontend.scan_types.ErrTag.MixedKeys
+            | frontend.scan_fast.LinePayload.Expr r1 =>
+              if idx_kind = 3#u8
+              then
+                let i1 ← ni + 1#usize
+                ok (core.result.Result.Ok (frontend.scan_types.LineRec.Expr idx
+                  r1, i1))
+              else
+                frontend.scan_fast.err frontend.scan_types.LineRec ni
+                  frontend.scan_types.ErrTag.MixedKeys
+            | frontend.scan_fast.LinePayload.Decl d =>
+              if idx_kind = 0#u8
+              then
+                let i1 ← ni + 1#usize
+                ok (core.result.Result.Ok (frontend.scan_types.LineRec.Decl d,
+                  i1))
+              else
+                frontend.scan_fast.err frontend.scan_types.LineRec ni
+                  frontend.scan_types.ErrTag.MixedKeys
+            | frontend.scan_fast.LinePayload.Header =>
+              if idx_kind = 0#u8
+              then
+                let i1 ← ni + 1#usize
+                ok (core.result.Result.Ok (frontend.scan_types.LineRec.Header,
+                  i1))
+              else
+                frontend.scan_fast.err frontend.scan_types.LineRec ni
+                  frontend.scan_types.ErrTag.MixedKeys
+          else
+            frontend.scan_fast.err frontend.scan_types.LineRec ni
+              frontend.scan_types.ErrTag.ExpectedKey
+      else
+        match pl with
+        | frontend.scan_fast.LinePayload.Absent =>
+          frontend.scan_fast.err frontend.scan_types.LineRec ni
+            frontend.scan_types.ErrTag.MissingKey
+        | frontend.scan_fast.LinePayload.Name r1 =>
+          if idx_kind = 1#u8
+          then
+            let i1 ← ni + 1#usize
+            ok (core.result.Result.Ok (frontend.scan_types.LineRec.Name idx r1,
+              i1))
+          else
+            frontend.scan_fast.err frontend.scan_types.LineRec ni
+              frontend.scan_types.ErrTag.MixedKeys
+        | frontend.scan_fast.LinePayload.Level r1 =>
+          if idx_kind = 2#u8
+          then
+            let i1 ← ni + 1#usize
+            ok (core.result.Result.Ok (frontend.scan_types.LineRec.Level idx
+              r1, i1))
+          else
+            frontend.scan_fast.err frontend.scan_types.LineRec ni
+              frontend.scan_types.ErrTag.MixedKeys
+        | frontend.scan_fast.LinePayload.Expr r1 =>
+          if idx_kind = 3#u8
+          then
+            let i1 ← ni + 1#usize
+            ok (core.result.Result.Ok (frontend.scan_types.LineRec.Expr idx r1,
+              i1))
+          else
+            frontend.scan_fast.err frontend.scan_types.LineRec ni
+              frontend.scan_types.ErrTag.MixedKeys
+        | frontend.scan_fast.LinePayload.Decl d =>
+          if idx_kind = 0#u8
+          then
+            let i1 ← ni + 1#usize
+            ok (core.result.Result.Ok (frontend.scan_types.LineRec.Decl d, i1))
+          else
+            frontend.scan_fast.err frontend.scan_types.LineRec ni
+              frontend.scan_types.ErrTag.MixedKeys
+        | frontend.scan_fast.LinePayload.Header =>
+          if idx_kind = 0#u8
+          then
+            let i1 ← ni + 1#usize
+            ok (core.result.Result.Ok (frontend.scan_types.LineRec.Header, i1))
+          else
+            frontend.scan_fast.err frontend.scan_types.LineRec ni
+              frontend.scan_types.ErrTag.MixedKeys
+    | frontend.scan_fast.Member.Key k ks v =>
+      match k with
+      | frontend.scan_types.Key.KUnknown =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAll =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KApp =>
+        let b1 ← frontend.scan_fast.line_payload_is_absent pl
+        if b1
+        then
+          let r1 ← frontend.scan_fast.scan_app_expr b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (r2, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+                (frontend.scan_fast.LinePayload.Expr r2)
+            else
+              frontend.scan_fast.err frontend.scan_types.LineRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+        else
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+      | frontend.scan_types.Key.KArg =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KAxiom =>
+        let b1 ← frontend.scan_fast.line_payload_is_absent pl
+        if b1
+        then
+          let r1 ← frontend.scan_fast.scan_axiom_decl b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (d, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+                (frontend.scan_fast.LinePayload.Decl d)
+            else
+              frontend.scan_fast.err frontend.scan_types.LineRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+        else
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+      | frontend.scan_types.Key.KBinderInfo =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBody =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KBvar =>
+        let b1 ← frontend.scan_fast.line_payload_is_absent pl
+        if b1
+        then
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (n, e) := p1
+            frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+              (frontend.scan_fast.LinePayload.Expr
+              (frontend.scan_types.ExprRec.Bvar n))
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+        else
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+      | frontend.scan_types.Key.KCidx =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KConst =>
+        let b1 ← frontend.scan_fast.line_payload_is_absent pl
+        if b1
+        then
+          let r1 ← frontend.scan_fast.scan_const_expr b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (r2, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+                (frontend.scan_fast.LinePayload.Expr r2)
+            else
+              frontend.scan_fast.err frontend.scan_types.LineRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+        else
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+      | frontend.scan_types.Key.KCtor =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KCtors =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KDef =>
+        let b1 ← frontend.scan_fast.line_payload_is_absent pl
+        if b1
+        then
+          let r1 ← frontend.scan_fast.scan_def_decl b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (d, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+                (frontend.scan_fast.LinePayload.Decl d)
+            else
+              frontend.scan_fast.err frontend.scan_types.LineRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+        else
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+      | frontend.scan_types.Key.KFn =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KForallE =>
+        let b1 ← frontend.scan_fast.line_payload_is_absent pl
+        if b1
+        then
+          let r1 ← frontend.scan_fast.scan_forall_expr b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (r2, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+                (frontend.scan_fast.LinePayload.Expr r2)
+            else
+              frontend.scan_fast.err frontend.scan_types.LineRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+        else
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+      | frontend.scan_types.Key.KHints =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KI =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIdx =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIe =>
+        if idx_kind != 0#u8
+        then
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (n, e) := p1
+            frontend.scan_fast.scan_line_loop_loop false b e 3#u8 n pl
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KIl =>
+        if idx_kind != 0#u8
+        then
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (n, e) := p1
+            frontend.scan_fast.scan_line_loop_loop false b e 2#u8 n pl
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KImax =>
+        let b1 ← frontend.scan_fast.line_payload_is_absent pl
+        if b1
+        then
+          let r1 ← frontend.scan_fast.scan_nat_list b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (us, e) := p1
+            let i1 := alloc.vec.Vec.len us
+            if i1 != 2#usize
+            then
+              frontend.scan_fast.err frontend.scan_types.LineRec v
+                frontend.scan_types.ErrTag.ExpectedList
+            else
+              let b2 ← frontend.scan_fast.prog ks e
+              if b2
+              then
+                let b3 ←
+                  frontend.scan_types.key_beq frontend.scan_types.Key.KImax
+                    frontend.scan_types.Key.KMax
+                if b3
+                then
+                  let i2 ←
+                    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                      Std.U64) us 0#usize
+                  let i3 ←
+                    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                      Std.U64) us 1#usize
+                  frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+                    (frontend.scan_fast.LinePayload.Level
+                    (frontend.scan_types.LevelRec.Max i2 i3))
+                else
+                  let i2 ←
+                    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                      Std.U64) us 0#usize
+                  let i3 ←
+                    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                      Std.U64) us 1#usize
+                  frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+                    (frontend.scan_fast.LinePayload.Level
+                    (frontend.scan_types.LevelRec.Imax i2 i3))
+              else
+                frontend.scan_fast.err frontend.scan_types.LineRec ks
+                  frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+        else
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+      | frontend.scan_types.Key.KIn =>
+        if idx_kind != 0#u8
+        then
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+        else
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (n, e) := p1
+            frontend.scan_fast.scan_line_loop_loop false b e 1#u8 n pl
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+      | frontend.scan_types.Key.KInduct =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KInductive =>
+        let b1 ← frontend.scan_fast.line_payload_is_absent pl
+        if b1
+        then
+          let r1 ← frontend.scan_fast.scan_ind_decl b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (d, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+                (frontend.scan_fast.LinePayload.Decl d)
+            else
+              frontend.scan_fast.err frontend.scan_types.LineRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+        else
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+      | frontend.scan_types.Key.KIsRec =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsReflexive =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KIsUnsafe =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KK =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KKind =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KLam =>
+        let b1 ← frontend.scan_fast.line_payload_is_absent pl
+        if b1
+        then
+          let r1 ← frontend.scan_fast.scan_lam_expr b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (r2, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+                (frontend.scan_fast.LinePayload.Expr r2)
+            else
+              frontend.scan_fast.err frontend.scan_types.LineRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+        else
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+      | frontend.scan_types.Key.KLetE =>
+        let b1 ← frontend.scan_fast.line_payload_is_absent pl
+        if b1
+        then
+          let r1 ← frontend.scan_fast.scan_let_expr b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (r2, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+                (frontend.scan_fast.LinePayload.Expr r2)
+            else
+              frontend.scan_fast.err frontend.scan_types.LineRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+        else
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+      | frontend.scan_types.Key.KLevelParams =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KMax =>
+        let b1 ← frontend.scan_fast.line_payload_is_absent pl
+        if b1
+        then
+          let r1 ← frontend.scan_fast.scan_nat_list b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (us, e) := p1
+            let i1 := alloc.vec.Vec.len us
+            if i1 != 2#usize
+            then
+              frontend.scan_fast.err frontend.scan_types.LineRec v
+                frontend.scan_types.ErrTag.ExpectedList
+            else
+              let b2 ← frontend.scan_fast.prog ks e
+              if b2
+              then
+                let b3 ←
+                  frontend.scan_types.key_beq frontend.scan_types.Key.KMax
+                    frontend.scan_types.Key.KMax
+                if b3
+                then
+                  let i2 ←
+                    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                      Std.U64) us 0#usize
+                  let i3 ←
+                    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                      Std.U64) us 1#usize
+                  frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+                    (frontend.scan_fast.LinePayload.Level
+                    (frontend.scan_types.LevelRec.Max i2 i3))
+                else
+                  let i2 ←
+                    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                      Std.U64) us 0#usize
+                  let i3 ←
+                    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                      Std.U64) us 1#usize
+                  frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+                    (frontend.scan_fast.LinePayload.Level
+                    (frontend.scan_types.LevelRec.Imax i2 i3))
+              else
+                frontend.scan_fast.err frontend.scan_types.LineRec ks
+                  frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+        else
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+      | frontend.scan_types.Key.KMeta =>
+        let b1 ← frontend.scan_fast.line_payload_is_absent pl
+        if b1
+        then
+          let i1 ← frontend.scan_fast.byte_at b v
+          if i1 != 123#u8
+          then
+            frontend.scan_fast.err frontend.scan_types.LineRec v
+              frontend.scan_types.ErrTag.ExpectedObject
+          else
+            let i2 ← v + 1#usize
+            let e ← frontend.scan_fast.skip_braced b i2 0#u64
+            if e = 0#usize
+            then
+              frontend.scan_fast.err frontend.scan_types.LineRec v
+                frontend.scan_types.ErrTag.ExpectedObject
+            else
+              let b2 ← frontend.scan_fast.prog ks e
+              if b2
+              then
+                frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+                  frontend.scan_fast.LinePayload.Header
+              else
+                frontend.scan_fast.err frontend.scan_types.LineRec ks
+                  frontend.scan_types.ErrTag.NoProgress
+        else
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+      | frontend.scan_types.Key.KName =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNatVal =>
+        let b1 ← frontend.scan_fast.line_payload_is_absent pl
+        if b1
+        then
+          let r1 ← frontend.scan_fast.scan_quoted_nat b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (n, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+                (frontend.scan_fast.LinePayload.Expr
+                (frontend.scan_types.ExprRec.NatVal n))
+            else
+              frontend.scan_fast.err frontend.scan_types.LineRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+        else
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+      | frontend.scan_types.Key.KNfields =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNondep =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNum =>
+        let b1 ← frontend.scan_fast.line_payload_is_absent pl
+        if b1
+        then
+          let b2 ←
+            frontend.scan_types.key_beq frontend.scan_types.Key.KNum
+              frontend.scan_types.Key.KStr
+          if b2
+          then
+            let r1 ← frontend.scan_fast.scan_str_name b v
+            match r1 with
+            | core.result.Result.Ok p1 =>
+              let (r2, e) := p1
+              let b3 ← frontend.scan_fast.prog ks e
+              if b3
+              then
+                frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+                  (frontend.scan_fast.LinePayload.Name r2)
+              else
+                frontend.scan_fast.err frontend.scan_types.LineRec ks
+                  frontend.scan_types.ErrTag.NoProgress
+            | core.result.Result.Err er => ok (core.result.Result.Err er)
+          else
+            let r1 ← frontend.scan_fast.scan_num_name b v
+            match r1 with
+            | core.result.Result.Ok p1 =>
+              let (r2, e) := p1
+              let b3 ← frontend.scan_fast.prog ks e
+              if b3
+              then
+                frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+                  (frontend.scan_fast.LinePayload.Name r2)
+              else
+                frontend.scan_fast.err frontend.scan_types.LineRec ks
+                  frontend.scan_types.ErrTag.NoProgress
+            | core.result.Result.Err er => ok (core.result.Result.Err er)
+        else
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+      | frontend.scan_types.Key.KNumFields =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumIndices =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMinors =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumMotives =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumNested =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KNumParams =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KOpaque =>
+        let b1 ← frontend.scan_fast.line_payload_is_absent pl
+        if b1
+        then
+          let r1 ← frontend.scan_fast.scan_opaque_decl b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (d, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+                (frontend.scan_fast.LinePayload.Decl d)
+            else
+              frontend.scan_fast.err frontend.scan_types.LineRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+        else
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+      | frontend.scan_types.Key.KParam =>
+        let b1 ← frontend.scan_fast.line_payload_is_absent pl
+        if b1
+        then
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (n, e) := p1
+            frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+              (frontend.scan_fast.LinePayload.Level
+              (frontend.scan_types.LevelRec.Param n))
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+        else
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+      | frontend.scan_types.Key.KPre =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KProj =>
+        let b1 ← frontend.scan_fast.line_payload_is_absent pl
+        if b1
+        then
+          let r1 ← frontend.scan_fast.scan_proj_expr b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (r2, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+                (frontend.scan_fast.LinePayload.Expr r2)
+            else
+              frontend.scan_fast.err frontend.scan_types.LineRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+        else
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+      | frontend.scan_types.Key.KPw =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KQuot =>
+        let b1 ← frontend.scan_fast.line_payload_is_absent pl
+        if b1
+        then
+          let r1 ← frontend.scan_fast.scan_quot_decl b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (d, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+                (frontend.scan_fast.LinePayload.Decl d)
+            else
+              frontend.scan_fast.err frontend.scan_types.LineRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+        else
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+      | frontend.scan_types.Key.KRecs =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRegular =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRhs =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KRules =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSafety =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSort =>
+        let b1 ← frontend.scan_fast.line_payload_is_absent pl
+        if b1
+        then
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (n, e) := p1
+            frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+              (frontend.scan_fast.LinePayload.Expr
+              (frontend.scan_types.ExprRec.Sort n))
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+        else
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+      | frontend.scan_types.Key.KStr =>
+        let b1 ← frontend.scan_fast.line_payload_is_absent pl
+        if b1
+        then
+          let b2 ←
+            frontend.scan_types.key_beq frontend.scan_types.Key.KStr
+              frontend.scan_types.Key.KStr
+          if b2
+          then
+            let r1 ← frontend.scan_fast.scan_str_name b v
+            match r1 with
+            | core.result.Result.Ok p1 =>
+              let (r2, e) := p1
+              let b3 ← frontend.scan_fast.prog ks e
+              if b3
+              then
+                frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+                  (frontend.scan_fast.LinePayload.Name r2)
+              else
+                frontend.scan_fast.err frontend.scan_types.LineRec ks
+                  frontend.scan_types.ErrTag.NoProgress
+            | core.result.Result.Err er => ok (core.result.Result.Err er)
+          else
+            let r1 ← frontend.scan_fast.scan_num_name b v
+            match r1 with
+            | core.result.Result.Ok p1 =>
+              let (r2, e) := p1
+              let b3 ← frontend.scan_fast.prog ks e
+              if b3
+              then
+                frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+                  (frontend.scan_fast.LinePayload.Name r2)
+              else
+                frontend.scan_fast.err frontend.scan_types.LineRec ks
+                  frontend.scan_types.ErrTag.NoProgress
+            | core.result.Result.Err er => ok (core.result.Result.Err er)
+        else
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+      | frontend.scan_types.Key.KStrVal =>
+        let b1 ← frontend.scan_fast.line_payload_is_absent pl
+        if b1
+        then
+          let r1 ← frontend.scan_fast.scan_string b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (s, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+                (frontend.scan_fast.LinePayload.Expr
+                (frontend.scan_types.ExprRec.StrVal s))
+            else
+              frontend.scan_fast.err frontend.scan_types.LineRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+        else
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+      | frontend.scan_types.Key.KStruct =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KSucc =>
+        let b1 ← frontend.scan_fast.line_payload_is_absent pl
+        if b1
+        then
+          let r1 ← frontend.scan_fast.slot_nat b ks v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (n, e) := p1
+            frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+              (frontend.scan_fast.LinePayload.Level
+              (frontend.scan_types.LevelRec.Succ n))
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+        else
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+      | frontend.scan_types.Key.KThm =>
+        let b1 ← frontend.scan_fast.line_payload_is_absent pl
+        if b1
+        then
+          let r1 ← frontend.scan_fast.scan_thm_decl b v
+          match r1 with
+          | core.result.Result.Ok p1 =>
+            let (d, e) := p1
+            let b2 ← frontend.scan_fast.prog ks e
+            if b2
+            then
+              frontend.scan_fast.scan_line_loop_loop false b e idx_kind idx
+                (frontend.scan_fast.LinePayload.Decl d)
+            else
+              frontend.scan_fast.err frontend.scan_types.LineRec ks
+                frontend.scan_types.ErrTag.NoProgress
+          | core.result.Result.Err er => ok (core.result.Result.Err er)
+        else
+          frontend.scan_fast.err frontend.scan_types.LineRec ks
+            frontend.scan_types.ErrTag.DuplicateKey
+      | frontend.scan_types.Key.KType =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KTypeName =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KTypes =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KUs =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+      | frontend.scan_types.Key.KValue =>
+        frontend.scan_fast.err frontend.scan_types.LineRec ks
+          frontend.scan_types.ErrTag.UnknownKey
+  | core.result.Result.Err er => ok (core.result.Result.Err er)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::scan_line_loop]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3810:0-4077:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.scan_line_loop
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.LineRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  frontend.scan_fast.scan_line_loop_loop true b i 0#u8 0#u64
+    frontend.scan_fast.LinePayload.Absent
+
+/-- [con_ron_core::frontend::scan_fast::scan_line_fwd]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 4087:0-4110:1
+    Visibility: public -/
+def frontend.scan_fast.scan_line_fwd
+  (b : Slice Std.U8) (i : Std.Usize) :
+  Result (core.result.Result (frontend.scan_types.LineRec × Std.Usize)
+    frontend.scan_types.ScanErr)
+  := do
+  let s ← frontend.scan_fast.skip_ws b i
+  let i1 ← frontend.scan_fast.byte_at b s
+  if i1 = 10#u8
+  then
+    let i2 ← s + 1#usize
+    ok (core.result.Result.Ok (frontend.scan_types.LineRec.Blank, i2))
+  else
+    let i2 := Slice.len b
+    if i2 <= s
+    then
+      ok (core.result.Result.Ok (frontend.scan_types.LineRec.Blank, 0#usize))
+    else
+      if i1 != 123#u8
+      then
+        frontend.scan_fast.err frontend.scan_types.LineRec s
+          frontend.scan_types.ErrTag.ExpectedObject
+      else
+        let i3 ← s + 1#usize
+        let r ← frontend.scan_fast.scan_line_loop b i3
+        match r with
+        | core.result.Result.Ok p =>
+          let (r1, j) := p
+          let p1 ← frontend.scan_fast.skip_ws b j
+          let i4 ← frontend.scan_fast.byte_at b p1
+          if i4 = 10#u8
+          then let i5 ← p1 + 1#usize
+               ok (core.result.Result.Ok (r1, i5))
+          else
+            let i5 := Slice.len b
+            if i5 <= p1
+            then ok (core.result.Result.Ok (r1, 0#usize))
+            else
+              frontend.scan_fast.err frontend.scan_types.LineRec p1
+                frontend.scan_types.ErrTag.Trailing
+        | core.result.Result.Err _ => ok r
+
+/-- [con_ron_core::frontend::export_c::apply_final_line]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2433:0-2453:1
+    Visibility: public -/
+def frontend.export_c.apply_final_line
+  {G : Type} (in_model_recModellerInst : frontend.in_model_rec.Modeller G)
+  (m : G) (st : frontend.export_c.StateD) (b : Slice Std.U8) (i : Std.Usize)
+  (line_no : Std.U64) :
+  Result ((core.result.Result Unit (kernel.core_types.CheckError × Std.U64))
+    × frontend.export_c.StateD)
+  := do
+  let r ← frontend.scan_fast.scan_line_fwd b i
+  match r with
+  | core.result.Result.Ok p =>
+    let (r1, _) := p
+    let (r2, st1) ←
+      frontend.export_c.apply_line in_model_recModellerInst m st r1
+    match r2 with
+    | core.result.Result.Ok _ => ok (core.result.Result.Ok (), st1)
+    | core.result.Result.Err e =>
+      let p1 ← frontend.export_c.line_err_to_check e line_no
+      ok (core.result.Result.Err p1, st1)
+  | core.result.Result.Err e =>
+    let i1 ← frontend.export_c.rel_offset e.offset i
+    let v ← frontend.scan_types.scan_err_render { e with offset := i1 }
+    let ce ← kernel.core_types.internal v
+    ok (core.result.Result.Err (ce, line_no), st)
+
+/-- [con_ron_core::frontend::scan_fast::newline_from]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 4117:4-4124:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.scan_fast.newline_from_loop
+  (b : Slice Std.U8) (k : Std.Usize) : Result Bool := do
+  let i := Slice.len b
+  if k < i
+  then
+    let i1 ← Slice.index_usize b k
+    if i1 = 10#u8
+    then ok true
+    else let k1 ← k + 1#usize
+         frontend.scan_fast.newline_from_loop b k1
+  else ok false
+partial_fixpoint
+
+/-- [con_ron_core::frontend::scan_fast::newline_from]:
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 4115:0-4124:1
+    Visibility: public -/
+@[reducible]
+def frontend.scan_fast.newline_from
+  (b : Slice Std.U8) (i : Std.Usize) : Result Bool := do
+  frontend.scan_fast.newline_from_loop b i
+
+/-- [con_ron_core::frontend::export_c::feed_chunk::NOPROG]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2495:20-2499:22 -/
+@[global_simps, irreducible]
+def frontend.export_c.feed_chunk.NOPROG : Array Std.U32 33#usize :=
+  Array.make 33#usize [
+    116#u32, 104#u32, 101#u32, 32#u32, 108#u32, 105#u32, 110#u32, 101#u32,
+    32#u32, 115#u32, 99#u32, 97#u32, 110#u32, 110#u32, 101#u32, 114#u32,
+    32#u32, 109#u32, 97#u32, 100#u32, 101#u32, 32#u32, 110#u32, 111#u32,
+    32#u32, 112#u32, 114#u32, 111#u32, 103#u32, 114#u32, 101#u32, 115#u32,
+    115#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::feed_chunk]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2470:4-2511:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.feed_chunk_loop
+  {G : Type} (in_model_recModellerInst : frontend.in_model_rec.Modeller G)
+  (m : G) (st : frontend.export_c.StateD) (b : Slice Std.U8) (i : Std.Usize)
+  (line_no : Std.U64) :
+  Result ((core.result.Result (Std.U64 × Std.Usize)
+    (kernel.core_types.CheckError × Std.U64)) × frontend.export_c.StateD)
+  := do
+  let i1 := Slice.len b
+  if i < i1
+  then
+    let r ← frontend.scan_fast.scan_line_fwd b i
+    match r with
+    | core.result.Result.Ok p =>
+      let (r1, j) := p
+      if j = 0#usize
+      then ok (core.result.Result.Ok (line_no, i), st)
+      else
+        let (r2, st1) ←
+          frontend.export_c.apply_line in_model_recModellerInst m st r1
+        match r2 with
+        | core.result.Result.Ok _ =>
+          if i >= j
+          then
+            let s ← lift (Array.to_slice frontend.export_c.feed_chunk.NOPROG)
+            let v ← kernel.core_types.code_points s
+            let ce ← kernel.core_types.internal v
+            let i2 ← line_no + 1#u64
+            ok (core.result.Result.Err (ce, i2), st1)
+          else
+            let line_no1 ← line_no + 1#u64
+            frontend.export_c.feed_chunk_loop in_model_recModellerInst m st1 b
+              j line_no1
+        | core.result.Result.Err e =>
+          let i2 ← line_no + 1#u64
+          let p1 ← frontend.export_c.line_err_to_check e i2
+          ok (core.result.Result.Err p1, st1)
+    | core.result.Result.Err e =>
+      let b1 ← frontend.scan_fast.newline_from b i
+      if b1
+      then
+        let i2 ← frontend.export_c.rel_offset e.offset i
+        let v ← frontend.scan_types.scan_err_render { e with offset := i2 }
+        let ce ← kernel.core_types.internal v
+        let i3 ← line_no + 1#u64
+        ok (core.result.Result.Err (ce, i3), st)
+      else ok (core.result.Result.Ok (line_no, i), st)
+  else ok (core.result.Result.Ok (line_no, i), st)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::feed_chunk]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2461:0-2511:1
+    Visibility: public -/
+@[reducible]
+def frontend.export_c.feed_chunk
+  {G : Type} (in_model_recModellerInst : frontend.in_model_rec.Modeller G)
+  (m : G) (st : frontend.export_c.StateD) (b : Slice Std.U8) (i : Std.Usize)
+  (line_no : Std.U64) :
+  Result ((core.result.Result (Std.U64 × Std.Usize)
+    (kernel.core_types.CheckError × Std.U64)) × frontend.export_c.StateD)
+  := do
+  frontend.export_c.feed_chunk_loop in_model_recModellerInst m st b i line_no
+
+/-- [con_ron_core::frontend::export_c::CHUNK_SIZE]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2515:0-2515:46
+    Visibility: public -/
+@[global_simps, irreducible]
+def frontend.export_c.CHUNK_SIZE : Result Std.Usize := do
+  let i ← 4#usize * 1024#usize
+  i * 1024#usize
+
+/-- [con_ron_core::frontend::export_c::USIZE_SIZE]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2520:0-2520:50
+    Visibility: public -/
+@[global_simps, irreducible]
+def frontend.export_c.USIZE_SIZE : Result Std.U128 :=
+  1#u128 <<< core.num.Usize.BITS
+
+/-- [con_ron_core::frontend::export_c::size_error::M]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2538:4-2541:6 -/
+@[global_simps, irreducible]
+def frontend.export_c.size_error.M : Array Std.U32 36#usize :=
+  Array.make 36#usize [
+    97#u32, 110#u32, 32#u32, 105#u32, 110#u32, 112#u32, 117#u32, 116#u32,
+    32#u32, 111#u32, 102#u32, 32#u32, 85#u32, 83#u32, 105#u32, 122#u32,
+    101#u32, 46#u32, 115#u32, 105#u32, 122#u32, 101#u32, 32#u32, 98#u32,
+    121#u32, 116#u32, 101#u32, 115#u32, 32#u32, 111#u32, 114#u32, 32#u32,
+    109#u32, 111#u32, 114#u32, 101#u32
+    ]
+
+/-- [con_ron_core::frontend::export_c::size_error]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2537:0-2543:1
+    Visibility: public -/
+def frontend.export_c.size_error
+  : Result (kernel.core_types.CheckError × Std.U64) := do
+  let s ← lift (Array.to_slice frontend.export_c.size_error.M)
+  let v ← kernel.core_types.code_points s
+  let ce ← kernel.core_types.not_implemented v
+  ok (ce, 0#u64)
+
+/-- [con_ron_core::frontend::export_c::parse_bytes_final]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2572:0-2587:1
+    Visibility: public -/
+def frontend.export_c.parse_bytes_final
+  {G : Type} (in_model_recModellerInst : frontend.in_model_rec.Modeller G)
+  (m : G) (st : frontend.export_c.StateD) (b : Slice Std.U8) (tail : Std.Usize)
+  (line_no : Std.U64) :
+  Result (core.result.Result frontend.export_c.ParseResultD
+    (kernel.core_types.CheckError × Std.U64))
+  := do
+  let i := Slice.len b
+  if tail < i
+  then
+    let i1 ← line_no + 1#u64
+    let (r, st1) ←
+      frontend.export_c.apply_final_line in_model_recModellerInst m st b tail
+        i1
+    match r with
+    | core.result.Result.Ok _ =>
+      let prd ← frontend.export_c.parse_result_of_state st1
+      ok (core.result.Result.Ok prd)
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  else
+    let prd ← frontend.export_c.parse_result_of_state st
+    ok (core.result.Result.Ok prd)
+
+/-- [con_ron_core::frontend::export_c::parse_bytes]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2554:0-2568:1
+    Visibility: public -/
+def frontend.export_c.parse_bytes
+  {G : Type} (in_model_recModellerInst : frontend.in_model_rec.Modeller G)
+  (m : G) (b : Slice Std.U8) (in_model : Bool) (census : Bool) :
+  Result (core.result.Result frontend.export_c.ParseResultD
+    (kernel.core_types.CheckError × Std.U64))
+  := do
+  let i := Slice.len b
+  let i1 ← lift (UScalar.cast .U128 i)
+  let i2 ← frontend.export_c.USIZE_SIZE
+  if i1 >= i2
+  then let p ← frontend.export_c.size_error
+       ok (core.result.Result.Err p)
+  else
+    let st ← frontend.export_c.state_d_init in_model census
+    let (r, st1) ←
+      frontend.export_c.feed_chunk in_model_recModellerInst m st b 0#usize
+        0#u64
+    match r with
+    | core.result.Result.Ok p =>
+      let (line_no, tail) := p
+      frontend.export_c.parse_bytes_final in_model_recModellerInst m st1 b tail
+        line_no
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+
+/-- [con_ron_core::frontend::export_c::parse_export_d]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2595:0-2602:1
+    Visibility: public -/
+def frontend.export_c.parse_export_d
+  {G : Type} (in_model_recModellerInst : frontend.in_model_rec.Modeller G)
+  (m : G) (contents : Str) (in_model : Bool) (census : Bool) :
+  Result (core.result.Result frontend.export_c.ParseResultD
+    (kernel.core_types.CheckError × Std.U64))
+  := do
+  let s ← core.str.Str.as_bytes contents
+  frontend.export_c.parse_bytes in_model_recModellerInst m s in_model census
+
+/-- [con_ron_core::frontend::export_c::chunk_step]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2612:0-2638:1
+    Visibility: public -/
+def frontend.export_c.chunk_step
+  {G : Type} (in_model_recModellerInst : frontend.in_model_rec.Modeller G)
+  (m : G) (st : frontend.export_c.StateD) (carry : alloc.vec.Vec Std.U8)
+  (line_no : Std.U64) (total : Std.U64) (buf0 : Slice Std.U8) :
+  Result ((core.result.Result ((alloc.vec.Vec Std.U8) × Std.U64 × Std.U64)
+    (kernel.core_types.CheckError × Std.U64)) × frontend.export_c.StateD)
+  := do
+  let i ← lift (UScalar.cast .U128 total)
+  let i1 := Slice.len buf0
+  let i2 ← lift (UScalar.cast .U128 i1)
+  let i3 ← i + i2
+  let i4 ← frontend.export_c.USIZE_SIZE
+  if i3 >= i4
+  then let p ← frontend.export_c.size_error
+       ok (core.result.Result.Err p, st)
+  else
+    let i5 := alloc.vec.Vec.len carry
+    let buf ←
+      if i5 = 0#usize
+      then alloc.slice.Slice.to_vec core.clone.CloneU8 buf0
+      else alloc.vec.Vec.extend_from_slice core.clone.CloneU8 carry buf0
+    let s ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexRangeFullSlice Std.U8)
+        buf ()
+    let (r, st1) ←
+      frontend.export_c.feed_chunk in_model_recModellerInst m st s 0#usize
+        line_no
+    match r with
+    | core.result.Result.Ok p =>
+      let (line_no2, tail) := p
+      let s1 ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexRangeFromUsizeSlice
+          Std.U8) buf { start := tail }
+      let v ← alloc.slice.Slice.to_vec core.clone.CloneU8 s1
+      let i6 := Slice.len buf0
+      let i7 ← lift (UScalar.cast .U64 i6)
+      let i8 ← total + i7
+      ok (core.result.Result.Ok (v, line_no2, i8), st1)
+    | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
+
+/-- [con_ron_core::frontend::export_c::chunk_finish]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2642:0-2656:1
+    Visibility: public -/
+def frontend.export_c.chunk_finish
+  {G : Type} (in_model_recModellerInst : frontend.in_model_rec.Modeller G)
+  (m : G) (st : frontend.export_c.StateD) (carry : Slice Std.U8)
+  (line_no : Std.U64) :
+  Result (core.result.Result frontend.export_c.ParseResultD
+    (kernel.core_types.CheckError × Std.U64))
+  := do
+  let i := Slice.len carry
+  if i = 0#usize
+  then
+    let prd ← frontend.export_c.parse_result_of_state st
+    ok (core.result.Result.Ok prd)
+  else
+    let i1 ← line_no + 1#u64
+    let (r, st1) ←
+      frontend.export_c.apply_final_line in_model_recModellerInst m st carry
+        0#usize i1
+    match r with
+    | core.result.Result.Ok _ =>
+      let prd ← frontend.export_c.parse_result_of_state st1
+      ok (core.result.Result.Ok prd)
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+
+/-- [con_ron_core::frontend::export_c::concat_bytes]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2665:4-2668:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.concat_bytes_loop
+  (chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)) (out : alloc.vec.Vec Std.U8)
+  (n : Std.Usize) (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  if i < n
+  then
+    let v ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
+        Std.U8)) chunks i
+    let s ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexRangeFullSlice Std.U8) v
+        ()
+    let out1 ← alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out s
+    let i1 ← i + 1#usize
+    frontend.export_c.concat_bytes_loop chunks out1 n i1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::concat_bytes]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2661:0-2670:1
+    Visibility: public -/
+def frontend.export_c.concat_bytes
+  (chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let n := alloc.vec.Vec.len chunks
+  frontend.export_c.concat_bytes_loop chunks (alloc.vec.Vec.new Std.U8) n
+    0#usize
+
+/-- [con_ron_core::frontend::export_c::parse_chunks]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2693:4-2705:1
+    Visibility: public -/
+@[rust_loop]
+def frontend.export_c.parse_chunks_loop
+  {G : Type} (in_model_recModellerInst : frontend.in_model_rec.Modeller G)
+  (m : G) (chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8))
+  (st : frontend.export_c.StateD) (carry : alloc.vec.Vec Std.U8)
+  (line_no : Std.U64) (total : Std.U64) (n : Std.Usize) (i : Std.Usize) :
+  Result (core.result.Result frontend.export_c.ParseResultD
+    (kernel.core_types.CheckError × Std.U64))
+  := do
+  if i < n
+  then
+    let v ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
+        Std.U8)) chunks i
+    let s ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexRangeFullSlice Std.U8) v
+        ()
+    let (r, st1) ←
+      frontend.export_c.chunk_step in_model_recModellerInst m st carry line_no
+        total s
+    match r with
+    | core.result.Result.Ok t =>
+      let (c2, l, t1) := t
+      let i1 ← i + 1#usize
+      frontend.export_c.parse_chunks_loop in_model_recModellerInst m chunks st1
+        c2 l t1 n i1
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  else
+    let s ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexRangeFullSlice Std.U8)
+        carry ()
+    frontend.export_c.chunk_finish in_model_recModellerInst m st s line_no
+partial_fixpoint
+
+/-- [con_ron_core::frontend::export_c::parse_chunks]:
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2681:0-2705:1
+    Visibility: public -/
+def frontend.export_c.parse_chunks
+  {G : Type} (in_model_recModellerInst : frontend.in_model_rec.Modeller G)
+  (m : G) (chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)) (in_model : Bool)
+  (census : Bool) :
+  Result (core.result.Result frontend.export_c.ParseResultD
+    (kernel.core_types.CheckError × Std.U64))
+  := do
+  let st ← frontend.export_c.state_d_init in_model census
+  let n := alloc.vec.Vec.len chunks
+  frontend.export_c.parse_chunks_loop in_model_recModellerInst m chunks st
+    (alloc.vec.Vec.new Std.U8) 0#u64 0#u64 n 0#usize
+
+/-- [con_ron_core::frontend::in_model_rec::ind_type_rec_dup]:
+    Source: 'crates/con-ron-core/src/frontend/in_model_rec.rs', lines 60:0-70:1
+    Visibility: public -/
+def frontend.in_model_rec.ind_type_rec_dup
+  (t : frontend.in_model_rec.IndTypeRec) :
+  Result frontend.in_model_rec.IndTypeRec
+  := do
+  let cv ← kernel.env.constant_val_dup t.cv
+  let v ← kernel.prop_when.names_copy t.ctors
+  ok { t with cv, ctors := v }
+
+/-- [con_ron_core::frontend::in_model_rec::ind_ctor_rec_dup]:
+    Source: 'crates/con-ron-core/src/frontend/in_model_rec.rs', lines 81:0-87:1
+    Visibility: public -/
+def frontend.in_model_rec.ind_ctor_rec_dup
+  (c : frontend.in_model_rec.IndCtorRec) :
+  Result frontend.in_model_rec.IndCtorRec
+  := do
+  let cv ← kernel.env.constant_val_dup c.cv
+  ok { c with cv }
+
+/-- [con_ron_core::frontend::in_model_rec::rec_rules_dup]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/in_model_rec.rs', lines 138:4-141:5 -/
+@[rust_loop]
+def frontend.in_model_rec.rec_rules_dup_loop
+  (rs : alloc.vec.Vec kernel.env.RecRule)
+  (out : alloc.vec.Vec kernel.env.RecRule) (n : Std.Usize) (i : Std.Usize) :
+  Result (alloc.vec.Vec kernel.env.RecRule)
+  := do
+  if i < n
+  then
+    let rr ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.env.RecRule) rs i
+    let rr1 ← kernel.env.rec_rule_dup rr
+    let out1 ← alloc.vec.Vec.push out rr1
+    let i1 ← i + 1#usize
+    frontend.in_model_rec.rec_rules_dup_loop rs out1 n i1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::in_model_rec::rec_rules_dup]:
+    Source: 'crates/con-ron-core/src/frontend/in_model_rec.rs', lines 134:0-143:1 -/
+def frontend.in_model_rec.rec_rules_dup
+  (rs : alloc.vec.Vec kernel.env.RecRule) :
+  Result (alloc.vec.Vec kernel.env.RecRule)
+  := do
+  let i := alloc.vec.Vec.len rs
+  let out := alloc.vec.Vec.with_capacity kernel.env.RecRule i
+  let n := alloc.vec.Vec.len rs
+  frontend.in_model_rec.rec_rules_dup_loop rs out n 0#usize
+
+/-- [con_ron_core::frontend::in_model_rec::ind_rec_rec_dup]:
+    Source: 'crates/con-ron-core/src/frontend/in_model_rec.rs', lines 102:0-111:1
+    Visibility: public -/
+def frontend.in_model_rec.ind_rec_rec_dup
+  (r : frontend.in_model_rec.IndRecRec) :
+  Result frontend.in_model_rec.IndRecRec
+  := do
+  let cv ← kernel.env.constant_val_dup r.cv
+  let v ← frontend.in_model_rec.rec_rules_dup r.rules
+  ok { r with cv, rules := v }
+
+/-- [con_ron_core::frontend::in_model_rec::ind_rec_recs_dup]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/in_model_rec.rs', lines 174:4-177:5 -/
+@[rust_loop]
+def frontend.in_model_rec.ind_rec_recs_dup_loop
+  (rs : alloc.vec.Vec frontend.in_model_rec.IndRecRec)
+  (out : alloc.vec.Vec frontend.in_model_rec.IndRecRec) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result (alloc.vec.Vec frontend.in_model_rec.IndRecRec)
+  := do
+  if i < n
+  then
+    let irr ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.in_model_rec.IndRecRec) rs i
+    let irr1 ← frontend.in_model_rec.ind_rec_rec_dup irr
+    let out1 ← alloc.vec.Vec.push out irr1
+    let i1 ← i + 1#usize
+    frontend.in_model_rec.ind_rec_recs_dup_loop rs out1 n i1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::in_model_rec::ind_rec_recs_dup]:
+    Source: 'crates/con-ron-core/src/frontend/in_model_rec.rs', lines 170:0-179:1 -/
+def frontend.in_model_rec.ind_rec_recs_dup
+  (rs : alloc.vec.Vec frontend.in_model_rec.IndRecRec) :
+  Result (alloc.vec.Vec frontend.in_model_rec.IndRecRec)
+  := do
+  let i := alloc.vec.Vec.len rs
+  let out := alloc.vec.Vec.with_capacity frontend.in_model_rec.IndRecRec i
+  let n := alloc.vec.Vec.len rs
+  frontend.in_model_rec.ind_rec_recs_dup_loop rs out n 0#usize
+
+/-- [con_ron_core::frontend::in_model_rec::ind_ctor_recs_dup]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/in_model_rec.rs', lines 162:4-165:5 -/
+@[rust_loop]
+def frontend.in_model_rec.ind_ctor_recs_dup_loop
+  (cs : alloc.vec.Vec frontend.in_model_rec.IndCtorRec)
+  (out : alloc.vec.Vec frontend.in_model_rec.IndCtorRec) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result (alloc.vec.Vec frontend.in_model_rec.IndCtorRec)
+  := do
+  if i < n
+  then
+    let icr ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.in_model_rec.IndCtorRec) cs i
+    let icr1 ← frontend.in_model_rec.ind_ctor_rec_dup icr
+    let out1 ← alloc.vec.Vec.push out icr1
+    let i1 ← i + 1#usize
+    frontend.in_model_rec.ind_ctor_recs_dup_loop cs out1 n i1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::in_model_rec::ind_ctor_recs_dup]:
+    Source: 'crates/con-ron-core/src/frontend/in_model_rec.rs', lines 158:0-167:1 -/
+def frontend.in_model_rec.ind_ctor_recs_dup
+  (cs : alloc.vec.Vec frontend.in_model_rec.IndCtorRec) :
+  Result (alloc.vec.Vec frontend.in_model_rec.IndCtorRec)
+  := do
+  let i := alloc.vec.Vec.len cs
+  let out := alloc.vec.Vec.with_capacity frontend.in_model_rec.IndCtorRec i
+  let n := alloc.vec.Vec.len cs
+  frontend.in_model_rec.ind_ctor_recs_dup_loop cs out n 0#usize
+
+/-- [con_ron_core::frontend::in_model_rec::ind_type_recs_dup]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/in_model_rec.rs', lines 150:4-153:5 -/
+@[rust_loop]
+def frontend.in_model_rec.ind_type_recs_dup_loop
+  (ts : alloc.vec.Vec frontend.in_model_rec.IndTypeRec)
+  (out : alloc.vec.Vec frontend.in_model_rec.IndTypeRec) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result (alloc.vec.Vec frontend.in_model_rec.IndTypeRec)
+  := do
+  if i < n
+  then
+    let itr ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        frontend.in_model_rec.IndTypeRec) ts i
+    let itr1 ← frontend.in_model_rec.ind_type_rec_dup itr
+    let out1 ← alloc.vec.Vec.push out itr1
+    let i1 ← i + 1#usize
+    frontend.in_model_rec.ind_type_recs_dup_loop ts out1 n i1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::in_model_rec::ind_type_recs_dup]:
+    Source: 'crates/con-ron-core/src/frontend/in_model_rec.rs', lines 146:0-155:1 -/
+def frontend.in_model_rec.ind_type_recs_dup
+  (ts : alloc.vec.Vec frontend.in_model_rec.IndTypeRec) :
+  Result (alloc.vec.Vec frontend.in_model_rec.IndTypeRec)
+  := do
+  let i := alloc.vec.Vec.len ts
+  let out := alloc.vec.Vec.with_capacity frontend.in_model_rec.IndTypeRec i
+  let n := alloc.vec.Vec.len ts
+  frontend.in_model_rec.ind_type_recs_dup_loop ts out n 0#usize
+
+/-- [con_ron_core::frontend::in_model_rec::block_rec_dup]:
+    Source: 'crates/con-ron-core/src/frontend/in_model_rec.rs', lines 124:0-130:1
+    Visibility: public -/
+def frontend.in_model_rec.block_rec_dup
+  (b : frontend.in_model_rec.BlockRec) :
+  Result frontend.in_model_rec.BlockRec
+  := do
+  let v ← frontend.in_model_rec.ind_type_recs_dup b.types
+  let v1 ← frontend.in_model_rec.ind_ctor_recs_dup b.ctors
+  let v2 ← frontend.in_model_rec.ind_rec_recs_dup b.recs
+  ok { types := v, ctors := v1, recs := v2 }
+
+/-- [con_ron_core::frontend::in_model_rec::ctx_tbl]:
+    Source: 'crates/con-ron-core/src/frontend/in_model_rec.rs', lines 231:0-236:1
+    Visibility: public -/
+def frontend.in_model_rec.ctx_tbl
+  (ctx : frontend.in_model_rec.ModelCtx) (n : kernel.name.Name) :
+  Result (Option ((alloc.vec.Vec kernel.name.Name) × kernel.expr.Expr))
+  := do
+  let o ←
+    ron.hashmap.HashMap.get
+      kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
+      kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 ctx.tbl n
+  match o with
+  | none => ok none
+  | some e =>
+    let (v, e1) := e
+    let v1 ← kernel.prop_when.names_copy v
+    let e2 ← kernel.expr.dup e1
+    ok (some (v1, e2))
+
+/-- [con_ron_core::frontend::in_model_rec::ctx_height]:
+    Source: 'crates/con-ron-core/src/frontend/in_model_rec.rs', lines 241:0-246:1
+    Visibility: public -/
+def frontend.in_model_rec.ctx_height
+  (ctx : frontend.in_model_rec.ModelCtx) (n : kernel.name.Name) :
+  Result Std.U64
+  := do
+  let o ←
+    ron.hashmap.HashMap.get
+      kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
+      kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 ctx.heights n
+  match o with
+  | none => ok 0#u64
+  | some h => ok h
+
+/-- [con_ron_core::frontend::in_model_rec::ctx_block]:
+    Source: 'crates/con-ron-core/src/frontend/in_model_rec.rs', lines 251:0-256:1
+    Visibility: public -/
+def frontend.in_model_rec.ctx_block
+  (ctx : frontend.in_model_rec.ModelCtx) (n : kernel.name.Name) :
+  Result (Option frontend.in_model_rec.BlockRec)
+  := do
+  let o ←
+    ron.hashmap.HashMap.get
+      kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
+      kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 ctx.blocks n
+  match o with
+  | none => ok none
+  | some p =>
+    let br ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global p
+    ok (some br)
+
+/-- [con_ron_core::frontend::nat_op_ground::block_copy]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 124:0-136:1
+    Visibility: public -/
+def frontend.nat_op_ground.block_copy
+  (block : alloc.vec.Vec kernel.env.ConstantInfo) (i : Std.Usize)
+  (out : alloc.vec.Vec kernel.env.ConstantInfo) :
+  Result (alloc.vec.Vec kernel.env.ConstantInfo)
+  := do
+  let i1 := alloc.vec.Vec.len block
+  if i >= i1
+  then ok out
+  else
+    let ci ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.env.ConstantInfo) block i
+    let ci1 ← kernel.env.constant_info_dup ci
+    let out1 ← alloc.vec.Vec.push out ci1
+    let i2 ← i + 1#usize
+    frontend.nat_op_ground.block_copy block i2 out1
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::declaration_dup]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 97:0-119:1
+    Visibility: public -/
+def frontend.nat_op_ground.declaration_dup
+  (d : kernel.env.Declaration) : Result kernel.env.Declaration := do
+  match d with
+  | kernel.env.Declaration.AxiomDecl cv =>
+    let cv1 ← kernel.env.constant_val_dup cv
+    ok (kernel.env.Declaration.AxiomDecl cv1)
+  | kernel.env.Declaration.DefnDecl cv v h =>
+    let cv1 ← kernel.env.constant_val_dup cv
+    let e ← kernel.expr.dup v
+    let rh ← kernel.env.reducibility_hint_dup h
+    ok (kernel.env.Declaration.DefnDecl cv1 e rh)
+  | kernel.env.Declaration.ThmDecl cv v =>
+    let cv1 ← kernel.env.constant_val_dup cv
+    let e ← kernel.expr.dup v
+    ok (kernel.env.Declaration.ThmDecl cv1 e)
+  | kernel.env.Declaration.OpaqueDecl cv v =>
+    let cv1 ← kernel.env.constant_val_dup cv
+    let e ← kernel.expr.dup v
+    ok (kernel.env.Declaration.OpaqueDecl cv1 e)
+  | kernel.env.Declaration.BasisDecl k =>
+    let bk ← kernel.env.basis_kind_dup k
+    ok (kernel.env.Declaration.BasisDecl bk)
+  | kernel.env.Declaration.IndDecl block n =>
+    let v ←
+      frontend.nat_op_ground.block_copy block 0#usize (alloc.vec.Vec.new
+        kernel.env.ConstantInfo)
+    ok (kernel.env.Declaration.IndDecl v n)
+  | kernel.env.Declaration.QuotDecl k cv =>
+    let qk ← kernel.env.quot_kind_dup k
+    let cv1 ← kernel.env.constant_val_dup cv
+    ok (kernel.env.Declaration.QuotDecl qk cv1)
+
+/-- [con_ron_core::frontend::nat_op_ground::stack_push_expr]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 147:0-155:1
+    Visibility: public -/
+def frontend.nat_op_ground.stack_push_expr
+  (stack : alloc.vec.Vec kernel.expr.Expr) (sp : Std.Usize)
+  (x : kernel.expr.Expr) :
+  Result ((alloc.vec.Vec kernel.expr.Expr) × Std.Usize)
+  := do
+  let i := alloc.vec.Vec.len stack
+  let stack1 ←
+    if sp < i
+    then
+      do
+      let (_, index_mut_back) ←
+        alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice
+          kernel.expr.Expr) stack sp
+      ok (index_mut_back x)
+    else alloc.vec.Vec.push stack x
+  let i1 ← sp + 1#usize
+  ok (stack1, i1)
+
+/-- [con_ron_core::frontend::nat_op_ground::stack_push_u64]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 159:0-167:1
+    Visibility: public -/
+def frontend.nat_op_ground.stack_push_u64
+  (stack : alloc.vec.Vec Std.U64) (sp : Std.Usize) (x : Std.U64) :
+  Result ((alloc.vec.Vec Std.U64) × Std.Usize)
+  := do
+  let i := alloc.vec.Vec.len stack
+  let stack1 ←
+    if sp < i
+    then
+      do
+      let (_, index_mut_back) ←
+        alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Std.U64)
+          stack sp
+      ok (index_mut_back x)
+    else alloc.vec.Vec.push stack x
+  let i1 ← sp + 1#usize
+  ok (stack1, i1)
+
+/-- [con_ron_core::frontend::nat_op_ground::used_consts_go]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 185:4-227:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.used_consts_go_loop
+  (seen : ron.hashmap.HashMap kernel.expr.Expr Bool)
+  (acc : alloc.vec.Vec kernel.name.Name)
+  (stack : alloc.vec.Vec kernel.expr.Expr) (sp : Std.Usize) :
+  Result ((alloc.vec.Vec kernel.name.Name) × (ron.hashmap.HashMap
+    kernel.expr.Expr Bool))
+  := do
+  if sp > 0#usize
+  then
+    let sp1 ← sp - 1#usize
+    let e ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.expr.Expr) stack sp1
+    let x ← kernel.expr.dup e
+    let b ←
+      ron.hashmap.HashMap.contains_key
+        kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+        kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 seen x
+    if b
+    then frontend.nat_op_ground.used_consts_go_loop seen acc stack sp1
+    else
+      let e1 ← kernel.expr.dup x
+      let (_, seen1) ←
+        ron.hashmap.HashMap.insert
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+          kernel.expr.Expr.Insts.Con_ron_coreRonHashmapEq2 seen e1 true
+      let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global x._0
+      match en.kind with
+      | kernel.expr.ExprKind.Bvar _ =>
+        frontend.nat_op_ground.used_consts_go_loop seen1 acc stack sp1
+      | kernel.expr.ExprKind.Fvar _ ty =>
+        let e2 ← kernel.expr.dup ty
+        let (stack1, sp2) ←
+          frontend.nat_op_ground.stack_push_expr stack sp1 e2
+        frontend.nat_op_ground.used_consts_go_loop seen1 acc stack1 sp2
+      | kernel.expr.ExprKind.Sort _ =>
+        frontend.nat_op_ground.used_consts_go_loop seen1 acc stack sp1
+      | kernel.expr.ExprKind.Const n _ =>
+        let n1 ← kernel.name.dup n
+        let acc1 ← alloc.vec.Vec.push acc n1
+        frontend.nat_op_ground.used_consts_go_loop seen1 acc1 stack sp1
+      | kernel.expr.ExprKind.App f a =>
+        let e2 ← kernel.expr.dup a
+        let (v, i) ← frontend.nat_op_ground.stack_push_expr stack sp1 e2
+        let e3 ← kernel.expr.dup f
+        let (stack1, sp2) ← frontend.nat_op_ground.stack_push_expr v i e3
+        frontend.nat_op_ground.used_consts_go_loop seen1 acc stack1 sp2
+      | kernel.expr.ExprKind.Lam ty b1 _ =>
+        let e2 ← kernel.expr.dup b1
+        let (v, i) ← frontend.nat_op_ground.stack_push_expr stack sp1 e2
+        let e3 ← kernel.expr.dup ty
+        let (stack1, sp2) ← frontend.nat_op_ground.stack_push_expr v i e3
+        frontend.nat_op_ground.used_consts_go_loop seen1 acc stack1 sp2
+      | kernel.expr.ExprKind.ForallE ty b1 _ =>
+        let e2 ← kernel.expr.dup b1
+        let (v, i) ← frontend.nat_op_ground.stack_push_expr stack sp1 e2
+        let e3 ← kernel.expr.dup ty
+        let (stack1, sp2) ← frontend.nat_op_ground.stack_push_expr v i e3
+        frontend.nat_op_ground.used_consts_go_loop seen1 acc stack1 sp2
+      | kernel.expr.ExprKind.LetE ty v b1 =>
+        let e2 ← kernel.expr.dup b1
+        let (v1, i) ← frontend.nat_op_ground.stack_push_expr stack sp1 e2
+        let e3 ← kernel.expr.dup v
+        let (v2, i1) ← frontend.nat_op_ground.stack_push_expr v1 i e3
+        let e4 ← kernel.expr.dup ty
+        let (stack1, sp2) ← frontend.nat_op_ground.stack_push_expr v2 i1 e4
+        frontend.nat_op_ground.used_consts_go_loop seen1 acc stack1 sp2
+      | kernel.expr.ExprKind.Lit _ =>
+        frontend.nat_op_ground.used_consts_go_loop seen1 acc stack sp1
+      | kernel.expr.ExprKind.Proj sn _ sub =>
+        let n ← kernel.name.dup sn
+        let acc1 ← alloc.vec.Vec.push acc n
+        let e2 ← kernel.expr.dup sub
+        let (stack1, sp2) ←
+          frontend.nat_op_ground.stack_push_expr stack sp1 e2
+        frontend.nat_op_ground.used_consts_go_loop seen1 acc1 stack1 sp2
+  else ok (acc, seen)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::used_consts_go]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 180:0-229:1
+    Visibility: public -/
+def frontend.nat_op_ground.used_consts_go
+  (seen : ron.hashmap.HashMap kernel.expr.Expr Bool)
+  (acc : alloc.vec.Vec kernel.name.Name) (e : kernel.expr.Expr) :
+  Result ((alloc.vec.Vec kernel.name.Name) × (ron.hashmap.HashMap
+    kernel.expr.Expr Bool))
+  := do
+  let e1 ← kernel.expr.dup e
+  let stack ← alloc.vec.Vec.push (alloc.vec.Vec.new kernel.expr.Expr) e1
+  frontend.nat_op_ground.used_consts_go_loop seen acc stack 1#usize
+
+/-- [con_ron_core::frontend::nat_op_ground::block_used_consts]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 271:16-274:17
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.block_used_consts_loop0_loop0
+  (seen : ron.hashmap.HashMap kernel.expr.Expr Bool)
+  (acc : alloc.vec.Vec kernel.name.Name)
+  (rules : alloc.vec.Vec kernel.env.RecRule) (m : Std.Usize) (j : Std.Usize) :
+  Result ((ron.hashmap.HashMap kernel.expr.Expr Bool) × (alloc.vec.Vec
+    kernel.name.Name))
+  := do
+  if j < m
+  then
+    let rr ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.env.RecRule) rules j
+    let (acc1, seen1) ← frontend.nat_op_ground.used_consts_go seen acc rr.rhs
+    let j1 ← j + 1#usize
+    frontend.nat_op_ground.block_used_consts_loop0_loop0 seen1 acc1 rules m j1
+  else ok (seen, acc)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::block_used_consts]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 264:4-279:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.block_used_consts_loop0
+  (seen : ron.hashmap.HashMap kernel.expr.Expr Bool)
+  (block : alloc.vec.Vec kernel.env.ConstantInfo)
+  (acc : alloc.vec.Vec kernel.name.Name) (n : Std.Usize) (i : Std.Usize) :
+  Result ((alloc.vec.Vec kernel.name.Name) × (ron.hashmap.HashMap
+    kernel.expr.Expr Bool))
+  := do
+  if i < n
+  then
+    let ci ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.env.ConstantInfo) block i
+    let cv ← kernel.env.to_constant_val ci
+    let (acc1, seen1) ← frontend.nat_op_ground.used_consts_go seen acc cv.ty
+    match ci with
+    | kernel.env.ConstantInfo.AxiomInfo _ =>
+      let i1 ← i + 1#usize
+      frontend.nat_op_ground.block_used_consts_loop0 seen1 block acc1 n i1
+    | kernel.env.ConstantInfo.DefnInfo _ _ _ =>
+      let i1 ← i + 1#usize
+      frontend.nat_op_ground.block_used_consts_loop0 seen1 block acc1 n i1
+    | kernel.env.ConstantInfo.ThmInfo _ _ =>
+      let i1 ← i + 1#usize
+      frontend.nat_op_ground.block_used_consts_loop0 seen1 block acc1 n i1
+    | kernel.env.ConstantInfo.IndInfo _ _ =>
+      let i1 ← i + 1#usize
+      frontend.nat_op_ground.block_used_consts_loop0 seen1 block acc1 n i1
+    | kernel.env.ConstantInfo.CtorInfo _ _ _ =>
+      let i1 ← i + 1#usize
+      frontend.nat_op_ground.block_used_consts_loop0 seen1 block acc1 n i1
+    | kernel.env.ConstantInfo.RecInfo _ _ _ rules =>
+      let m := alloc.vec.Vec.len rules
+      let (seen2, acc2) ←
+        frontend.nat_op_ground.block_used_consts_loop0_loop0 seen1 acc1 rules m
+          0#usize
+      let i1 ← i + 1#usize
+      frontend.nat_op_ground.block_used_consts_loop0 seen2 block acc2 n i1
+    | kernel.env.ConstantInfo.ProjInfo _ =>
+      let i1 ← i + 1#usize
+      frontend.nat_op_ground.block_used_consts_loop0 seen1 block acc1 n i1
+  else ok (acc, seen)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::block_used_consts]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 256:0-281:1
+    Visibility: public -/
+def frontend.nat_op_ground.block_used_consts
+  (seen : ron.hashmap.HashMap kernel.expr.Expr Bool)
+  (acc : alloc.vec.Vec kernel.name.Name)
+  (block : alloc.vec.Vec kernel.env.ConstantInfo) :
+  Result ((alloc.vec.Vec kernel.name.Name) × (ron.hashmap.HashMap
+    kernel.expr.Expr Bool))
+  := do
+  let n := alloc.vec.Vec.len block
+  frontend.nat_op_ground.block_used_consts_loop0 seen block acc n 0#usize
+
+/-- [con_ron_core::frontend::nat_op_ground::decl_used_consts]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 235:0-250:1
+    Visibility: public -/
+def frontend.nat_op_ground.decl_used_consts
+  (d : kernel.env.Declaration) : Result (alloc.vec.Vec kernel.name.Name) := do
+  let seen ← ron.hashmap.HashMap.new kernel.expr.Expr Bool
+  match d with
+  | kernel.env.Declaration.AxiomDecl cv =>
+    let (acc, _) ←
+      frontend.nat_op_ground.used_consts_go seen (alloc.vec.Vec.new
+        kernel.name.Name) cv.ty
+    ok acc
+  | kernel.env.Declaration.DefnDecl cv v _ =>
+    let (acc, seen1) ←
+      frontend.nat_op_ground.used_consts_go seen (alloc.vec.Vec.new
+        kernel.name.Name) cv.ty
+    let (acc1, _) ← frontend.nat_op_ground.used_consts_go seen1 acc v
+    ok acc1
+  | kernel.env.Declaration.ThmDecl cv v =>
+    let (acc, seen1) ←
+      frontend.nat_op_ground.used_consts_go seen (alloc.vec.Vec.new
+        kernel.name.Name) cv.ty
+    let (acc1, _) ← frontend.nat_op_ground.used_consts_go seen1 acc v
+    ok acc1
+  | kernel.env.Declaration.OpaqueDecl cv v =>
+    let (acc, seen1) ←
+      frontend.nat_op_ground.used_consts_go seen (alloc.vec.Vec.new
+        kernel.name.Name) cv.ty
+    let (acc1, _) ← frontend.nat_op_ground.used_consts_go seen1 acc v
+    ok acc1
+  | kernel.env.Declaration.BasisDecl _ =>
+    ok (alloc.vec.Vec.new kernel.name.Name)
+  | kernel.env.Declaration.IndDecl block _ =>
+    let (acc, _) ←
+      frontend.nat_op_ground.block_used_consts seen (alloc.vec.Vec.new
+        kernel.name.Name) block
+    ok acc
+  | kernel.env.Declaration.QuotDecl _ _ =>
+    ok (alloc.vec.Vec.new kernel.name.Name)
+
+/-- [con_ron_core::frontend::nat_op_ground::is_nat_op_record]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 287:0-300:1
+    Visibility: public -/
+def frontend.nat_op_ground.is_nat_op_record
+  (d : kernel.env.Declaration) : Result (Option kernel.name.Name) := do
+  match d with
+  | kernel.env.Declaration.AxiomDecl _ => ok none
+  | kernel.env.Declaration.DefnDecl cv _ _ =>
+    let v ← kernel.core_k.nat_div_mod_names
+    let b ← kernel.name.contains v cv.name
+    if b
+    then let n ← kernel.name.dup cv.name
+         ok (some n)
+    else
+      let v1 ← kernel.core_k.nat_op_names
+      let b1 ← kernel.name.contains v1 cv.name
+      if b1
+      then let n ← kernel.name.dup cv.name
+           ok (some n)
+      else ok none
+  | kernel.env.Declaration.ThmDecl _ _ => ok none
+  | kernel.env.Declaration.OpaqueDecl _ _ => ok none
+  | kernel.env.Declaration.BasisDecl _ => ok none
+  | kernel.env.Declaration.IndDecl _ _ => ok none
+  | kernel.env.Declaration.QuotDecl _ _ => ok none
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_name_index]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 318:8-323:9
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.hoist_name_index_loop0_loop0
+  (idx : ron.hashmap.HashMap kernel.name.Name Std.U64) (i : Std.Usize)
+  (ns : alloc.vec.Vec kernel.name.Name) (m : Std.Usize) (j : Std.Usize) :
+  Result (ron.hashmap.HashMap kernel.name.Name Std.U64)
+  := do
+  if j < m
+  then
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.name.Name) ns j
+    let b ←
+      ron.hashmap.HashMap.contains_key
+        kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
+        kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 idx n
+    let idx1 ←
+      if b
+      then ok idx
+      else
+        do
+        let n1 ← kernel.name.dup n
+        let i1 ← lift (UScalar.cast .U64 i)
+        let (_, idx2) ←
+          ron.hashmap.HashMap.insert
+            kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
+            kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 idx n1 i1
+        ok idx2
+    let j1 ← j + 1#usize
+    frontend.nat_op_ground.hoist_name_index_loop0_loop0 idx1 i ns m j1
+  else ok idx
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_name_index]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 314:4-325:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.hoist_name_index_loop0
+  (ds : alloc.vec.Vec kernel.env.Declaration)
+  (idx : ron.hashmap.HashMap kernel.name.Name Std.U64) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result (ron.hashmap.HashMap kernel.name.Name Std.U64)
+  := do
+  if i < n
+  then
+    let d ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.env.Declaration) ds i
+    let ns ← kernel.env.declaration_names d
+    let m := alloc.vec.Vec.len ns
+    let idx1 ←
+      frontend.nat_op_ground.hoist_name_index_loop0_loop0 idx i ns m 0#usize
+    let i1 ← i + 1#usize
+    frontend.nat_op_ground.hoist_name_index_loop0 ds idx1 n i1
+  else ok idx
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_name_index]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 310:0-327:1
+    Visibility: public -/
+def frontend.nat_op_ground.hoist_name_index
+  (ds : alloc.vec.Vec kernel.env.Declaration) :
+  Result (ron.hashmap.HashMap kernel.name.Name Std.U64)
+  := do
+  let idx ← ron.hashmap.HashMap.new kernel.name.Name Std.U64
+  let n := alloc.vec.Vec.len ds
+  frontend.nat_op_ground.hoist_name_index_loop0 ds idx n 0#usize
+
+/-- [con_ron_core::frontend::nat_op_ground::idx_get]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 379:0-384:1
+    Visibility: public -/
+def frontend.nat_op_ground.idx_get
+  (idx : ron.hashmap.HashMap kernel.name.Name Std.U64) (n : kernel.name.Name) :
+  Result (Option Std.U64)
+  := do
+  let o ←
+    ron.hashmap.HashMap.get
+      kernel.name.Name.Insts.Con_ron_coreRonHashmapHashable
+      kernel.name.Name.Insts.Con_ron_coreRonHashmapEq2 idx n
+  match o with
+  | none => ok none
+  | some _ => ok o
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_push_dep]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 500:0-518:1
+    Visibility: public -/
+def frontend.nat_op_ground.hoist_push_dep
+  (idx : ron.hashmap.HashMap kernel.name.Name Std.U64) (n : kernel.name.Name)
+  (stack : alloc.vec.Vec Std.U64) (sp : Std.Usize) (i : Std.U64) (k : Std.U64)
+  :
+  Result ((alloc.vec.Vec Std.U64) × Std.Usize)
+  := do
+  let o ← frontend.nat_op_ground.idx_get idx n
+  match o with
+  | none => ok (stack, sp)
+  | some m =>
+    if m > i
+    then
+      if m != k
+      then frontend.nat_op_ground.stack_push_u64 stack sp m
+      else ok (stack, sp)
+    else ok (stack, sp)
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_push_deps]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 488:4-493:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.hoist_push_deps_loop
+  (idx : ron.hashmap.HashMap kernel.name.Name Std.U64)
+  (used : alloc.vec.Vec kernel.name.Name) (i : Std.U64) (k : Std.U64)
+  (stack : alloc.vec.Vec Std.U64) (sp : Std.Usize) (n : Std.Usize)
+  (u : Std.Usize) :
+  Result ((alloc.vec.Vec Std.U64) × Std.Usize)
+  := do
+  if u < n
+  then
+    let n1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.name.Name) used u
+    let (stack1, sp1) ←
+      frontend.nat_op_ground.hoist_push_dep idx n1 stack sp i k
+    let u1 ← u + 1#usize
+    frontend.nat_op_ground.hoist_push_deps_loop idx used i k stack1 sp1 n u1
+  else ok (stack, sp)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_push_deps]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 476:0-495:1
+    Visibility: public -/
+def frontend.nat_op_ground.hoist_push_deps
+  (idx : ron.hashmap.HashMap kernel.name.Name Std.U64)
+  (used : alloc.vec.Vec kernel.name.Name) (stack : alloc.vec.Vec Std.U64)
+  (sp : Std.Usize) (i : Std.U64) (k : Std.U64) :
+  Result ((alloc.vec.Vec Std.U64) × Std.Usize)
+  := do
+  let n := alloc.vec.Vec.len used
+  frontend.nat_op_ground.hoist_push_deps_loop idx used i k stack sp n 0#usize
+
+/-- [con_ron_core::frontend::nat_op_ground::target_done]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 440:0-445:1
+    Visibility: public -/
+def frontend.nat_op_ground.target_done
+  (target : ron.hashmap.HashMap Std.U64 Std.U64) (k : Std.U64) (i : Std.U64) :
+  Result Bool
+  := do
+  let o ←
+    ron.hashmap.HashMap.get U64.Insts.Con_ron_coreRonHashmapHashable
+      U64.Insts.Con_ron_coreRonHashmapEq2 target k
+  match o with
+  | none => ok false
+  | some t => ok (t <= i)
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_close_step]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 453:0-471:1
+    Visibility: public -/
+def frontend.nat_op_ground.hoist_close_step
+  (ds : alloc.vec.Vec kernel.env.Declaration)
+  (idx : ron.hashmap.HashMap kernel.name.Name Std.U64)
+  (target : ron.hashmap.HashMap Std.U64 Std.U64)
+  (stack : alloc.vec.Vec Std.U64) (sp : Std.Usize) (k : Std.U64) (i : Std.U64)
+  :
+  Result ((ron.hashmap.HashMap Std.U64 Std.U64) × (alloc.vec.Vec Std.U64) ×
+    Std.Usize)
+  := do
+  let b ← frontend.nat_op_ground.target_done target k i
+  if b
+  then ok (target, stack, sp)
+  else
+    let (_, target1) ←
+      ron.hashmap.HashMap.insert U64.Insts.Con_ron_coreRonHashmapHashable
+        U64.Insts.Con_ron_coreRonHashmapEq2 target k i
+    let i1 ← lift (UScalar.cast .Usize k)
+    let d ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.env.Declaration) ds i1
+    let used ← frontend.nat_op_ground.decl_used_consts d
+    let (v, i2) ←
+      frontend.nat_op_ground.hoist_push_deps idx used stack sp i k
+    ok (target1, v, i2)
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_close]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 424:4-431:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.hoist_close_loop
+  (ds : alloc.vec.Vec kernel.env.Declaration)
+  (idx : ron.hashmap.HashMap kernel.name.Name Std.U64) (i : Std.U64)
+  (target : ron.hashmap.HashMap Std.U64 Std.U64)
+  (stack : alloc.vec.Vec Std.U64) (sp : Std.Usize) :
+  Result (ron.hashmap.HashMap Std.U64 Std.U64)
+  := do
+  if sp > 0#usize
+  then
+    let sp1 ← sp - 1#usize
+    let k ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) stack
+        sp1
+    let (target1, stack1, sp2) ←
+      frontend.nat_op_ground.hoist_close_step ds idx target stack sp1 k i
+    frontend.nat_op_ground.hoist_close_loop ds idx i target1 stack1 sp2
+  else ok target
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_close]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 413:0-433:1
+    Visibility: public -/
+def frontend.nat_op_ground.hoist_close
+  (ds : alloc.vec.Vec kernel.env.Declaration)
+  (idx : ron.hashmap.HashMap kernel.name.Name Std.U64)
+  (target : ron.hashmap.HashMap Std.U64 Std.U64) (j : Std.U64) (i : Std.U64) :
+  Result (ron.hashmap.HashMap Std.U64 Std.U64)
+  := do
+  let stack ← alloc.vec.Vec.push (alloc.vec.Vec.new Std.U64) j
+  frontend.nat_op_ground.hoist_close_loop ds idx i target stack 1#usize
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_targets_one]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 391:0-408:1
+    Visibility: public -/
+def frontend.nat_op_ground.hoist_targets_one
+  (ds : alloc.vec.Vec kernel.env.Declaration)
+  (idx : ron.hashmap.HashMap kernel.name.Name Std.U64)
+  (target : ron.hashmap.HashMap Std.U64 Std.U64) (g : kernel.name.Name)
+  (i : Std.U64) :
+  Result (ron.hashmap.HashMap Std.U64 Std.U64)
+  := do
+  let o ← frontend.nat_op_ground.idx_get idx g
+  match o with
+  | none => ok target
+  | some j =>
+    if j > i
+    then frontend.nat_op_ground.hoist_close ds idx target j i
+    else ok target
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_targets_at]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 367:4-370:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.hoist_targets_at_loop
+  (ds : alloc.vec.Vec kernel.env.Declaration)
+  (idx : ron.hashmap.HashMap kernel.name.Name Std.U64) (i : Std.U64)
+  (target : ron.hashmap.HashMap Std.U64 Std.U64)
+  (gs : alloc.vec.Vec kernel.name.Name) (m : Std.Usize) (k : Std.Usize) :
+  Result (ron.hashmap.HashMap Std.U64 Std.U64)
+  := do
+  if k < m
+  then
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.name.Name) gs k
+    let target1 ← frontend.nat_op_ground.hoist_targets_one ds idx target n i
+    let k1 ← k + 1#usize
+    frontend.nat_op_ground.hoist_targets_at_loop ds idx i target1 gs m k1
+  else ok target
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_targets_at]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 356:0-372:1
+    Visibility: public -/
+def frontend.nat_op_ground.hoist_targets_at
+  (ds : alloc.vec.Vec kernel.env.Declaration)
+  (idx : ron.hashmap.HashMap kernel.name.Name Std.U64)
+  (target : ron.hashmap.HashMap Std.U64 Std.U64) (c : kernel.name.Name)
+  (i : Std.U64) :
+  Result (ron.hashmap.HashMap Std.U64 Std.U64)
+  := do
+  let gs ← kernel.core_k.nat_op_deps c
+  let m := alloc.vec.Vec.len gs
+  frontend.nat_op_ground.hoist_targets_at_loop ds idx i target gs m 0#usize
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_targets]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 339:4-347:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.hoist_targets_loop
+  (ds : alloc.vec.Vec kernel.env.Declaration)
+  (idx : ron.hashmap.HashMap kernel.name.Name Std.U64)
+  (target : ron.hashmap.HashMap Std.U64 Std.U64) (n : Std.Usize)
+  (i : Std.Usize) :
+  Result (ron.hashmap.HashMap Std.U64 Std.U64)
+  := do
+  if i < n
+  then
+    let d ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.env.Declaration) ds i
+    let o ← frontend.nat_op_ground.is_nat_op_record d
+    let target1 ←
+      match o with
+      | none => ok target
+      | some c =>
+        do
+        let i1 ← lift (UScalar.cast .U64 i)
+        frontend.nat_op_ground.hoist_targets_at ds idx target c i1
+    let i1 ← i + 1#usize
+    frontend.nat_op_ground.hoist_targets_loop ds idx target1 n i1
+  else ok target
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_targets]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 334:0-349:1
+    Visibility: public -/
+def frontend.nat_op_ground.hoist_targets
+  (ds : alloc.vec.Vec kernel.env.Declaration) :
+  Result (ron.hashmap.HashMap Std.U64 Std.U64)
+  := do
+  let idx ← frontend.nat_op_ground.hoist_name_index ds
+  let target ← ron.hashmap.HashMap.new Std.U64 Std.U64
+  let n := alloc.vec.Vec.len ds
+  frontend.nat_op_ground.hoist_targets_loop ds idx target n 0#usize
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_moved_idxs]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 530:4-535:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.hoist_moved_idxs_loop
+  (n : Std.Usize) (target : ron.hashmap.HashMap Std.U64 Std.U64)
+  (out : alloc.vec.Vec Std.U64) (k : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  if k < n
+  then
+    let i ← lift (UScalar.cast .U64 k)
+    let b ←
+      ron.hashmap.HashMap.contains_key U64.Insts.Con_ron_coreRonHashmapHashable
+        U64.Insts.Con_ron_coreRonHashmapEq2 target i
+    let out1 ←
+      if b
+      then do
+           let i1 ← lift (UScalar.cast .U64 k)
+           alloc.vec.Vec.push out i1
+      else ok out
+    let k1 ← k + 1#usize
+    frontend.nat_op_ground.hoist_moved_idxs_loop n target out1 k1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_moved_idxs]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 527:0-537:1
+    Visibility: public -/
+@[reducible]
+def frontend.nat_op_ground.hoist_moved_idxs
+  (n : Std.Usize) (target : ron.hashmap.HashMap Std.U64 Std.U64) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  frontend.nat_op_ground.hoist_moved_idxs_loop n target (alloc.vec.Vec.new
+    Std.U64) 0#usize
+
+/-- [con_ron_core::frontend::nat_op_ground::target_is]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 560:0-565:1
+    Visibility: public -/
+def frontend.nat_op_ground.target_is
+  (target : ron.hashmap.HashMap Std.U64 Std.U64) (k : Std.U64) (t : Std.U64) :
+  Result Bool
+  := do
+  let o ←
+    ron.hashmap.HashMap.get U64.Insts.Con_ron_coreRonHashmapHashable
+      U64.Insts.Con_ron_coreRonHashmapEq2 target k
+  match o with
+  | none => ok false
+  | some tt => ok (tt = t)
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_order_at]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 580:4-585:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.hoist_order_at_loop
+  (target : ron.hashmap.HashMap Std.U64 Std.U64)
+  (moved : alloc.vec.Vec Std.U64) (t : Std.U64) (order : alloc.vec.Vec Std.U64)
+  (n : Std.Usize) (a : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  if a < n
+  then
+    let i ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) moved
+        a
+    let b ← frontend.nat_op_ground.target_is target i t
+    let order1 ← if b
+                   then alloc.vec.Vec.push order i
+                   else ok order
+    let a1 ← a + 1#usize
+    frontend.nat_op_ground.hoist_order_at_loop target moved t order1 n a1
+  else ok order
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_order_at]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 571:0-587:1
+    Visibility: public -/
+def frontend.nat_op_ground.hoist_order_at
+  (order : alloc.vec.Vec Std.U64)
+  (target : ron.hashmap.HashMap Std.U64 Std.U64)
+  (moved : alloc.vec.Vec Std.U64) (t : Std.U64) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  let n := alloc.vec.Vec.len moved
+  frontend.nat_op_ground.hoist_order_at_loop target moved t order n 0#usize
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_order]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 547:4-553:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.hoist_order_loop
+  (n : Std.Usize) (target : ron.hashmap.HashMap Std.U64 Std.U64)
+  (moved : alloc.vec.Vec Std.U64) (order : alloc.vec.Vec Std.U64)
+  (t : Std.Usize) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  if t < n
+  then
+    let i ← lift (UScalar.cast .U64 t)
+    let order1 ← frontend.nat_op_ground.hoist_order_at order target moved i
+    let i1 ← lift (UScalar.cast .U64 t)
+    let b ←
+      ron.hashmap.HashMap.contains_key U64.Insts.Con_ron_coreRonHashmapHashable
+        U64.Insts.Con_ron_coreRonHashmapEq2 target i1
+    let order2 ←
+      if b
+      then ok order1
+      else
+        do
+        let i2 ← lift (UScalar.cast .U64 t)
+        alloc.vec.Vec.push order1 i2
+    let t1 ← t + 1#usize
+    frontend.nat_op_ground.hoist_order_loop n target moved order2 t1
+  else ok order
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_order]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 544:0-555:1
+    Visibility: public -/
+def frontend.nat_op_ground.hoist_order
+  (n : Std.Usize) (target : ron.hashmap.HashMap Std.U64 Std.U64)
+  (moved : alloc.vec.Vec Std.U64) :
+  Result (alloc.vec.Vec Std.U64)
+  := do
+  let order := alloc.vec.Vec.with_capacity Std.U64 n
+  frontend.nat_op_ground.hoist_order_loop n target moved order 0#usize
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_reorder]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 596:4-599:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.hoist_reorder_loop
+  (ds : alloc.vec.Vec kernel.env.Declaration) (order : alloc.vec.Vec Std.U64)
+  (n : Std.Usize) (out : alloc.vec.Vec kernel.env.Declaration) (i : Std.Usize)
+  :
+  Result (alloc.vec.Vec kernel.env.Declaration)
+  := do
+  if i < n
+  then
+    let i1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) order
+        i
+    let i2 ← lift (UScalar.cast .Usize i1)
+    let d ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.env.Declaration) ds i2
+    let d1 ← frontend.nat_op_ground.declaration_dup d
+    let out1 ← alloc.vec.Vec.push out d1
+    let i3 ← i + 1#usize
+    frontend.nat_op_ground.hoist_reorder_loop ds order n out1 i3
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_reorder]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 592:0-601:1
+    Visibility: public -/
+def frontend.nat_op_ground.hoist_reorder
+  (ds : alloc.vec.Vec kernel.env.Declaration) (order : alloc.vec.Vec Std.U64) :
+  Result (alloc.vec.Vec kernel.env.Declaration)
+  := do
+  let n := alloc.vec.Vec.len order
+  let out := alloc.vec.Vec.with_capacity kernel.env.Declaration n
+  frontend.nat_op_ground.hoist_reorder_loop ds order n out 0#usize
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_moved_names]: loop 1:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 614:8-617:9
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.hoist_moved_names_loop0_loop0
+  (out : alloc.vec.Vec kernel.name.Name) (ns : alloc.vec.Vec kernel.name.Name)
+  (m : Std.Usize) (j : Std.Usize) :
+  Result (alloc.vec.Vec kernel.name.Name)
+  := do
+  if j < m
+  then
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.name.Name) ns j
+    let n1 ← kernel.name.dup n
+    let out1 ← alloc.vec.Vec.push out n1
+    let j1 ← j + 1#usize
+    frontend.nat_op_ground.hoist_moved_names_loop0_loop0 out1 ns m j1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_moved_names]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 610:4-619:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.nat_op_ground.hoist_moved_names_loop0
+  (ds : alloc.vec.Vec kernel.env.Declaration) (moved : alloc.vec.Vec Std.U64)
+  (out : alloc.vec.Vec kernel.name.Name) (n : Std.Usize) (a : Std.Usize) :
+  Result (alloc.vec.Vec kernel.name.Name)
+  := do
+  if a < n
+  then
+    let i ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U64) moved
+        a
+    let i1 ← lift (UScalar.cast .Usize i)
+    let d ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.env.Declaration) ds i1
+    let ns ← kernel.env.declaration_names d
+    let m := alloc.vec.Vec.len ns
+    let out1 ←
+      frontend.nat_op_ground.hoist_moved_names_loop0_loop0 out ns m 0#usize
+    let a1 ← a + 1#usize
+    frontend.nat_op_ground.hoist_moved_names_loop0 ds moved out1 n a1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_moved_names]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 606:0-621:1
+    Visibility: public -/
+def frontend.nat_op_ground.hoist_moved_names
+  (ds : alloc.vec.Vec kernel.env.Declaration) (moved : alloc.vec.Vec Std.U64) :
+  Result (alloc.vec.Vec kernel.name.Name)
+  := do
+  let n := alloc.vec.Vec.len moved
+  frontend.nat_op_ground.hoist_moved_names_loop0 ds moved (alloc.vec.Vec.new
+    kernel.name.Name) n 0#usize
+
+/-- [con_ron_core::frontend::nat_op_ground::apply_hoist]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 635:0-644:1
+    Visibility: public -/
+def frontend.nat_op_ground.apply_hoist
+  (ds : alloc.vec.Vec kernel.env.Declaration)
+  (target : ron.hashmap.HashMap Std.U64 Std.U64) :
+  Result ((alloc.vec.Vec kernel.env.Declaration) × (alloc.vec.Vec
+    kernel.name.Name))
+  := do
+  let i := alloc.vec.Vec.len ds
+  let moved ← frontend.nat_op_ground.hoist_moved_idxs i target
+  let i1 := alloc.vec.Vec.len ds
+  let order ← frontend.nat_op_ground.hoist_order i1 target moved
+  let out ← frontend.nat_op_ground.hoist_reorder ds order
+  let names ← frontend.nat_op_ground.hoist_moved_names ds moved
+  ok (out, names)
+
+/-- [con_ron_core::frontend::nat_op_ground::hoist_nat_op_ground]:
+    Source: 'crates/con-ron-core/src/frontend/nat_op_ground.rs', lines 650:0-657:1
+    Visibility: public -/
+def frontend.nat_op_ground.hoist_nat_op_ground
+  (ds : alloc.vec.Vec kernel.env.Declaration) :
+  Result ((alloc.vec.Vec kernel.env.Declaration) × (alloc.vec.Vec
+    kernel.name.Name))
+  := do
+  let target ← frontend.nat_op_ground.hoist_targets ds
+  let i ← ron.hashmap.HashMap.len target
+  if i = 0#usize
+  then ok (ds, alloc.vec.Vec.new kernel.name.Name)
+  else frontend.nat_op_ground.apply_hoist ds target
+
+/-- [con_ron_core::frontend::prelude_text::push_chunk]:
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1463:0-1467:1 -/
+def frontend.prelude_text.push_chunk
+  (out : alloc.vec.Vec Std.U8) (c : Slice Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  alloc.vec.Vec.extend_from_slice core.clone.CloneU8 out c
+
+/-- [con_ron_core::frontend::prelude_text::P66]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1455:0-1458:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P66 : Array Std.U8 26#usize :=
+  Array.make 26#usize [
+    117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8,
+    48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 52#u8,
+    50#u8, 125#u8, 93#u8, 125#u8, 125#u8, 10#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P65]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1434:0-1451:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P65 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    115#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8,
+    97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8,
+    114#u8, 117#u8, 108#u8, 101#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8,
+    99#u8, 116#u8, 111#u8, 114#u8, 34#u8, 58#u8, 53#u8, 48#u8, 44#u8, 34#u8,
+    110#u8, 102#u8, 105#u8, 101#u8, 108#u8, 100#u8, 115#u8, 34#u8, 58#u8,
+    48#u8, 44#u8, 34#u8, 114#u8, 104#u8, 115#u8, 34#u8, 58#u8, 49#u8, 56#u8,
+    56#u8, 125#u8, 44#u8, 123#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 34#u8,
+    58#u8, 53#u8, 49#u8, 44#u8, 34#u8, 110#u8, 102#u8, 105#u8, 101#u8, 108#u8,
+    100#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 114#u8, 104#u8, 115#u8,
+    34#u8, 58#u8, 49#u8, 57#u8, 49#u8, 125#u8, 93#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 57#u8, 53#u8, 125#u8, 93#u8,
+    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 115#u8, 34#u8, 58#u8, 91#u8,
+    123#u8, 34#u8, 97#u8, 108#u8, 108#u8, 34#u8, 58#u8, 91#u8, 52#u8, 57#u8,
+    93#u8, 44#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8,
+    91#u8, 53#u8, 48#u8, 44#u8, 53#u8, 49#u8, 93#u8, 44#u8, 34#u8, 105#u8,
+    115#u8, 82#u8, 101#u8, 99#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8,
+    101#u8, 44#u8, 34#u8, 105#u8, 115#u8, 82#u8, 101#u8, 102#u8, 108#u8,
+    101#u8, 120#u8, 105#u8, 118#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8,
+    108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8,
+    115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8,
+    101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8,
+    114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 57#u8, 44#u8, 34#u8,
+    110#u8, 117#u8, 109#u8, 73#u8, 110#u8, 100#u8, 105#u8, 99#u8, 101#u8,
+    115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 78#u8,
+    101#u8, 115#u8, 116#u8, 101#u8, 100#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8,
+    110#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P64]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1413:0-1430:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P64 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    101#u8, 108#u8, 100#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8,
+    117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8,
+    48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    56#u8, 48#u8, 125#u8, 44#u8, 123#u8, 34#u8, 99#u8, 105#u8, 100#u8, 120#u8,
+    34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 105#u8, 110#u8, 100#u8, 117#u8, 99#u8,
+    116#u8, 34#u8, 58#u8, 52#u8, 57#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8,
+    110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8,
+    115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8,
+    80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8,
+    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 53#u8, 49#u8,
+    44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 70#u8, 105#u8, 101#u8, 108#u8,
+    100#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8,
+    80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8,
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 56#u8, 48#u8,
+    125#u8, 93#u8, 44#u8, 34#u8, 114#u8, 101#u8, 99#u8, 115#u8, 34#u8, 58#u8,
+    91#u8, 123#u8, 34#u8, 97#u8, 108#u8, 108#u8, 34#u8, 58#u8, 91#u8, 52#u8,
+    57#u8, 93#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8,
+    102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8,
+    34#u8, 107#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8,
+    34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8,
+    109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 50#u8, 93#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 53#u8, 52#u8, 44#u8, 34#u8,
+    110#u8, 117#u8, 109#u8, 73#u8, 110#u8, 100#u8, 105#u8, 99#u8, 101#u8,
+    115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 77#u8,
+    105#u8, 110#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8,
+    110#u8, 117#u8, 109#u8, 77#u8, 111#u8, 116#u8, 105#u8, 118#u8, 101#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P63]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1391:0-1409:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P63 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    57#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
+    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 57#u8, 51#u8, 44#u8,
+    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 53#u8, 50#u8, 44#u8,
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 56#u8, 51#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 57#u8, 52#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8,
+    109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 57#u8, 52#u8, 44#u8,
+    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 44#u8,
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 56#u8, 49#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 57#u8, 53#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 100#u8, 117#u8, 99#u8,
+    116#u8, 105#u8, 118#u8, 101#u8, 34#u8, 58#u8, 123#u8, 34#u8, 99#u8, 116#u8,
+    111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8, 99#u8, 105#u8,
+    100#u8, 120#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 105#u8, 110#u8, 100#u8,
+    117#u8, 99#u8, 116#u8, 34#u8, 58#u8, 52#u8, 57#u8, 44#u8, 34#u8, 105#u8,
+    115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8,
+    97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8,
+    101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8,
+    91#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
+    53#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 70#u8, 105#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P62]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1370:0-1387:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P62 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    49#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8,
+    111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8,
+    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
+    49#u8, 57#u8, 48#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 56#u8, 49#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
+    110#u8, 34#u8, 58#u8, 53#u8, 52#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 52#u8,
+    57#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 114#u8,
+    101#u8, 99#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8,
+    114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
+    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
+    34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8,
+    34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 54#u8,
+    56#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    49#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    56#u8, 48#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    57#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
+    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 57#u8, 50#u8, 44#u8,
+    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 53#u8, 51#u8, 44#u8,
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 56#u8, 53#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P61]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1349:0-1366:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P61 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    58#u8, 49#u8, 56#u8, 54#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 53#u8, 50#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 56#u8, 51#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 56#u8, 56#u8, 44#u8, 34#u8, 108#u8,
+    97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
+    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 56#u8, 55#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 44#u8, 34#u8,
+    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 56#u8, 49#u8, 125#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 56#u8,
+    57#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8,
+    111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8,
+    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
+    49#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 53#u8,
+    51#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    56#u8, 53#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 57#u8, 48#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
+    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
+    34#u8, 58#u8, 49#u8, 56#u8, 57#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
+    101#u8, 34#u8, 58#u8, 53#u8, 50#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 56#u8, 51#u8, 125#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 57#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P60]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1328:0-1345:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P60 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 58#u8, 49#u8, 56#u8, 50#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8,
+    58#u8, 49#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    56#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8,
+    53#u8, 51#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8,
+    116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 116#u8, 114#u8, 117#u8, 101#u8, 34#u8,
+    125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8,
+    116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 53#u8, 49#u8, 44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8,
+    93#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 56#u8,
+    52#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 56#u8, 52#u8,
+    44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 50#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 56#u8, 53#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 56#u8, 54#u8, 44#u8, 34#u8,
+    108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 53#u8, 51#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 56#u8, 53#u8, 125#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 56#u8, 55#u8,
+    44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
+    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
+    34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8,
+    34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P59]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1307:0-1324:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P59 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 34#u8, 125#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 53#u8, 49#u8, 44#u8, 34#u8,
+    115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
+    101#u8, 34#u8, 58#u8, 52#u8, 57#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 34#u8, 116#u8, 114#u8, 117#u8, 101#u8, 34#u8, 125#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 57#u8,
+    44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 56#u8, 48#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
+    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
+    34#u8, 58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 49#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 56#u8, 48#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 56#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
+    110#u8, 34#u8, 58#u8, 53#u8, 50#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8,
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 102#u8, 97#u8,
+    108#u8, 115#u8, 101#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 99#u8,
+    111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 110#u8, 97#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 53#u8, 48#u8, 44#u8, 34#u8, 117#u8, 115#u8,
+    34#u8, 58#u8, 91#u8, 93#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 56#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8,
+    112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P58]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1285:0-1303:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P58 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    93#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    55#u8, 57#u8, 125#u8, 93#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8, 97#u8, 108#u8, 108#u8, 34#u8,
+    58#u8, 91#u8, 52#u8, 51#u8, 93#u8, 44#u8, 34#u8, 99#u8, 116#u8, 111#u8,
+    114#u8, 115#u8, 34#u8, 58#u8, 91#u8, 52#u8, 52#u8, 93#u8, 44#u8, 34#u8,
+    105#u8, 115#u8, 82#u8, 101#u8, 99#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8,
+    115#u8, 101#u8, 44#u8, 34#u8, 105#u8, 115#u8, 82#u8, 101#u8, 102#u8,
+    108#u8, 101#u8, 120#u8, 105#u8, 118#u8, 101#u8, 34#u8, 58#u8, 102#u8,
+    97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8,
+    115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8,
+    101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8,
+    114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 51#u8, 44#u8, 34#u8,
+    110#u8, 117#u8, 109#u8, 73#u8, 110#u8, 100#u8, 105#u8, 99#u8, 101#u8,
+    115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 78#u8,
+    101#u8, 115#u8, 116#u8, 101#u8, 100#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8,
+    110#u8, 117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8,
+    58#u8, 50#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 53#u8, 48#u8, 125#u8, 93#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 110#u8, 34#u8, 58#u8, 52#u8, 57#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8,
+    48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 66#u8,
+    111#u8, 111#u8, 108#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 110#u8, 34#u8, 58#u8, 53#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8,
+    52#u8, 57#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P57]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1263:0-1281:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P57 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8,
+    101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8,
+    114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 52#u8, 44#u8, 34#u8,
+    110#u8, 117#u8, 109#u8, 70#u8, 105#u8, 101#u8, 108#u8, 100#u8, 115#u8,
+    34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8, 97#u8,
+    114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 55#u8, 125#u8, 93#u8,
+    44#u8, 34#u8, 114#u8, 101#u8, 99#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8,
+    34#u8, 97#u8, 108#u8, 108#u8, 34#u8, 58#u8, 91#u8, 52#u8, 51#u8, 93#u8,
+    44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8,
+    34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 107#u8,
+    34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8,
+    101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8,
+    115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 50#u8, 93#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 56#u8, 44#u8, 34#u8, 110#u8,
+    117#u8, 109#u8, 73#u8, 110#u8, 100#u8, 105#u8, 99#u8, 101#u8, 115#u8,
+    34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 77#u8, 105#u8,
+    110#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8,
+    117#u8, 109#u8, 77#u8, 111#u8, 116#u8, 105#u8, 118#u8, 101#u8, 115#u8,
+    34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8, 97#u8,
+    114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 114#u8,
+    117#u8, 108#u8, 101#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8, 99#u8,
+    116#u8, 111#u8, 114#u8, 34#u8, 58#u8, 52#u8, 52#u8, 44#u8, 34#u8, 110#u8,
+    102#u8, 105#u8, 101#u8, 108#u8, 100#u8, 115#u8, 34#u8, 58#u8, 50#u8, 44#u8,
+    34#u8, 114#u8, 104#u8, 115#u8, 34#u8, 58#u8, 49#u8, 55#u8, 52#u8, 125#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P56]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1241:0-1259:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P56 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8,
+    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 55#u8,
+    54#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    54#u8, 48#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    55#u8, 55#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
+    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8,
+    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 55#u8,
+    55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8,
+    56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 51#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 56#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8,
+    109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 55#u8, 56#u8, 44#u8,
+    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8,
+    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 51#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 57#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 105#u8, 110#u8, 100#u8, 117#u8, 99#u8, 116#u8, 105#u8, 118#u8,
+    101#u8, 34#u8, 58#u8, 123#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 115#u8,
+    34#u8, 58#u8, 91#u8, 123#u8, 34#u8, 99#u8, 105#u8, 100#u8, 120#u8, 34#u8,
+    58#u8, 48#u8, 44#u8, 34#u8, 105#u8, 110#u8, 100#u8, 117#u8, 99#u8, 116#u8,
+    34#u8, 58#u8, 52#u8, 51#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P55]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1220:0-1237:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P55 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
+    34#u8, 58#u8, 49#u8, 55#u8, 51#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
+    101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    34#u8, 58#u8, 51#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8,
+    34#u8, 58#u8, 52#u8, 56#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 52#u8, 51#u8,
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 114#u8, 101#u8,
+    99#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8,
+    97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
+    110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
+    58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8,
+    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 52#u8, 56#u8,
+    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8,
+    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8,
+    51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8,
+    53#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
+    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 55#u8, 53#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 55#u8, 44#u8, 34#u8,
+    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 54#u8, 56#u8, 125#u8,
+    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 54#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8,
+    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P54]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1199:0-1216:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P54 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 49#u8,
+    44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
+    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
+    34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8,
+    34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8,
+    55#u8, 48#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
+    52#u8, 55#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 54#u8, 56#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 55#u8, 50#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8,
+    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8,
+    97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
+    121#u8, 34#u8, 58#u8, 49#u8, 55#u8, 49#u8, 44#u8, 34#u8, 110#u8, 97#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8,
+    112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 54#u8, 48#u8, 125#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 51#u8, 44#u8,
+    34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
+    110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
+    58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8,
+    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 55#u8,
+    50#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8,
+    56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 51#u8,
+    125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    55#u8, 52#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
+    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P53]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1178:0-1195:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P53 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    54#u8, 54#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
+    52#u8, 54#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    54#u8, 55#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
+    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 54#u8, 55#u8, 44#u8,
+    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 53#u8, 44#u8,
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 125#u8,
+    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 54#u8, 56#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 54#u8, 57#u8,
+    44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
+    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
+    34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8,
+    34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8,
+    51#u8, 53#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
+    52#u8, 54#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8,
+    50#u8, 57#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 55#u8, 48#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
+    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
+    34#u8, 58#u8, 49#u8, 54#u8, 57#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
+    101#u8, 34#u8, 58#u8, 52#u8, 53#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 34#u8, 58#u8, 50#u8, 57#u8, 125#u8, 125#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P52]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1157:0-1174:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P52 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 52#u8,
+    44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 54#u8, 49#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8,
+    114#u8, 103#u8, 34#u8, 58#u8, 51#u8, 48#u8, 44#u8, 34#u8, 102#u8, 110#u8,
+    34#u8, 58#u8, 49#u8, 54#u8, 49#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 54#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8,
+    112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8,
+    58#u8, 50#u8, 57#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8,
+    54#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    54#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 44#u8,
+    34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 54#u8, 51#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 54#u8, 52#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8,
+    114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8,
+    58#u8, 49#u8, 54#u8, 52#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 54#u8, 53#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8,
+    112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8,
+    49#u8, 54#u8, 53#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8,
+    51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 54#u8,
+    54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
+    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P51]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1136:0-1153:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P51 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8,
+    112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 53#u8, 54#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 55#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8,
+    34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8,
+    53#u8, 49#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    53#u8, 56#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 44#u8,
+    34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 53#u8, 56#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 57#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
+    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
+    34#u8, 58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 49#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 53#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 54#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
+    110#u8, 34#u8, 58#u8, 52#u8, 55#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8,
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 105#u8, 110#u8,
+    116#u8, 114#u8, 111#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 99#u8,
+    111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P50]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1115:0-1132:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P50 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 51#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
+    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
+    34#u8, 58#u8, 49#u8, 53#u8, 51#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
+    101#u8, 34#u8, 58#u8, 52#u8, 54#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 34#u8, 58#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 53#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8,
+    114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
+    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
+    34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8,
+    34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8,
+    53#u8, 52#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
+    52#u8, 53#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8,
+    50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8,
+    53#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8,
+    109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 53#u8, 53#u8, 44#u8,
+    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 56#u8, 44#u8,
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 51#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 54#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P49]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1094:0-1111:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P49 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    52#u8, 57#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
+    52#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 51#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 48#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 52#u8, 52#u8,
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8,
+    114#u8, 101#u8, 34#u8, 58#u8, 52#u8, 51#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 34#u8, 105#u8, 110#u8, 116#u8, 114#u8, 111#u8, 34#u8,
+    125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 52#u8,
+    53#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 34#u8, 108#u8, 101#u8, 102#u8, 116#u8, 34#u8, 125#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 52#u8, 54#u8,
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8,
+    114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 34#u8, 114#u8, 105#u8, 103#u8, 104#u8, 116#u8, 34#u8, 125#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8,
+    51#u8, 44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 125#u8,
+    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 49#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 57#u8, 44#u8, 34#u8, 102#u8,
+    110#u8, 34#u8, 58#u8, 49#u8, 53#u8, 49#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8,
+    34#u8, 58#u8, 49#u8, 51#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8,
+    49#u8, 53#u8, 50#u8, 125#u8, 44#u8, 34#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P48]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1072:0-1090:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P48 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8,
+    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 52#u8, 56#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 120#u8, 105#u8, 111#u8, 109#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8,
+    101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8,
+    108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8,
+    109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 50#u8, 93#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 50#u8, 44#u8, 34#u8,
+    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 52#u8, 56#u8, 125#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 52#u8, 51#u8,
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8,
+    114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 34#u8, 65#u8, 110#u8, 100#u8, 34#u8, 125#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
+    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
+    34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 51#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    52#u8, 57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
+    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P47]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1050:0-1068:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P47 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8,
+    108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
+    100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 52#u8, 52#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 56#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 52#u8, 53#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8,
+    108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
+    100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 52#u8, 53#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8,
+    112#u8, 101#u8, 34#u8, 58#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 52#u8, 54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8,
+    111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8,
+    111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8,
+    105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
+    58#u8, 49#u8, 52#u8, 54#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 51#u8, 50#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    34#u8, 58#u8, 53#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 52#u8, 55#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8,
+    97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
+    110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
+    58#u8, 34#u8, 105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8,
+    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
+    49#u8, 52#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P46]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1029:0-1046:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P46 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 57#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8,
+    114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 51#u8, 44#u8, 34#u8, 102#u8, 110#u8,
+    34#u8, 58#u8, 49#u8, 51#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 52#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8,
+    112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8,
+    58#u8, 49#u8, 52#u8, 48#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8,
+    49#u8, 51#u8, 55#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 52#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8,
+    44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 51#u8, 57#u8, 125#u8,
+    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 52#u8, 50#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 52#u8, 50#u8, 44#u8, 34#u8,
+    102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 52#u8, 49#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 52#u8, 51#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
+    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
+    34#u8, 58#u8, 49#u8, 52#u8, 51#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
+    101#u8, 34#u8, 58#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 51#u8, 53#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 52#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8,
+    111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P45]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1008:0-1025:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P45 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 52#u8,
+    50#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 51#u8, 49#u8, 44#u8, 34#u8, 115#u8,
+    116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 115#u8, 111#u8, 117#u8, 110#u8,
+    100#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8,
+    44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 51#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 52#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8,
+    114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8,
+    58#u8, 49#u8, 51#u8, 52#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 51#u8, 53#u8, 125#u8, 10#u8, 123#u8, 34#u8, 99#u8, 111#u8,
+    110#u8, 115#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 110#u8, 97#u8, 109#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8,
+    91#u8, 50#u8, 93#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 51#u8, 54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8,
+    49#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 51#u8,
+    54#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8,
+    55#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 51#u8, 48#u8, 44#u8,
+    34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 50#u8, 49#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 56#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8,
+    114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 57#u8, 44#u8, 34#u8, 102#u8, 110#u8,
+    34#u8, 58#u8, 49#u8, 51#u8, 56#u8, 125#u8, 44#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P44]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 987:0-1004:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P44 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 51#u8, 48#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 54#u8, 44#u8, 34#u8,
+    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 50#u8, 48#u8, 125#u8,
+    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 49#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8,
+    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8,
+    108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
+    100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 51#u8, 49#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 50#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 53#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
+    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8, 108#u8,
+    105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
+    121#u8, 34#u8, 58#u8, 49#u8, 51#u8, 50#u8, 44#u8, 34#u8, 110#u8, 97#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 51#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 113#u8,
+    117#u8, 111#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 107#u8, 105#u8,
+    110#u8, 100#u8, 34#u8, 58#u8, 34#u8, 105#u8, 110#u8, 100#u8, 34#u8, 44#u8,
+    34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8,
+    109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 50#u8, 93#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 57#u8, 44#u8, 34#u8,
+    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 51#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P43]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 966:0-983:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P43 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 57#u8, 44#u8, 34#u8, 102#u8, 110#u8,
+    34#u8, 58#u8, 57#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 50#u8, 55#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8,
+    112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8,
+    49#u8, 51#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 50#u8,
+    55#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 50#u8,
+    56#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
+    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 52#u8, 56#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 49#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 50#u8, 56#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 50#u8, 57#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
+    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
+    34#u8, 58#u8, 49#u8, 50#u8, 57#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
+    101#u8, 34#u8, 58#u8, 52#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 50#u8, 54#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
+    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8, 108#u8,
+    105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P42]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 945:0-962:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P42 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 58#u8, 50#u8, 57#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8,
+    49#u8, 50#u8, 49#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 50#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8,
+    51#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 50#u8, 50#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 50#u8, 51#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 102#u8,
+    110#u8, 34#u8, 58#u8, 49#u8, 50#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 50#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8,
+    34#u8, 58#u8, 49#u8, 50#u8, 52#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8,
+    58#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    50#u8, 53#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
+    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 50#u8, 53#u8, 44#u8,
+    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8,
+    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 50#u8, 54#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 52#u8, 49#u8, 44#u8, 34#u8,
+    115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
+    101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
+    58#u8, 34#u8, 113#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8,
+    112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P41]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 924:0-941:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P41 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    114#u8, 101#u8, 34#u8, 58#u8, 51#u8, 49#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 34#u8, 105#u8, 110#u8, 100#u8, 34#u8, 125#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 102#u8, 110#u8,
+    34#u8, 58#u8, 57#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 49#u8, 56#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8,
+    112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8,
+    49#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 49#u8, 56#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 57#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
+    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 110#u8, 97#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 50#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 110#u8, 34#u8, 58#u8, 52#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8,
+    48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 109#u8,
+    107#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8,
+    115#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 51#u8, 51#u8, 44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8,
+    91#u8, 50#u8, 93#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 50#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P40]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 902:0-920:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P40 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 58#u8, 57#u8, 56#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 49#u8, 53#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8,
+    114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
+    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
+    34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8,
+    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
+    49#u8, 49#u8, 53#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 51#u8, 50#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 53#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    49#u8, 54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
+    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8,
+    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 49#u8,
+    54#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8,
+    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 55#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 113#u8, 117#u8, 111#u8, 116#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 107#u8, 105#u8, 110#u8, 100#u8, 34#u8, 58#u8, 34#u8, 108#u8,
+    105#u8, 102#u8, 116#u8, 34#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8,
+    101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8,
+    91#u8, 49#u8, 50#u8, 44#u8, 51#u8, 53#u8, 93#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 52#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 55#u8, 125#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 51#u8, 57#u8, 44#u8,
+    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P39]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 880:0-898:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P39 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 50#u8, 57#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 49#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 50#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
+    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
+    34#u8, 58#u8, 49#u8, 49#u8, 50#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
+    101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 48#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 49#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8,
+    111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8,
+    111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8,
+    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
+    49#u8, 49#u8, 51#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 51#u8, 55#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 57#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 49#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8,
+    97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
+    110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
+    58#u8, 34#u8, 105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8,
+    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
+    49#u8, 49#u8, 52#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 51#u8, 54#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P38]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 859:0-876:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P38 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 48#u8, 55#u8, 44#u8,
+    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 56#u8, 44#u8,
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 51#u8, 48#u8, 125#u8,
+    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 56#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8,
+    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8,
+    97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
+    121#u8, 34#u8, 58#u8, 49#u8, 48#u8, 56#u8, 44#u8, 34#u8, 110#u8, 97#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 34#u8, 58#u8, 50#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 48#u8, 57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8,
+    112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8,
+    58#u8, 51#u8, 48#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 57#u8,
+    50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8,
+    48#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 57#u8, 44#u8,
+    34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 49#u8, 48#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 49#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
+    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P37]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 838:0-855:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P37 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    101#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8,
+    91#u8, 52#u8, 93#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 48#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 51#u8,
+    48#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 48#u8, 50#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 51#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 51#u8, 44#u8, 34#u8,
+    102#u8, 110#u8, 34#u8, 58#u8, 50#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8,
+    34#u8, 58#u8, 49#u8, 48#u8, 52#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8,
+    58#u8, 49#u8, 48#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 48#u8, 53#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8,
+    112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8,
+    51#u8, 52#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 48#u8,
+    53#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8,
+    54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
+    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 48#u8, 54#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 49#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 55#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P36]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 817:0-834:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P36 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 206#u8, 178#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 57#u8, 56#u8, 44#u8, 34#u8, 115#u8, 111#u8, 114#u8,
+    116#u8, 34#u8, 58#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8,
+    34#u8, 58#u8, 51#u8, 55#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8,
+    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 102#u8, 34#u8, 125#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
+    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 110#u8, 97#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 57#u8, 57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8,
+    34#u8, 58#u8, 51#u8, 56#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8,
+    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 98#u8, 34#u8, 125#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 102#u8,
+    110#u8, 34#u8, 58#u8, 51#u8, 48#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 48#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8,
+    112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8,
+    58#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 48#u8,
+    48#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8,
+    49#u8, 125#u8, 10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 110#u8, 97#u8, 109#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P35]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 796:0-813:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P35 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8,
+    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8,
+    108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
+    100#u8, 121#u8, 34#u8, 58#u8, 57#u8, 54#u8, 44#u8, 34#u8, 110#u8, 97#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 57#u8, 55#u8, 125#u8, 10#u8, 123#u8, 34#u8, 113#u8, 117#u8,
+    111#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 107#u8, 105#u8, 110#u8,
+    100#u8, 34#u8, 58#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 34#u8, 44#u8,
+    34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8,
+    109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 50#u8, 93#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 51#u8, 44#u8, 34#u8,
+    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 57#u8, 55#u8, 125#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 51#u8, 52#u8, 44#u8,
+    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
+    101#u8, 34#u8, 58#u8, 51#u8, 49#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 34#u8, 108#u8, 105#u8, 102#u8, 116#u8, 34#u8, 125#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 51#u8, 53#u8, 44#u8,
+    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
+    101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
+    58#u8, 34#u8, 118#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
+    108#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 112#u8, 97#u8, 114#u8, 97#u8,
+    109#u8, 34#u8, 58#u8, 51#u8, 53#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
+    110#u8, 34#u8, 58#u8, 51#u8, 54#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8,
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P34]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 775:0-792:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P34 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    58#u8, 123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8,
+    49#u8, 44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 50#u8, 93#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 57#u8, 50#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 51#u8, 44#u8, 34#u8, 102#u8,
+    110#u8, 34#u8, 58#u8, 57#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 57#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8,
+    112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8,
+    50#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 57#u8, 51#u8, 125#u8,
+    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 57#u8, 52#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
+    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
+    34#u8, 58#u8, 57#u8, 52#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 57#u8,
+    53#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
+    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 57#u8, 53#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 50#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 53#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 57#u8, 54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8,
+    111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P33]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 753:0-771:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P33 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8,
+    111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8,
+    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
+    49#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
+    51#u8, 50#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8,
+    53#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 57#u8, 48#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8,
+    109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 57#u8, 48#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 55#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 57#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    113#u8, 117#u8, 111#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 107#u8,
+    105#u8, 110#u8, 100#u8, 34#u8, 58#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 34#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8,
+    97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 50#u8,
+    93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8,
+    49#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 57#u8,
+    49#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8,
+    51#u8, 51#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 51#u8, 49#u8, 44#u8, 34#u8,
+    115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 109#u8, 107#u8, 34#u8, 125#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P32]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 732:0-749:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P32 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 56#u8, 57#u8, 125#u8,
+    93#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 115#u8, 34#u8, 58#u8,
+    91#u8, 123#u8, 34#u8, 97#u8, 108#u8, 108#u8, 34#u8, 58#u8, 91#u8, 50#u8,
+    57#u8, 93#u8, 44#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 115#u8, 34#u8,
+    58#u8, 91#u8, 93#u8, 44#u8, 34#u8, 105#u8, 115#u8, 82#u8, 101#u8, 99#u8,
+    34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 105#u8,
+    115#u8, 82#u8, 101#u8, 102#u8, 108#u8, 101#u8, 120#u8, 105#u8, 118#u8,
+    101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8,
+    105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8,
+    102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8,
+    118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8,
+    58#u8, 91#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 50#u8, 57#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 73#u8, 110#u8,
+    100#u8, 105#u8, 99#u8, 101#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8,
+    110#u8, 117#u8, 109#u8, 78#u8, 101#u8, 115#u8, 116#u8, 101#u8, 100#u8,
+    34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8, 97#u8,
+    114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 51#u8, 125#u8, 93#u8, 125#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 51#u8, 49#u8, 44#u8,
+    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
+    101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
+    58#u8, 34#u8, 81#u8, 117#u8, 111#u8, 116#u8, 34#u8, 125#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 51#u8, 50#u8, 44#u8, 34#u8,
+    115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
+    101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
+    58#u8, 34#u8, 114#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P31]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 710:0-728:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P31 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 56#u8, 56#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8,
+    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8,
+    97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
+    121#u8, 34#u8, 58#u8, 56#u8, 56#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 34#u8, 58#u8, 56#u8, 55#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 56#u8, 57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8,
+    100#u8, 117#u8, 99#u8, 116#u8, 105#u8, 118#u8, 101#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 91#u8,
+    93#u8, 44#u8, 34#u8, 114#u8, 101#u8, 99#u8, 115#u8, 34#u8, 58#u8, 91#u8,
+    123#u8, 34#u8, 97#u8, 108#u8, 108#u8, 34#u8, 58#u8, 91#u8, 50#u8, 57#u8,
+    93#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8,
+    101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8,
+    107#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8,
+    108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8,
+    109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 50#u8, 93#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 48#u8, 44#u8, 34#u8,
+    110#u8, 117#u8, 109#u8, 73#u8, 110#u8, 100#u8, 105#u8, 99#u8, 101#u8,
+    115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 77#u8,
+    105#u8, 110#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8,
+    110#u8, 117#u8, 109#u8, 77#u8, 111#u8, 116#u8, 105#u8, 118#u8, 101#u8,
+    115#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8,
+    97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8,
+    114#u8, 117#u8, 108#u8, 101#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 44#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P30]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 689:0-706:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P30 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 50#u8, 57#u8, 44#u8, 34#u8,
+    115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
+    101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
+    58#u8, 34#u8, 70#u8, 97#u8, 108#u8, 115#u8, 101#u8, 34#u8, 125#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 51#u8, 48#u8, 44#u8,
+    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
+    101#u8, 34#u8, 58#u8, 50#u8, 57#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 34#u8, 114#u8, 101#u8, 99#u8, 34#u8, 125#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 57#u8, 44#u8,
+    34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 56#u8, 54#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
+    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8,
+    108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
+    58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 49#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 56#u8, 54#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    56#u8, 55#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
+    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 53#u8, 55#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 44#u8, 34#u8,
+    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 56#u8, 54#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P29]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 667:0-685:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P29 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 56#u8, 44#u8, 34#u8, 110#u8,
+    117#u8, 109#u8, 73#u8, 110#u8, 100#u8, 105#u8, 99#u8, 101#u8, 115#u8,
+    34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 77#u8, 105#u8,
+    110#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8,
+    117#u8, 109#u8, 77#u8, 111#u8, 116#u8, 105#u8, 118#u8, 101#u8, 115#u8,
+    34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8, 97#u8,
+    114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 114#u8,
+    117#u8, 108#u8, 101#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 44#u8, 34#u8,
+    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 56#u8, 53#u8, 125#u8, 93#u8,
+    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 115#u8, 34#u8, 58#u8, 91#u8,
+    123#u8, 34#u8, 97#u8, 108#u8, 108#u8, 34#u8, 58#u8, 91#u8, 50#u8, 55#u8,
+    93#u8, 44#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8,
+    91#u8, 93#u8, 44#u8, 34#u8, 105#u8, 115#u8, 82#u8, 101#u8, 99#u8, 34#u8,
+    58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 105#u8, 115#u8,
+    82#u8, 101#u8, 102#u8, 108#u8, 101#u8, 120#u8, 105#u8, 118#u8, 101#u8,
+    34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 105#u8,
+    115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8,
+    97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8,
+    101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8,
+    91#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
+    50#u8, 55#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 73#u8, 110#u8, 100#u8,
+    105#u8, 99#u8, 101#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8,
+    117#u8, 109#u8, 78#u8, 101#u8, 115#u8, 116#u8, 101#u8, 100#u8, 34#u8,
+    58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8, 97#u8, 114#u8,
+    97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8,
+    112#u8, 101#u8, 34#u8, 58#u8, 52#u8, 50#u8, 125#u8, 93#u8, 125#u8, 125#u8,
+    10#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P28]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 645:0-663:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P28 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    56#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 56#u8,
+    51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
+    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 53#u8, 55#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 56#u8, 50#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 56#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
+    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8,
+    108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
+    58#u8, 56#u8, 52#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 56#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    56#u8, 53#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 100#u8, 117#u8,
+    99#u8, 116#u8, 105#u8, 118#u8, 101#u8, 34#u8, 58#u8, 123#u8, 34#u8, 99#u8,
+    116#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 44#u8, 34#u8,
+    114#u8, 101#u8, 99#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8, 97#u8,
+    108#u8, 108#u8, 34#u8, 58#u8, 91#u8, 50#u8, 55#u8, 93#u8, 44#u8, 34#u8,
+    105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8,
+    102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 107#u8, 34#u8, 58#u8,
+    102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8,
+    118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8,
+    58#u8, 91#u8, 49#u8, 50#u8, 93#u8, 44#u8, 34#u8, 110#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P27]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 624:0-641:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P27 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 50#u8, 93#u8, 44#u8,
+    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 51#u8, 44#u8,
+    34#u8, 110#u8, 117#u8, 109#u8, 73#u8, 110#u8, 100#u8, 105#u8, 99#u8,
+    101#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8,
+    78#u8, 101#u8, 115#u8, 116#u8, 101#u8, 100#u8, 34#u8, 58#u8, 48#u8, 44#u8,
+    34#u8, 110#u8, 117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8,
+    34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 55#u8, 125#u8, 93#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 110#u8, 34#u8, 58#u8, 50#u8, 55#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8,
+    48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 69#u8,
+    109#u8, 112#u8, 116#u8, 121#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 50#u8, 56#u8, 44#u8, 34#u8, 115#u8,
+    116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8,
+    58#u8, 50#u8, 55#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8,
+    34#u8, 114#u8, 101#u8, 99#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 55#u8, 44#u8, 34#u8, 117#u8,
+    115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 56#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8,
+    114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
+    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
+    34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8,
+    34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8,
+    55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    49#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P26]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 602:0-620:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P26 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 107#u8,
+    34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8,
+    101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8,
+    115#u8, 34#u8, 58#u8, 91#u8, 50#u8, 44#u8, 49#u8, 50#u8, 93#u8, 44#u8,
+    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 54#u8, 44#u8,
+    34#u8, 110#u8, 117#u8, 109#u8, 73#u8, 110#u8, 100#u8, 105#u8, 99#u8,
+    101#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8,
+    77#u8, 105#u8, 110#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 49#u8, 44#u8,
+    34#u8, 110#u8, 117#u8, 109#u8, 77#u8, 111#u8, 116#u8, 105#u8, 118#u8,
+    101#u8, 115#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8,
+    80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8,
+    34#u8, 114#u8, 117#u8, 108#u8, 101#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8,
+    34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 34#u8, 58#u8, 50#u8, 52#u8, 44#u8,
+    34#u8, 110#u8, 102#u8, 105#u8, 101#u8, 108#u8, 100#u8, 115#u8, 34#u8,
+    58#u8, 48#u8, 44#u8, 34#u8, 114#u8, 104#u8, 115#u8, 34#u8, 58#u8, 55#u8,
+    56#u8, 125#u8, 93#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 56#u8, 49#u8, 125#u8, 93#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8, 97#u8, 108#u8, 108#u8,
+    34#u8, 58#u8, 91#u8, 50#u8, 51#u8, 93#u8, 44#u8, 34#u8, 99#u8, 116#u8,
+    111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 91#u8, 50#u8, 52#u8, 93#u8, 44#u8,
+    34#u8, 105#u8, 115#u8, 82#u8, 101#u8, 99#u8, 34#u8, 58#u8, 102#u8, 97#u8,
+    108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 105#u8, 115#u8, 82#u8, 101#u8,
+    102#u8, 108#u8, 101#u8, 120#u8, 105#u8, 118#u8, 101#u8, 34#u8, 58#u8,
+    102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8,
+    110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8,
+    115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8,
+    80#u8, 97#u8, 114#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P25]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 580:0-598:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P25 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 55#u8, 54#u8, 125#u8,
+    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 56#u8, 48#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8,
+    108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
+    100#u8, 121#u8, 34#u8, 58#u8, 56#u8, 48#u8, 44#u8, 34#u8, 110#u8, 97#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8,
+    112#u8, 101#u8, 34#u8, 58#u8, 55#u8, 52#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 56#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
+    110#u8, 100#u8, 117#u8, 99#u8, 116#u8, 105#u8, 118#u8, 101#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8,
+    91#u8, 123#u8, 34#u8, 99#u8, 105#u8, 100#u8, 120#u8, 34#u8, 58#u8, 48#u8,
+    44#u8, 34#u8, 105#u8, 110#u8, 100#u8, 117#u8, 99#u8, 116#u8, 34#u8, 58#u8,
+    50#u8, 51#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8,
+    102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8,
+    34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8,
+    109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 50#u8, 93#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 52#u8, 44#u8, 34#u8,
+    110#u8, 117#u8, 109#u8, 70#u8, 105#u8, 101#u8, 108#u8, 100#u8, 115#u8,
+    34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8, 97#u8,
+    114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 55#u8, 51#u8, 125#u8, 93#u8, 44#u8,
+    34#u8, 114#u8, 101#u8, 99#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8,
+    97#u8, 108#u8, 108#u8, 34#u8, 58#u8, 91#u8, 50#u8, 51#u8, 93#u8, 44#u8,
+    34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P24]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 558:0-576:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P24 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    58#u8, 50#u8, 53#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 55#u8, 54#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 55#u8, 56#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
+    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
+    34#u8, 58#u8, 55#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    34#u8, 58#u8, 55#u8, 52#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
+    110#u8, 34#u8, 58#u8, 50#u8, 54#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 50#u8,
+    51#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 114#u8,
+    101#u8, 99#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8,
+    114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
+    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
+    34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8,
+    34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 52#u8,
+    56#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    49#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 55#u8,
+    51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 55#u8, 57#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
+    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 55#u8, 57#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 53#u8, 44#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P23]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 537:0-554:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P23 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 58#u8, 91#u8, 50#u8, 93#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 55#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8,
+    114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
+    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
+    34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8,
+    34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 48#u8,
+    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8,
+    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 55#u8, 51#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 55#u8, 52#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 50#u8, 53#u8, 44#u8,
+    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
+    101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
+    58#u8, 34#u8, 117#u8, 110#u8, 105#u8, 116#u8, 34#u8, 125#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 52#u8, 44#u8,
+    34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 50#u8, 93#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 55#u8, 53#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8,
+    103#u8, 34#u8, 58#u8, 55#u8, 53#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8,
+    58#u8, 49#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 55#u8,
+    54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 55#u8,
+    55#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8,
+    111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8,
+    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
+    49#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P22]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 515:0-533:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P22 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    53#u8, 93#u8, 44#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 115#u8, 34#u8,
+    58#u8, 91#u8, 49#u8, 54#u8, 44#u8, 49#u8, 55#u8, 93#u8, 44#u8, 34#u8,
+    105#u8, 115#u8, 82#u8, 101#u8, 99#u8, 34#u8, 58#u8, 116#u8, 114#u8, 117#u8,
+    101#u8, 44#u8, 34#u8, 105#u8, 115#u8, 82#u8, 101#u8, 102#u8, 108#u8,
+    101#u8, 120#u8, 105#u8, 118#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8,
+    108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8,
+    115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8,
+    101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8,
+    114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 44#u8, 34#u8,
+    110#u8, 117#u8, 109#u8, 73#u8, 110#u8, 100#u8, 105#u8, 99#u8, 101#u8,
+    115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 78#u8,
+    101#u8, 115#u8, 116#u8, 101#u8, 100#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8,
+    110#u8, 117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8,
+    58#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8,
+    52#u8, 50#u8, 125#u8, 93#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
+    110#u8, 34#u8, 58#u8, 50#u8, 51#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8,
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 80#u8, 85#u8,
+    110#u8, 105#u8, 116#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 110#u8, 34#u8, 58#u8, 50#u8, 52#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8,
+    50#u8, 51#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8,
+    117#u8, 110#u8, 105#u8, 116#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 51#u8, 44#u8, 34#u8,
+    117#u8, 115#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P21]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 494:0-511:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P21 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 52#u8, 52#u8, 125#u8, 93#u8, 44#u8, 34#u8, 114#u8, 101#u8, 99#u8,
+    115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8, 97#u8, 108#u8, 108#u8, 34#u8,
+    58#u8, 91#u8, 49#u8, 53#u8, 93#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8,
+    110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8,
+    115#u8, 101#u8, 44#u8, 34#u8, 107#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8,
+    115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8,
+    80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8,
+    50#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
+    50#u8, 50#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 73#u8, 110#u8, 100#u8,
+    105#u8, 99#u8, 101#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8,
+    117#u8, 109#u8, 77#u8, 105#u8, 110#u8, 111#u8, 114#u8, 115#u8, 34#u8,
+    58#u8, 50#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 77#u8, 111#u8, 116#u8,
+    105#u8, 118#u8, 101#u8, 115#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8,
+    117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8,
+    48#u8, 44#u8, 34#u8, 114#u8, 117#u8, 108#u8, 101#u8, 115#u8, 34#u8, 58#u8,
+    91#u8, 123#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 34#u8, 58#u8, 49#u8,
+    54#u8, 44#u8, 34#u8, 110#u8, 102#u8, 105#u8, 101#u8, 108#u8, 100#u8,
+    115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 114#u8, 104#u8, 115#u8, 34#u8,
+    58#u8, 53#u8, 54#u8, 125#u8, 44#u8, 123#u8, 34#u8, 99#u8, 116#u8, 111#u8,
+    114#u8, 34#u8, 58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 110#u8, 102#u8, 105#u8,
+    101#u8, 108#u8, 100#u8, 115#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 114#u8,
+    104#u8, 115#u8, 34#u8, 58#u8, 54#u8, 55#u8, 125#u8, 93#u8, 44#u8, 34#u8,
+    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 55#u8, 50#u8, 125#u8, 93#u8,
+    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 115#u8, 34#u8, 58#u8, 91#u8,
+    123#u8, 34#u8, 97#u8, 108#u8, 108#u8, 34#u8, 58#u8, 91#u8, 49#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P20]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 472:0-490:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P20 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 55#u8, 49#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 52#u8, 53#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 55#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 110#u8, 100#u8, 117#u8, 99#u8, 116#u8, 105#u8, 118#u8, 101#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 115#u8, 34#u8,
+    58#u8, 91#u8, 123#u8, 34#u8, 99#u8, 105#u8, 100#u8, 120#u8, 34#u8, 58#u8,
+    48#u8, 44#u8, 34#u8, 105#u8, 110#u8, 100#u8, 117#u8, 99#u8, 116#u8, 34#u8,
+    58#u8, 49#u8, 53#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8,
+    97#u8, 102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8,
+    44#u8, 34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8,
+    97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 54#u8, 44#u8, 34#u8, 110#u8,
+    117#u8, 109#u8, 70#u8, 105#u8, 101#u8, 108#u8, 100#u8, 115#u8, 34#u8,
+    58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 80#u8, 97#u8, 114#u8,
+    97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8,
+    112#u8, 101#u8, 34#u8, 58#u8, 52#u8, 51#u8, 125#u8, 44#u8, 123#u8, 34#u8,
+    99#u8, 105#u8, 100#u8, 120#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 105#u8,
+    110#u8, 100#u8, 117#u8, 99#u8, 116#u8, 34#u8, 58#u8, 49#u8, 53#u8, 44#u8,
+    34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8,
+    58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8,
+    118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8,
+    58#u8, 91#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 70#u8, 105#u8,
+    101#u8, 108#u8, 100#u8, 115#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8,
+    117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P19]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 450:0-468:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P19 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
+    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 54#u8, 56#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 52#u8, 51#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 54#u8, 57#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
+    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8,
+    108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
+    58#u8, 54#u8, 57#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 50#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 53#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    55#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
+    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 55#u8, 48#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 57#u8, 44#u8, 34#u8,
+    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 52#u8, 55#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 55#u8, 49#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8,
+    108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P18]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 429:0-446:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P18 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 54#u8, 53#u8,
+    44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
+    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
+    34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8,
+    34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 54#u8,
+    52#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8,
+    48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 53#u8,
+    51#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    54#u8, 54#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
+    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8,
+    108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
+    58#u8, 54#u8, 53#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 57#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 52#u8, 55#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 54#u8, 55#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
+    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
+    34#u8, 58#u8, 54#u8, 54#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    34#u8, 58#u8, 52#u8, 53#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8,
+    112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8,
+    58#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 50#u8, 57#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 54#u8, 56#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P17]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 408:0-425:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P17 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    91#u8, 50#u8, 93#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    53#u8, 56#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 57#u8,
+    44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 53#u8, 56#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 53#u8, 57#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8,
+    103#u8, 34#u8, 58#u8, 49#u8, 51#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8,
+    58#u8, 53#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    54#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 44#u8,
+    34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 54#u8, 48#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 54#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8,
+    34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 54#u8,
+    49#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 54#u8, 50#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 54#u8, 50#u8, 44#u8, 34#u8,
+    102#u8, 110#u8, 34#u8, 58#u8, 53#u8, 55#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 54#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 54#u8, 52#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8,
+    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8,
+    97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
+    121#u8, 34#u8, 58#u8, 54#u8, 51#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 34#u8, 58#u8, 52#u8, 51#u8, 125#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P16]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 387:0-404:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P16 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 58#u8, 50#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    34#u8, 58#u8, 53#u8, 51#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 53#u8, 53#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8,
+    73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8,
+    97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8,
+    121#u8, 34#u8, 58#u8, 53#u8, 52#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 57#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 34#u8, 58#u8, 52#u8, 55#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 53#u8, 54#u8, 44#u8, 34#u8, 108#u8, 97#u8,
+    109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8,
+    114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8,
+    102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
+    100#u8, 121#u8, 34#u8, 58#u8, 53#u8, 53#u8, 44#u8, 34#u8, 110#u8, 97#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8,
+    112#u8, 101#u8, 34#u8, 58#u8, 52#u8, 53#u8, 125#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8,
+    103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8,
+    50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 53#u8, 55#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 50#u8, 50#u8,
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8,
+    114#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 34#u8, 114#u8, 101#u8, 99#u8, 34#u8, 125#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 50#u8,
+    44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P15]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 365:0-383:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P15 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 52#u8, 57#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 53#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8,
+    34#u8, 58#u8, 53#u8, 48#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8,
+    50#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 53#u8,
+    49#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
+    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 53#u8, 49#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 50#u8, 49#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 52#u8, 56#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 53#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
+    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8,
+    108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
+    58#u8, 53#u8, 50#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 52#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    53#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    53#u8, 52#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
+    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8,
+    108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
+    58#u8, 50#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P14]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 344:0-361:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P14 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8,
+    122#u8, 101#u8, 114#u8, 111#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 54#u8, 44#u8, 34#u8,
+    117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 52#u8, 54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8,
+    112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8,
+    58#u8, 52#u8, 54#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 52#u8, 55#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 50#u8, 48#u8, 44#u8,
+    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
+    101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
+    58#u8, 34#u8, 115#u8, 117#u8, 99#u8, 99#u8, 34#u8, 125#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 50#u8, 49#u8, 44#u8, 34#u8,
+    115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
+    101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
+    58#u8, 34#u8, 110#u8, 95#u8, 105#u8, 104#u8, 34#u8, 125#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8,
+    114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8,
+    58#u8, 49#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    52#u8, 56#u8, 125#u8, 10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8,
+    116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8,
+    93#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 52#u8, 57#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 44#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P13]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 322:0-340:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P13 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 58#u8, 34#u8, 115#u8, 117#u8, 99#u8, 99#u8, 34#u8, 125#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8,
+    44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 93#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 52#u8, 51#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 49#u8, 56#u8, 44#u8, 34#u8, 115#u8,
+    116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8,
+    58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8,
+    110#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8,
+    114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
+    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
+    34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8,
+    34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 52#u8,
+    51#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 52#u8,
+    51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 52#u8, 52#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8,
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8,
+    101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8,
+    111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 52#u8, 51#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 52#u8, 53#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 110#u8, 34#u8, 58#u8, 49#u8, 57#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P12]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 300:0-318:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P12 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    120#u8, 105#u8, 118#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8,
+    115#u8, 101#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8,
+    102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8,
+    34#u8, 108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8,
+    109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 50#u8, 93#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8, 117#u8,
+    109#u8, 73#u8, 110#u8, 100#u8, 105#u8, 99#u8, 101#u8, 115#u8, 34#u8, 58#u8,
+    49#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 78#u8, 101#u8, 115#u8, 116#u8,
+    101#u8, 100#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8,
+    80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 50#u8, 44#u8,
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 54#u8, 125#u8, 93#u8,
+    125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 49#u8,
+    53#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 34#u8, 78#u8, 97#u8, 116#u8, 34#u8, 125#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 105#u8, 108#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8,
+    115#u8, 117#u8, 99#u8, 99#u8, 34#u8, 58#u8, 48#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 52#u8, 50#u8, 44#u8, 34#u8, 115#u8,
+    111#u8, 114#u8, 116#u8, 34#u8, 58#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 110#u8, 34#u8, 58#u8, 49#u8, 54#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 53#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8,
+    122#u8, 101#u8, 114#u8, 111#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 115#u8,
+    116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 53#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P11]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 279:0-296:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P11 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    50#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    50#u8, 125#u8, 93#u8, 44#u8, 34#u8, 114#u8, 101#u8, 99#u8, 115#u8, 34#u8,
+    58#u8, 91#u8, 123#u8, 34#u8, 97#u8, 108#u8, 108#u8, 34#u8, 58#u8, 91#u8,
+    49#u8, 93#u8, 44#u8, 34#u8, 105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8,
+    102#u8, 101#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8,
+    34#u8, 107#u8, 34#u8, 58#u8, 116#u8, 114#u8, 117#u8, 101#u8, 44#u8, 34#u8,
+    108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8,
+    109#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 50#u8, 44#u8, 50#u8, 93#u8,
+    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 52#u8,
+    44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 73#u8, 110#u8, 100#u8, 105#u8, 99#u8,
+    101#u8, 115#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8,
+    77#u8, 105#u8, 110#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 49#u8, 44#u8,
+    34#u8, 110#u8, 117#u8, 109#u8, 77#u8, 111#u8, 116#u8, 105#u8, 118#u8,
+    101#u8, 115#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8,
+    80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8, 50#u8, 44#u8,
+    34#u8, 114#u8, 117#u8, 108#u8, 101#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8,
+    34#u8, 99#u8, 116#u8, 111#u8, 114#u8, 34#u8, 58#u8, 57#u8, 44#u8, 34#u8,
+    110#u8, 102#u8, 105#u8, 101#u8, 108#u8, 100#u8, 115#u8, 34#u8, 58#u8,
+    48#u8, 44#u8, 34#u8, 114#u8, 104#u8, 115#u8, 34#u8, 58#u8, 50#u8, 56#u8,
+    125#u8, 93#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8,
+    52#u8, 49#u8, 125#u8, 93#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8, 97#u8, 108#u8, 108#u8, 34#u8,
+    58#u8, 91#u8, 49#u8, 93#u8, 44#u8, 34#u8, 99#u8, 116#u8, 111#u8, 114#u8,
+    115#u8, 34#u8, 58#u8, 91#u8, 57#u8, 93#u8, 44#u8, 34#u8, 105#u8, 115#u8,
+    82#u8, 101#u8, 99#u8, 34#u8, 58#u8, 102#u8, 97#u8, 108#u8, 115#u8, 101#u8,
+    44#u8, 34#u8, 105#u8, 115#u8, 82#u8, 101#u8, 102#u8, 108#u8, 101#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P10]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 257:0-275:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P10 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8,
+    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 51#u8, 57#u8,
+    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 56#u8, 44#u8,
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 52#u8, 48#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8,
+    108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
+    100#u8, 121#u8, 34#u8, 58#u8, 52#u8, 48#u8, 44#u8, 34#u8, 110#u8, 97#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 34#u8, 58#u8, 48#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 52#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 100#u8,
+    117#u8, 99#u8, 116#u8, 105#u8, 118#u8, 101#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    99#u8, 116#u8, 111#u8, 114#u8, 115#u8, 34#u8, 58#u8, 91#u8, 123#u8, 34#u8,
+    99#u8, 105#u8, 100#u8, 120#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 105#u8,
+    110#u8, 100#u8, 117#u8, 99#u8, 116#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8,
+    105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8, 34#u8, 58#u8,
+    102#u8, 97#u8, 108#u8, 115#u8, 101#u8, 44#u8, 34#u8, 108#u8, 101#u8,
+    118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8,
+    58#u8, 91#u8, 50#u8, 93#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 57#u8, 44#u8, 34#u8, 110#u8, 117#u8, 109#u8, 70#u8, 105#u8,
+    101#u8, 108#u8, 100#u8, 115#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 110#u8,
+    117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8, 34#u8, 58#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P09]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 235:0-253:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P09 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    58#u8, 49#u8, 49#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 51#u8, 51#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    51#u8, 54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
+    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8,
+    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 51#u8, 54#u8,
+    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 56#u8, 44#u8,
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 50#u8, 57#u8, 125#u8,
+    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 51#u8, 55#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
+    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
+    34#u8, 58#u8, 51#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 51#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    34#u8, 58#u8, 50#u8, 52#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 51#u8, 56#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8,
+    97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
+    110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
+    58#u8, 34#u8, 105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8,
+    116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8,
+    51#u8, 56#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 51#u8,
+    57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P08]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 214:0-231:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P08 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    97#u8, 114#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 50#u8, 57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 98#u8, 118#u8, 97#u8,
+    114#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    51#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 51#u8, 48#u8,
+    44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 55#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 51#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8,
+    34#u8, 58#u8, 50#u8, 57#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8,
+    51#u8, 49#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 51#u8,
+    50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8,
+    102#u8, 110#u8, 34#u8, 58#u8, 51#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 51#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8,
+    112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8,
+    58#u8, 50#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 50#u8, 57#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 51#u8, 52#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8,
+    34#u8, 58#u8, 51#u8, 52#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 51#u8, 53#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8,
+    97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8,
+    110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8,
+    58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8,
+    44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 51#u8, 53#u8,
+    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P07]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 192:0-210:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P07 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    52#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    50#u8, 54#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
+    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8,
+    108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
+    58#u8, 50#u8, 53#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 57#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 50#u8, 55#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
+    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
+    34#u8, 58#u8, 50#u8, 54#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 50#u8, 56#u8, 44#u8, 34#u8, 108#u8, 97#u8, 109#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8,
+    108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
+    100#u8, 121#u8, 34#u8, 58#u8, 50#u8, 55#u8, 44#u8, 34#u8, 110#u8, 97#u8,
+    109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8,
+    101#u8, 34#u8, 58#u8, 48#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
+    110#u8, 34#u8, 58#u8, 49#u8, 52#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 114#u8, 101#u8,
+    99#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 98#u8, 118#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P06]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 171:0-188:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P06 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 114#u8, 101#u8, 102#u8,
+    108#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8,
+    44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 50#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 57#u8, 44#u8, 34#u8, 117#u8, 115#u8,
+    34#u8, 58#u8, 91#u8, 49#u8, 93#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 50#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8,
+    112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8,
+    49#u8, 51#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 50#u8, 49#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 50#u8, 50#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 102#u8, 110#u8,
+    34#u8, 58#u8, 50#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 50#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 50#u8,
+    51#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 50#u8, 48#u8, 125#u8,
+    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 50#u8, 52#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 50#u8, 53#u8, 44#u8, 34#u8,
+    108#u8, 97#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 110#u8,
+    97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 51#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 50#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P05]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 149:0-167:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P05 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 54#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 49#u8, 50#u8, 44#u8, 34#u8, 115#u8,
+    116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8,
+    58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8,
+    117#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 108#u8, 34#u8,
+    58#u8, 50#u8, 44#u8, 34#u8, 112#u8, 97#u8, 114#u8, 97#u8, 109#u8, 34#u8,
+    58#u8, 49#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 101#u8, 34#u8,
+    58#u8, 49#u8, 55#u8, 44#u8, 34#u8, 115#u8, 111#u8, 114#u8, 116#u8, 34#u8,
+    58#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8,
+    108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8,
+    100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8,
+    100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 55#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 44#u8, 34#u8,
+    116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 54#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 56#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8,
+    117#u8, 108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8,
+    34#u8, 58#u8, 49#u8, 56#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8,
+    34#u8, 58#u8, 56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8,
+    58#u8, 50#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 49#u8,
+    51#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P04]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 128:0-145:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P04 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8,
+    101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8,
+    109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8,
+    98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8, 49#u8, 44#u8, 34#u8,
+    110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 116#u8,
+    121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 48#u8, 125#u8, 44#u8, 34#u8, 105#u8,
+    101#u8, 34#u8, 58#u8, 49#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8,
+    110#u8, 34#u8, 58#u8, 49#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8,
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 109#u8, 111#u8,
+    116#u8, 105#u8, 118#u8, 101#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 49#u8, 49#u8, 44#u8, 34#u8, 115#u8,
+    116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8,
+    58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8,
+    116#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 98#u8, 118#u8, 97#u8,
+    114#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    49#u8, 51#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 51#u8,
+    44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 55#u8, 125#u8, 44#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8, 103#u8,
+    34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8, 49#u8,
+    52#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 53#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 102#u8,
+    110#u8, 34#u8, 58#u8, 49#u8, 53#u8, 125#u8, 44#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P03]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 106:0-124:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P03 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    58#u8, 54#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8,
+    57#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 34#u8, 114#u8, 101#u8, 102#u8, 108#u8, 34#u8, 125#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 99#u8, 111#u8, 110#u8, 115#u8, 116#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    44#u8, 34#u8, 117#u8, 115#u8, 34#u8, 58#u8, 91#u8, 49#u8, 93#u8, 125#u8,
+    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 55#u8, 125#u8, 10#u8, 123#u8,
+    34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8, 97#u8, 114#u8,
+    103#u8, 34#u8, 58#u8, 50#u8, 44#u8, 34#u8, 102#u8, 110#u8, 34#u8, 58#u8,
+    55#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 56#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 102#u8, 110#u8,
+    34#u8, 58#u8, 56#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8,
+    57#u8, 125#u8, 10#u8, 123#u8, 34#u8, 97#u8, 112#u8, 112#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 97#u8, 114#u8, 103#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8,
+    102#u8, 110#u8, 34#u8, 58#u8, 57#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8,
+    34#u8, 58#u8, 49#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8,
+    114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
+    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
+    34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8,
+    34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 49#u8,
+    48#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 52#u8,
+    44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8, 125#u8,
+    44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 49#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P02]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 84:0-102:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P02 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    48#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 49#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 98#u8, 118#u8, 97#u8, 114#u8, 34#u8, 58#u8, 49#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 50#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 115#u8, 111#u8, 114#u8,
+    116#u8, 34#u8, 58#u8, 48#u8, 125#u8, 10#u8, 123#u8, 34#u8, 102#u8, 111#u8,
+    114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8, 34#u8, 98#u8,
+    105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8, 111#u8,
+    34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8,
+    34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8, 58#u8, 51#u8,
+    44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 56#u8, 44#u8,
+    34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 50#u8, 125#u8, 44#u8,
+    34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 52#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8, 58#u8, 123#u8,
+    34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8,
+    102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 100#u8, 101#u8, 102#u8, 97#u8, 117#u8,
+    108#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8, 100#u8, 121#u8, 34#u8,
+    58#u8, 52#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8,
+    56#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8, 34#u8, 58#u8, 49#u8,
+    125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8, 58#u8, 53#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8,
+    110#u8, 102#u8, 111#u8, 34#u8, 58#u8, 34#u8, 105#u8, 109#u8, 112#u8,
+    108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8, 44#u8, 34#u8, 98#u8, 111#u8,
+    100#u8, 121#u8, 34#u8, 58#u8, 53#u8, 44#u8, 34#u8, 110#u8, 97#u8, 109#u8,
+    101#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8, 116#u8, 121#u8, 112#u8, 101#u8,
+    34#u8, 58#u8, 48#u8, 125#u8, 44#u8, 34#u8, 105#u8, 101#u8, 34#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P01]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 63:0-80:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P01 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    34#u8, 112#u8, 97#u8, 114#u8, 97#u8, 109#u8, 34#u8, 58#u8, 50#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 51#u8, 44#u8, 34#u8,
+    115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
+    101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
+    58#u8, 34#u8, 206#u8, 177#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 111#u8, 114#u8,
+    116#u8, 34#u8, 58#u8, 49#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8,
+    34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8,
+    123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8,
+    115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 97#u8, 34#u8, 125#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 53#u8, 44#u8, 34#u8,
+    115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
+    101#u8, 34#u8, 58#u8, 52#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
+    58#u8, 34#u8, 95#u8, 64#u8, 34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 110#u8, 34#u8, 58#u8, 54#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 53#u8,
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 95#u8, 105#u8,
+    110#u8, 116#u8, 101#u8, 114#u8, 110#u8, 97#u8, 108#u8, 34#u8, 125#u8,
+    125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 55#u8, 44#u8,
+    34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8,
+    101#u8, 34#u8, 58#u8, 54#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8,
+    58#u8, 34#u8, 95#u8, 104#u8, 121#u8, 103#u8, 34#u8, 125#u8, 125#u8, 10#u8,
+    123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8, 56#u8, 44#u8, 34#u8, 110#u8,
+    117#u8, 109#u8, 34#u8, 58#u8, 123#u8, 34#u8, 105#u8, 34#u8, 58#u8, 48#u8,
+    44#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 55#u8, 125#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 98#u8, 118#u8, 97#u8, 114#u8, 34#u8, 58#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::P00]
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 42:0-59:2 -/
+@[global_simps, irreducible]
+def frontend.prelude_text.P00 : Array Std.U8 256#usize :=
+  Array.make 256#usize [
+    123#u8, 34#u8, 109#u8, 101#u8, 116#u8, 97#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    101#u8, 120#u8, 112#u8, 111#u8, 114#u8, 116#u8, 101#u8, 114#u8, 34#u8,
+    58#u8, 123#u8, 34#u8, 110#u8, 97#u8, 109#u8, 101#u8, 34#u8, 58#u8, 34#u8,
+    99#u8, 111#u8, 110#u8, 45#u8, 108#u8, 101#u8, 99#u8, 104#u8, 101#u8, 45#u8,
+    112#u8, 114#u8, 101#u8, 108#u8, 117#u8, 100#u8, 101#u8, 34#u8, 44#u8,
+    34#u8, 118#u8, 101#u8, 114#u8, 115#u8, 105#u8, 111#u8, 110#u8, 34#u8,
+    58#u8, 34#u8, 49#u8, 34#u8, 125#u8, 44#u8, 34#u8, 102#u8, 111#u8, 114#u8,
+    109#u8, 97#u8, 116#u8, 34#u8, 58#u8, 123#u8, 34#u8, 118#u8, 101#u8, 114#u8,
+    115#u8, 105#u8, 111#u8, 110#u8, 34#u8, 58#u8, 34#u8, 51#u8, 46#u8, 49#u8,
+    46#u8, 48#u8, 34#u8, 125#u8, 44#u8, 34#u8, 108#u8, 101#u8, 97#u8, 110#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 103#u8, 105#u8, 116#u8, 104#u8, 97#u8, 115#u8,
+    104#u8, 34#u8, 58#u8, 34#u8, 100#u8, 56#u8, 98#u8, 49#u8, 56#u8, 57#u8,
+    55#u8, 56#u8, 51#u8, 50#u8, 50#u8, 100#u8, 101#u8, 48#u8, 53#u8, 97#u8,
+    56#u8, 102#u8, 51#u8, 100#u8, 98#u8, 97#u8, 53#u8, 49#u8, 101#u8, 102#u8,
+    48#u8, 51#u8, 99#u8, 102#u8, 53#u8, 52#u8, 54#u8, 49#u8, 54#u8, 55#u8,
+    54#u8, 99#u8, 49#u8, 55#u8, 34#u8, 44#u8, 34#u8, 118#u8, 101#u8, 114#u8,
+    115#u8, 105#u8, 111#u8, 110#u8, 34#u8, 58#u8, 34#u8, 52#u8, 46#u8, 51#u8,
+    51#u8, 46#u8, 48#u8, 34#u8, 125#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8,
+    105#u8, 110#u8, 34#u8, 58#u8, 49#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8,
+    34#u8, 58#u8, 123#u8, 34#u8, 112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8,
+    44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 34#u8, 69#u8, 113#u8,
+    34#u8, 125#u8, 125#u8, 10#u8, 123#u8, 34#u8, 105#u8, 110#u8, 34#u8, 58#u8,
+    50#u8, 44#u8, 34#u8, 115#u8, 116#u8, 114#u8, 34#u8, 58#u8, 123#u8, 34#u8,
+    112#u8, 114#u8, 101#u8, 34#u8, 58#u8, 48#u8, 44#u8, 34#u8, 115#u8, 116#u8,
+    114#u8, 34#u8, 58#u8, 34#u8, 117#u8, 95#u8, 49#u8, 34#u8, 125#u8, 125#u8,
+    10#u8, 123#u8, 34#u8, 105#u8, 108#u8, 34#u8, 58#u8, 49#u8, 44#u8
+    ]
+
+/-- [con_ron_core::frontend::prelude_text::prelude_text]:
+    Source: 'crates/con-ron-core/src/frontend/prelude_text.rs', lines 1479:0-1549:1
+    Visibility: public -/
+def frontend.prelude_text.prelude_text : Result (alloc.vec.Vec Std.U8) := do
+  let out := alloc.vec.Vec.with_capacity Std.U8 16922#usize
+  let s ← lift (Array.to_slice frontend.prelude_text.P00)
+  let out1 ← frontend.prelude_text.push_chunk out s
+  let s1 ← lift (Array.to_slice frontend.prelude_text.P01)
+  let out2 ← frontend.prelude_text.push_chunk out1 s1
+  let s2 ← lift (Array.to_slice frontend.prelude_text.P02)
+  let out3 ← frontend.prelude_text.push_chunk out2 s2
+  let s3 ← lift (Array.to_slice frontend.prelude_text.P03)
+  let out4 ← frontend.prelude_text.push_chunk out3 s3
+  let s4 ← lift (Array.to_slice frontend.prelude_text.P04)
+  let out5 ← frontend.prelude_text.push_chunk out4 s4
+  let s5 ← lift (Array.to_slice frontend.prelude_text.P05)
+  let out6 ← frontend.prelude_text.push_chunk out5 s5
+  let s6 ← lift (Array.to_slice frontend.prelude_text.P06)
+  let out7 ← frontend.prelude_text.push_chunk out6 s6
+  let s7 ← lift (Array.to_slice frontend.prelude_text.P07)
+  let out8 ← frontend.prelude_text.push_chunk out7 s7
+  let s8 ← lift (Array.to_slice frontend.prelude_text.P08)
+  let out9 ← frontend.prelude_text.push_chunk out8 s8
+  let s9 ← lift (Array.to_slice frontend.prelude_text.P09)
+  let out10 ← frontend.prelude_text.push_chunk out9 s9
+  let s10 ← lift (Array.to_slice frontend.prelude_text.P10)
+  let out11 ← frontend.prelude_text.push_chunk out10 s10
+  let s11 ← lift (Array.to_slice frontend.prelude_text.P11)
+  let out12 ← frontend.prelude_text.push_chunk out11 s11
+  let s12 ← lift (Array.to_slice frontend.prelude_text.P12)
+  let out13 ← frontend.prelude_text.push_chunk out12 s12
+  let s13 ← lift (Array.to_slice frontend.prelude_text.P13)
+  let out14 ← frontend.prelude_text.push_chunk out13 s13
+  let s14 ← lift (Array.to_slice frontend.prelude_text.P14)
+  let out15 ← frontend.prelude_text.push_chunk out14 s14
+  let s15 ← lift (Array.to_slice frontend.prelude_text.P15)
+  let out16 ← frontend.prelude_text.push_chunk out15 s15
+  let s16 ← lift (Array.to_slice frontend.prelude_text.P16)
+  let out17 ← frontend.prelude_text.push_chunk out16 s16
+  let s17 ← lift (Array.to_slice frontend.prelude_text.P17)
+  let out18 ← frontend.prelude_text.push_chunk out17 s17
+  let s18 ← lift (Array.to_slice frontend.prelude_text.P18)
+  let out19 ← frontend.prelude_text.push_chunk out18 s18
+  let s19 ← lift (Array.to_slice frontend.prelude_text.P19)
+  let out20 ← frontend.prelude_text.push_chunk out19 s19
+  let s20 ← lift (Array.to_slice frontend.prelude_text.P20)
+  let out21 ← frontend.prelude_text.push_chunk out20 s20
+  let s21 ← lift (Array.to_slice frontend.prelude_text.P21)
+  let out22 ← frontend.prelude_text.push_chunk out21 s21
+  let s22 ← lift (Array.to_slice frontend.prelude_text.P22)
+  let out23 ← frontend.prelude_text.push_chunk out22 s22
+  let s23 ← lift (Array.to_slice frontend.prelude_text.P23)
+  let out24 ← frontend.prelude_text.push_chunk out23 s23
+  let s24 ← lift (Array.to_slice frontend.prelude_text.P24)
+  let out25 ← frontend.prelude_text.push_chunk out24 s24
+  let s25 ← lift (Array.to_slice frontend.prelude_text.P25)
+  let out26 ← frontend.prelude_text.push_chunk out25 s25
+  let s26 ← lift (Array.to_slice frontend.prelude_text.P26)
+  let out27 ← frontend.prelude_text.push_chunk out26 s26
+  let s27 ← lift (Array.to_slice frontend.prelude_text.P27)
+  let out28 ← frontend.prelude_text.push_chunk out27 s27
+  let s28 ← lift (Array.to_slice frontend.prelude_text.P28)
+  let out29 ← frontend.prelude_text.push_chunk out28 s28
+  let s29 ← lift (Array.to_slice frontend.prelude_text.P29)
+  let out30 ← frontend.prelude_text.push_chunk out29 s29
+  let s30 ← lift (Array.to_slice frontend.prelude_text.P30)
+  let out31 ← frontend.prelude_text.push_chunk out30 s30
+  let s31 ← lift (Array.to_slice frontend.prelude_text.P31)
+  let out32 ← frontend.prelude_text.push_chunk out31 s31
+  let s32 ← lift (Array.to_slice frontend.prelude_text.P32)
+  let out33 ← frontend.prelude_text.push_chunk out32 s32
+  let s33 ← lift (Array.to_slice frontend.prelude_text.P33)
+  let out34 ← frontend.prelude_text.push_chunk out33 s33
+  let s34 ← lift (Array.to_slice frontend.prelude_text.P34)
+  let out35 ← frontend.prelude_text.push_chunk out34 s34
+  let s35 ← lift (Array.to_slice frontend.prelude_text.P35)
+  let out36 ← frontend.prelude_text.push_chunk out35 s35
+  let s36 ← lift (Array.to_slice frontend.prelude_text.P36)
+  let out37 ← frontend.prelude_text.push_chunk out36 s36
+  let s37 ← lift (Array.to_slice frontend.prelude_text.P37)
+  let out38 ← frontend.prelude_text.push_chunk out37 s37
+  let s38 ← lift (Array.to_slice frontend.prelude_text.P38)
+  let out39 ← frontend.prelude_text.push_chunk out38 s38
+  let s39 ← lift (Array.to_slice frontend.prelude_text.P39)
+  let out40 ← frontend.prelude_text.push_chunk out39 s39
+  let s40 ← lift (Array.to_slice frontend.prelude_text.P40)
+  let out41 ← frontend.prelude_text.push_chunk out40 s40
+  let s41 ← lift (Array.to_slice frontend.prelude_text.P41)
+  let out42 ← frontend.prelude_text.push_chunk out41 s41
+  let s42 ← lift (Array.to_slice frontend.prelude_text.P42)
+  let out43 ← frontend.prelude_text.push_chunk out42 s42
+  let s43 ← lift (Array.to_slice frontend.prelude_text.P43)
+  let out44 ← frontend.prelude_text.push_chunk out43 s43
+  let s44 ← lift (Array.to_slice frontend.prelude_text.P44)
+  let out45 ← frontend.prelude_text.push_chunk out44 s44
+  let s45 ← lift (Array.to_slice frontend.prelude_text.P45)
+  let out46 ← frontend.prelude_text.push_chunk out45 s45
+  let s46 ← lift (Array.to_slice frontend.prelude_text.P46)
+  let out47 ← frontend.prelude_text.push_chunk out46 s46
+  let s47 ← lift (Array.to_slice frontend.prelude_text.P47)
+  let out48 ← frontend.prelude_text.push_chunk out47 s47
+  let s48 ← lift (Array.to_slice frontend.prelude_text.P48)
+  let out49 ← frontend.prelude_text.push_chunk out48 s48
+  let s49 ← lift (Array.to_slice frontend.prelude_text.P49)
+  let out50 ← frontend.prelude_text.push_chunk out49 s49
+  let s50 ← lift (Array.to_slice frontend.prelude_text.P50)
+  let out51 ← frontend.prelude_text.push_chunk out50 s50
+  let s51 ← lift (Array.to_slice frontend.prelude_text.P51)
+  let out52 ← frontend.prelude_text.push_chunk out51 s51
+  let s52 ← lift (Array.to_slice frontend.prelude_text.P52)
+  let out53 ← frontend.prelude_text.push_chunk out52 s52
+  let s53 ← lift (Array.to_slice frontend.prelude_text.P53)
+  let out54 ← frontend.prelude_text.push_chunk out53 s53
+  let s54 ← lift (Array.to_slice frontend.prelude_text.P54)
+  let out55 ← frontend.prelude_text.push_chunk out54 s54
+  let s55 ← lift (Array.to_slice frontend.prelude_text.P55)
+  let out56 ← frontend.prelude_text.push_chunk out55 s55
+  let s56 ← lift (Array.to_slice frontend.prelude_text.P56)
+  let out57 ← frontend.prelude_text.push_chunk out56 s56
+  let s57 ← lift (Array.to_slice frontend.prelude_text.P57)
+  let out58 ← frontend.prelude_text.push_chunk out57 s57
+  let s58 ← lift (Array.to_slice frontend.prelude_text.P58)
+  let out59 ← frontend.prelude_text.push_chunk out58 s58
+  let s59 ← lift (Array.to_slice frontend.prelude_text.P59)
+  let out60 ← frontend.prelude_text.push_chunk out59 s59
+  let s60 ← lift (Array.to_slice frontend.prelude_text.P60)
+  let out61 ← frontend.prelude_text.push_chunk out60 s60
+  let s61 ← lift (Array.to_slice frontend.prelude_text.P61)
+  let out62 ← frontend.prelude_text.push_chunk out61 s61
+  let s62 ← lift (Array.to_slice frontend.prelude_text.P62)
+  let out63 ← frontend.prelude_text.push_chunk out62 s62
+  let s63 ← lift (Array.to_slice frontend.prelude_text.P63)
+  let out64 ← frontend.prelude_text.push_chunk out63 s63
+  let s64 ← lift (Array.to_slice frontend.prelude_text.P64)
+  let out65 ← frontend.prelude_text.push_chunk out64 s64
+  let s65 ← lift (Array.to_slice frontend.prelude_text.P65)
+  let out66 ← frontend.prelude_text.push_chunk out65 s65
+  let s66 ← lift (Array.to_slice frontend.prelude_text.P66)
+  frontend.prelude_text.push_chunk out66 s66
+
+/-- [con_ron_core::frontend::prelude::builtin_prelude_e]:
+    Source: 'crates/con-ron-core/src/frontend/prelude.rs', lines 64:0-70:1
+    Visibility: public -/
+def frontend.prelude.builtin_prelude_e
+  {M : Type} (in_model_recModellerInst : frontend.in_model_rec.Modeller M)
+  (m : M) :
+  Result (core.result.Result frontend.prepare.PreludeIx
+    (kernel.core_types.CheckError × Std.U64))
+  := do
+  let text ← frontend.prelude_text.prelude_text
+  let s := alloc.vec.Vec.deref text
+  let r ←
+    frontend.export_c.parse_bytes in_model_recModellerInst m s true false
+  match r with
+  | core.result.Result.Ok r1 =>
+    ok (core.result.Result.Ok { decls := r1.decls })
+  | core.result.Result.Err e => ok (core.result.Result.Err e)
+
+/-- [con_ron_core::frontend::prepare::prelude_ix_empty]:
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 103:0-105:1
+    Visibility: public -/
+def frontend.prepare.prelude_ix_empty : Result frontend.prepare.PreludeIx := do
+  ok { decls := (alloc.vec.Vec.new kernel.env.Declaration) }
+
+/-- [con_ron_core::frontend::prepare::prelude_key]:
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 112:0-119:1
+    Visibility: public -/
+def frontend.prepare.prelude_key
+  (d : kernel.env.Declaration) : Result kernel.name.Name := do
+  let ns ← kernel.env.declaration_names d
+  let i := alloc.vec.Vec.len ns
+  if i = 0#usize
+  then kernel.name.anonymous
+  else
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.name.Name) ns 0#usize
+    kernel.name.dup n
+
+/-- [con_ron_core::frontend::prepare::declares]:
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 123:0-125:1
+    Visibility: public -/
+def frontend.prepare.declares
+  (n : kernel.name.Name) (d : kernel.env.Declaration) : Result Bool := do
+  let v ← kernel.env.declaration_names d
+  kernel.name.contains v n
+
+/-- [con_ron_core::frontend::prepare::pick_idx]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 141:4-146:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.prepare.pick_idx_loop
+  (n : kernel.name.Name) (ds : alloc.vec.Vec kernel.env.Declaration)
+  (picked : alloc.vec.Vec Bool) (m : Std.Usize) (i : Std.Usize)
+  (hit : Std.Usize) :
+  Result Std.Usize
+  := do
+  if i < m
+  then
+    if hit = m
+    then
+      let b ←
+        alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Bool) picked
+          i
+      let hit1 ←
+        if b
+        then ok hit
+        else
+          do
+          let d ←
+            alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+              kernel.env.Declaration) ds i
+          let b1 ← frontend.prepare.declares n d
+          if b1
+          then ok i
+          else ok hit
+      let i1 ← i + 1#usize
+      frontend.prepare.pick_idx_loop n ds picked m i1 hit1
+    else ok hit
+  else ok hit
+partial_fixpoint
+
+/-- [con_ron_core::frontend::prepare::pick_idx]:
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 137:0-148:1
+    Visibility: public -/
+def frontend.prepare.pick_idx
+  (n : kernel.name.Name) (ds : alloc.vec.Vec kernel.env.Declaration)
+  (picked : alloc.vec.Vec Bool) :
+  Result Std.Usize
+  := do
+  let m := alloc.vec.Vec.len ds
+  frontend.prepare.pick_idx_loop n ds picked m 0#usize m
+
+/-- [con_ron_core::frontend::prepare::no_picks]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 157:4-160:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.prepare.no_picks_loop
+  (n : Std.Usize) (picked : alloc.vec.Vec Bool) (i : Std.Usize) :
+  Result (alloc.vec.Vec Bool)
+  := do
+  if i < n
+  then
+    let picked1 ← alloc.vec.Vec.push picked false
+    let i1 ← i + 1#usize
+    frontend.prepare.no_picks_loop n picked1 i1
+  else ok picked
+partial_fixpoint
+
+/-- [con_ron_core::frontend::prepare::no_picks]:
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 154:0-162:1
+    Visibility: public -/
+def frontend.prepare.no_picks
+  (n : Std.Usize) : Result (alloc.vec.Vec Bool) := do
+  let picked := alloc.vec.Vec.with_capacity Bool n
+  frontend.prepare.no_picks_loop n picked 0#usize
+
+/-- [con_ron_core::frontend::prepare::front_of]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 179:4-186:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.prepare.front_of_loop
+  (ps : alloc.vec.Vec kernel.env.Declaration)
+  (ds : alloc.vec.Vec kernel.env.Declaration) (n : Std.Usize)
+  (picked : alloc.vec.Vec Bool) (np : Std.Usize)
+  (picks : alloc.vec.Vec Std.Usize) (j : Std.Usize) :
+  Result ((alloc.vec.Vec Std.Usize) × (alloc.vec.Vec Bool))
+  := do
+  if j < np
+  then
+    let d ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        kernel.env.Declaration) ps j
+    let n1 ← frontend.prepare.prelude_key d
+    let k ← frontend.prepare.pick_idx n1 ds picked
+    let picked1 ←
+      if k < n
+      then
+        do
+        let (_, index_mut_back) ←
+          alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice Bool)
+            picked k
+        ok (index_mut_back true)
+      else ok picked
+    let picks1 ← alloc.vec.Vec.push picks k
+    let j1 ← j + 1#usize
+    frontend.prepare.front_of_loop ps ds n picked1 np picks1 j1
+  else ok (picks, picked)
+partial_fixpoint
+
+/-- [con_ron_core::frontend::prepare::front_of]:
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 173:0-188:1
+    Visibility: public -/
+def frontend.prepare.front_of
+  (ps : alloc.vec.Vec kernel.env.Declaration)
+  (ds : alloc.vec.Vec kernel.env.Declaration) :
+  Result ((alloc.vec.Vec Std.Usize) × (alloc.vec.Vec Bool))
+  := do
+  let n := alloc.vec.Vec.len ds
+  let picked ← frontend.prepare.no_picks n
+  let np := alloc.vec.Vec.len ps
+  let picks := alloc.vec.Vec.with_capacity Std.Usize np
+  frontend.prepare.front_of_loop ps ds n picked np picks 0#usize
+
+/-- [con_ron_core::frontend::prepare::prepared_rest]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 241:4-246:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.prepare.prepared_rest_loop
+  (ds : alloc.vec.Vec kernel.env.Declaration) (picked : alloc.vec.Vec Bool)
+  (out : alloc.vec.Vec kernel.env.Declaration) (n : Std.Usize) (i : Std.Usize)
+  :
+  Result (alloc.vec.Vec kernel.env.Declaration)
+  := do
+  if i < n
+  then
+    let b ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Bool) picked i
+    let out1 ←
+      if b
+      then ok out
+      else
+        do
+        let d ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            kernel.env.Declaration) ds i
+        let d1 ← frontend.nat_op_ground.declaration_dup d
+        alloc.vec.Vec.push out d1
+    let i1 ← i + 1#usize
+    frontend.prepare.prepared_rest_loop ds picked out1 n i1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::prepare::prepared_rest]:
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 233:0-248:1
+    Visibility: public -/
+def frontend.prepare.prepared_rest
+  (out : alloc.vec.Vec kernel.env.Declaration)
+  (ds : alloc.vec.Vec kernel.env.Declaration) (picked : alloc.vec.Vec Bool) :
+  Result (alloc.vec.Vec kernel.env.Declaration)
+  := do
+  let n := alloc.vec.Vec.len ds
+  frontend.prepare.prepared_rest_loop ds picked out n 0#usize
+
+/-- [con_ron_core::frontend::prepare::prepared_front]: loop 0:
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 218:4-226:5
+    Visibility: public -/
+@[rust_loop]
+def frontend.prepare.prepared_front_loop
+  (ps : alloc.vec.Vec kernel.env.Declaration)
+  (ds : alloc.vec.Vec kernel.env.Declaration) (picks : alloc.vec.Vec Std.Usize)
+  (out : alloc.vec.Vec kernel.env.Declaration) (n : Std.Usize) (np : Std.Usize)
+  (j : Std.Usize) :
+  Result (alloc.vec.Vec kernel.env.Declaration)
+  := do
+  if j < np
+  then
+    let k ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.Usize)
+        picks j
+    let out1 ←
+      if k < n
+      then
+        do
+        let d ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            kernel.env.Declaration) ds k
+        let d1 ← frontend.nat_op_ground.declaration_dup d
+        alloc.vec.Vec.push out d1
+      else
+        do
+        let d ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            kernel.env.Declaration) ps j
+        let d1 ← frontend.nat_op_ground.declaration_dup d
+        alloc.vec.Vec.push out d1
+    let j1 ← j + 1#usize
+    frontend.prepare.prepared_front_loop ps ds picks out1 n np j1
+  else ok out
+partial_fixpoint
+
+/-- [con_ron_core::frontend::prepare::prepared_front]:
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 208:0-228:1
+    Visibility: public -/
+def frontend.prepare.prepared_front
+  (out : alloc.vec.Vec kernel.env.Declaration)
+  (ps : alloc.vec.Vec kernel.env.Declaration)
+  (ds : alloc.vec.Vec kernel.env.Declaration) (picks : alloc.vec.Vec Std.Usize)
+  :
+  Result (alloc.vec.Vec kernel.env.Declaration)
+  := do
+  let n := alloc.vec.Vec.len ds
+  let np := alloc.vec.Vec.len ps
+  frontend.prepare.prepared_front_loop ps ds picks out n np 0#usize
+
+/-- [con_ron_core::frontend::prepare::prepared_stream]:
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 195:0-203:1
+    Visibility: public -/
+def frontend.prepare.prepared_stream
+  (ps : alloc.vec.Vec kernel.env.Declaration)
+  (ds : alloc.vec.Vec kernel.env.Declaration) (picks : alloc.vec.Vec Std.Usize)
+  (picked : alloc.vec.Vec Bool) :
+  Result (alloc.vec.Vec kernel.env.Declaration)
+  := do
+  let i := alloc.vec.Vec.len ds
+  let i1 := alloc.vec.Vec.len ps
+  let i2 ← i + i1
+  let out := alloc.vec.Vec.with_capacity kernel.env.Declaration i2
+  let v ← frontend.prepare.prepared_front out ps ds picks
+  frontend.prepare.prepared_rest v ds picked
+
+/-- [con_ron_core::frontend::prepare::prepare_d]:
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 265:0-276:1
+    Visibility: public -/
+def frontend.prepare.prepare_d
+  (pre : frontend.prepare.PreludeIx)
+  (ds : alloc.vec.Vec kernel.env.Declaration) :
+  Result frontend.prepare.Prepared
+  := do
+  let n_in := alloc.vec.Vec.len ds
+  let (v, v1) ← frontend.prepare.front_of pre.decls ds
+  let all ← frontend.prepare.prepared_stream pre.decls ds v v1
+  let (v2, v3) ← frontend.nat_op_ground.hoist_nat_op_ground all
+  let i := alloc.vec.Vec.len v2
+  let i1 ← i - n_in
+  let synthesised ← lift (UScalar.cast .U64 i1)
+  ok { decls := v2, synthesised, hoisted := v3 }
+
+/-- [con_ron_core::frontend::prepare::prepare_prelude]:
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 283:0-285:1
+    Visibility: public -/
+def frontend.prepare.prepare_prelude
+  (pre : frontend.prepare.PreludeIx)
+  (ds : alloc.vec.Vec kernel.env.Declaration) :
+  Result (alloc.vec.Vec kernel.env.Declaration)
+  := do
+  let p ← frontend.prepare.prepare_d pre ds
+  ok p.decls
+
+/-- [con_ron_core::frontend::proj_rec::info_name]:
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 932:0-934:1
+    Visibility: public -/
+def frontend.proj_rec.info_name
+  (ci : kernel.env.ConstantInfo) : Result kernel.name.Name := do
+  kernel.env.constant_info_name ci
+
+/-- [con_ron_core::frontend::scan_types::err_tag_dup]:
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 75:0-99:1
+    Visibility: public -/
+def frontend.scan_types.err_tag_dup
+  (t : frontend.scan_types.ErrTag) : Result frontend.scan_types.ErrTag := do
+  match t with
+  | frontend.scan_types.ErrTag.ExpectedObject =>
+    ok frontend.scan_types.ErrTag.ExpectedObject
+  | frontend.scan_types.ErrTag.ExpectedKey =>
+    ok frontend.scan_types.ErrTag.ExpectedKey
+  | frontend.scan_types.ErrTag.ExpectedColon =>
+    ok frontend.scan_types.ErrTag.ExpectedColon
+  | frontend.scan_types.ErrTag.ExpectedComma =>
+    ok frontend.scan_types.ErrTag.ExpectedComma
+  | frontend.scan_types.ErrTag.ExpectedList =>
+    ok frontend.scan_types.ErrTag.ExpectedList
+  | frontend.scan_types.ErrTag.UnknownKey =>
+    ok frontend.scan_types.ErrTag.UnknownKey
+  | frontend.scan_types.ErrTag.DuplicateKey =>
+    ok frontend.scan_types.ErrTag.DuplicateKey
+  | frontend.scan_types.ErrTag.MissingKey =>
+    ok frontend.scan_types.ErrTag.MissingKey
+  | frontend.scan_types.ErrTag.MixedKeys =>
+    ok frontend.scan_types.ErrTag.MixedKeys
+  | frontend.scan_types.ErrTag.ExpectedNat =>
+    ok frontend.scan_types.ErrTag.ExpectedNat
+  | frontend.scan_types.ErrTag.ExpectedString =>
+    ok frontend.scan_types.ErrTag.ExpectedString
+  | frontend.scan_types.ErrTag.ExpectedBool =>
+    ok frontend.scan_types.ErrTag.ExpectedBool
+  | frontend.scan_types.ErrTag.BadEscape =>
+    ok frontend.scan_types.ErrTag.BadEscape
+  | frontend.scan_types.ErrTag.BadUtf8 => ok frontend.scan_types.ErrTag.BadUtf8
+  | frontend.scan_types.ErrTag.BadBinderInfo =>
+    ok frontend.scan_types.ErrTag.BadBinderInfo
+  | frontend.scan_types.ErrTag.BadHints =>
+    ok frontend.scan_types.ErrTag.BadHints
+  | frontend.scan_types.ErrTag.BadPw => ok frontend.scan_types.ErrTag.BadPw
+  | frontend.scan_types.ErrTag.BadNatVal =>
+    ok frontend.scan_types.ErrTag.BadNatVal
+  | frontend.scan_types.ErrTag.Trailing =>
+    ok frontend.scan_types.ErrTag.Trailing
+  | frontend.scan_types.ErrTag.NoProgress =>
+    ok frontend.scan_types.ErrTag.NoProgress
+  | frontend.scan_types.ErrTag.IndexOverflow =>
+    ok frontend.scan_types.ErrTag.IndexOverflow
+
+/-- [con_ron_core::frontend::scan_types::err_tag_code]:
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 104:0-128:1
+    Visibility: public -/
+def frontend.scan_types.err_tag_code
+  (t : frontend.scan_types.ErrTag) : Result Std.U64 := do
+  match t with
+  | frontend.scan_types.ErrTag.ExpectedObject => ok 0#u64
+  | frontend.scan_types.ErrTag.ExpectedKey => ok 1#u64
+  | frontend.scan_types.ErrTag.ExpectedColon => ok 2#u64
+  | frontend.scan_types.ErrTag.ExpectedComma => ok 3#u64
+  | frontend.scan_types.ErrTag.ExpectedList => ok 4#u64
+  | frontend.scan_types.ErrTag.UnknownKey => ok 5#u64
+  | frontend.scan_types.ErrTag.DuplicateKey => ok 6#u64
+  | frontend.scan_types.ErrTag.MissingKey => ok 7#u64
+  | frontend.scan_types.ErrTag.MixedKeys => ok 8#u64
+  | frontend.scan_types.ErrTag.ExpectedNat => ok 9#u64
+  | frontend.scan_types.ErrTag.ExpectedString => ok 10#u64
+  | frontend.scan_types.ErrTag.ExpectedBool => ok 11#u64
+  | frontend.scan_types.ErrTag.BadEscape => ok 12#u64
+  | frontend.scan_types.ErrTag.BadUtf8 => ok 13#u64
+  | frontend.scan_types.ErrTag.BadBinderInfo => ok 14#u64
+  | frontend.scan_types.ErrTag.BadHints => ok 15#u64
+  | frontend.scan_types.ErrTag.BadPw => ok 16#u64
+  | frontend.scan_types.ErrTag.BadNatVal => ok 17#u64
+  | frontend.scan_types.ErrTag.Trailing => ok 18#u64
+  | frontend.scan_types.ErrTag.NoProgress => ok 19#u64
+  | frontend.scan_types.ErrTag.IndexOverflow => ok 20#u64
+
+/-- [con_ron_core::frontend::scan_types::err_tag_beq]:
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 131:0-133:1
+    Visibility: public -/
+def frontend.scan_types.err_tag_beq
+  (a : frontend.scan_types.ErrTag) (b : frontend.scan_types.ErrTag) :
+  Result Bool
+  := do
+  let i ← frontend.scan_types.err_tag_code a
+  let i1 ← frontend.scan_types.err_tag_code b
+  ok (i = i1)
+
+/-- [con_ron_core::frontend::scan_types::scan_err_dup]:
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 145:0-150:1
+    Visibility: public -/
+def frontend.scan_types.scan_err_dup
+  (e : frontend.scan_types.ScanErr) : Result frontend.scan_types.ScanErr := do
+  let et ← frontend.scan_types.err_tag_dup e.what
+  ok { e with what := et }
+
+/-- [con_ron_core::frontend::text::cps_eq]:
+    Source: 'crates/con-ron-core/src/frontend/text.rs', lines 80:0-82:1
+    Visibility: public -/
+def frontend.text.cps_eq
+  (a : alloc.vec.Vec Std.U32) (b : alloc.vec.Vec Std.U32) : Result Bool := do
+  let s ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexRangeFullSlice Std.U32) b
+      ()
+  frontend.text.cps_beq a s
+
 /-- [con_ron_core::kernel::basis_names::and_intro_name::S]
     Source: 'crates/con-ron-core/src/kernel/basis_names.rs', lines 201:4-201:50 -/
 @[global_simps, irreducible]
@@ -50978,18 +71604,6 @@ def kernel.env.check_mode_dup
   | kernel.env.CheckMode.Verified => ok kernel.env.CheckMode.Verified
   | kernel.env.CheckMode.Trusted => ok kernel.env.CheckMode.Trusted
 
-/-- [con_ron_core::kernel::env::quot_kind_dup]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 909:0-917:1
-    Visibility: public -/
-def kernel.env.quot_kind_dup
-  (k : kernel.env.QuotKind) : Result kernel.env.QuotKind := do
-  match k with
-  | kernel.env.QuotKind.Type => ok kernel.env.QuotKind.Type
-  | kernel.env.QuotKind.Ctor => ok kernel.env.QuotKind.Ctor
-  | kernel.env.QuotKind.Lift => ok kernel.env.QuotKind.Lift
-  | kernel.env.QuotKind.Ind => ok kernel.env.QuotKind.Ind
-  | kernel.env.QuotKind.Sound => ok kernel.env.QuotKind.Sound
-
 /-- [con_ron_core::kernel::env::declaration_name]:
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 943:0-953:1
     Visibility: public -/
@@ -51003,33 +71617,6 @@ def kernel.env.declaration_name
   | kernel.env.Declaration.BasisDecl _ => kernel.name.anonymous
   | kernel.env.Declaration.IndDecl _ _ => kernel.name.anonymous
   | kernel.env.Declaration.QuotDecl _ v => kernel.name.dup v.name
-
-/-- [con_ron_core::kernel::env::declaration_names]:
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 961:0-975:1
-    Visibility: public -/
-def kernel.env.declaration_names
-  (d : kernel.env.Declaration) : Result (alloc.vec.Vec kernel.name.Name) := do
-  match d with
-  | kernel.env.Declaration.AxiomDecl cv =>
-    let n ← kernel.name.dup cv.name
-    alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
-  | kernel.env.Declaration.DefnDecl cv _ _ =>
-    let n ← kernel.name.dup cv.name
-    alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
-  | kernel.env.Declaration.ThmDecl cv _ =>
-    let n ← kernel.name.dup cv.name
-    alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
-  | kernel.env.Declaration.OpaqueDecl cv _ =>
-    let n ← kernel.name.dup cv.name
-    alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
-  | kernel.env.Declaration.BasisDecl _ =>
-    ok (alloc.vec.Vec.new kernel.name.Name)
-  | kernel.env.Declaration.IndDecl block _ =>
-    kernel.env.constant_info_names_from block 0#usize (alloc.vec.Vec.new
-      kernel.name.Name)
-  | kernel.env.Declaration.QuotDecl _ cv =>
-    let n ← kernel.name.dup cv.name
-    alloc.vec.Vec.push (alloc.vec.Vec.new kernel.name.Name) n
 
 /-- [con_ron_core::kernel::env::env_of_from]:
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1238:0-1250:1
@@ -51135,14 +71722,6 @@ def kernel.expr.binder_meta_hash
   let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw
   let i ← kernel.prop_when.hash_pw pw
   kernel.name.mix_hash 0#u64 i
-
-/-- [con_ron_core::kernel::expr::literal_str]:
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 176:0-178:1
-    Visibility: public -/
-def kernel.expr.literal_str
-  (s : alloc.vec.Vec Std.U32) : Result kernel.expr.Literal := do
-  let a ← ron.ptr.new s
-  ok (kernel.expr.Literal.StrVal a)
 
 /-- [con_ron_core::kernel::expr::str_copy_from]:
     Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 224:0-232:1
@@ -51819,444 +72398,6 @@ def kernel.inductives.native_parts.native_parts_dup
   let is ← kernel.inductives.sum_parts.inductive_shape_dup p.shape
   let v ← kernel.inductives.native_parts.kindss_copy p.kinds
   ok { p with shape := is, kinds := v }
-
-/-- [con_ron_core::kernel::inductives::struct_parts::struct_ctor_spine]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 138:0-140:1
-    Visibility: public -/
-def kernel.inductives.struct_parts.struct_ctor_spine
-  (c : kernel.name.Name) (lps : alloc.vec.Vec kernel.name.Name) (n_p : Std.U64)
-  (n_f : Std.U64) :
-  Result kernel.expr.Expr
-  := do
-  kernel.inductives.struct_parts.struct_ctor_spine_at c lps 1#u64 n_p n_f
-
-/-- [con_ron_core::kernel::inductives::struct_parts::struct_rule_body]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 158:0-160:1
-    Visibility: public -/
-def kernel.inductives.struct_parts.struct_rule_body
-  (n_f : Std.U64) : Result kernel.expr.Expr := do
-  let e ← kernel.expr.bvar n_f
-  let v ← kernel.inductives.struct_parts.field_spine n_f
-  kernel.expr_ops.mk_app_n e v
-
-/-- [con_ron_core::kernel::inductives::struct_parts::struct_shape_motive]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 314:0-344:1
-    Visibility: public -/
-def kernel.inductives.struct_parts.struct_shape_motive
-  (t : kernel.name.Name) (lps : alloc.vec.Vec kernel.name.Name)
-  (elim : kernel.name.Name) (large : Bool) (n_p : Std.U64)
-  (rbs : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.BinderMeta)) :
-  Result Bool
-  := do
-  let i ← lift (UScalar.cast .Usize n_p)
-  let i1 := alloc.vec.Vec.len rbs
-  if i < i1
-  then
-    let i2 ← lift (UScalar.cast .Usize n_p)
-    let (e, _) ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        (kernel.expr.Expr × kernel.expr.BinderMeta)) rbs i2
-    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
-    match en.kind with
-    | kernel.expr.ExprKind.Bvar _ => ok false
-    | kernel.expr.ExprKind.Fvar _ _ => ok false
-    | kernel.expr.ExprKind.Sort _ => ok false
-    | kernel.expr.ExprKind.Const _ _ => ok false
-    | kernel.expr.ExprKind.App _ _ => ok false
-    | kernel.expr.ExprKind.Lam _ _ _ => ok false
-    | kernel.expr.ExprKind.ForallE mmaj cod _ =>
-      let en1 ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global cod._0
-      match en1.kind with
-      | kernel.expr.ExprKind.Bvar _ => ok false
-      | kernel.expr.ExprKind.Fvar _ _ => ok false
-      | kernel.expr.ExprKind.Sort s2 =>
-        let ok1 ←
-          if large
-          then
-            do
-            let n ← kernel.name.dup elim
-            let l ← kernel.level.param n
-            kernel.level.beq s2 l
-          else do
-               let l ← kernel.level.zero
-               kernel.level.beq s2 l
-        if ok1
-        then
-          let e1 ← kernel.inductives.struct_parts.struct_fam t lps n_p 0#u64
-          kernel.expr.beq mmaj e1
-        else ok false
-      | kernel.expr.ExprKind.Const _ _ => ok false
-      | kernel.expr.ExprKind.App _ _ => ok false
-      | kernel.expr.ExprKind.Lam _ _ _ => ok false
-      | kernel.expr.ExprKind.ForallE _ _ _ => ok false
-      | kernel.expr.ExprKind.LetE _ _ _ => ok false
-      | kernel.expr.ExprKind.Lit _ => ok false
-      | kernel.expr.ExprKind.Proj _ _ _ => ok false
-    | kernel.expr.ExprKind.LetE _ _ _ => ok false
-    | kernel.expr.ExprKind.Lit _ => ok false
-    | kernel.expr.ExprKind.Proj _ _ _ => ok false
-  else ok false
-
-/-- [con_ron_core::kernel::inductives::struct_parts::struct_shape_minor]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 349:0-367:1
-    Visibility: public -/
-def kernel.inductives.struct_parts.struct_shape_minor
-  (c : kernel.name.Name) (lps : alloc.vec.Vec kernel.name.Name) (n_p : Std.U64)
-  (n_f : Std.U64)
-  (rbs : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.BinderMeta)) :
-  Result Bool
-  := do
-  let i ← lift (UScalar.cast .Usize n_p)
-  let i1 ← i + 1#usize
-  let i2 := alloc.vec.Vec.len rbs
-  if i1 < i2
-  then
-    let i3 ← lift (UScalar.cast .Usize n_p)
-    let i4 ← i3 + 1#usize
-    let (e, _) ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        (kernel.expr.Expr × kernel.expr.BinderMeta)) rbs i4
-    let o ← kernel.expr_ops.strip_pis n_f e
-    match o with
-    | none => ok false
-    | some q =>
-      let (_, e1) := q
-      let e2 ← kernel.expr.bvar n_f
-      let e3 ← kernel.inductives.struct_parts.struct_ctor_spine c lps n_p n_f
-      let e4 ← kernel.expr.app e2 e3
-      kernel.expr.beq e1 e4
-  else ok false
-
-/-- [con_ron_core::kernel::inductives::struct_parts::struct_shape_major]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 372:0-383:1
-    Visibility: public -/
-def kernel.inductives.struct_parts.struct_shape_major
-  (t : kernel.name.Name) (lps : alloc.vec.Vec kernel.name.Name) (n_p : Std.U64)
-  (rbs : alloc.vec.Vec (kernel.expr.Expr × kernel.expr.BinderMeta)) :
-  Result Bool
-  := do
-  let i ← lift (UScalar.cast .Usize n_p)
-  let i1 ← i + 2#usize
-  let i2 := alloc.vec.Vec.len rbs
-  if i1 < i2
-  then
-    let i3 ← lift (UScalar.cast .Usize n_p)
-    let i4 ← i3 + 2#usize
-    let (e, _) ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        (kernel.expr.Expr × kernel.expr.BinderMeta)) rbs i4
-    let e1 ← kernel.inductives.struct_parts.struct_fam t lps n_p 2#u64
-    kernel.expr.beq e e1
-  else ok false
-
-/-- [con_ron_core::kernel::inductives::struct_parts::struct_shape]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 389:0-435:1
-    Visibility: public -/
-def kernel.inductives.struct_parts.struct_shape
-  (t : kernel.name.Name) (c : kernel.name.Name)
-  (lps : alloc.vec.Vec kernel.name.Name) (elim : kernel.name.Name)
-  (large : Bool) (n_p : Std.U64) (n_f : Std.U64) (tty : kernel.expr.Expr)
-  (cty : kernel.expr.Expr) (rty : kernel.expr.Expr) :
-  Result Bool
-  := do
-  let o ← kernel.expr_ops.strip_pis n_p tty
-  match o with
-  | none => ok false
-  | some tq =>
-    let (_, e) := tq
-    let en ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
-    match en.kind with
-    | kernel.expr.ExprKind.Bvar _ => ok false
-    | kernel.expr.ExprKind.Fvar _ _ => ok false
-    | kernel.expr.ExprKind.Sort _ =>
-      let i ← n_p + n_f
-      let o1 ← kernel.expr_ops.strip_pis i cty
-      match o1 with
-      | none => ok false
-      | some cq =>
-        let i1 ← n_p + 3#u64
-        let o2 ← kernel.expr_ops.strip_pis i1 rty
-        match o2 with
-        | none => ok false
-        | some rq =>
-          let (_, e1) := cq
-          let e2 ← kernel.inductives.struct_parts.struct_fam t lps n_p n_f
-          let b ← kernel.expr.beq e1 e2
-          if b
-          then
-            let (v, e3) := rq
-            let e4 ← kernel.expr.bvar 2#u64
-            let e5 ← kernel.expr.bvar 0#u64
-            let e6 ← kernel.expr.app e4 e5
-            let b1 ← kernel.expr.beq e3 e6
-            if b1
-            then
-              let b2 ←
-                kernel.inductives.struct_parts.struct_shape_motive t lps elim
-                  large n_p v
-              if b2
-              then
-                let b3 ←
-                  kernel.inductives.struct_parts.struct_shape_minor c lps n_p
-                    n_f v
-                if b3
-                then
-                  kernel.inductives.struct_parts.struct_shape_major t lps n_p v
-                else ok false
-              else ok false
-            else ok false
-          else ok false
-    | kernel.expr.ExprKind.Const _ _ => ok false
-    | kernel.expr.ExprKind.App _ _ => ok false
-    | kernel.expr.ExprKind.Lam _ _ _ => ok false
-    | kernel.expr.ExprKind.ForallE _ _ _ => ok false
-    | kernel.expr.ExprKind.LetE _ _ _ => ok false
-    | kernel.expr.ExprKind.Lit _ => ok false
-    | kernel.expr.ExprKind.Proj _ _ _ => ok false
-
-/-- [con_ron_core::kernel::inductives::struct_parts::struct_parts_front_ok::REC]
-    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 453:4-453:41 -/
-@[global_simps, irreducible]
-def kernel.inductives.struct_parts.struct_parts_front_ok.REC
-  : Array Std.U32 3#usize :=
-  Array.make 3#usize [ 114#u32, 101#u32, 99#u32 ]
-
-/-- [con_ron_core::kernel::inductives::struct_parts::struct_parts_front_ok]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 443:0-499:1
-    Visibility: public -/
-def kernel.inductives.struct_parts.struct_parts_front_ok
-  (cv_t : kernel.env.ConstantVal) (cv_c : kernel.env.ConstantVal)
-  (cv_r : kernel.env.ConstantVal) (n_p : Std.U64) (n_f : Std.U64)
-  (m_i : Std.U64) (r_p : Std.U64) (rule : kernel.env.RecRule) :
-  Result Bool
-  := do
-  let t ← kernel.name.dup cv_t.name
-  let s ←
-    lift (Array.to_slice
-      kernel.inductives.struct_parts.struct_parts_front_ok.REC)
-  let v ← kernel.core_types.code_points s
-  let expected_rec ← kernel.name.mk_str t v
-  let reserved ← kernel.basis_names.reserved_basis_names
-  let b ← kernel.name.beq cv_r.name expected_rec
-  if b
-  then
-    let b1 ← kernel.prop_when.names_beq cv_c.level_params cv_t.level_params
-    if b1
-    then
-      let b2 ← kernel.name.contains reserved cv_t.name
-      if b2
-      then ok false
-      else
-        let b3 ← kernel.name.contains reserved cv_c.name
-        if b3
-        then ok false
-        else
-          let b4 ← kernel.name.contains reserved cv_r.name
-          if b4
-          then ok false
-          else
-            let i ← n_p + 2#u64
-            if m_i = i
-            then
-              if r_p = i
-              then
-                let b5 ← kernel.name.beq rule.ctor cv_c.name
-                if b5
-                then
-                  if rule.nfields = n_f
-                  then
-                    let i1 ← i + n_f
-                    let o ← kernel.expr_ops.strip_lams i1 rule.rhs
-                    match o with
-                    | none => ok false
-                    | some q =>
-                      let (_, e) := q
-                      let e1 ←
-                        kernel.inductives.struct_parts.struct_rule_body n_f
-                      kernel.expr.beq e e1
-                  else ok false
-                else ok false
-              else ok false
-            else ok false
-    else ok false
-  else ok false
-
-/-- [con_ron_core::kernel::inductives::struct_parts::struct_parts_large]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 505:0-543:1
-    Visibility: public -/
-def kernel.inductives.struct_parts.struct_parts_large
-  (cv_t : kernel.env.ConstantVal) (cv_c : kernel.env.ConstantVal)
-  (cv_r : kernel.env.ConstantVal) (n_p : Std.U64) (n_f : Std.U64) :
-  Result (Option kernel.name.Name)
-  := do
-  let i := alloc.vec.Vec.len cv_r.level_params
-  if i = 0#usize
-  then ok none
-  else
-    let n ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.name.Name) cv_r.level_params 0#usize
-    let elim ← kernel.name.dup n
-    let relps ←
-      kernel.prop_when.append_from cv_r.level_params 1#usize (alloc.vec.Vec.new
-        kernel.name.Name)
-    let b ← kernel.prop_when.names_beq relps cv_t.level_params
-    if b
-    then
-      let b1 ← kernel.name.contains cv_t.level_params elim
-      if b1
-      then ok none
-      else
-        let b2 ←
-          kernel.inductives.struct_parts.struct_shape cv_t.name cv_c.name
-            cv_t.level_params elim true n_p n_f cv_t.ty cv_c.ty cv_r.ty
-        if b2
-        then ok (some elim)
-        else ok none
-    else ok none
-
-/-- [con_ron_core::kernel::inductives::struct_parts::struct_parts_small_ok]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 551:0-574:1
-    Visibility: public -/
-def kernel.inductives.struct_parts.struct_parts_small_ok
-  (cv_t : kernel.env.ConstantVal) (cv_c : kernel.env.ConstantVal)
-  (cv_r : kernel.env.ConstantVal) (n_p : Std.U64) (n_f : Std.U64) :
-  Result Bool
-  := do
-  let b ← kernel.prop_when.names_beq cv_r.level_params cv_t.level_params
-  if b
-  then
-    let n ← kernel.name.anonymous
-    kernel.inductives.struct_parts.struct_shape cv_t.name cv_c.name
-      cv_t.level_params n false n_p n_f cv_t.ty cv_c.ty cv_r.ty
-  else ok false
-
-/-- [con_ron_core::kernel::inductives::struct_parts::struct_parts_core]:
-    Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 585:0-650:1
-    Visibility: public -/
-def kernel.inductives.struct_parts.struct_parts_core
-  (block : alloc.vec.Vec kernel.env.ConstantInfo) :
-  Result (Option kernel.inductives.struct_parts.StructParts)
-  := do
-  let i := alloc.vec.Vec.len block
-  if i != 3#usize
-  then ok none
-  else
-    let ci ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.env.ConstantInfo) block 0#usize
-    let ci1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.env.ConstantInfo) block 1#usize
-    let ci2 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        kernel.env.ConstantInfo) block 2#usize
-    match ci with
-    | kernel.env.ConstantInfo.AxiomInfo _ => ok none
-    | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok none
-    | kernel.env.ConstantInfo.ThmInfo _ _ => ok none
-    | kernel.env.ConstantInfo.IndInfo cv_t _ =>
-      match ci1 with
-      | kernel.env.ConstantInfo.AxiomInfo _ => ok none
-      | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok none
-      | kernel.env.ConstantInfo.ThmInfo _ _ => ok none
-      | kernel.env.ConstantInfo.IndInfo _ _ => ok none
-      | kernel.env.ConstantInfo.CtorInfo cv_c n_p n_f =>
-        match ci2 with
-        | kernel.env.ConstantInfo.AxiomInfo _ => ok none
-        | kernel.env.ConstantInfo.DefnInfo _ _ _ => ok none
-        | kernel.env.ConstantInfo.ThmInfo _ _ => ok none
-        | kernel.env.ConstantInfo.IndInfo _ _ => ok none
-        | kernel.env.ConstantInfo.CtorInfo _ _ _ => ok none
-        | kernel.env.ConstantInfo.RecInfo cv_r m_i r_p rules =>
-          let i1 := alloc.vec.Vec.len rules
-          if i1 != 1#usize
-          then ok none
-          else
-            let rr ←
-              alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-                kernel.env.RecRule) rules 0#usize
-            let b ←
-              kernel.inductives.struct_parts.struct_parts_front_ok cv_t cv_c
-                cv_r n_p n_f m_i r_p rr
-            if b
-            then
-              let o ← kernel.expr_ops.strip_pis n_p cv_t.ty
-              match o with
-              | none => ok none
-              | some q =>
-                let (_, e) := q
-                let en ←
-                  alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global e._0
-                match en.kind with
-                | kernel.expr.ExprKind.Bvar _ => ok none
-                | kernel.expr.ExprKind.Fvar _ _ => ok none
-                | kernel.expr.ExprKind.Sort s =>
-                  let is_prop ←
-                    kernel.inductives.struct_parts.level_is_prop s
-                  let o1 ←
-                    kernel.inductives.struct_parts.struct_parts_large cv_t cv_c
-                      cv_r n_p n_f
-                  match o1 with
-                  | none =>
-                    let b1 ←
-                      kernel.inductives.struct_parts.struct_parts_small_ok cv_t
-                        cv_c cv_r n_p n_f
-                    if b1
-                    then
-                      let cv ← kernel.env.constant_val_dup cv_t
-                      let cv1 ← kernel.env.constant_val_dup cv_c
-                      let cv2 ← kernel.env.constant_val_dup cv_r
-                      let n ← kernel.name.anonymous
-                      let l ← kernel.level.dup s
-                      let e1 ← kernel.expr.dup rr.rhs
-                      ok (some
-                        {
-                          cv_t := cv,
-                          cv_c := cv1,
-                          n_p,
-                          n_f,
-                          cv_r := cv2,
-                          elim := n,
-                          res_sort := l,
-                          rhs := e1,
-                          large := false,
-                          is_prop
-                        })
-                    else ok none
-                  | some elim =>
-                    let cv ← kernel.env.constant_val_dup cv_t
-                    let cv1 ← kernel.env.constant_val_dup cv_c
-                    let cv2 ← kernel.env.constant_val_dup cv_r
-                    let l ← kernel.level.dup s
-                    let e1 ← kernel.expr.dup rr.rhs
-                    ok (some
-                      {
-                        cv_t := cv,
-                        cv_c := cv1,
-                        n_p,
-                        n_f,
-                        cv_r := cv2,
-                        elim,
-                        res_sort := l,
-                        rhs := e1,
-                        large := true,
-                        is_prop
-                      })
-                | kernel.expr.ExprKind.Const _ _ => ok none
-                | kernel.expr.ExprKind.App _ _ => ok none
-                | kernel.expr.ExprKind.Lam _ _ _ => ok none
-                | kernel.expr.ExprKind.ForallE _ _ _ => ok none
-                | kernel.expr.ExprKind.LetE _ _ _ => ok none
-                | kernel.expr.ExprKind.Lit _ => ok none
-                | kernel.expr.ExprKind.Proj _ _ _ => ok none
-            else ok none
-        | kernel.env.ConstantInfo.ProjInfo _ => ok none
-      | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok none
-      | kernel.env.ConstantInfo.ProjInfo _ => ok none
-    | kernel.env.ConstantInfo.CtorInfo _ _ _ => ok none
-    | kernel.env.ConstantInfo.RecInfo _ _ _ _ => ok none
-    | kernel.env.ConstantInfo.ProjInfo _ => ok none
 
 /-- [con_ron_core::kernel::inductives::struct_parts::struct_proj_resid_p]:
     Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 687:0-700:1
@@ -54493,19 +74634,6 @@ def ron.hashmap.HashMap.clear
   let n := alloc.vec.Vec.len self.slots
   let v ← ron.hashmap.HashMap.clear_slots self.slots 0#usize n
   ok { self with num_entries := 0#usize, slots := v }
-
-/-- [con_ron_core::ron::hashmap::{con_ron_core::ron::hashmap::HashMap<K, V>}::contains_key]:
-    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 423:4-428:5
-    Visibility: public -/
-def ron.hashmap.HashMap.contains_key
-  {K : Type} {V : Type} (HashableInst : ron.hashmap.Hashable K) (Eq2Inst :
-  ron.hashmap.Eq2 K) (self : ron.hashmap.HashMap K V) (key : K) :
-  Result Bool
-  := do
-  let o ← ron.hashmap.HashMap.get HashableInst Eq2Inst self key
-  match o with
-  | none => ok false
-  | some _ => ok true
 
 /-- [con_ron_core::ron::hashmap::{con_ron_core::ron::hashmap::HashMap<K, V>}::remove]:
     Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 512:4-531:5

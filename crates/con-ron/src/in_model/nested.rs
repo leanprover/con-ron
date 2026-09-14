@@ -40,7 +40,7 @@ use con_ron_core::kernel::level::Level;
 use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::Name;
 
-use crate::frontend::export::name_str;
+use crate::render::name_str;
 use crate::in_model::kit;
 use crate::in_model::kit::{
     app2, bm, const_p, dup_all, dup_names, get_d, impl_name, iota_name, lift_all_n, mentions_any,
@@ -254,7 +254,7 @@ pub fn match_carrier(fam: &Family, o: u64, e: &Expr) -> Option<(u64, Vec<Expr>)>
 /// `tests/e2e/tower_nested.ndjson`.
 pub fn spec_all_go(
     fam: &Family,
-    memo: &mut std::collections::HashMap<(crate::frontend::nat_op_ground::ExprKey, u64), Expr>,
+    memo: &mut std::collections::HashMap<(crate::keys::ExprKey, u64), Expr>,
     o: u64,
     e: &Expr,
 ) -> Expr {
@@ -267,7 +267,7 @@ pub fn spec_all_go(
         | ExprKind::Lit(_) => expr::dup(e),
         _ => {
             let key = (
-                crate::frontend::nat_op_ground::ExprKey(expr::dup(e)),
+                crate::keys::ExprKey(expr::dup(e)),
                 o,
             );
             if let Some(r) = memo.get(&key) {
@@ -311,7 +311,7 @@ pub fn spec_all_go(
 /// `spec_all_go` over a list, threading the memo.
 pub fn spec_all_go_list(
     fam: &Family,
-    memo: &mut std::collections::HashMap<(crate::frontend::nat_op_ground::ExprKey, u64), Expr>,
+    memo: &mut std::collections::HashMap<(crate::keys::ExprKey, u64), Expr>,
     o: u64,
     es: &[Expr],
 ) -> Vec<Expr> {
@@ -2376,7 +2376,7 @@ pub fn gen_nested(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
         if t.is_reflexive {
             return Err(format!("reflexive member {}", name_str(&t.cv.name)));
         }
-        if !crate::frontend::export::names_beq(&t.cv.level_params, &lps) || t.n_p != n_p {
+        if !con_ron_core::frontend::export::names_beq(&t.cv.level_params, &lps) || t.n_p != n_p {
             return Err(format!(
                 "member {}: level parameters or parameter count differ",
                 name_str(&t.cv.name)
@@ -2438,7 +2438,7 @@ pub fn gen_nested(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
     let mems = read_mems(&lps, n_p, &b.types, &pi_binders(&motive_bs))?;
     let large_opt: Option<Name> = match r0.cv.level_params.split_first() {
         Some((e, rest)) => {
-            if crate::frontend::export::names_beq(&dup_names(rest), &lps)
+            if con_ron_core::frontend::export::names_beq(&dup_names(rest), &lps)
                 && !lps.iter().any(|x| name::beq(x, e))
             {
                 Some(name::dup(e))
@@ -2494,7 +2494,7 @@ pub fn gen_nested(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
                 name_str(&rr.cv.name)
             ));
         }
-        if !crate::frontend::export::names_beq(&rr.cv.level_params, &rlps) {
+        if !con_ron_core::frontend::export::names_beq(&rr.cv.level_params, &rlps) {
             return Err(format!(
                 "recursor {}: eliminator shape differs",
                 name_str(&rr.cv.name)

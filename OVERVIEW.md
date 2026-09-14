@@ -326,7 +326,7 @@ Two things are deliberate about *which* code this is.  The scanner ported is
 `@[csimp]` that makes the fast one what the Lean compiler actually runs, so
 the fast one is what a theorem about the binary has to be about.  And the
 **in-process modeller stays unverified**, behind a one-method trait
-([`Modeller`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/frontend/in_model_rec.rs#L275-L282))
+([`Modeller`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/frontend/in_model_rec.rs#L258-L269))
 that `parse_chunks` takes as a type parameter: Charon renders a trait method
 on a type parameter as a typeclass field — an opaque function — so the
 extracted parse is quantified over an arbitrary modeller, and its refinement

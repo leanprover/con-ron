@@ -99,8 +99,9 @@ impl Modeller for InProcess {
 #[cfg(test)]
 mod tests {
     use crate::driver::message;
-    use crate::frontend::export::name_str;
-    use crate::frontend::export_c::{parse_bytes, ParseResultD};
+    use crate::in_model::InProcess;
+    use crate::render::name_str;
+    use con_ron_core::frontend::export_c::{parse_bytes, ParseResultD};
     use con_ron_core::kernel::env::declaration_names;
 
     /// The fixture's bytes, read at test time from the pinned submodule (the
@@ -119,7 +120,7 @@ mod tests {
     /// takes no prelude since con-leche task #293: it decodes the file's
     /// records, and `frontend::prepare` is what puts the prelude in front.
     fn parse_fixture(name: &str) -> ParseResultD {
-        parse_bytes(&fixture_bytes(name), true, false)
+        parse_bytes(&InProcess, &fixture_bytes(name), true, false)
             .unwrap_or_else(|(e, l)| panic!("{}:{}: {}", name, l, message(&e)))
     }
 
@@ -140,29 +141,32 @@ mod tests {
             name,
             r.gen_records
         );
-        // every booked name is under its block's `_model` prefix
-        for (k, v) in r.gen_owner.iter() {
-            let n = name_str(&k.0);
-            let owner = name_str(v);
-            assert!(
-                n.starts_with(&format!("{}._model", owner))
-                    || n.starts_with(&format!("{}.", owner))
-                    || n.contains("._model"),
-                "{}: {} booked under {}",
-                name,
-                n,
-                owner
-            );
-        }
-        // and the fold's list carries them: the generated records are
-        // declarations like any other
+        // Every booked name is under its block's `_model` prefix, and the
+        // fold's list carries them: the generated records are declarations
+        // like any other.  Since task #84 `gen_owner` is the core's
+        // `ron::HashMap`, which has no iterator, so the walk is over the
+        // records and the map is only probed.
         let mut seen = 0u64;
         for d in r.decls.iter() {
+            let mut booked = false;
             for n in declaration_names(d) {
-                if r.gen_owner.contains_key(&crate::frontend::nat_op_ground::NameKey(n)) {
-                    seen += 1;
-                    break;
+                if let Some(owner) = r.gen_owner.get(&n) {
+                    let nm = name_str(&n);
+                    let ow = name_str(owner);
+                    assert!(
+                        nm.starts_with(&format!("{}._model", ow))
+                            || nm.starts_with(&format!("{}.", ow))
+                            || nm.contains("._model"),
+                        "{}: {} booked under {}",
+                        name,
+                        nm,
+                        ow
+                    );
+                    booked = true;
                 }
+            }
+            if booked {
+                seen += 1;
             }
         }
         assert_eq!(seen, r.gen_records, "{}: generated records in the list", name);
@@ -220,7 +224,7 @@ mod tests {
     /// pushed bare, nothing is generated, and the decline is left to the fold.
     #[test]
     fn the_modeller_can_be_turned_off() {
-        let r = parse_bytes(&fixture_bytes("inmodel_mutual.ndjson"), false, false)
+        let r = parse_bytes(&InProcess, &fixture_bytes("inmodel_mutual.ndjson"), false, false)
             .unwrap_or_else(|(e, l)| panic!("{}: {}", l, message(&e)));
         assert!(r.in_modelled.is_empty());
         assert_eq!(r.gen_records, 0);

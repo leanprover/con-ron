@@ -1127,19 +1127,25 @@ pub fn scan_quoted_nat(b: &[u8], i: usize) -> ScanRes<Vec<u8>> {
 /// typing erases binder annotations, and an unknown spelling is a malformed
 /// record rather than a silently ignored one.  `0` is the failure.
 pub fn scan_binder_info(b: &[u8], i: usize) -> usize {
-    const S_DEFAULT: &str = "default\"";
-    const S_IMPLICIT: &str = "implicit\"";
-    const S_STRICT: &str = "strictImplicit\"";
-    const S_INST: &str = "instImplicit\"";
+    // The literals below end in the JSON string's own closing quote.  They
+    // are byte arrays, not `&str` constants like every other literal in this
+    // file, because Aeneas emits a `&str` constant as `toStr "..."` **without
+    // escaping a double quote inside it**, and the Lean that comes out does
+    // not parse (AENEAS_FINDINGS §2.1's F17, found by `lake build` at
+    // task #84).
+    const S_DEFAULT: [u8; 8] = [100, 101, 102, 97, 117, 108, 116, 34];
+    const S_IMPLICIT: [u8; 9] = [105, 109, 112, 108, 105, 99, 105, 116, 34];
+    const S_STRICT: [u8; 15] = [115, 116, 114, 105, 99, 116, 73, 109, 112, 108, 105, 99, 105, 116, 34];
+    const S_INST: [u8; 13] = [105, 110, 115, 116, 73, 109, 112, 108, 105, 99, 105, 116, 34];
     if byte_at(b, i) != 34 {
         0
-    } else if match_lit(b, i + 1, S_DEFAULT.as_bytes()) {
+    } else if match_lit(b, i + 1, &S_DEFAULT) {
         i + 9
-    } else if match_lit(b, i + 1, S_IMPLICIT.as_bytes()) {
+    } else if match_lit(b, i + 1, &S_IMPLICIT) {
         i + 10
-    } else if match_lit(b, i + 1, S_STRICT.as_bytes()) {
+    } else if match_lit(b, i + 1, &S_STRICT) {
         i + 16
-    } else if match_lit(b, i + 1, S_INST.as_bytes()) {
+    } else if match_lit(b, i + 1, &S_INST) {
         i + 14
     } else {
         0
@@ -1208,7 +1214,13 @@ pub fn scan_nat_list(b: &[u8], i: usize) -> ScanRes<Vec<u64>> {
 /// con-leche: ConLeche/Frontend/Scan/Naive.lean:264-272 naivePw
 /// The `pw` datum: `"never"` or a list of name indices.
 pub fn scan_pw(b: &[u8], i: usize) -> ScanRes<PwRec> {
-    const S_NEVER: &str = "never\"";
+    // The literals below end in the JSON string's own closing quote.  They
+    // are byte arrays, not `&str` constants like every other literal in this
+    // file, because Aeneas emits a `&str` constant as `toStr "..."` **without
+    // escaping a double quote inside it**, and the Lean that comes out does
+    // not parse (AENEAS_FINDINGS §2.1's F17, found by `lake build` at
+    // task #84).
+    const S_NEVER: [u8; 6] = [110, 101, 118, 101, 114, 34];
     if byte_at(b, i) == 91 {
         let (ns, j) = match scan_nat_list_loop(b, i + 1) {
             Err(er) => return Err(er),
@@ -1216,7 +1228,7 @@ pub fn scan_pw(b: &[u8], i: usize) -> ScanRes<PwRec> {
         };
         Ok((PwRec::IfAllZero(ns), j))
     } else if byte_at(b, i) == 34 {
-        if match_lit(b, i + 1, S_NEVER.as_bytes()) {
+        if match_lit(b, i + 1, &S_NEVER) {
             Ok((PwRec::Never, i + 7))
         } else {
             err(i, ErrTag::BadPw)
@@ -1230,12 +1242,18 @@ pub fn scan_pw(b: &[u8], i: usize) -> ScanRes<PwRec> {
 /// con-leche: ConLeche/Frontend/Scan/Naive.lean:274-303 naiveHints
 /// A definition's `hints`: `"abbrev"`, `"opaque"` or `{"regular":n}`.
 pub fn scan_hints(b: &[u8], i: usize) -> ScanRes<HintsRec> {
-    const S_ABBREV: &str = "abbrev\"";
-    const S_OPAQUE: &str = "opaque\"";
+    // The literals below end in the JSON string's own closing quote.  They
+    // are byte arrays, not `&str` constants like every other literal in this
+    // file, because Aeneas emits a `&str` constant as `toStr "..."` **without
+    // escaping a double quote inside it**, and the Lean that comes out does
+    // not parse (AENEAS_FINDINGS §2.1's F17, found by `lake build` at
+    // task #84).
+    const S_ABBREV: [u8; 7] = [97, 98, 98, 114, 101, 118, 34];
+    const S_OPAQUE: [u8; 7] = [111, 112, 97, 113, 117, 101, 34];
     if byte_at(b, i) == 34 {
-        if match_lit(b, i + 1, S_ABBREV.as_bytes()) {
+        if match_lit(b, i + 1, &S_ABBREV) {
             Ok((HintsRec::Abbrev, i + 8))
-        } else if match_lit(b, i + 1, S_OPAQUE.as_bytes()) {
+        } else if match_lit(b, i + 1, &S_OPAQUE) {
             Ok((HintsRec::Opaque, i + 8))
         } else {
             err(i, ErrTag::BadHints)

@@ -24,16 +24,27 @@
 # inside the crate, a script regenerates it from con-leche, and a gate says
 # the two agree.  The extraction then has nothing to resolve.
 #
-# The wrapping is byte-exact: the value of `PRELUDE_TEXT` is the ndjson file,
-# byte for byte, including its final newline, so `parse_chunks` on it is the
-# parse `con-ron` would do on that file.  Aeneas models a `&str` as
-# `Slice U8` with `toStr s = s.toByteArray` (`Aeneas/Std/String.lean`), i.e.
-# the UTF-8 bytes, so the two non-ASCII lines of the prelude (`α`, `β`) are
-# the bytes the scanner reads and the model reads the same ones.
+# **Why chunked byte arrays and not one `&str`.**  Both obvious shapes fail,
+# and task #84 measured each; the generated module's own note has the detail.
+# A `&str` constant comes out of Aeneas as `toStr "..."` with the double
+# quotes inside it UNESCAPED (AENEAS_FINDINGS's F17), and an ndjson stream is
+# nothing but quotes; a single `[u8; 16922]` comes out as an
+# element-by-element `Array.make` that Lean cannot elaborate inside a million
+# heartbeats.  `CHUNK` below is a size that does elaborate.
+#
+# The wrapping is byte-exact: the concatenation of the chunks is the ndjson
+# file, byte for byte, including its final newline, so the parse of it is the
+# parse `con-ron` would do on that file.  The prelude's two non-ASCII entries
+# are simply their UTF-8 bytes, which is what the scanner reads.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 out="$root/crates/con-ron-core/src/frontend/prelude_text.rs"
+
+# Bytes per chunk.  Small enough that Lean elaborates each `Array.make`
+# without a heartbeat cap in sight (the rest of the model's largest array is
+# 72 elements), large enough that the module stays readable.
+CHUNK=256
 
 check=0
 case "${1-}" in
@@ -60,49 +71,9 @@ mkdir -p "$work"
 
 echo "gen-prelude: vendor/con-leche/$src_rel"
 
-emit() {
-  cat <<EOF
-//! The embedded lean4export text of con-leche's built-in prelude
-//! (\`ConLeche/Frontend/Prelude.lean:57-62\`, task #84).
-//!
-//! con-leche: ConLeche/Frontend/Prelude.lean:57-62 builtinPreludeText
-//!
-//! **Generated file — do not edit.**  Written by \`scripts/gen-prelude.sh\`
-//! from con-leche's own committed \`$src_rel\`, the file its
-//! \`builtinPreludeText\` reads with \`include_str\`.
-//! \`scripts/gen-prelude.sh --check\` is the freshness gate, and
-//! \`scripts/gates.sh\` runs it.
-//!
-//! The module-level citation above covers the one item in the file: the whole
-//! module is one Lean declaration's value (DESIGN.md §3.7, the
-//! \`basis_tables.rs\` rule of task #22, as \`kernel/pins_text.rs\` does).
-//!
-//! **Why a constant in the crate and not \`include_str!\`.**  The unverified
-//! port read the file out of \`vendor/\` at compile time, which makes the
-//! verified crate's build depend on a path outside itself and hides the data
-//! from anyone reading \`crates/con-ron-core\`.  \`kernel/pins_text.rs\`
-//! settled that question at task #43; this follows it.
-//!
-//! **Why \`&str\`.**  Aeneas renders a \`&str\` constant as one Lean string
-//! literal and a \`b"..."\` byte constant as an element-by-element array
-//! literal that Lean cannot elaborate at size (task #43).
-//! \`frontend::prelude::builtin_prelude_e\` therefore takes
-//! \`PRELUDE_TEXT.as_bytes()\`; \`Str\` is \`Slice U8\` and \`toStr\` is the
-//! string's UTF-8 bytes, so the model reads exactly the bytes the binary does.
+python3 "$root/scripts/gen-prelude.py" "$src" "$src_rel" "$CHUNK" \
+  > "$work/prelude_text.rs"
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:57-62 builtinPreludeText
-/// The committed prelude for the pinned toolchain (con-leche's
-/// \`lean-toolchain\`), verbatim: the \`meta\` header, the name, level and
-/// expression table entries, and the declaration records of the six pinned
-/// basis blocks, \`Bool\` and \`And\`.  \`frontend::prelude::builtin_prelude_e\`
-/// is the parse of it.
-pub const PRELUDE_TEXT: &str = "\\
-EOF
-  sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' "$src"
-  echo '";'
-}
-
-emit > "$work/prelude_text.rs"
 lines=$(wc -l < "$src")
 bytes=$(wc -c < "$src")
 

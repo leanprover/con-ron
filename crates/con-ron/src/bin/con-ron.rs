@@ -12,15 +12,17 @@
 //! and the `do` chain of `ConLeche.no_False_declaration`):
 //!
 //! ```text
-//! builtin_prelude_e  →  parse_export_stream_d  →  prepare_prelude  →  check_decls
+//! builtin_prelude_e  →  parse_chunks  →  prepare_prelude  →  check_decls
 //! ```
 //!
-//! — the built-in prelude parses (`frontend::prelude`), the stream is decoded
-//! line by line off the handle into the file's own records
-//! (`frontend::export_c`; mutual and nested inductive blocks get their `_model`
-//! family generated in process by `in_model`, and the projection functions are
-//! rewritten), `frontend::prepare` puts the prelude's declarations in front and
-//! hoists a pinned `Nat` operation's ground, and the resulting
+//! — the built-in prelude parses
+//! (`con_ron_core::frontend::prelude`), the stream is decoded line by line off
+//! the handle into the file's own records (`con_ron_core::frontend::export_c`;
+//! mutual and nested inductive blocks get their `_model` family generated in
+//! process by `in_model`, which the core calls through the `Modeller` trait,
+//! and the projection functions are rewritten),
+//! `con_ron_core::frontend::prepare` puts the prelude's declarations in front
+//! and hoists a pinned `Nat` operation's ground, and the resulting
 //! `Vec<Declaration>` goes to the fold — `con_ron::driver`, which is
 //! `con_ron_core::cached::installed::check_decls`' body with the phase
 //! boundary visible, the fold DESIGN.md §1's main theorem is about.  Since
@@ -36,6 +38,12 @@
 //! `con-ron-check` and which task #80 left as this binary's alone.  What is
 //! here is this binary's own front matter: the flags, the prelude, the parse,
 //! the preparation, the receipts.
+//!
+//! **Since task #84 the four steps are the VERIFIED crate's**
+//! (`con_ron_core::frontend::*`, OVERVIEW §3.7); what this crate still owns of
+//! the parse is the reads (`driver::parse_export_stream_d`, whose pure
+//! counterpart `parse_chunks` is the core's) and the in-process modeller the
+//! core takes as a type parameter.
 //!
 //! Exit codes are con-leche's (`vendor/con-leche/Main.lean:15-31`, its
 //! `OVERVIEW.md` §0): 0 accepted, 1 rejected, 2 declined, 3
@@ -93,14 +101,15 @@ use con_ron_core::kernel::core_types::CheckError;
 use con_ron_core::kernel::env::declaration_names;
 use con_ron_core::kernel::env::CheckMode;
 
+use con_ron_core::frontend::export_c::{self, ParseResultD};
+use con_ron_core::frontend::prelude;
+use con_ron_core::frontend::prepare;
+
 use con_ron::driver;
 use con_ron::driver::Heartbeat;
 use con_ron::driver::STACK_BYTES;
-use con_ron::frontend::export::name_str;
-use con_ron::frontend::export_c::{self, ParseResultD};
-use con_ron::frontend::nat_op_ground::NameKey;
-use con_ron::frontend::prelude;
-use con_ron::frontend::prepare;
+use con_ron::in_model::InProcess;
+use con_ron::render::name_str;
 
 // The global allocator is `con-ron-dump`'s (task #35's mimalloc, declared by
 // that crate's lib): a program may declare only one, and this binary links
@@ -127,8 +136,9 @@ usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
                     proves is that same statement about THIS program's fold
                     (DESIGN.md §1); con-leche's file-level corollary
                     ConLeche.no_False_declaration, which covers the parse as
-                    well, is con-ron's follow-up task #84 and is NOT yet
-                    claimed here.
+                    well, is NOT yet claimed here -- task #84 put the parser
+                    into the verified core, so the corollary is now reachable,
+                    but its proof is the next task's.
   --trusted         the unverified mode: the SAME checker bodies at the mode
                     with the certification-only work switched off.  An accept
                     in this mode is outside the theorem.
@@ -371,7 +381,11 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // `pins/<toolchain>.prelude.ndjson`.  `prepare_prelude` below puts its
     // declarations in front of every stream.  A prelude that does not parse is
     // a corrupted build, reported before any input is read.
-    let prelude_ix = match prelude::builtin_prelude_e() {
+    // The in-process modeller, which the parse takes as a type parameter: the
+    // verified core is quantified over an arbitrary `Modeller` (OVERVIEW §3.7),
+    // and this unit struct is the one the binary supplies.
+    let modeller = InProcess;
+    let prelude_ix = match prelude::builtin_prelude_e(&modeller) {
         Ok(p) => p,
         Err((e, line)) => {
             let what = match classify(&e) {
@@ -395,7 +409,13 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // else: since con-leche task #293 the decoder decodes, and every verdict
     // about a record's content is the fold's.
     let parsed: ParseResultD =
-        match export_c::parse_export_stream_d(file, in_model, census, export_c::CHUNK_SIZE) {
+        match driver::parse_export_stream_d(
+            &modeller,
+            file,
+            in_model,
+            census,
+            export_c::CHUNK_SIZE,
+        ) {
             Err(e) => {
                 eprintln!("con-ron: {}: {}", file, e);
                 return 3;
@@ -437,7 +457,11 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // census stops after the parse, so nothing is claimed about the stream.
     if census {
         for (n, why) in parsed.in_model_declined.iter() {
-            eprintln!("con-ron: inmodel declined {}: {}", name_str(n), why);
+            eprintln!(
+                "con-ron: inmodel declined {}: {}",
+                name_str(n),
+                con_ron::render::from_cps(why)
+            );
         }
         eprintln!(
             "con-ron: inmodel census: {} modelled, {} declined ({}, parse only)",
@@ -523,7 +547,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
             let owner = prepared.decls.get(*i as usize).and_then(|d| {
                 declaration_names(d)
                     .into_iter()
-                    .find_map(|n| parsed.gen_owner.get(&NameKey(n)).map(name_str))
+                    .find_map(|n| parsed.gen_owner.get(&n).map(name_str))
             });
             driver::verdict_failure(&prepared.decls, e, *i, owner, mode_tag, t0)
         }

@@ -77,6 +77,7 @@
 //! "an internal failure of unclear cause", never a verdict on the input.  The
 //! panic message is on stderr above it.
 
+use std::io::Read;
 use std::sync::Mutex;
 use std::time::Instant;
 
@@ -92,11 +93,14 @@ use con_ron_core::kernel::env::Declaration;
 use con_ron_core::kernel::env::Env;
 use con_ron_core::kernel::fenv;
 use con_ron_core::kernel::fenv::FEnv;
+use con_ron_core::frontend::export_c;
+use con_ron_core::frontend::export_c::ParseResultD;
+use con_ron_core::frontend::in_model_rec::Modeller;
 use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
 use con_ron_core::kernel::pins_decode;
 
-use crate::frontend::export::name_str;
 use crate::pool;
+use crate::render::name_str;
 
 /// con-leche: none — the Lean runtime's per-thread stack reservation, which
 /// `Main.lean`'s `--jobs` note measures at 1 GiB per worker.  The fold's
@@ -911,6 +915,89 @@ pub fn verdict_failure(
         ms_secs(t0.elapsed().as_millis())
     );
     code
+}
+
+// ---------------------------------------------------------------------------
+// The streaming reader (task #84)
+//
+// `ConLeche/Frontend/ExportC.lean`'s `parseExportHandleD` and
+// `parseExportStreamD`: the *loop with the reads interleaved*, whose pure
+// counterpart `parseChunks` is in the verified core
+// (`con_ron_core::frontend::export_c`).  They are here and not there because
+// they are the one part of the parse that is not a function of the input:
+// `IO.FS.Handle.read` has no model, and a theorem about the file is a theorem
+// about its bytes, which `parse_chunks` takes as a list of chunks.  What this
+// pair adds is exactly the reads, and `chunk_step`/`chunk_finish` — the steps
+// it takes — are the core's.
+// ---------------------------------------------------------------------------
+
+/// con-leche: ConLeche/Frontend/ExportC.lean:903-931 parseExportHandleD
+/// Streaming direct parse off an open reader.
+///
+/// The reader is read strictly forward, 4 MiB at a time, and is never seeked,
+/// re-opened or asked for its size — so the source may be a *pipe* just as
+/// well as a file (con-leche task #180: no scratch file at all, anywhere).
+/// It is a property to preserve: a seek or a re-open here would silently
+/// re-introduce a temp file.  The unconsumed tail of a chunk — at most one
+/// incomplete line — is carried into the next one.  Each step is the core's
+/// `chunk_step`, the end its `chunk_finish`: the loop is `parse_chunks`' with
+/// the reads interleaved, stopping at the first empty read.
+pub fn parse_export_handle_d<R: Read, M: Modeller>(
+    m: &M,
+    h: &mut R,
+    in_model: bool,
+    census: bool,
+    chunk: usize,
+) -> std::io::Result<Result<ParseResultD, (CheckError, u64)>> {
+    let mut st = export_c::state_d_init(in_model, census);
+    let mut carry: Vec<u8> = Vec::new();
+    let mut line_no: u64 = 0;
+    let mut total: u64 = 0;
+    let mut buf0: Vec<u8> = vec![0u8; chunk];
+    loop {
+        let n = read_up_to(h, &mut buf0)?;
+        if n == 0 {
+            return Ok(export_c::chunk_finish(m, st, &carry, line_no));
+        }
+        match export_c::chunk_step(m, &mut st, carry, line_no, total, &buf0[..n]) {
+            Err(e) => return Ok(Err(e)),
+            Ok((c, l, t)) => {
+                carry = c;
+                line_no = l;
+                total = t;
+            }
+        }
+    }
+}
+
+/// con-leche: none — `IO.FS.Handle.read`, which returns *up to* `n` bytes and
+/// an empty buffer at end of file; `Read::read` may also stop short of a full
+/// buffer mid-file, so the port loops until the buffer is full or the reader
+/// is done.
+pub fn read_up_to<R: Read>(h: &mut R, buf: &mut [u8]) -> std::io::Result<usize> {
+    let mut got = 0usize;
+    while got < buf.len() {
+        match h.read(&mut buf[got..]) {
+            Ok(0) => break,
+            Ok(n) => got += n,
+            Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(got)
+}
+
+/// con-leche: ConLeche/Frontend/ExportC.lean:933-938 parseExportStreamD
+/// Streaming direct parse of a file.
+pub fn parse_export_stream_d<M: Modeller>(
+    m: &M,
+    path: &str,
+    in_model: bool,
+    census: bool,
+    chunk: usize,
+) -> std::io::Result<Result<ParseResultD, (CheckError, u64)>> {
+    let mut f = std::fs::File::open(path)?;
+    parse_export_handle_d(m, &mut f, in_model, census, chunk)
 }
 
 #[cfg(test)]

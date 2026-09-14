@@ -135,6 +135,7 @@ use crate::frontend::scan_types::{
 };
 use crate::frontend::text;
 use crate::kernel::basis_raw;
+use crate::kernel::core_k;
 use crate::kernel::core_types;
 use crate::kernel::core_types::CheckError;
 use crate::kernel::env;
@@ -911,15 +912,24 @@ pub fn constant_infos_dup(bl: &Vec<ConstantInfo>) -> Vec<ConstantInfo> {
 pub fn ind_pi_tele_len(e: &Expr) -> u64 {
     let mut n: u64 = 0;
     let mut cur = expr::dup(e);
-    loop {
-        let next = match &cur.0.kind {
-            ExprKind::ForallE(_, b, _) => {
-                n += 1;
-                expr::dup(b)
-            }
-            _ => return n,
-        };
-        cur = next;
+    while core_k::is_forall(&cur) {
+        cur = ind_pi_body(&cur);
+        n += 1;
+    }
+    n
+}
+
+/// con-leche: none — the body of a `∀` binder, as an owned handle.
+/// The loop above must not hold `cur`'s borrow across the write that rebinds
+/// `cur`: Aeneas answers "Could not match the contexts" (AENEAS_FINDINGS
+/// §2.1's F1, the port's commonest failure).  An *owning* step function is
+/// task #13's fix — the borrow dies at the call boundary.  On a non-`∀` the
+/// caller's guard has already stopped, so the arm is unreachable and returns
+/// the node itself.
+fn ind_pi_body(e: &Expr) -> Expr {
+    match &e.0.kind {
+        ExprKind::ForallE(_, b, _) => expr::dup(b),
+        _ => expr::dup(e),
     }
 }
 

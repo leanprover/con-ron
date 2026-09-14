@@ -346,8 +346,12 @@ pub fn inst_pis_open_done(ok: bool, cur: Expr) -> Option<Expr> {
 /// a typeclass field, i.e. an opaque function the refinement quantifies over,
 /// and the two implementations below are the motive and the minor builders.
 pub trait MkBinder {
-    /// con-leche: none — the trait's one method
-    fn mk(&self, dom: &Expr) -> Option<Expr>;
+    /// con-leche: none — the trait's one method.  **Not named `mk`**: a trait
+    /// becomes a Lean `structure` and its methods become fields, and `mk` is
+    /// the name Lean reserves for a structure's own constructor, so a method
+    /// called `mk` produces a `structure` Lean refuses to elaborate
+    /// ("Invalid field name `mk`", AENEAS_FINDINGS §3.7).
+    fn binder(&self, dom: &Expr) -> Option<Expr>;
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:259-269 buildBinders
@@ -397,7 +401,7 @@ pub fn build_binders_step_at<M: MkBinder>(
     dom: &Expr,
     body: &Expr,
 ) -> Option<(Expr, Expr)> {
-    match mk.mk(dom) {
+    match mk.binder(dom) {
         Some(t) => {
             let b = expr_ops_c::instantiate1_lift(body, &t, 0);
             Some((t, b))
@@ -467,7 +471,7 @@ pub struct MkMotive {
 impl MkBinder for MkMotive {
     /// con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue
     /// The cited three-arm `match stripPisAll dom with`.
-    fn mk(&self, dom: &Expr) -> Option<Expr> {
+    fn binder(&self, dom: &Expr) -> Option<Expr> {
         let bse = strip_pis_all(dom);
         match &bse.1 .0.kind {
             ExprKind::Sort(_) => {
@@ -511,7 +515,7 @@ impl MkBinder for MkMinor {
     /// con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue
     /// The cited `match cod.getAppArgs.getLast? with`; the empty spine is the
     /// cited `none` arm.
-    fn mk(&self, dom: &Expr) -> Option<Expr> {
+    fn binder(&self, dom: &Expr) -> Option<Expr> {
         let bse = strip_pis_all(dom);
         let args = expr_ops::get_app_args(&bse.1);
         if args.len() == 0 {
