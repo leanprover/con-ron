@@ -2605,6 +2605,17 @@ witnesses that it stops, so `hoistClose_eq` is a *one-step* unfolding
 (`Lean.Loop.forIn_eq_of_monadTail`) and every fact about it is proved by
 induction on the port's measure. -/
 
+/- **These six definitions must elaborate the way con-leche's `do` block did**,
+or the split is not `rfl`.  `proof/lakefile.toml` sets
+`weak.backward.do.legacy = true` project-wide (task #22: Aeneas' `step` tactic
+needs it), while the `con-leche` package does not, so the two `forIn`
+elaborations differ and `hoistTargets_split` fails under `lake build` while
+passing under a bare `lake env lean` — which does not apply the package's
+`leanOptions` at all.  Turning the option off for exactly these mirrors is what
+makes the equation definitional again; nothing here uses `step`. -/
+section
+set_option backward.do.legacy false
+
 /-- `ConLeche/Frontend/NatOpGround.lean:113-115` — the cited
 `for n in ds[i]!.names do if !idx.contains n then idx := idx.insert n i`. -/
 private def hoistIdxNames (i : Nat) (ns : List ConLeche.Name)
@@ -2687,6 +2698,8 @@ private theorem hoistTargets_split (ds : _root_.Array ConLeche.Declaration) :
     hoistIdxNames, hoistClose, Id.run, Std.Legacy.Range.forIn_eq_forIn_range',
     Std.Legacy.Range.size, Nat.sub_zero, Nat.add_sub_cancel, Nat.div_one]
   rfl
+
+end
 
 private theorem hoistIdxNames_nil (i : Nat) (idx : _root_.Std.HashMap ConLeche.Name Nat) :
     hoistIdxNames i [] idx = idx := rfl
