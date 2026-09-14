@@ -18247,9 +18247,11 @@ Three things this settles.
 task's landed change free.  `scripts/diff-e2e.sh`: **348 agree, 0 differ** at
 `--jobs=1` and at `--jobs=4`.
 
-`_tmp/t92/` holds the binaries, the raw logs, `binprobe/` (the size-class probe)
-and `stack.patch`; deleted once these numbers are the committed
-record, per CLAUDE.md.
+`_tmp/t92/` holds the raw logs of all thirteen runs, `binprobe/` (the
+size-class probe, ~40 lines) and `stack.patch` (the 40-byte node plus triomphe,
+against this tree); the measured binaries are deleted.  The rest goes once
+these numbers are the committed record, per CLAUDE.md — `stack.patch` should
+outlive them if the trade above is ever revisited.
 
 ### Task #90 — `PropWhen` one word for its common cases (2026-09-14, Sonnet under Fable; proofs by Opus, below)
 
