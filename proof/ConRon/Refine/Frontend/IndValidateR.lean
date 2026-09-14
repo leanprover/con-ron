@@ -1045,4 +1045,222 @@ theorem check_rec_indices_refines {rn t_pre : name.Name} {num_indices n_pd : Std
     (by simp [alloc.vec.Vec.len]) h
   simpa [show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using hres
 
+
+/-! ### `check_one_rec` -/
+
+/-- `Except`'s bind at a value. -/
+private theorem iv_ok_bind {α β : Type} (a : α) (f : α → ConLeche.Frontend.M β) :
+    (Except.ok a : ConLeche.Frontend.M α) >>= f = f a := rfl
+
+/-- `Except`'s bind at an error. -/
+private theorem iv_err_bind {α β : Type} (e : String) (f : α → ConLeche.Frontend.M β) :
+    (Except.error e : ConLeche.Frontend.M α) >>= f = Except.error e := rfl
+
+/-- An `[u32; N]` literal, as a slice's value.  (`Refine/Frontend/ProjRecR.lean`
+keeps the same one-liner `private`; the coordinator should merge them when the
+files meet.) -/
+private theorem iv_slice_lit_val {k : Std.Usize} {S : Array Std.U32 k} {s : Slice Std.U32}
+    (h : lift (Array.to_slice S) = ok s) : s.val = S.val := by
+  simp only [lift_eq, Result.ok.injEq] at h
+  subst h
+  simp [Array.val_to_slice]
+
+/-- A well-formed name whose kind is `Str` has a well-formed prefix and a
+well-formed spelling.  (Agent R's caution: `absString` is injective only under
+`StrWF`, so the `.str T "rec"` test carries this hypothesis rather than
+assuming injectivity.) -/
+private theorem iv_namewf_str {hh : Std.U64} {t_pre : name.Name}
+    {last : alloc.vec.Vec Std.U32}
+    (hwf : NameWF (name.Name.mk (name.NameNode.mk hh (.Str t_pre last)))) :
+    NameWF t_pre ∧ StrWF last := by
+  cases hwf with
+  | anonymous hA =>
+    have hv := name_anonymous_inv hA
+    simp only [name.Name.mk.injEq, name.NameNode.mk.injEq] at hv
+    exact absurd hv.2 (by simp)
+  | str hp hs hmk =>
+    obtain ⟨hh2, hv⟩ := mk_str_inv hmk
+    simp only [name.Name.mk.injEq, name.NameNode.mk.injEq, name.NameKind.Str.injEq] at hv
+    obtain ⟨-, hpre, hlast⟩ := hv
+    exact ⟨hpre ▸ hp, hlast ▸ hs⟩
+  | num hp hmk =>
+    obtain ⟨hh2, hv⟩ := mk_num_inv hmk
+    simp only [name.Name.mk.injEq, name.NameNode.mk.injEq] at hv
+    exact absurd hv.2 (by simp)
+
+/-- **`export_c::check_one_rec` refines one step of `validateIndD`'s recursor
+loop** (`ConLeche/Frontend/ExportC.lean:412-563`): the three declared counts,
+the K flag, and — at a name spelled `T.rec` — the index count. -/
+theorem check_one_rec_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {r : frontend.scan_types.IndRecRec}
+    {ty_names : alloc.vec.Vec name.Name} {ty_types : alloc.vec.Vec expr.Expr}
+    {n_pd n_types n_ctors : Std.U64} {k_exp : Option Bool}
+    {o : core.result.Result Unit frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (hnwf : NamesWF ty_names) (htwf : ExprsWF ty_types)
+    (h : frontend.export_c.check_one_rec st r ty_names ty_types n_pd n_types n_ctors k_exp
+      = ok o) :
+    StepLoopOut o (lRecStep lst (absNames ty_names) (absExprs ty_types)
+      n_pd.val n_types.val n_ctors.val k_exp (absIndRecRec r) (none, ())) := by
+  rw [frontend.export_c.check_one_rec] at h
+  obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+  have hst := st_name_refines hrel hwf hr1
+  cases r1 with
+  | Err e =>
+    simp only [Result.ok.injEq] at h
+    rw [← h]
+    cases e with
+    | Msg m =>
+      obtain ⟨s0, hs0⟩ := hst
+      refine ⟨s0, ?_⟩
+      simp only [lRecStep, absIndRecRec, absCVRec, absU64, hs0]
+      rw [iv_err_bind]
+    | Verdict v => exact hst.elim
+  | Ok v =>
+    obtain ⟨habs, hvwf⟩ := hst
+    obtain ⟨⟨hsh, kv⟩⟩ := v
+    simp only [arc_deref_eq, bind_tc_ok] at h
+    simp only [lRecStep, absIndRecRec, absCVRec, absU64, habs]
+    rw [iv_ok_bind]
+    simp only [beq_iff_eq]
+    -- the tail: the K flag has been dealt with, the name is all that is left
+    have htail : ∀ (kv0 : name.NameKind),
+        NameWF (name.Name.mk (name.NameNode.mk hsh kv0)) →
+        ∀ (o' : core.result.Result Unit frontend.export_c.LineErr),
+        (match kv0 with
+         | .Anonymous => ok (core.result.Result.Ok ())
+         | .Str t_pre last => do
+           let s ← lift (Array.to_slice frontend.export_c.check_one_rec.R)
+           let b ← frontend.text.cps_beq last s
+           if b = true then
+             frontend.export_c.check_rec_indices
+               (name.Name.mk (name.NameNode.mk hsh kv0)) t_pre r.num_indices
+               ty_names ty_types n_pd
+           else ok (core.result.Result.Ok ())
+         | .Num _ _ => ok (core.result.Result.Ok ())) = ok o' →
+        StepLoopOut o' (match absName (name.Name.mk (name.NameNode.mk hsh kv0)) with
+          | .str T "rec" => do
+            let res ← lForIn (fun tt s' => lRecIdxStep T
+              (absName (name.Name.mk (name.NameNode.mk hsh kv0)))
+              r.num_indices.val n_pd.val tt s') ((absNames ty_names).zip
+              (absExprs ty_types)) (none, ())
+            match res.1 with
+            | some rr => pure (.done (some rr, ()))
+            | none => pure (.yield (none, ()))
+          | _ => pure (.yield (none, ()))) := by
+      intro kv0 hkwf o' h'
+      simp only [absName, absNameNode]
+      cases kv0 with
+      | Anonymous =>
+        simp only [Result.ok.injEq] at h'
+        rw [← h']
+        rfl
+      | Num p m =>
+        simp only [Result.ok.injEq] at h'
+        rw [← h']
+        rfl
+      | Str t_pre last =>
+        obtain ⟨htpwf, hlastwf⟩ := iv_namewf_str hkwf
+        simp only [bind_eq_ok_iff] at h'
+        obtain ⟨sl, hsl, b, hb, h'⟩ := h'
+        have hslv : sl.val = [114#u32, 101#u32, 99#u32] := by
+          rw [iv_slice_lit_val hsl]; simp [frontend.export_c.check_one_rec.R]
+        have hbR : (b = true ↔ absString last = "rec") := by
+          rw [cps_beq_str hlastwf (by rw [hslv]; decide) hb, hslv]; rfl
+        simp only [absNameKind]
+        by_cases hbt : b = true
+        · rw [if_pos hbt] at h'
+          have hstr : absString last = "rec" := hbR.mp hbt
+          have hidx := check_rec_indices_refines (rn := name.Name.mk
+            (name.NameNode.mk hsh (.Str t_pre last))) hnwf htwf htpwf h'
+          simp only [absName, absNameNode, absNameKind] at hidx ⊢
+          rw [hstr] at hidx ⊢
+          split
+          · rename_i rn0 T0 heq0
+            have hT : absName t_pre = T0 := by simpa using heq0
+            subst hT
+            cases o' with
+            | Ok u =>
+              simp only [LoopOut] at hidx
+              simp only [StepLoopOut]
+              rw [hidx, iv_ok_bind]
+              rfl
+            | Err e =>
+              cases e with
+              | Msg m =>
+                obtain ⟨s0, hs0⟩ := hidx
+                exact ⟨s0, by rw [hs0, iv_err_bind]⟩
+              | Verdict vv =>
+                obtain ⟨lv, u, hu, hk⟩ := hidx
+                exact ⟨lv, (), by rw [hu, iv_ok_bind]; rfl, hk⟩
+          · rename_i rn0 hcon
+            exact absurd rfl (hcon (absName t_pre))
+        · rw [if_neg hbt] at h'
+          have hne : absString last ≠ "rec" := fun hc => hbt (hbR.mpr hc)
+          simp only [Result.ok.injEq] at h'
+          rw [← h']
+          split
+          · rename_i rn0 T0 heq0
+            exact absurd (by simpa using heq0 : absName t_pre = T0 ∧ absString last = "rec").2 hne
+          · rfl
+    by_cases hc1 : (r.num_params != n_pd) = true
+    · rw [if_pos hc1] at h
+      have hnev : ¬ (r.num_params.val = n_pd.val) := by simpa using hc1
+      rw [if_neg hnev]
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨m, -, h⟩ := h
+      rw [frontend.export_c.invalid] at h
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact ⟨_, _, rfl, rfl⟩
+    · rw [if_neg hc1] at h
+      have heq1v : r.num_params.val = n_pd.val := by simpa using hc1
+      rw [if_pos heq1v]
+      by_cases hc2 : (r.num_motives != n_types) = true
+      · rw [if_pos hc2] at h
+        have hnev : ¬ (r.num_motives.val = n_types.val) := by simpa using hc2
+        rw [if_neg hnev]
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨m, -, h⟩ := h
+        rw [frontend.export_c.invalid] at h
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        exact ⟨_, _, rfl, rfl⟩
+      · rw [if_neg hc2] at h
+        have heq2v : r.num_motives.val = n_types.val := by simpa using hc2
+        rw [if_pos heq2v]
+        by_cases hc3 : (r.num_minors != n_ctors) = true
+        · rw [if_pos hc3] at h
+          have hnev : ¬ (r.num_minors.val = n_ctors.val) := by simpa using hc3
+          rw [if_neg hnev]
+          simp only [bind_eq_ok_iff] at h
+          obtain ⟨m, -, h⟩ := h
+          rw [frontend.export_c.invalid] at h
+          simp only [Result.ok.injEq] at h
+          rw [← h]
+          exact ⟨_, _, rfl, rfl⟩
+        · rw [if_neg hc3] at h
+          have heq3v : r.num_minors.val = n_ctors.val := by simpa using hc3
+          rw [if_pos heq3v]
+          cases k_exp with
+          | none =>
+            simp only [] at h ⊢
+            exact htail kv hvwf o h
+          | some k_e =>
+            simp only [] at h ⊢
+            by_cases hc4 : (r.k != k_e) = true
+            · rw [if_pos hc4] at h
+              have hnev : ¬ (r.k = k_e) := by simpa using hc4
+              rw [if_neg hnev]
+              simp only [bind_eq_ok_iff] at h
+              obtain ⟨m, -, h⟩ := h
+              rw [frontend.export_c.invalid] at h
+              simp only [Result.ok.injEq] at h
+              rw [← h]
+              exact ⟨_, _, rfl, rfl⟩
+            · rw [if_neg hc4] at h
+              have heqv : r.k = k_e := by simpa using hc4
+              rw [if_pos heqv]
+              exact htail kv hvwf o h
+
 end ConRon.Refine.Frontend
