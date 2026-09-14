@@ -18129,3 +18129,95 @@ to elaborate, so the same `Two`/`Many` shape may recur there once `Abs.lean`
 elaborates again; re-running `lake build` after fixing it is the way to find
 out. No `ConLeche.*` file broke, since none of them mention the crate's own
 `PropWhenRepr` — only the hand-written `Refine/` bridge does.
+
+#### 6. The proof tier, repaired (Opus under Fable)
+
+`lake build` broke where §5 predicted and nowhere else *in kind*: only the
+representation moved, so every statement kept its meaning and the repair is
+**35 statements in 15 files, +102 / −85 lines** — no lemma was weakened, none
+was deleted, and `Refine/Main.lean`'s capstone censuses are byte-identical
+(their `#guard_msgs` is what says so).
+
+Three moves cover all of it.
+
+**(a) `Two`'s payload is one boxed pair, so read it through its projections.**
+`absPropWhenRepr`'s arm is `| .Two pq => .ifAllZero [absName pq.1, absName
+pq.2]` and `PropWhen.lean`'s `reprList` is `| .Two pq => [pq.1, pq.2]`.  The
+alternative spelling, `| .Two (p, q) => …`, was rejected: its equation lemma
+fires only when the argument is *syntactically* a pair, and the definitional
+lemmas (`absPropWhen_eq_ifAllZero`, `wfShape_toList`) are proved by `cases r`,
+which hands them a variable.  With projections those proofs are unchanged,
+and the `rw [reprList, List.map_cons, …]` chains that then meet `absName
+(p, q).1` where they want `absName p` become `simp only [reprList,
+List.map_cons, List.map_nil]` followed by the same `rw` — two sites in
+`two_prime_shape`.
+
+**(b) An operation's `Two`/`Many` arm reads through the handle.**  In the
+generated body a Rust `*pq` is `let (n, n1) ← Arc::deref pq`.  `Abs.lean`'s
+`bind_arc_deref` removes the `deref` bind, but what remains is the tuple
+pattern, which `simp only` does *not* open — Aeneas spells it
+`Function.uncurry`, and `uncurry_apply_pair` (already in the `rust_invert`
+set, and the reason `rust_norm` copes) is the lemma that does.  So every
+`Two` arm is `obtain ⟨p, q⟩ := pq` followed by `simp only [<the op>,
+bind_arc_deref, uncurry_apply_pair, …]`, and every `Many` arm needs only
+`bind_arc_deref`.  That is the whole of `to_list_val`, `holds_shape`,
+`params_defined_shape`, `bind_z_shape`, `bind_z_wf`, `beq_iff`'s `Two`/`Two`
+and `Many`/`Many` leaves and `beq_refl`.  The other 23 of `beq_iff`'s 25 arms
+only had to spell one binder instead of two.
+
+**(c) The `P<PropWhen>` layer under `BinderMeta` is gone, and nothing missed
+it.**  `absBinderMeta` and `BinderMetaWF` needed **no edit at all**: they were
+already written `{ pw := absPropWhen m.pw }` and `PropWhenWF m.pw`, which
+typechecked when `m.pw` was an erased `Arc PropWhen` and typechecks now that
+it is a `PropWhen` — DESIGN.md §3.2's "an `Arc` *is* its contents" paying off
+in the one place it was most likely to hurt.  There was no `dup`/`ptr` bridge
+lemma to delete, because there never was one: the handle was invisible.  What
+did move is the *bind chain* of everything that calls into the datum —
+`expr::lam`/`forall_e` lose one `Arc::deref` step (so `lam_inv`/`forall_e_inv`
+destructure one `∃` pair fewer), `binder_meta_beq`/`binder_meta_hash` lose
+theirs, and `binder_meta_dup` stops being `ptr::clone` and becomes
+`prop_when::dup` (so `binder_meta_dup_eq` now goes through
+`PropWhen.dup_eq`).
+
+Two proofs got *simpler* rather than merely different.  `PropWhen.dup_eq` used
+to need `alloc.vec.Vec.ext` and `names_copy_val` for its `Many` arm, because
+`dup` copied the list spine; now all five arms are a `ptr::clone` or a `Name`
+dup, and the proof is one `cases r <;> simp only […] <;> exact h.symm`.  And
+`absPropWhen_injective`'s leaf dispatch gained one alternative,
+`Prod.ext_iff.mpr hlists`, for the `Two`/`Two` case — the parameter lists
+being equal is now literally a pair equality.
+
+One lemma is new: `PropWhen.dup_eq'`, the applied `simp` shape
+`prop_when.dup pw = ok pw`, which `Core/Arms/DefEqStruct`'s local
+`binder_meta_dup_eq'` needs now that `binder_meta_dup` goes through
+`prop_when::dup`.
+
+| file | what moved |
+|---|---|
+| `Refine/Abs.lean` | `absPropWhenRepr`'s `Two` arm, plus the note saying the model erases the handle |
+| `Refine/PropWhen.lean` | `reprList`; `dup_eq` (shorter) and the new `dup_eq'`; `to_list_val`, `of_sorted_reprList`, `two_prime_shape`, `has_params_shape`, `holds_shape`, `params_defined_shape`, `bind_z_shape`, `bind_z_wf`, `beq_iff`, `beq_refl`, `absPropWhen_injective` |
+| `Refine/Expr.lean` | `lam_inv`, `forall_e_inv` (one `∃` pair fewer), `binder_meta_dup_eq`, `binder_meta_beq_refines`, `binder_meta_beq_refl` |
+| `Refine/ExprOps.lean` | prose only — `binder_meta_eq` is still `binder_meta pw = ok ⟨pw⟩`, it just no longer allocates |
+| `Refine/CoreKGuards.lean` | `annot_binder_meta_refines`: both `binder_meta_dup` arms through `Expr.binder_meta_dup_eq`, `pw_written` reads `mb.pw` directly |
+| `Refine/PinsRecords.lean` | `if_all_zero_abs`'s `Lt`/`Gt` arms gain `ptr_new_eq` (`two_prime` boxes its pair now); `record_expr_binder_refines`'s `binder_meta` unfold loses it |
+| `Refine/BasisPins.lean`, `Refine/PinsWF.lean`, `Refine/StdAxioms.lean`, `Refine/TrustAxioms.lean` | the `expr::binder_meta` unfold loses the now-dead `ptr_new_eq`/`bind_tc_ok` |
+| `Refine/Core/Arms/Infer.lean` | `infer_forall_i_refines`: the deref bind is gone, so two `obtain` steps become one |
+| `Refine/Core/Arms/InferIO.lean`, `.../Annotate.lean`, `.../DefEq.lean`, `.../InferTele.lean` | dead `arc_deref_eq`/`bind_tc_ok` steps removed (six sites) |
+| `Refine/Core/Arms/DefEqStruct.lean` | the local `binder_meta_dup_eq'`, through the new `PropWhen.dup_eq'` |
+
+The last five rows are the tail the `unusedSimpArgs` linter found rather than
+the elaborator: a step that used to strip a handle and now strips nothing is
+not an *error*, and leaving them would have been 14 new warnings in a tier
+whose remaining warnings all predate this task.
+
+**Elaboration cost.**  Unmoved.  `ConRon.Refine.Abs` is 2.3 s against the
+2.1 s §5 recorded on the broken build, `ConRon.Refine.PropWhen` 5.2 s and
+`ConRon.Refine.Expr` 11 s; the whole library is the `lake-build` gate time in
+§7.  There was no reason to expect otherwise — the `Two` arms do one
+projection where they used to do none, and `simp only` sets grew by one lemma
+in ten places.
+
+This branch was cut before task #91, so it was merged up first
+(`vendor/con-leche` is gone, `scripts/provenance.py dir` finds the lake
+package); the generated model was re-extracted on the merged sources and the
+OVERVIEW link snapshot refreshed in the merge commit.
