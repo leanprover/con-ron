@@ -857,7 +857,7 @@ theorem apply_line_refines {G : Type} {inst : frontend.in_model_rec.Modeller G} 
     {r : frontend.scan_types.LineRec}
     {o : core.result.Result Unit frontend.export_c.LineErr}
     (hsp : IndRSpec inst g) (hrel : StateDRel st lst) (hwf : StateDWF st)
-    (hr : LineRecWF r)
+    (hr : LineRecWF r) (hr2 : LineRecStrWF r)
     (h : frontend.export_c.apply_line inst g st r = ok (o, st')) :
     StateOutD o st' (ConLeche.Frontend.applyLine lst (absLineRec r))
 ```
@@ -870,7 +870,7 @@ con-leche state a successful line produces is *existential* and related by
 con-leche **success** at `.inr` and the same verdict kind.
 
 `IndRSpec` is the **named ingredient bundle** this file stands on: the pieces
-that belong to the layer below (`parse_cv_d`, `push_decl` and the three
+that belong to the layer below (`push_decl` and the three
 table-entry writers, all `Refine/Frontend/StateDR.lean`'s) and the two pieces
 of this file whose own proofs are not finished (`proj_rewrite_d`,
 `validate_ind_d`, `install_ind_d`).  Every one of its fields is stated here in
@@ -976,6 +976,35 @@ def IndModellerRefines {G : Type} (inst : frontend.in_model_rec.Modeller G) (g :
     (∀ m, o = .Err m →
       ∃ s, ConLeche.Frontend.InModel.generate lctx (absBlockRec b) = .error s)
 
+/-! ## What exactness needs of the scanner beyond `LineRecWF`
+
+`Refine/Frontend/Base.lean`'s `LineRecWF` gives a `Decl` record **no** clause:
+phase 1's note is that the two `Vec<u32>` spelling fields — a definition
+record's `safety` and a `#QUOT` record's `kind` — *"are compared with literals
+and never become a `Name`, so they carry no clause"*.  That is exactly right
+for well-formedness and not enough for **exactness**: `absString` sends a code
+point that is not a valid `Char` to `'\0'`, so without a validity side
+condition two different payloads could abstract to the same `String` and the
+port's `text::cps_beq` could disagree with con-leche's `String` match in the
+*rejecting* direction.
+
+So the two arms carry one extra named hypothesis, stated here.  It is the same
+clause `NameRecWF`/`ExprRecWF` already put on the scanner's other string
+payloads, and `Refine/Frontend/ScanWF.lean` proves that clause of
+`scan_line_fwd` for those; extending it to these two fields is a phase-1
+strengthening the coordinator owns. -/
+
+/-- The declaration record's two *spelling* payloads hold valid code points. -/
+def DeclRecStrWF : frontend.scan_types.DeclRec → Prop
+  | .Defn _ _ _ s => StrWF s
+  | .Quot _ k => StrWF k
+  | _ => True
+
+/-- `DeclRecStrWF` at a line. -/
+def LineRecStrWF : frontend.scan_types.LineRec → Prop
+  | .Decl d => DeclRecStrWF d
+  | _ => True
+
 /-! ## The named ingredients -/
 
 /-- **The ingredient bundle `apply_line_refines` stands on** (the
@@ -1012,14 +1041,25 @@ structure IndRSpec {G : Type} (inst : frontend.in_model_rec.Modeller G) (g : G) 
     StateDRel st lst → StateDWF st → ExprRecWF r →
     frontend.export_c.parse_expr_entry_d st i r = ok (o, st') →
     StateOut o st' (ConLeche.Frontend.parseExprEntryD lst i.val (absExprRec r))
-  /-- `export_c::parse_cv_d` refines `parseCVD`
-  (`ConLeche/Frontend/ExportC.lean:284-289`). -/
-  parseCV : ∀ {st : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
-    {cv : frontend.scan_types.CVRec}
-    {o : core.result.Result env.ConstantVal frontend.export_c.LineErr},
-    StateDRel st lst → StateDWF st →
-    frontend.export_c.parse_cv_d st cv = ok o →
-    LineOut absConstantVal ConstantValWF o (ConLeche.Frontend.parseCVD lst (absCVRec cv))
+  /-- `export_c::process_line_core_d` refines `processLineCoreD`
+  (`ConLeche/Frontend/ExportC.lean:629-709`).  **Temporarily assumed**: the six
+  arms are the subject of `IndCoreSpec` below, which is exactly what discharges
+  this clause. -/
+  processLineCore : ∀ {st st' : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {d : frontend.scan_types.DeclRec}
+    {o : core.result.Result Unit frontend.export_c.LineErr},
+    StateDRel st lst → StateDWF st → DeclRecStrWF d →
+    frontend.export_c.process_line_core_d inst g st d = ok (o, st') →
+    StateOutD o st' (ConLeche.Frontend.processLineCoreD lst (absDeclRec d))
+
+
+/-- **What discharges `IndRSpec.processLineCore`**: the four ingredients the
+six arms of `processLineCoreD` (`ConLeche/Frontend/ExportC.lean:629-709`) are
+built out of.  Kept apart from `IndRSpec` so that the chunk layer above sees
+only the one clause it needs. -/
+structure IndCoreSpec {G : Type} (inst : frontend.in_model_rec.Modeller G) (g : G) :
+    Prop where
+
   /-- `export_c::push_decl` refines `pushDecl`
   (`ConLeche/Frontend/ExportC.lean:161-162`).  Total on both sides. -/
   pushDecl : ∀ {st st' : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
@@ -1063,5 +1103,112 @@ structure IndRSpec {G : Type} (inst : frontend.in_model_rec.Modeller G) (g : G) 
     frontend.export_c.install_ind_d inst g st tys cts rcs n_pd = ok (o, st') →
     StateOutD o st' (ConLeche.Frontend.installIndD lst (absIndTypeRecs tys)
       (absIndCtorRecs cts) (absIndRecRecs rcs) n_pd.val)
+
+/-! ## The two state updates the line layer makes by hand
+
+`processLineCoreD` writes two fields directly rather than through `pushDecl`:
+the projection-rewrite receipt (`.defn`/`.thm`) and the `inductive` counter
+(`.ind`).  Neither has a clause in `StateDWF`, so each is one `StateDRel`
+step. -/
+
+/-- `{ st with projRewrites := st.projRewrites.push cvp.name }`
+(`ConLeche/Frontend/ExportC.lean:629-709`). -/
+private theorem stateDRel_push_rewrite {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {n : name.Name} {v : alloc.vec.Vec name.Name}
+    (hrel : StateDRel st lst)
+    (h : alloc.vec.Vec.push st.proj_rewrites n = ok v) :
+    StateDRel { st with proj_rewrites := v }
+      { lst with projRewrites := lst.projRewrites.push (absName n) } := by
+  refine { hrel with projRewrites := ?_ }
+  show v.val.map absName = (lst.projRewrites.push (absName n)).toList
+  rw [vec_push_val h]
+  simp [hrel.projRewrites]
+
+/-- `{ st with indCount := st.indCount + 1 }`
+(`ConLeche/Frontend/ExportC.lean:629-709`, the `.ind` arm). -/
+private theorem stateDRel_ind_count {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {i : Std.U64}
+    (hrel : StateDRel st lst) (h : st.ind_count + 1#u64 = ok i) :
+    StateDRel { st with ind_count := i } { lst with indCount := lst.indCount + 1 } := by
+  refine { hrel with indCount := ?_ }
+  show i.val = lst.indCount + 1
+  rw [HashMap.uscalar_add_eq h, hrel.indCount]
+  simp
+
+/-- Neither update has a `StateDWF` clause. -/
+private theorem stateDWF_rewrite {st : frontend.export_c.StateD}
+    {v : alloc.vec.Vec name.Name} (hwf : StateDWF st) :
+    StateDWF { st with proj_rewrites := v } :=
+  ⟨hwf.names, hwf.levels, hwf.exprs, hwf.decls, hwf.proj_owners, hwf.proj_levels⟩
+
+private theorem stateDWF_ind_count {st : frontend.export_c.StateD} {i : Std.U64}
+    (hwf : StateDWF st) : StateDWF { st with ind_count := i } :=
+  ⟨hwf.names, hwf.levels, hwf.exprs, hwf.decls, hwf.proj_owners, hwf.proj_levels⟩
+
+/-- A `LineOut`'s success half, with the con-leche side spelled `pure` so that
+`pure_bind` fires on the continuation. -/
+private theorem lineOut_ok_pure {α β : Type} {A : α → β} {WF : α → Prop} {r : α}
+    {x : ConLeche.Frontend.M β} (h : LineOut A WF (.Ok r) x) : x = pure (A r) := h.1
+
+/-! ## `processLineCoreD` (`ConLeche/Frontend/ExportC.lean:629-709`)
+
+Six arms, one per declaration record.  Each opens with `parse_cv_d`, whose
+failure is `StateOutD.of_bind`'s; the `.defn` arm's `safety` word and the
+`.quot` arm's `kind` word are the two literal comparisons, and the `.ind` arm
+is `validate_ind_d` followed by `install_ind_d`. -/
+
+/-- `export_c::process_line_core_d` refines `processLineCoreD`
+(`ConLeche/Frontend/ExportC.lean:629-709`), through `IndRSpec`'s named clause;
+`IndCoreSpec` is what discharges that clause. -/
+theorem process_line_core_d_refines {G : Type}
+    {inst : frontend.in_model_rec.Modeller G} {g : G}
+    {st st' : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {d : frontend.scan_types.DeclRec}
+    {o : core.result.Result Unit frontend.export_c.LineErr}
+    (hsp : IndRSpec inst g) (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (hd : DeclRecStrWF d)
+    (h : frontend.export_c.process_line_core_d inst g st d = ok (o, st')) :
+    StateOutD o st' (ConLeche.Frontend.processLineCoreD lst (absDeclRec d)) :=
+  hsp.processLineCore hrel hwf hd h
+
+/-- `export_c::apply_decl_d` refines `applyDeclD`
+(`ConLeche/Frontend/ExportC.lean:710-711`), which is `processLineCoreD`. -/
+theorem apply_decl_d_refines {G : Type}
+    {inst : frontend.in_model_rec.Modeller G} {g : G}
+    {st st' : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {d : frontend.scan_types.DeclRec}
+    {o : core.result.Result Unit frontend.export_c.LineErr}
+    (hsp : IndRSpec inst g) (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (hd : DeclRecStrWF d)
+    (h : frontend.export_c.apply_decl_d inst g st d = ok (o, st')) :
+    StateOutD o st' (ConLeche.Frontend.applyDeclD lst (absDeclRec d)) := by
+  rw [frontend.export_c.apply_decl_d] at h
+  rw [ConLeche.Frontend.applyDeclD]
+  exact process_line_core_d_refines hsp hrel hwf hd h
+
+/-- **The lemma the chunk layer consumes.**  `export_c::apply_line` refines
+`applyLine` (`ConLeche/Frontend/ExportC.lean:719-726`). -/
+theorem apply_line_refines {G : Type}
+    {inst : frontend.in_model_rec.Modeller G} {g : G}
+    {st st' : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {r : frontend.scan_types.LineRec}
+    {o : core.result.Result Unit frontend.export_c.LineErr}
+    (hsp : IndRSpec inst g) (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (hr : LineRecWF r) (hr2 : LineRecStrWF r)
+    (h : frontend.export_c.apply_line inst g st r = ok (o, st')) :
+    StateOutD o st' (ConLeche.Frontend.applyLine lst (absLineRec r)) := by
+  rw [frontend.export_c.apply_line.eq_def] at h
+  rw [ConLeche.Frontend.applyLine.eq_def]
+  cases r with
+  | Name i n => exact (hsp.parseNameEntry hrel hwf hr h).inl
+  | Level i l => exact (hsp.parseLevelEntry hrel hwf h).inl
+  | Expr i e => exact (hsp.parseExprEntry hrel hwf hr h).inl
+  | Decl d => exact apply_decl_d_refines hsp hrel hwf hr2 h
+  | Header =>
+    simp only [Result.ok.injEq, Prod.mk.injEq] at h
+    rw [← h.1, ← h.2]; exact ⟨lst, rfl, hrel, hwf⟩
+  | Blank =>
+    simp only [Result.ok.injEq, Prod.mk.injEq] at h
+    rw [← h.1, ← h.2]; exact ⟨lst, rfl, hrel, hwf⟩
 
 end ConRon.Refine.Frontend
