@@ -17202,3 +17202,33 @@ with the con-leche side to rebuild on each, where **factoring the shared tail
 into one lemma stated over the generated `do` block verbatim** — which `exact`
 accepts up to defeq — was much cheaper.  That is the third independent
 measurement in this task of the same conclusion.
+
+#### 16. `IndRSpec` discharged: the parse's residue is the string tier and the modeller
+
+`Refine/Frontend/IndSpecR.lean` is the tier's assembly point — the one file
+that imports every other and builds the records the layers below state their
+lemmas against:
+
+```lean
+theorem projRecSpec : ProjRecSpec            -- five fields, from ProjRecR
+theorem installSpec : InstallSpec            -- from StateDR and ProjRecR
+theorem indRSpec (hmw : ModellerWF inst g) (hmr : ModellerRefines inst g CtxRel)
+    (hv : ValidateIndRefines) : IndRSpec inst g where
+  projRewrite … := proj_rewrite_d_refines projRecSpec …
+  validateInd  … := hv …
+  installInd   … := indRSpec_installInd hmw hmr installSpec …
+```
+
+and the three `ChunksR` corollaries restated at it.  So the chain from the
+port's bytes to `parse_chunks_refines` now bottoms out in exactly:
+
+* **`Utf8DecodeSpec` and `UnescapeSpec`** — the string tier's two, about
+  `utf8_decode`/`unescape` against `String.fromUTF8?`/`unescape`;
+* **`ModellerWF` and `ModellerRefines`** — the two promises about the
+  *unverified modeller*, which is the residue task #84's seam deliberately
+  left and which disappears the day upstream drops it;
+* **`ValidateIndRefines`** — `validate_ind_d`, still in flight.
+
+Everything else between `scan_line_fwd` and `parseChunks` is proved.  That is
+the shape the task was aiming at: the parse's assumptions are a short list of
+*named statements about named functions*, not a hole.
