@@ -2500,4 +2500,130 @@ theorem ind_pi_tele_len_refines {e : expr.Expr} {r : Std.U64} (he : ExprWF e)
   rw [ind_pi_tele_len_loop_refines he 0#u64 r h]
   simp
 
+/-! ### The three accessors
+
+`export_c::state_const_type`/`state_height`/`state_ind_block` are the three
+readings `ExportC.lean:603-607` writes inline; the port makes them accessors
+because the modeller is outside the core and `StateD` is not part of its
+interface (`export_c.rs`'s note). -/
+
+/-- `export_c::state_const_type` refines the cited `fun n => st.constTypes[n]?`. -/
+theorem state_const_type_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {n : name.Name}
+    {o : Option ((alloc.vec.Vec name.Name) × expr.Expr)}
+    (hrel : StateDRel st lst) (hn : NameWF n)
+    (h : frontend.export_c.state_const_type st n = ok o) :
+    o.map absNamesExpr = lst.constTypes[absName n]? := by
+  rw [frontend.export_c.state_const_type] at h
+  exact HashMap.Rel_get_wf State.nameKey.eq2 hrel.constTypesInv hrel.constTypesKeys
+    hrel.constTypes hn h
+
+/-- `export_c::state_height` refines the cited `fun n => st.heights.getD n 0`. -/
+theorem state_height_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {n : name.Name} {r : Std.U64}
+    (hrel : StateDRel st lst) (hn : NameWF n)
+    (h : frontend.export_c.state_height st n = ok r) :
+    r.val = lst.heights.getD (absName n) 0 := by
+  rw [frontend.export_c.state_height] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨o, ho, h⟩ := h
+  have hget := HashMap.Rel_get_wf State.nameKey.eq2 hrel.heightsInv hrel.heightsKeys
+    hrel.heights hn ho
+  rw [_root_.Std.HashMap.getD_eq_getD_getElem?, ← hget]
+  cases o with
+  | none => rw [← Result.ok_injective h]; simp
+  | some hv => rw [← Result.ok_injective h]; simp
+
+/-- `export_c::state_ind_block` refines the cited `fun n => st.indBlocks[n]?`. -/
+theorem state_ind_block_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {n : name.Name}
+    {o : Option frontend.in_model_rec.BlockRec}
+    (hrel : StateDRel st lst) (hn : NameWF n)
+    (h : frontend.export_c.state_ind_block st n = ok o) :
+    o.map absBlockRec = lst.indBlocks[absName n]? := by
+  rw [frontend.export_c.state_ind_block] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨o1, ho, h⟩ := h
+  have hget := HashMap.Rel_get_wf State.nameKey.eq2 hrel.indBlocksInv hrel.indBlocksKeys
+    hrel.indBlocks hn ho
+  cases o1 with
+  | none => simp only [] at h; rw [← Result.ok_injective h]; simpa using hget
+  | some p => simp only [arc_deref_eq, bind_tc_ok, Result.ok.injEq] at h
+              rw [← h]; simpa using hget
+
+/-! ### The remaining field updates
+
+`StateDRel`'s other eleven clauses, as one-step lemmas: what a line function
+needs to carry the relation across a write it makes.  Each is the record update
+plus the one clause that moved (`Refine/State.lean`'s `insert_step` pattern). -/
+
+theorem StateDRel.projOwners_update {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD}
+    {m : ron.hashmap.HashMap name.Name frontend.proj_rec.ProjRecOwner}
+    {lm : _root_.Std.HashMap ConLeche.Name ConLeche.Frontend.ProjRecOwner}
+    (hrel : StateDRel st lst) (hr : HashMap.RelOn NameWF m lm absName absProjOwner)
+    (hi : HashMap.Inv State.hName m) (hk : HashMap.KeysOk NameWF m) :
+    StateDRel { st with proj_owners := m } { lst with projOwners := lm } :=
+  { hrel with projOwners := hr, projOwnersInv := hi, projOwnersKeys := hk }
+
+theorem StateDRel.projLevels_update {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {m : ron.hashmap.HashMap name.Name level.Level}
+    {lm : _root_.Std.HashMap ConLeche.Name ConLeche.Level}
+    (hrel : StateDRel st lst) (hr : HashMap.RelOn NameWF m lm absName absLevel)
+    (hi : HashMap.Inv State.hName m) (hk : HashMap.KeysOk NameWF m) :
+    StateDRel { st with proj_levels := m } { lst with projLevels := lm } :=
+  { hrel with projLevels := hr, projLevelsInv := hi, projLevelsKeys := hk }
+
+theorem StateDRel.genOwner_update {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {m : ron.hashmap.HashMap name.Name name.Name}
+    {lm : _root_.Std.HashMap ConLeche.Name ConLeche.Name}
+    (hrel : StateDRel st lst) (hr : HashMap.RelOn NameWF m lm absName absName)
+    (hi : HashMap.Inv State.hName m) (hk : HashMap.KeysOk NameWF m) :
+    StateDRel { st with gen_owner := m } { lst with genOwner := lm } :=
+  { hrel with genOwner := hr, genOwnerInv := hi, genOwnerKeys := hk }
+
+theorem StateDRel.indBlocks_update {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD}
+    {m : ron.hashmap.HashMap name.Name (alloc.sync.Arc frontend.in_model_rec.BlockRec)}
+    {lm : _root_.Std.HashMap ConLeche.Name ConLeche.Frontend.InModel.BlockRec}
+    (hrel : StateDRel st lst) (hr : HashMap.RelOn NameWF m lm absName absBlockRec)
+    (hi : HashMap.Inv State.hName m) (hk : HashMap.KeysOk NameWF m) :
+    StateDRel { st with ind_blocks := m } { lst with indBlocks := lm } :=
+  { hrel with indBlocks := hr, indBlocksInv := hi, indBlocksKeys := hk }
+
+theorem StateDRel.projRewrites_push {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {v : alloc.vec.Vec name.Name} {n : name.Name}
+    (hrel : StateDRel st lst) (h : alloc.vec.Vec.push st.proj_rewrites n = ok v) :
+    StateDRel { st with proj_rewrites := v }
+      { lst with projRewrites := lst.projRewrites.push (absName n) } :=
+  { hrel with projRewrites := by rw [vec_push_val h]; simp [hrel.projRewrites] }
+
+theorem StateDRel.inModelled_push {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {v : alloc.vec.Vec name.Name} {n : name.Name}
+    (hrel : StateDRel st lst) (h : alloc.vec.Vec.push st.in_modelled n = ok v) :
+    StateDRel { st with in_modelled := v }
+      { lst with inModelled := lst.inModelled.push (absName n) } :=
+  { hrel with inModelled := by rw [vec_push_val h]; simp [hrel.inModelled] }
+
+theorem StateDRel.inModelDeclined_push {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD}
+    {v : alloc.vec.Vec (name.Name × (alloc.vec.Vec Std.U32))}
+    {p : name.Name × (alloc.vec.Vec Std.U32)}
+    (hrel : StateDRel st lst) (h : alloc.vec.Vec.push st.in_model_declined p = ok v) :
+    StateDRel { st with in_model_declined := v }
+      { lst with inModelDeclined := lst.inModelDeclined.push (absNameStr p) } :=
+  { hrel with inModelDeclined := by rw [vec_push_val h]; simp [hrel.inModelDeclined] }
+
+theorem StateDRel.genRecords_step {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {g : Std.U64}
+    (hrel : StateDRel st lst) (h : st.gen_records + 1#u64 = ok g) :
+    StateDRel { st with gen_records := g } { lst with genRecords := lst.genRecords + 1 } :=
+  { hrel with genRecords := by rw [HashMap.uscalar_add_eq h, hrel.genRecords]; rfl }
+
+theorem StateDRel.indCount_step {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {c : Std.U64}
+    (hrel : StateDRel st lst) (h : st.ind_count + 1#u64 = ok c) :
+    StateDRel { st with ind_count := c } { lst with indCount := lst.indCount + 1 } :=
+  { hrel with indCount := by rw [HashMap.uscalar_add_eq h, hrel.indCount]; rfl }
+
 end ConRon.Refine.Frontend
