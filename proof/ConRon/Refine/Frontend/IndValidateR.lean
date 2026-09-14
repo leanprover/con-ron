@@ -283,4 +283,157 @@ private theorem ctorIxAux_nodup :
       congr 1
       omega
 
+
+/-! ### The port's fold, and when it is con-leche's
+
+`export_c::ctor_index_of` is the same fold with a `contains_key` guard in
+front of the insert — **first record wins**.  `firstIxAux` is that fold on the
+con-leche side, `ctor_index_of_refines` is the port against it, and
+`firstIxAux_eq_ctorIxAux` is the one place the two folds are identified: under
+`Nodup` the guard never fires, so first-wins *is* last-wins. -/
+
+/-- `export_c::ctor_index_of`'s fold: the insert is guarded, so the FIRST
+record of a repeated name wins. -/
+private def firstIxAux (m : Std.HashMap ConLeche.Name Nat) (j : Nat)
+    (ns : List ConLeche.Name) : Std.HashMap ConLeche.Name Nat × Nat :=
+  ns.foldl (fun (mi : Std.HashMap ConLeche.Name Nat × Nat) n =>
+    (if mi.1.contains n then mi.1 else mi.1.insert n mi.2, mi.2 + 1)) (m, j)
+
+private theorem firstIxAux_cons (m : Std.HashMap ConLeche.Name Nat) (j : Nat)
+    (n : ConLeche.Name) (ns : List ConLeche.Name) :
+    firstIxAux m j (n :: ns)
+      = firstIxAux (if m.contains n then m else m.insert n j) (j + 1) ns := rfl
+
+/-- **The guard never fires on a duplicate-free list**, so the port's fold and
+con-leche's are the same map.  This is the only lemma of the file that
+identifies the two, and it is exactly as strong as the counting argument of
+the file header allows. -/
+private theorem firstIxAux_eq_ctorIxAux :
+    ∀ (ns : List ConLeche.Name) (m : Std.HashMap ConLeche.Name Nat) (j : Nat),
+      ns.Nodup → (∀ n ∈ ns, m.contains n = false) →
+      firstIxAux m j ns = ctorIxAux m j ns := by
+  intro ns
+  induction ns with
+  | nil => intro m j _ _; rfl
+  | cons a t iht =>
+    intro m j hnd hfresh
+    rw [firstIxAux_cons, ctorIxAux_cons, if_neg (by simp [hfresh a List.mem_cons_self])]
+    refine iht _ _ (List.nodup_cons.mp hnd).2 ?_
+    intro n hn
+    rw [Std.HashMap.contains_insert]
+    simp only [Bool.or_eq_false_iff]
+    refine ⟨?_, hfresh n (List.mem_cons_of_mem _ hn)⟩
+    simp only [beq_eq_false_iff_ne, ne_eq]
+    intro hc
+    exact (List.nodup_cons.mp hnd).1 (hc ▸ hn)
+
+/-- The index recursion behind `export_c::ctor_index_of`. -/
+private theorem ctor_index_of_loop_refines {ns : alloc.vec.Vec name.Name}
+    (hwf : NamesWF ns) (N : Nat) :
+    ∀ (m : ron.hashmap.HashMap name.Name Std.U64) (s : Std.HashMap ConLeche.Name Nat)
+      (n k : Std.Usize) (m' : ron.hashmap.HashMap name.Name Std.U64),
+      ns.val.length - k.val = N → n.val = ns.val.length →
+      HashMap.Inv State.hName m → HashMap.KeysOk NameWF m →
+      HashMap.RelOn NameWF m s absName (fun u => u.val) →
+      frontend.export_c.ctor_index_of_loop ns m n k = ok m' →
+      HashMap.Inv State.hName m' ∧ HashMap.KeysOk NameWF m' ∧
+        HashMap.RelOn NameWF m'
+          (firstIxAux s k.val ((absNames ns).drop k.val)).1 absName (fun u => u.val) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro m s n k m' hN hn hinv hkeys hrel h
+    rw [frontend.export_c.ctor_index_of_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      have hltv : k.val < ns.val.length := by scalar_tac
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨nm, hidx, h⟩ := h
+      have hnmv : ns.val[k.val]'hltv = nm := iv_index_val hidx
+      have hnmwf : NameWF nm := by rw [← hnmv]; exact hwf _ (List.getElem_mem _)
+      obtain ⟨c, hc, h⟩ := h
+      -- the guard: `contains_key` is `s.contains` under the relation
+      have hcv : c = s.contains (absName nm) := by
+        rw [ron.hashmap.HashMap.contains_key] at hc
+        obtain ⟨r, hr, hc⟩ := bind_eq_ok_iff.mp hc
+        have hrv : r.map (fun u => u.val) = s[absName nm]? :=
+          HashMap.Rel_get_wf State.nameEq2Fwd hinv hkeys hrel hnmwf hr
+        rw [Std.HashMap.contains_eq_isSome_getElem?, ← hrv]
+        cases r with
+        | none => simp only [Result.ok.injEq] at hc; simp [← hc]
+        | some v => simp only [Result.ok.injEq] at hc; simp [← hc]
+      -- the abstracted list, split at `k`
+      have hdrop : (absNames ns).drop k.val
+          = absName nm :: (absNames ns).drop (k.val + 1) := by
+        simp only [absNames]
+        rw [List.drop_eq_getElem_cons (by simpa using hltv), List.getElem_map, hnmv]
+      obtain ⟨m1, hm1, h⟩ := h
+      obtain ⟨k1, hk1, h⟩ := h
+      have hk1v : k1.val = k.val + 1 := HashMap.uscalar_add_eq hk1
+      -- the two branches agree with `firstIxAux`'s guarded step
+      have hstep : HashMap.Inv State.hName m1 ∧ HashMap.KeysOk NameWF m1 ∧
+          HashMap.RelOn NameWF m1
+            (if s.contains (absName nm) then s else s.insert (absName nm) k.val)
+            absName (fun u => u.val) := by
+        by_cases hcc : c = true
+        · rw [if_pos hcc] at hm1
+          have : m1 = m := (Result.ok_injective hm1).symm
+          subst this
+          rw [if_pos (by rw [← hcv]; exact hcc)]
+          exact ⟨hinv, hkeys, hrel⟩
+        · rw [if_neg hcc] at hm1
+          simp only [bind_eq_ok_iff] at hm1
+          obtain ⟨nm2, hdup, hm1⟩ := hm1
+          have hnm2 : nm2 = nm := by
+            rw [name_dup_eq] at hdup; exact (Result.ok_injective hdup).symm
+          have hnm2wf : NameWF nm2 := by rw [hnm2]; exact hnmwf
+          obtain ⟨u, hu, hm1⟩ := hm1
+          have huv : u.val = k.val := by
+            rw [lift_eq, Result.ok.injEq] at hu
+            rw [← hu]; exact Env.usize_cast_u64_val k
+          obtain ⟨q, hins, hm1⟩ := hm1
+          obtain ⟨old, m2⟩ := q
+          simp only [uncurry_apply_pair, Result.ok.injEq] at hm1
+          obtain ⟨hinv2, -, hupd2, hkeys2⟩ :=
+            HashMap.insert_refines_wf State.nameEq2Fwd hinv hkeys hnm2wf hins
+          obtain ⟨hrel2, -⟩ :=
+            HashMap.Rel_insert_wf State.nameEq2Fwd
+              (fun a b ha hb hab => Name.absName_injective ha hb hab) hinv hkeys hrel
+              hnm2wf hins
+          rw [if_neg (by rw [← hcv]; exact hcc)]
+          rw [← hm1]
+          refine ⟨hinv2, hkeys2, ?_⟩
+          rw [hnm2] at hrel2
+          rw [← huv]
+          exact hrel2
+      obtain ⟨hinv1, hkeys1, hrel1⟩ := hstep
+      have hres := ih (ns.val.length - k1.val) (by omega) m1
+        (if s.contains (absName nm) then s else s.insert (absName nm) k.val) n k1 m'
+        rfl hn hinv1 hkeys1 hrel1 h
+      rw [hdrop, firstIxAux_cons, ← hk1v]
+      exact hres
+    · rename_i hlt
+      have hge : ns.val.length ≤ k.val := by scalar_tac
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      have hdrop : (absNames ns).drop k.val = [] := by
+        rw [List.drop_eq_nil_iff]; simpa [absNames] using hge
+      rw [hdrop]
+      exact ⟨hinv, hkeys, hrel⟩
+
+/-- **`export_c::ctor_index_of` is the guarded fold**, `firstIxAux` — *not*
+con-leche's `ctorIx`.  The two meet only at `firstIxAux_eq_ctorIxAux`, under
+`Nodup`. -/
+theorem ctor_index_of_refines {ns : alloc.vec.Vec name.Name} (hwf : NamesWF ns)
+    {m : ron.hashmap.HashMap name.Name Std.U64}
+    (h : frontend.export_c.ctor_index_of ns = ok m) :
+    HashMap.Inv State.hName m ∧ HashMap.KeysOk NameWF m ∧
+      HashMap.RelOn NameWF m (firstIxAux ∅ 0 (absNames ns)).1 absName (fun u => u.val) := by
+  rw [frontend.export_c.ctor_index_of] at h
+  obtain ⟨m0, hnew, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hinv, hav, htf⟩ := HashMap.new_refines hnew
+  have hres := ctor_index_of_loop_refines hwf (ns.val.length - (0#usize : Std.Usize).val)
+    m0 ∅ (alloc.vec.Vec.len ns) 0#usize m rfl (by simp) hinv
+    (by intro p hp; rw [hav] at hp; simp at hp) (HashMap.RelOn_empty htf) h
+  simpa using hres
+
 end ConRon.Refine.Frontend

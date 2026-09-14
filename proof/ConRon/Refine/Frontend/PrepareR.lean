@@ -1606,6 +1606,663 @@ private theorem hoistBuckets_eq_mergeSort (s : _root_.Std.HashMap Nat Nat) (n : 
   · exact List.pairwise_mergeSort (hle_trans s) (hle_total s) _
   · exact (hoistBuckets_perm hb).trans (List.mergeSort_perm _ _).symm
 
+/-! ### The constants a record references
+
+`nat_op_ground::used_consts_go` is an explicit `Vec<Expr>` worklist where
+con-leche's `usedConstsGo` is *structural* recursion; the two are matched by
+reading the worklist as the list of terms still to be walked, top first, and
+running con-leche's walk along it (`usedGo` below).  Two things make that
+go through: the port's `ron::HashMap<Expr, bool>` denotes con-leche's
+`Std.HashSet Expr` (`SeenRel`, on `Refine/HashMapWF.lean`'s `Eq2Fwd` at the
+`Expr` key — `expr::beq` is exact only on well-formed terms), and the sum of
+`Expr.sizeF` over the worklist strictly decreases at every turn, which is the
+`Nat` bound the loop is inducted on. -/
+
+/-- The seen table's `Hashable` dictionary. -/
+private abbrev seenHashable := expr.Expr.Insts.Con_ron_coreRonHashmapHashable
+/-- The seen table's `Eq2` dictionary: the port's own `expr::beq`. -/
+private abbrev seenEq2 := expr.Expr.Insts.Con_ron_coreRonHashmapEq2
+
+/-- `expr::beq` never lies about well-formed terms (`Refine/Expr.lean`'s
+`eq2_refines` plus injectivity of `absExpr`). -/
+private theorem seen_eq2_fwd : HashMap.Eq2Fwd seenEq2 ExprWF := by
+  intro a b c ha hb h
+  rw [Expr.eq2_refines ha hb h]
+  exact decide_eq_decide.mpr
+    ⟨fun hc => Expr.absExpr_injective ha hb hc, fun hc => by rw [hc]⟩
+
+/-- `ConLeche/Frontend/NatOpGround.lean:54-56` — `used_consts_go`'s seen
+table: the port's `ron::HashMap<Expr, bool>` denotes con-leche's
+`Std.HashSet Expr`. -/
+structure SeenRel (seen : ron.hashmap.HashMap expr.Expr Bool)
+    (S : _root_.Std.HashSet ConLeche.Expr) : Prop where
+  /-- the port's own hash-table invariant (task #16's `Inv`) -/
+  inv : HashMap.Inv seenHashable seen
+  /-- every key it holds is a term a smart constructor built, without which
+  `expr::beq` is not exact -/
+  keys : HashMap.KeysOk ExprWF seen
+  /-- membership for membership -/
+  mem : ∀ e, ExprWF e → (HashMap.toFun seen e).isSome = S.contains (absExpr e)
+
+/-- A fresh table is the empty set. -/
+private theorem seen_new {seen : ron.hashmap.HashMap expr.Expr Bool}
+    (h : ron.hashmap.HashMap.new expr.Expr Bool = ok seen) :
+    SeenRel seen (∅ : _root_.Std.HashSet ConLeche.Expr) := by
+  obtain ⟨hinv, halv, hnone⟩ := HashMap.new_refines (HashableInst := seenHashable) h
+  refine ⟨hinv, ?_, ?_⟩
+  · intro p hp; rw [halv] at hp; simp at hp
+  · intro e _; rw [hnone e]; simp
+
+/-- The seen table's probe. -/
+private theorem seen_contains {seen : ron.hashmap.HashMap expr.Expr Bool}
+    {S : _root_.Std.HashSet ConLeche.Expr} {e : expr.Expr} {b : Bool}
+    (hrel : SeenRel seen S) (he : ExprWF e)
+    (h : ron.hashmap.HashMap.contains_key seenHashable seenEq2 seen e = ok b) :
+    b = S.contains (absExpr e) := by
+  rw [ron.hashmap.HashMap.contains_key] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨o, hget, hb⟩ := h
+  rw [HashMap.get_refines_wf seen_eq2_fwd hrel.inv hrel.keys he hget] at hb
+  rw [← hrel.mem e he]
+  cases ho : HashMap.toFun seen e with
+  | none => rw [ho] at hb; simp only [Result.ok.injEq] at hb; rw [← hb]; simp
+  | some v => rw [ho] at hb; simp only [Result.ok.injEq] at hb; rw [← hb]; simp
+
+/-- The seen table's insert. -/
+private theorem seen_insert {seen seen' : ron.hashmap.HashMap expr.Expr Bool}
+    {S : _root_.Std.HashSet ConLeche.Expr} {e : expr.Expr} {old : Option Bool}
+    (hrel : SeenRel seen S) (he : ExprWF e)
+    (h : ron.hashmap.HashMap.insert seenHashable seenEq2 seen e true = ok (old, seen')) :
+    SeenRel seen' (S.insert (absExpr e)) := by
+  obtain ⟨hinv', -, hupd, hkeys'⟩ :=
+    HashMap.insert_refines_wf seen_eq2_fwd hrel.inv hrel.keys he h
+  refine ⟨hinv', hkeys', ?_⟩
+  intro k hk
+  rw [hupd, Function.update_apply, _root_.Std.HashSet.contains_insert]
+  by_cases hke : k = e
+  · subst hke; simp
+  · rw [if_neg hke, hrel.mem k hk]
+    have hne : ¬ (absExpr e = absExpr k) := by
+      intro hc; exact hke (Expr.absExpr_injective hk he hc.symm)
+    simp [hne]
+
+/-- `ConLeche/Frontend/NatOpGround.lean:54-77` — `usedConstsGo` run along a
+list of terms, left to right: what the port's worklist computes out of the
+stack it is holding, its top the head of the list. -/
+private def usedGo (p : _root_.Std.HashSet ConLeche.Expr × _root_.Array ConLeche.Name)
+    (xs : List ConLeche.Expr) : _root_.Std.HashSet ConLeche.Expr × _root_.Array ConLeche.Name :=
+  xs.foldl (fun q x => ConLeche.Frontend.usedConstsGo q.1 q.2 x) p
+
+private theorem usedGo_nil (p : _root_.Std.HashSet ConLeche.Expr × _root_.Array ConLeche.Name) :
+    usedGo p [] = p := rfl
+
+private theorem usedGo_cons (p : _root_.Std.HashSet ConLeche.Expr × _root_.Array ConLeche.Name)
+    (x : ConLeche.Expr) (xs : List ConLeche.Expr) :
+    usedGo p (x :: xs) = usedGo (ConLeche.Frontend.usedConstsGo p.1 p.2 x) xs := rfl
+
+private theorem usedGo_append (p : _root_.Std.HashSet ConLeche.Expr × _root_.Array ConLeche.Name)
+    (xs ys : List ConLeche.Expr) : usedGo p (xs ++ ys) = usedGo (usedGo p xs) ys :=
+  List.foldl_append ..
+
+/-- Every term has at least one node. -/
+private theorem sizeF_pos (e : ConLeche.Expr) : 0 < e.sizeF := by
+  cases e <;> simp [ConLeche.Expr.sizeF]
+
+/-- The port's worklist measure: the total `sizeF` of the live stack. -/
+private def stackMeasure (stack : alloc.vec.Vec expr.Expr) (sp : Nat) : Nat :=
+  (((stack.val.take sp).map (fun e => (absExpr e).sizeF)).sum)
+
+/-- `bind_eq_ok_iff` for the generated `let (a, b) ← f x` binds: the pair the
+call answers, destructured at once.  Without it the pattern `let` the do-block
+elaborates to stands in simp's way (it is not a matcher, so neither `dsimp` nor
+`split` reduces it) and no later rewrite reaches the loop's tail call. -/
+private theorem bind_pair_eq_ok_iff {α β γ : Type} {e : Result (α × β)}
+    {F : α → β → Result γ} {v : γ} :
+    ((do let (a, b) ← e; F a b) = ok v) ↔ ∃ a b, e = ok (a, b) ∧ F a b = ok v := by
+  rw [bind_eq_ok_iff]
+  constructor
+  · rintro ⟨⟨a, b⟩, he, hf⟩; exact ⟨a, b, he, hf⟩
+  · rintro ⟨a, b, he, hf⟩; exact ⟨(a, b), he, hf⟩
+
+/-- The write-back of a `Vec::index_mut` is `Vec.set` (`Refine/HashMap.lean`'s
+`vec_index_mut_eq` says more but asks for `Inhabited α`). -/
+private theorem push_index_mut_back {α : Type} {v : alloc.vec.Vec α} {i : Std.Usize}
+    {a : α} {f : α → alloc.vec.Vec α}
+    (h : alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice α) v i = ok (a, f)) :
+    f = alloc.vec.Vec.set v i := by
+  rw [alloc.vec.Vec.index_mut_slice_index, alloc.vec.Vec.index_mut_usize] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨y, hy, hok⟩ := h
+  exact (congrArg Prod.snd (Result.ok_injective hok)).symm
+
+/-- Overwriting the slot at `n` and taking one more is appending. -/
+private theorem take_set_succ {α : Type} {l : List α} {n : Nat} {x : α}
+    (hn : n < l.length) : (l.set n x).take (n + 1) = l.take n ++ [x] := by
+  apply List.ext_getElem
+  · simp only [List.length_take, List.length_set, List.length_append,
+      List.length_singleton]
+    omega
+  · intro m h1 h2
+    simp only [List.length_take, List.length_set, List.length_append,
+      List.length_singleton] at h1 h2
+    rw [List.getElem_take, List.getElem_set]
+    by_cases hm : m = n
+    · subst hm
+      rw [if_pos rfl, List.getElem_append_right (by simp only [List.length_take]; omega)]
+      simp
+    · rw [if_neg (fun hc => hm hc.symm),
+        List.getElem_append_left (by simp only [List.length_take]; omega),
+        List.getElem_take]
+
+/-- `nat_op_ground::stack_push_expr`: the live prefix grows by the pushed
+term. -/
+private theorem stack_push_expr_take {stack stack' : alloc.vec.Vec expr.Expr}
+    {sp sp' : Std.Usize} {x : expr.Expr} (hsp : sp.val ≤ stack.val.length)
+    (h : frontend.nat_op_ground.stack_push_expr stack sp x = ok (stack', sp')) :
+    sp'.val = sp.val + 1 ∧ sp'.val ≤ stack'.val.length ∧
+      stack'.val.take sp'.val = stack.val.take sp.val ++ [x] := by
+  rw [frontend.nat_op_ground.stack_push_expr] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨v, hv, i, hi, hr⟩ := h
+  have hiv : i.val = sp.val + 1 := by have := Nat.uadd_val hi; simpa using this
+  have he := Result.ok_injective hr
+  have hv' : stack' = v := (congrArg Prod.fst he).symm
+  have hi' : sp' = i := (congrArg Prod.snd he).symm
+  subst hv'; subst hi'
+  refine ⟨hiv, ?_, ?_⟩ <;> rw [hiv] <;> revert hv <;> split <;> intro hv
+  · rename_i hlt
+    have hlt' : sp.val < stack.val.length := by scalar_tac
+    simp only [bind_eq_ok_iff] at hv
+    obtain ⟨p, hidx, hok⟩ := hv
+    obtain ⟨a, back⟩ := p
+    rw [push_index_mut_back hidx] at hok
+    rw [← Result.ok_injective hok, alloc.vec.Vec.set_val_eq, List.length_set]
+    omega
+  · rw [vec_push_val hv]; simpa using hsp
+  · rename_i hlt
+    have hlt' : sp.val < stack.val.length := by scalar_tac
+    simp only [bind_eq_ok_iff] at hv
+    obtain ⟨p, hidx, hok⟩ := hv
+    obtain ⟨a, back⟩ := p
+    rw [push_index_mut_back hidx] at hok
+    rw [← Result.ok_injective hok, alloc.vec.Vec.set_val_eq, take_set_succ hlt']
+  · rename_i hge
+    have hlen : sp.val = stack.val.length := by scalar_tac
+    rw [vec_push_val hv, hlen]
+    simp
+
+/-! con-leche's walk, one node at a time: the `if seen.contains e` guard and
+then the ten arms, each already in the `usedGo` spelling the worklist needs. -/
+
+private theorem usedConstsGo_hit {S : _root_.Std.HashSet ConLeche.Expr}
+    {A : _root_.Array ConLeche.Name} {e : ConLeche.Expr} (h : S.contains e = true) :
+    ConLeche.Frontend.usedConstsGo S A e = (S, A) := by
+  cases e <;> (rw [ConLeche.Frontend.usedConstsGo, h]; rfl)
+
+private theorem usedConstsGo_bvar {S A} {i : Nat} (h : S.contains (.bvar i) = false) :
+    ConLeche.Frontend.usedConstsGo S A (.bvar i) = (S.insert (.bvar i), A) := by
+  rw [ConLeche.Frontend.usedConstsGo, h]; rfl
+
+private theorem usedConstsGo_sort {S A} {u : ConLeche.Level}
+    (h : S.contains (.sort u) = false) :
+    ConLeche.Frontend.usedConstsGo S A (.sort u) = (S.insert (.sort u), A) := by
+  rw [ConLeche.Frontend.usedConstsGo, h]; rfl
+
+private theorem usedConstsGo_lit {S A} {l : ConLeche.Literal}
+    (h : S.contains (.lit l) = false) :
+    ConLeche.Frontend.usedConstsGo S A (.lit l) = (S.insert (.lit l), A) := by
+  rw [ConLeche.Frontend.usedConstsGo, h]; rfl
+
+private theorem usedConstsGo_const {S A} {n : ConLeche.Name} {us : List ConLeche.Level}
+    (h : S.contains (.const n us) = false) :
+    ConLeche.Frontend.usedConstsGo S A (.const n us) = (S.insert (.const n us), A.push n) := by
+  rw [ConLeche.Frontend.usedConstsGo, h]; rfl
+
+private theorem usedConstsGo_fvar {S A} {idx : Nat} {ty : ConLeche.Expr}
+    (h : S.contains (.fvar idx ty) = false) :
+    ConLeche.Frontend.usedConstsGo S A (.fvar idx ty)
+      = usedGo (S.insert (.fvar idx ty), A) [ty] := by
+  rw [ConLeche.Frontend.usedConstsGo, h]; rfl
+
+private theorem usedConstsGo_app {S A} {f a : ConLeche.Expr}
+    (h : S.contains (.app f a) = false) :
+    ConLeche.Frontend.usedConstsGo S A (.app f a)
+      = usedGo (S.insert (.app f a), A) [f, a] := by
+  rw [ConLeche.Frontend.usedConstsGo, h]; rfl
+
+private theorem usedConstsGo_lam {S A} {ty b : ConLeche.Expr} {m : ConLeche.BinderMeta}
+    (h : S.contains (.lam ty b m) = false) :
+    ConLeche.Frontend.usedConstsGo S A (.lam ty b m)
+      = usedGo (S.insert (.lam ty b m), A) [ty, b] := by
+  rw [ConLeche.Frontend.usedConstsGo, h]; rfl
+
+private theorem usedConstsGo_forallE {S A} {ty b : ConLeche.Expr} {m : ConLeche.BinderMeta}
+    (h : S.contains (.forallE ty b m) = false) :
+    ConLeche.Frontend.usedConstsGo S A (.forallE ty b m)
+      = usedGo (S.insert (.forallE ty b m), A) [ty, b] := by
+  rw [ConLeche.Frontend.usedConstsGo, h]; rfl
+
+private theorem usedConstsGo_letE {S A} {ty v b : ConLeche.Expr}
+    (h : S.contains (.letE ty v b) = false) :
+    ConLeche.Frontend.usedConstsGo S A (.letE ty v b)
+      = usedGo (S.insert (.letE ty v b), A) [ty, v, b] := by
+  rw [ConLeche.Frontend.usedConstsGo, h]; rfl
+
+private theorem usedConstsGo_proj {S A} {sn : ConLeche.Name} {i : Nat} {x : ConLeche.Expr}
+    (h : S.contains (.proj sn i x) = false) :
+    ConLeche.Frontend.usedConstsGo S A (.proj sn i x)
+      = usedGo (S.insert (.proj sn i x), A.push sn) [x] := by
+  rw [ConLeche.Frontend.usedConstsGo, h]; rfl
+
+/-- The bound `take` step: popping the top of the stack. -/
+private theorem take_pred {α : Type} {l : List α} {n : Nat} {x : α} (hn : 0 < n)
+    (hx : l[n - 1]? = some x) : l.take n = l.take (n - 1) ++ [x] := by
+  obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+  simp only [Nat.add_sub_cancel] at hx ⊢
+  rw [List.take_add_one, hx]
+  simp
+
+/-- The measure of a stack whose live prefix is known. -/
+private theorem stackMeasure_eq {stack : alloc.vec.Vec expr.Expr} {n : Nat}
+    {l : List expr.Expr} (h : stack.val.take n = l) :
+    stackMeasure stack n = (l.map (fun e => (absExpr e).sizeF)).sum := by
+  rw [stackMeasure, h]
+
+/-- An empty stack stops the loop. -/
+private theorem used_consts_go_loop_stop
+    {seen : ron.hashmap.HashMap expr.Expr Bool} {acc : alloc.vec.Vec name.Name}
+    {stack : alloc.vec.Vec expr.Expr} {sp : Std.Usize}
+    {r : (alloc.vec.Vec name.Name) × ron.hashmap.HashMap expr.Expr Bool}
+    (hsp0 : sp.val = 0)
+    (h : frontend.nat_op_ground.used_consts_go_loop seen acc stack sp = ok r) :
+    r = (acc, seen) := by
+  rw [frontend.nat_op_ground.used_consts_go_loop.eq_def,
+    if_neg (show ¬ sp > 0#usize by scalar_tac)] at h
+  exact (Result.ok_injective h).symm
+
+/-- `ConLeche/Frontend/NatOpGround.lean:54-77` — **the port's worklist is
+con-leche's walk.**  Holding the stack `stack[0:sp]`, `used_consts_go`'s loop
+computes `usedConstsGo` along that stack from the top down.  The `Nat` bound
+is the total `Expr.sizeF` of the live stack, which drops by at least one at
+every turn: a term already seen is popped (`sizeF ≥ 1`), and one not yet seen
+is replaced by its children, whose sizes sum to one less. -/
+private theorem used_consts_go_loop_refines :
+    ∀ (fuel : Nat) (seen : ron.hashmap.HashMap expr.Expr Bool)
+      (S : _root_.Std.HashSet ConLeche.Expr) (acc : alloc.vec.Vec name.Name)
+      (stack : alloc.vec.Vec expr.Expr) (sp : Std.Usize)
+      (r : (alloc.vec.Vec name.Name) × ron.hashmap.HashMap expr.Expr Bool),
+      sp.val ≤ stack.val.length →
+      (∀ e ∈ stack.val.take sp.val, ExprWF e) →
+      stackMeasure stack sp.val ≤ fuel →
+      NamesWF acc →
+      SeenRel seen S →
+      frontend.nat_op_ground.used_consts_go_loop seen acc stack sp = ok r →
+      NamesWF r.1 ∧
+        SeenRel r.2 (usedGo (S, (absNames acc).toArray)
+          ((stack.val.take sp.val).reverse.map absExpr)).1 ∧
+        (absNames r.1).toArray = (usedGo (S, (absNames acc).toArray)
+          ((stack.val.take sp.val).reverse.map absExpr)).2 := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro seen S acc stack sp r hsp hwf hm hacc hrel h
+    have hsp0 : sp.val = 0 := by
+      by_contra hc
+      have hlt : sp.val - 1 < stack.val.length := by omega
+      have hy : stack.val[sp.val - 1]? = some stack.val[sp.val - 1] :=
+        List.getElem?_eq_getElem hlt
+      rw [stackMeasure_eq (take_pred (by omega) hy)] at hm
+      simp only [List.map_append, List.sum_append, List.map_cons, List.map_nil,
+        List.sum_cons, List.sum_nil] at hm
+      have := sizeF_pos (absExpr stack.val[sp.val - 1])
+      omega
+    have hr := used_consts_go_loop_stop hsp0 h
+    subst hr
+    rw [hsp0]
+    simp only [List.take_zero, List.reverse_nil, List.map_nil, usedGo_nil]
+    refine ⟨hacc, hrel, ?_⟩; trivial
+  | succ fuel ih =>
+    intro seen S acc stack sp r hsp hwf hm hacc hrel h
+    by_cases hsp0 : sp.val = 0
+    · have hr := used_consts_go_loop_stop hsp0 h
+      subst hr
+      rw [hsp0]
+      simp only [List.take_zero, List.reverse_nil, List.map_nil, usedGo_nil]
+      refine ⟨hacc, hrel, ?_⟩; trivial
+    rw [frontend.nat_op_ground.used_consts_go_loop.eq_def,
+      if_pos (show sp > 0#usize by scalar_tac)] at h
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨sp1, hsp1, e0, he0, x, hx, b, hb, h⟩ := h
+    have hsp1v : sp1.val = sp.val - 1 := (Nat.usub_val hsp1).2.trans (by simp)
+    have hxe : x = e0 := Expr.dup_eq hx
+    subst hxe
+    have hidx : stack.val[sp.val - 1]? = some x := by
+      rw [← hsp1v]; exact ExprOps.vec_index_getElem? he0
+    have htake : stack.val.take sp.val = stack.val.take sp1.val ++ [x] := by
+      rw [hsp1v]; exact take_pred (by omega) hidx
+    have hxwf : ExprWF x := hwf x (by rw [htake]; simp)
+    have hsp1le : sp1.val ≤ stack.val.length := by omega
+    have hwf1 : ∀ e ∈ stack.val.take sp1.val, ExprWF e := by
+      intro e he; exact hwf e (by rw [htake]; simp [he])
+    have hmsplit : stackMeasure stack sp.val
+        = stackMeasure stack sp1.val + (absExpr x).sizeF := by
+      rw [stackMeasure_eq htake, stackMeasure]; simp
+    have hxpos := sizeF_pos (absExpr x)
+    have hbv : b = S.contains (absExpr x) := seen_contains hrel hxwf hb
+    have hlist : (stack.val.take sp.val).reverse.map absExpr
+        = absExpr x :: ((stack.val.take sp1.val).reverse.map absExpr) := by
+      rw [htake]; simp
+    by_cases hbt : b = true
+    · rw [if_pos hbt] at h
+      have hc : S.contains (absExpr x) = true := by rw [← hbv]; exact hbt
+      obtain ⟨h1, h2, h3⟩ :=
+        ih seen S acc stack sp1 r hsp1le hwf1 (by omega) hacc hrel h
+      rw [hlist]
+      simpa only [usedGo_cons, usedConstsGo_hit hc] using ⟨h1, h2, h3⟩
+    · rw [if_neg hbt] at h
+      have hc : S.contains (absExpr x) = false := by
+        rw [← hbv]; simpa using hbt
+      rw [bind_eq_ok_iff] at h
+      obtain ⟨e1, he1, h⟩ := h
+      rw [bind_pair_eq_ok_iff] at h
+      obtain ⟨old, seen1, hins, h⟩ := h
+      have he1x : x = e1 := (Expr.dup_eq he1).symm
+      subst he1x
+      have hrel1 : SeenRel seen1 (S.insert (absExpr x)) := seen_insert hrel hxwf hins
+      obtain ⟨⟨d, k⟩⟩ := x
+      simp only [absExpr_mk] at hc hlist hmsplit hrel1
+      rw [hlist]
+      cases k with
+      | Bvar i =>
+        simp only [absExprKind] at hc hmsplit hrel1 ⊢
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        obtain ⟨h1, h2, h3⟩ :=
+          ih seen1 _ acc stack sp1 r hsp1le hwf1
+            (by rw [hmsplit] at hm; simp only [ConLeche.Expr.sizeF] at hm; omega) hacc hrel1 h
+        simpa only [usedGo_cons, usedGo_nil, usedConstsGo_bvar hc] using ⟨h1, h2, h3⟩
+      | «Sort» u =>
+        simp only [absExprKind] at hc hmsplit hrel1 ⊢
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        obtain ⟨h1, h2, h3⟩ :=
+          ih seen1 _ acc stack sp1 r hsp1le hwf1
+            (by rw [hmsplit] at hm; simp only [ConLeche.Expr.sizeF] at hm; omega) hacc hrel1 h
+        simpa only [usedGo_cons, usedGo_nil, usedConstsGo_sort hc] using ⟨h1, h2, h3⟩
+      | Lit l =>
+        simp only [absExprKind] at hc hmsplit hrel1 ⊢
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        obtain ⟨h1, h2, h3⟩ :=
+          ih seen1 _ acc stack sp1 r hsp1le hwf1
+            (by rw [hmsplit] at hm; simp only [ConLeche.Expr.sizeF] at hm; omega) hacc hrel1 h
+        simpa only [usedGo_cons, usedGo_nil, usedConstsGo_lit hc] using ⟨h1, h2, h3⟩
+      | Const n us =>
+        simp only [absExprKind] at hc hmsplit hrel1 ⊢
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+        obtain ⟨n1, hn1, acc1, hacc1, h⟩ := h
+        have hn1e : n1 = n := by
+          rw [name_dup_eq] at hn1; exact (Result.ok_injective hn1).symm
+        rw [hn1e] at hacc1
+        have hnwf : NameWF n := (ExprWF.const_kids hxwf).1
+        have haccwf : NamesWF acc1 := by
+          intro y hy
+          rw [vec_push_val hacc1] at hy
+          rcases List.mem_append.mp hy with hy | hy
+          · exact hacc y hy
+          · rw [List.mem_singleton.mp hy]; exact hnwf
+        have habs : (absNames acc1).toArray = (absNames acc).toArray.push (absName n) := by
+          rw [absNames, vec_push_val hacc1, List.map_append, List.push_toArray]; rfl
+        obtain ⟨h1, h2, h3⟩ :=
+          ih seen1 _ acc1 stack sp1 r hsp1le hwf1
+            (by rw [hmsplit] at hm; simp only [ConLeche.Expr.sizeF] at hm; omega) haccwf hrel1 h
+        rw [habs] at h2 h3
+        simpa only [usedGo_cons, usedGo_nil, usedConstsGo_const hc] using ⟨h1, h2, h3⟩
+      | Fvar idx ty =>
+        simp only [absExprKind] at hc hmsplit hrel1 ⊢
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        rw [bind_eq_ok_iff] at h
+        obtain ⟨e2, he2, h⟩ := h
+        rw [bind_pair_eq_ok_iff] at h
+        obtain ⟨stack2, sp2, hq2, h⟩ := h
+        have he2x : ty = e2 := (Expr.dup_eq he2).symm
+        subst he2x
+        obtain ⟨hA2, hB2, hC2⟩ := stack_push_expr_take hsp1le hq2
+        have hkids := ExprWF.fvar_kids hxwf
+        have hwf2 : ∀ e ∈ stack2.val.take sp2.val, ExprWF e := by
+          intro e he; rw [hC2] at he
+          rcases List.mem_append.mp he with he | he
+          · exact hwf1 e he
+          · rw [List.mem_singleton.mp he]; exact ExprWF.fvar_kids hxwf
+        obtain ⟨h1, h2, h3⟩ :=
+          ih seen1 _ acc stack2 sp2 r hB2 hwf2
+            (by
+              rw [hmsplit] at hm
+              rw [stackMeasure_eq hC2]
+              simp only [stackMeasure, List.map_append, List.sum_append,
+                List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
+                ConLeche.Expr.sizeF] at hm ⊢
+              omega)
+            hacc hrel1 h
+        rw [hC2] at h2 h3
+        simp only [List.reverse_append, List.reverse_cons, List.reverse_nil,
+          List.nil_append, List.map_cons, List.cons_append] at h2 h3
+        simpa only [usedGo_cons, usedGo_nil, usedConstsGo_fvar hc] using ⟨h1, h2, h3⟩
+      | Proj sn i sub =>
+        simp only [absExprKind] at hc hmsplit hrel1 ⊢
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        rw [bind_eq_ok_iff] at h
+        obtain ⟨n1, hn1, h⟩ := h
+        rw [bind_eq_ok_iff] at h
+        obtain ⟨acc1, hacc1, h⟩ := h
+        rw [bind_eq_ok_iff] at h
+        obtain ⟨e2, he2, h⟩ := h
+        rw [bind_pair_eq_ok_iff] at h
+        obtain ⟨stack2, sp2, hq2, h⟩ := h
+        have hn1e : n1 = sn := by
+          rw [name_dup_eq] at hn1; exact (Result.ok_injective hn1).symm
+        rw [hn1e] at hacc1
+        have he2x : sub = e2 := (Expr.dup_eq he2).symm
+        subst he2x
+        have hnwf : NameWF sn := (ExprWF.proj_kids hxwf).1
+        have haccwf : NamesWF acc1 := by
+          intro y hy
+          rw [vec_push_val hacc1] at hy
+          rcases List.mem_append.mp hy with hy | hy
+          · exact hacc y hy
+          · rw [List.mem_singleton.mp hy]; exact hnwf
+        have habs : (absNames acc1).toArray = (absNames acc).toArray.push (absName sn) := by
+          rw [absNames, vec_push_val hacc1, List.map_append, List.push_toArray]; rfl
+        obtain ⟨hA2, hB2, hC2⟩ := stack_push_expr_take hsp1le hq2
+        have hkids := ExprWF.proj_kids hxwf
+        have hwf2 : ∀ e ∈ stack2.val.take sp2.val, ExprWF e := by
+          intro e he; rw [hC2] at he
+          rcases List.mem_append.mp he with he | he
+          · exact hwf1 e he
+          · rw [List.mem_singleton.mp he]; exact (ExprWF.proj_kids hxwf).2
+        obtain ⟨h1, h2, h3⟩ :=
+          ih seen1 _ acc1 stack2 sp2 r hB2 hwf2
+            (by
+              rw [hmsplit] at hm
+              rw [stackMeasure_eq hC2]
+              simp only [stackMeasure, List.map_append, List.sum_append,
+                List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
+                ConLeche.Expr.sizeF] at hm ⊢
+              omega)
+            haccwf hrel1 h
+        rw [hC2] at h2 h3
+        rw [habs] at h2 h3
+        simp only [List.reverse_append, List.reverse_cons, List.reverse_nil,
+          List.nil_append, List.map_cons, List.cons_append] at h2 h3
+        simpa only [usedGo_cons, usedGo_nil, usedConstsGo_proj hc] using ⟨h1, h2, h3⟩
+      | App f a =>
+        simp only [absExprKind] at hc hmsplit hrel1 ⊢
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        rw [bind_eq_ok_iff] at h
+        obtain ⟨e2, he2, h⟩ := h
+        rw [bind_pair_eq_ok_iff] at h
+        obtain ⟨stack2, sp2, hq2, h⟩ := h
+        rw [bind_eq_ok_iff] at h
+        obtain ⟨e3, he3, h⟩ := h
+        rw [bind_pair_eq_ok_iff] at h
+        obtain ⟨stack3, sp3, hq3, h⟩ := h
+        have he2x : a = e2 := (Expr.dup_eq he2).symm
+        subst he2x
+        have he3x : f = e3 := (Expr.dup_eq he3).symm
+        subst he3x
+        obtain ⟨hA2, hB2, hC2⟩ := stack_push_expr_take hsp1le hq2
+        obtain ⟨hA3, hB3, hC3⟩ := stack_push_expr_take hB2 hq3
+        rw [hC2] at hC3
+        have hkids := ExprWF.app_kids hxwf
+        have hwf2 : ∀ e ∈ stack3.val.take sp3.val, ExprWF e := by
+          intro e he; rw [hC3] at he
+          rcases List.mem_append.mp he with he | he
+          · rcases List.mem_append.mp he with he | he
+            · exact hwf1 e he
+            · rw [List.mem_singleton.mp he]; exact (ExprWF.app_kids hxwf).2
+          · rw [List.mem_singleton.mp he]; exact (ExprWF.app_kids hxwf).1
+        obtain ⟨h1, h2, h3⟩ :=
+          ih seen1 _ acc stack3 sp3 r hB3 hwf2
+            (by
+              rw [hmsplit] at hm
+              rw [stackMeasure_eq hC3]
+              simp only [stackMeasure, List.map_append, List.sum_append,
+                List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
+                ConLeche.Expr.sizeF] at hm ⊢
+              omega)
+            hacc hrel1 h
+        rw [hC3] at h2 h3
+        simp only [List.reverse_append, List.reverse_cons, List.reverse_nil,
+          List.nil_append, List.map_cons, List.cons_append] at h2 h3
+        simpa only [usedGo_cons, usedGo_nil, usedConstsGo_app hc] using ⟨h1, h2, h3⟩
+      | Lam ty bo m =>
+        simp only [absExprKind] at hc hmsplit hrel1 ⊢
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        rw [bind_eq_ok_iff] at h
+        obtain ⟨e2, he2, h⟩ := h
+        rw [bind_pair_eq_ok_iff] at h
+        obtain ⟨stack2, sp2, hq2, h⟩ := h
+        rw [bind_eq_ok_iff] at h
+        obtain ⟨e3, he3, h⟩ := h
+        rw [bind_pair_eq_ok_iff] at h
+        obtain ⟨stack3, sp3, hq3, h⟩ := h
+        have he2x : bo = e2 := (Expr.dup_eq he2).symm
+        subst he2x
+        have he3x : ty = e3 := (Expr.dup_eq he3).symm
+        subst he3x
+        obtain ⟨hA2, hB2, hC2⟩ := stack_push_expr_take hsp1le hq2
+        obtain ⟨hA3, hB3, hC3⟩ := stack_push_expr_take hB2 hq3
+        rw [hC2] at hC3
+        have hkids := ExprWF.lam_kids hxwf
+        have hwf2 : ∀ e ∈ stack3.val.take sp3.val, ExprWF e := by
+          intro e he; rw [hC3] at he
+          rcases List.mem_append.mp he with he | he
+          · rcases List.mem_append.mp he with he | he
+            · exact hwf1 e he
+            · rw [List.mem_singleton.mp he]; exact (ExprWF.lam_kids hxwf).2.1
+          · rw [List.mem_singleton.mp he]; exact (ExprWF.lam_kids hxwf).1
+        obtain ⟨h1, h2, h3⟩ :=
+          ih seen1 _ acc stack3 sp3 r hB3 hwf2
+            (by
+              rw [hmsplit] at hm
+              rw [stackMeasure_eq hC3]
+              simp only [stackMeasure, List.map_append, List.sum_append,
+                List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
+                ConLeche.Expr.sizeF] at hm ⊢
+              omega)
+            hacc hrel1 h
+        rw [hC3] at h2 h3
+        simp only [List.reverse_append, List.reverse_cons, List.reverse_nil,
+          List.nil_append, List.map_cons, List.cons_append] at h2 h3
+        simpa only [usedGo_cons, usedGo_nil, usedConstsGo_lam hc] using ⟨h1, h2, h3⟩
+      | ForallE ty bo m =>
+        simp only [absExprKind] at hc hmsplit hrel1 ⊢
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        rw [bind_eq_ok_iff] at h
+        obtain ⟨e2, he2, h⟩ := h
+        rw [bind_pair_eq_ok_iff] at h
+        obtain ⟨stack2, sp2, hq2, h⟩ := h
+        rw [bind_eq_ok_iff] at h
+        obtain ⟨e3, he3, h⟩ := h
+        rw [bind_pair_eq_ok_iff] at h
+        obtain ⟨stack3, sp3, hq3, h⟩ := h
+        have he2x : bo = e2 := (Expr.dup_eq he2).symm
+        subst he2x
+        have he3x : ty = e3 := (Expr.dup_eq he3).symm
+        subst he3x
+        obtain ⟨hA2, hB2, hC2⟩ := stack_push_expr_take hsp1le hq2
+        obtain ⟨hA3, hB3, hC3⟩ := stack_push_expr_take hB2 hq3
+        rw [hC2] at hC3
+        have hkids := ExprWF.forall_e_kids hxwf
+        have hwf2 : ∀ e ∈ stack3.val.take sp3.val, ExprWF e := by
+          intro e he; rw [hC3] at he
+          rcases List.mem_append.mp he with he | he
+          · rcases List.mem_append.mp he with he | he
+            · exact hwf1 e he
+            · rw [List.mem_singleton.mp he]; exact (ExprWF.forall_e_kids hxwf).2.1
+          · rw [List.mem_singleton.mp he]; exact (ExprWF.forall_e_kids hxwf).1
+        obtain ⟨h1, h2, h3⟩ :=
+          ih seen1 _ acc stack3 sp3 r hB3 hwf2
+            (by
+              rw [hmsplit] at hm
+              rw [stackMeasure_eq hC3]
+              simp only [stackMeasure, List.map_append, List.sum_append,
+                List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
+                ConLeche.Expr.sizeF] at hm ⊢
+              omega)
+            hacc hrel1 h
+        rw [hC3] at h2 h3
+        simp only [List.reverse_append, List.reverse_cons, List.reverse_nil,
+          List.nil_append, List.map_cons, List.cons_append] at h2 h3
+        simpa only [usedGo_cons, usedGo_nil, usedConstsGo_forallE hc] using ⟨h1, h2, h3⟩
+      | LetE ty v bo =>
+        simp only [absExprKind] at hc hmsplit hrel1 ⊢
+        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        rw [bind_eq_ok_iff] at h
+        obtain ⟨e2, he2, h⟩ := h
+        rw [bind_pair_eq_ok_iff] at h
+        obtain ⟨stack2, sp2, hq2, h⟩ := h
+        rw [bind_eq_ok_iff] at h
+        obtain ⟨e3, he3, h⟩ := h
+        rw [bind_pair_eq_ok_iff] at h
+        obtain ⟨stack3, sp3, hq3, h⟩ := h
+        rw [bind_eq_ok_iff] at h
+        obtain ⟨e4, he4, h⟩ := h
+        rw [bind_pair_eq_ok_iff] at h
+        obtain ⟨stack4, sp4, hq4, h⟩ := h
+        have he2x : bo = e2 := (Expr.dup_eq he2).symm
+        subst he2x
+        have he3x : v = e3 := (Expr.dup_eq he3).symm
+        subst he3x
+        have he4x : ty = e4 := (Expr.dup_eq he4).symm
+        subst he4x
+        obtain ⟨hA2, hB2, hC2⟩ := stack_push_expr_take hsp1le hq2
+        obtain ⟨hA3, hB3, hC3⟩ := stack_push_expr_take hB2 hq3
+        rw [hC2] at hC3
+        obtain ⟨hA4, hB4, hC4⟩ := stack_push_expr_take hB3 hq4
+        rw [hC3] at hC4
+        have hkids := ExprWF.let_e_kids hxwf
+        have hwf2 : ∀ e ∈ stack4.val.take sp4.val, ExprWF e := by
+          intro e he; rw [hC4] at he
+          rcases List.mem_append.mp he with he | he
+          · rcases List.mem_append.mp he with he | he
+            · rcases List.mem_append.mp he with he | he
+              · exact hwf1 e he
+              · rw [List.mem_singleton.mp he]; exact (ExprWF.let_e_kids hxwf).2.2
+            · rw [List.mem_singleton.mp he]; exact (ExprWF.let_e_kids hxwf).2.1
+          · rw [List.mem_singleton.mp he]; exact (ExprWF.let_e_kids hxwf).1
+        obtain ⟨h1, h2, h3⟩ :=
+          ih seen1 _ acc stack4 sp4 r hB4 hwf2
+            (by
+              rw [hmsplit] at hm
+              rw [stackMeasure_eq hC4]
+              simp only [stackMeasure, List.map_append, List.sum_append,
+                List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
+                ConLeche.Expr.sizeF] at hm ⊢
+              omega)
+            hacc hrel1 h
+        rw [hC4] at h2 h3
+        simp only [List.reverse_append, List.reverse_cons, List.reverse_nil,
+          List.nil_append, List.map_cons, List.cons_append] at h2 h3
+        simpa only [usedGo_cons, usedGo_nil, usedConstsGo_letE hc] using ⟨h1, h2, h3⟩
+
 /-! ### The residue
 
 **One** hypothesis, about the first half of the hoist; everything else of the
