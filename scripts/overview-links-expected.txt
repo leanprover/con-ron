@@ -177,15 +177,16 @@
     13  # rebasing.
     14  #
 
-== scripts/gates.sh#L51-L58
-    51  # enforce by itself: `-D warnings` does.
-    52  run cargo-build   env RUSTFLAGS="-D warnings" cargo build --manifest-path "$root/Cargo.toml"
-    53  run cargo-test    env RUSTFLAGS="-D warnings" cargo test  --manifest-path "$root/Cargo.toml"
-    54  run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src"
-    55  run provenance    python3 "$root/scripts/provenance.py" check
-    56  run overview-links "$root/scripts/overview-links.sh"
-    57  run gen-pins      "$root/scripts/gen-pins.sh" --check
-    58  run extract-check "$root/scripts/extract.sh" --check
+== scripts/gates.sh#L53-L61
+    53  run cargo-build   env RUSTFLAGS="-D warnings" cargo build --manifest-path "$root/Cargo.toml"
+    54  run cargo-test    env RUSTFLAGS="-D warnings" cargo test  --manifest-path "$root/Cargo.toml"
+    55  run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src"
+    56  run provenance    python3 "$root/scripts/provenance.py" check
+    57  run overview-links "$root/scripts/overview-links.sh"
+    58  run gen-pins      "$root/scripts/gen-pins.sh" --check
+    59  run gen-prelude   "$root/scripts/gen-prelude.sh" --check
+    60  run extract-check "$root/scripts/extract.sh" --check
+    61  run lake-build    env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build
 
 == proof/ConRon/Refine/Main.lean#L281-L288
    281  theorem conron.model_exists_decoded (V : Type w) [ConLeche.SetTheory V]

@@ -342,11 +342,35 @@ equality, hashing and `String.toList`/`Char.ofNat` for literal reduction);
 ### 3.4 Rust style rules (Aeneas-friendliness), enforced by a lint script
 
 * No `#[derive(Debug)]` on the core types (mixed type/trait recursion
-  groups); no closures; no `?` in the core (explicit `match` keeps the
+  groups); in practice **no `#[derive]` at all** — the house style is an
+  explicit `foo_dup` and `foo_beq` per type (`kernel::env::quot_kind_dup`),
+  because a derived `PartialEq` also drags `core::cmp::PartialEq` and a
+  `StructuralPartialEq` impl into the model (`ron/hashmap.rs`'s note on
+  `Eq2`).  No closures; no `?` in the core (explicit `match` keeps the
   generated Lean shaped like con-leche's `do` blocks); no `loop`/`while`
-  except in leaf helpers (Aeneas `-loops-to-rec`); no generic instantiated
+  except where the next bullet allows it; no generic instantiated
   with `&mut`; no `unsafe`; no `std::collections`; no counted-pointer API
   beyond `new/clone/deref/ptr_eq`; `&mut` only for the state parameter.
+* **Loops, the one exemption (2026-09-14, task #84).**
+  `crates/con-ron-core/src/frontend/` — the ported export parser, and only
+  that directory — may use `while`, `loop` and `for … in a..b` where the cited
+  Lean function is a per-byte or per-element tail recursion or a bounded fold.
+  The reason is faithfulness, not convenience: `Scan/Fast.lean` recurses once
+  per byte and *Lean compiles those tail calls to loops*, which is what
+  con-leche actually runs; Rust promises no such thing, and a per-byte
+  recursion on a long export line is a stack overflow.  Extraction already
+  runs with `-loops-to-rec`, so each loop becomes a `foo_loop` function that
+  mirrors the Lean recursion one for one and is what the refinement is stated
+  against.  Two facts to design around, measured by task #84's spike:
+  Aeneas **duplicates the code after a loop into every loop exit** (a `while`
+  with four `break`s and a fifteen-line tail is sixty lines of Lean), so the
+  post-loop tail belongs in its own function; and `while`, `loop`+`break`,
+  `for k in 0..n`, `Vec::push` inside a loop and an early `return` out of one
+  all translate with no new external.  `scripts/lint-rust-style.sh` enforces
+  the exemption's boundary — and task #84 found that its loop check had been
+  anchored `^\s*(while|…)` against lines that `gather` prefixes with
+  `file:line:`, so it had never matched anything since it was written; the
+  core turned out to be clean under the repaired check.
 * Recursion carries the same explicit fuel as the Lean side.
 * Errors: `enum CheckError { NotImplemented(..), Invalid(..), Internal(..),
   Native(..) }` in `Result<T, CheckError>` — the first three are con-leche's
@@ -919,6 +943,57 @@ above leaves open, settled by the implementation:
   turn a spurious `CHANGED` into a `MOVED` (if the text really changed,
   neither text matches), and it never adds a second marker to a citation
   that already carries one.
+
+### 3.8 The parser in the core, the modeller behind a trait (2026-09-14)
+
+Until task #84 the export parser was in the **unverified** crate and the
+port's capstones stopped at the fold, with `hds` — "every parsed declaration
+is well-formed" — as a hypothesis (§3.5's note, OVERVIEW §3.5).  con-leche has
+since put its own parser inside its theorem (its tasks #290/#294) and states
+its main corollary over the file's byte chunks, so the hypothesis is now
+discharge*able* rather than merely audited, and the maintainer's ruling
+(2026-09-13) is to discharge it: *"put the parser into the verified core — the
+csimp'ed efficient one, it's the one con-leche actually runs."*
+
+**What crosses.**  `Frontend/Scan/{Types,Fast}`, `Frontend/Export`,
+`Frontend/ExportC`, `Frontend/ProjRec`, `Frontend/NatOpGround`,
+`Frontend/Prepare` and `Frontend/Prelude` become
+`crates/con-ron-core/src/frontend/*`.  `Scan/Naive.lean` does **not**: it is
+the *specification*, and `Scan/Equiv.lean`'s `scanLineSpec_eq_scanLineFwd` is
+the `@[csimp]` that makes `scanLineFwd` what the compiler runs — so the fast
+scanner is the one the port has to be about.  `ProjRec` and `NatOpGround`
+cross because they are on the parse path: `ExportC` calls `projRecOwners` and
+`projRecValue` at a definition record, and `Prepare` calls the ground hoist.
+
+**What does not, and why.**  The **in-process modeller**
+(`Frontend/InModel/*`, 6 400 lines of Rust) stays unverified.  The
+maintainer's ruling: *"leave the modeller unverified if you can; rumors are
+that upstream can actually get rid of it."*  It is also the right line on the
+merits — its own module note says it: "soundness needs nothing from this
+module: a wrong record is rejected or declined by the fold, never accepted",
+so its correctness decides *coverage*, not soundness.
+
+**The seam.**  `parse_chunks` and everything above it take the modeller as a
+**one-method trait on a type parameter**
+(`frontend::in_model_rec::Modeller`), which Charon and Aeneas render as a
+typeclass field, i.e. an opaque function; the extracted parse is therefore
+quantified over an arbitrary modeller, and the refinement carries one
+hypothesis about its output instead of six thousand lines of port.  The three
+tables con-leche's `InModel.Ctx` reads (`constTypes`, `heights`, `indBlocks`)
+are the parse state's, so the core hands the trait a `ModelCtx` borrowing
+them, and the unverified implementation wraps that back into the
+closure-based `Ctx` its generators overlay.  The block records themselves
+(`InModel/Mutual.lean:66-100`) cross into the core, because `ExportC` builds
+them and the parse state holds them.
+
+**The escape hatch, offered and not used.**  The maintainer allowed one: *"if
+some code or idioms really don't translate well to Rust, it should be
+permissible to write a different implementation, first in high-level Lean,
+with an equivalence proof, and then (mechanically) relate that to the Aeneas
+output."*  Task #84 did not need it; what it needed was §3.4's loop exemption,
+which is a smaller thing — the Rust still transliterates the cited Lean, and
+`-loops-to-rec` puts the recursion back.  If a later task does reach for the
+hatch, it is recorded here.
 
 ## 4. Sizing
 

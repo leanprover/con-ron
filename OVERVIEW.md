@@ -88,9 +88,10 @@ many-core machine its first build can exhaust memory, and
 
 The one command a contributor runs before committing is
 `scripts/gates.sh`
-([the eight steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L51-L58)):
+([the nine steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L53-L61)):
 the Rust build and tests with warnings denied, the style lint (§3.6),
-the provenance check (§4), the embedded-pins check, the extraction check
+the provenance check (§4), the link gate, the two embedded-text checks
+(the pin list and the built-in prelude), the extraction check
 (the committed Lean model must be what Charon and Aeneas produce from the
 crate today), and the Lean build.  §12 has the list.
 
@@ -631,8 +632,9 @@ are `abs*`, the relations `*Rel`, the well-formedness predicates `*WF`.
 4. `scripts/provenance.py check` — every item cites, every citation resolves, no `CHANGED` marker left;
 5. `scripts/overview-links.sh` — every line-anchored link in this document and in `DESIGN.md` still points at the text it cited (the cited lines are a committed artefact, `scripts/overview-links-expected.txt`, in con-leche's idiom);
 6. `scripts/gen-pins.sh --check` — the embedded pin text is what con-leche's list generates;
-7. `scripts/extract.sh --check` — the committed model is what Charon and Aeneas produce;
-8. `lake build` of the model and the proofs.
+7. `scripts/gen-prelude.sh --check` — the embedded prelude text is con-leche's own committed `pins/<toolchain>.prelude.ndjson`;
+8. `scripts/extract.sh --check` — the committed model is what Charon and Aeneas produce;
+9. `lake build` of the model and the proofs.
 
 It ends with the two summary lines of `progress.py` and `loc.py`.  The
 differential tests of §5.4 are not in the gates, since they need the
