@@ -540,4 +540,184 @@ theorem feed_chunk_refines
         = .ok (lst', p.1.val, absPos p.2) ∧ R st' lst' :=
   feed_chunk_loop_refines ing _ st st' lst b i ln p hst rfl h
 
+/-! ## The size guard, and the bytes a `Slice` abstracts to
+
+`export_c::size_error` (`ConLeche/Frontend/ExportC.lean:816-825` `sizeError`):
+an input of `USize.size` bytes or more is refused before any of it is read.
+The port drops con-leche's interpolated byte count (`size_error`'s note: no
+`u64` renders `2^64`), which costs nothing — messages are never compared. -/
+
+/-- A `Slice`'s length is below `Usize.max`, so the guard con-leche states over
+`b.size` can never fire for a slice the port handed us. -/
+private theorem absBytes_size_lt (b : Slice Std.U8) : (absBytes b).size < USize.size := by
+  rw [absBytes_size]
+  have h1 : b.val.length ≤ Std.Usize.max := Slice.property b
+  have h2 : (Std.Usize.max : Nat) < USize.size := by
+    rw [Std.Usize.max_def, Std.Usize.numBits_def]
+    simp only [USize.size, Std.UScalarTy.numBits]
+    have hp : 0 < 2 ^ System.Platform.numBits := Nat.two_pow_pos _
+    omega
+  omega
+
+/-- **`export_c::size_error` mirrors `ConLeche.Frontend.sizeError`**
+(`ConLeche/Frontend/ExportC.lean:816-825`): the same kind
+(`.notImplemented`) at the same line (`0`). -/
+theorem size_error_refines {γ : Type} {p : kernel.core_types.CheckError × Std.U64}
+    {x : Except (ConLeche.CheckError × Nat) γ}
+    (h : frontend.export_c.size_error = ok p)
+    (hx : x = .error ConLeche.Frontend.sizeError) : ParseErrSim p x := by
+  rw [frontend.export_c.size_error] at h
+  simp only [bind_eq_ok_iff, kernel.core_types.not_implemented, Result.ok.injEq] at h
+  obtain ⟨s, -, v, -, y, hy, hp⟩ := h
+  subst hy; subst hp
+  exact ParseErrSim.mk hx (by simp [absErrKind, lErrKind, ConLeche.Frontend.sizeError])
+    (by simp [ConLeche.Frontend.sizeError])
+
+/-! ## The wholesale parse
+
+`export_c::parse_bytes` (`ConLeche/Frontend/ExportC.lean:827-839` `parseBytes`):
+the whole input fed at once, then the last line.
+
+**One intermediate definition** (the escape hatch DESIGN.md's task-#87 brief
+allows, recorded in the task report): con-leche writes the last line *inline*
+in `parseBytes`'s `do` block while the port factors it out as
+`export_c::parse_bytes_final` — §3.4's rule that a Rust function has one loop
+and one shape.  `parseBytesFinal` is that fragment of con-leche, written out,
+and `parseBytes_eq` is the equivalence proof: `parseBytes` **is** its size
+guard, `feedChunk`, and `parseBytesFinal`. -/
+
+/-- The cited tail of `parseBytes` (`ConLeche/Frontend/ExportC.lean:834-838`),
+which the port factors out as `export_c::parse_bytes_final`. -/
+def parseBytesFinal (lst : ConLeche.Frontend.StateD) (b : ByteArray) (tail : USize)
+    (ln : Nat) : Except (ConLeche.CheckError × Nat) ConLeche.Frontend.ParseResultD :=
+  if tail < b.usize then do
+    let st ← ConLeche.Frontend.applyFinalLine lst b tail (ln + 1)
+    return ConLeche.Frontend.ParseResultD.ofState st
+  else return ConLeche.Frontend.ParseResultD.ofState lst
+
+/-- The equivalence proof for `parseBytesFinal`: con-leche's `parseBytes` is
+its guard, `feedChunk` and that fragment. -/
+theorem parseBytes_eq (b : ByteArray) (im ce : Bool) :
+    ConLeche.Frontend.parseBytes b im ce =
+      (if b.size ≥ USize.size then .error ConLeche.Frontend.sizeError
+       else do
+         let (st, lineNo, tail) ← ConLeche.Frontend.feedChunk (.init im ce) b 0 0
+         parseBytesFinal st b tail lineNo) := by
+  rw [ConLeche.Frontend.parseBytes]
+  rfl
+
+/-- **`export_c::parse_bytes_final`, accept direction**
+(`ConLeche/Frontend/ExportC.lean:834-838`, the cited tail of `parseBytes`). -/
+theorem parse_bytes_final_refines
+    {R : frontend.export_c.StateD → ConLeche.Frontend.StateD → Prop}
+    {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+    (ing : ParseIngredients R inst g)
+    {st : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {b : Slice Std.U8} {tail : Std.Usize} {ln : Std.U64}
+    {r : frontend.export_c.ParseResultD} (hst : R st lst)
+    (h : frontend.export_c.parse_bytes_final inst g st b tail ln = ok (.Ok r)) :
+    ∃ x, parseBytesFinal lst (absBytes b) (absPos tail) ln.val = .ok x ∧
+      ParseResultSim r x := by
+  rw [frontend.export_c.parse_bytes_final.eq_def] at h
+  simp only [] at h
+  rw [parseBytesFinal]
+  split at h
+  · rename_i hlt
+    rw [if_pos (absPos_lt_usize.mpr (by scalar_tac))]
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨i1, hi1, ⟨rr, st1⟩, hfin, h⟩ := h
+    simp only [uncurry_apply_pair] at h
+    split at h
+    · obtain ⟨lst', hafl, hrel⟩ := apply_final_line_refines ing hst hfin
+      rw [show ln.val + 1 = i1.val from (HashMap.uscalar_add_eq hi1).symm]
+      simp only [hafl]
+      simp only [bind_eq_ok_iff, Result.ok.injEq, core.result.Result.Ok.injEq] at h
+      obtain ⟨prd, hprd, hr⟩ := h
+      exact ⟨_, rfl, hr ▸ ing.parse_result_of_state st1 lst' prd hrel hprd⟩
+    · exfalso; revert h; simp
+  · rw [if_neg (fun hc => absurd (absPos_lt_usize.mp hc) (by scalar_tac))]
+    simp only [bind_eq_ok_iff, Result.ok.injEq, core.result.Result.Ok.injEq] at h
+    obtain ⟨prd, hprd, hr⟩ := h
+    exact ⟨_, rfl, hr ▸ ing.parse_result_of_state st lst prd hst hprd⟩
+
+/-- **`export_c::parse_bytes`, accept direction**
+(`ConLeche/Frontend/ExportC.lean:827-839` `parseBytes`): the whole input fed at
+once, then the last line. -/
+theorem parse_bytes_refines
+    {R : frontend.export_c.StateD → ConLeche.Frontend.StateD → Prop}
+    {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+    (ing : ParseIngredients R inst g) {b : Slice Std.U8} {im ce : Bool}
+    {r : frontend.export_c.ParseResultD}
+    (h : frontend.export_c.parse_bytes inst g b im ce = ok (.Ok r)) :
+    ∃ x, ConLeche.Frontend.parseBytes (absBytes b) im ce = .ok x ∧
+      ParseResultSim r x := by
+  rw [frontend.export_c.parse_bytes.eq_def] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨i1, -, i2, -, h⟩ := h
+  rw [parseBytes_eq, if_neg (by have := absBytes_size_lt b; omega)]
+  split at h
+  · exfalso; revert h; simp [bind_eq_ok_iff]
+  · simp only [bind_eq_ok_iff] at h
+    obtain ⟨st, hinit, ⟨rr, st1⟩, hfeed, h⟩ := h
+    simp only [uncurry_apply_pair] at h
+    split at h
+    · rename_i q
+      obtain ⟨ln, tail⟩ := q
+      obtain ⟨lst1, hfc, hrel⟩ :=
+        feed_chunk_refines ing (ing.state_d_init im ce st hinit) hfeed
+      simp only [show absPos (0#usize) = 0 from rfl,
+        show ((0#u64 : Std.U64)).val = 0 from rfl] at hfc
+      simp only [hfc]
+      exact parse_bytes_final_refines ing hrel h
+    · exfalso; revert h; simp
+
+/-! ## The end of the stream
+
+`export_c::chunk_finish` (`ConLeche/Frontend/ExportC.lean:867-874`
+`chunkFinish`): the carried tail, if any, is the stream's last line. -/
+
+/-- A slice is empty exactly when the bytes it abstracts to are. -/
+private theorem absBytes_isEmpty (b : Slice Std.U8) :
+    (absBytes b).isEmpty = true ↔ Slice.len b = 0#usize := by
+  simp only [ByteArray.isEmpty, absBytes_size, beq_iff_eq]
+  constructor
+  · intro h; scalar_tac
+  · intro h; scalar_tac
+
+/-- **`export_c::chunk_finish`, accept direction**
+(`ConLeche/Frontend/ExportC.lean:867-874` `chunkFinish`). -/
+theorem chunk_finish_refines
+    {R : frontend.export_c.StateD → ConLeche.Frontend.StateD → Prop}
+    {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+    (ing : ParseIngredients R inst g)
+    {st : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {carry : Slice Std.U8} {ln : Std.U64} {r : frontend.export_c.ParseResultD}
+    (hst : R st lst)
+    (h : frontend.export_c.chunk_finish inst g st carry ln = ok (.Ok r)) :
+    ∃ x, ConLeche.Frontend.chunkFinish lst (absBytes carry) ln.val = .ok x ∧
+      ParseResultSim r x := by
+  rw [frontend.export_c.chunk_finish.eq_def] at h
+  simp only [] at h
+  rw [ConLeche.Frontend.chunkFinish]
+  split at h
+  · rename_i he
+    rw [if_pos ((absBytes_isEmpty carry).mpr he)]
+    simp only [bind_eq_ok_iff, Result.ok.injEq, core.result.Result.Ok.injEq] at h
+    obtain ⟨prd, hprd, hr⟩ := h
+    exact ⟨_, rfl, hr ▸ ing.parse_result_of_state st lst prd hst hprd⟩
+  · rename_i he
+    rw [if_neg (fun hc => he ((absBytes_isEmpty carry).mp hc))]
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨i1, hi1, ⟨rr, st1⟩, hfin, h⟩ := h
+    simp only [uncurry_apply_pair] at h
+    split at h
+    · obtain ⟨lst', hafl, hrel⟩ := apply_final_line_refines ing hst hfin
+      rw [show ln.val + 1 = i1.val from (HashMap.uscalar_add_eq hi1).symm,
+        show absPos (0#usize) = 0 from rfl] at *
+      simp only [hafl]
+      simp only [bind_eq_ok_iff, Result.ok.injEq, core.result.Result.Ok.injEq] at h
+      obtain ⟨prd, hprd, hr⟩ := h
+      exact ⟨_, rfl, hr ▸ ing.parse_result_of_state st1 lst' prd hrel hprd⟩
+    · exfalso; revert h; simp
+
 end ConRon.Refine.Frontend
