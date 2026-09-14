@@ -1206,6 +1206,12 @@ line above it, keyed by Rust file and cited range) took minutes and left a
 legible work order.  Do this before opening a Rust file; it is the difference
 between a day and a week.
 
+While you are there, run `scripts/progress.py --summary` **once, before
+deleting a single marker**: its `stale (CHANGED marker)` count is only
+meaningful at that moment, and it is the number the task log should quote.
+Delete the citation-only markers first and it reads zero for the rest of the
+task, which is true and useless.
+
 **4. `GONE` is where the hand work is.**  `update` relocates a citation by its
 *text* first and by its declaration *name* second, so a declaration upstream
 **renamed** comes out `GONE`, its citation is left pointing at a stale range,
@@ -15614,12 +15620,24 @@ renames to the old side and re-diffs cut that down before a line was edited:
 | `GONE`: renamed or moved | 74 | a citation rewrite each |
 | `GONE`: genuinely deleted | 9 | Rust and proof code removed |
 
-**Markers: 583 before, 0 after.**  `provenance.py check` ends at 2 108 items /
-2 224 citations, all current at pin `c431b1ca`; `coverage` at **927/927
+**Markers: 583 before, 0 after.**  `provenance.py check` ends at 2 064 items /
+2 187 citations, all current at pin `c431b1ca`; `coverage` at **927/927
 covered (100 %), 0 uncovered, 94 deliberately skipped** (one entry,
 `divModAttemptReason`, was redundant — the declaration *is* cited — and went).
 `gen-pins --check` is green at the **same 26 721 records / 532 456 bytes**,
 which is the measurement that the bump did not touch the pin *values*.
+
+**The stale-lemma count, honestly.**  `progress.py`'s campaign line read
+`stale (CHANGED marker) 0` at both ends of this task, which flatters it: the
+counter sees a marker only on a Rust item that *has* a `_refines` lemma, and
+the reconciliation order here — drop the 338 citation-only markers first, then
+re-port — meant it was never sampled at its peak.  The real numbers, computed
+from `update`'s own output: the 583 findings sat on **433 distinct Rust
+items, 102 of which carry a `_refines` lemma**; of the 130 distinct items in
+the *real* bucket, **35 carry one**.  So 102 is the honest "lemmas the bump
+put in question" and 35 the honest "lemmas a human had to look at".  Sample
+`progress.py --summary` **immediately after `update`**, before deleting a
+single marker, and the counter means what it says; §7 step 3 now says so.
 
 #### 3. What was re-ported
 
