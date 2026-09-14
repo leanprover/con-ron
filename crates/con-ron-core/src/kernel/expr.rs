@@ -100,24 +100,28 @@ use crate::ron::ptr::P;
 /// The one datum a binder carries: the codomain prop-ness annotation, which
 /// the untrusted annotate pass writes and the checker validates.
 ///
-/// **The datum is behind a handle** (task #38).  A `PropWhen` is 24 bytes by
-/// value (`PropWhenRepr::Many(Vec<Name>)` sets the width), and a binder datum
-/// sits *inside* `ExprKind::Lam`/`ForallE`, so those two arms were the widest
-/// of the ten and set `ExprNode`'s size for all of them — 56 bytes, 72 in an
-/// `P` block, 86 % of the reader's resident set at Mathlib scale (task #36).
-/// Behind a handle the arm is three words.  `P<T>` is modeled as `T`
-/// (DESIGN.md §3.2), so `absBinderMeta` is unchanged up to the erasure and
-/// `binder_meta_dup` becomes a reference bump.
+/// **The datum is inline again (task #90).**  Task #38 put the whole
+/// `PropWhen` behind its own `P` handle, because a `PropWhen` was 24 bytes by
+/// value at the time (`PropWhenRepr::Many(Vec<Name>)` set the width) and a
+/// binder datum sits *inside* `ExprKind::Lam`/`ForallE`.  `PropWhen` is now
+/// one word wider than its own tag — `Never`/`Always`/`One` cost no heap
+/// cell, and only the rare `Two`/`Many` box their payload (`prop_when.rs`'s
+/// module note) — so boxing `BinderMeta` on top of that bought nothing but
+/// an extra allocation and a reference count on the checker's hottest arm:
+/// the field goes back to holding a `PropWhen` by value, one word narrower
+/// than the `P<PropWhen>` it replaces (16 bytes against a 40-byte `P` block).
+/// `absBinderMeta` is unchanged either way, because `P<T>` is modeled as `T`
+/// (DESIGN.md §3.2).
 pub struct BinderMeta {
-    pub pw: P<PropWhen>,
+    pub pw: PropWhen,
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:93-104 BinderMeta
-/// The cited structure's anonymous constructor, which is where the handle of
-/// the note above is taken: every caller hands over a `PropWhen` by value, as
-/// the Lean constructor does.
+/// The cited structure's anonymous constructor: every caller hands over a
+/// `PropWhen` by value, as the Lean constructor does, and (task #90) the
+/// field now just holds it.
 pub fn binder_meta(pw: PropWhen) -> BinderMeta {
-    BinderMeta { pw: ptr::new(pw) }
+    BinderMeta { pw }
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:93-104 BinderMeta
@@ -138,9 +142,11 @@ pub fn binder_meta_hash(m: &BinderMeta) -> u64 {
 }
 
 /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
-/// Share a binder datum.
+/// Share a binder datum.  Task #90: `PropWhen`'s own `dup` (a reference bump
+/// on its rare `Two`/`Many` arms, a plain copy otherwise), not `ptr::clone` —
+/// the field is no longer itself behind a handle.
 pub fn binder_meta_dup(m: &BinderMeta) -> BinderMeta {
-    BinderMeta { pw: ptr::clone(&m.pw) }
+    BinderMeta { pw: prop_when::dup(&m.pw) }
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:108-112 Literal
@@ -330,10 +336,17 @@ pub fn sat_pred(x: u64) -> u64 {
 /// is a `Vec<Level>` *behind a handle* — see `BinderMeta`'s note and task #38:
 /// a `Vec` header is 24 bytes, so an inline `(Name, Vec<Level>)` was 32 and
 /// this arm was, with `Lit`, what kept the node wide once the binder datum had
-/// shrunk.  Three arms now set the width at 24 bytes (`Lam`, `ForallE`,
-/// `LetE`, `Proj`), which is `ExprNode` = 40 and a `P` block of 56.
-/// `P<Vec<Level>>` is modeled as `Vec Level` (§3.2), so nothing the
+/// shrunk.  `P<Vec<Level>>` is modeled as `Vec Level` (§3.2), so nothing the
 /// abstraction or a pattern says about `us` changes.
+///
+/// **Widest arm since task #90:** `Lam`/`ForallE` (two `Expr` handles and a
+/// `BinderMeta` now held inline, 16 bytes) at 32 bytes, ahead of `LetE`/`Proj`
+/// at 24 — task #38 had all four tied at 24, with the binder datum behind its
+/// own `P`.  `ExprKind` is 40, `ExprNode` 48, its `P` block 64: 8 bytes wider
+/// than task #38 left it, in exchange for removing the separate ~40-byte
+/// `P<PropWhen>` allocation task #38 put behind every `Lam`/`ForallE`
+/// (`BinderMeta`'s note, `prop_when.rs`'s module note).  Measured end to end
+/// that trade is a net win — DESIGN.md's task-#90 entry has the numbers.
 pub enum ExprKind {
     Bvar(u64),
     Fvar(u64, Expr),
@@ -1733,5 +1746,17 @@ mod tests {
         assert!(expr::literal_beq(&n, &n2));
         assert_eq!(expr::literal_hash(&n), expr::literal_hash(&n2));
         assert_eq!(expr::str_copy(&cps("abc")), cps("abc"));
+    }
+
+    /// Task #90: `PropWhen` inlined again in `BinderMeta` (task #38's
+    /// `P<PropWhen>` indirection removed).  Printed and pinned so a further
+    /// repacking announces its own saving here, next to `con-ron-dump`'s
+    /// fuller `node_sizes` table.
+    #[test]
+    fn task_90_sizes() {
+        eprintln!("PropWhen        {}", std::mem::size_of::<crate::kernel::prop_when::PropWhen>());
+        eprintln!("BinderMeta      {}", std::mem::size_of::<BinderMeta>());
+        eprintln!("ExprKind        {}", std::mem::size_of::<ExprKind>());
+        eprintln!("ExprNode        {}", std::mem::size_of::<super::ExprNode>());
     }
 }

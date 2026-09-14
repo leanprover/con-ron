@@ -265,16 +265,16 @@
   3252        ErrSimPos er
 
 == crates/con-ron-core/src/kernel/expr.rs#L354-L363
-   354  pub struct ExprNode {
-   355      pub data: u64,
-   356      pub kind: ExprKind,
-   357  }
-   358  
-   359  /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-   360  /// con-leche: ConLeche/Cached/ExprC.lean:102-109 ExprC
-   361  /// A kernel expression, as a `P` tree — Lean's value semantics made
-   362  /// sharing (DESIGN.md §3.2).
-   363  pub struct Expr(pub P<ExprNode>);
+   354      Const(Name, P<Vec<Level>>),
+   355      App(Expr, Expr),
+   356      Lam(Expr, Expr, BinderMeta),
+   357      ForallE(Expr, Expr, BinderMeta),
+   358      LetE(Expr, Expr, Expr),
+   359      Lit(Literal),
+   360      Proj(Name, u64, Expr),
+   361  }
+   362  
+   363  /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
 
 == crates/con-ron-core/src/ron/ptr.rs#L1-L8
      1  //! con-leche: none — the shared-pointer type of DESIGN.md §3.2; Lean's value semantics have no counterpart.
@@ -287,18 +287,18 @@
      8  //! (`Arc T := T`, plus four definitions).  Which *concrete* counted pointer
 
 == crates/con-ron-core/src/kernel/expr.rs#L429-L440
-   429  pub fn app(f: Expr, a: Expr) -> Expr {
-   430      let df: u64 = data(&f);
-   431      let da: u64 = data(&a);
-   432      let h: u64 = hash32(name::mix_hash(
-   433          17,
-   434          name::mix_hash(hash_of_data(df), hash_of_data(da)),
-   435      ));
-   436      let d: u64 = pack_data(
-   437          h,
-   438          max_u64(bvar_of_data(df), bvar_of_data(da)),
-   439          max_u64(fvar_of_data(df), fvar_of_data(da)),
-   440          lp_of_data(df) || lp_of_data(da),
+   429  pub fn mk_const(n: Name, us: Vec<Level>) -> Expr {
+   430      let h: u64 = hash32(name::mix_hash(
+   431          11,
+   432          name::mix_hash(name::hash_data(&n), level::levels_hash(&us)),
+   433      ));
+   434      let d: u64 = pack_data(h, 0, 0, level::levels_have_param(&us));
+   435      Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Const(n, ptr::new(us)) }))
+   436  }
+   437  
+   438  /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+   439  /// con-leche: ConLeche/Cached/ExprC.lean:136 mkApp
+   440  /// `Expr.app`: hash tag 17; both ranges are the componentwise `max` and the
 
 == crates/con-ron-core/src/ron/nat.rs#L1-L8
      1  //! con-leche: none — replaces the runtime's `Nat` (GMP); no Lean source to cite.

@@ -270,15 +270,23 @@ pub struct NodeSize {
     pub heap: usize,
 }
 
-/// **What the core's terms weigh, per node** (DESIGN.md tasks #36 and #38).
-/// The interesting number is `ExprNode`'s
-/// `heap`: at Mathlib scale it is multiplied by 103 M.  Task #38 repacked the
-/// core types this measures — the binder datum, a `const`'s level list and a
-/// literal's payload each went behind an `Rc` — so the widest `ExprKind` arm
-/// is 24 bytes (`lam`/`forallE`, `letE`, `proj` all are) and the block is 56
-/// rather than 72.  The rows are the *real* arm types, and the test below
-/// pins them, so a further repacking shows up as a diff with its saving
-/// attached.
+/// **What the core's terms weigh, per node** (DESIGN.md tasks #36, #38 and
+/// #90).  The interesting number is `ExprNode`'s `heap`: at Mathlib scale it
+/// is multiplied by 103 M.  Task #38 repacked the core types this measures —
+/// the binder datum, a `const`'s level list and a literal's payload each went
+/// behind a `P` — so the widest `ExprKind` arm was 24 bytes (`lam`/`forallE`,
+/// `letE`, `proj` all were) and the block was 56 rather than 72.  Task #90
+/// then put `PropWhen` back inline in `BinderMeta` (its own rare arms —
+/// `Two`, `Many` — now carry the handle instead of the whole datum), which
+/// removes the 40-byte-ish `P<PropWhen>` block **per binder** but widens the
+/// `lam`/`forallE` arm from 24 to 32 bytes — the widest arm now, ahead of
+/// `letE`/`proj` at 24 — so `ExprKind` grew from 32 to 40 and `ExprNode`'s
+/// block from 56 to 64.  Measured end to end (task #90's DESIGN.md entry)
+/// that trade is a net *win*: mimalloc's own bin rounding absorbs most of the
+/// 8-byte-per-node cost, while removing a whole separate allocation per
+/// binder does not round up at all.  The rows are the *real* arm types, and
+/// the test below pins them, so a further repacking shows up as a diff with
+/// its saving attached.
 pub fn node_sizes() -> Vec<NodeSize> {
     fn row<T>(what: &'static str, rc: bool) -> NodeSize {
         NodeSize {
@@ -300,7 +308,8 @@ pub fn node_sizes() -> Vec<NodeSize> {
         row::<NameKind>("  NameKind", false),
         row::<LevelNode>("LevelNode (hash + kind)", true),
         row::<LevelKind>("  LevelKind", false),
-        row::<PropWhen>("PropWhen (behind a binder's handle)", true),
+        row::<BinderMeta>("BinderMeta (inline PropWhen, task #90)", false),
+        row::<PropWhen>("  PropWhen", false),
         row::<Vec<u32>>("Vec<u32> (a string's header)", false),
         row::<Nat>("Nat (limb Vec header)", false),
         row::<DeclC>("DeclC", false),
@@ -1215,20 +1224,34 @@ mod tests {
         // and 72 of heap once `Rc`'s two counts were in front, while 85 % of
         // the nodes are `app`, which needs 16.
         //
-        // With the binder datum, a `const`'s level list and a literal's two
-        // payloads behind handles, **three** arms are the widest and all are
-        // 24 bytes: `lam`/`forallE` (two handles and the datum's), `letE`
-        // (three handles) and `proj` (a name, a `u64` and a handle).  24 + 8
-        // of discriminant is 32, + 8 of `data` is 40, + 16 of counts is 56.
-        // Going below that means a handle for those three arms too, which
-        // buys 8 bytes a node and costs a 40-byte block per binder — see
-        // DESIGN.md's task-#38 entry for why that is not worth it.
-        assert_eq!(std::mem::size_of::<PropWhen>(), 24);
-        assert_eq!(std::mem::size_of::<BinderMeta>(), 8);
+        // Task #38 put the binder datum, a `const`'s level list and a
+        // literal's two payloads behind handles: **three** arms tied for
+        // widest, all 24 bytes (`lam`/`forallE`, `letE`, `proj`), giving
+        // `ExprKind` 32, `ExprNode` 40, the `P` block 56.
+        //
+        // Task #90 took `PropWhen`'s own widest arm (`Many(Vec<Name>)`, 24
+        // bytes) behind a handle too, so `PropWhen` is 16 (a tag plus one
+        // word: `Never`/`Always`/`One` cost no heap cell, only the rare
+        // `Two`/`Many` box their payload) and `BinderMeta` holds it *by
+        // value* again — task #38's separate `P<PropWhen>` block is gone.
+        // That makes `lam`/`forallE` the widest arm on its own, at 32 bytes
+        // (two handles and the now-16-byte datum) against `letE`/`proj`'s 24,
+        // so `ExprKind` is 40 and `ExprNode`'s block 64 — 8 bytes *wider*
+        // than task #38 left it, the same 8 bytes task #38's own "why the
+        // last 8 bytes are not worth it" note costed at 825 MB across every
+        // node at Mathlib scale.  Measured end to end (task #90's DESIGN.md
+        // entry) the trade is still a net win: removing the *separate*
+        // ~40-byte-per-binder `P<PropWhen>` allocation outweighs the 8 bytes
+        // added to every node, because mimalloc's size-class rounding
+        // absorbs most of the per-node cost while a dropped allocation does
+        // not round up at all — `init`'s measured peak fell 76 MB (901 648 →
+        // 824 660 KB) at instructions flat to 0.02 %.
+        assert_eq!(std::mem::size_of::<PropWhen>(), 16);
+        assert_eq!(std::mem::size_of::<BinderMeta>(), 16);
         assert_eq!(std::mem::size_of::<Literal>(), 16);
-        assert_eq!(std::mem::size_of::<ExprKind>(), 32);
-        assert_eq!(std::mem::size_of::<ExprNode>(), 40);
-        assert_eq!(expr_node_bytes(), 8 * P_HEADER_WORDS + 40);
+        assert_eq!(std::mem::size_of::<ExprKind>(), 40);
+        assert_eq!(std::mem::size_of::<ExprNode>(), 48);
+        assert_eq!(expr_node_bytes(), 8 * P_HEADER_WORDS + 48);
         assert_eq!(std::mem::size_of::<NameNode>(), 40);
         assert_eq!(std::mem::size_of::<LevelNode>(), 32);
         // the id tables cost one machine word per record, the `Rc` handle
