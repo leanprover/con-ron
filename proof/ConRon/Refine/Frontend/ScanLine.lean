@@ -100,29 +100,6 @@ private theorem prog_iff {ks e : Std.Usize} {r : Bool}
   rw [← Result.ok_injective h, decide_eq_true_eq, absPos_lt]
   constructor <;> intro hh <;> scalar_tac
 
-/-- `scan_fast::slot_nat` closes with the `prog` guard, so a slot that
-succeeded really consumed at least one byte: the drop of the loops' measure. -/
-private theorem slot_nat_prog {b : Slice Std.U8} {ks v e : Std.Usize} {x : Std.U64}
-    (h : frontend.scan_fast.slot_nat b ks v = ok (.Ok (x, e))) : ks.val < e.val := by
-  rw [frontend.scan_fast.slot_nat] at h
-  obtain ⟨e1, -, h⟩ := bind_eq_ok_iff.mp h
-  by_cases h1 : e1 = v
-  · rw [if_pos h1] at h; simp [frontend.scan_fast.err] at h
-  · rw [if_neg h1] at h
-    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
-    rw [frontend.scan_fast.prog, Result.ok.injEq] at hb1
-    by_cases h2 : b1 = true
-    · rw [if_pos h2] at h
-      obtain ⟨r, -, h⟩ := bind_eq_ok_iff.mp h
-      cases r with
-      | Err er => simp at h
-      | Ok y =>
-        simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-        rw [← h.2]
-        rw [← hb1] at h2
-        scalar_tac
-    · rw [if_neg h2] at h; simp [frontend.scan_fast.err] at h
-
 /-- A byte compared with a con-leche literal, positively. -/
 private theorem blit_eq {c d : Std.U8} (n : UInt8) (hd : absByte d = n) (h : c = d) :
     (absByte c == n) = true := by simp only [beq_iff_eq]; rw [h, hd]
@@ -134,6 +111,28 @@ private theorem blit_ne {c d : Std.U8} (n : UInt8) (hd : absByte d = n) (h : ¬ 
   intro hh
   exact h (absByte_inj (hh.trans hd.symm))
 
+/-- A byte compared with a con-leche literal, as the port's `!=`. -/
+private theorem u8_bne {x y : Std.U8} (n : UInt8) (hn : absByte y = n) :
+    (absByte x != n) = (x != y) := by
+  rw [← hn]; simp only [bne, absByte_beq_u8]
+
+/-- A position compared with con-leche's `0`. -/
+private theorem p_beq0 {e : Std.Usize} : (absPos e == (0 : USize)) = (e == 0#usize) := by
+  by_cases he : e = 0#usize
+  · subst he; simp
+  · have h1 : ¬ (e.val = 0) := fun hc => he (by scalar_tac)
+    simp [he, h1]
+
+/-- `Vec::index` at a literal position, as a `getElem?` fact. -/
+private theorem vec_index_get? {α : Type} {v : alloc.vec.Vec α} {i : Std.Usize} {x : α}
+    (h : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice α) v i = ok x) :
+    v.val[i.val]? = some x := by
+  rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize] at h
+  rcases hi : v.val[i.val]? with _ | y
+  · rw [show v[i.val]? = v.val[i.val]? from rfl, hi] at h; simp at h
+  · rw [show v[i.val]? = v.val[i.val]? from rfl, hi] at h
+    exact congrArg some (Result.ok_injective h)
+
 /-- A machine-word increment really moves the cursor forward. -/
 private theorem uadd_gt {x c z : Std.Usize} (h : x + c = ok z) (hc : 0 < c.val) :
     x.val < z.val := by
@@ -143,89 +142,6 @@ private theorem uadd_gt {x c z : Std.Usize} (h : x + c = ok z) (hc : 0 < c.val) 
 private theorem usize_le_absPos {b : Slice Std.U8} {s : Std.Usize} :
     (absBytes b).usize ≤ absPos s ↔ b.val.length ≤ s.val := by
   rw [USize.le_iff_toNat_le, absBytes_usize, absPos_toNat]
-
-/-! ## The member cursor
-
-`ScanObj`'s own `next_member_ge`/`next_member_lt` are private to that file, so
-the two facts the *measure* needs are re-proved here: `next_member` does not
-move the cursor backwards, and a member loop that got an `Ok` was inside the
-chunk. -/
-
-/-- Past the end of the chunk `next_member` reports `ExpectedComma`. -/
-private theorem next_member_lt {b : Slice Std.U8} {i : Std.Usize} {w : Bool}
-    {x : frontend.scan_fast.Member × Std.Usize × Bool}
-    (h : frontend.scan_fast.next_member b i w = ok (.Ok x)) : i.val < b.length := by
-  by_contra hc
-  rw [frontend.scan_fast.next_member, frontend.scan_fast.next_member_loop.eq_def] at h
-  rw [if_pos (show i ≥ Slice.len b by scalar_tac)] at h
-  simp at h
-
-/-- `scan_fast::next_member` only skips forward: the key it reports sits at or
-after the cursor it was given. -/
-private theorem next_member_ge {b : Slice Std.U8} (f : Nat) :
-    ∀ (i : Std.Usize) (w : Bool) (k : frontend.scan_types.Key)
-      (ks v ni : Std.Usize) (nw : Bool),
-      b.length - i.val ≤ f →
-      frontend.scan_fast.next_member b i w
-        = ok (.Ok (frontend.scan_fast.Member.Key k ks v, ni, nw)) →
-      i.val ≤ ks.val := by
-  induction f with
-  | zero =>
-    intro i w k ks v ni nw hf h
-    rw [frontend.scan_fast.next_member, frontend.scan_fast.next_member_loop.eq_def] at h
-    rw [if_pos (show i ≥ Slice.len b by scalar_tac)] at h
-    simp at h
-  | succ f ih =>
-    intro i w k ks v ni nw hf h
-    rw [frontend.scan_fast.next_member, frontend.scan_fast.next_member_loop.eq_def] at h
-    by_cases hend : i ≥ Slice.len b
-    · rw [if_pos hend] at h; simp at h
-    · rw [if_neg hend] at h
-      have hi : i.val < b.length := by scalar_tac
-      obtain ⟨c, -, h⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨w1, -, h⟩ := bind_eq_ok_iff.mp h
-      by_cases hws : w1 = true
-      · rw [if_pos hws] at h
-        obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
-        have h1 := uadd_gt hi2 (by scalar_tac)
-        have h2 := ih i2 w k ks v ni nw (by omega) h
-        omega
-      · rw [if_neg hws] at h
-        by_cases hc1 : c = 125#u8
-        · rw [if_pos hc1] at h; simp at h
-        · rw [if_neg hc1] at h
-          by_cases hc2 : c = 44#u8
-          · rw [if_pos hc2] at h
-            by_cases hw : w = true
-            · rw [if_pos hw] at h; simp at h
-            · rw [if_neg hw] at h
-              obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
-              have h1 := uadd_gt hi2 (by scalar_tac)
-              have h2 := ih i2 true k ks v ni nw (by omega) h
-              omega
-          · rw [if_neg hc2] at h
-            by_cases hc3 : c = 34#u8
-            · rw [if_pos hc3] at h
-              by_cases hw : w = true
-              · rw [if_pos hw] at h
-                obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
-                obtain ⟨ke, -, h⟩ := bind_eq_ok_iff.mp h
-                by_cases hke : ke = 0#usize
-                · rw [if_pos hke] at h; simp at h
-                · rw [if_neg hke] at h
-                  obtain ⟨v1, -, h⟩ := bind_eq_ok_iff.mp h
-                  by_cases hv : v1 = i
-                  · rw [if_pos hv] at h; simp at h
-                  · rw [if_neg hv] at h
-                    obtain ⟨i3, -, h⟩ := bind_eq_ok_iff.mp h
-                    obtain ⟨k1, -, h⟩ := bind_eq_ok_iff.mp h
-                    simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
-                      Prod.mk.injEq, frontend.scan_fast.Member.Key.injEq] at h
-                    obtain ⟨⟨-, hks, -⟩, -⟩ := h
-                    subst hks
-                    exact le_refl _
-              · rw [if_neg hw] at h; simp at h
-            · rw [if_neg hc3] at h; simp at h
 
 /-- The closing brace of a declaration record: the `seen` mask against the
 record's required keys, and then the record itself. -/
@@ -280,6 +196,135 @@ theorem line_payload_is_absent_refines {p : frontend.scan_fast.LinePayload} {r :
     (rw [frontend.scan_fast.line_payload_is_absent] at h
      rw [← Result.ok_injective h]
      rfl)
+
+/-- The closing brace of a line: the payload matched against the index key. -/
+private theorem close_line {pl : frontend.scan_fast.LinePayload} {idx_kind : Std.U8}
+    {idx : Std.U64} {ni : Std.Usize}
+    {o : core.result.Result (frontend.scan_types.LineRec × Std.Usize)
+           frontend.scan_types.ScanErr}
+    (h : (match pl with
+          | .Absent =>
+            frontend.scan_fast.err frontend.scan_types.LineRec ni
+              frontend.scan_types.ErrTag.MissingKey
+          | .Name r1 =>
+            if idx_kind = 1#u8 then do
+              let i1 ← ni + 1#usize
+              ok (.Ok (frontend.scan_types.LineRec.Name idx r1, i1))
+            else
+              frontend.scan_fast.err frontend.scan_types.LineRec ni
+                frontend.scan_types.ErrTag.MixedKeys
+          | .Level r1 =>
+            if idx_kind = 2#u8 then do
+              let i1 ← ni + 1#usize
+              ok (.Ok (frontend.scan_types.LineRec.Level idx r1, i1))
+            else
+              frontend.scan_fast.err frontend.scan_types.LineRec ni
+                frontend.scan_types.ErrTag.MixedKeys
+          | .Expr r1 =>
+            if idx_kind = 3#u8 then do
+              let i1 ← ni + 1#usize
+              ok (.Ok (frontend.scan_types.LineRec.Expr idx r1, i1))
+            else
+              frontend.scan_fast.err frontend.scan_types.LineRec ni
+                frontend.scan_types.ErrTag.MixedKeys
+          | .Decl d =>
+            if idx_kind = 0#u8 then do
+              let i1 ← ni + 1#usize
+              ok (.Ok (frontend.scan_types.LineRec.Decl d, i1))
+            else
+              frontend.scan_fast.err frontend.scan_types.LineRec ni
+                frontend.scan_types.ErrTag.MixedKeys
+          | .Header =>
+            if idx_kind = 0#u8 then do
+              let i1 ← ni + 1#usize
+              ok (.Ok (frontend.scan_types.LineRec.Header, i1))
+            else
+              frontend.scan_fast.err frontend.scan_types.LineRec ni
+                frontend.scan_types.ErrTag.MixedKeys) = ok o) :
+    ScanSim absLineRec o
+      (match absLinePayload pl, absByte idx_kind with
+       | .name r, 1 => .ok (.name (absU64 idx) r) (absPos ni + 1)
+       | .level r, 2 => .ok (.level (absU64 idx) r) (absPos ni + 1)
+       | .expr r, 3 => .ok (.expr (absU64 idx) r) (absPos ni + 1)
+       | .decl d, 0 => .ok (.decl d) (absPos ni + 1)
+       | .header, 0 => .ok .header (absPos ni + 1)
+       | .absent, _ => .err ⟨(absPos ni).toNat, .missingKey⟩
+       | _, _ => .err ⟨(absPos ni).toNat, .mixedKeys⟩) := by
+  cases pl with
+  | Absent =>
+    dsimp only at h
+    rw [err_val h]
+    exact ScanSim.err (ScanErrSim.mk rfl (by simp [absLinePayload]))
+  | Name r1 =>
+    dsimp only at h
+    by_cases hk : idx_kind = 1#u8
+    · rw [if_pos hk] at h
+      subst hk
+      obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+      rw [← Result.ok_injective h]
+      exact ScanSim.ok (by rw [absPos_add_one hi1]; rfl)
+    · rw [if_neg hk] at h
+      rw [err_val h]
+      refine ScanSim.err (ScanErrSim.mk rfl ?_)
+      have hne : ¬ (absByte idx_kind = 1) := fun hc => hk (absByte_inj (hc.trans rfl))
+      simp only [absLinePayload]
+      split <;> simp_all
+  | Level r1 =>
+    dsimp only at h
+    by_cases hk : idx_kind = 2#u8
+    · rw [if_pos hk] at h
+      subst hk
+      obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+      rw [← Result.ok_injective h]
+      exact ScanSim.ok (by rw [absPos_add_one hi1]; rfl)
+    · rw [if_neg hk] at h
+      rw [err_val h]
+      refine ScanSim.err (ScanErrSim.mk rfl ?_)
+      have hne : ¬ (absByte idx_kind = 2) := fun hc => hk (absByte_inj (hc.trans rfl))
+      simp only [absLinePayload]
+      split <;> simp_all
+  | Expr r1 =>
+    dsimp only at h
+    by_cases hk : idx_kind = 3#u8
+    · rw [if_pos hk] at h
+      subst hk
+      obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+      rw [← Result.ok_injective h]
+      exact ScanSim.ok (by rw [absPos_add_one hi1]; rfl)
+    · rw [if_neg hk] at h
+      rw [err_val h]
+      refine ScanSim.err (ScanErrSim.mk rfl ?_)
+      have hne : ¬ (absByte idx_kind = 3) := fun hc => hk (absByte_inj (hc.trans rfl))
+      simp only [absLinePayload]
+      split <;> simp_all
+  | Decl d =>
+    dsimp only at h
+    by_cases hk : idx_kind = 0#u8
+    · rw [if_pos hk] at h
+      subst hk
+      obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+      rw [← Result.ok_injective h]
+      exact ScanSim.ok (by rw [absPos_add_one hi1]; rfl)
+    · rw [if_neg hk] at h
+      rw [err_val h]
+      refine ScanSim.err (ScanErrSim.mk rfl ?_)
+      have hne : ¬ (absByte idx_kind = 0) := fun hc => hk (absByte_inj (hc.trans rfl))
+      simp only [absLinePayload]
+      split <;> simp_all
+  | Header =>
+    dsimp only at h
+    by_cases hk : idx_kind = 0#u8
+    · rw [if_pos hk] at h
+      subst hk
+      obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+      rw [← Result.ok_injective h]
+      exact ScanSim.ok (by rw [absPos_add_one hi1]; rfl)
+    · rw [if_neg hk] at h
+      rw [err_val h]
+      refine ScanSim.err (ScanErrSim.mk rfl ?_)
+      have hne : ¬ (absByte idx_kind = 0) := fun hc => hk (absByte_inj (hc.trans rfl))
+      simp only [absLinePayload]
+      split <;> simp_all
 
 /-! ## What the rest of the tier owes this file -/
 
@@ -2172,5 +2217,1109 @@ theorem scan_ind_decl_refines {b : Slice Std.U8} (kf : KitFacts b) (K : ScanLine
   · rw [if_neg hb] at h
     rw [if_neg (blit_ne 123 rfl hb), err_val h]
     exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+
+/-- `scan_fast::scan_line_loop` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:2464-2621 scanLineLoop`).  The dispatcher:
+one index key, one payload key, matched at the closing brace. -/
+private theorem scan_line_loop_loop_refines {b : Slice Std.U8}
+    (kf : KitFacts b) (K : ScanLineIngredients b) (f : Nat) :
+    ∀ (w : Bool) (i : Std.Usize) (idx_kind : Std.U8) (idx : Std.U64)
+      (pl : frontend.scan_fast.LinePayload)
+      (o : core.result.Result (frontend.scan_types.LineRec × Std.Usize)
+             frontend.scan_types.ScanErr),
+      b.length - i.val ≤ f →
+      frontend.scan_fast.scan_line_loop_loop w b i idx_kind idx pl = ok o →
+      ScanSim absLineRec o
+        (scanLineLoop (absBytes b) (absPos i) w (absByte idx_kind) (absU64 idx)
+          (absLinePayload pl)) := by
+  induction f using Nat.strong_induction_on with
+  | _ f ih =>
+  intro w i idx_kind idx pl o hf h
+  rw [frontend.scan_fast.scan_line_loop_loop.eq_def] at h
+  obtain ⟨res, hres, h⟩ := bind_eq_ok_iff.mp h
+  have hbody := fun (p : USize) (w' : Bool) =>
+    scanLineLoop_body (absBytes b) (absByte idx_kind) (absU64 idx) (absLinePayload pl) p w'
+  have hstep := nextMember_step kf hbody (b.length - i.val) i w res (le_refl _) hres
+  cases res with
+  | Err er =>
+    simp only [Result.ok.injEq] at h
+    rw [← h]
+    exact ScanSim.err (MemberStep.err hstep)
+  | Ok p =>
+    obtain ⟨mem, ni, nw⟩ := p
+    simp only [uncurry_apply_pair] at h
+    cases mem with
+    | Close =>
+      rw [MemberStep.close hstep, u8_bne (y := 0#u8) 0 rfl]
+      cases nw with
+      | false =>
+        rw [if_neg (show ¬ ((false : Bool) = true) by simp)] at h
+        rw [Bool.false_and, if_neg (show ¬ ((false : Bool) = true) by simp)]
+        exact close_line h
+      | true =>
+        rw [if_pos (show (true : Bool) = true from rfl)] at h
+        rw [Bool.true_and]
+        by_cases hk0 : (idx_kind != 0#u8) = true
+        · rw [if_pos hk0] at h
+          rw [hk0, Bool.true_or, if_pos rfl, err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+        · rw [if_neg hk0] at h
+          rw [show (idx_kind != 0#u8) = false by rw [← Bool.not_eq_true]; exact hk0,
+            Bool.false_or]
+          obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+          have hb1' := line_payload_is_absent_refines hb1
+          rw [← hb1']
+          by_cases ha : b1 = true
+          · rw [if_pos ha] at h
+            rw [if_neg (by simp [ha])]
+            exact close_line h
+          · rw [if_neg ha] at h
+            rw [if_pos (by simp only [Bool.not_eq_true] at ha; simp [ha]), err_val h]
+            exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+    | Key k ks v =>
+      rw [MemberStep.key hstep]
+      have hks : i.val ≤ ks.val :=
+        next_member_ge (b.length - i.val) i w k ks v ni nw (le_refl _) hres
+      have hib : i.val < b.length := next_member_lt hres
+      cases k <;> simp only [absKey]
+      all_goals (try dsimp only at h)
+      all_goals
+        (try (rw [err_val h]; exact ScanSim.err (ScanErrSim.mk rfl (by simp))))
+      case KIn =>
+        rw [u8_bne (y := 0#u8) 0 rfl]
+        by_cases hk : (idx_kind != 0#u8) = true
+        · rw [if_pos hk] at h
+          rw [if_pos hk, err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+        · rw [if_neg hk] at h
+          rw [if_neg hk]
+          obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+          have hsl := natSlot_step (K := fun n e =>
+            scanLineLoop (absBytes b) e false 1 n (absLinePayload pl)) hr1
+          cases r1 with
+          | Err er =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            exact ScanSim.err (NatSlotStep.err hsl)
+          | Ok p1 =>
+            obtain ⟨x, e⟩ := p1
+            simp only [uncurry_apply_pair] at h
+            rw [NatSlotStep.ok hsl]
+            have hlt : ks.val < e.val := slot_nat_prog hr1
+            exact ih (b.length - e.val) (by omega) false e 1#u8 x pl o (le_refl _) h
+      case KIl =>
+        rw [u8_bne (y := 0#u8) 0 rfl]
+        by_cases hk : (idx_kind != 0#u8) = true
+        · rw [if_pos hk] at h
+          rw [if_pos hk, err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+        · rw [if_neg hk] at h
+          rw [if_neg hk]
+          obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+          have hsl := natSlot_step (K := fun n e =>
+            scanLineLoop (absBytes b) e false 2 n (absLinePayload pl)) hr1
+          cases r1 with
+          | Err er =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            exact ScanSim.err (NatSlotStep.err hsl)
+          | Ok p1 =>
+            obtain ⟨x, e⟩ := p1
+            simp only [uncurry_apply_pair] at h
+            rw [NatSlotStep.ok hsl]
+            have hlt : ks.val < e.val := slot_nat_prog hr1
+            exact ih (b.length - e.val) (by omega) false e 2#u8 x pl o (le_refl _) h
+      case KIe =>
+        rw [u8_bne (y := 0#u8) 0 rfl]
+        by_cases hk : (idx_kind != 0#u8) = true
+        · rw [if_pos hk] at h
+          rw [if_pos hk, err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+        · rw [if_neg hk] at h
+          rw [if_neg hk]
+          obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+          have hsl := natSlot_step (K := fun n e =>
+            scanLineLoop (absBytes b) e false 3 n (absLinePayload pl)) hr1
+          cases r1 with
+          | Err er =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            exact ScanSim.err (NatSlotStep.err hsl)
+          | Ok p1 =>
+            obtain ⟨x, e⟩ := p1
+            simp only [uncurry_apply_pair] at h
+            rw [NatSlotStep.ok hsl]
+            have hlt : ks.val < e.val := slot_nat_prog hr1
+            exact ih (b.length - e.val) (by omega) false e 3#u8 x pl o (le_refl _) h
+      case KBvar =>
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1' := line_payload_is_absent_refines hb1
+        rw [← hb1']
+        by_cases ha : b1 = true
+        · rw [if_pos ha] at h
+          rw [if_neg (by simp [ha])]
+          obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+          have hsl := natSlot_step (K := fun n e =>
+            scanLineLoop (absBytes b) e false (absByte idx_kind) (absU64 idx) (.expr (.bvar n))) hr1
+          cases r1 with
+          | Err er =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            exact ScanSim.err (NatSlotStep.err hsl)
+          | Ok p1 =>
+            obtain ⟨x, e⟩ := p1
+            simp only [uncurry_apply_pair] at h
+            rw [NatSlotStep.ok hsl]
+            have hlt : ks.val < e.val := slot_nat_prog hr1
+            exact ih (b.length - e.val) (by omega) false e idx_kind idx
+              (frontend.scan_fast.LinePayload.Expr (frontend.scan_types.ExprRec.Bvar x)) o (le_refl _) h
+        · rw [if_neg ha] at h
+          rw [if_pos (by simp only [Bool.not_eq_true] at ha; simp [ha]), err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+      case KSort =>
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1' := line_payload_is_absent_refines hb1
+        rw [← hb1']
+        by_cases ha : b1 = true
+        · rw [if_pos ha] at h
+          rw [if_neg (by simp [ha])]
+          obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+          have hsl := natSlot_step (K := fun n e =>
+            scanLineLoop (absBytes b) e false (absByte idx_kind) (absU64 idx) (.expr (.sort n))) hr1
+          cases r1 with
+          | Err er =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            exact ScanSim.err (NatSlotStep.err hsl)
+          | Ok p1 =>
+            obtain ⟨x, e⟩ := p1
+            simp only [uncurry_apply_pair] at h
+            rw [NatSlotStep.ok hsl]
+            have hlt : ks.val < e.val := slot_nat_prog hr1
+            exact ih (b.length - e.val) (by omega) false e idx_kind idx
+              (frontend.scan_fast.LinePayload.Expr (frontend.scan_types.ExprRec.Sort x)) o (le_refl _) h
+        · rw [if_neg ha] at h
+          rw [if_pos (by simp only [Bool.not_eq_true] at ha; simp [ha]), err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+      case KSucc =>
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1' := line_payload_is_absent_refines hb1
+        rw [← hb1']
+        by_cases ha : b1 = true
+        · rw [if_pos ha] at h
+          rw [if_neg (by simp [ha])]
+          obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+          have hsl := natSlot_step (K := fun n e =>
+            scanLineLoop (absBytes b) e false (absByte idx_kind) (absU64 idx) (.level (.succ n))) hr1
+          cases r1 with
+          | Err er =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            exact ScanSim.err (NatSlotStep.err hsl)
+          | Ok p1 =>
+            obtain ⟨x, e⟩ := p1
+            simp only [uncurry_apply_pair] at h
+            rw [NatSlotStep.ok hsl]
+            have hlt : ks.val < e.val := slot_nat_prog hr1
+            exact ih (b.length - e.val) (by omega) false e idx_kind idx
+              (frontend.scan_fast.LinePayload.Level (frontend.scan_types.LevelRec.Succ x)) o (le_refl _) h
+        · rw [if_neg ha] at h
+          rw [if_pos (by simp only [Bool.not_eq_true] at ha; simp [ha]), err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+      case KParam =>
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1' := line_payload_is_absent_refines hb1
+        rw [← hb1']
+        by_cases ha : b1 = true
+        · rw [if_pos ha] at h
+          rw [if_neg (by simp [ha])]
+          obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+          have hsl := natSlot_step (K := fun n e =>
+            scanLineLoop (absBytes b) e false (absByte idx_kind) (absU64 idx) (.level (.param n))) hr1
+          cases r1 with
+          | Err er =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            exact ScanSim.err (NatSlotStep.err hsl)
+          | Ok p1 =>
+            obtain ⟨x, e⟩ := p1
+            simp only [uncurry_apply_pair] at h
+            rw [NatSlotStep.ok hsl]
+            have hlt : ks.val < e.val := slot_nat_prog hr1
+            exact ih (b.length - e.val) (by omega) false e idx_kind idx
+              (frontend.scan_fast.LinePayload.Level (frontend.scan_types.LevelRec.Param x)) o (le_refl _) h
+        · rw [if_neg ha] at h
+          rw [if_pos (by simp only [Bool.not_eq_true] at ha; simp [ha]), err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+      case KApp =>
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1' := line_payload_is_absent_refines hb1
+        rw [← hb1']
+        by_cases ha : b1 = true
+        · rw [if_pos ha] at h
+          rw [if_neg (by simp [ha])]
+          obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+          have hsb := K.scan_app_expr hr1
+          cases r1 with
+          | Err er =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            refine ScanSim.err ?_
+            intro le hle
+            have hse : ScanErrSim er (scanAppExpr (absBytes b) (absPos v)) := hsb
+            rw [hse le hle]
+          | Ok p1 =>
+            obtain ⟨x, e⟩ := p1
+            have hsb' : scanAppExpr (absBytes b) (absPos v) = .ok (absExprRec x) (absPos e) := hsb
+            simp only [uncurry_apply_pair] at h
+            simp only [hsb']
+            obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+            by_cases hp : b2 = true
+            · rw [if_pos hp] at h
+              rw [if_pos ((prog_iff hb2).mp hp)]
+              have hlt : ks.val < e.val := absPos_lt.mp ((prog_iff hb2).mp hp)
+              exact ih (b.length - e.val) (by omega) false e idx_kind idx
+                (frontend.scan_fast.LinePayload.Expr x) o (le_refl _) h
+            · rw [if_neg hp] at h
+              rw [if_neg (fun hc => hp ((prog_iff hb2).mpr hc)), err_val h]
+              exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+        · rw [if_neg ha] at h
+          rw [if_pos (by simp only [Bool.not_eq_true] at ha; simp [ha]), err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+      case KLam =>
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1' := line_payload_is_absent_refines hb1
+        rw [← hb1']
+        by_cases ha : b1 = true
+        · rw [if_pos ha] at h
+          rw [if_neg (by simp [ha])]
+          obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+          have hsb := K.scan_lam_expr hr1
+          cases r1 with
+          | Err er =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            refine ScanSim.err ?_
+            intro le hle
+            have hse : ScanErrSim er (scanLamExpr (absBytes b) (absPos v)) := hsb
+            rw [hse le hle]
+          | Ok p1 =>
+            obtain ⟨x, e⟩ := p1
+            have hsb' : scanLamExpr (absBytes b) (absPos v) = .ok (absExprRec x) (absPos e) := hsb
+            simp only [uncurry_apply_pair] at h
+            simp only [hsb']
+            obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+            by_cases hp : b2 = true
+            · rw [if_pos hp] at h
+              rw [if_pos ((prog_iff hb2).mp hp)]
+              have hlt : ks.val < e.val := absPos_lt.mp ((prog_iff hb2).mp hp)
+              exact ih (b.length - e.val) (by omega) false e idx_kind idx
+                (frontend.scan_fast.LinePayload.Expr x) o (le_refl _) h
+            · rw [if_neg hp] at h
+              rw [if_neg (fun hc => hp ((prog_iff hb2).mpr hc)), err_val h]
+              exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+        · rw [if_neg ha] at h
+          rw [if_pos (by simp only [Bool.not_eq_true] at ha; simp [ha]), err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+      case KForallE =>
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1' := line_payload_is_absent_refines hb1
+        rw [← hb1']
+        by_cases ha : b1 = true
+        · rw [if_pos ha] at h
+          rw [if_neg (by simp [ha])]
+          obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+          have hsb := K.scan_forall_expr hr1
+          cases r1 with
+          | Err er =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            refine ScanSim.err ?_
+            intro le hle
+            have hse : ScanErrSim er (scanForallExpr (absBytes b) (absPos v)) := hsb
+            rw [hse le hle]
+          | Ok p1 =>
+            obtain ⟨x, e⟩ := p1
+            have hsb' : scanForallExpr (absBytes b) (absPos v) = .ok (absExprRec x) (absPos e) := hsb
+            simp only [uncurry_apply_pair] at h
+            simp only [hsb']
+            obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+            by_cases hp : b2 = true
+            · rw [if_pos hp] at h
+              rw [if_pos ((prog_iff hb2).mp hp)]
+              have hlt : ks.val < e.val := absPos_lt.mp ((prog_iff hb2).mp hp)
+              exact ih (b.length - e.val) (by omega) false e idx_kind idx
+                (frontend.scan_fast.LinePayload.Expr x) o (le_refl _) h
+            · rw [if_neg hp] at h
+              rw [if_neg (fun hc => hp ((prog_iff hb2).mpr hc)), err_val h]
+              exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+        · rw [if_neg ha] at h
+          rw [if_pos (by simp only [Bool.not_eq_true] at ha; simp [ha]), err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+      case KLetE =>
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1' := line_payload_is_absent_refines hb1
+        rw [← hb1']
+        by_cases ha : b1 = true
+        · rw [if_pos ha] at h
+          rw [if_neg (by simp [ha])]
+          obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+          have hsb := K.scan_let_expr hr1
+          cases r1 with
+          | Err er =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            refine ScanSim.err ?_
+            intro le hle
+            have hse : ScanErrSim er (scanLetExpr (absBytes b) (absPos v)) := hsb
+            rw [hse le hle]
+          | Ok p1 =>
+            obtain ⟨x, e⟩ := p1
+            have hsb' : scanLetExpr (absBytes b) (absPos v) = .ok (absExprRec x) (absPos e) := hsb
+            simp only [uncurry_apply_pair] at h
+            simp only [hsb']
+            obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+            by_cases hp : b2 = true
+            · rw [if_pos hp] at h
+              rw [if_pos ((prog_iff hb2).mp hp)]
+              have hlt : ks.val < e.val := absPos_lt.mp ((prog_iff hb2).mp hp)
+              exact ih (b.length - e.val) (by omega) false e idx_kind idx
+                (frontend.scan_fast.LinePayload.Expr x) o (le_refl _) h
+            · rw [if_neg hp] at h
+              rw [if_neg (fun hc => hp ((prog_iff hb2).mpr hc)), err_val h]
+              exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+        · rw [if_neg ha] at h
+          rw [if_pos (by simp only [Bool.not_eq_true] at ha; simp [ha]), err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+      case KConst =>
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1' := line_payload_is_absent_refines hb1
+        rw [← hb1']
+        by_cases ha : b1 = true
+        · rw [if_pos ha] at h
+          rw [if_neg (by simp [ha])]
+          obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+          have hsb := K.scan_const_expr hr1
+          cases r1 with
+          | Err er =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            refine ScanSim.err ?_
+            intro le hle
+            have hse : ScanErrSim er (scanConstExpr (absBytes b) (absPos v)) := hsb
+            rw [hse le hle]
+          | Ok p1 =>
+            obtain ⟨x, e⟩ := p1
+            have hsb' : scanConstExpr (absBytes b) (absPos v) = .ok (absExprRec x) (absPos e) := hsb
+            simp only [uncurry_apply_pair] at h
+            simp only [hsb']
+            obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+            by_cases hp : b2 = true
+            · rw [if_pos hp] at h
+              rw [if_pos ((prog_iff hb2).mp hp)]
+              have hlt : ks.val < e.val := absPos_lt.mp ((prog_iff hb2).mp hp)
+              exact ih (b.length - e.val) (by omega) false e idx_kind idx
+                (frontend.scan_fast.LinePayload.Expr x) o (le_refl _) h
+            · rw [if_neg hp] at h
+              rw [if_neg (fun hc => hp ((prog_iff hb2).mpr hc)), err_val h]
+              exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+        · rw [if_neg ha] at h
+          rw [if_pos (by simp only [Bool.not_eq_true] at ha; simp [ha]), err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+      case KProj =>
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1' := line_payload_is_absent_refines hb1
+        rw [← hb1']
+        by_cases ha : b1 = true
+        · rw [if_pos ha] at h
+          rw [if_neg (by simp [ha])]
+          obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+          have hsb := K.scan_proj_expr hr1
+          cases r1 with
+          | Err er =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            refine ScanSim.err ?_
+            intro le hle
+            have hse : ScanErrSim er (scanProjExpr (absBytes b) (absPos v)) := hsb
+            rw [hse le hle]
+          | Ok p1 =>
+            obtain ⟨x, e⟩ := p1
+            have hsb' : scanProjExpr (absBytes b) (absPos v) = .ok (absExprRec x) (absPos e) := hsb
+            simp only [uncurry_apply_pair] at h
+            simp only [hsb']
+            obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+            by_cases hp : b2 = true
+            · rw [if_pos hp] at h
+              rw [if_pos ((prog_iff hb2).mp hp)]
+              have hlt : ks.val < e.val := absPos_lt.mp ((prog_iff hb2).mp hp)
+              exact ih (b.length - e.val) (by omega) false e idx_kind idx
+                (frontend.scan_fast.LinePayload.Expr x) o (le_refl _) h
+            · rw [if_neg hp] at h
+              rw [if_neg (fun hc => hp ((prog_iff hb2).mpr hc)), err_val h]
+              exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+        · rw [if_neg ha] at h
+          rw [if_pos (by simp only [Bool.not_eq_true] at ha; simp [ha]), err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+      case KNatVal =>
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1' := line_payload_is_absent_refines hb1
+        rw [← hb1']
+        by_cases ha : b1 = true
+        · rw [if_pos ha] at h
+          rw [if_neg (by simp [ha])]
+          obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+          have hsb := K.scan_quoted_nat hr1
+          cases r1 with
+          | Err er =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            refine ScanSim.err ?_
+            intro le hle
+            have hse : ScanErrSim er (scanQuotedNat (absBytes b) (absPos v)) := hsb
+            rw [hse le hle]
+          | Ok p1 =>
+            obtain ⟨x, e⟩ := p1
+            have hsb' : scanQuotedNat (absBytes b) (absPos v) = .ok (natOfDigits x) (absPos e) := hsb
+            simp only [uncurry_apply_pair] at h
+            simp only [hsb']
+            obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+            by_cases hp : b2 = true
+            · rw [if_pos hp] at h
+              rw [if_pos ((prog_iff hb2).mp hp)]
+              have hlt : ks.val < e.val := absPos_lt.mp ((prog_iff hb2).mp hp)
+              exact ih (b.length - e.val) (by omega) false e idx_kind idx
+                (frontend.scan_fast.LinePayload.Expr (frontend.scan_types.ExprRec.NatVal x)) o (le_refl _) h
+            · rw [if_neg hp] at h
+              rw [if_neg (fun hc => hp ((prog_iff hb2).mpr hc)), err_val h]
+              exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+        · rw [if_neg ha] at h
+          rw [if_pos (by simp only [Bool.not_eq_true] at ha; simp [ha]), err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+      case KStrVal =>
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1' := line_payload_is_absent_refines hb1
+        rw [← hb1']
+        by_cases ha : b1 = true
+        · rw [if_pos ha] at h
+          rw [if_neg (by simp [ha])]
+          obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+          have hsb := K.scan_string hr1
+          cases r1 with
+          | Err er =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            refine ScanSim.err ?_
+            intro le hle
+            have hse : ScanErrSim er (scanString (absBytes b) (absPos v)) := hsb
+            rw [hse le hle]
+          | Ok p1 =>
+            obtain ⟨x, e⟩ := p1
+            have hsb' : scanString (absBytes b) (absPos v) = .ok (absString x) (absPos e) := hsb
+            simp only [uncurry_apply_pair] at h
+            simp only [hsb']
+            obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+            by_cases hp : b2 = true
+            · rw [if_pos hp] at h
+              rw [if_pos ((prog_iff hb2).mp hp)]
+              have hlt : ks.val < e.val := absPos_lt.mp ((prog_iff hb2).mp hp)
+              exact ih (b.length - e.val) (by omega) false e idx_kind idx
+                (frontend.scan_fast.LinePayload.Expr (frontend.scan_types.ExprRec.StrVal x)) o (le_refl _) h
+            · rw [if_neg hp] at h
+              rw [if_neg (fun hc => hp ((prog_iff hb2).mpr hc)), err_val h]
+              exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+        · rw [if_neg ha] at h
+          rw [if_pos (by simp only [Bool.not_eq_true] at ha; simp [ha]), err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+      case KAxiom =>
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1' := line_payload_is_absent_refines hb1
+        rw [← hb1']
+        by_cases ha : b1 = true
+        · rw [if_pos ha] at h
+          rw [if_neg (by simp [ha])]
+          obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+          have hsb := scan_axiom_decl_refines kf K hr1
+          cases r1 with
+          | Err er =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            refine ScanSim.err ?_
+            intro le hle
+            have hse : ScanErrSim er (scanAxiomDecl (absBytes b) (absPos v)) := hsb
+            rw [hse le hle]
+          | Ok p1 =>
+            obtain ⟨x, e⟩ := p1
+            have hsb' : scanAxiomDecl (absBytes b) (absPos v) = .ok (absDeclRec x) (absPos e) := hsb
+            simp only [uncurry_apply_pair] at h
+            simp only [hsb']
+            obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+            by_cases hp : b2 = true
+            · rw [if_pos hp] at h
+              rw [if_pos ((prog_iff hb2).mp hp)]
+              have hlt : ks.val < e.val := absPos_lt.mp ((prog_iff hb2).mp hp)
+              exact ih (b.length - e.val) (by omega) false e idx_kind idx
+                (frontend.scan_fast.LinePayload.Decl x) o (le_refl _) h
+            · rw [if_neg hp] at h
+              rw [if_neg (fun hc => hp ((prog_iff hb2).mpr hc)), err_val h]
+              exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+        · rw [if_neg ha] at h
+          rw [if_pos (by simp only [Bool.not_eq_true] at ha; simp [ha]), err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+      case KDef =>
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1' := line_payload_is_absent_refines hb1
+        rw [← hb1']
+        by_cases ha : b1 = true
+        · rw [if_pos ha] at h
+          rw [if_neg (by simp [ha])]
+          obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+          have hsb := scan_def_decl_refines kf K hr1
+          cases r1 with
+          | Err er =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            refine ScanSim.err ?_
+            intro le hle
+            have hse : ScanErrSim er (scanDefDecl (absBytes b) (absPos v)) := hsb
+            rw [hse le hle]
+          | Ok p1 =>
+            obtain ⟨x, e⟩ := p1
+            have hsb' : scanDefDecl (absBytes b) (absPos v) = .ok (absDeclRec x) (absPos e) := hsb
+            simp only [uncurry_apply_pair] at h
+            simp only [hsb']
+            obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+            by_cases hp : b2 = true
+            · rw [if_pos hp] at h
+              rw [if_pos ((prog_iff hb2).mp hp)]
+              have hlt : ks.val < e.val := absPos_lt.mp ((prog_iff hb2).mp hp)
+              exact ih (b.length - e.val) (by omega) false e idx_kind idx
+                (frontend.scan_fast.LinePayload.Decl x) o (le_refl _) h
+            · rw [if_neg hp] at h
+              rw [if_neg (fun hc => hp ((prog_iff hb2).mpr hc)), err_val h]
+              exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+        · rw [if_neg ha] at h
+          rw [if_pos (by simp only [Bool.not_eq_true] at ha; simp [ha]), err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+      case KThm =>
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1' := line_payload_is_absent_refines hb1
+        rw [← hb1']
+        by_cases ha : b1 = true
+        · rw [if_pos ha] at h
+          rw [if_neg (by simp [ha])]
+          obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+          have hsb := scan_thm_decl_refines kf K hr1
+          cases r1 with
+          | Err er =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            refine ScanSim.err ?_
+            intro le hle
+            have hse : ScanErrSim er (scanThmDecl (absBytes b) (absPos v)) := hsb
+            rw [hse le hle]
+          | Ok p1 =>
+            obtain ⟨x, e⟩ := p1
+            have hsb' : scanThmDecl (absBytes b) (absPos v) = .ok (absDeclRec x) (absPos e) := hsb
+            simp only [uncurry_apply_pair] at h
+            simp only [hsb']
+            obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+            by_cases hp : b2 = true
+            · rw [if_pos hp] at h
+              rw [if_pos ((prog_iff hb2).mp hp)]
+              have hlt : ks.val < e.val := absPos_lt.mp ((prog_iff hb2).mp hp)
+              exact ih (b.length - e.val) (by omega) false e idx_kind idx
+                (frontend.scan_fast.LinePayload.Decl x) o (le_refl _) h
+            · rw [if_neg hp] at h
+              rw [if_neg (fun hc => hp ((prog_iff hb2).mpr hc)), err_val h]
+              exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+        · rw [if_neg ha] at h
+          rw [if_pos (by simp only [Bool.not_eq_true] at ha; simp [ha]), err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+      case KOpaque =>
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1' := line_payload_is_absent_refines hb1
+        rw [← hb1']
+        by_cases ha : b1 = true
+        · rw [if_pos ha] at h
+          rw [if_neg (by simp [ha])]
+          obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+          have hsb := scan_opaque_decl_refines kf K hr1
+          cases r1 with
+          | Err er =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            refine ScanSim.err ?_
+            intro le hle
+            have hse : ScanErrSim er (scanOpaqueDecl (absBytes b) (absPos v)) := hsb
+            rw [hse le hle]
+          | Ok p1 =>
+            obtain ⟨x, e⟩ := p1
+            have hsb' : scanOpaqueDecl (absBytes b) (absPos v) = .ok (absDeclRec x) (absPos e) := hsb
+            simp only [uncurry_apply_pair] at h
+            simp only [hsb']
+            obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+            by_cases hp : b2 = true
+            · rw [if_pos hp] at h
+              rw [if_pos ((prog_iff hb2).mp hp)]
+              have hlt : ks.val < e.val := absPos_lt.mp ((prog_iff hb2).mp hp)
+              exact ih (b.length - e.val) (by omega) false e idx_kind idx
+                (frontend.scan_fast.LinePayload.Decl x) o (le_refl _) h
+            · rw [if_neg hp] at h
+              rw [if_neg (fun hc => hp ((prog_iff hb2).mpr hc)), err_val h]
+              exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+        · rw [if_neg ha] at h
+          rw [if_pos (by simp only [Bool.not_eq_true] at ha; simp [ha]), err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+      case KQuot =>
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1' := line_payload_is_absent_refines hb1
+        rw [← hb1']
+        by_cases ha : b1 = true
+        · rw [if_pos ha] at h
+          rw [if_neg (by simp [ha])]
+          obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+          have hsb := scan_quot_decl_refines kf K hr1
+          cases r1 with
+          | Err er =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            refine ScanSim.err ?_
+            intro le hle
+            have hse : ScanErrSim er (scanQuotDecl (absBytes b) (absPos v)) := hsb
+            rw [hse le hle]
+          | Ok p1 =>
+            obtain ⟨x, e⟩ := p1
+            have hsb' : scanQuotDecl (absBytes b) (absPos v) = .ok (absDeclRec x) (absPos e) := hsb
+            simp only [uncurry_apply_pair] at h
+            simp only [hsb']
+            obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+            by_cases hp : b2 = true
+            · rw [if_pos hp] at h
+              rw [if_pos ((prog_iff hb2).mp hp)]
+              have hlt : ks.val < e.val := absPos_lt.mp ((prog_iff hb2).mp hp)
+              exact ih (b.length - e.val) (by omega) false e idx_kind idx
+                (frontend.scan_fast.LinePayload.Decl x) o (le_refl _) h
+            · rw [if_neg hp] at h
+              rw [if_neg (fun hc => hp ((prog_iff hb2).mpr hc)), err_val h]
+              exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+        · rw [if_neg ha] at h
+          rw [if_pos (by simp only [Bool.not_eq_true] at ha; simp [ha]), err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+      case KInductive =>
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1' := line_payload_is_absent_refines hb1
+        rw [← hb1']
+        by_cases ha : b1 = true
+        · rw [if_pos ha] at h
+          rw [if_neg (by simp [ha])]
+          obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+          have hsb := scan_ind_decl_refines kf K hr1
+          cases r1 with
+          | Err er =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            refine ScanSim.err ?_
+            intro le hle
+            have hse : ScanErrSim er (scanIndDecl (absBytes b) (absPos v)) := hsb
+            rw [hse le hle]
+          | Ok p1 =>
+            obtain ⟨x, e⟩ := p1
+            have hsb' : scanIndDecl (absBytes b) (absPos v) = .ok (absDeclRec x) (absPos e) := hsb
+            simp only [uncurry_apply_pair] at h
+            simp only [hsb']
+            obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+            by_cases hp : b2 = true
+            · rw [if_pos hp] at h
+              rw [if_pos ((prog_iff hb2).mp hp)]
+              have hlt : ks.val < e.val := absPos_lt.mp ((prog_iff hb2).mp hp)
+              exact ih (b.length - e.val) (by omega) false e idx_kind idx
+                (frontend.scan_fast.LinePayload.Decl x) o (le_refl _) h
+            · rw [if_neg hp] at h
+              rw [if_neg (fun hc => hp ((prog_iff hb2).mpr hc)), err_val h]
+              exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+        · rw [if_neg ha] at h
+          rw [if_pos (by simp only [Bool.not_eq_true] at ha; simp [ha]), err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+      case KStr =>
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1' := line_payload_is_absent_refines hb1
+        rw [← hb1']
+        by_cases ha : b1 = true
+        · rw [if_pos ha] at h
+          rw [if_neg (by simp [ha])]
+          obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+          have hb2' : b2 = true := by
+            have hkb : frontend.scan_types.key_beq frontend.scan_types.Key.KStr
+                frontend.scan_types.Key.KStr = ok true := by
+              simp [frontend.scan_types.key_beq, frontend.scan_types.key_code]
+            rw [hkb] at hb2
+            exact (Result.ok_injective hb2).symm
+          rw [if_pos hb2'] at h
+          obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+          have hsb := K.scan_str_name hr1
+          cases r1 with
+          | Err er =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            refine ScanSim.err ?_
+            intro le hle
+            have hse : ScanErrSim er (scanStrName (absBytes b) (absPos v)) := hsb
+            rw [hse le hle]
+          | Ok p1 =>
+            obtain ⟨x, e⟩ := p1
+            have hsb' : scanStrName (absBytes b) (absPos v) = .ok (absNameRec x) (absPos e) := hsb
+            simp only [uncurry_apply_pair] at h
+            simp only [hsb']
+            obtain ⟨b3, hb3, h⟩ := bind_eq_ok_iff.mp h
+            by_cases hp : b3 = true
+            · rw [if_pos hp] at h
+              rw [if_pos ((prog_iff hb3).mp hp)]
+              have hlt : ks.val < e.val := absPos_lt.mp ((prog_iff hb3).mp hp)
+              exact ih (b.length - e.val) (by omega) false e idx_kind idx
+                (frontend.scan_fast.LinePayload.Name x) o (le_refl _) h
+            · rw [if_neg hp] at h
+              rw [if_neg (fun hc => hp ((prog_iff hb3).mpr hc)), err_val h]
+              exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+        · rw [if_neg ha] at h
+          rw [if_pos (by simp only [Bool.not_eq_true] at ha; simp [ha]), err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+      case KNum =>
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1' := line_payload_is_absent_refines hb1
+        rw [← hb1']
+        by_cases ha : b1 = true
+        · rw [if_pos ha] at h
+          rw [if_neg (by simp [ha])]
+          obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+          have hb2' : b2 = false := by
+            have hkb : frontend.scan_types.key_beq frontend.scan_types.Key.KNum
+                frontend.scan_types.Key.KStr = ok false := by
+              simp [frontend.scan_types.key_beq, frontend.scan_types.key_code]
+            rw [hkb] at hb2
+            exact (Result.ok_injective hb2).symm
+          rw [if_neg (by simp [hb2'])] at h
+          obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+          have hsb := K.scan_num_name hr1
+          cases r1 with
+          | Err er =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            refine ScanSim.err ?_
+            intro le hle
+            have hse : ScanErrSim er (scanNumName (absBytes b) (absPos v)) := hsb
+            rw [hse le hle]
+          | Ok p1 =>
+            obtain ⟨x, e⟩ := p1
+            have hsb' : scanNumName (absBytes b) (absPos v) = .ok (absNameRec x) (absPos e) := hsb
+            simp only [uncurry_apply_pair] at h
+            simp only [hsb']
+            obtain ⟨b3, hb3, h⟩ := bind_eq_ok_iff.mp h
+            by_cases hp : b3 = true
+            · rw [if_pos hp] at h
+              rw [if_pos ((prog_iff hb3).mp hp)]
+              have hlt : ks.val < e.val := absPos_lt.mp ((prog_iff hb3).mp hp)
+              exact ih (b.length - e.val) (by omega) false e idx_kind idx
+                (frontend.scan_fast.LinePayload.Name x) o (le_refl _) h
+            · rw [if_neg hp] at h
+              rw [if_neg (fun hc => hp ((prog_iff hb3).mpr hc)), err_val h]
+              exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+        · rw [if_neg ha] at h
+          rw [if_pos (by simp only [Bool.not_eq_true] at ha; simp [ha]), err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+
+      case KMax =>
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1' := line_payload_is_absent_refines hb1
+        rw [← hb1']
+        by_cases ha : b1 = true
+        · rw [if_pos ha] at h
+          rw [if_neg (by simp [ha])]
+          obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+          have hsb := K.scan_nat_list hr1
+          cases r1 with
+          | Err er =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            refine ScanSim.err ?_
+            intro le hle
+            have hse : ScanErrSim er (scanNatList (absBytes b) (absPos v)) := hsb
+            rw [hse le hle]
+          | Ok p1 =>
+            obtain ⟨us, e⟩ := p1
+            have hsb' : scanNatList (absBytes b) (absPos v) = .ok (absU64s us) (absPos e) := hsb
+            simp only [uncurry_apply_pair] at h
+            simp only [hsb']
+            by_cases hl : us.val.length = 2
+            · obtain ⟨a0, a1, hus⟩ := List.length_eq_two.mp hl
+              rw [if_neg (show ¬ ((alloc.vec.Vec.len us != 2#usize) = true) by
+                simp only [bne_iff_ne, ne_eq, not_not]
+                have : (alloc.vec.Vec.len us).val = 2 := by
+                  rw [alloc.vec.Vec.len_val, alloc.vec.Vec.length, hl]
+                scalar_tac)] at h
+              obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+              by_cases hp : b2 = true
+              · rw [if_pos hp] at h
+                obtain ⟨b3, hb3, h⟩ := bind_eq_ok_iff.mp h
+                have hb3' : b3 = true := by
+                  have hkb : frontend.scan_types.key_beq frontend.scan_types.Key.KMax
+                      frontend.scan_types.Key.KMax = ok true := by
+                    simp [frontend.scan_types.key_beq, frontend.scan_types.key_code]
+                  rw [hkb] at hb3
+                  exact (Result.ok_injective hb3).symm
+                rw [if_pos hb3'] at h
+                obtain ⟨x0, hx0, h⟩ := bind_eq_ok_iff.mp h
+                obtain ⟨x1, hx1, h⟩ := bind_eq_ok_iff.mp h
+                have h0 : x0 = a0 := by
+                  have := vec_index_get? hx0
+                  rw [hus] at this; simpa using this.symm
+                have h1 : x1 = a1 := by
+                  have := vec_index_get? hx1
+                  rw [hus] at this; simpa using this.symm
+                simp only [show absU64s us = [absU64 a0, absU64 a1] by
+                  simp [absU64s, hus]]
+                rw [if_pos ((prog_iff hb2).mp hp)]
+                have hlt : ks.val < e.val := absPos_lt.mp ((prog_iff hb2).mp hp)
+                rw [← h0, ← h1]
+                exact ih (b.length - e.val) (by omega) false e idx_kind idx
+                  (frontend.scan_fast.LinePayload.Level
+                    (frontend.scan_types.LevelRec.Max x0 x1)) o (le_refl _) h
+              · rw [if_neg hp] at h
+                simp only [show absU64s us = [absU64 a0, absU64 a1] by
+                  simp [absU64s, hus]]
+                rw [if_neg (fun hc => hp ((prog_iff hb2).mpr hc)), err_val h]
+                exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+            · rw [if_pos (show ((alloc.vec.Vec.len us != 2#usize) = true) by
+                simp only [bne_iff_ne, ne_eq]
+                intro hc
+                apply hl
+                have hv2 : (alloc.vec.Vec.len us).val = (2#usize : Std.Usize).val := by
+                  rw [hc]
+                rw [alloc.vec.Vec.len_val, alloc.vec.Vec.length] at hv2
+                simpa using hv2)] at h
+              rw [err_val h]
+              refine ScanSim.err (ScanErrSim.mk rfl ?_)
+              rcases hv : us.val with _ | ⟨c0, l1⟩
+              · simp [absU64s, hv]
+              · rcases l1 with _ | ⟨c1, l2⟩
+                · simp [absU64s, hv]
+                · rcases l2 with _ | ⟨c2, l3⟩
+                  · exact absurd (by rw [hv]; rfl) hl
+                  · simp [absU64s, hv]
+        · rw [if_neg ha] at h
+          rw [if_pos (by simp only [Bool.not_eq_true] at ha; simp [ha]), err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+      case KImax =>
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1' := line_payload_is_absent_refines hb1
+        rw [← hb1']
+        by_cases ha : b1 = true
+        · rw [if_pos ha] at h
+          rw [if_neg (by simp [ha])]
+          obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+          have hsb := K.scan_nat_list hr1
+          cases r1 with
+          | Err er =>
+            simp only [Result.ok.injEq] at h
+            rw [← h]
+            refine ScanSim.err ?_
+            intro le hle
+            have hse : ScanErrSim er (scanNatList (absBytes b) (absPos v)) := hsb
+            rw [hse le hle]
+          | Ok p1 =>
+            obtain ⟨us, e⟩ := p1
+            have hsb' : scanNatList (absBytes b) (absPos v) = .ok (absU64s us) (absPos e) := hsb
+            simp only [uncurry_apply_pair] at h
+            simp only [hsb']
+            by_cases hl : us.val.length = 2
+            · obtain ⟨a0, a1, hus⟩ := List.length_eq_two.mp hl
+              rw [if_neg (show ¬ ((alloc.vec.Vec.len us != 2#usize) = true) by
+                simp only [bne_iff_ne, ne_eq, not_not]
+                have : (alloc.vec.Vec.len us).val = 2 := by
+                  rw [alloc.vec.Vec.len_val, alloc.vec.Vec.length, hl]
+                scalar_tac)] at h
+              obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+              by_cases hp : b2 = true
+              · rw [if_pos hp] at h
+                obtain ⟨b3, hb3, h⟩ := bind_eq_ok_iff.mp h
+                have hb3' : b3 = false := by
+                  have hkb : frontend.scan_types.key_beq frontend.scan_types.Key.KImax
+                      frontend.scan_types.Key.KMax = ok false := by
+                    simp [frontend.scan_types.key_beq, frontend.scan_types.key_code]
+                  rw [hkb] at hb3
+                  exact (Result.ok_injective hb3).symm
+                rw [if_neg (by simp [hb3'])] at h
+                obtain ⟨x0, hx0, h⟩ := bind_eq_ok_iff.mp h
+                obtain ⟨x1, hx1, h⟩ := bind_eq_ok_iff.mp h
+                have h0 : x0 = a0 := by
+                  have := vec_index_get? hx0
+                  rw [hus] at this; simpa using this.symm
+                have h1 : x1 = a1 := by
+                  have := vec_index_get? hx1
+                  rw [hus] at this; simpa using this.symm
+                simp only [show absU64s us = [absU64 a0, absU64 a1] by
+                  simp [absU64s, hus]]
+                rw [if_pos ((prog_iff hb2).mp hp)]
+                have hlt : ks.val < e.val := absPos_lt.mp ((prog_iff hb2).mp hp)
+                rw [← h0, ← h1]
+                exact ih (b.length - e.val) (by omega) false e idx_kind idx
+                  (frontend.scan_fast.LinePayload.Level
+                    (frontend.scan_types.LevelRec.Imax x0 x1)) o (le_refl _) h
+              · rw [if_neg hp] at h
+                simp only [show absU64s us = [absU64 a0, absU64 a1] by
+                  simp [absU64s, hus]]
+                rw [if_neg (fun hc => hp ((prog_iff hb2).mpr hc)), err_val h]
+                exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+            · rw [if_pos (show ((alloc.vec.Vec.len us != 2#usize) = true) by
+                simp only [bne_iff_ne, ne_eq]
+                intro hc
+                apply hl
+                have hv2 : (alloc.vec.Vec.len us).val = (2#usize : Std.Usize).val := by
+                  rw [hc]
+                rw [alloc.vec.Vec.len_val, alloc.vec.Vec.length] at hv2
+                simpa using hv2)] at h
+              rw [err_val h]
+              refine ScanSim.err (ScanErrSim.mk rfl ?_)
+              rcases hv : us.val with _ | ⟨c0, l1⟩
+              · simp [absU64s, hv]
+              · rcases l1 with _ | ⟨c1, l2⟩
+                · simp [absU64s, hv]
+                · rcases l2 with _ | ⟨c2, l3⟩
+                  · exact absurd (by rw [hv]; rfl) hl
+                  · simp [absU64s, hv]
+        · rw [if_neg ha] at h
+          rw [if_pos (by simp only [Bool.not_eq_true] at ha; simp [ha]), err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+      case KMeta =>
+        obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+        have hb1' := line_payload_is_absent_refines hb1
+        rw [← hb1']
+        by_cases ha : b1 = true
+        · rw [if_pos ha] at h
+          rw [if_neg (by simp [ha])]
+          obtain ⟨c1, hc1, h⟩ := bind_eq_ok_iff.mp h
+          rw [← byte_at_refines hc1, u8_bne (y := 123#u8) 123 rfl]
+          by_cases hc : (c1 != 123#u8) = true
+          · rw [if_pos hc] at h
+            rw [if_pos hc, err_val h]
+            exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+          · rw [if_neg hc] at h
+            rw [if_neg hc]
+            obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
+            have hsk : skipBraced (absBytes b) (absPos v + 1) 0 = absPos e := by
+              rw [← absPos_add_one hi2]; exact (K.skip_braced he).symm
+            rw [hsk, p_beq0]
+            by_cases he0 : e = 0#usize
+            · rw [if_pos he0] at h
+              rw [if_pos (by simp [he0]), err_val h]
+              exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+            · rw [if_neg he0] at h
+              rw [if_neg (by simp [he0])]
+              obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+              by_cases hp : b2 = true
+              · rw [if_pos hp] at h
+                rw [if_pos ((prog_iff hb2).mp hp)]
+                have hlt : ks.val < e.val := absPos_lt.mp ((prog_iff hb2).mp hp)
+                exact ih (b.length - e.val) (by omega) false e idx_kind idx
+                  frontend.scan_fast.LinePayload.Header o (le_refl _) h
+              · rw [if_neg hp] at h
+                rw [if_neg (fun hcc => hp ((prog_iff hb2).mpr hcc)), err_val h]
+                exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+        · rw [if_neg ha] at h
+          rw [if_pos (by simp only [Bool.not_eq_true] at ha; simp [ha]), err_val h]
+          exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+
+/-- `scan_fast::scan_line_loop` (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:2464-2621 scanLineLoop` at its initial
+state). -/
+theorem scan_line_loop_refines {b : Slice Std.U8} (kf : KitFacts b)
+    (K : ScanLineIngredients b) {i : Std.Usize} {o}
+    (h : frontend.scan_fast.scan_line_loop b i = ok o) :
+    ScanSim absLineRec o (scanLineLoop (absBytes b) (absPos i) true 0 0 .absent) := by
+  rw [frontend.scan_fast.scan_line_loop] at h
+  exact scan_line_loop_loop_refines kf K (b.length - i.val) true i 0#u8 0#u64
+    frontend.scan_fast.LinePayload.Absent o (le_refl _) h
+
+/-- **The capstone of the scanner tier.**  `scan_fast::scan_line_fwd`
+(con-leche: `ConLeche/Frontend/Scan/Fast.lean:2622-2638 scanLineFwd`): for the
+same bytes the port reads the record con-leche reads, stops where con-leche
+stops, and fails where con-leche fails. -/
+theorem scan_line_fwd_refines {b : Slice Std.U8} (kf : KitFacts b)
+    (K : ScanLineIngredients b) {i : Std.Usize} {o}
+    (h : frontend.scan_fast.scan_line_fwd b i = ok o) :
+    ScanSim absLineRec o (scanLineFwd (absBytes b) (absPos i)) := by
+  rw [frontend.scan_fast.scan_line_fwd] at h
+  obtain ⟨s, hs, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+  rw [scanLineFwd, ← skip_ws_refines hs, ← byte_at_refines hc]
+  by_cases h10 : c = 10#u8
+  · rw [if_pos h10] at h
+    rw [if_pos (blit_eq 10 rfl h10)]
+    obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+    rw [← Result.ok_injective h]
+    exact ScanSim.ok (by rw [absPos_add_one hi2]; try rfl)
+  · rw [if_neg h10] at h
+    rw [if_neg (blit_ne 10 rfl h10)]
+    by_cases hend : Slice.len b ≤ s
+    · rw [if_pos hend] at h
+      rw [if_pos (usize_le_absPos.mpr (by scalar_tac))]
+      rw [← Result.ok_injective h]
+      exact ScanSim.ok (by rfl)
+    · rw [if_neg hend] at h
+      rw [if_neg (fun hcc => hend (by
+        have := usize_le_absPos.mp hcc; scalar_tac))]
+      by_cases h123 : c = 123#u8
+      · rw [if_neg (show ¬ ((c != 123#u8) = true) by simp [h123])] at h
+        rw [if_neg (show ¬ ((absByte c != (123 : UInt8)) = true) by
+          rw [u8_bne (y := 123#u8) 123 rfl]; simp [h123])]
+        obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+        have hlp := scan_line_loop_refines kf K hr
+        rw [← absPos_add_one hi3]
+        cases r with
+        | Err er =>
+          simp only [Result.ok.injEq] at h
+          rw [← h]
+          refine ScanSim.err ?_
+          intro le hle
+          have hse : ScanErrSim er
+            (scanLineLoop (absBytes b) (absPos i3) true 0 0 .absent) := hlp
+          rw [hse le hle]
+        | Ok p =>
+          obtain ⟨r1, j⟩ := p
+          have hlp' : scanLineLoop (absBytes b) (absPos i3) true 0 0 .absent
+              = .ok (absLineRec r1) (absPos j) := hlp
+          simp only [uncurry_apply_pair] at h
+          simp only [hlp']
+          obtain ⟨p1, hp1, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨c2, hc2, h⟩ := bind_eq_ok_iff.mp h
+          rw [← skip_ws_refines hp1, ← byte_at_refines hc2]
+          by_cases h10' : c2 = 10#u8
+          · rw [if_pos h10'] at h
+            rw [if_pos (blit_eq 10 rfl h10')]
+            obtain ⟨i5, hi5, h⟩ := bind_eq_ok_iff.mp h
+            rw [← Result.ok_injective h]
+            exact ScanSim.ok (by rw [absPos_add_one hi5]; try rfl)
+          · rw [if_neg h10'] at h
+            rw [if_neg (blit_ne 10 rfl h10')]
+            by_cases hend' : Slice.len b ≤ p1
+            · rw [if_pos hend'] at h
+              rw [if_pos (usize_le_absPos.mpr (by scalar_tac))]
+              rw [← Result.ok_injective h]
+              exact ScanSim.ok (by rfl)
+            · rw [if_neg hend'] at h
+              rw [if_neg (fun hcc => hend' (by
+                have := usize_le_absPos.mp hcc; scalar_tac)), err_val h]
+              exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+      · rw [if_pos (show ((c != 123#u8) = true) by simp [h123])] at h
+        rw [if_pos (show ((absByte c != (123 : UInt8)) = true) by
+          rw [u8_bne (y := 123#u8) 123 rfl]; simp [h123]), err_val h]
+        exact ScanSim.err (ScanErrSim.mk rfl (by simp))
+
+-- The census is the standard three.  Task #86 spelled the scanner's
+-- sixty-eight key literals as `[u8; N]` arrays, so nothing in `key_at` or
+-- `scan_bool` carries Aeneas's `decide +native` bound any more and this
+-- statement, which names `scan_line_fwd` and `scanLineFwd`, inherits none.
 
 end ConRon.Refine.Frontend
