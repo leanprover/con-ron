@@ -159,54 +159,54 @@
    204  allocator is `con-ron-dump`'s `#[global_allocator]`, chosen on this crate's
    205  dependency edge -- `cargo build --release` is mimalloc, `--no-default-features`
    206  is glibc `malloc`, and `--no-default-features --features jemalloc` is jemalloc.
-   207  
-   208  Any other option is a usage error: the run reports it, prints this text and
-   209  exits 3 without reading its input.
-   210  
-   211  exit codes: 0 accepted, 1 rejected, 2 declined, 3 usage/malformed/internal.
-   212  An out-of-memory condition is NEITHER: con-leche's exit 1 for it is the Lean
-   213  runtime's own panic, and this program instead aborts the way Rust aborts on a
-   214  failed allocation ('memory allocation of <n> bytes failed', SIGABRT, which a
-   215  shell reports as 134).  A panic is exit 3.
-   216  
-   217  THE VERDICT LINE'S COUNT.  It counts the FILE's accepted declaration RECORDS:
-   218  one per def/theorem/opaque/axiom/inductive/quot record the file declares.  The
-   219  built-in prelude's own records are not counted, and neither are the records
-   220  the in-process modeller generates; a stream record that declares a prelude
-   221  declaration IS counted -- the preparation moves it to the front rather than
-   222  dropping it, and it is what installs.  That count is a property of the INPUT.
-   223  The number of environment CONSTANTS is not: an inductive record installs
-   224  several constants (type former, constructors, recursor, projection table), so
-   225  it moves when the representation moves.
-   226  
-   227  THE BUILT-IN PRELUDE.  Every run installs, first and unconditionally, the
-   228  checker's own little prelude -- the six pinned basis blocks (Eq, Nat, PUnit,
-   229  Empty, False, Quot) and the toolchain's Bool and And blocks, embedded at build
-   230  time -- so the pin-certified Nat operations find their ground whatever order
-   231  the export chose.  The stream's OWN copy of a prelude declaration is moved to
-   232  the front in the prelude's order, and only the prelude records the stream does
-   233  not declare are synthesised; a pinned operation's stream-certified structural
-   234  ground (Nat.ble, Nat.sub, Nat.mul) is HOISTED ahead of the operation when the
-   235  stream declares it later.  All of that is one pure total function from the
-   236  file's records to the fold's input (con_ron::frontend::prepare); the parse
-   237  itself only decodes, and recognising a block as a pinned basis block or a
-   238  record as the quotient package's is the FOLD's.
-   239  
-   240  environment (con-leche's):
-   241    CON_LECHE_INMODEL=0          turn the in-process modeller off; a mutual or
-   242                                 nested block is then pushed bare and the FOLD
-   243                                 declines it, having found no route
-   244    CON_LECHE_INMODEL_CENSUS=1   report every mutual/nested block's outcome
-   245                                 after the parse and stop (exit 2)
-   246    CON_LECHE_PROJREC_TRACE      name each rewritten projection function
-   247  These are the in-process modeller's debug switches and they go with it: no
-   248  environment variable this program reads can shape a verdict, which is
-   249  con-leche's own rule -- every such switch is a command-line flag.
-   250  
-   251  NOT PORTED: CON_LECHE_INMODEL_DUMP, the debug splice of the generated records
-   252  into a copy of the input -- it is written through con-leche's annotated-NDJSON
-   253  writer (`Frontend/ExportWrite.lean`), an output path this checker does not
-   254  have.";
+   207  The mimalloc one is `con_ron_dump::MiMallocTight`, which enters mimalloc by
+   208  `mi_malloc` rather than `mi_malloc_aligned` for word-aligned requests: -4.5 %
+   209  instructions and -7.4 % wall against the `mimalloc` crate's own entry (task
+   210  #92), and one size class back for anything 42 to 48 bytes wide.
+   211  
+   212  Any other option is a usage error: the run reports it, prints this text and
+   213  exits 3 without reading its input.
+   214  
+   215  exit codes: 0 accepted, 1 rejected, 2 declined, 3 usage/malformed/internal.
+   216  An out-of-memory condition is NEITHER: con-leche's exit 1 for it is the Lean
+   217  runtime's own panic, and this program instead aborts the way Rust aborts on a
+   218  failed allocation ('memory allocation of <n> bytes failed', SIGABRT, which a
+   219  shell reports as 134).  A panic is exit 3.
+   220  
+   221  THE VERDICT LINE'S COUNT.  It counts the FILE's accepted declaration RECORDS:
+   222  one per def/theorem/opaque/axiom/inductive/quot record the file declares.  The
+   223  built-in prelude's own records are not counted, and neither are the records
+   224  the in-process modeller generates; a stream record that declares a prelude
+   225  declaration IS counted -- the preparation moves it to the front rather than
+   226  dropping it, and it is what installs.  That count is a property of the INPUT.
+   227  The number of environment CONSTANTS is not: an inductive record installs
+   228  several constants (type former, constructors, recursor, projection table), so
+   229  it moves when the representation moves.
+   230  
+   231  THE BUILT-IN PRELUDE.  Every run installs, first and unconditionally, the
+   232  checker's own little prelude -- the six pinned basis blocks (Eq, Nat, PUnit,
+   233  Empty, False, Quot) and the toolchain's Bool and And blocks, embedded at build
+   234  time -- so the pin-certified Nat operations find their ground whatever order
+   235  the export chose.  The stream's OWN copy of a prelude declaration is moved to
+   236  the front in the prelude's order, and only the prelude records the stream does
+   237  not declare are synthesised; a pinned operation's stream-certified structural
+   238  ground (Nat.ble, Nat.sub, Nat.mul) is HOISTED ahead of the operation when the
+   239  stream declares it later.  All of that is one pure total function from the
+   240  file's records to the fold's input (con_ron::frontend::prepare); the parse
+   241  itself only decodes, and recognising a block as a pinned basis block or a
+   242  record as the quotient package's is the FOLD's.
+   243  
+   244  environment (con-leche's):
+   245    CON_LECHE_INMODEL=0          turn the in-process modeller off; a mutual or
+   246                                 nested block is then pushed bare and the FOLD
+   247                                 declines it, having found no route
+   248    CON_LECHE_INMODEL_CENSUS=1   report every mutual/nested block's outcome
+   249                                 after the parse and stop (exit 2)
+   250    CON_LECHE_PROJREC_TRACE      name each rewritten projection function
+   251  These are the in-process modeller's debug switches and they go with it: no
+   252  environment variable this program reads can shape a verdict, which is
+   253  con-leche's own rule -- every such switch is a command-line flag.
+   254  
 
 == crates/con-ron/src/driver.rs#L41-L46
     41  //! | exit | verdict | meaning |
@@ -447,6 +447,39 @@
    289      Two(P<(Name, Name)>),
    290      Many(P<Vec<Name>>),
    291  }
+
+== crates/con-ron-dump/src/lib.rs#L99-L129
+    99  /// **mimalloc, entered by `mi_malloc` rather than `mi_malloc_aligned`**
+   100  /// (task #92).
+   101  ///
+   102  /// The `mimalloc` crate's own `GlobalAlloc` sends *every* request through
+   103  /// `mi_malloc_aligned(size, align)`, whatever the alignment is.  That is
+   104  /// correct but it costs twice over, and con-ron pays it on every node:
+   105  ///
+   106  /// * **A size class.**  Measured resident bytes per live block (20 M blocks,
+   107  ///   `VmHWM`, this machine, mimalloc v3 as `libmimalloc-sys` builds it):
+   108  ///   through `mi_malloc` a 48-byte request occupies **48** bytes, through
+   109  ///   `mi_malloc_aligned(48, 8)` it occupies **64**.  mimalloc's own bin for a
+   110  ///   48-byte block is 48 and its stride keeps every block 16-aligned (audited:
+   111  ///   100 000 `mi_malloc(48)` pointers, all 16-aligned), so the aligned wrapper
+   112  ///   is being conservative about an alignment the plain bin already has.
+   113  /// * **A slow path.**  `mi_malloc_aligned` is a `noinline` function that
+   114  ///   re-checks and may over-allocate; `mi_malloc` is the inlined fast path.
+   115  ///   Measured on `_tmp/corpus/core.ndjson`, `--verified --jobs=1`: **−4.5 %
+   116  ///   instructions, −5.6 % cycles, −7.4 % wall**, with peak RSS unchanged
+   117  ///   (−0.2 %) because con-ron's *current* block sizes do not straddle a class
+   118  ///   boundary — 56 and 64 are one class either way.  DESIGN.md's task-#92
+   119  ///   entry has the table and the size-class measurements behind it.
+   120  ///
+   121  /// The fallback is kept for `align > 8`: mimalloc in fact guarantees 16, but 8
+   122  /// is what the bin structure gives with no appeal to a documented guarantee,
+   123  /// and nothing con-ron allocates is more aligned than a machine word.  This is
+   124  /// the same `unsafe impl GlobalAlloc` the `mimalloc` crate itself writes, minus
+   125  /// the one conservative branch; it is in the *unverified* crate, invisible to
+   126  /// Charon, and cannot change a verdict (see the note above).
+   127  #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
+   128  pub struct MiMallocTight;
+   129  
 
 == crates/con-ron-core/src/ron/nat.rs#L1-L8
      1  //! con-leche: none — replaces the runtime's `Nat` (GMP); no Lean source to cite.

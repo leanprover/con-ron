@@ -96,9 +96,84 @@
 // of this library on its own; task #88 §5 found the claim that the flag
 // worked through this crate's default to be false as it then stood.
 // `con-ron --help` prints `ALLOCATOR`, so a measured run can name its own.
+/// **mimalloc, entered by `mi_malloc` rather than `mi_malloc_aligned`**
+/// (task #92).
+///
+/// The `mimalloc` crate's own `GlobalAlloc` sends *every* request through
+/// `mi_malloc_aligned(size, align)`, whatever the alignment is.  That is
+/// correct but it costs twice over, and con-ron pays it on every node:
+///
+/// * **A size class.**  Measured resident bytes per live block (20 M blocks,
+///   `VmHWM`, this machine, mimalloc v3 as `libmimalloc-sys` builds it):
+///   through `mi_malloc` a 48-byte request occupies **48** bytes, through
+///   `mi_malloc_aligned(48, 8)` it occupies **64**.  mimalloc's own bin for a
+///   48-byte block is 48 and its stride keeps every block 16-aligned (audited:
+///   100 000 `mi_malloc(48)` pointers, all 16-aligned), so the aligned wrapper
+///   is being conservative about an alignment the plain bin already has.
+/// * **A slow path.**  `mi_malloc_aligned` is a `noinline` function that
+///   re-checks and may over-allocate; `mi_malloc` is the inlined fast path.
+///   Measured on `_tmp/corpus/core.ndjson`, `--verified --jobs=1`: **−4.5 %
+///   instructions, −5.6 % cycles, −7.4 % wall**, with peak RSS unchanged
+///   (−0.2 %) because con-ron's *current* block sizes do not straddle a class
+///   boundary — 56 and 64 are one class either way.  DESIGN.md's task-#92
+///   entry has the table and the size-class measurements behind it.
+///
+/// The fallback is kept for `align > 8`: mimalloc in fact guarantees 16, but 8
+/// is what the bin structure gives with no appeal to a documented guarantee,
+/// and nothing con-ron allocates is more aligned than a machine word.  This is
+/// the same `unsafe impl GlobalAlloc` the `mimalloc` crate itself writes, minus
+/// the one conservative branch; it is in the *unverified* crate, invisible to
+/// Charon, and cannot change a verdict (see the note above).
+#[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
+pub struct MiMallocTight;
+
+#[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
+unsafe impl std::alloc::GlobalAlloc for MiMallocTight {
+    #[inline]
+    unsafe fn alloc(&self, layout: std::alloc::Layout) -> *mut u8 {
+        if layout.align() <= 8 {
+            libmimalloc_sys::mi_malloc(layout.size()) as *mut u8
+        } else {
+            libmimalloc_sys::mi_malloc_aligned(layout.size(), layout.align()) as *mut u8
+        }
+    }
+
+    #[inline]
+    unsafe fn alloc_zeroed(&self, layout: std::alloc::Layout) -> *mut u8 {
+        if layout.align() <= 8 {
+            libmimalloc_sys::mi_zalloc(layout.size()) as *mut u8
+        } else {
+            libmimalloc_sys::mi_zalloc_aligned(layout.size(), layout.align()) as *mut u8
+        }
+    }
+
+    #[inline]
+    unsafe fn dealloc(&self, ptr: *mut u8, _layout: std::alloc::Layout) {
+        libmimalloc_sys::mi_free(ptr as *mut std::ffi::c_void);
+    }
+
+    #[inline]
+    unsafe fn realloc(
+        &self,
+        ptr: *mut u8,
+        layout: std::alloc::Layout,
+        new_size: usize,
+    ) -> *mut u8 {
+        if layout.align() <= 8 {
+            libmimalloc_sys::mi_realloc(ptr as *mut std::ffi::c_void, new_size) as *mut u8
+        } else {
+            libmimalloc_sys::mi_realloc_aligned(
+                ptr as *mut std::ffi::c_void,
+                new_size,
+                layout.align(),
+            ) as *mut u8
+        }
+    }
+}
+
 #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
 #[global_allocator]
-static GLOBAL_ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
+static GLOBAL_ALLOC: MiMallocTight = MiMallocTight;
 
 #[cfg(feature = "jemalloc")]
 #[global_allocator]

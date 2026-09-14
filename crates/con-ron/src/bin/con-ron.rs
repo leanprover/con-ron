@@ -204,6 +204,10 @@ build-time selection (cargo features, not command-line flags): the global
 allocator is `con-ron-dump`'s `#[global_allocator]`, chosen on this crate's
 dependency edge -- `cargo build --release` is mimalloc, `--no-default-features`
 is glibc `malloc`, and `--no-default-features --features jemalloc` is jemalloc.
+The mimalloc one is `con_ron_dump::MiMallocTight`, which enters mimalloc by
+`mi_malloc` rather than `mi_malloc_aligned` for word-aligned requests: -4.5 %
+instructions and -7.4 % wall against the `mimalloc` crate's own entry (task
+#92), and one size class back for anything 42 to 48 bytes wide.
 
 Any other option is a usage error: the run reports it, prints this text and
 exits 3 without reading its input.

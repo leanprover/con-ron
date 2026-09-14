@@ -290,12 +290,28 @@ one word beside its tag: `Never`, `Always` and `One` carry no heap cell at
 all, and only the rare `Two` and `Many` put their payload behind a handle
 ([`PropWhenRepr`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/prop_when.rs#L285-L291)).
 The alternative — the datum behind its own handle, which makes the node 40
-bytes and the block 56 — was measured and is *worse*: the 8 bytes per node it
-saves are mostly slack the allocator's size classes were rounding away
-anyway, while the handle costs a separate ~40-byte block and a reference
-count on every `lam` and `forallE`.  Taking that handle off dropped peak
-resident set by 8.5 % on `Init`, 9.2 % on `Init`+`Std`+`Lean` and 11 % on
-Mathlib (§6.3), at instruction counts that moved under 0.31 %.
+bytes and the block 56 — was measured and is *worse*, and the reason turns out
+to be exact rather than approximate: **a 56-byte block and a 64-byte one are
+the same allocator size class**, so the 8 bytes per node buy nothing at all,
+while the handle costs a separate block and a reference count on every `lam`
+and `forallE`.  Taking that handle off dropped peak resident set by 8.5 % on
+`Init`, 9.2 % on `Init`+`Std`+`Lean` and 11 % on Mathlib (§6.3), at instruction
+counts that moved under 0.31 %; putting it back, re-measured, costs 2.5 % of
+`Init`+`Std`+`Lean`'s peak.
+
+Size classes are in fact the unit the whole node is priced in.  Measured on
+one machine with 20 M live blocks, mimalloc charges 32 bytes for a 32-byte
+request, 48 for a 40- or 48-byte one and 64 for anything from 49 to 64 —
+glibc and jemalloc round the same way, and glibc charges 80 for the 64 this
+node asks for.  A 48-byte node in a 64-byte block therefore has *no slack to
+give back*: the next class down is 48 bytes, which needs the block itself to
+reach 48 — a 32-byte node behind `Arc`'s two-word header, or a 40-byte one
+behind a one-word header.  DESIGN.md §3.2 has the table and what each of those
+two routes costs.  One thing the measurement did hand over for free: entering
+mimalloc through `mi_malloc` rather than the `mimalloc` crate's unconditional
+`mi_malloc_aligned` is 4.5 % fewer instructions and 7.4 % less wall time on
+`Init`+`Std`+`Lean`, which is why the binary now uses its own
+[`MiMallocTight`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-dump/src/lib.rs#L99-L129).
 
 ### 3.3 Naturals and hash maps
 
@@ -674,18 +690,18 @@ mode, single-threaded and at eight workers.  Instructions are what the
 two checkers do; the gap in wall and memory is memory traffic and atomic
 reference counts.
 
-<!-- re-measured at task #83, both binaries at the vendored commit c431b1ca, release builds with mimalloc, one run per cell; ulimit -v = 3 x con-leche's RSS + 1 GiB per worker.  The wall column was taken on a machine that was also building Lean, so it is worth less than usual; the instruction counts are not a function of load, which is why they are the measure of record.  The eight-worker Mathlib row is the only cell NOT re-measured (task #83 §5) and stands at master 9ea1ac33.  The single-worker Mathlib con-ron cells were re-measured at task #90 (the binder datum back inline): instructions unchanged to five figures, peak RSS 11 % down, wall on a shared machine. -->
+<!-- re-measured at task #83, both binaries at the vendored commit c431b1ca, release builds with mimalloc, one run per cell; ulimit -v = 3 x con-leche's RSS + 1 GiB per worker.  The wall column was taken on a machine that was also building Lean, so it is worth less than usual; the instruction counts are not a function of load, which is why they are the measure of record.  The eight-worker Mathlib row is the only cell NOT re-measured (task #83 §5) and stands at master 9ea1ac33.  The single-worker Mathlib con-ron cells were re-measured at task #90 (the binder datum back inline): instructions unchanged to five figures, peak RSS 11 % down, wall on a shared machine.  All three single-worker con-ron cells were re-measured again at task #92 (the tight mimalloc entry), this time in the DRIVER lane (`--jobs=1 --progress=1000000`; a plain `--jobs=1` bypasses the driver, task #89), which is what a real run takes: `Init` is the median of three (wall spread 62.7-72.4 s), the other two are one run each.  The con-leche column is unchanged from task #83. -->
 | export | jobs | con-leche instructions | con-ron instructions | con-leche wall | con-ron wall | con-leche peak RSS | con-ron peak RSS |
 |---|---|---|---|---|---|---|---|
-| `Init` (57 977 declarations) | 1 | 585.9 G | 540.4 G | 56 s | 65 s | 0.48 GB | 0.91 GB |
+| `Init` (57 977 declarations) | 1 | 585.9 G | 518.5 G | 56 s | 72 s | 0.48 GB | 0.80 GB |
 | `Init` | 8 | 587.2 G | 544.3 G | 12 s | 20 s | 0.67 GB | 1.18 GB |
-| `Init`+`Std`+`Lean` (163 396) | 1 | 1 176.3 G | 1 157.6 G | 122 s | 161 s | 1.22 GB | 2.44 GB |
+| `Init`+`Std`+`Lean` (163 396) | 1 | 1 176.3 G | 1 117.6 G | 122 s | 155 s | 1.22 GB | 2.06 GB |
 | `Init`+`Std`+`Lean` | 8 | 1 179.4 G | 1 166.6 G | 37 s | 73 s | 1.46 GB | 2.80 GB |
-| Mathlib (691 128) | 1 | 12 792.4 G | 11 368.3 G | 1 220 s | 2 020 s | 8.75 GB | 14.66 GB |
+| Mathlib (691 128) | 1 | 12 792.4 G | 10 922.6 G | 1 220 s | 2 151 s | 8.75 GB | 14.31 GB |
 | Mathlib | 8 | 12 843 G | 11 343 G | 337 s | 929 s | 9.1 GB | 17.8 GB |
 
-Single-threaded, con-ron does 2–11 % fewer instructions than con-leche on
-every export and takes 1.16–1.66× the wall time at 1.7–2.0× the memory:
+Single-threaded, con-ron does 5–15 % fewer instructions than con-leche on
+every export and takes 1.27–1.76× the wall time at 1.64–1.69× the memory:
 the same work, more memory traffic.  At eight workers the gap in wall
 time widens to 1.7–2.8×: con-leche's check phase scales better, its
 reference counts being plain where con-ron's are atomic in every lane
@@ -701,17 +717,25 @@ ran at equal instructions, 1.6× the wall and 1.86× the memory; the switch
 to `Arc` cost 13–17 % of wall time single-threaded and bought a check
 phase that scales to 4.3× at eight workers and 6.9× at sixteen on `Init`.
 The memory gap is the 48-byte node in its 64-byte `Arc` block against Lean's
-compact object, and the `Vec`-backed memo tables against `Std.HashMap`.
+compact object, and the `Vec`-backed memo tables against `Std.HashMap`.  Task
+#92 measured what closing it would take and what it would cost: the node's
+block has to drop a whole allocator size class, to 48 bytes, and the cheapest
+way there — a 40-byte node behind a one-word `triomphe::Arc` — takes Mathlib
+from 14.31 GB to **11.37 GB**, 21 % less, for **30 % more instructions**.  That
+is three times the budget DESIGN.md §3.2 sets for a memory trade, so it is not
+taken; the 1.64× stands, and it is a size class, not waste.
 
-The single-worker column has been re-measured three times since, at the
+The single-worker column has been re-measured four times since, at the
 changes that could have moved it.  Twice it did not: con-leche's bump
 (task #83) and the parser's move into the verified crate (task #84, §3.7)
 gave `Init` 540.9 G, `Init`+`Std`+`Lean` 1 161.3 G, Mathlib 11 348.4 G, each
 within 0.4 % of the cell above it, at 0.91, 2.43 and 16.64 GB.  The third
 time only the *memory* moved: task #90 put the binder datum back inline
-(§3.2) and Mathlib fell from 16.64 GB to **14.66 GB**, 11 % less, at
+(§3.2) and Mathlib fell from 16.64 GB to 14.66 GB, 11 % less, at
 11 368.3 G instructions — the same count to five figures, which is what says
-the saving is allocator traffic and not work.  That the *parser* rewrite cost
+the saving is allocator traffic and not work.  The fourth time only the
+*work* moved: task #92's tight mimalloc entry (§3.2) took Mathlib to
+**10 922.6 G**, 3.9 % fewer instructions, with memory where it was.  That the *parser* rewrite cost
 nothing is worth a sentence, because the budget expected it to cost something:
 the hot loop of a parser is the scanner, and the scanner never used a closure
 or a `std` map in the first place — what it does per byte is index a slice,

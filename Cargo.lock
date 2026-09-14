@@ -29,6 +29,7 @@ name = "con-ron-dump"
 version = "0.1.0"
 dependencies = [
  "con-ron-core",
+ "libmimalloc-sys",
  "mimalloc",
  "tikv-jemallocator",
 ]
