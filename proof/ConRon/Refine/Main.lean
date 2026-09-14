@@ -737,20 +737,20 @@ theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
   -- 1. the parse: the port's records hold the theorem record of type `False`
   obtain ⟨x, hx, hsim⟩ := Frontend.parse_chunks_refines ing hparse
   obtain ⟨cv, vl, hty, hmem⟩ := ConLeche.Frontend.parseChunks_jsonWithTheoremFalse hfalse hx
-  rw [← hsim.decls] at hmem
-  simp only [Frontend.absParseResultD] at hmem
+  have hmem : ConLeche.Declaration.thmDecl cv vl ∈ Frontend.absDecls r.decls := by
+    rw [Frontend.absDecls, hsim.decls]; exact Array.mem_toList_iff.mpr hmem
   -- 2. the preparation keeps it
   have hprel : Frontend.PreludeIxWF ⟨pre.decls⟩ := Frontend.parse_bytes_wf hgen hpre
   have hrwf : ∀ d ∈ r.decls.val, DeclarationWF d := Frontend.parse_chunks_wf hgen hparse
   have hmem' : ConLeche.Declaration.thmDecl cv vl
       ∈ (⟨ds.val.map absDeclaration⟩ : Array ConLeche.Declaration) := by
     have hpp := Frontend.prepare_prelude_refines hspec hprel hrwf hprep
-    simp only [Frontend.absDecls] at hpp
     refine Array.mem_toList_iff.mp ?_
-    show ConLeche.Declaration.thmDecl cv vl ∈ ds.val.map absDeclaration
+    show ConLeche.Declaration.thmDecl cv vl ∈ Frontend.absDecls ds
     rw [hpp]
     exact Array.mem_toList_iff.mpr
-      (ConLeche.Frontend.mem_preparePrelude (pre := Frontend.absPreludeIx ⟨pre.decls⟩) hmem)
+      (ConLeche.Frontend.mem_preparePrelude (pre := Frontend.absPreludeIx ⟨pre.decls⟩)
+        (Array.mem_toList_iff.mp (by simpa using hmem)))
   -- 3./4. the fold's accept is con-leche's, and con-leche refutes it
   exact ConLeche.no_False_theorem_accepted V _ cv vl hmem' hty (absEnv e)
     (check_decls_verified_refines_ok (Core.knot_spec IndAbs.checkFuelU)
@@ -788,19 +788,19 @@ theorem conron.no_False_declaration_prelude (V : Type w) [ConLeche.SetTheory V]
     False := by
   obtain ⟨x, hx, hsim⟩ := Frontend.parse_chunks_refines ing hparse
   obtain ⟨cv, vl, hty, hmem⟩ := ConLeche.Frontend.parseChunks_jsonWithTheoremFalse hfalse hx
-  rw [← hsim.decls] at hmem
-  simp only [Frontend.absParseResultD] at hmem
+  have hmem : ConLeche.Declaration.thmDecl cv vl ∈ Frontend.absDecls r.decls := by
+    rw [Frontend.absDecls, hsim.decls]; exact Array.mem_toList_iff.mpr hmem
   have hprel : Frontend.PreludeIxWF pre := Frontend.builtin_prelude_e_wf hgen hpre
   have hrwf : ∀ d ∈ r.decls.val, DeclarationWF d := Frontend.parse_chunks_wf hgen hparse
   have hmem' : ConLeche.Declaration.thmDecl cv vl
       ∈ (⟨ds.val.map absDeclaration⟩ : Array ConLeche.Declaration) := by
     have hpp := Frontend.prepare_prelude_refines hspec hprel hrwf hprep
-    simp only [Frontend.absDecls] at hpp
     refine Array.mem_toList_iff.mp ?_
-    show ConLeche.Declaration.thmDecl cv vl ∈ ds.val.map absDeclaration
+    show ConLeche.Declaration.thmDecl cv vl ∈ Frontend.absDecls ds
     rw [hpp]
     exact Array.mem_toList_iff.mpr
-      (ConLeche.Frontend.mem_preparePrelude (pre := Frontend.absPreludeIx pre) hmem)
+      (ConLeche.Frontend.mem_preparePrelude (pre := Frontend.absPreludeIx pre)
+        (Array.mem_toList_iff.mp (by simpa using hmem)))
   exact ConLeche.no_False_theorem_accepted V _ cv vl hmem' hty (absEnv e)
     (check_decls_verified_refines_ok (Core.knot_spec IndAbs.checkFuelU)
       conron.basis_raw_spec
