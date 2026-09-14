@@ -815,8 +815,8 @@ con-leche state a successful line produces is *existential* and related by
 `LineErr::Msg` is a con-leche `.error`, a port `LineErr::Verdict v` is a
 con-leche **success** at `.inr` and the same verdict kind.
 
-`IndRSpec` is the **named ingredient bundle** this file stands on — four
-clauses, all of them this file's own leaves: `push_decl`, `proj_rewrite_d`,
+`IndRSpec` is the **named ingredient bundle** this file stands on — three
+clauses, all of them this file's own leaves: `proj_rewrite_d`,
 `validate_ind_d` and `install_ind_d`.  Every one is stated here in full,
 against the `ConLeche/Frontend/ExportC.lean` fragment it refines, so the
 consumer can read the seam without reading a proof.
@@ -891,12 +891,12 @@ def LineNatValSpec : frontend.scan_types.LineRec → Prop
 /-! ## The named ingredients -/
 
 /-- **The ingredient bundle `apply_line_refines` stands on** (the
-`Refine/IndSpec.lean` pattern).  Four clauses, all of them this file's own
-leaves whose proofs are not finished: the record push, the projection rewrite,
-the validation and the install.  Everything else `apply_line_refines` stands
-on is proved — the three table-entry writers are
-`Refine/Frontend/StateDR.lean`'s `parse_name_entry_d_refines` and friends, and
-the six arms of `processLineCoreD` are `process_line_core_d_refines` below.
+`Refine/IndSpec.lean` pattern).  Three clauses, all of them this file's own
+leaves whose proofs are not finished: the projection rewrite, the validation
+and the install.  Everything else `apply_line_refines` stands on is proved —
+the three table-entry writers and `push_decl` are
+`Refine/Frontend/StateDR.lean`'s, and the six arms of `processLineCoreD` are
+`process_line_core_d_refines` below.
 
 What discharges `installInd` is agent C's `ModellerRefines` at agent D's
 `CtxRel` (`state_model_ctx_refines`), which is why no modeller hypothesis
@@ -904,13 +904,6 @@ appears here: the bundle is stated at a fixed modeller, so nothing above has
 to thread the context bridge. -/
 structure IndRSpec {G : Type} (inst : frontend.in_model_rec.Modeller G) (g : G) :
     Prop where
-  /-- `export_c::push_decl` refines `pushDecl`
-  (`ConLeche/Frontend/ExportC.lean:161-162`).  Total on both sides. -/
-  pushDecl : ∀ {st st' : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
-    {d : env.Declaration},
-    StateDRel st lst → StateDWF st → DeclarationWF d →
-    frontend.export_c.push_decl st d = ok st' →
-    StateDRel st' (ConLeche.Frontend.pushDecl lst (absDeclaration d)) ∧ StateDWF st'
   /-- `export_c::proj_rewrite_d` refines `projRewriteD`
   (`ConLeche/Frontend/ExportC.lean:296-302`). -/
   projRewrite : ∀ {st : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
@@ -1047,7 +1040,7 @@ theorem process_line_core_d_refines {G : Type}
         obtain ⟨st1, hpush, h⟩ := h
         simp only [Result.ok.injEq, Prod.mk.injEq] at h
         have hdw : DeclarationWF (env.Declaration.AxiomDecl v) := hcv.2
-        obtain ⟨hpd1, hpd2⟩ := hsp.pushDecl hrel hwf hdw hpush
+        obtain ⟨hpd1, hpd2⟩ := push_decl_refines hrel hwf hdw hpush
         rw [← h.1, ← h.2]
         exact ⟨_, rfl, hpd1, hpd2⟩
   | Defn cvr value hints safety =>
@@ -1102,7 +1095,7 @@ theorem process_line_core_d_refines {G : Type}
             obtain ⟨st1, hpush, h⟩ := h
             simp only [Result.ok.injEq, Prod.mk.injEq] at h
             have hdw : DeclarationWF (env.Declaration.DefnDecl v v1 hh) := ⟨hcv.2, hgd.2⟩
-            obtain ⟨hpd1, hpd2⟩ := hsp.pushDecl hrel hwf hdw hpush
+            obtain ⟨hpd1, hpd2⟩ := push_decl_refines hrel hwf hdw hpush
             rw [← h.1, ← h.2]
             refine ⟨_, ?_, hpd1, hpd2⟩
             simp only [absDeclaration, hhabs]
@@ -1117,7 +1110,7 @@ theorem process_line_core_d_refines {G : Type}
             simp only [Result.ok.injEq, Prod.mk.injEq] at h
             have hdw : DeclarationWF (env.Declaration.DefnDecl v vl2 hh) :=
               ⟨hcv.2, hpr.2 vl2 rfl⟩
-            obtain ⟨hpd1, hpd2⟩ := hsp.pushDecl hrel hwf hdw hpush
+            obtain ⟨hpd1, hpd2⟩ := push_decl_refines hrel hwf hdw hpush
             rw [← h.1, ← h.2]
             rw [hnv] at hpush2
             refine ⟨_, ?_, stateDRel_push_rewrite hpd1 hpush2, stateDWF_rewrite hpd2⟩
@@ -1175,7 +1168,7 @@ theorem process_line_core_d_refines {G : Type}
           obtain ⟨st1, hpush, h⟩ := h
           simp only [Result.ok.injEq, Prod.mk.injEq] at h
           have hdw : DeclarationWF (env.Declaration.ThmDecl v v1) := ⟨hcv.2, hgd.2⟩
-          obtain ⟨hpd1, hpd2⟩ := hsp.pushDecl hrel hwf hdw hpush
+          obtain ⟨hpd1, hpd2⟩ := push_decl_refines hrel hwf hdw hpush
           rw [← h.1, ← h.2]
           exact ⟨_, rfl, hpd1, hpd2⟩
         | some vl2 =>
@@ -1187,7 +1180,7 @@ theorem process_line_core_d_refines {G : Type}
             rw [name_dup_eq] at hn; exact (Result.ok_injective hn).symm
           simp only [Result.ok.injEq, Prod.mk.injEq] at h
           have hdw : DeclarationWF (env.Declaration.ThmDecl v vl2) := ⟨hcv.2, hpr.2 vl2 rfl⟩
-          obtain ⟨hpd1, hpd2⟩ := hsp.pushDecl hrel hwf hdw hpush
+          obtain ⟨hpd1, hpd2⟩ := push_decl_refines hrel hwf hdw hpush
           rw [← h.1, ← h.2]
           rw [hnv] at hpush2
           exact ⟨_, rfl, stateDRel_push_rewrite hpd1 hpush2, stateDWF_rewrite hpd2⟩
@@ -1231,7 +1224,7 @@ theorem process_line_core_d_refines {G : Type}
           obtain ⟨st1, hpush, h⟩ := h
           simp only [Result.ok.injEq, Prod.mk.injEq] at h
           have hdw : DeclarationWF (env.Declaration.OpaqueDecl v v1) := ⟨hcv.2, hgd.2⟩
-          obtain ⟨hpd1, hpd2⟩ := hsp.pushDecl hrel hwf hdw hpush
+          obtain ⟨hpd1, hpd2⟩ := push_decl_refines hrel hwf hdw hpush
           rw [← h.1, ← h.2]
           exact ⟨_, rfl, hpd1, hpd2⟩
   | Quot cvr kind =>
@@ -1275,7 +1268,7 @@ theorem process_line_core_d_refines {G : Type}
         obtain ⟨st1, hpush, h⟩ := h
         simp only [Result.ok.injEq, Prod.mk.injEq] at h
         have hdw : DeclarationWF (env.Declaration.QuotDecl qk v) := hcv.2
-        obtain ⟨hpd1, hpd2⟩ := hsp.pushDecl hrel hwf hdw hpush
+        obtain ⟨hpd1, hpd2⟩ := push_decl_refines hrel hwf hdw hpush
         rw [← h.1, ← h.2]
         split at hqk
         · rename_i he
