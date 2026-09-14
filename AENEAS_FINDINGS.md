@@ -214,6 +214,33 @@ prominently.  #12
   was the most useful document we had — as a **specification** (the `al_v` / `slot_t_inv`
   strategy transferred completely), not as a proof library (§3.3).  #7, #16
 
+### 2.6 Loops under `-loops-to-rec` (task #84)
+
+The port had written no loop at all until task #84 brought con-leche's export parser into
+the verified core: `Scan/Fast.lean` recurses once per byte, Lean compiles those tail calls
+to loops, and a per-byte *recursion* in Rust overflows the stack on a long export line.  So
+DESIGN.md §3.4 gained one exemption — `crates/con-ron-core/src/frontend/` may loop — and the
+extraction has run with `-loops-to-rec` since task #12 anyway.  What that is actually like,
+measured on a spike before a line of the parser was written:
+
+* **A loop becomes two definitions**: `foo_loop`, the tail recursion, with `@[rust_loop]` and
+  `partial_fixpoint`, and `foo`, an `@[reducible]` wrapper that enters it with the initial
+  values of the loop's variables.  The `foo_loop` mirrors the Lean source's own recursion one
+  for one, which is the whole reason the exemption is safe: the refinement is stated against
+  a function that looks like `scanLineFwd`'s own equation.
+* **`while`, `loop` + `break`, `for k in 0..n`, `Vec::push` inside a loop, an early `return`
+  out of one, and an owned accumulator rebound each iteration all translate** — with **no new
+  external**.  Nor do the slice operations a scanner needs: `&v[k..]`, `&s[a..b]`, `.to_vec()`,
+  `.extend_from_slice(..)` (a positive result worth recording beside §2.2's list of std gaps,
+  because those four are exactly what one expects to be missing).
+* **[limitation, worth knowing]** **The code after a loop is duplicated into every one of the
+  loop's exits.**  A `while` with three `break`s followed by a fifteen-line tail is sixty
+  lines of Lean, and each copy is a separate obligation in any proof that walks the
+  definition.  The rule the port adopted: a loop is the last thing in its function, or its
+  tail moves into a callee.  This is not a bug — it is what a structured loop *means* once
+  it is a tail recursion — but it decides how a loop-carrying function is written, and it is
+  not in the documentation.
+
 ## 3. Lean-library findings
 
 ### 3.1 The 4.33 patch, and the two `backward.*` options
@@ -409,6 +436,24 @@ depends on the ask**: `conron.model_exists_decoded` /
 decoder returned on *any* byte slice, name no string constant, and are pinned
 at `[propext, Classical.choice, Quot.sound]`; the two `_embedded` capstones,
 which are their instance at the constant, are what still pays the axiom.
+
+**Status (task #84): a second such constant, and why it does not change the
+answer.**  The parser came into the verified core with con-leche's built-in
+prelude, which con-leche embeds with `include_str`; the port generates it as
+`frontend::prelude_text::PRELUDE_TEXT` (`scripts/gen-prelude.sh`), 16 922
+bytes, so there are now two `toStr` constants in the model and a *second*
+native-decide axiom to inherit.  Three things worth recording.  First, it
+costs the headline capstones nothing, for the same reason `PINS_TEXT` costs
+them nothing: they name no constant.  Second, a chunk-level capstone — the
+statement con-ron is heading for, con-leche's `no_False_declaration` at the
+Rust run — *will* name `builtin_prelude_e`, hence `PRELUDE_TEXT`, hence the
+axiom; so the ask above ("discharge `toStr`'s bound without `decide +native`")
+stops being about two footnote theorems and starts being about the capstone,
+and the general form quantified over the prelude's bytes is what will carry
+the clean census.  Third, the *encoding* is faithful: `toStr s` is
+`s.toByteArray`, i.e. the UTF-8 bytes, so the two non-ASCII entries of the
+prelude (`α`, `β`) are the bytes the scanner reads and the model reads the
+same ones — which is what makes `PRELUDE_TEXT.as_bytes()` the file.
 
 ### 3.9 `Vec::insert` is modelled as `List.set` — an overwrite where Rust inserts (task #46) **[bug]**
 
