@@ -915,86 +915,6 @@ theorem front_of_refines {ps ds : alloc.vec.Vec env.Declaration}
     exact this.symm
 
 
-/-! ## The capstone
-
-`prepare::prepare_d` is `prepareD` and `prepare::prepare_prelude` is
-`preparePrelude`.  The hoist enters as a hypothesis, `HoistSpec` — see the
-section after this one for what is proved of it and what is not. -/
-
-/-- **The residue of this file** (the `Refine/IndSpec.lean` pattern): the
-hoist's own refinement, which `hoist_nat_op_ground_refines` below discharges
-from `HoistTargetsSpec`. -/
-structure HoistSpec : Prop where
-  /-- `ConLeche/Frontend/NatOpGround.lean:164-169` — the port's hoist reorders
-  the stream the way `hoistNatOpGround` does. -/
-  hoist : ∀ {ds : alloc.vec.Vec env.Declaration}
-    {r : (alloc.vec.Vec env.Declaration) × (alloc.vec.Vec name.Name)},
-    (∀ d ∈ ds.val, DeclarationWF d) →
-    frontend.nat_op_ground.hoist_nat_op_ground ds = ok r →
-    absDecls r.1 = (ConLeche.Frontend.hoistNatOpGround (absDecls ds).toArray).1.toList
-
-/-- `ConLeche/Frontend/Prepare.lean:159-163` — `prepareD`'s records, with its
-two `let (a, b) := …` destructurings resolved (structure eta). -/
-private theorem prepareD_decls (pre : ConLeche.Frontend.PreludeIx)
-    (ds : Array ConLeche.Declaration) :
-    (ConLeche.Frontend.prepareD pre ds).decls
-      = (ConLeche.Frontend.hoistNatOpGround
-          ((ConLeche.Frontend.frontOf #[] pre.decls.toList ds).1
-            ++ (ConLeche.Frontend.frontOf #[] pre.decls.toList ds).2)).1 := rfl
-
-/-- `ConLeche/Frontend/Prepare.lean:159-163` — **`prepare::prepare_d` refines
-`prepareD`**: the prepared records.  The other two fields are the driver's
-receipts (a count and the hoisted names) and no verdict reads them. -/
-theorem prepare_d_refines (hspec : HoistSpec) {pre : frontend.prepare.PreludeIx}
-    {ds : alloc.vec.Vec env.Declaration} {p : frontend.prepare.Prepared}
-    (hpre : PreludeIxWF pre) (hds : ∀ d ∈ ds.val, DeclarationWF d)
-    (h : frontend.prepare.prepare_d pre ds = ok p) :
-    absDecls p.decls
-      = (ConLeche.Frontend.prepareD (absPreludeIx pre) (absDecls ds).toArray).decls.toList := by
-  rw [frontend.prepare.prepare_d] at h
-  obtain ⟨⟨picks, picked⟩, hplan, h⟩ := bind_eq_ok_iff.mp h
-  obtain ⟨all, hall, h⟩ := bind_eq_ok_iff.mp h
-  obtain ⟨⟨out, names⟩, hhoist, h⟩ := bind_eq_ok_iff.mp h
-  obtain ⟨i1, -, h⟩ := bind_eq_ok_iff.mp h
-  obtain ⟨syn, -, h⟩ := bind_eq_ok_iff.mp h
-  have hp := Result.ok_injective h
-  subst hp
-  obtain ⟨hpl, hml, hfront, hrest⟩ := front_of_refines hpre hds hplan
-  have hallabs : absDecls all
-      = (ConLeche.Frontend.frontOf #[] (absDecls pre.decls) (absDecls ds).toArray).1.toList
-        ++ (ConLeche.Frontend.frontOf #[] (absDecls pre.decls)
-              (absDecls ds).toArray).2.toList := by
-    simp only [absDecls]
-    rw [prepared_stream_refines hpl hml hall, hfront, hrest]
-  have hallwf : ∀ d ∈ all.val, DeclarationWF d := prepared_stream_wf hpre hds hall
-  have hkey : (absPreludeIx pre).decls.toList = absDecls pre.decls := by
-    rw [absPreludeIx, List.toList_toArray]
-  have harr : (ConLeche.Frontend.frontOf #[] (absPreludeIx pre).decls.toList
-        (absDecls ds).toArray).1
-      ++ (ConLeche.Frontend.frontOf #[] (absPreludeIx pre).decls.toList
-        (absDecls ds).toArray).2
-      = (absDecls all).toArray := by
-    refine Array.ext' ?_
-    rw [Array.toList_append, List.toList_toArray, hallabs, hkey]
-  rw [prepareD_decls, harr]
-  exact hspec.hoist hallwf hhoist
-
-/-- `ConLeche/Frontend/Prepare.lean:165-172` — **`prepare::prepare_prelude`
-refines `preparePrelude`**: the parsed stream, prepared for the fold, is
-con-leche's prepared stream record for record and in the same order.  This is
-what task #87's headline composes with. -/
-theorem prepare_prelude_refines (hspec : HoistSpec) {pre : frontend.prepare.PreludeIx}
-    {ds out : alloc.vec.Vec env.Declaration}
-    (hpre : PreludeIxWF pre) (hds : ∀ d ∈ ds.val, DeclarationWF d)
-    (h : frontend.prepare.prepare_prelude pre ds = ok out) :
-    absDecls out
-      = (ConLeche.Frontend.preparePrelude (absPreludeIx pre) (absDecls ds).toArray).toList := by
-  rw [frontend.prepare.prepare_prelude] at h
-  simp only [bind_eq_ok_iff, Result.ok.injEq] at h
-  obtain ⟨p, hp, hout⟩ := h
-  rw [← hout, ConLeche.Frontend.preparePrelude]
-  exact prepare_d_refines hspec hpre hds hp
-
 
 /-! ## The hoist
 
@@ -1202,6 +1122,304 @@ theorem hoist_reorder_refines {ds v : alloc.vec.Vec env.Declaration}
   have := hoist_reorder_loop_refines horder order.val.length 0#usize _ v (by scalar_tac)
     (by scalar_tac) h
   simpa [absDecls, alloc.vec.Vec.with_capacity, alloc.vec.Vec.new] using this
+
+/-! ### The residue
+
+Two hypotheses, both about the hoist; everything else of the two passes is
+proved outright, and the report of task #87 says so. -/
+
+/-- **The residue of this file** (the `Refine/IndSpec.lean` pattern):
+
+* `targets` — that the port's `hoist_targets` computes con-leche's
+  `hoistTargets`.  Under it sit `used_consts_go` (an explicit worklist against
+  con-leche's structural recursion over a `Std.HashSet Expr`),
+  `hoist_name_index` and the `hoist_close` worklist; none of them is proved
+  here.
+* `order` — that the port's bucket pass (`hoist_order`) produces the order
+  `applyHoist`'s `List.mergeSort` produces.  The two agree because the sort
+  keys are pairwise distinct and the buckets enumerate them in key order, but
+  the `Perm`/`Sorted` uniqueness argument is not carried out here. -/
+structure HoistSpec : Prop where
+  /-- `ConLeche/Frontend/NatOpGround.lean:106-136` — the port's `hoist_targets`
+  is `hoistTargets`, and its keys and values are positions of the stream. -/
+  targets : ∀ {ds : alloc.vec.Vec env.Declaration}
+    {t : ron.hashmap.HashMap Std.U64 Std.U64},
+    (∀ d ∈ ds.val, DeclarationWF d) →
+    frontend.nat_op_ground.hoist_targets ds = ok t →
+    HoistTargetRel t (ConLeche.Frontend.hoistTargets (absDecls ds).toArray) ∧
+      HoistBounded (ConLeche.Frontend.hoistTargets (absDecls ds).toArray)
+        ds.val.length
+  /-- `ConLeche/Frontend/NatOpGround.lean:150-162` — the port's bucket pass is
+  the cited `mergeSort`. -/
+  order : ∀ {target : ron.hashmap.HashMap Std.U64 Std.U64}
+    {s : _root_.Std.HashMap Nat Nat} {n : Std.Usize}
+    {moved ord : alloc.vec.Vec Std.U64},
+    HoistTargetRel target s → HoistBounded s n.val →
+    moved.val.map (·.val) = (List.range n.val).filter (fun k => s.contains k) →
+    frontend.nat_op_ground.hoist_order n target moved = ok ord →
+    ord.val.map (·.val) = (List.range n.val).mergeSort (fun a b => !hoistLt s b a)
+
+
+/-! ### The receipt -/
+
+/-- `ConLeche/Frontend/NatOpGround.lean:162` — `nat_op_ground::hoist_moved_names`'
+inner loop: the cited `(ds[k]!.names).toArray`, one name at a time. -/
+private theorem hoist_moved_names_inner {ns : alloc.vec.Vec name.Name}
+    (hns : NamesWF ns) :
+    ∀ f : Nat, ∀ (j : Std.Usize) (out v : alloc.vec.Vec name.Name),
+      ns.val.length - j.val ≤ f → j.val ≤ ns.val.length → NamesWF out →
+      frontend.nat_op_ground.hoist_moved_names_loop0_loop0 out ns
+          (alloc.vec.Vec.len ns) j = ok v →
+      absNames v = absNames out ++ (absNames ns).drop j.val ∧ NamesWF v := by
+  have hm : (alloc.vec.Vec.len ns).val = ns.val.length := alloc.vec.Vec.len_val ns
+  intro f
+  induction f with
+  | zero =>
+    intro j out v hf hj hout h
+    have hjeq : j.val = ns.val.length := by omega
+    rw [frontend.nat_op_ground.hoist_moved_names_loop0_loop0.eq_def] at h
+    rw [if_neg (show ¬ j < alloc.vec.Vec.len ns by scalar_tac), Result.ok.injEq] at h
+    subst h
+    exact ⟨by rw [hjeq, absNames, List.drop_eq_nil_of_le (by simp [absNames])]; simp, hout⟩
+  | succ f ih =>
+    intro j out v hf hj hout h
+    rw [frontend.nat_op_ground.hoist_moved_names_loop0_loop0.eq_def] at h
+    by_cases hlt : j.val < ns.val.length
+    · rw [if_pos (show j < alloc.vec.Vec.len ns by scalar_tac)] at h
+      simp only [bind_eq_ok_iff, name_dup_eq, Result.ok.injEq, exists_eq_left'] at h
+      obtain ⟨n0, hn0, out1, hout1, j1, hj1, h⟩ := h
+      have hj1v : j1.val = j.val + 1 := by have := Nat.uadd_val hj1; simpa using this
+      have hng := ExprOps.vec_index_getElem? hn0
+      have hnx : ns.val[j.val] = n0 := by
+        rw [List.getElem?_eq_getElem hlt] at hng; exact Option.some_injective _ hng
+      have hn0wf : NameWF n0 := hns _ (List.mem_of_getElem? hng)
+      have hout1wf : NamesWF out1 := by
+        intro y hy
+        rw [vec_push_val hout1] at hy
+        rcases List.mem_append.mp hy with hy | hy
+        · exact hout y hy
+        · rw [List.mem_singleton.mp hy]; exact hn0wf
+      obtain ⟨habs, hwf⟩ := ih j1 out1 v (by omega) (by omega) hout1wf h
+      refine ⟨?_, hwf⟩
+      rw [habs, hj1v, absNames, vec_push_val hout1]
+      rw [show (absNames ns).drop j.val
+          = absName n0 :: (absNames ns).drop (j.val + 1) from by
+        rw [absNames, List.drop_eq_getElem_cons (by simpa using hlt), List.getElem_map,
+          hnx]]
+      simp [absNames]
+    · rw [if_neg (show ¬ j < alloc.vec.Vec.len ns by scalar_tac), Result.ok.injEq] at h
+      subst h
+      have hjeq : j.val = ns.val.length := by omega
+      exact ⟨by rw [hjeq, absNames, List.drop_eq_nil_of_le (by simp [absNames])]; simp, hout⟩
+
+/-- `ConLeche/Frontend/NatOpGround.lean:162` — `nat_op_ground::hoist_moved_names`'
+outer loop: the cited `moved.flatMap fun k => (ds[k]!.names).toArray`. -/
+private theorem hoist_moved_names_loop_refines {ds : alloc.vec.Vec env.Declaration}
+    {moved : alloc.vec.Vec Std.U64} (hds : ∀ d ∈ ds.val, DeclarationWF d)
+    (hmoved : ∀ k ∈ moved.val, k.val ≤ Std.Usize.max) :
+    ∀ f : Nat, ∀ (a : Std.Usize) (out v : alloc.vec.Vec name.Name),
+      moved.val.length - a.val ≤ f → a.val ≤ moved.val.length → NamesWF out →
+      frontend.nat_op_ground.hoist_moved_names_loop0 ds moved out
+          (alloc.vec.Vec.len moved) a = ok v →
+      absNames v = absNames out ++ ((moved.val.drop a.val).map (·.val)).flatMap
+        (fun k => ConLeche.Declaration.names ((ds.val.map absDeclaration)[k]!)) := by
+  have hm : (alloc.vec.Vec.len moved).val = moved.val.length :=
+    alloc.vec.Vec.len_val moved
+  intro f
+  induction f with
+  | zero =>
+    intro a out v hf ha hout h
+    have haeq : a.val = moved.val.length := by omega
+    rw [frontend.nat_op_ground.hoist_moved_names_loop0.eq_def] at h
+    rw [if_neg (show ¬ a < alloc.vec.Vec.len moved by scalar_tac), Result.ok.injEq] at h
+    rw [← h, haeq, List.drop_length]; simp
+  | succ f ih =>
+    intro a out v hf ha hout h
+    rw [frontend.nat_op_ground.hoist_moved_names_loop0.eq_def] at h
+    by_cases hlt : a.val < moved.val.length
+    · rw [if_pos (show a < alloc.vec.Vec.len moved by scalar_tac)] at h
+      simp only [bind_eq_ok_iff, lift_eq] at h
+      obtain ⟨kk, hkk, kw, hkw, d, hd, ns, hns, out1, hout1, a1, ha1, h⟩ := h
+      have ha1v : a1.val = a.val + 1 := by have := Nat.uadd_val ha1; simpa using this
+      have hkg := ExprOps.vec_index_getElem? hkk
+      have hkx : moved.val[a.val] = kk := by
+        rw [List.getElem?_eq_getElem hlt] at hkg; exact Option.some_injective _ hkg
+      have hkwv : kw.val = kk.val := by
+        rw [← Result.ok_injective hkw]
+        exact Env.u64_cast_usize_val
+          (hmoved kk (by rw [← hkx]; exact List.getElem_mem hlt))
+      have hdg := ExprOps.vec_index_getElem? hd
+      have hdlt : kw.val < ds.val.length := by
+        by_contra hc
+        rw [List.getElem?_eq_none (by omega)] at hdg
+        simp at hdg
+      have hdx : ds.val[kw.val] = d := by
+        rw [List.getElem?_eq_getElem hdlt] at hdg; exact Option.some_injective _ hdg
+      have hdwf : DeclarationWF d := hds _ (List.mem_of_getElem? hdg)
+      obtain ⟨hnsabs, hnswf⟩ := declaration_names_refines hdwf hns
+      obtain ⟨hinner, hinnerwf⟩ :=
+        hoist_moved_names_inner hnswf ns.val.length 0#usize out out1
+          (by scalar_tac) (by scalar_tac) hout hout1
+      rw [ih a1 out1 v (by omega) (by omega) hinnerwf h, ha1v, hinner]
+      simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero]
+      rw [List.drop_eq_getElem_cons hlt, hkx]
+      simp only [List.map_cons, List.flatMap_cons]
+      rw [hnsabs, show (ds.val.map absDeclaration)[kk.val]! = absDeclaration d from by
+        rw [← hkwv, getElem!_pos _ _ (by simpa using hdlt), List.getElem_map, hdx]]
+      simp
+    · rw [if_neg (show ¬ a < alloc.vec.Vec.len moved by scalar_tac), Result.ok.injEq] at h
+      have haeq : a.val = moved.val.length := by omega
+      rw [← h, haeq, List.drop_length]; simp
+
+/-- `ConLeche/Frontend/NatOpGround.lean:162` — **`nat_op_ground::hoist_moved_names`
+refines the cited `moved.flatMap fun k => (ds[k]!.names).toArray`**: the
+driver's receipt. -/
+theorem hoist_moved_names_refines {ds : alloc.vec.Vec env.Declaration}
+    {moved : alloc.vec.Vec Std.U64} {v : alloc.vec.Vec name.Name}
+    (hds : ∀ d ∈ ds.val, DeclarationWF d)
+    (hmoved : ∀ k ∈ moved.val, k.val ≤ Std.Usize.max)
+    (h : frontend.nat_op_ground.hoist_moved_names ds moved = ok v) :
+    absNames v = (moved.val.map (·.val)).flatMap
+      (fun k => ConLeche.Declaration.names ((ds.val.map absDeclaration)[k]!)) := by
+  rw [frontend.nat_op_ground.hoist_moved_names] at h
+  have := hoist_moved_names_loop_refines hds hmoved moved.val.length 0#usize _ v
+    (by scalar_tac) (by scalar_tac) (fun y hy => by simp [alloc.vec.Vec.new] at hy) h
+  simpa [absNames, alloc.vec.Vec.new] using this
+
+/-! ### `apply_hoist` and the hoist itself -/
+
+/-- `ConLeche/Frontend/NatOpGround.lean:138-162` — **`nat_op_ground::apply_hoist`
+refines `applyHoist`'s records.**  Its second component is the driver's receipt
+(`hoist_moved_names_refines` above); the fold never sees it. -/
+theorem apply_hoist_refines (hspec : HoistSpec) {ds : alloc.vec.Vec env.Declaration}
+    {target : ron.hashmap.HashMap Std.U64 Std.U64} {s : _root_.Std.HashMap Nat Nat}
+    {r : (alloc.vec.Vec env.Declaration) × (alloc.vec.Vec name.Name)}
+    (hrel : HoistTargetRel target s) (hb : HoistBounded s ds.val.length)
+    (h : frontend.nat_op_ground.apply_hoist ds target = ok r) :
+    absDecls r.1 = (ConLeche.Frontend.applyHoist (absDecls ds).toArray s).1.toList := by
+  rw [frontend.nat_op_ground.apply_hoist] at h
+  simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+  obtain ⟨moved, hmoved, ord, hord, out, hout, names, -, hr⟩ := h
+  subst hr
+  have hlen : (alloc.vec.Vec.len ds).val = ds.val.length := alloc.vec.Vec.len_val ds
+  have hmv : moved.val.map (·.val)
+      = (List.range ds.val.length).filter (fun k => s.contains k) := by
+    rw [← hlen]; exact hoist_moved_idxs_refines hrel hmoved
+  have hov : ord.val.map (·.val)
+      = (List.range ds.val.length).mergeSort (fun a b => !hoistLt s b a) := by
+    have := hspec.order hrel (by rw [hlen]; exact hb) (by rw [hlen]; exact hmv) hord
+    rwa [hlen] at this
+  have hordlt : ∀ k ∈ ord.val, k.val ≤ Std.Usize.max := by
+    intro k hk
+    have hmem : k.val ∈ (List.range ds.val.length).mergeSort
+        (fun a b => !hoistLt s b a) := by
+      rw [← hov]; exact List.mem_map_of_mem hk
+    have hr2 := (List.mergeSort_perm (List.range ds.val.length)
+      (fun a b => !hoistLt s b a)).mem_iff.mp hmem
+    rw [List.mem_range] at hr2
+    have hb2 : ds.val.length ≤ Std.Usize.max := by
+      have := ds.slice.property; scalar_tac
+    omega
+  rw [hoist_reorder_refines hordlt hout, hov, applyHoist_fst]
+  simp [absDecls]
+
+/-- `ConLeche/Frontend/NatOpGround.lean:164-169` — **`nat_op_ground::hoist_nat_op_ground`
+refines `hoistNatOpGround`'s records**: either the target map is empty and the
+vector comes back untouched, or `apply_hoist` rebuilds it. -/
+theorem hoist_nat_op_ground_refines (hspec : HoistSpec)
+    {ds : alloc.vec.Vec env.Declaration}
+    {r : (alloc.vec.Vec env.Declaration) × (alloc.vec.Vec name.Name)}
+    (hds : ∀ d ∈ ds.val, DeclarationWF d)
+    (h : frontend.nat_op_ground.hoist_nat_op_ground ds = ok r) :
+    absDecls r.1
+      = (ConLeche.Frontend.hoistNatOpGround (absDecls ds).toArray).1.toList := by
+  rw [frontend.nat_op_ground.hoist_nat_op_ground] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨target, htarget, i, hi, h⟩ := h
+  obtain ⟨hrel, hb⟩ := hspec.targets hds htarget
+  have hiv : i.val = (ConLeche.Frontend.hoistTargets (absDecls ds).toArray).size := by
+    rw [(HashMap.len_refines hrel.inv hi).1, hrel.size]
+  rw [ConLeche.Frontend.hoistNatOpGround]
+  by_cases hz : i = 0#usize
+  · rw [if_pos hz, Result.ok.injEq] at h
+    have hi0 : i.val = 0 := by rw [hz]; rfl
+    rw [show r.1 = ds from by rw [← h], if_pos (by
+      rw [_root_.Std.HashMap.isEmpty_eq_size_eq_zero, ← hiv, hi0]; rfl)]
+  · rw [if_neg hz] at h
+    have hine : i.val ≠ 0 := fun hc => hz (by scalar_tac)
+    rw [if_neg (by
+      rw [_root_.Std.HashMap.isEmpty_eq_size_eq_zero, ← hiv]
+      simp [hine])]
+    exact apply_hoist_refines hspec hrel hb h
+
+/-! ## The capstone
+
+`prepare::prepare_d` is `prepareD` and `prepare::prepare_prelude` is
+`preparePrelude`.  The hoist enters as a hypothesis, `HoistSpec` — see the
+section after this one for what is proved of it and what is not. -/
+
+/-- `ConLeche/Frontend/Prepare.lean:159-163` — `prepareD`'s records, with its
+two `let (a, b) := …` destructurings resolved (structure eta). -/
+private theorem prepareD_decls (pre : ConLeche.Frontend.PreludeIx)
+    (ds : Array ConLeche.Declaration) :
+    (ConLeche.Frontend.prepareD pre ds).decls
+      = (ConLeche.Frontend.hoistNatOpGround
+          ((ConLeche.Frontend.frontOf #[] pre.decls.toList ds).1
+            ++ (ConLeche.Frontend.frontOf #[] pre.decls.toList ds).2)).1 := rfl
+
+/-- `ConLeche/Frontend/Prepare.lean:159-163` — **`prepare::prepare_d` refines
+`prepareD`**: the prepared records.  The other two fields are the driver's
+receipts (a count and the hoisted names) and no verdict reads them. -/
+theorem prepare_d_refines (hspec : HoistSpec) {pre : frontend.prepare.PreludeIx}
+    {ds : alloc.vec.Vec env.Declaration} {p : frontend.prepare.Prepared}
+    (hpre : PreludeIxWF pre) (hds : ∀ d ∈ ds.val, DeclarationWF d)
+    (h : frontend.prepare.prepare_d pre ds = ok p) :
+    absDecls p.decls
+      = (ConLeche.Frontend.prepareD (absPreludeIx pre) (absDecls ds).toArray).decls.toList := by
+  rw [frontend.prepare.prepare_d] at h
+  obtain ⟨⟨picks, picked⟩, hplan, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨all, hall, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨⟨out, names⟩, hhoist, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨i1, -, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨syn, -, h⟩ := bind_eq_ok_iff.mp h
+  have hp := Result.ok_injective h
+  subst hp
+  obtain ⟨hpl, hml, hfront, hrest⟩ := front_of_refines hpre hds hplan
+  have hallabs : absDecls all
+      = (ConLeche.Frontend.frontOf #[] (absDecls pre.decls) (absDecls ds).toArray).1.toList
+        ++ (ConLeche.Frontend.frontOf #[] (absDecls pre.decls)
+              (absDecls ds).toArray).2.toList := by
+    simp only [absDecls]
+    rw [prepared_stream_refines hpl hml hall, hfront, hrest]
+  have hallwf : ∀ d ∈ all.val, DeclarationWF d := prepared_stream_wf hpre hds hall
+  have hkey : (absPreludeIx pre).decls.toList = absDecls pre.decls := by
+    rw [absPreludeIx, List.toList_toArray]
+  have harr : (ConLeche.Frontend.frontOf #[] (absPreludeIx pre).decls.toList
+        (absDecls ds).toArray).1
+      ++ (ConLeche.Frontend.frontOf #[] (absPreludeIx pre).decls.toList
+        (absDecls ds).toArray).2
+      = (absDecls all).toArray := by
+    refine Array.ext' ?_
+    rw [Array.toList_append, List.toList_toArray, hallabs, hkey]
+  rw [prepareD_decls, harr]
+  exact hoist_nat_op_ground_refines hspec hallwf hhoist
+
+/-- `ConLeche/Frontend/Prepare.lean:165-172` — **`prepare::prepare_prelude`
+refines `preparePrelude`**: the parsed stream, prepared for the fold, is
+con-leche's prepared stream record for record and in the same order.  This is
+what task #87's headline composes with. -/
+theorem prepare_prelude_refines (hspec : HoistSpec) {pre : frontend.prepare.PreludeIx}
+    {ds out : alloc.vec.Vec env.Declaration}
+    (hpre : PreludeIxWF pre) (hds : ∀ d ∈ ds.val, DeclarationWF d)
+    (h : frontend.prepare.prepare_prelude pre ds = ok out) :
+    absDecls out
+      = (ConLeche.Frontend.preparePrelude (absPreludeIx pre) (absDecls ds).toArray).toList := by
+  rw [frontend.prepare.prepare_prelude] at h
+  simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+  obtain ⟨p, hp, hout⟩ := h
+  rw [← hout, ConLeche.Frontend.preparePrelude]
+  exact prepare_d_refines hspec hpre hds hp
+
 
 
 end ConRon.Refine.Frontend
