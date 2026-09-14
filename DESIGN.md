@@ -17117,3 +17117,41 @@ hypotheses; `simp` in this build does not reduce `Except` binds, so a
 type-ascribed `have` is needed to force the defeq first; and `simp only
 [bind_eq_ok_iff] at h` peels *every* bind down to the next blocking `match`, so
 a later repeat errors with "made no progress".
+
+#### 14. `ParseIngredients` instantiated: the parse's residue is three named `Prop`s
+
+The ingredient record `parse_chunks_refines` takes was, as first written,
+**uninstantiable**: its `apply_line` field carried no record-provenance
+hypothesis while the lemma that discharges it,
+`IndR.apply_line_refines`, needs three (`LineRecWF`, `LineRecStrWF`,
+`LineNatValSpec`).  Nobody could have built the record.  That is the kind of
+error a `Spec`-shaped residue invites and the reason to instantiate one rather
+than admire it.
+
+Fixed by adding the three hypotheses to `apply_line` and **three scanner
+fields feeding them**, all keyed on the same
+`scan_line_fwd b i = ok (.Ok (r, j))` the caller already has in hand —
+`scan_line_fwd_wf`, `scan_line_fwd_str_wf`, `scan_line_fwd_nat_val`, sourced
+from `ScanWF.scan_line_fwd_wf` and §12's two new lemmas.  `ParseIngredients` is
+nine fields, and **all nine are discharged**:
+
+```lean
+theorem parseIngredients (hu : Utf8DecodeSpec) (hun : UnescapeSpec)
+    (hsp : IndRSpec inst g) :
+    ParseIngredients (fun st lst => StateDRel st lst ∧ StateDWF st) inst g
+```
+
+with `parse_chunks_refines_of_specs`, `parse_chunks_refines_err_of_specs` and
+`builtin_prelude_e_refines_of_specs` at it, each censused at the three standard
+axioms.  **So the residue in front of the port's streaming parse is exactly
+three named `Prop`s**: `Utf8DecodeSpec` and `UnescapeSpec` (the string tier)
+and `IndRSpec` (`projRewrite`, `validateInd`, `installInd`).  Nothing else.
+
+Two details worth keeping.  `ApplyLineSim (fun st lst => StateDRel st lst ∧
+StateDWF st)` is **definitionally** `StepOutV` on all three arms, so
+`apply_line_refines` transports into the field with no glue — the two
+vocabularies, written a day apart by different agents against agent D's
+`StateDR.lean`, turned out to be the same thing.  And the import the fix needs
+(`ScanLine` + `IndR` into `ChunksR`) costs **8 modules and no Mathlib**,
+measured at 3.27 s → 3.30 s elaboration: `IndR` does not pull `ProjRecR`, so
+§11's 2 179-job figure does not apply here.
