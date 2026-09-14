@@ -70,6 +70,7 @@ a disagreement in the accept direction as well.
 
 ## `sorry` count in this file: 0
 -/
+import ConRon.Refine.Frontend.Chunks
 import ConRon.Refine.Frontend.StateDR
 import ConRon.Refine.Frontend.Abs
 import ConRon.Refine.HashMapWF
@@ -1153,6 +1154,136 @@ theorem parse_export_d_refines
   obtain ⟨s, hs, h⟩ := h
   obtain ⟨x, hx, hsim⟩ := parse_bytes_refines ing h
   exact ⟨s, x, hs, hx, hsim⟩
+
+
+/-! ## The error direction
+
+The full-outcome convention of DESIGN.md §3, the other half: where the port's
+parse returns an `.Err` whose kind `absErrKind` can name, con-leche throws at
+that kind and at the same line.
+
+Everything turns on `export_c::scan_err_to_check`, the arm task #87 added to
+the port: a reader failure at a tag con-leche's reader also has becomes an
+`internal`, and the port's own `ErrTag::IndexOverflow` becomes a `native`,
+which `absErrKind` sends to `none` — so the claim is vacuous exactly where the
+two readers may disagree (the module note). -/
+
+/-- **`export_c::scan_err_to_check`, read as a kind.**  A mirrored tag gives an
+`internal`; `ErrTag::IndexOverflow` gives a `native`, which claims nothing. -/
+private theorem scan_err_to_check_mirror {e : frontend.scan_types.ScanErr}
+    {ce : kernel.core_types.CheckError} {k : ErrKind}
+    (h : frontend.export_c.scan_err_to_check e = ok ce)
+    (hk : absErrKind ce = some k) :
+    k = .internal ∧ ∃ t, absErrTag e.what = some t := by
+  rw [frontend.export_c.scan_err_to_check] at h
+  split at h <;>
+    (rename_i he
+     simp only [bind_eq_ok_iff, kernel.core_types.internal, kernel.core_types.native,
+       Result.ok.injEq] at h
+     obtain ⟨v, -, hce⟩ := h
+     subst hce) <;>
+    simp_all [absErrKind, absErrTag]
+
+/-- **`export_c::line_err_to_check`, read as a kind and a line.**  The message
+arm is con-leche's `throw`, the verdict arm con-leche's own `.inr`, and both
+land at the line the record was read at. -/
+private theorem line_err_to_check_mirror {γ : Type}
+    {R : frontend.export_c.StateD → ConLeche.Frontend.StateD → Prop}
+    {st' : frontend.export_c.StateD} {le : frontend.export_c.LineErr}
+    {ln : Std.U64} {p : kernel.core_types.CheckError × Std.U64}
+    {x : ConLeche.Frontend.M (ConLeche.Frontend.StateD ⊕ ConLeche.Frontend.RecordVerdict)}
+    {f : ConLeche.Frontend.StateD → Except (ConLeche.CheckError × Nat) γ}
+    (h : frontend.export_c.line_err_to_check le ln = ok p)
+    (hsim : ApplyLineSim R (.Err le) st' x) :
+    ParseErrSim p
+      (match x with
+       | .error msg => .error (.internal msg, ln.val)
+       | .ok (.inr v) => .error (v.toError, ln.val)
+       | .ok (.inl st) => f st) := by
+  cases le with
+  | Msg m =>
+    obtain ⟨s, hs⟩ := hsim
+    simp only [frontend.export_c.line_err_to_check, bind_eq_ok_iff,
+      kernel.core_types.internal, Result.ok.injEq] at h
+    obtain ⟨ce, hce, hp⟩ := h
+    subst hce; subst hp
+    rw [hs]
+    exact ParseErrSim.mk rfl rfl rfl
+  | Verdict v =>
+    obtain ⟨lv, hlv, hkind⟩ := hsim
+    rw [hlv]
+    cases v with
+    | Declined w =>
+      cases lv with
+      | declined s =>
+        simp only [frontend.export_c.line_err_to_check,
+          frontend.export.record_verdict_to_error, bind_eq_ok_iff,
+          kernel.core_types.not_implemented, Result.ok.injEq] at h
+        obtain ⟨ce, hce, hp⟩ := h
+        subst hce; subst hp
+        exact ParseErrSim.mk rfl rfl rfl
+      | invalid s => exact absurd hkind (by simp [lVerdictKind, absVerdictKind])
+    | Invalid w =>
+      cases lv with
+      | declined s => exact absurd hkind (by simp [lVerdictKind, absVerdictKind])
+      | invalid s =>
+        simp only [frontend.export_c.line_err_to_check,
+          frontend.export.record_verdict_to_error, bind_eq_ok_iff,
+          kernel.core_types.invalid, Result.ok.injEq] at h
+        obtain ⟨ce, hce, hp⟩ := h
+        subst hce; subst hp
+        exact ParseErrSim.mk rfl rfl rfl
+
+/-- **`export_c::apply_final_line`, error direction**
+(`ConLeche/Frontend/ExportC.lean:765-775` `applyFinalLine`). -/
+theorem apply_final_line_refines_err
+    {R : frontend.export_c.StateD → ConLeche.Frontend.StateD → Prop}
+    {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+    (ing : ParseIngredients R inst g)
+    {st st' : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {b : Slice Std.U8} {i : Std.Usize} {ln : Std.U64}
+    {p : kernel.core_types.CheckError × Std.U64} (hst : R st lst)
+    (h : frontend.export_c.apply_final_line inst g st b i ln = ok (.Err p, st')) :
+    ParseErrSim p
+      (ConLeche.Frontend.applyFinalLine lst (absBytes b) (absPos i) ln.val) := by
+  rw [frontend.export_c.apply_final_line.eq_def] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨r, hr, h⟩ := h
+  have hsim := ing.scan_line_fwd b i r hr
+  rw [applyFinalLine_eq]
+  split at h
+  · rename_i q
+    obtain ⟨r1, j⟩ := q
+    simp only [uncurry_apply_pair, bind_eq_ok_iff] at h
+    obtain ⟨⟨r2, st1⟩, happ, h⟩ := h
+    simp only [uncurry_apply_pair] at h
+    have hal := ing.apply_line st st1 lst r1 r2 hst happ
+    split at h
+    · exfalso; revert h; simp
+    · rename_i le
+      simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨p1, hp1, hp, -⟩ := h
+      simp only [core.result.Result.Err.injEq] at hp
+      subst hp
+      simp only [show ConLeche.Frontend.scanLineFwd (absBytes b) (absPos i)
+            = .ok (absLineRec r1) (absPos j) from hsim]
+      exact line_err_to_check_mirror (f := fun st => .ok st) hp1 hal
+  · rename_i se
+    rw [bind_eq_ok_iff] at h
+    obtain ⟨i1, -, h⟩ := h
+    rw [bind_eq_ok_iff] at h
+    obtain ⟨ce, hce, h⟩ := h
+    simp only [Result.ok.injEq, Prod.mk.injEq,
+      core.result.Result.Err.injEq] at h
+    obtain ⟨hp, -⟩ := h
+    subst hp
+    intro k hk
+    obtain ⟨hkint, t, ht⟩ := scan_err_to_check_mirror hce hk
+    have hscan : ConLeche.Frontend.scanLineFwd (absBytes b) (absPos i)
+        = .err ⟨se.offset.val, t⟩ :=
+      hsim ⟨se.offset.val, t⟩ (by rw [absScanErr, ht]; rfl)
+    rw [hscan]
+    exact ⟨_, rfl, hkint.symm, rfl⟩
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
