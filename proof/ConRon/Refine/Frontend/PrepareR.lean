@@ -38,6 +38,7 @@ computes `hoistTargets`.  Its section below says what sits under it and why.
 
 ## `sorry` count in this file: 0
 -/
+import Init.Internal.Order.While
 import ConRon.Refine.Frontend.Prepare
 import ConRon.Refine.BasisRaw
 import ConRon.Refine.CoreKNames
@@ -2582,6 +2583,211 @@ private theorem decl_used_consts_refines {d : env.Declaration} {acc : alloc.vec.
   | QuotDecl k cv =>
     rw [← Result.ok_injective h]
     exact ⟨hnwf, by rw [hempty]; rfl⟩
+
+/-! ### `hoistTargets`, as list recursion
+
+con-leche writes the target-map computation as one `Id.run do` with four
+nested loops — three `for`s and a `while` — and the port is four functions.
+The two are matched by **restating con-leche's do-block as the same pieces**,
+each a definition of its own over the list the loop walks, and proving the
+restatement equal to `hoistTargets` (`hoistTargets_split`, by `rfl` once the
+ranges are lists: the do-block's `forIn`s ARE these pieces, so the split is
+definitional).  This is the intermediate-definition escape hatch task #87's
+brief allows, and it is used only here.
+
+The `while` stays a `Lean.Loop.forIn` — `hoistClose` below — because it is the
+one loop whose termination is not structural: nothing but the port's own run
+witnesses that it stops, so `hoistClose_eq` is a *one-step* unfolding
+(`Lean.Loop.forIn_eq_of_monadTail`) and every fact about it is proved by
+induction on the port's measure. -/
+
+/-- `ConLeche/Frontend/NatOpGround.lean:113-115` — the cited
+`for n in ds[i]!.names do if !idx.contains n then idx := idx.insert n i`. -/
+private def hoistIdxNames (i : Nat) (ns : List ConLeche.Name)
+    (idx0 : _root_.Std.HashMap ConLeche.Name Nat) :
+    _root_.Std.HashMap ConLeche.Name Nat := Id.run do
+  let mut idx := idx0
+  for n in ns do
+    if !idx.contains n then idx := idx.insert n i
+  return idx
+
+/-- `ConLeche/Frontend/NatOpGround.lean:112-115` — the cited
+`for i in [0:ds.size]` of the name index, over the positions still to walk. -/
+private def hoistIdx (ds : _root_.Array ConLeche.Declaration) (l : List Nat)
+    (idx0 : _root_.Std.HashMap ConLeche.Name Nat) :
+    _root_.Std.HashMap ConLeche.Name Nat := Id.run do
+  let mut idx := idx0
+  for i in l do
+    idx := hoistIdxNames i ds[i]!.names idx
+  return idx
+
+/-- `ConLeche/Frontend/NatOpGround.lean:133-136` — the cited
+`for n in ds[k]!.usedConsts do if let some m := idx[n]? then …`. -/
+private def hoistPushDeps (idx : _root_.Std.HashMap ConLeche.Name Nat) (i k : Nat)
+    (ns : List ConLeche.Name) (stack0 : _root_.Array Nat) : _root_.Array Nat := Id.run do
+  let mut stack := stack0
+  for n in ns do
+    if let some m := idx[n]? then
+      if m > i && m != k then stack := stack.push m
+  return stack
+
+/-- `ConLeche/Frontend/NatOpGround.lean:125-136` — the cited
+`while h : stack.size > 0`, the closure of the records on the stack. -/
+private def hoistClose (ds : _root_.Array ConLeche.Declaration)
+    (idx : _root_.Std.HashMap ConLeche.Name Nat) (i : Nat)
+    (target0 : _root_.Std.HashMap Nat Nat) (stack0 : _root_.Array Nat) :
+    _root_.Std.HashMap Nat Nat := Id.run do
+  let mut target := target0
+  let mut stack := stack0
+  while h : stack.size > 0 do
+    let k := stack[stack.size - 1]
+    stack := stack.pop
+    match target[k]? with
+    | some t => if t ≤ i then continue
+    | none => pure ()
+    target := target.insert k i
+    for n in ds[k]!.usedConsts do
+      if let some m := idx[n]? then
+        if m > i && m != k then stack := stack.push m
+  return target
+
+/-- `ConLeche/Frontend/NatOpGround.lean:121-124` — the cited
+`for g in natOpDeps c`, over the grounds still to walk. -/
+private def hoistTargetsAt (ds : _root_.Array ConLeche.Declaration)
+    (idx : _root_.Std.HashMap ConLeche.Name Nat) (i : Nat) (gs : List ConLeche.Name)
+    (target0 : _root_.Std.HashMap Nat Nat) : _root_.Std.HashMap Nat Nat := Id.run do
+  let mut target := target0
+  for g in gs do
+    let some j := idx[g]? | continue
+    unless j > i do continue
+    target := hoistClose ds idx i target #[j]
+  return target
+
+/-- `ConLeche/Frontend/NatOpGround.lean:119-136` — the cited second
+`for i in [0:ds.size]`, over the positions still to walk. -/
+private def hoistTargetsGo (ds : _root_.Array ConLeche.Declaration)
+    (idx : _root_.Std.HashMap ConLeche.Name Nat) (l : List Nat)
+    (target0 : _root_.Std.HashMap Nat Nat) : _root_.Std.HashMap Nat Nat := Id.run do
+  let mut target := target0
+  for i in l do
+    let some c := ConLeche.Frontend.isNatOpRecord ds[i]! | continue
+    target := hoistTargetsAt ds idx i (ConLeche.natOpDeps c) target
+  return target
+
+/-- **The split is definitional**: `hoistTargets` IS the pieces above. -/
+private theorem hoistTargets_split (ds : _root_.Array ConLeche.Declaration) :
+    ConLeche.Frontend.hoistTargets ds
+      = hoistTargetsGo ds (hoistIdx ds (List.range' 0 ds.size) {})
+          (List.range' 0 ds.size) {} := by
+  simp only [ConLeche.Frontend.hoistTargets, hoistTargetsGo, hoistTargetsAt, hoistIdx,
+    hoistIdxNames, hoistClose, Id.run, Std.Legacy.Range.forIn_eq_forIn_range',
+    Std.Legacy.Range.size, Nat.sub_zero, Nat.add_sub_cancel, Nat.div_one]
+  rfl
+
+private theorem hoistIdxNames_nil (i : Nat) (idx : _root_.Std.HashMap ConLeche.Name Nat) :
+    hoistIdxNames i [] idx = idx := rfl
+
+private theorem hoistIdxNames_cons (i : Nat) (n : ConLeche.Name) (ns : List ConLeche.Name)
+    (idx : _root_.Std.HashMap ConLeche.Name Nat) :
+    hoistIdxNames i (n :: ns) idx
+      = hoistIdxNames i ns (if !idx.contains n then idx.insert n i else idx) := by
+  simp only [hoistIdxNames, Id.run, List.forIn_cons]
+  split <;> rfl
+
+private theorem hoistIdx_nil (ds : _root_.Array ConLeche.Declaration)
+    (idx : _root_.Std.HashMap ConLeche.Name Nat) : hoistIdx ds [] idx = idx := rfl
+
+private theorem hoistIdx_cons (ds : _root_.Array ConLeche.Declaration) (i : Nat) (l : List Nat)
+    (idx : _root_.Std.HashMap ConLeche.Name Nat) :
+    hoistIdx ds (i :: l) idx = hoistIdx ds l (hoistIdxNames i ds[i]!.names idx) := by
+  simp only [hoistIdx, Id.run, List.forIn_cons]
+  rfl
+
+private theorem hoistPushDeps_nil (idx : _root_.Std.HashMap ConLeche.Name Nat) (i k : Nat)
+    (st : _root_.Array Nat) : hoistPushDeps idx i k [] st = st := rfl
+
+set_option linter.unusedSimpArgs false in
+private theorem hoistPushDeps_cons (idx : _root_.Std.HashMap ConLeche.Name Nat) (i k : Nat)
+    (n : ConLeche.Name) (ns : List ConLeche.Name) (st : _root_.Array Nat) :
+    hoistPushDeps idx i k (n :: ns) st
+      = hoistPushDeps idx i k ns (match idx[n]? with
+          | some m => if m > i && m != k then st.push m else st
+          | none => st) := by
+  simp only [hoistPushDeps, Id.run, List.forIn_cons]
+  cases hm : idx[n]? with
+  | none => simp only [hm]; rfl
+  | some m => simp only [hm]; split <;> rfl
+
+private theorem hoistTargetsAt_nil (ds : _root_.Array ConLeche.Declaration)
+    (idx : _root_.Std.HashMap ConLeche.Name Nat) (i : Nat)
+    (target : _root_.Std.HashMap Nat Nat) : hoistTargetsAt ds idx i [] target = target := rfl
+
+set_option linter.unusedSimpArgs false in
+private theorem hoistTargetsAt_cons (ds : _root_.Array ConLeche.Declaration)
+    (idx : _root_.Std.HashMap ConLeche.Name Nat) (i : Nat) (g : ConLeche.Name)
+    (gs : List ConLeche.Name) (target : _root_.Std.HashMap Nat Nat) :
+    hoistTargetsAt ds idx i (g :: gs) target
+      = hoistTargetsAt ds idx i gs (match idx[g]? with
+          | some j => if j > i then hoistClose ds idx i target #[j] else target
+          | none => target) := by
+  simp only [hoistTargetsAt, Id.run, List.forIn_cons]
+  cases hj : idx[g]? with
+  | none => simp only [hj]; rfl
+  | some j => simp only [hj]; split <;> rfl
+
+private theorem hoistTargetsGo_nil (ds : _root_.Array ConLeche.Declaration)
+    (idx : _root_.Std.HashMap ConLeche.Name Nat) (target : _root_.Std.HashMap Nat Nat) :
+    hoistTargetsGo ds idx [] target = target := rfl
+
+set_option linter.unusedSimpArgs false in
+private theorem hoistTargetsGo_cons (ds : _root_.Array ConLeche.Declaration)
+    (idx : _root_.Std.HashMap ConLeche.Name Nat) (i : Nat) (l : List Nat)
+    (target : _root_.Std.HashMap Nat Nat) :
+    hoistTargetsGo ds idx (i :: l) target
+      = hoistTargetsGo ds idx l (match ConLeche.Frontend.isNatOpRecord ds[i]! with
+          | some c => hoistTargetsAt ds idx i (ConLeche.natOpDeps c) target
+          | none => target) := by
+  simp only [hoistTargetsGo, Id.run, List.forIn_cons]
+  cases hc : ConLeche.Frontend.isNatOpRecord ds[i]! <;> simp only [hc] <;> rfl
+
+/-- One step of `Lean.Loop.forIn` in `Id`, as a rewrite rule (the class
+application `forIn`, which is what the `while` elaborates to). -/
+private theorem loop_forIn_eq {β : Type} (b : β) (f : Unit → β → Id (ForInStep β)) :
+    forIn (m := Id) Lean.Loop.mk b f
+      = (do match ← f () b with
+            | .done v => pure v
+            | .yield v => forIn (m := Id) Lean.Loop.mk v f) :=
+  Lean.Loop.forIn_eq_of_monadTail
+
+/-- **One turn of con-leche's `while`.**  The only equation this file has
+about `hoistClose`: it does not say the loop stops, and every use is inside an
+induction on the port's own measure. -/
+private theorem hoistClose_eq (ds : _root_.Array ConLeche.Declaration)
+    (idx : _root_.Std.HashMap ConLeche.Name Nat) (i : Nat)
+    (target : _root_.Std.HashMap Nat Nat) (stack : _root_.Array Nat) :
+    hoistClose ds idx i target stack
+      = if h : stack.size > 0 then
+          (fun k =>
+            match target[k]? with
+            | some t =>
+              if t ≤ i then hoistClose ds idx i target stack.pop
+              else hoistClose ds idx i (target.insert k i)
+                     (hoistPushDeps idx i k (ds[k]!.usedConsts).toList stack.pop)
+            | none => hoistClose ds idx i (target.insert k i)
+                     (hoistPushDeps idx i k (ds[k]!.usedConsts).toList stack.pop))
+            (stack[stack.size - 1]'(by omega))
+        else target := by
+  simp only [hoistClose, hoistPushDeps, Id.run, Array.forIn_toList]
+  rw [loop_forIn_eq]
+  by_cases hs : stack.size > 0
+  · rw [dif_pos hs, dif_pos hs]
+    cases ht : target[stack[stack.size - 1]'(by omega)]? with
+    | none => rfl
+    | some t =>
+      by_cases hti : t ≤ i
+      · simp only [if_pos hti]; rfl
+      · simp only [if_neg hti]; rfl
+  · rw [dif_neg hs, dif_neg hs]; rfl
 
 /-! ### The residue
 
