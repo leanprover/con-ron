@@ -35,29 +35,13 @@ Agent L (`ScanLine.lean`) consumes exactly these six, one per `scan*Expr` of
         (h : frontend.scan_fast.scan_proj_expr b i = ok o) :
         ScanSim absExprRec o (scanProjExpr (absBytes b) (absPos i))
 
-Every one is **proved**, and every one is `<name>_of` applied to the two leaf
-facts the tier still owes:
+Every one is proved and takes no hypothesis but the port's own `= ok`.  Each
+is `<name>_of` — the same statement carrying `ScanObj`'s `KitFacts b`, and for
+the two binders a `BinderInfoRefines b` — applied to `ScanObj.kitFacts` and to
+this file's `binderInfoRefines`.
 
-* `kf : KitFacts b` — `ScanObj`'s bundle of the three `ScanKit` leaves the
-  member step needs.  `ScanKit` has `key_end_refines` and `value_at_refines`;
-  it still owes **`key_at_refines`**.
-* `hbi : BinderInfoRefines b` — `scan_fast::scan_binder_info` against
-  `Scan/Fast.lean:657-666 scanBinderInfo`, which is `ScanStr`'s
-  `scan_binder_info_refines`.  Only the two binder lemmas take it.
-
-So the shipped names today are
-
-    scan_app_expr_refines_of    (kf)        h
-    scan_proj_expr_refines_of   (kf)        h
-    scan_const_expr_refines_of  (kf)        h
-    scan_let_expr_refines_of    (kf)        h
-    scan_lam_expr_refines_of    (kf) (hbi)  h
-    scan_forall_expr_refines_of (kf) (hbi)  h
-
-and the six hypothesis-free statements above are three lines each — `fun h =>
-<name>_of (kitFacts b) h` — the moment `ScanKit.key_at_refines` and
-`ScanStr.scan_binder_info_refines` land.  Nothing else in this file is
-waiting on anything.
+`scan_binder_info_refines`, which discharges the latter, is proved here rather
+than in `ScanStr`: the binder loop is its only caller.
 
 **The port's one binder loop against con-leche's two.**
 `scan_binder_expr_loop(b, i, lam)` is `scanLamExprLoop` when `lam` and
@@ -888,6 +872,129 @@ def BinderInfoRefines (b : Slice Std.U8) : Prop :=
   ∀ (i j : Std.Usize), frontend.scan_fast.scan_binder_info b i = ok j →
     absPos j = scanBinderInfo (absBytes b) (absPos i)
 
+
+/-! ## `scan_binder_info`
+
+`scan_fast.rs:1139-1163` against `Scan/Fast.lean:660-671 scanBinderInfo`: the
+four `binderInfo` spellings, validated and dropped (con-leche's task #142), and
+`0` for anything else.  This is `ScanStr`'s by rights; it is here because the
+binder loop is the only caller and `ScanStr` had a longer queue.
+
+The port compares against `[u8; N]` constants (deviation 2 of the module note,
+and task #86's reason: an Aeneas `&str` constant cannot hold a `"`), con-leche
+against `String.toUTF8`; `absBytes` of the constant *is* the `toUTF8`, by
+`decide` on eight to fifteen bytes.  `match_lit_refines`'s side condition —
+the literal holds no `0` byte — is the same `decide`. -/
+
+/-- `match_lit` against a literal whose bytes are known, in con-leche's
+spelling of it. -/
+private theorem lit_match {b s : Slice Std.U8} {i2 : Std.Usize} {r : Bool}
+    {S : ByteArray}
+    (hnz : ∀ (m : Nat) (hm : m < s.val.length), s.val[m] ≠ 0#u8)
+    (habs : absBytes s = S)
+    (h : frontend.scan_fast.match_lit b i2 s = ok r) :
+    r = matchLit (absBytes b) (absPos i2) S 0 := by
+  rw [← habs]; exact match_lit_refines hnz h
+
+private theorem absByte_bne (a b : Std.U8) : (absByte a != absByte b) = (a != b) := by
+  simp only [bne, absByte_beq_u8]
+
+/-- **`scan_fast::scan_binder_info` refines `scanBinderInfo`**
+(`Scan/Fast.lean:660-671`).  This discharges `BinderInfoRefines`. -/
+theorem scan_binder_info_refines {b : Slice Std.U8} {i j : Std.Usize}
+    (h : frontend.scan_fast.scan_binder_info b i = ok j) :
+    absPos j = scanBinderInfo (absBytes b) (absPos i) := by
+  rw [frontend.scan_fast.scan_binder_info] at h
+  obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+  rw [scanBinderInfo, ← byte_at_refines hc,
+    show ((34 : UInt8)) = absByte 34#u8 from rfl, absByte_bne]
+  by_cases h34 : (c != 34#u8) = true
+  · rw [if_pos h34] at h
+    rw [if_pos h34]
+    have hz : j = 0#usize := by simpa using h.symm
+    rw [hz]; rfl
+  · rw [if_neg h34] at h
+    rw [if_neg h34]
+    obtain ⟨i2, hi2', h⟩ := bind_eq_ok_iff.mp h
+    have hi2 : absPos i2 = absPos i + 1 := absPos_add_one hi2'
+    obtain ⟨s0, hs0, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨r0, hr0, h⟩ := bind_eq_ok_iff.mp h
+    have hv0 : s0.val = [100#u8, 101#u8, 102#u8, 97#u8, 117#u8, 108#u8, 116#u8, 34#u8] := by
+      have hx : s0 = Array.to_slice frontend.scan_fast.scan_binder_info.S_DEFAULT := by
+        simpa using hs0.symm
+      subst hx
+      simp [frontend.scan_fast.scan_binder_info.S_DEFAULT, Array.to_slice, Array.make]
+    have ha0 : r0 = matchLit (absBytes b) (absPos i + 1) "default\"".toUTF8 0 := by
+      rw [← hi2]
+      exact lit_match (by rw [hv0]; decide) (by rw [absBytes, hv0]; decide) hr0
+    rw [← ha0]
+    by_cases hb0 : r0 = true
+    · rw [if_pos hb0] at h
+      rw [if_pos hb0]
+      exact absPos_add h
+    · rw [if_neg hb0] at h
+      rw [if_neg hb0]
+      obtain ⟨s1, hs1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+      have hv1 : s1.val = [105#u8, 109#u8, 112#u8, 108#u8, 105#u8, 99#u8, 105#u8, 116#u8,
+      34#u8] := by
+        have hx : s1 = Array.to_slice frontend.scan_fast.scan_binder_info.S_IMPLICIT := by
+          simpa using hs1.symm
+        subst hx
+        simp [frontend.scan_fast.scan_binder_info.S_IMPLICIT, Array.to_slice, Array.make]
+      have ha1 : r1 = matchLit (absBytes b) (absPos i + 1) "implicit\"".toUTF8 0 := by
+        rw [← hi2]
+        exact lit_match (by rw [hv1]; decide) (by rw [absBytes, hv1]; decide) hr1
+      rw [← ha1]
+      by_cases hb1 : r1 = true
+      · rw [if_pos hb1] at h
+        rw [if_pos hb1]
+        exact absPos_add h
+      · rw [if_neg hb1] at h
+        rw [if_neg hb1]
+        obtain ⟨s2, hs2, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨r2, hr2, h⟩ := bind_eq_ok_iff.mp h
+        have hv2 : s2.val = [115#u8, 116#u8, 114#u8, 105#u8, 99#u8, 116#u8, 73#u8, 109#u8, 112#u8,
+      108#u8, 105#u8, 99#u8, 105#u8, 116#u8, 34#u8] := by
+          have hx : s2 = Array.to_slice frontend.scan_fast.scan_binder_info.S_STRICT := by
+            simpa using hs2.symm
+          subst hx
+          simp [frontend.scan_fast.scan_binder_info.S_STRICT, Array.to_slice, Array.make]
+        have ha2 : r2 = matchLit (absBytes b) (absPos i + 1) "strictImplicit\"".toUTF8 0 := by
+          rw [← hi2]
+          exact lit_match (by rw [hv2]; decide) (by rw [absBytes, hv2]; decide) hr2
+        rw [← ha2]
+        by_cases hb2 : r2 = true
+        · rw [if_pos hb2] at h
+          rw [if_pos hb2]
+          exact absPos_add h
+        · rw [if_neg hb2] at h
+          rw [if_neg hb2]
+          obtain ⟨s3, hs3, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨r3, hr3, h⟩ := bind_eq_ok_iff.mp h
+          have hv3 : s3.val = [105#u8, 110#u8, 115#u8, 116#u8, 73#u8, 109#u8, 112#u8, 108#u8, 105#u8,
+      99#u8, 105#u8, 116#u8, 34#u8] := by
+            have hx : s3 = Array.to_slice frontend.scan_fast.scan_binder_info.S_INST := by
+              simpa using hs3.symm
+            subst hx
+            simp [frontend.scan_fast.scan_binder_info.S_INST, Array.to_slice, Array.make]
+          have ha3 : r3 = matchLit (absBytes b) (absPos i + 1) "instImplicit\"".toUTF8 0 := by
+            rw [← hi2]
+            exact lit_match (by rw [hv3]; decide) (by rw [absBytes, hv3]; decide) hr3
+          rw [← ha3]
+          by_cases hb3 : r3 = true
+          · rw [if_pos hb3] at h
+            rw [if_pos hb3]
+            exact absPos_add h
+          · rw [if_neg hb3] at h
+            rw [if_neg hb3]
+            have hz : j = 0#usize := by simpa using h.symm
+            rw [hz]; rfl
+
+/-- `BinderInfoRefines` is a theorem: `scan_binder_info_refines` above. -/
+theorem binderInfoRefines (b : Slice Std.U8) : BinderInfoRefines b :=
+  fun _ _ h => scan_binder_info_refines h
+
 private theorem scan_binder_expr_loop_aux (kf : KitFacts b) (hbi : BinderInfoRefines b)
     (f : Nat) :
     ∀ (w lam : Bool) (i : Std.Usize) (seen : Std.U32) (bd ty : Std.U64)
@@ -1210,6 +1317,49 @@ theorem scan_forall_expr_refines_of (kf : KitFacts b) (hbi : BinderInfoRefines b
   · rw [if_neg hc1] at h
     rw [if_neg (by simp [hc1]), err_val h]
     exact ScanErrSim.mk (t := .expectedObject) rfl (by simp)
+
+/-! ## The six, for the line scanner
+
+`ScanObj.kitFacts` discharges `KitFacts b` and `binderInfoRefines` above
+discharges `BinderInfoRefines b`, so these are the statements at the top of
+the file, with no hypothesis but the port's own `= ok`. -/
+
+/-- **`scan_fast::scan_app_expr`** (`Scan/Fast.lean:955-959 scanAppExpr`). -/
+theorem scan_app_expr_refines {i : Std.Usize} {o}
+    (h : frontend.scan_fast.scan_app_expr b i = ok o) :
+    ScanSim absExprRec o (scanAppExpr (absBytes b) (absPos i)) :=
+  scan_app_expr_refines_of (kitFacts b) h
+
+/-- **`scan_fast::scan_lam_expr`** (`Scan/Fast.lean:1036-1042 scanLamExpr`). -/
+theorem scan_lam_expr_refines {i : Std.Usize} {o}
+    (h : frontend.scan_fast.scan_lam_expr b i = ok o) :
+    ScanSim absExprRec o (scanLamExpr (absBytes b) (absPos i)) :=
+  scan_lam_expr_refines_of (kitFacts b) (binderInfoRefines b) h
+
+/-- **`scan_fast::scan_forall_expr`**
+(`Scan/Fast.lean:1119-1123 scanForallExpr`). -/
+theorem scan_forall_expr_refines {i : Std.Usize} {o}
+    (h : frontend.scan_fast.scan_forall_expr b i = ok o) :
+    ScanSim absExprRec o (scanForallExpr (absBytes b) (absPos i)) :=
+  scan_forall_expr_refines_of (kitFacts b) (binderInfoRefines b) h
+
+/-- **`scan_fast::scan_let_expr`** (`Scan/Fast.lean:1200-1204 scanLetExpr`). -/
+theorem scan_let_expr_refines {i : Std.Usize} {o}
+    (h : frontend.scan_fast.scan_let_expr b i = ok o) :
+    ScanSim absExprRec o (scanLetExpr (absBytes b) (absPos i)) :=
+  scan_let_expr_refines_of (kitFacts b) h
+
+/-- **`scan_fast::scan_const_expr`** (`Scan/Fast.lean:1256-1260 scanConstExpr`). -/
+theorem scan_const_expr_refines {i : Std.Usize} {o}
+    (h : frontend.scan_fast.scan_const_expr b i = ok o) :
+    ScanSim absExprRec o (scanConstExpr (absBytes b) (absPos i)) :=
+  scan_const_expr_refines_of (kitFacts b) h
+
+/-- **`scan_fast::scan_proj_expr`** (`Scan/Fast.lean:1320-1324 scanProjExpr`). -/
+theorem scan_proj_expr_refines {i : Std.Usize} {o}
+    (h : frontend.scan_fast.scan_proj_expr b i = ok o) :
+    ScanSim absExprRec o (scanProjExpr (absBytes b) (absPos i)) :=
+  scan_proj_expr_refines_of (kitFacts b) h
 
 end Step
 
