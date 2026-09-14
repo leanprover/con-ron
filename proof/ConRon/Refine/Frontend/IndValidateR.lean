@@ -27,36 +27,30 @@ loop-shape rule.  Agent R's `IndR.lean` proves the first eight
 `ty_types_of`, `listed_ctors_of`, `ctor_names_of`, `flatten_listed`); this
 file proves the other ten.
 
-## The one place the port is not con-leche's function
+## The port bug this file found
 
-`export_c::ctor_index_of` builds the name → record-index map **first record
-wins**:
+`export_c::ctor_index_of` used to build the name -> record-index map **first
+record wins**:
 
     if !m.contains_key(&ns[k]) { m.insert(name::dup(&ns[k]), k as u64); }
 
-and its doc comment cites `HashMap.insertIfNew`.  `ExportC.lean:412-563`
-builds it **last wins**:
+with a doc comment citing `HashMap.insertIfNew` — a function con-leche does
+not call.  `ExportC.lean:412-563` builds the map **last wins**:
 
     (ctorNames.foldl (fun mi n => (mi.1.insert n mi.2, mi.2 + 1)) ({}, 0)).1
 
 — `Std.HashMap.insert` overwrites.  The two maps differ exactly when
-`ctorNames` repeats a name, so *no lemma of this file says the two maps are
-equal*; what is proved instead is that the difference is **unobservable**:
-
-* the two maps have the **same key set** — the names occurring in
-  `ctorNames` — so every `ctorIx[n]?` lookup of the reordering loop succeeds
-  on one side exactly when it succeeds on the other (`ctorIxKeys`);
-* **if every lookup succeeds, `ctorNames` cannot repeat.**  `flat.Nodup` and
-  `flat.length == cts.length` have already passed, every name of `flat` is a
-  key, and the keys are names of `ctorNames`, so
-  `cts.length = flat.length = |names of flat| ≤ |names of ctorNames|`, which
-  is `< cts.length` if `ctorNames` repeats.  With no repeat, first-wins and
-  last-wins agree pointwise and the two runs are the same run
-  (`ctorIx_agree`);
-* **if some lookup fails, both sides leave through `.invalid`.**  Every early
-  return of the reordering loop is `.inl (.invalid …)` and only the verdict
-  *kind* is compared (`lVerdictKind`/`absVerdictKind`), so the outcomes agree
-  even where the two sides checked different records on the way out.
+`ctorNames` repeats a name, and the difference is **observable through
+`ValidateOut`**, which is why this is a bug and not a deviation to prove
+around.  The witness: `listed = [[a, b]]` (so `flat = [a, b]` is `Nodup` and
+two long), `cts = [c0 named a, c1 named a]` (so `flat.length == cts.length`
+passes), `ctorNames = [a, a]`.  At the name `a` the port took `cts[0]` and
+con-leche takes `cts[1]`; if `c0.cv.ty` is an index the expression table does
+not hold and `c1.cv.ty` is, the port returns `.Err (.Msg …)` while con-leche
+runs on to `b`, finds no such constructor and returns
+`.ok (.inl (.invalid "No such constructor b"))` — and `ValidateOut` demands an
+`.error` of con-leche in that case.  The Rust now inserts unconditionally and
+`ctor_index_of_refines` is an ordinary loop induction against the fold.
 
 ## `sorry` count in this file: 0
 -/
@@ -206,11 +200,22 @@ theorem names_have_dup_refines {flat : alloc.vec.Vec name.Name} (hwf : NamesWF f
 
 /-! ## `ctor_index_of`
 
-`export_c.rs:1442-1453` against the cited `ctorIx` fold.  **The two are not
-the same map** (see the file header): the port keeps the FIRST record of a
-repeated name, con-leche's `Std.HashMap.insert` keeps the LAST.  What is
-proved here is the two facts the reordering loop actually reads — the key set
-and, under `Nodup`, the index — and nothing else. -/
+`export_c.rs:1449-1458` against the cited `ctorIx` fold of
+`ExportC.lean:412-563`:
+
+    (ctorNames.foldl (fun mi n => (mi.1.insert n mi.2, mi.2 + 1)) ({}, 0)).1
+
+**This is where task #87 found a port bug.**  Until commit `0cdb73c` the port
+guarded its insert with `if !m.contains_key(&ns[k])` — *first* record wins —
+on the strength of a doc comment naming `HashMap.insertIfNew`, a function
+con-leche does not call; `Std.HashMap.insert` overwrites, so con-leche is
+*last* wins.  The two differ exactly when `ctorNames` repeats a name, and the
+difference is **observable**: at a repeated name the two sides run the
+constructor checks on *different* records, and those checks can fail with a
+`LineErr::Msg` (an unknown `induct` or type index) on one side while the other
+runs on to a plain `.invalid` — which `ValidateOut` distinguishes.  The port
+now inserts unconditionally and the loop below is a one-to-one mirror of the
+fold. -/
 
 /-- con-leche's `ctorIx` fold, named.  `ExportC.lean:412-563`:
 `(ctorNames.foldl (fun mi n => (mi.1.insert n mi.2, mi.2 + 1)) ({}, 0)).1`. -/
@@ -236,7 +241,8 @@ private theorem ctorIxAux_not_mem (n : ConLeche.Name) :
     rw [Std.HashMap.getElem?_insert]
     rw [if_neg (by simpa using fun hc => hn (by rw [hc]; exact List.mem_cons_self))]
 
-/-- The fold's key set is what it has seen. -/
+/-- The fold's key set is what it has seen: the names occurring in
+`ctorNames`.  This is what the reordering loop's `ctorIx[n]?` reads. -/
 private theorem ctorIxAux_mem (n : ConLeche.Name) :
     ∀ (ns : List ConLeche.Name) (m : Std.HashMap ConLeche.Name Nat) (j : Nat),
       ((ctorIxAux m j ns).1[n]?).isSome = true ↔ ((m[n]?).isSome = true ∨ n ∈ ns) := by
@@ -260,8 +266,9 @@ private theorem ctorIxAux_mem (n : ConLeche.Name) :
           · exact absurd h hna
           · exact Or.inr h
 
-/-- **Under `Nodup` the fold is the index**, which is the case the reordering
-loop is ever in (the counting argument of the file header). -/
+/-- **Under `Nodup` the fold is the index.**  Not needed by the refinement —
+the port is the same fold — but it is what makes `ordered` the block's own
+order, so it is kept as the fold's characterisation. -/
 private theorem ctorIxAux_nodup :
     ∀ (ns : List ConLeche.Name) (m : Std.HashMap ConLeche.Name Nat) (j : Nat),
       ns.Nodup → ∀ (k : Nat) (hk : k < ns.length),
@@ -284,140 +291,6 @@ private theorem ctorIxAux_nodup :
       congr 1
       omega
 
-
-/-! ### The port's fold, and when it is con-leche's
-
-`export_c::ctor_index_of` is the same fold with a `contains_key` guard in
-front of the insert — **first record wins**.  `firstIxAux` is that fold on the
-con-leche side, `ctor_index_of_refines` is the port against it, and
-`firstIxAux_eq_ctorIxAux` is the one place the two folds are identified: under
-`Nodup` the guard never fires, so first-wins *is* last-wins. -/
-
-/-- `export_c::ctor_index_of`'s fold: the insert is guarded, so the FIRST
-record of a repeated name wins. -/
-private def firstIxAux (m : Std.HashMap ConLeche.Name Nat) (j : Nat)
-    (ns : List ConLeche.Name) : Std.HashMap ConLeche.Name Nat × Nat :=
-  ns.foldl (fun (mi : Std.HashMap ConLeche.Name Nat × Nat) n =>
-    (if mi.1.contains n then mi.1 else mi.1.insert n mi.2, mi.2 + 1)) (m, j)
-
-private theorem firstIxAux_cons (m : Std.HashMap ConLeche.Name Nat) (j : Nat)
-    (n : ConLeche.Name) (ns : List ConLeche.Name) :
-    firstIxAux m j (n :: ns)
-      = firstIxAux (if m.contains n then m else m.insert n j) (j + 1) ns := rfl
-
-/-- **The guard never fires on a duplicate-free list**, so the port's fold and
-con-leche's are the same map.  This is the only lemma of the file that
-identifies the two, and it is exactly as strong as the counting argument of
-the file header allows. -/
-private theorem firstIxAux_eq_ctorIxAux :
-    ∀ (ns : List ConLeche.Name) (m : Std.HashMap ConLeche.Name Nat) (j : Nat),
-      ns.Nodup → (∀ n ∈ ns, m.contains n = false) →
-      firstIxAux m j ns = ctorIxAux m j ns := by
-  intro ns
-  induction ns with
-  | nil => intro m j _ _; rfl
-  | cons a t iht =>
-    intro m j hnd hfresh
-    rw [firstIxAux_cons, ctorIxAux_cons, if_neg (by simp [hfresh a List.mem_cons_self])]
-    refine iht _ _ (List.nodup_cons.mp hnd).2 ?_
-    intro n hn
-    rw [Std.HashMap.contains_insert]
-    simp only [Bool.or_eq_false_iff]
-    refine ⟨?_, hfresh n (List.mem_cons_of_mem _ hn)⟩
-    simp only [beq_eq_false_iff_ne, ne_eq]
-    intro hc
-    exact (List.nodup_cons.mp hnd).1 (hc ▸ hn)
-
-/-! ### The counting argument: the deviation, proved harmless
-
-The reordering loop looks `ctorIx[n]?` up once per name of `flat`.  The two
-folds have the **same key set** (`firstIxAux_mem` against `ctorIxAux_mem`:
-both are "the names occurring in `ctorNames`"), so a lookup succeeds on one
-side exactly when it succeeds on the other, and there are only two cases.
-
-*If some lookup fails*, both runs leave through an arm returning
-`.inl (.invalid "No such constructor …")` and only the verdict **kind** is
-compared, so the outcomes agree even where the two sides checked different
-records on the way out.
-
-*If every lookup succeeds*, `ctorNames` cannot repeat a name — and that is
-this subsection.  `flat.Nodup` and `flat.length == cts.length` have already
-passed and `ctorNames.length = cts.length`, so `flat` is a duplicate-free
-list of names all of which occur in `ctorNames`, and `flat` is as long as
-`ctorNames`: a list that long with no repeat cannot fit inside a list of the
-same length that has one.  With `ctorNames.Nodup` the guard in
-`export_c::ctor_index_of` never fires and first-wins *is* last-wins
-(`firstIxAux_eq_ctorIxAux`), so the two runs are pointwise identical. -/
-
-/-- The guarded fold's key set is what it has seen — the same set as
-`ctorIxAux_mem`'s, which is the first half of the argument. -/
-private theorem firstIxAux_mem (n : ConLeche.Name) :
-    ∀ (ns : List ConLeche.Name) (m : Std.HashMap ConLeche.Name Nat) (j : Nat),
-      ((firstIxAux m j ns).1[n]?).isSome = true ↔ ((m[n]?).isSome = true ∨ n ∈ ns) := by
-  intro ns
-  induction ns with
-  | nil => intro m j; simp [firstIxAux]
-  | cons a t iht =>
-    intro m j
-    rw [firstIxAux_cons, iht]
-    by_cases hc : m.contains a
-    · rw [if_pos hc]
-      constructor
-      · rintro (h | h)
-        · exact Or.inl h
-        · exact Or.inr (List.mem_cons_of_mem _ h)
-      · rintro (h | h)
-        · exact Or.inl h
-        · rcases List.mem_cons.mp h with h | h
-          · refine Or.inl ?_
-            rw [h, ← Std.HashMap.contains_eq_isSome_getElem?]
-            exact hc
-          · exact Or.inr h
-    · rw [if_neg hc]
-      by_cases hna : n = a
-      · subst hna; simp
-      · rw [Std.HashMap.getElem?_insert, if_neg (by simpa using fun hx => hna hx.symm)]
-        constructor
-        · rintro (h | h)
-          · exact Or.inl h
-          · exact Or.inr (List.mem_cons_of_mem _ h)
-        · rintro (h | h)
-          · exact Or.inl h
-          · rcases List.mem_cons.mp h with h | h
-            · exact absurd h hna
-            · exact Or.inr h
-
-/-- A duplicate-free list as long as a list it is contained in leaves that
-list duplicate-free: the counting step, as a fact about lists. -/
-private theorem nodup_of_subset_of_length_le {α : Type} [DecidableEq α]
-    {l₁ l₂ : List α} (h1 : l₁.Nodup) (hsub : l₁ ⊆ l₂) (hlen : l₂.length ≤ l₁.length) :
-    l₂.Nodup := by
-  have hsp : l₁.Subperm l₂ := List.subperm_of_subset h1 hsub
-  have hperm : l₁.Perm l₂ := hsp.perm_of_length_le hlen
-  exact hperm.nodup_iff.mp h1
-
-/-- **If every lookup of the reordering loop succeeds, `ctorNames` has no
-repeat.**  `flat` is duplicate-free, as long as `ctorNames`, and every one of
-its names is a key of the map, hence occurs in `ctorNames`. -/
-theorem ctorNames_nodup_of_lookups {flat ctorNames : List ConLeche.Name}
-    (hnd : flat.Nodup) (hlen : ctorNames.length ≤ flat.length)
-    (hkey : ∀ n ∈ flat, ((firstIxAux ∅ 0 ctorNames).1[n]?).isSome = true) :
-    ctorNames.Nodup := by
-  refine nodup_of_subset_of_length_le hnd (fun n hn => ?_) hlen
-  rcases (firstIxAux_mem n ctorNames ∅ 0).mp (hkey n hn) with h | h
-  · simp at h
-  · exact h
-
-/-- **First-wins is last-wins on a duplicate-free `ctorNames`**: the port's
-`ctor_index_of` and con-leche's `ctorIx` fold are then the same map.  This is
-the *only* statement of the file that identifies the two, and it is exactly
-as strong as the counting argument above allows — the maps are NOT equal in
-general (`ctorNames = [n, n]` sends the port's to `n ↦ 0` and con-leche's to
-`n ↦ 1`). -/
-theorem firstIx_eq_ctorIx {ctorNames : List ConLeche.Name} (h : ctorNames.Nodup) :
-    firstIxAux ∅ 0 ctorNames = ctorIxAux ∅ 0 ctorNames :=
-  firstIxAux_eq_ctorIxAux ctorNames ∅ 0 h (fun _ _ => by simp)
-
 /-- The index recursion behind `export_c::ctor_index_of`. -/
 private theorem ctor_index_of_loop_refines {ns : alloc.vec.Vec name.Name}
     (hwf : NamesWF ns) (N : Nat) :
@@ -429,7 +302,7 @@ private theorem ctor_index_of_loop_refines {ns : alloc.vec.Vec name.Name}
       frontend.export_c.ctor_index_of_loop ns m n k = ok m' →
       HashMap.Inv State.hName m' ∧ HashMap.KeysOk NameWF m' ∧
         HashMap.RelOn NameWF m'
-          (firstIxAux s k.val ((absNames ns).drop k.val)).1 absName (fun u => u.val) := by
+          (ctorIxAux s k.val ((absNames ns).drop k.val)).1 absName (fun u => u.val) := by
   induction N using Nat.strong_induction_on with
   | _ N ih =>
     intro m s n k m' hN hn hinv hkeys hrel h
@@ -441,66 +314,33 @@ private theorem ctor_index_of_loop_refines {ns : alloc.vec.Vec name.Name}
       obtain ⟨nm, hidx, h⟩ := h
       have hnmv : ns.val[k.val]'hltv = nm := iv_index_val hidx
       have hnmwf : NameWF nm := by rw [← hnmv]; exact hwf _ (List.getElem_mem _)
-      obtain ⟨c, hc, h⟩ := h
-      -- the guard: `contains_key` is `s.contains` under the relation
-      have hcv : c = s.contains (absName nm) := by
-        rw [ron.hashmap.HashMap.contains_key] at hc
-        obtain ⟨r, hr, hc⟩ := bind_eq_ok_iff.mp hc
-        have hrv : r.map (fun u => u.val) = s[absName nm]? :=
-          HashMap.Rel_get_wf State.nameEq2Fwd hinv hkeys hrel hnmwf hr
-        rw [Std.HashMap.contains_eq_isSome_getElem?, ← hrv]
-        cases r with
-        | none => simp only [Result.ok.injEq] at hc; simp [← hc]
-        | some v => simp only [Result.ok.injEq] at hc; simp [← hc]
-      -- the abstracted list, split at `k`
+      obtain ⟨nm2, hdup, h⟩ := h
+      have hnm2 : nm2 = nm := by
+        rw [name_dup_eq] at hdup; exact (Result.ok_injective hdup).symm
+      have hnm2wf : NameWF nm2 := by rw [hnm2]; exact hnmwf
+      obtain ⟨u, hu, h⟩ := h
+      have huv : u.val = k.val := by
+        rw [lift_eq, Result.ok.injEq] at hu
+        rw [← hu]; exact Env.usize_cast_u64_val k
+      obtain ⟨p, hins, h⟩ := h
+      obtain ⟨old, m1⟩ := p
+      simp only [uncurry_apply_pair] at h
+      obtain ⟨hinv1, -, -, hkeys1⟩ :=
+        HashMap.insert_refines_wf State.nameEq2Fwd hinv hkeys hnm2wf hins
+      obtain ⟨hrel1, -⟩ :=
+        HashMap.Rel_insert_wf State.nameEq2Fwd
+          (fun a b ha hb hab => Name.absName_injective ha hb hab) hinv hkeys hrel
+          hnm2wf hins
+      obtain ⟨k1, hk1, h⟩ := bind_eq_ok_iff.mp h
+      have hk1v : k1.val = k.val + 1 := HashMap.uscalar_add_eq hk1
       have hdrop : (absNames ns).drop k.val
           = absName nm :: (absNames ns).drop (k.val + 1) := by
         simp only [absNames]
         rw [List.drop_eq_getElem_cons (by simpa using hltv), List.getElem_map, hnmv]
-      obtain ⟨m1, hm1, h⟩ := h
-      obtain ⟨k1, hk1, h⟩ := h
-      have hk1v : k1.val = k.val + 1 := HashMap.uscalar_add_eq hk1
-      -- the two branches agree with `firstIxAux`'s guarded step
-      have hstep : HashMap.Inv State.hName m1 ∧ HashMap.KeysOk NameWF m1 ∧
-          HashMap.RelOn NameWF m1
-            (if s.contains (absName nm) then s else s.insert (absName nm) k.val)
-            absName (fun u => u.val) := by
-        by_cases hcc : c = true
-        · rw [if_pos hcc] at hm1
-          have : m1 = m := (Result.ok_injective hm1).symm
-          subst this
-          rw [if_pos (by rw [← hcv]; exact hcc)]
-          exact ⟨hinv, hkeys, hrel⟩
-        · rw [if_neg hcc] at hm1
-          simp only [bind_eq_ok_iff] at hm1
-          obtain ⟨nm2, hdup, hm1⟩ := hm1
-          have hnm2 : nm2 = nm := by
-            rw [name_dup_eq] at hdup; exact (Result.ok_injective hdup).symm
-          have hnm2wf : NameWF nm2 := by rw [hnm2]; exact hnmwf
-          obtain ⟨u, hu, hm1⟩ := hm1
-          have huv : u.val = k.val := by
-            rw [lift_eq, Result.ok.injEq] at hu
-            rw [← hu]; exact Env.usize_cast_u64_val k
-          obtain ⟨q, hins, hm1⟩ := hm1
-          obtain ⟨old, m2⟩ := q
-          simp only [uncurry_apply_pair, Result.ok.injEq] at hm1
-          obtain ⟨hinv2, -, hupd2, hkeys2⟩ :=
-            HashMap.insert_refines_wf State.nameEq2Fwd hinv hkeys hnm2wf hins
-          obtain ⟨hrel2, -⟩ :=
-            HashMap.Rel_insert_wf State.nameEq2Fwd
-              (fun a b ha hb hab => Name.absName_injective ha hb hab) hinv hkeys hrel
-              hnm2wf hins
-          rw [if_neg (by rw [← hcv]; exact hcc)]
-          rw [← hm1]
-          refine ⟨hinv2, hkeys2, ?_⟩
-          rw [hnm2] at hrel2
-          rw [← huv]
-          exact hrel2
-      obtain ⟨hinv1, hkeys1, hrel1⟩ := hstep
+      rw [hnm2, huv] at hrel1
       have hres := ih (ns.val.length - k1.val) (by omega) m1
-        (if s.contains (absName nm) then s else s.insert (absName nm) k.val) n k1 m'
-        rfl hn hinv1 hkeys1 hrel1 h
-      rw [hdrop, firstIxAux_cons, ← hk1v]
+        (s.insert (absName nm) k.val) n k1 m' rfl hn hinv1 hkeys1 hrel1 h
+      rw [hdrop, ctorIxAux_cons, ← hk1v]
       exact hres
     · rename_i hlt
       have hge : ns.val.length ≤ k.val := by scalar_tac
@@ -511,14 +351,13 @@ private theorem ctor_index_of_loop_refines {ns : alloc.vec.Vec name.Name}
       rw [hdrop]
       exact ⟨hinv, hkeys, hrel⟩
 
-/-- **`export_c::ctor_index_of` is the guarded fold**, `firstIxAux` — *not*
-con-leche's `ctorIx`.  The two meet only at `firstIxAux_eq_ctorIxAux`, under
-`Nodup`. -/
+/-- **`export_c::ctor_index_of` refines the `ctorIx` fold of `validateIndD`**
+(`ConLeche/Frontend/ExportC.lean:412-563`), key for key and index for index. -/
 theorem ctor_index_of_refines {ns : alloc.vec.Vec name.Name} (hwf : NamesWF ns)
     {m : ron.hashmap.HashMap name.Name Std.U64}
     (h : frontend.export_c.ctor_index_of ns = ok m) :
     HashMap.Inv State.hName m ∧ HashMap.KeysOk NameWF m ∧
-      HashMap.RelOn NameWF m (firstIxAux ∅ 0 (absNames ns)).1 absName (fun u => u.val) := by
+      HashMap.RelOn NameWF m (ctorIxAux ∅ 0 (absNames ns)).1 absName (fun u => u.val) := by
   rw [frontend.export_c.ctor_index_of] at h
   obtain ⟨m0, hnew, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨hinv, hav, htf⟩ := HashMap.new_refines hnew
@@ -526,7 +365,6 @@ theorem ctor_index_of_refines {ns : alloc.vec.Vec name.Name} (hwf : NamesWF ns)
     m0 ∅ (alloc.vec.Vec.len ns) 0#usize m rfl (by simp) hinv
     (by intro p hp; rw [hav] at hp; simp at hp) (HashMap.RelOn_empty htf) h
   simpa using hres
-
 
 /-! ## con-leche's `validateIndD`, with its four loops named
 
@@ -1548,5 +1386,233 @@ theorem k_expected_of_refines {ty_types : alloc.vec.Vec expr.Expr}
             rw [← habsr] at hc
             simp only [absExpr_mk, absExprKind] at hc
             exact ConLeche.Expr.noConfusion hc
+
+
+/-! ## The reordering (`ExportC.lean:412-563`, `types[].ctors` in type order) -/
+
+/-- **The outcome of one step of the reordering loop**: the constructor record
+is appended and `j` advances, or the step stops with an `.invalid` verdict, or
+a state read throws. -/
+def OrderStepOut (o : core.result.Result Unit frontend.export_c.LineErr)
+    (c : ConLeche.Frontend.IndCtorRec) (ordered : Array ConLeche.Frontend.IndCtorRec)
+    (j : Nat)
+    (x : ConLeche.Frontend.M (ForInStep (Option LVRes ×
+      Array ConLeche.Frontend.IndCtorRec × Nat))) : Prop :=
+  match o with
+  | .Ok _ => x = .ok (.yield (none, ordered.push c, j + 1))
+  | .Err (.Msg _) => ∃ s, x = .error s
+  | .Err (.Verdict v) =>
+    ∃ lv w, x = .ok (.done (some (.inl lv), w)) ∧ lVerdictKind lv = absVerdictKind v
+
+/-- **`export_c::check_one_ctor` refines the checks of `validateIndD`'s inner
+reordering step** (`ConLeche/Frontend/ExportC.lean:412-563`): the redundant
+`cidx` and `induct` fields and the declared `numFields`.  It is stated at the
+step, past the two lookups, because that is where con-leche writes it. -/
+theorem check_one_ctor_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {n t : name.Name}
+    {c : frontend.scan_types.IndCtorRec} {j n_pd : Std.U64}
+    {ctorIx : Std.HashMap ConLeche.Name Nat}
+    {ctsA : Array ConLeche.Frontend.IndCtorRec} {k : Nat}
+    {ordered : Array ConLeche.Frontend.IndCtorRec}
+    {o : core.result.Result Unit frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st) (ht : NameWF t)
+    (hk : ctorIx[absName n]? = some k) (hck : ctsA[k]? = some (absIndCtorRec c))
+    (h : frontend.export_c.check_one_ctor st n t c j n_pd = ok o) :
+    OrderStepOut o (absIndCtorRec c) ordered j.val
+      (lOrderStep lst (absName t) ctorIx ctsA n_pd.val (absName n)
+        (none, ordered, j.val)) := by
+  rw [frontend.export_c.check_one_ctor] at h
+  simp only [lOrderStep, hk, hck]
+  -- the `numFields` check, shared by the four arms of the two optional fields
+  have hfields : ∀ (o' : core.result.Result Unit frontend.export_c.LineErr),
+      (do let r ← frontend.export_c.get_decl_d st c.cv.ty
+          match r with
+          | .Ok v => do
+            let b ← frontend.export_c.ind_pi_tele_len v
+            let i ← n_pd + c.num_fields
+            if i != b then do
+              let v1 ← frontend.export_c.fields_error n c.num_fields n_pd b
+              frontend.export_c.invalid Unit v1
+            else ok (core.result.Result.Ok ())
+          | .Err e => ok (core.result.Result.Err e)) = ok o' →
+      OrderStepOut o' (absIndCtorRec c) ordered j.val
+        (do let cty ← ConLeche.Frontend.getDeclD lst (absIndCtorRec c).cv.type
+            if n_pd.val + (absIndCtorRec c).numFields
+                == ConLeche.Frontend.indPiTeleLen cty then
+              pure (.yield (none, ordered.push (absIndCtorRec c), j.val + 1))
+            else pure (.done (some (.inl (.invalid
+              s!"constructor {absName n} declares {(absIndCtorRec c).numFields} fields at \
+                {n_pd.val} parameters; its type has \
+                {ConLeche.Frontend.indPiTeleLen cty} binders")), ordered, j.val))) := by
+    intro o' h'
+    obtain ⟨r, hr, h'⟩ := bind_eq_ok_iff.mp h'
+    have hget := get_decl_d_refines hrel hwf hr
+    cases r with
+    | Err e =>
+      simp only [Result.ok.injEq] at h'
+      rw [← h']
+      cases e with
+      | Msg m =>
+        obtain ⟨s0, hs0⟩ := hget
+        exact ⟨s0, by simp only [absIndCtorRec, absCVRec, absU64, hs0]; rw [iv_err_bind]⟩
+      | Verdict vv => exact hget.elim
+    | Ok v =>
+      obtain ⟨habs, hvwf⟩ := hget
+      simp only [absIndCtorRec, absCVRec, absU64, habs]
+      rw [iv_ok_bind]
+      simp only [beq_iff_eq]
+      obtain ⟨b, hb, h'⟩ := bind_eq_ok_iff.mp h'
+      have hbv : b.val = ConLeche.Frontend.indPiTeleLen (absExpr v) :=
+        ind_pi_tele_len_refines hvwf hb
+      obtain ⟨i1, hi1, h'⟩ := bind_eq_ok_iff.mp h'
+      have hi1v : i1.val = n_pd.val + c.num_fields.val := HashMap.uscalar_add_eq hi1
+      by_cases hne : (i1 != b) = true
+      · rw [if_pos hne] at h'
+        have hnev : n_pd.val + c.num_fields.val ≠ ConLeche.Frontend.indPiTeleLen (absExpr v) := by
+          rw [← hi1v, ← hbv]
+          simpa using hne
+        rw [if_neg hnev]
+        obtain ⟨m, -, h'⟩ := bind_eq_ok_iff.mp h'
+        rw [frontend.export_c.invalid] at h'
+        simp only [Result.ok.injEq] at h'
+        rw [← h']
+        exact ⟨_, _, rfl, rfl⟩
+      · rw [if_neg hne] at h'
+        have heqv : n_pd.val + c.num_fields.val = ConLeche.Frontend.indPiTeleLen (absExpr v) := by
+          rw [← hi1v, ← hbv]
+          simpa using hne
+        rw [if_pos heqv]
+        simp only [Result.ok.injEq] at h'
+        rw [← h']
+        rfl
+  -- the `induct` check, shared by the two arms of `cidx`
+  have hinduct : ∀ (o' : core.result.Result Unit frontend.export_c.LineErr),
+      (match c.induct with
+       | none => do
+         let r ← frontend.export_c.get_decl_d st c.cv.ty
+         match r with
+         | .Ok v => do
+           let b ← frontend.export_c.ind_pi_tele_len v
+           let i ← n_pd + c.num_fields
+           if i != b then do
+             let v1 ← frontend.export_c.fields_error n c.num_fields n_pd b
+             frontend.export_c.invalid Unit v1
+           else ok (core.result.Result.Ok ())
+         | .Err e => ok (core.result.Result.Err e)
+       | some iw => do
+         let r ← frontend.export_c.st_name st iw
+         match r with
+         | .Ok v => do
+           let b ← kernel.name.beq v t
+           if b then do
+             let r1 ← frontend.export_c.get_decl_d st c.cv.ty
+             match r1 with
+             | .Ok v1 => do
+               let b1 ← frontend.export_c.ind_pi_tele_len v1
+               let i ← n_pd + c.num_fields
+               if i != b1 then do
+                 let v2 ← frontend.export_c.fields_error n c.num_fields n_pd b1
+                 frontend.export_c.invalid Unit v2
+               else ok (core.result.Result.Ok ())
+             | .Err e => ok (core.result.Result.Err e)
+           else do
+             let v1 ← frontend.export_c.induct_error n v t
+             frontend.export_c.invalid Unit v1
+         | .Err e => ok (core.result.Result.Err e)) = ok o' →
+      OrderStepOut o' (absIndCtorRec c) ordered j.val
+        (match (absIndCtorRec c).induct with
+         | some iw => do
+           let iwn ← lst.name iw
+           if iwn == absName t then
+             (do let cty ← ConLeche.Frontend.getDeclD lst (absIndCtorRec c).cv.type
+                 if n_pd.val + (absIndCtorRec c).numFields
+                     == ConLeche.Frontend.indPiTeleLen cty then
+                   pure (.yield (none, ordered.push (absIndCtorRec c), j.val + 1))
+                 else pure (.done (some (.inl (.invalid
+                   s!"constructor {absName n} declares {(absIndCtorRec c).numFields} fields at \
+                     {n_pd.val} parameters; its type has \
+                     {ConLeche.Frontend.indPiTeleLen cty} binders")), ordered, j.val)))
+           else pure (.done (some (.inl (.invalid
+             s!"constructor {absName n} declares induct {iwn}; it is \
+               a constructor of {absName t}")), ordered, j.val))
+         | _ =>
+           (do let cty ← ConLeche.Frontend.getDeclD lst (absIndCtorRec c).cv.type
+               if n_pd.val + (absIndCtorRec c).numFields
+                   == ConLeche.Frontend.indPiTeleLen cty then
+                 pure (.yield (none, ordered.push (absIndCtorRec c), j.val + 1))
+               else pure (.done (some (.inl (.invalid
+                 s!"constructor {absName n} declares {(absIndCtorRec c).numFields} fields at \
+                   {n_pd.val} parameters; its type has \
+                   {ConLeche.Frontend.indPiTeleLen cty} binders")), ordered, j.val)))) := by
+    intro o' h'
+    rw [show (absIndCtorRec c).induct = c.induct.map absU64 from rfl]
+    cases hiw : c.induct with
+    | none =>
+      rw [hiw] at h'
+      simp only [] at h'
+      simp only [Option.map_none]
+      exact hfields o' h'
+    | some iw =>
+      rw [hiw] at h'
+      simp only [] at h'
+      simp only [Option.map_some, absU64]
+      obtain ⟨r, hr, h'⟩ := bind_eq_ok_iff.mp h'
+      have hst := st_name_refines hrel hwf hr
+      cases r with
+      | Err e =>
+        simp only [Result.ok.injEq] at h'
+        rw [← h']
+        cases e with
+        | Msg m =>
+          obtain ⟨s0, hs0⟩ := hst
+          exact ⟨s0, by rw [hs0, iv_err_bind]⟩
+        | Verdict vv => exact hst.elim
+      | Ok v =>
+        obtain ⟨habs, hvwf⟩ := hst
+        rw [habs, iv_ok_bind]
+        obtain ⟨b, hb, h'⟩ := bind_eq_ok_iff.mp h'
+        have hbv : b = decide (absName v = absName t) := Name.beq_refines hvwf ht hb
+        by_cases hbt : b = true
+        · rw [if_pos hbt] at h'
+          have habst : absName v = absName t := by
+            have hd : decide (absName v = absName t) = true := by rw [← hbv]; exact hbt
+            simpa using hd
+          rw [if_pos (by simpa using habst)]
+          exact hfields o' h'
+        · rw [if_neg hbt] at h'
+          have habst : absName v ≠ absName t := by
+            intro hc
+            exact hbt (by rw [hbv, hc]; simp)
+          rw [if_neg (by simpa using habst)]
+          obtain ⟨m, -, h'⟩ := bind_eq_ok_iff.mp h'
+          rw [frontend.export_c.invalid] at h'
+          simp only [Result.ok.injEq] at h'
+          rw [← h']
+          exact ⟨_, _, rfl, rfl⟩
+  -- the `cidx` check
+  rw [show (absIndCtorRec c).cidx = c.cidx.map absU64 from rfl]
+  cases hci : c.cidx with
+  | none =>
+    rw [hci] at h
+    simp only [] at h
+    simp only [Option.map_none]
+    exact hinduct o h
+  | some ci =>
+    rw [hci] at h
+    simp only [] at h
+    simp only [Option.map_some, absU64]
+    by_cases hne : (ci != j) = true
+    · rw [if_pos hne] at h
+      have hnev : ¬ (ci.val = j.val) := by simpa using hne
+      rw [if_neg (by simpa using hnev)]
+      obtain ⟨m, -, h⟩ := bind_eq_ok_iff.mp h
+      rw [frontend.export_c.invalid] at h
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact ⟨_, _, rfl, rfl⟩
+    · rw [if_neg hne] at h
+      have heqv : ci.val = j.val := by simpa using hne
+      rw [if_pos (by simpa using heqv)]
+      exact hinduct o h
 
 end ConRon.Refine.Frontend
