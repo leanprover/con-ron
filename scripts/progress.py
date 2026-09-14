@@ -25,8 +25,11 @@ reports agree.
 Three groups since task #84: the verified core (`ConLeche/Kernel`,
 `ConLeche/Cached`); the **parser in the core** (`ConLeche/Frontend`'s
 recogniser, record assembly, projection rewrite, ground hoist, preparation and
-prelude — verified-core Rust whose `_refines` lemmas task #85 writes, so its
-`verified` column is 0 by construction until then); and the cherries that stay
+prelude — verified-core Rust whose `_refines` lemmas task #85 **phase 3** will
+write, so its `verified` column is 0 by construction until then; task #85's
+phase 1 landed the parser's *well-formedness* tier, `Refine/Frontend/*`, whose
+lemmas are named `_wf` and which this column deliberately does not count, since
+what it measures is refinement against con-leche); and the cherries that stay
 unverified (the in-process modeller, the annotated-NDJSON writer and its debug
 splice, `Main.lean`).  `Frontend/Scan/Equiv` — the parser's own equivalence
 proofs — is excluded throughout: it is a `Prop`, not code.  Plus the size of
