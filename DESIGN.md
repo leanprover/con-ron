@@ -15407,3 +15407,200 @@ frontend rather than a runtime check, which is exactly the pre-#73 state.
 
 **Gates**: all eight green (`lake-build` 310 s at `LAKE_JOBS=32`), the proof
 library `sorry`-free, the census unchanged.
+
+### Task #90 — `PropWhen` one word for its common cases (2026-09-14, Sonnet under Fable; proofs by Opus, below)
+
+The maintainer's ask: task #38 boxed `BinderMeta.pw` as `P<PropWhen>` because
+a `PropWhen` was 24 bytes by value at the time; that made every binder pay a
+40-byte-ish heap block (header plus the 24-byte datum) and a reference count
+for `never`, the commonest value.  This task shrinks `PropWhen` itself so the
+common constructors (`Never`, `Always`, `One`) cost no heap cell at all, and
+un-boxes `BinderMeta` back to holding one by value — removing the separate
+allocation task #38 added, not just narrowing its payload.
+
+#### 1. The layout, before and after
+
+`PropWhenRepr`'s five constructors, in con-leche's own arm order (unchanged —
+every operation still dispatches on all five, one Rust arm per Lean arm):
+
+| constructor | before (task #38) | after (task #90) |
+|---|---|---|
+| `Never`, `Always` | no payload | no payload |
+| `One(Name)` | inline, one word | inline, one word (unchanged) |
+| `Two(Name, Name)` | inline, two words | `P<(Name, Name)>` — one word, boxed |
+| `Many(Vec<Name>)` | inline, three words (a `Vec` header) | `P<Vec<Name>>` — one word, boxed |
+
+| type | before | after |
+|---|---:|---:|
+| `PropWhenRepr` | 24 | 16 |
+| `PropWhen` (one field) | 24 | **16** |
+| `BinderMeta` (`pw`) | 8 (a `P<PropWhen>` handle) | **16** (the datum, inline) |
+| `BinderMeta`'s own `P` block (task #38's) | 24 + 16 header = 40 | **gone** — no separate allocation |
+| `ExprKind` (widest arm `Lam`/`ForallE`) | 32 (payload 24: two handles + 8-byte `pw` pointer) | **40** (payload 32: two handles + 16-byte inline datum) |
+| `ExprNode` (`data` + `kind`) | 40 | **48** |
+| `ExprNode`'s `P` block | 56 | **64** |
+
+`Two`'s payload is a *pair behind one handle*, `P<(Name, Name)>`, not two
+separate handles: the pair is what is shared or dropped together, and a
+tuple costs the same one word a lone name would.  Charon and Aeneas accepted
+the `Arc` of a tuple directly (`alloc.sync.Arc (kernel.name.Name ×
+kernel.name.Name)` in the generated `Types.lean`, confirmed by `scripts/
+extract.sh`'s "externals OK" line) — the `TwoNames` two-field-struct fallback
+the task brief allowed for was not needed.
+
+Both size assertions live in `#[cfg(test)]`: `crates/con-ron-core/src/kernel/
+expr.rs`'s `task_90_sizes` (prints `PropWhen`/`BinderMeta`/`ExprKind`/
+`ExprNode`) and `crates/con-ron-dump/src/lib.rs`'s pre-existing
+`the_node_sizes_are_what_the_accounting_assumes`, now updated to `PropWhen`
+16, `BinderMeta` 16, `ExprKind` 40, `ExprNode` 48, `expr_node_bytes() == 64`.
+`ExprNode` **does grow**, 40 → 48, 8 bytes wider than task #38 left it — the
+brief's own arithmetic ("still 56 bytes") assumed the outer `ExprKind`
+discriminant would find a spare bit pattern inside `BinderMeta`'s own tag the
+way it does for a bare pointer's niche; measured, it does not (`Bvar(u64)`'s
+full-range payload kills any niche for the whole enum, exactly as it already
+did before this task), so the widest arm's growth is passed straight through.
+This is precisely the "if `ExprNode` grows, stop and report" case the brief
+called out, so it was verified end to end before going further (§4 below)
+rather than assumed away.
+
+#### 2. What changed, function by function
+
+Every operation still matches the *same five constructors* in the *same
+order* — no arm was collapsed or reordered, so the refinement proof's
+constructor-for-constructor shape is preserved. Bodies that changed, all in
+`crates/con-ron-core/src/kernel/prop_when.rs` unless noted (this is the proof
+agent's work order):
+
+* `PropWhenRepr` (the type): `Two`/`Many` now hold `P<(Name, Name)>` /
+  `P<Vec<Name>>` instead of the pair/list inline.
+* `dup`: `Two`/`Many` clone the handle (`ptr::clone`) instead of copying the
+  pair or the list spine.
+* `equiv_r`, `hash_repr`, `to_list`, `holds`, `params_defined`, `bind_z`:
+  the `Two`/`Many` arms read through the handle first (`&pq.0`/`&pq.1` for
+  the pair via `Deref`, the list passed straight through — `P<Vec<Name>>`
+  deref-coerces to `&Vec<Name>` at every call site that already expected
+  one, so `names_beq`/`names_copy`/`all_zero_from`/`all_contained_from`/
+  `names_hash_from`/`bind_z_go` needed no signature change).
+* `of_sorted`, `two_prime`: build the handle with `ptr::new` around the pair
+  or the list instead of writing the fields inline.
+* `inter`, `bind_z_go`, `if_all_zero`, `to_list_opt`, `is_never`,
+  `has_params`, `never`, `of_repr`: **unchanged** — they dispatch generically
+  (through `to_list`, `dup`, or a `Never`/`Always`-only match) and never
+  destructure `Two`/`Many` themselves.
+* `crates/con-ron-core/src/kernel/expr.rs`: `BinderMeta` (`pw: PropWhen` by
+  value, the `P<…>` wrapper gone), `binder_meta` (`BinderMeta { pw }`, no
+  `ptr::new`), `binder_meta_dup` (`prop_when::dup(&m.pw)`, no `ptr::clone`).
+  `binder_meta_beq` and `binder_meta_hash` are **unchanged text** — `&a.pw`
+  was already `&PropWhen` after `P`'s auto-deref, so nothing at either call
+  site needed to move.
+
+**61 of the 61 `.pw` use sites outside `prop_when.rs`/`expr.rs` needed no
+change at all** (`grep -rn '\.pw\b' crates/con-ron-core/src crates/con-ron-
+dump/src`): every one already read `&m.pw`/`&mb.pw`/etc. and handed it to a
+function expecting `&PropWhen` (`prop_when::beq`, `dup`, `is_never`,
+`has_params`, `params_defined`, `hash_pw`, `env::beta_skip`, `env::io_skip`,
+`level::subst_pw`, the dump writer's `w_pw`/`pw`), which Rust's deref
+coercion satisfied identically whether `m.pw` was a `P<PropWhen>` or, now, a
+plain `PropWhen`. The generated `Funs.lean` diff shows exactly this: every
+`let pw ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref Global m.pw` step is
+gone, and the callers now read `m.pw` directly.
+
+#### 3. Stayed inside the Aeneas subset
+
+No closures, no `?`, no loops, no `unsafe`, no `std::collections`, no
+counted-pointer API beyond `new`/`clone`/`deref` — the change only moves
+which fields sit behind `P` and does not touch the four-operation contract
+of DESIGN.md §3.2. `scripts/lint-rust-style.sh crates/con-ron-core/src` and
+`scripts/provenance.py check` both pass unchanged (2023 items, 2152
+citations, all current). `scripts/extract.sh` reports the same "externals
+OK (1 type(s), 5 fn(s) modeled by hand)" as before — `PropWhenRepr.Two`'s new
+`Arc`-of-a-tuple payload is not itself an external; it is the same `alloc.
+sync.Arc` hole DESIGN.md §3.2 already models, applied to a tuple instead of
+a `Name`.
+
+#### 4. Measured
+
+Release + mimalloc, `--jobs=1`, `ulimit -v 2 600 000` / `5 000 000` (CLAUDE.md
+budgets), a "before" binary built from the pre-task tree and an "after" one
+from the same tree with only `prop_when.rs`/`expr.rs` changed (`git stash` /
+`stash pop` around the same checkout, so nothing else moved).  Peak RSS from
+`/usr/bin/env time -v`'s "Maximum resident set size"; instructions and
+cycles from `perf stat -e instructions:u,cycles:u`.  The machine ran other
+agents' work throughout, so wall time is secondary per CLAUDE.md.
+
+| run | before | after | Δ |
+|---|---:|---:|---:|
+| `init` peak RSS | 901 648 KB | **824 660 KB** | **−8.54 %** |
+| `init` instructions:u | 540 139 174 837 | 540 246 065 615 | +0.020 % |
+| `init` cycles:u | 282 247 962 800 | 277 482 869 865 | −1.69 % |
+| `init` wall (`time -v`) | 64.00 s | 63.85 s | −0.2 % |
+| `core` peak RSS | 2 441 148 KB | **2 216 316 KB** | **−9.21 %** |
+| `core` instructions:u | 1 158 325 644 156 | 1 161 828 293 576 | +0.302 % |
+| `core` cycles:u | 709 353 196 441 | 719 861 232 392 | +1.48 % |
+| `core` wall (`time -v`) | 160.67 s | 167.92 s | +4.5 % |
+
+Both runs still accept (`init` 57 972 declarations, `core` 163 391, matching
+the pre-task milestone numbers above) and `scripts/diff-e2e.sh` reads
+**348/348 agree, 0 differ** on both the extracted model and the binary.
+
+Peak RSS **drops** on both fixtures, by more than the instruction count moves
+(well under the 1 % budget), which is the opposite of what a naive per-node
+accounting predicts: `ExprNode`'s block is 8 bytes wider (56 → 64), and at
+`init` scale (6 137 917 `E` nodes, task #38's table) that is +48 MB if it
+were charged in full (8 × 6 137 917 B ≈ 47 952 KB), against removing a
+~40-byte block for every one of 840 544 `lam`/`forallE` binders (−33 MB,
+40 × 840 544 B ≈ 32 834 KB) — a naive net *loss* of ~15 MB, not the 77 MB
+measured *gain*. The reconciliation is mimalloc's own size
+classes: a 56-byte allocation and a 64-byte one land in bins that are
+already close together (or the same one, given the header and slack a real
+allocator adds around either), so most of the "extra" 8 bytes per node were
+already-wasted slack rather than newly-paid-for bytes, while the *removed*
+40-byte-ish allocation drops its own header and bin overhead entirely rather
+than shrinking within a bin it was already going to pay for. `core`'s larger
+relative RSS drop (−9.2 % against `init`'s −8.5 %) is consistent with that:
+more binders per node at `core`'s scale (`lam` 1 534 956 + `forallE` 906 103
+is 19.9 % of `core`'s 12 273 572 total `E`, against 13.7 % at `init`'s scale),
+so a larger share of the win and a smaller share of the cost.
+Cycles move in opposite directions between the two fixtures (`init` −1.7 %,
+`core` +1.5 %) and wall time likewise (`init` −0.2 %, `core` +4.5 %); both are
+within the noise this shared machine adds (CLAUDE.md: wall and cycles are
+secondary, instructions are the measure of record, and those moved under
+0.31 % on both fixtures).
+
+`_tmp/task90/` holds the two binaries and all eight raw logs
+(`{before,after}-{init,core}.err` for RSS, `perf{b,a}-{init,core}.err` for
+instructions/cycles); deleted once these numbers are the committed record,
+per CLAUDE.md.
+
+#### 5. What `lake build` says (handed to the proof agent)
+
+`ConRon/Refine/` was not touched, as instructed, and it breaks in exactly
+one place — 2 585 of 2 587 targets still build, including everything in
+`ConLeche.*` and `ConRon.Refine.HashMap`/`ConRon.Refine.Nat`:
+
+```
+✖ [2493/2587] Building ConRon.Refine.Abs (2.1s)
+error: ConRon/Refine/Abs.lean:328:4: Function expected at
+  prop_when.PropWhenRepr.Two p
+but this term has type
+  prop_when.PropWhenRepr
+
+Note: Expected a function because this term is being applied to the argument
+  q
+```
+
+`PropWhenRepr.Two` takes one argument now (the `Arc (Name × Name)` handle),
+not two — `Abs.lean:328` still applies it to `p q` in the old two-argument
+shape. The fix is the same move `Funs.lean`'s own diff makes at every one of
+its `Two`/`Many` sites: destructure or apply the handle
+(`ron.ptr...deref`/`alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref` where a Lean
+lemma needs the pair itself, mirroring what the generated code already does)
+rather than passing two names directly.  `ConRon.Refine.HashMap` and
+`ConRon.Refine.Nat` (built just before `Abs` in dependency order) are
+unaffected — neither mentions `PropWhen`. Everything under `ConRon/Refine/`
+that depends on `Abs` (the `ExprOps*` family DESIGN.md's task-#38 entry
+lists, `BasisTables`, etc.) was not attempted by this build once `Abs` failed
+to elaborate, so the same `Two`/`Many` shape may recur there once `Abs.lean`
+elaborates again; re-running `lake build` after fixing it is the way to find
+out. No `ConLeche.*` file broke, since none of them mention the crate's own
+`PropWhenRepr` — only the hand-written `Refine/` bridge does.
