@@ -5,7 +5,41 @@
 # or its text changed: re-read the paragraph that cites it, fix the link
 # or the prose, then regenerate.
 
-== proof/ConRon/Refine/Installed.lean#L3293-L3304
+== con-leche/ConLeche/MainTheorem.lean#L90-L117
+    90  /-- **The main theorem.**  Every environment the checker accepts has a
+    91  model in every set theory — at every `Nat.div`/`Nat.mod` pin list, so
+    92  consistency does not depend on which variants the install gate is
+    93  handed (the empty list included: under it every stream that declares
+    94  `Nat.div` declines).  The shipped binary runs the fold at
+    95  `natOpPinSets`. -/
+    96  theorem model_exists (V : Type w) [SetTheory V]
+    97      (pins : List NatOpPinSet) (ds : Array Declaration) (env : Env)
+    98      (accepted : checkDecls .verified pins ds = .ok env) :
+    99      Nonempty (Model V env) := by
+   100    obtain ⟨m⟩ := Cached.checkDecls_sound (V := V) rfl accepted
+   101    exact ⟨Model.Model.ofEnvModelM m⟩
+   102  
+   103  open Frontend in
+   104  /-- **The main corollary.**  A file declaring a theorem of type `False`
+   105  in the shape `jsonWithTheoremFalse` describes is rejected: the parse
+   106  reads the template's four lines into a theorem record of type `False`,
+   107  the preparation keeps the record, and a stream holding it is never
+   108  accepted.  At every pin list, as the main theorem: the shipped binary
+   109  runs the fold at `natOpPinSets`. -/
+   110  theorem no_False_declaration (V : Type w) [SetTheory V]
+   111      (pins : List NatOpPinSet) (chunks : List ByteArray)
+   112      (h : jsonWithTheoremFalse chunks) :
+   113      ∃ e, (do
+   114        let pre ← builtinPreludeE
+   115        let r ← parseChunks chunks
+   116        let ds := preparePrelude pre r.decls
+   117        checkDecls .verified pins ds) = .error e := by
+
+== proof/ConRon/Refine/Installed.lean#L3289-L3305
+  3289  theorem check_decls_refines {mode : env.CheckMode}
+  3290      (hk : Core.KnotSpec mode IndAbs.checkFuelU)
+  3291      (hraw : CheckerDecl.BasisRawSpec)
+  3292      (hind : IndRoutesSpec mode) (hinde : IndRoutesSpecErr mode)
   3293      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
   3294      (hvar : CheckerPins.PinsWF pins)
   3295      {ds : alloc.vec.Vec env.Declaration}
@@ -18,6 +52,7 @@
   3302          = .ok (absEnv e)
   3303      | .Err er =>
   3304        ErrSimPos er
+  3305          (leanCheckDecls (absMode mode) (absPins pins) (ds.val.map absDeclaration)) := by
 
 == crates/con-ron-core/src/kernel/core_types.rs#L87-L92
     87  pub enum CheckError {
@@ -27,29 +62,24 @@
     91      Native(Vec<u32>),
     92  }
 
-== proof/ConRon/Refine/Main.lean#L270-L291
-   270  /-- info: 'ConRon.Refine.conron.no_proof_of_False'' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-   271  #guard_msgs in #print axioms conron.no_proof_of_False'
-   272  
-   273  /-! ## The headline: the pins the verified decoder produced (task #75)
-   274  
-   275  `hvar` is a promise about the pin *argument*, and the one place a real run gets
-   276  it from is the decoder: `con_ron::driver::pins_for_run` calls
-   277  `kernel::pins_decode::decode_embedded()`, and task #66's `PinsWF.decode_wf`
-   278  reads `PinsWF` off **any** successful decode run — the input is a `Slice U8`
-   279  like any other, and nothing about its value is used.  So the pair below is the
-   280  statement about *the binary's checker fed the pins its own verified decoder
-   281  produced*, with no hypothesis left but that decode and the run itself, and it
-   282  names no string constant: its census is con-leche's own three axioms.
-   283  
-   284  The two `_embedded` corollaries in the next section are this pair's instance at
-   285  `text = core.str.Str.as_bytes kernel.pins_text.PINS_TEXT` — `decode_embedded`
-   286  is that `as_bytes` followed by `decode`, which is what `decode_embedded_wf`
-   287  peels — and they pay one axiom for naming the constant (`AENEAS_FINDINGS.md`
-   288  §3.8).  They are kept as they are: the extra generality here is exactly the
-   289  step that drops the axiom, and both statements are worth having side by side. -/
-   290  
-   291  /-- **The main theorem for the shipped binary, axiom-free** (task #75): every
+== proof/ConRon/Refine/Main.lean#L730-L746
+   730  theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
+   731      {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+   732      (hgen : Frontend.ModellerWF inst g)
+   733      (hmr : Frontend.ModellerRefines inst g Frontend.CtxRel)
+   734      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   735      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+   736      {prelude_bytes : Slice Std.U8} {pre : frontend.export_c.ParseResultD}
+   737      (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
+   738      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {im ce : Bool}
+   739      (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
+   740      {r : frontend.export_c.ParseResultD}
+   741      (hparse : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Ok r))
+   742      {ds : alloc.vec.Vec env.Declaration}
+   743      (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
+   744      {e : env.Env}
+   745      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+   746      False := by
 
 == crates/con-ron/src/bin/con-ron.rs#L130-L254
    130  const USAGE: &str = "\
