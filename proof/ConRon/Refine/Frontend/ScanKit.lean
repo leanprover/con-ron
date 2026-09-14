@@ -38,6 +38,15 @@ hypothesis, so nothing is claimed about an Aeneas `fail`/`div`.
     newline_from_refines : newline_from b i = ok r → r = newlineFrom (absBytes b) (absPos i)
     has_escape_refines  : has_escape b j e = ok r → r = hasEscape (absBytes b) (absPos j) (absPos e)
     str_close_refines   : str_close b j = ok e → absPos e = strClose (absBytes b) (absPos j)
+    skip_digits_ge      : skip_digits b i = ok e → i.val ≤ e.val
+    num_end_run         : num_end b i = ok e → ¬ e = i → skip_digits b i = ok e
+    readNat_eq          : `readNat` unfolded once at a port position
+    readNatAt_eq_readNat : skipDigits (absBytes b) (absPos i) = absPos e → i.val ≤ e.val →
+                            readNatAt (absBytes b) (absPos i) (absPos e) = readNat (absBytes b) (absPos i) 0
+    read_nat_at_refines : skip_digits b i = ok e → read_nat_at b i e = ok (.Ok n) →
+                            n.val = readNatAt (absBytes b) (absPos i) (absPos e)
+    read_nat_at_err     : read_nat_at b i e = ok (.Err er) → ScanErrSim er x
+    slot_nat_refines    : slot_nat b ks v = ok o → ScanSim absU64 o (slotNat (absBytes b) (absPos ks) (absPos v))
 
 where `hnz : ∀ m (hm : m < lit.val.length), lit.val[m] ≠ 0#u8` -- no literal of
 the dialect holds a `0` byte, and that is exactly what makes the port's
@@ -73,6 +82,12 @@ and `scalar_tac` takes it back to the port's `c = 34#u8`.
   `matchLit_eq_litFrom` is the equivalence to `matchLit`.  It is an
   intermediate definition in DESIGN.md's sense; `litFrom_1`…`litFrom_11` are
   what turn it back into `keyAt`'s own `litN` calls.
+* **`slotNat B ks v`** -- `scan_fast::slot_nat` is the port's factoring of the
+  `numEnd`/`readNatAt`/`noProgress` chain every `Nat`-valued slot of every
+  `scan*Loop` of `Scan/Fast.lean` writes out inline (`Fast.lean:820-824` is
+  one instance).  `slotNat` is that fragment as a con-leche function, written
+  to be the Lean's own chain literally, so an object loop can unfold it and
+  see exactly what its `scan*Loop` twin has.
 * **`absU32`** -- the port's `u32` seen-mask as con-leche's `UInt32`, for
   `dup` and for every object loop's `seen` bits.  `Abs.lean` has no `u32`
   abstraction because no record field is one.  The body is `UInt32.ofBitVec
@@ -2378,5 +2393,453 @@ theorem str_close_refines {b : Slice Std.U8} {j e : Std.Usize}
     (h : frontend.scan_fast.str_close b j = ok e) :
     absPos e = strClose (absBytes b) (absPos j) :=
   str_close_loop_refines (b.val.length - j.val) j e (le_refl _) h
+
+
+private theorem usize_small64 (n : Nat) (h : n ≤ 64) : n < USize.size := by
+  have h2 : (64:Nat) < USize.size := by
+    rw [USize.size]
+    rcases System.Platform.numBits_eq with hb | hb <;> rw [hb] <;> norm_num
+  omega
+
+private theorem uT18 : ((18 : USize)).toNat = 18 := by
+  simp [USize.toNat_ofNat, Nat.mod_eq_of_lt (usize_small64 18 (by norm_num))]
+
+/-! ## `read_nat_at` -/
+
+/-- `skipDigits` never goes backwards. -/
+private theorem skipDigits_ge (b : Slice Std.U8) (f : Nat) :
+    ∀ (k : Std.Usize), b.val.length - k.val ≤ f →
+      k.val ≤ (skipDigits (absBytes b) (absPos k)).toNat := by
+  induction f with
+  | zero =>
+    intro k hf
+    rw [skipDigits_eq, if_neg (show ¬ k.val < b.val.length by omega), absPos_toNat]
+  | succ f ih =>
+    intro k hf
+    by_cases hk : k.val < b.val.length
+    · rw [skipDigits_eq, if_pos hk]
+      by_cases hd : isDigit (absByte (pByteAt b k.val)) = true
+      · rw [if_pos hd]
+        obtain ⟨k1, hk1, hk1v⟩ := usize_add_ok (i := k)
+          (by have := Slice.length_ineq b; omega)
+        rw [← absPos_add_one hk1]
+        have := ih k1 (by omega)
+        omega
+      · rw [if_neg hd, absPos_toNat]
+    · rw [skipDigits_eq, if_neg hk, absPos_toNat]
+
+private theorem skipDigits_step {b : Slice Std.U8} {k k1 e : Std.Usize}
+    (hk : k.val < b.val.length) (hlt : k.val < e.val) (hk1 : k1.val = k.val + 1)
+    (h : skipDigits (absBytes b) (absPos k) = absPos e) :
+    isDigit (absByte (pByteAt b k.val)) = true ∧
+      skipDigits (absBytes b) (absPos k1) = absPos e := by
+  rw [skipDigits_eq, if_pos hk] at h
+  by_cases hd : isDigit (absByte (pByteAt b k.val)) = true
+  · rw [if_pos hd] at h
+    refine ⟨hd, ?_⟩
+    have hb : (absPos k + 1).toNat = k.val + 1 := by
+      rw [usizeStep (absBytes b) (absPos k) (absPos_lt_usize.mpr hk), absPos_toNat]
+    have he : absPos k1 = absPos k + 1 := by
+      apply USize.toNat_inj.mp; rw [absPos_toNat, hb, hk1]
+    rw [he]; exact h
+  · rw [if_neg hd] at h
+    have := absPos_inj h
+    omega
+
+private theorem skipDigits_stop {b : Slice Std.U8} {k e : Std.Usize}
+    (hk : k.val < b.val.length) (hge : e.val ≤ k.val)
+    (h : skipDigits (absBytes b) (absPos k) = absPos e) :
+    ¬ (isDigit (absByte (pByteAt b k.val)) = true) := by
+  have hle : k.val ≤ e.val := by
+    have := skipDigits_ge b (b.val.length - k.val) k (le_refl _)
+    rw [h, absPos_toNat] at this; exact this
+  intro hd
+  rw [skipDigits_eq, if_pos hk, if_pos hd] at h
+  obtain ⟨k1, hk1, hk1v⟩ := usize_add_ok (i := k) (by have := Slice.length_ineq b; omega)
+  rw [← absPos_add_one hk1] at h
+  have h2 := skipDigits_ge b (b.val.length - k1.val) k1 (le_refl _)
+  rw [h, absPos_toNat] at h2
+  omega
+
+/-! ### The two accumulations, unfolded once -/
+
+private theorem readNat64_eq (b : Slice Std.U8) (k e : Std.Usize) (accL : UInt64) :
+    readNat64 (absBytes b) (absPos k) (absPos e) accL =
+      (if k.val < b.val.length then
+        (if k.val < e.val then
+          readNat64 (absBytes b) (absPos k + 1) (absPos e)
+            (accL * 10 + (absByte (pByteAt b k.val) - 48).toUInt64)
+         else accL)
+       else accL) := by
+  rw [readNat64]
+  by_cases h : k.val < b.val.length
+  · rw [dif_pos (absPos_lt_usize.mpr h), if_pos h, uget_absPos]
+    by_cases h2 : k.val < e.val
+    · rw [if_pos (absPos_lt.mpr h2), if_pos h2]
+    · rw [if_neg (fun hc => h2 (absPos_lt.mp hc)), if_neg h2]
+  · rw [dif_neg (fun hc => h (absPos_lt_usize.mp hc)), if_neg h]
+
+/-- **`readNat`, unfolded once at a port position** (`Scan/Fast.lean:103-112`). -/
+theorem readNat_eq (b : Slice Std.U8) (k : Std.Usize) (acc : Nat) :
+    readNat (absBytes b) (absPos k) acc =
+      (if k.val < b.val.length then
+        (if isDigit (absByte (pByteAt b k.val)) then
+          readNat (absBytes b) (absPos k + 1)
+            (acc * 10 + ((absByte (pByteAt b k.val)).toNat - 48))
+         else acc)
+       else acc) := by
+  rw [readNat]
+  by_cases h : k.val < b.val.length
+  · rw [dif_pos (absPos_lt_usize.mpr h), if_pos h, uget_absPos]
+  · rw [dif_neg (fun hc => h (absPos_lt_usize.mp hc)), if_neg h]
+
+/-- **The machine-word accumulation is the `Nat` one while the run fits.**
+`readNat64` wraps; it does not, on a run short enough that the value stays
+below `2 ^ 64`, and the bound travels as `acc * 10 ^ d + 10 ^ d ≤ 2 ^ 64`. -/
+private theorem readNat64_eq_readNat (b : Slice Std.U8) (f : Nat) :
+    ∀ (k e : Std.Usize) (accL : UInt64) (accN : Nat),
+      e.val - k.val ≤ f →
+      skipDigits (absBytes b) (absPos k) = absPos e →
+      k.val ≤ e.val →
+      accL.toNat = accN →
+      accN * 10 ^ (e.val - k.val) + 10 ^ (e.val - k.val) ≤ 2 ^ 64 →
+      (readNat64 (absBytes b) (absPos k) (absPos e) accL).toNat
+        = readNat (absBytes b) (absPos k) accN := by
+  induction f with
+  | zero =>
+    intro k e accL accN hf hrun hle hacc hbd
+    have hke : k.val = e.val := by omega
+    rw [readNat64_eq, readNat_eq]
+    by_cases hk : k.val < b.val.length
+    · rw [if_pos hk, if_pos hk, if_neg (show ¬ k.val < e.val by omega),
+        if_neg (skipDigits_stop hk (by omega) hrun), hacc]
+    · rw [if_neg hk, if_neg hk, hacc]
+  | succ f ih =>
+    intro k e accL accN hf hrun hle hacc hbd
+    by_cases hlt : k.val < e.val
+    · have hk : k.val < b.val.length := by
+        by_contra hc
+        rw [skipDigits_eq, if_neg hc] at hrun
+        have := absPos_inj hrun; omega
+      obtain ⟨k1, hk1, hk1v⟩ := usize_add_ok (i := k)
+        (by have := Slice.length_ineq b; omega)
+      obtain ⟨hd, hrun1⟩ := skipDigits_step hk hlt hk1v hrun
+      have hdig : 48 ≤ (absByte (pByteAt b k.val)).toNat ∧
+          (absByte (pByteAt b k.val)).toNat ≤ 57 := by
+        rw [isDigit] at hd
+        simp only [Bool.and_eq_true, decide_eq_true_eq] at hd
+        constructor
+        · exact (UInt8.le_iff_toNat_le.mp hd.1)
+        · exact (UInt8.le_iff_toNat_le.mp hd.2)
+      -- the run has at least one digit, so `10 ^ d = 10 * 10 ^ (d - 1)`
+      have hpow : (10:Nat) ^ (e.val - k.val) = 10 * 10 ^ (e.val - k1.val) := by
+        have : e.val - k.val = (e.val - k1.val) + 1 := by omega
+        rw [this, Nat.pow_succ]; ring
+      have hb10 : accN * 10 + 10 ≤ 2 ^ 64 := by
+        have hp : (1:Nat) ≤ 10 ^ (e.val - k1.val) := Nat.one_le_pow _ _ (by norm_num)
+        rw [hpow] at hbd
+        have h2 : (10:Nat) ≤ 10 * 10 ^ (e.val - k1.val) := by nlinarith
+        have h1 : accN * 10 ≤ accN * (10 * 10 ^ (e.val - k1.val)) :=
+          Nat.mul_le_mul_left _ h2
+        omega
+      have haccL : (accL * 10 + (absByte (pByteAt b k.val) - 48).toUInt64).toNat
+          = accN * 10 + ((absByte (pByteAt b k.val)).toNat - 48) := by
+        have hsub : ((absByte (pByteAt b k.val) - 48).toUInt64).toNat
+            = (absByte (pByteAt b k.val)).toNat - 48 := by
+          rw [UInt8.toNat_toUInt64, UInt8.toNat_sub]
+          have : ((48:UInt8)).toNat = 48 := rfl
+          rw [this]
+          omega
+        rw [UInt64.toNat_add, UInt64.toNat_mul, hacc, hsub]
+        have h10 : ((10:UInt64)).toNat = 10 := rfl
+        rw [h10]
+        omega
+      rw [readNat64_eq, if_pos hk, if_pos hlt, readNat_eq, if_pos hk, if_pos hd,
+        ← absPos_add_one hk1]
+      refine ih k1 e _ _ (by omega) hrun1 (by omega) haccL ?_
+      rw [hpow] at hbd
+      refine le_trans ?_ hbd
+      have hc : (absByte (pByteAt b k.val)).toNat - 48 ≤ 9 := by omega
+      have hq : ((absByte (pByteAt b k.val)).toNat - 48) * 10 ^ (e.val - k1.val)
+          ≤ 9 * 10 ^ (e.val - k1.val) := Nat.mul_le_mul_right _ hc
+      nlinarith [hq]
+    · have hke : k.val = e.val := by omega
+      rw [readNat64_eq, readNat_eq]
+      by_cases hk : k.val < b.val.length
+      · rw [if_pos hk, if_pos hk, if_neg (show ¬ k.val < e.val by omega),
+          if_neg (skipDigits_stop hk (by omega) hrun), hacc]
+      · rw [if_neg hk, if_neg hk, hacc]
+
+/-- **`readNatAt` is `readNat` on a digit run** (`Scan/Fast.lean:496-500`):
+the two branches agree, because a run of at most 18 digits cannot leave the
+machine word.  This is the characterisation `scan_quoted_nat` needs. -/
+theorem readNatAt_eq_readNat {b : Slice Std.U8} {i e : Std.Usize}
+    (hrun : skipDigits (absBytes b) (absPos i) = absPos e) (hle : i.val ≤ e.val) :
+    readNatAt (absBytes b) (absPos i) (absPos e) = readNat (absBytes b) (absPos i) 0 := by
+  rw [readNatAt]
+  split
+  · rename_i h18
+    have hsub : (absPos e - absPos i).toNat = e.val - i.val := by
+      rw [USize.toNat_sub_of_le _ _ (by rw [USize.le_iff_toNat_le, absPos_toNat, absPos_toNat]; omega)]
+      rw [absPos_toNat, absPos_toNat]
+    have hd : e.val - i.val ≤ 18 := by
+      have := USize.le_iff_toNat_le.mp h18
+      rw [hsub, uT18] at this; exact this
+    have hbd : 0 * 10 ^ (e.val - i.val) + 10 ^ (e.val - i.val) ≤ 2 ^ 64 := by
+      have : (10:Nat) ^ (e.val - i.val) ≤ 10 ^ 18 := Nat.pow_le_pow_right (by norm_num) hd
+      omega
+    exact readNat64_eq_readNat b (e.val - i.val) i e 0 0 (le_refl _) hrun hle rfl hbd
+  · rfl
+
+
+/-- `skip_digits` never goes backwards, on the port's side of the fence. -/
+theorem skip_digits_ge {b : Slice Std.U8} {i e : Std.Usize}
+    (h : frontend.scan_fast.skip_digits b i = ok e) : i.val ≤ e.val := by
+  have hr := skip_digits_refines h
+  have := skipDigits_ge b (b.val.length - i.val) i (le_refl _)
+  rw [← hr, absPos_toNat] at this
+  exact this
+
+/-- **A `num_end` that moved is the digit run.**  `numEnd` returns either `i`
+(no digits, or JSON's leading-zero rule) or `skipDigits`'s answer, so a caller
+that has ruled `e = i` out has the run. -/
+theorem num_end_run {b : Slice Std.U8} {i e : Std.Usize}
+    (h : frontend.scan_fast.num_end b i = ok e) (hne : ¬ e = i) :
+    frontend.scan_fast.skip_digits b i = ok e := by
+  rw [frontend.scan_fast.num_end] at h
+  obtain ⟨d, hd, h⟩ := bind_eq_ok_iff.mp h
+  by_cases hdi : d = i
+  · rw [if_pos hdi] at h
+    exact absurd (by simpa using h.symm) hne
+  · rw [if_neg hdi] at h
+    obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+    by_cases h48 : c = 48#u8
+    · rw [if_pos h48] at h
+      obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+      by_cases hne2 : (d != i2) = true
+      · rw [if_pos hne2] at h
+        exact absurd (by simpa using h.symm) hne
+      · rw [if_neg hne2] at h
+        have : d = e := by simpa using h
+        rw [← this]; exact hd
+    · rw [if_neg h48] at h
+      have : d = e := by simpa using h
+      rw [← this]; exact hd
+
+/-! ### The port's `u64` loop against con-leche's `Nat` one -/
+
+private theorem read_nat_at_loop_nat {b : Slice Std.U8} {i e : Std.Usize} (f : Nat) :
+    ∀ (k : Std.Usize) (acc n : Std.U64),
+      b.val.length - k.val ≤ f →
+      skipDigits (absBytes b) (absPos k) = absPos e →
+      k.val ≤ e.val →
+      frontend.scan_fast.read_nat_at_loop b i e acc k = ok (.Ok n) →
+      readNat (absBytes b) (absPos k) acc.val = n.val := by
+  induction f with
+  | zero =>
+    intro k acc n hf hrun hle h
+    rw [frontend.scan_fast.read_nat_at_loop.eq_def] at h
+    rw [readNat_eq, if_neg (show ¬ k.val < b.val.length by omega)]
+    by_cases hke : k < e
+    · rw [if_pos hke, if_neg (show ¬ k < Slice.len b by scalar_tac)] at h
+      have : acc = n := by simpa using h
+      rw [this]
+    · rw [if_neg hke] at h
+      have : acc = n := by simpa using h
+      rw [this]
+  | succ f ih =>
+    intro k acc n hf hrun hle h
+    rw [frontend.scan_fast.read_nat_at_loop.eq_def] at h
+    by_cases hke : k < e
+    · rw [if_pos hke] at h
+      by_cases hkl : k < Slice.len b
+      · rw [if_pos hkl] at h
+        have hk : k.val < b.val.length := by scalar_tac
+        have hlt : k.val < e.val := by scalar_tac
+        obtain ⟨k1, hk1, hk1v⟩ := usize_add_ok (i := k)
+          (by have := Slice.length_ineq b; omega)
+        obtain ⟨hd, hrun1⟩ := skipDigits_step hk hlt hk1v hrun
+        rw [readNat_eq, if_pos hk, if_pos hd, ← absPos_add_one hk1]
+        obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+        have hoe : Std.U64.checked_mul acc 10#u64 = o := by simpa using ho
+        cases o with
+        | none => simp at h
+        | some x =>
+          have hspec := Std.U64.checked_mul_bv_spec acc 10#u64
+          rw [hoe] at hspec
+          obtain ⟨-, hxv, -⟩ := hspec
+          obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
+          have ho1e : Std.U64.checked_add x i4 = o1 := by simpa using ho1
+          have hi2v : i2 = pByteAt b k.val := by
+            rw [slice_index_ok hk] at hi2; rw [pByteAt, dif_pos hk]; simpa using hi2.symm
+          have hsub := Std.UScalar.sub_equiv i2 (48#u8)
+          rw [hi3] at hsub
+          simp at hsub
+          have hi4v : i4.val = i3.val := by
+            have hc := Std.U8.cast_U64_val_eq i3
+            have he : UScalar.cast .U64 i3 = i4 := by simpa using hi4
+            rw [← he, hc]
+          cases o1 with
+          | none => simp at h
+          | some x1 =>
+            have hadd := Std.U64.checked_add_bv_spec x i4
+            rw [ho1e] at hadd
+            obtain ⟨-, hx1v, -⟩ := hadd
+            obtain ⟨k2, hk2, h⟩ := bind_eq_ok_iff.mp h
+            have hk2v := usize_add_one_inv hk2
+            have hkk : k2 = k1 := by
+              have : k1.val = k2.val := by omega
+              scalar_tac
+            rw [hkk] at h
+            have hx1 : x1.val = acc.val * 10 + ((absByte (pByteAt b k.val)).toNat - 48) := by
+              rw [← hi2v, absByte_toNat]
+              have h10 : (10#u64).val = 10 := by scalar_tac
+              rw [h10] at hxv
+              scalar_tac
+            rw [← hx1]
+            exact ih k1 x1 n (by omega) hrun1 (by omega) h
+      · rw [if_neg hkl] at h
+        rw [readNat_eq, if_neg (show ¬ k.val < b.val.length by scalar_tac)]
+        have : acc = n := by simpa using h
+        rw [this]
+    · rw [if_neg hke] at h
+      have hke' : e.val ≤ k.val := by scalar_tac
+      rw [readNat_eq]
+      by_cases hk : k.val < b.val.length
+      · rw [if_pos hk, if_neg (skipDigits_stop hk hke' hrun)]
+        have : acc = n := by simpa using h
+        rw [this]
+      · rw [if_neg hk]
+        have : acc = n := by simpa using h
+        rw [this]
+
+
+/-- **`read_nat_at`'s value is `readNatAt`** (`Scan/Fast.lean:496-500`), on a
+digit run.  The side condition is `e` being the end of the run -- what
+`num_end_run` and `scan_quoted_nat`'s own `skip_digits` call both supply. -/
+theorem read_nat_at_refines {b : Slice Std.U8} {i e : Std.Usize} {n : Std.U64}
+    (hrun : frontend.scan_fast.skip_digits b i = ok e)
+    (h : frontend.scan_fast.read_nat_at b i e = ok (.Ok n)) :
+    n.val = readNatAt (absBytes b) (absPos i) (absPos e) := by
+  have hsd : skipDigits (absBytes b) (absPos i) = absPos e := (skip_digits_refines hrun).symm
+  have hle : i.val ≤ e.val := skip_digits_ge hrun
+  rw [readNatAt_eq_readNat hsd hle]
+  rw [frontend.scan_fast.read_nat_at] at h
+  have hz := read_nat_at_loop_nat (b.val.length - i.val) i 0#u64 n (le_refl _) hsd hle h
+  rw [← hz]
+  norm_num
+
+private theorem read_nat_at_loop_err {b : Slice Std.U8} {i e : Std.Usize} (f : Nat) :
+    ∀ (k : Std.Usize) (acc : Std.U64) (er : frontend.scan_types.ScanErr),
+      b.val.length - k.val ≤ f →
+      frontend.scan_fast.read_nat_at_loop b i e acc k = ok (.Err er) →
+      er.what = frontend.scan_types.ErrTag.IndexOverflow := by
+  induction f with
+  | zero =>
+    intro k acc er hf h
+    rw [frontend.scan_fast.read_nat_at_loop.eq_def] at h
+    by_cases hke : k < e
+    · rw [if_pos hke, if_neg (show ¬ k < Slice.len b by scalar_tac)] at h; simp at h
+    · rw [if_neg hke] at h; simp at h
+  | succ f ih =>
+    intro k acc er hf h
+    rw [frontend.scan_fast.read_nat_at_loop.eq_def] at h
+    by_cases hke : k < e
+    · rw [if_pos hke] at h
+      by_cases hkl : k < Slice.len b
+      · rw [if_pos hkl] at h
+        have hk : k.val < b.val.length := by scalar_tac
+        obtain ⟨o, -, h⟩ := bind_eq_ok_iff.mp h
+        cases o with
+        | none => simp only [Result.ok.injEq, core.result.Result.Err.injEq] at h; rw [← h]
+        | some x =>
+          obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
+          cases o1 with
+          | none => simp only [Result.ok.injEq, core.result.Result.Err.injEq] at h; rw [← h]
+          | some x1 =>
+            obtain ⟨k1, hk1, h⟩ := bind_eq_ok_iff.mp h
+            have := usize_add_one_inv hk1
+            exact ih k1 x1 er (by omega) h
+      · rw [if_neg hkl] at h; simp at h
+    · rw [if_neg hke] at h; simp at h
+
+/-- **The port's own overflow claims nothing.**  `ErrTag::IndexOverflow` is
+con-ron's (deviation 4 of the module note); `absErrTag` sends it to `none`. -/
+theorem read_nat_at_err {α : Type} {b : Slice Std.U8} {i e : Std.Usize}
+    {er : frontend.scan_types.ScanErr} {x : ConLeche.Frontend.ScanRes α}
+    (h : frontend.scan_fast.read_nat_at b i e = ok (.Err er)) : ScanErrSim er x := by
+  rw [frontend.scan_fast.read_nat_at] at h
+  exact ScanErrSim.overflow (read_nat_at_loop_err (b.val.length - i.val) i 0#u64 er (le_refl _) h)
+
+/-! ## `slot_nat`
+
+`scan_fast.rs:1454-1466` is the port's factoring of the `numEnd`/`readNatAt`/
+`noProgress` chain every `Nat`-valued slot of every `scan*Loop` writes out
+(`Scan/Fast.lean:820-824` is one instance).  `slotNat` is that fragment as a
+con-leche function -- an intermediate definition in DESIGN.md's sense, written
+to be the Lean's own inline chain, so an object loop can unfold it and see
+exactly what its `scan*Loop` twin has. -/
+
+/-- con-leche's inline `numEnd`/`readNatAt`/`noProgress` chain. -/
+def slotNat (B : ByteArray) (ks v : USize) : ConLeche.Frontend.ScanRes Nat :=
+  let e := numEnd B v
+  if e == v then .err ⟨v.toNat, .expectedNat⟩
+  else if ks < e then .ok (readNatAt B v e) e
+  else .err ⟨ks.toNat, .noProgress⟩
+
+/-- **`slot_nat` refines `slotNat`**, in full outcome. -/
+theorem slot_nat_refines {b : Slice Std.U8} {ks v : Std.Usize}
+    {o : core.result.Result (Std.U64 × Std.Usize) frontend.scan_types.ScanErr}
+    (h : frontend.scan_fast.slot_nat b ks v = ok o) :
+    ScanSim absU64 o (slotNat (absBytes b) (absPos ks) (absPos v)) := by
+  rw [frontend.scan_fast.slot_nat] at h
+  obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
+  have hnum : absPos e = numEnd (absBytes b) (absPos v) := num_end_refines he
+  simp only [slotNat, ← hnum]
+  by_cases hev : e = v
+  · rw [if_pos hev] at h
+    rw [frontend.scan_fast.err] at h
+    have ho : (core.result.Result.Err
+        ({ offset := v, what := frontend.scan_types.ErrTag.ExpectedNat } :
+          frontend.scan_types.ScanErr)) = o := by simpa using h
+    rw [← ho]
+    refine ScanSim.err (ScanErrSim.mk (t := .expectedNat) rfl ?_)
+    rw [if_pos (show (absPos e == absPos v) = true by simp; scalar_tac)]
+    simp
+  · rw [if_neg hev] at h
+    rw [if_neg (show ¬ (absPos e == absPos v) = true by simp; scalar_tac)]
+    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+    have hb1v : b1 = decide (absPos ks < absPos e) := prog_eq hb1
+    by_cases hp : b1 = true
+    · rw [if_pos hp] at h
+      rw [if_pos (by rw [hb1v] at hp; simpa using hp)]
+      obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+      cases r with
+      | Ok x =>
+        have ho : core.result.Result.Ok (x, e) = o := by simpa using h
+        rw [← ho]
+        refine ScanSim.ok ?_
+        have hrun : frontend.scan_fast.skip_digits b v = ok e := num_end_run he hev
+        rw [show absU64 x = x.val from rfl, read_nat_at_refines hrun hr]
+      | Err er =>
+        have ho : core.result.Result.Err er = o := by simpa using h
+        rw [← ho]
+        exact ScanSim.err (read_nat_at_err hr)
+    · rw [if_neg hp] at h
+      rw [if_neg (by rw [hb1v] at hp; simpa using hp)]
+      rw [frontend.scan_fast.err] at h
+      have ho : (core.result.Result.Err
+          ({ offset := ks, what := frontend.scan_types.ErrTag.NoProgress } :
+            frontend.scan_types.ScanErr)) = o := by simpa using h
+      rw [← ho]
+      refine ScanSim.err (ScanErrSim.mk (t := .noProgress) rfl ?_)
+      simp
+
 
 end ConRon.Refine.Frontend
