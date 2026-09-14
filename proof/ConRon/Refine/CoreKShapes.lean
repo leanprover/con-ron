@@ -105,8 +105,8 @@ structure EnvFacts : Prop where
            | some (.indInfo cv c) => some (cv, c) | _ => none) ∧
       ∀ cv c, o = some (cv, c) → ConstantValWF cv ∧ IndCapsWF c
   constWF : ∀ {e : expr.Expr}, ExprWF e → ∀ {d : Std.U64} {n : name.Name}
-    {us : levels.Levels}, e = .mk (.mk d (.Const n us)) →
-    NameWF n ∧ ConstLevelsWF us
+    {us : alloc.vec.Vec level.Level}, e = .mk (.mk d (.Const n us)) →
+    NameWF n ∧ LevelsWF us
 
 
 /-! ## Two refinements that belong in other landed files

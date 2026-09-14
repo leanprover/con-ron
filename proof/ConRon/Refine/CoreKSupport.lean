@@ -87,7 +87,7 @@ theorem ExprWF.children {e : expr.Expr} (he : ExprWF e) :
     | .Bvar _ => True
     | .Fvar _ ty => ExprWF ty
     | .«Sort» u => LevelWF u
-    | .Const n us => NameWF n ∧ ConstLevelsWF us
+    | .Const n us => NameWF n ∧ LevelsWF us
     | .App f a => ExprWF f ∧ ExprWF a
     | .Lam ty b m => ExprWF ty ∧ ExprWF b ∧ BinderMetaWF m
     | .ForallE ty b m => ExprWF ty ∧ ExprWF b ∧ BinderMetaWF m
@@ -99,8 +99,7 @@ theorem ExprWF.children {e : expr.Expr} (he : ExprWF e) :
   | @fvar idx ty e hty h1 => obtain ⟨d, rfl, -, -, -⟩ := Expr.fvar_inv h1; exact hty
   | @sort u e hu h1 => obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1; exact hu
   | @mk_const n us e hn hus h1 =>
-    obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
-    exact ⟨hn, Levels.constLevelsWF_ofVec hus⟩
+    obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1; exact ⟨hn, hus⟩
   | @app f a e hf ha h1 => obtain ⟨d, rfl, -, -, -⟩ := Expr.app_inv h1; exact ⟨hf, ha⟩
   | @lam ty b m e hty hb hm h1 =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.lam_inv h1; exact ⟨hty, hb, hm⟩
@@ -245,8 +244,8 @@ theorem ExprWF.forallE_children {e ty b : expr.Expr} {m : expr.BinderMeta}
   have hc := ExprWF.children he; rw [hk] at hc; exact hc
 
 theorem ExprWF.const_children {e : expr.Expr} {n : name.Name}
-    {us : levels.Levels} (he : ExprWF e) (hk : e._0.kind = .Const n us) :
-    NameWF n ∧ ConstLevelsWF us := by
+    {us : alloc.vec.Vec level.Level} (he : ExprWF e) (hk : e._0.kind = .Const n us) :
+    NameWF n ∧ LevelsWF us := by
   have hc := ExprWF.children he; rw [hk] at hc; exact hc
 
 theorem ExprWF.sort_child {e : expr.Expr} {u : level.Level}
@@ -405,26 +404,6 @@ theorem absLevels_ne_nil {us : alloc.vec.Vec level.Level}
   have : (us.val.map absLevel) = [] := hc
   simpa using this
 
-/-- The `Levels` twin of `absLevels_nil`: since task #93 a constant's levels are
-a `Levels`, so the guards test `levels::len(us) == 0` rather than
-`Vec::len(us) == 0`, and `Levels.len_refines` reads the length off the
-abstraction. -/
-theorem absConstLevels_nil {us : levels.Levels}
-    (h : levels.len us = ok 0#usize) : absConstLevels us = [] := by
-  have hl : (absConstLevels us).length = 0 := by
-    have := Levels.len_refines h; scalar_tac
-  simpa using hl
-
-/-- The `Levels` twin of `absLevels_ne_nil`, phrased on the observed length
-because the generated body binds it before the `if`. -/
-theorem absConstLevels_ne_nil {us : levels.Levels} {k : Std.Usize}
-    (hk : levels.len us = ok k) (h : ¬ (k = 0#usize)) : absConstLevels us ≠ [] := by
-  intro hc
-  refine h (Std.UScalar.eq_of_val_eq ?_)
-  have hl := Levels.len_refines hk
-  rw [hc] at hl
-  simpa using hl
-
 /-- `ConLeche/Kernel/Core.lean:280-284` — `core_k::nat_zero_ok` refines
 `natZeroOk`.  Needs the `Nat` pin (`PinnedBasisNames.nat`). -/
 theorem nat_zero_ok_refines {o : Option env.ConstantInfo} {c : Bool}
@@ -498,19 +477,15 @@ theorem nat_succ_ok_refines {o : Option env.ConstantInfo} {c : Bool}
         kind_split h hk2
         rename_i c2 us2
         obtain ⟨hc2, hus2⟩ := ExprWF.const_children hbody hk2
-        simp only [bind_eq_ok_iff] at h
-        obtain ⟨k1, hl1, h⟩ := h
         split at h
         · rename_i h1
-          simp only [bind_eq_ok_iff] at h
-          obtain ⟨k2, hl2, h⟩ := h
           split at h
           · rename_i h2
             simp only [bind_eq_ok_iff] at h
             obtain ⟨n, hn, b, hb, h⟩ := h
             obtain ⟨hnabs, hnwf⟩ := hp.nat n hn
             rw [Name.beq_refines hc1 hnwf hb, hnabs] at h
-            rw [absConstLevels_nil (by rw [hl1, h1]), absConstLevels_nil (by rw [hl2, h2])]
+            rw [absLevels_nil h1, absLevels_nil h2]
             show c = (decide (absName c1 = ConLeche.natName) &&
               decide (absName c2 = ConLeche.natName))
             by_cases hd : absName c1 = ConLeche.natName
@@ -522,15 +497,15 @@ theorem nat_succ_ok_refines {o : Option env.ConstantInfo} {c : Bool}
               rw [← h, decide_eq_false hd, Bool.false_and]
           · rename_i h2
             simp only [Result.ok.injEq] at h
-            rw [← h, absConstLevels_nil (by rw [hl1, h1])]
-            rcases hq : absConstLevels us2 with _ | ⟨a, l⟩
-            · exact absurd hq (absConstLevels_ne_nil hl2 h2)
+            rw [← h, absLevels_nil h1]
+            rcases hq : absLevels us2 with _ | ⟨a, l⟩
+            · exact absurd hq (absLevels_ne_nil h2)
             · rfl
         · rename_i h1
           simp only [Result.ok.injEq] at h
           rw [← h]
-          rcases hq : absConstLevels us1 with _ | ⟨a, l⟩
-          · exact absurd hq (absConstLevels_ne_nil hl1 h1)
+          rcases hq : absLevels us1 with _ | ⟨a, l⟩
+          · exact absurd hq (absLevels_ne_nil h1)
           · rfl
       · rename_i hlen
         simp only [Result.ok.injEq] at h
@@ -705,12 +680,11 @@ theorem list_nil_ty_ok_refines {o : Option env.ConstantInfo} {c : Bool}
           rw [Name.beq_refines hl1 hnwf hb1, hnabs] at h
           by_cases hd2 : absName l1 = ConLeche.listName
           · rw [if_pos (by simp only [hd2, decide_true])] at h
-            simp only [Levels.levels_of_vec_eq, bind_tc_ok, bind_eq_ok_iff] at h
+            simp only [bind_eq_ok_iff] at h
             obtain ⟨l3, hl3, v1, hv1, hbeq⟩ := h
             obtain ⟨hv1abs, hv1wf⟩ := levels_singleton hv1
-            rw [Expr.const_levels_beq_refines hus1
-                (Levels.constLevelsWF_ofVec (hv1wf (Level.param_wf hq hl3))) hbeq,
-              Levels.absConstLevels_ofVec, hv1abs, Level.param_refines hl3, hd1, hd2]
+            rw [Expr.levels_beq_refines hus1 (hv1wf (Level.param_wf hq hl3)) hbeq,
+              hv1abs, Level.param_refines hl3, hd1, hd2]
             simp
           · rw [if_neg (by simp only [hd2, decide_false]; exact Bool.false_ne_true)] at h
             simp only [Result.ok.injEq] at h
@@ -759,19 +733,15 @@ theorem char_of_nat_ty_ok_refines {o : Option env.ConstantInfo} {c : Bool}
       kind_split h hk2
       rename_i c2 us2
       obtain ⟨hc2, hus2⟩ := ExprWF.const_children hbody hk2
-      simp only [bind_eq_ok_iff] at h
-      obtain ⟨k1, hl1, h⟩ := h
       split at h
       · rename_i h1
-        simp only [bind_eq_ok_iff] at h
-        obtain ⟨k2, hl2, h⟩ := h
         split at h
         · rename_i h2
           simp only [bind_eq_ok_iff] at h
           obtain ⟨n, hn, b, hb, h⟩ := h
           obtain ⟨hnabs, hnwf⟩ := hp.nat n hn
           rw [Name.beq_refines hc1 hnwf hb, hnabs] at h
-          rw [absConstLevels_nil (by rw [hl1, h1]), absConstLevels_nil (by rw [hl2, h2])]
+          rw [absLevels_nil h1, absLevels_nil h2]
           simp only [beq_eq_decide_eq]
           by_cases hd : absName c1 = ConLeche.natName
           · rw [if_pos (by simp only [hd, decide_true])] at h
@@ -785,15 +755,15 @@ theorem char_of_nat_ty_ok_refines {o : Option env.ConstantInfo} {c : Bool}
             rw [← h, decide_eq_false hd, Bool.false_and]
         · rename_i h2
           simp only [Result.ok.injEq] at h
-          rw [← h, absConstLevels_nil (by rw [hl1, h1])]
-          rcases hq : absConstLevels us2 with _ | ⟨a, l⟩
-          · exact absurd hq (absConstLevels_ne_nil hl2 h2)
+          rw [← h, absLevels_nil h1]
+          rcases hq : absLevels us2 with _ | ⟨a, l⟩
+          · exact absurd hq (absLevels_ne_nil h2)
           · rfl
       · rename_i h1
         simp only [Result.ok.injEq] at h
         rw [← h]
-        rcases hq : absConstLevels us1 with _ | ⟨a, l⟩
-        · exact absurd hq (absConstLevels_ne_nil hl1 h1)
+        rcases hq : absLevels us1 with _ | ⟨a, l⟩
+        · exact absurd hq (absLevels_ne_nil h1)
         · rfl
     · rename_i hlen
       simp only [Result.ok.injEq] at h
@@ -837,18 +807,13 @@ theorem string_of_list_ty_ok_refines {o : Option env.ConstantInfo} {c : Bool}
       kind_split h hk4
       rename_i c1 us_c
       obtain ⟨hc1, husc⟩ := ExprWF.const_children harg hk4
-      simp only [bind_eq_ok_iff] at h
-      obtain ⟨k1, hlen1, h⟩ := h
       split at h
       · rename_i h1
-        simp only [bind_eq_ok_iff] at h
-        obtain ⟨k2, hlen2, h⟩ := h
         split at h
         · rename_i h2
-          rw [absConstLevels_nil (us := us2) (by rw [hlen1, h1]),
-            absConstLevels_nil (us := us_c) (by rw [hlen2, h2])]
+          rw [absLevels_nil h1, absLevels_nil h2]
           simp only [beq_eq_decide_eq]
-          simp only [Levels.levels_of_vec_eq, bind_tc_ok, bind_eq_ok_iff] at h
+          simp only [bind_eq_ok_iff] at h
           obtain ⟨n, hn, b, hb, h⟩ := h
           obtain ⟨hnabs, hnwf⟩ := hp.list n hn
           rw [Name.beq_refines hl1 hnwf hb, hnabs] at h
@@ -857,10 +822,9 @@ theorem string_of_list_ty_ok_refines {o : Option env.ConstantInfo} {c : Bool}
             simp only [bind_eq_ok_iff] at h
             obtain ⟨l, hl, v, hv, b1, hb1, h⟩ := h
             obtain ⟨hvabs, hvwf⟩ := levels_singleton hv
-            rw [Expr.const_levels_beq_refines hus1
-                (Levels.constLevelsWF_ofVec (hvwf (LevelWF.zero hl))) hb1,
-              Levels.absConstLevels_ofVec, hvabs, Level.zero_refines hl] at h
-            by_cases hd2 : absConstLevels us1 = [ConLeche.Level.zero]
+            rw [Expr.levels_beq_refines hus1 (hvwf (LevelWF.zero hl)) hb1, hvabs,
+              Level.zero_refines hl] at h
+            by_cases hd2 : absLevels us1 = [ConLeche.Level.zero]
             · rw [if_pos (by simp only [hd2, decide_true])] at h
               simp only [bind_eq_ok_iff] at h
               obtain ⟨n1, hn1, b2, hb2, h⟩ := h
@@ -884,16 +848,16 @@ theorem string_of_list_ty_ok_refines {o : Option env.ConstantInfo} {c : Bool}
             rw [← h, decide_eq_false hd1, Bool.false_and, Bool.false_and, Bool.false_and]
         · rename_i h2
           simp only [Result.ok.injEq] at h
-          rw [← h, absConstLevels_nil (us := us2) (by rw [hlen1, h1])]
-          rcases hq : absConstLevels us_c with _ | ⟨a, l⟩
-          · exact absurd hq (absConstLevels_ne_nil hlen2 h2)
+          rw [← h, absLevels_nil h1]
+          rcases hq : absLevels us_c with _ | ⟨a, l⟩
+          · exact absurd hq (absLevels_ne_nil h2)
           · rfl
       · rename_i h1
         simp only [Result.ok.injEq] at h
         rw [← h]
-        rcases hq : absConstLevels us2 with _ | ⟨a, l⟩
-        · exact absurd hq (absConstLevels_ne_nil hlen1 h1)
-        · rcases hq2 : absConstLevels us_c with _ | ⟨a2, l2⟩ <;> rfl
+        rcases hq : absLevels us2 with _ | ⟨a, l⟩
+        · exact absurd hq (absLevels_ne_nil h1)
+        · rcases hq2 : absLevels us_c with _ | ⟨a2, l2⟩ <;> rfl
     · rename_i hlen
       simp only [Result.ok.injEq] at h
       simp only [← h, absNames_isEmpty_false hlen, Bool.false_and]
@@ -945,7 +909,7 @@ theorem list_cons_tail_ok_refines {u1 : level.Level} {d3 b3 : expr.Expr}
       kind_split h hk5
       rename_i l2 us2
       obtain ⟨hl2, hus2⟩ := ExprWF.const_children hh2 hk5
-      simp only [name_dup_eq, Levels.levels_of_vec_eq, bind_tc_ok, bind_eq_ok_iff] at h
+      simp only [name_dup_eq, bind_tc_ok, bind_eq_ok_iff] at h
       obtain ⟨l, hl, want, hwant, l3, hl3, l4, hl4, b, hb, h⟩ := h
       obtain ⟨hwantabs, hwantwf⟩ := levels_singleton hwant
       have hl4abs : absLevel l4 = ConLeche.Level.succ (.param (absName p)) := by
@@ -968,15 +932,12 @@ theorem list_cons_tail_ok_refines {u1 : level.Level} {d3 b3 : expr.Expr}
           · rw [if_pos (by simp only [hd3, decide_true])] at h
             simp only [bind_eq_ok_iff] at h
             obtain ⟨b4, hb4, h⟩ := h
-            rw [Expr.const_levels_beq_refines hus1
-                (Levels.constLevelsWF_ofVec (hwantwf (Level.param_wf hpwf hl))) hb4,
-              Levels.absConstLevels_ofVec, hwantabs, Level.param_refines hl] at h
-            by_cases hd4 : absConstLevels us1 = [ConLeche.Level.param (absName p)]
+            rw [Expr.levels_beq_refines hus1 (hwantwf (Level.param_wf hpwf hl)) hb4,
+              hwantabs, Level.param_refines hl] at h
+            by_cases hd4 : absLevels us1 = [ConLeche.Level.param (absName p)]
             · rw [if_pos (by simp only [hd4, decide_true])] at h
-              rw [Expr.const_levels_beq_refines hus2
-                  (Levels.constLevelsWF_ofVec (hwantwf (Level.param_wf hpwf hl))) h,
-                Levels.absConstLevels_ofVec, hwantabs, Level.param_refines hl,
-                hd1, hd2, hd3, hd4]
+              rw [Expr.levels_beq_refines hus2 (hwantwf (Level.param_wf hpwf hl)) h,
+                hwantabs, Level.param_refines hl, hd1, hd2, hd3, hd4]
               simp
             · rw [if_neg (by simp only [hd4, decide_false]; exact Bool.false_ne_true)] at h
               simp only [Result.ok.injEq] at h

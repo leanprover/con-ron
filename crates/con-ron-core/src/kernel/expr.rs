@@ -88,8 +88,6 @@ use crate::ron::hashmap::HashMap;
 use crate::ron::hashmap::Hashable;
 use crate::kernel::level;
 use crate::kernel::level::Level;
-use crate::kernel::levels;
-use crate::kernel::levels::Levels;
 use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::ron::nat;
@@ -338,20 +336,16 @@ pub fn sat_pred(x: u64) -> u64 {
 /// The ten constructors of `inductive Expr`; the cited
 /// `@[computed_field] data` word sits in `ExprNode` (DESIGN.md §3.2).
 /// Deviation: the `Nat` indices are `u64` (§3.3), and `const`'s `List Level`
-/// is a [`Levels`] (task #93): the canonical three-constructor shape of
-/// `kernel::levels`, which spends a tag and one word (16 bytes) and allocates
-/// **nothing at all** for the empty and singleton lists the census says almost
-/// every constant reference carries.  Before task #93 it was a bare
-/// `P<Vec<Level>>` — a 48-byte block plus the `Vec`'s own array, two
-/// allocations per constant reference even for a monomorphic constant; before
-/// task #38 it was an inline `Vec<Level>`, whose 24-byte header was, with
-/// `Lit`, what kept the node wide.  `Levels` abstracts to `List Level` behind
-/// `absLevels` (§3.2), so nothing the abstraction says about `us` changes.
+/// is a `Vec<Level>` *behind a handle* — see `BinderMeta`'s note and task #38:
+/// a `Vec` header is 24 bytes, so an inline `(Name, Vec<Level>)` was 32 and
+/// this arm was, with `Lit`, what kept the node wide once the binder datum had
+/// shrunk.  `P<Vec<Level>>` is modeled as `Vec Level` (§3.2), so nothing the
+/// abstraction or a pattern says about `us` changes.
 ///
 /// **Widest arm since task #90:** `Lam`/`ForallE` (two `Expr` handles and a
-/// `BinderMeta` now held inline, 16 bytes) at 32 bytes, ahead of `Const`,
-/// `LetE` and `Proj` at 24 — task #38 had all four tied at 24, with the binder
-/// datum behind its own `P`.  `ExprKind` is 40, `ExprNode` 48, its `P` block 64: 8 bytes wider
+/// `BinderMeta` now held inline, 16 bytes) at 32 bytes, ahead of `LetE`/`Proj`
+/// at 24 — task #38 had all four tied at 24, with the binder datum behind its
+/// own `P`.  `ExprKind` is 40, `ExprNode` 48, its `P` block 64: 8 bytes wider
 /// than task #38 left it, in exchange for removing the separate ~40-byte
 /// `P<PropWhen>` allocation task #38 put behind every `Lam`/`ForallE`
 /// (`BinderMeta`'s note, `prop_when.rs`'s module note).  Measured end to end
@@ -360,7 +354,7 @@ pub enum ExprKind {
     Bvar(u64),
     Fvar(u64, Expr),
     Sort(Level),
-    Const(Name, Levels),
+    Const(Name, P<Vec<Level>>),
     App(Expr, Expr),
     Lam(Expr, Expr, BinderMeta),
     ForallE(Expr, Expr, BinderMeta),
@@ -432,28 +426,14 @@ pub fn sort(u: Level) -> Expr {
 /// con-leche: ConLeche/Cached/ExprNodes.lean:111 mkConst
 /// `Expr.const`: hash tag 11 over the name's hash and `levelsHash us`.
 /// Deviation: `const` is a Rust keyword, so the smart constructor is
-/// `mk_const`.  This is the `Vec<Level>` door — the one the ~250 call sites
-/// that build a list take; `mk_const_levels` is the primitive, and a `Vec`
-/// that reaches here empty or singleton is dropped without ever becoming a
-/// heap block (task #93, `kernel::levels`).
+/// `mk_const`.
 pub fn mk_const(n: Name, us: Vec<Level>) -> Expr {
-    mk_const_levels(n, levels::of_vec(us))
-}
-
-/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-/// con-leche: ConLeche/Cached/ExprNodes.lean:111 mkConst
-/// `Expr.const` on a level list that is already in the canonical form of
-/// `kernel::levels` — the primitive (task #93).  `levels::hash` and
-/// `levels::have_param` give exactly what `levelsHash`/`levelsHaveParam` give
-/// on the same list, so the stored `data` word is the word task #38's node
-/// stored and every memo bucket keyed on it is unmoved.
-pub fn mk_const_levels(n: Name, us: Levels) -> Expr {
     let h: u64 = hash32(name::mix_hash(
         11,
-        name::mix_hash(name::hash_data(&n), levels::hash(&us)),
+        name::mix_hash(name::hash_data(&n), level::levels_hash(&us)),
     ));
-    let d: u64 = pack_data(h, 0, 0, levels::have_param(&us));
-    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Const(n, us) }))
+    let d: u64 = pack_data(h, 0, 0, level::levels_have_param(&us));
+    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Const(n, ptr::new(us)) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
@@ -1028,33 +1008,11 @@ pub fn beq_three(
 /// con-leche: ConLeche/Kernel/Expr.lean:818-949 Expr.beqGo
 /// The cited `.const` arm's `n == m && us == vs`, as one `bool` so that the
 /// arm is a single expression (see `beq_when`).  Neither conjunct recurses.
-pub fn const_beq(n: &Name, us: &Levels, n2: &Name, vs: &Levels) -> bool {
+pub fn const_beq(n: &Name, us: &Vec<Level>, n2: &Name, vs: &Vec<Level>) -> bool {
     if name::beq(n, n2) {
-        const_levels_beq(us, vs)
+        levels_beq(us, vs)
     } else {
         false
-    }
-}
-
-/// con-leche: none — `List Level` equality (`us == vs` in `beqGo`'s `.const` arm)
-/// The cited `us == vs` on the canonical form of `kernel::levels` (task #93).
-/// Two lists of different length take different constructors there, so a
-/// constructor mismatch is `false` outright and only the diagonal looks
-/// inside — where `Many` is the `levels_beq` walk above, unchanged.
-pub fn const_levels_beq(ls: &Levels, rs: &Levels) -> bool {
-    match ls {
-        Levels::Zero => match rs {
-            Levels::Zero => true,
-            _ => false,
-        },
-        Levels::One(u) => match rs {
-            Levels::One(v) => level::beq(u, v),
-            _ => false,
-        },
-        Levels::Many(us) => match rs {
-            Levels::Many(vs) => levels_beq(us, vs),
-            _ => false,
-        },
     }
 }
 
@@ -1792,19 +1750,14 @@ mod tests {
     }
 
     /// Task #90: `PropWhen` inlined again in `BinderMeta` (task #38's
-    /// `P<PropWhen>` indirection removed).  Task #93: `Levels`, the same
-    /// shape for a `const`'s level list.  Printed and pinned so a further
+    /// `P<PropWhen>` indirection removed).  Printed and pinned so a further
     /// repacking announces its own saving here, next to `con-ron-dump`'s
     /// fuller `node_sizes` table.
     #[test]
     fn task_90_sizes() {
         eprintln!("PropWhen        {}", std::mem::size_of::<crate::kernel::prop_when::PropWhen>());
         eprintln!("BinderMeta      {}", std::mem::size_of::<BinderMeta>());
-        eprintln!("Levels          {}", std::mem::size_of::<crate::kernel::levels::Levels>());
         eprintln!("ExprKind        {}", std::mem::size_of::<ExprKind>());
         eprintln!("ExprNode        {}", std::mem::size_of::<super::ExprNode>());
-        assert_eq!(std::mem::size_of::<crate::kernel::levels::Levels>(), 16);
-        assert_eq!(std::mem::size_of::<ExprKind>(), 40);
-        assert_eq!(std::mem::size_of::<super::ExprNode>(), 48);
     }
 }

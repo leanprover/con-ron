@@ -34,7 +34,6 @@ use con_ron_core::kernel::expr_ops::NameToName;
 use con_ron_core::kernel::inductives::struct_parts;
 use con_ron_core::kernel::level;
 use con_ron_core::kernel::level::{Level, LevelKind};
-use con_ron_core::kernel::levels;
 use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::{Name, NameKind};
 use con_ron_core::kernel::prop_when;
@@ -279,7 +278,7 @@ pub fn spec_fam_go(
         }
         ExprKind::Const(n, us) => match members.iter().find(|m| name::beq(&m.0, n)) {
             Some((_, m, n_idx)) => {
-                if n_p + n_idx == 0 && levels_are_params(&levels::to_vec(us), lps) {
+                if n_p + n_idx == 0 && levels_are_params(us, lps) {
                     expr_ops::mk_app_n(
                         const_p(&aux_name(t), lps),
                         &vec![const_p(&tag_ctor_name(t, *m), lps)],
@@ -318,7 +317,7 @@ pub fn spec_fam_arm(
             match &f.0.kind {
                 ExprKind::Const(n, us) => match members.iter().find(|m| name::beq(&m.0, n)) {
                     Some((_, m, n_idx)) => {
-                        if args.len() as u64 == n_p + n_idx && levels_are_params(&levels::to_vec(us), lps) {
+                        if args.len() as u64 == n_p + n_idx && levels_are_params(us, lps) {
                             let cut = (n_p as usize).min(args.len());
                             let ps = spec_fam_go_list(t, lps, n_p, members, memo, &args[..cut]);
                             let is = spec_fam_go_list(t, lps, n_p, members, memo, &args[cut..]);
@@ -431,7 +430,7 @@ pub fn subst_params_go(
         }
         ExprKind::Sort(u) => expr::sort(level::dup(u)),
         ExprKind::Const(nm, us) => {
-            expr::mk_const_levels(name::dup(nm), levels::dup(us))
+            expr::mk_const(name::dup(nm), us.iter().map(level::dup).collect())
         }
         ExprKind::Lit(l) => expr::lit(expr::literal_dup(l)),
         _ => {
@@ -824,10 +823,10 @@ pub fn infer_ty(tbl: ConstTable, ctx: &[Expr], e: &Expr) -> Option<Expr> {
         ExprKind::Sort(u) => Some(expr::sort(level::succ(level::dup(u)))),
         ExprKind::Const(n, us) => {
             let (lps, ty) = tbl(n)?;
-            if lps.len() == levels::len(us) {
+            if lps.len() == us.len() {
                 Some(expr_ops::instantiate_level_params(
                     &lps,
-                    &levels::to_vec(us),
+                    &us.iter().map(level::dup).collect(),
                     &ty,
                 ))
             } else {

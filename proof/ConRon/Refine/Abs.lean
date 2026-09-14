@@ -296,26 +296,6 @@ a `List ConLeche.Level`. -/
 def absLevels (us : alloc.vec.Vec level.Level) : List ConLeche.Level :=
   us.val.map absLevel
 
-/-- `Expr.const`'s level list, in the canonical three-constructor shape
-`crates/con-ron-core/src/kernel/levels.rs` gives it (task #93), as a
-`List ConLeche.Level`.
-
-The port's `Levels` is a *representation* of the `List Level` con-leche's
-`Expr.const` carries, chosen so that the empty and singleton lists — which
-the task-#93 census says almost every constant reference carries — need no
-heap block: `Zero` is the empty list, `One u` the singleton, and `Many`
-holds two or more behind a `P` handle, which §3.2's model erases (so
-`Many`'s argument *is* the `Vec<Level>` and this arm is `absLevels`).
-
-The name is `absConstLevels` and not `absLevels` because `absLevels` is the
-`Vec<Level>` abstraction above, which the port still uses wherever a level
-list is *not* a constant's: `IndSpec`'s `Nested`, a `ProjTable`'s `guards`,
-`IndAbs`'s `sortss`, and every `Vec<Level>` parameter of the kernel walks. -/
-def absConstLevels : levels.Levels → List ConLeche.Level
-  | .Zero => []
-  | .One u => [absLevel u]
-  | .Many us => absLevels us
-
 /-- A `Vec<Name>` as a `List ConLeche.Name`. -/
 def absNames (ns : alloc.vec.Vec name.Name) : List ConLeche.Name :=
   ns.val.map absName
@@ -383,7 +363,7 @@ def absExprKind : expr.ExprKind → ConLeche.Expr
   | .Bvar i => .bvar i.val
   | .Fvar idx ty => .fvar idx.val (absExpr ty)
   | .«Sort» u => .sort (absLevel u)
-  | .Const n us => .const (absName n) (absConstLevels us)
+  | .Const n us => .const (absName n) (absLevels us)
   | .App f a => .app (absExpr f) (absExpr a)
   | .Lam ty b m => .lam (absExpr ty) (absExpr b) (absBinderMeta m)
   | .ForallE ty b m => .forallE (absExpr ty) (absExpr b) (absBinderMeta m)
@@ -512,23 +492,6 @@ inductive PropWhenWF : prop_when.PropWhen → Prop where
 
 /-- A `Vec<Level>` all of whose entries are well formed. -/
 def LevelsWF (us : alloc.vec.Vec level.Level) : Prop := ∀ u ∈ us.val, LevelWF u
-
-/-- A `Levels` (task #93) that is well formed: its levels are, **and it is in
-the canonical form `levels::of_vec` builds** — `Many` never holds a list
-shorter than two, so the constructor is a function of the length.
-
-That second clause is what the port's own code depends on and what this
-predicate exists to carry: `levels::len` reads the length off the
-constructor, and `expr::const_levels_beq`, `state_c::is_equiv_list_c_m` and
-`levels::head_d` all answer on a constructor mismatch without looking
-inside.  Without it `Many ⟨[u]⟩` and `One u` would abstract to the same list
-and compare unequal, and `absConstLevels` would not be injective.  It is the
-same shape of obligation `PropWhenWF` carries for `prop_when`'s sealed
-five-constructor representation (task #90). -/
-def ConstLevelsWF : levels.Levels → Prop
-  | .Zero => True
-  | .One u => LevelWF u
-  | .Many us => LevelsWF us ∧ 2 ≤ us.val.length
 
 /-- A binder datum is well formed when its `PropWhen` is. -/
 def BinderMetaWF (m : expr.BinderMeta) : Prop := PropWhenWF m.pw

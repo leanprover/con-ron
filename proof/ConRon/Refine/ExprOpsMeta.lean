@@ -472,13 +472,12 @@ theorem rename_consts_go_refines {F : Type} {inst : expr_ops.NameToName F} {f : 
     obtain ⟨n2, hn2, us2, hus2, r0, hmk, hr, hmm⟩ := h
     subst hr; subst hmm
     obtain ⟨hnabs, hnwf⟩ := hf n hn n2 hn2
-    -- task #93: the arm rebuilds through `mk_const_levels` on a shared
-    -- `levels::dup`, which is the identity in the model.
-    have husv : us2 = Levels.ofVec us :=
-      (Result.ok_injective ((Levels.levels_dup_eq (Levels.ofVec us)).symm.trans hus2)).symm
-    subst husv
-    refine ⟨⟨Expr.mk_const_levels_wf hnwf (Levels.constLevelsWF_ofVec hus) hmk, ?_⟩, hm⟩
-    rw [Expr.mk_const_levels_refines hmk, hnabs, Levels.absConstLevels_ofVec]
+    have husv : us2.val = us.val := levels_copy_val hus2
+    have husw : LevelsWF us2 := by
+      intro u hu; exact hus u (husv ▸ hu)
+    have hlv : absLevels us2 = absLevels us := by unfold absLevels; rw [husv]
+    refine ⟨⟨Expr.mk_const_wf hnwf husw hmk, ?_⟩, hm⟩
+    rw [Expr.mk_const_refines hmk, hnabs, hlv]
     simp [ConLeche.Expr.renameConsts]
   | @fvar idx ty e hty h1 ih =>
     have hwfe : ExprWF e := ExprWF.fvar hty h1
@@ -965,39 +964,6 @@ theorem levels_subst_refines {ks : alloc.vec.Vec name.Name}
   rw [hr]
   simp [alloc.vec.Vec.new, List.map_map, Function.comp, absLevels]
 
-/-- `expr_ops::const_levels_subst` (task #93): the same map, on the canonical
-form of `kernel::levels` that a `.const` node actually holds.  A map preserves
-the length, so the result's constructor is the argument's and the canonical
-form is preserved. -/
-theorem const_levels_subst_refines {ks : alloc.vec.Vec name.Name}
-    {us : alloc.vec.Vec level.Level} {vs r : levels.Levels}
-    (hks : NamesWF ks) (hus : LevelsWF us) (hvs : ConstLevelsWF vs)
-    (h : expr_ops.const_levels_subst ks us vs = ok r) :
-    absConstLevels r =
-      (absConstLevels vs).map (ConLeche.Level.subst (absNames ks) (absLevels us)) ∧
-      ConstLevelsWF r := by
-  cases vs with
-  | Zero =>
-    rw [show r = levels.Levels.Zero from (Result.ok_injective h).symm]
-    exact ⟨rfl, trivial⟩
-  | One v =>
-    simp only [expr_ops.const_levels_subst, bind_eq_ok_iff, Result.ok.injEq] at h
-    obtain ⟨w, hw, rfl⟩ := h
-    obtain ⟨habs, hwf⟩ := Level.subst_refines hvs hks hus hw
-    exact ⟨by simp only [absConstLevels, List.map_cons, List.map_nil, habs, absNames,
-      absLevels], hwf⟩
-  | Many ws =>
-    simp only [expr_ops.const_levels_subst, arc_deref_eq, bind_eq_ok_iff, ptr_new_eq,
-      Result.ok.injEq] at h
-    obtain ⟨w0, hw0, y, hw, y2, hy2, hr⟩ := h
-    subst hw0; subst hy2; subst hr
-    obtain ⟨habs, hwf⟩ := levels_subst_refines hks hus hvs.1 hw
-    have hlen : (y : alloc.vec.Vec level.Level).val.length
-        = (ws : alloc.vec.Vec level.Level).val.length := by
-      have := congrArg List.length habs
-      simpa only [absLevels, List.length_map] using this
-    exact ⟨by simpa only [absConstLevels] using habs, ⟨hwf, by rw [hlen]; exact hvs.2⟩⟩
-
 /-- con-leche's `ILPMemoInv` (`ExprOps.lean:2544`), as the `Q` of `MemoInv`. -/
 def ILPQ (ks : List ConLeche.Name) (us : List ConLeche.Level) :
     ConLeche.Expr → expr.Expr → Prop :=
@@ -1118,10 +1084,9 @@ theorem instantiate_level_params_go_refines {ks : alloc.vec.Vec name.Name}
         name_dup_eq, Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨v, hv, c, hc, hr, hmm⟩ := h
       subst hr; subst hmm
-      obtain ⟨habsv, hwfv⟩ := const_levels_subst_refines hks hus
-        (Levels.constLevelsWF_ofVec hvs) hv
-      refine ⟨⟨Expr.mk_const_levels_wf hn hwfv hc, ?_⟩, hm⟩
-      rw [Expr.mk_const_levels_refines hc, habsv]
+      obtain ⟨habsv, hwfv⟩ := levels_subst_refines hks hus hvs hv
+      refine ⟨⟨Expr.mk_const_wf hn hwfv hc, ?_⟩, hm⟩
+      rw [Expr.mk_const_refines hc, habsv]
       simp [ConLeche.Expr.instantiateLevelParams]
   | @fvar idx ty e hty h1 ih =>
     have hwfe : ExprWF e := ExprWF.fvar hty h1
@@ -1595,7 +1560,7 @@ theorem has_level_param_refines {e : expr.Expr} (he : ExprWF e) :
     intro b h
     rw [expr_ops.has_level_param.eq_def] at h
     simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
-    rw [Levels.have_param_refines h, ConLeche.Expr.Expr.levelsHaveParam_eq]
+    rw [Level.levels_have_param_refines h, ConLeche.Expr.Expr.levelsHaveParam_eq]
     simp [ConLeche.Expr.hasLevelParam]
   | @fvar idx ty e hty h1 ih =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
@@ -1943,7 +1908,6 @@ theorem all_params_defined_refines {params : alloc.vec.Vec name.Name}
 /-- **`expr_ops::levels_all_params_defined` refines `List.all`** of
 `Level.allParamsDefined` over the suffix `us.drop i` (task #3's index-loop
 pattern; `i = 0` collapses to the whole list). -/
-
 theorem levels_all_params_defined_refines {params : alloc.vec.Vec name.Name}
     (hpar : NamesWF params) {us : alloc.vec.Vec level.Level} (hus : LevelsWF us) :
     ∀ k : Nat, ∀ (i : Std.Usize) (b : Bool), us.val.length - i.val ≤ k →
@@ -1988,26 +1952,6 @@ theorem levels_all_params_defined_refines {params : alloc.vec.Vec name.Name}
         rw [hwv] at hrec
         exact hrec
 
-/-- `expr_ops::const_levels_all_params_defined` (task #93): `List.all` on the
-canonical form of `kernel::levels`. -/
-theorem const_levels_all_params_defined_refines {params : alloc.vec.Vec name.Name}
-    (hpar : NamesWF params) {us : levels.Levels} (hus : ConstLevelsWF us) {b : Bool}
-    (h : expr_ops.const_levels_all_params_defined params us = ok b) :
-    b = (absConstLevels us).all (ConLeche.Level.allParamsDefined (absNames params)) := by
-  cases us with
-  | Zero => rw [show b = true from (Result.ok_injective h).symm]; rfl
-  | One u =>
-    have h' : level.all_params_defined params u = ok b := h
-    rw [all_params_defined_refines hpar u hus b h']
-    simp [absConstLevels]
-  | Many vs =>
-    have h' : expr_ops.levels_all_params_defined params vs 0#usize = ok b := by
-      simpa only [expr_ops.const_levels_all_params_defined, arc_deref_eq,
-        bind_tc_ok] using h
-    rw [levels_all_params_defined_refines hpar hus.1
-      (vs : alloc.vec.Vec level.Level).val.length 0#usize b (by scalar_tac) h']
-    simp [absConstLevels, absLevels]
-
 /-- **`expr_ops::all_level_params_defined` refines
 `Expr.allLevelParamsDefined`** (`Kernel/Level.lean:256-268`): the specification
 walk -- ported and uncalled, as task #11's `beqRecursive` rule asks -- which is
@@ -2041,8 +1985,8 @@ theorem all_level_params_defined_refines {params : alloc.vec.Vec name.Name}
     intro b h
     rw [expr_ops.all_level_params_defined.eq_def] at h
     simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
-    rw [const_levels_all_params_defined_refines hpar
-      (Levels.constLevelsWF_ofVec hus) h]
+    rw [levels_all_params_defined_refines hpar hus us.val.length 0#usize b
+      (by scalar_tac) h]
     simp [ConLeche.Expr.allLevelParamsDefined, absLevels]
   | @fvar idx ty e hty h1 ih =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
@@ -2206,8 +2150,8 @@ theorem all_level_params_defined_go_refines {params : alloc.vec.Vec name.Name}
     obtain ⟨hr, hmm⟩ := h
     subst hr; subst hmm
     refine ⟨?_, hm⟩
-    rw [const_levels_all_params_defined_refines hpar
-      (Levels.constLevelsWF_ofVec hus) hb1]
+    rw [levels_all_params_defined_refines hpar hus us.val.length 0#usize b1
+      (by scalar_tac) hb1]
     simp [ConLeche.Expr.allLevelParamsDefined, absLevels]
   | @fvar idx ty e hty h1 ih =>
     have hwfe : ExprWF e := ExprWF.fvar hty h1

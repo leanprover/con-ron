@@ -627,11 +627,9 @@ theorem instantiate1_lift_b_pair {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     have hself : ∀ (d : Std.U64),
         ConLeche.Expr.instantiate1Lift
-          (absExpr (expr.Expr.mk (expr.ExprNode.mk d1
-            (expr.ExprKind.Const n (Levels.ofVec us)))))
+          (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Const n us))))
           (absExpr v) d.val
-        = absExpr (expr.Expr.mk (expr.ExprNode.mk d1
-            (expr.ExprKind.Const n (Levels.ofVec us)))) := by
+        = absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Const n us))) := by
       intro d; simp [ConLeche.Expr.instantiate1Lift]
     refine ⟨?_, ?_⟩
     · intro fuel d fuel' r h

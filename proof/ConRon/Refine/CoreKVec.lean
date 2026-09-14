@@ -829,11 +829,10 @@ theorem subst_const0_refines {n : name.Name} {v : expr.Expr} (hn : NameWF n)
     obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro r h
     rw [core_k.subst_const0.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind,
-      Levels.levels_len_ofVec] at h
-    have hwfe : ExprWF (expr.Expr.mk (expr.ExprNode.mk d (.Const cn (Levels.ofVec cus)))) :=
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    have hwfe : ExprWF (expr.Expr.mk (expr.ExprNode.mk d (.Const cn cus))) :=
       ExprWF.mk_const hcn hcus h1
-    have habse : absExpr (expr.Expr.mk (expr.ExprNode.mk d (.Const cn (Levels.ofVec cus))))
+    have habse : absExpr (expr.Expr.mk (expr.ExprNode.mk d (.Const cn cus)))
         = .const (absName cn) (absLevels cus) := by simp
     split at h
     · rename_i hz
@@ -947,11 +946,10 @@ theorem subst_const_all_refines {n : name.Name} {v : expr.Expr} (hn : NameWF n)
     obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro r h
     rw [core_k.subst_const_all.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind,
-      Levels.levels_len_ofVec] at h
-    have hwfe : ExprWF (expr.Expr.mk (expr.ExprNode.mk d (.Const cn (Levels.ofVec cus)))) :=
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    have hwfe : ExprWF (expr.Expr.mk (expr.ExprNode.mk d (.Const cn cus))) :=
       ExprWF.mk_const hcn hcus h1
-    have habse : absExpr (expr.Expr.mk (expr.ExprNode.mk d (.Const cn (Levels.ofVec cus))))
+    have habse : absExpr (expr.Expr.mk (expr.ExprNode.mk d (.Const cn cus)))
         = .const (absName cn) (absLevels cus) := by simp
     split at h
     · rename_i hz

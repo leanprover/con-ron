@@ -3696,14 +3696,19 @@ theorem nested_rule_shape_refines
             by_cases hb3t : b3 = true
             · rw [if_pos hb3t] at h
               rw [hb3t] at hb3v
+              obtain ⟨v4, hv4, h⟩ := bind_eq_ok_iff.mp h
+              rw [arc_deref_eq, Result.ok.injEq] at hv4
+              subst hv4
               obtain ⟨b4, hb4, h⟩ := bind_eq_ok_iff.mp h
-              have hb4v :=
-                ExprOps.const_levels_all_params_defined_refines hlps hlvlswf hb4
+              have hb4v := ExprOps.levels_all_params_defined_refines hlps
+                hlvlswf _ 0#usize b4 le_rfl hb4
+              rw [show ((0#usize : Std.Usize)).val = 0 from rfl,
+                List.drop_zero] at hb4v
               by_cases hb4t : b4 = true
               · rw [if_pos hb4t] at h
                 rw [hb4t] at hb4v
                 obtain ⟨v5, hv5, h⟩ := bind_eq_ok_iff.mp h
-                have hv5e := Levels.to_vec_refines hv5
+                have hv5e := Env.levels_copy_refines hv5
                 rw [Result.ok.injEq] at h
                 subst h
                 rw [if_pos ⟨hA, hB, hC, hb3v.symm, hb4v.symm⟩]
@@ -3712,12 +3717,13 @@ theorem nested_rule_shape_refines
                 · intro q hq
                   rw [Option.some.injEq] at hq
                   subst hq
-                  exact ⟨Levels.to_vec_wf hlvlswf hv5, hpinswf⟩
+                  exact ⟨by rw [hv5e]; exact hlvlswf, hpinswf⟩
               · simp only [Bool.not_eq_true] at hb4t
                 rw [if_neg (by simp [hb4t]), Result.ok.injEq] at h
                 rw [hb4t] at hb4v
                 rw [if_neg (by
                   rintro ⟨-, -, -, -, hE⟩
+                  simp only [absLevels] at hE
                   rw [← hb4v] at hE
                   simp at hE), ← h]
                 simp
@@ -8223,36 +8229,27 @@ theorem check_proj_iota_body_refines
     case Const =>
       rename_i n0 us0 _
       obtain ⟨hn0wf, hus0wf⟩ := CoreK.ExprWF.const_children hheadwf rfl
-      simp only [ExprOps.node_kind, arc_deref_eq, bind_tc_ok] at hpq
-      obtain ⟨b0, hb0, hpq⟩ := bind_eq_ok_iff.mp hpq
-      obtain ⟨i0, hi0, hb0⟩ := bind_eq_ok_iff.mp hb0
-      rw [Result.ok.injEq] at hb0
-      simp only [Result.ok.injEq, Prod.mk.injEq] at hpq
-      obtain ⟨rfl, hshapedv⟩ := hpq
-      rw [← hshapedv, ← hb0] at hz
+      simp only [ExprOps.node_kind, arc_deref_eq, bind_tc_ok, Result.ok.injEq,
+        Prod.mk.injEq] at hpq
+      obtain ⟨rfl, rfl⟩ := hpq
       simp at hz
       split at hz
       · rename_i hus1
         have hlen3 : args.val.length = 3 := by
           have := alloc.vec.Vec.len_val args; scalar_tac
-        have hus0len : (Levels.vecOf us0).val.length = 1 := by
-          have h1 := Levels.len_refines hi0
-          rw [hus1] at h1
-          rw [← Levels.absConstLevels_length, ← h1]
-          rfl
-        obtain ⟨l0, hvl0⟩ : ∃ l0, (Levels.vecOf us0).val = [l0] := by
-          rcases hl : (Levels.vecOf us0).val with _ | ⟨x, xs⟩
+        have hus0len : us0.val.length = 1 := by
+          have := alloc.vec.Vec.len_val us0; scalar_tac
+        obtain ⟨l0, hl0⟩ : ∃ l0, us0.val = [l0] := by
+          rcases hl : us0.val with _ | ⟨x, xs⟩
           · rw [hl] at hus0len; simp at hus0len
           · rcases xs with _ | ⟨y, ys⟩
             · exact ⟨x, rfl⟩
             · rw [hl] at hus0len; simp at hus0len
-        have hl0 : absConstLevels us0 = [absLevel l0] := by
-          rw [← Levels.absLevels_vecOf, absLevels, hvl0]
-          rfl
         have hheadabs : absExpr (expr.Expr.mk (expr.ExprNode.mk d0
             (expr.ExprKind.Const n0 us0)))
             = ConLeche.Expr.const (absName n0) [absLevel l0] := by
-          simp only [absExpr_mk, absExprKind, hl0]
+          simp only [absExpr_mk, absExprKind, absLevels, hl0]
+          rfl
         obtain ⟨a0, a1, a2, hav⟩ : ∃ a0 a1 a2, args.val = [a0, a1, a2] := by
           rcases hl : args.val with _ | ⟨a0, l1⟩
           · rw [hl] at hlen3; simp at hlen3
@@ -8468,12 +8465,12 @@ theorem check_proj_iota_body_refines
         refine hshape hce (fun c la ts l r hx => ?_)
         rw [hx] at hheadv
         simp only [ConLeche.Expr.getAppFn, absExpr_mk, absExprKind] at hheadv
-        obtain ⟨-, hus⟩ : absName n0 = c ∧ absConstLevels us0 = [la] := by
+        obtain ⟨-, hus⟩ : absName n0 = c ∧ absLevels us0 = [la] := by
           simpa using hheadv
-        have hus0len : (absConstLevels us0).length = 1 := by rw [hus]; rfl
-        have hlen1 : i0 = 1#usize := by
-          have h1 := Levels.len_refines hi0
-          rw [hus0len] at h1
+        have hus0len : (absLevels us0).length = 1 := by rw [hus]; rfl
+        have hlen1 : alloc.vec.Vec.len us0 = 1#usize := by
+          have hl : us0.val.length = 1 := by simpa [absLevels] using hus0len
+          have := alloc.vec.Vec.len_val us0
           scalar_tac
         simp [hlen1] at hus1
     -- move 2: a head that is not a `.const` at all

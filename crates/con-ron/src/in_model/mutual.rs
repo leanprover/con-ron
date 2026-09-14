@@ -28,7 +28,6 @@ use con_ron_core::kernel::expr_ops;
 use con_ron_core::kernel::inductives::struct_parts;
 use con_ron_core::kernel::level;
 use con_ron_core::kernel::level::Level;
-use con_ron_core::kernel::levels;
 use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::Name;
 
@@ -85,7 +84,7 @@ pub fn member_app(
         ExprKind::Const(x, us) => {
             let (_, m2, n_idx) = members.iter().find(|m| name::beq(&m.0, x))?;
             let args = expr_ops::get_app_args(e);
-            if kit::levels_are_params(&levels::to_vec(us), lps)
+            if kit::levels_are_params(us, lps)
                 && args.len() as u64 == n_p + n_idx
                 && expr::exprs_beq(
                     &dup_all(&args[..(n_p as usize).min(args.len())]),

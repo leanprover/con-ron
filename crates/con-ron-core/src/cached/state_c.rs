@@ -102,7 +102,6 @@ use crate::ron::hashmap::HashMap;
 use crate::ron::hashmap::Hashable;
 use crate::kernel::level;
 use crate::kernel::level::Level;
-use crate::kernel::levels::Levels;
 use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::kernel::prop_when;
@@ -676,29 +675,6 @@ pub fn is_equiv_l_m(s: &mut CState, l: &Level, r: &Level) -> Option<bool> {
 /// Pointwise `isEquivLM`.
 pub fn is_equiv_list_l_m(s: &mut CState, ls: &Vec<Level>, rs: &Vec<Level>) -> Option<bool> {
     is_equiv_list_l_m_from(s, ls, rs, 0)
-}
-
-/// con-leche: ConLeche/Cached/StateC.lean:301-308 isEquivListLM
-/// The same pointwise `isEquivLM` on the canonical form of `kernel::levels`
-/// (task #93), which is what a `.const` node's levels are.  The cited
-/// recursion answers `some false` on a length mismatch and the constructor
-/// *is* the length there, so an off-diagonal pair is `some false` at once —
-/// no pair is walked that the `Vec` recursion would have walked.
-pub fn is_equiv_list_c_m(s: &mut CState, ls: &Levels, rs: &Levels) -> Option<bool> {
-    match ls {
-        Levels::Zero => match rs {
-            Levels::Zero => Some(true),
-            _ => Some(false),
-        },
-        Levels::One(u) => match rs {
-            Levels::One(v) => is_equiv_l_m(s, u, v),
-            _ => Some(false),
-        },
-        Levels::Many(us) => match rs {
-            Levels::Many(vs) => is_equiv_list_l_m_from(s, us, vs, 0),
-            _ => Some(false),
-        },
-    }
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:301-308 isEquivListLM

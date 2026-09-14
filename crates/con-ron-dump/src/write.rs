@@ -38,7 +38,6 @@ use con_ron_core::kernel::expr::Literal;
 use con_ron_core::kernel::level;
 use con_ron_core::kernel::level::Level;
 use con_ron_core::kernel::level::LevelKind;
-use con_ron_core::kernel::levels;
 use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::Name;
 use con_ron_core::kernel::name::NameKind;
@@ -248,8 +247,7 @@ impl Writer {
             }
             ExprKind::Const(n, us) => {
                 let ni = self.w_name(n);
-                let uv = levels::to_vec(us);
-                let ls: Vec<usize> = uv.iter().map(|u| self.w_level(u)).collect();
+                let ls: Vec<usize> = us.iter().map(|u| self.w_level(u)).collect();
                 format!("c {} {}", ni, id_list(&ls))
             }
             ExprKind::App(f, a) => format!("a {} {}", self.eid(f), self.eid(a)),

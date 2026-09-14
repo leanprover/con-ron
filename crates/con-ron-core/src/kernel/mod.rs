@@ -17,7 +17,6 @@ pub mod expr_ops;
 pub mod fenv;
 pub mod inductives;
 pub mod level;
-pub mod levels;
 pub mod name;
 pub mod nat_op_pins;
 pub mod pins_decode;

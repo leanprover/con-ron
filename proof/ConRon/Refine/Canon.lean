@@ -36,7 +36,6 @@ import ConRon.Generated
 import ConRon.Refine.Abs
 import ConRon.Refine.Name
 import ConRon.Refine.Level
-import ConRon.Refine.Levels
 import ConRon.Refine.Expr
 import ConRon.Refine.ExprOps
 import ConRon.Refine.Env
@@ -393,17 +392,12 @@ theorem canon_expr_eq_fast_aux {ps ps2 : alloc.vec.Vec name.Name}
     case Const n2 us2 =>
       obtain ⟨hn, hus⟩ := ExprWF.const_kids w
       obtain ⟨hn2, hus2⟩ := ExprWF.const_kids hb
-      -- task #93: each side goes through `levels::to_vec` first, which is
-      -- the list the `Levels` stands for.
       rw [and_step (fun y hy => Name.beq_refines hn hn2 hy) (fun y hy => by
         simp only [bind_eq_ok_iff] at hy
-        obtain ⟨w1, hw1, v1, hv1, w2, hw2, v3, hv3, hy⟩ := hy
-        obtain ⟨hab1, hwf1⟩ :=
-          canon_level_list_refines hps (Levels.to_vec_wf hus hw1) hv1
-        obtain ⟨hab2, hwf2⟩ :=
-          canon_level_list_refines hps2 (Levels.to_vec_wf hus2 hw2) hv3
-        rw [Expr.levels_beq_refines hwf1 hwf2 hy, hab1, hab2,
-          Levels.to_vec_refines hw1, Levels.to_vec_refines hw2]) h]
+        obtain ⟨v1, hv1, v3, hv3, hy⟩ := hy
+        obtain ⟨hab1, hwf1⟩ := canon_level_list_refines hps hus hv1
+        obtain ⟨hab2, hwf2⟩ := canon_level_list_refines hps2 hus2 hv3
+        rw [Expr.levels_beq_refines hwf1 hwf2 hy, hab1, hab2]) h]
       simp [ConLeche.canonExprEqFast, beq_eq_decide, absLevels]
     all_goals (simp only [Result.ok.injEq] at h; rw [← h]; simp [ConLeche.canonExprEqFast])
   | app d f x w ihf ihx =>

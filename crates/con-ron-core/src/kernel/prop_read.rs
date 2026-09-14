@@ -28,7 +28,6 @@ use crate::kernel::expr_ops;
 use crate::kernel::fenv;
 use crate::kernel::fenv::FEnv;
 use crate::kernel::level;
-use crate::kernel::levels;
 use crate::kernel::name::Name;
 use crate::kernel::prop_when;
 use crate::kernel::prop_when::PropWhen;
@@ -116,11 +115,9 @@ pub fn stored_cv_at(fe: &FEnv, n: &Name, n_us: usize) -> Option<ConstantVal> {
 /// closures).
 pub fn head_type_pw(fe: &FEnv, e: &Expr, n: u64) -> Option<PropWhen> {
     match &e.0.kind {
-        ExprKind::Const(i, us) => match stored_cv_at(fe, i, levels::len(us)) {
+        ExprKind::Const(i, us) => match stored_cv_at(fe, i, us.len()) {
             Some(cv) => match residual_pw(peel_never_pis(n, &cv.ty)) {
-                Some(pw) => {
-                    Some(level::subst_pw(&cv.level_params, &levels::to_vec(us), &pw))
-                }
+                Some(pw) => Some(level::subst_pw(&cv.level_params, us, &pw)),
                 None => None,
             },
             None => None,
@@ -147,11 +144,9 @@ pub fn type_sort_pw(fe: &FEnv, t: &Expr) -> Option<PropWhen> {
 /// its declared type; sorts, ∀s and literals are never proofs.
 pub fn head_proof_pw(fe: &FEnv, e: &Expr) -> Option<PropWhen> {
     match &e.0.kind {
-        ExprKind::Const(c, us) => match stored_cv_at(fe, c, levels::len(us)) {
+        ExprKind::Const(c, us) => match stored_cv_at(fe, c, us.len()) {
             Some(cv) => match type_sort_pw(fe, &cv.ty) {
-                Some(pw) => {
-                    Some(level::subst_pw(&cv.level_params, &levels::to_vec(us), &pw))
-                }
+                Some(pw) => Some(level::subst_pw(&cv.level_params, us, &pw)),
                 None => None,
             },
             None => None,

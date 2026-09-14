@@ -1081,8 +1081,7 @@ theorem inst_level_params_go_refines {ks : alloc.vec.Vec name.Name}
           Prod.mk.injEq] at hgo
         obtain ⟨v0, hv0, c0, hc0, hmm1, hr0⟩ := hgo
         subst hmm1
-        obtain ⟨habsv, hwfv⟩ :=
-          const_levels_subst_refines hks hus (Levels.constLevelsWF_ofVec hvs) hv0
+        obtain ⟨habsv, hwfv⟩ := levels_subst_refines hks hus hvs hv0
         obtain ⟨x1, hd1, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨x2, hd2, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
@@ -1092,11 +1091,10 @@ theorem inst_level_params_go_refines {ks : alloc.vec.Vec name.Name}
         have em : memo' = memoZ := (congrArg Prod.snd e1).symm
         subst er; subst em
         have hans : ILPQ (absNames ks) (absLevels us)
-            (absExpr (expr.Expr.mk (expr.ExprNode.mk d1
-              (expr.ExprKind.Const n (Levels.ofVec vs))))) r := by
+            (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Const n vs)))) r := by
           rw [← hr0]
-          refine ⟨Expr.mk_const_levels_wf hn hwfv hc0, ?_⟩
-          rw [Expr.mk_const_levels_refines hc0, habsv, Levels.absConstLevels_ofVec]
+          refine ⟨Expr.mk_const_wf hn hwfv hc0, ?_⟩
+          rw [Expr.mk_const_refines hc0, habsv]
           simp [ConLeche.Expr.instantiateLevelParams]
         refine ⟨hans, ?_⟩
         rw [Expr.dup_eq hd1, Expr.dup_eq hd2] at hins
