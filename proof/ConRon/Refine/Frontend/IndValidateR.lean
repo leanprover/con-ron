@@ -1263,4 +1263,91 @@ theorem check_one_rec_refines {st : frontend.export_c.StateD}
               rw [if_pos heqv]
               exact htail kv hvwf o h
 
+
+/-! ### `check_rec_records` -/
+
+/-- The index recursion behind `export_c::check_rec_records`. -/
+private theorem check_rec_records_loop_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD}
+    {rcs : alloc.vec.Vec frontend.scan_types.IndRecRec}
+    {ty_names : alloc.vec.Vec name.Name} {ty_types : alloc.vec.Vec expr.Expr}
+    {n_pd n_types n_ctors : Std.U64} {k_exp : Option Bool}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (hnwf : NamesWF ty_names) (htwf : ExprsWF ty_types) (N : Nat) :
+    ∀ (n i : Std.Usize) (o : core.result.Result Unit frontend.export_c.LineErr),
+      rcs.val.length - i.val = N → n.val = rcs.val.length →
+      frontend.export_c.check_rec_records_loop st rcs ty_names ty_types n_pd n_types
+        n_ctors k_exp n i = ok o →
+      LoopOut o (lForIn (fun r s => lRecStep lst (absNames ty_names) (absExprs ty_types)
+          n_pd.val n_types.val n_ctors.val k_exp r s)
+        ((absIndRecRecs rcs).drop i.val) (none, ())) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro n i o hN hn h
+    rw [frontend.export_c.check_rec_records_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      have hltv : i.val < rcs.val.length := by scalar_tac
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨irr, hidx, h⟩ := h
+      have hirrv : rcs.val[i.val]'hltv = irr := iv_index_val hidx
+      obtain ⟨r1, hr1, h⟩ := h
+      have hone := check_one_rec_refines hrel hwf hnwf htwf hr1
+      have hdrop : (absIndRecRecs rcs).drop i.val
+          = absIndRecRec irr :: (absIndRecRecs rcs).drop (i.val + 1) := by
+        simp only [absIndRecRecs]
+        rw [iv_drop_map absIndRecRec hltv, hirrv]
+      rw [hdrop, lForIn_cons]
+      cases r1 with
+      | Ok u =>
+        simp only [StepLoopOut] at hone
+        rw [hone, iv_ok_bind]
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨i2, hi2, h⟩ := h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        have hres := ih (rcs.val.length - i2.val) (by omega) n i2 o rfl hn h
+        rw [hi2v] at hres
+        exact hres
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        cases e with
+        | Msg m =>
+          obtain ⟨s0, hs0⟩ := hone
+          exact ⟨s0, by rw [hs0, iv_err_bind]⟩
+        | Verdict vv =>
+          obtain ⟨lv, u, hu, hk⟩ := hone
+          exact ⟨lv, u, by rw [hu, iv_ok_bind]; rfl, hk⟩
+    · rename_i hge
+      have hle : rcs.val.length ≤ i.val := by scalar_tac
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      have hnil : (absIndRecRecs rcs).drop i.val = [] := by
+        refine List.drop_eq_nil_of_le ?_
+        simp only [absIndRecRecs, List.length_map]
+        omega
+      rw [hnil, lForIn_nil]
+      rfl
+
+/-- **`export_c::check_rec_records` refines the `for r in rcs` of
+`validateIndD`** (`ConLeche/Frontend/ExportC.lean:412-563`).  The nested-block
+guard is `validate_ind_d`'s, not this function's: con-leche iterates over
+`if nested then [] else rcs`, and the port skips the call. -/
+theorem check_rec_records_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD}
+    {rcs : alloc.vec.Vec frontend.scan_types.IndRecRec}
+    {ty_names : alloc.vec.Vec name.Name} {ty_types : alloc.vec.Vec expr.Expr}
+    {n_pd n_types n_ctors : Std.U64} {k_exp : Option Bool}
+    {o : core.result.Result Unit frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (hnwf : NamesWF ty_names) (htwf : ExprsWF ty_types)
+    (h : frontend.export_c.check_rec_records st rcs ty_names ty_types n_pd n_types
+      n_ctors k_exp = ok o) :
+    LoopOut o (lForIn (fun r s => lRecStep lst (absNames ty_names) (absExprs ty_types)
+        n_pd.val n_types.val n_ctors.val k_exp r s) (absIndRecRecs rcs) (none, ())) := by
+  rw [frontend.export_c.check_rec_records] at h
+  have hres := check_rec_records_loop_refines hrel hwf hnwf htwf _ _ 0#usize o rfl
+    (by simp [alloc.vec.Vec.len]) h
+  simpa [show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using hres
+
 end ConRon.Refine.Frontend
