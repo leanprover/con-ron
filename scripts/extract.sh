@@ -82,7 +82,7 @@ for f in "${gen_files[@]}"; do
   [ -f "$out/$f" ] || { echo "error: aeneas produced no $f" >&2; exit 1; }
 done
 
-# 3. Every hole a template declares must be modeled by hand.  The names are
+# 3a. Every hole a template declares must be modeled by hand.  The names are
 #    the `@[rust_type "..."]` / `@[rust_fun "..."]` attribute arguments; an
 #    attribute may be wrapped over two lines (hence the `tr`) and may sit
 #    beside others (`@[reducible, rust_type "..."]`), hence no `@[` anchor.
@@ -90,6 +90,23 @@ externals() {
   tr '\n' ' ' < "$1" \
     | { grep -oP 'rust_(?:type|fun)\s+"[^"]*"' || true; } \
     | sed 's/.*"\(.*\)"$/\1/' | LC_ALL=C sort -u
+}
+# 3b. ...and the `@[rust_*]` attribute is NOT enough on its own (task #94).
+#    Aeneas writes that attribute only for the externals it maps by *name
+#    pattern* -- another crate's `Arc`, `core::str`.  A hole that is an opaque
+#    item of THIS crate (`ron::node`, whose tagged `Expr` handle is outside
+#    Aeneas's subset by construction) comes out of the template as a plain
+#    `axiom NAME ...` with no attribute at all, so the rule above sees nothing
+#    and passes vacuously -- which is exactly how a new hole would slip through
+#    unmodeled.  So the second rule is by *declaration*: every `axiom` a
+#    template declares must be a `def`/`abbrev`/`axiom` of the same name in the
+#    hand-written file.
+declared_axioms() {
+  { grep -oP '^axiom\s+\K[A-Za-z_][A-Za-z0-9_.\x27]*' "$1" || true; } | LC_ALL=C sort -u
+}
+defined_names() {
+  { grep -oP '^(?:noncomputable\s+)?(?:def|abbrev|axiom)\s+\K[A-Za-z_][A-Za-z0-9_.\x27]*' "$1" \
+    || true; } | LC_ALL=C sort -u
 }
 missing=0
 for hand in "${hand_files[@]}"; do
@@ -107,9 +124,18 @@ for hand in "${hand_files[@]}"; do
       missing=1
     fi
   done < <(externals "$tmpl")
+  defined="$(defined_names "$committed/$hand")"
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    if ! printf '%s\n' "$defined" | grep -qxF -- "$name"; then
+      echo "error: $hand does not define the hole \"$name\"" >&2
+      echo "       (declared as an axiom by $(template_of "$hand"); fill it by hand)" >&2
+      missing=1
+    fi
+  done < <(declared_axioms "$tmpl")
 done
 [ "$missing" -eq 0 ] || { echo "extract: FAIL (unmodeled externals)" >&2; exit 1; }
-echo "extract: externals OK ($(externals "$out/TypesExternal_Template.lean" | wc -l) type(s), $(externals "$out/FunsExternal_Template.lean" | wc -l) fn(s) modeled by hand)"
+echo "extract: externals OK ($(declared_axioms "$out/TypesExternal_Template.lean" | wc -l) type(s), $(declared_axioms "$out/FunsExternal_Template.lean" | wc -l) fn(s) modeled by hand)"
 
 # 4. Install, or diff.
 if [ "$check" -eq 1 ]; then
