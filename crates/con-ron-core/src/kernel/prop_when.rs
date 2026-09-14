@@ -37,10 +37,19 @@
 //! never a loop); a list that is *consumed* into a datum is passed by value
 //! and a list that is *read* by reference (task #6's accumulator rule).
 //!
-//! `PropWhen` itself is **not** behind a handle: four of the five
-//! constructors hold no heap cell beyond the names' own handles, and by the
-//! census the fifth never occurs, so `dup` is a shallow value copy — which is
-//! also what Lean's value semantics gives.
+//! **`PropWhen` is one word wide (task #90).**  Before this task the type
+//! carried its widest constructor's payload by value — `Many(Vec<Name>)` set
+//! the width at 24 bytes, so a `PropWhen` embedded in a binder's `BinderMeta`
+//! (behind an `Rc` of its own, at the time) still cost that much once
+//! dereferenced.  Now only `Two` and `Many` — the two constructors the
+//! census says are rare (`Two`) or never seen (`Many`) — hold their payload
+//! behind a `P` handle; `Never`, `Always` and `One` cost no heap cell beyond
+//! the name's own handle, exactly as before.  `dup` shares: `Never`/`Always`
+//! copy the tag, `One` dups the name, `Two`/`Many` clone the handle (a
+//! reference bump, never the payload).  `BinderMeta` now holds a `PropWhen`
+//! *by value* (task #38's `Rc<PropWhen>` indirection is gone), so a binder's
+//! codomain datum is inline again and one word narrower than the boxed form
+//! it replaces.
 //!
 //! Two of the Lean's arguments are *functions* (`holds`'s valuation
 //! `φ : Name → Nat`, `bindZ`'s substitution `f : Name → PropWhen`).  §3.4
@@ -63,6 +72,8 @@ use crate::ron::hashmap::Hashable;
 use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::kernel::name::NameKind;
+use crate::ron::ptr;
+use crate::ron::ptr::P;
 
 // ---------------------------------------------------------------------------
 // A strict total order on names (`PropWhen.lean:56-187`)
@@ -261,12 +272,22 @@ pub fn canon_from(ps: &Vec<Name>, i: usize) -> Vec<Name> {
 /// `to_list` is the canonical representative of the parameter *set* and
 /// `beq` is equality.  Module-private, which is Rust's spelling of the
 /// cited `private`: nothing outside this file can build or match one.
+///
+/// **Deviation, task #90:** `Two` and `Many` hold their payload behind a `P`
+/// handle rather than inline.  `P<T>` is modeled as `T` (DESIGN.md §3.2), so
+/// nothing about the abstraction changes — `absPropWhenRepr`'s `two`/`many`
+/// arms read straight through the handle exactly as they read the inline
+/// pair/list before.  `Never`, `Always` and `One` are unaffected: they carry
+/// no payload wider than one word already.  `Two`'s pair is `P<(Name,
+/// Name)>` and not two separate handles, because the pair is what is shared
+/// or dropped together and a two-field tuple costs the same one word as one
+/// name would.
 enum PropWhenRepr {
     Never,
     Always,
     One(Name),
-    Two(Name, Name),
-    Many(Vec<Name>),
+    Two(P<(Name, Name)>),
+    Many(P<Vec<Name>>),
 }
 
 /// con-leche: ConLeche/Kernel/PropWhen.lean:386-415 PropWhen
@@ -286,17 +307,16 @@ fn of_repr(r: PropWhenRepr) -> PropWhen {
 }
 
 /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
-/// Share a datum.  Shallow: the names are handles, and only the `Many` arm —
-/// which the census says never occurs — copies a list spine.
+/// Share a datum.  Shallow: `Never`/`Always` copy the tag, `One` dups the
+/// name, and `Two`/`Many` (task #90) clone the `P` handle — a reference
+/// bump, never the pair or the list spine it points at.
 pub fn dup(pw: &PropWhen) -> PropWhen {
     match &pw.repr {
         PropWhenRepr::Never => of_repr(PropWhenRepr::Never),
         PropWhenRepr::Always => of_repr(PropWhenRepr::Always),
         PropWhenRepr::One(p) => of_repr(PropWhenRepr::One(name::dup(p))),
-        PropWhenRepr::Two(p, q) => {
-            of_repr(PropWhenRepr::Two(name::dup(p), name::dup(q)))
-        }
-        PropWhenRepr::Many(ps) => of_repr(PropWhenRepr::Many(names_copy(ps))),
+        PropWhenRepr::Two(pq) => of_repr(PropWhenRepr::Two(ptr::clone(pq))),
+        PropWhenRepr::Many(ps) => of_repr(PropWhenRepr::Many(ptr::clone(ps))),
     }
 }
 
@@ -334,8 +354,8 @@ fn equiv_r(x: &PropWhenRepr, y: &PropWhenRepr) -> bool {
         (PropWhenRepr::Never, PropWhenRepr::Never) => true,
         (PropWhenRepr::Always, PropWhenRepr::Always) => true,
         (PropWhenRepr::One(a), PropWhenRepr::One(b)) => name::beq(a, b),
-        (PropWhenRepr::Two(a, b), PropWhenRepr::Two(c, d)) => {
-            name::beq(a, c) && name::beq(b, d)
+        (PropWhenRepr::Two(pq), PropWhenRepr::Two(rs)) => {
+            name::beq(&pq.0, &rs.0) && name::beq(&pq.1, &rs.1)
         }
         (PropWhenRepr::Many(ps), PropWhenRepr::Many(qs)) => names_beq(ps, qs),
         _ => false,
@@ -376,9 +396,9 @@ fn hash_repr(r: &PropWhenRepr) -> u64 {
         PropWhenRepr::Never => 0,
         PropWhenRepr::Always => 1,
         PropWhenRepr::One(p) => name::mix_hash(2, name::hash_data(p)),
-        PropWhenRepr::Two(p, q) => name::mix_hash(
-            name::mix_hash(3, name::hash_data(p)),
-            name::hash_data(q),
+        PropWhenRepr::Two(pq) => name::mix_hash(
+            name::mix_hash(3, name::hash_data(&pq.0)),
+            name::hash_data(&pq.1),
         ),
         PropWhenRepr::Many(ps) => name::mix_hash(4, names_hash_from(ps, 0, 7)),
     }
@@ -437,9 +457,9 @@ fn of_sorted(ps: Vec<Name>) -> PropWhen {
     } else if ps.len() == 1 {
         of_repr(PropWhenRepr::One(name::dup(&ps[0])))
     } else if ps.len() == 2 {
-        of_repr(PropWhenRepr::Two(name::dup(&ps[0]), name::dup(&ps[1])))
+        of_repr(PropWhenRepr::Two(ptr::new((name::dup(&ps[0]), name::dup(&ps[1])))))
     } else {
-        of_repr(PropWhenRepr::Many(ps))
+        of_repr(PropWhenRepr::Many(ptr::new(ps)))
     }
 }
 
@@ -449,9 +469,13 @@ fn of_sorted(ps: Vec<Name>) -> PropWhen {
 /// `two_prime`.)
 fn two_prime(p: &Name, q: &Name) -> PropWhen {
     match name_cmp(p, q) {
-        Ordering::Lt => of_repr(PropWhenRepr::Two(name::dup(p), name::dup(q))),
+        Ordering::Lt => {
+            of_repr(PropWhenRepr::Two(ptr::new((name::dup(p), name::dup(q)))))
+        }
         Ordering::Eq => of_repr(PropWhenRepr::One(name::dup(p))),
-        Ordering::Gt => of_repr(PropWhenRepr::Two(name::dup(q), name::dup(p))),
+        Ordering::Gt => {
+            of_repr(PropWhenRepr::Two(ptr::new((name::dup(q), name::dup(p)))))
+        }
     }
 }
 
@@ -484,10 +508,10 @@ pub fn to_list(pw: &PropWhen) -> Vec<Name> {
         PropWhenRepr::Never => Vec::new(),
         PropWhenRepr::Always => Vec::new(),
         PropWhenRepr::One(p) => name::singleton(p),
-        PropWhenRepr::Two(p, q) => {
+        PropWhenRepr::Two(pq) => {
             let mut v: Vec<Name> = Vec::new();
-            v.push(name::dup(p));
-            v.push(name::dup(q));
+            v.push(name::dup(&pq.0));
+            v.push(name::dup(&pq.1));
             v
         }
         PropWhenRepr::Many(ps) => names_copy(ps),
@@ -544,7 +568,9 @@ where
         PropWhenRepr::Never => false,
         PropWhenRepr::Always => true,
         PropWhenRepr::One(p) => phi.value_at(p) == 0,
-        PropWhenRepr::Two(p, q) => phi.value_at(p) == 0 && phi.value_at(q) == 0,
+        PropWhenRepr::Two(pq) => {
+            phi.value_at(&pq.0) == 0 && phi.value_at(&pq.1) == 0
+        }
         PropWhenRepr::Many(ps) => all_zero_from(phi, ps, 0),
     }
 }
@@ -592,8 +618,8 @@ pub fn params_defined(params: &Vec<Name>, pw: &PropWhen) -> bool {
         PropWhenRepr::Never => true,
         PropWhenRepr::Always => true,
         PropWhenRepr::One(p) => name::contains(params, p),
-        PropWhenRepr::Two(p, q) => {
-            name::contains(params, p) && name::contains(params, q)
+        PropWhenRepr::Two(pq) => {
+            name::contains(params, &pq.0) && name::contains(params, &pq.1)
         }
         PropWhenRepr::Many(ps) => all_contained_from(params, ps, 0),
     }
@@ -663,7 +689,7 @@ where
         PropWhenRepr::Never => never(),
         PropWhenRepr::Always => if_all_zero(Vec::new()),
         PropWhenRepr::One(p) => f.apply(p),
-        PropWhenRepr::Two(p, q) => inter(&f.apply(p), &f.apply(q)),
+        PropWhenRepr::Two(pq) => inter(&f.apply(&pq.0), &f.apply(&pq.1)),
         PropWhenRepr::Many(ps) => bind_z_go(f, ps),
     }
 }
