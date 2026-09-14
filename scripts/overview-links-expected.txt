@@ -418,6 +418,39 @@
    290      Many(P<Vec<Name>>),
    291  }
 
+== crates/con-ron-dump/src/lib.rs#L99-L129
+    99  /// **mimalloc, entered by `mi_malloc` rather than `mi_malloc_aligned`**
+   100  /// (task #92).
+   101  ///
+   102  /// The `mimalloc` crate's own `GlobalAlloc` sends *every* request through
+   103  /// `mi_malloc_aligned(size, align)`, whatever the alignment is.  That is
+   104  /// correct but it costs twice over, and con-ron pays it on every node:
+   105  ///
+   106  /// * **A size class.**  Measured resident bytes per live block (20 M blocks,
+   107  ///   `VmHWM`, this machine, mimalloc v3 as `libmimalloc-sys` builds it):
+   108  ///   through `mi_malloc` a 48-byte request occupies **48** bytes, through
+   109  ///   `mi_malloc_aligned(48, 8)` it occupies **64**.  mimalloc's own bin for a
+   110  ///   48-byte block is 48 and its stride keeps every block 16-aligned (audited:
+   111  ///   100 000 `mi_malloc(48)` pointers, all 16-aligned), so the aligned wrapper
+   112  ///   is being conservative about an alignment the plain bin already has.
+   113  /// * **A slow path.**  `mi_malloc_aligned` is a `noinline` function that
+   114  ///   re-checks and may over-allocate; `mi_malloc` is the inlined fast path.
+   115  ///   Measured on `_tmp/corpus/core.ndjson`, `--verified --jobs=1`: **−4.5 %
+   116  ///   instructions, −5.6 % cycles, −7.4 % wall**, with peak RSS unchanged
+   117  ///   (−0.2 %) because con-ron's *current* block sizes do not straddle a class
+   118  ///   boundary — 56 and 64 are one class either way.  DESIGN.md's task-#92
+   119  ///   entry has the table and the size-class measurements behind it.
+   120  ///
+   121  /// The fallback is kept for `align > 8`: mimalloc in fact guarantees 16, but 8
+   122  /// is what the bin structure gives with no appeal to a documented guarantee,
+   123  /// and nothing con-ron allocates is more aligned than a machine word.  This is
+   124  /// the same `unsafe impl GlobalAlloc` the `mimalloc` crate itself writes, minus
+   125  /// the one conservative branch; it is in the *unverified* crate, invisible to
+   126  /// Charon, and cannot change a verdict (see the note above).
+   127  #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
+   128  pub struct MiMallocTight;
+   129  
+
 == crates/con-ron-core/src/ron/nat.rs#L1-L8
      1  //! con-leche: none — replaces the runtime's `Nat` (GMP); no Lean source to cite.
      2  //!

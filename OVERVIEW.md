@@ -290,12 +290,28 @@ one word beside its tag: `Never`, `Always` and `One` carry no heap cell at
 all, and only the rare `Two` and `Many` put their payload behind a handle
 ([`PropWhenRepr`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/prop_when.rs#L285-L291)).
 The alternative — the datum behind its own handle, which makes the node 40
-bytes and the block 56 — was measured and is *worse*: the 8 bytes per node it
-saves are mostly slack the allocator's size classes were rounding away
-anyway, while the handle costs a separate ~40-byte block and a reference
-count on every `lam` and `forallE`.  Taking that handle off dropped peak
-resident set by 8.5 % on `Init`, 9.2 % on `Init`+`Std`+`Lean` and 11 % on
-Mathlib (§6.3), at instruction counts that moved under 0.31 %.
+bytes and the block 56 — was measured and is *worse*, and the reason turns out
+to be exact rather than approximate: **a 56-byte block and a 64-byte one are
+the same allocator size class**, so the 8 bytes per node buy nothing at all,
+while the handle costs a separate block and a reference count on every `lam`
+and `forallE`.  Taking that handle off dropped peak resident set by 8.5 % on
+`Init`, 9.2 % on `Init`+`Std`+`Lean` and 11 % on Mathlib (§6.3), at instruction
+counts that moved under 0.31 %; putting it back, re-measured, costs 2.5 % of
+`Init`+`Std`+`Lean`'s peak.
+
+Size classes are in fact the unit the whole node is priced in.  Measured on
+one machine with 20 M live blocks, mimalloc charges 32 bytes for a 32-byte
+request, 48 for a 40- or 48-byte one and 64 for anything from 49 to 64 —
+glibc and jemalloc round the same way, and glibc charges 80 for the 64 this
+node asks for.  A 48-byte node in a 64-byte block therefore has *no slack to
+give back*: the next class down is 48 bytes, which needs the block itself to
+reach 48 — a 32-byte node behind `Arc`'s two-word header, or a 40-byte one
+behind a one-word header.  DESIGN.md §3.2 has the table and what each of those
+two routes costs.  One thing the measurement did hand over for free: entering
+mimalloc through `mi_malloc` rather than the `mimalloc` crate's unconditional
+`mi_malloc_aligned` is 4.5 % fewer instructions and 7.4 % less wall time on
+`Init`+`Std`+`Lean`, which is why the binary now uses its own
+[`MiMallocTight`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-dump/src/lib.rs#L99-L129).
 
 ### 3.3 Naturals and hash maps
 

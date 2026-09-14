@@ -253,7 +253,57 @@ the memory it buys is **−6.0 % of `core`'s peak (−143 MB)**, less than the
 −10.8 % the block arithmetic predicts.  It remains **not taken**: the decision
 is the maintainer's and the instruction count is the measure of record.  The
 task-#44 entry has the original table and the two ways back, task #45's the
-before/after pair, task #89's the re-measurement.
+before/after pair, task #89's the re-measurement.  **Task #92 re-prices it
+again, and the price has changed in both directions** — see the next paragraph:
+since task #90 made `ExprNode` 48 bytes, triomphe's one-word header buys
+*nothing at all* (the block goes 64 → 56, which is the same size class), and
+its instruction penalty is mostly not triomphe's at all but the allocator
+entry's, which task #92 fixed: over the fixed entry the penalty is **+9.1 %**,
+not +17.6 %.
+
+**The allocator's size classes are the unit a node is priced in (task #92,
+2026-09-14).**  Every width above is a *requested* size; what a run pays is the
+allocator's block for that request, and in the range con-ron lives in every
+allocator on the shortlist is 16 bytes wide.  Measured on this machine — 20 M
+live blocks through Rust's `GlobalAlloc`, peak `VmHWM`, minus the index vector
+(`_tmp/t92/binprobe`):
+
+| requested | mimalloc as the `mimalloc` crate enters it (`mi_malloc_aligned`) | mimalloc through `mi_malloc` | glibc | jemalloc |
+|---:|---:|---:|---:|---:|
+| 32 | 32 | 32 | 48 | 32 |
+| 40 | 48 | 48 | 48 | 48 |
+| 48 | **64** | **48** | 64 | 48 |
+| 56 | 64 | 64 | 64 | 64 |
+| 64 | 64 | 64 | 80 | 64 |
+
+Two consequences, both confirmed end to end on `core`:
+
+* **A 56-byte `ExprNode` block and a 64-byte one cost the same 64 bytes.**  So
+  task #38's node (40 bytes, block 56) and task #90's (48 bytes, block 64) are
+  the *same* resident cost per node, and task #90's "(or the same one, given the
+  header and slack a real allocator adds around either)" is exactly right — it
+  is the same one, not merely a near one.  Task #92 re-shrank the node to 40
+  bytes and measured **+2.5 % peak RSS on `core`, +3.0 % on `init`**: the node
+  saved nothing and the per-binder block it needs to re-introduce cost.  That
+  layout is therefore **not in the tree**; task #92's entry has it as a patch.
+  Swapping the allocator does not help: glibc and jemalloc round 56 up to 64
+  too, and glibc charges 80 for the 64 con-ron has.
+* **Entering mimalloc by `mi_malloc_aligned` costs a size class and a slow
+  path.**  The `mimalloc` crate's `GlobalAlloc` routes every request through it
+  whatever the alignment; `con_ron_dump::MiMallocTight` (task #92) calls
+  `mi_malloc` when `align <= 8` and keeps the aligned entry otherwise.  That is
+  **−4.5 % instructions, −5.6 % cycles and −7.4 % wall on `core`** for nothing,
+  and it restores the 48-byte class, which is the one the next node saving would
+  have to land in.
+
+The corollary is a sharp bound on the node lever: the class below 64 is **48**,
+so con-ron's `ExprNode` block has to reach 48 bytes to save anything at all —
+`ExprNode` ≤ 32 with `std::sync::Arc`'s two-word header, or ≤ 40 with a one-word
+one.  The second is task #92's 40-byte node **plus** triomphe **plus** the fixed
+allocator entry, all three, and it is worth **−21.0 % of `core`'s peak** at
++4.2 % instructions (task #92's table).  The first needs `ExprKind` ≤ 24, i.e.
+task #88's declined arm-boxing.  Nothing smaller than one of those two moves the
+number at all.
 
 **Going back to `Rc` is one line plus a rename, and deliberately not a cargo
 feature.**  `crates/con-ron-core/src/ron/ptr.rs`'s alias line is the choice;
@@ -17938,6 +17988,194 @@ one thing not literally in the brief (fixing `scripts/corpus.sh`, which
 also hard-coded `vendor/con-leche`) was found and fixed because leaving it
 broken would have been a silent regression the brief's own "every script
 that reads con-leche's tree by path" was clearly meant to cover.
+
+### Task #92 — the node back to 40 bytes: measured, declined, and what the allocator actually charges (2026-09-14, Opus under Fable)
+
+The ask was task #90 in reverse with task #88's fix 2 folded in: make the binder
+datum **one word** again (`Option<P<PropWhen>>`, `None` for `never`) so that
+`ExprNode` goes 48 → 40 and its `P` block 64 → 56, and intern the non-`never`
+data in the parser's `StateD` so that the block the option re-introduces is paid
+once per distinct value rather than once per binder.  Expected: Mathlib around
+13 GB against task #90's 14.66.
+
+**It does not work, and the reason is worth more than the change was.**  A
+56-byte block and a 64-byte block are the *same* mimalloc size class, so the
+node shrink saves exactly zero bytes; the re-introduced per-binder block is
+pure cost.  Measured end to end: `core` peak RSS **+2.5 %**, `init` **+3.0 %**.
+The layout is not in the tree.  What *is* in the tree is the one thing the
+measurement handed over for free — the binary now enters mimalloc through
+`mi_malloc` instead of the `mimalloc` crate's unconditional
+`mi_malloc_aligned`, which is **−4.5 % instructions, −5.6 % cycles and −7.4 %
+wall on `core`** and restores the 48-byte size class that any future node
+saving has to land in.
+
+#### 1. The construction census (`core`)
+
+A throwaway `#[track_caller]` probe on `expr::binder_meta` counting by call site
+and by whether the datum is `never`, over `_tmp/corpus/core.ndjson` at
+`--verified --jobs=1 --progress=1000000`.  **27 584 635** data built, of which
+**22 226 189 (80.6 %) are `never`**:
+
+| site | what it is | `never` | other |
+|---|---|---:|---:|
+| `cached/expr_ops_c.rs:906` | `inst_level_params_go`, `forallE` arm | 10 765 308 | 3 032 711 |
+| `cached/expr_ops_c.rs:898` | `inst_level_params_go`, `lam` arm | 7 614 541 | 146 418 |
+| `kernel/core_k.rs:2701` | `annot_binder_meta`, the annotate pass | 1 049 663 | 1 978 354 |
+| `frontend/export_c.rs:700` | `parse_expr_rec_d`, `lam` | 1 478 667 | **0** |
+| `frontend/export_c.rs:710` | `parse_expr_rec_d`, `forallE` | 875 033 | **0** |
+| `kernel/expr_ops.rs:526` | | 155 426 | 0 |
+| `kernel/basis_builder.rs:115` | | 154 669 | 0 |
+| `kernel/inductives/struct_parts.rs:186` | | 1 879 | 92 363 |
+| `con-ron/in_model/kit.rs:203` | the modeller (outside the core) | 86 916 | 0 |
+| `kernel/inductives/native_parts.rs:931` | | 0 | 35 175 |
+| 60-odd more, each under 25 000 | | 43 087 | 73 425 |
+| **total** | | **22 226 189** | **5 358 446** |
+
+**The decision the brief asked for, and it is the opposite of the brief's
+guess: there is nothing for a `StateD` intern table to intern.**  The parser
+builds 2 353 700 binder data on `core` and **every one of them is `never`** —
+because `lean4export` emits no `pw` field at all (`grep -c '"pw"'` finds one
+occurrence in each of `_tmp/corpus/{init,core,mathlib}.ndjson`, and it is inside
+a string).  con-leche's `pw` is an extension of the format that its own exporter
+does not write; the placeholder for an absent field is `.never`, and that is
+what every parsed binder gets.  All 5 358 446 non-`never` data are built by the
+**kernel** — 58 % by `instantiateLevelParams` rebuilding binders of terms whose
+type or body mentions a level parameter, 37 % by the annotate pass's chain rule.
+A table in `StateD` would have been dead code.
+
+#### 2. What was built, and what it cost
+
+`BinderMeta.pw` became `Option<P<PropWhen>>` (8 bytes: `P` is non-null, so
+`None` is its niche), `binder_meta` canonicalising `never` to `None` so the
+80.6 % majority allocates nothing; `binder_pw` reads the datum back out (`None`
+is `prop_when::never()`, a stack value; `Some` is a `dup`); `binder_meta_dup`
+became a reference bump.  For the two `instantiateLevelParams` sites, which are
+17.6 M of the 27.6 M constructions, `binder_meta_share(m, pw)` hands back the
+incoming binder's *own* block when `prop_when::beq` says the substitution did
+not move the datum.  `ExprKind` 40 → 32, `ExprNode` 48 → 40, its `P` block
+64 → 56, `size_of` assertions updated in both places that pin them; 48 reader
+sites moved from `&m.pw` to `&expr::binder_pw(m)`; `cargo build`/`cargo test`
+green, `lint-rust-style` and `provenance` green.  The proofs were **not**
+attempted, because the measurement came first — and stopped it.
+
+| `core`, `--verified --jobs=1 --progress=1000000` | peak RSS | instructions:u | cycles:u | wall |
+|---|---:|---:|---:|---:|
+| master | 2 163 732 kB | 1 170.75 G | 718.62 G | 167.2 s |
+| **the 40-byte node** | **2 218 144 kB (+2.5 %)** | 1 175.67 G (+0.42 %) | 780.98 G (+8.7 %) | 189.9 s |
+
+| `init`, same lane | peak RSS | instructions:u | cycles:u | wall |
+|---|---:|---:|---:|---:|
+| master | 788 812 kB | 541.79 G | 325.79 G | 83.1 s |
+| **the 40-byte node** | **812 860 kB (+3.0 %)** | 542.65 G (+0.16 %) | 324.67 G (−0.3 %) | 81.3 s |
+
+Both still accept (`core` 163 396, `init` 57 977) and `scripts/diff-e2e.sh`
+reads 348/348 on both.  The patch is `_tmp/t92/full-experiment.patch`.
+
+#### 3. Why: the allocator charges in 16-byte steps
+
+Requested bytes are not paid bytes.  A probe that allocates 20 M live blocks of
+one size through Rust's `GlobalAlloc` and reads `VmHWM`
+(`_tmp/t92/binprobe`, ±0.5 B/block):
+
+| requested | mimalloc as the `mimalloc` crate enters it | mimalloc through `mi_malloc` | glibc | jemalloc |
+|---:|---:|---:|---:|---:|
+| 32 | 32 | 32 | 48 | 32 |
+| 40 | 48 | 48 | 48 | 48 |
+| 48 | **64** | **48** | 64 | 48 |
+| 56 | 64 | 64 | 64 | 64 |
+| 64 | 64 | 64 | 80 | 64 |
+
+mimalloc's own rule is `page-queue.c`'s `mi_bin`: on x86-64 `MI_MAX_ALIGN_SIZE`
+is 16, so `MI_ALIGN2W` is defined and every request of eight machine words or
+fewer is rounded to an *even* number of words.  The finer boundaries through the
+crate's entry, measured: ≤32 → 32, 33–41 → 48, 42–64 → 64, 65–72 → 80, 73–88 →
+96, 89–104 → 112, 105–128 → 128.
+
+So **56 and 64 are one class**, and a `56`-byte `ExprNode` block occupies the
+same 64 bytes task #90's 64-byte one does.  The direct check is in the phase
+trace: at `init`'s parse boundary, where 6.14 M `Expr` nodes are live and *no*
+binder blocks exist in either build (the parser's data are all `never`), the two
+curves settle on **472 204 kB and 472 100 kB** — the 49 MB the 8 bytes per node
+should have been worth never appears at all.  Task #90's entry guessed this
+("bins that are already close together, **or the same one**"); it is the same
+one.  And no allocator on the shortlist changes it: glibc and jemalloc round 56
+to 64 as well, and glibc charges 80 for the 64-byte block con-ron actually has,
+which is the +1.4 % task #88 §5 measured.
+
+#### 4. The one free win: `MiMallocTight`
+
+The table has a second surprise in it: through the `mimalloc` crate a 48-byte
+request costs **64** bytes, through `mi_malloc` it costs **48**.  The crate's
+`GlobalAlloc` routes every request through `mi_malloc_aligned(size, align)`
+whatever the alignment; mimalloc's own 48-byte bin has a 48-byte stride from a
+16-aligned page start, so every block in it is already 16-aligned (audited:
+100 000 `mi_malloc(48)` pointers, all of them), and the aligned wrapper is being
+conservative about an alignment the plain bin has.  It is also a `noinline`
+slow path in front of an inlined fast one.
+
+`con_ron_dump::MiMallocTight` is the same `unsafe impl GlobalAlloc` the crate
+writes with that one branch removed: `mi_malloc` when `layout.align() <= 8`,
+the aligned entry otherwise.  It is in the *unverified* crate, invisible to
+Charon (`extract.sh --check` unmoved), and cannot change a verdict — the
+allocator only decides where bytes go and the core reads no address.
+
+| `core`, same lane | peak RSS | instructions:u | cycles:u | wall |
+|---|---:|---:|---:|---:|
+| master | 2 163 732 kB | 1 170.75 G | 718.62 G | 167.2 s |
+| **master + `MiMallocTight`** | 2 159 032 kB (−0.2 %) | **1 117.61 G (−4.5 %)** | **678.32 G (−5.6 %)** | **154.9 s (−7.4 %)** |
+
+Peak RSS does not move, and that is the point: con-ron's current block sizes do
+not straddle a class boundary, so the recovered class is worth nothing *today*.
+It is worth a great deal in one combination, below.
+
+#### 5. What would actually work, priced
+
+The class below 64 is 48, so the `ExprNode` block has to reach 48 bytes.  Two
+routes, and only two:
+
+* **`ExprNode` ≤ 40 with a one-word header** — this task's 40-byte node **plus**
+  `triomphe::Arc` **plus** `MiMallocTight`.  All three are load-bearing:
+  triomphe alone leaves task #90's node at 8 + 48 = 56 (still the 64 class), the
+  40-byte node alone leaves 16 + 40 = 56 (the same), and without the fixed
+  allocator entry a 48-byte block is charged 64 anyway.
+* **`ExprNode` ≤ 32 with `std::sync::Arc`** — `ExprKind` ≤ 24, i.e. task #88's
+  declined arm-boxing of `lam`/`forallE`/`letE`/`proj`, which is 187 binder
+  pattern sites and a constructor case in every `beq`/`ExprOps` proof.
+
+The first, measured (`core`, same lane):
+
+| build | `ExprNode` | block → paid | peak RSS | instructions:u | cycles:u | wall |
+|---|---:|---:|---:|---:|---:|---:|
+| master | 48 | 64 → 64 | 2 163 732 kB | 1 170.75 G | 718.62 G | 167.2 s |
+| 40-byte node | 40 | 56 → 64 | 2 218 144 kB | 1 175.67 G | 780.98 G | 189.9 s |
+| 40-byte node + triomphe | 40 | 48 → 64 | 2 118 688 kB | 1 473.87 G | 943.15 G | 224.2 s |
+| master + `MiMallocTight` | 48 | 64 → 64 | 2 159 032 kB | 1 117.61 G | 678.32 G | 154.9 s |
+| **all three** | 40 | 48 → **48** | **1 709 308 kB (−21.0 %)** | 1 219.78 G (**+4.2 %**) | 726.30 G (+1.1 %) | 165.2 s (−1.2 %) |
+
+**−21.0 % of `core`'s peak for +4.2 % instructions and no wall time at all**,
+against master.  It also re-prices triomphe, which tasks #44 and #89 declined at
++17.6 % instructions: most of that penalty was never triomphe's.  Over the fixed
+allocator entry it is +9.1 % (1 117.61 → 1 219.78 G), because triomphe's 48-byte
+blocks are exactly the size `mi_malloc_aligned` was punishing hardest.
+
+This is a **maintainer decision** and is not taken here: DESIGN.md §3.2 reserves
+the pointer alias, and the switch also costs the proof tier this task's binder
+repair (task #90's shape, 35-odd statements) plus the `alloc.sync.Arc` →
+`triomphe.arc.Arc` rename in the two hand-written model files and the `arc_*`
+lemma names.  `_tmp/t92/full-experiment.patch` is the whole stack as measured.
+
+#### 6. Mathlib, and the gates
+
+MATHLIB_TABLE_PLACEHOLDER
+
+`scripts/gates.sh` (`LAKE_JOBS=32`): **all nine green** (`extract-check` 226 s,
+`lake-build` 437 s) — the proof tier is untouched, which is what makes this
+task's landed change free.  `scripts/diff-e2e.sh`: **348 agree, 0 differ** at
+`--jobs=1` and at `--jobs=4`.
+
+`_tmp/t92/` holds the binaries, the raw logs, `binprobe/` (the size-class probe)
+and `full-experiment.patch`; deleted once these numbers are the committed
+record, per CLAUDE.md.
 
 ### Task #90 — `PropWhen` one word for its common cases (2026-09-14, Sonnet under Fable; proofs by Opus, below)
 
