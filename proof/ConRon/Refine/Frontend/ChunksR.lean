@@ -1128,4 +1128,47 @@ theorem builtin_prelude_e_refines
     exact hsim.decls
   · exfalso; revert h; simp
 
+/-! ## The wholesale parse of a string
+
+`export_c::parse_export_d` (`ConLeche/Frontend/ExportC.lean:841-846`
+`parseExportD`): `parse_bytes` of the argument's UTF-8.  Stated **at the bytes**
+rather than at the string, for the reason the prelude is: the port's `&str` is
+Aeneas's `Str`, whose `toStr` is the string's UTF-8 (`parse_export_d`'s own
+note), and identifying an extracted `Str` constant with a Lean `String` costs
+what `AENEAS_FINDINGS.md` §3.8 measures. `parse_export_d` has one caller inside
+the core and it is the prelude, which goes through `parse_bytes` directly. -/
+
+/-- **`export_c::parse_export_d`, accept direction**
+(`ConLeche/Frontend/ExportC.lean:841-846` `parseExportD`). -/
+theorem parse_export_d_refines
+    {R : frontend.export_c.StateD → ConLeche.Frontend.StateD → Prop}
+    {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+    (ing : ParseIngredients R inst g) {contents : Str} {im ce : Bool}
+    {r : frontend.export_c.ParseResultD}
+    (h : frontend.export_c.parse_export_d inst g contents im ce = ok (.Ok r)) :
+    ∃ s x, core.str.Str.as_bytes contents = ok s ∧
+      ConLeche.Frontend.parseBytes (absBytes s) im ce = .ok x ∧ ParseResultSim r x := by
+  rw [frontend.export_c.parse_export_d] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨s, hs, h⟩ := h
+  obtain ⟨x, hx, hsim⟩ := parse_bytes_refines ing h
+  exact ⟨s, x, hs, hx, hsim⟩
+
+/-! ## Axiom census (DESIGN.md §5, the P3 gate)
+
+The headline and its prelude twin: Lean's own three axioms and nothing else.
+Nothing here evaluates the scanner's key table or the prelude text — the
+prelude statement is parametric in the bytes and `parse_bytes_refines` holds
+for every byte slice — so the census is the one phase 1 pinned for
+`Refine/Frontend/Chunks.lean`'s three headlines. -/
+
+/-- info: 'ConRon.Refine.Frontend.parse_chunks_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms parse_chunks_refines
+
+/-- info: 'ConRon.Refine.Frontend.parse_bytes_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms parse_bytes_refines
+
+/-- info: 'ConRon.Refine.Frontend.builtin_prelude_e_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms builtin_prelude_e_refines
+
 end ConRon.Refine.Frontend
