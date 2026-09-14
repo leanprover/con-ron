@@ -234,24 +234,24 @@
    332  #guard_msgs in #print axioms conron.no_proof_of_False_decoded
 
 == proof/ConRon/Refine/Main.lean#L719-L736
-   719  theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
-   720      {R : frontend.export_c.StateD → ConLeche.Frontend.StateD → Prop}
-   721      {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
-   722      (hgen : Frontend.ModellerWF inst g) (ing : Frontend.ParseIngredients R inst g)
-   723      (hspec : Frontend.HoistSpec)
-   724      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   725      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
-   726      {prelude_bytes : Slice Std.U8} {pre : frontend.export_c.ParseResultD}
-   727      (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
-   728      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {im ce : Bool}
-   729      (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
-   730      {r : frontend.export_c.ParseResultD}
-   731      (hparse : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Ok r))
-   732      {ds : alloc.vec.Vec env.Declaration}
-   733      (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
-   734      {e : env.Env}
-   735      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   736      False := by
+   719  
+   720  It carries `hgen` (the modeller's promise, phase 1), `hu`/`hun`/`hsp`/`hspec`
+   721  (phase 3's outstanding ingredients — the parse's three named `Prop`s, through
+   722  `Frontend.parseIngredients`, and the hoist's), `hp` (a decode run), `hpre` (the
+   723  prelude's parse), `hparse` (the stream's parse), `hprep` (the prepare step) and
+   724  `h` (the check run) — and no hypothesis about well-formedness at all. -/
+   725  theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
+   726      {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+   727      (hgen : Frontend.ModellerWF inst g)
+   728      (hu : Frontend.Utf8DecodeSpec) (hun : Frontend.UnescapeSpec)
+   729      (hsp : Frontend.IndRSpec inst g) (hspec : Frontend.HoistSpec)
+   730      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   731      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+   732      {prelude_bytes : Slice Std.U8} {pre : frontend.export_c.ParseResultD}
+   733      (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
+   734      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {im ce : Bool}
+   735      (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
+   736      {r : frontend.export_c.ParseResultD}
 
 == proof/ConRon/Refine/Main.lean#L174-L185
    174  theorem conron.model_exists (V : Type w) [ConLeche.SetTheory V]

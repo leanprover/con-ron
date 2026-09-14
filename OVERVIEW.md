@@ -187,8 +187,9 @@ the parser's **exactness** tier (§5.2), and on top of it sits
 
 ```lean
 theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
-    (hgen : Frontend.ModellerWF inst g) (ing : Frontend.ParseIngredients R inst g)
-    (hspec : Frontend.HoistSpec)
+    (hgen : Frontend.ModellerWF inst g)
+    (hu : Frontend.Utf8DecodeSpec) (hun : Frontend.UnescapeSpec)
+    (hsp : Frontend.IndRSpec inst g) (hspec : Frontend.HoistSpec)
     (hp : kernel.pins_decode.decode text = ok (.Ok pins))
     (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
     (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
@@ -204,9 +205,11 @@ theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
 Both are pinned at the same three axioms.  The prelude is not identified with
 con-leche's and does not have to be: `mem_preparePrelude` holds for every
 prelude, so the statement is prelude-parametric for free.  What it still takes
-about the parse is named rather than assumed wholesale — `hgen` the modeller's
-well-formedness (§7), `ing` the six `ParseIngredients` fields and `hspec` the
-one `HoistSpec` field, each a statement about one named port function.
+about the parse is named rather than assumed wholesale, and it is a short list:
+`hu`/`hun`, two facts about the scanner's UTF-8 decoder; `hsp`, three about the
+inductive install path; `hspec`, one about the ground hoist; and `hgen`, the
+modeller's own promise — the residue task #84's seam left on purpose (§7).
+Everything else between the bytes and `parseChunks` is proved.
 
 Three more forms exist for readers who want them.  The general pair
 ([`conron.model_exists`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L174-L185))
