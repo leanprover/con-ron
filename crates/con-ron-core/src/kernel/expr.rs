@@ -335,6 +335,48 @@ pub fn sat_pred(x: u64) -> u64 {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// The ten constructors of `inductive Expr`, **as a declaration and not a
+/// representation** (task #94).
+///
+/// Nothing ever builds one of these: the run-time node is one of
+/// `ron::node`'s ten per-kind structs, reached through a tagged handle, and
+/// `ron::node` is opaque to Charon the way `ron::ptr` is.  What this type is
+/// for is the *model*.  DESIGN.md §3.2's rule for the pointer is "an `Arc<T>`
+/// is its contents", and `ron::node::TaggedNode<T>` is modeled by exactly the
+/// same line — `TaggedNode T := T` — so the shape the proof tier sees is this
+/// enum beside [`ExprNode`]'s `data` word, which is the shape it saw before
+/// task #94, unchanged down to the constructor names.  `view` is then `ok
+/// x.kind` and each `alloc_*` is `ok (ExprNode.mk d (ExprKind.App f a))`;
+/// `absExpr`/`absExprNode`/`absExprKind` do not move at all.
+///
+/// Deviation from the citation: the `Nat` indices are `u64` (§3.3), and
+/// `const`'s `List Level` is a `Vec<Level>` behind a handle (task #38).
+#[allow(dead_code)]
+pub enum ExprKind {
+    Bvar(u64),
+    Fvar(u64, Expr),
+    Sort(Level),
+    Const(Name, P<Vec<Level>>),
+    App(Expr, Expr),
+    Lam(Expr, Expr, BinderMeta),
+    ForallE(Expr, Expr, BinderMeta),
+    LetE(Expr, Expr, Expr),
+    Lit(Literal),
+    Proj(Name, u64, Expr),
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// The modeled node: the cited `@[computed_field] data` beside the
+/// constructor data.  Never built — see [`ExprKind`] — and the type
+/// `ron::node::TaggedNode` is parameterised by, so that Charon's `Expr` is
+/// `mk : TaggedNode ExprNode` where it was `mk : Arc ExprNode`.
+#[allow(dead_code)]
+pub struct ExprNode {
+    pub data: u64,
+    pub kind: ExprKind,
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
 /// A kernel expression: **one machine word**, a tagged handle to one of the
 /// ten per-kind nodes in `ron::node` (task #94) — Lean's value semantics
 /// made sharing (DESIGN.md §3.2).
@@ -355,7 +397,7 @@ pub fn sat_pred(x: u64) -> u64 {
 /// Deviation from the citation, unchanged by task #94: the `Nat` indices are
 /// `u64` (§3.3), and `const`'s `List Level` is a `Vec<Level>` *behind a
 /// handle* (task #38), which `P<Vec<Level>>` models as `Vec Level`.
-pub struct Expr(pub(crate) node::ExprPtr);
+pub struct Expr(pub(crate) node::TaggedNode<ExprNode>);
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
 /// The ten constructors as a borrowed enum — `ron::node`'s `ExprView` under

@@ -82,6 +82,7 @@
 //! single thread that saw the count reach zero drops the payload.
 
 use std::alloc::Layout;
+use std::marker::PhantomData;
 use std::ptr::NonNull;
 use std::sync::atomic;
 use std::sync::atomic::AtomicUsize;
@@ -132,11 +133,21 @@ pub const TAG_MASK: usize = 15;
 /// A one-word handle to one of the ten nodes below: the node's address with
 /// its kind in the low four bits.
 ///
-/// The field is private, so the *only* way to obtain one is [`new_node`],
-/// which writes a node and its tag together; that is the invariant every
-/// cast in this module rests on.
-pub struct ExprPtr {
+/// The address field is private, so the *only* way to obtain one is
+/// [`new_node`], which writes a node and its tag together; that is the
+/// invariant every cast in this module rests on.
+///
+/// **`T` is the modeled contents and nothing else** — `PhantomData`, no
+/// bytes, never read.  It is here so that the type Charon sees is
+/// `TaggedNode<ExprNode>`, in the shape DESIGN.md §3.2 already models
+/// `Arc<ExprNode>` in: the hole is the one line
+/// `@[reducible] def ron.node.TaggedNode (T : Type) : Type := T`, and the
+/// proof tier's `Expr` stays `mk : … ExprNode`, unchanged.
+/// `kernel::expr::ExprNode` is a declaration for this purpose only and is
+/// never built.
+pub struct TaggedNode<T> {
     p: NonNull<u8>,
+    owns: PhantomData<T>,
 }
 
 /// con-leche: none — `Send` for the handle (DESIGN.md §3.2, task #45)
@@ -144,12 +155,12 @@ pub struct ExprPtr {
 /// atomic and the node is immutable otherwise, so no two threads can race on
 /// anything but the count, and every field a node holds is itself
 /// `Send + Sync` (`tests/send_sync.rs` is the standing assertion).
-unsafe impl Send for ExprPtr {}
+unsafe impl<T> Send for TaggedNode<T> {}
 
 /// con-leche: none — `Sync` for the handle (DESIGN.md §3.2, task #45)
-/// See [`ExprPtr`]'s `Send`: a shared `&Expr` exposes only immutable fields
-/// and the atomic count.
-unsafe impl Sync for ExprPtr {}
+/// See [`TaggedNode`]'s `Send`: a shared `&Expr` exposes only immutable
+/// fields and the atomic count.
+unsafe impl<T> Sync for TaggedNode<T> {}
 
 /// con-leche: none — the kind bits of a handle
 #[inline]
@@ -373,8 +384,9 @@ unsafe fn new_node<T>(node: T, tag: usize) -> Expr {
         std::alloc::handle_alloc_error(l);
     }
     std::ptr::write(p as *mut T, node);
-    Expr(ExprPtr {
+    Expr(TaggedNode {
         p: NonNull::new_unchecked(((p as usize) | tag) as *mut u8),
+        owns: PhantomData,
     })
 }
 
@@ -475,7 +487,7 @@ pub fn dup(e: &Expr) -> Expr {
             .count
             .fetch_add(1, Ordering::Relaxed);
     }
-    Expr(ExprPtr { p: e.0.p })
+    Expr(TaggedNode { p: e.0.p, owns: PhantomData })
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:955-960 Expr.beqMemo
