@@ -288,6 +288,39 @@ happened three times in one day at task #87, twice on `absU32` and once on
 `readNat_eq`.  A proved `*_refines` lemma about a *Rust* function collides
 with nothing and may live wherever it is used.
 
+### When con-leche writes one `do` block and the port writes five functions
+
+`Frontend/hoistTargets` is one `Id.run do` with three `for`s and a `while`
+where `frontend::nat_op_ground` is five Rust functions, so there is nothing to
+induct against function by function.  The mechanic that works — and it is not
+an escape hatch — is to **name each loop as its own definition over the list it
+walks** (`hoistIdxNames`, `hoistIdx`, `hoistPushDeps`, `hoistClose`,
+`hoistTargetsAt`, `hoistTargetsGo` in `Frontend/PrepareR.lean`) and then prove
+the split *definitionally*:
+
+```lean
+theorem hoistTargets_split : ConLeche.Frontend.hoistTargets ds =
+  hoistTargetsGo ds (hoistIdx ds (List.range' 0 ds.size) {}) (List.range' 0 ds.size) {}
+```
+
+by `simp only [… forIn_eq_forIn_range' …]; rfl`.  Because it is `rfl`, the
+restatement assumes nothing: those `forIn`s *are* these definitions, and each
+piece gets `_nil`/`_cons` equations the loop induction consumes.
+
+A `while` is the one case this does not reach: `Lean.Loop.forIn` is a `partial`
+fixpoint and has no equation compiler behind it.  Take the **one-step**
+unfolding instead — `Lean.Loop.forIn_eq_of_monadTail` (from
+`Init.Internal.Order.While`) — and unfold the two sides in lock-step against
+the port's own `= ok` run, which is the termination witness.  Never state that
+con-leche's loop terminates; you do not need it and cannot get it.
+
+When the port's loop has no decreasing measure of its own — `hoist_close`'s
+stack pointer goes up as well as down — do **not** reach for a product measure
+and nonlinear arithmetic.  Find the monotone quantity on the *con-leche* side
+(here: how many positions are not yet done, which only ever falls, because an
+insert makes its key done forever) and do a strong induction on that, with an
+ordinary induction on the port's counter inside it for the turns that only pop.
+
 ## What is here (tasks #17, #20 and #47, P3.3)
 ## What is here (tasks #17, #20, #22 and #46)
 
