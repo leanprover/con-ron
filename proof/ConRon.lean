@@ -123,3 +123,4 @@ import ConRon.Refine.Frontend.IndInstallR
 import ConRon.Refine.Frontend.ProjRecR
 import ConRon.Refine.Frontend.PrepareR
 import ConRon.Refine.Frontend.ChunksR
+import ConRon.Refine.Frontend.IndSpecR
