@@ -47,6 +47,8 @@ hypothesis, so nothing is claimed about an Aeneas `fail`/`div`.
                             n.val = readNatAt (absBytes b) (absPos i) (absPos e)
     read_nat_at_err     : read_nat_at b i e = ok (.Err er) → ScanErrSim er x
     slot_nat_refines    : slot_nat b ks v = ok o → ScanSim absU64 o (slotNat (absBytes b) (absPos ks) (absPos v))
+    skip_braced_refines : skip_braced b i depth = ok j →
+                            absPos j = skipBraced (absBytes b) (absPos i) (absU64 depth)
 
 where `hnz : ∀ m (hm : m < lit.val.length), lit.val[m] ≠ 0#u8` -- no literal of
 the dialect holds a `0` byte, and that is exactly what makes the port's
@@ -2840,6 +2842,241 @@ theorem slot_nat_refines {b : Slice Std.U8} {ks v : Std.Usize}
       rw [← ho]
       refine ScanSim.err (ScanErrSim.mk (t := .noProgress) rfl ?_)
       simp
+
+
+
+/-- `strClose` is `0` or at least where it started: what discharges
+con-leche's `_hj : i < e + 1` guard, which the port does not have. -/
+private theorem strClose_ge (b : Slice Std.U8) (f : Nat) :
+    ∀ (j : Std.Usize), b.val.length - j.val ≤ f →
+      (strClose (absBytes b) (absPos j)).toNat = 0 ∨
+        j.val ≤ (strClose (absBytes b) (absPos j)).toNat := by
+  induction f with
+  | zero =>
+    intro j hf
+    rw [strClose_eq, if_neg (show ¬ j.val < b.val.length by omega)]
+    left; rfl
+  | succ f ih =>
+    intro j hf
+    by_cases hj : j.val < b.val.length
+    · rw [strClose_eq, if_pos hj]
+      by_cases h34 : (absByte (pByteAt b j.val) == 34) = true
+      · rw [if_pos h34]; right; rw [absPos_toNat]
+      · rw [if_neg h34]
+        by_cases h92 : (absByte (pByteAt b j.val) == 92) = true
+        · rw [if_pos h92]
+          by_cases h2 : j.val + 1 < b.val.length
+          · rw [if_pos h2]
+            by_cases hc : absByte (pByteAt b (j.val + 1)) < 32
+            · rw [if_pos hc]; left; rfl
+            · rw [if_neg hc]
+              obtain ⟨j1, hj1, hj1v⟩ := usize_add_ok (i := j)
+                (by have := Slice.length_ineq b; omega)
+              obtain ⟨j2, hj2, hj2v⟩ := usize_add_ok (i := j1)
+                (by have := Slice.length_ineq b; omega)
+              have he : absPos j2 = absPos j + 1 + 1 := by
+                rw [absPos_add_one hj2, absPos_add_one hj1]
+              rw [← he]
+              rcases ih j2 (by omega) with h | h
+              · left; exact h
+              · right; omega
+          · rw [if_neg h2]; left; rfl
+        · rw [if_neg h92]
+          by_cases hc : absByte (pByteAt b j.val) < 32
+          · rw [if_pos hc]; left; rfl
+          · rw [if_neg hc]
+            obtain ⟨j1, hj1, hj1v⟩ := usize_add_ok (i := j)
+              (by have := Slice.length_ineq b; omega)
+            rw [← absPos_add_one hj1]
+            rcases ih j1 (by omega) with h | h
+            · left; exact h
+            · right; omega
+    · rw [strClose_eq, if_neg hj]; left; rfl
+
+/-! ## `skip_braced` -/
+
+private theorem skipBraced_eq (b : Slice Std.U8) (i : Std.Usize) (depth : Nat) :
+    skipBraced (absBytes b) (absPos i) depth =
+      (if i.val < b.val.length then
+        (if absByte (pByteAt b i.val) == 34 then
+          (if strClose (absBytes b) (absPos i + 1) == 0 then 0
+           else if absPos i < strClose (absBytes b) (absPos i + 1) + 1 then
+             skipBraced (absBytes b) (strClose (absBytes b) (absPos i + 1) + 1) depth
+           else 0)
+         else if absByte (pByteAt b i.val) == 10 then 0
+         else if absByte (pByteAt b i.val) == 123 || absByte (pByteAt b i.val) == 91 then
+           skipBraced (absBytes b) (absPos i + 1) (depth + 1)
+         else if absByte (pByteAt b i.val) == 125 || absByte (pByteAt b i.val) == 93 then
+           (match depth with
+            | 0 => absPos i + 1
+            | d + 1 => skipBraced (absBytes b) (absPos i + 1) d)
+         else skipBraced (absBytes b) (absPos i + 1) depth)
+       else 0) := by
+  conv_lhs => rw [skipBraced.eq_def]
+  by_cases h : i.val < b.val.length
+  · rw [dif_pos (absPos_lt_usize.mpr h), if_pos h, uget_absPos]
+    simp only [dite_eq_ite]
+    rfl
+  · rw [dif_neg (fun hc => h (absPos_lt_usize.mp hc)), if_neg h]
+
+
+/-- **`skip_braced` refines `skipBraced`** (`Scan/Fast.lean:755-769`).
+
+This is the one place in the module where the two shapes genuinely differ:
+con-leche's `skipBraced` carries a `_hj : i < e + 1` guard after a quoted
+string -- it is what its `termination_by b.size - i.toNat` needs, since a
+string can be any length -- and the port has no such test, because in Rust the
+loop's own `e + 1 > i` is enough.  The guard is discharged, not assumed:
+`strClose_ge` says `strClose` returns `0` or a position at or after the one it
+started at, and the port has already ruled `0` out. -/
+private theorem skip_braced_loop_refines {b : Slice Std.U8} (f : Nat) :
+    ∀ (i : Std.Usize) (depth : Std.U64) (j : Std.Usize),
+      b.val.length - i.val ≤ f →
+      frontend.scan_fast.skip_braced_loop b i depth = ok j →
+      absPos j = skipBraced (absBytes b) (absPos i) (absU64 depth) := by
+  have hz : absPos (0#usize) = (0 : USize) := by simp [absPos]; rfl
+  induction f with
+  | zero =>
+    intro i depth j hf h
+    rw [frontend.scan_fast.skip_braced_loop.eq_def] at h
+    rw [if_neg (show ¬ (i < Slice.len b) by scalar_tac)] at h
+    rw [skipBraced_eq, if_neg (show ¬ i.val < b.val.length by scalar_tac)]
+    have : 0#usize = j := by simpa using h
+    rw [← this, hz]
+  | succ f ih =>
+    intro i depth j hf h
+    rw [frontend.scan_fast.skip_braced_loop.eq_def] at h
+    by_cases hlt : i < Slice.len b
+    · rw [if_pos hlt] at h
+      have hi : i.val < b.val.length := by scalar_tac
+      obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+      have hc' : c = pByteAt b i.val := by
+        rw [slice_index_ok hi] at hc; rw [pByteAt, dif_pos hi]; simpa using hc.symm
+      rw [skipBraced_eq, if_pos hi, ← hc']
+      by_cases h34 : c = 34#u8
+      · -- a quoted string: the one arm where the shapes differ
+        rw [if_pos h34] at h
+        rw [if_pos (show (absByte c == 34) = true by simp; scalar_tac)]
+        obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
+        have hi2v := usize_add_one_inv hi2
+        have hev : absPos e = strClose (absBytes b) (absPos i + 1) := by
+          rw [← absPos_add_one hi2]; exact str_close_refines he
+        rw [← hev]
+        by_cases he0 : e = 0#usize
+        · rw [if_pos he0] at h
+          rw [if_pos (show (absPos e == (0:USize)) = true by simp; scalar_tac)]
+          have : 0#usize = j := by simpa using h
+          rw [← this, hz]
+        · rw [if_neg he0] at h
+          rw [if_neg (show ¬ (absPos e == (0:USize)) = true by simp; scalar_tac)]
+          obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+          have hi3v := usize_add_one_inv hi3
+          -- `strClose` is `0` or at least `i + 1`, and `0` is out
+          have hge : i2.val ≤ e.val := by
+            rcases strClose_ge b (b.val.length - i2.val) i2 (le_refl _) with hg | hg
+            · exfalso
+              rw [absPos_add_one hi2, ← hev, absPos_toNat] at hg
+              exact he0 (by scalar_tac)
+            · rw [absPos_add_one hi2, ← hev, absPos_toNat] at hg; exact hg
+          rw [if_pos (show absPos i < absPos e + 1 by
+            rw [← absPos_add_one hi3, absPos_lt]; omega), ← absPos_add_one hi3]
+          exact ih i3 depth j (by omega) h
+      · rw [if_neg h34] at h
+        rw [if_neg (show ¬ (absByte c == 34) = true by simp; scalar_tac)]
+        by_cases h10 : c = 10#u8
+        · rw [if_pos h10] at h
+          rw [if_pos (show (absByte c == 10) = true by simp; scalar_tac)]
+          have : 0#usize = j := by simpa using h
+          rw [← this, hz]
+        · rw [if_neg h10] at h
+          rw [if_neg (show ¬ (absByte c == 10) = true by simp; scalar_tac)]
+          by_cases h123 : c = 123#u8
+          · rw [if_pos h123] at h
+            rw [if_pos (show (absByte c == 123 || absByte c == 91) = true by
+              simp; left; scalar_tac)]
+            obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨d1, hd1, h⟩ := bind_eq_ok_iff.mp h
+            have hi2v := usize_add_one_inv hi2
+            have hd1v : d1.val = depth.val + 1 := by
+              have h2 := Std.UScalar.add_equiv depth (1#u64)
+              rw [hd1] at h2; simp at h2; scalar_tac
+            rw [← absPos_add_one hi2, show absU64 depth + 1 = absU64 d1 from by
+              rw [absU64, absU64, hd1v]]
+            exact ih i2 d1 j (by omega) h
+          · rw [if_neg h123] at h
+            by_cases h91 : c = 91#u8
+            · rw [if_pos h91] at h
+              rw [if_pos (show (absByte c == 123 || absByte c == 91) = true by
+                simp; right; scalar_tac)]
+              obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨d1, hd1, h⟩ := bind_eq_ok_iff.mp h
+              have hi2v := usize_add_one_inv hi2
+              have hd1v : d1.val = depth.val + 1 := by
+                have h2 := Std.UScalar.add_equiv depth (1#u64)
+                rw [hd1] at h2; simp at h2; scalar_tac
+              rw [← absPos_add_one hi2, show absU64 depth + 1 = absU64 d1 from by
+                rw [absU64, absU64, hd1v]]
+              exact ih i2 d1 j (by omega) h
+            · rw [if_neg h91] at h
+              rw [if_neg (show ¬ (absByte c == 123 || absByte c == 91) = true by
+                simp; constructor <;> scalar_tac)]
+              by_cases h125 : c = 125#u8
+              · rw [if_pos h125] at h
+                rw [if_pos (show (absByte c == 125 || absByte c == 93) = true by
+                  simp; left; scalar_tac)]
+                by_cases hd0 : depth = 0#u64
+                · rw [if_pos hd0] at h
+                  rw [show absU64 depth = 0 from by rw [hd0]; rfl]
+                  exact absPos_add_one h
+                · rw [if_neg hd0] at h
+                  obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+                  obtain ⟨d1, hd1, h⟩ := bind_eq_ok_iff.mp h
+                  have hi2v := usize_add_one_inv hi2
+                  have hd1v : depth.val = d1.val + 1 := by
+                    have h2 := Std.UScalar.sub_equiv depth (1#u64)
+                    rw [hd1] at h2; simp at h2; scalar_tac
+                  rw [show absU64 depth = absU64 d1 + 1 from by
+                    rw [absU64, absU64, hd1v]]
+                  rw [← absPos_add_one hi2]
+                  exact ih i2 d1 j (by omega) h
+              · rw [if_neg h125] at h
+                by_cases h93 : c = 93#u8
+                · rw [if_pos h93] at h
+                  rw [if_pos (show (absByte c == 125 || absByte c == 93) = true by
+                    simp; right; scalar_tac)]
+                  by_cases hd0 : depth = 0#u64
+                  · rw [if_pos hd0] at h
+                    rw [show absU64 depth = 0 from by rw [hd0]; rfl]
+                    exact absPos_add_one h
+                  · rw [if_neg hd0] at h
+                    obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+                    obtain ⟨d1, hd1, h⟩ := bind_eq_ok_iff.mp h
+                    have hi2v := usize_add_one_inv hi2
+                    have hd1v : depth.val = d1.val + 1 := by
+                      have h2 := Std.UScalar.sub_equiv depth (1#u64)
+                      rw [hd1] at h2; simp at h2; scalar_tac
+                    rw [show absU64 depth = absU64 d1 + 1 from by
+                      rw [absU64, absU64, hd1v]]
+                    rw [← absPos_add_one hi2]
+                    exact ih i2 d1 j (by omega) h
+                · rw [if_neg h93] at h
+                  rw [if_neg (show ¬ (absByte c == 125 || absByte c == 93) = true by
+                    simp; constructor <;> scalar_tac)]
+                  obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+                  have hi2v := usize_add_one_inv hi2
+                  rw [← absPos_add_one hi2]
+                  exact ih i2 depth j (by omega) h
+    · rw [if_neg hlt] at h
+      rw [skipBraced_eq, if_neg (show ¬ i.val < b.val.length by scalar_tac)]
+      have : 0#usize = j := by simpa using h
+      rw [← this, hz]
+
+/-- **`skip_braced` refines `skipBraced`** (`Scan/Fast.lean:755-769`). -/
+theorem skip_braced_refines {b : Slice Std.U8} {i : Std.Usize} {depth : Std.U64}
+    {j : Std.Usize} (h : frontend.scan_fast.skip_braced b i depth = ok j) :
+    absPos j = skipBraced (absBytes b) (absPos i) (absU64 depth) :=
+  skip_braced_loop_refines (b.val.length - i.val) i depth j (le_refl _) h
 
 
 end ConRon.Refine.Frontend
