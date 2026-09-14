@@ -107,7 +107,7 @@ crate today), and the Lean build.  §12 has the list.
 The headline theorem is stated for the Rust checker's own entry point,
 `check_decls` in the verified core, with the pin list it uses obtained
 from the verified decoder on any input
-([`conron.model_exists_decoded` in `Main.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L281-L288)):
+([`conron.model_exists_decoded` in `Main.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L303-L310)):
 
 ```lean
 theorem conron.model_exists_decoded (V : Type w) [ConLeche.SetTheory V]
@@ -120,7 +120,7 @@ theorem conron.model_exists_decoded (V : Type w) [ConLeche.SetTheory V]
 ```
 
 and its companion
-[`conron.no_proof_of_False_decoded`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L296-L304):
+[`conron.no_proof_of_False_decoded`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L318-L326):
 if the Rust `check_decls` in verified mode accepts the parsed
 declarations `ds` and returns the environment `e`, then that environment,
 abstracted to con-leche's, has a model in every set theory, and contains
@@ -138,7 +138,7 @@ hypothesis at all.  Nothing is assumed about the pins' value, because the fold
 is parametric in them (§9).
 
 The chunk-level pair is
-[`conron.model_exists_parsed`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L548-L562)
+[`conron.model_exists_parsed`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L550-L564)
 and its companion `conron.no_proof_of_False_parsed`:
 
 ```lean
@@ -174,7 +174,7 @@ pair and the corollary at the shipped prelude are both pinned at con-leche's
 own three.
 
 Both censuses are pinned by `#guard_msgs` at con-leche's own three axioms
-([the censuses](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L306-L310)):
+([the censuses](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L328-L332)):
 `propext`, `Classical.choice`, `Quot.sound`.  No `native_decide`, no
 `sorry`, nothing sealed.
 
@@ -182,7 +182,8 @@ Both censuses are pinned by `#guard_msgs` at con-leche's own three axioms
 *"whatever the parser produced, the fold's accept has a model"*; what it did
 not say is that the parser produces what con-leche's parser produces.  That is
 the parser's **exactness** tier (§5.2), and on top of it sits
-`conron.no_False_declaration` — con-leche's own main corollary transported:
+[`conron.no_False_declaration`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L719-L736)
+— con-leche's own main corollary transported:
 
 ```lean
 theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
@@ -208,14 +209,14 @@ well-formedness (§7), `ing` the six `ParseIngredients` fields and `hspec` the
 one `HoistSpec` field, each a statement about one named port function.
 
 Three more forms exist for readers who want them.  The general pair
-([`conron.model_exists`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L152-L163))
+([`conron.model_exists`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L174-L185))
 names the two facts the induction owes — that the core knot refines
 con-leche's at the checker's fuel, and that the two inductive install
 routes refine theirs — as hypotheses, and the well-formedness of the pins
 as a third; the primed pair
-([`conron.model_exists'`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L219-L229))
+([`conron.model_exists'`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L241-L251))
 discharges the first two from the knot induction (§5).  The embedded pair
-([`conron.model_exists_embedded`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L369-L376))
+([`conron.model_exists_embedded`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L391-L398))
 is the decoded pair at the constant the binary ships, `PINS_TEXT`; its
 census carries one axiom more, `pins_text.PINS_TEXT._native.decide.ax_1`,
 which is not the port's: Aeneas' `toStr` discharges the byte-length bound
