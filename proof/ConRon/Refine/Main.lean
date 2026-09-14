@@ -6,6 +6,7 @@ import ConRon.Refine.BasisRaw
 import ConRon.Refine.Frontend.Chunks
 import ConRon.Refine.Frontend.Prepare
 import ConRon.Refine.Frontend.ChunksR
+import ConRon.Refine.Frontend.IndSpecR
 import ConRon.Refine.Frontend.PrepareR
 import ConLeche.MainTheorem
 
@@ -669,8 +670,9 @@ permuting passes and its fold — never accepts such a stream.
 
 Four steps, con-leche's, one port lemma each:
 
-1. `Frontend.parse_chunks_refines_of_specs` (`Refine/Frontend/ChunksR.lean`),
-   which is `parse_chunks_refines` at `Frontend.parseIngredients`, says the
+1. `Frontend.parse_chunks_refines_of_modeller` (`Refine/Frontend/IndSpecR.lean`),
+   which is `parse_chunks_refines` at `Frontend.parseIngredients` with every
+   ingredient discharged but the modeller's two promises, says the
    port's parse *is* `parseChunks` of the abstracted chunks, so
    `ConLeche.Frontend.parseChunks_jsonWithTheoremFalse`
    (`Verify/Frontend/FileFalse.lean:177`) applies and hands back a theorem
@@ -695,17 +697,20 @@ elaborate, `AENEAS_FINDINGS.md` §3.8) costs this theorem nothing.
 * `hgen : Frontend.ModellerWF inst g` — phase 1's promise about the unverified
   modeller (task #84's seam): every declaration `in_model_rec::Modeller
   ::generate` returns is well formed.  It is what discharges the fold's `hds`.
-* `hsp : Frontend.IndRSpec inst g` — phase 3's one outstanding ingredient,
-  stated as a hypothesis rather than assumed as an axiom (the
-  `Refine/IndSpec.lean` idiom).  It is the *whole* residue in front of the
-  port's streaming parse: `Frontend.parseIngredients`
-  (`Refine/Frontend/ChunksR.lean`) builds the nine-field `ParseIngredients`
-  record, and its other eight fields are theorems.  Two hypotheses that stood
-  here earlier in task #87 are gone, discharged rather than moved: the string
-  tier's `Utf8DecodeSpec` and `UnescapeSpec` are the theorems
-  `Frontend.utf8_decode_spec` and `Frontend.unescape_spec`, applied at the call
-  below, and the prepare step's `HoistSpec` is `Frontend.hoist_targets_refines`,
-  which left `prepare_prelude_refines` hypothesis-free.
+* `hmr : Frontend.ModellerRefines inst g Frontend.CtxRel` — the modeller's
+  *second* promise, and the companion of `hgen`: that when `generate` declines,
+  it declines where con-leche's modeller declines.  Like `hgen` it is a
+  statement about an unverified argument, not a proof obligation this tier can
+  meet, and it goes when the modeller does.
+* **Nothing else.**  Four hypotheses about the parse stood here during task
+  #87 and all four are discharged rather than moved: the string tier's
+  `Utf8DecodeSpec` and `UnescapeSpec` are the theorems
+  `Frontend.utf8_decode_spec` and `Frontend.unescape_spec`; the prepare step's
+  `HoistSpec` is `Frontend.hoist_targets_refines`, which left
+  `prepare_prelude_refines` hypothesis-free; and `IndRSpec` is the theorem
+  `Frontend.indRSpec`, whose three clauses are `proj_rewrite_d_refines`,
+  `validate_ind_d_refines` and `install_ind_d_refines`.  All nine fields of
+  `Frontend.parseIngredients` (`Refine/Frontend/ChunksR.lean`) are theorems.
 * The driver: that `con_ron::driver` calls `parse_chunks`, `prepare_prelude`
   and `check_decls` on the stream it was handed, in this order — the same
   unverified line `conron.model_exists_decoded` already owes for the pins.
@@ -718,15 +723,14 @@ Nothing else: the census below is Lean's own three axioms.
 prelude, as `conron.model_exists_parsed` is: `hpre` is the port's own parse of
 *some* prelude bytes, never identified with con-leche's `builtinPreludeE`.
 
-It carries `hgen` (the modeller's promise, phase 1), `hsp` (phase 3's one
-outstanding ingredient, through `Frontend.parseIngredients`), `hp` (a decode
-run), `hpre` (the
+It carries `hgen` and `hmr` (the modeller's two promises, task #84's seam),
+`hp` (a decode run), `hpre` (the
 prelude's parse), `hparse` (the stream's parse), `hprep` (the prepare step) and
 `h` (the check run) — and no hypothesis about well-formedness at all. -/
 theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
     {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
     (hgen : Frontend.ModellerWF inst g)
-    (hsp : Frontend.IndRSpec inst g)
+    (hmr : Frontend.ModellerRefines inst g Frontend.CtxRel)
     {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hp : kernel.pins_decode.decode text = ok (.Ok pins))
     {prelude_bytes : Slice Std.U8} {pre : frontend.export_c.ParseResultD}
@@ -741,8 +745,8 @@ theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     False := by
   -- 1. the parse: the port's records hold the theorem record of type `False`
-  obtain ⟨x, hx, hsim⟩ := Frontend.parse_chunks_refines_of_specs
-    Frontend.utf8_decode_spec Frontend.unescape_spec hsp hparse
+  obtain ⟨x, hx, hsim⟩ := Frontend.parse_chunks_refines_of_modeller
+    Frontend.utf8_decode_spec Frontend.unescape_spec hgen hmr hparse
   obtain ⟨cv, vl, hty, hmem⟩ := ConLeche.Frontend.parseChunks_jsonWithTheoremFalse hfalse hx
   have hmem : ConLeche.Declaration.thmDecl cv vl ∈ Frontend.absDecls r.decls := by
     rw [Frontend.absDecls, hsim.decls]; exact Array.mem_toList_iff.mpr hmem
@@ -778,7 +782,7 @@ naming it adds no `toStr` axiom (task #84 §8, task #86). -/
 theorem conron.no_False_declaration_prelude (V : Type w) [ConLeche.SetTheory V]
     {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
     (hgen : Frontend.ModellerWF inst g)
-    (hsp : Frontend.IndRSpec inst g)
+    (hmr : Frontend.ModellerRefines inst g Frontend.CtxRel)
     {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hp : kernel.pins_decode.decode text = ok (.Ok pins))
     {pre : frontend.prepare.PreludeIx}
@@ -792,8 +796,8 @@ theorem conron.no_False_declaration_prelude (V : Type w) [ConLeche.SetTheory V]
     {e : env.Env}
     (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
     False := by
-  obtain ⟨x, hx, hsim⟩ := Frontend.parse_chunks_refines_of_specs
-    Frontend.utf8_decode_spec Frontend.unescape_spec hsp hparse
+  obtain ⟨x, hx, hsim⟩ := Frontend.parse_chunks_refines_of_modeller
+    Frontend.utf8_decode_spec Frontend.unescape_spec hgen hmr hparse
   obtain ⟨cv, vl, hty, hmem⟩ := ConLeche.Frontend.parseChunks_jsonWithTheoremFalse hfalse hx
   have hmem : ConLeche.Declaration.thmDecl cv vl ∈ Frontend.absDecls r.decls := by
     rw [Frontend.absDecls, hsim.decls]; exact Array.mem_toList_iff.mpr hmem
