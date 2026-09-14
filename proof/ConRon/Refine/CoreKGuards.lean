@@ -910,20 +910,17 @@ theorem annot_binder_meta_refines {pw : Option prop_when.PropWhen}
   rw [core_k.annot_binder_meta.eq_def] at h
   cases pw with
   | none =>
-    rw [expr.binder_meta_dup] at h
-    simp only [ptr_clone_eq, bind_tc_ok, Result.ok.injEq] at h
-    rw [← h]
+    obtain rfl := Expr.binder_meta_dup_eq h
     exact ⟨rfl, hmb⟩
   | some p =>
-    simp only [arc_deref_eq, bind_tc_ok, bind_eq_ok_iff] at h
+    simp only [bind_eq_ok_iff] at h
     obtain ⟨bw, hbw, h⟩ := h
     rw [ConLeche.annotBinderMeta.eq_def]
     simp only [Option.map_some, absBinderMeta, ← pw_written_refines hbw]
     split at h
     · rename_i hc
-      rw [expr.binder_meta_dup] at h
-      simp only [ptr_clone_eq, bind_tc_ok, Result.ok.injEq] at h
-      rw [← h, hc]
+      obtain rfl := Expr.binder_meta_dup_eq h
+      rw [hc]
       exact ⟨by simp, hmb⟩
     · rename_i hc
       simp only [Bool.not_eq_true] at hc

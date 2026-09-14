@@ -800,7 +800,7 @@ private theorem if_all_zero_abs {ps : alloc.vec.Vec name.Name}
         rw [absNames, hx]
         cases o with
         | Lt =>
-          simp only [name_dup_eq, bind_tc_ok, PropWhen.of_repr_eq,
+          simp only [name_dup_eq, ptr_new_eq, bind_tc_ok, PropWhen.of_repr_eq,
             Result.ok.injEq] at h
           subst h
           simp [absPropWhen, absPropWhenRepr]
@@ -813,7 +813,7 @@ private theorem if_all_zero_abs {ps : alloc.vec.Vec name.Name}
           refine (ConLeche.PropWhen.ifAllZero_eq_iff _ _).mpr ?_
           intro n; simp [habs]
         | Gt =>
-          simp only [name_dup_eq, bind_tc_ok, PropWhen.of_repr_eq,
+          simp only [name_dup_eq, ptr_new_eq, bind_tc_ok, PropWhen.of_repr_eq,
             Result.ok.injEq] at h
           subst h
           simp only [absPropWhen, absPropWhenRepr, List.map_cons, List.map_nil]

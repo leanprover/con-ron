@@ -128,7 +128,7 @@ cited Rust body. -/
 form). -/
 @[local simp] theorem binder_meta_dup_eq' (m : expr.BinderMeta) :
     expr.binder_meta_dup m = ok m := by
-  obtain ⟨pw⟩ := m; simp [expr.binder_meta_dup]
+  obtain ⟨pw⟩ := m; simp [expr.binder_meta_dup, PropWhen.dup_eq']
 
 /-- Flatten the next `Result` bind of a generated body: `bind_eq_ok_iff`
 together with Aeneas's tuple-pattern `uncurry`. -/

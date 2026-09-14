@@ -932,10 +932,7 @@ theorem infer_forall_i_refines (hw : Wrappers mode fuel) (hd : InferDeps mode fu
         rw [Expr.dup_eq hdup] at k5
         obtain ⟨fv, hfv, k6⟩ := bind_eq_ok_iff.mp k5
         obtain ⟨fvs, hfvs, k7⟩ := bind_eq_ok_iff.mp k6
-        obtain ⟨pwa, hpwa, k7b⟩ := bind_eq_ok_iff.mp k7
-        rw [arc_deref_eq] at hpwa
-        rw [← Result.ok_injective hpwa] at k7b
-        obtain ⟨pw1, hpw1, k8⟩ := bind_eq_ok_iff.mp k7b
+        obtain ⟨pw1, hpw1, k8⟩ := bind_eq_ok_iff.mp k7
         rw [PropWhen.dup_eq hpw1] at k8
         obtain ⟨stk, hstk, k9⟩ := bind_eq_ok_iff.mp k8
         obtain ⟨pf, hpf, k10⟩ := bind_eq_ok_iff.mp k9

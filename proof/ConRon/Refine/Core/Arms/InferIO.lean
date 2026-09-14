@@ -414,7 +414,7 @@ theorem infer_lam_cod_io_i_refines (hw : Wrappers mode fuel)
   | some pwI =>
     -- the chain rule: datum equality with the inner λ's own annotation
     simp only [Option.map_some] at habs
-    simp only [arc_deref_eq, bind_tc_ok, bind_eq_ok_iff] at hok
+    simp only [bind_eq_ok_iff] at hok
     obtain ⟨b, hb, hok⟩ := hok
     have hbeq := PropWhen.beq_shape (PropWhen.wf_shape hmb)
       (PropWhen.wf_shape (lam_pw_wf hbody ho)) hb
@@ -471,7 +471,6 @@ theorem infer_lam_cod_io_i_refines (hw : Wrappers mode fuel)
       | Ok vb =>
         obtain ⟨lst2, hrun2, hrel2, hwf2, hvbWF⟩ :=
           (hd.ensureSort i btt hbttWF).apply hwf1 hfe h2 hrel1 hfrel
-        simp only [arc_deref_eq, bind_tc_ok] at hok
         obtain ⟨pw, hpw, hok⟩ := bind_eq_ok_iff.mp hok
         obtain ⟨b, hb, hok⟩ := bind_eq_ok_iff.mp hok
         obtain ⟨hpwabs, hpwWF⟩ := ExprOps.zeroness_of_refines hvbWF pw hpw

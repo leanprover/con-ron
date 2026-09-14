@@ -320,7 +320,11 @@ documented escape con-leche's own proofs use): the five Rust constructors map
 onto the two Lean producers — `Never` onto `never`, `Always` onto
 `ifAllZero []`, `One`/`Two`/`Many` onto `ifAllZero` of their parameter list.
 `ifAllZero` normalizes, so this is well defined for *any* Rust datum, well
-formed or not; `PropWhenWF` is what makes it *injective*. -/
+formed or not; `PropWhenWF` is what makes it *injective*.
+
+Since task #90 `Two`'s and `Many`'s payloads sit behind a `P` handle, which
+DESIGN.md §3.2's model erases: `Two`'s argument *is* the pair `Name × Name`
+and `Many`'s *is* the `Vec<Name>`, so the two arms read them directly. -/
 def absPropWhenRepr : prop_when.PropWhenRepr → ConLeche.PropWhen
   | .Never => .never
   | .Always => .ifAllZero []

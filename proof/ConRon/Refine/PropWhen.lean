@@ -587,6 +587,11 @@ theorem dup_eq {pw c : prop_when.PropWhen} (h : prop_when.dup pw = ok c) : c = p
       Result.ok.injEq] at h <;>
     exact h.symm
 
+/-- The same, in the applied `simp` shape the `Core/Arms` macros want. -/
+theorem dup_eq' (pw : prop_when.PropWhen) : prop_when.dup pw = ok pw := by
+  obtain ⟨r⟩ := pw
+  cases r <;> simp [prop_when.dup]
+
 theorem to_list_val {pw : prop_when.PropWhen} {v : alloc.vec.Vec name.Name}
     (h : prop_when.to_list pw = ok v) : v.val = reprList pw.repr := by
   obtain ⟨r⟩ := pw
