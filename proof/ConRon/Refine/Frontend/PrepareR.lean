@@ -2263,6 +2263,326 @@ private theorem used_consts_go_loop_refines :
           List.nil_append, List.map_cons, List.cons_append] at h2 h3
         simpa only [usedGo_cons, usedGo_nil, usedConstsGo_letE hc] using ⟨h1, h2, h3⟩
 
+/-! ### The constants a record references, one record at a time
+
+The loop above is the walk; these three are what sit on top of it —
+`Declaration.usedConsts`' `match` (`decl_used_consts`) and its `indDecl` arm's
+`block.foldl` (`block_used_consts`, a loop of its own in the port so that
+`decl_used_consts` stays the match con-leche writes). -/
+
+/-- `ConLeche/Frontend/NatOpGround.lean:54-77` — **`nat_op_ground::used_consts_go`
+refines `usedConstsGo`**: the worklist started at the single term `e`. -/
+private theorem used_consts_go_refines {seen : ron.hashmap.HashMap expr.Expr Bool}
+    {S : _root_.Std.HashSet ConLeche.Expr} {acc : alloc.vec.Vec name.Name} {e : expr.Expr}
+    {r : (alloc.vec.Vec name.Name) × ron.hashmap.HashMap expr.Expr Bool}
+    (hacc : NamesWF acc) (hrel : SeenRel seen S) (he : ExprWF e)
+    (h : frontend.nat_op_ground.used_consts_go seen acc e = ok r) :
+    NamesWF r.1 ∧
+      SeenRel r.2 (ConLeche.Frontend.usedConstsGo S (absNames acc).toArray (absExpr e)).1 ∧
+      (absNames r.1).toArray
+        = (ConLeche.Frontend.usedConstsGo S (absNames acc).toArray (absExpr e)).2 := by
+  rw [frontend.nat_op_ground.used_consts_go] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨e1, he1, stack, hstack, h⟩ := h
+  have he1x : e = e1 := (Expr.dup_eq he1).symm
+  subst he1x
+  have hsv : stack.val = [e] := by
+    rw [vec_push_val hstack]; simp [alloc.vec.Vec.new]
+  have htake : stack.val.take (1#usize).val = [e] := by rw [hsv]; rfl
+  obtain ⟨h1, h2, h3⟩ :=
+    used_consts_go_loop_refines (absExpr e).sizeF seen S acc stack 1#usize r
+      (by rw [hsv]; simp) (by rw [htake]; intro x hx; rw [List.mem_singleton.mp hx]; exact he)
+      (by rw [stackMeasure_eq htake]; simp) hacc hrel h
+  rw [htake] at h2 h3
+  simpa only [List.reverse_cons, List.reverse_nil, List.nil_append, List.map_cons,
+    List.map_nil, usedGo_cons, usedGo_nil] using ⟨h1, h2, h3⟩
+
+/-- `ConLeche/Frontend/NatOpGround.lean:91` — the cited `rules.foldl`'s body:
+one recursor rule's right-hand side. -/
+private def ruleBody (p : _root_.Std.HashSet ConLeche.Expr × _root_.Array ConLeche.Name)
+    (r : ConLeche.RecRule) : _root_.Std.HashSet ConLeche.Expr × _root_.Array ConLeche.Name :=
+  ConLeche.Frontend.usedConstsGo p.1 p.2 r.rhs
+
+/-- `ConLeche/Frontend/NatOpGround.lean:86-93` — the cited `block.foldl`'s body:
+one block member's type, then a recursor's rule right-hand sides. -/
+private def blockBody (p : _root_.Std.HashSet ConLeche.Expr × _root_.Array ConLeche.Name)
+    (ci : ConLeche.ConstantInfo) : _root_.Std.HashSet ConLeche.Expr × _root_.Array ConLeche.Name :=
+  let q := ConLeche.Frontend.usedConstsGo p.1 p.2 ci.toConstantVal.type
+  match ci with
+  | .recInfo _ _ _ rules => rules.foldl ruleBody q
+  | _ => q
+
+/-- `ConLeche/Frontend/NatOpGround.lean:86-93` — `Declaration.usedConsts`' `indDecl`
+arm, its two `let (seen, acc) := …` destructurings resolved (structure eta). -/
+private theorem usedConsts_indDecl (block : List ConLeche.ConstantInfo) (np : Nat) :
+    ConLeche.Declaration.usedConsts (.indDecl block np)
+      = (block.foldl blockBody (∅, #[])).2 := rfl
+
+/-- `ConLeche/Frontend/NatOpGround.lean:91` — `nat_op_ground::block_used_consts`'
+inner loop: the cited `rules.foldl` from `j` on. -/
+private theorem block_used_consts_loop0_loop0_refines :
+    ∀ (f : Nat) (seen : ron.hashmap.HashMap expr.Expr Bool)
+      (S : _root_.Std.HashSet ConLeche.Expr) (acc : alloc.vec.Vec name.Name)
+      (rules : alloc.vec.Vec env.RecRule) (m j : Std.Usize)
+      (r : (ron.hashmap.HashMap expr.Expr Bool) × (alloc.vec.Vec name.Name)),
+      m.val - j.val ≤ f → m.val = rules.val.length → j.val ≤ m.val →
+      (∀ rr ∈ rules.val, RecRuleWF rr) → NamesWF acc → SeenRel seen S →
+      frontend.nat_op_ground.block_used_consts_loop0_loop0 seen acc rules m j = ok r →
+      NamesWF r.2 ∧
+        SeenRel r.1 (((absRecRules rules).drop j.val).foldl ruleBody
+          (S, (absNames acc).toArray)).1 ∧
+        (absNames r.2).toArray = (((absRecRules rules).drop j.val).foldl ruleBody
+          (S, (absNames acc).toArray)).2 := by
+  intro f
+  induction f with
+  | zero =>
+    intro seen S acc rules m j r hf hm hj hrwf hacc hrel h
+    rw [frontend.nat_op_ground.block_used_consts_loop0_loop0.eq_def,
+      if_neg (show ¬ j < m by scalar_tac), Result.ok.injEq] at h
+    rw [← h, show (absRecRules rules).drop j.val = [] from by
+      rw [List.drop_eq_nil_iff]; simp only [absRecRules, List.length_map]; omega]
+    exact ⟨hacc, hrel, rfl⟩
+  | succ f ih =>
+    intro seen S acc rules m j r hf hm hj hrwf hacc hrel h
+    rw [frontend.nat_op_ground.block_used_consts_loop0_loop0.eq_def] at h
+    by_cases hlt : j.val < m.val
+    · rw [if_pos (show j < m by scalar_tac)] at h
+      rw [bind_eq_ok_iff] at h
+      obtain ⟨rr, hrr, h⟩ := h
+      rw [bind_pair_eq_ok_iff] at h
+      obtain ⟨acc1, seen1, hgo, h⟩ := h
+      rw [bind_eq_ok_iff] at h
+      obtain ⟨j1, hj1, h⟩ := h
+      have hj1v : j1.val = j.val + 1 := by have := Nat.uadd_val hj1; simpa using this
+      have hrlt : j.val < rules.val.length := by omega
+      have hrx : rules.val[j.val] = rr := by
+        have hg := ExprOps.vec_index_getElem? hrr
+        rw [List.getElem?_eq_getElem hrlt] at hg; exact Option.some_injective _ hg
+      have hrrwf : RecRuleWF rr := by rw [← hrx]; exact hrwf _ (List.getElem_mem hrlt)
+      obtain ⟨ha1, hs1, hn1⟩ := used_consts_go_refines hacc hrel hrrwf.2.2 hgo
+      dsimp only at ha1 hs1 hn1
+      obtain ⟨h1, h2, h3⟩ := ih seen1 _ acc1 rules m j1 r (by omega) hm (by omega)
+        hrwf ha1 hs1 h
+      rw [hj1v, hn1] at h2 h3
+      have hlenr : j.val < (absRecRules rules).length := by
+        simp only [absRecRules, List.length_map]; omega
+      have hgetr : (absRecRules rules)[j.val] = absRecRule rr := by
+        simp only [absRecRules, List.getElem_map, hrx]
+      rw [List.drop_eq_getElem_cons hlenr, hgetr, List.foldl_cons]
+      exact ⟨h1, h2, h3⟩
+    · rw [if_neg (show ¬ j < m by scalar_tac), Result.ok.injEq] at h
+      rw [← h, show (absRecRules rules).drop j.val = [] from by
+        rw [List.drop_eq_nil_iff]; simp only [absRecRules, List.length_map]; omega]
+      exact ⟨hacc, hrel, rfl⟩
+
+/-- `ConLeche/Frontend/NatOpGround.lean:86-93` — `nat_op_ground::block_used_consts`'
+outer loop: the cited `block.foldl` from `i` on. -/
+private theorem block_used_consts_loop0_refines :
+    ∀ (f : Nat) (seen : ron.hashmap.HashMap expr.Expr Bool)
+      (S : _root_.Std.HashSet ConLeche.Expr) (acc : alloc.vec.Vec name.Name)
+      (block : alloc.vec.Vec env.ConstantInfo) (n i : Std.Usize)
+      (r : (alloc.vec.Vec name.Name) × (ron.hashmap.HashMap expr.Expr Bool)),
+      n.val - i.val ≤ f → n.val = block.val.length → i.val ≤ n.val →
+      ConstantInfosWF block → NamesWF acc → SeenRel seen S →
+      frontend.nat_op_ground.block_used_consts_loop0 seen block acc n i = ok r →
+      NamesWF r.1 ∧
+        SeenRel r.2 (((absConstantInfos block).drop i.val).foldl blockBody
+          (S, (absNames acc).toArray)).1 ∧
+        (absNames r.1).toArray = (((absConstantInfos block).drop i.val).foldl blockBody
+          (S, (absNames acc).toArray)).2 := by
+  intro f
+  induction f with
+  | zero =>
+    intro seen S acc block n i r hf hn hi hbwf hacc hrel h
+    rw [frontend.nat_op_ground.block_used_consts_loop0.eq_def,
+      if_neg (show ¬ i < n by scalar_tac), Result.ok.injEq] at h
+    rw [← h, show (absConstantInfos block).drop i.val = [] from by
+      rw [List.drop_eq_nil_iff]; simp only [absConstantInfos, List.length_map]; omega]
+    exact ⟨hacc, hrel, rfl⟩
+  | succ f ih =>
+    intro seen S acc block n i r hf hn hi hbwf hacc hrel h
+    rw [frontend.nat_op_ground.block_used_consts_loop0.eq_def] at h
+    by_cases hlt : i.val < n.val
+    · rw [if_pos (show i < n by scalar_tac)] at h
+      rw [bind_eq_ok_iff] at h
+      obtain ⟨ci, hci, h⟩ := h
+      rw [bind_eq_ok_iff] at h
+      obtain ⟨cv, hcv, h⟩ := h
+      rw [bind_pair_eq_ok_iff] at h
+      obtain ⟨acc1, seen1, hgo, h⟩ := h
+      have hilt : i.val < block.val.length := by omega
+      have hcix : block.val[i.val] = ci := by
+        have hg := ExprOps.vec_index_getElem? hci
+        rw [List.getElem?_eq_getElem hilt] at hg; exact Option.some_injective _ hg
+      have hciwf : ConstantInfoWF ci := by rw [← hcix]; exact hbwf _ (List.getElem_mem hilt)
+      have hcvwf : ConstantValWF cv := BasisRaw.to_constant_val_wf hciwf hcv
+      have hcvabs : absConstantVal cv = ConLeche.ConstantInfo.toConstantVal (absConstantInfo ci) :=
+        Env.to_constant_val_refines hcv
+      obtain ⟨ha1, hs1, hn1⟩ := used_consts_go_refines hacc hrel hcvwf.2.2 hgo
+      dsimp only at ha1 hs1 hn1
+      have hlenb : i.val < (absConstantInfos block).length := by
+        simp only [absConstantInfos, List.length_map]; omega
+      have hgetb : (absConstantInfos block)[i.val] = absConstantInfo ci := by
+        simp only [absConstantInfos, List.getElem_map, hcix]
+      have hty : (ConLeche.ConstantInfo.toConstantVal (absConstantInfo ci)).type
+          = absExpr cv.ty := by rw [← hcvabs]; rfl
+      have shared : ∀ (P : _root_.Std.HashSet ConLeche.Expr × _root_.Array ConLeche.Name)
+          (seen2 : ron.hashmap.HashMap expr.Expr Bool)
+          (acc2 : alloc.vec.Vec name.Name) (i1 : Std.Usize),
+          SeenRel seen2 P.1 → NamesWF acc2 → (absNames acc2).toArray = P.2 →
+          i + 1#usize = ok i1 →
+          frontend.nat_op_ground.block_used_consts_loop0 seen2 block acc2 n i1 = ok r →
+          NamesWF r.1 ∧
+            SeenRel r.2 (((absConstantInfos block).drop (i.val + 1)).foldl blockBody P).1 ∧
+            (absNames r.1).toArray
+              = (((absConstantInfos block).drop (i.val + 1)).foldl blockBody P).2 := by
+        intro P seen2 acc2 i1 hs2 ha2 hn2 hi1 h
+        have hi1v : i1.val = i.val + 1 := by have := Nat.uadd_val hi1; simpa using this
+        obtain ⟨h1, h2, h3⟩ := ih seen2 _ acc2 block n i1 r (by omega) hn (by omega)
+          hbwf ha2 hs2 h
+        rw [hi1v, hn2] at h2 h3
+        exact ⟨h1, h2, h3⟩
+      rw [List.drop_eq_getElem_cons hlenb, hgetb, List.foldl_cons]
+      clear hgo hcvabs hcix hci hgetb
+      cases ci with
+      | AxiomInfo cv0 =>
+        obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+        simp only [blockBody, hty]
+        exact shared _ seen1 acc1 i1 hs1 ha1 hn1 hi1 h
+      | DefnInfo cv0 v0 h0 =>
+        obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+        simp only [blockBody, hty]
+        exact shared _ seen1 acc1 i1 hs1 ha1 hn1 hi1 h
+      | ThmInfo cv0 v0 =>
+        obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+        simp only [blockBody, hty]
+        exact shared _ seen1 acc1 i1 hs1 ha1 hn1 hi1 h
+      | IndInfo cv0 c0 =>
+        obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+        simp only [blockBody, hty]
+        exact shared _ seen1 acc1 i1 hs1 ha1 hn1 hi1 h
+      | CtorInfo cv0 a0 b0 =>
+        obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+        simp only [blockBody, hty]
+        exact shared _ seen1 acc1 i1 hs1 ha1 hn1 hi1 h
+      | ProjInfo t0 =>
+        obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+        simp only [blockBody, hty]
+        exact shared _ seen1 acc1 i1 hs1 ha1 hn1 hi1 h
+      | RecInfo cv0 mi rp rs =>
+        rw [bind_eq_ok_iff] at h
+        obtain ⟨⟨seen2, acc2⟩, hinner, h⟩ := h
+        have hm : (alloc.vec.Vec.len rs).val = rs.val.length := alloc.vec.Vec.len_val rs
+        obtain ⟨hi1, hi2, hi3⟩ :=
+          block_used_consts_loop0_loop0_refines rs.val.length seen1 _ acc1 rs
+            (alloc.vec.Vec.len rs) 0#usize (seen2, acc2) (by simp [hm]) hm.symm (by simp [hm])
+            (fun rr hrr => (hciwf.2 rr hrr)) ha1 hs1 hinner
+        dsimp only at hi1 hi2 hi3
+        obtain ⟨i1, hi1', h⟩ := bind_eq_ok_iff.mp h
+        simp only [blockBody, hty]
+        rw [hn1] at hi2 hi3
+        simp only [show ((0#usize : Std.Usize).val) = 0 from rfl, List.drop_zero,
+          absRecRules] at hi2 hi3
+        exact shared _ seen2 acc2 i1 hi2 hi1 hi3 hi1' h
+    · rw [if_neg (show ¬ i < n by scalar_tac), Result.ok.injEq] at h
+      rw [← h, show (absConstantInfos block).drop i.val = [] from by
+        rw [List.drop_eq_nil_iff]; simp only [absConstantInfos, List.length_map]; omega]
+      exact ⟨hacc, hrel, rfl⟩
+
+/-- `ConLeche/Frontend/NatOpGround.lean:86-93` — **`nat_op_ground::block_used_consts`
+refines the cited `block.foldl`.** -/
+private theorem block_used_consts_refines {seen : ron.hashmap.HashMap expr.Expr Bool}
+    {S : _root_.Std.HashSet ConLeche.Expr} {acc : alloc.vec.Vec name.Name}
+    {block : alloc.vec.Vec env.ConstantInfo}
+    {r : (alloc.vec.Vec name.Name) × (ron.hashmap.HashMap expr.Expr Bool)}
+    (hbwf : ConstantInfosWF block) (hacc : NamesWF acc) (hrel : SeenRel seen S)
+    (h : frontend.nat_op_ground.block_used_consts seen acc block = ok r) :
+    NamesWF r.1 ∧
+      SeenRel r.2 ((absConstantInfos block).foldl blockBody (S, (absNames acc).toArray)).1 ∧
+      (absNames r.1).toArray
+        = ((absConstantInfos block).foldl blockBody (S, (absNames acc).toArray)).2 := by
+  rw [frontend.nat_op_ground.block_used_consts] at h
+  have hm : (alloc.vec.Vec.len block).val = block.val.length := alloc.vec.Vec.len_val block
+  have := block_used_consts_loop0_refines block.val.length seen S acc block
+    (alloc.vec.Vec.len block) 0#usize r (by simp [hm]) hm.symm (by simp [hm]) hbwf hacc hrel h
+  simpa only [show ((0#usize : Std.Usize).val) = 0 from rfl, List.drop_zero] using this
+
+/-- `ConLeche/Frontend/NatOpGround.lean:79-95` — **`nat_op_ground::decl_used_consts`
+refines `Declaration.usedConsts`.** -/
+private theorem decl_used_consts_refines {d : env.Declaration} {acc : alloc.vec.Vec name.Name}
+    (hd : DeclarationWF d) (h : frontend.nat_op_ground.decl_used_consts d = ok acc) :
+    NamesWF acc ∧ (absNames acc).toArray = (absDeclaration d).usedConsts := by
+  rw [frontend.nat_op_ground.decl_used_consts] at h
+  rw [bind_eq_ok_iff] at h
+  obtain ⟨seen, hseen, h⟩ := h
+  have hrel := seen_new hseen
+  have hempty : (absNames (alloc.vec.Vec.new name.Name)).toArray = (#[] : _root_.Array ConLeche.Name) := by
+    simp [absNames, alloc.vec.Vec.new]
+  have hnwf : NamesWF (alloc.vec.Vec.new name.Name) := by
+    intro x hx; simp [alloc.vec.Vec.new] at hx
+  cases d with
+  | AxiomDecl cv =>
+    rw [bind_pair_eq_ok_iff] at h
+    obtain ⟨acc1, seen1, hgo, hr⟩ := h
+    obtain ⟨h1, -, h3⟩ := used_consts_go_refines hnwf hrel hd.2.2 hgo
+    dsimp only at h1 h3
+    rw [← Result.ok_injective hr]
+    rw [hempty] at h3
+    exact ⟨h1, h3⟩
+  | DefnDecl cv v hint =>
+    rw [bind_pair_eq_ok_iff] at h
+    obtain ⟨acc1, seen1, hgo, h⟩ := h
+    rw [bind_pair_eq_ok_iff] at h
+    obtain ⟨acc2, seen2, hgo2, hr⟩ := h
+    obtain ⟨h1, h2, h3⟩ := used_consts_go_refines hnwf hrel hd.1.2.2 hgo
+    dsimp only at h1 h2 h3
+    rw [hempty] at h2 h3
+    obtain ⟨g1, -, g3⟩ := used_consts_go_refines h1 h2 hd.2 hgo2
+    dsimp only at g1 g3
+    rw [h3] at g3
+    rw [← Result.ok_injective hr]
+    exact ⟨g1, g3⟩
+  | ThmDecl cv v =>
+    rw [bind_pair_eq_ok_iff] at h
+    obtain ⟨acc1, seen1, hgo, h⟩ := h
+    rw [bind_pair_eq_ok_iff] at h
+    obtain ⟨acc2, seen2, hgo2, hr⟩ := h
+    obtain ⟨h1, h2, h3⟩ := used_consts_go_refines hnwf hrel hd.1.2.2 hgo
+    dsimp only at h1 h2 h3
+    rw [hempty] at h2 h3
+    obtain ⟨g1, -, g3⟩ := used_consts_go_refines h1 h2 hd.2 hgo2
+    dsimp only at g1 g3
+    rw [h3] at g3
+    rw [← Result.ok_injective hr]
+    exact ⟨g1, g3⟩
+  | OpaqueDecl cv v =>
+    rw [bind_pair_eq_ok_iff] at h
+    obtain ⟨acc1, seen1, hgo, h⟩ := h
+    rw [bind_pair_eq_ok_iff] at h
+    obtain ⟨acc2, seen2, hgo2, hr⟩ := h
+    obtain ⟨h1, h2, h3⟩ := used_consts_go_refines hnwf hrel hd.1.2.2 hgo
+    dsimp only at h1 h2 h3
+    rw [hempty] at h2 h3
+    obtain ⟨g1, -, g3⟩ := used_consts_go_refines h1 h2 hd.2 hgo2
+    dsimp only at g1 g3
+    rw [h3] at g3
+    rw [← Result.ok_injective hr]
+    exact ⟨g1, g3⟩
+  | BasisDecl k =>
+    rw [← Result.ok_injective h]
+    exact ⟨hnwf, by rw [hempty]; rfl⟩
+  | IndDecl block np =>
+    rw [bind_pair_eq_ok_iff] at h
+    obtain ⟨acc1, seen1, hgo, hr⟩ := h
+    obtain ⟨h1, -, h3⟩ := block_used_consts_refines hd hnwf hrel hgo
+    dsimp only at h1 h3
+    rw [hempty] at h3
+    rw [← Result.ok_injective hr]
+    exact ⟨h1, by rw [h3]; rw [absDeclaration, usedConsts_indDecl]⟩
+  | QuotDecl k cv =>
+    rw [← Result.ok_injective h]
+    exact ⟨hnwf, by rw [hempty]; rfl⟩
+
 /-! ### The residue
 
 **One** hypothesis, about the first half of the hoist; everything else of the
