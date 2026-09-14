@@ -701,8 +701,8 @@
 == proof/ConRon/Refine/Abs.lean#L170
    170  macro "rust_grind" : tactic => `(tactic| grind (ematch := 12) (gen := 24))
 
-== proof/lakefile.toml#L21-L23
-    21  [leanOptions]
-    22  weak.backward.isDefEq.respectTransparency = false
-    23  weak.backward.do.legacy = true
+== proof/lakefile.toml#L24-L26
+    24  [leanOptions]
+    25  weak.backward.isDefEq.respectTransparency = false
+    26  weak.backward.do.legacy = true
 

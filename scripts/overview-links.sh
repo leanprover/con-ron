@@ -33,18 +33,33 @@
 #
 # and commit the expectation with the change that moved the lines.
 #
-# WHAT IS AN ERROR RATHER THAN A DIFF.  A link that pins a commit —
-# `blob/<sha>/…` — is rejected outright: the documents must track `master`,
-# or the gate would be pinning a snapshot and the tour would quietly drift
-# from the tree it describes.  Links that are not of the repository-blob
-# form (external URLs, anchors within the document) are ignored; they are
-# not this gate's business.
+# WHAT IS AN ERROR RATHER THAN A DIFF.  A link into *this* repository that
+# pins a commit — `blob/<sha>/…` — is rejected outright: the documents must
+# track `master`, or the gate would be pinning a snapshot and the tour would
+# quietly drift from the tree it describes.  Links that are not of the
+# repository-blob form (external URLs, anchors within the document) are
+# ignored; they are not this gate's business.
 #
-# PATHS ARE THIS REPOSITORY'S.  A link's `<path>` is resolved from the
+# LINKS INTO CON-LECHE (task #91).  con-leche is a plain `lake` dependency
+# of `proof/` (pinned by `rev` in `proof/lakefile.toml`, resolved through
+# `proof/lake-manifest.json`), not vendored source, so GitHub does not serve
+# its files under this repository's own URL: a citation of con-leche code is
+# a pinned link straight into `leanprover/con-leche` —
+# `blob/<sha>/<path>#L<a>-L<b>`.  Most such pins are immutable (a citation of
+# what con-leche looked like at some past commit, e.g. in a task-log entry)
+# and are not checked, exactly like a pinned link into any other repository.
+# The one exception: a link pinned at *the pinned con-leche commit itself*
+# (`proof/lake-manifest.json`'s `con-leche` entry, via `provenance.py`'s
+# `con_leche_dir`/`current_submodule_commit`) is checked like a local link,
+# against the file in that lake package directory — that is the live
+# citation of the code the port is written against, and it should move with
+# the pin the same way a local citation moves with this tree.
+#
+# PATHS.  A link into this repository's `<path>` is resolved from the
 # repository root, whatever owner/repo it names (as in con-leche: the
-# project has been renamed before).  con-leche code is therefore cited
-# through the vendored copy — `vendor/con-leche/ConLeche/…`, which is both
-# what the port is written against and a real path on GitHub.
+# project has been renamed before).  A link into `leanprover/con-leche` at
+# the pinned commit resolves its `<path>` under the con-leche lake package
+# directory.
 #
 # BEFORE `OVERVIEW.md` EXISTS.  The tour is being written; until it lands,
 # and while no document carries a link of this form, the gate passes
@@ -77,19 +92,28 @@ import re, sys, os
 
 out, docs = sys.argv[1], sys.argv[2:]
 
+# cwd is the repository root (the shell script `cd`s there first).
+sys.path.insert(0, 'scripts')
+import provenance as P  # noqa: E402
+
 # github.com/<owner>/<repo>/blob/<ref>/<path>#L<a>[-L<b>]
 #
 # The owner/repo are matched loosely on purpose: the project may be renamed
 # and the gate should survive that without a script edit.  The <ref> is what
-# matters: a link into this repository must be `master` (and is checked);
-# a link into another repository (con-leche's own tree, Aeneas) must pin a
-# commit and is left alone.  While `vendor/con-leche` exists, con-leche code
-# may also be cited through this repository's `master` (checked); if the
-# vendored tree is ever dropped, every such link has to become a pinned
-# link into leanprover/con-leche.
+# matters: a link into this repository must be `master` (and is checked); a
+# link into another repository must pin a commit.  Most such pins are
+# immutable and not checked — EXCEPT a link into `leanprover/con-leche`
+# pinned at con-leche's own pinned commit (`provenance.py`'s
+# `current_submodule_commit`), which is checked like a local link against
+# the file in its lake package directory (task #91: con-leche is a plain
+# lake dependency, not vendored, so this is the only way left to cite its
+# code that still moves with the pin).
 LINK = re.compile(
     r'https://github\.com/([^/\s)]+)/([^/\s)]+)/blob/([^/\s)]+)/'
     r'([^)\s#]+)#L(\d+)(?:-L(\d+))?')
+
+CON_LECHE_PIN = P.current_submodule_commit()
+CON_LECHE_DIR = P.con_leche_dir()
 
 errors = []
 segments = []
@@ -102,26 +126,43 @@ for doc in docs:
     for m in LINK.finditer(text):
         owner, repo, ref, path, a, b = m.groups()
         link = m.group(0)
-        if repo != 'con-ron':
-            # A link into another repository (con-leche, Aeneas): it must pin
-            # a commit, because nothing here can check it and a branch link
-            # would drift; a pinned link is immutable and is not extracted.
+        if repo == 'con-ron':
+            if ref != 'master':
+                errors.append(
+                    f"{link}\n    ({doc}) pins the ref `{ref}`; links into this repository must track `master`.")
+                continue
+            # `label` is what goes in the committed expectation file, so it
+            # must be portable across checkouts; `read_path` is where the
+            # bytes actually come from.
+            label = path
+            read_path = path
+        elif (repo == 'con-leche' and CON_LECHE_PIN and CON_LECHE_DIR
+              and re.fullmatch(r'[0-9a-f]{7,40}', ref)
+              and CON_LECHE_PIN.startswith(ref)):
+            # Pinned at con-leche's own pinned commit: check it like a local
+            # link, against the file in the lake package directory.  The
+            # package directory's absolute path is worktree-specific (it
+            # lives under a shared, checkout-keyed `_tmp/`), so the label
+            # committed to the expectation file is a synthetic, portable one.
+            label = f"con-leche/{path}"
+            read_path = os.path.join(CON_LECHE_DIR, path)
+        else:
+            # A link into another repository, or into con-leche at a
+            # revision other than the pinned one: it must pin a commit,
+            # because nothing here can check it and a branch link would
+            # drift; a pinned link is immutable and is not extracted.
             if re.fullmatch(r'[0-9a-f]{7,40}', ref):
                 continue
             errors.append(
                 f"{link}\n    ({doc}) links another repository at `{ref}`; such a link must pin a commit.")
             continue
-        if ref != 'master':
-            errors.append(
-                f"{link}\n    ({doc}) pins the ref `{ref}`; links into this repository must track `master`.")
-            continue
         a = int(a)
         b = int(b) if b is not None else a
         anchor = f"#L{a}" if b == a else f"#L{a}-L{b}"
-        if not os.path.isfile(path):
-            errors.append(f"{link}\n    ({doc}) file `{path}` does not exist.")
+        if not os.path.isfile(read_path):
+            errors.append(f"{link}\n    ({doc}) file `{label}` does not exist.")
             continue
-        with open(path, encoding='utf-8') as f:
+        with open(read_path, encoding='utf-8') as f:
             lines = f.read().split('\n')
         # A trailing newline yields a final empty element; it is not a line.
         if lines and lines[-1] == '':
@@ -129,11 +170,11 @@ for doc in docs:
         n = len(lines)
         if a < 1 or b < a or b > n:
             errors.append(
-                f"{link}\n    ({doc}) range L{a}-L{b} is outside `{path}` "
+                f"{link}\n    ({doc}) range L{a}-L{b} is outside `{label}` "
                 f"(which has {n} lines).")
             continue
         body = ''.join(f"{i:6d}  {lines[i-1]}\n" for i in range(a, b + 1))
-        segments.append(f"== {path}{anchor}\n{body}")
+        segments.append(f"== {label}{anchor}\n{body}")
 
 if errors:
     sys.stderr.write("overview-links: FAIL — %d bad link(s):\n" % len(errors))

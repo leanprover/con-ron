@@ -9,10 +9,11 @@
 # **This is the port's differential test** (task #80, which retired the
 # checker-only seam of task #28 in its favour).  It runs the whole binary on
 # the raw NDJSON, so it tests con-ron's own frontend AND checker together
-# against `vendor/con-leche/tests/{arena,e2e,annot}-expected.txt`.  The
-# expectation files' format is "<exit-code> <fixture>" with `#` comments --
-# the exit code is the WHOLE expectation, there is no declaration name and no
-# fold position in them.
+# against con-leche's `tests/{arena,e2e,annot}-expected.txt` (task #91:
+# con-leche is a plain lake dependency, resolved through `provenance.py
+# dir`, not a vendored path).  The expectation files' format is "<exit-code>
+# <fixture>" with `#` comments -- the exit code is the WHOLE expectation,
+# there is no declaration name and no fold position in them.
 #
 # Two things the retired seam had to supply by hand are supplied by the
 # frontend here, which is the point of the script:
@@ -58,7 +59,7 @@ set -u
 cd "$(dirname "$0")/.."
 root="$PWD"
 
-CL="$root/vendor/con-leche"
+CL="$(python3 "$root/scripts/provenance.py" dir)" || exit 3
 PINDUMP="${PINDUMP:-$root/_tmp/gen-pins/pins.dump}"
 ARENA_DIR="${ARENA_DIR:-$root/_tmp/arena-tests}"
 TO=600
@@ -118,7 +119,7 @@ log="${LOG:-$root/_tmp/diff-e2e.log}"
 
 total=0; agree=0; differ=0; inmodel=0; timedout=0; other=0
 
-# `vendor/con-leche/tests/trusted-expected.txt` ("<exit> <suite> <fixture>")
+# con-leche's `tests/trusted-expected.txt` ("<exit> <suite> <fixture>")
 # overrides the certified expectation under `--trusted`.
 want_for() {
   local suite=$1 fix=$2 cert=$3 line

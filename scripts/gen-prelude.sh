@@ -8,12 +8,16 @@
 #                                     non-zero on any difference.  This is the
 #                                     freshness rule "the embedded text is
 #                                     con-leche's own committed prelude at the
-#                                     vendored tree's commit".
+#                                     pinned con-leche commit".
 #
 # The source of truth is con-leche's own committed file, the one its
 # `builtinPreludeText` reads with `include_str`:
 #
-#   vendor/con-leche/pins/<toolchain>.prelude.ndjson
+#   pins/<toolchain>.prelude.ndjson
+#
+# in con-leche's own tree -- a plain lake dependency of proof/ since task
+# #91, so its directory is resolved through `provenance.py dir`, not a
+# fixed repository-relative path.
 #
 # **Why a generated constant and not `include_str!`.**  The unverified port
 # used `include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../vendor/..."))`,
@@ -54,22 +58,24 @@ case "${1-}" in
 esac
 [ "$#" -le 1 ] || { echo "usage: $0 [--check]" >&2; exit 2; }
 
-# The toolchain the vendored con-leche pins, which names the prelude file:
+cl="$(python3 "$root/scripts/provenance.py" dir)" || exit 1
+
+# The toolchain the pinned con-leche uses, which names the prelude file:
 # `Frontend/Prelude.lean`'s `include_str` path is the authority, so read it
 # from there rather than guessing.
 src_rel=$(sed -n 's|.*include_str "\.\./\.\./\(pins/[^"]*\)".*|\1|p' \
-  "$root/vendor/con-leche/ConLeche/Frontend/Prelude.lean" | head -1)
+  "$cl/ConLeche/Frontend/Prelude.lean" | head -1)
 [ -n "$src_rel" ] || {
   echo "error: could not read the include_str path out of con-leche's Frontend/Prelude.lean" >&2
   exit 1; }
-src="$root/vendor/con-leche/$src_rel"
+src="$cl/$src_rel"
 [ -s "$src" ] || { echo "error: $src is missing or empty" >&2; exit 1; }
 
 work="$root/_tmp/gen-prelude"
 rm -rf "$work"
 mkdir -p "$work"
 
-echo "gen-prelude: vendor/con-leche/$src_rel"
+echo "gen-prelude: con-leche/$src_rel"
 
 python3 "$root/scripts/gen-prelude.py" "$src" "$src_rel" "$CHUNK" \
   > "$work/prelude_text.rs"
@@ -84,7 +90,7 @@ if [ "$check" -eq 1 ]; then
     echo "gen-prelude --check: FAIL -- run scripts/gen-prelude.sh and commit the result" >&2
     exit 1
   fi
-  echo "gen-prelude --check: OK (embedded text = $src_rel at the vendored commit, $lines records, $bytes bytes)"
+  echo "gen-prelude --check: OK (embedded text = $src_rel at the pinned commit, $lines records, $bytes bytes)"
 else
   cp "$work/prelude_text.rs" "$out"
   echo "gen-prelude: wrote crates/con-ron-core/src/frontend/prelude_text.rs ($lines lines, $bytes bytes of text)"

@@ -1,11 +1,14 @@
 name = "con-ron"
 defaultTargets = ["ConRon", "ConRonSpike"]
 
-# con-leche, the Lean checker this port refines (DESIGN.md §1).  Pinned as a
-# submodule; `lake build` only elaborates the modules we actually import.
+# con-leche, the Lean checker this port refines (DESIGN.md §1).  A plain lake
+# dependency (task #91), pinned by `rev`; `proof/lake-manifest.json`'s
+# `con-leche` entry is the single source of truth for the pin (DESIGN.md
+# §3.7).  `lake build` only elaborates the modules we actually import.
 [[require]]
 name = "con-leche"
-path = "../vendor/con-leche"
+git = "https://github.com/leanprover/con-leche"
+rev = "c431b1ca1b7a93486dd3e0440d3ee82abe90ccd0"
 
 # The Aeneas Lean library, patched onto v4.33.0 by
 # `scripts/setup-aeneas-lean.sh` (DESIGN.md, task #2).  The path is outside the

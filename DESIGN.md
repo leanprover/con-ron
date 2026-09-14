@@ -447,7 +447,11 @@ proof/                   Lake project: requires con-leche + aeneas (task #4)
                          compiled at `std::rc::Rc`) and its own `Types`/
                          `Funs` under the same names, which cannot live in
                          one import graph with the core's
-vendor/con-leche         vendored git subtree (squashed), pin in vendor/CON_LECHE_PIN (task #74; a submodule at 3e004805 before)
+(no vendor/con-leche)    con-leche is a plain lake dependency of proof/ (task
+                         #91), pinned by rev in proof/lakefile.toml, resolved
+                         from proof/lake-manifest.json — `provenance.py dir`
+                         prints its package directory.  A vendored git
+                         subtree for tasks #74-#90, a submodule before that.
 vendor/aeneas            submodule, pinned (505b6ca3) — same rev as flake.nix
 _tmp/aeneas-lean/        gitignored: vendor/aeneas/backends/lean + the v4.33
                          patch, built; produced by setup-aeneas-lean.sh, and
@@ -789,8 +793,9 @@ naming the consumer.
 /// con-leche: ConLeche/Kernel/Level.lean:82-89 leqCore
 ```
 
-— the file, the line range at the vendored con-leche commit
-(`vendor/CON_LECHE_PIN`), and the Lean declaration the range holds.  Several lines are allowed when a Rust item merges or splits Lean ones
+— the file, the line range at the pinned con-leche commit (con-leche is a
+plain `lake` dependency of `proof/` since task #91, pinned by `rev` in
+`proof/lakefile.toml`), and the Lean declaration the range holds.  Several lines are allowed when a Rust item merges or splits Lean ones
 (a `*_from` index helper cites the `List` recursion it replaces; the
 four-function `imax_rules` cascade all cite `imaxRules`).  A Rust item
 with no Lean counterpart says so and why:
@@ -807,18 +812,24 @@ opening the Lean.
 **The gate**, `scripts/provenance.py`, is a pure source-tree check
 (milliseconds, no build) with three modes:
 
-* `check` — every annotation's range exists in `vendor/con-leche` at the
-  pinned commit and its first non-attribute line declares the named Lean
-  constant; every Charon-visible Rust item in `crates/*/src` (outside
-  `#[cfg(test)]`) carries an annotation; and no `CHANGED` marker line
-  (below) is left in the tree.  Fails naming the offenders.  Runs in CI
-  and before every commit of a port task.
-* `update [--old <commit>]` — the bump workflow.  After the vendored tree
-  moves (`git subtree pull … --squash`, then `vendor/CON_LECHE_PIN`), for
-  every annotation: take the cited text at the *old* pin
-  (`git show <old>:<path>` at the cited range) and the block located by
-  name in the file at the *new* pin (a top-level block from its
-  `def`/`theorem`/`inductive`/`structure`/`instance`/… keyword,
+* `check` — every annotation's range exists in the pinned con-leche package
+  and its first non-attribute line declares the named Lean constant; every
+  Charon-visible Rust item in `crates/*/src` (outside `#[cfg(test)]`)
+  carries an annotation; and no `CHANGED` marker line (below) is left in
+  the tree.  Fails naming the offenders.  Runs in CI and before every
+  commit of a port task.  Errors with "run `lake update` (or `lake build`)
+  in `proof/`" if con-leche's package directory cannot be resolved (a fresh
+  checkout that has not run `lake` yet).
+* `update [--old <commit>]` — the bump workflow.  After the pin moves
+  (`rev` edited in `proof/lakefile.toml`, then `lake update con-leche` in
+  `proof/` — which resolves the new commit into
+  `proof/lake-manifest.json` and checks it out in the package directory,
+  but commits nothing), for every annotation: take the cited text at the
+  *old* pin (`git show <old>:<path>` in the package directory's git
+  history — `lake` clones the full repository, not a shallow one, so any
+  commit it has ever pointed at is still there) and the block located by
+  name in the checked-out package at the *new* pin (a top-level block from
+  its `def`/`theorem`/`inductive`/`structure`/`instance`/… keyword,
   attributes included, to the next column-0 declaration).  Identical →
   rewrite the line numbers in place, silently, and report *moved*.
   Different → rewrite the range to the located block, insert right after
@@ -831,17 +842,14 @@ opening the Lean.
   and print the unified diff old→new headed `CHANGED <path> <decl> →
   re-port <rust item>, re-run differential tests, re-prove <rust
   item>_refines`.  Not found → *gone*, with a marker too.  `<old>`
-  defaults to `HEAD` (whose `vendor/con-leche` tree is the old one) when the
-  bump is uncommitted, else must be given; for the pre-subtree history it
-  may also be a con-leche commit in the retired submodule's git dir.
-  **In practice `--old` is always given** (task #83): the subtree pull
-  commits the new tree itself, so `HEAD` is already the new one and the
-  default compares the tree with itself and reports nothing.  Pass the
-  con-ron commit *before* the vendoring commit.  A *renamed* declaration
-  comes out `gone`, not `changed`, and its citation is left pointing at a
-  stale range, so after `update` the honest reading of the tree is
-  `check`'s: markers for what changed, `NAME`/`NODECL`/`RANGE` for what
-  moved under a new name.  §7 has the whole procedure.
+  defaults to the commit recorded in `HEAD`'s `proof/lake-manifest.json`
+  when the working tree's manifest (after `lake update con-leche`) names a
+  different one — the ordinary, uncommitted-bump case — else it must be
+  given explicitly.  A *renamed* declaration comes out `gone`, not
+  `changed`, and its citation is left pointing at a stale range, so after
+  `update` the honest reading of the tree is `check`'s: markers for what
+  changed, `NAME`/`NODECL`/`RANGE` for what moved under a new name.  §7 has
+  the whole procedure.
 
   Reconciliation is deleting the marker line — there is no `accept`
   mode.  `check` stays red while any marker remains, so a bump cannot
@@ -1236,33 +1244,50 @@ measured.
 * `scripts/overview-links.sh` (task #76) is the **link gate**, ported from
   con-leche's `tests/overview-links.sh` with the same semantics: it extracts
   every `https://github.com/<owner>/<repo>/blob/master/<path>#L<a>[-L<b>]`
-  link of `OVERVIEW.md` and of this document, in document order, copies the
-  cited lines into `scripts/overview-links-expected.txt` and diffs.  A moved
-  or edited citation is a diff — re-read the citing paragraph, then
-  `scripts/overview-links.sh --update`; a link that pins a sha, names a file
-  that is gone or overruns it is a hard error.  Paths resolve from the
-  repository root, so con-leche code is cited through the vendored copy
-  (`vendor/con-leche/ConLeche/…`).  No build; `gates.sh` runs it between
-  `provenance` and `gen-pins`.  Until `OVERVIEW.md` exists and while no
-  document carries such a link, it passes trivially.
-  Links into *another* repository (con-leche's own tree, Aeneas) must pin
-  a commit and are not checked; links into this repository must track
-  `master` and are.  con-leche code may be cited through
-  `vendor/con-leche/…` on this repository's `master` while the vendored
-  tree exists; the day it is dropped, every such link in README.md,
-  OVERVIEW.md and DESIGN.md has to be rewritten as a pinned link into
-  leanprover/con-leche (maintainer, 2026-09-13).
+  link of `README.md`, `OVERVIEW.md` and of this document, in document
+  order, copies the cited lines into `scripts/overview-links-expected.txt`
+  and diffs.  A moved or edited citation is a diff — re-read the citing
+  paragraph, then `scripts/overview-links.sh --update`; a link that names a
+  file that is gone or overruns it is a hard error.  Paths resolve from the
+  repository root.  No build; `gates.sh` runs it between `provenance` and
+  `gen-pins`.  Until `OVERVIEW.md` exists and while no document carries such
+  a link, it passes trivially.
+  Links into this repository must track `master` and are checked; a link
+  into *another* repository must pin a commit and is, with one exception,
+  not checked (immutable — a citation of what some other tree looked like at
+  some past commit).  The exception, since task #91 (con-leche went back to
+  being a plain `lake` dependency, so GitHub no longer serves its files
+  under this repository's own URL): a link into `leanprover/con-leche`
+  pinned at the commit `provenance.py`'s `current_submodule_commit` names
+  (`proof/lake-manifest.json`'s `con-leche` entry) is checked like a local
+  link, against the file in its lake package directory — that is the live
+  citation, and it should move with the pin the same way a local citation
+  moves with this tree.  A con-leche link pinned at any other commit is a
+  snapshot and stays unchecked.
 * Commit often.  The maintainer pushes and opens PRs (see `CLAUDE.md`).
 * Fable designs and states theorems and reviews; Opus agents port, extract,
   prove and measure.  Delegate anything mechanical.
 * Large artifacts (exports, builds) go to `_tmp/` (gitignored).
 
-### Bumping the vendored con-leche
+### Bumping con-leche
 
 The procedure below is what task #83 (con-leche `732730a5` → `c431b1ca`, 101
 upstream commits, 583 provenance findings) actually took, written as the next
-porter would want to find it.  §3.7 says what `provenance.py` does; this says
-in what order to do it and what goes wrong.
+porter would want to find it; task #91 rewrote steps 1–2 for the plain lake
+dependency that replaced the vendored subtree, and everything else is
+unchanged.  §3.7 says what `provenance.py` does; this says in what order to
+do it and what goes wrong.
+
+**The shared-packages hazard (task #91).**  con-leche's package directory
+lives under `_tmp/aeneas-lean/.lake/packages`, which every agent worktree
+shares through a symlink (CLAUDE.md).  `lake update con-leche` in one
+worktree's `proof/` moves the checkout every other worktree reads, mid-bump
+and all.  Run a bump campaign in a worktree with its **own** copy instead of
+the shared one: `AENEAS_LEAN_DEST=<private dir> scripts/setup-aeneas-lean.sh`
+builds a private `_tmp/aeneas-lean`, then point `proof/.lake/packages` at
+`<private dir>/.lake/packages` for the campaign's duration.  Only the
+final, reconciled commit is meant to be shared — never bump in place in a
+worktree other agents are reading from.
 
 **0. Before anything, know the size.**  In a scratch clone,
 `git diff --stat <old> <new> -- ConLeche/ Main.lean`, and con-leche's own
@@ -1272,36 +1297,39 @@ the port must mirror) or only the proofs, the docs and the tooling (which it
 must not).  Read them first; the diff alone cannot tell you, and a bump that
 looks like 1 300 changed lines in `Cached/` can be one rename.
 
-**1. The subtree pull.**
+**1. Edit the rev, `lake update`.**
 
 ```
-git subtree pull --prefix=vendor/con-leche <remote> <branch> --squash \
-  -m "Vendoring con-leche: subtree of <branch> at <sha>"
+$EDITOR proof/lakefile.toml   # rev = "<new sha>"
+cd proof && lake update con-leche
 ```
 
-It finds the merge base by itself, from the `git-subtree-split` trailer of the
-previous squash commit, and needs no help.  A squash pull replays a *tree*
-diff, so a local patch that upstream has since redone its own way is not a
-conflict: task #83's vendored tree was `3e004805` plus con-leche's
-`pins-param` branch, upstream had redone that patch as its own task #304, and
-the merge was clean — no conflict at all.  Afterwards check that the vendored
-tree is byte-identical to upstream's (`git ls-tree HEAD vendor/con-leche`
-against `git rev-parse <sha>^{tree}`), and only then write `<sha>` and a
-one-line reason into `vendor/CON_LECHE_PIN`.
+This resolves the new commit into `proof/lake-manifest.json` (its
+`con-leche` entry's `rev`) and checks it out into the package directory
+(`provenance.py dir` prints where) — **but commits nothing**: the manifest
+and the checked-out package are both working-tree state until you `git add`
+them.  That is deliberate (step 9).  Afterwards check the checked-out tree
+is what you expect: `git -C "$(python3 scripts/provenance.py dir)" log
+--oneline <old>..<new>` is upstream's own task log for the bump.
 
-**2. `provenance.py update`, and the one instruction that was wrong.**
-`git subtree pull` **commits**, so by the time `update` runs, `HEAD`'s
-`vendor/con-leche` is the *new* tree and the `--old`-less form documented in
-§3.7 compares the new tree with itself and reports nothing.  Pass the con-ron
-commit *before* the pull:
+**2. `provenance.py update`, no `--old` needed.**  With the package
+directory checked out at the new commit and `proof/lake-manifest.json`
+correspondingly updated but not yet committed, the default (no `--old`)
+comparison in §3.7 is exactly the case it exists for — it diffs the commit
+recorded in `HEAD`'s `proof/lake-manifest.json` against the working tree's:
 
 ```
-python3 scripts/provenance.py update --old <the commit before the vendoring commit>
+python3 scripts/provenance.py update
 ```
 
-Make an empty `Task #N: start` commit at the top of the task and the answer is
-always "the one before the vendoring commit".  Keep the output in `_tmp/`: it
-is the work order, and the line numbers in the tree move under you.
+Do not commit `proof/lakefile.toml` or `proof/lake-manifest.json` yet —
+that is the *last* thing this procedure commits (step 9), once the port is
+fully reconciled; every commit along the way carries an uncommitted bump,
+which is fine, because `provenance.py check`, `gen-pins.sh` and the Lean
+build all read the package directory's checked-out work tree directly and
+do not care whether the manifest has caught up.  Keep `update`'s output in
+`_tmp/`: it is the work order, and the line numbers in the tree move under
+you.
 
 **3. Classify the findings before touching a line.**  Most of a large bump is
 one or two upstream renames applied everywhere.  Write a thirty-line script
@@ -1358,7 +1386,7 @@ the model is regenerated: a statement about a generated definition that no
 longer has that shape wastes the whole edit.  The tree does not build between
 the first Rust edit and the last — say so in every WIP commit message.
 
-**8. Two operational traps.**  `lake build` of the vendored con-leche under a
+**8. Two operational traps.**  `lake build` of con-leche's package under a
 `ulimit -v` cap dies with *"failed to create thread"*: Lean reserves per-thread
 stack against the address-space limit, so `CLAUDE.md`'s `ulimit -v` rule is
 for *checker runs*, not for Lean builds — cap `LEAN_NUM_THREADS` instead.  And
@@ -1371,11 +1399,15 @@ resolving), `provenance.py coverage` back at 100 % with
 `scripts/provenance-skip.txt` extended for anything upstream added that the
 port deliberately will not have, `gen-pins.sh --check` green at the same
 record count (which is the measurement that the bump did not touch the pin
-*values*), `scripts/gates.sh` all eight green, `scripts/diff-e2e.sh` green at
+*values*), `scripts/gates.sh` all nine green, `scripts/diff-e2e.sh` green at
 the new fixture count — the fixtures move with upstream, so the count itself
-changes — and §12's Mathlib landing rule.  Then OVERVIEW.md's numbers and
-quotes (`scripts/overview-links.sh --update` after editing, never before), and
-a task-log section that records the upstream tasks absorbed and the marker
+changes — and §12's Mathlib landing rule.  Only now `git add
+proof/lakefile.toml proof/lake-manifest.json` and commit the pin — the last
+commit of the bump, not the first, so that every commit before it stays
+reproducible with `provenance.py update` and no `--old`.  Then OVERVIEW.md's
+numbers and quotes (`scripts/overview-links.sh --update` after editing,
+never before), and a task-log section that records the upstream tasks
+absorbed and the marker
 counts before and after.
 
 **10. The link gate is the last gate, and it is a reading exercise, not a
@@ -1406,7 +1438,7 @@ GitHub-hosted runners, on every `push` and `pull_request`, in one job
 
 | step | what |
 |---|---|
-| `scripts/gates.sh` | all eight gates — `cargo build`/`cargo test` under `-D warnings`, the style lint, `provenance.py check`, the OVERVIEW link gate, `gen-pins --check`, `extract.sh --check` (Charon + Aeneas) and `lake build` of the proof library |
+| `scripts/gates.sh` | all nine gates — `cargo build`/`cargo test` under `-D warnings`, the style lint, `provenance.py check`, the OVERVIEW link gate, `gen-pins --check`, `gen-prelude --check`, `extract.sh --check` (Charon + Aeneas) and `lake build` of the proof library |
 | `scripts/diff-e2e.sh --timeout=60` | the 348-fixture end-to-end differential, `--jobs=1` (the sequential reference) |
 | `scripts/diff-e2e.sh --timeout=60 --jobs=4` | the same sweep on the worker pool (task #48) |
 
@@ -1415,9 +1447,10 @@ differential through a dump of con-leche's own parsed declarations): the
 end-to-end sweep subsumes it, and with it went the explicit `lake build
 con-ron-dump` the step needed.
 
-Every fixture the differentials need is vendored (`vendor/con-leche/tests/`,
-arena snapshot included) and the pin list is embedded in the core since task
-#43, so nothing is fetched for them.
+Every fixture the differentials need is in con-leche's own tree (`tests/`,
+arena snapshot included — resolved through `provenance.py dir` since task
+#91, no longer a fixed `vendor/con-leche/tests/` path) and the pin list is
+embedded in the core since task #43, so nothing extra is fetched for them.
 
 **The environment.** Rust, Charon and Aeneas come from `flake.nix`: every
 step that needs them uses `shell: nix develop --command bash -euo pipefail
@@ -1427,8 +1460,9 @@ downloaded rather than built.  Lean is not in the flake: `elan` is installed
 with `--default-toolchain none` (con-leche's CI idiom), so the version comes
 from `lean-toolchain` and is named nowhere in the workflow — the version
 report therefore runs in `proof/`, since elan needs a `lean-toolchain` above
-the cwd.  `vendor/aeneas` needs `submodules: true`; `vendor/con-leche` is a
-vendored subtree and needs nothing.  Mathlib's oleans (~6.6 GB) plus the
+the cwd.  `vendor/aeneas` needs `submodules: true`; con-leche needs nothing
+checked out (task #91: it is a plain `lake` dependency, cloned by `lake
+update`/`lake build` in `proof/` like Mathlib and the rest).  Mathlib's oleans (~6.6 GB) plus the
 proof build (~1.1 GB) exceed a stock runner's free space, hence a
 disk-clearing step.  `LAKE_JOBS`/`LEAN_NUM_THREADS` are 4 (4 cores, 16 GB).
 
@@ -1440,7 +1474,7 @@ the last steps of the job, after the differentials:
 | path | key |
 |---|---|
 | `_tmp/aeneas-lean/.lake/build` | aeneas submodule sha + `hashFiles('**/aeneas-433.patch')` + `proof/lean-toolchain` |
-| `vendor/con-leche/.lake` | `vendor/CON_LECHE_PIN` + con-leche's `lean-toolchain` and `lakefile.toml` |
+| the con-leche lake package (`proof/.lake/packages/con-leche`) | the pinned rev alone (`provenance.py pin`, i.e. `proof/lake-manifest.json`'s `con-leche` entry) — its own `lean-toolchain`/`lakefile.toml` cannot be hashed before it is cloned, but the rev already fixes them |
 | `proof/.lake/build` | the two above + `hashFiles('proof/**/*.lean', 'proof/lakefile.toml', 'proof/lean-toolchain')`, with restore-keys falling back to an older build of the same environment |
 | `~/.cargo/registry`, `~/.cargo/git` | `Cargo.lock` |
 
@@ -17707,3 +17741,194 @@ The tier itself is fourteen files: `Abs` (441), `ScanKit` (3 082), `ScanStr`
 `ProjRecR`, `PrepareR` (4 156), `ChunksR` (1 775) and `IndSpecR` (198) — about
 35 000 lines of proof written in the day, none of it carrying a `sorry` and
 none of it carrying a hypothesis at the end.
+
+### Task #91 — con-leche is a lake dependency (2026-09-14, Sonnet under Fable)
+
+**"Then we can stop vendoring."**  Task #74 vendored con-leche as a squashed
+`git subtree` because the port needed a branch upstream did not have; upstream
+has had it since its own task #304 (absorbed at task #83, byte-identical), so
+the vendoring has had no reason to exist since then.  The maintainer's ruling
+un-vendors it — and, mid-task, changed *how*: the brief's first plan was a
+plain `git submodule`, and that was built and gated green (commit
+`e8306f6a`, since reverted) before the maintainer's follow-up superseded it
+with the actual shipped design, **con-leche as a plain `lake` dependency**:
+`proof/lakefile.toml`'s `[[require]]` names a `git` URL and `rev` directly,
+`proof/lake-manifest.json`'s `con-leche` entry is the single committed
+source of truth for the pin, and `lake` itself clones the package into
+`proof/.lake/packages/con-leche` — no `vendor/con-leche` directory, no
+gitlink, no `.gitmodules` entry at all.
+
+#### 1. What moved
+
+`git rm -r vendor/con-leche`, `vendor/CON_LECHE_PIN` deleted (as the brief
+said even before the pivot); `proof/lakefile.toml`'s con-leche `require`
+changed from `path = "../vendor/con-leche"` to `git =
+"https://github.com/leanprover/con-leche"` / `rev =
+"c431b1ca1b7a93486dd3e0440d3ee82abe90ccd0"`; `lake update con-leche` in
+`proof/` resolved that into `lake-manifest.json` and cloned the package.
+Verified empirically (not assumed) that `lake build` alone, with no
+`lake update`, materializes a git dependency that is already resolved in a
+committed manifest but missing on disk — the same way it already does for
+Mathlib — by deleting a freshly-cloned package and re-running `lake build`
+in an isolated scratch project; this is why CI still gets an explicit
+`lake update con-leche` step (§7's "Materialize con-leche") rather than
+relying on the implicit fetch, since `scripts/gates.sh`'s `provenance` gate
+(a pure Python check, no `lake` invocation at all) runs *before* `lake
+build` and needs the package on disk already.
+
+The submodule attempt is not in the tree — its commit was reverted
+(`git submodule deinit` + `git rm`, restoring `.gitmodules` to
+`vendor/aeneas` only) in the same task, one commit later, before any
+documentation was rewritten a second time.  Nothing of that plan survived
+except the historical record here and in the reverted commit itself.
+
+#### 2. `scripts/provenance.py`: resolving the package from the manifest
+
+`CON_LECHE` (`"vendor/con-leche"`) is gone; `con_leche_dir()` reads
+`proof/lake-manifest.json`, finds the `con-leche` entry (matching on the
+unescaped name — Lake writes it back as `«con-leche»`, since the hyphen
+makes it an illegal Lean identifier), and joins `packagesDir` to get the
+absolute package directory, returning `None` if `lake` has never run.
+`current_submodule_commit()` reads that entry's `rev` from the *working
+tree's* manifest; `recorded_submodule_commit()` reads the same from `git
+show HEAD:proof/lake-manifest.json` — the names predate task #91 (they
+predate the *subtree* too) and are kept so `scripts/progress.py` did not
+need a rename.  `lean_text(path, old)` reads the package directory's
+checked-out work tree when `old` is `None`, else `git -C <package dir> show
+<old>:<path>` — verified that `lake`'s clone carries full history (`git
+log`, `git branch -a` inside it show every branch, not a shallow clone), so
+an old pin's text is always reachable.  `update` with no `--old` compares
+`recorded_submodule_commit()` against `current_submodule_commit()`, which
+is the original pre-subtree design restored verbatim (task #74's
+`con-ron-revision` `--old` branch and the retired-submodule-git-dir
+fallback are both gone, as the brief asked; the wording says so).
+
+Two new subcommands, both exercised: `dir` prints `con_leche_dir()` (what
+every shell script now shells out to, `CL="$(python3 scripts/provenance.py
+dir)"`, instead of hard-coding `vendor/con-leche`), and `pin` prints
+`current_submodule_commit()` alone, without the package-directory
+existence check every other subcommand has — CI's cache-key step needs the
+pinned rev *before* the package is ever cloned, and `pin` is the one
+command that only reads the always-present, already-committed manifest.
+
+`provenance.py check`: **2 291 items / 2 356 citations, all current** (more
+than task #83's 2 064/2 187 — tasks #84–#87 landed in between).
+`provenance.py coverage`: **927/927 covered (100 %), 0 uncovered, 94
+deliberately skipped** — task #83's exact numbers, confirming the bump
+mechanics changed and nothing else did.
+
+#### 3. Every script that read `vendor/con-leche` by path
+
+`gen-pins.sh` needed **no change**: it only runs `lake exe
+con-ron-dump-pins` inside `proof/`, which resolves con-leche through the
+Lean import graph, never a filesystem path.  `gen-prelude.sh`,
+`diff-e2e.sh` and `scripts/corpus.sh` (not named in the brief, but broken
+the same way and fixed the same way) all had a `CL="$root/vendor/con-leche"`
+line; each becomes `CL="$(python3 "$root/scripts/provenance.py" dir)"`.
+`scripts/progress.py` and `scripts/loc.py` called `P.CON_LECHE` as a path
+component (now a bare display string, `"con-leche"`, not a path) — both
+switched to `P.con_leche_dir()`.
+
+**Two Rust `#[cfg(test)]` fixtures broke outright** (`cargo test` was red,
+not merely provenance-uncited, since test items are outside the gate's
+scan): `crates/con-ron/src/in_model/mod.rs`'s `fixture_bytes` and
+`crates/con-ron-core/src/frontend/prelude.rs`'s byte-for-byte prelude
+check both built a `vendor/con-leche/...` path with
+`concat!(env!("CARGO_MANIFEST_DIR"), …)`.  Neither can shell out to Lake
+(they run before any Lean tool is on the path in a plain `cargo test`), so
+both now spawn `python3 scripts/provenance.py dir` at test time and read
+the package directory it prints; the prelude test's byte comparison is
+already best-effort (skips silently if the file is not found — `gen-prelude
+--check` is the gate of record) and keeps that shape.  `cargo test`: all
+green, five previously-failing `in_model` tests included.
+
+#### 4. The link gate: a new checked case, exercised end-to-end
+
+`scripts/overview-links.sh`'s Python extractor gained a third branch
+alongside "link into this repo" (checked) and "pinned link elsewhere"
+(immutable, skipped): a link into `leanprover/con-leche` whose pinned
+revision equals `provenance.py`'s `current_submodule_commit()` is checked
+like a local link, against the file under con-leche's lake package
+directory — read through `con_leche_dir()`, imported directly (`sys.path`
++ `import provenance as P`) rather than shelled out to twice per link.
+Its label in the committed expectation file is a synthetic
+`con-leche/<path>`, not the package directory's absolute path, because that
+path is worktree-specific (the shared `_tmp/aeneas-lean/.lake/packages`).
+
+**Zero links needed rewriting**: `grep` across README.md, OVERVIEW.md and
+DESIGN.md for `blob/master/vendor/con-leche/` found none — every prior
+con-leche citation in the docs was already a pinned link into
+`leanprover/con-leche` at some historical commit (README.md's one link, at
+`3e004805`, predates even task #74's vendoring).  So the brief's "every such
+link becomes…" step touches nothing in this bump, but the new *rule* was
+still tested for real, transiently, outside any committed file: a scratch
+link pinned at the checked-out commit was appended to `README.md`, the gate
+correctly failed with a new `== con-leche/ConLeche.lean#L1-L5` extraction
+block, and a second scratch link pinned at the old `3e004805` commit
+produced no diff at all (immutable, as designed) — both reverted before
+committing, `README.md`'s prose and links untouched.  `--update` after the
+real edits (§3.7's rewrite moved one anchor, `proof/lakefile.toml#L21-L23`
+→ `#L24-L26`, when the `require` block's comment grew) was a one-line
+diff, applied.
+
+#### 5. CI
+
+`.github/workflows/ci.yml`: `submodules: true` already checked out
+`vendor/aeneas`; con-leche needs no submodule checkout at all now, but does
+need materializing before `scripts/gates.sh`'s `provenance` gate (a pure
+Python check that never invokes `lake`) can read it — a new step,
+"Materialize con-leche (lake dependency)", runs `lake update con-leche`
+right after the Aeneas library step (so `proof/.lake/packages` is already
+the shared-Mathlib symlink `setup-aeneas-lean.sh` sets up) and before the
+gate.  The cache: the con-leche pin can no longer be read from a committed
+pin file's first word, so the "Compute cache keys" step calls `python3
+scripts/provenance.py pin`; the cache path moved from `vendor/con-leche/
+.lake` to `_tmp/aeneas-lean/.lake/packages/con-leche` (the git clone and
+its build together, since there is no vendored source to build on top of
+any more), keyed on the pinned rev alone — its own `lean-toolchain`/
+`lakefile.toml` cannot be `hashFiles`'d before the clone exists, but the
+rev already fixes them.  Every other cache (Aeneas, proof, cargo) is
+untouched.
+
+#### 6. `CLAUDE.md`, DESIGN.md
+
+`CLAUDE.md`'s con-leche bullet now describes the lake dependency, names
+`provenance.py dir`, and folds in the shared-packages hazard: since
+con-leche's package directory lives under the same shared
+`_tmp/aeneas-lean/.lake/packages` the Aeneas library already does, a bump
+campaign (repeated `lake update con-leche` while reconciling) must not run
+against the shared symlink other worktrees are reading — give it a private
+`_tmp/aeneas-lean` via `AENEAS_LEAN_DEST` instead, exactly the mechanism
+`scripts/setup-aeneas-lean.sh` already exposes for testing itself.
+
+DESIGN.md §3.7's provenance description, §7's "Bumping con-leche" (steps 1
+and 2 rewritten: `$EDITOR proof/lakefile.toml` + `lake update con-leche`
+replaces `git subtree pull`; `provenance.py update` with no `--old` is the
+ordinary case again, not "always give `--old`" as task #83 found for the
+subtree; steps 3–8 and 10, which are about classifying and reconciling
+findings rather than about how the pin moves, are unchanged), the CI
+subsection's cache-key table row, and the §3 module map line all updated;
+`gates.sh all eight` corrected to **all nine** (`gen-prelude --check`,
+added at task #84, had never been counted).  OVERVIEW.md §1 (building:
+`lake build` clones con-leche the first time), §4 (the sync section: the
+pin is the manifest's `rev`, the bump procedure), §9 (the pins-param
+bullet: already said "now upstream since #304, no patch" and needed no
+edit besides two `vendor/con-leche` wording fixes), §11 (the module map
+row).  `AENEAS_FINDINGS.md` does not mention the vendoring; untouched.
+`scripts/drop-worktree.sh` and `scripts/setup-aeneas-lean.sh` were checked
+for subtree/submodule assumptions and have none — both operate on
+`vendor/aeneas` and worktree/branch bookkeeping only.
+
+#### 7. Gates
+
+`scripts/gates.sh` (`LAKE_JOBS=32`): **all nine green**, including a cold
+run that cloned and built con-leche's Lean library from nothing (`lake
+update con-leche` inside the shared `_tmp/aeneas-lean/.lake/packages`,
+~180 s once) and a warm re-run confirming `lake build` in `proof/` is then
+a **2.3 s no-op** for con-leche's part.  `scripts/diff-e2e.sh`: **348/348**
+at `--jobs=1` and `--jobs=4`.  `provenance check`/`coverage` numbers as in
+§2, unmoved from what the design predicts.  Nothing was left undone; the
+one thing not literally in the brief (fixing `scripts/corpus.sh`, which
+also hard-coded `vendor/con-leche`) was found and fixed because leaving it
+broken would have been a silent regression the brief's own "every script
+that reads con-leche's tree by path" was clearly meant to cover.

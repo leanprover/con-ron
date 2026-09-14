@@ -28,9 +28,13 @@
 # here is committed: `_tmp/` is gitignored and the Mathlib export alone is
 # gigabytes.
 #
-# NOT parallel with itself: `proof/` and `vendor/con-leche` share the
-# con-leche package build directory, so the two `lake build`s below must not
-# run at the same time as each other (or as another agent's).
+# NOT parallel with itself, OR WITH ANOTHER WORKTREE: since task #91
+# con-leche is a plain lake dependency resolved through `provenance.py dir`,
+# and its package directory lives under the shared `_tmp/aeneas-lean/.lake/
+# packages/con-leche` -- the same one `proof/`'s own `lake build` uses, and
+# the same one EVERY agent worktree's `proof/` uses.  The two `lake build`s
+# below (this script's and `proof/`'s) must not run at the same time as each
+# other, or as any other worktree's.
 #
 # USAGE
 #     scripts/corpus.sh [--steps=1,2,4] [--no-mathlib] [OUTDIR]
@@ -41,7 +45,7 @@ set -u
 cd "$(dirname "$0")/.."
 root=$PWD
 
-CL="$root/vendor/con-leche"
+CL="$(python3 "$root/scripts/provenance.py" dir)" || exit 2
 OUT="${OUT:-$root/_tmp/corpus}"
 L4E="${L4E:-$root/_tmp/lean4export}"
 # A Lake package tree with Mathlib built at the project toolchain.

@@ -207,7 +207,7 @@ def ledger():
         for path in PR.lean_files(globs):
             if PR.CHERRY_EXCLUDE.search(path):
                 continue
-            lines = open(os.path.join(REPO, P.CON_LECHE, path), encoding="utf-8").read().split("\n")
+            lines = open(os.path.join(P.con_leche_dir(), path), encoding="utf-8").read().split("\n")
             decls = []
             for name, lineno, blk in PR.definitional_blocks(lines):
                 if (path, name) in skips or (path, "*") in skips:

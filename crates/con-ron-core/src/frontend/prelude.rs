@@ -105,13 +105,27 @@ mod tests {
         assert!(lines[266].starts_with("{\"inductive\":"));
         assert!(text.contains("\u{3b1}"));
         assert!(text.contains("\u{3b2}"));
-        // and it IS the committed file, byte for byte
-        let p = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../vendor/con-leche/pins/leanprover-lean4-v4.33.0.prelude.ndjson"
-        );
-        if let Ok(f) = std::fs::read(p) {
-            assert_eq!(&f[..], &bytes[..]);
+        // and it IS the committed file, byte for byte.  con-leche is a plain
+        // lake dependency of proof/ (task #91, not vendored), so its
+        // directory is resolved through `scripts/provenance.py dir` rather
+        // than a fixed repository-relative path; skip the byte comparison
+        // if that fails (e.g. `lake update` has not run in proof/ yet) --
+        // `scripts/gen-prelude.sh --check` is the gate of record for this.
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        if let Ok(out) = std::process::Command::new("python3")
+            .arg("scripts/provenance.py")
+            .arg("dir")
+            .current_dir(&root)
+            .output()
+        {
+            if out.status.success() {
+                let cl = String::from_utf8(out.stdout).unwrap().trim().to_string();
+                let p = std::path::Path::new(&cl)
+                    .join("pins/leanprover-lean4-v4.33.0.prelude.ndjson");
+                if let Ok(f) = std::fs::read(&p) {
+                    assert_eq!(&f[..], &bytes[..]);
+                }
+            }
         }
     }
 

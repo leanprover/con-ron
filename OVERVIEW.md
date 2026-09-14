@@ -81,17 +81,19 @@ at the version in `proof/lean-toolchain` (the same as con-leche's).
 nix develop                        # cargo, charon, aeneas on PATH
 cargo build --release              # target/release/con-ron
 scripts/setup-aeneas-lean.sh       # the patched Aeneas Lean library + Mathlib, once
-cd proof && lake build             # the model and the proofs
+cd proof && lake build              # clones con-leche the first time, then the model and the proofs
 ```
 
 `setup-aeneas-lean.sh` copies Aeneas' Lean backend out of the
 `vendor/aeneas` submodule, applies `patches/aeneas-433.patch` (§9) and
 fetches Mathlib from the olean cache; it is idempotent
 ([`setup-aeneas-lean.sh`](https://github.com/leanprover/con-ron/blob/master/scripts/setup-aeneas-lean.sh#L1-L14)).
-`vendor/con-leche` is a vendored copy of con-leche (a squashed
-`git subtree`, §4), built by `lake` as a dependency of the proof; on a
-many-core machine its first build can exhaust memory, and
-`LAKE_JOBS=N scripts/gates.sh` caps the parallelism.
+con-leche is a plain `lake` dependency of `proof/` (§4), pinned by `rev` in
+`proof/lakefile.toml`; `lake build` clones it the first time it is needed,
+same as Mathlib, and every later `lake build` reuses the clone (`lake
+update con-leche` is only needed to move the pin).  On a many-core machine
+con-leche's first build can exhaust memory, and `LAKE_JOBS=N
+scripts/gates.sh` caps the parallelism.
 
 The one command a contributor runs before committing is
 `scripts/gates.sh`
@@ -443,7 +445,7 @@ Every Charon-visible item of the core carries a citation of the con-leche
 source it ports, as a doc line `/// con-leche: <path>:<a>-<b> <declaration>`
 ([an example in `level.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/level.rs#L125-L127)),
 or `/// con-leche: none — <reason>` for an item with no Lean counterpart.
-The vendored con-leche tree fixes what those citations mean: no hash in
+The pinned con-leche commit fixes what those citations mean: no hash in
 the source, no drift.  `scripts/provenance.py` has three modes:
 
 * `check` — every item cites, every citation resolves to the named
@@ -457,12 +459,19 @@ the source, no drift.  `scripts/provenance.py` has three modes:
   which are deliberately skipped, each with a reason in
   `scripts/provenance-skip.txt`.
 
-con-leche itself is a vendored `git subtree`, squashed, at the commit
-named in `vendor/CON_LECHE_PIN`.  A bump is `git subtree pull --squash`,
-a new pin line, and `provenance.py update --old <the commit before the
-pull>`, which diffs the new tree against the old one; DESIGN.md §7 has the
-whole procedure, written from the one large bump the arrangement has been
-through (task #83, 101 upstream commits and 583 findings).  Two things that
+con-leche itself is a plain `lake` dependency of `proof/` (task #91: a
+vendored `git subtree` for tasks #74–#90, a submodule before that), pinned
+by `rev` in `proof/lakefile.toml` and resolved from
+`proof/lake-manifest.json` — `provenance.py dir` prints its package
+directory.  A bump is editing that `rev`, `lake update con-leche` in
+`proof/` (which resolves the new commit into the manifest and checks it out,
+but commits nothing), and `provenance.py update` with no `--old` needed —
+it diffs the commit `HEAD`'s manifest still records against the one the
+working tree's now names; DESIGN.md §7 has the whole procedure, written
+from the one large bump the arrangement has been through (task #83, 101
+upstream commits and 583 findings, done while con-leche was still the
+vendored subtree — the mechanics of *moving* the pin changed at task #91,
+the rest of the procedure did not).  Two things that
 procedure insists on, because they are what the tooling does *not* do for
 you: classify the findings before editing anything — 338 of those 583 were a
 con-leche rename and no Rust work at all — and expect a *renamed* declaration
@@ -784,7 +793,7 @@ bump will use to see which lemmas are stale.
   con-leche is on v4.33; the patch, 375 lines to ten files, makes the
   library build on v4.33 and its Mathlib.  Two options the proofs need
   are set in `proof/lakefile.toml`
-  ([the options](https://github.com/leanprover/con-ron/blob/master/proof/lakefile.toml#L21-L23)).
+  ([the options](https://github.com/leanprover/con-ron/blob/master/proof/lakefile.toml#L24-L26)).
   AENEAS_FINDINGS.md §3.1 has the details; the ask upstream is a v4.33
   release.
 * **con-leche's pin list as a parameter of the fold — upstream since
@@ -793,11 +802,11 @@ bump will use to see which lemmas are stale.
   *decoded* list could only be stated through a `native_decide` identifying
   the two.  The port vendored con-leche's `pins-param` branch for one task
   (#74) and upstream then redid the change on master its own way, which is
-  what `vendor/con-leche` carries now: `pins` is an explicit argument of
+  what the pinned commit carries now: `pins` is an explicit argument of
   `checkDecls` — second, right after the mode, with no default — and there is
   **one** pair of shipped statements, already over every pin list, so
   `model_exists_with` does not exist. The patch is retired; nothing in
-  `vendor/con-leche` differs from upstream master.
+  con-leche differs from upstream master.
 * **Nothing else.**  Charon is unpatched; the translator findings
   (AENEAS_FINDINGS.md §2, fifteen of them, with the `Vec::insert` model
   bug of §3.9 the one that mattered) were worked around in the Rust.
@@ -827,7 +836,7 @@ are `abs*`, the relations `*Rel`, the well-formedness predicates `*WF`.
 | `proof/ConRon/Generated/` | the committed Aeneas model |
 | `proof/ConRon/Refine/` | the proofs: `Abs`, `State`, `FEnv` (abstractions and relations); one file per Rust module; `Core/` (the knot); `Ind*` (the inductive routes); `Pins*` (the decoder); `Validate`; `Installed`; `Main` |
 | `proof/ConRon/Refine/README.md` | the proof tier's own map: naming, the hypothesis table, how to write a lemma |
-| `vendor/con-leche/` | con-leche, vendored at `vendor/CON_LECHE_PIN` |
+| (no `vendor/con-leche/`) | con-leche, a plain `lake` dependency of `proof/`, pinned by `rev` in `proof/lakefile.toml` — `provenance.py dir` prints where `lake` put it |
 | `vendor/aeneas/` | Aeneas, as a submodule, for its Lean library and documentation |
 | `scripts/` | the gates and the tooling of §4 |
 | `DESIGN.md` | the agents' design record and task log |

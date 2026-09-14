@@ -103,9 +103,12 @@ GENERATED_DIR = "proof/ConRon/Generated"
 
 
 def lean_files(globs):
+    d = P.con_leche_dir()
+    if d is None:
+        return []
     out = []
     for sub in globs:
-        base = os.path.join(REPO, P.CON_LECHE, sub)
+        base = os.path.join(d, sub)
         if os.path.isfile(base):
             out.append(sub)
             continue
@@ -114,7 +117,7 @@ def lean_files(globs):
             for fn in sorted(filenames):
                 if fn.endswith(".lean"):
                     full = os.path.join(dirpath, fn)
-                    out.append(os.path.relpath(full, os.path.join(REPO, P.CON_LECHE)))
+                    out.append(os.path.relpath(full, d))
     return sorted(set(out))
 
 
@@ -403,7 +406,7 @@ def main(argv):
         for path in lean_files(globs):
             if exclude and exclude.search(path):
                 continue
-            full = os.path.join(REPO, P.CON_LECHE, path)
+            full = os.path.join(P.con_leche_dir(), path)
             lines = open(full, encoding="utf-8").read().split("\n")
             cs, ps = cited.get(path, []), proved.get(path, [])
             d = t = v = sk = 0

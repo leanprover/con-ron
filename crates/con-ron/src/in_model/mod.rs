@@ -104,16 +104,32 @@ mod tests {
     use con_ron_core::frontend::export_c::{parse_bytes, ParseResultD};
     use con_ron_core::kernel::env::declaration_names;
 
-    /// The fixture's bytes, read at test time from the pinned submodule (the
+    /// con-leche's own lake package directory (task #91: a plain lake
+    /// dependency, not vendored, so the path is resolved through
+    /// `scripts/provenance.py dir` rather than a fixed repository-relative
+    /// one).
+    fn con_leche_dir() -> std::path::PathBuf {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let out = std::process::Command::new("python3")
+            .arg("scripts/provenance.py")
+            .arg("dir")
+            .current_dir(&root)
+            .output()
+            .expect("running scripts/provenance.py dir");
+        assert!(
+            out.status.success(),
+            "scripts/provenance.py dir failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        std::path::PathBuf::from(String::from_utf8(out.stdout).unwrap().trim().to_string())
+    }
+
+    /// The fixture's bytes, read at test time from con-leche's own tree (the
     /// crate already hard-requires it: `frontend::prelude` embeds a file from
     /// it at build time).
     fn fixture_bytes(name: &str) -> Vec<u8> {
-        let p = format!(
-            "{}/../../vendor/con-leche/tests/e2e/{}",
-            env!("CARGO_MANIFEST_DIR"),
-            name
-        );
-        std::fs::read(&p).unwrap_or_else(|e| panic!("{}: {}", p, e))
+        let p = con_leche_dir().join("tests/e2e").join(name);
+        std::fs::read(&p).unwrap_or_else(|e| panic!("{}: {}", p.display(), e))
     }
 
     /// con-leche's own `tests/e2e` streams for the three rungs.  The parse
