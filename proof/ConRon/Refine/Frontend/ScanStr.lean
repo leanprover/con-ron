@@ -1479,4 +1479,160 @@ theorem scan_string_refines (hu : Utf8DecodeSpec) (hun : UnescapeSpec)
           rw [← h]
           exact ScanSim.ok (by rw [absPos_add_one hi3])
 
+
+/-! ## `scan_quoted_nat`, exact (`Scan/Fast.lean:649-655`)
+
+Deviation 2 of `scan_types.rs`'s module note again: the port returns the
+literal's decimal **bytes** where con-leche returns `readNatAt`'s `Nat`.  The
+bridge is `Abs.lean`'s `natOfDigits`, and the content is that con-leche's
+`readNat` walking the same run folds the same digits — `ScanKit.lean`'s
+`readNatAt_eq_readNat` reduces `readNatAt` to `readNat` once the run is known
+to be a `skipDigits` run, and `readNat_eq` is its one-step unfolding. -/
+
+/-- **`readNat` over a digit run is the fold over its bytes.** -/
+private theorem readNat_run (b : Slice Std.U8) (s e : Std.Usize)
+    (hel : e.val ≤ b.val.length)
+    (hdig : ∀ (m : Nat) (hm : m < b.val.length), s.val ≤ m → m < e.val →
+      48 ≤ (b.val[m]).val ∧ (b.val[m]).val ≤ 57)
+    (hstop : ¬ (isDigit (absByte (pByteAt b e.val)) = true)) :
+    ∀ (d : Nat) (k : Std.Usize) (acc : Nat), e.val - k.val ≤ d → s.val ≤ k.val →
+      k.val ≤ e.val →
+      readNat (absBytes b) (absPos k) acc
+        = ((b.val.drop k.val).take (e.val - k.val)).foldl
+            (fun a c => a * 10 + (c.val - 48)) acc := by
+  intro d
+  induction d with
+  | zero =>
+    intro k acc hd hsk hke
+    have hke' : k.val = e.val := by omega
+    rw [readNat_eq, show e.val - k.val = 0 by omega]
+    simp only [List.take_zero, List.foldl_nil]
+    split
+    · rw [if_neg (by rw [hke']; exact hstop)]
+    · rfl
+  | succ d ih =>
+    intro k acc hd hsk hke
+    rcases Nat.lt_or_ge k.val e.val with hlt | hge
+    · have hkb : k.val < b.val.length := by omega
+      obtain ⟨hlo, hhi⟩ := hdig k.val hkb hsk hlt
+      have hpb : pByteAt b k.val = b.val[k.val] := by rw [pByteAt, dif_pos hkb]
+      obtain ⟨k1, hk1, hk1v⟩ := usize_add_ok (i := k) (by
+        have := Slice.length_ineq b; omega)
+      rw [readNat_eq, if_pos hkb,
+        if_pos (show isDigit (absByte (pByteAt b k.val)) = true by
+          rw [hpb, isDigit]
+          simp only [Bool.and_eq_true, le_absByte_iff, absByte_le_iff, decide_eq_true_eq,
+            UInt8.reduceToNat]
+          omega),
+        ← absPos_add_one hk1, ih k1 _ (by omega) (by omega) (by omega)]
+      rw [List.drop_eq_getElem_cons hkb,
+        show e.val - k.val = (e.val - k1.val) + 1 by omega,
+        List.take_succ_cons, List.foldl_cons, hk1v, hpb, absByte_toNat]
+    · have hke' : k.val = e.val := by omega
+      rw [readNat_eq, show e.val - k.val = 0 by omega]
+      simp only [List.take_zero, List.foldl_nil]
+      split
+      · rw [if_neg (by rw [hke']; exact hstop)]
+      · rfl
+
+/-- **`scan_fast::scan_quoted_nat` refines `scanQuotedNat`**
+(`Scan/Fast.lean:649-655 scanQuotedNat`), the port's digit bytes against
+con-leche's `Nat` through `natOfDigits`. -/
+theorem scan_quoted_nat_refines {b : Slice Std.U8} {i : Std.Usize}
+    {o : core.result.Result ((alloc.vec.Vec Std.U8) × Std.Usize)
+      frontend.scan_types.ScanErr}
+    (h : frontend.scan_fast.scan_quoted_nat b i = ok o) :
+    ScanSim natOfDigits o (scanQuotedNat (absBytes b) (absPos i)) := by
+  rw [frontend.scan_fast.scan_quoted_nat] at h
+  rw [scanQuotedNat]
+  obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+  rw [show byteAt (absBytes b) (absPos i) = absByte c from (byte_at_refines hc).symm]
+  split at h
+  · rename_i hne
+    rw [if_pos (show (absByte c != 34) = true by
+      simp only [bne_iff_ne, ne_eq, absByte_eq_iff, UInt8.reduceToNat]
+      scalar_tac)]
+    rw [frontend.scan_fast.err] at h
+    simp only [Result.ok.injEq] at h
+    rw [← h]
+    exact ScanSim.err (ScanErrSim.mk rfl (by rw [absPos_toNat]))
+  · rename_i heq
+    rw [if_neg (show ¬ ((absByte c != 34) = true) by
+      simp only [bne_iff_ne, ne_eq, absByte_eq_iff, UInt8.reduceToNat, not_not]
+      scalar_tac)]
+    obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
+    have hi2v : i2.val = i.val + 1 := usize_add_one_inv hi2
+    have hsd : skipDigits (absBytes b) (absPos i2) = absPos e := (skip_digits_refines he).symm
+    have hle : i2.val ≤ e.val := skip_digits_ge he
+    rw [← absPos_add_one hi2, ← skip_digits_refines he]
+    simp only []
+    split at h
+    · -- an empty run
+      rename_i hz
+      rw [if_pos (show ((absPos e == absPos i2) ||
+          (byteAt (absBytes b) (absPos e) != 34)) = true by
+        simp only [Bool.or_eq_true, beq_iff_eq]
+        exact Or.inl (by rw [hz]))]
+      rw [frontend.scan_fast.err] at h
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact ScanSim.err (ScanErrSim.mk rfl (by rw [absPos_toNat]))
+    · rename_i hnz
+      obtain ⟨c1, hc1, h⟩ := bind_eq_ok_iff.mp h
+      rw [show byteAt (absBytes b) (absPos e) = absByte c1 from (byte_at_refines hc1).symm]
+      split at h
+      · -- the run does not end in a quote
+        rename_i hq
+        rw [if_pos (show ((absPos e == absPos i2) || (absByte c1 != 34)) = true by
+          simp only [Bool.or_eq_true, bne_iff_ne, ne_eq, absByte_eq_iff, UInt8.reduceToNat]
+          refine Or.inr ?_
+          scalar_tac)]
+        rw [frontend.scan_fast.err] at h
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        exact ScanSim.err (ScanErrSim.mk rfl (by rw [absPos_toNat]))
+      · rename_i hq
+        have hc1v : c1.val = 34 := by scalar_tac
+        have hebv : pByteAt b e.val = c1 := by
+          have := byte_at_eq b e
+          rw [hc1] at this
+          simpa using this.symm
+        have hel : e.val < b.val.length := by
+          by_contra hcon
+          rw [pByteAt, dif_neg hcon] at hebv
+          scalar_tac
+        rw [if_neg (show ¬ (((absPos e == absPos i2) || (absByte c1 != 34)) = true) by
+          simp only [Bool.or_eq_true, bne_iff_ne, ne_eq, absByte_eq_iff, UInt8.reduceToNat,
+            beq_iff_eq, not_or, not_not]
+          refine ⟨?_, hc1v⟩
+          intro hcon
+          exact hnz (by
+            have hh := congrArg USize.toNat hcon
+            rw [absPos_toNat, absPos_toNat] at hh
+            scalar_tac))]
+        obtain ⟨body, hbody, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨ds, hds, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        refine ScanSim.ok ?_
+        rw [absPos_add_one hi4]
+        congr 1
+        -- the value: `readNatAt` over the run is the fold over the port's bytes
+        obtain ⟨-, hdig⟩ := skip_digits_digits he
+        obtain ⟨-, h2, h3⟩ := range_index_val hbody
+        have hdsv : ds.val = List.slice i2.val e.val b.val := by
+          rw [to_vec_val hds, h3]
+        rw [readNatAt_eq_readNat hsd hle,
+          readNat_run b i2 e (by omega) hdig
+            (by
+              rw [hebv, isDigit]
+              simp only [Bool.and_eq_true, le_absByte_iff, absByte_le_iff, decide_eq_true_eq,
+                UInt8.reduceToNat, not_and]
+              intro _
+              omega)
+            (e.val - i2.val) i2 0 (le_refl _) (le_refl _) hle]
+        rw [natOfDigits, hdsv, List.slice]
+
 end ConRon.Refine.Frontend
