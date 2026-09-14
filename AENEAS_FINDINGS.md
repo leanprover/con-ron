@@ -240,6 +240,20 @@ measured on a spike before a line of the parser was written:
   tail moves into a callee.  This is not a bug — it is what a structured loop *means* once
   it is a tail recursion — but it decides how a loop-carrying function is written, and it is
   not in the documentation.
+* **[limitation, named by the tool]** **F16. A `return` out of a loop is accepted only when
+  what follows the loop is trivial, and never from a nested one.**  Two messages, both
+  honest: *"Early returns inside of loops are not supported yet"* and *"Returns inside of
+  nested loops are not supported yet"*.  The shape that works is
+  `while … { … if bad { return v } … }` followed by a variable or a constant — that is the
+  previous bullet's rule, and it is why the previous bullet's rule is not merely stylistic.
+  The shape that fails is the same loop followed by a *call*, especially a monadic one
+  (`Some(norm(go(…)))`): the loop would have to return a `ControlFlow` and Aeneas does not
+  build one.  The fix is always the same and always an improvement: the loop becomes its own
+  function returning what the caller branches on (`all_digits(b) -> bool`,
+  `any_dom_mentions(…) -> bool`), which is usually the predicate con-leche's own recursion
+  already names.  Cost the port three functions; found by `extract.sh --check`, not by
+  `cargo build`, which is the argument for running the extraction early and often when
+  writing loops.
 
 ## 3. Lean-library findings
 

@@ -61,19 +61,31 @@ fn mul_add_small(limbs: &Vec<u64>, m: u64, a: u64) -> Vec<u64> {
 /// them; lean4export never emits one.  `None` is "not a decimal literal",
 /// which the caller reports as `ErrTag::BadNatVal`'s sentence.
 pub fn from_decimal(digits: &[u8]) -> Option<Nat> {
-    let n = digits.len();
-    if n == 0 {
+    if digits.len() == 0 {
         return None;
     }
+    if all_digits(digits) {
+        Some(nat::norm(from_decimal_go(digits, 0, Vec::new())))
+    } else {
+        None
+    }
+}
+
+/// con-leche: none — the validating loop behind `from_decimal`, split out
+/// because Aeneas accepts a `return` out of a loop only when what follows the
+/// loop is trivial: "Early returns inside of loops are not supported yet"
+/// otherwise (AENEAS_FINDINGS §2.6)
+fn all_digits(digits: &[u8]) -> bool {
+    let n = digits.len();
     let mut i = 0usize;
     while i < n {
         let c = digits[i];
         if c < 48 || c > 57 {
-            return None;
+            return false;
         }
         i += 1;
     }
-    Some(nat::norm(from_decimal_go(digits, 0, Vec::new())))
+    true
 }
 
 /// con-leche: none — the chunk loop behind `from_decimal`, split out because
