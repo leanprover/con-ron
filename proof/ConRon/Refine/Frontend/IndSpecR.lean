@@ -29,8 +29,10 @@ levels up.
   `projRecSpec`, and `ProjRecR.lean`'s `proj_rec_owners_refines` paired with
   phase 1's `proj_rec_owners_wf`.
 * `indRSpec … : IndRSpec inst g` — `StateDR.lean`'s `proj_rewrite_d_refines`
-  at `projRecSpec`, the `validateInd` clause (see the residue note below), and
-  `IndInstallR.lean`'s `indRSpec_installInd` at `installSpec`.
+  at `projRecSpec`, `IndValidateR.lean`'s `validate_ind_d_refines`, and
+  `IndInstallR.lean`'s `indRSpec_installInd` at `installSpec`.  All three
+  clauses are *proved*: what is left in front of it is the modeller and
+  nothing else.
 * `parse_chunks_refines_of_modeller` and its two twins — `ChunksR.lean`'s
   three corollaries with `IndRSpec` discharged, so the parse's residue is
   `Utf8DecodeSpec`, `UnescapeSpec` and the modeller's own two promises.
@@ -43,12 +45,10 @@ At the modeller, and nowhere else in the inductive tier:
 in-process modeller (DESIGN.md §3's ruling of 2026-09-13), which are function
 arguments and disappear the day upstream drops the modeller.
 
-Plus, for now, **one clause of `IndRSpec` that its own file has not yet
-closed**: `Refine/Frontend/IndValidateR.lean`'s `validate_ind_d_refines` is
-still being written, so `indRSpec` takes that clause as the named hypothesis
-`ValidateIndRefines` below.  When the lemma lands the hypothesis is deleted
-and the clause becomes `fun hrel hwf h => validate_ind_d_refines hrel hwf h`;
-nothing else in this file changes.
+That is the whole list.  `IndRSpec` briefly carried a third,
+`ValidateIndRefines`, while `Refine/Frontend/IndValidateR.lean`'s
+`validate_ind_d_refines` was being written; the lemma landed and the
+hypothesis is gone.
 
 ## `sorry` count in this file: 0
 -/
@@ -101,30 +101,6 @@ theorem installSpec : InstallSpec where
   projRecOwners hb ht hc hr h :=
     ⟨proj_rec_owners_refines hb ht hc hr h, proj_rec_owners_wf hb ht hc hr h⟩
 
-/-! ## The one clause that is still open
-
-`export_c::validate_ind_d` against `ConLeche/Frontend/ExportC.lean:412-563`.
-`Refine/Frontend/IndValidateR.lean` is the file that proves it; while that is
-in flight the clause travels as a hypothesis with this name, spelled exactly
-as `Refine/Frontend/IndR.lean`'s `IndRSpec.validateInd` field.  It is a
-*named `Prop`*, not an axiom — `#print axioms` below shows the census is
-Lean's own three. -/
-
-/-- `export_c::validate_ind_d` refines `validateIndD`: `IndRSpec.validateInd`
-as a standalone `Prop`, to be discharged by
-`Refine/Frontend/IndValidateR.lean`'s `validate_ind_d_refines`. -/
-def ValidateIndRefines : Prop :=
-  ∀ {st : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
-    {tys : alloc.vec.Vec frontend.scan_types.IndTypeRec}
-    {cts : alloc.vec.Vec frontend.scan_types.IndCtorRec}
-    {rcs : alloc.vec.Vec frontend.scan_types.IndRecRec}
-    {o : core.result.Result ((alloc.vec.Vec frontend.scan_types.IndCtorRec) × Std.U64)
-      frontend.export_c.LineErr},
-    StateDRel st lst → StateDWF st →
-    frontend.export_c.validate_ind_d st tys cts rcs = ok o →
-    ValidateOut o (ConLeche.Frontend.validateIndD lst (absIndTypeRecs tys)
-      (absIndCtorRecs cts) (absIndRecRecs rcs))
-
 /-! ## `IndRSpec` — the line layer's three clauses
 
 `Refine/Frontend/IndR.lean:1294-1331`.  The first is the projection rewrite
@@ -139,18 +115,18 @@ beyond the string tier. -/
 `Refine/Frontend/StateDR.lean`'s `CtxRel`, the context bridge
 `export_c::state_model_ctx` builds). -/
 theorem indRSpec {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
-    (hmw : ModellerWF inst g) (hmr : ModellerRefines inst g CtxRel)
-    (hv : ValidateIndRefines) : IndRSpec inst g where
+    (hmw : ModellerWF inst g) (hmr : ModellerRefines inst g CtxRel) :
+    IndRSpec inst g where
   projRewrite hrel hwf hcv hvl h := proj_rewrite_d_refines projRecSpec hrel hwf hcv hvl h
-  validateInd hrel hwf h := hv hrel hwf h
+  validateInd hrel hwf h := validate_ind_d_refines hrel hwf h
   installInd hrel hwf h := indRSpec_installInd hmw hmr installSpec hrel hwf h
 
 /-! ## The parse tier, at the discharged record
 
 `Refine/Frontend/ChunksR.lean`'s three corollaries with `IndRSpec` replaced by
 what proves it.  What stands in front of the port's streaming parse after
-this is `Utf8DecodeSpec`, `UnescapeSpec`, the two modeller promises, and (for
-now) `ValidateIndRefines`. -/
+this is `Utf8DecodeSpec`, `UnescapeSpec` and the two modeller promises — and
+nothing else. -/
 
 /-- **`export_c::parse_chunks` refines `ConLeche.Frontend.parseChunks`**
 (`ConLeche/Frontend/ExportC.lean:882-901`), accept direction, with the
@@ -158,38 +134,38 @@ inductive tier discharged. -/
 theorem parse_chunks_refines_of_modeller {G : Type}
     {inst : frontend.in_model_rec.Modeller G} {g : G}
     (hu : Utf8DecodeSpec) (hun : UnescapeSpec) (hmw : ModellerWF inst g)
-    (hmr : ModellerRefines inst g CtxRel) (hv : ValidateIndRefines)
+    (hmr : ModellerRefines inst g CtxRel)
     {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {im ce : Bool}
     {r : frontend.export_c.ParseResultD}
     (h : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Ok r)) :
     ∃ x, ConLeche.Frontend.parseChunks (absChunks chunks) im ce = .ok x ∧
       ParseResultSim r x :=
-  parse_chunks_refines_of_specs hu hun (indRSpec hmw hmr hv) h
+  parse_chunks_refines_of_specs hu hun (indRSpec hmw hmr) h
 
 /-- **`export_c::parse_chunks`, error direction**, with the inductive tier
 discharged. -/
 theorem parse_chunks_refines_err_of_modeller {G : Type}
     {inst : frontend.in_model_rec.Modeller G} {g : G}
     (hu : Utf8DecodeSpec) (hun : UnescapeSpec) (hmw : ModellerWF inst g)
-    (hmr : ModellerRefines inst g CtxRel) (hv : ValidateIndRefines)
+    (hmr : ModellerRefines inst g CtxRel)
     {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {im ce : Bool}
     {p : kernel.core_types.CheckError × Std.U64}
     (h : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Err p)) :
     ParseErrSim p (ConLeche.Frontend.parseChunks (absChunks chunks) im ce) :=
-  parse_chunks_refines_err_of_specs hu hun (indRSpec hmw hmr hv) h
+  parse_chunks_refines_err_of_specs hu hun (indRSpec hmw hmr) h
 
 /-- **`prelude::builtin_prelude_e` refines con-leche's prelude parse**, with
 the inductive tier discharged. -/
 theorem builtin_prelude_e_refines_of_modeller {G : Type}
     {inst : frontend.in_model_rec.Modeller G} {m : G}
     (hu : Utf8DecodeSpec) (hun : UnescapeSpec) (hmw : ModellerWF inst m)
-    (hmr : ModellerRefines inst m CtxRel) (hv : ValidateIndRefines)
+    (hmr : ModellerRefines inst m CtxRel)
     {pre : frontend.prepare.PreludeIx}
     (h : frontend.prelude.builtin_prelude_e inst m = ok (.Ok pre)) :
     ∃ text x, frontend.prelude_text.prelude_text = ok text ∧
       ConLeche.Frontend.parseBytes (absChunk text) true false = .ok x ∧
       pre.decls.val.map absDeclaration = x.decls.toList :=
-  builtin_prelude_e_refines_of_specs hu hun (indRSpec hmw hmr hv) h
+  builtin_prelude_e_refines_of_specs hu hun (indRSpec hmw hmr) h
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
