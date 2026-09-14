@@ -797,4 +797,154 @@ theorem proj_rec_recs_of_refines {st : frontend.export_c.StateD}
     show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using hh
 
 
+
+/-! ## The owner table, written
+
+`export_c::insert_proj_owners` against the cited
+`owners.foldl (fun m o => m.insert o.T o)` and `export_c::register_proj_owners`
+against the whole of `registerProjOwners`
+(`ConLeche/Frontend/ExportC.lean:379-401`).
+
+The port writes the table unconditionally where con-leche's `match` sends the
+empty list to `pure st`; the two agree because a `foldl` over `[]` is the
+identity, and the `split` at the bottom of `register_proj_owners_refines` is
+that observation. -/
+
+/-- The accumulator of `export_c::insert_proj_owners`' index loop.  Only
+`proj_owners` moves, so phase 1's `insert_proj_owners_wf` carries the
+well-formedness half and this lemma is the relation alone. -/
+private theorem insert_proj_owners_loop_refines (N : Nat) :
+    ∀ (st : frontend.export_c.StateD) (lst : ConLeche.Frontend.StateD)
+      (owners : alloc.vec.Vec frontend.proj_rec.ProjRecOwner) (n i : Std.Usize)
+      (st' : frontend.export_c.StateD),
+      StateDRel st lst → (∀ o ∈ owners.val, ProjRecOwnerWF o) →
+      n.val = owners.val.length → n.val - i.val = N →
+      frontend.export_c.insert_proj_owners_loop st owners n i = ok st' →
+      StateDRel st'
+        { lst with
+          projOwners := ((owners.val.map absProjOwner).drop i.val).foldl
+            (fun m o => m.insert o.T o) lst.projOwners } := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro st lst owners n i st' hrel ho hn hN h
+    rw [frontend.export_c.insert_proj_owners_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨pro, hidx, n1, hn1, pro1, hpro1, p, hins, h⟩ := h
+      obtain ⟨old, hm⟩ := p
+      simp only [uncurry_apply_pair, bind_eq_ok_iff] at h
+      obtain ⟨i1, hi1, h⟩ := h
+      have hi1v : i1.val = i.val + 1 := HashMap.uscalar_add_eq hi1
+      have hdrop : (owners.val.map absProjOwner).drop i.val
+          = absProjOwner pro :: (owners.val.map absProjOwner).drop (i.val + 1) :=
+        iid_drop_map absProjOwner hidx
+      have hpw : ProjRecOwnerWF pro := ho _ (iid_vec_mem hidx)
+      rw [iid_name_dup hn1, proj_rec_owner_dup_refines hpro1] at hins
+      obtain ⟨hinv2, hkeys2, -, hrel2⟩ :=
+        State.insert_step (Q := fun _ => True) State.nameKey hrel.projOwnersInv
+          hrel.projOwnersKeys (fun _ _ => trivial) hrel.projOwners hpw.1 trivial hins
+      have hstep := StateDRel.projOwners_update hrel hrel2 hinv2 hkeys2
+      have hih := ih (n.val - i1.val) (by scalar_tac) _ _ owners n i1 st' hstep ho hn rfl h
+      rw [hi1v] at hih
+      rw [hdrop, List.foldl_cons]
+      exact hih
+    · rename_i hge
+      have hnil : (owners.val.map absProjOwner).drop i.val = [] := by
+        refine List.drop_eq_nil_of_le ?_
+        simp only [List.length_map]
+        have : n.val ≤ i.val := by scalar_tac
+        omega
+      rw [hnil, List.foldl_nil, ← Result.ok_injective h]
+      exact hrel
+
+/-- `export_c::insert_proj_owners` refines the cited `owners.foldl`
+(`ConLeche/Frontend/ExportC.lean:379-401`). -/
+theorem insert_proj_owners_refines {st st' : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD}
+    {owners : alloc.vec.Vec frontend.proj_rec.ProjRecOwner}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (ho : ∀ o ∈ owners.val, ProjRecOwnerWF o)
+    (h : frontend.export_c.insert_proj_owners st owners = ok st') :
+    StateDRel st'
+        { lst with
+          projOwners := (owners.val.map absProjOwner).foldl
+            (fun m o => m.insert o.T o) lst.projOwners }
+      ∧ StateDWF st' := by
+  refine ⟨?_, insert_proj_owners_wf hwf ho h⟩
+  rw [frontend.export_c.insert_proj_owners] at h
+  have hh := insert_proj_owners_loop_refines _ st lst owners _ 0#usize st' hrel ho
+    (alloc.vec.Vec.len_val _) rfl h
+  simpa [show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using hh
+
+/-- `export_c::register_proj_owners` refines `registerProjOwners`
+(`ConLeche/Frontend/ExportC.lean:379-401`): the export's own shape data, read
+back out of the parse tables, handed to `proj_rec::proj_rec_owners` and filed
+under every owner's type name. -/
+theorem register_proj_owners_refines (hsp : InstallSpec)
+    {st st' : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {tys : alloc.vec.Vec frontend.scan_types.IndTypeRec}
+    {cts : alloc.vec.Vec frontend.scan_types.IndCtorRec}
+    {rcs : alloc.vec.Vec frontend.scan_types.IndRecRec}
+    {block : alloc.vec.Vec env.ConstantInfo}
+    {o : core.result.Result Unit frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st) (hb : ConstantInfosWF block)
+    (h : frontend.export_c.register_proj_owners st tys cts rcs block = ok (o, st')) :
+    StepOut o st'
+      (ConLeche.Frontend.registerProjOwners lst (absIndTypeRecs tys) (absIndCtorRecs cts)
+        (absIndRecRecs rcs) (absConstantInfos block)) := by
+  rw [frontend.export_c.register_proj_owners] at h
+  rw [ConLeche.Frontend.registerProjOwners]
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨r, hr, h⟩ := h
+  have hts := proj_type_recs_of_refines hrel hwf hr
+  cases r with
+  | Err e =>
+    simp only [Result.ok.injEq, Prod.mk.injEq] at h
+    rw [← h.1]
+    exact LineErrSim.bind hts _
+  | Ok ts =>
+    rw [iid_lineOut_ok_pure hts]
+    simp only [pure_bind]
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨r1, hr1, h⟩ := h
+    have hcs := proj_ctor_recs_of_refines hrel hwf hr1
+    cases r1 with
+    | Err e =>
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
+      rw [← h.1]
+      exact LineErrSim.bind hcs _
+    | Ok cs =>
+      rw [iid_lineOut_ok_pure hcs]
+      simp only [pure_bind]
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨r2, hr2, h⟩ := h
+      have hrs := proj_rec_recs_of_refines hrel hwf hr2
+      cases r2 with
+      | Err e =>
+        simp only [Result.ok.injEq, Prod.mk.injEq] at h
+        rw [← h.1]
+        exact LineErrSim.bind hrs _
+      | Ok rs =>
+        rw [iid_lineOut_ok_pure hrs]
+        simp only [pure_bind]
+        simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at h
+        obtain ⟨owners, howners, st1, hst1, hu, hsteq⟩ := h
+        obtain ⟨habs, hwfo⟩ :=
+          hsp.projRecOwners hb
+            (by intro t ht; rw [iid_deref_val] at ht; exact hts.2 t ht)
+            (by intro c hc; rw [iid_deref_val] at hc; exact hcs.2 c hc)
+            (by intro r hr'; rw [iid_deref_val] at hr'; exact hrs.2 r hr') howners
+        obtain ⟨hrel1, hwf1⟩ := insert_proj_owners_refines hrel hwf hwfo hst1
+        rw [iid_deref_val, iid_deref_val, iid_deref_val] at habs
+        rw [← hu, ← hsteq]
+        simp only [absPTypeRecs, absPCtorRecs, absPRecRecs]
+        rw [← habs]
+        split
+        · rename_i hnil
+          refine StepOut.ok rfl ?_ hwf1
+          rw [hnil, List.foldl_nil] at hrel1
+          exact hrel1
+        · exact StepOut.ok rfl hrel1 hwf1
+
 end ConRon.Refine.Frontend
