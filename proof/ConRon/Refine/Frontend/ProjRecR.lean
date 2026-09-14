@@ -1870,4 +1870,306 @@ theorem occurs_const_fast_refines {n : name.Name} {e : expr.Expr} {b : Bool}
   rw [← Result.ok_injective h, occursConstFast_eq]
   exact (occurs_const_go_refines hn e he seen p (ExprOps.new_memo_inv hnew) hgo).1
 
+/-! ## The owner census
+
+`ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners` takes its three lists as
+tuples; the port's three named structs abstract onto exactly those tuples. -/
+
+/-- `proj_rec::ProjTypeRec` as Lean's `(name, levelParams, type, numParams,
+numIndices, ctors, isRec)`. -/
+def absProjTypeRec (t : frontend.proj_rec.ProjTypeRec) :
+    ConLeche.Name × List ConLeche.Name × ConLeche.Expr × Nat × Nat ×
+      List ConLeche.Name × Bool :=
+  (absName t.name, absNames t.lps, absExpr t.ty, t.n_p.val, t.n_i.val,
+    absNames t.ctors, t.is_rec)
+
+/-- `proj_rec::ProjCtorRec` as Lean's `(name, numFields, type)`. -/
+def absProjCtorRec (c : frontend.proj_rec.ProjCtorRec) :
+    ConLeche.Name × Nat × ConLeche.Expr :=
+  (absName c.name, c.n_f.val, absExpr c.ty)
+
+/-- `proj_rec::ProjRecRec` as Lean's `(name, levelParams, type, numMotives,
+numMinors)`. -/
+def absProjRecRec (r : frontend.proj_rec.ProjRecRec) :
+    ConLeche.Name × List ConLeche.Name × ConLeche.Expr × Nat × Nat :=
+  (absName r.name, absNames r.lps, absExpr r.ty, r.n_m.val, r.nm.val)
+
+def absProjTypeRecs (ts : Slice frontend.proj_rec.ProjTypeRec) :
+    List (ConLeche.Name × List ConLeche.Name × ConLeche.Expr × Nat × Nat ×
+      List ConLeche.Name × Bool) := ts.val.map absProjTypeRec
+
+def absProjCtorRecs (cs : Slice frontend.proj_rec.ProjCtorRec) :
+    List (ConLeche.Name × Nat × ConLeche.Expr) := cs.val.map absProjCtorRec
+
+def absProjRecRecs (rs : Slice frontend.proj_rec.ProjRecRec) :
+    List (ConLeche.Name × List ConLeche.Name × ConLeche.Expr × Nat × Nat) :=
+  rs.val.map absProjRecRec
+
+/-- Well-formedness of the three census records, phase 1's predicates gathered. -/
+theorem projCtorRecs_name_wf {cs : Slice frontend.proj_rec.ProjCtorRec}
+    (hc : ∀ c ∈ cs.val, ProjCtorRecWF c) : ∀ c ∈ cs.val, NameWF c.name :=
+  fun c hcm => (hc c hcm).1
+
+/-! ### `type_names` -/
+
+theorem type_names_loop_refines (N : Nat) :
+    ∀ (types : Slice frontend.proj_rec.ProjTypeRec) (n i : Std.Usize)
+      (out r : alloc.vec.Vec name.Name),
+      types.val.length - i.val = N → n.val = types.val.length →
+      frontend.proj_rec.type_names_loop types n out i = ok r →
+      absNames r = absNames out ++
+        ((absProjTypeRecs types).map (fun q => q.1)).drop i.val := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro types n i out r hN hn h
+    rw [frontend.proj_rec.type_names_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      have hltv : i.val < types.val.length := by scalar_tac
+      simp only [name_dup_eq, bind_tc_ok, bind_eq_ok_iff] at h
+      obtain ⟨ptr, hidx, out1, hpush, i1, hi1, hrec⟩ := h
+      obtain ⟨-, hdrop⟩ :=
+        drop_map_slice_index (fun t => (absProjTypeRec t).1) hidx
+      have hi1v : i1.val = i.val + 1 := HashMap.uscalar_add_eq hi1
+      rw [ih (types.val.length - i1.val) (by omega) types n i1 out1 r rfl hn hrec,
+        show absNames out1 = absNames out ++ [absName ptr.name] from by
+          rw [absNames, absNames, vec_push_val hpush]; simp, hi1v]
+      simp only [absProjTypeRecs, List.map_map]
+      rw [show ((fun q => q.1) ∘ absProjTypeRec) = fun t => (absProjTypeRec t).1 from rfl,
+        hdrop]
+      simp [absProjTypeRec]
+    · rename_i hge
+      have hle : types.val.length ≤ i.val := by scalar_tac
+      rw [← Result.ok_injective h]
+      rw [List.drop_eq_nil_of_le (by simpa [absProjTypeRecs] using hle)]
+      simp
+
+/-- `proj_rec::type_names` refines the cited `types.map (·.1)`
+(`ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners`). -/
+theorem type_names_refines {types : Slice frontend.proj_rec.ProjTypeRec}
+    {r : alloc.vec.Vec name.Name}
+    (h : frontend.proj_rec.type_names types = ok r) :
+    absNames r = (absProjTypeRecs types).map (fun q => q.1) := by
+  rw [frontend.proj_rec.type_names] at h
+  rw [type_names_loop_refines _ types _ 0#usize _ r rfl (by simp [Slice.len]) h]
+  simp [absNames, alloc.vec.Vec.with_capacity,
+    show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
+
+/-! ### The four `any` scans -/
+
+theorem any_is_rec_loop_refines (N : Nat) :
+    ∀ (types : Slice frontend.proj_rec.ProjTypeRec) (n i : Std.Usize) (b : Bool),
+      types.val.length - i.val = N → n.val = types.val.length →
+      frontend.proj_rec.any_is_rec_loop types n i = ok b →
+      b = ((absProjTypeRecs types).drop i.val).any (fun q => q.2.2.2.2.2.2) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro types n i b hN hn h
+    rw [frontend.proj_rec.any_is_rec_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      have hltv : i.val < types.val.length := by scalar_tac
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨ptr, hidx, h⟩ := h
+      obtain ⟨-, hdrop⟩ := drop_map_slice_index absProjTypeRec hidx
+      simp only [absProjTypeRecs]
+      rw [hdrop, List.any_cons]
+      split at h
+      · rename_i hr
+        rw [← Result.ok_injective h]
+        simp [absProjTypeRec, hr]
+      · rename_i hr
+        obtain ⟨i1, hi1, hrec⟩ := bind_eq_ok_iff.mp h
+        have hi1v : i1.val = i.val + 1 := HashMap.uscalar_add_eq hi1
+        rw [ih (types.val.length - i1.val) (by omega) types n i1 b rfl hn hrec,
+          hi1v]
+        simp [absProjTypeRec, Bool.eq_false_iff.mpr hr, absProjTypeRecs]
+    · rename_i hge
+      have hle : types.val.length ≤ i.val := by scalar_tac
+      rw [← Result.ok_injective h,
+        List.drop_eq_nil_of_le (by simpa [absProjTypeRecs] using hle)]
+      rfl
+
+/-- `proj_rec::any_is_rec` refines the cited `types.any (·.2.2.2.2.2.2)`. -/
+theorem any_is_rec_refines {types : Slice frontend.proj_rec.ProjTypeRec} {b : Bool}
+    (h : frontend.proj_rec.any_is_rec types = ok b) :
+    b = (absProjTypeRecs types).any (fun q => q.2.2.2.2.2.2) := by
+  rw [frontend.proj_rec.any_is_rec] at h
+  rw [any_is_rec_loop_refines _ types _ 0#usize b rfl (by simp [Slice.len]) h]
+  simp [show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
+
+theorem any_name_mentions_loop_refines (N : Nat) :
+    ∀ (bns : alloc.vec.Vec name.Name) (d : expr.Expr) (m j : Std.Usize) (b : Bool),
+      bns.val.length - j.val = N → m.val = bns.val.length →
+      (∀ x ∈ bns.val, NameWF x) → ExprWF d →
+      frontend.proj_rec.any_name_mentions_loop bns d m j = ok b →
+      b = ((absNames bns).drop j.val).any
+        (fun nm => ConLeche.Frontend.occursConstFast nm (absExpr d)) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro bns d m j b hN hm hbns hd h
+    rw [frontend.proj_rec.any_name_mentions_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      have hltv : j.val < bns.val.length := by scalar_tac
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨nm, hidx, bb, hocc, h⟩ := h
+      obtain ⟨-, hmem⟩ := vec_index_mem hidx
+      obtain ⟨-, hdrop⟩ := drop_map_index absName hidx
+      simp only [absNames]
+      rw [hdrop, List.any_cons,
+        ← occurs_const_fast_refines (hbns nm hmem) hd hocc]
+      split at h
+      · rename_i hr
+        rw [← Result.ok_injective h]
+        simp [hr]
+      · rename_i hr
+        obtain ⟨j1, hj1, hrec⟩ := bind_eq_ok_iff.mp h
+        have hj1v : j1.val = j.val + 1 := HashMap.uscalar_add_eq hj1
+        rw [ih (bns.val.length - j1.val) (by omega) bns d m j1 b rfl hm hbns hd hrec,
+          hj1v]
+        simp [Bool.eq_false_iff.mpr hr, absNames]
+    · rename_i hge
+      have hle : bns.val.length ≤ j.val := by scalar_tac
+      rw [← Result.ok_injective h,
+        List.drop_eq_nil_of_le (by simpa [absNames] using hle)]
+      rfl
+
+/-- `proj_rec::any_name_mentions` refines the cited innermost
+`blockNames.any fun n => occursConstFast n d`. -/
+theorem any_name_mentions_refines {bns : alloc.vec.Vec name.Name} {d : expr.Expr}
+    {b : Bool} (hbns : ∀ x ∈ bns.val, NameWF x) (hd : ExprWF d)
+    (h : frontend.proj_rec.any_name_mentions bns d = ok b) :
+    b = (absNames bns).any
+      (fun nm => ConLeche.Frontend.occursConstFast nm (absExpr d)) := by
+  rw [frontend.proj_rec.any_name_mentions] at h
+  rw [any_name_mentions_loop_refines _ bns d _ 0#usize b rfl
+    (by simp [alloc.vec.Vec.len]) hbns hd h]
+  simp [show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
+
+theorem any_dom_mentions_loop_refines (N : Nat) :
+    ∀ (bns : alloc.vec.Vec name.Name)
+      (bs : alloc.vec.Vec (expr.Expr × expr.BinderMeta)) (n i : Std.Usize) (b : Bool),
+      bs.val.length - i.val = N → n.val = bs.val.length →
+      (∀ x ∈ bns.val, NameWF x) → ExprOps.BindersWF bs →
+      frontend.proj_rec.any_dom_mentions_loop bns bs n i = ok b →
+      b = ((ExprOps.absBinders bs).drop i.val).any (fun q =>
+        (absNames bns).any
+          (fun nm => ConLeche.Frontend.occursConstFast nm q.1)) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro bns bs n i b hN hn hbns hbs h
+    rw [frontend.proj_rec.any_dom_mentions_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      have hltv : i.val < bs.val.length := by scalar_tac
+      obtain ⟨p, hidx, h⟩ := bind_eq_ok_iff.mp h
+      replace h : (do
+          let bb ← frontend.proj_rec.any_name_mentions bns p.1
+          if bb then ok true
+          else do
+            let i1 ← i + 1#usize
+            frontend.proj_rec.any_dom_mentions_loop bns bs n i1) = ok b := h
+      obtain ⟨-, hmem⟩ := vec_index_mem hidx
+      obtain ⟨hpe, -⟩ := hbs p hmem
+      obtain ⟨-, hdrop⟩ :=
+        drop_map_index (fun q => (absExpr q.1, absBinderMeta q.2)) hidx
+      obtain ⟨bb, hany, h⟩ := bind_eq_ok_iff.mp h
+      simp only [ExprOps.absBinders]
+      rw [hdrop, List.any_cons, ← any_name_mentions_refines hbns hpe hany]
+      split at h
+      · rename_i hr
+        rw [← Result.ok_injective h]
+        simp [hr]
+      · rename_i hr
+        obtain ⟨i1, hi1, hrec⟩ := bind_eq_ok_iff.mp h
+        have hi1v : i1.val = i.val + 1 := HashMap.uscalar_add_eq hi1
+        rw [ih (bs.val.length - i1.val) (by omega) bns bs n i1 b rfl hn hbns hbs hrec,
+          hi1v]
+        simp [Bool.eq_false_iff.mpr hr, ExprOps.absBinders]
+    · rename_i hge
+      have hle : bs.val.length ≤ i.val := by scalar_tac
+      rw [← Result.ok_injective h,
+        List.drop_eq_nil_of_le (by simpa [ExprOps.absBinders] using hle)]
+      rfl
+
+/-- `proj_rec::any_dom_mentions` refines the cited `fun (d, _) => …`. -/
+theorem any_dom_mentions_refines {bns : alloc.vec.Vec name.Name}
+    {bs : alloc.vec.Vec (expr.Expr × expr.BinderMeta)} {b : Bool}
+    (hbns : ∀ x ∈ bns.val, NameWF x) (hbs : ExprOps.BindersWF bs)
+    (h : frontend.proj_rec.any_dom_mentions bns bs = ok b) :
+    b = (ExprOps.absBinders bs).any (fun q =>
+      (absNames bns).any
+        (fun nm => ConLeche.Frontend.occursConstFast nm q.1)) := by
+  rw [frontend.proj_rec.any_dom_mentions] at h
+  rw [any_dom_mentions_loop_refines _ bns bs _ 0#usize b rfl
+    (by simp [alloc.vec.Vec.len]) hbns hbs h]
+  simp [show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
+
+theorem any_ctor_mentions_loop_refines (N : Nat) :
+    ∀ (bns : alloc.vec.Vec name.Name) (ctors : Slice frontend.proj_rec.ProjCtorRec)
+      (n i : Std.Usize) (b : Bool),
+      ctors.val.length - i.val = N → n.val = ctors.val.length →
+      (∀ x ∈ bns.val, NameWF x) → (∀ c ∈ ctors.val, ProjCtorRecWF c) →
+      frontend.proj_rec.any_ctor_mentions_loop bns ctors n i = ok b →
+      b = ((absProjCtorRecs ctors).drop i.val).any (fun c =>
+        (ConLeche.Frontend.stripPisAll c.2.2).1.any (fun q =>
+          (absNames bns).any
+            (fun nm => ConLeche.Frontend.occursConstFast nm q.1))) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro bns ctors n i b hN hn hbns hctors h
+    rw [frontend.proj_rec.any_ctor_mentions_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      have hltv : i.val < ctors.val.length := by scalar_tac
+      obtain ⟨pcr, hidx, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨-, hmem⟩ := slice_index_mem hidx
+      obtain ⟨-, hcty⟩ := hctors pcr hmem
+      obtain ⟨-, hdrop⟩ := drop_map_slice_index absProjCtorRec hidx
+      obtain ⟨p, hsp, h⟩ := bind_eq_ok_iff.mp h
+      replace h : (do
+          let bb ← frontend.proj_rec.any_dom_mentions bns p.1
+          if bb then ok true
+          else do
+            let i1 ← i + 1#usize
+            frontend.proj_rec.any_ctor_mentions_loop bns ctors n i1) = ok b := h
+      have habs := strip_pis_all_refines hcty hsp
+      obtain ⟨hbs, -⟩ := strip_pis_all_wf hcty hsp
+      obtain ⟨bb, hany, h⟩ := bind_eq_ok_iff.mp h
+      simp only [absProjCtorRecs]
+      rw [hdrop, List.any_cons]
+      simp only [absProjCtorRec]
+      rw [← habs, ← any_dom_mentions_refines hbns hbs hany]
+      split at h
+      · rename_i hr
+        rw [← Result.ok_injective h]
+        simp [hr]
+      · rename_i hr
+        obtain ⟨i1, hi1, hrec⟩ := bind_eq_ok_iff.mp h
+        have hi1v : i1.val = i.val + 1 := HashMap.uscalar_add_eq hi1
+        rw [ih (ctors.val.length - i1.val) (by omega) bns ctors n i1 b rfl hn hbns
+          hctors hrec, hi1v]
+        simp [Bool.eq_false_iff.mpr hr, absProjCtorRecs]
+    · rename_i hge
+      have hle : ctors.val.length ≤ i.val := by scalar_tac
+      rw [← Result.ok_injective h,
+        List.drop_eq_nil_of_le (by simpa [absProjCtorRecs] using hle)]
+      rfl
+
+/-- `proj_rec::any_ctor_mentions` refines the cited
+`ctors.any fun (_, _, cty) => …`. -/
+theorem any_ctor_mentions_refines {bns : alloc.vec.Vec name.Name}
+    {ctors : Slice frontend.proj_rec.ProjCtorRec} {b : Bool}
+    (hbns : ∀ x ∈ bns.val, NameWF x) (hctors : ∀ c ∈ ctors.val, ProjCtorRecWF c)
+    (h : frontend.proj_rec.any_ctor_mentions bns ctors = ok b) :
+    b = (absProjCtorRecs ctors).any (fun c =>
+      (ConLeche.Frontend.stripPisAll c.2.2).1.any (fun q =>
+        (absNames bns).any
+          (fun nm => ConLeche.Frontend.occursConstFast nm q.1))) := by
+  rw [frontend.proj_rec.any_ctor_mentions] at h
+  rw [any_ctor_mentions_loop_refines _ bns ctors _ 0#usize b rfl
+    (by simp [Slice.len]) hbns hctors h]
+  simp [show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
+
 end ConRon.Refine.Frontend
