@@ -18184,7 +18184,8 @@ theirs, and `binder_meta_dup` stops being `ptr::clone` and becomes
 Two proofs got *simpler* rather than merely different.  `PropWhen.dup_eq` used
 to need `alloc.vec.Vec.ext` and `names_copy_val` for its `Many` arm, because
 `dup` copied the list spine; now all five arms are a `ptr::clone` or a `Name`
-dup, and the proof is one `cases r <;> simp only […] <;> exact h.symm`.  And
+dup, so `cases r <;> simp [prop_when.dup]` proves the applied form outright
+and the inference form is its one-line corollary.  And
 `absPropWhen_injective`'s leaf dispatch gained one alternative,
 `Prod.ext_iff.mpr hlists`, for the `Two`/`Two` case — the parameter lists
 being equal is now literally a pair equality.
@@ -18208,10 +18209,11 @@ inference shape everything else uses — became its one-line corollary.
 | `Refine/Core/Arms/InferIO.lean`, `.../Annotate.lean`, `.../DefEq.lean`, `.../InferTele.lean` | dead `arc_deref_eq`/`bind_tc_ok` steps removed (six sites) |
 | `Refine/Core/Arms/DefEqStruct.lean` | the local `binder_meta_dup_eq'`, through the new `PropWhen.dup_eq'` |
 
-The last five rows are the tail the `unusedSimpArgs` linter found rather than
-the elaborator: a step that used to strip a handle and now strips nothing is
-not an *error*, and leaving them would have been 14 new warnings in a tier
-whose remaining warnings all predate this task.
+The `expr::binder_meta` row and the `Core/Arms` row are the tail the
+`unusedSimpArgs` linter found rather than the elaborator: a step that used to
+strip a handle and now strips nothing is not an *error*, and leaving them in
+would have added two dozen new warnings to a tier whose remaining warnings
+all predate this task.
 
 **Elaboration cost.**  Unmoved.  `ConRon.Refine.Abs` is 2.3 s against the
 2.1 s §5 recorded on the broken build, `ConRon.Refine.PropWhen` 5.2 s and
