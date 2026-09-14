@@ -37,6 +37,7 @@ use con_ron_core::kernel::expr_ops;
 use con_ron_core::kernel::inductives::struct_parts;
 use con_ron_core::kernel::level;
 use con_ron_core::kernel::level::Level;
+use con_ron_core::kernel::levels;
 use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::Name;
 
@@ -206,7 +207,7 @@ pub fn match_carrier(fam: &Family, o: u64, e: &Expr) -> Option<(u64, Vec<Expr>)>
         ExprKind::Const(x, us) => {
             let args = expr_ops::get_app_args(e);
             fam.mems.iter().find_map(|mem| {
-                if !name::beq(&mem.i_name, x) || !expr::levels_beq(us, &mem.lv) {
+                if !name::beq(&mem.i_name, x) || !expr::levels_beq(&levels::to_vec(us), &mem.lv) {
                     return None;
                 }
                 match mem.real {
@@ -374,7 +375,7 @@ pub fn read_mems(
         let idx_bs = pi_binders(&bs[..(n_idx as usize).min(bs.len())]);
         let head = expr_ops::get_app_fn(&carr);
         let (i_name, us) = match &head.0.kind {
-            ExprKind::Const(i, us) => (name::dup(i), us.iter().map(level::dup).collect::<Vec<_>>()),
+            ExprKind::Const(i, us) => (name::dup(i), levels::to_vec(us)),
             _ => return Err(format!("motive {}: carrier head is not a constant", m)),
         };
         let args = expr_ops::get_app_args(&carr);
@@ -493,9 +494,7 @@ pub fn read_ctors(
         };
         let chead = expr_ops::get_app_fn(&capp);
         let (cname, clv) = match &chead.0.kind {
-            ExprKind::Const(c, us) => {
-                (name::dup(c), us.iter().map(level::dup).collect::<Vec<_>>())
-            }
+            ExprKind::Const(c, us) => (name::dup(c), levels::to_vec(us)),
             _ => {
                 return Err(format!(
                     "minor {}: major head is not a constructor",

@@ -59,6 +59,7 @@ use crate::kernel::fenv;
 use crate::kernel::fenv::FEnv;
 use crate::kernel::level;
 use crate::kernel::level::Level;
+use crate::kernel::levels;
 use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::kernel::prop_when;
@@ -141,7 +142,7 @@ pub fn erase_pw(e: &Expr) -> Expr {
         ExprKind::Bvar(i) => expr::bvar(*i),
         ExprKind::Fvar(i, ty) => expr::fvar(*i, erase_pw(ty)),
         ExprKind::Sort(u) => expr::sort(level::dup(u)),
-        ExprKind::Const(n, us) => expr::mk_const(name::dup(n), env::levels_copy(us)),
+        ExprKind::Const(n, us) => expr::mk_const_levels(name::dup(n), levels::dup(us)),
         ExprKind::App(f, a) => expr::app(erase_pw(f), erase_pw(a)),
         ExprKind::Lam(ty, b, _) => {
             expr::lam(erase_pw(ty), erase_pw(b), basis_builder::never_meta())
@@ -190,7 +191,7 @@ pub fn erase_pw_eq(a: &Expr, b: &Expr) -> bool {
         (ExprKind::Sort(u), ExprKind::Sort(v)) => level::beq(u, v),
         (ExprKind::Const(n, us), ExprKind::Const(n2, us2)) => {
             if name::beq(n, n2) {
-                expr::levels_beq(us, us2)
+                expr::const_levels_beq(us, us2)
             } else {
                 false
             }

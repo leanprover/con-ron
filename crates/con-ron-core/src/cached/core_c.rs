@@ -129,6 +129,7 @@ use crate::kernel::fenv;
 use crate::kernel::fenv::FEnv;
 use crate::kernel::level;
 use crate::kernel::level::Level;
+use crate::kernel::levels;
 use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::kernel::prop_read;
@@ -186,7 +187,7 @@ pub fn unfold_definition_i(
     match &f.0.kind {
         ExprKind::Const(n, us) => {
             let n = name::dup(n);
-            let us = env::levels_copy(us);
+            let us = levels::to_vec(us);
             match defn_lp_count(fe, &n) {
                 Some(k) => {
                     if us.len() == k {
@@ -238,7 +239,7 @@ pub fn reduce_nat_i(
     match &e.0.kind {
         ExprKind::App(f, b) => match &f.0.kind {
             ExprKind::Const(c, us) => {
-                if us.len() == 0
+                if levels::len(us) == 0
                     && name::beq(c, &basis_names::nat_succ_name())
                     && core_k::nat_lit_supported(fe)
                 {
@@ -258,7 +259,7 @@ pub fn reduce_nat_i(
             }
             ExprKind::App(g, a) => match &g.0.kind {
                 ExprKind::Const(c, us) => {
-                    if us.len() != 0 {
+                    if levels::len(us) != 0 {
                         Ok(None)
                     } else if core_k::is_nat_bin_op(c) && core_k::nat_op_stored(fe, c) {
                         reduce_nat_bin_i(mode, fuel, st, fe, depth, c, a, b)
@@ -541,7 +542,7 @@ pub fn defeq_spine_i(
                 let args_a = expr_ops::get_app_args(a);
                 let args_b = expr_ops::get_app_args(b);
                 if name::beq(n, n2) && args_a.len() == args_b.len() {
-                    match state_c::is_equiv_list_l_m(st, us, us2) {
+                    match state_c::is_equiv_list_c_m(st, us, us2) {
                         Some(true) => {
                             def_eq_list_i(mode, fuel, st, fe, depth, &args_a, &args_b)
                         }
@@ -859,12 +860,13 @@ pub fn struct_eta_cert_with_i(
                         ExprKind::Const(t, us2) => match core_k::ind_probe(fe, t) {
                             Some((cvt, caps)) => {
                                 let targs = expr_ops::get_app_args(wtb);
+                                let us2v = levels::to_vec(us2);
                                 if core_k::struct_eta_shape_ok(
-                                    fe, c, us2, &targs, &cvc, &cvt, &caps, t,
+                                    fe, c, &us2v, &targs, &cvc, &cvt, &caps, t,
                                 ) {
                                     struct_eta_cert_steps_i(
-                                        mode, fuel, st, fe, depth, c, us, us2, &aargs,
-                                        &targs, b, &cvc, &cvt, &caps, t,
+                                        mode, fuel, st, fe, depth, c, &levels::to_vec(us),
+                                        &us2v, &aargs, &targs, b, &cvc, &cvt, &caps, t,
                                     )
                                 } else {
                                     Ok(false)
@@ -1078,9 +1080,10 @@ pub fn struct_unit_cert_i(
                     ExprKind::Const(t, us2) => match core_k::ind_probe(fe, t) {
                         Some((cvt, caps)) => {
                             let targs = expr_ops::get_app_args(&wta);
-                            if core_k::unit_shape_ok(t, us2, &targs, &cvt, &caps) {
+                            let us2v = levels::to_vec(us2);
+                            if core_k::unit_shape_ok(t, &us2v, &targs, &cvt, &caps) {
                                 struct_unit_steps_i(
-                                    mode, fuel, st, fe, depth, &wta, b, t, us2, &targs,
+                                    mode, fuel, st, fe, depth, &wta, b, t, &us2v, &targs,
                                 )
                             } else {
                                 Ok(false)
@@ -1370,19 +1373,21 @@ pub fn major_to_ctor_k_i(
             match &head.0.kind {
                 ExprKind::Const(t2, ust) => {
                     let targs = expr_ops::get_app_args(&tmaj);
-                    if !name::beq(t2, t) || cvj.level_params.len() != ust.len() {
+                    if !name::beq(t2, t) || cvj.level_params.len() != levels::len(ust) {
                         Ok(expr::dup(major))
                     } else if cn_p > targs.len() as u64 {
                         Ok(expr::dup(major))
                     } else {
                         let params = core_k::take_exprs_n(&targs, cn_p);
-                        let h = expr::mk_const(name::dup(&rl.ctor), env::levels_copy(ust));
+                        let h =
+                            expr::mk_const_levels(name::dup(&rl.ctor), levels::dup(ust));
                         let fab = state_c::mk_app_n_m(h, &params);
                         if !fab_scope_ok_i(&fab, major, depth) {
                             Ok(expr::dup(major))
                         } else {
                             // Task #61: ungated in the cited Lean (`CoreC.lean:577`).
-                            let cert = match state_c::const_ty_at_m(st, fe, &rl.ctor, ust)
+                            let ustv = levels::to_vec(ust);
+                            let cert = match state_c::const_ty_at_m(st, fe, &rl.ctor, &ustv)
                             {
                                 Err(err) => Err(err),
                                 Ok(cty) => {
@@ -1497,22 +1502,29 @@ pub fn major_to_ctor_eta_i(
                         Ok(expr::dup(major))
                     } else if targs.len() as u64 != caps.eta_params {
                         Ok(expr::dup(major))
-                    } else if ust.len() != cvt.level_params.len() {
+                    } else if levels::len(ust) != cvt.level_params.len() {
                         Ok(expr::dup(major))
-                    } else if !core_k::caps_never_zero(&cvt.level_params, ust, caps) {
+                    } else if !core_k::caps_never_zero(
+                        &cvt.level_params,
+                        &levels::to_vec(ust),
+                        caps,
+                    ) {
                         Ok(expr::dup(major))
                     } else {
+                        let ustv = levels::to_vec(ust);
                         let projs =
-                            proj_apps_i(fe, t, ust, &targs, major, caps.eta_fields);
+                            proj_apps_i(fe, t, &ustv, &targs, major, caps.eta_fields);
                         let spine = core_k::append_exprs(env::exprs_copy(&targs), &projs);
-                        let h =
-                            expr::mk_const(name::dup(&caps.eta_ctor), env::levels_copy(ust));
+                        let h = expr::mk_const_levels(
+                            name::dup(&caps.eta_ctor),
+                            levels::dup(ust),
+                        );
                         let fab = state_c::mk_app_n_m(h, &spine);
                         if !fab_scope_ok_i(&fab, major, depth) {
                             Ok(expr::dup(major))
                         } else {
                             // Task #61: ungated in the cited Lean (`CoreC.lean:621`).
-                            let cert = match state_c::const_ty_at_m(st, fe, &rl.ctor, ust)
+                            let cert = match state_c::const_ty_at_m(st, fe, &rl.ctor, &ustv)
                             {
                                 Err(err) => Err(err),
                                 Ok(cty) => {
@@ -1605,20 +1617,27 @@ pub fn major_to_ctor_and_i(
                         Ok(expr::dup(major))
                     } else if targs.len() as u64 != cn_p {
                         Ok(expr::dup(major))
-                    } else if cvj.level_params.len() != ust.len() {
+                    } else if cvj.level_params.len() != levels::len(ust) {
                         Ok(expr::dup(major))
-                    } else if !core_k::and_rescue_slots(fe, &rl.ctor, cn_p, ust) {
+                    } else if !core_k::and_rescue_slots(
+                        fe,
+                        &rl.ctor,
+                        cn_p,
+                        &levels::to_vec(ust),
+                    ) {
                         Ok(expr::dup(major))
                     } else {
+                        let ustv = levels::to_vec(ust);
                         let projs = proj_nodes_i(t, major, 2, 0, Vec::new());
                         let spine = core_k::append_exprs(env::exprs_copy(&targs), &projs);
-                        let h = expr::mk_const(name::dup(&rl.ctor), env::levels_copy(ust));
+                        let h =
+                            expr::mk_const_levels(name::dup(&rl.ctor), levels::dup(ust));
                         let fab = state_c::mk_app_n_m(h, &spine);
                         if !fab_scope_ok_i(&fab, major, depth) {
                             Ok(expr::dup(major))
                         } else {
                             // Task #61: ungated in the cited Lean (`CoreC.lean:653`).
-                            let cert = match state_c::const_ty_at_m(st, fe, &rl.ctor, ust)
+                            let cert = match state_c::const_ty_at_m(st, fe, &rl.ctor, &ustv)
                             {
                                 Err(err) => Err(err),
                                 Ok(cty) => {
@@ -1811,7 +1830,7 @@ pub fn iota_arity_ok(fe: &FEnv, e: &Expr) -> bool {
     let f = expr_ops::get_app_fn(e);
     match &f.0.kind {
         ExprKind::Const(c, us) => match rec_arity_probe(fe, c) {
-            Some(p) => iota_num_args(e, 0) == p.0 + 1 && us.len() == p.1,
+            Some(p) => iota_num_args(e, 0) == p.0 + 1 && levels::len(us) == p.1,
             None => false,
         },
         _ => false,
@@ -1842,13 +1861,13 @@ pub fn iota_rec_i(
         ExprKind::Const(c, us) => match core_k::rec_probe(fe, c) {
             Some((cv, m_i, r_p, rules)) => {
                 let args = expr_ops::get_app_args(e);
-                if (args.len() as u64) == m_i + 1 && us.len() == cv.level_params.len() {
+                if (args.len() as u64) == m_i + 1 && levels::len(us) == cv.level_params.len() {
                     let raw = core_k::get_d_expr(&args, m_i);
                     match prepare_major_i(mode, fuel, st, fe, depth, &rules, &raw) {
                         Err(err) => Err(err),
                         Ok(major) => iota_rec_rule_i(
-                            mode, fuel, st, fe, depth, c, &cv, m_i, r_p, &rules, us, &args,
-                            &major,
+                            mode, fuel, st, fe, depth, c, &cv, m_i, r_p, &rules,
+                            &levels::to_vec(us), &args, &major,
                         ),
                     }
                 } else {
@@ -1901,7 +1920,7 @@ pub fn iota_rec_rule_i(
                     } else {
                         iota_rec_checks_i(
                             mode, fuel, st, fe, depth, c, cj, cv, &cvj, m_i, r_p, &rl, us,
-                            usj, args, &margs, major,
+                            &levels::to_vec(usj), args, &margs, major,
                         )
                     }
                 }
@@ -2461,7 +2480,8 @@ pub fn whnf_core_proj_i(
             match &f.0.kind {
                 ExprKind::Const(c, us) => {
                     let args = expr_ops::get_app_args(e2);
-                    if core_k::proj_fire_shape_ok(&entry, c, i, us, &args) {
+                    let usv = levels::to_vec(us);
+                    if core_k::proj_fire_shape_ok(&entry, c, i, &usv, &args) {
                         let arg = core_k::get_d_expr(&args, entry.num_params + i);
                         match proj_cert_at_i(
                             mode,
@@ -2472,7 +2492,7 @@ pub fn whnf_core_proj_i(
                             env::verified_checks(mode),
                             env::beta_gate(mode),
                             c,
-                            us,
+                            &usv,
                             &args,
                         ) {
                             Err(err) => Err(err),
@@ -3351,7 +3371,7 @@ pub fn infer_body_i(
     match &e.0.kind {
         ExprKind::Sort(u) => Ok(expr::sort(level::succ(level::dup(u)))),
         ExprKind::Fvar(idx, ty) => core_k::infer_fvar(*idx, ty, depth),
-        ExprKind::Const(n, us) => infer_const_i(st, fe, n, us),
+        ExprKind::Const(n, us) => infer_const_i(st, fe, n, &levels::to_vec(us)),
         ExprKind::Lit(Literal::NatVal(_)) => core_k::infer_lit_nat(fe),
         ExprKind::Lit(Literal::StrVal(_)) => core_k::infer_lit_str(fe),
         ExprKind::ForallE(ty, body, mb) => {
@@ -3516,7 +3536,7 @@ pub fn infer_proj_at_i(
         ExprKind::Const(t, us) => match fenv::find_proj(fe, t, i) {
             Some(entry) => {
                 let targs = expr_ops::get_app_args(te);
-                proj_type_at_checked_i(&entry, sn, t, us, &targs, pe)
+                proj_type_at_checked_i(&entry, sn, t, &levels::to_vec(us), &targs, pe)
             }
             None => Err(core_types::not_implemented(core_types::code_points(
                 &M_NOENTRY,
@@ -4071,14 +4091,14 @@ pub fn defeq_struct_i(
         }
         (ExprKind::Lit(l1), ExprKind::Lit(l2)) => Ok(expr::literal_beq(l1, l2)),
         (ExprKind::Lit(Literal::NatVal(nn)), ExprKind::Const(c, us)) => {
-            if us.len() == 0 && name::beq(c, &basis_names::nat_zero_name()) {
+            if levels::len(us) == 0 && name::beq(c, &basis_names::nat_zero_name()) {
                 Ok(nat::is_zero(nn))
             } else {
                 stuck_irrel_i(mode, fuel, st, fe, depth, a, b)
             }
         }
         (ExprKind::Const(c, us), ExprKind::Lit(Literal::NatVal(nn))) => {
-            if us.len() == 0 && name::beq(c, &basis_names::nat_zero_name()) {
+            if levels::len(us) == 0 && name::beq(c, &basis_names::nat_zero_name()) {
                 Ok(nat::is_zero(nn))
             } else {
                 stuck_irrel_i(mode, fuel, st, fe, depth, a, b)
@@ -4127,7 +4147,7 @@ pub fn defeq_struct_i(
         }
         (ExprKind::Const(n1, us1), ExprKind::Const(n2, us2)) => {
             if name::beq(n1, n2) {
-                let eq = state_c::is_equiv_list_l_m(st, us1, us2);
+                let eq = state_c::is_equiv_list_c_m(st, us1, us2);
                 match core_k::lift_fueled(eq) {
                     Err(err) => Err(err),
                     Ok(true) => Ok(true),

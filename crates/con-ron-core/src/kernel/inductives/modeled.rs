@@ -46,6 +46,7 @@ use crate::kernel::checker_base::{DomIdent, DomView};
 use crate::kernel::inductives::struct_parts;
 use crate::kernel::level;
 use crate::kernel::level::Level;
+use crate::kernel::levels;
 use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::kernel::prop_when;
@@ -896,10 +897,10 @@ pub fn nested_rule_shape(
                                 None
                             } else if !pins_wf_from(fe_self, lps, r_p, &pins, 0) {
                                 None
-                            } else if !expr_ops::levels_all_params_defined(lps, lvls, 0) {
+                            } else if !expr_ops::const_levels_all_params_defined(lps, lvls) {
                                 None
                             } else {
-                                Some((env::levels_copy(lvls), pins))
+                                Some((levels::to_vec(lvls), pins))
                             }
                         }
                         _ => None,
@@ -2158,7 +2159,7 @@ pub fn check_proj_iota_body(
     // the cited `.app (.app (.app (.const c [_ℓ]) _tySlot) lhsC) rhsC` pattern
     let shaped = if args.len() == 3 {
         match &head.0.kind {
-            ExprKind::Const(_, us) => us.len() == 1,
+            ExprKind::Const(_, us) => levels::len(us) == 1,
             _ => false,
         }
     } else {

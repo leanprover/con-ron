@@ -47,6 +47,7 @@ use crate::kernel::inductives::struct_parts;
 use crate::kernel::fenv::FEnv;
 use crate::kernel::level;
 use crate::kernel::level::Level;
+use crate::kernel::levels;
 use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::kernel::prop_when;
@@ -410,7 +411,7 @@ pub fn check_annot_list_from(
 pub fn is_eq_head(e: &Expr) -> bool {
     match &e.0.kind {
         ExprKind::Const(c, us) => {
-            if us.len() == 1 {
+            if levels::len(us) == 1 {
                 name::beq(c, &basis_names::eq_name())
             } else {
                 false
@@ -427,8 +428,8 @@ pub fn is_eq_head(e: &Expr) -> bool {
 pub fn eq_head_level(e: &Expr) -> Level {
     match &e.0.kind {
         ExprKind::Const(_, us) => {
-            if us.len() == 1 {
-                level::dup(&us[0])
+            if levels::len(us) == 1 {
+                levels::head_d(us)
             } else {
                 level::zero()
             }

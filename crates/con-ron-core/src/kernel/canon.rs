@@ -61,6 +61,7 @@ use crate::kernel::expr;
 use crate::kernel::expr::{Expr, ExprKind};
 use crate::kernel::level;
 use crate::kernel::level::{Level, LevelKind};
+use crate::kernel::levels;
 use crate::kernel::name;
 use crate::kernel::name::Name;
 
@@ -142,7 +143,10 @@ pub fn canon_expr_eq_fast(ps: &Vec<Name>, ps2: &Vec<Name>, a: &Expr, b: &Expr) -
         }
         (ExprKind::Const(n, us), ExprKind::Const(n2, us2)) => {
             name::beq(n, n2)
-                && expr::levels_beq(&canon_level_list(ps, us), &canon_level_list(ps2, us2))
+                && expr::levels_beq(
+                    &canon_level_list(ps, &levels::to_vec(us)),
+                    &canon_level_list(ps2, &levels::to_vec(us2)),
+                )
         }
         (ExprKind::App(f, x), ExprKind::App(f2, x2)) => {
             canon_expr_eq_fast(ps, ps2, f, f2) && canon_expr_eq_fast(ps, ps2, x, x2)

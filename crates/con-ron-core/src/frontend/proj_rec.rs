@@ -57,6 +57,7 @@ use crate::kernel::inductives::native_parts;
 use crate::kernel::inductives::struct_parts;
 use crate::kernel::level;
 use crate::kernel::level::Level;
+use crate::kernel::levels;
 use crate::kernel::name;
 use crate::kernel::name::{Name, NameKind};
 use crate::ron::hashmap::HashMap;
@@ -157,8 +158,8 @@ pub fn proj_iota_level(ty: &Expr) -> Option<Level> {
     let head = expr_ops::get_app_fn(&expr_ops::pi_result(ty));
     match &head.0.kind {
         ExprKind::Const(n, us) => {
-            if us.len() == 1 && name::beq(n, &bnm::eq_name()) {
-                Some(level::dup(&us[0]))
+            if levels::len(us) == 1 && name::beq(n, &bnm::eq_name()) {
+                Some(levels::head_d(us))
             } else {
                 None
             }

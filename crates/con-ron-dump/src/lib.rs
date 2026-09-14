@@ -203,6 +203,7 @@ use con_ron_core::kernel::level;
 use con_ron_core::kernel::level::Level;
 use con_ron_core::kernel::level::LevelKind;
 use con_ron_core::kernel::level::LevelNode;
+use con_ron_core::kernel::levels::Levels;
 use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::Name;
 use con_ron_core::kernel::name::NameKind;
@@ -365,9 +366,13 @@ pub struct NodeSize {
 /// block from 56 to 64.  Measured end to end (task #90's DESIGN.md entry)
 /// that trade is a net *win*: mimalloc's own bin rounding absorbs most of the
 /// 8-byte-per-node cost, while removing a whole separate allocation per
-/// binder does not round up at all.  The rows are the *real* arm types, and
-/// the test below pins them, so a further repacking shows up as a diff with
-/// its saving attached.
+/// binder does not round up at all.  Task #93 did the same to a `const`'s
+/// level list: `Levels` is a tag and one word (16 bytes), so the `const` arm
+/// is 24 — still under `lam`/`forallE`'s 32, so **no node size moves** — and
+/// the empty and singleton lists almost every constant reference carries no
+/// longer cost a `P<Vec<Level>>` block (48 bytes) plus the array's own.  The
+/// rows are the *real* arm types, and the test below pins them, so a further
+/// repacking shows up as a diff with its saving attached.
 pub fn node_sizes() -> Vec<NodeSize> {
     fn row<T>(what: &'static str, rc: bool) -> NodeSize {
         NodeSize {
@@ -380,7 +385,8 @@ pub fn node_sizes() -> Vec<NodeSize> {
         row::<ExprNode>("ExprNode (data + kind)", true),
         row::<ExprKind>("  ExprKind", false),
         row::<(Expr, Expr)>("    app payload", false),
-        row::<(Name, P<Vec<Level>>)>("    const payload", false),
+        row::<(Name, Levels)>("    const payload", false),
+        row::<Levels>("      Levels (task #93)", false),
         row::<Literal>("    lit payload", false),
         row::<(Expr, Expr, BinderMeta)>("    lam/forallE payload", false),
         row::<(Expr, Expr, Expr)>("    letE payload", false),
@@ -1330,6 +1336,14 @@ mod tests {
         assert_eq!(std::mem::size_of::<PropWhen>(), 16);
         assert_eq!(std::mem::size_of::<BinderMeta>(), 16);
         assert_eq!(std::mem::size_of::<Literal>(), 16);
+        // Task #93 gave a `const`'s level list the same shape `PropWhen`
+        // has: `Levels` is a tag plus one word, `Zero`/`One` costing no heap
+        // cell at all and only `Many` (two levels or more) boxing the list.
+        // That makes the `const` arm 24 bytes, which is *under*
+        // `lam`/`forallE`'s 32 — so nothing below this line moves, and the
+        // whole saving is the blocks that are no longer allocated.
+        assert_eq!(std::mem::size_of::<Levels>(), 16);
+        assert_eq!(std::mem::size_of::<(Name, Levels)>(), 24);
         assert_eq!(std::mem::size_of::<ExprKind>(), 40);
         assert_eq!(std::mem::size_of::<ExprNode>(), 48);
         assert_eq!(expr_node_bytes(), 8 * P_HEADER_WORDS + 48);

@@ -880,9 +880,10 @@ pub fn inst_level_params_go(
                     ExprKind::Bvar(_) => expr::dup(e),
                     ExprKind::Lit(_) => expr::dup(e),
                     ExprKind::Sort(u) => expr::sort(level::subst(ks, us, u)),
-                    ExprKind::Const(n, vs) => {
-                        expr::mk_const(name::dup(n), expr_ops::levels_subst(ks, us, vs))
-                    }
+                    ExprKind::Const(n, vs) => expr::mk_const_levels(
+                        name::dup(n),
+                        expr_ops::const_levels_subst(ks, us, vs),
+                    ),
                     ExprKind::Fvar(idx, ty) => {
                         let t: Expr = inst_level_params_go(ks, us, memo, ty);
                         expr::fvar(*idx, t)
@@ -1346,7 +1347,7 @@ pub fn all_level_params_defined_go(
                     ExprKind::Lit(_) => true,
                     ExprKind::Sort(u) => level::all_params_defined(params, u),
                     ExprKind::Const(_, us) => {
-                        expr_ops::levels_all_params_defined(params, us, 0)
+                        expr_ops::const_levels_all_params_defined(params, us)
                     }
                     ExprKind::Fvar(_, ty) => all_level_params_defined_go(params, memo, ty),
                     ExprKind::App(f, a) => alpd_pair(params, memo, f, a),

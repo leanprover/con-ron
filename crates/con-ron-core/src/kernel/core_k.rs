@@ -121,6 +121,7 @@ use crate::kernel::fenv;
 use crate::kernel::fenv::FEnv;
 use crate::kernel::level;
 use crate::kernel::level::Level;
+use crate::kernel::levels;
 use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::kernel::prop_when;
@@ -540,7 +541,7 @@ pub fn unfoldable_head(fe: &FEnv, e: &Expr) -> bool {
     let f = expr_ops::get_app_fn(e);
     match &f.0.kind {
         ExprKind::Const(n, us) => match fenv::find(fe, n) {
-            Some(ConstantInfo::DefnInfo(cv, _, _)) => us.len() == cv.level_params.len(),
+            Some(ConstantInfo::DefnInfo(cv, _, _)) => levels::len(us) == cv.level_params.len(),
             Some(_) => false,
             None => false,
         },
@@ -651,7 +652,7 @@ pub fn nat_succ_ok(ci: Option<&ConstantInfo>) -> bool {
                     ExprKind::ForallE(dom, body, _) => match &dom.0.kind {
                         ExprKind::Const(c1, us1) => match &body.0.kind {
                             ExprKind::Const(c2, us2) => {
-                                if us1.len() == 0 && us2.len() == 0 {
+                                if levels::len(us1) == 0 && levels::len(us2) == 0 {
                                     name::beq(c1, &basis_names::nat_name())
                                         && name::beq(c2, &basis_names::nat_name())
                                 } else {
@@ -822,7 +823,7 @@ pub fn raw_nat_lit(e: &Expr) -> Option<Nat> {
     match &e.0.kind {
         ExprKind::Lit(Literal::NatVal(n)) => Some(nat::clone(n)),
         ExprKind::Const(c, us) => {
-            if us.len() == 0 && name::beq(c, &basis_names::nat_zero_name()) {
+            if levels::len(us) == 0 && name::beq(c, &basis_names::nat_zero_name()) {
                 Some(nat::zero())
             } else {
                 None
@@ -965,10 +966,10 @@ pub fn list_nil_ty_ok(ci: Option<&ConstantInfo>) -> bool {
                                             &level::succ(level::param(name::dup(p))),
                                         ) {
                                             if name::beq(l1, &basis_names::list_name()) {
-                                                expr::levels_beq(
+                                                expr::const_levels_beq(
                                                     us1,
-                                                    &level::singleton(level::param(
-                                                        name::dup(p),
+                                                    &levels::of_vec(level::singleton(
+                                                        level::param(name::dup(p)),
                                                     )),
                                                 )
                                             } else {
@@ -1046,13 +1047,14 @@ pub fn list_cons_tail_ok(u1: &Level, d3: &Expr, b3: &Expr, p: &Name) -> bool {
                     ExprKind::Bvar(2) => match &h1.0.kind {
                         ExprKind::Const(l1, us1) => match &h2.0.kind {
                             ExprKind::Const(l2, us2) => {
-                                let want = level::singleton(level::param(name::dup(p)));
+                                let want =
+                                    levels::of_vec(level::singleton(level::param(name::dup(p))));
                                 if level::beq(u1, &level::succ(level::param(name::dup(p)))) {
                                     if name::beq(l1, &basis_names::list_name())
                                         && name::beq(l2, &basis_names::list_name())
                                     {
-                                        expr::levels_beq(us1, &want)
-                                            && expr::levels_beq(us2, &want)
+                                        expr::const_levels_beq(us1, &want)
+                                            && expr::const_levels_beq(us2, &want)
                                     } else {
                                         false
                                     }
@@ -1086,7 +1088,7 @@ pub fn char_of_nat_ty_ok(ci: Option<&ConstantInfo>) -> bool {
                     ExprKind::ForallE(dom, body, _) => match &dom.0.kind {
                         ExprKind::Const(c1, us1) => match &body.0.kind {
                             ExprKind::Const(c2, us2) => {
-                                if us1.len() == 0 && us2.len() == 0 {
+                                if levels::len(us1) == 0 && levels::len(us2) == 0 {
                                     name::beq(c1, &basis_names::nat_name())
                                         && name::beq(c2, &basis_names::char_name())
                                 } else {
@@ -1121,11 +1123,13 @@ pub fn string_of_list_ty_ok(ci: Option<&ConstantInfo>) -> bool {
                             ExprKind::Const(c2, us2) => match &hd.0.kind {
                                 ExprKind::Const(l1, us1) => match &arg.0.kind {
                                     ExprKind::Const(c1, us_c) => {
-                                        if us2.len() == 0 && us_c.len() == 0 {
+                                        if levels::len(us2) == 0 && levels::len(us_c) == 0 {
                                             if name::beq(l1, &basis_names::list_name()) {
-                                                if expr::levels_beq(
+                                                if expr::const_levels_beq(
                                                     us1,
-                                                    &level::singleton(level::zero()),
+                                                    &levels::of_vec(level::singleton(
+                                                        level::zero(),
+                                                    )),
                                                 ) {
                                                     name::beq(c1, &basis_names::char_name())
                                                         && name::beq(
@@ -1346,7 +1350,7 @@ pub fn bool_false_name() -> Name {
 pub fn is_bool_true(e: &Expr) -> bool {
     match &e.0.kind {
         ExprKind::Const(c, us) => {
-            if us.len() == 0 {
+            if levels::len(us) == 0 {
                 name::beq(c, &bool_true_name())
             } else {
                 false
@@ -1777,7 +1781,7 @@ pub fn nat_op_wf_names() -> Vec<Name> {
 pub fn subst_const0(n: &Name, r: &Expr, e: &Expr) -> Expr {
     match &e.0.kind {
         ExprKind::Const(c, us) => {
-            if us.len() == 0 && name::beq(c, n) {
+            if levels::len(us) == 0 && name::beq(c, n) {
                 expr::dup(r)
             } else {
                 expr::dup(e)
@@ -1795,7 +1799,7 @@ pub fn subst_const0(n: &Name, r: &Expr, e: &Expr) -> Expr {
 pub fn subst_const_all(n: &Name, r: &Expr, e: &Expr) -> Expr {
     match &e.0.kind {
         ExprKind::Const(c, us) => {
-            if us.len() == 0 && name::beq(c, n) {
+            if levels::len(us) == 0 && name::beq(c, n) {
                 expr::dup(r)
             } else {
                 expr::dup(e)
@@ -2601,7 +2605,7 @@ pub fn infer_proj_at(
         ExprKind::Const(t, us) => match fenv::find_proj(fe, t, i) {
             Some(entry) => {
                 let targs = expr_ops::get_app_args(te);
-                proj_type_at_checked(&entry, sn, t, us, &targs, pe)
+                proj_type_at_checked(&entry, sn, t, &levels::to_vec(us), &targs, pe)
             }
             None => Err(core_types::not_implemented(core_types::code_points(
                 &M_NOENTRY,
@@ -2627,7 +2631,7 @@ pub fn succ_of(nn: &Nat, f: &Expr) -> Option<Nat> {
     } else {
         match &f.0.kind {
             ExprKind::Const(c, us) => {
-                if us.len() == 0 && name::beq(c, &basis_names::nat_succ_name()) {
+                if levels::len(us) == 0 && name::beq(c, &basis_names::nat_succ_name()) {
                     Some(nat::pred(nn))
                 } else {
                     None
@@ -2646,7 +2650,7 @@ pub fn succ_of(nn: &Nat, f: &Expr) -> Option<Nat> {
 pub fn str_expansion_fires(fe: &FEnv, f: &Expr) -> bool {
     match &f.0.kind {
         ExprKind::Const(c, us) => {
-            if us.len() == 0 && name::beq(c, &basis_names::string_of_list_name()) {
+            if levels::len(us) == 0 && name::beq(c, &basis_names::string_of_list_name()) {
                 str_lit_supported(fe)
             } else {
                 false

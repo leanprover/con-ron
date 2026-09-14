@@ -26,6 +26,7 @@ use con_ron_core::kernel::expr::Expr;
 use con_ron_core::kernel::expr::ExprKind;
 use con_ron_core::kernel::expr::ExprNode;
 use con_ron_core::kernel::level::Level;
+use con_ron_core::kernel::levels;
 use con_ron_core::kernel::level::LevelKind;
 use con_ron_core::kernel::level::LevelNode;
 use con_ron_core::kernel::name::Name;
@@ -102,7 +103,7 @@ impl Walk {
                 ExprKind::Sort(u) => self.level(u),
                 ExprKind::Const(n, us) => {
                     self.name(n);
-                    self.levels_of(us);
+                    self.levels_of(&levels::to_vec(us));
                 }
                 ExprKind::App(f, a) => {
                     stack.push(expr::dup(f));

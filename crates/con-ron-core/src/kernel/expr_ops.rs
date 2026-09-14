@@ -57,10 +57,13 @@ use crate::ron::hashmap::HashMap;
 use crate::ron::hashmap::Hashable;
 use crate::kernel::level;
 use crate::kernel::level::Level;
+use crate::kernel::levels;
+use crate::kernel::levels::Levels;
 use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::kernel::prop_when;
 use crate::kernel::prop_when::PropWhen;
+use crate::ron::ptr;
 
 // ---------------------------------------------------------------------------
 // Small helpers with no Lean counterpart
@@ -1108,7 +1111,7 @@ where
         ExprKind::Bvar(_) => expr::dup(e),
         ExprKind::Sort(_) => expr::dup(e),
         ExprKind::Lit(_) => expr::dup(e),
-        ExprKind::Const(n, us) => expr::mk_const(f.rename(n), levels_copy(us)),
+        ExprKind::Const(n, us) => expr::mk_const_levels(f.rename(n), levels::dup(us)),
         _ => match memo_e_get(memo, e) {
             Some(r) => r,
             None => {
@@ -1796,7 +1799,7 @@ pub fn has_level_param(e: &Expr) -> bool {
         ExprKind::Bvar(_) => false,
         ExprKind::Lit(_) => false,
         ExprKind::Sort(u) => level::level_has_param(u),
-        ExprKind::Const(_, us) => level::levels_have_param(us),
+        ExprKind::Const(_, us) => levels::have_param(us),
         ExprKind::Fvar(_, ty) => has_level_param(ty),
         ExprKind::App(f, a) => has_level_param(f) || has_level_param(a),
         ExprKind::Lam(ty, body, m) => {
@@ -1835,6 +1838,20 @@ pub fn levels_subst(ks: &Vec<Name>, us: &Vec<Level>, vs: &Vec<Level>) -> Vec<Lev
     levels_subst_from(ks, us, vs, 0, Vec::new())
 }
 
+/// con-leche: none — `vs.map (Level.subst ks us)` in `instLPGo`'s `.const` arm
+/// The same map on the canonical form of `kernel::levels` (task #93), which
+/// is what `instLPGo`'s `.const` arm actually holds.  A map preserves the
+/// length, so the result's constructor is the argument's and no list is
+/// built for the empty and singleton lists — the two the census says almost
+/// every constant reference carries.
+pub fn const_levels_subst(ks: &Vec<Name>, us: &Vec<Level>, vs: &Levels) -> Levels {
+    match vs {
+        Levels::Zero => Levels::Zero,
+        Levels::One(v) => Levels::One(level::subst(ks, us, v)),
+        Levels::Many(ws) => Levels::Many(ptr::new(levels_subst(ks, us, ws))),
+    }
+}
+
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2564-2603 Expr.instLPGo
 /// con-leche: ConLeche/Kernel/Level.lean:232-249 Expr.instantiateLevelParams
 /// The memoized walk behind `instantiateLevelParams`: substitute level
@@ -1862,7 +1879,9 @@ pub fn instantiate_level_params_go(
             ExprKind::Bvar(i) => expr::bvar(*i),
             ExprKind::Lit(l) => expr::lit(expr::literal_dup(l)),
             ExprKind::Sort(u) => expr::sort(level::subst(ks, us, u)),
-            ExprKind::Const(n, vs) => expr::mk_const(name::dup(n), levels_subst(ks, us, vs)),
+            ExprKind::Const(n, vs) => {
+                expr::mk_const_levels(name::dup(n), const_levels_subst(ks, us, vs))
+            }
             _ => match memo_e_get(memo, e) {
                 Some(r) => r,
                 None => {
@@ -1968,7 +1987,7 @@ pub fn all_level_params_defined(params: &Vec<Name>, e: &Expr) -> bool {
         ExprKind::Bvar(_) => true,
         ExprKind::Fvar(_, t) => all_level_params_defined(params, t),
         ExprKind::Sort(u) => level::all_params_defined(params, u),
-        ExprKind::Const(_, us) => levels_all_params_defined(params, us, 0),
+        ExprKind::Const(_, us) => const_levels_all_params_defined(params, us),
         ExprKind::App(f, a) => {
             if all_level_params_defined(params, f) {
                 all_level_params_defined(params, a)
@@ -2026,6 +2045,17 @@ pub fn levels_all_params_defined(params: &Vec<Name>, us: &Vec<Level>, i: usize) 
     }
 }
 
+/// con-leche: none — `us.all (Level.allParamsDefined params)` of the `.const` arm
+/// The same `List.all` on the canonical form of `kernel::levels` (task #93),
+/// which is what the `.const` arm holds; `Many` is the index recursion above.
+pub fn const_levels_all_params_defined(params: &Vec<Name>, us: &Levels) -> bool {
+    match us {
+        Levels::Zero => true,
+        Levels::One(u) => level::all_params_defined(params, u),
+        Levels::Many(vs) => levels_all_params_defined(params, vs, 0),
+    }
+}
+
 /// con-leche: ConLeche/Kernel/Level.lean:299-332 Expr.allLevelParamsDefinedGo
 /// con-leche: ConLeche/Kernel/Level.lean:251-268 Expr.allLevelParamsDefined
 /// The memoized walk: the recursor-generation checks and `checkConstantVal`
@@ -2041,7 +2071,7 @@ pub fn all_level_params_defined_go(
     match &e.0.kind {
         ExprKind::Bvar(_) => true,
         ExprKind::Sort(u) => level::all_params_defined(params, u),
-        ExprKind::Const(_, us) => levels_all_params_defined(params, us, 0),
+        ExprKind::Const(_, us) => const_levels_all_params_defined(params, us),
         ExprKind::Lit(_) => true,
         _ => match memo_b_get(memo, e) {
             Some(r) => r,
