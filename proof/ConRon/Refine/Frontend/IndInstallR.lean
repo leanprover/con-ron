@@ -14,6 +14,34 @@ carrying content: the in-process modeller's decline, outside the census mode,
 is con-leche's `.inr (.declined …)`.  As everywhere, the *message* is not
 compared (DESIGN.md §3.1), only the verdict's kind.
 
+## What is proved, in dependency order
+
+`noteGen_eq` and `note_gen_names`/`note_gen`; `push_gen_d`; `push_gen_list`;
+`in_model_rec::wants`; the projection census's three record lists
+(`proj_type_recs_of`, `proj_ctor_recs_of`, `proj_rec_recs_of`),
+`insert_proj_owners` and `register_proj_owners`; the block's three constant
+loops (`ind_block_types`, `ind_block_ctors`, `ind_block_recs`) and their joiner
+`ind_block_of`; `note_ind_blocks`; and the capstone **`install_ind_d_refines`**,
+restated as `indRSpec_installInd` in exactly the shape
+`Refine/Frontend/IndR.lean`'s `IndRSpec.installInd` asks for.
+
+Two functions of the install path get **no lemma of their own**, on purpose.
+`export_c::install_gen` is proved inside the capstone: con-leche writes its
+body inline in `installIndD`, with the post-`note_ind_blocks` state
+substituted field by field, so a standalone statement would have to re-spell
+that state and buy nothing.  `export_c::in_model_decline` renders the decline's
+*text*, and nothing is ever claimed about a message (DESIGN.md §3.1) — only
+that the outcome is a `Declined`.
+
+## What is assumed
+
+`InstallSpec` (two clauses, both lemmas of neighbouring files) and, at the
+modeller, three promises: `Frontend.ModellerWF`, `IndModellerRefines` — agent
+C's canonical `ModellerRefines` repeated verbatim — and
+**`IndModellerDeclineText`**, this file's one *new* residue, forced by the
+census arm.  See its doc comment: the coordinator should either fold it into
+`ModellerRefines` or weaken `StateDRel.inModelDeclined`.
+
 ## `sorry` count in this file: 0
 -/
 import ConRon.Refine.Frontend.StateDR
@@ -223,11 +251,11 @@ def absPRecRec (r : frontend.proj_rec.ProjRecRec) :
 
 /-! ## The named ingredients
 
-Three lemmas this file stands on that belong to files beside it (the
-`Refine/IndSpec.lean` pattern, DESIGN.md §3.5): one from the state layer
-below, one from the block-record file beside it, one from the projection
-rewrite's own.  Each is stated here exactly as its owner states it, and when
-the files meet the coordinator replaces the bundle with the three theorems.
+Two lemmas this file stands on that belong to files beside it (the
+`Refine/IndSpec.lean` pattern, DESIGN.md §3.5): one from the state layer below,
+one from the projection rewrite's own.  Each is stated here exactly as its
+owner states it, and when the files meet the coordinator replaces the bundle
+with the two theorems.
 
 The **modeller** is separate, and is not an ingredient that will ever be
 discharged: it is the residue (`Refine/Frontend/Base.lean`'s `ModellerWF`,
@@ -251,7 +279,9 @@ def IndModellerRefines {G : Type} (inst : frontend.in_model_rec.Modeller G) (g :
     (∀ m, o = .Err m →
       ∃ s, ConLeche.Frontend.InModel.generate lctx (absBlockRec b) = .error s)
 
-/-- The three lemmas of the neighbouring files that this one consumes. -/
+/-- The two lemmas of the neighbouring files that this one consumes.
+(`block_rec_of` used to be a third; `Refine/Frontend/IndR.lean` proves it and
+is imported, so the clause is gone.) -/
 structure InstallSpec : Prop where
   /-- `export_c::note_proj_iota` refines `noteProjIota`
   (`ConLeche/Frontend/ExportC.lean:304-317`) — `Refine/Frontend/StateDR.lean`'s,
@@ -1760,5 +1790,46 @@ theorem install_ind_d_refines {G : Type} {inst : frontend.in_model_rec.Modeller 
           obtain ⟨hrel3, hwf3⟩ := push_decl_refines hrel2 hwf2 hdwf hst3
           rw [← hu2, ← hst']
           exact StepOutV.ok rfl hrel3 hwf3
+
+
+/-! ## The seam, spelled out
+
+`Refine/Frontend/IndR.lean`'s `IndRSpec.installInd` is a field of a bundle
+stated at a *fixed* modeller; this is that field, with the three promises about
+the modeller — `ModellerWF`, `IndModellerRefines`, `IndModellerDeclineText` —
+and `InstallSpec` in front of it.  It is here so that the shape can be checked
+by the elaborator rather than by eye. -/
+
+/-- `install_ind_d_refines` **is** `IndRSpec.installInd`. -/
+theorem indRSpec_installInd {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+    (hmw : ModellerWF inst g) (hmr : IndModellerRefines inst g)
+    (hmd : IndModellerDeclineText inst g) (hsp : InstallSpec) :
+    ∀ {st st' : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+      {tys : alloc.vec.Vec frontend.scan_types.IndTypeRec}
+      {cts : alloc.vec.Vec frontend.scan_types.IndCtorRec}
+      {rcs : alloc.vec.Vec frontend.scan_types.IndRecRec} {n_pd : Std.U64}
+      {o : core.result.Result Unit frontend.export_c.LineErr},
+      StateDRel st lst → StateDWF st →
+      frontend.export_c.install_ind_d inst g st tys cts rcs n_pd = ok (o, st') →
+      StepOutV o st' (ConLeche.Frontend.installIndD lst (absIndTypeRecs tys)
+        (absIndCtorRecs cts) (absIndRecRecs rcs) n_pd.val) :=
+  fun hrel hwf h => install_ind_d_refines hmw hmr hmd hsp hrel hwf h
+
+/-! ## Axiom census (DESIGN.md §5, the P3 gate)
+
+Nothing here reaches past con-leche's own three axioms; the modeller's two
+promises and `InstallSpec` are *hypotheses*, not axioms, and spend nothing. -/
+
+/--
+info: 'ConRon.Refine.Frontend.install_ind_d_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms install_ind_d_refines
+
+/--
+info: 'ConRon.Refine.Frontend.register_proj_owners_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms register_proj_owners_refines
 
 end ConRon.Refine.Frontend
