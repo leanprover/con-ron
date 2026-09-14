@@ -175,12 +175,15 @@ private theorem brace_abs {b : Slice Std.U8} {i : Std.Usize} {c : Std.U8}
 `pw`, `nondep` and `us` are not `Nat`s: the port calls the sub-scanner, then
 closes with the module's `prog` guard, exactly as con-leche's
 `match scanX b v with | .err e => .err e | .ok x e => if _hj : i < e then …`.
-That `match` is written out inline in the dispatch below rather than factored
-into a `subSlot` helper: a helper of its own introduces a **new matcher**, and
-two matchers on a stuck scrutinee are not definitionally equal, so the
-`hbody` `rfl` against `scan*Loop.eq_def` fails.  Written inline, Lean reuses
-con-leche's matcher and the `rfl` goes through; the sub-scanner's `ScanSim` is
-then rewritten into the scrutinee, which reduces the `match` by `iota`. -/
+That `match` is written out inline in the dispatch below.  A helper `def` is
+allowed to hold it — `ScanObj`'s `strSlot` does — but **only a monomorphic
+one**: a helper polymorphic in the scrutinee's or the result's type gets a
+matcher of its own, and two matchers on a *stuck* scrutinee are not
+definitionally equal, so the `hbody` `rfl` against `scan*Loop.eq_def` fails.
+With the types fixed Lean reuses con-leche's own matcher and the `rfl` goes
+through, and so does writing the `match` out inline, which is what this file
+does.  The sub-scanner's `ScanSim` is then rewritten into the scrutinee, which
+reduces the `match` by `iota`. -/
 
 /-- `scan_fast::prog`, read forwards. -/
 private theorem prog_val {ks e : Std.Usize} {r : Bool}
