@@ -19,22 +19,26 @@ statement `f … = ok r → abs r = ⟨the Lean⟩`, with no `ErrSim` half to ca
 (`Refine/README.md`'s full-outcome table: there is no mirrored `.Err` because
 there is no `Except` on either side).
 
-## What is proved, and what is assumed
+## What is proved
 
 Everything of `prepare.rs` — `prelude_ix_empty`, `prelude_key`, `declares`,
 `pick_idx`, `no_picks`, `front_of` (against `frontOf`/`pick`, **not** against
 `frontSpec`/`pickSpec`, which the port deliberately does not port: DESIGN.md
 task #84 §7), `prepared_front`, `prepared_rest`, `prepared_stream`,
 `prepare_d` and the capstone `prepare_prelude_refines` — and everything of
-`nat_op_ground.rs` except the target-map computation: `is_nat_op_record`,
-`idx_get`, `target_done`, `target_is`, `hoist_moved_idxs`, `hoist_order_at`,
-`hoist_order`, `hoist_reorder`, `hoist_moved_names`, `apply_hoist` and
-`hoist_nat_op_ground`.  (`declaration_dup` and `block_copy` are phase 1's
+`nat_op_ground.rs`: `used_consts_go`, `decl_used_consts`, `block_used_consts`,
+`is_nat_op_record`, `hoist_name_index`, `idx_get`, `hoist_targets`,
+`hoist_targets_at`, `hoist_targets_one`, `hoist_close`, `hoist_close_step`,
+`hoist_push_deps`, `hoist_push_dep`, `target_done`, `target_is`,
+`hoist_moved_idxs`, `hoist_order_at`, `hoist_order`, `hoist_reorder`,
+`hoist_moved_names`, `apply_hoist` and `hoist_nat_op_ground`.  (`declaration_dup` and `block_copy` are phase 1's
 `Frontend/Prepare.lean`: the copy *is* the record, so its refinement is that
 file's `declaration_dup_refines`.)
 
-The one hypothesis is `HoistSpec`: that `nat_op_ground::hoist_targets`
-computes `hoistTargets`.  Its section below says what sits under it and why.
+**Nothing is left over.**  The file's one-time hypothesis `HoistSpec` (that
+`hoist_targets` computes `hoistTargets`) is the theorem `hoist_targets_refines`,
+so the capstone `prepare_prelude_refines` asks for well-formedness of its input
+and nothing else.
 
 ## `sorry` count in this file: 0
 -/
@@ -1205,7 +1209,7 @@ theorem target_is_refines {target : ron.hashmap.HashMap Std.U64 Std.U64}
 list: at each position `t`, first the moved records targeted at `t` (increasing
 original index, which is dependency order), then the record `t` itself unless
 it is one of them.  `applyHoist` gets the same order out of a `mergeSort` on
-the key `(t, s, k)`; that the two agree is `HoistSpec.order` below. -/
+the key `(t, s, k)`; that the two agree is `hoistBuckets_eq_mergeSort`. -/
 private def bucketAt (s : _root_.Std.HashMap Nat Nat) (moved : List Nat)
     (t : Nat) : List Nat :=
   (moved.filter (fun k => decide (s[k]? = some t)))
@@ -1408,7 +1412,7 @@ theorem idx_get_refines {idx : ron.hashmap.HashMap name.Name Std.U64}
 the positions and emits each bucket in turn.  The keys are pairwise distinct
 (each carries its own index in its third component), so there is exactly one
 sorted permutation and the two lists are equal.  This discharges what was
-`HoistSpec.order`. -/
+what was `HoistSpec.order`. -/
 
 /-- The sort key's strict order, as a `Prop`. -/
 private def keyLt (p q : Nat × Nat × Nat) : Prop :=
@@ -3585,37 +3589,285 @@ private theorem hoist_close_loop_refines {ds : alloc.vec.Vec env.Declaration}
         rw [hoistClose_eq, if_neg hasz, ← h]
         exact ⟨hrel, hb⟩
 
-/-! ### The residue
+/-! ### The target map itself
 
-**One** hypothesis, about the first half of the hoist; everything else of the
-two passes is proved outright (task #87's report says so). -/
+The three loops above the closure walk: one ground (`hoist_targets_one`), one
+operation record's grounds (`hoist_targets_at`) and the stream
+(`hoist_targets`). -/
 
-/-- **The residue of this file** (the `Refine/IndSpec.lean` pattern): that the
-port's `hoist_targets` computes con-leche's `hoistTargets`.
+/-- A fresh target map is the empty map. -/
+private theorem tgt_new {target : ron.hashmap.HashMap Std.U64 Std.U64}
+    (h : ron.hashmap.HashMap.new Std.U64 Std.U64 = ok target) :
+    HoistTargetRel target (∅ : _root_.Std.HashMap Nat Nat) := by
+  obtain ⟨hinv, halv, hnone⟩ := HashMap.new_refines (HashableInst := tgtHashable) h
+  refine ⟨hinv, ?_, ?_⟩
+  · intro k; rw [hnone k]; simp
+  · rw [halv]; simp
 
-Under it sit the three functions this file does not reach:
-`nat_op_ground::used_consts_go` (an explicit `Vec<Expr>` worklist with a
-`ron::HashMap<Expr,bool>` seen table, against con-leche's *structural*
-recursion over a `Std.HashSet Expr` — the two agree, but the port's loop has
-no decreasing measure in the Aeneas model, so the equivalence needs a
-well-founded argument over "nodes not yet seen" that is not carried out here),
-`decl_used_consts`/`block_used_consts` above it, and `hoist_name_index` and
-the `hoist_close` worklist beside it.
+/-- `ConLeche/Frontend/NatOpGround.lean:125-136` — **`nat_op_ground::hoist_close`
+refines the cited `while`, started at the single ground record `j`.** -/
+private theorem hoist_close_refines {ds : alloc.vec.Vec env.Declaration}
+    {idx : ron.hashmap.HashMap name.Name Std.U64}
+    {idxS : _root_.Std.HashMap ConLeche.Name Nat}
+    {target target' : ron.hashmap.HashMap Std.U64 Std.U64}
+    {s : _root_.Std.HashMap Nat Nat} {j i : Std.U64}
+    (hds : ∀ d ∈ ds.val, DeclarationWF d) (hidx : HoistIdxRel idx idxS)
+    (hib : HoistIdxBounded idxS ds.val.length)
+    (hi : i.val < ds.val.length) (hj : j.val < ds.val.length)
+    (hrel : HoistTargetRel target s) (hb : HoistBounded s ds.val.length)
+    (h : frontend.nat_op_ground.hoist_close ds idx target j i = ok target') :
+    HoistTargetRel target' (hoistClose (absDecls ds).toArray idxS i.val s #[j.val]) ∧
+      HoistBounded (hoistClose (absDecls ds).toArray idxS i.val s #[j.val])
+        ds.val.length := by
+  rw [frontend.nat_op_ground.hoist_close] at h
+  rw [bind_eq_ok_iff] at h
+  obtain ⟨stack, hstack, h⟩ := h
+  have hsv : stack.val = [j] := by
+    rw [vec_push_val hstack]; simp [alloc.vec.Vec.new]
+  refine hoist_close_loop_refines hds hidx hib (undone s i.val ds.val.length) 1 i target
+    target' s stack 1#usize #[j.val] (le_refl _) (by simp) hi hrel hb
+    (by rw [hsv]; simp) (by rw [hsv]; simp) ?_ h
+  intro x hx
+  simp only [List.mem_singleton] at hx
+  rw [show x = j.val from by simpa using hx]; exact hj
 
-The *second* half of the hoist — the bucket pass against `applyHoist`'s
-`List.mergeSort` — was a second field of this structure and is now proved:
-`hoistBuckets_eq_mergeSort`. -/
-structure HoistSpec : Prop where
-  /-- `ConLeche/Frontend/NatOpGround.lean:106-136` — the port's `hoist_targets`
-  is `hoistTargets`, and its keys and values are positions of the stream. -/
-  targets : ∀ {ds : alloc.vec.Vec env.Declaration}
-    {t : ron.hashmap.HashMap Std.U64 Std.U64},
-    (∀ d ∈ ds.val, DeclarationWF d) →
-    frontend.nat_op_ground.hoist_targets ds = ok t →
+/-- `ConLeche/Frontend/NatOpGround.lean:121-124` — **`nat_op_ground::hoist_targets_one`
+refines the cited `let some j := idx[g]? | continue; unless j > i do continue`.** -/
+private theorem hoist_targets_one_refines {ds : alloc.vec.Vec env.Declaration}
+    {idx : ron.hashmap.HashMap name.Name Std.U64}
+    {idxS : _root_.Std.HashMap ConLeche.Name Nat}
+    {target target' : ron.hashmap.HashMap Std.U64 Std.U64}
+    {s : _root_.Std.HashMap Nat Nat} {g : name.Name} {i : Std.U64}
+    (hds : ∀ d ∈ ds.val, DeclarationWF d) (hidx : HoistIdxRel idx idxS)
+    (hib : HoistIdxBounded idxS ds.val.length) (hg : NameWF g)
+    (hi : i.val < ds.val.length)
+    (hrel : HoistTargetRel target s) (hb : HoistBounded s ds.val.length)
+    (h : frontend.nat_op_ground.hoist_targets_one ds idx target g i = ok target') :
+    HoistTargetRel target' (match idxS[absName g]? with
+        | some j => if j > i.val then hoistClose (absDecls ds).toArray idxS i.val s #[j] else s
+        | none => s) ∧
+      HoistBounded (match idxS[absName g]? with
+        | some j => if j > i.val then hoistClose (absDecls ds).toArray idxS i.val s #[j] else s
+        | none => s) ds.val.length := by
+  rw [frontend.nat_op_ground.hoist_targets_one] at h
+  rw [bind_eq_ok_iff] at h
+  obtain ⟨o, ho, h⟩ := h
+  have hov := idx_get_refines hidx hg ho
+  cases o with
+  | none =>
+    simp only [Option.map_none] at hov
+    rw [← hov]
+    dsimp only at h ⊢
+    simp only [Result.ok.injEq] at h
+    rw [← h]; exact ⟨hrel, hb⟩
+  | some j =>
+    simp only [Option.map_some] at hov
+    have hjlt : j.val < ds.val.length := hib _ _ hov.symm
+    rw [← hov]
+    dsimp only at h ⊢
+    by_cases hji : j.val > i.val
+    · rw [if_pos (show j > i by scalar_tac)] at h
+      rw [if_pos hji]
+      exact hoist_close_refines hds hidx hib hi hjlt hrel hb h
+    · rw [if_neg (show ¬ j > i by scalar_tac)] at h
+      rw [if_neg hji]
+      simp only [Result.ok.injEq] at h
+      rw [← h]; exact ⟨hrel, hb⟩
+
+/-- `ConLeche/Frontend/NatOpGround.lean:121-124` — `nat_op_ground::hoist_targets_at`'s
+loop: the cited `for g in natOpDeps c` from `k` on. -/
+private theorem hoist_targets_at_loop_refines {ds : alloc.vec.Vec env.Declaration}
+    {idx : ron.hashmap.HashMap name.Name Std.U64}
+    {idxS : _root_.Std.HashMap ConLeche.Name Nat}
+    (hds : ∀ d ∈ ds.val, DeclarationWF d) (hidx : HoistIdxRel idx idxS)
+    (hib : HoistIdxBounded idxS ds.val.length) :
+    ∀ (f : Nat) (target target' : ron.hashmap.HashMap Std.U64 Std.U64)
+      (s : _root_.Std.HashMap Nat Nat) (gs : alloc.vec.Vec name.Name)
+      (m k : Std.Usize) (i : Std.U64),
+      m.val - k.val ≤ f → m.val = gs.val.length → k.val ≤ m.val → NamesWF gs →
+      i.val < ds.val.length →
+      HoistTargetRel target s → HoistBounded s ds.val.length →
+      frontend.nat_op_ground.hoist_targets_at_loop ds idx i target gs m k = ok target' →
+      HoistTargetRel target' (hoistTargetsAt (absDecls ds).toArray idxS i.val
+          ((absNames gs).drop k.val) s) ∧
+        HoistBounded (hoistTargetsAt (absDecls ds).toArray idxS i.val
+          ((absNames gs).drop k.val) s) ds.val.length := by
+  intro f
+  induction f with
+  | zero =>
+    intro target target' s gs m k i hf hm hk hwf hi hrel hb h
+    rw [frontend.nat_op_ground.hoist_targets_at_loop.eq_def,
+      if_neg (show ¬ k < m by scalar_tac), Result.ok.injEq] at h
+    rw [← h, show (absNames gs).drop k.val = [] from by
+      rw [List.drop_eq_nil_iff]; simp only [absNames, List.length_map]; omega,
+      hoistTargetsAt_nil]
+    exact ⟨hrel, hb⟩
+  | succ f ih =>
+    intro target target' s gs m k i hf hm hk hwf hi hrel hb h
+    rw [frontend.nat_op_ground.hoist_targets_at_loop.eq_def] at h
+    by_cases hlt : k.val < m.val
+    · rw [if_pos (show k < m by scalar_tac)] at h
+      rw [bind_eq_ok_iff] at h
+      obtain ⟨n, hn, h⟩ := h
+      rw [bind_eq_ok_iff] at h
+      obtain ⟨target1, hone, h⟩ := h
+      rw [bind_eq_ok_iff] at h
+      obtain ⟨k1, hk1, h⟩ := h
+      have hk1v : k1.val = k.val + 1 := by have := Nat.uadd_val hk1; simpa using this
+      have hnlt : k.val < gs.val.length := by omega
+      have hnx : gs.val[k.val] = n := by
+        have hg := ExprOps.vec_index_getElem? hn
+        rw [List.getElem?_eq_getElem hnlt] at hg; exact Option.some_injective _ hg
+      have hnwf : NameWF n := by rw [← hnx]; exact hwf _ (List.getElem_mem hnlt)
+      have hdrop : (absNames gs).drop k.val = absName n :: (absNames gs).drop (k.val + 1) := by
+        have hlen : k.val < (absNames gs).length := by
+          simp only [absNames, List.length_map]; omega
+        rw [List.drop_eq_getElem_cons hlen]
+        simp only [absNames, List.getElem_map, hnx]
+      obtain ⟨hrel1, hb1⟩ := hoist_targets_one_refines hds hidx hib hnwf hi hrel hb hone
+      rw [hdrop, hoistTargetsAt_cons, ← hk1v]
+      exact ih target1 target' _ gs m k1 i (by omega) hm (by omega) hwf hi hrel1 hb1 h
+    · rw [if_neg (show ¬ k < m by scalar_tac), Result.ok.injEq] at h
+      rw [← h, show (absNames gs).drop k.val = [] from by
+        rw [List.drop_eq_nil_iff]; simp only [absNames, List.length_map]; omega,
+        hoistTargetsAt_nil]
+      exact ⟨hrel, hb⟩
+
+/-- `ConLeche/Frontend/NatOpGround.lean:121-124` — **`nat_op_ground::hoist_targets_at`
+refines the cited `for g in natOpDeps c`.** -/
+private theorem hoist_targets_at_refines {ds : alloc.vec.Vec env.Declaration}
+    {idx : ron.hashmap.HashMap name.Name Std.U64}
+    {idxS : _root_.Std.HashMap ConLeche.Name Nat}
+    {target target' : ron.hashmap.HashMap Std.U64 Std.U64}
+    {s : _root_.Std.HashMap Nat Nat} {c : name.Name} {i : Std.U64}
+    (hds : ∀ d ∈ ds.val, DeclarationWF d) (hidx : HoistIdxRel idx idxS)
+    (hib : HoistIdxBounded idxS ds.val.length) (hc : NameWF c)
+    (hi : i.val < ds.val.length)
+    (hrel : HoistTargetRel target s) (hb : HoistBounded s ds.val.length)
+    (h : frontend.nat_op_ground.hoist_targets_at ds idx target c i = ok target') :
+    HoistTargetRel target' (hoistTargetsAt (absDecls ds).toArray idxS i.val
+        (ConLeche.natOpDeps (absName c)) s) ∧
+      HoistBounded (hoistTargetsAt (absDecls ds).toArray idxS i.val
+        (ConLeche.natOpDeps (absName c)) s) ds.val.length := by
+  rw [frontend.nat_op_ground.hoist_targets_at] at h
+  rw [bind_eq_ok_iff] at h
+  obtain ⟨gs, hgs, h⟩ := h
+  obtain ⟨hgsabs, hgswf⟩ := CoreK.nat_op_deps_refines hc hgs
+  have hm : (alloc.vec.Vec.len gs).val = gs.val.length := alloc.vec.Vec.len_val gs
+  have := hoist_targets_at_loop_refines hds hidx hib gs.val.length target target' s gs
+    (alloc.vec.Vec.len gs) 0#usize i (by simp [hm]) hm.symm (by simp [hm]) hgswf hi hrel hb h
+  rw [show ((0#usize : Std.Usize).val) = 0 from rfl, List.drop_zero, hgsabs] at this
+  exact this
+
+/-- `ConLeche/Frontend/NatOpGround.lean:119-136` — `nat_op_ground::hoist_targets`'
+loop: the cited second `for i in [0:ds.size]` from `i` on. -/
+private theorem hoist_targets_loop_refines {ds : alloc.vec.Vec env.Declaration}
+    {idx : ron.hashmap.HashMap name.Name Std.U64}
+    {idxS : _root_.Std.HashMap ConLeche.Name Nat}
+    (hds : ∀ d ∈ ds.val, DeclarationWF d) (hidx : HoistIdxRel idx idxS)
+    (hib : HoistIdxBounded idxS ds.val.length) :
+    ∀ (f : Nat) (target target' : ron.hashmap.HashMap Std.U64 Std.U64)
+      (s : _root_.Std.HashMap Nat Nat) (n i : Std.Usize),
+      n.val - i.val ≤ f → n.val = ds.val.length → i.val ≤ n.val →
+      HoistTargetRel target s → HoistBounded s ds.val.length →
+      frontend.nat_op_ground.hoist_targets_loop ds idx target n i = ok target' →
+      HoistTargetRel target' (hoistTargetsGo (absDecls ds).toArray idxS
+          (List.range' i.val (n.val - i.val)) s) ∧
+        HoistBounded (hoistTargetsGo (absDecls ds).toArray idxS
+          (List.range' i.val (n.val - i.val)) s) ds.val.length := by
+  intro f
+  induction f with
+  | zero =>
+    intro target target' s n i hf hn hi hrel hb h
+    rw [frontend.nat_op_ground.hoist_targets_loop.eq_def,
+      if_neg (show ¬ i < n by scalar_tac), Result.ok.injEq] at h
+    rw [← h, show n.val - i.val = 0 by omega, List.range'_zero, hoistTargetsGo_nil]
+    exact ⟨hrel, hb⟩
+  | succ f ih =>
+    intro target target' s n i hf hn hi hrel hb h
+    rw [frontend.nat_op_ground.hoist_targets_loop.eq_def] at h
+    by_cases hlt : i.val < n.val
+    · rw [if_pos (show i < n by scalar_tac)] at h
+      rw [bind_eq_ok_iff] at h
+      obtain ⟨d, hd, h⟩ := h
+      rw [bind_eq_ok_iff] at h
+      obtain ⟨o, ho, h⟩ := h
+      rw [bind_eq_ok_iff] at h
+      obtain ⟨target1, htarget1, h⟩ := h
+      rw [bind_eq_ok_iff] at h
+      obtain ⟨i1, hi1, h⟩ := h
+      have hi1v : i1.val = i.val + 1 := by have := Nat.uadd_val hi1; simpa using this
+      have hdlt : i.val < ds.val.length := by omega
+      have hg : ds.val[i.val]? = some d := ExprOps.vec_index_getElem? hd
+      have hdx : ds.val[i.val] = d := by
+        rw [List.getElem?_eq_getElem hdlt] at hg; exact Option.some_injective _ hg
+      have hdwf : DeclarationWF d := by rw [← hdx]; exact hds _ (List.getElem_mem hdlt)
+      obtain ⟨hoabs, howf⟩ := is_nat_op_record_refines hdwf ho
+      rw [show n.val - i.val = (n.val - (i.val + 1)) + 1 by omega, List.range'_succ,
+        hoistTargetsGo_cons, absDecls_getElem! hg, ← hoabs, ← hi1v]
+      cases o with
+      | none =>
+        simp only [Option.map_none]
+        dsimp only at h htarget1 ⊢
+        simp only [Result.ok.injEq] at htarget1
+        rw [← htarget1] at h
+        exact ih target target' s n i1 (by omega) hn (by omega) hrel hb h
+      | some c =>
+        simp only [Option.map_some]
+        dsimp only at h htarget1 ⊢
+        rw [bind_eq_ok_iff] at htarget1
+        obtain ⟨ii, hii, htarget1⟩ := htarget1
+        rw [lift_eq] at hii
+        have hiiv : ii.val = i.val := by
+          rw [← Result.ok_injective hii]; exact Env.usize_cast_u64_val i
+        obtain ⟨hrel1, hb1⟩ := hoist_targets_at_refines hds hidx hib
+          (howf c rfl) (by omega) hrel hb htarget1
+        rw [hiiv] at hrel1 hb1
+        exact ih target1 target' _ n i1 (by omega) hn (by omega) hrel1 hb1 h
+    · rw [if_neg (show ¬ i < n by scalar_tac), Result.ok.injEq] at h
+      rw [← h, show n.val - i.val = 0 by omega, List.range'_zero, hoistTargetsGo_nil]
+      exact ⟨hrel, hb⟩
+
+/-- `ConLeche/Frontend/NatOpGround.lean:106-136` — **`nat_op_ground::hoist_targets`
+computes `hoistTargets`**, and its keys and values are positions of the stream.
+This was `HoistSpec`, the file's last hypothesis, and it is now proved. -/
+theorem hoist_targets_refines {ds : alloc.vec.Vec env.Declaration}
+    {t : ron.hashmap.HashMap Std.U64 Std.U64}
+    (hds : ∀ d ∈ ds.val, DeclarationWF d)
+    (h : frontend.nat_op_ground.hoist_targets ds = ok t) :
     HoistTargetRel t (ConLeche.Frontend.hoistTargets (absDecls ds).toArray) ∧
       HoistBounded (ConLeche.Frontend.hoistTargets (absDecls ds).toArray)
-        ds.val.length
+        ds.val.length := by
+  rw [frontend.nat_op_ground.hoist_targets] at h
+  rw [bind_eq_ok_iff] at h
+  obtain ⟨idx, hidx, h⟩ := h
+  rw [bind_eq_ok_iff] at h
+  obtain ⟨target0, htarget0, h⟩ := h
+  have hsize : (absDecls ds).toArray.size = ds.val.length := by
+    simp [absDecls]
+  have hrelidx := hoist_name_index_refines hds hidx
+  rw [hsize] at hrelidx
+  have hbidx : HoistIdxBounded (hoistIdx (absDecls ds).toArray
+      (List.range' 0 ds.val.length) ∅) ds.val.length := by
+    refine hoistIdx_bounded _ _ ∅ (fun i hi => by
+      rw [List.mem_range'_1] at hi; omega) ?_
+    intro g j hg; simp at hg
+  have hn : (alloc.vec.Vec.len ds).val = ds.val.length := alloc.vec.Vec.len_val ds
+  have := hoist_targets_loop_refines hds hrelidx hbidx ds.val.length target0 t ∅
+    (alloc.vec.Vec.len ds) 0#usize (by simp [hn]) hn.symm (by simp [hn])
+    (tgt_new htarget0) (by intro k v hk; simp at hk) h
+  rw [show ((0#usize : Std.Usize).val) = 0 from rfl, Nat.sub_zero, hn,
+    ← hsize, ← hoistTargets_split] at this
+  rw [hsize] at this
+  exact this
 
+/-! ### Nothing is left over
+
+This file's last hypothesis was `HoistSpec`, the `Refine/IndSpec.lean`-style
+`Prop` that the port's `hoist_targets` computes `hoistTargets`.  It is now the
+theorem `hoist_targets_refines` above, and **every theorem of this file is
+hypothesis-free**: `prepare_prelude_refines` asks for well-formedness of its
+input and nothing else. -/
 
 /-! ### The receipt -/
 
@@ -3783,7 +4035,7 @@ theorem apply_hoist_refines {ds : alloc.vec.Vec env.Declaration}
 /-- `ConLeche/Frontend/NatOpGround.lean:164-169` — **`nat_op_ground::hoist_nat_op_ground`
 refines `hoistNatOpGround`'s records**: either the target map is empty and the
 vector comes back untouched, or `apply_hoist` rebuilds it. -/
-theorem hoist_nat_op_ground_refines (hspec : HoistSpec)
+theorem hoist_nat_op_ground_refines
     {ds : alloc.vec.Vec env.Declaration}
     {r : (alloc.vec.Vec env.Declaration) × (alloc.vec.Vec name.Name)}
     (hds : ∀ d ∈ ds.val, DeclarationWF d)
@@ -3793,7 +4045,7 @@ theorem hoist_nat_op_ground_refines (hspec : HoistSpec)
   rw [frontend.nat_op_ground.hoist_nat_op_ground] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨target, htarget, i, hi, h⟩ := h
-  obtain ⟨hrel, hb⟩ := hspec.targets hds htarget
+  obtain ⟨hrel, hb⟩ := hoist_targets_refines hds htarget
   have hiv : i.val = (ConLeche.Frontend.hoistTargets (absDecls ds).toArray).size := by
     rw [(HashMap.len_refines hrel.inv hi).1, hrel.size]
   rw [ConLeche.Frontend.hoistNatOpGround]
@@ -3812,8 +4064,8 @@ theorem hoist_nat_op_ground_refines (hspec : HoistSpec)
 /-! ## The capstone
 
 `prepare::prepare_d` is `prepareD` and `prepare::prepare_prelude` is
-`preparePrelude`.  The hoist enters as a hypothesis, `HoistSpec` — see the
-section after this one for what is proved of it and what is not. -/
+`preparePrelude`.  The hoist's target map enters through
+`hoist_targets_refines`; there is no hypothesis left. -/
 
 /-- `ConLeche/Frontend/Prepare.lean:159-163` — `prepareD`'s records, with its
 two `let (a, b) := …` destructurings resolved (structure eta). -/
@@ -3827,7 +4079,7 @@ private theorem prepareD_decls (pre : ConLeche.Frontend.PreludeIx)
 /-- `ConLeche/Frontend/Prepare.lean:159-163` — **`prepare::prepare_d` refines
 `prepareD`**: the prepared records.  The other two fields are the driver's
 receipts (a count and the hoisted names) and no verdict reads them. -/
-theorem prepare_d_refines (hspec : HoistSpec) {pre : frontend.prepare.PreludeIx}
+theorem prepare_d_refines {pre : frontend.prepare.PreludeIx}
     {ds : alloc.vec.Vec env.Declaration} {p : frontend.prepare.Prepared}
     (hpre : PreludeIxWF pre) (hds : ∀ d ∈ ds.val, DeclarationWF d)
     (h : frontend.prepare.prepare_d pre ds = ok p) :
@@ -3859,13 +4111,13 @@ theorem prepare_d_refines (hspec : HoistSpec) {pre : frontend.prepare.PreludeIx}
     refine Array.ext' ?_
     rw [Array.toList_append, List.toList_toArray, hallabs, hkey]
   rw [prepareD_decls, harr]
-  exact hoist_nat_op_ground_refines hspec hallwf hhoist
+  exact hoist_nat_op_ground_refines hallwf hhoist
 
 /-- `ConLeche/Frontend/Prepare.lean:165-172` — **`prepare::prepare_prelude`
 refines `preparePrelude`**: the parsed stream, prepared for the fold, is
 con-leche's prepared stream record for record and in the same order.  This is
 what task #87's headline composes with. -/
-theorem prepare_prelude_refines (hspec : HoistSpec) {pre : frontend.prepare.PreludeIx}
+theorem prepare_prelude_refines {pre : frontend.prepare.PreludeIx}
     {ds out : alloc.vec.Vec env.Declaration}
     (hpre : PreludeIxWF pre) (hds : ∀ d ∈ ds.val, DeclarationWF d)
     (h : frontend.prepare.prepare_prelude pre ds = ok out) :
@@ -3875,7 +4127,7 @@ theorem prepare_prelude_refines (hspec : HoistSpec) {pre : frontend.prepare.Prel
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨p, hp, hout⟩ := h
   rw [← hout, ConLeche.Frontend.preparePrelude]
-  exact prepare_d_refines hspec hpre hds hp
+  exact prepare_d_refines hpre hds hp
 
 
 
@@ -3883,9 +4135,10 @@ theorem prepare_prelude_refines (hspec : HoistSpec) {pre : frontend.prepare.Prel
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
 Every theorem of this file is a plain forward argument over the generated model
-and reaches past nothing but Lean's own three axioms.  `HoistSpec` is a
-*hypothesis*, not an axiom: it appears in the statement of everything that
-needs it. -/
+and reaches past nothing but Lean's own three axioms.  The file's one-time
+hypothesis `HoistSpec` is gone: `hoist_targets_refines` proves it, and the
+capstone `prepare_prelude_refines` carries no hypothesis but its input's
+well-formedness. -/
 
 /-- info: 'ConRon.Refine.Frontend.prepare_prelude_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms prepare_prelude_refines
