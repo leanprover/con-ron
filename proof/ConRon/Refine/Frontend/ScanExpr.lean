@@ -35,12 +35,29 @@ Agent L (`ScanLine.lean`) consumes exactly these six, one per `scan*Expr` of
         (h : frontend.scan_fast.scan_proj_expr b i = ok o) :
         ScanSim absExprRec o (scanProjExpr (absBytes b) (absPos i))
 
-Each is `<name>_of (kitFacts b) h`, where `<name>_of` carries `ScanObj`'s
-`KitFacts b` — the bundle of the three `ScanKit` leaf facts the member step
-needs (`key_end`, `value_at`, `key_at`).  `ScanKit` has the first two; while
-it still owes **`key_at_refines`** only the `_of` form is provable and the
-hypothesis-free six are absent.  They appear the moment `key_at` lands and
-`KitFacts b` can be built.
+Every one is **proved**, and every one is `<name>_of` applied to the two leaf
+facts the tier still owes:
+
+* `kf : KitFacts b` — `ScanObj`'s bundle of the three `ScanKit` leaves the
+  member step needs.  `ScanKit` has `key_end_refines` and `value_at_refines`;
+  it still owes **`key_at_refines`**.
+* `hbi : BinderInfoRefines b` — `scan_fast::scan_binder_info` against
+  `Scan/Fast.lean:657-666 scanBinderInfo`, which is `ScanStr`'s
+  `scan_binder_info_refines`.  Only the two binder lemmas take it.
+
+So the shipped names today are
+
+    scan_app_expr_refines_of    (kf)        h
+    scan_proj_expr_refines_of   (kf)        h
+    scan_const_expr_refines_of  (kf)        h
+    scan_let_expr_refines_of    (kf)        h
+    scan_lam_expr_refines_of    (kf) (hbi)  h
+    scan_forall_expr_refines_of (kf) (hbi)  h
+
+and the six hypothesis-free statements above are three lines each — `fun h =>
+<name>_of (kitFacts b) h` — the moment `ScanKit.key_at_refines` and
+`ScanStr.scan_binder_info_refines` land.  Nothing else in this file is
+waiting on anything.
 
 **The port's one binder loop against con-leche's two.**
 `scan_binder_expr_loop(b, i, lam)` is `scanLamExprLoop` when `lam` and
