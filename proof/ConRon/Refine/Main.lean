@@ -695,16 +695,17 @@ elaborate, `AENEAS_FINDINGS.md` §3.8) costs this theorem nothing.
 * `hgen : Frontend.ModellerWF inst g` — phase 1's promise about the unverified
   modeller (task #84's seam): every declaration `in_model_rec::Modeller
   ::generate` returns is well formed.  It is what discharges the fold's `hds`.
-* `hu : Frontend.Utf8DecodeSpec`, `hun : Frontend.UnescapeSpec`,
-  `hsp : Frontend.IndRSpec inst g` and `hspec : Frontend.HoistSpec` — phase 3's
-  outstanding ingredients, stated as hypotheses rather than assumed as axioms
-  (the `Refine/IndSpec.lean` idiom).  The first three are the *whole* residue in
-  front of the port's streaming parse: `Frontend.parseIngredients`
-  (`Refine/Frontend/ChunksR.lean`) builds the nine-field `ParseIngredients`
-  record out of them, so the parse hypothesis is three named `Prop`s with
-  owners — the string tier owes the first two, the inductive tier the third —
-  and not a record somebody must assemble.  `hspec` is the hoist's target pass
-  (`PrepareR.lean:1629`).  Discharging the four is what is left of task #87.
+* `hu : Frontend.Utf8DecodeSpec`, `hun : Frontend.UnescapeSpec` and
+  `hsp : Frontend.IndRSpec inst g` — phase 3's outstanding ingredients, stated
+  as hypotheses rather than assumed as axioms (the `Refine/IndSpec.lean`
+  idiom).  They are the *whole* residue in front of the port's streaming parse:
+  `Frontend.parseIngredients` (`Refine/Frontend/ChunksR.lean`) builds the
+  nine-field `ParseIngredients` record out of them, so the parse hypothesis is
+  three named `Prop`s with owners — the string tier owes the first two, the
+  inductive tier the third — and not a record somebody must assemble.  The
+  prepare step is no longer among them: the hoist's target pass is the theorem
+  `Frontend.hoist_targets_refines`, so `prepare_prelude_refines` is
+  hypothesis-free.  Discharging the three is what is left of task #87.
 * The driver: that `con_ron::driver` calls `parse_chunks`, `prepare_prelude`
   and `check_decls` on the stream it was handed, in this order — the same
   unverified line `conron.model_exists_decoded` already owes for the pins.
@@ -717,16 +718,16 @@ Nothing else: the census below is Lean's own three axioms.
 prelude, as `conron.model_exists_parsed` is: `hpre` is the port's own parse of
 *some* prelude bytes, never identified with con-leche's `builtinPreludeE`.
 
-It carries `hgen` (the modeller's promise, phase 1), `hu`/`hun`/`hsp`/`hspec`
-(phase 3's outstanding ingredients — the parse's three named `Prop`s, through
-`Frontend.parseIngredients`, and the hoist's), `hp` (a decode run), `hpre` (the
+It carries `hgen` (the modeller's promise, phase 1), `hu`/`hun`/`hsp` (phase
+3's outstanding ingredients — the parse's three named `Prop`s, through
+`Frontend.parseIngredients`), `hp` (a decode run), `hpre` (the
 prelude's parse), `hparse` (the stream's parse), `hprep` (the prepare step) and
 `h` (the check run) — and no hypothesis about well-formedness at all. -/
 theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
     {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
     (hgen : Frontend.ModellerWF inst g)
     (hu : Frontend.Utf8DecodeSpec) (hun : Frontend.UnescapeSpec)
-    (hsp : Frontend.IndRSpec inst g) (hspec : Frontend.HoistSpec)
+    (hsp : Frontend.IndRSpec inst g)
     {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hp : kernel.pins_decode.decode text = ok (.Ok pins))
     {prelude_bytes : Slice Std.U8} {pre : frontend.export_c.ParseResultD}
@@ -750,7 +751,7 @@ theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
   have hrwf : ∀ d ∈ r.decls.val, DeclarationWF d := Frontend.parse_chunks_wf hgen hparse
   have hmem' : ConLeche.Declaration.thmDecl cv vl
       ∈ (⟨ds.val.map absDeclaration⟩ : Array ConLeche.Declaration) := by
-    have hpp := Frontend.prepare_prelude_refines hspec hprel hrwf hprep
+    have hpp := Frontend.prepare_prelude_refines hprel hrwf hprep
     refine Array.mem_toList_iff.mp ?_
     show ConLeche.Declaration.thmDecl cv vl ∈ Frontend.absDecls ds
     rw [hpp]
@@ -778,7 +779,7 @@ theorem conron.no_False_declaration_prelude (V : Type w) [ConLeche.SetTheory V]
     {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
     (hgen : Frontend.ModellerWF inst g)
     (hu : Frontend.Utf8DecodeSpec) (hun : Frontend.UnescapeSpec)
-    (hsp : Frontend.IndRSpec inst g) (hspec : Frontend.HoistSpec)
+    (hsp : Frontend.IndRSpec inst g)
     {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
     (hp : kernel.pins_decode.decode text = ok (.Ok pins))
     {pre : frontend.prepare.PreludeIx}
@@ -800,7 +801,7 @@ theorem conron.no_False_declaration_prelude (V : Type w) [ConLeche.SetTheory V]
   have hrwf : ∀ d ∈ r.decls.val, DeclarationWF d := Frontend.parse_chunks_wf hgen hparse
   have hmem' : ConLeche.Declaration.thmDecl cv vl
       ∈ (⟨ds.val.map absDeclaration⟩ : Array ConLeche.Declaration) := by
-    have hpp := Frontend.prepare_prelude_refines hspec hprel hrwf hprep
+    have hpp := Frontend.prepare_prelude_refines hprel hrwf hprep
     refine Array.mem_toList_iff.mp ?_
     show ConLeche.Declaration.thmDecl cv vl ∈ Frontend.absDecls ds
     rw [hpp]
