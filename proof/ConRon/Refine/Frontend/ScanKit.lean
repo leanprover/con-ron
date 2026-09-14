@@ -73,6 +73,17 @@ The idiom for a byte test is therefore `have : (absByte c == 34) = false := by
 simp; scalar_tac` -- `simp` turns the `BEq` on `UInt8` into a `Nat` equation
 and `scalar_tac` takes it back to the port's `c = 34#u8`.
 
+**And the `*_eq` unfoldings this file owns** (`Refine/README.md`'s rule): one
+statement each of con-leche's recursive readers, unfolded once at a port
+position, which is what every loop induction above them needs --
+
+    skipWs_eq, skipDigits_eq, matchLit_eq, keyEnd_eq, hasEscape_eq,
+    strClose_eq, newlineFrom_eq, readNat_eq, readNat64_eq, skipBraced_eq
+
+each of the shape `f (absBytes b) (absPos i) = if i.val < b.val.length then …
+else …`, with the byte read as `absByte (pByteAt b i.val)` and the step as
+`absPos i + 1`.
+
 ## The two definitions this file adds
 
 * **`litFrom B p cs`** -- `keyAt` does NOT call `matchLit`: it compares a key's
@@ -386,7 +397,7 @@ that hypothesis, and it is what a `[u8; N]` key constant discharges by
   · intro h; rw [h]
 
 /-- `matchLit` over an abstracted literal, unfolded once. -/
-private theorem matchLit_eq (b lit : Slice Std.U8) (p : USize) (k : Std.Usize) :
+theorem matchLit_eq (b lit : Slice Std.U8) (p : USize) (k : Std.Usize) :
     matchLit (absBytes b) p (absBytes lit) (absPos k) =
       if k.val < lit.val.length then
         (if p.toNat < b.val.length then
@@ -787,7 +798,7 @@ private theorem litFrom_11 (B : ByteArray) (q : USize) (c0 c1 c2 c3 c4 c5 c6 c7 
 tests `c < 32` and `c == 92` in two `if`s where the Lean writes one `||`. -/
 
 /-- `keyEnd` at a port position, unfolded once. -/
-private theorem keyEnd_eq (b : Slice Std.U8) (j : Std.Usize) :
+theorem keyEnd_eq (b : Slice Std.U8) (j : Std.Usize) :
     keyEnd (absBytes b) (absPos j) =
       (if j.val < b.val.length then
         (if absByte (pByteAt b j.val) == 34 then absPos j
@@ -2135,7 +2146,7 @@ theorem dup_eq {seen bit : Std.U32} {r : Bool}
 
 `scan_fast.rs:4125-4134` against `Scan/Fast.lean:2639-2642` (`newlineFrom`). -/
 
-private theorem newlineFrom_eq (b : Slice Std.U8) (i : Std.Usize) :
+theorem newlineFrom_eq (b : Slice Std.U8) (i : Std.Usize) :
     newlineFrom (absBytes b) (absPos i) =
       (if i.val < b.val.length then
         (absByte (pByteAt b i.val) == 10 || newlineFrom (absBytes b) (absPos i + 1))
@@ -2192,7 +2203,7 @@ theorem newline_from_refines {b : Slice Std.U8} {i : Std.Usize} {r : Bool}
 
 `scan_fast.rs:825-834` against `Scan/Fast.lean:525-534` (`hasEscape`). -/
 
-private theorem hasEscape_eq (b : Slice Std.U8) (j e : Std.Usize) :
+theorem hasEscape_eq (b : Slice Std.U8) (j e : Std.Usize) :
     hasEscape (absBytes b) (absPos j) (absPos e) =
       (if j.val < b.val.length then
         (if j.val < e.val then
@@ -2275,7 +2286,7 @@ private theorem absPos_add_two {i j : Std.Usize} (h : i + 2#usize = ok j) :
   simp only [USize.toNat_add, absPos_toNat, uT2, hv]
   exact (Nat.mod_eq_of_lt hb).symm
 
-private theorem strClose_eq (b : Slice Std.U8) (j : Std.Usize) :
+theorem strClose_eq (b : Slice Std.U8) (j : Std.Usize) :
     strClose (absBytes b) (absPos j) =
       (if j.val < b.val.length then
         (if absByte (pByteAt b j.val) == 34 then absPos j
@@ -2465,7 +2476,7 @@ private theorem skipDigits_stop {b : Slice Std.U8} {k e : Std.Usize}
 
 /-! ### The two accumulations, unfolded once -/
 
-private theorem readNat64_eq (b : Slice Std.U8) (k e : Std.Usize) (accL : UInt64) :
+theorem readNat64_eq (b : Slice Std.U8) (k e : Std.Usize) (accL : UInt64) :
     readNat64 (absBytes b) (absPos k) (absPos e) accL =
       (if k.val < b.val.length then
         (if k.val < e.val then
@@ -2902,7 +2913,7 @@ private theorem strClose_ge (b : Slice Std.U8) (f : Nat) :
 
 /-! ## `skip_braced` -/
 
-private theorem skipBraced_eq (b : Slice Std.U8) (i : Std.Usize) (depth : Nat) :
+theorem skipBraced_eq (b : Slice Std.U8) (i : Std.Usize) (depth : Nat) :
     skipBraced (absBytes b) (absPos i) depth =
       (if i.val < b.val.length then
         (if absByte (pByteAt b i.val) == 34 then
