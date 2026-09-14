@@ -2789,6 +2789,451 @@ private theorem hoistClose_eq (ds : _root_.Array ConLeche.Declaration)
       · simp only [if_neg hti]; rfl
   · rw [dif_neg hs, dif_neg hs]; rfl
 
+/-! ### The name index
+
+`nat_op_ground::hoist_name_index` is the cited first `for i in [0:ds.size]`:
+every name a record declares, mapped to the index of the record declaring it
+(the first, on a duplicate). -/
+
+/-- A record of the stream, abstracted (`ds[i]!` on con-leche's side). -/
+private theorem absDecls_getElem! {ds : alloc.vec.Vec env.Declaration} {i : Nat}
+    (h : i < ds.val.length) :
+    (absDecls ds).toArray[i]! = absDeclaration ds.val[i] := by
+  have hsome : (absDecls ds).toArray[i]? = some (absDeclaration ds.val[i]) := by
+    simp only [absDecls, List.getElem?_toArray, List.getElem?_eq_getElem
+      (show i < (ds.val.map absDeclaration).length by simpa using h), List.getElem_map]
+  rw [getElem!_def, hsome]
+
+/-- A fresh name index is the empty map. -/
+private theorem idx_new {idx : ron.hashmap.HashMap name.Name Std.U64}
+    (h : ron.hashmap.HashMap.new name.Name Std.U64 = ok idx) :
+    HoistIdxRel idx (∅ : _root_.Std.HashMap ConLeche.Name Nat) := by
+  obtain ⟨hinv, halv, hnone⟩ := HashMap.new_refines (HashableInst := idxHashable) h
+  refine ⟨hinv, ?_, ?_⟩
+  · intro p hp; rw [halv] at hp; simp at hp
+  · intro n _; rw [hnone n]; simp
+
+/-- The name index's probe. -/
+private theorem idx_contains {idx : ron.hashmap.HashMap name.Name Std.U64}
+    {s : _root_.Std.HashMap ConLeche.Name Nat} {n : name.Name} {b : Bool}
+    (hrel : HoistIdxRel idx s) (hn : NameWF n)
+    (h : ron.hashmap.HashMap.contains_key idxHashable idxEq2 idx n = ok b) :
+    b = s.contains (absName n) := by
+  rw [ron.hashmap.HashMap.contains_key] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨o, hget, hb⟩ := h
+  rw [HashMap.get_refines_wf idx_eq2_fwd hrel.inv hrel.keys hn hget] at hb
+  have hk := hrel.get n hn
+  cases ho : HashMap.toFun idx n with
+  | none =>
+    rw [ho] at hb hk
+    simp only [Option.map_none] at hk
+    simp only [Result.ok.injEq] at hb
+    rw [← hb, _root_.Std.HashMap.contains_eq_isSome_getElem?, ← hk]; simp
+  | some v =>
+    rw [ho] at hb hk
+    simp only [Option.map_some] at hk
+    simp only [Result.ok.injEq] at hb
+    rw [← hb, _root_.Std.HashMap.contains_eq_isSome_getElem?, ← hk]; simp
+
+/-- The name index's insert. -/
+private theorem idx_insert {idx idx' : ron.hashmap.HashMap name.Name Std.U64}
+    {s : _root_.Std.HashMap ConLeche.Name Nat} {n : name.Name} {v : Std.U64}
+    {old : Option Std.U64}
+    (hrel : HoistIdxRel idx s) (hn : NameWF n)
+    (h : ron.hashmap.HashMap.insert idxHashable idxEq2 idx n v = ok (old, idx')) :
+    HoistIdxRel idx' (s.insert (absName n) v.val) := by
+  obtain ⟨hinv', -, hupd, hkeys'⟩ :=
+    HashMap.insert_refines_wf idx_eq2_fwd hrel.inv hrel.keys hn h
+  refine ⟨hinv', hkeys', ?_⟩
+  intro k hk
+  rw [hupd, Function.update_apply, _root_.Std.HashMap.getElem?_insert]
+  by_cases hke : k = n
+  · subst hke; simp
+  · rw [if_neg hke, hrel.get k hk]
+    have hne : ¬ (absName n = absName k) := by
+      intro hc; exact hke (Name.absName_injective hk hn hc.symm)
+    simp [hne]
+
+/-- `ConLeche/Frontend/NatOpGround.lean:113-115` — `hoist_name_index`' inner
+loop: the cited `for n in ds[i]!.names` from `j` on. -/
+private theorem hoist_name_index_loop0_loop0_refines :
+    ∀ (f : Nat) (idx : ron.hashmap.HashMap name.Name Std.U64)
+      (s : _root_.Std.HashMap ConLeche.Name Nat) (i : Std.Usize)
+      (ns : alloc.vec.Vec name.Name) (m j : Std.Usize)
+      (idx' : ron.hashmap.HashMap name.Name Std.U64),
+      m.val - j.val ≤ f → m.val = ns.val.length → j.val ≤ m.val →
+      NamesWF ns → HoistIdxRel idx s →
+      frontend.nat_op_ground.hoist_name_index_loop0_loop0 idx i ns m j = ok idx' →
+      HoistIdxRel idx' (hoistIdxNames i.val ((absNames ns).drop j.val) s) := by
+  intro f
+  induction f with
+  | zero =>
+    intro idx s i ns m j idx' hf hm hj hns hrel h
+    rw [frontend.nat_op_ground.hoist_name_index_loop0_loop0.eq_def,
+      if_neg (show ¬ j < m by scalar_tac), Result.ok.injEq] at h
+    rw [← h, show (absNames ns).drop j.val = [] from by
+      rw [List.drop_eq_nil_iff]; simp only [absNames, List.length_map]; omega]
+    exact hrel
+  | succ f ih =>
+    intro idx s i ns m j idx' hf hm hj hns hrel h
+    rw [frontend.nat_op_ground.hoist_name_index_loop0_loop0.eq_def] at h
+    by_cases hlt : j.val < m.val
+    · rw [if_pos (show j < m by scalar_tac)] at h
+      rw [bind_eq_ok_iff] at h
+      obtain ⟨n, hn, h⟩ := h
+      rw [bind_eq_ok_iff] at h
+      obtain ⟨b, hb, h⟩ := h
+      rw [bind_eq_ok_iff] at h
+      obtain ⟨idx1, hidx1, h⟩ := h
+      rw [bind_eq_ok_iff] at h
+      obtain ⟨j1, hj1, h⟩ := h
+      have hj1v : j1.val = j.val + 1 := by have := Nat.uadd_val hj1; simpa using this
+      have hnlt : j.val < ns.val.length := by omega
+      have hnx : ns.val[j.val] = n := by
+        have hg := ExprOps.vec_index_getElem? hn
+        rw [List.getElem?_eq_getElem hnlt] at hg; exact Option.some_injective _ hg
+      have hnwf : NameWF n := by rw [← hnx]; exact hns _ (List.getElem_mem hnlt)
+      have hbv : b = s.contains (absName n) := idx_contains hrel hnwf hb
+      have hdrop : (absNames ns).drop j.val = absName n :: (absNames ns).drop (j.val + 1) := by
+        have hlen : j.val < (absNames ns).length := by
+          simp only [absNames, List.length_map]; omega
+        rw [List.drop_eq_getElem_cons hlen]
+        simp only [absNames, List.getElem_map, hnx]
+      rw [hdrop, hoistIdxNames_cons, ← hj1v]
+      refine ih idx1 _ i ns m j1 idx' (by omega) hm (by omega) hns ?_ h
+      by_cases hbb : b = true
+      · subst hbb
+        simp only [reduceIte, Result.ok.injEq] at hidx1
+        rw [← hidx1, if_neg (by simp [← hbv])]
+        exact hrel
+      · simp only [Bool.not_eq_true] at hbb
+        subst hbb
+        simp only [Bool.false_eq_true, reduceIte, bind_eq_ok_iff, lift_eq] at hidx1
+        obtain ⟨n1, hn1, i1, hi1, ⟨old, idx2⟩, hins, hidx2⟩ := hidx1
+        replace hidx2 : idx2 = idx1 := Result.ok_injective hidx2
+        have hn1x : n1 = n := by rw [name_dup_eq] at hn1; exact (Result.ok_injective hn1).symm
+        subst hn1x
+        have hi1v : i1.val = i.val := by
+          rw [← Result.ok_injective hi1]; exact Env.usize_cast_u64_val i
+        rw [← hidx2, if_pos (by simp [← hbv]), ← hi1v]
+        exact idx_insert hrel hnwf hins
+    · rw [if_neg (show ¬ j < m by scalar_tac), Result.ok.injEq] at h
+      rw [← h, show (absNames ns).drop j.val = [] from by
+        rw [List.drop_eq_nil_iff]; simp only [absNames, List.length_map]; omega]
+      exact hrel
+
+/-- `ConLeche/Frontend/NatOpGround.lean:112-115` — `hoist_name_index`' outer
+loop: the cited `for i in [0:ds.size]` from `i` on. -/
+private theorem hoist_name_index_loop0_refines {ds : alloc.vec.Vec env.Declaration}
+    (hds : ∀ d ∈ ds.val, DeclarationWF d) :
+    ∀ (f : Nat) (idx : ron.hashmap.HashMap name.Name Std.U64)
+      (s : _root_.Std.HashMap ConLeche.Name Nat) (n i : Std.Usize)
+      (idx' : ron.hashmap.HashMap name.Name Std.U64),
+      n.val - i.val ≤ f → n.val = ds.val.length → i.val ≤ n.val →
+      HoistIdxRel idx s →
+      frontend.nat_op_ground.hoist_name_index_loop0 ds idx n i = ok idx' →
+      HoistIdxRel idx' (hoistIdx (absDecls ds).toArray
+        (List.range' i.val (n.val - i.val)) s) := by
+  intro f
+  induction f with
+  | zero =>
+    intro idx s n i idx' hf hn hi hrel h
+    rw [frontend.nat_op_ground.hoist_name_index_loop0.eq_def,
+      if_neg (show ¬ i < n by scalar_tac), Result.ok.injEq] at h
+    rw [← h, show n.val - i.val = 0 by omega, List.range'_zero, hoistIdx_nil]
+    exact hrel
+  | succ f ih =>
+    intro idx s n i idx' hf hn hi hrel h
+    rw [frontend.nat_op_ground.hoist_name_index_loop0.eq_def] at h
+    by_cases hlt : i.val < n.val
+    · rw [if_pos (show i < n by scalar_tac)] at h
+      rw [bind_eq_ok_iff] at h
+      obtain ⟨d, hd, h⟩ := h
+      rw [bind_eq_ok_iff] at h
+      obtain ⟨ns, hns, h⟩ := h
+      rw [bind_eq_ok_iff] at h
+      obtain ⟨idx1, hidx1, h⟩ := h
+      rw [bind_eq_ok_iff] at h
+      obtain ⟨i1, hi1, h⟩ := h
+      have hi1v : i1.val = i.val + 1 := by have := Nat.uadd_val hi1; simpa using this
+      have hdlt : i.val < ds.val.length := by omega
+      have hdx : ds.val[i.val] = d := by
+        have hg := ExprOps.vec_index_getElem? hd
+        rw [List.getElem?_eq_getElem hdlt] at hg; exact Option.some_injective _ hg
+      have hdwf : DeclarationWF d := by rw [← hdx]; exact hds _ (List.getElem_mem hdlt)
+      obtain ⟨hnsabs, hnswf⟩ := declaration_names_refines hdwf hns
+      have hm : (alloc.vec.Vec.len ns).val = ns.val.length := alloc.vec.Vec.len_val ns
+      have hstep : HoistIdxRel idx1 (hoistIdxNames i.val (absNames ns) s) := by
+        have := hoist_name_index_loop0_loop0_refines ns.val.length idx s i ns
+          (alloc.vec.Vec.len ns) 0#usize idx1 (by simp [hm]) hm.symm (by simp [hm])
+          hnswf hrel hidx1
+        simpa only [show ((0#usize : Std.Usize).val) = 0 from rfl, List.drop_zero] using this
+      rw [show n.val - i.val = (n.val - (i.val + 1)) + 1 by omega, List.range'_succ,
+        hoistIdx_cons, absDecls_getElem! hdlt, hdx, ← hnsabs, ← hi1v]
+      exact ih idx1 _ n i1 idx' (by omega) hn (by omega) hstep h
+    · rw [if_neg (show ¬ i < n by scalar_tac), Result.ok.injEq] at h
+      rw [← h, show n.val - i.val = 0 by omega, List.range'_zero, hoistIdx_nil]
+      exact hrel
+
+/-- `ConLeche/Frontend/NatOpGround.lean:112-115` — **`nat_op_ground::hoist_name_index`
+refines the cited name index.** -/
+private theorem hoist_name_index_refines {ds : alloc.vec.Vec env.Declaration}
+    {idx : ron.hashmap.HashMap name.Name Std.U64}
+    (hds : ∀ d ∈ ds.val, DeclarationWF d)
+    (h : frontend.nat_op_ground.hoist_name_index ds = ok idx) :
+    HoistIdxRel idx (hoistIdx (absDecls ds).toArray
+      (List.range' 0 (absDecls ds).toArray.size) ∅) := by
+  rw [frontend.nat_op_ground.hoist_name_index] at h
+  rw [bind_eq_ok_iff] at h
+  obtain ⟨idx0, hidx0, h⟩ := h
+  have hn : (alloc.vec.Vec.len ds).val = ds.val.length := alloc.vec.Vec.len_val ds
+  have := hoist_name_index_loop0_refines hds ds.val.length idx0 ∅
+    (alloc.vec.Vec.len ds) 0#usize idx (by simp [hn]) hn.symm (by simp [hn])
+    (idx_new hidx0) h
+  simpa only [show ((0#usize : Std.Usize).val) = 0 from rfl, Nat.sub_zero, hn,
+    absDecls, List.size_toArray, List.length_map] using this
+
+/-! ### The closure worklist's pushes
+
+`nat_op_ground::hoist_push_deps` is the cited `for n in ds[k]!.usedConsts do if
+let some m := idx[n]? then …`, and `hoist_push_dep` its body (task #13's owning
+probe again: the index's borrow must not reach the branch).  The port's
+worklist is a `Vec<u64>` with a top-of-stack index where con-leche's is an
+`Array Nat`, so the two are matched by `stack[0:sp]`. -/
+
+/-- Every value the name index holds is a position of the stream. -/
+private def HoistIdxBounded (s : _root_.Std.HashMap ConLeche.Name Nat) (n : Nat) : Prop :=
+  ∀ (g : ConLeche.Name) (j : Nat), s[g]? = some j → j < n
+
+private theorem hoistIdxNames_bounded {i n : Nat} (hi : i < n) :
+    ∀ (ns : List ConLeche.Name) (s : _root_.Std.HashMap ConLeche.Name Nat),
+      HoistIdxBounded s n → HoistIdxBounded (hoistIdxNames i ns s) n := by
+  intro ns
+  induction ns with
+  | nil => intro s hs; rw [hoistIdxNames_nil]; exact hs
+  | cons x xs ih =>
+    intro s hs
+    rw [hoistIdxNames_cons]
+    refine ih _ ?_
+    by_cases hc : s.contains x = true
+    · simp only [hc, Bool.not_true, Bool.false_eq_true, reduceIte]; exact hs
+    · simp only [Bool.not_eq_true] at hc
+      simp only [hc, Bool.not_false, reduceIte]
+      rw [HoistIdxBounded]
+      intro g j hg
+      rw [_root_.Std.HashMap.getElem?_insert] at hg
+      by_cases hgx : (x == g) = true
+      · rw [if_pos hgx] at hg; rw [← Option.some_injective _ hg]; exact hi
+      · rw [if_neg hgx] at hg; exact hs g j hg
+
+private theorem hoistIdx_bounded {n : Nat} (ds : _root_.Array ConLeche.Declaration) :
+    ∀ (l : List Nat) (s : _root_.Std.HashMap ConLeche.Name Nat),
+      (∀ i ∈ l, i < n) → HoistIdxBounded s n → HoistIdxBounded (hoistIdx ds l s) n := by
+  intro l
+  induction l with
+  | nil => intro s _ hs; rw [hoistIdx_nil]; exact hs
+  | cons x xs ih =>
+    intro s hl hs
+    rw [hoistIdx_cons]
+    exact ih _ (fun i hi => hl i (List.mem_cons_of_mem _ hi))
+      (hoistIdxNames_bounded (hl x (List.mem_cons_self ..)) _ s hs)
+
+/-- `stack_push_expr_take` for the closure walk's `u64` stack (the port has the
+two pushes separately: Rust has no generic here — §3.4's monomorphic rule). -/
+private theorem stack_push_u64_take {stack stack' : alloc.vec.Vec Std.U64}
+    {sp sp' : Std.Usize} {x : Std.U64} (hsp : sp.val ≤ stack.val.length)
+    (h : frontend.nat_op_ground.stack_push_u64 stack sp x = ok (stack', sp')) :
+    sp'.val = sp.val + 1 ∧ sp'.val ≤ stack'.val.length ∧
+      stack'.val.take sp'.val = stack.val.take sp.val ++ [x] := by
+  rw [frontend.nat_op_ground.stack_push_u64] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨v, hv, i, hi, hr⟩ := h
+  have hiv : i.val = sp.val + 1 := by have := Nat.uadd_val hi; simpa using this
+  have he := Result.ok_injective hr
+  have hv' : stack' = v := (congrArg Prod.fst he).symm
+  have hi' : sp' = i := (congrArg Prod.snd he).symm
+  subst hv'; subst hi'
+  refine ⟨hiv, ?_, ?_⟩ <;> rw [hiv] <;> revert hv <;> split <;> intro hv
+  · rename_i hlt
+    have hlt' : sp.val < stack.val.length := by scalar_tac
+    simp only [bind_eq_ok_iff] at hv
+    obtain ⟨p, hidx, hok⟩ := hv
+    obtain ⟨a, back⟩ := p
+    rw [push_index_mut_back hidx] at hok
+    rw [← Result.ok_injective hok, alloc.vec.Vec.set_val_eq, List.length_set]
+    omega
+  · rw [vec_push_val hv]; simpa using hsp
+  · rename_i hlt
+    have hlt' : sp.val < stack.val.length := by scalar_tac
+    simp only [bind_eq_ok_iff] at hv
+    obtain ⟨p, hidx, hok⟩ := hv
+    obtain ⟨a, back⟩ := p
+    rw [push_index_mut_back hidx] at hok
+    rw [← Result.ok_injective hok, alloc.vec.Vec.set_val_eq, take_set_succ hlt']
+  · rename_i hge
+    have hlen : sp.val = stack.val.length := by scalar_tac
+    rw [vec_push_val hv, hlen]
+    simp
+
+/-- `ConLeche/Frontend/NatOpGround.lean:134-136` — **`nat_op_ground::hoist_push_dep`
+refines the cited `if let some m := idx[n]? then if m > i && m != k then
+stack := stack.push m`.** -/
+private theorem hoist_push_dep_refines {idx : ron.hashmap.HashMap name.Name Std.U64}
+    {s : _root_.Std.HashMap ConLeche.Name Nat} {n : name.Name}
+    {stack stack' : alloc.vec.Vec Std.U64} {sp sp' : Std.Usize} {i k : Std.U64}
+    {a : _root_.Array Nat}
+    (hrel : HoistIdxRel idx s) (hn : NameWF n) (hsp : sp.val ≤ stack.val.length)
+    (ha : (stack.val.take sp.val).map (·.val) = a.toList)
+    (h : frontend.nat_op_ground.hoist_push_dep idx n stack sp i k = ok (stack', sp')) :
+    sp'.val ≤ stack'.val.length ∧
+      (stack'.val.take sp'.val).map (·.val)
+        = (match s[absName n]? with
+           | some m => if m > i.val && m != k.val then a.push m else a
+           | none => a).toList := by
+  rw [frontend.nat_op_ground.hoist_push_dep] at h
+  rw [bind_eq_ok_iff] at h
+  obtain ⟨o, ho, h⟩ := h
+  have hov := idx_get_refines hrel hn ho
+  cases o with
+  | none =>
+    simp only [Option.map_none] at hov
+    rw [← hov]
+    dsimp only at h ⊢
+    simp only [Result.ok.injEq, Prod.mk.injEq] at h
+    rw [← h.1, ← h.2]
+    exact ⟨hsp, ha⟩
+  | some m =>
+    simp only [Option.map_some] at hov
+    rw [← hov]
+    dsimp only at h ⊢
+    by_cases hmi : m.val > i.val
+    · rw [if_pos (show m > i by scalar_tac)] at h
+      by_cases hmk : m.val = k.val
+      · have hmk' : m = k := Env.u64_val_inj hmk
+        rw [if_neg (by simp [hmk'])] at h
+        simp only [Result.ok.injEq, Prod.mk.injEq] at h
+        rw [← h.1, ← h.2]
+        refine ⟨hsp, ?_⟩
+        rw [ha]
+        simp [hmk]
+      · rw [if_pos (show m != k by simp only [bne_iff_ne, ne_eq]; intro hc; exact hmk (by rw [hc]))] at h
+        obtain ⟨h1, h2, h3⟩ := stack_push_u64_take hsp h
+        refine ⟨h2, ?_⟩
+        rw [h3]
+        simp only [List.map_append, List.map_cons, List.map_nil, ha]
+        simp only [decide_true, hmi, Bool.true_and]
+        rw [if_pos (by simp only [bne_iff_ne, ne_eq]; exact hmk), Array.toList_push]
+    · rw [if_neg (show ¬ m > i by scalar_tac)] at h
+      simp only [Result.ok.injEq, Prod.mk.injEq] at h
+      rw [← h.1, ← h.2]
+      refine ⟨hsp, ?_⟩
+      rw [ha]
+      simp [hmi]
+
+/-- `ConLeche/Frontend/NatOpGround.lean:133-136` — `nat_op_ground::hoist_push_deps`'
+loop: the cited `for n in ds[k]!.usedConsts` from `u` on. -/
+private theorem hoist_push_deps_loop_refines :
+    ∀ (f : Nat) (idx : ron.hashmap.HashMap name.Name Std.U64)
+      (s : _root_.Std.HashMap ConLeche.Name Nat) (used : alloc.vec.Vec name.Name)
+      (i k : Std.U64) (stack stack' : alloc.vec.Vec Std.U64) (sp sp' n u : Std.Usize)
+      (a : _root_.Array Nat),
+      n.val - u.val ≤ f → n.val = used.val.length → u.val ≤ n.val →
+      NamesWF used → HoistIdxRel idx s →
+      sp.val ≤ stack.val.length →
+      (stack.val.take sp.val).map (·.val) = a.toList →
+      frontend.nat_op_ground.hoist_push_deps_loop idx used i k stack sp n u = ok (stack', sp') →
+      sp'.val ≤ stack'.val.length ∧
+        (stack'.val.take sp'.val).map (·.val)
+          = (hoistPushDeps s i.val k.val ((absNames used).drop u.val) a).toList := by
+  intro f
+  induction f with
+  | zero =>
+    intro idx s used i k stack stack' sp sp' n u a hf hn hu hwf hrel hsp ha h
+    rw [frontend.nat_op_ground.hoist_push_deps_loop.eq_def,
+      if_neg (show ¬ u < n by scalar_tac), Result.ok.injEq, Prod.mk.injEq] at h
+    rw [← h.1, ← h.2, show (absNames used).drop u.val = [] from by
+      rw [List.drop_eq_nil_iff]; simp only [absNames, List.length_map]; omega,
+      hoistPushDeps_nil]
+    exact ⟨hsp, ha⟩
+  | succ f ih =>
+    intro idx s used i k stack stack' sp sp' n u a hf hn hu hwf hrel hsp ha h
+    rw [frontend.nat_op_ground.hoist_push_deps_loop.eq_def] at h
+    by_cases hlt : u.val < n.val
+    · rw [if_pos (show u < n by scalar_tac)] at h
+      rw [bind_eq_ok_iff] at h
+      obtain ⟨x, hx, h⟩ := h
+      rw [bind_pair_eq_ok_iff] at h
+      obtain ⟨stack1, sp1, hstep, h⟩ := h
+      rw [bind_eq_ok_iff] at h
+      obtain ⟨u1, hu1, h⟩ := h
+      have hu1v : u1.val = u.val + 1 := by have := Nat.uadd_val hu1; simpa using this
+      have hxlt : u.val < used.val.length := by omega
+      have hxx : used.val[u.val] = x := by
+        have hg := ExprOps.vec_index_getElem? hx
+        rw [List.getElem?_eq_getElem hxlt] at hg; exact Option.some_injective _ hg
+      have hxwf : NameWF x := by rw [← hxx]; exact hwf _ (List.getElem_mem hxlt)
+      obtain ⟨h1, h2⟩ := hoist_push_dep_refines hrel hxwf hsp ha hstep
+      have hdrop : (absNames used).drop u.val
+          = absName x :: (absNames used).drop (u.val + 1) := by
+        have hlen : u.val < (absNames used).length := by
+          simp only [absNames, List.length_map]; omega
+        rw [List.drop_eq_getElem_cons hlen]
+        simp only [absNames, List.getElem_map, hxx]
+      rw [hdrop, hoistPushDeps_cons, ← hu1v]
+      exact ih idx s used i k stack1 stack' sp1 sp' n u1 _ (by omega) hn (by omega)
+        hwf hrel h1 h2 h
+    · rw [if_neg (show ¬ u < n by scalar_tac), Result.ok.injEq, Prod.mk.injEq] at h
+      rw [← h.1, ← h.2, show (absNames used).drop u.val = [] from by
+        rw [List.drop_eq_nil_iff]; simp only [absNames, List.length_map]; omega,
+        hoistPushDeps_nil]
+      exact ⟨hsp, ha⟩
+
+/-- `ConLeche/Frontend/NatOpGround.lean:133-136` — **`nat_op_ground::hoist_push_deps`
+refines the cited `for n in ds[k]!.usedConsts`.** -/
+private theorem hoist_push_deps_refines {idx : ron.hashmap.HashMap name.Name Std.U64}
+    {s : _root_.Std.HashMap ConLeche.Name Nat} {used : alloc.vec.Vec name.Name}
+    {i k : Std.U64} {stack stack' : alloc.vec.Vec Std.U64} {sp sp' : Std.Usize}
+    {a : _root_.Array Nat}
+    (hwf : NamesWF used) (hrel : HoistIdxRel idx s)
+    (hsp : sp.val ≤ stack.val.length)
+    (ha : (stack.val.take sp.val).map (·.val) = a.toList)
+    (h : frontend.nat_op_ground.hoist_push_deps idx used stack sp i k = ok (stack', sp')) :
+    sp'.val ≤ stack'.val.length ∧
+      (stack'.val.take sp'.val).map (·.val)
+        = (hoistPushDeps s i.val k.val (absNames used) a).toList := by
+  rw [frontend.nat_op_ground.hoist_push_deps] at h
+  have hn : (alloc.vec.Vec.len used).val = used.val.length := alloc.vec.Vec.len_val used
+  have := hoist_push_deps_loop_refines used.val.length idx s used i k stack stack' sp sp'
+    (alloc.vec.Vec.len used) 0#usize a (by simp [hn]) hn.symm (by simp [hn]) hwf hrel hsp ha h
+  simpa only [show ((0#usize : Std.Usize).val) = 0 from rfl, List.drop_zero] using this
+
+/-- Every index the closure walk pushes comes from the name index, so it is a
+position of the stream. -/
+private theorem hoistPushDeps_bounded {s : _root_.Std.HashMap ConLeche.Name Nat} {N i k : Nat}
+    (hb : HoistIdxBounded s N) :
+    ∀ (ns : List ConLeche.Name) (a : _root_.Array Nat),
+      (∀ x ∈ a.toList, x < N) → ∀ x ∈ (hoistPushDeps s i k ns a).toList, x < N := by
+  intro ns
+  induction ns with
+  | nil => intro a ha; rw [hoistPushDeps_nil]; exact ha
+  | cons y ys ih =>
+    intro a ha
+    rw [hoistPushDeps_cons]
+    refine ih _ ?_
+    cases hy : s[y]? with
+    | none => simpa only [hy] using ha
+    | some m =>
+      dsimp only
+      by_cases hc : (decide (m > i) && m != k) = true
+      · rw [if_pos hc]
+        intro x hx
+        rw [Array.toList_push, List.mem_append] at hx
+        rcases hx with hx | hx
+        · exact ha x hx
+        · rw [List.mem_singleton.mp hx]; exact hb y m hy
+      · rw [if_neg hc]; exact ha
+
 /-! ### The residue
 
 **One** hypothesis, about the first half of the hoist; everything else of the
