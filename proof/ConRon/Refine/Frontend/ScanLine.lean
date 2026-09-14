@@ -36,17 +36,23 @@ own reading: a `*_body` equation saying that the con-leche loop **is**
 equation and leave side conditions; its `*_body` is the one that has to unfold
 with `scanLineLoop.eq_def`.
 
-## The ingredients
+## What is still assumed
 
-The record scanners this file dispatches to are proved elsewhere in the tier.
-Those that had not landed when this file did are stated as
-`ScanLineIngredients` — the `Refine/IndSpec.lean` pattern — and every lemma
-below is proved **from** it, together with `ScanObj.KitFacts` for the two
-`ScanKit` leaves (`key_at`, `value_at`) the skeleton needs.
+Two `Prop`s, and nothing else: `ScanStr`'s `Utf8DecodeSpec` and
+`UnescapeSpec` — `scan_fast::utf8_decode` and `scan_fast::unescape` against
+`String.fromUTF8?` and `Scan/Fast.lean:569-627 unescape` — which reach this
+file through `scan_string_refines`.  Every other scanner the loops dispatch to
+is proved: `ScanKit` (`byte_at`, `skip_ws`, `key_end`, `key_at`, `value_at`,
+`skip_braced`, `newline_from`), `ScanObj` (`scan_bool`, `scan_nat_list`,
+`scan_hints`, `scan_str_name`, `scan_num_name`, and the member step itself),
+`ScanStr` (`scan_string`, `scan_quoted_nat`), `ScanExpr` (the six expression
+records) and `ScanInd` (the three inductive lists).
 
 ## `sorry` count in this file: 0
 -/
-import ConRon.Refine.Frontend.ScanObj
+import ConRon.Refine.Frontend.ScanStr
+import ConRon.Refine.Frontend.ScanExpr
+import ConRon.Refine.Frontend.ScanInd
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel
@@ -328,61 +334,15 @@ private theorem close_line {pl : frontend.scan_fast.LinePayload} {idx_kind : Std
 
 /-! ## What the rest of the tier owes this file -/
 
-/-- The record scanners this file's loops dispatch to, as they are proved in
-`ScanStr`, `ScanObj` and `ScanExpr`. -/
-structure ScanLineIngredients (b : Slice Std.U8) : Prop where
-  /-- `scan_fast::skip_braced` (`Scan/Fast.lean:755-792 skipBraced`). -/
-  skip_braced : ∀ {i : Std.Usize} {d : Std.U64} {e : Std.Usize},
-    frontend.scan_fast.skip_braced b i d = ok e →
-    absPos e = skipBraced (absBytes b) (absPos i) (absU64 d)
-  /-- `scan_fast::scan_bool` (`Scan/Fast.lean:464-467 scanBool`). -/
-  scan_bool : ∀ {i : Std.Usize} {o}, frontend.scan_fast.scan_bool b i = ok o →
-    ScanSim id o (scanBool (absBytes b) (absPos i))
-  /-- `scan_fast::scan_nat_list` (`Scan/Fast.lean:700-704 scanNatList`). -/
-  scan_nat_list : ∀ {i : Std.Usize} {o}, frontend.scan_fast.scan_nat_list b i = ok o →
-    ScanSim absU64s o (scanNatList (absBytes b) (absPos i))
-  /-- `scan_fast::scan_hints` (`Scan/Fast.lean:718-752 scanHints`). -/
-  scan_hints : ∀ {i : Std.Usize} {o}, frontend.scan_fast.scan_hints b i = ok o →
-    ScanSim absHintsRec o (scanHints (absBytes b) (absPos i))
-  /-- `scan_fast::scan_string` (`Scan/Fast.lean:630-647 scanString`). -/
-  scan_string : ∀ {i : Std.Usize} {o}, frontend.scan_fast.scan_string b i = ok o →
-    ScanSim absString o (scanString (absBytes b) (absPos i))
-  /-- `scan_fast::scan_quoted_nat` (`Scan/Fast.lean:650-657 scanQuotedNat`). -/
-  scan_quoted_nat : ∀ {i : Std.Usize} {o}, frontend.scan_fast.scan_quoted_nat b i = ok o →
-    ScanSim natOfDigits o (scanQuotedNat (absBytes b) (absPos i))
-  /-- `scan_fast::scan_str_name` (`Scan/Fast.lean:846-849 scanStrName`). -/
-  scan_str_name : ∀ {i : Std.Usize} {o}, frontend.scan_fast.scan_str_name b i = ok o →
-    ScanSim absNameRec o (scanStrName (absBytes b) (absPos i))
-  /-- `scan_fast::scan_num_name` (`Scan/Fast.lean:901-904 scanNumName`). -/
-  scan_num_name : ∀ {i : Std.Usize} {o}, frontend.scan_fast.scan_num_name b i = ok o →
-    ScanSim absNameRec o (scanNumName (absBytes b) (absPos i))
-  /-- `scan_fast::scan_app_expr` (`Scan/Fast.lean:956-959 scanAppExpr`). -/
-  scan_app_expr : ∀ {i : Std.Usize} {o}, frontend.scan_fast.scan_app_expr b i = ok o →
-    ScanSim absExprRec o (scanAppExpr (absBytes b) (absPos i))
-  /-- `scan_fast::scan_lam_expr` (`Scan/Fast.lean:1039-1042 scanLamExpr`). -/
-  scan_lam_expr : ∀ {i : Std.Usize} {o}, frontend.scan_fast.scan_lam_expr b i = ok o →
-    ScanSim absExprRec o (scanLamExpr (absBytes b) (absPos i))
-  /-- `scan_fast::scan_forall_expr` (`Scan/Fast.lean:1120-1123 scanForallExpr`). -/
-  scan_forall_expr : ∀ {i : Std.Usize} {o}, frontend.scan_fast.scan_forall_expr b i = ok o →
-    ScanSim absExprRec o (scanForallExpr (absBytes b) (absPos i))
-  /-- `scan_fast::scan_let_expr` (`Scan/Fast.lean:1201-1204 scanLetExpr`). -/
-  scan_let_expr : ∀ {i : Std.Usize} {o}, frontend.scan_fast.scan_let_expr b i = ok o →
-    ScanSim absExprRec o (scanLetExpr (absBytes b) (absPos i))
-  /-- `scan_fast::scan_const_expr` (`Scan/Fast.lean:1257-1260 scanConstExpr`). -/
-  scan_const_expr : ∀ {i : Std.Usize} {o}, frontend.scan_fast.scan_const_expr b i = ok o →
-    ScanSim absExprRec o (scanConstExpr (absBytes b) (absPos i))
-  /-- `scan_fast::scan_proj_expr` (`Scan/Fast.lean:1321-1324 scanProjExpr`). -/
-  scan_proj_expr : ∀ {i : Std.Usize} {o}, frontend.scan_fast.scan_proj_expr b i = ok o →
-    ScanSim absExprRec o (scanProjExpr (absBytes b) (absPos i))
-  /-- `scan_fast::scan_ind_types` (`Scan/Fast.lean:1768-1771 scanIndTypes`). -/
-  scan_ind_types : ∀ {i : Std.Usize} {o}, frontend.scan_fast.scan_ind_types b i = ok o →
-    ScanSim absIndTypeRecs o (scanIndTypes (absBytes b) (absPos i))
-  /-- `scan_fast::scan_ind_ctors` (`Scan/Fast.lean:1917-1920 scanIndCtors`). -/
-  scan_ind_ctors : ∀ {i : Std.Usize} {o}, frontend.scan_fast.scan_ind_ctors b i = ok o →
-    ScanSim absIndCtorRecs o (scanIndCtors (absBytes b) (absPos i))
-  /-- `scan_fast::scan_ind_recs` (`Scan/Fast.lean:1593-1596 scanIndRecs`). -/
-  scan_ind_recs : ∀ {i : Std.Usize} {o}, frontend.scan_fast.scan_ind_recs b i = ok o →
-    ScanSim absIndRecRecs o (scanIndRecs (absBytes b) (absPos i))
+/-- `ScanObj`'s string-slot ingredient, from `ScanStr`'s `scan_string`.  The two
+`Prop`s are `ScanStr`'s own names for what is left of the tier:
+`scan_fast::utf8_decode` and `scan_fast::unescape` against `String.fromUTF8?`
+and `Scan/Fast.lean:569-627 unescape`.  They are the ONLY hypotheses of this
+file; everything else it dispatches to is proved in `ScanKit`, `ScanObj`,
+`ScanStr`, `ScanExpr` and `ScanInd`. -/
+theorem scanStringFacts (hu : Utf8DecodeSpec) (hun : UnescapeSpec)
+    (b : Slice Std.U8) : ScanStringFacts b :=
+  fun _ _ h => scan_string_refines hu hun h
 
 /-! ## The six declaration records
 
@@ -790,7 +750,7 @@ private theorem scanLineLoop_body (b : ByteArray) (idxKind : UInt8) (idx : Nat)
 
 /-- `scan_fast::scan_axiom_decl_loop` (con-leche: `scanAxiomDeclLoop`). -/
 private theorem scan_axiom_decl_loop_refines {b : Slice Std.U8}
-    (K : ScanLineIngredients b) (f : Nat) :
+    (f : Nat) :
     ∀ (w : Bool) (i : Std.Usize) (seen : Std.U32) (isUns : Bool) (lps : alloc.vec.Vec Std.U64) (nm ty : Std.U64)
       (o : core.result.Result (frontend.scan_types.DeclRec × Std.Usize)
              frontend.scan_types.ScanErr),
@@ -850,7 +810,7 @@ private theorem scan_axiom_decl_loop_refines {b : Slice Std.U8}
         · rw [if_neg hd] at h
           rw [if_neg hd]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_bool hr1
+          have hsb := scan_bool_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -886,7 +846,7 @@ private theorem scan_axiom_decl_loop_refines {b : Slice Std.U8}
         · rw [if_neg hd] at h
           rw [if_neg hd]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_nat_list hr1
+          have hsb := scan_nat_list_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -967,7 +927,7 @@ private theorem scan_axiom_decl_loop_refines {b : Slice Std.U8}
 
 /-- `scan_fast::scan_def_decl_loop` (con-leche: `scanDefDeclLoop`). -/
 private theorem scan_def_decl_loop_refines {b : Slice Std.U8}
-    (K : ScanLineIngredients b) (f : Nat) :
+    (hu : Utf8DecodeSpec) (hun : UnescapeSpec) (f : Nat) :
     ∀ (w : Bool) (i : Std.Usize) (seen : Std.U32) (hints : frontend.scan_types.HintsRec) (lps : alloc.vec.Vec Std.U64) (nm : Std.U64) (safety : alloc.vec.Vec Std.U32) (ty vl : Std.U64)
       (o : core.result.Result (frontend.scan_types.DeclRec × Std.Usize)
              frontend.scan_types.ScanErr),
@@ -1027,7 +987,7 @@ private theorem scan_def_decl_loop_refines {b : Slice Std.U8}
         · rw [if_neg hd] at h
           rw [if_neg hd]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_nat_list hr1
+          have hsb := scan_nat_list_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -1063,7 +1023,7 @@ private theorem scan_def_decl_loop_refines {b : Slice Std.U8}
         · rw [if_neg hd] at h
           rw [if_neg hd]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_hints hr1
+          have hsb := scan_hints_refines (kitFacts b) hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -1099,7 +1059,7 @@ private theorem scan_def_decl_loop_refines {b : Slice Std.U8}
         · rw [if_neg hd] at h
           rw [if_neg hd]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_nat_list hr1
+          have hsb := scan_nat_list_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -1161,7 +1121,7 @@ private theorem scan_def_decl_loop_refines {b : Slice Std.U8}
         · rw [if_neg hd] at h
           rw [if_neg hd]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_string hr1
+          have hsb := scan_string_refines hu hun hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -1242,7 +1202,7 @@ private theorem scan_def_decl_loop_refines {b : Slice Std.U8}
 
 /-- `scan_fast::scan_thm_decl_loop` (con-leche: `scanThmDeclLoop`). -/
 private theorem scan_thm_decl_loop_refines {b : Slice Std.U8}
-    (K : ScanLineIngredients b) (f : Nat) :
+    (f : Nat) :
     ∀ (w : Bool) (i : Std.Usize) (seen : Std.U32) (lps : alloc.vec.Vec Std.U64) (nm ty vl : Std.U64)
       (o : core.result.Result (frontend.scan_types.DeclRec × Std.Usize)
              frontend.scan_types.ScanErr),
@@ -1302,7 +1262,7 @@ private theorem scan_thm_decl_loop_refines {b : Slice Std.U8}
         · rw [if_neg hd] at h
           rw [if_neg hd]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_nat_list hr1
+          have hsb := scan_nat_list_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -1338,7 +1298,7 @@ private theorem scan_thm_decl_loop_refines {b : Slice Std.U8}
         · rw [if_neg hd] at h
           rw [if_neg hd]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_nat_list hr1
+          have hsb := scan_nat_list_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -1445,7 +1405,7 @@ private theorem scan_thm_decl_loop_refines {b : Slice Std.U8}
 
 /-- `scan_fast::scan_opaque_decl_loop` (con-leche: `scanOpaqueDeclLoop`). -/
 private theorem scan_opaque_decl_loop_refines {b : Slice Std.U8}
-    (K : ScanLineIngredients b) (f : Nat) :
+    (f : Nat) :
     ∀ (w : Bool) (i : Std.Usize) (seen : Std.U32) (isUns : Bool) (lps : alloc.vec.Vec Std.U64) (nm ty vl : Std.U64)
       (o : core.result.Result (frontend.scan_types.DeclRec × Std.Usize)
              frontend.scan_types.ScanErr),
@@ -1505,7 +1465,7 @@ private theorem scan_opaque_decl_loop_refines {b : Slice Std.U8}
         · rw [if_neg hd] at h
           rw [if_neg hd]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_nat_list hr1
+          have hsb := scan_nat_list_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -1541,7 +1501,7 @@ private theorem scan_opaque_decl_loop_refines {b : Slice Std.U8}
         · rw [if_neg hd] at h
           rw [if_neg hd]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_bool hr1
+          have hsb := scan_bool_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -1577,7 +1537,7 @@ private theorem scan_opaque_decl_loop_refines {b : Slice Std.U8}
         · rw [if_neg hd] at h
           rw [if_neg hd]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_nat_list hr1
+          have hsb := scan_nat_list_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -1684,7 +1644,7 @@ private theorem scan_opaque_decl_loop_refines {b : Slice Std.U8}
 
 /-- `scan_fast::scan_quot_decl_loop` (con-leche: `scanQuotDeclLoop`). -/
 private theorem scan_quot_decl_loop_refines {b : Slice Std.U8}
-    (K : ScanLineIngredients b) (f : Nat) :
+    (hu : Utf8DecodeSpec) (hun : UnescapeSpec) (f : Nat) :
     ∀ (w : Bool) (i : Std.Usize) (seen : Std.U32) (kind : alloc.vec.Vec Std.U32) (lps : alloc.vec.Vec Std.U64) (nm ty : Std.U64)
       (o : core.result.Result (frontend.scan_types.DeclRec × Std.Usize)
              frontend.scan_types.ScanErr),
@@ -1744,7 +1704,7 @@ private theorem scan_quot_decl_loop_refines {b : Slice Std.U8}
         · rw [if_neg hd] at h
           rw [if_neg hd]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_string hr1
+          have hsb := scan_string_refines hu hun hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -1780,7 +1740,7 @@ private theorem scan_quot_decl_loop_refines {b : Slice Std.U8}
         · rw [if_neg hd] at h
           rw [if_neg hd]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_nat_list hr1
+          have hsb := scan_nat_list_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -1861,7 +1821,7 @@ private theorem scan_quot_decl_loop_refines {b : Slice Std.U8}
 
 /-- `scan_fast::scan_ind_decl_loop` (con-leche: `scanIndDeclLoop`). -/
 private theorem scan_ind_decl_loop_refines {b : Slice Std.U8}
-    (K : ScanLineIngredients b) (f : Nat) :
+    (f : Nat) :
     ∀ (w : Bool) (i : Std.Usize) (seen : Std.U32) (ctors : alloc.vec.Vec frontend.scan_types.IndCtorRec) (recs : alloc.vec.Vec frontend.scan_types.IndRecRec) (types : alloc.vec.Vec frontend.scan_types.IndTypeRec)
       (o : core.result.Result (frontend.scan_types.DeclRec × Std.Usize)
              frontend.scan_types.ScanErr),
@@ -1921,7 +1881,7 @@ private theorem scan_ind_decl_loop_refines {b : Slice Std.U8}
         · rw [if_neg hd] at h
           rw [if_neg hd]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_nat_list hr1
+          have hsb := scan_nat_list_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -1957,7 +1917,7 @@ private theorem scan_ind_decl_loop_refines {b : Slice Std.U8}
         · rw [if_neg hd] at h
           rw [if_neg hd]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_ind_ctors hr1
+          have hsb := scan_ind_ctors_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -1993,7 +1953,7 @@ private theorem scan_ind_decl_loop_refines {b : Slice Std.U8}
         · rw [if_neg hd] at h
           rw [if_neg hd]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_bool hr1
+          have hsb := scan_bool_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -2029,7 +1989,7 @@ private theorem scan_ind_decl_loop_refines {b : Slice Std.U8}
         · rw [if_neg hd] at h
           rw [if_neg hd]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_ind_recs hr1
+          have hsb := scan_ind_recs_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -2065,7 +2025,7 @@ private theorem scan_ind_decl_loop_refines {b : Slice Std.U8}
         · rw [if_neg hd] at h
           rw [if_neg hd]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_ind_types hr1
+          have hsb := scan_ind_types_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -2094,8 +2054,7 @@ private theorem scan_ind_decl_loop_refines {b : Slice Std.U8}
 
 /-- `scan_fast::scan_axiom_decl` (con-leche:
 `ConLeche/Frontend/Scan/Fast.lean:1922-1995 scanAxiomDecl`). -/
-theorem scan_axiom_decl_refines {b : Slice Std.U8} (K : ScanLineIngredients b)
-    {i : Std.Usize} {o} (h : frontend.scan_fast.scan_axiom_decl b i = ok o) :
+theorem scan_axiom_decl_refines {b : Slice Std.U8} {i : Std.Usize} {o} (h : frontend.scan_fast.scan_axiom_decl b i = ok o) :
     ScanSim absDeclRec o (scanAxiomDecl (absBytes b) (absPos i)) := by
   rw [frontend.scan_fast.scan_axiom_decl] at h
   obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
@@ -2106,7 +2065,7 @@ theorem scan_axiom_decl_refines {b : Slice Std.U8} (K : ScanLineIngredients b)
     obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
     rw [frontend.scan_fast.scan_axiom_decl_loop] at h
     rw [← absPos_add_one hi1]
-    have := scan_axiom_decl_loop_refines K (b.length - i1.val) true i1 0#u32 false (alloc.vec.Vec.new Std.U64) 0#u64 0#u64 o (le_refl _) h
+    have := scan_axiom_decl_loop_refines (b.length - i1.val) true i1 0#u32 false (alloc.vec.Vec.new Std.U64) 0#u64 0#u64 o (le_refl _) h
     simpa [absU64s, absU32, absString, absHintsRec, absU64, absIndCtorRecs,
       absIndRecRecs, absIndTypeRecs, alloc.vec.Vec.new] using this
   · rw [if_neg hb] at h
@@ -2115,8 +2074,7 @@ theorem scan_axiom_decl_refines {b : Slice Std.U8} (K : ScanLineIngredients b)
 
 /-- `scan_fast::scan_def_decl` (con-leche:
 `ConLeche/Frontend/Scan/Fast.lean:1997-2100 scanDefDecl`). -/
-theorem scan_def_decl_refines {b : Slice Std.U8} (K : ScanLineIngredients b)
-    {i : Std.Usize} {o} (h : frontend.scan_fast.scan_def_decl b i = ok o) :
+theorem scan_def_decl_refines {b : Slice Std.U8} (hu : Utf8DecodeSpec) (hun : UnescapeSpec) {i : Std.Usize} {o} (h : frontend.scan_fast.scan_def_decl b i = ok o) :
     ScanSim absDeclRec o (scanDefDecl (absBytes b) (absPos i)) := by
   rw [frontend.scan_fast.scan_def_decl] at h
   obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
@@ -2127,7 +2085,7 @@ theorem scan_def_decl_refines {b : Slice Std.U8} (K : ScanLineIngredients b)
     obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
     rw [frontend.scan_fast.scan_def_decl_loop] at h
     rw [← absPos_add_one hi1]
-    have := scan_def_decl_loop_refines K (b.length - i1.val) true i1 0#u32 (frontend.scan_types.HintsRec.Regular 0#u64) (alloc.vec.Vec.new Std.U64) 0#u64 (alloc.vec.Vec.new Std.U32) 0#u64 0#u64 o (le_refl _) h
+    have := scan_def_decl_loop_refines hu hun (b.length - i1.val) true i1 0#u32 (frontend.scan_types.HintsRec.Regular 0#u64) (alloc.vec.Vec.new Std.U64) 0#u64 (alloc.vec.Vec.new Std.U32) 0#u64 0#u64 o (le_refl _) h
     simpa [absU64s, absU32, absString, absHintsRec, absU64, absIndCtorRecs,
       absIndRecRecs, absIndTypeRecs, alloc.vec.Vec.new] using this
   · rw [if_neg hb] at h
@@ -2136,8 +2094,7 @@ theorem scan_def_decl_refines {b : Slice Std.U8} (K : ScanLineIngredients b)
 
 /-- `scan_fast::scan_thm_decl` (con-leche:
 `ConLeche/Frontend/Scan/Fast.lean:2102-2183 scanThmDecl`). -/
-theorem scan_thm_decl_refines {b : Slice Std.U8} (K : ScanLineIngredients b)
-    {i : Std.Usize} {o} (h : frontend.scan_fast.scan_thm_decl b i = ok o) :
+theorem scan_thm_decl_refines {b : Slice Std.U8} {i : Std.Usize} {o} (h : frontend.scan_fast.scan_thm_decl b i = ok o) :
     ScanSim absDeclRec o (scanThmDecl (absBytes b) (absPos i)) := by
   rw [frontend.scan_fast.scan_thm_decl] at h
   obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
@@ -2148,7 +2105,7 @@ theorem scan_thm_decl_refines {b : Slice Std.U8} (K : ScanLineIngredients b)
     obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
     rw [frontend.scan_fast.scan_thm_decl_loop] at h
     rw [← absPos_add_one hi1]
-    have := scan_thm_decl_loop_refines K (b.length - i1.val) true i1 0#u32 (alloc.vec.Vec.new Std.U64) 0#u64 0#u64 0#u64 o (le_refl _) h
+    have := scan_thm_decl_loop_refines (b.length - i1.val) true i1 0#u32 (alloc.vec.Vec.new Std.U64) 0#u64 0#u64 0#u64 o (le_refl _) h
     simpa [absU64s, absU32, absString, absHintsRec, absU64, absIndCtorRecs,
       absIndRecRecs, absIndTypeRecs, alloc.vec.Vec.new] using this
   · rw [if_neg hb] at h
@@ -2157,8 +2114,7 @@ theorem scan_thm_decl_refines {b : Slice Std.U8} (K : ScanLineIngredients b)
 
 /-- `scan_fast::scan_opaque_decl` (con-leche:
 `ConLeche/Frontend/Scan/Fast.lean:2185-2276 scanOpaqueDecl`). -/
-theorem scan_opaque_decl_refines {b : Slice Std.U8} (K : ScanLineIngredients b)
-    {i : Std.Usize} {o} (h : frontend.scan_fast.scan_opaque_decl b i = ok o) :
+theorem scan_opaque_decl_refines {b : Slice Std.U8} {i : Std.Usize} {o} (h : frontend.scan_fast.scan_opaque_decl b i = ok o) :
     ScanSim absDeclRec o (scanOpaqueDecl (absBytes b) (absPos i)) := by
   rw [frontend.scan_fast.scan_opaque_decl] at h
   obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
@@ -2169,7 +2125,7 @@ theorem scan_opaque_decl_refines {b : Slice Std.U8} (K : ScanLineIngredients b)
     obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
     rw [frontend.scan_fast.scan_opaque_decl_loop] at h
     rw [← absPos_add_one hi1]
-    have := scan_opaque_decl_loop_refines K (b.length - i1.val) true i1 0#u32 false (alloc.vec.Vec.new Std.U64) 0#u64 0#u64 0#u64 o (le_refl _) h
+    have := scan_opaque_decl_loop_refines (b.length - i1.val) true i1 0#u32 false (alloc.vec.Vec.new Std.U64) 0#u64 0#u64 0#u64 o (le_refl _) h
     simpa [absU64s, absU32, absString, absHintsRec, absU64, absIndCtorRecs,
       absIndRecRecs, absIndTypeRecs, alloc.vec.Vec.new] using this
   · rw [if_neg hb] at h
@@ -2178,8 +2134,7 @@ theorem scan_opaque_decl_refines {b : Slice Std.U8} (K : ScanLineIngredients b)
 
 /-- `scan_fast::scan_quot_decl` (con-leche:
 `ConLeche/Frontend/Scan/Fast.lean:2278-2350 scanQuotDecl`). -/
-theorem scan_quot_decl_refines {b : Slice Std.U8} (K : ScanLineIngredients b)
-    {i : Std.Usize} {o} (h : frontend.scan_fast.scan_quot_decl b i = ok o) :
+theorem scan_quot_decl_refines {b : Slice Std.U8} (hu : Utf8DecodeSpec) (hun : UnescapeSpec) {i : Std.Usize} {o} (h : frontend.scan_fast.scan_quot_decl b i = ok o) :
     ScanSim absDeclRec o (scanQuotDecl (absBytes b) (absPos i)) := by
   rw [frontend.scan_fast.scan_quot_decl] at h
   obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
@@ -2190,7 +2145,7 @@ theorem scan_quot_decl_refines {b : Slice Std.U8} (K : ScanLineIngredients b)
     obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
     rw [frontend.scan_fast.scan_quot_decl_loop] at h
     rw [← absPos_add_one hi1]
-    have := scan_quot_decl_loop_refines K (b.length - i1.val) true i1 0#u32 (alloc.vec.Vec.new Std.U32) (alloc.vec.Vec.new Std.U64) 0#u64 0#u64 o (le_refl _) h
+    have := scan_quot_decl_loop_refines hu hun (b.length - i1.val) true i1 0#u32 (alloc.vec.Vec.new Std.U32) (alloc.vec.Vec.new Std.U64) 0#u64 0#u64 o (le_refl _) h
     simpa [absU64s, absU32, absString, absHintsRec, absU64, absIndCtorRecs,
       absIndRecRecs, absIndTypeRecs, alloc.vec.Vec.new] using this
   · rw [if_neg hb] at h
@@ -2199,8 +2154,7 @@ theorem scan_quot_decl_refines {b : Slice Std.U8} (K : ScanLineIngredients b)
 
 /-- `scan_fast::scan_ind_decl` (con-leche:
 `ConLeche/Frontend/Scan/Fast.lean:2352-2436 scanIndDecl`). -/
-theorem scan_ind_decl_refines {b : Slice Std.U8} (K : ScanLineIngredients b)
-    {i : Std.Usize} {o} (h : frontend.scan_fast.scan_ind_decl b i = ok o) :
+theorem scan_ind_decl_refines {b : Slice Std.U8} {i : Std.Usize} {o} (h : frontend.scan_fast.scan_ind_decl b i = ok o) :
     ScanSim absDeclRec o (scanIndDecl (absBytes b) (absPos i)) := by
   rw [frontend.scan_fast.scan_ind_decl] at h
   obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
@@ -2211,7 +2165,7 @@ theorem scan_ind_decl_refines {b : Slice Std.U8} (K : ScanLineIngredients b)
     obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
     rw [frontend.scan_fast.scan_ind_decl_loop] at h
     rw [← absPos_add_one hi1]
-    have := scan_ind_decl_loop_refines K (b.length - i1.val) true i1 0#u32 (alloc.vec.Vec.new frontend.scan_types.IndCtorRec) (alloc.vec.Vec.new frontend.scan_types.IndRecRec) (alloc.vec.Vec.new frontend.scan_types.IndTypeRec) o (le_refl _) h
+    have := scan_ind_decl_loop_refines (b.length - i1.val) true i1 0#u32 (alloc.vec.Vec.new frontend.scan_types.IndCtorRec) (alloc.vec.Vec.new frontend.scan_types.IndRecRec) (alloc.vec.Vec.new frontend.scan_types.IndTypeRec) o (le_refl _) h
     simpa [absU64s, absU32, absString, absHintsRec, absU64, absIndCtorRecs,
       absIndRecRecs, absIndTypeRecs, alloc.vec.Vec.new] using this
   · rw [if_neg hb] at h
@@ -2222,7 +2176,7 @@ theorem scan_ind_decl_refines {b : Slice Std.U8} (K : ScanLineIngredients b)
 `ConLeche/Frontend/Scan/Fast.lean:2464-2621 scanLineLoop`).  The dispatcher:
 one index key, one payload key, matched at the closing brace. -/
 private theorem scan_line_loop_loop_refines {b : Slice Std.U8}
-    (K : ScanLineIngredients b) (f : Nat) :
+    (hu : Utf8DecodeSpec) (hun : UnescapeSpec) (f : Nat) :
     ∀ (w : Bool) (i : Std.Usize) (idx_kind : Std.U8) (idx : Std.U64)
       (pl : frontend.scan_fast.LinePayload)
       (o : core.result.Result (frontend.scan_types.LineRec × Std.Usize)
@@ -2459,7 +2413,7 @@ private theorem scan_line_loop_loop_refines {b : Slice Std.U8}
         · rw [if_pos ha] at h
           rw [if_neg (by simp [ha])]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_app_expr hr1
+          have hsb := scan_app_expr_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -2494,7 +2448,7 @@ private theorem scan_line_loop_loop_refines {b : Slice Std.U8}
         · rw [if_pos ha] at h
           rw [if_neg (by simp [ha])]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_lam_expr hr1
+          have hsb := scan_lam_expr_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -2529,7 +2483,7 @@ private theorem scan_line_loop_loop_refines {b : Slice Std.U8}
         · rw [if_pos ha] at h
           rw [if_neg (by simp [ha])]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_forall_expr hr1
+          have hsb := scan_forall_expr_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -2564,7 +2518,7 @@ private theorem scan_line_loop_loop_refines {b : Slice Std.U8}
         · rw [if_pos ha] at h
           rw [if_neg (by simp [ha])]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_let_expr hr1
+          have hsb := scan_let_expr_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -2599,7 +2553,7 @@ private theorem scan_line_loop_loop_refines {b : Slice Std.U8}
         · rw [if_pos ha] at h
           rw [if_neg (by simp [ha])]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_const_expr hr1
+          have hsb := scan_const_expr_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -2634,7 +2588,7 @@ private theorem scan_line_loop_loop_refines {b : Slice Std.U8}
         · rw [if_pos ha] at h
           rw [if_neg (by simp [ha])]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_proj_expr hr1
+          have hsb := scan_proj_expr_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -2669,7 +2623,7 @@ private theorem scan_line_loop_loop_refines {b : Slice Std.U8}
         · rw [if_pos ha] at h
           rw [if_neg (by simp [ha])]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_quoted_nat hr1
+          have hsb := scan_quoted_nat_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -2704,7 +2658,7 @@ private theorem scan_line_loop_loop_refines {b : Slice Std.U8}
         · rw [if_pos ha] at h
           rw [if_neg (by simp [ha])]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_string hr1
+          have hsb := scan_string_refines hu hun hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -2739,7 +2693,7 @@ private theorem scan_line_loop_loop_refines {b : Slice Std.U8}
         · rw [if_pos ha] at h
           rw [if_neg (by simp [ha])]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := scan_axiom_decl_refines K hr1
+          have hsb := scan_axiom_decl_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -2774,7 +2728,7 @@ private theorem scan_line_loop_loop_refines {b : Slice Std.U8}
         · rw [if_pos ha] at h
           rw [if_neg (by simp [ha])]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := scan_def_decl_refines K hr1
+          have hsb := scan_def_decl_refines hu hun hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -2809,7 +2763,7 @@ private theorem scan_line_loop_loop_refines {b : Slice Std.U8}
         · rw [if_pos ha] at h
           rw [if_neg (by simp [ha])]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := scan_thm_decl_refines K hr1
+          have hsb := scan_thm_decl_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -2844,7 +2798,7 @@ private theorem scan_line_loop_loop_refines {b : Slice Std.U8}
         · rw [if_pos ha] at h
           rw [if_neg (by simp [ha])]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := scan_opaque_decl_refines K hr1
+          have hsb := scan_opaque_decl_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -2879,7 +2833,7 @@ private theorem scan_line_loop_loop_refines {b : Slice Std.U8}
         · rw [if_pos ha] at h
           rw [if_neg (by simp [ha])]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := scan_quot_decl_refines K hr1
+          have hsb := scan_quot_decl_refines hu hun hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -2914,7 +2868,7 @@ private theorem scan_line_loop_loop_refines {b : Slice Std.U8}
         · rw [if_pos ha] at h
           rw [if_neg (by simp [ha])]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := scan_ind_decl_refines K hr1
+          have hsb := scan_ind_decl_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -2957,7 +2911,7 @@ private theorem scan_line_loop_loop_refines {b : Slice Std.U8}
             exact (Result.ok_injective hb2).symm
           rw [if_pos hb2'] at h
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_str_name hr1
+          have hsb := scan_str_name_refines (kitFacts b) (scanStringFacts hu hun b) hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -3000,7 +2954,7 @@ private theorem scan_line_loop_loop_refines {b : Slice Std.U8}
             exact (Result.ok_injective hb2).symm
           rw [if_neg (by simp [hb2'])] at h
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_num_name hr1
+          have hsb := scan_num_name_refines (kitFacts b) hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -3036,7 +2990,7 @@ private theorem scan_line_loop_loop_refines {b : Slice Std.U8}
         · rw [if_pos ha] at h
           rw [if_neg (by simp [ha])]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_nat_list hr1
+          have hsb := scan_nat_list_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -3117,7 +3071,7 @@ private theorem scan_line_loop_loop_refines {b : Slice Std.U8}
         · rw [if_pos ha] at h
           rw [if_neg (by simp [ha])]
           obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-          have hsb := K.scan_nat_list hr1
+          have hsb := scan_nat_list_refines hr1
           cases r1 with
           | Err er =>
             simp only [Result.ok.injEq] at h
@@ -3208,7 +3162,7 @@ private theorem scan_line_loop_loop_refines {b : Slice Std.U8}
             obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
             obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
             have hsk : skipBraced (absBytes b) (absPos v + 1) 0 = absPos e := by
-              rw [← absPos_add_one hi2]; exact (K.skip_braced he).symm
+              rw [← absPos_add_one hi2]; exact (skip_braced_refines he).symm
             rw [hsk, p_beq0]
             by_cases he0 : e = 0#usize
             · rw [if_pos he0] at h
@@ -3233,18 +3187,18 @@ private theorem scan_line_loop_loop_refines {b : Slice Std.U8}
 /-- `scan_fast::scan_line_loop` (con-leche:
 `ConLeche/Frontend/Scan/Fast.lean:2464-2621 scanLineLoop` at its initial
 state). -/
-theorem scan_line_loop_refines {b : Slice Std.U8} (K : ScanLineIngredients b) {i : Std.Usize} {o}
+theorem scan_line_loop_refines {b : Slice Std.U8} (hu : Utf8DecodeSpec) (hun : UnescapeSpec) {i : Std.Usize} {o}
     (h : frontend.scan_fast.scan_line_loop b i = ok o) :
     ScanSim absLineRec o (scanLineLoop (absBytes b) (absPos i) true 0 0 .absent) := by
   rw [frontend.scan_fast.scan_line_loop] at h
-  exact scan_line_loop_loop_refines K (b.length - i.val) true i 0#u8 0#u64
+  exact scan_line_loop_loop_refines hu hun (b.length - i.val) true i 0#u8 0#u64
     frontend.scan_fast.LinePayload.Absent o (le_refl _) h
 
 /-- **The capstone of the scanner tier.**  `scan_fast::scan_line_fwd`
 (con-leche: `ConLeche/Frontend/Scan/Fast.lean:2622-2638 scanLineFwd`): for the
 same bytes the port reads the record con-leche reads, stops where con-leche
 stops, and fails where con-leche fails. -/
-theorem scan_line_fwd_refines {b : Slice Std.U8} (K : ScanLineIngredients b) {i : Std.Usize} {o}
+theorem scan_line_fwd_refines {b : Slice Std.U8} (hu : Utf8DecodeSpec) (hun : UnescapeSpec) {i : Std.Usize} {o}
     (h : frontend.scan_fast.scan_line_fwd b i = ok o) :
     ScanSim absLineRec o (scanLineFwd (absBytes b) (absPos i)) := by
   rw [frontend.scan_fast.scan_line_fwd] at h
@@ -3273,7 +3227,7 @@ theorem scan_line_fwd_refines {b : Slice Std.U8} (K : ScanLineIngredients b) {i 
           rw [u8_bne (y := 123#u8) 123 rfl]; simp [h123])]
         obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
-        have hlp := scan_line_loop_refines K hr
+        have hlp := scan_line_loop_refines hu hun hr
         rw [← absPos_add_one hi3]
         cases r with
         | Err er =>
