@@ -18134,8 +18134,9 @@ out. No `ConLeche.*` file broke, since none of them mention the crate's own
 
 `lake build` broke where §5 predicted and nowhere else *in kind*: only the
 representation moved, so every statement kept its meaning and the repair is
-**35 statements in 15 files, +102 / −85 lines** — no lemma was weakened, none
-was deleted, and `Refine/Main.lean`'s capstone censuses are byte-identical
+**35 statements in 15 files** (16 counting `Refine/ExprOps.lean`, whose only
+change is prose), **+110 / −97 lines** — no lemma was weakened, none was
+deleted, and `Refine/Main.lean`'s capstone censuses are byte-identical
 (their `#guard_msgs` is what says so).
 
 Three moves cover all of it.
@@ -18162,8 +18163,9 @@ set, and the reason `rust_norm` copes) is the lemma that does.  So every
 bind_arc_deref, uncurry_apply_pair, …]`, and every `Many` arm needs only
 `bind_arc_deref`.  That is the whole of `to_list_val`, `holds_shape`,
 `params_defined_shape`, `bind_z_shape`, `bind_z_wf`, `beq_iff`'s `Two`/`Two`
-and `Many`/`Many` leaves and `beq_refl`.  The other 23 of `beq_iff`'s 25 arms
-only had to spell one binder instead of two.
+and `Many`/`Many` leaves and `beq_refl`.  `beq_iff`'s other 23 arms answer
+`false` without looking at the payload, so they only had to spell one binder
+where they used to spell two.
 
 **(c) The `P<PropWhen>` layer under `BinderMeta` is gone, and nothing missed
 it.**  `absBinderMeta` and `BinderMetaWF` needed **no edit at all**: they were
