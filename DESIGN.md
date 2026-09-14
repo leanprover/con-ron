@@ -16899,7 +16899,7 @@ owed?"* has a finite, checkable answer.  At the end of this task:
 | `ScanLineIngredients` | `ScanLine` | 17 | all but `scan_string` discharged; `scan_string` carries `Utf8DecodeSpec`/`UnescapeSpec` |
 | `ScanObj.KitFacts` | `ScanObj` | 3 | **discharged** (`kitFacts`, once `key_at_refines` landed) |
 | `ScanObj.ScanStringFacts` | `ScanObj` | 1 | = `scan_string_refines`, i.e. the two above |
-| `ScanStr.Utf8DecodeSpec` / `UnescapeSpec` | `ScanStr` | 2 | **open** — `utf8_decode`/`unescape` against `String.fromUTF8?`/`unescape` |
+| `ScanStr.Utf8DecodeSpec` / `UnescapeSpec` | `ScanStr` | 2 | **discharged** (§22) — `utf8_decode_spec`, `unescape_spec` |
 | `PrepareR.HoistSpec` | `PrepareR` | 1 | **discharged and deleted** (§18) — `hoist_targets_refines` |
 | `StateDR.NatValSpec` | `StateDR` | 1 | **discharged** by `from_decimal_ok` + `from_decimal_refines` |
 | `IndR.IndRSpec` | `IndR` | 3 | `proj_rewrite_d`, `validate_ind_d`, `install_ind_d` |
@@ -17504,3 +17504,58 @@ So the honest reading of the headline at the end of task #87 is: *everything
 between the bytes and con-leche's `parseChunks` is proved except one
 constructor-ordering pass inside the inductive validator, and the modeller the
 port does not verify.*
+
+#### 22. The string tier's two, and the encoder trick that made them cheap
+
+`Utf8DecodeSpec` and `UnescapeSpec` — the last two of the scanner tier's named
+`Prop`s — are now the theorems `utf8_decode_spec` and `unescape_spec` in
+`Refine/Frontend/ScanStr.lean`.
+
+**The decision that made `Utf8DecodeSpec` tractable: never reason about the
+toolchain's decoder.**  `ByteArray.utf8DecodeChar?`, `parseFirstByte` and
+`assemble₁..₄` are `BitVec`-level and fighting them is hopeless.  But
+`String.fromUTF8?` is *defined* through `ByteArray.IsValidUTF8 b ≡ ∃ l : List
+Char, b = l.utf8Encode`, and `String.utf8EncodeChar` (`Init/Prelude`) is plain
+`Nat` division and modulus.  So the whole bridge is the **encoder**, and every
+branch of the port's five-way lead-byte switch closes with `omega`.  The
+inventory under it: the byte window `win`/`winB`/`chars` with
+`win_nil`/`win_cons`/`win_length`/`win_getElem(?)`/`win_clamp`; the three facts
+about `String.fromUTF8?` (`fromUTF8_win`, `fromUTF8_win_none`,
+`winB_valid_iff`, `utf8Encode_toByteArray`, `toByteArray_append`); the four
+encoded shapes and their converses (`char_valid`, `enc_cases`,
+`enc_mk1..enc_mk4`); the claim relation `DecClaim` with `claim_stop`,
+`claim_step`, `claim_stuck`, `win_lead`, `win_not_valid`, `win_enc1..win_enc4`;
+the bit plumbing (`cast32_lift_val`, `and31/and15/and7`, `or_add64/4096/262144`,
+`sh6/sh12/sh18`, `ushl32_6/12/18`); and `utf8_decode_loop_spec`, which needs
+`maxHeartbeats 2000000` for its five lead-byte classes.
+
+**`UnescapeSpec` did not need the escape hatch it was granted.**  The brief
+pre-authorised an intermediate `unescapeBytes` definition for con-leche's
+two-pass `unescape`; it went unused, so **all three of task #87's authorised
+escape hatches are unused** and the only intermediate definitions in the tier
+are §18's do-block mirrors.  The trick was to state the loop lemma with
+con-leche's closing `String.fromUTF8?` already moved onto the port's
+accumulator —
+
+```lean
+unescape (absBytes b) (absPos j) (absPos e) (absChunk acc)
+  = (o.map absChunk).bind String.fromUTF8?
+```
+
+— which *is* the port's own second pass, so `utf8_decode_spec` closes it at the
+top.  `hex4_lt` (four hex digits are `< 0x10000`) is what makes a `\uXXXX`
+escape a scalar value for `utf8_of_refines`.
+
+**No port bug.**  The port's decoder agrees with `utf8DecodeChar?` exactly,
+including the two places the shapes differ superficially: at lead bytes
+`0xC0`/`0xC1` the port rejects on its `< 194` test while Lean calls them
+`oneMore` and rejects via the overlong check; at `0xF5..0xF7` the port rejects
+on `< 245` while Lean calls them `threeMore` and rejects via the
+out-of-range check.  Both give `none`.
+
+**One tactic note worth carrying forward**, and it is the same lesson the
+inductive tier learned independently: `split at h` on a large Aeneas do-block
+blows the simp step budget ("maximum number of steps exceeded").
+`by_cases hc : <cond>` followed by `rw [if_pos hc] at h` / `rw [if_neg hc] at h`
+is the reliable form and it flattens the nesting as a side effect; `split at h`
+is fine once the remaining term is small.
