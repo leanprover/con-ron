@@ -52,6 +52,7 @@ pub mod nat_decimal;
 pub mod nat_op_ground;
 pub mod prelude_text;
 pub mod prepare;
+pub mod proj_rec;
 pub mod scan_fast;
 pub mod scan_types;
 pub mod text;
