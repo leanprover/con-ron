@@ -2626,6 +2626,72 @@ theorem StateDRel.indCount_step {st : frontend.export_c.StateD}
     StateDRel { st with ind_count := c } { lst with indCount := lst.indCount + 1 } :=
   { hrel with indCount := by rw [HashMap.uscalar_add_eq h, hrel.indCount]; rfl }
 
+/-! ## The line step's outcome
+
+`apply_line` and `install_ind_d` return `(Result<(), LineErr>, StateD)` where
+con-leche returns `M (StateD ⊕ RecordVerdict)`: the port threads the state
+through `&mut`, so the new state comes out *beside* the outcome and there is no
+`absStateD` to fold it into the value.  `StepOutV` is that shape — `StepOut`
+with con-leche's sum in place of its bare state, and `LineOutV`'s three arms in
+place of `LineOut`'s two.
+
+This is where the port's second `LineErr` arm finally lands: a `Verdict` is a
+con-leche **success** at the right summand, at the same verdict kind. -/
+
+/-- **The full outcome of a `&mut StateD` step whose con-leche twin returns
+`StateD ⊕ RecordVerdict`.** -/
+def StepOutV (o : core.result.Result Unit frontend.export_c.LineErr)
+    (st' : frontend.export_c.StateD)
+    (x : ConLeche.Frontend.M
+      (ConLeche.Frontend.StateD ⊕ ConLeche.Frontend.RecordVerdict)) : Prop :=
+  match o with
+  | .Ok _ => ∃ lst', x = .ok (.inl lst') ∧ StateDRel st' lst' ∧ StateDWF st'
+  | .Err (.Msg _) => ∃ s, x = .error s
+  | .Err (.Verdict v) =>
+    ∃ lv, x = .ok (.inr lv) ∧ lVerdictKind lv = absVerdictKind v
+
+theorem StepOutV.ok {st' : frontend.export_c.StateD} {lst' : ConLeche.Frontend.StateD}
+    {x : ConLeche.Frontend.M (ConLeche.Frontend.StateD ⊕ ConLeche.Frontend.RecordVerdict)}
+    (hx : x = .ok (.inl lst')) (hrel : StateDRel st' lst') (hwf : StateDWF st') :
+    StepOutV (.Ok ()) st' x := ⟨lst', hx, hrel, hwf⟩
+
+theorem StepOutV.msg {m : alloc.vec.Vec Std.U32} {s : String}
+    {st' : frontend.export_c.StateD}
+    {x : ConLeche.Frontend.M (ConLeche.Frontend.StateD ⊕ ConLeche.Frontend.RecordVerdict)}
+    (hx : x = .error s) : StepOutV (.Err (.Msg m)) st' x := ⟨s, hx⟩
+
+theorem StepOutV.verdict {v : frontend.export.RecordVerdict}
+    {lv : ConLeche.Frontend.RecordVerdict} {st' : frontend.export_c.StateD}
+    {x : ConLeche.Frontend.M (ConLeche.Frontend.StateD ⊕ ConLeche.Frontend.RecordVerdict)}
+    (hx : x = .ok (.inr lv)) (hk : lVerdictKind lv = absVerdictKind v) :
+    StepOutV (.Err (.Verdict v)) st' x := ⟨lv, hx, hk⟩
+
+/-- **A reader's failure, inside a line step.**  The same move as
+`LineOutV.of_bind`, and the same place `LineErrSim`'s `False` arm pays. -/
+theorem StepOutV.of_bind {γ : Type} {e : frontend.export_c.LineErr}
+    {st' : frontend.export_c.StateD} {x : ConLeche.Frontend.M γ}
+    {f : γ → ConLeche.Frontend.M
+      (ConLeche.Frontend.StateD ⊕ ConLeche.Frontend.RecordVerdict)}
+    (h : LineErrSim e x) : StepOutV (.Err e) st' (x >>= f) := by
+  cases e with
+  | Msg m => obtain ⟨s, hx⟩ := h; exact ⟨s, by rw [hx]; rfl⟩
+  | Verdict v => exact h.elim
+
+/-- **A plain state step, inside a line step.**  `parseNameEntryD` and friends
+return `M StateD`; `applyLine` wraps them with `.inl`. -/
+theorem StepOutV.of_step {o : core.result.Result Unit frontend.export_c.LineErr}
+    {st' : frontend.export_c.StateD} {x : ConLeche.Frontend.M ConLeche.Frontend.StateD}
+    (h : StepOut o st' x) :
+    StepOutV o st' (do let s ← x; pure (Sum.inl s)) := by
+  cases o with
+  | Ok u =>
+    obtain ⟨lst', hx, hrel, hwf⟩ := h
+    exact ⟨lst', by rw [hx]; rfl, hrel, hwf⟩
+  | Err e =>
+    cases e with
+    | Msg m => obtain ⟨s, hx⟩ := h; exact ⟨s, by rw [hx]; rfl⟩
+    | Verdict v => exact h.elim
+
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
 Nothing here reaches past con-leche's own three axioms.  `parse_expr_rec_d_refines`

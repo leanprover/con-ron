@@ -291,65 +291,11 @@ theorem cps_beq_str {s : alloc.vec.Vec Std.U32} {lit : Slice Std.U32} {b : Bool}
   rw [cps_beq_refines h]
   exact (CoreK.absString_eq_codes hs hL (by scalar_tac)).symm
 
-/-! ## `indPiTeleLen` (`ConLeche/Frontend/ExportC.lean:342-344`)
+/-! ## `indPiTeleLen`
 
-The port walks the spine with `core_k::is_forall` and an owning step function
-(`ind_pi_body`), because Aeneas cannot hold `cur`'s borrow across the write
-that rebinds it; con-leche pattern-matches.  The walk is an induction on the
-`ExprWF` derivation, not on a `Nat` measure. -/
-
-/-- `export_c::ind_pi_body` is the `∀`-binder's body. -/
-private theorem ind_pi_body_forall {d : Std.U64} {ty bo : expr.Expr}
-    {m : expr.BinderMeta} {r : expr.Expr}
-    (h : frontend.export_c.ind_pi_body (expr.Expr.mk (expr.ExprNode.mk d
-      (expr.ExprKind.ForallE ty bo m))) = ok r) : r = bo := by
-  rw [frontend.export_c.ind_pi_body] at h
-  simp only [arc_deref_eq, ExprOps.node_kind, expr_dup_eq, bind_tc_ok,
-    Result.ok.injEq] at h
-  exact h.symm
-
-/-- The spine walk behind `export_c::ind_pi_tele_len`. -/
-private theorem ind_pi_tele_len_loop_refines (cur : expr.Expr) (hcur : ExprWF cur) :
-    ∀ (n r : Std.U64), frontend.export_c.ind_pi_tele_len_loop n cur = ok r →
-      r.val = n.val + ConLeche.Frontend.indPiTeleLen (absExpr cur) := by
-  induction cur, hcur using ExprWF.ind_node with
-  | forall_e d ty bo m hwf ihty ihb =>
-    intro n r h
-    rw [frontend.export_c.ind_pi_tele_len_loop.eq_def] at h
-    simp only [bind_eq_ok_iff] at h
-    obtain ⟨b, hb, h⟩ := h
-    have hbt : b = true := by
-      rw [CoreK.is_forall_refines hb]; simp [absExpr_mk, absExprKind]
-    rw [hbt] at h
-    simp only [reduceIte, bind_eq_ok_iff] at h
-    obtain ⟨cur1, hcur1, n1, hn1, h⟩ := h
-    obtain ⟨hty, hbo, hm⟩ := ExprWF.forall_e_kids hwf
-    rw [ind_pi_body_forall hcur1] at h
-    have hn1v : n1.val = n.val + 1 := HashMap.uscalar_add_eq hn1
-    rw [ihb hbo n1 r h, hn1v]
-    simp only [absExpr_mk, absExprKind, ConLeche.Frontend.indPiTeleLen]
-    omega
-  | _ =>
-    intro n r h
-    rw [frontend.export_c.ind_pi_tele_len_loop.eq_def] at h
-    simp only [bind_eq_ok_iff] at h
-    obtain ⟨b, hb, h⟩ := h
-    have hbf : b = false := by
-      rw [CoreK.is_forall_refines hb]; simp [absExpr_mk, absExprKind]
-    rw [hbf] at h
-    simp only [Bool.false_eq_true, reduceIte, Result.ok.injEq] at h
-    rw [← h]
-    simp [absExpr_mk, absExprKind, ConLeche.Frontend.indPiTeleLen]
-
-/-- `export_c::ind_pi_tele_len` refines `indPiTeleLen`
-(`ConLeche/Frontend/ExportC.lean:342-344`). -/
-theorem ind_pi_tele_len_refines {e : expr.Expr} {r : Std.U64} (he : ExprWF e)
-    (h : frontend.export_c.ind_pi_tele_len e = ok r) :
-    r.val = ConLeche.Frontend.indPiTeleLen (absExpr e) := by
-  rw [frontend.export_c.ind_pi_tele_len] at h
-  simp only [expr_dup_eq, bind_tc_ok] at h
-  rw [ind_pi_tele_len_loop_refines e he _ r h]
-  simp
+`export_c::ind_pi_tele_len` is **agent D's** `ind_pi_tele_len_refines`
+(`Refine/Frontend/StateDR.lean`); this file's copy was withdrawn when the two
+met.  It is what `check_one_ctor`'s `numFields` test reads. -/
 
 /-! ## `listed.flatten` (`ConLeche/Frontend/ExportC.lean:412-563`) -/
 
@@ -857,7 +803,7 @@ theorem apply_line_refines {G : Type} {inst : frontend.in_model_rec.Modeller G} 
     {r : frontend.scan_types.LineRec}
     {o : core.result.Result Unit frontend.export_c.LineErr}
     (hsp : IndRSpec inst g) (hrel : StateDRel st lst) (hwf : StateDWF st)
-    (hr : LineRecWF r) (hr2 : LineRecStrWF r)
+    (hr : LineRecWF r) (hr2 : LineRecStrWF r) (hnat : LineNatValSpec r)
     (h : frontend.export_c.apply_line inst g st r = ok (o, st')) :
     StateOutD o st' (ConLeche.Frontend.applyLine lst (absLineRec r))
 ```
@@ -869,26 +815,18 @@ con-leche state a successful line produces is *existential* and related by
 `LineErr::Msg` is a con-leche `.error`, a port `LineErr::Verdict v` is a
 con-leche **success** at `.inr` and the same verdict kind.
 
-`IndRSpec` is the **named ingredient bundle** this file stands on: the pieces
-that belong to the layer below (`push_decl` and the three
-table-entry writers, all `Refine/Frontend/StateDR.lean`'s) and the two pieces
-of this file whose own proofs are not finished (`proj_rewrite_d`,
-`validate_ind_d`, `install_ind_d`).  Every one of its fields is stated here in
-full, against the `ConLeche/Frontend/ExportC.lean` fragment it refines, so the
-consumer can read the seam without reading a proof. -/
+`IndRSpec` is the **named ingredient bundle** this file stands on — four
+clauses, all of them this file's own leaves: `push_decl`, `proj_rewrite_d`,
+`validate_ind_d` and `install_ind_d`.  Every one is stated here in full,
+against the `ConLeche/Frontend/ExportC.lean` fragment it refines, so the
+consumer can read the seam without reading a proof.
+
+`LineRecStrWF` and `LineNatValSpec` are the two extra scanner obligations the
+line carries: the first is phase 1's `LineRecWF` extended to the two
+`Vec<u32>` *spelling* payloads of a declaration record (see its note below),
+the second is `StateDR.lean`'s `NatValSpec` passed straight through. -/
 
 /-! ## The line layer's outcome, at the state -/
-
-/-- **The full outcome of a port function whose con-leche twin is `M StateD`**
-— the three table-entry writers.  `StateDRel` and `StateDWF` come back out at
-the new state; the con-leche state is existential because there is no
-`absStateD` (`Refine/Frontend/StateDR.lean`'s note). -/
-def StateOut (o : core.result.Result Unit frontend.export_c.LineErr)
-    (st' : frontend.export_c.StateD)
-    (x : ConLeche.Frontend.M ConLeche.Frontend.StateD) : Prop :=
-  match o with
-  | .Ok _ => ∃ lst', x = .ok lst' ∧ StateDRel st' lst' ∧ StateDWF st'
-  | .Err e => LineErrSim e x
 
 /-- **The full outcome of a port function whose con-leche twin is
 `M (StateD ⊕ RecordVerdict)`** — the line layer proper (`applyLine`,
@@ -905,9 +843,9 @@ def StateOutD (o : core.result.Result Unit frontend.export_c.LineErr)
 
 /-- A table-entry writer's outcome, as the line's: `applyLine`'s three
 `do pure (.inl (← …))` arms. -/
-theorem StateOut.inl {o : core.result.Result Unit frontend.export_c.LineErr}
+theorem StepOut.inl {o : core.result.Result Unit frontend.export_c.LineErr}
     {st' : frontend.export_c.StateD} {x : ConLeche.Frontend.M ConLeche.Frontend.StateD}
-    (h : StateOut o st' x) :
+    (h : StepOut o st' x) :
     StateOutD o st' (do pure (Sum.inl (← x))) := by
   cases o with
   | Ok u =>
@@ -951,31 +889,6 @@ def ValidateOut (o : core.result.Result
   | .Err (.Verdict v) =>
     ∃ lv, x = .ok (.inl lv) ∧ lVerdictKind lv = absVerdictKind v
 
-/-! ## The modeller: the one thing this tier assumes
-
-`Refine/Frontend/Base.lean`'s `ModellerWF` is phase 1's residue; this is its
-exactness twin.  **Agent C's `Refine/Frontend/ChunksR.lean` carries the
-canonical copy under the name `ModellerRefines`** — this one is named apart so
-that the two files can be imported together, and is character for character
-the same statement.  The coordinator unifies them. -/
-
-/-- The exactness twin of `Frontend.ModellerWF`: at related contexts and the
-same block, `in_model_rec::Modeller::generate` returns what
-`ConLeche.Frontend.InModel.generate` returns, and declines where it declines.
-Message text is not compared (DESIGN.md §3.1).  `CtxRel` is the context bridge
-(`export_c::state_model_ctx` against con-leche's inline `InModel.Ctx`,
-`ExportC.lean:603-607`), a parameter here because it belongs with
-`StateDRel`. -/
-def IndModellerRefines {G : Type} (inst : frontend.in_model_rec.Modeller G) (g : G)
-    (CtxRel : frontend.in_model_rec.ModelCtx →
-      ConLeche.Frontend.InModel.Ctx → Prop) : Prop :=
-  ∀ ctx lctx b o, CtxRel ctx lctx → inst.generate g ctx b = ok o →
-    (∀ ds, o = .Ok ds →
-      ConLeche.Frontend.InModel.generate lctx (absBlockRec b)
-        = .ok (ds.val.map absDeclaration)) ∧
-    (∀ m, o = .Err m →
-      ∃ s, ConLeche.Frontend.InModel.generate lctx (absBlockRec b) = .error s)
-
 /-! ## What exactness needs of the scanner beyond `LineRecWF`
 
 `Refine/Frontend/Base.lean`'s `LineRecWF` gives a `Decl` record **no** clause:
@@ -1005,43 +918,30 @@ def LineRecStrWF : frontend.scan_types.LineRec → Prop
   | .Decl d => DeclRecStrWF d
   | _ => True
 
+/-- `Refine/Frontend/StateDR.lean`s `NatValSpec` at a line: the one assumed
+ingredient of `parse_expr_rec_d_refines` (a `natVal` literals decimal digits
+are its value, `Refine/Frontend/Abs.lean`s deviation 2), passed straight
+through.  Vacuous on every line that is not an expression record. -/
+def LineNatValSpec : frontend.scan_types.LineRec → Prop
+  | .Expr _ r => NatValSpec r
+  | _ => True
+
 /-! ## The named ingredients -/
 
 /-- **The ingredient bundle `apply_line_refines` stands on** (the
-`Refine/IndSpec.lean` pattern).  Five clauses belong to the layer below —
-`Refine/Frontend/StateDR.lean`'s `parse_cv_d`, `push_decl` and the three
-table-entry writers — and three are this file's own leaves whose proofs are
-not finished: the projection rewrite, the validation and the install.  The
-install clause is what `install_ind_d` proves *given* `IndModellerRefines` at
-the context bridge; the bundle is stated at a fixed modeller so that nothing
-above has to thread `CtxRel`. -/
+`Refine/IndSpec.lean` pattern).  Four clauses, all of them this file's own
+leaves whose proofs are not finished: the record push, the projection rewrite,
+the validation and the install.  Everything else `apply_line_refines` stands
+on is proved — the three table-entry writers are
+`Refine/Frontend/StateDR.lean`'s `parse_name_entry_d_refines` and friends, and
+the six arms of `processLineCoreD` are `process_line_core_d_refines` below.
+
+What discharges `installInd` is agent C's `ModellerRefines` at agent D's
+`CtxRel` (`state_model_ctx_refines`), which is why no modeller hypothesis
+appears here: the bundle is stated at a fixed modeller, so nothing above has
+to thread the context bridge. -/
 structure IndRSpec {G : Type} (inst : frontend.in_model_rec.Modeller G) (g : G) :
     Prop where
-  /-- `export_c::parse_name_entry_d` refines `parseNameEntryD`
-  (`ConLeche/Frontend/ExportC.lean:229-237`). -/
-  parseNameEntry : ∀ {st st' : frontend.export_c.StateD}
-    {lst : ConLeche.Frontend.StateD} {i : Std.U64} {r : frontend.scan_types.NameRec}
-    {o : core.result.Result Unit frontend.export_c.LineErr},
-    StateDRel st lst → StateDWF st → NameRecWF r →
-    frontend.export_c.parse_name_entry_d st i r = ok (o, st') →
-    StateOut o st' (ConLeche.Frontend.parseNameEntryD lst i.val (absNameRec r))
-  /-- `export_c::parse_level_entry_d` refines `parseLevelEntryD`
-  (`ConLeche/Frontend/ExportC.lean:240-247`). -/
-  parseLevelEntry : ∀ {st st' : frontend.export_c.StateD}
-    {lst : ConLeche.Frontend.StateD} {i : Std.U64} {r : frontend.scan_types.LevelRec}
-    {o : core.result.Result Unit frontend.export_c.LineErr},
-    StateDRel st lst → StateDWF st →
-    frontend.export_c.parse_level_entry_d st i r = ok (o, st') →
-    StateOut o st' (ConLeche.Frontend.parseLevelEntryD lst i.val (absLevelRec r))
-  /-- `export_c::parse_expr_entry_d` refines `parseExprEntryD`
-  (`ConLeche/Frontend/ExportC.lean:259-279`). -/
-  parseExprEntry : ∀ {st st' : frontend.export_c.StateD}
-    {lst : ConLeche.Frontend.StateD} {i : Std.U64} {r : frontend.scan_types.ExprRec}
-    {o : core.result.Result Unit frontend.export_c.LineErr},
-    StateDRel st lst → StateDWF st → ExprRecWF r →
-    frontend.export_c.parse_expr_entry_d st i r = ok (o, st') →
-    StateOut o st' (ConLeche.Frontend.parseExprEntryD lst i.val (absExprRec r))
-
   /-- `export_c::push_decl` refines `pushDecl`
   (`ConLeche/Frontend/ExportC.lean:161-162`).  Total on both sides. -/
   pushDecl : ∀ {st st' : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
@@ -1492,15 +1392,15 @@ theorem apply_line_refines {G : Type}
     {r : frontend.scan_types.LineRec}
     {o : core.result.Result Unit frontend.export_c.LineErr}
     (hsp : IndRSpec inst g) (hrel : StateDRel st lst) (hwf : StateDWF st)
-    (hr : LineRecWF r) (hr2 : LineRecStrWF r)
+    (hr : LineRecWF r) (hr2 : LineRecStrWF r) (hnat : LineNatValSpec r)
     (h : frontend.export_c.apply_line inst g st r = ok (o, st')) :
     StateOutD o st' (ConLeche.Frontend.applyLine lst (absLineRec r)) := by
   rw [frontend.export_c.apply_line.eq_def] at h
   rw [ConLeche.Frontend.applyLine.eq_def]
   cases r with
-  | Name i n => exact (hsp.parseNameEntry hrel hwf hr h).inl
-  | Level i l => exact (hsp.parseLevelEntry hrel hwf h).inl
-  | Expr i e => exact (hsp.parseExprEntry hrel hwf hr h).inl
+  | Name i n => exact (parse_name_entry_d_refines hrel hwf hr h).inl
+  | Level i l => exact (parse_level_entry_d_refines hrel hwf h).inl
+  | Expr i e => exact (parse_expr_entry_d_refines hrel hwf hr hnat h).inl
   | Decl d => exact apply_decl_d_refines hsp hrel hwf hr2 h
   | Header =>
     simp only [Result.ok.injEq, Prod.mk.injEq] at h
