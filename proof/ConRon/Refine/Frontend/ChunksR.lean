@@ -28,8 +28,23 @@ con-leche: `ConLeche/Frontend/ExportC.lean:732-935` and
   carried out of the port's `&mut` argument rather than out of the value.
 * `ParseIngredients R inst g` — the lower tier's lemmas as named `Prop`s, one
   field per lemma, in the shape `Refine/IndSpec.lean` fixed at task #56.
-* `parse_chunks_refines` — **the lemma the whole task's headline composes
-  with** — and `builtin_prelude_e_refines`, its prelude twin.
+* `parse_chunks_refines` / `parse_chunks_refines_err` — **the lemma the whole
+  task's headline composes with**, both halves — and
+  `builtin_prelude_e_refines`, its prelude twin.
+
+Everything in this file is *proved*; the six `ParseIngredients` fields are the
+only residue, and fields 5 and 6 are discharged here
+(`parse_result_state_d_init`, `parse_result_of_state_sim`) against
+`Refine/Frontend/StateDR.lean`.
+
+## One intermediate definition
+
+`parseBytesFinal`, con-leche's last-line fragment written out, because
+`parseBytes` writes it inline in a `do` block while the port factors it out as
+`export_c::parse_bytes_final` (DESIGN.md §3.4's one-loop-one-shape rule).
+`parseBytes_eq` is its equivalence proof: `parseBytes` **is** its size guard,
+`feedChunk` and `parseBytesFinal`, by `rfl`.  That is the task brief's escape
+hatch, used once.
 
 ## The one use of con-leche's `Scan/Equiv` tier
 
@@ -150,23 +165,27 @@ def absParseResultD (r : frontend.export_c.ParseResultD) :
     inModelGen := #[]
     inModelDeclined := (absInModelDeclined r.in_model_declined).toArray }
 
-/-- **What a parse result claims**, field by field.
+/-- **What a parse result claims**, field by field — the six clauses
+`Refine/Frontend/StateDR.lean`'s `parse_result_of_state_refines` proves,
+spelled here in the same order and the same shape so that the
+`ParseIngredients` field below is a one-line `⟨…⟩` from it.  (`StateDR.lean`
+cannot name this structure: it is *below* this file.)
 
-Four fields are claimed exactly.  `genOwner` is a `ron::HashMap` against a
-`Std.HashMap` and is claimed the way `Refine/FEnv.lean` claims its index — by
-`HashMap.RelOn`, lookup for lookup, which is all a hash table can be compared
-at.  `inModelDeclined` pairs a name with a *reason*, and reasons are never
-compared (DESIGN.md §3.1), so only the names are.  `inModelGen` has no clause:
-the port has no such field. -/
+`absParseResultD` above is the same six fields as a value, in `Array` form;
+the clauses are stated in `List` form because that is what `StateDRel`'s own
+clauses are.  `genOwner` is a `ron::HashMap` against a `Std.HashMap` and is
+claimed the way `Refine/FEnv.lean` claims its index — by `HashMap.RelOn`,
+lookup for lookup — and, as everywhere at a `Name` key, only for well-formed
+names (`Refine/HashMapWF.lean`'s note).  `inModelGen` has no clause: the port
+has no such field. -/
 structure ParseResultSim (r : frontend.export_c.ParseResultD)
     (x : ConLeche.Frontend.ParseResultD) : Prop where
-  decls : (absParseResultD r).decls = x.decls
-  projRewrites : (absParseResultD r).projRewrites = x.projRewrites
-  inModelled : (absParseResultD r).inModelled = x.inModelled
-  genRecords : (absParseResultD r).genRecords = x.genRecords
-  genOwner : HashMap.RelOn (fun _ => True) r.gen_owner x.genOwner absName absName
-  inModelDeclined :
-    (absParseResultD r).inModelDeclined.map Prod.fst = x.inModelDeclined.map Prod.fst
+  decls : r.decls.val.map absDeclaration = x.decls.toList
+  projRewrites : r.proj_rewrites.val.map absName = x.projRewrites.toList
+  inModelled : r.in_modelled.val.map absName = x.inModelled.toList
+  genRecords : r.gen_records.val = x.genRecords
+  genOwner : HashMap.RelOn NameWF r.gen_owner x.genOwner absName absName
+  inModelDeclined : r.in_model_declined.val.map absNameStr = x.inModelDeclined.toList
 
 /-! ## The parse tier's outcome
 
@@ -1136,7 +1155,7 @@ theorem builtin_prelude_e_refines
     (h : frontend.prelude.builtin_prelude_e inst m = ok (.Ok pre)) :
     ∃ text x, frontend.prelude_text.prelude_text = ok text ∧
       ConLeche.Frontend.parseBytes (absChunk text) true false = .ok x ∧
-      (pre.decls.val.map absDeclaration).toArray = x.decls := by
+      pre.decls.val.map absDeclaration = x.decls.toList := by
   rw [frontend.prelude.builtin_prelude_e.eq_def] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨text, htext, r, hr, h⟩ := h
@@ -1713,6 +1732,26 @@ theorem parse_chunks_refines_err
   rw [show absChunk (alloc.vec.Vec.new Std.U8) = ByteArray.empty from rfl] at hres
   simpa using hres
 
+
+/-! ## The two fields `Refine/Frontend/StateDR.lean` discharges
+
+Fields 5 and 6 of `ParseIngredients` at `R := StateDRel`, so that the shapes
+are checked here rather than in the instance the coordinator writes. -/
+
+/-- `ParseIngredients.state_d_init` at `StateDRel`. -/
+theorem parse_result_state_d_init {im ce : Bool} {st : frontend.export_c.StateD}
+    (h : frontend.export_c.state_d_init im ce = ok st) :
+    StateDRel st (ConLeche.Frontend.StateD.init im ce) := state_d_init_refines h
+
+/-- `ParseIngredients.parse_result_of_state` at `StateDRel`: `ParseResultSim`
+is `Refine/Frontend/StateDR.lean`'s six clauses, in order. -/
+theorem parse_result_of_state_sim {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {r : frontend.export_c.ParseResultD}
+    (hrel : StateDRel st lst) (h : frontend.export_c.parse_result_of_state st = ok r) :
+    ParseResultSim r (ConLeche.Frontend.ParseResultD.ofState lst) := by
+  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := parse_result_of_state_refines hrel h
+  exact ⟨h1, h2, h3, h4, h5, h6⟩
+
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
 The headline and its prelude twin: Lean's own three axioms and nothing else.
@@ -1729,5 +1768,8 @@ for every byte slice — so the census is the one phase 1 pinned for
 
 /-- info: 'ConRon.Refine.Frontend.builtin_prelude_e_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms builtin_prelude_e_refines
+
+/-- info: 'ConRon.Refine.Frontend.parse_chunks_refines_err' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms parse_chunks_refines_err
 
 end ConRon.Refine.Frontend
