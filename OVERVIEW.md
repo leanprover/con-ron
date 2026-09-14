@@ -23,7 +23,7 @@ development is consistent: a bug in those would have to have a twin in
 
 The binary reads a Lean export in `lean4export`'s NDJSON format and
 prints one verdict line
-([the usage text in `con-ron.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L116-L188)):
+([the usage text in `con-ron.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/bin/con-ron.rs#L130-L254)):
 
 ```
 con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
@@ -41,7 +41,10 @@ stack.  `--progress[=<stride>]` is a heartbeat on stderr.  The two flags
 con-leche does not have are marked as con-ron's own in the usage text:
 `--pins FILE` and `--no-pins` replace the embedded pin list for testing.  `--no-mark-persistent` is accepted and does nothing: the
 Lean-runtime device it turns off has no counterpart in a program whose
-reference counts are atomic by type.
+reference counts are atomic by type.  The usage text closes with the one
+*build-time* choice a run's numbers depend on — the global allocator, a
+cargo feature of the binary rather than a flag (§3.6) — and `--help`
+prints the one this binary was built with.
 
 `N` is the *file's* own accepted declaration records — one per
 `def`/`theorem`/`opaque`/`axiom`/`inductive`/`quot` record it declares.  The

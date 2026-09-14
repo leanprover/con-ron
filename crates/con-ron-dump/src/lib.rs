@@ -87,9 +87,15 @@
 // bytes go, and the core reads no address (`ptr_eq` aside, which compares
 // identity, not order).
 //
-// `mimalloc` is the default (it measured best on `init`);
-// `--no-default-features` restores glibc `malloc`, and
-// `--no-default-features --features jemalloc` selects jemalloc.
+// Which allocator that is, is **decided in `crates/con-ron/Cargo.toml`**
+// (task #89): the binary takes this crate over a `default-features = false`
+// edge and forwards features of the same names, so `cargo build --release` is
+// mimalloc (it measured best on `init`), `--no-default-features` is glibc
+// `malloc`, and `--no-default-features --features jemalloc` is jemalloc.  The
+// `default = ["mimalloc"]` in this crate's own manifest governs only a build
+// of this library on its own; task #88 §5 found the claim that the flag
+// worked through this crate's default to be false as it then stood.
+// `con-ron --help` prints `ALLOCATOR`, so a measured run can name its own.
 #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
 #[global_allocator]
 static GLOBAL_ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;

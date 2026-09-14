@@ -51,80 +51,132 @@
    290  
    291  /-- **The main theorem for the shipped binary, axiom-free** (task #75): every
 
-== crates/con-ron/src/bin/con-ron.rs#L116-L188
-   116  // that crate anyway — for the `con-ron-pins/1` reader of `--pins` and for
-   117  // `natdec`, the decimal parser the frontend shares with it.  So `con-ron` declares none, and
-   118  // `cargo build --no-default-features` gives glibc `malloc` back to both.
-   119  
-   120  /// con-leche: Main.lean:714-944 usage
-   121  /// The usage text.  DESIGN.md §3.1: message strings need not match, and this
-   122  /// one deliberately does not — it is con-leche's synopsis plus the three flags
-   123  /// that differ and the one piece of `Main.lean` that is not ported.
-   124  const USAGE: &str = "\
-   125  usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
-   126                 [--progress[=<stride>]] [--pins FILE|--no-pins]
-   127                 FILE.ndjson
-   128         con-ron --help
-   129  
-   130    --verified        the default, and the mode the main theorem is about: every
-   131                      environment the fold accepts in this mode has a model in
-   132                      every set theory (ConLeche.model_exists,
-   133                      ConLeche/MainTheorem.lean), so a stream declaring a
-   134                      theorem of type False is never accepted
-   135                      (ConLeche.no_False_theorem_accepted).  What the port
-   136                      proves is that same statement about THIS program's fold
-   137                      (DESIGN.md §1); con-leche's file-level corollary
-   138                      ConLeche.no_False_declaration, which covers the parse as
-   139                      well, is NOT yet claimed here -- task #84 put the parser
-   140                      into the verified core, so the corollary is now reachable,
-   141                      but its proof is the next task's.
-   142    --trusted         the unverified mode: the SAME checker bodies at the mode
-   143                      with the certification-only work switched off.  An accept
-   144                      in this mode is outside the theorem.
-   145    --jobs=<n>        the check phase's worker count: <n> workers claim records
-   146                      one at a time off a shared counter, and --jobs=1 runs the
-   147                      plain loop with no counter and no result table.  The
-   148                      verdict, and the declaration a rejection names, are the
-   149                      same at every <n>: the results are walked in RECORD order,
-   150                      so the first failing record in fold order is the one
-   151                      reported.  Each worker reserves 1 GiB of address space for
-   152                      its stack, so a run under `ulimit -v` needs 3x the
-   153                      checker's resident set plus a gigabyte per worker; the
-   154                      DEFAULT is one worker per hardware thread capped at 16 for
-   155                      that reason (con-leche's uncapped default aborts on a
-   156                      96-thread machine).  0 or a non-numeral is a usage error,
-   157                      as in con-leche.
-   158    --no-mark-persistent
-   159                      ACCEPTED AND A NO-OP: the mark it turns off is a
-   160                      Lean-runtime reference-counting device
-   161                      (Runtime.markPersistent), and this program's counts are
-   162                      std::sync::Arc counts -- atomic by type, in every lane,
-   163                      with no runtime mark to clear.  A run that passes it says
-   164                      so on stderr.
-   165    --progress[=<stride>]
-   166                      opt-in progress heartbeat on STDERR, one line shape per
-   167                      phase:
-   168                        con-ron: parse done: <N> fold records ... t=<s>s
-   169                        con-ron: install <i>/<N> <decl> t=<s>s
-   170                        con-ron: install done: <N>/<N> ..., <M> checks pending t=<s>s
-   171                        con-ron: check <done>/<M> <kind> <name> t=<s>s
-   172                        con-ron: check done: <M>/<M> t=<s>s
-   173                        con-ron: done: parse <p>s, install <i>s, check <c>s, <n> workers
-   174                      An install line is printed BEFORE every <stride>-th
-   175                      declaration is installed (<i> is its FOLD position, which
-   176                      the stream's record index sits near but not at a fixed
-   177                      offset above), so a run that dies in the install phase
-   178                      names the declaration it died in on its last line.  A
-   179                      check line is printed AFTER every <stride>-th COMPLETED
-   180                      check.  On a failure the phase's closing line says so
-   181                      ('install failed at', 'check failed at') and the summary
-   182                      still prints.  Bare --progress is stride 1; a stride that
-   183                      is not a decimal numeral, or 0, is a usage error.
-   184    --pins FILE       con-ron's own, FOR TESTING: read the pin list from a
-   185                      `con-ron-pins/1` dump instead of the core's own embedded
-   186                      text (task #43), through the UNVERIFIED reader.
-   187    --no-pins         con-ron's own, FOR TESTING: the empty pin list, the pin
-   188                      loop's `[]` arm, under which a Nat.div/Nat.mod stream
+== crates/con-ron/src/bin/con-ron.rs#L130-L254
+   130  const USAGE: &str = "\
+   131  usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
+   132                 [--progress[=<stride>]] [--pins FILE|--no-pins]
+   133                 FILE.ndjson
+   134         con-ron --help
+   135  
+   136    --verified        the default, and the mode the main theorem is about: every
+   137                      environment the fold accepts in this mode has a model in
+   138                      every set theory (ConLeche.model_exists,
+   139                      ConLeche/MainTheorem.lean), so a stream declaring a
+   140                      theorem of type False is never accepted
+   141                      (ConLeche.no_False_theorem_accepted).  What the port
+   142                      proves is that same statement about THIS program's fold
+   143                      (DESIGN.md §1); con-leche's file-level corollary
+   144                      ConLeche.no_False_declaration, which covers the parse as
+   145                      well, is NOT yet claimed here -- task #84 put the parser
+   146                      into the verified core, so the corollary is now reachable,
+   147                      but its proof is the next task's.
+   148    --trusted         the unverified mode: the SAME checker bodies at the mode
+   149                      with the certification-only work switched off.  An accept
+   150                      in this mode is outside the theorem.
+   151    --jobs=<n>        the check phase's worker count: <n> workers claim records
+   152                      one at a time off a shared counter, and --jobs=1 runs the
+   153                      plain loop with no counter and no result table.  The
+   154                      verdict, and the declaration a rejection names, are the
+   155                      same at every <n>: the results are walked in RECORD order,
+   156                      so the first failing record in fold order is the one
+   157                      reported.  Each worker reserves 1 GiB of address space for
+   158                      its stack, so a run under `ulimit -v` needs 3x the
+   159                      checker's resident set plus a gigabyte per worker; the
+   160                      DEFAULT is one worker per hardware thread capped at 16 for
+   161                      that reason (con-leche's uncapped default aborts on a
+   162                      96-thread machine).  0 or a non-numeral is a usage error,
+   163                      as in con-leche.
+   164    --no-mark-persistent
+   165                      ACCEPTED AND A NO-OP: the mark it turns off is a
+   166                      Lean-runtime reference-counting device
+   167                      (Runtime.markPersistent), and this program's counts are
+   168                      std::sync::Arc counts -- atomic by type, in every lane,
+   169                      with no runtime mark to clear.  A run that passes it says
+   170                      so on stderr.
+   171    --progress[=<stride>]
+   172                      opt-in progress heartbeat on STDERR, one line shape per
+   173                      phase:
+   174                        con-ron: parse done: <N> fold records ... t=<s>s
+   175                        con-ron: install <i>/<N> <decl> t=<s>s
+   176                        con-ron: install done: <N>/<N> ..., <M> checks pending t=<s>s
+   177                        con-ron: check <done>/<M> <kind> <name> t=<s>s
+   178                        con-ron: check done: <M>/<M> t=<s>s
+   179                        con-ron: done: parse <p>s, install <i>s, check <c>s, <n> workers
+   180                      An install line is printed BEFORE every <stride>-th
+   181                      declaration is installed (<i> is its FOLD position, which
+   182                      the stream's record index sits near but not at a fixed
+   183                      offset above), so a run that dies in the install phase
+   184                      names the declaration it died in on its last line.  A
+   185                      check line is printed AFTER every <stride>-th COMPLETED
+   186                      check.  On a failure the phase's closing line says so
+   187                      ('install failed at', 'check failed at') and the summary
+   188                      still prints.  Bare --progress is stride 1; a stride that
+   189                      is not a decimal numeral, or 0, is a usage error.
+   190    --pins FILE       con-ron's own, FOR TESTING: read the pin list from a
+   191                      `con-ron-pins/1` dump instead of the core's own embedded
+   192                      text (task #43), through the UNVERIFIED reader.
+   193    --no-pins         con-ron's own, FOR TESTING: the empty pin list, the pin
+   194                      loop's `[]` arm, under which a Nat.div/Nat.mod stream
+   195                      declines.  Neither flag is needed for a normal run: the
+   196                      pins are con-leche's `natOpPinSets`, embedded in the
+   197                      verified core and decoded by it.
+   198    --help            print this text on STDOUT and exit 0, in any argument
+   199                      position; no input is read.  Its last line names the
+   200                      global allocator THIS binary was built with (below), so a
+   201                      measurement can be reproduced.
+   202  
+   203  build-time selection (cargo features, not command-line flags): the global
+   204  allocator is `con-ron-dump`'s `#[global_allocator]`, chosen on this crate's
+   205  dependency edge -- `cargo build --release` is mimalloc, `--no-default-features`
+   206  is glibc `malloc`, and `--no-default-features --features jemalloc` is jemalloc.
+   207  
+   208  Any other option is a usage error: the run reports it, prints this text and
+   209  exits 3 without reading its input.
+   210  
+   211  exit codes: 0 accepted, 1 rejected, 2 declined, 3 usage/malformed/internal.
+   212  An out-of-memory condition is NEITHER: con-leche's exit 1 for it is the Lean
+   213  runtime's own panic, and this program instead aborts the way Rust aborts on a
+   214  failed allocation ('memory allocation of <n> bytes failed', SIGABRT, which a
+   215  shell reports as 134).  A panic is exit 3.
+   216  
+   217  THE VERDICT LINE'S COUNT.  It counts the FILE's accepted declaration RECORDS:
+   218  one per def/theorem/opaque/axiom/inductive/quot record the file declares.  The
+   219  built-in prelude's own records are not counted, and neither are the records
+   220  the in-process modeller generates; a stream record that declares a prelude
+   221  declaration IS counted -- the preparation moves it to the front rather than
+   222  dropping it, and it is what installs.  That count is a property of the INPUT.
+   223  The number of environment CONSTANTS is not: an inductive record installs
+   224  several constants (type former, constructors, recursor, projection table), so
+   225  it moves when the representation moves.
+   226  
+   227  THE BUILT-IN PRELUDE.  Every run installs, first and unconditionally, the
+   228  checker's own little prelude -- the six pinned basis blocks (Eq, Nat, PUnit,
+   229  Empty, False, Quot) and the toolchain's Bool and And blocks, embedded at build
+   230  time -- so the pin-certified Nat operations find their ground whatever order
+   231  the export chose.  The stream's OWN copy of a prelude declaration is moved to
+   232  the front in the prelude's order, and only the prelude records the stream does
+   233  not declare are synthesised; a pinned operation's stream-certified structural
+   234  ground (Nat.ble, Nat.sub, Nat.mul) is HOISTED ahead of the operation when the
+   235  stream declares it later.  All of that is one pure total function from the
+   236  file's records to the fold's input (con_ron::frontend::prepare); the parse
+   237  itself only decodes, and recognising a block as a pinned basis block or a
+   238  record as the quotient package's is the FOLD's.
+   239  
+   240  environment (con-leche's):
+   241    CON_LECHE_INMODEL=0          turn the in-process modeller off; a mutual or
+   242                                 nested block is then pushed bare and the FOLD
+   243                                 declines it, having found no route
+   244    CON_LECHE_INMODEL_CENSUS=1   report every mutual/nested block's outcome
+   245                                 after the parse and stop (exit 2)
+   246    CON_LECHE_PROJREC_TRACE      name each rewritten projection function
+   247  These are the in-process modeller's debug switches and they go with it: no
+   248  environment variable this program reads can shape a verdict, which is
+   249  con-leche's own rule -- every such switch is a command-line flag.
+   250  
+   251  NOT PORTED: CON_LECHE_INMODEL_DUMP, the debug splice of the generated records
+   252  into a copy of the input -- it is written through con-leche's annotated-NDJSON
+   253  writer (`Frontend/ExportWrite.lean`), an output path this checker does not
+   254  have.";
 
 == crates/con-ron/src/driver.rs#L41-L46
     41  //! | exit | verdict | meaning |

@@ -19,5 +19,31 @@ con-ron-core = { path = "../con-ron-core" }
 # (task #31) and for `natdec`, the decimal parser the frontend shares with it.
 # Its `#[global_allocator]` — task #35's mimalloc — comes with it and serves
 # this binary too; a program may declare only one, which is why `con-ron`
-# declares none.
-con-ron-dump = { path = "../con-ron-dump" }
+# declares none.  The edge takes it with NO default features so that the
+# choice is made by the `[features]` below and nowhere else.
+con-ron-dump = { path = "../con-ron-dump", default-features = false }
+
+# THE GLOBAL ALLOCATOR IS SELECTED HERE (task #89).  A `#[global_allocator]`
+# only ever takes effect in a *binary*, and `con-ron` is the only binary in
+# the workspace, so this is the one manifest that decides:
+#
+#   cargo build --release                                   mimalloc (default)
+#   cargo build --release --no-default-features              glibc `malloc`
+#   cargo build --release --no-default-features \
+#               --features jemalloc                          jemalloc
+#
+# and `-p con-ron` may be added to any of the three.  The attribute itself
+# stays in `con-ron-dump` (`src/lib.rs`), which owns the optional
+# dependencies; these three features forward to its.
+#
+# Before task #89 the forwarding was missing and the edge above took
+# `con-ron-dump`'s defaults, so `--no-default-features` changed **nothing**:
+# `con-ron` had no features of its own for the flag to turn off, and feature
+# unification still honoured `con-ron-dump`'s own `default = ["mimalloc"]`.
+# Task #88 §5 caught that (the built binary kept its `mi_*` symbols), which is
+# why `con-ron --help` now prints the allocator it was built with — a
+# measurement that names its allocator can be reproduced.
+[features]
+default = ["mimalloc"]
+mimalloc = ["con-ron-dump/mimalloc"]
+jemalloc = ["con-ron-dump/jemalloc"]

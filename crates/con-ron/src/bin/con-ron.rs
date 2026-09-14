@@ -114,8 +114,14 @@ use con_ron::render::name_str;
 // The global allocator is `con-ron-dump`'s (task #35's mimalloc, declared by
 // that crate's lib): a program may declare only one, and this binary links
 // that crate anyway — for the `con-ron-pins/1` reader of `--pins` and for
-// `natdec`, the decimal parser the frontend shares with it.  So `con-ron` declares none, and
-// `cargo build --no-default-features` gives glibc `malloc` back to both.
+// `natdec`, the decimal parser the frontend shares with it.  So `con-ron`
+// declares none — but it *chooses*: `crates/con-ron/Cargo.toml` takes that
+// crate with `default-features = false` and forwards `mimalloc` (the default)
+// and `jemalloc`, so `cargo build --release --no-default-features` is glibc
+// `malloc` (task #89).  The claim this comment used to make — that the flag
+// worked without the forwarding — was false, and task #88 §5 measured the
+// `mi_*` symbols still in the binary to prove it; `--help` now prints
+// `con_ron_dump::ALLOCATOR` so a run can say which one it measured.
 
 /// con-leche: Main.lean:714-944 usage
 /// The usage text.  DESIGN.md §3.1: message strings need not match, and this
@@ -190,7 +196,14 @@ usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
                     pins are con-leche's `natOpPinSets`, embedded in the
                     verified core and decoded by it.
   --help            print this text on STDOUT and exit 0, in any argument
-                    position; no input is read.
+                    position; no input is read.  Its last line names the
+                    global allocator THIS binary was built with (below), so a
+                    measurement can be reproduced.
+
+build-time selection (cargo features, not command-line flags): the global
+allocator is `con-ron-dump`'s `#[global_allocator]`, chosen on this crate's
+dependency edge -- `cargo build --release` is mimalloc, `--no-default-features`
+is glibc `malloc`, and `--no-default-features --features jemalloc` is jemalloc.
 
 Any other option is a usage error: the run reports it, prints this text and
 exits 3 without reading its input.
@@ -562,6 +575,11 @@ fn main() -> ExitCode {
     let argv: Vec<String> = std::env::args().skip(1).collect();
     if argv.iter().any(|s| s == "--help") {
         println!("{}", USAGE);
+        // The one build-time choice a run's numbers depend on, printed rather
+        // than merely documented (task #89): `con-ron-dump`'s `ALLOCATOR` is
+        // this binary's, because this binary is the only program that links
+        // that crate's `#[global_allocator]`.
+        println!("this build's global allocator: {}", con_ron_dump::ALLOCATOR);
         return ExitCode::SUCCESS;
     }
     let a = parse_args(&argv);

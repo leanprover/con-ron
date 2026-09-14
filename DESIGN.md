@@ -244,10 +244,16 @@ at an instruction count flat to 0.8 %, and the whole binary 64.3 s → 20.2 s �
 has the table, and the `Rc`-for-scratch split remains the way to get the 13 %
 back).
 
-`triomphe::Arc` is not a third way out: it is 8 bytes smaller per node (a
-48-byte `ExprNode` block against 56, −3.8 % peak RSS) but **slower than
-either**, +17 % instructions and +20 % wall on `core`.  The task-#44 entry has
-the full table and the two ways back; task #45's has the before/after pair.
+`triomphe::Arc` is 8 bytes smaller per node (a 48-byte `ExprNode` block
+against 56) and costs **+17 % instructions** on `core`, which is why task #44
+ruled it out.  Task #89 re-measured it after tasks #45–#88: the instruction
+penalty is unchanged (+17.6 %), but the **wall penalty is gone** (+0.4 % on
+`core`, −7.6 % on `init`) — the extra instructions now fit in stall slots — and
+the memory it buys is **−6.0 % of `core`'s peak (−143 MB)**, less than the
+−10.8 % the block arithmetic predicts.  It remains **not taken**: the decision
+is the maintainer's and the instruction count is the measure of record.  The
+task-#44 entry has the original table and the two ways back, task #45's the
+before/after pair, task #89's the re-measurement.
 
 **Going back to `Rc` is one line plus a rename, and deliberately not a cargo
 feature.**  `crates/con-ron-core/src/ron/ptr.rs`'s alias line is the choice;
@@ -18265,3 +18271,201 @@ one §4 measured.
 
 `_tmp/task90-proofs/` holds the run's four files (`.perf`, `.time`, `.out`,
 `.err`); deleted once these numbers are the committed record, per CLAUDE.md.
+### Task #89 — the remaining memory items (2026-09-14, Opus under Fable)
+
+Task #88's report (`_tmp/t88/REPORT.md`) ranked three fixes and left two of
+them undone.  This task lands the cheap one (fix 3), settles the allocator
+flag that report found to be a lie, and **re-measures `triomphe::Arc`** —
+fix 1, the big one — without landing it, because the decision is the
+maintainer's.
+
+#### 1. The install `CState` is dropped at the phase boundary
+
+`crates/con-ron/src/driver.rs`, `check_decls_driver`: `drop(st);` immediately
+after `obs.install_done(total, m, &st, &fe)`.  `st` has no later use — every
+phase-B check starts from `cstate_new()`, per §3.1's memo policy — but Rust
+drops at the end of the scope, so it lived through the whole check phase.
+con-leche's `checkDeclsIO` (`Main.lean:342-355`) puts the twin only into
+`InstalledEnv.run`, a `Prop` field the compiler erases, so the Lean checker's
+memo state dies at the boundary; this makes con-ron's die there too.  The
+verified twin in `cached::installed::check_decls` is **left alone**
+(`Refine/Installed.lean`'s `check_decls_refines` unfolds that body).
+
+**The lane matters, and it is a trap worth recording.**  `bin/con-ron.rs`
+calls `check_decls_driver` only when `--progress` is given *or* `--jobs > 1`;
+a bare `--jobs=1` takes `installed::check_decls` instead.  So the first three
+measurement pairs of this task compared two binaries on a lane neither of them
+had changed.  Every real run does take the driver — the default `--jobs` is
+one per hardware thread capped at 16, and the arena passes `--jobs=4` — but a
+*measurement* of this change must force it.
+
+**What it frees, measured within one run.**  A throwaway build printed
+`/proc/self/status`'s `VmRSS` on both sides of the `drop`, on `core`,
+`--verified --jobs=1 --progress`:
+
+| allocator setting | VmRSS before | after | returned |
+|---|---:|---:|---:|
+| `MIMALLOC_PURGE_DELAY=0` | 2 206 524 kB | 2 193 532 kB | **12 992 kB** |
+| mimalloc default (delayed purge) | 2 224 636 kB | 2 224 636 kB | 0 kB |
+
+Task #88's tracking allocator counted 18 MB of live payload in the fourteen
+`CState` tables at that point (thirteen are empty; what dies is `ienv`).  The
+probe returns 12.7 MiB of it to the OS at once; the rest is chain blocks
+sharing pages with live data, which mimalloc keeps.  With the default purge
+delay nothing is returned *at that instant* — the pages are recycled by the
+check phase instead.
+
+**The peak does not move measurably, and that is a fact about the
+instrument.**  On the driver lane the `core` peak varies enormously run to
+run, because mimalloc's purge timing decides how much of the install's freed
+tail is still resident when the check phase's transients land:
+
+| binary | lane | peak RSS, one run each |
+|---|---|---|
+| master | driver (`--progress`) | 2 342 MB, 2 172 MB |
+| + `drop(st)` | driver (`--progress`) | 2 324 MB |
+| master | driver, `MIMALLOC_PURGE_DELAY=0` | 2 321 MB |
+| + `drop(st)` | driver, `MIMALLOC_PURGE_DELAY=0` | 2 310 MB |
+| master | `installed::check_decls` (unchanged by this) | 2 381 MB, 2 386 MB |
+| + `drop(st)` | `installed::check_decls` (unchanged by this) | 2 385 MB, 2 387 MB |
+
+A ~170 MB spread swallows an 18 MB effect whole; the paired runs on the lane
+the change does *not* touch agree, which is the control.  Instructions are
+unchanged (1 159.62 / 1 160.37 G before, 1 158.00 / 1 160.16 G after).  **So
+the honest statement is: the change frees 13–18 MB at the phase boundary, as
+designed, and `core`'s peak RSS cannot resolve it.**  At Mathlib, where
+`ienv` holds ~691 k entries against `core`'s 162 k, task #88 projects ≈70 MB;
+that is worth having for one line, but it is not a headline.
+
+#### 2. The allocator flag: made true, not explained away
+
+Task #88 §5 found that `cargo build --release --no-default-features` does not
+switch the allocator — the built binary keeps its `mi_*` symbols — although
+three comments said it did.  The cause: `#[global_allocator]` lives in
+`crates/con-ron-dump/src/lib.rs`, gated on **that** crate's features, and
+`con-ron` had no features of its own, so the flag had nothing to turn off and
+feature unification still honoured `con-ron-dump`'s `default = ["mimalloc"]`.
+
+The honest option here is to make the flag work, because it is one edge:
+
+* `crates/con-ron/Cargo.toml` takes `con-ron-dump` with
+  `default-features = false` and gains `default = ["mimalloc"]`,
+  `mimalloc = ["con-ron-dump/mimalloc"]`, `jemalloc = ["con-ron-dump/jemalloc"]`.
+  A `#[global_allocator]` only ever takes effect in a *binary* and `con-ron`
+  is the workspace's only binary, so this is the one manifest that decides.
+* the attribute and the optional dependencies stay where they are; the three
+  comments (`con-ron-dump/Cargo.toml`, `con-ron-dump/src/lib.rs`,
+  `bin/con-ron.rs`) now say who chooses and name task #88 as the finding.
+
+Verified by `nm target/release/con-ron | grep -c` after each build:
+
+| build | `--help`'s last line | `mi_*` symbols | jemalloc symbols |
+|---|---|---:|---:|
+| `cargo build --release` | `mimalloc` | 341 | 0 |
+| `… --no-default-features` (workspace) | `system` | **0** | 0 |
+| `… -p con-ron --no-default-features` | `system` | **0** | 0 |
+| `… -p con-ron --no-default-features --features jemalloc` | `jemalloc` | 0 | 583 |
+
+The flag is user-visible — it is how every allocator row in this log was
+supposed to have been produced — so `con-ron --help` now ends with
+`this build's global allocator: <name>`, printing `con_ron_dump::ALLOCATOR`
+(a `pub const` that until now nothing read), and the usage text carries a
+four-line `build-time selection` paragraph naming the three invocations.
+`OVERVIEW.md` §0's citation of the usage text moves to `#L106-L176` and its
+prose gains the sentence that sends the reader to §3.6 for the allocator;
+§3.6's own mimalloc paragraph is unchanged and still true.
+
+Any earlier row in this log that claims to have measured "the system
+allocator" via `--no-default-features` measured mimalloc; from this commit on
+the flag does what it says, and `--help` lets a run state which allocator
+produced it.
+
+#### 3. `triomphe::Arc` re-measured — and NOT landed
+
+Task #44 measured triomphe at **+17 % instructions and +20 % wall on `core`**
+and ruled it out; task #88's fix 1 asks for it back, for −8 bytes on every
+`ExprNode`, `NameNode` and `LevelNode` block.  That measurement predates tasks
+#45–#88.  Re-measured here on a throwaway branch (created, measured, deleted;
+nothing of it is in the tree).
+
+**It builds with no API gap.**  `triomphe::Arc` has `new`, `Clone::clone`,
+`Deref::deref` and `ptr_eq` — the four operations §3.2 allows — so the swap is
+`ron/ptr.rs`'s one alias line plus the dependency.  One other site had to
+move: `con-ron-dump`'s `CountHeader` trait (task #44, the `--sizes` header
+width) needed its third impl, `WORDS = 1`, because triomphe's block is
+`#[repr(C)] { count: AtomicUsize, data: T }` — one count, no weak.  That is
+*unverified* tooling and the trait exists precisely for this, but it is the
+second place a landing would have to name the pointer.
+
+Node sizes, from `con-ron-dump`'s own size test on the branch (the inline
+`size` is identical, as task #44 found; only the block moves):
+
+| block | `std::sync::Arc` | `triomphe::Arc` |
+|---|---:|---:|
+| `ExprNode` (`size_of` 40 both) | 56 B | **48 B** |
+| `NameNode` (`size_of` 40 both) | 56 B | 48 B |
+| `LevelNode` (`size_of` 32 both) | 48 B | 40 B |
+| `PropWhen` (`size_of` 24 both) | 40 B | 32 B |
+
+`con-ron --verified --jobs=1`, release + mimalloc, `perf stat -e
+instructions:u,cycles:u`, `ulimit -v` 2.6 GB (`init`) / 5 GB (`core`), the
+same tree with and without the alias change, on a machine shared with other
+agents' builds:
+
+| | `init`, `std::sync::Arc` (3 runs) | `init`, `triomphe` (4 runs) | Δ |
+|---|---:|---:|---:|
+| `instructions:u` | **540.26 G** (540.259–540.263) | **610.26 G** (603.73–613.64) | **+12.96 %** |
+| `cycles:u` | 317.85 G | 307.93 G | −3.12 % |
+| IPC | 1.70 | 1.98 | |
+| wall | 77.91 s (75.17–80.34) | 71.97 s (68.97–73.96) | −7.6 % (spreads overlap) |
+| peak RSS | 872.5 MB | 834.7 MB | **−4.33 %** |
+
+| | `core`, `std::sync::Arc` (1 run) | `core`, `triomphe` (1 run) | Δ |
+|---|---:|---:|---:|
+| `instructions:u` | **1 160.35 G** | **1 363.98 G** | **+17.55 %** |
+| `cycles:u` | 714.89 G | 732.98 G | +2.53 % |
+| IPC | 1.62 | 1.86 | |
+| wall | 165.96 s | 166.58 s | +0.4 % (one run each) |
+| peak RSS | 2 384.2 MB | 2 241.2 MB | **−6.00 % (−143 MB)** |
+
+**What changed since task #44, and what did not.**  The instruction penalty is
+exactly where it was (+17.6 % on `core` against +17 % then): whatever triomphe
+does more of, tasks #45–#88 did not touch it.  What *has* gone is the wall-time
+penalty — task #44 saw +20 % on `core`, this sees +0.4 %, because the port's
+IPC has fallen since (1.62 here for `std::sync::Arc` against task #44's 1.70)
+and the extra instructions now fit in stall slots that were empty.  On this
+evidence triomphe is **not** the slowest of the three any more; it is
+instruction-expensive and cycle-neutral.
+
+One oddity worth recording: `std::sync::Arc`'s `init` instruction count is
+reproducible to six figures across three runs (540.259–540.263 G), triomphe's
+is not (603.73–613.64 G, a 1.6 % spread).  The port does hash node *addresses*
+in one place — `con-ron`'s `ExprKey` for the frontend's ground-term table — so
+a different allocation layout can change a probe count; that is the likeliest
+cause and it was not chased.
+
+The memory buys less than task #88 projected: −143 MB on `core`, not the
+−253 MB the block-size arithmetic predicts (−8/56 of the 56-byte class), i.e.
+−6.0 % of the peak rather than −10.8 %.  Two reasons, both visible in #88's own
+tables: 48-byte and 56-byte blocks are different mimalloc size classes with
+different page slack, and part of the 56-byte class is `NameNode`, which is a
+fortieth of the node count.  Scaling the measured `core` fraction rather than
+the projection, Mathlib's 16.5 GB would come down by ≈1.0 GB, not ≈2.0 GB.
+
+**The trade, for the maintainer.**  −143 MB (−6 %) on `core`, ≈−1 GB at
+Mathlib, against +17.6 % instructions on `core` — which today costs almost no
+wall at one worker, but *is* real work, and the instruction count is this
+project's measure of record precisely because wall is not stable on a shared
+machine.  The cost to the proof is the one task #44 priced: `ptr.rs`'s alias
+line, `alloc.sync.Arc` → `triomphe.arc.Arc` in the two hand-written model
+files and in the `arc_*` lemma names, a third `CountHeader` impl, and a new
+third-party dependency with `unsafe` inside (permitted by the 2026-09-12
+ruling, which forbids *our* `unsafe`, not a crate's).  No statement changes and
+no new lemma.  **Not landed**; §3.2's claim that triomphe is "slower than
+either, +17 % instructions and +20 % wall" is updated to cite this task for the
+wall half.
+
+#### Gates
+
+`scripts/gates.sh` all eight OK (`lake-build` 333 s at `LAKE_JOBS=32`);
+`scripts/diff-e2e.sh` **348/348 agree, 0 differ**.  Artefacts under `_tmp/t89/`.
