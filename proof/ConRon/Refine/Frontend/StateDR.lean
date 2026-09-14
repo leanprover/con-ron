@@ -2221,4 +2221,140 @@ theorem push_decl_refines {st st' : frontend.export_c.StateD}
   · exact ⟨hwf1.names, hwf1.levels, hwf1.exprs, push_wf' hwf1.decls hd hv,
       hwf1.proj_owners, hwf1.proj_levels⟩
 
+/-! ## The record copies
+
+`cv_rec_dup`, `ind_ctor_rec_dup`, `proj_rec_owner_dup`, `declaration_dup` and
+`constant_infos_dup` have **no con-leche counterpart**: con-leche gets its
+copies from Lean's sharing, and the port needs them because Aeneas's `Vec`
+model has no way to move an element out of an owned `Vec` (their doc comments
+say so).  So the statement is the strongest one available — each copy **is the
+identity in the model**, exactly as `nat_op_ground::declaration_dup` was found
+to be at task #85 (`Refine/Frontend/Prepare.lean`). -/
+
+/-- The `Vec<u64>` copy behind `cv_rec_dup`. -/
+private theorem cv_rec_dup_loop_val (N : Nat) :
+    ∀ (v lps r : alloc.vec.Vec Std.U64) (n i : Std.Usize),
+      n.val = v.val.length → n.val - i.val = N →
+      frontend.export_c.cv_rec_dup_loop v lps n i = ok r →
+      r.val = lps.val ++ v.val.drop i.val := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro v lps r n i hn hN h
+    rw [frontend.export_c.cv_rec_dup_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨i1, hidx, lps1, hpush, i2, hi2, h⟩ := h
+      have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+      have hdrop : v.val.drop i.val = i1 :: v.val.drop (i.val + 1) := by
+        have := vec_drop_map (v := v) (i := i) (x := i1) id hidx
+        simpa using this
+      rw [ih (n.val - i2.val) (by scalar_tac) v lps1 r n i2 hn rfl h,
+        vec_push_val hpush, hi2v, hdrop]
+      simp
+    · rename_i hge
+      rw [← Result.ok_injective h, List.drop_eq_nil_of_le (by scalar_tac)]
+      simp
+
+/-- `export_c::cv_rec_dup` is the identity on a `CVRec`. -/
+theorem cv_rec_dup_refines {cv r : frontend.scan_types.CVRec}
+    (h : frontend.export_c.cv_rec_dup cv = ok r) : r = cv := by
+  rw [frontend.export_c.cv_rec_dup] at h
+  simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+  obtain ⟨lps1, hlps, rfl⟩ := h
+  have hv := cv_rec_dup_loop_val _ cv.level_params _ lps1 _ 0#usize
+    (alloc.vec.Vec.len_val _) rfl hlps
+  have hv' : lps1.val = cv.level_params.val := by
+    rw [hv]
+    simp [alloc.vec.Vec.with_capacity, show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
+  rw [alloc.vec.Vec.ext lps1 cv.level_params hv']
+
+/-- `export_c::ind_ctor_rec_dup` is the identity on an `IndCtorRec`. -/
+theorem ind_ctor_rec_dup_refines {c r : frontend.scan_types.IndCtorRec}
+    (h : frontend.export_c.ind_ctor_rec_dup c = ok r) : r = c := by
+  rw [frontend.export_c.ind_ctor_rec_dup] at h
+  simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+  obtain ⟨c1, hc1, rfl⟩ := h
+  rw [cv_rec_dup_refines hc1]
+
+/-- `export_c::proj_rec_owner_dup` is the identity on a `ProjRecOwner`. -/
+theorem proj_rec_owner_dup_refines {o r : frontend.proj_rec.ProjRecOwner}
+    (h : frontend.export_c.proj_rec_owner_dup o = ok r) : r = o := by
+  rw [frontend.export_c.proj_rec_owner_dup] at h
+  simp only [bind_eq_ok_iff, name_dup_eq, Result.ok.injEq, exists_eq_left'] at h
+  obtain ⟨v, hv, v1, hv1, e, he, rfl⟩ := h
+  rw [Expr.dup_eq he, alloc.vec.Vec.ext _ _ (PropWhen.names_copy_val hv),
+    alloc.vec.Vec.ext _ _ (PropWhen.names_copy_val hv1)]
+
+/-- The block copy behind `declaration_dup`'s `.IndDecl` arm. -/
+private theorem constant_infos_dup_loop_val (N : Nat) :
+    ∀ (bl : alloc.vec.Vec env.ConstantInfo) (out r : alloc.vec.Vec env.ConstantInfo)
+      (n i : Std.Usize),
+      n.val = bl.val.length → n.val - i.val = N →
+      frontend.export_c.constant_infos_dup_loop bl out n i = ok r →
+      r.val = out.val ++ bl.val.drop i.val := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro bl out r n i hn hN h
+    rw [frontend.export_c.constant_infos_dup_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨ci, hidx, c1, hc1, out1, hpush, i1, hi1, h⟩ := h
+      have hi1v : i1.val = i.val + 1 := HashMap.uscalar_add_eq hi1
+      have hdrop : bl.val.drop i.val = ci :: bl.val.drop (i.val + 1) := by
+        have := vec_drop_map (v := bl) (i := i) (x := ci) id hidx
+        simpa using this
+      rw [ih (n.val - i1.val) (by scalar_tac) bl out1 r n i1 hn rfl h,
+        vec_push_val hpush, Env.constant_info_dup_refines hc1, hi1v, hdrop]
+      simp
+    · rename_i hge
+      rw [← Result.ok_injective h, List.drop_eq_nil_of_le (by scalar_tac)]
+      simp
+
+/-- `export_c::constant_infos_dup` is the identity on a block. -/
+theorem constant_infos_dup_refines {bl r : alloc.vec.Vec env.ConstantInfo}
+    (h : frontend.export_c.constant_infos_dup bl = ok r) : r = bl := by
+  rw [frontend.export_c.constant_infos_dup] at h
+  have := constant_infos_dup_loop_val _ bl _ r _ 0#usize (alloc.vec.Vec.len_val _) rfl h
+  refine alloc.vec.Vec.ext _ _ ?_
+  rw [this]
+  simp [alloc.vec.Vec.with_capacity, show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
+
+/-- `export_c::declaration_dup` is the identity on a parsed record. -/
+theorem declaration_dup_refines {d r : env.Declaration}
+    (h : frontend.export_c.declaration_dup d = ok r) : r = d := by
+  rw [frontend.export_c.declaration_dup.eq_def] at h
+  cases d with
+  | AxiomDecl cv =>
+    simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+    obtain ⟨cv1, hcv, rfl⟩ := h
+    rw [Env.constant_val_dup_refines hcv]
+  | DefnDecl cv v hint =>
+    simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+    obtain ⟨cv1, hcv, v1, hv, h1, hh, rfl⟩ := h
+    rw [Env.constant_val_dup_refines hcv, Expr.dup_eq hv,
+      Env.reducibility_hint_dup_refines hh]
+  | ThmDecl cv v =>
+    simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+    obtain ⟨cv1, hcv, v1, hv, rfl⟩ := h
+    rw [Env.constant_val_dup_refines hcv, Expr.dup_eq hv]
+  | OpaqueDecl cv v =>
+    simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+    obtain ⟨cv1, hcv, v1, hv, rfl⟩ := h
+    rw [Env.constant_val_dup_refines hcv, Expr.dup_eq hv]
+  | BasisDecl k =>
+    simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+    obtain ⟨k1, hk, rfl⟩ := h
+    rw [Env.basis_kind_dup_refines hk]
+  | QuotDecl k cv =>
+    simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+    obtain ⟨k1, hk, cv1, hcv, rfl⟩ := h
+    rw [Env.constant_val_dup_refines hcv]
+    cases k <;> simp only [env.quot_kind_dup, Result.ok.injEq] at hk <;> rw [← hk]
+  | IndDecl bl nP =>
+    simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+    obtain ⟨bl1, hbl, rfl⟩ := h
+    rw [constant_infos_dup_refines hbl]
+
 end ConRon.Refine.Frontend
