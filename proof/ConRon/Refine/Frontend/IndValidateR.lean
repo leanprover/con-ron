@@ -25,7 +25,23 @@ Task #84 split that one Lean function into eighteen Rust ones for Aeneas's
 loop-shape rule.  Agent R's `IndR.lean` proves the first eight
 (`any_ty_unsafe`, `any_ty_nested`, `all_num_params`, `ty_names_of`,
 `ty_types_of`, `listed_ctors_of`, `ctor_names_of`, `flatten_listed`); this
-file proves the other ten.
+file proves the other nine and composes all seventeen into the capstone:
+
+    names_have_dup_refines     the cited `unless flat.Nodup`
+    ctor_index_of_refines      the cited `ctorIx` fold
+    check_one_ctor_refines     `cidx`, `induct` and `numFields`, at the step
+    order_type_ctors_refines   the inner `for n in ns`
+    order_block_ctors_refines  the outer `for tn in tyNames.zip listed`
+    k_expected_of_refines      official's `is_K_target`
+    check_rec_indices_refines  the `for tt in tyNames.zip tyTypes`
+    check_one_rec_refines      one step of the `for r in rcs`
+    check_rec_records_refines  that whole loop
+    validate_ind_d_refines     the capstone
+
+The outcome vocabulary is `ValidateOut` (agent R's) at the top and, for the
+fragments, `LoopOut`, `StepLoopOut`, `OrderStepOut`, `OrderOut` and
+`BlockOut`: every early return of `validateIndD`'s four loops is an
+`.invalid` verdict, so each of those names only the verdict's *kind*.
 
 ## The port bug this file found
 
