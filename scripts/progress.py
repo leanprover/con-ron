@@ -87,10 +87,12 @@ CHERRY_EXCLUDE = re.compile(r"ConLeche/Frontend/Scan/Equiv")
 # `CheckerGated`, `CoreIO` — are `*` entries in it, so they show up in the
 # table with 0 to translate and their declarations counted as skipped.
 # The citation roots the ledger reads.  `crates/con-ron/src` joined at task
-# #37 so the *cherries* table starts counting: it is the unverified frontend,
-# so nothing in it will ever have a `_refines` lemma, and the "verified"
-# column of the cherries rows stays 0 by construction.  The `Rust core` size
-# line below still counts `CORE_RUST_ROOT` alone.
+# #37 so the *cherries* table starts counting: it is the unverified crate, so
+# nothing in it will ever have a `_refines` lemma, and the "verified" column of
+# the cherries rows stays 0 by construction.  Since task #84 the *parser*'s
+# rows are verified-crate Rust whose verified column is 0 only until the
+# lemmas exist.  The `Rust core` size line below still counts
+# `CORE_RUST_ROOT` alone.
 RUST_ROOTS = ["crates/con-ron-core/src", "crates/con-ron/src"]
 CORE_RUST_ROOT = "crates/con-ron-core/src"
 REFINE_DIR = "proof/ConRon/Refine"
