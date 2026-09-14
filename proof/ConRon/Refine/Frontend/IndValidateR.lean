@@ -1744,7 +1744,7 @@ private theorem order_type_ctors_loop_refines {st : frontend.export_c.StateD}
             simp only [bind_eq_ok_iff] at h
             obtain ⟨icr1, hdup, out1, hpush, j1, hj1, i2, hi2, h⟩ := h
             have hicr1 : icr1 = icr := ind_ctor_rec_dup_refines hdup
-            subst hicr1
+            rw [hicr1] at hpush
             have hj1v : j1.val = j.val + 1 := HashMap.uscalar_add_eq hj1
             have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
             have hres := ih (ns.val.length - i2.val) (by omega) out1 n j1 i2 o rfl hn h
@@ -1759,7 +1759,7 @@ private theorem order_type_ctors_loop_refines {st : frontend.export_c.StateD}
               exact ⟨s0, by rw [hs0, iv_err_bind]⟩
             | Verdict vv =>
               obtain ⟨lv, w, hu, hkd⟩ := hone
-              exact ⟨lv, w, by rw [hu, iv_ok_bind], hkd⟩
+              exact ⟨lv, w, by rw [hu, iv_ok_bind]; rfl, hkd⟩
     · rename_i hge
       have hle : ns.val.length ≤ i.val := by scalar_tac
       simp only [Result.ok.injEq] at h
@@ -1839,9 +1839,9 @@ private theorem order_block_ctors_loop_refines {st : frontend.export_c.StateD}
         rw [iv_zip_drop, iv_zip_drop]
         simp only [absNames, absNamess]
         rw [iv_drop_map absName hltv, iv_drop_map absNames hltl, htv, hvv]
-        simp
+        simp [absNames]
       rw [hdrop, lForIn_cons]
-      obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨r, hr, h⟩ := h
       have hinner := order_type_ctors_refines hrel hwf htwf1 hvwf hinv hkeys hrelm hbound hr
       simp only [lOrderBlockStep]
       cases r with
@@ -1860,10 +1860,10 @@ private theorem order_block_ctors_loop_refines {st : frontend.export_c.StateD}
         cases e with
         | Msg m =>
           obtain ⟨s0, hs0⟩ := hinner
-          exact ⟨s0, by rw [hs0, iv_err_bind]⟩
+          exact ⟨s0, by rw [hs0]; rfl⟩
         | Verdict vv =>
           obtain ⟨lv, w, hu, hkd⟩ := hinner
-          exact ⟨lv, w.1, by rw [hu, iv_ok_bind], hkd⟩
+          exact ⟨lv, w.1, by rw [hu, iv_ok_bind]; rfl, hkd⟩
     · rename_i hge
       have hle : ty_names.val.length ≤ t_at.val := by scalar_tac
       simp only [Result.ok.injEq] at h
