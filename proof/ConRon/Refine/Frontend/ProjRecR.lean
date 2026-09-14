@@ -2172,4 +2172,153 @@ theorem any_ctor_mentions_refines {bns : alloc.vec.Vec name.Name}
     (by simp [Slice.len]) hbns hctors h]
   simp [show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
 
+/-! ### `find_ctor` / `find_rec`
+
+The port hands back an *index* where con-leche's `List.find?` hands back the
+record, so each lemma says what `find?` answers at the index the port found. -/
+
+theorem find_ctor_loop_refines (N : Nat) :
+    ∀ (ctors : Slice frontend.proj_rec.ProjCtorRec) (nm : name.Name) (m i : Std.Usize)
+      (o : Option Std.Usize),
+      ctors.val.length - i.val = N → m.val = ctors.val.length →
+      (∀ c ∈ ctors.val, ProjCtorRecWF c) → NameWF nm →
+      frontend.proj_rec.find_ctor_loop ctors nm m i = ok o →
+      (o = none → ((absProjCtorRecs ctors).drop i.val).find?
+          (fun q => q.1 == absName nm) = none) ∧
+      (∀ j c, o = some j → Slice.index_usize ctors j = ok c →
+        ((absProjCtorRecs ctors).drop i.val).find? (fun q => q.1 == absName nm)
+          = some (absProjCtorRec c)) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro ctors nm m i o hN hm hc hnm h
+    rw [frontend.proj_rec.find_ctor_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      have hltv : i.val < ctors.val.length := by scalar_tac
+      obtain ⟨pcr, hidx, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨-, hmem⟩ := slice_index_mem hidx
+      obtain ⟨-, hdrop⟩ := drop_map_slice_index absProjCtorRec hidx
+      obtain ⟨b, hbeq, h⟩ := bind_eq_ok_iff.mp h
+      have hbv : b = decide (absName pcr.name = absName nm) :=
+        Name.beq_refines (hc pcr hmem).1 hnm hbeq
+      simp only [absProjCtorRecs]
+      rw [hdrop]
+      split at h
+      · rename_i hb
+        rw [hb] at hbv
+        refine ⟨by intro hc0; rw [← Result.ok_injective h] at hc0; simp at hc0, ?_⟩
+        intro j c hj hjc
+        rw [← Result.ok_injective h] at hj
+        simp only [Option.some.injEq] at hj
+        rw [← hj] at hjc
+        have : c = pcr := by
+          rw [hidx] at hjc; exact (Result.ok_injective hjc).symm
+        rw [this, List.find?_cons_of_pos (by simp only [absProjCtorRec, beq_iff_eq]; exact of_decide_eq_true hbv.symm)]
+      · rename_i hb
+        obtain ⟨i1, hi1, hrec⟩ := bind_eq_ok_iff.mp h
+        have hi1v : i1.val = i.val + 1 := HashMap.uscalar_add_eq hi1
+        have hbf : b = false := by
+          cases b with
+          | true => exact absurd rfl hb
+          | false => rfl
+        rw [hbf] at hbv
+        obtain ⟨ih1, ih2⟩ :=
+          ih (ctors.val.length - i1.val) (by omega) ctors nm m i1 o rfl hm hc hnm hrec
+        rw [hi1v] at ih1 ih2
+        rw [List.find?_cons_of_neg (by simp only [absProjCtorRec, beq_iff_eq]; exact of_decide_eq_false hbv.symm)]
+        simp only [absProjCtorRecs] at ih1 ih2
+        exact ⟨ih1, ih2⟩
+    · rename_i hge
+      have hle : ctors.val.length ≤ i.val := by scalar_tac
+      rw [← Result.ok_injective h,
+        List.drop_eq_nil_of_le (by simpa [absProjCtorRecs] using hle)]
+      exact ⟨fun _ => rfl, by intro j c hj; simp at hj⟩
+
+/-- `proj_rec::find_ctor` refines the cited `ctors.find? (·.1 == C)`. -/
+theorem find_ctor_refines {ctors : Slice frontend.proj_rec.ProjCtorRec}
+    {nm : name.Name} {o : Option Std.Usize}
+    (hc : ∀ c ∈ ctors.val, ProjCtorRecWF c) (hnm : NameWF nm)
+    (h : frontend.proj_rec.find_ctor ctors nm = ok o) :
+    (o = none → (absProjCtorRecs ctors).find? (fun q => q.1 == absName nm) = none) ∧
+    (∀ j c, o = some j → Slice.index_usize ctors j = ok c →
+      (absProjCtorRecs ctors).find? (fun q => q.1 == absName nm)
+        = some (absProjCtorRec c)) := by
+  rw [frontend.proj_rec.find_ctor] at h
+  obtain ⟨h1, h2⟩ :=
+    find_ctor_loop_refines _ ctors nm _ 0#usize o rfl (by simp [Slice.len]) hc hnm h
+  rw [show ((0#usize : Std.Usize)).val = 0 by scalar_tac, List.drop_zero] at h1 h2
+  exact ⟨h1, h2⟩
+
+theorem find_rec_loop_refines (N : Nat) :
+    ∀ (recs : Slice frontend.proj_rec.ProjRecRec) (nm : name.Name) (m i : Std.Usize)
+      (o : Option Std.Usize),
+      recs.val.length - i.val = N → m.val = recs.val.length →
+      (∀ x ∈ recs.val, ProjRecRecWF x) → NameWF nm →
+      frontend.proj_rec.find_rec_loop recs nm m i = ok o →
+      (o = none → ((absProjRecRecs recs).drop i.val).find?
+          (fun q => q.1 == absName nm) = none) ∧
+      (∀ j x, o = some j → Slice.index_usize recs j = ok x →
+        ((absProjRecRecs recs).drop i.val).find? (fun q => q.1 == absName nm)
+          = some (absProjRecRec x)) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro recs nm m i o hN hm hr hnm h
+    rw [frontend.proj_rec.find_rec_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      have hltv : i.val < recs.val.length := by scalar_tac
+      obtain ⟨prr, hidx, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨-, hmem⟩ := slice_index_mem hidx
+      obtain ⟨-, hdrop⟩ := drop_map_slice_index absProjRecRec hidx
+      obtain ⟨b, hbeq, h⟩ := bind_eq_ok_iff.mp h
+      have hbv : b = decide (absName prr.name = absName nm) :=
+        Name.beq_refines (hr prr hmem).1 hnm hbeq
+      simp only [absProjRecRecs]
+      rw [hdrop]
+      split at h
+      · rename_i hb
+        rw [hb] at hbv
+        refine ⟨by intro hc0; rw [← Result.ok_injective h] at hc0; simp at hc0, ?_⟩
+        intro j x hj hjx
+        rw [← Result.ok_injective h] at hj
+        simp only [Option.some.injEq] at hj
+        rw [← hj] at hjx
+        have : x = prr := by
+          rw [hidx] at hjx; exact (Result.ok_injective hjx).symm
+        rw [this, List.find?_cons_of_pos (by simp only [absProjRecRec, beq_iff_eq]; exact of_decide_eq_true hbv.symm)]
+      · rename_i hb
+        obtain ⟨i1, hi1, hrec⟩ := bind_eq_ok_iff.mp h
+        have hi1v : i1.val = i.val + 1 := HashMap.uscalar_add_eq hi1
+        have hbf : b = false := by
+          cases b with
+          | true => exact absurd rfl hb
+          | false => rfl
+        rw [hbf] at hbv
+        obtain ⟨ih1, ih2⟩ :=
+          ih (recs.val.length - i1.val) (by omega) recs nm m i1 o rfl hm hr hnm hrec
+        rw [hi1v] at ih1 ih2
+        rw [List.find?_cons_of_neg (by simp only [absProjRecRec, beq_iff_eq]; exact of_decide_eq_false hbv.symm)]
+        simp only [absProjRecRecs] at ih1 ih2
+        exact ⟨ih1, ih2⟩
+    · rename_i hge
+      have hle : recs.val.length ≤ i.val := by scalar_tac
+      rw [← Result.ok_injective h,
+        List.drop_eq_nil_of_le (by simpa [absProjRecRecs] using hle)]
+      exact ⟨fun _ => rfl, by intro j x hj; simp at hj⟩
+
+/-- `proj_rec::find_rec` refines the cited `recs.find? (·.1 == T.str "rec")`. -/
+theorem find_rec_refines {recs : Slice frontend.proj_rec.ProjRecRec}
+    {nm : name.Name} {o : Option Std.Usize}
+    (hr : ∀ x ∈ recs.val, ProjRecRecWF x) (hnm : NameWF nm)
+    (h : frontend.proj_rec.find_rec recs nm = ok o) :
+    (o = none → (absProjRecRecs recs).find? (fun q => q.1 == absName nm) = none) ∧
+    (∀ j x, o = some j → Slice.index_usize recs j = ok x →
+      (absProjRecRecs recs).find? (fun q => q.1 == absName nm)
+        = some (absProjRecRec x)) := by
+  rw [frontend.proj_rec.find_rec] at h
+  obtain ⟨h1, h2⟩ :=
+    find_rec_loop_refines _ recs nm _ 0#usize o rfl (by simp [Slice.len]) hr hnm h
+  rw [show ((0#usize : Std.Usize)).val = 0 by scalar_tac, List.drop_zero] at h1 h2
+  exact ⟨h1, h2⟩
+
 end ConRon.Refine.Frontend
