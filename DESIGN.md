@@ -16825,3 +16825,64 @@ the six scanner files and `StateDR`/`IndR`; `hspec` is `HoistSpec`'s one field
 (§5).  The headline is therefore honest about exactly what is still owed, and
 every field is a statement about a *named* port function rather than about the
 parse as a whole.
+
+#### 7. The scanner tier, and the one mechanic nobody could have guessed
+
+`scan_line_fwd_refines` — *"the port's byte recogniser returns what
+`scanLineFwd` returns, at the same position, and fails at the same tag and
+offset"* — is proved, and with it the six files under it:
+
+| file | what it owns | lines |
+|---|---|---:|
+| `Frontend/Abs.lean` | the vocabulary of §1 | 441 |
+| `Frontend/ScanKit.lean` | the bounds kit, `key_at`'s 68-literal switch, every `absByte`/`absPos`/`absU32` bridge | ~2 000 |
+| `Frontend/ScanStr.lean` | `hex_val`/`hex4`/`hex3`, `utf8_of`, `unescape`/`utf8_decode`/`scan_string`, `scan_quoted_nat`, and `nat_decimal` | ~1 500 |
+| `Frontend/ScanObj.lean` | the **shared object-member step**, the list and name loops | 1 981 |
+| `Frontend/ScanExpr.lean` | the five expression slot loops | 1 369 |
+| `Frontend/ScanInd.lean` | the six inductive-block scanners and three list loops | 2 156 |
+| `Frontend/ScanLine.lean` | the six declaration loops, the dispatcher, **`scan_line_fwd_refines`** | ~3 300 |
+
+**The tier is one induction, not thirty-five.**  con-leche inlines the same
+`{`…`}` member walk into every `scan*Loop`; the port factors it into
+`next_member`.  `ScanObj.lean`'s `memberBody` / `MemberStep` /
+`nextMember_step` abstract it over the closing arm and the key dispatch, so a
+loop owes only its own two arms and the side condition *"this loop **is**
+`memberBody` at its own arms"* is `by rw [scanXLoop.eq_def]; rfl` — really
+`rfl`.  Two agents built it independently before it was hosted once; that it
+was worth hosting is the tier's main structural lesson.
+
+**The mechanic that ambushed three agents**, measured with a three-way probe
+rather than guessed:
+
+> A helper `def` may hold con-leche's `match scanX b v with | .err e => .err e
+> | .ok x e => if _hj : i < e then …`, **but only if it is monomorphic in the
+> scrutinee's and the result's type.**  Then Lean reuses con-leche's own
+> matcher constant and the `rfl` goes through.  Made polymorphic in either
+> type, it gets a matcher of its own; two matcher constants applied to a
+> *stuck* scrutinee do not reduce, `isDefEq` gives up, and the `rfl` fails
+> with a sixty-line goal dump whose two sides **print identically**.
+
+It is quiet because `natSlot` — the `Nat`-valued slot — has no `match` at all,
+so the first four slot shapes give no warning.  Five smaller ones are in
+`Refine/README.md`'s new "Refining a byte scanner" section: `simp only
+[uncurry_apply_pair] at h` *first*; pass `L`/`CL`/`DI` explicitly; `rw
+[scanLineLoop.eq_def]` (that loop's closing arm matches `(LinePayload, UInt8)`
+with overlapping literal patterns, so its plain equation lemmas carry side
+conditions); the literal-constant recipe task #86's byte arrays made possible;
+and `b.length` vs `b.val.length` as **different `omega` atoms**, which silently
+breaks every recursive arm under a `first | … | …` with the last alternative's
+unrelated error.
+
+**Three intermediate definitions were needed, out of three the maintainer
+pre-authorised — and none of them was the one expected.**  `litFrom`
+(`ScanKit`), because `keyAt` compares a key's tail against the unrolled
+`lit1`…`lit10` chains, task #264's "no string constant materialised", where the
+port spells the same compare as one `match_lit` against a `[u8; N]`;
+equivalence `matchLit_eq_litFrom`.  `slotNat` (`ScanKit`), con-leche's inline
+`Nat`-slot chain written out so an object loop unfolds onto its twin's three
+arms.  `parseBytesFinal` (`ChunksR`), con-leche's last-line fragment, because
+`parseBytes` inlines it where §3.4 forces the port to factor it out;
+equivalence `parseBytes_eq`, `rfl`.  **The binder pair needed none**: the
+port's one `scan_binder_expr_loop(b, i, lam)` against con-leche's *two* loops
+is one induction concluding `if lam then scanLamExprLoop … else
+scanForallExprLoop …`, with the two per-value statements falling out.
