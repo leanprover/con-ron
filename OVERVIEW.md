@@ -717,7 +717,13 @@ ran at equal instructions, 1.6× the wall and 1.86× the memory; the switch
 to `Arc` cost 13–17 % of wall time single-threaded and bought a check
 phase that scales to 4.3× at eight workers and 6.9× at sixteen on `Init`.
 The memory gap is the 48-byte node in its 64-byte `Arc` block against Lean's
-compact object, and the `Vec`-backed memo tables against `Std.HashMap`.
+compact object, and the `Vec`-backed memo tables against `Std.HashMap`.  Task
+#92 measured what closing it would take and what it would cost: the node's
+block has to drop a whole allocator size class, to 48 bytes, and the cheapest
+way there — a 40-byte node behind a one-word `triomphe::Arc` — takes Mathlib
+from 14.31 GB to **11.37 GB**, 21 % less, for **30 % more instructions**.  That
+is three times the budget DESIGN.md §3.2 sets for a memory trade, so it is not
+taken; the 1.64× stands, and it is a size class, not waste.
 
 The single-worker column has been re-measured four times since, at the
 changes that could have moved it.  Twice it did not: con-leche's bump
