@@ -408,8 +408,8 @@ theorem lam_inv {ty bo : expr.Expr} {m : expr.BinderMeta} {e : expr.Expr}
       ∀ hp, prop_when.has_params m.pw = ok hp →
         lpBit e = (lpBit ty || lpBit bo || hp) := by
   rw [expr.lam.eq_def] at h
-  simp only [bind_eq_ok_iff, ptr_new_eq, arc_deref_eq, data_eq, Result.ok.injEq] at h
-  obtain ⟨dt, hdt, db, hdb, _, -, _, -, _, rfl, _, -, _, -, _, -, _, -, _, -,
+  simp only [bind_eq_ok_iff, ptr_new_eq, data_eq, Result.ok.injEq] at h
+  obtain ⟨dt, hdt, db, hdb, _, -, _, -, _, -, _, -, _, -, _, -, _, -,
     i9, hi9, i10, hi10, i11, hi11, i12, hi12, i13, hi13, i14, hi14, i15, hi15,
     bt, hbt, b1, hb1, d, hd, _, hnd, he⟩ := h
   subst hdt; subst hdb; subst hnd; subst he
@@ -425,8 +425,8 @@ theorem forall_e_inv {ty bo : expr.Expr} {m : expr.BinderMeta} {e : expr.Expr}
       ∀ hp, prop_when.has_params m.pw = ok hp →
         lpBit e = (lpBit ty || lpBit bo || hp) := by
   rw [expr.forall_e.eq_def] at h
-  simp only [bind_eq_ok_iff, ptr_new_eq, arc_deref_eq, data_eq, Result.ok.injEq] at h
-  obtain ⟨dt, hdt, db, hdb, _, -, _, -, _, rfl, _, -, _, -, _, -, _, -, _, -,
+  simp only [bind_eq_ok_iff, ptr_new_eq, data_eq, Result.ok.injEq] at h
+  obtain ⟨dt, hdt, db, hdb, _, -, _, -, _, -, _, -, _, -, _, -, _, -,
     i9, hi9, i10, hi10, i11, hi11, i12, hi12, i13, hi13, i14, hi14, i15, hi15,
     bt, hbt, b1, hb1, d, hd, _, hnd, he⟩ := h
   subst hdt; subst hdb; subst hnd; subst he
@@ -827,11 +827,15 @@ theorem literal_dup_eq {l c : expr.Literal} (h : expr.literal_dup l = ok c) : c 
     simp only [expr.literal_dup, ptr_clone_eq, bind_tc_ok, Result.ok.injEq] at h
     exact h.symm
 
-/-- `expr::binder_meta_dup` is the identity in the model. -/
+/-- `expr::binder_meta_dup` is the identity in the model.  Since task #90 the
+datum is held by value, so this is `prop_when::dup`'s identity one field in
+rather than `Arc::clone`'s. -/
 theorem binder_meta_dup_eq {m c : expr.BinderMeta} (h : expr.binder_meta_dup m = ok c) :
     c = m := by
-  simp only [expr.binder_meta_dup, ptr_clone_eq, bind_tc_ok, Result.ok.injEq] at h
-  exact h.symm
+  obtain ⟨pw⟩ := m
+  simp only [expr.binder_meta_dup, bind_eq_ok_iff, Result.ok.injEq] at h
+  obtain ⟨w, hw, hc⟩ := h
+  rw [← hc, PropWhen.dup_eq hw]
 
 /-! ## The derived equalities on the leaf data -/
 
@@ -864,7 +868,7 @@ theorem binder_meta_beq_refines {a b : expr.BinderMeta} {c : Bool}
     (ha : BinderMetaWF a) (hb : BinderMetaWF b)
     (h : expr.binder_meta_beq a b = ok c) :
     c = decide (absBinderMeta a = absBinderMeta b) := by
-  simp only [expr.binder_meta_beq, arc_deref_eq, bind_tc_ok] at h
+  simp only [expr.binder_meta_beq] at h
   rw [PropWhen.beq_refines ha hb h]
   simp [absBinderMeta]
 
@@ -2602,7 +2606,7 @@ theorem literal_beq_refl {l : expr.Literal} (hl : LiteralWF l) :
 
 theorem binder_meta_beq_refl {m : expr.BinderMeta} (hm : BinderMetaWF m) :
     expr.binder_meta_beq m m = ok true := by
-  rw [expr.binder_meta_beq]; simp only [arc_deref_eq, bind_tc_ok]
+  rw [expr.binder_meta_beq]
   exact PropWhen.beq_refl hm
 
 /-- **Reflexivity, the transparency obligation of DESIGN.md §3.2** — in the

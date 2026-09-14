@@ -569,26 +569,23 @@ def reprList : prop_when.PropWhenRepr → List name.Name
   | .Never => []
   | .Always => []
   | .One p => [p]
-  | .Two p q => [p, q]
+  | .Two pq => [pq.1, pq.2]
   | .Many ps => ps.val
 
 @[simp] theorem of_repr_eq (r : prop_when.PropWhenRepr) :
     prop_when.of_repr r = ok { repr := r } := rfl
 
-/-- `prop_when::dup` is the identity in the model: `Arc::clone` is, and a
-`Vec` copy has the same list (DESIGN.md §3.2). -/
+/-- `prop_when::dup` is the identity in the model: every arm either rebuilds a
+payload-free constructor, `dup`s a `Name`, or clones a handle -- and
+`Arc::clone` is the identity (DESIGN.md §3.2).  Since task #90 the `Two` and
+`Many` payloads sit *behind* the handle, so both are one `ptr::clone` and the
+old `names_copy` spine walk of the `Many` arm is gone. -/
 theorem dup_eq {pw c : prop_when.PropWhen} (h : prop_when.dup pw = ok c) : c = pw := by
   obtain ⟨r⟩ := pw
   cases r <;>
-    simp only [prop_when.dup, of_repr_eq, name_dup_eq, bind_tc_ok, bind_eq_ok_iff,
-      Result.ok.injEq] at h
-  · exact h.symm
-  · exact h.symm
-  · exact h.symm
-  · exact h.symm
-  · obtain ⟨v, hv, hc⟩ := h
-    rw [← hc, prop_when.PropWhen.mk.injEq, prop_when.PropWhenRepr.Many.injEq]
-    exact alloc.vec.Vec.ext _ _ (names_copy_val hv)
+    simp only [prop_when.dup, of_repr_eq, name_dup_eq, ptr_clone_eq, bind_tc_ok,
+      Result.ok.injEq] at h <;>
+    exact h.symm
 
 theorem to_list_val {pw : prop_when.PropWhen} {v : alloc.vec.Vec name.Name}
     (h : prop_when.to_list pw = ok v) : v.val = reprList pw.repr := by
@@ -604,13 +601,14 @@ theorem to_list_val {pw : prop_when.PropWhen} {v : alloc.vec.Vec name.Name}
     simp only [prop_when.to_list, name.singleton, bind_eq_ok_iff, name_dup_eq,
       Result.ok.injEq, exists_eq_left'] at h
     rw [vec_push_val h]; simp [reprList, alloc.vec.Vec.new]
-  | Two p q =>
-    simp only [prop_when.to_list, bind_eq_ok_iff, name_dup_eq, Result.ok.injEq,
-      exists_eq_left'] at h
+  | Two pq =>
+    obtain ⟨p, q⟩ := pq
+    simp only [prop_when.to_list, bind_arc_deref, uncurry_apply_pair, bind_eq_ok_iff,
+      name_dup_eq, Result.ok.injEq, exists_eq_left'] at h
     obtain ⟨w, hw, h⟩ := h
     rw [vec_push_val h, vec_push_val hw]; simp [reprList, alloc.vec.Vec.new]
   | Many ps =>
-    simp only [prop_when.to_list] at h
+    simp only [prop_when.to_list, bind_arc_deref] at h
     rw [names_copy_val h]; simp [reprList]
 
 /-- The abstraction, read off the representation: away from `Never` every
@@ -704,13 +702,13 @@ theorem of_sorted_reprList {qs : alloc.vec.Vec name.Name} {pw : prop_when.PropWh
         obtain ⟨z, hz, hzv⟩ := WP.spec_imp_exists
           (alloc.vec.Vec.index_usize_spec qs 1#usize (by scalar_tac))
         simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy, hz, name_dup_eq,
-          of_repr_eq, Result.ok.injEq, exists_eq_left'] at h
+          ptr_new_eq, of_repr_eq, Result.ok.injEq, exists_eq_left'] at h
         subst h
         refine ⟨?_, by simp, by intro ps hps; simp at hps⟩
         rw [reprList, hyv, hzv]
         simp [hx]
-      · rw [if_neg (show ¬ alloc.vec.Vec.len qs = 2#usize by scalar_tac), of_repr_eq,
-          Result.ok.injEq] at h
+      · rw [if_neg (show ¬ alloc.vec.Vec.len qs = 2#usize by scalar_tac)] at h
+        simp only [ptr_new_eq, bind_tc_ok, of_repr_eq, Result.ok.injEq] at h
         subst h
         refine ⟨rfl, by simp, ?_⟩
         intro ps hps
@@ -758,7 +756,7 @@ theorem two_prime_shape {p q : name.Name} {pw : prop_when.PropWhen}
   have hcmp := name_cmp_refines hp hq ho
   cases o with
   | Lt =>
-    simp only [name_dup_eq, bind_tc_ok, of_repr_eq, Result.ok.injEq] at h
+    simp only [name_dup_eq, ptr_new_eq, bind_tc_ok, of_repr_eq, Result.ok.injEq] at h
     subst h
     have hlt : ConLeche.Name.cmp (absName p) (absName q) = .lt := by
       simpa [absOrdering] using hcmp
@@ -767,8 +765,8 @@ theorem two_prime_shape {p q : name.Name} {pw : prop_when.PropWhen}
     · simpa [reprList] using sorted_two hlt
     · intro ps hps; simp at hps
     · simp [absPropWhen, absPropWhenRepr]
-    · rw [reprList, List.map_cons, List.map_cons, List.map_nil, merge_lt hlt,
-        ConLeche.PropWhen.nil_merge]
+    · simp only [reprList, List.map_cons, List.map_nil]
+      rw [merge_lt hlt, ConLeche.PropWhen.nil_merge]
   | Eq =>
     simp only [name_dup_eq, bind_tc_ok, of_repr_eq, Result.ok.injEq] at h
     subst h
@@ -784,7 +782,7 @@ theorem two_prime_shape {p q : name.Name} {pw : prop_when.PropWhen}
     · rw [reprList, List.map_cons, List.map_nil, ← heq,
         merge_eq (ConLeche.Name.cmp_self (absName p)), ConLeche.PropWhen.nil_merge]
   | Gt =>
-    simp only [name_dup_eq, bind_tc_ok, of_repr_eq, Result.ok.injEq] at h
+    simp only [name_dup_eq, ptr_new_eq, bind_tc_ok, of_repr_eq, Result.ok.injEq] at h
     subst h
     have hgt : ConLeche.Name.cmp (absName p) (absName q) = .gt := by
       simpa [absOrdering] using hcmp
@@ -796,8 +794,8 @@ theorem two_prime_shape {p q : name.Name} {pw : prop_when.PropWhen}
     · simp only [absPropWhen, absPropWhenRepr]
       refine (ConLeche.PropWhen.ifAllZero_eq_iff _ _).mpr ?_
       intro n; simp; tauto
-    · rw [reprList, List.map_cons, List.map_cons, List.map_nil, merge_gt hgt,
-        ConLeche.PropWhen.merge_nil]
+    · simp only [reprList, List.map_cons, List.map_nil]
+      rw [merge_gt hgt, ConLeche.PropWhen.merge_nil]
 
 /-- `ConLeche/Kernel/PropWhen.lean:497-507` -- `prop_when::if_all_zero` refines
 the smart constructor `PropWhen.ifAllZero`, normalization included: the result
@@ -1060,8 +1058,9 @@ theorem bind_z_shape {F : Type} {inst : prop_when.NameToPw F} {f : F}
           = ConLeche.PropWhen.ifAllZero [absName p] from rfl,
       ConLeche.PropWhen.bindZ_ifAllZero, ConLeche.PropWhen.bindZ.go,
       ConLeche.PropWhen.bindZ_go_nil, ConLeche.PropWhen.inter_nil]
-  | Two p q =>
-    simp only [prop_when.bind_z, bind_eq_ok_iff] at h
+  | Two pq =>
+    obtain ⟨p, q⟩ := pq
+    simp only [prop_when.bind_z, bind_arc_deref, uncurry_apply_pair, bind_eq_ok_iff] at h
     obtain ⟨r1, hr1, r2, hr2, h⟩ := h
     have hp : NameWF p := hpw.1 p (by simp [reprList])
     have hq : NameWF q := hpw.1 q (by simp [reprList])
@@ -1069,13 +1068,13 @@ theorem bind_z_shape {F : Type} {inst : prop_when.NameToPw F} {f : F}
     obtain ⟨h2sh, h2abs⟩ := hf q hq r2 hr2
     obtain ⟨hsh, habs⟩ := inter_shape h1sh h2sh h
     refine ⟨hsh, ?_⟩
-    rw [habs, h1abs, h2abs, show absPropWhen (⟨.Two p q⟩ : prop_when.PropWhen)
+    rw [habs, h1abs, h2abs, show absPropWhen (⟨.Two (p, q)⟩ : prop_when.PropWhen)
           = ConLeche.PropWhen.ifAllZero [absName p, absName q] from rfl,
       ConLeche.PropWhen.bindZ_ifAllZero, ConLeche.PropWhen.bindZ.go,
       ConLeche.PropWhen.bindZ.go, ConLeche.PropWhen.bindZ_go_nil,
       ConLeche.PropWhen.inter_nil]
   | Many ps =>
-    simp only [prop_when.bind_z, prop_when.bind_z_go] at h
+    simp only [prop_when.bind_z, bind_arc_deref, prop_when.bind_z_go] at h
     have hps : NamesWF ps := by intro n hn; exact hpw.1 n (by simpa [reprList] using hn)
     obtain ⟨hsh, habs⟩ := bind_z_go_from_shape hps Φ hf ps.length 0#usize c
       (by scalar_tac) h
@@ -1167,7 +1166,7 @@ theorem has_params_shape {pw : prop_when.PropWhen} {b : Bool} (hpw : WFShape pw)
     subst h
     rw [absPropWhen_eq_ifAllZero (by simp), ConLeche.PropWhen.hasParams_ifAllZero]
     simp [reprList]
-  | Two p q =>
+  | Two pq =>
     simp only [prop_when.has_params, Result.ok.injEq] at h
     subst h
     rw [absPropWhen_eq_ifAllZero (by simp), ConLeche.PropWhen.hasParams_ifAllZero]
@@ -1260,8 +1259,9 @@ theorem holds_shape {V : Type} {inst : prop_when.Valuation V} {phi : V}
     simp only [reprList, List.map_cons, List.map_nil, List.all_cons, List.all_nil,
       Bool.and_true, hval]
     exact u64_zero_decide m
-  | Two p q =>
-    simp only [prop_when.holds, bind_eq_ok_iff] at h
+  | Two pq =>
+    obtain ⟨p, q⟩ := pq
+    simp only [prop_when.holds, bind_arc_deref, uncurry_apply_pair, bind_eq_ok_iff] at h
     obtain ⟨m, hm, h⟩ := h
     have hp : NameWF p := hpw.1 p (by simp [reprList])
     have hq : NameWF q := hpw.1 q (by simp [reprList])
@@ -1281,7 +1281,7 @@ theorem holds_shape {V : Type} {inst : prop_when.Valuation V} {phi : V}
       subst h
       rw [u64_zero_false hz, Bool.false_and]
   | Many ps =>
-    simp only [prop_when.holds] at h
+    simp only [prop_when.holds, bind_arc_deref] at h
     have hps : NamesWF ps := by intro n hn; exact hpw.1 n (by simpa [reprList] using hn)
     have hrec := all_zero_from_refines φ hφ hps ps.length 0#usize b (by scalar_tac) h
     rw [absPropWhen_eq_ifAllZero (by simp), ConLeche.PropWhen.holds_ifAllZero]
@@ -1358,8 +1358,10 @@ theorem params_defined_shape {params : alloc.vec.Vec name.Name}
     simp only [reprList, List.map_cons, List.map_nil, List.all_cons, List.all_nil,
       Bool.and_true]
     exact Name.contains_refines hpar hp h
-  | Two p q =>
-    simp only [prop_when.params_defined, bind_eq_ok_iff] at h
+  | Two pq =>
+    obtain ⟨p, q⟩ := pq
+    simp only [prop_when.params_defined, bind_arc_deref, uncurry_apply_pair,
+      bind_eq_ok_iff] at h
     obtain ⟨b1, hb1, h⟩ := h
     have hp : NameWF p := hpw.1 p (by simp [reprList])
     have hq : NameWF q := hpw.1 q (by simp [reprList])
@@ -1377,7 +1379,7 @@ theorem params_defined_shape {params : alloc.vec.Vec name.Name}
       subst h
       rw [show b1 = false by simpa using hz, Bool.false_and]
   | Many ps =>
-    simp only [prop_when.params_defined] at h
+    simp only [prop_when.params_defined, bind_arc_deref] at h
     have hps : NamesWF ps := by intro n hn; exact hpw.1 n (by simpa [reprList] using hn)
     have hrec := all_contained_from_refines hpar hps ps.length 0#usize b (by scalar_tac) h
     rw [absPropWhen_eq_ifAllZero (by simp), ConLeche.PropWhen.paramsDefined_ifAllZero]
@@ -1533,7 +1535,7 @@ theorem beq_iff {a b : prop_when.PropWhen} (ha : WFShape a) (hb : WFShape b) {c 
       subst h
       simp only [Bool.false_eq_true, false_iff]
       exact fun he => never_ne_other (by simp) he
-    | Two y y2 =>
+    | Two y =>
       simp only [prop_when.beq, prop_when.equiv_r, Result.ok.injEq] at h
       subst h
       simp only [Bool.false_eq_true, false_iff]
@@ -1560,7 +1562,7 @@ theorem beq_iff {a b : prop_when.PropWhen} (ha : WFShape a) (hb : WFShape b) {c 
       simp only [Bool.false_eq_true, false_iff]
       refine abs_ne_of_reprList ha hb (by simp) (by simp) ?_
       simp [reprList]
-    | Two y y2 =>
+    | Two y =>
       simp only [prop_when.beq, prop_when.equiv_r, Result.ok.injEq] at h
       subst h
       simp only [Bool.false_eq_true, false_iff]
@@ -1596,7 +1598,7 @@ theorem beq_iff {a b : prop_when.PropWhen} (ha : WFShape a) (hb : WFShape b) {c 
       rw [Name.name_beq_exact' hx hy h, abs_eq_iff_reprList ha hb (by simp) (by simp)]
       simp only [reprList, decide_eq_true_eq, List.cons.injEq, and_true]
       exact ⟨fun he => Name.absName_injective hx hy he, fun he => by rw [he]⟩
-    | Two y y2 =>
+    | Two y =>
       simp only [prop_when.beq, prop_when.equiv_r, Result.ok.injEq] at h
       subst h
       simp only [Bool.false_eq_true, false_iff]
@@ -1612,7 +1614,8 @@ theorem beq_iff {a b : prop_when.PropWhen} (ha : WFShape a) (hb : WFShape b) {c 
       intro hc
       rw [← hc] at h9
       simp at h9
-  | Two x x2 =>
+  | Two xq =>
+    obtain ⟨x, x2⟩ := xq
     cases rb with
     | Never =>
       simp only [prop_when.beq, prop_when.equiv_r, Result.ok.injEq] at h
@@ -1631,8 +1634,10 @@ theorem beq_iff {a b : prop_when.PropWhen} (ha : WFShape a) (hb : WFShape b) {c 
       simp only [Bool.false_eq_true, false_iff]
       refine abs_ne_of_reprList ha hb (by simp) (by simp) ?_
       simp [reprList]
-    | Two y y2 =>
-      simp only [prop_when.beq, prop_when.equiv_r, bind_eq_ok_iff] at h
+    | Two yq =>
+      obtain ⟨y, y2⟩ := yq
+      simp only [prop_when.beq, prop_when.equiv_r, bind_arc_deref, uncurry_apply_pair,
+        bind_eq_ok_iff] at h
       obtain ⟨b1, hb1, h⟩ := h
       have hx : NameWF x := ha.1 x (by simp [reprList])
       have hx2 : NameWF x2 := ha.1 x2 (by simp [reprList])
@@ -1691,7 +1696,7 @@ theorem beq_iff {a b : prop_when.PropWhen} (ha : WFShape a) (hb : WFShape b) {c 
       intro hc
       rw [hc] at h9
       simp at h9
-    | Two y y2 =>
+    | Two y =>
       simp only [prop_when.beq, prop_when.equiv_r, Result.ok.injEq] at h
       subst h
       simp only [Bool.false_eq_true, false_iff]
@@ -1702,7 +1707,7 @@ theorem beq_iff {a b : prop_when.PropWhen} (ha : WFShape a) (hb : WFShape b) {c 
       rw [hc] at h9
       simp at h9
     | Many qs =>
-      simp only [prop_when.beq, prop_when.equiv_r, prop_when.names_beq] at h
+      simp only [prop_when.beq, prop_when.equiv_r, bind_arc_deref, prop_when.names_beq] at h
       have hps : NamesWF ps := by intro n hn; exact ha.1 n (by simpa [reprList] using hn)
       have hqs : NamesWF qs := by intro n hn; exact hb.1 n (by simpa [reprList] using hn)
       have hrec := names_beq_from_refines hps hqs ps.length 0#usize c (by scalar_tac) h
@@ -1775,13 +1780,14 @@ theorem bind_z_wf {F : Type} {inst : prop_when.NameToPw F} {f : F}
   | One p =>
     simp only [prop_when.bind_z] at h
     exact hf p (hpw.1 p (by simp [reprList])) c h
-  | Two p q =>
-    simp only [prop_when.bind_z, bind_eq_ok_iff] at h
+  | Two pq =>
+    obtain ⟨p, q⟩ := pq
+    simp only [prop_when.bind_z, bind_arc_deref, uncurry_apply_pair, bind_eq_ok_iff] at h
     obtain ⟨r1, hr1, r2, hr2, h⟩ := h
     exact (inter_shape (hf p (hpw.1 p (by simp [reprList])) r1 hr1)
       (hf q (hpw.1 q (by simp [reprList])) r2 hr2) h).1
   | Many ps =>
-    simp only [prop_when.bind_z, prop_when.bind_z_go] at h
+    simp only [prop_when.bind_z, bind_arc_deref, prop_when.bind_z_go] at h
     exact bind_z_go_from_wf
       (by intro n hn; exact hpw.1 n (by simpa [reprList] using hn)) hf
       ps.length 0#usize c (by scalar_tac) h
@@ -1842,12 +1848,13 @@ theorem beq_refl {pw : prop_when.PropWhen} (h : PropWhenWF pw) :
   | Always => rfl
   | One p =>
     exact Name.name_beq_refl (hs.namesWF p (by simp [reprList]))
-  | Two p q =>
-    simp only [prop_when.equiv_r,
+  | Two pq =>
+    obtain ⟨p, q⟩ := pq
+    simp only [prop_when.equiv_r, bind_arc_deref, uncurry_apply_pair,
       Name.name_beq_refl (hs.namesWF p (by simp [reprList])), bind_tc_ok, if_true]
     exact Name.name_beq_refl (hs.namesWF q (by simp [reprList]))
   | Many ps =>
-    simp only [prop_when.equiv_r, prop_when.names_beq]
+    simp only [prop_when.equiv_r, bind_arc_deref, prop_when.names_beq]
     exact names_beq_from_refl (fun n hn => hs.namesWF n (by simpa [reprList] using hn))
       ps.val.length 0#usize (by scalar_tac)
 
@@ -1901,6 +1908,7 @@ theorem absPropWhen_injective {a b : prop_when.PropWhen}
     all_goals
       first
       | exact alloc.vec.Vec.ext _ _ hlists
+      | exact Prod.ext_iff.mpr hlists
       | (rw [← hlists] at hmanyb; simp at hmanyb)
 
 /-! ## The refinement statements, under the `ConRon/Refine/README.md` names

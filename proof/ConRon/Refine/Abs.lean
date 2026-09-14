@@ -325,7 +325,7 @@ def absPropWhenRepr : prop_when.PropWhenRepr → ConLeche.PropWhen
   | .Never => .never
   | .Always => .ifAllZero []
   | .One p => .ifAllZero [absName p]
-  | .Two p q => .ifAllZero [absName p, absName q]
+  | .Two pq => .ifAllZero [absName pq.1, absName pq.2]
   | .Many ps => .ifAllZero (absNames ps)
 
 /-- The datum, through its (Rust-private, Lean-private) representation. -/
