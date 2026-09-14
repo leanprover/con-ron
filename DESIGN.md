@@ -16728,3 +16728,53 @@ the run's end (`skip_digits b i = ok e`), which every call site supplies —
 `num_end` gives it, and `scan_quoted_nat` calls `skip_digits` itself.  Caught
 by an agent proving it rather than by an agent assuming it, which is the
 argument for discharging a hypothesis record rather than shipping one.
+
+#### 5. The two permuting passes: `prepare_prelude_refines`
+
+`Refine/Frontend/PrepareR.lean`, 1 904 lines, is the first of the three lemmas
+the headline composes with, and it is **proved**: the port's `prepare_prelude`
+returns what `ConLeche.Frontend.preparePrelude` returns, under one hypothesis
+named below.  `prepare.rs` is complete — `prelude_key`, `declares`,
+`prelude_ix_empty`, `no_picks`, `pick_idx`, `prepared_front`/`_rest`/`_stream`,
+**`front_of_refines` (`front_of` *is* `frontOf`**, against the `Array` spelling,
+not the `frontSpec`/`pickSpec` the port deliberately does not port),
+`prepare_d` and `prepare_prelude` — and `nat_op_ground.rs` is complete above the
+target map: `is_nat_op_record`, `idx_get`, `target_done`, `target_is`,
+`hoist_moved_idxs`, `hoist_order_at`, `hoist_order`, `hoist_reorder`,
+`hoist_moved_names`, `apply_hoist` and `hoist_nat_op_ground`.
+
+**The residue is one field, `HoistSpec.targets`**: that `hoist_targets`
+computes `hoistTargets`.  Under it sit `used_consts_go`, `decl_used_consts`,
+`block_used_consts`, `hoist_name_index` and the `hoist_close` worklist, and the
+reason they did not fall is worth recording: the port is an explicit
+`Vec<Expr>` worklist with a `ron::HashMap<Expr, bool>` seen table where
+con-leche is *structural* recursion over a `Std.HashSet Expr`, and **the port's
+loop has no decreasing measure in the Aeneas model** — `sp` goes up as well as
+down.  The `HashMapWF`/`Eq2Fwd` bridge is the easy half; the hard half is a
+well-founded argument over "subterms not yet seen", which the `Arc` model does
+not bound for free.  The agent stopped rather than fake it, which is right.
+
+Two things it *did* discharge are worth keeping.  **The port's bucket pass is
+`applyHoist`'s `List.mergeSort`** (`hoistBuckets_eq_mergeSort`): the key order
+is antisymmetric because each key carries its own index, so `Pairwise` + `Perm`
++ `List.Perm.eq_of_pairwise` identifies the two.  And two genuine
+*preconditions* surfaced, each free at its one call site: `apply_hoist` needs
+every target key and value below `ds.len()` — without it the two sides really
+do differ, the port's bucket pass dropping a record whose target is past the
+end where `mergeSort` keeps it — and `hoist_reorder`/`hoist_moved_names` need
+the index entries at most `Usize.max`, because the port's `u64 → usize` cast
+truncates.  **No port bug.**
+
+The file is a **hand proof throughout** and deliberately so: `Refine/README.md`
+§Scope puts `Vec` loops and list folds outside the task-#71 idiom's scope, and
+this file is nothing else.  Whole-file elaboration 4.75 / 4.75 / 4.84 s over
+three runs.
+
+**One environment finding for the next task.** `ulimit -v 8000000` — the figure
+this task's brief gave its agents — is **not workable on this machine**: with 96
+cores `lean` dies with *"failed to create thread"* before elaborating anything,
+because each worker reserves address space.  `ulimit -v 64000000` with
+`lake env lean --threads=8` is what works, and resident use stays small under
+it.  CLAUDE.md's rule is about *resident* memory and the 50 GB session limit;
+the virtual-address limit is a different number and 8 GB is far too low for
+Lean.
