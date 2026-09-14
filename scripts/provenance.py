@@ -9,19 +9,18 @@ or, for an item with no Lean counterpart,
 
     /// con-leche: none — replaces the runtime's `Nat`; spec in NatSpec.lean
 
-The vendored tree is the single source of truth: `vendor/con-leche` is a
-squashed `git subtree` of con-leche (task #74; its upstream commit is the
-first word of `vendor/CON_LECHE_PIN`), so `(pin, path, range)` fixes the
-cited text and no hash is needed in the source.  `check` verifies every
-citation against the tree and demands one on every item; `update --old
-<rev>` diffs the old tree against the new one — `rev` is a con-ron
-revision whose `vendor/con-leche` is the old tree (`HEAD` during an
-uncommitted `git subtree pull`), or, for the pre-subtree history, a
-con-leche commit resolvable in the retired submodule's git dir —
-relocates what merely moved and marks what changed with a `CHANGED`
-marker line the porter deletes once reconciled; `coverage` prints the
-port ledger.  Pure source-tree work: no build, no network, python3
-stdlib only, milliseconds.
+con-leche is a plain `lake` dependency of `proof/` (task #91), pinned by
+`rev` in `proof/lakefile.toml`; `proof/lake-manifest.json`'s `con-leche`
+entry is the single source of truth for the pin, and its checked-out work
+tree lives wherever that manifest's `packagesDir` puts it (ordinarily
+`proof/.lake/packages/con-leche`) once `lake update`/`lake build` has run in
+`proof/`.  `(pin, path, range)` fixes the cited text, so no hash is needed
+in the source.  `check` verifies every citation against the pinned package
+and demands one on every item; `update --old <commit>` diffs the old pin
+against the new one, relocates what merely moved and marks what changed
+with a `CHANGED` marker line the porter deletes once reconciled; `coverage`
+prints the port ledger.  Pure source-tree work: no build, no network (once
+the package is fetched), python3 stdlib only, milliseconds.
 
 Exit codes: 0 clean, 1 findings, 2 usage/IO error.
 """
@@ -30,23 +29,29 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import json
 import os
 import re
 import subprocess
 import sys
 
 # The Rust trees that must be annotated, relative to the repository root.
-# `crates/con-ron/src` is the UNVERIFIED frontend (task #37).  It is inside
-# this gate and outside `lint-rust-style.sh` and `extract.sh` on purpose:
-# DESIGN.md §3.7 — "for the unverified frontend it is the only sync signal
-# there is".  Its items are cited but not style-linted.
+# `crates/con-ron/src` is the UNVERIFIED crate: the in-process modeller, the
+# driver and the pool (the parser left it for the verified core at task #84).
+# It is inside this gate and outside `lint-rust-style.sh` and `extract.sh` on
+# purpose: DESIGN.md §3.7 — "for the unverified frontend it is the only sync
+# signal there is".  Its items are cited but not style-linted.
 DEFAULT_ROOTS = [
     "crates/con-ron-core/src",
     "crates/con-ron/src",
 ]
 
-# The con-leche submodule, and the implementation trees the ledger counts.
-CON_LECHE = "vendor/con-leche"
+# con-leche is a plain lake dependency of proof/ (task #91): its checked-out
+# package directory is resolved from proof/lake-manifest.json, not a fixed
+# repository-relative path.  MANIFEST_FILE is the single source of truth for
+# the pin; CON_LECHE is a display name only (error messages).
+MANIFEST_FILE = "proof/lake-manifest.json"
+CON_LECHE = "con-leche"
 COVERAGE_GLOBS = ["ConLeche/Kernel", "ConLeche/Cached"]
 
 # The allowlist of declarations that are deliberately NOT ported (task #33):
@@ -54,6 +59,38 @@ COVERAGE_GLOBS = ["ConLeche/Kernel", "ConLeche/Cached"]
 SKIP_FILE = "scripts/provenance-skip.txt"
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# ------------------------------------------------------- the con-leche package
+
+
+def _manifest_con_leche_entry(data):
+    """The `con-leche` package entry in a decoded lake-manifest.json, or
+    None.  Lake escapes a package name that is not a legal Lean identifier
+    with `«»`; the directory on disk is the unescaped form
+    (`Dependency.dirName`), so match on that."""
+    for pkg in data.get("packages", []):
+        if pkg.get("name", "").strip("«»") == "con-leche":
+            return pkg
+    return None
+
+
+def con_leche_dir():
+    """The absolute path of the con-leche lake package directory, resolved
+    from `proof/lake-manifest.json` (task #91: con-leche is a plain lake
+    dependency, not vendored) — or None if `lake update`/`lake build` has
+    not been run in `proof/` yet, or the package is not there."""
+    try:
+        with open(os.path.join(REPO, MANIFEST_FILE), encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return None
+    entry = _manifest_con_leche_entry(data)
+    if entry is None:
+        return None
+    packages_dir = data.get("packagesDir", ".lake/packages")
+    d = os.path.join(REPO, "proof", packages_dir, entry["name"].strip("«»"))
+    return d if os.path.isdir(d) else None
+
 
 # ---------------------------------------------------------------- annotations
 
@@ -313,26 +350,20 @@ STOPPER_RE = re.compile(
 
 
 def lean_text(path, old=None):
-    """The Lean file's lines: from the vendored tree, or from `old` — a
-    con-ron revision whose tree holds the old `vendor/con-leche`, else (the
-    history before the subtree, task #74) a con-leche commit in the retired
-    submodule's git dir."""
+    """The Lean file's lines: from the con-leche package directory's checked-
+    out work tree, or from `old` — a con-leche commit, read from that
+    directory's git history (lake clones the full repository, not a
+    shallow one, so any commit it has ever pointed at is there)."""
+    d = con_leche_dir()
+    if d is None:
+        return None
     if old is None:
-        full = os.path.join(REPO, CON_LECHE, path)
+        full = os.path.join(d, path)
         if not os.path.exists(full):
             return None
         with open(full, encoding="utf-8") as f:
             return f.read().split("\n")
-    r = subprocess.run(["git", "-C", REPO, "show", "%s:%s/%s" % (old, CON_LECHE, path)],
-                       capture_output=True, text=True)
-    if r.returncode == 0:
-        return r.stdout.split("\n")
-    common = subprocess.run(["git", "-C", REPO, "rev-parse", "--git-common-dir"],
-                            capture_output=True, text=True).stdout.strip()
-    moddir = os.path.join(REPO, common, "modules", CON_LECHE)
-    if not os.path.isdir(moddir):
-        return None
-    r = subprocess.run(["git", "--git-dir", moddir, "show", "%s:%s" % (old, path)],
+    r = subprocess.run(["git", "-C", d, "show", "%s:%s" % (old, path)],
                        capture_output=True, text=True)
     return r.stdout.split("\n") if r.returncode == 0 else None
 
@@ -469,18 +500,21 @@ def extend_block(lines, i):
 
 
 def lean_files_for_coverage():
+    d = con_leche_dir()
+    if d is None:
+        return []
     out = []
     for sub in COVERAGE_GLOBS:
-        base = os.path.join(REPO, CON_LECHE, sub)
+        base = os.path.join(d, sub)
         for dirpath, dirnames, filenames in os.walk(base):
             dirnames[:] = sorted(dirnames)
             for fn in sorted(filenames):
                 if fn.endswith(".lean"):
                     full = os.path.join(dirpath, fn)
-                    out.append(os.path.relpath(full, os.path.join(REPO, CON_LECHE)))
+                    out.append(os.path.relpath(full, d))
         lone = base + ".lean"
         if os.path.exists(lone):
-            out.append(os.path.relpath(lone, os.path.join(REPO, CON_LECHE)))
+            out.append(os.path.relpath(lone, d))
     return sorted(out)
 
 
@@ -609,33 +643,33 @@ def first_decl_line(lines, a, b):
     return None
 
 
-PIN_FILE = "vendor/CON_LECHE_PIN"  # first word: the vendored con-leche commit
-
-
 def recorded_submodule_commit():
-    """The con-leche commit recorded in HEAD (`vendor/CON_LECHE_PIN` there) —
-    the `old` side of an uncommitted bump.  The name predates the subtree."""
-    r = subprocess.run(["git", "-C", REPO, "show", "HEAD:" + PIN_FILE],
+    """The con-leche commit recorded in HEAD's `proof/lake-manifest.json` —
+    the `old` side of an uncommitted bump.  The name predates task #91;
+    con-leche has been a vendored submodule and a vendored subtree before it
+    was a plain lake dependency, and this is still "the pin as committed"."""
+    r = subprocess.run(["git", "-C", REPO, "show", "HEAD:" + MANIFEST_FILE],
                        capture_output=True, text=True)
-    if r.returncode == 0 and r.stdout.split():
-        return r.stdout.split()[0]
-    try:  # the history before task #74: a submodule gitlink
-        out = subprocess.run(["git", "-C", REPO, "ls-tree", "HEAD", CON_LECHE],
-                             capture_output=True, text=True, check=True).stdout
-    except subprocess.CalledProcessError:
+    if r.returncode != 0:
         return None
-    m = re.search(r"commit ([0-9a-f]{40})", out)
-    return m.group(1) if m else None
+    try:
+        data = json.loads(r.stdout)
+    except ValueError:
+        return None
+    entry = _manifest_con_leche_entry(data)
+    return entry.get("rev") if entry else None
 
 
 def current_submodule_commit():
-    """The vendored con-leche commit: the first word of `vendor/CON_LECHE_PIN`."""
+    """The con-leche commit: `rev` in the working tree's
+    `proof/lake-manifest.json` (which `lake update` writes)."""
     try:
-        with open(os.path.join(REPO, PIN_FILE), encoding="utf-8") as f:
-            words = f.read().split()
-        return words[0] if words else None
-    except OSError:
+        with open(os.path.join(REPO, MANIFEST_FILE), encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
         return None
+    entry = _manifest_con_leche_entry(data)
+    return entry.get("rev") if entry else None
 
 
 def rewrite(edits):
@@ -662,10 +696,11 @@ def cmd_update(args):
     if old is None:
         rec, cur = recorded_submodule_commit(), current_submodule_commit()
         if rec and cur and rec != cur:
-            old = "HEAD"  # the old tree is HEAD's `vendor/con-leche`
+            old = rec
         else:
-            print("usage: no uncommitted bump of vendor/con-leche (the pin file "
-                  "matches HEAD's); pass --old <rev>", file=sys.stderr)
+            print("usage: no uncommitted bump of the con-leche pin (the "
+                  "manifest's rev matches HEAD's); pass --old <commit>",
+                  file=sys.stderr)
             return 2
 
     _, cites, malformed, markers = collect(args.roots)
@@ -962,6 +997,30 @@ def cmd_locate(args):
     return rc
 
 
+def cmd_dir(args):
+    """Print the con-leche lake package directory (task #91): the one place
+    a shell script needs to resolve to read con-leche's tree — `gen-pins.sh`,
+    `gen-prelude.sh`, `diff-e2e.sh` and `overview-links.sh` all shell out to
+    `python3 scripts/provenance.py dir` rather than hard-coding a path."""
+    print(con_leche_dir())
+    return 0
+
+
+def cmd_pin(args):
+    """Print the pinned con-leche commit from the working tree's
+    `proof/lake-manifest.json` — unlike every other subcommand, this reads
+    only that (committed, always-present) file, not the package directory
+    itself, so it works before `lake update`/`lake build` has ever run (a
+    fresh checkout, or CI computing a cache key for the clone it is about to
+    do)."""
+    rev = current_submodule_commit()
+    if rev is None:
+        print("error: no con-leche entry in %s" % MANIFEST_FILE, file=sys.stderr)
+        return 2
+    print(rev)
+    return 0
+
+
 def main(argv):
     p = argparse.ArgumentParser(prog="provenance.py", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -979,18 +1038,23 @@ def main(argv):
     lc = sub.add_parser("locate", parents=[common])
     lc.add_argument("path", help="a con-leche-relative Lean path")
     lc.add_argument("decls", nargs="+", help="the declarations to locate")
+    sub.add_parser("dir", parents=[common])
+    sub.add_parser("pin", parents=[common])
     args = p.parse_args(argv)
     if args.roots is None:
         args.roots = list(DEFAULT_ROOTS)
     if args.cmd is None:
         p.print_help()
         return 2
-    if not os.path.isdir(os.path.join(REPO, CON_LECHE, "ConLeche")):
-        print("error: %s is missing (it is a vendored subtree since task #74; "
-              "is this a partial checkout?)" % CON_LECHE, file=sys.stderr)
-        return 2
-    return {"check": cmd_check, "update": cmd_update,
-            "coverage": cmd_coverage, "locate": cmd_locate}[args.cmd](args)
+    if args.cmd != "pin":  # `pin` reads only the manifest, not the package
+        d = con_leche_dir()
+        if d is None or not os.path.isdir(os.path.join(d, "ConLeche")):
+            print("error: the con-leche lake package is not available "
+                  "(task #91: a plain lake dependency, not vendored); "
+                  "run `lake update` (or `lake build`) in proof/", file=sys.stderr)
+            return 2
+    return {"check": cmd_check, "update": cmd_update, "coverage": cmd_coverage,
+            "locate": cmd_locate, "dir": cmd_dir, "pin": cmd_pin}[args.cmd](args)
 
 
 if __name__ == "__main__":

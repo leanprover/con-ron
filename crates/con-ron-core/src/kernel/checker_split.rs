@@ -26,6 +26,7 @@
 use crate::cached::parsed_c::{ValueGroup, ValueKind};
 use crate::cached::state_c::CState;
 use crate::kernel::basis_names;
+use crate::kernel::checker_base;
 use crate::kernel::core_k;
 use crate::kernel::core_types;
 use crate::kernel::core_types::CheckM;
@@ -68,7 +69,7 @@ pub fn install_constant_val(
                 if !expr_ops::all_level_params_defined_fast(&cv.level_params, &ty) {
                     Err(core_types::invalid({ const M: [u32; 37] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 116, 121, 112, 101]; core_types::code_points(&M) }))
                 } else if !core_k::consts_resolve(fe, &ty) {
-                    Err(core_types::invalid({ const M: [u32; 24] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 116, 121, 112, 101]; core_types::code_points(&M) }))
+                    Err(checker_base::unresolved_consts_error(&ty))
                 } else {
                     Ok(ConstantVal {
                         name: name::dup(&cv.name),
@@ -102,7 +103,7 @@ pub fn install_value(
                 if !expr_ops::all_level_params_defined_fast(&cv.level_params, &value_a) {
                     Err(core_types::invalid({ const M: [u32; 38] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
                 } else if !core_k::consts_resolve(fe, &value_a) {
-                    Err(core_types::invalid({ const M: [u32; 25] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
+                    Err(checker_base::unresolved_consts_error(&value_a))
                 } else {
                     Ok(value_a)
                 }

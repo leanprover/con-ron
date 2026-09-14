@@ -37,11 +37,12 @@
 #                        through a text dump of con-leche's own parsed
 #                        declarations): the end-to-end sweep subsumes it.
 #
-# Everything the differentials need is in the tree: the fixtures and the
-# arena tarball are vendored under `vendor/con-leche/tests/` (con-leche
-# pins its own arena snapshot so CI never depends on the live arena), and
-# since task #43 the `Nat`-op pin list is an embedded constant inside the
-# verified core, so no pin file has to be dumped for them either.
+# Everything the differentials need is in con-leche's own tree, resolved
+# through `provenance.py dir` (task #91: a plain lake dependency, not
+# vendored): the fixtures and the arena tarball are under its `tests/`
+# (con-leche pins its own arena snapshot so CI never depends on the live
+# arena), and since task #43 the `Nat`-op pin list is an embedded constant
+# inside the verified core, so no pin file has to be dumped for them either.
 #
 # WHAT IT DELIBERATELY DOES **NOT** COVER
 #
@@ -69,13 +70,13 @@
 #   * Lean is NOT in the flake (`flake.nix` says so: toolchains are per
 #     project via `lean-toolchain`).  `elan` is installed with
 #     `--default-toolchain none`, exactly as con-leche's CI does, so the
-#     version comes from `proof/lean-toolchain` /
-#     `vendor/con-leche/lean-toolchain` (both v4.33.0) on the first `lake`
-#     call and is named nowhere here.
+#     version comes from `proof/lean-toolchain` (v4.33.0, the same con-leche
+#     itself pins) on the first `lake` call and is named nowhere here.
 #   * `vendor/aeneas` is a submodule and must be checked out
-#     (`scripts/setup-aeneas-lean.sh` copies `backends/lean` out of it);
-#     `vendor/con-leche` is a vendored `git subtree` (task #74), i.e.
-#     ordinary tracked files, and needs nothing.
+#     (`scripts/setup-aeneas-lean.sh` copies `backends/lean` out of it).
+#     con-leche is a plain `lake` dependency of `proof/` since task #91 (no
+#     longer a vendored subtree needing nothing): `lake update con-leche`
+#     clones it, same as Mathlib and the other git dependencies.
 #   * Disk.  Mathlib's oleans alone are ~6.6 GB and the proof library's
 #     build ~1.1 GB, which is more than a stock runner has spare -- hence
 #     the "free disk space" step.
@@ -85,28 +86,31 @@
 # plain `actions/cache` skips the save when the job fails, which would make
 # every push to a broken branch pay the cold cost again):
 #
-#   | what                           | key                                  |
-#   |--------------------------------|--------------------------------------|
-#   | `_tmp/aeneas-lean/.lake/build` | aeneas submodule sha + the patch's   |
-#   |   the patched Aeneas library   | hash + `proof/lean-toolchain`        |
-#   | `vendor/con-leche/.lake`       | `vendor/CON_LECHE_PIN` + con-leche's |
-#   |   ~20 CPU-minutes of con-leche | `lean-toolchain` + `lakefile.toml`   |
-#   | `proof/.lake/build`            | the two keys above + a hash of every |
-#   |   the proof library            | `proof/**/*.lean`; restore-keys fall |
-#   |                                | back to an older build of the same   |
-#   |                                | environment                          |
-#   | `~/.cargo/registry`, `~/.cargo/git` | `Cargo.lock`                    |
+#   * `_tmp/aeneas-lean/.lake/build` (the patched Aeneas library) --
+#     aeneas submodule sha + the patch's hash + `proof/lean-toolchain`.
+#   * `_tmp/aeneas-lean/.lake/packages/con-leche` (its clone plus
+#     ~20 CPU-minutes of build) -- the pinned rev alone (`provenance.py
+#     pin`, i.e. `proof/lake-manifest.json`'s `con-leche` entry).  Its own
+#     `lean-toolchain`/`lakefile.toml` cannot be hashed before the clone
+#     exists, unlike the vendored-subtree key this replaces (task #91), but
+#     the rev already fixes them.
+#   * `proof/.lake/build` (the proof library) -- the two keys above plus a
+#     hash of every `proof/**/*.lean`; restore-keys fall back to an older
+#     build of the same environment.
+#   * `~/.cargo/registry`, `~/.cargo/git` -- `Cargo.lock`.
 #
 #   Every one of these is a *build* cache whose consumer re-verifies it:
 #   Lake compares trace hashes and rebuilds whatever moved, and cargo does
 #   the same, so a stale entry costs time and never a wrong answer.
 #
 #   NOT cached, deliberately:
-#     * Mathlib's oleans (`_tmp/aeneas-lean/.lake/packages`).  They are
-#       6.6 GB -- more than a repository's entire 10 GB cache quota -- and
-#       `lake exe cache get` already fetches them from Mathlib's own olean
-#       cache in a few minutes.  Only the *Aeneas* library built on top of
-#       them is cached, which is the part no CDN has.
+#     * Mathlib's oleans, elsewhere under the same
+#       `_tmp/aeneas-lean/.lake/packages` con-leche's cache entry lives in.
+#       They are 6.6 GB -- more than a repository's entire 10 GB cache quota
+#       -- and `lake exe cache get` already fetches them from Mathlib's own
+#       olean cache in a few minutes.  Only the *Aeneas* library built on top
+#       of them, and con-leche's own (much smaller) build, are cached --
+#       the parts no CDN has.
 #     * `target/`.  Measured on the development machine with an empty
 #       `target/`: `cargo build` 3 s, `cargo test` 6 s (the crate has one
 #       real dependency, `mimalloc`).  The 3.5 GB under `target/<triple>/`
@@ -118,7 +122,7 @@
 #       `nix-community/cache-nix-action` or a FlakeHub cache.
 #
 # TIME.  Cold (no caches): ~10 min for Mathlib (clone + `cache get`) and
-# the Aeneas library, ~20 CPU-min for the vendored con-leche, ~5 min for
+# the Aeneas library, ~20 CPU-min for con-leche's own build, ~5 min for
 # the proof library at `LAKE_JOBS=4`, plus a few minutes of Nix and of the
 # differentials -- call it an hour, which is why `timeout-minutes` is 180
 # and not tuned.  Warm (every cache hit): well under 30 min, most of it
@@ -135,6 +139,12 @@
 #     `scripts/setup-aeneas-lean.sh`'s `lake update` and `lake exe cache
 #     get` (running either against the shared `_tmp/aeneas-lean` is
 #     forbidden by CLAUDE.md), and the disk-space step.
+#   Task #91 additionally exercised (against the shared `_tmp/aeneas-lean`,
+#     which is what an ordinary worktree does): editing
+#     `proof/lakefile.toml`'s con-leche `require` to a git dependency and
+#     `lake update con-leche` in `proof/`, `provenance.py pin`/`dir`, and a
+#     `lake build` immediately after (a no-op, confirming the package's own
+#     `.lake/build` is cached the same way Mathlib's is).
 
 name: CI
 
@@ -164,7 +174,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          # `vendor/aeneas` only; `vendor/con-leche` is a vendored subtree.
+          # `vendor/aeneas` only -- con-leche is a plain lake dependency of
+          # proof/ since task #91, not a submodule.
           submodules: true
 
       # Mathlib's oleans (~6.6 GB) plus the proof library (~1.1 GB) plus the
@@ -214,14 +225,16 @@ jobs:
           lake --version
 
       # The cache keys that are not a plain `hashFiles`: the pinned Aeneas
-      # commit (a gitlink, which `hashFiles` cannot see) and the vendored
-      # con-leche commit (the first word of `vendor/CON_LECHE_PIN`).
+      # commit (a gitlink, which `hashFiles` cannot see) and the pinned
+      # con-leche commit (`provenance.py pin` reads `proof/lake-
+      # manifest.json`'s `con-leche` entry -- task #91, no longer a
+      # vendored subtree's pin file).
       - name: Compute cache keys
         id: keys
         run: |
           set -euo pipefail
           echo "aeneas=$(git -C vendor/aeneas rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          echo "conleche=$(cut -d' ' -f1 vendor/CON_LECHE_PIN)" >> "$GITHUB_OUTPUT"
+          echo "conleche=$(python3 scripts/provenance.py pin)" >> "$GITHUB_OUTPUT"
 
       # ---- caches -------------------------------------------------------
       # `**/aeneas-433.patch` rather than a fixed path: the patch is moving
@@ -234,12 +247,17 @@ jobs:
           path: _tmp/aeneas-lean/.lake/build
           key: aeneas-lean-${{ runner.os }}-${{ steps.keys.outputs.aeneas }}-${{ hashFiles('**/aeneas-433.patch') }}-${{ hashFiles('proof/lean-toolchain') }}
 
-      - name: Restore the vendored con-leche build
+      # con-leche's lake package: its git clone plus its own `.lake/build`,
+      # under the same shared packages directory the Aeneas cache above
+      # restores into (task #91).  The key is the pinned rev alone: its own
+      # `lean-toolchain`/`lakefile.toml` cannot be hashed before the clone
+      # exists, but the rev already fixes their content.
+      - name: Restore the con-leche lake package
         id: cache-conleche
         uses: actions/cache/restore@v6
         with:
-          path: vendor/con-leche/.lake
-          key: con-leche-lake-${{ runner.os }}-${{ steps.keys.outputs.conleche }}-${{ hashFiles('vendor/con-leche/lean-toolchain', 'vendor/con-leche/lakefile.toml') }}
+          path: _tmp/aeneas-lean/.lake/packages/con-leche
+          key: con-leche-lake-${{ runner.os }}-${{ steps.keys.outputs.conleche }}
 
       # ORDER MATTERS HERE: this key is computed before
       # `setup-aeneas-lean.sh` links `proof/.lake/packages` at the shared
@@ -302,6 +320,18 @@ jobs:
           path: _tmp/aeneas-lean/.lake/build
           key: ${{ steps.cache-aeneas.outputs.cache-primary-key }}
 
+      # con-leche is a plain lake dependency of proof/ since task #91: `lake
+      # update` clones it (into the shared packages directory
+      # `setup-aeneas-lean.sh` just linked `proof/.lake/packages` to,
+      # restored above on a cache hit) and pins it in
+      # `proof/lake-manifest.json`, which is already committed at the
+      # right rev -- so this is a no-op on a cache hit, and the fetch +
+      # build `scripts/gates.sh`'s `provenance` gate would otherwise need to
+      # do implicitly on the first read.
+      - name: Materialize con-leche (lake dependency)
+        shell: nix develop --command bash -euo pipefail {0}
+        run: cd proof && lake update con-leche
+
       # ---- THE GATE -----------------------------------------------------
       # One OK/FAIL line per gate, non-zero exit on the first FAIL.
       - name: scripts/gates.sh
@@ -327,11 +357,11 @@ jobs:
       # The two Lean saves are LAST, and `if: always()`, on purpose: a red
       # run must still leave its environment behind, or every push to a
       # broken branch pays the cold cost again.
-      - name: Save the vendored con-leche build
+      - name: Save the con-leche lake package
         if: always() && steps.cache-conleche.outputs.cache-hit != 'true'
         uses: actions/cache/save@v6
         with:
-          path: vendor/con-leche/.lake
+          path: _tmp/aeneas-lean/.lake/packages/con-leche
           key: ${{ steps.cache-conleche.outputs.cache-primary-key }}
 
       - name: Save the proof library build

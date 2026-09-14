@@ -1,14 +1,14 @@
-//! `pool` — con-leche's `Main.lean:213-328`: **phase B on a pool of worker
+//! `pool` — con-leche's `Main.lean:193-316`: **phase B on a pool of worker
 //! threads** (task #48).
 //!
 //! The recorded checks are independent by construction — each reads the
 //! installed index at its own prefix view, its own record, and a *fresh* memo
 //! state — so phase B is `n` workers over one shared claim counter.  This
 //! module is that pool, `checkPool` with its three helpers ported one to one:
-//! `check_one` (`Main.lean:255-274`), `check_worker` (`:276-291`),
-//! `merge_results` (`:293-300`) and `check_pool` (`:302-328`), plus the walk
+//! `check_one` (`Main.lean:240-260`), `check_worker` (`:262-278`),
+//! `merge_results` (`:280-287`) and `check_pool` (`:289-316`), plus the walk
 //! that turns the merged table into a verdict (`collect_checks`,
-//! `ConLeche/Cached/Installed.lean:360-383 collectChecks`).
+//! `ConLeche/Cached/Installed.lean:392-416 collectChecks`).
 //!
 //! ## The guarantee, and why it is the sequential walk's
 //!
@@ -115,7 +115,7 @@ fn internal(msg: &str) -> CheckError {
     core_types::internal(msg.chars().map(|c| c as u32).collect())
 }
 
-/// con-leche: Main.lean:260-280 checkOne
+/// con-leche: Main.lean:240-260 checkOne
 /// **One claimed record of one worker.**  Below the shared `limit` it is
 /// checked from a fresh memo state and its result appended; a failure lowers
 /// the limit to its index; on the heartbeat lane the completed-count is bumped
@@ -171,7 +171,7 @@ fn check_one<O: PhaseObserver + Send>(
     }
 }
 
-/// con-leche: Main.lean:282-298 checkWorker
+/// con-leche: Main.lean:262-278 checkWorker
 /// **One worker**: claim ONE record off the shared counter, check it, repeat
 /// until the counter is past the records.  One record per claim is con-leche's
 /// choice and its reason is the port's: the work is millions of mostly tiny
@@ -207,7 +207,7 @@ fn check_worker<O: PhaseObserver + Send>(
     }
 }
 
-/// con-leche: Main.lean:300-307 mergeResults
+/// con-leche: Main.lean:280-287 mergeResults
 /// The workers' arrays merged **by record index** into one table.  The table is
 /// the pool's whole interface to the verdict: which worker produced a result,
 /// and when, is recorded nowhere.
@@ -229,7 +229,7 @@ pub fn merge_results(
     tab
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:394-418 collectChecks
+/// con-leche: ConLeche/Cached/Installed.lean:392-416 collectChecks
 /// **The results, assembled in record order.**  Slot `j` holds record `j`'s
 /// result; the walk stops at the first failure, so its verdict is
 /// `check_pending_list`'s whatever order the results were produced in.  An
@@ -257,7 +257,7 @@ pub fn collect_checks(pend: &[PendingCheck], tab: Vec<Option<RecordResult>>) -> 
     Ok(())
 }
 
-/// con-leche: Main.lean:309-337 checkPool
+/// con-leche: Main.lean:289-316 checkPool
 /// **Phase B on a pool of `workers` worker threads.**  Spawns them inside a
 /// `std::thread::scope` — which is what lets them hold `&FEnv` and
 /// `&[PendingCheck]` into the installed environment with no `Arc<Mutex<…>>` and

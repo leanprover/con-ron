@@ -168,7 +168,7 @@ pub fn defn_lp_count(fe: &FEnv, n: &Name) -> Option<usize> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:66-82 unfoldDefinitionI
-/// con-leche: ConLeche/Kernel/Core.lean:208-227 unfoldDefinition
+/// con-leche: ConLeche/Kernel/Core.lean:245-264 unfoldDefinition
 /// **The δ step's materialization**, monadic: the unfolded value is read
 /// through the `(name, levels)` cache (`constValAtM`) instead of being
 /// level-instantiated afresh at every delta step.  Like the spec, a theorem
@@ -209,7 +209,7 @@ pub fn unfold_definition_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:92-152 reduceNatI
-/// con-leche: ConLeche/Kernel/Core.lean:774-826 reduceNat
+/// con-leche: ConLeche/Kernel/Core.lean:811-863 reduceNat
 /// Literal acceleration, run in the `whnf` loop *before* delta-unfolding:
 /// pack `Nat.succ` applied to a literal back into a literal, and fold the
 /// fourteen binary operations on literal arguments.
@@ -285,7 +285,7 @@ pub fn reduce_nat_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:92-152 reduceNatI
-/// con-leche: ConLeche/Kernel/Core.lean:774-826 reduceNat
+/// con-leche: ConLeche/Kernel/Core.lean:811-863 reduceNat
 /// The certified-operation arm of `reduce_nat_i`: both arguments read as
 /// literals, first one then the other, and `core_k::nat_op_result` folds.
 pub fn reduce_nat_bin_i(
@@ -306,7 +306,7 @@ pub fn reduce_nat_bin_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:92-152 reduceNatI
-/// con-leche: ConLeche/Kernel/Core.lean:774-826 reduceNat
+/// con-leche: ConLeche/Kernel/Core.lean:811-863 reduceNat
 /// The two-literal read both binary arms share: head-normalise the first
 /// argument and stop unless it is a literal, then the second.
 pub fn reduce_nat_lits_i(
@@ -334,7 +334,7 @@ pub fn reduce_nat_lits_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:154-193 iotaCertsIAux
-/// con-leche: ConLeche/Kernel/Core.lean:828-860 iotaCerts
+/// con-leche: ConLeche/Kernel/Core.lean:865-897 iotaCerts
 /// **The bulk telescope certificate** (con-leche's task #50): peel the raw
 /// telescope while accumulating the certified arguments, substituting only
 /// each binder's *domain* (small, and through the `instC` memo) instead of
@@ -409,7 +409,7 @@ pub fn iota_certs_i_aux(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:195-199 iotaCertsI
-/// con-leche: ConLeche/Kernel/Core.lean:828-860 iotaCerts
+/// con-leche: ConLeche/Kernel/Core.lean:865-897 iotaCerts
 /// Certify a spine against a recursor telescope: the accumulator loop at the
 /// empty accumulator and the first argument.
 pub fn iota_certs_i(
@@ -426,7 +426,7 @@ pub fn iota_certs_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:201-209 defEqListI
-/// con-leche: ConLeche/Kernel/Core.lean:869-878 defEqList
+/// con-leche: ConLeche/Kernel/Core.lean:906-915 defEqList
 /// Pairwise definitional equality of two spines.  The `i = 0` wrapper of the
 /// index recursion below.
 pub fn def_eq_list_i(
@@ -442,7 +442,7 @@ pub fn def_eq_list_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:201-209 defEqListI
-/// con-leche: ConLeche/Kernel/Core.lean:869-878 defEqList
+/// con-leche: ConLeche/Kernel/Core.lean:906-915 defEqList
 /// The index recursion behind `def_eq_list_i`: the cited `[], []` arm is
 /// "both exhausted", the cons arm is "both in range", and the wildcard is
 /// the length mismatch.
@@ -470,8 +470,8 @@ pub fn def_eq_list_i_from(
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:220-222 piResidualM
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:785-787 piResidual
-/// con-leche: ConLeche/Kernel/Core.lean:862-867 piResidual
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:767-769 piResidual
+/// con-leche: ConLeche/Kernel/Core.lean:899-904 piResidual
 /// `piResidualM`, the tenth `*M` wrapper: `pure (ExprC.piResidual e args)`.
 /// It lives here, at its one call site, rather than in `state_c`, for the
 /// reason `state_c`'s module note gives.  The wrapped operation is
@@ -485,7 +485,7 @@ pub fn pi_residual_m(e: &Expr, args: &Vec<Expr>) -> Option<Expr> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:211-221 iotaIndexOkI
-/// con-leche: ConLeche/Kernel/Core.lean:880-896 iotaIndexOk
+/// con-leche: ConLeche/Kernel/Core.lean:917-933 iotaIndexOk
 /// The canonical-index comparison of a firing ι redex: where the recursor
 /// has indices (`rP < mI`) the residual of the constructor's telescope along
 /// the major's spine must agree, past the `cnP` parameters, with the
@@ -518,7 +518,7 @@ pub fn iota_index_ok_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:223-238 defeqSpineI
-/// con-leche: ConLeche/Kernel/Core.lean:2350-2369 defeqSpine
+/// con-leche: ConLeche/Kernel/Core.lean:2387-2406 defeqSpine
 /// Levels-and-spine congruence for two applications of the same stored
 /// constant — the lazy delta *same-head short-circuit*.  A `false` verdict is
 /// never final (the caller falls back to unfolding), so an inconclusive
@@ -559,7 +559,7 @@ pub fn defeq_spine_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:240-280 proofIrrelI
-/// con-leche: ConLeche/Kernel/Core.lean:898-929 proofIrrel
+/// con-leche: ConLeche/Kernel/Core.lean:935-966 proofIrrel
 /// Proof irrelevance certification: both sides' types whnf to the basis unit
 /// type, or both sides' types' *sorts* are `Prop`.  Every inference here is
 /// at the io grade (official's `is_def_eq_proof_irrel` runs `infer_type`,
@@ -654,7 +654,7 @@ pub fn prop_legs_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:328-354 propIrrelI
-/// con-leche: ConLeche/Kernel/Core.lean:931-973 propIrrel
+/// con-leche: ConLeche/Kernel/Core.lean:968-1010 propIrrel
 /// **The hoisted proof-irrelevance test**: the `Prop` branch of
 /// `proof_irrel_i` alone, with the two head-symbol fast arms in front — the
 /// "not a proof" arm (`prop_read::not_proof_fast` on either side refuses the
@@ -687,7 +687,7 @@ pub fn prop_irrel_i(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/CoreC.lean:356-367 projAppsFnI
-/// con-leche: ConLeche/Kernel/Core.lean:1017-1027 etaProjs
+/// con-leche: ConLeche/Kernel/Core.lean:1054-1064 etaProjs
 /// The projection-*function* spine `[proj_0 targs b, …]`, built through
 /// `mkAppNM`.  The cited `List Nat` argument is always `List.range nF`, so
 /// the port takes the count and walks `j = 0 … nF - 1`.
@@ -712,7 +712,7 @@ pub fn proj_apps_fn_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:369-376 projNodesI
-/// con-leche: ConLeche/Kernel/Core.lean:1017-1027 etaProjs
+/// con-leche: ConLeche/Kernel/Core.lean:1054-1064 etaProjs
 /// The `.proj T i b` spine — the tower spelling.
 pub fn proj_nodes_i(t: &Name, b: &Expr, n_f: u64, j: u64, out: Vec<Expr>) -> Vec<Expr> {
     if j >= n_f {
@@ -725,7 +725,7 @@ pub fn proj_nodes_i(t: &Name, b: &Expr, n_f: u64, j: u64, out: Vec<Expr>) -> Vec
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:378-386 projAppsI
-/// con-leche: ConLeche/Kernel/Core.lean:1017-1027 etaProjs
+/// con-leche: ConLeche/Kernel/Core.lean:1054-1064 etaProjs
 /// The fabricated projections of a structure-eta spine: the tower spelling
 /// at an all-tower slot family (`towerSlotsAllF` through the index), the
 /// projection-function spelling otherwise.
@@ -750,7 +750,7 @@ pub fn proj_apps_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:388-405 structEtaProjCertsI
-/// con-leche: ConLeche/Kernel/Core.lean:975-998 structEtaProjCerts
+/// con-leche: ConLeche/Kernel/Core.lean:1012-1035 structEtaProjCerts
 /// The per-projection telescope certificates of a structural eta
 /// certification at a **projection-function** slot family: for every field
 /// index the installed projection function's telescope — read through
@@ -774,7 +774,7 @@ pub fn struct_eta_proj_certs_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:388-405 structEtaProjCertsI
-/// con-leche: ConLeche/Kernel/Core.lean:975-998 structEtaProjCerts
+/// con-leche: ConLeche/Kernel/Core.lean:1012-1035 structEtaProjCerts
 /// The index recursion behind `struct_eta_proj_certs_i`.
 pub fn struct_eta_proj_certs_i_from(
     mode: &CheckMode,
@@ -826,7 +826,7 @@ pub fn struct_eta_proj_certs_i_from(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:407-473 structEtaCertWithI
-/// con-leche: ConLeche/Kernel/Core.lean:1029-1101 structEtaCertWith
+/// con-leche: ConLeche/Kernel/Core.lean:1066-1138 structEtaCertWith
 /// The structure-eta certificate against a *given* weak-head-normal type of
 /// the stuck side.  `a` is a fully applied constructor of an eta-capable
 /// structure, `b` inhabits that structure type, the constructor's parameters
@@ -1026,7 +1026,7 @@ pub fn struct_eta_cert_fields_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:475-484 structEtaCertI
-/// con-leche: ConLeche/Kernel/Core.lean:1116-1139 structEtaCert
+/// con-leche: ConLeche/Kernel/Core.lean:1153-1176 structEtaCert
 /// Structural eta certification for a stored eta-capable structure, with the
 /// constructor-shape test **first** (the divergence audit's D13):
 /// `etaCtorShapeC` reads `a`'s head and arity syntactically and nothing is
@@ -1054,7 +1054,7 @@ pub fn struct_eta_cert_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:486-512 structUnitCertI
-/// con-leche: ConLeche/Kernel/Core.lean:1141-1169 structUnitCert
+/// con-leche: ConLeche/Kernel/Core.lean:1178-1206 structUnitCert
 /// Unit-likeness certification: `a` and `b` inhabit the same stored
 /// unit-like family (the types are definitionally equal and the type
 /// application is certified against the family's telescope), so their values
@@ -1139,7 +1139,7 @@ pub fn struct_unit_steps_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:514-533 etaCertI
-/// con-leche: ConLeche/Kernel/Core.lean:1171-1196 etaCert
+/// con-leche: ConLeche/Kernel/Core.lean:1208-1233 etaCert
 /// Eta certification for a one-sided λ against a stuck term `b`: `b`'s type
 /// whnfs to a `∀` whose domain is defeq to the λ's, and the λ's body is
 /// pointwise the application of `b`.  The prop-ness annotations are compared
@@ -1179,7 +1179,7 @@ pub fn eta_cert_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:514-533 etaCertI
-/// con-leche: ConLeche/Kernel/Core.lean:1171-1196 etaCert
+/// con-leche: ConLeche/Kernel/Core.lean:1208-1233 etaCert
 /// The pointwise comparison and the annotation check of `eta_cert_i`, once
 /// the domains have matched.
 pub fn eta_cert_body_i(
@@ -1215,7 +1215,7 @@ pub fn eta_cert_body_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:535-541 stuckIrrelI
-/// con-leche: ConLeche/Kernel/Core.lean:1198-1208 stuckIrrel
+/// con-leche: ConLeche/Kernel/Core.lean:1235-1245 stuckIrrel
 /// The fallback for structurally distinct stuck terms: structural eta in
 /// either direction, unit-likeness, else proof irrelevance.
 pub fn stuck_irrel_i(
@@ -1247,8 +1247,8 @@ pub fn stuck_irrel_i(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/CoreC.lean:543-670 majorToCtorI
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:679 wscopedB
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:747-748 leafGuard
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:660-661 wscopedBC
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:726-730 leafGuard
 /// The **cached tier's** scope guard, run by all three rescue branches on
 /// their fabrication: the cited
 /// `ExprC.wscopedB depth fab && ExprC.looseBVarsBounded 0 fab &&
@@ -1280,7 +1280,7 @@ pub fn fab_scope_ok_i(fab: &Expr, major: &Expr, depth: u64) -> bool {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:543-670 majorToCtorI
-/// con-leche: ConLeche/Kernel/Core.lean:1274-1456 majorToCtor
+/// con-leche: ConLeche/Kernel/Core.lean:1311-1493 majorToCtor
 /// Stuck-major rescue (`to_cnstr_when_K` and `to_cnstr_when_structure` in
 /// the official kernel): a recursor's major premise that does not whnf to a
 /// constructor application may still be *replaced* by one.  An uncertified
@@ -1449,7 +1449,7 @@ pub fn k_type_and_irrel_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:543-670 majorToCtorI
-/// con-leche: ConLeche/Kernel/Core.lean:1274-1456 majorToCtor
+/// con-leche: ConLeche/Kernel/Core.lean:1311-1493 majorToCtor
 /// `r.whnf depth (← r.inferIO depth major)` — the major's reduced type,
 /// which all three rescue branches open with.
 pub fn infer_io_whnf_i(
@@ -1542,7 +1542,7 @@ pub fn major_to_ctor_eta_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:543-670 majorToCtorI
-/// con-leche: ConLeche/Kernel/Core.lean:1274-1456 majorToCtor
+/// con-leche: ConLeche/Kernel/Core.lean:1311-1493 majorToCtor
 /// The η branch's certificate: the structure-eta certificate against the
 /// major's own reduced type, with the **0-field rescue** for the pinned
 /// basis `PUnit` behind it (the generic certificate excludes reserved names;
@@ -1648,7 +1648,7 @@ pub fn major_to_ctor_and_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:672-681 litMajorToCtorI
-/// con-leche: ConLeche/Kernel/Core.lean:1458-1470 litMajorToCtor
+/// con-leche: ConLeche/Kernel/Core.lean:1495-1507 litMajorToCtor
 /// Convert a literal major premise to constructor form: a `Nat` literal one
 /// layer (`litToCtorIfNatI`, which is `core_k::lit_to_ctor_if_nat` — the
 /// twin's body is `pure` of the spec's); a `String` literal to its *reduced*
@@ -1675,7 +1675,7 @@ pub fn lit_major_to_ctor_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:683-692 projLitToCtorI
-/// con-leche: ConLeche/Kernel/Core.lean:1472-1486 projLitToCtor
+/// con-leche: ConLeche/Kernel/Core.lean:1509-1523 projLitToCtor
 /// Convert a string-literal projection scrutinee to its *reduced*
 /// constructor form.  Only `String` literals; anything else passes through
 /// unchanged (this is where it differs from `lit_major_to_ctor_i`, which
@@ -1702,7 +1702,7 @@ pub fn proj_lit_to_ctor_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:694-708 prepareMajorI
-/// con-leche: ConLeche/Kernel/Core.lean:1621-1658 prepareMajor
+/// con-leche: ConLeche/Kernel/Core.lean:1658-1695 prepareMajor
 /// The major premise's preparation in the official kernel's order: at a
 /// K-flagged recursor the K rescue runs on the **raw** major (it reads only
 /// the major's *type*) and only then is the major head-normalized and its
@@ -1737,7 +1737,7 @@ pub fn prepare_major_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:710-720 pinArgsI
-/// con-leche: ConLeche/Kernel/Core.lean:1660-1680 recFireComparands
+/// con-leche: ConLeche/Kernel/Core.lean:1697-1717 recFireComparands
 /// The nested-rule pin instantiations: each stored pin is level-instantiated
 /// (`instLevelParamsM`) and then substituted at the recursor's
 /// leading-argument spine (`instSpineM`).  The cited `List Expr` argument is
@@ -1762,7 +1762,7 @@ pub fn pin_args_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:743-838 iotaRecI
-/// con-leche: ConLeche/Kernel/Core.lean:1660-1680 recFireComparands
+/// con-leche: ConLeche/Kernel/Core.lean:1697-1717 recFireComparands
 /// `cvjLps.map Level.param`, the level trees `substLevelTreesM` substitutes
 /// in the canonical (`.plain`) arm.  §3.4 forbids closures, so the `map` is
 /// this index recursion.
@@ -1819,7 +1819,7 @@ pub fn iota_arity_ok(fe: &FEnv, e: &Expr) -> bool {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:743-838 iotaRecI
-/// con-leche: ConLeche/Kernel/Core.lean:1682-1795 iotaRec
+/// con-leche: ConLeche/Kernel/Core.lean:1719-1832 iotaRec
 /// One iota step: the expression is a stored recursor applied to exactly its
 /// telescope, the major premise whnfs to a fully applied constructor with a
 /// matching rule, and the spine is certified against the recursor's own
@@ -1862,7 +1862,7 @@ pub fn iota_rec_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:743-838 iotaRecI
-/// con-leche: ConLeche/Kernel/Core.lean:1682-1795 iotaRec
+/// con-leche: ConLeche/Kernel/Core.lean:1719-1832 iotaRec
 /// The prepared major's head must be a stored constructor with a matching
 /// rule at a matching spine length; a matched **inert** rule is a positive
 /// detection of an unsupported feature and declines here (staying silently
@@ -1914,7 +1914,7 @@ pub fn iota_rec_rule_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:743-838 iotaRecI
-/// con-leche: ConLeche/Kernel/Core.lean:1660-1680 recFireComparands
+/// con-leche: ConLeche/Kernel/Core.lean:1697-1717 recFireComparands
 /// The comparand levels of a firing rule: for a canonical (`.plain`) rule
 /// the constructor's level parameters, linked to the recursor's by name; for
 /// a certified nested rule the stored level trees.  Both go through
@@ -1936,7 +1936,7 @@ pub fn iota_cmp_levels_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:743-838 iotaRecI
-/// con-leche: ConLeche/Kernel/Core.lean:1660-1680 recFireComparands
+/// con-leche: ConLeche/Kernel/Core.lean:1697-1717 recFireComparands
 /// The comparand parameters: the recursor's leading arguments for a
 /// canonical rule, the `pinArgsI` instantiations for a nested one.
 pub fn iota_cmp_args_i(
@@ -2084,7 +2084,7 @@ pub fn iota_rec_telescopes_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:743-838 iotaRecI
-/// con-leche: ConLeche/Kernel/Core.lean:1682-1795 iotaRec
+/// con-leche: ConLeche/Kernel/Core.lean:1719-1832 iotaRec
 /// The certificate family itself: the recursor's telescope against the
 /// non-major prefix plus the prepared major, the constructor's telescope
 /// against the major's spine, and the canonical-index comparison (which
@@ -2162,7 +2162,7 @@ pub fn is_ctor_stored_i(fe: &FEnv, c: &Name) -> bool {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:840-848 projCertI
-/// con-leche: ConLeche/Kernel/Core.lean:1808-1843 projCert
+/// con-leche: ConLeche/Kernel/Core.lean:1845-1880 projCert
 /// **The structural projection's certificate**: the redex `proj_i (C p⃗ x⃗)`
 /// fires only after its constructor spine is certified against `C`'s stored
 /// type (through `constTyAtM`) at the redex's own levels.  The spine is a
@@ -2189,7 +2189,7 @@ pub fn proj_cert_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:850-853 projCertAtI
-/// con-leche: ConLeche/Kernel/Core.lean:1845-1857 projCertAt
+/// con-leche: ConLeche/Kernel/Core.lean:1882-1894 projCertAt
 /// **The fire certificate as the mode runs it**: the verified core certifies
 /// the constructor spine; the trusted core is the official kernel's
 /// (`reduce_proj` reduces every constructor redex with no certificate), so
@@ -2370,7 +2370,7 @@ pub fn beta_peel_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:942-996 whnfCoreStepI
-/// con-leche: ConLeche/Kernel/Core.lean:1893-1982 whnfCoreBody
+/// con-leche: ConLeche/Kernel/Core.lean:1930-2019 whnfCoreBody
 /// **One head-normalization step** (beta, iota, projection) with the loop's
 /// continuation abstracted.  Only the spine head's normalization stays a
 /// knot call (genuine nesting, bounded by the term's depth); every
@@ -2438,7 +2438,7 @@ pub fn whnf_core_step_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:942-996 whnfCoreStepI
-/// con-leche: ConLeche/Kernel/Core.lean:1893-1982 whnfCoreBody
+/// con-leche: ConLeche/Kernel/Core.lean:1930-2019 whnfCoreBody
 /// The `.proj` arm's continuation, on the reduced (and string-literal
 /// expanded) scrutinee: the structural rule `proj_i (ctor p⃗ x⃗) ↦ x_i`,
 /// driven by the projection table, behind the table's own counts and its
@@ -2519,7 +2519,7 @@ pub fn whnf_core_loop_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1006-1009 whnfCoreBodyI
-/// con-leche: ConLeche/Kernel/Core.lean:1893-1982 whnfCoreBody
+/// con-leche: ConLeche/Kernel/Core.lean:1930-2019 whnfCoreBody
 /// **The head-normalization body**: the loop at its own step budget
 /// (`core_k::whnf_core_loop_fuel`, con-leche's `whnfCoreLoopFuel`).  Beta
 /// (with the per-redex argument certificate), iota (with the stuck-major
@@ -2545,7 +2545,7 @@ pub fn whnf_core_body_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1093-1102 whnfStepI
-/// con-leche: ConLeche/Kernel/Core.lean:2003-2018 whnfStep
+/// con-leche: ConLeche/Kernel/Core.lean:2040-2055 whnfStep
 /// One iteration of the reduction loop (the official kernel's `whnf` body):
 /// head-normalize, try literal acceleration, unfold one definition — and
 /// hand the reduct to the loop's continuation.  As in `whnf_app_i` the
@@ -2574,7 +2574,7 @@ pub fn whnf_step_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1104-1108 whnfLoopI
-/// con-leche: ConLeche/Kernel/Core.lean:2020-2025 whnfLoop
+/// con-leche: ConLeche/Kernel/Core.lean:2057-2062 whnfLoop
 /// The reduction loop: iterate `whnf_step_i` on its own step budget, so the
 /// whole chain costs one knot level however many steps it takes.
 pub fn whnf_loop_i(
@@ -2598,7 +2598,7 @@ pub fn whnf_loop_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1110-1112 whnfBodyI
-/// con-leche: ConLeche/Kernel/Core.lean:2027-2029 whnfBody
+/// con-leche: ConLeche/Kernel/Core.lean:2064-2066 whnfBody
 /// The reduction body: `whnf_loop_i` at its own step budget.  It reads no
 /// mode function at all — the whole δ/ι/β content sits in `whnfCore`, which
 /// this reaches through the knot — which is why `CoreC.lean` instantiates no
@@ -2615,7 +2615,7 @@ pub fn whnf_body_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1114-1119 ensureSortI
-/// con-leche: ConLeche/Kernel/Core.lean:2031-2037 ensureSort
+/// con-leche: ConLeche/Kernel/Core.lean:2068-2074 ensureSort
 /// Ensure `e` (the type of some expression) is a sort, **returning its
 /// level** — no readback needed, which is the twin's one difference from the
 /// spec's.
@@ -2646,8 +2646,8 @@ pub fn ensure_sort_i(
 
 /// con-leche: ConLeche/Cached/CoreC.lean:43-58 CoreFnsI
 /// con-leche: ConLeche/Cached/CoreC.lean:60-64 CoreFnsI.ioView
-/// con-leche: ConLeche/Kernel/Core.lean:61-87 CoreFns
-/// con-leche: ConLeche/Kernel/Core.lean:89-95 CoreFns.ioView
+/// con-leche: ConLeche/Kernel/Core.lean:98-124 CoreFns
+/// con-leche: ConLeche/Kernel/Core.lean:126-132 CoreFns.ioView
 /// The knot slot a body's `r.infer` call resolves to: the full-grade `infer`
 /// wrapper under the `infer` slot, the io-grade one under `inferIO` (whose
 /// record is `CoreFnsI.ioView`).  This function *is* the `ioView`
@@ -2670,7 +2670,7 @@ pub fn infer_at_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1011-1042 inferSpineI
-/// con-leche: ConLeche/Kernel/Core.lean:2039-2204 inferBody
+/// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
 /// **Application-inference spine loop** (con-leche's task #50): walk the raw
 /// Π-telescope against the arguments with *deferred* substitution — each
 /// argument's certificate substitutes only its own domain
@@ -2761,7 +2761,7 @@ pub fn infer_spine_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1044-1091 inferSpineIOI
-/// con-leche: ConLeche/Kernel/Core.lean:2206-2334 inferBodyIO
+/// con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO
 /// **The io-grade spine walk**: `infer_spine_i` with the per-argument
 /// certificate gated — the ONE io-graded check, in bulk telescope form.  At
 /// a ∀ step whose annotation datum licenses it the argument's inference and
@@ -2936,7 +2936,7 @@ pub fn infer_lams_out_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1162-1206 inferLamsLeafI
-/// con-leche: ConLeche/Kernel/Core.lean:2039-2204 inferBody
+/// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
 /// **Leaf phase of `infer_lams_i`**: bulk-open the residual body, infer it,
 /// then rebuild outward.  At the verified modes the chain's body type is
 /// sort-checked here — the spec's codomain check, which fires at the
@@ -3054,7 +3054,7 @@ pub fn infer_lams_prev_pw_i(t: &Expr, stk: &Vec<InferLamEntry>) -> PropWhen {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1208-1228 inferLamsI
-/// con-leche: ConLeche/Kernel/Core.lean:2039-2204 inferBody
+/// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
 /// **λ-telescope inference loop** (con-leche's task #72): peel the raw
 /// λ-chain, checking each opened domain to be a type on the way in.  `k`
 /// counts the opened binders (`≥ 1`: the caller peels the first binder
@@ -3119,7 +3119,7 @@ pub fn infer_lams_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1230-1254 inferPisOutI
-/// con-leche: ConLeche/Kernel/Core.lean:2039-2204 inferBody
+/// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
 /// **Rebuild loop of `infer_pis_i`**: fold the accumulated domain sorts by
 /// `imax`, innermost binder first — exactly the chained `∀`-rule's result
 /// value — validating each node's prop-ness annotation against its inferred
@@ -3156,7 +3156,7 @@ pub fn infer_pis_out_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1256-1267 inferPisLeafI
-/// con-leche: ConLeche/Kernel/Core.lean:2039-2204 inferBody
+/// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
 /// Leaf phase of `infer_pis_i`: bulk-open the residual body, infer its sort,
 /// then fold the domain sorts outward.
 pub fn infer_pis_leaf_i(
@@ -3193,7 +3193,7 @@ pub fn infer_pis_leaf_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1269-1290 inferPisI
-/// con-leche: ConLeche/Kernel/Core.lean:2039-2204 inferBody
+/// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
 /// **∀-telescope inference loop**: peel the raw ∀-chain, checking each
 /// opened domain to be a type on the way in and accumulating its sort, infer
 /// the bulk-opened leaf's sort once, and fold `imax` outward.  The `∀`-rule
@@ -3278,7 +3278,7 @@ pub fn const_shape_probe_i(fe: &FEnv, n: &Name) -> Option<(bool, usize)> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1292-1389 inferBodyI
-/// con-leche: ConLeche/Kernel/Core.lean:2039-2204 inferBody
+/// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
 /// The `.const` clause: the constant is stored, is not a projection table,
 /// carries the right number of universe levels — and its type comes from
 /// `constTyAtM`, i.e. the `constTyAt` memo over the `ienv` conversion.  That
@@ -3289,9 +3289,6 @@ pub fn infer_const_i(
     n: &Name,
     us: &Vec<Level>,
 ) -> CheckM<Expr> {
-    const M_UNKNOWN: [u32; 16] = [
-        117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116,
-    ];
     const M_TOWER: [u32; 41] = [
         112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 116, 97, 98, 108, 101, 32, 101,
         110, 116, 114, 121, 32, 117, 115, 101, 100, 32, 97, 115, 32, 97, 32, 99, 111, 110, 115,
@@ -3302,7 +3299,7 @@ pub fn infer_const_i(
         102, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 108, 101, 118, 101, 108, 115,
     ];
     match const_shape_probe_i(fe, n) {
-        None => Err(core_types::invalid(core_types::code_points(&M_UNKNOWN))),
+        None => Err(core_k::unknown_const_error(n)),
         Some(p) => {
             if p.0 {
                 Err(core_types::invalid(core_types::code_points(&M_TOWER)))
@@ -3316,7 +3313,7 @@ pub fn infer_const_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1292-1389 inferBodyI
-/// con-leche: ConLeche/Kernel/Core.lean:2039-2204 inferBody
+/// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
 /// **The inference body.**  The `∀` and `λ` clauses peel their whole binder
 /// telescope (`infer_pis_i` / `infer_lams_i`) after checking the first
 /// binder's domain inline; the `.app` clause infers the spine head once and
@@ -3481,8 +3478,8 @@ pub fn infer_lam_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1292-1389 inferBodyI
-/// con-leche: ConLeche/Kernel/Core.lean:2039-2204 inferBody
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:623-642 ProjEntry.typeAtI
+/// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:609-628 ProjEntry.typeAtI
 /// The table lookup and the checks of the cached `.proj` clause, on the
 /// already reduced type of the subject: `core_k::infer_proj_at`'s twin with
 /// the ONE difference the cached lane prescribes — the field type comes from
@@ -3532,8 +3529,8 @@ pub fn infer_proj_at_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1292-1389 inferBodyI
-/// con-leche: ConLeche/Kernel/Core.lean:2039-2204 inferBody
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:623-642 ProjEntry.typeAtI
+/// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:609-628 ProjEntry.typeAtI
 /// `core_k::proj_type_at_checked`'s cached twin: the same three guards and
 /// the same propositional-structure restriction (`ProjEntry.fireOk`, which
 /// is `core_k`'s — it reads levels only), with `ProjEntry.typeAtI` as the
@@ -3571,7 +3568,7 @@ pub fn proj_type_at_checked_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1292-1389 inferBodyI
-/// con-leche: ConLeche/Kernel/Core.lean:2039-2204 inferBody
+/// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
 /// The `.proj` clause: a `.proj` node is typed by its projection-table
 /// entry, through `ProjEntry.typeAtI` — which is `infer_proj_at_i` above.
 /// The propositional-structure restriction reads `Level.isEquiv`
@@ -3598,7 +3595,7 @@ pub fn infer_proj_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1391-1448 inferBodyIOI
-/// con-leche: ConLeche/Kernel/Core.lean:2206-2334 inferBodyIO
+/// con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO
 /// **The io-grade inference body**: `infer_body_i` with exactly three clauses
 /// changed — the application spine walk is the gated `infer_spine_io_i` (the
 /// ONE io-graded check), and the `∀`/`λ` clauses are the **chained** pure io
@@ -3643,7 +3640,7 @@ pub fn infer_body_io_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1391-1448 inferBodyIOI
-/// con-leche: ConLeche/Kernel/Core.lean:2206-2334 inferBodyIO
+/// con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO
 /// The io `∀` clause, chained: the domain's sort, the body opened with
 /// `inst1M` at the io grade, `ensureSortI` on its type, the annotation
 /// validation at the verified modes, and `.sort (.imax u v)`.
@@ -3703,7 +3700,7 @@ pub fn infer_forall_io_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1391-1448 inferBodyIOI
-/// con-leche: ConLeche/Kernel/Core.lean:2206-2334 inferBodyIO
+/// con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO
 /// The io `λ` clause, chained and with **no domain-sort run** (con-leche's
 /// task #168 stage 2, as in the spec): the body opened with `inst1M` at the
 /// io grade, the codomain validation at the verified modes (the chain rule
@@ -3742,7 +3739,7 @@ pub fn infer_lam_io_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1391-1448 inferBodyIOI
-/// con-leche: ConLeche/Kernel/Core.lean:2206-2334 inferBodyIO
+/// con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO
 /// The io λ clause's codomain-sort validation: **the chain rule** at an
 /// outer binder (an outer λ's codomain is the inner λ's own ∀-type, whose
 /// sort's zero-ness is the inner codomain's — datum equality with the
@@ -3801,7 +3798,7 @@ pub fn infer_lam_cod_io_i(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1450-1453 boolTrueShortcutI
-/// con-leche: ConLeche/Kernel/Core.lean:2336-2348 boolTrueShortcut
+/// con-leche: ConLeche/Kernel/Core.lean:2373-2385 boolTrueShortcut
 /// **The eq-true shortcut** (the divergence audit's E2): the left side is
 /// fully head-normalised and the verdict is `true` iff the reduct is
 /// `Bool.true`.  Only the reduction is here; the guard is `defeq_step_i`'s.
@@ -3820,7 +3817,7 @@ pub fn bool_true_shortcut_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1455-1614 defeqStepI
-/// con-leche: ConLeche/Kernel/Core.lean:2371-2631 defeqStep
+/// con-leche: ConLeche/Kernel/Core.lean:2408-2668 defeqStep
 /// The definitional-equality body's one iteration: the syntactic fast path,
 /// the eq-true shortcut, head normalization of both sides (**no delta** —
 /// `whnfCore`), the hoisted proof irrelevance, then lazy delta, then
@@ -4051,7 +4048,7 @@ pub fn defeq_unfold_both_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1455-1614 defeqStepI
-/// con-leche: ConLeche/Kernel/Core.lean:2371-2631 defeqStep
+/// con-leche: ConLeche/Kernel/Core.lean:2408-2668 defeqStep
 /// Neither head unfolds: structural congruence with the stuck fallbacks, in
 /// the cited arm order (which is load-bearing — the literal/constructor-form
 /// arms come before the general stuck ones, and the one-sided λ η arms come
@@ -4187,7 +4184,7 @@ pub fn defeq_struct_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1455-1614 defeqStepI
-/// con-leche: ConLeche/Kernel/Core.lean:2371-2631 defeqStep
+/// con-leche: ConLeche/Kernel/Core.lean:2408-2668 defeqStep
 /// Binder congruence, the ∀ and λ arms together (they are byte-identical
 /// apart from the message tag): the domains, then the bodies at a fresh
 /// variable of the *right* side's domain — opened with `inst1M` — and
@@ -4246,7 +4243,7 @@ pub fn defeq_binders_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1455-1614 defeqStepI
-/// con-leche: ConLeche/Kernel/Core.lean:2371-2631 defeqStep
+/// con-leche: ConLeche/Kernel/Core.lean:2408-2668 defeqStep
 /// Stuck applications: **spine-wise** congruence (the official kernel's
 /// `is_def_eq_app`) — equal spine lengths, one head comparison, then the
 /// argument lists pairwise, then the stuck fallbacks.
@@ -4279,7 +4276,7 @@ pub fn defeq_apps_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1616-1621 defeqLoopI
-/// con-leche: ConLeche/Kernel/Core.lean:2633-2638 defeqLoop
+/// con-leche: ConLeche/Kernel/Core.lean:2670-2675 defeqLoop
 /// The lazy-delta loop: iterate `defeq_step_i` on its own step budget.
 pub fn defeq_loop_i(
     mode: &CheckMode,
@@ -4304,7 +4301,7 @@ pub fn defeq_loop_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1623-1625 defeqBodyI
-/// con-leche: ConLeche/Kernel/Core.lean:2646-2649 defeqBody
+/// con-leche: ConLeche/Kernel/Core.lean:2683-2686 defeqBody
 /// The definitional-equality body: the lazy-delta loop at its own step
 /// budget (`core_k::defeq_loop_fuel`), entered at `pi = true`.
 pub fn defeq_body_i(
@@ -4330,7 +4327,7 @@ pub fn defeq_body_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1627-1634 isPropTypeI
-/// con-leche: ConLeche/Kernel/Core.lean:2651-2660 isPropType
+/// con-leche: ConLeche/Kernel/Core.lean:2688-2697 isPropType
 /// Check that a (raw) type is a `Prop` by annotating it and inferring its
 /// sort.  The inference is at the io grade: `ty'` is the pass's own output,
 /// already annotated — the bottom-up circularity guard.  The comparison is
@@ -4448,7 +4445,7 @@ pub fn annot_pw_dup_i(pw: &Option<PropWhen>) -> Option<PropWhen> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1678-1691 annotPwPiI
-/// con-leche: ConLeche/Kernel/Core.lean:2687-2718 annotPwPi
+/// con-leche: ConLeche/Kernel/Core.lean:2724-2755 annotPwPi
 /// **The ∀ telescope's datum**, computed once: the leaf codomain sort's
 /// zero-ness — shared by every node of the telescope because `zeronessOf
 /// (imax u v) = zeronessOf v`.  The head-symbol reader comes first
@@ -4533,7 +4530,7 @@ pub fn annotate_pis_leaf_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1715-1730 annotatePisI
-/// con-leche: ConLeche/Kernel/Core.lean:2736-2856 annotateBody
+/// con-leche: ConLeche/Kernel/Core.lean:2773-2893 annotateBody
 /// **∀-telescope annotation loop** (con-leche's task #72): peel the raw
 /// ∀-chain, annotating each opened domain on the way in.  `k ≥ 1` counts the
 /// opened binders (the caller peels the first inline), `fvs` their free
@@ -4587,7 +4584,7 @@ pub fn annotate_pis_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1732-1745 annotPwLamI
-/// con-leche: ConLeche/Kernel/Core.lean:2720-2734 annotPwLam
+/// con-leche: ConLeche/Kernel/Core.lean:2757-2771 annotPwLam
 /// **The λ chain's datum**: the zero-ness of the sort of the innermost
 /// body's TYPE; every λ node of the chain shares it (the
 /// `(lam-cod-chain)` rule).  The reader comes first, as in the spec.
@@ -4667,7 +4664,7 @@ pub fn annotate_lams_leaf_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1764-1777 annotateLamsI
-/// con-leche: ConLeche/Kernel/Core.lean:2736-2856 annotateBody
+/// con-leche: ConLeche/Kernel/Core.lean:2773-2893 annotateBody
 /// **λ-telescope annotation loop** (con-leche's task #72).
 pub fn annotate_lams_i(
     mode: &CheckMode,
@@ -4718,7 +4715,7 @@ pub fn annotate_lams_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1779-1867 annotateBodyI
-/// con-leche: ConLeche/Kernel/Core.lean:2736-2856 annotateBody
+/// con-leche: ConLeche/Kernel/Core.lean:2773-2893 annotateBody
 /// **The annotation body**: compute the codomain-sort annotations of every
 /// binder, bottom-up, by real inference on the opened (already annotated)
 /// body.  The `.app` clause is structural — the application rule is not
@@ -4877,7 +4874,7 @@ pub fn annotate_lam_loop_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1779-1867 annotateBodyI
-/// con-leche: ConLeche/Kernel/Core.lean:2736-2856 annotateBody
+/// con-leche: ConLeche/Kernel/Core.lean:2773-2893 annotateBody
 /// The `λ` clause's **chained** arm (a node with loose bvars): the spec
 /// body's own clause — annotate the domain, annotate the body opened at a
 /// variable of the *annotated* domain, and write the datum unless the input
@@ -4918,7 +4915,7 @@ pub fn annotate_lam_chain_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1779-1867 annotateBodyI
-/// con-leche: ConLeche/Kernel/Core.lean:2736-2856 annotateBody
+/// con-leche: ConLeche/Kernel/Core.lean:2773-2893 annotateBody
 /// The `.letE` clause: the official `infer_let` triple —
 /// `ensureSortI(infer(type))`, `infer(val)`, `defeq(val_type, type)` — runs
 /// HERE, on the annotated annotation and the annotated value, before the ζ
@@ -4967,7 +4964,7 @@ pub fn annotate_let_i(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1779-1867 annotateBodyI
-/// con-leche: ConLeche/Kernel/Core.lean:2736-2856 annotateBody
+/// con-leche: ConLeche/Kernel/Core.lean:2773-2893 annotateBody
 /// The `.proj` clause: run the projection rule (the one place it is
 /// checked).  A table entry types the node directly, and the display name is
 /// normalized to the type's head so reduction's table lookup is complete on
@@ -5082,7 +5079,7 @@ pub fn defeq_probe(st: &CState, key: &(Expr, Expr)) -> Option<bool> {
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1906-1976 coreKnotI
-/// con-leche: ConLeche/Kernel/Core.lean:2860-2899 coreKnot
+/// con-leche: ConLeche/Kernel/Core.lean:2897-2936 coreKnot
 /// con-leche: ConLeche/Cached/CoreC.lean:1871-1889 memoEI
 /// `(coreKnotI mode fe fuel).whnfCore d e`: the fuel-zero throw, the
 /// `whnfCoreC` probe, `whnf_core_body_i` at `fuel - 1`, and the memo insert.
@@ -5115,7 +5112,7 @@ pub fn whnf_core(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1906-1976 coreKnotI
-/// con-leche: ConLeche/Kernel/Core.lean:2860-2899 coreKnot
+/// con-leche: ConLeche/Kernel/Core.lean:2897-2936 coreKnot
 /// `(coreKnotI mode fe fuel).whnf d e`, memoized in `whnfC`.
 pub fn whnf(
     mode: &CheckMode,
@@ -5146,7 +5143,7 @@ pub fn whnf(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1906-1976 coreKnotI
-/// con-leche: ConLeche/Kernel/Core.lean:2860-2899 coreKnot
+/// con-leche: ConLeche/Kernel/Core.lean:2897-2936 coreKnot
 /// `(coreKnotI mode fe fuel).infer d e`, memoized in `inferC`.  The body is
 /// tied at the **full** grade (`io = false`), which is the knot's `prev ()`
 /// rather than `(prev ()).ioView`.
@@ -5179,7 +5176,7 @@ pub fn infer(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1906-1976 coreKnotI
-/// con-leche: ConLeche/Kernel/Core.lean:2860-2899 coreKnot
+/// con-leche: ConLeche/Kernel/Core.lean:2897-2936 coreKnot
 /// **The io slot**, selected once per knot level: at `mode.ioGate` the io
 /// body under its OWN memo (`inferIOC` — con-leche's task-#170 memo ruling:
 /// a hit in the io memo never serves a full-infer query), tied to the
@@ -5227,7 +5224,7 @@ pub fn infer_io(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1906-1976 coreKnotI
-/// con-leche: ConLeche/Kernel/Core.lean:2860-2899 coreKnot
+/// con-leche: ConLeche/Kernel/Core.lean:2897-2936 coreKnot
 /// con-leche: ConLeche/Cached/CoreC.lean:1891-1904 memoBI
 /// `(coreKnotI mode fe fuel).defeq d a b`, memoized in `defeqC` under the
 /// **pair** key `(a, b)` (`memoBI`).  The key is built before the probe, as
@@ -5263,7 +5260,7 @@ pub fn defeq(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1906-1976 coreKnotI
-/// con-leche: ConLeche/Kernel/Core.lean:2860-2899 coreKnot
+/// con-leche: ConLeche/Kernel/Core.lean:2897-2936 coreKnot
 /// `(coreKnotI mode fe fuel).annotate d e`, memoized in `annotC`.
 pub fn annotate(
     mode: &CheckMode,

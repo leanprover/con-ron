@@ -5,19 +5,19 @@
 # or its text changed: re-read the paragraph that cites it, fix the link
 # or the prose, then regenerate.
 
-== proof/ConRon/Refine/Installed.lean#L3241-L3252
-  3241      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-  3242      (hvar : CheckerPins.PinsWF pins)
-  3243      {ds : alloc.vec.Vec parsed_c.DeclC}
-  3244      {out : core.result.Result env.Env (core_types.CheckError × Std.U64)}
-  3245      (hds : ∀ d ∈ ds.val, DeclCWF d)
-  3246      (h : cached.installed.check_decls mode pins ds = ok out) :
-  3247      match out with
-  3248      | .Ok e =>
-  3249        leanCheckDecls (absMode mode) (absPins pins) (ds.val.map absDeclC)
-  3250          = .ok (absEnv e)
-  3251      | .Err er =>
-  3252        ErrSimPos er
+== proof/ConRon/Refine/Installed.lean#L3293-L3304
+  3293      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+  3294      (hvar : CheckerPins.PinsWF pins)
+  3295      {ds : alloc.vec.Vec env.Declaration}
+  3296      {out : core.result.Result env.Env (core_types.CheckError × Std.U64)}
+  3297      (hds : ∀ d ∈ ds.val, DeclarationWF d)
+  3298      (h : cached.installed.check_decls mode pins ds = ok out) :
+  3299      match out with
+  3300      | .Ok e =>
+  3301        leanCheckDecls (absMode mode) (absPins pins) (ds.val.map absDeclaration)
+  3302          = .ok (absEnv e)
+  3303      | .Err er =>
+  3304        ErrSimPos er
 
 == crates/con-ron-core/src/kernel/core_types.rs#L87-L92
     87  pub enum CheckError {
@@ -27,103 +27,112 @@
     91      Native(Vec<u32>),
     92  }
 
-== proof/ConRon/Refine/Main.lean#L238-L259
-   238  that `kernel::pins_decode::decode` returned for *some* byte slice, has a model
-   239  in every set theory.  `conron.model_exists'` with `hvar` discharged by
-   240  `PinsWF.decode_wf`, so it carries `hp` (a decode run), `hds` (the parsed
-   241  input's well-formedness) and `h` (the check run), and its census is
-   242  con-leche's own three axioms.
-   243  
-   244  This is the theorem about the binary that ships, up to one fact that lives in
-   245  the unverified crate and not in this tower: that the driver
-   246  (`con_ron::driver::pins_for_run`) calls the decoder on the embedded
-   247  `con-ron-pins/1` text rather than on something else.
-   248  `conron.model_exists_embedded` below is this theorem at exactly that text. -/
-   249  theorem conron.model_exists_decoded (V : Type w) [ConLeche.SetTheory V]
-   250      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   251      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
-   252      {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-   253      (hds : ∀ d ∈ ds.val, DeclCWF d)
-   254      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   255      Nonempty (ConLeche.Model V (absEnv e)) :=
-   256    conron.model_exists' V (PinsWF.decode_wf hp) hds h
-   257  
-   258  /-- **The main corollary for the shipped binary, axiom-free** (task #75): at
-   259  decoded pins, an accepted stream never yields a constant of type `False`.
+== proof/ConRon/Refine/Main.lean#L270-L291
+   270  /-- info: 'ConRon.Refine.conron.no_proof_of_False'' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+   271  #guard_msgs in #print axioms conron.no_proof_of_False'
+   272  
+   273  /-! ## The headline: the pins the verified decoder produced (task #75)
+   274  
+   275  `hvar` is a promise about the pin *argument*, and the one place a real run gets
+   276  it from is the decoder: `con_ron::driver::pins_for_run` calls
+   277  `kernel::pins_decode::decode_embedded()`, and task #66's `PinsWF.decode_wf`
+   278  reads `PinsWF` off **any** successful decode run — the input is a `Slice U8`
+   279  like any other, and nothing about its value is used.  So the pair below is the
+   280  statement about *the binary's checker fed the pins its own verified decoder
+   281  produced*, with no hypothesis left but that decode and the run itself, and it
+   282  names no string constant: its census is con-leche's own three axioms.
+   283  
+   284  The two `_embedded` corollaries in the next section are this pair's instance at
+   285  `text = core.str.Str.as_bytes kernel.pins_text.PINS_TEXT` — `decode_embedded`
+   286  is that `as_bytes` followed by `decode`, which is what `decode_embedded_wf`
+   287  peels — and they pay one axiom for naming the constant (`AENEAS_FINDINGS.md`
+   288  §3.8).  They are kept as they are: the extra generality here is exactly the
+   289  step that drops the axiom, and both statements are worth having side by side. -/
+   290  
+   291  /-- **The main theorem for the shipped binary, axiom-free** (task #75): every
 
-== crates/con-ron/src/bin/con-ron.rs#L100-L163
-   100  usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
-   101                 [--progress[=<stride>]] [--pins FILE|--no-pins]
-   102                 FILE.ndjson
-   103         con-ron --help
-   104  
-   105    --verified        the default, and the mode the main theorem is about: if
-   106                      the declaration fold accepts a stream in this mode, the
-   107                      environment holds no constant whose type is False
-   108                      (ConLeche.no_proof_of_False, and DESIGN.md §1's
-   109                      conron.no_proof_of_False for the port).
-   110    --trusted         the unverified mode: the SAME checker bodies at the mode
-   111                      with the certification-only work switched off.  An accept
-   112                      in this mode is outside the theorem.
-   113    --jobs=<n>        the check phase's worker count: <n> workers claim records
-   114                      one at a time off a shared counter, and --jobs=1 runs the
-   115                      plain loop with no counter and no result table.  The
-   116                      verdict, and the declaration a rejection names, are the
-   117                      same at every <n>: the results are walked in RECORD order,
-   118                      so the first failing record in fold order is the one
-   119                      reported.  Each worker reserves 1 GiB of address space for
-   120                      its stack, so a run under `ulimit -v` needs 3x the
-   121                      checker's resident set plus a gigabyte per worker; the
-   122                      DEFAULT is one worker per hardware thread capped at 16 for
-   123                      that reason (con-leche's uncapped default aborts on a
-   124                      96-thread machine).  0 or a non-numeral is a usage error,
-   125                      as in con-leche.
-   126    --no-mark-persistent
-   127                      ACCEPTED AND A NO-OP: the mark it turns off is a
-   128                      Lean-runtime reference-counting device
-   129                      (Runtime.markPersistent), and this program's counts are
-   130                      std::sync::Arc counts -- atomic by type, in every lane,
-   131                      with no runtime mark to clear.  A run that passes it says
-   132                      so on stderr.
-   133    --progress[=<stride>]
-   134                      opt-in progress heartbeat on STDERR, one line shape per
-   135                      phase:
-   136                        con-ron: parse done: <N> fold records ... t=<s>s
-   137                        con-ron: install <i>/<N> <decl> t=<s>s
-   138                        con-ron: install done: <N>/<N> ..., <M> checks pending t=<s>s
-   139                        con-ron: check <done>/<M> <kind> <name> t=<s>s
-   140                        con-ron: check done: <M>/<M> t=<s>s
-   141                        con-ron: done: parse <p>s, install <i>s, check <c>s, <n> workers
-   142                      An install line is printed BEFORE every <stride>-th
-   143                      declaration is installed (<i> is its FOLD position, which
-   144                      the stream's record index sits near but not at a fixed
-   145                      offset above), so a run that dies in the install phase
-   146                      names the declaration it died in on its last line.  A
-   147                      check line is printed AFTER every <stride>-th COMPLETED
-   148                      check.  On a failure the phase's closing line says so
-   149                      ('install failed at', 'check failed at') and the summary
-   150                      still prints.  Bare --progress is stride 1; a stride that
-   151                      is not a decimal numeral, or 0, is a usage error.
-   152    --pins FILE       con-ron's own, FOR TESTING: read the pin list from a
-   153                      `con-ron-pins/1` dump instead of the core's own embedded
-   154                      text (task #43), through the UNVERIFIED reader.
-   155    --no-pins         con-ron's own, FOR TESTING: the empty pin list, the pin
-   156                      loop's `[]` arm, under which a Nat.div/Nat.mod stream
-   157                      declines.  Neither flag is needed for a normal run: the
-   158                      pins are con-leche's `natOpPinSets`, embedded in the
-   159                      verified core and decoded by it.
-   160    --help            print this text on STDOUT and exit 0, in any argument
-   161                      position; no input is read.
-   162  
-   163  exit codes: 0 accepted, 1 rejected, 2 declined, 3 usage/malformed/internal.
+== crates/con-ron/src/bin/con-ron.rs#L116-L188
+   116  // that crate anyway — for the `con-ron-pins/1` reader of `--pins` and for
+   117  // `natdec`, the decimal parser the frontend shares with it.  So `con-ron` declares none, and
+   118  // `cargo build --no-default-features` gives glibc `malloc` back to both.
+   119  
+   120  /// con-leche: Main.lean:714-944 usage
+   121  /// The usage text.  DESIGN.md §3.1: message strings need not match, and this
+   122  /// one deliberately does not — it is con-leche's synopsis plus the three flags
+   123  /// that differ and the one piece of `Main.lean` that is not ported.
+   124  const USAGE: &str = "\
+   125  usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
+   126                 [--progress[=<stride>]] [--pins FILE|--no-pins]
+   127                 FILE.ndjson
+   128         con-ron --help
+   129  
+   130    --verified        the default, and the mode the main theorem is about: every
+   131                      environment the fold accepts in this mode has a model in
+   132                      every set theory (ConLeche.model_exists,
+   133                      ConLeche/MainTheorem.lean), so a stream declaring a
+   134                      theorem of type False is never accepted
+   135                      (ConLeche.no_False_theorem_accepted).  What the port
+   136                      proves is that same statement about THIS program's fold
+   137                      (DESIGN.md §1); con-leche's file-level corollary
+   138                      ConLeche.no_False_declaration, which covers the parse as
+   139                      well, is NOT yet claimed here -- task #84 put the parser
+   140                      into the verified core, so the corollary is now reachable,
+   141                      but its proof is the next task's.
+   142    --trusted         the unverified mode: the SAME checker bodies at the mode
+   143                      with the certification-only work switched off.  An accept
+   144                      in this mode is outside the theorem.
+   145    --jobs=<n>        the check phase's worker count: <n> workers claim records
+   146                      one at a time off a shared counter, and --jobs=1 runs the
+   147                      plain loop with no counter and no result table.  The
+   148                      verdict, and the declaration a rejection names, are the
+   149                      same at every <n>: the results are walked in RECORD order,
+   150                      so the first failing record in fold order is the one
+   151                      reported.  Each worker reserves 1 GiB of address space for
+   152                      its stack, so a run under `ulimit -v` needs 3x the
+   153                      checker's resident set plus a gigabyte per worker; the
+   154                      DEFAULT is one worker per hardware thread capped at 16 for
+   155                      that reason (con-leche's uncapped default aborts on a
+   156                      96-thread machine).  0 or a non-numeral is a usage error,
+   157                      as in con-leche.
+   158    --no-mark-persistent
+   159                      ACCEPTED AND A NO-OP: the mark it turns off is a
+   160                      Lean-runtime reference-counting device
+   161                      (Runtime.markPersistent), and this program's counts are
+   162                      std::sync::Arc counts -- atomic by type, in every lane,
+   163                      with no runtime mark to clear.  A run that passes it says
+   164                      so on stderr.
+   165    --progress[=<stride>]
+   166                      opt-in progress heartbeat on STDERR, one line shape per
+   167                      phase:
+   168                        con-ron: parse done: <N> fold records ... t=<s>s
+   169                        con-ron: install <i>/<N> <decl> t=<s>s
+   170                        con-ron: install done: <N>/<N> ..., <M> checks pending t=<s>s
+   171                        con-ron: check <done>/<M> <kind> <name> t=<s>s
+   172                        con-ron: check done: <M>/<M> t=<s>s
+   173                        con-ron: done: parse <p>s, install <i>s, check <c>s, <n> workers
+   174                      An install line is printed BEFORE every <stride>-th
+   175                      declaration is installed (<i> is its FOLD position, which
+   176                      the stream's record index sits near but not at a fixed
+   177                      offset above), so a run that dies in the install phase
+   178                      names the declaration it died in on its last line.  A
+   179                      check line is printed AFTER every <stride>-th COMPLETED
+   180                      check.  On a failure the phase's closing line says so
+   181                      ('install failed at', 'check failed at') and the summary
+   182                      still prints.  Bare --progress is stride 1; a stride that
+   183                      is not a decimal numeral, or 0, is a usage error.
+   184    --pins FILE       con-ron's own, FOR TESTING: read the pin list from a
+   185                      `con-ron-pins/1` dump instead of the core's own embedded
+   186                      text (task #43), through the UNVERIFIED reader.
+   187    --no-pins         con-ron's own, FOR TESTING: the empty pin list, the pin
+   188                      loop's `[]` arm, under which a Nat.div/Nat.mod stream
 
-== crates/con-ron/src/driver.rs#L42-L47
-    42  //! | exit | verdict | meaning |
-    43  //! |---|---|---|
-    44  //! | 0 | `accepted N declarations` | every declaration checked; `N` counts the stream's declaration records |
-    45  //! | 1 | `rejected` | a declaration is invalid |
-    46  //! | 2 | `declined` | the checker positively detected a feature it does not support, and says which |
-    47  //! | 3 | error | bad usage, malformed input, or an internal failure of unclear cause |
+== crates/con-ron/src/driver.rs#L41-L46
+    41  //! | exit | verdict | meaning |
+    42  //! |---|---|---|
+    43  //! | 0 | `accepted N declarations` | every declaration checked; `N` counts the file's declaration records |
+    44  //! | 1 | `rejected` | a declaration is invalid |
+    45  //! | 2 | `declined` | the checker positively detected a feature it does not support, and says which |
+    46  //! | 3 | error | bad usage, malformed input, or an internal failure of unclear cause |
 
 == flake.nix#L5-L29
      5      # Aeneas pins the Charon commit it needs (see `charon-pin` upstream) and
@@ -168,113 +177,142 @@
     13  # rebasing.
     14  #
 
-== scripts/gates.sh#L51-L58
-    51  # enforce by itself: `-D warnings` does.
-    52  run cargo-build   env RUSTFLAGS="-D warnings" cargo build --manifest-path "$root/Cargo.toml"
-    53  run cargo-test    env RUSTFLAGS="-D warnings" cargo test  --manifest-path "$root/Cargo.toml"
-    54  run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src"
-    55  run provenance    python3 "$root/scripts/provenance.py" check
-    56  run overview-links "$root/scripts/overview-links.sh"
-    57  run gen-pins      "$root/scripts/gen-pins.sh" --check
-    58  run extract-check "$root/scripts/extract.sh" --check
+== scripts/gates.sh#L53-L61
+    53  run cargo-build   env RUSTFLAGS="-D warnings" cargo build --manifest-path "$root/Cargo.toml"
+    54  run cargo-test    env RUSTFLAGS="-D warnings" cargo test  --manifest-path "$root/Cargo.toml"
+    55  run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src"
+    56  run provenance    python3 "$root/scripts/provenance.py" check
+    57  run overview-links "$root/scripts/overview-links.sh"
+    58  run gen-pins      "$root/scripts/gen-pins.sh" --check
+    59  run gen-prelude   "$root/scripts/gen-prelude.sh" --check
+    60  run extract-check "$root/scripts/extract.sh" --check
+    61  run lake-build    env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build
 
-== proof/ConRon/Refine/Main.lean#L249-L256
-   249  theorem conron.model_exists_decoded (V : Type w) [ConLeche.SetTheory V]
-   250      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   251      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
-   252      {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-   253      (hds : ∀ d ∈ ds.val, DeclCWF d)
-   254      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   255      Nonempty (ConLeche.Model V (absEnv e)) :=
-   256    conron.model_exists' V (PinsWF.decode_wf hp) hds h
+== proof/ConRon/Refine/Main.lean#L303-L310
+   303  `conron.model_exists_embedded` below is this theorem at exactly that text. -/
+   304  theorem conron.model_exists_decoded (V : Type w) [ConLeche.SetTheory V]
+   305      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   306      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+   307      {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
+   308      (hds : ∀ d ∈ ds.val, DeclarationWF d)
+   309      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+   310      Nonempty (ConLeche.Model V (absEnv e)) :=
 
-== proof/ConRon/Refine/Main.lean#L264-L271
-   264  theorem conron.no_proof_of_False_decoded (V : Type w) [ConLeche.SetTheory V]
-   265      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   266      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
-   267      {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-   268      (hds : ∀ d ∈ ds.val, DeclCWF d)
-   269      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   270      ¬ ∃ c ∈ (absEnv e).consts,
-   271          c.toConstantVal.type = .const ConLeche.falseName [] :=
+== proof/ConRon/Refine/Main.lean#L318-L326
+   318  standard axioms. -/
+   319  theorem conron.no_proof_of_False_decoded (V : Type w) [ConLeche.SetTheory V]
+   320      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   321      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+   322      {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
+   323      (hds : ∀ d ∈ ds.val, DeclarationWF d)
+   324      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+   325      ¬ ∃ c ∈ (absEnv e).consts,
+   326          c.toConstantVal.type = .const ConLeche.falseName [] :=
 
-== proof/ConRon/Refine/Main.lean#L273-L278
-   273  
-   274  /-- info: 'ConRon.Refine.conron.model_exists_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-   275  #guard_msgs in #print axioms conron.model_exists_decoded
-   276  
-   277  /-- info: 'ConRon.Refine.conron.no_proof_of_False_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-   278  #guard_msgs in #print axioms conron.no_proof_of_False_decoded
+== proof/ConRon/Refine/Main.lean#L550-L564
+   550  well-formedness. -/
+   551  theorem conron.model_exists_parsed (V : Type w) [ConLeche.SetTheory V]
+   552      {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+   553      (hgen : Frontend.ModellerWF inst g)
+   554      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   555      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+   556      {prelude_bytes : Slice Std.U8} {pre : frontend.export_c.ParseResultD}
+   557      (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
+   558      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {in_model census : Bool}
+   559      {r : frontend.export_c.ParseResultD}
+   560      (hparse : frontend.export_c.parse_chunks inst g chunks in_model census = ok (.Ok r))
+   561      {ds : alloc.vec.Vec env.Declaration}
+   562      (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
+   563      {e : env.Env}
+   564      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
 
-== proof/ConRon/Refine/Main.lean#L145-L157
-   145  theorem conron.model_exists (V : Type w) [ConLeche.SetTheory V]
-   146      (hk : Core.KnotSpec .Verified IndAbs.checkFuelU)
-   147      (hind : IndRoutesSpec .Verified) (hinde : IndRoutesSpecErr .Verified)
-   148      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   149      (hvar : CheckerPins.PinsWF pins)
-   150      {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-   151      (hds : ∀ d ∈ ds.val, DeclCWF d)
-   152      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   153      Nonempty (ConLeche.Model V (absEnv e)) :=
-   154    ConLeche.model_exists_with V (absPins pins) (ds.val.map absDeclC) (absEnv e)
-   155      (check_decls_verified_refines_ok hk hind hinde hvar hds h)
-   156  
-   157  /-- **The main corollary for the Rust checker** (DESIGN.md §1): an accepted
+== proof/ConRon/Refine/Main.lean#L328-L332
+   328  
+   329  /-- info: 'ConRon.Refine.conron.model_exists_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+   330  #guard_msgs in #print axioms conron.model_exists_decoded
+   331  
+   332  /-- info: 'ConRon.Refine.conron.no_proof_of_False_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 
-== proof/ConRon/Refine/Main.lean#L187-L197
-   187  theorem conron.model_exists' (V : Type w) [ConLeche.SetTheory V]
-   188      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   189      (hvar : CheckerPins.PinsWF pins)
-   190      {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-   191      (hds : ∀ d ∈ ds.val, DeclCWF d)
-   192      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   193      Nonempty (ConLeche.Model V (absEnv e)) :=
-   194    conron.model_exists V (Core.knot_spec IndAbs.checkFuelU)
-   195      (InductivesC.ind_routes_spec' (Core.knot_spec IndAbs.checkFuelU))
-   196      (InductivesC.ind_routes_spec_err' (Core.knot_spec IndAbs.checkFuelU))
-   197      hvar hds h
+== proof/ConRon/Refine/Main.lean#L730-L746
+   730  theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
+   731      {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+   732      (hgen : Frontend.ModellerWF inst g)
+   733      (hmr : Frontend.ModellerRefines inst g Frontend.CtxRel)
+   734      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   735      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+   736      {prelude_bytes : Slice Std.U8} {pre : frontend.export_c.ParseResultD}
+   737      (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
+   738      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {im ce : Bool}
+   739      (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
+   740      {r : frontend.export_c.ParseResultD}
+   741      (hparse : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Ok r))
+   742      {ds : alloc.vec.Vec env.Declaration}
+   743      (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
+   744      {e : env.Env}
+   745      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+   746      False := by
 
-== proof/ConRon/Refine/Main.lean#L336-L349
-   336  theorem conron.model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
-   337      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   338      (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))
-   339      {ds : alloc.vec.Vec parsed_c.DeclC} {e : env.Env}
-   340      (hds : ∀ d ∈ ds.val, DeclCWF d)
-   341      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   342      Nonempty (ConLeche.Model V (absEnv e)) :=
-   343    conron.model_exists' V (PinsWF.decode_embedded_wf hp) hds h
-   344  
-   345  /-- **The main corollary for the shipped binary** (tasks #64, #74):
-   346  `conron.no_proof_of_False'` at the embedded pins — equivalently, the instance
-   347  of `conron.no_proof_of_False_decoded` (task #75) at
-   348  `text = core.str.Str.as_bytes kernel.pins_text.PINS_TEXT`.  Its fourth axiom is
-   349  Aeneas's `toStr` artifact on the `&str` constant's definition
+== proof/ConRon/Refine/Main.lean#L174-L185
+   174  `ConLeche.model_exists` at the accept above. -/
+   175  theorem conron.model_exists (V : Type w) [ConLeche.SetTheory V]
+   176      (hk : Core.KnotSpec .Verified IndAbs.checkFuelU)
+   177      (hraw : CheckerDecl.BasisRawSpec)
+   178      (hind : IndRoutesSpec .Verified) (hinde : IndRoutesSpecErr .Verified)
+   179      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   180      (hvar : CheckerPins.PinsWF pins)
+   181      {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
+   182      (hds : ∀ d ∈ ds.val, DeclarationWF d)
+   183      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+   184      Nonempty (ConLeche.Model V (absEnv e)) :=
+   185    ConLeche.model_exists V (absPins pins) ⟨ds.val.map absDeclaration⟩ (absEnv e)
 
-== proof/ConRon/Refine/Installed.lean#L3241-L3252
-  3241      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-  3242      (hvar : CheckerPins.PinsWF pins)
-  3243      {ds : alloc.vec.Vec parsed_c.DeclC}
-  3244      {out : core.result.Result env.Env (core_types.CheckError × Std.U64)}
-  3245      (hds : ∀ d ∈ ds.val, DeclCWF d)
-  3246      (h : cached.installed.check_decls mode pins ds = ok out) :
-  3247      match out with
-  3248      | .Ok e =>
-  3249        leanCheckDecls (absMode mode) (absPins pins) (ds.val.map absDeclC)
-  3250          = .ok (absEnv e)
-  3251      | .Err er =>
-  3252        ErrSimPos er
+== proof/ConRon/Refine/Main.lean#L241-L251
+   241  
+   242  theorem conron.model_exists' (V : Type w) [ConLeche.SetTheory V]
+   243      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   244      (hvar : CheckerPins.PinsWF pins)
+   245      {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
+   246      (hds : ∀ d ∈ ds.val, DeclarationWF d)
+   247      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+   248      Nonempty (ConLeche.Model V (absEnv e)) :=
+   249    conron.model_exists V (Core.knot_spec IndAbs.checkFuelU) conron.basis_raw_spec
+   250      (InductivesC.ind_routes_spec' (Core.knot_spec IndAbs.checkFuelU))
+   251      (InductivesC.ind_routes_spec_err' (Core.knot_spec IndAbs.checkFuelU))
 
-== crates/con-ron-core/src/kernel/expr.rs#L354-L363
-   354      Const(Name, P<Vec<Level>>),
-   355      App(Expr, Expr),
-   356      Lam(Expr, Expr, BinderMeta),
-   357      ForallE(Expr, Expr, BinderMeta),
-   358      LetE(Expr, Expr, Expr),
-   359      Lit(Literal),
-   360      Proj(Name, u64, Expr),
-   361  }
-   362  
-   363  /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+== proof/ConRon/Refine/Main.lean#L391-L398
+   391  decoder input. -/
+   392  theorem conron.model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
+   393      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   394      (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))
+   395      {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
+   396      (hds : ∀ d ∈ ds.val, DeclarationWF d)
+   397      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+   398      Nonempty (ConLeche.Model V (absEnv e)) :=
+
+== proof/ConRon/Refine/Installed.lean#L3293-L3304
+  3293      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+  3294      (hvar : CheckerPins.PinsWF pins)
+  3295      {ds : alloc.vec.Vec env.Declaration}
+  3296      {out : core.result.Result env.Env (core_types.CheckError × Std.U64)}
+  3297      (hds : ∀ d ∈ ds.val, DeclarationWF d)
+  3298      (h : cached.installed.check_decls mode pins ds = ok out) :
+  3299      match out with
+  3300      | .Ok e =>
+  3301        leanCheckDecls (absMode mode) (absPins pins) (ds.val.map absDeclaration)
+  3302          = .ok (absEnv e)
+  3303      | .Err er =>
+  3304        ErrSimPos er
+
+== crates/con-ron-core/src/kernel/expr.rs#L356-L364
+   356      Sort(Level),
+   357      Const(Name, P<Vec<Level>>),
+   358      App(Expr, Expr),
+   359      Lam(Expr, Expr, BinderMeta),
+   360      ForallE(Expr, Expr, BinderMeta),
+   361      LetE(Expr, Expr, Expr),
+   362      Lit(Literal),
+   363      Proj(Name, u64, Expr),
+   364  }
 
 == crates/con-ron-core/src/ron/ptr.rs#L1-L8
      1  //! con-leche: none — the shared-pointer type of DESIGN.md §3.2; Lean's value semantics have no counterpart.
@@ -286,19 +324,19 @@
      7  //! reference counting: `P<T>` is the handle, and the model erases it
      8  //! (`Arc T := T`, plus four definitions).  Which *concrete* counted pointer
 
-== crates/con-ron-core/src/kernel/expr.rs#L429-L440
-   429  pub fn mk_const(n: Name, us: Vec<Level>) -> Expr {
-   430      let h: u64 = hash32(name::mix_hash(
-   431          11,
-   432          name::mix_hash(name::hash_data(&n), level::levels_hash(&us)),
-   433      ));
-   434      let d: u64 = pack_data(h, 0, 0, level::levels_have_param(&us));
-   435      Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Const(n, ptr::new(us)) }))
-   436  }
-   437  
-   438  /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-   439  /// con-leche: ConLeche/Cached/ExprC.lean:136 mkApp
-   440  /// `Expr.app`: hash tag 17; both ranges are the componentwise `max` and the
+== crates/con-ron-core/src/kernel/expr.rs#L430-L441
+   430  pub fn mk_const(n: Name, us: Vec<Level>) -> Expr {
+   431      let h: u64 = hash32(name::mix_hash(
+   432          11,
+   433          name::mix_hash(name::hash_data(&n), level::levels_hash(&us)),
+   434      ));
+   435      let d: u64 = pack_data(h, 0, 0, level::levels_have_param(&us));
+   436      Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Const(n, ptr::new(us)) }))
+   437  }
+   438  
+   439  /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+   440  /// con-leche: ConLeche/Cached/ExprNodes.lean:113 mkApp
+   441  /// `Expr.app`: hash tag 17; both ranges are the componentwise `max` and the
 
 == crates/con-ron-core/src/ron/nat.rs#L1-L8
      1  //! con-leche: none — replaces the runtime's `Nat` (GMP); no Lean source to cite.
@@ -359,39 +397,39 @@
    359          defeq_c: HashMap::new(),
    360          annot_c: HashMap::new(),
 
-== crates/con-ron-core/src/cached/core_c.rs#L5089-L5120
-  5089  pub fn whnf_core(
-  5090      mode: &CheckMode,
-  5091      fuel: u64,
-  5092      st: &mut CState,
-  5093      fe: &FEnv,
-  5094      d: u64,
-  5095      e: &Expr,
-  5096  ) -> CheckM<Expr> {
-  5097      const M: [u32; 24] = [
-  5098          102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 119, 104,
-  5099          110, 102, 67, 111, 114, 101,
-  5100      ];
-  5101      if fuel == 0 {
-  5102          Err(core_types::internal(core_types::code_points(&M)))
-  5103      } else {
-  5104          match whnf_core_probe(st, e) {
-  5105              Some(r) => Ok(r),
-  5106              None => match whnf_core_body_i(mode, fuel - 1, st, fe, d, e) {
-  5107                  Err(err) => Err(err),
-  5108                  Ok(r) => {
-  5109                      st.whnf_core_c.insert(expr::dup(e), expr::dup(&r));
-  5110                      Ok(r)
-  5111                  }
-  5112              },
-  5113          }
-  5114      }
-  5115  }
-  5116  
-  5117  /// con-leche: ConLeche/Cached/CoreC.lean:1906-1976 coreKnotI
-  5118  /// con-leche: ConLeche/Kernel/Core.lean:2860-2899 coreKnot
-  5119  /// `(coreKnotI mode fe fuel).whnf d e`, memoized in `whnfC`.
-  5120  pub fn whnf(
+== crates/con-ron-core/src/cached/core_c.rs#L5086-L5117
+  5086  pub fn whnf_core(
+  5087      mode: &CheckMode,
+  5088      fuel: u64,
+  5089      st: &mut CState,
+  5090      fe: &FEnv,
+  5091      d: u64,
+  5092      e: &Expr,
+  5093  ) -> CheckM<Expr> {
+  5094      const M: [u32; 24] = [
+  5095          102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 119, 104,
+  5096          110, 102, 67, 111, 114, 101,
+  5097      ];
+  5098      if fuel == 0 {
+  5099          Err(core_types::internal(core_types::code_points(&M)))
+  5100      } else {
+  5101          match whnf_core_probe(st, e) {
+  5102              Some(r) => Ok(r),
+  5103              None => match whnf_core_body_i(mode, fuel - 1, st, fe, d, e) {
+  5104                  Err(err) => Err(err),
+  5105                  Ok(r) => {
+  5106                      st.whnf_core_c.insert(expr::dup(e), expr::dup(&r));
+  5107                      Ok(r)
+  5108                  }
+  5109              },
+  5110          }
+  5111      }
+  5112  }
+  5113  
+  5114  /// con-leche: ConLeche/Cached/CoreC.lean:1906-1976 coreKnotI
+  5115  /// con-leche: ConLeche/Kernel/Core.lean:2897-2936 coreKnot
+  5116  /// `(coreKnotI mode fe fuel).whnf d e`, memoized in `whnfC`.
+  5117  pub fn whnf(
 
 == crates/con-ron-core/src/kernel/pins_text.rs#L40-L44
     40  pub const PINS_TEXT: &str = "\
@@ -444,15 +482,46 @@
     21  overflow-checks = true
 
 == crates/con-ron/src/pool.rs#L1-L9
-     1  //! `pool` — con-leche's `Main.lean:213-328`: **phase B on a pool of worker
+     1  //! `pool` — con-leche's `Main.lean:193-316`: **phase B on a pool of worker
      2  //! threads** (task #48).
      3  //!
      4  //! The recorded checks are independent by construction — each reads the
      5  //! installed index at its own prefix view, its own record, and a *fresh* memo
      6  //! state — so phase B is `n` workers over one shared claim counter.  This
      7  //! module is that pool, `checkPool` with its three helpers ported one to one:
-     8  //! `check_one` (`Main.lean:255-274`), `check_worker` (`:276-291`),
-     9  //! `merge_results` (`:293-300`) and `check_pool` (`:302-328`), plus the walk
+     8  //! `check_one` (`Main.lean:240-260`), `check_worker` (`:262-278`),
+     9  //! `merge_results` (`:280-287`) and `check_pool` (`:289-316`), plus the walk
+
+== crates/con-ron-core/src/frontend/mod.rs#L13-L27
+    13  //!
+    14  //! | Rust | Lean |
+    15  //! |---|---|
+    16  //! | `text` | none — the port's message rendering (`String` is `Vec<u32>`) |
+    17  //! | `nat_decimal` | none — `String.toNat?` on a `natVal` literal (`ron::nat` has no decimal codec) |
+    18  //! | `scan_types` | `ConLeche/Frontend/Scan/Types.lean` |
+    19  //! | `scan_fast` | `ConLeche/Frontend/Scan/Fast.lean` (the `@[csimp]` twin the compiler *runs*; `Scan/Naive.lean` is the specification and is not ported) |
+    20  //! | `export` | `ConLeche/Frontend/Export.lean` |
+    21  //! | `in_model_rec` | `ConLeche/Frontend/InModel/Mutual.lean`'s block records and `InModel.lean`'s `wants`, plus the `Modeller` seam |
+    22  //! | `proj_rec` | `ConLeche/Frontend/ProjRec.lean` |
+    23  //! | `export_c` | `ConLeche/Frontend/ExportC.lean` |
+    24  //! | `nat_op_ground` | `ConLeche/Frontend/NatOpGround.lean` |
+    25  //! | `prepare` | `ConLeche/Frontend/Prepare.lean` |
+    26  //! | `prelude_text` | `ConLeche/Frontend/Prelude.lean:57-62`'s `include_str` — **generated**, `scripts/gen-prelude.sh` |
+    27  //! | `prelude` | `ConLeche/Frontend/Prelude.lean` |
+
+== crates/con-ron-core/src/frontend/in_model_rec.rs#L258-L269
+   258  /// con-leche: ConLeche/Frontend/InModel.lean:39-45 generate
+   259  /// **The modeller seam.**  Generate the model records of a block, in stream
+   260  /// order, or the reason the block is declined.
+   261  ///
+   262  /// The implementation is `crates/con-ron/src/in_model/`, outside the core and
+   263  /// outside the extraction: this trait is all the parse knows of it.  On a type
+   264  /// parameter it extracts as a typeclass field — an opaque function — so the
+   265  /// extracted parse is quantified over an arbitrary modeller.
+   266  pub trait Modeller {
+   267      /// con-leche: ConLeche/Frontend/InModel.lean:39-45 generate
+   268      /// The one method: the block's model records, or the decline's text.
+   269      fn generate(&self, ctx: &ModelCtx, b: &BlockRec) -> Result<Vec<Declaration>, Vec<u32>>;
 
 == crates/con-ron-core/src/kernel/level.rs#L125-L127
    125  /// con-leche: ConLeche/Kernel/Level.lean:64-77 simplify
@@ -566,16 +635,16 @@
    118  /-- The pure shape: a Rust computation that touches neither state nor
    119  environment is a plain equation against its con-leche value. -/
 
-== proof/ConRon/Refine/Abs.lean#L922-L930
-   922  def ErrSim {γ : Type} (e : kernel.core_types.CheckError)
-   923      (x : Except ConLeche.CheckError γ) : Prop :=
-   924    ∀ k, absErrKind e = some k → ∃ le, x = .error le ∧ lErrKind le = k
-   925  
-   926  /-- The port's own failure claims nothing. -/
-   927  theorem ErrSim.native {γ : Type} {x : Except ConLeche.CheckError γ} (m) :
-   928      ErrSim (.Native m) x := by
-   929    intro k hk; simp at hk
-   930  
+== proof/ConRon/Refine/Abs.lean#L934-L942
+   934  def ErrSim {γ : Type} (e : kernel.core_types.CheckError)
+   935      (x : Except ConLeche.CheckError γ) : Prop :=
+   936    ∀ k, absErrKind e = some k → ∃ le, x = .error le ∧ lErrKind le = k
+   937  
+   938  /-- The port's own failure claims nothing. -/
+   939  theorem ErrSim.native {γ : Type} {x : Except ConLeche.CheckError γ} (m) :
+   940      ErrSim (.Native m) x := by
+   941    intro k hk; simp at hk
+   942  
 
 == proof/ConRon/Refine/Core/Statements.lean#L191-L194
    191  def KnotSpec (mode : env.CheckMode) (fuel : Std.U64) : Prop :=
@@ -632,8 +701,8 @@
 == proof/ConRon/Refine/Abs.lean#L170
    170  macro "rust_grind" : tactic => `(tactic| grind (ematch := 12) (gen := 24))
 
-== proof/lakefile.toml#L21-L23
-    21  [leanOptions]
-    22  weak.backward.isDefEq.respectTransparency = false
-    23  weak.backward.do.legacy = true
+== proof/lakefile.toml#L24-L26
+    24  [leanOptions]
+    25  weak.backward.isDefEq.respectTransparency = false
+    26  weak.backward.do.legacy = true
 

@@ -239,12 +239,12 @@ open ConLeche ConLeche.Cached
 /-- `ConLeche/Cached/CoreC.lean:1590-1602` — `defeqStepI`'s `.app`/`.app` arm,
 named (the port's `defeq_apps_i`). -/
 def defeqAppsL (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Nat)
-    (a' b' : ExprC) : CheckCM Bool := do
-  let as₁ ← pure (ExprC.getAppArgs a')
-  let as₂ ← pure (ExprC.getAppArgs b')
+    (a' b' : Expr) : CheckCM Bool := do
+  let as₁ ← pure (Expr.getAppArgsC a')
+  let as₂ ← pure (Expr.getAppArgsC b')
   if as₁.length = as₂.length then do
-    let h₁ ← pure (ExprC.getAppFn a')
-    let h₂ ← pure (ExprC.getAppFn b')
+    let h₁ ← pure (Expr.getAppFn a')
+    let h₂ ← pure (Expr.getAppFn b')
     if ← r.defeq depth h₁ h₂ then do
       if ← defEqListI r fe depth as₁ as₂ then pure true
       else stuckIrrelI mode r fe depth a' b'
@@ -255,7 +255,7 @@ def defeqAppsL (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Nat)
 named (the port's `defeq_binders_i`): they are byte-identical apart from the
 message tag, which `isForall` selects. -/
 def defeqBindersL (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Nat)
-    (ty₁ body₁ : ExprC) (m₁ : BinderMeta) (ty₂ body₂ : ExprC) (m₂ : BinderMeta)
+    (ty₁ body₁ : Expr) (m₁ : BinderMeta) (ty₂ body₂ : Expr) (m₂ : BinderMeta)
     (isForall : Bool) : CheckCM Bool := do
   unless ← r.defeq depth ty₁ ty₂ do return false
   let fv ← pure (Expr.fvar depth ty₂)
@@ -271,7 +271,7 @@ def defeqBindersL (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Nat)
 /-- `ConLeche/Cached/CoreC.lean:1520-1614` — `defeqStepI`'s `| false, false =>`
 arm, named (the port's `defeq_struct_i`). -/
 def defeqStructL (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Nat)
-    (a' b' : ExprC) : CheckCM Bool := do
+    (a' b' : Expr) : CheckCM Bool := do
   match a', b' with
   | .sort u, .sort v => do
     liftFueled "level comparison" (← isEquivLM u v)
@@ -344,12 +344,12 @@ def defeqStructL (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Nat)
 /-- `ConLeche/Cached/CoreC.lean:1456-1614` — the cited definition with its
 three port-split arms named.  `rfl`. -/
 theorem defeqStepI_eq (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Nat)
-    (k : Bool → ExprC → ExprC → CheckCM Bool) (pi : Bool) (a b : ExprC) :
+    (k : Bool → Expr → Expr → CheckCM Bool) (pi : Bool) (a b : Expr) :
     defeqStepI mode r fe depth k pi a b = (do
   if a == b then pure true else
   -- the eq-true shortcut (E2), as in the spec
   let bt ← pure (Expr.isBoolTrue b)
-  let af ← pure (ExprC.hasFvar a)
+  let af ← pure (Expr.hasFvar a)
   if ← (if pi && bt && !af then boolTrueShortcutI r depth a
       else pure false) then pure true else
   let a' ← r.whnfCore depth a
@@ -366,7 +366,7 @@ theorem defeqStepI_eq (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Nat
   -- and lean4lean (`TypeChecker.lean:782`); see `defeqBody` for the
   -- full rationale.  `hasFvarI` is an `O(1)` read of the eager
   -- per-node fvar-range array.
-  let fold ← pure (!ExprC.hasFvar a' && !ExprC.hasFvar b')
+  let fold ← pure (!Expr.hasFvar a' && !Expr.hasFvar b')
   match ← (if fold then reduceNatI r fe depth a' else pure none) with
   | some a₂ => k true a₂ b'
   | none =>
@@ -691,9 +691,9 @@ port splits its state-touching tail into `struct_unit_steps_i`
 `b`'s reduced type against `a`'s, then the type-former telescope certificate
 under `certAtI`. -/
 def structUnitStepsL (mode : ConLeche.CheckMode) (r : ConLeche.Cached.CoreFnsI)
-    (fe : ConLeche.FEnv) (depth : Nat) (wta b : ConLeche.Cached.ExprC)
+    (fe : ConLeche.FEnv) (depth : Nat) (wta b : ConLeche.Expr)
     (T Tn : ConLeche.Name) (us' : List ConLeche.Level)
-    (targs : List ConLeche.Cached.ExprC) : ConLeche.Cached.CheckCM Bool := do
+    (targs : List ConLeche.Expr) : ConLeche.Cached.CheckCM Bool := do
   let tb ← r.inferIO depth b
   let wtb ← r.whnf depth tb
   if ← r.defeq depth wta wtb then do
@@ -704,16 +704,16 @@ def structUnitStepsL (mode : ConLeche.CheckMode) (r : ConLeche.Cached.CoreFnsI)
 /-- `ConLeche/Cached/CoreC.lean:487-512` — the cited definition is its shape
 gate around `structUnitStepsL`.  `rfl`. -/
 theorem structUnitCertI_eq (mode : ConLeche.CheckMode) (r : ConLeche.Cached.CoreFnsI)
-    (fe : ConLeche.FEnv) (depth : Nat) (a b : ConLeche.Cached.ExprC) :
+    (fe : ConLeche.FEnv) (depth : Nat) (a b : ConLeche.Expr) :
     ConLeche.Cached.structUnitCertI mode r fe depth a b = (do
       let ta ← r.inferIO depth a
       let wta ← r.whnf depth ta
-      match ConLeche.Cached.ExprC.getAppFn wta with
+      match ConLeche.Expr.getAppFn wta with
       | .const T us' => do
         let Tn ← pure T
         match fe.find? Tn with
         | some (.indInfo cvT caps) => do
-          let targs ← pure (ConLeche.Cached.ExprC.getAppArgs wta)
+          let targs ← pure (ConLeche.Expr.getAppArgsC wta)
           if caps.unitlike = true ∧
               ConLeche.reservedBasisNames.contains Tn = false ∧
               targs.length = caps.unitParams ∧
@@ -892,8 +892,8 @@ theorem struct_unit_cert_i_refines (hw : Wrappers mode fuel)
           simp only [Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨rfl, rfl⟩ := hok
           refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
-          simp [structUnitCertI_eq, ConLeche.Cached.ExprC.getAppFn_spec,
-              ConLeche.Cached.ExprC.getAppArgs_spec, hrun1, hrun2, ← hfabs, ind_find_eq hpabs]
+          simp [structUnitCertI_eq,
+              ConLeche.Expr.getAppArgsC_spec, hrun1, hrun2, ← hfabs, ind_find_eq hpabs]
         | some p =>
           obtain ⟨cvt, caps⟩ := p
           simp only [Option.map_some] at hpabs
@@ -910,8 +910,8 @@ theorem struct_unit_cert_i_refines (hw : Wrappers mode fuel)
             refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
             replace hsbabs := hsbabs.symm
             simp only [decide_eq_false_iff_not] at hsbabs
-            simp [structUnitCertI_eq, ConLeche.Cached.ExprC.getAppFn_spec,
-              ConLeche.Cached.ExprC.getAppArgs_spec, hrun1, hrun2, ← hfabs, ind_find_eq hpabs,
+            simp [structUnitCertI_eq,
+              ConLeche.Expr.getAppArgsC_spec, hrun1, hrun2, ← hfabs, ind_find_eq hpabs,
               hargs]
             rw [if_neg (by simpa using hsbabs)]
             rfl
@@ -921,15 +921,15 @@ theorem struct_unit_cert_i_refines (hw : Wrappers mode fuel)
               fe lfe hfe hfrel st2 o st' hwf2 hok lst2 hrel2) ?_
             replace hsbabs := hsbabs.symm
             simp only [decide_eq_true_eq] at hsbabs
-            simp [structUnitCertI_eq, ConLeche.Cached.ExprC.getAppFn_spec,
-              ConLeche.Cached.ExprC.getAppArgs_spec, hrun1, hrun2, ← hfabs, ind_find_eq hpabs,
+            simp [structUnitCertI_eq,
+              ConLeche.Expr.getAppArgsC_spec, hrun1, hrun2, ← hfabs, ind_find_eq hpabs,
               hargs]
             rw [if_pos (by simpa using hsbabs)]
       | _ =>
         simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
-        simp [structUnitCertI_eq, ConLeche.Cached.ExprC.getAppFn_spec,
+        simp [structUnitCertI_eq,
               hrun1, hrun2, ← hfabs]
 
 /-! ## The η certificate
@@ -945,8 +945,8 @@ takes it as an argument. -/
 body opened at a fresh variable against `b` applied to it, and **last** the
 prop-ness annotations at the verified modes. -/
 def etaCertBodyL (mode : ConLeche.CheckMode) (r : ConLeche.Cached.CoreFnsI) (depth : Nat)
-    (ty₁ body₁ : ConLeche.Cached.ExprC) (m₁ : ConLeche.BinderMeta)
-    (b : ConLeche.Cached.ExprC) (pw₂ : ConLeche.PropWhen) :
+    (ty₁ body₁ : ConLeche.Expr) (m₁ : ConLeche.BinderMeta)
+    (b : ConLeche.Expr) (pw₂ : ConLeche.PropWhen) :
     ConLeche.Cached.CheckCM Bool := do
   let fv ← pure (ConLeche.Expr.fvar depth ty₁)
   let b₁ ← ConLeche.Cached.inst1M body₁ fv
@@ -959,8 +959,8 @@ def etaCertBodyL (mode : ConLeche.CheckMode) (r : ConLeche.Cached.CoreFnsI) (dep
 /-- `ConLeche/Cached/CoreC.lean:516-533` — the cited definition is its `∀`
 gate and domain comparison around `etaCertBodyL`.  `rfl`. -/
 theorem etaCertI_eq (mode : ConLeche.CheckMode) (r : ConLeche.Cached.CoreFnsI)
-    (fe : ConLeche.FEnv) (depth : Nat) (ty₁ body₁ : ConLeche.Cached.ExprC)
-    (m₁ : ConLeche.BinderMeta) (b : ConLeche.Cached.ExprC) :
+    (fe : ConLeche.FEnv) (depth : Nat) (ty₁ body₁ : ConLeche.Expr)
+    (m₁ : ConLeche.BinderMeta) (b : ConLeche.Expr) :
     ConLeche.Cached.etaCertI mode r fe depth ty₁ body₁ m₁ b = (do
       let tb ← r.inferIO depth b
       let wtb ← r.whnf depth tb

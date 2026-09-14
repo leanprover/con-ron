@@ -12,7 +12,7 @@
 //! core and in DESIGN.md §3.4's subset, is `kernel::pins_decode::decode`.
 //!
 //! **The declaration dump is gone (task #80).**  Until then this crate also
-//! carried `con-ron-decls/1`, the `List DeclC` format of task #10, which fed
+//! carried `con-ron-decls/1`, the `List Declaration` format of task #10, which fed
 //! the checker-only differential seam (`con-ron-check`, `con-ron-dump-check`,
 //! `scripts/diff-fixtures.sh`).  `scripts/diff-e2e.sh` runs the whole binary
 //! on every fixture's raw export against con-leche's own expectations and
@@ -108,9 +108,9 @@ pub const ALLOCATOR: &str = if cfg!(feature = "jemalloc") {
     "system"
 };
 
-use con_ron_core::cached::parsed_c::DeclC;
 use con_ron_core::ron::ptr::P;
 use con_ron_core::kernel::env::ConstantInfo;
+use con_ron_core::kernel::env::Declaration;
 use con_ron_core::kernel::env::ConstantVal;
 use con_ron_core::kernel::expr;
 use con_ron_core::kernel::expr::BinderMeta;
@@ -312,7 +312,7 @@ pub fn node_sizes() -> Vec<NodeSize> {
         row::<PropWhen>("  PropWhen", false),
         row::<Vec<u32>>("Vec<u32> (a string's header)", false),
         row::<Nat>("Nat (limb Vec header)", false),
-        row::<DeclC>("DeclC", false),
+        row::<Declaration>("Declaration", false),
         row::<ConstantInfo>("ConstantInfo (inline)", false),
         row::<ConstantVal>("ConstantVal (inline)", false),
     ]

@@ -22,9 +22,18 @@ weight it by the size of its block, doc comment included.  So a citation that
 names a declaration credits the whole declaration, which is what makes the two
 reports agree.
 
-Two groups: the verified core (`ConLeche/Kernel`, `ConLeche/Cached`) and the
-cherries (`ConLeche/Frontend` without the parser's equivalence proofs,
-`Main.lean`).  Plus the size of the Rust, the generated Lean and the proofs.
+Three groups since task #84: the verified core (`ConLeche/Kernel`,
+`ConLeche/Cached`); the **parser in the core** (`ConLeche/Frontend`'s
+recogniser, record assembly, projection rewrite, ground hoist, preparation and
+prelude — verified-core Rust whose `_refines` lemmas task #85 **phase 3** will
+write, so its `verified` column is 0 by construction until then; task #85's
+phase 1 landed the parser's *well-formedness* tier, `Refine/Frontend/*`, whose
+lemmas are named `_wf` and which this column deliberately does not count, since
+what it measures is refinement against con-leche); and the cherries that stay
+unverified (the in-process modeller, the annotated-NDJSON writer and its debug
+splice, `Main.lean`).  `Frontend/Scan/Equiv` — the parser's own equivalence
+proofs — is excluded throughout: it is a `Prop`, not code.  Plus the size of
+the Rust, the generated Lean and the proofs.
 
 Usage: scripts/progress.py [--md | --summary] [--shape OLD_RE NEW_RE]
 `--summary` prints only the totals (what scripts/gates.sh shows).  The
@@ -45,7 +54,35 @@ import provenance as P  # noqa: E402
 
 REPO = P.REPO
 CORE_GLOBS = ["ConLeche/Kernel", "ConLeche/Cached"]
-CHERRY_GLOBS = ["ConLeche/Frontend", "Main.lean"]
+# The parser moved into `crates/con-ron-core` at task #84, so it is no longer
+# a cherry: it is verified-core Rust with no `_refines` lemma *yet* (task #85
+# writes those).  It gets its own row rather than joining `CORE_GLOBS`,
+# because merging it would silently drop the checker's own verified
+# percentage by diluting it with a tier nobody has proved.  `Scan/Naive.lean`
+# belongs here and not with the modeller: it is the recogniser's
+# *specification*, and `scan_fast` cites its declarations where a `Fast`
+# function is the `@[csimp]` twin of a `Naive` one.
+PARSER_GLOBS = [
+    "ConLeche/Frontend/Scan/Types.lean",
+    "ConLeche/Frontend/Scan/Fast.lean",
+    "ConLeche/Frontend/Scan/Naive.lean",
+    "ConLeche/Frontend/Export.lean",
+    "ConLeche/Frontend/ExportC.lean",
+    "ConLeche/Frontend/ProjRec.lean",
+    "ConLeche/Frontend/NatOpGround.lean",
+    "ConLeche/Frontend/Prepare.lean",
+    "ConLeche/Frontend/Prelude.lean",
+]
+# What is left unverified: the in-process modeller (task #84's ruling — its
+# correctness decides coverage, not soundness), the annotated-NDJSON writer
+# and its debug splice, and the driver.
+CHERRY_GLOBS = [
+    "ConLeche/Frontend/InModel",
+    "ConLeche/Frontend/InModel.lean",
+    "ConLeche/Frontend/ExportWrite.lean",
+    "ConLeche/Frontend/InModelDump.lean",
+    "Main.lean",
+]
 CHERRY_EXCLUDE = re.compile(r"ConLeche/Frontend/Scan/Equiv")
 # What is not to be ported is no longer a regex here: it is
 # `scripts/provenance-skip.txt`, one `path decl reason` line per declaration
@@ -53,10 +90,12 @@ CHERRY_EXCLUDE = re.compile(r"ConLeche/Frontend/Scan/Equiv")
 # `CheckerGated`, `CoreIO` — are `*` entries in it, so they show up in the
 # table with 0 to translate and their declarations counted as skipped.
 # The citation roots the ledger reads.  `crates/con-ron/src` joined at task
-# #37 so the *cherries* table starts counting: it is the unverified frontend,
-# so nothing in it will ever have a `_refines` lemma, and the "verified"
-# column of the cherries rows stays 0 by construction.  The `Rust core` size
-# line below still counts `CORE_RUST_ROOT` alone.
+# #37 so the *cherries* table starts counting: it is the unverified crate, so
+# nothing in it will ever have a `_refines` lemma, and the "verified" column of
+# the cherries rows stays 0 by construction.  Since task #84 the *parser*'s
+# rows are verified-crate Rust whose verified column is 0 only until the
+# lemmas exist.  The `Rust core` size line below still counts
+# `CORE_RUST_ROOT` alone.
 RUST_ROOTS = ["crates/con-ron-core/src", "crates/con-ron/src"]
 CORE_RUST_ROOT = "crates/con-ron-core/src"
 REFINE_DIR = "proof/ConRon/Refine"
@@ -64,9 +103,12 @@ GENERATED_DIR = "proof/ConRon/Generated"
 
 
 def lean_files(globs):
+    d = P.con_leche_dir()
+    if d is None:
+        return []
     out = []
     for sub in globs:
-        base = os.path.join(REPO, P.CON_LECHE, sub)
+        base = os.path.join(d, sub)
         if os.path.isfile(base):
             out.append(sub)
             continue
@@ -75,7 +117,7 @@ def lean_files(globs):
             for fn in sorted(filenames):
                 if fn.endswith(".lean"):
                     full = os.path.join(dirpath, fn)
-                    out.append(os.path.relpath(full, os.path.join(REPO, P.CON_LECHE)))
+                    out.append(os.path.relpath(full, d))
     return sorted(set(out))
 
 
@@ -249,6 +291,17 @@ def refine_lemmas(old_re=SHAPE_OLD, new_re=SHAPE_NEW):
                 module = fn[:-5].lower().replace("_", "")
             elif rel.split(os.sep)[0] == "Core":
                 module = "corec"
+            elif rel.split(os.sep)[0] == "Frontend":
+                # The parser's lemma files are split by the *Lean*'s sections
+                # (`ScanKit`, `ScanObj`, `ScanExpr`, `ScanInd`, `ScanLine`,
+                # `StateDR`, `ChunksR`, …) rather than one per Rust module, so
+                # the `Refine/<M><Suffix>.lean` prefix rule of `lemma_for`
+                # cannot match them.  The whole group is one module here, and
+                # `rust_module_of` sends every `src/frontend/*.rs` to the same
+                # name: within the parser a lemma counts for the Rust function
+                # it names, wherever under `Refine/Frontend/` it was proved
+                # (task #87).
+                module = "frontend"
             else:
                 module = rel.split(os.sep)[0].lower() + fn[:-5].lower().replace("_", "")
             text = open(os.path.join(dirpath, fn), encoding="utf-8").read()
@@ -275,12 +328,17 @@ def rust_module_of(item):
     """The Rust module name a lemma file is matched against.  Modules in a
     subdirectory carry the directory as a prefix (`inductives/struct_parts.rs`
     → `indstructparts`, matching `Refine/IndStructParts.lean`; `core_c.rs`
-    under `cached/` stays `corec`, its lemmas live in `Refine/Core/*`)."""
+    under `cached/` stays `corec`, its lemmas live in `Refine/Core/*`; every
+    module under `frontend/` is `frontend`, because the parser's lemma files
+    are split by the Lean's sections and not one per Rust module — see
+    `refine_lemmas` (task #87))."""
     base = os.path.basename(item.file)
     name = base[:-3].lower().replace("_", "") if base.endswith(".rs") else base
     parent = os.path.basename(os.path.dirname(item.file))
     if parent == "inductives":
         return "ind" + name
+    if parent == "frontend":
+        return "frontend"
     return name
 
 
@@ -348,7 +406,7 @@ def main(argv):
         for path in lean_files(globs):
             if exclude and exclude.search(path):
                 continue
-            full = os.path.join(REPO, P.CON_LECHE, path)
+            full = os.path.join(P.con_leche_dir(), path)
             lines = open(full, encoding="utf-8").read().split("\n")
             cs, ps = cited.get(path, []), proved.get(path, [])
             d = t = v = sk = 0
@@ -396,7 +454,8 @@ def main(argv):
         return tot
 
     core = report("Verified core (ConLeche/Kernel, ConLeche/Cached)", CORE_GLOBS)
-    cherry = report("Cherries (ConLeche/Frontend without Scan/Equiv, Main.lean)", CHERRY_GLOBS, CHERRY_EXCLUDE)
+    parser = report("Parser in the core (ConLeche/Frontend, task #84)", PARSER_GLOBS)
+    cherry = report("Cherries (InModel, ExportWrite, Main.lean)", CHERRY_GLOBS, CHERRY_EXCLUDE)
 
     rust = count_lines(walk(CORE_RUST_ROOT, ".rs"))
     rust_unverified = count_lines(walk("crates", ".rs")) - rust

@@ -39,14 +39,18 @@ pub mod kit;
 pub mod mutual;
 pub mod nested;
 
-use con_ron_core::cached::parsed_c::DeclC;
+use con_ron_core::frontend::in_model_rec;
+use con_ron_core::frontend::in_model_rec::{ModelCtx, Modeller};
+use con_ron_core::kernel::env::Declaration;
+use con_ron_core::kernel::expr::Expr;
+use con_ron_core::kernel::name::Name;
 
 use crate::in_model::mutual::{BlockRec, Ctx};
 
-/// con-leche: ConLeche/Frontend/InModel.lean:40-46 generate
+/// con-leche: ConLeche/Frontend/InModel.lean:39-45 generate
 /// Generate the model records of a block, in stream order, or the reason the
 /// block is declined.
-pub fn generate(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
+pub fn generate(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
     if b.types.iter().any(|t| t.num_nested > 0) {
         nested::gen_nested(ctx, b)
     } else {
@@ -54,25 +58,86 @@ pub fn generate(ctx: &Ctx, b: &BlockRec) -> Result<Vec<DeclC>, String> {
     }
 }
 
+/// con-leche: none — the seam between the verified parse and this crate
+/// (task #84)
+/// The modeller, as the core's parse sees it.  `parse_chunks` and everything
+/// above it are generic in a `Modeller`, which Charon renders as a typeclass
+/// field — an opaque function — so the extracted parse is quantified over an
+/// arbitrary modeller and its refinement carries one hypothesis about this
+/// crate's output rather than a port of it.  This unit struct is the
+/// implementation the binary passes.
+pub struct InProcess;
+
+/// con-leche: none — the seam's one method (task #84)
+/// The core hands over `ModelCtx`, which borrows the parse state's three
+/// tables; con-leche's `InModel.Ctx` is three *functions*, because the
+/// generators build **overlays** over them (`tbl'` adds the block's own
+/// generated types, `hOf` the heights of the definitions emitted so far).
+/// So the borrows are wrapped back into closures here, at the boundary,
+/// and nothing below this file changed.
+impl Modeller for InProcess {
+    /// con-leche: ConLeche/Frontend/InModel.lean:39-45 generate
+    /// `InModel.generate` at the seam: the borrows rewrapped as the three
+    /// closures the generators overlay, and the decline's message as code
+    /// points (the core's `String`, DESIGN.md §3.3).
+    fn generate(&self, ctx: &ModelCtx, b: &BlockRec) -> Result<Vec<Declaration>, Vec<u32>> {
+        let tbl = |n: &Name| -> Option<(Vec<Name>, Expr)> { in_model_rec::ctx_tbl(ctx, n) };
+        let hs = |n: &Name| -> u64 { in_model_rec::ctx_height(ctx, n) };
+        let bl = |n: &Name| -> Option<&BlockRec> { in_model_rec::ctx_block(ctx, n) };
+        let c = Ctx {
+            tbl: &tbl,
+            heights: &hs,
+            blocks: &bl,
+        };
+        match generate(&c, b) {
+            Ok(ds) => Ok(ds),
+            Err(why) => Err(why.chars().map(|ch| ch as u32).collect()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::frontend::export::name_str;
-    use crate::frontend::export_c::{parse_export_d, prelude_ix_empty, ParseResultD};
-    use crate::frontend::nat_op_ground::decl_names;
-    use crate::frontend::prelude::builtin_prelude_e;
+    use crate::driver::message;
+    use crate::in_model::InProcess;
+    use crate::render::name_str;
+    use con_ron_core::frontend::export_c::{parse_bytes, ParseResultD};
+    use con_ron_core::kernel::env::declaration_names;
 
-    /// con-leche's own `tests/e2e` streams for the three rungs, read at test
-    /// time from the pinned submodule (the crate already hard-requires it:
-    /// `frontend::prelude` embeds a file from it at build time).
-    fn parse_fixture(name: &str) -> ParseResultD {
-        let p = format!(
-            "{}/../../vendor/con-leche/tests/e2e/{}",
-            env!("CARGO_MANIFEST_DIR"),
-            name
+    /// con-leche's own lake package directory (task #91: a plain lake
+    /// dependency, not vendored, so the path is resolved through
+    /// `scripts/provenance.py dir` rather than a fixed repository-relative
+    /// one).
+    fn con_leche_dir() -> std::path::PathBuf {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let out = std::process::Command::new("python3")
+            .arg("scripts/provenance.py")
+            .arg("dir")
+            .current_dir(&root)
+            .output()
+            .expect("running scripts/provenance.py dir");
+        assert!(
+            out.status.success(),
+            "scripts/provenance.py dir failed: {}",
+            String::from_utf8_lossy(&out.stderr)
         );
-        let text = std::fs::read(&p).unwrap_or_else(|e| panic!("{}: {}", p, e));
-        let ix = builtin_prelude_e().unwrap_or_else(|e| panic!("{:?}", e));
-        parse_export_d(&text, ix, true, false).unwrap_or_else(|e| panic!("{}: {:?}", name, e))
+        std::path::PathBuf::from(String::from_utf8(out.stdout).unwrap().trim().to_string())
+    }
+
+    /// The fixture's bytes, read at test time from con-leche's own tree (the
+    /// crate already hard-requires it: `frontend::prelude` embeds a file from
+    /// it at build time).
+    fn fixture_bytes(name: &str) -> Vec<u8> {
+        let p = con_leche_dir().join("tests/e2e").join(name);
+        std::fs::read(&p).unwrap_or_else(|e| panic!("{}: {}", p.display(), e))
+    }
+
+    /// con-leche's own `tests/e2e` streams for the three rungs.  The parse
+    /// takes no prelude since con-leche task #293: it decodes the file's
+    /// records, and `frontend::prepare` is what puts the prelude in front.
+    fn parse_fixture(name: &str) -> ParseResultD {
+        parse_bytes(&InProcess, &fixture_bytes(name), true, false)
+            .unwrap_or_else(|(e, l)| panic!("{}:{}: {}", name, l, message(&e)))
     }
 
     /// **The modeller runs, and every record it emits belongs to the block it
@@ -92,29 +157,32 @@ mod tests {
             name,
             r.gen_records
         );
-        // every booked name is under its block's `_model` prefix
-        for (k, v) in r.gen_owner.iter() {
-            let n = name_str(&k.0);
-            let owner = name_str(v);
-            assert!(
-                n.starts_with(&format!("{}._model", owner))
-                    || n.starts_with(&format!("{}.", owner))
-                    || n.contains("._model"),
-                "{}: {} booked under {}",
-                name,
-                n,
-                owner
-            );
-        }
-        // and the fold's list carries them: the generated records are
-        // declarations like any other
+        // Every booked name is under its block's `_model` prefix, and the
+        // fold's list carries them: the generated records are declarations
+        // like any other.  Since task #84 `gen_owner` is the core's
+        // `ron::HashMap`, which has no iterator, so the walk is over the
+        // records and the map is only probed.
         let mut seen = 0u64;
         for d in r.decls.iter() {
-            for n in decl_names(d) {
-                if r.gen_owner.contains_key(&crate::frontend::nat_op_ground::NameKey(n)) {
-                    seen += 1;
-                    break;
+            let mut booked = false;
+            for n in declaration_names(d) {
+                if let Some(owner) = r.gen_owner.get(&n) {
+                    let nm = name_str(&n);
+                    let ow = name_str(owner);
+                    assert!(
+                        nm.starts_with(&format!("{}._model", ow))
+                            || nm.starts_with(&format!("{}.", ow))
+                            || nm.contains("._model"),
+                        "{}: {} booked under {}",
+                        name,
+                        nm,
+                        ow
+                    );
+                    booked = true;
                 }
+            }
+            if booked {
+                seen += 1;
             }
         }
         assert_eq!(seen, r.gen_records, "{}: generated records in the list", name);
@@ -172,30 +240,19 @@ mod tests {
     /// pushed bare, nothing is generated, and the decline is left to the fold.
     #[test]
     fn the_modeller_can_be_turned_off() {
-        let p = format!(
-            "{}/../../vendor/con-leche/tests/e2e/inmodel_mutual.ndjson",
-            env!("CARGO_MANIFEST_DIR")
-        );
-        let text = std::fs::read(&p).unwrap_or_else(|e| panic!("{}: {}", p, e));
-        let ix = builtin_prelude_e().unwrap_or_else(|e| panic!("{:?}", e));
-        let r = parse_export_d(&text, ix, false, false).unwrap_or_else(|e| panic!("{:?}", e));
+        let r = parse_bytes(&InProcess, &fixture_bytes("inmodel_mutual.ndjson"), false, false)
+            .unwrap_or_else(|(e, l)| panic!("{}: {}", l, message(&e)));
         assert!(r.in_modelled.is_empty());
         assert_eq!(r.gen_records, 0);
         assert!(r.gen_owner.is_empty());
     }
 
-    /// An empty prelude changes nothing about the modeller's reach: the sort
-    /// inferer's table is the parse's own, and a fixture that declares its
-    /// own `Nat`/`List` models just as well.
+    /// The prelude is not the modeller's business at all — the parse never
+    /// sees one since con-leche task #293 — and the nested fixture, which
+    /// declares its own `Nat`/`List`, models every one of its seven blocks.
     #[test]
     fn the_modeller_needs_no_prelude() {
-        let p = format!(
-            "{}/../../vendor/con-leche/tests/e2e/inmodel_nested.ndjson",
-            env!("CARGO_MANIFEST_DIR")
-        );
-        let text = std::fs::read(&p).unwrap_or_else(|e| panic!("{}: {}", p, e));
-        let r = parse_export_d(&text, prelude_ix_empty(), true, false)
-            .unwrap_or_else(|e| panic!("{:?}", e));
+        let r = parse_fixture("inmodel_nested.ndjson");
         assert_eq!(r.in_modelled.len(), 7);
         assert!(r.gen_records > 0);
     }

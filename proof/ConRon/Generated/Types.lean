@@ -152,7 +152,7 @@ structure ron.nat.Nat where
   limbs : alloc.vec.Vec Std.U64
 
 /-- [con_ron_core::kernel::expr::Literal]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 164:0-167:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 168:0-171:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.expr.Literal where
@@ -180,7 +180,7 @@ structure kernel.prop_when.PropWhen where
   repr : kernel.prop_when.PropWhenRepr
 
 /-- [con_ron_core::kernel::expr::BinderMeta]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 115:0-117:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 119:0-121:1
     Visibility: public -/
 structure kernel.expr.BinderMeta where
   pw : kernel.prop_when.PropWhen
@@ -188,7 +188,7 @@ structure kernel.expr.BinderMeta where
 mutual
 
 /-- [con_ron_core::kernel::expr::ExprKind]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 350:0-361:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 353:0-364:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.expr.ExprKind where
@@ -223,13 +223,13 @@ inductive kernel.expr.ExprKind where
   kernel.expr.ExprKind
 
 /-- [con_ron_core::kernel::expr::ExprNode]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 367:0-370:1
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 369:0-372:1
     Visibility: public -/
 inductive kernel.expr.ExprNode where
 | mk : Std.U64 → kernel.expr.ExprKind → kernel.expr.ExprNode
 
 /-- [con_ron_core::kernel::expr::Expr]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 376:0-376:33
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 377:0-377:33
     Visibility: public -/
 inductive kernel.expr.Expr where
 | mk : alloc.sync.Arc kernel.expr.ExprNode → kernel.expr.Expr
@@ -390,7 +390,7 @@ inductive kernel.env.ConstantInfo where
 | ProjInfo : kernel.env.ProjTable → kernel.env.ConstantInfo
 
 /-- [con_ron_core::kernel::env::Env]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1101:0-1103:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1188:0-1190:1
     Visibility: public -/
 structure kernel.env.Env where
   consts : alloc.vec.Vec (alloc.sync.Arc kernel.env.ConstantInfo)
@@ -518,30 +518,16 @@ structure kernel.nat_op_pins.NatOpPinSet where
   shift_left_proofs : alloc.vec.Vec kernel.expr.Expr
   shift_right_proofs : alloc.vec.Vec kernel.expr.Expr
 
-/-- [con_ron_core::cached::parsed_c::ValueKind]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 106:0-110:1
+/-- [con_ron_core::kernel::env::QuotKind]
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 886:0-892:1
     Visibility: public -/
 @[discriminant isize]
-inductive cached.parsed_c.ValueKind where
-| Defn : cached.parsed_c.ValueKind
-| Thm : cached.parsed_c.ValueKind
-| Opaque : cached.parsed_c.ValueKind
-
-/-- [con_ron_core::cached::parsed_c::ValueGroup]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 128:0-132:1
-    Visibility: public -/
-structure cached.parsed_c.ValueGroup where
-  kind : cached.parsed_c.ValueKind
-  cv_a : kernel.env.ConstantVal
-  jv : kernel.expr.Expr
-
-/-- [con_ron_core::cached::parsed_c::PendingCheck]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 142:0-146:1
-    Visibility: public -/
-structure cached.parsed_c.PendingCheck where
-  vg : cached.parsed_c.ValueGroup
-  pos : Std.U64
-  vis : Std.U64
+inductive kernel.env.QuotKind where
+| «Type» : kernel.env.QuotKind
+| Ctor : kernel.env.QuotKind
+| Lift : kernel.env.QuotKind
+| Ind : kernel.env.QuotKind
+| Sound : kernel.env.QuotKind
 
 /-- [con_ron_core::kernel::env::BasisKind]
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 346:0-353:1
@@ -555,30 +541,59 @@ inductive kernel.env.BasisKind where
 | FalseK : kernel.env.BasisKind
 | QuotK : kernel.env.BasisKind
 
-/-- [con_ron_core::cached::parsed_c::DeclC]
-    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 92:0-99:1
+/-- [con_ron_core::kernel::env::Declaration]
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 930:0-938:1
     Visibility: public -/
 @[discriminant isize]
-inductive cached.parsed_c.DeclC where
-| AxiomDecl : kernel.env.ConstantVal → cached.parsed_c.DeclC
+inductive kernel.env.Declaration where
+| AxiomDecl : kernel.env.ConstantVal → kernel.env.Declaration
 | DefnDecl :
   kernel.env.ConstantVal →
   kernel.expr.Expr →
   kernel.env.ReducibilityHint →
-  cached.parsed_c.DeclC
+  kernel.env.Declaration
 | ThmDecl :
   kernel.env.ConstantVal →
   kernel.expr.Expr →
-  cached.parsed_c.DeclC
+  kernel.env.Declaration
 | OpaqueDecl :
   kernel.env.ConstantVal →
   kernel.expr.Expr →
-  cached.parsed_c.DeclC
-| BasisDecl : kernel.env.BasisKind → cached.parsed_c.DeclC
+  kernel.env.Declaration
+| BasisDecl : kernel.env.BasisKind → kernel.env.Declaration
 | IndDecl :
   alloc.vec.Vec kernel.env.ConstantInfo →
   Std.U64 →
-  cached.parsed_c.DeclC
+  kernel.env.Declaration
+| QuotDecl :
+  kernel.env.QuotKind →
+  kernel.env.ConstantVal →
+  kernel.env.Declaration
+
+/-- [con_ron_core::cached::parsed_c::ValueKind]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 96:0-100:1
+    Visibility: public -/
+@[discriminant isize]
+inductive cached.parsed_c.ValueKind where
+| Defn : cached.parsed_c.ValueKind
+| Thm : cached.parsed_c.ValueKind
+| Opaque : cached.parsed_c.ValueKind
+
+/-- [con_ron_core::cached::parsed_c::ValueGroup]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 118:0-122:1
+    Visibility: public -/
+structure cached.parsed_c.ValueGroup where
+  kind : cached.parsed_c.ValueKind
+  cv_a : kernel.env.ConstantVal
+  jv : kernel.expr.Expr
+
+/-- [con_ron_core::cached::parsed_c::PendingCheck]
+    Source: 'crates/con-ron-core/src/cached/parsed_c.rs', lines 132:0-136:1
+    Visibility: public -/
+structure cached.parsed_c.PendingCheck where
+  vg : cached.parsed_c.ValueGroup
+  pos : Std.U64
+  vis : Std.U64
 
 /-- [con_ron_core::kernel::inductives::sum_parts::InductiveShape]
     Source: 'crates/con-ron-core/src/kernel/inductives/sum_parts.rs', lines 28:0-39:1
@@ -639,13 +654,13 @@ structure kernel.inductives.native_install.NativeCapsAt where
   is_rec : Bool
 
 /-- Trait declaration: [con_ron_core::kernel::checker_base::DomView]
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 142:0-145:1
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 166:0-169:1
     Visibility: public -/
 structure kernel.checker_base.DomView (Self : Type) where
   view : Self → Std.U64 → kernel.expr.Expr → Result kernel.expr.Expr
 
 /-- [con_ron_core::kernel::checker_base::DomIdent]
-    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 152:0-152:20
+    Source: 'crates/con-ron-core/src/kernel/checker_base.rs', lines 176:0-176:20
     Visibility: public -/
 @[reducible]
 def kernel.checker_base.DomIdent := Unit
@@ -692,30 +707,277 @@ structure kernel.inductives.modeled.BlockRename where
 structure ron.hashmap.Dup (Self : Type) where
   dup2 : Self → Result Self
 
-/-- [con_ron_core::kernel::env::Declaration]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 885:0-892:1
+/-- [con_ron_core::frontend::export::RecordVerdict]
+    Source: 'crates/con-ron-core/src/frontend/export.rs', lines 57:0-60:1
     Visibility: public -/
 @[discriminant isize]
-inductive kernel.env.Declaration where
-| AxiomDecl : kernel.env.ConstantVal → kernel.env.Declaration
-| DefnDecl :
-  kernel.env.ConstantVal →
-  kernel.expr.Expr →
-  kernel.env.ReducibilityHint →
-  kernel.env.Declaration
-| ThmDecl :
-  kernel.env.ConstantVal →
-  kernel.expr.Expr →
-  kernel.env.Declaration
-| OpaqueDecl :
-  kernel.env.ConstantVal →
-  kernel.expr.Expr →
-  kernel.env.Declaration
-| BasisDecl : kernel.env.BasisKind → kernel.env.Declaration
-| IndDecl :
-  alloc.vec.Vec kernel.env.ConstantInfo →
+inductive frontend.export.RecordVerdict where
+| Declined : alloc.vec.Vec Std.U32 → frontend.export.RecordVerdict
+| Invalid : alloc.vec.Vec Std.U32 → frontend.export.RecordVerdict
+
+/-- [con_ron_core::frontend::export_c::LineErr]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 165:0-168:1
+    Visibility: public -/
+@[discriminant isize]
+inductive frontend.export_c.LineErr where
+| Msg : alloc.vec.Vec Std.U32 → frontend.export_c.LineErr
+| Verdict : frontend.export.RecordVerdict → frontend.export_c.LineErr
+
+/-- [con_ron_core::frontend::scan_types::IdTable]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 625:0-628:1
+    Visibility: public -/
+structure frontend.scan_types.IdTable (T : Type) where
+  dense : alloc.vec.Vec T
+  sparse : ron.hashmap.HashMap Std.U64 T
+
+/-- [con_ron_core::frontend::proj_rec::ProjRecOwner]
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 67:0-85:1
+    Visibility: public -/
+structure frontend.proj_rec.ProjRecOwner where
+  t : kernel.name.Name
+  lps : alloc.vec.Vec kernel.name.Name
+  n_p : Std.U64
+  ctor : kernel.name.Name
+  n_f : Std.U64
+  rec_name : kernel.name.Name
+  rec_lps : alloc.vec.Vec kernel.name.Name
+  rec_type : kernel.expr.Expr
+  num_motives : Std.U64
+  num_minors : Std.U64
+
+/-- [con_ron_core::frontend::in_model_rec::IndRecRec]
+    Source: 'crates/con-ron-core/src/frontend/in_model_rec.rs', lines 92:0-99:1
+    Visibility: public -/
+structure frontend.in_model_rec.IndRecRec where
+  cv : kernel.env.ConstantVal
+  n_p : Std.U64
+  n_m : Std.U64
+  nm : Std.U64
+  n_i : Std.U64
+  rules : alloc.vec.Vec kernel.env.RecRule
+
+/-- [con_ron_core::frontend::in_model_rec::IndCtorRec]
+    Source: 'crates/con-ron-core/src/frontend/in_model_rec.rs', lines 74:0-78:1
+    Visibility: public -/
+structure frontend.in_model_rec.IndCtorRec where
+  cv : kernel.env.ConstantVal
+  n_p : Std.U64
+  n_f : Std.U64
+
+/-- [con_ron_core::frontend::in_model_rec::IndTypeRec]
+    Source: 'crates/con-ron-core/src/frontend/in_model_rec.rs', lines 48:0-56:1
+    Visibility: public -/
+structure frontend.in_model_rec.IndTypeRec where
+  cv : kernel.env.ConstantVal
+  n_p : Std.U64
+  n_idx : Std.U64
+  ctors : alloc.vec.Vec kernel.name.Name
+  is_rec : Bool
+  is_reflexive : Bool
+  num_nested : Std.U64
+
+/-- [con_ron_core::frontend::in_model_rec::BlockRec]
+    Source: 'crates/con-ron-core/src/frontend/in_model_rec.rs', lines 115:0-119:1
+    Visibility: public -/
+structure frontend.in_model_rec.BlockRec where
+  types : alloc.vec.Vec frontend.in_model_rec.IndTypeRec
+  ctors : alloc.vec.Vec frontend.in_model_rec.IndCtorRec
+  recs : alloc.vec.Vec frontend.in_model_rec.IndRecRec
+
+/-- [con_ron_core::frontend::export_c::StateD]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 214:0-252:1
+    Visibility: public -/
+structure frontend.export_c.StateD where
+  names : frontend.scan_types.IdTable kernel.name.Name
+  levels : frontend.scan_types.IdTable kernel.level.Level
+  exprs : frontend.scan_types.IdTable kernel.expr.Expr
+  decls : alloc.vec.Vec kernel.env.Declaration
+  proj_owners : ron.hashmap.HashMap kernel.name.Name
+    frontend.proj_rec.ProjRecOwner
+  proj_levels : ron.hashmap.HashMap kernel.name.Name kernel.level.Level
+  proj_rewrites : alloc.vec.Vec kernel.name.Name
+  const_types : ron.hashmap.HashMap kernel.name.Name ((alloc.vec.Vec
+    kernel.name.Name) × kernel.expr.Expr)
+  heights : ron.hashmap.HashMap kernel.name.Name Std.U64
+  in_model : Bool
+  in_modelled : alloc.vec.Vec kernel.name.Name
+  gen_records : Std.U64
+  gen_owner : ron.hashmap.HashMap kernel.name.Name kernel.name.Name
+  ind_count : Std.U64
+  ind_blocks : ron.hashmap.HashMap kernel.name.Name (alloc.sync.Arc
+    frontend.in_model_rec.BlockRec)
+  in_model_census : Bool
+  in_model_declined : alloc.vec.Vec (kernel.name.Name × (alloc.vec.Vec
+    Std.U32))
+
+/-- [con_ron_core::frontend::in_model_rec::ModelCtx]
+    Source: 'crates/con-ron-core/src/frontend/in_model_rec.rs', lines 222:0-226:1
+    Visibility: public -/
+structure frontend.in_model_rec.ModelCtx where
+  tbl : ron.hashmap.HashMap kernel.name.Name ((alloc.vec.Vec kernel.name.Name)
+    × kernel.expr.Expr)
+  heights : ron.hashmap.HashMap kernel.name.Name Std.U64
+  blocks : ron.hashmap.HashMap kernel.name.Name (alloc.sync.Arc
+    frontend.in_model_rec.BlockRec)
+
+/-- [con_ron_core::frontend::scan_types::PwRec]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 350:0-353:1
+    Visibility: public -/
+@[discriminant isize]
+inductive frontend.scan_types.PwRec where
+| Never : frontend.scan_types.PwRec
+| IfAllZero : alloc.vec.Vec Std.U64 → frontend.scan_types.PwRec
+
+/-- [con_ron_core::frontend::scan_types::NameRec]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 333:0-336:1
+    Visibility: public -/
+@[discriminant isize]
+inductive frontend.scan_types.NameRec where
+| Str : Std.U64 → alloc.vec.Vec Std.U32 → frontend.scan_types.NameRec
+| Num : Std.U64 → Std.U64 → frontend.scan_types.NameRec
+
+/-- [con_ron_core::frontend::scan_types::LevelRec]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 340:0-345:1
+    Visibility: public -/
+@[discriminant isize]
+inductive frontend.scan_types.LevelRec where
+| Succ : Std.U64 → frontend.scan_types.LevelRec
+| Max : Std.U64 → Std.U64 → frontend.scan_types.LevelRec
+| Imax : Std.U64 → Std.U64 → frontend.scan_types.LevelRec
+| Param : Std.U64 → frontend.scan_types.LevelRec
+
+/-- [con_ron_core::frontend::scan_types::ExprRec]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 362:0-373:1
+    Visibility: public -/
+@[discriminant isize]
+inductive frontend.scan_types.ExprRec where
+| Bvar : Std.U64 → frontend.scan_types.ExprRec
+| «Sort» : Std.U64 → frontend.scan_types.ExprRec
+| Const : Std.U64 → alloc.vec.Vec Std.U64 → frontend.scan_types.ExprRec
+| App : Std.U64 → Std.U64 → frontend.scan_types.ExprRec
+| Lam :
   Std.U64 →
-  kernel.env.Declaration
+  Std.U64 →
+  frontend.scan_types.PwRec →
+  frontend.scan_types.ExprRec
+| ForallE :
+  Std.U64 →
+  Std.U64 →
+  frontend.scan_types.PwRec →
+  frontend.scan_types.ExprRec
+| LetE : Std.U64 → Std.U64 → Std.U64 → frontend.scan_types.ExprRec
+| Proj : Std.U64 → Std.U64 → Std.U64 → frontend.scan_types.ExprRec
+| NatVal : alloc.vec.Vec Std.U8 → frontend.scan_types.ExprRec
+| StrVal : alloc.vec.Vec Std.U32 → frontend.scan_types.ExprRec
+
+/-- [con_ron_core::frontend::scan_types::ErrTag]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 49:0-71:1
+    Visibility: public -/
+@[discriminant isize]
+inductive frontend.scan_types.ErrTag where
+| ExpectedObject : frontend.scan_types.ErrTag
+| ExpectedKey : frontend.scan_types.ErrTag
+| ExpectedColon : frontend.scan_types.ErrTag
+| ExpectedComma : frontend.scan_types.ErrTag
+| ExpectedList : frontend.scan_types.ErrTag
+| UnknownKey : frontend.scan_types.ErrTag
+| DuplicateKey : frontend.scan_types.ErrTag
+| MissingKey : frontend.scan_types.ErrTag
+| MixedKeys : frontend.scan_types.ErrTag
+| ExpectedNat : frontend.scan_types.ErrTag
+| ExpectedString : frontend.scan_types.ErrTag
+| ExpectedBool : frontend.scan_types.ErrTag
+| BadEscape : frontend.scan_types.ErrTag
+| BadUtf8 : frontend.scan_types.ErrTag
+| BadBinderInfo : frontend.scan_types.ErrTag
+| BadHints : frontend.scan_types.ErrTag
+| BadPw : frontend.scan_types.ErrTag
+| BadNatVal : frontend.scan_types.ErrTag
+| Trailing : frontend.scan_types.ErrTag
+| NoProgress : frontend.scan_types.ErrTag
+| IndexOverflow : frontend.scan_types.ErrTag
+
+/-- [con_ron_core::frontend::scan_types::CVRec]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 377:0-381:1
+    Visibility: public -/
+structure frontend.scan_types.CVRec where
+  «name» : Std.U64
+  level_params : alloc.vec.Vec Std.U64
+  ty : Std.U64
+
+/-- [con_ron_core::frontend::proj_rec::MkMinor]
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 506:0-510:1
+    Visibility: public -/
+structure frontend.proj_rec.MkMinor where
+  ctor : kernel.name.Name
+  i : Std.U64
+  l : kernel.level.Level
+
+/-- Trait declaration: [con_ron_core::frontend::proj_rec::MkBinder]
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 348:0-355:1
+    Visibility: public -/
+structure frontend.proj_rec.MkBinder (Self : Type) where
+  binder : Self → kernel.expr.Expr → Result (Option kernel.expr.Expr)
+
+/-- [con_ron_core::frontend::proj_rec::MkMotive]
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 463:0-467:1
+    Visibility: public -/
+structure frontend.proj_rec.MkMotive where
+  t : kernel.name.Name
+  r : kernel.expr.Expr
+  l : kernel.level.Level
+
+/-- [con_ron_core::frontend::scan_types::RuleRec]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 393:0-397:1
+    Visibility: public -/
+structure frontend.scan_types.RuleRec where
+  ctor : Std.U64
+  nfields : Std.U64
+  rhs : Std.U64
+
+/-- [con_ron_core::frontend::scan_types::ScanErr]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 139:0-142:1
+    Visibility: public -/
+structure frontend.scan_types.ScanErr where
+  offset : Std.Usize
+  what : frontend.scan_types.ErrTag
+
+/-- [con_ron_core::frontend::scan_types::IndCtorRec]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 418:0-425:1
+    Visibility: public -/
+structure frontend.scan_types.IndCtorRec where
+  cv : frontend.scan_types.CVRec
+  is_unsafe : Bool
+  num_fields : Std.U64
+  num_params : Std.U64
+  cidx : Option Std.U64
+  induct : Option Std.U64
+
+/-- [con_ron_core::frontend::scan_types::IndRecRec]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 429:0-438:1
+    Visibility: public -/
+structure frontend.scan_types.IndRecRec where
+  cv : frontend.scan_types.CVRec
+  is_unsafe : Bool
+  k : Bool
+  num_indices : Std.U64
+  num_minors : Std.U64
+  num_motives : Std.U64
+  num_params : Std.U64
+  rules : alloc.vec.Vec frontend.scan_types.RuleRec
+
+/-- [con_ron_core::frontend::scan_types::IndTypeRec]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 401:0-410:1
+    Visibility: public -/
+structure frontend.scan_types.IndTypeRec where
+  cv : frontend.scan_types.CVRec
+  ctors : alloc.vec.Vec Std.U64
+  is_rec : Bool
+  is_reflexive : Bool
+  is_unsafe : Bool
+  num_indices : Std.U64
+  num_nested : Std.U64
+  num_params : Std.U64
 
 /-- [con_ron_core::kernel::inductives::struct_parts::StructParts]
     Source: 'crates/con-ron-core/src/kernel/inductives/struct_parts.rs', lines 295:0-306:1
@@ -731,6 +993,225 @@ structure kernel.inductives.struct_parts.StructParts where
   rhs : kernel.expr.Expr
   large : Bool
   is_prop : Bool
+
+/-- [con_ron_core::frontend::proj_rec::ProjRecRec]
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 709:0-715:1
+    Visibility: public -/
+structure frontend.proj_rec.ProjRecRec where
+  «name» : kernel.name.Name
+  lps : alloc.vec.Vec kernel.name.Name
+  ty : kernel.expr.Expr
+  n_m : Std.U64
+  nm : Std.U64
+
+/-- [con_ron_core::frontend::proj_rec::ProjCtorRec]
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 700:0-704:1
+    Visibility: public -/
+structure frontend.proj_rec.ProjCtorRec where
+  «name» : kernel.name.Name
+  n_f : Std.U64
+  ty : kernel.expr.Expr
+
+/-- [con_ron_core::frontend::proj_rec::ProjTypeRec]
+    Source: 'crates/con-ron-core/src/frontend/proj_rec.rs', lines 688:0-696:1
+    Visibility: public -/
+structure frontend.proj_rec.ProjTypeRec where
+  «name» : kernel.name.Name
+  lps : alloc.vec.Vec kernel.name.Name
+  ty : kernel.expr.Expr
+  n_p : Std.U64
+  n_i : Std.U64
+  ctors : alloc.vec.Vec kernel.name.Name
+  is_rec : Bool
+
+/-- Trait declaration: [con_ron_core::frontend::in_model_rec::Modeller]
+    Source: 'crates/con-ron-core/src/frontend/in_model_rec.rs', lines 266:0-270:1
+    Visibility: public -/
+structure frontend.in_model_rec.Modeller (Self : Type) where
+  generate : Self → frontend.in_model_rec.ModelCtx →
+    frontend.in_model_rec.BlockRec → Result (core.result.Result
+    (alloc.vec.Vec kernel.env.Declaration) (alloc.vec.Vec Std.U32))
+
+/-- [con_ron_core::frontend::scan_types::HintsRec]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 385:0-389:1
+    Visibility: public -/
+@[discriminant isize]
+inductive frontend.scan_types.HintsRec where
+| Abbrev : frontend.scan_types.HintsRec
+| Opaque : frontend.scan_types.HintsRec
+| Regular : Std.U64 → frontend.scan_types.HintsRec
+
+/-- [con_ron_core::frontend::scan_types::DeclRec]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 444:0-451:1
+    Visibility: public -/
+@[discriminant isize]
+inductive frontend.scan_types.DeclRec where
+| Ax : frontend.scan_types.CVRec → Bool → frontend.scan_types.DeclRec
+| Defn :
+  frontend.scan_types.CVRec →
+  Std.U64 →
+  frontend.scan_types.HintsRec →
+  alloc.vec.Vec Std.U32 →
+  frontend.scan_types.DeclRec
+| Thm : frontend.scan_types.CVRec → Std.U64 → frontend.scan_types.DeclRec
+| Opaq :
+  frontend.scan_types.CVRec →
+  Std.U64 →
+  Bool →
+  frontend.scan_types.DeclRec
+| Quot :
+  frontend.scan_types.CVRec →
+  alloc.vec.Vec Std.U32 →
+  frontend.scan_types.DeclRec
+| Ind :
+  alloc.vec.Vec frontend.scan_types.IndTypeRec →
+  alloc.vec.Vec frontend.scan_types.IndCtorRec →
+  alloc.vec.Vec frontend.scan_types.IndRecRec →
+  frontend.scan_types.DeclRec
+
+/-- [con_ron_core::frontend::scan_types::LineRec]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 455:0-464:1
+    Visibility: public -/
+@[discriminant isize]
+inductive frontend.scan_types.LineRec where
+| Name :
+  Std.U64 →
+  frontend.scan_types.NameRec →
+  frontend.scan_types.LineRec
+| Level :
+  Std.U64 →
+  frontend.scan_types.LevelRec →
+  frontend.scan_types.LineRec
+| Expr :
+  Std.U64 →
+  frontend.scan_types.ExprRec →
+  frontend.scan_types.LineRec
+| Decl : frontend.scan_types.DeclRec → frontend.scan_types.LineRec
+| Header : frontend.scan_types.LineRec
+| Blank : frontend.scan_types.LineRec
+
+/-- [con_ron_core::frontend::export_c::ParseResultD]
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2426:0-2442:1
+    Visibility: public -/
+structure frontend.export_c.ParseResultD where
+  decls : alloc.vec.Vec kernel.env.Declaration
+  proj_rewrites : alloc.vec.Vec kernel.name.Name
+  in_modelled : alloc.vec.Vec kernel.name.Name
+  gen_records : Std.U64
+  gen_owner : ron.hashmap.HashMap kernel.name.Name kernel.name.Name
+  in_model_declined : alloc.vec.Vec (kernel.name.Name × (alloc.vec.Vec
+    Std.U32))
+
+/-- [con_ron_core::frontend::scan_types::Key]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 470:0-538:1
+    Visibility: public -/
+@[discriminant isize]
+inductive frontend.scan_types.Key where
+| KUnknown : frontend.scan_types.Key
+| KAll : frontend.scan_types.Key
+| KApp : frontend.scan_types.Key
+| KArg : frontend.scan_types.Key
+| KAxiom : frontend.scan_types.Key
+| KBinderInfo : frontend.scan_types.Key
+| KBody : frontend.scan_types.Key
+| KBvar : frontend.scan_types.Key
+| KCidx : frontend.scan_types.Key
+| KConst : frontend.scan_types.Key
+| KCtor : frontend.scan_types.Key
+| KCtors : frontend.scan_types.Key
+| KDef : frontend.scan_types.Key
+| KFn : frontend.scan_types.Key
+| KForallE : frontend.scan_types.Key
+| KHints : frontend.scan_types.Key
+| KI : frontend.scan_types.Key
+| KIdx : frontend.scan_types.Key
+| KIe : frontend.scan_types.Key
+| KIl : frontend.scan_types.Key
+| KImax : frontend.scan_types.Key
+| KIn : frontend.scan_types.Key
+| KInduct : frontend.scan_types.Key
+| KInductive : frontend.scan_types.Key
+| KIsRec : frontend.scan_types.Key
+| KIsReflexive : frontend.scan_types.Key
+| KIsUnsafe : frontend.scan_types.Key
+| KK : frontend.scan_types.Key
+| KKind : frontend.scan_types.Key
+| KLam : frontend.scan_types.Key
+| KLetE : frontend.scan_types.Key
+| KLevelParams : frontend.scan_types.Key
+| KMax : frontend.scan_types.Key
+| KMeta : frontend.scan_types.Key
+| KName : frontend.scan_types.Key
+| KNatVal : frontend.scan_types.Key
+| KNfields : frontend.scan_types.Key
+| KNondep : frontend.scan_types.Key
+| KNum : frontend.scan_types.Key
+| KNumFields : frontend.scan_types.Key
+| KNumIndices : frontend.scan_types.Key
+| KNumMinors : frontend.scan_types.Key
+| KNumMotives : frontend.scan_types.Key
+| KNumNested : frontend.scan_types.Key
+| KNumParams : frontend.scan_types.Key
+| KOpaque : frontend.scan_types.Key
+| KParam : frontend.scan_types.Key
+| KPre : frontend.scan_types.Key
+| KProj : frontend.scan_types.Key
+| KPw : frontend.scan_types.Key
+| KQuot : frontend.scan_types.Key
+| KRecs : frontend.scan_types.Key
+| KRegular : frontend.scan_types.Key
+| KRhs : frontend.scan_types.Key
+| KRules : frontend.scan_types.Key
+| KSafety : frontend.scan_types.Key
+| KSort : frontend.scan_types.Key
+| KStr : frontend.scan_types.Key
+| KStrVal : frontend.scan_types.Key
+| KStruct : frontend.scan_types.Key
+| KSucc : frontend.scan_types.Key
+| KThm : frontend.scan_types.Key
+| KType : frontend.scan_types.Key
+| KTypeName : frontend.scan_types.Key
+| KTypes : frontend.scan_types.Key
+| KUs : frontend.scan_types.Key
+| KValue : frontend.scan_types.Key
+
+/-- [con_ron_core::frontend::scan_fast::LinePayload]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3795:0-3802:1
+    Visibility: public -/
+@[discriminant isize]
+inductive frontend.scan_fast.LinePayload where
+| Absent : frontend.scan_fast.LinePayload
+| Name : frontend.scan_types.NameRec → frontend.scan_fast.LinePayload
+| Level : frontend.scan_types.LevelRec → frontend.scan_fast.LinePayload
+| Expr : frontend.scan_types.ExprRec → frontend.scan_fast.LinePayload
+| Decl : frontend.scan_types.DeclRec → frontend.scan_fast.LinePayload
+| Header : frontend.scan_fast.LinePayload
+
+/-- [con_ron_core::frontend::scan_fast::Member]
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1354:0-1360:1
+    Visibility: public -/
+@[discriminant isize]
+inductive frontend.scan_fast.Member where
+| Close : frontend.scan_fast.Member
+| Key :
+  frontend.scan_types.Key →
+  Std.Usize →
+  Std.Usize →
+  frontend.scan_fast.Member
+
+/-- [con_ron_core::frontend::prepare::PreludeIx]
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 96:0-98:1
+    Visibility: public -/
+structure frontend.prepare.PreludeIx where
+  decls : alloc.vec.Vec kernel.env.Declaration
+
+/-- [con_ron_core::frontend::prepare::Prepared]
+    Source: 'crates/con-ron-core/src/frontend/prepare.rs', lines 252:0-261:1
+    Visibility: public -/
+structure frontend.prepare.Prepared where
+  decls : alloc.vec.Vec kernel.env.Declaration
+  synthesised : Std.U64
+  hoisted : alloc.vec.Vec kernel.name.Name
 
 /-- [con_ron_core::kernel::pins_decode::Tables]
     Source: 'crates/con-ron-core/src/kernel/pins_decode.rs', lines 66:0-72:1

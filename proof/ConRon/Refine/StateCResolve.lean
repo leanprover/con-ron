@@ -1,7 +1,7 @@
 /-
 `Refine/StateC.lean`'s last wrapper, in its own file because it is a *walk*:
 `cached::state_c::consts_resolve_fc`, the parsed-index driver's syntactic guard
-— `Expr.constsResolveF fe` as one **memoized `ExprC` DAG pass**
+— `Expr.constsResolveF fe` as one **memoized `Expr` DAG pass**
 (`ConLeche/Cached/StateC.lean:409-450`).
 
 Two things are different from the `*M` wrappers next door:
@@ -35,7 +35,7 @@ open ConRon.Refine.State
 
 /-! ## The call-local memo -/
 
-/-- `ConLeche/Cached/StateC.lean:409` — the `Std.HashMap ExprC Bool` the cited
+/-- `ConLeche/Cached/StateC.lean:409` — the `Std.HashMap Expr Bool` the cited
 walk threads: a well-formed `ron::HashMap` holding only well-formed keys, whose
 lookups agree with con-leche's under `absExpr`. -/
 structure MemoBOk (memo : ron.hashmap.HashMap expr.Expr Bool)

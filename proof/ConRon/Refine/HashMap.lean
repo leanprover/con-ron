@@ -51,7 +51,7 @@ it was `h % n` — needed **no** proof at all, because `bucketAt` is a black
 box here (see its docstring).
 
 The one semantic hypothesis is `Eq2Spec Eq2Inst` — `eq2` is decidable equality
-on the key type.  The natural generalisation (and the one the `ExprC` keys of
+on the key type.  The natural generalisation (and the one the `Expr` keys of
 §3.2 will want) is "`eq2 a b = ok (decide (absK a = absK b))` for an
 abstraction `absK`", i.e. `eq2` is exact modulo an abstraction; every proof
 below goes through with `=` replaced by the kernel of `absK`, at the cost of

@@ -160,7 +160,7 @@ open ConLeche ConLeche.Cached
 twins end in: the tail of `propIrrelI` (and of `proofIrrelI`) from its
 `let tta ← r.inferIO depth ta` on, at the type `ta` the caller already
 inferred.  The Rust hoisted it into `prop_legs_i` (`core_c.rs:620`). -/
-def propLegsFrag (r : CoreFnsI) (depth : Nat) (ta b : ExprC) : CheckCM Bool := do
+def propLegsFrag (r : CoreFnsI) (depth : Nat) (ta b : Expr) : CheckCM Bool := do
   let tta ← r.inferIO depth ta
   let wtta ← r.whnf depth tta
   match wtta with
@@ -185,7 +185,7 @@ prop-ness annotations at the verified modes.  `defeq_binders_i`
 (`core_c.rs:4167`) is the pair, with `msg` the tag its `is_forall` flag
 picks. -/
 def defeqBindersFrag (mode : CheckMode) (r : CoreFnsI) (depth : Nat) (msg : String)
-    (ty₁ body₁ : ExprC) (m₁ : BinderMeta) (ty₂ body₂ : ExprC) (m₂ : BinderMeta) :
+    (ty₁ body₁ : Expr) (m₁ : BinderMeta) (ty₂ body₂ : Expr) (m₂ : BinderMeta) :
     CheckCM Bool := do
   unless ← r.defeq depth ty₁ ty₂ do return false
   let fv ← pure (Expr.fvar depth ty₂)
@@ -200,12 +200,12 @@ def defeqBindersFrag (mode : CheckMode) (r : CoreFnsI) (depth : Nat) (msg : Stri
 spine-wise congruence with the stuck fallbacks (`defeq_apps_i`,
 `core_c.rs:4225`). -/
 def defeqAppsFrag (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Nat)
-    (a' b' : ExprC) : CheckCM Bool := do
-  let as₁ ← pure (ExprC.getAppArgs a')
-  let as₂ ← pure (ExprC.getAppArgs b')
+    (a' b' : Expr) : CheckCM Bool := do
+  let as₁ ← pure (Expr.getAppArgsC a')
+  let as₂ ← pure (Expr.getAppArgsC b')
   if as₁.length = as₂.length then do
-    let h₁ ← pure (ExprC.getAppFn a')
-    let h₂ ← pure (ExprC.getAppFn b')
+    let h₁ ← pure (Expr.getAppFn a')
+    let h₂ ← pure (Expr.getAppFn b')
     if ← r.defeq depth h₁ h₂ then do
       if ← defEqListI r fe depth as₁ as₂ then pure true
       else stuckIrrelI mode r fe depth a' b'
@@ -217,7 +217,7 @@ structural congruence with the stuck fallbacks.  `defeq_struct_i`
 (`core_c.rs:4033`) is this fragment; it mentions the continuation `k`
 nowhere, which is why it needs no budget. -/
 def defeqStructFrag (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Nat)
-    (a' b' : ExprC) : CheckCM Bool := do
+    (a' b' : Expr) : CheckCM Bool := do
   match a', b' with
   | .sort u, .sort v => do
     liftFueled "level comparison" (← isEquivLM u v)
@@ -291,8 +291,8 @@ def defeqStructFrag (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Nat)
 
 /-- `CoreC.lean:1512-1514` — the tail both equal-hint arms share: unfold both
 sides or answer `false` (`defeq_unfold_both_i`, `core_c.rs:4004`). -/
-def defeqUnfoldBothFrag (fe : FEnv) (k : Bool → ExprC → ExprC → CheckCM Bool)
-    (a' b' : ExprC) : CheckCM Bool := do
+def defeqUnfoldBothFrag (fe : FEnv) (k : Bool → Expr → Expr → CheckCM Bool)
+    (a' b' : Expr) : CheckCM Bool := do
   match ← unfoldDefinitionI fe a', ← unfoldDefinitionI fe b' with
   | some a₂, some b₂ => k false a₂ b₂
   | _, _ => pure false
@@ -301,7 +301,7 @@ def defeqUnfoldBothFrag (fe : FEnv) (k : Bool → ExprC → ExprC → CheckCM Bo
 greater hint, or short-circuit the same-head spine, or unfold both
 (`defeq_delta_both_i`, `core_c.rs:3963`). -/
 def defeqDeltaBothFrag (r : CoreFnsI) (fe : FEnv) (depth : Nat)
-    (k : Bool → ExprC → ExprC → CheckCM Bool) (a' b' : ExprC) : CheckCM Bool := do
+    (k : Bool → Expr → Expr → CheckCM Bool) (a' b' : Expr) : CheckCM Bool := do
   let ha ← pure (headHintC fe a')
   let hb ← pure (headHintC fe b')
   if ReducibilityHint.lt hb ha then
@@ -321,7 +321,7 @@ def defeqDeltaBothFrag (r : CoreFnsI) (fe : FEnv) (depth : Nat)
 /-- `CoreC.lean:1488-1614` — lazy delta, decision before materialization
 (`defeq_delta_i`, `core_c.rs:3927`). -/
 def defeqDeltaFrag (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Nat)
-    (k : Bool → ExprC → ExprC → CheckCM Bool) (a' b' : ExprC) : CheckCM Bool := do
+    (k : Bool → Expr → Expr → CheckCM Bool) (a' b' : Expr) : CheckCM Bool := do
   match ← pure (unfoldableHeadC fe a'),
       ← pure (unfoldableHeadC fe b') with
   | true, false =>
@@ -338,8 +338,8 @@ def defeqDeltaFrag (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Nat)
 /-- `CoreC.lean:1479-1614` — literal acceleration, both sides fvar-free
 (`defeq_lits_i`, `core_c.rs:3881`). -/
 def defeqLitsFrag (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Nat)
-    (k : Bool → ExprC → ExprC → CheckCM Bool) (a' b' : ExprC) : CheckCM Bool := do
-  let fold ← pure (!ExprC.hasFvar a' && !ExprC.hasFvar b')
+    (k : Bool → Expr → Expr → CheckCM Bool) (a' b' : Expr) : CheckCM Bool := do
+  let fold ← pure (!Expr.hasFvar a' && !Expr.hasFvar b')
   match ← (if fold then reduceNatI r fe depth a' else pure none) with
   | some a₂ => k true a₂ b'
   | none =>
@@ -350,7 +350,7 @@ def defeqLitsFrag (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Nat)
 /-- `CoreC.lean:1472-1614` — the hoisted proof-irrelevance probe and
 everything after it (`defeq_after_whnf_i`, `core_c.rs:3849`). -/
 def defeqAfterWhnfFrag (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Nat)
-    (k : Bool → ExprC → ExprC → CheckCM Bool) (pi : Bool) (a' b' : ExprC) :
+    (k : Bool → Expr → Expr → CheckCM Bool) (pi : Bool) (a' b' : Expr) :
     CheckCM Bool := do
   let qp ← pure (Expr.quickPair a' b')
   if ← (if pi && !qp then propIrrelI r fe depth a' b' else pure false) then
@@ -360,12 +360,12 @@ def defeqAfterWhnfFrag (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Na
 /-- The transcription is the cited body: `defeqStepI` is its syntactic
 prefix (`CoreC.lean:1459-1471`) followed by `defeqAfterWhnfFrag`. -/
 theorem defeqStepI_eq (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Nat)
-    (k : Bool → ExprC → ExprC → CheckCM Bool) (pi : Bool) (a b : ExprC) :
+    (k : Bool → Expr → Expr → CheckCM Bool) (pi : Bool) (a b : Expr) :
     defeqStepI mode r fe depth k pi a b =
       (do
         if a == b then pure true else
         let bt ← pure (Expr.isBoolTrue b)
-        let af ← pure (ExprC.hasFvar a)
+        let af ← pure (Expr.hasFvar a)
         if ← (if pi && bt && !af then boolTrueShortcutI r depth a
             else pure false) then pure true else
         let a' ← r.whnfCore depth a
@@ -378,7 +378,7 @@ theorem defeqStepI_eq (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth : Nat
 /-- `CoreC.lean:1617-1621` — one unrolling of `defeqLoopI`: the step at the
 decremented budget. -/
 theorem defeqLoopI_succ (mode : CheckMode) (r : CoreFnsI) (fe : FEnv) (depth m : Nat)
-    (pi : Bool) (a b : ExprC) :
+    (pi : Bool) (a b : Expr) :
     defeqLoopI mode r fe depth (m + 1) pi a b
       = defeqStepI mode r fe depth (defeqLoopI mode r fe depth m) pi a b := by
   rw [defeqLoopI]
@@ -390,7 +390,7 @@ same kind — which is what makes the `zero` case of `defeq_loop_aux` a real
 proof under task #67, where the accept-direction statement made it
 vacuous. -/
 theorem defeqLoopI_zero_run (mode : CheckMode) (r : CoreFnsI) (fe : FEnv)
-    (depth : Nat) (pi : Bool) (a b : ExprC) (lst : CState) :
+    (depth : Nat) (pi : Bool) (a b : Expr) (lst : CState) :
     (defeqLoopI mode r fe depth 0 pi a b).run lst
       = .error (.internal "fuel exhausted: defeq loop") := rfl
 
@@ -472,31 +472,26 @@ structure DefEqDeps (mode : env.CheckMode) (fuel : Std.U64) : Prop
       (fun lfe => DefEq.defeqStructFrag (absMode mode) (knot mode lfe fuel.val) lfe
         d.val (absExpr a) (absExpr b))
 
-/-! ## Four `Cached` guards against their `Kernel` twins
+/-! ## Three `Cached` guards against their `Kernel` twins
 
-Task #49's lemmas conclude in the `Kernel` spelling (`Expr.hasFvar`,
-`unfoldableHead`, `headHint`, `sameConstHeads`); `defeqStepI` reads the
-`Cached` ones, which are the same functions on `ExprC = Expr`.  These four
-one-liners are the bridge. -/
-
-private theorem hasFvarC_eq (e : ConLeche.Expr) :
-    ConLeche.Cached.ExprC.hasFvar e = e.hasFvar := by
-  rw [ConLeche.Expr.hasFvar_eq_hasFvarFast]; rfl
+Task #49's lemmas conclude in the `Kernel` spelling (`unfoldableHead`,
+`headHint`, `sameConstHeads`); `defeqStepI` reads the `Cached` ones, which are
+the same functions on `Expr = Expr`.  These three one-liners are the bridge.
+(`Expr.hasFvar` needed a fourth until con-leche's task #285 deleted the cached
+twin; the two spellings are now one name.) -/
 
 private theorem unfoldableHeadC_eq {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     {e : expr.Expr} {b : Bool} (hfe : FindAgree fe lfe) (he : ExprWF e)
     (h : core_k.unfoldable_head fe e = ok b) :
     b = ConLeche.Cached.unfoldableHeadC lfe (absExpr e) := by
-  rw [CoreK.unfoldable_head_refines hfe he h, ConLeche.Cached.unfoldableHeadC,
-    ConLeche.Cached.ExprC.getAppFn_spec]
+  rw [CoreK.unfoldable_head_refines hfe he h, ConLeche.Cached.unfoldableHeadC]
   rfl
 
 private theorem headHintC_eq {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {e : expr.Expr}
     {r : env.ReducibilityHint} (hfe : FindAgree fe lfe) (hwf : FindWF fe)
     (he : ExprWF e) (h : core_k.head_hint fe e = ok r) :
     absHint r = ConLeche.Cached.headHintC lfe (absExpr e) := by
-  rw [CoreK.head_hint_refines hfe hwf he h, ConLeche.Cached.headHintC,
-    ConLeche.Cached.ExprC.getAppFn_spec]
+  rw [CoreK.head_hint_refines hfe hwf he h, ConLeche.Cached.headHintC]
   generalize ConLeche.Expr.getAppFn (absExpr e) = f
   cases f with
   | const n us =>
@@ -509,8 +504,7 @@ private theorem headHintC_eq {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {e : expr.Ex
 private theorem sameConstHeadsC_eq (a b : ConLeche.Expr) :
     ConLeche.Cached.sameConstHeadsC a b = ConLeche.sameConstHeads a b := by
   cases a <;> cases b <;>
-    simp [ConLeche.Cached.sameConstHeadsC, ConLeche.sameConstHeads,
-      ConLeche.Cached.ExprC.getAppFn_spec]
+    simp [ConLeche.Cached.sameConstHeadsC, ConLeche.sameConstHeads]
   rfl
 
 /-- `(pure a >>= f).run lst` is `(f a).run lst`: the cited `let x ← pure e`
@@ -523,12 +517,12 @@ private theorem run_pure' {α β : Type} {a : α}
 `some` branch: the `| _, _ => pure false` tail of `defeqStepI`'s equal-hint
 arms is unreachable, which is what the Rust's short-circuit needs. -/
 private theorem unfoldDefinitionI_not_none {lfe : ConLeche.FEnv}
-    {e : ConLeche.Cached.ExprC} (h : ConLeche.Cached.unfoldableHeadC lfe e = true)
+    {e : ConLeche.Expr} (h : ConLeche.Cached.unfoldableHeadC lfe e = true)
     {lst lst' : ConLeche.Cached.CState} :
     (ConLeche.Cached.unfoldDefinitionI lfe e).run lst ≠ .ok (none, lst') := by
   rw [ConLeche.Cached.unfoldableHeadC] at h
   simp only [ConLeche.Cached.unfoldDefinitionI]
-  cases hfn : ConLeche.Cached.ExprC.getAppFn e with
+  cases hfn : ConLeche.Expr.getAppFn e with
   | const n us =>
     rw [hfn] at h
     dsimp only at h
@@ -553,7 +547,7 @@ private theorem unfoldDefinitionI_not_none {lfe : ConLeche.FEnv}
 at the budget the Rust threads, which is what `defeqLoopI` passes to
 `defeqStepI` as its `k`. -/
 private def LoopRef (mode : env.CheckMode) (fuel : Std.U64) (d n : Std.U64)
-    (k : ConLeche.FEnv → Bool → ConLeche.Cached.ExprC → ConLeche.Cached.ExprC →
+    (k : ConLeche.FEnv → Bool → ConLeche.Expr → ConLeche.Expr →
       ConLeche.Cached.CheckCM Bool) : Prop :=
   ∀ (pi : Bool) (x y : expr.Expr), ExprWF x → ExprWF y →
     Sim id (fun _ => True)
@@ -763,7 +757,7 @@ theorem defeq_spine_i_refines (hd : DefEqDepsA mode fuel) (d : Std.U64)
   obtain ⟨fb, hfb, hok⟩ := bind_eq_ok_iff.mp hok
   obtain ⟨hfaabs, hfawf⟩ := ExprOps.get_app_fn_refines ha hfa
   obtain ⟨hfbabs, hfbwf⟩ := ExprOps.get_app_fn_refines hb hfb
-  simp only [ConLeche.Cached.defeqSpineI, ConLeche.Cached.ExprC.getAppFn_spec,
+  simp only [ConLeche.Cached.defeqSpineI,
     ← hfaabs, ← hfbabs]
   obtain ⟨⟨da, ka⟩⟩ := fa
   obtain ⟨⟨db, kb⟩⟩ := fb
@@ -781,7 +775,7 @@ theorem defeq_spine_i_refines (hd : DefEqDepsA mode fuel) (d : Std.U64)
       obtain ⟨hnwf, huswf⟩ := CoreK.wf_const_inv hfawf rfl
       obtain ⟨hn2wf, hus2wf⟩ := CoreK.wf_const_inv hfbwf rfl
       have e1 := Name.beq_refines hnwf hn2wf hb1
-      simp only [absExprKind, ConLeche.Cached.ExprC.getAppArgs_spec, ← haa, ← hbb]
+      simp only [absExprKind, ConLeche.Expr.getAppArgsC_spec, ← haa, ← hbb]
       split at hok
       · rename_i hcb1
         have hne : absName n = absName n2 := by
@@ -997,7 +991,7 @@ theorem defeq_apps_i_refines (hw : Wrappers mode fuel) (hd : DefEqDepsA mode fue
     alloc.vec.Vec.len_val args_a
   have hlb : (alloc.vec.Vec.len args_b).val = args_b.val.length :=
     alloc.vec.Vec.len_val args_b
-  simp only [DefEq.defeqAppsFrag, ConLeche.Cached.ExprC.getAppArgs_spec, ← haa, ← hbb]
+  simp only [DefEq.defeqAppsFrag, ConLeche.Expr.getAppArgsC_spec, ← haa, ← hbb]
   split at hok
   · rename_i hlen
     have hlen' : ¬ (args_a.val.length = args_b.val.length) := by
@@ -1013,7 +1007,7 @@ theorem defeq_apps_i_refines (hw : Wrappers mode fuel) (hd : DefEqDepsA mode fue
     obtain ⟨fb, hfb, hok⟩ := bind_eq_ok_iff.mp hok
     obtain ⟨hfaabs, hfawf⟩ := ExprOps.get_app_fn_refines ha hfa
     obtain ⟨hfbabs, hfbwf⟩ := ExprOps.get_app_fn_refines hb hfb
-    simp only [ConLeche.Cached.ExprC.getAppFn_spec, ← hfaabs, ← hfbabs]
+    simp only [← hfaabs, ← hfbabs]
     obtain ⟨⟨r1, st1⟩, h1, hok⟩ := bind_eq_ok_iff.mp hok
     cases r1 with
     | Err err =>
@@ -1067,7 +1061,7 @@ its `some` branch (`unfoldDefinitionI_not_none`).  Both guards hold at the
 only call site, `defeq_delta_both_i` inside `defeq_delta_i`'s `true, true`
 arm, so the caller discharges them. -/
 private theorem defeq_unfold_both_of_loop (hd : DefEqDeps mode fuel) (d n : Std.U64)
-    {k : ConLeche.FEnv → Bool → ConLeche.Cached.ExprC → ConLeche.Cached.ExprC →
+    {k : ConLeche.FEnv → Bool → ConLeche.Expr → ConLeche.Expr →
       ConLeche.Cached.CheckCM Bool} (hk : LoopRef mode fuel d n k)
     {a2 b2 : expr.Expr} (ha : ExprWF a2) (hb : ExprWF b2)
     (fe : fenv.FEnv) (lfe : ConLeche.FEnv) (hfe : FEnvWF fe) (hfrel : FEnvRel fe lfe)
@@ -1118,7 +1112,7 @@ hint, else try the same-head spine short-circuit, else unfold both.  The two
 lazy-delta guards travel with it because its tail is
 `defeq_unfold_both_i`'s. -/
 private theorem defeq_delta_both_of_loop (hd : DefEqDeps mode fuel) (d n : Std.U64)
-    {k : ConLeche.FEnv → Bool → ConLeche.Cached.ExprC → ConLeche.Cached.ExprC →
+    {k : ConLeche.FEnv → Bool → ConLeche.Expr → ConLeche.Expr →
       ConLeche.Cached.CheckCM Bool} (hk : LoopRef mode fuel d n k)
     {a2 b2 : expr.Expr} (ha : ExprWF a2) (hb : ExprWF b2)
     (fe : fenv.FEnv) (lfe : ConLeche.FEnv) (hfe : FEnvWF fe) (hfrel : FEnvRel fe lfe)
@@ -1242,7 +1236,7 @@ delta** (`core_c.rs:3927`): the two heads decide which side to unfold, and
 `unfoldDefinitionI` runs only inside the branch that consumes it.  Neither
 head unfoldable is `defeq_struct_i`'s arm, `Arms/DefEqStruct.lean`'s. -/
 private theorem defeq_delta_of_loop (hd : DefEqDeps mode fuel) (d n : Std.U64)
-    {k : ConLeche.FEnv → Bool → ConLeche.Cached.ExprC → ConLeche.Cached.ExprC →
+    {k : ConLeche.FEnv → Bool → ConLeche.Expr → ConLeche.Expr →
       ConLeche.Cached.CheckCM Bool} (hk : LoopRef mode fuel d n k)
     {a2 b2 : expr.Expr} (ha : ExprWF a2) (hb : ExprWF b2) :
     Sim id (fun _ => True)
@@ -1318,7 +1312,7 @@ free of free variables, and a fold re-enters the loop at `pi = true`.  The
 cited `!a'.hasFvar && !b'.hasFvar` is an `if` nest in the port (task #18's
 Lean-side `Decidable` note), which is what `ecl` reconciles. -/
 private theorem defeq_lits_of_loop (hd : DefEqDeps mode fuel) (d n : Std.U64)
-    {k : ConLeche.FEnv → Bool → ConLeche.Cached.ExprC → ConLeche.Cached.ExprC →
+    {k : ConLeche.FEnv → Bool → ConLeche.Expr → ConLeche.Expr →
       ConLeche.Cached.CheckCM Bool} (hk : LoopRef mode fuel d n k)
     {a2 b2 : expr.Expr} (ha : ExprWF a2) (hb : ExprWF b2) :
     Sim id (fun _ => True)
@@ -1327,7 +1321,7 @@ private theorem defeq_lits_of_loop (hd : DefEqDeps mode fuel) (d n : Std.U64)
         (k lfe) (absExpr a2) (absExpr b2)) := by
   intro fe lfe hfe hfrel st res st' hwf hok lst hrel
   unfold cached.core_c.defeq_lits_i at hok
-  simp only [DefEq.defeqLitsFrag, hasFvarC_eq]
+  simp only [DefEq.defeqLitsFrag]
   rw [run_pure']
   obtain ⟨fa0, hfa0, hok⟩ := bind_eq_ok_iff.mp hok
   have ea := ExprOps.has_fvar_refines ha hfa0
@@ -1412,7 +1406,7 @@ once per entry (the `pi` flag, the audit's D3) and never on a pair
 `quickPair` decides (D4). -/
 private theorem defeq_after_whnf_of_loop (hw : Wrappers mode fuel)
     (hd : DefEqDeps mode fuel) (d n : Std.U64) (pi : Bool)
-    {k : ConLeche.FEnv → Bool → ConLeche.Cached.ExprC → ConLeche.Cached.ExprC →
+    {k : ConLeche.FEnv → Bool → ConLeche.Expr → ConLeche.Expr →
       ConLeche.Cached.CheckCM Bool} (hk : LoopRef mode fuel d n k)
     {a2 b2 : expr.Expr} (ha : ExprWF a2) (hb : ExprWF b2) :
     Sim id (fun _ => True)
@@ -1481,7 +1475,7 @@ at the decremented budget, which the Rust passes as the budget itself, so the
 correspondence is parametric in `k` and its refinement `hk`. -/
 private theorem defeq_step_of_loop (hw : Wrappers mode fuel) (hd : DefEqDeps mode fuel)
     (d n : Std.U64) (pi : Bool)
-    {k : ConLeche.FEnv → Bool → ConLeche.Cached.ExprC → ConLeche.Cached.ExprC →
+    {k : ConLeche.FEnv → Bool → ConLeche.Expr → ConLeche.Expr →
       ConLeche.Cached.CheckCM Bool} (hk : LoopRef mode fuel d n k)
     {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b) :
     Sim id (fun _ => True)
@@ -1503,7 +1497,6 @@ private theorem defeq_step_of_loop (hw : Wrappers mode fuel) (hd : DefEqDeps mod
   | false =>
     simp only [Bool.false_eq_true, if_false]
     rw [run_pure', run_pure']
-    simp only [hasFvarC_eq]
     obtain ⟨⟨st1, sc⟩, hsc, hok⟩ := bind_eq_ok_iff.mp hok
     -- the eq-true shortcut, as one step: it either answers, or it threw and
     -- con-leche's `if ← …` throws with it (task #67's second disjunct)

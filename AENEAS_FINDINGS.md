@@ -8,11 +8,11 @@
 > porting con-leche.
 
 A report *for the Charon and Aeneas maintainers*, collected from con-ron's task log
-(`DESIGN.md`; entries cited as "#N").  con-ron is a ~42 000-line Rust transliteration of
-the con-leche Lean kernel, translated by Charon + Aeneas to ~52 500 lines of Lean and
-partly proved to refine the Lean original.  As far as we know it is the largest single
-crate to have been through this pipeline: one `mutual` block of 84 functions, 415
-`partial_fixpoint`s, `.llbc` files up to 179 MB.
+(`DESIGN.md`; entries cited as "#N").  con-ron is a ~50 000-line Rust transliteration of
+the con-leche Lean kernel *and its export parser*, translated by Charon + Aeneas to
+~73 000 lines of Lean and partly proved to refine the Lean original.  As far as we know it
+is the largest single crate to have been through this pipeline: one `mutual` block of 84
+functions, 415 `partial_fixpoint`s, `.llbc` files up to 179 MB.
 
 Each finding gives the Rust shape that triggers it and the workaround we shipped, marked
 **[bug]** (looks like a defect), **[limitation]** (a gap, documented or not) or
@@ -32,10 +32,12 @@ Rust.
 | CLI | `charon cargo --preset=aeneas --dest-file <abs>.llbc`; `aeneas -backend lean -split-files -loops-to-rec -dest … -subdir ConRon/Generated -namespace ConRon.Generated -no-progress-bar` |
 
 The Rust subset we hold ourselves to (`DESIGN.md` §3.4, enforced by a lint script): no
-closures, no `?`, no `loop`/`while`, no `std::collections`, no `unsafe`, no
-`#[derive(Debug)]` on recursive types, `&mut` only for the state parameter, `Rc` API
-limited to `new`/`clone`/`deref`/`ptr_eq`.  Almost every finding below is a rule that
-subset exists to encode.
+closures, no `?`, no `std::collections`, no `unsafe`, no `#[derive]` at all on the core
+types, `&mut` only for the state parameter, `Rc` API limited to
+`new`/`clone`/`deref`/`ptr_eq`, and recursion rather than `loop`/`while` — with one
+directory exempted since #84, the ported byte parser, whose Lean *is* a per-byte tail
+recursion that Lean compiles to a loop (§2.6 is what that exemption is like in practice).
+Almost every finding below is a rule that subset exists to encode.
 
 ## 2. Translator findings
 
@@ -96,6 +98,34 @@ translates as a *type* (`Str → Err`) but Aeneas fails to build the **construct
 should be no bottoms in the value"*, and the constructor comes out `sorry` (#14, measured
 in a throwaway crate).  We represent every string in the core as `Vec<u32>` code points.
 
+**F17. A `&str` constant's double quotes are emitted UNESCAPED.** **[bug]** (#84) A
+`const S: &str = "opaque\""` comes out as `def … : Str := toStr "opaque""`, and Lean says
+*"unexpected token; expected command"*.  Aeneas escapes `\n` in the same literal, so its
+string printer simply omits `"`.  It is a one-character fix upstream and it cost this port a
+design decision, because the two shapes that run into it are not symmetric:
+
+* seven literals in the byte scanner end in the JSON string's own closing quote, and those
+  became `const S: [u8; N]` byte arrays — a local change;
+* **the embedded prelude is an ndjson stream, which is nothing but quotes.**  `&str` was the
+  representation `kernel/pins_text.rs` chose at task #43 precisely because the *other* shape,
+  a byte constant, becomes an element-by-element `Array.make` that Lean could not elaborate
+  at 532 456 elements.  With `&str` unusable, the prelude's 16 922 bytes had to go back to a
+  byte array — and one array that long **times out** Lean's elaborator at a million
+  heartbeats (the rest of our model's largest array is 72 elements), while one of 512
+  exhausts `maxRecDepth 2048`.  The committed shape is 67 chunks of 256 joined at run time
+  (`scripts/gen-prelude.py`).
+
+So the practical rule is: **a `&str` constant is safe only if its value contains no `"`**,
+and a byte constant is safe only up to a few hundred elements.  Anything larger is chunked.
+Asks: escape `"` in the string printer, and make a long `Array.make` elaborate in linear
+time (or emit it as a `ByteArray` literal, which Lean has a fast path for).
+
+**(#86) The rule got simpler: the port has no `&str` constant left except `PINS_TEXT`.**
+§3.8's other half — a `&str` constant also carries a `decide +native` axiom — made the
+scanner's remaining 68 key literals byte arrays too, so `crates/con-ron-core/src/frontend/`
+is `&str`-free and this finding can no longer bite it.  What is still a `&str` is the one
+constant too large to be an array, which is the pair of limits above meeting in the middle.
+
 ### 2.2 External holes we did not want, and how each was avoided
 
 Our standing gate is that `*External_Template.lean` contains **exactly one type and four
@@ -106,8 +136,19 @@ missing std model.  **[limitation]** throughout.
 |---|---|---|---|
 | `String::from("…")` / `String::new()` | `alloc.string.String…from`, `…String.new` | `Vec<u32>` code points from a `const [u32; N]` | #14 |
 | `Vec::is_empty` | `alloc.vec.Vec.is_empty` | `xs.len() == 0` | #18 |
-| `vec![65, 66, 67]` | `core::mem::maybe_uninit::MaybeUninit` (the macro expands through it) | `const S: [u32; N]` + a slice walk | #24 |
+| `vec![65, 66, 67]` | `core::mem::maybe_uninit::MaybeUninit` (the macro expands through it, via `Box::new_uninit`) | `const S: [u32; N]` + a slice walk, or five `vecN` helpers that push | #24, #83 |
 | `Rc<T>` (no model at all) | four axioms | `@[reducible] def Rc T := T`, `new`/`deref`/`clone` = `ok x`, `ptr_eq` = `ok false` | #1, #4 |
+
+The `vec!` row came back at task #83 and is worth a sentence on *how*: the
+macro is perfectly fine in `crates/con-ron/src`, which is outside the
+extraction, and `crates/con-ron-core/src/kernel/basis_raw.rs` was written
+there — so the day con-leche's task #293 moved the basis-pin match into the
+fold and the module moved into the verified core, forty-six `vec![…]` literals
+moved with it and `MaybeUninit` reappeared.  **The crate boundary is a
+translation boundary**, and a module that crosses it is a rewrite, not a move.
+What caught it was `scripts/extract.sh`'s own rule that every external a
+template declares must be modelled by hand — the failure names the hole, which
+is exactly what that check is for.
 
 Other std gaps we designed around rather than modelled: `Vec` has no `pop`, `truncate`,
 `remove` or `toList` (so our bignum's normalisation *copies*, and our hash map's buckets are an
@@ -202,6 +243,47 @@ prominently.  #12
 * Aeneas's tutorial hash map (`tests/src/hashmap.rs` + `tests/lean/Hashmap/Properties.lean`)
   was the most useful document we had — as a **specification** (the `al_v` / `slot_t_inv`
   strategy transferred completely), not as a proof library (§3.3).  #7, #16
+
+### 2.6 Loops under `-loops-to-rec` (task #84)
+
+The port had written no loop at all until task #84 brought con-leche's export parser into
+the verified core: `Scan/Fast.lean` recurses once per byte, Lean compiles those tail calls
+to loops, and a per-byte *recursion* in Rust overflows the stack on a long export line.  So
+DESIGN.md §3.4 gained one exemption — `crates/con-ron-core/src/frontend/` may loop — and the
+extraction has run with `-loops-to-rec` since task #12 anyway.  What that is actually like,
+measured on a spike before a line of the parser was written:
+
+* **A loop becomes two definitions**: `foo_loop`, the tail recursion, with `@[rust_loop]` and
+  `partial_fixpoint`, and `foo`, an `@[reducible]` wrapper that enters it with the initial
+  values of the loop's variables.  The `foo_loop` mirrors the Lean source's own recursion one
+  for one, which is the whole reason the exemption is safe: the refinement is stated against
+  a function that looks like `scanLineFwd`'s own equation.
+* **`while`, `loop` + `break`, `for k in 0..n`, `Vec::push` inside a loop, an early `return`
+  out of one, and an owned accumulator rebound each iteration all translate** — with **no new
+  external**.  Nor do the slice operations a scanner needs: `&v[k..]`, `&s[a..b]`, `.to_vec()`,
+  `.extend_from_slice(..)` (a positive result worth recording beside §2.2's list of std gaps,
+  because those four are exactly what one expects to be missing).
+* **[limitation, worth knowing]** **The code after a loop is duplicated into every one of the
+  loop's exits.**  A `while` with three `break`s followed by a fifteen-line tail is sixty
+  lines of Lean, and each copy is a separate obligation in any proof that walks the
+  definition.  The rule the port adopted: a loop is the last thing in its function, or its
+  tail moves into a callee.  This is not a bug — it is what a structured loop *means* once
+  it is a tail recursion — but it decides how a loop-carrying function is written, and it is
+  not in the documentation.
+* **[limitation, named by the tool]** **F16. A `return` out of a loop is accepted only when
+  what follows the loop is trivial, and never from a nested one.**  Two messages, both
+  honest: *"Early returns inside of loops are not supported yet"* and *"Returns inside of
+  nested loops are not supported yet"*.  The shape that works is
+  `while … { … if bad { return v } … }` followed by a variable or a constant — that is the
+  previous bullet's rule, and it is why the previous bullet's rule is not merely stylistic.
+  The shape that fails is the same loop followed by a *call*, especially a monadic one
+  (`Some(norm(go(…)))`): the loop would have to return a `ControlFlow` and Aeneas does not
+  build one.  The fix is always the same and always an improvement: the loop becomes its own
+  function returning what the caller branches on (`all_digits(b) -> bool`,
+  `any_dom_mentions(…) -> bool`), which is usually the predicate con-leche's own recursion
+  already names.  Cost the port three functions; found by `extract.sh --check`, not by
+  `cargo build`, which is the argument for running the extraction early and often when
+  writing loops.
 
 ## 3. Lean-library findings
 
@@ -357,6 +439,12 @@ so a substantial performance refactor needed **zero** proof changes (#34).  #4
   cannot use — always give the projection a **type ascription**, forcing the defeq check.  #16
 * Generated accessors are deref-then-project, so a `match` on one needs *both*
   `Expr._0._simpLemma_` **and** `ExprNode.kind._simpLemma_` before it reduces.  #20
+* **A trait method may not be called `mk`.**  A Rust trait becomes a Lean `structure` and
+  its methods become that structure's *fields*, and `mk` is the name Lean reserves for a
+  structure's own constructor — so `trait MkBinder { fn mk(&self, …) }` produces a
+  `structure` Lean refuses with *"Invalid field name `mk`: This is the name of the structure
+  constructor"*.  Charon and Aeneas are both happy; only `lake build` says anything.
+  Presumably the same holds for any other name Lean reserves on a structure.  #84
 * `lake build` of a project that `require`s the Aeneas library is **not** warning-free: the
   replayed library modules emit `linter.dupNamespace`, `linter.ambiguousOpen` and
   `linter.defProp`.  Our gate is therefore "every *con-ron* file elaborates with zero output
@@ -398,6 +486,60 @@ depends on the ask**: `conron.model_exists_decoded` /
 decoder returned on *any* byte slice, name no string constant, and are pinned
 at `[propext, Classical.choice, Quot.sound]`; the two `_embedded` capstones,
 which are their instance at the constant, are what still pays the axiom.
+
+**Status (task #84): the ask nearly acquired a second customer, and then did
+not.**  The parser came into the verified core with con-leche's built-in
+prelude, which con-leche embeds with `include_str`.  The obvious port is a
+second `&str` constant — and that would have made the ask above about the
+*capstone* rather than about two footnote theorems, because the chunk-level
+statement con-ron is heading for names `builtin_prelude_e` and so would have
+inherited a second `_native.decide.ax_1`.  It could not be a `&str` for an
+unrelated reason (F17: an ndjson stream is nothing but quotes), so the prelude
+is 67 byte arrays joined at run time, and **carries no axiom at all**.  The ask
+stands exactly where it stood: `PINS_TEXT` alone, and only the two
+`conron.*_embedded` capstones pay it.
+
+What the byte-array route costs instead is elaboration time, which is the
+*other* half of task #43's measurement and the thing F17's asks name: one
+`Array.make` of 16 922 elements does not elaborate inside a million heartbeats,
+and one of 512 exhausts `maxRecDepth`.  Neither limit is documented, and both
+are about a constant, not a proof.
+
+**Status (task #85): the ask acquired sixty-eight customers after all, and the
+paragraph above was wrong about where they would come from.**  Task #84 watched
+the *prelude* and the prelude stayed clean; what nobody counted was the
+**scanner's key table**.  `frontend::scan_fast::key_at` recognised the dialect's
+object keys with 66 `const S_X: &str = "…"` constants (`scan_bool` adds two),
+each used once as `S_X.as_bytes()`, and each therefore carrying its own
+`_native.decide.ax_1`.  `#print axioms` on the *generated*
+`frontend.scan_fast.scan_line_fwd` listed all 68 before any proof existed, so
+every statement that named `parse_chunks` inherited them through the closure
+with nothing evaluated: `Refine/Main.lean`'s chunk-level pair
+(`conron.model_exists_parsed` / `no_proof_of_False_parsed`) was pinned at
+`[propext, Classical.choice, Quot.sound]` **plus those 68**.
+
+**Status (task #86): the port took the other way out, and the ask now has
+exactly one customer.**  All 68 constants are `const S_X: [u8; N] = *b"…";`
+compared with `match_lit(b, j, &S_X)` — the route F17 had already forced on
+seven literals of the same module — so the model reads
+`lift (Array.to_slice S_X)` where it read `core.str.Str.as_bytes S_X`, and the
+constants carry no axiom.  It cost nothing beyond the re-extraction: **not one
+lemma of `Refine/Frontend/ScanWF.lean`, or of any other proof file, moved** —
+only the pinned `#guard_msgs` censuses — because no proof ever stepped through
+a key comparison, and a byte array and a `Str` are both a `Slice U8` by the
+time `match_lit` sees them.  The longest key is eleven bytes, nowhere near the
+`Array.make` limits above.  `conron.model_exists_parsed`,
+`no_proof_of_False_parsed` and the two corollaries at the shipped prelude are
+now `[propext, Classical.choice, Quot.sound]`.
+
+**The ask stands for `kernel::pins_text::PINS_TEXT`, and for it alone.**  It is
+the port's last `&str` constant, and at 532 KB the byte-array route cannot hold
+it: one `Array.make` of that length does not elaborate, and one of 512 elements
+exhausts `maxRecDepth` (task #84).  So the two `conron.*_embedded` capstones
+still pay one `_native.decide.ax_1`, and the upstream way out is the ask as
+written: discharge `toStr`'s bound without `decide +native`.  The axiom-free
+headline was never affected either way: `conron.model_exists_decoded` names no
+constant.
 
 ### 3.9 `Vec::insert` is modelled as `List.set` — an overwrite where Rust inserts (task #46) **[bug]**
 

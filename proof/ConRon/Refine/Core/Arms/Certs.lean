@@ -16,9 +16,9 @@ Five things cost thought.
 
 1. **The three projection-spine builders are pure in the port** (`Vec<Expr>`,
    no `CState`) where con-leche writes them in `CheckCM` — `mkAppNM` is
-   `pure (ExprC.mkAppN …)` (`Cached/StateC.lean:213`) and `towerSlotsAllF` is a
+   `pure (Expr.mkAppN …)` (`Cached/StateC.lean:213`) and `towerSlotsAllF` is a
    pure index read.  Their shape is therefore `SimP` at
-   `A := fun r => (pure (absExprs r) : CheckCM (List ExprC))`: the con-leche
+   `A := fun r => (pure (absExprs r) : CheckCM (List Expr))`: the con-leche
    action *is* the `pure` of the port's list, which is exactly what a caller
    needs to rewrite the action away in a `do` block.  `projNodesI_pure` and
    `projAppsFnI_pure` are the two state-freeness facts, each an induction on
@@ -112,7 +112,7 @@ structure StateCOpen : Prop where
 `ConLeche/Cached/CoreC.lean:369-376 projNodesI` (`core_c.rs:717`). -/
 
 /-- `projNodesI` touches no state: it is the `pure` of `List.map`. -/
-theorem projNodesI_pure (T : ConLeche.Name) (b : ConLeche.Cached.ExprC) :
+theorem projNodesI_pure (T : ConLeche.Name) (b : ConLeche.Expr) :
     ∀ l : List Nat, ConLeche.Cached.projNodesI T b l
       = pure (l.map (fun i => ConLeche.Expr.proj T i b)) := by
   intro l
@@ -165,7 +165,7 @@ theorem proj_nodes_i_abs (N : Nat) :
 `projNodesI`** at the cited `List.range nF` (`core_c.rs:717`). -/
 theorem proj_nodes_i_refines {t : name.Name} {b : expr.Expr} {n_f : Std.U64}
     (ht : NameWF t) (hb : ExprWF b) :
-    SimP (fun r => (pure (absExprs r) : ConLeche.Cached.CheckCM (List ConLeche.Cached.ExprC)))
+    SimP (fun r => (pure (absExprs r) : ConLeche.Cached.CheckCM (List ConLeche.Expr)))
       ExprsWF
       (cached.core_c.proj_nodes_i t b n_f 0#u64 (alloc.vec.Vec.new expr.Expr))
       (ConLeche.Cached.projNodesI (absName t) (absExpr b) (List.range n_f.val)) := by
@@ -183,11 +183,11 @@ theorem proj_nodes_i_refines {t : name.Name} {b : expr.Expr} {n_f : Std.U64}
 `ConLeche/Cached/CoreC.lean:356-367 projAppsFnI` (`core_c.rs:694`). -/
 
 /-- `projAppsFnI` touches no state either: `mkAppNM` is
-`pure (ExprC.mkAppN …)` (`Cached/StateC.lean:213-214`). -/
+`pure (Expr.mkAppN …)` (`Cached/StateC.lean:213-214`). -/
 theorem projAppsFnI_pure (T : ConLeche.Name) (us' : List ConLeche.Level)
-    (targs : List ConLeche.Cached.ExprC) (b : ConLeche.Cached.ExprC) :
+    (targs : List ConLeche.Expr) (b : ConLeche.Expr) :
     ∀ l : List Nat, ConLeche.Cached.projAppsFnI T us' targs b l
-      = pure (l.map (fun i => ConLeche.Cached.ExprC.mkAppN
+      = pure (l.map (fun i => ConLeche.Expr.mkAppN
           (.const (ConLeche.projFnName T i) us') (targs ++ [b]))) := by
   intro l
   induction l with
@@ -204,7 +204,7 @@ theorem proj_apps_fn_i_abs (N : Nat) :
       n_f.val - j.val = N →
       cached.core_c.proj_apps_fn_i t us2 targs b n_f j out = ok r →
       absExprs r = absExprs out ++ (List.range' j.val N).map
-          (fun i => ConLeche.Cached.ExprC.mkAppN
+          (fun i => ConLeche.Expr.mkAppN
             (.const (ConLeche.projFnName (absName t) i) (absLevels us2))
             (absExprs targs ++ [absExpr b]))
         ∧ ExprsWF r := by
@@ -235,7 +235,7 @@ theorem proj_apps_fn_i_abs (N : Nat) :
         (ExprWF.mk_const hnwf hus2 hhd) hspwf he
       have hi1v : i1.val = j.val + 1 := HashMap.uscalar_add_eq hi1
       have hNpos : N = (n_f.val - i1.val) + 1 := by omega
-      have heabs' : absExpr e = ConLeche.Cached.ExprC.mkAppN
+      have heabs' : absExpr e = ConLeche.Expr.mkAppN
           (.const (ConLeche.projFnName (absName t) j.val) (absLevels us2))
           (absExprs targs ++ [absExpr b]) := by
         rw [heabs, Expr.mk_const_refines hhd, hnabs, hspabs, hv2abs]
@@ -258,7 +258,7 @@ theorem proj_apps_fn_i_abs (N : Nat) :
 theorem proj_apps_fn_i_refines {t : name.Name} {us2 : alloc.vec.Vec level.Level}
     {targs : alloc.vec.Vec expr.Expr} {b : expr.Expr} {n_f : Std.U64}
     (ht : NameWF t) (hus2 : LevelsWF us2) (htargs : ExprsWF targs) (hb : ExprWF b) :
-    SimP (fun r => (pure (absExprs r) : ConLeche.Cached.CheckCM (List ConLeche.Cached.ExprC)))
+    SimP (fun r => (pure (absExprs r) : ConLeche.Cached.CheckCM (List ConLeche.Expr)))
       ExprsWF
       (cached.core_c.proj_apps_fn_i t us2 targs b n_f 0#u64 (alloc.vec.Vec.new expr.Expr))
       (ConLeche.Cached.projAppsFnI (absName t) (absLevels us2) (absExprs targs)
@@ -285,7 +285,7 @@ theorem proj_apps_i_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     {us2 : alloc.vec.Vec level.Level} {targs : alloc.vec.Vec expr.Expr}
     {b : expr.Expr} {n_f : Std.U64}
     (ht : NameWF t) (hus2 : LevelsWF us2) (htargs : ExprsWF targs) (hb : ExprWF b) :
-    SimP (fun r => (pure (absExprs r) : ConLeche.Cached.CheckCM (List ConLeche.Cached.ExprC)))
+    SimP (fun r => (pure (absExprs r) : ConLeche.Cached.CheckCM (List ConLeche.Expr)))
       ExprsWF
       (cached.core_c.proj_apps_i fe t us2 targs b n_f)
       (ConLeche.Cached.projAppsI lfe (absName t) (absName t) (absLevels us2)
@@ -484,16 +484,16 @@ rewriting `absExpr ty` out of the `instListM` calls. -/
 
 /-- The exhausted spine. -/
 theorem iotaCertsIAux_nil {r : ConLeche.Cached.CoreFnsI} {fe : ConLeche.FEnv}
-    {depth : Nat} {lic : Bool} {ty : ConLeche.Cached.ExprC}
-    {acc : List ConLeche.Cached.ExprC} :
+    {depth : Nat} {lic : Bool} {ty : ConLeche.Expr}
+    {acc : List ConLeche.Expr} :
     ConLeche.Cached.iotaCertsIAux r fe depth lic ty acc [] = pure true := by
   simp [ConLeche.Cached.iotaCertsIAux]
 
 /-- A telescope head that is neither `∀` nor a raw `bvar`: the cited wildcard. -/
 theorem iotaCertsIAux_dead {r : ConLeche.Cached.CoreFnsI} {fe : ConLeche.FEnv}
-    {depth : Nat} {lic : Bool} {ty : ConLeche.Cached.ExprC}
-    {acc : List ConLeche.Cached.ExprC}
-    {arg : ConLeche.Cached.ExprC} {rest : List ConLeche.Cached.ExprC}
+    {depth : Nat} {lic : Bool} {ty : ConLeche.Expr}
+    {acc : List ConLeche.Expr}
+    {arg : ConLeche.Expr} {rest : List ConLeche.Expr}
     (h1 : ∀ dom body mb, ty ≠ .forallE dom body mb) (h2 : ∀ k, ty ≠ .bvar k) :
     ConLeche.Cached.iotaCertsIAux r fe depth lic ty acc (arg :: rest) = pure false := by
   cases ty with
@@ -503,8 +503,8 @@ theorem iotaCertsIAux_dead {r : ConLeche.Cached.CoreFnsI} {fe : ConLeche.FEnv}
 
 /-- A raw `bvar` head at an empty accumulator: the cited `[] => pure false`. -/
 theorem iotaCertsIAux_bvar_nil {r : ConLeche.Cached.CoreFnsI} {fe : ConLeche.FEnv}
-    {depth : Nat} {lic : Bool} {ty : ConLeche.Cached.ExprC} {k : Nat}
-    {arg : ConLeche.Cached.ExprC} {rest : List ConLeche.Cached.ExprC}
+    {depth : Nat} {lic : Bool} {ty : ConLeche.Expr} {k : Nat}
+    {arg : ConLeche.Expr} {rest : List ConLeche.Expr}
     (hty : ty = .bvar k) :
     ConLeche.Cached.iotaCertsIAux r fe depth lic ty [] (arg :: rest) = pure false := by
   subst hty; simp [ConLeche.Cached.iotaCertsIAux]
@@ -513,9 +513,9 @@ theorem iotaCertsIAux_bvar_nil {r : ConLeche.Cached.CoreFnsI} {fe : ConLeche.FEn
 fold semantics).  `ty` stays on the right so that `instListM`'s argument is the
 caller's. -/
 theorem iotaCertsIAux_bvar_cons {r : ConLeche.Cached.CoreFnsI} {fe : ConLeche.FEnv}
-    {depth : Nat} {lic : Bool} {ty : ConLeche.Cached.ExprC} {k : Nat}
-    {a : ConLeche.Cached.ExprC} {acc : List ConLeche.Cached.ExprC}
-    {arg : ConLeche.Cached.ExprC} {rest : List ConLeche.Cached.ExprC}
+    {depth : Nat} {lic : Bool} {ty : ConLeche.Expr} {k : Nat}
+    {a : ConLeche.Expr} {acc : List ConLeche.Expr}
+    {arg : ConLeche.Expr} {rest : List ConLeche.Expr}
     (hty : ty = .bvar k) :
     ConLeche.Cached.iotaCertsIAux r fe depth lic ty (a :: acc) (arg :: rest)
       = (do let ty' ← ConLeche.Cached.instListM ty (a :: acc)
@@ -524,9 +524,9 @@ theorem iotaCertsIAux_bvar_cons {r : ConLeche.Cached.CoreFnsI} {fe : ConLeche.FE
 
 /-- A `∀` head: the cited licensed-skip test and the three-step certificate. -/
 theorem iotaCertsIAux_forallE {r : ConLeche.Cached.CoreFnsI} {fe : ConLeche.FEnv}
-    {depth : Nat} {lic : Bool} {ty dom body : ConLeche.Cached.ExprC}
-    {mb : ConLeche.BinderMeta} {acc : List ConLeche.Cached.ExprC}
-    {arg : ConLeche.Cached.ExprC} {rest : List ConLeche.Cached.ExprC}
+    {depth : Nat} {lic : Bool} {ty dom body : ConLeche.Expr}
+    {mb : ConLeche.BinderMeta} {acc : List ConLeche.Expr}
+    {arg : ConLeche.Expr} {rest : List ConLeche.Expr}
     (hty : ty = .forallE dom body mb) :
     ConLeche.Cached.iotaCertsIAux r fe depth lic ty acc (arg :: rest)
       = (if lic && mb.pw.isNever then
@@ -950,7 +950,7 @@ written once: it is the cited definition's own tail, so `proof_irrel_i`'s
 legs: the type of `ta` whnfs to a sort that is `Prop`, and so does the type of
 the type of `b`.  Both comparisons are `isEquivLM`, i.e. through `eqvC`. -/
 def propLegsI (r : ConLeche.Cached.CoreFnsI) (depth : Nat)
-    (ta b : ConLeche.Cached.ExprC) : ConLeche.Cached.CheckCM Bool := do
+    (ta b : ConLeche.Expr) : ConLeche.Cached.CheckCM Bool := do
   let tta ← r.inferIO depth ta
   let wtta ← r.whnf depth tta
   match wtta with
@@ -1598,8 +1598,8 @@ both shipped cores) and the field comparison against the fabricated
 projections. -/
 def structEtaCertFieldsI (mode : ConLeche.CheckMode) (r : ConLeche.Cached.CoreFnsI)
     (fe : ConLeche.FEnv) (depth : Nat) (c : ConLeche.Name)
-    (us us' : List ConLeche.Level) (aargs targs : List ConLeche.Cached.ExprC)
-    (b : ConLeche.Cached.ExprC) (caps : ConLeche.IndCaps) (T : ConLeche.Name) :
+    (us us' : List ConLeche.Level) (aargs targs : List ConLeche.Expr)
+    (b : ConLeche.Expr) (caps : ConLeche.IndCaps) (T : ConLeche.Name) :
     ConLeche.Cached.CheckCM Bool := do
   let projs ← ConLeche.Cached.projAppsI fe T T us' targs b caps.etaFields
   if ← (if mode.ttChecks then do
@@ -1614,8 +1614,8 @@ cited order: equivalent level lists, the type former's telescope certificate,
 the per-slot ones, the parameter comparison, then the fields. -/
 def structEtaCertStepsI (mode : ConLeche.CheckMode) (r : ConLeche.Cached.CoreFnsI)
     (fe : ConLeche.FEnv) (depth : Nat) (c : ConLeche.Name)
-    (us us' : List ConLeche.Level) (aargs targs : List ConLeche.Cached.ExprC)
-    (b : ConLeche.Cached.ExprC) (cvT : ConLeche.ConstantVal) (caps : ConLeche.IndCaps)
+    (us us' : List ConLeche.Level) (aargs targs : List ConLeche.Expr)
+    (b : ConLeche.Expr) (cvT : ConLeche.ConstantVal) (caps : ConLeche.IndCaps)
     (T : ConLeche.Name) : ConLeche.Cached.CheckCM Bool := do
   if ← ConLeche.liftFueled "level comparison"
       (← ConLeche.Cached.isEquivListLM us us') then do
@@ -2106,7 +2106,7 @@ theorem struct_eta_cert_with_i_refines (hsc : StateCOpen) {mode : env.CheckMode}
   rw [ConLeche.Cached.structEtaCertWithI]
   obtain ⟨fa, hfa, hok⟩ := bind_eq_ok_iff.mp hok
   obtain ⟨hfaabs, hfawf⟩ := ExprOps.get_app_fn_refines ha hfa
-  rw [ConLeche.Cached.ExprC.getAppFn_spec, ← hfaabs, CoreK.absExpr_kind fa]
+  rw [← hfaabs, CoreK.absExpr_kind fa]
   simp only [arc_deref_eq, bind_tc_ok] at hok
   split at hok
   case h_4 c us hk =>
@@ -2138,7 +2138,7 @@ theorem struct_eta_cert_with_i_refines (hsc : StateCOpen) {mode : env.CheckMode}
       simp only
       obtain ⟨aargs, haa, hok⟩ := bind_eq_ok_iff.mp hok
       obtain ⟨haaabs, haawf⟩ := ExprOps.get_app_args_refines ha haa
-      rw [ConLeche.Cached.ExprC.getAppArgs_spec, ← haaabs]
+      rw [ConLeche.Expr.getAppArgsC_spec, ← haaabs]
       rw [run_bind _ _ (run_pure _ _)]
       obtain ⟨i1, hi1, hok⟩ := bind_eq_ok_iff.mp hok
       obtain ⟨i2, hi2, hok⟩ := bind_eq_ok_iff.mp hok
@@ -2170,7 +2170,7 @@ theorem struct_eta_cert_with_i_refines (hsc : StateCOpen) {mode : env.CheckMode}
         rw [if_pos heqL]
         obtain ⟨ftb, hftb, hok⟩ := bind_eq_ok_iff.mp hok
         obtain ⟨hftbabs, hftbwf⟩ := ExprOps.get_app_fn_refines hwtb hftb
-        rw [ConLeche.Cached.ExprC.getAppFn_spec, ← hftbabs, CoreK.absExpr_kind ftb]
+        rw [← hftbabs, CoreK.absExpr_kind ftb]
         split at hok
         case h_4 t us2 hk2 =>
           obtain ⟨htwf, hus2wf⟩ := CoreK.ExprWF.const_children hftbwf hk2
@@ -2200,7 +2200,7 @@ theorem struct_eta_cert_with_i_refines (hsc : StateCOpen) {mode : env.CheckMode}
             simp only
             obtain ⟨targs, hta, hok⟩ := bind_eq_ok_iff.mp hok
             obtain ⟨htaabs, htawf⟩ := ExprOps.get_app_args_refines hwtb hta
-            rw [ConLeche.Cached.ExprC.getAppArgs_spec, ← htaabs]
+            rw [ConLeche.Expr.getAppArgsC_spec, ← htaabs]
             rw [run_bind _ _ (run_pure _ _)]
             obtain ⟨b1, hshape, hok⟩ := bind_eq_ok_iff.mp hok
             have hshapeabs := CoreK.struct_eta_shape_ok_refines

@@ -6,6 +6,7 @@ import ConRon.Refine.CoreKVec
 import ConRon.Refine.CoreKPinned
 import ConRon.Refine.BasisNames
 import ConRon.Refine.ExprOpsMeta
+import ConRon.Refine.ErrKinds
 import ConLeche.Kernel.CheckerSplit
 
 /-! # `kernel::checker_split` — the install/check seam (task #56)
@@ -108,11 +109,14 @@ def ValueGroupWF (g : parsed_c.ValueGroup) : Prop :=
 
 /-! ## The failure half's bookkeeping (task #67)
 
-All fourteen `CheckError` sites of `kernel/checker_split.rs` go through
-`core_types::invalid`, so a single pair of helpers serves them: the port's
-error is the `Invalid` constructor, and the cited side has been rewritten
-down to its own `throw (.invalid …)`.  `Refine/CheckerBase.lean` carries the
-same two privately. -/
+Twelve of the fourteen `CheckError` sites of `kernel/checker_split.rs` go
+through `core_types::invalid`, so a single pair of helpers serves them: the
+port's error is the `Invalid` constructor, and the cited side has been
+rewritten down to its own `throw (.invalid …)`.  `Refine/CheckerBase.lean`
+carries the same two privately.  The other two are the `constsResolve`
+guards, which since con-leche task #292 answer a kind that depends on the
+term; they go through `Refine/ErrKinds.lean`'s
+`unresolved_consts_error_refines` instead. -/
 
 /-- `core_types::invalid` is the constructor. -/
 private theorem invalid_val {v : alloc.vec.Vec Std.U32}
@@ -192,9 +196,9 @@ theorem install_constant_val_run {ops : ConLeche.CheckerOps CheckCM} {lenv : Con
 /-! ### `installConstantVal`'s eight `throw`s
 
 One lemma per guard, each at a run whose earlier guards all passed — the
-cited side of the eight `core_types::invalid` sites of
-`checker_split.rs:53-71`, plus the pass-through of whatever the annotation
-threw. -/
+cited side of the seven `core_types::invalid` sites and the one
+`checker_base::unresolved_consts_error` site of `checker_split.rs:54-72`,
+plus the pass-through of whatever the annotation threw. -/
 
 open ConLeche.Cached in
 /-- `installConstantVal`'s duplicate-declaration `throw` (`CheckerSplit.lean:69`). -/
@@ -320,7 +324,9 @@ theorem installConstantVal_lparams {ops : ConLeche.CheckerOps CheckCM}
   rfl
 
 open ConLeche.Cached in
-/-- `installConstantVal`'s unknown-constant `throw` (`CheckerSplit.lean:84`). -/
+/-- `installConstantVal`'s unresolved-constants `throw`
+(`CheckerSplit.lean:84`), whose kind con-leche's `unresolvedConstsError`
+decides from the term (task #292). -/
 theorem installConstantVal_consts {ops : ConLeche.CheckerOps CheckCM}
     {lenv : ConLeche.Env} {cv : ConLeche.ConstantVal} {ty : ConLeche.Expr}
     {lst lst1 : CState}
@@ -333,7 +339,7 @@ theorem installConstantVal_consts {ops : ConLeche.CheckerOps CheckCM}
     (h7 : ty.allLevelParamsDefined cv.levelParams = true)
     (h8 : ty.constsResolve lenv = false) :
     (ConLeche.installConstantVal ops lenv cv).run lst
-      = .error (.invalid s!"unknown constant in type of {cv.name}") := by
+      = .error (ConLeche.unresolvedConstsError s!"type of {cv.name}" ty) := by
   rw [ConLeche.installConstantVal]
   simp only [h1, h2, h3, h4, h5, h6, reduceIte, Bool.false_eq_true, if_false]
   simp only [StateT.run, Bind.bind, StateT.bind]
@@ -359,8 +365,9 @@ theorem install_value_run {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.E
 
 /-! ### `installValue`'s four `throw`s
 
-The same shape one cascade shorter — the four `core_types::invalid` sites of
-`checker_split.rs:95-105`, plus the annotation's pass-through. -/
+The same shape one cascade shorter — the three `core_types::invalid` sites
+and the one `checker_base::unresolved_consts_error` site of
+`checker_split.rs:96-106`, plus the annotation's pass-through. -/
 
 open ConLeche.Cached in
 /-- `installValue`'s loose-bound-variable `throw` (`CheckerSplit.lean:90`). -/
@@ -416,7 +423,9 @@ theorem installValue_lparams {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLech
   rfl
 
 open ConLeche.Cached in
-/-- `installValue`'s unknown-constant `throw` (`CheckerSplit.lean:98`). -/
+/-- `installValue`'s unresolved-constants `throw` (`CheckerSplit.lean:98`),
+whose kind con-leche's `unresolvedConstsError` decides from the term
+(task #292). -/
 theorem installValue_consts {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche.Env}
     {cv : ConLeche.ConstantVal} {value va : ConLeche.Expr} {lst lst1 : CState}
     (h1 : value.looseBVarsBounded 0 = true) (h2 : value.hasFvar = false)
@@ -424,7 +433,7 @@ theorem installValue_consts {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche
     (h3 : va.allLevelParamsDefined cv.levelParams = true)
     (h4 : va.constsResolve lenv = false) :
     (ConLeche.installValue ops lenv cv value).run lst
-      = .error (.invalid s!"unknown constant in value of {cv.name}") := by
+      = .error (ConLeche.unresolvedConstsError s!"value of {cv.name}" va) := by
   rw [ConLeche.installValue]
   simp only [h1, h2, reduceIte, Bool.false_eq_true, if_false]
   simp only [StateT.run, Bind.bind, StateT.bind]
@@ -834,16 +843,17 @@ theorem install_constant_val_refines {mode : env.CheckMode} {fuel : Std.U64}
                       refine install_constant_val_run h1 h2 h3 hg4 hg5 hg6 hrun1' hg7 ?_
                       rw [← hb7abs]; exact hb7t
                     · exact ⟨hnn ▸ hnwf, fun m hm => hlpwf m (hvv ▸ hm), htyawf⟩
-                  · -- the unknown-constant `throw` (`CheckerSplit.lean:84`)
+                  · -- the unresolved-constants `throw` (`CheckerSplit.lean:84`),
+                    -- at con-leche task #292's named builder
                     rename_i hb7f
-                    simp only [bind_eq_ok_iff] at h
-                    obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+                    obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
                     obtain ⟨hout, -⟩ := err_outS h
                     subst hout
                     have hg8 : (absExpr ty).constsResolve lenv = false := by
                       rw [← hb7abs]; simpa using hb7f
-                    exact errSim_invalid hce rfl
+                    exact ErrSim.mk
                       (installConstantVal_consts h1 h2 h3 hg4 hg5 hg6 hrun1' hg7 hg8)
+                      (unresolved_consts_error_refines htyawf hce _)
                 · -- the undeclared-universe-parameter `throw` (`CheckerSplit.lean:82`)
                   rename_i hb6f
                   simp only [bind_eq_ok_iff] at h
@@ -962,13 +972,15 @@ theorem install_value_refines {mode : env.CheckMode} {fuel : Std.U64}
           have hb3v := CoreK.consts_resolve_refines hp (FindAgree.of_rel hfr hfw) henv hvaw _ hb3
           cases b3 with
           | false =>
-            -- the unknown-constant `throw` (`CheckerSplit.lean:98`)
+            -- the unresolved-constants `throw` (`CheckerSplit.lean:98`),
+            -- at con-leche task #292's named builder
             simp only [Bool.false_eq_true, if_false, bind_eq_ok_iff] at h
-            obtain ⟨sl, hsl, vv, hvv, ce, hce, h⟩ := h
+            obtain ⟨ce, hce, h⟩ := h
             obtain ⟨hout, -⟩ := err_outS h
             subst hout
-            exact errSim_invalid hce rfl
+            exact ErrSim.mk
               (installValue_consts hbv.symm hb1v.symm hrun' hb2v.symm hb3v.symm)
+              (unresolved_consts_error_refines hvaw hce _)
           | true =>
             obtain ⟨hout, hst⟩ := ok_outS h
             subst hout; subst hst
