@@ -1635,4 +1635,302 @@ theorem scan_quoted_nat_refines {b : Slice Std.U8} {i : Std.Usize}
             (e.val - i2.val) i2 0 (le_refl _) (le_refl _) hle]
         rw [natOfDigits, hdsv, List.slice]
 
+/-! ## `utf8_decode` (`scan_fast.rs:924-985`), the decoder
+
+`scan_fast::utf8_decode` has no con-leche counterpart: it stands for Lean's
+own `String.fromUTF8?`, which `scanString` and `unescape` call on the bytes
+they have collected.  So this is the one piece of the tier that is not a
+recursion-for-recursion refinement but an agreement with a *primitive*.
+
+The primitive's own definition is `ByteArray.IsValidUTF8 b`, i.e.
+`∃ l : List Char, b = l.utf8Encode` (`Init/Prelude.lean`), and `utf8Encode`
+is `List.flatMap String.utf8EncodeChar`, whose four branches are plain `Nat`
+division and remainder.  That is the whole strategy: **never** reason about
+the toolchain's `parseFirstByte`/`assemble` decoder, only about the
+*encoder*, which is arithmetic `omega` can see.  The port's loop then owes,
+at every position:
+
+* an accept step: the bytes it consumed are `utf8EncodeChar` of the code
+  point it pushed (`win_enc_*` below), so the window splits as
+  `[c].utf8Encode ++ <the rest>`;
+* a reject step: **no** character encodes to a prefix of the window
+  (`enc_cases` below is the case analysis that rules them all out), so the
+  window is not valid UTF-8.
+
+`ByteArray.isValidUTF8_utf8Encode_singleton_append_iff` is what carries a
+reject past the accepted prefix, and `List.utf8Encode_cons` what carries an
+accept. -/
+
+/-- The window `[k, n)` of the port's slice, as con-leche sees it. -/
+private def win (b : Slice Std.U8) (k n : Nat) : List UInt8 :=
+  ((b.val.map absByte).drop k).take (n - k)
+
+/-- The window, as a `ByteArray` — the shape `IsValidUTF8` wants. -/
+private def winB (b : Slice Std.U8) (k n : Nat) : ByteArray := (win b k n).toByteArray
+
+/-- A `Vec<u32>` of code points, as the character list behind `absString`. -/
+private def chars (o : alloc.vec.Vec Std.U32) : List Char :=
+  o.val.map fun c => Char.ofNat c.val
+
+private theorem absString_chars (o : alloc.vec.Vec Std.U32) :
+    absString o = String.ofList (chars o) := rfl
+
+/-- The window is empty once the cursor has reached the end. -/
+private theorem win_nil {b : Slice Std.U8} {k n : Nat} (h : n ≤ k) : win b k n = [] := by
+  simp [win, Nat.sub_eq_zero_of_le h]
+
+/-- One byte off the front of the window. -/
+private theorem win_cons {b : Slice Std.U8} {k n : Nat} (hk : k < n) (hn : n ≤ b.val.length) :
+    win b k n = absByte (b.val[k]'(by omega)) :: win b (k + 1) n := by
+  have hkl : k < (b.val.map absByte).length := by simpa using by omega
+  rw [win, win, List.drop_eq_getElem_cons hkl,
+    show n - k = (n - (k + 1)) + 1 by omega, List.take_succ_cons]
+  simp
+
+/-- The window's length. -/
+private theorem win_length {b : Slice Std.U8} {k n : Nat} (hn : n ≤ b.val.length) :
+    (win b k n).length = n - k := by
+  simp only [win, List.length_take, List.length_drop, List.length_map]
+  omega
+
+/-- `k`-th byte of the window, for the first four `k` the decoder looks at. -/
+private theorem win_getElem {b : Slice Std.U8} {k n m : Nat} (hn : n ≤ b.val.length)
+    (hm : k + m < n) :
+    (win b k n)[m]'(by rw [win_length hn]; omega) = absByte (b.val[k + m]'(by omega)) := by
+  simp only [win, List.getElem_take, List.getElem_drop, List.getElem_map]
+
+/-- The port clamps `e` to the slice's length; the window does not care. -/
+private theorem win_clamp {b : Slice Std.U8} {j e n : Nat} (hn : n = min e b.val.length) :
+    win b j e = win b j n := by
+  rcases Nat.le_total e b.val.length with he | he
+  · rw [hn, Nat.min_eq_left he]
+  · rw [win, win, List.take_of_length_le, List.take_of_length_le] <;>
+      simp only [List.length_drop, List.length_map] <;> omega
+
+/-! ### The three facts about `String.fromUTF8?` this proof needs -/
+
+/-- `List.utf8Encode`, at the level of the byte list. -/
+private theorem utf8Encode_toByteArray (l : List Char) :
+    l.utf8Encode = (l.flatMap String.utf8EncodeChar).toByteArray := rfl
+
+/-- A window a character list encodes is decoded to that list. -/
+private theorem fromUTF8_win {b : Slice Std.U8} {k n : Nat} {l : List Char}
+    (h : l.flatMap String.utf8EncodeChar = win b k n) :
+    String.fromUTF8? (winB b k n) = some (String.ofList l) := by
+  have hb : winB b k n = l.utf8Encode := by rw [winB, utf8Encode_toByteArray, h]
+  rw [String.fromUTF8?, dif_pos (hb ▸ ByteArray.isValidUTF8_utf8Encode)]
+  apply congrArg
+  rw [← String.toByteArray_inj]
+  rw [String.toByteArray_ofList]
+  exact hb
+
+/-- A window nothing encodes is not valid UTF-8. -/
+private theorem fromUTF8_win_none {b : Slice Std.U8} {k n : Nat}
+    (h : ¬ (winB b k n).IsValidUTF8) : String.fromUTF8? (winB b k n) = none := by
+  rw [String.fromUTF8?, dif_neg h]
+
+/-- The window, as a `ByteArray`, is valid exactly when some list encodes it. -/
+private theorem winB_valid_iff {b : Slice Std.U8} {k n : Nat} :
+    (winB b k n).IsValidUTF8 ↔ ∃ l : List Char, l.flatMap String.utf8EncodeChar = win b k n := by
+  constructor
+  · rintro ⟨l, hl⟩
+    refine ⟨l, ?_⟩
+    rw [winB, utf8Encode_toByteArray] at hl
+    have := congrArg (fun a => a.data.toList) hl
+    simpa [List.data_toByteArray] using this.symm
+  · rintro ⟨l, hl⟩
+    exact ⟨l, by rw [winB, utf8Encode_toByteArray, hl]⟩
+
+/-! ### `String.utf8EncodeChar`, as arithmetic
+
+The four branches of `Init/Prelude.lean`'s `String.utf8EncodeChar`, with the
+`%` on each lead byte discharged from the branch's own bound — the form the
+port's byte tests can be compared against by `omega` alone.  `enc_cases` is
+the *reject* direction (no character encodes to a window starting like this),
+`enc_mk1`..`enc_mk4` the *accept* one. -/
+
+/-- Every character's value is a Unicode scalar value. -/
+private theorem char_valid (c : Char) : Nat.isValidChar c.val.toNat := c.valid
+
+/-- **The four shapes of a UTF-8 encoded character.**  Each carries the range
+that forces it, so the lead byte's range follows by `omega`: `≤ 0x7f`,
+`0xc2..0xdf`, `0xe0..0xef`, `0xf0..0xf4` — and nothing else is a lead byte. -/
+private theorem enc_cases (c : Char) :
+    (String.utf8EncodeChar c = [UInt8.ofNat c.val.toNat] ∧ c.val.toNat ≤ 0x7f) ∨
+    (String.utf8EncodeChar c =
+        [UInt8.ofNat (c.val.toNat / 64 + 0xc0), UInt8.ofNat (c.val.toNat % 64 + 0x80)] ∧
+      0x80 ≤ c.val.toNat ∧ c.val.toNat ≤ 0x7ff) ∨
+    (String.utf8EncodeChar c =
+        [UInt8.ofNat (c.val.toNat / 4096 + 0xe0), UInt8.ofNat (c.val.toNat / 64 % 64 + 0x80),
+         UInt8.ofNat (c.val.toNat % 64 + 0x80)] ∧
+      0x800 ≤ c.val.toNat ∧ c.val.toNat ≤ 0xffff ∧
+      (c.val.toNat < 0xd800 ∨ 0xdfff < c.val.toNat)) ∨
+    (String.utf8EncodeChar c =
+        [UInt8.ofNat (c.val.toNat / 262144 + 0xf0), UInt8.ofNat (c.val.toNat / 4096 % 64 + 0x80),
+         UInt8.ofNat (c.val.toNat / 64 % 64 + 0x80), UInt8.ofNat (c.val.toNat % 64 + 0x80)] ∧
+      0x10000 ≤ c.val.toNat ∧ c.val.toNat ≤ 0x10ffff) := by
+  have hv := char_valid c
+  simp only [String.utf8EncodeChar]
+  split_ifs with h1 h2 h3
+  · exact Or.inl ⟨rfl, h1⟩
+  · refine Or.inr (Or.inl ⟨?_, by omega, h2⟩)
+    rw [Nat.mod_eq_of_lt (show c.val.toNat / 64 < 0x20 by omega)]
+  · refine Or.inr (Or.inr (Or.inl ⟨?_, by omega, h3, by rcases hv with hv | hv <;> omega⟩))
+    rw [Nat.mod_eq_of_lt (show c.val.toNat / 4096 < 0x10 by omega)]
+  · refine Or.inr (Or.inr (Or.inr ⟨?_, by omega, by rcases hv with hv | hv <;> omega⟩))
+    rw [Nat.mod_eq_of_lt (show c.val.toNat / 262144 < 0x08 by
+      rcases hv with hv | hv <;> omega)]
+
+/-- A one-byte code point's encoding. -/
+private theorem enc_mk1 {v : Nat} (hv : Nat.isValidChar v) (h : v ≤ 0x7f) :
+    String.utf8EncodeChar (Char.ofNat v) = [UInt8.ofNat v] := by
+  simp only [String.utf8EncodeChar, char_ofNat_toNat hv]
+  rw [if_pos h]
+
+/-- A two-byte code point's encoding. -/
+private theorem enc_mk2 {v : Nat} (hv : Nat.isValidChar v) (h1 : 0x80 ≤ v) (h2 : v ≤ 0x7ff) :
+    String.utf8EncodeChar (Char.ofNat v) =
+      [UInt8.ofNat (v / 64 + 0xc0), UInt8.ofNat (v % 64 + 0x80)] := by
+  simp only [String.utf8EncodeChar, char_ofNat_toNat hv]
+  rw [if_neg (by omega), if_pos h2, Nat.mod_eq_of_lt (show v / 64 < 0x20 by omega)]
+
+/-- A three-byte code point's encoding. -/
+private theorem enc_mk3 {v : Nat} (hv : Nat.isValidChar v) (h1 : 0x800 ≤ v) (h2 : v ≤ 0xffff) :
+    String.utf8EncodeChar (Char.ofNat v) =
+      [UInt8.ofNat (v / 4096 + 0xe0), UInt8.ofNat (v / 64 % 64 + 0x80),
+       UInt8.ofNat (v % 64 + 0x80)] := by
+  simp only [String.utf8EncodeChar, char_ofNat_toNat hv]
+  rw [if_neg (by omega), if_neg (by omega), if_pos h2,
+    Nat.mod_eq_of_lt (show v / 4096 < 0x10 by omega)]
+
+/-- A four-byte code point's encoding. -/
+private theorem enc_mk4 {v : Nat} (hv : Nat.isValidChar v) (h1 : 0x10000 ≤ v)
+    (h2 : v ≤ 0x10ffff) :
+    String.utf8EncodeChar (Char.ofNat v) =
+      [UInt8.ofNat (v / 262144 + 0xf0), UInt8.ofNat (v / 4096 % 64 + 0x80),
+       UInt8.ofNat (v / 64 % 64 + 0x80), UInt8.ofNat (v % 64 + 0x80)] := by
+  simp only [String.utf8EncodeChar, char_ofNat_toNat hv]
+  rw [if_neg (by omega), if_neg (by omega), if_neg (by omega),
+    Nat.mod_eq_of_lt (show v / 262144 < 0x08 by omega)]
+
+/-! ### The loop's claim, and the two ways of carrying it -/
+
+/-- What one call of `utf8_decode_loop` owes: on `some`, the code points it
+appended are a character list encoding the window; on `none`, the window is
+not valid UTF-8 at all. -/
+private def DecClaim (b : Slice Std.U8) (n : Nat) (out : alloc.vec.Vec Std.U32)
+    (k : Nat) : Option (alloc.vec.Vec Std.U32) → Prop
+  | some o => ∃ l : List Char, chars o = chars out ++ l ∧
+      l.flatMap String.utf8EncodeChar = win b k n
+  | none => ¬ (winB b k n).IsValidUTF8
+
+/-- The loop stops at the end of the window. -/
+private theorem claim_stop {b : Slice Std.U8} {n k : Nat} {out : alloc.vec.Vec Std.U32}
+    (h : n ≤ k) : DecClaim b n out k (some out) :=
+  ⟨[], by simp, by simp [win_nil h]⟩
+
+/-- A byte list's `ByteArray`, on an append. -/
+private theorem toByteArray_append (x y : List UInt8) :
+    (x ++ y).toByteArray = x.toByteArray ++ y.toByteArray := by
+  apply ByteArray.ext
+  simp [List.data_toByteArray]
+
+/-- **One accepted character carries the claim.**  The window splits as the
+character's own encoding followed by the rest, so a `some` gets one more
+character at the front and a `none` stays invalid
+(`ByteArray.isValidUTF8_utf8Encode_singleton_append_iff`). -/
+private theorem claim_step {b : Slice Std.U8} {n k k' : Nat} {v : Std.U32}
+    {out out' : alloc.vec.Vec Std.U32} {r : Option (alloc.vec.Vec Std.U32)}
+    (hw : win b k n = String.utf8EncodeChar (Char.ofNat v.val) ++ win b k' n)
+    (hpush : out'.val = out.val ++ [v])
+    (ih : DecClaim b n out' k' r) : DecClaim b n out k r := by
+  have hbw : winB b k n = [Char.ofNat v.val].utf8Encode ++ winB b k' n := by
+    rw [winB, winB, hw, toByteArray_append, List.utf8Encode_singleton]
+  cases r with
+  | none =>
+    rw [DecClaim] at ih ⊢
+    rw [hbw, ByteArray.isValidUTF8_utf8Encode_singleton_append_iff]
+    exact ih
+  | some o =>
+    obtain ⟨l, hl, he⟩ := ih
+    refine ⟨Char.ofNat v.val :: l, ?_, ?_⟩
+    · rw [hl, chars, chars, hpush]
+      simp
+    · rw [List.flatMap_cons, he, hw]
+
+/-- The loop gave up: nothing encodes the window. -/
+private theorem claim_stuck {b : Slice Std.U8} {n k : Nat}
+    {out : alloc.vec.Vec Std.U32}
+    (h : ∀ l : List Char, l.flatMap String.utf8EncodeChar ≠ win b k n) :
+    DecClaim b n out k none := fun hc => by
+  obtain ⟨l, hl⟩ := winB_valid_iff.mp hc
+  exact h l hl
+
+/-! ### What a valid window must start with -/
+
+/-- The window's `m`-th byte, as a `getElem?`. -/
+private theorem win_getElem? {b : Slice Std.U8} {k n m : Nat} (hn : n ≤ b.val.length)
+    (hm : k + m < n) :
+    (win b k n)[m]? = some (absByte (b.val[k + m]'(by omega))) := by
+  rw [List.getElem?_eq_getElem (by rw [win_length hn]; omega), win_getElem hn hm]
+
+/-- **Nothing but these four shapes starts a window that is valid UTF-8.**
+This is the reject direction of the decoder: every `ok none` the port returns
+has to contradict all four, which after `absByte_eq_iff` is `omega`'s job. -/
+private theorem win_lead {b : Slice Std.U8} {k n : Nat} {l : List Char}
+    (hn : n ≤ b.val.length) (hk : k < n)
+    (h : l.flatMap String.utf8EncodeChar = win b k n) :
+    (∃ v : Nat, v ≤ 0x7f ∧ (win b k n)[0]? = some (UInt8.ofNat v)) ∨
+    (∃ v : Nat, 0x80 ≤ v ∧ v ≤ 0x7ff ∧ k + 1 < n ∧
+        (win b k n)[0]? = some (UInt8.ofNat (v / 64 + 0xc0)) ∧
+        (win b k n)[1]? = some (UInt8.ofNat (v % 64 + 0x80))) ∨
+    (∃ v : Nat, 0x800 ≤ v ∧ v ≤ 0xffff ∧ (v < 0xd800 ∨ 0xdfff < v) ∧ k + 2 < n ∧
+        (win b k n)[0]? = some (UInt8.ofNat (v / 4096 + 0xe0)) ∧
+        (win b k n)[1]? = some (UInt8.ofNat (v / 64 % 64 + 0x80)) ∧
+        (win b k n)[2]? = some (UInt8.ofNat (v % 64 + 0x80))) ∨
+    (∃ v : Nat, 0x10000 ≤ v ∧ v ≤ 0x10ffff ∧ k + 3 < n ∧
+        (win b k n)[0]? = some (UInt8.ofNat (v / 262144 + 0xf0)) ∧
+        (win b k n)[1]? = some (UInt8.ofNat (v / 4096 % 64 + 0x80)) ∧
+        (win b k n)[2]? = some (UInt8.ofNat (v / 64 % 64 + 0x80)) ∧
+        (win b k n)[3]? = some (UInt8.ofNat (v % 64 + 0x80))) := by
+  have hlen : (win b k n).length = n - k := win_length hn
+  have hne : l ≠ [] := by
+    rintro rfl
+    rw [List.flatMap_nil] at h
+    have := congrArg List.length h
+    rw [hlen] at this
+    simp at this
+    omega
+  obtain ⟨c, l', rfl⟩ := List.exists_cons_of_ne_nil hne
+  rw [List.flatMap_cons] at h
+  have hpre : ∀ (e : List UInt8) (m : Nat), String.utf8EncodeChar c = e → m < e.length →
+      (win b k n)[m]? = e[m]? := by
+    rintro e m rfl hm
+    rw [← h, List.getElem?_append_left hm]
+  have hlong : ∀ (e : List UInt8), String.utf8EncodeChar c = e → e.length ≤ n - k := by
+    rintro e rfl
+    have := congrArg List.length h
+    rw [hlen, List.length_append] at this
+    omega
+  rcases enc_cases c with ⟨he, h1⟩ | ⟨he, h1, h2⟩ | ⟨he, h1, h2, h3⟩ | ⟨he, h1, h2⟩
+  · exact Or.inl ⟨c.val.toNat, h1, by rw [hpre _ 0 he (by simp)]; simp⟩
+  · have hl2 := hlong _ he
+    simp only [List.length_cons, List.length_nil] at hl2
+    refine Or.inr (Or.inl ⟨c.val.toNat, h1, h2, by omega, ?_, ?_⟩)
+    · rw [hpre _ 0 he (by simp)]; simp
+    · rw [hpre _ 1 he (by simp)]; simp
+  · have hl2 := hlong _ he
+    simp only [List.length_cons, List.length_nil] at hl2
+    refine Or.inr (Or.inr (Or.inl ⟨c.val.toNat, h1, h2, h3, by omega, ?_, ?_, ?_⟩))
+    · rw [hpre _ 0 he (by simp)]; simp
+    · rw [hpre _ 1 he (by simp)]; simp
+    · rw [hpre _ 2 he (by simp)]; simp
+  · have hl2 := hlong _ he
+    simp only [List.length_cons, List.length_nil] at hl2
+    refine Or.inr (Or.inr (Or.inr ⟨c.val.toNat, h1, h2, by omega, ?_, ?_, ?_, ?_⟩))
+    · rw [hpre _ 0 he (by simp)]; simp
+    · rw [hpre _ 1 he (by simp)]; simp
+    · rw [hpre _ 2 he (by simp)]; simp
+    · rw [hpre _ 3 he (by simp)]; simp
+
 end ConRon.Refine.Frontend
