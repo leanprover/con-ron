@@ -805,6 +805,33 @@ private theorem u8_extend_val {v : alloc.vec.Vec Std.U8} {s : Slice Std.U8}
     · exfalso; revert h; simp
   · exfalso; revert h; simp
 
+
+/-- A `usize` value fits a `u128`. -/
+private theorem usize_val_lt_u128 (x : Std.Usize) :
+    x.val < 340282366920938463463374607431768211456 := by
+  have h1 : x.val ≤ Std.Usize.max := by scalar_tac
+  have hm : (Std.Usize.max : Nat) < 340282366920938463463374607431768211456 := by
+    rw [Std.Usize.max_def, Std.Usize.numBits_def]
+    simp only [Std.UScalarTy.numBits]
+    rcases System.Platform.numBits_eq with hn | hn <;> rw [hn] <;> norm_num
+  omega
+
+/-- A `u64` value fits a `u128`. -/
+private theorem u64_val_lt_u128 (x : Std.U64) :
+    x.val < 340282366920938463463374607431768211456 := by
+  have h1 : x.val ≤ Std.U64.max := by scalar_tac
+  have hm : (Std.U64.max : Nat) < 340282366920938463463374607431768211456 := by
+    rw [Std.U64.max_def, Std.U64.numBits_def]
+    norm_num
+  omega
+
+/-- Widening to `u128` keeps the value. -/
+private theorem cast_u128_val {ty : Std.UScalarTy} (x : Std.UScalar ty)
+    (h : x.val < 340282366920938463463374607431768211456) :
+    (Std.UScalar.cast .U128 x).val = x.val := by
+  rw [Std.UScalar.cast_val_eq]
+  exact Nat.mod_eq_of_lt (by simpa [Std.UScalarTy.numBits] using h)
+
 /-! ## The size guard's constant
 
 `export_c::USIZE_SIZE` is `1u128 << usize::BITS` — the port's spelling of
@@ -856,15 +883,11 @@ theorem chunk_step_refines
       have hc := usize_size_val hi4
       have h3 := HashMap.uscalar_add_eq hi3
       have hlt : i3.val < i4.val := by scalar_tac
-      have hiv : i.val = total.val := by rw [← hi]; simp
+      have hiv : i.val = total.val := by
+        rw [← hi]; exact cast_u128_val total (u64_val_lt_u128 total)
       have hi2v : i2.val = buf0.val.length := by
-        rw [← hi2]; simp
-        have hb := Slice.property buf0
-        have hm : (Std.Usize.max : Nat) < 340282366920938463463374607431768211456 := by
-          rw [Std.Usize.max_def, Std.Usize.numBits_def]
-          simp only [Std.UScalarTy.numBits]
-          rcases System.Platform.numBits_eq with hn | hn <;> rw [hn] <;> norm_num
-        omega
+        rw [← hi2]
+        exact cast_u128_val (Slice.len buf0) (usize_val_lt_u128 (Slice.len buf0))
       omega
     rw [if_neg hsz]
     simp only [bind_eq_ok_iff] at h
@@ -1284,6 +1307,411 @@ theorem apply_final_line_refines_err
       hsim ⟨se.offset.val, t⟩ (by rw [absScanErr, ht]; rfl)
     rw [hscan]
     exact ⟨_, rfl, hkint.symm, rfl⟩
+
+
+private theorem feed_chunk_loop_refines_err
+    {R : frontend.export_c.StateD → ConLeche.Frontend.StateD → Prop}
+    {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+    (ing : ParseIngredients R inst g) (N : Nat) :
+    ∀ (st st' : frontend.export_c.StateD) (lst : ConLeche.Frontend.StateD)
+      (b : Slice Std.U8) (i : Std.Usize) (ln : Std.U64)
+      (p : kernel.core_types.CheckError × Std.U64),
+      R st lst → (Slice.len b).val - i.val = N →
+      frontend.export_c.feed_chunk_loop inst g st b i ln = ok (.Err p, st') →
+      ParseErrSim p (ConLeche.Frontend.feedChunk lst (absBytes b) (absPos i) ln.val) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro st st' lst b i ln p hst hN h
+    rw [frontend.export_c.feed_chunk_loop.eq_def] at h
+    simp only [] at h
+    rw [feedChunk_eq]
+    split at h
+    · rename_i hlt
+      rw [dif_pos (show absPos i < (absBytes b).usize from
+        absPos_lt_usize.mpr (by scalar_tac))]
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨r, hr, h⟩ := h
+      have hsim := ing.scan_line_fwd b i r hr
+      split at h
+      · rename_i q
+        obtain ⟨r1, j⟩ := q
+        simp only [uncurry_apply_pair] at h
+        have hscan : ConLeche.Frontend.scanLineFwd (absBytes b) (absPos i)
+            = .ok (absLineRec r1) (absPos j) := hsim
+        split at h
+        · exfalso; revert h; simp
+        · rename_i hj0
+          have hjnz : (absPos j == 0) = false := by
+            simp only [beq_eq_false_iff_ne, ne_eq, absPos_eq_zero]
+            intro hc; exact hj0 (by scalar_tac)
+          simp only [hscan, hjnz, Bool.false_eq_true, if_false]
+          simp only [bind_eq_ok_iff] at h
+          obtain ⟨⟨r2, st1⟩, happ, h⟩ := h
+          simp only [uncurry_apply_pair] at h
+          have hal := ing.apply_line st st1 lst r1 r2 hst happ
+          split at h
+          · simp only [ApplyLineSim] at hal
+            obtain ⟨lst2, hlst2, hrel⟩ := hal
+            simp only [hlst2]
+            split at h
+            · rename_i hge
+              rw [dif_neg (show ¬ (absPos i < absPos j) from
+                fun hc => absurd (absPos_lt.mp hc) (by scalar_tac))]
+              rw [bind_eq_ok_iff] at h
+              obtain ⟨s, -, h⟩ := h
+              rw [bind_eq_ok_iff] at h
+              obtain ⟨v, -, h⟩ := h
+              rw [bind_eq_ok_iff] at h
+              obtain ⟨ce, hce, h⟩ := h
+              rw [bind_eq_ok_iff] at h
+              obtain ⟨i2, hi2, h⟩ := h
+              simp only [Result.ok.injEq, Prod.mk.injEq,
+                core.result.Result.Err.injEq] at h
+              obtain ⟨hp, -⟩ := h
+              subst hp
+              simp only [kernel.core_types.internal, Result.ok.injEq] at hce
+              subst hce
+              exact ParseErrSim.mk rfl rfl
+                (by simp [HashMap.uscalar_add_eq hi2])
+            · rename_i hge
+              rw [dif_pos (show absPos i < absPos j from absPos_lt.mpr (by scalar_tac))]
+              simp only [bind_eq_ok_iff] at h
+              obtain ⟨ln1, hln1, h⟩ := h
+              have hres := ih ((Slice.len b).val - j.val) (by scalar_tac) st1 st' lst2 b j
+                ln1 p hrel rfl h
+              rw [show ln.val + 1 = ln1.val from (HashMap.uscalar_add_eq hln1).symm]
+              exact hres
+          · rename_i le
+            rw [bind_eq_ok_iff] at h
+            obtain ⟨i2, hi2, h⟩ := h
+            rw [bind_eq_ok_iff] at h
+            obtain ⟨p1, hp1, h⟩ := h
+            simp only [Result.ok.injEq, Prod.mk.injEq,
+              core.result.Result.Err.injEq] at h
+            obtain ⟨hp, -⟩ := h
+            subst hp
+            rw [show ln.val + 1 = i2.val from (HashMap.uscalar_add_eq hi2).symm]
+            exact line_err_to_check_mirror
+              (f := fun st => if _hj : absPos i < absPos j then
+                ConLeche.Frontend.feedChunk st (absBytes b) (absPos j) (i2.val)
+              else .error (.internal "the line scanner made no progress", i2.val))
+              hp1 hal
+      · rename_i se
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨b1, hb1, h⟩ := h
+        split at h
+        · rename_i hb1t
+          rw [show b1 = true by simpa using hb1t] at hb1
+          rw [bind_eq_ok_iff] at h
+          obtain ⟨i2, -, h⟩ := h
+          rw [bind_eq_ok_iff] at h
+          obtain ⟨ce, hce, h⟩ := h
+          rw [bind_eq_ok_iff] at h
+          obtain ⟨i3, hi3, h⟩ := h
+          simp only [Result.ok.injEq, Prod.mk.injEq,
+            core.result.Result.Err.injEq] at h
+          obtain ⟨hp, -⟩ := h
+          subst hp
+          intro k hk
+          obtain ⟨hkint, t, ht⟩ := scan_err_to_check_mirror hce hk
+          have hscan : ConLeche.Frontend.scanLineFwd (absBytes b) (absPos i)
+              = .err ⟨se.offset.val, t⟩ :=
+            hsim ⟨se.offset.val, t⟩ (by rw [absScanErr, ht]; rfl)
+          have hnl : ConLeche.Frontend.newlineFrom (absBytes b) (absPos i) = true :=
+            (ing.newline_from b i true hb1).symm
+          rw [hscan]
+          simp only [hnl, if_true]
+          exact ⟨_, rfl, hkint.symm, by simp [HashMap.uscalar_add_eq hi3]⟩
+        · exfalso; revert h; simp
+    · exfalso; revert h; simp
+
+/-- **`export_c::feed_chunk`, error direction**
+(`ConLeche/Frontend/ExportC.lean:777-811` `feedChunk`). -/
+theorem feed_chunk_refines_err
+    {R : frontend.export_c.StateD → ConLeche.Frontend.StateD → Prop}
+    {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+    (ing : ParseIngredients R inst g)
+    {st st' : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {b : Slice Std.U8} {i : Std.Usize} {ln : Std.U64}
+    {p : kernel.core_types.CheckError × Std.U64} (hst : R st lst)
+    (h : frontend.export_c.feed_chunk inst g st b i ln = ok (.Err p, st')) :
+    ParseErrSim p (ConLeche.Frontend.feedChunk lst (absBytes b) (absPos i) ln.val) :=
+  feed_chunk_loop_refines_err ing _ st st' lst b i ln p hst rfl h
+
+
+/-- Error propagation through a bind, the move every arm makes. -/
+theorem ParseErrSim.bind {γ δ : Type} {e : kernel.core_types.CheckError × Std.U64}
+    {x : Except (ConLeche.CheckError × Nat) γ} (h : ParseErrSim e x)
+    (f : γ → Except (ConLeche.CheckError × Nat) δ) : ParseErrSim e (x >>= f) :=
+  h.trans (fun le hx => by rw [hx]; rfl)
+
+/-- **`export_c::parse_bytes_final`, error direction**
+(`ConLeche/Frontend/ExportC.lean:834-838`, the cited tail of `parseBytes`). -/
+theorem parse_bytes_final_refines_err
+    {R : frontend.export_c.StateD → ConLeche.Frontend.StateD → Prop}
+    {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+    (ing : ParseIngredients R inst g)
+    {st : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {b : Slice Std.U8} {tail : Std.Usize} {ln : Std.U64}
+    {p : kernel.core_types.CheckError × Std.U64} (hst : R st lst)
+    (h : frontend.export_c.parse_bytes_final inst g st b tail ln = ok (.Err p)) :
+    ParseErrSim p (parseBytesFinal lst (absBytes b) (absPos tail) ln.val) := by
+  rw [frontend.export_c.parse_bytes_final.eq_def] at h
+  simp only [] at h
+  rw [parseBytesFinal]
+  split at h
+  · rename_i hlt
+    rw [if_pos (absPos_lt_usize.mpr (by scalar_tac))]
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨i1, hi1, ⟨rr, st1⟩, hfin, h⟩ := h
+    simp only [uncurry_apply_pair] at h
+    split at h
+    · exfalso; revert h; simp
+    · simp only [Result.ok.injEq, core.result.Result.Err.injEq] at h
+      subst h
+      rw [show ln.val + 1 = i1.val from (HashMap.uscalar_add_eq hi1).symm]
+      exact (apply_final_line_refines_err ing hst hfin).bind _
+  · exfalso; revert h; simp
+
+/-- **`export_c::parse_bytes`, error direction**
+(`ConLeche/Frontend/ExportC.lean:827-839` `parseBytes`).  The size guard cannot
+fire on a `Slice` — a slice's length is at most `Usize.max` — so the port's
+`.Err` is con-leche's, line for line. -/
+theorem parse_bytes_refines_err
+    {R : frontend.export_c.StateD → ConLeche.Frontend.StateD → Prop}
+    {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+    (ing : ParseIngredients R inst g) {b : Slice Std.U8} {im ce : Bool}
+    {p : kernel.core_types.CheckError × Std.U64}
+    (h : frontend.export_c.parse_bytes inst g b im ce = ok (.Err p)) :
+    ParseErrSim p (ConLeche.Frontend.parseBytes (absBytes b) im ce) := by
+  rw [frontend.export_c.parse_bytes.eq_def] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨i1, hi1, i2, hi2, h⟩ := h
+  rw [parseBytes_eq, if_neg (by have := absBytes_size_lt b; omega)]
+  simp only [lift_eq, Result.ok.injEq] at hi1
+  split at h
+  · exfalso
+    rename_i hguard
+    have hc := usize_size_val hi2
+    have hsz := absBytes_size_lt b
+    rw [absBytes_size] at hsz
+    have hi1v : i1.val = b.val.length := by
+      rw [← hi1]; exact cast_u128_val (Slice.len b) (usize_val_lt_u128 (Slice.len b))
+    have : i1.val ≥ i2.val := by scalar_tac
+    omega
+  · simp only [bind_eq_ok_iff] at h
+    obtain ⟨st, hinit, ⟨rr, st1⟩, hfeed, h⟩ := h
+    simp only [uncurry_apply_pair] at h
+    split at h
+    · rename_i q
+      obtain ⟨ln, tail⟩ := q
+      obtain ⟨lst1, hfc, hrel⟩ :=
+        feed_chunk_refines ing (ing.state_d_init im ce st hinit) hfeed
+      simp only [show absPos (0#usize) = 0 from rfl,
+        show ((0#u64 : Std.U64)).val = 0 from rfl] at hfc
+      simp only [hfc]
+      exact parse_bytes_final_refines_err ing hrel h
+    · simp only [Result.ok.injEq, core.result.Result.Err.injEq] at h
+      subst h
+      have hfe := feed_chunk_refines_err ing (ing.state_d_init im ce st hinit) hfeed
+      simp only [show absPos (0#usize) = 0 from rfl,
+        show ((0#u64 : Std.U64)).val = 0 from rfl] at hfe
+      exact hfe.bind _
+
+/-- **`export_c::chunk_finish`, error direction**
+(`ConLeche/Frontend/ExportC.lean:867-874` `chunkFinish`). -/
+theorem chunk_finish_refines_err
+    {R : frontend.export_c.StateD → ConLeche.Frontend.StateD → Prop}
+    {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+    (ing : ParseIngredients R inst g)
+    {st : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {carry : Slice Std.U8} {ln : Std.U64}
+    {p : kernel.core_types.CheckError × Std.U64} (hst : R st lst)
+    (h : frontend.export_c.chunk_finish inst g st carry ln = ok (.Err p)) :
+    ParseErrSim p (ConLeche.Frontend.chunkFinish lst (absBytes carry) ln.val) := by
+  rw [frontend.export_c.chunk_finish.eq_def] at h
+  simp only [] at h
+  rw [ConLeche.Frontend.chunkFinish]
+  split at h
+  · exfalso; revert h; simp
+  · rename_i he
+    rw [if_neg (fun hc => he ((absBytes_isEmpty carry).mp hc))]
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨i1, hi1, ⟨rr, st1⟩, hfin, h⟩ := h
+    simp only [uncurry_apply_pair] at h
+    split at h
+    · exfalso; revert h; simp
+    · simp only [Result.ok.injEq, core.result.Result.Err.injEq] at h
+      subst h
+      rw [show ln.val + 1 = i1.val from (HashMap.uscalar_add_eq hi1).symm]
+      have hafl := apply_final_line_refines_err ing hst hfin
+      simp only [show absPos (0#usize) = 0 from rfl] at hafl
+      exact hafl.trans (fun le hx => by rw [hx])
+
+set_option maxRecDepth 20000 in
+/-- **`export_c::chunk_step`, error direction**
+(`ConLeche/Frontend/ExportC.lean:848-865` `chunkStep`). -/
+theorem chunk_step_refines_err
+    {R : frontend.export_c.StateD → ConLeche.Frontend.StateD → Prop}
+    {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+    (ing : ParseIngredients R inst g)
+    {st st' : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {carry : alloc.vec.Vec Std.U8} {ln total : Std.U64} {buf0 : Slice Std.U8}
+    {p : kernel.core_types.CheckError × Std.U64} (hst : R st lst)
+    (h : frontend.export_c.chunk_step inst g st carry ln total buf0 = ok (.Err p, st')) :
+    ParseErrSim p (ConLeche.Frontend.chunkStep lst (absChunk carry) ln.val total.val
+      (absBytes buf0)) := by
+  rw [frontend.export_c.chunk_step.eq_def] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨i, hi, i2, hi2, i3, hi3, i4, hi4, h⟩ := h
+  rw [ConLeche.Frontend.chunkStep]
+  simp only [lift_eq, Result.ok.injEq] at hi hi2
+  have hc := usize_size_val hi4
+  have h3 := HashMap.uscalar_add_eq hi3
+  have hiv : i.val = total.val := by
+    rw [← hi]; exact cast_u128_val total (u64_val_lt_u128 total)
+  have hi2v : i2.val = buf0.val.length := by
+    rw [← hi2]
+    exact cast_u128_val (Slice.len buf0) (usize_val_lt_u128 (Slice.len buf0))
+  split at h
+  · rename_i hguard
+    have hge : i4.val ≤ i3.val := (Std.UScalar.le_equiv _ _).mp hguard
+    rw [if_pos (by rw [absBytes_size]; omega)]
+    rw [bind_eq_ok_iff] at h
+    obtain ⟨se, hse, h⟩ := h
+    simp only [Result.ok.injEq, Prod.mk.injEq,
+      core.result.Result.Err.injEq] at h
+    obtain ⟨hp, -⟩ := h
+    subst hp
+    exact size_error_refines hse rfl
+  · rename_i hguard
+    have hlt : i3.val < i4.val := by
+      by_contra hcc
+      exact hguard ((Std.UScalar.le_equiv _ _).mpr (by omega))
+    have hsz : ¬ (total.val + (absBytes buf0).size ≥ USize.size) := by
+      rw [absBytes_size]; omega
+    rw [if_neg hsz]
+    clear hsz hlt hc h3 hiv hi2v hi hi2 hi3 hi4 hguard
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨buf, hbuf, s, hs, ⟨rr, st1⟩, hfeed, h⟩ := h
+    have hsval : s.val = buf.val := by
+      simp only [alloc.vec.Vec.index,
+        core.slice.index.SliceIndexRangeFullSlice.index, Result.ok.injEq] at hs
+      rw [← hs]; rfl
+    have hbufb : (if (absChunk carry).isEmpty then absBytes buf0
+                  else absChunk carry ++ absBytes buf0) = absBytes s := by
+      split at hbuf
+      · rename_i hce
+        rw [if_pos (by
+          simp only [ByteArray.isEmpty, absChunk, ByteArray.size, beq_iff_eq]
+          simp only [alloc.vec.Vec.len] at hce
+          scalar_tac)]
+        have hv : s.val = buf0.val := by rw [hsval, u8_to_vec_val hbuf]
+        show absBytes buf0 = absBytes s
+        rw [absBytes, absBytes, hv]
+      · rename_i hce
+        rw [if_neg (by
+          simp only [ByteArray.isEmpty, absChunk, ByteArray.size, beq_iff_eq]
+          simp only [alloc.vec.Vec.len] at hce
+          intro hc; exact hce (by scalar_tac))]
+        exact (absBytes_append_val (by rw [hsval, u8_extend_val hbuf])).symm
+    rw [hbufb]
+    simp only [uncurry_apply_pair] at h
+    split at h
+    · rename_i t
+      obtain ⟨ln2, tail⟩ := t
+      exfalso; revert h
+      simp [bind_eq_ok_iff]
+    · simp only [Result.ok.injEq, Prod.mk.injEq,
+        core.result.Result.Err.injEq] at h
+      obtain ⟨hp, -⟩ := h
+      subst hp
+      have hfe := feed_chunk_refines_err ing hst hfeed
+      simp only [show absPos (0#usize) = 0 from rfl] at hfe
+      exact hfe.trans (fun le hx => by simp only [hx])
+
+private theorem parse_chunks_loop_refines_err
+    {R : frontend.export_c.StateD → ConLeche.Frontend.StateD → Prop}
+    {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+    (ing : ParseIngredients R inst g) (N : Nat) :
+    ∀ (chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)) (st : frontend.export_c.StateD)
+      (lst : ConLeche.Frontend.StateD) (carry : alloc.vec.Vec Std.U8)
+      (ln total : Std.U64) (n i : Std.Usize)
+      (p : kernel.core_types.CheckError × Std.U64),
+      R st lst → n.val = chunks.val.length → n.val - i.val = N →
+      frontend.export_c.parse_chunks_loop inst g chunks st carry ln total n i
+        = ok (.Err p) →
+      ParseErrSim p (ConLeche.Frontend.parseChunks.go lst (absChunk carry) ln.val
+        total.val ((absChunks chunks).drop i.val)) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro chunks st lst carry ln total n i p hst hn hN h
+    rw [frontend.export_c.parse_chunks_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨v, hv, s, hs, ⟨rr, st1⟩, hstepr, h⟩ := h
+      obtain ⟨hilt, hdrop⟩ := chunks_drop_map_index absChunk hv
+      rw [absChunks, hdrop, ConLeche.Frontend.parseChunks.go]
+      have hsb : absBytes s = absChunk v := by
+        apply absBytes_of_val
+        simp only [alloc.vec.Vec.index,
+          core.slice.index.SliceIndexRangeFullSlice.index, Result.ok.injEq] at hs
+        rw [← hs]; rfl
+      rw [← hsb]
+      simp only [uncurry_apply_pair] at h
+      split at h
+      · rename_i t
+        obtain ⟨c2, l, t1⟩ := t
+        obtain ⟨lst1, hcs, hrel⟩ := chunk_step_refines ing hst hstepr
+        rw [hcs]
+        simp only [uncurry_apply_pair, bind_eq_ok_iff] at h
+        obtain ⟨i1, hi1, h⟩ := h
+        have hi1v : i1.val = i.val + 1 := HashMap.uscalar_add_eq hi1
+        have hres := ih (n.val - i1.val) (by scalar_tac) chunks st1 lst1 c2 l t1 n i1 p
+          hrel hn rfl h
+        rw [hi1v] at hres
+        exact hres
+      · simp only [Result.ok.injEq, core.result.Result.Err.injEq] at h
+        subst h
+        exact (chunk_step_refines_err ing hst hstepr).trans (fun le hx => by rw [hx])
+    · rename_i hge
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨s, hs, h⟩ := h
+      have hnil : (absChunks chunks).drop i.val = [] := by
+        apply List.drop_eq_nil_of_le
+        simp only [absChunks, List.length_map]
+        scalar_tac
+      rw [hnil, ConLeche.Frontend.parseChunks.go]
+      have hsb : absBytes s = absChunk carry := by
+        apply absBytes_of_val
+        simp only [alloc.vec.Vec.index,
+          core.slice.index.SliceIndexRangeFullSlice.index, Result.ok.injEq] at hs
+        rw [← hs]; rfl
+      rw [← hsb]
+      exact chunk_finish_refines_err ing hst h
+
+/-- **The streaming parse, error direction**
+(`ConLeche/Frontend/ExportC.lean:882-901` `parseChunks`): the port's parse fails
+at the kind and the line con-leche's fails at. -/
+theorem parse_chunks_refines_err
+    {R : frontend.export_c.StateD → ConLeche.Frontend.StateD → Prop}
+    {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+    (ing : ParseIngredients R inst g)
+    {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {im ce : Bool}
+    {p : kernel.core_types.CheckError × Std.U64}
+    (h : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Err p)) :
+    ParseErrSim p (ConLeche.Frontend.parseChunks (absChunks chunks) im ce) := by
+  rw [frontend.export_c.parse_chunks.eq_def] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨st, hinit, h⟩ := h
+  rw [ConLeche.Frontend.parseChunks]
+  have hres := parse_chunks_loop_refines_err ing _ chunks st
+    (ConLeche.Frontend.StateD.init im ce) (alloc.vec.Vec.new Std.U8) 0#u64 0#u64
+    (alloc.vec.Vec.len chunks) 0#usize p (ing.state_d_init im ce st hinit)
+    (by simp [alloc.vec.Vec.len]) rfl h
+  rw [show absChunk (alloc.vec.Vec.new Std.U8) = ByteArray.empty from rfl] at hres
+  simpa using hres
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
