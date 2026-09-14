@@ -1548,4 +1548,326 @@ theorem occurs_const_go_refines {n : name.Name} (hn : NameWF n)
         rw [← Result.ok_injective h]
         exact ⟨hocc.symm, occ_set (old := w.1) (seen' := w.2) hp2 hwf hocc hins⟩
 
+/-! ### con-leche's own bridge: `occursConstFast` computes `occursConst`
+
+`projRecOwners` calls `occursConstFast`, and `ProjRec.lean`'s note says the
+pure `occursConst` "stays as its specification" — but con-leche proves nothing
+about it, so the bridge is proved here: the budgeted descent is sound whenever
+it answers, and the memoised walk is sound under "every recorded subterm really
+does not mention `n`". -/
+
+/-- The budgeted descent, when it answers, answers `occursConst`
+(`ConLeche/Frontend/ProjRec.lean:151-178 occursConstB`). -/
+theorem occursConstB_sound (n : ConLeche.Name) (e : ConLeche.Expr) :
+    ∀ (fuel : Nat) (b : Bool) (f' : Nat),
+      ConLeche.Frontend.occursConstB n fuel e = (some b, f') →
+      b = ConLeche.Frontend.occursConst n e := by
+  induction e with
+  | app f a ihf iha =>
+    intro fuel b f' h
+    cases fuel with
+    | zero => simp [ConLeche.Frontend.occursConstB] at h
+    | succ k =>
+      simp only [ConLeche.Frontend.occursConstB] at h
+      rcases hgf : ConLeche.Frontend.occursConstB n k f with ⟨of, fu⟩
+      rw [hgf] at h
+      cases of with
+      | none => simp at h
+      | some bf =>
+        cases bf with
+        | true =>
+          simp only [Prod.mk.injEq, Option.some.injEq] at h
+          rw [← h.1, ConLeche.Frontend.occursConst, ← ihf k true fu hgf]
+          rfl
+        | false =>
+          simp only at h
+          rw [iha fu b f' h, ConLeche.Frontend.occursConst, ← ihf k false fu hgf]
+          rfl
+  | lam ty bo bi ihty ihbo =>
+    intro fuel b f' h
+    cases fuel with
+    | zero => simp [ConLeche.Frontend.occursConstB] at h
+    | succ k =>
+      simp only [ConLeche.Frontend.occursConstB] at h
+      rcases hgf : ConLeche.Frontend.occursConstB n k ty with ⟨of, fu⟩
+      rw [hgf] at h
+      cases of with
+      | none => simp at h
+      | some bf =>
+        cases bf with
+        | true =>
+          simp only [Prod.mk.injEq, Option.some.injEq] at h
+          rw [← h.1, ConLeche.Frontend.occursConst, ← ihty k true fu hgf]
+          rfl
+        | false =>
+          simp only at h
+          rw [ihbo fu b f' h, ConLeche.Frontend.occursConst, ← ihty k false fu hgf]
+          rfl
+  | forallE ty bo bi ihty ihbo =>
+    intro fuel b f' h
+    cases fuel with
+    | zero => simp [ConLeche.Frontend.occursConstB] at h
+    | succ k =>
+      simp only [ConLeche.Frontend.occursConstB] at h
+      rcases hgf : ConLeche.Frontend.occursConstB n k ty with ⟨of, fu⟩
+      rw [hgf] at h
+      cases of with
+      | none => simp at h
+      | some bf =>
+        cases bf with
+        | true =>
+          simp only [Prod.mk.injEq, Option.some.injEq] at h
+          rw [← h.1, ConLeche.Frontend.occursConst, ← ihty k true fu hgf]
+          rfl
+        | false =>
+          simp only at h
+          rw [ihbo fu b f' h, ConLeche.Frontend.occursConst, ← ihty k false fu hgf]
+          rfl
+  | letE t v bo iht ihv ihbo =>
+    intro fuel b f' h
+    cases fuel with
+    | zero => simp [ConLeche.Frontend.occursConstB] at h
+    | succ k =>
+      simp only [ConLeche.Frontend.occursConstB] at h
+      rcases hgt : ConLeche.Frontend.occursConstB n k t with ⟨ot, fu⟩
+      rw [hgt] at h
+      cases ot with
+      | none => simp at h
+      | some bt =>
+        cases bt with
+        | true =>
+          simp only [Prod.mk.injEq, Option.some.injEq] at h
+          rw [← h.1, ConLeche.Frontend.occursConst, ← iht k true fu hgt]
+          rfl
+        | false =>
+          simp only at h
+          rcases hgv : ConLeche.Frontend.occursConstB n fu v with ⟨ov, fv⟩
+          rw [hgv] at h
+          cases ov with
+          | none => simp at h
+          | some bv =>
+            cases bv with
+            | true =>
+              simp only [Prod.mk.injEq, Option.some.injEq] at h
+              rw [← h.1, ConLeche.Frontend.occursConst, ← iht k false fu hgt,
+                ← ihv fu true fv hgv]
+              rfl
+            | false =>
+              simp only at h
+              rw [ihbo fv b f' h, ConLeche.Frontend.occursConst,
+                ← iht k false fu hgt, ← ihv fu false fv hgv]
+              rfl
+  | proj s idx x ihx =>
+    intro fuel b f' h
+    cases fuel with
+    | zero => simp [ConLeche.Frontend.occursConstB] at h
+    | succ k =>
+      simp only [ConLeche.Frontend.occursConstB] at h
+      rw [ihx k b f' h, ConLeche.Frontend.occursConst]
+  | _ =>
+    intro fuel b f' h
+    simp only [ConLeche.Frontend.occursConstB, Prod.mk.injEq, Option.some.injEq] at h
+    rw [← h.1]
+    rfl
+
+/-- The memoised walk answers `occursConst` under "everything recorded really
+does not mention `n`" (`ConLeche/Frontend/ProjRec.lean:180-225
+occursConstGo`). -/
+theorem occursConstGo_sound (n : ConLeche.Name) (e : ConLeche.Expr) :
+    ∀ (seen : Std.HashSet ConLeche.Expr),
+      (∀ x, seen.contains x = true → ConLeche.Frontend.occursConst n x = false) →
+      (ConLeche.Frontend.occursConstGo n seen e).1 = ConLeche.Frontend.occursConst n e ∧
+      ∀ x, (ConLeche.Frontend.occursConstGo n seen e).2.contains x = true →
+        ConLeche.Frontend.occursConst n x = false := by
+  induction e with
+  | app f a ihf iha =>
+    intro seen hs
+    rw [ConLeche.Frontend.occursConstGo]
+    by_cases hc : seen.contains (ConLeche.Expr.app f a) = true
+    · rw [if_pos hc]; exact ⟨(hs _ hc).symm, hs⟩
+    · rw [if_neg hc]
+      obtain ⟨ihf1, ihf2⟩ := ihf seen hs
+      rcases hgf : ConLeche.Frontend.occursConstGo n seen f with ⟨bf, sf⟩
+      rw [hgf] at ihf1 ihf2
+      cases bf with
+      | true =>
+        simp only []
+        exact ⟨by simp [ConLeche.Frontend.occursConst, ← ihf1], ihf2⟩
+      | false =>
+        simp only []
+        obtain ⟨iha1, iha2⟩ := iha sf ihf2
+        rcases hga : ConLeche.Frontend.occursConstGo n sf a with ⟨ba, sa⟩
+        rw [hga] at iha1 iha2
+        cases ba with
+        | true =>
+          simp only []
+          exact ⟨by simp [ConLeche.Frontend.occursConst, ← ihf1, ← iha1], iha2⟩
+        | false =>
+          simp only []
+          have hocc : ConLeche.Frontend.occursConst n (ConLeche.Expr.app f a) = false := by
+            simp [ConLeche.Frontend.occursConst, ← ihf1, ← iha1]
+          refine ⟨hocc.symm, ?_⟩
+          intro x hx
+          rw [Std.HashSet.contains_insert] at hx
+          rcases Bool.or_eq_true .. |>.mp hx with h1 | h1
+          · rw [← eq_of_beq h1]; exact hocc
+          · exact iha2 x h1
+  | lam ty bo bi ihty ihbo =>
+    intro seen hs
+    rw [ConLeche.Frontend.occursConstGo]
+    by_cases hc : seen.contains (ConLeche.Expr.lam ty bo bi) = true
+    · rw [if_pos hc]; exact ⟨(hs _ hc).symm, hs⟩
+    · rw [if_neg hc]
+      obtain ⟨ihf1, ihf2⟩ := ihty seen hs
+      rcases hgf : ConLeche.Frontend.occursConstGo n seen ty with ⟨bf, sf⟩
+      rw [hgf] at ihf1 ihf2
+      cases bf with
+      | true =>
+        simp only []
+        exact ⟨by simp [ConLeche.Frontend.occursConst, ← ihf1], ihf2⟩
+      | false =>
+        simp only []
+        obtain ⟨iha1, iha2⟩ := ihbo sf ihf2
+        rcases hga : ConLeche.Frontend.occursConstGo n sf bo with ⟨ba, sa⟩
+        rw [hga] at iha1 iha2
+        cases ba with
+        | true =>
+          simp only []
+          exact ⟨by simp [ConLeche.Frontend.occursConst, ← ihf1, ← iha1], iha2⟩
+        | false =>
+          simp only []
+          have hocc : ConLeche.Frontend.occursConst n
+              (ConLeche.Expr.lam ty bo bi) = false := by
+            simp [ConLeche.Frontend.occursConst, ← ihf1, ← iha1]
+          refine ⟨hocc.symm, ?_⟩
+          intro x hx
+          rw [Std.HashSet.contains_insert] at hx
+          rcases Bool.or_eq_true .. |>.mp hx with h1 | h1
+          · rw [← eq_of_beq h1]; exact hocc
+          · exact iha2 x h1
+  | forallE ty bo bi ihty ihbo =>
+    intro seen hs
+    rw [ConLeche.Frontend.occursConstGo]
+    by_cases hc : seen.contains (ConLeche.Expr.forallE ty bo bi) = true
+    · rw [if_pos hc]; exact ⟨(hs _ hc).symm, hs⟩
+    · rw [if_neg hc]
+      obtain ⟨ihf1, ihf2⟩ := ihty seen hs
+      rcases hgf : ConLeche.Frontend.occursConstGo n seen ty with ⟨bf, sf⟩
+      rw [hgf] at ihf1 ihf2
+      cases bf with
+      | true =>
+        simp only []
+        exact ⟨by simp [ConLeche.Frontend.occursConst, ← ihf1], ihf2⟩
+      | false =>
+        simp only []
+        obtain ⟨iha1, iha2⟩ := ihbo sf ihf2
+        rcases hga : ConLeche.Frontend.occursConstGo n sf bo with ⟨ba, sa⟩
+        rw [hga] at iha1 iha2
+        cases ba with
+        | true =>
+          simp only []
+          exact ⟨by simp [ConLeche.Frontend.occursConst, ← ihf1, ← iha1], iha2⟩
+        | false =>
+          simp only []
+          have hocc : ConLeche.Frontend.occursConst n
+              (ConLeche.Expr.forallE ty bo bi) = false := by
+            simp [ConLeche.Frontend.occursConst, ← ihf1, ← iha1]
+          refine ⟨hocc.symm, ?_⟩
+          intro x hx
+          rw [Std.HashSet.contains_insert] at hx
+          rcases Bool.or_eq_true .. |>.mp hx with h1 | h1
+          · rw [← eq_of_beq h1]; exact hocc
+          · exact iha2 x h1
+  | letE t v bo iht ihv ihbo =>
+    intro seen hs
+    rw [ConLeche.Frontend.occursConstGo]
+    by_cases hc : seen.contains (ConLeche.Expr.letE t v bo) = true
+    · rw [if_pos hc]; exact ⟨(hs _ hc).symm, hs⟩
+    · rw [if_neg hc]
+      obtain ⟨ih11, ih12⟩ := iht seen hs
+      rcases hg1 : ConLeche.Frontend.occursConstGo n seen t with ⟨b1, s1⟩
+      rw [hg1] at ih11 ih12
+      cases b1 with
+      | true =>
+        simp only []
+        exact ⟨by simp [ConLeche.Frontend.occursConst, ← ih11], ih12⟩
+      | false =>
+        simp only []
+        obtain ⟨ih21, ih22⟩ := ihv s1 ih12
+        rcases hg2 : ConLeche.Frontend.occursConstGo n s1 v with ⟨b2, s2⟩
+        rw [hg2] at ih21 ih22
+        cases b2 with
+        | true =>
+          simp only []
+          exact ⟨by simp [ConLeche.Frontend.occursConst, ← ih11, ← ih21], ih22⟩
+        | false =>
+          simp only []
+          obtain ⟨ih31, ih32⟩ := ihbo s2 ih22
+          rcases hg3 : ConLeche.Frontend.occursConstGo n s2 bo with ⟨b3, s3⟩
+          rw [hg3] at ih31 ih32
+          cases b3 with
+          | true =>
+            simp only []
+            exact ⟨by simp [ConLeche.Frontend.occursConst, ← ih11, ← ih21, ← ih31],
+              ih32⟩
+          | false =>
+            simp only []
+            have hocc : ConLeche.Frontend.occursConst n
+                (ConLeche.Expr.letE t v bo) = false := by
+              simp [ConLeche.Frontend.occursConst, ← ih11, ← ih21, ← ih31]
+            refine ⟨hocc.symm, ?_⟩
+            intro x hx
+            rw [Std.HashSet.contains_insert] at hx
+            rcases Bool.or_eq_true .. |>.mp hx with h1 | h1
+            · rw [← eq_of_beq h1]; exact hocc
+            · exact ih32 x h1
+  | proj sn idx sub ihsub =>
+    intro seen hs
+    rw [ConLeche.Frontend.occursConstGo]
+    by_cases hc : seen.contains (ConLeche.Expr.proj sn idx sub) = true
+    · rw [if_pos hc]; exact ⟨(hs _ hc).symm, hs⟩
+    · rw [if_neg hc]
+      obtain ⟨ih1, ih2⟩ := ihsub seen hs
+      rcases hg : ConLeche.Frontend.occursConstGo n seen sub with ⟨b1, s1⟩
+      rw [hg] at ih1 ih2
+      cases b1 with
+      | true =>
+        simp only []
+        exact ⟨by simp [ConLeche.Frontend.occursConst, ← ih1], ih2⟩
+      | false =>
+        simp only []
+        have hocc : ConLeche.Frontend.occursConst n
+            (ConLeche.Expr.proj sn idx sub) = false := by
+          simp [ConLeche.Frontend.occursConst, ← ih1]
+        refine ⟨hocc.symm, ?_⟩
+        intro x hx
+        rw [Std.HashSet.contains_insert] at hx
+        rcases Bool.or_eq_true .. |>.mp hx with h1 | h1
+        · rw [← eq_of_beq h1]; exact hocc
+        · exact ih2 x h1
+  | _ => intro seen hs; exact ⟨rfl, hs⟩
+
+/-- **`occursConstFast` computes `occursConst`**
+(`ConLeche/Frontend/ProjRec.lean:227-231`). -/
+theorem occursConstFast_eq (n : ConLeche.Name) (e : ConLeche.Expr) :
+    ConLeche.Frontend.occursConstFast n e = ConLeche.Frontend.occursConst n e := by
+  rw [ConLeche.Frontend.occursConstFast]
+  rcases hb : ConLeche.Frontend.occursConstB n 4096 e with ⟨ob, fb⟩
+  cases ob with
+  | none => exact (occursConstGo_sound n e {} (by intro x hx; simp at hx)).1
+  | some rr => exact occursConstB_sound n e 4096 rr fb hb
+
+/-- `proj_rec::occurs_const_fast` refines `occursConstFast`
+(`ConLeche/Frontend/ProjRec.lean:227-231 occursConstFast`). -/
+theorem occurs_const_fast_refines {n : name.Name} {e : expr.Expr} {b : Bool}
+    (hn : NameWF n) (he : ExprWF e)
+    (h : frontend.proj_rec.occurs_const_fast n e = ok b) :
+    b = ConLeche.Frontend.occursConstFast (absName n) (absExpr e) := by
+  rw [frontend.proj_rec.occurs_const_fast] at h
+  obtain ⟨seen, hnew, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨p, hgo, h⟩ := bind_eq_ok_iff.mp h
+  replace h : ok p.1 = ok b := h
+  rw [← Result.ok_injective h, occursConstFast_eq]
+  exact (occurs_const_go_refines hn e he seen p (ExprOps.new_memo_inv hnew) hgo).1
+
 end ConRon.Refine.Frontend
