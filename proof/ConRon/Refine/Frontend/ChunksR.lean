@@ -88,6 +88,7 @@ a disagreement in the accept direction as well.
 import ConRon.Refine.Frontend.Chunks
 import ConRon.Refine.Frontend.StateDR
 import ConRon.Refine.Frontend.Abs
+import ConRon.Refine.Frontend.ScanKit
 import ConRon.Refine.HashMapWF
 import ConLeche.Frontend.Prelude
 import ConLeche.Frontend.Scan.Equiv
@@ -397,9 +398,8 @@ theorem absPos_eq_zero {j : Std.Usize} : absPos j = 0 ↔ j.val = 0 := by
   · intro h; have := congrArg USize.toNat h; simpa using this
   · intro h; apply USize.toNat_inj.mp; simp [h]
 
-/-- The port's order on positions is con-leche's. -/
-theorem absPos_lt {i j : Std.Usize} : absPos i < absPos j ↔ i.val < j.val := by
-  rw [USize.lt_iff_toNat_lt, absPos_toNat, absPos_toNat]
+-- `absPos_lt` is `Refine/Frontend/ScanKit.lean`'s, which this file imports:
+-- that file owns every `absByte`/`absPos`/`absU32` bridge (`Refine/README.md`).
 
 /-! ## The last line
 
