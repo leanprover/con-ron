@@ -278,6 +278,16 @@ between `Std.U8`/`Std.Usize` and `UInt8`/`USize` all live in
 (`absPos j = skipWs (absBytes b) (absPos i)`); take `.symm` rather than adding
 a mirrored duplicate.
 
+**Two ownership rules, each learned by a collision.**  `ScanKit.lean` owns
+every `absByte` / `absPos` / `absU32` bridge, and it owns every `*_eq`
+**unfolding lemma about a con-leche function** (`skipWs_eq`, `skipDigits_eq`,
+`readNat_eq`, `strClose_eq`, …).  Both classes have exactly one right
+statement and every loop wants it, so a downstream file that writes its own
+gets a duplicate-declaration break the moment the kit catches up — which
+happened three times in one day at task #87, twice on `absU32` and once on
+`readNat_eq`.  A proved `*_refines` lemma about a *Rust* function collides
+with nothing and may live wherever it is used.
+
 ## What is here (tasks #17, #20 and #47, P3.3)
 ## What is here (tasks #17, #20, #22 and #46)
 
