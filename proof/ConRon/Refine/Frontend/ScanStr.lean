@@ -45,11 +45,12 @@ open ConRon.Refine ConLeche.Frontend
 map is the value, and it loses nothing because a `Std.U32` is below `2 ^ 32`
 by construction. -/
 
-/-- A port `u32` as con-leche's `UInt32`. -/
-def absU32 (v : Std.U32) : UInt32 := UInt32.ofNat v.val
+/-- A port `u32` as con-leche's `UInt32`.  Spelled on the bit vector rather
+than on the value so that `absU32_or`/`absU32_and` hold by `rfl`, which is what
+the object-member step of `Refine/Frontend/ScanObj.lean` is built on. -/
+def absU32 (n : Std.U32) : UInt32 := UInt32.ofBitVec n.bv
 
-@[simp] theorem absU32_toNat (v : Std.U32) : (absU32 v).toNat = v.val := by
-  simp [absU32]
+@[simp] theorem absU32_toNat (v : Std.U32) : (absU32 v).toNat = v.val := rfl
 
 /-! ## Bit plumbing
 
