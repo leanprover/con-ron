@@ -66,8 +66,8 @@
 //! maintainer's decision of the same day is to **pay it** for a safe,
 //! `unsafe`-free pool (con-leche measures `--jobs=8` at ~3.5×), and task #45
 //! landed the swap.  DESIGN.md §3.2 and the task-#44 entry have the table,
-//! `triomphe::Arc`'s column (atomic, 8 bytes leaner, and the slowest of the
-//! three) and the ways back.
+//! `triomphe::Arc`'s column (atomic, 8 bytes leaner, +17.6 % instructions but
+//! no longer slower in wall — task #89 re-measured it) and the ways back.
 //!
 //! What the swap buys, asserted by a compile-only test in `tests/`: `Name`,
 //! `Level`, `Expr`, `Env`, `FEnv` and `CState` are all `Send + Sync` with no
