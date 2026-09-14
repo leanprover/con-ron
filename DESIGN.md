@@ -18217,12 +18217,51 @@ all predate this task.
 
 **Elaboration cost.**  Unmoved.  `ConRon.Refine.Abs` is 2.3 s against the
 2.1 s §5 recorded on the broken build, `ConRon.Refine.PropWhen` 5.2 s and
-`ConRon.Refine.Expr` 11 s; the whole library is the `lake-build` gate time in
-§7.  There was no reason to expect otherwise — the `Two` arms do one
-projection where they used to do none, and `simp only` sets grew by one lemma
-in ten places.
+`ConRon.Refine.Expr` 11 s; rebuilding everything downstream of
+`Refine/PropWhen` is 152 s at `LAKE_JOBS=32` (the `lake-build` gate, §7).
+There was no reason to expect otherwise — the `Two` arms do one projection
+where they used to do none, and ten `simp only` sets grew by one lemma.
 
 This branch was cut before task #91, so it was merged up first
 (`vendor/con-leche` is gone, `scripts/provenance.py dir` finds the lake
 package); the generated model was re-extracted on the merged sources and the
 OVERVIEW link snapshot refreshed in the merge commit.
+
+#### 7. Mathlib, and the gates
+
+The memory landing rule, once, at the end: `con-ron --verified --jobs=1
+_tmp/corpus/mathlib.ndjson`, release + mimalloc, under `ulimit -v 27000000`
+and `timeout 7200`, `perf stat -e instructions:u,cycles:u` with
+`_tmp/perf-overview/measure.py` for wall and peak RSS.
+
+| | task #83 (the row OVERVIEW §6.3 carried) | task #90 | Δ |
+|---|---:|---:|---:|
+| instructions:u | 11 367.0 G | **11 368.3 G** | +0.011 % |
+| cycles:u | — | 8 501.5 G | — |
+| wall | 1 925 s | 2 020 s | +4.9 % |
+| peak RSS | 16.49 GB | **14.66 GB** | **−11.1 %** |
+| verdict | accepted 691 128 | accepted 691 128 | — |
+
+The instruction count is the same to five significant figures, which is the
+point: **the saving is allocator traffic, not work**.  1.83 GB comes off the
+largest input the project measures, and it comes off for exactly the reason
+§4's fixtures predicted — Mathlib has proportionally more binders than
+`Init`, so it gets a little more than `Init`'s 8.5 % and `core`'s 9.2 %.  The
+last re-measurement before this one (task #84's, at 16.64 GB) is the honest
+baseline for the Δ; against it the drop is 11.9 %.  The wall column is one
+run of a 34-minute benchmark on a shared machine — CLAUDE.md says not to read
+it, and the agent's own `lake build` was running for the first quarter of it;
+`instructions:u` is unaffected by either, which is why it is the measure of
+record.  Peak RSS stayed comfortably inside the 27 GB budget (3× con-leche's
+8.75 GB), and no `ulimit` was raised.
+
+`scripts/gates.sh` (`LAKE_JOBS=32`): **all nine green** (`extract-check`
+71 s, `lake-build` 152 s).  The proof library is
+`sorry`-free and `Refine/Main.lean`'s capstone censuses are unchanged, which
+is the check that this task moved a representation and nothing else.
+`scripts/diff-e2e.sh`: **348 agree, 0 differ**, 16 s — re-run here because the
+branch was merged up over task #91 and the binary is the merged one, not the
+one §4 measured.
+
+`_tmp/task90-proofs/` holds the run's four files (`.perf`, `.time`, `.out`,
+`.err`); deleted once these numbers are the committed record, per CLAUDE.md.
