@@ -5,6 +5,8 @@ import ConRon.Refine.Core.Arms.Arms
 import ConRon.Refine.BasisRaw
 import ConRon.Refine.Frontend.Chunks
 import ConRon.Refine.Frontend.Prepare
+import ConRon.Refine.Frontend.ChunksR
+import ConRon.Refine.Frontend.PrepareR
 import ConLeche.MainTheorem
 
 /-! # The capstone: `conron.model_exists` and `conron.no_proof_of_False` (task #60)
@@ -653,5 +655,161 @@ theorem conron.no_proof_of_False_prelude (V : Type w) [ConLeche.SetTheory V]
 
 /-- info: 'ConRon.Refine.conron.no_proof_of_False_prelude' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms conron.no_proof_of_False_prelude
+
+/-! ## The headline of task #87: the file that declares `False` is rejected
+
+con-leche's own main corollary (`ConLeche.no_False_declaration`,
+`vendor/con-leche/ConLeche/MainTheorem.lean:110-123`) transported across the
+port.  `ConLeche.jsonWithTheoremFalse` (`ConLeche/Accepts.lean:62-73`) is the
+*file*-level shape: four JSON lines, in order, anywhere in the byte stream —
+a name entry `False`, an expression entry that is that constant, a name entry
+for the theorem, and a `thm` record of that name, that type and any proof.  The
+statement below says that **the port** — its scanner, its line applier, its two
+permuting passes and its fold — never accepts such a stream.
+
+Four steps, con-leche's, one port lemma each:
+
+1. `Frontend.parse_chunks_refines` (`Refine/Frontend/ChunksR.lean`) says the
+   port's parse *is* `parseChunks` of the abstracted chunks, so
+   `ConLeche.Frontend.parseChunks_jsonWithTheoremFalse`
+   (`Verify/Frontend/FileFalse.lean:177`) applies and hands back a theorem
+   record of type `False` among con-leche's parsed declarations;
+   `ParseResultSim.decls` moves it back onto the port's own records.
+2. `Frontend.prepare_prelude_refines` (`Refine/Frontend/PrepareR.lean:1889`)
+   says the prepared stream is `preparePrelude` of those records, and
+   `ConLeche.Frontend.mem_preparePrelude` (`Verify/Frontend/Prepare.lean:174`)
+   says preparation keeps every one of them.
+3. `check_decls_verified_refines_ok` turns the port's accept into con-leche's.
+4. `ConLeche.no_False_theorem_accepted` (`Verify/Cached/StreamThm.lean:207`)
+   refutes that accept.
+
+**The prelude never has to be identified with con-leche's.**  Step 2's
+`mem_preparePrelude` holds for *every* `pre`, so the statement is
+prelude-parametric for free — the same move tasks #74/#75 made for the pins,
+and the reason task #84's F17 (a `&str` constant of that size does not
+elaborate, `AENEAS_FINDINGS.md` §3.8) costs this theorem nothing.
+
+### What remains trusted
+
+* `hgen : Frontend.ModellerWF inst g` — phase 1's promise about the unverified
+  modeller (task #84's seam): every declaration `in_model_rec::Modeller
+  ::generate` returns is well formed.  It is what discharges the fold's `hds`.
+* `ing : Frontend.ParseIngredients R inst g` and `hspec : Frontend.HoistSpec` —
+  phase 3's outstanding ingredients, stated as hypotheses rather than assumed
+  as axioms (the `Refine/IndSpec.lean` idiom): the scanner's and line applier's
+  exactness (`ChunksR.lean`'s module note lists which file owes each field) and
+  the hoist's target pass (`PrepareR.lean:1629`).  Discharging them is what is
+  left of task #87.
+* The driver: that `con_ron::driver` calls `parse_chunks`, `prepare_prelude`
+  and `check_decls` on the stream it was handed, in this order — the same
+  unverified line `conron.model_exists_decoded` already owes for the pins.
+
+Nothing else: the census below is Lean's own three axioms.
+-/
+
+/-- **A file that declares a theorem of type `False` is rejected by the port**
+(task #87) — `ConLeche.no_False_declaration` transported.  Parametric in the
+prelude, as `conron.model_exists_parsed` is: `hpre` is the port's own parse of
+*some* prelude bytes, never identified with con-leche's `builtinPreludeE`.
+
+It carries `hgen` (the modeller's promise, phase 1), `ing`/`hspec` (phase 3's
+outstanding ingredients), `hp` (a decode run), `hpre` (the prelude's parse),
+`hparse` (the stream's parse), `hprep` (the prepare step) and `h` (the check
+run) — and no hypothesis about well-formedness at all. -/
+theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
+    {R : frontend.export_c.StateD → ConLeche.Frontend.StateD → Prop}
+    {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+    (hgen : Frontend.ModellerWF inst g) (ing : Frontend.ParseIngredients R inst g)
+    (hspec : Frontend.HoistSpec)
+    {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+    (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+    {prelude_bytes : Slice Std.U8} {pre : frontend.export_c.ParseResultD}
+    (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
+    {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {im ce : Bool}
+    (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
+    {r : frontend.export_c.ParseResultD}
+    (hparse : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Ok r))
+    {ds : alloc.vec.Vec env.Declaration}
+    (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
+    {e : env.Env}
+    (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+    False := by
+  -- 1. the parse: the port's records hold the theorem record of type `False`
+  obtain ⟨x, hx, hsim⟩ := Frontend.parse_chunks_refines ing hparse
+  obtain ⟨cv, vl, hty, hmem⟩ := ConLeche.Frontend.parseChunks_jsonWithTheoremFalse hfalse hx
+  rw [← hsim.decls] at hmem
+  simp only [Frontend.absParseResultD] at hmem
+  -- 2. the preparation keeps it
+  have hprel : Frontend.PreludeIxWF ⟨pre.decls⟩ := Frontend.parse_bytes_wf hgen hpre
+  have hrwf : ∀ d ∈ r.decls.val, DeclarationWF d := Frontend.parse_chunks_wf hgen hparse
+  have hmem' : ConLeche.Declaration.thmDecl cv vl
+      ∈ (⟨ds.val.map absDeclaration⟩ : Array ConLeche.Declaration) := by
+    have hpp := Frontend.prepare_prelude_refines hspec hprel hrwf hprep
+    simp only [Frontend.absDecls] at hpp
+    refine Array.mem_toList_iff.mp ?_
+    show ConLeche.Declaration.thmDecl cv vl ∈ ds.val.map absDeclaration
+    rw [hpp]
+    exact Array.mem_toList_iff.mpr
+      (ConLeche.Frontend.mem_preparePrelude (pre := Frontend.absPreludeIx ⟨pre.decls⟩) hmem)
+  -- 3./4. the fold's accept is con-leche's, and con-leche refutes it
+  exact ConLeche.no_False_theorem_accepted V _ cv vl hmem' hty (absEnv e)
+    (check_decls_verified_refines_ok (Core.knot_spec IndAbs.checkFuelU)
+      conron.basis_raw_spec
+      (InductivesC.ind_routes_spec' (Core.knot_spec IndAbs.checkFuelU))
+      (InductivesC.ind_routes_spec_err' (Core.knot_spec IndAbs.checkFuelU))
+      (PinsWF.decode_wf hp)
+      (Frontend.prepare_prelude_wf hprel hrwf hprep) h)
+
+/-- info: 'ConRon.Refine.conron.no_False_declaration' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms conron.no_False_declaration
+
+/-- `conron.no_False_declaration` at the prelude the binary ships,
+`frontend::prelude::builtin_prelude_e` — the pairing
+`conron.model_exists_parsed` / `conron.model_exists_prelude` uses, and free for
+the same reason: the prelude constant is a `[u8; 16 922]` and not a `&str`, so
+naming it adds no `toStr` axiom (task #84 §8, task #86). -/
+theorem conron.no_False_declaration_prelude (V : Type w) [ConLeche.SetTheory V]
+    {R : frontend.export_c.StateD → ConLeche.Frontend.StateD → Prop}
+    {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+    (hgen : Frontend.ModellerWF inst g) (ing : Frontend.ParseIngredients R inst g)
+    (hspec : Frontend.HoistSpec)
+    {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+    (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+    {pre : frontend.prepare.PreludeIx}
+    (hpre : frontend.prelude.builtin_prelude_e inst g = ok (.Ok pre))
+    {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {im ce : Bool}
+    (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
+    {r : frontend.export_c.ParseResultD}
+    (hparse : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Ok r))
+    {ds : alloc.vec.Vec env.Declaration}
+    (hprep : frontend.prepare.prepare_prelude pre r.decls = ok ds)
+    {e : env.Env}
+    (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+    False := by
+  obtain ⟨x, hx, hsim⟩ := Frontend.parse_chunks_refines ing hparse
+  obtain ⟨cv, vl, hty, hmem⟩ := ConLeche.Frontend.parseChunks_jsonWithTheoremFalse hfalse hx
+  rw [← hsim.decls] at hmem
+  simp only [Frontend.absParseResultD] at hmem
+  have hprel : Frontend.PreludeIxWF pre := Frontend.builtin_prelude_e_wf hgen hpre
+  have hrwf : ∀ d ∈ r.decls.val, DeclarationWF d := Frontend.parse_chunks_wf hgen hparse
+  have hmem' : ConLeche.Declaration.thmDecl cv vl
+      ∈ (⟨ds.val.map absDeclaration⟩ : Array ConLeche.Declaration) := by
+    have hpp := Frontend.prepare_prelude_refines hspec hprel hrwf hprep
+    simp only [Frontend.absDecls] at hpp
+    refine Array.mem_toList_iff.mp ?_
+    show ConLeche.Declaration.thmDecl cv vl ∈ ds.val.map absDeclaration
+    rw [hpp]
+    exact Array.mem_toList_iff.mpr
+      (ConLeche.Frontend.mem_preparePrelude (pre := Frontend.absPreludeIx pre) hmem)
+  exact ConLeche.no_False_theorem_accepted V _ cv vl hmem' hty (absEnv e)
+    (check_decls_verified_refines_ok (Core.knot_spec IndAbs.checkFuelU)
+      conron.basis_raw_spec
+      (InductivesC.ind_routes_spec' (Core.knot_spec IndAbs.checkFuelU))
+      (InductivesC.ind_routes_spec_err' (Core.knot_spec IndAbs.checkFuelU))
+      (PinsWF.decode_wf hp)
+      (Frontend.prepare_prelude_wf hprel hrwf hprep) h)
+
+/-- info: 'ConRon.Refine.conron.no_False_declaration_prelude' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms conron.no_False_declaration_prelude
 
 end ConRon.Refine
