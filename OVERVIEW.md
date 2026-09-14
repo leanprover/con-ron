@@ -504,17 +504,22 @@ is in the lines it *rejects*.
 | | |
 |---|---|
 | con-leche core (`Kernel`, `Cached`) lines to port | 14 077, all ported, 92 % verified (the rest deliberately skipped, listed with reasons) |
-| con-leche frontend and driver lines to port | 7 432, all ported, unverified |
-| Rust, verified core | 38 024 lines, 1 533 functions, every item cited (927 declarations covered, 94 skipped) |
-| Rust, unverified crates | about 17 600 lines |
-| generated Lean model | 53 258 lines |
+| con-leche **parser** lines to port (`Frontend`, §3.7) | 4 441, all ported — into the verified crate since task #84 — 0 % verified, the lemmas being the next task's |
+| con-leche modeller and driver lines to port | 2 975, all ported, unverified by design (§7) |
+| Rust, verified core | 49 674 lines, 1 844 functions, every item cited (the checker's 927 declarations covered, 94 skipped) |
+| Rust, unverified crate | about 11 100 lines |
+| generated Lean model | 73 164 lines |
 | proofs | 148 985 lines: 3 364 theorems by tactic, 800 by term; 1 380 `_refines` lemmas |
 | refinement statements over the whole outcome | 283 of 283 |
 
 The ratios are worth a sentence: the Rust is 2.7× the Lean it ports (a
 `match` in Rust is longer than one in Lean, and every memo probe is
-spelled out), the model 1.4× the Rust, the proofs 3.9× the Rust and 10.6×
-the upstream Lean.
+spelled out) — and the parser, rewritten into the subset by a different
+route, came out at the same ratio, which is a small check that the subset
+is not the reason for the factor.  The model is 1.5× the Rust.  The proofs
+are 3.0× the Rust and 8.1× the upstream Lean, down from 3.9× and 10.6×
+not because anything was proved less but because the denominator grew: the
+parser is in the verified crate with no lemmas yet.
 
 ### 6.2 What the proof found
 

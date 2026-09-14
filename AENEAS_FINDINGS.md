@@ -8,11 +8,11 @@
 > porting con-leche.
 
 A report *for the Charon and Aeneas maintainers*, collected from con-ron's task log
-(`DESIGN.md`; entries cited as "#N").  con-ron is a ~42 000-line Rust transliteration of
-the con-leche Lean kernel, translated by Charon + Aeneas to ~52 500 lines of Lean and
-partly proved to refine the Lean original.  As far as we know it is the largest single
-crate to have been through this pipeline: one `mutual` block of 84 functions, 415
-`partial_fixpoint`s, `.llbc` files up to 179 MB.
+(`DESIGN.md`; entries cited as "#N").  con-ron is a ~50 000-line Rust transliteration of
+the con-leche Lean kernel *and its export parser*, translated by Charon + Aeneas to
+~73 000 lines of Lean and partly proved to refine the Lean original.  As far as we know it
+is the largest single crate to have been through this pipeline: one `mutual` block of 84
+functions, 415 `partial_fixpoint`s, `.llbc` files up to 179 MB.
 
 Each finding gives the Rust shape that triggers it and the workaround we shipped, marked
 **[bug]** (looks like a defect), **[limitation]** (a gap, documented or not) or
@@ -32,10 +32,12 @@ Rust.
 | CLI | `charon cargo --preset=aeneas --dest-file <abs>.llbc`; `aeneas -backend lean -split-files -loops-to-rec -dest … -subdir ConRon/Generated -namespace ConRon.Generated -no-progress-bar` |
 
 The Rust subset we hold ourselves to (`DESIGN.md` §3.4, enforced by a lint script): no
-closures, no `?`, no `loop`/`while`, no `std::collections`, no `unsafe`, no
-`#[derive(Debug)]` on recursive types, `&mut` only for the state parameter, `Rc` API
-limited to `new`/`clone`/`deref`/`ptr_eq`.  Almost every finding below is a rule that
-subset exists to encode.
+closures, no `?`, no `std::collections`, no `unsafe`, no `#[derive]` at all on the core
+types, `&mut` only for the state parameter, `Rc` API limited to
+`new`/`clone`/`deref`/`ptr_eq`, and recursion rather than `loop`/`while` — with one
+directory exempted since #84, the ported byte parser, whose Lean *is* a per-byte tail
+recursion that Lean compiles to a loop (§2.6 is what that exemption is like in practice).
+Almost every finding below is a rule that subset exists to encode.
 
 ## 2. Translator findings
 
@@ -95,6 +97,28 @@ would have let us mirror the source more closely.
 translates as a *type* (`Str → Err`) but Aeneas fails to build the **constructor**: *"There
 should be no bottoms in the value"*, and the constructor comes out `sorry` (#14, measured
 in a throwaway crate).  We represent every string in the core as `Vec<u32>` code points.
+
+**F17. A `&str` constant's double quotes are emitted UNESCAPED.** **[bug]** (#84) A
+`const S: &str = "opaque\""` comes out as `def … : Str := toStr "opaque""`, and Lean says
+*"unexpected token; expected command"*.  Aeneas escapes `\n` in the same literal, so its
+string printer simply omits `"`.  It is a one-character fix upstream and it cost this port a
+design decision, because the two shapes that run into it are not symmetric:
+
+* seven literals in the byte scanner end in the JSON string's own closing quote, and those
+  became `const S: [u8; N]` byte arrays — a local change;
+* **the embedded prelude is an ndjson stream, which is nothing but quotes.**  `&str` was the
+  representation `kernel/pins_text.rs` chose at task #43 precisely because the *other* shape,
+  a byte constant, becomes an element-by-element `Array.make` that Lean could not elaborate
+  at 532 456 elements.  With `&str` unusable, the prelude's 16 922 bytes had to go back to a
+  byte array — and one array that long **times out** Lean's elaborator at a million
+  heartbeats (the rest of our model's largest array is 72 elements), while one of 512
+  exhausts `maxRecDepth 2048`.  The committed shape is 67 chunks of 256 joined at run time
+  (`scripts/gen-prelude.py`).
+
+So the practical rule is: **a `&str` constant is safe only if its value contains no `"`**,
+and a byte constant is safe only up to a few hundred elements.  Anything larger is chunked.
+Asks: escape `"` in the string printer, and make a long `Array.make` elaborate in linear
+time (or emit it as a `ByteArray` literal, which Lean has a fast path for).
 
 ### 2.2 External holes we did not want, and how each was avoided
 
@@ -409,6 +433,12 @@ so a substantial performance refactor needed **zero** proof changes (#34).  #4
   cannot use — always give the projection a **type ascription**, forcing the defeq check.  #16
 * Generated accessors are deref-then-project, so a `match` on one needs *both*
   `Expr._0._simpLemma_` **and** `ExprNode.kind._simpLemma_` before it reduces.  #20
+* **A trait method may not be called `mk`.**  A Rust trait becomes a Lean `structure` and
+  its methods become that structure's *fields*, and `mk` is the name Lean reserves for a
+  structure's own constructor — so `trait MkBinder { fn mk(&self, …) }` produces a
+  `structure` Lean refuses with *"Invalid field name `mk`: This is the name of the structure
+  constructor"*.  Charon and Aeneas are both happy; only `lake build` says anything.
+  Presumably the same holds for any other name Lean reserves on a structure.  #84
 * `lake build` of a project that `require`s the Aeneas library is **not** warning-free: the
   replayed library modules emit `linter.dupNamespace`, `linter.ambiguousOpen` and
   `linter.defProp`.  Our gate is therefore "every *con-ron* file elaborates with zero output
