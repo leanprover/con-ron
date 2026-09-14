@@ -1123,6 +1123,213 @@ theorem hoist_reorder_refines {ds v : alloc.vec.Vec env.Declaration}
     (by scalar_tac) h
   simpa [absDecls, alloc.vec.Vec.with_capacity, alloc.vec.Vec.new] using this
 
+/-! ### The two owning probes, and the bucket pass -/
+
+/-- `ConLeche/Frontend/NatOpGround.lean:129-131` — **`nat_op_ground::target_done`
+refines the cited `match target[k]? with | some t => if t ≤ i then continue |
+none => pure ()`**: "`k` is already targeted at `i` or earlier". -/
+theorem target_done_refines {target : ron.hashmap.HashMap Std.U64 Std.U64}
+    {s : _root_.Std.HashMap Nat Nat} {k i : Std.U64} {b : Bool}
+    (hrel : HoistTargetRel target s)
+    (h : frontend.nat_op_ground.target_done target k i = ok b) :
+    b = (match s[k.val]? with | some t => decide (t ≤ i.val) | none => false) := by
+  rw [frontend.nat_op_ground.target_done] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨o, hget, hb⟩ := h
+  rw [HashMap.get_refines tgt_eq2_spec hrel.inv hget] at hb
+  have hk := hrel.get k
+  cases ho : HashMap.toFun target k with
+  | none =>
+    rw [ho] at hb hk
+    simp only [Option.map_none] at hk
+    rw [← hk]
+    simp at hb
+    rw [← hb]
+  | some t =>
+    rw [ho] at hb hk
+    simp only [Option.map_some] at hk
+    rw [← hk]
+    simp only [Result.ok.injEq] at hb
+    rw [← hb]
+    simp
+
+/-- `ConLeche/Frontend/NatOpGround.lean:152-155` — **`nat_op_ground::target_is`
+refines the cited `key`'s `target[k]? = some t` test**: the bucket pass's
+owning probe. -/
+theorem target_is_refines {target : ron.hashmap.HashMap Std.U64 Std.U64}
+    {s : _root_.Std.HashMap Nat Nat} {k t : Std.U64} {b : Bool}
+    (hrel : HoistTargetRel target s)
+    (h : frontend.nat_op_ground.target_is target k t = ok b) :
+    b = decide (s[k.val]? = some t.val) := by
+  rw [frontend.nat_op_ground.target_is] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨o, hget, hb⟩ := h
+  rw [HashMap.get_refines tgt_eq2_spec hrel.inv hget] at hb
+  have hk := hrel.get k
+  cases ho : HashMap.toFun target k with
+  | none =>
+    rw [ho] at hb hk
+    simp only [Option.map_none] at hk
+    rw [← hk]
+    simp only [Result.ok.injEq] at hb
+    rw [← hb]
+    simp
+  | some tt =>
+    rw [ho] at hb hk
+    simp only [Option.map_some] at hk
+    rw [← hk]
+    simp only [Result.ok.injEq] at hb
+    rw [← hb]
+    simp only [Option.some.injEq, decide_eq_decide]
+    exact ⟨fun hc => by rw [hc], fun hc => Env.u64_val_inj hc⟩
+
+/-- `ConLeche/Frontend/NatOpGround.lean:150-162` — the port's bucket pass, as a
+list: at each position `t`, first the moved records targeted at `t` (increasing
+original index, which is dependency order), then the record `t` itself unless
+it is one of them.  `applyHoist` gets the same order out of a `mergeSort` on
+the key `(t, s, k)`; that the two agree is `HoistSpec.order` below. -/
+private def hoistBuckets (s : _root_.Std.HashMap Nat Nat) (moved : List Nat)
+    (n : Nat) : List Nat :=
+  (List.range n).flatMap (fun t =>
+    (moved.filter (fun k => decide (s[k]? = some t)))
+      ++ (if s.contains t then [] else [t]))
+
+/-- `ConLeche/Frontend/NatOpGround.lean:150-162` — `nat_op_ground::hoist_order_at`'s
+loop: one bucket's moved records. -/
+private theorem hoist_order_at_loop_refines
+    {target : ron.hashmap.HashMap Std.U64 Std.U64} {s : _root_.Std.HashMap Nat Nat}
+    {moved : alloc.vec.Vec Std.U64} {t : Std.U64} (hrel : HoistTargetRel target s) :
+    ∀ f : Nat, ∀ (a : Std.Usize) (order v : alloc.vec.Vec Std.U64),
+      moved.val.length - a.val ≤ f → a.val ≤ moved.val.length →
+      frontend.nat_op_ground.hoist_order_at_loop target moved t order
+          (alloc.vec.Vec.len moved) a = ok v →
+      v.val.map (·.val) = order.val.map (·.val)
+        ++ ((moved.val.drop a.val).map (·.val)).filter
+             (fun k => decide (s[k]? = some t.val)) := by
+  have hm : (alloc.vec.Vec.len moved).val = moved.val.length :=
+    alloc.vec.Vec.len_val moved
+  intro f
+  induction f with
+  | zero =>
+    intro a order v hf ha h
+    have haeq : a.val = moved.val.length := by omega
+    rw [frontend.nat_op_ground.hoist_order_at_loop.eq_def] at h
+    rw [if_neg (show ¬ a < alloc.vec.Vec.len moved by scalar_tac), Result.ok.injEq] at h
+    rw [← h, haeq, List.drop_length]; simp
+  | succ f ih =>
+    intro a order v hf ha h
+    rw [frontend.nat_op_ground.hoist_order_at_loop.eq_def] at h
+    by_cases hlt : a.val < moved.val.length
+    · rw [if_pos (show a < alloc.vec.Vec.len moved by scalar_tac)] at h
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨kk, hkk, b, hb, order1, horder1, a1, ha1, h⟩ := h
+      have ha1v : a1.val = a.val + 1 := by have := Nat.uadd_val ha1; simpa using this
+      have hkg := ExprOps.vec_index_getElem? hkk
+      have hkx : moved.val[a.val] = kk := by
+        rw [List.getElem?_eq_getElem hlt] at hkg; exact Option.some_injective _ hkg
+      have hbv := target_is_refines hrel hb
+      rw [ih a1 order1 v (by omega) (by omega) h, ha1v,
+        List.drop_eq_getElem_cons hlt, hkx]
+      simp only [List.map_cons, List.filter_cons]
+      by_cases hbb : b = true
+      · subst hbb
+        rw [if_pos (by rw [← hbv]), vec_push_val horder1]
+        simp
+      · simp only [Bool.not_eq_true] at hbb
+        subst hbb
+        simp only [Bool.false_eq_true, reduceIte, Result.ok.injEq] at horder1
+        rw [← horder1, if_neg (by rw [← hbv]; simp)]
+    · rw [if_neg (show ¬ a < alloc.vec.Vec.len moved by scalar_tac), Result.ok.injEq] at h
+      have haeq : a.val = moved.val.length := by omega
+      rw [← h, haeq, List.drop_length]; simp
+
+/-- `ConLeche/Frontend/NatOpGround.lean:150-162` — **`nat_op_ground::hoist_order_at`
+is one bucket's `s = 0` half**: the moved records whose target is `t`, in
+increasing original index. -/
+theorem hoist_order_at_refines {target : ron.hashmap.HashMap Std.U64 Std.U64}
+    {s : _root_.Std.HashMap Nat Nat} {moved order v : alloc.vec.Vec Std.U64}
+    {t : Std.U64} (hrel : HoistTargetRel target s)
+    (h : frontend.nat_op_ground.hoist_order_at order target moved t = ok v) :
+    v.val.map (·.val) = order.val.map (·.val)
+      ++ (moved.val.map (·.val)).filter (fun k => decide (s[k]? = some t.val)) := by
+  rw [frontend.nat_op_ground.hoist_order_at] at h
+  have := hoist_order_at_loop_refines hrel moved.val.length 0#usize order v
+    (by scalar_tac) (by scalar_tac) h
+  simpa using this
+
+/-- `ConLeche/Frontend/NatOpGround.lean:150-162` — `nat_op_ground::hoist_order`'s
+loop: the buckets from `t` on. -/
+private theorem hoist_order_loop_refines
+    {target : ron.hashmap.HashMap Std.U64 Std.U64} {s : _root_.Std.HashMap Nat Nat}
+    {moved : alloc.vec.Vec Std.U64} {n : Std.Usize} (hrel : HoistTargetRel target s) :
+    ∀ f : Nat, ∀ (t : Std.Usize) (order v : alloc.vec.Vec Std.U64),
+      n.val - t.val ≤ f → t.val ≤ n.val →
+      frontend.nat_op_ground.hoist_order_loop n target moved order t = ok v →
+      v.val.map (·.val) = order.val.map (·.val)
+        ++ (List.range' t.val (n.val - t.val)).flatMap (fun tt =>
+             ((moved.val.map (·.val)).filter (fun k => decide (s[k]? = some tt)))
+               ++ (if s.contains tt then [] else [tt])) := by
+  intro f
+  induction f with
+  | zero =>
+    intro t order v hf ht h
+    rw [frontend.nat_op_ground.hoist_order_loop.eq_def] at h
+    rw [if_neg (show ¬ t < n by scalar_tac), Result.ok.injEq] at h
+    rw [← h, show n.val - t.val = 0 by omega]; simp
+  | succ f ih =>
+    intro t order v hf ht h
+    rw [frontend.nat_op_ground.hoist_order_loop.eq_def] at h
+    by_cases hlt : t.val < n.val
+    · rw [if_pos (show t < n by scalar_tac)] at h
+      simp only [bind_eq_ok_iff, lift_eq] at h
+      obtain ⟨t1, ht1, order1, horder1, t2, ht2, b, hb, order2, horder2, t3, ht3, h⟩ := h
+      have ht1v : t1.val = t.val := by
+        rw [← Result.ok_injective ht1]; exact Env.usize_cast_u64_val t
+      have ht2v : t2.val = t.val := by
+        rw [← Result.ok_injective ht2]; exact Env.usize_cast_u64_val t
+      have ht3v : t3.val = t.val + 1 := by have := Nat.uadd_val ht3; simpa using this
+      have hbv : b = s.contains t.val := by
+        rw [HashMap.contains_key_refines tgt_eq2_spec hrel.inv hb]
+        have := hrel.get t2
+        rw [ht2v] at this
+        rw [_root_.Std.HashMap.contains_eq_isSome_getElem?, ← this]
+        simp
+      have h1 := hoist_order_at_refines hrel horder1
+      rw [ht1v] at h1
+      rw [ih t3 order2 v (by omega) (by omega) h, ht3v]
+      rw [show n.val - t.val = (n.val - (t.val + 1)) + 1 by omega, List.range'_succ,
+        List.flatMap_cons]
+      by_cases hbb : b = true
+      · subst hbb
+        rw [if_pos rfl, Result.ok.injEq] at horder2
+        rw [← horder2, h1, if_pos (by rw [← hbv])]
+        simp
+      · simp only [Bool.not_eq_true] at hbb
+        subst hbb
+        simp only [Bool.false_eq_true, reduceIte, bind_eq_ok_iff] at horder2
+        obtain ⟨t4, ht4, hpush⟩ := horder2
+        have ht4v : t4.val = t.val := by
+          rw [← Result.ok_injective ht4]; exact Env.usize_cast_u64_val t
+        rw [vec_push_val hpush]
+        simp only [List.map_append, List.map_cons, List.map_nil]
+        rw [h1, if_neg (by rw [← hbv]; simp)]
+        simp [ht4v]
+    · rw [if_neg (show ¬ t < n by scalar_tac), Result.ok.injEq] at h
+      rw [← h, show n.val - t.val = 0 by omega]; simp
+
+/-- `ConLeche/Frontend/NatOpGround.lean:150-162` — **`nat_op_ground::hoist_order`
+is the bucket pass**: `hoistBuckets`, position by position. -/
+theorem hoist_order_refines {target : ron.hashmap.HashMap Std.U64 Std.U64}
+    {s : _root_.Std.HashMap Nat Nat} {moved v : alloc.vec.Vec Std.U64}
+    {n : Std.Usize} (hrel : HoistTargetRel target s)
+    (h : frontend.nat_op_ground.hoist_order n target moved = ok v) :
+    v.val.map (·.val) = hoistBuckets s (moved.val.map (·.val)) n.val := by
+  rw [frontend.nat_op_ground.hoist_order] at h
+  have := hoist_order_loop_refines hrel n.val 0#usize _ v (by scalar_tac)
+    (by scalar_tac) h
+  simpa [hoistBuckets, List.range_eq_range', alloc.vec.Vec.with_capacity,
+    alloc.vec.Vec.new] using this
+
 /-! ### The residue
 
 Two hypotheses, both about the hoist; everything else of the two passes is
@@ -1149,15 +1356,13 @@ structure HoistSpec : Prop where
     HoistTargetRel t (ConLeche.Frontend.hoistTargets (absDecls ds).toArray) ∧
       HoistBounded (ConLeche.Frontend.hoistTargets (absDecls ds).toArray)
         ds.val.length
-  /-- `ConLeche/Frontend/NatOpGround.lean:150-162` — the port's bucket pass is
-  the cited `mergeSort`. -/
-  order : ∀ {target : ron.hashmap.HashMap Std.U64 Std.U64}
-    {s : _root_.Std.HashMap Nat Nat} {n : Std.Usize}
-    {moved ord : alloc.vec.Vec Std.U64},
-    HoistTargetRel target s → HoistBounded s n.val →
-    moved.val.map (·.val) = (List.range n.val).filter (fun k => s.contains k) →
-    frontend.nat_op_ground.hoist_order n target moved = ok ord →
-    ord.val.map (·.val) = (List.range n.val).mergeSort (fun a b => !hoistLt s b a)
+  /-- `ConLeche/Frontend/NatOpGround.lean:150-162` — the bucket pass
+  (`hoist_order_refines`, proved) enumerates the sort keys in key order, so it
+  is the cited `mergeSort`.  A statement about con-leche alone: no function of
+  the port occurs in it. -/
+  order : ∀ (s : _root_.Std.HashMap Nat Nat) (n : Nat), HoistBounded s n →
+    hoistBuckets s ((List.range n).filter (fun k => s.contains k)) n
+      = (List.range n).mergeSort (fun a b => !hoistLt s b a)
 
 
 /-! ### The receipt -/
@@ -1307,8 +1512,8 @@ theorem apply_hoist_refines (hspec : HoistSpec) {ds : alloc.vec.Vec env.Declarat
     rw [← hlen]; exact hoist_moved_idxs_refines hrel hmoved
   have hov : ord.val.map (·.val)
       = (List.range ds.val.length).mergeSort (fun a b => !hoistLt s b a) := by
-    have := hspec.order hrel (by rw [hlen]; exact hb) (by rw [hlen]; exact hmv) hord
-    rwa [hlen] at this
+    rw [hoist_order_refines hrel hord, hlen, hmv]
+    exact hspec.order s ds.val.length hb
   have hordlt : ∀ k ∈ ord.val, k.val ≤ Std.Usize.max := by
     intro k hk
     have hmem : k.val ∈ (List.range ds.val.length).mergeSort
