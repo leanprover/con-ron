@@ -28,14 +28,27 @@ con-leche: `ConLeche/Frontend/ExportC.lean:732-935` and
   carried out of the port's `&mut` argument rather than out of the value.
 * `ParseIngredients R inst g` — the lower tier's lemmas as named `Prop`s, one
   field per lemma, in the shape `Refine/IndSpec.lean` fixed at task #56.
+  **Nine** fields: the six the parse consumes plus the three
+  *record-provenance* facts `Refine/Frontend/IndR.lean`'s `apply_line_refines`
+  needs of the record the scanner produced (`LineRecWF`, `LineRecStrWF`,
+  `LineNatValSpec`) — without them the structure could not be instantiated at
+  all, because nothing proves `apply_line` of an arbitrary `LineRec`.
 * `parse_chunks_refines` / `parse_chunks_refines_err` — **the lemma the whole
   task's headline composes with**, both halves — and
   `builtin_prelude_e_refines`, its prelude twin.
+* `parseIngredients` — **the record, built**, and
+  `parse_chunks_refines_of_specs` / `parse_chunks_refines_err_of_specs` /
+  `builtin_prelude_e_refines_of_specs`, the three headlines stated at it.
 
-Everything in this file is *proved*; the six `ParseIngredients` fields are the
-only residue, and fields 5 and 6 are discharged here
+Everything in this file is *proved*.  All nine `ParseIngredients` fields are
+discharged by `parseIngredients` at the bottom — two of them here
 (`parse_result_state_d_init`, `parse_result_of_state_sim`) against
-`Refine/Frontend/StateDR.lean`.
+`Refine/Frontend/StateDR.lean`, four by `Refine/Frontend/ScanLine.lean` and
+`Refine/Frontend/ScanWF.lean`, one by `Refine/Frontend/ScanKit.lean` and one by
+`Refine/Frontend/IndR.lean` — so the residue in front of the port's streaming
+parse is exactly **three named `Prop`s**: `Utf8DecodeSpec` and `UnescapeSpec`
+(`Refine/Frontend/ScanStr.lean`, the string tier) and `IndRSpec`
+(`Refine/Frontend/IndR.lean`, the inductive tier).
 
 ## One intermediate definition
 
@@ -89,6 +102,8 @@ import ConRon.Refine.Frontend.Chunks
 import ConRon.Refine.Frontend.StateDR
 import ConRon.Refine.Frontend.Abs
 import ConRon.Refine.Frontend.ScanKit
+import ConRon.Refine.Frontend.ScanLine
+import ConRon.Refine.Frontend.IndR
 import ConRon.Refine.HashMapWF
 import ConLeche.Frontend.Prelude
 import ConLeche.Frontend.Scan.Equiv
@@ -282,12 +297,25 @@ producer.  The owners are
 
 | field | file |
 |---|---|
-| `scan_line_fwd`, `scan_line_fwd_tail`, `newline_from` | `Refine/Frontend/ScanLine.lean` |
+| `scan_line_fwd`, `scan_line_fwd_str_wf`, `scan_line_fwd_nat_val`, `scan_line_fwd_tail`, `newline_from` | `Refine/Frontend/ScanLine.lean` |
+| `scan_line_fwd_wf` | `Refine/Frontend/ScanWF.lean` (phase 1) |
 | `apply_line` | `Refine/Frontend/IndR.lean` |
 | `state_d_init`, `parse_result_of_state` | `Refine/Frontend/StateDR.lean` |
 
-`R` is `StateDRel`; the structure is parametric in it so that nothing in this
-file has to name a field of `export_c::StateD`. -/
+`R` is `StateDRel` paired with phase 1's `StateDWF` (`parseIngredients` at the
+bottom of this file builds the record at exactly that `R`); the structure is
+parametric in it so that nothing in this file has to name a field of
+`export_c::StateD`.
+
+**The three record-provenance fields.**  `IndR.lean`'s `apply_line_refines`
+does not hold of an arbitrary `scan_types::LineRec`: it needs `LineRecWF`
+(phase 1's clause on the two string payloads), `LineRecStrWF` (the two
+`Vec<u32>` *spellings* of a declaration record) and `LineNatValSpec` (a
+`natVal` literal's digits are its value).  All three are facts about *the
+record the scanner produced*, and this file has the scanner's `.Ok` in hand at
+every `apply_line` call site, so the record carries them as three fields keyed
+on that `.Ok` and `apply_line` takes them as hypotheses.  Without them the
+structure could not be instantiated at all. -/
 
 /-- **What the parser's lower tier owes this file.** -/
 structure ParseIngredients
@@ -300,6 +328,26 @@ structure ParseIngredients
         frontend.scan_types.ScanErr),
       frontend.scan_fast.scan_line_fwd b i = ok o →
       ScanSim absLineRec o (ConLeche.Frontend.scanLineFwd (absBytes b) (absPos i))
+  /-- **The record the scanner hands the parse is well formed**
+  (`Refine/Frontend/ScanWF.lean`'s `scan_line_fwd_wf`, phase 1): the first of
+  `apply_line`'s three record-provenance hypotheses. -/
+  scan_line_fwd_wf : ∀ (b : Slice Std.U8) (i : Std.Usize)
+      (r : frontend.scan_types.LineRec) (j : Std.Usize),
+      frontend.scan_fast.scan_line_fwd b i = ok (.Ok (r, j)) → LineRecWF r
+  /-- **Its two declaration *spellings* hold valid code points**
+  (`Refine/Frontend/ScanLine.lean`'s `scan_line_fwd_str_wf`): the second.
+  `LineRecWF` gives a `Decl` record no clause, because the `safety` and
+  `quotKind` fields are compared with literals and never become a `Name`; the
+  exact parse reads them as strings, so it needs the clause after all. -/
+  scan_line_fwd_str_wf : ∀ (b : Slice Std.U8) (i : Std.Usize)
+      (r : frontend.scan_types.LineRec) (j : Std.Usize),
+      frontend.scan_fast.scan_line_fwd b i = ok (.Ok (r, j)) → LineRecStrWF r
+  /-- **A `natVal` literal it produced has `nat_decimal::from_decimal` for its
+  value** (`Refine/Frontend/ScanLine.lean`'s `scan_line_fwd_digits` through
+  `Refine/Frontend/StateDR.lean`'s `natValSpec_of_digits`): the third. -/
+  scan_line_fwd_nat_val : ∀ (b : Slice Std.U8) (i : Std.Usize)
+      (r : frontend.scan_types.LineRec) (j : Std.Usize),
+      frontend.scan_fast.scan_line_fwd b i = ok (.Ok (r, j)) → LineNatValSpec r
   /-- **A reader failure with no newline ahead is an incomplete tail for
   con-leche's reader too.**  This is what pays for the port's own
   `ErrTag::IndexOverflow` in the ACCEPT direction (module note): `feed_chunk`
@@ -317,11 +365,14 @@ structure ParseIngredients
       frontend.scan_fast.newline_from b i = ok r →
       r = ConLeche.Frontend.newlineFrom (absBytes b) (absPos i)
   /-- `export_c::apply_line` refines `ConLeche.Frontend.applyLine`
-  (`ConLeche/Frontend/ExportC.lean:713-726`), full outcome. -/
+  (`ConLeche/Frontend/ExportC.lean:713-726`), full outcome, **of a record the
+  scanner produced** — the three provenance hypotheses are the three fields
+  above, and every call site of this field passes them from the same `.Ok`. -/
   apply_line : ∀ (st st' : frontend.export_c.StateD) (lst : ConLeche.Frontend.StateD)
       (r : frontend.scan_types.LineRec)
       (o : core.result.Result Unit frontend.export_c.LineErr),
-      R st lst → frontend.export_c.apply_line inst g st r = ok (o, st') →
+      R st lst → LineRecWF r → LineRecStrWF r → LineNatValSpec r →
+      frontend.export_c.apply_line inst g st r = ok (o, st') →
       ApplyLineSim R o st' (ConLeche.Frontend.applyLine lst (absLineRec r))
   /-- `export_c::state_d_init` refines `ConLeche.Frontend.StateD.init`
   (`ConLeche/Frontend/ExportC.lean:755-758`). -/
@@ -431,7 +482,9 @@ theorem apply_final_line_refines
     simp only [uncurry_apply_pair, bind_eq_ok_iff] at h
     obtain ⟨⟨r2, st1⟩, happ, h⟩ := h
     simp only [uncurry_apply_pair] at h
-    have hal := ing.apply_line st st1 lst r1 r2 hst happ
+    have hal := ing.apply_line st st1 lst r1 r2 hst (ing.scan_line_fwd_wf b i r1 j hr)
+      (ing.scan_line_fwd_str_wf b i r1 j hr) (ing.scan_line_fwd_nat_val b i r1 j hr)
+      happ
     split at h
     · rw [show ConLeche.Frontend.scanLineFwd (absBytes b) (absPos i)
             = .ok (absLineRec r1) (absPos j) from hsim]
@@ -502,7 +555,9 @@ private theorem feed_chunk_loop_refines
           simp only [bind_eq_ok_iff] at h
           obtain ⟨⟨r2, st1⟩, happ, h⟩ := h
           simp only [uncurry_apply_pair] at h
-          have hal := ing.apply_line st st1 lst r1 r2 hst happ
+          have hal := ing.apply_line st st1 lst r1 r2 hst (ing.scan_line_fwd_wf b i r1 j hr)
+              (ing.scan_line_fwd_str_wf b i r1 j hr)
+              (ing.scan_line_fwd_nat_val b i r1 j hr) happ
           split at h
           · simp only [ApplyLineSim] at hal
             obtain ⟨lst2, hlst2, hrel⟩ := hal
@@ -1299,7 +1354,9 @@ theorem apply_final_line_refines_err
     simp only [uncurry_apply_pair, bind_eq_ok_iff] at h
     obtain ⟨⟨r2, st1⟩, happ, h⟩ := h
     simp only [uncurry_apply_pair] at h
-    have hal := ing.apply_line st st1 lst r1 r2 hst happ
+    have hal := ing.apply_line st st1 lst r1 r2 hst (ing.scan_line_fwd_wf b i r1 j hr)
+      (ing.scan_line_fwd_str_wf b i r1 j hr) (ing.scan_line_fwd_nat_val b i r1 j hr)
+      happ
     split at h
     · exfalso; revert h; simp
     · rename_i le
@@ -1367,7 +1424,9 @@ private theorem feed_chunk_loop_refines_err
           simp only [bind_eq_ok_iff] at h
           obtain ⟨⟨r2, st1⟩, happ, h⟩ := h
           simp only [uncurry_apply_pair] at h
-          have hal := ing.apply_line st st1 lst r1 r2 hst happ
+          have hal := ing.apply_line st st1 lst r1 r2 hst (ing.scan_line_fwd_wf b i r1 j hr)
+              (ing.scan_line_fwd_str_wf b i r1 j hr)
+              (ing.scan_line_fwd_nat_val b i r1 j hr) happ
           split at h
           · simp only [ApplyLineSim] at hal
             obtain ⟨lst2, hlst2, hrel⟩ := hal
@@ -1752,6 +1811,95 @@ theorem parse_result_of_state_sim {st : frontend.export_c.StateD}
   obtain ⟨h1, h2, h3, h4, h5, h6⟩ := parse_result_of_state_refines hrel h
   exact ⟨h1, h2, h3, h4, h5, h6⟩
 
+/-! ## The record, built
+
+`ParseIngredients` is the *interface*; this is the one term that meets it, and
+with it the parse tier's headline stops being "modulo a record" and becomes
+"modulo three named `Prop`s with owners".  The relation is `StateDRel` paired
+with phase 1's `StateDWF`, because `Refine/Frontend/IndR.lean`'s
+`apply_line_refines` re-establishes both and `Refine/Frontend/StateDR.lean`'s
+lemmas consume both.
+
+What is left over, and who owns it:
+
+| residue | stated in | owner |
+|---|---|---|
+| `Utf8DecodeSpec` | `Refine/Frontend/ScanStr.lean` | the string tier |
+| `UnescapeSpec` | `Refine/Frontend/ScanStr.lean` | the string tier |
+| `IndRSpec inst g` | `Refine/Frontend/IndR.lean` | the inductive tier (`projRewrite`, `validateInd`, `installInd`) |
+
+Nothing else: the other six fields are discharged outright, by
+`Refine/Frontend/ScanWF.lean`, `Refine/Frontend/ScanLine.lean`,
+`Refine/Frontend/ScanKit.lean`, `Refine/Frontend/Readers.lean` and this
+file's own two. -/
+
+/-- `Refine/Frontend/ScanLine.lean`'s `LineExprDigits` is
+`Refine/Frontend/IndR.lean`'s `LineNatValSpec`, one `natValSpec_of_digits`
+apart: the scanner delivers the *digits*, the parse wants the *value*. -/
+theorem lineNatValSpec_of_digits {r : frontend.scan_types.LineRec}
+    (h : LineExprDigits r) : LineNatValSpec r := by
+  cases r with
+  | Expr _ e => exact natValSpec_of_digits h
+  | _ => trivial
+
+/-- **The lower tier's lemmas, bundled** — the only `ParseIngredients` term
+there is, at `R := StateDRel ∧ StateDWF`.  Its three hypotheses are the parse
+tier's whole residue. -/
+theorem parseIngredients {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+    (hu : Utf8DecodeSpec) (hun : UnescapeSpec) (hsp : IndRSpec inst g) :
+    ParseIngredients (fun st lst => StateDRel st lst ∧ StateDWF st) inst g where
+  scan_line_fwd _ _ _ h := scan_line_fwd_refines hu hun h
+  scan_line_fwd_wf _ _ _ _ h := scan_line_fwd_wf h
+  scan_line_fwd_str_wf _ _ _ _ h := scan_line_fwd_str_wf h
+  scan_line_fwd_nat_val _ _ _ _ h := lineNatValSpec_of_digits (scan_line_fwd_digits h)
+  scan_line_fwd_tail _ _ _ h hnl := scan_line_fwd_tail h hnl
+  newline_from _ _ _ h := newline_from_refines h
+  apply_line _ _ _ _ _ hst hwf hstr hnat h :=
+    apply_line_refines hsp hst.1 hst.2 hwf hstr hnat h
+  state_d_init _ _ _ h := ⟨parse_result_state_d_init h, state_d_init_wf h⟩
+  parse_result_of_state _ _ _ hst h := parse_result_of_state_sim hst.1 h
+
+/-! ## The headline, at the record
+
+`parse_chunks_refines` and its error twin with `ParseIngredients` discharged:
+what is left in front of the port's streaming parse is `Utf8DecodeSpec`,
+`UnescapeSpec` and `IndRSpec`, and nothing else. -/
+
+/-- **`export_c::parse_chunks` refines `ConLeche.Frontend.parseChunks`**
+(`ConLeche/Frontend/ExportC.lean:882-901`), accept direction, modulo the three
+named residues. -/
+theorem parse_chunks_refines_of_specs {G : Type}
+    {inst : frontend.in_model_rec.Modeller G} {g : G}
+    (hu : Utf8DecodeSpec) (hun : UnescapeSpec) (hsp : IndRSpec inst g)
+    {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {im ce : Bool}
+    {r : frontend.export_c.ParseResultD}
+    (h : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Ok r)) :
+    ∃ x, ConLeche.Frontend.parseChunks (absChunks chunks) im ce = .ok x ∧
+      ParseResultSim r x :=
+  parse_chunks_refines (parseIngredients hu hun hsp) h
+
+/-- **`export_c::parse_chunks`, error direction**, modulo the same three. -/
+theorem parse_chunks_refines_err_of_specs {G : Type}
+    {inst : frontend.in_model_rec.Modeller G} {g : G}
+    (hu : Utf8DecodeSpec) (hun : UnescapeSpec) (hsp : IndRSpec inst g)
+    {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {im ce : Bool}
+    {p : kernel.core_types.CheckError × Std.U64}
+    (h : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Err p)) :
+    ParseErrSim p (ConLeche.Frontend.parseChunks (absChunks chunks) im ce) :=
+  parse_chunks_refines_err (parseIngredients hu hun hsp) h
+
+/-- **`prelude::builtin_prelude_e` refines con-leche's prelude parse**, modulo
+the same three. -/
+theorem builtin_prelude_e_refines_of_specs {G : Type}
+    {inst : frontend.in_model_rec.Modeller G} {m : G}
+    (hu : Utf8DecodeSpec) (hun : UnescapeSpec) (hsp : IndRSpec inst m)
+    {pre : frontend.prepare.PreludeIx}
+    (h : frontend.prelude.builtin_prelude_e inst m = ok (.Ok pre)) :
+    ∃ text x, frontend.prelude_text.prelude_text = ok text ∧
+      ConLeche.Frontend.parseBytes (absChunk text) true false = .ok x ∧
+      pre.decls.val.map absDeclaration = x.decls.toList :=
+  builtin_prelude_e_refines (parseIngredients hu hun hsp) h
+
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
 The headline and its prelude twin: Lean's own three axioms and nothing else.
@@ -1771,5 +1919,22 @@ for every byte slice — so the census is the one phase 1 pinned for
 
 /-- info: 'ConRon.Refine.Frontend.parse_chunks_refines_err' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms parse_chunks_refines_err
+
+/-! The record and the three corollaries stated at it.  Same three axioms: the
+lower tier's lemmas are all proved, and what they do not cover is carried as
+the hypotheses `Utf8DecodeSpec`, `UnescapeSpec` and `IndRSpec`, which are
+`Prop`s in the statement and not axioms. -/
+
+/-- info: 'ConRon.Refine.Frontend.parseIngredients' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms parseIngredients
+
+/-- info: 'ConRon.Refine.Frontend.parse_chunks_refines_of_specs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms parse_chunks_refines_of_specs
+
+/-- info: 'ConRon.Refine.Frontend.parse_chunks_refines_err_of_specs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms parse_chunks_refines_err_of_specs
+
+/-- info: 'ConRon.Refine.Frontend.builtin_prelude_e_refines_of_specs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms builtin_prelude_e_refines_of_specs
 
 end ConRon.Refine.Frontend
