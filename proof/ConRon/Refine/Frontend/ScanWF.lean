@@ -1302,87 +1302,17 @@ theorem scan_line_fwd_wf {b : Slice Std.U8} {i : Std.Usize}
             · exact (err_ne_ok h).elim
         · simp at h
 
--- The census is the *generated model's* own, not this proof's: Aeneas's
--- `toStr` discharges the bound `s.toByteArray.size <= U32.max` with
--- `by decide +native` on every extracted `&str` constant
--- (`AENEAS_FINDINGS.md` §3.8), and `scan_fast::key_at` compares the key at
--- hand against sixty-six of them (`scan_fast::scan_bool` against two more), so
--- they sit in the DEFINITION of `scan_line_fwd` and any statement that names
--- it inherits them -- `#print axioms frontend.scan_fast.scan_line_fwd` has the
--- same sixty-eight.  Nothing here evaluates a key: the theorem holds for every
--- byte slice.
+-- The census is the standard three since task #86.  It was the three plus
+-- SIXTY-EIGHT: Aeneas's `toStr` discharges the bound
+-- `s.toByteArray.size <= U32.max` with `by decide +native` on every extracted
+-- `&str` constant (`AENEAS_FINDINGS.md` §3.8), so the sixty-six key literals
+-- `scan_fast::key_at` compares against (and `scan_fast::scan_bool`'s two) sat
+-- in the DEFINITION of `scan_line_fwd` and every statement that named it
+-- inherited them with nothing evaluated.  Task #86 spelled all sixty-eight
+-- `[u8; N]`, which carries no axiom; nothing here evaluates a key either way,
+-- so the theorem holds for every byte slice.
 
-/-- info: 'ConRon.Refine.Frontend.scan_line_fwd_wf' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- frontend.scan_fast.key_at.S_ALL._native.decide.ax_1,
- frontend.scan_fast.key_at.S_APP._native.decide.ax_1,
- frontend.scan_fast.key_at.S_ARG._native.decide.ax_1,
- frontend.scan_fast.key_at.S_AXIOM._native.decide.ax_1,
- frontend.scan_fast.key_at.S_BINDERINFO._native.decide.ax_1,
- frontend.scan_fast.key_at.S_BODY._native.decide.ax_1,
- frontend.scan_fast.key_at.S_BVAR._native.decide.ax_1,
- frontend.scan_fast.key_at.S_CIDX._native.decide.ax_1,
- frontend.scan_fast.key_at.S_CONST._native.decide.ax_1,
- frontend.scan_fast.key_at.S_CTOR._native.decide.ax_1,
- frontend.scan_fast.key_at.S_CTORS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_DEF._native.decide.ax_1,
- frontend.scan_fast.key_at.S_FN._native.decide.ax_1,
- frontend.scan_fast.key_at.S_FORALLE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_HINTS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_I._native.decide.ax_1,
- frontend.scan_fast.key_at.S_IDX._native.decide.ax_1,
- frontend.scan_fast.key_at.S_IE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_IL._native.decide.ax_1,
- frontend.scan_fast.key_at.S_IMAX._native.decide.ax_1,
- frontend.scan_fast.key_at.S_IN._native.decide.ax_1,
- frontend.scan_fast.key_at.S_INDUCT._native.decide.ax_1,
- frontend.scan_fast.key_at.S_INDUCTIVE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_ISREC._native.decide.ax_1,
- frontend.scan_fast.key_at.S_ISREFLEXIVE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_ISUNSAFE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_K._native.decide.ax_1,
- frontend.scan_fast.key_at.S_KIND._native.decide.ax_1,
- frontend.scan_fast.key_at.S_LAM._native.decide.ax_1,
- frontend.scan_fast.key_at.S_LETE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_LEVELPARAMS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_MAX._native.decide.ax_1,
- frontend.scan_fast.key_at.S_META._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NAME._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NATVAL._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NFIELDS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NONDEP._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NUM._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NUMFIELDS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NUMINDICES._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NUMMINORS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NUMMOTIVES._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NUMNESTED._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NUMPARAMS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_OPAQUE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_PARAM._native.decide.ax_1,
- frontend.scan_fast.key_at.S_PRE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_PROJ._native.decide.ax_1,
- frontend.scan_fast.key_at.S_PW._native.decide.ax_1,
- frontend.scan_fast.key_at.S_QUOT._native.decide.ax_1,
- frontend.scan_fast.key_at.S_RECS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_REGULAR._native.decide.ax_1,
- frontend.scan_fast.key_at.S_RHS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_RULES._native.decide.ax_1,
- frontend.scan_fast.key_at.S_SAFETY._native.decide.ax_1,
- frontend.scan_fast.key_at.S_SORT._native.decide.ax_1,
- frontend.scan_fast.key_at.S_STR._native.decide.ax_1,
- frontend.scan_fast.key_at.S_STRUCT._native.decide.ax_1,
- frontend.scan_fast.key_at.S_STRVAL._native.decide.ax_1,
- frontend.scan_fast.key_at.S_SUCC._native.decide.ax_1,
- frontend.scan_fast.key_at.S_THM._native.decide.ax_1,
- frontend.scan_fast.key_at.S_TYPE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_TYPENAME._native.decide.ax_1,
- frontend.scan_fast.key_at.S_TYPES._native.decide.ax_1,
- frontend.scan_fast.key_at.S_US._native.decide.ax_1,
- frontend.scan_fast.key_at.S_VALUE._native.decide.ax_1,
- frontend.scan_fast.scan_bool.S_FALSE._native.decide.ax_1,
- frontend.scan_fast.scan_bool.S_TRUE._native.decide.ax_1] -/
+/-- info: 'ConRon.Refine.Frontend.scan_line_fwd_wf' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms scan_line_fwd_wf
 
 end ConRon.Refine.Frontend

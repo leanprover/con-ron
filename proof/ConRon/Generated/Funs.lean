@@ -55782,7 +55782,7 @@ def frontend.scan_types.key_beq
   ok (i = i1)
 
 /-- [con_ron_core::frontend::scan_fast::line_payload_is_absent]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3795:0-3800:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3805:0-3810:1
     Visibility: public -/
 def frontend.scan_fast.line_payload_is_absent
   (p : frontend.scan_fast.LinePayload) : Result Bool := do
@@ -55795,14 +55795,14 @@ def frontend.scan_fast.line_payload_is_absent
   | frontend.scan_fast.LinePayload.Header => ok false
 
 /-- [con_ron_core::frontend::scan_fast::prog]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1438:0-1440:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1448:0-1450:1
     Visibility: public -/
 def frontend.scan_fast.prog
   (ks : Std.Usize) (e : Std.Usize) : Result Bool := do
   ok (ks < e)
 
 /-- [con_ron_core::frontend::scan_fast::read_nat_at]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 754:4-776:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 764:4-786:1
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.read_nat_at_loop
@@ -55837,7 +55837,7 @@ def frontend.scan_fast.read_nat_at_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::read_nat_at]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 751:0-776:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 761:0-786:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.read_nat_at
@@ -55847,7 +55847,7 @@ def frontend.scan_fast.read_nat_at
   frontend.scan_fast.read_nat_at_loop b i e 0#u64 i
 
 /-- [con_ron_core::frontend::scan_fast::is_digit]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 91:0-93:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 101:0-103:1
     Visibility: public -/
 def frontend.scan_fast.is_digit (c : Std.U8) : Result Bool := do
   if 48#u8 <= c
@@ -55855,7 +55855,7 @@ def frontend.scan_fast.is_digit (c : Std.U8) : Result Bool := do
   else ok false
 
 /-- [con_ron_core::frontend::scan_fast::skip_digits]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 110:4-112:5
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 120:4-122:5
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.skip_digits_loop
@@ -55873,7 +55873,7 @@ def frontend.scan_fast.skip_digits_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::skip_digits]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 108:0-114:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 118:0-124:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.skip_digits
@@ -55881,7 +55881,7 @@ def frontend.scan_fast.skip_digits
   frontend.scan_fast.skip_digits_loop b i
 
 /-- [con_ron_core::frontend::scan_fast::byte_at]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 75:0-81:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 85:0-91:1
     Visibility: public -/
 def frontend.scan_fast.byte_at
   (b : Slice Std.U8) (i : Std.Usize) : Result Std.U8 := do
@@ -55891,7 +55891,7 @@ def frontend.scan_fast.byte_at
   else ok 0#u8
 
 /-- [con_ron_core::frontend::scan_fast::num_end]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 730:0-739:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 740:0-749:1
     Visibility: public -/
 def frontend.scan_fast.num_end
   (b : Slice Std.U8) (i : Std.Usize) : Result Std.Usize := do
@@ -55908,7 +55908,7 @@ def frontend.scan_fast.num_end
     else ok e
 
 /-- [con_ron_core::frontend::scan_fast::err]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 67:0-69:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 77:0-79:1
     Visibility: public -/
 def frontend.scan_fast.err
   (T : Type) (offset : Std.Usize) (what : frontend.scan_types.ErrTag) :
@@ -55917,7 +55917,7 @@ def frontend.scan_fast.err
   ok (core.result.Result.Err { offset, what })
 
 /-- [con_ron_core::frontend::scan_fast::slot_nat]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1444:0-1456:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1454:0-1466:1
     Visibility: public -/
 def frontend.scan_fast.slot_nat
   (b : Slice Std.U8) (ks : Std.Usize) (v : Std.Usize) :
@@ -55939,14 +55939,14 @@ def frontend.scan_fast.slot_nat
       frontend.scan_fast.err Std.U64 ks frontend.scan_types.ErrTag.NoProgress
 
 /-- [con_ron_core::frontend::scan_fast::dup]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1430:0-1432:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1440:0-1442:1
     Visibility: public -/
 def frontend.scan_fast.dup (seen : Std.U32) (bit : Std.U32) : Result Bool := do
   let i ← lift (seen &&& bit)
   ok (i != 0#u32)
 
 /-- [con_ron_core::frontend::scan_fast::is_ws]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 86:0-88:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 96:0-98:1
     Visibility: public -/
 def frontend.scan_fast.is_ws (c : Std.U8) : Result Bool := do
   if c = 32#u8
@@ -55956,7 +55956,7 @@ def frontend.scan_fast.is_ws (c : Std.U8) : Result Bool := do
        else ok (c = 13#u8)
 
 /-- [con_ron_core::frontend::scan_fast::skip_ws]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 99:4-101:5
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 109:4-111:5
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.skip_ws_loop
@@ -55974,7 +55974,7 @@ def frontend.scan_fast.skip_ws_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::skip_ws]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 97:0-103:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 107:0-113:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.skip_ws
@@ -55982,7 +55982,7 @@ def frontend.scan_fast.skip_ws
   frontend.scan_fast.skip_ws_loop b i
 
 /-- [con_ron_core::frontend::scan_fast::value_at]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 701:0-708:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 711:0-718:1
     Visibility: public -/
 def frontend.scan_fast.value_at
   (b : Slice Std.U8) (i : Std.Usize) (ke : Std.Usize) : Result Std.Usize := do
@@ -55995,337 +55995,432 @@ def frontend.scan_fast.value_at
   else ok i
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_VALUE]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 682:16-682:46 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 692:16-692:51 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_VALUE : Str := toStr "value"
+def frontend.scan_fast.key_at.S_VALUE : Array Std.U8 5#usize :=
+  Array.make 5#usize [ 118#u8, 97#u8, 108#u8, 117#u8, 101#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_US]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 669:16-669:40 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 679:16-679:45 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_US : Str := toStr "us"
+def frontend.scan_fast.key_at.S_US : Array Std.U8 2#usize :=
+  Array.make 2#usize [ 117#u8, 115#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_TYPENAME]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 656:16-656:52 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 666:16-666:57 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_TYPENAME : Str := toStr "typeName"
+def frontend.scan_fast.key_at.S_TYPENAME : Array Std.U8 8#usize :=
+  Array.make 8#usize [
+    116#u8, 121#u8, 112#u8, 101#u8, 78#u8, 97#u8, 109#u8, 101#u8
+    ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_TYPES]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 649:16-649:46 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 659:16-659:51 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_TYPES : Str := toStr "types"
+def frontend.scan_fast.key_at.S_TYPES : Array Std.U8 5#usize :=
+  Array.make 5#usize [ 116#u8, 121#u8, 112#u8, 101#u8, 115#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_TYPE]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 642:16-642:44 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 652:16-652:49 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_TYPE : Str := toStr "type"
+def frontend.scan_fast.key_at.S_TYPE : Array Std.U8 4#usize :=
+  Array.make 4#usize [ 116#u8, 121#u8, 112#u8, 101#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_THM]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 635:16-635:42 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 645:16-645:47 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_THM : Str := toStr "thm"
+def frontend.scan_fast.key_at.S_THM : Array Std.U8 3#usize :=
+  Array.make 3#usize [ 116#u8, 104#u8, 109#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_STRUCT]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 618:16-618:48 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 628:16-628:53 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_STRUCT : Str := toStr "struct"
+def frontend.scan_fast.key_at.S_STRUCT : Array Std.U8 6#usize :=
+  Array.make 6#usize [ 115#u8, 116#u8, 114#u8, 117#u8, 99#u8, 116#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_STRVAL]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 617:16-617:48 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 627:16-627:53 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_STRVAL : Str := toStr "strVal"
+def frontend.scan_fast.key_at.S_STRVAL : Array Std.U8 6#usize :=
+  Array.make 6#usize [ 115#u8, 116#u8, 114#u8, 86#u8, 97#u8, 108#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_SAFETY]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 616:16-616:48 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 626:16-626:53 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_SAFETY : Str := toStr "safety"
+def frontend.scan_fast.key_at.S_SAFETY : Array Std.U8 6#usize :=
+  Array.make 6#usize [ 115#u8, 97#u8, 102#u8, 101#u8, 116#u8, 121#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_SUCC]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 607:16-607:44 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 617:16-617:49 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_SUCC : Str := toStr "succ"
+def frontend.scan_fast.key_at.S_SUCC : Array Std.U8 4#usize :=
+  Array.make 4#usize [ 115#u8, 117#u8, 99#u8, 99#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_SORT]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 606:16-606:44 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 616:16-616:49 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_SORT : Str := toStr "sort"
+def frontend.scan_fast.key_at.S_SORT : Array Std.U8 4#usize :=
+  Array.make 4#usize [ 115#u8, 111#u8, 114#u8, 116#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_STR]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 599:16-599:42 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 609:16-609:47 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_STR : Str := toStr "str"
+def frontend.scan_fast.key_at.S_STR : Array Std.U8 3#usize :=
+  Array.make 3#usize [ 115#u8, 116#u8, 114#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_REGULAR]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 586:16-586:50 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 596:16-596:55 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_REGULAR : Str := toStr "regular"
+def frontend.scan_fast.key_at.S_REGULAR : Array Std.U8 7#usize :=
+  Array.make 7#usize [ 114#u8, 101#u8, 103#u8, 117#u8, 108#u8, 97#u8, 114#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_RULES]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 579:16-579:46 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 589:16-589:51 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_RULES : Str := toStr "rules"
+def frontend.scan_fast.key_at.S_RULES : Array Std.U8 5#usize :=
+  Array.make 5#usize [ 114#u8, 117#u8, 108#u8, 101#u8, 115#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_RECS]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 572:16-572:44 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 582:16-582:49 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_RECS : Str := toStr "recs"
+def frontend.scan_fast.key_at.S_RECS : Array Std.U8 4#usize :=
+  Array.make 4#usize [ 114#u8, 101#u8, 99#u8, 115#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_RHS]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 565:16-565:42 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 575:16-575:47 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_RHS : Str := toStr "rhs"
+def frontend.scan_fast.key_at.S_RHS : Array Std.U8 3#usize :=
+  Array.make 3#usize [ 114#u8, 104#u8, 115#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_QUOT]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 552:16-552:44 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 562:16-562:49 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_QUOT : Str := toStr "quot"
+def frontend.scan_fast.key_at.S_QUOT : Array Std.U8 4#usize :=
+  Array.make 4#usize [ 113#u8, 117#u8, 111#u8, 116#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_PARAM]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 539:16-539:46 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 549:16-549:51 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_PARAM : Str := toStr "param"
+def frontend.scan_fast.key_at.S_PARAM : Array Std.U8 5#usize :=
+  Array.make 5#usize [ 112#u8, 97#u8, 114#u8, 97#u8, 109#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_PROJ]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 532:16-532:44 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 542:16-542:49 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_PROJ : Str := toStr "proj"
+def frontend.scan_fast.key_at.S_PROJ : Array Std.U8 4#usize :=
+  Array.make 4#usize [ 112#u8, 114#u8, 111#u8, 106#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_PRE]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 525:16-525:42 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 535:16-535:47 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_PRE : Str := toStr "pre"
+def frontend.scan_fast.key_at.S_PRE : Array Std.U8 3#usize :=
+  Array.make 3#usize [ 112#u8, 114#u8, 101#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_PW]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 518:16-518:40 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 528:16-528:45 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_PW : Str := toStr "pw"
+def frontend.scan_fast.key_at.S_PW : Array Std.U8 2#usize :=
+  Array.make 2#usize [ 112#u8, 119#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_OPAQUE]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 505:16-505:48 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 515:16-515:53 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_OPAQUE : Str := toStr "opaque"
+def frontend.scan_fast.key_at.S_OPAQUE : Array Std.U8 6#usize :=
+  Array.make 6#usize [ 111#u8, 112#u8, 97#u8, 113#u8, 117#u8, 101#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_NUMMOTIVES]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 490:16-490:56 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 500:16-500:62 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_NUMMOTIVES : Str := toStr "numMotives"
+def frontend.scan_fast.key_at.S_NUMMOTIVES : Array Std.U8 10#usize :=
+  Array.make 10#usize [
+    110#u8, 117#u8, 109#u8, 77#u8, 111#u8, 116#u8, 105#u8, 118#u8, 101#u8,
+    115#u8
+    ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_NUMINDICES]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 489:16-489:56 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 499:16-499:62 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_NUMINDICES : Str := toStr "numIndices"
+def frontend.scan_fast.key_at.S_NUMINDICES : Array Std.U8 10#usize :=
+  Array.make 10#usize [
+    110#u8, 117#u8, 109#u8, 73#u8, 110#u8, 100#u8, 105#u8, 99#u8, 101#u8,
+    115#u8
+    ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_NUMPARAMS]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 476:16-476:54 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 486:16-486:59 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_NUMPARAMS : Str := toStr "numParams"
+def frontend.scan_fast.key_at.S_NUMPARAMS : Array Std.U8 9#usize :=
+  Array.make 9#usize [
+    110#u8, 117#u8, 109#u8, 80#u8, 97#u8, 114#u8, 97#u8, 109#u8, 115#u8
+    ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_NUMNESTED]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 475:16-475:54 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 485:16-485:59 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_NUMNESTED : Str := toStr "numNested"
+def frontend.scan_fast.key_at.S_NUMNESTED : Array Std.U8 9#usize :=
+  Array.make 9#usize [
+    110#u8, 117#u8, 109#u8, 78#u8, 101#u8, 115#u8, 116#u8, 101#u8, 100#u8
+    ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_NUMMINORS]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 474:16-474:54 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 484:16-484:59 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_NUMMINORS : Str := toStr "numMinors"
+def frontend.scan_fast.key_at.S_NUMMINORS : Array Std.U8 9#usize :=
+  Array.make 9#usize [
+    110#u8, 117#u8, 109#u8, 77#u8, 105#u8, 110#u8, 111#u8, 114#u8, 115#u8
+    ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_NUMFIELDS]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 473:16-473:54 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 483:16-483:59 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_NUMFIELDS : Str := toStr "numFields"
+def frontend.scan_fast.key_at.S_NUMFIELDS : Array Std.U8 9#usize :=
+  Array.make 9#usize [
+    110#u8, 117#u8, 109#u8, 70#u8, 105#u8, 101#u8, 108#u8, 100#u8, 115#u8
+    ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_NFIELDS]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 466:16-466:50 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 476:16-476:55 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_NFIELDS : Str := toStr "nfields"
+def frontend.scan_fast.key_at.S_NFIELDS : Array Std.U8 7#usize :=
+  Array.make 7#usize [ 110#u8, 102#u8, 105#u8, 101#u8, 108#u8, 100#u8, 115#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_NONDEP]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 457:16-457:48 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 467:16-467:53 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_NONDEP : Str := toStr "nondep"
+def frontend.scan_fast.key_at.S_NONDEP : Array Std.U8 6#usize :=
+  Array.make 6#usize [ 110#u8, 111#u8, 110#u8, 100#u8, 101#u8, 112#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_NATVAL]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 456:16-456:48 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 466:16-466:53 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_NATVAL : Str := toStr "natVal"
+def frontend.scan_fast.key_at.S_NATVAL : Array Std.U8 6#usize :=
+  Array.make 6#usize [ 110#u8, 97#u8, 116#u8, 86#u8, 97#u8, 108#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_NAME]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 449:16-449:44 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 459:16-459:49 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_NAME : Str := toStr "name"
+def frontend.scan_fast.key_at.S_NAME : Array Std.U8 4#usize :=
+  Array.make 4#usize [ 110#u8, 97#u8, 109#u8, 101#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_NUM]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 442:16-442:42 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 452:16-452:47 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_NUM : Str := toStr "num"
+def frontend.scan_fast.key_at.S_NUM : Array Std.U8 3#usize :=
+  Array.make 3#usize [ 110#u8, 117#u8, 109#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_META]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 429:16-429:44 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 439:16-439:49 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_META : Str := toStr "meta"
+def frontend.scan_fast.key_at.S_META : Array Std.U8 4#usize :=
+  Array.make 4#usize [ 109#u8, 101#u8, 116#u8, 97#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_MAX]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 422:16-422:42 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 432:16-432:47 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_MAX : Str := toStr "max"
+def frontend.scan_fast.key_at.S_MAX : Array Std.U8 3#usize :=
+  Array.make 3#usize [ 109#u8, 97#u8, 120#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_LEVELPARAMS]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 409:16-409:58 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 419:16-419:64 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_LEVELPARAMS : Str := toStr "levelParams"
+def frontend.scan_fast.key_at.S_LEVELPARAMS : Array Std.U8 11#usize :=
+  Array.make 11#usize [
+    108#u8, 101#u8, 118#u8, 101#u8, 108#u8, 80#u8, 97#u8, 114#u8, 97#u8,
+    109#u8, 115#u8
+    ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_LETE]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 402:16-402:44 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 412:16-412:49 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_LETE : Str := toStr "letE"
+def frontend.scan_fast.key_at.S_LETE : Array Std.U8 4#usize :=
+  Array.make 4#usize [ 108#u8, 101#u8, 116#u8, 69#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_LAM]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 395:16-395:42 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 405:16-405:47 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_LAM : Str := toStr "lam"
+def frontend.scan_fast.key_at.S_LAM : Array Std.U8 3#usize :=
+  Array.make 3#usize [ 108#u8, 97#u8, 109#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_KIND]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 382:16-382:44 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 392:16-392:49 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_KIND : Str := toStr "kind"
+def frontend.scan_fast.key_at.S_KIND : Array Std.U8 4#usize :=
+  Array.make 4#usize [ 107#u8, 105#u8, 110#u8, 100#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_K]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 375:16-375:38 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 385:16-385:43 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_K : Str := toStr "k"
+def frontend.scan_fast.key_at.S_K : Array Std.U8 1#usize :=
+  Array.make 1#usize [ 107#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_ISREFLEXIVE]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 362:16-362:58 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 372:16-372:64 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_ISREFLEXIVE : Str := toStr "isReflexive"
+def frontend.scan_fast.key_at.S_ISREFLEXIVE : Array Std.U8 11#usize :=
+  Array.make 11#usize [
+    105#u8, 115#u8, 82#u8, 101#u8, 102#u8, 108#u8, 101#u8, 120#u8, 105#u8,
+    118#u8, 101#u8
+    ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_INDUCTIVE]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 355:16-355:54 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 365:16-365:59 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_INDUCTIVE : Str := toStr "inductive"
+def frontend.scan_fast.key_at.S_INDUCTIVE : Array Std.U8 9#usize :=
+  Array.make 9#usize [
+    105#u8, 110#u8, 100#u8, 117#u8, 99#u8, 116#u8, 105#u8, 118#u8, 101#u8
+    ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_ISUNSAFE]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 348:16-348:52 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 358:16-358:57 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_ISUNSAFE : Str := toStr "isUnsafe"
+def frontend.scan_fast.key_at.S_ISUNSAFE : Array Std.U8 8#usize :=
+  Array.make 8#usize [
+    105#u8, 115#u8, 85#u8, 110#u8, 115#u8, 97#u8, 102#u8, 101#u8
+    ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_INDUCT]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 341:16-341:48 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 351:16-351:53 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_INDUCT : Str := toStr "induct"
+def frontend.scan_fast.key_at.S_INDUCT : Array Std.U8 6#usize :=
+  Array.make 6#usize [ 105#u8, 110#u8, 100#u8, 117#u8, 99#u8, 116#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_ISREC]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 334:16-334:46 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 344:16-344:51 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_ISREC : Str := toStr "isRec"
+def frontend.scan_fast.key_at.S_ISREC : Array Std.U8 5#usize :=
+  Array.make 5#usize [ 105#u8, 115#u8, 82#u8, 101#u8, 99#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_IMAX]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 327:16-327:44 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 337:16-337:49 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_IMAX : Str := toStr "imax"
+def frontend.scan_fast.key_at.S_IMAX : Array Std.U8 4#usize :=
+  Array.make 4#usize [ 105#u8, 109#u8, 97#u8, 120#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_IDX]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 320:16-320:42 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 330:16-330:47 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_IDX : Str := toStr "idx"
+def frontend.scan_fast.key_at.S_IDX : Array Std.U8 3#usize :=
+  Array.make 3#usize [ 105#u8, 100#u8, 120#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_IN]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 309:16-309:40 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 319:16-319:45 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_IN : Str := toStr "in"
+def frontend.scan_fast.key_at.S_IN : Array Std.U8 2#usize :=
+  Array.make 2#usize [ 105#u8, 110#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_IL]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 308:16-308:40 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 318:16-318:45 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_IL : Str := toStr "il"
+def frontend.scan_fast.key_at.S_IL : Array Std.U8 2#usize :=
+  Array.make 2#usize [ 105#u8, 108#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_IE]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 307:16-307:40 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 317:16-317:45 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_IE : Str := toStr "ie"
+def frontend.scan_fast.key_at.S_IE : Array Std.U8 2#usize :=
+  Array.make 2#usize [ 105#u8, 101#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_I]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 300:16-300:38 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 310:16-310:43 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_I : Str := toStr "i"
+def frontend.scan_fast.key_at.S_I : Array Std.U8 1#usize :=
+  Array.make 1#usize [ 105#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_HINTS]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 287:16-287:46 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 297:16-297:51 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_HINTS : Str := toStr "hints"
+def frontend.scan_fast.key_at.S_HINTS : Array Std.U8 5#usize :=
+  Array.make 5#usize [ 104#u8, 105#u8, 110#u8, 116#u8, 115#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_FORALLE]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 274:16-274:50 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 284:16-284:55 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_FORALLE : Str := toStr "forallE"
+def frontend.scan_fast.key_at.S_FORALLE : Array Std.U8 7#usize :=
+  Array.make 7#usize [ 102#u8, 111#u8, 114#u8, 97#u8, 108#u8, 108#u8, 69#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_FN]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 267:16-267:40 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 277:16-277:45 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_FN : Str := toStr "fn"
+def frontend.scan_fast.key_at.S_FN : Array Std.U8 2#usize :=
+  Array.make 2#usize [ 102#u8, 110#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_DEF]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 254:16-254:42 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 264:16-264:47 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_DEF : Str := toStr "def"
+def frontend.scan_fast.key_at.S_DEF : Array Std.U8 3#usize :=
+  Array.make 3#usize [ 100#u8, 101#u8, 102#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_CTORS]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 239:16-239:46 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 249:16-249:51 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_CTORS : Str := toStr "ctors"
+def frontend.scan_fast.key_at.S_CTORS : Array Std.U8 5#usize :=
+  Array.make 5#usize [ 99#u8, 116#u8, 111#u8, 114#u8, 115#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_CONST]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 238:16-238:46 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 248:16-248:51 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_CONST : Str := toStr "const"
+def frontend.scan_fast.key_at.S_CONST : Array Std.U8 5#usize :=
+  Array.make 5#usize [ 99#u8, 111#u8, 110#u8, 115#u8, 116#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_CTOR]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 229:16-229:44 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 239:16-239:49 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_CTOR : Str := toStr "ctor"
+def frontend.scan_fast.key_at.S_CTOR : Array Std.U8 4#usize :=
+  Array.make 4#usize [ 99#u8, 116#u8, 111#u8, 114#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_CIDX]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 228:16-228:44 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 238:16-238:49 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_CIDX : Str := toStr "cidx"
+def frontend.scan_fast.key_at.S_CIDX : Array Std.U8 4#usize :=
+  Array.make 4#usize [ 99#u8, 105#u8, 100#u8, 120#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_BINDERINFO]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 215:16-215:56 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 225:16-225:62 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_BINDERINFO : Str := toStr "binderInfo"
+def frontend.scan_fast.key_at.S_BINDERINFO : Array Std.U8 10#usize :=
+  Array.make 10#usize [
+    98#u8, 105#u8, 110#u8, 100#u8, 101#u8, 114#u8, 73#u8, 110#u8, 102#u8,
+    111#u8
+    ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_BVAR]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 206:16-206:44 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 216:16-216:49 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_BVAR : Str := toStr "bvar"
+def frontend.scan_fast.key_at.S_BVAR : Array Std.U8 4#usize :=
+  Array.make 4#usize [ 98#u8, 118#u8, 97#u8, 114#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_BODY]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 205:16-205:44 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 215:16-215:49 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_BODY : Str := toStr "body"
+def frontend.scan_fast.key_at.S_BODY : Array Std.U8 4#usize :=
+  Array.make 4#usize [ 98#u8, 111#u8, 100#u8, 121#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_AXIOM]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 192:16-192:46 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 202:16-202:51 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_AXIOM : Str := toStr "axiom"
+def frontend.scan_fast.key_at.S_AXIOM : Array Std.U8 5#usize :=
+  Array.make 5#usize [ 97#u8, 120#u8, 105#u8, 111#u8, 109#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_ARG]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 181:16-181:42 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 191:16-191:47 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_ARG : Str := toStr "arg"
+def frontend.scan_fast.key_at.S_ARG : Array Std.U8 3#usize :=
+  Array.make 3#usize [ 97#u8, 114#u8, 103#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_APP]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 180:16-180:42 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 190:16-190:47 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_APP : Str := toStr "app"
+def frontend.scan_fast.key_at.S_APP : Array Std.U8 3#usize :=
+  Array.make 3#usize [ 97#u8, 112#u8, 112#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::key_at::S_ALL]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 179:16-179:42 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 189:16-189:47 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.key_at.S_ALL : Str := toStr "all"
+def frontend.scan_fast.key_at.S_ALL : Array Std.U8 3#usize :=
+  Array.make 3#usize [ 97#u8, 108#u8, 108#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::match_lit]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 125:4-132:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 135:4-142:1
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.match_lit_loop
@@ -56346,7 +56441,7 @@ def frontend.scan_fast.match_lit_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::match_lit]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 122:0-132:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 132:0-142:1
     Visibility: public -/
 def frontend.scan_fast.match_lit
   (b : Slice Std.U8) (i : Std.Usize) (lit : Slice Std.U8) : Result Bool := do
@@ -56354,7 +56449,7 @@ def frontend.scan_fast.match_lit
   frontend.scan_fast.match_lit_loop b i lit n 0#usize
 
 /-- [con_ron_core::frontend::scan_fast::key_at]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 173:0-694:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 183:0-704:1
     Visibility: public -/
 def frontend.scan_fast.key_at
   (b : Slice Std.U8) (i : Std.Usize) (kl : Std.Usize) :
@@ -56366,17 +56461,17 @@ def frontend.scan_fast.key_at
   | 97#uscalar =>
     if kl = 3#usize
     then
-      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_ALL
+      let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_ALL)
       let b1 ← frontend.scan_fast.match_lit b j s
       if b1
       then ok frontend.scan_types.Key.KAll
       else
-        let s1 ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_APP
+        let s1 ← lift (Array.to_slice frontend.scan_fast.key_at.S_APP)
         let b2 ← frontend.scan_fast.match_lit b j s1
         if b2
         then ok frontend.scan_types.Key.KApp
         else
-          let s2 ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_ARG
+          let s2 ← lift (Array.to_slice frontend.scan_fast.key_at.S_ARG)
           let b3 ← frontend.scan_fast.match_lit b j s2
           if b3
           then ok frontend.scan_types.Key.KArg
@@ -56384,7 +56479,7 @@ def frontend.scan_fast.key_at
     else
       if kl = 5#usize
       then
-        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_AXIOM
+        let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_AXIOM)
         let b1 ← frontend.scan_fast.match_lit b j s
         if b1
         then ok frontend.scan_types.Key.KAxiom
@@ -56393,12 +56488,12 @@ def frontend.scan_fast.key_at
   | 98#uscalar =>
     if kl = 4#usize
     then
-      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_BODY
+      let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_BODY)
       let b1 ← frontend.scan_fast.match_lit b j s
       if b1
       then ok frontend.scan_types.Key.KBody
       else
-        let s1 ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_BVAR
+        let s1 ← lift (Array.to_slice frontend.scan_fast.key_at.S_BVAR)
         let b2 ← frontend.scan_fast.match_lit b j s1
         if b2
         then ok frontend.scan_types.Key.KBvar
@@ -56406,7 +56501,7 @@ def frontend.scan_fast.key_at
     else
       if kl = 10#usize
       then
-        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_BINDERINFO
+        let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_BINDERINFO)
         let b1 ← frontend.scan_fast.match_lit b j s
         if b1
         then ok frontend.scan_types.Key.KBinderInfo
@@ -56415,12 +56510,12 @@ def frontend.scan_fast.key_at
   | 99#uscalar =>
     if kl = 4#usize
     then
-      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_CIDX
+      let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_CIDX)
       let b1 ← frontend.scan_fast.match_lit b j s
       if b1
       then ok frontend.scan_types.Key.KCidx
       else
-        let s1 ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_CTOR
+        let s1 ← lift (Array.to_slice frontend.scan_fast.key_at.S_CTOR)
         let b2 ← frontend.scan_fast.match_lit b j s1
         if b2
         then ok frontend.scan_types.Key.KCtor
@@ -56428,12 +56523,12 @@ def frontend.scan_fast.key_at
     else
       if kl = 5#usize
       then
-        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_CONST
+        let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_CONST)
         let b1 ← frontend.scan_fast.match_lit b j s
         if b1
         then ok frontend.scan_types.Key.KConst
         else
-          let s1 ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_CTORS
+          let s1 ← lift (Array.to_slice frontend.scan_fast.key_at.S_CTORS)
           let b2 ← frontend.scan_fast.match_lit b j s1
           if b2
           then ok frontend.scan_types.Key.KCtors
@@ -56442,7 +56537,7 @@ def frontend.scan_fast.key_at
   | 100#uscalar =>
     if kl = 3#usize
     then
-      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_DEF
+      let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_DEF)
       let b1 ← frontend.scan_fast.match_lit b j s
       if b1
       then ok frontend.scan_types.Key.KDef
@@ -56451,7 +56546,7 @@ def frontend.scan_fast.key_at
   | 102#uscalar =>
     if kl = 2#usize
     then
-      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_FN
+      let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_FN)
       let b1 ← frontend.scan_fast.match_lit b j s
       if b1
       then ok frontend.scan_types.Key.KFn
@@ -56459,7 +56554,7 @@ def frontend.scan_fast.key_at
     else
       if kl = 7#usize
       then
-        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_FORALLE
+        let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_FORALLE)
         let b1 ← frontend.scan_fast.match_lit b j s
         if b1
         then ok frontend.scan_types.Key.KForallE
@@ -56468,7 +56563,7 @@ def frontend.scan_fast.key_at
   | 104#uscalar =>
     if kl = 5#usize
     then
-      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_HINTS
+      let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_HINTS)
       let b1 ← frontend.scan_fast.match_lit b j s
       if b1
       then ok frontend.scan_types.Key.KHints
@@ -56477,7 +56572,7 @@ def frontend.scan_fast.key_at
   | 105#uscalar =>
     if kl = 1#usize
     then
-      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_I
+      let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_I)
       let b1 ← frontend.scan_fast.match_lit b j s
       if b1
       then ok frontend.scan_types.Key.KI
@@ -56485,17 +56580,17 @@ def frontend.scan_fast.key_at
     else
       if kl = 2#usize
       then
-        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_IE
+        let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_IE)
         let b1 ← frontend.scan_fast.match_lit b j s
         if b1
         then ok frontend.scan_types.Key.KIe
         else
-          let s1 ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_IL
+          let s1 ← lift (Array.to_slice frontend.scan_fast.key_at.S_IL)
           let b2 ← frontend.scan_fast.match_lit b j s1
           if b2
           then ok frontend.scan_types.Key.KIl
           else
-            let s2 ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_IN
+            let s2 ← lift (Array.to_slice frontend.scan_fast.key_at.S_IN)
             let b3 ← frontend.scan_fast.match_lit b j s2
             if b3
             then ok frontend.scan_types.Key.KIn
@@ -56503,7 +56598,7 @@ def frontend.scan_fast.key_at
       else
         if kl = 3#usize
         then
-          let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_IDX
+          let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_IDX)
           let b1 ← frontend.scan_fast.match_lit b j s
           if b1
           then ok frontend.scan_types.Key.KIdx
@@ -56511,7 +56606,7 @@ def frontend.scan_fast.key_at
         else
           if kl = 4#usize
           then
-            let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_IMAX
+            let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_IMAX)
             let b1 ← frontend.scan_fast.match_lit b j s
             if b1
             then ok frontend.scan_types.Key.KImax
@@ -56519,7 +56614,7 @@ def frontend.scan_fast.key_at
           else
             if kl = 5#usize
             then
-              let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_ISREC
+              let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_ISREC)
               let b1 ← frontend.scan_fast.match_lit b j s
               if b1
               then ok frontend.scan_types.Key.KIsRec
@@ -56528,7 +56623,7 @@ def frontend.scan_fast.key_at
               if kl = 6#usize
               then
                 let s ←
-                  core.str.Str.as_bytes frontend.scan_fast.key_at.S_INDUCT
+                  lift (Array.to_slice frontend.scan_fast.key_at.S_INDUCT)
                 let b1 ← frontend.scan_fast.match_lit b j s
                 if b1
                 then ok frontend.scan_types.Key.KInduct
@@ -56537,7 +56632,7 @@ def frontend.scan_fast.key_at
                 if kl = 8#usize
                 then
                   let s ←
-                    core.str.Str.as_bytes frontend.scan_fast.key_at.S_ISUNSAFE
+                    lift (Array.to_slice frontend.scan_fast.key_at.S_ISUNSAFE)
                   let b1 ← frontend.scan_fast.match_lit b j s
                   if b1
                   then ok frontend.scan_types.Key.KIsUnsafe
@@ -56546,8 +56641,8 @@ def frontend.scan_fast.key_at
                   if kl = 9#usize
                   then
                     let s ←
-                      core.str.Str.as_bytes
-                        frontend.scan_fast.key_at.S_INDUCTIVE
+                      lift (Array.to_slice
+                        frontend.scan_fast.key_at.S_INDUCTIVE)
                     let b1 ← frontend.scan_fast.match_lit b j s
                     if b1
                     then ok frontend.scan_types.Key.KInductive
@@ -56556,8 +56651,8 @@ def frontend.scan_fast.key_at
                     if kl = 11#usize
                     then
                       let s ←
-                        core.str.Str.as_bytes
-                          frontend.scan_fast.key_at.S_ISREFLEXIVE
+                        lift (Array.to_slice
+                          frontend.scan_fast.key_at.S_ISREFLEXIVE)
                       let b1 ← frontend.scan_fast.match_lit b j s
                       if b1
                       then ok frontend.scan_types.Key.KIsReflexive
@@ -56566,7 +56661,7 @@ def frontend.scan_fast.key_at
   | 107#uscalar =>
     if kl = 1#usize
     then
-      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_K
+      let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_K)
       let b1 ← frontend.scan_fast.match_lit b j s
       if b1
       then ok frontend.scan_types.Key.KK
@@ -56574,7 +56669,7 @@ def frontend.scan_fast.key_at
     else
       if kl = 4#usize
       then
-        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_KIND
+        let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_KIND)
         let b1 ← frontend.scan_fast.match_lit b j s
         if b1
         then ok frontend.scan_types.Key.KKind
@@ -56583,7 +56678,7 @@ def frontend.scan_fast.key_at
   | 108#uscalar =>
     if kl = 3#usize
     then
-      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_LAM
+      let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_LAM)
       let b1 ← frontend.scan_fast.match_lit b j s
       if b1
       then ok frontend.scan_types.Key.KLam
@@ -56591,7 +56686,7 @@ def frontend.scan_fast.key_at
     else
       if kl = 4#usize
       then
-        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_LETE
+        let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_LETE)
         let b1 ← frontend.scan_fast.match_lit b j s
         if b1
         then ok frontend.scan_types.Key.KLetE
@@ -56600,7 +56695,7 @@ def frontend.scan_fast.key_at
         if kl = 11#usize
         then
           let s ←
-            core.str.Str.as_bytes frontend.scan_fast.key_at.S_LEVELPARAMS
+            lift (Array.to_slice frontend.scan_fast.key_at.S_LEVELPARAMS)
           let b1 ← frontend.scan_fast.match_lit b j s
           if b1
           then ok frontend.scan_types.Key.KLevelParams
@@ -56609,7 +56704,7 @@ def frontend.scan_fast.key_at
   | 109#uscalar =>
     if kl = 3#usize
     then
-      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_MAX
+      let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_MAX)
       let b1 ← frontend.scan_fast.match_lit b j s
       if b1
       then ok frontend.scan_types.Key.KMax
@@ -56617,7 +56712,7 @@ def frontend.scan_fast.key_at
     else
       if kl = 4#usize
       then
-        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_META
+        let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_META)
         let b1 ← frontend.scan_fast.match_lit b j s
         if b1
         then ok frontend.scan_types.Key.KMeta
@@ -56626,7 +56721,7 @@ def frontend.scan_fast.key_at
   | 110#uscalar =>
     if kl = 3#usize
     then
-      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_NUM
+      let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_NUM)
       let b1 ← frontend.scan_fast.match_lit b j s
       if b1
       then ok frontend.scan_types.Key.KNum
@@ -56634,7 +56729,7 @@ def frontend.scan_fast.key_at
     else
       if kl = 4#usize
       then
-        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_NAME
+        let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_NAME)
         let b1 ← frontend.scan_fast.match_lit b j s
         if b1
         then ok frontend.scan_types.Key.KName
@@ -56642,12 +56737,12 @@ def frontend.scan_fast.key_at
       else
         if kl = 6#usize
         then
-          let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_NATVAL
+          let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_NATVAL)
           let b1 ← frontend.scan_fast.match_lit b j s
           if b1
           then ok frontend.scan_types.Key.KNatVal
           else
-            let s1 ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_NONDEP
+            let s1 ← lift (Array.to_slice frontend.scan_fast.key_at.S_NONDEP)
             let b2 ← frontend.scan_fast.match_lit b j s1
             if b2
             then ok frontend.scan_types.Key.KNondep
@@ -56655,7 +56750,7 @@ def frontend.scan_fast.key_at
         else
           if kl = 7#usize
           then
-            let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_NFIELDS
+            let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_NFIELDS)
             let b1 ← frontend.scan_fast.match_lit b j s
             if b1
             then ok frontend.scan_types.Key.KNfields
@@ -56664,26 +56759,26 @@ def frontend.scan_fast.key_at
             if kl = 9#usize
             then
               let s ←
-                core.str.Str.as_bytes frontend.scan_fast.key_at.S_NUMFIELDS
+                lift (Array.to_slice frontend.scan_fast.key_at.S_NUMFIELDS)
               let b1 ← frontend.scan_fast.match_lit b j s
               if b1
               then ok frontend.scan_types.Key.KNumFields
               else
                 let s1 ←
-                  core.str.Str.as_bytes frontend.scan_fast.key_at.S_NUMMINORS
+                  lift (Array.to_slice frontend.scan_fast.key_at.S_NUMMINORS)
                 let b2 ← frontend.scan_fast.match_lit b j s1
                 if b2
                 then ok frontend.scan_types.Key.KNumMinors
                 else
                   let s2 ←
-                    core.str.Str.as_bytes frontend.scan_fast.key_at.S_NUMNESTED
+                    lift (Array.to_slice frontend.scan_fast.key_at.S_NUMNESTED)
                   let b3 ← frontend.scan_fast.match_lit b j s2
                   if b3
                   then ok frontend.scan_types.Key.KNumNested
                   else
                     let s3 ←
-                      core.str.Str.as_bytes
-                        frontend.scan_fast.key_at.S_NUMPARAMS
+                      lift (Array.to_slice
+                        frontend.scan_fast.key_at.S_NUMPARAMS)
                     let b4 ← frontend.scan_fast.match_lit b j s3
                     if b4
                     then ok frontend.scan_types.Key.KNumParams
@@ -56692,14 +56787,14 @@ def frontend.scan_fast.key_at
               if kl = 10#usize
               then
                 let s ←
-                  core.str.Str.as_bytes frontend.scan_fast.key_at.S_NUMINDICES
+                  lift (Array.to_slice frontend.scan_fast.key_at.S_NUMINDICES)
                 let b1 ← frontend.scan_fast.match_lit b j s
                 if b1
                 then ok frontend.scan_types.Key.KNumIndices
                 else
                   let s1 ←
-                    core.str.Str.as_bytes
-                      frontend.scan_fast.key_at.S_NUMMOTIVES
+                    lift (Array.to_slice
+                      frontend.scan_fast.key_at.S_NUMMOTIVES)
                   let b2 ← frontend.scan_fast.match_lit b j s1
                   if b2
                   then ok frontend.scan_types.Key.KNumMotives
@@ -56708,7 +56803,7 @@ def frontend.scan_fast.key_at
   | 111#uscalar =>
     if kl = 6#usize
     then
-      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_OPAQUE
+      let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_OPAQUE)
       let b1 ← frontend.scan_fast.match_lit b j s
       if b1
       then ok frontend.scan_types.Key.KOpaque
@@ -56717,7 +56812,7 @@ def frontend.scan_fast.key_at
   | 112#uscalar =>
     if kl = 2#usize
     then
-      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_PW
+      let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_PW)
       let b1 ← frontend.scan_fast.match_lit b j s
       if b1
       then ok frontend.scan_types.Key.KPw
@@ -56725,7 +56820,7 @@ def frontend.scan_fast.key_at
     else
       if kl = 3#usize
       then
-        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_PRE
+        let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_PRE)
         let b1 ← frontend.scan_fast.match_lit b j s
         if b1
         then ok frontend.scan_types.Key.KPre
@@ -56733,7 +56828,7 @@ def frontend.scan_fast.key_at
       else
         if kl = 4#usize
         then
-          let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_PROJ
+          let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_PROJ)
           let b1 ← frontend.scan_fast.match_lit b j s
           if b1
           then ok frontend.scan_types.Key.KProj
@@ -56741,7 +56836,7 @@ def frontend.scan_fast.key_at
         else
           if kl = 5#usize
           then
-            let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_PARAM
+            let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_PARAM)
             let b1 ← frontend.scan_fast.match_lit b j s
             if b1
             then ok frontend.scan_types.Key.KParam
@@ -56750,7 +56845,7 @@ def frontend.scan_fast.key_at
   | 113#uscalar =>
     if kl = 4#usize
     then
-      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_QUOT
+      let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_QUOT)
       let b1 ← frontend.scan_fast.match_lit b j s
       if b1
       then ok frontend.scan_types.Key.KQuot
@@ -56759,7 +56854,7 @@ def frontend.scan_fast.key_at
   | 114#uscalar =>
     if kl = 3#usize
     then
-      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_RHS
+      let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_RHS)
       let b1 ← frontend.scan_fast.match_lit b j s
       if b1
       then ok frontend.scan_types.Key.KRhs
@@ -56767,7 +56862,7 @@ def frontend.scan_fast.key_at
     else
       if kl = 4#usize
       then
-        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_RECS
+        let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_RECS)
         let b1 ← frontend.scan_fast.match_lit b j s
         if b1
         then ok frontend.scan_types.Key.KRecs
@@ -56775,7 +56870,7 @@ def frontend.scan_fast.key_at
       else
         if kl = 5#usize
         then
-          let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_RULES
+          let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_RULES)
           let b1 ← frontend.scan_fast.match_lit b j s
           if b1
           then ok frontend.scan_types.Key.KRules
@@ -56783,7 +56878,7 @@ def frontend.scan_fast.key_at
         else
           if kl = 7#usize
           then
-            let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_REGULAR
+            let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_REGULAR)
             let b1 ← frontend.scan_fast.match_lit b j s
             if b1
             then ok frontend.scan_types.Key.KRegular
@@ -56792,7 +56887,7 @@ def frontend.scan_fast.key_at
   | 115#uscalar =>
     if kl = 3#usize
     then
-      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_STR
+      let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_STR)
       let b1 ← frontend.scan_fast.match_lit b j s
       if b1
       then ok frontend.scan_types.Key.KStr
@@ -56800,12 +56895,12 @@ def frontend.scan_fast.key_at
     else
       if kl = 4#usize
       then
-        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_SORT
+        let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_SORT)
         let b1 ← frontend.scan_fast.match_lit b j s
         if b1
         then ok frontend.scan_types.Key.KSort
         else
-          let s1 ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_SUCC
+          let s1 ← lift (Array.to_slice frontend.scan_fast.key_at.S_SUCC)
           let b2 ← frontend.scan_fast.match_lit b j s1
           if b2
           then ok frontend.scan_types.Key.KSucc
@@ -56813,18 +56908,18 @@ def frontend.scan_fast.key_at
       else
         if kl = 6#usize
         then
-          let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_SAFETY
+          let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_SAFETY)
           let b1 ← frontend.scan_fast.match_lit b j s
           if b1
           then ok frontend.scan_types.Key.KSafety
           else
-            let s1 ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_STRVAL
+            let s1 ← lift (Array.to_slice frontend.scan_fast.key_at.S_STRVAL)
             let b2 ← frontend.scan_fast.match_lit b j s1
             if b2
             then ok frontend.scan_types.Key.KStrVal
             else
               let s2 ←
-                core.str.Str.as_bytes frontend.scan_fast.key_at.S_STRUCT
+                lift (Array.to_slice frontend.scan_fast.key_at.S_STRUCT)
               let b3 ← frontend.scan_fast.match_lit b j s2
               if b3
               then ok frontend.scan_types.Key.KStruct
@@ -56833,7 +56928,7 @@ def frontend.scan_fast.key_at
   | 116#uscalar =>
     if kl = 3#usize
     then
-      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_THM
+      let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_THM)
       let b1 ← frontend.scan_fast.match_lit b j s
       if b1
       then ok frontend.scan_types.Key.KThm
@@ -56841,7 +56936,7 @@ def frontend.scan_fast.key_at
     else
       if kl = 4#usize
       then
-        let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_TYPE
+        let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_TYPE)
         let b1 ← frontend.scan_fast.match_lit b j s
         if b1
         then ok frontend.scan_types.Key.KType
@@ -56849,7 +56944,7 @@ def frontend.scan_fast.key_at
       else
         if kl = 5#usize
         then
-          let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_TYPES
+          let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_TYPES)
           let b1 ← frontend.scan_fast.match_lit b j s
           if b1
           then ok frontend.scan_types.Key.KTypes
@@ -56858,7 +56953,7 @@ def frontend.scan_fast.key_at
           if kl = 8#usize
           then
             let s ←
-              core.str.Str.as_bytes frontend.scan_fast.key_at.S_TYPENAME
+              lift (Array.to_slice frontend.scan_fast.key_at.S_TYPENAME)
             let b1 ← frontend.scan_fast.match_lit b j s
             if b1
             then ok frontend.scan_types.Key.KTypeName
@@ -56867,7 +56962,7 @@ def frontend.scan_fast.key_at
   | 117#uscalar =>
     if kl = 2#usize
     then
-      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_US
+      let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_US)
       let b1 ← frontend.scan_fast.match_lit b j s
       if b1
       then ok frontend.scan_types.Key.KUs
@@ -56876,7 +56971,7 @@ def frontend.scan_fast.key_at
   | 118#uscalar =>
     if kl = 5#usize
     then
-      let s ← core.str.Str.as_bytes frontend.scan_fast.key_at.S_VALUE
+      let s ← lift (Array.to_slice frontend.scan_fast.key_at.S_VALUE)
       let b1 ← frontend.scan_fast.match_lit b j s
       if b1
       then ok frontend.scan_types.Key.KValue
@@ -56885,7 +56980,7 @@ def frontend.scan_fast.key_at
   | _ => ok frontend.scan_types.Key.KUnknown
 
 /-- [con_ron_core::frontend::scan_fast::key_end]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 141:4-152:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 151:4-162:1
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.key_end_loop
@@ -56908,7 +57003,7 @@ def frontend.scan_fast.key_end_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::key_end]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 139:0-152:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 149:0-162:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.key_end
@@ -56916,7 +57011,7 @@ def frontend.scan_fast.key_end
   frontend.scan_fast.key_end_loop b j
 
 /-- [con_ron_core::frontend::scan_fast::next_member]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1371:4-1425:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1381:4-1435:1
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.next_member_loop
@@ -56987,7 +57082,7 @@ def frontend.scan_fast.next_member_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::next_member]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1364:0-1425:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1374:0-1435:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.next_member
@@ -56998,7 +57093,7 @@ def frontend.scan_fast.next_member
   frontend.scan_fast.next_member_loop b i want_member
 
 /-- [con_ron_core::frontend::scan_fast::scan_nat_list_loop]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1163:4-1199:5
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1173:4-1209:5
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.scan_nat_list_loop_loop
@@ -57070,7 +57165,7 @@ def frontend.scan_fast.scan_nat_list_loop_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::scan_nat_list_loop]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1159:0-1200:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1169:0-1210:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.scan_nat_list_loop
@@ -57082,7 +57177,7 @@ def frontend.scan_fast.scan_nat_list_loop
     true
 
 /-- [con_ron_core::frontend::scan_fast::scan_nat_list]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1205:0-1211:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1215:0-1221:1
     Visibility: public -/
 def frontend.scan_fast.scan_nat_list
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -57098,29 +57193,31 @@ def frontend.scan_fast.scan_nat_list
       frontend.scan_types.ErrTag.ExpectedList
 
 /-- [con_ron_core::frontend::scan_fast::scan_bool::S_FALSE]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 715:4-715:34 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 725:4-725:39 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.scan_bool.S_FALSE : Str := toStr "false"
+def frontend.scan_fast.scan_bool.S_FALSE : Array Std.U8 5#usize :=
+  Array.make 5#usize [ 102#u8, 97#u8, 108#u8, 115#u8, 101#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::scan_bool::S_TRUE]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 714:4-714:32 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 724:4-724:37 -/
 @[global_simps, irreducible]
-def frontend.scan_fast.scan_bool.S_TRUE : Str := toStr "true"
+def frontend.scan_fast.scan_bool.S_TRUE : Array Std.U8 4#usize :=
+  Array.make 4#usize [ 116#u8, 114#u8, 117#u8, 101#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::scan_bool]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 713:0-723:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 723:0-733:1
     Visibility: public -/
 def frontend.scan_fast.scan_bool
   (b : Slice Std.U8) (i : Std.Usize) :
   Result (core.result.Result (Bool × Std.Usize) frontend.scan_types.ScanErr)
   := do
-  let s ← core.str.Str.as_bytes frontend.scan_fast.scan_bool.S_TRUE
+  let s ← lift (Array.to_slice frontend.scan_fast.scan_bool.S_TRUE)
   let b1 ← frontend.scan_fast.match_lit b i s
   if b1
   then let i1 ← i + 4#usize
        ok (core.result.Result.Ok (true, i1))
   else
-    let s1 ← core.str.Str.as_bytes frontend.scan_fast.scan_bool.S_FALSE
+    let s1 ← lift (Array.to_slice frontend.scan_fast.scan_bool.S_FALSE)
     let b2 ← frontend.scan_fast.match_lit b i s1
     if b2
     then let i1 ← i + 5#usize
@@ -57128,7 +57225,7 @@ def frontend.scan_fast.scan_bool
     else frontend.scan_fast.err Bool i frontend.scan_types.ErrTag.ExpectedBool
 
 /-- [con_ron_core::frontend::scan_fast::scan_ind_ctor_loop]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2787:4-2932:5
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2797:4-2942:5
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.scan_ind_ctor_loop_loop
@@ -57499,7 +57596,7 @@ def frontend.scan_fast.scan_ind_ctor_loop_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::scan_ind_ctor_loop]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2775:0-2933:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2785:0-2943:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.scan_ind_ctor_loop
@@ -57511,7 +57608,7 @@ def frontend.scan_fast.scan_ind_ctor_loop
     (alloc.vec.Vec.new Std.U64) 0#u64 0#u64 0#u64 0#u64 none none
 
 /-- [con_ron_core::frontend::scan_fast::scan_ind_ctor]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2939:0-2945:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2949:0-2955:1
     Visibility: public -/
 def frontend.scan_fast.scan_ind_ctor
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -57527,7 +57624,7 @@ def frontend.scan_fast.scan_ind_ctor
       frontend.scan_types.ErrTag.ExpectedObject
 
 /-- [con_ron_core::frontend::scan_fast::scan_ind_ctor_list_loop]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2954:4-2989:5
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2964:4-2999:5
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.scan_ind_ctor_list_loop_loop
@@ -57605,7 +57702,7 @@ def frontend.scan_fast.scan_ind_ctor_list_loop_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::scan_ind_ctor_list_loop]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2950:0-2990:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2960:0-3000:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.scan_ind_ctor_list_loop
@@ -57617,7 +57714,7 @@ def frontend.scan_fast.scan_ind_ctor_list_loop
     frontend.scan_types.IndCtorRec) true
 
 /-- [con_ron_core::frontend::scan_fast::scan_ind_ctors]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2995:0-3001:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3005:0-3011:1
     Visibility: public -/
 def frontend.scan_fast.scan_ind_ctors
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -57633,7 +57730,7 @@ def frontend.scan_fast.scan_ind_ctors
       frontend.scan_types.ErrTag.ExpectedList
 
 /-- [con_ron_core::frontend::scan_fast::scan_ind_type_loop]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2507:4-2704:5
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2517:4-2714:5
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.scan_ind_type_loop_loop
@@ -58069,7 +58166,7 @@ def frontend.scan_fast.scan_ind_type_loop_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::scan_ind_type_loop]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2493:0-2705:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2503:0-2715:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.scan_ind_type_loop
@@ -58082,7 +58179,7 @@ def frontend.scan_fast.scan_ind_type_loop
     0#u64 0#u64
 
 /-- [con_ron_core::frontend::scan_fast::scan_ind_type]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2710:0-2716:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2720:0-2726:1
     Visibility: public -/
 def frontend.scan_fast.scan_ind_type
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -58098,7 +58195,7 @@ def frontend.scan_fast.scan_ind_type
       frontend.scan_types.ErrTag.ExpectedObject
 
 /-- [con_ron_core::frontend::scan_fast::scan_ind_type_list_loop]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2725:4-2760:5
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2735:4-2770:5
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.scan_ind_type_list_loop_loop
@@ -58176,7 +58273,7 @@ def frontend.scan_fast.scan_ind_type_list_loop_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::scan_ind_type_list_loop]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2721:0-2761:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2731:0-2771:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.scan_ind_type_list_loop
@@ -58188,7 +58285,7 @@ def frontend.scan_fast.scan_ind_type_list_loop
     frontend.scan_types.IndTypeRec) true
 
 /-- [con_ron_core::frontend::scan_fast::scan_ind_types]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2766:0-2772:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2776:0-2782:1
     Visibility: public -/
 def frontend.scan_fast.scan_ind_types
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -58204,7 +58301,7 @@ def frontend.scan_fast.scan_ind_types
       frontend.scan_types.ErrTag.ExpectedList
 
 /-- [con_ron_core::frontend::scan_fast::scan_rule_loop]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2072:4-2140:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2082:4-2150:1
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.scan_rule_loop_loop
@@ -58483,7 +58580,7 @@ def frontend.scan_fast.scan_rule_loop_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::scan_rule_loop]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2065:0-2140:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2075:0-2150:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.scan_rule_loop
@@ -58494,7 +58591,7 @@ def frontend.scan_fast.scan_rule_loop
   frontend.scan_fast.scan_rule_loop_loop true b i 0#u32 0#u64 0#u64 0#u64
 
 /-- [con_ron_core::frontend::scan_fast::scan_rule]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2145:0-2151:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2155:0-2161:1
     Visibility: public -/
 def frontend.scan_fast.scan_rule
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -58510,7 +58607,7 @@ def frontend.scan_fast.scan_rule
       frontend.scan_types.ErrTag.ExpectedObject
 
 /-- [con_ron_core::frontend::scan_fast::scan_rule_list_loop]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2164:4-2199:5
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2174:4-2209:5
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.scan_rule_list_loop_loop
@@ -58584,7 +58681,7 @@ def frontend.scan_fast.scan_rule_list_loop_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::scan_rule_list_loop]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2160:0-2200:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2170:0-2210:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.scan_rule_list_loop
@@ -58596,7 +58693,7 @@ def frontend.scan_fast.scan_rule_list_loop
     frontend.scan_types.RuleRec) true
 
 /-- [con_ron_core::frontend::scan_fast::scan_rules]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2205:0-2211:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2215:0-2221:1
     Visibility: public -/
 def frontend.scan_fast.scan_rules
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -58612,7 +58709,7 @@ def frontend.scan_fast.scan_rules
       frontend.scan_types.ErrTag.ExpectedList
 
 /-- [con_ron_core::frontend::scan_fast::scan_ind_rec_loop]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2228:4-2422:5
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2238:4-2432:5
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.scan_ind_rec_loop_loop
@@ -59042,7 +59139,7 @@ def frontend.scan_fast.scan_ind_rec_loop_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::scan_ind_rec_loop]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2214:0-2423:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2224:0-2433:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.scan_ind_rec_loop
@@ -59055,7 +59152,7 @@ def frontend.scan_fast.scan_ind_rec_loop
     (alloc.vec.Vec.new frontend.scan_types.RuleRec) 0#u64
 
 /-- [con_ron_core::frontend::scan_fast::scan_ind_rec]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2428:0-2434:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2438:0-2444:1
     Visibility: public -/
 def frontend.scan_fast.scan_ind_rec
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -59071,7 +59168,7 @@ def frontend.scan_fast.scan_ind_rec
       frontend.scan_types.ErrTag.ExpectedObject
 
 /-- [con_ron_core::frontend::scan_fast::scan_ind_rec_list_loop]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2443:4-2478:5
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2453:4-2488:5
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.scan_ind_rec_list_loop_loop
@@ -59148,7 +59245,7 @@ def frontend.scan_fast.scan_ind_rec_list_loop_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::scan_ind_rec_list_loop]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2439:0-2479:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2449:0-2489:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.scan_ind_rec_list_loop
@@ -59160,7 +59257,7 @@ def frontend.scan_fast.scan_ind_rec_list_loop
     frontend.scan_types.IndRecRec) true
 
 /-- [con_ron_core::frontend::scan_fast::scan_ind_recs]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2484:0-2490:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2494:0-2500:1
     Visibility: public -/
 def frontend.scan_fast.scan_ind_recs
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -59176,7 +59273,7 @@ def frontend.scan_fast.scan_ind_recs
       frontend.scan_types.ErrTag.ExpectedList
 
 /-- [con_ron_core::frontend::scan_fast::scan_ind_decl_loop]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3662:4-3761:5
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3672:4-3771:5
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.scan_ind_decl_loop_loop
@@ -59516,7 +59613,7 @@ def frontend.scan_fast.scan_ind_decl_loop_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::scan_ind_decl_loop]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3655:0-3762:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3665:0-3772:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.scan_ind_decl_loop
@@ -59530,7 +59627,7 @@ def frontend.scan_fast.scan_ind_decl_loop
     frontend.scan_types.IndTypeRec)
 
 /-- [con_ron_core::frontend::scan_fast::scan_ind_decl]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3767:0-3773:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3777:0-3783:1
     Visibility: public -/
 def frontend.scan_fast.scan_ind_decl
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -59546,13 +59643,13 @@ def frontend.scan_fast.scan_ind_decl
       frontend.scan_types.ErrTag.ExpectedObject
 
 /-- [con_ron_core::frontend::scan_fast::REPLACEMENT_CHAR]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 980:0-980:41
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 990:0-990:41
     Visibility: public -/
 @[global_simps, irreducible]
 def frontend.scan_fast.REPLACEMENT_CHAR : Std.U32 := 65533#u32
 
 /-- [con_ron_core::frontend::scan_fast::utf8_of]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 888:0-906:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 898:0-916:1
     Visibility: public -/
 def frontend.scan_fast.utf8_of
   (acc : alloc.vec.Vec Std.U8) (val : Std.U32) :
@@ -59609,7 +59706,7 @@ def frontend.scan_fast.utf8_of
         alloc.vec.Vec.push acc3 i13
 
 /-- [con_ron_core::frontend::scan_fast::hex_val]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 828:0-838:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 838:0-848:1
     Visibility: public -/
 def frontend.scan_fast.hex_val (c : Std.U8) : Result (Option Std.U32) := do
   if 48#u8 <= c
@@ -59676,7 +59773,7 @@ def frontend.scan_fast.hex_val (c : Std.U8) : Result (Option Std.U32) := do
       else ok none
 
 /-- [con_ron_core::frontend::scan_fast::hex3]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 865:0-879:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 875:0-889:1
     Visibility: public -/
 def frontend.scan_fast.hex3
   (b : Slice Std.U8) (j : Std.Usize) : Result (Option Std.U32) := do
@@ -59704,7 +59801,7 @@ def frontend.scan_fast.hex3
         ok (some i8)
 
 /-- [con_ron_core::frontend::scan_fast::hex4]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 842:0-860:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 852:0-870:1
     Visibility: public -/
 def frontend.scan_fast.hex4
   (b : Slice Std.U8) (j : Std.Usize) : Result (Option Std.U32) := do
@@ -59740,7 +59837,7 @@ def frontend.scan_fast.hex4
           ok (some i12)
 
 /-- [con_ron_core::frontend::scan_fast::unescape_bytes]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 991:4-1058:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1001:4-1068:1
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.unescape_bytes_loop
@@ -59857,7 +59954,7 @@ def frontend.scan_fast.unescape_bytes_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::unescape_bytes]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 988:0-1058:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 998:0-1068:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.unescape_bytes
@@ -59867,7 +59964,7 @@ def frontend.scan_fast.unescape_bytes
   frontend.scan_fast.unescape_bytes_loop b e (alloc.vec.Vec.new Std.U8) j
 
 /-- [con_ron_core::frontend::scan_fast::utf8_decode]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 918:4-975:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 928:4-985:1
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.utf8_decode_loop
@@ -60015,7 +60112,7 @@ def frontend.scan_fast.utf8_decode_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::utf8_decode]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 914:0-975:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 924:0-985:1
     Visibility: public -/
 def frontend.scan_fast.utf8_decode
   (b : Slice Std.U8) (j : Std.Usize) (e : Std.Usize) :
@@ -60028,7 +60125,7 @@ def frontend.scan_fast.utf8_decode
   frontend.scan_fast.utf8_decode_loop b n (alloc.vec.Vec.new Std.U32) j
 
 /-- [con_ron_core::frontend::scan_fast::unescape]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1066:0-1071:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1076:0-1081:1
     Visibility: public -/
 def frontend.scan_fast.unescape
   (b : Slice Std.U8) (j : Std.Usize) (e : Std.Usize) :
@@ -60043,7 +60140,7 @@ def frontend.scan_fast.unescape
     frontend.scan_fast.utf8_decode s 0#usize i
 
 /-- [con_ron_core::frontend::scan_fast::has_escape]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 817:4-824:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 827:4-834:1
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.has_escape_loop
@@ -60063,7 +60160,7 @@ def frontend.scan_fast.has_escape_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::has_escape]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 815:0-824:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 825:0-834:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.has_escape
@@ -60071,7 +60168,7 @@ def frontend.scan_fast.has_escape
   frontend.scan_fast.has_escape_loop b e j
 
 /-- [con_ron_core::frontend::scan_fast::str_close]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 791:4-811:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 801:4-821:1
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.str_close_loop
@@ -60104,7 +60201,7 @@ def frontend.scan_fast.str_close_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::str_close]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 789:0-811:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 799:0-821:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.str_close
@@ -60112,7 +60209,7 @@ def frontend.scan_fast.str_close
   frontend.scan_fast.str_close_loop b j
 
 /-- [con_ron_core::frontend::scan_fast::scan_string]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1084:0-1104:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1094:0-1114:1
     Visibility: public -/
 def frontend.scan_fast.scan_string
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -60157,7 +60254,7 @@ def frontend.scan_fast.scan_string
                     ok (core.result.Result.Ok (s, i3))
 
 /-- [con_ron_core::frontend::scan_fast::scan_quot_decl_loop]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3551:4-3640:5
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3561:4-3650:5
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.scan_quot_decl_loop_loop
@@ -60466,7 +60563,7 @@ def frontend.scan_fast.scan_quot_decl_loop_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::scan_quot_decl_loop]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3543:0-3641:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3553:0-3651:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.scan_quot_decl_loop
@@ -60478,7 +60575,7 @@ def frontend.scan_fast.scan_quot_decl_loop
     Std.U32) (alloc.vec.Vec.new Std.U64) 0#u64 0#u64
 
 /-- [con_ron_core::frontend::scan_fast::scan_quot_decl]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3646:0-3652:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3656:0-3662:1
     Visibility: public -/
 def frontend.scan_fast.scan_quot_decl
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -60494,7 +60591,7 @@ def frontend.scan_fast.scan_quot_decl
       frontend.scan_types.ErrTag.ExpectedObject
 
 /-- [con_ron_core::frontend::scan_fast::scan_opaque_decl_loop]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3410:4-3528:5
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3420:4-3538:5
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.scan_opaque_decl_loop_loop
@@ -60833,7 +60930,7 @@ def frontend.scan_fast.scan_opaque_decl_loop_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::scan_opaque_decl_loop]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3401:0-3529:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3411:0-3539:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.scan_opaque_decl_loop
@@ -60845,7 +60942,7 @@ def frontend.scan_fast.scan_opaque_decl_loop
     (alloc.vec.Vec.new Std.U64) 0#u64 0#u64 0#u64
 
 /-- [con_ron_core::frontend::scan_fast::scan_opaque_decl]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3534:0-3540:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3544:0-3550:1
     Visibility: public -/
 def frontend.scan_fast.scan_opaque_decl
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -60861,7 +60958,7 @@ def frontend.scan_fast.scan_opaque_decl
       frontend.scan_types.ErrTag.ExpectedObject
 
 /-- [con_ron_core::frontend::scan_fast::scan_thm_decl_loop]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3285:4-3386:5
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3295:4-3396:5
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.scan_thm_decl_loop_loop
@@ -61181,7 +61278,7 @@ def frontend.scan_fast.scan_thm_decl_loop_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::scan_thm_decl_loop]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3277:0-3387:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3287:0-3397:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.scan_thm_decl_loop
@@ -61193,7 +61290,7 @@ def frontend.scan_fast.scan_thm_decl_loop
     Std.U64) 0#u64 0#u64 0#u64
 
 /-- [con_ron_core::frontend::scan_fast::scan_thm_decl]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3392:0-3398:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3402:0-3408:1
     Visibility: public -/
 def frontend.scan_fast.scan_thm_decl
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -61209,19 +61306,19 @@ def frontend.scan_fast.scan_thm_decl
       frontend.scan_types.ErrTag.ExpectedObject
 
 /-- [con_ron_core::frontend::scan_fast::scan_hints::S_OPAQUE]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1252:4-1252:64 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1262:4-1262:43 -/
 @[global_simps, irreducible]
 def frontend.scan_fast.scan_hints.S_OPAQUE : Array Std.U8 7#usize :=
   Array.make 7#usize [ 111#u8, 112#u8, 97#u8, 113#u8, 117#u8, 101#u8, 34#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::scan_hints::S_ABBREV]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1251:4-1251:62 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1261:4-1261:43 -/
 @[global_simps, irreducible]
 def frontend.scan_fast.scan_hints.S_ABBREV : Array Std.U8 7#usize :=
   Array.make 7#usize [ 97#u8, 98#u8, 98#u8, 114#u8, 101#u8, 118#u8, 34#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::scan_hints]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1244:0-1296:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1254:0-1306:1
     Visibility: public -/
 def frontend.scan_fast.scan_hints
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -61499,7 +61596,7 @@ def frontend.scan_fast.scan_hints
         frontend.scan_types.ErrTag.BadHints
 
 /-- [con_ron_core::frontend::scan_fast::scan_def_decl_loop]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3126:4-3261:5
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3136:4-3271:5
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.scan_def_decl_loop_loop
@@ -61857,7 +61954,7 @@ def frontend.scan_fast.scan_def_decl_loop_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::scan_def_decl_loop]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3116:0-3262:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3126:0-3272:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.scan_def_decl_loop
@@ -61870,7 +61967,7 @@ def frontend.scan_fast.scan_def_decl_loop
     0#u64 (alloc.vec.Vec.new Std.U32) 0#u64 0#u64
 
 /-- [con_ron_core::frontend::scan_fast::scan_def_decl]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3268:0-3274:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3278:0-3284:1
     Visibility: public -/
 def frontend.scan_fast.scan_def_decl
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -61886,7 +61983,7 @@ def frontend.scan_fast.scan_def_decl
       frontend.scan_types.ErrTag.ExpectedObject
 
 /-- [con_ron_core::frontend::scan_fast::scan_axiom_decl_loop]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3012:4-3101:5
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3022:4-3111:5
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.scan_axiom_decl_loop_loop
@@ -62194,7 +62291,7 @@ def frontend.scan_fast.scan_axiom_decl_loop_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::scan_axiom_decl_loop]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3004:0-3102:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3014:0-3112:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.scan_axiom_decl_loop
@@ -62206,7 +62303,7 @@ def frontend.scan_fast.scan_axiom_decl_loop
     (alloc.vec.Vec.new Std.U64) 0#u64 0#u64
 
 /-- [con_ron_core::frontend::scan_fast::scan_axiom_decl]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3107:0-3113:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3117:0-3123:1
     Visibility: public -/
 def frontend.scan_fast.scan_axiom_decl
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -62222,7 +62319,7 @@ def frontend.scan_fast.scan_axiom_decl
       frontend.scan_types.ErrTag.ExpectedObject
 
 /-- [con_ron_core::frontend::scan_fast::scan_proj_expr_loop]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1990:4-2051:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2000:4-2061:1
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.scan_proj_expr_loop_loop
@@ -62503,7 +62600,7 @@ def frontend.scan_fast.scan_proj_expr_loop_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::scan_proj_expr_loop]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1983:0-2051:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1993:0-2061:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.scan_proj_expr_loop
@@ -62514,7 +62611,7 @@ def frontend.scan_fast.scan_proj_expr_loop
   frontend.scan_fast.scan_proj_expr_loop_loop true b i 0#u32 0#u64 0#u64 0#u64
 
 /-- [con_ron_core::frontend::scan_fast::scan_proj_expr]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2056:0-2062:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 2066:0-2072:1
     Visibility: public -/
 def frontend.scan_fast.scan_proj_expr
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -62530,7 +62627,7 @@ def frontend.scan_fast.scan_proj_expr
       frontend.scan_types.ErrTag.ExpectedObject
 
 /-- [con_ron_core::frontend::scan_fast::scan_const_expr_loop]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1918:4-1968:5
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1928:4-1978:5
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.scan_const_expr_loop_loop
@@ -62806,7 +62903,7 @@ def frontend.scan_fast.scan_const_expr_loop_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::scan_const_expr_loop]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1912:0-1969:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1922:0-1979:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.scan_const_expr_loop
@@ -62818,7 +62915,7 @@ def frontend.scan_fast.scan_const_expr_loop
     (alloc.vec.Vec.new Std.U64)
 
 /-- [con_ron_core::frontend::scan_fast::scan_const_expr]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1974:0-1980:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1984:0-1990:1
     Visibility: public -/
 def frontend.scan_fast.scan_const_expr
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -62834,7 +62931,7 @@ def frontend.scan_fast.scan_const_expr
       frontend.scan_types.ErrTag.ExpectedObject
 
 /-- [con_ron_core::frontend::scan_fast::scan_let_expr_loop]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1810:4-1898:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1820:4-1908:1
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.scan_let_expr_loop_loop
@@ -63144,7 +63241,7 @@ def frontend.scan_fast.scan_let_expr_loop_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::scan_let_expr_loop]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1803:0-1898:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1813:0-1908:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.scan_let_expr_loop
@@ -63155,7 +63252,7 @@ def frontend.scan_fast.scan_let_expr_loop
   frontend.scan_fast.scan_let_expr_loop_loop true b i 0#u32 0#u64 0#u64 0#u64
 
 /-- [con_ron_core::frontend::scan_fast::scan_let_expr]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1903:0-1909:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1913:0-1919:1
     Visibility: public -/
 def frontend.scan_fast.scan_let_expr
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -63171,13 +63268,13 @@ def frontend.scan_fast.scan_let_expr
       frontend.scan_types.ErrTag.ExpectedObject
 
 /-- [con_ron_core::frontend::scan_fast::scan_pw::S_NEVER]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1223:4-1223:59 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1233:4-1233:41 -/
 @[global_simps, irreducible]
 def frontend.scan_fast.scan_pw.S_NEVER : Array Std.U8 6#usize :=
   Array.make 6#usize [ 110#u8, 101#u8, 118#u8, 101#u8, 114#u8, 34#u8 ]
 
 /-- [con_ron_core::frontend::scan_fast::scan_pw]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1216:0-1239:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1226:0-1249:1
     Visibility: public -/
 def frontend.scan_fast.scan_pw
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -63212,7 +63309,7 @@ def frontend.scan_fast.scan_pw
         frontend.scan_types.ErrTag.BadPw
 
 /-- [con_ron_core::frontend::scan_fast::scan_binder_info::S_INST]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1139:4-1139:92 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1149:4-1149:48 -/
 @[global_simps, irreducible]
 def frontend.scan_fast.scan_binder_info.S_INST : Array Std.U8 13#usize :=
   Array.make 13#usize [
@@ -63221,7 +63318,7 @@ def frontend.scan_fast.scan_binder_info.S_INST : Array Std.U8 13#usize :=
     ]
 
 /-- [con_ron_core::frontend::scan_fast::scan_binder_info::S_STRICT]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1138:4-1138:103 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1148:4-1148:52 -/
 @[global_simps, irreducible]
 def frontend.scan_fast.scan_binder_info.S_STRICT : Array Std.U8 15#usize :=
   Array.make 15#usize [
@@ -63230,7 +63327,7 @@ def frontend.scan_fast.scan_binder_info.S_STRICT : Array Std.U8 15#usize :=
     ]
 
 /-- [con_ron_core::frontend::scan_fast::scan_binder_info::S_IMPLICIT]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1137:4-1137:76 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1147:4-1147:47 -/
 @[global_simps, irreducible]
 def frontend.scan_fast.scan_binder_info.S_IMPLICIT : Array Std.U8 9#usize :=
   Array.make 9#usize [
@@ -63238,7 +63335,7 @@ def frontend.scan_fast.scan_binder_info.S_IMPLICIT : Array Std.U8 9#usize :=
     ]
 
 /-- [con_ron_core::frontend::scan_fast::scan_binder_info::S_DEFAULT]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1136:4-1136:70 -/
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1146:4-1146:45 -/
 @[global_simps, irreducible]
 def frontend.scan_fast.scan_binder_info.S_DEFAULT : Array Std.U8 8#usize :=
   Array.make 8#usize [
@@ -63246,7 +63343,7 @@ def frontend.scan_fast.scan_binder_info.S_DEFAULT : Array Std.U8 8#usize :=
     ]
 
 /-- [con_ron_core::frontend::scan_fast::scan_binder_info]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1129:0-1153:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1139:0-1163:1
     Visibility: public -/
 def frontend.scan_fast.scan_binder_info
   (b : Slice Std.U8) (i : Std.Usize) : Result Std.Usize := do
@@ -63281,7 +63378,7 @@ def frontend.scan_fast.scan_binder_info
           else ok 0#usize
 
 /-- [con_ron_core::frontend::scan_fast::scan_binder_expr_loop]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1678:4-1775:5
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1688:4-1785:5
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.scan_binder_expr_loop_loop
@@ -63609,7 +63706,7 @@ def frontend.scan_fast.scan_binder_expr_loop_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::scan_binder_expr_loop]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1671:0-1776:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1681:0-1786:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.scan_binder_expr_loop
@@ -63621,7 +63718,7 @@ def frontend.scan_fast.scan_binder_expr_loop
     frontend.scan_types.PwRec.Never
 
 /-- [con_ron_core::frontend::scan_fast::scan_forall_expr]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1794:0-1800:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1804:0-1810:1
     Visibility: public -/
 def frontend.scan_fast.scan_forall_expr
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -63638,7 +63735,7 @@ def frontend.scan_fast.scan_forall_expr
       frontend.scan_types.ErrTag.ExpectedObject
 
 /-- [con_ron_core::frontend::scan_fast::scan_lam_expr]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1783:0-1789:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1793:0-1799:1
     Visibility: public -/
 def frontend.scan_fast.scan_lam_expr
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -63655,7 +63752,7 @@ def frontend.scan_fast.scan_lam_expr
       frontend.scan_types.ErrTag.ExpectedObject
 
 /-- [con_ron_core::frontend::scan_fast::scan_app_expr_loop]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1604:4-1652:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1614:4-1662:1
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.scan_app_expr_loop_loop
@@ -63925,7 +64022,7 @@ def frontend.scan_fast.scan_app_expr_loop_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::scan_app_expr_loop]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1598:0-1652:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1608:0-1662:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.scan_app_expr_loop
@@ -63936,7 +64033,7 @@ def frontend.scan_fast.scan_app_expr_loop
   frontend.scan_fast.scan_app_expr_loop_loop true b i 0#u32 0#u64 0#u64
 
 /-- [con_ron_core::frontend::scan_fast::scan_app_expr]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1657:0-1663:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1667:0-1673:1
     Visibility: public -/
 def frontend.scan_fast.scan_app_expr
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -63952,7 +64049,7 @@ def frontend.scan_fast.scan_app_expr
       frontend.scan_types.ErrTag.ExpectedObject
 
 /-- [con_ron_core::frontend::scan_fast::scan_num_name_loop]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1536:4-1584:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1546:4-1594:1
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.scan_num_name_loop_loop
@@ -64222,7 +64319,7 @@ def frontend.scan_fast.scan_num_name_loop_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::scan_num_name_loop]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1530:0-1584:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1540:0-1594:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.scan_num_name_loop
@@ -64233,7 +64330,7 @@ def frontend.scan_fast.scan_num_name_loop
   frontend.scan_fast.scan_num_name_loop_loop true b i 0#u32 0#u64 0#u64
 
 /-- [con_ron_core::frontend::scan_fast::scan_num_name]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1589:0-1595:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1599:0-1605:1
     Visibility: public -/
 def frontend.scan_fast.scan_num_name
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -64249,7 +64346,7 @@ def frontend.scan_fast.scan_num_name
       frontend.scan_types.ErrTag.ExpectedObject
 
 /-- [con_ron_core::frontend::scan_fast::scan_str_name_loop]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1465:4-1515:5
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1475:4-1525:5
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.scan_str_name_loop_loop
@@ -64525,7 +64622,7 @@ def frontend.scan_fast.scan_str_name_loop_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::scan_str_name_loop]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1459:0-1516:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1469:0-1526:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.scan_str_name_loop
@@ -64537,7 +64634,7 @@ def frontend.scan_fast.scan_str_name_loop
     (alloc.vec.Vec.new Std.U32)
 
 /-- [con_ron_core::frontend::scan_fast::scan_str_name]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1521:0-1527:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1531:0-1537:1
     Visibility: public -/
 def frontend.scan_fast.scan_str_name
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -64553,7 +64650,7 @@ def frontend.scan_fast.scan_str_name
       frontend.scan_types.ErrTag.ExpectedObject
 
 /-- [con_ron_core::frontend::scan_fast::skip_braced]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1311:4-1335:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1321:4-1345:1
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.skip_braced_loop
@@ -64611,7 +64708,7 @@ def frontend.scan_fast.skip_braced_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::skip_braced]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1308:0-1335:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1318:0-1345:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.skip_braced
@@ -64619,7 +64716,7 @@ def frontend.scan_fast.skip_braced
   frontend.scan_fast.skip_braced_loop b i depth
 
 /-- [con_ron_core::frontend::scan_fast::scan_quoted_nat]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1113:0-1122:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1123:0-1132:1
     Visibility: public -/
 def frontend.scan_fast.scan_quoted_nat
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -64654,7 +64751,7 @@ def frontend.scan_fast.scan_quoted_nat
         ok (core.result.Result.Ok (v, i4))
 
 /-- [con_ron_core::frontend::scan_fast::scan_line_loop]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3816:4-4076:5
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3826:4-4086:5
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.scan_line_loop_loop
@@ -65488,7 +65585,7 @@ def frontend.scan_fast.scan_line_loop_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::scan_line_loop]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3810:0-4077:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3820:0-4087:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.scan_line_loop
@@ -65500,7 +65597,7 @@ def frontend.scan_fast.scan_line_loop
     frontend.scan_fast.LinePayload.Absent
 
 /-- [con_ron_core::frontend::scan_fast::scan_line_fwd]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 4087:0-4110:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 4097:0-4120:1
     Visibility: public -/
 def frontend.scan_fast.scan_line_fwd
   (b : Slice Std.U8) (i : Std.Usize) :
@@ -65571,7 +65668,7 @@ def frontend.export_c.apply_final_line
     ok (core.result.Result.Err (ce, line_no), st)
 
 /-- [con_ron_core::frontend::scan_fast::newline_from]: loop 0:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 4117:4-4124:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 4127:4-4134:1
     Visibility: public -/
 @[rust_loop]
 def frontend.scan_fast.newline_from_loop
@@ -65588,7 +65685,7 @@ def frontend.scan_fast.newline_from_loop
 partial_fixpoint
 
 /-- [con_ron_core::frontend::scan_fast::newline_from]:
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 4115:0-4124:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 4125:0-4134:1
     Visibility: public -/
 @[reducible]
 def frontend.scan_fast.newline_from

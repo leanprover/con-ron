@@ -100,14 +100,14 @@ definition, so a theorem that names the binary's own decode run inherits it
 whether or not anything is computed; removing it needs an upstream change.
 Task #64's second entry, the port's own sealed `pins_closed` axiom, is gone.
 
-**The chunk-level pair pays sixty-eight more of exactly that artifact**, and
-its own section below says why: `frontend::scan_fast::key_at` recognises the
-dialect's object keys against a table of 66 `&str` constants and `scan_bool`
-against two more, so any statement that names `parse_chunks` inherits their
-`toStr` axioms through the closure with nothing evaluated.  It is the same
-entry as `PINS_TEXT`'s, 68 times, and it is still Aeneas's rather than the
-port's — but it does mean **the axiom-free headline stays
-`conron.model_exists_decoded`**, which names no constant.
+**The chunk-level pair paid sixty-eight more of that artifact until task #86**,
+and its own section below says why: `frontend::scan_fast::key_at` recognised
+the dialect's object keys against a table of 66 `&str` constants and
+`scan_bool` against two more, so any statement that named `parse_chunks`
+inherited their `toStr` axioms through the closure with nothing evaluated.
+Task #86 spelled all 68 as `[u8; N]` byte arrays — F17's route, already forced
+on seven literals of the same module — so the pair is pinned at the standard
+three, and `PINS_TEXT` is the port's last `&str` constant.
 
 ## `sorry` count in this file: 0
 -/
@@ -504,36 +504,36 @@ stated below and costs **nothing extra** — unlike `PINS_TEXT`, the prelude
 constant is a `[u8; …]` and not a `&str`, so naming it adds no axiom (task #84
 §8).
 
-## The census, and the sixty-eight axioms that are Aeneas's
+## The census: the standard three, since task #86
 
-**These two theorems do not carry con-leche's three axioms alone, and the
-reason is not this proof.**  Aeneas renders a `&str` constant as `toStr "…"` and
-discharges `toStr`'s bound `s.toByteArray.size ≤ U32.max` with its own default
-argument `by decide +native` (`Aeneas/Std/String.lean`, whose own comment says
-it should not) — so **every extracted `&str` constant carries a
-`_native.decide.ax_1` in its own definition**, before any proof of ours.
-`AENEAS_FINDINGS.md` §3.8 records it, and `conron.model_exists_embedded` has
-paid one of them since task #64 for naming `kernel::pins_text::PINS_TEXT`.
+**This pair is pinned at `[propext, Classical.choice, Quot.sound]`, and it took
+a Rust change to get there.**  Aeneas renders a `&str` constant as `toStr "…"`
+and discharges `toStr`'s bound `s.toByteArray.size ≤ U32.max` with its own
+default argument `by decide +native` (`Aeneas/Std/String.lean`, whose own
+comment says it should not) — so **every extracted `&str` constant carries a
+`_native.decide.ax_1` in its own definition**, before any proof of ours
+(`AENEAS_FINDINGS.md` §3.8).  `frontend::scan_fast::key_at` recognised the
+dialect's object keys against a table of 66 such constants and `scan_bool`
+against two more, so at task #85 every statement that named `parse_chunks` —
+which reaches `scan_line_fwd`, which reaches `key_at` — inherited **68** of them
+through the closure, with nothing evaluated.
 
-`frontend::scan_fast::key_at` recognises the dialect's object keys against a
-table of **66** such constants, and `scan_bool` against two more.  So any
-statement that names `parse_chunks` — which reaches `scan_line_fwd`, which
-reaches `key_at` — inherits 68 of them through the closure, with nothing
-evaluated: `#print axioms ConRon.Generated.frontend.scan_fast.scan_line_fwd`
-prints the same 68.  The pinned censuses below are therefore
-`[propext, Classical.choice, Quot.sound]` **plus those 68**, and that is what
-`#guard_msgs` checks.
+Task #86 spelled all 68 as `[u8; N]` byte arrays, which is what task #84 had
+already been forced to do to seven constants of the same module (F17: Aeneas
+emits a `&str` constant's double quotes unescaped).  A byte array carries no
+axiom, the longest key is eleven bytes so nothing approaches the `Array.make`
+limits F17 measured, and the models differ only in that
+`core.str.Str.as_bytes S_X` became `lift (Array.to_slice S_X)`.  Not one lemma
+of `Refine/Frontend/` moved for it: no proof in that tier ever stepped through
+a key comparison, and both spellings reach `match_lit` as a `Slice U8`.
 
-Two things follow, and both are worth saying plainly.  First, **the
-axiom-free headline is still `conron.model_exists_decoded`**: it names no
-constant and spends nothing, and what it assumes about its input is exactly what
-the pair below proves about the parser's output.  Second, **the remedy is
-mechanical and it is not this task's**: `scan_fast`'s key table could be spelled
-as `[u8; N]` arrays instead of `&str`, which is what task #84 already did to
-seven constants of the same module for F17's reason, and the 68 entries would
-go.  Whether to spend that — a Rust change, a re-extraction and a re-proof of
-`Refine/Frontend/ScanWF.lean` — against waiting for Aeneas to stop spending the
-axiom is the maintainer's call; §3.8's standing ask is the other way out.
+**One `toStr` axiom is left in the whole port**, and it is the one §3.8's
+standing ask is about: `kernel::pins_text::PINS_TEXT`, 532 KB of pin text,
+which the byte-array route cannot hold — one `Array.make` of that length does
+not elaborate, and task #84 measured 512 elements exhausting `maxRecDepth`.
+The two `conron.*_embedded` corollaries above are the only theorems that pay
+it, and `conron.model_exists_decoded` — which names no constant — is
+unaffected either way.
 -/
 
 /-- **The main theorem for the whole pipeline** (task #85): every environment
@@ -587,150 +587,10 @@ theorem conron.no_proof_of_False_parsed (V : Type w) [ConLeche.SetTheory V]
     (Frontend.prepare_prelude_wf (pre := ⟨pre.decls⟩) (Frontend.parse_bytes_wf hgen hpre)
       (Frontend.parse_chunks_wf hgen hparse) hprep) h
 
-/-- info: 'ConRon.Refine.conron.model_exists_parsed' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- frontend.scan_fast.key_at.S_ALL._native.decide.ax_1,
- frontend.scan_fast.key_at.S_APP._native.decide.ax_1,
- frontend.scan_fast.key_at.S_ARG._native.decide.ax_1,
- frontend.scan_fast.key_at.S_AXIOM._native.decide.ax_1,
- frontend.scan_fast.key_at.S_BINDERINFO._native.decide.ax_1,
- frontend.scan_fast.key_at.S_BODY._native.decide.ax_1,
- frontend.scan_fast.key_at.S_BVAR._native.decide.ax_1,
- frontend.scan_fast.key_at.S_CIDX._native.decide.ax_1,
- frontend.scan_fast.key_at.S_CONST._native.decide.ax_1,
- frontend.scan_fast.key_at.S_CTOR._native.decide.ax_1,
- frontend.scan_fast.key_at.S_CTORS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_DEF._native.decide.ax_1,
- frontend.scan_fast.key_at.S_FN._native.decide.ax_1,
- frontend.scan_fast.key_at.S_FORALLE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_HINTS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_I._native.decide.ax_1,
- frontend.scan_fast.key_at.S_IDX._native.decide.ax_1,
- frontend.scan_fast.key_at.S_IE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_IL._native.decide.ax_1,
- frontend.scan_fast.key_at.S_IMAX._native.decide.ax_1,
- frontend.scan_fast.key_at.S_IN._native.decide.ax_1,
- frontend.scan_fast.key_at.S_INDUCT._native.decide.ax_1,
- frontend.scan_fast.key_at.S_INDUCTIVE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_ISREC._native.decide.ax_1,
- frontend.scan_fast.key_at.S_ISREFLEXIVE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_ISUNSAFE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_K._native.decide.ax_1,
- frontend.scan_fast.key_at.S_KIND._native.decide.ax_1,
- frontend.scan_fast.key_at.S_LAM._native.decide.ax_1,
- frontend.scan_fast.key_at.S_LETE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_LEVELPARAMS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_MAX._native.decide.ax_1,
- frontend.scan_fast.key_at.S_META._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NAME._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NATVAL._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NFIELDS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NONDEP._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NUM._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NUMFIELDS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NUMINDICES._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NUMMINORS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NUMMOTIVES._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NUMNESTED._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NUMPARAMS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_OPAQUE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_PARAM._native.decide.ax_1,
- frontend.scan_fast.key_at.S_PRE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_PROJ._native.decide.ax_1,
- frontend.scan_fast.key_at.S_PW._native.decide.ax_1,
- frontend.scan_fast.key_at.S_QUOT._native.decide.ax_1,
- frontend.scan_fast.key_at.S_RECS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_REGULAR._native.decide.ax_1,
- frontend.scan_fast.key_at.S_RHS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_RULES._native.decide.ax_1,
- frontend.scan_fast.key_at.S_SAFETY._native.decide.ax_1,
- frontend.scan_fast.key_at.S_SORT._native.decide.ax_1,
- frontend.scan_fast.key_at.S_STR._native.decide.ax_1,
- frontend.scan_fast.key_at.S_STRUCT._native.decide.ax_1,
- frontend.scan_fast.key_at.S_STRVAL._native.decide.ax_1,
- frontend.scan_fast.key_at.S_SUCC._native.decide.ax_1,
- frontend.scan_fast.key_at.S_THM._native.decide.ax_1,
- frontend.scan_fast.key_at.S_TYPE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_TYPENAME._native.decide.ax_1,
- frontend.scan_fast.key_at.S_TYPES._native.decide.ax_1,
- frontend.scan_fast.key_at.S_US._native.decide.ax_1,
- frontend.scan_fast.key_at.S_VALUE._native.decide.ax_1,
- frontend.scan_fast.scan_bool.S_FALSE._native.decide.ax_1,
- frontend.scan_fast.scan_bool.S_TRUE._native.decide.ax_1] -/
+/-- info: 'ConRon.Refine.conron.model_exists_parsed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms conron.model_exists_parsed
 
-/-- info: 'ConRon.Refine.conron.no_proof_of_False_parsed' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- frontend.scan_fast.key_at.S_ALL._native.decide.ax_1,
- frontend.scan_fast.key_at.S_APP._native.decide.ax_1,
- frontend.scan_fast.key_at.S_ARG._native.decide.ax_1,
- frontend.scan_fast.key_at.S_AXIOM._native.decide.ax_1,
- frontend.scan_fast.key_at.S_BINDERINFO._native.decide.ax_1,
- frontend.scan_fast.key_at.S_BODY._native.decide.ax_1,
- frontend.scan_fast.key_at.S_BVAR._native.decide.ax_1,
- frontend.scan_fast.key_at.S_CIDX._native.decide.ax_1,
- frontend.scan_fast.key_at.S_CONST._native.decide.ax_1,
- frontend.scan_fast.key_at.S_CTOR._native.decide.ax_1,
- frontend.scan_fast.key_at.S_CTORS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_DEF._native.decide.ax_1,
- frontend.scan_fast.key_at.S_FN._native.decide.ax_1,
- frontend.scan_fast.key_at.S_FORALLE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_HINTS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_I._native.decide.ax_1,
- frontend.scan_fast.key_at.S_IDX._native.decide.ax_1,
- frontend.scan_fast.key_at.S_IE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_IL._native.decide.ax_1,
- frontend.scan_fast.key_at.S_IMAX._native.decide.ax_1,
- frontend.scan_fast.key_at.S_IN._native.decide.ax_1,
- frontend.scan_fast.key_at.S_INDUCT._native.decide.ax_1,
- frontend.scan_fast.key_at.S_INDUCTIVE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_ISREC._native.decide.ax_1,
- frontend.scan_fast.key_at.S_ISREFLEXIVE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_ISUNSAFE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_K._native.decide.ax_1,
- frontend.scan_fast.key_at.S_KIND._native.decide.ax_1,
- frontend.scan_fast.key_at.S_LAM._native.decide.ax_1,
- frontend.scan_fast.key_at.S_LETE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_LEVELPARAMS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_MAX._native.decide.ax_1,
- frontend.scan_fast.key_at.S_META._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NAME._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NATVAL._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NFIELDS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NONDEP._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NUM._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NUMFIELDS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NUMINDICES._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NUMMINORS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NUMMOTIVES._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NUMNESTED._native.decide.ax_1,
- frontend.scan_fast.key_at.S_NUMPARAMS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_OPAQUE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_PARAM._native.decide.ax_1,
- frontend.scan_fast.key_at.S_PRE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_PROJ._native.decide.ax_1,
- frontend.scan_fast.key_at.S_PW._native.decide.ax_1,
- frontend.scan_fast.key_at.S_QUOT._native.decide.ax_1,
- frontend.scan_fast.key_at.S_RECS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_REGULAR._native.decide.ax_1,
- frontend.scan_fast.key_at.S_RHS._native.decide.ax_1,
- frontend.scan_fast.key_at.S_RULES._native.decide.ax_1,
- frontend.scan_fast.key_at.S_SAFETY._native.decide.ax_1,
- frontend.scan_fast.key_at.S_SORT._native.decide.ax_1,
- frontend.scan_fast.key_at.S_STR._native.decide.ax_1,
- frontend.scan_fast.key_at.S_STRUCT._native.decide.ax_1,
- frontend.scan_fast.key_at.S_STRVAL._native.decide.ax_1,
- frontend.scan_fast.key_at.S_SUCC._native.decide.ax_1,
- frontend.scan_fast.key_at.S_THM._native.decide.ax_1,
- frontend.scan_fast.key_at.S_TYPE._native.decide.ax_1,
- frontend.scan_fast.key_at.S_TYPENAME._native.decide.ax_1,
- frontend.scan_fast.key_at.S_TYPES._native.decide.ax_1,
- frontend.scan_fast.key_at.S_US._native.decide.ax_1,
- frontend.scan_fast.key_at.S_VALUE._native.decide.ax_1,
- frontend.scan_fast.scan_bool.S_FALSE._native.decide.ax_1,
- frontend.scan_fast.scan_bool.S_TRUE._native.decide.ax_1] -/
+/-- info: 'ConRon.Refine.conron.no_proof_of_False_parsed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms conron.no_proof_of_False_parsed
 
 /-! ### The instance at the prelude the binary ships
@@ -742,9 +602,9 @@ and `Frontend.builtin_prelude_e_wf` reads well-formedness off that run without
 evaluating a byte of it, exactly as `PinsWF.decode_wf` does for the pins.  So
 the pair below costs **nothing beyond what `conron.*_parsed` already costs**:
 the prelude constant is a `[u8; 16 922]` in 67 chunks and not a `&str`, so it
-adds no `toStr` axiom of its own.  Their censuses are the 71 of the pair above,
-and `Refine/Frontend/Chunks.lean` pins `builtin_prelude_e_wf`'s, which is what
-would catch a change. -/
+adds no `toStr` axiom of its own.  Their censuses, pinned below since task #86,
+are therefore the same three, and `Refine/Frontend/Chunks.lean` pins
+`builtin_prelude_e_wf`'s, which is what would catch a change. -/
 
 /-- `conron.model_exists_parsed` at the prelude the binary ships. -/
 theorem conron.model_exists_prelude (V : Type w) [ConLeche.SetTheory V]
@@ -786,5 +646,12 @@ theorem conron.no_proof_of_False_prelude (V : Type w) [ConLeche.SetTheory V]
   conron.no_proof_of_False_decoded V hp
     (Frontend.prepare_prelude_wf (Frontend.builtin_prelude_e_wf hgen hpre)
       (Frontend.parse_chunks_wf hgen hparse) hprep) h
+
+
+/-- info: 'ConRon.Refine.conron.model_exists_prelude' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms conron.model_exists_prelude
+
+/-- info: 'ConRon.Refine.conron.no_proof_of_False_prelude' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms conron.no_proof_of_False_prelude
 
 end ConRon.Refine

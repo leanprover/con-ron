@@ -31,10 +31,20 @@
 //!    position is a heap object the code generator materialises through a
 //!    `lean_obj_once` cell.  The port keeps the switch — it is what keeps
 //!    `"i"` from being read as `"ie"` — and spells the compare as one
-//!    `match_lit` against a `&'static str` constant, which a Rust build turns
-//!    into an inline compare against a `.rodata` slice.  `key_at` therefore
-//!    carries the citations of `keyAt` and of all ten `litN` helpers (§3.7:
-//!    "several lines are allowed when a Rust item merges … Lean ones").
+//!    `match_lit` against a `[u8; N]` constant, which a Rust build turns into
+//!    an inline compare against a `.rodata` slice.  `key_at` therefore carries
+//!    the citations of `keyAt` and of all ten `litN` helpers (§3.7: "several
+//!    lines are allowed when a Rust item merges … Lean ones").
+//!
+//!    **Every literal of this module is a `[u8; N]`, never a `&str`**
+//!    (task #86).  Aeneas renders a `&str` constant as `toStr "…"` and
+//!    discharges `toStr`'s size bound with `by decide +native` *in the
+//!    constant's own definition*, so a `&str` key table puts one
+//!    `_native.decide.ax_1` per key into `#print axioms` of every theorem that
+//!    reaches `scan_line_fwd` — 68 of them, counted by task #85
+//!    (AENEAS_FINDINGS §3.8).  A byte array carries no axiom, costs nothing at
+//!    this size (the longest key is eleven bytes), and is what F17 had already
+//!    forced on the seven literals that end in a double quote.
 //! 3. **The slot loop is factored out once** (`next_member`), as
 //!    `naiveObjLoop` factors it in the specification, instead of being
 //!    written out per object as `Fast.lean` does.  Each `scan_*_loop` is
@@ -176,21 +186,21 @@ pub fn key_at(b: &[u8], i: usize, kl: usize) -> Key {
         // 'a'
         97 => {
             if kl == 3 {
-                const S_ALL: &str = "all";
-                const S_APP: &str = "app";
-                const S_ARG: &str = "arg";
-                if match_lit(b, j, S_ALL.as_bytes()) {
+                const S_ALL: [u8; 3] = *b"all";
+                const S_APP: [u8; 3] = *b"app";
+                const S_ARG: [u8; 3] = *b"arg";
+                if match_lit(b, j, &S_ALL) {
                     Key::KAll
-                } else if match_lit(b, j, S_APP.as_bytes()) {
+                } else if match_lit(b, j, &S_APP) {
                     Key::KApp
-                } else if match_lit(b, j, S_ARG.as_bytes()) {
+                } else if match_lit(b, j, &S_ARG) {
                     Key::KArg
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 5 {
-                const S_AXIOM: &str = "axiom";
-                if match_lit(b, j, S_AXIOM.as_bytes()) {
+                const S_AXIOM: [u8; 5] = *b"axiom";
+                if match_lit(b, j, &S_AXIOM) {
                     Key::KAxiom
                 } else {
                     Key::KUnknown
@@ -202,18 +212,18 @@ pub fn key_at(b: &[u8], i: usize, kl: usize) -> Key {
         // 'b'
         98 => {
             if kl == 4 {
-                const S_BODY: &str = "body";
-                const S_BVAR: &str = "bvar";
-                if match_lit(b, j, S_BODY.as_bytes()) {
+                const S_BODY: [u8; 4] = *b"body";
+                const S_BVAR: [u8; 4] = *b"bvar";
+                if match_lit(b, j, &S_BODY) {
                     Key::KBody
-                } else if match_lit(b, j, S_BVAR.as_bytes()) {
+                } else if match_lit(b, j, &S_BVAR) {
                     Key::KBvar
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 10 {
-                const S_BINDERINFO: &str = "binderInfo";
-                if match_lit(b, j, S_BINDERINFO.as_bytes()) {
+                const S_BINDERINFO: [u8; 10] = *b"binderInfo";
+                if match_lit(b, j, &S_BINDERINFO) {
                     Key::KBinderInfo
                 } else {
                     Key::KUnknown
@@ -225,21 +235,21 @@ pub fn key_at(b: &[u8], i: usize, kl: usize) -> Key {
         // 'c'
         99 => {
             if kl == 4 {
-                const S_CIDX: &str = "cidx";
-                const S_CTOR: &str = "ctor";
-                if match_lit(b, j, S_CIDX.as_bytes()) {
+                const S_CIDX: [u8; 4] = *b"cidx";
+                const S_CTOR: [u8; 4] = *b"ctor";
+                if match_lit(b, j, &S_CIDX) {
                     Key::KCidx
-                } else if match_lit(b, j, S_CTOR.as_bytes()) {
+                } else if match_lit(b, j, &S_CTOR) {
                     Key::KCtor
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 5 {
-                const S_CONST: &str = "const";
-                const S_CTORS: &str = "ctors";
-                if match_lit(b, j, S_CONST.as_bytes()) {
+                const S_CONST: [u8; 5] = *b"const";
+                const S_CTORS: [u8; 5] = *b"ctors";
+                if match_lit(b, j, &S_CONST) {
                     Key::KConst
-                } else if match_lit(b, j, S_CTORS.as_bytes()) {
+                } else if match_lit(b, j, &S_CTORS) {
                     Key::KCtors
                 } else {
                     Key::KUnknown
@@ -251,8 +261,8 @@ pub fn key_at(b: &[u8], i: usize, kl: usize) -> Key {
         // 'd'
         100 => {
             if kl == 3 {
-                const S_DEF: &str = "def";
-                if match_lit(b, j, S_DEF.as_bytes()) {
+                const S_DEF: [u8; 3] = *b"def";
+                if match_lit(b, j, &S_DEF) {
                     Key::KDef
                 } else {
                     Key::KUnknown
@@ -264,15 +274,15 @@ pub fn key_at(b: &[u8], i: usize, kl: usize) -> Key {
         // 'f'
         102 => {
             if kl == 2 {
-                const S_FN: &str = "fn";
-                if match_lit(b, j, S_FN.as_bytes()) {
+                const S_FN: [u8; 2] = *b"fn";
+                if match_lit(b, j, &S_FN) {
                     Key::KFn
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 7 {
-                const S_FORALLE: &str = "forallE";
-                if match_lit(b, j, S_FORALLE.as_bytes()) {
+                const S_FORALLE: [u8; 7] = *b"forallE";
+                if match_lit(b, j, &S_FORALLE) {
                     Key::KForallE
                 } else {
                     Key::KUnknown
@@ -284,8 +294,8 @@ pub fn key_at(b: &[u8], i: usize, kl: usize) -> Key {
         // 'h'
         104 => {
             if kl == 5 {
-                const S_HINTS: &str = "hints";
-                if match_lit(b, j, S_HINTS.as_bytes()) {
+                const S_HINTS: [u8; 5] = *b"hints";
+                if match_lit(b, j, &S_HINTS) {
                     Key::KHints
                 } else {
                     Key::KUnknown
@@ -297,70 +307,70 @@ pub fn key_at(b: &[u8], i: usize, kl: usize) -> Key {
         // 'i'
         105 => {
             if kl == 1 {
-                const S_I: &str = "i";
-                if match_lit(b, j, S_I.as_bytes()) {
+                const S_I: [u8; 1] = *b"i";
+                if match_lit(b, j, &S_I) {
                     Key::KI
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 2 {
-                const S_IE: &str = "ie";
-                const S_IL: &str = "il";
-                const S_IN: &str = "in";
-                if match_lit(b, j, S_IE.as_bytes()) {
+                const S_IE: [u8; 2] = *b"ie";
+                const S_IL: [u8; 2] = *b"il";
+                const S_IN: [u8; 2] = *b"in";
+                if match_lit(b, j, &S_IE) {
                     Key::KIe
-                } else if match_lit(b, j, S_IL.as_bytes()) {
+                } else if match_lit(b, j, &S_IL) {
                     Key::KIl
-                } else if match_lit(b, j, S_IN.as_bytes()) {
+                } else if match_lit(b, j, &S_IN) {
                     Key::KIn
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 3 {
-                const S_IDX: &str = "idx";
-                if match_lit(b, j, S_IDX.as_bytes()) {
+                const S_IDX: [u8; 3] = *b"idx";
+                if match_lit(b, j, &S_IDX) {
                     Key::KIdx
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 4 {
-                const S_IMAX: &str = "imax";
-                if match_lit(b, j, S_IMAX.as_bytes()) {
+                const S_IMAX: [u8; 4] = *b"imax";
+                if match_lit(b, j, &S_IMAX) {
                     Key::KImax
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 5 {
-                const S_ISREC: &str = "isRec";
-                if match_lit(b, j, S_ISREC.as_bytes()) {
+                const S_ISREC: [u8; 5] = *b"isRec";
+                if match_lit(b, j, &S_ISREC) {
                     Key::KIsRec
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 6 {
-                const S_INDUCT: &str = "induct";
-                if match_lit(b, j, S_INDUCT.as_bytes()) {
+                const S_INDUCT: [u8; 6] = *b"induct";
+                if match_lit(b, j, &S_INDUCT) {
                     Key::KInduct
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 8 {
-                const S_ISUNSAFE: &str = "isUnsafe";
-                if match_lit(b, j, S_ISUNSAFE.as_bytes()) {
+                const S_ISUNSAFE: [u8; 8] = *b"isUnsafe";
+                if match_lit(b, j, &S_ISUNSAFE) {
                     Key::KIsUnsafe
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 9 {
-                const S_INDUCTIVE: &str = "inductive";
-                if match_lit(b, j, S_INDUCTIVE.as_bytes()) {
+                const S_INDUCTIVE: [u8; 9] = *b"inductive";
+                if match_lit(b, j, &S_INDUCTIVE) {
                     Key::KInductive
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 11 {
-                const S_ISREFLEXIVE: &str = "isReflexive";
-                if match_lit(b, j, S_ISREFLEXIVE.as_bytes()) {
+                const S_ISREFLEXIVE: [u8; 11] = *b"isReflexive";
+                if match_lit(b, j, &S_ISREFLEXIVE) {
                     Key::KIsReflexive
                 } else {
                     Key::KUnknown
@@ -372,15 +382,15 @@ pub fn key_at(b: &[u8], i: usize, kl: usize) -> Key {
         // 'k'
         107 => {
             if kl == 1 {
-                const S_K: &str = "k";
-                if match_lit(b, j, S_K.as_bytes()) {
+                const S_K: [u8; 1] = *b"k";
+                if match_lit(b, j, &S_K) {
                     Key::KK
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 4 {
-                const S_KIND: &str = "kind";
-                if match_lit(b, j, S_KIND.as_bytes()) {
+                const S_KIND: [u8; 4] = *b"kind";
+                if match_lit(b, j, &S_KIND) {
                     Key::KKind
                 } else {
                     Key::KUnknown
@@ -392,22 +402,22 @@ pub fn key_at(b: &[u8], i: usize, kl: usize) -> Key {
         // 'l'
         108 => {
             if kl == 3 {
-                const S_LAM: &str = "lam";
-                if match_lit(b, j, S_LAM.as_bytes()) {
+                const S_LAM: [u8; 3] = *b"lam";
+                if match_lit(b, j, &S_LAM) {
                     Key::KLam
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 4 {
-                const S_LETE: &str = "letE";
-                if match_lit(b, j, S_LETE.as_bytes()) {
+                const S_LETE: [u8; 4] = *b"letE";
+                if match_lit(b, j, &S_LETE) {
                     Key::KLetE
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 11 {
-                const S_LEVELPARAMS: &str = "levelParams";
-                if match_lit(b, j, S_LEVELPARAMS.as_bytes()) {
+                const S_LEVELPARAMS: [u8; 11] = *b"levelParams";
+                if match_lit(b, j, &S_LEVELPARAMS) {
                     Key::KLevelParams
                 } else {
                     Key::KUnknown
@@ -419,15 +429,15 @@ pub fn key_at(b: &[u8], i: usize, kl: usize) -> Key {
         // 'm'
         109 => {
             if kl == 3 {
-                const S_MAX: &str = "max";
-                if match_lit(b, j, S_MAX.as_bytes()) {
+                const S_MAX: [u8; 3] = *b"max";
+                if match_lit(b, j, &S_MAX) {
                     Key::KMax
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 4 {
-                const S_META: &str = "meta";
-                if match_lit(b, j, S_META.as_bytes()) {
+                const S_META: [u8; 4] = *b"meta";
+                if match_lit(b, j, &S_META) {
                     Key::KMeta
                 } else {
                     Key::KUnknown
@@ -439,58 +449,58 @@ pub fn key_at(b: &[u8], i: usize, kl: usize) -> Key {
         // 'n'
         110 => {
             if kl == 3 {
-                const S_NUM: &str = "num";
-                if match_lit(b, j, S_NUM.as_bytes()) {
+                const S_NUM: [u8; 3] = *b"num";
+                if match_lit(b, j, &S_NUM) {
                     Key::KNum
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 4 {
-                const S_NAME: &str = "name";
-                if match_lit(b, j, S_NAME.as_bytes()) {
+                const S_NAME: [u8; 4] = *b"name";
+                if match_lit(b, j, &S_NAME) {
                     Key::KName
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 6 {
-                const S_NATVAL: &str = "natVal";
-                const S_NONDEP: &str = "nondep";
-                if match_lit(b, j, S_NATVAL.as_bytes()) {
+                const S_NATVAL: [u8; 6] = *b"natVal";
+                const S_NONDEP: [u8; 6] = *b"nondep";
+                if match_lit(b, j, &S_NATVAL) {
                     Key::KNatVal
-                } else if match_lit(b, j, S_NONDEP.as_bytes()) {
+                } else if match_lit(b, j, &S_NONDEP) {
                     Key::KNondep
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 7 {
-                const S_NFIELDS: &str = "nfields";
-                if match_lit(b, j, S_NFIELDS.as_bytes()) {
+                const S_NFIELDS: [u8; 7] = *b"nfields";
+                if match_lit(b, j, &S_NFIELDS) {
                     Key::KNfields
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 9 {
-                const S_NUMFIELDS: &str = "numFields";
-                const S_NUMMINORS: &str = "numMinors";
-                const S_NUMNESTED: &str = "numNested";
-                const S_NUMPARAMS: &str = "numParams";
-                if match_lit(b, j, S_NUMFIELDS.as_bytes()) {
+                const S_NUMFIELDS: [u8; 9] = *b"numFields";
+                const S_NUMMINORS: [u8; 9] = *b"numMinors";
+                const S_NUMNESTED: [u8; 9] = *b"numNested";
+                const S_NUMPARAMS: [u8; 9] = *b"numParams";
+                if match_lit(b, j, &S_NUMFIELDS) {
                     Key::KNumFields
-                } else if match_lit(b, j, S_NUMMINORS.as_bytes()) {
+                } else if match_lit(b, j, &S_NUMMINORS) {
                     Key::KNumMinors
-                } else if match_lit(b, j, S_NUMNESTED.as_bytes()) {
+                } else if match_lit(b, j, &S_NUMNESTED) {
                     Key::KNumNested
-                } else if match_lit(b, j, S_NUMPARAMS.as_bytes()) {
+                } else if match_lit(b, j, &S_NUMPARAMS) {
                     Key::KNumParams
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 10 {
-                const S_NUMINDICES: &str = "numIndices";
-                const S_NUMMOTIVES: &str = "numMotives";
-                if match_lit(b, j, S_NUMINDICES.as_bytes()) {
+                const S_NUMINDICES: [u8; 10] = *b"numIndices";
+                const S_NUMMOTIVES: [u8; 10] = *b"numMotives";
+                if match_lit(b, j, &S_NUMINDICES) {
                     Key::KNumIndices
-                } else if match_lit(b, j, S_NUMMOTIVES.as_bytes()) {
+                } else if match_lit(b, j, &S_NUMMOTIVES) {
                     Key::KNumMotives
                 } else {
                     Key::KUnknown
@@ -502,8 +512,8 @@ pub fn key_at(b: &[u8], i: usize, kl: usize) -> Key {
         // 'o'
         111 => {
             if kl == 6 {
-                const S_OPAQUE: &str = "opaque";
-                if match_lit(b, j, S_OPAQUE.as_bytes()) {
+                const S_OPAQUE: [u8; 6] = *b"opaque";
+                if match_lit(b, j, &S_OPAQUE) {
                     Key::KOpaque
                 } else {
                     Key::KUnknown
@@ -515,29 +525,29 @@ pub fn key_at(b: &[u8], i: usize, kl: usize) -> Key {
         // 'p'
         112 => {
             if kl == 2 {
-                const S_PW: &str = "pw";
-                if match_lit(b, j, S_PW.as_bytes()) {
+                const S_PW: [u8; 2] = *b"pw";
+                if match_lit(b, j, &S_PW) {
                     Key::KPw
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 3 {
-                const S_PRE: &str = "pre";
-                if match_lit(b, j, S_PRE.as_bytes()) {
+                const S_PRE: [u8; 3] = *b"pre";
+                if match_lit(b, j, &S_PRE) {
                     Key::KPre
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 4 {
-                const S_PROJ: &str = "proj";
-                if match_lit(b, j, S_PROJ.as_bytes()) {
+                const S_PROJ: [u8; 4] = *b"proj";
+                if match_lit(b, j, &S_PROJ) {
                     Key::KProj
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 5 {
-                const S_PARAM: &str = "param";
-                if match_lit(b, j, S_PARAM.as_bytes()) {
+                const S_PARAM: [u8; 5] = *b"param";
+                if match_lit(b, j, &S_PARAM) {
                     Key::KParam
                 } else {
                     Key::KUnknown
@@ -549,8 +559,8 @@ pub fn key_at(b: &[u8], i: usize, kl: usize) -> Key {
         // 'q'
         113 => {
             if kl == 4 {
-                const S_QUOT: &str = "quot";
-                if match_lit(b, j, S_QUOT.as_bytes()) {
+                const S_QUOT: [u8; 4] = *b"quot";
+                if match_lit(b, j, &S_QUOT) {
                     Key::KQuot
                 } else {
                     Key::KUnknown
@@ -562,29 +572,29 @@ pub fn key_at(b: &[u8], i: usize, kl: usize) -> Key {
         // 'r'
         114 => {
             if kl == 3 {
-                const S_RHS: &str = "rhs";
-                if match_lit(b, j, S_RHS.as_bytes()) {
+                const S_RHS: [u8; 3] = *b"rhs";
+                if match_lit(b, j, &S_RHS) {
                     Key::KRhs
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 4 {
-                const S_RECS: &str = "recs";
-                if match_lit(b, j, S_RECS.as_bytes()) {
+                const S_RECS: [u8; 4] = *b"recs";
+                if match_lit(b, j, &S_RECS) {
                     Key::KRecs
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 5 {
-                const S_RULES: &str = "rules";
-                if match_lit(b, j, S_RULES.as_bytes()) {
+                const S_RULES: [u8; 5] = *b"rules";
+                if match_lit(b, j, &S_RULES) {
                     Key::KRules
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 7 {
-                const S_REGULAR: &str = "regular";
-                if match_lit(b, j, S_REGULAR.as_bytes()) {
+                const S_REGULAR: [u8; 7] = *b"regular";
+                if match_lit(b, j, &S_REGULAR) {
                     Key::KRegular
                 } else {
                     Key::KUnknown
@@ -596,31 +606,31 @@ pub fn key_at(b: &[u8], i: usize, kl: usize) -> Key {
         // 's'
         115 => {
             if kl == 3 {
-                const S_STR: &str = "str";
-                if match_lit(b, j, S_STR.as_bytes()) {
+                const S_STR: [u8; 3] = *b"str";
+                if match_lit(b, j, &S_STR) {
                     Key::KStr
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 4 {
-                const S_SORT: &str = "sort";
-                const S_SUCC: &str = "succ";
-                if match_lit(b, j, S_SORT.as_bytes()) {
+                const S_SORT: [u8; 4] = *b"sort";
+                const S_SUCC: [u8; 4] = *b"succ";
+                if match_lit(b, j, &S_SORT) {
                     Key::KSort
-                } else if match_lit(b, j, S_SUCC.as_bytes()) {
+                } else if match_lit(b, j, &S_SUCC) {
                     Key::KSucc
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 6 {
-                const S_SAFETY: &str = "safety";
-                const S_STRVAL: &str = "strVal";
-                const S_STRUCT: &str = "struct";
-                if match_lit(b, j, S_SAFETY.as_bytes()) {
+                const S_SAFETY: [u8; 6] = *b"safety";
+                const S_STRVAL: [u8; 6] = *b"strVal";
+                const S_STRUCT: [u8; 6] = *b"struct";
+                if match_lit(b, j, &S_SAFETY) {
                     Key::KSafety
-                } else if match_lit(b, j, S_STRVAL.as_bytes()) {
+                } else if match_lit(b, j, &S_STRVAL) {
                     Key::KStrVal
-                } else if match_lit(b, j, S_STRUCT.as_bytes()) {
+                } else if match_lit(b, j, &S_STRUCT) {
                     Key::KStruct
                 } else {
                     Key::KUnknown
@@ -632,29 +642,29 @@ pub fn key_at(b: &[u8], i: usize, kl: usize) -> Key {
         // 't'
         116 => {
             if kl == 3 {
-                const S_THM: &str = "thm";
-                if match_lit(b, j, S_THM.as_bytes()) {
+                const S_THM: [u8; 3] = *b"thm";
+                if match_lit(b, j, &S_THM) {
                     Key::KThm
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 4 {
-                const S_TYPE: &str = "type";
-                if match_lit(b, j, S_TYPE.as_bytes()) {
+                const S_TYPE: [u8; 4] = *b"type";
+                if match_lit(b, j, &S_TYPE) {
                     Key::KType
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 5 {
-                const S_TYPES: &str = "types";
-                if match_lit(b, j, S_TYPES.as_bytes()) {
+                const S_TYPES: [u8; 5] = *b"types";
+                if match_lit(b, j, &S_TYPES) {
                     Key::KTypes
                 } else {
                     Key::KUnknown
                 }
             } else if kl == 8 {
-                const S_TYPENAME: &str = "typeName";
-                if match_lit(b, j, S_TYPENAME.as_bytes()) {
+                const S_TYPENAME: [u8; 8] = *b"typeName";
+                if match_lit(b, j, &S_TYPENAME) {
                     Key::KTypeName
                 } else {
                     Key::KUnknown
@@ -666,8 +676,8 @@ pub fn key_at(b: &[u8], i: usize, kl: usize) -> Key {
         // 'u'
         117 => {
             if kl == 2 {
-                const S_US: &str = "us";
-                if match_lit(b, j, S_US.as_bytes()) {
+                const S_US: [u8; 2] = *b"us";
+                if match_lit(b, j, &S_US) {
                     Key::KUs
                 } else {
                     Key::KUnknown
@@ -679,8 +689,8 @@ pub fn key_at(b: &[u8], i: usize, kl: usize) -> Key {
         // 'v'
         118 => {
             if kl == 5 {
-                const S_VALUE: &str = "value";
-                if match_lit(b, j, S_VALUE.as_bytes()) {
+                const S_VALUE: [u8; 5] = *b"value";
+                if match_lit(b, j, &S_VALUE) {
                     Key::KValue
                 } else {
                     Key::KUnknown
@@ -711,11 +721,11 @@ pub fn value_at(b: &[u8], i: usize, ke: usize) -> usize {
 /// con-leche: ConLeche/Frontend/Scan/Naive.lean:99-106 naiveBool
 /// `true` or `false`.
 pub fn scan_bool(b: &[u8], i: usize) -> ScanRes<bool> {
-    const S_TRUE: &str = "true";
-    const S_FALSE: &str = "false";
-    if match_lit(b, i, S_TRUE.as_bytes()) {
+    const S_TRUE: [u8; 4] = *b"true";
+    const S_FALSE: [u8; 5] = *b"false";
+    if match_lit(b, i, &S_TRUE) {
         Ok((true, i + 4))
-    } else if match_lit(b, i, S_FALSE.as_bytes()) {
+    } else if match_lit(b, i, &S_FALSE) {
         Ok((false, i + 5))
     } else {
         err(i, ErrTag::ExpectedBool)
@@ -1127,16 +1137,16 @@ pub fn scan_quoted_nat(b: &[u8], i: usize) -> ScanRes<Vec<u8>> {
 /// typing erases binder annotations, and an unknown spelling is a malformed
 /// record rather than a silently ignored one.  `0` is the failure.
 pub fn scan_binder_info(b: &[u8], i: usize) -> usize {
-    // The literals below end in the JSON string's own closing quote.  They
-    // are byte arrays, not `&str` constants like every other literal in this
-    // file, because Aeneas emits a `&str` constant as `toStr "..."` **without
-    // escaping a double quote inside it**, and the Lean that comes out does
-    // not parse (AENEAS_FINDINGS §2.1's F17, found by `lake build` at
-    // task #84).
-    const S_DEFAULT: [u8; 8] = [100, 101, 102, 97, 117, 108, 116, 34];
-    const S_IMPLICIT: [u8; 9] = [105, 109, 112, 108, 105, 99, 105, 116, 34];
-    const S_STRICT: [u8; 15] = [115, 116, 114, 105, 99, 116, 73, 109, 112, 108, 105, 99, 105, 116, 34];
-    const S_INST: [u8; 13] = [105, 110, 115, 116, 73, 109, 112, 108, 105, 99, 105, 116, 34];
+    // The literals below end in the JSON string's own closing quote, so they
+    // could never have been `&str` constants: Aeneas emits a `&str` constant
+    // as `toStr "..."` **without escaping a double quote inside it**, and the
+    // Lean that comes out does not parse (AENEAS_FINDINGS §2.1's F17, found by
+    // `lake build` at task #84).  Since task #86 every literal in this file is
+    // a byte array, for the second half of §3.8's reason.
+    const S_DEFAULT: [u8; 8] = *b"default\"";
+    const S_IMPLICIT: [u8; 9] = *b"implicit\"";
+    const S_STRICT: [u8; 15] = *b"strictImplicit\"";
+    const S_INST: [u8; 13] = *b"instImplicit\"";
     if byte_at(b, i) != 34 {
         0
     } else if match_lit(b, i + 1, &S_DEFAULT) {
@@ -1214,13 +1224,13 @@ pub fn scan_nat_list(b: &[u8], i: usize) -> ScanRes<Vec<u64>> {
 /// con-leche: ConLeche/Frontend/Scan/Naive.lean:264-272 naivePw
 /// The `pw` datum: `"never"` or a list of name indices.
 pub fn scan_pw(b: &[u8], i: usize) -> ScanRes<PwRec> {
-    // The literals below end in the JSON string's own closing quote.  They
-    // are byte arrays, not `&str` constants like every other literal in this
-    // file, because Aeneas emits a `&str` constant as `toStr "..."` **without
-    // escaping a double quote inside it**, and the Lean that comes out does
-    // not parse (AENEAS_FINDINGS §2.1's F17, found by `lake build` at
-    // task #84).
-    const S_NEVER: [u8; 6] = [110, 101, 118, 101, 114, 34];
+    // The literals below end in the JSON string's own closing quote, so they
+    // could never have been `&str` constants: Aeneas emits a `&str` constant
+    // as `toStr "..."` **without escaping a double quote inside it**, and the
+    // Lean that comes out does not parse (AENEAS_FINDINGS §2.1's F17, found by
+    // `lake build` at task #84).  Since task #86 every literal in this file is
+    // a byte array, for the second half of §3.8's reason.
+    const S_NEVER: [u8; 6] = *b"never\"";
     if byte_at(b, i) == 91 {
         let (ns, j) = match scan_nat_list_loop(b, i + 1) {
             Err(er) => return Err(er),
@@ -1242,14 +1252,14 @@ pub fn scan_pw(b: &[u8], i: usize) -> ScanRes<PwRec> {
 /// con-leche: ConLeche/Frontend/Scan/Naive.lean:274-303 naiveHints
 /// A definition's `hints`: `"abbrev"`, `"opaque"` or `{"regular":n}`.
 pub fn scan_hints(b: &[u8], i: usize) -> ScanRes<HintsRec> {
-    // The literals below end in the JSON string's own closing quote.  They
-    // are byte arrays, not `&str` constants like every other literal in this
-    // file, because Aeneas emits a `&str` constant as `toStr "..."` **without
-    // escaping a double quote inside it**, and the Lean that comes out does
-    // not parse (AENEAS_FINDINGS §2.1's F17, found by `lake build` at
-    // task #84).
-    const S_ABBREV: [u8; 7] = [97, 98, 98, 114, 101, 118, 34];
-    const S_OPAQUE: [u8; 7] = [111, 112, 97, 113, 117, 101, 34];
+    // The literals below end in the JSON string's own closing quote, so they
+    // could never have been `&str` constants: Aeneas emits a `&str` constant
+    // as `toStr "..."` **without escaping a double quote inside it**, and the
+    // Lean that comes out does not parse (AENEAS_FINDINGS §2.1's F17, found by
+    // `lake build` at task #84).  Since task #86 every literal in this file is
+    // a byte array, for the second half of §3.8's reason.
+    const S_ABBREV: [u8; 7] = *b"abbrev\"";
+    const S_OPAQUE: [u8; 7] = *b"opaque\"";
     if byte_at(b, i) == 34 {
         if match_lit(b, i + 1, &S_ABBREV) {
             Ok((HintsRec::Abbrev, i + 8))

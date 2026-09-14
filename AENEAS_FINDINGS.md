@@ -120,6 +120,12 @@ and a byte constant is safe only up to a few hundred elements.  Anything larger 
 Asks: escape `"` in the string printer, and make a long `Array.make` elaborate in linear
 time (or emit it as a `ByteArray` literal, which Lean has a fast path for).
 
+**(#86) The rule got simpler: the port has no `&str` constant left except `PINS_TEXT`.**
+§3.8's other half — a `&str` constant also carries a `decide +native` axiom — made the
+scanner's remaining 68 key literals byte arrays too, so `crates/con-ron-core/src/frontend/`
+is `&str`-free and this finding can no longer bite it.  What is still a `&str` is the one
+constant too large to be an array, which is the pair of limits above meeting in the middle.
+
 ### 2.2 External holes we did not want, and how each was avoided
 
 Our standing gate is that `*External_Template.lean` contains **exactly one type and four
@@ -502,25 +508,38 @@ are about a constant, not a proof.
 **Status (task #85): the ask acquired sixty-eight customers after all, and the
 paragraph above was wrong about where they would come from.**  Task #84 watched
 the *prelude* and the prelude stayed clean; what nobody counted was the
-**scanner's key table**.  `frontend::scan_fast::key_at` recognises the dialect's
+**scanner's key table**.  `frontend::scan_fast::key_at` recognised the dialect's
 object keys with 66 `const S_X: &str = "…"` constants (`scan_bool` adds two),
 each used once as `S_X.as_bytes()`, and each therefore carrying its own
 `_native.decide.ax_1`.  `#print axioms` on the *generated*
-`frontend.scan_fast.scan_line_fwd` lists all 68 before any proof exists, so
-every statement that names `parse_chunks` inherits them through the closure with
-nothing evaluated: `Refine/Main.lean`'s new chunk-level pair
-(`conron.model_exists_parsed` / `no_proof_of_False_parsed`) is pinned at
+`frontend.scan_fast.scan_line_fwd` listed all 68 before any proof existed, so
+every statement that named `parse_chunks` inherited them through the closure
+with nothing evaluated: `Refine/Main.lean`'s chunk-level pair
+(`conron.model_exists_parsed` / `no_proof_of_False_parsed`) was pinned at
 `[propext, Classical.choice, Quot.sound]` **plus those 68**.
 
-So the ask above is no longer about two footnote theorems: it is about the
-pipeline capstone.  The port's own way out is the one F17 forced on the
-prelude — spell the table as `[u8; N]` arrays, which costs nothing at this size
-(the longest key is 11 bytes, nowhere near the `Array.make` limits above) — and
-that is a Rust change plus a re-extraction plus a re-proof of
-`Refine/Frontend/ScanWF.lean`, not a translator fix.  The *upstream* way out is
-the ask as written: discharge `toStr`'s bound without `decide +native`.  The
-axiom-free headline is unaffected either way: `conron.model_exists_decoded`
-names no constant.
+**Status (task #86): the port took the other way out, and the ask now has
+exactly one customer.**  All 68 constants are `const S_X: [u8; N] = *b"…";`
+compared with `match_lit(b, j, &S_X)` — the route F17 had already forced on
+seven literals of the same module — so the model reads
+`lift (Array.to_slice S_X)` where it read `core.str.Str.as_bytes S_X`, and the
+constants carry no axiom.  It cost nothing beyond the re-extraction: **not one
+lemma of `Refine/Frontend/ScanWF.lean`, or of any other proof file, moved** —
+only the pinned `#guard_msgs` censuses — because no proof ever stepped through
+a key comparison, and a byte array and a `Str` are both a `Slice U8` by the
+time `match_lit` sees them.  The longest key is eleven bytes, nowhere near the
+`Array.make` limits above.  `conron.model_exists_parsed`,
+`no_proof_of_False_parsed` and the two corollaries at the shipped prelude are
+now `[propext, Classical.choice, Quot.sound]`.
+
+**The ask stands for `kernel::pins_text::PINS_TEXT`, and for it alone.**  It is
+the port's last `&str` constant, and at 532 KB the byte-array route cannot hold
+it: one `Array.make` of that length does not elaborate, and one of 512 elements
+exhausts `maxRecDepth` (task #84).  So the two `conron.*_embedded` capstones
+still pay one `_native.decide.ax_1`, and the upstream way out is the ask as
+written: discharge `toStr`'s bound without `decide +native`.  The axiom-free
+headline was never affected either way: `conron.model_exists_decoded` names no
+constant.
 
 ### 3.9 `Vec::insert` is modelled as `List.set` — an overwrite where Rust inserts (task #46) **[bug]**
 

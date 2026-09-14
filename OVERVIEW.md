@@ -162,12 +162,16 @@ con-leche's `include_str` is out of reach in the kernel
 (AENEAS_FINDINGS.md §3.8) — with the
 corollary at the shipped constant stated beside it.
 
-That pair's census is not the standard three: it is those plus **68 axioms that
-are the translator's**, one per `&str` constant in the scanner's key table,
-which Aeneas' `toStr` spends with `decide +native` in each constant's own
-*definition* — the same artifact the embedded pair pays once, below.  Nothing is evaluated — `#print axioms` on the generated
-`scan_line_fwd` prints the same 68 — but it does mean the axiom-free headline
-stays `conron.model_exists_decoded`, which names no constant.
+That pair's census is the standard three, and it took a Rust change to get
+there.  Until task #86 it was those plus **68 axioms that are the
+translator's**, one per `&str` constant in the scanner's key table, which
+Aeneas' `toStr` spends with `decide +native` in each constant's own
+*definition* — the same artifact the embedded pair still pays once, below.
+Nothing was ever evaluated; the axioms came through the closure, and `#print
+axioms` on the generated `scan_line_fwd` printed the same 68.  Task #86 spelled
+the whole table as `[u8; N]` byte arrays, which carry no axiom, so the parsed
+pair and the corollary at the shipped prelude are both pinned at con-leche's
+own three.
 
 Both censuses are pinned by `#guard_msgs` at con-leche's own three axioms
 ([the censuses](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L306-L310)):
@@ -693,9 +697,10 @@ binary:
   One more fact about the driver is what the decoded pair leaves outside
   Lean: that it calls the decoder on the embedded text.
 * **Nothing else.**  No `native_decide`, no `sorry`, no extra axiom in
-  the headline pair.  The embedded pair's one extra axiom, and the
-  chunk-level pair's 68, are the translator's string-constant artifact,
-  above.
+  the headline pair or in the chunk-level pair.  One extra axiom is left in
+  the whole port, on the embedded pair alone: the translator's
+  string-constant artifact at `PINS_TEXT`, above.  The scanner's 68 went at
+  task #86, when its key table became byte arrays.
 
 ## 8. Proof techniques
 

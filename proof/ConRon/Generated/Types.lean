@@ -1172,7 +1172,7 @@ inductive frontend.scan_types.Key where
 | KValue : frontend.scan_types.Key
 
 /-- [con_ron_core::frontend::scan_fast::LinePayload]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3785:0-3792:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 3795:0-3802:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.scan_fast.LinePayload where
@@ -1184,7 +1184,7 @@ inductive frontend.scan_fast.LinePayload where
 | Header : frontend.scan_fast.LinePayload
 
 /-- [con_ron_core::frontend::scan_fast::Member]
-    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1344:0-1350:1
+    Source: 'crates/con-ron-core/src/frontend/scan_fast.rs', lines 1354:0-1360:1
     Visibility: public -/
 @[discriminant isize]
 inductive frontend.scan_fast.Member where

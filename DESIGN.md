@@ -382,6 +382,20 @@ equality, hashing and `String.toList`/`Char.ofNat` for literal reduction);
   anchored `^\s*(while|…)` against lines that `gather` prefixes with
   `file:line:`, so it had never matched anything since it was written; the
   core turned out to be clean under the repaired check.
+* **No `&str` constant** (2026-09-14, task #86).  A string literal in the core
+  is `const S: [u8; N] = *b"…";`, compared as bytes.  Aeneas emits a `&str`
+  constant as `toStr "…"` and discharges `toStr`'s size bound with
+  `by decide +native` *in the constant's own definition*, so the constant puts
+  a sealed axiom into `#print axioms` of every theorem whose closure reaches it
+  — 68 of them on the parsed capstones, until the scanner's key table became
+  byte arrays; and it prints an inner `"` unescaped, so a literal containing a
+  quote does not even parse (AENEAS_FINDINGS §2.1's F17 and §3.8).  The one
+  exception is `kernel::pins_text::PINS_TEXT`, 532 KB, which is past what an
+  `Array.make` literal can hold; it is why §3.8's ask upstream still stands.
+  A `&str` *parameter* is fine — it carries no constant and no axiom.
+  `lint-rust-style.sh` enforces this, exempting `kernel/pins_text.rs` by path
+  (the file is generated, so an in-line `lint: allow` would not survive
+  `gen-pins.py`).
 * Recursion carries the same explicit fuel as the Lean side.
 * Errors: `enum CheckError { NotImplemented(..), Invalid(..), Internal(..),
   Native(..) }` in `Result<T, CheckError>` — the first three are con-leche's
@@ -16485,3 +16499,116 @@ for.  What it needs, in order:
    *abstraction* of `generate` rather than the well-formedness of its output.
 5. The composition into `conron.no_False_declaration`, at which point phase 2
    follows.
+
+### Task #86 — the scanner's literals as bytes; the parsed capstones at the three axioms (2026-09-14, Opus under Fable)
+
+Task #85 landed the chunk-level pair, `conron.model_exists_parsed` /
+`no_proof_of_False_parsed`, and reported its census as *the standard three plus
+sixty-eight*.  The sixty-eight were Aeneas's, not the proof's: `toStr`
+discharges an extracted `&str` constant's size bound with `by decide +native`
+**in the constant's own definition** (AENEAS_FINDINGS §3.8), and
+`frontend::scan_fast::key_at` recognised the dialect's object keys against 66
+such constants with `scan_bool` adding two, so every statement that named
+`parse_chunks` inherited all 68 through the closure with nothing evaluated.
+This task spends the mechanical remedy task #85 named and did not take.
+
+#### 1. What changed in the Rust
+
+All 68 `const S_X: &str = "…"` in `crates/con-ron-core/src/frontend/scan_fast.rs`
+are now `const S_X: [u8; N] = *b"…";`, and each `match_lit(b, j, S_X.as_bytes())`
+is `match_lit(b, j, &S_X)`.  Nothing else moved: the first-byte-then-length
+switch is `keyAt`'s as before (deviation 2 of the module note, con-leche's task
+#264), each arm is still one `match_lit` of the whole key, and every provenance
+citation is untouched.  The seven literals that end in the JSON string's own
+closing quote — task #84's F17 casualties, spelled as decimal arrays — were
+respelled `*b"default\"";` and so on at the same time, so the module is uniform
+and its three F17 comments no longer claim the rest of the file is `&str`.
+
+`*b"…"` and a decimal array extract identically (checked on a throwaway crate
+before touching the file): both come out `Array.make N [ … ]`, and both are read
+by `lift (Array.to_slice S_X)` where a `Str` was read by
+`core.str.Str.as_bytes S_X`.  The byte-string spelling is what went in, because
+68 keys as decimal arrays is unreviewable.
+
+`grep -n '&str\|as_bytes' crates/con-ron-core/src/frontend/*.rs` outside
+`#[cfg(test)]` now finds exactly one item, and it is not a constant:
+`export_c::parse_export_d` takes `contents: &str` (con-leche's `String`
+argument) and calls `as_bytes` on that *parameter*, which carries no axiom.  Its
+only callers are the module's own tests.
+
+#### 2. What changed in the proof: nothing but the pins
+
+**Not one lemma moved.**  `Refine/Frontend/ScanWF.lean`'s 1 388 lines,
+`Readers.lean`'s 683 and the other five files all elaborate unchanged, because
+no proof in the tier ever stepped through a key comparison: `key_at` returns a
+`Key`, the WF lemmas split on that, and a byte array and a `Str` are both a
+`Slice U8` by the time `match_lit` sees them.  The only edits under `proof/` are
+the pinned `#guard_msgs` censuses and the prose that explained them:
+
+| file | what changed |
+|---|---|
+| `Refine/Frontend/ScanWF.lean` | `scan_line_fwd_wf`'s census: 71 entries → 3 |
+| `Refine/Frontend/Chunks.lean` | `parse_bytes_wf`, `parse_chunks_wf`, `builtin_prelude_e_wf`: 71 → 3 each |
+| `Refine/Main.lean` | `conron.model_exists_parsed` / `no_proof_of_False_parsed`: 71 → 3 |
+| `Refine/Main.lean` | **new**: censuses pinned for `conron.model_exists_prelude` / `no_proof_of_False_prelude`, which task #85 left unpinned |
+
+The `_prelude` pair — the instance at the prelude the binary ships — is
+`[propext, Classical.choice, Quot.sound]` too, and now says so under
+`#guard_msgs`.  Task #85 predicted it would cost nothing extra and it does not:
+the prelude constant is the task-#84 `[u8; 16 922]` in 67 chunks, never a
+`&str`, and `builtin_prelude_e_wf` reads well-formedness off the run without
+unfolding a byte.
+
+`grep -rn 'native.decide' proof/ConRon/Refine/Main.lean` leaves exactly one
+census entry: `pins_text.PINS_TEXT._native.decide.ax_1`, on the two `_embedded`
+capstones.  **That one is not retirable the same way and was not attempted.**
+`PINS_TEXT` is 532 456 bytes; F17's byte-array route holds a few hundred
+elements (task #84: one `Array.make` of 16 922 does not elaborate inside a
+million heartbeats, one of 512 exhausts `maxRecDepth 2048`), and 532 KB in
+chunks of 256 would be two thousand constants.  AENEAS_FINDINGS §3.8's standing
+ask — discharge `toStr`'s bound without `decide +native` — is now about that one
+constant and nothing else.
+
+#### 3. What it measures
+
+**Byte compares cost nothing, to six significant figures.**  `perf stat
+-e instructions:u,cycles:u`, release + mimalloc, `--verified --jobs=1`, against
+task #84 on the same corpus:
+
+| | task #84 | task #86 | |
+|---|---:|---:|---|
+| `Init`, instructions | 540.88 G | **540.89 G** | +0.001 % |
+| `Init+Std+Lean`, instructions | 1 161.32 G | **1 161.32 G** | — |
+| `Init`, peak RSS | 0.91 GB | **0.91 GB** | — |
+| `Init+Std+Lean`, peak RSS | 2.44 GB | **2.44 GB** | — |
+
+Three `Init` runs: 540 884 790 044 / 540 885 810 587 / 540 891 523 590
+instructions — a spread of 7 M in 541 G, which is the measurement's own noise.
+Wall: `Init` 64.5 / 65.4 / 65.2 s, `Init+Std+Lean` 157.1 s, on a shared machine.
+Accepts are task #83's and #84's to the record: `Init` 57 977,
+`Init+Std+Lean` 163 396.  `scripts/diff-e2e.sh`: **348 fixtures, 0 differ.**
+
+That the count is *identical* rather than merely close is the expected result
+and worth saying why: `S_X.as_bytes()` on a `&'static str` constant and `&S_X`
+on a `[u8; N]` constant both lower to the same `.rodata` pointer and length.
+The change is entirely in what Charon sees.
+
+#### 4. Where the ledger stands
+
+`scripts/gates.sh`: **all nine OK**.  The proof is 154 709 lines (155 122 at
+task #85; the 413 the censuses gave back), `proof/rust` 3.10.
+
+```
+Verified core (ConLeche/Kernel, ConLeche/Cached)  to translate 14 077  translated 100%  verified 92%
+Parser in the core (ConLeche/Frontend, task #84)  to translate  4 441  translated 100%  verified  0%
+Cherries (InModel, ExportWrite, Main.lean)        to translate  2 975  translated 100%  verified  0%
+Rust core 85 109 lines (1 844 fns) | unverified crates 11 139 | generated Lean 76 192 | proofs 154 709
+LoC: upstream 18 495 | rust 49 684 | generated 73 261 | proof 154 083
+     ratios rust/up 2.69  gen/rust 1.47  proof/rust 3.10  proof/up 8.33
+```
+
+The axiom ledger for the whole port is now three lines: the headline
+`conron.model_exists_decoded` / `no_proof_of_False_decoded` and the chunk-level
+`_parsed` and `_prelude` pairs are at con-leche's own three axioms; the two
+`_embedded` corollaries pay one `toStr` axiom for naming `PINS_TEXT`; nothing
+anywhere invokes `native_decide` or carries a `sorry`.
