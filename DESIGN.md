@@ -16947,3 +16947,34 @@ single-threaded — `key_at_refines`'s thousand mechanical lines are 19 first
 bytes → 44 lengths → 66 literals, each leaf closed by the same two-tactic
 macro), `ScanObj` 11-21 s, `ScanInd` 5.5 s, `ScanExpr` 4.3 s, `StateDR` 3.9 s,
 `ChunksR` 4 s, `PrepareR` 4.8 s, `Main` 2.3 s.
+
+#### 10. Where the ledger stands
+
+`scripts/gates.sh`: **all nine OK.**
+
+```
+Verified core (ConLeche/Kernel, ConLeche/Cached)  to translate 14 077  translated 100%  verified 92%
+Parser in the core (ConLeche/Frontend, task #84)  to translate  4 441  translated 100%  verified 56%
+Cherries (InModel, ExportWrite, Main.lean)        to translate  2 975  translated 100%  verified  0%
+Rust core 85 131 lines (1 845 fns) | unverified crates 11 139 | generated Lean 76 260 | proofs 180 901 (1 586 _refines) | pin c431b1ca
+LoC: upstream 18 495 | rust 49 706 | generated 73 328 | proof 180 275
+     ratios rust/up 2.69  gen/rust 1.48  proof/rust 3.63  proof/up 9.75
+```
+
+**The parser row moved 0 % → 56 %**, which is the number this task existed to
+move: it counts `theorem <fn>_refines`, refinement against con-leche, and at
+task #86 it was zero because phase 1 wrote `_wf` lemmas about the port alone.
+The proof grew from 154 709 to 180 901 lines — **26 192 new lines**, 13 files —
+and the tier is `sorry`-free throughout.
+
+**One environment finding that cost several agents an hour between them**, and
+it is worth CLAUDE.md's attention.  CLAUDE.md's *"always `ulimit -v`"* is a
+rule about a runaway **checker**; applied to `lake build` on this 96-core
+machine it is actively harmful, because `lake` fans out one `lean` per core and
+each reserves address space for its own thread pool, so any limit below about
+40 GB makes Lean die with *"failed to create thread"* — an error that looks
+like a proof failure and is not.  What works: `ulimit -v 400000000` for a
+`lake build` fan-out, and `ulimit -v 100000000` with
+`lake env lean --threads=4` for a single file.  Resident use stays small under
+both; the limit that matters for the machine is RSS, and virtual-address
+reservations are not it.
