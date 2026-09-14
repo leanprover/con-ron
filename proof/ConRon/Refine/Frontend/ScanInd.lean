@@ -12,23 +12,23 @@ recursor rules inside a `recs` member.
 Agent L's `scan_ind_decl_loop` reads exactly three of these, one per key of an
 `"inductive"` line, and they are the file's product:
 
-    theorem scan_ind_types_refines {b : Slice Std.U8} (kit : KitFacts b)
-        {i : Std.Usize} {o} (h : frontend.scan_fast.scan_ind_types b i = ok o) :
+    theorem scan_ind_types_refines {b : Slice Std.U8} {i : Std.Usize} {o}
+        (h : frontend.scan_fast.scan_ind_types b i = ok o) :
         ScanSim absIndTypeRecs o (scanIndTypes (absBytes b) (absPos i))
 
-    theorem scan_ind_ctors_refines {b : Slice Std.U8} (kit : KitFacts b)
-        {i : Std.Usize} {o} (h : frontend.scan_fast.scan_ind_ctors b i = ok o) :
+    theorem scan_ind_ctors_refines {b : Slice Std.U8} {i : Std.Usize} {o}
+        (h : frontend.scan_fast.scan_ind_ctors b i = ok o) :
         ScanSim absIndCtorRecs o (scanIndCtors (absBytes b) (absPos i))
 
-    theorem scan_ind_recs_refines {b : Slice Std.U8} (kit : KitFacts b)
-        {i : Std.Usize} {o} (h : frontend.scan_fast.scan_ind_recs b i = ok o) :
+    theorem scan_ind_recs_refines {b : Slice Std.U8} {i : Std.Usize} {o}
+        (h : frontend.scan_fast.scan_ind_recs b i = ok o) :
         ScanSim absIndRecRecs o (scanIndRecs (absBytes b) (absPos i))
 
 `scan_rules_refines` (the `"rules"` slot of a `recs` member) has the same shape
 with `absRuleRecs` / `scanRules`, and is used only inside this file.
-`ScanObj.KitFacts` -- `keyEnd`, `valueAt`, `keyAt` -- is the only hypothesis
-left; it is `ScanKit`'s to discharge and then every statement here is
-hypothesis-free.
+All four are **hypothesis-free**: the three key lemmas the slot loops stand on
+come from `ScanObj.kitFacts`, and the two value scanners a slot reads
+(`scan_bool_refines`, `scan_nat_list_refines`) are proved there too.
 
 ## The two shapes
 
@@ -236,13 +236,14 @@ end ScanInd
 
 open ScanInd
 
-/-! ## What the rest of the tier owes this file
+/-! ## What this file calls into
 
-`ScanObj.KitFacts` — `keyEnd`, `valueAt` and `keyAt` — is the only thing the
-slot loops below still take as a hypothesis; the day `ScanKit` proves
-`key_at_refines` it is discharged once and every theorem here is
-hypothesis-free.  The two value scanners an inductive-block slot reads
-(`scan_bool`, `scan_nat_list`) are already proved in `ScanObj`. -/
+Nothing here is a hypothesis.  The slot loops stand on `ScanObj`'s
+`kitFacts b : KitFacts b` (`keyEnd`, `valueAt`, `keyAt`, which `ScanKit`
+proves), on `natSlot_step` for a `Nat`-valued slot, and on
+`scan_bool_refines` / `scan_nat_list_refines` for the two value scanners an
+inductive-block slot reads; the `"rules"` slot calls this file's own
+`scan_rules_refines`. -/
 
 /-! ## The recursor rules
 
@@ -308,7 +309,7 @@ private theorem scanRuleLoop_body (B : ByteArray) (S : UInt32) (ct nf rhs : Nat)
 /-- `scan_fast::scan_rule_loop`'s loop refines `scanRuleLoop`
 (`Scan/Fast.lean:1326-1382`).  Three `slot_nat` slots and fifty-odd keys that
 are not this record's, every one of them `unknownKey`. -/
-private theorem scan_rule_loop_loop_refines {b : Slice Std.U8} (kit : KitFacts b) (f : Nat) :
+private theorem scan_rule_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
     ∀ (w : Bool) (i : Std.Usize) (seen : Std.U32) (ct nf rhs : Std.U64)
       (o : core.result.Result (frontend.scan_types.RuleRec × Std.Usize)
         frontend.scan_types.ScanErr),
@@ -322,7 +323,7 @@ private theorem scan_rule_loop_loop_refines {b : Slice Std.U8} (kit : KitFacts b
   intro w i seen ct nf rhs o hf h
   rw [frontend.scan_fast.scan_rule_loop_loop.eq_def] at h
   obtain ⟨res, hres, h⟩ := bind_eq_ok_iff.mp h
-  have hstep := nextMember_step kit
+  have hstep := nextMember_step (kitFacts b)
     (scanRuleLoop_body (absBytes b) (absU32 seen) (absU64 ct) (absU64 nf) (absU64 rhs))
     (b.val.length - i.val) i w res (le_refl _) hres
   cases res with
@@ -417,7 +418,7 @@ private theorem scan_rule_loop_loop_refines {b : Slice Std.U8} (kit : KitFacts b
                    (le_refl _) h)
 
 /-- `scan_fast::scan_rule` refines `scanRule` (`Scan/Fast.lean:1384-1388`). -/
-theorem scan_rule_refines {b : Slice Std.U8} (kit : KitFacts b) {i : Std.Usize}
+theorem scan_rule_refines {b : Slice Std.U8} {i : Std.Usize}
     {o : core.result.Result (frontend.scan_types.RuleRec × Std.Usize)
       frontend.scan_types.ScanErr}
     (h : frontend.scan_fast.scan_rule b i = ok o) :
@@ -430,7 +431,7 @@ theorem scan_rule_refines {b : Slice Std.U8} (kit : KitFacts b) {i : Std.Usize}
     rw [if_pos (by simpa using h123)]
     obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
     rw [← absPos_add_one hi2, frontend.scan_fast.scan_rule_loop] at *
-    exact scan_rule_loop_loop_refines kit (b.val.length - i2.val) true i2 0#u32 0#u64 0#u64
+    exact scan_rule_loop_loop_refines (b.val.length - i2.val) true i2 0#u32 0#u64 0#u64
       0#u64 o (le_refl _) h
   · rw [if_neg h123, err_eq] at h
     simp only [Result.ok.injEq] at h
@@ -441,8 +442,7 @@ theorem scan_rule_refines {b : Slice Std.U8} (kit : KitFacts b) {i : Std.Usize}
 (`Scan/Fast.lean:1390-1416`).  The port pushes onto a `Vec` where con-leche
 conses onto a `List` and reverses at the close, so the invariant carries
 `(absRuleRecs acc).reverse`. -/
-private theorem scan_rule_list_loop_loop_refines {b : Slice Std.U8} (kit : KitFacts b)
-    (f : Nat) :
+private theorem scan_rule_list_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
     ∀ (i : Std.Usize) (acc : alloc.vec.Vec frontend.scan_types.RuleRec) (wi : Bool)
       (o : core.result.Result ((alloc.vec.Vec frontend.scan_types.RuleRec) × Std.Usize)
         frontend.scan_types.ScanErr),
@@ -535,7 +535,7 @@ private theorem scan_rule_list_loop_loop_refines {b : Slice Std.U8} (kit : KitFa
               · rw [if_pos hwi] at h
                 rw [if_neg (by simp [hwi])]
                 obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
-                have hsim := scan_rule_refines kit hr
+                have hsim := scan_rule_refines hr
                 cases r with
                 | Err er =>
                   simp only [Result.ok.injEq] at h
@@ -582,18 +582,18 @@ private theorem scan_rule_list_loop_loop_refines {b : Slice Std.U8} (kit : KitFa
 
 /-- `scan_fast::scan_rule_list_loop` refines `scanRuleListLoop` entered past
 the `[` (`Scan/Fast.lean:1390-1416`). -/
-theorem scan_rule_list_loop_refines {b : Slice Std.U8} (kit : KitFacts b) {i : Std.Usize}
+theorem scan_rule_list_loop_refines {b : Slice Std.U8} {i : Std.Usize}
     {o : core.result.Result ((alloc.vec.Vec frontend.scan_types.RuleRec) × Std.Usize)
       frontend.scan_types.ScanErr}
     (h : frontend.scan_fast.scan_rule_list_loop b i = ok o) :
     ScanSim absRuleRecs o (scanRuleListLoop (absBytes b) (absPos i) [] true) := by
   rw [frontend.scan_fast.scan_rule_list_loop] at h
-  have := scan_rule_list_loop_loop_refines kit (b.val.length - i.val) i
+  have := scan_rule_list_loop_loop_refines (b.val.length - i.val) i
     (alloc.vec.Vec.new frontend.scan_types.RuleRec) true o (le_refl _) h
   simpa [absRuleRecs, alloc.vec.Vec.new] using this
 
 /-- `scan_fast::scan_rules` refines `scanRules` (`Scan/Fast.lean:1418-1422`). -/
-theorem scan_rules_refines {b : Slice Std.U8} (kit : KitFacts b) {i : Std.Usize}
+theorem scan_rules_refines {b : Slice Std.U8} {i : Std.Usize}
     {o : core.result.Result ((alloc.vec.Vec frontend.scan_types.RuleRec) × Std.Usize)
       frontend.scan_types.ScanErr}
     (h : frontend.scan_fast.scan_rules b i = ok o) :
@@ -606,7 +606,7 @@ theorem scan_rules_refines {b : Slice Std.U8} (kit : KitFacts b) {i : Std.Usize}
     rw [if_pos (by simpa using h91)]
     obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
     rw [← absPos_add_one hi2]
-    exact scan_rule_list_loop_refines kit h
+    exact scan_rule_list_loop_refines h
   · rw [if_neg h91, err_eq] at h
     simp only [Result.ok.injEq] at h
     rw [if_neg (by simpa using h91), ← h]
@@ -666,28 +666,32 @@ private theorem scanIndRecLoop_body (B : ByteArray) (S : UInt32) (isUns kf : Boo
                 else match scanNatList B v with
                   | .err err => .err err
                   | .ok _x e =>
-                    if _hj : q < e then scanIndRecLoop B e false (S ||| 1) isUns kf lps nm nIdx nMin nMot nP rules ty
+                    if _hj : q < e then
+                      scanIndRecLoop B e false (S ||| 1) isUns kf lps nm nIdx nMin nMot nP rules ty
                     else .err ⟨q.toNat, .noProgress⟩
               | .kIsUnsafe =>
                 if (S &&& 2) != 0 then .err ⟨q.toNat, .duplicateKey⟩
                 else match scanBool B v with
                   | .err err => .err err
                   | .ok x e =>
-                    if _hj : q < e then scanIndRecLoop B e false (S ||| 2) x kf lps nm nIdx nMin nMot nP rules ty
+                    if _hj : q < e then
+                      scanIndRecLoop B e false (S ||| 2) x kf lps nm nIdx nMin nMot nP rules ty
                     else .err ⟨q.toNat, .noProgress⟩
               | .kK =>
                 if (S &&& 4) != 0 then .err ⟨q.toNat, .duplicateKey⟩
                 else match scanBool B v with
                   | .err err => .err err
                   | .ok x e =>
-                    if _hj : q < e then scanIndRecLoop B e false (S ||| 4) isUns x lps nm nIdx nMin nMot nP rules ty
+                    if _hj : q < e then
+                      scanIndRecLoop B e false (S ||| 4) isUns x lps nm nIdx nMin nMot nP rules ty
                     else .err ⟨q.toNat, .noProgress⟩
               | .kLevelParams =>
                 if (S &&& 8) != 0 then .err ⟨q.toNat, .duplicateKey⟩
                 else match scanNatList B v with
                   | .err err => .err err
                   | .ok x e =>
-                    if _hj : q < e then scanIndRecLoop B e false (S ||| 8) isUns kf x nm nIdx nMin nMot nP rules ty
+                    if _hj : q < e then
+                      scanIndRecLoop B e false (S ||| 8) isUns kf x nm nIdx nMin nMot nP rules ty
                     else .err ⟨q.toNat, .noProgress⟩
               | .kName =>
                 if (S &&& 16) != 0 then .err ⟨q.toNat, .duplicateKey⟩
@@ -714,7 +718,8 @@ private theorem scanIndRecLoop_body (B : ByteArray) (S : UInt32) (isUns kf : Boo
                 else match scanRules B v with
                   | .err err => .err err
                   | .ok x e =>
-                    if _hj : q < e then scanIndRecLoop B e false (S ||| 512) isUns kf lps nm nIdx nMin nMot nP x ty
+                    if _hj : q < e then
+                      scanIndRecLoop B e false (S ||| 512) isUns kf lps nm nIdx nMin nMot nP x ty
                     else .err ⟨q.toNat, .noProgress⟩
               | .kType =>
                 if (S &&& 1024) != 0 then .err ⟨q.toNat, .duplicateKey⟩
@@ -728,14 +733,15 @@ private theorem scanIndRecLoop_body (B : ByteArray) (S : UInt32) (isUns kf : Boo
 
 /-- `scan_fast::scan_ind_rec_loop`'s loop refines `scanIndRecLoop`
 (`Scan/Fast.lean:1424-1556`). -/
-private theorem scan_ind_rec_loop_loop_refines {b : Slice Std.U8} (kit : KitFacts b) (f : Nat) :
+private theorem scan_ind_rec_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
     ∀ (w : Bool) (i : Std.Usize) (seen : Std.U32) (is_uns kf : Bool)
       (lps : alloc.vec.Vec Std.U64) (nm n_idx n_min n_mot n_p : Std.U64)
       (rules : alloc.vec.Vec frontend.scan_types.RuleRec) (ty : Std.U64)
       (o : core.result.Result (frontend.scan_types.IndRecRec × Std.Usize)
         frontend.scan_types.ScanErr),
       b.val.length - i.val ≤ f →
-      frontend.scan_fast.scan_ind_rec_loop_loop w b i seen is_uns kf lps nm n_idx n_min n_mot n_p rules ty = ok o →
+      frontend.scan_fast.scan_ind_rec_loop_loop w b i seen is_uns kf lps nm n_idx n_min
+          n_mot n_p rules ty = ok o →
       ScanSim absIndRecRec o
         (scanIndRecLoop (absBytes b) (absPos i) w (absU32 seen) is_uns kf (absU64s lps)
           (absU64 nm) (absU64 n_idx) (absU64 n_min) (absU64 n_mot) (absU64 n_p)
@@ -745,9 +751,11 @@ private theorem scan_ind_rec_loop_loop_refines {b : Slice Std.U8} (kit : KitFact
   intro w i seen is_uns kf lps nm n_idx n_min n_mot n_p rules ty o hf h
   rw [frontend.scan_fast.scan_ind_rec_loop_loop.eq_def] at h
   obtain ⟨res, hres, h⟩ := bind_eq_ok_iff.mp h
-  have hstep := nextMember_step kit (scanIndRecLoop_body (absBytes b) (absU32 seen) is_uns kf (absU64s lps) (absU64 nm) (absU64 n_idx)
-      (absU64 n_min) (absU64 n_mot) (absU64 n_p) (absRuleRecs rules) (absU64 ty)) (b.val.length - i.val) i w
-    res (le_refl _) hres
+  have hstep := nextMember_step (kitFacts b)
+    (scanIndRecLoop_body (absBytes b) (absU32 seen) is_uns kf (absU64s lps) (absU64 nm)
+      (absU64 n_idx) (absU64 n_min) (absU64 n_mot) (absU64 n_p) (absRuleRecs rules)
+      (absU64 ty))
+    (b.val.length - i.val) i w res (le_refl _) hres
   cases res with
   | Err er =>
     simp only [Result.ok.injEq] at h
@@ -929,11 +937,11 @@ private theorem scan_ind_rec_loop_loop_refines {b : Slice Std.U8} (kit : KitFact
                  rw [← h]
                  refine ScanSim.err ?_
                  intro le hle
-                 rw [scanSim_err_eq (scan_rules_refines kit hr1) hle]
+                 rw [scanSim_err_eq (scan_rules_refines hr1) hle]
                | Ok p1 =>
                  obtain ⟨x, e⟩ := p1
                  simp only [uncurry_apply_pair] at h
-                 rw [scanSim_ok_eq (scan_rules_refines kit hr1)]
+                 rw [scanSim_ok_eq (scan_rules_refines hr1)]
                  try dsimp only
                  obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
                  by_cases hp : b2 = true
@@ -951,7 +959,7 @@ private theorem scan_ind_rec_loop_loop_refines {b : Slice Std.U8} (kit : KitFact
                    exact scanSim_err rfl (by rw [absPos_toNat]))
 
 /-- `scan_fast::scan_ind_rec` refines `scanIndRec` (`Scan/Fast.lean:1558-1562`). -/
-theorem scan_ind_rec_refines {b : Slice Std.U8} (kit : KitFacts b) {i : Std.Usize}
+theorem scan_ind_rec_refines {b : Slice Std.U8} {i : Std.Usize}
     {o : core.result.Result (frontend.scan_types.IndRecRec × Std.Usize)
       frontend.scan_types.ScanErr}
     (h : frontend.scan_fast.scan_ind_rec b i = ok o) :
@@ -964,7 +972,7 @@ theorem scan_ind_rec_refines {b : Slice Std.U8} (kit : KitFacts b) {i : Std.Usiz
     rw [if_pos (by simpa using h123)]
     obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
     rw [← absPos_add_one hi2, frontend.scan_fast.scan_ind_rec_loop] at *
-    exact scan_ind_rec_loop_loop_refines kit (b.val.length - i2.val) true i2 0#u32 false false
+    exact scan_ind_rec_loop_loop_refines (b.val.length - i2.val) true i2 0#u32 false false
       (alloc.vec.Vec.new Std.U64) 0#u64 0#u64 0#u64 0#u64 0#u64
       (alloc.vec.Vec.new frontend.scan_types.RuleRec) 0#u64 o (le_refl _) h
   · rw [if_neg h123, err_eq] at h
@@ -976,8 +984,7 @@ theorem scan_ind_rec_refines {b : Slice Std.U8} (kit : KitFacts b) {i : Std.Usiz
 (`Scan/Fast.lean:1564-1590`).  The port pushes onto a `Vec` where con-leche
 conses onto a `List` and reverses at the close, so the invariant carries
 `(absIndRecRecs acc).reverse`. -/
-private theorem scan_ind_rec_list_loop_loop_refines {b : Slice Std.U8} (kit : KitFacts b)
-    (f : Nat) :
+private theorem scan_ind_rec_list_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
     ∀ (i : Std.Usize) (acc : alloc.vec.Vec frontend.scan_types.IndRecRec) (wi : Bool)
       (o : core.result.Result ((alloc.vec.Vec frontend.scan_types.IndRecRec) × Std.Usize)
         frontend.scan_types.ScanErr),
@@ -1070,7 +1077,7 @@ private theorem scan_ind_rec_list_loop_loop_refines {b : Slice Std.U8} (kit : Ki
               · rw [if_pos hwi] at h
                 rw [if_neg (by simp [hwi])]
                 obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
-                have hsim := scan_ind_rec_refines kit hr
+                have hsim := scan_ind_rec_refines hr
                 cases r with
                 | Err er =>
                   simp only [Result.ok.injEq] at h
@@ -1117,18 +1124,18 @@ private theorem scan_ind_rec_list_loop_loop_refines {b : Slice Std.U8} (kit : Ki
 
 /-- `scan_fast::scan_ind_rec_list_loop` refines `scanIndRecListLoop` entered past
 the `[` (`Scan/Fast.lean:1564-1590`). -/
-theorem scan_ind_rec_list_loop_refines {b : Slice Std.U8} (kit : KitFacts b) {i : Std.Usize}
+theorem scan_ind_rec_list_loop_refines {b : Slice Std.U8} {i : Std.Usize}
     {o : core.result.Result ((alloc.vec.Vec frontend.scan_types.IndRecRec) × Std.Usize)
       frontend.scan_types.ScanErr}
     (h : frontend.scan_fast.scan_ind_rec_list_loop b i = ok o) :
     ScanSim absIndRecRecs o (scanIndRecListLoop (absBytes b) (absPos i) [] true) := by
   rw [frontend.scan_fast.scan_ind_rec_list_loop] at h
-  have := scan_ind_rec_list_loop_loop_refines kit (b.val.length - i.val) i
+  have := scan_ind_rec_list_loop_loop_refines (b.val.length - i.val) i
     (alloc.vec.Vec.new frontend.scan_types.IndRecRec) true o (le_refl _) h
   simpa [absIndRecRecs, alloc.vec.Vec.new] using this
 
 /-- `scan_fast::scan_ind_recs` refines `scanIndRecs` (`Scan/Fast.lean:1592-1596`). -/
-theorem scan_ind_recs_refines {b : Slice Std.U8} (kit : KitFacts b) {i : Std.Usize}
+theorem scan_ind_recs_refines {b : Slice Std.U8} {i : Std.Usize}
     {o : core.result.Result ((alloc.vec.Vec frontend.scan_types.IndRecRec) × Std.Usize)
       frontend.scan_types.ScanErr}
     (h : frontend.scan_fast.scan_ind_recs b i = ok o) :
@@ -1141,7 +1148,7 @@ theorem scan_ind_recs_refines {b : Slice Std.U8} (kit : KitFacts b) {i : Std.Usi
     rw [if_pos (by simpa using h91)]
     obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
     rw [← absPos_add_one hi2]
-    exact scan_ind_rec_list_loop_refines kit h
+    exact scan_ind_rec_list_loop_refines h
   · rw [if_neg h91, err_eq] at h
     simp only [Result.ok.injEq] at h
     rw [if_neg (by simpa using h91), ← h]
@@ -1202,42 +1209,48 @@ private theorem scanIndTypeLoop_body (B : ByteArray) (S : UInt32) (ctors : List 
                 else match scanNatList B v with
                   | .err err => .err err
                   | .ok _x e =>
-                    if _hj : q < e then scanIndTypeLoop B e false (S ||| 1) ctors isRec isRefl isUns lps nm nIdx nNest nP ty
+                    if _hj : q < e then
+                      scanIndTypeLoop B e false (S ||| 1) ctors isRec isRefl isUns lps nm nIdx nNest nP ty
                     else .err ⟨q.toNat, .noProgress⟩
               | .kCtors =>
                 if (S &&& 2) != 0 then .err ⟨q.toNat, .duplicateKey⟩
                 else match scanNatList B v with
                   | .err err => .err err
                   | .ok x e =>
-                    if _hj : q < e then scanIndTypeLoop B e false (S ||| 2) x isRec isRefl isUns lps nm nIdx nNest nP ty
+                    if _hj : q < e then
+                      scanIndTypeLoop B e false (S ||| 2) x isRec isRefl isUns lps nm nIdx nNest nP ty
                     else .err ⟨q.toNat, .noProgress⟩
               | .kIsRec =>
                 if (S &&& 4) != 0 then .err ⟨q.toNat, .duplicateKey⟩
                 else match scanBool B v with
                   | .err err => .err err
                   | .ok x e =>
-                    if _hj : q < e then scanIndTypeLoop B e false (S ||| 4) ctors x isRefl isUns lps nm nIdx nNest nP ty
+                    if _hj : q < e then
+                      scanIndTypeLoop B e false (S ||| 4) ctors x isRefl isUns lps nm nIdx nNest nP ty
                     else .err ⟨q.toNat, .noProgress⟩
               | .kIsReflexive =>
                 if (S &&& 8) != 0 then .err ⟨q.toNat, .duplicateKey⟩
                 else match scanBool B v with
                   | .err err => .err err
                   | .ok x e =>
-                    if _hj : q < e then scanIndTypeLoop B e false (S ||| 8) ctors isRec x isUns lps nm nIdx nNest nP ty
+                    if _hj : q < e then
+                      scanIndTypeLoop B e false (S ||| 8) ctors isRec x isUns lps nm nIdx nNest nP ty
                     else .err ⟨q.toNat, .noProgress⟩
               | .kIsUnsafe =>
                 if (S &&& 16) != 0 then .err ⟨q.toNat, .duplicateKey⟩
                 else match scanBool B v with
                   | .err err => .err err
                   | .ok x e =>
-                    if _hj : q < e then scanIndTypeLoop B e false (S ||| 16) ctors isRec isRefl x lps nm nIdx nNest nP ty
+                    if _hj : q < e then
+                      scanIndTypeLoop B e false (S ||| 16) ctors isRec isRefl x lps nm nIdx nNest nP ty
                     else .err ⟨q.toNat, .noProgress⟩
               | .kLevelParams =>
                 if (S &&& 32) != 0 then .err ⟨q.toNat, .duplicateKey⟩
                 else match scanNatList B v with
                   | .err err => .err err
                   | .ok x e =>
-                    if _hj : q < e then scanIndTypeLoop B e false (S ||| 32) ctors isRec isRefl isUns x nm nIdx nNest nP ty
+                    if _hj : q < e then
+                      scanIndTypeLoop B e false (S ||| 32) ctors isRec isRefl isUns x nm nIdx nNest nP ty
                     else .err ⟨q.toNat, .noProgress⟩
               | .kName =>
                 if (S &&& 64) != 0 then .err ⟨q.toNat, .duplicateKey⟩
@@ -1267,14 +1280,15 @@ private theorem scanIndTypeLoop_body (B : ByteArray) (S : UInt32) (ctors : List 
 
 /-- `scan_fast::scan_ind_type_loop`'s loop refines `scanIndTypeLoop`
 (`Scan/Fast.lean:1598-1731`). -/
-private theorem scan_ind_type_loop_loop_refines {b : Slice Std.U8} (kit : KitFacts b) (f : Nat) :
+private theorem scan_ind_type_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
     ∀ (w : Bool) (i : Std.Usize) (seen : Std.U32) (ctors : alloc.vec.Vec Std.U64)
       (is_rec is_refl is_uns : Bool) (lps : alloc.vec.Vec Std.U64)
       (nm n_idx n_nest n_p ty : Std.U64)
       (o : core.result.Result (frontend.scan_types.IndTypeRec × Std.Usize)
         frontend.scan_types.ScanErr),
       b.val.length - i.val ≤ f →
-      frontend.scan_fast.scan_ind_type_loop_loop w b i seen ctors is_rec is_refl is_uns lps nm n_idx n_nest n_p ty = ok o →
+      frontend.scan_fast.scan_ind_type_loop_loop w b i seen ctors is_rec is_refl is_uns
+          lps nm n_idx n_nest n_p ty = ok o →
       ScanSim absIndTypeRec o
         (scanIndTypeLoop (absBytes b) (absPos i) w (absU32 seen) (absU64s ctors) is_rec is_refl
           is_uns (absU64s lps) (absU64 nm) (absU64 n_idx) (absU64 n_nest) (absU64 n_p)
@@ -1284,9 +1298,10 @@ private theorem scan_ind_type_loop_loop_refines {b : Slice Std.U8} (kit : KitFac
   intro w i seen ctors is_rec is_refl is_uns lps nm n_idx n_nest n_p ty o hf h
   rw [frontend.scan_fast.scan_ind_type_loop_loop.eq_def] at h
   obtain ⟨res, hres, h⟩ := bind_eq_ok_iff.mp h
-  have hstep := nextMember_step kit (scanIndTypeLoop_body (absBytes b) (absU32 seen) (absU64s ctors) is_rec is_refl is_uns (absU64s lps)
-      (absU64 nm) (absU64 n_idx) (absU64 n_nest) (absU64 n_p) (absU64 ty)) (b.val.length - i.val) i w
-    res (le_refl _) hres
+  have hstep := nextMember_step (kitFacts b)
+    (scanIndTypeLoop_body (absBytes b) (absU32 seen) (absU64s ctors) is_rec is_refl is_uns
+      (absU64s lps) (absU64 nm) (absU64 n_idx) (absU64 n_nest) (absU64 n_p) (absU64 ty))
+    (b.val.length - i.val) i w res (le_refl _) hres
   cases res with
   | Err er =>
     simp only [Result.ok.injEq] at h
@@ -1453,7 +1468,7 @@ private theorem scan_ind_type_loop_loop_refines {b : Slice Std.U8} (kit : KitFac
                    exact scanSim_err rfl (by rw [absPos_toNat]))
 
 /-- `scan_fast::scan_ind_type` refines `scanIndType` (`Scan/Fast.lean:1733-1737`). -/
-theorem scan_ind_type_refines {b : Slice Std.U8} (kit : KitFacts b) {i : Std.Usize}
+theorem scan_ind_type_refines {b : Slice Std.U8} {i : Std.Usize}
     {o : core.result.Result (frontend.scan_types.IndTypeRec × Std.Usize)
       frontend.scan_types.ScanErr}
     (h : frontend.scan_fast.scan_ind_type b i = ok o) :
@@ -1466,7 +1481,7 @@ theorem scan_ind_type_refines {b : Slice Std.U8} (kit : KitFacts b) {i : Std.Usi
     rw [if_pos (by simpa using h123)]
     obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
     rw [← absPos_add_one hi2, frontend.scan_fast.scan_ind_type_loop] at *
-    exact scan_ind_type_loop_loop_refines kit (b.val.length - i2.val) true i2 0#u32
+    exact scan_ind_type_loop_loop_refines (b.val.length - i2.val) true i2 0#u32
       (alloc.vec.Vec.new Std.U64) false false false (alloc.vec.Vec.new Std.U64)
       0#u64 0#u64 0#u64 0#u64 0#u64 o (le_refl _) h
   · rw [if_neg h123, err_eq] at h
@@ -1478,8 +1493,7 @@ theorem scan_ind_type_refines {b : Slice Std.U8} (kit : KitFacts b) {i : Std.Usi
 (`Scan/Fast.lean:1739-1765`).  The port pushes onto a `Vec` where con-leche
 conses onto a `List` and reverses at the close, so the invariant carries
 `(absIndTypeRecs acc).reverse`. -/
-private theorem scan_ind_type_list_loop_loop_refines {b : Slice Std.U8} (kit : KitFacts b)
-    (f : Nat) :
+private theorem scan_ind_type_list_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
     ∀ (i : Std.Usize) (acc : alloc.vec.Vec frontend.scan_types.IndTypeRec) (wi : Bool)
       (o : core.result.Result ((alloc.vec.Vec frontend.scan_types.IndTypeRec) × Std.Usize)
         frontend.scan_types.ScanErr),
@@ -1572,7 +1586,7 @@ private theorem scan_ind_type_list_loop_loop_refines {b : Slice Std.U8} (kit : K
               · rw [if_pos hwi] at h
                 rw [if_neg (by simp [hwi])]
                 obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
-                have hsim := scan_ind_type_refines kit hr
+                have hsim := scan_ind_type_refines hr
                 cases r with
                 | Err er =>
                   simp only [Result.ok.injEq] at h
@@ -1619,18 +1633,18 @@ private theorem scan_ind_type_list_loop_loop_refines {b : Slice Std.U8} (kit : K
 
 /-- `scan_fast::scan_ind_type_list_loop` refines `scanIndTypeListLoop` entered past
 the `[` (`Scan/Fast.lean:1739-1765`). -/
-theorem scan_ind_type_list_loop_refines {b : Slice Std.U8} (kit : KitFacts b) {i : Std.Usize}
+theorem scan_ind_type_list_loop_refines {b : Slice Std.U8} {i : Std.Usize}
     {o : core.result.Result ((alloc.vec.Vec frontend.scan_types.IndTypeRec) × Std.Usize)
       frontend.scan_types.ScanErr}
     (h : frontend.scan_fast.scan_ind_type_list_loop b i = ok o) :
     ScanSim absIndTypeRecs o (scanIndTypeListLoop (absBytes b) (absPos i) [] true) := by
   rw [frontend.scan_fast.scan_ind_type_list_loop] at h
-  have := scan_ind_type_list_loop_loop_refines kit (b.val.length - i.val) i
+  have := scan_ind_type_list_loop_loop_refines (b.val.length - i.val) i
     (alloc.vec.Vec.new frontend.scan_types.IndTypeRec) true o (le_refl _) h
   simpa [absIndTypeRecs, alloc.vec.Vec.new] using this
 
 /-- `scan_fast::scan_ind_types` refines `scanIndTypes` (`Scan/Fast.lean:1767-1771`). -/
-theorem scan_ind_types_refines {b : Slice Std.U8} (kit : KitFacts b) {i : Std.Usize}
+theorem scan_ind_types_refines {b : Slice Std.U8} {i : Std.Usize}
     {o : core.result.Result ((alloc.vec.Vec frontend.scan_types.IndTypeRec) × Std.Usize)
       frontend.scan_types.ScanErr}
     (h : frontend.scan_fast.scan_ind_types b i = ok o) :
@@ -1643,7 +1657,7 @@ theorem scan_ind_types_refines {b : Slice Std.U8} (kit : KitFacts b) {i : Std.Us
     rw [if_pos (by simpa using h91)]
     obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
     rw [← absPos_add_one hi2]
-    exact scan_ind_type_list_loop_refines kit h
+    exact scan_ind_type_list_loop_refines h
   · rw [if_neg h91, err_eq] at h
     simp only [Result.ok.injEq] at h
     rw [if_neg (by simpa using h91), ← h]
@@ -1745,13 +1759,14 @@ private theorem scanIndCtorLoop_body (B : ByteArray) (S : UInt32) (isUns : Bool)
 
 /-- `scan_fast::scan_ind_ctor_loop`'s loop refines `scanIndCtorLoop`
 (`Scan/Fast.lean:1773-1878`). -/
-private theorem scan_ind_ctor_loop_loop_refines {b : Slice Std.U8} (kit : KitFacts b) (f : Nat) :
+private theorem scan_ind_ctor_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
     ∀ (w : Bool) (i : Std.Usize) (seen : Std.U32) (is_uns : Bool)
       (lps : alloc.vec.Vec Std.U64) (nm n_f n_p ty : Std.U64) (ci ind : Option Std.U64)
       (o : core.result.Result (frontend.scan_types.IndCtorRec × Std.Usize)
         frontend.scan_types.ScanErr),
       b.val.length - i.val ≤ f →
-      frontend.scan_fast.scan_ind_ctor_loop_loop w b i seen is_uns lps nm n_f n_p ty ci ind = ok o →
+      frontend.scan_fast.scan_ind_ctor_loop_loop w b i seen is_uns lps nm n_f n_p ty
+          ci ind = ok o →
       ScanSim absIndCtorRec o
         (scanIndCtorLoop (absBytes b) (absPos i) w (absU32 seen) is_uns (absU64s lps) (absU64 nm)
           (absU64 n_f) (absU64 n_p) (absU64 ty) (ci.map absU64) (ind.map absU64)) := by
@@ -1760,9 +1775,10 @@ private theorem scan_ind_ctor_loop_loop_refines {b : Slice Std.U8} (kit : KitFac
   intro w i seen is_uns lps nm n_f n_p ty ci ind o hf h
   rw [frontend.scan_fast.scan_ind_ctor_loop_loop.eq_def] at h
   obtain ⟨res, hres, h⟩ := bind_eq_ok_iff.mp h
-  have hstep := nextMember_step kit (scanIndCtorLoop_body (absBytes b) (absU32 seen) is_uns (absU64s lps) (absU64 nm) (absU64 n_f)
-      (absU64 n_p) (absU64 ty) (ci.map absU64) (ind.map absU64)) (b.val.length - i.val) i w
-    res (le_refl _) hres
+  have hstep := nextMember_step (kitFacts b)
+    (scanIndCtorLoop_body (absBytes b) (absU32 seen) is_uns (absU64s lps) (absU64 nm)
+      (absU64 n_f) (absU64 n_p) (absU64 ty) (ci.map absU64) (ind.map absU64))
+    (b.val.length - i.val) i w res (le_refl _) hres
   cases res with
   | Err er =>
     simp only [Result.ok.injEq] at h
@@ -1929,7 +1945,7 @@ private theorem scan_ind_ctor_loop_loop_refines {b : Slice Std.U8} (kit : KitFac
                    exact scanSim_err rfl (by rw [absPos_toNat]))
 
 /-- `scan_fast::scan_ind_ctor` refines `scanIndCtor` (`Scan/Fast.lean:1880-1886`). -/
-theorem scan_ind_ctor_refines {b : Slice Std.U8} (kit : KitFacts b) {i : Std.Usize}
+theorem scan_ind_ctor_refines {b : Slice Std.U8} {i : Std.Usize}
     {o : core.result.Result (frontend.scan_types.IndCtorRec × Std.Usize)
       frontend.scan_types.ScanErr}
     (h : frontend.scan_fast.scan_ind_ctor b i = ok o) :
@@ -1942,7 +1958,7 @@ theorem scan_ind_ctor_refines {b : Slice Std.U8} (kit : KitFacts b) {i : Std.Usi
     rw [if_pos (by simpa using h123)]
     obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
     rw [← absPos_add_one hi2, frontend.scan_fast.scan_ind_ctor_loop] at *
-    exact scan_ind_ctor_loop_loop_refines kit (b.val.length - i2.val) true i2 0#u32 false
+    exact scan_ind_ctor_loop_loop_refines (b.val.length - i2.val) true i2 0#u32 false
       (alloc.vec.Vec.new Std.U64) 0#u64 0#u64 0#u64 0#u64 none none o (le_refl _) h
   · rw [if_neg h123, err_eq] at h
     simp only [Result.ok.injEq] at h
@@ -1953,8 +1969,7 @@ theorem scan_ind_ctor_refines {b : Slice Std.U8} (kit : KitFacts b) {i : Std.Usi
 (`Scan/Fast.lean:1888-1914`).  The port pushes onto a `Vec` where con-leche
 conses onto a `List` and reverses at the close, so the invariant carries
 `(absIndCtorRecs acc).reverse`. -/
-private theorem scan_ind_ctor_list_loop_loop_refines {b : Slice Std.U8} (kit : KitFacts b)
-    (f : Nat) :
+private theorem scan_ind_ctor_list_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
     ∀ (i : Std.Usize) (acc : alloc.vec.Vec frontend.scan_types.IndCtorRec) (wi : Bool)
       (o : core.result.Result ((alloc.vec.Vec frontend.scan_types.IndCtorRec) × Std.Usize)
         frontend.scan_types.ScanErr),
@@ -2047,7 +2062,7 @@ private theorem scan_ind_ctor_list_loop_loop_refines {b : Slice Std.U8} (kit : K
               · rw [if_pos hwi] at h
                 rw [if_neg (by simp [hwi])]
                 obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
-                have hsim := scan_ind_ctor_refines kit hr
+                have hsim := scan_ind_ctor_refines hr
                 cases r with
                 | Err er =>
                   simp only [Result.ok.injEq] at h
@@ -2094,18 +2109,18 @@ private theorem scan_ind_ctor_list_loop_loop_refines {b : Slice Std.U8} (kit : K
 
 /-- `scan_fast::scan_ind_ctor_list_loop` refines `scanIndCtorListLoop` entered past
 the `[` (`Scan/Fast.lean:1888-1914`). -/
-theorem scan_ind_ctor_list_loop_refines {b : Slice Std.U8} (kit : KitFacts b) {i : Std.Usize}
+theorem scan_ind_ctor_list_loop_refines {b : Slice Std.U8} {i : Std.Usize}
     {o : core.result.Result ((alloc.vec.Vec frontend.scan_types.IndCtorRec) × Std.Usize)
       frontend.scan_types.ScanErr}
     (h : frontend.scan_fast.scan_ind_ctor_list_loop b i = ok o) :
     ScanSim absIndCtorRecs o (scanIndCtorListLoop (absBytes b) (absPos i) [] true) := by
   rw [frontend.scan_fast.scan_ind_ctor_list_loop] at h
-  have := scan_ind_ctor_list_loop_loop_refines kit (b.val.length - i.val) i
+  have := scan_ind_ctor_list_loop_loop_refines (b.val.length - i.val) i
     (alloc.vec.Vec.new frontend.scan_types.IndCtorRec) true o (le_refl _) h
   simpa [absIndCtorRecs, alloc.vec.Vec.new] using this
 
 /-- `scan_fast::scan_ind_ctors` refines `scanIndCtors` (`Scan/Fast.lean:1916-1920`). -/
-theorem scan_ind_ctors_refines {b : Slice Std.U8} (kit : KitFacts b) {i : Std.Usize}
+theorem scan_ind_ctors_refines {b : Slice Std.U8} {i : Std.Usize}
     {o : core.result.Result ((alloc.vec.Vec frontend.scan_types.IndCtorRec) × Std.Usize)
       frontend.scan_types.ScanErr}
     (h : frontend.scan_fast.scan_ind_ctors b i = ok o) :
@@ -2118,7 +2133,7 @@ theorem scan_ind_ctors_refines {b : Slice Std.U8} (kit : KitFacts b) {i : Std.Us
     rw [if_pos (by simpa using h91)]
     obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
     rw [← absPos_add_one hi2]
-    exact scan_ind_ctor_list_loop_refines kit h
+    exact scan_ind_ctor_list_loop_refines h
   · rw [if_neg h91, err_eq] at h
     simp only [Result.ok.injEq] at h
     rw [if_neg (by simpa using h91), ← h]
