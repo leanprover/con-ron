@@ -16778,3 +16778,50 @@ because each worker reserves address space.  `ulimit -v 64000000` with
 it.  CLAUDE.md's rule is about *resident* memory and the 50 GB session limit;
 the virtual-address limit is a different number and 8 GB is far too low for
 Lean.
+
+#### 6. The headline: `conron.no_False_declaration`
+
+`Refine/Main.lean` now carries con-leche's main corollary transported across
+the port, in the pair the project has used since task #75 — the general form
+and its instance at the constant the binary ships:
+
+```lean
+theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
+    (hgen : Frontend.ModellerWF inst g) (ing : Frontend.ParseIngredients R inst g)
+    (hspec : Frontend.HoistSpec)
+    (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+    (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
+    (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
+    (hparse : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Ok r))
+    (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
+    (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+    False
+```
+
+and `conron.no_False_declaration_prelude`, the same at
+`frontend::prelude::builtin_prelude_e`.  **Both are pinned by `#guard_msgs` at
+`[propext, Classical.choice, Quot.sound]`** — con-leche's own three, no
+`native_decide`, no `sorry`.
+
+The proof is con-leche's, four steps: `parse_chunks_refines` and
+`parseChunks_jsonWithTheoremFalse` put a theorem record of type `False` in the
+port's abstracted declarations; `prepare_prelude_refines` and
+`mem_preparePrelude` keep it through the preparation;
+`check_decls_verified_refines_ok` turns the port's accept into con-leche's; and
+`no_False_theorem_accepted` refutes it.
+
+**The prelude never has to be identified with con-leche's**, and that is not a
+concession but the shape of the argument: `mem_preparePrelude` holds for *every*
+`pre`, so the statement is prelude-parametric for free — the port's embedded
+`[u8; 16 922]` is never compared with con-leche's `include_str`, which
+AENEAS_FINDINGS §3.8 puts out of reach in the kernel.  The instance at the
+shipped constant costs nothing extra, for task #84 §8's reason: a byte array
+carries no `toStr` axiom.
+
+**What the two hypotheses about the parse are.**  `hgen` is phase 1's
+`ModellerWF` — the port's own well-formedness, the residue task #84's seam
+left; `ing` is phase 3's `ParseIngredients`, six named fields whose owners are
+the six scanner files and `StateDR`/`IndR`; `hspec` is `HoistSpec`'s one field
+(§5).  The headline is therefore honest about exactly what is still owed, and
+every field is a statement about a *named* port function rather than about the
+parse as a whole.
