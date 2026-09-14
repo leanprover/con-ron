@@ -13,8 +13,9 @@
 //! function is called only so that `cargo test` reports it.
 //!
 //! This is also the regression guard on the alias.  Swap `ron::ptr::P` back to
-//! `std::rc::Rc` and this file stops compiling with eight errors, each naming
-//! one of `Rc<ExprNode>`, `Rc<NameNode>`, `Rc<LevelNode>`, `Rc<ConstantInfo>`
+//! `std::rc::Rc` and this file stops compiling with errors each naming one of
+//! `Rc<NameNode>`, `Rc<LevelNode>`, `Rc<ConstantInfo>` (`Expr`'s own handle is
+//! `ron::node`'s since task #94's spike, and carries its own `Send`/`Sync`)
 //! — i.e. only the alias, never a `Cell`, a `RefCell` or a raw pointer (§3.4's
 //! lint forbids those; this is the independent confirmation).  A future change
 //! that puts a non-`Sync` field anywhere in the state will be caught here,
