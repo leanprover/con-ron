@@ -805,10 +805,10 @@ theorem apply_line_refines {G : Type} {inst : frontend.in_model_rec.Modeller G} 
     (hsp : IndRSpec inst g) (hrel : StateDRel st lst) (hwf : StateDWF st)
     (hr : LineRecWF r) (hr2 : LineRecStrWF r) (hnat : LineNatValSpec r)
     (h : frontend.export_c.apply_line inst g st r = ok (o, st')) :
-    StateOutD o st' (ConLeche.Frontend.applyLine lst (absLineRec r))
+    StepOutV o st' (ConLeche.Frontend.applyLine lst (absLineRec r))
 ```
 
-`StateOutD` is `Refine/Frontend/StateDR.lean`'s `LineOutV` at the state: there
+`StepOutV` is `Refine/Frontend/StateDR.lean`'s `LineOutV` at the state: there
 is no `absStateD` (a `ron::HashMap` has no functional abstraction), so the
 con-leche state a successful line produces is *existential* and related by
 `StateDRel`.  The full outcome is otherwise `LineOutV`'s exactly — a port
@@ -828,51 +828,13 @@ the second is `StateDR.lean`'s `NatValSpec` passed straight through. -/
 
 /-! ## The line layer's outcome, at the state -/
 
-/-- **The full outcome of a port function whose con-leche twin is
-`M (StateD ⊕ RecordVerdict)`** — the line layer proper (`applyLine`,
-`applyDeclD`, `processLineCoreD`, `installIndD`). -/
-def StateOutD (o : core.result.Result Unit frontend.export_c.LineErr)
-    (st' : frontend.export_c.StateD)
-    (x : ConLeche.Frontend.M
-      (ConLeche.Frontend.StateD ⊕ ConLeche.Frontend.RecordVerdict)) : Prop :=
-  match o with
-  | .Ok _ => ∃ lst', x = .ok (.inl lst') ∧ StateDRel st' lst' ∧ StateDWF st'
-  | .Err (.Msg _) => ∃ s, x = .error s
-  | .Err (.Verdict v) =>
-    ∃ lv, x = .ok (.inr lv) ∧ lVerdictKind lv = absVerdictKind v
-
-/-- A table-entry writer's outcome, as the line's: `applyLine`'s three
-`do pure (.inl (← …))` arms. -/
-theorem StepOut.inl {o : core.result.Result Unit frontend.export_c.LineErr}
-    {st' : frontend.export_c.StateD} {x : ConLeche.Frontend.M ConLeche.Frontend.StateD}
-    (h : StepOut o st' x) :
-    StateOutD o st' (do pure (Sum.inl (← x))) := by
-  cases o with
-  | Ok u =>
-    obtain ⟨lst', hx, hrel, hwf⟩ := h
-    exact ⟨lst', by rw [hx]; rfl, hrel, hwf⟩
-  | Err e =>
-    cases e with
-    | Msg m => obtain ⟨s, hx⟩ := h; exact ⟨s, by rw [hx]; rfl⟩
-    | Verdict v => exact h.elim
-
-/-- A reader's failure, carried into the line's outcome (the `LineOutV.of_bind`
-move at `StateOutD`). -/
-theorem StateOutD.of_bind {γ : Type} {e : frontend.export_c.LineErr}
-    {st' : frontend.export_c.StateD} {x : ConLeche.Frontend.M γ}
-    {f : γ → ConLeche.Frontend.M
-      (ConLeche.Frontend.StateD ⊕ ConLeche.Frontend.RecordVerdict)}
-    (h : LineErrSim e x) : StateOutD (.Err e) st' (x >>= f) := by
-  cases e with
-  | Msg m => obtain ⟨s, hx⟩ := h; exact ⟨s, by rw [hx]; rfl⟩
-  | Verdict v => exact h.elim
-
-/-- `StateOutD` transported along an equation on the con-leche side. -/
-theorem StateOutD.of_eq {o : core.result.Result Unit frontend.export_c.LineErr}
-    {st' : frontend.export_c.StateD}
-    {x y : ConLeche.Frontend.M
-      (ConLeche.Frontend.StateD ⊕ ConLeche.Frontend.RecordVerdict)}
-    (h : StateOutD o st' x) (hxy : y = x) : StateOutD o st' y := by rw [hxy]; exact h
+/-! The line step's outcome vocabulary is **agent D's**
+(`Refine/Frontend/StateDR.lean`): `StepOut` for a `M StateD` step,
+`StepOutV` for a `M (StateD ⊕ RecordVerdict)` one, with `StepOutV.of_bind`
+carrying a reader's failure and `StepOutV.of_step` wrapping a table-entry
+writer in `applyLine`'s `.inl`.  This file's own copies were withdrawn when
+the two met; only the `validate_ind_d` shape below, whose summands are the
+other way round, stayed here. -/
 
 /-- **The outcome of `validate_ind_d`**, whose con-leche twin
 (`ConLeche/Frontend/ExportC.lean:412-563`) returns
@@ -983,7 +945,7 @@ structure IndRSpec {G : Type} (inst : frontend.in_model_rec.Modeller G) (g : G) 
     {o : core.result.Result Unit frontend.export_c.LineErr},
     StateDRel st lst → StateDWF st →
     frontend.export_c.install_ind_d inst g st tys cts rcs n_pd = ok (o, st') →
-    StateOutD o st' (ConLeche.Frontend.installIndD lst (absIndTypeRecs tys)
+    StepOutV o st' (ConLeche.Frontend.installIndD lst (absIndTypeRecs tys)
       (absIndCtorRecs cts) (absIndRecRecs rcs) n_pd.val)
 
 
@@ -1036,7 +998,7 @@ private theorem lineOut_ok_pure {α β : Type} {A : α → β} {WF : α → Prop
 /-! ## `processLineCoreD` (`ConLeche/Frontend/ExportC.lean:629-709`)
 
 Six arms, one per declaration record.  Each opens with `parse_cv_d`, whose
-failure is `StateOutD.of_bind`'s; the `.defn` arm's `safety` word and the
+failure is `StepOutV.of_bind`'s; the `.defn` arm's `safety` word and the
 `.quot` arm's `kind` word are the two literal comparisons, and the `.ind` arm
 is `validate_ind_d` followed by `install_ind_d`. -/
 
@@ -1052,7 +1014,7 @@ theorem process_line_core_d_refines {G : Type}
     (hsp : IndRSpec inst g) (hrel : StateDRel st lst) (hwf : StateDWF st)
     (hd : DeclRecStrWF d)
     (h : frontend.export_c.process_line_core_d inst g st d = ok (o, st')) :
-    StateOutD o st' (ConLeche.Frontend.processLineCoreD lst (absDeclRec d)) := by
+    StepOutV o st' (ConLeche.Frontend.processLineCoreD lst (absDeclRec d)) := by
   rw [frontend.export_c.process_line_core_d.eq_def] at h
   rw [ConLeche.Frontend.processLineCoreD.eq_def]
   cases d with
@@ -1065,7 +1027,7 @@ theorem process_line_core_d_refines {G : Type}
     | Err e =>
       simp only [Result.ok.injEq, Prod.mk.injEq] at h
       rw [← h.1]
-      exact StateOutD.of_bind hcv
+      exact StepOutV.of_bind hcv
     | Ok v =>
       rw [lineOut_ok_pure hcv]
       simp only [pure_bind]
@@ -1097,7 +1059,7 @@ theorem process_line_core_d_refines {G : Type}
     | Err e =>
       simp only [Result.ok.injEq, Prod.mk.injEq] at h
       rw [← h.1]
-      exact StateOutD.of_bind hcv
+      exact StepOutV.of_bind hcv
     | Ok v =>
       rw [lineOut_ok_pure hcv]
       simp only [pure_bind]
@@ -1118,7 +1080,7 @@ theorem process_line_core_d_refines {G : Type}
         | Err e =>
           simp only [Result.ok.injEq, Prod.mk.injEq] at h
           rw [← h.1]
-          exact StateOutD.of_bind hgd
+          exact StepOutV.of_bind hgd
         | Ok v1 =>
           rw [lineOut_ok_pure hgd]
           simp only [pure_bind]
@@ -1187,7 +1149,7 @@ theorem process_line_core_d_refines {G : Type}
     | Err e =>
       simp only [Result.ok.injEq, Prod.mk.injEq] at h
       rw [← h.1]
-      exact StateOutD.of_bind hcv
+      exact StepOutV.of_bind hcv
     | Ok v =>
       rw [lineOut_ok_pure hcv]
       simp only [pure_bind]
@@ -1198,7 +1160,7 @@ theorem process_line_core_d_refines {G : Type}
       | Err e =>
         simp only [Result.ok.injEq, Prod.mk.injEq] at h
         rw [← h.1]
-        exact StateOutD.of_bind hgd
+        exact StepOutV.of_bind hgd
       | Ok v1 =>
         rw [lineOut_ok_pure hgd]
         simp only [pure_bind]
@@ -1238,7 +1200,7 @@ theorem process_line_core_d_refines {G : Type}
     | Err e =>
       simp only [Result.ok.injEq, Prod.mk.injEq] at h
       rw [← h.1]
-      exact StateOutD.of_bind hcv
+      exact StepOutV.of_bind hcv
     | Ok v =>
       rw [lineOut_ok_pure hcv]
       simp only [pure_bind]
@@ -1261,7 +1223,7 @@ theorem process_line_core_d_refines {G : Type}
         | Err e =>
           simp only [Result.ok.injEq, Prod.mk.injEq] at h
           rw [← h.1]
-          exact StateOutD.of_bind hgd
+          exact StepOutV.of_bind hgd
         | Ok v1 =>
           rw [lineOut_ok_pure hgd]
           simp only [pure_bind]
@@ -1281,7 +1243,7 @@ theorem process_line_core_d_refines {G : Type}
     | Err e =>
       simp only [Result.ok.injEq, Prod.mk.injEq] at h
       rw [← h.1]
-      exact StateOutD.of_bind hcv
+      exact StepOutV.of_bind hcv
     | Ok v =>
       rw [lineOut_ok_pure hcv]
       simp only [pure_bind]
@@ -1379,7 +1341,7 @@ theorem apply_decl_d_refines {G : Type}
     (hsp : IndRSpec inst g) (hrel : StateDRel st lst) (hwf : StateDWF st)
     (hd : DeclRecStrWF d)
     (h : frontend.export_c.apply_decl_d inst g st d = ok (o, st')) :
-    StateOutD o st' (ConLeche.Frontend.applyDeclD lst (absDeclRec d)) := by
+    StepOutV o st' (ConLeche.Frontend.applyDeclD lst (absDeclRec d)) := by
   rw [frontend.export_c.apply_decl_d] at h
   rw [ConLeche.Frontend.applyDeclD]
   exact process_line_core_d_refines hsp hrel hwf hd h
@@ -1394,13 +1356,13 @@ theorem apply_line_refines {G : Type}
     (hsp : IndRSpec inst g) (hrel : StateDRel st lst) (hwf : StateDWF st)
     (hr : LineRecWF r) (hr2 : LineRecStrWF r) (hnat : LineNatValSpec r)
     (h : frontend.export_c.apply_line inst g st r = ok (o, st')) :
-    StateOutD o st' (ConLeche.Frontend.applyLine lst (absLineRec r)) := by
+    StepOutV o st' (ConLeche.Frontend.applyLine lst (absLineRec r)) := by
   rw [frontend.export_c.apply_line.eq_def] at h
   rw [ConLeche.Frontend.applyLine.eq_def]
   cases r with
-  | Name i n => exact (parse_name_entry_d_refines hrel hwf hr h).inl
-  | Level i l => exact (parse_level_entry_d_refines hrel hwf h).inl
-  | Expr i e => exact (parse_expr_entry_d_refines hrel hwf hr hnat h).inl
+  | Name i n => exact StepOutV.of_step (parse_name_entry_d_refines hrel hwf hr h)
+  | Level i l => exact StepOutV.of_step (parse_level_entry_d_refines hrel hwf h)
+  | Expr i e => exact StepOutV.of_step (parse_expr_entry_d_refines hrel hwf hr hnat h)
   | Decl d => exact apply_decl_d_refines hsp hrel hwf hr2 h
   | Header =>
     simp only [Result.ok.injEq, Prod.mk.injEq] at h
