@@ -17,6 +17,7 @@ function's `/// con-leche:` comment cites, and the fragments are composed.
 
 ## `sorry` count in this file: 0
 -/
+import ConRon.Refine.Frontend.StateDR
 import ConRon.Refine.Frontend.Ind
 import ConRon.Refine.Frontend.Abs
 import ConRon.Refine.ExprOpsSpine
@@ -494,5 +495,573 @@ theorem quot_kind_of_refines {k : alloc.vec.Vec Std.U32} {o : Option env.QuotKin
           have hkI : absString k ≠ "ind" := fun hc => hbf3 (hbI.mpr hc)
           rw [← Result.ok_injective h]
           simp [hkT, hkC, hkL, hkI]
+
+/-! ## The four `mapM`s `validateIndD` opens with
+
+`ExportC.lean:412-563` reads, in order,
+
+```lean
+let tyNames ← tys.mapM fun t => st.name t.cv.name
+let tyTypes ← tys.mapM fun t => getDeclD st t.cv.type
+let listed  ← tys.mapM fun t => t.ctors.mapM st.name
+let ctorNames ← cts.mapM fun c => st.name c.cv.name
+```
+
+and the port spells each as its own `while i < n` accumulator
+(`export_c.rs:1341`, `:1357`, `:1373`, `:1389`).  Each loop lemma is the shape
+`Refine/Frontend/StateDR.lean`'s `st_names_loop_refines` fixed: the port's
+accumulator `out` against the `mapM` of the tail, with `LineOut`'s full
+outcome. -/
+
+/-- A push, on the abstracted `Vec<Name>`. -/
+private theorem indr_absNames_push {out out1 : alloc.vec.Vec name.Name} {v : name.Name}
+    (h : alloc.vec.Vec.push out v = ok out1) :
+    absNames out1 = absNames out ++ [absName v] := by
+  rw [absNames, vec_push_val h]; simp [absNames]
+
+/-- A push, on the abstracted `Vec<Vec<Name>>`. -/
+private theorem indr_absNamess_push {out out1 : alloc.vec.Vec (alloc.vec.Vec name.Name)}
+    {v : alloc.vec.Vec name.Name} (h : alloc.vec.Vec.push out v = ok out1) :
+    absNamess out1 = absNamess out ++ [absNames v] := by
+  rw [absNamess, vec_push_val h]; simp [absNamess]
+
+/-- A push extends an "every entry satisfies `P`" invariant. -/
+private theorem indr_push_wf {α : Type} {P : α → Prop} {v w : alloc.vec.Vec α} {x : α}
+    (hv : ∀ y ∈ v.val, P y) (hx : P x)
+    (h : alloc.vec.Vec.push v x = ok w) : ∀ y ∈ w.val, P y := by
+  rw [vec_push_val h]
+  intro y hy
+  rcases List.mem_append.mp hy with hy | hy
+  · exact hv y hy
+  · rw [List.mem_singleton.mp hy]; exact hx
+
+/-- Every entry of a `Vec<Vec<Name>>` is a well-formed name list. -/
+def NamessWF (v : alloc.vec.Vec (alloc.vec.Vec name.Name)) : Prop :=
+  ∀ ns ∈ v.val, NamesWF ns
+
+/-- The accumulator of `export_c::ty_names_of`' index loop. -/
+private theorem ty_names_of_loop_refines (N : Nat) :
+    ∀ (st : frontend.export_c.StateD) (lst : ConLeche.Frontend.StateD)
+      (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec)
+      (out : alloc.vec.Vec name.Name) (n i : Std.Usize)
+      (o : core.result.Result (alloc.vec.Vec name.Name) frontend.export_c.LineErr),
+      StateDRel st lst → StateDWF st → NamesWF out →
+      n.val = tys.val.length → n.val - i.val = N →
+      frontend.export_c.ty_names_of_loop st tys out n i = ok o →
+      LineOut absNames NamesWF o
+        (do let r ← ((absIndTypeRecs tys).drop i.val).mapM (fun t : ConLeche.Frontend.IndTypeRec => lst.name t.cv.name)
+            pure (absNames out ++ r)) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro st lst tys out n i o hrel hwf hout hn hN h
+    rw [frontend.export_c.ty_names_of_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨itr, hidx, r, hr, h⟩ := h
+      have hdrop : (absIndTypeRecs tys).drop i.val
+          = absIndTypeRec itr :: (absIndTypeRecs tys).drop (i.val + 1) :=
+        (indr_drop_map_index absIndTypeRec hidx).2
+      have hst := st_name_refines hrel hwf hr
+      cases r with
+      | Ok v =>
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨out1, hpush, i2, hi2, h⟩ := h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        have hih := ih (n.val - i2.val) (by scalar_tac) st lst tys out1 n i2 o hrel hwf
+          (indr_push_wf hout hst.2 hpush) hn rfl h
+        have heq : (do let r ← ((absIndTypeRecs tys).drop i.val).mapM
+                           (fun t : ConLeche.Frontend.IndTypeRec => lst.name t.cv.name)
+                       pure (absNames out ++ r))
+            = (do let r ← ((absIndTypeRecs tys).drop i2.val).mapM
+                      (fun t : ConLeche.Frontend.IndTypeRec => lst.name t.cv.name)
+                  pure (absNames out1 ++ r)) := by
+          rw [hdrop, hi2v, List.mapM_cons, indr_absNames_push hpush]
+          simp only [absIndTypeRec, absCVRec, absU64] at hst ⊢
+          rw [hst.1]
+          first | (simp; done) | (simp; rfl)
+        rw [heq]; exact hih
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        refine LineErrSim.trans hst ?_
+        intro s hs
+        rw [hdrop, List.mapM_cons]
+        simp only [absIndTypeRec, absCVRec, absU64] at hs ⊢
+        rw [hs]
+        exact ⟨s, rfl⟩
+    · rename_i hge
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      have hnil : (absIndTypeRecs tys).drop i.val = [] := by
+        refine List.drop_eq_nil_of_le ?_
+        simp only [absIndTypeRecs, List.length_map]
+        have : n.val ≤ i.val := by scalar_tac
+        omega
+      exact ⟨by rw [hnil]; first | (simp; done) | (simp; rfl), hout⟩
+
+/-- `export_c::ty_names_of` refines the `tys.mapM fun t => st.name t.cv.name` of
+`validateIndD` (`ConLeche/Frontend/ExportC.lean:412-563`). -/
+theorem ty_names_of_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {tys : alloc.vec.Vec frontend.scan_types.IndTypeRec}
+    {o : core.result.Result (alloc.vec.Vec name.Name) frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.ty_names_of st tys = ok o) :
+    LineOut absNames NamesWF o
+      ((absIndTypeRecs tys).mapM (fun t : ConLeche.Frontend.IndTypeRec => lst.name t.cv.name)) := by
+  rw [frontend.export_c.ty_names_of] at h
+  have hh := ty_names_of_loop_refines _ st lst tys _ _ 0#usize o hrel hwf
+    (by simp [NamesWF, alloc.vec.Vec.with_capacity]) (alloc.vec.Vec.len_val _) rfl h
+  simpa [absNames, alloc.vec.Vec.with_capacity,
+    show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using hh
+
+/-- The accumulator of `export_c::ty_types_of`' index loop. -/
+private theorem ty_types_of_loop_refines (N : Nat) :
+    ∀ (st : frontend.export_c.StateD) (lst : ConLeche.Frontend.StateD)
+      (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec)
+      (out : alloc.vec.Vec expr.Expr) (n i : Std.Usize)
+      (o : core.result.Result (alloc.vec.Vec expr.Expr) frontend.export_c.LineErr),
+      StateDRel st lst → StateDWF st → ExprsWF out →
+      n.val = tys.val.length → n.val - i.val = N →
+      frontend.export_c.ty_types_of_loop st tys out n i = ok o →
+      LineOut absExprs ExprsWF o
+        (do let r ← ((absIndTypeRecs tys).drop i.val).mapM
+                      (fun t : ConLeche.Frontend.IndTypeRec => ConLeche.Frontend.getDeclD lst t.cv.type)
+            pure (absExprs out ++ r)) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro st lst tys out n i o hrel hwf hout hn hN h
+    rw [frontend.export_c.ty_types_of_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨itr, hidx, r, hr, h⟩ := h
+      have hdrop : (absIndTypeRecs tys).drop i.val
+          = absIndTypeRec itr :: (absIndTypeRecs tys).drop (i.val + 1) :=
+        (indr_drop_map_index absIndTypeRec hidx).2
+      have hst := get_decl_d_refines hrel hwf hr
+      cases r with
+      | Ok v =>
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨out1, hpush, i2, hi2, h⟩ := h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        have hih := ih (n.val - i2.val) (by scalar_tac) st lst tys out1 n i2 o hrel hwf
+          (indr_push_wf hout hst.2 hpush) hn rfl h
+        have heq : (do let r ← ((absIndTypeRecs tys).drop i.val).mapM
+                           (fun t : ConLeche.Frontend.IndTypeRec => ConLeche.Frontend.getDeclD lst t.cv.type)
+                       pure (absExprs out ++ r))
+            = (do let r ← ((absIndTypeRecs tys).drop i2.val).mapM
+                      (fun t : ConLeche.Frontend.IndTypeRec => ConLeche.Frontend.getDeclD lst t.cv.type)
+                  pure (absExprs out1 ++ r)) := by
+          rw [hdrop, hi2v, List.mapM_cons, ExprOps.absExprs_push hpush]
+          simp only [absIndTypeRec, absCVRec, absU64] at hst ⊢
+          rw [hst.1]
+          first | (simp; done) | (simp; rfl)
+        rw [heq]; exact hih
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        refine LineErrSim.trans hst ?_
+        intro s hs
+        rw [hdrop, List.mapM_cons]
+        simp only [absIndTypeRec, absCVRec, absU64] at hs ⊢
+        rw [hs]
+        exact ⟨s, rfl⟩
+    · rename_i hge
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      have hnil : (absIndTypeRecs tys).drop i.val = [] := by
+        refine List.drop_eq_nil_of_le ?_
+        simp only [absIndTypeRecs, List.length_map]
+        have : n.val ≤ i.val := by scalar_tac
+        omega
+      exact ⟨by rw [hnil]; first | (simp; done) | (simp; rfl), hout⟩
+
+/-- `export_c::ty_types_of` refines the `tys.mapM fun t => getDeclD st t.cv.type`
+of `validateIndD` (`ConLeche/Frontend/ExportC.lean:412-563`). -/
+theorem ty_types_of_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {tys : alloc.vec.Vec frontend.scan_types.IndTypeRec}
+    {o : core.result.Result (alloc.vec.Vec expr.Expr) frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.ty_types_of st tys = ok o) :
+    LineOut absExprs ExprsWF o
+      ((absIndTypeRecs tys).mapM (fun t : ConLeche.Frontend.IndTypeRec => ConLeche.Frontend.getDeclD lst t.cv.type)) := by
+  rw [frontend.export_c.ty_types_of] at h
+  have hh := ty_types_of_loop_refines _ st lst tys _ _ 0#usize o hrel hwf
+    (by simp [ExprsWF, alloc.vec.Vec.with_capacity]) (alloc.vec.Vec.len_val _) rfl h
+  simpa [absExprs, alloc.vec.Vec.with_capacity,
+    show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using hh
+
+/-- The accumulator of `export_c::listed_ctors_of`' index loop. -/
+private theorem listed_ctors_of_loop_refines (N : Nat) :
+    ∀ (st : frontend.export_c.StateD) (lst : ConLeche.Frontend.StateD)
+      (tys : alloc.vec.Vec frontend.scan_types.IndTypeRec)
+      (out : alloc.vec.Vec (alloc.vec.Vec name.Name)) (n i : Std.Usize)
+      (o : core.result.Result (alloc.vec.Vec (alloc.vec.Vec name.Name))
+        frontend.export_c.LineErr),
+      StateDRel st lst → StateDWF st → NamessWF out →
+      n.val = tys.val.length → n.val - i.val = N →
+      frontend.export_c.listed_ctors_of_loop st tys out n i = ok o →
+      LineOut absNamess NamessWF o
+        (do let r ← ((absIndTypeRecs tys).drop i.val).mapM (fun t : ConLeche.Frontend.IndTypeRec => t.ctors.mapM lst.name)
+            pure (absNamess out ++ r)) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro st lst tys out n i o hrel hwf hout hn hN h
+    rw [frontend.export_c.listed_ctors_of_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨itr, hidx, r, hr, h⟩ := h
+      have hdrop : (absIndTypeRecs tys).drop i.val
+          = absIndTypeRec itr :: (absIndTypeRecs tys).drop (i.val + 1) :=
+        (indr_drop_map_index absIndTypeRec hidx).2
+      have hst := st_names_refines hrel hwf hr
+      cases r with
+      | Ok v =>
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨out1, hpush, i2, hi2, h⟩ := h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        have hih := ih (n.val - i2.val) (by scalar_tac) st lst tys out1 n i2 o hrel hwf
+          (indr_push_wf hout hst.2 hpush) hn rfl h
+        have heq : (do let r ← ((absIndTypeRecs tys).drop i.val).mapM
+                           (fun t : ConLeche.Frontend.IndTypeRec => t.ctors.mapM lst.name)
+                       pure (absNamess out ++ r))
+            = (do let r ← ((absIndTypeRecs tys).drop i2.val).mapM
+                      (fun t : ConLeche.Frontend.IndTypeRec => t.ctors.mapM lst.name)
+                  pure (absNamess out1 ++ r)) := by
+          rw [hdrop, hi2v, List.mapM_cons, indr_absNamess_push hpush]
+          simp only [absIndTypeRec] at hst ⊢
+          rw [hst.1]
+          first | (simp; done) | (simp; rfl)
+        rw [heq]; exact hih
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        refine LineErrSim.trans hst ?_
+        intro s hs
+        rw [hdrop, List.mapM_cons]
+        simp only [absIndTypeRec] at hs ⊢
+        rw [hs]
+        exact ⟨s, rfl⟩
+    · rename_i hge
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      have hnil : (absIndTypeRecs tys).drop i.val = [] := by
+        refine List.drop_eq_nil_of_le ?_
+        simp only [absIndTypeRecs, List.length_map]
+        have : n.val ≤ i.val := by scalar_tac
+        omega
+      exact ⟨by rw [hnil]; first | (simp; done) | (simp; rfl), hout⟩
+
+/-- `export_c::listed_ctors_of` refines the `tys.mapM fun t => t.ctors.mapM st.name`
+of `validateIndD` (`ConLeche/Frontend/ExportC.lean:412-563`). -/
+theorem listed_ctors_of_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {tys : alloc.vec.Vec frontend.scan_types.IndTypeRec}
+    {o : core.result.Result (alloc.vec.Vec (alloc.vec.Vec name.Name))
+      frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.listed_ctors_of st tys = ok o) :
+    LineOut absNamess NamessWF o
+      ((absIndTypeRecs tys).mapM (fun t : ConLeche.Frontend.IndTypeRec => t.ctors.mapM lst.name)) := by
+  rw [frontend.export_c.listed_ctors_of] at h
+  have hh := listed_ctors_of_loop_refines _ st lst tys _ _ 0#usize o hrel hwf
+    (by simp [NamessWF, alloc.vec.Vec.with_capacity]) (alloc.vec.Vec.len_val _) rfl h
+  simpa [absNamess, alloc.vec.Vec.with_capacity,
+    show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using hh
+
+/-- The accumulator of `export_c::ctor_names_of`' index loop. -/
+private theorem ctor_names_of_loop_refines (N : Nat) :
+    ∀ (st : frontend.export_c.StateD) (lst : ConLeche.Frontend.StateD)
+      (cts : alloc.vec.Vec frontend.scan_types.IndCtorRec)
+      (out : alloc.vec.Vec name.Name) (n i : Std.Usize)
+      (o : core.result.Result (alloc.vec.Vec name.Name) frontend.export_c.LineErr),
+      StateDRel st lst → StateDWF st → NamesWF out →
+      n.val = cts.val.length → n.val - i.val = N →
+      frontend.export_c.ctor_names_of_loop st cts out n i = ok o →
+      LineOut absNames NamesWF o
+        (do let r ← ((absIndCtorRecs cts).drop i.val).mapM (fun c : ConLeche.Frontend.IndCtorRec => lst.name c.cv.name)
+            pure (absNames out ++ r)) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro st lst cts out n i o hrel hwf hout hn hN h
+    rw [frontend.export_c.ctor_names_of_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨icr, hidx, r, hr, h⟩ := h
+      have hdrop : (absIndCtorRecs cts).drop i.val
+          = absIndCtorRec icr :: (absIndCtorRecs cts).drop (i.val + 1) :=
+        (indr_drop_map_index absIndCtorRec hidx).2
+      have hst := st_name_refines hrel hwf hr
+      cases r with
+      | Ok v =>
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨out1, hpush, i2, hi2, h⟩ := h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        have hih := ih (n.val - i2.val) (by scalar_tac) st lst cts out1 n i2 o hrel hwf
+          (indr_push_wf hout hst.2 hpush) hn rfl h
+        have heq : (do let r ← ((absIndCtorRecs cts).drop i.val).mapM
+                           (fun c : ConLeche.Frontend.IndCtorRec => lst.name c.cv.name)
+                       pure (absNames out ++ r))
+            = (do let r ← ((absIndCtorRecs cts).drop i2.val).mapM
+                      (fun c : ConLeche.Frontend.IndCtorRec => lst.name c.cv.name)
+                  pure (absNames out1 ++ r)) := by
+          rw [hdrop, hi2v, List.mapM_cons, indr_absNames_push hpush]
+          simp only [absIndCtorRec, absCVRec, absU64] at hst ⊢
+          rw [hst.1]
+          first | (simp; done) | (simp; rfl)
+        rw [heq]; exact hih
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        refine LineErrSim.trans hst ?_
+        intro s hs
+        rw [hdrop, List.mapM_cons]
+        simp only [absIndCtorRec, absCVRec, absU64] at hs ⊢
+        rw [hs]
+        exact ⟨s, rfl⟩
+    · rename_i hge
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      have hnil : (absIndCtorRecs cts).drop i.val = [] := by
+        refine List.drop_eq_nil_of_le ?_
+        simp only [absIndCtorRecs, List.length_map]
+        have : n.val ≤ i.val := by scalar_tac
+        omega
+      exact ⟨by rw [hnil]; first | (simp; done) | (simp; rfl), hout⟩
+
+/-- `export_c::ctor_names_of` refines the `cts.mapM fun c => st.name c.cv.name` of
+`validateIndD` (`ConLeche/Frontend/ExportC.lean:412-563`). -/
+theorem ctor_names_of_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {cts : alloc.vec.Vec frontend.scan_types.IndCtorRec}
+    {o : core.result.Result (alloc.vec.Vec name.Name) frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.ctor_names_of st cts = ok o) :
+    LineOut absNames NamesWF o
+      ((absIndCtorRecs cts).mapM (fun c : ConLeche.Frontend.IndCtorRec => lst.name c.cv.name)) := by
+  rw [frontend.export_c.ctor_names_of] at h
+  have hh := ctor_names_of_loop_refines _ st lst cts _ _ 0#usize o hrel hwf
+    (by simp [NamesWF, alloc.vec.Vec.with_capacity]) (alloc.vec.Vec.len_val _) rfl h
+  simpa [absNames, alloc.vec.Vec.with_capacity,
+    show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using hh
+
+/-! ## What this file gives the chunk layer
+
+`apply_line_refines` is the one lemma the chunk layer
+(`Refine/Frontend/ChunksR.lean`) consumes:
+
+```lean
+theorem apply_line_refines {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+    {st st' : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {r : frontend.scan_types.LineRec}
+    {o : core.result.Result Unit frontend.export_c.LineErr}
+    (hsp : IndRSpec inst g) (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (hr : LineRecWF r)
+    (h : frontend.export_c.apply_line inst g st r = ok (o, st')) :
+    StateOutD o st' (ConLeche.Frontend.applyLine lst (absLineRec r))
+```
+
+`StateOutD` is `Refine/Frontend/StateDR.lean`'s `LineOutV` at the state: there
+is no `absStateD` (a `ron::HashMap` has no functional abstraction), so the
+con-leche state a successful line produces is *existential* and related by
+`StateDRel`.  The full outcome is otherwise `LineOutV`'s exactly — a port
+`LineErr::Msg` is a con-leche `.error`, a port `LineErr::Verdict v` is a
+con-leche **success** at `.inr` and the same verdict kind.
+
+`IndRSpec` is the **named ingredient bundle** this file stands on: the pieces
+that belong to the layer below (`parse_cv_d`, `push_decl` and the three
+table-entry writers, all `Refine/Frontend/StateDR.lean`'s) and the two pieces
+of this file whose own proofs are not finished (`proj_rewrite_d`,
+`validate_ind_d`, `install_ind_d`).  Every one of its fields is stated here in
+full, against the `ConLeche/Frontend/ExportC.lean` fragment it refines, so the
+consumer can read the seam without reading a proof. -/
+
+/-! ## The line layer's outcome, at the state -/
+
+/-- **The full outcome of a port function whose con-leche twin is `M StateD`**
+— the three table-entry writers.  `StateDRel` and `StateDWF` come back out at
+the new state; the con-leche state is existential because there is no
+`absStateD` (`Refine/Frontend/StateDR.lean`'s note). -/
+def StateOut (o : core.result.Result Unit frontend.export_c.LineErr)
+    (st' : frontend.export_c.StateD)
+    (x : ConLeche.Frontend.M ConLeche.Frontend.StateD) : Prop :=
+  match o with
+  | .Ok _ => ∃ lst', x = .ok lst' ∧ StateDRel st' lst' ∧ StateDWF st'
+  | .Err e => LineErrSim e x
+
+/-- **The full outcome of a port function whose con-leche twin is
+`M (StateD ⊕ RecordVerdict)`** — the line layer proper (`applyLine`,
+`applyDeclD`, `processLineCoreD`, `installIndD`). -/
+def StateOutD (o : core.result.Result Unit frontend.export_c.LineErr)
+    (st' : frontend.export_c.StateD)
+    (x : ConLeche.Frontend.M
+      (ConLeche.Frontend.StateD ⊕ ConLeche.Frontend.RecordVerdict)) : Prop :=
+  match o with
+  | .Ok _ => ∃ lst', x = .ok (.inl lst') ∧ StateDRel st' lst' ∧ StateDWF st'
+  | .Err (.Msg _) => ∃ s, x = .error s
+  | .Err (.Verdict v) =>
+    ∃ lv, x = .ok (.inr lv) ∧ lVerdictKind lv = absVerdictKind v
+
+/-- A table-entry writer's outcome, as the line's: `applyLine`'s three
+`do pure (.inl (← …))` arms. -/
+theorem StateOut.inl {o : core.result.Result Unit frontend.export_c.LineErr}
+    {st' : frontend.export_c.StateD} {x : ConLeche.Frontend.M ConLeche.Frontend.StateD}
+    (h : StateOut o st' x) :
+    StateOutD o st' (do pure (Sum.inl (← x))) := by
+  cases o with
+  | Ok u =>
+    obtain ⟨lst', hx, hrel, hwf⟩ := h
+    exact ⟨lst', by rw [hx]; rfl, hrel, hwf⟩
+  | Err e =>
+    cases e with
+    | Msg m => obtain ⟨s, hx⟩ := h; exact ⟨s, by rw [hx]; rfl⟩
+    | Verdict v => exact h.elim
+
+/-- A reader's failure, carried into the line's outcome (the `LineOutV.of_bind`
+move at `StateOutD`). -/
+theorem StateOutD.of_bind {γ : Type} {e : frontend.export_c.LineErr}
+    {st' : frontend.export_c.StateD} {x : ConLeche.Frontend.M γ}
+    {f : γ → ConLeche.Frontend.M
+      (ConLeche.Frontend.StateD ⊕ ConLeche.Frontend.RecordVerdict)}
+    (h : LineErrSim e x) : StateOutD (.Err e) st' (x >>= f) := by
+  cases e with
+  | Msg m => obtain ⟨s, hx⟩ := h; exact ⟨s, by rw [hx]; rfl⟩
+  | Verdict v => exact h.elim
+
+/-- `StateOutD` transported along an equation on the con-leche side. -/
+theorem StateOutD.of_eq {o : core.result.Result Unit frontend.export_c.LineErr}
+    {st' : frontend.export_c.StateD}
+    {x y : ConLeche.Frontend.M
+      (ConLeche.Frontend.StateD ⊕ ConLeche.Frontend.RecordVerdict)}
+    (h : StateOutD o st' x) (hxy : y = x) : StateOutD o st' y := by rw [hxy]; exact h
+
+/-- **The outcome of `validate_ind_d`**, whose con-leche twin
+(`ConLeche/Frontend/ExportC.lean:412-563`) returns
+`M (RecordVerdict ⊕ (List IndCtorRec × Nat))` — the verdict on the **left**,
+where `LineOutV` puts it on the right, so this relation is its own. -/
+def ValidateOut (o : core.result.Result
+      ((alloc.vec.Vec frontend.scan_types.IndCtorRec) × Std.U64)
+      frontend.export_c.LineErr)
+    (x : ConLeche.Frontend.M (ConLeche.Frontend.RecordVerdict ⊕
+      (List ConLeche.Frontend.IndCtorRec × Nat))) : Prop :=
+  match o with
+  | .Ok p => x = .ok (.inr (absIndCtorRecs p.1, p.2.val))
+  | .Err (.Msg _) => ∃ s, x = .error s
+  | .Err (.Verdict v) =>
+    ∃ lv, x = .ok (.inl lv) ∧ lVerdictKind lv = absVerdictKind v
+
+/-! ## The modeller: the one thing this tier assumes
+
+`Refine/Frontend/Base.lean`'s `ModellerWF` is phase 1's residue; this is its
+exactness twin.  **Agent C's `Refine/Frontend/ChunksR.lean` carries the
+canonical copy under the name `ModellerRefines`** — this one is named apart so
+that the two files can be imported together, and is character for character
+the same statement.  The coordinator unifies them. -/
+
+/-- The exactness twin of `Frontend.ModellerWF`: at related contexts and the
+same block, `in_model_rec::Modeller::generate` returns what
+`ConLeche.Frontend.InModel.generate` returns, and declines where it declines.
+Message text is not compared (DESIGN.md §3.1).  `CtxRel` is the context bridge
+(`export_c::state_model_ctx` against con-leche's inline `InModel.Ctx`,
+`ExportC.lean:603-607`), a parameter here because it belongs with
+`StateDRel`. -/
+def IndModellerRefines {G : Type} (inst : frontend.in_model_rec.Modeller G) (g : G)
+    (CtxRel : frontend.in_model_rec.ModelCtx →
+      ConLeche.Frontend.InModel.Ctx → Prop) : Prop :=
+  ∀ ctx lctx b o, CtxRel ctx lctx → inst.generate g ctx b = ok o →
+    (∀ ds, o = .Ok ds →
+      ConLeche.Frontend.InModel.generate lctx (absBlockRec b)
+        = .ok (ds.val.map absDeclaration)) ∧
+    (∀ m, o = .Err m →
+      ∃ s, ConLeche.Frontend.InModel.generate lctx (absBlockRec b) = .error s)
+
+/-! ## The named ingredients -/
+
+/-- **The ingredient bundle `apply_line_refines` stands on** (the
+`Refine/IndSpec.lean` pattern).  Five clauses belong to the layer below —
+`Refine/Frontend/StateDR.lean`'s `parse_cv_d`, `push_decl` and the three
+table-entry writers — and three are this file's own leaves whose proofs are
+not finished: the projection rewrite, the validation and the install.  The
+install clause is what `install_ind_d` proves *given* `IndModellerRefines` at
+the context bridge; the bundle is stated at a fixed modeller so that nothing
+above has to thread `CtxRel`. -/
+structure IndRSpec {G : Type} (inst : frontend.in_model_rec.Modeller G) (g : G) :
+    Prop where
+  /-- `export_c::parse_name_entry_d` refines `parseNameEntryD`
+  (`ConLeche/Frontend/ExportC.lean:229-237`). -/
+  parseNameEntry : ∀ {st st' : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {i : Std.U64} {r : frontend.scan_types.NameRec}
+    {o : core.result.Result Unit frontend.export_c.LineErr},
+    StateDRel st lst → StateDWF st → NameRecWF r →
+    frontend.export_c.parse_name_entry_d st i r = ok (o, st') →
+    StateOut o st' (ConLeche.Frontend.parseNameEntryD lst i.val (absNameRec r))
+  /-- `export_c::parse_level_entry_d` refines `parseLevelEntryD`
+  (`ConLeche/Frontend/ExportC.lean:240-247`). -/
+  parseLevelEntry : ∀ {st st' : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {i : Std.U64} {r : frontend.scan_types.LevelRec}
+    {o : core.result.Result Unit frontend.export_c.LineErr},
+    StateDRel st lst → StateDWF st →
+    frontend.export_c.parse_level_entry_d st i r = ok (o, st') →
+    StateOut o st' (ConLeche.Frontend.parseLevelEntryD lst i.val (absLevelRec r))
+  /-- `export_c::parse_expr_entry_d` refines `parseExprEntryD`
+  (`ConLeche/Frontend/ExportC.lean:259-279`). -/
+  parseExprEntry : ∀ {st st' : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD} {i : Std.U64} {r : frontend.scan_types.ExprRec}
+    {o : core.result.Result Unit frontend.export_c.LineErr},
+    StateDRel st lst → StateDWF st → ExprRecWF r →
+    frontend.export_c.parse_expr_entry_d st i r = ok (o, st') →
+    StateOut o st' (ConLeche.Frontend.parseExprEntryD lst i.val (absExprRec r))
+  /-- `export_c::parse_cv_d` refines `parseCVD`
+  (`ConLeche/Frontend/ExportC.lean:284-289`). -/
+  parseCV : ∀ {st : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {cv : frontend.scan_types.CVRec}
+    {o : core.result.Result env.ConstantVal frontend.export_c.LineErr},
+    StateDRel st lst → StateDWF st →
+    frontend.export_c.parse_cv_d st cv = ok o →
+    LineOut absConstantVal ConstantValWF o (ConLeche.Frontend.parseCVD lst (absCVRec cv))
+  /-- `export_c::push_decl` refines `pushDecl`
+  (`ConLeche/Frontend/ExportC.lean:161-162`).  Total on both sides. -/
+  pushDecl : ∀ {st st' : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {d : env.Declaration},
+    StateDRel st lst → StateDWF st → DeclarationWF d →
+    frontend.export_c.push_decl st d = ok st' →
+    StateDRel st' (ConLeche.Frontend.pushDecl lst (absDeclaration d)) ∧ StateDWF st'
+  /-- `export_c::proj_rewrite_d` refines `projRewriteD`
+  (`ConLeche/Frontend/ExportC.lean:296-302`). -/
+  projRewrite : ∀ {st : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {cv : env.ConstantVal} {vl : expr.Expr} {o : Option expr.Expr},
+    StateDRel st lst → StateDWF st → ConstantValWF cv → ExprWF vl →
+    frontend.export_c.proj_rewrite_d st cv vl = ok o →
+    o.map absExpr
+        = ConLeche.Frontend.projRewriteD lst (absConstantVal cv) (absExpr vl) ∧
+      ∀ e, o = some e → ExprWF e
+  /-- `export_c::validate_ind_d` refines `validateIndD`
+  (`ConLeche/Frontend/ExportC.lean:412-563`).  The state is borrowed on both
+  sides, so nothing comes back but the verdict or the reordered
+  constructors. -/
+  validateInd : ∀ {st : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {tys : alloc.vec.Vec frontend.scan_types.IndTypeRec}
+    {cts : alloc.vec.Vec frontend.scan_types.IndCtorRec}
+    {rcs : alloc.vec.Vec frontend.scan_types.IndRecRec}
+    {o : core.result.Result ((alloc.vec.Vec frontend.scan_types.IndCtorRec) × Std.U64)
+      frontend.export_c.LineErr},
+    StateDRel st lst → StateDWF st →
+    frontend.export_c.validate_ind_d st tys cts rcs = ok o →
+    ValidateOut o (ConLeche.Frontend.validateIndD lst (absIndTypeRecs tys)
+      (absIndCtorRecs cts) (absIndRecRecs rcs))
+  /-- `export_c::install_ind_d` refines `installIndD`
+  (`ConLeche/Frontend/ExportC.lean:564-628`).  **This is the clause that
+  carries the modeller**: what discharges it is `IndModellerRefines inst g` at
+  the context bridge `state_model_ctx` builds. -/
+  installInd : ∀ {st st' : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {tys : alloc.vec.Vec frontend.scan_types.IndTypeRec}
+    {cts : alloc.vec.Vec frontend.scan_types.IndCtorRec}
+    {rcs : alloc.vec.Vec frontend.scan_types.IndRecRec} {n_pd : Std.U64}
+    {o : core.result.Result Unit frontend.export_c.LineErr},
+    StateDRel st lst → StateDWF st →
+    frontend.export_c.install_ind_d inst g st tys cts rcs n_pd = ok (o, st') →
+    StateOutD o st' (ConLeche.Frontend.installIndD lst (absIndTypeRecs tys)
+      (absIndCtorRecs cts) (absIndRecRecs rcs) n_pd.val)
 
 end ConRon.Refine.Frontend
