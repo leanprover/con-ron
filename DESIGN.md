@@ -18069,7 +18069,8 @@ attempted, because the measurement came first — and stopped it.
 | **the 40-byte node** | **812 860 kB (+3.0 %)** | 542.65 G (+0.16 %) | 324.67 G (−0.3 %) | 81.3 s |
 
 Both still accept (`core` 163 396, `init` 57 977) and `scripts/diff-e2e.sh`
-reads 348/348 on both.  The patch is `_tmp/t92/full-experiment.patch`.
+reads 348/348 on both.  The patch is `_tmp/t92/stack.patch`, which also carries
+the triomphe half of §5.
 
 #### 3. Why: the allocator charges in 16-byte steps
 
@@ -18159,10 +18160,25 @@ allocator entry it is +9.1 % (1 117.61 → 1 219.78 G), because triomphe's 48-by
 blocks are exactly the size `mi_malloc_aligned` was punishing hardest.
 
 This is a **maintainer decision** and is not taken here: DESIGN.md §3.2 reserves
-the pointer alias, and the switch also costs the proof tier this task's binder
-repair (task #90's shape, 35-odd statements) plus the `alloc.sync.Arc` →
-`triomphe.arc.Arc` rename in the two hand-written model files and the `arc_*`
-lemma names.  `_tmp/t92/full-experiment.patch` is the whole stack as measured.
+the pointer alias.  What it would cost the proof tier, counted rather than
+guessed:
+
+* **The binder repair**, this task's `Option<P<PropWhen>>` seen through
+  `absBinderMeta`/`BinderMetaWF`, plus `binder_pw`'s two arms,
+  `binder_meta_share`'s two (equal by `beq_iff`, which `Refine/PropWhen.lean`
+  already has) and `binder_meta`'s new `is_never` branch in every
+  `binder_meta`-unfold site.  Task #90's own version of this was 35 statements
+  in 16 files, +110/−97 lines; this one is a little wider because the
+  *constructor* branches where task #90's did not.
+* **The triomphe rename** is **small**: `alloc.sync.Arc` appears **30 times**
+  across `Refine/` plus the two hand-written external files, and the `arc_*`
+  *lemma names* (1 250 uses of `arc_deref_eq` alone) do not have to move at
+  all — a lemma's name is the port's choice, not Charon's.  Task #44 measured
+  triomphe's model as the tidiest of the three (no allocator type parameter,
+  no `triomphe` body reaching `Funs.lean`).
+
+`_tmp/t92/stack.patch` is the whole stack as measured, against this task's
+landed tree.
 
 #### 6. Mathlib, and the gates
 
@@ -18174,7 +18190,7 @@ task's landed change free.  `scripts/diff-e2e.sh`: **348 agree, 0 differ** at
 `--jobs=1` and at `--jobs=4`.
 
 `_tmp/t92/` holds the binaries, the raw logs, `binprobe/` (the size-class probe)
-and `full-experiment.patch`; deleted once these numbers are the committed
+and `stack.patch`; deleted once these numbers are the committed
 record, per CLAUDE.md.
 
 ### Task #90 — `PropWhen` one word for its common cases (2026-09-14, Sonnet under Fable; proofs by Opus, below)
