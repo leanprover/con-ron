@@ -3308,4 +3308,126 @@ theorem proj_rec_owners_go_refines {types : Slice frontend.proj_rec.ProjTypeRec}
   simp [absProjRecOwners, alloc.vec.Vec.new,
     show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
 
+/-! ### `proj_rec_owners`, the census's verdict -/
+
+/-- The port's `n_pd`: the block's DECLARED parameter count, the first type
+record's, `0` on an empty census. -/
+private theorem n_pd_refines {types : Slice frontend.proj_rec.ProjTypeRec}
+    {n_pd : Std.U64}
+    (h : (if Slice.len types = 0#usize then ok 0#u64
+          else do
+            let ptr ← Slice.index_usize types 0#usize
+            ok ptr.n_p) = ok n_pd) :
+    n_pd.val = (((absProjTypeRecs types).head?.map (fun q => q.2.2.2.1)).getD 0) := by
+  have hlen := Slice.len_val types
+  split at h
+  · rename_i hz
+    have hzv : types.val = [] := by
+      apply List.eq_nil_of_length_eq_zero
+      have hq : (Slice.len types).val = ((0#usize : Std.Usize)).val := by rw [hz]
+      rw [hlen] at hq
+      simpa using hq
+    rw [← Result.ok_injective h]
+    simp [absProjTypeRecs, hzv]
+  · rename_i hz
+    obtain ⟨ptr, hptr, h⟩ := bind_eq_ok_iff.mp h
+    have hzv : 0 < types.val.length := by
+      by_contra hq
+      exact hz (Std.UScalar.val_eq_imp_iff.mpr (by rw [hlen]; scalar_tac))
+    have hg := slice_index_getElem? hptr
+    rw [show ((0#usize : Std.Usize)).val = 0 by scalar_tac] at hg
+    rcases hl : types.val with _ | ⟨x, xs⟩
+    · rw [hl] at hzv; simp at hzv
+    · have hx : x = ptr := by rw [hl] at hg; simpa using hg
+      rw [← Result.ok_injective h]
+      simp [absProjTypeRecs, hl, ← hx, absProjTypeRec]
+
+/-- `proj_rec::proj_rec_owners` refines `projRecOwners`
+(`ConLeche/Frontend/ProjRec.lean:332-370`): which block members the projection
+rewrite serves. -/
+theorem proj_rec_owners_refines {block : alloc.vec.Vec env.ConstantInfo}
+    {types : Slice frontend.proj_rec.ProjTypeRec}
+    {ctors : Slice frontend.proj_rec.ProjCtorRec}
+    {recs : Slice frontend.proj_rec.ProjRecRec}
+    {os : alloc.vec.Vec frontend.proj_rec.ProjRecOwner}
+    (hblock : ConstantInfosWF block) (ht : ∀ x ∈ types.val, ProjTypeRecWF x)
+    (hc : ∀ c ∈ ctors.val, ProjCtorRecWF c) (hr : ∀ x ∈ recs.val, ProjRecRecWF x)
+    (h : frontend.proj_rec.proj_rec_owners block types ctors recs = ok os) :
+    absProjRecOwners os = ConLeche.Frontend.projRecOwners (absConstantInfos block)
+      (absProjTypeRecs types) (absProjCtorRecs ctors) (absProjRecRecs recs) := by
+  rw [frontend.proj_rec.proj_rec_owners] at h
+  obtain ⟨bns, hbns, h⟩ := bind_eq_ok_iff.mp h
+  have hbnsa := type_names_refines hbns
+  have hbnswf := type_names_wf ht hbns
+  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  have hba := any_is_rec_refines hb
+  obtain ⟨rc, hrc, h⟩ := bind_eq_ok_iff.mp h
+  have hrca : rc = lRecursive (absProjTypeRecs types) (absProjCtorRecs ctors) := by
+    rw [lRecursive, ← hba]
+    split at hrc
+    · rename_i hbt
+      rw [← Result.ok_injective hrc, hbt]
+      simp
+    · rename_i hbf
+      rw [any_ctor_mentions_refines hbnswf hc hrc, hbnsa]
+      simp only [Bool.not_eq_true] at hbf
+      simp [hbf]
+  obtain ⟨sp, hsp, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hspa, -⟩ := StructParts.struct_parts_core_refines hblock hsp
+  obtain ⟨dir, hdir, h⟩ := bind_eq_ok_iff.mp h
+  have hdira : dir = (ConLeche.structPartsCore? (absConstantInfos block)).isSome := by
+    rw [← hspa]
+    cases sp with
+    | none => rw [← Result.ok_injective hdir]; rfl
+    | some p => rw [← Result.ok_injective hdir]; rfl
+  rw [projRecOwners_eq]
+  have hnat : ∀ (n_pd : Std.U64) (o1 : Option inductives.native_parts.NativeParts)
+      (os' : alloc.vec.Vec frontend.proj_rec.ProjRecOwner),
+      n_pd.val = (((absProjTypeRecs types).head?.map (fun q => q.2.2.2.1)).getD 0) →
+      inductives.native_parts.native_parts n_pd block = ok o1 →
+      (match o1 with
+        | none => frontend.proj_rec.proj_rec_owners_go types ctors recs
+        | some _ => ok (alloc.vec.Vec.new frontend.proj_rec.ProjRecOwner)) = ok os' →
+      absProjRecOwners os' =
+        (if (ConLeche.nativeParts?
+            (((absProjTypeRecs types).head?.map (fun q => q.2.2.2.1)).getD 0)
+            (absConstantInfos block)).isSome then []
+         else (absProjTypeRecs types).filterMap
+           (fun q => lProjRecOwnerAt q (absProjCtorRecs ctors) (absProjRecRecs recs))) := by
+    intro n_pd o1 os' hn_pd hnp hgo
+    obtain ⟨hnpa, -⟩ := NativeParts.native_parts_refines IndIngredients.structGens hblock hnp
+    rw [hn_pd] at hnpa
+    cases o1 with
+    | none =>
+      rw [← hnpa]
+      simp only [Option.map_none, Option.isSome_none, Bool.false_eq_true, if_false]
+      exact proj_rec_owners_go_refines ht hc hr hgo
+    | some p =>
+      rw [← hnpa]
+      simp only [Option.map_some, Option.isSome_some, if_true]
+      rw [← Result.ok_injective hgo]
+      simp [absProjRecOwners, alloc.vec.Vec.new]
+  split at h
+  · rename_i hdt
+    rw [hdira] at hdt
+    split at h
+    · rename_i hrt
+      rw [hrca] at hrt
+      rw [if_neg (by simp [hdt, hrt])]
+      obtain ⟨n_pd, hn_pd, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
+      exact hnat n_pd o1 os (n_pd_refines hn_pd) ho1 h
+    · rename_i hrf
+      rw [hrca] at hrf
+      simp only [Bool.not_eq_true] at hrf
+      rw [if_pos (by simp [hdt, hrf]), ← Result.ok_injective h]
+      simp [absProjRecOwners, alloc.vec.Vec.new]
+  · rename_i hdf
+    rw [hdira] at hdf
+    simp only [Bool.not_eq_true] at hdf
+    rw [if_neg (by simp [hdf])]
+    obtain ⟨n_pd, hn_pd, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
+    exact hnat n_pd o1 os (n_pd_refines hn_pd) ho1 h
+
 end ConRon.Refine.Frontend
