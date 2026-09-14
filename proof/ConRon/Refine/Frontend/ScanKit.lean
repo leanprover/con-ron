@@ -532,4 +532,98 @@ theorem key_end_refines {b : Slice Std.U8} {j e : Std.Usize}
     absPos e = keyEnd (absBytes b) (absPos j) :=
   key_end_loop_refines (b.val.length - j.val) j e (le_refl _) h
 
+/-! ## Positions, compared
+
+The two bridges every `if p == q` / `if p < q` of a con-leche scanner needs on
+the port's side of the fence. -/
+
+@[simp] theorem absPos_beq {i : Std.Usize} {u : USize} :
+    (absPos i == u) = decide (i.val = u.toNat) := by
+  by_cases h : i.val = u.toNat
+  · have he : absPos i = u := by apply USize.toNat_inj.mp; rw [absPos_toNat, h]
+    simp [he, h]
+  · have hne : absPos i ≠ u := by intro hc; exact h (by rw [← hc, absPos_toNat])
+    simp [hne, h]
+
+@[simp] theorem absPos_lt {i j : Std.Usize} : absPos i < absPos j ↔ i.val < j.val := by
+  rw [USize.lt_iff_toNat_lt, absPos_toNat, absPos_toNat]
+
+/-! ## `value_at`
+
+`scan_fast.rs:711-718` against `Scan/Fast.lean:448-453` (`valueAt`). -/
+
+/-- **`value_at` refines `valueAt`** (`Scan/Fast.lean:448-453`). -/
+theorem value_at_refines {b : Slice Std.U8} {i ke v : Std.Usize}
+    (h : frontend.scan_fast.value_at b i ke = ok v) :
+    absPos v = valueAt (absBytes b) (absPos i) (absPos ke) := by
+  rw [frontend.scan_fast.value_at] at h
+  obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨p, hp, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+  simp only [valueAt]
+  rw [← absPos_add_one hi1, ← skip_ws_refines hp, ← byte_at_refines hc]
+  by_cases h58 : c = 58#u8
+  · rw [if_pos h58] at h
+    obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+    have hb : (absByte c == 58) = true := by simp; scalar_tac
+    rw [hb, if_pos rfl, ← absPos_add_one hi3]
+    exact skip_ws_refines h
+  · rw [if_neg h58] at h
+    have hb : (absByte c == 58) = false := by simp; scalar_tac
+    rw [hb]
+    have : i = v := by simpa using h
+    rw [this]; simp
+
+/-! ## `num_end`
+
+`scan_fast.rs:740-749` against `Scan/Fast.lean:483-494` (`numEnd`): a digit
+run with JSON's leading-zero rule.  The port spells `byte_at b i == 48 && e !=
+i + 1` as two nested `if`s, and computes `i + 1` only inside the `48` arm --
+so a run that would overflow the cursor there is a port failure, which claims
+nothing. -/
+
+/-- **`num_end` refines `numEnd`** (`Scan/Fast.lean:483-494`). -/
+theorem num_end_refines {b : Slice Std.U8} {i e : Std.Usize}
+    (h : frontend.scan_fast.num_end b i = ok e) :
+    absPos e = numEnd (absBytes b) (absPos i) := by
+  rw [frontend.scan_fast.num_end] at h
+  obtain ⟨d, hd, h⟩ := bind_eq_ok_iff.mp h
+  simp only [numEnd, ← skip_digits_refines hd]
+  by_cases hdi : d = i
+  · rw [if_pos hdi] at h
+    have hb : (absPos d == absPos i) = true := by simp; scalar_tac
+    rw [hb, if_pos rfl]
+    have : i = e := by simpa using h
+    rw [this]
+  · rw [if_neg hdi] at h
+    have hb : (absPos d == absPos i) = false := by simp; scalar_tac
+    rw [hb, if_neg (by simp)]
+    obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+    rw [← byte_at_refines hc]
+    by_cases h48 : c = 48#u8
+    · rw [if_pos h48] at h
+      obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+      have hb48 : (absByte c == 48) = true := by simp; scalar_tac
+      rw [hb48, Bool.true_and, ← absPos_add_one hi2]
+      by_cases hne : (d != i2) = true
+      · rw [if_pos hne] at h
+        have : (absPos d != absPos i2) = true := by
+          simp_all only [bne_iff_ne, ne_eq]
+          intro hc2; exact hne (by have := absPos_inj hc2; scalar_tac)
+        rw [this, if_pos rfl]
+        have : i = e := by simpa using h
+        rw [this]
+      · rw [if_neg hne] at h
+        have hdi2 : d.val = i2.val := by simpa using hne
+        have : (absPos d != absPos i2) = false := by
+          simp; rw [absPos, absPos, hdi2]
+        rw [this, if_neg (by simp)]
+        have : d = e := by simpa using h
+        rw [this]
+    · rw [if_neg h48] at h
+      have hb48 : (absByte c == 48) = false := by simp; scalar_tac
+      rw [hb48, Bool.false_and, if_neg (by simp)]
+      have : d = e := by simpa using h
+      rw [this]
+
 end ConRon.Refine.Frontend
