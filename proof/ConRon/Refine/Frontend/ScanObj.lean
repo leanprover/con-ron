@@ -77,10 +77,6 @@ private theorem err_val {T : Type} {offset : Std.Usize}
   rw [frontend.scan_fast.err] at h
   exact (Result.ok_injective h).symm
 
-/-- Two port positions compare as con-leche's. -/
-@[simp] theorem absPos_lt_iff {i j : Std.Usize} : absPos i < absPos j ↔ i.val < j.val := by
-  rw [USize.lt_iff_toNat_lt, absPos_toNat, absPos_toNat]
-
 /-- Two port positions are equal exactly when their values are. -/
 theorem usize_ext {i j : Std.Usize} (h : i.val = j.val) : i = j :=
   Std.UScalar.eq_of_val_eq h
@@ -130,48 +126,6 @@ private theorem skip_digits_ge {b : Slice Std.U8} (f : Nat) :
         simp only [Result.ok.injEq] at h; subst h; omega
     · rw [if_neg hlt] at h
       simp only [Result.ok.injEq] at h; subst h; omega
-
-/-- `scan_fast::num_end` (con-leche: `Scan/Fast.lean:698-704 numEnd`). -/
-private theorem kit_num_end {b : Slice Std.U8} {i e : Std.Usize}
-    (h : frontend.scan_fast.num_end b i = ok e) :
-    absPos e = numEnd (absBytes b) (absPos i) := by
-  rw [frontend.scan_fast.num_end] at h
-  obtain ⟨d, hd, h⟩ := bind_eq_ok_iff.mp h
-  have hdabs : absPos d = skipDigits (absBytes b) (absPos i) := skip_digits_refines hd
-  have hnum : numEnd (absBytes b) (absPos i) =
-      (if skipDigits (absBytes b) (absPos i) == absPos i then absPos i
-       else if byteAt (absBytes b) (absPos i) == 48 &&
-              skipDigits (absBytes b) (absPos i) != absPos i + 1 then absPos i
-       else skipDigits (absBytes b) (absPos i)) := rfl
-  rw [hnum, ← hdabs]
-  by_cases h1 : d = i
-  · rw [if_pos h1] at h
-    rw [if_pos (by simp [h1])]
-    simpa using h.symm
-  · rw [if_neg h1] at h
-    rw [if_neg (by simp [h1])]
-    obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
-    have hcabs : absByte c = byteAt (absBytes b) (absPos i) := byte_at_refines hc
-    by_cases h2 : c = 48#u8
-    · rw [if_pos h2] at h
-      obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
-      have hi2abs : absPos i2 = absPos i + 1 := absPos_add_one hi2
-      have hb48 : (byteAt (absBytes b) (absPos i) == 48) = true := by
-        rw [← hcabs, h2]; decide
-      by_cases h3 : (d != i2) = true
-      · rw [if_pos h3] at h
-        rw [if_pos (by rw [hb48, ← hi2abs]; simpa using h3)]
-        simpa using h.symm
-      · rw [if_neg h3] at h
-        rw [if_neg (by rw [hb48, ← hi2abs]; simpa using h3)]
-        simpa using h.symm
-    · rw [if_neg h2] at h
-      have hb48 : (byteAt (absBytes b) (absPos i) == 48) = false := by
-        rw [← hcabs, absByte_beq]
-        simp only [decide_eq_false_iff_not]
-        intro hc'; exact h2 (Std.UScalar.eq_of_val_eq (by simpa using hc'))
-      rw [if_neg (by rw [hb48]; simp)]
-      simpa using h.symm
 
 /-- The digit run `num_end` accepted really starts at `i` and moves forward. -/
 private theorem kit_num_end_run {b : Slice Std.U8} {i e : Std.Usize}
@@ -588,13 +542,6 @@ private theorem uget_val (b : Slice Std.U8) (i : Std.Usize)
   rw [absBytes_uget b (absPos i) (usizeInBounds _ _ h) (by simpa using hi)]
   simp
 
-theorem absPos_beq (a b : Std.Usize) : (absPos a == absPos b) = (a == b) := by
-  by_cases h : a = b
-  · subst h; simp
-  · have h2 : absPos a ≠ absPos b := by
-      intro he; exact h (by have := absPos_inj he; scalar_tac)
-    simp [h, h2]
-
 /-- The port's `usize` subtraction, abstracted: a difference the port returned
 `ok` for did not underflow, so con-leche's machine word did not wrap. -/
 theorem absPos_sub {x y z : Std.Usize} (h : x - y = ok z) :
@@ -744,21 +691,25 @@ theorem nextMember_step {α : Type} (kf : KitFacts b) {L CL : USize → Bool →
                 have hp2 : absPos i2 = absPos i + 1 := absPos_add_one hi2
                 have hkeE : keyEnd (absBytes b) (absPos i + 1) = absPos ke := by
                   rw [← hp2]; exact kf.key_end i2 ke hke
-                rw [hkeE, show ((0 : USize)) = absPos 0#usize from rfl, absPos_beq]
+                rw [hkeE]
                 by_cases h6 : ke = 0#usize
                 · rw [if_pos h6] at h
-                  rw [if_pos (beq_iff_eq.mpr h6), ← Result.ok_injective h]
+                  rw [if_pos (show (absPos ke == (0 : USize)) = true by simp; scalar_tac),
+                    ← Result.ok_injective h]
                   exact ScanErrSim.mk (t := .expectedKey) rfl (by simp)
                 · rw [if_neg h6] at h
-                  rw [if_neg (by simp [h6])]
+                  rw [if_neg (show ¬ ((absPos ke == (0 : USize)) = true) by
+                    simp; intro hx; exact h6 (usize_ext (by simpa using hx)))]
                   obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
-                  rw [kf.value_at i ke v hv, absPos_beq]
+                  rw [kf.value_at i ke v hv]
                   by_cases h7 : v = i
                   · rw [if_pos h7] at h
-                    rw [if_pos (beq_iff_eq.mpr h7), ← Result.ok_injective h]
+                    rw [if_pos (show (absPos v == absPos i) = true by simp; scalar_tac),
+                      ← Result.ok_injective h]
                     exact ScanErrSim.mk (t := .expectedColon) rfl (by simp)
                   · rw [if_neg h7] at h
-                    rw [if_neg (by simp [h7])]
+                    rw [if_neg (show ¬ ((absPos v == absPos i) = true) by
+                      simp; intro hx; exact h7 (usize_ext hx))]
                     obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
                     obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
                     have h3E : absPos ke - (absPos i + 1) = absPos i3 := by
@@ -827,14 +778,15 @@ theorem natSlot_step {α : Type} {ks v : Std.Usize}
     (h : frontend.scan_fast.slot_nat b ks v = ok o) : NatSlotStep b ks v K o := by
   rw [frontend.scan_fast.slot_nat] at h
   obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
-  have heA : absPos e = numEnd (absBytes b) (absPos v) := kit_num_end he
-  rw [NatSlotStep.eq_def, natSlot, ← heA, absPos_beq]
+  have heA : absPos e = numEnd (absBytes b) (absPos v) := num_end_refines he
+  rw [NatSlotStep.eq_def, natSlot, ← heA]
   by_cases h1 : e = v
   · rw [if_pos h1] at h
-    rw [if_pos (beq_iff_eq.mpr h1), err_val h]
+    rw [if_pos (show (absPos e == absPos v) = true by simp; scalar_tac), err_val h]
     exact ScanErrSim.mk (t := .expectedNat) rfl (by simp)
   · rw [if_neg h1] at h
-    rw [if_neg (by simp [h1])]
+    rw [if_neg (show ¬ ((absPos e == absPos v) = true) by
+      simp; intro hx; exact h1 (usize_ext hx))]
     obtain ⟨hrun, -⟩ := kit_num_end_run he h1
     obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
     have hb1' : b1 = decide (ks.val < e.val) := by
@@ -843,7 +795,7 @@ theorem natSlot_step {α : Type} {ks v : Std.Usize}
       rw [← this]; exact decide_eq_decide.mpr (by constructor <;> (intro hx; scalar_tac))
     by_cases h2 : b1 = true
     · rw [if_pos h2] at h
-      rw [dif_pos (absPos_lt_iff.mpr (by rw [hb1'] at h2; simpa using h2))]
+      rw [dif_pos (absPos_lt.mpr (by rw [hb1'] at h2; simpa using h2))]
       obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
       cases r with
       | Ok x =>
@@ -852,7 +804,7 @@ theorem natSlot_step {α : Type} {ks v : Std.Usize}
         rw [← Result.ok_injective h]
         exact ScanErrSim.of_none (kit_read_nat_at_err hr)
     · rw [if_neg h2] at h
-      rw [dif_neg (by rw [absPos_lt_iff]; rw [hb1'] at h2; simpa using h2), err_val h]
+      rw [dif_neg (by rw [absPos_lt]; rw [hb1'] at h2; simpa using h2), err_val h]
       exact ScanErrSim.mk (t := .noProgress) rfl (by simp)
 
 end Step
