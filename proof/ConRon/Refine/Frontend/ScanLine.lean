@@ -3278,4 +3278,187 @@ theorem scan_line_fwd_refines {b : Slice Std.U8} (hu : Utf8DecodeSpec) (hun : Un
 Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms scan_line_fwd_refines
 
+/-! ## The incomplete tail
+
+`Refine/Frontend/ChunksR.lean`'s `ParseIngredients.scan_line_fwd_tail`: **a
+reader failure with no newline ahead is an incomplete tail for con-leche's
+reader too.**  This is what pays for the port's own `ErrTag::IndexOverflow`
+(`scan_types.rs`'s module note, deviation 1) in the ACCEPT direction —
+`feed_chunk` answers `Ok (line_no, i)` on a reader failure with no newline
+ahead, and con-leche's `feedChunk` answers `(st, lineNo, i)` whether its own
+reader failed or stopped at `0`, so without this the port's own overflow could
+hide a disagreement there.
+
+The port's failure is not what carries it: **no newline at or after `i` is on
+its own enough**, because con-leche's reader only ever returns a continue
+position one past a newline it has read.  So the lemma below is a fact about
+`scanLineFwd` alone (`scanLineFwd_tail_of_no_newline`), and the port enters
+only through `ScanKit`'s `newline_from_refines`.
+
+The one thing it needs of the loop is that the cursor does not move backwards
+(`scanLineLoop_ge`): the `.ok r (p+1)` exit of `scanLineFwd` is ruled out by
+"no newline from `i`" only once `p ≥ i`, and in the hard case it is the port
+that failed, so the port cannot supply that position.  `scanLineLoop`'s own
+`noProgress` guard gives it in every slot arm — `i < e` before every jump and
+`i + 1` at every byte step — so it is one `fun_induction` with three case
+shapes and no sub-scanner monotonicity at all. -/
+
+/-- A step inside the array does not wrap (`Scan/Fast.lean:65-71
+usizeStep`). -/
+private theorem le_step {bb : ByteArray} {p : USize} (h : p < bb.usize) :
+    p.toNat ≤ (p + 1).toNat := by
+  have := usizeStep bb p h; omega
+
+/-- Past the end stays past the end. -/
+private theorem out_of_range {bb : ByteArray} {p q : USize} (hp : ¬ (p < bb.usize))
+    (hpq : p.toNat ≤ q.toNat) : ¬ (q < bb.usize) := fun hc =>
+  hp (USize.lt_iff_toNat_lt.mpr (by have := USize.lt_iff_toNat_lt.mp hc; omega))
+
+private theorem skipWs_ge_aux (bb : ByteArray) (f : Nat) :
+    ∀ (p : USize), bb.size - p.toNat ≤ f → p.toNat ≤ (skipWs bb p).toNat := by
+  induction f with
+  | zero =>
+    intro p hf
+    rw [skipWs]
+    split
+    · rename_i hlt
+      have := usizeInBounds bb p hlt
+      omega
+    · exact le_refl _
+  | succ f ih =>
+    intro p hf
+    rw [skipWs]
+    split
+    · rename_i hlt
+      have h1 := usizeInBounds bb p hlt
+      have h2 := usizeStep bb p hlt
+      split
+      · have := ih (p + 1) (by omega); omega
+      · exact le_refl _
+    · exact le_refl _
+
+/-- **`skipWs` does not move the cursor backwards** (`Scan/Fast.lean:84-91`).
+`ScanKit` has `skip_digits_ge` for the port's digit run; this is its con-leche
+twin for whitespace, which is what `scanLineFwd` steps with. -/
+theorem skipWs_ge (bb : ByteArray) (p : USize) : p.toNat ≤ (skipWs bb p).toNat :=
+  skipWs_ge_aux bb (bb.size - p.toNat) p (le_refl _)
+
+private theorem newlineFrom_false_aux (bb : ByteArray) (f : Nat) :
+    ∀ (p q : USize), bb.size - p.toNat ≤ f → newlineFrom bb p = false →
+      p.toNat ≤ q.toNat → ¬ (byteAt bb q = 10) := by
+  induction f with
+  | zero =>
+    intro p q hf hn hpq
+    have hp : ¬ (p < bb.usize) := fun hc => by have := usizeInBounds bb p hc; omega
+    rw [byteAt, dif_neg (out_of_range hp hpq)]
+    simp
+  | succ f ih =>
+    intro p q hf hn hpq
+    rw [newlineFrom] at hn
+    split at hn
+    · rename_i hlt
+      have h1 := usizeInBounds bb p hlt
+      have h2 := usizeStep bb p hlt
+      simp only [Bool.or_eq_false_iff] at hn
+      by_cases hqp : q.toNat = p.toNat
+      · have hq : q = p := USize.toNat_inj.mp hqp
+        subst hq
+        rw [byteAt, dif_pos hlt]
+        simpa using hn.1
+      · exact ih (p + 1) q (by omega) hn.2 (by omega)
+    · rename_i hlt
+      rw [byteAt, dif_neg (out_of_range hlt hpq)]
+      simp
+
+/-- **`newlineFrom` read forwards** (`Scan/Fast.lean:2639-2646`): if there is
+no newline at or after `p` then no byte at or after `p` is one — past the end
+included, where `byteAt` is `0`. -/
+theorem newlineFrom_false {bb : ByteArray} {p q : USize}
+    (hn : newlineFrom bb p = false) (hpq : p.toNat ≤ q.toNat) : ¬ (byteAt bb q = 10) :=
+  newlineFrom_false_aux bb (bb.size - p.toNat) p q (le_refl _) hn hpq
+
+/-- **`scanLineLoop` never moves the cursor backwards**
+(`Scan/Fast.lean:2464-2609`).  Its own `noProgress` guard is what gives this:
+every jump is guarded by `i < e` and every byte step is `i + 1` inside the
+array, so the `fun_induction` has exactly three case shapes — an `err` exit, an
+`ok … (i+1)` exit, and a recursive call that is either a step or a guarded
+jump. -/
+theorem scanLineLoop_ge (bb : ByteArray) (p : USize) (wm : Bool) (ik : UInt8) (idx : Nat)
+    (pl : LinePayload) :
+    ∀ (r : LineRec) (j : USize), scanLineLoop bb p wm ik idx pl = .ok r j →
+      p.toNat ≤ j.toNat := by
+  fun_induction scanLineLoop bb p wm ik idx pl
+  all_goals intro r j hh
+  all_goals
+    first
+      | (injection hh with ha hb
+         subst hb
+         exact le_step (bb := bb) (by assumption))
+      | exact absurd hh (by simp)
+      | (rename_i ih
+         refine Nat.le_trans ?_ (ih r j hh)
+         first
+           | exact Nat.le_of_lt (USize.lt_iff_toNat_lt.mp (by assumption))
+           | exact le_step (bb := bb) (by assumption))
+
+/-- **con-leche's reader with no newline ahead** (`Scan/Fast.lean:2622-2638`):
+with no newline at or after `p`, `scanLineFwd` either fails or answers `0` —
+the continue position that tells the driver these bytes are an incomplete tail
+to carry into the next chunk.  Every accepting exit of the reader is one past a
+newline it has read, and there is none. -/
+theorem scanLineFwd_tail_of_no_newline (bb : ByteArray) (p : USize)
+    (hn : newlineFrom bb p = false) :
+    (∃ le, scanLineFwd bb p = .err le) ∨ (∃ r, scanLineFwd bb p = .ok r 0) := by
+  have hs : p.toNat ≤ (skipWs bb p).toNat := skipWs_ge bb p
+  have h1 : ¬ ((byteAt bb (skipWs bb p) == 10) = true) := by
+    simpa using newlineFrom_false hn hs
+  rw [scanLineFwd, if_neg h1]
+  by_cases h2 : bb.usize ≤ skipWs bb p
+  · rw [if_pos h2]
+    exact Or.inr ⟨_, rfl⟩
+  · rw [if_neg h2]
+    by_cases h3 : (byteAt bb (skipWs bb p) != 123) = true
+    · rw [if_pos h3]
+      exact Or.inl ⟨_, rfl⟩
+    · rw [if_neg h3]
+      have hlt : skipWs bb p < bb.usize := by
+        rw [USize.lt_iff_toNat_lt]
+        have : ¬ (bb.usize.toNat ≤ (skipWs bb p).toNat) := fun hc =>
+          h2 (USize.le_iff_toNat_le.mpr hc)
+        omega
+      have hstep := usizeStep bb (skipWs bb p) hlt
+      cases hL : scanLineLoop bb (skipWs bb p + 1) true 0 0 LinePayload.absent with
+      | err e => exact Or.inl ⟨_, rfl⟩
+      | ok r j =>
+        have hj : (skipWs bb p + 1).toNat ≤ j.toNat :=
+          scanLineLoop_ge bb (skipWs bb p + 1) true 0 0 LinePayload.absent r j hL
+        have hsj : j.toNat ≤ (skipWs bb j).toNat := skipWs_ge bb j
+        have h4 : ¬ ((byteAt bb (skipWs bb j) == 10) = true) := by
+          simpa using newlineFrom_false hn (by omega : p.toNat ≤ (skipWs bb j).toNat)
+        dsimp only
+        rw [if_neg h4]
+        by_cases h5 : bb.usize ≤ skipWs bb j
+        · rw [if_pos h5]
+          exact Or.inr ⟨_, rfl⟩
+        · rw [if_neg h5]
+          exact Or.inl ⟨_, rfl⟩
+
+/-- **`ParseIngredients.scan_line_fwd_tail`**, in the field's own shape: a port
+reader failure with no newline ahead is an incomplete tail for con-leche's
+reader too.  The port's failure is not used — `scanLineFwd_tail_of_no_newline`
+needs only the newline test, which `ScanKit.newline_from_refines` transports —
+so this holds of an `ErrTag::IndexOverflow`, which is exactly the tag it is
+there to pay for. -/
+theorem scan_line_fwd_tail {b : Slice Std.U8} {i : Std.Usize}
+    {e : frontend.scan_types.ScanErr}
+    (_h : frontend.scan_fast.scan_line_fwd b i = ok (.Err e))
+    (hnl : frontend.scan_fast.newline_from b i = ok false) :
+    (∃ le, scanLineFwd (absBytes b) (absPos i) = .err le) ∨
+      (∃ r, scanLineFwd (absBytes b) (absPos i) = .ok r 0) :=
+  scanLineFwd_tail_of_no_newline (absBytes b) (absPos i) (newline_from_refines hnl).symm
+
+/-- info: 'ConRon.Refine.Frontend.scan_line_fwd_tail' depends on axioms: [propext,
+Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms scan_line_fwd_tail
+
 end ConRon.Refine.Frontend
