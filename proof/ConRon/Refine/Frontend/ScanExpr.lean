@@ -954,6 +954,348 @@ theorem scan_let_expr_refines_of (kf : KitFacts b) {i : Std.Usize} {o}
     rw [if_neg (by simp [hc1]), err_val h]
     exact ScanErrSim.mk (t := .expectedObject) rfl (by simp)
 
+/-! ## `scan_lam_expr` and `scan_forall_expr`
+
+`scan_fast.rs:1681-1809` against **two** con-leche loops,
+`Scan/Fast.lean:961-1034 scanLamExprLoop` and `1044-1117 scanForallExprLoop`.
+The port has one loop with a `lam : bool` parameter because the two Lean
+bodies are the same up to the `ExprRec` constructor the closing brace builds
+(and `Scan/Naive.lean` already shares them, `binderFields`).  No intermediate
+definition is needed: the loop lemma's con-leche side is
+`if lam then scanLamExprLoop … else scanForallExprLoop …`, and
+`scan_binder_expr_loop_lam` / `scan_binder_expr_loop_forall` below are the two
+statements, one per value of `lam`. -/
+
+/-- **The one `ScanStr` leaf the binder loop still waits on**:
+`scan_fast::scan_binder_info` against `Scan/Fast.lean:657-666 scanBinderInfo`,
+in `ScanKit`'s port-on-the-left orientation. -/
+def BinderInfoRefines (b : Slice Std.U8) : Prop :=
+  ∀ (i j : Std.Usize), frontend.scan_fast.scan_binder_info b i = ok j →
+    absPos j = scanBinderInfo (absBytes b) (absPos i)
+
+private theorem scan_binder_expr_loop_aux (kf : KitFacts b) (hbi : BinderInfoRefines b)
+    (f : Nat) :
+    ∀ (w lam : Bool) (i : Std.Usize) (seen : Std.U32) (bd ty : Std.U64)
+      (pw : frontend.scan_types.PwRec) o,
+      b.length - i.val ≤ f →
+      frontend.scan_fast.scan_binder_expr_loop_loop w b lam i seen bd ty pw = ok o →
+      ScanSim absExprRec o
+        (if lam then
+          scanLamExprLoop (absBytes b) (absPos i) w (absU32 seen)
+            (absU64 bd) (absU64 ty) (absPwRec pw)
+         else
+          scanForallExprLoop (absBytes b) (absPos i) w (absU32 seen)
+            (absU64 bd) (absU64 ty) (absPwRec pw)) := by
+  induction f using Nat.strong_induction_on with
+  | _ f ih =>
+    intro w lam i seen bd ty pw o hf h
+    rw [frontend.scan_fast.scan_binder_expr_loop_loop.eq_def] at h
+    obtain ⟨res, hres, h⟩ := bind_eq_ok_iff.mp h
+    have hstep := nextMember_step kf
+      (L := fun p w' =>
+        if lam then
+          scanLamExprLoop (absBytes b) p w' (absU32 seen)
+            (absU64 bd) (absU64 ty) (absPwRec pw)
+        else
+          scanForallExprLoop (absBytes b) p w' (absU32 seen)
+            (absU64 bd) (absU64 ty) (absPwRec pw))
+      (CL := fun p w' =>
+        if w' && absU32 seen != 0 then .err ⟨p.toNat, .expectedKey⟩
+        else if absU32 seen &&& 15 != 15 then .err ⟨p.toNat, .missingKey⟩
+        else .ok (if lam then .lam (absU64 ty) (absU64 bd) (absPwRec pw)
+                  else .forallE (absU64 ty) (absU64 bd) (absPwRec pw)) (p + 1))
+      (DI := fun k p v =>
+        match k with
+        | .kBinderInfo =>
+          if absU32 seen &&& 1 != 0 then .err ⟨p.toNat, .duplicateKey⟩
+          else
+            if scanBinderInfo (absBytes b) v == 0 then
+              .err ⟨v.toNat, .badBinderInfo⟩
+            else if _hj : p < scanBinderInfo (absBytes b) v then
+              (if lam then
+                scanLamExprLoop (absBytes b) (scanBinderInfo (absBytes b) v) false
+                  (absU32 seen ||| 1) (absU64 bd) (absU64 ty) (absPwRec pw)
+               else
+                scanForallExprLoop (absBytes b) (scanBinderInfo (absBytes b) v) false
+                  (absU32 seen ||| 1) (absU64 bd) (absU64 ty) (absPwRec pw))
+            else .err ⟨p.toNat, .noProgress⟩
+        | .kBody =>
+          if absU32 seen &&& 2 != 0 then .err ⟨p.toNat, .duplicateKey⟩
+          else natSlot (absBytes b) p v (fun x e =>
+            if lam then
+              scanLamExprLoop (absBytes b) e false (absU32 seen ||| 2) x
+                (absU64 ty) (absPwRec pw)
+            else
+              scanForallExprLoop (absBytes b) e false (absU32 seen ||| 2) x
+                (absU64 ty) (absPwRec pw))
+        | .kName =>
+          if absU32 seen &&& 4 != 0 then .err ⟨p.toNat, .duplicateKey⟩
+          else natSlot (absBytes b) p v (fun _x e =>
+            if lam then
+              scanLamExprLoop (absBytes b) e false (absU32 seen ||| 4) (absU64 bd)
+                (absU64 ty) (absPwRec pw)
+            else
+              scanForallExprLoop (absBytes b) e false (absU32 seen ||| 4) (absU64 bd)
+                (absU64 ty) (absPwRec pw))
+        | .kType =>
+          if absU32 seen &&& 8 != 0 then .err ⟨p.toNat, .duplicateKey⟩
+          else natSlot (absBytes b) p v (fun x e =>
+            if lam then
+              scanLamExprLoop (absBytes b) e false (absU32 seen ||| 8) (absU64 bd) x
+                (absPwRec pw)
+            else
+              scanForallExprLoop (absBytes b) e false (absU32 seen ||| 8) (absU64 bd) x
+                (absPwRec pw))
+        | .kPw =>
+          if absU32 seen &&& 16 != 0 then .err ⟨p.toNat, .duplicateKey⟩
+          else
+            match scanPw (absBytes b) v with
+            | .err err => .err err
+            | .ok x e =>
+              if _hj : p < e then
+                (if lam then
+                  scanLamExprLoop (absBytes b) e false (absU32 seen ||| 16) (absU64 bd)
+                    (absU64 ty) x
+                 else
+                  scanForallExprLoop (absBytes b) e false (absU32 seen ||| 16)
+                    (absU64 bd) (absU64 ty) x)
+              else .err ⟨p.toNat, .noProgress⟩
+        | _ => .err ⟨p.toNat, .unknownKey⟩)
+      (by
+        intro p w'
+        cases lam <;>
+          simp only [Bool.false_eq_true, if_false, if_true] <;>
+          [rw [scanForallExprLoop.eq_def]; rw [scanLamExprLoop.eq_def]] <;> rfl)
+      (b.length - i.val) i w res (le_refl _) hres
+    cases res with
+    | Err er =>
+      rw [← Result.ok_injective h]
+      exact hstep.err
+    | Ok p =>
+      obtain ⟨mem, ni, nw⟩ := p
+      simp only [uncurry_apply_pair] at h
+      cases mem with
+      | Close =>
+        rw [hstep.close, zero_abs, mask_abs15]
+        have hclose : ∀ (o' : core.result.Result
+              (frontend.scan_types.ExprRec × Std.Usize) frontend.scan_types.ScanErr),
+            (do let i1 ← lift (seen &&& 15#u32)
+                if i1 != 15#u32 then
+                  frontend.scan_fast.err frontend.scan_types.ExprRec ni
+                    frontend.scan_types.ErrTag.MissingKey
+                else do
+                  let er ← if lam then ok (frontend.scan_types.ExprRec.Lam ty bd pw)
+                           else ok (frontend.scan_types.ExprRec.ForallE ty bd pw)
+                  let i2 ← ni + 1#usize
+                  ok (core.result.Result.Ok (er, i2))) = ok o' →
+            ScanSim absExprRec o'
+              (if seen &&& 15#u32 != 15#u32 then
+                 ScanRes.err ⟨(absPos ni).toNat, .missingKey⟩
+               else ScanRes.ok
+                 (if lam then ExprRec.lam (absU64 ty) (absU64 bd) (absPwRec pw)
+                  else ExprRec.forallE (absU64 ty) (absU64 bd) (absPwRec pw))
+                 (absPos ni + 1)) := by
+          intro o' h'
+          obtain ⟨i1, hi1, h'⟩ := bind_eq_ok_iff.mp h'
+          rw [lift_val hi1] at h'
+          by_cases hm : (seen &&& 15#u32 != 15#u32) = true
+          · rw [if_pos hm] at h'
+            rw [if_pos hm, err_val h']
+            exact ScanErrSim.mk (t := .missingKey) rfl (by simp)
+          · rw [if_neg hm] at h'
+            rw [if_neg hm]
+            obtain ⟨er, her, h'⟩ := bind_eq_ok_iff.mp h'
+            obtain ⟨i2, hi2, h'⟩ := bind_eq_ok_iff.mp h'
+            rw [← Result.ok_injective h', ← absPos_add_one hi2]
+            cases lam <;> simp only [Bool.false_eq_true, if_false, if_true] at her ⊢ <;>
+              rw [← Result.ok_injective her] <;> rfl
+        by_cases hnw : nw = true
+        · rw [if_pos hnw] at h
+          by_cases hz : (seen != 0#u32) = true
+          · rw [if_pos hz] at h
+            rw [if_pos (by simp [hnw, hz]), err_val h]
+            exact ScanErrSim.mk (t := .expectedKey) rfl (by simp)
+          · rw [if_neg hz] at h
+            rw [if_neg (by simp [hz])]
+            exact hclose o h
+        · rw [if_neg hnw] at h
+          rw [if_neg (by simp [hnw])]
+          exact hclose o h
+      | Key k ks v =>
+        have hks := next_member_ge (b.length - i.val) i w k ks v ni nw (le_refl _) hres
+        have hilt := next_member_lt hres
+        cases k <;>
+          (rw [hstep.key]
+           simp only [absKey]
+           first
+             | (rw [err_val h]; exact ScanErrSim.mk (t := .unknownKey) rfl (by simp))
+             | -- `pw`: a sub-scanner
+               (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+                have hb1' := dup_val hb1
+                simp only [dup_abs16]
+                by_cases hd : b1 = true
+                · rw [if_pos hd] at h
+                  rw [if_pos (by rw [← hb1']; exact hd), err_val h]
+                  exact ScanErrSim.mk (t := .duplicateKey) rfl (by simp)
+                · rw [if_neg hd] at h
+                  rw [if_neg (by rw [← hb1']; simpa using hd)]
+                  obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                  cases r1 with
+                  | Err er =>
+                    rw [← Result.ok_injective h]
+                    intro le hle
+                    simp only [scan_pw_refines hr1 le hle]
+                  | Ok pr =>
+                    obtain ⟨x, e⟩ := pr
+                    simp only [uncurry_apply_pair] at h
+                    have hsub : scanPw (absBytes b) (absPos v)
+                        = ScanRes.ok (absPwRec x) (absPos e) := scan_pw_refines hr1
+                    simp only [hsub]
+                    obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+                    have hb2' := prog_val hb2
+                    by_cases hp : b2 = true
+                    · rw [if_pos hp] at h
+                      have hprog : ks.val < e.val := by rw [hb2'] at hp; simpa using hp
+                      rw [dif_pos (absPos_lt.mpr hprog)]
+                      obtain ⟨seen1, hseen1, h⟩ := bind_eq_ok_iff.mp h
+                      simp only [or_abs16]
+                      rw [← lift_val hseen1]
+                      exact ih (b.length - e.val) (by omega) false lam e seen1 _ _ _ o
+                        (le_refl _) h
+                    · rw [if_neg hp] at h
+                      have hprog : ¬ ks.val < e.val := by
+                        rw [hb2'] at hp; simpa using hp
+                      rw [dif_neg (by rw [absPos_lt]; exact hprog), err_val h]
+                      exact ScanErrSim.mk (t := .noProgress) rfl (by simp))
+             | -- the three `Nat` slots
+               (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+                have hb1' := dup_val hb1
+                simp only [dup_abs1, dup_abs2, dup_abs4, dup_abs8]
+                by_cases hd : b1 = true
+                · rw [if_pos hd] at h
+                  rw [if_pos (by rw [← hb1']; exact hd), err_val h]
+                  exact ScanErrSim.mk (t := .duplicateKey) rfl (by simp)
+                · rw [if_neg hd] at h
+                  rw [if_neg (by rw [← hb1']; simpa using hd)]
+                  obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
+                  cases r1 with
+                  | Err er =>
+                    rw [← Result.ok_injective h]
+                    exact NatSlotStep.err (natSlot_step hr1)
+                  | Ok pr =>
+                    obtain ⟨x, e⟩ := pr
+                    simp only [uncurry_apply_pair] at h
+                    have hprog := slot_nat_prog hr1
+                    rw [NatSlotStep.ok (natSlot_step hr1)]
+                    obtain ⟨seen1, hseen1, h⟩ := bind_eq_ok_iff.mp h
+                    simp only [or_abs2, or_abs4, or_abs8]
+                    rw [← lift_val hseen1]
+                    exact ih (b.length - e.val) (by omega) false lam e seen1 _ _ _ o
+                      (le_refl _) h)
+             | -- `binderInfo`: a bare `usize`, `0` for "not one of the four"
+               (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+                have hb1' := dup_val hb1
+                simp only [dup_abs1]
+                by_cases hd : b1 = true
+                · rw [if_pos hd] at h
+                  rw [if_pos (by rw [← hb1']; exact hd), err_val h]
+                  exact ScanErrSim.mk (t := .duplicateKey) rfl (by simp)
+                · rw [if_neg hd] at h
+                  rw [if_neg (by rw [← hb1']; simpa using hd)]
+                  obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
+                  rw [← hbi v e he]
+                  by_cases he0 : e = 0#usize
+                  · rw [if_pos he0] at h
+                    rw [if_pos (show (absPos e == (0 : USize)) = true by simp [he0]),
+                      err_val h]
+                    exact ScanErrSim.mk (t := .badBinderInfo) rfl (by simp)
+                  · rw [if_neg he0] at h
+                    rw [if_neg (show ¬ (absPos e == (0 : USize)) = true by
+                      simp only [absPos_beq, decide_eq_true_eq,
+                        show ((0 : USize)).toNat = 0 from rfl]
+                      intro hc; exact he0 (by scalar_tac))]
+                    obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
+                    have hb2' := prog_val hb2
+                    by_cases hp : b2 = true
+                    · rw [if_pos hp] at h
+                      have hprog : ks.val < e.val := by rw [hb2'] at hp; simpa using hp
+                      rw [dif_pos (absPos_lt.mpr hprog)]
+                      obtain ⟨seen1, hseen1, h⟩ := bind_eq_ok_iff.mp h
+                      simp only [or_abs1]
+                      rw [← lift_val hseen1]
+                      exact ih (b.length - e.val) (by omega) false lam e seen1 _ _ _ o
+                        (le_refl _) h
+                    · rw [if_neg hp] at h
+                      have hprog : ¬ ks.val < e.val := by
+                        rw [hb2'] at hp; simpa using hp
+                      rw [dif_neg (by rw [absPos_lt]; exact hprog), err_val h]
+                      exact ScanErrSim.mk (t := .noProgress) rfl (by simp)))
+
+
+/-- The binder loop at `lam = true`: `Scan/Fast.lean:961-1034 scanLamExprLoop`. -/
+private theorem scan_binder_expr_loop_lam (kf : KitFacts b) (hbi : BinderInfoRefines b)
+    {w : Bool} {i : Std.Usize} {seen : Std.U32} {bd ty : Std.U64}
+    {pw : frontend.scan_types.PwRec} {o}
+    (h : frontend.scan_fast.scan_binder_expr_loop_loop w b true i seen bd ty pw
+      = ok o) :
+    ScanSim absExprRec o
+      (scanLamExprLoop (absBytes b) (absPos i) w (absU32 seen)
+        (absU64 bd) (absU64 ty) (absPwRec pw)) :=
+  scan_binder_expr_loop_aux kf hbi (b.length - i.val) w true i seen bd ty pw o
+    (le_refl _) h
+
+/-- The binder loop at `lam = false`:
+`Scan/Fast.lean:1044-1117 scanForallExprLoop`. -/
+private theorem scan_binder_expr_loop_forall (kf : KitFacts b)
+    (hbi : BinderInfoRefines b)
+    {w : Bool} {i : Std.Usize} {seen : Std.U32} {bd ty : Std.U64}
+    {pw : frontend.scan_types.PwRec} {o}
+    (h : frontend.scan_fast.scan_binder_expr_loop_loop w b false i seen bd ty pw
+      = ok o) :
+    ScanSim absExprRec o
+      (scanForallExprLoop (absBytes b) (absPos i) w (absU32 seen)
+        (absU64 bd) (absU64 ty) (absPwRec pw)) :=
+  scan_binder_expr_loop_aux kf hbi (b.length - i.val) w false i seen bd ty pw o
+    (le_refl _) h
+
+/-- **`scan_fast::scan_lam_expr`** (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:1036-1042 scanLamExpr`). -/
+theorem scan_lam_expr_refines_of (kf : KitFacts b) (hbi : BinderInfoRefines b)
+    {i : Std.Usize} {o} (h : frontend.scan_fast.scan_lam_expr b i = ok o) :
+    ScanSim absExprRec o (scanLamExpr (absBytes b) (absPos i)) := by
+  rw [frontend.scan_fast.scan_lam_expr] at h
+  obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+  rw [scanLamExpr, brace_abs hc]
+  by_cases hc1 : c = 123#u8
+  · rw [if_pos hc1] at h
+    rw [if_pos (beq_iff_eq.mpr hc1)]
+    obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+    rw [← absPos_add_one hi2]
+    rw [frontend.scan_fast.scan_binder_expr_loop] at h
+    exact scan_binder_expr_loop_lam kf hbi h
+  · rw [if_neg hc1] at h
+    rw [if_neg (by simp [hc1]), err_val h]
+    exact ScanErrSim.mk (t := .expectedObject) rfl (by simp)
+
+/-- **`scan_fast::scan_forall_expr`** (con-leche:
+`ConLeche/Frontend/Scan/Fast.lean:1119-1123 scanForallExpr`). -/
+theorem scan_forall_expr_refines_of (kf : KitFacts b) (hbi : BinderInfoRefines b)
+    {i : Std.Usize} {o} (h : frontend.scan_fast.scan_forall_expr b i = ok o) :
+    ScanSim absExprRec o (scanForallExpr (absBytes b) (absPos i)) := by
+  rw [frontend.scan_fast.scan_forall_expr] at h
+  obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
+  rw [scanForallExpr, brace_abs hc]
+  by_cases hc1 : c = 123#u8
+  · rw [if_pos hc1] at h
+    rw [if_pos (beq_iff_eq.mpr hc1)]
+    obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+    rw [← absPos_add_one hi2]
+    rw [frontend.scan_fast.scan_binder_expr_loop] at h
+    exact scan_binder_expr_loop_forall kf hbi h
+  · rw [if_neg hc1] at h
+    rw [if_neg (by simp [hc1]), err_val h]
+    exact ScanErrSim.mk (t := .expectedObject) rfl (by simp)
+
 end Step
 
 end ConRon.Refine.Frontend
