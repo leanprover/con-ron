@@ -2452,4 +2452,52 @@ theorem state_model_ctx_refines {st : frontend.export_c.StateD}
   show lst.heights[absName n]?.getD 0 = lst.heights.getD (absName n) 0
   rw [_root_.Std.HashMap.getD_eq_getD_getElem?]
 
+/-! ## The syntactic Π-telescope length
+
+`export_c::ind_pi_tele_len` against `indPiTeleLen`
+(`ConLeche/Frontend/ExportC.lean:338-344`).  con-leche recurses on the
+expression; the port walks it with an owning step function (`ind_pi_body`,
+task #13's fix for AENEAS_FINDINGS §2.1's F1), so the proof is structural
+induction on the *argument*, which for a `partial_fixpoint` loop is the only
+induction there is (`Refine/Abs.lean`'s note). -/
+
+/-- The accumulator of `export_c::ind_pi_tele_len`'s walk. -/
+private theorem ind_pi_tele_len_loop_refines {e : expr.Expr} (he : ExprWF e) :
+    ∀ (k r : Std.U64), frontend.export_c.ind_pi_tele_len_loop k e = ok r →
+      r.val = k.val + ConLeche.Frontend.indPiTeleLen (absExpr e) := by
+  induction e, he using ExprWF.ind_node with
+  | forall_e d ty b m h ihty ihb =>
+    intro k r hrun
+    rw [frontend.export_c.ind_pi_tele_len_loop.eq_def] at hrun
+    simp only [core_k.is_forall, frontend.export_c.ind_pi_body, arc_deref_eq, bind_tc_ok,
+      ExprOps.node_kind, if_true, bind_eq_ok_iff] at hrun
+    obtain ⟨cur1, hcur, k1, hk1, hrun⟩ := hrun
+    have hcb : cur1 = b := Expr.dup_eq hcur
+    subst hcb
+    have hk1v : k1.val = k.val + 1 := HashMap.uscalar_add_eq hk1
+    rw [ihb (ExprWF.forall_e_kids h).2.1 k1 r hrun, hk1v]
+    simp only [absExpr_mk, absExprKind, ConLeche.Frontend.indPiTeleLen]
+    omega
+  | _ =>
+    intro k r hrun
+    rw [frontend.export_c.ind_pi_tele_len_loop.eq_def] at hrun
+    simp only [core_k.is_forall, arc_deref_eq, bind_tc_ok, ExprOps.node_kind,
+      Bool.false_eq_true, if_false, Result.ok.injEq] at hrun
+    rw [← hrun]
+    simp only [absExpr_mk, absExprKind, ConLeche.Frontend.indPiTeleLen]
+    omega
+
+/-- `export_c::ind_pi_tele_len` refines `indPiTeleLen`
+(`ConLeche/Frontend/ExportC.lean:338-344`). -/
+theorem ind_pi_tele_len_refines {e : expr.Expr} {r : Std.U64} (he : ExprWF e)
+    (h : frontend.export_c.ind_pi_tele_len e = ok r) :
+    r.val = ConLeche.Frontend.indPiTeleLen (absExpr e) := by
+  rw [frontend.export_c.ind_pi_tele_len] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨cur, hcur, h⟩ := h
+  have hce : cur = e := Expr.dup_eq hcur
+  subst hce
+  rw [ind_pi_tele_len_loop_refines he 0#u64 r h]
+  simp
+
 end ConRon.Refine.Frontend
