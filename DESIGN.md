@@ -17014,3 +17014,55 @@ Each of these was measured or reasoned about and left, with the reason:
   end of a context is brittle; this task found the sharper reason — **the
   binder count is not stable across imports**, so adding one `import` can
   change an `obtain`'s arity and break a green proof with no visible cause.
+
+#### 12. `scan_line_fwd_tail`: the lemma that pays for `IndexOverflow` in the *accept* direction
+
+The `IndexOverflow` port bug of §4 was the error direction.  There is a second,
+subtler obligation in the **accept** direction, and it is the one field of
+`ParseIngredients` that was not in this task's original plan:
+
+```lean
+scan_line_fwd_tail : ∀ b i e, scan_line_fwd b i = ok (.Err e) → newline_from b i = ok false →
+  (∃ le, scanLineFwd (absBytes b) (absPos i) = .err le) ∨
+  (∃ r, scanLineFwd (absBytes b) (absPos i) = .ok r 0)
+```
+
+`feed_chunk` treats a reader failure with no newline ahead as an *incomplete
+tail* rather than an error, and carries the bytes into the next chunk.  For
+that to be con-leche's behaviour too, con-leche's reader must also decline
+those bytes — and a port-only `IndexOverflow` would otherwise be a place where
+the port carries on and con-leche does not.
+
+**The proof turned out not to need the port's failure at all.**  *"No newline
+at or after `i`"* alone forces con-leche's reader to fail or to answer `0`,
+because every accepting exit of `scanLineFwd` is one past a newline it has
+read.  So the lemma is a fact about con-leche alone, which is why it holds of
+`IndexOverflow` — exactly the tag it exists to pay for.  Its ingredients:
+`skipWs_ge` (the twin of `ScanKit.skip_digits_ge`), `newlineFrom_false`, and
+**`scanLineLoop_ge`** — *the line loop does not move the cursor backwards* —
+which con-leche's own `noProgress` guard gives directly in every arm, with no
+sub-scanner monotonicity needed.
+
+**One tactic finding worth the record.**  `split at h` on `scanLineLoop`'s body
+dies with *"`simp` failed: maximum number of steps exceeded"* — the term is too
+big for `Split.simpMatch`.  What works is **`fun_induction scanLineLoop …`**,
+which hands back each case with the call already reduced to that branch; it is
+how con-leche's own `Scan/Equiv.lean` drives the same function, and the whole
+124-case induction then closes with one twelve-line `all_goals first | … ` in
+2.2 s.  (Also: `ScanRes.noConfusion h` does not elaborate here — it unifies at
+`Eq.{2}` — where `exact absurd h (by simp)` does.)
+
+The same agent then found that **`apply_line_refines`' third obligation had the
+same hole**: `LineNatValSpec` reduces to `ExprRecDigits`, which
+`scan_quoted_nat_digits` proves of the scanner, but nobody had walked it to the
+line.  `scan_line_fwd_digits` does.  So all three of `apply_line_refines`'
+record-provenance obligations now have a source — `scan_line_fwd_wf`,
+`scan_line_fwd_str_wf`, `scan_line_fwd_digits` — and the shape of the omission
+was the same each time: *phase 1 could ignore a field that phase 3 cannot*.
+
+**An operational note for the next multi-agent task.**  `lake build` is
+**unsafe in a shared worktree**: it deletes another agent's `.olean` when that
+agent's work-in-progress is red, and the victim sees a spurious *"object file
+does not exist"*.  `lake env lean --threads=4 <file>` is what agents should
+use; only the coordinator should run `lake build`, and only when the tree is
+quiet.
