@@ -278,7 +278,9 @@ A node is **48 bytes** — the packed word beside the widest `ExprKind` arm,
 `Lam`/`ForallE`
 ([`ExprKind`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/expr.rs#L353-L364)),
 because a binder carries one datum of its own beyond its type and body:
-`BinderMeta`, the zero-ness `PropWhen` that records when a level is zero
+`BinderMeta`, the codomain prop-ness annotation the untrusted annotate pass
+writes and the checker validates — a `PropWhen`, the set of parameter
+valuations under which a level is zero
 ([`BinderMeta`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/expr.rs#L119-L121)).
 That datum is 16 bytes and is held **by value**, because `PropWhen` itself is
 one word beside its tag: `Never`, `Always` and `One` carry no heap cell at
@@ -546,7 +548,7 @@ the same for the index.
 
 Well-formedness is an inductive predicate whose constructors *are* the
 port's smart constructors
-([`ExprWF`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Abs.lean#L511-L525)):
+([`ExprWF`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Abs.lean#L515-L529)):
 a node is well-formed if some smart constructor returned it on
 well-formed children.  No proof ever names the hash formula; what the
 readers of the packed word need — that its bits are con-leche's computed
@@ -568,7 +570,7 @@ for related states and environments, if the Rust returns `Ok r` then
 con-leche's action returns `abs r` in a related state and `r` is
 well-formed; if it returns a mirrored error, con-leche throws the same
 kind
-([`ErrSim`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Abs.lean#L934-L942));
+([`ErrSim`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Abs.lean#L938-L946));
 a `Native` error claims nothing.  This is a *partial* refinement by
 design: the Rust may fail where con-leche does not, never the reverse on
 an accept.

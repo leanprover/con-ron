@@ -338,6 +338,34 @@
    440  /// con-leche: ConLeche/Cached/ExprNodes.lean:113 mkApp
    441  /// `Expr.app`: hash tag 17; both ranges are the componentwise `max` and the
 
+== crates/con-ron-core/src/kernel/expr.rs#L353-L364
+   353  pub enum ExprKind {
+   354      Bvar(u64),
+   355      Fvar(u64, Expr),
+   356      Sort(Level),
+   357      Const(Name, P<Vec<Level>>),
+   358      App(Expr, Expr),
+   359      Lam(Expr, Expr, BinderMeta),
+   360      ForallE(Expr, Expr, BinderMeta),
+   361      LetE(Expr, Expr, Expr),
+   362      Lit(Literal),
+   363      Proj(Name, u64, Expr),
+   364  }
+
+== crates/con-ron-core/src/kernel/expr.rs#L119-L121
+   119  pub struct BinderMeta {
+   120      pub pw: PropWhen,
+   121  }
+
+== crates/con-ron-core/src/kernel/prop_when.rs#L285-L291
+   285  enum PropWhenRepr {
+   286      Never,
+   287      Always,
+   288      One(Name),
+   289      Two(P<(Name, Name)>),
+   290      Many(P<Vec<Name>>),
+   291  }
+
 == crates/con-ron-core/src/ron/nat.rs#L1-L8
      1  //! con-leche: none — replaces the runtime's `Nat` (GMP); no Lean source to cite.
      2  //!
@@ -598,22 +626,22 @@
    103    env : EnvWF fe.env
    104    inv : HashMap.Inv name.Name.Insts.Con_ron_coreRonHashmapHashable fe.idx
 
-== proof/ConRon/Refine/Abs.lean#L511-L525
-   511  inductive ExprWF : expr.Expr → Prop where
-   512    | bvar {i e} : expr.bvar i = ok e → ExprWF e
-   513    | fvar {idx ty e} : ExprWF ty → expr.fvar idx ty = ok e → ExprWF e
-   514    | sort {u e} : LevelWF u → expr.sort u = ok e → ExprWF e
-   515    | mk_const {n us e} : NameWF n → LevelsWF us → expr.mk_const n us = ok e → ExprWF e
-   516    | app {f a e} : ExprWF f → ExprWF a → expr.app f a = ok e → ExprWF e
-   517    | lam {ty b m e} : ExprWF ty → ExprWF b → BinderMetaWF m →
-   518        expr.lam ty b m = ok e → ExprWF e
-   519    | forall_e {ty b m e} : ExprWF ty → ExprWF b → BinderMetaWF m →
-   520        expr.forall_e ty b m = ok e → ExprWF e
-   521    | let_e {ty v b e} : ExprWF ty → ExprWF v → ExprWF b →
-   522        expr.let_e ty v b = ok e → ExprWF e
-   523    | lit {l e} : LiteralWF l → expr.lit l = ok e → ExprWF e
-   524    | proj {s i x e} : NameWF s → ExprWF x → expr.proj s i x = ok e → ExprWF e
-   525  
+== proof/ConRon/Refine/Abs.lean#L515-L529
+   515  inductive ExprWF : expr.Expr → Prop where
+   516    | bvar {i e} : expr.bvar i = ok e → ExprWF e
+   517    | fvar {idx ty e} : ExprWF ty → expr.fvar idx ty = ok e → ExprWF e
+   518    | sort {u e} : LevelWF u → expr.sort u = ok e → ExprWF e
+   519    | mk_const {n us e} : NameWF n → LevelsWF us → expr.mk_const n us = ok e → ExprWF e
+   520    | app {f a e} : ExprWF f → ExprWF a → expr.app f a = ok e → ExprWF e
+   521    | lam {ty b m e} : ExprWF ty → ExprWF b → BinderMetaWF m →
+   522        expr.lam ty b m = ok e → ExprWF e
+   523    | forall_e {ty b m e} : ExprWF ty → ExprWF b → BinderMetaWF m →
+   524        expr.forall_e ty b m = ok e → ExprWF e
+   525    | let_e {ty v b e} : ExprWF ty → ExprWF v → ExprWF b →
+   526        expr.let_e ty v b = ok e → ExprWF e
+   527    | lit {l e} : LiteralWF l → expr.lit l = ok e → ExprWF e
+   528    | proj {s i x e} : NameWF s → ExprWF x → expr.proj s i x = ok e → ExprWF e
+   529  
 
 == proof/ConRon/Refine/Core/Arms/Shape.lean#L102-L119
    102  def SimS {α β : Type} (A : α → β) (WF : α → Prop)
@@ -635,16 +663,16 @@
    118  /-- The pure shape: a Rust computation that touches neither state nor
    119  environment is a plain equation against its con-leche value. -/
 
-== proof/ConRon/Refine/Abs.lean#L934-L942
-   934  def ErrSim {γ : Type} (e : kernel.core_types.CheckError)
-   935      (x : Except ConLeche.CheckError γ) : Prop :=
-   936    ∀ k, absErrKind e = some k → ∃ le, x = .error le ∧ lErrKind le = k
-   937  
-   938  /-- The port's own failure claims nothing. -/
-   939  theorem ErrSim.native {γ : Type} {x : Except ConLeche.CheckError γ} (m) :
-   940      ErrSim (.Native m) x := by
-   941    intro k hk; simp at hk
-   942  
+== proof/ConRon/Refine/Abs.lean#L938-L946
+   938  def ErrSim {γ : Type} (e : kernel.core_types.CheckError)
+   939      (x : Except ConLeche.CheckError γ) : Prop :=
+   940    ∀ k, absErrKind e = some k → ∃ le, x = .error le ∧ lErrKind le = k
+   941  
+   942  /-- The port's own failure claims nothing. -/
+   943  theorem ErrSim.native {γ : Type} {x : Except ConLeche.CheckError γ} (m) :
+   944      ErrSim (.Native m) x := by
+   945    intro k hk; simp at hk
+   946  
 
 == proof/ConRon/Refine/Core/Statements.lean#L191-L194
    191  def KnotSpec (mode : env.CheckMode) (fuel : Std.U64) : Prop :=
