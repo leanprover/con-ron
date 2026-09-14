@@ -65,6 +65,17 @@ inductive modeller), the CLI, and the thread pool are outside it, as they are
 in con-leche.  Porting them is required for a usable binary; proving them is
 a cherry on top (§7, phase P4).
 
+**That list has moved once, and it was upstream that moved it** (2026-09-14,
+§3.8).  con-leche's own tasks #290/#294 brought its parser inside its theorem
+and restated its main corollary over the file's byte chunks, so the parser is
+no longer a cherry on either side: task #84 rewrote con-ron's into the verified
+crate, where it is extracted and awaiting its lemmas.  What remains outside by
+design is the **in-process modeller** — whose own module note argues the case,
+"soundness needs nothing from this module" — the CLI and the thread pool.  The
+parser's refinement is what will finally discharge `hds`, the parsed input's
+well-formedness, which the capstones have carried as a hypothesis since task
+#60.
+
 ## 2. Why Aeneas (and what else was considered)
 
 The proof must live in Lean and connect to con-leche's theorem, so the tool
@@ -1148,9 +1159,17 @@ measured.
    `Rc`/`Arc` decision it waited on is settled (§3.2: `P = std::sync::Arc`,
    task #45).
 2. Perf comparison against con-leche and the official kernel (PERF.md).
-3. Optional: parser refinement against con-leche's naive reference parser.
-   Task #37 wrote the statement down: every item of `frontend::scan_fast`
-   cites the `Scan/Naive.lean` declaration that specifies it.
+3. ~~Optional: parser refinement against con-leche's naive reference parser.~~
+   **No longer optional, and no longer a cherry** (§3.8, task #84).  Upstream
+   put its own parser inside its theorem (con-leche's tasks #290/#294) and
+   states its main corollary over the file's byte chunks, so a port that stops
+   at the fold cannot inherit it.  Task #84 rewrote the parser into
+   `crates/con-ron-core/src/frontend/` — extracted, gated, differentially
+   tested, no proofs — and it is `scanLineFwd` the port is about, not
+   `Scan/Naive.lean`: the naive recogniser is the *specification* and
+   `Scan/Equiv.lean`'s `@[csimp]` is what makes the fast one what Lean runs.
+   The lemmas, and the chunk-level capstone above them, are task #85; that
+   task's section lists them.
 
 ## 6. Risks
 
