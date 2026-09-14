@@ -15702,23 +15702,32 @@ Mathlib 691 128.
 **The Mathlib landing rule passes.**  `con-ron --verified --jobs=1` on the
 Mathlib export under `ulimit -v 27000000` finishes:
 
-| | con-leche `c431b1ca` | con-ron |
-|---|---:|---:|
-| `Init`, instructions | 585.95 G | **540.38 G** |
-| `Init`, wall / peak RSS | 55.6 s / 0.48 GB | 64.8 s / 0.91 GB |
-| `Init+Std+Lean`, instructions | 1 176.27 G | **1 157.64 G** |
-| `Init+Std+Lean`, wall / peak RSS | 121.5 s / 1.22 GB | 161.1 s / 2.44 GB |
-| Mathlib, instructions | *(below)* | **11 366.95 G** |
-| Mathlib, wall / peak RSS | *(below)* | 1 925.0 s / **16.49 GB** |
+Both binaries at the vendored commit, `--verified`, one run per cell:
+
+| export | jobs | con-leche instructions | con-ron instructions | con-leche wall / RSS | con-ron wall / RSS |
+|---|---|---:|---:|---|---|
+| `Init` | 1 | 585.95 G | **540.38 G** | 55.6 s / 0.48 GB | 64.8 s / 0.91 GB |
+| `Init` | 8 | 587.22 G | **544.30 G** | 12.3 s / 0.67 GB | 20.3 s / 1.18 GB |
+| `Init+Std+Lean` | 1 | 1 176.27 G | **1 157.64 G** | 121.5 s / 1.22 GB | 161.1 s / 2.44 GB |
+| `Init+Std+Lean` | 8 | 1 179.41 G | **1 166.57 G** | 37.1 s / 1.46 GB | 72.6 s / 2.80 GB |
+| Mathlib | 1 | 12 792.41 G | **11 366.95 G** | 1 219.6 s / 8.75 GB | 1 925.0 s / **16.49 GB** |
 
 con-ron's Mathlib instruction count is **0.12 % below** the 11 381.13 G task
 #81 recorded — which is exactly what con-leche measured for its own task #292,
 so the bump's arithmetic reaches the port unchanged.  Peak RSS is 16.49 GB
 against task #81's 15.85 GB, **+4.0 %**, well inside the 27 GB cap; the extra
 is the preparation step's array shuffling and the five extra records per
-stream.  Wall times were taken while four Lean builds shared the machine and
-are not comparable across days; the instruction counts, which is why they are
-the measure of record, are.
+stream.  con-leche moved the same way (12 792.41 G against the 12 816.55 G of
+task #29's baseline, −0.19 %), so the *gap* is where it was: con-ron does
+11.1 % fewer instructions on Mathlib at 1.58× the wall and 1.88× the memory.
+Wall times were taken while four Lean builds shared the machine and are not
+comparable across days; the instruction counts, which is why they are the
+measure of record, are.
+
+The eight-worker Mathlib pair was **not** re-measured: the machine was shared
+and the harness killed a background task for memory while the queue ran.  The
+parallel-scaling story this bump does not touch, and OVERVIEW §6.3 says which
+cell stands at which commit.
 
 #### 6. Where the ledger stands
 
