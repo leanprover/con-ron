@@ -16422,9 +16422,10 @@ needs no hypothesis on the permutation at all.
 
 #### 10. Where the ledger stands
 
-`scripts/gates.sh`: **all nine OK**, `lake build` green in 21 s incremental
-(the whole tier is ~22 s from cold).  Not one existing lemma moved: the group
-is additive, and `Refine/Main.lean` gained two imports and four theorems.
+`scripts/gates.sh`: **all nine OK**.  Not one existing lemma moved: the group
+is additive, and `Refine/Main.lean` gained two imports and four theorems.  The
+seven files' own elaboration, `lean` per file on a quiet machine (§7), sums to
+about 23 s, of which `ScanWF.lean` is 11.3 s.
 
 ```
 Verified core (ConLeche/Kernel, ConLeche/Cached)  to translate 14 077  translated 100%  verified 92%
