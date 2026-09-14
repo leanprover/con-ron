@@ -304,8 +304,8 @@ file note, point 3). -/
 inversion a `match &f.0.kind` arm needs, since casing on the kind throws the
 `ExprWF` derivation away. -/
 theorem wf_const_inv {e : expr.Expr} (he : ExprWF e) {d : Std.U64}
-    {n : name.Name} {us : alloc.vec.Vec level.Level}
-    (hk : e = .mk (.mk d (.Const n us))) : NameWF n ∧ LevelsWF us := by
+    {n : name.Name} {us : levels.Levels}
+    (hk : e = .mk (.mk d (.Const n us))) : NameWF n ∧ ConstLevelsWF us := by
   cases he with
   | @bvar i _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1; simp at hk
   | @fvar idx ty _ _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1; simp at hk
@@ -315,7 +315,7 @@ theorem wf_const_inv {e : expr.Expr} (he : ExprWF e) {d : Std.U64}
     simp only [expr.Expr.mk.injEq, expr.ExprNode.mk.injEq,
       expr.ExprKind.Const.injEq] at hk
     obtain ⟨-, rfl, rfl⟩ := hk
-    exact ⟨hn, hus⟩
+    exact ⟨hn, Levels.constLevelsWF_ofVec hus⟩
   | @app f a _ _ _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1; simp at hk
   | @lam ty bo m _ _ _ _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1; simp at hk
   | @forall_e ty bo m _ _ _ _ h1 =>
@@ -1005,16 +1005,17 @@ theorem unfoldable_head_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
       rw [hfe.find_some hcwf ho]
       cases ci with
       | DefnInfo cv v hint =>
+        obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
         simp only [Result.ok.injEq] at h
         rw [← h]
-        simp only [absConstantInfo, absConstantVal, absLevels, absNames, List.length_map]
-        have hv1 := alloc.vec.Vec.len_val us
+        simp only [absConstantInfo, absConstantVal, absNames, List.length_map]
+        have hv1 := Levels.len_refines hi
         have hv2 := alloc.vec.Vec.len_val cv.level_params
-        by_cases hq : us.val.length = cv.level_params.val.length
-        · have he1 : alloc.vec.Vec.len us = alloc.vec.Vec.len cv.level_params := by
+        by_cases hq : (absConstLevels us).length = cv.level_params.val.length
+        · have he1 : i = alloc.vec.Vec.len cv.level_params := by
             scalar_tac
           rw [he1]; simp [hq]
-        · have he1 : alloc.vec.Vec.len us ≠ alloc.vec.Vec.len cv.level_params := by
+        · have he1 : i ≠ alloc.vec.Vec.len cv.level_params := by
             intro hc; exact hq (by scalar_tac)
           simp [he1, hq]
       | _ =>
@@ -1256,14 +1257,14 @@ theorem str_expansion_fires_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
   cases k with
   | Const c us =>
     have hcwf := (wf_const_inv hf rfl).1
-    have hv := alloc.vec.Vec.len_val us
     simp only [absExpr_mk, absExprKind]
     simp only [] at h
-    by_cases hlen : alloc.vec.Vec.len us = 0#usize
+    obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+    have hv := Levels.len_refines hi
+    by_cases hlen : i = 0#usize
     · rw [if_pos hlen] at h
-      have hu : us.val = [] :=
+      have hnil : absConstLevels us = [] :=
         List.eq_nil_iff_length_eq_zero.mpr (by scalar_tac)
-      have hnil : absLevels us = [] := by simp [absLevels, hu]
       simp only [hnil, decide_true, Bool.and_true]
       simp only [bind_eq_ok_iff] at h
       obtain ⟨n, hn, bb, hbb, h⟩ := h
@@ -1285,11 +1286,10 @@ theorem str_expansion_fires_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
         rw [← Result.ok_injective h]
         simp [hce]
     · rw [if_neg hlen] at h
-      have hne : us.val ≠ [] := by
+      have hnn : absConstLevels us ≠ [] := by
         intro hq
-        have h0 : us.val.length = 0 := by rw [hq]; rfl
+        have h0 : (absConstLevels us).length = 0 := by rw [hq]; rfl
         exact hlen (by scalar_tac)
-      have hnn : absLevels us ≠ [] := by simp [absLevels, hne]
       rw [← Result.ok_injective h]
       simp [hnn]
   | _ => simp only [Result.ok.injEq] at h; rw [← h]; simp

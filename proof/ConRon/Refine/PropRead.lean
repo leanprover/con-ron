@@ -486,14 +486,15 @@ theorem head_type_pw_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {e : expr.Ex
     simp [ConLeche.headTypePW]
   | @mk_const c us e hc hus h1 =>
     obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Levels.levels_len_ofVec,
+      bind_eq_ok_iff] at h
     obtain ⟨o, ho, h⟩ := h
     obtain ⟨hoabs, howf⟩ := stored_cv_at_refines hfe hwf hc ho
     have hst : storedCVAt lfe.find? (absName c) (absLevels us).length
         = o.map absConstantVal := by
       rw [show (absLevels us).length = (alloc.vec.Vec.len us).val by simp [absLevels]]
       exact hoabs.symm
-    simp only [absExpr_mk, absExprKind, headTypePW_const, hst]
+    simp only [absExpr_mk, absExprKind, Levels.absConstLevels_ofVec, headTypePW_const, hst]
     cases o with
     | none =>
       simp only [Result.ok.injEq] at h
@@ -516,11 +517,13 @@ theorem head_type_pw_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {e : expr.Ex
         exact ⟨by simp, by simp⟩
       | some pw =>
         simp only [bind_eq_ok_iff, Result.ok.injEq] at h
-        obtain ⟨pw1, hpw1, hr⟩ := h
-        obtain ⟨hpwabs, hpwwf⟩ := ExprOps.subst_pw_refines hcvp hus (ho2wf pw rfl) hpw1
+        obtain ⟨v, hv, pw1, hpw1, hr⟩ := h
+        obtain ⟨hpwabs, hpwwf⟩ := ExprOps.subst_pw_refines hcvp
+          (Levels.to_vec_wf (Levels.constLevelsWF_ofVec hus) hv) (ho2wf pw rfl) hpw1
         rw [← hr]
         refine ⟨?_, ?_⟩
-        · rw [Option.map_some, hpwabs, ← ho2abs]
+        · rw [Option.map_some, hpwabs, Levels.to_vec_refines hv,
+            Levels.absConstLevels_ofVec, ← ho2abs]
           simp
         · intro q hq; rw [Option.mem_def, Option.some.injEq] at hq; rw [← hq]; exact hpwwf
   | @bvar i e h1 =>
@@ -712,14 +715,15 @@ theorem head_proof_pw_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {e : expr.E
     simp [ConLeche.headProofPW]
   | @mk_const c us e hc hus h1 =>
     obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Levels.levels_len_ofVec,
+      bind_eq_ok_iff] at h
     obtain ⟨o, ho, h⟩ := h
     obtain ⟨hoabs, howf⟩ := stored_cv_at_refines hfe hwf hc ho
     have hst : storedCVAt lfe.find? (absName c) (absLevels us).length
         = o.map absConstantVal := by
       rw [show (absLevels us).length = (alloc.vec.Vec.len us).val by simp [absLevels]]
       exact hoabs.symm
-    simp only [absExpr_mk, absExprKind, headProofPW_const, hst]
+    simp only [absExpr_mk, absExprKind, Levels.absConstLevels_ofVec, headProofPW_const, hst]
     cases o with
     | none =>
       simp only [Result.ok.injEq] at h
@@ -740,11 +744,13 @@ theorem head_proof_pw_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {e : expr.E
         exact ⟨by simp, by simp⟩
       | some pw =>
         simp only [bind_eq_ok_iff, Result.ok.injEq] at h
-        obtain ⟨pw1, hpw1, hr⟩ := h
-        obtain ⟨hpwabs, hpwwf⟩ := ExprOps.subst_pw_refines hcvp hus (ho1wf pw rfl) hpw1
+        obtain ⟨v, hv, pw1, hpw1, hr⟩ := h
+        obtain ⟨hpwabs, hpwwf⟩ := ExprOps.subst_pw_refines hcvp
+          (Levels.to_vec_wf (Levels.constLevelsWF_ofVec hus) hv) (ho1wf pw rfl) hpw1
         rw [← hr]
         refine ⟨?_, ?_⟩
-        · rw [Option.map_some, hpwabs, ← ho1abs]
+        · rw [Option.map_some, hpwabs, Levels.to_vec_refines hv,
+            Levels.absConstLevels_ofVec, ← ho1abs]
           simp
         · intro q hq; rw [Option.mem_def, Option.some.injEq] at hq; rw [← hq]; exact hpwwf
   | @sort u e hu h1 =>

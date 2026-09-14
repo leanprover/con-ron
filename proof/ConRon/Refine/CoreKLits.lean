@@ -105,8 +105,8 @@ beside the `*_inv` family; written here because task #49 owns no other file.
 Only the head name's `NameWF` is used (by the `name::beq` exactness of the three
 constant readers below), but the levels come for free. -/
 private theorem const_wf_inv {e : expr.Expr} (he : ExprWF e) :
-    ∀ {d : Std.U64} {c : name.Name} {us : alloc.vec.Vec level.Level},
-      e = .mk (.mk d (.Const c us)) → NameWF c ∧ LevelsWF us := by
+    ∀ {d : Std.U64} {c : name.Name} {us : levels.Levels},
+      e = .mk (.mk d (.Const c us)) → NameWF c ∧ ConstLevelsWF us := by
   cases he with
   | @bvar i e h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1; intros; simp_all
   | @fvar idx ty e _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1; intros; simp_all
@@ -115,7 +115,7 @@ private theorem const_wf_inv {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, bb, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro d c us' hk
     cases hk
-    exact ⟨hn, hus⟩
+    exact ⟨hn, Levels.constLevelsWF_ofVec hus⟩
   | @app f a e _ _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1; intros; simp_all
   | @lam ty b m e _ _ _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1; intros; simp_all
   | @forall_e ty b m e _ _ _ h1 =>
@@ -167,23 +167,27 @@ theorem is_bool_true_refines {e : expr.Expr} {b : Bool} (he : ExprWF e)
   cases k with
   | Const c us =>
     dsimp only at h
+    obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+    have hilen : i.val = (absConstLevels us).length := Levels.len_refines hi
     split at h <;> rename_i hlen
-    · have hnil : us.val = [] := List.eq_nil_of_length_eq_zero (by scalar_tac)
+    · have hnil : absConstLevels us = [] :=
+        List.eq_nil_of_length_eq_zero (by rw [← hilen]; scalar_tac)
       obtain ⟨n, hn, hbeq⟩ := bind_eq_ok_iff.mp h
       obtain ⟨hnabs, hnwf⟩ := htrue n hn
       obtain ⟨hcwf, -⟩ := const_wf_inv he rfl
       rw [Name.beq_refines hcwf hnwf hbeq, hnabs]
-      show _ = ConLeche.Expr.isBoolTrue (.const (absName c) (absLevels us))
-      rw [show absLevels us = [] by simp [absLevels, hnil]]
+      show _ = ConLeche.Expr.isBoolTrue (.const (absName c) (absConstLevels us))
+      rw [hnil]
       rfl
-    · have hne : us.val ≠ [] := by
+    · have hne : absConstLevels us ≠ [] := by
         intro hc
+        rw [hc, List.length_nil] at hilen
         exact hlen (by scalar_tac)
       simp only [Result.ok.injEq] at h
       rw [← h]
-      show _ = ConLeche.Expr.isBoolTrue (.const (absName c) (absLevels us))
-      cases hl : absLevels us with
-      | nil => exact absurd (by simpa [absLevels] using hl) hne
+      show _ = ConLeche.Expr.isBoolTrue (.const (absName c) (absConstLevels us))
+      cases hl : absConstLevels us with
+      | nil => exact absurd hl hne
       | cons u l => rfl
   | _ => simp only [Result.ok.injEq] at h; rw [← h]; simp [ConLeche.Expr.isBoolTrue]
 
@@ -296,15 +300,18 @@ theorem raw_nat_lit_refines {e : expr.Expr} {o : Option ron.nat.Nat} (he : ExprW
   | Const c us =>
     dsimp only at h
     obtain ⟨hcwf, -⟩ := const_wf_inv he rfl
+    obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+    have hilen : i.val = (absConstLevels us).length := Levels.len_refines hi
     split at h <;> rename_i hlen
-    · have hnil : us.val = [] := List.eq_nil_of_length_eq_zero (by scalar_tac)
+    · have hnil : absConstLevels us = [] :=
+        List.eq_nil_of_length_eq_zero (by rw [← hilen]; scalar_tac)
       simp only [bind_eq_ok_iff] at h
       obtain ⟨n, hn, b, hb, h⟩ := h
       obtain ⟨hnabs, hnwf⟩ := hzero n hn
       rw [Name.beq_refines hcwf hnwf hb, hnabs] at h
       show Option.map Nat.toNat o
-          = ConLeche.rawNatLit? (.const (absName c) (absLevels us)) ∧ _
-      rw [show absLevels us = [] by simp [absLevels, hnil]]
+          = ConLeche.rawNatLit? (.const (absName c) (absConstLevels us)) ∧ _
+      rw [hnil]
       simp only [ConLeche.rawNatLit?]
       by_cases hc : absName c = ConLeche.natZeroName
       · simp only [hc, decide_true, if_true, bind_eq_ok_iff] at h ⊢
@@ -314,13 +321,16 @@ theorem raw_nat_lit_refines {e : expr.Expr} {o : Option ron.nat.Nat} (he : ExprW
         exact ⟨by simp [hzv], by intro m hm; simp at hm; rw [← hm]; exact hzwf⟩
       · simp only [hc, decide_false, Bool.false_eq_true, if_false, Result.ok.injEq] at h ⊢
         rw [← h]; simp
-    · have hne : us.val ≠ [] := fun hc => hlen (by scalar_tac)
+    · have hne : absConstLevels us ≠ [] := by
+        intro hc
+        rw [hc, List.length_nil] at hilen
+        exact hlen (by scalar_tac)
       simp only [Result.ok.injEq] at h
       rw [← h]
       show Option.map Nat.toNat none
-          = ConLeche.rawNatLit? (.const (absName c) (absLevels us)) ∧ _
-      cases hl : absLevels us with
-      | nil => exact absurd (by simpa [absLevels] using hl) hne
+          = ConLeche.rawNatLit? (.const (absName c) (absConstLevels us)) ∧ _
+      cases hl : absConstLevels us with
+      | nil => exact absurd hl hne
       | cons u l => exact ⟨rfl, by simp⟩
   | Lit l =>
     dsimp only at h
@@ -436,17 +446,20 @@ theorem succ_of_refines {nn : ron.nat.Nat} {f : expr.Expr} {o : Option ron.nat.N
     | Const c us =>
       dsimp only at h
       obtain ⟨hcwf, -⟩ := const_wf_inv hf rfl
+      obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+      have hilen : i.val = (absConstLevels us).length := Levels.len_refines hi
       split at h <;> rename_i hlen
-      · have hnil : us.val = [] := List.eq_nil_of_length_eq_zero (by scalar_tac)
+      · have hnil : absConstLevels us = [] :=
+          List.eq_nil_of_length_eq_zero (by rw [← hilen]; scalar_tac)
         simp only [bind_eq_ok_iff] at h
         obtain ⟨n, hn, b1, hb1, h⟩ := h
         obtain ⟨hnabs, hnwf⟩ := hsucc n hn
         rw [Name.beq_refines hcwf hnwf hb1, hnabs] at h
         show Option.map Nat.toNat o
-            = (match Nat.toNat nn, ConLeche.Expr.const (absName c) (absLevels us) with
+            = (match Nat.toNat nn, ConLeche.Expr.const (absName c) (absConstLevels us) with
                 | k + 1, .const c [] => if c = ConLeche.natSuccName then some k else none
                 | _, _ => none) ∧ _
-        rw [hk, show absLevels us = [] by simp [absLevels, hnil]]
+        rw [hk, hnil]
         simp only []
         by_cases hc : absName c = ConLeche.natSuccName
         · simp only [hc, decide_true, if_true, bind_eq_ok_iff] at h ⊢
@@ -458,16 +471,19 @@ theorem succ_of_refines {nn : ron.nat.Nat} {f : expr.Expr} {o : Option ron.nat.N
           rw [← hm]; exact hpwf
         · simp only [hc, decide_false, Bool.false_eq_true, if_false, Result.ok.injEq] at h ⊢
           rw [← h]; simp
-      · have hne : us.val ≠ [] := fun hc => hlen (by scalar_tac)
+      · have hne : absConstLevels us ≠ [] := by
+          intro hc
+          rw [hc, List.length_nil] at hilen
+          exact hlen (by scalar_tac)
         simp only [Result.ok.injEq] at h
         rw [← h]
         show Option.map Nat.toNat none
-            = (match Nat.toNat nn, ConLeche.Expr.const (absName c) (absLevels us) with
+            = (match Nat.toNat nn, ConLeche.Expr.const (absName c) (absConstLevels us) with
                 | k + 1, .const c [] => if c = ConLeche.natSuccName then some k else none
                 | _, _ => none) ∧ _
         rw [hk]
-        cases hl : absLevels us with
-        | nil => exact absurd (by simpa [absLevels] using hl) hne
+        cases hl : absConstLevels us with
+        | nil => exact absurd hl hne
         | cons u l => exact ⟨rfl, by simp⟩
     | _ =>
       simp only [Result.ok.injEq] at h

@@ -586,8 +586,8 @@ theorem proj_type_at_checked_refines {entry : env.ProjEntry} {sn t : name.Name}
 are well formed.  Belongs in `Refine/Expr.lean` beside the `*_inv` family
 (module note). -/
 theorem constKind_wf_inv {e : expr.Expr} (he : ExprWF e) :
-    ∀ {d : Std.U64} {c : name.Name} {us : alloc.vec.Vec level.Level},
-      e = .mk (.mk d (.Const c us)) → NameWF c ∧ LevelsWF us := by
+    ∀ {d : Std.U64} {c : name.Name} {us : levels.Levels},
+      e = .mk (.mk d (.Const c us)) → NameWF c ∧ ConstLevelsWF us := by
   cases he with
   | @bvar i e h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1; intros; simp_all
   | @fvar idx ty e _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1; intros; simp_all
@@ -596,7 +596,7 @@ theorem constKind_wf_inv {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, bb, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro d c us' hk
     cases hk
-    exact ⟨hn, hus⟩
+    exact ⟨hn, Levels.constLevelsWF_ofVec hus⟩
   | @app f a e _ _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1; intros; simp_all
   | @lam ty b m e _ _ _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1; intros; simp_all
   | @forall_e ty b m e _ _ _ h1 =>
@@ -642,7 +642,7 @@ theorem infer_proj_at_err {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {sn : name.Name
     obtain ⟨o, ho, h⟩ := h
     obtain ⟨hnwf, huswf⟩ := constKind_wf_inv hfnwf rfl
     obtain ⟨hoabs, howf⟩ := find_proj_refines hrel hfwf hnwf ho
-    have hgf : (absExpr te).getAppFn = .const (absName t) (absLevels us') := by
+    have hgf : (absExpr te).getAppFn = .const (absName t) (absConstLevels us') := by
       rw [← hfabs]; rfl
     cases o with
     | none =>
@@ -654,10 +654,12 @@ theorem infer_proj_at_err {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {sn : name.Name
       simp only [inferProjAtL, hgf, ← hoabs]
     | some entry =>
       simp only [Option.map_some] at hoabs
-      simp only [bind_eq_ok_iff, Result.ok.injEq, exists_eq_left'] at h
-      obtain ⟨targs, hta, h⟩ := h
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨targs, hta, v, hv, h⟩ := h
       obtain ⟨htabs, htawf⟩ := ExprOps.get_app_args_refines hte hta
-      have hres := proj_type_at_checked_err hfire (howf entry rfl) hsn hnwf huswf h
+      have hres := proj_type_at_checked_err hfire (howf entry rfl) hsn hnwf
+        (Levels.to_vec_wf huswf hv) h
+      rw [Levels.to_vec_refines hv] at hres
       simp only [inferProjAtL, hgf, ← hoabs, ← htabs]
       exact hres
   all_goals
@@ -705,7 +707,7 @@ theorem infer_proj_at_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {sn : name.
     obtain ⟨o, ho, h⟩ := h
     obtain ⟨hnwf, huswf⟩ := constKind_wf_inv hfnwf rfl
     obtain ⟨hoabs, howf⟩ := find_proj_refines hrel hfwf hnwf ho
-    have hgf : (absExpr te).getAppFn = .const (absName t) (absLevels us') := by
+    have hgf : (absExpr te).getAppFn = .const (absName t) (absConstLevels us') := by
       rw [← hfabs]; rfl
     cases o with
     | none =>
@@ -713,11 +715,12 @@ theorem infer_proj_at_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {sn : name.
         and_false, exists_false] at h
     | some entry =>
       simp only [Option.map_some] at hoabs
-      simp only [bind_eq_ok_iff, Result.ok.injEq, exists_eq_left'] at h
-      obtain ⟨targs, hta, h⟩ := h
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨targs, hta, v, hv, h⟩ := h
       obtain ⟨htabs, htawf⟩ := ExprOps.get_app_args_refines hte hta
       obtain ⟨hres, hrwf⟩ := proj_type_at_checked_refines hrev hfire (howf entry rfl)
-        hsn hnwf huswf htawf hpe h
+        hsn hnwf (Levels.to_vec_wf huswf hv) htawf hpe h
+      rw [Levels.to_vec_refines hv] at hres
       refine ⟨?_, hrwf⟩
       simp only [inferProjAtL, hgf, ← hoabs, ← htabs]
       exact hres
