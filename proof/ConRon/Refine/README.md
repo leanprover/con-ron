@@ -288,6 +288,35 @@ happened three times in one day at task #87, twice on `absU32` and once on
 `readNat_eq`.  A proved `*_refines` lemma about a *Rust* function collides
 with nothing and may live wherever it is used.
 
+### How to check one file green (and why `lake env lean` is not enough)
+
+`proof/lakefile.toml` sets two options project-wide, and **`lake env lean` does
+not apply them** — `lake env` exports the package's `LEAN_PATH` and nothing
+else, while `leanOptions` are passed on `lean`'s command line by `lake build`.
+So the single-file check is
+
+```
+ulimit -v 100000000 && lake env lean --threads=4 \
+  -Dweak.backward.isDefEq.respectTransparency=false \
+  -Dweak.backward.do.legacy=true FILE.lean
+```
+
+and a file is not green until it has been checked that way.  This is not
+pedantry: at task #87 `PrepareR.lean` passed a bare `lake env lean` all morning
+and failed the moment `lake build` reached it, because `backward.do.legacy`
+changes `do`-notation elaboration and the file's `hoistTargets_split` is `rfl`
+only when its mirrors elaborate the way con-leche's `do` block did.  Watch for
+it wherever a step closes by `rfl`, `decide`, or definitional unfolding through
+a `do` block or a `forIn`; a proof that goes through a congruence descent
+instead (`cases` on each scrutinee, `mIteCong`/`mBindCong`-style lemmas) is
+immune, which is why `IndValidateR.lean`'s mirror of `validateIndD` needed no
+`set_option` at all.
+
+`ulimit -v` matters too, and the numbers are not obvious: on a 96-core box
+`ulimit -v 8000000` makes `lean` die with `failed to create thread` before it
+elaborates anything.  Use `100000000` for a single file and `400000000` for a
+`lake build` fan-out.
+
 ### When con-leche writes one `do` block and the port writes five functions
 
 `Frontend/hoistTargets` is one `Id.run do` with three `for`s and a `while`
