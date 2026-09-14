@@ -931,6 +931,13 @@ structure frontend.scan_types.RuleRec where
   nfields : Std.U64
   rhs : Std.U64
 
+/-- [con_ron_core::frontend::scan_types::ScanErr]
+    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 139:0-142:1
+    Visibility: public -/
+structure frontend.scan_types.ScanErr where
+  offset : Std.Usize
+  what : frontend.scan_types.ErrTag
+
 /-- [con_ron_core::frontend::scan_types::IndCtorRec]
     Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 418:0-425:1
     Visibility: public -/
@@ -1080,7 +1087,7 @@ inductive frontend.scan_types.LineRec where
 | Blank : frontend.scan_types.LineRec
 
 /-- [con_ron_core::frontend::export_c::ParseResultD]
-    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2399:0-2415:1
+    Source: 'crates/con-ron-core/src/frontend/export_c.rs', lines 2421:0-2437:1
     Visibility: public -/
 structure frontend.export_c.ParseResultD where
   decls : alloc.vec.Vec kernel.env.Declaration
@@ -1090,13 +1097,6 @@ structure frontend.export_c.ParseResultD where
   gen_owner : ron.hashmap.HashMap kernel.name.Name kernel.name.Name
   in_model_declined : alloc.vec.Vec (kernel.name.Name × (alloc.vec.Vec
     Std.U32))
-
-/-- [con_ron_core::frontend::scan_types::ScanErr]
-    Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 139:0-142:1
-    Visibility: public -/
-structure frontend.scan_types.ScanErr where
-  offset : Std.Usize
-  what : frontend.scan_types.ErrTag
 
 /-- [con_ron_core::frontend::scan_types::Key]
     Source: 'crates/con-ron-core/src/frontend/scan_types.rs', lines 470:0-538:1

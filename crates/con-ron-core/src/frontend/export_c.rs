@@ -129,9 +129,9 @@ use crate::frontend::proj_rec;
 use crate::frontend::scan_fast;
 use crate::frontend::scan_types;
 use crate::frontend::scan_types::{
-    id_table_get, id_table_insert, id_table_singleton, scan_err_render, CVRec, DeclRec, ExprRec,
-    HintsRec, IdTable, IndCtorRec, IndRecRec, IndTypeRec, LevelRec, LineRec, NameRec, PwRec,
-    RuleRec, ScanErr,
+    id_table_get, id_table_insert, id_table_singleton, scan_err_render, CVRec, DeclRec, ErrTag,
+    ExprRec, HintsRec, IdTable, IndCtorRec, IndRecRec, IndTypeRec, LevelRec, LineRec, NameRec,
+    PwRec, RuleRec, ScanErr,
 };
 use crate::frontend::text;
 use crate::kernel::basis_raw;
@@ -981,6 +981,28 @@ pub fn rel_offset(off: usize, i: usize) -> usize {
         off - i
     } else {
         0
+    }
+}
+
+/// con-leche: none — a scan failure as the checker's error, at its offset in
+/// the line.  con-leche renders *every* scan error as `.internal`
+/// (`ExportC.lean:770`, `:782`), and so did the port until task #87.
+///
+/// **The port has one tag con-leche has not got.**  `ErrTag::IndexOverflow` is
+/// deviation 1 of `scan_types.rs`'s module note: a stream index or a count too
+/// large for a `u64`, where con-leche reads a `Nat` and simply succeeds.  Under
+/// the full-outcome ruling (DESIGN.md §3, ruling of 2026-09-13) a *mirrored*
+/// error claims con-leche throws at the same kind, so rendering that one as
+/// `internal` claimed con-leche throws on a stream it in fact accepts.  It is
+/// `Native` — the port's own decline, about which a refinement lemma claims
+/// nothing — and every other tag stays `internal`, mirroring the cited line.
+///
+/// Found by a proof: task #87's `feed_chunk_refines` could not state its error
+/// half until this was fixed (task #67 §1's census, extended to the parser).
+pub fn scan_err_to_check(e: &ScanErr) -> CheckError {
+    match e.what {
+        ErrTag::IndexOverflow => core_types::native(scan_err_render(e)),
+        _ => core_types::internal(scan_err_render(e)),
     }
 }
 
@@ -2439,10 +2461,10 @@ pub fn apply_final_line<G: Modeller>(
 ) -> Result<(), (CheckError, u64)> {
     match scan_fast::scan_line_fwd(b, i) {
         Err(e) => Err((
-            core_types::internal(scan_err_render(&ScanErr {
+            scan_err_to_check(&ScanErr {
                 offset: rel_offset(e.offset, i),
                 what: e.what,
-            })),
+            }),
             line_no,
         )),
         Ok((r, _)) => match apply_line(m, st, &r) {
@@ -2472,10 +2494,10 @@ pub fn feed_chunk<G: Modeller>(
             Err(e) => {
                 if scan_fast::newline_from(b, i) {
                     return Err((
-                        core_types::internal(scan_err_render(&ScanErr {
+                        scan_err_to_check(&ScanErr {
                             offset: rel_offset(e.offset, i),
                             what: e.what,
-                        })),
+                        }),
                         line_no + 1,
                     ));
                 }
