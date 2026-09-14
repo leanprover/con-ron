@@ -16902,7 +16902,7 @@ owed?"* has a finite, checkable answer.  At the end of this task:
 | `ScanStr.Utf8DecodeSpec` / `UnescapeSpec` | `ScanStr` | 2 | **discharged** (§22) — `utf8_decode_spec`, `unescape_spec` |
 | `PrepareR.HoistSpec` | `PrepareR` | 1 | **discharged and deleted** (§18) — `hoist_targets_refines` |
 | `StateDR.NatValSpec` | `StateDR` | 1 | **discharged** by `from_decimal_ok` + `from_decimal_refines` |
-| `IndR.IndRSpec` | `IndR` | 3 | `proj_rewrite_d`, `validate_ind_d`, `install_ind_d` |
+| `IndR.IndRSpec` | `IndR` | 3 | **discharged** (§23, §24) — all three clauses are theorems, modulo the two modeller promises |
 | `ChunksR.ParseIngredients` | `ChunksR` | 6 | 5 and 6 discharged; 1-3 are `ScanLine`'s, 4 is `IndR`'s |
 
 `ScanKit.lean` (3 082 lines), `ScanExpr.lean` (1 369), `ScanInd.lean` (2 156),
