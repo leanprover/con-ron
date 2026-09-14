@@ -1,6 +1,3 @@
 [submodule "vendor/aeneas"]
 	path = vendor/aeneas
 	url = https://github.com/AeneasVerif/aeneas
-[submodule "vendor/con-leche"]
-	path = vendor/con-leche
-	url = https://github.com/leanprover/con-leche
