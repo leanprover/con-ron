@@ -199,7 +199,11 @@ def ledger():
     removed."""
     skips, _bad = P.load_skips()
     out = {}
-    for globs in (PR.CORE_GLOBS, PR.CHERRY_GLOBS):
+    # `PARSER_GLOBS` joined at task #84: the parser is verified-crate Rust now,
+    # so its con-leche lines belong in the "upstream" column beside it -- without
+    # them the rust/upstream ratio compares the whole core crate with the
+    # checker's Lean alone.
+    for globs in (PR.CORE_GLOBS, PR.PARSER_GLOBS, PR.CHERRY_GLOBS):
         for path in PR.lean_files(globs):
             if PR.CHERRY_EXCLUDE.search(path):
                 continue

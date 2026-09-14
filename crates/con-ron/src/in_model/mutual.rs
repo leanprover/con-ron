@@ -31,53 +31,22 @@ use con_ron_core::kernel::level::Level;
 use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::Name;
 
-use crate::frontend::export::name_str;
-use crate::frontend::proj_rec;
+use crate::render::name_str;
+use con_ron_core::frontend::proj_rec;
 use crate::in_model::kit;
 use crate::in_model::kit::{
     app2, bm, const_p, dup_all, get_d, iota_name, mentions_any, mk_lams, mk_pis, model_name,
     pi_binders, sub, tag_ctor_name, vars_at, KCtor,
 };
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:65-74 IndTypeRec
-/// One inductive type of a parsed block, with the export's shape data.
-pub struct IndTypeRec {
-    pub cv: ConstantVal,
-    pub n_p: u64,
-    pub n_idx: u64,
-    pub ctors: Vec<Name>,
-    pub is_rec: bool,
-    pub is_reflexive: bool,
-    pub num_nested: u64,
-}
-
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:76-81 IndCtorRec
-/// One constructor of a parsed block.
-pub struct IndCtorRec {
-    pub cv: ConstantVal,
-    pub n_p: u64,
-    pub n_f: u64,
-}
-
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:83-92 IndRecRec
-/// One recursor of a parsed block (`numParams`, `numMotives`, `numMinors`,
-/// `numIndices` as exported).
-pub struct IndRecRec {
-    pub cv: ConstantVal,
-    pub n_p: u64,
-    pub n_m: u64,
-    pub nm: u64,
-    pub n_i: u64,
-    pub rules: Vec<RecRule>,
-}
-
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:94-99 BlockRec
-/// A parsed inductive block.
-pub struct BlockRec {
-    pub types: Vec<IndTypeRec>,
-    pub ctors: Vec<IndCtorRec>,
-    pub recs: Vec<IndRecRec>,
-}
+// The four block records of `InModel/Mutual.lean:65-99` are **the verified
+// core's** since task #84: the parse builds them (`export_c::block_rec_of`)
+// and the parse is in `crates/con-ron-core`, so they are inside the
+// extraction and the modeller reads the core's copy rather than a twin.  The
+// citations travel with the definitions, in
+// `crates/con-ron-core/src/frontend/in_model_rec.rs`; the field names and
+// order are unchanged, so nothing below this line had to move.
+pub use con_ron_core::frontend::in_model_rec::{BlockRec, IndCtorRec, IndRecRec, IndTypeRec};
 
 /// con-leche: ConLeche/Frontend/InModel/Mutual.lean:101-108 Ctx
 /// What the generator reads besides the block: the declared types of the
@@ -202,7 +171,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
         if t.is_reflexive {
             return Err(format!("reflexive member {}", name_str(&t.cv.name)));
         }
-        if !crate::frontend::export::names_beq(&t.cv.level_params, &lps) || t.n_p != n_p {
+        if !con_ron_core::frontend::export::names_beq(&t.cv.level_params, &lps) || t.n_p != n_p {
             return Err(format!(
                 "member {}: level parameters or parameter count differ",
                 name_str(&t.cv.name)
@@ -271,7 +240,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
                         name_str(&t.cv.name)
                     )
                 })?;
-            if c.n_p != n_p || !crate::frontend::export::names_beq(&c.cv.level_params, &lps) {
+            if c.n_p != n_p || !con_ron_core::frontend::export::names_beq(&c.cv.level_params, &lps) {
                 return Err(format!(
                     "constructor {}: parameter count or level parameters differ",
                     name_str(cn)
@@ -309,7 +278,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
         let r0 = rec_of(0)?;
         match r0.cv.level_params.split_first() {
             Some((e, rest)) => {
-                if crate::frontend::export::names_beq(&kit::dup_names(rest), &lps)
+                if con_ron_core::frontend::export::names_beq(&kit::dup_names(rest), &lps)
                     && !lps.iter().any(|x| name::beq(x, e))
                 {
                     Some(name::dup(e))
@@ -342,7 +311,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
                 name_str(&r.cv.name)
             ));
         }
-        if !crate::frontend::export::names_beq(&r.cv.level_params, &rlps) {
+        if !con_ron_core::frontend::export::names_beq(&r.cv.level_params, &rlps) {
             return Err(format!(
                 "recursor {}: eliminator shape differs",
                 name_str(&r.cv.name)

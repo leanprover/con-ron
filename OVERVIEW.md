@@ -50,6 +50,13 @@ not counted; a stream record that declares a prelude declaration is, because
 the preparation (§3.7) moves it to the front rather than dropping it.  con-ron
 and con-leche print the same number — on Lean's `Init` both say 57 977.
 
+Between the file and that line the binary runs con-leche's four pure steps —
+the built-in prelude, the parse of the file's byte chunks, the preparation,
+the fold — and since task #84 all four are functions of the *verified* crate
+(§3.7).  What belongs to the driver is what is not a function of the input:
+reading the file 4 MiB at a time, the flags, the heartbeat, the worker pool,
+and the in-process modeller it hands the parse.
+
 The exit code follows the Lean kernel arena convention, the same as
 con-leche's
 ([the exit-code table in `driver.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L41-L46)):
@@ -88,9 +95,10 @@ many-core machine its first build can exhaust memory, and
 
 The one command a contributor runs before committing is
 `scripts/gates.sh`
-([the eight steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L51-L58)):
+([the nine steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L53-L61)):
 the Rust build and tests with warnings denied, the style lint (§3.6),
-the provenance check (§4), the embedded-pins check, the extraction check
+the provenance check (§4), the link gate, the two embedded-text checks
+(the pin list and the built-in prelude), the extraction check
 (the committed Lean model must be what Charon and Aeneas produce from the
 crate today), and the Lean build.  §12 has the list.
 
@@ -120,8 +128,12 @@ no constant whose type is `False`.  `absEnv` is the abstraction function
 from the Rust environment to con-leche's (§5).  The hypotheses are three:
 a run of the decoder, a run of the checker, and `hds`, that every parsed
 declaration is well-formed — its terms are what the core's smart
-constructors built, which is what the parser does by construction and
-what the next con-leche update will make a theorem (§3.5).  Nothing is
+constructors built, which is what the parser does by construction.  Since
+task #84 that parser is *in* the verified core and has a Lean model like
+everything else (§3.7), so `hds` is now a statement about a function the
+proof can reason about rather than an audit of another crate; the lemma
+that discharges it, and the chunk-level corollary above it that con-leche
+states for its own binary, are what remains (§3.5).  Nothing is
 assumed about the pins' value, because the fold is parametric in them
 (§9).
 
@@ -165,8 +177,9 @@ con-ron ports the *memoising* checker, one Rust module per Lean file,
 functions in the same order, each carrying a doc comment that cites its
 source range (§4).  The port covers con-leche's core completely and its
 frontend (the export parser and the in-process modeller for mutual and
-nested inductives) completely; the proof covers the core.  §6 has the
-ledger.
+nested inductives) completely; the *verified crate* holds the core and,
+since task #84, the parser (§3.7), and the proof covers the core.  §6 has
+the ledger.
 
 Everything that differs is either a data-structure substitution proved to
 behave the same (§3.2–3.4) or a Rust idiom the translator requires (§3.6);
@@ -251,41 +264,91 @@ term's packed word (§3.2) caches what con-leche computes in a
 constructors fill it, and a node built any other way could carry a word
 that makes the checker's `O(1)` shortcuts wrong.  So the theorem assumes
 every parsed declaration is well-formed in the sense of §5.2: its terms
-are what the smart constructors returned.  The unverified frontend does
-exactly that — it never writes a node literal; the only literal
-construction in the tree is inside the verified core, covered by its own
-lemma — but that is an audit, not a proof.  A runtime check was tried and
+are what the smart constructors returned.  A runtime check was tried and
 withdrawn (DESIGN.md, tasks #73 and #81): a pass that rebuilds every node
 and compares the word needs a visited set over the export's shared DAG,
 and a global set costs about ten gigabytes at Mathlib scale while a
 per-declaration one costs 3.6–4.4 % of instructions, over the budget for
-a check con-leche does not need.  **Upstream has now done its half**
-(con-leche tasks #290 and #294, vendored at task #83): con-leche's parser is
-inside its theorem, and its main corollary `no_False_declaration` is over the
-byte chunks the binary reads rather than over a declaration list.  The
-hypothesis goes away when con-ron ports that verification, which is task #84;
-until then the port's capstones are about the *fold*, as they always were, and
-`hds` is what stands between them and the file.
+a check con-leche does not need.
+
+**Upstream did its half** (con-leche tasks #290 and #294, vendored at task
+#83): con-leche's parser is inside its theorem, and its main corollary
+`no_False_declaration` is over the byte chunks the binary reads rather than
+over a declaration list.  **Task #84 did the port's half of the code**: the
+parser is in the verified core now (§3.7), extracted to Lean with everything
+else, so `hds` is no longer an audit of unverified Rust — it is a statement
+about `parse_chunks`, a function the model has.  What is still missing is the
+*proof*: the lemma that what `parse_chunks` returns is well-formed, and above
+it the port's own chunk-level corollary.  Until those exist the capstones are
+about the *fold*, as they always were, and `hds` is what stands between them
+and the file.
 
 ### 3.6 The Rust subset
 
 Aeneas translates a subset of Rust, and the port stays inside it by rule
-rather than by luck: no closures, no `?`, no loops (recursion instead),
-no `unsafe`, no `std::collections`, no `derive(Debug)`, higher-order
-arguments as one-method traits, `&mut` only where the translation's state
-passing is wanted.  `scripts/lint-rust-style.sh` enforces the mechanical
+rather than by luck: no closures, no `?`, no `derive` at all (explicit
+`foo_dup`/`foo_beq` instead), no `unsafe`, no `std::collections`,
+higher-order arguments as one-method traits, `&mut` only where the
+translation's state passing is wanted, and recursion rather than loops —
+with one exemption, the parser, which §3.7 explains.
+`scripts/lint-rust-style.sh` enforces the mechanical
 part; DESIGN.md §3.4 has the rules and their reasons.  `overflow-checks`
 is on in release builds
 ([`Cargo.toml`](https://github.com/leanprover/con-ron/blob/master/Cargo.toml#L21)),
 so an arithmetic overflow the model calls `fail` is a panic in the binary
 rather than a wrap.
 
-The unverified crate `con-ron` holds the frontend (the parser and the
-modeller, ported from con-leche's), the driver, and the worker pool of
+The unverified crate `con-ron` holds the in-process modeller for mutual and
+nested inductive blocks, the driver, and the worker pool of
 the check phase
 ([`pool.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/pool.rs#L1-L9));
 `con-ron-dump` reads and writes `con-ron-pins/1`, the text format the
 pin list travels in (§3.4).  The verified crate is `con-ron-core`.
+
+### 3.7 The parser
+
+Since task #84 the whole path from the file's bytes to `check_decls` is
+inside the verified crate, one Rust module per con-leche file, under
+`crates/con-ron-core/src/frontend/`
+([the module map](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/frontend/mod.rs#L13-L27)):
+`scan_types` and `scan_fast` (the byte recogniser), `export` and `export_c`
+(the record assembly: the parse state, `process_line_core_d`, `feed_chunk`,
+`chunk_step`, `chunk_finish`, `parse_chunks`), `proj_rec` (the projection
+rewrite) and `nat_op_ground` (the ground hoist), which are on the parse path
+and so came with it, `prepare` (the prelude reorder) and `prelude` with its
+generated text constant.  The reason is §3.5's hypothesis: con-leche now
+states its main corollary over the file's byte chunks, and a port that stops
+at the fold cannot inherit it.
+
+Two things are deliberate about *which* code this is.  The scanner ported is
+`Scan/Fast.lean`, not `Scan/Naive.lean` — the naive one is the
+*specification*, and `Scan/Equiv.lean`'s `scanLineSpec_eq_scanLineFwd` is the
+`@[csimp]` that makes the fast one what the Lean compiler actually runs, so
+the fast one is what a theorem about the binary has to be about.  And the
+**in-process modeller stays unverified**, behind a one-method trait
+([`Modeller`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/frontend/in_model_rec.rs#L258-L269))
+that `parse_chunks` takes as a type parameter: Charon renders a trait method
+on a type parameter as a typeclass field — an opaque function — so the
+extracted parse is quantified over an arbitrary modeller, and its refinement
+will carry one hypothesis about that modeller's output rather than a port of
+six thousand lines whose own module note says "soundness needs nothing from
+this module: a wrong record is rejected or declined by the fold, never
+accepted".  What the modeller reads is handed to it as a `ModelCtx`
+borrowing the parse state's three tables, which the unverified side rewraps
+into the closures its generators overlay.
+
+**The loop exemption.**  `Scan/Fast.lean` recurses once per byte, and Lean
+compiles those tail calls into loops; Rust does not promise to, and a
+per-byte recursion on a long export line is a stack overflow.  So
+`crates/con-ron-core/src/frontend/` — and only that directory — may use
+`while`, `loop` and `for`, which the lint enforces as a boundary.  This costs
+the proof nothing, because the extraction already runs with `-loops-to-rec`:
+each loop becomes a `foo_loop` function that mirrors the Lean recursion one
+for one, and that is what the refinement is stated against.  What it costs
+the *Rust* is a shape rule, because Aeneas duplicates the code after a loop
+into every one of its exits and refuses a `return` out of a loop whose tail
+is anything but trivial (AENEAS_FINDINGS.md §2.6): a loop is the last thing
+in its function, or the loop becomes its own function.
 
 ## 4. Keeping the port in sync with con-leche
 
@@ -413,15 +476,26 @@ one of con-leche's own fixtures — its `tests/arena`, `tests/e2e` and
 `tests/annot` suites, 348 streams — and compares the exit code against
 con-leche's committed expectation for that stream, in both modes, with
 and without the embedded pin list, and at several worker counts.  Being
-end-to-end is the point: the frontend is unverified, and a sweep that
-fed the checker a ready-made declaration list would test neither it nor
-the rules that live above the fold (the taint-skip decline, the
-frontend's own verdicts).  A run is green only when every case agrees.
+end-to-end is the point: everything above the fold is unproved, and a
+sweep that fed the checker a ready-made declaration list would test
+neither the parser nor the rules that live above the fold (the
+frontend's own verdicts, the modeller's coverage).  A run is green only
+when every case agrees.
 
 Earlier tasks ran a second, narrower sweep through a text dump of
 con-leche's parsed declarations, which let the Rust checker be exercised
 before a Rust frontend existed; task #80 retired it once the end-to-end
 sweep covered it — the dump's 315 cases were a subset of these 348.
+
+When the parser was rewritten into the Aeneas subset (§3.7, task #84) the
+fixtures were not the only evidence: the new byte recogniser was run *beside*
+the old one over 119 million real export lines (`Init`, `Init`+`Std`+`Lean`
+and a 100 MB prefix of Mathlib), comparing the record, the continue position
+and the error tag and offset of each, plus 31 million mutated lines — every
+97th line with a byte corrupted, a byte digit-ised and the line truncated.
+Zero disagreements.  A scanner is the one component where that kind of sweep
+is cheap and worth more than the 348 streams, because most of its behaviour
+is in the lines it *rejects*.
 
 ## 6. Results
 
@@ -430,17 +504,22 @@ sweep covered it — the dump's 315 cases were a subset of these 348.
 | | |
 |---|---|
 | con-leche core (`Kernel`, `Cached`) lines to port | 14 077, all ported, 92 % verified (the rest deliberately skipped, listed with reasons) |
-| con-leche frontend and driver lines to port | 7 432, all ported, unverified |
-| Rust, verified core | 38 024 lines, 1 533 functions, every item cited (927 declarations covered, 94 skipped) |
-| Rust, unverified crates | about 17 600 lines |
-| generated Lean model | 53 258 lines |
+| con-leche **parser** lines to port (`Frontend`, §3.7) | 4 441, all ported — into the verified crate since task #84 — 0 % verified, the lemmas being the next task's |
+| con-leche modeller and driver lines to port | 2 975, all ported, unverified by design (§7) |
+| Rust, verified core | 49 674 lines, 1 844 functions, every item cited (the checker's 927 declarations covered, 94 skipped) |
+| Rust, unverified crate | about 11 100 lines |
+| generated Lean model | 73 164 lines |
 | proofs | 148 985 lines: 3 364 theorems by tactic, 800 by term; 1 380 `_refines` lemmas |
 | refinement statements over the whole outcome | 283 of 283 |
 
 The ratios are worth a sentence: the Rust is 2.7× the Lean it ports (a
 `match` in Rust is longer than one in Lean, and every memo probe is
-spelled out), the model 1.4× the Rust, the proofs 3.9× the Rust and 10.6×
-the upstream Lean.
+spelled out) — and the parser, rewritten into the subset by a different
+route, came out at the same ratio, which is a small check that the subset
+is not the reason for the factor.  The model is 1.5× the Rust.  The proofs
+are 3.0× the Rust and 8.1× the upstream Lean, down from 3.9× and 10.6×
+not because anything was proved less but because the denominator grew: the
+parser is in the verified crate with no lemmas yet.
 
 ### 6.2 What the proof found
 
@@ -498,6 +577,20 @@ phase that scales to 4.3× at eight workers and 6.9× at sixteen on `Init`.
 The memory gap is the 56-byte node with its `Arc` header against Lean's
 compact object, and the `Vec`-backed memo tables against `Std.HashMap`.
 
+The single-worker column has been re-measured twice since, at the two changes
+that could have moved it — con-leche's bump (task #83) and the parser's move
+into the verified crate (task #84, §3.7) — and it has not: `Init` 540.9 G,
+`Init`+`Std`+`Lean` 1 161.3 G, Mathlib 11 348.4 G, each within 0.4 % of the
+cell above it, at 0.91, 2.43 and 16.64 GB.  That the *parser* rewrite cost
+nothing is worth a sentence, because the budget expected it to cost something:
+the hot loop of a parser is the scanner, and the scanner never used a closure
+or a `std` map in the first place — what it does per byte is index a slice,
+which the Aeneas subset spells the same way.  The two places that could have
+paid did not: `ron::HashMap` replaced `std`'s only in the parse tables, probed
+once per stream index and not per byte, and the preparation's record copies
+(the subset has no `Vec::remove`, so a reordered record's *spine* is copied)
+are one small allocation per record against a term DAG that is never copied.
+
 ## 7. Trust assumptions
 
 What has to be right for the theorem to mean what it says about the
@@ -517,16 +610,25 @@ binary:
 * **`rustc`, the Rust standard library, and `mimalloc`**, the allocator
   the binaries use.  These are what the project trades Lean's compiler,
   runtime and GMP for.
-* **The unverified crate.**  The parser, the modeller for mutual and
-  nested inductives, the driver and the worker pool are ported but not
-  proved; they are checked against con-leche's on the fixtures (§5.4).
-  The theorem assumes the terms they hand to `check_decls` are what the
-  core's smart constructors built (`hds`, §3.5): a frontend that respects
-  that, as this one does by construction, can lose an accept but not fake
-  one; a frontend that forged a node's cached word could.  This assumption
-  goes with the next con-leche update (§3.5).  One more fact about the
-  driver is what the decoded pair leaves outside Lean: that it calls the
-  decoder on the embedded text.
+* **The unverified crate.**  Since task #84 it is three things: the
+  in-process **modeller** for mutual and nested inductive blocks, the
+  **driver**, and the **worker pool**.  The parser is not among them any
+  more (§3.7) — it is in the verified crate, extracted and about to be
+  refined — but it is not yet *proved*, so for now everything above the fold
+  is still checked against con-leche's only on the fixtures (§5.4), and the
+  theorem still assumes the terms handed to `check_decls` are what the core's
+  smart constructors built (`hds`, §3.5).  A frontend that respects that, as
+  this one does by construction, can lose an accept but not fake one; a
+  frontend that forged a node's cached word could.
+  The modeller is the part that will *stay* unverified by design: it
+  generates `_model` records for a block the direct install routes do not
+  serve, and every one of them is checked by the fold as a stream
+  declaration, so a wrong one is rejected or declined and never accepted —
+  what it decides is which blocks the checker can accept at all, not whether
+  an accepted one is sound.  When the parser's refinement lands, that is the
+  residue `hds` becomes: one hypothesis about the modeller's output.
+  One more fact about the driver is what the decoded pair leaves outside
+  Lean: that it calls the decoder on the embedded text.
 * **Nothing else.**  No `native_decide`, no `sorry`, no extra axiom in
   the headline pair.  The embedded pair's one extra axiom is the
   translator's string-constant artifact, above.
@@ -615,8 +717,9 @@ are `abs*`, the relations `*Rel`, the well-formedness predicates `*WF`.
 |---|---|
 | `crates/con-ron-core/src/kernel/` | the pure checker: `name`, `level`, `prop_when`, `expr`, `expr_ops`, `env`, `fenv`, `core_k`, `checker*`, `decl_check`, `type_checker`, the basis tables and the raw basis pins (`basis_raw`), `canon` (the pin match), the axiom tables, `inductives/*`, `pins_text`, `pins_decode` |
 | `crates/con-ron-core/src/cached/` | the memoising checker: `state_c`, `expr_ops_c`, `core_c` (the knot), `checker_c`, `parsed_c`, `installed` (`check_decls`) |
+| `crates/con-ron-core/src/frontend/` | the export parser (§3.7): `scan_types`, `scan_fast`, `export`, `export_c`, `proj_rec`, `nat_op_ground`, `prepare`, `prelude` with its generated `prelude_text`, and `in_model_rec` — the modeller's block records and the `Modeller` seam |
 | `crates/con-ron-core/src/ron/` | `nat`, `hashmap`, `ptr` — what replaces the runtime |
-| `crates/con-ron/src/` | the frontend (the parser, `prepare` — the prelude reorder and the ground hoist — and the modeller), the driver, the pool, the binary |
+| `crates/con-ron/src/` | the in-process modeller (`in_model`), the driver, the pool, the binary |
 | `crates/con-ron-dump/` | the `con-ron-pins/1` reader and writer |
 | `proof/ConRon/Generated/` | the committed Aeneas model |
 | `proof/ConRon/Refine/` | the proofs: `Abs`, `State`, `FEnv` (abstractions and relations); one file per Rust module; `Core/` (the knot); `Ind*` (the inductive routes); `Pins*` (the decoder); `Validate`; `Installed`; `Main` |
@@ -637,8 +740,9 @@ are `abs*`, the relations `*Rel`, the well-formedness predicates `*WF`.
 4. `scripts/provenance.py check` — every item cites, every citation resolves, no `CHANGED` marker left;
 5. `scripts/overview-links.sh` — every line-anchored link in this document and in `DESIGN.md` still points at the text it cited (the cited lines are a committed artefact, `scripts/overview-links-expected.txt`, in con-leche's idiom);
 6. `scripts/gen-pins.sh --check` — the embedded pin text is what con-leche's list generates;
-7. `scripts/extract.sh --check` — the committed model is what Charon and Aeneas produce;
-8. `lake build` of the model and the proofs.
+7. `scripts/gen-prelude.sh --check` — the embedded prelude text is con-leche's own committed `pins/<toolchain>.prelude.ndjson`;
+8. `scripts/extract.sh --check` — the committed model is what Charon and Aeneas produce;
+9. `lake build` of the model and the proofs.
 
 It ends with the two summary lines of `progress.py` and `loc.py`.  The
 differential tests of §5.4 are not in the gates, since they need the

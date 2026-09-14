@@ -50,5 +50,6 @@
 //! | `inductives` | `ConLeche/Kernel/Inductives/*` (the two install routes for an inductive block; its own `mod.rs` has the sub-map and the three directory-wide deviations) |
 
 pub mod cached;
+pub mod frontend;
 pub mod kernel;
 pub mod ron;

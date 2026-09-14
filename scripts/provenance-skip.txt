@@ -146,3 +146,13 @@ ConLeche/Frontend/Scan/Naive.lean thmFields A field table, as `strNameFields`.
 ConLeche/Frontend/Scan/Naive.lean opaqueFields A field table, as `strNameFields`.
 ConLeche/Frontend/Scan/Naive.lean quotFields A field table, as `strNameFields`.
 ConLeche/Frontend/Scan/Naive.lean indFields A field table, as `strNameFields`.
+
+# `Prepare.lean`'s two `List`-shaped SPECIFICATIONS of the preparation's
+# picking, which con-leche proves its `Array` versions equal to.  Nothing on
+# the run path calls either, and their `cons` is `Vec::insert`, which task #50
+# took out of the port's vocabulary for good reason.  What the port does have
+# is the specification as an executable check: `prepare.rs`'s test module
+# carries `pick_spec` and runs `pick_idx` against it on every `cargo test`
+# (task #84).
+ConLeche/Frontend/Prepare.lean pickSpec The `List` specification of `pick`, which con-leche proves `pick` equal to; no caller on the run path, and its `d :: ds'` is `Vec::insert` (task #50). `prepare.rs`'s test module carries it as an executable check of `pick_idx`.
+ConLeche/Frontend/Prepare.lean frontSpec The `List` specification of `frontOf`, as `pickSpec`.

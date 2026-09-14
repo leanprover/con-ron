@@ -39,7 +39,11 @@ pub mod kit;
 pub mod mutual;
 pub mod nested;
 
+use con_ron_core::frontend::in_model_rec;
+use con_ron_core::frontend::in_model_rec::{ModelCtx, Modeller};
 use con_ron_core::kernel::env::Declaration;
+use con_ron_core::kernel::expr::Expr;
+use con_ron_core::kernel::name::Name;
 
 use crate::in_model::mutual::{BlockRec, Ctx};
 
@@ -54,11 +58,50 @@ pub fn generate(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
     }
 }
 
+/// con-leche: none — the seam between the verified parse and this crate
+/// (task #84)
+/// The modeller, as the core's parse sees it.  `parse_chunks` and everything
+/// above it are generic in a `Modeller`, which Charon renders as a typeclass
+/// field — an opaque function — so the extracted parse is quantified over an
+/// arbitrary modeller and its refinement carries one hypothesis about this
+/// crate's output rather than a port of it.  This unit struct is the
+/// implementation the binary passes.
+pub struct InProcess;
+
+/// con-leche: none — the seam's one method (task #84)
+/// The core hands over `ModelCtx`, which borrows the parse state's three
+/// tables; con-leche's `InModel.Ctx` is three *functions*, because the
+/// generators build **overlays** over them (`tbl'` adds the block's own
+/// generated types, `hOf` the heights of the definitions emitted so far).
+/// So the borrows are wrapped back into closures here, at the boundary,
+/// and nothing below this file changed.
+impl Modeller for InProcess {
+    /// con-leche: ConLeche/Frontend/InModel.lean:39-45 generate
+    /// `InModel.generate` at the seam: the borrows rewrapped as the three
+    /// closures the generators overlay, and the decline's message as code
+    /// points (the core's `String`, DESIGN.md §3.3).
+    fn generate(&self, ctx: &ModelCtx, b: &BlockRec) -> Result<Vec<Declaration>, Vec<u32>> {
+        let tbl = |n: &Name| -> Option<(Vec<Name>, Expr)> { in_model_rec::ctx_tbl(ctx, n) };
+        let hs = |n: &Name| -> u64 { in_model_rec::ctx_height(ctx, n) };
+        let bl = |n: &Name| -> Option<&BlockRec> { in_model_rec::ctx_block(ctx, n) };
+        let c = Ctx {
+            tbl: &tbl,
+            heights: &hs,
+            blocks: &bl,
+        };
+        match generate(&c, b) {
+            Ok(ds) => Ok(ds),
+            Err(why) => Err(why.chars().map(|ch| ch as u32).collect()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::driver::message;
-    use crate::frontend::export::name_str;
-    use crate::frontend::export_c::{parse_bytes, ParseResultD};
+    use crate::in_model::InProcess;
+    use crate::render::name_str;
+    use con_ron_core::frontend::export_c::{parse_bytes, ParseResultD};
     use con_ron_core::kernel::env::declaration_names;
 
     /// The fixture's bytes, read at test time from the pinned submodule (the
@@ -77,7 +120,7 @@ mod tests {
     /// takes no prelude since con-leche task #293: it decodes the file's
     /// records, and `frontend::prepare` is what puts the prelude in front.
     fn parse_fixture(name: &str) -> ParseResultD {
-        parse_bytes(&fixture_bytes(name), true, false)
+        parse_bytes(&InProcess, &fixture_bytes(name), true, false)
             .unwrap_or_else(|(e, l)| panic!("{}:{}: {}", name, l, message(&e)))
     }
 
@@ -98,29 +141,32 @@ mod tests {
             name,
             r.gen_records
         );
-        // every booked name is under its block's `_model` prefix
-        for (k, v) in r.gen_owner.iter() {
-            let n = name_str(&k.0);
-            let owner = name_str(v);
-            assert!(
-                n.starts_with(&format!("{}._model", owner))
-                    || n.starts_with(&format!("{}.", owner))
-                    || n.contains("._model"),
-                "{}: {} booked under {}",
-                name,
-                n,
-                owner
-            );
-        }
-        // and the fold's list carries them: the generated records are
-        // declarations like any other
+        // Every booked name is under its block's `_model` prefix, and the
+        // fold's list carries them: the generated records are declarations
+        // like any other.  Since task #84 `gen_owner` is the core's
+        // `ron::HashMap`, which has no iterator, so the walk is over the
+        // records and the map is only probed.
         let mut seen = 0u64;
         for d in r.decls.iter() {
+            let mut booked = false;
             for n in declaration_names(d) {
-                if r.gen_owner.contains_key(&crate::frontend::nat_op_ground::NameKey(n)) {
-                    seen += 1;
-                    break;
+                if let Some(owner) = r.gen_owner.get(&n) {
+                    let nm = name_str(&n);
+                    let ow = name_str(owner);
+                    assert!(
+                        nm.starts_with(&format!("{}._model", ow))
+                            || nm.starts_with(&format!("{}.", ow))
+                            || nm.contains("._model"),
+                        "{}: {} booked under {}",
+                        name,
+                        nm,
+                        ow
+                    );
+                    booked = true;
                 }
+            }
+            if booked {
+                seen += 1;
             }
         }
         assert_eq!(seen, r.gen_records, "{}: generated records in the list", name);
@@ -178,7 +224,7 @@ mod tests {
     /// pushed bare, nothing is generated, and the decline is left to the fold.
     #[test]
     fn the_modeller_can_be_turned_off() {
-        let r = parse_bytes(&fixture_bytes("inmodel_mutual.ndjson"), false, false)
+        let r = parse_bytes(&InProcess, &fixture_bytes("inmodel_mutual.ndjson"), false, false)
             .unwrap_or_else(|(e, l)| panic!("{}: {}", l, message(&e)));
         assert!(r.in_modelled.is_empty());
         assert_eq!(r.gen_records, 0);
