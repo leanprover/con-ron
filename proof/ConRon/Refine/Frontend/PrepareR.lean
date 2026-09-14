@@ -4146,6 +4146,9 @@ well-formedness. -/
 /-- info: 'ConRon.Refine.Frontend.hoist_nat_op_ground_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms hoist_nat_op_ground_refines
 
+/-- info: 'ConRon.Refine.Frontend.hoist_targets_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms hoist_targets_refines
+
 /-- info: 'ConRon.Refine.Frontend.front_of_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms front_of_refines
 
