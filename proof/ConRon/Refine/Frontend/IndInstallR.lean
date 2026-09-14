@@ -36,11 +36,18 @@ that the outcome is a `Declined`.
 ## What is assumed
 
 `InstallSpec` (two clauses, both lemmas of neighbouring files) and, at the
-modeller, three promises: `Frontend.ModellerWF`, `IndModellerRefines` — agent
-C's canonical `ModellerRefines` repeated verbatim — and
-**`IndModellerDeclineText`**, this file's one *new* residue, forced by the
-census arm.  See its doc comment: the coordinator should either fold it into
-`ModellerRefines` or weaken `StateDRel.inModelDeclined`.
+modeller, **two** promises and no more: `Frontend.ModellerWF` and
+`IndModellerRefines` — the canonical `ModellerRefines` of
+`Refine/Frontend/ChunksR.lean`, repeated verbatim.
+
+This file briefly carried a third, `IndModellerDeclineText`, because the census
+arm books a decline in `in_model_declined` and `StateDRel` compared that field
+*with its message* while `ModellerRefines` promises only `∃ s, … = .error s` of
+a decline.  Task #87's ruling was to weaken the relation rather than strengthen
+the modeller — DESIGN.md §3.1 says the theorem never reads a message, and a
+decline's reason is a message like any other — so `StateDRel.inModelDeclined`
+now compares the block names only and the census arm closes from
+`ModellerRefines` alone.
 
 ## `sorry` count in this file: 0
 -/
@@ -1579,27 +1586,6 @@ private theorem iid_rel_inModelGen {st : frontend.export_c.StateD}
   { h with }
 
 
-/-- **The census arm's extra promise about the modeller**, and this file's one
-*new* residue hypothesis.
-
-`installIndD`'s census arm books the decline as `(T0, why)` in
-`inModelDeclined`, and `Refine/Frontend/StateDR.lean`'s `StateDRel` relates
-that field *with its message* (`absNameStr` maps the port's `Vec<u32>` through
-`absString`).  `Refine/Frontend/ChunksR.lean`'s canonical `ModellerRefines` —
-repeated above as `IndModellerRefines` — deliberately does **not** compare the
-decline's text (DESIGN.md §3.1), so the census arm cannot re-establish the
-relation from it alone.
-
-The coordinator has a choice of two one-line fixes and should take one:
-either fold this clause into `ModellerRefines`' `Err` arm, or weaken
-`StateDRel.inModelDeclined` to compare only the block names.  Until then it is
-a hypothesis of `install_ind_d_refines`, exactly as the two modeller promises
-beside it are. -/
-def IndModellerDeclineText {G : Type} (inst : frontend.in_model_rec.Modeller G) (g : G) :
-    Prop :=
-  ∀ ctx lctx b m, CtxRel ctx lctx → inst.generate g ctx b = ok (.Err m) →
-    ConLeche.Frontend.InModel.generate lctx (absBlockRec b) = .error (absString m)
-
 /-- `export_c::install_ind_d` refines `installIndD`
 (`ConLeche/Frontend/ExportC.lean:564-628`): **an inductive record, installed**
 — the block's constants, the projection-owner table, the block record for the
@@ -1615,8 +1601,7 @@ DESIGN.md §3.1).
 gets **no lemma of its own**: nothing is ever claimed about the string it
 builds, only that the outcome is a `Declined`. -/
 theorem install_ind_d_refines {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
-    (hmw : ModellerWF inst g) (hmr : IndModellerRefines inst g)
-    (hmd : IndModellerDeclineText inst g) (hsp : InstallSpec)
+    (hmw : ModellerWF inst g) (hmr : IndModellerRefines inst g) (hsp : InstallSpec)
     {st st' : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
     {tys : alloc.vec.Vec frontend.scan_types.IndTypeRec}
     {cts : alloc.vec.Vec frontend.scan_types.IndCtorRec}
@@ -1738,7 +1723,12 @@ theorem install_ind_d_refines {G : Type} {inst : frontend.in_model_rec.Modeller 
               rw [← hu2, ← hst']
               exact StepOutV.ok rfl hrel4 hwf4
             | Err why =>
-              rw [hmd ctx _ v1 why hcr hg]
+              -- The decline's TEXT is never compared (DESIGN.md §3.1): all
+              -- `ModellerRefines` promises is that con-leche declines too, and
+              -- `StateDRel.inModelDeclined` compares block names only, so the
+              -- witness `s` is all the census arm needs.
+              obtain ⟨s, hs⟩ := (hmr ctx _ v1 _ hcr hg).2 why rfl
+              rw [hs]
               simp only []
               simp only [] at h
               split at h
@@ -1750,7 +1740,7 @@ theorem install_ind_d_refines {G : Type} {inst : frontend.in_model_rec.Modeller 
                 obtain ⟨n, hn, vd, hvd, st3, hst3, hu2, hst'⟩ := h
                 rw [iid_name_dup hn] at hvd
                 obtain ⟨hrel3, hwf3⟩ :=
-                  push_decl_refines (StateDRel.inModelDeclined_push hrel2 hvd)
+                  push_decl_refines (StateDRel.inModelDeclined_push s hrel2 hvd)
                     (iid_wf_same hwf2 rfl rfl rfl rfl rfl rfl) hdwf hst3
                 rw [← hu2, ← hst']
                 exact StepOutV.ok rfl hrel3 hwf3
@@ -1796,14 +1786,13 @@ theorem install_ind_d_refines {G : Type} {inst : frontend.in_model_rec.Modeller 
 
 `Refine/Frontend/IndR.lean`'s `IndRSpec.installInd` is a field of a bundle
 stated at a *fixed* modeller; this is that field, with the three promises about
-the modeller — `ModellerWF`, `IndModellerRefines`, `IndModellerDeclineText` —
-and `InstallSpec` in front of it.  It is here so that the shape can be checked
+the modeller — `ModellerWF` and `IndModellerRefines` — and `InstallSpec` in
+front of it.  It is here so that the shape can be checked
 by the elaborator rather than by eye. -/
 
 /-- `install_ind_d_refines` **is** `IndRSpec.installInd`. -/
 theorem indRSpec_installInd {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
-    (hmw : ModellerWF inst g) (hmr : IndModellerRefines inst g)
-    (hmd : IndModellerDeclineText inst g) (hsp : InstallSpec) :
+    (hmw : ModellerWF inst g) (hmr : IndModellerRefines inst g) (hsp : InstallSpec) :
     ∀ {st st' : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
       {tys : alloc.vec.Vec frontend.scan_types.IndTypeRec}
       {cts : alloc.vec.Vec frontend.scan_types.IndCtorRec}
@@ -1813,7 +1802,7 @@ theorem indRSpec_installInd {G : Type} {inst : frontend.in_model_rec.Modeller G}
       frontend.export_c.install_ind_d inst g st tys cts rcs n_pd = ok (o, st') →
       StepOutV o st' (ConLeche.Frontend.installIndD lst (absIndTypeRecs tys)
         (absIndCtorRecs cts) (absIndRecRecs rcs) n_pd.val) :=
-  fun hrel hwf h => install_ind_d_refines hmw hmr hmd hsp hrel hwf h
+  fun hrel hwf h => install_ind_d_refines hmw hmr hsp hrel hwf h
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
