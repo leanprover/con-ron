@@ -2626,4 +2626,28 @@ theorem StateDRel.indCount_step {st : frontend.export_c.StateD}
     StateDRel { st with ind_count := c } { lst with indCount := lst.indCount + 1 } :=
   { hrel with indCount := by rw [HashMap.uscalar_add_eq h, hrel.indCount]; rfl }
 
+/-! ## Axiom census (DESIGN.md §5, the P3 gate)
+
+Nothing here reaches past con-leche's own three axioms.  `parse_expr_rec_d_refines`
+carries `NatValSpec` as a *hypothesis*, not as an axiom, so it spends nothing
+either. -/
+
+/--
+info: 'ConRon.Refine.Frontend.parse_expr_rec_d_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms parse_expr_rec_d_refines
+
+/--
+info: 'ConRon.Refine.Frontend.push_decl_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms push_decl_refines
+
+/--
+info: 'ConRon.Refine.Frontend.state_d_init_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms state_d_init_refines
+
 end ConRon.Refine.Frontend
