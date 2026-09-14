@@ -39,7 +39,11 @@ pub mod kit;
 pub mod mutual;
 pub mod nested;
 
+use con_ron_core::frontend::in_model_rec;
+use con_ron_core::frontend::in_model_rec::{ModelCtx, Modeller};
 use con_ron_core::kernel::env::Declaration;
+use con_ron_core::kernel::expr::Expr;
+use con_ron_core::kernel::name::Name;
 
 use crate::in_model::mutual::{BlockRec, Ctx};
 
@@ -51,6 +55,44 @@ pub fn generate(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
         nested::gen_nested(ctx, b)
     } else {
         mutual::gen_mutual(ctx, b)
+    }
+}
+
+/// con-leche: none — the seam between the verified parse and this crate
+/// (task #84)
+/// The modeller, as the core's parse sees it.  `parse_chunks` and everything
+/// above it are generic in a `Modeller`, which Charon renders as a typeclass
+/// field — an opaque function — so the extracted parse is quantified over an
+/// arbitrary modeller and its refinement carries one hypothesis about this
+/// crate's output rather than a port of it.  This unit struct is the
+/// implementation the binary passes.
+pub struct InProcess;
+
+/// con-leche: none — the seam's one method (task #84)
+/// The core hands over `ModelCtx`, which borrows the parse state's three
+/// tables; con-leche's `InModel.Ctx` is three *functions*, because the
+/// generators build **overlays** over them (`tbl'` adds the block's own
+/// generated types, `hOf` the heights of the definitions emitted so far).
+/// So the borrows are wrapped back into closures here, at the boundary,
+/// and nothing below this file changed.
+impl Modeller for InProcess {
+    /// con-leche: ConLeche/Frontend/InModel.lean:39-45 generate
+    /// `InModel.generate` at the seam: the borrows rewrapped as the three
+    /// closures the generators overlay, and the decline's message as code
+    /// points (the core's `String`, DESIGN.md §3.3).
+    fn generate(&self, ctx: &ModelCtx, b: &BlockRec) -> Result<Vec<Declaration>, Vec<u32>> {
+        let tbl = |n: &Name| -> Option<(Vec<Name>, Expr)> { in_model_rec::ctx_tbl(ctx, n) };
+        let hs = |n: &Name| -> u64 { in_model_rec::ctx_height(ctx, n) };
+        let bl = |n: &Name| -> Option<&BlockRec> { in_model_rec::ctx_block(ctx, n) };
+        let c = Ctx {
+            tbl: &tbl,
+            heights: &hs,
+            blocks: &bl,
+        };
+        match generate(&c, b) {
+            Ok(ds) => Ok(ds),
+            Err(why) => Err(why.chars().map(|ch| ch as u32).collect()),
+        }
     }
 }
 
