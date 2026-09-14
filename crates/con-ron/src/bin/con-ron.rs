@@ -7,22 +7,43 @@
 //! con-ron --help
 //! ```
 //!
-//! It reads the file and checks the declarations in order: the built-in
-//! prelude is prepended (`frontend::prelude`), the stream is parsed line by
-//! line off the handle (`frontend::export_c`), mutual and nested inductive
-//! blocks get their `_model` family generated in process (`in_model`), the
-//! Nat-operation ground is hoisted and the projection functions rewritten, and
-//! the resulting `Vec<DeclC>` goes to the driver — `con_ron::driver`, which is
+//! It reads the file and checks the declarations in order.  The steps are
+//! con-leche's four, and they are separable and pure (`Main.lean`'s `checkMain`
+//! and the `do` chain of `ConLeche.no_False_declaration`):
+//!
+//! ```text
+//! builtin_prelude_e  →  parse_chunks  →  prepare_prelude  →  check_decls
+//! ```
+//!
+//! — the built-in prelude parses
+//! (`con_ron_core::frontend::prelude`), the stream is decoded line by line off
+//! the handle into the file's own records (`con_ron_core::frontend::export_c`;
+//! mutual and nested inductive blocks get their `_model` family generated in
+//! process by `in_model`, which the core calls through the `Modeller` trait,
+//! and the projection functions are rewritten),
+//! `con_ron_core::frontend::prepare` puts the prelude's declarations in front
+//! and hoists a pinned `Nat` operation's ground, and the resulting
+//! `Vec<Declaration>` goes to the fold — `con_ron::driver`, which is
 //! `con_ron_core::cached::installed::check_decls`' body with the phase
-//! boundary visible, the fold DESIGN.md §1's main theorem is about.
+//! boundary visible, the fold DESIGN.md §1's main theorem is about.  Since
+//! con-leche task #295 all four steps fail in ONE error type, the checker's
+//! `CheckError` paired with the failure's position (the input LINE number in
+//! the frontend's half, the record's fold position in the fold's), which is
+//! why the exit code below is `driver::exit_code` whichever step produced it.
 //!
 //! **This binary is the one true driver** (task #40): everything from the
-//! parsed list on — the exit-code mapping, the two phase loops, the
-//! `--progress` heartbeat, the taint-skip rule, the verdict lines — lives in
-//! `con_ron::driver`, which task #40 wrote as the shared body of this binary
-//! and the retired `con-ron-check` and which task #80 left as this binary's
-//! alone.  What is here is this binary's own front matter: the flags, the
-//! prelude, the parse, the receipts.
+//! prepared list on — the exit-code mapping, the two phase loops, the
+//! `--progress` heartbeat, the verdict lines — lives in `con_ron::driver`,
+//! which task #40 wrote as the shared body of this binary and the retired
+//! `con-ron-check` and which task #80 left as this binary's alone.  What is
+//! here is this binary's own front matter: the flags, the prelude, the parse,
+//! the preparation, the receipts.
+//!
+//! **Since task #84 the four steps are the VERIFIED crate's**
+//! (`con_ron_core::frontend::*`, OVERVIEW §3.7); what this crate still owns of
+//! the parse is the reads (`driver::parse_export_stream_d`, whose pure
+//! counterpart `parse_chunks` is the core's) and the in-process modeller the
+//! core takes as a type parameter.
 //!
 //! Exit codes are con-leche's (`vendor/con-leche/Main.lean:15-31`, its
 //! `OVERVIEW.md` §0): 0 accepted, 1 rejected, 2 declined, 3
@@ -53,9 +74,10 @@
 //!   than rejected so that a script measuring both checkers can pass it to
 //!   both.
 //! * `--pins FILE` and `--no-pins` are con-ron's own and are **test
-//!   overrides** (task #43).  The pin list is no longer something the driver
-//!   supplies: `natOpPinSets` is an embedded text constant *inside the verified
-//!   core* (`kernel::pins_text::PINS_TEXT`) which the core itself decodes
+//!   overrides** (task #43).  The pin list is an explicit argument of the fold
+//!   since con-leche task #304, and what the binary passes is `natOpPinSets`:
+//!   here that value is an embedded text constant *inside the verified core*
+//!   (`kernel::pins_text::PINS_TEXT`) which the core itself decodes
 //!   (`kernel::pins_decode::decode_embedded`), so a plain run checks with
 //!   con-leche's own pins and nothing is read from outside.  `--pins FILE`
 //!   reads a `con-ron-pins/1` dump through the unverified reader instead
@@ -65,26 +87,29 @@
 //!   Nat.div/mod spelling", exactly as con-leche does for a stream matching no
 //!   variant.
 //!
-//! Every retired con-leche spelling — `--set-model[=p|=r]`, `--no-model`,
-//! `--tt-model`, `--yolo`, `--infer-only`, `--pre`, `--core[=<c>]`,
-//! `--install-only`, `--check-range[=<r>]` — is a hard error here too, with
-//! the message naming its replacement, for con-leche's reason: a verdict's
-//! provenance must be readable off the invocation, so a retired spelling is
-//! never a silent alias (`driver::retired_flag`).
+//! Any other option is a usage error: the run reports it, prints the usage
+//! text and exits 3 without reading its input.  con-leche's thirteen retired
+//! spellings are gone **without a trace** since its task #303 — the repository
+//! is public and no user has a retired invocation to protect — so they take
+//! that same generic path here, and no message names them.
 
 use std::process::ExitCode;
 use std::time::Instant;
 
 use con_ron_core::cached::installed;
+use con_ron_core::kernel::core_types::CheckError;
+use con_ron_core::kernel::env::declaration_names;
 use con_ron_core::kernel::env::CheckMode;
+
+use con_ron_core::frontend::export_c::{self, ParseResultD};
+use con_ron_core::frontend::prelude;
+use con_ron_core::frontend::prepare;
 
 use con_ron::driver;
 use con_ron::driver::Heartbeat;
 use con_ron::driver::STACK_BYTES;
-use con_ron::frontend::export::{name_str, taint_detail, taint_summary, FrontendError};
-use con_ron::frontend::export_c::{self, ParseResultD};
-use con_ron::frontend::nat_op_ground::{decl_names, NameKey};
-use con_ron::frontend::prelude;
+use con_ron::in_model::InProcess;
+use con_ron::render::name_str;
 
 // The global allocator is `con-ron-dump`'s (task #35's mimalloc, declared by
 // that crate's lib): a program may declare only one, and this binary links
@@ -92,9 +117,9 @@ use con_ron::frontend::prelude;
 // `natdec`, the decimal parser the frontend shares with it.  So `con-ron` declares none, and
 // `cargo build --no-default-features` gives glibc `malloc` back to both.
 
-/// con-leche: Main.lean:800-1048 usage
+/// con-leche: Main.lean:714-944 usage
 /// The usage text.  DESIGN.md §3.1: message strings need not match, and this
-/// one deliberately does not — it is con-leche's synopsis plus the four flags
+/// one deliberately does not — it is con-leche's synopsis plus the three flags
 /// that differ and the one piece of `Main.lean` that is not ported.
 const USAGE: &str = "\
 usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
@@ -102,11 +127,18 @@ usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
                FILE.ndjson
        con-ron --help
 
-  --verified        the default, and the mode the main theorem is about: if
-                    the declaration fold accepts a stream in this mode, the
-                    environment holds no constant whose type is False
-                    (ConLeche.no_proof_of_False, and DESIGN.md §1's
-                    conron.no_proof_of_False for the port).
+  --verified        the default, and the mode the main theorem is about: every
+                    environment the fold accepts in this mode has a model in
+                    every set theory (ConLeche.model_exists,
+                    ConLeche/MainTheorem.lean), so a stream declaring a
+                    theorem of type False is never accepted
+                    (ConLeche.no_False_theorem_accepted).  What the port
+                    proves is that same statement about THIS program's fold
+                    (DESIGN.md §1); con-leche's file-level corollary
+                    ConLeche.no_False_declaration, which covers the parse as
+                    well, is NOT yet claimed here -- task #84 put the parser
+                    into the verified core, so the corollary is now reachable,
+                    but its proof is the next task's.
   --trusted         the unverified mode: the SAME checker bodies at the mode
                     with the certification-only work switched off.  An accept
                     in this mode is outside the theorem.
@@ -160,11 +192,37 @@ usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
   --help            print this text on STDOUT and exit 0, in any argument
                     position; no input is read.
 
+Any other option is a usage error: the run reports it, prints this text and
+exits 3 without reading its input.
+
 exit codes: 0 accepted, 1 rejected, 2 declined, 3 usage/malformed/internal.
 An out-of-memory condition is NEITHER: con-leche's exit 1 for it is the Lean
 runtime's own panic, and this program instead aborts the way Rust aborts on a
 failed allocation ('memory allocation of <n> bytes failed', SIGABRT, which a
 shell reports as 134).  A panic is exit 3.
+
+THE VERDICT LINE'S COUNT.  It counts the FILE's accepted declaration RECORDS:
+one per def/theorem/opaque/axiom/inductive/quot record the file declares.  The
+built-in prelude's own records are not counted, and neither are the records
+the in-process modeller generates; a stream record that declares a prelude
+declaration IS counted -- the preparation moves it to the front rather than
+dropping it, and it is what installs.  That count is a property of the INPUT.
+The number of environment CONSTANTS is not: an inductive record installs
+several constants (type former, constructors, recursor, projection table), so
+it moves when the representation moves.
+
+THE BUILT-IN PRELUDE.  Every run installs, first and unconditionally, the
+checker's own little prelude -- the six pinned basis blocks (Eq, Nat, PUnit,
+Empty, False, Quot) and the toolchain's Bool and And blocks, embedded at build
+time -- so the pin-certified Nat operations find their ground whatever order
+the export chose.  The stream's OWN copy of a prelude declaration is moved to
+the front in the prelude's order, and only the prelude records the stream does
+not declare are synthesised; a pinned operation's stream-certified structural
+ground (Nat.ble, Nat.sub, Nat.mul) is HOISTED ahead of the operation when the
+stream declares it later.  All of that is one pure total function from the
+file's records to the fold's input (con_ron::frontend::prepare); the parse
+itself only decodes, and recognising a block as a pinned basis block or a
+record as the quotient package's is the FOLD's.
 
 environment (con-leche's):
   CON_LECHE_INMODEL=0          turn the in-process modeller off; a mutual or
@@ -173,23 +231,16 @@ environment (con-leche's):
   CON_LECHE_INMODEL_CENSUS=1   report every mutual/nested block's outcome
                                after the parse and stop (exit 2)
   CON_LECHE_PROJREC_TRACE      name each rewritten projection function
-  CON_LECHE_VERBOSE            print the environment's constant count
+These are the in-process modeller's debug switches and they go with it: no
+environment variable this program reads can shape a verdict, which is
+con-leche's own rule -- every such switch is a command-line flag.
 
-RETIRED FLAGS.  --set-model, --set-model=p, --set-model=r, --no-model,
---tt-model, --yolo, --infer-only, --pre, --core, --core=<c>, --install-only,
---check-range and --check-range=<r> are never silent aliases: each is
-rejected with a message naming what stands in its place, and the run exits 3
-without reading the input, so a verdict's provenance is readable off the
-invocation.
+NOT PORTED: CON_LECHE_INMODEL_DUMP, the debug splice of the generated records
+into a copy of the input -- it is written through con-leche's annotated-NDJSON
+writer (`Frontend/ExportWrite.lean`), an output path this checker does not
+have.";
 
-NOT PORTED: CON_LECHE_ROUTE_TRACE, the install-route audit (it reads the
-recognisers on the environment the step sees, which is a second dispatch of
-the fold, not a print); CON_LECHE_INMODEL_DUMP, the debug splice of the
-generated records into a copy of the input — it is written through
-con-leche's annotated-NDJSON writer (`Frontend/ExportWrite.lean`), an output
-path this checker does not have.";
-
-/// con-leche: Main.lean:1050-1064 Args
+/// con-leche: Main.lean:946-960 Args
 /// What the command line asked for.  `no_mark` is here, as con-leche's
 /// `noMark` is, because the flag is accepted — it just has nothing to turn
 /// off (`driver::mark_persistent_note`).
@@ -206,10 +257,12 @@ struct Args {
     bad: Option<String>,
 }
 
-/// con-leche: Main.lean:1066-1158 parseArgs
-/// The argument parse.  The retired spellings are hard errors, not silently
-/// ignored (`driver::retired_flag` holds all thirteen with their messages):
-/// a verdict's provenance must be readable off the invocation.
+/// con-leche: Main.lean:962-990 parseArgs
+/// The argument parse.  Since con-leche task #303 there are no retired
+/// spellings to recognise: the thirteen that used to be hard errors naming
+/// their successor fall through to the generic `starts_with('-')` arm, which
+/// is "unknown option" and exit 3.  The two `=`-carrying live flags are read
+/// there too, as con-leche reads them.
 fn parse_args(argv: &[String]) -> Args {
     let mut a = Args {
         files: Vec::new(),
@@ -226,13 +279,6 @@ fn parse_args(argv: &[String]) -> Args {
         let s = argv[i].as_str();
         // The FIRST bad argument is the one reported, as con-leche's fold
         // reports the first `bad` it set.
-        if let Some(m) = driver::retired_flag(s) {
-            if a.bad.is_none() {
-                a.bad = Some(m);
-            }
-            i += 1;
-            continue;
-        }
         let bad = |m: String, a: &mut Args| {
             if a.bad.is_none() {
                 a.bad = Some(m);
@@ -289,11 +335,36 @@ fn env_is(k: &str, v: &str) -> bool {
     std::env::var(k).ok().as_deref() == Some(v)
 }
 
-/// con-leche: Main.lean:502-797 checkMain
+/// con-leche: none — the three verdict classes of a `CheckError` as the
+/// frontend's callers report them.  con-leche writes the three arms out at
+/// each of its two frontend gates (the prelude's and the parse's); the port
+/// has a fourth constructor (`CheckError::Native`, a machine-word limit — the
+/// port cannot carry this input), which is a DECLINE like `notImplemented`,
+/// so the two gates below share this one classification.
+enum FrontendClass {
+    Declined(String),
+    Invalid(String),
+    Internal(String),
+}
+
+/// con-leche: none — `FrontendClass` of a `CheckError` (see there).
+fn classify(e: &CheckError) -> FrontendClass {
+    let m = driver::message(e);
+    match e {
+        CheckError::NotImplemented(_) => FrontendClass::Declined(m),
+        CheckError::Native(_) => FrontendClass::Declined(m),
+        CheckError::Invalid(_) => FrontendClass::Invalid(m),
+        CheckError::Internal(_) => FrontendClass::Internal(m),
+    }
+}
+
+/// con-leche: Main.lean:461-711 checkMain
 /// con-leche: Main.lean:53-59 parseInput
-/// The real driver's front matter: the retired environment gates, the
-/// prelude, the streaming parse, the receipts, then `driver` for the fold and
-/// the verdict.
+/// The real driver's front matter: the prelude, the streaming parse, the
+/// preparation, the receipts, then `driver` for the fold and the verdict.
+/// **No environment variable read here can shape a verdict** (con-leche task
+/// #287): what is left of them is the in-process modeller's three debug
+/// switches, and they go with the modeller.
 fn check_main(a: &Args, file: &str) -> u8 {
     let t0 = Instant::now();
     let mode_tag = if a.verified {
@@ -306,34 +377,21 @@ fn check_main(a: &Args, file: &str) -> u8 {
     } else {
         CheckMode::Trusted
     };
-    // The retired environment variables are hard errors, not silently
-    // ignored, for the retired flags' reason.
-    if env_is("CON_LECHE_NO_PROOF_CERTS", "1") {
-        eprintln!(
-            "con-ron: CON_LECHE_NO_PROOF_CERTS is retired; the cert-skipping \
-             measurement lane is the --trusted mode"
-        );
-        return 3;
-    }
-    if env_is("CON_LECHE_INFER_ONLY", "1") {
-        eprintln!(
-            "con-ron: CON_LECHE_INFER_ONLY is retired; the infer-only internal \
-             discipline is part of the --trusted mode, and the certified mode is \
-             --verified, the default"
-        );
-        return 3;
-    }
     // THE BUILT-IN PRELUDE: parsed from the committed
-    // `pins/<toolchain>.prelude.ndjson` and PREPENDED to every parsed stream.
-    // A prelude that does not parse is a corrupted build, reported before any
-    // input is read.
-    let prelude_ix = match prelude::builtin_prelude_e() {
+    // `pins/<toolchain>.prelude.ndjson`.  `prepare_prelude` below puts its
+    // declarations in front of every stream.  A prelude that does not parse is
+    // a corrupted build, reported before any input is read.
+    // The in-process modeller, which the parse takes as a type parameter: the
+    // verified core is quantified over an arbitrary `Modeller` (OVERVIEW §3.7),
+    // and this unit struct is the one the binary supplies.
+    let modeller = InProcess;
+    let prelude_ix = match prelude::builtin_prelude_e(&modeller) {
         Ok(p) => p,
-        Err(e) => {
-            let what = match e {
-                FrontendError::ParseError(l, m) => format!("does not parse (line {}: {})", l, m),
-                FrontendError::Unsupported(w) => format!("is unsupported ({})", w),
-                FrontendError::Invalid(w) => format!("contradicts itself ({})", w),
+        Err((e, line)) => {
+            let what = match classify(&e) {
+                FrontendClass::Internal(m) => format!("does not parse (line {}: {})", line, m),
+                FrontendClass::Declined(w) => format!("is unsupported ({})", w),
+                FrontendClass::Invalid(w) => format!("contradicts itself ({})", w),
             };
             eprintln!(
                 "con-ron: the built-in prelude {}; regenerate it with \
@@ -346,32 +404,42 @@ fn check_main(a: &Args, file: &str) -> u8 {
     let in_model = !env_is("CON_LECHE_INMODEL", "0");
     let census = env_is("CON_LECHE_INMODEL_CENSUS", "1");
     // Streaming frontend: the parse reads the file 4 MiB at a time, so
-    // neither a wholesale text buffer nor a scratch file exists.
-    let parsed: ParseResultD = match export_c::parse_export_stream_d(
-        file,
-        prelude_ix,
-        in_model,
-        census,
-        export_c::CHUNK_SIZE,
-    ) {
-        Err(e) => {
-            eprintln!("con-ron: {}: {}", file, e);
-            return 3;
-        }
-        Ok(Err(FrontendError::Unsupported(what))) => {
-            eprintln!("con-ron: declined: {} ({})", what, mode_tag);
-            return 2;
-        }
-        Ok(Err(FrontendError::Invalid(what))) => {
-            eprintln!("con-ron: invalid: {} ({})", what, mode_tag);
-            return 1;
-        }
-        Ok(Err(FrontendError::ParseError(line, msg))) => {
-            eprintln!("con-ron: {}:{}: {}", file, line, msg);
-            return 3;
-        }
-        Ok(Ok(r)) => r,
-    };
+    // neither a wholesale text buffer nor a scratch file exists.  What comes
+    // out is the FILE's records (plus the in-process modeller's) and nothing
+    // else: since con-leche task #293 the decoder decodes, and every verdict
+    // about a record's content is the fold's.
+    let parsed: ParseResultD =
+        match driver::parse_export_stream_d(
+            &modeller,
+            file,
+            in_model,
+            census,
+            export_c::CHUNK_SIZE,
+        ) {
+            Err(e) => {
+                eprintln!("con-ron: {}: {}", file, e);
+                return 3;
+            }
+            Ok(Err((e, line))) => match classify(&e) {
+                FrontendClass::Declined(what) => {
+                    eprintln!("con-ron: declined: {} ({})", what, mode_tag);
+                    return 2;
+                }
+                // A stream whose inductive block contradicts its own
+                // declarations in a REDUNDANT field is rejected at the parse,
+                // as official's replay rejects a recursor or constructor
+                // record that is not the generated one.
+                FrontendClass::Invalid(what) => {
+                    eprintln!("con-ron: invalid: {} ({})", what, mode_tag);
+                    return 1;
+                }
+                FrontendClass::Internal(msg) => {
+                    eprintln!("con-ron: {}:{}: {}", file, line, msg);
+                    return 3;
+                }
+            },
+            Ok(Ok(r)) => r,
+        };
     // the in-process modeller's receipt
     if !parsed.in_modelled.is_empty() {
         let names: Vec<String> = parsed.in_modelled.iter().map(name_str).collect();
@@ -389,7 +457,11 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // census stops after the parse, so nothing is claimed about the stream.
     if census {
         for (n, why) in parsed.in_model_declined.iter() {
-            eprintln!("con-ron: inmodel declined {}: {}", name_str(n), why);
+            eprintln!(
+                "con-ron: inmodel declined {}: {}",
+                name_str(n),
+                con_ron::render::from_cps(why)
+            );
         }
         eprintln!(
             "con-ron: inmodel census: {} modelled, {} declined ({}, parse only)",
@@ -399,6 +471,16 @@ fn check_main(a: &Args, file: &str) -> u8 {
         );
         return 2;
     }
+    // **PREPARE** (`frontend::prepare`, con-leche task #293): what the fold
+    // runs over is `prepare_prelude` of the file's records — the prelude's
+    // declarations first (the stream's own copies where it has them, the rest
+    // synthesised), then the stream's, with every pinned `Nat` operation's
+    // stream-certified ground hoisted ahead of it.  Total, pure, no error
+    // channel, and no record of the file is dropped or rewritten.  Fold
+    // positions count from the prelude's first record; the VERDICT's count is
+    // the file's own, which this step does not change.
+    let file_records = parsed.decls.len();
+    let prepared = prepare::prepare_d(prelude_ix, parsed.decls);
     // the projection-function rewrite's receipt
     if !parsed.proj_rewrites.is_empty() {
         eprintln!(
@@ -412,13 +494,13 @@ fn check_main(a: &Args, file: &str) -> u8 {
             }
         }
     }
-    // the ground hoist's receipt
-    if !parsed.hoisted.is_empty() {
-        let names: Vec<String> = parsed.hoisted.iter().map(name_str).collect();
+    // the ground hoist's receipt, which is the preparation's now
+    if !prepared.hoisted.is_empty() {
+        let names: Vec<String> = prepared.hoisted.iter().map(name_str).collect();
         eprintln!(
             "con-ron: {} declarations hoisted ahead of the pinned Nat operations \
              they ground: {}",
-            parsed.hoisted.len(),
+            prepared.hoisted.len(),
             names.join(", ")
         );
     }
@@ -429,14 +511,15 @@ fn check_main(a: &Args, file: &str) -> u8 {
             return 3;
         }
     };
-    // The heartbeat's first line: the parse is done, and the fold is about to
-    // start on this many records.  The two phases print their own lines and
-    // the summary closes the run (`driver::Heartbeat`).
+    // The heartbeat's first line: the parse and the preparation are done, and
+    // the fold is about to start on this many records.  The two phases print
+    // their own lines and the summary closes the run (`driver::Heartbeat`).
     let mut hb = Heartbeat::new(a.progress, t0);
     hb.parse_done(
-        parsed.decls.len(),
-        parsed.prelude_count,
-        parsed.prelude_dropped,
+        prepared.decls.len(),
+        file_records,
+        parsed.gen_records,
+        prepared.synthesised,
     );
     // ONE driver, and the heartbeat is printed between its steps: a plain run
     // calls `check_decls` itself, a heartbeat run calls the same body with the
@@ -447,67 +530,34 @@ fn check_main(a: &Args, file: &str) -> u8 {
         None => driver::default_jobs(),
     };
     let verdict = if a.progress > 0 || jobs > 1 {
-        driver::check_decls_driver(&mode, &pins, &parsed.decls, jobs, &mut hb)
+        driver::check_decls_driver(&mode, &pins, &prepared.decls, jobs, &mut hb)
     } else {
-        installed::check_decls(&mode, &pins, &parsed.decls)
+        installed::check_decls(&mode, &pins, &prepared.decls)
     };
-    // **The headline number is the STREAM's declaration-record count**: the
-    // records the fold consumed minus the built-in prelude's, plus the stream
-    // records dropped as identical copies of prelude records (they ARE
-    // installed — from the prelude), minus the records the in-process
-    // modeller generated (they are checked as declarations, but they are not
-    // in the file).
-    let stream_records = parsed.decls.len() as u64 - parsed.prelude_count
-        + parsed.prelude_dropped
-        - parsed.gen_records;
+    // **The headline number is the FILE's declaration-record count**: the
+    // records the PARSE produced, which are the file's own, less the records
+    // the in-process modeller generated (they are checked as declarations, but
+    // they are not in the file).  Nothing the preparation does moves it.
+    let stream_records = file_records as u64 - parsed.gen_records;
     match &verdict {
-        Ok(envr) => {
-            let detail = taint_detail(&parsed.taint_skipped);
-            let code = driver::verdict_accept(
-                stream_records,
-                parsed.taint_skipped.len(),
-                Some(&detail),
-                mode_tag,
-            );
-            if std::env::var("CON_LECHE_VERBOSE").is_ok() {
-                eprintln!(
-                    "con-ron: environment: {} constants from {} fold records \
-                     ({} built-in prelude records, {} stream copies of them dropped)",
-                    envr.consts.len(),
-                    parsed.decls.len(),
-                    parsed.prelude_count,
-                    parsed.prelude_dropped
-                );
-            }
-            code
-        }
+        Ok(_) => driver::verdict_accept(stream_records, mode_tag),
         Err((e, i)) => {
             // A record the in-process modeller generated: the file has no
             // position for it, so the BLOCK it models is the handle.
-            let owner = parsed.decls.get(*i as usize).and_then(|d| {
-                decl_names(d)
+            let owner = prepared.decls.get(*i as usize).and_then(|d| {
+                declaration_names(d)
                     .into_iter()
-                    .find_map(|n| parsed.gen_owner.get(&NameKey(n)).map(name_str))
+                    .find_map(|n| parsed.gen_owner.get(&n).map(name_str))
             });
-            let code = driver::verdict_failure(&parsed.decls, e, *i, owner, mode_tag, t0);
-            // On a stream that also FAILED, the skips are reported beside the
-            // failure and the failure's own exit code stands.
-            if !parsed.taint_skipped.is_empty() {
-                eprintln!(
-                    "con-ron: declined: {} ({})",
-                    taint_summary(&parsed.taint_skipped),
-                    mode_tag
-                );
-            }
-            code
+            driver::verdict_failure(&prepared.decls, e, *i, owner, mode_tag, t0)
         }
     }
 }
 
-/// con-leche: Main.lean:1160-1192 main
-/// The entry point.  The checker runs IN THIS PROCESS (con-leche task #230
-/// removed the out-of-memory supervisor that used to re-exec it), on one
-/// big-stack thread; a panic on it is exit 3, never a verdict.
+/// con-leche: Main.lean:992-1019 main
+/// The entry point.  The checker runs IN THIS PROCESS: it spawns no copy of
+/// itself, and the whole fold is on one big-stack thread; a panic on it is
+/// exit 3, never a verdict.
 fn main() -> ExitCode {
     let argv: Vec<String> = std::env::args().skip(1).collect();
     if argv.iter().any(|s| s == "--help") {

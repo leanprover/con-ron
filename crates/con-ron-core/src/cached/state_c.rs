@@ -119,7 +119,7 @@ pub type CheckCM<T> = Result<T, CheckError>;
 // The derived dictionaries for the tuple and list memo keys
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
 /// Lean's derived `Hashable (List α)` over `Level` — `foldl mixHash 7`
 /// (`Init/Data/Hashable.lean:37-38`), which is what the cited fields'
 /// `(Name × List Level)` keys hash their list component with.
@@ -127,7 +127,7 @@ pub fn levels_list_hash(us: &Vec<Level>) -> u64 {
     levels_list_hash_from(us, 0, 7)
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
 /// The index recursion behind `levels_list_hash`; the fold is a *left* one,
 /// so the accumulator is carried forward.
 pub fn levels_list_hash_from(us: &Vec<Level>, i: usize, acc: u64) -> u64 {
@@ -138,14 +138,14 @@ pub fn levels_list_hash_from(us: &Vec<Level>, i: usize, acc: u64) -> u64 {
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
 /// Lean's derived `Hashable (List α)` over `ExprC`, for the `instC` key's
 /// argument list.
 pub fn exprs_list_hash(es: &Vec<Expr>) -> u64 {
     exprs_list_hash_from(es, 0, 7)
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
 /// The index recursion behind `exprs_list_hash`.
 pub fn exprs_list_hash_from(es: &Vec<Expr>, i: usize, acc: u64) -> u64 {
     if i >= es.len() {
@@ -155,7 +155,7 @@ pub fn exprs_list_hash_from(es: &Vec<Expr>, i: usize, acc: u64) -> u64 {
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
 /// Lean's `BEq (List ExprC)` (`List.beq` over `BEq ExprC`), the twin of
 /// `expr::levels_beq` for the `instC` key's argument list.
 pub fn exprs_beq(ls: &Vec<Expr>, rs: &Vec<Expr>) -> bool {
@@ -166,7 +166,7 @@ pub fn exprs_beq(ls: &Vec<Expr>, rs: &Vec<Expr>) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
 /// The index recursion behind `exprs_beq`.
 pub fn exprs_beq_from(ls: &Vec<Expr>, rs: &Vec<Expr>, i: usize) -> bool {
     if i >= ls.len() {
@@ -178,33 +178,33 @@ pub fn exprs_beq_from(ls: &Vec<Expr>, rs: &Vec<Expr>, i: usize) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
 /// The key dictionary of `constTyAt`/`constValAt`: Lean's derived
 /// `Hashable (Name × List Level)`.
 impl Hashable for (Name, Vec<Level>) {
-    /// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+    /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
     /// `mixHash (hash n) (List.hash us)`, the derived product instance.
     fn hash64(&self) -> u64 {
         name::mix_hash(name::hash_data(&self.0), levels_list_hash(&self.1))
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
 /// The key equality of `constTyAt`/`constValAt`: Lean's derived
 /// `BEq (Name × List Level)`, componentwise.
 impl Eq2 for (Name, Vec<Level>) {
-    /// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+    /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
     /// The derived product equality, componentwise.
     fn eq2(&self, other: &Self) -> bool {
         name::beq(&self.0, &other.0) && expr::levels_beq(&self.1, &other.1)
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
 /// The key dictionary of `ruleRhsAt`.  A Lean triple is `(a, (b, c))`, so
 /// the derived hash is right-nested.
 impl Hashable for (Name, Name, Vec<Level>) {
-    /// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+    /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
     /// `mixHash (hash c) (mixHash (hash j) (List.hash us))`.
     fn hash64(&self) -> u64 {
         name::mix_hash(
@@ -214,10 +214,10 @@ impl Hashable for (Name, Name, Vec<Level>) {
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
 /// The key equality of `ruleRhsAt`, componentwise.
 impl Eq2 for (Name, Name, Vec<Level>) {
-    /// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+    /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
     /// The derived triple equality, componentwise.
     fn eq2(&self, other: &Self) -> bool {
         name::beq(&self.0, &other.0)
@@ -226,52 +226,52 @@ impl Eq2 for (Name, Name, Vec<Level>) {
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
 /// The key dictionary of `defeqC`.
 impl Hashable for (Expr, Expr) {
-    /// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+    /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
     /// `mixHash (hash a) (hash b)` over the two stored `Expr` words.
     fn hash64(&self) -> u64 {
         name::mix_hash(expr::hash(&self.0), expr::hash(&self.1))
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
 /// The key equality of `defeqC`: `Expr.beq` on both components, with its
 /// pointer and computed-word fast paths (§3.2).
 impl Eq2 for (Expr, Expr) {
-    /// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+    /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
     /// `Expr.beq` on both components, with its fast paths (§3.2).
     fn eq2(&self, other: &Self) -> bool {
         expr::beq(&self.0, &other.0) && expr::beq(&self.1, &other.1)
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
 /// The key dictionary of `eqvC`.
 impl Hashable for (Level, Level) {
-    /// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+    /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
     /// `mixHash (hash l) (hash r)` over the two stored `Level` words.
     fn hash64(&self) -> u64 {
         name::mix_hash(level::hash_data(&self.0), level::hash_data(&self.1))
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
 /// The key equality of `eqvC`.
 impl Eq2 for (Level, Level) {
-    /// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+    /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
     /// `Level.beq` on both components.
     fn eq2(&self, other: &Self) -> bool {
         level::beq(&self.0, &other.0) && level::beq(&self.1, &other.1)
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
 /// The key dictionary of `instC`, the persistent bulk-instantiation memo:
 /// the whole argument tuple `(e, vs, d)`, hashed right-nested.
 impl Hashable for (Expr, Vec<Expr>, u64) {
-    /// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+    /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
     /// `mixHash (hash e) (mixHash (List.hash vs) (UInt64.ofNat d))`.
     fn hash64(&self) -> u64 {
         name::mix_hash(
@@ -281,10 +281,10 @@ impl Hashable for (Expr, Vec<Expr>, u64) {
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
 /// The key equality of `instC`, componentwise.
 impl Eq2 for (Expr, Vec<Expr>, u64) {
-    /// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+    /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
     /// The derived triple equality, componentwise.
     fn eq2(&self, other: &Self) -> bool {
         expr::beq(&self.0, &other.0) && exprs_beq(&self.1, &other.1) && self.2 == other.2
@@ -295,7 +295,7 @@ impl Eq2 for (Expr, Vec<Expr>, u64) {
 // The state (`StateC.lean:122-172`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/StateC.lean:122-126 CConstE
+/// con-leche: ConLeche/Cached/StateC.lean:116-125 CConstE
 /// One cached-environment entry: a stored constant's annotated type and (for
 /// definitions/theorems/opaques) value, each tagged with the very `Expr`
 /// object it came from.  Deviations: `ExprC` is `Expr` (the module note), and
@@ -306,7 +306,7 @@ pub struct CConstE {
     pub val: Option<(Expr, Expr)>,
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:122-126 CConstE
+/// con-leche: ConLeche/Cached/StateC.lean:116-125 CConstE
 /// The cited structure at its one field default, `val := none`.
 pub fn cconst_e_new(ty_e: Expr, ty: Expr) -> CConstE {
     CConstE {
@@ -316,7 +316,7 @@ pub fn cconst_e_new(ty_e: Expr, ty: Expr) -> CConstE {
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
 /// Per-declaration state: the converted-constant cache `ienv`, the memo
 /// caches for the five entry points, the lazy caches for level-instantiated
 /// stored constants, the level-operation memos, and the persistent
@@ -413,7 +413,7 @@ pub fn bvar_bound_m(e: &Expr) -> u64 {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:181-184 inst1M
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:275-277 instantiate1
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:261-263 instantiate1C
 /// `ExprC.instantiate1`; the identity — the same node, by reference — when
 /// the target has no loose bvar at or above the cursor (the cited
 /// `bvarB ≤ d` cutoff, which `expr_ops::instantiate1` does not have).
@@ -490,7 +490,7 @@ pub fn inst_list_m_reset(s: &mut CState) {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:201-205 instListRevM
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:441-445 instantiateRev
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:427-431 instantiateRev
 /// **Bulk instantiation on a reversed accumulator array**, deliberately not
 /// memoized in `CState`.  `ExprC.instantiateRev` indexes the array from its
 /// end (`instantiateRevGo`'s `vs[vs.size - 1 - (i - d)]` where
@@ -505,7 +505,7 @@ pub fn inst_list_rev_m(e: &Expr, vs: &Vec<Expr>, d: u64) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:207-208 abstract1M
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:510-512 abstract1
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:496-498 abstract1C
 /// `ExprC.abstract1` at the binder cursor `0` (the cited `(k : Nat := 0)`
 /// default, which Rust has no spelling for).
 pub fn abstract1_m(e: &Expr, d: u64) -> Expr {
@@ -513,14 +513,14 @@ pub fn abstract1_m(e: &Expr, d: u64) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:210-211 abstractRangeM
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:569-574 abstractRange
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:555-560 abstractRangeC
 /// `ExprC.abstractRange` at the binder cursor `0`.
 pub fn abstract_range_m(e: &Expr, d: u64, k: u64) -> Expr {
     expr_ops_c::abstract_range(e, d, k, 0)
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:213-214 mkAppNM
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:78-81 mkAppN
+/// con-leche: ConLeche/Kernel/ExprOps.lean:925-928 mkAppN
 /// `ExprC.mkAppN`.  Deviation: the head is taken by value, as `mk_app_n`'s
 /// own signature has it (the spine is built onto it).
 pub fn mk_app_n_m(f: Expr, args: &Vec<Expr>) -> Expr {
@@ -528,7 +528,7 @@ pub fn mk_app_n_m(f: Expr, args: &Vec<Expr>) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:216-218 instSpineM
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:757-761 instSpine
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:739-743 instSpineC
 /// `ExprC.instSpine`: the one bulk pass when the spine spans the telescope
 /// context, the `instantiate1` chain otherwise.
 pub fn inst_spine_m(args: &Vec<Expr>, t: u64, e: &Expr) -> Expr {
@@ -536,7 +536,7 @@ pub fn inst_spine_m(args: &Vec<Expr>, t: u64, e: &Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:224-226 instLevelParamsM
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:619-621 instLevelParams
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:605-607 instLevelParams
 /// `ExprC.instLevelParams`.
 pub fn inst_level_params_m(ks: &Vec<Name>, us: &Vec<Level>, e: &Expr) -> Expr {
     expr_ops_c::inst_level_params(ks, us, e)
@@ -991,7 +991,7 @@ pub fn flush_c(s: &mut CState) {
     flushed(s)
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:455-460 recordCConst
+/// con-leche: ConLeche/Cached/StateC.lean:452-460 recordCConst
 /// Record an accepted constant's converted type/value, tagged with the very
 /// `Expr` objects pushed into the environment.
 pub fn record_c_const(
@@ -1127,7 +1127,7 @@ pub fn consts_resolve_fc(fe: &FEnv, e: &Expr) -> bool {
 // keys: they exist for `CState`, and `Name`/`Level`/`Expr` already export the
 // `P` bump each instance is.
 
-/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
 /// The key type of `ienv` and a component of three tuple keys; the copy is
 /// `name::dup`'s `P` bump (DESIGN.md §3.2).
 impl crate::ron::hashmap::Dup for Name {
@@ -1137,7 +1137,7 @@ impl crate::ron::hashmap::Dup for Name {
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
 /// The key type of `lsimpC`/`lnzC` and the value type of `lsimpC`; the copy
 /// is `level::dup`'s `P` bump.
 impl crate::ron::hashmap::Dup for Level {
@@ -1147,7 +1147,7 @@ impl crate::ron::hashmap::Dup for Level {
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
 /// The key and value type of the five expression memos; the copy is
 /// `expr::dup`'s `P` bump, so no node is ever descended into.
 impl crate::ron::hashmap::Dup for Expr {
@@ -1157,7 +1157,7 @@ impl crate::ron::hashmap::Dup for Expr {
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
 /// The level list of `constTyAt`/`constValAt`/`ruleRhsAt`'s key: only the
 /// spine is copied (`env::levels_copy`).
 impl crate::ron::hashmap::Dup for Vec<Level> {
@@ -1167,7 +1167,7 @@ impl crate::ron::hashmap::Dup for Vec<Level> {
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
 /// The argument list of `instC`'s key: only the spine is copied
 /// (`env::exprs_copy`).
 impl crate::ron::hashmap::Dup for Vec<Expr> {
@@ -1177,7 +1177,7 @@ impl crate::ron::hashmap::Dup for Vec<Expr> {
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:122-126 CConstE
+/// con-leche: ConLeche/Cached/StateC.lean:116-125 CConstE
 /// The value type of `ienv`: three expression handles, the third behind an
 /// `Option` of a pair.
 impl crate::ron::hashmap::Dup for CConstE {
@@ -1195,7 +1195,7 @@ impl crate::ron::hashmap::Dup for CConstE {
 }
 
 /// con-leche: none — the `dup` of a `CState`; Lean's value semantics hides it
-/// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
+/// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
 /// A snapshot of the per-declaration state: all fourteen maps copied, in the
 /// cited field order.  The copy shares no table with the original, so writing
 /// to one leaves the other alone — which is what lets a caller restore the

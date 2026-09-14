@@ -78,14 +78,16 @@ use crate::cached::state_c;
 use crate::cached::state_c::CState;
 use crate::kernel::basis_names;
 use crate::kernel::basis_pins;
+use crate::kernel::basis_raw;
 use crate::kernel::basis_tables;
+use crate::kernel::canon;
 use crate::kernel::checker_base;
 use crate::kernel::core_k;
 use crate::kernel::core_types;
 use crate::kernel::core_types::CheckM;
 use crate::kernel::env;
 use crate::kernel::env::{
-    BasisKind, CheckMode, ConstantInfo, ConstantVal, Declaration, ReducibilityHint,
+    BasisKind, CheckMode, ConstantInfo, ConstantVal, Declaration, QuotKind, ReducibilityHint,
 };
 use crate::kernel::expr;
 use crate::kernel::expr::Expr;
@@ -157,7 +159,7 @@ pub fn check_defn_val_after_annot(
     if !expr_ops::all_level_params_defined_fast(&cv.level_params, &value_a) {
         Err(core_types::invalid({ const M: [u32; 38] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
     } else if !core_k::consts_resolve(&fe, &value_a) {
-        Err(core_types::invalid({ const M: [u32; 25] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
+        Err(checker_base::unresolved_consts_error(&value_a))
     } else {
         match type_checker::infer_type_core(mode, st, &fe, 0, &value_a) {
             Err(err) => Err(err),
@@ -251,7 +253,7 @@ pub fn check_thm_val_checked(
     if !expr_ops::all_level_params_defined_fast(&cv.level_params, &jv) {
         Err(core_types::invalid({ const M: [u32; 38] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
     } else if !core_k::consts_resolve(&fe, &jv) {
-        Err(core_types::invalid({ const M: [u32; 25] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
+        Err(checker_base::unresolved_consts_error(&jv))
     } else {
         match type_checker::infer_type_core(mode, st, &fe, 0, &jv) {
             Err(err) => Err(err),
@@ -313,7 +315,7 @@ pub fn check_opaque_val_after_annot(
     if !expr_ops::all_level_params_defined_fast(&cv.level_params, &value_a) {
         Err(core_types::invalid({ const M: [u32; 38] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
     } else if !core_k::consts_resolve(&fe, &value_a) {
-        Err(core_types::invalid({ const M: [u32; 25] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
+        Err(checker_base::unresolved_consts_error(&value_a))
     } else {
         match type_checker::infer_type_core(mode, st, &fe, 0, &value_a) {
             Err(err) => Err(err),
@@ -1132,7 +1134,7 @@ pub fn check_div_mod_pin_loop(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Checker.lean:362-387 checkDivModPin
+/// con-leche: ConLeche/Kernel/Checker.lean:362-388 checkDivModPin
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:903-913 checkDivModPinF
 /// The pin-certified operations' install gate, run after the ordinary
 /// definition check: the dependency and pinned-`Eq` guards at the *extended*
@@ -1188,7 +1190,7 @@ pub fn check_div_mod_pin(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Checker.lean:389-424 checkReducePin
+/// con-leche: ConLeche/Kernel/Checker.lean:390-425 checkReducePin
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:915-934 checkReducePinF
 /// The `Lean.reduceNat`/`Lean.reduceBool` install gate, run after the
 /// ordinary opaque check: the stored constant must carry the pinned type; the
@@ -1222,7 +1224,7 @@ pub fn check_reduce_pin(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Checker.lean:389-424 checkReducePin
+/// con-leche: ConLeche/Kernel/Checker.lean:390-425 checkReducePin
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:915-934 checkReducePinF
 /// `checkReducePin`'s body at the pre-insertion view: the element guard, the
 /// pin's own syntactic guards, the definitional comparison of the witness
@@ -1268,7 +1270,7 @@ pub fn check_reduce_pin_pre(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Checker.lean:389-424 checkReducePin
+/// con-leche: ConLeche/Kernel/Checker.lean:390-425 checkReducePin
 /// The identity certificate: `valA x ≡ x` at depth 1 over `reduceCertVar`.
 pub fn check_reduce_identity(
     mode: &CheckMode,
@@ -1295,10 +1297,10 @@ pub fn check_reduce_identity(
 // `checkDecl` (`Checker.lean:419-562`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Checker.lean:426-570 checkDecl
+/// con-leche: ConLeche/Kernel/Checker.lean:439-626 checkDecl
 /// Check a single declaration, extending the environment on success.  The
-/// cited `match d with` becomes one dispatch and six arm functions, so every
-/// arm stays a tail call.
+/// cited `match d with` becomes one dispatch and seven arm functions, so
+/// every arm stays a tail call.
 ///
 /// Deviation: the environment in and out is the *index* (task #18's deviation
 /// 3), taken by value and returned (task #14's `FEnv` ruling).  `pins` is
@@ -1319,10 +1321,33 @@ pub fn check_decl(
         Declaration::AxiomDecl(cv) => check_axiom_decl(mode, st, fe, cv),
         Declaration::BasisDecl(kind) => check_basis_decl(fe, kind),
         Declaration::IndDecl(block, n_p) => check_ind_decl(mode, st, fe, block, *n_p),
+        Declaration::QuotDecl(k, cv) => check_quot_decl(fe, k, cv),
     }
 }
 
-/// con-leche: ConLeche/Kernel/Checker.lean:426-570 checkDecl
+/// con-leche: ConLeche/Kernel/Checker.lean:439-626 checkDecl
+/// **The quotient package** (con-leche task #293).  The export writes it as
+/// four records; each one is compared with the pinned block's constant at its
+/// own kind, and the FIRST that matches installs the pinned block whole (the
+/// other three then find it installed and add nothing — they are the same
+/// declaration).  A record that does not match is a quotient this checker
+/// positively does not support: the decline the parser used to issue, now at
+/// the record, in the fold.
+pub fn check_quot_decl(fe: FEnv, k: &QuotKind, cv: &ConstantVal) -> CheckM<FEnv> {
+    if basis_raw::quot_pin_hit(k, cv) {
+        match k {
+            QuotKind::Type => check_basis_decl(fe, &BasisKind::QuotK),
+            _ => Ok(fe),
+        }
+    } else {
+        match k {
+            QuotKind::Sound => Err(core_types::not_implemented({ const M: [u32; 33] = [113, 117, 111, 116, 105, 101, 110, 116, 32, 115, 111, 117, 110, 100, 110, 101, 115, 115, 32, 97, 120, 105, 111, 109, 32, 109, 105, 115, 109, 97, 116, 99, 104]; core_types::code_points(&M) })),
+            _ => Err(core_types::not_implemented({ const M: [u32; 29] = [113, 117, 111, 116, 105, 101, 110, 116, 32, 100, 101, 99, 108, 97, 114, 97, 116, 105, 111, 110, 32, 109, 105, 115, 109, 97, 116, 99, 104]; core_types::code_points(&M) })),
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Checker.lean:439-626 checkDecl
 /// The `.defnDecl` arm: the common constant check, the value check, then the
 /// two pinned-`Nat` gates.  `pins` is `check_div_mod_pin`'s parameter,
 /// threaded (task #31).
@@ -1345,7 +1370,7 @@ pub fn check_defn_decl(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:73-97 checkConstantVal
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:95-119 checkConstantVal
 /// `checkConstantVal` at a borrowed index — the arms call it before the push,
 /// where the index is still theirs to lend.
 pub fn check_constant_val_borrowed(
@@ -1357,7 +1382,7 @@ pub fn check_constant_val_borrowed(
     checker_base::check_constant_val(mode, st, fe, cv)
 }
 
-/// con-leche: ConLeche/Kernel/Checker.lean:426-570 checkDecl
+/// con-leche: ConLeche/Kernel/Checker.lean:439-626 checkDecl
 /// The `.defnDecl` arm's two pinned-`Nat` gates.  **Structural-`Nat` pins**:
 /// the fast-path ops must be the standard structural recursions, so their
 /// recurrence equations are checked by definitional equality here, once, in
@@ -1385,7 +1410,7 @@ pub fn check_defn_pins(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Checker.lean:426-570 checkDecl
+/// con-leche: ConLeche/Kernel/Checker.lean:439-626 checkDecl
 /// The `natDivModNames.contains` gate of the `.defnDecl` arm.  `pins` is
 /// `check_div_mod_pin`'s parameter, threaded (task #31).
 pub fn check_defn_div_mod_pin(
@@ -1403,7 +1428,7 @@ pub fn check_defn_div_mod_pin(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Checker.lean:426-570 checkDecl
+/// con-leche: ConLeche/Kernel/Checker.lean:439-626 checkDecl
 /// The structural-`Nat` gate: the environment guards at the extended
 /// environment, then `certifyNatEqs` at the pre-insertion one over the
 /// equations with the operation's self-references substituted.
@@ -1470,7 +1495,7 @@ pub fn nat_eqs_subst_from(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Checker.lean:426-570 checkDecl
+/// con-leche: ConLeche/Kernel/Checker.lean:439-626 checkDecl
 /// The `.thmDecl` arm.
 pub fn check_thm_decl(
     mode: &CheckMode,
@@ -1485,7 +1510,7 @@ pub fn check_thm_decl(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Checker.lean:426-570 checkDecl
+/// con-leche: ConLeche/Kernel/Checker.lean:439-626 checkDecl
 /// The `.opaqueDecl` arm: the opaque check, then the compiler-trust gate for
 /// `Lean.reduceNat`/`Lean.reduceBool`.
 pub fn check_opaque_decl(
@@ -1511,16 +1536,57 @@ pub fn check_opaque_decl(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Checker.lean:426-570 checkDecl
-/// The `.axiomDecl` arm.  Pinned axioms are *installed*: the two standard
-/// axioms and the `Init` compiler-trust family, with all types and the shapes
-/// of the inductives they quantify over pinned.  The tolerated whitelist
-/// (`toleratedAxiomNames` — exactly `sorryAx`) is well-formedness-checked but
-/// not stored; the run continues and the frontend positively declines any
-/// later declaration that references the skipped axiom.  Any other axiom is a
-/// positive decline at its own record; a *pinned name* with a non-pinned
-/// shape likewise, because the pin would otherwise shadow.
+/// con-leche: ConLeche/Kernel/Checker.lean:439-626 checkDecl
+/// The `.axiomDecl` arm.  **`Quot.sound` is the pinned quotient BLOCK's own
+/// record** (con-leche task #293): the export writes it as an ordinary axiom
+/// record beside the four `#QUOT` ones, so it arrives here — compared with
+/// the pin and installing NOTHING of its own (the pinned block installs the
+/// axiom together with its three other constants, at the first quotient
+/// record that matches), and DECLINING when it does not match.  The
+/// comparison precedes the common checks because the name is a reserved basis
+/// name: this record IS the pinned block's, not a redeclaration of it.  What
+/// stood here was a parser check, which swallowed the record before the fold
+/// ever saw it.
 pub fn check_axiom_decl(
+    mode: &CheckMode,
+    st: &mut CState,
+    fe: FEnv,
+    cv: &ConstantVal,
+) -> CheckM<FEnv> {
+    if name::beq(&cv.name, &basis_names::quot_sound_name()) {
+        check_quot_sound_record(fe, cv)
+    } else {
+        check_axiom_decl_std(mode, st, fe, cv)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Checker.lean:439-626 checkDecl
+/// The `.axiomDecl` arm's `Quot.sound` test, as its own function so that the
+/// arm below stays one expression (§3.4 keeps the generated Lean's shape).
+pub fn check_quot_sound_record(fe: FEnv, cv: &ConstantVal) -> CheckM<FEnv> {
+    if canon::constant_info_canon_eq(
+        &ConstantInfo::AxiomInfo(env::constant_val_dup(cv)),
+        &basis_raw::quot_basis_at(4),
+    ) {
+        Ok(fe)
+    } else {
+        Err(core_types::not_implemented({ const M: [u32; 33] = [113, 117, 111, 116, 105, 101, 110, 116, 32, 115, 111, 117, 110, 100, 110, 101, 115, 115, 32, 97, 120, 105, 111, 109, 32, 109, 105, 115, 109, 97, 116, 99, 104]; core_types::code_points(&M) }))
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Checker.lean:439-626 checkDecl
+/// The rest of the `.axiomDecl` arm.  Pinned axioms are *installed*: the two
+/// standard axioms and the `Init` compiler-trust family, with all types and
+/// the shapes of the inductives they quantify over pinned.  `sorryAx` — the
+/// one axiom the checker tolerates as a DECLARATION — is
+/// well-formedness-checked but installs NOTHING: an export declares it
+/// whenever its module mentions `sorry`, whether or not anything uses it, so
+/// the record is skipped and the run continues, and because there is no set
+/// model for it any USE of the name declines at the record that uses it
+/// (`core_k::unknown_const_error`, `checker_base::unresolved_consts_error`).
+/// Any other axiom is a positive decline at its own record; a *pinned name*
+/// with a non-pinned shape likewise, because the pin would otherwise shadow.
+pub fn check_axiom_decl_std(
     mode: &CheckMode,
     st: &mut CState,
     fe: FEnv,
@@ -1549,7 +1615,7 @@ pub fn check_axiom_decl(
                 || name::beq(&cv_a.name, &std_axioms::choice_name())
             {
                 Err(core_types::not_implemented({ const M: [u32; 29] = [115, 116, 97, 110, 100, 97, 114, 100, 32, 97, 120, 105, 111, 109, 32, 115, 104, 97, 112, 101, 32, 109, 105, 115, 109, 97, 116, 99, 104]; core_types::code_points(&M) }))
-            } else if name::contains(&std_axioms::tolerated_axiom_names(), &cv_a.name) {
+            } else if name::beq(&cv_a.name, &basis_names::sorry_ax_name()) {
                 Ok(fe)
             } else {
                 Err(core_types::not_implemented({ const M: [u32; 18] = [110, 111, 110, 45, 115, 116, 97, 110, 100, 97, 114, 100, 32, 97, 120, 105, 111, 109]; core_types::code_points(&M) }))
@@ -1558,11 +1624,14 @@ pub fn check_axiom_decl(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Checker.lean:426-570 checkDecl
-/// The `.basisDecl` arm: install the pinned (pre-annotated) basis block; the
-/// frontend has already matched the incoming record against the pinned
-/// shapes.  The quotient block's types mention the pinned equality former, so
-/// it requires the pinned `Eq` basis.
+/// con-leche: ConLeche/Kernel/Checker.lean:427-437 checkBasisDecl
+/// **Install the pinned (pre-annotated) basis block.**  The three records
+/// that install one — the fold's own `BasisDecl` kind, a stream block
+/// `basis_raw::basis_pin_hit` recognises and a quotient record
+/// `basis_raw::quot_pin_hit` recognises — share this body, so what is proved
+/// of one is proved of all three (con-leche task #293).  The quotient block's
+/// types mention the pinned equality former, so it requires the pinned `Eq`
+/// basis.
 ///
 /// The block itself is `basis_tables::basis_decls_a` — `BasisKind.declsA`,
 /// generated from con-leche's own value (task #22), because the annotated
@@ -1582,7 +1651,7 @@ pub fn check_basis_decl(fe: FEnv, kind: &BasisKind) -> CheckM<FEnv> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Checker.lean:426-570 checkDecl
+/// con-leche: ConLeche/Kernel/Checker.lean:427-437 checkBasisDecl
 /// The `kind.declsA.foldlM installBasisDecl env` of the `.basisDecl` arm, as
 /// an index recursion threading the index by value.
 pub fn install_basis_decls(fe: FEnv, decls: &Vec<ConstantInfo>, i: usize) -> CheckM<FEnv> {
@@ -1596,8 +1665,18 @@ pub fn install_basis_decls(fe: FEnv, decls: &Vec<ConstantInfo>, i: usize) -> Che
     }
 }
 
-/// con-leche: ConLeche/Kernel/Checker.lean:426-570 checkDecl
-/// The `.indDecl` arm.  **The declared parameter count first, and for both
+/// con-leche: ConLeche/Kernel/Checker.lean:439-626 checkDecl
+/// The `.indDecl` arm.  **THE PINNED BASIS BLOCKS FIRST** (con-leche task
+/// #293): a stream's `Nat` block arrives as an ordinary inductive block — the
+/// decoder emits the file's records and nothing else — and it is recognised
+/// HERE; a block whose members are named as one of the five pins' and which
+/// matches it up to `canon` installs the PIN (the annotated, model-proved
+/// literals `install_basis_decl` puts in the environment verbatim).  A block
+/// under a pinned name that does NOT match falls through to the ordinary
+/// route, where `check_constant_val`'s reserved-name check rejects it: a
+/// basis redefinition is invalid input.
+///
+/// Past that, **the declared parameter count, and for both
 /// routes** (con-leche task #228): official reads `nparams` off the
 /// declaration and checks the block against it, and `indParamsOk` is that
 /// check, one-sided, so a `false` is official's own reject.  It runs BEFORE
@@ -1621,6 +1700,22 @@ pub fn check_ind_decl(
     block: &Vec<ConstantInfo>,
     n_p: u64,
 ) -> CheckM<FEnv> {
+    match basis_raw::basis_pin_hit(block) {
+        Some(kind) => check_basis_decl(fe, &kind),
+        None => check_ind_decl_route(mode, st, fe, block, n_p),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Checker.lean:439-626 checkDecl
+/// The `.indDecl` arm past the pin recognition: the declared parameter count,
+/// then the route dispatch.
+pub fn check_ind_decl_route(
+    mode: &CheckMode,
+    st: &mut CState,
+    fe: FEnv,
+    block: &Vec<ConstantInfo>,
+    n_p: u64,
+) -> CheckM<FEnv> {
     let _ = mode;
     let _ = st;
     let _ = fe;
@@ -1631,7 +1726,7 @@ pub fn check_ind_decl(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Checker.lean:572-576 checkDeclsPure
+/// con-leche: ConLeche/Kernel/Checker.lean:628-632 checkDeclsPure
 /// Check a list of declarations in order, starting from the empty
 /// environment.  Deviation: the fold starts at the *index* of the empty
 /// environment, and the `CState` the memoizing knot needs is the caller's.
@@ -1644,7 +1739,7 @@ pub fn check_decls_pure(
     check_decls_pure_from(mode, pins, st, fenv::mk_fenv(env::empty()), ds, 0)
 }
 
-/// con-leche: ConLeche/Kernel/Checker.lean:572-576 checkDeclsPure
+/// con-leche: ConLeche/Kernel/Checker.lean:628-632 checkDeclsPure
 /// The cited `foldlM` as an index recursion threading the index by value.
 pub fn check_decls_pure_from(
     mode: &CheckMode,

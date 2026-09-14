@@ -329,6 +329,7 @@ import ConRon.Refine.CoreKGuards
 import ConRon.Refine.CoreKVec
 import ConRon.Refine.CoreKPinned
 import ConRon.Refine.BasisPins
+import ConRon.Refine.ErrKinds
 import ConLeche.Verify.FastOps
 import ConLeche.Verify.InferLemmas
 
@@ -1474,6 +1475,17 @@ private theorem errSim_invalid {γ : Type} {v : alloc.vec.Vec Std.U32}
     (hce : core_types.invalid v = ok ce) (hx : x = .error (.invalid s)) :
     ErrSim ce x := by
   rw [invalid_err hce]; exact ErrSim.invalid hx
+
+/-- Move 2 at the **named** builder of con-leche's `sorryAx` ruling (task
+#292): `checker_base::unresolved_consts_error` answers `not_implemented` or
+`invalid` according to the term, so the port's error is matched to the cited
+`unresolvedConstsError` at the kind and the slot name travels as `w`. -/
+private theorem errSim_unresolved {γ : Type} {e : expr.Expr}
+    {ce : core_types.CheckError} {x : Except ConLeche.CheckError γ} (w : String)
+    (he : ExprWF e) (hce : checker_base.unresolved_consts_error e = ok ce)
+    (hx : x = .error (ConLeche.unresolvedConstsError w (absExpr e))) :
+    ErrSim ce x :=
+  ErrSim.mk hx (unresolved_consts_error_refines he hce w)
 
 /-- The same at `core_types::internal`. -/
 private theorem errSim_internal {γ : Type} {v : alloc.vec.Vec Std.U32}
@@ -5858,14 +5870,15 @@ theorem check_iota_rule_refines
               exact ⟨lst3, htail.trans hrun3, hrel3, hwf3, hr'wf⟩
             | Err e => exact ErrSim.of_eq hfire htail
 
-          · -- the unresolved constant (`DeclCheck.lean:700`)
+          · -- the unresolved constants (`DeclCheck.lean:703`), at the named
+            -- builder of con-leche's task #292
             simp only [Bool.not_eq_true] at hb3t
             rw [if_neg (by simp [hb3t])] at h
             simp at h
-            obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := h
+            obtain ⟨ce, hce, rfl, rfl⟩ := h
             rw [hb3t] at hb3v
-            refine errSim_invalid
-              s!"unknown constant in rule of {absName cv_name}" hce ?_
+            refine errSim_unresolved
+              s!"rule of {absName cv_name}" hrhswf hce ?_
             rw [ConLeche.checkIotaRuleF]
             simp only [StateT.run, hzero] at hrun1 ⊢
             simp [StateT.run, Bind.bind, StateT.bind, Except.bind,

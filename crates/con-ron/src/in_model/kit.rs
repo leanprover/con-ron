@@ -39,7 +39,7 @@ use con_ron_core::kernel::name::{Name, NameKind};
 use con_ron_core::kernel::prop_when;
 use con_ron_core::kernel::prop_when::PropWhen;
 
-use crate::frontend::nat_op_ground::ExprKey;
+use crate::keys::ExprKey;
 
 /// con-leche: none — Lean's truncated `Nat` subtraction, which Rust's `u64`
 /// does not have.  Every `a - b` of the cited Lean is spelled with this.
@@ -1001,7 +1001,7 @@ pub fn hint_height(h: &ReducibilityHint) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::frontend::export::name_str;
+    use crate::render::name_str;
 
     fn n(s: &str) -> Name {
         nstr(name::anonymous(), s)

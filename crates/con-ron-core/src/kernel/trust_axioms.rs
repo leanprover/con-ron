@@ -56,13 +56,13 @@ use std::vec::Vec;
 // The pinned names (`TrustAxioms.lean:49-75`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:49-50 trueName
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:51-52 trueName
 /// The name `True`.
 pub fn true_name() -> Name {
     name::mk_str(name::anonymous(), { const S: [u32; 4] = [84, 114, 117, 101]; core_types::code_points(&S) })
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:52-53 trueIntroName
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:54-55 trueIntroName
 /// The name `True.intro`.
 pub fn true_intro_name() -> Name {
     name::mk_str(true_name(), { const S: [u32; 5] = [105, 110, 116, 114, 111]; core_types::code_points(&S) })
@@ -79,7 +79,7 @@ pub fn lean_ns() -> Name {
     name::mk_str(name::anonymous(), { const S: [u32; 4] = [76, 101, 97, 110]; core_types::code_points(&S) })
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:55-56 trustCompilerName
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:57-58 trustCompilerName
 /// The name `Lean.trustCompiler`.
 pub fn trust_compiler_name() -> Name {
     name::mk_str(
@@ -88,7 +88,7 @@ pub fn trust_compiler_name() -> Name {
     )
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:58-59 reduceNatName
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:60-61 reduceNatName
 /// The name `Lean.reduceNat`.
 pub fn reduce_nat_name() -> Name {
     name::mk_str(
@@ -97,7 +97,7 @@ pub fn reduce_nat_name() -> Name {
     )
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:61-62 reduceBoolName
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:63-64 reduceBoolName
 /// The name `Lean.reduceBool`.
 pub fn reduce_bool_name() -> Name {
     name::mk_str(
@@ -106,7 +106,7 @@ pub fn reduce_bool_name() -> Name {
     )
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:64-65 ofReduceNatName
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:66-67 ofReduceNatName
 /// The name `Lean.ofReduceNat`.
 pub fn of_reduce_nat_name() -> Name {
     name::mk_str(
@@ -115,7 +115,7 @@ pub fn of_reduce_nat_name() -> Name {
     )
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:67-68 ofReduceBoolName
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:69-70 ofReduceBoolName
 /// The name `Lean.ofReduceBool`.
 pub fn of_reduce_bool_name() -> Name {
     name::mk_str(
@@ -124,7 +124,7 @@ pub fn of_reduce_bool_name() -> Name {
     )
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:70-71 reduceOpNames
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:72-73 reduceOpNames
 /// The reduce operations pinned at their `opaque` install.
 pub fn reduce_op_names() -> Vec<Name> {
     let mut ns: Vec<Name> = Vec::new();
@@ -133,7 +133,7 @@ pub fn reduce_op_names() -> Vec<Name> {
     ns
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:73-75 ofReduceOp
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:75-77 ofReduceOp
 /// The reduce operation an `ofReduce*` axiom speaks about.
 pub fn of_reduce_op(n: &Name) -> Name {
     if name::beq(n, &of_reduce_nat_name()) {
@@ -147,7 +147,7 @@ pub fn of_reduce_op(n: &Name) -> Name {
 // The pinned shapes (`TrustAxioms.lean:77-152`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:86-87 trueCvA
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:88-89 trueCvA
 /// Pinned `True` (shape only; capabilities are not pinned).  Already written
 /// annotated in the Lean — `Sort 0` has no binder.
 pub fn true_cv_a() -> ConstantVal {
@@ -158,7 +158,7 @@ pub fn true_cv_a() -> ConstantVal {
     }
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:89-90 trueIntroCvA
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:91-92 trueIntroCvA
 /// Pinned `True.intro`.
 pub fn true_intro_cv_a() -> ConstantVal {
     ConstantVal {
@@ -168,7 +168,7 @@ pub fn true_intro_cv_a() -> ConstantVal {
     }
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:92-93 trustCompilerA
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:94-95 trustCompilerA
 /// Pinned `Lean.trustCompiler`.
 pub fn trust_compiler_a() -> ConstantVal {
     ConstantVal {
@@ -178,7 +178,7 @@ pub fn trust_compiler_a() -> ConstantVal {
     }
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:95-96 boolCvA
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:97-98 boolCvA
 /// Pinned `Bool` (shape only).
 pub fn bool_cv_a() -> ConstantVal {
     ConstantVal {
@@ -188,7 +188,7 @@ pub fn bool_cv_a() -> ConstantVal {
     }
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:98-100 reduceElemName
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:100-102 reduceElemName
 /// The element inductive of a reduce operation.
 pub fn reduce_elem_name(c: &Name) -> Name {
     if name::beq(c, &reduce_nat_name()) {
@@ -198,7 +198,7 @@ pub fn reduce_elem_name(c: &Name) -> Name {
     }
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:102-104 reduceElemTy
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:104-106 reduceElemTy
 /// The element type of a reduce operation, as the pinned constant.
 pub fn reduce_elem_ty(c: &Name) -> Expr {
     if name::beq(c, &reduce_nat_name()) {
@@ -208,7 +208,7 @@ pub fn reduce_elem_ty(c: &Name) -> Expr {
     }
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:106-108 reduceOpRaw
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:108-110 reduceOpRaw
 /// Raw pinned type of `Lean.reduceNat` / `Lean.reduceBool`: `∀ (n : τ), τ`.
 pub fn reduce_op_raw(c: &Name) -> ConstantVal {
     ConstantVal {
@@ -218,7 +218,7 @@ pub fn reduce_op_raw(c: &Name) -> ConstantVal {
     }
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:110-120 ofReduceRaw
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:112-122 ofReduceRaw
 /// Raw pinned type of `Lean.ofReduceNat` / `Lean.ofReduceBool`:
 /// `∀ (a b : τ), reduce a = b → a = b` at `τ = Nat` / `Bool`.
 pub fn of_reduce_raw(n: &Name) -> ConstantVal {
@@ -246,7 +246,7 @@ pub fn of_reduce_raw(n: &Name) -> ConstantVal {
     }
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:110-120 ofReduceRaw
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:112-122 ofReduceRaw
 /// `ofReduceRaw`'s local `eqApp` — `Eq.{1} τ x y` at the operation's element
 /// type.  A local lambda in the Lean, a named function here (DESIGN.md §3.4
 /// forbids closures; task #18's point 5).
@@ -259,8 +259,8 @@ pub fn eq_app(c: &Name, x: Expr, y: Expr) -> Expr {
     )
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:146-148 reduceOpCvA
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:137-139 _
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:148-150 reduceOpCvA
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:139-141 _
 /// The pinned type of a reduce operation.  Deviation: the *raw* pin, which
 /// `matchesPin` cannot tell from the annotated one (module note); the second
 /// citation is the `#annotate_pins` command that computes the annotated form.
@@ -272,8 +272,8 @@ pub fn reduce_op_cv_a(c: &Name) -> ConstantVal {
     }
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:150-152 ofReducePinA
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:141-144 _
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:152-154 ofReducePinA
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:143-146 _
 /// The pin an `ofReduce*` axiom is matched against (raw; see
 /// `reduce_op_cv_a`).
 pub fn of_reduce_pin_a(n: &Name) -> ConstantVal {
@@ -288,7 +288,7 @@ pub fn of_reduce_pin_a(n: &Name) -> ConstantVal {
 // The environment predicates (`TrustAxioms.lean:154-196`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:156-167 trustCompilerOk
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:158-169 trustCompilerOk
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:272-280 trustCompilerOkF
 /// The stored `True` against its pin.  Factored out of the guard's `&&`
 /// cascade (task #3's pattern 9, task #14's borrow rule).
@@ -301,7 +301,7 @@ pub fn true_pinned(fe: &FEnv) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:156-167 trustCompilerOk
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:158-169 trustCompilerOk
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:272-280 trustCompilerOkF
 /// The stored `True.intro` against its pin, at the pinned arity `0 0`.
 pub fn true_intro_pinned(fe: &FEnv) -> bool {
@@ -321,7 +321,7 @@ pub fn true_intro_pinned(fe: &FEnv) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:156-167 trustCompilerOk
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:158-169 trustCompilerOk
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:272-280 trustCompilerOkF
 /// Is `Lean.trustCompiler` installable here?  The `True` family must be
 /// stored with the pinned shapes — so the synthesized value `True.intro`
@@ -339,7 +339,7 @@ pub fn trust_compiler_ok(fe: &FEnv, cv_a: &ConstantVal) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:169-175 reduceStoredOk
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:171-177 reduceStoredOk
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:282-286 reduceStoredOkF
 /// Is the reduce operation `c` stored as a checked opaque (`axiomInfo`, the
 /// storage kind of every checked `opaque`) of the pinned type?
@@ -352,7 +352,7 @@ pub fn reduce_stored_ok(fe: &FEnv, c: &Name) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:177-184 reduceElemOk
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:179-186 reduceElemOk
 /// The element-inductive shape an `ofReduce*` axiom needs: the pinned `Nat`
 /// basis (`basis_pins::nat_basis_pinned`, which is the cited
 /// `decide (env.find? natName = some natA)`) resp. a standardly-shaped
@@ -370,7 +370,7 @@ pub fn reduce_elem_ok(fe: &FEnv, c: &Name) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:186-196 ofReduceAxOk
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:188-198 ofReduceAxOk
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:296-302 ofReduceAxOkF
 /// Is this checked axiom a pinned `ofReduce*` over a standardly-shaped
 /// environment?  Requires the pinned `Eq` basis (the type is an equality
@@ -398,7 +398,7 @@ pub fn of_reduce_ax_ok(fe: &FEnv, cv_a: &ConstantVal) -> bool {
 // The reduce-operation install pin (`TrustAxioms.lean:198-216`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:200-205 reduceDeclPin
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:202-207 reduceDeclPin
 /// The pinned defining expression of a reduce operation (`trust_pins`: the
 /// plain identity, every toolchain's `have := trustCompiler; b` after zeta).
 pub fn reduce_decl_pin(c: &Name) -> Expr {
@@ -409,7 +409,7 @@ pub fn reduce_decl_pin(c: &Name) -> Expr {
     }
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:207-211 reducePinGuard
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:209-213 reducePinGuard
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:304-308 reducePinGuardF
 /// Syntactic guards on the pin (checked once at install).
 pub fn reduce_pin_guard(fe: &FEnv, c: &Name) -> bool {
@@ -427,7 +427,7 @@ pub fn reduce_pin_guard(fe: &FEnv, c: &Name) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:213-216 reduceCertVar
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:215-218 reduceCertVar
 /// The identity certificate's variable: `fvar 0` at the element type.
 pub fn reduce_cert_var(c: &Name) -> Expr {
     expr::fvar(0, reduce_elem_ty(c))

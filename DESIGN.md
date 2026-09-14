@@ -65,6 +65,17 @@ inductive modeller), the CLI, and the thread pool are outside it, as they are
 in con-leche.  Porting them is required for a usable binary; proving them is
 a cherry on top (§7, phase P4).
 
+**That list has moved once, and it was upstream that moved it** (2026-09-14,
+§3.8).  con-leche's own tasks #290/#294 brought its parser inside its theorem
+and restated its main corollary over the file's byte chunks, so the parser is
+no longer a cherry on either side: task #84 rewrote con-ron's into the verified
+crate, where it is extracted and awaiting its lemmas.  What remains outside by
+design is the **in-process modeller** — whose own module note argues the case,
+"soundness needs nothing from this module" — the CLI and the thread pool.  The
+parser's refinement is what will finally discharge `hds`, the parsed input's
+well-formedness, which the capstones have carried as a hypothesis since task
+#60.
+
 ## 2. Why Aeneas (and what else was considered)
 
 The proof must live in Lean and connect to con-leche's theorem, so the tool
@@ -342,11 +353,49 @@ equality, hashing and `String.toList`/`Char.ofNat` for literal reduction);
 ### 3.4 Rust style rules (Aeneas-friendliness), enforced by a lint script
 
 * No `#[derive(Debug)]` on the core types (mixed type/trait recursion
-  groups); no closures; no `?` in the core (explicit `match` keeps the
+  groups); in practice **no `#[derive]` at all** — the house style is an
+  explicit `foo_dup` and `foo_beq` per type (`kernel::env::quot_kind_dup`),
+  because a derived `PartialEq` also drags `core::cmp::PartialEq` and a
+  `StructuralPartialEq` impl into the model (`ron/hashmap.rs`'s note on
+  `Eq2`).  No closures; no `?` in the core (explicit `match` keeps the
   generated Lean shaped like con-leche's `do` blocks); no `loop`/`while`
-  except in leaf helpers (Aeneas `-loops-to-rec`); no generic instantiated
+  except where the next bullet allows it; no generic instantiated
   with `&mut`; no `unsafe`; no `std::collections`; no counted-pointer API
   beyond `new/clone/deref/ptr_eq`; `&mut` only for the state parameter.
+* **Loops, the one exemption (2026-09-14, task #84).**
+  `crates/con-ron-core/src/frontend/` — the ported export parser, and only
+  that directory — may use `while`, `loop` and `for … in a..b` where the cited
+  Lean function is a per-byte or per-element tail recursion or a bounded fold.
+  The reason is faithfulness, not convenience: `Scan/Fast.lean` recurses once
+  per byte and *Lean compiles those tail calls to loops*, which is what
+  con-leche actually runs; Rust promises no such thing, and a per-byte
+  recursion on a long export line is a stack overflow.  Extraction already
+  runs with `-loops-to-rec`, so each loop becomes a `foo_loop` function that
+  mirrors the Lean recursion one for one and is what the refinement is stated
+  against.  Two facts to design around, measured by task #84's spike:
+  Aeneas **duplicates the code after a loop into every loop exit** (a `while`
+  with four `break`s and a fifteen-line tail is sixty lines of Lean), so the
+  post-loop tail belongs in its own function; and `while`, `loop`+`break`,
+  `for k in 0..n`, `Vec::push` inside a loop and an early `return` out of one
+  all translate with no new external.  `scripts/lint-rust-style.sh` enforces
+  the exemption's boundary — and task #84 found that its loop check had been
+  anchored `^\s*(while|…)` against lines that `gather` prefixes with
+  `file:line:`, so it had never matched anything since it was written; the
+  core turned out to be clean under the repaired check.
+* **No `&str` constant** (2026-09-14, task #86).  A string literal in the core
+  is `const S: [u8; N] = *b"…";`, compared as bytes.  Aeneas emits a `&str`
+  constant as `toStr "…"` and discharges `toStr`'s size bound with
+  `by decide +native` *in the constant's own definition*, so the constant puts
+  a sealed axiom into `#print axioms` of every theorem whose closure reaches it
+  — 68 of them on the parsed capstones, until the scanner's key table became
+  byte arrays; and it prints an inner `"` unescaped, so a literal containing a
+  quote does not even parse (AENEAS_FINDINGS §2.1's F17 and §3.8).  The one
+  exception is `kernel::pins_text::PINS_TEXT`, 532 KB, which is past what an
+  `Array.make` literal can hold; it is why §3.8's ask upstream still stands.
+  A `&str` *parameter* is fine — it carries no constant and no axiom.
+  `lint-rust-style.sh` enforces this, exempting `kernel/pins_text.rs` by path
+  (the file is generated, so an in-line `lint: allow` would not survive
+  `gen-pins.py`).
 * Recursion carries the same explicit fuel as the Lean side.
 * Errors: `enum CheckError { NotImplemented(..), Invalid(..), Internal(..),
   Native(..) }` in `Result<T, CheckError>` — the first three are con-leche's
@@ -620,6 +669,17 @@ both retired; the *only* native entry left is Aeneas's own
 own decode run (`AENEAS_FINDINGS.md` §3.8 — an upstream ask, nothing
 evaluated on our side).  The interim paragraph above is kept as history.
 
+**Upstream, 2026-09-14 (task #83).**  The branch landed on con-leche's
+master as its own task #304, so `vendor/con-leche` is upstream master
+(`c431b1ca`) and the patch of §9 is retired: `pins` is now an *explicit*
+argument, and upstream put it **second, right after the mode, with no
+default** — `checkDecls mode pins ds` — rather than last with
+`:= natOpPinSets` as the branch had it.  con-leche's `model_exists_with` /
+`no_proof_of_False_with` therefore do not exist: there is one pair of
+statements and it is already over every pin list.  Nothing about the port's
+own tower changed: it was already stated at `absPins pins`, so the bump cost
+one argument order and `Refine/Main.lean`'s two compositions.
+
 **`orElse`: an attempt's error is the verdict (ruling of 2026-09-13, task
 #65).**  con-leche has exactly one error-recovery point: the Nat-op pin loop
 tries the pin variants in order and `orElse` (`Kernel/CheckerBase.lean:53`)
@@ -774,6 +834,14 @@ opening the Lean.
   defaults to `HEAD` (whose `vendor/con-leche` tree is the old one) when the
   bump is uncommitted, else must be given; for the pre-subtree history it
   may also be a con-leche commit in the retired submodule's git dir.
+  **In practice `--old` is always given** (task #83): the subtree pull
+  commits the new tree itself, so `HEAD` is already the new one and the
+  default compares the tree with itself and reports nothing.  Pass the
+  con-ron commit *before* the vendoring commit.  A *renamed* declaration
+  comes out `gone`, not `changed`, and its citation is left pointing at a
+  stale range, so after `update` the honest reading of the tree is
+  `check`'s: markers for what changed, `NAME`/`NODECL`/`RANGE` for what
+  moved under a new name.  §7 has the whole procedure.
 
   Reconciliation is deleting the marker line — there is no `accept`
   mode.  `check` stays red while any marker remains, so a bump cannot
@@ -900,6 +968,57 @@ above leaves open, settled by the implementation:
   turn a spurious `CHANGED` into a `MOVED` (if the text really changed,
   neither text matches), and it never adds a second marker to a citation
   that already carries one.
+
+### 3.8 The parser in the core, the modeller behind a trait (2026-09-14)
+
+Until task #84 the export parser was in the **unverified** crate and the
+port's capstones stopped at the fold, with `hds` — "every parsed declaration
+is well-formed" — as a hypothesis (§3.5's note, OVERVIEW §3.5).  con-leche has
+since put its own parser inside its theorem (its tasks #290/#294) and states
+its main corollary over the file's byte chunks, so the hypothesis is now
+discharge*able* rather than merely audited, and the maintainer's ruling
+(2026-09-13) is to discharge it: *"put the parser into the verified core — the
+csimp'ed efficient one, it's the one con-leche actually runs."*
+
+**What crosses.**  `Frontend/Scan/{Types,Fast}`, `Frontend/Export`,
+`Frontend/ExportC`, `Frontend/ProjRec`, `Frontend/NatOpGround`,
+`Frontend/Prepare` and `Frontend/Prelude` become
+`crates/con-ron-core/src/frontend/*`.  `Scan/Naive.lean` does **not**: it is
+the *specification*, and `Scan/Equiv.lean`'s `scanLineSpec_eq_scanLineFwd` is
+the `@[csimp]` that makes `scanLineFwd` what the compiler runs — so the fast
+scanner is the one the port has to be about.  `ProjRec` and `NatOpGround`
+cross because they are on the parse path: `ExportC` calls `projRecOwners` and
+`projRecValue` at a definition record, and `Prepare` calls the ground hoist.
+
+**What does not, and why.**  The **in-process modeller**
+(`Frontend/InModel/*`, 6 400 lines of Rust) stays unverified.  The
+maintainer's ruling: *"leave the modeller unverified if you can; rumors are
+that upstream can actually get rid of it."*  It is also the right line on the
+merits — its own module note says it: "soundness needs nothing from this
+module: a wrong record is rejected or declined by the fold, never accepted",
+so its correctness decides *coverage*, not soundness.
+
+**The seam.**  `parse_chunks` and everything above it take the modeller as a
+**one-method trait on a type parameter**
+(`frontend::in_model_rec::Modeller`), which Charon and Aeneas render as a
+typeclass field, i.e. an opaque function; the extracted parse is therefore
+quantified over an arbitrary modeller, and the refinement carries one
+hypothesis about its output instead of six thousand lines of port.  The three
+tables con-leche's `InModel.Ctx` reads (`constTypes`, `heights`, `indBlocks`)
+are the parse state's, so the core hands the trait a `ModelCtx` borrowing
+them, and the unverified implementation wraps that back into the
+closure-based `Ctx` its generators overlay.  The block records themselves
+(`InModel/Mutual.lean:66-100`) cross into the core, because `ExportC` builds
+them and the parse state holds them.
+
+**The escape hatch, offered and not used.**  The maintainer allowed one: *"if
+some code or idioms really don't translate well to Rust, it should be
+permissible to write a different implementation, first in high-level Lean,
+with an equivalence proof, and then (mechanically) relate that to the Aeneas
+output."*  Task #84 did not need it; what it needed was §3.4's loop exemption,
+which is a smaller thing — the Rust still transliterates the cited Lean, and
+`-loops-to-rec` puts the recursion back.  If a later task does reach for the
+hatch, it is recorded here.
 
 ## 4. Sizing
 
@@ -1054,9 +1173,17 @@ measured.
    `Rc`/`Arc` decision it waited on is settled (§3.2: `P = std::sync::Arc`,
    task #45).
 2. Perf comparison against con-leche and the official kernel (PERF.md).
-3. Optional: parser refinement against con-leche's naive reference parser.
-   Task #37 wrote the statement down: every item of `frontend::scan_fast`
-   cites the `Scan/Naive.lean` declaration that specifies it.
+3. ~~Optional: parser refinement against con-leche's naive reference parser.~~
+   **No longer optional, and no longer a cherry** (§3.8, task #84).  Upstream
+   put its own parser inside its theorem (con-leche's tasks #290/#294) and
+   states its main corollary over the file's byte chunks, so a port that stops
+   at the fold cannot inherit it.  Task #84 rewrote the parser into
+   `crates/con-ron-core/src/frontend/` — extracted, gated, differentially
+   tested, no proofs — and it is `scanLineFwd` the port is about, not
+   `Scan/Naive.lean`: the naive recogniser is the *specification* and
+   `Scan/Equiv.lean`'s `@[csimp]` is what makes the fast one what Lean runs.
+   The lemmas, and the chunk-level capstone above them, are task #85; that
+   task's section lists them.
 
 ## 6. Risks
 
@@ -1130,6 +1257,145 @@ measured.
   prove and measure.  Delegate anything mechanical.
 * Large artifacts (exports, builds) go to `_tmp/` (gitignored).
 
+### Bumping the vendored con-leche
+
+The procedure below is what task #83 (con-leche `732730a5` → `c431b1ca`, 101
+upstream commits, 583 provenance findings) actually took, written as the next
+porter would want to find it.  §3.7 says what `provenance.py` does; this says
+in what order to do it and what goes wrong.
+
+**0. Before anything, know the size.**  In a scratch clone,
+`git diff --stat <old> <new> -- ConLeche/ Main.lean`, and con-leche's own
+`DESIGN.md` task sections between the two commits.  The task sections are the
+only place that says whether a change touches the *executed checker* (which
+the port must mirror) or only the proofs, the docs and the tooling (which it
+must not).  Read them first; the diff alone cannot tell you, and a bump that
+looks like 1 300 changed lines in `Cached/` can be one rename.
+
+**1. The subtree pull.**
+
+```
+git subtree pull --prefix=vendor/con-leche <remote> <branch> --squash \
+  -m "Vendoring con-leche: subtree of <branch> at <sha>"
+```
+
+It finds the merge base by itself, from the `git-subtree-split` trailer of the
+previous squash commit, and needs no help.  A squash pull replays a *tree*
+diff, so a local patch that upstream has since redone its own way is not a
+conflict: task #83's vendored tree was `3e004805` plus con-leche's
+`pins-param` branch, upstream had redone that patch as its own task #304, and
+the merge was clean — no conflict at all.  Afterwards check that the vendored
+tree is byte-identical to upstream's (`git ls-tree HEAD vendor/con-leche`
+against `git rev-parse <sha>^{tree}`), and only then write `<sha>` and a
+one-line reason into `vendor/CON_LECHE_PIN`.
+
+**2. `provenance.py update`, and the one instruction that was wrong.**
+`git subtree pull` **commits**, so by the time `update` runs, `HEAD`'s
+`vendor/con-leche` is the *new* tree and the `--old`-less form documented in
+§3.7 compares the new tree with itself and reports nothing.  Pass the con-ron
+commit *before* the pull:
+
+```
+python3 scripts/provenance.py update --old <the commit before the vendoring commit>
+```
+
+Make an empty `Task #N: start` commit at the top of the task and the answer is
+always "the one before the vendoring commit".  Keep the output in `_tmp/`: it
+is the work order, and the line numbers in the tree move under you.
+
+**3. Classify the findings before touching a line.**  Most of a large bump is
+one or two upstream renames applied everywhere.  Write a thirty-line script
+that parses `update`'s unified diffs, applies the renames you know about to
+the *old* side, and buckets each record: *rename-only*, *doc-only*,
+*whitespace*, *real*.  Task #83's 500 `CHANGED` findings came out 253
+rename-only, 74 doc-only, 11 namespace-only and **162 real**; deleting the 338
+citation-only markers mechanically (match each marker against the citation
+line above it, keyed by Rust file and cited range) took minutes and left a
+legible work order.  Do this before opening a Rust file; it is the difference
+between a day and a week.
+
+While you are there, run `scripts/progress.py --summary` **once, before
+deleting a single marker**: its `stale (CHANGED marker)` count is only
+meaningful at that moment, and it is the number the task log should quote.
+Delete the citation-only markers first and it reads zero for the rest of the
+task, which is true and useless.
+
+**4. `GONE` is where the hand work is.**  `update` relocates a citation by its
+*text* first and by its declaration *name* second, so a declaration upstream
+**renamed** comes out `GONE`, its citation is left pointing at a stale range,
+and `provenance.py check` then reports `NAME`/`NODECL`/`RANGE` rather than an
+unreconciled marker.  Build an `(old path, old decl) → (new path, new decl)`
+map from the upstream task log, rewrite the citations with
+`provenance.py locate` (which prints the canonical `path:a-b decl`), and drop
+the marker in the same pass.  Of task #83's 83 `GONE` findings, 74 were a
+rename or a move and nine were a genuine deletion — and a deletion is never a
+citation edit: it is Rust and proof code to remove, and `check` stays red
+until it is gone.
+
+**5. Port in dependency order, and mind the crate boundary.**
+`crates/con-ron-core/src` is inside the style lint (§3.4) and inside the
+extraction; `crates/con-ron/src` is inside neither, and only inside the
+provenance gate.  So a function upstream moves *out of* the frontend *into*
+the kernel — con-leche's task #293 moved the basis-pin match there — is not a
+move for the port but a rewrite: closures, iterators and `for` loops have to
+go, every item needs a citation the gate accepts, and the generated Lean grows
+by the whole module.  Budget for that separately from the porting itself.
+
+**6. A rename-only marker is still proof work.**  The Rust needs nothing when
+only a con-leche *name* changed, but every statement in `proof/ConRon/Refine/`
+that names the old declaration breaks.  Task #83's 253 rename-only findings
+cost 667 edits in the proof tier and not one line of Rust.  Script that from
+the same map as step 4, and expect a residue: a `_spec` lemma that upstream
+deleted because it became `x = x` leaves a `rw` at each of its consumers,
+which only a human or a build can find.
+
+**7. The order that keeps the tree buildable.**  Rust first, in one pass, the
+crate split across agents on **disjoint files** (`con-ron-core/src/kernel`,
+`con-ron-core/src/cached`, `con-ron/src/frontend`, the driver and the
+binaries); then `scripts/extract.sh`; only then `cd proof && lake build`,
+whose error list is the real proof work order.  Do not start the proofs before
+the model is regenerated: a statement about a generated definition that no
+longer has that shape wastes the whole edit.  The tree does not build between
+the first Rust edit and the last — say so in every WIP commit message.
+
+**8. Two operational traps.**  `lake build` of the vendored con-leche under a
+`ulimit -v` cap dies with *"failed to create thread"*: Lean reserves per-thread
+stack against the address-space limit, so `CLAUDE.md`'s `ulimit -v` rule is
+for *checker runs*, not for Lean builds — cap `LEAN_NUM_THREADS` instead.  And
+`scripts/gen-pins.sh` carries a con-leche citation inside its own heredoc
+(task #74), which no gate rewrites: check it by hand against
+`provenance.py locate` whenever `ConLeche/Kernel/NatOpPins.lean` moves.
+
+**9. Land it.**  `provenance.py check` clean (no marker left, every citation
+resolving), `provenance.py coverage` back at 100 % with
+`scripts/provenance-skip.txt` extended for anything upstream added that the
+port deliberately will not have, `gen-pins.sh --check` green at the same
+record count (which is the measurement that the bump did not touch the pin
+*values*), `scripts/gates.sh` all eight green, `scripts/diff-e2e.sh` green at
+the new fixture count — the fixtures move with upstream, so the count itself
+changes — and §12's Mathlib landing rule.  Then OVERVIEW.md's numbers and
+quotes (`scripts/overview-links.sh --update` after editing, never before), and
+a task-log section that records the upstream tasks absorbed and the marker
+counts before and after.
+
+**10. The link gate is the last gate, and it is a reading exercise, not a
+`--update`.**  A bump moves most of the anchored lines.  Sort its diff into
+three piles: the anchors whose *text* is unchanged (relocate them
+mechanically — a twenty-line script that searches the file for the committed
+text and reports the new range does the whole pile), the anchors whose text
+changed but whose citing paragraph is still true (relocate, then `--update`),
+and the anchors whose text changed *because the document is now wrong*.  Task
+#83 had two of the third kind, and neither would have been found any other
+way: OVERVIEW §0's exit-code table is a verbatim copy of `driver.rs`'s and
+`driver.rs`'s wording had changed, and §2 still said the capstones compose
+with con-leche's `model_exists_with`, which upstream had retired.  Only ever
+run `--update` after that reading; it blesses whatever the anchors point at,
+so an unread anchor turns a stale document into a *committed* stale document.
+`README.md` is human-written and is not to be edited — but its `#L<a>-L<b>`
+fragments are anchors, not prose, and relocating one is the maintenance the
+gate exists to demand.  Change the numbers, never the words, and say so in the
+task log.
+
 ### CI
 
 `.github/workflows/ci.yml` (task #77) runs the project's gates on
@@ -1194,10 +1460,15 @@ is Charon's, which `charon cargo` recompiles from scratch every time — so
 there is nothing there worth a cache entry.  The Nix store: the substituter
 makes `nix develop` a download.
 
-**Duration.** Cold ≈ an hour (Mathlib clone + `cache get` and the Aeneas
-library ~10 min, the vendored con-leche ~20 CPU-min, the proof library ~5 min
-at `LAKE_JOBS=4`, plus Nix and the sweeps); warm, with every cache hit, well
-under 30 minutes — mostly `extract.sh --check` and the two differentials.
+**Duration, measured** (the first two green runs, `c8913fef` cold and
+`cb54c9a4` warm, 2026-09-13): cold **71 min** — 13 min for the Aeneas library
+with Mathlib's oleans, 52 min for the gates (the vendored con-leche and the
+proof library from nothing at `LAKE_JOBS=4`), 3 min for the dev shell, 1 min
+for the differential; warm, every cache hit, **11 min** — the gates 3.6 min,
+the Aeneas-library step 2.5 min (the restore), the dev shell 2.4 min, the
+differential 42 s.  The first run also found the bug of task #82
+(`setup-aeneas-lean.sh` carried upstream's manifest, so `cache get` fetched
+the wrong Mathlib), which nothing local could have shown.
 
 **Not run on CI:** the corpus and frontier run (`scripts/corpus.sh`), which
 needs `Init`/`Std`/Mathlib exports that are not in the repository and are
@@ -15407,3 +15678,2032 @@ frontend rather than a runtime check, which is exactly the pre-#73 state.
 
 **Gates**: all eight green (`lake-build` 310 s at `LAKE_JOBS=32`), the proof
 library `sorry`-free, the census unchanged.
+
+### Task #83 — con-leche bumped to master c431b1ca (2026-09-14, Opus under Fable)
+
+The vendored con-leche goes from `732730a5` — upstream `3e004805` plus its
+`pins-param` branch, which task #74 carried — to **upstream master
+`c431b1ca`**, 101 commits ahead, on the same toolchain (`v4.33.0`).  The
+maintainer's ask was *"let's see how well the upgrade process works; refine the
+instructions if you learn anything"*; §7's new **"Bumping the vendored
+con-leche"** subsection is the answer, written from what this actually took.
+
+#### 1. The upstream tasks absorbed
+
+| upstream | what it did | executed checker? |
+|---|---|---|
+| #285 | **ONE `Expr`, ONE `Declaration`**: `ExprC`, its namespace and `Cached/ExprC.lean` are gone (the file is `Cached/ExprNodes.lean`), 21 cached operations took a `C` suffix, six cached twins were deleted for the kernel's own, and `Cached.DeclC` became `ConLeche.Declaration` | no — renames |
+| #286, #288, #291, #296, #297 | the main corollary moves to the stream and then to the file; `ConLeche.no_proof_of_False` is **deleted**, `no_False_theorem_accepted` is the record-level one and `no_False_declaration` the chunk-level one | no — statements |
+| #287, #303 | the environment-variable hooks and thirteen retired flags go without trace | driver only |
+| #289 | what the fold stores of what it reads | no — proofs |
+| **#292** | **`sorryAx` is the fold's**: `toleratedAxiomNames` is gone, the parser's taint pre-scan with it; a `sorryAx` record is forwarded and installs nothing, and a *use* DECLINES at the record that uses it, through the two new named builders `unknownConstError` and `unresolvedConstsError` | **yes** |
+| **#293** | **the parser decodes, `preparePrelude` prepares, the fold decides**: `Declaration` gains `quotDecl (QuotKind) (ConstantVal)`, the basis-pin match moves out of the parser into `checkDecl` (`basisPinHit`, `quotPinHit`, the new `Kernel/Canon.lean`), and the prelude reorder and ground hoist move into the new `Frontend/Prepare.lean` | **yes** |
+| **#290**, #294 | the parser enters the theorem: an index may be bound only once, a line ends at the first newline, a size guard, `parseChunks` | **yes** |
+| **#295** | one error type for the whole accept path (`FrontendError` deleted, `CheckError × Nat` everywhere) and `Array` on the run path | **yes** (types) |
+| #299, #302 | README links under the link gate; the quote gate | tooling |
+| **#304** | **the pin list is a parameter of the fold**, explicit, second, no default — con-leche's own redo of the `pins-param` branch, done *for* con-ron | behaviour identical |
+
+So the port's own patch of §9 is retired: nothing in `vendor/con-leche`
+differs from upstream master.
+
+#### 2. The subtree pull, and the marker counts
+
+`git subtree pull --prefix=vendor/con-leche <remote> master --squash` **found
+the merge base on its own** — from the `git-subtree-split` trailer of task
+#74's squash commit — and merged **with no conflict at all**, even though our
+vendored tree carried a patch upstream had since redone its own way: a squash
+pull replays a tree diff, and identical content on both sides is not a
+conflict.  `git ls-tree` then says the vendored tree is byte-identical to
+upstream's.
+
+`scripts/provenance.py update` had to be given `--old <the commit before the
+vendoring commit>`: the pull **commits**, so the `--old`-less form documented
+in §3.7 compares the new tree with itself.  With that, **583 findings — 500
+`CHANGED`, 83 `GONE`**.
+
+A thirty-line classifier (`_tmp/t83/classify.py`) that applies the known
+renames to the old side and re-diffs cut that down before a line was edited:
+
+| bucket | count | what it cost |
+|---|---:|---|
+| rename-only | 253 | 0 lines of Rust; **667 edits in the proof tier** |
+| doc-only | 74 | nothing |
+| namespace/reverse rename | 11 | nothing |
+| **real** | **162** | the port |
+| `GONE`: renamed or moved | 74 | a citation rewrite each |
+| `GONE`: genuinely deleted | 9 | Rust and proof code removed |
+
+**Markers: 583 before, 0 after.**  `provenance.py check` ends at 2 064 items /
+2 187 citations, all current at pin `c431b1ca`; `coverage` at **927/927
+covered (100 %), 0 uncovered, 94 deliberately skipped** (one entry,
+`divModAttemptReason`, was redundant — the declaration *is* cited — and went).
+`gen-pins --check` is green at the **same 26 721 records / 532 456 bytes**,
+which is the measurement that the bump did not touch the pin *values*.
+
+**The stale-lemma count, honestly.**  `progress.py`'s campaign line read
+`stale (CHANGED marker) 0` at both ends of this task, which flatters it: the
+counter sees a marker only on a Rust item that *has* a `_refines` lemma, and
+the reconciliation order here — drop the 338 citation-only markers first, then
+re-port — meant it was never sampled at its peak.  The real numbers, computed
+from `update`'s own output: the 583 findings sat on **433 distinct Rust
+items, 102 of which carry a `_refines` lemma**; of the 130 distinct items in
+the *real* bucket, **35 carry one**.  So 102 is the honest "lemmas the bump
+put in question" and 35 the honest "lemmas a human had to look at".  Sample
+`progress.py --summary` **immediately after `update`**, before deleting a
+single marker, and the counter means what it says; §7 step 3 now says so.
+
+#### 3. What was re-ported
+
+**The verified core.**  `parsed_c::DeclC` is deleted: `env::Declaration` is the
+port's one declaration record, with `QuotKind`, `quot_kind_slot` and
+`declaration_names` beside it.  `check_decl`/`check_decl_c` gained the
+quotient arm, the `Quot.sound` comparison ahead of the common checks, and the
+basis-pin recognition in front of the inductive route; `check_basis_decl` is
+the body the three installing records share.  `core_k::unknown_const_error`
+and `checker_base::unresolved_consts_error` are new, and thirteen guard sites
+throw through them.
+
+**Two modules crossed the crate boundary**, which con-leche's #293 forced:
+`kernel/canon.rs` (359 lines, out of the unverified `frontend/export.rs`) and
+`kernel/basis_raw.rs` (958, out of `frontend/basis_raw.rs`, with
+`basis_kind_decls`, `basis_pin_hit`, `quot_pin_hit`, `quot_basis_at`).  That is
+a rewrite, not a move: both are now inside `lint-rust-style.sh` and inside the
+extraction, so every closure, iterator and `for` loop had to go — and
+`basis_raw`'s forty-six `vec![…]` literals pulled `core::mem::MaybeUninit` into
+the model as a third external until they were spelled out
+(AENEAS_FINDINGS §2.2's `vec!` row, back for the second time; `extract.sh`'s
+unmodelled-external rule is what caught it).
+
+**The unverified crate** follows #290/#292/#293/#294/#295/#303: the taint
+machinery and `FrontendError` are gone, the parser emits one `QuotDecl` per
+`#QUOT` record and matches no pin, `frontend/prepare.rs` is new, an index may
+be bound only once, a line ends at the first newline, and the driver's pipeline
+is con-leche's four pure steps.
+
+#### 4. The proofs, tier by tier
+
+The model was regenerated first, and `lake build`'s error list was the work
+order; four agents then worked disjoint files.  What each tier cost:
+
+| tier | what it was | outcome |
+|---|---|---|
+| the mechanical rename | 667 edits: `ConLeche.Cached.ExprC.foo` becomes `ConLeche.Expr.foo` where the cached twin was deleted and `ConLeche.Expr.fooC` where it took the suffix; `Cached.DeclC` and `Cached.ConstantValC` become `ConLeche.Declaration` / `ConLeche.ConstantVal`; `parsed_c.DeclC` becomes `env.Declaration` and `CheckerDecl`'s local `absDeclC`/`DeclCWF` merge into `Abs.lean`'s `absDeclaration`/`DeclarationWF`, which gain the `QuotDecl` arm and `absQuotKind` | scripted |
+| the deleted `_spec` lemmas | `getAppFn_spec` and `mkAppN_spec` became `x = x` upstream and are gone; 34 `rw`/`simp only` entries deleted, and the same collapse hit `hasFvarC_eq` (`Core/Arms/DefEq.lean`) and `looseBVarsBounded_spec` (`Arms.lean`) | 3 real repairs behind 182 errors |
+| the `sorryAx` verdict | new `Refine/ErrKinds.lean`: `unknown_const_error_refines` and `unresolved_consts_error_refines`, kind equations (`absErrKind`/`lErrKind`), because the port drops the interpolated message.  **Twenty-five call sites** converted from `ErrSim.invalid` to `ErrSim.mk … (unresolved_consts_error_refines …)` across `CheckerBase`, `CheckerSplit`, `IndModeled`, `Checker`, `CheckerDecl` and `Installed`, plus `infer_const_i_refines` in the knot | the only place a *verdict* moved |
+| the recogniser | new `Refine/Canon.lean` (793 lines) and `Refine/BasisRaw.lean` (1 492, 81 theorems) — the two modules con-leche's task #293 pushed into the verified core.  `conron.basis_raw_spec` in `Refine/Main.lean` discharges `CheckerDecl.BasisRawSpec`, so the capstones keep their shape | 4.3 s and 9.3 s to elaborate |
+| the two `checkDecl` twins | the quotient arm, the `Quot.sound` record's test ahead of the common checks, the basis-pin recognition in front of the inductive route; `check_axiom_decl(_c)_refines` becomes the dispatch and the old body `check_axiom_decl_std(_c)_refines` | `check_ind_decl_declines` had to be *renamed and restated*: the old statement is now false, because `check_ind_decl` can accept through the pin |
+| the fold and the capstones | `leanCheckDecls mode pins ⟨ds⟩` — one private `foldlM_mk` (`Array.foldlM_toList`) is the only place the array is entered, and the tier below stays list-shaped.  `conron.model_exists` composes with upstream's `model_exists`, `conron.no_proof_of_False` with `Cached.no_proof_of_False_cached` | `ConLeche.no_proof_of_False` and `model_exists_with` were both deleted upstream |
+
+`BasisRaw.lean` deliberately does **not** follow `BasisTables.lean`'s method
+(one Aeneas `step` per interned node, a `⦃ ⦄` totality spec).  Every function
+in `basis_raw` has a caller that holds the Rust success equation, so the
+tier's ordinary conditional shape applies; the file elaborates in 9.3 s where
+the totality route would have needed a spec for all 26 `basis_names` functions
+and six `maxHeartbeats 4000000` blocks.
+
+Two lemmas that belong in `Refine/Env.lean` are proved locally in
+`BasisRaw.lean` with a note saying so: `env::constant_info_names_from` had no
+consumer until the pin match's name pre-filter, and `Refine/Env.lean` proves
+only the abstraction half of `to_constant_val`.
+
+**No port divergence was found anywhere.**  The one *statement* that had to be
+weakened-looking is `check_ind_decl_route_declines`, and it is a strengthening
+in disguise: the pure lane's `.indDecl` arm now accepts a pinned block for
+real instead of being wholly vacuous, and only the unported-routes stub behind
+the pin stays `Native`.
+
+#### 5. What it measures
+
+**The differential is green and the fixture count did not move**: 348
+fixtures, **0 differ**, at `--verified --jobs=1`, at `--jobs=4` and at
+`--trusted`.  `--no-pins` gives the documented 17 declines (the fixtures that
+define `Nat.div`).  That the count stayed at 348 is worth saying, because the
+expectations are vendored and move with upstream: con-leche's task #293 flipped
+two of them (`prelude_bool_redefined` 2→1, `tower_prelude` 2→0) and the port
+agrees with the new values.
+
+**The accept count moved by five on every real export, and that is upstream's
+change, not the port's.**  A stream's quotient package is four `#QUOT` records
+plus `Quot.sound`'s axiom record, and the parser used to fold them into one
+`basisDecl` before the fold saw them; it now emits five records and the fold
+recognises them.  con-ron and con-leche print the same number, which is the
+check that matters: `Init` 57 977 (was 57 972), `Init+Std+Lean` 163 396,
+Mathlib 691 128.
+
+**The Mathlib landing rule passes.**  `con-ron --verified --jobs=1` on the
+Mathlib export under `ulimit -v 27000000` finishes:
+
+Both binaries at the vendored commit, `--verified`, one run per cell:
+
+| export | jobs | con-leche instructions | con-ron instructions | con-leche wall / RSS | con-ron wall / RSS |
+|---|---|---:|---:|---|---|
+| `Init` | 1 | 585.95 G | **540.38 G** | 55.6 s / 0.48 GB | 64.8 s / 0.91 GB |
+| `Init` | 8 | 587.22 G | **544.30 G** | 12.3 s / 0.67 GB | 20.3 s / 1.18 GB |
+| `Init+Std+Lean` | 1 | 1 176.27 G | **1 157.64 G** | 121.5 s / 1.22 GB | 161.1 s / 2.44 GB |
+| `Init+Std+Lean` | 8 | 1 179.41 G | **1 166.57 G** | 37.1 s / 1.46 GB | 72.6 s / 2.80 GB |
+| Mathlib | 1 | 12 792.41 G | **11 366.95 G** | 1 219.6 s / 8.75 GB | 1 925.0 s / **16.49 GB** |
+
+con-ron's Mathlib instruction count is **0.12 % below** the 11 381.13 G task
+#81 recorded — which is exactly what con-leche measured for its own task #292,
+so the bump's arithmetic reaches the port unchanged.  Peak RSS is 16.49 GB
+against task #81's 15.85 GB, **+4.0 %**, well inside the 27 GB cap; the extra
+is the preparation step's array shuffling and the five extra records per
+stream.  con-leche moved the same way (12 792.41 G against the 12 816.55 G of
+task #29's baseline, −0.19 %), so the *gap* is where it was: con-ron does
+11.1 % fewer instructions on Mathlib at 1.58× the wall and 1.88× the memory.
+Wall times were taken while four Lean builds shared the machine and are not
+comparable across days; the instruction counts, which is why they are the
+measure of record, are.
+
+The eight-worker Mathlib pair was **not** re-measured: the machine was shared
+and the harness killed a background task for memory while the queue ran.  The
+parallel-scaling story this bump does not touch, and OVERVIEW §6.3 says which
+cell stands at which commit.
+
+#### 6. Where the ledger stands
+
+`scripts/gates.sh`: **all eight OK**.
+
+```
+Verified core (ConLeche/Kernel, ConLeche/Cached)  to translate 14 077  translated 14 077 (100%)  verified 13 003 (92%)  skipped 611
+Cherries (ConLeche/Frontend, Main.lean)           to translate  7 432  translated  7 432 (100%)  verified      0 (0%)  skipped 378
+Rust core 71 849 lines (1 533 fns) | unverified crates 17 589 | generated Lean 55 476 | proofs 149 611 (1 380 _refines) | pin c431b1ca
+Campaign (task #67): full-outcome 283 / 283 in scope (100%), accept-direction left 0 | stale (CHANGED marker) 0
+LoC: upstream 14 034 | rust 38 024 | generated 53 258 | proof 148 985 (tactic 119 182 in 3 364 thms, grind 0, term 6 105 in 800, other 23 698)
+     ratios rust/up 2.71  gen/rust 1.40  proof/rust 3.92  proof/up 10.62
+```
+
+The port grew by 91 `_refines` lemmas and about 3 000 proof lines, all of it
+`Canon`, `BasisRaw`, `ErrKinds` and the new `checkDecl` arms.  The cherries are
+at 100 % translated for the first time, because `Frontend/Prepare.lean` is
+ported with the rest.
+
+**The link gate.**  Thirteen citations moved or changed with the bump; three
+were mechanical relocations, ten needed the citing paragraph re-read, and two
+paragraphs were stale and are fixed — OVERVIEW §0's exit-code table (which is
+a verbatim copy of `driver.rs`'s, and `driver.rs`'s wording changed) and §2's
+claim that the capstones compose with `model_exists_with`, which upstream
+retired.  README.md's two anchors were relocated as well: only the
+`#L<a>-L<b>` fragments, not a word of its prose.
+
+#### 5. The refined procedure, in brief
+
+§7's new subsection has it in nine steps; the four that were not obvious are:
+
+* **`git subtree pull` commits**, so `provenance.py update` without `--old`
+  compares the new tree with itself and reports nothing.  Always pass the
+  con-ron commit before the vendoring commit — which is why the task opened
+  with an empty `Task #83: start` commit.
+* **Classify before editing.**  A thirty-line script turned 583 findings into
+  162; the other 421 were deleted mechanically in minutes.  Without it this
+  task is a week.
+* **`GONE` is the hand work, and it is not `CHANGED`.**  `update` relocates by
+  text and then by *name*, so a renamed declaration comes out `GONE` with its
+  citation left stale, and `provenance.py check` reports it as
+  `NAME`/`NODECL`/`RANGE` rather than as an unreconciled marker.
+* **A rename-only marker is still proof work.**  253 findings cost no Rust and
+  667 edits in `proof/ConRon/Refine/`.
+
+And three that cost an hour each: `lake build` under a `ulimit -v` cap dies
+with *"failed to create thread"* (Lean reserves per-thread stack against the
+address-space limit — `CLAUDE.md`'s rule is for *checker runs*); a module that
+crosses from `crates/con-ron/src` into `crates/con-ron-core/src` is a rewrite,
+not a move, because the style lint and the extraction both start applying to
+it; and the link gate at the end is a *reading* exercise — two of task #83's
+thirteen moved citations were moved because the document citing them had gone
+stale, and `--update` would have committed the staleness.
+
+**What was left undone, deliberately.**  The eight-worker Mathlib cells of
+OVERVIEW §6.3 were not re-measured: the machine was shared and under memory
+pressure, and the parallel-scaling story this bump does not touch.  §6.3 says
+which cells are at which commit.  And the port does not yet claim con-leche's
+*file*-level corollary `no_False_declaration` (over byte chunks): con-leche's
+tasks #290/#294 brought its parser into its theorem, and porting that
+verification is con-ron's task #84.  con-ron's capstones remain about the
+fold, with `hds` — the parsed input's well-formedness — still a hypothesis.
+
+### Task #84 — the parser enters the verified core (2026-09-14, Opus under Fable)
+
+con-leche's main corollary is stated over the file's byte chunks since its
+tasks #290/#294 (vendored at task #83): `builtinPreludeE`, `parseChunks`,
+`preparePrelude`, `checkDecls`, four pure steps in one `do` block.  con-ron's
+capstones stopped at the fold and assumed the parsed input well-formed
+(`hds`).  The maintainer's ruling (2026-09-13): *"put the parser into the
+verified core — the csimp'ed efficient one, it's the one con-leche actually
+runs"*, and *"leave the modeller unverified if you can; rumors are that
+upstream can actually get rid of it."*
+
+**This task is the port, the extraction and the wiring, not the proofs.**
+§3.8 is the design note; the lemma list task #85 inherits is at the end of this
+section.
+
+#### 1. The inventory, before and after
+
+Every module below was rewritten, not moved: the crate boundary is a
+translation boundary (task #83's lesson, now applied on purpose).
+
+| con-leche | was `crates/con-ron/src/frontend/` | is `crates/con-ron-core/src/frontend/` |
+|---|---:|---:|
+| `Scan/Types.lean` | `scan_types` 419 | `scan_types` 777 |
+| `Scan/Fast.lean` | `scan_fast` 2 889 | `scan_fast` 4 557 |
+| `Export.lean` | `export` 136 | `export` 100 |
+| `ExportC.lean` | `export_c` 1 812 | `export_c` 3 032 |
+| `ProjRec.lean` | `proj_rec` 643 | `proj_rec` 1 092 |
+| `NatOpGround.lean` | `nat_op_ground` 498 | `nat_op_ground` 833 |
+| `Prepare.lean` | `prepare` 301 | `prepare` 408 |
+| `Prelude.lean` | `prelude` 118 | `prelude` 127 + `prelude_text` 1 549 (generated) |
+| `InModel/Mutual.lean:65-99`, `InModel.lean:36-38` | (in `in_model::mutual`) | `in_model_rec` 371 — the records, `wants`, `ModelCtx`, `Modeller` |
+| none | — | `text` 162, `nat_decimal` 181 |
+| **total** | **6 827** | **13 249** (11 700 without the generated prelude) |
+
+`ProjRec` and `NatOpGround` crossed because they are on the parse path:
+`ExportC` calls `projRecOwners`/`projRecValue` at a definition record, and
+`Prepare` calls the ground hoist.  `Scan/Naive.lean` did **not**: it is the
+*specification*, and `Scan/Equiv.lean`'s `scanLineSpec_eq_scanLineFwd` is the
+`@[csimp]` that makes `scanLineFwd` what the compiler runs — so the fast
+scanner is the one a theorem about the binary must be about.  The unverified
+crate went from 17 589 lines to 11 065: what is left is the modeller
+(`in_model`, 6 428), the driver, the pool, the binary, and two small modules
+that carry what the core must not have — `render` (`Name.toString` as a Rust
+`String`) and `keys` (`std::hash::Hash`/`Eq` newtypes, which the core does not
+need because `ron::HashMap` keys by its own traits).
+
+The rewrite's mechanical half: 317 `?` became explicit `match`es, 32 closures
+and every iterator adapter went, 16 `#[derive]`s became explicit `_dup`/`_beq`
+functions, 4 `std::collections` maps became `ron::HashMap` keyed by `Name` or
+`Expr` directly (the `NameKey`/`ExprKey` newtypes exist only to satisfy
+`std`), 3 `unsafe` went with them, and every `String`/`format!` became
+`Vec<u32>` code points built by `text::cat`/`u64_str`/`name_str`.
+
+#### 2. The seam
+
+`parse_chunks` and the eleven functions above it take the modeller as a type
+parameter `<G: Modeller>`, and `in_model_rec::Modeller` has one method.  Charon
+renders it as a typeclass field — verified before a line of it was written:
+
+```lean
+structure frontend.in_model_rec.Modeller (Self : Type) where
+  generate : Self → ModelCtx → BlockRec →
+    Result (core.result.Result (alloc.vec.Vec Declaration) (alloc.vec.Vec U32))
+```
+
+so the extracted parse is quantified over an arbitrary modeller and task #85
+carries **one hypothesis about its output** instead of a port of 6 428 lines
+whose own module note says "soundness needs nothing from this module".
+
+con-leche's `InModel.Ctx` is three closures over the parse state; the core owns
+those tables, so `ModelCtx<'a>` borrows them and `ctx_tbl`/`ctx_height`/
+`ctx_block` are the three lambdas of `ExportC.lean:603-607`.  The unverified
+side **rewraps them into closures** at the boundary, because the generators
+build *overlays* over them (`tbl'` adds the block's own generated types) and a
+borrow cannot be overlaid.  That is the whole of `in_model::InProcess`, one
+`impl` block; nothing below it moved.  The four block records themselves cross
+into the core (the parse builds them) and `in_model::mutual` `pub use`s them.
+
+`in_model: bool` and `census: bool` stay `StateD` fields, because con-leche has
+both (`StateD.inModel`, `StateD.inModelCensus`) and the port mirrors con-leche.
+
+#### 3. The loop relaxation, and what it actually costs
+
+§3.4 gained one exemption: `crates/con-ron-core/src/frontend/` may loop.  **123
+loops** landed (`export_c` 39, `scan_fast` 35, `proj_rec` 16, `nat_op_ground`
+15, `in_model_rec` 5, `prepare` 5, `nat_decimal` 4, `text` 4), which
+`-loops-to-rec` turns into **146 `foo_loop` functions** in the model, each
+mirroring the Lean recursion one for one.  Not one line of the escape hatch the
+maintainer offered (*"write a different implementation, first in high-level
+Lean, with an equivalence proof"*) was needed.
+
+What the exemption costs is a shape rule, and the tool names it
+(AENEAS_FINDINGS §2.6, F16): **the code after a loop is duplicated into every
+one of its exits**, a `return` out of a loop is accepted only when what follows
+the loop is trivial, and a `return` inside nested loops is refused outright.
+So a loop is the last thing in its function, with a one-line tail, or the loop
+becomes its own function — which in practice is a predicate con-leche's own
+recursion already names (`all_digits`, `any_name_mentions`).  A few dozen
+functions were split for it -- `validate_ind_d` and `install_ind_d` alone became
+twenty-odd, each citing the whole Lean function it came out of.
+
+`scripts/lint-rust-style.sh` enforces the exemption's boundary — and the loop
+check turned out to have been **anchored `^\s*(while|…)` against lines
+`gather` prefixes with `file:line:`, so it had never matched anything since it
+was written**.  Repaired; the core was clean under it anyway.  It then failed
+a second time for the mirror-image reason: `gates.sh` passes an *absolute*
+directory, so the new exemption's `^crates/…` matched nothing either.
+
+#### 4. What the extraction refused, and why each was right
+
+Six shapes, found by `scripts/extract.sh --check` and by `lake build` — never
+by `cargo build`, which is the argument for extracting early when writing
+loops.  Three are new findings.
+
+| where | what Aeneas or Lean said | the fix |
+|---|---|---|
+| `nat_decimal::from_decimal` | *"Early returns inside of loops are not supported yet"* | **F16**, new: the loop's tail was a call.  Split into `all_digits`. |
+| `proj_rec::any_dom_mentions` | *"Returns inside of nested loops are not supported yet"* | **F16**: the inner loop became `any_name_mentions`. |
+| `proj_rec::build_binders`, `export_c::ind_pi_tele_len` | *"Could not match the contexts"* | §2.1's **F1**, the port's commonest failure: a borrow held across the write that rebinds it.  An owning step function. |
+| `nat_op_ground::hoist_targets_at`, `hoist_close`, `hoist_order` | *"Internal error, please file an issue"* | **F1** again: a probe held across a write to the same map.  Owning probes `idx_get`/`target_done`/`target_is`. |
+| `proj_rec::MkBinder::mk` | Lean: *"Invalid field name `mk`: This is the name of the structure constructor"* | **new**: a trait becomes a `structure` and its methods become fields, and `mk` is reserved.  Renamed to `binder`. |
+| seven `&str` constants in `scan_fast`, and `PRELUDE_TEXT` | Lean: *"unexpected token; expected command"* | **F17**, new and the one that cost real design: **Aeneas emits a `&str` constant's double quotes unescaped.** |
+
+**F17 decided the shape of the embedded prelude.**  con-leche's
+`builtinPreludeText` is an `include_str` of
+`pins/<toolchain>.prelude.ndjson`; the port generates it as a constant of the
+crate (`scripts/gen-prelude.{sh,py}`, a `--check` gate, the ninth in
+`gates.sh`) for the reason `kernel/pins_text.rs` gives for the pin list.  But
+an ndjson stream is nothing but quotes, so a `&str` is out; and a single
+`[u8; 16922]` — task #43's other half — is out too, because Lean **times out**
+elaborating an `Array.make` that long (the rest of the model's largest array
+is 72 elements), and at 512 elements it hits `maxRecDepth`.  The committed
+shape is **67 chunks of 256** joined by `prelude_text()`.  The seven scanner
+constants that end in the JSON string's own closing quote became byte arrays
+for the same reason.
+
+**No new external hole**, in 13 249 lines: the templates are still one type and
+five functions.  `&v[k..]`, `&s[a..b]`, `.to_vec()`, `.extend_from_slice(..)`,
+`u64::checked_*`, the scalar casts and a one-method trait on a type parameter
+are all modelled and cost nothing (AENEAS_FINDINGS §2.6).
+
+#### 5. One measurement that was already spent
+
+Agent B's port of `nat_op_ground` keys its `seen` set by `Expr`, where the
+unverified twin keyed by the node's *address* and its doc comment said a
+value-keyed set "spins for minutes inside `expr::beq_go`" on
+`tests/e2e/tower_beqpair.ndjson`.  That note is **stale**: task #38 gave
+`BeqMap` a bucket per key, so `(S,Q)` no longer evicts what `(S,P)` proved.
+Re-measured on the very shape — a shared depth-60 ternary tower and the
+alternating pair of them — `expr::beq`, `decl_used_consts` and
+`occurs_const_fast` are all **linear** in the depth: 0.18 ms at depth 60
+against 20 µs at depth 4.  A regression test (`nat_op_ground::tests::
+the_tower_pair_does_not_blow_up_the_seen_table`) pins it with four orders of
+magnitude of slack.
+
+The alternative — key by the hash word and verify with `ptr_eq`, the memo
+tables' own idiom — was considered and rejected, and the reason is worth
+keeping: `ptr_eq` is `false` in the model, so an address-keyed **set** would
+dedupe nothing there, and `used_consts_go`'s `acc` would differ from the
+binary's.  That is unsound, not merely slow.
+
+#### 6. What it measures
+
+**The differential is green and the fixture count did not move**: 348
+fixtures, **0 differ**, at `--verified --jobs=1`, at `--jobs=4` and at
+`--trusted`; `--no-pins` gives the documented 17 declines.  The accept counts
+are task #83's to the record: `Init` 57 977, `Init+Std+Lean` 163 396.
+
+Beside the fixtures, the new byte recogniser was run *against the old one* over
+**119 million real export lines** (`Init`, `Init+Std+Lean`, a 100 MB prefix of
+Mathlib), comparing the record, the continue position, the error tag and the
+error offset of each, plus **31 million mutated lines** — every 97th line with
+a byte corrupted, a byte digit-ised, and the line truncated there.  **Zero
+disagreements.**  A scanner is the one component where that sweep is cheap and
+worth more than 348 streams, because most of its behaviour is in the lines it
+rejects.
+
+**Performance: the rewrite cost nothing measurable.**  Against task #83, one
+run each, `--verified --jobs=1`:
+
+| | task #83 | task #84 | |
+|---|---:|---:|---|
+| `Init`, instructions | 540.38 G | **540.88 G** | +0.09 % |
+| `Init`, peak RSS | 0.91 GB | **0.91 GB** | — |
+| `Init+Std+Lean`, instructions | 1 157.64 G | **1 161.32 G** | +0.32 % |
+| `Init+Std+Lean`, peak RSS | 2.44 GB | **2.43 GB** | −0.4 % |
+| Mathlib, instructions | 11 366.95 G | **11 348.36 G** | −0.16 % |
+| Mathlib, peak RSS | 16.49 GB | **16.64 GB** | +0.9 % |
+
+That is well inside the 10 % the task budgeted, and it is worth saying why,
+because the budget expected a cost: the parser's hot loop is the *scanner*, and
+the scanner never touched `std::collections` or a closure in the first place —
+what it does per byte is index a slice, which the subset spells the same way.
+The two places that could have cost something did not: `ron::HashMap` replaced
+`std::collections::HashMap` only in the parse tables, which are probed once per
+stream index and not per byte; and `prepare`'s record copies (the subset has no
+`Vec::remove`, so a reordered record's *spine* is copied) are one small
+allocation per record against a term DAG that is not copied at all.
+
+The Mathlib landing rule passes: the run finishes under `ulimit -v 27000000`
+and accepts **691 128** declarations, con-leche's own number and task #83's.
+Wall times: `Init` 63.9 s, `Init+Std+Lean` 156.8 s, Mathlib 2 075 s — taken on
+a shared machine (four Lean builds and three agents), so not comparable across
+days; the instruction counts, which is why they are the measure of record, are.
+
+#### 7. Where the ledger stands
+
+`scripts/gates.sh`: **all nine OK** (`gen-prelude --check` is the new one), and
+`lake build` is green in 3m17s **with no proof repair at all** — the model's
+growth is additive, so not one existing lemma moved.
+
+```
+Verified core (ConLeche/Kernel, ConLeche/Cached)  to translate 14 077  translated 100%  verified 92%
+Parser in the core (ConLeche/Frontend, task #84)  to translate  4 441  translated 100%  verified  0%
+Cherries (InModel, ExportWrite, Main.lean)        to translate  2 975  translated 100%  verified  0%
+Rust core 85 099 lines (1 844 fns) | unverified crates 11 065 | generated Lean 76 095 | pin c431b1ca
+LoC: upstream 18 495 | rust 49 674 | generated 73 164 | proof 148 985
+     ratios rust/up 2.69  gen/rust 1.47  proof/rust 3.00  proof/up 8.06
+```
+
+`progress.py` has **three** groups now, not two: folding the parser into the
+core's row would dilute the checker's 92 % with a tier nobody has proved, and
+leaving it among the cherries would call verified-crate code "unverified
+crate".  `loc.py`'s `ledger()` gained the same globs, or its `rust/upstream`
+ratio would compare the whole core crate with the checker's Lean alone — with
+them it reads 2.69, against 2.71 before the parser arrived, which is a small
+check that the subset is not what makes the Rust 2.7× the Lean.
+`provenance.py`'s `coverage` is deliberately **not** re-scoped: it is the
+*checker's* ledger (927/927, 94 skipped), and `progress.py`'s parser row is
+what catches a frontend citation going stale — as it did, for `Prepare.lean`'s
+`pickSpec`/`frontSpec`, which are now skip entries with their reason.
+
+#### 8. What task #85 has to prove
+
+The port now has a Lean model of the whole accept path.  What is missing is
+every lemma about it.  In the order they unlock each other:
+
+1. **Well-formedness, which discharges `hds`.**  `parse_chunks_wf`: every
+   declaration `parse_chunks` returns is `DeclarationWF`, under one hypothesis
+   about the modeller (`∀ ctx b ds, m.generate ctx b = ok (.Ok ds) → ∀ d ∈ ds,
+   DeclarationWF d`).  Below it, in dependency order:
+   `parse_expr_rec_d`/`parse_expr_entry_d` (the only place the parse *builds* a
+   term, so this is where `ExprWF`'s constructors are applied), `parse_cv_d`,
+   `parse_rule_d`, `block_rec_of`, `install_ind_d`, `process_line_core_d`,
+   `apply_line`, `apply_final_line`, `feed_chunk`, `chunk_step`,
+   `chunk_finish`; then `proj_rec::proj_rec_value` (the rewrite builds a term
+   too), `nat_op_ground::hoist_nat_op_ground` and `prepare::prepare_prelude`
+   (both only permute and copy, so WF is preserved), and
+   `prelude::builtin_prelude_e`.  This alone removes `hds` from the two
+   headline capstones.
+2. **The `hasProofOfFalse` record lemma**, mirroring
+   `Verify/Frontend/FileFalse.lean`: the chunk-level statement's own predicate.
+3. **`scan_line_fwd_refines`**: the byte recogniser against `scanLineFwd`,
+   which is the bulk — 35 loops, so 35 `foo_loop` inductions, against Lean
+   tail recursions of the same shape.  It needs `absScanErr`, `absLineRec`,
+   `absErrTag` and the `ScanRes` abstraction first.
+4. **`parse_chunks_refines`**: the record assembly against `parseChunks`, with
+   `absStateD` and a `StateDRel` for the three `ron::HashMap` tables (the
+   `StateRel`/`FEnvRel` pattern of §5.2), and the modeller hypothesis carried
+   as an abstraction of `generate`.
+5. **The capstone**, `conron.no_False_declaration` at the Rust run, composing
+   4, `prepare_prelude_refines`, and the existing `check_decls_refines`.
+
+**One thing to decide before 5, and it is not small.**  con-leche's
+`no_False_declaration` names *its* `builtinPreludeE`, which is
+`parseExportD builtinPreludeText` on con-leche's `include_str`; the port's
+names `prelude_text()`.  Identifying the two means reducing a 16 922-byte
+string literal in the kernel, and AENEAS_FINDINGS §3.8 measured that as
+quadratic (27 s at 1 KB, >300 s at 8 KB) — out of reach.  The way through is
+the one tasks #74/#75 took for the pin list: state the port's corollary
+**parametrically in the prelude's bytes**, so the headline pair names no
+constant, and let the instance at the embedded constant be the one statement
+that pays.  Whether con-leche will parameterise `no_False_declaration` the way
+it parameterised `checkDecls` over the pins (its task #304, done *for*
+con-ron) is worth asking upstream before task #85 designs around it.
+
+A second, smaller one: the embedded prelude is a `toStr`-free byte array, so
+unlike `PINS_TEXT` it carries **no** `decide +native` axiom — one of the two
+reasons AENEAS_FINDINGS §3.8's standing ask exists does not apply to it.
+
+### Task #85 — the parser's proofs, phase 1: well-formedness (2026-09-14, Opus under Fable)
+
+`Refine/Main.lean`'s last standing input hypothesis was
+
+    hds : ∀ d ∈ ds.val, DeclarationWF d
+
+— *"every declaration handed to the fold is what the port's own smart
+constructors built"*.  DESIGN.md §3.5 said at task #5 that it would fall out of
+the parser by construction; task #73 discharged it instead with a runtime
+validation pass; task #81 withdrew that pass (10 GB resident at Mathlib scale,
+4 % of the instructions); task #84 put the parser into the verified core.
+**This task proves it**, and `Refine/Main.lean` gains a chunk-level pair of
+capstones over con-leche's whole four-step pipeline that carries no `hds` at
+all.
+
+#### 1. The argument, and why it is short
+
+The `*WF` predicates are **inductives whose constructors are the port's own
+smart constructors** (`ExprWF.app` *is* `expr::app`, `NameWF.str` *is*
+`name::mk_str`, …).  The parse reaches every node it stores through exactly one
+of them, so each lemma is a forward walk through a generated body applying one
+constructor per arm, and **no proof in this tier ever names a hash formula**.
+That is the same argument `Refine/PinsWF.lean` used for the pin decoder at task
+#66; what is new is the scale — 5 171 lines over seven files against `PinsWF`'s
+1 792 — and that it is the first tier where the task-#71 idiom was the default
+rather than an experiment.
+
+Seven files, **5 171 lines**, 205 lemmas and 12 definitions, **0 `sorry`**.
+
+#### 2. The state invariant
+
+`Refine/Frontend/Base.lean` fixes the vocabulary.  `StateDWF` has **six**
+clauses for `export_c::StateD`'s seventeen fields:
+
+| field | clause | why |
+|---|---|---|
+| `names`, `levels`, `exprs` | `IdTableWF NameWF` / `LevelWF` / `ExprWF` | the three index tables the records refer into |
+| `decls` | `∀ d ∈ …, DeclarationWF d` | what the fold is handed |
+| `proj_owners` | `MapValsWF ProjRecOwnerWF` | read by `proj_rewrite_d`, which *builds* a term |
+| `proj_levels` | `MapValsWF LevelWF` | the same |
+| `const_types`, `heights`, `ind_blocks` | **none** | `state_model_ctx` hands them to the **modeller**, and `ModellerWF` is unconditional in its argument |
+| `proj_rewrites`, `in_modelled`, `gen_owner`, `in_model_declined` | **none** | receipts: names the parse already stored, never read back into a term |
+| `gen_records`, `ind_count`, `in_model`, `in_model_census` | **none** | counters and flags |
+
+Eleven untracked fields is not laziness, it is the seam paying off: task #84
+made the parse quantify over `in_model_rec::Modeller`, so nothing the modeller
+reads has to be well formed for its *output* to be — and its output is a
+hypothesis.
+
+**`MapValsWF` is stated over `HashMap.al_v`, not `HashMap.toFun`**, and that
+one choice is why the parse's `Name`-keyed maps cost nothing.  `Refine/
+HashMapWF.lean`'s note explains that `Eq2Spec` is unusable at a key type whose
+equality is the port's own `name::beq`; but `Refine/ExprOps.lean`'s `get_mem` /
+`insert_pres` need neither `Eq2Spec` nor `Inv`, and for a predicate that
+**ignores the key** their side condition `ExprOps.Compat` is trivially true
+(`compat_of_vals`, three tokens).  So the two tracked maps are three one-line
+lemmas in `Base.lean` and nothing else.
+
+#### 3. The lemma inventory
+
+| file | lines | what it owns |
+|---|---:|---|
+| `Frontend/Base.lean` | 157 | the vocabulary above, `map_get_wf`/`map_insert_wf`/`map_new_wf`, `LineRecWF`, `ModellerWF` |
+| `Frontend/ScanWF.lean` | 1 388 | the scanner's one obligation: `utf8_decode_wf` → `unescape_wf` → `scan_string_wf` → `scan_str_name_wf` → `scan_line_loop_wf` → **`scan_line_fwd_wf`** |
+| `Frontend/Readers.lean` | 683 | the index tables, the state readers, the value builders (**`parse_expr_rec_d_wf`**, `parse_cv_d_wf`, `parse_rule_d_wf`), the three table-entry steps and `push_decl_wf` |
+| `Frontend/ProjRec.lean` | 947 | the projection rewrite: the telescope walkers, the `MkBinder` dictionaries, **`proj_rec_value_wf`** and `proj_rec_owners_wf` |
+| `Frontend/Ind.lean` | 780 | the inductive install: `ind_block_of_wf`, `register_proj_owners_wf`, `push_gen_list_wf`, `install_gen_wf`, **`install_ind_d_wf`** |
+| `Frontend/Prepare.lean` | 443 | the two permuting passes: `declaration_dup_refines` (the copy **is** the identity), `hoist_nat_op_ground_wf`, **`prepare_prelude_wf`** |
+| `Frontend/Chunks.lean` | 773 | the top: `proj_rewrite_d_wf`, `process_line_core_d_wf`, `apply_line_wf`, `feed_chunk_wf`, and **`parse_bytes_wf`**, **`parse_chunks_wf`**, **`builtin_prelude_e_wf`** |
+
+#### 4. What carries no clause, and why
+
+Naming these is half the work, because the tier is only tractable if most of
+the parser is out of it.
+
+* **`validate_ind_d` and its twenty helpers.**  `scan_types::IndTypeRec` /
+  `IndCtorRec` / `IndRecRec` hold a `CVRec` of `u64` indices plus machine words
+  and booleans — not one term.  Ordering, counting and validating them cannot
+  break well-formedness because there is nothing there to break.
+* **`block_rec_of`, `ind_block_*` record assembly, `note_ind_blocks`.**  A
+  `BlockRec` goes to the modeller and nowhere else.
+* **The hoist's and the prelude's plans** (`hoist_targets*`, `hoist_close*`,
+  `hoist_order*`, `front_of`, `pick_idx`, `no_picks`): indices and masks.
+* **`proj_rec`'s recognisers** (`occurs_const_fast`, `any_*_mentions`,
+  `find_ctor`, `head_is`, `is_proj_iota_name`): booleans and indices.
+* **A `DeclRec`'s `Vec<u32>` fields**: the `safety` and `quotKind` *spellings*,
+  compared with literals, never turned into a `Name`.
+
+The one thing the **scanner** does owe is narrow and real: a `Vec<u32>` it
+hands over as a string payload must hold valid code points, or `StrWF` fails
+and `NameWF.str` cannot be applied.  That is `utf8_decode`'s loop invariant —
+every arm pushes a value it has just range-checked — and it is why `unescape`
+validates its accumulated bytes **at the end** rather than as it goes.  The
+plan for this task expected the rest of the scanner to fall out with `trivial`;
+it did not, because `LineRecWF (.Expr i r)` is only `True` once `r`'s
+*constructor* is known, so each of the eight record scanners the dispatcher can
+reach needed its own shallow loop induction, with a measure (`b.len() - i`,
+strict by the module's own `prog` guard).  That is most of `ScanWF.lean`'s
+1 388 lines.
+
+#### 5. The capstones
+
+| theorem | hypotheses | census |
+|---|---|---|
+| `conron.model_exists` / `no_proof_of_False` | `hk hraw hind hinde hvar hds h` | 3 |
+| `…'` (primed) | `hvar hds h` | 3 |
+| `…_decoded` | `hp hds h` | 3 — **the axiom-free headline, still** |
+| `…_embedded` | `hp hds h` | 3 + `PINS_TEXT`'s `toStr` |
+| **`…_parsed`** (new) | `hgen hp hpre hparse hprep h` — **no `hds`** | 3 + 68 |
+| **`…_prelude`** (new) | the same at `builtin_prelude_e` | 3 + 68 |
+
+`hgen : Frontend.ModellerWF inst g` is the residue: *every declaration
+`Modeller::generate` returns is well formed*.  It is a promise about a function
+argument, like `hvar` was before task #66, and it disappears the day upstream
+drops the modeller.
+
+**The prelude is a parameter, not a constant.**  Identifying the port's
+embedded prelude with con-leche's `include_str` is out of reach in the kernel
+(AENEAS_FINDINGS §3.8), so `…_parsed` takes the prelude's bytes as a variable
+and `hpre` as the run of the port's own parser on them — the shape tasks #74/#75
+used for the pins.  `…_prelude` is the instance at `prelude_text()`, and it
+costs **nothing extra**: the prelude constant is a `[u8; 16 922]` in 67 chunks
+(task #84's F17) and not a `&str`.
+
+#### 6. Sixty-eight axioms that are Aeneas's, and one decision for the maintainer
+
+The new pair's census is **not** the standard three.  Aeneas renders a `&str`
+constant as `toStr "…"` and discharges `toStr`'s bound with its own default
+argument `by decide +native`, in the *constant's definition*
+(AENEAS_FINDINGS §3.8; `conron.*_embedded` has paid one of these since task #64
+for naming `PINS_TEXT`).  `frontend::scan_fast::key_at` recognises the dialect's
+object keys against a table of **66** such constants and `scan_bool` against two
+more, so **any statement naming `parse_chunks` inherits 68 of them through the
+closure with nothing evaluated** — `#print axioms` on the *generated*
+`scan_line_fwd` prints the same 68.
+
+Two things follow.  The **axiom-free headline is still
+`conron.model_exists_decoded`**, which names no constant and assumes exactly
+what the new pair proves.  And the **remedy is mechanical but not this task's**:
+those 68 constants are `const S_X: &str = "…"` used once each as
+`S_X.as_bytes()`, and spelling them `[u8; N]` is exactly what task #84 already
+did to seven constants of the same module for F17's reason.  It costs a Rust
+change, a re-extraction and a re-proof of `ScanWF.lean`; §3.8's standing ask
+upstream is the other way out.  **The maintainer decides**; this task was told
+not to touch the Rust and did not.
+
+#### 7. The task-#71 idiom's largest real use
+
+The ruling of 2026-09-13 made the idiom the default for new proofs, and this is
+the first tier written under it from scratch.  It was used where README's
+§Scope puts it — leaves and node dispatches — and not on list folds or byte
+loops.
+
+**Where it fit, it fit outright.**  `Readers.lean` used it on 7 of 7 lemmas
+attempted, with the default `rust_grind` budget (`ematch := 12`, `gen := 24`)
+never raised and no `[limit]` diagnostic anywhere: `parse_expr_rec_d_wf`, ten
+arms, **261 ms** of tactic execution; `parse_name_entry_d_wf` 103 ms;
+`parse_level_rec_d_wf` 120 ms; the other four 47–59 ms.  `ProjRec.lean` used
+`rust_norm` (without `rust_grind`) on 13 of its 36.  The one number the
+maintainer asked for: `parse_rule_d_wf` was written **by hand** first at
+**187 ms** of tactic execution and, rewritten with the idiom, is **52 ms** —
+3.6× *faster*, not slower.  The 5× elaboration cost task #70 measured is not
+what this tier saw.
+
+Everything the idiom needed beyond the registered sets was **statement shaping,
+not tactic tuning**, and all three keying rules paid: the equation-first
+`st_*_wf'` family (rule 1), `lit_nat_wf'`/`lit_str_wf'` keyed on
+`expr.lit (.NatVal n)` (rule 2), and `lam_pw_wf'`/`forall_e_pw_wf'` stated at
+the node `⟨p⟩` that `binder_meta_eq` produces rather than at a `BinderMeta`
+variable.  Four `rust_reduce` equations had to be added locally for wrappers
+not in the plumbing set — `expr::literal_nat`, `expr::literal_str`,
+`expr::mk_bvar`, `export_c::merr` — and **without `merr_eq` the `NatVal`
+failure arm is the one arm `grind` cannot close**, because it cannot see
+`ok (.Err …) ≠ ok (.Ok e)`.  Candidates for promotion into
+`Refine/Abs.lean`/`Expr.lean` when a second frontend file wants them.
+
+**Where it did not fit**, it was not forced: `Ind.lean` (34 lemmas),
+`Prepare.lean` (19) and `Chunks.lean` (18) are all hand proofs in the forward
+`rw [.eq_def]; simp only [bind_eq_ok_iff]; obtain; split` style, which is what
+README §Scope says for list folds, and `ProjRec.lean` used `rust_norm` but
+never `rust_grind` — after normalisation its goals are single constructor
+applications, and feeding `grind` would have needed a parallel set of
+equation-first restatements for every helper in the file.
+
+Elaboration, `lake env lean` per file on a quiet machine (import ~1.0 s of
+each): `Base` 0.3 s, `Prepare` 1.6 s, `Readers` 2.2 s, `Chunks` 2.1 s,
+`Ind` 2.5 s, `ProjRec` 3.0 s, `ScanWF` 11.3 s.  `ScanWF` is the outlier for the
+reason §4 gives, not for `grind`'s.
+
+#### 8. Four mechanics worth keeping
+
+Each cost real iteration time and each is reusable.
+
+1. **`simp only [bind_eq_ok_iff]` stops at a tuple-returning bind.**  A
+   `let (a, b) ← f …` compiles to a matcher; once `cases`/`obtain` reduces it on
+   a constructor pair, the *next* bind has `Data.Coinductive.ITree.bind` at its
+   head (the `cases` whnf unfolded the monad instance) and the `Bind.bind`
+   pattern no longer matches syntactically — `simp` then says "made no
+   progress".  The fix is to invert by **application**: `obtain ⟨…⟩ :=
+   bind_eq_ok_iff.mp h`, since unification unfolds the instance where the
+   discrimination tree will not.
+2. **A `&mut` call returning a pair is wrapped in `Function.uncurry`**, and
+   neither `simp only [bind_eq_ok_iff]` nor `dsimp` nor `split` sees through it
+   — `split` happily descends *past* it to an inner `if`.  The peel is
+   `uncurry_apply_pair`, and it fires only after the pair is destructured:
+   `obtain ⟨_, hm⟩ := p; simp only [uncurry_apply_pair, bind_eq_ok_iff] at h`.
+3. **A generated `let i := Slice.len b` elaborates to `letFun`**, which blocks
+   `split at h`; a bare `simp only [] at h` zeta-reduces it.
+4. **`split at h` on a whole loop body can blow `simp`'s step budget**
+   (`utf8_decode_loop`); `by_cases … ; rw [if_pos/if_neg] at h` is what works.
+
+Three smaller ones: `HashMap.vec_index_mut_eq` needs `[Inhabited α]`, which
+`Name`/`Level`/`Expr` do not have, so `Readers.lean` carries its own
+`Inhabited`-free `index_mut_back` — a candidate generalisation.
+`note_entries_loop_wf` needed `simp only [rust_invert]` (which carries
+`Prod.exists`) to open a four-tuple let-pattern that `split`, `dsimp` and plain
+`bind_eq_ok_iff` all left alone.  And `rust_norm` does not name the witnesses it
+introduces, so `ProjRec.lean`'s proofs open with a `rename_i` of 7–23 binders
+counted off the end of the context: **at this size that counting is the
+brittle part of the idiom**, and a `rust_norm h with ⟨…⟩` naming form would
+remove it.
+
+#### 9. No port bug found
+
+Six agents over the whole accept path, and not one deviation surfaced — which
+is what a well-formedness tier should find, since its statements are about the
+port alone and cannot see a disagreement with con-leche.  Two shapes are worth
+recording as *confirmed*: `nat_op_ground::declaration_dup` **is** the identity
+in the model (`declaration_dup_refines`), and an out-of-range `order` entry
+makes `hoist_reorder`'s read *fail* rather than read garbage, so its lemma
+needs no hypothesis on the permutation at all.
+
+#### 10. Where the ledger stands
+
+`scripts/gates.sh`: **all nine OK**.  Not one existing lemma moved: the group
+is additive, and `Refine/Main.lean` gained two imports and four theorems.  The
+seven files' own elaboration, `lean` per file on a quiet machine (§7), sums to
+about 23 s, of which `ScanWF.lean` is 11.3 s.
+
+```
+Verified core (ConLeche/Kernel, ConLeche/Cached)  to translate 14 077  translated 100%  verified 92%
+Parser in the core (ConLeche/Frontend, task #84)  to translate  4 441  translated 100%  verified  0%
+Cherries (InModel, ExportWrite, Main.lean)        to translate  2 975  translated 100%  verified  0%
+Rust core 85 099 lines (1 844 fns) | unverified crates 11 139 | generated Lean 76 095 | proofs 155 122
+LoC: proof 154 496 | ratios rust/up 2.69  gen/rust 1.47  proof/rust 3.11  proof/up 8.35
+```
+
+**The parser row is still 0 %, and that is correct.**  `progress.py`'s
+`verified` column counts `theorem <fn>_refines` — refinement against con-leche
+— and this tier writes `_wf` lemmas about the port alone.  Phase 3 is what
+moves that row; the docstring now says so in as many words.  The proof grew
+4 183 lines (150 939 → 155 122) and `proof/rust` went 3.00 → 3.11.
+
+#### 11. Phases 2 and 3, and what they need
+
+Phase 2 was scoped as *the record lemma*: mirror con-leche's
+`Verify/Frontend/FileFalse.lean`'s `parseChunks_jsonWithTheoremFalse` for the
+port — if a chunk list matches the `jsonWithTheoremFalse` template then the
+port's `parse_chunks` returns a theorem record whose type abstracts to
+`.const falseName []` — and compose it with `check_decls_refines` and
+con-leche's fold-level `no_False_theorem_accepted`
+(`Verify/Cached/StreamThm.lean`) to get con-ron's own `no_False_declaration`.
+
+**It was not started, and the reason is a dependency the scoping did not see.**
+con-leche proves its version by rewriting `parseChunks` to `parseLines` and
+splitting the concatenated bytes against a literal template — an argument about
+what its *own* parser does to specific bytes.  The port has no such lemma, and
+getting one means either (a) redoing that byte-level argument against
+`scan_line_fwd` and `chunk_step`, which is phase 3's work in a different order,
+or (b) proving `parse_chunks_refines` first and transporting con-leche's
+statement across it, which is phase 3 outright.  Either way phase 2 sits
+*above* phase 3, not beside it.  It also needs a bridge `absChunks :
+alloc.vec.Vec (alloc.vec.Vec U8) → List ByteArray` and the three abstractions
+below.
+
+**Phase 3** — the parser's *exactness* against `ConLeche/Frontend` — is what
+`progress.py`'s parser row (0 %, and it counts `_refines` lemmas) is waiting
+for.  What it needs, in order:
+
+1. `absScanErr`, `absErrTag`, `absLineRec` and a `ScanRes` abstraction; the
+   `LineRec`/`DeclRec`/`ExprRec`/`NameRec` records abstract to con-leche's
+   syntax records field for field, with the `Vec<u32>` payloads through
+   `absString`.
+2. **`scan_line_fwd_refines`**, the bulk: 35 loops against Lean tail recursions
+   of the same shape.  Task #85's `ScanWF.lean` already carries the loop
+   *measures* (`next_member_ge`/`next_member_lt`/`slot_nat_prog`/`prog_lt`),
+   which is the part that was expected to be fiddly, so the refinement can
+   reuse them.  Note that con-leche's `@[csimp]` makes `scanLineFwd` what the
+   compiler runs, so this is the right target — `Scan/Naive.lean` is the
+   specification and `Scan/Equiv.lean` the bridge.
+3. `absStateD` and a `StateDRel` for the three `ron::HashMap` tables, in the
+   `StateRel`/`FEnvRel` pattern of §5.2 — and note that `Refine/HashMapWF.lean`'s
+   `Eq2Fwd` is the shape to use, not `Eq2Spec`, for `Name`-keyed maps.
+4. `parse_chunks_refines`, with the modeller hypothesis carried as an
+   *abstraction* of `generate` rather than the well-formedness of its output.
+5. The composition into `conron.no_False_declaration`, at which point phase 2
+   follows.
+
+### Task #86 — the scanner's literals as bytes; the parsed capstones at the three axioms (2026-09-14, Opus under Fable)
+
+Task #85 landed the chunk-level pair, `conron.model_exists_parsed` /
+`no_proof_of_False_parsed`, and reported its census as *the standard three plus
+sixty-eight*.  The sixty-eight were Aeneas's, not the proof's: `toStr`
+discharges an extracted `&str` constant's size bound with `by decide +native`
+**in the constant's own definition** (AENEAS_FINDINGS §3.8), and
+`frontend::scan_fast::key_at` recognised the dialect's object keys against 66
+such constants with `scan_bool` adding two, so every statement that named
+`parse_chunks` inherited all 68 through the closure with nothing evaluated.
+This task spends the mechanical remedy task #85 named and did not take.
+
+#### 1. What changed in the Rust
+
+All 68 `const S_X: &str = "…"` in `crates/con-ron-core/src/frontend/scan_fast.rs`
+are now `const S_X: [u8; N] = *b"…";`, and each `match_lit(b, j, S_X.as_bytes())`
+is `match_lit(b, j, &S_X)`.  Nothing else moved: the first-byte-then-length
+switch is `keyAt`'s as before (deviation 2 of the module note, con-leche's task
+#264), each arm is still one `match_lit` of the whole key, and every provenance
+citation is untouched.  The seven literals that end in the JSON string's own
+closing quote — task #84's F17 casualties, spelled as decimal arrays — were
+respelled `*b"default\"";` and so on at the same time, so the module is uniform
+and its three F17 comments no longer claim the rest of the file is `&str`.
+
+`*b"…"` and a decimal array extract identically (checked on a throwaway crate
+before touching the file): both come out `Array.make N [ … ]`, and both are read
+by `lift (Array.to_slice S_X)` where a `Str` was read by
+`core.str.Str.as_bytes S_X`.  The byte-string spelling is what went in, because
+68 keys as decimal arrays is unreviewable.
+
+`grep -n '&str\|as_bytes' crates/con-ron-core/src/frontend/*.rs` outside
+`#[cfg(test)]` now finds exactly one item, and it is not a constant:
+`export_c::parse_export_d` takes `contents: &str` (con-leche's `String`
+argument) and calls `as_bytes` on that *parameter*, which carries no axiom.  Its
+only callers are the module's own tests.
+
+#### 2. What changed in the proof: nothing but the pins
+
+**Not one lemma moved.**  `Refine/Frontend/ScanWF.lean`'s 1 388 lines,
+`Readers.lean`'s 683 and the other five files all elaborate unchanged, because
+no proof in the tier ever stepped through a key comparison: `key_at` returns a
+`Key`, the WF lemmas split on that, and a byte array and a `Str` are both a
+`Slice U8` by the time `match_lit` sees them.  The only edits under `proof/` are
+the pinned `#guard_msgs` censuses and the prose that explained them:
+
+| file | what changed |
+|---|---|
+| `Refine/Frontend/ScanWF.lean` | `scan_line_fwd_wf`'s census: 71 entries → 3 |
+| `Refine/Frontend/Chunks.lean` | `parse_bytes_wf`, `parse_chunks_wf`, `builtin_prelude_e_wf`: 71 → 3 each |
+| `Refine/Main.lean` | `conron.model_exists_parsed` / `no_proof_of_False_parsed`: 71 → 3 |
+| `Refine/Main.lean` | **new**: censuses pinned for `conron.model_exists_prelude` / `no_proof_of_False_prelude`, which task #85 left unpinned |
+
+The `_prelude` pair — the instance at the prelude the binary ships — is
+`[propext, Classical.choice, Quot.sound]` too, and now says so under
+`#guard_msgs`.  Task #85 predicted it would cost nothing extra and it does not:
+the prelude constant is the task-#84 `[u8; 16 922]` in 67 chunks, never a
+`&str`, and `builtin_prelude_e_wf` reads well-formedness off the run without
+unfolding a byte.
+
+`grep -rn 'native.decide' proof/ConRon/Refine/Main.lean` leaves exactly one
+census entry: `pins_text.PINS_TEXT._native.decide.ax_1`, on the two `_embedded`
+capstones.  **That one is not retirable the same way and was not attempted.**
+`PINS_TEXT` is 532 456 bytes; F17's byte-array route holds a few hundred
+elements (task #84: one `Array.make` of 16 922 does not elaborate inside a
+million heartbeats, one of 512 exhausts `maxRecDepth 2048`), and 532 KB in
+chunks of 256 would be two thousand constants.  AENEAS_FINDINGS §3.8's standing
+ask — discharge `toStr`'s bound without `decide +native` — is now about that one
+constant and nothing else.
+
+#### 3. What it measures
+
+**Byte compares cost nothing, to six significant figures.**  `perf stat
+-e instructions:u,cycles:u`, release + mimalloc, `--verified --jobs=1`, against
+task #84 on the same corpus:
+
+| | task #84 | task #86 | |
+|---|---:|---:|---|
+| `Init`, instructions | 540.88 G | **540.89 G** | +0.001 % |
+| `Init+Std+Lean`, instructions | 1 161.32 G | **1 161.32 G** | — |
+| `Init`, peak RSS | 0.91 GB | **0.91 GB** | — |
+| `Init+Std+Lean`, peak RSS | 2.44 GB | **2.44 GB** | — |
+
+Three `Init` runs: 540 884 790 044 / 540 885 810 587 / 540 891 523 590
+instructions — a spread of 7 M in 541 G, which is the measurement's own noise.
+Wall: `Init` 64.5 / 65.4 / 65.2 s, `Init+Std+Lean` 157.1 s, on a shared machine.
+Accepts are task #83's and #84's to the record: `Init` 57 977,
+`Init+Std+Lean` 163 396.  `scripts/diff-e2e.sh`: **348 fixtures, 0 differ.**
+
+That the count is *identical* rather than merely close is the expected result
+and worth saying why: `S_X.as_bytes()` on a `&'static str` constant and `&S_X`
+on a `[u8; N]` constant both lower to the same `.rodata` pointer and length.
+The change is entirely in what Charon sees.
+
+#### 4. Where the ledger stands
+
+`scripts/gates.sh`: **all nine OK**.  The proof is 154 709 lines (155 122 at
+task #85; the 413 the censuses gave back), `proof/rust` 3.10.
+
+```
+Verified core (ConLeche/Kernel, ConLeche/Cached)  to translate 14 077  translated 100%  verified 92%
+Parser in the core (ConLeche/Frontend, task #84)  to translate  4 441  translated 100%  verified  0%
+Cherries (InModel, ExportWrite, Main.lean)        to translate  2 975  translated 100%  verified  0%
+Rust core 85 109 lines (1 844 fns) | unverified crates 11 139 | generated Lean 76 192 | proofs 154 709
+LoC: upstream 18 495 | rust 49 684 | generated 73 261 | proof 154 083
+     ratios rust/up 2.69  gen/rust 1.47  proof/rust 3.10  proof/up 8.33
+```
+
+The axiom ledger for the whole port is now three lines: the headline
+`conron.model_exists_decoded` / `no_proof_of_False_decoded` and the chunk-level
+`_parsed` and `_prelude` pairs are at con-leche's own three axioms; the two
+`_embedded` corollaries pay one `toStr` axiom for naming `PINS_TEXT`; nothing
+anywhere invokes `native_decide` or carries a `sorry`.
+
+### Task #87 — the parser's exactness (2026-09-14, Opus under Fable)
+
+Task #85 proved the port's parser *well formed* — 205 lemmas about the port
+alone, which is why `scripts/progress.py`'s parser row stayed at 0 %: that
+column counts `theorem <fn>_refines`, refinement **against con-leche**.  This
+task is that tier: `scan_line_fwd` against `scanLineFwd`, the record assembly
+against `ExportC.lean`, and the chunk-level corollary
+`conron.no_False_declaration` at the end of it.
+
+#### 1. The vocabulary, and the four things it had to decide
+
+`Refine/Frontend/Abs.lean` is the file everything else is stated in, and four
+decisions in it are the tier's whole interface with the port's deviations
+(`scan_types.rs`'s module note names them 1-4).
+
+* **Bytes.**  `absByte : Std.U8 → UInt8`, `absBytes : Slice U8 → ByteArray`,
+  with `absBytes_size`, `absBytes_getElem`, `absBytes_uget` and
+  `absBytes_usize` — the four facts a byte loop needs.
+* **Positions, and the wrap-around question.**  The port's positions are
+  Aeneas's bounded `Std.Usize`, whose `+` **fails** on overflow; con-leche's
+  are `USize`, a machine word that wraps, and its `Scan/Fast.lean` header
+  rules wrap-around out by `usizeStep` under `i < b.usize`.  `absPos i =
+  USize.ofNat i.val`, and the reconciliation is one lemma: `absPos_add_one`
+  says a step the port returned `ok` for is con-leche's step, *because* the
+  port's failure is what proves the value in range.  In the accept direction
+  there is nothing left to check; in the error direction the port's overflow
+  is a port-only failure and claims nothing.
+* **The one tag con-leche has not got.**  `ErrTag::IndexOverflow` (deviation
+  1: a stream index too large for a `u64`, where con-leche reads a `Nat`)
+  goes to `none` under `absErrTag`, exactly as `absErrKind` sends the
+  checker's `CheckError::Native` to `none`.
+* **A `natVal` literal keeps its digits** (deviation 2), so `absExprRec`'s
+  `NatVal` arm is `natOfDigits`, which is `readNatAt`'s value.
+
+The outcome relation is `ScanSim A o x`, the scanner's reading of DESIGN.md
+§3's full-outcome ruling: exact on `.Ok` — the value *and* the position after
+it — at the **same offset and tag** on a mirrored `.Err` (`ScanErrSim`), and
+nothing on `IndexOverflow`.  The offsets are compared because task #84's
+differential compared them over 119 million real export lines and 31 million
+mutated ones with zero disagreements; a proof that could not close one would
+be a port bug, not a reason to weaken the statement.
+
+Beside those: `absKey` and the twelve syntax-record abstractions
+(`absNameRec`, `absLevelRec`, `absPwRec`, `absExprRec`, `absCVRec`,
+`absHintsRec`, `absRuleRec`, `absIndTypeRec`, `absIndCtorRec`, `absIndRecRec`,
+`absDeclRec`, `absLineRec`), and `absChunks` — the bridge from the port's
+`Vec<Vec<u8>>` to con-leche's `List ByteArray` that the chunk-level corollary
+is stated over.
+
+#### 2. `scanLineFwd`, not `scanLineSpec`
+
+con-leche's `ExportC.lean` reads lines with `scanLineSpec`, the naive
+reference; `Scan/Equiv.lean`'s `@[csimp] scanLineSpec_eq_scanLineFwd` is what
+makes `scanLineFwd` the function the compiler runs, and the port is a port of
+`scanLineFwd`.  So every scanner lemma of this tier targets `scanLineFwd`, and
+con-leche's whole `Equiv` tier (4 014 + 1 627 + 870 + 368 + 1 006 lines) is
+used in **one** place: the rewrite inside `feed_chunk_refines` /
+`apply_final_line_refines`.  That is the right seam — it is a function
+equality, `@scanLineSpec = @scanLineFwd`, so the rewrite is one `rw`.
+
+#### 3. The parser row moves, and `loc.py`'s shared-key bug
+
+`progress.py`'s `verified` column matches a `_refines` lemma to a Rust
+function by the lemma *file*'s name: `Refine/<M><Suffix>.lean` counts for
+`<m>.rs`.  The parser's lemma files are split by the **Lean**'s sections
+(`ScanKit`, `ScanStr`, `ScanObj`, `ScanExpr`, `ScanInd`, `ScanLine`,
+`StateDR`, `IndR`, `ChunksR`, `PrepareR`, `ProjRecR`) and not one per Rust
+module, so the prefix rule could never match them — the row would have stayed
+at 0 % however many lemmas landed.  The fix is one line: every
+`src/frontend/*.rs` is the module `frontend`, and every file under
+`Refine/Frontend/` proves for that module, so within the parser a lemma counts
+for the Rust function it names wherever it was proved.
+
+That immediately exposed a latent bug in `loc.py`, which shares
+`rust_module_of`: its totals loop adds `proofs_by_mod[key]` once **per Rust
+module**, so the moment thirteen modules shared a key the proof line count
+jumped by 73 161 lines (155 k → 227 k).  Fixed properly rather than worked
+around: a key's proof lines are counted once, on the group's *largest* module,
+so the parser tier's lines show on `frontend/scan_fast.rs`.
+
+#### 4. The first port bug the parser's exactness found
+
+Task #85's well-formedness tier found none, and said why: its statements are
+about the port alone and cannot see a disagreement with con-leche.  This tier
+can, and the first thing it saw was in the **error** direction.
+
+`export_c::apply_final_line` and `feed_chunk` rendered *every* scan failure as
+`core_types::internal(scan_err_render(…))`, mirroring `ExportC.lean:770` and
+`:782`.  But the port has one tag con-leche has not got — `ErrTag::IndexOverflow`,
+deviation 1 of `scan_types.rs`'s module note, a stream index or a count too
+large for a `u64`, where con-leche reads a `Nat` and simply succeeds.  Under
+the full-outcome ruling a *mirrored* error claims con-leche throws at the same
+kind, so on a stream carrying a thirty-digit index the port was claiming
+con-leche throws `internal` on a stream con-leche **accepts**.  The accept
+direction could not see it, and neither could the 348 fixtures or the 119
+million differential lines: nothing in a real export has an index that large.
+
+The fix is one function, `export_c::scan_err_to_check`, which spells that one
+tag `core_types::native(…)` and every other tag `internal(…)` as before —
+restoring exactly the vocabulary DESIGN.md §3's ruling of 2026-09-13
+introduced for *"failures with no con-leche counterpart"*.  Extracted,
+re-committed, and all nine gates green; `cargo test`'s 283 tests and
+`diff-e2e`'s fixtures are unmoved, because no input reaches it.
+
+**A second finding is about a statement rather than the port**, and is worth
+recording because it was about to be assumed.  `read_nat_at`'s obvious
+refinement — *"the port's `u64` is `readNatAt` of the same interval"* — is
+**false**: `readNatAt b i e` is `if e - i ≤ 18 then (readNat64 b i e 0).toNat
+else readNat b i 0`, and the `else` branch's `readNat` runs to the end of the
+**digit run**, not to `e`.  At a 22-digit run and `e = i + 19` the port reads
+nineteen digits and con-leche reads twenty-two.  The lemma needs `e` to *be*
+the run's end (`skip_digits b i = ok e`), which every call site supplies —
+`num_end` gives it, and `scan_quoted_nat` calls `skip_digits` itself.  Caught
+by an agent proving it rather than by an agent assuming it, which is the
+argument for discharging a hypothesis record rather than shipping one.
+
+#### 5. The two permuting passes: `prepare_prelude_refines`
+
+`Refine/Frontend/PrepareR.lean`, 1 904 lines, is the first of the three lemmas
+the headline composes with, and it is **proved**: the port's `prepare_prelude`
+returns what `ConLeche.Frontend.preparePrelude` returns, under one hypothesis
+named below.  `prepare.rs` is complete — `prelude_key`, `declares`,
+`prelude_ix_empty`, `no_picks`, `pick_idx`, `prepared_front`/`_rest`/`_stream`,
+**`front_of_refines` (`front_of` *is* `frontOf`**, against the `Array` spelling,
+not the `frontSpec`/`pickSpec` the port deliberately does not port),
+`prepare_d` and `prepare_prelude` — and `nat_op_ground.rs` is complete above the
+target map: `is_nat_op_record`, `idx_get`, `target_done`, `target_is`,
+`hoist_moved_idxs`, `hoist_order_at`, `hoist_order`, `hoist_reorder`,
+`hoist_moved_names`, `apply_hoist` and `hoist_nat_op_ground`.
+
+**The residue is one field, `HoistSpec.targets`**: that `hoist_targets`
+computes `hoistTargets`.  (It fell later in the same task — §18; what follows
+is why it did not fall *here*, which is the part worth keeping.)  Under it sit `used_consts_go`, `decl_used_consts`,
+`block_used_consts`, `hoist_name_index` and the `hoist_close` worklist, and the
+reason they did not fall is worth recording: the port is an explicit
+`Vec<Expr>` worklist with a `ron::HashMap<Expr, bool>` seen table where
+con-leche is *structural* recursion over a `Std.HashSet Expr`, and **the port's
+loop has no decreasing measure in the Aeneas model** — `sp` goes up as well as
+down.  The `HashMapWF`/`Eq2Fwd` bridge is the easy half; the hard half is a
+well-founded argument over "subterms not yet seen", which the `Arc` model does
+not bound for free.  The agent stopped rather than fake it, which is right.
+
+Two things it *did* discharge are worth keeping.  **The port's bucket pass is
+`applyHoist`'s `List.mergeSort`** (`hoistBuckets_eq_mergeSort`): the key order
+is antisymmetric because each key carries its own index, so `Pairwise` + `Perm`
++ `List.Perm.eq_of_pairwise` identifies the two.  And two genuine
+*preconditions* surfaced, each free at its one call site: `apply_hoist` needs
+every target key and value below `ds.len()` — without it the two sides really
+do differ, the port's bucket pass dropping a record whose target is past the
+end where `mergeSort` keeps it — and `hoist_reorder`/`hoist_moved_names` need
+the index entries at most `Usize.max`, because the port's `u64 → usize` cast
+truncates.  **No port bug.**
+
+The file is a **hand proof throughout** and deliberately so: `Refine/README.md`
+§Scope puts `Vec` loops and list folds outside the task-#71 idiom's scope, and
+this file is nothing else.  Whole-file elaboration 4.75 / 4.75 / 4.84 s over
+three runs.
+
+**One environment finding for the next task.** `ulimit -v 8000000` — the figure
+this task's brief gave its agents — is **not workable on this machine**: with 96
+cores `lean` dies with *"failed to create thread"* before elaborating anything,
+because each worker reserves address space.  `ulimit -v 64000000` with
+`lake env lean --threads=8` is what works, and resident use stays small under
+it.  CLAUDE.md's rule is about *resident* memory and the 50 GB session limit;
+the virtual-address limit is a different number and 8 GB is far too low for
+Lean.
+
+#### 6. The headline: `conron.no_False_declaration`
+
+`Refine/Main.lean` now carries con-leche's main corollary transported across
+the port, in the pair the project has used since task #75 — the general form
+and its instance at the constant the binary ships:
+
+```lean
+theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
+    (hgen : Frontend.ModellerWF inst g) (ing : Frontend.ParseIngredients R inst g)
+    (hspec : Frontend.HoistSpec)
+    (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+    (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
+    (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
+    (hparse : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Ok r))
+    (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
+    (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+    False
+```
+
+and `conron.no_False_declaration_prelude`, the same at
+`frontend::prelude::builtin_prelude_e`.  **Both are pinned by `#guard_msgs` at
+`[propext, Classical.choice, Quot.sound]`** — con-leche's own three, no
+`native_decide`, no `sorry`.
+
+The proof is con-leche's, four steps: `parse_chunks_refines` and
+`parseChunks_jsonWithTheoremFalse` put a theorem record of type `False` in the
+port's abstracted declarations; `prepare_prelude_refines` and
+`mem_preparePrelude` keep it through the preparation;
+`check_decls_verified_refines_ok` turns the port's accept into con-leche's; and
+`no_False_theorem_accepted` refutes it.
+
+**The prelude never has to be identified with con-leche's**, and that is not a
+concession but the shape of the argument: `mem_preparePrelude` holds for *every*
+`pre`, so the statement is prelude-parametric for free — the port's embedded
+`[u8; 16 922]` is never compared with con-leche's `include_str`, which
+AENEAS_FINDINGS §3.8 puts out of reach in the kernel.  The instance at the
+shipped constant costs nothing extra, for task #84 §8's reason: a byte array
+carries no `toStr` axiom.
+
+**What the two hypotheses about the parse are.**  `hgen` is phase 1's
+`ModellerWF` — the port's own well-formedness, the residue task #84's seam
+left; `ing` is phase 3's `ParseIngredients`, six named fields whose owners are
+the six scanner files and `StateDR`/`IndR`; `hspec` is `HoistSpec`'s one field
+(§5).  The headline is therefore honest about exactly what is still owed, and
+every field is a statement about a *named* port function rather than about the
+parse as a whole.
+
+#### 7. The scanner tier, and the one mechanic nobody could have guessed
+
+`scan_line_fwd_refines` — *"the port's byte recogniser returns what
+`scanLineFwd` returns, at the same position, and fails at the same tag and
+offset"* — is proved, and with it the six files under it:
+
+| file | what it owns | lines |
+|---|---|---:|
+| `Frontend/Abs.lean` | the vocabulary of §1 | 441 |
+| `Frontend/ScanKit.lean` | the bounds kit, `key_at`'s 68-literal switch, every `absByte`/`absPos`/`absU32` bridge | ~2 000 |
+| `Frontend/ScanStr.lean` | `hex_val`/`hex4`/`hex3`, `utf8_of`, `unescape`/`utf8_decode`/`scan_string`, `scan_quoted_nat`, and `nat_decimal` | ~1 500 |
+| `Frontend/ScanObj.lean` | the **shared object-member step**, the list and name loops | 1 981 |
+| `Frontend/ScanExpr.lean` | the five expression slot loops | 1 369 |
+| `Frontend/ScanInd.lean` | the six inductive-block scanners and three list loops | 2 156 |
+| `Frontend/ScanLine.lean` | the six declaration loops, the dispatcher, **`scan_line_fwd_refines`** | ~3 300 |
+
+**The tier is one induction, not thirty-five.**  con-leche inlines the same
+`{`…`}` member walk into every `scan*Loop`; the port factors it into
+`next_member`.  `ScanObj.lean`'s `memberBody` / `MemberStep` /
+`nextMember_step` abstract it over the closing arm and the key dispatch, so a
+loop owes only its own two arms and the side condition *"this loop **is**
+`memberBody` at its own arms"* is `by rw [scanXLoop.eq_def]; rfl` — really
+`rfl`.  Two agents built it independently before it was hosted once; that it
+was worth hosting is the tier's main structural lesson.
+
+**The mechanic that ambushed three agents**, measured with a three-way probe
+rather than guessed:
+
+> A helper `def` may hold con-leche's `match scanX b v with | .err e => .err e
+> | .ok x e => if _hj : i < e then …`, **but only if it is monomorphic in the
+> scrutinee's and the result's type.**  Then Lean reuses con-leche's own
+> matcher constant and the `rfl` goes through.  Made polymorphic in either
+> type, it gets a matcher of its own; two matcher constants applied to a
+> *stuck* scrutinee do not reduce, `isDefEq` gives up, and the `rfl` fails
+> with a sixty-line goal dump whose two sides **print identically**.
+
+It is quiet because `natSlot` — the `Nat`-valued slot — has no `match` at all,
+so the first four slot shapes give no warning.  Five smaller ones are in
+`Refine/README.md`'s new "Refining a byte scanner" section: `simp only
+[uncurry_apply_pair] at h` *first*; pass `L`/`CL`/`DI` explicitly; `rw
+[scanLineLoop.eq_def]` (that loop's closing arm matches `(LinePayload, UInt8)`
+with overlapping literal patterns, so its plain equation lemmas carry side
+conditions); the literal-constant recipe task #86's byte arrays made possible;
+and `b.length` vs `b.val.length` as **different `omega` atoms**, which silently
+breaks every recursive arm under a `first | … | …` with the last alternative's
+unrelated error.
+
+**Three intermediate definitions were needed, out of three the maintainer
+pre-authorised — and none of them was the one expected.**  `litFrom`
+(`ScanKit`), because `keyAt` compares a key's tail against the unrolled
+`lit1`…`lit10` chains, task #264's "no string constant materialised", where the
+port spells the same compare as one `match_lit` against a `[u8; N]`;
+equivalence `matchLit_eq_litFrom`.  `slotNat` (`ScanKit`), con-leche's inline
+`Nat`-slot chain written out so an object loop unfolds onto its twin's three
+arms.  `parseBytesFinal` (`ChunksR`), con-leche's last-line fragment, because
+`parseBytes` inlines it where §3.4 forces the port to factor it out;
+equivalence `parseBytes_eq`, `rfl`.  **The binder pair needed none**: the
+port's one `scan_binder_expr_loop(b, i, lam)` against con-leche's *two* loops
+is one induction concluding `if lam then scanLamExprLoop … else
+scanForallExprLoop …`, with the two per-value statements falling out.
+
+#### 8. What each file owes, and to whom
+
+The tier is deliberately stated as a lattice of **named** hypotheses rather
+than one big assumption, so that at any moment the question *"what is still
+owed?"* has a finite, checkable answer.  At the end of this task:
+
+| record | owner | fields | state |
+|---|---|---|---|
+| `ScanLineIngredients` | `ScanLine` | 17 | all but `scan_string` discharged; `scan_string` carries `Utf8DecodeSpec`/`UnescapeSpec` |
+| `ScanObj.KitFacts` | `ScanObj` | 3 | **discharged** (`kitFacts`, once `key_at_refines` landed) |
+| `ScanObj.ScanStringFacts` | `ScanObj` | 1 | = `scan_string_refines`, i.e. the two above |
+| `ScanStr.Utf8DecodeSpec` / `UnescapeSpec` | `ScanStr` | 2 | **discharged** (§22) — `utf8_decode_spec`, `unescape_spec` |
+| `PrepareR.HoistSpec` | `PrepareR` | 1 | **discharged and deleted** (§18) — `hoist_targets_refines` |
+| `StateDR.NatValSpec` | `StateDR` | 1 | **discharged** by `from_decimal_ok` + `from_decimal_refines` |
+| `IndR.IndRSpec` | `IndR` | 3 | **discharged** (§23, §24) — all three clauses are theorems, modulo the two modeller promises |
+| `ChunksR.ParseIngredients` | `ChunksR` | 6 | 5 and 6 discharged; 1-3 are `ScanLine`'s, 4 is `IndR`'s |
+
+`ScanKit.lean` (3 082 lines), `ScanExpr.lean` (1 369), `ScanInd.lean` (2 156),
+`StateDR.lean` (2 745) and `ChunksR.lean` (1 775) carry **no hypothesis at
+all** — every lemma in them is proved outright.
+
+**Two phase-1 gaps this tier found**, both of the same kind: phase 1 could
+afford to ignore a field that phase 3 cannot.
+
+* **`LineRecStrWF` / `DeclRecStrWF`.**  `Base.lean`'s `LineRecWF` gives a
+  `Decl` record no clause, on the grounds that the `safety` and `quotKind`
+  *spellings* are compared with literals and never become a `Name`.  Right for
+  well-formedness; **wrong for exactness** — `absString` sends an invalid code
+  point to `'\0'`, so without `StrWF` the port's `text::cps_beq` against
+  `SAFE`/`"type"` can disagree with con-leche's `String` match **in the
+  rejecting direction**.
+* **`NatValSpec`.**  Phase 1 needed nothing of a `natVal` literal's digits;
+  phase 3 needs both that `from_decimal` computes `natOfDigits` *and* that it
+  never fails on them, the second because the port's `BadNatVal` would
+  otherwise claim con-leche rejects a literal it accepts — the same shape as
+  the `IndexOverflow` bug of §4.  Both halves are now proved, and the second
+  cost five loop-completeness lemmas.
+
+#### 9. Method, measured
+
+**The task-#71 `rust_norm`/`rust_grind` idiom was used on no lemma of this
+tier**, and that is a considered result rather than an omission.  Phase 1
+measured it 3.6× *faster* than a hand proof on `parse_rule_d_wf`, whose
+conclusion is one `ExprWF` constructor application; a phase-3 goal is an
+**equation between two `do` blocks** plus an `∃ s, x = .error s`, which needs a
+con-leche-side equation per arm rather than a `use` lemma.  One agent measured
+it directly on the smallest dispatch in the tier: `rust_norm` peels the binds
+and splits to exactly the goals the hand proof reaches, and then `rust_grind`
+**fails outright**, because nothing in the scanner's vocabulary (`ScanSim`,
+`absBytes`, `byteAt`, `matchLit`, `absPos_add_one`) is keyed for `grind`.
+Making it work is a keying campaign, not a per-lemma choice — and the hand
+proofs are fifteen lines each.  `Refine/README.md` §Scope already put byte
+loops and list folds outside the idiom; this tier is the measurement behind
+that line.
+
+Elaboration, per file, on a shared machine: `ScanKit` 31.3 s (3.2 GB peak,
+single-threaded — `key_at_refines`'s thousand mechanical lines are 19 first
+bytes → 44 lengths → 66 literals, each leaf closed by the same two-tactic
+macro), `ScanObj` 11-21 s, `ScanInd` 5.5 s, `ScanExpr` 4.3 s, `StateDR` 3.9 s,
+`ChunksR` 4 s, `PrepareR` 4.8 s, `Main` 2.3 s.
+
+#### 10. Where the ledger stands
+
+`scripts/gates.sh`: **all nine OK.**
+
+```
+Verified core (ConLeche/Kernel, ConLeche/Cached)  to translate 14 077  translated 100%  verified 92%
+Parser in the core (ConLeche/Frontend, task #84)  to translate  4 441  translated 100%  verified 56%
+Cherries (InModel, ExportWrite, Main.lean)        to translate  2 975  translated 100%  verified  0%
+Rust core 85 131 lines (1 845 fns) | unverified crates 11 139 | generated Lean 76 260 | proofs 180 901 (1 586 _refines) | pin c431b1ca
+LoC: upstream 18 495 | rust 49 706 | generated 73 328 | proof 180 275
+     ratios rust/up 2.69  gen/rust 1.48  proof/rust 3.63  proof/up 9.75
+```
+
+**The parser row moved 0 % → 56 %**, which is the number this task existed to
+move: it counts `theorem <fn>_refines`, refinement against con-leche, and at
+task #86 it was zero because phase 1 wrote `_wf` lemmas about the port alone.
+The proof grew from 154 709 to 180 901 lines — **26 192 new lines**, 13 files —
+and the tier is `sorry`-free throughout.
+
+**One environment finding that cost several agents an hour between them**, and
+it is worth CLAUDE.md's attention.  CLAUDE.md's *"always `ulimit -v`"* is a
+rule about a runaway **checker**; applied to `lake build` on this 96-core
+machine it is actively harmful, because `lake` fans out one `lean` per core and
+each reserves address space for its own thread pool, so any limit below about
+40 GB makes Lean die with *"failed to create thread"* — an error that looks
+like a proof failure and is not.  What works: `ulimit -v 400000000` for a
+`lake build` fan-out, and `ulimit -v 100000000` with
+`lake env lean --threads=4` for a single file.  Resident use stays small under
+both; the limit that matters for the machine is RSS, and virtual-address
+reservations are not it.
+
+#### 11. Named cleanups, deliberately not done today
+
+Each of these was measured or reasoned about and left, with the reason:
+
+* **`absProjRecOwner` should move down into `Refine/Frontend/Abs.lean`.**
+  `StateDR.lean` needs it for `StateDRel` and `ProjRecR.lean` defines it, but
+  `ProjRecR.lean` imports the whole inductive tier, so making the parser's
+  *base* file import it would put `StateDR` above `IndModeled`/`IndSumInstall`
+  — 2 179 build jobs, two of them at the memory ceiling.  Measured, not
+  guessed.  The two definitions are `rfl`-equal meanwhile, so nothing is
+  unsound; `Abs.lean` is the right home and both files already import it.
+* **`cps_beq`'s loop and refinement exist twice**, in `IndR.lean` and as
+  private copies in `ProjRecR.lean`, for the same import reason.  Merge when
+  the files meet.
+* **`ron::nat::norm`'s three always-succeeds lemmas** (`sig_len_ok`,
+  `copy_from_ok`, `norm_ok`) are `private` in `ScanStr.lean` and belong in
+  `Refine/Nat.lean`; moving them mid-task meant rebuilding everything
+  downstream of `Nat.lean` while nine agents were iterating.
+* **`export_c::ctor_index_of`'s doc comment mis-cites `HashMap.insertIfNew`**
+  where the code is a `contains_key` guard.  A provenance defect, left because
+  a comment edit moves `provenance.py`'s citation lines under every agent in
+  flight.  The maintainer may also prefer to make the Rust match con-leche
+  literally (last-wins); §4's ruling was to prove around it instead, and that
+  proof is the better artefact either way.
+* **The tier's two orientations are crossed**: `ScanKit` states refinements
+  port-on-the-left (`absPos e = keyEnd …`) while `ScanObj.KitFacts` is
+  con-leche-on-the-left, and `ScanObj.dup_val` reads `scan_fast::dup` on
+  con-leche's side where every slot loop wants the port's.  It cost a `.symm`
+  here and a four-line `dup_port` there.  Worth one ruling before the next
+  tier rather than after.
+* **`rust_norm h with ⟨…⟩`**, a naming form for the normaliser's introduced
+  witnesses.  Task #85 §8 asked for it because counting 7-23 binders off the
+  end of a context is brittle; this task found the sharper reason — **the
+  binder count is not stable across imports**, so adding one `import` can
+  change an `obtain`'s arity and break a green proof with no visible cause.
+
+#### 12. `scan_line_fwd_tail`: the lemma that pays for `IndexOverflow` in the *accept* direction
+
+The `IndexOverflow` port bug of §4 was the error direction.  There is a second,
+subtler obligation in the **accept** direction, and it is the one field of
+`ParseIngredients` that was not in this task's original plan:
+
+```lean
+scan_line_fwd_tail : ∀ b i e, scan_line_fwd b i = ok (.Err e) → newline_from b i = ok false →
+  (∃ le, scanLineFwd (absBytes b) (absPos i) = .err le) ∨
+  (∃ r, scanLineFwd (absBytes b) (absPos i) = .ok r 0)
+```
+
+`feed_chunk` treats a reader failure with no newline ahead as an *incomplete
+tail* rather than an error, and carries the bytes into the next chunk.  For
+that to be con-leche's behaviour too, con-leche's reader must also decline
+those bytes — and a port-only `IndexOverflow` would otherwise be a place where
+the port carries on and con-leche does not.
+
+**The proof turned out not to need the port's failure at all.**  *"No newline
+at or after `i`"* alone forces con-leche's reader to fail or to answer `0`,
+because every accepting exit of `scanLineFwd` is one past a newline it has
+read.  So the lemma is a fact about con-leche alone, which is why it holds of
+`IndexOverflow` — exactly the tag it exists to pay for.  Its ingredients:
+`skipWs_ge` (the twin of `ScanKit.skip_digits_ge`), `newlineFrom_false`, and
+**`scanLineLoop_ge`** — *the line loop does not move the cursor backwards* —
+which con-leche's own `noProgress` guard gives directly in every arm, with no
+sub-scanner monotonicity needed.
+
+**One tactic finding worth the record.**  `split at h` on `scanLineLoop`'s body
+dies with *"`simp` failed: maximum number of steps exceeded"* — the term is too
+big for `Split.simpMatch`.  What works is **`fun_induction scanLineLoop …`**,
+which hands back each case with the call already reduced to that branch; it is
+how con-leche's own `Scan/Equiv.lean` drives the same function, and the whole
+124-case induction then closes with one twelve-line `all_goals first | … ` in
+2.2 s.  (Also: `ScanRes.noConfusion h` does not elaborate here — it unifies at
+`Eq.{2}` — where `exact absurd h (by simp)` does.)
+
+The same agent then found that **`apply_line_refines`' third obligation had the
+same hole**: `LineNatValSpec` reduces to `ExprRecDigits`, which
+`scan_quoted_nat_digits` proves of the scanner, but nobody had walked it to the
+line.  `scan_line_fwd_digits` does.  So all three of `apply_line_refines`'
+record-provenance obligations now have a source — `scan_line_fwd_wf`,
+`scan_line_fwd_str_wf`, `scan_line_fwd_digits` — and the shape of the omission
+was the same each time: *phase 1 could ignore a field that phase 3 cannot*.
+
+**An operational note for the next multi-agent task.**  `lake build` is
+**unsafe in a shared worktree**: it deletes another agent's `.olean` when that
+agent's work-in-progress is red, and the victim sees a spurious *"object file
+does not exist"*.  `lake env lean --threads=4 <file>` is what agents should
+use; only the coordinator should run `lake build`, and only when the tree is
+quiet.
+
+#### 13. The install path, and a relation that was too strong
+
+`Refine/Frontend/IndInstallR.lean` (1 835 lines, zero `sorry`) proves
+`export_c`'s install path against `ExportC.lean:323-628`: `push_gen_d`,
+`note_gen`, `note_gen_names`, `push_gen_list`, `in_model_rec::wants`,
+`register_proj_owners` with its four helpers, `ind_block_of` with its three,
+`note_ind_blocks`, and the capstone **`install_ind_d_refines`**, restated as
+`indRSpec_installInd` in the shape `IndR`'s `IndRSpec.installInd` asks for.
+
+**One design error this file caught, and it was ours rather than the port's.**
+`StateDRel.inModelDeclined` compared the census decline's *message* as well as
+its block name, while the modeller hypothesis `ModellerRefines` deliberately
+does not compare a decline's text.  So `installIndD`'s census arm could not
+re-establish the relation, and the agent bridged it with an extra hypothesis.
+**The ruling was to weaken the relation, not to strengthen the hypothesis**:
+DESIGN.md §3.1 has said since task #1 that the theorem does not read messages,
+and the whole tier honours it — `LineErrSim` and `ErrSim` compare kinds,
+`rebound_error` carries no lemma at all.  A decline *reason* is a message like
+any other.  `inModelDeclined` now compares block names only, and the extra
+hypothesis is gone.  It is worth recording as the one place where a *relation*,
+not a proof, was the thing that had to give.
+
+Three smaller decisions, each documented in the file:
+
+* **No standalone `install_gen_refines`.**  con-leche writes `install_gen`'s
+  body inline in `installIndD` with the post-`note_ind_blocks` state
+  substituted field by field — Lean zeta-reduces the two `{st with …}` updates
+  and duplicates `pushGenList` eighteen times — so a standalone statement would
+  have to re-spell that state and buy nothing.  Proved inside the capstone.
+* **No lemma for `in_model_decline`**: it renders a message, and messages are
+  never compared; only that the outcome is a `Declined` at the same
+  `VerdictKind`.
+* **One WF lemma had to be written in a phase-3 file**
+  (`block_rec_of_type_names_wf`).  Phase 1 gives block records no clause,
+  because `ModellerWF` is unconditional in its argument; exactness needs the
+  `ind_blocks` insert to know its *key* is a well-formed name.  A fourth
+  instance of §8's pattern.
+
+**No port bug.**  Two shape differences checked and benign: the port writes
+`proj_owners` unconditionally where con-leche's `match` sends `[] ⇒ pure st`
+(a `foldl` over `[]` is the identity), and the port simply has no `inModelGen`.
+
+Mechanics worth keeping, from this file alone: a structure instance
+`{ lst with f := …` **must keep the start of the field's value on the same line
+as `f :=`**, or the parser stops at the newline with *"unexpected token '(';
+expected '}'"*; `cases h : x` substitutes in the goal but **not** in
+hypotheses; `simp` in this build does not reduce `Except` binds, so a
+type-ascribed `have` is needed to force the defeq first; and `simp only
+[bind_eq_ok_iff] at h` peels *every* bind down to the next blocking `match`, so
+a later repeat errors with "made no progress".
+
+#### 14. `ParseIngredients` instantiated: the parse's residue is three named `Prop`s
+
+The ingredient record `parse_chunks_refines` takes was, as first written,
+**uninstantiable**: its `apply_line` field carried no record-provenance
+hypothesis while the lemma that discharges it,
+`IndR.apply_line_refines`, needs three (`LineRecWF`, `LineRecStrWF`,
+`LineNatValSpec`).  Nobody could have built the record.  That is the kind of
+error a `Spec`-shaped residue invites and the reason to instantiate one rather
+than admire it.
+
+Fixed by adding the three hypotheses to `apply_line` and **three scanner
+fields feeding them**, all keyed on the same
+`scan_line_fwd b i = ok (.Ok (r, j))` the caller already has in hand —
+`scan_line_fwd_wf`, `scan_line_fwd_str_wf`, `scan_line_fwd_nat_val`, sourced
+from `ScanWF.scan_line_fwd_wf` and §12's two new lemmas.  `ParseIngredients` is
+nine fields, and **all nine are discharged**:
+
+```lean
+theorem parseIngredients (hu : Utf8DecodeSpec) (hun : UnescapeSpec)
+    (hsp : IndRSpec inst g) :
+    ParseIngredients (fun st lst => StateDRel st lst ∧ StateDWF st) inst g
+```
+
+with `parse_chunks_refines_of_specs`, `parse_chunks_refines_err_of_specs` and
+`builtin_prelude_e_refines_of_specs` at it, each censused at the three standard
+axioms.  **So the residue in front of the port's streaming parse is exactly
+three named `Prop`s**: `Utf8DecodeSpec` and `UnescapeSpec` (the string tier)
+and `IndRSpec` (`projRewrite`, `validateInd`, `installInd`).  Nothing else.
+
+Two details worth keeping.  `ApplyLineSim (fun st lst => StateDRel st lst ∧
+StateDWF st)` is **definitionally** `StepOutV` on all three arms, so
+`apply_line_refines` transports into the field with no glue — the two
+vocabularies, written a day apart by different agents against agent D's
+`StateDR.lean`, turned out to be the same thing.  And the import the fix needs
+(`ScanLine` + `IndR` into `ChunksR`) costs **8 modules and no Mathlib**,
+measured at 3.27 s → 3.30 s elaboration: `IndR` does not pull `ProjRecR`, so
+§11's 2 179-job figure does not apply here.
+
+#### 15. The projection rewrite, complete
+
+`Refine/Frontend/ProjRecR.lean` (3 466 lines, zero `sorry`) covers **every
+function** of `crates/con-ron-core/src/frontend/proj_rec.rs` — checked
+mechanically against the module's `fn` list — with two capstones,
+**`proj_rec_value_refines`** (`ProjRec.lean:242-330`) and
+**`proj_rec_owners_refines`** (`:332-370`, the owner census), both censused at
+the three standard axioms.  **No port bug; every strengthening held.**
+
+Its five exports are what `StateDR.ProjRecSpec` names, and they now land **by
+name**:
+
+```lean
+theorem projRecSpec_holds : ProjRecSpec where
+  lamBody := lam_body_refines ; isProjIotaName := is_proj_iota_name_refines
+  projIotaLevel := proj_iota_level_refines ; projIotaName := proj_iota_name_refines
+  projRecValue := proj_rec_value_refines
+```
+
+Getting there meant restating two lemmas to carry their `WF` conjunct and the
+consumer's binder order — which is the lesson: **a `*Spec` field's shape is
+part of the interface**, and the file that proves it should be written against
+the consumer's spelling rather than leave the consumer to adapt.  Two agents
+lost a round trip each to binder order before this was said out loud.
+
+Three mechanics from the file, each costing a debugging round:
+
+1. The generated `proj_rec_owner_at` has a destructuring `let (_, e) := b`
+   that does **not** reduce under `dsimp only`, `simp only []`,
+   `Prod.mk.eta` or `split at h`.  What gets past it is unification-driven
+   whnf: `bind_eq_ok_iff.mp h`, or `Result.ok_injective h`.
+2. `obtain ⟨…, h⟩ := bind_eq_ok_iff.mp h` leaves the previous `h` as an
+   *inaccessible* hypothesis, and a later `cases` on a variable it mentions
+   then dies with *"dependent elimination failed"* on the coinductive
+   `Result`.  `simp only [bind_eq_ok_iff] at h` then `obtain … := h` clears it.
+3. `simp only [absProjTypeRec]` on a goal containing `guard c` rewrites `c`
+   but **not** the `Decidable c` instance argument, after which
+   `rw [guard_opt_pos/neg]` cannot unify.  Leave the guard's proposition
+   un-normalised.
+
+And one measurement against the idiom, from the agent that tried it: on
+`proj_rec_owner_at`, `rust_norm` splits into a goal per path (about twelve)
+with the con-leche side to rebuild on each, where **factoring the shared tail
+into one lemma stated over the generated `do` block verbatim** — which `exact`
+accepts up to defeq — was much cheaper.  That is the third independent
+measurement in this task of the same conclusion.
+
+#### 16. `IndRSpec` discharged: the parse's residue is the string tier and the modeller
+
+`Refine/Frontend/IndSpecR.lean` is the tier's assembly point — the one file
+that imports every other and builds the records the layers below state their
+lemmas against:
+
+```lean
+theorem projRecSpec : ProjRecSpec            -- five fields, from ProjRecR
+theorem installSpec : InstallSpec            -- from StateDR and ProjRecR
+theorem indRSpec (hmw : ModellerWF inst g) (hmr : ModellerRefines inst g CtxRel)
+    (hv : ValidateIndRefines) : IndRSpec inst g where
+  projRewrite … := proj_rewrite_d_refines projRecSpec …
+  validateInd  … := hv …
+  installInd   … := indRSpec_installInd hmw hmr installSpec …
+```
+
+and the three `ChunksR` corollaries restated at it.  So the chain from the
+port's bytes to `parse_chunks_refines` now bottoms out in exactly:
+
+* **`Utf8DecodeSpec` and `UnescapeSpec`** — the string tier's two, about
+  `utf8_decode`/`unescape` against `String.fromUTF8?`/`unescape`;
+* **`ModellerWF` and `ModellerRefines`** — the two promises about the
+  *unverified modeller*, which is the residue task #84's seam deliberately
+  left and which disappears the day upstream drops it;
+* **`ValidateIndRefines`** — `validate_ind_d`, still in flight.
+
+Everything else between `scan_line_fwd` and `parseChunks` is proved.  That is
+the shape the task was aiming at: the parse's assumptions are a short list of
+*named statements about named functions*, not a hole.
+
+#### 17. The headline, restated at the named assumptions
+
+`conron.no_False_declaration` no longer takes an opaque nine-field record.  Its
+parse hypotheses are now the four `Prop`s §16 named, each about a named
+function:
+
+```lean
+theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
+    (hgen : Frontend.ModellerWF inst g)
+    (hu : Frontend.Utf8DecodeSpec) (hun : Frontend.UnescapeSpec)
+    (hsp : Frontend.IndRSpec inst g) (hspec : Frontend.HoistSpec)
+    (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+    (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
+    (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
+    (hparse : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Ok r))
+    (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
+    (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+    False
+```
+
+with `conron.no_False_declaration_prelude` the same at the shipped prelude, and
+both still pinned at `[propext, Classical.choice, Quot.sound]`.
+
+That is the difference between a headline that *has* a residue and one that
+*names* it.  A reader can now check the assumption list against the tier
+without opening a proof: two facts about the scanner's UTF-8 decoder, three
+about the inductive install path, one about the ground hoist, and the
+modeller's own promise — the residue task #84's seam left on purpose.
+
+#### 18. The hoist's target pass: the last record hypothesis, proved
+
+§5 stopped at one field.  `hoist_targets` — the pass that decides which ground
+`Nat` records get hoisted and where to — is the port's explicit `Vec` worklist
+with a `ron::HashMap` seen-table where con-leche writes one `Id.run do` with
+three `for`s and a `while`, and the port's loop *has no decreasing measure in
+the Aeneas model*: the stack pointer `sp` goes up as well as down.  That is
+why §5 recorded it as `HoistSpec.targets` rather than faking it.
+
+It is now the theorem
+
+```lean
+theorem hoist_targets_refines (hds : ∀ d ∈ ds.val, DeclarationWF d)
+    (h : frontend.nat_op_ground.hoist_targets ds = ok t) :
+    HoistTargetRel t (ConLeche.Frontend.hoistTargets (absDecls ds).toArray) ∧
+      HoistBounded (ConLeche.Frontend.hoistTargets (absDecls ds).toArray) ds.val.length
+```
+
+and the `HoistSpec` structure is **deleted**.  `prepare_prelude_refines` is
+therefore hypothesis-free apart from well-formedness (`PreludeIxWF pre` and
+`∀ d ∈ ds.val, DeclarationWF d`), and the headline lost a hypothesis:
+`conron.no_False_declaration` and its prelude twin now read
+
+```lean
+theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
+    (hgen : Frontend.ModellerWF inst g)
+    (hu : Frontend.Utf8DecodeSpec) (hun : Frontend.UnescapeSpec)
+    (hsp : Frontend.IndRSpec inst g)
+    (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+    (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
+    (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
+    (hparse : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Ok r))
+    (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
+    (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+    False
+```
+
+— three named parse assumptions and the modeller's promise, both censuses
+still `[propext, Classical.choice, Quot.sound]`.  §17's block and §8's
+`HoistSpec` row are superseded by this one.
+
+**The escape hatch, and why it is not one.**  con-leche's `hoistTargets` is a
+single `do` block, so there is nothing to induct against function by function.
+The file restates it as one definition per loop — `hoistIdxNames`, `hoistIdx`,
+`hoistPushDeps`, `hoistClose`, `hoistTargetsAt`, `hoistTargetsGo` — and proves
+
+```lean
+theorem hoistTargets_split : ConLeche.Frontend.hoistTargets ds =
+  hoistTargetsGo ds (hoistIdx ds (List.range' 0 ds.size) {}) (List.range' 0 ds.size) {}
+```
+
+by `simp only [… forIn_eq_forIn_range' …]; rfl`.  The split is *definitional*:
+those `forIn`s **are** these definitions, so the restatement assumes nothing.
+The `while` is the exception — `hoistClose` is literally `Lean.Loop.forIn`, a
+`partial` fixpoint, so it gets only a one-step unfolding `hoistClose_eq` (from
+`Lean.Loop.forIn_eq_of_monadTail`, which needed the one new import,
+`Init.Internal.Order.While`).  **Nothing claims con-leche's loop terminates**:
+the port's own `= ok` run is the witness, and both sides are unfolded in
+lock-step.
+
+**The measure.**  The induction is lexicographic and done without any product
+measure or nonlinear arithmetic: a strong induction on the *undone* count
+`undone s i n = ((List.range n).filter (!targetDone s i ·)).length` — a turn
+that targets a record inserts `k ↦ i`, which makes `k` done forever and changes
+no other position (`undone_insert_lt`, via `HashMap.support` and
+`Std.HashMap.size_insert`) — inside which an ordinary induction on the port's
+`sp` handles the turns that only pop.  `HoistBounded` (every key and value
+below `ds.len()`) rides the same induction, which is what discharges
+`apply_hoist`'s standing requirement at its one call site.
+
+**Inventory** (all in `Refine/Frontend/PrepareR.lean`, +1 628 lines, no
+`sorry`, whole-file elaboration 5.5 s → 8.1/8.4/8.8 s over three runs at
+`--threads=4`): `used_consts_go_refines`, `ruleBody`/`blockBody`/
+`usedConsts_indDecl`, `block_used_consts_loop0_loop0_refines`,
+`block_used_consts_loop0_refines`, `block_used_consts_refines`,
+`decl_used_consts_refines`; `absDecls_getElem!`, `idx_new`/`idx_contains`/
+`idx_insert`, `hoist_name_index_loop0_loop0_refines`,
+`hoist_name_index_loop0_refines`, `hoist_name_index_refines`, `HoistIdxBounded`
+with `hoistIdxNames_bounded`/`hoistIdx_bounded`; `stack_push_u64_take`,
+`hoist_push_dep_refines`, `hoist_push_deps_loop_refines`,
+`hoist_push_deps_refines`, `hoistPushDeps_bounded`; `targetDone`, `undone`,
+`filter_length_le`/`_lt`, `undone_insert_lt`, `tgt_insert`, `stack_top`,
+`bind_triple_eq_ok_iff`, `hoist_close_step_done`, `hoist_close_step_push`,
+`hoist_close_loop_refines`, `hoist_close_refines`; `tgt_new`,
+`hoist_targets_one_refines`, `hoist_targets_at_loop_refines`,
+`hoist_targets_at_refines`, `hoist_targets_loop_refines`,
+`hoist_targets_refines`.
+
+Every one is a hand proof in phase 1's forward style (`= ok` →
+`bind_eq_ok_iff` → the arms); the task-#71 `rust_norm`/`rust_grind` idiom was
+tried and used on **none** of them — `Vec` loops and list folds are outside its
+measured scope, which is now the fourth independent measurement of that limit
+in this task.
+
+**No port bug.**  `hoist_targets` agrees with `hoistTargets` on every
+well-formed input including every tie-break: `acc`'s push order in
+`used_consts_go`, the top-of-vector discipline of `hoist_close`'s stack, and
+"first declarer wins" in `hoist_name_index`.  The only deviations are the ones
+already paid for — the `Vec`/`usize` failure channel, about which the relation
+claims nothing, and the `u64`↔`usize` casts, which succeed because every index
+is a stream position.
+
+#### 19. The verification method had a hole: `lake env lean` drops the package's options
+
+Worth recording because it invalidated a morning of single-file checks and
+would have gone unnoticed if the port bug of §20 had not forced a full rebuild.
+
+`proof/lakefile.toml` sets two options project-wide:
+
+```toml
+[leanOptions]
+weak.backward.isDefEq.respectTransparency = false
+weak.backward.do.legacy = true
+```
+
+**`lake env lean FILE.lean` does not apply them.**  `lake env` puts the
+package's `LEAN_PATH` in the environment and nothing else; `leanOptions` are a
+*build* setting, passed by `lake build` on the `lean` command line.  So the
+single-file command every agent in this task used to verify a file green was
+elaborating it under different options than the gates do.
+
+It bit exactly once, and hard.  `PrepareR.lean`'s `hoistTargets_split` (§18) is
+`rfl` only if the file's six mirror definitions elaborate their `forIn`s the
+way con-leche's `hoistTargets` did — and `backward.do.legacy = true` changes
+`do`-notation elaboration, while the `con-leche` package does not set it.  The
+file passed a bare `lake env lean` all morning and failed the moment
+`lake build` reached it, with `Tactic 'rfl' failed` and three `#guard_msgs`
+censuses newly carrying `sorryAx` (the error's own artefact).  The fix is to
+elaborate the mirrors the way the thing they mirror was elaborated:
+
+```lean
+section
+set_option backward.do.legacy false
+…the six mirrors and hoistTargets_split…
+end
+```
+
+**The rule, for every future task.**  A single-file check is
+
+```
+ulimit -v 100000000 && lake env lean --threads=4 \
+  -Dweak.backward.isDefEq.respectTransparency=false \
+  -Dweak.backward.do.legacy=true FILE.lean
+```
+
+and a file is not green until it has been checked that way — most sharply for
+any step that closes by `rfl`, `decide`, or definitional unfolding through a
+`do` block or a `forIn`, which is where the two elaborations part company.
+Everything else in the tier was unaffected: the same full `lake build` found
+no other failure.
+
+#### 20. The second port bug: `ctor_index_of` was first-wins
+
+Found by the refinement of `validateIndD`, and the better of the task's two
+findings because proving around it was impossible rather than merely ugly.
+
+`export_c::ctor_index_of` built its name → record-index map with the insert
+guarded by `contains_key`, i.e. **first record wins**, and said so in a doc
+comment citing `HashMap.insertIfNew`.  con-leche
+(`ExportC.lean:465-467`) folds with `Std.HashMap.insert`, which **overwrites**:
+last record wins.  con-leche has no `insertIfNew` there; the comment cited a
+call that does not exist.
+
+Earlier in this task the coordinator ruled *prove around it* — on the argument
+that a repeated constructor name makes both sides leave through
+`.inl (.invalid …)`, so the map's tie-break could not be observed.  **That
+argument has a hole**, and the agent refining `validateIndD` found the witness:
+
+> `listed = [[a, b]]`, so `flat = [a, b]` is `Nodup` and `flat.length = 2`;
+> `cts = [c0 named a, c1 named a]`, so `flat.length == cts.length` passes too.
+> Both earlier guards are therefore cleared, and `ctorNames = [a, a]`.  At the
+> name `a` the port runs `checkOneCtor` on `c0` and con-leche on `c1`.  If
+> `c0.cv.ty` is an unknown expression index and `c1`'s is known, the port
+> returns `.Err (.Msg …)` — `get_decl_d` failing — while con-leche runs on to
+> `b`, finds no constructor of that name, and returns
+> `.ok (.inl (.invalid "No such constructor b"))`.
+
+`ValidateOut` demands `∃ s, x = .error s` in that case, so the clause is false
+on that input.  Both sides reject the file, but for different reasons and
+through different channels, which is precisely what the full-outcome relation
+exists to rule out.
+
+**The ruling: change the Rust.**  The two alternatives were worse.  Weakening
+`ValidateOut` to let a port `Msg` match a con-leche `.invalid` gives up the
+error *kind*, which is half of what §3's full-outcome convention asserts, and
+the weakening would leak into `LineOutV` and every arm that has nothing to do
+with this bug.  Adding a well-formedness clause "constructor records carry
+distinct names" is worse still: the records come from the *input file*, so
+nothing downstream could discharge it and it would put a hole through
+`no_False_declaration` itself.  A one-line divergence caused by a wrong doc
+comment does not justify either.
+
+The insert is now unconditional, the comment says what con-leche does, and the
+extracted `ctor_index_of_loop` loses its `contains_key` branch and becomes a
+one-to-one mirror of the `foldl`.  240 core tests and the fixtures are green;
+nothing else in the model moved.  This is the task's second Rust change, after
+§11's `IndexOverflow`-rendered-as-`Internal`, and both were found by a proof
+and nothing else.
+
+#### 21. Where the headline ended up
+
+All four of the `Prop`s §17 displayed fell during the day (the fourth,
+`IndRSpec`, only at the very end — §24), so the final statement —
+`Refine/Main.lean`, both twins — is
+
+```lean
+theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
+    (hgen : Frontend.ModellerWF inst g)
+    (hmr : Frontend.ModellerRefines inst g Frontend.CtxRel)
+    (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+    (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
+    (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
+    (hparse : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Ok r))
+    (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
+    (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+    False
+```
+
+with `conron.no_False_declaration_prelude` the same at
+`frontend::prelude::builtin_prelude_e`, both pinned by `#guard_msgs` at
+`[propext, Classical.choice, Quot.sound]`.
+
+Both remaining hypotheses are about the same thing, and neither is phase 3's to
+discharge.  The in-process modeller is a `Modeller G` **argument**, unverified
+by construction — task #84's seam, and the residue the maintainer accepted
+then.  `ModellerWF` is the promise that every declaration `generate` returns is
+well formed; `ModellerRefines` is the promise that when it declines, it
+declines where con-leche's modeller declines.  They go when the modeller does,
+not before.
+
+So the honest reading of the headline at the end of task #87 is: *everything
+between the bytes and con-leche's `parseChunks` is proved, and what is left is
+the modeller the port does not verify.*
+
+#### 22. The string tier's two, and the encoder trick that made them cheap
+
+`Utf8DecodeSpec` and `UnescapeSpec` — the last two of the scanner tier's named
+`Prop`s — are now the theorems `utf8_decode_spec` and `unescape_spec` in
+`Refine/Frontend/ScanStr.lean`.
+
+**The decision that made `Utf8DecodeSpec` tractable: never reason about the
+toolchain's decoder.**  `ByteArray.utf8DecodeChar?`, `parseFirstByte` and
+`assemble₁..₄` are `BitVec`-level and fighting them is hopeless.  But
+`String.fromUTF8?` is *defined* through `ByteArray.IsValidUTF8 b ≡ ∃ l : List
+Char, b = l.utf8Encode`, and `String.utf8EncodeChar` (`Init/Prelude`) is plain
+`Nat` division and modulus.  So the whole bridge is the **encoder**, and every
+branch of the port's five-way lead-byte switch closes with `omega`.  The
+inventory under it: the byte window `win`/`winB`/`chars` with
+`win_nil`/`win_cons`/`win_length`/`win_getElem(?)`/`win_clamp`; the three facts
+about `String.fromUTF8?` (`fromUTF8_win`, `fromUTF8_win_none`,
+`winB_valid_iff`, `utf8Encode_toByteArray`, `toByteArray_append`); the four
+encoded shapes and their converses (`char_valid`, `enc_cases`,
+`enc_mk1..enc_mk4`); the claim relation `DecClaim` with `claim_stop`,
+`claim_step`, `claim_stuck`, `win_lead`, `win_not_valid`, `win_enc1..win_enc4`;
+the bit plumbing (`cast32_lift_val`, `and31/and15/and7`, `or_add64/4096/262144`,
+`sh6/sh12/sh18`, `ushl32_6/12/18`); and `utf8_decode_loop_spec`, which needs
+`maxHeartbeats 2000000` for its five lead-byte classes.
+
+**`UnescapeSpec` did not need the escape hatch it was granted.**  The brief
+pre-authorised an intermediate `unescapeBytes` definition for con-leche's
+two-pass `unescape`; it went unused, so **all three of task #87's authorised
+escape hatches are unused** and the only intermediate definitions in the tier
+are §18's do-block mirrors.  The trick was to state the loop lemma with
+con-leche's closing `String.fromUTF8?` already moved onto the port's
+accumulator —
+
+```lean
+unescape (absBytes b) (absPos j) (absPos e) (absChunk acc)
+  = (o.map absChunk).bind String.fromUTF8?
+```
+
+— which *is* the port's own second pass, so `utf8_decode_spec` closes it at the
+top.  `hex4_lt` (four hex digits are `< 0x10000`) is what makes a `\uXXXX`
+escape a scalar value for `utf8_of_refines`.
+
+**No port bug.**  The port's decoder agrees with `utf8DecodeChar?` exactly,
+including the two places the shapes differ superficially: at lead bytes
+`0xC0`/`0xC1` the port rejects on its `< 194` test while Lean calls them
+`oneMore` and rejects via the overlong check; at `0xF5..0xF7` the port rejects
+on `< 245` while Lean calls them `threeMore` and rejects via the
+out-of-range check.  Both give `none`.
+
+**One tactic note worth carrying forward**, and it is the same lesson the
+inductive tier learned independently: `split at h` on a large Aeneas do-block
+blows the simp step budget ("maximum number of steps exceeded").
+`by_cases hc : <cond>` followed by `rw [if_pos hc] at h` / `rw [if_neg hc] at h`
+is the reliable form and it flattens the nesting as a side effect; `split at h`
+is fine once the remaining term is small.
+
+#### 23. The inductive validator, and a second way to mirror a `do` block
+
+`validateIndD` is the largest single function in con-leche's frontend and the
+last of `IndRSpec`'s three clauses.  `Refine/Frontend/IndValidateR.lean` (2 239
+lines, no `sorry`) proves
+
+```lean
+theorem validate_ind_d_refines (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.validate_ind_d st tys cts rcs = ok o) :
+    ValidateOut o (ConLeche.Frontend.validateIndD lst (absIndTypeRecs tys)
+      (absIndCtorRecs cts) (absIndRecRecs rcs))
+```
+
+with no named ingredient under it, against the port's ten functions:
+`names_have_dup`, `ctor_index_of`, `check_one_ctor`, `order_type_ctors`,
+`order_block_ctors`, `k_expected_of`, `check_rec_indices`, `check_one_rec`,
+`check_rec_records` and `validate_ind_d` itself.
+
+**The mirror, done the other way.**  §18's problem recurs — con-leche writes one
+`do` block where the port writes ten functions — but the answer here is
+different and the contrast is the useful part.  `lValidateIndD` is a *verbatim*
+copy of `ExportC.lean:412-563` with its four loop bodies named (`lOrderStep`,
+`lOrderBlockStep`, `lRecIdxStep`, `lRecStep`, `lKExpectedOf`), and
+
+```lean
+theorem lValidateIndD_eq : validateIndD st tys cts rcs = lValidateIndD st tys cts rcs
+```
+
+is **not** proved by `rfl`: it goes through a congruence descent —
+`mIteCong`, `mBindCong`, `lForIn_congr` and `cases` on each scrutinee — because
+Lean's per-definition `match` auxiliaries are not defeq-reducible across
+definitions.  The cost is a page of congruence lemmas; the benefit is that the
+mirror is **immune to the `backward.do.legacy` difference of §19**, which
+`PrepareR.lean`'s `rfl`-proved split was not.  Two mirrors, two techniques:
+prefer `rfl` when the pieces are plain `forIn`s over lists and it works, and
+reach for the congruence descent when a `match` sits in the way — or when you
+want the proof not to depend on how the surrounding package elaborates `do`.
+
+**Inventory.**  Windows and prefixes: `iv_index_val`, `iv_take_succ`,
+`SeenPrefix`, `names_have_dup_loop_refines`, `names_have_dup_refines`.  The
+name index: `ctorIxAux` with `_cons`/`_not_mem`/`_mem`/`_nodup`/`_bound`,
+`ctor_index_of_loop_refines`, `ctor_index_of_refines`.  The mirror machinery:
+`lForIn`, `forIn_eq_lForIn`, `lForIn_congr`, `mIteCong`, `mBindCong`,
+`lForIn_cons`/`_nil`, the five named loop bodies, `lValidateIndD`,
+`lValidateIndD_eq`.  The outcome vocabulary: `LoopOut`, `StepLoopOut`,
+`OrderStepOut`, `OrderOut`, `BlockOut`.  The recursor half:
+`lRecIdxStep_ne`/`_unreadable`/`_ok`/`_bad`, `check_rec_indices_loop_refines`,
+`check_rec_indices_refines`, `iv_ok_bind`/`iv_err_bind`/`iv_slice_lit_val`/
+`iv_namewf_str`, `check_one_rec_refines`, `check_rec_records_loop_refines`,
+`check_rec_records_refines`.  The K flag: `lKExpectedOf_false`/`_sort`/
+`_nonsort`, `k_expected_of_refines`.  The constructor half:
+`check_one_ctor_refines`, `iv_absIndCtorRecs_push`,
+`order_type_ctors_loop_refines`, `order_type_ctors_refines`,
+`order_block_ctors_loop_refines`, `order_block_ctors_refines`,
+`flatten_listed_inner_wf`, `flatten_listed_loop_wf`, `flatten_listed_wf`.
+
+**This is the file that found §20's port bug**, and it found it the only way
+such a thing is ever found: by trying to prove the clause true and constructing
+the input on which it is false.  After the Rust fix, `ctor_index_of_refines` is
+an ordinary loop induction against the `ctorIxAux` fold and the first-occurrence
+counting lemmas it used to need are deleted.
+
+#### 24. The assembly, and what the tier owes at the end of the task
+
+`Refine/Frontend/IndSpecR.lean` (198 lines, eight declarations) is where the
+inductive tier's three files meet the parse.  It contains no tactic proof at
+all — every result is a structure literal or a single application, because
+`ProjRecR.lean`, `IndInstallR.lean`, `IndValidateR.lean` and `IndR.lean` were
+written to restate their capstones in the records' binder order:
+
+| name | what it is |
+|---|---|
+| `projRecSpec : ProjRecSpec` | the five borrowed `frontend::proj_rec` facts, one application each |
+| `absProjOwner_eq` | `StateDR`'s `absProjOwner` **is** `ProjRecR`'s `absProjRecOwner`, by `rfl` |
+| `installSpec : InstallSpec` | `note_proj_iota_refines projRecSpec`, and `proj_rec_owners_refines` with phase 1's `proj_rec_owners_wf` |
+| `indRSpec (hmw) (hmr) : IndRSpec inst g` | `proj_rewrite_d_refines projRecSpec`, `validate_ind_d_refines`, `indRSpec_installInd hmw hmr installSpec` |
+| `parse_chunks_refines_of_modeller` and its two twins | `ChunksR`'s three corollaries at `indRSpec` |
+
+All six results are pinned by `#guard_msgs` at
+`[propext, Classical.choice, Quot.sound]`.  Its whole elaboration is ~0.5 G
+instructions — 5.90 G for the file against 5.38 G for an imports-only file with
+the same four imports — so importing the inductive tier is the entire cost and
+the assembly adds nothing.
+
+**What the tier owes, at the end of task #87.**  §8's table, settled:
+
+| record | owner | fields | state |
+|---|---|---|---|
+| `ScanLineIngredients` | `ScanLine` | 17 | **all discharged** |
+| `ScanObj.KitFacts` / `ScanStringFacts` | `ScanObj` | 3 + 1 | **discharged** |
+| `ScanStr.Utf8DecodeSpec` / `UnescapeSpec` | `ScanStr` | 2 | **discharged** (§22) |
+| `PrepareR.HoistSpec` | `PrepareR` | 1 | **discharged and deleted** (§18) |
+| `StateDR.NatValSpec` | `StateDR` | 1 | **discharged** |
+| `IndR.IndRSpec` | `IndR` | 3 | **discharged** (§23, this section) |
+| `ChunksR.ParseIngredients` | `ChunksR` | 9 | **discharged** |
+
+Nothing in the parse tier is a hypothesis any more.  What the headline still
+carries is `ModellerWF` and `ModellerRefines`, which are not this tier's
+statements at all: they are promises about a `Modeller G` **argument** the port
+does not verify, and they leave with it.
+
+**The three authorised escape hatches went two-thirds unused.**  The brief
+pre-authorised intermediate Lean definitions in three places; `unescapeBytes`
+was not needed (§22), and the remaining two are both *mirrors of a con-leche
+`do` block that the port splits into separate functions* — §18's
+`hoistTargets_split`, proved by `rfl` and therefore sensitive to
+`backward.do.legacy`, and §23's `lValidateIndD_eq`, proved by congruence
+descent and therefore not.  Both are equations against the real con-leche
+function, so neither assumes anything.
+
+**Method, across the whole task.**  The task-#71 `rust_norm`/`rust_grind` idiom
+was tried and used on **no lemma in any of the fourteen files** — six
+independent measurements now (the scanner, the record assembly, the hoist, the
+string tier, the inductive validator, the assembly), all with the same
+explanation: the idiom pays on straight-line arithmetic wrappers and not on
+`Vec` loops, list folds or byte recognisers, which is what a parser is made of.
+Everything here is a hand proof in phase 1's forward style: `= ok` →
+`bind_eq_ok_iff` → the arms.
+
+**Two port bugs, both found by a proof and nothing else** — §11's
+`IndexOverflow` rendered as `Internal`, and §20's first-wins `ctor_index_of`.
+Neither was reachable by testing: the first needs a `usize` overflow, the
+second needs a duplicate constructor name *and* a type index that resolves on
+one record and not the other.  That is the argument for this kind of proof,
+made twice in one day.
+
+#### 25. Where the numbers stand
+
+Nine gates green at the landing (`LAKE_JOBS=32`): cargo-build, cargo-test,
+lint-rust, provenance, overview-links, gen-pins, gen-prelude, extract-check
+(72 s), lake-build (2 642 modules).
+
+```
+Verified core (ConLeche/Kernel, ConLeche/Cached)   14077 translated (100%)  verified 13003 (92%)
+Parser in the core (ConLeche/Frontend, task #84)    4441 translated (100%)  verified  2652 (59%)
+Cherries (InModel, ExportWrite, Main.lean)          2975 translated (100%)  verified     4 (0%)
+Rust core 85136 lines (1845 fns) | generated Lean 76250 | proofs 190117 (1614 _refines)
+Campaign (task #67): full-outcome 395 / 405 in scope (97%)
+LoC: proof 189491 | ratios rust/up 2.69  gen/rust 1.47  proof/rust 3.81  proof/up 10.25
+```
+
+The parser row read **0 %** at the start of task #87 and reads **59 %** now;
+the column had to be taught to see the tier at all (`scripts/progress.py`'s
+`refine_lemmas` gained a `Frontend` branch and `rust_module_of` a `frontend`
+case — without them the row could never have left zero, whatever was proved).
+`scripts/loc.py` had a latent double-count fixed in the same pass: it added
+`proofs_by_mod[key]` once per Rust module in a group, so a group with several
+modules counted its proof lines several times.
+
+The tier itself is fourteen files: `Abs` (441), `ScanKit` (3 082), `ScanStr`
+(2 556 at the end), `ScanObj` (1 981), `ScanExpr` (1 369), `ScanInd` (2 156),
+`ScanLine`, `StateDR` (2 745), `IndR`, `IndValidateR` (2 257), `IndInstallR`,
+`ProjRecR`, `PrepareR` (4 156), `ChunksR` (1 775) and `IndSpecR` (198) — about
+35 000 lines of proof written in the day, none of it carrying a `sorry` and
+none of it carrying a hypothesis at the end.

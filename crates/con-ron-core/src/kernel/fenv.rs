@@ -229,7 +229,7 @@ pub fn find_proj(fe: &FEnv, t: &Name, i: u64) -> Option<ProjEntry> {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:98-99 FEnv.towerSlotsAllF
-/// con-leche: ConLeche/Kernel/Core.lean:1000-1005 towerSlotsAll
+/// con-leche: ConLeche/Kernel/Core.lean:1037-1042 towerSlotsAll
 /// `towerSlotsAll` through the index — and, since the port reads every
 /// environment through the index (task #18's module note), *the* port of
 /// `Core.lean`'s `towerSlotsAll` as well.
@@ -251,7 +251,7 @@ pub fn tower_slots_all_f_from(fe: &FEnv, t: &Name, n_f: u64, j: u64) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:106-110 FEnv.recSlotsAllF
-/// con-leche: ConLeche/Kernel/Core.lean:1007-1015 recSlotsAll
+/// con-leche: ConLeche/Kernel/Core.lean:1044-1052 recSlotsAll
 /// `recSlotsAll` through the index — and the port of `Core.lean`'s
 /// `recSlotsAll` (see `tower_slots_all_f`).
 pub fn rec_slots_all_f(fe: &FEnv, t: &Name, n_f: u64) -> bool {

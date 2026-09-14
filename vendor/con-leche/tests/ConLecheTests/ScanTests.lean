@@ -41,7 +41,7 @@ which no end-to-end fixture would isolate:
 
 namespace ConLecheTests
 
-open ConLeche ConLeche.Cached ConLeche.Frontend
+open ConLeche ConLeche.Frontend
 
 /-! ## One line, many spellings -/
 
@@ -126,7 +126,7 @@ the next piece.  At `sz = 3` every line of the fixture is cut several
 times. -/
 
 private partial def chunked (st : StateD) (b : ByteArray) (sz pos : Nat)
-    (carry : ByteArray) (lineNo : Nat) : Except FrontendError StateD :=
+    (carry : ByteArray) (lineNo : Nat) : Except (CheckError × Nat) StateD :=
   if b.size ≤ pos then
     if carry.isEmpty then .ok st else applyFinalLine st carry 0 (lineNo + 1)
   else
@@ -140,13 +140,13 @@ def chunkFixture : String :=
   include_str "../e2e/delta_chain.ndjson"
 
 -- the whole-buffer parse and the three-byte-piece parse agree record
--- for record (up to the canonical form the prelude dedupe compares at)
+-- for record
 #guard
-  match parseExportD chunkFixture, chunked (.init {} true) chunkFixture.toUTF8 3 0 .empty 0 with
+  match parseExportD chunkFixture, chunked (.init true) chunkFixture.toUTF8 3 0 .empty 0 with
   | .ok r, .ok st =>
     let s := ParseResultD.ofState st
     r.decls.size == s.decls.size && r.decls.size > 0 &&
-      (r.decls.zip s.decls).all (fun p => p.1.sameCanon p.2)
+      (r.decls.zip s.decls).all (fun p => p.1 == p.2)
   | _, _ => false
 
 /-! ## The naive reference agrees, by evaluation

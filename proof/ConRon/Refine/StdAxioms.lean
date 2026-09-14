@@ -265,30 +265,6 @@ theorem choice_name_refines {n : name.Name} (h : std_axioms.choice_name = ok n) 
     (by simp [std_axioms.choice_name.S_1]) (by decide)
   exact ⟨by rw [e2, e1, Name.anonymous_refines ha]; rfl, w2⟩
 
-/-- `ConLeche/Kernel/StdAxioms.lean:44-51 toleratedAxiomNames` —
-`std_axioms::tolerated_axiom_names` refines `toleratedAxiomNames`: the
-one-element list `[sorryAx]`. -/
-theorem tolerated_axiom_names_refines {v : alloc.vec.Vec name.Name}
-    (h : std_axioms.tolerated_axiom_names = ok v) :
-    absNames v = ConLeche.toleratedAxiomNames ∧ NamesWF v := by
-  rw [std_axioms.tolerated_axiom_names] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨a, ha, s, hs, w, hw, n1, hn1, hpush⟩ := h
-  obtain ⟨e1, w1⟩ := str_lit_step (Name.anonymous_wf ha) hs hw hn1
-    (L := [115#u32, 111#u32, 114#u32, 114#u32, 121#u32, 65#u32, 120#u32])
-    (by simp [std_axioms.tolerated_axiom_names.S]) (by decide)
-  have hval : v.val = [n1] := by
-    rw [vec_push_val hpush]; simp [alloc.vec.Vec.new]
-  refine ⟨?_, ?_⟩
-  · rw [absNames, hval]
-    simp only [List.map_cons, List.map_nil, e1, Name.anonymous_refines ha]
-    rfl
-  · intro x hx
-    rw [hval] at hx
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
-    rcases hx with rfl
-    exact w1
-
 /-- `ConLeche/Kernel/StdAxioms.lean:53-54 iffName` — `std_axioms::iff_name`. -/
 theorem iff_name_refines {n : name.Name} (h : std_axioms.iff_name = ok n) :
     absName n = ConLeche.iffName ∧ NameWF n := by

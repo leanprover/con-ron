@@ -1,6 +1,6 @@
 //! `ConLeche/Cached/ParsedC.lean` — **the parsed-declaration checker**: one
-//! `DeclC` straight from the direct parse, checked as it is installed, with
-//! the syntactic passes memoised on the `ExprC` DAG
+//! `Declaration` straight from the direct parse, checked as it is installed,
+//! with the syntactic passes memoised on the `Expr` DAG
 //! (`crate::cached::expr_ops_c`) and the core entry points taken from the
 //! cached knot.  Plus the two records that cross the install/check seam,
 //! `ValueGroup` (`ConLeche/Kernel/CheckerSplit.lean`) and `PendingCheck`
@@ -43,11 +43,11 @@
 //! **Nothing here is a placeholder.**  `checkDeclC`'s `.indDecl` arm
 //! dispatches to task #25's two install routes (`check_ind_decl_c`).
 //!
-//! `DeclC` is `Declaration` with the *value* constructors' payloads at
-//! `ExprC`, which is `Expr` (task #10, surprise 1), and **without**
-//! `Declaration`'s `deriving DecidableEq, Repr, Inhabited` — con-leche
-//! derives nothing on `DeclC`, deliberately (task #10's note on the
-//! round-trip comparison).  Its `indDecl` carries *installed*
+//! **There is one declaration record**, `kernel::env::Declaration`: con-leche's
+//! task #285 merged its cached `DeclC` twin into it (the payloads were already
+//! `Expr`, task #10 surprise 1) and the port followed at task #83.  The port
+//! derives nothing on it — con-leche's `deriving DecidableEq, Repr, Inhabited`
+//! buys the checker nothing (task #10's note).  Its `indDecl` carries *installed*
 //! `ConstantInfo`s, so a parsed declaration transitively contains `IndCaps`,
 //! `RecRule` (with `RecRuleFire`) and `ProjTable`, whose install-computed
 //! fields are at their parse placeholders (task #10, surprise 2;
@@ -58,14 +58,18 @@ use crate::cached::state_c;
 use crate::cached::state_c::CState;
 use crate::cached::state_c::CheckCM;
 use crate::kernel::basis_names;
+use crate::kernel::basis_raw;
 use crate::kernel::checker;
 use crate::kernel::core_k;
+use crate::kernel::checker_base;
 use crate::kernel::core_types;
 use crate::kernel::env;
 use crate::kernel::env::BasisKind;
 use crate::kernel::env::CheckMode;
 use crate::kernel::env::ConstantInfo;
 use crate::kernel::env::ConstantVal;
+use crate::kernel::env::Declaration;
+use crate::kernel::env::QuotKind;
 use crate::kernel::env::ReducibilityHint;
 use crate::kernel::expr;
 use crate::kernel::expr::Expr;
@@ -83,20 +87,6 @@ use crate::kernel::std_axioms;
 use crate::kernel::trust_axioms;
 use crate::kernel::type_checker;
 use std::vec::Vec;
-
-/// con-leche: ConLeche/Cached/ParsedC.lean:55-61 DeclC
-/// A parsed declaration over `ExprC`.  Its constant-value records *are*
-/// `ConLeche.ConstantVal` (con-leche task #198: the separate `ConstantValC`
-/// is gone), so the header's type is an ordinary `Expr` — which is the same
-/// type as the value payloads here, `ExprC` being `Expr`.
-pub enum DeclC {
-    AxiomDecl(ConstantVal),
-    DefnDecl(ConstantVal, Expr, ReducibilityHint),
-    ThmDecl(ConstantVal, Expr),
-    OpaqueDecl(ConstantVal, Expr),
-    BasisDecl(BasisKind),
-    IndDecl(Vec<ConstantInfo>, u64),
-}
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:38-42 ValueKind
 /// The three declaration kinds whose value check is separable from their
@@ -131,7 +121,7 @@ pub struct ValueGroup {
     pub jv: Expr,
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:89-92 PendingCheck
+/// con-leche: ConLeche/Cached/Installed.lean:87-90 PendingCheck
 /// A phase-A record awaiting its phase-B check: the datum that crosses the
 /// install/check seam, the fold position of the declaration (its error tag)
 /// and the environment counter at the install — `fe.visibleBelow` before the
@@ -149,7 +139,7 @@ pub struct PendingCheck {
 // The parsed-declaration checker (`ParsedC.lean:63-241`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:67-69 opSIxC
+/// con-leche: ConLeche/Cached/ParsedC.lean:51-53 opSIxC
 /// Parsed `ensureSort` (no per-call conversion): `ensureSortI` over the
 /// cached knot at `checkFuel`, which is `type_checker::ensure_sort_core` —
 /// the one place the knot is named (task #24's collapse 1).
@@ -163,7 +153,7 @@ pub fn op_s_ix_c(
     type_checker::ensure_sort_core(mode, st, fe, d, i)
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:71-96 checkConstantValC
+/// con-leche: ConLeche/Cached/ParsedC.lean:55-80 checkConstantValC
 /// `checkConstantVal` on a *parsed* declaration: the checks of
 /// `checkConstantValF` with the syntactic passes memoised on the `ExprC` DAG
 /// and the operations on `ExprC` values.  Returns the constant with its type
@@ -202,7 +192,7 @@ pub fn check_constant_val_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:71-96 checkConstantValC
+/// con-leche: ConLeche/Cached/ParsedC.lean:55-80 checkConstantValC
 /// The tail past the annotation: the level-parameter and resolution guards on
 /// the annotated type, the type's own sort through `opSIxC`, and the record
 /// update.  Split off so the annotation's state-threading call is a tail call
@@ -218,7 +208,7 @@ pub fn check_constant_val_c_after_annot(
     if !expr_ops_c::all_level_params_defined(&cv.level_params, &jty) {
         Err(core_types::invalid({ const M: [u32; 37] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 116, 121, 112, 101]; core_types::code_points(&M) }))
     } else if !state_c::consts_resolve_fc(fe, &jty) {
-        Err(core_types::invalid({ const M: [u32; 24] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 116, 121, 112, 101]; core_types::code_points(&M) }))
+        Err(checker_base::unresolved_consts_error(&jty))
     } else {
         match type_checker::infer_type_core(mode, st, fe, 0, &jty) {
             Err(err) => Err(err),
@@ -237,7 +227,7 @@ pub fn check_constant_val_c_after_annot(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:98-115 checkDefnValC
+/// con-leche: ConLeche/Cached/ParsedC.lean:82-99 checkDefnValC
 /// `checkDefnValP` over `ExprC`: the value's syntactic guards, its
 /// annotation, the `ienv` record, and the comparison of its inferred type
 /// against the declared one, returning the pushed index.
@@ -262,7 +252,7 @@ pub fn check_defn_val_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:98-115 checkDefnValC
+/// con-leche: ConLeche/Cached/ParsedC.lean:82-99 checkDefnValC
 /// The tail past the annotation.  `recordCConst` runs **between** the
 /// resolution guard and the inference, as the cited code has it: the `ienv`
 /// entry is what the cached lazy accessors (`constTyAtM`, `constValAtM`)
@@ -280,7 +270,7 @@ pub fn check_defn_val_c_after_annot(
     if !expr_ops_c::all_level_params_defined(&cv_a.level_params, &jv) {
         Err(core_types::invalid({ const M: [u32; 38] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
     } else if !state_c::consts_resolve_fc(&fe, &jv) {
-        Err(core_types::invalid({ const M: [u32; 25] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
+        Err(checker_base::unresolved_consts_error(&jv))
     } else {
         state_c::record_c_const(
             st,
@@ -312,7 +302,7 @@ pub fn check_defn_val_c_after_annot(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:117-138 checkThmValC
+/// con-leche: ConLeche/Cached/ParsedC.lean:101-122 checkThmValC
 /// `checkThmValP` over `ExprC`: the statement must be a proposition first.
 /// Deviation: the cited `liftFueled "level comparison"` is monomorphic and
 /// stringless (task #18's deviation 1), i.e. `core_k::lift_fueled`.
@@ -342,7 +332,7 @@ pub fn check_thm_val_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:117-138 checkThmValC
+/// con-leche: ConLeche/Cached/ParsedC.lean:101-122 checkThmValC
 /// The witness half: the value's syntactic guards and its annotation.  Split
 /// off so the is-a-proposition gate is a tail call (task #24's deviation 7).
 pub fn check_thm_val_c_witness(
@@ -365,7 +355,7 @@ pub fn check_thm_val_c_witness(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:117-138 checkThmValC
+/// con-leche: ConLeche/Cached/ParsedC.lean:101-122 checkThmValC
 /// The tail past the witness annotation.  The `ienv` record carries **no**
 /// value (`recordCConst … none`) and the push stores the record's own *raw*
 /// value, unread: a theorem is stored by its statement and is opaque to
@@ -382,7 +372,7 @@ pub fn check_thm_val_c_checked(
     if !expr_ops_c::all_level_params_defined(&cv_a.level_params, &jv) {
         Err(core_types::invalid({ const M: [u32; 38] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
     } else if !state_c::consts_resolve_fc(&fe, &jv) {
-        Err(core_types::invalid({ const M: [u32; 25] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
+        Err(checker_base::unresolved_consts_error(&jv))
     } else {
         state_c::record_c_const(
             st,
@@ -413,7 +403,7 @@ pub fn check_thm_val_c_checked(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:140-156 checkOpaqueValC
+/// con-leche: ConLeche/Cached/ParsedC.lean:124-140 checkOpaqueValC
 /// `checkOpaqueValP` over `ExprC`: exactly the theorem check without the
 /// is-a-proposition requirement, stored as an `axiomInfo` because the
 /// official kernel's `is_delta` never unfolds an opaque.
@@ -437,7 +427,7 @@ pub fn check_opaque_val_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:140-156 checkOpaqueValC
+/// con-leche: ConLeche/Cached/ParsedC.lean:124-140 checkOpaqueValC
 /// The tail past the annotation.
 pub fn check_opaque_val_c_after_annot(
     mode: &CheckMode,
@@ -450,7 +440,7 @@ pub fn check_opaque_val_c_after_annot(
     if !expr_ops_c::all_level_params_defined(&cv_a.level_params, &jv) {
         Err(core_types::invalid({ const M: [u32; 38] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
     } else if !state_c::consts_resolve_fc(&fe, &jv) {
-        Err(core_types::invalid({ const M: [u32; 25] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
+        Err(checker_base::unresolved_consts_error(&jv))
     } else {
         state_c::record_c_const(
             st,
@@ -478,7 +468,7 @@ pub fn check_opaque_val_c_after_annot(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:158-244 checkDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
 /// One parsed declaration, mirroring `checkDeclSPPlain` branch by branch.
 /// The six arms are six functions, so every one of them is a tail call
 /// (task #18's rule for a gated cascade).
@@ -487,21 +477,35 @@ pub fn check_decl_c(
     pins: &Vec<NatOpPinSet>,
     st: &mut CState,
     fe: FEnv,
-    pd: &DeclC,
+    pd: &Declaration,
 ) -> CheckCM<FEnv> {
     match pd {
-        DeclC::DefnDecl(cv, value, hint) => {
+        Declaration::DefnDecl(cv, value, hint) => {
             check_defn_decl_c(mode, pins, st, fe, cv, value, hint)
         }
-        DeclC::ThmDecl(cv, value) => check_thm_decl_c(mode, st, fe, cv, value),
-        DeclC::OpaqueDecl(cv, value) => check_opaque_decl_c(mode, st, fe, cv, value),
-        DeclC::AxiomDecl(cv) => check_axiom_decl_c(mode, st, fe, cv),
-        DeclC::BasisDecl(kind) => check_basis_decl_c(fe, kind),
-        DeclC::IndDecl(block, n_p) => check_ind_decl_c(mode, st, fe, block, *n_p),
+        Declaration::ThmDecl(cv, value) => check_thm_decl_c(mode, st, fe, cv, value),
+        Declaration::OpaqueDecl(cv, value) => check_opaque_decl_c(mode, st, fe, cv, value),
+        Declaration::AxiomDecl(cv) => check_axiom_decl_c(mode, st, fe, cv),
+        Declaration::BasisDecl(kind) => check_basis_decl_c(fe, kind),
+        Declaration::IndDecl(block, n_p) => check_ind_decl_c(mode, st, fe, block, *n_p),
+        Declaration::QuotDecl(k, cv) => check_quot_decl_c(fe, k, cv),
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:158-244 checkDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
+/// The `.quotDecl` arm (con-leche task #293): the export writes the quotient
+/// package as four records, each compared with the pinned block's constant at
+/// its own kind; the FIRST that matches installs the pinned block whole, the
+/// other three add nothing, and a record that does not match is the decline
+/// the parser used to issue.
+///
+/// Deviation: the cited arm is `checkDecl`'s character for character, so this
+/// is a wrapper over `checker::check_quot_decl` rather than a second copy.
+pub fn check_quot_decl_c(fe: FEnv, k: &QuotKind, cv: &ConstantVal) -> CheckCM<FEnv> {
+    checker::check_quot_decl(fe, k, cv)
+}
+
+/// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
 /// The `.defnDecl` arm.  **The pinned-name test comes first**, which is the
 /// cited arm's own RC-linearity shape: with `fe` still live after the push —
 /// the pin gates read it at the pre-insertion bound — `checkDefnValC`'s
@@ -540,7 +544,7 @@ pub fn check_defn_decl_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:158-244 checkDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
 /// The `.defnDecl` arm's two pinned-`Nat` gates — the structural-operation
 /// recurrence certificates and the `Nat.div`/`Nat.mod` pin variants.
 ///
@@ -563,7 +567,7 @@ pub fn check_defn_pins_c(
     checker::check_defn_pins(mode, pins, st, fe2, k_pre, n)
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:158-244 checkDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
 /// The `.thmDecl` arm.
 pub fn check_thm_decl_c(
     mode: &CheckMode,
@@ -578,7 +582,7 @@ pub fn check_thm_decl_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:158-244 checkDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
 /// The `.opaqueDecl` arm: the compiler-trust gate for
 /// `Lean.reduceNat`/`Lean.reduceBool`, tested before the push for the cited
 /// RC-linearity reason (the comment in `checkDeclC` itself), then the opaque
@@ -609,7 +613,7 @@ pub fn check_opaque_decl_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:158-244 checkDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
 /// The `.axiomDecl` arm.  The one thing it adds to `checkDecl`'s is the
 /// `recordCConst` before each install: the cached lane keeps the accepted
 /// constant's annotated type in `ienv`, tagged with the very `Expr` object
@@ -617,6 +621,21 @@ pub fn check_opaque_decl_c(
 /// well-formedness-checked and **not** recorded and not stored, as the cited
 /// `pure fe` arm has it.
 pub fn check_axiom_decl_c(
+    mode: &CheckMode,
+    st: &mut CState,
+    fe: FEnv,
+    cv: &ConstantVal,
+) -> CheckCM<FEnv> {
+    if name::beq(&cv.name, &basis_names::quot_sound_name()) {
+        checker::check_quot_sound_record(fe, cv)
+    } else {
+        check_axiom_decl_std_c(mode, st, fe, cv)
+    }
+}
+
+/// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
+/// The rest of the `.axiomDecl` arm, past the `Quot.sound` record test.
+pub fn check_axiom_decl_std_c(
     mode: &CheckMode,
     st: &mut CState,
     fe: FEnv,
@@ -666,7 +685,7 @@ pub fn check_axiom_decl_c(
                 || name::beq(&cv_a.name, &std_axioms::choice_name())
             {
                 Err(core_types::not_implemented({ const M: [u32; 29] = [115, 116, 97, 110, 100, 97, 114, 100, 32, 97, 120, 105, 111, 109, 32, 115, 104, 97, 112, 101, 32, 109, 105, 115, 109, 97, 116, 99, 104]; core_types::code_points(&M) }))
-            } else if name::contains(&std_axioms::tolerated_axiom_names(), &cv_a.name) {
+            } else if name::beq(&cv_a.name, &basis_names::sorry_ax_name()) {
                 Ok(fe)
             } else {
                 Err(core_types::not_implemented({ const M: [u32; 18] = [110, 111, 110, 45, 115, 116, 97, 110, 100, 97, 114, 100, 32, 97, 120, 105, 111, 109]; core_types::code_points(&M) }))
@@ -675,9 +694,10 @@ pub fn check_axiom_decl_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:158-244 checkDeclC
-/// The `.basisDecl` arm: the pinned `Eq` basis prerequisite of the quotient
-/// block, then the install fold.
+/// con-leche: ConLeche/Cached/ParsedC.lean:142-148 checkBasisDeclC
+/// `check_basis_decl`'s cached twin: the body the three records that install
+/// a pinned basis block share (con-leche task #293) — the pinned `Eq` basis
+/// prerequisite of the quotient block, then the install fold.
 ///
 /// Deviation: the cited arm is `checkDecl`'s character for character —
 /// `installBasisDeclF` is `installBasisDecl`'s indexed twin and the port has
@@ -688,7 +708,7 @@ pub fn check_basis_decl_c(fe: FEnv, kind: &BasisKind) -> CheckCM<FEnv> {
     checker::check_basis_decl(fe, kind)
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:158-244 checkDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
 /// The `.indDecl` arm.  **The declared parameter count first, and for both
 /// routes** (con-leche task #228): `indParamsOk` is official's own check,
 /// one-sided, and it runs before the dispatch because it is a property of the
@@ -713,6 +733,22 @@ pub fn check_ind_decl_c(
     block: &Vec<ConstantInfo>,
     n_p: u64,
 ) -> CheckCM<FEnv> {
+    match basis_raw::basis_pin_hit(block) {
+        Some(kind) => check_basis_decl_c(fe, &kind),
+        None => check_ind_decl_route_c(mode, st, fe, block, n_p),
+    }
+}
+
+/// con-leche: ConLeche/Cached/ParsedC.lean:150-259 checkDeclC
+/// The `.indDecl` arm past the pin recognition: the declared parameter count,
+/// then the one-route dispatch.
+pub fn check_ind_decl_route_c(
+    mode: &CheckMode,
+    st: &mut CState,
+    fe: FEnv,
+    block: &Vec<ConstantInfo>,
+    n_p: u64,
+) -> CheckCM<FEnv> {
     if env::ind_params_ok(n_p, block) {
         match native_parts::native_parts(n_p, block) {
             Some(p) => inductives_c::check_native_s(mode, st, &fe, &p),
@@ -723,7 +759,7 @@ pub fn check_ind_decl_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:262-266 checkDeclStepC
+/// con-leche: ConLeche/Cached/ParsedC.lean:278-282 checkDeclStepC
 /// One step of the parsed-declaration fold: **flush, then check**.  The flush
 /// is what makes one `CState` safe for a whole stream — every
 /// environment-dependent memo is emptied, the self-certified `ienv` and the
@@ -733,7 +769,7 @@ pub fn check_decl_step_c(
     pins: &Vec<NatOpPinSet>,
     st: &mut CState,
     fe: FEnv,
-    pd: &DeclC,
+    pd: &Declaration,
 ) -> CheckCM<FEnv> {
     state_c::flush_c(st);
     check_decl_c(mode, pins, st, fe, pd)
@@ -763,7 +799,7 @@ mod tests {
         Vec::new()
     }
     use crate::cached::parsed_c;
-    use crate::cached::parsed_c::DeclC;
+    use crate::kernel::env::Declaration;
     use crate::cached::parsed_c::ValueKind;
     use crate::cached::state_c;
     use crate::cached::state_c::CState;
@@ -1008,7 +1044,7 @@ use crate::kernel::nat_op_pins::NatOpPinSet;
             &no_pins(),
             &mut st,
             fe_k,
-            &DeclC::AxiomDecl(cvt("k", sort1())),
+            &Declaration::AxiomDecl(cvt("k", sort1())),
         ) {
             Ok(_) => panic!("a duplicate axiom must not check"),
             Err(e) => assert!(is_invalid(&e)),
@@ -1035,7 +1071,7 @@ use crate::kernel::nat_op_pins::NatOpPinSet;
             &no_pins(),
             &mut st_i,
             empty_fenv(),
-            &DeclC::IndDecl(good_block, 0),
+            &Declaration::IndDecl(good_block, 0),
         ) {
             Ok(_) => panic!("a `T : Sort 0` block with no model must not install"),
             Err(_) => (),
@@ -1051,7 +1087,7 @@ use crate::kernel::nat_op_pins::NatOpPinSet;
             &no_pins(),
             &mut st2,
             empty_fenv(),
-            &DeclC::IndDecl(bad_block, 3),
+            &Declaration::IndDecl(bad_block, 3),
         ) {
             Ok(_) => panic!("a wrong `nparams` must not check"),
             Err(e) => assert!(is_invalid(&e), "a wrong `nparams` is official's own reject"),
@@ -1065,21 +1101,21 @@ use crate::kernel::nat_op_pins::NatOpPinSet;
             &no_pins(),
             &mut st3,
             empty_fenv(),
-            &DeclC::AxiomDecl(cvt("myAxiom", sort1())),
+            &Declaration::AxiomDecl(cvt("myAxiom", sort1())),
         ) {
             Ok(_) => panic!("a non-standard axiom must not be installed"),
             Err(e) => assert!(is_not_implemented(&e)),
         }
     }
 
-    /// A `DeclC` list is what `check_decls` consumes; an `indDecl` block
+    /// A `Declaration` array is what `check_decls` consumes; an `indDecl` block
     /// carries *installed* records at their parse placeholders.
     #[test]
     fn decl_list_shape() {
         let ds = vec![
-            DeclC::AxiomDecl(cv("ax")),
-            DeclC::BasisDecl(BasisKind::NatK),
-            DeclC::IndDecl(
+            Declaration::AxiomDecl(cv("ax")),
+            Declaration::BasisDecl(BasisKind::NatK),
+            Declaration::IndDecl(
                 vec![
                     ConstantInfo::IndInfo(cv("T"), env::ind_caps_default()),
                     ConstantInfo::CtorInfo(cv("T.mk"), 0, 0),
@@ -1095,7 +1131,7 @@ use crate::kernel::nat_op_pins::NatOpPinSet;
         ];
         assert_eq!(ds.len(), 3);
         match &ds[2] {
-            DeclC::IndDecl(block, n_p) => {
+            Declaration::IndDecl(block, n_p) => {
                 assert_eq!(*n_p, 0);
                 assert!(env::recs_form_suffix(block));
                 assert!(env::ind_params_ok(*n_p, block));

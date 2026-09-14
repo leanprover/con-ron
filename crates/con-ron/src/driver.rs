@@ -3,29 +3,28 @@
 //! Before this module `con-ron` (task #37) and the checker-only
 //! `con-ron-check` (task #28) each carried their own copy of the pieces of
 //! `Main.lean` that sit *above* `check_decls`: the exit-code mapping, the
-//! declaration label, the two phase loops with the boundary visible, and —
-//! the one that is load-bearing for a verdict — the **taint-skip rule**.  Two
-//! copies of a rule that decides an exit code is one copy too many, so the
-//! rule, the loops and the verdict lines moved here and the binaries became
-//! argument parsers around them.  Task #80 retired `con-ron-check` with the
-//! declaration dump it read, so `con-ron` is now the only such parser; the
-//! split earns its keep anyway, because it is what keeps the fold's body one
-//! readable function.
+//! declaration label, the two phase loops with the boundary visible, and the
+//! verdict lines.  Two copies of a rule that decides an exit code is one copy
+//! too many, so the loops and the verdict lines moved here and the binaries
+//! became argument parsers around them.  Task #80 retired `con-ron-check`
+//! with the declaration dump it read, so `con-ron` is now the only such
+//! parser; the split earns its keep anyway, because it is what keeps the
+//! fold's body one readable function.
 //!
 //! What is *not* here is that binary's own front matter: `con-ron` reads a
-//! raw lean4export stream (`frontend::export_c`) and has its own flags and
-//! its own usage text.  What *is* here is everything from the parsed
-//! `Vec<DeclC>` on.
+//! raw lean4export stream (`frontend::export_c`), prepares it
+//! (`frontend::prepare`), and has its own flags and its own usage text.  What
+//! *is* here is everything from the prepared `Vec<Declaration>` on.
 //!
 //! ## The two phases, and why they are spelled out here
 //!
 //! `check_decls_driver` is `installed::check_decls`' body with the phase
-//! boundary visible (`Main.lean:330-449 checkDeclsIO`): phase A installs every
+//! boundary visible (`Main.lean:318-421 checkDeclsIO`): phase A installs every
 //! record with `annot_decl_step`, phase B checks every recorded declaration
 //! from a fresh `CState` with `check_pending`.  It is step for step the fold
-//! `ConLeche/Cached/Installed.lean:405-411 checkDecls` — which is why an
+//! `ConLeche/Cached/Installed.lean:438-455 checkDecls` — which is why an
 //! observer that prints between the steps changes no verdict, and why ONE
-//! loop serves the plain run, the `--progress` heartbeat and `--stats` alike.
+//! loop serves the plain run and the `--progress` heartbeat alike.
 //! A run with no observer calls `installed::check_decls` itself and never
 //! comes through here at all.
 //!
@@ -41,7 +40,7 @@
 //!
 //! | exit | verdict | meaning |
 //! |---|---|---|
-//! | 0 | `accepted N declarations` | every declaration checked; `N` counts the stream's declaration records |
+//! | 0 | `accepted N declarations` | every declaration checked; `N` counts the file's declaration records |
 //! | 1 | `rejected` | a declaration is invalid |
 //! | 2 | `declined` | the checker positively detected a feature it does not support, and says which |
 //! | 3 | error | bad usage, malformed input, or an internal failure of unclear cause |
@@ -50,6 +49,14 @@
 //! about the input, a decline a statement about the checker, and a decline is
 //! never "something unexpectedly went wrong" — that is 3.  Only 0 carries the
 //! theorem's guarantee.
+//!
+//! **Every switch that shapes a verdict is a command-line flag** (con-leche
+//! task #287).  No environment variable the binary reads can move an outcome:
+//! the three hooks that once could — the certificate switch, the infer-only
+//! lane and the install-route trace — are gone from con-leche and from here,
+//! and what is left is the in-process modeller's debug switches, which go with
+//! the modeller.  A verdict's provenance is readable off the invocation and
+//! off nothing else.
 //!
 //! **Out of memory is not an exit code here, and con-leche's is.**  con-leche
 //! documents OOM as exit 1: the Lean runtime's
@@ -66,15 +73,15 @@
 //!
 //! **A panic is exit 3.**  The fold runs on a spawned thread (`STACK_BYTES`),
 //! so a panic in it — a `debug` overflow, an index out of range, an
-//! `unwrap` — comes back as a `join` error and both binaries turn that into
-//! 3, "an internal failure of unclear cause", never a verdict on the input.
-//! The panic message is on stderr above it.
+//! `unwrap` — comes back as a `join` error and the binary turns that into 3,
+//! "an internal failure of unclear cause", never a verdict on the input.  The
+//! panic message is on stderr above it.
 
+use std::io::Read;
 use std::sync::Mutex;
 use std::time::Instant;
 
 use con_ron_core::cached::installed;
-use con_ron_core::cached::parsed_c::DeclC;
 use con_ron_core::cached::parsed_c::PendingCheck;
 use con_ron_core::cached::parsed_c::ValueKind;
 use con_ron_core::cached::state_c;
@@ -82,14 +89,18 @@ use con_ron_core::cached::state_c::CState;
 use con_ron_core::kernel::core_types::CheckError;
 use con_ron_core::kernel::env;
 use con_ron_core::kernel::env::CheckMode;
+use con_ron_core::kernel::env::Declaration;
 use con_ron_core::kernel::env::Env;
 use con_ron_core::kernel::fenv;
 use con_ron_core::kernel::fenv::FEnv;
+use con_ron_core::frontend::export_c;
+use con_ron_core::frontend::export_c::ParseResultD;
+use con_ron_core::frontend::in_model_rec::Modeller;
 use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
 use con_ron_core::kernel::pins_decode;
 
-use crate::frontend::export::name_str;
 use crate::pool;
+use crate::render::name_str;
 
 /// con-leche: none — the Lean runtime's per-thread stack reservation, which
 /// `Main.lean`'s `--jobs` note measures at 1 GiB per worker.  The fold's
@@ -119,8 +130,8 @@ pub fn exit_code(e: &CheckError) -> u8 {
 
 /// con-leche: none — the verdict word `OVERVIEW.md` §0 tabulates against each
 /// exit code.  con-leche prints the word only for the accept (`accepted N
-/// declarations`) and the taint decline; a rejection's line is the error
-/// message itself, so this is the port's own handle for a log to grep.
+/// declarations`); a rejection's line is the error message itself, so this is
+/// the port's own handle for a log to grep.
 pub fn verdict_word(code: u8) -> &'static str {
     match code {
         0 => "accepted",
@@ -146,14 +157,17 @@ pub fn message(e: &CheckError) -> String {
 }
 
 /// con-leche: none — how a run *chooses* `checkDecls`' pin argument, which
-/// con-leche does not have to: its fold defaults to `natOpPinSets`
-/// **The pin list a run checks with** (task #43).  con-leche's shipped fold
-/// defaults to `natOpPinSets` (its last argument since task #285); the port
-/// carries the same value as an
-/// *embedded text constant inside the verified core*
-/// (`kernel::pins_text::PINS_TEXT`) and decodes it with a verified decoder
-/// (`kernel::pins_decode::decode_embedded`), so a run of either binary uses
-/// con-leche's own pins with nothing supplied from outside.  That is the
+/// con-leche does not have to: `Main.lean` passes `ConLeche.natOpPinSets`.
+///
+/// **The pin list a run checks with** (task #43).  Since con-leche task #304
+/// `pins` is an explicit parameter of the fold with **no default** — asked for
+/// on con-ron's behalf, so that the large constant leaves the statement and
+/// the theorem can say outright that consistency does not depend on it — and
+/// the binary is what supplies `natOpPinSets`.  The port supplies the same
+/// value: it carries it as an *embedded text constant inside the verified
+/// core* (`kernel::pins_text::PINS_TEXT`) and decodes it with a verified
+/// decoder (`kernel::pins_decode::decode_embedded`), so a run checks with
+/// con-leche's own pins and nothing is read from outside.  That is the
 /// default, and the theorem's `pins` argument is that closed term
 /// (`proof/ConRon/Refine/Pins.lean`).
 ///
@@ -200,28 +214,36 @@ pub fn value_kind_word(k: &ValueKind) -> &'static str {
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:252-260 declCLabel
+/// con-leche: ConLeche/Cached/ParsedC.lean:267-276 declCLabel
 /// con-leche: Main.lean:61-65 declCName
 /// A parsed declaration's display label.  DESIGN.md §3.7 kept it out of the
 /// verified core as driver-only rendering ("the theorem never reads a
 /// message"), so the driver carries it — and con-leche makes the same split
 /// for the same reason: `declCLabel` lives beside the checker "because the
 /// progress heartbeat's compiled hook prints it too, and the two must never
-/// drift apart".  Deviation: `basisDecl` renders as `basis` rather than
-/// `basis block <repr k>` (the port has no `Repr`).
-pub fn decl_label(d: &DeclC) -> String {
+/// drift apart".
+///
+/// One record kind is new since con-leche task #285 merged `DeclC` into
+/// `Declaration` and task #293 took the quotient fold out of the parser: a
+/// `#QUOT` record is a `quotDecl` of its kind and its constant, and its label
+/// is `quot <name>`, so a stream's four quotient records are four lines where
+/// they used to be folded into one basis block.  Deviation: `basisDecl`
+/// renders as `basis` rather than `basis block <repr k>` (the port has no
+/// `Repr`).
+pub fn decl_label(d: &Declaration) -> String {
     let (kind, n) = match d {
-        DeclC::AxiomDecl(cv) => ("axiom", Some(name_str(&cv.name))),
-        DeclC::DefnDecl(cv, _, _) => ("def", Some(name_str(&cv.name))),
-        DeclC::ThmDecl(cv, _) => ("thm", Some(name_str(&cv.name))),
-        DeclC::OpaqueDecl(cv, _) => ("opaque", Some(name_str(&cv.name))),
-        DeclC::BasisDecl(_) => ("basis", None),
-        DeclC::IndDecl(block, _) => (
+        Declaration::AxiomDecl(cv) => ("axiom", Some(name_str(&cv.name))),
+        Declaration::DefnDecl(cv, _, _) => ("def", Some(name_str(&cv.name))),
+        Declaration::ThmDecl(cv, _) => ("theorem", Some(name_str(&cv.name))),
+        Declaration::OpaqueDecl(cv, _) => ("opaque", Some(name_str(&cv.name))),
+        Declaration::BasisDecl(_) => ("basis", None),
+        Declaration::IndDecl(block, _) => (
             "inductive",
             block
                 .first()
                 .map(|ci| name_str(&env::constant_info_name(ci))),
         ),
+        Declaration::QuotDecl(_, cv) => ("quot", Some(name_str(&cv.name))),
     };
     match n {
         Some(n) => format!("{} {}", kind, n),
@@ -229,7 +251,7 @@ pub fn decl_label(d: &DeclC) -> String {
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:248-250 msSecs
+/// con-leche: ConLeche/Cached/ParsedC.lean:263-265 msSecs
 /// Milliseconds as seconds.  Also a deliberate skip in the core, for
 /// `declCLabel`'s reason.  Deviation: three decimals rather than con-leche's
 /// one.
@@ -238,15 +260,14 @@ pub fn ms_secs(ms: u128) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// Flag values, and the retired spellings (`Main.lean:1057-1149 parseArgs`)
+// Flag values (`Main.lean:962-990 parseArgs`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: Main.lean:460-475 progressStride
+/// con-leche: Main.lean:423-434 progressStride
 /// The progress heartbeat's stride: no flag is off; bare `--progress` is
 /// stride 1.  A value that is not a decimal numeral, and `0` — the flag asking
-/// for no heartbeat — are usage errors, per the provenance discipline the
-/// retired spellings follow: a run's output must be readable off its
-/// invocation, never silently degraded.
+/// for no heartbeat — are usage errors: a run's output must be readable off
+/// its invocation, never silently degraded.
 pub fn progress_stride(v: &str) -> Result<u64, String> {
     match v.parse::<u64>() {
         Ok(0) => Err("--progress takes a declaration stride of at least 1 \
@@ -261,7 +282,7 @@ pub fn progress_stride(v: &str) -> Result<u64, String> {
     }
 }
 
-/// con-leche: Main.lean:477-500 jobsCount
+/// con-leche: Main.lean:436-459 jobsCount
 /// The worker count: a decimal numeral of at least 1, `1` being the sequential
 /// lane (one worker, no shared counter and no result table).  `0` and a
 /// non-numeral are usage errors (exit 3), as in con-leche, so a script that
@@ -307,10 +328,11 @@ pub fn jobs_count(v: &str) -> Result<u64, String> {
 /// (`pool`'s module note), tens of MB.
 pub const JOBS_DEFAULT_CAP: u64 = 16;
 
-/// con-leche: Main.lean:502-797 checkMain
-/// The `--jobs` default: con-leche's "one worker per hardware thread", capped
-/// at `JOBS_DEFAULT_CAP` for the reason that constant's note gives.  A machine
-/// that does not report its parallelism gets one worker.
+/// con-leche: Main.lean:992-1019 main
+/// The `--jobs` default, which con-leche reads in `main` off
+/// `System.Platform.Internal.getHardwareConcurrency` — "one worker per
+/// hardware thread", and one worker on a machine that reports none — capped
+/// here at `JOBS_DEFAULT_CAP` for the reason that constant's note gives.
 pub fn default_jobs() -> u64 {
     let hw: u64 = match std::thread::available_parallelism() {
         Ok(n) => n.get() as u64,
@@ -323,7 +345,7 @@ pub fn default_jobs() -> u64 {
     }
 }
 
-/// con-leche: Main.lean:339-458 checkDeclsIO
+/// con-leche: Main.lean:318-421 checkDeclsIO
 /// The cited `workers := max 1 (min jobs pend.size)`: the count the summary
 /// reports and the pool spawns.  A stream with fewer pending checks than `jobs`
 /// gets one worker per check and no more.
@@ -336,79 +358,7 @@ pub fn workers_for(jobs: u64, m: usize) -> usize {
     }
 }
 
-/// con-leche: Main.lean:1066-1158 parseArgs
-/// **The retired spellings.**  `Some(msg)` for every argument con-leche
-/// rejects with a message naming what stands in its place; `None` for
-/// anything else.  con-leche's rule, kept verbatim here because it is about
-/// the *port's* verdicts too: "a retired spelling is a hard error naming what
-/// replaced it — never a silent alias", so that a verdict's provenance is
-/// readable off the invocation.  The run exits 3 without reading the input.
-///
-/// All thirteen spellings of `Main.lean`'s RETIRED FLAGS paragraph are here,
-/// the four `=`-carrying ones included (`--set-model=p`, `--set-model=r`,
-/// `--core=<c>`, `--check-range=<r>`).  The messages are con-leche's, minus
-/// its DESIGN.md task numbers: those name *con-leche's* log, and a con-ron
-/// user reading this line wants con-leche's vocabulary, not its history.
-pub fn retired_flag(s: &str) -> Option<String> {
-    let m = match s {
-        "--set-model" => {
-            "--set-model is retired; the verified mode is --verified, still the default \
-             (con-leche's mode rename, 2026-09-06)"
-        }
-        "--set-model=p" => {
-            "--set-model=p is retired; the verified mode is --verified, still the default \
-             (con-leche's mode rename, 2026-09-06)"
-        }
-        "--set-model=r" => {
-            "--set-model=r is retired; the R core (all certificates unconditional) and the \
-             collapsed-model consistency proof it was the subject of were deleted after the \
-             acceptance delta against the graded core measured ZERO.  The verified lane is \
-             --verified"
-        }
-        "--no-model" => {
-            "--no-model is retired; the unverified lane is --trusted (con-leche's mode \
-             rename, 2026-09-06)"
-        }
-        "--tt-model" => {
-            "--tt-model is retired; the declarative verification lane it selected was deleted \
-             with the mode, and the certified mode is --verified (the default)"
-        }
-        "--yolo" => {
-            "--yolo is retired; the cert-skipping lane is --trusted (checking-mode front door \
-             included)"
-        }
-        "--infer-only" => {
-            "--infer-only is retired; its discipline is part of --trusted, and the certified \
-             mode is --verified (the default)"
-        }
-        "--pre" => {
-            "--pre is retired; there is no preprocessor — every input is a raw lean4export \
-             stream"
-        }
-        "--install-only" => {
-            "--install-only is retired; the split install/check driver was arena machinery and \
-             went with the interned representation"
-        }
-        "--check-range" => {
-            "--check-range is retired; the split install/check driver was arena machinery and \
-             went with the interned representation"
-        }
-        _ => {
-            if s == "--core" || s.starts_with("--core=") {
-                "--core is retired; there is one core and one expression representation (the \
-                 interned arena and every driver over it were deleted)"
-            } else if s.starts_with("--check-range=") {
-                "--check-range is retired; the split install/check driver was arena machinery \
-                 and went with the interned representation"
-            } else {
-                return None;
-            }
-        }
-    };
-    Some(m.to_string())
-}
-
-/// con-leche: Main.lean:339-458 checkDeclsIO
+/// con-leche: Main.lean:318-421 checkDeclsIO
 /// **`--no-mark-persistent`: accepted, and a no-op here.**  The line this
 /// function returns is what a run that passes the flag prints, and the reason
 /// is that the mark it turns off does not exist in Rust.
@@ -447,11 +397,11 @@ pub fn mark_persistent_note() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// The two phases (`Main.lean:67-158 installLoop`, `:176-206 checkLoop`)
+// The two phases (`Main.lean:67-141 installLoop`, `:160-191 checkLoop`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: Main.lean:163-178 checkHeartbeat
-/// con-leche: Main.lean:339-458 checkDeclsIO
+/// con-leche: Main.lean:143-158 checkHeartbeat
+/// con-leche: Main.lean:318-421 checkDeclsIO
 /// What a caller wants to know between the steps of the fold.  Every method
 /// defaults to nothing, so a caller implements the lines it prints and no
 /// more; a run with no observer does not use this trait at all
@@ -466,34 +416,34 @@ pub fn mark_persistent_note() -> &'static str {
 /// *before* it is installed, so a run that dies — an OOM, a timeout, a
 /// `SIGKILL` — names on its last line the declaration it died in.
 pub trait PhaseObserver {
-    /// con-leche: Main.lean:67-161 installLoop
+    /// con-leche: Main.lean:67-141 installLoop
     /// Before record `pos` of `total` is installed.
-    fn install_before(&mut self, _pos: u64, _total: usize, _d: &DeclC) {}
+    fn install_before(&mut self, _pos: u64, _total: usize, _d: &Declaration) {}
 
-    /// con-leche: Main.lean:67-161 installLoop
+    /// con-leche: Main.lean:67-141 installLoop
     /// After record `done` of `total` was installed, with the memo state and
     /// the index it produced (a statistics observer reads them; the
     /// `--progress` heartbeat does not).
     fn install_after(&mut self, _done: usize, _total: usize, _st: &CState, _fe: &FEnv, _pend: usize) {
     }
 
-    /// con-leche: Main.lean:339-458 checkDeclsIO
+    /// con-leche: Main.lean:318-421 checkDeclsIO
     /// Phase A failed at fold position `pos`, in this memo state.  The index
     /// is *not* passed: `annot_decl_step` consumed it and the error came back
     /// in its place, which is con-leche's shape too (`installLoop` returns
     /// `.error e` and the environment it had is gone).
     fn install_failed(&mut self, _pos: u64, _total: usize, _st: &CState) {}
 
-    /// con-leche: Main.lean:339-458 checkDeclsIO
+    /// con-leche: Main.lean:318-421 checkDeclsIO
     /// The phase boundary: every record installed, `pend` checks pending.
     fn install_done(&mut self, _total: usize, _pend: usize, _st: &CState, _fe: &FEnv) {}
 
-    /// con-leche: Main.lean:339-458 checkDeclsIO
+    /// con-leche: Main.lean:318-421 checkDeclsIO
     /// The worker count phase B is about to run on (the cited `workers`), so
     /// that the summary reports the lane the run actually took.
     fn phase_b_workers(&mut self, _workers: usize) {}
 
-    /// con-leche: Main.lean:260-280 checkOne
+    /// con-leche: Main.lean:240-260 checkOne
     /// **Does this observer want a line per completed check?**  The port's
     /// spelling of the cited `stride > 0` guard, which con-leche reads off the
     /// stride the pool was handed: `false` and no worker touches the shared
@@ -505,7 +455,7 @@ pub trait PhaseObserver {
         false
     }
 
-    /// con-leche: Main.lean:163-178 checkHeartbeat
+    /// con-leche: Main.lean:143-158 checkHeartbeat
     /// After the `done`-th of `m` recorded checks completed — the record it
     /// was, the memo state it used, the index it left.
     fn check_after(
@@ -518,25 +468,31 @@ pub trait PhaseObserver {
     ) {
     }
 
-    /// con-leche: Main.lean:339-458 checkDeclsIO
+    /// con-leche: Main.lean:318-421 checkDeclsIO
     /// Phase B failed at fold position `pos`, in this record's own memo
     /// state.
     fn check_failed(&mut self, _pos: u64, _st: &CState) {}
 
-    /// con-leche: Main.lean:339-458 checkDeclsIO
+    /// con-leche: Main.lean:318-421 checkDeclsIO
     /// Every recorded check passed.
     fn check_done(&mut self, _m: usize) {}
 }
 
-/// con-leche: Main.lean:339-458 checkDeclsIO
-/// con-leche: Main.lean:67-161 installLoop
-/// con-leche: Main.lean:180-211 checkLoop
-/// con-leche: ConLeche/Cached/Installed.lean:440-447 checkDecls
+/// con-leche: Main.lean:318-421 checkDeclsIO
+/// con-leche: Main.lean:67-141 installLoop
+/// con-leche: Main.lean:160-191 checkLoop
+/// con-leche: ConLeche/Cached/Installed.lean:438-455 checkDecls
 /// **The driver**: phase A installs every record, phase B checks every
 /// recorded declaration against the prefix view of the installed index from a
 /// fresh memo state.  This IS `check_decls`' body with the boundary visible,
 /// step for step, which is why an observer printing between the steps changes
 /// no outcome.
+///
+/// The records are walked **by index**, which is what con-leche's `installLoop`
+/// does too since task #295 put arrays on the run path: nothing materialises a
+/// million records as a list.  The accepting run that loop carries beside them
+/// is over `ds.toList.take i` — a proposition, so nothing at run time, and
+/// deviation 1 below.
 ///
 /// Four deviations from `checkDeclsIO`, all of them recorded elsewhere and
 /// none of them a verdict:
@@ -550,13 +506,14 @@ pub trait PhaseObserver {
 ///    task #269 moves it to a dedicated one whatever `--jobs` said.  That
 ///    finding is about Lean's per-thread mimalloc heaps and the main thread's
 ///    fragmentation after the install; the port's allocator is one heap for the
-///    process, and both binaries already run the whole fold on one spawned
+///    process, and the binary already runs the whole fold on one spawned
 ///    big-stack thread.
 /// 3. There is no persistent mark at the boundary (`mark_persistent_note`).
 /// 4. On a **pool** failure the observer's `check_failed` gets a fresh empty
 ///    memo state: the failing record's own state belongs to the worker that
-///    built it and is gone by the join.  `--stats` therefore reports an empty
-///    state for a pooled failure, which is rendering, never a verdict.
+///    built it and is gone by the join.  An observer that reports the memo
+///    state therefore sees an empty one for a pooled failure, which is
+///    rendering, never a verdict.
 ///
 /// The pool itself is `crate::pool` (task #48): `jobs` workers claiming records
 /// off a shared counter, their results merged by record index and walked in
@@ -566,7 +523,7 @@ pub trait PhaseObserver {
 pub fn check_decls_driver<O: PhaseObserver + Send>(
     mode: &CheckMode,
     pins: &Vec<NatOpPinSet>,
-    ds: &Vec<DeclC>,
+    ds: &Vec<Declaration>,
     jobs: u64,
     obs: &mut O,
 ) -> Result<Env, (CheckError, u64)> {
@@ -593,7 +550,7 @@ pub fn check_decls_driver<O: PhaseObserver + Send>(
     let workers = workers_for(jobs, m);
     obs.phase_b_workers(workers);
     if workers > 1 {
-        // Phase B on the pool (`Main.lean:302-328 checkPool`): the installed
+        // Phase B on the pool (`Main.lean:289-316 checkPool`): the installed
         // index is read-only from here on, every worker checks its claimed
         // records against it from a fresh `CState`, and the merged table is
         // walked in RECORD order — so this branch's verdict is the loop
@@ -615,7 +572,7 @@ pub fn check_decls_driver<O: PhaseObserver + Send>(
     // `CState` per record (§3.1's memo policy — a record is checked at its own
     // prefix view, where another record's entries would be unsound), the index
     // threaded through, no shared counter and no result table (`--jobs=1`'s
-    // lane in `Main.lean:441-449`).
+    // lane in `Main.lean:393-404`).
     let mut j = 0usize;
     while j < m {
         let mut stb: CState = state_c::cstate_new();
@@ -637,8 +594,8 @@ pub fn check_decls_driver<O: PhaseObserver + Send>(
 // The progress heartbeat (`--progress[=<stride>]`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: Main.lean:339-458 checkDeclsIO
-/// con-leche: Main.lean:163-178 checkHeartbeat
+/// con-leche: Main.lean:318-421 checkDeclsIO
+/// con-leche: Main.lean:143-158 checkHeartbeat
 /// **The heartbeat**, `OVERVIEW.md` §0's line shapes with con-leche's
 /// `con-leche: ` prefix replaced by `con-ron: `:
 ///
@@ -654,10 +611,10 @@ pub fn check_decls_driver<O: PhaseObserver + Send>(
 /// and on a failure the phase's closing line says so (`install failed at`,
 /// `check failed at`) and the summary still prints, with `check not reached`
 /// when phase A is the one that failed.  `<i>` on an install line is the FOLD
-/// position, not the stream's record index: the parse folds the basis and
-/// `quot` blocks, drops taint-skipped records and *adds* the in-process
-/// modeller's, so the two drift apart by a stream-dependent amount — calibrate
-/// by NAME.
+/// position, not the file's record index: the preparation puts the prelude's
+/// records in front of the stream's and the in-process modeller *adds*
+/// records, so the two drift apart by a stream-dependent amount — calibrate by
+/// NAME.
 ///
 /// The worker count on the summary is the count phase B actually ran on — the
 /// driver hands it over at the boundary (`phase_b_workers`), which is
@@ -683,11 +640,11 @@ pub struct Heartbeat {
     pub workers: usize,
 }
 
-/// con-leche: Main.lean:339-458 checkDeclsIO
+/// con-leche: Main.lean:318-421 checkDeclsIO
 /// The heartbeat's own lines: the parse's, and the closing summary the
 /// failure and success arms share.
 impl Heartbeat {
-    /// con-leche: Main.lean:502-797 checkMain
+    /// con-leche: Main.lean:461-711 checkMain
     /// A heartbeat at `stride` (0 for none), starting now.
     pub fn new(stride: u64, t0: Instant) -> Heartbeat {
         Heartbeat {
@@ -704,29 +661,44 @@ impl Heartbeat {
         self.t0.elapsed().as_millis()
     }
 
-    /// con-leche: Main.lean:502-797 checkMain
-    /// `con-leche: parse done: …`, the heartbeat's first line: the parse is
-    /// done and the fold is about to start on this many records.  Records
-    /// `t_parse`, so the summary can price the parse whatever happens next.
-    pub fn parse_done(&mut self, fold_records: usize, prelude_count: u64, prelude_dropped: u64) {
+    /// con-leche: Main.lean:461-711 checkMain
+    /// `con-leche: parse done: …`, the heartbeat's first line: the parse and
+    /// the preparation are done and the fold is about to start on this many
+    /// records.  Records `t_parse`, so the summary can price the parse
+    /// whatever happens next.
+    ///
+    /// The numbers beside the fold-record count are con-leche's, and two of
+    /// them moved with task #293: the FILE's own records (`file_records`, the
+    /// modeller's `gen_records` among them) and the prelude records the stream
+    /// did **not** declare, which `prepare_prelude` synthesised.  There is no
+    /// "dropped" number any more — the preparation drops nothing, it moves the
+    /// stream's own copy of a prelude record to the front and synthesises only
+    /// what is missing.
+    pub fn parse_done(
+        &mut self,
+        fold_records: usize,
+        file_records: usize,
+        gen_records: u64,
+        synthesised: u64,
+    ) {
         self.t_parse = self.now();
         if self.stride == 0 {
             return;
         }
         eprintln!(
-            "con-ron: parse done: {} fold records — {} declarations after the {} \
-             built-in prelude records ({} stream copies of prelude records dropped) \
+            "con-ron: parse done: {} fold records — the file's {} ({} of them \
+             generated in-process), {} built-in prelude records synthesised \
              t={}s (parse {}s)",
             fold_records,
-            fold_records as u64 - prelude_count,
-            prelude_count,
-            prelude_dropped,
+            file_records,
+            gen_records,
+            synthesised,
             ms_secs(self.t_parse),
             ms_secs(self.t_parse)
         );
     }
 
-    /// con-leche: Main.lean:339-458 checkDeclsIO
+    /// con-leche: Main.lean:318-421 checkDeclsIO
     /// The `done:` summary — the three phase durations and the worker count.
     /// `check`'s duration is `None` when phase A failed, which is con-leche's
     /// `check not reached`.
@@ -755,13 +727,13 @@ impl Heartbeat {
     }
 }
 
-/// con-leche: Main.lean:163-178 checkHeartbeat
-/// con-leche: Main.lean:339-458 checkDeclsIO
+/// con-leche: Main.lean:143-158 checkHeartbeat
+/// con-leche: Main.lean:318-421 checkDeclsIO
 /// The heartbeat as an observer of the two phases.
 impl PhaseObserver for Heartbeat {
-    /// con-leche: Main.lean:67-161 installLoop
+    /// con-leche: Main.lean:67-141 installLoop
     /// `con-leche: install <i>/<N> <decl> t=<s>s`, before the install.
-    fn install_before(&mut self, pos: u64, total: usize, d: &DeclC) {
+    fn install_before(&mut self, pos: u64, total: usize, d: &Declaration) {
         if self.stride > 0 && pos % self.stride == 0 {
             eprintln!(
                 "con-ron: install {}/{} {} t={}s",
@@ -773,7 +745,7 @@ impl PhaseObserver for Heartbeat {
         }
     }
 
-    /// con-leche: Main.lean:339-458 checkDeclsIO
+    /// con-leche: Main.lean:318-421 checkDeclsIO
     /// `con-leche: install failed at <i>/<N> …`, then the summary.
     fn install_failed(&mut self, pos: u64, total: usize, _st: &CState) {
         if self.stride > 0 {
@@ -789,20 +761,20 @@ impl PhaseObserver for Heartbeat {
         self.summary(None);
     }
 
-    /// con-leche: Main.lean:339-458 checkDeclsIO
+    /// con-leche: Main.lean:318-421 checkDeclsIO
     /// The cited `workers`, for the summary's last field.
     fn phase_b_workers(&mut self, workers: usize) {
         self.workers = workers;
     }
 
-    /// con-leche: Main.lean:260-280 checkOne
+    /// con-leche: Main.lean:240-260 checkOne
     /// The cited `stride > 0`: with no heartbeat no worker bumps the shared
     /// completed-counter.
     fn wants_check_lines(&self) -> bool {
         self.stride > 0
     }
 
-    /// con-leche: Main.lean:339-458 checkDeclsIO
+    /// con-leche: Main.lean:318-421 checkDeclsIO
     /// `con-leche: install done: <N>/<N> …, <M> checks pending …`.
     fn install_done(&mut self, total: usize, pend: usize, _st: &CState, _fe: &FEnv) {
         self.t_install = self.now();
@@ -819,7 +791,7 @@ impl PhaseObserver for Heartbeat {
         }
     }
 
-    /// con-leche: Main.lean:163-178 checkHeartbeat
+    /// con-leche: Main.lean:143-158 checkHeartbeat
     /// `con-leche: check <done>/<M> <kind> <name> t=<s>s`, after the check.
     fn check_after(&mut self, done: usize, m: usize, pc: &PendingCheck, _st: &CState, _fe: &FEnv) {
         if self.stride > 0 && (done as u64) % self.stride == 0 {
@@ -834,7 +806,7 @@ impl PhaseObserver for Heartbeat {
         }
     }
 
-    /// con-leche: Main.lean:339-458 checkDeclsIO
+    /// con-leche: Main.lean:318-421 checkDeclsIO
     /// `con-leche: check failed at fold position <i> …`, then the summary.
     fn check_failed(&mut self, pos: u64, _st: &CState) {
         let now = self.now();
@@ -849,7 +821,7 @@ impl PhaseObserver for Heartbeat {
         self.summary(Some(now - self.t_install));
     }
 
-    /// con-leche: Main.lean:339-458 checkDeclsIO
+    /// con-leche: Main.lean:318-421 checkDeclsIO
     /// `con-leche: check done: <M>/<M> …`, then the summary.
     fn check_done(&mut self, m: usize) {
         let now = self.now();
@@ -867,56 +839,33 @@ impl PhaseObserver for Heartbeat {
 }
 
 // ---------------------------------------------------------------------------
-// The verdict, and the driver rule that lives above the fold
+// The verdict lines
 // ---------------------------------------------------------------------------
 
-/// con-leche: Main.lean:502-797 checkMain
-/// **The taint-skip rule, the one driver rule that decides an exit code.**
-/// A clean fold over a stream whose frontend *skipped* declarations for a
-/// tolerated axiom is still a decline — con-leche's user directive of
-/// 2026-08-24: "uses of tolerated axioms are never accepted".  The skipped
-/// declarations are absent from `decls`, so nothing tainted was checked or
-/// installed, and the rest of the stream checked clean; that is not an
-/// acceptance of the stream.
+/// con-leche: Main.lean:461-711 checkMain
+/// **The accept line.**  `records` is the FILE's declaration-record count —
+/// what the parse produced, less the records the in-process modeller
+/// generated — and nothing the preparation does moves it: the prelude's own
+/// records are not the file's, and the stream's copy of one is a record of the
+/// file and is counted (it is what installs).  Since con-leche task #293 a
+/// stream's four quotient records and its `Quot.sound` axiom record count as
+/// the five records they are, where the parser used to fold them into one
+/// basis block.
 ///
-/// It must NOT live in the core: `check_decls` accepts the list it is given
-/// and knows nothing of what the frontend dropped (task #28's reasoning, and
-/// DESIGN.md §3.7's skip note for the driver rules).  It lives here, next to
-/// the fold it qualifies, and `con-ron` supplies the count off its own
-/// frontend's `taint_skipped` — which is frontend state a declaration list
-/// does not carry (task #10's surprise 9, and half of why the checker-only
-/// seam of task #28 was retired at task #80).
+/// It is **not** the environment's constant count: an inductive record
+/// installs a type former, its constructors, its recursor and its projection
+/// table, so that number is a property of the port's representation, where the
+/// record count is a property of the input.
 ///
-/// con-leche prints the accept on STDOUT and every decline on stderr, and a
-/// declined stream never says "accepted" (2026-09-07: it used to print the
-/// accept line and *then* the decline, which reads as an accept to anything
-/// that greps for one).  Returns the exit code.
-pub fn verdict_accept(
-    records: u64,
-    taint_skipped: usize,
-    detail: Option<&str>,
-    mode_tag: &str,
-) -> u8 {
-    if taint_skipped == 0 {
-        println!("con-ron: accepted {} declarations ({})", records, mode_tag);
-        return 0;
-    }
-    match detail {
-        Some(d) => eprintln!(
-            "con-ron: declined ({} declarations checked, {} skipped for tolerated \
-             axioms) ({}): {}",
-            records, taint_skipped, mode_tag, d
-        ),
-        None => eprintln!(
-            "con-ron: declined ({} declarations checked, {} skipped for tolerated \
-             axioms) ({})",
-            records, taint_skipped, mode_tag
-        ),
-    }
-    2
+/// con-leche prints the accept on STDOUT, which is where a caller greps for a
+/// verdict; the code returned is 0, the only code that carries the theorem's
+/// guarantee.
+pub fn verdict_accept(records: u64, mode_tag: &str) -> u8 {
+    println!("con-ron: accepted {} declarations ({})", records, mode_tag);
+    0
 }
 
-/// con-leche: Main.lean:502-797 checkMain
+/// con-leche: Main.lean:461-711 checkMain
 /// The failure line: the error, the declaration it names and its FOLD
 /// position, the mode, the elapsed time.  There is **no second pass** — the
 /// fold's error carries the position, so the message is read off the record
@@ -924,11 +873,12 @@ pub fn verdict_accept(
 /// (`diagLoopC`) for the reason a re-check of the accepted prefix is "a lie
 /// waiting to happen if the two runs ever disagreed".
 ///
-/// `i` is the fold position and is NOT the stream's declaration-record index
-/// (the parse folds, drops and generates records); the declaration NAME on the
-/// line is the portable handle.  `owner` is the inductive block a generated
-/// `_model` record belongs to, where the caller can say — the file has no
-/// position for such a record, so the block is the handle.
+/// `i` is the fold position and is NOT the file's declaration-record index
+/// (the prepared list starts with the prelude's records and carries the ones
+/// the in-process modeller generated); the declaration NAME on the line is the
+/// portable handle.  `owner` is the inductive block a generated `_model`
+/// record belongs to, where the caller can say — the file has no position for
+/// such a record, so the block is the handle.
 ///
 /// Deviation: the line opens with `verdict_word`'s word (`rejected`,
 /// `declined`, `error`) where con-leche opens with the message.  §3.1 lets
@@ -936,7 +886,7 @@ pub fn verdict_accept(
 /// run's output for — con-leche's own verdict vocabulary, put where a log can
 /// find it.
 pub fn verdict_failure(
-    ds: &Vec<DeclC>,
+    ds: &Vec<Declaration>,
     e: &CheckError,
     i: u64,
     owner: Option<String>,
@@ -967,9 +917,166 @@ pub fn verdict_failure(
     code
 }
 
+// ---------------------------------------------------------------------------
+// The streaming reader (task #84)
+//
+// `ConLeche/Frontend/ExportC.lean`'s `parseExportHandleD` and
+// `parseExportStreamD`: the *loop with the reads interleaved*, whose pure
+// counterpart `parseChunks` is in the verified core
+// (`con_ron_core::frontend::export_c`).  They are here and not there because
+// they are the one part of the parse that is not a function of the input:
+// `IO.FS.Handle.read` has no model, and a theorem about the file is a theorem
+// about its bytes, which `parse_chunks` takes as a list of chunks.  What this
+// pair adds is exactly the reads, and `chunk_step`/`chunk_finish` — the steps
+// it takes — are the core's.
+// ---------------------------------------------------------------------------
+
+/// con-leche: ConLeche/Frontend/ExportC.lean:903-931 parseExportHandleD
+/// Streaming direct parse off an open reader.
+///
+/// The reader is read strictly forward, 4 MiB at a time, and is never seeked,
+/// re-opened or asked for its size — so the source may be a *pipe* just as
+/// well as a file (con-leche task #180: no scratch file at all, anywhere).
+/// It is a property to preserve: a seek or a re-open here would silently
+/// re-introduce a temp file.  The unconsumed tail of a chunk — at most one
+/// incomplete line — is carried into the next one.  Each step is the core's
+/// `chunk_step`, the end its `chunk_finish`: the loop is `parse_chunks`' with
+/// the reads interleaved, stopping at the first empty read.
+pub fn parse_export_handle_d<R: Read, M: Modeller>(
+    m: &M,
+    h: &mut R,
+    in_model: bool,
+    census: bool,
+    chunk: usize,
+) -> std::io::Result<Result<ParseResultD, (CheckError, u64)>> {
+    let mut st = export_c::state_d_init(in_model, census);
+    let mut carry: Vec<u8> = Vec::new();
+    let mut line_no: u64 = 0;
+    let mut total: u64 = 0;
+    let mut buf0: Vec<u8> = vec![0u8; chunk];
+    loop {
+        let n = read_up_to(h, &mut buf0)?;
+        if n == 0 {
+            return Ok(export_c::chunk_finish(m, st, &carry, line_no));
+        }
+        match export_c::chunk_step(m, &mut st, carry, line_no, total, &buf0[..n]) {
+            Err(e) => return Ok(Err(e)),
+            Ok((c, l, t)) => {
+                carry = c;
+                line_no = l;
+                total = t;
+            }
+        }
+    }
+}
+
+/// con-leche: none — `IO.FS.Handle.read`, which returns *up to* `n` bytes and
+/// an empty buffer at end of file; `Read::read` may also stop short of a full
+/// buffer mid-file, so the port loops until the buffer is full or the reader
+/// is done.
+pub fn read_up_to<R: Read>(h: &mut R, buf: &mut [u8]) -> std::io::Result<usize> {
+    let mut got = 0usize;
+    while got < buf.len() {
+        match h.read(&mut buf[got..]) {
+            Ok(0) => break,
+            Ok(n) => got += n,
+            Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(got)
+}
+
+/// con-leche: ConLeche/Frontend/ExportC.lean:933-938 parseExportStreamD
+/// Streaming direct parse of a file.
+pub fn parse_export_stream_d<M: Modeller>(
+    m: &M,
+    path: &str,
+    in_model: bool,
+    census: bool,
+    chunk: usize,
+) -> std::io::Result<Result<ParseResultD, (CheckError, u64)>> {
+    let mut f = std::fs::File::open(path)?;
+    parse_export_handle_d(m, &mut f, in_model, census, chunk)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use con_ron_core::frontend::export_c::{concat_bytes, parse_chunks};
+    use con_ron_core::frontend::in_model_rec::{BlockRec, ModelCtx};
+    use con_ron_core::kernel::env::Declaration;
+
+    /// A modeller that declines everything: the streams below have no mutual
+    /// or nested block, so it is never asked.
+    struct NoModel;
+
+    impl Modeller for NoModel {
+        fn generate(
+            &self,
+            _ctx: &ModelCtx,
+            _b: &BlockRec,
+        ) -> Result<Vec<Declaration>, Vec<u32>> {
+            Err(Vec::new())
+        }
+    }
+
+    /// **The reader loop is `parse_chunks` with the reads interleaved.**
+    /// con-leche's `parseChunks` is the *specification* of
+    /// `parseExportHandleD` (its own doc comment says so), and the core proves
+    /// nothing about the reader — it cannot, `IO.FS.Handle.read` has no model.
+    /// So the agreement is a test: at every chunk size, including sizes that
+    /// cut inside a line and one byte at a time, the streaming parse and the
+    /// pure fold over the same chunks produce the same records.  Task #84
+    /// moved this half of `export_c`'s `chunking_does_not_change_the_parse`
+    /// here with the reader.
+    #[test]
+    fn the_reader_is_parse_chunks_with_the_reads() {
+        let s = concat!(
+            "{\"meta\":{\"exporter\":{\"name\":\"lean4export\"}}}\n",
+            "{\"in\":1,\"str\":{\"pre\":0,\"str\":\"A\"}}\n",
+            "{\"ie\":0,\"sort\":0}\n",
+            "{\"axiom\":{\"isUnsafe\":false,\"levelParams\":[],\"name\":1,\"type\":0}}\n"
+        );
+        let b = s.as_bytes();
+        for chunk in [1usize, 2, 7, 8, 13, 64, 4096] {
+            let mut r = std::io::Cursor::new(b.to_vec());
+            let streamed = parse_export_handle_d(&NoModel, &mut r, true, false, chunk)
+                .expect("no io error")
+                .unwrap_or_else(|(e, l)| panic!("chunk {} line {}: {}", chunk, l, message(&e)));
+            let cs: Vec<Vec<u8>> = b.chunks(chunk).map(|c| c.to_vec()).collect();
+            assert_eq!(concat_bytes(&cs), b, "chunk {}", chunk);
+            let pure = parse_chunks(&NoModel, &cs, true, false)
+                .unwrap_or_else(|(e, l)| panic!("pure chunk {} line {}: {}", chunk, l, message(&e)));
+            assert_eq!(streamed.decls.len(), pure.decls.len(), "chunk {}", chunk);
+            assert_eq!(streamed.decls.len(), 1, "chunk {}", chunk);
+        }
+    }
+
+    /// `read_up_to` fills the buffer even when the reader stops short, which
+    /// is the one thing `IO.FS.Handle.read` does not need to be told.
+    #[test]
+    fn read_up_to_fills_or_ends() {
+        struct Dribble(Vec<u8>, usize);
+        impl std::io::Read for Dribble {
+            fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                if self.1 >= self.0.len() {
+                    return Ok(0);
+                }
+                // one byte at a time, whatever the caller asked for
+                buf[0] = self.0[self.1];
+                self.1 += 1;
+                Ok(1)
+            }
+        }
+        let mut d = Dribble(b"abcdefgh".to_vec(), 0);
+        let mut buf = [0u8; 5];
+        assert_eq!(read_up_to(&mut d, &mut buf).unwrap(), 5);
+        assert_eq!(&buf, b"abcde");
+        assert_eq!(read_up_to(&mut d, &mut buf).unwrap(), 3);
+        assert_eq!(&buf[..3], b"fgh");
+        assert_eq!(read_up_to(&mut d, &mut buf).unwrap(), 0);
+    }
 
     /// `Main.lean:48-51`'s three arms, and `OVERVIEW.md` §0's words.
     #[test]
@@ -997,49 +1104,7 @@ mod tests {
         assert!(jobs_count("many").unwrap_err().contains("--jobs"));
     }
 
-    /// All thirteen retired spellings of `Main.lean`'s RETIRED FLAGS
-    /// paragraph are rejected, and every message names the replacement.
-    #[test]
-    fn every_retired_spelling_names_its_replacement() {
-        let cases: [(&str, &str); 13] = [
-            ("--set-model", "--verified"),
-            ("--set-model=p", "--verified"),
-            ("--set-model=r", "--verified"),
-            ("--no-model", "--trusted"),
-            ("--tt-model", "--verified"),
-            ("--yolo", "--trusted"),
-            ("--infer-only", "--trusted"),
-            ("--pre", "raw lean4export"),
-            ("--core", "one core"),
-            ("--core=c", "one core"),
-            ("--install-only", "arena machinery"),
-            ("--check-range", "arena machinery"),
-            ("--check-range=1-2", "arena machinery"),
-        ];
-        for (flag, want) in cases {
-            let got = retired_flag(flag)
-                .unwrap_or_else(|| panic!("{} is not rejected", flag));
-            assert!(got.starts_with(flag.split('=').next().unwrap()), "{}", got);
-            assert!(got.contains("retired"), "{}", got);
-            assert!(got.contains(want), "{} does not name {}", got, want);
-        }
-        // What is NOT retired stays unrecognised here, including the three
-        // flags whose spelling is a prefix of a retired one.
-        for ok in [
-            "--verified",
-            "--trusted",
-            "--progress",
-            "--progress=10",
-            "--jobs=4",
-            "--no-mark-persistent",
-            "--help",
-            "file.ndjson",
-        ] {
-            assert!(retired_flag(ok).is_none(), "{} must not be retired", ok);
-        }
-    }
-
-    /// `Main.lean:330-449`'s `workers := max 1 (min jobs pend.size)`, and the
+    /// `Main.lean:318-421`'s `workers := max 1 (min jobs pend.size)`, and the
     /// capped default: never 0, never more workers than records, and an
     /// explicit count obeyed to the letter.
     #[test]

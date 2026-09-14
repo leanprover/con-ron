@@ -397,14 +397,14 @@ theorem abstract1_go_refines {d : Std.U64} {e : expr.Expr}
 
 
 
-/-- **`expr_ops_c::abstract1` refines `ExprC.abstract1`**
+/-- **`expr_ops_c::abstract1` refines `Expr.abstract1C`**
 (`ExprOpsC.lean:510-512`): the `fvar_b` cutoff, then the walk under a fresh
 table.  `abstract1_spec` (`Verify/Cached/OpsC.lean:1059`) is the same split on
 the Lean side. -/
 theorem abstract1_refines {e r : expr.Expr} {d k : Std.U64} (he : ExprWF e)
     (h : cached.expr_ops_c.abstract1 e d k = ok r) :
-    absExpr r = ConLeche.Cached.ExprC.abstract1 (absExpr e) d.val k.val ∧ ExprWF r := by
-  rw [ConLeche.Cached.ExprC.abstract1_spec]
+    absExpr r = ConLeche.Expr.abstract1C (absExpr e) d.val k.val ∧ ExprWF r := by
+  rw [ConLeche.Expr.abstract1C_spec]
   rw [cached.expr_ops_c.abstract1] at h
   obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
   split at h
@@ -428,7 +428,7 @@ The bulk abstraction: close the block `fvar d … fvar (d + k - 1)` in one pass,
 outermost first.  Unlike `expr_ops::abstract_range` (task #47's unmemoised
 walk) this one is **memoised** at the binder cursor and carries the `fvarB`
 cutoff, which is the cited shape; so it needs its own `Q` and its own cutoff
-lemma, off `Expr.abstractRange_eq_self` through con-leche's `ExprC.fvarB_le`. -/
+lemma, off `Expr.abstractRange_eq_self` through con-leche's `Expr.fvarB_le`. -/
 
 /-- con-leche's `MemoARInv` (`Verify/Cached/OpsC.lean:1076`), as the `Q` of
 `MemoInv`: every recorded answer is the real one, and it is well formed. -/
@@ -438,7 +438,7 @@ def AbsRQ (d k : Nat) : ConLeche.Expr × Nat → expr.Expr → Prop :=
 /-- The cutoff branch of `abstract_range_go`, shared by all ten constructors: a
 node whose fvar range is at or below `d` contains none of the abstracted block,
 so the walk returns it unchanged (`Expr.abstractRange_eq_self` through
-`ExprC.fvarB_le`). -/
+`Expr.fvarB_le`). -/
 theorem abstract_range_cutoff {d k c fb : Std.U64} {e r : expr.Expr}
     {memo memo' : ron.hashmap.HashMap expr_ops.ExprNatKey expr.Expr}
     (hwfe : ExprWF e) (hm : MemoInv KeyWF absKey (AbsRQ d.val k.val) memo)
@@ -453,7 +453,7 @@ theorem abstract_range_cutoff {d k c fb : Std.U64} {e r : expr.Expr}
   subst hr; subst hmm
   refine ⟨⟨hwfe, ?_⟩, hm⟩
   have hbelow : ConLeche.Expr.fvarsBelow d.val (absExpr e) :=
-    ConLeche.Cached.ExprC.fvarB_le
+    ConLeche.Expr.fvarB_le
       (by rw [← fvar_b_refines hwfe hfb]; exact hle)
   rw [ConLeche.abstractRange_eq_self hbelow]
 
@@ -845,12 +845,12 @@ theorem abstract_range_go_refines {d k : Std.U64} {e : expr.Expr}
 
 
 
-/-- **`expr_ops_c::abstract_range` refines `ExprC.abstractRange`**
+/-- **`expr_ops_c::abstract_range` refines `Expr.abstractRangeC`**
 (`ExprOpsC.lean:569-574`): `k = 0` is the identity and skips the traversal, then
 the `fvar_b` cutoff, then the walk under a fresh table. -/
 theorem abstract_range_refines {e r : expr.Expr} {d k c : Std.U64} (he : ExprWF e)
     (h : cached.expr_ops_c.abstract_range e d k c = ok r) :
-    absExpr r = ConLeche.Cached.ExprC.abstractRange (absExpr e) d.val k.val c.val ∧
+    absExpr r = ConLeche.Expr.abstractRangeC (absExpr e) d.val k.val c.val ∧
       ExprWF r := by
   rw [cached.expr_ops_c.abstract_range] at h
   split at h
@@ -859,13 +859,13 @@ theorem abstract_range_refines {e r : expr.Expr} {d k c : Std.U64} (he : ExprWF 
     have hk0' : k.val = 0 := by rw [hk0]; scalar_tac
     rw [Expr.dup_eq h, hk0']
     refine ⟨?_, he⟩
-    rw [ConLeche.Cached.ExprC.abstractRange]
-  · rw [ConLeche.Cached.ExprC.abstractRange_spec]
+    rw [ConLeche.Expr.abstractRangeC]
+  · rw [ConLeche.Expr.abstractRangeC_spec]
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · rename_i hle
       have hbelow : ConLeche.Expr.fvarsBelow d.val (absExpr e) :=
-        ConLeche.Cached.ExprC.fvarB_le
+        ConLeche.Expr.fvarB_le
           (by rw [← fvar_b_refines he hfb]; scalar_tac)
       rw [Expr.dup_eq h, ConLeche.abstractRange_eq_self hbelow]
       exact ⟨rfl, he⟩
@@ -1451,7 +1451,7 @@ theorem inst_level_params_go_refines {ks : alloc.vec.Vec name.Name}
         exact MemoInv.set expr_key_exact hm2 hwfe hans hins
 
 
-/-- **`expr_ops_c::inst_level_params` refines `ExprC.instLevelParams`**
+/-- **`expr_ops_c::inst_level_params` refines `Expr.instLevelParams`**
 (`ExprOpsC.lean:619-621`): the `hasLP` cutoff, then the walk under a fresh
 table.  `instLevelParams_spec` (`Verify/Cached/OpsC.lean:1463`) reads the cited
 definition as `Expr.instantiateLevelParams`. -/
@@ -1460,9 +1460,9 @@ theorem inst_level_params_refines {ks : alloc.vec.Vec name.Name}
     (hus : LevelsWF us) (he : ExprWF e)
     (h : cached.expr_ops_c.inst_level_params ks us e = ok r) :
     absExpr r
-        = ConLeche.Cached.ExprC.instLevelParams (absNames ks) (absLevels us) (absExpr e) ∧
+        = ConLeche.Expr.instLevelParams (absNames ks) (absLevels us) (absExpr e) ∧
       ExprWF r := by
-  rw [ConLeche.Cached.ExprC.instLevelParams_spec]
+  rw [ConLeche.Expr.instLevelParams_spec]
   rw [cached.expr_ops_c.inst_level_params] at h
   obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
   cases b with

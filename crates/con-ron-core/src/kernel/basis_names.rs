@@ -238,6 +238,17 @@ pub fn reserved_basis_names() -> Vec<Name> {
     ns
 }
 
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:130-131 sorryAxName
+/// The name `sorryAx` — the one axiom the checker tolerates as a
+/// *declaration* (its record installs nothing), which makes any *use* of it a
+/// positively detected unsupported feature: the decline is decided where the
+/// constant fails to resolve, in `core_k::unknown_const_error` and
+/// `checker_base::unresolved_consts_error`.
+pub fn sorry_ax_name() -> Name {
+    const S: [u32; 7] = [115, 111, 114, 114, 121, 65, 120];
+    name::mk_str(name::anonymous(), core_types::code_points(&S))
+}
+
 #[cfg(test)]
 mod tests {
     use crate::kernel::basis_names as bn;

@@ -231,6 +231,20 @@ theorem quot_sound_name_refines {n : name.Name} (h : basis_names.quot_sound_name
       100#u32]) (by simp [basis_names.quot_sound_name.S]) (by decide)
   exact ⟨by rw [h1, hp]; rfl, h1wf⟩
 
+/-- `ConLeche/Kernel/Basis/Names.lean:130-131 sorryAxName` --
+`basis_names::sorry_ax_name` refines `sorryAxName`, the one axiom the checker
+tolerates as a *declaration* (con-leche task #292; `toleratedAxiomNames` and
+its refinement went with it). -/
+theorem sorry_ax_name_refines {n : name.Name} (h : basis_names.sorry_ax_name = ok n) :
+    absName n = ConLeche.sorryAxName ∧ NameWF n := by
+  rw [basis_names.sorry_ax_name] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨a, ha, s, hs, v, hv, hmk⟩ := h
+  obtain ⟨h1, h1wf⟩ := str_lit_step (Name.anonymous_wf ha) hs hv hmk
+    (L := [115#u32, 111#u32, 114#u32, 114#u32, 121#u32, 65#u32, 120#u32])
+    (by simp [basis_names.sorry_ax_name.S]) (by decide)
+  exact ⟨by rw [h1, Name.anonymous_refines ha]; rfl, h1wf⟩
+
 /-- `ConLeche/Kernel/Basis/Names.lean:73-74 stringName` --
 `basis_names::string_name` refines `stringName`. -/
 theorem string_name_refines {n : name.Name} (h : basis_names.string_name = ok n) :

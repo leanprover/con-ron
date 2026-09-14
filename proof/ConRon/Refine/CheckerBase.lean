@@ -2,6 +2,7 @@ import ConRon.Refine.TypeChecker
 import ConRon.Refine.CoreKShapes
 import ConRon.Refine.PropRead
 import ConRon.Refine.BasisNames
+import ConRon.Refine.ErrKinds
 import ConLeche.Kernel.DeclCheck
 
 /-! # `kernel::checker_base` — the declaration checker's common ground (task #56)
@@ -1914,7 +1915,7 @@ def constantValTail (ops : ConLeche.CheckerOps CheckCM) (lfe : ConLeche.FEnv)
   unless ConLeche.Expr.allLevelParamsDefined cv.levelParams type do
     throw (.invalid s!"undeclared universe parameter in type of {cv.name}")
   unless ConLeche.Expr.constsResolveF lfe type do
-    throw (.invalid s!"unknown constant in type of {cv.name}")
+    throw (ConLeche.unresolvedConstsError s!"type of {cv.name}" type)
   let stype ← ops.inferType lfe.env 0 type
   let _u ← ops.ensureSort lfe.env 0 stype
   pure { cv with type := type }
@@ -1980,7 +1981,7 @@ theorem constantValTail_resolve {ops : ConLeche.CheckerOps CheckCM} {lfe : ConLe
     (h1 : ConLeche.Expr.allLevelParamsDefined cv.levelParams type = true)
     (h2 : ConLeche.Expr.constsResolveF lfe type = false) :
     (constantValTail ops lfe cv type).run lst
-      = .error (.invalid s!"unknown constant in type of {cv.name}") := by
+      = .error (ConLeche.unresolvedConstsError s!"type of {cv.name}" type) := by
   rw [constantValTail]
   simp only [h1, h2, Bool.false_eq_true, if_false, reduceIte, StateT.run, Bind.bind,
     StateT.bind, Except.bind]
@@ -2132,10 +2133,11 @@ theorem checkConstantValF_annot_err {ops : ConLeche.CheckerOps CheckCM}
 annotation: the level-parameter and resolution guards on the annotated type,
 the type's own sort, and the record update `{ cv with type := type }`.
 
-Over the whole outcome: the port's two `invalid` sites
-(`kernel/checker_base.rs:120`, `122`) are the cited tail's two `throw`s
-(`:92`, `:94`), and its two other failures are what `infer_type_core` and
-`ensure_sort_core` threw. -/
+Over the whole outcome: the port's two error sites
+(`kernel/checker_base.rs:140`, `142`) are the cited tail's two `throw`s
+(`:92`, `:94`) — the second through `unresolved_consts_error`, whose kind
+depends on the term (con-leche task #292) — and its two other failures are
+what `infer_type_core` and `ensure_sort_core` threw. -/
 theorem check_constant_val_after_annot_refines {mode : env.CheckMode} {fuel : Std.U64}
     (hfuel : core_k.check_fuel = ok fuel) (hk : Core.Wrappers mode fuel)
     (hcr : ConstsResolveFSpec)
@@ -2224,15 +2226,16 @@ theorem check_constant_val_after_annot_refines {mode : env.CheckMode} {fuel : St
             simp only [absConstantVal, hnv, hvabs]
           · refine ⟨by rw [hnv]; exact hnwf, ?_, hty⟩
             intro x hx; exact hlpwf x (by rw [hvv] at hx; exact hx)
-    · -- the resolution `throw` (`CheckerBase.lean:94`)
+    · -- the resolution `throw` (`CheckerBase.lean:94`), at the named builder
+      -- of con-leche's task #292: the kind depends on the term.
       rename_i hb1f
-      simp only [bind_eq_ok_iff] at h
-      obtain ⟨sl, hsl, v, hv, ce, hce, h⟩ := h
+      obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨hout, -⟩ := err_outS h
       subst hout
-      refine errSim_invalid hce rfl
-        (constantValTail_resolve (cv := absConstantVal cv) hlp ?_)
-      rw [← hb1abs]; simpa using hb1f
+      have hres : ConLeche.Expr.constsResolveF lfe (absExpr ty) = false := by
+        rw [← hb1abs]; simpa using hb1f
+      exact ErrSim.mk (constantValTail_resolve (cv := absConstantVal cv) hlp hres)
+        (unresolved_consts_error_refines hty hce _)
   · -- the level-parameter `throw` (`CheckerBase.lean:92`)
     rename_i hbf
     simp only [bind_eq_ok_iff] at h

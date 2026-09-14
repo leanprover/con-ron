@@ -12,34 +12,19 @@
 #
 # Usage: tests/arena.sh [--no-sweeps] [tests-dir]
 #
-# An <expectation> is a single exit code.  Until task #148 T0b it could
-# also be a pair "<on>|<off>" for the five fixtures whose verdict
-# depended on the direct simple-structure master switch
-# (`ConLeche.structsEnabled`, ConLeche/Kernel/Inductives/*, task
-# #119/#120), and `--direct-off` ran the whole suite against a second
-# binary built with the switch off.  The switch now ships `false` — the
-# configuration both verified lanes reason about — so the shipped binary
-# *is* the former "off" column: the pairs collapsed to single codes and
-# the second-binary harness (tests/build-direct-off.sh) went with them.
-# The pre-flip codes are recorded in the two expectation files.
+# An <expectation> is a single exit code.
 #
-# THE MODE SWEEP (task #147; one mode fewer since #148 T7b).  The
-# checker has one two-valued mode: `--verified` (the default — the
-# surface the set model proves) and `--trusted` (the unverified lane:
-# checking-mode front door, infer-only internals, no certificate
-# families; it absorbs the retired --yolo/CON_LECHE_NO_PROOF_CERTS and
-# --infer-only/CON_LECHE_INFER_ONLY).  `--tt-model` selected the seven
-# TT-lane checks for the declarative verification lane; that lane was
-# deleted at #148 T7b and the flag is a hard error now, so its sweep —
-# which had claimed and shown byte-identity with the default on every
-# fixture — went with it.  The certified sections run at the default
-# (`--verified`); afterwards both suites run again
+# THE MODE SWEEP.  The checker has one two-valued mode: `--verified`
+# (the default — the surface the set model proves) and `--trusted`
+# (the unverified lane: checking-mode front door, infer-only
+# internals, no certificate families).  The certified sections run at
+# the default (`--verified`); afterwards both suites run again
 #
 #   * with `--trusted`, against the certified expectations plus the
-#     recorded overrides in tests/trusted-expected.txt (the successor
-#     of tests/yolo-expected.txt — see that file's header for what may
-#     be recorded: partial-stack divergences of the unverified lane,
-#     each with the defect it stops or starts detecting differently).
+#     recorded overrides in tests/trusted-expected.txt (see that
+#     file's header for what may be recorded: partial-stack
+#     divergences of the unverified lane, each with the defect it
+#     stops or starts detecting differently).
 #
 # `--no-sweeps` skips the extra pass for a tight edit loop; a landing
 # gate runs it.
@@ -166,16 +151,34 @@ if tests/pindump.sh; then :; else fail=1; fi
 # and neither sees the other's.
 if tests/trust-surface.sh; then :; else fail=1; fi
 
-# THE OVERVIEW LINK GATE (task #216).  `OVERVIEW.md` is the guided tour
-# of the proof, and nearly every claim in it is anchored at a LINE RANGE
-# of a source file.  Line anchors rot silently — one added `import`
-# slides every anchor in a module — so the gate copies the cited lines
-# into a committed text (`tests/overview-links-expected.txt`) and diffs.
+# THE DOCUMENT LINK GATE (task #216; `README.md` added at task #299).
+# `OVERVIEW.md` is the guided tour of the proof, and nearly every claim
+# in it is anchored at a LINE RANGE of a source file; `README.md` links
+# the code names it states the theorem with in the same shape.  Line
+# anchors rot silently — one added `import` slides every anchor in a
+# module — so the gate copies the cited lines into a committed text
+# (`tests/overview-links-expected.txt`) and diffs.
 # A diff is not "the docs are broken": it means a citation moved (update
 # the `#L<a>-L<b>`) or its text changed (re-read the paragraph that
-# cites it, then `tests/overview-links.sh --update`).  Source-tree only,
-# no build, milliseconds.
+# cites it, then `tests/overview-links.sh --update`); the failure names
+# the document.  It also checks that every RELATIVE link's target still
+# exists.  Source-tree only, no build, milliseconds.
 if tests/overview-links.sh; then :; else fail=1; fi
+
+# THE DOCUMENT QUOTE GATE (task #302).  The same two documents also
+# QUOTE the code: a fenced ```lean block holding a theorem's statement
+# for the reader.  That rots more quietly than a line anchor — a renamed
+# binder or a re-indented continuation leaves the link pointing at valid
+# lines while the block shows a statement the tree no longer has.  The
+# gate compares every declaration-headed ```lean block TEXTUALLY with
+# the source's own header (from the `theorem`/`def` line, without the
+# docstring, through the text before the statement-ending `:=`).
+# Textual, not `#check`: the documents quote SOURCE for a human, so
+# binder names, notation and indentation are the point, and `#check`
+# normalises exactly those away.  The source is the truth and there is
+# no --update; the fix is to re-sync the QUOTE, which an agent may do
+# (the prose around it is still the maintainer's).  No build, milliseconds.
+if tests/quote-gate.sh; then :; else fail=1; fi
 
 # Repo content must not reference local (absolute home) paths.
 if tests/no-local-paths.sh; then :; else fail=1; fi
@@ -196,17 +199,6 @@ if tests/challenge.sh; then :; else fail=1; fi
 # as a `rfl` that stops closing rather than an unknown identifier.  Needs the
 # built tree; ~1 min, most of it the two olean dumps the fixpoint reads.
 if tests/shake.sh; then :; else fail=1; fi
-
-# THE INSTALL-ROUTE CENSUS (task #207, the successor of task #193's
-# native-predicate audit).  There is no external predicate to compare
-# the recognisers against any more — the preprocessor and its mirror
-# went together — so this gate pins what the ONE implementation does:
-# every inductive block of every good arena fixture must route
-# `struct`, `sum`, `fix`, `inmodel` or `basis`
-# (`CON_LECHE_ROUTE_TRACE`, Main.lean), never `modeled` (a model out of
-# the stream) and never "no install route" (a block reaching the fold
-# bare).  `tests/route-census.sh --full` adds init-full.
-if tests/route-census.sh; then :; else fail=1; fi
 
 # THE IN-PROCESS MODELLER'S GATE (task #200; the modeller is the only
 # model source since #207): the raw mutual/nested fixtures through the
@@ -339,55 +331,16 @@ annot_half
 echo "annot suite: $annot_ok/$annot_total as expected"
 
 
-# Retired flag surface (task #172): the `--core` selector and the split
-# install/check driver (`--install-only` / `--check-range`) were arena
-# machinery and went with the interned representation.  They are HARD
-# ERRORS, not silently ignored — the same rule the retired mode
-# environment variables follow: a verdict's provenance must be readable
-# off the invocation.  The fixtures below are the streams the mode
-# section reuses.
+# The mode flags: the modes parse and judge the smoke fixtures alike —
+# the verified lane (`--verified`, the default) and the trusted lane
+# (`--trusted`) — and an unknown option is a usage error (exit 3), not
+# a silently ignored one: a verdict's provenance must be readable off
+# the invocation.  `CON_LECHE_INMODEL_CENSUS=1` is checked here too
+# (issue #8): it is a parse-only diagnostic, the fold never runs, and
+# the run must therefore DECLINE (exit 2) whatever the stream — exit 0
+# is reserved for a stream `Cached.checkDecls` accepted.
 SPLIT_GOOD=tests/annot/annot_split_good.ndjson
 SPLIT_BAD=tests/annot/annot_split_bad.ndjson
-split_ok=0
-split_total=0
-split_case() {
-  want=$1; shift
-  split_total=$((split_total+1))
-  timeout 120 "$BIN" "$@" >/dev/null 2>&1
-  got=$?
-  if [ "$got" != "$want" ]; then
-    echo "RETIRED-FLAG FAIL ($*): expected exit $want, got $got"; fail=1
-  else
-    split_ok=$((split_ok+1))
-  fi
-}
-split_case 0 "$SPLIT_GOOD"                        # the one driver: accept
-split_case 1 "$SPLIT_BAD"                         # …and it still rejects
-split_case 3 --install-only "$SPLIT_GOOD"         # retired: hard error
-split_case 3 --check-range 0:2 "$SPLIT_GOOD"      # retired: hard error
-split_case 3 --check-range=0:2 "$SPLIT_GOOD"      # …in the `=` spelling too
-split_case 3 --core=production "$SPLIT_GOOD"      # retired core selector
-split_case 3 --core=cached-parsed "$SPLIT_GOOD"   # …including the one that won
-split_case 3 --core production "$SPLIT_GOOD"      # …in the two-token spelling
-echo "retired flags: $split_ok/$split_total as expected"
-
-# The mode flags (task #147): the modes parse and judge the smoke
-# fixtures alike — the verified lane (`--verified`, the default) and
-# the trusted lane (`--trusted`) — and the RETIRED flags/environment
-# variables error out with a pointer to the new modes rather than being
-# silently ignored.  `--set-model=r` joined them 2026-09-05: the R core
-# and the collapsed-model consistency proof it was the subject of were
-# deleted, and the spelling must not silently alias onto a different
-# core.  `--set-model`, `--set-model=p` and `--no-model` joined them at
-# the mode rename (2026-09-06): they name the same two cores under the
-# old vocabulary, and even so they are hard errors, not aliases — a
-# verdict's provenance must be readable off the invocation.  `--pre`
-# joined them at task #207, when the preprocessor it asserted about was
-# dropped: every input is a raw lean4export stream now.
-# `CON_LECHE_INMODEL_CENSUS=1` is checked here too (task #271, issue
-# #8): it is a parse-only diagnostic, the fold never runs, and the run
-# must therefore DECLINE (exit 2) whatever the stream — exit 0 is
-# reserved for a stream `Cached.checkDecls` accepted.
 mode_ok=0
 mode_total=0
 mode_case() {
@@ -401,38 +354,14 @@ mode_case() {
     mode_ok=$((mode_ok+1))
   fi
 }
+mode_case 0 "$SPLIT_GOOD"                          # no flag at all: accept
+mode_case 1 "$SPLIT_BAD"                           # …and it still rejects
 mode_case 0 --verified "$SPLIT_GOOD"               # the default, spelled out
 mode_case 1 --verified "$SPLIT_BAD"                # …and it still rejects
 mode_case 0 --trusted "$SPLIT_GOOD"                # trusted lane: accepts
 mode_case 1 --trusted "$SPLIT_BAD"                 # front door still rejects
-mode_case 3 --set-model "$SPLIT_GOOD"              # RENAMED: hard error
-mode_case 3 --set-model=p "$SPLIT_GOOD"            # …the `=p` spelling too
-mode_case 3 --no-model "$SPLIT_GOOD"               # RENAMED: hard error
-mode_case 3 --no-model "$SPLIT_BAD"                # …on a bad stream too
-mode_case 3 --tt-model "$SPLIT_GOOD"               # retired flag: hard error
-mode_case 3 --trusted --install-only "$SPLIT_GOOD" # retired flag: hard error
-mode_case 3 --set-model=r "$SPLIT_GOOD"            # RETIRED R lane: hard error
-mode_case 3 --set-model=r "$SPLIT_BAD"             # …on a bad stream too
-mode_case 3 --pre "$SPLIT_GOOD"                    # RETIRED at #207: hard error
-mode_case 3 --pre "$SPLIT_BAD"                     # …on a bad stream too
-mode_case 3 --yolo "$SPLIT_GOOD"                   # retired flag: hard error
-mode_case 3 --infer-only "$SPLIT_GOOD"             # retired flag: hard error
-mode_total=$((mode_total+1))
-if CON_LECHE_NO_PROOF_CERTS=1 timeout 120 "$BIN" "$SPLIT_GOOD" \
-    >/dev/null 2>&1; [ $? = 3 ]; then
-  mode_ok=$((mode_ok+1))                           # retired env var: hard error
-else
-  echo "MODE FAIL: CON_LECHE_NO_PROOF_CERTS=1 did not error"
-  fail=1
-fi
-mode_total=$((mode_total+1))
-if CON_LECHE_INFER_ONLY=1 timeout 120 "$BIN" "$SPLIT_GOOD" \
-    >/dev/null 2>&1; [ $? = 3 ]; then
-  mode_ok=$((mode_ok+1))                           # retired env var: hard error
-else
-  echo "MODE FAIL: CON_LECHE_INFER_ONLY=1 did not error"
-  fail=1
-fi
+mode_case 3 --not-a-flag "$SPLIT_GOOD"             # unknown option: usage error
+mode_case 3 --trusted --not-a-flag "$SPLIT_BAD"    # …after a good flag too
 mode_total=$((mode_total+1))
 if CON_LECHE_INMODEL_CENSUS=1 timeout 120 "$BIN" "$SPLIT_GOOD" \
     >/dev/null 2>&1; [ $? = 2 ]; then
@@ -451,14 +380,14 @@ else
 fi
 echo "mode flags: $mode_ok/$mode_total as expected"
 
-# THE BUILT-IN PRELUDE'S COUNT INVARIANT (task #191).  Every run now
-# installs the six basis blocks and `Bool` first; a stream's own copies
-# are dropped as duplicates.  The verdict line must still count the
-# STREAM's declaration records — dropped copies included, since they
-# are installed (from the prelude) and the official checker counts them
-# — so the number is unchanged by the prelude's existence and equal
-# across reorderings of the same records: natop_order.ndjson has 35
-# declaration records (4 of them prelude duplicates: Nat, PUnit, Bool,
+# THE BUILT-IN PRELUDE'S COUNT INVARIANT (task #191; the arithmetic is
+# task #293's).  Every run installs the prelude's declarations first —
+# the stream's OWN record wherever the stream has one, a synthesised
+# copy where it has none.  The verdict line counts the FILE's
+# declaration records, which no step of the preparation moves: the
+# number is unchanged by the prelude's existence and equal across
+# reorderings of the same records.  natop_order.ndjson has 35
+# declaration records (4 of them the prelude's own: Nat, PUnit, Bool,
 # Eq), and natop_before_eq.ndjson / natop_before_ble.ndjson are the same
 # 35 records in other orders.
 prelude_ok=0
@@ -590,16 +519,6 @@ prog_check "--progress=x is a usage error (exit 3)" \
   "$([ "$prog_codeX" = 3 ] && echo ok)"
 prog_check "--progress=0 is a usage error (exit 3)" \
   "$([ "$prog_code0" = 3 ] && echo ok)"
-# THE ENVIRONMENT VARIABLE IS GONE (task #229), not aliased: a stale
-# script that still exports it gets a plain run, heartbeat and all
-# absent, so it cannot keep working silently.
-prog_errEnv=$(CON_LECHE_PROGRESS=1 timeout 120 "$BIN" "$SPLIT_GOOD" 2>&1 >/dev/null)
-prog_outEnv=$(CON_LECHE_PROGRESS=1 timeout 120 "$BIN" "$SPLIT_GOOD" 2>/dev/null)
-prog_codeEnv=$?
-prog_check "CON_LECHE_PROGRESS is ignored: no heartbeat" \
-  "$([ "$(printf '%s\n' "$prog_errEnv" | grep -c '^con-leche: \(install\|check\|parse\|done\)')" = 0 ] && echo ok)"
-prog_check "CON_LECHE_PROGRESS changes no verdict" \
-  "$([ "$prog_outEnv" = "$prog_out" ] && [ "$prog_codeEnv" = "$prog_code" ] && echo ok)"
 echo "progress lane: $prog_ok/$prog_total as expected"
 
 # The worker pool (`--jobs=<n>`, task #260).  The check phase runs on
@@ -709,8 +628,8 @@ tower_run tower_axiom 2 \
   "a tower in Quot.sound's type declines without walking it"
 tower_run tower_quot 2 \
   "a tower in a quotient record's type declines without walking it"
-tower_run tower_prelude 2 \
-  "a tower in a prelude-named block declines without walking it"
+tower_run tower_prelude 0 \
+  "a tower in a Bool-named block installs without walking it"
 tower_run tower_axiom_pin 2 \
   "a tower in propext's type declines without walking it"
 tower_run tower_axiom_nonstd 2 \

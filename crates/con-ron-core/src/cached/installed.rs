@@ -91,7 +91,7 @@
 
 use crate::cached::expr_ops_c;
 use crate::cached::parsed_c;
-use crate::cached::parsed_c::DeclC;
+use crate::kernel::env::Declaration;
 use crate::cached::parsed_c::PendingCheck;
 use crate::cached::parsed_c::ValueGroup;
 use crate::cached::parsed_c::ValueKind;
@@ -101,6 +101,7 @@ use crate::cached::state_c::CheckCM;
 use crate::kernel::basis_names;
 use crate::kernel::checker_split;
 use crate::kernel::core_k;
+use crate::kernel::checker_base;
 use crate::kernel::core_types;
 use crate::kernel::core_types::CheckError;
 use crate::kernel::env;
@@ -128,7 +129,7 @@ use std::vec::Vec;
 // `PendingCheck` (`:74-77`) is `crate::cached::parsed_c` (task #14 took the
 // three seam records together).
 
-/// con-leche: ConLeche/Cached/Installed.lean:96-115 annotConstantValC
+/// con-leche: ConLeche/Cached/Installed.lean:92-113 annotConstantValC
 /// `checkConstantValC` minus its inference: the syntactic guards and the
 /// annotation of the type — `checker_split::install_constant_val`'s cached
 /// twin, i.e. that function with the `ExprC` guards of
@@ -165,7 +166,7 @@ pub fn annot_constant_val_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:96-115 annotConstantValC
+/// con-leche: ConLeche/Cached/Installed.lean:92-113 annotConstantValC
 /// The tail past the annotation: the level-parameter and resolution guards on
 /// the annotated type, and the header the cited `pure` builds.  Unlike
 /// `parsed_c::check_constant_val_c_after_annot` there is no inference here —
@@ -179,7 +180,7 @@ pub fn annot_constant_val_c_after_annot(
     if !expr_ops_c::all_level_params_defined(&cv.level_params, &jty) {
         Err(core_types::invalid({ const M: [u32; 37] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 116, 121, 112, 101]; core_types::code_points(&M) }))
     } else if !state_c::consts_resolve_fc(fe, &jty) {
-        Err(core_types::invalid({ const M: [u32; 24] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 116, 121, 112, 101]; core_types::code_points(&M) }))
+        Err(checker_base::unresolved_consts_error(&jty))
     } else {
         let cv_a: ConstantVal = ConstantVal {
             name: name::dup(&cv.name),
@@ -190,7 +191,7 @@ pub fn annot_constant_val_c_after_annot(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:121-133 annotValC
+/// con-leche: ConLeche/Cached/Installed.lean:115-131 annotValC
 /// The value half of `checkDefnValC`/`checkThmValC`/`checkOpaqueValC` minus
 /// its inference: the guards, the annotation, and the converted-constant
 /// record — `checker_split::install_value`'s cached twin.  `record` is
@@ -217,7 +218,7 @@ pub fn annot_val_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:121-133 annotValC
+/// con-leche: ConLeche/Cached/Installed.lean:115-131 annotValC
 /// The tail past the annotation: the two guards on the annotated value and
 /// the `ienv` record, tagged with the very `Expr` objects the install pushes
 /// (`vE := jv`, so both components of the value pair are that node).  The
@@ -233,7 +234,7 @@ pub fn annot_val_c_after_annot(
     if !expr_ops_c::all_level_params_defined(&cv_a.level_params, &jv) {
         Err(core_types::invalid({ const M: [u32; 38] = [117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
     } else if !state_c::consts_resolve_fc(fe, &jv) {
-        Err(core_types::invalid({ const M: [u32; 25] = [117, 110, 107, 110, 111, 119, 110, 32, 99, 111, 110, 115, 116, 97, 110, 116, 32, 105, 110, 32, 118, 97, 108, 117, 101]; core_types::code_points(&M) }))
+        Err(checker_base::unresolved_consts_error(&jv))
     } else {
         state_c::record_c_const(
             st,
@@ -246,7 +247,7 @@ pub fn annot_val_c_after_annot(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:121-133 annotValC
+/// con-leche: ConLeche/Cached/Installed.lean:115-131 annotValC
 /// The cited `if record then some (jv, jv) else none`, as a function: the
 /// branch would otherwise sit inside an argument of `recordCConst` with the
 /// state borrowed (task #24's rule — an arm must end in a call or a
@@ -259,7 +260,7 @@ pub fn annot_val_c_record(jv: &Expr, record: bool) -> Option<(Expr, Expr)> {
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:139-144 annotValueC
+/// con-leche: ConLeche/Cached/Installed.lean:133-142 annotValueC
 /// Phase A's install of a separable value declaration: the per-declaration
 /// flush, then the header's and the value's install halves; returns the
 /// header with its annotated type, that type, and the annotated value.
@@ -278,7 +279,7 @@ pub fn annot_value_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:139-144 annotValueC
+/// con-leche: ConLeche/Cached/Installed.lean:133-142 annotValueC
 /// The cited tail past `annotConstantValC`: the value's install half, and the
 /// triple.  Split off so the header's call is a tail call.
 pub fn annot_value_c_tail(
@@ -296,7 +297,7 @@ pub fn annot_value_c_tail(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:146-185 annotStepC
+/// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
 /// Phase A's step body: annotate-and-install for the three value kinds, the
 /// ordinary step `parsed_c::check_decl_step_c` for everything else.  `i` is
 /// the fold position the record is tagged with.
@@ -314,21 +315,21 @@ pub fn annot_step_c(
     i: u64,
     fe: FEnv,
     pend: Vec<PendingCheck>,
-    pd: &DeclC,
+    pd: &Declaration,
 ) -> CheckCM<(FEnv, Vec<PendingCheck>)> {
     match pd {
-        DeclC::DefnDecl(cv, value, hint) => {
+        Declaration::DefnDecl(cv, value, hint) => {
             annot_step_defn_c(mode, pins, st, i, fe, pend, pd, cv, value, hint)
         }
-        DeclC::ThmDecl(cv, value) => annot_step_thm_c(mode, st, i, fe, pend, cv, value),
-        DeclC::OpaqueDecl(cv, value) => {
+        Declaration::ThmDecl(cv, value) => annot_step_thm_c(mode, st, i, fe, pend, cv, value),
+        Declaration::OpaqueDecl(cv, value) => {
             annot_step_opaque_c(mode, pins, st, i, fe, pend, pd, cv, value)
         }
         _ => annot_step_other_c(mode, pins, st, fe, pend, pd),
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:146-185 annotStepC
+/// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
 /// The `.defnDecl` arm: a pin-certified operation takes the ordinary step
 /// (its check is not separable from its install), everything else is
 /// annotated, installed, and recorded as pending.
@@ -339,7 +340,7 @@ pub fn annot_step_defn_c(
     i: u64,
     fe: FEnv,
     pend: Vec<PendingCheck>,
-    pd: &DeclC,
+    pd: &Declaration,
     cv: &ConstantVal,
     value: &Expr,
     hint: &ReducibilityHint,
@@ -356,7 +357,7 @@ pub fn annot_step_defn_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:146-185 annotStepC
+/// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
 /// The cited push, with the RC-linearity read the comment there insists on:
 /// **the counter is read BEFORE the push**, so that the index reaches `push`
 /// unshared.  The annotated type `r.2.1` is not read — it is `r.1`'s own
@@ -391,7 +392,7 @@ pub fn annot_step_defn_c_push(
     (fe2, pend2)
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:146-185 annotStepC
+/// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
 /// The `.thmDecl` arm: **a theorem installs BY STATEMENT**.  The header's
 /// install half runs and the constant is pushed with the record's own raw
 /// value, which nothing ever reads (a theorem is opaque to reduction), so
@@ -414,7 +415,7 @@ pub fn annot_step_thm_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:146-185 annotStepC
+/// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
 /// The theorem arm's record and push.  The raw value is stored twice — in the
 /// environment and in the `ValueGroup` — where Lean shares one node (§3.2's
 /// copy rule).
@@ -446,7 +447,7 @@ pub fn annot_step_thm_c_push(
     (fe2, pend2)
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:146-185 annotStepC
+/// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
 /// The `.opaqueDecl` arm: a `reduce*` witness takes the ordinary step (its
 /// identity certificate is part of its install), everything else is
 /// annotated, installed **as an axiom** — the cited `.axiomInfo`, an opaque's
@@ -458,7 +459,7 @@ pub fn annot_step_opaque_c(
     i: u64,
     fe: FEnv,
     pend: Vec<PendingCheck>,
-    pd: &DeclC,
+    pd: &Declaration,
     cv: &ConstantVal,
     value: &Expr,
 ) -> CheckCM<(FEnv, Vec<PendingCheck>)> {
@@ -472,7 +473,7 @@ pub fn annot_step_opaque_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:146-185 annotStepC
+/// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
 /// The opaque arm's push, the counter read before it.
 pub fn annot_step_opaque_c_push(
     i: u64,
@@ -496,7 +497,7 @@ pub fn annot_step_opaque_c_push(
     (fe2, pend2)
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:146-185 annotStepC
+/// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
 /// The catch-all arm, shared by the three gated branches above: the ordinary
 /// step, which leaves the records untouched — axioms, inductive and basis
 /// blocks and the pinned branches are checked in full at their install.
@@ -506,7 +507,7 @@ pub fn annot_step_other_c(
     st: &mut CState,
     fe: FEnv,
     pend: Vec<PendingCheck>,
-    pd: &DeclC,
+    pd: &Declaration,
 ) -> CheckCM<(FEnv, Vec<PendingCheck>)> {
     match parsed_c::check_decl_step_c(mode, pins, st, fe, pd) {
         Err(err) => Err(err),
@@ -514,7 +515,7 @@ pub fn annot_step_other_c(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:187-197 annotDeclStep
+/// con-leche: ConLeche/Cached/Installed.lean:185-195 annotDeclStep
 /// Phase A's step with the position carried and the error tagged: the
 /// accumulator is `(i, fe, pend)`, and a failing step reports the
 /// `CheckError` together with `i`, the fold position of the declaration that
@@ -527,7 +528,7 @@ pub fn annot_decl_step(
     pins: &Vec<NatOpPinSet>,
     st: &mut CState,
     p: (u64, FEnv, Vec<PendingCheck>),
-    pd: &DeclC,
+    pd: &Declaration,
 ) -> Result<(u64, FEnv, Vec<PendingCheck>), (CheckError, u64)> {
     let i: u64 = p.0;
     match annot_step_c(mode, pins, st, i, p.1, p.2, pd) {
@@ -540,7 +541,7 @@ pub fn annot_decl_step(
 // Phase B: check (`Installed.lean:232-253`, `:398-403`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/Installed.lean:262-276 checkPending
+/// con-leche: ConLeche/Cached/Installed.lean:260-274 checkPending
 /// Phase B's check of one record **against the prefix view**, from a flushed
 /// memo state: `checker_split::check_value_group`'s inference and conversion
 /// calls — those of `checkConstantValC` and `check{Defn,Thm,Opaque}ValC`, in
@@ -568,7 +569,7 @@ pub fn check_pending(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:262-276 checkPending
+/// con-leche: ConLeche/Cached/Installed.lean:260-274 checkPending
 /// The cited `let jv ← if pc.vg.kind = .thm then … else pure pc.vg.jv`: a
 /// theorem's statement must be a proposition, and its raw value's guards and
 /// annotation run here (`annot_val_c` — `installValue`'s twin, at the view,
@@ -609,7 +610,7 @@ pub fn check_pending_value(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:262-276 checkPending
+/// con-leche: ConLeche/Cached/Installed.lean:260-274 checkPending
 /// The cited tail past the `let jv ← if …` join: the value's inferred type
 /// against the declared one, and the index handed back at the bound it came
 /// in at.  Split off so the two branches of the join are tail calls (task
@@ -639,7 +640,7 @@ pub fn check_pending_tail(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:433-438 checkPendingList
+/// con-leche: ConLeche/Cached/Installed.lean:431-436 checkPendingList
 /// Phase B as a pure walk: **every record checked from a fresh memo state**,
 /// a failure tagged with the record's fold position.  The entry point of the
 /// index recursion below (deviation 3); the index is threaded by value
@@ -653,7 +654,7 @@ pub fn check_pending_list(
     check_pending_list_from(mode, fe, pend, 0)
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:433-438 checkPendingList
+/// con-leche: ConLeche/Cached/Installed.lean:431-436 checkPendingList
 /// The cited `checkPending mode fe pc {}`: one record's check from its own
 /// **fresh `CState`**, so no memo crosses from one record's check to the next
 /// (§3.1's memo policy — a record is checked at its own prefix view, where
@@ -677,7 +678,7 @@ pub fn check_pending_fresh(
     check_pending(mode, &mut st, fe, pc)
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:433-438 checkPendingList
+/// con-leche: ConLeche/Cached/Installed.lean:431-436 checkPendingList
 /// The cited `List` recursion at `pend[i..]`, one record per step through
 /// `check_pending_fresh` (the cited `checkPending … {}`).
 pub fn check_pending_list_from(
@@ -700,21 +701,23 @@ pub fn check_pending_list_from(
 // The fold (`Installed.lean:405-411`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/Installed.lean:440-447 checkDecls
+/// con-leche: ConLeche/Cached/Installed.lean:438-455 checkDecls
 /// **The declaration fold**: install every record (phase A), check every
 /// recorded declaration (phase B), return the environment.  This is the
-/// function `ConLeche.no_proof_of_False` is stated about and the algorithm
-/// the binary's driver runs.
+/// function con-leche's main theorem `model_exists` and its main corollary
+/// are stated about, and the algorithm the binary's driver runs.
 ///
 /// Note 4 (the module note): `pins` is the `Nat`-operation pin list, §3.6's
 /// parameter, threaded from here through `annot_decl_step` to
 /// `checker::check_div_mod_pin_loop` (task #31).  It is the cited fold's own
-/// last argument since con-leche task #285 (vendored at task #74), where it
-/// defaults to `natOpPinSets`, so this is no longer a deviation.
+/// SECOND argument since con-leche task #304, right after the mode and with
+/// no default, so this is no longer a deviation.  The records travel as the
+/// cited `Array Declaration` — a `Vec<Declaration>` here — which is what the
+/// frontend produces and what the fold consumes.
 pub fn check_decls(
     mode: &CheckMode,
     pins: &Vec<NatOpPinSet>,
-    ds: &Vec<DeclC>,
+    ds: &Vec<Declaration>,
 ) -> Result<Env, (CheckError, u64)> {
     let mut st: CState = state_c::cstate_new();
     match annot_decl_fold_from(
@@ -730,7 +733,7 @@ pub fn check_decls(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:440-447 checkDecls
+/// con-leche: ConLeche/Cached/Installed.lean:438-455 checkDecls
 /// The cited `checkPendingList mode p.2.1 p.2.2.toList; pure p.2.1.env`: the
 /// records walked, then the environment of the index phase A built.
 pub fn check_decls_phase_b(
@@ -744,7 +747,7 @@ pub fn check_decls_phase_b(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:440-447 checkDecls
+/// con-leche: ConLeche/Cached/Installed.lean:438-455 checkDecls
 /// The cited `ds.foldlM (annotDeclStep mode) (0, mkFEnv Env.empty, #[])` as
 /// an index recursion threading the accumulator by value (deviation 3), i.e.
 /// the fold applied to `ds[i..]`.  The `CState` is the caller's — the cited
@@ -756,7 +759,7 @@ pub fn annot_decl_fold_from(
     pins: &Vec<NatOpPinSet>,
     st: &mut CState,
     p: (u64, FEnv, Vec<PendingCheck>),
-    ds: &Vec<DeclC>,
+    ds: &Vec<Declaration>,
     i: usize,
 ) -> Result<(u64, FEnv, Vec<PendingCheck>), (CheckError, u64)> {
     if i >= ds.len() {
@@ -772,7 +775,7 @@ pub fn annot_decl_fold_from(
 #[cfg(test)]
 mod tests {
     use crate::cached::installed;
-    use crate::cached::parsed_c::DeclC;
+    use crate::kernel::env::Declaration;
     use crate::cached::state_c;
     use crate::kernel::core_types::CheckError;
     use crate::kernel::env;
@@ -804,7 +807,7 @@ mod tests {
 
     /// `Sort 1`, i.e. `Type` — the type of `Prop`, so `Sort 0 : Sort 1` is
     /// the one true judgement available in the **empty** environment.  An
-    /// axiom would need one of con-leche's pins (`checkAxiomDeclC`), and an
+    /// axiom would need one of con-leche's pins (`checkAxiomDeclaration`), and an
     /// honest proposition would need an inductive block, so every stream
     /// here is built out of sorts alone.
     fn type0() -> Expr {
@@ -820,8 +823,8 @@ mod tests {
     }
 
     /// `def <n> : <ty> := <value>`.
-    fn defn(n: &str, ty: Expr, value: Expr) -> DeclC {
-        DeclC::DefnDecl(cv(n, ty), value, ReducibilityHint::Regular(0))
+    fn defn(n: &str, ty: Expr, value: Expr) -> Declaration {
+        Declaration::DefnDecl(cv(n, ty), value, ReducibilityHint::Regular(0))
     }
 
     fn env_names(e: &Env) -> Vec<Name> {
@@ -835,7 +838,7 @@ mod tests {
     /// zero steps.
     #[test]
     fn the_empty_stream_is_accepted() {
-        let ds: Vec<DeclC> = Vec::new();
+        let ds: Vec<Declaration> = Vec::new();
         match installed::check_decls(&CheckMode::Verified, &no_pins(), &ds) {
             Ok(e) => assert_eq!(e.consts.len(), 0),
             Err(_) => panic!("the empty stream is an accept"),
@@ -848,7 +851,7 @@ mod tests {
     /// installation order (`Env.consts` is the cited list reversed, task #50).
     #[test]
     fn a_stream_of_definitions_is_accepted() {
-        let ds: Vec<DeclC> = vec![
+        let ds: Vec<Declaration> = vec![
             defn("b", type0(), prop()),
             defn("c", type0(), expr::mk_const(nm("b"), Vec::new())),
         ];
@@ -870,7 +873,7 @@ mod tests {
     /// index among the records.
     #[test]
     fn a_type_error_is_reported_at_its_fold_position() {
-        let ds: Vec<DeclC> = vec![
+        let ds: Vec<Declaration> = vec![
             defn("b", type0(), prop()),
             defn("c", prop(), prop()),
         ];
@@ -891,7 +894,7 @@ mod tests {
     /// index the fold has built so far.
     #[test]
     fn phase_a_rejects_a_duplicate_at_its_fold_position() {
-        let ds: Vec<DeclC> = vec![
+        let ds: Vec<Declaration> = vec![
             defn("b", type0(), prop()),
             defn("c", type0(), prop()),
             defn("c", type0(), prop()),
@@ -915,9 +918,9 @@ mod tests {
     /// proposition.  Nothing else rejects a well-formed header this late.
     #[test]
     fn a_theorem_is_installed_by_statement_and_checked_in_phase_b() {
-        let ds: Vec<DeclC> = vec![
+        let ds: Vec<Declaration> = vec![
             defn("b", type0(), prop()),
-            DeclC::ThmDecl(cv("t", type0()), expr::mk_const(nm("b"), Vec::new())),
+            Declaration::ThmDecl(cv("t", type0()), expr::mk_const(nm("b"), Vec::new())),
         ];
         let mut st = state_c::cstate_new();
         match installed::annot_decl_fold_from(
@@ -953,7 +956,7 @@ mod tests {
     /// later one.
     #[test]
     fn the_records_carry_the_position_and_the_bound() {
-        let ds: Vec<DeclC> = vec![
+        let ds: Vec<Declaration> = vec![
             defn("b", type0(), prop()),
             defn("c", type0(), prop()),
             defn("d", type0(), prop()),

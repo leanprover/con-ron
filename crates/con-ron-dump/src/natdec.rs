@@ -1,11 +1,19 @@
 //! Decimal notation for `ron::Nat` — the one scalar of the dump format the
 //! core has no codec for.
 //!
-//! `crates/con-ron-core/src/ron/nat.rs` has no `from_decimal`/`to_decimal` and
-//! is not getting one: decimal is an I/O concern, nothing the checker decides
-//! reads it, and DESIGN.md §3.4's subset would pay for the digit loop in
-//! generated Lean that no lemma mentions.  So it lives here, in the unverified
-//! crate, where ordinary Rust is allowed.
+//! `crates/con-ron-core/src/ron/nat.rs` has no `from_decimal`/`to_decimal`,
+//! and this module's note used to say it never would: decimal is an I/O
+//! concern, nothing the checker decides reads it, and DESIGN.md §3.4's subset
+//! would pay for the digit loop in generated Lean that no lemma mentions.
+//!
+//! **Half of that is no longer true** (task #84).  The export parser is in the
+//! verified core now, and a `natVal` literal *is* read inside the extraction,
+//! so the reading direction lives at
+//! `con_ron_core::frontend::nat_decimal::from_decimal` — in `frontend/`
+//! rather than in `ron/`, because its digit loops need §3.4's loop exemption.
+//! It is the same algorithm as `from_decimal` below, nineteen digits per
+//! chunk.  What is left here is `to_decimal`, the direction no checker reads
+//! and no theorem mentions, plus `from_decimal` for this crate's own reader.
 //!
 //! Both directions work on `Nat::limbs` (little-endian `u64`, no trailing zero
 //! limb) with `u128` intermediates, nineteen digits at a time — `10^19 < 2^64`

@@ -690,8 +690,18 @@ def absBasisKind : env.BasisKind → ConLeche.BasisKind
   | .FalseK => .falseK
   | .QuotK => .quotK
 
-/-- `ConLeche/Kernel/Env.lean:499` — `Declaration`, a declaration presented to
-the checker. -/
+/-- `ConLeche/Kernel/Env.lean` — `QuotKind`, which of the quotient package's
+constants a `#QUOT` record declares (con-leche task #293). -/
+def absQuotKind : env.QuotKind → ConLeche.QuotKind
+  | .Type => .type
+  | .Ctor => .ctor
+  | .Lift => .lift
+  | .Ind => .ind
+  | .Sound => .sound
+
+/-- `ConLeche/Kernel/Env.lean` — `Declaration`, a declaration presented to
+the checker.  Since con-leche's task #285 this is the *only* declaration
+record: the cached tier's `DeclC` twin is gone on both sides. -/
 def absDeclaration : env.Declaration → ConLeche.Declaration
   | .AxiomDecl cv => .axiomDecl (absConstantVal cv)
   | .DefnDecl cv v h => .defnDecl (absConstantVal cv) (absExpr v) (absHint h)
@@ -699,6 +709,7 @@ def absDeclaration : env.Declaration → ConLeche.Declaration
   | .OpaqueDecl cv v => .opaqueDecl (absConstantVal cv) (absExpr v)
   | .BasisDecl k => .basisDecl (absBasisKind k)
   | .IndDecl block nP => .indDecl (absConstantInfos block) nP.val
+  | .QuotDecl k cv => .quotDecl (absQuotKind k) (absConstantVal cv)
 
 /- These are deliberately **not** in the plumbing `simp` set: task #22's
 `BasisTables.lean` drives its 192-node `step*` proof with `simp only
@@ -781,6 +792,7 @@ def DeclarationWF : env.Declaration → Prop
   | .OpaqueDecl cv v => ConstantValWF cv ∧ ExprWF v
   | .BasisDecl _ => True
   | .IndDecl block _ => ConstantInfosWF block
+  | .QuotDecl _ cv => ConstantValWF cv
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 

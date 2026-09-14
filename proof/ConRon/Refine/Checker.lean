@@ -4,6 +4,7 @@ import ConRon.Refine.CoreKVec
 import ConRon.Refine.CoreKPinned
 import ConRon.Refine.ExprOpsMeta
 import ConRon.Refine.ExprOps
+import ConRon.Refine.ErrKinds
 import ConLeche.Kernel.DeclCheck
 
 /-! # `kernel::checker`, the value declarations (task #56)
@@ -379,7 +380,8 @@ private theorem defn_after_annot_core {mode : env.CheckMode} {fuel : Std.U64}
       | .Err ce =>
         ∀ k1 k2 k3 : ConLeche.Cached.CheckCM ConLeche.FEnv,
           (∀ l, ∃ s, k1.run l = .error (.invalid s)) →
-          (∀ l, ∃ s, k2.run l = .error (.invalid s)) →
+          (∀ l, ∃ w, k2.run l
+            = .error (ConLeche.unresolvedConstsError w (absExpr value_a))) →
           (∀ l, ∃ s, k3.run l = .error (.invalid s)) →
           ErrSim ce ((if (absExpr value_a).allLevelParamsDefined (absConstantVal cv).levelParams = true then
             (if (absExpr value_a).constsResolveF lfe = true then
@@ -414,13 +416,14 @@ private theorem defn_after_annot_core {mode : env.CheckMode} {fuel : Std.U64}
       consts_resolve_f_step hp (FindAgree.of_rel hfr hfw) hv b1 hb1
     cases b1 with
     | false =>
-      -- `checker.rs:148` ← `Checker.lean:46`
+      -- `checker.rs:162` ← `DeclCheck.lean:849`: `unresolvedConstsError`, whose
+      -- kind is `sorryAx`-dependent (con-leche task #292)
       simp at h
-      obtain ⟨v, -, ce, hce, rfl, rfl⟩ := h
+      obtain ⟨ce, hce, rfl, rfl⟩ := h
       intro k1 k2 k3 hk1 hk2 hk3
-      rw [invalid_err hce, if_pos hbv.symm, if_neg (by rw [← hb1v]; simp)]
-      obtain ⟨s, hs⟩ := hk2 lst
-      exact ErrSim.invalid hs
+      rw [if_pos hbv.symm, if_neg (by rw [← hb1v]; simp)]
+      obtain ⟨w, hs⟩ := hk2 lst
+      exact ErrSim.mk hs (unresolved_consts_error_refines hv hce w)
     | true =>
       simp only [if_true] at h
       obtain ⟨p, hinf, h⟩ := bind_eq_ok_iff.mp h
@@ -621,7 +624,7 @@ theorem check_defn_val_after_annot_refines {mode : env.CheckMode} {fuel : Std.U6
           if ¬ lv.allLevelParamsDefined (absConstantVal cv).levelParams then
             throw (ConLeche.CheckError.invalid "undeclared universe parameter")
           else if ¬ lv.constsResolveF lfe then
-            throw (ConLeche.CheckError.invalid "unknown constant")
+            throw (ConLeche.unresolvedConstsError "unknown constant" lv)
           else do
             let vtype ← (TypeChecker.lops mode lfe).inferType lfe.env 0 lv
             let okv ← (TypeChecker.lops mode lfe).isDefEq lfe.env 0 vtype
@@ -637,7 +640,7 @@ theorem check_defn_val_after_annot_refines {mode : env.CheckMode} {fuel : Std.U6
           if ¬ lv.allLevelParamsDefined (absConstantVal cv).levelParams then
             throw (ConLeche.CheckError.invalid "undeclared universe parameter")
           else if ¬ lv.constsResolveF lfe then
-            throw (ConLeche.CheckError.invalid "unknown constant")
+            throw (ConLeche.unresolvedConstsError "unknown constant" lv)
           else do
             let vtype ← (TypeChecker.lops mode lfe).inferType lfe.env 0 lv
             let okv ← (TypeChecker.lops mode lfe).isDefEq lfe.env 0 vtype
@@ -653,14 +656,14 @@ theorem check_defn_val_after_annot_refines {mode : env.CheckMode} {fuel : Std.U6
     exact ⟨lst', _, by
       simpa only [ite_not] using hrun
         (throw (ConLeche.CheckError.invalid "undeclared universe parameter"))
-        (throw (ConLeche.CheckError.invalid "unknown constant"))
+        (throw (ConLeche.unresolvedConstsError "unknown constant" (absExpr value_a)))
         (throw (ConLeche.CheckError.invalid "type mismatch")),
       hsr', hsw', hrel', hwf'⟩
   | Err ce =>
     exact by
       simpa only [ite_not] using hcore
         (throw (ConLeche.CheckError.invalid "undeclared universe parameter"))
-        (throw (ConLeche.CheckError.invalid "unknown constant"))
+        (throw (ConLeche.unresolvedConstsError "unknown constant" (absExpr value_a)))
         (throw (ConLeche.CheckError.invalid "type mismatch"))
         (fun _ => ⟨_, rfl⟩) (fun _ => ⟨_, rfl⟩) (fun _ => ⟨_, rfl⟩)
 
@@ -681,7 +684,7 @@ theorem check_defn_val_after_annot_refines_ok {mode : env.CheckMode} {fuel : Std
           if ¬ lv.allLevelParamsDefined (absConstantVal cv).levelParams then
             throw (ConLeche.CheckError.invalid "undeclared universe parameter")
           else if ¬ lv.constsResolveF lfe then
-            throw (ConLeche.CheckError.invalid "unknown constant")
+            throw (ConLeche.unresolvedConstsError "unknown constant" lv)
           else do
             let vtype ← (TypeChecker.lops mode lfe).inferType lfe.env 0 lv
             let okv ← (TypeChecker.lops mode lfe).isDefEq lfe.env 0 vtype
@@ -757,7 +760,8 @@ private theorem thm_checked_core {mode : env.CheckMode} {fuel : Std.U64}
       | .Err ce =>
         ∀ k1 k2 k3 : ConLeche.Cached.CheckCM ConLeche.Env,
           (∀ l, ∃ s, k1.run l = .error (.invalid s)) →
-          (∀ l, ∃ s, k2.run l = .error (.invalid s)) →
+          (∀ l, ∃ w, k2.run l
+            = .error (ConLeche.unresolvedConstsError w (absExpr jv))) →
           (∀ l, ∃ s, k3.run l = .error (.invalid s)) →
           ErrSim ce ((if (absExpr jv).allLevelParamsDefined (absConstantVal cv).levelParams = true then
             (if (absExpr jv).constsResolve lenv = true then
@@ -793,13 +797,14 @@ private theorem thm_checked_core {mode : env.CheckMode} {fuel : Std.U64}
       CoreK.consts_resolve_refines hp (FindAgree.of_rel hfr hfw) henv hjv b1 hb1
     cases b1 with
     | false =>
-      -- `checker.rs:242` ← `Checker.lean:78`
+      -- `checker.rs:256` ← `Checker.lean:78`: `unresolvedConstsError`, whose
+      -- kind is `sorryAx`-dependent (con-leche task #292)
       simp at h
-      obtain ⟨v, -, ce, hce, rfl, rfl⟩ := h
+      obtain ⟨ce, hce, rfl, rfl⟩ := h
       intro k1 k2 k3 hk1 hk2 hk3
-      rw [invalid_err hce, if_pos hbv.symm, if_neg (by rw [← hb1v]; simp)]
-      obtain ⟨s, hs⟩ := hk2 lst
-      exact ErrSim.invalid hs
+      rw [if_pos hbv.symm, if_neg (by rw [← hb1v]; simp)]
+      obtain ⟨w, hs⟩ := hk2 lst
+      exact ErrSim.mk hs (unresolved_consts_error_refines hjv hce w)
     | true =>
       simp only [if_true] at h
       obtain ⟨p, hinf, h⟩ := bind_eq_ok_iff.mp h
@@ -917,7 +922,8 @@ private theorem thm_witness_core {mode : env.CheckMode} {fuel : Std.U64}
           (∀ l, ∃ s, k1.run l = .error (.invalid s)) →
           (∀ l, ∃ s, k2.run l = .error (.invalid s)) →
           (∀ e l, ∃ s, (k3 e).run l = .error (.invalid s)) →
-          (∀ e l, ∃ s, (k4 e).run l = .error (.invalid s)) →
+          (∀ e l, ∃ w, (k4 e).run l
+            = .error (ConLeche.unresolvedConstsError w e)) →
           (∀ e l, ∃ s, (k5 e).run l = .error (.invalid s)) →
           ErrSim ce ((if (absExpr value).looseBVarsBounded 0 = true then
             (if (absExpr value).hasFvar = true then k2
@@ -1092,7 +1098,7 @@ theorem check_thm_val_refines {mode : env.CheckMode} {fuel : Std.U64}
         rw [TypeChecker.sharedOpsC_inferType, hr1]
         simp only [except_ok_bind]
         rw [TypeChecker.sharedOpsC_ensureSort, hr2]
-        simp only [except_ok_bind, hequiv, StateT.run_bind]
+        simp only [except_ok_bind, hequiv]
       cases r2 with
       | Err e =>
         -- `core_k::lift_fueled`'s own mirrored `internal` (`Core.lean:111`)
@@ -1194,7 +1200,7 @@ theorem check_thm_val_witness_refines {mode : env.CheckMode} {fuel : Std.U64}
               if ¬ jv.allLevelParamsDefined (absConstantVal cv).levelParams then
                 throw (ConLeche.CheckError.invalid "undeclared universe parameter")
               else if ¬ jv.constsResolve lenv then
-                throw (ConLeche.CheckError.invalid "unknown constant")
+                throw (ConLeche.unresolvedConstsError "unknown constant" jv)
               else do
                 let vtype ← (TypeChecker.lops mode lfe).inferType lenv 0 jv
                 let okv ← (TypeChecker.lops mode lfe).isDefEq lenv 0 vtype
@@ -1217,7 +1223,7 @@ theorem check_thm_val_witness_refines {mode : env.CheckMode} {fuel : Std.U64}
               if ¬ jv.allLevelParamsDefined (absConstantVal cv).levelParams then
                 throw (ConLeche.CheckError.invalid "undeclared universe parameter")
               else if ¬ jv.constsResolve lenv then
-                throw (ConLeche.CheckError.invalid "unknown constant")
+                throw (ConLeche.unresolvedConstsError "unknown constant" jv)
               else do
                 let vtype ← (TypeChecker.lops mode lfe).inferType lenv 0 jv
                 let okv ← (TypeChecker.lops mode lfe).isDefEq lenv 0 vtype
@@ -1237,7 +1243,7 @@ theorem check_thm_val_witness_refines {mode : env.CheckMode} {fuel : Std.U64}
         (throw (ConLeche.CheckError.invalid "loose bound variable in value"))
         (throw (ConLeche.CheckError.invalid "unexpected free variable in value"))
         (fun _ => throw (ConLeche.CheckError.invalid "undeclared universe parameter"))
-        (fun _ => throw (ConLeche.CheckError.invalid "unknown constant"))
+        (fun jv => throw (ConLeche.unresolvedConstsError "unknown constant" jv))
         (fun _ => throw (ConLeche.CheckError.invalid "type mismatch")),
       hsr', hsw', hrel', hwf'⟩
   | Err ce =>
@@ -1246,7 +1252,7 @@ theorem check_thm_val_witness_refines {mode : env.CheckMode} {fuel : Std.U64}
         (throw (ConLeche.CheckError.invalid "loose bound variable in value"))
         (throw (ConLeche.CheckError.invalid "unexpected free variable in value"))
         (fun _ => throw (ConLeche.CheckError.invalid "undeclared universe parameter"))
-        (fun _ => throw (ConLeche.CheckError.invalid "unknown constant"))
+        (fun jv => throw (ConLeche.unresolvedConstsError "unknown constant" jv))
         (fun _ => throw (ConLeche.CheckError.invalid "type mismatch"))
         (fun _ => ⟨_, rfl⟩) (fun _ => ⟨_, rfl⟩) (fun _ _ => ⟨_, rfl⟩)
         (fun _ _ => ⟨_, rfl⟩) (fun _ _ => ⟨_, rfl⟩)
@@ -1274,7 +1280,7 @@ theorem check_thm_val_witness_refines_ok {mode : env.CheckMode} {fuel : Std.U64}
             if ¬ jv.allLevelParamsDefined (absConstantVal cv).levelParams then
               throw (ConLeche.CheckError.invalid "undeclared universe parameter")
             else if ¬ jv.constsResolve lenv then
-              throw (ConLeche.CheckError.invalid "unknown constant")
+              throw (ConLeche.unresolvedConstsError "unknown constant" jv)
             else do
               let vtype ← (TypeChecker.lops mode lfe).inferType lenv 0 jv
               let okv ← (TypeChecker.lops mode lfe).isDefEq lenv 0 vtype
@@ -1394,15 +1400,16 @@ theorem check_opaque_val_refines {mode : env.CheckMode} {fuel : Std.U64}
             CoreK.consts_resolve_refines hp (FindAgree.of_rel hfr hfw) henv hvaw b3 hb3
           cases b3 with
           | false =>
-            -- `checker.rs:312` ← `Checker.lean:103`
+            -- `checker.rs:318` ← `Checker.lean:103`: `unresolvedConstsError`,
+            -- whose kind is `sorryAx`-dependent (con-leche task #292)
             simp at h
-            obtain ⟨v, -, ce, hce, rfl, rfl⟩ := h
+            obtain ⟨ce, hce, rfl, rfl⟩ := h
             show ErrSim ce _
-            rw [invalid_err hce, ConLeche.checkOpaqueVal, if_pos hbv.symm,
+            rw [ConLeche.checkOpaqueVal, if_pos hbv.symm,
               if_neg (by rw [← hb1v]; simp), hhead, if_pos hb2v.symm,
               if_neg (by rw [← hb3v]; simp)]
-            exact ErrSim.invalid
-              (s := s!"unknown constant in value of {(absConstantVal cv).name}") rfl
+            exact ErrSim.mk rfl (unresolved_consts_error_refines hvaw hce
+              s!"value of {(absConstantVal cv).name}")
           | true =>
             simp only [if_true] at h
             obtain ⟨q, hinf, h⟩ := bind_eq_ok_iff.mp h

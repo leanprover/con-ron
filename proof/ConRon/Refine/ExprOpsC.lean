@@ -7,15 +7,15 @@ its generated model `ConRon.Generated.cached.expr_ops_c.*` (DESIGN.md §3.5,
 tier: `ConLeche/Cached/ExprOpsC.lean`'s memoised walks on the term DAG, as
 opposed to `kernel/expr_ops.rs`' structural specifications (task #47's
 `Refine/ExprOps*.lean`).  Every lemma here is therefore stated against the
-**cited `ExprOpsC.lean` definition** -- `ConLeche.Cached.ExprC.instantiate1`,
-`ExprC.abstract1`, `ExprC.wscopedB`, … -- and never against the `ConLeche.Expr`
+**cited `ExprOpsC.lean` definition** -- `ConLeche.Expr.instantiate1C`,
+`Expr.abstract1C`, `Expr.wscopedBC`, … -- and never against the `ConLeche.Expr`
 counterpart directly.  The bridge from the one to the other is con-leche's own
 `ConLeche/Verify/Cached/OpsC.lean` and `…/GuardsC.lean`: one `*_spec` equation
 per function (`instantiate1_spec`, `abstractRange_spec`, `leafGuard_spec`, …),
 which is exactly the theorem DESIGN.md §3.1 pointed at when it made the two
 memo policies binding.  So each proof here has two halves: the port's walk
 against `ConLeche.Expr`'s logical function, in task #47's shape, and then the
-cited `*_spec` to land on the `ExprC` definition the checker's callers name.
+cited `*_spec` to land on the `Expr` definition the checker's callers name.
 
 **The three differences from `expr_ops`**, all reproduced by the port and all
 visible in the proofs:
@@ -61,25 +61,26 @@ namespace ConRon.Refine.ExprOpsC
 
 open ConRon.Refine.ExprOps
 
-/-! ## `ExprC.lean`'s one executed function, and the `O(1)` scope read
+/-! ## `Expr.lean`'s one executed function, and the `O(1)` scope read
 
 Both are the packed word's range fields, read through
 `ExprOpsFields.lean`'s `fvar_b_refines`/`bvar_b_refines` -- the two lemmas that
 carry the saturated branch's fall-back to the exact memoised walk. -/
 
-/-- **`expr_ops_c::has_fvar` refines `ExprC.hasFvar`**
-(`Cached/ExprC.lean:113-115`): the `fvarB != 0` field read.  It is
+/-- **`expr_ops_c::has_fvar` refines `Expr.hasFvar`**
+(`Cached/Expr.lean:113-115`): the `fvarB != 0` field read.  It is
 `expr_ops::has_fvar`'s body character for character and a *different*
-declaration, because `ParsedC.lean`'s guard names `ExprC.hasFvar` outright
+declaration, because `ParsedC.lean`'s guard names `Expr.hasFvar` outright
 (the port's own module note), so it gets its own lemma against its own
 citation. -/
 theorem has_fvar_refines {e : expr.Expr} {b : Bool} (he : ExprWF e)
     (h : cached.expr_ops_c.has_fvar e = ok b) :
-    b = ConLeche.Cached.ExprC.hasFvar (absExpr e) := by
+    b = ConLeche.Expr.hasFvar (absExpr e) := by
   rw [cached.expr_ops_c.has_fvar] at h
   obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
   have hiv : i.val = (absExpr e).fvarB := fvar_b_refines he hi
-  rw [← Result.ok_injective h, ConLeche.Cached.ExprC.hasFvar, ← hiv]
+  rw [← Result.ok_injective h, ConLeche.Expr.hasFvar_eq_hasFvarFast,
+    ConLeche.Expr.hasFvarFast, ← hiv]
   by_cases hc : i.val = 0
   · have h0 : i = 0#u64 := Std.UScalar.eq_of_val_eq (by rw [hc, Expr.val_zero])
     have hl : (i != 0#u64) = false := by simp [h0]
@@ -90,16 +91,18 @@ theorem has_fvar_refines {e : expr.Expr} {b : Bool} (he : ExprWF e)
     have hr : ((i.val : Nat) != 0) = true := by simp only [bne_iff_ne, ne_eq]; exact hc
     rw [hl, hr]
 
-/-- **`expr_ops_c::loose_bvars_bounded` refines `ExprC.looseBVarsBounded`**
+/-- **`expr_ops_c::loose_bvars_bounded` refines `Expr.looseBVarsBounded`**
 (`ExprOpsC.lean:646-648`): `O(1)`, because the cached bound is the *least* such
 `k` (`looseBVarsBounded_spec`, `Verify/Cached/OpsC.lean:131`). -/
 theorem loose_bvars_bounded_refines {e : expr.Expr} {k : Std.U64} {b : Bool}
     (he : ExprWF e) (h : cached.expr_ops_c.loose_bvars_bounded k e = ok b) :
-    b = ConLeche.Cached.ExprC.looseBVarsBounded k.val (absExpr e) := by
+    b = ConLeche.Expr.looseBVarsBounded k.val (absExpr e) := by
   rw [cached.expr_ops_c.loose_bvars_bounded] at h
   obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
   have hiv : i.val = (absExpr e).bvarB := bvar_b_refines he hi
-  rw [← Result.ok_injective h, ConLeche.Cached.ExprC.looseBVarsBounded, ← hiv]
+  rw [← Result.ok_injective h,
+    ConLeche.Expr.looseBVarsBounded_eq_looseBVarsBoundedFast,
+    ConLeche.Expr.looseBVarsBoundedFast, ← hiv]
   by_cases hc : i.val ≤ k.val
   · have : (i ≤ k) := by scalar_tac
     simp [this, hc]
@@ -112,12 +115,11 @@ Bodies identical to `expr_ops`', separate declarations because the cited Lean
 declares them separately; the proofs are task #47's, with the citation moved to
 `ExprOpsC.lean` and the `*_spec` equation appended. -/
 
-/-- **`expr_ops_c::get_app_fn` refines `ExprC.getAppFn`**
+/-- **`expr_ops_c::get_app_fn` refines `Expr.getAppFn`**
 (`ExprOpsC.lean:65-68`). -/
 theorem get_app_fn_refines {e r : expr.Expr} (he : ExprWF e)
     (h : cached.expr_ops_c.get_app_fn e = ok r) :
-    absExpr r = ConLeche.Cached.ExprC.getAppFn (absExpr e) ∧ ExprWF r := by
-  rw [ConLeche.Cached.ExprC.getAppFn_spec]
+    absExpr r = ConLeche.Expr.getAppFn (absExpr e) ∧ ExprWF r := by
   induction he generalizing r with
   | @bvar i e h1 =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.bvar_inv h1
@@ -180,7 +182,7 @@ theorem get_app_fn_refines {e r : expr.Expr} (he : ExprWF e)
     rw [Expr.dup_eq h]
     exact ⟨by simp [ConLeche.Expr.getAppFn], ExprWF.proj hs hx h1⟩
 
-/-- **`expr_ops_c::get_app_args_acc` refines `ExprC.getAppArgsAcc`**
+/-- **`expr_ops_c::get_app_args_acc` refines `Expr.getAppArgsAccC`**
 (`ExprOpsC.lean:70-73`) *with the accumulator at the other end*: the cited
 `a :: acc` is a front cons, which a `Vec` cannot do in `O(1)`, so the port
 pushes after the recursive call and the lemma carries `absExprs acc ++ …`.
@@ -266,18 +268,18 @@ theorem get_app_args_acc_refines {e : expr.Expr} (he : ExprWF e) :
     rw [← Result.ok_injective h]
     exact ⟨by simp [ConLeche.Expr.getAppArgs], hacc⟩
 
-/-- **`expr_ops_c::get_app_args` refines `ExprC.getAppArgs`**
+/-- **`expr_ops_c::get_app_args` refines `Expr.getAppArgsC`**
 (`ExprOpsC.lean:75-76`): the `acc = []` wrapper, where the port's push order
 and the cited front cons agree. -/
 theorem get_app_args_refines {e : expr.Expr} {r : alloc.vec.Vec expr.Expr}
     (he : ExprWF e) (h : cached.expr_ops_c.get_app_args e = ok r) :
-    absExprs r = ConLeche.Cached.ExprC.getAppArgs (absExpr e) ∧ ExprsWF r := by
+    absExprs r = ConLeche.Expr.getAppArgsC (absExpr e) ∧ ExprsWF r := by
   rw [cached.expr_ops_c.get_app_args] at h
   obtain ⟨habs, hwf⟩ := get_app_args_acc_refines he _ r exprsWF_new h
-  rw [ConLeche.Cached.ExprC.getAppArgs_spec]
+  rw [ConLeche.Expr.getAppArgsC_spec]
   exact ⟨by rw [habs]; simp, hwf⟩
 
-/-- **`expr_ops_c::mk_app_n_from` refines `ExprC.mkAppN`**
+/-- **`expr_ops_c::mk_app_n_from` refines `Expr.mkAppN`**
 (`ExprOpsC.lean:78-81`) at the arguments from `i` on; the induction is on the
 `Nat` measure `args.length - i`, the generated function being a
 `partial_fixpoint`. -/
@@ -285,12 +287,11 @@ theorem mk_app_n_from_refines (N : Nat) :
     ∀ (f : expr.Expr) (args : alloc.vec.Vec expr.Expr) (i : Std.Usize) (r : expr.Expr),
       args.val.length - i.val = N → ExprWF f → ExprsWF args →
       cached.expr_ops_c.mk_app_n_from f args i = ok r →
-      absExpr r = ConLeche.Cached.ExprC.mkAppN (absExpr f) ((absExprs args).drop i.val) ∧
+      absExpr r = ConLeche.Expr.mkAppN (absExpr f) ((absExprs args).drop i.val) ∧
         ExprWF r := by
   induction N using Nat.strong_induction_on with
   | _ N ih =>
     intro f args i r hN hf hargs h
-    rw [ConLeche.Cached.ExprC.mkAppN_spec]
     rw [cached.expr_ops_c.mk_app_n_from.eq_def] at h
     dsimp only at h
     split at h
@@ -310,16 +311,15 @@ theorem mk_app_n_from_refines (N : Nat) :
       obtain ⟨habs, hwf⟩ := ih (args.val.length - i2.val) (by omega) a2 args i2 r rfl
         (Expr.app_wf hf hxwf happ) hargs hrec
       refine ⟨?_, hwf⟩
-      rw [ConLeche.Cached.ExprC.mkAppN_spec] at habs
       rw [habs, Expr.app_refines happ, hi2v, hdrop]
       simp [ConLeche.Expr.mkAppN]
 
-/-- **`expr_ops_c::mk_app_n` refines `ExprC.mkAppN`** (`ExprOpsC.lean:78-81`):
+/-- **`expr_ops_c::mk_app_n` refines `Expr.mkAppN`** (`ExprOpsC.lean:78-81`):
 the `i = 0` wrapper. -/
 theorem mk_app_n_refines {f : expr.Expr} {args : alloc.vec.Vec expr.Expr}
     {r : expr.Expr} (hf : ExprWF f) (hargs : ExprsWF args)
     (h : cached.expr_ops_c.mk_app_n f args = ok r) :
-    absExpr r = ConLeche.Cached.ExprC.mkAppN (absExpr f) (absExprs args) ∧ ExprWF r := by
+    absExpr r = ConLeche.Expr.mkAppN (absExpr f) (absExprs args) ∧ ExprWF r := by
   rw [cached.expr_ops_c.mk_app_n] at h
   obtain ⟨habs, hwf⟩ := mk_app_n_from_refines _ f args 0#usize r rfl hf hargs h
   refine ⟨?_, hwf⟩
@@ -445,7 +445,7 @@ theorem drop_absLeaves {bl : alloc.vec.Vec (Std.U64 × expr.Expr)} {i : Std.Usiz
   refine ⟨hlt, hbl x (by rw [← hx]; exact List.getElem_mem hlt), ?_⟩
   rw [absLeaves, List.drop_eq_getElem_cons (by simpa using hlt), List.getElem_map, hx]
 
-/-- **`expr_ops_c::leaf_mem_from` refines `ExprC.leafMem`**
+/-- **`expr_ops_c::leaf_mem_from` refines `Expr.leafMem`**
 (`ExprOpsC.lean:709-714`) at the entries from `i` on.  Deviation: the cited
 `(i == idx && t == ty) || leafMem rest idx ty` is an `if` nest (task #3's
 pattern 9), which is the same `Bool`. -/
@@ -454,7 +454,7 @@ theorem leaf_mem_from_refines (N : Nat) :
       (ty : expr.Expr) (b : Bool),
       bl.val.length - i.val = N → LeavesWF bl → ExprWF ty →
       cached.expr_ops_c.leaf_mem_from bl i idx ty = ok b →
-      b = ConLeche.Cached.ExprC.leafMem ((absLeaves bl).drop i.val) idx.val
+      b = ConLeche.Expr.leafMem ((absLeaves bl).drop i.val) idx.val
         (absExpr ty) := by
   induction N using Nat.strong_induction_on with
   | _ N ih =>
@@ -486,7 +486,7 @@ theorem leaf_mem_from_refines (N : Nat) :
             let i3 ← i + 1#usize
             cached.expr_ops_c.leaf_mem_from bl i3 idx ty) = ok b := h
       clear h
-      rw [hdrop, ConLeche.Cached.ExprC.leafMem]
+      rw [hdrop, ConLeche.Expr.leafMem]
       split at h2
       · rename_i heq
         have heqv : xi.val = idx.val := by rw [heq]
@@ -516,12 +516,12 @@ theorem leaf_mem_from_refines (N : Nat) :
           hi3v]
         simp [hnev]
 
-/-- **`expr_ops_c::leaf_mem` refines `ExprC.leafMem`**
+/-- **`expr_ops_c::leaf_mem` refines `Expr.leafMem`**
 (`ExprOpsC.lean:709-714`): the `i = 0` wrapper. -/
 theorem leaf_mem_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)} {idx : Std.U64}
     {ty : expr.Expr} {b : Bool} (hbl : LeavesWF bl) (hty : ExprWF ty)
     (h : cached.expr_ops_c.leaf_mem bl idx ty = ok b) :
-    b = ConLeche.Cached.ExprC.leafMem (absLeaves bl) idx.val (absExpr ty) := by
+    b = ConLeche.Expr.leafMem (absLeaves bl) idx.val (absExpr ty) := by
   rw [cached.expr_ops_c.leaf_mem] at h
   rw [leaf_mem_from_refines _ bl 0#usize idx ty b rfl hbl hty h,
     show ((0#usize : Std.Usize)).val = 0 by scalar_tac, List.drop_zero]

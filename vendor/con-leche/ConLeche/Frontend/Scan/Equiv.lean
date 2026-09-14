@@ -31,7 +31,7 @@ line here.  Every twin has the one shape
 What the equality does NOT cover, and where that lives: the escape
 decoder and `String.fromUTF8?` are shared leaves (both sides run the
 same function on the same bytes); the semantic layer `applyLine` —
-index resolution, smart constructors, packed fields, taint, prelude
+index resolution, smart constructors, packed fields, prelude
 dedupe, the modeller — is shared code, differentially tested; the
 stream-index tables have their own laws (`IdTable.get?_insert` and its siblings,
 beside the structure in `ConLeche/Frontend/Scan/Types.lean`).
@@ -43,8 +43,10 @@ namespace ConLeche.Frontend
 and the position after its newline, or `0` when the buffer ended
 before a newline did (the fast recogniser's encoding of an incomplete
 tail), or the tag at the offending byte.  The driver calls this; the
-compiler runs `scanLineFwd`. -/
-def scanLineSpec (b : ByteArray) (i : USize) : ScanRes LineRec :=
+compiler runs `scanLineFwd`.  Exposed: it is the reader `feedChunk`
+runs, and the proof that the parse is a fold over the lines
+(`ConLeche/Verify/Frontend/Lines.lean`) unfolds it. -/
+@[expose] def scanLineSpec (b : ByteArray) (i : USize) : ScanRes LineRec :=
   match naiveLine (tailAt b i) with
   | .ok (r, some _) rest => .ok r (posAt i.toNat (tailAt b i) rest).toUSize
   | .ok (r, none) _ => .ok r 0
