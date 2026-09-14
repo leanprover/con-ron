@@ -147,6 +147,20 @@ pub fn pick_idx(n: &Name, ds: &Vec<Declaration>, picked: &Vec<bool>) -> usize {
     hit
 }
 
+/// con-leche: none — the `picked` mask of the module note's deviation, empty
+/// `n` falses: nothing has been picked out of the stream yet.  Its own
+/// function because `-loops-to-rec` copies the code after a loop into every
+/// exit of it, and what follows this one is the whole of `front_of`.
+pub fn no_picks(n: usize) -> Vec<bool> {
+    let mut picked: Vec<bool> = Vec::with_capacity(n);
+    let mut i: usize = 0;
+    while i < n {
+        picked.push(false);
+        i += 1;
+    }
+    picked
+}
+
 /// con-leche: ConLeche/Frontend/Prepare.lean:126-135 frontOf
 /// The front of the prepared stream, as *where each slot comes from*: entry
 /// `j` is the index in `ds` of the stream's own copy of prelude record `j`, or
@@ -158,12 +172,7 @@ pub fn pick_idx(n: &Name, ds: &Vec<Declaration>, picked: &Vec<bool>) -> usize {
 /// note).
 pub fn front_of(ps: &Vec<Declaration>, ds: &Vec<Declaration>) -> (Vec<usize>, Vec<bool>) {
     let n = ds.len();
-    let mut picked: Vec<bool> = Vec::with_capacity(n);
-    let mut i: usize = 0;
-    while i < n {
-        picked.push(false);
-        i += 1;
-    }
+    let mut picked = no_picks(n);
     let np = ps.len();
     let mut picks: Vec<usize> = Vec::with_capacity(np);
     let mut j: usize = 0;
@@ -189,9 +198,22 @@ pub fn prepared_stream(
     picks: &Vec<usize>,
     picked: &Vec<bool>,
 ) -> Vec<Declaration> {
+    let out = Vec::with_capacity(ds.len() + ps.len());
+    prepared_rest(prepared_front(out, ps, ds, picks), ds, picked)
+}
+
+/// con-leche: ConLeche/Frontend/Prepare.lean:126-135 frontOf
+/// The cited `acc.push (m.getD p)`: the front, each slot the stream's own
+/// record where `front_of` found one and the prelude's own where it did not.
+pub fn prepared_front(
+    out: Vec<Declaration>,
+    ps: &Vec<Declaration>,
+    ds: &Vec<Declaration>,
+    picks: &Vec<usize>,
+) -> Vec<Declaration> {
+    let mut out = out;
     let n = ds.len();
     let np = ps.len();
-    let mut out: Vec<Declaration> = Vec::with_capacity(n + np);
     let mut j: usize = 0;
     while j < np {
         let k = picks[j];
@@ -202,6 +224,19 @@ pub fn prepared_stream(
         }
         j += 1;
     }
+    out
+}
+
+/// con-leche: ConLeche/Frontend/Prepare.lean:159-163 prepareD
+/// The cited `front ++ rest`'s second half: the stream's records the mask does
+/// not carry, in the stream's order.
+pub fn prepared_rest(
+    out: Vec<Declaration>,
+    ds: &Vec<Declaration>,
+    picked: &Vec<bool>,
+) -> Vec<Declaration> {
+    let mut out = out;
+    let n = ds.len();
     let mut i: usize = 0;
     while i < n {
         if !picked[i] {
