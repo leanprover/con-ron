@@ -446,6 +446,18 @@ theorem inst_pis_open_refines {e : expr.Expr} {args : alloc.vec.Vec expr.Expr}
 @[simp] theorem option_some_bind {α β : Type} (a : α) (g : α → Option β) :
     (some a).bind g = g a := rfl
 
+/-- An `Option` `guard` that holds. -/
+theorem guard_opt_pos {c : Prop} [Decidable c] (hc : c) :
+    (guard c : Option Unit) = some () := by simp [guard, hc]
+
+/-- …and one that does not. -/
+theorem guard_opt_neg {c : Prop} [Decidable c] (hc : ¬ c) :
+    (guard c : Option Unit) = none := by simp [guard, hc]
+
+/-- `>>=` at a `some`. -/
+@[simp] theorem option_bind_some_l {α β : Type} (a : α) (g : α → Option β) :
+    (some a : Option α) >>= g = g a := rfl
+
 /-- Two `Option.map`s in a row. -/
 theorem option_map_comp {α β γ : Type} (x : Option α) (g : α → β) (k : β → γ) :
     (x.map g).map k = x.map fun a => k (g a) := by cases x <;> rfl
@@ -671,6 +683,25 @@ theorem projRecValue_eq (o : ConLeche.Frontend.ProjRecOwner) (l : ConLeche.Level
     lMkMinor lMkMinorAt
   rfl
 
+/-- …and the same with the two `guard`s read as `if`s, which is the shape the
+port's `expr::beq` and `i >= o.n_f` tests give. -/
+theorem projRecValue_eq' (o : ConLeche.Frontend.ProjRecOwner) (l : ConLeche.Level)
+    (ty val : ConLeche.Expr) (i : Nat) :
+    ConLeche.Frontend.projRecValue o l ty val i
+      = (ConLeche.Expr.stripLams (o.nP + 1) val).bind (fun p =>
+          if p.2 = ConLeche.Expr.proj o.T i (ConLeche.Expr.bvar 0) then
+            if i < o.nF then
+              (ConLeche.Expr.stripPis (o.nP + 1) ty).bind (fun q =>
+                lProjRecValueAt o l q.2 p.1 i)
+            else none
+          else none) := by
+  rw [projRecValue_eq]
+  cases hsl : ConLeche.Expr.stripLams (o.nP + 1) val with
+  | none => rfl
+  | some p =>
+    by_cases h1 : p.2 = ConLeche.Expr.proj o.T i (ConLeche.Expr.bvar 0) <;>
+      by_cases h2 : i < o.nF <;> simp [guard, h1, h2]
+
 /-! ## The two dictionaries -/
 
 /-- The abstraction of a `Vec` the port found to have length one. -/
@@ -884,5 +915,253 @@ theorem mk_minor_refines {c : name.Name} {i : Std.U64} {l : level.Level}
     rw [lMkMinor_eq habs.symm, lMkMinorAt, ← hgabs, getLast?_last hne0 hi2 hidx]
     simp only [hHI, Bool.false_eq_true, if_false]
     rw [Option.map_some, mk_lams_refines hml, punit_unit_at_refines hpu]
+
+/-! ## The rewrite -/
+
+@[simp] theorem absProjRecOwner_T (o : frontend.proj_rec.ProjRecOwner) :
+    (absProjRecOwner o).T = absName o.t := rfl
+@[simp] theorem absProjRecOwner_lps (o : frontend.proj_rec.ProjRecOwner) :
+    (absProjRecOwner o).lps = absNames o.lps := rfl
+@[simp] theorem absProjRecOwner_nP (o : frontend.proj_rec.ProjRecOwner) :
+    (absProjRecOwner o).nP = o.n_p.val := rfl
+@[simp] theorem absProjRecOwner_ctor (o : frontend.proj_rec.ProjRecOwner) :
+    (absProjRecOwner o).ctor = absName o.ctor := rfl
+@[simp] theorem absProjRecOwner_nF (o : frontend.proj_rec.ProjRecOwner) :
+    (absProjRecOwner o).nF = o.n_f.val := rfl
+@[simp] theorem absProjRecOwner_recName (o : frontend.proj_rec.ProjRecOwner) :
+    (absProjRecOwner o).recName = absName o.rec_name := rfl
+@[simp] theorem absProjRecOwner_recLps (o : frontend.proj_rec.ProjRecOwner) :
+    (absProjRecOwner o).recLps = absNames o.rec_lps := rfl
+@[simp] theorem absProjRecOwner_recType (o : frontend.proj_rec.ProjRecOwner) :
+    (absProjRecOwner o).recType = absExpr o.rec_type := rfl
+@[simp] theorem absProjRecOwner_numMotives (o : frontend.proj_rec.ProjRecOwner) :
+    (absProjRecOwner o).numMotives = o.num_motives.val := rfl
+@[simp] theorem absProjRecOwner_numMinors (o : frontend.proj_rec.ProjRecOwner) :
+    (absProjRecOwner o).numMinors = o.num_minors.val := rfl
+
+/-- `lProjRecMajor` at a `∀`. -/
+theorem lProjRecMajor_eq {T rn : ConLeche.Name} {lus : List ConLeche.Level}
+    {ps ms mns : List ConLeche.Expr}
+    {lbs : List (ConLeche.Expr × ConLeche.BinderMeta)}
+    {rty majDom bo : ConLeche.Expr} {m : ConLeche.BinderMeta}
+    (h : rty = .forallE majDom bo m) :
+    lProjRecMajor T rn lus ps ms mns lbs rty
+      = (do
+          guard (ConLeche.Frontend.headIs T majDom)
+          pure (ConLeche.Frontend.mkLams lbs
+            (ConLeche.Expr.mkAppN (.const rn lus) (ps ++ ms ++ mns ++ [.bvar 0])))) := by
+  rw [h, lProjRecMajor]
+
+/-- …and at anything else. -/
+theorem lProjRecMajor_not_forall {T rn : ConLeche.Name} {lus : List ConLeche.Level}
+    {ps ms mns : List ConLeche.Expr}
+    {lbs : List (ConLeche.Expr × ConLeche.BinderMeta)} {rty : ConLeche.Expr}
+    (h : ∀ a b c, rty ≠ ConLeche.Expr.forallE a b c) :
+    lProjRecMajor T rn lus ps ms mns lbs rty = none := by
+  rw [lProjRecMajor]
+  intro a b c hc
+  exact h a b c hc
+
+/-- `proj_rec::proj_rec_value_major` refines `projRecValue`'s closing
+`match rty with` (`ConLeche/Frontend/ProjRec.lean:324-330`). -/
+theorem proj_rec_value_major_refines {o : frontend.proj_rec.ProjRecOwner}
+    {lus : alloc.vec.Vec level.Level} {params motives minors : alloc.vec.Vec expr.Expr}
+    {lbs : alloc.vec.Vec (expr.Expr × expr.BinderMeta)} {rty : expr.Expr}
+    {res : Option expr.Expr} (ho : ProjRecOwnerWF o) (hlus : LevelsWF lus)
+    (hparams : ExprsWF params) (hmotives : ExprsWF motives) (hminors : ExprsWF minors)
+    (_hlbs : ExprOps.BindersWF lbs) (hrty : ExprWF rty)
+    (h : frontend.proj_rec.proj_rec_value_major o lus params motives minors lbs rty
+      = ok res) :
+    Option.map absExpr res = lProjRecMajor (absName o.t) (absName o.rec_name)
+      (absLevels lus) (absExprs params) (absExprs motives) (absExprs minors)
+      (ExprOps.absBinders lbs) (absExpr rty) := by
+  obtain ⟨⟨d, kind⟩⟩ := rty
+  rw [frontend.proj_rec.proj_rec_value_major.eq_def] at h
+  cases kind <;>
+    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, name_dup_eq] at h
+  case ForallE maj_dom bo m =>
+    rw [lProjRecMajor_eq (rty := absExpr (expr.Expr.mk (expr.ExprNode.mk d
+      (expr.ExprKind.ForallE maj_dom bo m)))) rfl]
+    obtain ⟨hmd, hbo, hm⟩ := ExprWF.forall_e_kids hrty
+    obtain ⟨b, hhi, h⟩ := bind_eq_ok_iff.mp h
+    have hbeq := head_is_refines ho.1 hmd hhi
+    subst hbeq
+    cases hb : ConLeche.Frontend.headIs (absName o.t) (absExpr maj_dom) <;>
+      rw [hb] at h <;>
+      simp only [Bool.false_eq_true, if_false, if_true] at h
+    · rw [← Result.ok_injective h]; rfl
+    · obtain ⟨a1, ha1, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨a2, ha2, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨a3, ha3, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨bv, hbv, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨args3, hpush, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨lus2, hlc, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨app, happ, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨e2, hml, hh⟩ := bind_eq_ok_iff.mp h
+      have hnew : ExprsWF (alloc.vec.Vec.new expr.Expr) := fun y hy => by simp at hy
+      have hnewa : absExprs (alloc.vec.Vec.new expr.Expr) = [] := by
+        simp [absExprs]
+      have h1 : ExprsWF a1 := append_exprs_wf hnew hparams ha1
+      have h2 : ExprsWF a2 := append_exprs_wf h1 hmotives ha2
+      have h3 : ExprsWF a3 := append_exprs_wf h2 hminors ha3
+      have h4 : ExprsWF args3 := by
+        intro y hy
+        rw [vec_push_val hpush] at hy
+        rcases List.mem_append.1 hy with hy1 | hy1
+        · exact h3 y hy1
+        · simp only [List.mem_singleton] at hy1; rw [hy1]; exact Expr.mk_bvar_wf hbv
+      have hA1 := append_exprs_refines ha1
+      have hA2 := append_exprs_refines ha2
+      have hA3 := append_exprs_refines ha3
+      have hA4 : absExprs args3 = absExprs a3 ++ [ConLeche.Expr.bvar 0] := by
+        rw [ExprOps.absExprs_push hpush, Expr.mk_bvar_refines hbv]
+        norm_num
+      have h5 : LevelsWF lus2 := fun u hu => hlus u
+        (by rw [← ExprOps.levels_copy_val hlc]; exact hu)
+      have hL : absLevels lus2 = absLevels lus := by
+        rw [absLevels, absLevels, ExprOps.levels_copy_val hlc]
+      have h6 : ExprWF ce := Expr.mk_const_wf ho.2.2.2.1 h5 hce
+      rw [← Result.ok_injective hh, Option.map_some, mk_lams_refines hml,
+        (ExprOps.mk_app_n_refines h6 h4 happ).1, Expr.mk_const_refines hce, hL,
+        hA4, hA3, hA2, hA1, hnewa]
+      simp
+  all_goals (rw [lProjRecMajor_not_forall
+                   (by intro a1 b1 c1 hc; simp [absExprKind] at hc),
+                 ← Result.ok_injective h]
+             rfl)
+
+/-- `proj_rec::proj_rec_value_at` refines `projRecValue`'s tail
+(`ConLeche/Frontend/ProjRec.lean:290-330`), i.e. `lProjRecValueAt`. -/
+theorem proj_rec_value_at_refines {o : frontend.proj_rec.ProjRecOwner}
+    {l : level.Level} {r : expr.Expr}
+    {lbs : alloc.vec.Vec (expr.Expr × expr.BinderMeta)} {i : Std.U64}
+    {res : Option expr.Expr} (ho : ProjRecOwnerWF o) (hl : LevelWF l) (hr : ExprWF r)
+    (hlbs : ExprOps.BindersWF lbs)
+    (h : frontend.proj_rec.proj_rec_value_at o l r lbs i = ok res) :
+    Option.map absExpr res =
+      lProjRecValueAt (absProjRecOwner o) (absLevel l) (absExpr r)
+        (ExprOps.absBinders lbs) i.val := by
+  rw [frontend.proj_rec.proj_rec_value_at] at h
+  simp only [name_dup_eq, expr_dup_eq, level_dup_eq, bind_tc_ok] at h
+  obtain ⟨us, hus, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨v1, hv1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨lus, hlus, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨rty0, hrty0, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨params, hparams, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hUSa, hUS⟩ := StructParts.params_of_refines ho.2.1 hus
+  have hV1 : LevelsWF v1 := one_level_wf hl hv1
+  have hLUS : LevelsWF lus := append_levels_wf hV1 hUS hlus
+  have hLUSa : absLevels lus = absLevel l :: (absNames o.lps).map ConLeche.Level.param := by
+    rw [append_levels_refines hlus, one_level_refines hv1, hUSa]; rfl
+  obtain ⟨hRTY0a, hRTY0⟩ :=
+    ExprOps.instantiate_level_params_refines ho.2.2.2.2.1 hLUS ho.2.2.2.2.2 hrty0
+  have hPARS : ExprsWF params := bvar_params_wf hparams
+  have hPARSa := bvar_params_refines hparams
+  have hO1 := inst_pis_open_refines hRTY0 hPARS ho1
+  rw [lProjRecValueAt]
+  simp only [absProjRecOwner_T, absProjRecOwner_lps, absProjRecOwner_nP,
+    absProjRecOwner_ctor, absProjRecOwner_recName, absProjRecOwner_recLps,
+    absProjRecOwner_recType, absProjRecOwner_numMotives, absProjRecOwner_numMinors]
+  rw [← hLUSa, ← hRTY0a, ← hPARSa, ← hO1]
+  cases o1 with
+  | none => rw [← Result.ok_injective h]; rfl
+  | some rty1 =>
+    have hRTY1 : ExprWF rty1 := inst_pis_open_wf hRTY0 hPARS ho1 rty1 rfl
+    simp only [Option.map_some, option_bind_some_l]
+    obtain ⟨o2, ho2, h⟩ := bind_eq_ok_iff.mp h
+    have hO2 := build_binders_refines (mk_motive_refines ho.1 hr) (mk_motive_wf hr hl)
+      hRTY1 ho2
+    rw [← hO2]
+    cases o2 with
+    | none => rw [← Result.ok_injective h]; rfl
+    | some mrt =>
+      obtain ⟨hMOTS, hMRT⟩ :=
+        build_binders_wf (mk_motive_wf hr hl) hRTY1 ho2 mrt.1 mrt.2 rfl
+      simp only [Option.map_some, option_bind_some_l]
+      replace h : (do
+          let o3 ← frontend.proj_rec.build_binders
+            frontend.proj_rec.MkMinor.Insts.Con_ron_coreFrontendProj_recMkBinder
+            { ctor := o.ctor, i := i, l := l } o.num_minors mrt.2
+          match o3 with
+          | none => ok none
+          | some nrt =>
+            frontend.proj_rec.proj_rec_value_major o lus params mrt.1 nrt.1 lbs nrt.2)
+        = ok res := h
+      obtain ⟨o3, ho3, h⟩ := bind_eq_ok_iff.mp h
+      have hO3 := build_binders_refines (mk_minor_refines ho.2.2.1) (mk_minor_wf hl)
+        hMRT ho3
+      rw [← hO3]
+      cases o3 with
+      | none => rw [← Result.ok_injective h]; rfl
+      | some nrt =>
+        obtain ⟨hMINS, hNRT⟩ :=
+          build_binders_wf (mk_minor_wf hl) hMRT ho3 nrt.1 nrt.2 rfl
+        simp only [Option.map_some, option_bind_some_l]
+        rw [proj_rec_value_major_refines ho hLUS hPARS hMOTS hMINS hlbs hNRT h,
+          hLUSa]
+
+/-- **The rewrite** (`ConLeche/Frontend/ProjRec.lean:279-330 projRecValue`). -/
+theorem proj_rec_value_refines {o : frontend.proj_rec.ProjRecOwner} {l : level.Level}
+    {ty val : expr.Expr} {i : Std.U64} {res : Option expr.Expr}
+    (ho : ProjRecOwnerWF o) (hl : LevelWF l) (hty : ExprWF ty) (hval : ExprWF val)
+    (h : frontend.proj_rec.proj_rec_value o l ty val i = ok res) :
+    Option.map absExpr res = ConLeche.Frontend.projRecValue (absProjRecOwner o)
+      (absLevel l) (absExpr ty) (absExpr val) i.val := by
+  rw [projRecValue_eq']
+  rw [frontend.proj_rec.proj_rec_value] at h
+  simp only [name_dup_eq, bind_tc_ok] at h
+  obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+  have hi1v : i1.val = o.n_p.val + 1 := HashMap.uscalar_add_eq hi1
+  obtain ⟨o1, ho1, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hSLa, hSL⟩ := ExprOps.strip_lams_refines hval ho1
+  simp only [absProjRecOwner_nP, absProjRecOwner_nF, absProjRecOwner_T]
+  rw [← hi1v, ← hSLa]
+  cases o1 with
+  | none => rw [← Result.ok_injective h]; rfl
+  | some lbsb =>
+    obtain ⟨hLV, hLB⟩ := hSL lbsb rfl
+    obtain ⟨bv, hbv, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨want, hwant, h⟩ := bind_eq_ok_iff.mp h
+    have hWANT : absExpr want = .proj (absName o.t) i.val (.bvar 0) := by
+      rw [Expr.proj_refines hwant, Expr.mk_bvar_refines hbv]; simp
+    have hWWF : ExprWF want := Expr.proj_wf ho.1 (Expr.mk_bvar_wf hbv) hwant
+    replace h : (do
+        let b ← expr.beq lbsb.2 want
+        if b then
+          (if i ≥ o.n_f then ok (none : Option expr.Expr)
+           else do
+             let o2 ← expr_ops.strip_pis i1 ty
+             match o2 with
+             | none => ok none
+             | some q => frontend.proj_rec.proj_rec_value_at o l q.2 lbsb.1 i)
+        else ok none) = ok res := h
+    obtain ⟨b, hbeq, h⟩ := bind_eq_ok_iff.mp h
+    rw [Expr.beq_refines hLB hWWF hbeq, hWANT] at h
+    simp only [Option.map_some, option_some_bind]
+    by_cases hb : absExpr lbsb.2 = ConLeche.Expr.proj (absName o.t) i.val (ConLeche.Expr.bvar 0)
+    · rw [if_pos (by simp [hb])] at h
+      rw [if_pos hb]
+      split at h
+      · rename_i hge
+        have hnlt : ¬ i.val < o.n_f.val := by scalar_tac
+        rw [← Result.ok_injective h, if_neg hnlt]
+        rfl
+      · rename_i hge
+        have hlt : i.val < o.n_f.val := by scalar_tac
+        rw [if_pos hlt]
+        obtain ⟨o2, ho2, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨hSPa, hSP⟩ := ExprOps.strip_pis_refines hty ho2
+        rw [← hSPa]
+        cases o2 with
+        | none => rw [← Result.ok_injective h]; rfl
+        | some q =>
+          obtain ⟨-, hTB⟩ := hSP q rfl
+          simp only [Option.map_some, option_some_bind]
+          exact proj_rec_value_at_refines ho hl hTB hLV h
+    · rw [if_neg (by simp [hb])] at h
+      rw [← Result.ok_injective h, if_neg hb]
+      rfl
 
 end ConRon.Refine.Frontend
