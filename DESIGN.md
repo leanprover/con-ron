@@ -17364,3 +17364,100 @@ well-formed input including every tie-break: `acc`'s push order in
 already paid for — the `Vec`/`usize` failure channel, about which the relation
 claims nothing, and the `u64`↔`usize` casts, which succeed because every index
 is a stream position.
+
+#### 19. The verification method had a hole: `lake env lean` drops the package's options
+
+Worth recording because it invalidated a morning of single-file checks and
+would have gone unnoticed if the port bug of §20 had not forced a full rebuild.
+
+`proof/lakefile.toml` sets two options project-wide:
+
+```toml
+[leanOptions]
+weak.backward.isDefEq.respectTransparency = false
+weak.backward.do.legacy = true
+```
+
+**`lake env lean FILE.lean` does not apply them.**  `lake env` puts the
+package's `LEAN_PATH` in the environment and nothing else; `leanOptions` are a
+*build* setting, passed by `lake build` on the `lean` command line.  So the
+single-file command every agent in this task used to verify a file green was
+elaborating it under different options than the gates do.
+
+It bit exactly once, and hard.  `PrepareR.lean`'s `hoistTargets_split` (§18) is
+`rfl` only if the file's six mirror definitions elaborate their `forIn`s the
+way con-leche's `hoistTargets` did — and `backward.do.legacy = true` changes
+`do`-notation elaboration, while the `con-leche` package does not set it.  The
+file passed a bare `lake env lean` all morning and failed the moment
+`lake build` reached it, with `Tactic 'rfl' failed` and three `#guard_msgs`
+censuses newly carrying `sorryAx` (the error's own artefact).  The fix is to
+elaborate the mirrors the way the thing they mirror was elaborated:
+
+```lean
+section
+set_option backward.do.legacy false
+…the six mirrors and hoistTargets_split…
+end
+```
+
+**The rule, for every future task.**  A single-file check is
+
+```
+ulimit -v 100000000 && lake env lean --threads=4 \
+  -Dweak.backward.isDefEq.respectTransparency=false \
+  -Dweak.backward.do.legacy=true FILE.lean
+```
+
+and a file is not green until it has been checked that way — most sharply for
+any step that closes by `rfl`, `decide`, or definitional unfolding through a
+`do` block or a `forIn`, which is where the two elaborations part company.
+Everything else in the tier was unaffected: the same full `lake build` found
+no other failure.
+
+#### 20. The second port bug: `ctor_index_of` was first-wins
+
+Found by the refinement of `validateIndD`, and the better of the task's two
+findings because proving around it was impossible rather than merely ugly.
+
+`export_c::ctor_index_of` built its name → record-index map with the insert
+guarded by `contains_key`, i.e. **first record wins**, and said so in a doc
+comment citing `HashMap.insertIfNew`.  con-leche
+(`ExportC.lean:465-467`) folds with `Std.HashMap.insert`, which **overwrites**:
+last record wins.  con-leche has no `insertIfNew` there; the comment cited a
+call that does not exist.
+
+Earlier in this task the coordinator ruled *prove around it* — on the argument
+that a repeated constructor name makes both sides leave through
+`.inl (.invalid …)`, so the map's tie-break could not be observed.  **That
+argument has a hole**, and the agent refining `validateIndD` found the witness:
+
+> `listed = [[a, b]]`, so `flat = [a, b]` is `Nodup` and `flat.length = 2`;
+> `cts = [c0 named a, c1 named a]`, so `flat.length == cts.length` passes too.
+> Both earlier guards are therefore cleared, and `ctorNames = [a, a]`.  At the
+> name `a` the port runs `checkOneCtor` on `c0` and con-leche on `c1`.  If
+> `c0.cv.ty` is an unknown expression index and `c1`'s is known, the port
+> returns `.Err (.Msg …)` — `get_decl_d` failing — while con-leche runs on to
+> `b`, finds no constructor of that name, and returns
+> `.ok (.inl (.invalid "No such constructor b"))`.
+
+`ValidateOut` demands `∃ s, x = .error s` in that case, so the clause is false
+on that input.  Both sides reject the file, but for different reasons and
+through different channels, which is precisely what the full-outcome relation
+exists to rule out.
+
+**The ruling: change the Rust.**  The two alternatives were worse.  Weakening
+`ValidateOut` to let a port `Msg` match a con-leche `.invalid` gives up the
+error *kind*, which is half of what §3's full-outcome convention asserts, and
+the weakening would leak into `LineOutV` and every arm that has nothing to do
+with this bug.  Adding a well-formedness clause "constructor records carry
+distinct names" is worse still: the records come from the *input file*, so
+nothing downstream could discharge it and it would put a hole through
+`no_False_declaration` itself.  A one-line divergence caused by a wrong doc
+comment does not justify either.
+
+The insert is now unconditional, the comment says what con-leche does, and the
+extracted `ctor_index_of_loop` loses its `contains_key` branch and becomes a
+one-to-one mirror of the `foldl`.  240 core tests and the fixtures are green;
+nothing else in the model moved.  This is the task's second Rust change, after
+§11's `IndexOverflow`-rendered-as-`Internal`, and both were found by a proof
+and nothing else.
