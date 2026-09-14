@@ -159,4 +159,159 @@ theorem hex_val_refines {c : Std.U8} {o : Option Std.U32}
           exact absU32_sub (by simpa using uscalar_sub_add hi) hv)) <;>
     (simp only [Result.ok.injEq] at h; subst h; rfl)
 
+/-! ## `utf8_of` (`Scan/Fast.lean:559-560`)
+
+The port appends the UTF-8 bytes of a code point by hand where con-leche takes
+`(String.singleton (Char.ofNat v)).toUTF8`; `String.utf8EncodeChar` is the
+toolchain's own four-way split of the same arithmetic, so the two meet there.
+The hypothesis is that the value IS a scalar value — the port's own comment
+("every value that reaches here is a scalar value") — and `unescape_bytes`
+below discharges it at every call site. -/
+
+/-- `lift`ed `|||`, as a `Nat` disjunction. -/
+private theorem or_lift_val {ty : Std.UScalarTy} {x y z : Std.UScalar ty}
+    (h : lift (x ||| y) = ok z) : z.val = x.val ||| y.val := by
+  rw [← lift_val h]; exact Std.UScalar.val_or x y
+
+/-- `lift`ed `&&&`, as a `Nat` conjunction. -/
+private theorem and_lift_val {ty : Std.UScalarTy} {x y z : Std.UScalar ty}
+    (h : lift (x &&& y) = ok z) : z.val = x.val &&& y.val := by
+  rw [← lift_val h]; exact Std.UScalar.val_and x y
+
+/-- `lift`ed `as u8`, as a `Nat` truncation. -/
+private theorem cast8_lift_val {x : Std.U32} {z : Std.U8}
+    (h : lift (Std.UScalar.cast .U8 x) = ok z) : z.val = x.val % 256 := by
+  rw [← lift_val h, Std.UScalar.cast_val_eq]; rfl
+
+/-- The port's byte and con-leche's agree when their values do mod 256. -/
+private theorem byte_ofNat {i : Std.U8} {n : Nat} (h : i.val = n % 256) :
+    absByte i = UInt8.ofNat n := by
+  apply UInt8.toNat_inj.mp
+  rw [absByte_toNat, h]
+  simp
+
+/-- **`scan_fast::utf8_of` appends con-leche's UTF-8 bytes** (`Scan/Fast.lean:559-560
+utf8Of`), in the list form the `unescape_bytes` loop reasons with. -/
+theorem utf8_of_bytes {acc out : alloc.vec.Vec Std.U8} {val : Std.U32}
+    (hv : Nat.isValidChar val.val)
+    (h : frontend.scan_fast.utf8_of acc val = ok out) :
+    out.val.map absByte
+      = acc.val.map absByte ++ String.utf8EncodeChar (Char.ofNat val.val) := by
+  have hvn : (Char.ofNat val.val).val.toNat = val.val := char_ofNat_toNat hv
+  have hlt : val.val < 1114112 := by
+    rcases hv with hv | hv <;> omega
+  rw [frontend.scan_fast.utf8_of] at h
+  simp only [scalar_tac_simps] at h
+  simp only [String.utf8EncodeChar, hvn]
+  split_ifs at h ⊢ <;> (try (exfalso; omega))
+  · -- ASCII: one byte, the value itself
+    obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+    rw [vec_push_val h, List.map_append]
+    congr 1
+    simp only [List.map_cons, List.map_nil, List.cons.injEq, and_true]
+    exact byte_ofNat (cast8_lift_val hi)
+  · -- two bytes: a five-bit lead and a six-bit tail
+    obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨acc1, ha1, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨i5, hi5, h⟩ := bind_eq_ok_iff.mp h
+    have e2 : i2.val = (val.val / 64 % 32 + 192) % 256 := by
+      rw [cast8_lift_val hi2, or_lift_val hi1, ushr_val hi]
+      simp only [scalar_tac_simps, Nat.shiftRight_eq_div_pow, Nat.reducePow]
+      rw [or192 (by omega)]; omega
+    have e5 : i5.val = (val.val % 64 + 128) % 256 := by
+      rw [cast8_lift_val hi5, or_lift_val hi4, and_lift_val hi3]
+      simp only [scalar_tac_simps, and63]
+      rw [or128 (by omega)]; omega
+    rw [vec_push_val h, vec_push_val ha1]
+    simp only [List.map_append, List.map_cons, List.map_nil, List.append_assoc,
+      List.cons_append, List.nil_append]
+    rw [byte_ofNat e2, byte_ofNat e5]
+  · -- three bytes: a four-bit lead and two six-bit tails
+    obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨acc1, ha1, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨j3, hj3, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨j4, hj4, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨j5, hj5, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨j6, hj6, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨acc2, ha2, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨k3, hk3, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨k4, hk4, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨k5, hk5, h⟩ := bind_eq_ok_iff.mp h
+    have e2 : i2.val = (val.val / 4096 % 16 + 224) % 256 := by
+      rw [cast8_lift_val hi2, or_lift_val hi1, ushr_val hi]
+      simp only [scalar_tac_simps, Nat.shiftRight_eq_div_pow, Nat.reducePow]
+      rw [or224 (by omega)]; omega
+    have e6 : j6.val = (val.val / 64 % 64 + 128) % 256 := by
+      rw [cast8_lift_val hj6, or_lift_val hj5, and_lift_val hj4, ushr_val hj3]
+      simp only [scalar_tac_simps, Nat.shiftRight_eq_div_pow, Nat.reducePow, and63]
+      rw [or128 (by omega)]; omega
+    have e5 : k5.val = (val.val % 64 + 128) % 256 := by
+      rw [cast8_lift_val hk5, or_lift_val hk4, and_lift_val hk3]
+      simp only [scalar_tac_simps, and63]
+      rw [or128 (by omega)]; omega
+    rw [vec_push_val h, vec_push_val ha2, vec_push_val ha1]
+    simp only [List.map_append, List.map_cons, List.map_nil, List.append_assoc,
+      List.cons_append, List.nil_append]
+    rw [byte_ofNat e2, byte_ofNat e6, byte_ofNat e5]
+  · -- four bytes: a three-bit lead and three six-bit tails
+    obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨acc1, ha1, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨j3, hj3, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨j4, hj4, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨j5, hj5, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨j6, hj6, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨acc2, ha2, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨m3, hm3, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨m4, hm4, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨m5, hm5, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨m6, hm6, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨acc3, ha3, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨k3, hk3, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨k4, hk4, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨k5, hk5, h⟩ := bind_eq_ok_iff.mp h
+    have e2 : i2.val = (val.val / 262144 % 8 + 240) % 256 := by
+      rw [cast8_lift_val hi2, or_lift_val hi1, ushr_val hi]
+      simp only [scalar_tac_simps, Nat.shiftRight_eq_div_pow, Nat.reducePow]
+      rw [or240 (by omega)]; omega
+    have e6 : j6.val = (val.val / 4096 % 64 + 128) % 256 := by
+      rw [cast8_lift_val hj6, or_lift_val hj5, and_lift_val hj4, ushr_val hj3]
+      simp only [scalar_tac_simps, Nat.shiftRight_eq_div_pow, Nat.reducePow, and63]
+      rw [or128 (by omega)]; omega
+    have e7 : m6.val = (val.val / 64 % 64 + 128) % 256 := by
+      rw [cast8_lift_val hm6, or_lift_val hm5, and_lift_val hm4, ushr_val hm3]
+      simp only [scalar_tac_simps, Nat.shiftRight_eq_div_pow, Nat.reducePow, and63]
+      rw [or128 (by omega)]; omega
+    have e5 : k5.val = (val.val % 64 + 128) % 256 := by
+      rw [cast8_lift_val hk5, or_lift_val hk4, and_lift_val hk3]
+      simp only [scalar_tac_simps, and63]
+      rw [or128 (by omega)]; omega
+    rw [vec_push_val h, vec_push_val ha3, vec_push_val ha2, vec_push_val ha1]
+    simp only [List.map_append, List.map_cons, List.map_nil, List.append_assoc,
+      List.cons_append, List.nil_append]
+    rw [byte_ofNat e2, byte_ofNat e6, byte_ofNat e7, byte_ofNat e5]
+
+/-- con-leche's `utf8Of` is the toolchain's own one-character encoding
+(`Scan/Fast.lean:559-560`). -/
+theorem utf8Of_eq (v : Std.U32) :
+    utf8Of (absU32 v) = (String.utf8EncodeChar (Char.ofNat v.val)).toByteArray := by
+  rw [utf8Of, absU32_toNat, String.singleton_eq_ofList, String.toUTF8_eq_toByteArray,
+    String.toByteArray_ofList, List.utf8Encode_singleton]
+
+/-- **`scan_fast::utf8_of` refines `utf8Of`** (`Scan/Fast.lean:559-560 utf8Of`). -/
+theorem utf8_of_refines {acc out : alloc.vec.Vec Std.U8} {val : Std.U32}
+    (hv : Nat.isValidChar val.val)
+    (h : frontend.scan_fast.utf8_of acc val = ok out) :
+    absChunk out = absChunk acc ++ utf8Of (absU32 val) := by
+  rw [utf8Of_eq, absChunk, absChunk]
+  ext1
+  simp [utf8_of_bytes hv h, List.data_toByteArray]
+
 end ConRon.Refine.Frontend
