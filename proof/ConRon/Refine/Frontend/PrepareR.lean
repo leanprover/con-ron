@@ -915,4 +915,85 @@ theorem front_of_refines {ps ds : alloc.vec.Vec env.Declaration}
     exact this.symm
 
 
+/-! ## The capstone
+
+`prepare::prepare_d` is `prepareD` and `prepare::prepare_prelude` is
+`preparePrelude`.  The hoist enters as a hypothesis, `HoistSpec` — see the
+section after this one for what is proved of it and what is not. -/
+
+/-- **The residue of this file** (the `Refine/IndSpec.lean` pattern): the
+hoist's own refinement, which `hoist_nat_op_ground_refines` below discharges
+from `HoistTargetsSpec`. -/
+structure HoistSpec : Prop where
+  /-- `ConLeche/Frontend/NatOpGround.lean:164-169` — the port's hoist reorders
+  the stream the way `hoistNatOpGround` does. -/
+  hoist : ∀ {ds : alloc.vec.Vec env.Declaration}
+    {r : (alloc.vec.Vec env.Declaration) × (alloc.vec.Vec name.Name)},
+    (∀ d ∈ ds.val, DeclarationWF d) →
+    frontend.nat_op_ground.hoist_nat_op_ground ds = ok r →
+    absDecls r.1 = (ConLeche.Frontend.hoistNatOpGround (absDecls ds).toArray).1.toList
+
+/-- `ConLeche/Frontend/Prepare.lean:159-163` — `prepareD`'s records, with its
+two `let (a, b) := …` destructurings resolved (structure eta). -/
+private theorem prepareD_decls (pre : ConLeche.Frontend.PreludeIx)
+    (ds : Array ConLeche.Declaration) :
+    (ConLeche.Frontend.prepareD pre ds).decls
+      = (ConLeche.Frontend.hoistNatOpGround
+          ((ConLeche.Frontend.frontOf #[] pre.decls.toList ds).1
+            ++ (ConLeche.Frontend.frontOf #[] pre.decls.toList ds).2)).1 := rfl
+
+/-- `ConLeche/Frontend/Prepare.lean:159-163` — **`prepare::prepare_d` refines
+`prepareD`**: the prepared records.  The other two fields are the driver's
+receipts (a count and the hoisted names) and no verdict reads them. -/
+theorem prepare_d_refines (hspec : HoistSpec) {pre : frontend.prepare.PreludeIx}
+    {ds : alloc.vec.Vec env.Declaration} {p : frontend.prepare.Prepared}
+    (hpre : PreludeIxWF pre) (hds : ∀ d ∈ ds.val, DeclarationWF d)
+    (h : frontend.prepare.prepare_d pre ds = ok p) :
+    absDecls p.decls
+      = (ConLeche.Frontend.prepareD (absPreludeIx pre) (absDecls ds).toArray).decls.toList := by
+  rw [frontend.prepare.prepare_d] at h
+  obtain ⟨⟨picks, picked⟩, hplan, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨all, hall, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨⟨out, names⟩, hhoist, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨i1, -, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨syn, -, h⟩ := bind_eq_ok_iff.mp h
+  have hp := Result.ok_injective h
+  subst hp
+  obtain ⟨hpl, hml, hfront, hrest⟩ := front_of_refines hpre hds hplan
+  have hallabs : absDecls all
+      = (ConLeche.Frontend.frontOf #[] (absDecls pre.decls) (absDecls ds).toArray).1.toList
+        ++ (ConLeche.Frontend.frontOf #[] (absDecls pre.decls)
+              (absDecls ds).toArray).2.toList := by
+    simp only [absDecls]
+    rw [prepared_stream_refines hpl hml hall, hfront, hrest]
+  have hallwf : ∀ d ∈ all.val, DeclarationWF d := prepared_stream_wf hpre hds hall
+  have hkey : (absPreludeIx pre).decls.toList = absDecls pre.decls := by
+    rw [absPreludeIx, List.toList_toArray]
+  have harr : (ConLeche.Frontend.frontOf #[] (absPreludeIx pre).decls.toList
+        (absDecls ds).toArray).1
+      ++ (ConLeche.Frontend.frontOf #[] (absPreludeIx pre).decls.toList
+        (absDecls ds).toArray).2
+      = (absDecls all).toArray := by
+    refine Array.ext' ?_
+    rw [Array.toList_append, List.toList_toArray, hallabs, hkey]
+  rw [prepareD_decls, harr]
+  exact hspec.hoist hallwf hhoist
+
+/-- `ConLeche/Frontend/Prepare.lean:165-172` — **`prepare::prepare_prelude`
+refines `preparePrelude`**: the parsed stream, prepared for the fold, is
+con-leche's prepared stream record for record and in the same order.  This is
+what task #87's headline composes with. -/
+theorem prepare_prelude_refines (hspec : HoistSpec) {pre : frontend.prepare.PreludeIx}
+    {ds out : alloc.vec.Vec env.Declaration}
+    (hpre : PreludeIxWF pre) (hds : ∀ d ∈ ds.val, DeclarationWF d)
+    (h : frontend.prepare.prepare_prelude pre ds = ok out) :
+    absDecls out
+      = (ConLeche.Frontend.preparePrelude (absPreludeIx pre) (absDecls ds).toArray).toList := by
+  rw [frontend.prepare.prepare_prelude] at h
+  simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+  obtain ⟨p, hp, hout⟩ := h
+  rw [← hout, ConLeche.Frontend.preparePrelude]
+  exact prepare_d_refines hspec hpre hds hp
+
+
 end ConRon.Refine.Frontend
