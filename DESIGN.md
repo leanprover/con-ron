@@ -260,7 +260,10 @@ since task #90 made `ExprNode` 48 bytes, triomphe's one-word header buys
 class), and its instruction penalty is **worse** than either earlier
 measurement once the input is large: task #92 measured it at +29.3 % on Mathlib
 against the identical layout on `std::sync::Arc`, where tasks #44 and #89 saw
-+17.6 % on `core`.
++17.6 % on `core`.  **Task #93 re-measured that `core` figure per symbol and
+could not reproduce it at all** (−0.088 %, three paired runs, peak RSS
+unchanged) — see the dated note below and the task-#93 entry; treat the +17.6 %
+and the +29.3 % as unexplained until Mathlib is re-run.
 
 **The allocator's size classes are the unit a node is priced in (task #92,
 2026-09-14).**  Every width above is a *requested* size; what a run pays is the
@@ -296,6 +299,49 @@ Two consequences, both confirmed end to end on `core`:
   **−4.5 % instructions, −5.6 % cycles and −7.4 % wall on `core`** for nothing,
   and it restores the 48-byte class, which is the one the next node saving would
   have to land in.
+
+**A constant's level list is not a lever, and the census says why (task #93,
+2026-09-14).**  `Expr.const` holds a `P<Vec<Level>>`: an `Arc` block of 40
+bytes (a 48-byte class) *plus* the `Vec`'s own array, two allocations per
+constant reference even for a monomorphic constant whose list is empty.  Task
+#93 built the obvious fix — `enum Levels { Zero, One(Level), Many(P<Vec<Level>>) }`,
+16 bytes, the shape task #90 gave `PropWhen`, with the `Const` arm at 24 bytes
+so that **no node size moves** — and then measured it and reverted it.  Neither
+half of the block arithmetic was wrong: `ptr::new` really does allocate a fresh
+block for every zero-level constant (nothing interns it), and `One` really does
+remove two blocks.  What is wrong is the *denominator*.  Of the 24 228 303
+distinct `ExprNode`s live at `core`'s install boundary, only **286 610 — 1.18 %
+— are constant references**: the exporter's DAG shares a constant harder than
+anything else, one node for every occurrence of `Nat.succ` in the file.  So the
+whole prize is 155 687 × 48 B + 74 596 × 64 B ≈ **12 MB of a 2.16 GB peak**,
+and measured end to end `core` fell 0.9 % while `init` **rose 3.9 %** — the
+readers that still want a `Vec<Level>` build one per call, and mimalloc's own
+counters say the extra resident pages are that churn and not live data (peak
+*commit* is identical).  The task-#93 entry has the census, the table and the
+`levels::to_vec` call counts; the patch is `_tmp/t93/levels.patch`.  **The
+lesson for §3.2 is the denominator: only a change that touches every node moves
+this number.**
+
+**And `triomphe::Arc`'s instruction penalty does not reproduce (task #93, item
+B).**  Measured per symbol on `core` at this tree state, `triomphe::Arc` is
+**−0.088 % instructions** against `std::sync::Arc`, reproducing to five figures
+over three paired runs, with peak RSS unchanged — against the +17 % / +17.6 %
+tasks #44 and #89 recorded on the same input.  The per-symbol diff shows one
+relocation and nothing else (triomphe's `drop_inner` is not `#[inline]`, so the
+DAG teardown is outlined into `drop_glue::<ExprKind>` instead of `drop_slow`,
+31.2 G against 32.0 G), and the atomics are identical: one `fetch_add(Relaxed)`
+per clone, one `fetch_sub(Release)` + `fence(Acquire)` per drop, no uniqueness
+load on any path §3.2's four-operation API allows.  The size class is identical
+too, because mimalloc's `mi_bin` rounds 7 words and 8 words to the same bin 8
+(`mi_good_size(56) = 64`, probed directly).  The likeliest explanation for the
+older figures is the allocator entry that task #92 fixed: under
+`mi_malloc_aligned` a 48-byte request cost 64 where `mi_malloc` charges 48, so
+triomphe's 56-byte block and `std`'s 64-byte one plausibly landed in different
+bins.  Mathlib was not re-run, so task #92's +29.3 % there stands unrefuted but
+implausible.  **Where the swap would pay is the 40-byte node**:
+`mi_good_size(48) = 48` against `mi_good_size(56) = 64`, 16 bytes off every
+node — the comparison `#92's binder datum + triomphe` against
+`#92's binder datum + std`, which has never been run.
 
 The corollary is a sharp bound on the node lever: the class below 64 is **48**,
 so con-ron's `ExprNode` block has to reach 48 bytes to save anything at all —
@@ -18783,3 +18829,278 @@ wall half.
 
 `scripts/gates.sh` all eight OK (`lake-build` 333 s at `LAKE_JOBS=32`);
 `scripts/diff-e2e.sh` **348/348 agree, 0 differ**.  Artefacts under `_tmp/t89/`.
+
+### Task #93 — a constant's level list is not a lever, and triomphe's +17 % does not reproduce (2026-09-14, Opus under Fable)
+
+Two items, both measurements, neither landing anything.  Item A built the
+layout change, measured it, and reverted it; item B re-priced `triomphe::Arc`
+per symbol and contradicts three entries of this log.
+
+#### 1. Item A, the ask: no heap block for a constant's level list
+
+Every `Expr.const` holds a `P<Vec<Level>>` — an `Arc` block of 16 + 24 = 40
+bytes (a 48-byte size class, §3.2) **plus** the `Vec`'s own `8·n`-byte array.
+Two allocations per constant reference, even for a monomorphic constant whose
+list is empty.  The proposal was the shape task #90 gave `PropWhen`:
+
+```rust
+pub enum Levels { Zero, One(Level), Many(P<Vec<Level>>) }   // tag + one word: 16 bytes
+ExprKind::Const(Name, Levels)                                // a 24-byte arm
+```
+
+#### 2. The census, which is the finding
+
+A throwaway probe on `_tmp/corpus/core.ndjson` at
+`--verified --jobs=1 --progress=1000000`: a histogram in `expr::mk_const` for
+what is *built*, and a pointer-keyed DAG walk of the installed `FEnv` at the
+install boundary for what is *live*.
+
+| levels per constant | 0 | 1 | 2 | 3 | 4 | 5 | 6 | ≥7 | total |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| built (`mk_const` calls) | 616 666 | 240 792 | 96 715 | 25 941 | 3 005 | 251 | 38 | 5 | **983 413** |
+| live at the install boundary | 155 687 | 74 596 | 44 632 | 9 323 | 2 092 | 244 | 31 | 5 | **286 610** |
+
+62.7 % of the constants built and 54.3 % of those still live carry **no** level,
+and another 24.5 % / 26.0 % carry exactly one: four fifths of them need no list
+at all, which is exactly what the layout exploits.
+
+**But the same walk answers the question that matters, and the answer is no.**
+It found **24 228 303 distinct `ExprNode`s** reachable from the installed
+environment, of which the 286 610 constant references are **1.18 %**.  A
+constant reference is the most-shared node in a `lean4export` DAG — the file
+carries one `E` record for every distinct subterm, so every occurrence of
+`Nat.succ` in `core` shares one node — and a change that touches 1.2 % of the
+nodes cannot move a number that is dominated by the other 98.8 %.
+
+#### 3. Why the saving did not materialise — the three mechanisms, checked
+
+* **Was the empty list already a shared handle?  No.** `mk_const` ends
+  `ExprKind::Const(n, ptr::new(us))`, and `ptr::new` allocates a *fresh* block
+  on every call whatever `us` is: nothing interns it and nothing shares it, so
+  each of those 155 687 live zero-level constants really does own a 40-byte
+  block in a 48-byte class.  `Vec::new()` itself has no buffer, so that block
+  is the whole cost.  `Levels::Zero` removes it: **155 687 × 48 B = 7.5 MB**.
+* **Does `One` inline actually remove a block?  Yes, two.** For one level
+  master allocates the 40-byte `Arc` block *and* the `Vec`'s 8-byte buffer
+  (mimalloc's smallest class, 16 B); `Levels::One(Level)` holds the level's own
+  handle inline.  `Const` goes 16 → 24 bytes but **`ExprKind` stays 40**, because
+  `Lam`/`ForallE` is 32 and already the widest arm — `con-ron-dump`'s size test
+  confirmed `Levels` 16, `(Name, Levels)` 24, `ExprKind` 40, `ExprNode` 48,
+  block 64, every one of the last four unchanged.  So
+  **74 596 × (48 + 16) B = 4.8 MB**.
+* **Total predicted: 12.2 MB of `core`'s 2.16 GB peak, 0.57 %.**  Measured,
+  `core`'s peak fell **19.2 MB (0.89 %)** — a little more than the live blocks,
+  the check phase's transient constants being cheaper too.  That is the whole
+  prize, and it is inside the run-to-run spread of the bigger inputs.
+
+#### 4. What it measured, end to end
+
+The driver lane throughout (`--verified --jobs=1 --progress=1000000`; a bare
+`--jobs=1` bypasses the driver, task #89).  Both binaries release builds of the
+same tree, one with the change.
+
+| `init`, 3 paired runs | instructions:u | cycles:u | wall | peak RSS |
+|---|---:|---:|---:|---:|
+| master | 518.58 / 518.57 / 518.57 G | 275.5 / 277.0 / 275.7 G | 62.60 / 62.93 / 62.85 s | 797 204 / 799 480 / 800 436 kB |
+| `Levels` | 518.34 / 518.34 / 518.34 G | 276.4 / 277.1 / 275.6 G | 62.82 / 62.95 / 62.65 s | **830 464 / 830 500 / 829 956 kB** |
+| | −0.045 % | +0.1 % | +0.1 % | **+3.9 %** |
+
+| `core`, 2 paired runs | instructions:u | cycles:u | wall | peak RSS |
+|---|---:|---:|---:|---:|
+| master | 1 117.72 / 1 117.72 G | 677.2 / 674.9 G | 154.30 / 153.41 s | 2 156 536 / 2 158 840 kB |
+| `Levels` | 1 116.40 / 1 116.41 G | 675.3 / 672.9 G | 153.60 / 152.97 s | **2 137 928 / 2 139 132 kB** |
+| | −0.118 % | −0.3 % | −0.5 % | **−0.89 %** |
+
+Both binaries accept (`init` 57 977, `core` 163 396) and `scripts/diff-e2e.sh`
+reads **348/348** at `--jobs=1` and at `--jobs=4`.  Mathlib was never run: the
+two smaller inputs disagree in *sign*, which is the answer.
+
+#### 5. Where `init`'s +3.9 % comes from
+
+`levels.rs` sits below `level.rs`'s substitution family, so every reader that
+forwards a constant's levels to something typed `&Vec<Level>` —
+`level::subst_pw`, `expr_ops::instantiate_level_params` through
+`state_c::const_ty_at_m`, `core_k::proj_fire_shape_ok`,
+`core_c::iota_rec_rule_i` and friends — must now *build* one with
+`levels::to_vec` where it used to hand over a borrow for nothing.  A
+`#[track_caller]` census of `levels::to_vec` on `init` counted **16.5 M calls**,
+of which the sites that are new churn are:
+
+| site | calls | of which `Zero` (allocation-free) |
+|---|---:|---:|
+| `core_c.rs:2483` — the projection certificate | 1 772 378 | 168 171 |
+| `core_c.rs:1870` — `iota_rec_rule_i` | 1 624 587 | **0** |
+| `core_c.rs:1923` — `iota_rec_checks_i` | 1 581 099 | 711 639 |
+| `prop_read.rs:153` — `level::subst_pw` | 1 438 794 | 436 358 |
+| `core_c.rs:3374` — `infer_const_i` | 1 342 399 | 632 833 |
+| `prop_read.rs:122` — `level::subst_pw` | 120 826 | 49 219 |
+| 13 more, each under 16 000 | ≈34 000 | |
+| **total new** | **≈7.9 M** | **≈2.0 M** |
+
+(`core_c.rs:190`'s 8 629 647 calls are *not* new: master did `env::levels_copy`
+there and allocated the same `Vec`.)
+
+So ≈5.9 M transient `Vec`s that master never built — and mimalloc's own
+counters say that is the whole story: **peak commit is identical** (800.0 MiB
+against 800.3 MiB — the allocator is not asked for more address space), while
+`purges` go 3.9 K → 5.2 K, `purged` 2.5 → 3.0 GiB, and mimalloc's own peak RSS
+779.5 → 810.5 MiB.  **The regression is page residency from churn, not live
+data.**  Why `init` and not `core`: the live blocks saved scale with the
+constants in the environment (`init` has a third of `core`'s declarations)
+while the churn is per *check*, so on the smaller input the churn wins and on
+the larger one the blocks do.
+
+Closing it would mean pushing `&Levels` one level down —
+`state_c::const_ty_at_m`/`const_val_at_m`, `core_c`'s iota and projection
+certificate helpers, and `level::subst_pw` — so the `Vec` is built once, inside
+`const_ty_at_m`, where master builds one anyway for the `instC` memo key.  That
+is a second structural change with its own proof bill, for a prize the census
+caps at 0.6 %.  It was not done, and on this evidence it should not be.
+
+#### 6. What was built before the measurement stopped it
+
+For the record, since the patch exists: `kernel/levels.rs` (the type, `of_vec`,
+`to_vec`, `dup`, `len`, `head_d`, `have_param`, `hash`, and a `vec_copy` walk),
+`expr::mk_const_levels` as the primitive behind an unchanged
+`expr::mk_const(n, Vec<Level>)` — so the ~250 call sites that build a list were
+untouched — plus `expr::const_levels_beq`, `expr_ops::const_levels_subst`,
+`expr_ops::const_levels_all_params_defined` and
+`state_c::is_equiv_list_c_m`; 72 reader sites; the model regenerated; and the
+proof tier repaired in 26 files with 34 new statements
+(`Refine/Levels.lean`'s 24, four in `Refine/Expr.lean`, two in
+`Refine/ExprOpsMeta.lean`, two in `Refine/CoreKSupport.lean`) — the same order
+as task #90's 35.  What kept that to a day is `Refine/Levels.lean`'s two *pure*
+functions, `ofVec : Vec Level → Levels` and `vecOf : Levels → Vec Level`,
+inverse under `ConstLevelsWF` and both commuting with the abstraction: with
+`levels.of_vec us = ok (ofVec us)` as a `simp` lemma, `mk_const_inv` kept its
+arity and its `obtain ⟨d, b, hpar, rfl, hb, hf, hl⟩` pattern and **137 of the
+141 sites that invert it needed no edit at all**.  Four files
+(`Core/Arms/Major`, `DefEqStruct`, `DefEq`, and the last `#guard_msgs`
+cascades) were still open when the measurement ruled.  The whole change is
+`_tmp/t93/levels.patch` (46 files, +2 780 / −1 631) and in this branch's WIP
+commits.
+
+**One bug it found, worth keeping.**  `state_c::is_equiv_list_c_m` as written
+is *not* faithful to `ConLeche/Cached/StateC.lean:301-308`'s `isEquivListLM`.
+Its `One`/`Many` and `Many`/`One` arms answer `some false` without touching the
+state, but the cited recursion answers a length mismatch only *after* walking
+the common prefix — so it first runs `isEquivLM u vs[0]`, which can return
+`none` (the caller's `liftFueled` then throws instead of falling through to
+`stuck_irrel_i`) and which writes `lsimpC`/`eqvC` (so `StateRel`'s lookup
+agreement fails).  `(isEquivListLM [a] [b,c]).run lst = .ok (some false, lst)`
+is not provable, checked in Lean.  The comment in the reverted code claiming
+"no pair is walked that the `Vec` recursion would have walked" was wrong for
+those two pairs; the other seven are fine.  **Any revival of this layout must
+walk the common prefix in that function**, and the same trap applies to
+`expr::const_levels_beq` if `beq` ever grows a side effect.
+
+#### 7. Item B — where triomphe's instructions go: nowhere
+
+Task #92 recorded `triomphe::Arc` at **+29.3 % instructions on Mathlib** and
+tasks #44 and #89 at **+17 % / +17.6 % on `core`**, and §3.2 attributes the
+Mathlib figure to triomphe alone.  This item re-measured it per symbol on a
+throwaway pair of source copies under `_tmp/t93/{base,trio}` (the `ptr.rs`
+alias line, the two `Cargo.toml`s, and `con-ron-dump`'s third `CountHeader`
+impl; `[profile.release] debug = 1` added identically to both).  **The penalty
+does not reproduce.**
+
+| `core`, driver lane | side | instructions:u | cycles:u | IPC | wall |
+|---|---|---:|---:|---:|---:|
+| run 1 | `std::sync::Arc` | 1 117.615 G | 682.17 G | 1.638 | 155.39 s |
+| run 1 | `triomphe::Arc` | 1 116.626 G | 738.82 G | 1.511 | 177.25 s |
+| run 3 | `std::sync::Arc` | 1 117.611 G | 674.01 G | 1.658 | 153.71 s |
+| run 3 | `triomphe::Arc` | 1 116.625 G | 670.56 G | 1.665 | 152.55 s |
+| run 4 | `std::sync::Arc` | 1 117.610 G | 671.02 G | 1.666 | 152.50 s |
+| run 4 | `triomphe::Arc` | 1 116.623 G | 668.27 G | 1.671 | 152.01 s |
+
+Instructions are **−0.088 %** for triomphe and reproduce to five figures.  Run
+1's +8.3 % cycles and +14 % wall were machine contention: the next paired run
+had triomphe *ahead* in both.  `init` agrees and shows no growth with input
+size — `std` 518.465 G / 276.303 G / 63.09 s / 799 796 kB against triomphe
+519.663 G / 267.685 G / 61.01 s / 805 048 kB, i.e. **+0.23 % instructions on
+`init` against −0.09 % on `core`**, no trend, and peak RSS 0.7 % *higher*, not
+lower.
+
+Per-symbol, from `perf record -e instructions:u,cycles:u -F 199` (68 226 and
+72 280 samples; one sample ≈ 33 M instructions, so anything under ~1 G of delta
+is noise), scaled by each side's `perf stat` total:
+
+| symbol | `std` Ginstr | triomphe Ginstr | delta | delta % |
+|---|---:|---:|---:|---:|
+| `<Arc<expr::ExprNode>>::drop_slow` | 32.0 | 0.1 | **−31.9** | −99.7 % |
+| `core::ptr::drop_glue::<expr::ExprKind>` | 0.0 | 31.2 | **+31.2** | new |
+| `hashmap::list_insert::<ExprNatKey, Expr>` | 0.0 | 8.2 | +8.2 | new |
+| `<HashMap<ExprNatKey, Expr>>::insert_no_resize` | 12.7 | 5.5 | −7.3 | −57.1 % |
+| `expr::beq` | 1.5 | 6.5 | +5.0 | +345.8 % |
+| `drop_glue::<hashmap::AList<Expr, Expr>>` | 9.7 | 5.6 | −4.1 | −42.6 % |
+| `<Arc<name::NameNode>>::drop_slow` | 9.3 | 5.1 | −4.1 | −44.6 % |
+| `<expr::Expr as hashmap::Eq2>::eq2` | 3.8 | 0.0 | −3.8 | −100.0 % |
+| `_mi_theap_malloc_zero` | 12.6 | 16.2 | +3.6 | +28.2 % |
+| `<HashMap<Name, (u64, Arc<ConstantInfo>)>>::allocate_slots` | 38.8 | 35.3 | −3.5 | −9.0 % |
+
+**The diagnosis is that there is no mechanism.**  Rows 1 and 2 are the same
+loop under two names: triomphe's `drop_inner` (`arc.rs:790`) is not
+`#[inline]` while its `drop` (`arc.rs:831`) is, so LLVM outlines the iterative
+DAG teardown into `core::ptr::drop_glue::<ExprKind>` instead of leaving it in
+`std`'s per-`Arc` `drop_slow`; they cancel to −0.7 G.  Every other row is under
+0.7 % of the program and they net to about zero — inlining and sample
+attribution, not work.  On the specific suspicions the brief raised:
+triomphe's `clone` (`arc.rs:624`) is `fetch_add(1, Relaxed)` plus a
+`MAX_REFCOUNT` abort check, the identical shape to `std`'s; its `Drop` is
+`fetch_sub(1, Release)`, then `fence(Acquire)`, then `drop_slow` — **one atomic
+per drop and no extra `Acquire` load**; the uniqueness check `is_unique`
+(`arc.rs:738-747`, the `load(Acquire)`) is reachable only from
+`make_mut`/`get_mut`/`try_unwrap`, which §3.2's four-operation API forbids and
+`nm` finds none of in the binary; `Deref` is a `+8` displacement instead of
+`+16`, the same instruction; `ptr_eq` is a pointer compare either way.  And the
+size-class angle is a non-event at the *current* node: `ArcInner` is
+`#[repr(C)] { count, data }`, so with `ExprNode` at 48 bytes triomphe requests
+56 where `std` requests 64 — but mimalloc v3's `mi_bin` compiles under
+`MI_ALIGN2W` and rounds every `wsize ≤ 8` to `(wsize+1)&~1`, so seven words and
+eight words are **both bin 8**; a direct probe against the built
+`libmimalloc.a` gives `mi_good_size(56) = 64`, `mi_usable_size` 64, stride 64,
+64-byte aligned.  Identical block, identical cache line — which is why peak RSS
+does not move either.
+
+**So three rows of this log are wrong about `core`, and the likeliest
+explanation is task #92's own other change.**  Tasks #44 and #89 measured
+triomphe through the `mimalloc` crate's unconditional `mi_malloc_aligned`,
+which §3.2's size-class table shows charging **64 bytes for a 48-byte request**
+where `mi_malloc` charges 48 — the aligned entry does not agree with `mi_bin`
+about classes, so under it triomphe's 56-byte request and `std`'s 64-byte one
+plausibly landed in *different* bins with different page behaviour.  Task #92
+landed `MiMallocTight`, and this measurement is the first after it.  That is a
+hypothesis, not a measurement: what is measured is that **on this tree,
+`triomphe::Arc` costs nothing and buys nothing on `core` and on `init`**.
+Mathlib was not re-run, so task #92's +29.3 % there is not refuted, only made
+implausible.
+
+**The cheap fix, and the real opportunity.**  There is no fix to make, because
+there is nothing to pay for: the right call stays `std::sync::Arc` — one fewer
+dependency, no model rename, no proof surface, identical performance.  But the
+same probe says where the swap *would* pay, and it is the half of task #92's
+patch that was declined for other reasons: the 8 saved header bytes buy a class
+only when `8 + size_of::<T>()` and `16 + size_of::<T>()` fall in different
+bins, and with task #92's **40-byte** node they do —
+`mi_good_size(48) = 48` against `mi_good_size(56) = 64`, **16 bytes off every
+expression node, a 25 % cut in the per-node block**.  The comparison that has
+never been run is `#92's binder datum + triomphe` against
+`#92's binder datum + std`, and on this evidence it is the only version of the
+swap worth measuring.  Cost if it wins: the `triomphe` dependency, the one
+`ptr.rs` alias line, `con-ron-dump`'s third `CountHeader` impl, and renaming
+`alloc.sync.Arc` to `triomphe.arc.Arc` in the two hand-written model files and
+the `arc_*` lemma names — the same one-type/four-function external template, so
+no new proof obligations (§3.2's "going back to `Rc`" paragraph describes the
+identical edit).
+
+#### 8. Gates
+
+`scripts/gates.sh` all nine OK on the reverted tree (`lake-build` 380 s at
+`LAKE_JOBS=32`, `extract-check` 73 s); `scripts/diff-e2e.sh` **348/348 agree, 0
+differ** at `--jobs=1` and at `--jobs=4`, both on the `Levels` binary before the
+revert and on the reverted tree after it.  Artefacts under
+`_tmp/t93/`: `levels.patch` (the whole reverted change),
+`census-probe.patch` and `census-core.err` (the census), `{init,core}-{master,t93}-*.{perf,time}`
+(the paired runs), `stats-{master,t93}.err` (mimalloc's counters), `tv.err`
+(the `to_vec` census), and for item B `top10-instructions.md`,
+`{base,trio}.{stat,r3,r4,init,fine,all.report}.txt`.

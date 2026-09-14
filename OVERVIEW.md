@@ -299,6 +299,20 @@ and `forallE`.  Taking that handle off dropped peak resident set by 8.5 % on
 counts that moved under 0.31 %; putting it back, re-measured, costs 2.5 % of
 `Init`+`Std`+`Lean`'s peak.
 
+A constant's level list looks like the same opportunity and is not, which is
+worth one paragraph because the arithmetic is so inviting.  `Expr.const` holds
+its `List Level` behind a handle, so every constant reference costs a block
+plus the vector's own array — two allocations even for a monomorphic constant
+whose list is empty — and giving it `PropWhen`'s shape would remove both for
+four fifths of them.  A census says not to bother: of the 24.2 M distinct
+expression nodes alive when `Init`+`Std`+`Lean`'s environment is installed,
+only **286 610 — 1.2 % — are constant references**, because the export format
+already shares them harder than anything else (one record for every distinct
+subterm, so one node for every occurrence of `Nat.succ` in the file).  The
+whole prize is 12 MB of a 2.16 GB peak.  It was built and measured anyway:
+`Init`+`Std`+`Lean` fell 0.9 %, `Init` *rose* 3.9 %, and the change is not in
+the tree.  Only something that touches every node moves this number.
+
 Size classes are in fact the unit the whole node is priced in.  Measured on
 one machine with 20 M live blocks, mimalloc charges 32 bytes for a 32-byte
 request, 48 for a 40- or 48-byte one and 64 for anything from 49 to 64 —
@@ -723,7 +737,13 @@ block has to drop a whole allocator size class, to 48 bytes, and the cheapest
 way there — a 40-byte node behind a one-word `triomphe::Arc` — takes Mathlib
 from 14.31 GB to **11.37 GB**, 21 % less, for **30 % more instructions**.  That
 is three times the budget DESIGN.md §3.2 sets for a memory trade, so it is not
-taken; the 1.64× stands, and it is a size class, not waste.
+taken; the 1.64× stands, and it is a size class, not waste.  The instruction
+half of that price is now in doubt: measured per symbol on
+`Init`+`Std`+`Lean`, `triomphe::Arc` on its own costs **nothing at all**
+(−0.09 %, three paired runs) where two earlier measurements recorded +17 %, and
+the per-symbol diff shows one inlining change and no extra atomic.  Mathlib has
+not been re-run, so the 30 % is unexplained rather than refuted; DESIGN.md §3.2
+has the profile and the likeliest cause.
 
 The single-worker column has been re-measured four times since, at the
 changes that could have moved it.  Twice it did not: con-leche's bump
