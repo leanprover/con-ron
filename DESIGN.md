@@ -16978,3 +16978,39 @@ like a proof failure and is not.  What works: `ulimit -v 400000000` for a
 `lake env lean --threads=4` for a single file.  Resident use stays small under
 both; the limit that matters for the machine is RSS, and virtual-address
 reservations are not it.
+
+#### 11. Named cleanups, deliberately not done today
+
+Each of these was measured or reasoned about and left, with the reason:
+
+* **`absProjRecOwner` should move down into `Refine/Frontend/Abs.lean`.**
+  `StateDR.lean` needs it for `StateDRel` and `ProjRecR.lean` defines it, but
+  `ProjRecR.lean` imports the whole inductive tier, so making the parser's
+  *base* file import it would put `StateDR` above `IndModeled`/`IndSumInstall`
+  — 2 179 build jobs, two of them at the memory ceiling.  Measured, not
+  guessed.  The two definitions are `rfl`-equal meanwhile, so nothing is
+  unsound; `Abs.lean` is the right home and both files already import it.
+* **`cps_beq`'s loop and refinement exist twice**, in `IndR.lean` and as
+  private copies in `ProjRecR.lean`, for the same import reason.  Merge when
+  the files meet.
+* **`ron::nat::norm`'s three always-succeeds lemmas** (`sig_len_ok`,
+  `copy_from_ok`, `norm_ok`) are `private` in `ScanStr.lean` and belong in
+  `Refine/Nat.lean`; moving them mid-task meant rebuilding everything
+  downstream of `Nat.lean` while nine agents were iterating.
+* **`export_c::ctor_index_of`'s doc comment mis-cites `HashMap.insertIfNew`**
+  where the code is a `contains_key` guard.  A provenance defect, left because
+  a comment edit moves `provenance.py`'s citation lines under every agent in
+  flight.  The maintainer may also prefer to make the Rust match con-leche
+  literally (last-wins); §4's ruling was to prove around it instead, and that
+  proof is the better artefact either way.
+* **The tier's two orientations are crossed**: `ScanKit` states refinements
+  port-on-the-left (`absPos e = keyEnd …`) while `ScanObj.KitFacts` is
+  con-leche-on-the-left, and `ScanObj.dup_val` reads `scan_fast::dup` on
+  con-leche's side where every slot loop wants the port's.  It cost a `.symm`
+  here and a four-line `dup_port` there.  Worth one ruling before the next
+  tier rather than after.
+* **`rust_norm h with ⟨…⟩`**, a naming form for the normaliser's introduced
+  witnesses.  Task #85 §8 asked for it because counting 7-23 binders off the
+  end of a context is brittle; this task found the sharper reason — **the
+  binder count is not stable across imports**, so adding one `import` can
+  change an `obtain`'s arity and break a green proof with no visible cause.
