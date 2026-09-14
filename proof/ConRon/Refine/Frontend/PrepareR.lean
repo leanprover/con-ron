@@ -2766,7 +2766,7 @@ private theorem hoistClose_eq (ds : _root_.Array ConLeche.Declaration)
     (idx : _root_.Std.HashMap ConLeche.Name Nat) (i : Nat)
     (target : _root_.Std.HashMap Nat Nat) (stack : _root_.Array Nat) :
     hoistClose ds idx i target stack
-      = if h : stack.size > 0 then
+      = if 0 < stack.size then
           (fun k =>
             match target[k]? with
             | some t =>
@@ -2775,19 +2775,21 @@ private theorem hoistClose_eq (ds : _root_.Array ConLeche.Declaration)
                      (hoistPushDeps idx i k (ds[k]!.usedConsts).toList stack.pop)
             | none => hoistClose ds idx i (target.insert k i)
                      (hoistPushDeps idx i k (ds[k]!.usedConsts).toList stack.pop))
-            (stack[stack.size - 1]'(by omega))
+            stack[stack.size - 1]!
         else target := by
   simp only [hoistClose, hoistPushDeps, Id.run, Array.forIn_toList]
   rw [loop_forIn_eq]
-  by_cases hs : stack.size > 0
-  · rw [dif_pos hs, dif_pos hs]
+  by_cases hs : 0 < stack.size
+  · rw [dif_pos hs, if_pos hs,
+      show stack[stack.size - 1]! = stack[stack.size - 1]'(by omega) from
+        getElem!_pos _ _ (by omega)]
     cases ht : target[stack[stack.size - 1]'(by omega)]? with
     | none => rfl
     | some t =>
       by_cases hti : t ≤ i
       · simp only [if_pos hti]; rfl
       · simp only [if_neg hti]; rfl
-  · rw [dif_neg hs, dif_neg hs]; rfl
+  · rw [dif_neg hs, if_neg hs]; rfl
 
 /-! ### The name index
 
@@ -2797,11 +2799,10 @@ every name a record declares, mapped to the index of the record declaring it
 
 /-- A record of the stream, abstracted (`ds[i]!` on con-leche's side). -/
 private theorem absDecls_getElem! {ds : alloc.vec.Vec env.Declaration} {i : Nat}
-    (h : i < ds.val.length) :
-    (absDecls ds).toArray[i]! = absDeclaration ds.val[i] := by
-  have hsome : (absDecls ds).toArray[i]? = some (absDeclaration ds.val[i]) := by
-    simp only [absDecls, List.getElem?_toArray, List.getElem?_eq_getElem
-      (show i < (ds.val.map absDeclaration).length by simpa using h), List.getElem_map]
+    {d : env.Declaration} (h : ds.val[i]? = some d) :
+    (absDecls ds).toArray[i]! = absDeclaration d := by
+  have hsome : (absDecls ds).toArray[i]? = some (absDeclaration d) := by
+    simp only [absDecls, List.getElem?_toArray, List.getElem?_map, h, Option.map_some]
   rw [getElem!_def, hsome]
 
 /-- A fresh name index is the empty map. -/
@@ -2958,8 +2959,8 @@ private theorem hoist_name_index_loop0_refines {ds : alloc.vec.Vec env.Declarati
       obtain ⟨i1, hi1, h⟩ := h
       have hi1v : i1.val = i.val + 1 := by have := Nat.uadd_val hi1; simpa using this
       have hdlt : i.val < ds.val.length := by omega
+      have hg : ds.val[i.val]? = some d := ExprOps.vec_index_getElem? hd
       have hdx : ds.val[i.val] = d := by
-        have hg := ExprOps.vec_index_getElem? hd
         rw [List.getElem?_eq_getElem hdlt] at hg; exact Option.some_injective _ hg
       have hdwf : DeclarationWF d := by rw [← hdx]; exact hds _ (List.getElem_mem hdlt)
       obtain ⟨hnsabs, hnswf⟩ := declaration_names_refines hdwf hns
@@ -2970,7 +2971,8 @@ private theorem hoist_name_index_loop0_refines {ds : alloc.vec.Vec env.Declarati
           hnswf hrel hidx1
         simpa only [show ((0#usize : Std.Usize).val) = 0 from rfl, List.drop_zero] using this
       rw [show n.val - i.val = (n.val - (i.val + 1)) + 1 by omega, List.range'_succ,
-        hoistIdx_cons, absDecls_getElem! hdlt, hdx, ← hnsabs, ← hi1v]
+        hoistIdx_cons, absDecls_getElem! (by rw [List.getElem?_eq_getElem hdlt, hdx]),
+        ← hnsabs, ← hi1v]
       exact ih idx1 _ n i1 idx' (by omega) hn (by omega) hstep h
     · rw [if_neg (show ¬ i < n by scalar_tac), Result.ok.injEq] at h
       rw [← h, show n.val - i.val = 0 by omega, List.range'_zero, hoistIdx_nil]
@@ -3233,6 +3235,355 @@ private theorem hoistPushDeps_bounded {s : _root_.Std.HashMap ConLeche.Name Nat}
         · exact ha x hx
         · rw [List.mem_singleton.mp hx]; exact hb y m hy
       · rw [if_neg hc]; exact ha
+
+/-! ### The closure walk
+
+`nat_op_ground::hoist_close` is the cited `while h : stack.size > 0`, and it is
+the pass's one loop with no structural measure — the stack grows as well as
+shrinks.  What makes it stop is that the target map only ever *grows*: each
+turn either pops (the record is already targeted at `i` or earlier) or targets
+one more of the stream's finitely many positions, and a position once targeted
+at `i` stays targeted at `i`.  So the induction is lexicographic — first on
+`undone` (how many positions are not yet targeted at `i`), then on the top of
+the port's stack — and con-leche's `while` is unfolded one turn at a time
+beside the port's, `hoistClose_eq` against `hoist_close_loop.eq_def`. -/
+
+/-- `ConLeche/Frontend/NatOpGround.lean:129-131` — the cited `match target[k]?
+with | some t => if t ≤ i then continue | none => pure ()`, as a `Bool`.  This
+is what `nat_op_ground::target_done` computes (`target_done_refines`). -/
+private def targetDone (s : _root_.Std.HashMap Nat Nat) (i k : Nat) : Bool :=
+  match s[k]? with | some t => decide (t ≤ i) | none => false
+
+/-- The closure walk's measure: the stream positions not yet targeted at `i`
+or earlier. -/
+private def undone (s : _root_.Std.HashMap Nat Nat) (i n : Nat) : Nat :=
+  ((List.range n).filter (fun k => !targetDone s i k)).length
+
+private theorem filter_length_le {α : Type} {p q : α → Bool} :
+    ∀ (l : List α), (∀ x ∈ l, q x = true → p x = true) →
+      (l.filter q).length ≤ (l.filter p).length := by
+  intro l
+  induction l with
+  | nil => intro _; simp
+  | cons x xs ih =>
+    intro hle
+    have ihx := ih (fun y hy => hle y (List.mem_cons_of_mem _ hy))
+    by_cases hq : q x = true
+    · have hp : p x = true := hle x (List.mem_cons_self ..) hq
+      rw [List.filter_cons_of_pos hq, List.filter_cons_of_pos hp]
+      simpa using ihx
+    · simp only [Bool.not_eq_true] at hq
+      rw [List.filter_cons_of_neg (by simp [hq])]
+      by_cases hp : p x = true
+      · rw [List.filter_cons_of_pos hp]; simp; omega
+      · simp only [Bool.not_eq_true] at hp
+        rw [List.filter_cons_of_neg (by simp [hp])]; exact ihx
+
+private theorem filter_length_lt {α : Type} {p q : α → Bool} {y : α} :
+    ∀ (l : List α), (∀ x ∈ l, q x = true → p x = true) → y ∈ l → p y = true → q y = false →
+      (l.filter q).length < (l.filter p).length := by
+  intro l
+  induction l with
+  | nil => intro _ hy; simp at hy
+  | cons x xs ih =>
+    intro hle hy hpy hqy
+    have hle' := fun z hz => hle z (List.mem_cons_of_mem _ hz)
+    by_cases hyx : y = x
+    · subst hyx
+      rw [List.filter_cons_of_neg (by simp [hqy]), List.filter_cons_of_pos hpy]
+      have := filter_length_le (p := p) (q := q) xs hle'
+      simp only [List.length_cons]
+      omega
+    · have hy' : y ∈ xs := by rcases List.mem_cons.mp hy with h | h; · exact absurd h hyx
+                              · exact h
+      have ihx := ih hle' hy' hpy hqy
+      by_cases hq : q x = true
+      · have hp : p x = true := hle x (List.mem_cons_self ..) hq
+        rw [List.filter_cons_of_pos hq, List.filter_cons_of_pos hp]
+        simp only [List.length_cons]; omega
+      · simp only [Bool.not_eq_true] at hq
+        rw [List.filter_cons_of_neg (by simp [hq])]
+        by_cases hp : p x = true
+        · rw [List.filter_cons_of_pos hp]; simp only [List.length_cons]; omega
+        · simp only [Bool.not_eq_true] at hp
+          rw [List.filter_cons_of_neg (by simp [hp])]; exact ihx
+
+/-- Targeting one more position strictly shrinks the measure: the position
+targeted was not done, and it is done now, and no other position changes. -/
+private theorem undone_insert_lt {s : _root_.Std.HashMap Nat Nat} {i k n : Nat}
+    (hk : k < n) (hnd : targetDone s i k = false) :
+    undone (s.insert k i) i n < undone s i n := by
+  have hmono : ∀ x, targetDone s i x = true → targetDone (s.insert k i) i x = true := by
+    intro x hx
+    rw [targetDone, _root_.Std.HashMap.getElem?_insert]
+    by_cases hxk : (k == x) = true
+    · rw [if_pos hxk]; simp
+    · rw [if_neg hxk]; exact hx
+  refine filter_length_lt (List.range n) ?_ (List.mem_range.mpr hk) (by simp [hnd]) ?_
+  · intro x _ hx
+    simp only [Bool.not_eq_true'] at hx ⊢
+    by_contra hc
+    simp only [Bool.not_eq_false] at hc
+    rw [hmono x hc] at hx
+    simp at hx
+  · simp only [Bool.not_eq_false']
+    rw [targetDone, _root_.Std.HashMap.getElem?_insert, if_pos (by simp)]
+    simp
+
+/-- The target map's insert, with the entry count `HoistTargetRel` carries. -/
+private theorem tgt_insert {target target' : ron.hashmap.HashMap Std.U64 Std.U64}
+    {s : _root_.Std.HashMap Nat Nat} {k v : Std.U64} {old : Option Std.U64}
+    (hrel : HoistTargetRel target s)
+    (h : ron.hashmap.HashMap.insert tgtHashable tgtEq2 target k v = ok (old, target')) :
+    HoistTargetRel target' (s.insert k.val v.val) := by
+  obtain ⟨hinv', -, hupd⟩ := HashMap.insert_refines tgt_eq2_spec hrel.inv h
+  have hget : ∀ q : Std.U64,
+      (HashMap.toFun target' q).map (·.val) = (s.insert k.val v.val)[q.val]? := by
+    intro q
+    rw [hupd, Function.update_apply, _root_.Std.HashMap.getElem?_insert]
+    by_cases hq : q = k
+    · subst hq; simp
+    · rw [if_neg hq, hrel.get q]
+      have hne : ¬ (k.val = q.val) := by
+        intro hc; exact hq (Env.u64_val_inj hc.symm)
+      simp [hne]
+  refine ⟨hinv', hget, ?_⟩
+  have hmem : (k ∈ HashMap.support target) ↔ (k.val ∈ s) := by
+    rw [HashMap.mem_support_iff, _root_.Std.HashMap.mem_iff_contains,
+      _root_.Std.HashMap.contains_eq_isSome_getElem?, ← hrel.get k]
+    simp
+  have hsupp : HashMap.support target' = Insert.insert k (HashMap.support target) := by
+    ext q
+    rw [HashMap.mem_support_iff, hupd, Function.update_apply, Finset.mem_insert,
+      HashMap.mem_support_iff]
+    by_cases hq : q = k
+    · subst hq; simp
+    · simp [hq]
+  rw [← HashMap.card_support hinv', hsupp, _root_.Std.HashMap.size_insert]
+  by_cases hk : k.val ∈ s
+  · rw [if_pos hk, Finset.insert_eq_self.mpr (hmem.mpr hk), HashMap.card_support hrel.inv,
+      hrel.size]
+  · rw [if_neg hk, Finset.card_insert_of_notMem (fun hc => hk (hmem.mp hc)),
+      HashMap.card_support hrel.inv, hrel.size]
+
+/-- The port's live stack, popped: its top is con-leche's last entry. -/
+private theorem stack_top {stack : alloc.vec.Vec Std.U64} {sp : Std.Usize}
+    {a : _root_.Array Nat} {k : Std.U64}
+    (hpos : 0 < sp.val) (hk : stack.val[sp.val - 1]? = some k)
+    (ha : (stack.val.take sp.val).map (·.val) = a.toList) :
+    0 < a.size ∧ a[a.size - 1]! = k.val ∧ k.val ∈ a.toList ∧
+      (stack.val.take (sp.val - 1)).map (·.val) = a.pop.toList := by
+  have htake : stack.val.take sp.val = stack.val.take (sp.val - 1) ++ [k] := take_pred hpos hk
+  have hal : a.toList = ((stack.val.take (sp.val - 1)).map (·.val)) ++ [k.val] := by
+    rw [← ha, htake]; simp
+  have hsize : a.size = ((stack.val.take (sp.val - 1)).map (·.val)).length + 1 := by
+    rw [← Array.length_toList, hal]; simp
+  refine ⟨by omega, ?_, ?_, ?_⟩
+  · have hsome : a[a.size - 1]? = some k.val := by
+      rw [← Array.getElem?_toList, hal, hsize]; simp
+    rw [getElem!_def, hsome]
+  · rw [hal]; simp
+  · rw [Array.toList_pop, hal]; simp
+
+/-- `ConLeche/Frontend/NatOpGround.lean:128-131` — one turn of the closure
+walk that does nothing: the record is targeted at `i` or earlier already. -/
+private theorem hoist_close_step_done {ds : alloc.vec.Vec env.Declaration}
+    {idx : ron.hashmap.HashMap name.Name Std.U64}
+    {target target1 : ron.hashmap.HashMap Std.U64 Std.U64}
+    {s : _root_.Std.HashMap Nat Nat} {stack stack1 : alloc.vec.Vec Std.U64}
+    {sp sp1 : Std.Usize} {k i : Std.U64}
+    (hrel : HoistTargetRel target s) (hb : targetDone s i.val k.val = true)
+    (h : frontend.nat_op_ground.hoist_close_step ds idx target stack sp k i
+      = ok (target1, stack1, sp1)) :
+    target1 = target ∧ stack1 = stack ∧ sp1 = sp := by
+  rw [frontend.nat_op_ground.hoist_close_step] at h
+  rw [bind_eq_ok_iff] at h
+  obtain ⟨b, hbb, h⟩ := h
+  have hbv : b = targetDone s i.val k.val := target_done_refines hrel hbb
+  rw [hbv, hb, if_pos rfl, Result.ok.injEq, Prod.mk.injEq, Prod.mk.injEq] at h
+  exact ⟨h.1.symm, h.2.1.symm, h.2.2.symm⟩
+
+/-- `ConLeche/Frontend/NatOpGround.lean:132-136` — one turn of the closure walk
+that targets a record: `target[k] := i`, and the record's own references that
+are declared after `i` go on the worklist. -/
+private theorem hoist_close_step_push {ds : alloc.vec.Vec env.Declaration}
+    {idx : ron.hashmap.HashMap name.Name Std.U64}
+    {idxS : _root_.Std.HashMap ConLeche.Name Nat}
+    {target target1 : ron.hashmap.HashMap Std.U64 Std.U64}
+    {s : _root_.Std.HashMap Nat Nat} {stack stack1 : alloc.vec.Vec Std.U64}
+    {sp sp1 : Std.Usize} {k i : Std.U64} {a : _root_.Array Nat}
+    (hds : ∀ d ∈ ds.val, DeclarationWF d) (hidx : HoistIdxRel idx idxS)
+    (hrel : HoistTargetRel target s) (hsp : sp.val ≤ stack.val.length)
+    (ha : (stack.val.take sp.val).map (·.val) = a.toList)
+    (hb : targetDone s i.val k.val = false) (hklt : k.val < ds.val.length)
+    (h : frontend.nat_op_ground.hoist_close_step ds idx target stack sp k i
+      = ok (target1, stack1, sp1)) :
+    HoistTargetRel target1 (s.insert k.val i.val) ∧
+      sp1.val ≤ stack1.val.length ∧
+      (stack1.val.take sp1.val).map (·.val)
+        = (hoistPushDeps idxS i.val k.val
+            (((absDecls ds).toArray[k.val]!).usedConsts).toList a).toList := by
+  rw [frontend.nat_op_ground.hoist_close_step] at h
+  rw [bind_eq_ok_iff] at h
+  obtain ⟨b, hbb, h⟩ := h
+  have hbv : b = targetDone s i.val k.val := target_done_refines hrel hbb
+  rw [hbv, hb, if_neg (by simp)] at h
+  rw [bind_pair_eq_ok_iff] at h
+  obtain ⟨old, target2, hins, h⟩ := h
+  rw [bind_eq_ok_iff] at h
+  obtain ⟨kk, hkk, h⟩ := h
+  rw [bind_eq_ok_iff] at h
+  obtain ⟨d, hd, h⟩ := h
+  rw [bind_eq_ok_iff] at h
+  obtain ⟨used, hused, h⟩ := h
+  rw [bind_pair_eq_ok_iff] at h
+  obtain ⟨v, sp2, hpush, h⟩ := h
+  simp only [Result.ok.injEq, Prod.mk.injEq] at h
+  rw [lift_eq] at hkk
+  have hdslen : ds.val.length ≤ Std.Usize.max := by have := ds.slice.property; scalar_tac
+  have hkkv : kk.val = k.val := by
+    rw [← Result.ok_injective hkk]
+    exact Env.u64_cast_usize_val (by omega)
+  have hdg : ds.val[kk.val]? = some d := ExprOps.vec_index_getElem? hd
+  rw [hkkv] at hdg
+  have hdx : ds.val[k.val] = d := by
+    rw [List.getElem?_eq_getElem hklt] at hdg; exact Option.some_injective _ hdg
+  have hdwf : DeclarationWF d := by rw [← hdx]; exact hds _ (List.getElem_mem hklt)
+  obtain ⟨huwf, huabs⟩ := decl_used_consts_refines hdwf hused
+  have hnames : absNames used = (((absDecls ds).toArray[k.val]!).usedConsts).toList := by
+    rw [absDecls_getElem! hdg, ← huabs, List.toList_toArray]
+  obtain ⟨hsp2, ha2⟩ := hoist_push_deps_refines huwf hidx hsp ha hpush
+  refine ⟨?_, ?_, ?_⟩
+  · rw [← h.1]; exact tgt_insert hrel hins
+  · rw [← h.2.1, ← h.2.2]; exact hsp2
+  · rw [← h.2.1, ← h.2.2, ha2, hnames]
+
+/-- `bind_pair_eq_ok_iff` for the triple `hoist_close_step` answers. -/
+private theorem bind_triple_eq_ok_iff {α β γ δ : Type} {e : Result (α × β × γ)}
+    {F : α → β → γ → Result δ} {v : δ} :
+    ((do let (a, b, c) ← e; F a b c) = ok v) ↔ ∃ a b c, e = ok (a, b, c) ∧ F a b c = ok v := by
+  rw [bind_eq_ok_iff]
+  constructor
+  · rintro ⟨⟨a, b, c⟩, he, hf⟩; exact ⟨a, b, c, he, hf⟩
+  · rintro ⟨a, b, c, he, hf⟩; exact ⟨(a, b, c), he, hf⟩
+
+/-- `ConLeche/Frontend/NatOpGround.lean:125-136` — **`nat_op_ground::hoist_close`'s
+loop is con-leche's `while`.**  The induction is lexicographic: `undone` first
+(a turn that targets a record shrinks it), then the port's top of stack (a turn
+that does not targets nothing and pops). -/
+private theorem hoist_close_loop_refines {ds : alloc.vec.Vec env.Declaration}
+    {idx : ron.hashmap.HashMap name.Name Std.U64}
+    {idxS : _root_.Std.HashMap ConLeche.Name Nat}
+    (hds : ∀ d ∈ ds.val, DeclarationWF d) (hidx : HoistIdxRel idx idxS)
+    (hib : HoistIdxBounded idxS ds.val.length) :
+    ∀ (fuelU fuelS : Nat) (i : Std.U64)
+      (target target' : ron.hashmap.HashMap Std.U64 Std.U64)
+      (s : _root_.Std.HashMap Nat Nat) (stack : alloc.vec.Vec Std.U64) (sp : Std.Usize)
+      (a : _root_.Array Nat),
+      undone s i.val ds.val.length ≤ fuelU → sp.val ≤ fuelS →
+      i.val < ds.val.length →
+      HoistTargetRel target s → HoistBounded s ds.val.length →
+      sp.val ≤ stack.val.length →
+      (stack.val.take sp.val).map (·.val) = a.toList →
+      (∀ x ∈ a.toList, x < ds.val.length) →
+      frontend.nat_op_ground.hoist_close_loop ds idx i target stack sp = ok target' →
+      HoistTargetRel target' (hoistClose (absDecls ds).toArray idxS i.val s a) ∧
+        HoistBounded (hoistClose (absDecls ds).toArray idxS i.val s a) ds.val.length := by
+  intro fuelU
+  induction fuelU using Nat.strong_induction_on with
+  | _ fuelU ihU =>
+    intro fuelS
+    induction fuelS with
+    | zero =>
+      intro i target target' s stack sp a hu hs hi hrel hb hsp ha hab h
+      have hsp0 : sp.val = 0 := by omega
+      have ha0 : a.toList = [] := by rw [← ha, hsp0]; simp
+      have hasz : ¬ (0 < a.size) := by
+        rw [← Array.length_toList, ha0]; simp
+      rw [frontend.nat_op_ground.hoist_close_loop.eq_def,
+        if_neg (show ¬ sp > 0#usize by scalar_tac), Result.ok.injEq] at h
+      rw [hoistClose_eq, if_neg hasz, ← h]
+      exact ⟨hrel, hb⟩
+    | succ fuelS ihS =>
+      intro i target target' s stack sp a hu hs hi hrel hb hsp ha hab h
+      by_cases hsp0 : 0 < sp.val
+      · rw [frontend.nat_op_ground.hoist_close_loop.eq_def,
+          if_pos (show sp > 0#usize by scalar_tac)] at h
+        rw [bind_eq_ok_iff] at h
+        obtain ⟨sp1, hsp1, h⟩ := h
+        rw [bind_eq_ok_iff] at h
+        obtain ⟨k, hk, h⟩ := h
+        rw [bind_triple_eq_ok_iff] at h
+        obtain ⟨target1, stack1, sp2, hstep, h⟩ := h
+        have hsp1v : sp1.val = sp.val - 1 := (Nat.usub_val hsp1).2.trans (by simp)
+        have hkidx : stack.val[sp.val - 1]? = some k := by
+          rw [← hsp1v]; exact ExprOps.vec_index_getElem? hk
+        obtain ⟨hapos, hatop, hamem, hapop⟩ := stack_top hsp0 hkidx ha
+        rw [← hsp1v] at hapop
+        have hklt : k.val < ds.val.length := hab _ hamem
+        rw [hoistClose_eq, if_pos hapos, hatop]
+        by_cases hbv : targetDone s i.val k.val = true
+        · obtain ⟨e1, e2, e3⟩ := hoist_close_step_done hrel hbv hstep
+          rw [e1, e2, e3] at h
+          rw [targetDone] at hbv
+          cases hsk : s[k.val]? with
+          | none => rw [hsk] at hbv; simp at hbv
+          | some t =>
+            rw [hsk] at hbv
+            simp only [decide_eq_true_eq] at hbv
+            simp only [hsk]
+            rw [if_pos hbv]
+            refine ihS i target target' s stack sp1 a.pop hu (by omega) hi hrel hb
+              (by omega) hapop ?_ h
+            intro x hx
+            exact hab x (by rw [Array.toList_pop] at hx; exact List.dropLast_subset _ hx)
+        · simp only [Bool.not_eq_true] at hbv
+          obtain ⟨hrel1, hsp2, ha2⟩ :=
+            hoist_close_step_push (sp := sp1) (stack := stack) (a := a.pop)
+              hds hidx hrel (by omega) hapop hbv hklt hstep
+          have hundone : undone (s.insert k.val i.val) i.val ds.val.length
+              < undone s i.val ds.val.length := undone_insert_lt hklt hbv
+          have hb1 : HoistBounded (s.insert k.val i.val) ds.val.length := by
+            intro q t hq
+            rw [_root_.Std.HashMap.getElem?_insert] at hq
+            by_cases hqk : (k.val == q) = true
+            · rw [if_pos hqk] at hq
+              rw [← Option.some_injective _ hq, show q = k.val from (by simpa using hqk : k.val = q).symm]
+              exact ⟨hklt, hi⟩
+            · rw [if_neg hqk] at hq; exact hb q t hq
+          have habnew : ∀ x ∈ (hoistPushDeps idxS i.val k.val
+              (((absDecls ds).toArray[k.val]!).usedConsts).toList a.pop).toList,
+              x < ds.val.length := by
+            refine hoistPushDeps_bounded hib _ a.pop ?_
+            · intro x hx
+              exact hab x (by rw [Array.toList_pop] at hx; exact List.dropLast_subset _ hx)
+          have hgoal : ∀ (P : _root_.Std.HashMap Nat Nat),
+              P = hoistClose (absDecls ds).toArray idxS i.val (s.insert k.val i.val)
+                    (hoistPushDeps idxS i.val k.val
+                      (((absDecls ds).toArray[k.val]!).usedConsts).toList a.pop) →
+              HoistTargetRel target' P ∧ HoistBounded P ds.val.length := by
+            intro P hP
+            subst hP
+            exact ihU (undone s i.val ds.val.length - 1) (by omega) sp2.val i target1 target'
+              (s.insert k.val i.val) stack1 sp2 _ (by omega) (le_refl _) hi hrel1 hb1
+              hsp2 ha2 habnew h
+          rw [targetDone] at hbv
+          cases hsk : s[k.val]? with
+          | none => simp only [hsk]; exact hgoal _ rfl
+          | some t =>
+            rw [hsk] at hbv
+            simp only [decide_eq_false_iff_not] at hbv
+            simp only [hsk]
+            rw [if_neg hbv]
+            exact hgoal _ rfl
+      · have hsp0' : sp.val = 0 := by omega
+        have ha0 : a.toList = [] := by rw [← ha, hsp0']; simp
+        have hasz : ¬ (0 < a.size) := by
+          rw [← Array.length_toList, ha0]; simp
+        rw [frontend.nat_op_ground.hoist_close_loop.eq_def,
+          if_neg (show ¬ sp > 0#usize by scalar_tac), Result.ok.injEq] at h
+        rw [hoistClose_eq, if_neg hasz, ← h]
+        exact ⟨hrel, hb⟩
 
 /-! ### The residue
 
