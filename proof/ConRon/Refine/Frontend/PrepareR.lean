@@ -19,6 +19,23 @@ statement `f … = ok r → abs r = ⟨the Lean⟩`, with no `ErrSim` half to ca
 (`Refine/README.md`'s full-outcome table: there is no mirrored `.Err` because
 there is no `Except` on either side).
 
+## What is proved, and what is assumed
+
+Everything of `prepare.rs` — `prelude_ix_empty`, `prelude_key`, `declares`,
+`pick_idx`, `no_picks`, `front_of` (against `frontOf`/`pick`, **not** against
+`frontSpec`/`pickSpec`, which the port deliberately does not port: DESIGN.md
+task #84 §7), `prepared_front`, `prepared_rest`, `prepared_stream`,
+`prepare_d` and the capstone `prepare_prelude_refines` — and everything of
+`nat_op_ground.rs` except the target-map computation: `is_nat_op_record`,
+`idx_get`, `target_done`, `target_is`, `hoist_moved_idxs`, `hoist_order_at`,
+`hoist_order`, `hoist_reorder`, `hoist_moved_names`, `apply_hoist` and
+`hoist_nat_op_ground`.  (`declaration_dup` and `block_copy` are phase 1's
+`Frontend/Prepare.lean`: the copy *is* the record, so its refinement is that
+file's `declaration_dup_refines`.)
+
+The one hypothesis is `HoistSpec`: that `nat_op_ground::hoist_targets`
+computes `hoistTargets`.  Its section below says what sits under it and why.
+
 ## `sorry` count in this file: 0
 -/
 import ConRon.Refine.Frontend.Prepare
