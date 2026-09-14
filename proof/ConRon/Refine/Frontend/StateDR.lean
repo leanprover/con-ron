@@ -593,4 +593,284 @@ structure StateDRel (st : frontend.export_c.StateD)
   inModelCensus : st.in_model_census = lst.inModelCensus
   inModelDeclined : st.in_model_declined.val.map absNameStr = lst.inModelDeclined.toList
 
+/-! ## The state readers
+
+`export_c::st_name`/`st_level`/`st_expr` against `ExportC.lean:164-177`'s
+`StateD.name`/`.level`/`.expr`.  Each is one `id_table_get` and one `*::dup`,
+and `dup` is the identity in the model, so what comes out *is* the recorded
+entry — `id_table_get_refines` does the whole of the accept direction and the
+`none` arm is the mirrored `throw`. -/
+
+/-- `export_c::merr` is the parse's `throw` (`Refine/Frontend/Readers.lean`
+keeps the same one-liner private). -/
+private theorem merr_eq (T : Type) (msg : alloc.vec.Vec Std.U32) :
+    frontend.export_c.merr T msg = ok (.Err (.Msg msg)) := rfl
+
+/-- `export_c::st_name` refines `StateD.name`
+(`ConLeche/Frontend/ExportC.lean:164-167`). -/
+theorem st_name_refines {st : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {i : Std.U64} {o : core.result.Result name.Name frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.st_name st i = ok o) :
+    LineOut absName NameWF o (lst.name i.val) := by
+  rw [frontend.export_c.st_name] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨o1, ho, h⟩ := h
+  have hget := id_table_get_refines hrel.names ho
+  have hwf' : ∀ n, o1 = some n → NameWF n :=
+    fun n hn => id_table_get_wf hwf.names (hn ▸ ho)
+  rw [ConLeche.Frontend.StateD.name, ← hget]
+  cases o1 with
+  | none =>
+    simp only [bind_eq_ok_iff, merr_eq, Result.ok.injEq] at h
+    obtain ⟨_, -, _, -, _, -, v, -, rfl⟩ := h
+    exact ⟨_, rfl⟩
+  | some n =>
+    simp only [name_dup_eq, bind_tc_ok, Result.ok.injEq] at h
+    rw [← h]
+    exact ⟨rfl, hwf' n rfl⟩
+
+/-- `export_c::st_level` refines `StateD.level`
+(`ConLeche/Frontend/ExportC.lean:169-172`). -/
+theorem st_level_refines {st : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {i : Std.U64} {o : core.result.Result level.Level frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.st_level st i = ok o) :
+    LineOut absLevel LevelWF o (lst.level i.val) := by
+  rw [frontend.export_c.st_level] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨o1, ho, h⟩ := h
+  have hget := id_table_get_refines hrel.levels ho
+  have hwf' : ∀ u, o1 = some u → LevelWF u :=
+    fun u hu => id_table_get_wf hwf.levels (hu ▸ ho)
+  rw [ConLeche.Frontend.StateD.level, ← hget]
+  cases o1 with
+  | none =>
+    simp only [bind_eq_ok_iff, merr_eq, Result.ok.injEq] at h
+    obtain ⟨_, -, _, -, _, -, v, -, rfl⟩ := h
+    exact ⟨_, rfl⟩
+  | some u =>
+    simp only [level_dup_eq, bind_tc_ok, Result.ok.injEq] at h
+    rw [← h]
+    exact ⟨rfl, hwf' u rfl⟩
+
+/-- `export_c::st_expr` refines `StateD.expr`
+(`ConLeche/Frontend/ExportC.lean:174-177`). -/
+theorem st_expr_refines {st : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {i : Std.U64} {o : core.result.Result expr.Expr frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.st_expr st i = ok o) :
+    LineOut absExpr ExprWF o (lst.expr i.val) := by
+  rw [frontend.export_c.st_expr] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨o1, ho, h⟩ := h
+  have hget := id_table_get_refines hrel.exprs ho
+  have hwf' : ∀ e, o1 = some e → ExprWF e :=
+    fun e he => id_table_get_wf hwf.exprs (he ▸ ho)
+  rw [ConLeche.Frontend.StateD.expr, ← hget]
+  cases o1 with
+  | none =>
+    simp only [bind_eq_ok_iff, merr_eq, Result.ok.injEq] at h
+    obtain ⟨_, -, _, -, _, -, v, -, rfl⟩ := h
+    exact ⟨_, rfl⟩
+  | some e =>
+    simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+    obtain ⟨c, hc, rfl⟩ := h
+    have hce : c = e := Expr.dup_eq hc
+    subst hce
+    exact ⟨rfl, hwf' _ rfl⟩
+
+/-- `export_c::get_decl_d` refines `getDeclD`
+(`ConLeche/Frontend/ExportC.lean:179-189`), which is `StateD.expr`. -/
+theorem get_decl_d_refines {st : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {i : Std.U64} {o : core.result.Result expr.Expr frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.get_decl_d st i = ok o) :
+    LineOut absExpr ExprWF o (ConLeche.Frontend.getDeclD lst i.val) := by
+  rw [frontend.export_c.get_decl_d] at h
+  exact st_expr_refines hrel hwf h
+
+/-! ## The two list readers
+
+`export_c::st_names`/`st_levels` are con-leche's `is.mapM st.name` /
+`us.mapM st.level`, which §3.4 forbids as iterator adapters and the port
+spells as an index loop with an accumulator.  A `*_loop` is a
+`partial_fixpoint` with no induction principle, so each is strong induction on
+the `while i < n` measure `n - i`, exactly as phase 1's `st_names_loop_wf`. -/
+
+/-- The `Vec` read at `i`, as the head of the abstracted tail.  (The same four
+lines as `Refine/Frontend/ProjRecR.lean`'s `drop_map_index`, which this file
+must not depend on.) -/
+private theorem vec_drop_map {α β : Type} {v : alloc.vec.Vec α} {i : Std.Usize} {x : α}
+    (f : α → β)
+    (h : alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice α) v i = ok x) :
+    (v.val.map f).drop i.val = f x :: (v.val.map f).drop (i.val + 1) := by
+  have hg := ExprOps.vec_index_getElem? h
+  have hlt : i.val < v.val.length := by
+    by_contra hc
+    rw [List.getElem?_eq_none (by omega)] at hg; simp at hg
+  have hx : v.val[i.val] = x := by
+    rw [List.getElem?_eq_getElem hlt] at hg; exact Option.some_injective _ hg
+  rw [List.drop_eq_getElem_cons (by simpa using hlt)]
+  simp [hx]
+
+/-- A push, on the abstracted list. -/
+private theorem absNames_push {out out1 : alloc.vec.Vec name.Name} {v : name.Name}
+    (h : alloc.vec.Vec.push out v = ok out1) :
+    absNames out1 = absNames out ++ [absName v] := by
+  rw [absNames, vec_push_val h]; simp [absNames]
+
+private theorem absLevels_push {out out1 : alloc.vec.Vec level.Level} {v : level.Level}
+    (h : alloc.vec.Vec.push out v = ok out1) :
+    absLevels out1 = absLevels out ++ [absLevel v] := by
+  rw [absLevels, vec_push_val h]; simp [absLevels]
+
+/-- A push extends an "every entry satisfies `P`" invariant. -/
+private theorem push_wf' {α : Type} {P : α → Prop} {v w : alloc.vec.Vec α} {x : α}
+    (hv : ∀ y ∈ v.val, P y) (hx : P x)
+    (h : alloc.vec.Vec.push v x = ok w) : ∀ y ∈ w.val, P y := by
+  rw [vec_push_val h]
+  intro y hy
+  rcases List.mem_append.mp hy with hy | hy
+  · exact hv y hy
+  · rw [List.mem_singleton.mp hy]; exact hx
+
+/-- The accumulator of `export_c::st_names`' index loop against the tail of
+con-leche's `mapM`. -/
+private theorem st_names_loop_refines (N : Nat) :
+    ∀ (st : frontend.export_c.StateD) (lst : ConLeche.Frontend.StateD)
+      (is : alloc.vec.Vec Std.U64) (out : alloc.vec.Vec name.Name) (n i : Std.Usize)
+      (o : core.result.Result (alloc.vec.Vec name.Name) frontend.export_c.LineErr),
+      StateDRel st lst → StateDWF st → NamesWF out →
+      n.val = is.val.length → n.val - i.val = N →
+      frontend.export_c.st_names_loop st is out n i = ok o →
+      LineOut absNames NamesWF o
+        (do let r ← ((absU64s is).drop i.val).mapM lst.name
+            pure (absNames out ++ r)) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro st lst is out n i o hrel hwf hout hn hN h
+    rw [frontend.export_c.st_names_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨i1, hidx, r, hr, h⟩ := h
+      have hdrop : (absU64s is).drop i.val
+          = absU64 i1 :: (absU64s is).drop (i.val + 1) := vec_drop_map absU64 hidx
+      have hst := st_name_refines hrel hwf hr
+      cases r with
+      | Ok v =>
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨out1, hpush, i2, hi2, h⟩ := h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        have hih := ih (n.val - i2.val) (by scalar_tac) st lst is out1 n i2 o hrel hwf
+          (push_wf' hout hst.2 hpush) hn rfl h
+        have heq : (do let r ← ((absU64s is).drop i.val).mapM lst.name
+                       pure (absNames out ++ r))
+            = (do let r ← ((absU64s is).drop i2.val).mapM lst.name
+                  pure (absNames out1 ++ r)) := by
+          rw [hdrop, hi2v, List.mapM_cons, hst.1, absNames_push hpush]
+          simp
+          rfl
+        rw [heq]; exact hih
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        refine LineErrSim.trans hst ?_
+        intro s hs
+        rw [hdrop, List.mapM_cons, hs]
+        exact ⟨s, rfl⟩
+    · rename_i hge
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      have hnil : (absU64s is).drop i.val = [] := by
+        refine List.drop_eq_nil_of_le ?_
+        simp only [absU64s, List.length_map]
+        have : n.val ≤ i.val := by scalar_tac
+        omega
+      exact ⟨by rw [hnil]; simp only [List.mapM_nil, pure_bind, List.append_nil]; rfl, hout⟩
+
+/-- `export_c::st_names` refines `is.mapM st.name`, the `mapM` of
+`parsePwD`/`parseCVD`/`parseExprEntryD`'s level-parameter and constructor
+lists. -/
+theorem st_names_refines {st : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {is : alloc.vec.Vec Std.U64}
+    {o : core.result.Result (alloc.vec.Vec name.Name) frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.st_names st is = ok o) :
+    LineOut absNames NamesWF o ((absU64s is).mapM lst.name) := by
+  rw [frontend.export_c.st_names] at h
+  have := st_names_loop_refines _ st lst is _ _ 0#usize o hrel hwf
+    (by simp [NamesWF, alloc.vec.Vec.with_capacity]) (alloc.vec.Vec.len_val _) rfl h
+  simpa [absNames, alloc.vec.Vec.with_capacity,
+    show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using this
+
+/-- The accumulator of `export_c::st_levels`' index loop (see
+`st_names_loop_refines`). -/
+private theorem st_levels_loop_refines (N : Nat) :
+    ∀ (st : frontend.export_c.StateD) (lst : ConLeche.Frontend.StateD)
+      (is : alloc.vec.Vec Std.U64) (out : alloc.vec.Vec level.Level) (n i : Std.Usize)
+      (o : core.result.Result (alloc.vec.Vec level.Level) frontend.export_c.LineErr),
+      StateDRel st lst → StateDWF st → LevelsWF out →
+      n.val = is.val.length → n.val - i.val = N →
+      frontend.export_c.st_levels_loop st is out n i = ok o →
+      LineOut absLevels LevelsWF o
+        (do let r ← ((absU64s is).drop i.val).mapM lst.level
+            pure (absLevels out ++ r)) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro st lst is out n i o hrel hwf hout hn hN h
+    rw [frontend.export_c.st_levels_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨i1, hidx, r, hr, h⟩ := h
+      have hdrop : (absU64s is).drop i.val
+          = absU64 i1 :: (absU64s is).drop (i.val + 1) := vec_drop_map absU64 hidx
+      have hst := st_level_refines hrel hwf hr
+      cases r with
+      | Ok v =>
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨out1, hpush, i2, hi2, h⟩ := h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        have hih := ih (n.val - i2.val) (by scalar_tac) st lst is out1 n i2 o hrel hwf
+          (push_wf' hout hst.2 hpush) hn rfl h
+        have heq : (do let r ← ((absU64s is).drop i.val).mapM lst.level
+                       pure (absLevels out ++ r))
+            = (do let r ← ((absU64s is).drop i2.val).mapM lst.level
+                  pure (absLevels out1 ++ r)) := by
+          rw [hdrop, hi2v, List.mapM_cons, hst.1, absLevels_push hpush]
+          simp
+          rfl
+        rw [heq]; exact hih
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        refine LineErrSim.trans hst ?_
+        intro s hs
+        rw [hdrop, List.mapM_cons, hs]
+        exact ⟨s, rfl⟩
+    · rename_i hge
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      have hnil : (absU64s is).drop i.val = [] := by
+        refine List.drop_eq_nil_of_le ?_
+        simp only [absU64s, List.length_map]
+        have : n.val ≤ i.val := by scalar_tac
+        omega
+      exact ⟨by rw [hnil]; simp only [List.mapM_nil, pure_bind, List.append_nil]; rfl, hout⟩
+
+/-- `export_c::st_levels` refines `us.mapM st.level`. -/
+theorem st_levels_refines {st : frontend.export_c.StateD} {lst : ConLeche.Frontend.StateD}
+    {is : alloc.vec.Vec Std.U64}
+    {o : core.result.Result (alloc.vec.Vec level.Level) frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.st_levels st is = ok o) :
+    LineOut absLevels LevelsWF o ((absU64s is).mapM lst.level) := by
+  rw [frontend.export_c.st_levels] at h
+  have := st_levels_loop_refines _ st lst is _ _ 0#usize o hrel hwf
+    (by simp [LevelsWF, alloc.vec.Vec.with_capacity]) (alloc.vec.Vec.len_val _) rfl h
+  simpa [absLevels, alloc.vec.Vec.with_capacity,
+    show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using this
+
 end ConRon.Refine.Frontend
