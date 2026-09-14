@@ -35,7 +35,7 @@ check_loops() {
   local hits
   hits=$(gather | grep -E ':[0-9]+:[[:space:]]*(while|for|loop)\b' \
     | grep -v '^\S*:\S*:\s*//' | grep -v 'lint: allow' \
-    | grep -v '^crates/con-ron-core/src/frontend/')
+    | grep -v 'con-ron-core/src/frontend/')   # unanchored: gates.sh passes an absolute dir
   if [ -n "$hits" ]; then
     echo "== loops (use recursion; only crates/con-ron-core/src/frontend/ may loop, DESIGN.md §3.4)"
     echo "$hits"; fail=1
