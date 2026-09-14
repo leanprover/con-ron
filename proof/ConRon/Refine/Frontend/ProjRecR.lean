@@ -3450,4 +3450,18 @@ theorem info_name_refines {ci : env.ConstantInfo} {n : name.Name}
   rw [frontend.proj_rec.info_name] at h
   exact ⟨Env.constant_info_name_refines h, Env.constant_info_name_wf hc h⟩
 
+/-! ## Axiom census (DESIGN.md §5, the P3 gate) -/
+
+/--
+info: 'ConRon.Refine.Frontend.proj_rec_value_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms proj_rec_value_refines
+
+/--
+info: 'ConRon.Refine.Frontend.proj_rec_owners_refines' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms proj_rec_owners_refines
+
 end ConRon.Refine.Frontend
