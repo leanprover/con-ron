@@ -49,6 +49,7 @@ import ConRon.Refine.Frontend.Readers
 import ConRon.Refine.Frontend.Abs
 import ConRon.Refine.State
 import ConRon.Refine.BasisRaw
+import ConRon.Refine.Frontend.ScanStr
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel
@@ -90,11 +91,11 @@ Two things a caller has to know.
   `parseExprEntryD`/`parseLevelEntryD` inline, the port factors each into its
   own function, and `parseExprEntryD_eq` / `parseLevelEntryD_eq` are the
   equivalences — each one `simp` per constructor.
-* **`NatValSpec r` is an ingredient hypothesis**, vacuous at every
-  constructor but `NatVal`, and it is the only thing this file assumes.  See
-  its doc comment: it is the port's `nat_decimal::from_decimal` against
-  `natOfDigits`, which is a scanner obligation plus a bignum lemma and belongs
-  to neither this file nor this tier.
+* **`NatValSpec r` is a hypothesis of the statement but not of the file**: it
+  is vacuous at every constructor but `NatVal`, and `natValSpec_of_digits`
+  proves it from `ExprRecDigits r` — "the digits are a non-empty run of decimal
+  bytes" — which is what `Refine/Frontend/ScanStr.lean`'s
+  `scan_quoted_nat_digits` gives for what the scanner produced.
 
 Every `LineOut`-valued lemma is the **full outcome** (DESIGN.md §3's ruling of
 2026-09-13): the value is claimed exactly on `.Ok`, and on a mirrored `.Err` —
@@ -1127,29 +1128,46 @@ private theorem errOf {γ δ : Type} {e : frontend.export_c.LineErr}
     (hy : ∀ s, x = .error s → y = .error s) : LineErrSim e y :=
   LineErrSim.trans h (fun s hs => ⟨s, hy s hs⟩)
 
-/-- **The one ingredient this file does not prove.**  `scan_types::ExprRec`'s
-`NatVal` arm keeps the literal's *decimal digits* where con-leche's keeps the
-`Nat` (`Refine/Frontend/Abs.lean`'s deviation 2), so the port reads them with
+/-- **The `NatVal` arm's ingredient**, and it is *proved*, by
+`natValSpec_of_digits` below.  `scan_types::ExprRec`'s `NatVal` arm keeps the
+literal's *decimal digits* where con-leche's keeps the `Nat`
+(`Refine/Frontend/Abs.lean`'s deviation 2), so the port reads them with
 `nat_decimal::from_decimal` — a bignum routine con-leche has no counterpart
-for, since Lean's `Nat` is already arbitrary precision.
-
-`NatValSpec r` is what the arm needs of it, and it decomposes into two facts
-neither of which belongs here:
-
-* a **scanner obligation** — the digits are decimal (`from_decimal` returns
-  `none` exactly on an empty slice or a byte outside `'0'..'9'`), which is
-  phase 3's analogue of phase 1's `ExprRecWF` and is `scan_nat_val`'s to
-  discharge;
-* an **arithmetic lemma** — `from_decimal`'s nineteen-digit chunk loop over
-  `ron::nat` limbs computes `natOfDigits`, i.e. the same fold `readNatAt`
-  (`Scan/Fast.lean:499-500`) computes on con-leche's side.
-
-It is vacuous at every other constructor, so a caller that knows its record is
-not a `NatVal` discharges it with `by intro _ hc; simp at hc`. -/
+for, since Lean's `Nat` is already arbitrary precision.  `NatValSpec r` is what
+the arm needs of it, and it is vacuous at every constructor but `NatVal`, so a
+caller that knows its record is not a `NatVal` discharges it with
+`by intro _ hc; simp at hc`. -/
 def NatValSpec (r : frontend.scan_types.ExprRec) : Prop :=
   ∀ ds, r = .NatVal ds →
     ∀ o, frontend.nat_decimal.from_decimal (alloc.vec.Vec.deref ds) = ok o →
       ∃ n, o = some n ∧ Nat.toNat n = natOfDigits ds
+
+/-- **The scanner's obligation on a `NatVal` record**, which is what discharges
+`NatValSpec`: the digits are a non-empty run of decimal bytes.
+`Refine/Frontend/ScanStr.lean`'s `scan_quoted_nat_digits` proves exactly this of
+what `scan_quoted_nat` returns. -/
+def ExprRecDigits : frontend.scan_types.ExprRec → Prop
+  | .NatVal ds => ds.val ≠ [] ∧ ∀ c ∈ ds.val, 48 ≤ c.val ∧ c.val ≤ 57
+  | _ => True
+
+/-- **`NatValSpec` is a theorem, not an assumption**, and the two halves are
+`Refine/Frontend/ScanStr.lean`'s: `from_decimal_ok` rules out the `none` arm —
+so `export_c` never reports `BadNatVal` for a literal the scanner accepted,
+which is what would have made the port claim con-leche rejects a `natVal`
+con-leche in fact reads — and `from_decimal_refines` gives the value, needing
+no side condition of its own (the port's `digits[i] - 48` is a `u8`
+subtraction, so a run that returned `ok` had every byte at 48 or above). -/
+theorem natValSpec_of_digits {r : frontend.scan_types.ExprRec}
+    (h : ExprRecDigits r) : NatValSpec r := by
+  intro ds hr o ho
+  subst hr
+  simp only [ExprRecDigits] at h
+  have hval : (alloc.vec.Vec.deref ds).val = ds.val := Slice.from_val _ _
+  obtain ⟨n, hn⟩ := from_decimal_ok (ds := alloc.vec.Vec.deref ds)
+    (by rw [hval]; exact h.1) (by rw [hval]; exact h.2)
+  rw [hn] at ho
+  refine ⟨n, (Result.ok_injective ho).symm, ?_⟩
+  rw [(from_decimal_refines hn).1, natOfDigits_eq, digitsVal, digitsVal, hval]
 
 /-- `export_c::parse_expr_rec_d` refines the value half of `parseExprEntryD`
 (`ConLeche/Frontend/ExportC.lean:249-279`). -/
