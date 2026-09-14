@@ -300,7 +300,15 @@ capstones — the theorems about the binary that ships — carry **the decoded
 pins `hp`, the parsed input's well-formedness `hds`, and the run `h`**.  Task
 #73 discharged `hds` too, with a runtime validation pass; **task #81 withdrew
 that pass** (10 GB of resident memory at Mathlib scale, 4 % of the
-instructions) and the row is back — until the ported parser discharges it.
+instructions).
+
+**Task #85 discharged it for good, one level up.**  `Refine/Main.lean`'s
+chunk-level pair (`conron.model_exists_parsed` / `no_proof_of_False_parsed`,
+the statement about con-leche's whole four-step pipeline) reads the
+well-formedness of its input off the port's own parser and carries no `hds`; the
+fold-level capstones keep the row, because a caller who does not go through that
+parser still owes it.  What took its place is `hgen`, the second row below —
+which is not discharged, and is the residue the maintainer accepted.
 
 | hypothesis | who discharges it |
 |---|---|
@@ -308,8 +316,8 @@ instructions) and the row is back — until the ported parser discharges it.
 | `hind : IndRoutesSpec mode` — the two inductive install routes agree on an accept | **task #59** (`IndC.ind_routes_spec_of_p`, the recogniser bridge task #57 owed); the tier is `sorry`-free since task #67 fixed `modeled.rs`'s `u64 → usize` casts.  **Discharged at the capstones** by `IndC.ind_routes_spec'` from the knot (task #67 continued)
 | `hinde : IndRoutesSpecErr mode` — …and throw at the same kind on a mirrored reject, down the same branch of `nativeParts?` | **task #67 continued** (`IndC.ind_routes_spec_err'` / `ind_routes_spec_err_of_p`).  A sibling `Prop` rather than a `match` inside `IndRoutesSpec`, so that every accept-direction proof stated through the latter stayed verbatim while the two tiers landed independently.  **Discharged at the capstones** the same way
 | `hvar : CheckerPins.PinsWF pins` — every node of every pin is what the port's own smart constructor built | **task #66** (`PinsWF.decode_embedded_wf`), for the embedded pins: the same by-construction argument as `hds`, since `ExprWF`'s constructors *are* the port's smart constructors.  The `pins`-parametric theorems keep it, as they must — it is a promise about an argument, and nothing about what the list *abstracts to* implies it: two pin lists can abstract to the same `List NatOpPinSet` with one carrying a stored hash word that makes `expr::beq` inexact (task #58) |
-| `hds : ∀ d ∈ ds.val, DeclCWF d` — the parsed input is well formed | **the parser**, by construction: `DeclCWF` is the task-#5 inductive invariant whose constructors *are* the port's own smart constructors, so a `DeclC` the frontend built satisfies it.  Task #73 discharged it instead with a runtime validation pass at the entry of `check_decls`; **task #81 withdrew that pass** on the maintainer's ruling — it cost 10 GB of resident memory at Mathlib scale and 4 % of the instructions — and the next con-leche update brings the parser into the verified pipeline, where this falls out of the parser's own refinement |
-
+| `hds : ∀ d ∈ ds.val, DeclarationWF d` — the parsed input is well formed | **task #85** (`Frontend.parse_chunks_wf` / `Frontend.prepare_prelude_wf`), by construction: `DeclarationWF` is the task-#5 inductive invariant whose constructors *are* the port's own smart constructors, so a record the parse built satisfies it and the proof is that argument written out.  Task #73 discharged it instead with a runtime validation pass at the entry of `check_decls`; **task #81 withdrew that pass** on the maintainer's ruling — it cost 10 GB of resident memory at Mathlib scale and 4 % of the instructions — and task #84 brought the parser into the verified pipeline, where task #85 could prove it.  **Discharged at `Refine/Main.lean`'s chunk-level pair**; the four fold-level capstones keep it |
+| `hgen : Frontend.ModellerWF inst g` — every declaration the modeller generates is well formed | **nobody, and that is the point.**  Task #84's seam makes the parse quantify over `in_model_rec::Modeller`, so the 6 428 lines of `crates/con-ron/src/in_model/` are neither ported nor proved and what the tower asks of them is this one line — the maintainer's ruling of 2026-09-13 (*"leave the modeller unverified if you can; rumors are that upstream can actually get rid of it"*).  Like `hvar`, it is a promise about a function argument; it is what `hds` *became*, and it disappears the day upstream drops the modeller |
 A sixth, `hpins : absPins pins = ConLeche.natOpPinSets`, stood between the last
 two rows until **task #74** and is **gone, not discharged**.  It said the port's
 pin list is the global the pinned con-leche baked into `checkDeclStepC`; the
@@ -381,6 +389,33 @@ step 4, and task #52's two `StateC*` files its step 5; step 6 is the
 induction.
 (step 7's first half) are task #56's, and task #60's two files above are its
 top and step 8.
+
+## The parser's well-formedness tier (`Frontend/`, task #85 phase 1)
+
+Task #84 put the parser into the verified core; this group proves **the one
+thing the fold needs of it** — that every `Declaration` it produces is what the
+port's own smart constructors built — and so discharges `hds`, the last input
+hypothesis of `Refine/Main.lean`.  It is *not* the parser's refinement against
+`ConLeche/Frontend` (that is phase 3, and `progress.py`'s parser row stays at
+0 % until it lands: the row counts `_refines` lemmas and this tier writes
+`_wf` ones).
+
+The whole argument is DESIGN.md §3.5's, the same one `Refine/PinsWF.lean` uses
+for the pins: `NameWF`/`LevelWF`/`PropWhenWF`/`ExprWF` are **inductives whose
+constructors are the port's smart constructors**, and the parse reaches every
+node it stores through exactly one of them — so each lemma is a forward walk
+through a generated body applying one constructor per arm, and no proof ever
+names a hash formula.
+
+| file | contents |
+|---|---|
+| `Frontend/Base.lean` | the vocabulary: `MapValsWF` (a `ron::HashMap`'s values, over `HashMap.al_v`, so `ExprOps.get_mem`/`insert_pres` apply with **neither** `Eq2Spec` nor `Inv` — `ExprOps.Compat` is trivial for a key-blind predicate), `IdTableWF`, `StateDWF` (six of `export_c::StateD`'s seventeen fields), `NameRecWF`/`ExprRecWF`/`LineRecWF` (the scanner's one obligation), `ProjRecOwnerWF`, and `ModellerWF` — the residue |
+| `Frontend/ScanWF.lean` | the scanner's one obligation: every `Vec<u32>` `scan_line_fwd` hands over as a *string payload* holds valid code points.  One loop invariant on `utf8_decode` — which is why `unescape` validates its bytes at the end rather than as it goes — threaded up through `scan_string` and the record scanners |
+| `Frontend/Readers.lean` | the index tables (`scan_types::IdTable`), the state readers (`st_name`/`st_level`/`st_expr`/`st_names`/`st_levels`/`get_decl_d`/`parse_pw_d`), the value builders (`parse_level_rec_d`, `parse_expr_rec_d` — the ten arms where `ExprWF`'s constructors are applied — `parse_cv_d`, `parse_rule_d`), and the three table-entry steps |
+| `Frontend/ProjRec.lean` | `frontend::proj_rec`: the projection-function rewrite, the second place on the parse path that *builds* a term.  The recognisers (`occurs_const_fast`, `any_*_mentions`, `find_ctor`, …) return booleans and indices and carry no clause |
+| `Frontend/Ind.lean` | the inductive record's install: the block's `ConstantInfo`s, the projection-owner table, the modeller's generated records and the pushes.  `validate_ind_d` and its twenty helpers carry **no** clause — their records are indices and machine words — and neither does `block_rec_of`/`note_ind_blocks`, because a `BlockRec` goes to the modeller and nowhere else |
+| `Frontend/Prepare.lean` | `frontend::prepare` and `frontend::nat_op_ground`: two passes that **permute and copy**, so they preserve well-formedness.  Their index computations (the hoist's target map, the prelude's pick plan) carry no clause |
+| `Frontend/Chunks.lean` | the top: `proj_rewrite_d`, `process_line_core_d`, `apply_line`, the chunk fold, and the three headlines `parse_bytes_wf`, `parse_chunks_wf` and `builtin_prelude_e_wf` |
 
 ## The pins (`Pins*`, tasks #64, #74)
 

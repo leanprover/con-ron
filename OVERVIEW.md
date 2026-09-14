@@ -130,12 +130,44 @@ a run of the decoder, a run of the checker, and `hds`, that every parsed
 declaration is well-formed — its terms are what the core's smart
 constructors built, which is what the parser does by construction.  Since
 task #84 that parser is *in* the verified core and has a Lean model like
-everything else (§3.7), so `hds` is now a statement about a function the
-proof can reason about rather than an audit of another crate; the lemma
-that discharges it, and the chunk-level corollary above it that con-leche
-states for its own binary, are what remains (§3.5).  Nothing is
-assumed about the pins' value, because the fold is parametric in them
-(§9).
+everything else (§3.7), and **since task #85 `hds` is proved rather than
+assumed** (§3.5): there is a second, chunk-level pair below that states the
+same thing about con-leche's whole pipeline — the prelude, the streaming
+parse, the preparation and the fold — and carries no well-formedness
+hypothesis at all.  Nothing is assumed about the pins' value, because the fold
+is parametric in them (§9).
+
+The chunk-level pair is
+[`conron.model_exists_parsed`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L548-L562)
+and its companion `conron.no_proof_of_False_parsed`:
+
+```lean
+theorem conron.model_exists_parsed (V : Type w) [ConLeche.SetTheory V]
+    {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+    (hgen : Frontend.ModellerWF inst g)
+    (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+    (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
+    (hparse : frontend.export_c.parse_chunks inst g chunks in_model census = ok (.Ok r))
+    (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
+    (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+    Nonempty (ConLeche.Model V (absEnv e))
+```
+
+What stands where `hds` stood is `hgen`, **one line about the modeller**: every
+declaration the in-process generator returns is well-formed.  That is the
+residue task #84's seam left, and the maintainer's decision to leave the
+modeller unverified; it disappears the day upstream drops it (§7).  The prelude
+is a *parameter*, not a constant — identifying the port's embedded prelude with
+con-leche's `include_str` is out of reach in the kernel
+(AENEAS_FINDINGS.md §3.8) — with the
+corollary at the shipped constant stated beside it.
+
+That pair's census is not the standard three: it is those plus **68 axioms that
+are the translator's**, one per `&str` constant in the scanner's key table,
+which Aeneas' `toStr` spends with `decide +native` in each constant's own
+*definition* — the same artifact the embedded pair pays once, below.  Nothing is evaluated — `#print axioms` on the generated
+`scan_line_fwd` prints the same 68 — but it does mean the axiom-free headline
+stays `conron.model_exists_decoded`, which names no constant.
 
 Both censuses are pinned by `#guard_msgs` at con-leche's own three axioms
 ([the censuses](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L306-L310)):
@@ -276,12 +308,29 @@ a check con-leche does not need.
 `no_False_declaration` is over the byte chunks the binary reads rather than
 over a declaration list.  **Task #84 did the port's half of the code**: the
 parser is in the verified core now (§3.7), extracted to Lean with everything
-else, so `hds` is no longer an audit of unverified Rust — it is a statement
-about `parse_chunks`, a function the model has.  What is still missing is the
-*proof*: the lemma that what `parse_chunks` returns is well-formed, and above
-it the port's own chunk-level corollary.  Until those exist the capstones are
-about the *fold*, as they always were, and `hds` is what stands between them
-and the file.
+else, so `hds` stopped being an audit of unverified Rust.  **Task #85 proved
+it.**  `proof/ConRon/Refine/Frontend/` threads one invariant through the parse
+state — every name, level, expression and declaration it holds is what a smart
+constructor returned — and `parse_chunks_wf` is that invariant read off the
+result.  The argument is by construction, exactly as the design said at task
+#5: the well-formedness predicates are inductives whose constructors *are*
+`expr::app`, `name::mk_str`, `level::succ`, and the parse reaches every node it
+stores through one of them, so no proof ever names a cached hash word.  The
+scanner owes the parse one fact and only one — that a `Vec<u32>` it hands over
+as a string payload holds valid code points — which is a loop invariant on its
+UTF-8 decoder.
+
+So the capstones come in two levels now.  The fold-level four still take
+`hds`, because a caller who does not go through this parser still owes it; the
+chunk-level pair (§2) does not.  What is left outside is the **modeller**: the
+parse takes it as a type parameter, and the one thing assumed of it is that
+the declarations it generates are well-formed.  §7 says why that residue is
+narrow.
+
+The *refinement* of the parser against con-leche's — that the port's scanner
+and record assembly compute what `scanLineFwd` and `parseChunks` compute — is
+a separate and much larger job, and is not done; `scripts/progress.py`'s parser
+row stays at 0 % until it is, since that column counts refinement lemmas.
 
 ### 3.6 The Rust subset
 
@@ -437,6 +486,12 @@ well-formed children.  No proof ever names the hash formula; what the
 readers of the packed word need — that its bits are con-leche's computed
 fields, that `absExpr` is injective on well-formed terms, so the Rust
 `beq` is exact — follows from that definition once.
+
+That shape is also what makes the parser's proof short (§3.5).  The parse
+builds every node it stores by calling one of those constructors, so each
+lemma of `proof/ConRon/Refine/Frontend/` is a forward walk through a generated
+body applying one constructor per arm; the state's invariant, `StateDWF`, is
+the same thing for the three index tables and the declaration list it carries.
 
 ### 5.3 The statements
 
@@ -612,26 +667,35 @@ binary:
   runtime and GMP for.
 * **The unverified crate.**  Since task #84 it is three things: the
   in-process **modeller** for mutual and nested inductive blocks, the
-  **driver**, and the **worker pool**.  The parser is not among them any
-  more (§3.7) — it is in the verified crate, extracted and about to be
-  refined — but it is not yet *proved*, so for now everything above the fold
-  is still checked against con-leche's only on the fixtures (§5.4), and the
-  theorem still assumes the terms handed to `check_decls` are what the core's
-  smart constructors built (`hds`, §3.5).  A frontend that respects that, as
-  this one does by construction, can lose an accept but not fake one; a
-  frontend that forged a node's cached word could.
-  The modeller is the part that will *stay* unverified by design: it
-  generates `_model` records for a block the direct install routes do not
-  serve, and every one of them is checked by the fold as a stream
-  declaration, so a wrong one is rejected or declined and never accepted —
-  what it decides is which blocks the checker can accept at all, not whether
-  an accepted one is sound.  When the parser's refinement lands, that is the
-  residue `hds` becomes: one hypothesis about the modeller's output.
+  **driver**, and the **worker pool**.  The parser is not among them any more
+  (§3.7), and since **task #85** it is not merely extracted but *proved* to
+  produce well-formed declarations (§3.5), so the chunk-level pair assumes
+  nothing about the terms handed to `check_decls`.  The fold-level capstones
+  still carry `hds` for a caller who does not go through that parser; a
+  frontend that respects it, as this one does by construction, can lose an
+  accept but not fake one, and a frontend that forged a node's cached word
+  could.
+  The modeller is the part that *stays* unverified by design, and it is now
+  the whole of the residue: the parse takes it as a type parameter, and what
+  the chunk-level pair assumes of it is one line — that the declarations it
+  generates are well-formed.  It generates `_model` records for a block the
+  direct install routes do not serve, and every one of them is checked by the
+  fold as a stream declaration, so a wrong one is rejected or declined and
+  never accepted; what it decides is which blocks the checker can accept at
+  all, not whether an accepted one is sound.  Upstream may remove it, and the
+  hypothesis goes with it.
+  What the parser's proof does *not* yet cover is that it parses the dialect
+  the way con-leche does — its refinement, not its well-formedness (§3.5).  A
+  parser that mis-read a record would still produce well-formed declarations,
+  and the fold would check those; what it could lose is an accept, not
+  soundness.  Until that refinement lands, agreement with con-leche's parser
+  rests on the fixtures and the 119-million-line differential (§5.4).
   One more fact about the driver is what the decoded pair leaves outside
   Lean: that it calls the decoder on the embedded text.
 * **Nothing else.**  No `native_decide`, no `sorry`, no extra axiom in
-  the headline pair.  The embedded pair's one extra axiom is the
-  translator's string-constant artifact, above.
+  the headline pair.  The embedded pair's one extra axiom, and the
+  chunk-level pair's 68, are the translator's string-constant artifact,
+  above.
 
 ## 8. Proof techniques
 

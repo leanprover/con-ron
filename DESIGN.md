@@ -16187,3 +16187,300 @@ con-ron) is worth asking upstream before task #85 designs around it.
 A second, smaller one: the embedded prelude is a `toStr`-free byte array, so
 unlike `PINS_TEXT` it carries **no** `decide +native` axiom — one of the two
 reasons AENEAS_FINDINGS §3.8's standing ask exists does not apply to it.
+
+### Task #85 — the parser's proofs, phase 1: well-formedness (2026-09-14, Opus under Fable)
+
+`Refine/Main.lean`'s last standing input hypothesis was
+
+    hds : ∀ d ∈ ds.val, DeclarationWF d
+
+— *"every declaration handed to the fold is what the port's own smart
+constructors built"*.  DESIGN.md §3.5 said at task #5 that it would fall out of
+the parser by construction; task #73 discharged it instead with a runtime
+validation pass; task #81 withdrew that pass (10 GB resident at Mathlib scale,
+4 % of the instructions); task #84 put the parser into the verified core.
+**This task proves it**, and `Refine/Main.lean` gains a chunk-level pair of
+capstones over con-leche's whole four-step pipeline that carries no `hds` at
+all.
+
+#### 1. The argument, and why it is short
+
+The `*WF` predicates are **inductives whose constructors are the port's own
+smart constructors** (`ExprWF.app` *is* `expr::app`, `NameWF.str` *is*
+`name::mk_str`, …).  The parse reaches every node it stores through exactly one
+of them, so each lemma is a forward walk through a generated body applying one
+constructor per arm, and **no proof in this tier ever names a hash formula**.
+That is the same argument `Refine/PinsWF.lean` used for the pin decoder at task
+#66; what is new is the scale — 5 171 lines over seven files against `PinsWF`'s
+1 792 — and that it is the first tier where the task-#71 idiom was the default
+rather than an experiment.
+
+Seven files, **5 171 lines**, 205 lemmas and 12 definitions, **0 `sorry`**.
+
+#### 2. The state invariant
+
+`Refine/Frontend/Base.lean` fixes the vocabulary.  `StateDWF` has **six**
+clauses for `export_c::StateD`'s seventeen fields:
+
+| field | clause | why |
+|---|---|---|
+| `names`, `levels`, `exprs` | `IdTableWF NameWF` / `LevelWF` / `ExprWF` | the three index tables the records refer into |
+| `decls` | `∀ d ∈ …, DeclarationWF d` | what the fold is handed |
+| `proj_owners` | `MapValsWF ProjRecOwnerWF` | read by `proj_rewrite_d`, which *builds* a term |
+| `proj_levels` | `MapValsWF LevelWF` | the same |
+| `const_types`, `heights`, `ind_blocks` | **none** | `state_model_ctx` hands them to the **modeller**, and `ModellerWF` is unconditional in its argument |
+| `proj_rewrites`, `in_modelled`, `gen_owner`, `in_model_declined` | **none** | receipts: names the parse already stored, never read back into a term |
+| `gen_records`, `ind_count`, `in_model`, `in_model_census` | **none** | counters and flags |
+
+Eleven untracked fields is not laziness, it is the seam paying off: task #84
+made the parse quantify over `in_model_rec::Modeller`, so nothing the modeller
+reads has to be well formed for its *output* to be — and its output is a
+hypothesis.
+
+**`MapValsWF` is stated over `HashMap.al_v`, not `HashMap.toFun`**, and that
+one choice is why the parse's `Name`-keyed maps cost nothing.  `Refine/
+HashMapWF.lean`'s note explains that `Eq2Spec` is unusable at a key type whose
+equality is the port's own `name::beq`; but `Refine/ExprOps.lean`'s `get_mem` /
+`insert_pres` need neither `Eq2Spec` nor `Inv`, and for a predicate that
+**ignores the key** their side condition `ExprOps.Compat` is trivially true
+(`compat_of_vals`, three tokens).  So the two tracked maps are three one-line
+lemmas in `Base.lean` and nothing else.
+
+#### 3. The lemma inventory
+
+| file | lines | what it owns |
+|---|---:|---|
+| `Frontend/Base.lean` | 157 | the vocabulary above, `map_get_wf`/`map_insert_wf`/`map_new_wf`, `LineRecWF`, `ModellerWF` |
+| `Frontend/ScanWF.lean` | 1 388 | the scanner's one obligation: `utf8_decode_wf` → `unescape_wf` → `scan_string_wf` → `scan_str_name_wf` → `scan_line_loop_wf` → **`scan_line_fwd_wf`** |
+| `Frontend/Readers.lean` | 683 | the index tables, the state readers, the value builders (**`parse_expr_rec_d_wf`**, `parse_cv_d_wf`, `parse_rule_d_wf`), the three table-entry steps and `push_decl_wf` |
+| `Frontend/ProjRec.lean` | 947 | the projection rewrite: the telescope walkers, the `MkBinder` dictionaries, **`proj_rec_value_wf`** and `proj_rec_owners_wf` |
+| `Frontend/Ind.lean` | 780 | the inductive install: `ind_block_of_wf`, `register_proj_owners_wf`, `push_gen_list_wf`, `install_gen_wf`, **`install_ind_d_wf`** |
+| `Frontend/Prepare.lean` | 443 | the two permuting passes: `declaration_dup_refines` (the copy **is** the identity), `hoist_nat_op_ground_wf`, **`prepare_prelude_wf`** |
+| `Frontend/Chunks.lean` | 773 | the top: `proj_rewrite_d_wf`, `process_line_core_d_wf`, `apply_line_wf`, `feed_chunk_wf`, and **`parse_bytes_wf`**, **`parse_chunks_wf`**, **`builtin_prelude_e_wf`** |
+
+#### 4. What carries no clause, and why
+
+Naming these is half the work, because the tier is only tractable if most of
+the parser is out of it.
+
+* **`validate_ind_d` and its twenty helpers.**  `scan_types::IndTypeRec` /
+  `IndCtorRec` / `IndRecRec` hold a `CVRec` of `u64` indices plus machine words
+  and booleans — not one term.  Ordering, counting and validating them cannot
+  break well-formedness because there is nothing there to break.
+* **`block_rec_of`, `ind_block_*` record assembly, `note_ind_blocks`.**  A
+  `BlockRec` goes to the modeller and nowhere else.
+* **The hoist's and the prelude's plans** (`hoist_targets*`, `hoist_close*`,
+  `hoist_order*`, `front_of`, `pick_idx`, `no_picks`): indices and masks.
+* **`proj_rec`'s recognisers** (`occurs_const_fast`, `any_*_mentions`,
+  `find_ctor`, `head_is`, `is_proj_iota_name`): booleans and indices.
+* **A `DeclRec`'s `Vec<u32>` fields**: the `safety` and `quotKind` *spellings*,
+  compared with literals, never turned into a `Name`.
+
+The one thing the **scanner** does owe is narrow and real: a `Vec<u32>` it
+hands over as a string payload must hold valid code points, or `StrWF` fails
+and `NameWF.str` cannot be applied.  That is `utf8_decode`'s loop invariant —
+every arm pushes a value it has just range-checked — and it is why `unescape`
+validates its accumulated bytes **at the end** rather than as it goes.  The
+plan for this task expected the rest of the scanner to fall out with `trivial`;
+it did not, because `LineRecWF (.Expr i r)` is only `True` once `r`'s
+*constructor* is known, so each of the eight record scanners the dispatcher can
+reach needed its own shallow loop induction, with a measure (`b.len() - i`,
+strict by the module's own `prog` guard).  That is most of `ScanWF.lean`'s
+1 388 lines.
+
+#### 5. The capstones
+
+| theorem | hypotheses | census |
+|---|---|---|
+| `conron.model_exists` / `no_proof_of_False` | `hk hraw hind hinde hvar hds h` | 3 |
+| `…'` (primed) | `hvar hds h` | 3 |
+| `…_decoded` | `hp hds h` | 3 — **the axiom-free headline, still** |
+| `…_embedded` | `hp hds h` | 3 + `PINS_TEXT`'s `toStr` |
+| **`…_parsed`** (new) | `hgen hp hpre hparse hprep h` — **no `hds`** | 3 + 68 |
+| **`…_prelude`** (new) | the same at `builtin_prelude_e` | 3 + 68 |
+
+`hgen : Frontend.ModellerWF inst g` is the residue: *every declaration
+`Modeller::generate` returns is well formed*.  It is a promise about a function
+argument, like `hvar` was before task #66, and it disappears the day upstream
+drops the modeller.
+
+**The prelude is a parameter, not a constant.**  Identifying the port's
+embedded prelude with con-leche's `include_str` is out of reach in the kernel
+(AENEAS_FINDINGS §3.8), so `…_parsed` takes the prelude's bytes as a variable
+and `hpre` as the run of the port's own parser on them — the shape tasks #74/#75
+used for the pins.  `…_prelude` is the instance at `prelude_text()`, and it
+costs **nothing extra**: the prelude constant is a `[u8; 16 922]` in 67 chunks
+(task #84's F17) and not a `&str`.
+
+#### 6. Sixty-eight axioms that are Aeneas's, and one decision for the maintainer
+
+The new pair's census is **not** the standard three.  Aeneas renders a `&str`
+constant as `toStr "…"` and discharges `toStr`'s bound with its own default
+argument `by decide +native`, in the *constant's definition*
+(AENEAS_FINDINGS §3.8; `conron.*_embedded` has paid one of these since task #64
+for naming `PINS_TEXT`).  `frontend::scan_fast::key_at` recognises the dialect's
+object keys against a table of **66** such constants and `scan_bool` against two
+more, so **any statement naming `parse_chunks` inherits 68 of them through the
+closure with nothing evaluated** — `#print axioms` on the *generated*
+`scan_line_fwd` prints the same 68.
+
+Two things follow.  The **axiom-free headline is still
+`conron.model_exists_decoded`**, which names no constant and assumes exactly
+what the new pair proves.  And the **remedy is mechanical but not this task's**:
+those 68 constants are `const S_X: &str = "…"` used once each as
+`S_X.as_bytes()`, and spelling them `[u8; N]` is exactly what task #84 already
+did to seven constants of the same module for F17's reason.  It costs a Rust
+change, a re-extraction and a re-proof of `ScanWF.lean`; §3.8's standing ask
+upstream is the other way out.  **The maintainer decides**; this task was told
+not to touch the Rust and did not.
+
+#### 7. The task-#71 idiom's largest real use
+
+The ruling of 2026-09-13 made the idiom the default for new proofs, and this is
+the first tier written under it from scratch.  It was used where README's
+§Scope puts it — leaves and node dispatches — and not on list folds or byte
+loops.
+
+**Where it fit, it fit outright.**  `Readers.lean` used it on 7 of 7 lemmas
+attempted, with the default `rust_grind` budget (`ematch := 12`, `gen := 24`)
+never raised and no `[limit]` diagnostic anywhere: `parse_expr_rec_d_wf`, ten
+arms, **261 ms** of tactic execution; `parse_name_entry_d_wf` 103 ms;
+`parse_level_rec_d_wf` 120 ms; the other four 47–59 ms.  `ProjRec.lean` used
+`rust_norm` (without `rust_grind`) on 13 of its 36.  The one number the
+maintainer asked for: `parse_rule_d_wf` was written **by hand** first at
+**187 ms** of tactic execution and, rewritten with the idiom, is **52 ms** —
+3.6× *faster*, not slower.  The 5× elaboration cost task #70 measured is not
+what this tier saw.
+
+Everything the idiom needed beyond the registered sets was **statement shaping,
+not tactic tuning**, and all three keying rules paid: the equation-first
+`st_*_wf'` family (rule 1), `lit_nat_wf'`/`lit_str_wf'` keyed on
+`expr.lit (.NatVal n)` (rule 2), and `lam_pw_wf'`/`forall_e_pw_wf'` stated at
+the node `⟨p⟩` that `binder_meta_eq` produces rather than at a `BinderMeta`
+variable.  Four `rust_reduce` equations had to be added locally for wrappers
+not in the plumbing set — `expr::literal_nat`, `expr::literal_str`,
+`expr::mk_bvar`, `export_c::merr` — and **without `merr_eq` the `NatVal`
+failure arm is the one arm `grind` cannot close**, because it cannot see
+`ok (.Err …) ≠ ok (.Ok e)`.  Candidates for promotion into
+`Refine/Abs.lean`/`Expr.lean` when a second frontend file wants them.
+
+**Where it did not fit**, it was not forced: `Ind.lean` (34 lemmas),
+`Prepare.lean` (19) and `Chunks.lean` (18) are all hand proofs in the forward
+`rw [.eq_def]; simp only [bind_eq_ok_iff]; obtain; split` style, which is what
+README §Scope says for list folds, and `ProjRec.lean` used `rust_norm` but
+never `rust_grind` — after normalisation its goals are single constructor
+applications, and feeding `grind` would have needed a parallel set of
+equation-first restatements for every helper in the file.
+
+Elaboration, `lake env lean` per file on a quiet machine (import ~1.0 s of
+each): `Base` 0.3 s, `Prepare` 1.6 s, `Readers` 2.2 s, `Chunks` 2.1 s,
+`Ind` 2.5 s, `ProjRec` 3.0 s, `ScanWF` 11.3 s.  `ScanWF` is the outlier for the
+reason §4 gives, not for `grind`'s.
+
+#### 8. Four mechanics worth keeping
+
+Each cost real iteration time and each is reusable.
+
+1. **`simp only [bind_eq_ok_iff]` stops at a tuple-returning bind.**  A
+   `let (a, b) ← f …` compiles to a matcher; once `cases`/`obtain` reduces it on
+   a constructor pair, the *next* bind has `Data.Coinductive.ITree.bind` at its
+   head (the `cases` whnf unfolded the monad instance) and the `Bind.bind`
+   pattern no longer matches syntactically — `simp` then says "made no
+   progress".  The fix is to invert by **application**: `obtain ⟨…⟩ :=
+   bind_eq_ok_iff.mp h`, since unification unfolds the instance where the
+   discrimination tree will not.
+2. **A `&mut` call returning a pair is wrapped in `Function.uncurry`**, and
+   neither `simp only [bind_eq_ok_iff]` nor `dsimp` nor `split` sees through it
+   — `split` happily descends *past* it to an inner `if`.  The peel is
+   `uncurry_apply_pair`, and it fires only after the pair is destructured:
+   `obtain ⟨_, hm⟩ := p; simp only [uncurry_apply_pair, bind_eq_ok_iff] at h`.
+3. **A generated `let i := Slice.len b` elaborates to `letFun`**, which blocks
+   `split at h`; a bare `simp only [] at h` zeta-reduces it.
+4. **`split at h` on a whole loop body can blow `simp`'s step budget**
+   (`utf8_decode_loop`); `by_cases … ; rw [if_pos/if_neg] at h` is what works.
+
+Three smaller ones: `HashMap.vec_index_mut_eq` needs `[Inhabited α]`, which
+`Name`/`Level`/`Expr` do not have, so `Readers.lean` carries its own
+`Inhabited`-free `index_mut_back` — a candidate generalisation.
+`note_entries_loop_wf` needed `simp only [rust_invert]` (which carries
+`Prod.exists`) to open a four-tuple let-pattern that `split`, `dsimp` and plain
+`bind_eq_ok_iff` all left alone.  And `rust_norm` does not name the witnesses it
+introduces, so `ProjRec.lean`'s proofs open with a `rename_i` of 7–23 binders
+counted off the end of the context: **at this size that counting is the
+brittle part of the idiom**, and a `rust_norm h with ⟨…⟩` naming form would
+remove it.
+
+#### 9. No port bug found
+
+Six agents over the whole accept path, and not one deviation surfaced — which
+is what a well-formedness tier should find, since its statements are about the
+port alone and cannot see a disagreement with con-leche.  Two shapes are worth
+recording as *confirmed*: `nat_op_ground::declaration_dup` **is** the identity
+in the model (`declaration_dup_refines`), and an out-of-range `order` entry
+makes `hoist_reorder`'s read *fail* rather than read garbage, so its lemma
+needs no hypothesis on the permutation at all.
+
+#### 10. Where the ledger stands
+
+`scripts/gates.sh`: **all nine OK**, `lake build` green in 21 s incremental
+(the whole tier is ~22 s from cold).  Not one existing lemma moved: the group
+is additive, and `Refine/Main.lean` gained two imports and four theorems.
+
+```
+Verified core (ConLeche/Kernel, ConLeche/Cached)  to translate 14 077  translated 100%  verified 92%
+Parser in the core (ConLeche/Frontend, task #84)  to translate  4 441  translated 100%  verified  0%
+Cherries (InModel, ExportWrite, Main.lean)        to translate  2 975  translated 100%  verified  0%
+Rust core 85 099 lines (1 844 fns) | unverified crates 11 139 | generated Lean 76 095 | proofs 155 122
+LoC: proof 154 496 | ratios rust/up 2.69  gen/rust 1.47  proof/rust 3.11  proof/up 8.35
+```
+
+**The parser row is still 0 %, and that is correct.**  `progress.py`'s
+`verified` column counts `theorem <fn>_refines` — refinement against con-leche
+— and this tier writes `_wf` lemmas about the port alone.  Phase 3 is what
+moves that row; the docstring now says so in as many words.  The proof grew
+4 183 lines (150 939 → 155 122) and `proof/rust` went 3.00 → 3.11.
+
+#### 11. Phases 2 and 3, and what they need
+
+Phase 2 was scoped as *the record lemma*: mirror con-leche's
+`Verify/Frontend/FileFalse.lean`'s `parseChunks_jsonWithTheoremFalse` for the
+port — if a chunk list matches the `jsonWithTheoremFalse` template then the
+port's `parse_chunks` returns a theorem record whose type abstracts to
+`.const falseName []` — and compose it with `check_decls_refines` and
+con-leche's fold-level `no_False_theorem_accepted`
+(`Verify/Cached/StreamThm.lean`) to get con-ron's own `no_False_declaration`.
+
+**It was not started, and the reason is a dependency the scoping did not see.**
+con-leche proves its version by rewriting `parseChunks` to `parseLines` and
+splitting the concatenated bytes against a literal template — an argument about
+what its *own* parser does to specific bytes.  The port has no such lemma, and
+getting one means either (a) redoing that byte-level argument against
+`scan_line_fwd` and `chunk_step`, which is phase 3's work in a different order,
+or (b) proving `parse_chunks_refines` first and transporting con-leche's
+statement across it, which is phase 3 outright.  Either way phase 2 sits
+*above* phase 3, not beside it.  It also needs a bridge `absChunks :
+alloc.vec.Vec (alloc.vec.Vec U8) → List ByteArray` and the three abstractions
+below.
+
+**Phase 3** — the parser's *exactness* against `ConLeche/Frontend` — is what
+`progress.py`'s parser row (0 %, and it counts `_refines` lemmas) is waiting
+for.  What it needs, in order:
+
+1. `absScanErr`, `absErrTag`, `absLineRec` and a `ScanRes` abstraction; the
+   `LineRec`/`DeclRec`/`ExprRec`/`NameRec` records abstract to con-leche's
+   syntax records field for field, with the `Vec<u32>` payloads through
+   `absString`.
+2. **`scan_line_fwd_refines`**, the bulk: 35 loops against Lean tail recursions
+   of the same shape.  Task #85's `ScanWF.lean` already carries the loop
+   *measures* (`next_member_ge`/`next_member_lt`/`slot_nat_prog`/`prog_lt`),
+   which is the part that was expected to be fiddly, so the refinement can
+   reuse them.  Note that con-leche's `@[csimp]` makes `scanLineFwd` what the
+   compiler runs, so this is the right target — `Scan/Naive.lean` is the
+   specification and `Scan/Equiv.lean` the bridge.
+3. `absStateD` and a `StateDRel` for the three `ron::HashMap` tables, in the
+   `StateRel`/`FEnvRel` pattern of §5.2 — and note that `Refine/HashMapWF.lean`'s
+   `Eq2Fwd` is the shape to use, not `Eq2Spec`, for `Name`-keyed maps.
+4. `parse_chunks_refines`, with the modeller hypothesis carried as an
+   *abstraction* of `generate` rather than the well-formedness of its output.
+5. The composition into `conron.no_False_declaration`, at which point phase 2
+   follows.

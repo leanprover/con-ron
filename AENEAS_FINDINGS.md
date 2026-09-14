@@ -499,6 +499,29 @@ What the byte-array route costs instead is elaboration time, which is the
 and one of 512 exhausts `maxRecDepth`.  Neither limit is documented, and both
 are about a constant, not a proof.
 
+**Status (task #85): the ask acquired sixty-eight customers after all, and the
+paragraph above was wrong about where they would come from.**  Task #84 watched
+the *prelude* and the prelude stayed clean; what nobody counted was the
+**scanner's key table**.  `frontend::scan_fast::key_at` recognises the dialect's
+object keys with 66 `const S_X: &str = "…"` constants (`scan_bool` adds two),
+each used once as `S_X.as_bytes()`, and each therefore carrying its own
+`_native.decide.ax_1`.  `#print axioms` on the *generated*
+`frontend.scan_fast.scan_line_fwd` lists all 68 before any proof exists, so
+every statement that names `parse_chunks` inherits them through the closure with
+nothing evaluated: `Refine/Main.lean`'s new chunk-level pair
+(`conron.model_exists_parsed` / `no_proof_of_False_parsed`) is pinned at
+`[propext, Classical.choice, Quot.sound]` **plus those 68**.
+
+So the ask above is no longer about two footnote theorems: it is about the
+pipeline capstone.  The port's own way out is the one F17 forced on the
+prelude — spell the table as `[u8; N]` arrays, which costs nothing at this size
+(the longest key is 11 bytes, nowhere near the `Array.make` limits above) — and
+that is a Rust change plus a re-extraction plus a re-proof of
+`Refine/Frontend/ScanWF.lean`, not a translator fix.  The *upstream* way out is
+the ask as written: discharge `toStr`'s bound without `decide +native`.  The
+axiom-free headline is unaffected either way: `conron.model_exists_decoded`
+names no constant.
+
 ### 3.9 `Vec::insert` is modelled as `List.set` — an overwrite where Rust inserts (task #46) **[bug]**
 
 The most serious finding in this report, because it is a **semantics** bug in the
