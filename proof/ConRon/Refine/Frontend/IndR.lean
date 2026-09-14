@@ -66,6 +66,17 @@ private theorem slice_lit_val {k : Std.Usize} {S : Array Std.U32 k} {s : Slice S
   subst h
   simp [Array.val_to_slice]
 
+/-- `LineOut` transported along an equation on the con-leche side. -/
+private theorem lineOut_of_eq {α β : Type} {A : α → β} {WF : α → Prop}
+    {o : core.result.Result α frontend.export_c.LineErr}
+    {x y : ConLeche.Frontend.M β} (h : LineOut A WF o x) (hxy : y = x) :
+    LineOut A WF o y := by rw [hxy]; exact h
+
+/-- A `LineOut`'s success half, with the con-leche side spelled `pure` so that
+`pure_bind` fires on the continuation. -/
+private theorem lineOut_ok_pure {α β : Type} {A : α → β} {WF : α → Prop} {r : α}
+    {x : ConLeche.Frontend.M β} (h : LineOut A WF (.Ok r) x) : x = pure (A r) := h.1
+
 /-! ## The three boolean scans of `validateIndD`
 
 `ExportC.lean:412-563` opens with `tys.any (·.isUnsafe)` and later reads
@@ -792,6 +803,372 @@ theorem ctor_names_of_refines {st : frontend.export_c.StateD}
   simpa [absNames, alloc.vec.Vec.with_capacity,
     show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using hh
 
+/-! ## `blockRecOf` (`ConLeche/Frontend/ExportC.lean:353-375`)
+
+The export's shape data of an inductive record, for the in-process modeller:
+three `mapM`s and a triple.  Phase 1 (`Refine/Frontend/Ind.lean`'s note) gives
+these loops **no** well-formedness clause — what they build is handed to the
+modeller and to nothing else, and `ModellerWF` is unconditional in its
+argument — so `LineOut`'s `WF` slot is `fun _ => True` here.
+
+**One ordering note.**  con-leche's type element is
+`pure { cv := ← parseCVD st t.cv, …, ctors := ← t.ctors.mapM st.name, … }`,
+whose `←`s are hoisted in the order they are written, so `parseCVD` runs
+first; the port's `block_rec_types` calls `st_names` first.  Both failures are
+`LineErr::Msg`, so the *claim* is unaffected — but the error arm of the loop
+below has to case on con-leche's `parseCVD` on its own, because at a port run
+that stopped at `st_names` there is no port-side hypothesis about it.  Same
+for `block_rec_recs`' `parse_rules_d`. -/
+
+/-- A `Vec<in_model_rec::IndTypeRec>` as con-leche's list. -/
+def absMIndTypeRecs (v : alloc.vec.Vec frontend.in_model_rec.IndTypeRec) :
+    List ConLeche.Frontend.InModel.IndTypeRec := v.val.map absMIndTypeRec
+
+/-- A `Vec<in_model_rec::IndCtorRec>` as con-leche's list. -/
+def absMIndCtorRecs (v : alloc.vec.Vec frontend.in_model_rec.IndCtorRec) :
+    List ConLeche.Frontend.InModel.IndCtorRec := v.val.map absMIndCtorRec
+
+/-- A `Vec<in_model_rec::IndRecRec>` as con-leche's list. -/
+def absMIndRecRecs (v : alloc.vec.Vec frontend.in_model_rec.IndRecRec) :
+    List ConLeche.Frontend.InModel.IndRecRec := v.val.map absMIndRecRec
+
+/-- The index recursion behind `export_c::block_rec_types`. -/
+private theorem block_rec_types_loop_refines (N : Nat) :
+    ∀ (st : frontend.export_c.StateD) (lst : ConLeche.Frontend.StateD)
+      (types : alloc.vec.Vec frontend.scan_types.IndTypeRec)
+      (out : alloc.vec.Vec frontend.in_model_rec.IndTypeRec) (n i : Std.Usize)
+      (o : core.result.Result (alloc.vec.Vec frontend.in_model_rec.IndTypeRec)
+        frontend.export_c.LineErr),
+      StateDRel st lst → StateDWF st →
+      n.val = types.val.length → n.val - i.val = N →
+      frontend.export_c.block_rec_types_loop st types out n i = ok o →
+      LineOut absMIndTypeRecs (fun _ => True) o
+        (do let r ← ((absIndTypeRecs types).drop i.val).mapM
+              (fun t : ConLeche.Frontend.IndTypeRec => do
+                 pure ({ cv := ← ConLeche.Frontend.parseCVD lst t.cv, nP := t.numParams,
+                         nIdx := t.numIndices, ctors := ← t.ctors.mapM lst.name,
+                         isRec := t.isRec, isReflexive := t.isReflexive,
+                         numNested := t.numNested } : ConLeche.Frontend.InModel.IndTypeRec))
+            pure (absMIndTypeRecs out ++ r)) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro st lst types out n i o hrel hwf hn hN h
+    rw [frontend.export_c.block_rec_types_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨t, hidx, r, hr, h⟩ := h
+      have hdrop : (absIndTypeRecs types).drop i.val
+          = absIndTypeRec t :: (absIndTypeRecs types).drop (i.val + 1) :=
+        (indr_drop_map_index absIndTypeRec hidx).2
+      have hns := st_names_refines hrel hwf hr
+      cases r with
+      | Ok cs =>
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨r1, hr1, h⟩ := h
+        have hcv := parse_cv_d_refines hrel hwf hr1
+        cases r1 with
+        | Ok cv =>
+          simp only [bind_eq_ok_iff] at h
+          obtain ⟨out1, hpush, i2, hi2, h⟩ := h
+          have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+          have hih := ih (n.val - i2.val) (by scalar_tac) st lst types out1 n i2 o hrel hwf
+            hn rfl h
+          have habs : absMIndTypeRecs out1
+              = absMIndTypeRecs out ++ [absMIndTypeRec ⟨cv, t.num_params, t.num_indices,
+                  cs, t.is_rec, t.is_reflexive, t.num_nested⟩] := by
+            rw [absMIndTypeRecs, vec_push_val hpush]; simp [absMIndTypeRecs]
+          refine lineOut_of_eq hih ?_
+          rw [hdrop, hi2v, List.mapM_cons, habs]
+          simp only [absIndTypeRec]
+          rw [hcv.1, hns.1]
+          first | (simp [absMIndTypeRec]; done) | (simp [absMIndTypeRec]; rfl)
+        | Err e =>
+          simp only [Result.ok.injEq] at h
+          rw [← h]
+          refine LineErrSim.trans hcv ?_
+          intro s hs
+          rw [hdrop, List.mapM_cons]
+          simp only [absIndTypeRec]
+          rw [hs]
+          exact ⟨s, rfl⟩
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        refine LineErrSim.trans hns ?_
+        intro s hs
+        rw [hdrop, List.mapM_cons]
+        simp only [absIndTypeRec]
+        cases hcvr : ConLeche.Frontend.parseCVD lst (absCVRec t.cv) with
+        | error s2 => exact ⟨s2, rfl⟩
+        | ok cv => rw [hs]; exact ⟨s, rfl⟩
+    · rename_i hge
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      have hnil : (absIndTypeRecs types).drop i.val = [] := by
+        refine List.drop_eq_nil_of_le ?_
+        simp only [absIndTypeRecs, List.length_map]
+        have : n.val ≤ i.val := by scalar_tac
+        omega
+      exact ⟨by rw [hnil]; first | (simp; done) | (simp; rfl), trivial⟩
+
+/-- `export_c::block_rec_types` refines the `types.mapM` of `blockRecOf`
+(`ConLeche/Frontend/ExportC.lean:353-375`). -/
+theorem block_rec_types_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD}
+    {types : alloc.vec.Vec frontend.scan_types.IndTypeRec}
+    {o : core.result.Result (alloc.vec.Vec frontend.in_model_rec.IndTypeRec)
+      frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.block_rec_types st types = ok o) :
+    LineOut absMIndTypeRecs (fun _ => True) o
+      ((absIndTypeRecs types).mapM
+        (fun t : ConLeche.Frontend.IndTypeRec => do
+           pure ({ cv := ← ConLeche.Frontend.parseCVD lst t.cv, nP := t.numParams,
+                   nIdx := t.numIndices, ctors := ← t.ctors.mapM lst.name,
+                   isRec := t.isRec, isReflexive := t.isReflexive,
+                   numNested := t.numNested } : ConLeche.Frontend.InModel.IndTypeRec))) := by
+  rw [frontend.export_c.block_rec_types] at h
+  have hh := block_rec_types_loop_refines _ st lst types _ _ 0#usize o hrel hwf
+    (alloc.vec.Vec.len_val _) rfl h
+  simpa [absMIndTypeRecs, alloc.vec.Vec.with_capacity,
+    show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using hh
+
+/-- The index recursion behind `export_c::block_rec_ctors`. -/
+private theorem block_rec_ctors_loop_refines (N : Nat) :
+    ∀ (st : frontend.export_c.StateD) (lst : ConLeche.Frontend.StateD)
+      (ctors : alloc.vec.Vec frontend.scan_types.IndCtorRec)
+      (out : alloc.vec.Vec frontend.in_model_rec.IndCtorRec) (n i : Std.Usize)
+      (o : core.result.Result (alloc.vec.Vec frontend.in_model_rec.IndCtorRec)
+        frontend.export_c.LineErr),
+      StateDRel st lst → StateDWF st →
+      n.val = ctors.val.length → n.val - i.val = N →
+      frontend.export_c.block_rec_ctors_loop st ctors out n i = ok o →
+      LineOut absMIndCtorRecs (fun _ => True) o
+        (do let r ← ((absIndCtorRecs ctors).drop i.val).mapM
+              (fun c : ConLeche.Frontend.IndCtorRec => do
+                 pure ({ cv := ← ConLeche.Frontend.parseCVD lst c.cv, nP := c.numParams,
+                         nF := c.numFields } : ConLeche.Frontend.InModel.IndCtorRec))
+            pure (absMIndCtorRecs out ++ r)) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro st lst ctors out n i o hrel hwf hn hN h
+    rw [frontend.export_c.block_rec_ctors_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨c, hidx, r, hr, h⟩ := h
+      have hdrop : (absIndCtorRecs ctors).drop i.val
+          = absIndCtorRec c :: (absIndCtorRecs ctors).drop (i.val + 1) :=
+        (indr_drop_map_index absIndCtorRec hidx).2
+      have hcv := parse_cv_d_refines hrel hwf hr
+      cases r with
+      | Ok cv =>
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨out1, hpush, i2, hi2, h⟩ := h
+        have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+        have hih := ih (n.val - i2.val) (by scalar_tac) st lst ctors out1 n i2 o hrel hwf
+          hn rfl h
+        have habs : absMIndCtorRecs out1
+            = absMIndCtorRecs out ++ [absMIndCtorRec ⟨cv, c.num_params, c.num_fields⟩] := by
+          rw [absMIndCtorRecs, vec_push_val hpush]; simp [absMIndCtorRecs]
+        refine lineOut_of_eq hih ?_
+        rw [hdrop, hi2v, List.mapM_cons, habs]
+        simp only [absIndCtorRec]
+        rw [hcv.1]
+        first | (simp [absMIndCtorRec]; done) | (simp [absMIndCtorRec]; rfl)
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        refine LineErrSim.trans hcv ?_
+        intro s hs
+        rw [hdrop, List.mapM_cons]
+        simp only [absIndCtorRec]
+        rw [hs]
+        exact ⟨s, rfl⟩
+    · rename_i hge
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      have hnil : (absIndCtorRecs ctors).drop i.val = [] := by
+        refine List.drop_eq_nil_of_le ?_
+        simp only [absIndCtorRecs, List.length_map]
+        have : n.val ≤ i.val := by scalar_tac
+        omega
+      exact ⟨by rw [hnil]; first | (simp; done) | (simp; rfl), trivial⟩
+
+/-- `export_c::block_rec_ctors` refines the `ctors.mapM` of `blockRecOf`
+(`ConLeche/Frontend/ExportC.lean:353-375`). -/
+theorem block_rec_ctors_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD}
+    {ctors : alloc.vec.Vec frontend.scan_types.IndCtorRec}
+    {o : core.result.Result (alloc.vec.Vec frontend.in_model_rec.IndCtorRec)
+      frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.block_rec_ctors st ctors = ok o) :
+    LineOut absMIndCtorRecs (fun _ => True) o
+      ((absIndCtorRecs ctors).mapM
+        (fun c : ConLeche.Frontend.IndCtorRec => do
+           pure ({ cv := ← ConLeche.Frontend.parseCVD lst c.cv, nP := c.numParams,
+                   nF := c.numFields } : ConLeche.Frontend.InModel.IndCtorRec))) := by
+  rw [frontend.export_c.block_rec_ctors] at h
+  have hh := block_rec_ctors_loop_refines _ st lst ctors _ _ 0#usize o hrel hwf
+    (alloc.vec.Vec.len_val _) rfl h
+  simpa [absMIndCtorRecs, alloc.vec.Vec.with_capacity,
+    show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using hh
+
+/-- The index recursion behind `export_c::block_rec_recs`. -/
+private theorem block_rec_recs_loop_refines (N : Nat) :
+    ∀ (st : frontend.export_c.StateD) (lst : ConLeche.Frontend.StateD)
+      (recs : alloc.vec.Vec frontend.scan_types.IndRecRec)
+      (out : alloc.vec.Vec frontend.in_model_rec.IndRecRec) (n i : Std.Usize)
+      (o : core.result.Result (alloc.vec.Vec frontend.in_model_rec.IndRecRec)
+        frontend.export_c.LineErr),
+      StateDRel st lst → StateDWF st →
+      n.val = recs.val.length → n.val - i.val = N →
+      frontend.export_c.block_rec_recs_loop st recs out n i = ok o →
+      LineOut absMIndRecRecs (fun _ => True) o
+        (do let r ← ((absIndRecRecs recs).drop i.val).mapM
+              (fun r : ConLeche.Frontend.IndRecRec => do
+                 let rules ← r.rules.mapM (ConLeche.Frontend.parseRuleD lst)
+                 pure ({ cv := ← ConLeche.Frontend.parseCVD lst r.cv, nP := r.numParams,
+                         nM := r.numMotives, nm := r.numMinors, nI := r.numIndices,
+                         rules := rules } : ConLeche.Frontend.InModel.IndRecRec))
+            pure (absMIndRecRecs out ++ r)) := by
+  induction N using Nat.strong_induction_on with
+  | _ N ih =>
+    intro st lst recs out n i o hrel hwf hn hN h
+    rw [frontend.export_c.block_rec_recs_loop.eq_def] at h
+    split at h
+    · rename_i hlt
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨rr, hidx, r1, hr1, h⟩ := h
+      have hdrop : (absIndRecRecs recs).drop i.val
+          = absIndRecRec rr :: (absIndRecRecs recs).drop (i.val + 1) :=
+        (indr_drop_map_index absIndRecRec hidx).2
+      have hru := parse_rules_d_refines hrel hwf hr1
+      cases r1 with
+      | Ok rules =>
+        simp only [bind_eq_ok_iff] at h
+        obtain ⟨r2, hr2, h⟩ := h
+        have hcv := parse_cv_d_refines hrel hwf hr2
+        cases r2 with
+        | Ok cv =>
+          simp only [bind_eq_ok_iff] at h
+          obtain ⟨out1, hpush, i2, hi2, h⟩ := h
+          have hi2v : i2.val = i.val + 1 := HashMap.uscalar_add_eq hi2
+          have hih := ih (n.val - i2.val) (by scalar_tac) st lst recs out1 n i2 o hrel hwf
+            hn rfl h
+          have habs : absMIndRecRecs out1
+              = absMIndRecRecs out ++ [absMIndRecRec ⟨cv, rr.num_params, rr.num_motives,
+                  rr.num_minors, rr.num_indices, rules⟩] := by
+            rw [absMIndRecRecs, vec_push_val hpush]; simp [absMIndRecRecs]
+          refine lineOut_of_eq hih ?_
+          rw [hdrop, hi2v, List.mapM_cons, habs]
+          simp only [absIndRecRec]
+          rw [hru.1, hcv.1]
+          first | (simp [absMIndRecRec]; done) | (simp [absMIndRecRec]; rfl)
+        | Err e =>
+          simp only [Result.ok.injEq] at h
+          rw [← h]
+          refine LineErrSim.trans hcv ?_
+          intro s hs
+          rw [hdrop, List.mapM_cons]
+          simp only [absIndRecRec]
+          rw [hru.1, hs]
+          exact ⟨s, rfl⟩
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        refine LineErrSim.trans hru ?_
+        intro s hs
+        rw [hdrop, List.mapM_cons]
+        simp only [absIndRecRec]
+        rw [hs]
+        exact ⟨s, rfl⟩
+    · rename_i hge
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      have hnil : (absIndRecRecs recs).drop i.val = [] := by
+        refine List.drop_eq_nil_of_le ?_
+        simp only [absIndRecRecs, List.length_map]
+        have : n.val ≤ i.val := by scalar_tac
+        omega
+      exact ⟨by rw [hnil]; first | (simp; done) | (simp; rfl), trivial⟩
+
+/-- `export_c::block_rec_recs` refines the `recs.mapM` of `blockRecOf`
+(`ConLeche/Frontend/ExportC.lean:353-375`). -/
+theorem block_rec_recs_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD}
+    {recs : alloc.vec.Vec frontend.scan_types.IndRecRec}
+    {o : core.result.Result (alloc.vec.Vec frontend.in_model_rec.IndRecRec)
+      frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.block_rec_recs st recs = ok o) :
+    LineOut absMIndRecRecs (fun _ => True) o
+      ((absIndRecRecs recs).mapM
+        (fun r : ConLeche.Frontend.IndRecRec => do
+           let rules ← r.rules.mapM (ConLeche.Frontend.parseRuleD lst)
+           pure ({ cv := ← ConLeche.Frontend.parseCVD lst r.cv, nP := r.numParams,
+                   nM := r.numMotives, nm := r.numMinors, nI := r.numIndices,
+                   rules := rules } : ConLeche.Frontend.InModel.IndRecRec))) := by
+  rw [frontend.export_c.block_rec_recs] at h
+  have hh := block_rec_recs_loop_refines _ st lst recs _ _ 0#usize o hrel hwf
+    (alloc.vec.Vec.len_val _) rfl h
+  simpa [absMIndRecRecs, alloc.vec.Vec.with_capacity,
+    show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using hh
+
+/-- `export_c::block_rec_of` refines `blockRecOf`
+(`ConLeche/Frontend/ExportC.lean:353-375`). -/
+theorem block_rec_of_refines {st : frontend.export_c.StateD}
+    {lst : ConLeche.Frontend.StateD}
+    {tys : alloc.vec.Vec frontend.scan_types.IndTypeRec}
+    {cts : alloc.vec.Vec frontend.scan_types.IndCtorRec}
+    {rcs : alloc.vec.Vec frontend.scan_types.IndRecRec}
+    {o : core.result.Result frontend.in_model_rec.BlockRec frontend.export_c.LineErr}
+    (hrel : StateDRel st lst) (hwf : StateDWF st)
+    (h : frontend.export_c.block_rec_of st tys cts rcs = ok o) :
+    LineOut absBlockRec (fun _ => True) o
+      (ConLeche.Frontend.blockRecOf lst (absIndTypeRecs tys) (absIndCtorRecs cts)
+        (absIndRecRecs rcs)) := by
+  rw [frontend.export_c.block_rec_of] at h
+  rw [ConLeche.Frontend.blockRecOf]
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨r, hr, h⟩ := h
+  have hts := block_rec_types_refines hrel hwf hr
+  cases r with
+  | Err e =>
+    simp only [Result.ok.injEq] at h
+    rw [← h]
+    exact LineErrSim.bind hts _
+  | Ok ts =>
+    rw [lineOut_ok_pure hts]
+    simp only [pure_bind]
+    simp only [bind_eq_ok_iff] at h
+    obtain ⟨r1, hr1, h⟩ := h
+    have hcs := block_rec_ctors_refines hrel hwf hr1
+    cases r1 with
+    | Err e =>
+      simp only [Result.ok.injEq] at h
+      rw [← h]
+      exact LineErrSim.bind hcs _
+    | Ok cs =>
+      rw [lineOut_ok_pure hcs]
+      simp only [pure_bind]
+      simp only [bind_eq_ok_iff] at h
+      obtain ⟨r2, hr2, h⟩ := h
+      have hrs := block_rec_recs_refines hrel hwf hr2
+      cases r2 with
+      | Err e =>
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        exact LineErrSim.bind hrs _
+      | Ok rs =>
+        rw [lineOut_ok_pure hrs]
+        simp only [pure_bind]
+        simp only [Result.ok.injEq] at h
+        rw [← h]
+        exact ⟨rfl, trivial⟩
+
 /-! ## What this file gives the chunk layer
 
 `apply_line_refines` is the one lemma the chunk layer
@@ -983,10 +1360,6 @@ private theorem stateDWF_ind_count {st : frontend.export_c.StateD} {i : Std.U64}
     (hwf : StateDWF st) : StateDWF { st with ind_count := i } :=
   ⟨hwf.names, hwf.levels, hwf.exprs, hwf.decls, hwf.proj_owners, hwf.proj_levels⟩
 
-/-- A `LineOut`'s success half, with the con-leche side spelled `pure` so that
-`pure_bind` fires on the continuation. -/
-private theorem lineOut_ok_pure {α β : Type} {A : α → β} {WF : α → Prop} {r : α}
-    {x : ConLeche.Frontend.M β} (h : LineOut A WF (.Ok r) x) : x = pure (A r) := h.1
 
 /-! ## `processLineCoreD` (`ConLeche/Frontend/ExportC.lean:629-709`)
 
