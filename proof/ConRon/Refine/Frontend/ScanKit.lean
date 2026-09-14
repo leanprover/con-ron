@@ -2788,7 +2788,14 @@ con-leche function -- an intermediate definition in DESIGN.md's sense, written
 to be the Lean's own inline chain, so an object loop can unfold it and see
 exactly what its `scan*Loop` twin has. -/
 
-/-- con-leche's inline `numEnd`/`readNatAt`/`noProgress` chain. -/
+/-- con-leche's inline `numEnd`/`readNatAt`/`noProgress` chain.
+
+This is the **value** form, which is what `slot_nat_refines` -- the canonical
+`*_refines` lemma of the Rust function `scan_fast::slot_nat` -- is stated
+against.  A slot loop does not consume it directly: what it needs is the
+continuation-passing form, `ScanObj.natSlot` / `ScanObj.natSlot_step`, which
+abstracts the loop's tail call as well.  The two are the same three arms of
+`Scan/Fast.lean:820-824`, written for the two different callers. -/
 def slotNat (B : ByteArray) (ks v : USize) : ConLeche.Frontend.ScanRes Nat :=
   let e := numEnd B v
   if e == v then .err ⟨v.toNat, .expectedNat⟩
