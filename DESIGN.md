@@ -195,6 +195,17 @@ def alloc.sync.Arc.clone (x : Arc T) : Result (Arc T) := ok x
 def alloc.sync.Arc.ptr_eq (a b : Arc T) : Result Bool := ok false
 ```
 
+**`Expr`'s nodes left `Arc` at task #94; `Name`, `Level` and `PropWhen` did
+not.**  Everything in this section from here to the end of the `Rc` paragraph
+is the rule for a node behind `ron::ptr::P`, and that is still three of the
+four node types.  An `Expr`'s node is a **tagged handle** since task #94 —
+still one machine word, still counted, still modeled as its contents, but the
+constructor lives in the handle's low four bits and each constructor's block is
+as wide as *it* needs rather than as wide as the widest.  The next-but-one
+paragraph block ("The node layout") is that design, its trust accounting and
+its measurement; the rest of this section is unchanged and still governs the
+other three.
+
 **The crate names the pointer once, as `ron::ptr::P` (task #44).**  Every
 handle in the core is `P<T>`, and every use of it goes through the four
 operations this section allows: `ron::ptr::new`, `ron::ptr::clone`,
@@ -308,6 +319,108 @@ and three times task #44's budget for a memory trade.  The first needs
 `ExprKind` ≤ 24, i.e. task #88's declined arm-boxing.  Nothing smaller than one
 of those two moves the number at all, and neither is currently affordable.
 
+**The node layout: a one-word tagged handle, per-kind blocks (task #94,
+2026-09-14/15).**  The corollary above — "nothing smaller than one of those two
+moves the number at all, and neither is currently affordable" — was true of a
+*uniform* node and false of a per-kind one.  **The bound was on the wrong
+object.**  What task #94 built:
+
+* `crates/con-ron-core/src/ron/tagged.rs`, the generic core, which names no
+  term type.  `unsafe trait Kind` carries a `TAG`; `Header` is
+  `{ count: AtomicUsize, data: u64 }` and `Block<T>` is `#[repr(C, align(16))]
+  { h: Header, t: T }`; `Raw<T>` is the handle — a private `NonNull<u8>` whose
+  low four bits are the tag, plus a `PhantomData<T>` that carries the *modeled*
+  contents and nothing else.  `tagged_kinds!` turns one `tag => variant: type`
+  table into the `unsafe impl Kind`s, a `const` assertion that the tags are in
+  range and pairwise distinct, the scheme's handle alias, one `pub const` per
+  kind and a `release`.
+* `crates/con-ron-core/src/ron/node.rs`, the instantiation for `Expr`: ten
+  `#[repr(C)]` cells, the ten-line table, `view`, the ten `alloc_*`, `data`,
+  `dup`, `ptr_eq` and `Drop for Expr`.  **It contains no `unsafe`** and passes
+  §3.4's lint unexempted.
+
+The sizes, with task #88's live census of `core` beside them:
+
+| tag | cell | `size_of<Block<…>>` | class | live on `core` |
+|---:|---|---:|---:|---:|
+| 0 | `NodeBvar` | 32 | 32 | 4 542 384 |
+| 1 | `NodeFvar` | 32 | 32 | 7 |
+| 2 | `NodeSort` | 32 | 32 | 12 245 |
+| 3 | `NodeConst` | 32 | 32 | 453 038 |
+| 4 | `NodeApp` | 32 | 32 | **18 209 823** |
+| 5 | `NodeLam` | 48 | 48 | 2 468 068 |
+| 6 | `NodeForallE` | 48 | 48 | 2 352 996 |
+| 7 | `NodeLetE` | 48 | 48 | 53 995 |
+| 8 | `NodeLit` | 32 | 32 | 13 363 |
+| 9 | `NodeProj` | 48 | 48 | 28 677 |
+
+against **64 bytes for all ten** before.  Three things pay at once: the kind
+word goes into the handle, `Arc`'s unused weak count goes with `Arc`, and the
+arm slack goes with the uniform node.  `MiMallocTight` takes `align <= 16`
+through plain `mi_malloc` (task #92 drew the line at 8), which is what keeps a
+48-byte block in the 48-byte class; that alignment is audited, not assumed, by
+a test that checks 100 000 blocks at each of eight sizes.
+
+Measured against master, driver lane, `perf stat`:
+
+| | `init` (3 runs) | `core` (2 runs) | Mathlib (once) |
+|---|---:|---:|---:|
+| peak RSS, master | 798 MB | 2 157 MB | 14.31 GB |
+| peak RSS, task #94 | **476 MB (−40 %)** | **1 343 MB (−37.7 %)** | **7.80 GB (−45.4 %)** |
+| instructions | +3.78 % | +3.36 % | **+5.14 %** |
+| cycles | −5 % | −6 % | −7 % |
+| wall | −2 % | −6 % | −10 % |
+
+**So the memory gap closes**: con-ron was 1.66× con-leche's Mathlib peak and is
+now *below* it — 7.80 GB against con-leche's 8.75 — and the figure is under the
+~13 GB the 16 GB arena runner needs with 5.2 GB to spare.  The price is inside task #44's 10 % budget, where
+the only other route to the same memory (task #92's 40-byte node + triomphe +
+`MiMallocTight`) cost +30.3 % instructions for half the saving — so **triomphe
+is closed as "not needed" rather than "not affordable"**, since its whole offer
+was the one-word header this takes along with two other words.
+
+**The trust accounting.**  This replaces `std::sync::Arc` **for `Expr` nodes
+only**; `Name`, `Level`, `PropWhen` and `ConstantInfo` are still `P<T>` and
+still carry §3.2's four-operation model.  What it costs the trusted base:
+
+* **`ron/tagged.rs` is the crate's only `unsafe`**, and §3.4 makes that a
+  one-path lint exemption.  Nine lines: `unsafe trait Kind`, two `unsafe impl
+  Send`/`Sync`, four expressions (`NonNull::new_unchecked` after
+  `Box::into_raw`; the `*const Header` cast; the tag-checked `*const Block<K>`
+  cast; `Box::from_raw`), and the macro's `unsafe impl Kind` and its call to
+  `drop_block`.  The soundness argument is the module's own note and rests on
+  one invariant: a handle is only ever made by `Raw::alloc`, which writes the
+  block and attaches `K::TAG` in the same expression and is the sole writer of
+  the private field.  `Raw::get` is tag-checked and returns `Option`, so
+  asking for the wrong kind is a `None` and not undefined behaviour; `Raw` has
+  no `Drop`, because only a table knows which type a tag names, so the owning
+  newtype releases.
+* **The model does not move.**  `Raw<T>`'s phantom `T` is `ExprNode`, so
+  Charon emits `Expr.mk : ron.tagged.Raw ExprNode` exactly where it emitted
+  `Expr.mk : alloc.sync.Arc ExprNode`, and the hole is the same one line,
+  `@[reducible] def ron.tagged.Raw (T : Type) : Type := T`.
+  `Generated/Types.lean`'s `ExprKind`/`ExprNode`/`Expr` block is **unchanged**,
+  and so are `absExpr`, `absExprNode` and `absExprKind`.  The generated
+  *bodies* change: a reader is `let ev ← expr.view e; match ev with | ExprView.App …`
+  where it was `Arc::deref e._0` then `.kind`, and a constructor ends
+  `ron.node.alloc_app d f a` where it ended `ron.ptr.new (ExprNode.mk d …)`.
+* **The hole count goes 5 → 20**: one type and fifteen functions join
+  `Arc`'s four and `str::as_bytes`.  All fifteen are one line and `rfl` against
+  the unchanged inductive — the ten `alloc_*` are the constructors, `view` is
+  the projection through an arm-for-arm bijection `ExprView.ofKind`, and
+  `data`/`dup`/`ptr_eq` are the `Arc` twins verbatim.  `Drop for Expr` is the
+  fifteenth and is the identity: Aeneas never calls it.
+* **`ron::tagged` and `ron::node` are opaque to Charon**, declared in
+  `crates/con-ron-core/Cargo.toml`'s `[package.metadata.charon]`, with
+  `ExprView` pulled back to transparent because every reader matches on it.
+  That is the first time the project has needed to mark a module of its own
+  opaque, and it exposed a gap in the extraction gate: Aeneas writes
+  `@[rust_type]`/`@[rust_fun]` only for name-pattern externals of *other*
+  crates, so a crate-local opaque item arrives in the template as a bare
+  `axiom` and the old rule passed vacuously.  `scripts/extract.sh` now also
+  requires every `axiom` a template declares to be defined in the hand-written
+  file (§3.7).
+
 **Going back to `Rc` is one line plus a rename, and deliberately not a cargo
 feature.**  `crates/con-ron-core/src/ron/ptr.rs`'s alias line is the choice;
 the other half is spelling `alloc.sync.Arc` as `alloc.rc.Rc` in the two
@@ -419,8 +532,9 @@ equality, hashing and `String.toList`/`Char.ofNat` for literal reduction);
   `Eq2`).  No closures; no `?` in the core (explicit `match` keeps the
   generated Lean shaped like con-leche's `do` blocks); no `loop`/`while`
   except where the next bullet allows it; no generic instantiated
-  with `&mut`; no `unsafe`; no `std::collections`; no counted-pointer API
-  beyond `new/clone/deref/ptr_eq`; `&mut` only for the state parameter.
+  with `&mut`; no `unsafe` (one exemption, below); no `std::collections`; no
+  counted-pointer API beyond `new/clone/deref/ptr_eq`; `&mut` only for the
+  state parameter.
 * **Loops, the one exemption (2026-09-14, task #84).**
   `crates/con-ron-core/src/frontend/` — the ported export parser, and only
   that directory — may use `while`, `loop` and `for … in a..b` where the cited
@@ -441,6 +555,21 @@ equality, hashing and `String.toList`/`Char.ofNat` for literal reduction);
   anchored `^\s*(while|…)` against lines that `gather` prefixes with
   `file:line:`, so it had never matched anything since it was written; the
   core turned out to be clean under the repaired check.
+* **`unsafe`, the one exemption (2026-09-15, task #94).**
+  `crates/con-ron-core/src/ron/tagged.rs` — the generic tagged counted handle,
+  and only that file — may write `unsafe`.  The reason is the 2026-09-12
+  ruling's own test, applied honestly: the ruling is "`std` (or a common crate)
+  does it if it can", and here it cannot.  An `Expr`'s constructor lives in the
+  low four bits of its handle, so the pointee type is chosen at run time and no
+  `std` smart pointer expresses it; the two tagged-pointer crates on crates.io
+  model *a pointer to one `T` plus a tag*, which is the opposite problem (§3.2
+  has the argument).  What the exemption buys is measured — **−41 % of
+  Mathlib's peak** — and what it costs is nine lines in one file, whose
+  soundness argument is that module's note and rests on a single invariant.
+  The file names no term type; its instantiation for `Expr` (`ron/node.rs`) is
+  a ten-line table and passes this lint like every other file, which is the
+  point of the split.  `lint-rust-style.sh` enforces the boundary by path, as
+  it does for `frontend/`'s loops.
 * **No `&str` constant** (2026-09-14, task #86).  A string literal in the core
   is `const S: [u8; N] = *b"…";`, compared as bytes.  Aeneas emits a `&str`
   constant as `toStr "…"` and discharges `toStr`'s size bound with
@@ -17991,6 +18120,240 @@ one thing not literally in the brief (fixing `scripts/corpus.sh`, which
 also hard-coded `vendor/con-leche`) was found and fixed because leaving it
 broken would have been a silent regression the brief's own "every script
 that reads con-leche's tree by path" was clearly meant to cover.
+
+### Task #94 — Lean's node layout for `Expr`: a one-word tagged handle, per-kind blocks (2026-09-14/15, Opus under Fable; maintainer's decision to build, 2026-09-15)
+
+Task #92 left the memory campaign with a bound and a price: "the class below
+64 is 48, so `ExprNode`'s block has to reach 48 bytes to save anything at all",
+two routes to get there, and both unaffordable — the cheapest, 40-byte node
+plus `triomphe::Arc` plus `MiMallocTight`, bought −20.6 % of Mathlib's peak for
+**+30.3 % instructions**, three times task #44's budget.
+
+**That bound was on the wrong object.**  It is true of a *uniform* node and
+false of a per-kind one.  con-ron now does what Lean's own runtime does: the
+constructor goes in the object header — here, in the handle's low four bits —
+and each constructor's block is as wide as *it* needs.
+
+**Mathlib's peak goes 14.31 GB → 7.80 GB (−45 %) for +5.1 % instructions**, with
+cycles and wall *down*; `core` −37.7 % at +3.4 %, `init` −40 % at +3.8 %.  The
+structural memory gap this log has recorded since task #88 — "1.64× con-leche,
+in the 64-byte block that nothing smaller than a redesign of `ExprKind` can
+shrink" — **closes**, and it closes by being the redesign that entry named.
+`triomphe` closes with it, as "not needed" rather than "not affordable": its
+whole offer was the one-word header, which this takes along with two more
+words at a fifth of the price.
+
+#### 1. The spike, and what it measured
+
+The task ran as a measured spike first (`_tmp/t94/REPORT.md` has it in full,
+including the `perf record` symbol comparison and the extraction diff), then as
+a build on the maintainer's decision.  The spike's numbers and the build's
+agree to within 1.4 % on instructions and to the run-to-run spread on peak RSS,
+which is the check that the second half changed the *shape* of the code and not
+its layout.
+
+#### 2. The generic core, and the table
+
+`crates/con-ron-core/src/ron/tagged.rs` (413 lines) names no term type:
+
+* `pub unsafe trait Kind: Sized { const TAG: usize; }`;
+* `#[repr(C, align(16))] Header { count: AtomicUsize, data: u64 }` and
+  `Block<T> { h: Header, t: T }` — `Block` and not `Cell`, because `Cell<` is
+  what §3.4's lint bans and "block" is what the rest of this log calls the
+  bytes an allocator charges for;
+* `Raw<T>` — the handle: a private `NonNull<u8>` with the tag in the low four
+  bits, plus a `PhantomData<T>` carrying the *modeled* contents;
+* `alloc`, `tag`, `addr`, `header`, `get` (tag-checked, `Option`), `cast`
+  (total, via `bad_tag`), `bump`, `drop_share`, `ptr_eq`, `addr_word`;
+* `tagged_kinds!`, which turns one `tag => variant: type` table into the
+  `unsafe impl Kind`s, a `const` assertion that the tags are in range and
+  pairwise distinct, the scheme's handle alias, one `pub const` per kind, and
+  `release`/`free_block`.
+
+`crates/con-ron-core/src/ron/node.rs` (329 lines) is the instantiation and
+**contains no `unsafe`**: ten `#[repr(C)]` cells, a ten-line table, `view` as
+an exhaustive safe `match e.0.tag()`, the ten `alloc_*`, `data`, `dup`,
+`ptr_eq` and `Drop for Expr`.  It passes `lint-rust-style.sh` unexempted.
+
+Three design points earned their keep:
+
+* **`Raw` has no `Drop`.**  Only a table knows which type a tag names, so the
+  owning newtype releases.  That is also what removes the `Scheme` *trait* the
+  first cut had — and with it a `MutRawPtr` that had leaked into
+  `Generated/Types.lean`.
+* **`cast` is safe and total.**  `get` is tag-checked and returns `Option`;
+  `cast` turns `None` into `bad_tag`, the one function that says a handle's tag
+  is always its table's.  So `ron/node.rs`'s `view` needs no `unsafe`, no
+  `unwrap` and no `unreachable!` — the default arm is a *call* to `bad_tag`.
+* **`lam` and `forallE` are two types, not one type with two tags.**  The
+  layouts are identical and the cost is zero; the table says what it means.
+
+#### 3. The sizes, and why they are the whole story
+
+| tag | cell | `size_of<Block<…>>` | class | live on `core` (task #88) |
+|---:|---|---:|---:|---:|
+| 0 | `NodeBvar` | 32 | 32 | 4 542 384 |
+| 1 | `NodeFvar` | 32 | 32 | 7 |
+| 2 | `NodeSort` | 32 | 32 | 12 245 |
+| 3 | `NodeConst` | 32 | 32 | 453 038 |
+| 4 | `NodeApp` | 32 | 32 | **18 209 823** |
+| 5 | `NodeLam` | 48 | 48 | 2 468 068 |
+| 6 | `NodeForallE` | 48 | 48 | 2 352 996 |
+| 7 | `NodeLetE` | 48 | 48 | 53 995 |
+| 8 | `NodeLit` | 32 | 32 | 13 363 |
+| 9 | `NodeProj` | 48 | 48 | 28 677 |
+
+against 64 for all ten before.  The arithmetic, with the census: 23 230 860 of
+`core`'s 28 134 596 live nodes land in the 32-byte class and 4 903 736 in the
+48-byte one, so `Expr` node bytes go **1 717.2 MiB → 933.4 MiB**, a predicted
+−784 MiB on a 2 107 MiB peak.  Measured: **−797 MiB**.  The prediction was
+right to under 2 %.
+
+`MiMallocTight` now takes `align <= 16` through plain `mi_malloc`, where task
+#92 drew the line at 8.  Load-bearing, not incidental: the blocks are
+`align(16)`, so the old bound would have sent **every** `Expr` allocation down
+`mi_malloc_aligned` — the `noinline` slow path that also costs a class — and a
+48-byte block would have been charged 64 again.  Sixteen is safe by mimalloc's
+own construction (`MI_ALIGN2W` rounds every request of eight words or fewer to
+an even word count), and it is **audited rather than assumed**: a new test
+allocates 100 000 blocks at each of eight sizes through `MiMallocTight` at
+`align = 16` and asserts every pointer is 16-aligned.
+
+#### 4. Two things that cost instructions, and neither was the layout
+
+Both were found by re-measuring the refactor against the spike, and both are
+about shape:
+
+* **The intermediate enum.**  The macro's first cut generated a borrowed
+  `ExprCell` and a decoder, and `view` matched that to build an `ExprView`.
+  Two enums where the spike built one: **+2.4 % instructions on `init`**.  The
+  macro now generates one `pub const` per kind and `view` matches the tag
+  directly.
+* **The fused release.**  `release` did the count decrement *and* the per-kind
+  free in one non-inlined function, so every drop paid a call and return even
+  when the count did not reach zero — and `release` was **15 % of `init`'s
+  instructions**.  Split into an `#[inline]` decrement and an
+  `#[inline(never)] free_block`, which is `std::sync::Arc`'s own
+  `drop`/`drop_slow` shape.
+
+Together: `init` 556.8 G → **538.2 G**, which is 1.3 % *below* the spike, at an
+unchanged peak.  `Box::into_raw`/`from_raw` against the spike's raw
+`alloc`+`ptr::write` changed nothing: same `Layout`, same block, and the peak
+RSS is identical to the run-to-run spread.
+
+#### 5. The numbers
+
+`con-ron --verified --jobs=1 --progress=1000000` (the driver lane), release +
+mimalloc, `perf stat -e instructions:u,cycles:u`, `ulimit -v` 2.6 / 5 / 27 GB.
+"master" is this branch's base, built here; it reproduces task #92's landed
+`core` row to four figures (1 117.72 G against 1 117.61, 2 157 396 kB against
+2 159 032), which is the control.
+
+| `init`, 3 runs each | instructions:u | cycles:u | wall | peak RSS |
+|---|---:|---:|---:|---:|
+| master | 518.578 G | 275.3 / 276.4 / 302.4 G | 62.6 / 62.9 / 70.7 s | 797 736 / 798 452 / 800 844 kB |
+| **task #94** | **538.169 G (+3.78 %)** | 269.5 / 269.1 / 269.9 G (−4 %) | 61.1 / 61.8 / 61.8 s | **473 280 / 480 748 / 480 888 kB (−40 %)** |
+
+| `core`, 2 runs each | instructions:u | cycles:u | wall | peak RSS |
+|---|---:|---:|---:|---:|
+| master | 1 117.724 G | 712.3 / 669.7 G | 165.9 / 152.1 s | 2 157 396 / 2 156 864 kB |
+| **task #94** | **1 155.346 G (+3.36 %)** | 647.3 / 645.6 G (−6.4 %) | 147.0 / 147.6 s | **1 344 764 / 1 342 120 kB (−37.7 %)** |
+
+Both instruction counts are reproducible to parts in 10⁶ across runs, which is
+the check that nothing here is load-dependent.  IPC goes 1.62 → 1.79 on `core`:
+the added instructions are cheap ALU work in slots the port was stalling in,
+and the smaller live set buys back more than they cost.
+
+| Mathlib, once | instructions:u | cycles:u | wall | peak RSS |
+|---|---:|---:|---:|---:|
+| master (task #92's landed row) | 10 922.6 G | 8 992.4 G | 2 151 s | **14.31 GB** |
+| **task #94** | **11 484.4 G (+5.14 %)** | **8 490.1 G (−5.6 %)** | 1 979 s | **7.80 GB (−45.4 %)** |
+
+Accepts **691 128**; phases parse 29.9 s, install 691.9 s, check 1 248.1 s.
+The wall figure is pessimistic — the run overlapped the proof tier's `lake
+build` — which is the usual reason CLAUDE.md makes instructions the measure of
+record.
+
+**Against con-leche, whose Mathlib peak is 8.75 GB (OVERVIEW §6.3): con-ron
+goes from 1.64× to 0.89×.**  It is now the *smaller* of the two checkers on
+the largest input the project measures, and 5.2 GB under the ~13 GB the 16 GB
+arena runner needs.
+
+#### 6. The proof tier: a simp-set pass, no statement restated
+
+The model does not move (§3.2's trust accounting), so the tier's work is the
+*shape* of the generated bodies and nothing else.  What it took, across the
+120 files of `Refine/`:
+
+| pass | what it does | sites |
+|---|---|---:|
+| the reader head | a `simp only` naming `arc_deref_eq` and a `.kind` projection gains `expr_view_eq` and `ron.node.ExprView.ofKind` | **1 165** |
+| the constructor | `ptr_new_eq` → `node_alloc_<kind>_eq`, and the following `obtain` loses one `∃` layer | 10 + residue |
+| the split | `of_kind_inv hk` after a `rename_i hk`, which puts a `ofKind k = ExprView.X` back as `k = ExprKind.X` | 43 |
+| `step` specs | eleven `@[local step]` lemmas for `ron.node.data` and the ten `alloc_*`, each one line over its `rfl` hole lemma | 11 |
+| hand residue | 8 files, ~80 sites | — |
+
+Four scripts did the first three; the residue was four sub-agents on disjoint
+files.  `Refine/Abs.lean` carries the 26 hole lemmas and one tactic
+(`of_kind_inv`), all `rfl` or one `cases`.  **No statement changed, no lemma
+was restated, no `#[simp]` set was weakened, `absExpr`/`absExprNode`/
+`absExprKind` did not move, and `Refine/Main.lean`'s censuses are unchanged.**
+
+Three findings from the pass are worth keeping:
+
+* **The idiom's own tactics were where the leverage was.**  `CoreKSupport`'s
+  `kind_split` macro accounted for 70 of the errors in one file; one line
+  inside it fixed all 70.
+* **`ofKind` belongs on the `rw [hk]`-after-`cases` line, not on the opening
+  reader `simp only`** — at the opening the discriminant is still a variable
+  and the equation cannot fire, and naming it there is an unused-argument
+  warning.  A first, over-broad sweep that added it everywhere *broke* files
+  whose `node_kind` was about `absExprKind` rather than about a reader.
+* **`Raw::view` is stuck on a variable where `Arc::deref` was not.**  The old
+  reader whnf'd to `ok f._0` on a variable `f`, so `Result.ok_injective` on it
+  typechecked up to defeq with no rewriting; `view` matches on its argument, so
+  one site needed an explicit `rw [expr_view_eq]` first.  That is the only
+  place in the tier where the change was not a simp-set edit.
+
+#### 7. Gates, and what is on the branch
+
+`scripts/gates.sh` all nine green.  `scripts/diff-e2e.sh` **348 agree, 0
+differ** — the layout changes nothing observable, which is what it had to do.
+`cargo test` includes the new size table (five cells at 32, four at 48, header
+16, every one 16-aligned) and the `MiMallocTight` alignment audit.
+
+The extraction gate grew a rule, and it is the one finding that matters beyond
+this task: Aeneas writes `@[rust_type]`/`@[rust_fun]` only for name-pattern
+externals of *other* crates, so the fifteen new holes arrived in the templates
+as bare `axiom`s and `extract.sh`'s unmodelled-external rule passed vacuously
+on the first run.  It now also requires every `axiom` a template declares to be
+defined in the hand-written file, verified in both directions.  **That fix is
+worth having independently of this task**: any future opaque module would have
+slipped through the same way.
+
+**What the merge onto master owes the trust-surface inventory.**  Master is
+growing a `scripts/holes.sh` and an OVERVIEW §7 table with one row per external
+hole, gated.  This branch adds **fifteen** holes to that table — one type and
+fourteen functions — and they must be rowed when the branch lands or the gate
+fails naming them:
+
+```
+type ron.tagged.Raw
+fn   ron.node.view      ron.node.data      ron.node.dup      ron.node.ptr_eq
+fn   ron.node.alloc_bvar    ron.node.alloc_fvar   ron.node.alloc_sort
+fn   ron.node.alloc_const   ron.node.alloc_app    ron.node.alloc_lam
+fn   ron.node.alloc_forall_e  ron.node.alloc_let_e  ron.node.alloc_lit
+fn   ron.node.alloc_proj
+fn   kernel.expr.Expr.Insts.CoreOpsDropDrop.drop
+```
+
+Their models are one line each and are in `FunsExternal.lean` beside them:
+`Raw T := T`, `view` the projection through `ExprView.ofKind`, the ten
+`alloc_*` the constructors, `data` the `@[computed_field]`, `dup` the identity,
+`ptr_eq` `false`, and the `Drop` the identity.  Nothing else on the branch
+touches that inventory: `Arc`'s four holes and `str::as_bytes` are unchanged.
+
+`_tmp/t94/` holds the spike report and the raw logs of every run.
 
 ### Task #92 — the node back to 40 bytes: measured, declined, and what the allocator actually charges (2026-09-14, Opus under Fable)
 

@@ -78,7 +78,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_cutoff hwfe hm hbb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       split at h
       · rename_i hid
         have hv' : i.val = d.val := by scalar_tac
@@ -119,7 +119,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_cutoff hwfe hm hbb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff,
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff,
         Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨c, hdup, hr, hmm⟩ := h
       rw [Expr.dup_eq hdup] at hr
@@ -133,7 +133,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_cutoff hwfe hm hbb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff,
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff,
         Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨c, hdup, hr, hmm⟩ := h
       rw [Expr.dup_eq hdup] at hr
@@ -147,7 +147,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_cutoff hwfe hm hbb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff,
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff,
         Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨c, hdup, hr, hmm⟩ := h
       rw [Expr.dup_eq hdup] at hr
@@ -161,7 +161,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_cutoff hwfe hm hbb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff,
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff,
         Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨c, hdup, hr, hmm⟩ := h
       rw [Expr.dup_eq hdup] at hr
@@ -175,7 +175,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_cutoff hwfe hm hbb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hk
@@ -226,7 +226,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_cutoff hwfe hm hbb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hk
@@ -280,7 +280,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_cutoff hwfe hm hbb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hk
@@ -334,7 +334,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_cutoff hwfe hm hbb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hk
@@ -389,7 +389,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_cutoff hwfe hm hbb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hk
@@ -542,7 +542,7 @@ theorem instantiate1_lift_b_pair {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact lift_b_cutoff hwfe hbb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       split at h
       · rename_i hid
         have hid2 : i.val = d.val := by scalar_tac
@@ -595,11 +595,11 @@ theorem instantiate1_lift_b_pair {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
       obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
       split at h
       · exact lift_b_cutoff hwfe hbb (by scalar_tac) h
-      · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         exact lift_b_self hwfe (hself d) h
     · intro _ fuel d fuel' r h
       rw [cached.expr_ops_c.instantiate1_lift_b_compound.eq_def] at h
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       exact lift_b_self hwfe (hself d) h
   | @sort u e hu h1 =>
     have hwfe : ExprWF e := ExprWF.sort hu h1
@@ -616,11 +616,11 @@ theorem instantiate1_lift_b_pair {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
       obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
       split at h
       · exact lift_b_cutoff hwfe hbb (by scalar_tac) h
-      · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         exact lift_b_self hwfe (hself d) h
     · intro _ fuel d fuel' r h
       rw [cached.expr_ops_c.instantiate1_lift_b_compound.eq_def] at h
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       exact lift_b_self hwfe (hself d) h
   | @mk_const n us e hn hus h1 =>
     have hwfe : ExprWF e := ExprWF.mk_const hn hus h1
@@ -637,11 +637,11 @@ theorem instantiate1_lift_b_pair {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
       obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
       split at h
       · exact lift_b_cutoff hwfe hbb (by scalar_tac) h
-      · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         exact lift_b_self hwfe (hself d) h
     · intro _ fuel d fuel' r h
       rw [cached.expr_ops_c.instantiate1_lift_b_compound.eq_def] at h
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       exact lift_b_self hwfe (hself d) h
   | @lit l e hl h1 =>
     have hwfe : ExprWF e := ExprWF.lit hl h1
@@ -658,11 +658,11 @@ theorem instantiate1_lift_b_pair {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
       obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
       split at h
       · exact lift_b_cutoff hwfe hbb (by scalar_tac) h
-      · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         exact lift_b_self hwfe (hself d) h
     · intro _ fuel d fuel' r h
       rw [cached.expr_ops_c.instantiate1_lift_b_compound.eq_def] at h
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       exact lift_b_self hwfe (hself d) h
   | @app f a e hf ha h1 ihf iha =>
     have hwfe : ExprWF e := ExprWF.app hf ha h1
@@ -676,7 +676,7 @@ theorem instantiate1_lift_b_pair {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
           (absExpr v) d.val := by
       intro fuel d fuel' r h
       rw [cached.expr_ops_c.instantiate1_lift_b_compound.eq_def] at h
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨p1, hp1, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o1, fu1⟩ := p1
       cases o1 with
@@ -702,7 +702,7 @@ theorem instantiate1_lift_b_pair {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact lift_b_cutoff hwfe hbb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       split at h
       · simp at h
       · obtain ⟨f1, hf1, h⟩ := bind_eq_ok_iff.mp h
@@ -719,7 +719,7 @@ theorem instantiate1_lift_b_pair {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
           (absExpr v) d.val := by
       intro fuel d fuel' r h
       rw [cached.expr_ops_c.instantiate1_lift_b_compound.eq_def] at h
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨p1, hp1, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o1, fu1⟩ := p1
       cases o1 with
@@ -748,7 +748,7 @@ theorem instantiate1_lift_b_pair {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact lift_b_cutoff hwfe hbb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       split at h
       · simp at h
       · obtain ⟨f1, hf1, h⟩ := bind_eq_ok_iff.mp h
@@ -765,7 +765,7 @@ theorem instantiate1_lift_b_pair {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
           (absExpr v) d.val := by
       intro fuel d fuel' r h
       rw [cached.expr_ops_c.instantiate1_lift_b_compound.eq_def] at h
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨p1, hp1, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o1, fu1⟩ := p1
       cases o1 with
@@ -794,7 +794,7 @@ theorem instantiate1_lift_b_pair {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact lift_b_cutoff hwfe hbb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       split at h
       · simp at h
       · obtain ⟨f1, hf1, h⟩ := bind_eq_ok_iff.mp h
@@ -811,7 +811,7 @@ theorem instantiate1_lift_b_pair {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
           (absExpr v) d.val := by
       intro fuel d fuel' r h
       rw [cached.expr_ops_c.instantiate1_lift_b_compound.eq_def] at h
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨p1, hp1, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o1, fu1⟩ := p1
       cases o1 with
@@ -845,7 +845,7 @@ theorem instantiate1_lift_b_pair {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact lift_b_cutoff hwfe hbb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       split at h
       · simp at h
       · obtain ⟨f1, hf1, h⟩ := bind_eq_ok_iff.mp h
@@ -862,7 +862,7 @@ theorem instantiate1_lift_b_pair {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
           (absExpr v) d.val := by
       intro fuel d fuel' r h
       rw [cached.expr_ops_c.instantiate1_lift_b_compound.eq_def] at h
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨p1, hp1, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o1, fu1⟩ := p1
       cases o1 with
@@ -885,7 +885,7 @@ theorem instantiate1_lift_b_pair {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact lift_b_cutoff hwfe hbb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       split at h
       · simp at h
       · obtain ⟨f1, hf1, h⟩ := bind_eq_ok_iff.mp h
@@ -935,7 +935,7 @@ theorem instantiate1_lift_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.E
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_lift_cutoff hwfe hm hfb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       split at h
       · rename_i hid
         have hid2 : i.val = d.val := by scalar_tac
@@ -978,7 +978,7 @@ theorem instantiate1_lift_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.E
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_lift_cutoff hwfe hm hfb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨x, hdup, hr, hmm⟩ := h
       rw [Expr.dup_eq hdup] at hr
@@ -992,7 +992,7 @@ theorem instantiate1_lift_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.E
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_lift_cutoff hwfe hm hfb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨x, hdup, hr, hmm⟩ := h
       rw [Expr.dup_eq hdup] at hr
@@ -1006,7 +1006,7 @@ theorem instantiate1_lift_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.E
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_lift_cutoff hwfe hm hfb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨x, hdup, hr, hmm⟩ := h
       rw [Expr.dup_eq hdup] at hr
@@ -1020,7 +1020,7 @@ theorem instantiate1_lift_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.E
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_lift_cutoff hwfe hm hfb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨x, hdup, hr, hmm⟩ := h
       rw [Expr.dup_eq hdup] at hr
@@ -1034,7 +1034,7 @@ theorem instantiate1_lift_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.E
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_lift_cutoff hwfe hm hfb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
@@ -1085,7 +1085,7 @@ theorem instantiate1_lift_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.E
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_lift_cutoff hwfe hm hfb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
@@ -1139,7 +1139,7 @@ theorem instantiate1_lift_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.E
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_lift_cutoff hwfe hm hfb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
@@ -1193,7 +1193,7 @@ theorem instantiate1_lift_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.E
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_lift_cutoff hwfe hm hfb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
@@ -1249,7 +1249,7 @@ theorem instantiate1_lift_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.E
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_lift_cutoff hwfe hm hfb (by scalar_tac) h
-    · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
@@ -1485,7 +1485,7 @@ theorem instantiate_list_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
         · have hlen : ((absExprs vs).take k.val).length = k.val := by
             rw [List.length_take, absExprs, List.length_map]; omega
-          simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+          simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
           split at h
           · rename_i hid
             have hid' : i.val < d.val := by scalar_tac
@@ -1554,7 +1554,7 @@ theorem instantiate_list_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
           refine instL_dup_ret hwfe hm ?_ h
           simp only [absExpr_mk, absExprKind]
           rw [ConLeche.Expr.instantiateList]
@@ -1572,7 +1572,7 @@ theorem instantiate_list_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
           refine instL_dup_ret hwfe hm ?_ h
           simp only [absExpr_mk, absExprKind]
           rw [ConLeche.Expr.instantiateList]
@@ -1590,7 +1590,7 @@ theorem instantiate_list_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
           refine instL_dup_ret hwfe hm ?_ h
           simp only [absExpr_mk, absExprKind]
           rw [ConLeche.Expr.instantiateList]
@@ -1608,7 +1608,7 @@ theorem instantiate_list_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
           refine instL_dup_ret hwfe hm ?_ h
           simp only [absExpr_mk, absExprKind]
           rw [ConLeche.Expr.instantiateList]
@@ -1626,7 +1626,7 @@ theorem instantiate_list_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
           obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
           have hkk := expr_nat_key_eq hkey
@@ -1685,7 +1685,7 @@ theorem instantiate_list_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
           obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
           have hkk := expr_nat_key_eq hkey
@@ -1748,7 +1748,7 @@ theorem instantiate_list_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
           obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
           have hkk := expr_nat_key_eq hkey
@@ -1811,7 +1811,7 @@ theorem instantiate_list_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
           obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
           have hkk := expr_nat_key_eq hkey
@@ -1876,7 +1876,7 @@ theorem instantiate_list_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
           obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
           have hkk := expr_nat_key_eq hkey
@@ -2094,7 +2094,7 @@ theorem instantiate_rev_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs)
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
         · have hlen : ((absExprs vs).reverse.take k.val).length = k.val := by
             rw [List.length_take, List.length_reverse, absExprs, List.length_map]; omega
-          simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+          simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
           split at h
           · rename_i hid
             have hid' : i.val < d.val := by scalar_tac
@@ -2164,7 +2164,7 @@ theorem instantiate_rev_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs)
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
           refine instL_dup_ret hwfe hm ?_ h
           simp only [absExpr_mk, absExprKind]
           rw [ConLeche.Expr.instantiateList]
@@ -2182,7 +2182,7 @@ theorem instantiate_rev_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs)
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
           refine instL_dup_ret hwfe hm ?_ h
           simp only [absExpr_mk, absExprKind]
           rw [ConLeche.Expr.instantiateList]
@@ -2200,7 +2200,7 @@ theorem instantiate_rev_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs)
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
           refine instL_dup_ret hwfe hm ?_ h
           simp only [absExpr_mk, absExprKind]
           rw [ConLeche.Expr.instantiateList]
@@ -2218,7 +2218,7 @@ theorem instantiate_rev_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs)
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
           refine instL_dup_ret hwfe hm ?_ h
           simp only [absExpr_mk, absExprKind]
           rw [ConLeche.Expr.instantiateList]
@@ -2236,7 +2236,7 @@ theorem instantiate_rev_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs)
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
           obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
           have hkk := expr_nat_key_eq hkey
@@ -2295,7 +2295,7 @@ theorem instantiate_rev_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs)
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
           obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
           have hkk := expr_nat_key_eq hkey
@@ -2358,7 +2358,7 @@ theorem instantiate_rev_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs)
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
           obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
           have hkk := expr_nat_key_eq hkey
@@ -2421,7 +2421,7 @@ theorem instantiate_rev_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs)
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
           obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
           have hkk := expr_nat_key_eq hkey
@@ -2486,7 +2486,7 @@ theorem instantiate_rev_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs)
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
           obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
           have hkk := expr_nat_key_eq hkey

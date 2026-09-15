@@ -354,7 +354,7 @@ theorem ops_ensure_sort {st fe d e u st'} (hst : StateWF st) (hfe : FEnvWF fe)
     try dsimp only at h
     cases k with
     | «Sort» u0 =>
-      simp at h
+      simp [ron.node.ExprView.ofKind] at h
       obtain ⟨rfl, rfl⟩ := h
       refine ⟨lst', ?_, hrel', hwf', sort_node_wf hwfe⟩
       have hrun' :
@@ -366,15 +366,15 @@ theorem ops_ensure_sort {st fe d e u st'} (hst : StateWF st) (hfe : FEnvWF fe)
       simp [ConLeche.Cached.sharedOpsC, ConLeche.Cached.opS,
         ConLeche.Cached.ensureSortI, StateT.run, Bind.bind, StateT.bind,
         Except.bind, Pure.pure, StateT.pure, Except.pure, hrun']
-    | Bvar i2 => simp at h
-    | Fvar idx ty => simp at h
-    | Const n us => simp at h
-    | App f a => simp at h
-    | Lam ty bo m => simp at h
-    | ForallE ty bo m => simp at h
-    | LetE ty v bo => simp at h
-    | Lit l => simp at h
-    | Proj s i2 x => simp at h
+    | Bvar i2 => simp [ron.node.ExprView.ofKind] at h
+    | Fvar idx ty => simp [ron.node.ExprView.ofKind] at h
+    | Const n us => simp [ron.node.ExprView.ofKind] at h
+    | App f a => simp [ron.node.ExprView.ofKind] at h
+    | Lam ty bo m => simp [ron.node.ExprView.ofKind] at h
+    | ForallE ty bo m => simp [ron.node.ExprView.ofKind] at h
+    | LetE ty v bo => simp [ron.node.ExprView.ofKind] at h
+    | Lit l => simp [ron.node.ExprView.ofKind] at h
+    | Proj s i2 x => simp [ron.node.ExprView.ofKind] at h
 
 /-- `ops.ensureSort`'s failure half (task #67), with **two** mirrored arms:
 `whnf` threw, and con-leche's bind fails at the very same step
@@ -414,9 +414,9 @@ theorem ops_ensure_sort_err {st fe d e ce st'} (hst : StateWF st)
         using hrun
     try dsimp only at h
     cases k
-    case «Sort» u0 => simp at h
+    case «Sort» u0 => simp [ron.node.ExprView.ofKind] at h
     all_goals
-      simp at h
+      simp [ron.node.ExprView.ofKind] at h
       obtain ⟨v, -, hce, rfl⟩ := h
       rw [invalid_err hce]
       refine ErrSim.invalid (s := "expected a sort") ?_

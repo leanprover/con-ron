@@ -237,19 +237,19 @@ private theorem consts_resolve_f_step {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.constsResolveF]
   | @sort u e hu h1 =>
     obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.constsResolveF]
   | @mk_const n us e hn hus h1 =>
     obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff,
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff,
       Result.ok.injEq] at h
     obtain ⟨o, ho, h⟩ := h
     rw [← h, CoreK.find_isSome hfe hn ho]
@@ -258,13 +258,13 @@ private theorem consts_resolve_f_step {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     rw [ih c h]; simp [ConLeche.Expr.constsResolveF]
   | @lit l e hl h1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     cases l with
     | NatVal k =>
       rw [CoreK.nat_trio_stored_refines hp hfe h]
@@ -287,7 +287,7 @@ private theorem consts_resolve_f_step {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
     simp only [absExpr, absExprNode, absExprKind, ConLeche.Expr.constsResolveF]
     exact CoreK.and_step (ihf b1 hb1) h (fun c' h' => iha c' h')
@@ -295,7 +295,7 @@ private theorem consts_resolve_f_step {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
     simp only [absExpr, absExprNode, absExprKind, ConLeche.Expr.constsResolveF]
     exact CoreK.and_step (iht b1 hb1) h (fun c' h' => ihb c' h')
@@ -303,7 +303,7 @@ private theorem consts_resolve_f_step {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
     simp only [absExpr, absExprNode, absExprKind, ConLeche.Expr.constsResolveF]
     exact CoreK.and_step (iht b1 hb1) h (fun c' h' => ihb c' h')
@@ -311,7 +311,7 @@ private theorem consts_resolve_f_step {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
     simp only [absExpr, absExprNode, absExprKind, ConLeche.Expr.constsResolveF,
       Bool.and_assoc]
@@ -323,7 +323,7 @@ private theorem consts_resolve_f_step {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨o, ho, h⟩ := h
     simp only [absExpr, absExprNode, absExprKind, ConLeche.Expr.constsResolveF]
     exact CoreK.and_step (by rw [CoreK.find_isSome hfe hs ho]) h (fun c' h' => ih c' h')

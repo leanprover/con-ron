@@ -1980,28 +1980,28 @@ private theorem used_consts_go_loop_refines :
       cases k with
       | Bvar i =>
         simp only [absExprKind] at hc hmsplit hrel1 ⊢
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨h1, h2, h3⟩ :=
           ih seen1 _ acc stack sp1 r hsp1le hwf1
             (by rw [hmsplit] at hm; simp only [ConLeche.Expr.sizeF] at hm; omega) hacc hrel1 h
         simpa only [usedGo_cons, usedGo_nil, usedConstsGo_bvar hc] using ⟨h1, h2, h3⟩
       | «Sort» u =>
         simp only [absExprKind] at hc hmsplit hrel1 ⊢
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨h1, h2, h3⟩ :=
           ih seen1 _ acc stack sp1 r hsp1le hwf1
             (by rw [hmsplit] at hm; simp only [ConLeche.Expr.sizeF] at hm; omega) hacc hrel1 h
         simpa only [usedGo_cons, usedGo_nil, usedConstsGo_sort hc] using ⟨h1, h2, h3⟩
       | Lit l =>
         simp only [absExprKind] at hc hmsplit hrel1 ⊢
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨h1, h2, h3⟩ :=
           ih seen1 _ acc stack sp1 r hsp1le hwf1
             (by rw [hmsplit] at hm; simp only [ConLeche.Expr.sizeF] at hm; omega) hacc hrel1 h
         simpa only [usedGo_cons, usedGo_nil, usedConstsGo_lit hc] using ⟨h1, h2, h3⟩
       | Const n us =>
         simp only [absExprKind] at hc hmsplit hrel1 ⊢
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
         obtain ⟨n1, hn1, acc1, hacc1, h⟩ := h
         have hn1e : n1 = n := by
           rw [name_dup_eq] at hn1; exact (Result.ok_injective hn1).symm
@@ -2022,7 +2022,7 @@ private theorem used_consts_go_loop_refines :
         simpa only [usedGo_cons, usedGo_nil, usedConstsGo_const hc] using ⟨h1, h2, h3⟩
       | Fvar idx ty =>
         simp only [absExprKind] at hc hmsplit hrel1 ⊢
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [bind_eq_ok_iff] at h
         obtain ⟨e2, he2, h⟩ := h
         rw [bind_pair_eq_ok_iff] at h
@@ -2052,7 +2052,7 @@ private theorem used_consts_go_loop_refines :
         simpa only [usedGo_cons, usedGo_nil, usedConstsGo_fvar hc] using ⟨h1, h2, h3⟩
       | Proj sn i sub =>
         simp only [absExprKind] at hc hmsplit hrel1 ⊢
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [bind_eq_ok_iff] at h
         obtain ⟨n1, hn1, h⟩ := h
         rw [bind_eq_ok_iff] at h
@@ -2099,7 +2099,7 @@ private theorem used_consts_go_loop_refines :
         simpa only [usedGo_cons, usedGo_nil, usedConstsGo_proj hc] using ⟨h1, h2, h3⟩
       | App f a =>
         simp only [absExprKind] at hc hmsplit hrel1 ⊢
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [bind_eq_ok_iff] at h
         obtain ⟨e2, he2, h⟩ := h
         rw [bind_pair_eq_ok_iff] at h
@@ -2139,7 +2139,7 @@ private theorem used_consts_go_loop_refines :
         simpa only [usedGo_cons, usedGo_nil, usedConstsGo_app hc] using ⟨h1, h2, h3⟩
       | Lam ty bo m =>
         simp only [absExprKind] at hc hmsplit hrel1 ⊢
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [bind_eq_ok_iff] at h
         obtain ⟨e2, he2, h⟩ := h
         rw [bind_pair_eq_ok_iff] at h
@@ -2179,7 +2179,7 @@ private theorem used_consts_go_loop_refines :
         simpa only [usedGo_cons, usedGo_nil, usedConstsGo_lam hc] using ⟨h1, h2, h3⟩
       | ForallE ty bo m =>
         simp only [absExprKind] at hc hmsplit hrel1 ⊢
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [bind_eq_ok_iff] at h
         obtain ⟨e2, he2, h⟩ := h
         rw [bind_pair_eq_ok_iff] at h
@@ -2219,7 +2219,7 @@ private theorem used_consts_go_loop_refines :
         simpa only [usedGo_cons, usedGo_nil, usedConstsGo_forallE hc] using ⟨h1, h2, h3⟩
       | LetE ty v bo =>
         simp only [absExprKind] at hc hmsplit hrel1 ⊢
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [bind_eq_ok_iff] at h
         obtain ⟨e2, he2, h⟩ := h
         rw [bind_pair_eq_ok_iff] at h

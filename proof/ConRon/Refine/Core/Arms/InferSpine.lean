@@ -376,7 +376,7 @@ private theorem spine_pi (hw : Wrappers mode fuel) (d : Std.U64)
     rw [CoreK.absExpr_kind, hk]; simp
   -- the Rust side, forward from `ok`
   unfold cached.core_c.infer_spine_i at hok
-  simp only [arc_deref_eq, bind_tc_ok, hk] at hok
+  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, hk] at hok
   rw [if_neg (show ¬ (i ≥ alloc.vec.Vec.len args) by
     have := alloc.vec.Vec.len_val args; scalar_tac)] at hok
   obtain ⟨bd1, hbd1, hok⟩ := bind_eq_ok_iff.mp hok
@@ -445,12 +445,12 @@ private theorem spine_nonpi (hw : Wrappers mode fuel) (d : Std.U64)
   have hnpa : ∀ dm bd mt, absExpr ty = ConLeche.Expr.forallE dm bd mt → False :=
     absExpr_ne_forallE hnp
   unfold cached.core_c.infer_spine_i at hok
-  simp only [arc_deref_eq, bind_tc_ok] at hok
+  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at hok
   rw [if_neg (show ¬ (i ≥ alloc.vec.Vec.len args) by
     have := alloc.vec.Vec.len_val args; scalar_tac)] at hok
   split at hok
   -- the `.ForallE` arm contradicts `hnp`
-  case h_7 dm bd mt heq => exact absurd heq (hnp _ _ _)
+  case h_7 dm bd mt heq => of_kind_inv heq; exact absurd heq (hnp _ _ _)
   -- the nine other arms are one and the same proof
   all_goals
     clear hnp
@@ -538,7 +538,7 @@ private theorem spine_pi_err (hw : Wrappers mode fuel) (d : Std.U64)
   have habs : absExpr ty = .forallE (absExpr dm) (absExpr bd) (absBinderMeta mt) := by
     rw [CoreK.absExpr_kind, hk]; simp
   unfold cached.core_c.infer_spine_i at hok
-  simp only [arc_deref_eq, bind_tc_ok, hk] at hok
+  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, hk] at hok
   rw [if_neg (show ¬ (i ≥ alloc.vec.Vec.len args) by
     have := alloc.vec.Vec.len_val args; scalar_tac)] at hok
   obtain ⟨bd1, hbd1, hok⟩ := bind_eq_ok_iff.mp hok
@@ -620,12 +620,12 @@ private theorem spine_nonpi_err (hw : Wrappers mode fuel) (d : Std.U64)
     absExpr_ne_forallE hnp
   obtain ⟨a0, rest0, hcons⟩ := absExprs_drop_cons hlt
   unfold cached.core_c.infer_spine_i at hok
-  simp only [arc_deref_eq, bind_tc_ok] at hok
+  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at hok
   rw [if_neg (show ¬ (i ≥ alloc.vec.Vec.len args) by
     have := alloc.vec.Vec.len_val args; scalar_tac)] at hok
   split at hok
   -- the `.ForallE` arm contradicts `hnp`
-  case h_7 dm bd mt heq => exact absurd heq (hnp _ _ _)
+  case h_7 dm bd mt heq => of_kind_inv heq; exact absurd heq (hnp _ _ _)
   -- the nine other arms are one and the same proof
   all_goals
     clear hnp
@@ -740,7 +740,7 @@ private theorem spine_aux (hw : Wrappers mode fuel) (d : Std.U64) (N : Nat) :
           have := alloc.vec.Vec.len_val args
           scalar_tac
         unfold cached.core_c.infer_spine_i at hok
-        simp only [arc_deref_eq, bind_tc_ok] at hok
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at hok
         rw [if_pos hge] at hok
         obtain ⟨e, he, hok⟩ := bind_eq_ok_iff.mp hok
         simp only [Result.ok.injEq, Prod.mk.injEq, core.result.Result.Ok.injEq] at hok
@@ -764,7 +764,7 @@ private theorem spine_aux (hw : Wrappers mode fuel) (d : Std.U64) (N : Nat) :
       by_cases hge : i ≥ alloc.vec.Vec.len args
       · -- **Clause 1** has no `Err` exit at all.
         unfold cached.core_c.infer_spine_i at hok
-        simp only [arc_deref_eq, bind_tc_ok] at hok
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at hok
         rw [if_pos hge] at hok
         obtain ⟨e, -, hok⟩ := bind_eq_ok_iff.mp hok
         simp only [Result.ok.injEq, Prod.mk.injEq] at hok

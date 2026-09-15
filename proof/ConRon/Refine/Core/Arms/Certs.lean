@@ -578,10 +578,11 @@ theorem iota_certs_i_aux_aux (hsc : StateCOpen) {mode : env.CheckMode} {fuel : S
         obtain ⟨ax, hax⟩ : ∃ ax, (absExprs args).drop i.val
             = ax :: (absExprs args).drop (i.val + 1) :=
           ⟨_, List.drop_eq_getElem_cons (by simp only [absExprs, List.length_map]; exact hlti)⟩
-        simp only [arc_deref_eq, bind_tc_ok] at hok
+        simp only [expr_view_eq, bind_tc_ok] at hok
         split at hok
         · -- `.bvar`: the fold step
           rename_i hk
+          of_kind_inv hk
           have hkabs : ∃ k, absExpr ty = ConLeche.Expr.bvar k := by
             rw [CoreK.absExpr_kind ty, hk]; exact ⟨_, rfl⟩
           obtain ⟨kk, hk'⟩ := hkabs
@@ -627,6 +628,7 @@ theorem iota_certs_i_aux_aux (hsc : StateCOpen) {mode : env.CheckMode} {fuel : S
             simpa [hax] using hrec
         · -- `.fvar`
           rename_i hk
+          of_kind_inv hk
           simp only [Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨rfl, rfl⟩ := hok
           refine ⟨lst, ?_, hrel, hwf, trivial⟩
@@ -634,6 +636,7 @@ theorem iota_certs_i_aux_aux (hsc : StateCOpen) {mode : env.CheckMode} {fuel : S
           rfl
         · -- `.sort`
           rename_i hk
+          of_kind_inv hk
           simp only [Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨rfl, rfl⟩ := hok
           refine ⟨lst, ?_, hrel, hwf, trivial⟩
@@ -641,6 +644,7 @@ theorem iota_certs_i_aux_aux (hsc : StateCOpen) {mode : env.CheckMode} {fuel : S
           rfl
         · -- `.const`
           rename_i hk
+          of_kind_inv hk
           simp only [Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨rfl, rfl⟩ := hok
           refine ⟨lst, ?_, hrel, hwf, trivial⟩
@@ -648,6 +652,7 @@ theorem iota_certs_i_aux_aux (hsc : StateCOpen) {mode : env.CheckMode} {fuel : S
           rfl
         · -- `.app`
           rename_i hk
+          of_kind_inv hk
           simp only [Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨rfl, rfl⟩ := hok
           refine ⟨lst, ?_, hrel, hwf, trivial⟩
@@ -655,6 +660,7 @@ theorem iota_certs_i_aux_aux (hsc : StateCOpen) {mode : env.CheckMode} {fuel : S
           rfl
         · -- `.lam`
           rename_i hk
+          of_kind_inv hk
           simp only [Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨rfl, rfl⟩ := hok
           refine ⟨lst, ?_, hrel, hwf, trivial⟩
@@ -662,6 +668,7 @@ theorem iota_certs_i_aux_aux (hsc : StateCOpen) {mode : env.CheckMode} {fuel : S
           rfl
         · -- `.forallE`: the cited `∀` head
           rename_i dm bd mb hk
+          of_kind_inv hk
           have hkabs : absExpr ty = ConLeche.Expr.forallE (absExpr dm) (absExpr bd)
               (absBinderMeta mb) := by rw [CoreK.absExpr_kind ty, hk]; rfl
           obtain ⟨hdomwf, hbodywf, hmbwf⟩ := CoreK.ExprWF.forallE_children hty hk
@@ -873,6 +880,7 @@ theorem iota_certs_i_aux_aux (hsc : StateCOpen) {mode : env.CheckMode} {fuel : S
                   rfl
         · -- `.letE`
           rename_i hk
+          of_kind_inv hk
           simp only [Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨rfl, rfl⟩ := hok
           refine ⟨lst, ?_, hrel, hwf, trivial⟩
@@ -880,6 +888,7 @@ theorem iota_certs_i_aux_aux (hsc : StateCOpen) {mode : env.CheckMode} {fuel : S
           rfl
         · -- `.lit`
           rename_i hk
+          of_kind_inv hk
           simp only [Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨rfl, rfl⟩ := hok
           refine ⟨lst, ?_, hrel, hwf, trivial⟩
@@ -887,6 +896,7 @@ theorem iota_certs_i_aux_aux (hsc : StateCOpen) {mode : env.CheckMode} {fuel : S
           rfl
         · -- `.proj`
           rename_i hk
+          of_kind_inv hk
           simp only [Result.ok.injEq, Prod.mk.injEq] at hok
           obtain ⟨rfl, rfl⟩ := hok
           refine ⟨lst, ?_, hrel, hwf, trivial⟩
@@ -1044,22 +1054,25 @@ theorem prop_legs_i_refines {mode : env.CheckMode} {fuel : Std.U64}
       obtain ⟨lst2, hrun2, hrel2, hwf2, hwttawf⟩ :=
         (hw.whnfSim d httawf).apply hwf1 hfe hwh hrel1 hfrel
       rw [run_bind _ _ hrun2]
-      simp only [arc_deref_eq, bind_tc_ok] at hok
+      simp only [expr_view_eq, bind_tc_ok] at hok
       split at hok
       · -- `.bvar`
         rename_i hk
+        of_kind_inv hk
         simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
         rw [CoreK.absExpr_kind wtta, hk]; simp
       · -- `.fvar`
         rename_i hk
+        of_kind_inv hk
         simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
         rw [CoreK.absExpr_kind wtta, hk]; simp
       · -- `.sort`: the `Prop` test on the type of `ta`
         rename_i u_t hk
+        of_kind_inv hk
         have hkabs : absExpr wtta = ConLeche.Expr.sort (absLevel u_t) := by
           rw [CoreK.absExpr_kind wtta, hk]; rfl
         have hutwf : LevelWF u_t := CoreK.ExprWF.sort_child hwttawf hk
@@ -1121,17 +1134,20 @@ theorem prop_legs_i_refines {mode : env.CheckMode} {fuel : Std.U64}
                 simp only at hok
                 split at hok
                 · rename_i hk2
+                  of_kind_inv hk2
                   simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                   obtain ⟨rfl, rfl⟩ := hok
                   refine ⟨lst6, ?_, hrel6, hwf6, trivial⟩
                   rw [CoreK.absExpr_kind wttb, hk2]; simp
                 · rename_i hk2
+                  of_kind_inv hk2
                   simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                   obtain ⟨rfl, rfl⟩ := hok
                   refine ⟨lst6, ?_, hrel6, hwf6, trivial⟩
                   rw [CoreK.absExpr_kind wttb, hk2]; simp
                 · -- `.sort`: the `Prop` test on the type of the type of `b`
                   rename_i v_t hk2
+                  of_kind_inv hk2
                   have hk2abs : absExpr wttb = ConLeche.Expr.sort (absLevel v_t) := by
                     rw [CoreK.absExpr_kind wttb, hk2]; rfl
                   have hvtwf : LevelWF v_t := CoreK.ExprWF.sort_child hwttbwf hk2
@@ -1174,78 +1190,92 @@ theorem prop_legs_i_refines {mode : env.CheckMode} {fuel : Std.U64}
                       rw [hokaf]
                       rfl
                 · rename_i hk2
+                  of_kind_inv hk2
                   simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                   obtain ⟨rfl, rfl⟩ := hok
                   refine ⟨lst6, ?_, hrel6, hwf6, trivial⟩
                   rw [CoreK.absExpr_kind wttb, hk2]; simp
                 · rename_i hk2
+                  of_kind_inv hk2
                   simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                   obtain ⟨rfl, rfl⟩ := hok
                   refine ⟨lst6, ?_, hrel6, hwf6, trivial⟩
                   rw [CoreK.absExpr_kind wttb, hk2]; simp
                 · rename_i hk2
+                  of_kind_inv hk2
                   simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                   obtain ⟨rfl, rfl⟩ := hok
                   refine ⟨lst6, ?_, hrel6, hwf6, trivial⟩
                   rw [CoreK.absExpr_kind wttb, hk2]; simp
                 · rename_i hk2
+                  of_kind_inv hk2
                   simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                   obtain ⟨rfl, rfl⟩ := hok
                   refine ⟨lst6, ?_, hrel6, hwf6, trivial⟩
                   rw [CoreK.absExpr_kind wttb, hk2]; simp
                 · rename_i hk2
+                  of_kind_inv hk2
                   simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                   obtain ⟨rfl, rfl⟩ := hok
                   refine ⟨lst6, ?_, hrel6, hwf6, trivial⟩
                   rw [CoreK.absExpr_kind wttb, hk2]; simp
                 · rename_i hk2
+                  of_kind_inv hk2
                   simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                   obtain ⟨rfl, rfl⟩ := hok
                   refine ⟨lst6, ?_, hrel6, hwf6, trivial⟩
                   rw [CoreK.absExpr_kind wttb, hk2]; simp
                 · rename_i hk2
+                  of_kind_inv hk2
                   simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                   obtain ⟨rfl, rfl⟩ := hok
                   refine ⟨lst6, ?_, hrel6, hwf6, trivial⟩
                   rw [CoreK.absExpr_kind wttb, hk2]; simp
       · -- `.const`
         rename_i hk
+        of_kind_inv hk
         simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
         rw [CoreK.absExpr_kind wtta, hk]; simp
       · -- `.app`
         rename_i hk
+        of_kind_inv hk
         simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
         rw [CoreK.absExpr_kind wtta, hk]; simp
       · -- `.lam`
         rename_i hk
+        of_kind_inv hk
         simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
         rw [CoreK.absExpr_kind wtta, hk]; simp
       · -- `.forallE`
         rename_i hk
+        of_kind_inv hk
         simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
         rw [CoreK.absExpr_kind wtta, hk]; simp
       · -- `.letE`
         rename_i hk
+        of_kind_inv hk
         simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
         rw [CoreK.absExpr_kind wtta, hk]; simp
       · -- `.lit`
         rename_i hk
+        of_kind_inv hk
         simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
         rw [CoreK.absExpr_kind wtta, hk]; simp
       · -- `.proj`
         rename_i hk
+        of_kind_inv hk
         simp only [Result.ok.injEq, Prod.mk.injEq] at hok
         obtain ⟨rfl, rfl⟩ := hok
         refine ⟨lst2, ?_, hrel2, hwf2, trivial⟩
@@ -2019,7 +2049,10 @@ theorem struct_eta_cert_steps_i_refines (hsc : StateCOpen) {mode : env.CheckMode
                   else ok (core.result.Result.Ok b3, st4)) = ok (r, st') := hF
               obtain ⟨hcaps, lst4, hrel4, hwf4, hrun4⟩ := hgate2 b3 rfl
               subst hcaps
-              rw [hrun4]
+              -- the `absIndCaps` unfolding above left this gate's `if` with
+              -- its pre-unfolding `Decidable` instance, which `rw`'s
+              -- `instances` transparency cannot see through
+              erw [hrun4]
               split at hF
               · -- the slots are certified: the parameter comparison
                 rename_i hb3t
@@ -2107,9 +2140,10 @@ theorem struct_eta_cert_with_i_refines (hsc : StateCOpen) {mode : env.CheckMode}
   obtain ⟨fa, hfa, hok⟩ := bind_eq_ok_iff.mp hok
   obtain ⟨hfaabs, hfawf⟩ := ExprOps.get_app_fn_refines ha hfa
   rw [← hfaabs, CoreK.absExpr_kind fa]
-  simp only [arc_deref_eq, bind_tc_ok] at hok
+  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at hok
   split at hok
   case h_4 c us hk =>
+    of_kind_inv hk
     -- the head is a constant
     obtain ⟨hcwf, huswf⟩ := CoreK.ExprWF.const_children hfawf hk
     rw [hk]
@@ -2173,6 +2207,7 @@ theorem struct_eta_cert_with_i_refines (hsc : StateCOpen) {mode : env.CheckMode}
         rw [← hftbabs, CoreK.absExpr_kind ftb]
         split at hok
         case h_4 t us2 hk2 =>
+          of_kind_inv hk2
           obtain ⟨htwf, hus2wf⟩ := CoreK.ExprWF.const_children hftbwf hk2
           rw [hk2]
           simp only [absExprKind]
@@ -2224,11 +2259,13 @@ theorem struct_eta_cert_with_i_refines (hsc : StateCOpen) {mode : env.CheckMode}
               rw [if_neg (of_decide_eq_false (by rw [← hshapeabs]; exact hb1ff))]
               rfl
         all_goals (rename_i hk2
+                   of_kind_inv hk2
                    simp only [Result.ok.injEq, Prod.mk.injEq] at hok
                    obtain ⟨rfl, rfl⟩ := hok
                    refine ⟨lst, ?_, hrel, hwf, trivial⟩
                    rw [hk2]; simp)
   all_goals (rename_i hk
+             of_kind_inv hk
              simp only [Result.ok.injEq, Prod.mk.injEq] at hok
              obtain ⟨rfl, rfl⟩ := hok
              refine ⟨lst, ?_, hrel, hwf, trivial⟩

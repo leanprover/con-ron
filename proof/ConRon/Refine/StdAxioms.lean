@@ -754,19 +754,19 @@ theorem erase_pw_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
     intro r h
     rw [std_axioms.erase_pw.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     exact ⟨by rw [Expr.bvar_refines h]; rfl, Expr.bvar_wf h⟩
   | @sort u e hu h1 =>
     obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     intro r h
     rw [std_axioms.erase_pw.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, level_dup_eq] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, level_dup_eq] at h
     exact ⟨by rw [Expr.sort_refines h]; rfl, Expr.sort_wf hu h⟩
   | @mk_const n us e hn hus h1 =>
     obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro r h
     rw [std_axioms.erase_pw.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, name_dup_eq,
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, name_dup_eq,
       bind_eq_ok_iff] at h
     obtain ⟨v1, hv1, hmk⟩ := h
     rw [Env.levels_copy_refines hv1] at hmk
@@ -775,7 +775,7 @@ theorem erase_pw_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
     intro r h
     rw [std_axioms.erase_pw.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨l1, hl1, hlit⟩ := h
     rw [Expr.literal_dup_eq hl1] at hlit
     exact ⟨by rw [Expr.lit_refines hlit]; rfl, Expr.lit_wf hl hlit⟩
@@ -783,7 +783,7 @@ theorem erase_pw_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
     intro r h
     rw [std_axioms.erase_pw.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨t, ht, hfv⟩ := h
     obtain ⟨ta, tw⟩ := ih t ht
     exact ⟨by rw [Expr.fvar_refines hfv, ta]; rfl, Expr.fvar_wf tw hfv⟩
@@ -791,7 +791,7 @@ theorem erase_pw_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
     intro r h
     rw [std_axioms.erase_pw.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨x, hx, y, hy, hap⟩ := h
     obtain ⟨xa, xw⟩ := ihf x hx
     obtain ⟨ya, yw⟩ := iha y hy
@@ -800,7 +800,7 @@ theorem erase_pw_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
     intro r h
     rw [std_axioms.erase_pw.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨x, hx, y, hy, bm, hbm, hlam⟩ := h
     obtain ⟨xa, xw⟩ := ihty x hx
     obtain ⟨ya, yw⟩ := ihbo y hy
@@ -811,7 +811,7 @@ theorem erase_pw_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     intro r h
     rw [std_axioms.erase_pw.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨x, hx, y, hy, bm, hbm, hall⟩ := h
     obtain ⟨xa, xw⟩ := ihty x hx
     obtain ⟨ya, yw⟩ := ihbo y hy
@@ -822,7 +822,7 @@ theorem erase_pw_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
     intro r h
     rw [std_axioms.erase_pw.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨x, hx, y, hy, z, hz, hlet⟩ := h
     obtain ⟨xa, xw⟩ := ihty x hx
     obtain ⟨ya, yw⟩ := ihv y hy
@@ -833,7 +833,7 @@ theorem erase_pw_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
     intro r h
     rw [std_axioms.erase_pw.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, name_dup_eq,
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, name_dup_eq,
       bind_eq_ok_iff] at h
     obtain ⟨y, hy, hpr⟩ := h
     obtain ⟨ya, yw⟩ := ih y hy
@@ -993,7 +993,7 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
     obtain ⟨db, kb⟩ := ndb
     rw [std_axioms.erase_pw_eq.eq_def] at h
     cases kb <;>
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h <;>
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h <;>
       rw [← h] <;> simp [ConLeche.Expr.erasePwEq, u64_decide_beq]
   | @sort u a hu h1 =>
     obtain ⟨d1, bb, -, rfl, -, -, -⟩ := Expr.sort_inv h1
@@ -1003,11 +1003,11 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
     rw [std_axioms.erase_pw_eq.eq_def] at h
     cases kb
     case «Sort» v =>
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       rw [Level.beq_refines hu (wf_sort_inv hb rfl) h]
       simp [ConLeche.Expr.erasePwEq, decide_eq_beq]
     all_goals
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp [ConLeche.Expr.erasePwEq]
   | @mk_const n us a hn hus h1 =>
@@ -1019,7 +1019,7 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
     cases kb
     case Const n2 us2 =>
       obtain ⟨hn2, hus2⟩ := wf_const_inv hb rfl
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
       obtain ⟨bn, hbn, h⟩ := h
       rw [Name.beq_refines hn hn2 hbn] at h
       by_cases hne : absName n = absName n2
@@ -1030,7 +1030,7 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
         rw [← h]
         simp [ConLeche.Expr.erasePwEq, hne]
     all_goals
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp [ConLeche.Expr.erasePwEq]
   | @lit l a hl h1 =>
@@ -1041,12 +1041,12 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
     rw [std_axioms.erase_pw_eq.eq_def] at h
     cases kb
     case Lit l2 =>
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       rw [Expr.literal_beq_refines hl (wf_lit_inv hb rfl) h]
       simp only [ConLeche.Expr.erasePwEq, absExpr_mk, absExprKind]
       exact decide_eq_beq _ _
     all_goals
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp [ConLeche.Expr.erasePwEq]
   | @fvar idx ty a hty h1 ih =>
@@ -1057,7 +1057,7 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
     rw [std_axioms.erase_pw_eq.eq_def] at h
     cases kb
     case Fvar j t2 =>
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       by_cases hij : idx = j
       · subst hij
         rw [if_pos rfl] at h
@@ -1068,7 +1068,7 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
         rw [← h]
         simp [ConLeche.Expr.erasePwEq, hv]
     all_goals
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp [ConLeche.Expr.erasePwEq]
   | @app f x a hf hx h1 ihf ihx =>
@@ -1080,7 +1080,7 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
     cases kb
     case App f2 x2 =>
       obtain ⟨hf2, hx2⟩ := wf_app_inv hb rfl
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
       obtain ⟨b1, hb1, h⟩ := h
       rw [ihf f2 hf2 b1 hb1] at h
       cases hd : ConLeche.Expr.erasePwEq (absExpr f) (absExpr f2)
@@ -1090,7 +1090,7 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
         rw [ihx x2 hx2 c h]
         simp [ConLeche.Expr.erasePwEq, hd]
     all_goals
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp [ConLeche.Expr.erasePwEq]
   | @lam ty bo m a hty hbo hm h1 ihty ihbo =>
@@ -1102,7 +1102,7 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
     cases kb
     case Lam t2 b2 m2 =>
       obtain ⟨ht2, hb2, -⟩ := wf_lam_inv hb rfl
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
       obtain ⟨b1, hb1, h⟩ := h
       rw [ihty t2 ht2 b1 hb1] at h
       cases hd : ConLeche.Expr.erasePwEq (absExpr ty) (absExpr t2)
@@ -1112,7 +1112,7 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
         rw [ihbo b2 hb2 c h]
         simp [ConLeche.Expr.erasePwEq, hd]
     all_goals
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp [ConLeche.Expr.erasePwEq]
   | @forall_e ty bo m a hty hbo hm h1 ihty ihbo =>
@@ -1124,7 +1124,7 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
     cases kb
     case ForallE t2 b2 m2 =>
       obtain ⟨ht2, hb2, -⟩ := wf_forall_e_inv hb rfl
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
       obtain ⟨b1, hb1, h⟩ := h
       rw [ihty t2 ht2 b1 hb1] at h
       cases hd : ConLeche.Expr.erasePwEq (absExpr ty) (absExpr t2)
@@ -1134,7 +1134,7 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
         rw [ihbo b2 hb2 c h]
         simp [ConLeche.Expr.erasePwEq, hd]
     all_goals
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp [ConLeche.Expr.erasePwEq]
   | @let_e ty v bo a hty hv hbo h1 ihty ihv ihbo =>
@@ -1146,7 +1146,7 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
     cases kb
     case LetE t2 v2 b2 =>
       obtain ⟨ht2, hv2, hb2⟩ := wf_let_e_inv hb rfl
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
       obtain ⟨b1, hb1, h⟩ := h
       rw [ihty t2 ht2 b1 hb1] at h
       cases hd : ConLeche.Expr.erasePwEq (absExpr ty) (absExpr t2)
@@ -1163,7 +1163,7 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
           rw [ihbo b2 hb2 c h]
           simp [ConLeche.Expr.erasePwEq, hd, hd2]
     all_goals
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp [ConLeche.Expr.erasePwEq]
   | @proj sn i x a hs hx h1 ih =>
@@ -1175,7 +1175,7 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
     cases kb
     case Proj s2 j e2 =>
       obtain ⟨hs2, he2⟩ := wf_proj_inv hb rfl
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
       obtain ⟨bn, hbn, h⟩ := h
       rw [Name.beq_refines hs hs2 hbn] at h
       by_cases hne : absName sn = absName s2
@@ -1193,7 +1193,7 @@ theorem erase_pw_eq_refines {a : expr.Expr} (ha : ExprWF a) :
         rw [← h]
         simp [ConLeche.Expr.erasePwEq, hne]
     all_goals
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp [ConLeche.Expr.erasePwEq]
 

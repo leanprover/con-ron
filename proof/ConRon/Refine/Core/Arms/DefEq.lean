@@ -752,7 +752,7 @@ theorem defeq_spine_i_refines (hd : DefEqDepsA mode fuel) (d : Std.U64)
         (absExpr a) (absExpr b)) := by
   intro fe lfe hfe hfrel st res st' hwf hok lst hrel
   unfold cached.core_c.defeq_spine_i at hok
-  simp only [arc_deref_eq, bind_tc_ok] at hok
+  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at hok
   obtain ⟨fa, hfa, hok⟩ := bind_eq_ok_iff.mp hok
   obtain ⟨fb, hfb, hok⟩ := bind_eq_ok_iff.mp hok
   obtain ⟨hfaabs, hfawf⟩ := ExprOps.get_app_fn_refines ha hfa
@@ -761,7 +761,7 @@ theorem defeq_spine_i_refines (hd : DefEqDepsA mode fuel) (d : Std.U64)
     ← hfaabs, ← hfbabs]
   obtain ⟨⟨da, ka⟩⟩ := fa
   obtain ⟨⟨db, kb⟩⟩ := fb
-  simp only [ExprOps.node_kind] at hok
+  simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
   simp only [absExpr_mk]
   cases ka with
   | Const n us =>

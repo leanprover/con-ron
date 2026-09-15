@@ -938,7 +938,7 @@ theorem annotate_pis_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps mode
     cases ht with
     | @forall_e ty body mb e hty hbody hmb h1 =>
       obtain ⟨dd, rfl, -, -, -⟩ := Expr.forall_e_inv h1
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, 
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, 
         bind_eq_ok_iff, absExpr_mk, absExprKind] at hok ⊢
       obtain ⟨body1, hbody1, hok⟩ := hok
       rw [Expr.dup_eq hbody1] at hok
@@ -987,39 +987,39 @@ theorem annotate_pis_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps mode
         exact hout
     | @bvar i e h1 =>
       obtain ⟨dd, rfl, -, -, -⟩ := Expr.bvar_inv h1
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
       exact leafCase _ (ExprWF.bvar h1) (by simp) hok
     | @fvar idx ty e hty h1 =>
       obtain ⟨dd, rfl, -, -, -⟩ := Expr.fvar_inv h1
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
       exact leafCase _ (ExprWF.fvar hty h1) (by simp) hok
     | @sort u e hu h1 =>
       obtain ⟨dd, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
       exact leafCase _ (ExprWF.sort hu h1) (by simp) hok
     | @mk_const n us e hn hus h1 =>
       obtain ⟨dd, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
       exact leafCase _ (ExprWF.mk_const hn hus h1) (by simp) hok
     | @app f a e hf ha h1 =>
       obtain ⟨dd, rfl, -, -, -⟩ := Expr.app_inv h1
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
       exact leafCase _ (ExprWF.app hf ha h1) (by simp) hok
     | @lam ty bo m e hty hbo hm h1 =>
       obtain ⟨dd, rfl, -, -, -⟩ := Expr.lam_inv h1
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
       exact leafCase _ (ExprWF.lam hty hbo hm h1) (by simp) hok
     | @let_e ty v bo e hty hv hbo h1 =>
       obtain ⟨dd, rfl, -, -, -⟩ := Expr.let_e_inv h1
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
       exact leafCase _ (ExprWF.let_e hty hv hbo h1) (by simp) hok
     | @lit l e hl h1 =>
       obtain ⟨dd, rfl, -, -, -⟩ := Expr.lit_inv h1
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
       exact leafCase _ (ExprWF.lit hl h1) (by simp) hok
     | @proj sn idx x e hsn hx h1 =>
       obtain ⟨dd, rfl, -, -, -⟩ := Expr.proj_inv h1
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
       exact leafCase _ (ExprWF.proj hsn hx h1) (by simp) hok
 
 /-- `ConLeche/Cached/CoreC.lean:1766` — **`annotate_lams_i` refines
@@ -1063,7 +1063,7 @@ theorem annotate_lams_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps mod
     cases ht with
     | @lam ty body mb e hty hbody hmb h1 =>
       obtain ⟨dd, rfl, -, -, -⟩ := Expr.lam_inv h1
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, 
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, 
         bind_eq_ok_iff, absExpr_mk, absExprKind] at hok ⊢
       obtain ⟨body1, hbody1, hok⟩ := hok
       rw [Expr.dup_eq hbody1] at hok
@@ -1112,39 +1112,39 @@ theorem annotate_lams_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps mod
         exact hout
     | @bvar i e h1 =>
       obtain ⟨dd, rfl, -, -, -⟩ := Expr.bvar_inv h1
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
       exact leafCase _ (ExprWF.bvar h1) (by simp) hok
     | @fvar idx ty e hty h1 =>
       obtain ⟨dd, rfl, -, -, -⟩ := Expr.fvar_inv h1
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
       exact leafCase _ (ExprWF.fvar hty h1) (by simp) hok
     | @sort u e hu h1 =>
       obtain ⟨dd, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
       exact leafCase _ (ExprWF.sort hu h1) (by simp) hok
     | @mk_const n us e hn hus h1 =>
       obtain ⟨dd, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
       exact leafCase _ (ExprWF.mk_const hn hus h1) (by simp) hok
     | @app f a e hf ha h1 =>
       obtain ⟨dd, rfl, -, -, -⟩ := Expr.app_inv h1
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
       exact leafCase _ (ExprWF.app hf ha h1) (by simp) hok
     | @forall_e ty bo m e hty hbo hm h1 =>
       obtain ⟨dd, rfl, -, -, -⟩ := Expr.forall_e_inv h1
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
       exact leafCase _ (ExprWF.forall_e hty hbo hm h1) (by simp) hok
     | @let_e ty v bo e hty hv hbo h1 =>
       obtain ⟨dd, rfl, -, -, -⟩ := Expr.let_e_inv h1
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
       exact leafCase _ (ExprWF.let_e hty hv hbo h1) (by simp) hok
     | @lit l e hl h1 =>
       obtain ⟨dd, rfl, -, -, -⟩ := Expr.lit_inv h1
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
       exact leafCase _ (ExprWF.lit hl h1) (by simp) hok
     | @proj sn idx x e hsn hx h1 =>
       obtain ⟨dd, rfl, -, -, -⟩ := Expr.proj_inv h1
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
       exact leafCase _ (ExprWF.proj hsn hx h1) (by simp) hok
 
 /-! ## `annotateBodyI`'s arms, one clause each
@@ -1792,13 +1792,14 @@ theorem annotate_proj_i_refines (hw : Wrappers mode fuel) (hd : AnnotateDeps mod
         (hd.inferIOWhnf depth he2WF).apply hwf1 hfe h2 hrel1 hfrel
       obtain ⟨f, hf, hok⟩ := hok
       obtain ⟨en, hen, hok⟩ := hok
+      rw [expr_view_eq] at hen
       rw [← Result.ok_injective hen] at hok
       obtain ⟨habsF, hfWF⟩ := ExprOps.get_app_fn_refines hteWF hf
       rw [annotateBodyI_proj, bind_run hrun1, bind_assoc', bind_run hrun2, ← habsF]
       cases hfWF with
       | @mk_const n us e hn hus h3 =>
         obtain ⟨dd, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h3
-        simp only [ExprOps.node_kind, bind_eq_ok_iff] at hok
+        simp only [ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at hok
         obtain ⟨targs, htargs, hok⟩ := hok
         obtain ⟨habsTargs, htargsWF⟩ := ExprOps.get_app_args_refines hteWF htargs
         obtain ⟨r2, hr2, hok⟩ := hok
@@ -1963,7 +1964,7 @@ theorem annotate_body_i_refines {mode : env.CheckMode} {fuel : Std.U64}
   cases he with
   | @bvar i e h1 =>
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.bvar_inv h1
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff,
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff,
       Result.ok.injEq, Prod.mk.injEq] at hok
     obtain ⟨e1, he1, hr, hst⟩ := hok
     rw [Expr.dup_eq he1] at hr
@@ -1975,7 +1976,7 @@ theorem annotate_body_i_refines {mode : env.CheckMode} {fuel : Std.U64}
     simp
   | @sort u e hu h1 =>
     obtain ⟨dd, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff,
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff,
       Result.ok.injEq, Prod.mk.injEq] at hok
     obtain ⟨e1, he1, hr, hst⟩ := hok
     rw [Expr.dup_eq he1] at hr
@@ -1987,7 +1988,7 @@ theorem annotate_body_i_refines {mode : env.CheckMode} {fuel : Std.U64}
     simp
   | @mk_const n us e hn hus h1 =>
     obtain ⟨dd, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff,
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff,
       Result.ok.injEq, Prod.mk.injEq] at hok
     obtain ⟨e1, he1, hr, hst⟩ := hok
     rw [Expr.dup_eq he1] at hr
@@ -1999,7 +2000,7 @@ theorem annotate_body_i_refines {mode : env.CheckMode} {fuel : Std.U64}
     simp
   | @fvar idx ty e hty h1 =>
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.fvar_inv h1
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
     split at hok
     · rename_i hlt
       simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at hok
@@ -2025,7 +2026,7 @@ theorem annotate_body_i_refines {mode : env.CheckMode} {fuel : Std.U64}
       exact Out.err (ErrSim.invalid (s := "free variable out of scope") (by simp))
   | @app f a e hf ha h1 =>
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.app_inv h1
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, 
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, 
       bind_eq_ok_iff] at hok
     obtain ⟨⟨r0, st1⟩, h2, hok⟩ := hok
     cases r0 with
@@ -2065,26 +2066,26 @@ theorem annotate_body_i_refines {mode : env.CheckMode} {fuel : Std.U64}
         rfl
   | @forall_e ty bo m e hty hbo hm h1 =>
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.forall_e_inv h1
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
     simp only [absExpr_mk, absExprKind]
     exact annotate_forall_i_refines hw hd d hty hbo hm fe lfe hfe hfrel st r st'
       hwf hok lst hrel
   | @let_e ty v bo e hty hv hbo h1 =>
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.let_e_inv h1
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
     simp only [absExpr_mk, absExprKind]
     exact annotate_let_i_refines hw hd d hty hv hbo fe lfe hfe hfrel st r st'
       hwf hok lst hrel
   | @proj sn idx x e hsn hx h1 =>
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.proj_inv h1
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
     simp only [absExpr_mk, absExprKind]
     exact annotate_proj_i_refines hw hd d hsn idx hx fe lfe hfe hfrel st r st'
       hwf hok lst hrel
   | @lam ty bo m e hty hbo hm h1 =>
     have heWF : ExprWF e := ExprWF.lam hty hbo hm h1
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.lam_inv h1
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at hok
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at hok
     obtain ⟨bb, hbbm, hok⟩ := hok
     have hbbv := StateC.bvar_bound_m_refines heWF hbbm
     simp only [absExpr_mk, absExprKind] at hbbv
@@ -2103,7 +2104,7 @@ theorem annotate_body_i_refines {mode : env.CheckMode} {fuel : Std.U64}
       exact h0 (by scalar_tac)
   | @lit l e hl h1 =>
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.lit_inv h1
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
     cases l with
     | NatVal n =>
       simp only [bind_eq_ok_iff] at hok

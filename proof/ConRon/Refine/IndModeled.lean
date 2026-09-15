@@ -6348,7 +6348,7 @@ theorem name_is_model_suffix_refines {n : name.Name} (hn : NameWF n) {b : Bool}
   | @str pre str n' hpre hstr hmk =>
     obtain ⟨hh, rfl⟩ := mk_str_inv hmk
     rw [level.name_is_model_suffix] at h
-    simp only [arc_deref_eq, bind_tc_ok] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at h
     rw [is_model_str_refines hstr h, absName_mk, absNameKind,
       isModelSuffix_str]
   | @num pre m n' hpre hmk =>
@@ -8229,7 +8229,7 @@ theorem check_proj_iota_body_refines
     case Const =>
       rename_i n0 us0 _
       obtain ⟨hn0wf, hus0wf⟩ := CoreK.ExprWF.const_children hheadwf rfl
-      simp only [ExprOps.node_kind, arc_deref_eq, bind_tc_ok, Result.ok.injEq,
+      simp only [ExprOps.node_kind, ron.node.ExprView.ofKind, expr_view_eq, arc_deref_eq, bind_tc_ok, Result.ok.injEq,
         Prod.mk.injEq] at hpq
       obtain ⟨rfl, rfl⟩ := hpq
       simp at hz
@@ -8474,7 +8474,7 @@ theorem check_proj_iota_body_refines
           scalar_tac
         simp [hlen1] at hus1
     -- move 2: a head that is not a `.const` at all
-    all_goals simp only [ExprOps.node_kind, arc_deref_eq, bind_tc_ok,
+    all_goals simp only [ExprOps.node_kind, ron.node.ExprView.ofKind, expr_view_eq, arc_deref_eq, bind_tc_ok,
       Result.ok.injEq, Prod.mk.injEq] at hpq
     all_goals rw [← hpq.2] at hz
     all_goals simp at hz

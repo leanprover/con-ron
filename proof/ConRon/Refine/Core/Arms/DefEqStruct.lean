@@ -133,8 +133,8 @@ form). -/
 /-- Flatten the next `Result` bind of a generated body: `bind_eq_ok_iff`
 together with Aeneas's tuple-pattern `uncurry`. -/
 local macro "res_step " h:ident : tactic =>
-  `(tactic| simp only [bind_eq_ok_iff, Aeneas.Std.uncurry, arc_deref_eq, expr_dup_eq,
-      binder_meta_dup_eq', ExprOps.node_kind, Result.ok.injEq,
+  `(tactic| simp only [bind_eq_ok_iff, Aeneas.Std.uncurry, expr_view_eq, arc_deref_eq, expr_dup_eq,
+      binder_meta_dup_eq', ExprOps.node_kind, ron.node.ExprView.ofKind, Result.ok.injEq,
       exists_eq_left'] at $h:ident)
 
 

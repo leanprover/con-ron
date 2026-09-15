@@ -385,16 +385,144 @@
   3303      | .Err er =>
   3304        ErrSimPos er
 
-== crates/con-ron-core/src/kernel/expr.rs#L356-L364
-   356      Sort(Level),
-   357      Const(Name, P<Vec<Level>>),
-   358      App(Expr, Expr),
-   359      Lam(Expr, Expr, BinderMeta),
-   360      ForallE(Expr, Expr, BinderMeta),
-   361      LetE(Expr, Expr, Expr),
-   362      Lit(Literal),
-   363      Proj(Name, u64, Expr),
-   364  }
+== crates/con-ron-core/src/kernel/expr.rs#L355-L366
+   355  pub enum ExprKind {
+   356      Bvar(u64),
+   357      Fvar(u64, Expr),
+   358      Sort(Level),
+   359      Const(Name, P<Vec<Level>>),
+   360      App(Expr, Expr),
+   361      Lam(Expr, Expr, BinderMeta),
+   362      ForallE(Expr, Expr, BinderMeta),
+   363      LetE(Expr, Expr, Expr),
+   364      Lit(Literal),
+   365      Proj(Name, u64, Expr),
+   366  }
+
+== crates/con-ron-core/src/ron/tagged.rs#L1-L20
+     1  //! con-leche: none — the tagged counted handle of DESIGN.md §3.2 (task #94).
+     2  //!
+     3  //! `ron::tagged` — **the crate's only `unsafe`, and it does not know what an
+     4  //! `Expr` is**.
+     5  //!
+     6  //! One counted handle, one word wide, whose low four bits say which of a
+     7  //! *scheme's* node types the rest of it points at.  Every node is allocated
+     8  //! 16-aligned, which is what frees those four bits; sixteen kinds fit, and
+     9  //! each kind's cell is as wide as that kind needs rather than as wide as the
+    10  //! widest.  That is the whole idea, and the measurement behind it is task
+    11  //! #94's report: `Expr`'s nodes go from a flat 64-byte block to 32 or 48
+    12  //! bytes, which is −41 % of Mathlib's peak.
+    13  //!
+    14  //! **This module is generic.**  It names no term type, no constructor and no
+    15  //! kind: a *scheme* is a table, and [`tagged_kinds!`] turns it into the
+    16  //! tag→type dispatch and the release.  `ron::node` is
+    17  //! the one instantiation today (`Expr`'s ten nodes); `Name`, `Level` and
+    18  //! `PropWhen` keep `ron::ptr::P` (DESIGN.md §3.2 — their nodes are not the
+    19  //! bulk, and a uniform block costs them nothing).
+    20  //!
+
+== crates/con-ron-core/src/kernel/expr.rs#L121-L123
+   121  pub struct BinderMeta {
+   122      pub pw: PropWhen,
+   123  }
+
+== crates/con-ron-core/src/kernel/prop_when.rs#L285-L291
+   285  enum PropWhenRepr {
+   286      Never,
+   287      Always,
+   288      One(Name),
+   289      Two(P<(Name, Name)>),
+   290      Many(P<Vec<Name>>),
+   291  }
+
+== crates/con-ron-dump/src/lib.rs#L138-L186
+   138  pub struct MiMallocTight;
+   139  
+   140  #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
+   141  unsafe impl std::alloc::GlobalAlloc for MiMallocTight {
+   142      #[inline]
+   143      unsafe fn alloc(&self, layout: std::alloc::Layout) -> *mut u8 {
+   144          if layout.align() <= 16 {
+   145              libmimalloc_sys::mi_malloc(layout.size()) as *mut u8
+   146          } else {
+   147              libmimalloc_sys::mi_malloc_aligned(layout.size(), layout.align()) as *mut u8
+   148          }
+   149      }
+   150  
+   151      #[inline]
+   152      unsafe fn alloc_zeroed(&self, layout: std::alloc::Layout) -> *mut u8 {
+   153          if layout.align() <= 16 {
+   154              libmimalloc_sys::mi_zalloc(layout.size()) as *mut u8
+   155          } else {
+   156              libmimalloc_sys::mi_zalloc_aligned(layout.size(), layout.align()) as *mut u8
+   157          }
+   158      }
+   159  
+   160      #[inline]
+   161      unsafe fn dealloc(&self, ptr: *mut u8, _layout: std::alloc::Layout) {
+   162          libmimalloc_sys::mi_free(ptr as *mut std::ffi::c_void);
+   163      }
+   164  
+   165      #[inline]
+   166      unsafe fn realloc(
+   167          &self,
+   168          ptr: *mut u8,
+   169          layout: std::alloc::Layout,
+   170          new_size: usize,
+   171      ) -> *mut u8 {
+   172          if layout.align() <= 16 {
+   173              libmimalloc_sys::mi_realloc(ptr as *mut std::ffi::c_void, new_size) as *mut u8
+   174          } else {
+   175              libmimalloc_sys::mi_realloc_aligned(
+   176                  ptr as *mut std::ffi::c_void,
+   177                  new_size,
+   178                  layout.align(),
+   179              ) as *mut u8
+   180          }
+   181      }
+   182  }
+   183  
+   184  #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
+   185  #[global_allocator]
+   186  static GLOBAL_ALLOC: MiMallocTight = MiMallocTight;
+
+== crates/con-ron-core/src/ron/tagged.rs#L1-L20
+     1  //! con-leche: none — the tagged counted handle of DESIGN.md §3.2 (task #94).
+     2  //!
+     3  //! `ron::tagged` — **the crate's only `unsafe`, and it does not know what an
+     4  //! `Expr` is**.
+     5  //!
+     6  //! One counted handle, one word wide, whose low four bits say which of a
+     7  //! *scheme's* node types the rest of it points at.  Every node is allocated
+     8  //! 16-aligned, which is what frees those four bits; sixteen kinds fit, and
+     9  //! each kind's cell is as wide as that kind needs rather than as wide as the
+    10  //! widest.  That is the whole idea, and the measurement behind it is task
+    11  //! #94's report: `Expr`'s nodes go from a flat 64-byte block to 32 or 48
+    12  //! bytes, which is −41 % of Mathlib's peak.
+    13  //!
+    14  //! **This module is generic.**  It names no term type, no constructor and no
+    15  //! kind: a *scheme* is a table, and [`tagged_kinds!`] turns it into the
+    16  //! tag→type dispatch and the release.  `ron::node` is
+    17  //! the one instantiation today (`Expr`'s ten nodes); `Name`, `Level` and
+    18  //! `PropWhen` keep `ron::ptr::P` (DESIGN.md §3.2 — their nodes are not the
+    19  //! bulk, and a uniform block costs them nothing).
+    20  //!
+
+== crates/con-ron-core/src/ron/node.rs#L1-L14
+     1  //! con-leche: none — `Expr`'s instantiation of `ron::tagged` (DESIGN.md §3.2, task #94).
+     2  //!
+     3  //! `ron::node` — **the ten `Expr` cells, as a table**.
+     4  //!
+     5  //! Until task #94 every `Expr` node was a `P<ExprNode>`: a block as wide as
+     6  //! the *widest* `ExprKind` arm, plus a kind word, plus `Arc`'s two counts —
+     7  //! 64 bytes for an `app`, which is 65 % of the live nodes of a real term
+     8  //! (task #88's census) and needs 32.  Lean's own representation does not do
+     9  //! that: the kind is in the object header, and each constructor's object is
+    10  //! as wide as its own fields.
+    11  //!
+    12  //! So the kind moved into the handle, and `ron::tagged` is the machinery that
+    13  //! puts it there.  **This file has no `unsafe` in it** — it is a table of ten
+    14  //! `tag => variant: type` lines, ten struct declarations, and thin wrappers:
 
 == crates/con-ron-core/src/ron/ptr.rs#L1-L8
      1  //! con-leche: none — the shared-pointer type of DESIGN.md §3.2; Lean's value semantics have no counterpart.
@@ -406,80 +534,24 @@
      7  //! reference counting: `P<T>` is the handle, and the model erases it
      8  //! (`Arc T := T`, plus four definitions).  Which *concrete* counted pointer
 
-== crates/con-ron-core/src/kernel/expr.rs#L430-L441
-   430  pub fn mk_const(n: Name, us: Vec<Level>) -> Expr {
-   431      let h: u64 = hash32(name::mix_hash(
-   432          11,
-   433          name::mix_hash(name::hash_data(&n), level::levels_hash(&us)),
-   434      ));
-   435      let d: u64 = pack_data(h, 0, 0, level::levels_have_param(&us));
-   436      Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Const(n, ptr::new(us)) }))
-   437  }
-   438  
-   439  /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-   440  /// con-leche: ConLeche/Cached/ExprNodes.lean:113 mkApp
-   441  /// `Expr.app`: hash tag 17; both ranges are the componentwise `max` and the
-
-== crates/con-ron-core/src/kernel/expr.rs#L353-L364
-   353  pub enum ExprKind {
-   354      Bvar(u64),
-   355      Fvar(u64, Expr),
-   356      Sort(Level),
-   357      Const(Name, P<Vec<Level>>),
-   358      App(Expr, Expr),
-   359      Lam(Expr, Expr, BinderMeta),
-   360      ForallE(Expr, Expr, BinderMeta),
-   361      LetE(Expr, Expr, Expr),
-   362      Lit(Literal),
-   363      Proj(Name, u64, Expr),
-   364  }
-
-== crates/con-ron-core/src/kernel/expr.rs#L119-L121
-   119  pub struct BinderMeta {
-   120      pub pw: PropWhen,
-   121  }
-
-== crates/con-ron-core/src/kernel/prop_when.rs#L285-L291
-   285  enum PropWhenRepr {
-   286      Never,
-   287      Always,
-   288      One(Name),
-   289      Two(P<(Name, Name)>),
-   290      Many(P<Vec<Name>>),
-   291  }
-
-== crates/con-ron-dump/src/lib.rs#L99-L129
-    99  /// **mimalloc, entered by `mi_malloc` rather than `mi_malloc_aligned`**
-   100  /// (task #92).
-   101  ///
-   102  /// The `mimalloc` crate's own `GlobalAlloc` sends *every* request through
-   103  /// `mi_malloc_aligned(size, align)`, whatever the alignment is.  That is
-   104  /// correct but it costs twice over, and con-ron pays it on every node:
-   105  ///
-   106  /// * **A size class.**  Measured resident bytes per live block (20 M blocks,
-   107  ///   `VmHWM`, this machine, mimalloc v3 as `libmimalloc-sys` builds it):
-   108  ///   through `mi_malloc` a 48-byte request occupies **48** bytes, through
-   109  ///   `mi_malloc_aligned(48, 8)` it occupies **64**.  mimalloc's own bin for a
-   110  ///   48-byte block is 48 and its stride keeps every block 16-aligned (audited:
-   111  ///   100 000 `mi_malloc(48)` pointers, all 16-aligned), so the aligned wrapper
-   112  ///   is being conservative about an alignment the plain bin already has.
-   113  /// * **A slow path.**  `mi_malloc_aligned` is a `noinline` function that
-   114  ///   re-checks and may over-allocate; `mi_malloc` is the inlined fast path.
-   115  ///   Measured on `_tmp/corpus/core.ndjson`, `--verified --jobs=1`: **−4.5 %
-   116  ///   instructions, −5.6 % cycles, −7.4 % wall**, with peak RSS unchanged
-   117  ///   (−0.2 %) because con-ron's *current* block sizes do not straddle a class
-   118  ///   boundary — 56 and 64 are one class either way.  DESIGN.md's task-#92
-   119  ///   entry has the table and the size-class measurements behind it.
-   120  ///
-   121  /// The fallback is kept for `align > 8`: mimalloc in fact guarantees 16, but 8
-   122  /// is what the bin structure gives with no appeal to a documented guarantee,
-   123  /// and nothing con-ron allocates is more aligned than a machine word.  This is
-   124  /// the same `unsafe impl GlobalAlloc` the `mimalloc` crate itself writes, minus
-   125  /// the one conservative branch; it is in the *unverified* crate, invisible to
-   126  /// Charon, and cannot change a verdict (see the note above).
-   127  #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
-   128  pub struct MiMallocTight;
-   129  
+== crates/con-ron-core/src/kernel/expr.rs#L479-L495
+   479  pub fn app(f: Expr, a: Expr) -> Expr {
+   480      let df: u64 = data(&f);
+   481      let da: u64 = data(&a);
+   482      let h: u64 = hash32(name::mix_hash(
+   483          17,
+   484          name::mix_hash(hash_of_data(df), hash_of_data(da)),
+   485      ));
+   486      let d: u64 = pack_data(
+   487          h,
+   488          max_u64(bvar_of_data(df), bvar_of_data(da)),
+   489          max_u64(fvar_of_data(df), fvar_of_data(da)),
+   490          lp_of_data(df) || lp_of_data(da),
+   491      );
+   492      node::alloc_app(d, f, a)
+   493  }
+   494  
+   495  /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
 
 == crates/con-ron-core/src/ron/nat.rs#L1-L8
      1  //! con-leche: none — replaces the runtime's `Nat` (GMP); no Lean source to cite.
@@ -742,21 +814,21 @@
    104    inv : HashMap.Inv name.Name.Insts.Con_ron_coreRonHashmapHashable fe.idx
 
 == proof/ConRon/Refine/Abs.lean#L515-L529
-   515  inductive ExprWF : expr.Expr → Prop where
-   516    | bvar {i e} : expr.bvar i = ok e → ExprWF e
-   517    | fvar {idx ty e} : ExprWF ty → expr.fvar idx ty = ok e → ExprWF e
-   518    | sort {u e} : LevelWF u → expr.sort u = ok e → ExprWF e
-   519    | mk_const {n us e} : NameWF n → LevelsWF us → expr.mk_const n us = ok e → ExprWF e
-   520    | app {f a e} : ExprWF f → ExprWF a → expr.app f a = ok e → ExprWF e
-   521    | lam {ty b m e} : ExprWF ty → ExprWF b → BinderMetaWF m →
-   522        expr.lam ty b m = ok e → ExprWF e
-   523    | forall_e {ty b m e} : ExprWF ty → ExprWF b → BinderMetaWF m →
-   524        expr.forall_e ty b m = ok e → ExprWF e
-   525    | let_e {ty v b e} : ExprWF ty → ExprWF v → ExprWF b →
-   526        expr.let_e ty v b = ok e → ExprWF e
-   527    | lit {l e} : LiteralWF l → expr.lit l = ok e → ExprWF e
-   528    | proj {s i x e} : NameWF s → ExprWF x → expr.proj s i x = ok e → ExprWF e
-   529  
+   515  
+   516  end
+   517  
+   518  /-- A `Vec<Expr>` as a `List ConLeche.Expr`. -/
+   519  def absExprs (es : alloc.vec.Vec expr.Expr) : List ConLeche.Expr :=
+   520    es.val.map absExpr
+   521  
+   522  @[simp] theorem absName_mk (h : Std.U64) (k : name.NameKind) :
+   523      absName (.mk (.mk h k)) = absNameKind k := by rw [absName, absNameNode]
+   524  
+   525  @[simp] theorem absLevel_mk (h : Std.U64) (k : level.LevelKind) :
+   526      absLevel (.mk (.mk h k)) = absLevelKind k := by rw [absLevel, absLevelNode]
+   527  
+   528  @[simp] theorem absPropWhen_mk (r : prop_when.PropWhenRepr) :
+   529      absPropWhen (.mk r) = absPropWhenRepr r := rfl
 
 == proof/ConRon/Refine/Core/Arms/Shape.lean#L102-L119
    102  def SimS {α β : Type} (A : α → β) (WF : α → Prop)
@@ -779,15 +851,15 @@
    119  environment is a plain equation against its con-leche value. -/
 
 == proof/ConRon/Refine/Abs.lean#L938-L946
-   938  def ErrSim {γ : Type} (e : kernel.core_types.CheckError)
-   939      (x : Except ConLeche.CheckError γ) : Prop :=
-   940    ∀ k, absErrKind e = some k → ∃ le, x = .error le ∧ lErrKind le = k
-   941  
-   942  /-- The port's own failure claims nothing. -/
-   943  theorem ErrSim.native {γ : Type} {x : Except ConLeche.CheckError γ} (m) :
-   944      ErrSim (.Native m) x := by
-   945    intro k hk; simp at hk
-   946  
+   938    | .OpaqueDecl cv v => ConstantValWF cv ∧ ExprWF v
+   939    | .BasisDecl _ => True
+   940    | .IndDecl block _ => ConstantInfosWF block
+   941    | .QuotDecl _ cv => ConstantValWF cv
+   942  
+   943  /-! ## Axiom census (DESIGN.md §5, the P3 gate)
+   944  
+   945  The file's own theorems are the smart-constructor shapes and the `Arc`/`Vec`
+   946  plumbing; nothing here reaches past Lean's own three axioms. -/
 
 == proof/ConRon/Refine/Core/Statements.lean#L191-L194
    191  def KnotSpec (mode : env.CheckMode) (fuel : Std.U64) : Prop :=
@@ -841,8 +913,40 @@
     99          ∧ FEnvCanon fe' ∧ FEnvFull fe'
    100    /-- **Route B, the modeled install** (`inductives_c::check_ind_decl_s`
 
+== crates/con-ron-core/src/ron/tagged.rs#L1-L20
+     1  //! con-leche: none — the tagged counted handle of DESIGN.md §3.2 (task #94).
+     2  //!
+     3  //! `ron::tagged` — **the crate's only `unsafe`, and it does not know what an
+     4  //! `Expr` is**.
+     5  //!
+     6  //! One counted handle, one word wide, whose low four bits say which of a
+     7  //! *scheme's* node types the rest of it points at.  Every node is allocated
+     8  //! 16-aligned, which is what frees those four bits; sixteen kinds fit, and
+     9  //! each kind's cell is as wide as that kind needs rather than as wide as the
+    10  //! widest.  That is the whole idea, and the measurement behind it is task
+    11  //! #94's report: `Expr`'s nodes go from a flat 64-byte block to 32 or 48
+    12  //! bytes, which is −41 % of Mathlib's peak.
+    13  //!
+    14  //! **This module is generic.**  It names no term type, no constructor and no
+    15  //! kind: a *scheme* is a table, and [`tagged_kinds!`] turns it into the
+    16  //! tag→type dispatch and the release.  `ron::node` is
+    17  //! the one instantiation today (`Expr`'s ten nodes); `Name`, `Level` and
+    18  //! `PropWhen` keep `ron::ptr::P` (DESIGN.md §3.2 — their nodes are not the
+    19  //! bulk, and a uniform block costs them nothing).
+    20  //!
+
+== crates/con-ron-core/src/ron/ptr.rs#L1-L8
+     1  //! con-leche: none — the shared-pointer type of DESIGN.md §3.2; Lean's value semantics have no counterpart.
+     2  //!
+     3  //! `ron::ptr` — **the one place the core names its shared pointer**
+     4  //! (DESIGN.md §3.2, task #44).
+     5  //!
+     6  //! con-leche's terms are persistent trees with sharing, which the port gives
+     7  //! reference counting: `P<T>` is the handle, and the model erases it
+     8  //! (`Arc T := T`, plus four definitions).  Which *concrete* counted pointer
+
 == proof/ConRon/Refine/Abs.lean#L170
-   170  macro "rust_grind" : tactic => `(tactic| grind (ematch := 12) (gen := 24))
+   170    cases k <;> simp [ron.node.ExprView.ofKind]
 
 == proof/lakefile.toml#L24-L26
     24  [leanOptions]

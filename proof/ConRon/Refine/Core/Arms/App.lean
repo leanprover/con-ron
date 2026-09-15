@@ -460,7 +460,7 @@ theorem whnf_core_proj_of_loop (hd : AppDeps mode fuel) (d n : Std.U64)
     obtain ⟨habsf, hfwf⟩ := ExprOps.get_app_fn_refines he2 hf
     rw [← habsf]
     obtain ⟨⟨dw, kd⟩⟩ := f
-    simp only [arc_deref_eq, bind_tc_ok] at hok
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at hok
     cases kd with
     | Const c us =>
       simp only [absExpr_mk, absExprKind]
@@ -714,7 +714,7 @@ theorem whnf_app_beta_peel_aux (hw : Wrappers mode fuel) (hd : AppDeps mode fuel
     rw [if_neg hge] at hok
     have hvc := CoreK.ExprWF.children hv
     obtain ⟨⟨dv, kv⟩⟩ := v
-    simp only [arc_deref_eq, bind_tc_ok] at hok
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at hok
     rw [hdrop]
     cases kv with
     | Lam ty body mb =>
@@ -874,7 +874,7 @@ theorem whnf_app_beta_peel_aux (hw : Wrappers mode fuel) (hd : AppDeps mode fuel
   rw [if_neg hge] at hok
   have htc := CoreK.ExprWF.children ht
   obtain ⟨⟨dt, kt⟩⟩ := t
-  simp only [arc_deref_eq, bind_tc_ok] at hok
+  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at hok
   rw [hdrop]
   cases kt with
   | Lam ty body mb =>

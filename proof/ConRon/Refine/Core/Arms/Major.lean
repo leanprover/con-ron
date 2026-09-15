@@ -453,9 +453,9 @@ theorem lit_major_to_ctor_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
   intro fe lfe hfe hfrel st oc st' hwf hok lst hrel
   have hc := ExprWF.children he
   obtain ⟨⟨dg, k⟩⟩ := e
-  simp only [ExprOps.node_kind] at hc
+  simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at hc
   unfold cached.core_c.lit_major_to_ctor_i at hok
-  simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
   cases k with
   | Lit l =>
     cases l with
@@ -524,9 +524,9 @@ theorem proj_lit_to_ctor_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
   intro fe lfe hfe hfrel st oc st' hwf hok lst hrel
   have hc := ExprWF.children he
   obtain ⟨⟨dg, k⟩⟩ := e
-  simp only [ExprOps.node_kind] at hc
+  simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at hc
   unfold cached.core_c.proj_lit_to_ctor_i at hok
-  simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
   cases k with
   | Lit l =>
     cases l with
@@ -832,9 +832,9 @@ theorem major_to_ctor_k_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode
       (hd.inferIOWhnf d hmajor).apply hwf hfe hiw hrel hfrel
     obtain ⟨head, hhd, hok⟩ := bind_eq_ok_iff.mp hok
     obtain ⟨hhabs, hhwf⟩ := ExprOps.get_app_fn_refines htmaj hhd
-    simp only [arc_deref_eq, bind_tc_ok] at hok
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at hok
     obtain ⟨⟨dh, kh⟩⟩ := head
-    simp only [ExprOps.node_kind] at hok
+    simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
     simp only [absExpr_mk] at hhabs
     cases kh with
     | Const t2 ust =>
@@ -848,7 +848,7 @@ theorem major_to_ctor_k_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode
         rw [ConLeche.Expr.getAppArgsC_spec, ← htaabs]
       obtain ⟨bq, hbq, hok⟩ := bind_eq_ok_iff.mp hok
       have hbqv := Name.beq_refines ht2 ht hbq
-      try simp only [arc_deref_eq, bind_tc_ok] at hok
+      try simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at hok
       cases bq with
       | false =>
         have hne : ¬ (absName t2 = absName t) := by
@@ -1146,9 +1146,9 @@ theorem major_to_ctor_and_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mo
       (hd.inferIOWhnf d hmajor).apply hwf hfe hiw hrel hfrel
     obtain ⟨head, hhd, hok⟩ := bind_eq_ok_iff.mp hok
     obtain ⟨hhabs, hhwf⟩ := ExprOps.get_app_fn_refines htmaj hhd
-    simp only [arc_deref_eq, bind_tc_ok] at hok
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at hok
     obtain ⟨⟨dh, kh⟩⟩ := head
-    simp only [ExprOps.node_kind] at hok
+    simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
     simp only [absExpr_mk] at hhabs
     cases kh with
     | Const t2 ust =>
@@ -1162,7 +1162,7 @@ theorem major_to_ctor_and_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mo
         rw [ConLeche.Expr.getAppArgsC_spec, ← htaabs]
       obtain ⟨bq, hbq, hok⟩ := bind_eq_ok_iff.mp hok
       have hbqv := Name.beq_refines ht2 ht hbq
-      try simp only [arc_deref_eq, bind_tc_ok] at hok
+      try simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at hok
       have hlenl : (absConstantVal cvj).levelParams.length = cvj.level_params.val.length := by
         simp [absConstantVal, absNames]
       have hlenu : (absLevels ust).length = ust.val.length := by simp [absLevels]
@@ -1502,9 +1502,9 @@ theorem major_to_ctor_eta_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
       (hd.inferIOWhnf d hmajor).apply hwf hfe hiw hrel hfrel
     obtain ⟨head, hhd, hok⟩ := bind_eq_ok_iff.mp hok
     obtain ⟨hhabs, hhwf⟩ := ExprOps.get_app_fn_refines htmaj hhd
-    simp only [arc_deref_eq, bind_tc_ok] at hok
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at hok
     obtain ⟨⟨dh, kh⟩⟩ := head
-    simp only [ExprOps.node_kind] at hok
+    simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
     simp only [absExpr_mk] at hhabs
     cases kh with
     | Const t2 ust =>
@@ -1518,7 +1518,7 @@ theorem major_to_ctor_eta_i_refines (hd : MajorDeps mode fuel) (d : Std.U64)
         rw [ConLeche.Expr.getAppArgsC_spec, ← htaabs]
       obtain ⟨bq, hbq, hok⟩ := bind_eq_ok_iff.mp hok
       have hbqv := Name.beq_refines ht2 ht hbq
-      try simp only [arc_deref_eq, bind_tc_ok] at hok
+      try simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at hok
       have hlenl : (absConstantVal cvt).levelParams.length = cvt.level_params.val.length := by
         simp [absConstantVal, absNames]
       have hlenu : (absLevels ust).length = ust.val.length := by simp [absLevels]
@@ -1908,9 +1908,9 @@ theorem major_to_ctor_i_refines (hw : Wrappers mode fuel) (hd : MajorDeps mode f
         obtain ⟨head, hhd, hok⟩ := bind_eq_ok_iff.mp hok
         obtain ⟨hhabs, hhwf⟩ := ExprOps.get_app_fn_refines hreswf hhd
         rw [hresabs] at hhabs
-        simp only [arc_deref_eq, bind_tc_ok] at hok
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at hok
         obtain ⟨⟨dh, kh⟩⟩ := head
-        simp only [ExprOps.node_kind] at hok
+        simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
         simp only [absExpr_mk] at hhabs
         cases kh with
         | Const t1 us =>

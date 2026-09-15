@@ -324,27 +324,27 @@ private theorem lam_pw_wf {t : expr.Expr} (ht : ExprWF t)
   | @lam ty bo m e hty hbo hm h1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
     rw [expr_ops.lam_pw.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨pw1, hpw1, ho⟩ := h
     rw [PropWhen.dup_eq hpw1] at ho
     have hp : pw = m.pw := by simpa using (Result.ok_injective ho).symm
     rw [hp]; exact hm
-  | @bvar i e h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1; simp [expr_ops.lam_pw] at h
+  | @bvar i e h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1; simp [expr_ops.lam_pw, ron.node.ExprView.ofKind] at h
   | @fvar idx ty e _ h1 =>
-    obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1; simp [expr_ops.lam_pw] at h
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1; simp [expr_ops.lam_pw, ron.node.ExprView.ofKind] at h
   | @sort u e _ h1 =>
-    obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1; simp [expr_ops.lam_pw] at h
+    obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1; simp [expr_ops.lam_pw, ron.node.ExprView.ofKind] at h
   | @mk_const n us e _ _ h1 =>
-    obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1; simp [expr_ops.lam_pw] at h
+    obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1; simp [expr_ops.lam_pw, ron.node.ExprView.ofKind] at h
   | @app f a e _ _ h1 =>
-    obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1; simp [expr_ops.lam_pw] at h
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1; simp [expr_ops.lam_pw, ron.node.ExprView.ofKind] at h
   | @forall_e ty bo m e _ _ _ h1 =>
-    obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1; simp [expr_ops.lam_pw] at h
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1; simp [expr_ops.lam_pw, ron.node.ExprView.ofKind] at h
   | @let_e ty v bo e _ _ _ h1 =>
-    obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1; simp [expr_ops.lam_pw] at h
-  | @lit l e _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1; simp [expr_ops.lam_pw] at h
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1; simp [expr_ops.lam_pw, ron.node.ExprView.ofKind] at h
+  | @lit l e _ h1 => obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1; simp [expr_ops.lam_pw, ron.node.ExprView.ofKind] at h
   | @proj s i x e _ _ h1 =>
-    obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1; simp [expr_ops.lam_pw] at h
+    obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1; simp [expr_ops.lam_pw, ron.node.ExprView.ofKind] at h
 
 /-! ## The monad plumbing
 
@@ -657,7 +657,7 @@ theorem infer_forall_io_i_refines (hw : Wrappers mode fuel)
       obtain ⟨lst2, hrun2, hrel2, hwf2, hwttyWF⟩ :=
         (hw.whnfSim d httyWF).apply hwf1 hfe h2 hrel1 hfrel
       obtain ⟨⟨dw, kd⟩⟩ := wtty
-      simp only [arc_deref_eq, bind_tc_ok] at hok
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at hok
       cases kd with
       | «Sort» u =>
         have huWF : LevelWF u := CoreK.wf_sort_inv hwttyWF rfl
@@ -816,39 +816,39 @@ theorem infer_body_io_i_refines (hw : Wrappers mode fuel)
   cases he with
   | @bvar i e0 h1 =>
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.bvar_inv h1
-    simp only [arc_deref_eq, bind_tc_ok] at hok
+    simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at hok
     have h := (hd.inferBody d _ (ExprWF.bvar h1)).applyO hwf hfe hok hrel hfrel
     simpa [ConLeche.Cached.inferBodyIOI,
       inferBodyI_leaf_bvar _ (knot mode lfe fuel.val) (knot mode lfe fuel.val).ioView] using h
   | @fvar idx tyf e0 htyf h1 =>
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.fvar_inv h1
-    simp only [arc_deref_eq, bind_tc_ok] at hok
+    simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at hok
     have h := (hd.inferBody d _ (ExprWF.fvar htyf h1)).applyO hwf hfe hok hrel hfrel
     simpa [ConLeche.Cached.inferBodyIOI,
       inferBodyI_leaf_fvar _ (knot mode lfe fuel.val) (knot mode lfe fuel.val).ioView] using h
   | @sort u e0 hu h1 =>
     obtain ⟨dd, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
-    simp only [arc_deref_eq, bind_tc_ok] at hok
+    simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at hok
     have h := (hd.inferBody d _ (ExprWF.sort hu h1)).applyO hwf hfe hok hrel hfrel
     simpa [ConLeche.Cached.inferBodyIOI,
       inferBodyI_leaf_sort _ (knot mode lfe fuel.val) (knot mode lfe fuel.val).ioView] using h
   | @mk_const n us e0 hn hus h1 =>
     obtain ⟨dd, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
-    simp only [arc_deref_eq, bind_tc_ok] at hok
+    simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at hok
     have h := (hd.inferBody d _ (ExprWF.mk_const hn hus h1)).applyO hwf hfe hok
       hrel hfrel
     simpa [ConLeche.Cached.inferBodyIOI,
       inferBodyI_leaf_const _ (knot mode lfe fuel.val) (knot mode lfe fuel.val).ioView] using h
   | @let_e tyl vl bl e0 htyl hvl hbl h1 =>
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.let_e_inv h1
-    simp only [arc_deref_eq, bind_tc_ok] at hok
+    simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at hok
     have h := (hd.inferBody d _ (ExprWF.let_e htyl hvl hbl h1)).applyO hwf hfe hok
       hrel hfrel
     simpa [ConLeche.Cached.inferBodyIOI,
       inferBodyI_leaf_letE _ (knot mode lfe fuel.val) (knot mode lfe fuel.val).ioView] using h
   | @lit l e0 hl h1 =>
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.lit_inv h1
-    simp only [arc_deref_eq, bind_tc_ok] at hok
+    simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at hok
     have h := (hd.inferBody d _ (ExprWF.lit hl h1)).applyO hwf hfe hok hrel hfrel
     simpa [ConLeche.Cached.inferBodyIOI,
       inferBodyI_leaf_lit _ (knot mode lfe fuel.val) (knot mode lfe fuel.val).ioView] using h
@@ -856,24 +856,24 @@ theorem infer_body_io_i_refines (hw : Wrappers mode fuel)
     -- task #61: the one delegated view with a recursive call, and at `ioView`
     -- that call is the io slot, so the Rust spells the clause here
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.proj_inv h1
-    simp only [arc_deref_eq, bind_tc_ok] at hok
+    simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at hok
     have h := (hd.inferProj d sn idx x hsn hx).applyO hwf hfe hok hrel hfrel
     simpa [ConLeche.Cached.inferBodyIOI] using h
   | @lam tyl bo m e0 htyl hbo hm h1 =>
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.lam_inv h1
-    simp only [arc_deref_eq, bind_tc_ok] at hok
+    simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at hok
     have h := (infer_lam_io_i_refines hw hd d htyl hbo hm).applyO hwf hfe hok hrel hfrel
     simpa [inferBodyIOI_lam] using h
   | @forall_e tyf bo m e0 htyf hbo hm h1 =>
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.forall_e_inv h1
-    simp only [arc_deref_eq, bind_tc_ok] at hok
+    simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at hok
     have h := (infer_forall_io_i_refines hw hd d htyf hbo hm).applyO hwf hfe hok hrel hfrel
     simpa [inferBodyIOI_forallE] using h
   | @app f a e0 hf ha h1 =>
     -- the one io-graded clause: the spine walk is `inferSpineIOI`
     have heWF := ExprWF.app hf ha h1
     obtain ⟨dd, rfl, -, -, -⟩ := Expr.app_inv h1
-    simp only [arc_deref_eq, bind_tc_ok] at hok
+    simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at hok
     obtain ⟨hh, hhok, hok⟩ := bind_eq_ok_iff.mp hok
     obtain ⟨args, hargs, hok⟩ := bind_eq_ok_iff.mp hok
     obtain ⟨⟨r0, st1⟩, h2, hok⟩ := bind_eq_ok_iff.mp hok

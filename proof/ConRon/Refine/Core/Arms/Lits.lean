@@ -110,14 +110,14 @@ theorem unfold_definition_i_refines {e : expr.Expr} (he : ExprWF e) :
   refine Sim.mk'' ?_ ?_
   · intro fe lfe hfwf hfrel st r st' hwf hok lst hrel
     unfold cached.core_c.unfold_definition_i at hok
-    simp only [arc_deref_eq, bind_tc_ok, bind_eq_ok_iff] at hok
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, bind_eq_ok_iff] at hok
     obtain ⟨f, hf, hok⟩ := hok
     obtain ⟨hfabs, hfwf'⟩ := ExprOps.get_app_fn_refines he hf
     have hkey : ConLeche.Expr.getAppFn (absExpr e) = absExprKind f._0.kind := by
       rw [← hfabs, CoreK.absExpr_kind]
     simp only [ConLeche.Cached.unfoldDefinitionI, hkey]
     cases hk : f._0.kind
-    all_goals rw [hk] at hok
+    all_goals simp only [hk, ron.node.ExprView.ofKind] at hok
     case Const n us1 =>
       obtain ⟨hnwf, huswf⟩ := CoreK.ExprWF.const_children hfwf' hk
       simp only [name_dup_eq, bind_tc_ok, bind_eq_ok_iff] at hok
@@ -204,14 +204,14 @@ theorem unfold_definition_i_refines {e : expr.Expr} (he : ExprWF e) :
       exact ⟨lst, by simp, hrel, hwf, by simp⟩
   · intro fe lfe hfwf hfrel st ce st' hwf hok lst hrel
     unfold cached.core_c.unfold_definition_i at hok
-    simp only [arc_deref_eq, bind_tc_ok, bind_eq_ok_iff] at hok
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, bind_eq_ok_iff] at hok
     obtain ⟨f, hf, hok⟩ := hok
     obtain ⟨hfabs, hfwf'⟩ := ExprOps.get_app_fn_refines he hf
     have hkey : ConLeche.Expr.getAppFn (absExpr e) = absExprKind f._0.kind := by
       rw [← hfabs, CoreK.absExpr_kind]
     simp only [ConLeche.Cached.unfoldDefinitionI, hkey]
     cases hk : f._0.kind
-    all_goals rw [hk] at hok
+    all_goals simp only [hk, ron.node.ExprView.ofKind] at hok
     case Const n us1 =>
       obtain ⟨hnwf, huswf⟩ := CoreK.ExprWF.const_children hfwf' hk
       simp only [name_dup_eq, bind_tc_ok, bind_eq_ok_iff] at hok
@@ -852,15 +852,15 @@ theorem reduce_nat_i_refines {mode : env.CheckMode} {fuel : Std.U64}
     have hfa : FindAgree fe lfe := FindAgree.of_rel hfrel hfwf
     have hfw : FindWF fe := FindWF.of_wf hfwf
     unfold cached.core_c.reduce_nat_i at hok
-    simp only [arc_deref_eq, bind_tc_ok] at hok
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at hok
     simp only [ConLeche.Cached.reduceNatI, CoreK.absExpr_kind e]
     cases hke : e._0.kind
-    all_goals rw [hke] at hok
+    all_goals simp only [hke, ron.node.ExprView.ofKind] at hok
     case App f b =>
       obtain ⟨hfw', hbw⟩ := CoreK.ExprWF.app_children he hke
       simp only [absExprKind, CoreK.absExpr_kind f] at hok ⊢
       cases hkf : f._0.kind
-      all_goals rw [hkf] at hok
+      all_goals simp only [hkf] at hok
       case Const c us =>
         obtain ⟨hcw, husw⟩ := CoreK.ExprWF.const_children hfw' hkf
         simp only [absExprKind] at hok ⊢
@@ -950,7 +950,7 @@ theorem reduce_nat_i_refines {mode : env.CheckMode} {fuel : Std.U64}
         obtain ⟨hgw, haw⟩ := CoreK.ExprWF.app_children hfw' hkf
         simp only [absExprKind, CoreK.absExpr_kind g] at hok ⊢
         cases hkg : g._0.kind
-        all_goals rw [hkg] at hok
+        all_goals simp only [hkg] at hok
         case Const c us =>
           obtain ⟨hcw, huswg⟩ := CoreK.ExprWF.const_children hgw hkg
           simp only [absExprKind] at hok ⊢
@@ -1028,15 +1028,15 @@ theorem reduce_nat_i_refines {mode : env.CheckMode} {fuel : Std.U64}
     have hfa : FindAgree fe lfe := FindAgree.of_rel hfrel hfwf
     have hfw : FindWF fe := FindWF.of_wf hfwf
     unfold cached.core_c.reduce_nat_i at hok
-    simp only [arc_deref_eq, bind_tc_ok] at hok
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at hok
     simp only [ConLeche.Cached.reduceNatI, CoreK.absExpr_kind e]
     cases hke : e._0.kind
-    all_goals rw [hke] at hok
+    all_goals simp only [hke, ron.node.ExprView.ofKind] at hok
     case App f b =>
       obtain ⟨hfw', hbw⟩ := CoreK.ExprWF.app_children he hke
       simp only [absExprKind, CoreK.absExpr_kind f] at hok ⊢
       cases hkf : f._0.kind
-      all_goals rw [hkf] at hok
+      all_goals simp only [hkf] at hok
       case Const c us =>
         obtain ⟨hcw, husw⟩ := CoreK.ExprWF.const_children hfw' hkf
         simp only [absExprKind] at hok ⊢
@@ -1094,7 +1094,7 @@ theorem reduce_nat_i_refines {mode : env.CheckMode} {fuel : Std.U64}
         obtain ⟨hgw, haw⟩ := CoreK.ExprWF.app_children hfw' hkf
         simp only [absExprKind, CoreK.absExpr_kind g] at hok ⊢
         cases hkg : g._0.kind
-        all_goals rw [hkg] at hok
+        all_goals simp only [hkg] at hok
         case Const c us =>
           obtain ⟨hcw, huswg⟩ := CoreK.ExprWF.const_children hgw hkg
           simp only [absExprKind] at hok ⊢

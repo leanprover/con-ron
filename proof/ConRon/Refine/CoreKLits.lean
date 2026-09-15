@@ -163,7 +163,7 @@ theorem is_bool_true_refines {e : expr.Expr} {b : Bool} (he : ExprWF e)
     b = (absExpr e).isBoolTrue := by
   obtain ⟨⟨d, k⟩⟩ := e
   rw [core_k.is_bool_true.eq_def] at h
-  simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
   cases k with
   | Const c us =>
     dsimp only at h
@@ -291,7 +291,7 @@ theorem raw_nat_lit_refines {e : expr.Expr} {o : Option ron.nat.Nat} (he : ExprW
     o.map Nat.toNat = ConLeche.rawNatLit? (absExpr e) ∧ ∀ m ∈ o, Nat.NatWF m := by
   obtain ⟨⟨d, k⟩⟩ := e
   rw [core_k.raw_nat_lit.eq_def] at h
-  simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
   cases k with
   | Const c us =>
     dsimp only at h
@@ -374,7 +374,7 @@ theorem lit_to_ctor_if_nat_refines {fe : fenv.FEnv} {supported : Bool}
     absExpr r = litToCtorIfNatBody supported (absExpr e) ∧ ExprWF r := by
   obtain ⟨⟨d, k⟩⟩ := e
   rw [core_k.lit_to_ctor_if_nat.eq_def] at h
-  simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
   cases k with
   | Lit l =>
     dsimp only at h
@@ -431,7 +431,7 @@ theorem succ_of_refines {nn : ron.nat.Nat} {f : expr.Expr} {o : Option ron.nat.N
   · simp only [hz, decide_false, Bool.false_eq_true, if_false] at h
     obtain ⟨k, hk⟩ : ∃ k, Nat.toNat nn = k + 1 := ⟨Nat.toNat nn - 1, by omega⟩
     obtain ⟨⟨d, kk⟩⟩ := f
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     cases kk with
     | Const c us =>
       dsimp only at h

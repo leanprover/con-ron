@@ -284,6 +284,11 @@ macro_rules
   | `(tactic| kind_split $h:ident $hk:ident) => `(tactic|
       (split at $h:ident
        all_goals rename_i $hk:ident
+       -- task #94: a reader's `match` is on `view`'s `ExprView`, so the
+       -- hypothesis `split` names is `ofKind k = ExprView.X …`; the ten
+       -- inversions put it back as `k = ExprKind.X …`, which is what the
+       -- goal's `absExprKind` and every arm below speak.
+       all_goals of_kind_inv $hk:ident
        all_goals rw [$hk:ident]
        all_goals simp only [absExprKind]
        all_goals try dead_kind_arm $h:ident))
@@ -466,7 +471,7 @@ theorem nat_succ_ok_refines {o : Option env.ConstantInfo} {c : Bool}
         rw [level_params_nil hlen]
         simp only [List.isEmpty_nil, Bool.true_and]
         rw [absExpr_kind cv.ty]
-        simp only [arc_deref_eq, bind_tc_ok] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at h
         kind_split h hk
         rename_i dom body m
         obtain ⟨hdom, hbody, -⟩ := ExprWF.forallE_children hty hk
@@ -587,7 +592,7 @@ theorem list_ty_ok_refines {o : Option env.ConstantInfo} {c : Bool}
     simp only [Option.map_some, ConLeche.listTyOk, ← hcvabs, absConstantVal]
     split at h
     · rename_i hlen
-      simp only [arc_deref_eq, bind_tc_ok, bind_eq_ok_iff] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, bind_eq_ok_iff] at h
       obtain ⟨p, hpi, h⟩ := h
       obtain ⟨hlp, hpwf⟩ := level_params_one hlen hpi
       have hp : NameWF p := hpwf hcvwf.2.1
@@ -640,7 +645,7 @@ theorem list_nil_ty_ok_refines {o : Option env.ConstantInfo} {c : Bool}
     simp only [Option.map_some, ConLeche.listNilTyOk, ← hcvabs, absConstantVal]
     split at h
     · rename_i hlen
-      simp only [arc_deref_eq, bind_tc_ok, bind_eq_ok_iff] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, bind_eq_ok_iff] at h
       obtain ⟨q, hqi, h⟩ := h
       obtain ⟨hlp, hqwf⟩ := level_params_one hlen hqi
       have hq : NameWF q := hqwf hcvwf.2.1
@@ -722,7 +727,7 @@ theorem char_of_nat_ty_ok_refines {o : Option env.ConstantInfo} {c : Bool}
       rw [level_params_nil hlen]
       simp only [List.isEmpty_nil, Bool.true_and]
       rw [absExpr_kind cv.ty]
-      simp only [arc_deref_eq, bind_tc_ok] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at h
       kind_split h hk
       rename_i dom body m
       obtain ⟨hdom, hbody, -⟩ := ExprWF.forallE_children hcvwf.2.2 hk
@@ -789,7 +794,7 @@ theorem string_of_list_ty_ok_refines {o : Option env.ConstantInfo} {c : Bool}
       rw [level_params_nil hlen]
       simp only [List.isEmpty_nil, Bool.true_and]
       rw [absExpr_kind cv.ty]
-      simp only [arc_deref_eq, bind_tc_ok] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at h
       kind_split h hk
       rename_i dom body m
       obtain ⟨hdom, hbody, -⟩ := ExprWF.forallE_children hcvwf.2.2 hk
@@ -886,7 +891,7 @@ theorem list_cons_tail_ok_refines {u1 : level.Level} {d3 b3 : expr.Expr}
            | _ => false) := by
   intro m1 m2 m3
   rw [core_k.list_cons_tail_ok.eq_def] at h
-  simp only [arc_deref_eq, bind_tc_ok] at h
+  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at h
   rw [absExpr_kind d3, absExpr_kind b3]
   kind_split h hk
   rename_i h1 a1
@@ -986,7 +991,7 @@ theorem list_cons_ty_ok_refines {o : Option env.ConstantInfo} {c : Bool}
     simp only [Option.map_some, ConLeche.listConsTyOk, ← hcvabs, absConstantVal]
     split at h
     · rename_i hlen
-      simp only [arc_deref_eq, bind_tc_ok, bind_eq_ok_iff] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, bind_eq_ok_iff] at h
       obtain ⟨q, hqi, h⟩ := h
       obtain ⟨hlp, hqwf⟩ := level_params_one hlen hqi
       have hq : NameWF q := hqwf hcvwf.2.1
@@ -1250,19 +1255,19 @@ theorem consts_resolve_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.constsResolve]
   | @sort u e hu h1 =>
     obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.constsResolve]
   | @mk_const n us e hn hus h1 =>
     obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff,
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff,
       Result.ok.injEq] at h
     obtain ⟨o, ho, h⟩ := h
     rw [← h, find_isSome hfe hn ho, henv]
@@ -1271,13 +1276,13 @@ theorem consts_resolve_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     rw [ih c h]; simp [ConLeche.Expr.constsResolve]
   | @lit l e hl h1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     cases l with
     | NatVal k =>
       rw [nat_trio_stored_refines hp hfe h]
@@ -1300,7 +1305,7 @@ theorem consts_resolve_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
     simp only [absExpr, absExprNode, absExprKind, ConLeche.Expr.constsResolve]
     exact and_step (ihf b1 hb1) h (fun c' h' => iha c' h')
@@ -1308,7 +1313,7 @@ theorem consts_resolve_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
     simp only [absExpr, absExprNode, absExprKind, ConLeche.Expr.constsResolve]
     exact and_step (iht b1 hb1) h (fun c' h' => ihb c' h')
@@ -1316,7 +1321,7 @@ theorem consts_resolve_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
     simp only [absExpr, absExprNode, absExprKind, ConLeche.Expr.constsResolve]
     exact and_step (iht b1 hb1) h (fun c' h' => ihb c' h')
@@ -1324,7 +1329,7 @@ theorem consts_resolve_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
     simp only [absExpr, absExprNode, absExprKind, ConLeche.Expr.constsResolve,
       Bool.and_assoc]
@@ -1336,7 +1341,7 @@ theorem consts_resolve_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨o, ho, h⟩ := h
     simp only [absExpr, absExprNode, absExprKind, ConLeche.Expr.constsResolve]
     exact and_step (by rw [find_isSome hfe hs ho, henv]) h (fun c' h' => ih c' h')

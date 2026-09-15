@@ -263,55 +263,82 @@ con-ron does nothing con-leche does not.
 ### 3.2 Terms
 
 A term is a reference-counted node
-([`ExprNode` and `Expr` in `expr.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/expr.rs#L356-L364)):
+([`ExprNode` and `Expr` in `expr.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/expr.rs#L355-L366)):
 the constructor data beside a packed 64-bit word that caches what
 con-leche computes in its `@[computed_field]`s — the structural hash, the
 loose bound-variable bound, the has-free-variable and has-level-parameter
-bits.  The pointer type is `std::sync::Arc`, named in exactly one place
-([`ron::ptr`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/ptr.rs#L1-L8)),
-so that the installed environment can be shared by the check phase's
-workers without `unsafe`; the atomic count costs about 15 % of wall time
-single-threaded and buys the pool (§10).  Nodes are built only by smart
-constructors such as
-[`app`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/expr.rs#L430-L441),
-which is what the well-formedness predicate of §5 says.
+bits.  Nodes of every kind are counted, shared and immutable, and the count is
+atomic so that the installed environment can be shared by the check phase's
+workers (§10).
 
-A node is **48 bytes** — the packed word beside the widest `ExprKind` arm,
-40 — and the block its handle points at is 64.  The widest arm is
-`Lam`/`ForallE`
-([`ExprKind`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/expr.rs#L353-L364)),
-because a binder carries one datum of its own beyond its type and body:
-`BinderMeta`, the codomain prop-ness annotation the untrusted annotate pass
-writes and the checker validates — a `PropWhen`, the set of parameter
-valuations under which a level is zero
-([`BinderMeta`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/expr.rs#L119-L121)).
-That datum is 16 bytes and is held **by value**, because `PropWhen` itself is
-one word beside its tag: `Never`, `Always` and `One` carry no heap cell at
-all, and only the rare `Two` and `Many` put their payload behind a handle
+**A node is as wide as its own constructor, and its kind is in the handle.**
+An `Expr` is one machine word: the address of its heap block with the
+constructor in the low four bits, which a block aligned to 16 leaves free
+([`ron::tagged`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/tagged.rs#L1-L20)).
+Each of the ten constructors then has a block of its own size — the count and
+the packed word, then that constructor's fields and nothing else:
+
+| block | bytes | live on `Init`+`Std`+`Lean` |
+|---|---:|---:|
+| `app` | **32** | 18 209 823 |
+| `bvar` | 32 | 4 542 384 |
+| `sort`, `const`, `fvar`, `lit` | 32 | 478 653 |
+| `lam`, `forallE` | **48** | 4 821 064 |
+| `letE`, `proj` | 48 | 82 672 |
+
+Before this the node was 48 bytes whatever the constructor — as wide as the
+widest arm, `lam`/`forallE` — and the block 64, so two thirds of the nodes
+carried 32 bytes of slack.  Three things pay at once now: the kind word moves
+into the handle, the weak count goes with `Arc` (the checker never makes a
+`Weak`), and the slack goes with the uniform node.  **Peak resident set falls
+41 % at Mathlib, 38 % on `Init`+`Std`+`Lean` and 40 % on `Init`** (§6.3), for
+3–4 % more instructions and *less* wall time — which closes the memory gap
+against con-leche, whose Mathlib peak this now matches.
+
+What a binder carries beyond its type and body is one datum: `BinderMeta`, the
+codomain prop-ness annotation the untrusted annotate pass writes and the
+checker validates — a `PropWhen`, the set of parameter valuations under which
+a level is zero
+([`BinderMeta`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/expr.rs#L121-L123)).
+It is 16 bytes and held **by value**, because `PropWhen` is one word beside its
+tag: `Never`, `Always` and `One` carry no heap cell at all, and only the rare
+`Two` and `Many` put their payload behind a handle
 ([`PropWhenRepr`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/prop_when.rs#L285-L291)).
-The alternative — the datum behind its own handle, which makes the node 40
-bytes and the block 56 — was measured and is *worse*, and the reason turns out
-to be exact rather than approximate: **a 56-byte block and a 64-byte one are
-the same allocator size class**, so the 8 bytes per node buy nothing at all,
-while the handle costs a separate block and a reference count on every `lam`
-and `forallE`.  Taking that handle off dropped peak resident set by 8.5 % on
-`Init`, 9.2 % on `Init`+`Std`+`Lean` and 11 % on Mathlib (§6.3), at instruction
-counts that moved under 0.31 %; putting it back, re-measured, costs 2.5 % of
-`Init`+`Std`+`Lean`'s peak.
+That datum is why a binder's block is 48 where an application's is 32.
 
-Size classes are in fact the unit the whole node is priced in.  Measured on
-one machine with 20 M live blocks, mimalloc charges 32 bytes for a 32-byte
-request, 48 for a 40- or 48-byte one and 64 for anything from 49 to 64 —
-glibc and jemalloc round the same way, and glibc charges 80 for the 64 this
-node asks for.  A 48-byte node in a 64-byte block therefore has *no slack to
-give back*: the next class down is 48 bytes, which needs the block itself to
-reach 48 — a 32-byte node behind `Arc`'s two-word header, or a 40-byte one
-behind a one-word header.  DESIGN.md §3.2 has the table and what each of those
-two routes costs.  One thing the measurement did hand over for free: entering
-mimalloc through `mi_malloc` rather than the `mimalloc` crate's unconditional
-`mi_malloc_aligned` is 4.5 % fewer instructions and 7.4 % less wall time on
-`Init`+`Std`+`Lean`, which is why the binary now uses its own
-[`MiMallocTight`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-dump/src/lib.rs#L99-L129).
+Size classes are the unit a node is priced in, and they are why the shape
+above is the one that pays.  Measured on one machine with 20 M live blocks,
+mimalloc charges 32 bytes for a 32-byte request, 48 for a 40- or 48-byte one
+and 64 for anything from 49 to 64; glibc and jemalloc round the same way.  A
+uniform 48-byte node therefore sat in a 64-byte block with no slack it could
+give back — the next class down needs the *block* to reach 48, which no
+repacking of one shared node type could do.  Per-constructor blocks reach 32
+and 48 directly.  Entering mimalloc through `mi_malloc` rather than the
+`mimalloc` crate's unconditional `mi_malloc_aligned` is what keeps them there
+(and is 4.5 % fewer instructions besides), which is why the binary uses its own
+[`MiMallocTight`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-dump/src/lib.rs#L138-L186).
+
+**The `unsafe` this costs, and where it is.**  Putting a constructor in a
+pointer is outside safe Rust, and it is the **only** `unsafe` in the checker:
+nine lines in
+[`ron::tagged`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/tagged.rs#L1-L20),
+a file that names no term type.  Its soundness rests on one invariant — a
+handle is only ever made by the allocator, which writes the block and attaches
+its tag in the same expression and is the sole writer of the private address
+field — and the projection is tag-checked, so asking for the wrong constructor
+is a `None` rather than undefined behaviour.  The `Expr` side
+([`ron::node`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L1-L14))
+is a ten-line table and contains no `unsafe` at all; §7 has what this adds to
+the trusted base and §3.6 the rule that confines it.
+
+`Name`, `Level` and `PropWhen` keep the plain counted pointer
+([`ron::ptr`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/ptr.rs#L1-L8)),
+which is `std::sync::Arc`: their nodes are a fortieth of the bulk, so a uniform
+block costs them nothing, and the atomic count is what lets the installed
+environment be shared by the check phase's workers (§10).  Nodes of every kind
+are built only by smart constructors such as
+[`app`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/expr.rs#L479-L495),
+which is what the well-formedness predicate of §5 says.
 
 ### 3.3 Naturals and hash maps
 
@@ -693,19 +720,21 @@ reference counts.
 <!-- re-measured at task #83, both binaries at the vendored commit c431b1ca, release builds with mimalloc, one run per cell; ulimit -v = 3 x con-leche's RSS + 1 GiB per worker.  The wall column was taken on a machine that was also building Lean, so it is worth less than usual; the instruction counts are not a function of load, which is why they are the measure of record.  The eight-worker Mathlib row is the only cell NOT re-measured (task #83 §5) and stands at master 9ea1ac33.  The single-worker Mathlib con-ron cells were re-measured at task #90 (the binder datum back inline): instructions unchanged to five figures, peak RSS 11 % down, wall on a shared machine.  All three single-worker con-ron cells were re-measured again at task #92 (the tight mimalloc entry), this time in the DRIVER lane (`--jobs=1 --progress=1000000`; a plain `--jobs=1` bypasses the driver, task #89), which is what a real run takes: `Init` is the median of three (wall spread 62.7-72.4 s), the other two are one run each.  The con-leche column is unchanged from task #83. -->
 | export | jobs | con-leche instructions | con-ron instructions | con-leche wall | con-ron wall | con-leche peak RSS | con-ron peak RSS |
 |---|---|---|---|---|---|---|---|
-| `Init` (57 977 declarations) | 1 | 585.9 G | 518.5 G | 56 s | 72 s | 0.48 GB | 0.80 GB |
+| `Init` (57 977 declarations) | 1 | 585.9 G | 538.2 G | 56 s | 61 s | 0.48 GB | **0.48 GB** |
 | `Init` | 8 | 587.2 G | 544.3 G | 12 s | 20 s | 0.67 GB | 1.18 GB |
-| `Init`+`Std`+`Lean` (163 396) | 1 | 1 176.3 G | 1 117.6 G | 122 s | 155 s | 1.22 GB | 2.06 GB |
+| `Init`+`Std`+`Lean` (163 396) | 1 | 1 176.3 G | 1 155.3 G | 122 s | 147 s | 1.22 GB | **1.34 GB** |
 | `Init`+`Std`+`Lean` | 8 | 1 179.4 G | 1 166.6 G | 37 s | 73 s | 1.46 GB | 2.80 GB |
-| Mathlib (691 128) | 1 | 12 792.4 G | 10 922.6 G | 1 220 s | 2 151 s | 8.75 GB | 14.31 GB |
+| Mathlib (691 128) | 1 | 12 792.4 G | 11 484.4 G | 1 220 s | 1 979 s | 8.75 GB | **7.80 GB** |
 | Mathlib | 8 | 12 843 G | 11 343 G | 337 s | 929 s | 9.1 GB | 17.8 GB |
 
-Single-threaded, con-ron does 5–15 % fewer instructions than con-leche on
-every export and takes 1.27–1.76× the wall time at 1.64–1.69× the memory:
-the same work, more memory traffic.  At eight workers the gap in wall
-time widens to 1.7–2.8×: con-leche's check phase scales better, its
-reference counts being plain where con-ron's are atomic in every lane
-(§3.2).
+Single-threaded, con-ron does 2–10 % fewer instructions than con-leche on
+every export, takes 1.09–1.62× the wall time, and since task #94 **uses the
+same memory or less** — level on `Init`, 1.10× on `Init`+`Std`+`Lean`, and
+0.89× at Mathlib, where the gap used to be 1.64×.  At eight workers the gap in
+wall time widens to 1.7–2.8×: con-leche's check phase scales better, its
+reference counts being plain where con-ron's are atomic in every lane (§3.2).
+(The eight-worker rows predate task #94 and their memory will have fallen the
+same way; they have not been re-measured.)
 
 The declaration counts moved by five at the last con-leche bump, on both
 binaries alike: a stream's quotient package is four `#QUOT` records plus
@@ -716,14 +745,19 @@ explain the shape: before the switch to atomic reference counts, Mathlib
 ran at equal instructions, 1.6× the wall and 1.86× the memory; the switch
 to `Arc` cost 13–17 % of wall time single-threaded and bought a check
 phase that scales to 4.3× at eight workers and 6.9× at sixteen on `Init`.
-The memory gap is the 48-byte node in its 64-byte `Arc` block against Lean's
-compact object, and the `Vec`-backed memo tables against `Std.HashMap`.  Task
-#92 measured what closing it would take and what it would cost: the node's
-block has to drop a whole allocator size class, to 48 bytes, and the cheapest
-way there — a 40-byte node behind a one-word `triomphe::Arc` — takes Mathlib
-from 14.31 GB to **11.37 GB**, 21 % less, for **30 % more instructions**.  That
-is three times the budget DESIGN.md §3.2 sets for a memory trade, so it is not
-taken; the 1.64× stands, and it is a size class, not waste.
+**The memory gap is closed, and the story of how is worth the paragraph.**  It
+used to be the 48-byte node in its 64-byte `Arc` block against Lean's compact
+object.  Task #92 measured what closing it would take and priced it: the
+block had to drop a whole allocator size class, to 48 bytes, and the cheapest
+route — a 40-byte node behind a one-word `triomphe::Arc` — took Mathlib from
+14.31 GB to 11.37 GB, 21 % less, for **30 % more instructions**, three times
+the budget DESIGN.md §3.2 sets for a memory trade.  That reasoning was right
+about a *uniform* node and wrong about the problem: a node does not have to be
+one size.  Task #94 put the constructor in the handle and gave each of the ten
+its own block (§3.2), which takes Mathlib to **7.80 GB — 45 % less than before
+and below con-leche's own 8.75 GB** — for **5 % more instructions**, with
+cycles and wall down.  What is left of the gap at `Init`+`Std`+`Lean` is the
+`Vec`-backed memo tables against `Std.HashMap`.
 
 The single-worker column has been re-measured four times since, at the
 changes that could have moved it.  Twice it did not: con-leche's bump
@@ -735,7 +769,11 @@ time only the *memory* moved: task #90 put the binder datum back inline
 11 368.3 G instructions — the same count to five figures, which is what says
 the saving is allocator traffic and not work.  The fourth time only the
 *work* moved: task #92's tight mimalloc entry (§3.2) took Mathlib to
-**10 922.6 G**, 3.9 % fewer instructions, with memory where it was.  That the *parser* rewrite cost
+**10 922.6 G**, 3.9 % fewer instructions, with memory where it was.  The fifth
+is the row above: task #94's tagged handle moved both, and in opposite
+directions — Mathlib's peak 14.31 → **7.80 GB** for **+5.1 %** instructions —
+which is the trade §3.2 records and the only one in this list that was a
+maintainer's decision rather than a free win.  That the *parser* rewrite cost
 nothing is worth a sentence, because the budget expected it to cost something:
 the hot loop of a parser is the scanner, and the scanner never used a closure
 or a `std` map in the first place — what it does per byte is index a slice,
@@ -757,13 +795,48 @@ binary:
 * **Aeneas and Charon.**  The Lean model is what the translator says the
   Rust means.  A translator bug is a hole; the port stays inside the
   documented subset and reports what it found (AENEAS_FINDINGS.md).  The
-  two hand-written models (§5.1) are an argument, not a proof: `Arc` as
-  its contents holds because the lint forbids mutation through it, and
-  `ptr_eq` as `false` is sound because every pointer shortcut has its
-  equivalence lemma.
+  hand-written models (§5.1) are an argument, not a proof: a counted handle as
+  its contents holds because the lint forbids mutation through it, `ptr_eq` as
+  `false` is sound because every pointer shortcut has its equivalence lemma,
+  and a term's ten constructors and its projection are `rfl` against the
+  inductive the proof tier already had — what they assume is the tagged
+  handle's own invariant, which is the next bullet.
 * **`rustc`, the Rust standard library, and `mimalloc`**, the allocator
   the binaries use.  These are what the project trades Lean's compiler,
   runtime and GMP for.
+* **Nine lines of `unsafe`, in one file.**  A term's constructor lives in the
+  low four bits of its handle (§3.2), which is outside safe Rust, and
+  [`ron::tagged`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/tagged.rs#L1-L20)
+  is the only place in the checker that says so — the `Expr` side is a
+  ten-line table with no `unsafe` in it, and the style gate enforces that
+  boundary by path.  What has to be right is one invariant, which the module's
+  note argues and which a reader can check by reading ten adjacent one-line
+  functions: **a handle is only ever made by the allocator**, which writes the
+  block and attaches that kind's tag in the same expression and is the sole
+  writer of the private address field.  Everything else follows — the
+  projection is tag-checked and returns an `Option`, so asking for the wrong
+  constructor is a `None` and not undefined behaviour; the header cast needs no
+  check at all, since every block begins with it under `#[repr(C)]`; and the
+  reference count is `std::sync::Arc`'s protocol verbatim.  The Lean model
+  cannot see any of this: it sees `Raw T := T`, the same line it sees for
+  `Arc`, so **the fifteen operations this adds are trusted in exactly the way
+  `Arc`'s four already were** (§5.1) — what is new is that their
+  implementation is the project's own rather than the standard library's.
+
+  **The trust accounting, stated plainly.**  For `Expr` nodes — and only for
+  them — this *replaces* `std::sync::Arc` as the trusted pointer
+  implementation: what used to be four holes over the standard library's
+  allocation, deref, clone and pointer comparison is now fifteen over
+  `ron::tagged`'s, namely the ten per-constructor allocators, the projection
+  `view`, the cached word `data`, the count bump `dup`, `ptr_eq`, and `Expr`'s
+  `Drop` (which Aeneas never calls).  Each is one line and `rfl` against the
+  `Expr` inductive the proof tier already had, which is the sense in which the
+  change moved no model.  **`Name`, `Level`, `PropWhen` and `ConstantInfo` are
+  untouched**: their nodes are still `std::sync::Arc`
+  ([`ron::ptr`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/ptr.rs#L1-L8)),
+  still behind the same four holes, and no `unsafe` of ours is anywhere near
+  them.  What the trade bought is §6.3's row: Mathlib's peak resident set from
+  14.31 GB to 7.80 GB.
 * **The unverified crate.**  Since task #84 it is three things: the
   in-process **modeller** for mutual and nested inductive blocks, the
   **driver**, and the **worker pool**.  The parser is not among them any more

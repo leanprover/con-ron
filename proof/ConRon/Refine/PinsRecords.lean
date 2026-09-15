@@ -180,6 +180,7 @@ theorem record_name_refines {t : Slice Std.U8} {i : Std.Usize}
   split at h
   · -- `a`: the anonymous name
     rename_i hkb
+    of_kind_inv hkb
     obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 97 :: bytesFrom t i4 :=
@@ -198,6 +199,7 @@ theorem record_name_refines {t : Slice Std.U8} {i : Std.Usize}
   split at h
   · -- `s`: a string component
     rename_i hkb
+    of_kind_inv hkb
     obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 115 :: bytesFrom t i4 :=
@@ -213,6 +215,7 @@ theorem record_name_refines {t : Slice Std.U8} {i : Std.Usize}
   split at h
   · -- `n`: a numeric component
     rename_i hkb
+    of_kind_inv hkb
     obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 110 :: bytesFrom t i4 :=
@@ -369,6 +372,7 @@ theorem record_level_refines {t : Slice Std.U8} {i : Std.Usize}
   split at h
   · -- `z`: zero
     rename_i hkb
+    of_kind_inv hkb
     obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 122 :: bytesFrom t i4 :=
@@ -387,6 +391,7 @@ theorem record_level_refines {t : Slice Std.U8} {i : Std.Usize}
   split at h
   · -- `s`: succ
     rename_i hkb
+    of_kind_inv hkb
     obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 115 :: bytesFrom t i4 :=
@@ -402,6 +407,7 @@ theorem record_level_refines {t : Slice Std.U8} {i : Std.Usize}
   split at h
   · -- `m`: max
     rename_i hkb
+    of_kind_inv hkb
     obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 109 :: bytesFrom t i4 :=
@@ -419,6 +425,7 @@ theorem record_level_refines {t : Slice Std.U8} {i : Std.Usize}
   split at h
   · -- `i`: imax
     rename_i hkb
+    of_kind_inv hkb
     obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 105 :: bytesFrom t i4 :=
@@ -436,6 +443,7 @@ theorem record_level_refines {t : Slice Std.U8} {i : Std.Usize}
   split at h
   · -- `p`: a parameter
     rename_i hkb
+    of_kind_inv hkb
     obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 112 :: bytesFrom t i4 :=
@@ -574,7 +582,7 @@ private theorem name_cmp_eq_abs : ∀ (n : Nat) (a b : name.Name), sizeOf a ≤ 
     obtain ⟨⟨ha, ka⟩⟩ := a
     obtain ⟨⟨hb, kb⟩⟩ := b
     rw [prop_when.name_cmp.eq_def] at hc
-    simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
       name.NameNode.kind._simpLemma_] at hc
     cases ka with
     | Anonymous =>
@@ -886,6 +894,7 @@ theorem record_pw_refines {t : Slice Std.U8} {i : Std.Usize}
   split at h
   · -- `n`: never
     rename_i hkb
+    of_kind_inv hkb
     obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 110 :: bytesFrom t i4 :=
@@ -904,6 +913,7 @@ theorem record_pw_refines {t : Slice Std.U8} {i : Std.Usize}
   split at h
   · -- `z`: `ifAllZero` of a name list
     rename_i hkb
+    of_kind_inv hkb
     obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 122 :: bytesFrom t i4 :=
@@ -1342,6 +1352,7 @@ theorem record_expr_refines {t : Slice Std.U8} {i : Std.Usize}
   split at h
   · -- `b`: a bound variable
     rename_i hkb
+    of_kind_inv hkb
     obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 98 :: bytesFrom t i4 :=
@@ -1357,6 +1368,7 @@ theorem record_expr_refines {t : Slice Std.U8} {i : Std.Usize}
   split at h
   · -- `v`: a free variable
     rename_i hkb
+    of_kind_inv hkb
     obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 118 :: bytesFrom t i4 :=
@@ -1372,6 +1384,7 @@ theorem record_expr_refines {t : Slice Std.U8} {i : Std.Usize}
   split at h
   · -- `s`: a sort
     rename_i hkb
+    of_kind_inv hkb
     obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 115 :: bytesFrom t i4 :=
@@ -1387,6 +1400,7 @@ theorem record_expr_refines {t : Slice Std.U8} {i : Std.Usize}
   split at h
   · -- `c`: a constant
     rename_i hkb
+    of_kind_inv hkb
     obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 99 :: bytesFrom t i4 :=
@@ -1402,6 +1416,7 @@ theorem record_expr_refines {t : Slice Std.U8} {i : Std.Usize}
   split at h
   · -- `a`: an application
     rename_i hkb
+    of_kind_inv hkb
     obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 97 :: bytesFrom t i4 :=
@@ -1417,6 +1432,7 @@ theorem record_expr_refines {t : Slice Std.U8} {i : Std.Usize}
   split at h
   · -- `l`: a lambda
     rename_i hkb
+    of_kind_inv hkb
     obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 108 :: bytesFrom t i4 :=
@@ -1434,6 +1450,7 @@ theorem record_expr_refines {t : Slice Std.U8} {i : Std.Usize}
   split at h
   · -- `f`: a pi
     rename_i hkb
+    of_kind_inv hkb
     obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 102 :: bytesFrom t i4 :=
@@ -1451,6 +1468,7 @@ theorem record_expr_refines {t : Slice Std.U8} {i : Std.Usize}
   split at h
   · -- `t`: a `let`
     rename_i hkb
+    of_kind_inv hkb
     obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 116 :: bytesFrom t i4 :=
@@ -1466,6 +1484,7 @@ theorem record_expr_refines {t : Slice Std.U8} {i : Std.Usize}
   split at h
   · -- `n`: a natural literal
     rename_i hkb
+    of_kind_inv hkb
     obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 110 :: bytesFrom t i4 :=
@@ -1481,6 +1500,7 @@ theorem record_expr_refines {t : Slice Std.U8} {i : Std.Usize}
   split at h
   · -- `g`: a string literal
     rename_i hkb
+    of_kind_inv hkb
     obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 103 :: bytesFrom t i4 :=
@@ -1496,6 +1516,7 @@ theorem record_expr_refines {t : Slice Std.U8} {i : Std.Usize}
   split at h
   · -- `p`: a projection
     rename_i hkb
+    of_kind_inv hkb
     obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
     have hi4v := step_val hi4
     have hc : bytesFrom t i3 = 112 :: bytesFrom t i4 :=

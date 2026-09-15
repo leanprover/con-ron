@@ -289,28 +289,28 @@ theorem name_is_proj_fn_shape_refines {n : name.Name} {b : Bool} (hn : NameWF n)
   | @anonymous n ha =>
     rw [name_anonymous_inv ha] at h ⊢
     rw [level.name_is_proj_fn_shape] at h
-    simp only [arc_deref_eq, name_node_kind, bind_tc_ok, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, name_node_kind, ron.node.ExprView.ofKind, bind_tc_ok, Result.ok.injEq] at h
     rw [← h, absName_mk, absNameKind]
     rfl
   | @str pre s n hpre hs hmk =>
     obtain ⟨hh, rfl⟩ := mk_str_inv hmk
     rw [level.name_is_proj_fn_shape] at h
-    simp only [arc_deref_eq, name_node_kind, bind_tc_ok, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, name_node_kind, ron.node.ExprView.ofKind, bind_tc_ok, Result.ok.injEq] at h
     rw [← h, absName_mk, absNameKind]
     rfl
   | @num pre m n hpre hmk =>
     obtain ⟨hh, rfl⟩ := mk_num_inv hmk
     rw [level.name_is_proj_fn_shape] at h
-    simp only [arc_deref_eq, name_node_kind, bind_tc_ok] at h
+    simp only [expr_view_eq, arc_deref_eq, name_node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
     cases hpre with
     | @anonymous p ha =>
       rw [name_anonymous_inv ha] at h ⊢
-      simp only [name_node_kind, Result.ok.injEq] at h
+      simp only [name_node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h, absName_mk, absNameKind, absName_mk, absNameKind]
       rfl
     | @str p2 s2 p hp2 hs2 hmk2 =>
       obtain ⟨hh2, rfl⟩ := mk_str_inv hmk2
-      simp only [name_node_kind, bind_eq_ok_iff] at h
+      simp only [name_node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
       obtain ⟨b1, hb1, h⟩ := h
       have e1 := is_proj_str_refines hb1
       have hp : (absString s2 = "proj") ↔ s2.val = [112#u32, 114#u32, 111#u32, 106#u32] := by
@@ -332,7 +332,7 @@ theorem name_is_proj_fn_shape_refines {n : name.Name} {b : Bool} (hn : NameWF n)
         rw [is_proj_table_str_refines h, hb1f, Bool.false_or]
     | @num p2 m2 p hp2 hmk2 =>
       obtain ⟨hh2, rfl⟩ := mk_num_inv hmk2
-      simp only [name_node_kind, Result.ok.injEq] at h
+      simp only [name_node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h, absName_mk, absNameKind, absName_mk, absNameKind]
       rfl
 
@@ -501,12 +501,13 @@ theorem eta_ctor_shape_refines (henv : EnvFacts) {fe : fenv.FEnv} {lfe : ConLech
     (h : core_k.eta_ctor_shape fe a = ok b) :
     b = ConLeche.Cached.etaCtorShapeC lfe (absExpr a) := by
   rw [core_k.eta_ctor_shape] at h
-  simp only [bind_eq_ok_iff, arc_deref_eq, Result.ok.injEq, exists_eq_left'] at h
+  simp only [bind_eq_ok_iff, expr_view_eq, arc_deref_eq, Result.ok.injEq, exists_eq_left'] at h
   obtain ⟨f, hf, h⟩ := h
   obtain ⟨hfabs, hfwf⟩ := ExprOps.get_app_fn_refines ha hf
   rw [ConLeche.Cached.etaCtorShapeC, ← hfabs, absExpr_node_kind f]
   split at h
   all_goals rename_i hk
+  all_goals of_kind_inv hk
   all_goals rw [hk]
   all_goals simp only [absExprKind]
   case h_4 cn cus =>
@@ -1266,7 +1267,7 @@ theorem rec_rule_k_of_refines (henv : EnvFacts) {fe : fenv.FEnv} {lfe : ConLeche
     rw [hfind]
     dsimp only
     obtain ⟨res, hres, h⟩ := bind_eq_ok_iff.mp h
-    simp only [bind_eq_ok_iff, arc_deref_eq, Result.ok.injEq, exists_eq_left'] at h
+    simp only [bind_eq_ok_iff, expr_view_eq, arc_deref_eq, Result.ok.injEq, exists_eq_left'] at h
     obtain ⟨f, hf, h⟩ := h
     obtain ⟨hresabs, hreswf⟩ := ExprOps.pi_result_refines hcvwf.2.2 hres
     obtain ⟨hfabs, hfwf⟩ := ExprOps.get_app_fn_refines hreswf hf
@@ -1274,6 +1275,7 @@ theorem rec_rule_k_of_refines (henv : EnvFacts) {fe : fenv.FEnv} {lfe : ConLeche
       absExpr_node_kind f]
     split at h
     all_goals rename_i hk
+    all_goals of_kind_inv hk
     all_goals rw [hk]
     all_goals simp only [absExprKind]
     case h_4 tn tus =>
@@ -1351,7 +1353,7 @@ theorem rec_rule_eta_of_refines (henv : EnvFacts) {fe : fenv.FEnv} {lfe : ConLec
     rw [hfind]
     dsimp only
     obtain ⟨res, hres, h⟩ := bind_eq_ok_iff.mp h
-    simp only [bind_eq_ok_iff, arc_deref_eq, Result.ok.injEq, exists_eq_left'] at h
+    simp only [bind_eq_ok_iff, expr_view_eq, arc_deref_eq, Result.ok.injEq, exists_eq_left'] at h
     obtain ⟨f, hf, h⟩ := h
     obtain ⟨hresabs, hreswf⟩ := ExprOps.pi_result_refines hcvwf.2.2 hres
     obtain ⟨hfabs, hfwf⟩ := ExprOps.get_app_fn_refines hreswf hf
@@ -1359,6 +1361,7 @@ theorem rec_rule_eta_of_refines (henv : EnvFacts) {fe : fenv.FEnv} {lfe : ConLec
       absExpr_node_kind f]
     split at h
     all_goals rename_i hk
+    all_goals of_kind_inv hk
     all_goals rw [hk]
     all_goals simp only [absExprKind]
     case h_4 tn tus =>

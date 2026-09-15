@@ -243,15 +243,15 @@ theorem name_cmp_refines_aux {a : name.Name} (ha : NameWF a) :
     obtain ⟨⟨h2, kb⟩⟩ := b
     cases kb with
     | Anonymous =>
-      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, Result.ok.injEq] at hc
       subst hc; simp [ConLeche.Name.cmp, absOrdering]
     | Str q t =>
-      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, Result.ok.injEq] at hc
       subst hc; simp [ConLeche.Name.cmp, absOrdering]
     | Num q k =>
-      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, Result.ok.injEq] at hc
       subst hc; simp [ConLeche.Name.cmp, absOrdering]
   | @str pre s n hpre hs hmk ih =>
@@ -261,15 +261,15 @@ theorem name_cmp_refines_aux {a : name.Name} (ha : NameWF a) :
     obtain ⟨⟨h2, kb⟩⟩ := b
     cases kb with
     | Anonymous =>
-      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, Result.ok.injEq] at hc
       subst hc; simp [ConLeche.Name.cmp, absOrdering]
     | Num q k =>
-      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, Result.ok.injEq] at hc
       subst hc; simp [ConLeche.Name.cmp, absOrdering]
     | Str q t =>
-      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, bind_eq_ok_iff] at hc
       obtain ⟨o1, ho1, o2, ho2, hthen⟩ := hc
       obtain ⟨hq, ht, hqt⟩ : NameWF q ∧ StrWF t ∧ True := by
@@ -296,15 +296,15 @@ theorem name_cmp_refines_aux {a : name.Name} (ha : NameWF a) :
     obtain ⟨⟨h2, kb⟩⟩ := b
     cases kb with
     | Anonymous =>
-      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, Result.ok.injEq] at hc
       subst hc; simp [ConLeche.Name.cmp, absOrdering]
     | Str q t =>
-      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, Result.ok.injEq] at hc
       subst hc; simp [ConLeche.Name.cmp, absOrdering]
     | Num q k =>
-      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, bind_eq_ok_iff] at hc
       obtain ⟨o1, ho1, o2, ho2, hthen⟩ := hc
       have hq : NameWF q := by

@@ -973,7 +973,7 @@ theorem check_one_rec_refines {st : frontend.export_c.StateD}
   | Ok v =>
     obtain ⟨habs, hvwf⟩ := hst
     obtain ⟨⟨hsh, kv⟩⟩ := v
-    simp only [arc_deref_eq, bind_tc_ok] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at h
     simp only [lRecStep, absIndRecRec, absCVRec, absU64, habs]
     rw [iv_ok_bind]
     simp only [beq_iff_eq]
@@ -1343,12 +1343,12 @@ theorem k_expected_of_refines {ty_types : alloc.vec.Vec expr.Expr}
           obtain ⟨habsr, hrwf⟩ := ExprOps.pi_result_refines hewf hres
           rw [hety] at habsr
           obtain ⟨⟨d, k⟩⟩ := res
-          simp only [arc_deref_eq] at h
+          simp only [expr_view_eq, arc_deref_eq] at h
           obtain ⟨en, hen, h⟩ := h
           have henv : en = (expr.Expr.mk (expr.ExprNode.mk d k))._0 :=
             (Result.ok_injective hen).symm
           subst henv
-          simp only [ExprOps.node_kind] at h
+          simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at h
           cases k with
           | «Sort» u =>
             have huwf : LevelWF u := CoreK.wf_sort_inv hrwf rfl

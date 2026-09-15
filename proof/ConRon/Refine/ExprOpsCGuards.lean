@@ -159,7 +159,7 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
         exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey) (Q := WScQ)
           key_exact hm (keyWF_mk hwfe) (memo_b1_get_hit ho), hm⟩
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨oldv, memoZ⟩ := p9
         have e0 := Result.ok_injective (α := Bool × _) h
@@ -191,7 +191,7 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
         exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey) (Q := WScQ)
           key_exact hm (keyWF_mk hwfe) (memo_b1_get_hit ho), hm⟩
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
         obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
@@ -252,7 +252,7 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
         exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey) (Q := WScQ)
           key_exact hm (keyWF_mk hwfe) (memo_b1_get_hit ho), hm⟩
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨oldv, memoZ⟩ := p9
         have e0 := Result.ok_injective (α := Bool × _) h
@@ -284,7 +284,7 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
         exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey) (Q := WScQ)
           key_exact hm (keyWF_mk hwfe) (memo_b1_get_hit ho), hm⟩
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨oldv, memoZ⟩ := p9
         have e0 := Result.ok_injective (α := Bool × _) h
@@ -316,7 +316,7 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
         exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey) (Q := WScQ)
           key_exact hm (keyWF_mk hwfe) (memo_b1_get_hit ho), hm⟩
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨oldv, memoZ⟩ := p9
         have e0 := Result.ok_injective (α := Bool × _) h
@@ -348,7 +348,7 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
         exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey) (Q := WScQ)
           key_exact hm (keyWF_mk hwfe) (memo_b1_get_hit ho), hm⟩
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
         obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
@@ -404,7 +404,7 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
         exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey) (Q := WScQ)
           key_exact hm (keyWF_mk hwfe) (memo_b1_get_hit ho), hm⟩
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
         obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
@@ -460,7 +460,7 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
         exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey) (Q := WScQ)
           key_exact hm (keyWF_mk hwfe) (memo_b1_get_hit ho), hm⟩
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
         obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
@@ -516,7 +516,7 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
         exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey) (Q := WScQ)
           key_exact hm (keyWF_mk hwfe) (memo_b1_get_hit ho), hm⟩
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
         obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
@@ -580,7 +580,7 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
         exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey) (Q := WScQ)
           key_exact hm (keyWF_mk hwfe) (memo_b1_get_hit ho), hm⟩
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
         obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
@@ -885,7 +885,7 @@ theorem fvar_leaves_go_aux {e : expr.Expr} (he : ExprWF e) :
         obtain ⟨p, hins, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨oldv, seen1⟩ := p
         have hm1 := SeenQ_insertGray hm hwfe hd1 hins
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         exact leaves_ret_nil hacc
           (SeenQ_dropGray hm1 (by rw [hnil]; simp)) hnil h
   | @sort u e hu h1 =>
@@ -907,7 +907,7 @@ theorem fvar_leaves_go_aux {e : expr.Expr} (he : ExprWF e) :
         obtain ⟨p, hins, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨oldv, seen1⟩ := p
         have hm1 := SeenQ_insertGray hm hwfe hd1 hins
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         exact leaves_ret_nil hacc
           (SeenQ_dropGray hm1 (by rw [hnil]; simp)) hnil h
   | @mk_const n us e hn hus h1 =>
@@ -929,7 +929,7 @@ theorem fvar_leaves_go_aux {e : expr.Expr} (he : ExprWF e) :
         obtain ⟨p, hins, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨oldv, seen1⟩ := p
         have hm1 := SeenQ_insertGray hm hwfe hd1 hins
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         exact leaves_ret_nil hacc
           (SeenQ_dropGray hm1 (by rw [hnil]; simp)) hnil h
   | @lit l e hl h1 =>
@@ -951,7 +951,7 @@ theorem fvar_leaves_go_aux {e : expr.Expr} (he : ExprWF e) :
         obtain ⟨p, hins, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨oldv, seen1⟩ := p
         have hm1 := SeenQ_insertGray hm hwfe hd1 hins
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         exact leaves_ret_nil hacc
           (SeenQ_dropGray hm1 (by rw [hnil]; simp)) hnil h
   | @fvar idx ty e hty h1 ih =>
@@ -984,7 +984,7 @@ theorem fvar_leaves_go_aux {e : expr.Expr} (he : ExprWF e) :
         obtain ⟨p, hins, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨oldv, seen1⟩ := p
         have hm1 := SeenQ_insertGray hm hwfe hd1 hins
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨e2, hd2, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨acc1, hpush, h⟩ := bind_eq_ok_iff.mp h
         rw [Expr.dup_eq hd2] at hpush
@@ -1047,7 +1047,7 @@ theorem fvar_leaves_go_aux {e : expr.Expr} (he : ExprWF e) :
         obtain ⟨p, hins, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨oldv, seen1⟩ := p
         have hm1 := SeenQ_insertGray hm hwfe hd1 hins
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, h2, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨acc2, seen2⟩ := q
         have hGf : ∀ y, (G y ∨ y = absExpr (expr.Expr.mk (expr.ExprNode.mk d1
@@ -1103,7 +1103,7 @@ theorem fvar_leaves_go_aux {e : expr.Expr} (he : ExprWF e) :
         obtain ⟨p, hins, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨oldv, seen1⟩ := p
         have hm1 := SeenQ_insertGray hm hwfe hd1 hins
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, h2, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨acc2, seen2⟩ := q
         have hGf : ∀ y, (G y ∨ y = absExpr (expr.Expr.mk (expr.ExprNode.mk d1
@@ -1160,7 +1160,7 @@ theorem fvar_leaves_go_aux {e : expr.Expr} (he : ExprWF e) :
         obtain ⟨p, hins, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨oldv, seen1⟩ := p
         have hm1 := SeenQ_insertGray hm hwfe hd1 hins
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, h2, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨acc2, seen2⟩ := q
         have hGf : ∀ y, (G y ∨ y = absExpr (expr.Expr.mk (expr.ExprNode.mk d1
@@ -1219,7 +1219,7 @@ theorem fvar_leaves_go_aux {e : expr.Expr} (he : ExprWF e) :
         obtain ⟨p, hins, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨oldv, seen1⟩ := p
         have hm1 := SeenQ_insertGray hm hwfe hd1 hins
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, h2, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨acc2, seen2⟩ := q
         obtain ⟨q3, h3, h⟩ := bind_eq_ok_iff.mp h
@@ -1284,7 +1284,7 @@ theorem fvar_leaves_go_aux {e : expr.Expr} (he : ExprWF e) :
         obtain ⟨p, hins, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨oldv, seen1⟩ := p
         have hm1 := SeenQ_insertGray hm hwfe hd1 hins
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         have hGx : ∀ y, (G y ∨ y = absExpr (expr.Expr.mk (expr.ExprNode.mk d1
               (expr.ExprKind.Proj s i x)))) → (absExpr x).sizeF < y.sizeF := by
           intro y hy
@@ -1551,7 +1551,7 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
         exact ⟨MemoInv.hit (KWF := ExprWF) (absK := absExpr)
           (Q := LeafSubQ (absLeaves bl)) expr_key_exact hm hwfe (memo_b_get_hit ho), hm⟩
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨oldv, memoZ⟩ := p9
@@ -1583,7 +1583,7 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
         exact ⟨MemoInv.hit (KWF := ExprWF) (absK := absExpr)
           (Q := LeafSubQ (absLeaves bl)) expr_key_exact hm hwfe (memo_b_get_hit ho), hm⟩
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
         obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
@@ -1640,7 +1640,7 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
         exact ⟨MemoInv.hit (KWF := ExprWF) (absK := absExpr)
           (Q := LeafSubQ (absLeaves bl)) expr_key_exact hm hwfe (memo_b_get_hit ho), hm⟩
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨oldv, memoZ⟩ := p9
@@ -1672,7 +1672,7 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
         exact ⟨MemoInv.hit (KWF := ExprWF) (absK := absExpr)
           (Q := LeafSubQ (absLeaves bl)) expr_key_exact hm hwfe (memo_b_get_hit ho), hm⟩
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨oldv, memoZ⟩ := p9
@@ -1704,7 +1704,7 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
         exact ⟨MemoInv.hit (KWF := ExprWF) (absK := absExpr)
           (Q := LeafSubQ (absLeaves bl)) expr_key_exact hm hwfe (memo_b_get_hit ho), hm⟩
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨oldv, memoZ⟩ := p9
@@ -1736,7 +1736,7 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
         exact ⟨MemoInv.hit (KWF := ExprWF) (absK := absExpr)
           (Q := LeafSubQ (absLeaves bl)) expr_key_exact hm hwfe (memo_b_get_hit ho), hm⟩
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
         obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
@@ -1792,7 +1792,7 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
         exact ⟨MemoInv.hit (KWF := ExprWF) (absK := absExpr)
           (Q := LeafSubQ (absLeaves bl)) expr_key_exact hm hwfe (memo_b_get_hit ho), hm⟩
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
         obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
@@ -1848,7 +1848,7 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
         exact ⟨MemoInv.hit (KWF := ExprWF) (absK := absExpr)
           (Q := LeafSubQ (absLeaves bl)) expr_key_exact hm hwfe (memo_b_get_hit ho), hm⟩
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
         obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
@@ -1904,7 +1904,7 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
         exact ⟨MemoInv.hit (KWF := ExprWF) (absK := absExpr)
           (Q := LeafSubQ (absLeaves bl)) expr_key_exact hm hwfe (memo_b_get_hit ho), hm⟩
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
         obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
@@ -1968,7 +1968,7 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
         exact ⟨MemoInv.hit (KWF := ExprWF) (absK := absExpr)
           (Q := LeafSubQ (absLeaves bl)) expr_key_exact hm hwfe (memo_b_get_hit ho), hm⟩
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
         obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
@@ -2289,7 +2289,7 @@ theorem all_level_params_defined_go_refines {params : alloc.vec.Vec name.Name}
       cases o with
       | some w => exact alpd_hit hwfe hm ho h
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨oldv, memo3⟩ := p3
@@ -2318,7 +2318,7 @@ theorem all_level_params_defined_go_refines {params : alloc.vec.Vec name.Name}
       cases o with
       | some w => exact alpd_hit hwfe hm ho h
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨oldv, memo3⟩ := p3
@@ -2347,7 +2347,7 @@ theorem all_level_params_defined_go_refines {params : alloc.vec.Vec name.Name}
       cases o with
       | some w => exact alpd_hit hwfe hm ho h
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
         obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
@@ -2388,7 +2388,7 @@ theorem all_level_params_defined_go_refines {params : alloc.vec.Vec name.Name}
       cases o with
       | some w => exact alpd_hit hwfe hm ho h
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
         obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
@@ -2430,7 +2430,7 @@ theorem all_level_params_defined_go_refines {params : alloc.vec.Vec name.Name}
       cases o with
       | some w => exact alpd_hit hwfe hm ho h
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
         obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
@@ -2476,7 +2476,7 @@ theorem all_level_params_defined_go_refines {params : alloc.vec.Vec name.Name}
       cases o with
       | some w => exact alpd_hit hwfe hm ho h
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
         obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
@@ -2522,7 +2522,7 @@ theorem all_level_params_defined_go_refines {params : alloc.vec.Vec name.Name}
       cases o with
       | some w => exact alpd_hit hwfe hm ho h
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
         obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
@@ -2575,7 +2575,7 @@ theorem all_level_params_defined_go_refines {params : alloc.vec.Vec name.Name}
       cases o with
       | some w => exact alpd_hit hwfe hm ho h
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
         obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
@@ -2630,7 +2630,7 @@ theorem all_level_params_defined_go_refines {params : alloc.vec.Vec name.Name}
       cases o with
       | some w => exact alpd_hit hwfe hm ho h
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
         obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
@@ -2685,7 +2685,7 @@ theorem all_level_params_defined_go_refines {params : alloc.vec.Vec name.Name}
       cases o with
       | some w => exact alpd_hit hwfe hm ho h
       | none =>
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
         obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
@@ -3042,7 +3042,7 @@ theorem pi_residual_acc_refines_aux (N : Nat) :
       cases he with
       | @bvar j e h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.bvar_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         split at h
         · -- the accumulator is empty: no residual
           rename_i hz
@@ -3086,42 +3086,42 @@ theorem pi_residual_acc_refines_aux (N : Nat) :
             show ((0#u64 : Std.U64)).val = 0 by scalar_tac]
       | @fvar idx ty e hty h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.fvar_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
         subst h
         obtain ⟨x, hx⟩ := hdropx
         exact ⟨by rw [absExprs_drop_cons hx, absExpr_mk, absExprKind, prA_fvar]; rfl,
           by intro y hy; simp at hy⟩
       | @sort u e hu h1 =>
         obtain ⟨d, _, -, rfl, -, -, -⟩ := Expr.sort_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
         subst h
         obtain ⟨x, hx⟩ := hdropx
         exact ⟨by rw [absExprs_drop_cons hx, absExpr_mk, absExprKind, prA_sort]; rfl,
           by intro y hy; simp at hy⟩
       | @mk_const n us e hn hus h1 =>
         obtain ⟨d, _, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
         subst h
         obtain ⟨x, hx⟩ := hdropx
         exact ⟨by rw [absExprs_drop_cons hx, absExpr_mk, absExprKind, prA_const]; rfl,
           by intro y hy; simp at hy⟩
       | @app f a e hf ha h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.app_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
         subst h
         obtain ⟨x, hx⟩ := hdropx
         exact ⟨by rw [absExprs_drop_cons hx, absExpr_mk, absExprKind, prA_app]; rfl,
           by intro y hy; simp at hy⟩
       | @lam ty bo m e hty hbo hm h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.lam_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
         subst h
         obtain ⟨x, hx⟩ := hdropx
         exact ⟨by rw [absExprs_drop_cons hx, absExpr_mk, absExprKind, prA_lam]; rfl,
           by intro y hy; simp at hy⟩
       | @forall_e ty bo m e hty hbo hm h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.forall_e_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
         obtain ⟨x, hidx, acc2, hcons, i2, hi2, hrec⟩ := h
         obtain ⟨-, hxwf, hdrop⟩ := vec_index_expr hargs hidx
         obtain ⟨haccabs, haccwf⟩ := cons_expr_refines hxwf hacc hcons
@@ -3136,21 +3136,21 @@ theorem pi_residual_acc_refines_aux (N : Nat) :
         rw [habs, haccabs, hi2v, hdrop, absExpr_mk, absExprKind, prA_forallE]
       | @let_e ty v bo e hty hv hbo h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.let_e_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
         subst h
         obtain ⟨x, hx⟩ := hdropx
         exact ⟨by rw [absExprs_drop_cons hx, absExpr_mk, absExprKind, prA_letE]; rfl,
           by intro y hy; simp at hy⟩
       | @lit l e hl h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.lit_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
         subst h
         obtain ⟨x, hx⟩ := hdropx
         exact ⟨by rw [absExprs_drop_cons hx, absExpr_mk, absExprKind, prA_lit]; rfl,
           by intro y hy; simp at hy⟩
       | @proj s k x e hs hxw h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.proj_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
         subst h
         obtain ⟨y, hy⟩ := hdropx
         exact ⟨by rw [absExprs_drop_cons hy, absExpr_mk, absExprKind, prA_proj]; rfl,

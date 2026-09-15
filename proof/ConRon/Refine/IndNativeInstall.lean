@@ -1260,12 +1260,12 @@ private theorem mentions_fvar_walk {q : Std.U64} {e : expr.Expr} (he : ExprWF e)
     obtain ⟨d, hde, -, -, -⟩ := Expr.bvar_inv h1
     constructor <;> intro memo memo' r hm h
     · rw [inductives.native_install.mentions_fvar_go.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨hr, hmm⟩ := pair_ok h
       rw [← hr, ← hmm, hde]
       exact ⟨by simp [ConLeche.Expr.mentionsFvar, ConLeche.Expr.fvarLeaves], hm⟩
     · rw [inductives.native_install.mentions_fvar_node.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨hr, hmm⟩ := pair_ok h
       rw [← hr, ← hmm, hde]
       exact ⟨by simp [ConLeche.Expr.mentionsFvar, ConLeche.Expr.fvarLeaves], hm⟩
@@ -1273,12 +1273,12 @@ private theorem mentions_fvar_walk {q : Std.U64} {e : expr.Expr} (he : ExprWF e)
     obtain ⟨d, bw, -, hde, -, -, -⟩ := Expr.sort_inv h1
     constructor <;> intro memo memo' r hm h
     · rw [inductives.native_install.mentions_fvar_go.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨hr, hmm⟩ := pair_ok h
       rw [← hr, ← hmm, hde]
       exact ⟨by simp [ConLeche.Expr.mentionsFvar, ConLeche.Expr.fvarLeaves], hm⟩
     · rw [inductives.native_install.mentions_fvar_node.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨hr, hmm⟩ := pair_ok h
       rw [← hr, ← hmm, hde]
       exact ⟨by simp [ConLeche.Expr.mentionsFvar, ConLeche.Expr.fvarLeaves], hm⟩
@@ -1286,12 +1286,12 @@ private theorem mentions_fvar_walk {q : Std.U64} {e : expr.Expr} (he : ExprWF e)
     obtain ⟨d, hde, -, -, -⟩ := Expr.lit_inv h1
     constructor <;> intro memo memo' r hm h
     · rw [inductives.native_install.mentions_fvar_go.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨hr, hmm⟩ := pair_ok h
       rw [← hr, ← hmm, hde]
       exact ⟨by simp [ConLeche.Expr.mentionsFvar, ConLeche.Expr.fvarLeaves], hm⟩
     · rw [inductives.native_install.mentions_fvar_node.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨hr, hmm⟩ := pair_ok h
       rw [← hr, ← hmm, hde]
       exact ⟨by simp [ConLeche.Expr.mentionsFvar, ConLeche.Expr.fvarLeaves], hm⟩
@@ -1299,12 +1299,12 @@ private theorem mentions_fvar_walk {q : Std.U64} {e : expr.Expr} (he : ExprWF e)
     obtain ⟨d, bw, -, hde, -, -, -⟩ := Expr.mk_const_inv h1
     constructor <;> intro memo memo' r hm h
     · rw [inductives.native_install.mentions_fvar_go.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨hr, hmm⟩ := pair_ok h
       rw [← hr, ← hmm, hde]
       exact ⟨by simp [ConLeche.Expr.mentionsFvar, ConLeche.Expr.fvarLeaves], hm⟩
     · rw [inductives.native_install.mentions_fvar_node.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨hr, hmm⟩ := pair_ok h
       rw [← hr, ← hmm, hde]
       exact ⟨by simp [ConLeche.Expr.mentionsFvar, ConLeche.Expr.fvarLeaves], hm⟩
@@ -1315,7 +1315,7 @@ private theorem mentions_fvar_walk {q : Std.U64} {e : expr.Expr} (he : ExprWF e)
     have hnode : MFNodeOK q e := by
       intro memo memo' r hm h
       rw [inductives.native_install.mentions_fvar_node.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       rw [habs, ConLeche.Expr.mentionsFvar_fvar]
       split at h
       · rename_i hc
@@ -1333,7 +1333,7 @@ private theorem mentions_fvar_walk {q : Std.U64} {e : expr.Expr} (he : ExprWF e)
     refine ⟨?_, hnode⟩
     intro memo memo' r hm h
     rw [inductives.native_install.mentions_fvar_go.eq_def, hde] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
     rw [← hde] at hprobe h
     exact mfv_probe_step hewf hnode hm h hprobe
@@ -1344,7 +1344,7 @@ private theorem mentions_fvar_walk {q : Std.U64} {e : expr.Expr} (he : ExprWF e)
     have hnode : MFNodeOK q e := by
       intro memo memo' r hm h
       rw [inductives.native_install.mentions_fvar_node.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨b1, memo1⟩ := p1
       obtain ⟨hb1, hm1⟩ := ihf.1 memo memo1 b1 hm h1'
@@ -1365,7 +1365,7 @@ private theorem mentions_fvar_walk {q : Std.U64} {e : expr.Expr} (he : ExprWF e)
     refine ⟨?_, hnode⟩
     intro memo memo' r hm h
     rw [inductives.native_install.mentions_fvar_go.eq_def, hde] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
     rw [← hde] at hprobe h
     exact mfv_probe_step hewf hnode hm h hprobe
@@ -1377,7 +1377,7 @@ private theorem mentions_fvar_walk {q : Std.U64} {e : expr.Expr} (he : ExprWF e)
     have hnode : MFNodeOK q e := by
       intro memo memo' r hm h
       rw [inductives.native_install.mentions_fvar_node.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨b1, memo1⟩ := p1
       obtain ⟨hb1, hm1⟩ := iht.1 memo memo1 b1 hm h1'
@@ -1398,7 +1398,7 @@ private theorem mentions_fvar_walk {q : Std.U64} {e : expr.Expr} (he : ExprWF e)
     refine ⟨?_, hnode⟩
     intro memo memo' r hm h
     rw [inductives.native_install.mentions_fvar_go.eq_def, hde] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
     rw [← hde] at hprobe h
     exact mfv_probe_step hewf hnode hm h hprobe
@@ -1410,7 +1410,7 @@ private theorem mentions_fvar_walk {q : Std.U64} {e : expr.Expr} (he : ExprWF e)
     have hnode : MFNodeOK q e := by
       intro memo memo' r hm h
       rw [inductives.native_install.mentions_fvar_node.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨b1, memo1⟩ := p1
       obtain ⟨hb1, hm1⟩ := iht.1 memo memo1 b1 hm h1'
@@ -1431,7 +1431,7 @@ private theorem mentions_fvar_walk {q : Std.U64} {e : expr.Expr} (he : ExprWF e)
     refine ⟨?_, hnode⟩
     intro memo memo' r hm h
     rw [inductives.native_install.mentions_fvar_go.eq_def, hde] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
     rw [← hde] at hprobe h
     exact mfv_probe_step hewf hnode hm h hprobe
@@ -1443,7 +1443,7 @@ private theorem mentions_fvar_walk {q : Std.U64} {e : expr.Expr} (he : ExprWF e)
     have hnode : MFNodeOK q e := by
       intro memo memo' r hm h
       rw [inductives.native_install.mentions_fvar_node.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨b1, memo1⟩ := p1
       obtain ⟨hb1, hm1⟩ := iht.1 memo memo1 b1 hm h1'
@@ -1477,7 +1477,7 @@ private theorem mentions_fvar_walk {q : Std.U64} {e : expr.Expr} (he : ExprWF e)
     refine ⟨?_, hnode⟩
     intro memo memo' r hm h
     rw [inductives.native_install.mentions_fvar_go.eq_def, hde] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
     rw [← hde] at hprobe h
     exact mfv_probe_step hewf hnode hm h hprobe
@@ -1488,14 +1488,14 @@ private theorem mentions_fvar_walk {q : Std.U64} {e : expr.Expr} (he : ExprWF e)
     have hnode : MFNodeOK q e := by
       intro memo memo' r hm h
       rw [inductives.native_install.mentions_fvar_node.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨hb1, hm1⟩ := ih.1 memo memo' r hm h
       rw [habs, ConLeche.Expr.mentionsFvar_proj]
       exact ⟨hb1, hm1⟩
     refine ⟨?_, hnode⟩
     intro memo memo' r hm h
     rw [inductives.native_install.mentions_fvar_go.eq_def, hde] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
     rw [← hde] at hprobe h
     exact mfv_probe_step hewf hnode hm h hprobe

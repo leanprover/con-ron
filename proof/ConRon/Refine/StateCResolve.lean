@@ -211,7 +211,7 @@ theorem consts_resolve_fc_go_refines (hg : LitGuardsRefine) {fe : fenv.FEnv}
     refine go_of_node hm hwfe ?_ h
     intro b' m' hnd
     rw [cached.state_c.consts_resolve_fc_node.eq_def] at hnd
-    simp only [arc_deref_eq, bind_tc_ok, ConRon.Refine.ExprOps.node_kind, Result.ok.injEq,
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ConRon.Refine.ExprOps.node_kind, ron.node.ExprView.ofKind, Result.ok.injEq,
       Prod.mk.injEq] at hnd
     obtain ⟨rfl, rfl⟩ := hnd
     exact ⟨lmemo, by simp [nodeL], hm⟩
@@ -222,7 +222,7 @@ theorem consts_resolve_fc_go_refines (hg : LitGuardsRefine) {fe : fenv.FEnv}
     refine go_of_node hm hwfe ?_ h
     intro b' m' hnd
     rw [cached.state_c.consts_resolve_fc_node.eq_def] at hnd
-    simp only [arc_deref_eq, bind_tc_ok, ConRon.Refine.ExprOps.node_kind, Result.ok.injEq,
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ConRon.Refine.ExprOps.node_kind, ron.node.ExprView.ofKind, Result.ok.injEq,
       Prod.mk.injEq] at hnd
     obtain ⟨rfl, rfl⟩ := hnd
     exact ⟨lmemo, by simp [nodeL], hm⟩
@@ -233,7 +233,7 @@ theorem consts_resolve_fc_go_refines (hg : LitGuardsRefine) {fe : fenv.FEnv}
     refine go_of_node hm hwfe ?_ h
     intro b' m' hnd
     rw [cached.state_c.consts_resolve_fc_node.eq_def] at hnd
-    simp only [arc_deref_eq, bind_tc_ok, ConRon.Refine.ExprOps.node_kind, bind_eq_ok_iff] at hnd
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ConRon.Refine.ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at hnd
     obtain ⟨o, hfind, hnd⟩ := hnd
     have hlf := FEnv.find_refines hfrel hfwf hn hfind
     simp only [Result.ok.injEq, Prod.mk.injEq] at hnd
@@ -249,7 +249,7 @@ theorem consts_resolve_fc_go_refines (hg : LitGuardsRefine) {fe : fenv.FEnv}
     refine go_of_node hm hwfe ?_ h
     intro b' m' hnd
     rw [cached.state_c.consts_resolve_fc_node.eq_def] at hnd
-    simp only [arc_deref_eq, bind_tc_ok, ConRon.Refine.ExprOps.node_kind] at hnd
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ConRon.Refine.ExprOps.node_kind, ron.node.ExprView.ofKind] at hnd
     cases l with
     | NatVal k =>
       simp only [bind_eq_ok_iff] at hnd
@@ -289,7 +289,7 @@ theorem consts_resolve_fc_go_refines (hg : LitGuardsRefine) {fe : fenv.FEnv}
     refine go_of_node hm hwfe ?_ h
     intro b' m' hnd
     rw [cached.state_c.consts_resolve_fc_node.eq_def] at hnd
-    simp only [arc_deref_eq, bind_tc_ok, ConRon.Refine.ExprOps.node_kind] at hnd
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ConRon.Refine.ExprOps.node_kind, ron.node.ExprView.ofKind] at hnd
     obtain ⟨lm1, hl1, hm1⟩ := ih memo m' lmemo b' hm hnd
     refine ⟨lm1, ?_, hm1⟩
     simp only [nodeL, absExpr_mk, absExprKind]
@@ -301,7 +301,7 @@ theorem consts_resolve_fc_go_refines (hg : LitGuardsRefine) {fe : fenv.FEnv}
     refine go_of_node hm hwfe ?_ h
     intro b' m' hnd
     rw [cached.state_c.consts_resolve_fc_node.eq_def] at hnd
-    simp only [arc_deref_eq, bind_tc_ok, ConRon.Refine.ExprOps.node_kind, bind_eq_ok_iff] at hnd
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ConRon.Refine.ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at hnd
     obtain ⟨p, h1f, hnd⟩ := hnd
     obtain ⟨bf, m1⟩ := p
     obtain ⟨lm1, hl1, hm1⟩ := ihf memo m1 lmemo bf hm h1f
@@ -321,7 +321,7 @@ theorem consts_resolve_fc_go_refines (hg : LitGuardsRefine) {fe : fenv.FEnv}
     refine go_of_node hm hwfe ?_ h
     intro b' m' hnd
     rw [cached.state_c.consts_resolve_fc_node.eq_def] at hnd
-    simp only [arc_deref_eq, bind_tc_ok, ConRon.Refine.ExprOps.node_kind, bind_eq_ok_iff] at hnd
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ConRon.Refine.ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at hnd
     obtain ⟨p, h1t, hnd⟩ := hnd
     obtain ⟨bt, m1⟩ := p
     obtain ⟨lm1, hl1, hm1⟩ := ihty memo m1 lmemo bt hm h1t
@@ -341,7 +341,7 @@ theorem consts_resolve_fc_go_refines (hg : LitGuardsRefine) {fe : fenv.FEnv}
     refine go_of_node hm hwfe ?_ h
     intro b' m' hnd
     rw [cached.state_c.consts_resolve_fc_node.eq_def] at hnd
-    simp only [arc_deref_eq, bind_tc_ok, ConRon.Refine.ExprOps.node_kind, bind_eq_ok_iff] at hnd
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ConRon.Refine.ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at hnd
     obtain ⟨p, h1t, hnd⟩ := hnd
     obtain ⟨bt, m1⟩ := p
     obtain ⟨lm1, hl1, hm1⟩ := ihty memo m1 lmemo bt hm h1t
@@ -361,7 +361,7 @@ theorem consts_resolve_fc_go_refines (hg : LitGuardsRefine) {fe : fenv.FEnv}
     refine go_of_node hm hwfe ?_ h
     intro b' m' hnd
     rw [cached.state_c.consts_resolve_fc_node.eq_def] at hnd
-    simp only [arc_deref_eq, bind_tc_ok, ConRon.Refine.ExprOps.node_kind, bind_eq_ok_iff] at hnd
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ConRon.Refine.ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at hnd
     obtain ⟨p, h1t, hnd⟩ := hnd
     obtain ⟨bt, m1⟩ := p
     obtain ⟨lm1, hl1, hm1⟩ := ihty memo m1 lmemo bt hm h1t
@@ -391,7 +391,7 @@ theorem consts_resolve_fc_go_refines (hg : LitGuardsRefine) {fe : fenv.FEnv}
     refine go_of_node hm hwfe ?_ h
     intro b' m' hnd
     rw [cached.state_c.consts_resolve_fc_node.eq_def] at hnd
-    simp only [arc_deref_eq, bind_tc_ok, ConRon.Refine.ExprOps.node_kind, bind_eq_ok_iff] at hnd
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ConRon.Refine.ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at hnd
     obtain ⟨o, hfind, hnd⟩ := hnd
     have hlf := FEnv.find_refines hfrel hfwf hs hfind
     simp only [nodeL, absExpr_mk, absExprKind, ← hlf]

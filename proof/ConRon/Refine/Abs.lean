@@ -173,6 +173,21 @@ what `absExprKind` and every existing proof speak. -/
     ron.node.ExprView.ofKind k = .Proj n i e ↔ k = .Proj n i e := by
   cases k <;> simp [ron.node.ExprView.ofKind]
 
+/-- Put a `split`-produced `ofKind k = ExprView.X …` back as `k = ExprKind.X …`
+(task #94).  Every reader's `match` is on `view`'s `ExprView` since the kind
+moved into the handle, but the abstraction — `absExprKind`, `ExprWF`'s
+children, every existing arm — speaks `ExprKind`, so the ten inversions above
+sit between the `split` and whatever the proof did next.  `try`, because the
+same idiom splits `Name` and `Level` readers, where there is nothing to
+invert. -/
+syntax "of_kind_inv" ident : tactic
+macro_rules
+  | `(tactic| of_kind_inv $h:ident) => `(tactic|
+      try simp only [of_kind_bvar_iff, of_kind_fvar_iff, of_kind_sort_iff,
+        of_kind_const_iff, of_kind_app_iff, of_kind_lam_iff,
+        of_kind_forall_e_iff, of_kind_let_e_iff, of_kind_lit_iff,
+        of_kind_proj_iff] at $h:ident)
+
 @[simp] theorem level_dup_eq (u : level.Level) : level.dup u = ok u := by
   cases u; simp [level.dup]
 
@@ -218,6 +233,14 @@ attribute [rust_reduce, rust_invert] expr_view_eq node_view_eq node_data_eq node
   node_alloc_bvar_eq node_alloc_fvar_eq node_alloc_sort_eq node_alloc_const_eq
   node_alloc_app_eq node_alloc_lam_eq node_alloc_forall_e_eq node_alloc_let_e_eq
   node_alloc_lit_eq node_alloc_proj_eq
+
+-- and the bijection's own ten equations, so that a reader's `match` reduces as
+-- soon as the constructor is known.  A `def` is in no simp set by default;
+-- tagging it registers its equation lemmas, which fire only on a constructor
+-- argument and are therefore as safe here as `arc_deref_eq` is.  Measured
+-- (task #94): with it the tier has 25 residual sites to fix by hand, without
+-- it 108.
+attribute [rust_reduce, rust_invert] ron.node.ExprView.ofKind
 
 attribute [rust_invert] of_kind_bvar_iff of_kind_fvar_iff of_kind_sort_iff of_kind_const_iff
   of_kind_app_iff of_kind_lam_iff of_kind_forall_e_iff of_kind_let_e_iff of_kind_lit_iff

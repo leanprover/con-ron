@@ -261,7 +261,7 @@ theorem lam_pw_wf {t : expr.Expr} (ht : ExprWF t) {pw : prop_when.PropWhen}
     (h : expr_ops.lam_pw t = ok (some pw)) : PropWhenWF pw := by
   obtain ⟨⟨dt, kt⟩⟩ := t
   rw [expr_ops.lam_pw.eq_def] at h
-  simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
   cases kt
   case Lam ty bo m =>
     simp only [bind_eq_ok_iff] at h
@@ -678,7 +678,7 @@ theorem infer_lams_leaf_sort_i_refines (hw : Wrappers mode fuel) (dk : Std.U64)
     | Ok wbtt =>
       obtain ⟨lst2, hrun2, hrel2, hwf2, hwbttwf⟩ :=
         (hw.whnfSim dk hbttwf).apply hwf1 hfe hwhnf hrel1 hfrel
-      simp only [arc_deref_eq, bind_tc_ok] at hok
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at hok
       obtain ⟨⟨dw, kw⟩⟩ := wbtt
       cases kw
       case «Sort» vb =>
@@ -964,7 +964,7 @@ theorem infer_lams_i_val (hw : Wrappers mode fuel) (N : Nat) :
     dsimp only at hok
     rw [if_neg (show ¬ peel = 0#u64 by
       intro hc; rw [hc] at hN; simp at hN)] at hok
-    simp only [arc_deref_eq, bind_tc_ok] at hok
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at hok
     obtain ⟨⟨dt, kt⟩⟩ := t
     dsimp only at hok ⊢
     rw [hN]
@@ -1288,7 +1288,7 @@ theorem infer_pis_leaf_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
     | Ok wbt =>
       obtain ⟨lst2, hrun2, hrel2, hwf2, hwbtwf⟩ :=
         (hw.whnfSim i hbtwf).apply hwf1 hfe hwhnf hrel1 hfrel
-      simp only [arc_deref_eq, bind_tc_ok] at hok
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at hok
       obtain ⟨⟨dw, kw⟩⟩ := wbt
       cases kw
       case «Sort» v =>
@@ -1380,7 +1380,7 @@ theorem infer_pis_i_val (hw : Wrappers mode fuel) (N : Nat) :
     dsimp only at hok
     rw [if_neg (show ¬ peel = 0#u64 by
       intro hc; rw [hc] at hN; simp at hN)] at hok
-    simp only [arc_deref_eq, bind_tc_ok] at hok
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at hok
     obtain ⟨⟨dt, kt⟩⟩ := t
     dsimp only at hok ⊢
     rw [hN]

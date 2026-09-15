@@ -108,7 +108,7 @@ theorem ensure_sort_i_refines (hw : Wrappers mode fuel) (d : Std.U64)
     simp only [absExpr_mk, StateT.run] at hrun1
     cases k with
     | «Sort» u =>
-      simp at hok
+      simp [ron.node.ExprView.ofKind] at hok
       obtain ⟨rfl, rfl⟩ := hok
       refine Out.ok (lst' := lst1) ?_ hrel1 hwf1 (CoreK.wf_sort_inv hwWF rfl)
       simp [ConLeche.Cached.ensureSortI, hrun1]

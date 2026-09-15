@@ -2532,8 +2532,8 @@ private theorem ind_pi_tele_len_loop_refines {e : expr.Expr} (he : ExprWF e) :
   | forall_e d ty b m h ihty ihb =>
     intro k r hrun
     rw [frontend.export_c.ind_pi_tele_len_loop.eq_def] at hrun
-    simp only [core_k.is_forall, frontend.export_c.ind_pi_body, arc_deref_eq, bind_tc_ok,
-      ExprOps.node_kind, if_true, bind_eq_ok_iff] at hrun
+    simp only [core_k.is_forall, frontend.export_c.ind_pi_body, expr_view_eq, arc_deref_eq, bind_tc_ok,
+      ExprOps.node_kind, ron.node.ExprView.ofKind, if_true, bind_eq_ok_iff] at hrun
     obtain ⟨cur1, hcur, k1, hk1, hrun⟩ := hrun
     have hcb : cur1 = b := Expr.dup_eq hcur
     subst hcb
@@ -2544,7 +2544,7 @@ private theorem ind_pi_tele_len_loop_refines {e : expr.Expr} (he : ExprWF e) :
   | _ =>
     intro k r hrun
     rw [frontend.export_c.ind_pi_tele_len_loop.eq_def] at hrun
-    simp only [core_k.is_forall, arc_deref_eq, bind_tc_ok, ExprOps.node_kind,
+    simp only [core_k.is_forall, expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind,
       Bool.false_eq_true, if_false, Result.ok.injEq] at hrun
     rw [← hrun]
     simp only [absExpr_mk, absExprKind, ConLeche.Frontend.indPiTeleLen]
@@ -2611,7 +2611,7 @@ theorem state_ind_block_refines {st : frontend.export_c.StateD}
     hrel.indBlocks hn ho
   cases o1 with
   | none => simp only [] at h; rw [← Result.ok_injective h]; simpa using hget
-  | some p => simp only [arc_deref_eq, bind_tc_ok, Result.ok.injEq] at h
+  | some p => simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, Result.ok.injEq] at h
               rw [← h]; simpa using hget
 
 /-! ### The remaining field updates
@@ -2817,12 +2817,12 @@ theorem proj_rewrite_d_refines {st : frontend.export_c.StateD}
   obtain ⟨⟨d, kd⟩⟩ := body
   cases kd with
   | Proj t i sub =>
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨htwf, hsubwf⟩ := ExprWF.proj_kids hbwf
     obtain ⟨⟨d1, kd1⟩⟩ := sub
     cases kd1 with
     | Bvar k =>
-      simp only [ExprOps.node_kind] at h
+      simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       simp only [absExpr_mk, absExprKind]
       split at h
       · rename_i hk0
@@ -2914,11 +2914,11 @@ theorem proj_rewrite_d_refines {st : frontend.export_c.StateD}
         | zero => exact absurd hkk hkv
         | succ m => simp
     | _ =>
-      simp only [ExprOps.node_kind] at h
+      simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       rw [← Result.ok_injective h]
       exact ⟨by simp [absExpr_mk, absExprKind], by simp⟩
   | _ =>
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     exact ⟨by simp [absExpr_mk, absExprKind], by simp⟩
 

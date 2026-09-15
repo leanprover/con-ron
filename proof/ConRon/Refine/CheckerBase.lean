@@ -345,7 +345,7 @@ theorem pi_result_sort_refines {e : expr.Expr} {o : Option level.Level}
   rw [ConLeche.piResultSort, ← habs]
   cases k with
   | «Sort» u =>
-    simp only [arc_deref_eq, ExprOps.node_kind, level_dup_eq, bind_tc_ok,
+    simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, level_dup_eq, bind_tc_ok,
       Result.ok.injEq] at h
     subst h
     refine ⟨by simp, ?_⟩
@@ -354,7 +354,7 @@ theorem pi_result_sort_refines {e : expr.Expr} {o : Option level.Level}
     rw [← hu']
     exact CoreK.wf_sort_inv hrwf rfl
   | _ =>
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok, Result.ok.injEq] at h
     subst h
     exact ⟨by simp, by simp⟩
 
@@ -373,7 +373,7 @@ theorem is_eq_head_refines {e : expr.Expr} {b : Bool} (he : ExprWF e)
   cases k with
   | Const c us =>
     obtain ⟨hcwf, huswf⟩ := CoreK.wf_const_inv he rfl
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
+    simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
     rw [absExpr_mk, absExprKind, absLevels]
     split at h
     · rename_i hlen
@@ -397,7 +397,7 @@ theorem is_eq_head_refines {e : expr.Expr} {b : Bool} (he : ExprWF e)
         | nil => rw [hv] at hl1; simp at hl1
         | cons v vs => simp [ConLeche.isEqHead]
   | _ =>
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.isEqHead]
 
 /-- `ConLeche/Kernel/CheckerBase.lean:191-198 eqHeadLevel` — the level an
@@ -411,7 +411,7 @@ theorem eq_head_level_refines {e : expr.Expr} {u : level.Level} (he : ExprWF e)
   cases k with
   | Const c us =>
     obtain ⟨hcwf, huswf⟩ := CoreK.wf_const_inv he rfl
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
+    simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
     rw [absExpr_mk, absExprKind, absLevels]
     split at h
     · rename_i hlen
@@ -446,7 +446,7 @@ theorem eq_head_level_refines {e : expr.Expr} {u : level.Level} (he : ExprWF e)
         | nil => rw [hv] at hl1; simp at hl1
         | cons v vs => simp [ConLeche.eqHeadLevel]
   | _ =>
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
+    simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
     exact ⟨by rw [Level.zero_refines h]; simp [ConLeche.eqHeadLevel], Level.zero_wf h⟩
 
 /-! ## `domsMatchAux` at the identity view, and its `Array` twin
@@ -785,7 +785,7 @@ theorem open_pis_at_fvars_refines :
     cases k with
     | ForallE dom body m =>
       obtain ⟨hdom, hbody, hm⟩ := wf_forall_inv he rfl
-      simp only [arc_deref_eq, ExprOps.node_kind, expr_dup_eq, bind_tc_ok] at h
+      simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, expr_dup_eq, bind_tc_ok] at h
       obtain ⟨fv, hfv, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨opened, hopened, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨n1, hn1, h⟩ := bind_eq_ok_iff.mp h
@@ -818,7 +818,7 @@ theorem open_pis_at_fvars_refines :
         rw [← hp]
         exact ⟨hvwf, hbwf⟩
     | _ =>
-      simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
+      simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
       rw [← Result.ok_injective h]
       exact ⟨by simp [absExprKind, ConLeche.openPisAtFvars], by simp⟩
 
@@ -862,7 +862,7 @@ theorem open_pis_at_fvars_f_go_refines :
     cases k with
     | ForallE dom body m =>
       obtain ⟨hdom, hbody, hm⟩ := wf_forall_inv he rfl
-      simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
+      simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
       obtain ⟨e1, he1, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨fv, hfv, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨acc2, hacc2, h⟩ := bind_eq_ok_iff.mp h
@@ -897,7 +897,7 @@ theorem open_pis_at_fvars_f_go_refines :
         rw [← hp]
         exact ⟨hvwf, hbwf⟩
     | _ =>
-      simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
+      simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
       rw [← Result.ok_injective h]
       exact ⟨by simp [absExprKind, ConLeche.openPisAtFvarsFGo], by simp⟩
 
@@ -1089,7 +1089,7 @@ theorem check_proj_shape_refines {pty ctor_ty : expr.Expr} {n_p n_f : Std.U64}
           -- `checker_base.rs:518` ← `CheckerBase.lean:250`
           all_goals (
             rw [absExpr_mk, absExprKind] at hfabs
-            simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok,
+            simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok,
               bind_eq_ok_iff] at h
             obtain ⟨v, hv, ce, hce, h⟩ := h
             have hout : out = .Err ce := err_out h

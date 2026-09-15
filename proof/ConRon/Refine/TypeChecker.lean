@@ -273,7 +273,7 @@ theorem ensure_sort_core_refines {mode : env.CheckMode} {fuel : Std.U64}
       rw [← knot_at_check_fuel hfuel]; simpa [StateT.run] using hrunw
     cases kw
     case «Sort» u =>
-      simp at h
+      simp [ron.node.ExprView.ofKind] at h
       obtain ⟨rfl, rfl⟩ := h
       refine Out.ok (lst' := lstw) ?_ hsrw hsww
         (ConRon.Refine.CoreK.wf_sort_inv heww rfl)
@@ -282,7 +282,7 @@ theorem ensure_sort_core_refines {mode : env.CheckMode} {fuel : Std.U64}
         Bind.bind, StateT.bind, Pure.pure, StateT.pure, Except.bind, Except.pure,
         hk2]
     all_goals
-      simp at h
+      simp [ron.node.ExprView.ofKind] at h
       obtain ⟨v, -, ce, hce, rfl, rfl⟩ := h
       rw [invalid_err hce]
       refine Out.err (ErrSim.invalid (s := "expected a sort") ?_)

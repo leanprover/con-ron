@@ -72,7 +72,11 @@ syntax "rust_inv " ident : tactic
 macro_rules
   | `(tactic| rust_inv $h) => `(tactic| repeat' (first
       | (split at $h:ident)
-      | (simp at $h:ident)
+      -- task #94: `ron.node.ExprView.ofKind` is the bijection `expr.view`'s
+      -- model goes through, and a `def` is not in the default simp set, so a
+      -- reader's `match` would stay stuck on it where the old `Arc::deref`
+      -- head reduced on its own.
+      | (simp [ron.node.ExprView.ofKind] at $h:ident)
       | (obtain ⟨_, $h⟩ := $h)))
 
 /-! ## Experiment 1: `Level.rest_refines_aux` (hand proof: 268 lines, 25 cases)

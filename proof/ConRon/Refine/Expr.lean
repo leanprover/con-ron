@@ -847,7 +847,7 @@ theorem literal_beq_refines {a b : expr.Literal} {c : Bool}
   | NatVal m =>
     cases b with
     | NatVal n =>
-      simp only [expr.literal_beq, arc_deref_eq, bind_tc_ok] at h
+      simp only [expr.literal_beq, expr_view_eq, arc_deref_eq, bind_tc_ok] at h
       rw [Nat.beq_refines ha hb h]
       simp
     | StrVal t =>
@@ -859,7 +859,7 @@ theorem literal_beq_refines {a b : expr.Literal} {c : Bool}
       simp only [expr.literal_beq, Result.ok.injEq] at h
       rw [← h]; simp
     | StrVal t =>
-      simp only [expr.literal_beq, arc_deref_eq, bind_tc_ok] at h
+      simp only [expr.literal_beq, expr_view_eq, arc_deref_eq, bind_tc_ok] at h
       rw [Name.str_eq_refines ha hb h]
       simp
 
@@ -2601,9 +2601,9 @@ theorem literal_beq_refl {l : expr.Literal} (hl : LiteralWF l) :
     expr.literal_beq l l = ok true := by
   cases l with
   | NatVal n =>
-    rw [expr.literal_beq]; simp only [arc_deref_eq, bind_tc_ok]; exact Nat.beq_refl n
+    rw [expr.literal_beq]; simp only [expr_view_eq, arc_deref_eq, bind_tc_ok]; exact Nat.beq_refl n
   | StrVal s =>
-    rw [expr.literal_beq]; simp only [arc_deref_eq, bind_tc_ok]; exact Name.str_eq_refl s
+    rw [expr.literal_beq]; simp only [expr_view_eq, arc_deref_eq, bind_tc_ok]; exact Name.str_eq_refl s
 
 theorem binder_meta_beq_refl {m : expr.BinderMeta} (hm : BinderMetaWF m) :
     expr.binder_meta_beq m m = ok true := by

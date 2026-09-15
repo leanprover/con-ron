@@ -241,16 +241,16 @@ theorem whnf_core_step_i_refines {mode : env.CheckMode} {fuel : Std.U64}
       -- `whnf beyond the supported fragment`: the Rust throws, so `.Ok` is absurd
       obtain ⟨dw, rfl, -, -, -⟩ := Expr.bvar_inv h1
       unfold cached.core_c.whnf_core_step_i at hok
-      simp at hok
+      simp [ron.node.ExprView.ofKind] at hok
     | @let_e ty v bo e hty hv hbo h1 =>
       -- `whnfCore: `let` in an annotated expression`: likewise
       obtain ⟨dw, rfl, -, -, -⟩ := Expr.let_e_inv h1
       unfold cached.core_c.whnf_core_step_i at hok
-      simp at hok
+      simp [ron.node.ExprView.ofKind] at hok
     | @fvar idx ty e hty h1 =>
       obtain ⟨dw, rfl, -, -, -⟩ := Expr.fvar_inv h1
       unfold cached.core_c.whnf_core_step_i at hok
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, State.expr_dup_eq,
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, State.expr_dup_eq,
         Result.ok.injEq, Prod.mk.injEq] at hok
       obtain ⟨heq, rfl⟩ := hok
       obtain rfl : res = _ := by simpa using heq.symm
@@ -258,7 +258,7 @@ theorem whnf_core_step_i_refines {mode : env.CheckMode} {fuel : Std.U64}
     | @sort u e hu h1 =>
       obtain ⟨dw, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
       unfold cached.core_c.whnf_core_step_i at hok
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, State.expr_dup_eq,
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, State.expr_dup_eq,
         Result.ok.injEq, Prod.mk.injEq] at hok
       obtain ⟨heq, rfl⟩ := hok
       obtain rfl : res = _ := by simpa using heq.symm
@@ -266,7 +266,7 @@ theorem whnf_core_step_i_refines {mode : env.CheckMode} {fuel : Std.U64}
     | @mk_const nm us e hn hus h1 =>
       obtain ⟨dw, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
       unfold cached.core_c.whnf_core_step_i at hok
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, State.expr_dup_eq,
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, State.expr_dup_eq,
         Result.ok.injEq, Prod.mk.injEq] at hok
       obtain ⟨heq, rfl⟩ := hok
       obtain rfl : res = _ := by simpa using heq.symm
@@ -274,7 +274,7 @@ theorem whnf_core_step_i_refines {mode : env.CheckMode} {fuel : Std.U64}
     | @lam ty bo m e hty hbo hm h1 =>
       obtain ⟨dw, rfl, -, -, -⟩ := Expr.lam_inv h1
       unfold cached.core_c.whnf_core_step_i at hok
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, State.expr_dup_eq,
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, State.expr_dup_eq,
         Result.ok.injEq, Prod.mk.injEq] at hok
       obtain ⟨heq, rfl⟩ := hok
       obtain rfl : res = _ := by simpa using heq.symm
@@ -282,7 +282,7 @@ theorem whnf_core_step_i_refines {mode : env.CheckMode} {fuel : Std.U64}
     | @forall_e ty bo m e hty hbo hm h1 =>
       obtain ⟨dw, rfl, -, -, -⟩ := Expr.forall_e_inv h1
       unfold cached.core_c.whnf_core_step_i at hok
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, State.expr_dup_eq,
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, State.expr_dup_eq,
         Result.ok.injEq, Prod.mk.injEq] at hok
       obtain ⟨heq, rfl⟩ := hok
       obtain rfl : res = _ := by simpa using heq.symm
@@ -291,7 +291,7 @@ theorem whnf_core_step_i_refines {mode : env.CheckMode} {fuel : Std.U64}
     | @lit l e hl h1 =>
       obtain ⟨dw, rfl, -, -, -⟩ := Expr.lit_inv h1
       unfold cached.core_c.whnf_core_step_i at hok
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, State.expr_dup_eq,
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, State.expr_dup_eq,
         Result.ok.injEq, Prod.mk.injEq] at hok
       obtain ⟨heq, rfl⟩ := hok
       obtain rfl : res = _ := by simpa using heq.symm
@@ -301,7 +301,7 @@ theorem whnf_core_step_i_refines {mode : env.CheckMode} {fuel : Std.U64}
       have he : ExprWF e := ExprWF.app hf ha h1
       obtain ⟨dw, rfl, -, -, -⟩ := Expr.app_inv h1
       unfold cached.core_c.whnf_core_step_i at hok
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
       obtain ⟨h', hh, hok⟩ := bind_eq_ok_iff.mp hok
       obtain ⟨args, hargs, hok⟩ := bind_eq_ok_iff.mp hok
       obtain ⟨⟨rc, st1⟩, hc, hok⟩ := bind_eq_ok_iff.mp hok
@@ -323,7 +323,7 @@ theorem whnf_core_step_i_refines {mode : env.CheckMode} {fuel : Std.U64}
     | @proj sn i pe e hsn hpe h1 =>
       obtain ⟨dw, rfl, -, -, -⟩ := Expr.proj_inv h1
       unfold cached.core_c.whnf_core_step_i at hok
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, name_dup_eq] at hok
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, name_dup_eq] at hok
       obtain ⟨⟨rw1, st1⟩, hw1, hok⟩ := bind_eq_ok_iff.mp hok
       cases rw1 with
       | Err err => simp at hok
@@ -350,7 +350,7 @@ theorem whnf_core_step_i_refines {mode : env.CheckMode} {fuel : Std.U64}
       -- `core_c.rs:2434` mirrors `CoreC.lean:996`'s `notImplemented` throw.
       obtain ⟨dw, rfl, -, -, -⟩ := Expr.bvar_inv h1
       unfold cached.core_c.whnf_core_step_i at hok
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff,
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff,
         Result.ok.injEq, Prod.mk.injEq, core.result.Result.Err.injEq] at hok
       obtain ⟨s, -, v, -, c1, hc1, rfl, -⟩ := hok
       rw [core_types.not_implemented] at hc1
@@ -361,7 +361,7 @@ theorem whnf_core_step_i_refines {mode : env.CheckMode} {fuel : Std.U64}
       -- `core_c.rs:2432` mirrors `CoreC.lean:994`'s `internal` throw.
       obtain ⟨dw, rfl, -, -, -⟩ := Expr.let_e_inv h1
       unfold cached.core_c.whnf_core_step_i at hok
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff,
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff,
         Result.ok.injEq, Prod.mk.injEq, core.result.Result.Err.injEq] at hok
       obtain ⟨s, -, v, -, c1, hc1, rfl, -⟩ := hok
       rw [core_types.internal] at hc1
@@ -371,33 +371,33 @@ theorem whnf_core_step_i_refines {mode : env.CheckMode} {fuel : Std.U64}
     | @fvar idx ty e hty h1 =>
       obtain ⟨dw, rfl, -, -, -⟩ := Expr.fvar_inv h1
       unfold cached.core_c.whnf_core_step_i at hok
-      simp at hok
+      simp [ron.node.ExprView.ofKind] at hok
     | @sort u e hu h1 =>
       obtain ⟨dw, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
       unfold cached.core_c.whnf_core_step_i at hok
-      simp at hok
+      simp [ron.node.ExprView.ofKind] at hok
     | @mk_const nm us e hn hus h1 =>
       obtain ⟨dw, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
       unfold cached.core_c.whnf_core_step_i at hok
-      simp at hok
+      simp [ron.node.ExprView.ofKind] at hok
     | @lam ty bo m e hty hbo hm h1 =>
       obtain ⟨dw, rfl, -, -, -⟩ := Expr.lam_inv h1
       unfold cached.core_c.whnf_core_step_i at hok
-      simp at hok
+      simp [ron.node.ExprView.ofKind] at hok
     | @forall_e ty bo m e hty hbo hm h1 =>
       obtain ⟨dw, rfl, -, -, -⟩ := Expr.forall_e_inv h1
       unfold cached.core_c.whnf_core_step_i at hok
-      simp at hok
+      simp [ron.node.ExprView.ofKind] at hok
     | @lit l e hl h1 =>
       obtain ⟨dw, rfl, -, -, -⟩ := Expr.lit_inv h1
       unfold cached.core_c.whnf_core_step_i at hok
-      simp at hok
+      simp [ron.node.ExprView.ofKind] at hok
     | @app f a e hf ha h1 =>
       -- either the spine head's `whnf_core` threw, or `whnf_app_i` did.
       have he : ExprWF e := ExprWF.app hf ha h1
       obtain ⟨dw, rfl, -, -, -⟩ := Expr.app_inv h1
       unfold cached.core_c.whnf_core_step_i at hok
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hok
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hok
       obtain ⟨h', hh, hok⟩ := bind_eq_ok_iff.mp hok
       obtain ⟨args, hargs, hok⟩ := bind_eq_ok_iff.mp hok
       obtain ⟨⟨rc, st1⟩, hc, hok⟩ := bind_eq_ok_iff.mp hok
@@ -423,7 +423,7 @@ theorem whnf_core_step_i_refines {mode : env.CheckMode} {fuel : Std.U64}
       -- `whnf`, then `proj_lit_to_ctor_i`, then the `.proj` continuation.
       obtain ⟨dw, rfl, -, -, -⟩ := Expr.proj_inv h1
       unfold cached.core_c.whnf_core_step_i at hok
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, name_dup_eq] at hok
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, name_dup_eq] at hok
       obtain ⟨⟨rw1, st1⟩, hw1, hok⟩ := bind_eq_ok_iff.mp hok
       simp only [absExpr_mk, absExprKind, whnfCoreStepI_proj]
       cases rw1 with
