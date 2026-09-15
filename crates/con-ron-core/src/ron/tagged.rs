@@ -210,6 +210,7 @@ impl<T> Raw<T> {
     /// This is `unsafe` expression (1) of the module note, and it is the
     /// invariant every other one rests on: the tag attached is `K::TAG`, in
     /// the same expression that puts a `Block<K>` at that address.
+    #[inline]
     pub fn alloc<K: Kind>(data: u64, t: K) -> Self {
         let block: Box<Block<K>> = Box::new(Block {
             h: Header { count: AtomicUsize::new(1), data },
@@ -225,6 +226,7 @@ impl<T> Raw<T> {
 
     /// con-leche: none — the kind bits of a handle
     /// Which of the scheme's kinds this block is.
+    #[inline]
     pub fn tag(&self) -> usize {
         (self.p.as_ptr() as usize) & TAG_MASK
     }
@@ -233,6 +235,7 @@ impl<T> Raw<T> {
     /// Public because a scheme's generated `release` hands it to
     /// [`drop_block`]; it is a bare address and dereferencing it is that
     /// function's `unsafe`, not this one's.
+    #[inline]
     pub fn addr(&self) -> *mut u8 {
         ((self.p.as_ptr() as usize) & !TAG_MASK) as *mut u8
     }
@@ -240,6 +243,7 @@ impl<T> Raw<T> {
     /// con-leche: none — the header, which every kind's block begins with
     /// `unsafe` expression (2): sound at *any* tag, because `Block<T>` is
     /// `#[repr(C)]` with `Header` first and the same alignment for every `T`.
+    #[inline]
     pub fn header(&self) -> &Header {
         unsafe { &*(self.addr() as *const Header) }
     }
@@ -248,6 +252,7 @@ impl<T> Raw<T> {
     /// `unsafe` expression (3), and the tag check in front of it is what makes
     /// it sound: `Some` exactly when the block really is a `Block<K>`.  Safe
     /// code that asks for the wrong kind gets `None`.
+    #[inline]
     pub fn get<K: Kind>(&self) -> Option<&K> {
         if self.tag() == K::TAG {
             Some(unsafe { &(*(self.addr() as *const Block<K>)).t })
@@ -261,6 +266,7 @@ impl<T> Raw<T> {
     /// so `None` is [`bad_tag`]'s branch and never taken.  **No `unsafe` and
     /// no panic at the call site**, which is what keeps every instantiation of
     /// this module inside the style lint unexempted.
+    #[inline]
     pub fn cast<K: Kind>(&self) -> &K {
         match self.get::<K>() {
             Some(k) => k,
@@ -272,6 +278,7 @@ impl<T> Raw<T> {
     /// Share the block: another handle to the same address and tag.  Not a
     /// `Clone` impl, because a `Raw` is not an owner (see the type's note) and
     /// `#[derive]`-style copying is exactly what must not happen by accident.
+    #[inline]
     pub fn bump(&self) -> Self {
         self.header().count.fetch_add(1, Ordering::Relaxed);
         Raw { p: self.p, modeled: PhantomData }
@@ -283,6 +290,7 @@ impl<T> Raw<T> {
     /// tag→type table.  The protocol is `std::sync::Arc`'s verbatim: a
     /// `Release` decrement, then an `Acquire` fence on the one thread that
     /// saw the old count as one.
+    #[inline]
     pub fn drop_share(&self) -> bool {
         if self.header().count.fetch_sub(1, Ordering::Release) != 1 {
             return false;
@@ -295,6 +303,7 @@ impl<T> Raw<T> {
     /// Do the two handles point at the same block?  Comparing the *tagged*
     /// words is the same test as comparing the addresses: a block's tag is a
     /// function of the block.
+    #[inline]
     pub fn ptr_eq(a: &Self, b: &Self) -> bool {
         a.p.as_ptr() == b.p.as_ptr()
     }
@@ -303,6 +312,7 @@ impl<T> Raw<T> {
     /// Outside the verified core's reach: nothing in `kernel/` or `cached/`
     /// calls it, and the model has no address at all.  `con-ron`'s frontend
     /// ground-term table and `con-ron-dump`'s DAG census are the two callers.
+    #[inline]
     pub fn addr_word(&self) -> usize {
         self.p.as_ptr() as usize
     }
@@ -326,8 +336,7 @@ pub unsafe fn drop_block<K: Kind>(block: *mut u8) {
 ///
 /// ```ignore
 /// tagged_kinds! {
-///     handle ExprHandle, cell ExprCell, decode cell_of,
-///         release release, modeled ExprNode;
+///     handle ExprHandle, release release, modeled ExprNode;
 ///     0 => Bvar: NodeBvar,
 ///     …
 ///     9 => Proj: NodeProj,
@@ -340,10 +349,10 @@ pub unsafe fn drop_block<K: Kind>(block: *mut u8) {
 ///   sanctioned implementor of that trait**;
 /// * a `const` assertion that the tags are in range and pairwise distinct,
 ///   which is [`Kind`]'s safety contract checked at compile time;
-/// * the scheme's `handle` alias, its borrowed `cell` enum and the `decode`
-///   function that turns a handle into it — **safe code**, one [`Raw::cast`]
-///   per arm, so the caller writes an exhaustive `match` with no `unsafe`, no
-///   `unwrap` and no `unreachable!`;
+/// * the scheme's `handle` alias and one `pub const` per kind, so that the
+///   caller's projection is `match h.tag() { Bvar => h.cast::<NodeBvar>(), … }`
+///   — **safe code**, since [`Raw::cast`] is total and [`bad_tag`] is a
+///   function rather than an `unreachable!` at the call site;
 /// * `release`, one [`drop_block`] per tag, which the owning newtype's `Drop`
 ///   calls.
 ///
@@ -352,8 +361,7 @@ pub unsafe fn drop_block<K: Kind>(block: *mut u8) {
 #[macro_export]
 macro_rules! tagged_kinds {
     (
-        handle $handle:ident, cell $cell:ident, decode $decode:ident,
-            release $release:ident, modeled $modeled:ty;
+        handle $handle:ident, release $release:ident, modeled $modeled:ty;
         $( $tag:literal => $var:ident : $kind:ty, )*
     ) => {
         $(
@@ -373,32 +381,35 @@ macro_rules! tagged_kinds {
         /// One machine word (DESIGN.md §3.2, task #94).
         pub type $handle = $crate::ron::tagged::Raw<$modeled>;
 
-        /// con-leche: none — the scheme's blocks, borrowed (DESIGN.md §3.2)
-        /// What `decode` hands a reader: one arm per kind, each a shared
-        /// reference into the block.
-        pub enum $cell<'a> {
-            $( $var(&'a $kind) ),*
-        }
-
-        /// con-leche: none — the tag read back as the scheme's block (DESIGN.md §3.2)
-        /// Safe: one `Raw::cast` per arm, each licensed by the tag just
-        /// matched, so a caller's `match` over the arms is exhaustive and
-        /// needs no `unsafe`, no `unwrap` and no `unreachable!`.
-        pub fn $decode(h: &$handle) -> $cell<'_> {
-            match h.tag() {
-                $( $tag => $cell::$var(h.cast::<$kind>()), )*
-                t => $crate::ron::tagged::bad_tag(t),
-            }
-        }
+        $(
+            /// con-leche: none — this kind's tag, as a `match` pattern
+            /// The table's own constant, so that a reader's `match
+            /// handle.tag()` names the kinds rather than the numbers.
+            pub const $var: usize = $tag;
+        )*
 
         /// con-leche: none — give up one share, and free the block if it was the last
         /// The owning newtype's `Drop` calls this and nothing else does: only
-        /// the scheme knows which type the tag names, which is the whole
-        /// reason `ron::tagged::Raw` has no `Drop` of its own.
+        /// the scheme knows which type a tag names, which is the whole reason
+        /// `ron::tagged::Raw` has no `Drop` of its own.
+        ///
+        /// **Split, and the split is worth 10 % of the binary.**  The common
+        /// case is a shared node whose count does not reach zero, so the
+        /// decrement is inlined into the caller and only the freeing is a
+        /// call — `std::sync::Arc`'s own `drop`/`drop_slow` shape, and
+        /// measured: fusing the two cost +1.8 % instructions on `init`
+        /// because every drop then paid a call and return (task #94).
+        #[inline]
         pub fn $release(h: &$handle) {
-            if !h.drop_share() {
-                return;
+            if h.drop_share() {
+                free_block(h)
             }
+        }
+
+        /// con-leche: none — the per-kind half of `release`, out of line
+        /// Drop the payload and return the block, at the type the tag names.
+        #[inline(never)]
+        fn free_block(h: &$handle) {
             match h.tag() {
                 $( $tag => unsafe {
                     $crate::ron::tagged::drop_block::<$kind>(h.addr())

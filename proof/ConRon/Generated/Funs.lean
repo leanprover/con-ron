@@ -74682,7 +74682,7 @@ def ron.hashmap.HashMap.remove
       ok (removed, { self with num_entries := i4, slots := v })
 
 /-- Trait implementation: [con_ron_core::ron::node::{impl core::ops::drop::Drop for con_ron_core::kernel::expr::Expr}]
-    Source: 'crates/con-ron-core/src/ron/node.rs', lines 318:0-322:1 -/
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 355:0-359:1 -/
 @[reducible]
 def kernel.expr.Expr.Insts.CoreOpsDropDrop : core.ops.drop.Drop
   kernel.expr.Expr := {

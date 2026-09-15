@@ -153,24 +153,23 @@ pub struct NodeProj {
 // ConLeche/Kernel/Expr.lean:285-403 Expr, the cited inductive's constructors).
 // `ron::tagged`'s macro turns this table into the `unsafe impl Kind`s, a
 // compile-time check that the tags are in range and pairwise distinct, the
-// borrowed `ExprCell` enum, the safe `cell_of` decoder and the scheme's
-// `release`.  Nothing below this line is `unsafe`, and nothing above it is
+// `ExprHandle` alias, one `pub const` per kind (the names `view` matches on)
+// and the scheme's `release`.  Nothing below this line is `unsafe`, and nothing above it is
 // either.  (A `//` comment rather than a `///` one: a doc comment on a macro
 // invocation attaches to nothing, and `provenance.py` reads the items the
 // macro *expands to* through `ron::tagged`'s own citations.)
 crate::tagged_kinds! {
-    handle ExprHandle, cell ExprCell, decode cell_of,
-        release release, modeled ExprNode;
-    0 => Bvar:    NodeBvar,
-    1 => Fvar:    NodeFvar,
-    2 => Sort:    NodeSort,
-    3 => Const:   NodeConst,
-    4 => App:     NodeApp,
-    5 => Lam:     NodeLam,
-    6 => ForallE: NodeForallE,
-    7 => LetE:    NodeLetE,
-    8 => Lit:     NodeLit,
-    9 => Proj:    NodeProj,
+    handle ExprHandle, release release, modeled ExprNode;
+    0 => TAG_BVAR:    NodeBvar,
+    1 => TAG_FVAR:    NodeFvar,
+    2 => TAG_SORT:    NodeSort,
+    3 => TAG_CONST:   NodeConst,
+    4 => TAG_APP:     NodeApp,
+    5 => TAG_LAM:     NodeLam,
+    6 => TAG_FORALL_E: NodeForallE,
+    7 => TAG_LET_E:    NodeLetE,
+    8 => TAG_LIT:     NodeLit,
+    9 => TAG_PROJ:    NodeProj,
 }
 
 // ---------------------------------------------------------------------------
@@ -203,21 +202,46 @@ pub enum ExprView<'a> {
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
 /// Look at a term's constructor: the `match` every reader of the core does.
 ///
-/// Safe code, and exhaustively so: `cell_of` is the table's own decoder, the
-/// ten arms are the table's ten kinds, and there is no default arm to get
-/// wrong.  What this compiles to is a tag mask and an indirect branch.
+/// Safe code: the arm names are the table's own `pub const`s, `Raw::cast` is
+/// total, and the default arm is a *call* to `ron::tagged::bad_tag` — the one
+/// place that says a handle's tag is always its table's — rather than an
+/// `unreachable!` here.  So this file needs neither `unsafe` nor a lint
+/// exemption.  What it compiles to is a tag mask and an indirect branch.
+#[inline]
 pub fn view(e: &Expr) -> ExprView<'_> {
-    match cell_of(&e.0) {
-        ExprCell::Bvar(c) => ExprView::Bvar(&c.i),
-        ExprCell::Fvar(c) => ExprView::Fvar(&c.idx, &c.ty),
-        ExprCell::Sort(c) => ExprView::Sort(&c.u),
-        ExprCell::Const(c) => ExprView::Const(&c.n, &c.us),
-        ExprCell::App(c) => ExprView::App(&c.f, &c.a),
-        ExprCell::Lam(c) => ExprView::Lam(&c.ty, &c.body, &c.m),
-        ExprCell::ForallE(c) => ExprView::ForallE(&c.ty, &c.body, &c.m),
-        ExprCell::LetE(c) => ExprView::LetE(&c.ty, &c.value, &c.body),
-        ExprCell::Lit(c) => ExprView::Lit(&c.l),
-        ExprCell::Proj(c) => ExprView::Proj(&c.n, &c.idx, &c.e),
+    match e.0.tag() {
+        TAG_BVAR => ExprView::Bvar(&e.0.cast::<NodeBvar>().i),
+        TAG_FVAR => {
+            let c: &NodeFvar = e.0.cast::<NodeFvar>();
+            ExprView::Fvar(&c.idx, &c.ty)
+        }
+        TAG_SORT => ExprView::Sort(&e.0.cast::<NodeSort>().u),
+        TAG_CONST => {
+            let c: &NodeConst = e.0.cast::<NodeConst>();
+            ExprView::Const(&c.n, &c.us)
+        }
+        TAG_APP => {
+            let c: &NodeApp = e.0.cast::<NodeApp>();
+            ExprView::App(&c.f, &c.a)
+        }
+        TAG_LAM => {
+            let c: &NodeLam = e.0.cast::<NodeLam>();
+            ExprView::Lam(&c.ty, &c.body, &c.m)
+        }
+        TAG_FORALL_E => {
+            let c: &NodeForallE = e.0.cast::<NodeForallE>();
+            ExprView::ForallE(&c.ty, &c.body, &c.m)
+        }
+        TAG_LET_E => {
+            let c: &NodeLetE = e.0.cast::<NodeLetE>();
+            ExprView::LetE(&c.ty, &c.value, &c.body)
+        }
+        TAG_LIT => ExprView::Lit(&e.0.cast::<NodeLit>().l),
+        TAG_PROJ => {
+            let c: &NodeProj = e.0.cast::<NodeProj>();
+            ExprView::Proj(&c.n, &c.idx, &c.e)
+        }
+        t => crate::ron::tagged::bad_tag(t),
     }
 }
 
@@ -227,60 +251,70 @@ pub fn view(e: &Expr) -> ExprView<'_> {
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
 /// `Expr.bvar`'s cell, with the packed word its smart constructor computed.
+#[inline]
 pub fn alloc_bvar(data: u64, i: u64) -> Expr {
     Expr(ExprHandle::alloc(data, NodeBvar { i }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
 /// `Expr.fvar`'s cell.
+#[inline]
 pub fn alloc_fvar(data: u64, idx: u64, ty: Expr) -> Expr {
     Expr(ExprHandle::alloc(data, NodeFvar { idx, ty }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
 /// `Expr.sort`'s cell.
+#[inline]
 pub fn alloc_sort(data: u64, u: Level) -> Expr {
     Expr(ExprHandle::alloc(data, NodeSort { u }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
 /// `Expr.const`'s cell; the level list arrives already behind its handle.
+#[inline]
 pub fn alloc_const(data: u64, n: Name, us: P<Vec<Level>>) -> Expr {
     Expr(ExprHandle::alloc(data, NodeConst { n, us }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
 /// `Expr.app`'s cell — the hot one.
+#[inline]
 pub fn alloc_app(data: u64, f: Expr, a: Expr) -> Expr {
     Expr(ExprHandle::alloc(data, NodeApp { f, a }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
 /// `Expr.lam`'s cell.
+#[inline]
 pub fn alloc_lam(data: u64, ty: Expr, body: Expr, m: BinderMeta) -> Expr {
     Expr(ExprHandle::alloc(data, NodeLam { ty, body, m }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
 /// `Expr.forallE`'s cell.
+#[inline]
 pub fn alloc_forall_e(data: u64, ty: Expr, body: Expr, m: BinderMeta) -> Expr {
     Expr(ExprHandle::alloc(data, NodeForallE { ty, body, m }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
 /// `Expr.letE`'s cell.
+#[inline]
 pub fn alloc_let_e(data: u64, ty: Expr, value: Expr, body: Expr) -> Expr {
     Expr(ExprHandle::alloc(data, NodeLetE { ty, value, body }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
 /// `Expr.lit`'s cell.
+#[inline]
 pub fn alloc_lit(data: u64, l: Literal) -> Expr {
     Expr(ExprHandle::alloc(data, NodeLit { l }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
 /// `Expr.proj`'s cell.
+#[inline]
 pub fn alloc_proj(data: u64, n: Name, idx: u64, e: Expr) -> Expr {
     Expr(ExprHandle::alloc(data, NodeProj { n, idx, e }))
 }
@@ -292,12 +326,14 @@ pub fn alloc_proj(data: u64, n: Name, idx: u64, e: Expr) -> Expr {
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
 /// The cached `@[computed_field] data`, an `O(1)` field read: the header is at
 /// the cell's address whatever the tag, so this needs no dispatch.
+#[inline]
 pub fn data(e: &Expr) -> u64 {
     e.0.header().data
 }
 
 /// con-leche: none — the count bump that Lean's value semantics hides (DESIGN.md §3.2)
 /// Share a term: `Arc::clone`'s `Relaxed` increment, through the handle.
+#[inline]
 pub fn dup(e: &Expr) -> Expr {
     Expr(e.0.bump())
 }
@@ -305,6 +341,7 @@ pub fn dup(e: &Expr) -> Expr {
 /// con-leche: ConLeche/Kernel/Expr.lean:955-960 Expr.beqMemo
 /// Do the two handles point at the same cell?  Modeled as `false`
 /// (DESIGN.md §3.2), so each fast path needs its reflexivity lemma.
+#[inline]
 pub fn ptr_eq(a: &Expr, b: &Expr) -> bool {
     ExprHandle::ptr_eq(&a.0, &b.0)
 }
@@ -324,6 +361,7 @@ impl Drop for Expr {
 /// con-leche: none — the address `con-ron`'s ground-term table hashes (task #89)
 /// The handle as an integer.  Outside the verified core's reach: nothing in
 /// `kernel/` or `cached/` calls it, and the model has no address at all.
+#[inline]
 pub fn addr_word(e: &Expr) -> usize {
     e.0.addr_word()
 }
