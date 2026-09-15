@@ -1343,12 +1343,14 @@ theorem k_expected_of_refines {ty_types : alloc.vec.Vec expr.Expr}
           obtain ⟨habsr, hrwf⟩ := ExprOps.pi_result_refines hewf hres
           rw [hety] at habsr
           obtain ⟨⟨d, k⟩⟩ := res
-          simp only [expr_view_eq, arc_deref_eq] at h
+          simp only [expr_view_eq] at h
           obtain ⟨en, hen, h⟩ := h
-          have henv : en = (expr.Expr.mk (expr.ExprNode.mk d k))._0 :=
+          -- task #94: `expr.view` hands back an `ExprView`, not the node, so
+          -- what `hen` names is `ofKind`'s image of the kind.
+          have henv : en = ron.node.ExprView.ofKind k :=
             (Result.ok_injective hen).symm
           subst henv
-          simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at h
+          simp only [ron.node.ExprView.ofKind] at h
           cases k with
           | «Sort» u =>
             have huwf : LevelWF u := CoreK.wf_sort_inv hrwf rfl

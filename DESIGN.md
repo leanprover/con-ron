@@ -18299,7 +18299,18 @@ files.  `Refine/Abs.lean` carries the 26 hole lemmas and one tactic
 was restated, no `#[simp]` set was weakened, `absExpr`/`absExprNode`/
 `absExprKind` did not move, and `Refine/Main.lean`'s censuses are unchanged.**
 
-Three findings from the pass are worth keeping:
+Four findings from the pass are worth keeping, and the first is a trap that
+cost this task an hour:
+
+* **`lake env lean` is not `lake build`, and this task paid for it twice.**
+  Task #56 §7 already records that `proof/lakefile.toml`'s two `[leanOptions]`
+  do not reach a bare `lake env lean`; what this task adds is that it is
+  exactly the wrong tool for *parallel* sub-agents, which is what makes it
+  tempting — it is read-only, so several agents can run it at once against one
+  `.lake`.  Four files checked clean under it and failed `lake build`, three of
+  them by a single trailing `rfl`.  The right shape is one agent building at a
+  time with `lake build ConRon.Refine.<File>`; the parallelism has to come from
+  *editing* in parallel and verifying in series, not the other way round.
 
 * **The idiom's own tactics were where the leverage was.**  `CoreKSupport`'s
   `kind_split` macro accounted for 70 of the errors in one file; one line

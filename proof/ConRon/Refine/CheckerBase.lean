@@ -345,7 +345,7 @@ theorem pi_result_sort_refines {e : expr.Expr} {o : Option level.Level}
   rw [ConLeche.piResultSort, ← habs]
   cases k with
   | «Sort» u =>
-    simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, level_dup_eq, bind_tc_ok,
+    simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, level_dup_eq, bind_tc_ok,
       Result.ok.injEq] at h
     subst h
     refine ⟨by simp, ?_⟩
@@ -354,7 +354,7 @@ theorem pi_result_sort_refines {e : expr.Expr} {o : Option level.Level}
     rw [← hu']
     exact CoreK.wf_sort_inv hrwf rfl
   | _ =>
-    simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok, Result.ok.injEq] at h
+    simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok, Result.ok.injEq] at h
     subst h
     exact ⟨by simp, by simp⟩
 
@@ -785,7 +785,7 @@ theorem open_pis_at_fvars_refines :
     cases k with
     | ForallE dom body m =>
       obtain ⟨hdom, hbody, hm⟩ := wf_forall_inv he rfl
-      simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, expr_dup_eq, bind_tc_ok] at h
+      simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, expr_dup_eq, bind_tc_ok] at h
       obtain ⟨fv, hfv, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨opened, hopened, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨n1, hn1, h⟩ := bind_eq_ok_iff.mp h
@@ -818,7 +818,7 @@ theorem open_pis_at_fvars_refines :
         rw [← hp]
         exact ⟨hvwf, hbwf⟩
     | _ =>
-      simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
+      simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
       rw [← Result.ok_injective h]
       exact ⟨by simp [absExprKind, ConLeche.openPisAtFvars], by simp⟩
 
@@ -862,7 +862,7 @@ theorem open_pis_at_fvars_f_go_refines :
     cases k with
     | ForallE dom body m =>
       obtain ⟨hdom, hbody, hm⟩ := wf_forall_inv he rfl
-      simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
+      simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
       obtain ⟨e1, he1, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨fv, hfv, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨acc2, hacc2, h⟩ := bind_eq_ok_iff.mp h
@@ -897,7 +897,7 @@ theorem open_pis_at_fvars_f_go_refines :
         rw [← hp]
         exact ⟨hvwf, hbwf⟩
     | _ =>
-      simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
+      simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
       rw [← Result.ok_injective h]
       exact ⟨by simp [absExprKind, ConLeche.openPisAtFvarsFGo], by simp⟩
 
@@ -938,7 +938,7 @@ theorem checkProjShape_pty_none {pty ctorTy : ConLeche.Expr} {nP nF : Nat} {lst 
     (ConLeche.checkProjShape (m := CheckCM) pty ctorTy nP nF).run lst
       = .error (.notImplemented "projection type telescope") := by
   rw [ConLeche.checkProjShape]
-  simp only [h1, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  simp only [h1, StateT.run]
   rfl
 
 open ConLeche.Cached in
@@ -950,7 +950,7 @@ theorem checkProjShape_ctor_none {pty ctorTy x : ConLeche.Expr} {nP nF : Nat}
     (ConLeche.checkProjShape (m := CheckCM) pty ctorTy nP nF).run lst
       = .error (.notImplemented "projection constructor telescope") := by
   rw [ConLeche.checkProjShape]
-  simp only [h1, h2, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  simp only [h1, h2, StateT.run]
   rfl
 
 open ConLeche.Cached in
@@ -979,7 +979,7 @@ theorem checkProjShape_head {pty ctorTy x cbody : ConLeche.Expr} {nP nF : Nat}
     (ConLeche.checkProjShape (m := CheckCM) pty ctorTy nP nF).run lst
       = .error (.notImplemented "projection constructor residual head") := by
   rw [ConLeche.checkProjShape]
-  simp only [h1, h2, h3, if_true, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  simp only [h1, h2, h3, if_true, StateT.run, Bind.bind]
   cases hf : cbody.getAppFn with
   | const c us => exact absurd hf (h4 c us)
   | _ => rfl
@@ -1077,7 +1077,7 @@ theorem check_proj_shape_refines {pty ctor_ty : expr.Expr} {n_p n_f : Std.U64}
         | Const cn cus =>
           rw [absExpr_mk, absExprKind] at hfabs
           cases out with
-          | Err e => simp at h
+          | Err e => simp [ron.node.ExprView.ofKind] at h
           | Ok u =>
           rw [ConLeche.checkProjShape]
           simp only [← habs1, ← habs2, Option.map_some, ← hargsabs, ← hfabs]
@@ -1089,7 +1089,7 @@ theorem check_proj_shape_refines {pty ctor_ty : expr.Expr} {n_p n_f : Std.U64}
           -- `checker_base.rs:518` ← `CheckerBase.lean:250`
           all_goals (
             rw [absExpr_mk, absExprKind] at hfabs
-            simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok,
+            simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok,
               bind_eq_ok_iff] at h
             obtain ⟨v, hv, ce, hce, h⟩ := h
             have hout : out = .Err ce := err_out h
@@ -1158,7 +1158,7 @@ theorem checkTypedList_cons {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche
   rw [ConLeche.checkTypedList]
   simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
   rw [show (ops.inferType lenv d a) lst = Except.ok (ty, lst1) from hinf]
-  simp only [Except.bind]
+  simp only
   rw [show (ops.isDefEq lenv d ty t) lst1 = Except.ok (true, lst2) from hdef]
   rfl
 
@@ -1178,7 +1178,7 @@ theorem checkAnnotList_cons {ops : ConLeche.CheckerOps CheckCM} {lenv : ConLeche
   rw [ConLeche.checkAnnotList]
   simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
   rw [show (ops.annotate lenv d a) lst = Except.ok (aA, lst1) from hann]
-  simp only [Except.bind, heq]
+  simp only [heq]
   rfl
 
 /-! ### The list walks' `throw` arms, run
@@ -1265,7 +1265,7 @@ theorem checkTypedList_defeq_err {ops : ConLeche.CheckerOps CheckCM}
   rw [ConLeche.checkTypedList]
   simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
   rw [show (ops.inferType lenv d a) lst = Except.ok (ty, lst1) from hinf]
-  simp only [Except.bind]
+  simp only
   rw [show (ops.isDefEq lenv d ty t) lst1 = Except.error le from hdef]
 
 open ConLeche.Cached in
@@ -1280,7 +1280,7 @@ theorem checkTypedList_cons_false {ops : ConLeche.CheckerOps CheckCM}
   rw [ConLeche.checkTypedList]
   simp only [StateT.run, Bind.bind, StateT.bind, Except.bind]
   rw [show (ops.inferType lenv d a) lst = Except.ok (ty, lst1) from hinf]
-  simp only [Except.bind]
+  simp only
   rw [show (ops.isDefEq lenv d ty t) lst1 = Except.ok (false, lst2) from hdef]
   rfl
 
@@ -1453,7 +1453,7 @@ theorem check_def_eq_list_from_refines {mode : env.CheckMode} {fuel : Std.U64}
             rw [hdropx, hdropy]
             exact errSim_notImplemented hce rfl (checkDefEqList_cons_false hrun)
           | true =>
-            simp only [reduceIte] at h
+            simp only at h
             obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
             have hi4v : i4.val = i.val + 1 := HashMap.uscalar_add_eq hi4
             obtain ⟨lst1, hrun, hsr1, hsw1⟩ :=
@@ -1670,7 +1670,7 @@ theorem check_typed_list_from_refines {mode : env.CheckMode} {fuel : Std.U64}
               rw [hdropx, hdropt]
               exact errSim_notImplemented hce rfl (checkTypedList_cons_false hinf hdef)
             | true =>
-              simp only [reduceIte] at h
+              simp only at h
               obtain ⟨i5, hi5, h⟩ := bind_eq_ok_iff.mp h
               have hi5v : i5.val = i.val + 1 := HashMap.uscalar_add_eq hi5
               obtain ⟨lst2, hrun2, hsr2, hsw2⟩ :=
@@ -1955,8 +1955,8 @@ theorem checkConstantValF_at_annot {ops : ConLeche.CheckerOps CheckCM}
       = (constantValTail ops lfe cv type).run lst1 := by
   rw [ConLeche.checkConstantValF, constantValTail]
   simp only [h1, h2, h3, h4, h5, h6, Bool.false_eq_true, if_false, if_true,
-    eq_self_iff_true, reduceIte, StateT.run, Bind.bind, StateT.bind,
-    Except.bind, Pure.pure, StateT.pure, Except.pure]
+    StateT.run, Bind.bind, StateT.bind,
+    Except.bind, Pure.pure]
   rw [show (ops.annotate lfe.env 0 cv.type) lst = Except.ok (type, lst1) from hann]
   rfl
 
@@ -2306,7 +2306,7 @@ theorem check_constant_val_refines {mode : env.CheckMode} {fuel : Std.U64}
       rw [← hfind]; simp
     exact errSim_invalid hce rfl (checkConstantValF_dup (cv := absConstantVal cv) h1)
   | none =>
-    simp only [core.option.Option.is_some, Bool.false_eq_true, if_false] at h
+    simp only [core.option.Option.is_some] at h
     have h1 : ((lfe.find? (absName cv.name)).isSome) = false := by
       rw [← hfind]; simp
     obtain ⟨rv, hrv, h⟩ := bind_eq_ok_iff.mp h
@@ -2566,7 +2566,7 @@ theorem projRuleCertsTail_pty_none {ops : ConLeche.CheckerOps CheckCM}
     (projRuleCertsTail ops lfe pty cvj nP nF rhsA).run lst
       = .error (.notImplemented "projection type telescope") := by
   rw [projRuleCertsTail]
-  simp only [h1, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  simp only [h1, StateT.run]
   rfl
 
 open ConLeche.Cached in
@@ -2580,7 +2580,7 @@ theorem projRuleCertsTail_ctor_none {ops : ConLeche.CheckerOps CheckCM}
     (projRuleCertsTail ops lfe pty cvj nP nF rhsA).run lst
       = .error (.notImplemented "projection constructor telescope") := by
   rw [projRuleCertsTail]
-  simp only [h1, h2, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  simp only [h1, h2, StateT.run]
   rfl
 
 open ConLeche.Cached in
@@ -2892,8 +2892,8 @@ theorem projRuleShapeTail_run {ops : ConLeche.CheckerOps CheckCM} {lfe : ConLech
     (projRuleShapeTail ops lfe pty cvj nP nF i rhsA).run lst
       = (projRuleCertsTail ops lfe pty cvj nP nF rhsA).run lst := by
   rw [projRuleShapeTail]
-  simp only [h1, h2, h3, h4, reduceIte, StateT.run, Bind.bind, StateT.bind,
-    Except.bind, Pure.pure, StateT.pure, Except.pure]
+  simp only [h1, h2, h3, h4, reduceIte, StateT.run, Bind.bind]
+  rfl
 
 open ConLeche.Cached in
 /-- `checkProjRuleF` at a run whose head guards passed and whose annotation
@@ -2912,9 +2912,9 @@ theorem checkProjRuleF_at_annot {ops : ConLeche.CheckerOps CheckCM} {lfe : ConLe
       = (projRuleShapeTail ops lfe pty cvj nP nF i rhsA).run lst1 := by
   rw [ConLeche.checkProjRuleF, projRuleShapeTail]
   simp only [h1, h2, reduceIte, StateT.run, Bind.bind, StateT.bind,
-    Except.bind, Pure.pure, StateT.pure, Except.pure]
+    Except.bind, Pure.pure]
   rw [show (ops.annotate lfe.env 0 rhs) lst = Except.ok (rhsA, lst1) from hann]
-  simp only [h3, reduceIte, Except.bind]
+  simp only [h3, reduceIte]
   rfl
 
 open ConLeche.Cached in
@@ -2927,7 +2927,7 @@ theorem projRuleShapeTail_lams_none {ops : ConLeche.CheckerOps CheckCM}
     (projRuleShapeTail ops lfe pty cvj nP nF i rhsA).run lst
       = .error (.notImplemented "projection rule telescope") := by
   rw [projRuleShapeTail]
-  simp only [h1, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  simp only [h1, StateT.run]
   rfl
 
 open ConLeche.Cached in
@@ -2959,7 +2959,7 @@ theorem projRuleShapeTail_pis_none {ops : ConLeche.CheckerOps CheckCM}
     (projRuleShapeTail ops lfe pty cvj nP nF i rhsA).run lst
       = .error (.notImplemented "projection constructor telescope") := by
   rw [projRuleShapeTail]
-  simp only [h1, h2, h3, reduceIte, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  simp only [h1, h2, h3, reduceIte, StateT.run, Bind.bind]
   rfl
 
 open ConLeche.Cached in
@@ -3130,7 +3130,7 @@ theorem checkProjRuleF_rhs_none {ops : ConLeche.CheckerOps CheckCM}
     (ConLeche.checkProjRuleF ops lfe pty cvj lps nP nF i).run lst
       = .error (.notImplemented "projection rule telescope") := by
   rw [ConLeche.checkProjRuleF]
-  simp only [h1, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  simp only [h1, StateT.run]
   rfl
 
 open ConLeche.Cached in

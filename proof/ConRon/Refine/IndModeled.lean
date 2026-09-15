@@ -3595,17 +3595,17 @@ theorem nested_rule_shape_refines
   simp only [Option.map_some] at ho1abs
   rw [← ho1abs]
   obtain ⟨en, hen, h⟩ := bind_eq_ok_iff.mp h
-  rw [arc_deref_eq, Result.ok.injEq] at hen
+  rw [expr_view_eq, Result.ok.injEq] at hen
   subst hen
   obtain ⟨⟨d, k⟩⟩ := e
   cases k
   case ForallE =>
     obtain ⟨hdomwf, -, -⟩ := CoreK.ExprWF.forallE_children hewf rfl
-    simp only [ExprOps.node_kind] at h
+    simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨head, hhead, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨hheadv, hheadwf⟩ := ExprOps.get_app_fn_refines hdomwf hhead
     obtain ⟨en1, hen1, h⟩ := bind_eq_ok_iff.mp h
-    rw [arc_deref_eq, Result.ok.injEq] at hen1
+    rw [expr_view_eq, Result.ok.injEq] at hen1
     subst hen1
     obtain ⟨⟨d1, k1⟩⟩ := head
     simp only [absExpr_mk, absExprKind]
@@ -3613,7 +3613,7 @@ theorem nested_rule_shape_refines
     cases k1
     case Const =>
       obtain ⟨-, hlvlswf⟩ := CoreK.ExprWF.const_children hheadwf rfl
-      simp only [ExprOps.node_kind] at h
+      simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       simp only [absExpr_mk, absExprKind]
       obtain ⟨args, hargs, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨hargsv, hargswf⟩ := ExprOps.get_app_args_refines hdomwf hargs
@@ -3754,12 +3754,12 @@ theorem nested_rule_shape_refines
             simp at hb1v), ← h]
           simp
     all_goals
-      simp only [ExprOps.node_kind] at h
+      simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       simp only [Result.ok.injEq] at h
       rw [← h]
       simp
   all_goals
-    simp only [ExprOps.node_kind] at h
+    simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     simp only [Result.ok.injEq] at h
     rw [← h]
     simp
@@ -5044,7 +5044,8 @@ theorem checkIotaThmNF_tail {lmode : ConLeche.CheckMode}
     h8, hc, beq_self_eq_true, if_true]
   refine congrArg (fun x => StateT.run x lst) ?_
   simp only [checkIotaThmNCtor, checkIotaThmNFrames, bind_assoc, bind_iteC,
-    ConLeche.unwrapOr, pure_bind]
+    ConLeche.unwrapOr]
+  rfl
 
 omit hw hcb in
 /-- `checkIotaThmNF`'s success path, run.  Like `checkIotaThmF_run` this is
@@ -5094,7 +5095,8 @@ theorem checkIotaThmNF_run {lmode : ConLeche.CheckMode}
   refine Eq.trans (congrArg (fun x => StateT.run x lst) ?_)
     (run_seq_pure (v := ConLeche.RecRuleFire.nested lvls pins) h10)
   simp only [checkIotaThmNCtor, checkIotaThmNFrames, bind_assoc, bind_iteC,
-    ConLeche.unwrapOr, pure_bind]
+    ConLeche.unwrapOr]
+  rfl
 
 set_option linter.unusedSimpArgs false in
 /-- `ConLeche/Kernel/DeclCheck.lean:601-685` — **`check_iota_thm_n` refines
@@ -5263,12 +5265,12 @@ theorem check_iota_thm_n_refines
       obtain ⟨rhead, hrhead, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨hrheadv, hrheadwf⟩ := ExprOps.get_app_fn_refines he1wf hrhead
       obtain ⟨en, hen, h⟩ := bind_eq_ok_iff.mp h
-      rw [arc_deref_eq, Result.ok.injEq] at hen
+      rw [expr_view_eq, Result.ok.injEq] at hen
       subst hen
       obtain ⟨⟨dd, kk⟩⟩ := rhead
       cases kk
       case Const cn cus =>
-        simp only [ExprOps.node_kind] at h
+        simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         have hconst : ∃ c cu, ConLeche.Expr.getAppFn (absExpr e1)
             = .const c cu := by
           rw [← hrheadv]
@@ -5310,7 +5312,7 @@ theorem check_iota_thm_n_refines
             from rfl]
         exact htail.trans (run_seq_pure hrun)
       -- the nine other residual heads (`DeclCheck.lean:643`)
-      all_goals simp only [ExprOps.node_kind] at h
+      all_goals simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       all_goals simp [bind_eq_ok_iff] at h
       all_goals obtain ⟨v1, hv1, ce, hce, rfl, rfl⟩ := h
       all_goals
@@ -6348,7 +6350,7 @@ theorem name_is_model_suffix_refines {n : name.Name} (hn : NameWF n) {b : Bool}
   | @str pre str n' hpre hstr hmk =>
     obtain ⟨hh, rfl⟩ := mk_str_inv hmk
     rw [level.name_is_model_suffix] at h
-    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at h
+    simp only [arc_deref_eq, bind_tc_ok] at h
     rw [is_model_str_refines hstr h, absName_mk, absNameKind,
       isModelSuffix_str]
   | @num pre m n' hpre hmk =>
@@ -7360,8 +7362,8 @@ theorem checkIndRecsN_step {lmode : ConLeche.CheckMode}
     (checkIndRecsN lmode blockNames lfe recs).run lst = .ok (fe', lst2) := by
   rw [checkIndRecsN]
   simp only [StateT.run] at h1 h2
-  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
-    StateT.pure, Except.pure, hne, heq, h1, h2]
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+    Except.pure, hne, heq, h1, h2]
 
 omit hw hcb in
 /-- `checkIndRecsN`'s **`Eq`-basis** `throw` (task #67). -/
@@ -7388,8 +7390,8 @@ theorem checkIndRecsN_prov_err {lmode : ConLeche.CheckMode}
     (checkIndRecsN lmode blockNames lfe recs).run lst = .error le := by
   rw [checkIndRecsN]
   simp only [StateT.run] at h1
-  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
-    StateT.pure, Except.pure, hne, heq, h1]
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+    Except.pure, hne, heq, h1]
 
 omit hw hcb in
 /-- `checkIndRecsN`'s rule fold threw. -/
@@ -7407,8 +7409,8 @@ theorem checkIndRecsN_fold_err {lmode : ConLeche.CheckMode}
     (checkIndRecsN lmode blockNames lfe recs).run lst = .error le := by
   rw [checkIndRecsN]
   simp only [StateT.run] at h1 h2
-  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
-    StateT.pure, Except.pure, hne, heq, h1, h2]
+  simp [StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure, StateT.pure,
+    Except.pure, hne, heq, h1, h2]
 
 /-- `ConLeche/Cached/CheckerC.lean:136-151` (minus every flush) —
 `check_ind_recs` refines `checkIndRecsN`: the block's recursors as a *group*.
@@ -8039,8 +8041,8 @@ theorem checkProjIotaBody_redex {lmode : ConLeche.CheckMode}
         (.app (.app (.app (.const c [la]) tySlot) lhsC) rhsC)).run lst
       = .error (.notImplemented "projection iota redex mismatch") := by
   rw [checkProjIotaBody]
-  simp [hc, hlhs, StateT.run, Bind.bind, StateT.bind, Except.bind, Pure.pure,
-    StateT.pure, Except.pure]
+  simp [hc, hlhs, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rfl
 
 omit hw hcb in
 /-- `checkProjIotaBody`'s **field** `throw` (`DeclCheck.lean:829`). -/
@@ -8063,8 +8065,8 @@ theorem checkProjIotaBody_field {lmode : ConLeche.CheckMode}
         (.app (.app (.app (.const c [la]) tySlot) lhsC) rhsC)).run lst
       = .error (.notImplemented "projection iota field mismatch") := by
   rw [checkProjIotaBody]
-  simp [hc, hlhs, hrhs, StateT.run, Bind.bind, StateT.bind, Except.bind,
-    Pure.pure, StateT.pure, Except.pure]
+  simp [hc, hlhs, hrhs, StateT.run, Bind.bind, StateT.bind, Except.bind]
+  rfl
 
 omit hw hcb in
 /-- `checkProjIotaBody`'s **telescope** `throw` (`DeclCheck.lean:832`): the
@@ -8090,7 +8092,8 @@ theorem checkProjIotaBody_tele {lmode : ConLeche.CheckMode}
       = .error (.notImplemented "projection iota telescope") := by
   rw [checkProjIotaBody]
   simp [ConLeche.unwrapOr, hopen, hc, hlhs, hrhs, StateT.run, Bind.bind,
-    StateT.bind, Except.bind, Pure.pure, StateT.pure, Except.pure]
+    StateT.bind, Except.bind]
+  rfl
 
 omit hw hcb in
 /-- `checkProjIotaBody`'s **body-shape** `throw` (`DeclCheck.lean:834`), as a
@@ -8220,8 +8223,7 @@ theorem check_proj_iota_body_refines
     exact errSim_notImplemented "projection iota body shape" hce
       (checkProjIotaBody_shape hne)
   -- the shape probe: three arguments and a one-level `.const` head
-  obtain ⟨pq, hpq, hz⟩ := bind_eq_ok_iff.mp h
-  obtain ⟨head1, shaped⟩ := pq
+  obtain ⟨shaped, hpq, hz⟩ := bind_eq_ok_iff.mp h
   by_cases hlen : alloc.vec.Vec.len args = 3#usize
   · rw [if_pos hlen] at hpq
     obtain ⟨⟨d0, k0⟩⟩ := head
@@ -8229,9 +8231,9 @@ theorem check_proj_iota_body_refines
     case Const =>
       rename_i n0 us0 _
       obtain ⟨hn0wf, hus0wf⟩ := CoreK.ExprWF.const_children hheadwf rfl
-      simp only [ExprOps.node_kind, ron.node.ExprView.ofKind, expr_view_eq, arc_deref_eq, bind_tc_ok, Result.ok.injEq,
-        Prod.mk.injEq] at hpq
-      obtain ⟨rfl, rfl⟩ := hpq
+      simp only [ExprOps.node_kind, ron.node.ExprView.ofKind, expr_view_eq, arc_deref_eq,
+        bind_tc_ok, Result.ok.injEq] at hpq
+      subst hpq
       simp at hz
       split at hz
       · rename_i hus1
@@ -8474,17 +8476,17 @@ theorem check_proj_iota_body_refines
           scalar_tac
         simp [hlen1] at hus1
     -- move 2: a head that is not a `.const` at all
-    all_goals simp only [ExprOps.node_kind, ron.node.ExprView.ofKind, expr_view_eq, arc_deref_eq, bind_tc_ok,
-      Result.ok.injEq, Prod.mk.injEq] at hpq
-    all_goals rw [← hpq.2] at hz
+    all_goals simp only [ExprOps.node_kind, ron.node.ExprView.ofKind, expr_view_eq, arc_deref_eq,
+      bind_tc_ok, Result.ok.injEq] at hpq
+    all_goals rw [← hpq] at hz
     all_goals simp at hz
     all_goals obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := hz
     all_goals refine hshape hce (fun c la ts l r hx => ?_)
     all_goals rw [hx] at hheadv
     all_goals simp [ConLeche.Expr.getAppFn] at hheadv
   · -- move 2: a spine that is not three arguments long
-    rw [if_neg hlen, Result.ok.injEq, Prod.mk.injEq] at hpq
-    rw [← hpq.2] at hz
+    rw [if_neg hlen, Result.ok.injEq] at hpq
+    rw [← hpq] at hz
     simp at hz
     obtain ⟨v, hv, ce, hce, rfl, rfl⟩ := hz
     refine hshape hce (fun c la ts l r hx => ?_)
@@ -8538,7 +8540,7 @@ theorem checkProjIotaF_tail {lmode : ConLeche.CheckMode} {lfe : ConLeche.FEnv}
       = checkProjIotaBody lmode lfe T cvj lps nP nF i tcv sbody := by
   subst hname
   rw [ConLeche.checkProjIotaF, checkProjIotaBody.eq_def]
-  simp only [hfind, hlp, hsp, hcp, hdm, if_true, pure_bind]
+  simp only [hfind, hlp, hsp, hcp, hdm, if_true]
   split
   · rfl
   · rename_i hne

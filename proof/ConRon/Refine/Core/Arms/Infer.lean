@@ -919,9 +919,8 @@ theorem infer_forall_i_refines (hw : Wrappers mode fuel) (hd : InferDeps mode fu
         (hw.whnfSim d httyWF).apply hwf1 hfe h2 hrel1 hfrel
       obtain ⟨⟨dw, kd⟩⟩ := wtty
       obtain ⟨en, hen, k3⟩ := bind_eq_ok_iff.mp k2
-      have henv : en = expr.ExprNode.mk dw kd := by simpa using hen.symm
+      have henv : en = ron.node.ExprView.ofKind kd := by simpa using hen.symm
       subst henv
-      simp only [expr.ExprNode.kind._simpLemma_] at k3
       cases kd
       case «Sort» u =>
         have huWF : LevelWF u := CoreK.wf_sort_inv hwttyWF rfl
@@ -1161,9 +1160,9 @@ theorem infer_body_i_refines {mode : env.CheckMode} {fuel : Std.U64}
   unfold cached.core_c.infer_body_i at hok
   obtain ⟨en, hen, k1⟩ := bind_eq_ok_iff.mp hok
   obtain ⟨⟨dd, k⟩⟩ := e
-  have henv : en = expr.ExprNode.mk dd k := by simpa using hen.symm
+  have henv : en = ron.node.ExprView.ofKind k := by simpa using hen.symm
   subst henv
-  simp only [expr.Expr._0._simpLemma_, expr.ExprNode.kind._simpLemma_] at k1 hch
+  simp only [expr.Expr._0._simpLemma_, expr.ExprNode.kind._simpLemma_] at hch
   cases k
   case Bvar i =>
     -- outside the supported fragment: both decline (`CoreC.lean:1389`)

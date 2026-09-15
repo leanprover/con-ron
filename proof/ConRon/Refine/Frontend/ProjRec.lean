@@ -341,8 +341,10 @@ theorem inst_pis_open_loop_wf (N : Nat) :
     rw [frontend.proj_rec.inst_pis_open_loop.eq_def] at h
     rust_norm h
     case h_7 =>
-      rename_i ea e1 hand i1 hi1 _ _
+      rename_i ty bo m hkd ea e1 hand i1 hi1 _ _
       obtain ⟨hidx, hinst⟩ := hand
+      have hkind : kind = .ForallE ty bo m := (of_kind_forall_e_iff _ _ _ _).mp hkd
+      subst hkind
       obtain ⟨-, hbo, -⟩ := ExprWF.forall_e_kids hcur
       obtain ⟨-, hmem⟩ := vec_index_mem hidx
       have hwfe1 : ExprWF e1 :=
@@ -440,6 +442,9 @@ theorem build_binders_step_wf {M : Type} {inst : frontend.proj_rec.MkBinder M} {
   rw [frontend.proj_rec.build_binders_step.eq_def] at h
   rust_norm h
   case h_7 =>
+    rename_i ty bo m hkd
+    have hkind : kind = .ForallE ty bo m := (of_kind_forall_e_iff _ _ _ _).mp hkd
+    subst hkind
     exact build_binders_step_at_wf hmk (ExprWF.forall_e_kids hcur).1
       (ExprWF.forall_e_kids hcur).2.1 h
   -- the nine arms that are not a `∀` answer `none`, which `rust_norm`'s
@@ -674,6 +679,7 @@ theorem proj_iota_level_wf {ty : expr.Expr} {l : level.Level} (hty : ExprWF ty)
   rename_i pr hpr hd hhd _ n us heq _ _ _ _ _ _
   have hHD : ExprWF hd := (ExprOps.get_app_fn_refines (ExprOps.pi_result_refines hty hpr).2 hhd).2
   have hk := ExprWF.kids hHD
+  replace heq : hd._0.kind = .Const n us := (of_kind_const_iff _ _ _).mp heq
   rw [heq] at hk
   exact hk.2 l (vec_index_mem h).2
 

@@ -3533,15 +3533,16 @@ theorem check_proj_iota_body_refines {mode : env.CheckMode} {fuel : Std.U64}
   obtain ⟨hhdabs, hhdwf⟩ := ExprOps.get_app_fn_refines hsb hhd
   obtain ⟨args, harg, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨hargabs, hargwf⟩ := ExprOps.get_app_args_refines hsb harg
-  obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
-  obtain ⟨head1, shaped⟩ := q
+  -- task #94: `check_proj_iota_body` binds a bare `shaped : Bool` where it used
+  -- to bind `(head, shaped)`.
+  obtain ⟨shaped, hq, h⟩ := bind_eq_ok_iff.mp h
   by_cases hl3 : alloc.vec.Vec.len args = 3#usize
   case neg =>
     -- `modeled.rs:2129` ← `DeclCheck.lean:825`: a spine of other than three
     -- arguments is not the cited body pattern
     replace hq := ite_neg_eq (c := (alloc.vec.Vec.len args = 3#usize)) hl3 hq
-    simp only [Result.ok.injEq, Prod.mk.injEq] at hq
-    obtain ⟨rfl, rfl⟩ := hq
+    simp only [Result.ok.injEq] at hq
+    subst hq
     obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
@@ -3556,21 +3557,18 @@ theorem check_proj_iota_body_refines {mode : env.CheckMode} {fuel : Std.U64}
       simpa [absExprs] using hL
     exact hl3 (by have := alloc.vec.Vec.len_val args; scalar_tac)
   replace hq := ite_pos_eq (c := (alloc.vec.Vec.len args = 3#usize)) hl3 hq
-  obtain ⟨en, hen, hq⟩ := bind_eq_ok_iff.mp hq
-  obtain ⟨bsh, hbsh, hq⟩ := bind_eq_ok_iff.mp hq
-  simp only [Result.ok.injEq, Prod.mk.injEq] at hq
-  obtain ⟨rfl, rfl⟩ := hq
+  obtain ⟨en, hen, hbsh⟩ := bind_eq_ok_iff.mp hq
   have hargslen : args.val.length = 3 := by
     have := alloc.vec.Vec.len_val args; scalar_tac
   obtain ⟨x0, x1, x2, hxs⟩ := len_eq_three hargslen
   have hargabs3 : (absExpr sbody).getAppArgs
       = [absExpr x0, absExpr x1, absExpr x2] := by
     rw [← hargabs, absExprs, hxs]; simp
-  by_cases hshd : bsh = true
+  by_cases hshd : shaped = true
   case neg =>
     -- `modeled.rs:2129` ← `DeclCheck.lean:825`: a head that is not a
     -- one-level constant is not the cited body pattern either
-    replace h := ite_neg_eq (c := (bsh = true)) hshd h
+    replace h := ite_neg_eq (c := (shaped = true)) hshd h
     obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
@@ -3581,16 +3579,20 @@ theorem check_proj_iota_body_refines {mode : env.CheckMode} {fuel : Std.U64}
     obtain ⟨n, us, hkind, huslen⟩ :=
       const_kind_of_abs (e := head) (c := c) (lu := lu)
         (by rw [hhdabs, hcon]; exact getAppFn_app3_const _ _ _ _ _)
-    have hene : en = head._0 := (Result.ok_injective hen).symm
+    -- task #94: `expr.view` hands back an `ExprView`, so what `hen` names is
+    -- `ofKind`'s image of the head's kind.
+    have hene : en = ron.node.ExprView.ofKind head._0.kind := by
+      rw [expr_view_eq] at hen; exact (Result.ok_injective hen).symm
     rw [hene, hkind] at hbsh
-    have hbv : bsh = decide (alloc.vec.Vec.len us = 1#usize) := by
+    simp only [ron.node.ExprView.ofKind] at hbsh
+    have hbv : shaped = decide (alloc.vec.Vec.len us = 1#usize) := by
       simpa using hbsh.symm
     refine hshd ?_
     rw [hbv]
     have := alloc.vec.Vec.len_val us
     simp only [decide_eq_true_eq]
     scalar_tac
-  replace h := ite_pos_eq (c := (bsh = true)) hshd h
+  replace h := ite_pos_eq (c := (shaped = true)) hshd h
   obtain ⟨beq, hbeq, h⟩ := bind_eq_ok_iff.mp h
   have hbeqabs := CheckerBase.is_eq_head_refines hhdwf hbeq
   split at h
