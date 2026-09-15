@@ -259,16 +259,17 @@
     13  # rebasing.
     14  #
 
-== scripts/gates.sh#L53-L61
-    53  run cargo-build   env RUSTFLAGS="-D warnings" cargo build --manifest-path "$root/Cargo.toml"
-    54  run cargo-test    env RUSTFLAGS="-D warnings" cargo test  --manifest-path "$root/Cargo.toml"
-    55  run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src"
-    56  run provenance    python3 "$root/scripts/provenance.py" check
-    57  run overview-links "$root/scripts/overview-links.sh"
-    58  run gen-pins      "$root/scripts/gen-pins.sh" --check
-    59  run gen-prelude   "$root/scripts/gen-prelude.sh" --check
-    60  run extract-check "$root/scripts/extract.sh" --check
-    61  run lake-build    env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build
+== scripts/gates.sh#L54-L63
+    54  run cargo-build   env RUSTFLAGS="-D warnings" cargo build --manifest-path "$root/Cargo.toml"
+    55  run cargo-test    env RUSTFLAGS="-D warnings" cargo test  --manifest-path "$root/Cargo.toml"
+    56  run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src"
+    57  run provenance    python3 "$root/scripts/provenance.py" check
+    58  run overview-links "$root/scripts/overview-links.sh"
+    59  run holes         "$root/scripts/holes.sh" --check
+    60  run gen-pins      "$root/scripts/gen-pins.sh" --check
+    61  run gen-prelude   "$root/scripts/gen-prelude.sh" --check
+    62  run extract-check "$root/scripts/extract.sh" --check
+    63  run lake-build    env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build
 
 == proof/ConRon/Refine/Main.lean#L303-L310
    303  `conron.model_exists_embedded` below is this theorem at exactly that text. -/
@@ -840,6 +841,116 @@
     98          ∧ StateRel st' lst' ∧ StateWF st' ∧ FEnvRel fe' lfe' ∧ FEnvWF fe'
     99          ∧ FEnvCanon fe' ∧ FEnvFull fe'
    100    /-- **Route B, the modeled install** (`inductives_c::check_ind_decl_s`
+
+== proof/ConRon/Generated/TypesExternal.lean#L42
+    42  def alloc.sync.Arc (T : Type) : Type := T
+
+== proof/ConRon/Generated/FunsExternal.lean#L26-L45
+    26  def alloc.sync.Arc.new {T : Type} (x : T) : Result (alloc.sync.Arc T) := ok x
+    27  
+    28  /- Modeled as `false`: the model always takes the slow path (DESIGN.md
+    29     §3.2).  Sound for the accept direction *provided* every walk that uses
+    30     `ptr_eq` as a shortcut is reflexive, which is an ordinary lemma about the
+    31     model, proved once per call site (Lean's own `withPtrEq` discipline). -/
+    32  /-- [alloc::sync::{alloc::sync::Arc<T>}::ptr_eq]:
+    33      Source: '/rustc/library/alloc/src/sync.rs', lines 2172:4-2172:52
+    34      Name pattern: [alloc::sync::{alloc::sync::Arc<@T>}::ptr_eq]
+    35      Visibility: public -/
+    36  @[rust_fun "alloc::sync::{alloc::sync::Arc<@T>}::ptr_eq"]
+    37  def alloc.sync.Arc.ptr_eq
+    38    {T : Type} (_A : Type) (_a _b : alloc.sync.Arc T) : Result Bool := ok false
+    39  
+    40  /-- [alloc::sync::{impl core::clone::Clone for alloc::sync::Arc<T>}::clone]:
+    41      Source: '/rustc/library/alloc/src/sync.rs', lines 2405:4-2405:32
+    42      Name pattern: [alloc::sync::{core::clone::Clone<alloc::sync::Arc<@T>>}::clone]
+    43      Visibility: public -/
+    44  @[rust_fun "alloc::sync::{core::clone::Clone<alloc::sync::Arc<@T>>}::clone"]
+    45  def alloc.sync.Arc.Insts.CoreCloneClone.clone
+
+== proof/ConRon/Generated/TypesExternal.lean#L41-L42
+    41  @[reducible, rust_type "alloc::sync::Arc"]
+    42  def alloc.sync.Arc (T : Type) : Type := T
+
+== crates/con-ron-core/src/ron/ptr.rs#L30-L36
+    30  //! | here | `Arc`/`Rc` | model |
+    31  //! |---|---|---|
+    32  //! | [`new`] | `Arc::new` | `ok x` |
+    33  //! | [`clone`] | `Arc::clone` | `ok x` |
+    34  //! | *(deref)* | `Deref::deref`, i.e. `*p` and every auto-deref | `ok x` |
+    35  //! | [`ptr_eq`] | `Arc::ptr_eq` | `ok false` |
+    36  //!
+
+== proof/ConRon/Generated/FunsExternal.lean#L25-L26
+    25  @[rust_fun "alloc::sync::{alloc::sync::Arc<@T>}::new"]
+    26  def alloc.sync.Arc.new {T : Type} (x : T) : Result (alloc.sync.Arc T) := ok x
+
+== proof/ConRon/Generated/FunsExternal.lean#L44-L48
+    44  @[rust_fun "alloc::sync::{core::clone::Clone<alloc::sync::Arc<@T>>}::clone"]
+    45  def alloc.sync.Arc.Insts.CoreCloneClone.clone
+    46    {T : Type} {A : Type} (_coreallocAllocatorCloneInst :
+    47    core.alloc.AllocatorClone A) (x : alloc.sync.Arc T) :
+    48    Result (alloc.sync.Arc T) := ok x
+
+== proof/ConRon/Generated/FunsExternal.lean#L54-L57
+    54  @[rust_fun
+    55    "alloc::sync::{core::ops::deref::Deref<alloc::sync::Arc<@T>, @T>}::deref"]
+    56  def alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref
+    57    {T : Type} (_A : Type) (x : alloc.sync.Arc T) : Result T := ok x
+
+== proof/ConRon/Generated/FunsExternal.lean#L36-L38
+    36  @[rust_fun "alloc::sync::{alloc::sync::Arc<@T>}::ptr_eq"]
+    37  def alloc.sync.Arc.ptr_eq
+    38    {T : Type} (_A : Type) (_a _b : alloc.sync.Arc T) : Result Bool := ok false
+
+== proof/ConRon/Generated/FunsExternal.lean#L71-L72
+    71  @[rust_fun "core::str::{str}::as_bytes"]
+    72  def core.str.Str.as_bytes (s : Str) : Result (Slice Std.U8) := ok s
+
+== crates/con-ron-dump/src/lib.rs#L174-L176
+   174  #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
+   175  #[global_allocator]
+   176  static GLOBAL_ALLOC: MiMallocTight = MiMallocTight;
+
+== Cargo.toml#L17-L21
+    17  # The Aeneas model of the code is the checked-arithmetic one (an overflow is
+    18  # a `fail`), so the shipped binary must check too, or the model would not
+    19  # describe it (task #7).
+    20  [profile.release]
+    21  overflow-checks = true
+
+== crates/con-ron/src/in_model/mod.rs#L12-L16
+    12  //! Soundness needs nothing from this module: a wrong record is rejected or
+    13  //! declined by the fold, never accepted.  Its correctness decides only
+    14  //! *coverage* — which blocks accept — and every decline names its class, so
+    15  //! the residual is exact and positive.  Nothing here is verified, and nothing
+    16  //! here is in §3.4's Aeneas subset.
+
+== proof/ConRon/Refine/Main.lean#L697-L703
+   697  * `hgen : Frontend.ModellerWF inst g` — phase 1's promise about the unverified
+   698    modeller (task #84's seam): every declaration `in_model_rec::Modeller
+   699    ::generate` returns is well formed.  It is what discharges the fold's `hds`.
+   700  * `hmr : Frontend.ModellerRefines inst g Frontend.CtxRel` — the modeller's
+   701    *second* promise, and the companion of `hgen`: that when `generate` declines,
+   702    it declines where con-leche's modeller declines.  Like `hgen` it is a
+   703    statement about an unverified argument, not a proof obligation this tier can
+
+== crates/con-ron/src/driver.rs#L21-L27
+    21  //! `check_decls_driver` is `installed::check_decls`' body with the phase
+    22  //! boundary visible (`Main.lean:318-421 checkDeclsIO`): phase A installs every
+    23  //! record with `annot_decl_step`, phase B checks every recorded declaration
+    24  //! from a fresh `CState` with `check_pending`.  It is step for step the fold
+    25  //! `ConLeche/Cached/Installed.lean:438-455 checkDecls` — which is why an
+    26  //! observer that prints between the steps changes no verdict, and why ONE
+    27  //! loop serves the plain run and the `--progress` heartbeat alike.
+
+== crates/con-ron/src/pool.rs#L15-L21
+    15  //! **The verdict, and the record a rejection names, are the same at every
+    16  //! `--jobs`.**  A worker's result is the record's index with its outcome; the
+    17  //! workers' arrays are merged *by record index* into one table and the table is
+    18  //! walked in **record order**, stopping at the first failing record in fold
+    19  //! order.  That walk is `check_pending_list`'s, whatever the workers' timing,
+    20  //! so the pool cannot report the second failure of a stream that has two —
+    21  //! `pool_reports_the_first_failure_at_every_jobs` is the test, at 1, 2, 3, 4
 
 == proof/ConRon/Refine/Abs.lean#L170
    170  macro "rust_grind" : tactic => `(tactic| grind (ematch := 12) (gen := 24))

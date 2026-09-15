@@ -1369,6 +1369,29 @@ measured.
   citation, and it should move with the pin the same way a local citation
   moves with this tree.  A con-leche link pinned at any other commit is a
   snapshot and stays unchecked.
+* `scripts/holes.sh` (task #95) is the **hole gate**, and the companion of
+  the link gate: a documentation gate with an expectation, in the same idiom.
+  `scripts/holes.sh` prints every external hole of the model, one per line,
+  `type <name>` or `fn <name>`; `scripts/holes.sh --check` additionally
+  checks `OVERVIEW.md` §7.1's table — the user-facing inventory of what the
+  proof does not see, one row per hole with its Lean model and why that model
+  is faithful — against that list, in both directions: a hole with no row
+  fails naming the hole, a row naming something that is no longer a hole
+  fails naming the row.  The source it reads is the **templates Aeneas
+  emits** (`proof/ConRon/Generated/{Types,Funs}External_Template.lean`),
+  which are committed and are the translator's own statement of what it could
+  not translate; the hand-written models cannot identify the holes on their
+  own, because a hole that is an opaque item of *this* crate comes out of the
+  template as a bare `axiom` with no `@[rust_type]`/`@[rust_fun]` attribute
+  (commit `8e7cb88c`, found by task #94's spike) and a hand file's
+  unattributed `def` is then indistinguishable from a helper.  Reading the
+  template is still a statement about the *models*, because `extract.sh`'s
+  steps 3a/3b already fail unless every hole a template declares is modelled
+  by hand.  The table is delimited in `OVERVIEW.md` by `<!-- holes: begin -->`
+  / `<!-- holes: end -->` and each row's **first cell** carries the hole's
+  Lean name in backticks; that is the whole matching rule.  No build,
+  milliseconds; `gates.sh` runs it between `overview-links` and `gen-pins`,
+  as the sixth of ten.
 * Commit often.  The maintainer pushes and opens PRs (see `CLAUDE.md`).
 * Fable designs and states theorems and reviews; Opus agents port, extract,
   prove and measure.  Delegate anything mechanical.
@@ -19104,3 +19127,120 @@ revert and on the reverted tree after it.  Artefacts under
 (the paired runs), `stats-{master,t93}.err` (mimalloc's counters), `tv.err`
 (the `to_vec` census), and for item B `top10-instructions.md`,
 `{base,trio}.{stat,r3,r4,init,fine,all.report}.txt`.
+
+### Task #95 — the trust-surface inventory and its gate (2026-09-15, Opus under Fable)
+
+The maintainer's ask, and the reason it does not wait on anything: *"it is
+important to have it no matter the destiny of the branch."*  The theorem
+covers the verified crate **as Aeneas translates it**; everything the
+translator does not see is trusted, and until now that list existed only
+implicitly — as two hand-written model files and an extraction gate that
+checks them against Aeneas's templates.  This task makes the list explicit,
+in the user-facing document, with each item's model and its justification,
+and puts a gate on it so it cannot drift.
+
+#### 1. The inventory as it stands: six holes
+
+`scripts/holes.sh` prints it, and this is the whole output today:
+
+```
+type alloc.sync.Arc
+fn alloc.sync.Arc.Insts.CoreCloneClone.clone
+fn alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref
+fn alloc.sync.Arc.new
+fn alloc.sync.Arc.ptr_eq
+fn core.str.Str.as_bytes
+```
+
+One type and five functions; five of the six are the counted pointer's (§3.2),
+and the sixth is not a trust assumption at all.  `OVERVIEW.md` §7.1 is the
+table, one row each, with the Lean model and the argument for it:
+
+| hole | model | what carries it |
+|---|---|---|
+| `alloc.sync.Arc` | `Arc T := T` | an allocated `P<T>` is an immutable owner — `get_mut`, `make_mut`, `Weak`, `as_ptr`, `into_raw` and interior mutability are out of the subset and `lint-rust-style.sh` gates the names — so sharing, and atomicity with it, is invisible to the value |
+| `alloc.sync.Arc.new` | `ok x` | allocation is all it does, and the model has no heap for it to show in |
+| `…CoreCloneClone.clone` | `ok x` | a clone bumps a count and returns the same immutable value |
+| `…CoreOpsDerefDeref.deref` | `ok x` | reading through an immutable owner is the value |
+| `alloc.sync.Arc.ptr_eq` | `ok false` | the only *under-approximation*: the model always takes the slow path, so every Rust fast path needs its equivalence lemma (the memo tables' pointer-verified buckets, `expr::beq`'s pointer fast path).  `true` would have been the unsound direction |
+| `core.str.Str.as_bytes` | `ok s` | not an assumption: Aeneas models `Str` as `Slice U8`, so the bytes of a `&str` *are* the value.  The hole exists only because the `b"…"` alternative extracts to a 532 456-element literal (task #43) |
+
+§7.2 is the rest of the trust surface, as rows rather than prose, keeping
+§7.3's bullets as the argument: con-leche's own assumptions (`SetTheory V`,
+Lean's kernel, the three axioms); Aeneas and Charon (the translation *is* the
+model); `rustc` and the standard library; the allocator (`MiMallocTight` over
+`libmimalloc-sys`, selected by build-time features, in the unverified crate,
+unable to change a verdict); `overflow-checks = true` (the model is the
+checked-arithmetic one — a `fail` is a panic, never a wrap); the unverified
+crate's three modules with what stands in for each (the modeller behind
+`ModellerWF`/`ModellerRefines`, the driver's four-step call, the pool's
+merge-by-record-index argument); and the one extra axiom on the embedded
+pair, Aeneas's `toStr` artifact at `PINS_TEXT`.
+
+#### 2. The gate, and which source is authoritative
+
+`scripts/holes.sh --check` reads **the committed templates**,
+`proof/ConRon/Generated/{Types,Funs}External_Template.lean`, not the
+hand-written models.  Three sources were possible and only that one is both
+authoritative and free:
+
+* the templates are Aeneas's own statement of what it could not translate —
+  every declaration in one is a hole *by construction*, a template holds
+  nothing else — and they are committed, so the gate costs milliseconds;
+* the hand-written models are what we *answered*, and they cannot identify
+  the holes reliably: the `@[rust_type]`/`@[rust_fun]` attribute is present
+  only on the holes Aeneas maps by name pattern, and a hole that is an opaque
+  item of *this* crate comes out as a bare `axiom` with no attribute at all
+  (commit `8e7cb88c`, from task #94's spike), so an unattributed `def` in a
+  hand file is indistinguishable from a helper;
+* re-running the extraction is minutes of Charon and Aeneas for a list that is
+  already in the tree.
+
+Reading the template is nonetheless a statement about the **models**, because
+`extract.sh`'s steps 3a/3b already fail unless every hole a template declares
+is modelled by hand — by attribute *and* by declaration.  The two gates
+compose: `extract.sh` proves template and hand file agree, `holes.sh` proves
+template and OVERVIEW agree.
+
+The matching rule is deliberately one line: the table sits between
+`<!-- holes: begin -->` and `<!-- holes: end -->`, and each row's **first
+cell** carries the hole's Lean name in backticks.  Nothing parses markdown.
+
+Tested in both directions by deleting the `core.str.Str.as_bytes` row:
+
+```
+holes: FAIL — the hole "core.str.Str.as_bytes" has no row in OVERVIEW.md §7.1
+       (it is declared by proof/ConRon/Generated/*External_Template.lean; add a row
+        giving its Lean model and why that model is faithful)
+```
+
+and by renaming a row's name, which gives the stale-row half:
+
+```
+holes: FAIL — the hole "alloc.sync.Arc.new" has no row in OVERVIEW.md §7.1
+holes: FAIL — OVERVIEW.md §7.1 has a row for "alloc.sync.Arc.nwe", which is not a hole
+       (nothing in proof/ConRon/Generated/*External_Template.lean declares it; the row
+        is stale — drop it, or fix the name)
+```
+
+Both reverted.  `gates.sh` runs it as step 6, between `overview-links` and
+`gen-pins` — **ten gates now**, and `OVERVIEW.md` §12 and §7 of this document
+list it with the others.  `extract.sh`'s summary line points at it.
+
+#### 3. What a merge will add
+
+Task #94 is in flight (`worktree-agent-a3a721694ec1401be`): a tagged-handle
+`Expr` node module (`ron::node`, marked opaque to Charon, with one `unsafe`
+core in `ron::tagged`).  Run this task's script against that branch's
+committed templates (its tip `74cb4398`) and the list is **22** rather than 6
+— **sixteen more holes**: the handle type `ron.tagged.Raw`, and fifteen
+functions, namely `ron.node`'s ten `alloc_*` constructors plus `view`,
+`data`, `dup` and `ptr_eq`, and the `Expr` `Drop` instance nothing calls.
+(Its spike commit `01b64efb` says "fifteen"; the branch has grown one since,
+which is exactly the kind of drift this gate exists to catch.)  Every one of
+them is an erasure of the same shape as §3.2's, so the rows are cheap to
+write; the `unsafe` block in `ron::tagged` is not, and wants a row of its
+own in §7.2 — it is the first `unsafe` in the verified crate's tree and the
+one item in the inventory that no erasure argument covers.  The gate will
+say so on the merge: `holes.sh --check` fails naming each of the sixteen
+until the rows exist, which is the point of landing this task first.
