@@ -40,7 +40,7 @@
 //! the preparation, the receipts.
 //!
 //! **Since task #84 the four steps are the VERIFIED crate's**
-//! (`con_ron_core::frontend::*`, OVERVIEW §3.7); what this crate still owns of
+//! (`con_ron_core::frontend::*`, OVERVIEW §4.6); what this crate still owns of
 //! the parse is the reads (`driver::parse_export_stream_d`, whose pure
 //! counterpart `parse_chunks` is the core's) and the in-process modeller the
 //! core takes as a type parameter.
@@ -139,12 +139,9 @@ usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
                     ConLeche/MainTheorem.lean), so a stream declaring a
                     theorem of type False is never accepted
                     (ConLeche.no_False_theorem_accepted).  What the port
-                    proves is that same statement about THIS program's fold
-                    (DESIGN.md §1); con-leche's file-level corollary
-                    ConLeche.no_False_declaration, which covers the parse as
-                    well, is NOT yet claimed here -- task #84 put the parser
-                    into the verified core, so the corollary is now reachable,
-                    but its proof is the next task's.
+                    proves is that same statement about THIS program's
+                    pipeline, from the file's bytes to the fold
+                    (conron.no_False_declaration, OVERVIEW.md section 3).
   --trusted         the unverified mode: the SAME checker bodies at the mode
                     with the certification-only work switched off.  An accept
                     in this mode is outside the theorem.
@@ -399,7 +396,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // declarations in front of every stream.  A prelude that does not parse is
     // a corrupted build, reported before any input is read.
     // The in-process modeller, which the parse takes as a type parameter: the
-    // verified core is quantified over an arbitrary `Modeller` (OVERVIEW §3.7),
+    // verified core is quantified over an arbitrary `Modeller` (OVERVIEW §4.6),
     // and this unit struct is the one the binary supplies.
     let modeller = InProcess;
     let prelude_ix = match prelude::builtin_prelude_e(&modeller) {

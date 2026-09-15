@@ -9,7 +9,7 @@
 #   3. scripts/lint-rust-style.sh           the Aeneas subset (§3.4)
 #   4. scripts/provenance.py check          every item cites con-leche (§3.7)
 #   5. scripts/overview-links.sh            OVERVIEW.md/DESIGN.md line anchors
-#   6. scripts/holes.sh --check             OVERVIEW.md §7.1 == the model's holes
+#   6. scripts/holes.sh --check             OVERVIEW.md §8.1 == the model's holes
 #   7. scripts/gen-pins.sh --check          embedded pin text == natOpPinSets
 #   8. scripts/gen-prelude.sh --check       embedded prelude text == con-leche's
 #   9. scripts/extract.sh --check           committed generated Lean == crate

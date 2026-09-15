@@ -19762,3 +19762,31 @@ own in §7.2 — it is the first `unsafe` in the verified crate's tree and the
 one item in the inventory that no erasure argument covers.  The gate will
 say so on the merge: `holes.sh --check` fails naming each of the sixteen
 until the rows exist, which is the point of landing this task first.
+
+### Task #96 — OVERVIEW rewritten as a status document (2026-09-15, Fable)
+
+**Ruling (maintainer):** OVERVIEW.md is user-facing and describes the
+status quo — how to use the checker, the high-level design, the trust
+assumptions and the gotchas — and is neither a design document nor a
+project history.  Task numbers, "since task #N" narratives, reverted
+experiments, measurement journals and review chronicles belong here, in
+DESIGN.md, and were removed from it.  Shorter is better.
+
+**What changed.**  1 121 lines → 609.  The section plan is the original
+brief of task #78 (AI preamble; usage; building; the checker's design;
+keeping in sync; the verification; results; trust assumptions; proof
+techniques; patches; naming and module map; gates), renumbered 1–12.  The
+hole table (§8.1) keeps its `<!-- holes: begin/end -->` markers and now
+groups the ten `alloc_*` rows and the `Arc` identity rows into one row each
+(`holes.sh` reads every backticked name in a row's first cell).  Section
+references outside the document were repointed (`holes.sh`, `gates.sh`,
+`extract.sh`: §7.1 → §8.1; `con-ron.rs`: §3.7 → §4.6; README's performance
+anchor).  The binary's `--help` text for `--verified` still said the
+file-level corollary was "NOT yet claimed"; it now names
+`conron.no_False_declaration`.  README: the maintainer's new "Unsafe code"
+section had a line break inside its link URL and doubled parentheses;
+mended (a link edit, within the README rule).
+
+**Gates.**  Fast gates green; the link expectation regenerated (67 links,
+36 files); `holes.sh --check` 22/22.  Extraction and the proofs are
+untouched.

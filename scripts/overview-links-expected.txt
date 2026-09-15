@@ -81,6 +81,28 @@
    745      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
    746      False := by
 
+== crates/con-ron-core/src/ron/tagged.rs#L1-L20
+     1  //! con-leche: none — the tagged counted handle of DESIGN.md §3.2 (task #94).
+     2  //!
+     3  //! `ron::tagged` — **the crate's only `unsafe`, and it does not know what an
+     4  //! `Expr` is**.
+     5  //!
+     6  //! One counted handle, one word wide, whose low four bits say which of a
+     7  //! *scheme's* node types the rest of it points at.  Every block is allocated
+     8  //! 16-aligned, which is what frees those four bits; sixteen kinds fit, and
+     9  //! each kind's block is as wide as that kind needs rather than as wide as the
+    10  //! widest.  That is the whole idea, and the measurement behind it is task
+    11  //! #94's report: `Expr`'s nodes go from a flat 64-byte block to 32 or 48
+    12  //! bytes, which is −45 % of Mathlib's peak.
+    13  //!
+    14  //! **This module is generic.**  It names no term type, no constructor and no
+    15  //! kind: a *scheme* is a table, and [`tagged_kinds!`] turns it into the
+    16  //! tag→type dispatch and the release.  `ron::node` is the one instantiation
+    17  //! today (`Expr`'s ten blocks); `Name`, `Level` and `PropWhen` keep
+    18  //! `ron::ptr::P` (DESIGN.md §3.2 — their nodes are not the bulk, and a
+    19  //! uniform block costs them nothing).
+    20  //!
+
 == crates/con-ron/src/bin/con-ron.rs#L130-L254
    130  const USAGE: &str = "\
    131  usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
@@ -94,119 +116,119 @@
    139                      ConLeche/MainTheorem.lean), so a stream declaring a
    140                      theorem of type False is never accepted
    141                      (ConLeche.no_False_theorem_accepted).  What the port
-   142                      proves is that same statement about THIS program's fold
-   143                      (DESIGN.md §1); con-leche's file-level corollary
-   144                      ConLeche.no_False_declaration, which covers the parse as
-   145                      well, is NOT yet claimed here -- task #84 put the parser
-   146                      into the verified core, so the corollary is now reachable,
-   147                      but its proof is the next task's.
-   148    --trusted         the unverified mode: the SAME checker bodies at the mode
-   149                      with the certification-only work switched off.  An accept
-   150                      in this mode is outside the theorem.
-   151    --jobs=<n>        the check phase's worker count: <n> workers claim records
-   152                      one at a time off a shared counter, and --jobs=1 runs the
-   153                      plain loop with no counter and no result table.  The
-   154                      verdict, and the declaration a rejection names, are the
-   155                      same at every <n>: the results are walked in RECORD order,
-   156                      so the first failing record in fold order is the one
-   157                      reported.  Each worker reserves 1 GiB of address space for
-   158                      its stack, so a run under `ulimit -v` needs 3x the
-   159                      checker's resident set plus a gigabyte per worker; the
-   160                      DEFAULT is one worker per hardware thread capped at 16 for
-   161                      that reason (con-leche's uncapped default aborts on a
-   162                      96-thread machine).  0 or a non-numeral is a usage error,
-   163                      as in con-leche.
-   164    --no-mark-persistent
-   165                      ACCEPTED AND A NO-OP: the mark it turns off is a
-   166                      Lean-runtime reference-counting device
-   167                      (Runtime.markPersistent), and this program's counts are
-   168                      std::sync::Arc counts -- atomic by type, in every lane,
-   169                      with no runtime mark to clear.  A run that passes it says
-   170                      so on stderr.
-   171    --progress[=<stride>]
-   172                      opt-in progress heartbeat on STDERR, one line shape per
-   173                      phase:
-   174                        con-ron: parse done: <N> fold records ... t=<s>s
-   175                        con-ron: install <i>/<N> <decl> t=<s>s
-   176                        con-ron: install done: <N>/<N> ..., <M> checks pending t=<s>s
-   177                        con-ron: check <done>/<M> <kind> <name> t=<s>s
-   178                        con-ron: check done: <M>/<M> t=<s>s
-   179                        con-ron: done: parse <p>s, install <i>s, check <c>s, <n> workers
-   180                      An install line is printed BEFORE every <stride>-th
-   181                      declaration is installed (<i> is its FOLD position, which
-   182                      the stream's record index sits near but not at a fixed
-   183                      offset above), so a run that dies in the install phase
-   184                      names the declaration it died in on its last line.  A
-   185                      check line is printed AFTER every <stride>-th COMPLETED
-   186                      check.  On a failure the phase's closing line says so
-   187                      ('install failed at', 'check failed at') and the summary
-   188                      still prints.  Bare --progress is stride 1; a stride that
-   189                      is not a decimal numeral, or 0, is a usage error.
-   190    --pins FILE       con-ron's own, FOR TESTING: read the pin list from a
-   191                      `con-ron-pins/1` dump instead of the core's own embedded
-   192                      text (task #43), through the UNVERIFIED reader.
-   193    --no-pins         con-ron's own, FOR TESTING: the empty pin list, the pin
-   194                      loop's `[]` arm, under which a Nat.div/Nat.mod stream
-   195                      declines.  Neither flag is needed for a normal run: the
-   196                      pins are con-leche's `natOpPinSets`, embedded in the
-   197                      verified core and decoded by it.
-   198    --help            print this text on STDOUT and exit 0, in any argument
-   199                      position; no input is read.  Its last line names the
-   200                      global allocator THIS binary was built with (below), so a
-   201                      measurement can be reproduced.
-   202  
-   203  build-time selection (cargo features, not command-line flags): the global
-   204  allocator is `con-ron-dump`'s `#[global_allocator]`, chosen on this crate's
-   205  dependency edge -- `cargo build --release` is mimalloc, `--no-default-features`
-   206  is glibc `malloc`, and `--no-default-features --features jemalloc` is jemalloc.
-   207  The mimalloc one is `con_ron_dump::MiMallocTight`, which enters mimalloc by
-   208  `mi_malloc` rather than `mi_malloc_aligned` for word-aligned requests: -4.5 %
-   209  instructions and -7.4 % wall against the `mimalloc` crate's own entry (task
-   210  #92), and one size class back for anything 42 to 48 bytes wide.
+   142                      proves is that same statement about THIS program's
+   143                      pipeline, from the file's bytes to the fold
+   144                      (conron.no_False_declaration, OVERVIEW.md section 3).
+   145    --trusted         the unverified mode: the SAME checker bodies at the mode
+   146                      with the certification-only work switched off.  An accept
+   147                      in this mode is outside the theorem.
+   148    --jobs=<n>        the check phase's worker count: <n> workers claim records
+   149                      one at a time off a shared counter, and --jobs=1 runs the
+   150                      plain loop with no counter and no result table.  The
+   151                      verdict, and the declaration a rejection names, are the
+   152                      same at every <n>: the results are walked in RECORD order,
+   153                      so the first failing record in fold order is the one
+   154                      reported.  Each worker reserves 1 GiB of address space for
+   155                      its stack, so a run under `ulimit -v` needs 3x the
+   156                      checker's resident set plus a gigabyte per worker; the
+   157                      DEFAULT is one worker per hardware thread capped at 16 for
+   158                      that reason (con-leche's uncapped default aborts on a
+   159                      96-thread machine).  0 or a non-numeral is a usage error,
+   160                      as in con-leche.
+   161    --no-mark-persistent
+   162                      ACCEPTED AND A NO-OP: the mark it turns off is a
+   163                      Lean-runtime reference-counting device
+   164                      (Runtime.markPersistent), and this program's counts are
+   165                      std::sync::Arc counts -- atomic by type, in every lane,
+   166                      with no runtime mark to clear.  A run that passes it says
+   167                      so on stderr.
+   168    --progress[=<stride>]
+   169                      opt-in progress heartbeat on STDERR, one line shape per
+   170                      phase:
+   171                        con-ron: parse done: <N> fold records ... t=<s>s
+   172                        con-ron: install <i>/<N> <decl> t=<s>s
+   173                        con-ron: install done: <N>/<N> ..., <M> checks pending t=<s>s
+   174                        con-ron: check <done>/<M> <kind> <name> t=<s>s
+   175                        con-ron: check done: <M>/<M> t=<s>s
+   176                        con-ron: done: parse <p>s, install <i>s, check <c>s, <n> workers
+   177                      An install line is printed BEFORE every <stride>-th
+   178                      declaration is installed (<i> is its FOLD position, which
+   179                      the stream's record index sits near but not at a fixed
+   180                      offset above), so a run that dies in the install phase
+   181                      names the declaration it died in on its last line.  A
+   182                      check line is printed AFTER every <stride>-th COMPLETED
+   183                      check.  On a failure the phase's closing line says so
+   184                      ('install failed at', 'check failed at') and the summary
+   185                      still prints.  Bare --progress is stride 1; a stride that
+   186                      is not a decimal numeral, or 0, is a usage error.
+   187    --pins FILE       con-ron's own, FOR TESTING: read the pin list from a
+   188                      `con-ron-pins/1` dump instead of the core's own embedded
+   189                      text (task #43), through the UNVERIFIED reader.
+   190    --no-pins         con-ron's own, FOR TESTING: the empty pin list, the pin
+   191                      loop's `[]` arm, under which a Nat.div/Nat.mod stream
+   192                      declines.  Neither flag is needed for a normal run: the
+   193                      pins are con-leche's `natOpPinSets`, embedded in the
+   194                      verified core and decoded by it.
+   195    --help            print this text on STDOUT and exit 0, in any argument
+   196                      position; no input is read.  Its last line names the
+   197                      global allocator THIS binary was built with (below), so a
+   198                      measurement can be reproduced.
+   199  
+   200  build-time selection (cargo features, not command-line flags): the global
+   201  allocator is `con-ron-dump`'s `#[global_allocator]`, chosen on this crate's
+   202  dependency edge -- `cargo build --release` is mimalloc, `--no-default-features`
+   203  is glibc `malloc`, and `--no-default-features --features jemalloc` is jemalloc.
+   204  The mimalloc one is `con_ron_dump::MiMallocTight`, which enters mimalloc by
+   205  `mi_malloc` rather than `mi_malloc_aligned` for word-aligned requests: -4.5 %
+   206  instructions and -7.4 % wall against the `mimalloc` crate's own entry (task
+   207  #92), and one size class back for anything 42 to 48 bytes wide.
+   208  
+   209  Any other option is a usage error: the run reports it, prints this text and
+   210  exits 3 without reading its input.
    211  
-   212  Any other option is a usage error: the run reports it, prints this text and
-   213  exits 3 without reading its input.
-   214  
-   215  exit codes: 0 accepted, 1 rejected, 2 declined, 3 usage/malformed/internal.
-   216  An out-of-memory condition is NEITHER: con-leche's exit 1 for it is the Lean
-   217  runtime's own panic, and this program instead aborts the way Rust aborts on a
-   218  failed allocation ('memory allocation of <n> bytes failed', SIGABRT, which a
-   219  shell reports as 134).  A panic is exit 3.
-   220  
-   221  THE VERDICT LINE'S COUNT.  It counts the FILE's accepted declaration RECORDS:
-   222  one per def/theorem/opaque/axiom/inductive/quot record the file declares.  The
-   223  built-in prelude's own records are not counted, and neither are the records
-   224  the in-process modeller generates; a stream record that declares a prelude
-   225  declaration IS counted -- the preparation moves it to the front rather than
-   226  dropping it, and it is what installs.  That count is a property of the INPUT.
-   227  The number of environment CONSTANTS is not: an inductive record installs
-   228  several constants (type former, constructors, recursor, projection table), so
-   229  it moves when the representation moves.
-   230  
-   231  THE BUILT-IN PRELUDE.  Every run installs, first and unconditionally, the
-   232  checker's own little prelude -- the six pinned basis blocks (Eq, Nat, PUnit,
-   233  Empty, False, Quot) and the toolchain's Bool and And blocks, embedded at build
-   234  time -- so the pin-certified Nat operations find their ground whatever order
-   235  the export chose.  The stream's OWN copy of a prelude declaration is moved to
-   236  the front in the prelude's order, and only the prelude records the stream does
-   237  not declare are synthesised; a pinned operation's stream-certified structural
-   238  ground (Nat.ble, Nat.sub, Nat.mul) is HOISTED ahead of the operation when the
-   239  stream declares it later.  All of that is one pure total function from the
-   240  file's records to the fold's input (con_ron::frontend::prepare); the parse
-   241  itself only decodes, and recognising a block as a pinned basis block or a
-   242  record as the quotient package's is the FOLD's.
-   243  
-   244  environment (con-leche's):
-   245    CON_LECHE_INMODEL=0          turn the in-process modeller off; a mutual or
-   246                                 nested block is then pushed bare and the FOLD
-   247                                 declines it, having found no route
-   248    CON_LECHE_INMODEL_CENSUS=1   report every mutual/nested block's outcome
-   249                                 after the parse and stop (exit 2)
-   250    CON_LECHE_PROJREC_TRACE      name each rewritten projection function
-   251  These are the in-process modeller's debug switches and they go with it: no
-   252  environment variable this program reads can shape a verdict, which is
-   253  con-leche's own rule -- every such switch is a command-line flag.
-   254  
+   212  exit codes: 0 accepted, 1 rejected, 2 declined, 3 usage/malformed/internal.
+   213  An out-of-memory condition is NEITHER: con-leche's exit 1 for it is the Lean
+   214  runtime's own panic, and this program instead aborts the way Rust aborts on a
+   215  failed allocation ('memory allocation of <n> bytes failed', SIGABRT, which a
+   216  shell reports as 134).  A panic is exit 3.
+   217  
+   218  THE VERDICT LINE'S COUNT.  It counts the FILE's accepted declaration RECORDS:
+   219  one per def/theorem/opaque/axiom/inductive/quot record the file declares.  The
+   220  built-in prelude's own records are not counted, and neither are the records
+   221  the in-process modeller generates; a stream record that declares a prelude
+   222  declaration IS counted -- the preparation moves it to the front rather than
+   223  dropping it, and it is what installs.  That count is a property of the INPUT.
+   224  The number of environment CONSTANTS is not: an inductive record installs
+   225  several constants (type former, constructors, recursor, projection table), so
+   226  it moves when the representation moves.
+   227  
+   228  THE BUILT-IN PRELUDE.  Every run installs, first and unconditionally, the
+   229  checker's own little prelude -- the six pinned basis blocks (Eq, Nat, PUnit,
+   230  Empty, False, Quot) and the toolchain's Bool and And blocks, embedded at build
+   231  time -- so the pin-certified Nat operations find their ground whatever order
+   232  the export chose.  The stream's OWN copy of a prelude declaration is moved to
+   233  the front in the prelude's order, and only the prelude records the stream does
+   234  not declare are synthesised; a pinned operation's stream-certified structural
+   235  ground (Nat.ble, Nat.sub, Nat.mul) is HOISTED ahead of the operation when the
+   236  stream declares it later.  All of that is one pure total function from the
+   237  file's records to the fold's input (con_ron::frontend::prepare); the parse
+   238  itself only decodes, and recognising a block as a pinned basis block or a
+   239  record as the quotient package's is the FOLD's.
+   240  
+   241  environment (con-leche's):
+   242    CON_LECHE_INMODEL=0          turn the in-process modeller off; a mutual or
+   243                                 nested block is then pushed bare and the FOLD
+   244                                 declines it, having found no route
+   245    CON_LECHE_INMODEL_CENSUS=1   report every mutual/nested block's outcome
+   246                                 after the parse and stop (exit 2)
+   247    CON_LECHE_PROJREC_TRACE      name each rewritten projection function
+   248  These are the in-process modeller's debug switches and they go with it: no
+   249  environment variable this program reads can shape a verdict, which is
+   250  con-leche's own rule -- every such switch is a command-line flag.
+   251  
+   252  NOT PORTED: CON_LECHE_INMODEL_DUMP, the debug splice of the generated records
+   253  into a copy of the input -- it is written through con-leche's annotated-NDJSON
+   254  writer (`Frontend/ExportWrite.lean`), an output path this checker does not
 
 == crates/con-ron/src/driver.rs#L41-L46
     41  //! | exit | verdict | meaning |
@@ -243,54 +265,24 @@
     28            packages = [
     29              charonPkgs.rustToolchain   # rustc/cargo nightly pinned by Charon
 
-== scripts/setup-aeneas-lean.sh#L1-L14
-     1  #!/usr/bin/env bash
-     2  # Produce `_tmp/aeneas-lean/`: a copy of `vendor/aeneas/backends/lean` with
-     3  # `patches/aeneas-433.patch` applied, so that the Aeneas Lean library
-     4  # builds on con-leche's toolchain (leanprover/lean4:v4.33.0 + Mathlib v4.33.0).
-     5  # See DESIGN.md, task #2.
-     6  #
-     7  # Idempotent: a stamp records the patch's and the source tree's hashes; a
-     8  # second run with nothing changed is a no-op and, crucially, keeps the
-     9  # existing `.lake/` (rebuilding Mathlib's dependents costs minutes).
-    10  #
-    11  # Exits non-zero if the patch does not apply cleanly to the pinned Aeneas
-    12  # submodule -- that is the signal that the submodule moved and the patch needs
-    13  # rebasing.
-    14  #
-
-== scripts/gates.sh#L54-L63
-    54  run cargo-build   env RUSTFLAGS="-D warnings" cargo build --manifest-path "$root/Cargo.toml"
-    55  run cargo-test    env RUSTFLAGS="-D warnings" cargo test  --manifest-path "$root/Cargo.toml"
-    56  run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src"
-    57  run provenance    python3 "$root/scripts/provenance.py" check
-    58  run overview-links "$root/scripts/overview-links.sh"
-    59  run holes         "$root/scripts/holes.sh" --check
-    60  run gen-pins      "$root/scripts/gen-pins.sh" --check
-    61  run gen-prelude   "$root/scripts/gen-prelude.sh" --check
-    62  run extract-check "$root/scripts/extract.sh" --check
-    63  run lake-build    env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build
-
-== proof/ConRon/Refine/Main.lean#L303-L310
-   303  `conron.model_exists_embedded` below is this theorem at exactly that text. -/
-   304  theorem conron.model_exists_decoded (V : Type w) [ConLeche.SetTheory V]
-   305      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   306      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
-   307      {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
-   308      (hds : ∀ d ∈ ds.val, DeclarationWF d)
-   309      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   310      Nonempty (ConLeche.Model V (absEnv e)) :=
-
-== proof/ConRon/Refine/Main.lean#L318-L326
-   318  standard axioms. -/
-   319  theorem conron.no_proof_of_False_decoded (V : Type w) [ConLeche.SetTheory V]
-   320      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   321      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
-   322      {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
-   323      (hds : ∀ d ∈ ds.val, DeclarationWF d)
-   324      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   325      ¬ ∃ c ∈ (absEnv e).consts,
-   326          c.toConstantVal.type = .const ConLeche.falseName [] :=
+== proof/ConRon/Refine/Main.lean#L730-L746
+   730  theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
+   731      {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
+   732      (hgen : Frontend.ModellerWF inst g)
+   733      (hmr : Frontend.ModellerRefines inst g Frontend.CtxRel)
+   734      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   735      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+   736      {prelude_bytes : Slice Std.U8} {pre : frontend.export_c.ParseResultD}
+   737      (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
+   738      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {im ce : Bool}
+   739      (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
+   740      {r : frontend.export_c.ParseResultD}
+   741      (hparse : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Ok r))
+   742      {ds : alloc.vec.Vec env.Declaration}
+   743      (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
+   744      {e : env.Env}
+   745      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+   746      False := by
 
 == proof/ConRon/Refine/Main.lean#L550-L564
    550  well-formedness. -/
@@ -316,62 +308,6 @@
    331  
    332  /-- info: 'ConRon.Refine.conron.no_proof_of_False_decoded' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 
-== proof/ConRon/Refine/Main.lean#L730-L746
-   730  theorem conron.no_False_declaration (V : Type w) [ConLeche.SetTheory V]
-   731      {G : Type} {inst : frontend.in_model_rec.Modeller G} {g : G}
-   732      (hgen : Frontend.ModellerWF inst g)
-   733      (hmr : Frontend.ModellerRefines inst g Frontend.CtxRel)
-   734      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   735      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
-   736      {prelude_bytes : Slice Std.U8} {pre : frontend.export_c.ParseResultD}
-   737      (hpre : frontend.export_c.parse_bytes inst g prelude_bytes true false = ok (.Ok pre))
-   738      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)} {im ce : Bool}
-   739      (hfalse : ConLeche.jsonWithTheoremFalse (Frontend.absChunks chunks))
-   740      {r : frontend.export_c.ParseResultD}
-   741      (hparse : frontend.export_c.parse_chunks inst g chunks im ce = ok (.Ok r))
-   742      {ds : alloc.vec.Vec env.Declaration}
-   743      (hprep : frontend.prepare.prepare_prelude ⟨pre.decls⟩ r.decls = ok ds)
-   744      {e : env.Env}
-   745      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   746      False := by
-
-== proof/ConRon/Refine/Main.lean#L174-L185
-   174  `ConLeche.model_exists` at the accept above. -/
-   175  theorem conron.model_exists (V : Type w) [ConLeche.SetTheory V]
-   176      (hk : Core.KnotSpec .Verified IndAbs.checkFuelU)
-   177      (hraw : CheckerDecl.BasisRawSpec)
-   178      (hind : IndRoutesSpec .Verified) (hinde : IndRoutesSpecErr .Verified)
-   179      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   180      (hvar : CheckerPins.PinsWF pins)
-   181      {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
-   182      (hds : ∀ d ∈ ds.val, DeclarationWF d)
-   183      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   184      Nonempty (ConLeche.Model V (absEnv e)) :=
-   185    ConLeche.model_exists V (absPins pins) ⟨ds.val.map absDeclaration⟩ (absEnv e)
-
-== proof/ConRon/Refine/Main.lean#L241-L251
-   241  
-   242  theorem conron.model_exists' (V : Type w) [ConLeche.SetTheory V]
-   243      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   244      (hvar : CheckerPins.PinsWF pins)
-   245      {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
-   246      (hds : ∀ d ∈ ds.val, DeclarationWF d)
-   247      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   248      Nonempty (ConLeche.Model V (absEnv e)) :=
-   249    conron.model_exists V (Core.knot_spec IndAbs.checkFuelU) conron.basis_raw_spec
-   250      (InductivesC.ind_routes_spec' (Core.knot_spec IndAbs.checkFuelU))
-   251      (InductivesC.ind_routes_spec_err' (Core.knot_spec IndAbs.checkFuelU))
-
-== proof/ConRon/Refine/Main.lean#L391-L398
-   391  decoder input. -/
-   392  theorem conron.model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
-   393      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-   394      (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))
-   395      {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
-   396      (hds : ∀ d ∈ ds.val, DeclarationWF d)
-   397      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
-   398      Nonempty (ConLeche.Model V (absEnv e)) :=
-
 == proof/ConRon/Refine/Installed.lean#L3293-L3304
   3293      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
   3294      (hvar : CheckerPins.PinsWF pins)
@@ -386,106 +322,28 @@
   3303      | .Err er =>
   3304        ErrSimPos er
 
-== crates/con-ron-core/src/kernel/expr.rs#L355-L366
-   355  pub enum ExprKind {
-   356      Bvar(u64),
-   357      Fvar(u64, Expr),
-   358      Sort(Level),
-   359      Const(Name, P<Vec<Level>>),
-   360      App(Expr, Expr),
-   361      Lam(Expr, Expr, BinderMeta),
-   362      ForallE(Expr, Expr, BinderMeta),
-   363      LetE(Expr, Expr, Expr),
-   364      Lit(Literal),
-   365      Proj(Name, u64, Expr),
-   366  }
+== proof/ConRon/Refine/Main.lean#L303-L310
+   303  `conron.model_exists_embedded` below is this theorem at exactly that text. -/
+   304  theorem conron.model_exists_decoded (V : Type w) [ConLeche.SetTheory V]
+   305      {text : Slice Std.U8} {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   306      (hp : kernel.pins_decode.decode text = ok (.Ok pins))
+   307      {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
+   308      (hds : ∀ d ∈ ds.val, DeclarationWF d)
+   309      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+   310      Nonempty (ConLeche.Model V (absEnv e)) :=
 
-== crates/con-ron-core/src/ron/tagged.rs#L1-L20
-     1  //! con-leche: none — the tagged counted handle of DESIGN.md §3.2 (task #94).
-     2  //!
-     3  //! `ron::tagged` — **the crate's only `unsafe`, and it does not know what an
-     4  //! `Expr` is**.
-     5  //!
-     6  //! One counted handle, one word wide, whose low four bits say which of a
-     7  //! *scheme's* node types the rest of it points at.  Every block is allocated
-     8  //! 16-aligned, which is what frees those four bits; sixteen kinds fit, and
-     9  //! each kind's block is as wide as that kind needs rather than as wide as the
-    10  //! widest.  That is the whole idea, and the measurement behind it is task
-    11  //! #94's report: `Expr`'s nodes go from a flat 64-byte block to 32 or 48
-    12  //! bytes, which is −45 % of Mathlib's peak.
-    13  //!
-    14  //! **This module is generic.**  It names no term type, no constructor and no
-    15  //! kind: a *scheme* is a table, and [`tagged_kinds!`] turns it into the
-    16  //! tag→type dispatch and the release.  `ron::node` is the one instantiation
-    17  //! today (`Expr`'s ten blocks); `Name`, `Level` and `PropWhen` keep
-    18  //! `ron::ptr::P` (DESIGN.md §3.2 — their nodes are not the bulk, and a
-    19  //! uniform block costs them nothing).
-    20  //!
+== proof/ConRon/Refine/Main.lean#L391-L398
+   391  decoder input. -/
+   392  theorem conron.model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
+   393      {pins : alloc.vec.Vec nat_op_pins.NatOpPinSet}
+   394      (hp : kernel.pins_decode.decode_embedded = ok (.Ok pins))
+   395      {ds : alloc.vec.Vec env.Declaration} {e : env.Env}
+   396      (hds : ∀ d ∈ ds.val, DeclarationWF d)
+   397      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
+   398      Nonempty (ConLeche.Model V (absEnv e)) :=
 
-== crates/con-ron-core/src/kernel/expr.rs#L121-L123
-   121  pub struct BinderMeta {
-   122      pub pw: PropWhen,
-   123  }
-
-== crates/con-ron-core/src/kernel/prop_when.rs#L285-L291
-   285  enum PropWhenRepr {
-   286      Never,
-   287      Always,
-   288      One(Name),
-   289      Two(P<(Name, Name)>),
-   290      Many(P<Vec<Name>>),
-   291  }
-
-== crates/con-ron-dump/src/lib.rs#L155-L203
-   155  pub struct MiMallocTight;
-   156  
-   157  #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
-   158  unsafe impl std::alloc::GlobalAlloc for MiMallocTight {
-   159      #[inline]
-   160      unsafe fn alloc(&self, layout: std::alloc::Layout) -> *mut u8 {
-   161          if layout.align() <= 16 {
-   162              libmimalloc_sys::mi_malloc(layout.size()) as *mut u8
-   163          } else {
-   164              libmimalloc_sys::mi_malloc_aligned(layout.size(), layout.align()) as *mut u8
-   165          }
-   166      }
-   167  
-   168      #[inline]
-   169      unsafe fn alloc_zeroed(&self, layout: std::alloc::Layout) -> *mut u8 {
-   170          if layout.align() <= 16 {
-   171              libmimalloc_sys::mi_zalloc(layout.size()) as *mut u8
-   172          } else {
-   173              libmimalloc_sys::mi_zalloc_aligned(layout.size(), layout.align()) as *mut u8
-   174          }
-   175      }
-   176  
-   177      #[inline]
-   178      unsafe fn dealloc(&self, ptr: *mut u8, _layout: std::alloc::Layout) {
-   179          libmimalloc_sys::mi_free(ptr as *mut std::ffi::c_void);
-   180      }
-   181  
-   182      #[inline]
-   183      unsafe fn realloc(
-   184          &self,
-   185          ptr: *mut u8,
-   186          layout: std::alloc::Layout,
-   187          new_size: usize,
-   188      ) -> *mut u8 {
-   189          if layout.align() <= 16 {
-   190              libmimalloc_sys::mi_realloc(ptr as *mut std::ffi::c_void, new_size) as *mut u8
-   191          } else {
-   192              libmimalloc_sys::mi_realloc_aligned(
-   193                  ptr as *mut std::ffi::c_void,
-   194                  new_size,
-   195                  layout.align(),
-   196              ) as *mut u8
-   197          }
-   198      }
-   199  }
-   200  
-   201  #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
-   202  #[global_allocator]
-   203  static GLOBAL_ALLOC: MiMallocTight = MiMallocTight;
+== Cargo.toml#L21
+    21  overflow-checks = true
 
 == crates/con-ron-core/src/ron/tagged.rs#L1-L20
      1  //! con-leche: none — the tagged counted handle of DESIGN.md §3.2 (task #94).
@@ -694,20 +552,6 @@
    131      }
    132  }
 
-== Cargo.toml#L21
-    21  overflow-checks = true
-
-== crates/con-ron/src/pool.rs#L1-L9
-     1  //! `pool` — con-leche's `Main.lean:193-316`: **phase B on a pool of worker
-     2  //! threads** (task #48).
-     3  //!
-     4  //! The recorded checks are independent by construction — each reads the
-     5  //! installed index at its own prefix view, its own record, and a *fresh* memo
-     6  //! state — so phase B is `n` workers over one shared claim counter.  This
-     7  //! module is that pool, `checkPool` with its three helpers ported one to one:
-     8  //! `check_one` (`Main.lean:240-260`), `check_worker` (`:262-278`),
-     9  //! `merge_results` (`:280-287`) and `check_pool` (`:289-316`), plus the walk
-
 == crates/con-ron-core/src/frontend/mod.rs#L13-L27
     13  //!
     14  //! | Rust | Lean |
@@ -738,6 +582,68 @@
    267      /// con-leche: ConLeche/Frontend/InModel.lean:39-45 generate
    268      /// The one method: the block's model records, or the decline's text.
    269      fn generate(&self, ctx: &ModelCtx, b: &BlockRec) -> Result<Vec<Declaration>, Vec<u32>>;
+
+== crates/con-ron/src/pool.rs#L1-L9
+     1  //! `pool` — con-leche's `Main.lean:193-316`: **phase B on a pool of worker
+     2  //! threads** (task #48).
+     3  //!
+     4  //! The recorded checks are independent by construction — each reads the
+     5  //! installed index at its own prefix view, its own record, and a *fresh* memo
+     6  //! state — so phase B is `n` workers over one shared claim counter.  This
+     7  //! module is that pool, `checkPool` with its three helpers ported one to one:
+     8  //! `check_one` (`Main.lean:240-260`), `check_worker` (`:262-278`),
+     9  //! `merge_results` (`:280-287`) and `check_pool` (`:289-316`), plus the walk
+
+== crates/con-ron-dump/src/lib.rs#L155-L203
+   155  pub struct MiMallocTight;
+   156  
+   157  #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
+   158  unsafe impl std::alloc::GlobalAlloc for MiMallocTight {
+   159      #[inline]
+   160      unsafe fn alloc(&self, layout: std::alloc::Layout) -> *mut u8 {
+   161          if layout.align() <= 16 {
+   162              libmimalloc_sys::mi_malloc(layout.size()) as *mut u8
+   163          } else {
+   164              libmimalloc_sys::mi_malloc_aligned(layout.size(), layout.align()) as *mut u8
+   165          }
+   166      }
+   167  
+   168      #[inline]
+   169      unsafe fn alloc_zeroed(&self, layout: std::alloc::Layout) -> *mut u8 {
+   170          if layout.align() <= 16 {
+   171              libmimalloc_sys::mi_zalloc(layout.size()) as *mut u8
+   172          } else {
+   173              libmimalloc_sys::mi_zalloc_aligned(layout.size(), layout.align()) as *mut u8
+   174          }
+   175      }
+   176  
+   177      #[inline]
+   178      unsafe fn dealloc(&self, ptr: *mut u8, _layout: std::alloc::Layout) {
+   179          libmimalloc_sys::mi_free(ptr as *mut std::ffi::c_void);
+   180      }
+   181  
+   182      #[inline]
+   183      unsafe fn realloc(
+   184          &self,
+   185          ptr: *mut u8,
+   186          layout: std::alloc::Layout,
+   187          new_size: usize,
+   188      ) -> *mut u8 {
+   189          if layout.align() <= 16 {
+   190              libmimalloc_sys::mi_realloc(ptr as *mut std::ffi::c_void, new_size) as *mut u8
+   191          } else {
+   192              libmimalloc_sys::mi_realloc_aligned(
+   193                  ptr as *mut std::ffi::c_void,
+   194                  new_size,
+   195                  layout.align(),
+   196              ) as *mut u8
+   197          }
+   198      }
+   199  }
+   200  
+   201  #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
+   202  #[global_allocator]
+   203  static GLOBAL_ALLOC: MiMallocTight = MiMallocTight;
 
 == crates/con-ron-core/src/kernel/level.rs#L125-L127
    125  /// con-leche: ConLeche/Kernel/Level.lean:64-77 simplify
@@ -886,11 +792,6 @@
    909          omega
    910        have hg : (Std.UScalar.ofNatCore n hlt : Std.U64).val = n :=
 
-== proof/ConRon/Refine/Core/Arms/Arms.lean#L381-L383
-   381  theorem knot_spec {mode : env.CheckMode} (fuel : Std.U64) : KnotSpec mode fuel :=
-   382    knot_induction (fun f hw => arms f hw) fuel
-   383  
-
 == proof/ConRon/Refine/IndSpec.lean#L80-L100
     80  structure IndRoutesSpec (mode : env.CheckMode) : Prop where
     81    /-- **Route A, the fixpoint install** (`inductives_c::check_native_s`
@@ -914,60 +815,23 @@
     99          ∧ FEnvCanon fe' ∧ FEnvFull fe'
    100    /-- **Route B, the modeled install** (`inductives_c::check_ind_decl_s`
 
-== proof/ConRon/Generated/TypesExternal.lean#L42
-    42  def alloc.sync.Arc (T : Type) : Type := T
-
-== proof/ConRon/Generated/FunsExternal.lean#L26-L45
-    26  def alloc.sync.Arc.new {T : Type} (x : T) : Result (alloc.sync.Arc T) := ok x
-    27  
-    28  /- Modeled as `false`: the model always takes the slow path (DESIGN.md
-    29     §3.2).  Sound for the accept direction *provided* every walk that uses
-    30     `ptr_eq` as a shortcut is reflexive, which is an ordinary lemma about the
-    31     model, proved once per call site (Lean's own `withPtrEq` discipline). -/
-    32  /-- [alloc::sync::{alloc::sync::Arc<T>}::ptr_eq]:
-    33      Source: '/rustc/library/alloc/src/sync.rs', lines 2172:4-2172:52
-    34      Name pattern: [alloc::sync::{alloc::sync::Arc<@T>}::ptr_eq]
-    35      Visibility: public -/
-    36  @[rust_fun "alloc::sync::{alloc::sync::Arc<@T>}::ptr_eq"]
-    37  def alloc.sync.Arc.ptr_eq
-    38    {T : Type} (_A : Type) (_a _b : alloc.sync.Arc T) : Result Bool := ok false
-    39  
-    40  /-- [alloc::sync::{impl core::clone::Clone for alloc::sync::Arc<T>}::clone]:
-    41      Source: '/rustc/library/alloc/src/sync.rs', lines 2405:4-2405:32
-    42      Name pattern: [alloc::sync::{core::clone::Clone<alloc::sync::Arc<@T>>}::clone]
-    43      Visibility: public -/
-    44  @[rust_fun "alloc::sync::{core::clone::Clone<alloc::sync::Arc<@T>>}::clone"]
-    45  def alloc.sync.Arc.Insts.CoreCloneClone.clone
-
 == proof/ConRon/Generated/TypesExternal.lean#L41-L42
     41  @[reducible, rust_type "alloc::sync::Arc"]
     42  def alloc.sync.Arc (T : Type) : Type := T
 
-== crates/con-ron-core/src/ron/ptr.rs#L30-L36
-    30  //! | here | `Arc`/`Rc` | model |
-    31  //! |---|---|---|
-    32  //! | [`new`] | `Arc::new` | `ok x` |
-    33  //! | [`clone`] | `Arc::clone` | `ok x` |
-    34  //! | *(deref)* | `Deref::deref`, i.e. `*p` and every auto-deref | `ok x` |
-    35  //! | [`ptr_eq`] | `Arc::ptr_eq` | `ok false` |
-    36  //!
+== crates/con-ron-core/src/ron/ptr.rs#L1-L8
+     1  //! con-leche: none — the shared-pointer type of DESIGN.md §3.2; Lean's value semantics have no counterpart.
+     2  //!
+     3  //! `ron::ptr` — **the one place the core names its shared pointer**
+     4  //! (DESIGN.md §3.2, task #44).
+     5  //!
+     6  //! con-leche's terms are persistent trees with sharing, which the port gives
+     7  //! reference counting: `P<T>` is the handle, and the model erases it
+     8  //! (`Arc T := T`, plus four definitions).  Which *concrete* counted pointer
 
 == proof/ConRon/Generated/FunsExternal.lean#L25-L26
     25  @[rust_fun "alloc::sync::{alloc::sync::Arc<@T>}::new"]
     26  def alloc.sync.Arc.new {T : Type} (x : T) : Result (alloc.sync.Arc T) := ok x
-
-== proof/ConRon/Generated/FunsExternal.lean#L44-L48
-    44  @[rust_fun "alloc::sync::{core::clone::Clone<alloc::sync::Arc<@T>>}::clone"]
-    45  def alloc.sync.Arc.Insts.CoreCloneClone.clone
-    46    {T : Type} {A : Type} (_coreallocAllocatorCloneInst :
-    47    core.alloc.AllocatorClone A) (x : alloc.sync.Arc T) :
-    48    Result (alloc.sync.Arc T) := ok x
-
-== proof/ConRon/Generated/FunsExternal.lean#L54-L57
-    54  @[rust_fun
-    55    "alloc::sync::{core::ops::deref::Deref<alloc::sync::Arc<@T>, @T>}::deref"]
-    56  def alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref
-    57    {T : Type} (_A : Type) (x : alloc.sync.Arc T) : Result T := ok x
 
 == proof/ConRon/Generated/FunsExternal.lean#L36-L38
     36  @[rust_fun "alloc::sync::{alloc::sync::Arc<@T>}::ptr_eq"]
@@ -1087,162 +951,11 @@
    273      Expr(ExprHandle::alloc(data, NodeBvar { i }))
    274  }
 
-== proof/ConRon/Generated/FunsExternal.lean#L152-L157
-   152      Source: 'crates/con-ron-core/src/ron/node.rs', lines 409:0-411:1
-   153      Visibility: public -/
-   154  @[rust_fun "con_ron_core::ron::node::alloc_fvar"]
-   155  def ron.node.alloc_fvar (data idx : Std.U64) (ty : kernel.expr.Expr) :
-   156    Result kernel.expr.Expr := ok (.mk (.mk data (.Fvar idx ty)))
-   157  
-
-== crates/con-ron-core/src/ron/node.rs#L279-L281
-   279  pub fn alloc_fvar(data: u64, idx: u64, ty: Expr) -> Expr {
-   280      Expr(ExprHandle::alloc(data, NodeFvar { idx, ty }))
-   281  }
-
-== proof/ConRon/Generated/FunsExternal.lean#L160-L164
-   160      Visibility: public -/
-   161  @[rust_fun "con_ron_core::ron::node::alloc_sort"]
-   162  def ron.node.alloc_sort (data : Std.U64) (u : kernel.level.Level) :
-   163    Result kernel.expr.Expr := ok (.mk (.mk data (.«Sort» u)))
-   164  
-
-== crates/con-ron-core/src/ron/node.rs#L286-L288
-   286  pub fn alloc_sort(data: u64, u: Level) -> Expr {
-   287      Expr(ExprHandle::alloc(data, NodeSort { u }))
-   288  }
-
-== proof/ConRon/Generated/FunsExternal.lean#L167-L173
-   167      Visibility: public -/
-   168  @[rust_fun "con_ron_core::ron::node::alloc_const"]
-   169  def ron.node.alloc_const (data : Std.U64) (n : kernel.name.Name)
-   170    (us : alloc.sync.Arc (alloc.vec.Vec kernel.level.Level)) :
-   171    Result kernel.expr.Expr := ok (.mk (.mk data (.Const n us)))
-   172  
-   173  /-- [con_ron_core::ron::node::alloc_app]:
-
-== crates/con-ron-core/src/ron/node.rs#L293-L295
-   293  pub fn alloc_const(data: u64, n: Name, us: P<Vec<Level>>) -> Expr {
-   294      Expr(ExprHandle::alloc(data, NodeConst { n, us }))
-   295  }
-
-== proof/ConRon/Generated/FunsExternal.lean#L176-L181
-   176  @[rust_fun "con_ron_core::ron::node::alloc_app"]
-   177  def ron.node.alloc_app (data : Std.U64) (f a : kernel.expr.Expr) :
-   178    Result kernel.expr.Expr := ok (.mk (.mk data (.App f a)))
-   179  
-   180  /-- [con_ron_core::ron::node::alloc_lam]:
-   181      Source: 'crates/con-ron-core/src/ron/node.rs', lines 437:0-439:1
-
-== crates/con-ron-core/src/ron/node.rs#L300-L302
-   300  pub fn alloc_app(data: u64, f: Expr, a: Expr) -> Expr {
-   301      Expr(ExprHandle::alloc(data, NodeApp { f, a }))
-   302  }
-
-== proof/ConRon/Generated/FunsExternal.lean#L184-L190
-   184  def ron.node.alloc_lam (data : Std.U64) (ty body : kernel.expr.Expr)
-   185    (m : kernel.expr.BinderMeta) : Result kernel.expr.Expr :=
-   186    ok (.mk (.mk data (.Lam ty body m)))
-   187  
-   188  /-- [con_ron_core::ron::node::alloc_forall_e]:
-   189      Source: 'crates/con-ron-core/src/ron/node.rs', lines 444:0-446:1
-   190      Visibility: public -/
-
-== crates/con-ron-core/src/ron/node.rs#L307-L309
-   307  pub fn alloc_lam(data: u64, ty: Expr, body: Expr, m: BinderMeta) -> Expr {
-   308      Expr(ExprHandle::alloc(data, NodeLam { ty, body, m }))
-   309  }
-
-== proof/ConRon/Generated/FunsExternal.lean#L193-L199
-   193    (m : kernel.expr.BinderMeta) : Result kernel.expr.Expr :=
-   194    ok (.mk (.mk data (.ForallE ty body m)))
-   195  
-   196  /-- [con_ron_core::ron::node::alloc_let_e]:
-   197      Source: 'crates/con-ron-core/src/ron/node.rs', lines 451:0-453:1
-   198      Visibility: public -/
-   199  @[rust_fun "con_ron_core::ron::node::alloc_let_e"]
-
-== crates/con-ron-core/src/ron/node.rs#L314-L316
-   314  pub fn alloc_forall_e(data: u64, ty: Expr, body: Expr, m: BinderMeta) -> Expr {
-   315      Expr(ExprHandle::alloc(data, NodeForallE { ty, body, m }))
-   316  }
-
-== proof/ConRon/Generated/FunsExternal.lean#L202-L206
-   202    ok (.mk (.mk data (.LetE ty value body)))
-   203  
-   204  /-- [con_ron_core::ron::node::alloc_lit]:
-   205      Source: 'crates/con-ron-core/src/ron/node.rs', lines 458:0-460:1
-   206      Visibility: public -/
-
-== crates/con-ron-core/src/ron/node.rs#L321-L323
-   321  pub fn alloc_let_e(data: u64, ty: Expr, value: Expr, body: Expr) -> Expr {
-   322      Expr(ExprHandle::alloc(data, NodeLetE { ty, value, body }))
-   323  }
-
-== proof/ConRon/Generated/FunsExternal.lean#L209-L213
-   209    Result kernel.expr.Expr := ok (.mk (.mk data (.Lit l)))
-   210  
-   211  /-- [con_ron_core::ron::node::alloc_proj]:
-   212      Source: 'crates/con-ron-core/src/ron/node.rs', lines 465:0-467:1
-   213      Visibility: public -/
-
-== crates/con-ron-core/src/ron/node.rs#L328-L330
-   328  pub fn alloc_lit(data: u64, l: Literal) -> Expr {
-   329      Expr(ExprHandle::alloc(data, NodeLit { l }))
-   330  }
-
-== proof/ConRon/Generated/FunsExternal.lean#L216-L221
-   216    (idx : Std.U64) (e : kernel.expr.Expr) : Result kernel.expr.Expr :=
-   217    ok (.mk (.mk data (.Proj n idx e)))
-   218  
-   219  /-- [con_ron_core::ron::node::{impl core::ops::drop::Drop for con_ron_core::kernel::expr::Expr}::drop]:
-   220      Source: 'crates/con-ron-core/src/ron/node.rs', lines 566:4-568:5
-   221      Visibility: public -/
-
-== crates/con-ron-core/src/ron/node.rs#L335-L337
-   335  pub fn alloc_proj(data: u64, n: Name, idx: u64, e: Expr) -> Expr {
-   336      Expr(ExprHandle::alloc(data, NodeProj { n, idx, e }))
-   337  }
-
-== proof/ConRon/Generated/FunsExternal.lean#L222-L225
-   222  @[rust_fun
-   223    "con_ron_core::ron::node::{core::ops::drop::Drop<con_ron_core::kernel::expr::Expr>}::drop"]
-   224  def kernel.expr.Expr.Insts.CoreOpsDropDrop.drop (e : kernel.expr.Expr) :
-   225    Result kernel.expr.Expr := ok e
-
-== crates/con-ron-core/src/ron/node.rs#L419-L423
-   419  impl Drop for Expr {
-   420      fn drop(&mut self) {
-   421          release(&self.0)
-   422      }
-   423  }
-
 == crates/con-ron-core/src/ron/tagged.rs#L284-L287
    284  pub(crate) struct Raw<M> {
    285      p: NonNull<u8>,
    286      modeled: PhantomData<M>,
    287  }
-
-== crates/con-ron-core/src/ron/node.rs#L1-L14
-     1  //! con-leche: none — `Expr`'s instantiation of `ron::tagged` (DESIGN.md §3.2, task #94).
-     2  //!
-     3  //! `ron::node` — **the ten `Expr` cells, as a table**.
-     4  //!
-     5  //! Until task #94 every `Expr` node was a `P<ExprNode>`: a block as wide as
-     6  //! the *widest* `ExprKind` arm, plus a kind word, plus `Arc`'s two counts —
-     7  //! 64 bytes for an `app`, which is 65 % of the live nodes of a real term
-     8  //! (task #88's census) and needs 32.  Lean's own representation does not do
-     9  //! that: the kind is in the object header, and each constructor's object is
-    10  //! as wide as its own fields.
-    11  //!
-    12  //! So the kind moved into the handle, and `ron::tagged` is the machinery that
-    13  //! puts it there.  **This file has no `unsafe` in it** — it is a table of ten
-    14  //! `tag => variant: type` lines, ten struct declarations, and thin wrappers:
-
-== crates/con-ron-dump/src/lib.rs#L174-L176
-   174          }
-   175      }
-   176  
 
 == Cargo.toml#L17-L21
     17  # The Aeneas model of the code is the checked-arithmetic one (an overflow is
@@ -1257,15 +970,6 @@
     14  //! *coverage* — which blocks accept — and every decline names its class, so
     15  //! the residual is exact and positive.  Nothing here is verified, and nothing
     16  //! here is in §3.4's Aeneas subset.
-
-== proof/ConRon/Refine/Main.lean#L697-L703
-   697  * `hgen : Frontend.ModellerWF inst g` — phase 1's promise about the unverified
-   698    modeller (task #84's seam): every declaration `in_model_rec::Modeller
-   699    ::generate` returns is well formed.  It is what discharges the fold's `hds`.
-   700  * `hmr : Frontend.ModellerRefines inst g Frontend.CtxRel` — the modeller's
-   701    *second* promise, and the companion of `hgen`: that when `generate` declines,
-   702    it declines where con-leche's modeller declines.  Like `hgen` it is a
-   703    statement about an unverified argument, not a proof obligation this tier can
 
 == crates/con-ron/src/driver.rs#L21-L27
     21  //! `check_decls_driver` is `installed::check_decls`' body with the phase
@@ -1285,38 +989,6 @@
     20  //! so the pool cannot report the second failure of a stream that has two —
     21  //! `pool_reports_the_first_failure_at_every_jobs` is the test, at 1, 2, 3, 4
 
-== crates/con-ron-core/src/ron/tagged.rs#L1-L20
-     1  //! con-leche: none — the tagged counted handle of DESIGN.md §3.2 (task #94).
-     2  //!
-     3  //! `ron::tagged` — **the crate's only `unsafe`, and it does not know what an
-     4  //! `Expr` is**.
-     5  //!
-     6  //! One counted handle, one word wide, whose low four bits say which of a
-     7  //! *scheme's* node types the rest of it points at.  Every block is allocated
-     8  //! 16-aligned, which is what frees those four bits; sixteen kinds fit, and
-     9  //! each kind's block is as wide as that kind needs rather than as wide as the
-    10  //! widest.  That is the whole idea, and the measurement behind it is task
-    11  //! #94's report: `Expr`'s nodes go from a flat 64-byte block to 32 or 48
-    12  //! bytes, which is −45 % of Mathlib's peak.
-    13  //!
-    14  //! **This module is generic.**  It names no term type, no constructor and no
-    15  //! kind: a *scheme* is a table, and [`tagged_kinds!`] turns it into the
-    16  //! tag→type dispatch and the release.  `ron::node` is the one instantiation
-    17  //! today (`Expr`'s ten blocks); `Name`, `Level` and `PropWhen` keep
-    18  //! `ron::ptr::P` (DESIGN.md §3.2 — their nodes are not the bulk, and a
-    19  //! uniform block costs them nothing).
-    20  //!
-
-== crates/con-ron-core/src/ron/ptr.rs#L1-L8
-     1  //! con-leche: none — the shared-pointer type of DESIGN.md §3.2; Lean's value semantics have no counterpart.
-     2  //!
-     3  //! `ron::ptr` — **the one place the core names its shared pointer**
-     4  //! (DESIGN.md §3.2, task #44).
-     5  //!
-     6  //! con-leche's terms are persistent trees with sharing, which the port gives
-     7  //! reference counting: `P<T>` is the handle, and the model erases it
-     8  //! (`Arc T := T`, plus four definitions).  Which *concrete* counted pointer
-
 == proof/ConRon/Refine/Abs.lean#L170
    170    cases k <;> simp [ron.node.ExprView.ofKind]
 
@@ -1324,4 +996,16 @@
     24  [leanOptions]
     25  weak.backward.isDefEq.respectTransparency = false
     26  weak.backward.do.legacy = true
+
+== scripts/gates.sh#L54-L63
+    54  run cargo-build   env RUSTFLAGS="-D warnings" cargo build --manifest-path "$root/Cargo.toml"
+    55  run cargo-test    env RUSTFLAGS="-D warnings" cargo test  --manifest-path "$root/Cargo.toml"
+    56  run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src"
+    57  run provenance    python3 "$root/scripts/provenance.py" check
+    58  run overview-links "$root/scripts/overview-links.sh"
+    59  run holes         "$root/scripts/holes.sh" --check
+    60  run gen-pins      "$root/scripts/gen-pins.sh" --check
+    61  run gen-prelude   "$root/scripts/gen-prelude.sh" --check
+    62  run extract-check "$root/scripts/extract.sh" --check
+    63  run lake-build    env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build
 

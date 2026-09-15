@@ -2,7 +2,7 @@
 # scripts/holes.sh — THE HOLE LIST (task #95).
 #
 #   scripts/holes.sh            print every external hole, one per line
-#   scripts/holes.sh --check    …and check OVERVIEW.md §7.1's table against it
+#   scripts/holes.sh --check    …and check OVERVIEW.md §8.1's table against it
 #
 # WHAT A HOLE IS.  The theorem covers the verified crate *as Aeneas translates
 # it*.  Everything the translator does not see is trusted, and the sharpest,
@@ -15,7 +15,7 @@
 # that each of those definitions is a faithful account of the Rust.
 #
 # So the list has to be visible, and it has to be in the user-facing document
-# with its models and its justifications — which is OVERVIEW.md §7.1's table,
+# with its models and its justifications — which is OVERVIEW.md §8.1's table,
 # and which `--check` keeps honest.
 #
 # WHICH SOURCE IS AUTHORITATIVE, AND WHY IT IS THE TEMPLATES.  There are three
@@ -112,7 +112,7 @@ block=$(awk -v b="$BEGIN_MARK" -v e="$END_MARK" '
   index($0, e) { inside = 0 }
   inside' "$DOC")
 if [ -z "$block" ]; then
-  echo "holes: FAIL — $DOC has no '$BEGIN_MARK … $END_MARK' block (§7.1's table)" >&2
+  echo "holes: FAIL — $DOC has no '$BEGIN_MARK … $END_MARK' block (§8.1's table)" >&2
   exit 1
 fi
 rows=$(printf '%s\n' "$block" | grep '^|' \
@@ -124,7 +124,7 @@ rc=0
 while IFS= read -r name; do
   [ -n "$name" ] || continue
   if ! printf '%s\n' "$rows" | grep -qxF -- "$name"; then
-    echo "holes: FAIL — the hole \"$name\" has no row in $DOC §7.1" >&2
+    echo "holes: FAIL — the hole \"$name\" has no row in $DOC §8.1" >&2
     echo "       (it is declared by $GEN/*External_Template.lean; add a row" >&2
     echo "        giving its Lean model and why that model is faithful)" >&2
     rc=1
@@ -133,7 +133,7 @@ done <<< "$names"
 while IFS= read -r name; do
   [ -n "$name" ] || continue
   if ! printf '%s\n' "$names" | grep -qxF -- "$name"; then
-    echo "holes: FAIL — $DOC §7.1 has a row for \"$name\", which is not a hole" >&2
+    echo "holes: FAIL — $DOC §8.1 has a row for \"$name\", which is not a hole" >&2
     echo "       (nothing in $GEN/*External_Template.lean declares it; the row" >&2
     echo "        is stale — drop it, or fix the name)" >&2
     rc=1
@@ -141,7 +141,7 @@ while IFS= read -r name; do
 done <<< "$rows"
 
 if [ "$rc" -ne 0 ]; then
-  echo "holes: the list is scripts/holes.sh; the table is $DOC §7.1" >&2
+  echo "holes: the list is scripts/holes.sh; the table is $DOC §8.1" >&2
   exit 1
 fi
-echo "holes: $ntypes type(s), $nfuns fn(s), all in $DOC §7.1, OK"
+echo "holes: $ntypes type(s), $nfuns fn(s), all in $DOC §8.1, OK"

@@ -137,7 +137,7 @@ done
 [ "$missing" -eq 0 ] || { echo "extract: FAIL (unmodeled externals)" >&2; exit 1; }
 # The same count `scripts/holes.sh` prints off the *committed* templates; the
 # inventory those holes appear in, with a model and a justification each, is
-# OVERVIEW.md §7.1, and `scripts/holes.sh --check` is the gate over it.
+# OVERVIEW.md §8.1, and `scripts/holes.sh --check` is the gate over it.
 echo "extract: externals OK ($(declared_axioms "$out/TypesExternal_Template.lean" | wc -l) type(s), $(declared_axioms "$out/FunsExternal_Template.lean" | wc -l) fn(s) modeled by hand; scripts/holes.sh lists them)"
 
 # 4. Install, or diff.
