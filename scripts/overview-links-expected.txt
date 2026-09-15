@@ -814,21 +814,21 @@
    104    inv : HashMap.Inv name.Name.Insts.Con_ron_coreRonHashmapHashable fe.idx
 
 == proof/ConRon/Refine/Abs.lean#L515-L529
-   515  
-   516  end
+   515    | .Lit l => .lit (absLiteral l)
+   516    | .Proj s i e => .proj (absName s) i.val (absExpr e)
    517  
-   518  /-- A `Vec<Expr>` as a `List ConLeche.Expr`. -/
-   519  def absExprs (es : alloc.vec.Vec expr.Expr) : List ConLeche.Expr :=
-   520    es.val.map absExpr
-   521  
-   522  @[simp] theorem absName_mk (h : Std.U64) (k : name.NameKind) :
-   523      absName (.mk (.mk h k)) = absNameKind k := by rw [absName, absNameNode]
-   524  
-   525  @[simp] theorem absLevel_mk (h : Std.U64) (k : level.LevelKind) :
-   526      absLevel (.mk (.mk h k)) = absLevelKind k := by rw [absLevel, absLevelNode]
-   527  
-   528  @[simp] theorem absPropWhen_mk (r : prop_when.PropWhenRepr) :
-   529      absPropWhen (.mk r) = absPropWhenRepr r := rfl
+   518  end
+   519  
+   520  /-- A `Vec<Expr>` as a `List ConLeche.Expr`. -/
+   521  def absExprs (es : alloc.vec.Vec expr.Expr) : List ConLeche.Expr :=
+   522    es.val.map absExpr
+   523  
+   524  @[simp] theorem absName_mk (h : Std.U64) (k : name.NameKind) :
+   525      absName (.mk (.mk h k)) = absNameKind k := by rw [absName, absNameNode]
+   526  
+   527  @[simp] theorem absLevel_mk (h : Std.U64) (k : level.LevelKind) :
+   528      absLevel (.mk (.mk h k)) = absLevelKind k := by rw [absLevel, absLevelNode]
+   529  
 
 == proof/ConRon/Refine/Core/Arms/Shape.lean#L102-L119
    102  def SimS {α β : Type} (A : α → β) (WF : α → Prop)
@@ -851,15 +851,15 @@
    119  environment is a plain equation against its con-leche value. -/
 
 == proof/ConRon/Refine/Abs.lean#L938-L946
-   938    | .OpaqueDecl cv v => ConstantValWF cv ∧ ExprWF v
-   939    | .BasisDecl _ => True
-   940    | .IndDecl block _ => ConstantInfosWF block
-   941    | .QuotDecl _ cv => ConstantValWF cv
-   942  
-   943  /-! ## Axiom census (DESIGN.md §5, the P3 gate)
+   938    | .DefnDecl cv v _ => ConstantValWF cv ∧ ExprWF v
+   939    | .ThmDecl cv v => ConstantValWF cv ∧ ExprWF v
+   940    | .OpaqueDecl cv v => ConstantValWF cv ∧ ExprWF v
+   941    | .BasisDecl _ => True
+   942    | .IndDecl block _ => ConstantInfosWF block
+   943    | .QuotDecl _ cv => ConstantValWF cv
    944  
-   945  The file's own theorems are the smart-constructor shapes and the `Arc`/`Vec`
-   946  plumbing; nothing here reaches past Lean's own three axioms. -/
+   945  /-! ## Axiom census (DESIGN.md §5, the P3 gate)
+   946  
 
 == proof/ConRon/Refine/Core/Statements.lean#L191-L194
    191  def KnotSpec (mode : env.CheckMode) (fuel : Std.U64) : Prop :=

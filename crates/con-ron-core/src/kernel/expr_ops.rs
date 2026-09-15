@@ -2134,7 +2134,6 @@ mod tests {
     use crate::kernel::name::Name;
     use crate::ron::nat;
     use crate::kernel::prop_when;
-    use crate::ron::ptr;
 
     fn nm(s: &str) -> Name {
         name::mk_str(name::anonymous(), s.chars().map(|c| c as u32).collect())
