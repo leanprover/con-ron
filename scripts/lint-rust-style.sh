@@ -63,7 +63,25 @@ check_str_consts() {
   fi
 }
 check_str_consts
-check "unsafe" '\bunsafe\b'
+# `unsafe`.  The rule is none at all (the 2026-09-12 ruling: `std` does it if
+# it can).  The ONE exemption is `crates/con-ron-core/src/ron/tagged.rs`, the
+# generic tagged counted handle (task #94): the kind lives in the handle's low
+# four bits, so the pointee type is chosen at run time and no `std` smart
+# pointer can express it.  That file names no term type; its instantiation for
+# `Expr` (`ron/node.rs`) is a ten-line table and passes this lint like every
+# other file.  The surface is `tagged.rs`'s own module note -- four expressions,
+# two impls and one macro -- and `scripts/diff-e2e.sh` is what stands behind it.
+check_unsafe() {
+  local hits
+  hits=$(gather | grep -E '\bunsafe\b' \
+    | grep -v '^\S*:\S*:\s*//' | grep -v 'lint: allow' \
+    | grep -v 'con-ron-core/src/ron/tagged.rs')   # unanchored: gates.sh passes an absolute dir
+  if [ -n "$hits" ]; then
+    echo "== unsafe (only crates/con-ron-core/src/ron/tagged.rs may, task #94)"
+    echo "$hits"; fail=1
+  fi
+}
+check_unsafe
 check "std::collections" 'std::collections'
 check "P/Rc/Arc API beyond new/clone/deref/ptr_eq" '\b(P|Rc|Arc)::(get_mut|make_mut|downgrade|try_unwrap|into_raw|from_raw|as_ptr|strong_count|weak_count|increment_strong_count|decrement_strong_count)|RefCell|Cell<'
 check "panics as control flow" '\b(panic!|unwrap\(\)|expect\(|unreachable!|todo!|unimplemented!)'

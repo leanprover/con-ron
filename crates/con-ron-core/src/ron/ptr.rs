@@ -71,11 +71,16 @@
 //!
 //! What the swap buys, asserted by a compile-only test in `tests/`: `Name`,
 //! `Level`, `Expr`, `Env`, `FEnv` and `CState` are all `Send + Sync` with no
-//! `unsafe` and no other change.  Under `Rc` that test fails with eight errors
-//! that name **only** `Rc<ExprNode>`, `Rc<NameNode>`, `Rc<LevelNode>` and
-//! `Rc<ConstantInfo>`: nothing else in the core — no `Cell`, no `RefCell`, no
-//! raw pointer, no handle outside this alias — stands between the checker and
-//! a thread pool.
+//! `unsafe` and no other change.  Under `Rc` that test fails with errors that
+//! name **only** `Rc<NameNode>`, `Rc<LevelNode>` and `Rc<ConstantInfo>`:
+//! nothing else in the core — no `Cell`, no `RefCell`, no handle outside this
+//! alias — stands between the checker and a thread pool.
+//!
+//! **`Expr` is no longer one of them** (task #94's spike).  Its node carries
+//! its kind in the handle's low bits and so cannot be an `Arc<T>` for any one
+//! `T`; `ron::node` owns that handle, its count and its `Send`/`Sync`, with
+//! the same discipline and the same §3.2 model.  Everything else in the core
+//! is still `P<T>` and still swings on the one line below.
 
 /// con-leche: none — the shared pointer itself (DESIGN.md §3.2)
 /// The core's shared pointer: a counted handle to an immutable `T`.

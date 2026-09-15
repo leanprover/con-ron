@@ -513,12 +513,12 @@ theorem nat_op_ty_pinned_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
   cases bp
   · -- not `Nat.pred`: the binary shape `Nat → Nat → cod`
     rw [if_neg (of_decide_eq_false ep.symm)]
-    simp only [Bool.false_eq_true, if_false, arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [Bool.false_eq_true, if_false, expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     cases k with
     | ForallE dom inner mb =>
       obtain ⟨hdwf, hiwf, -⟩ := forall_e_wf_inv hty
       obtain ⟨⟨d2, k2⟩⟩ := inner
-      simp only [ExprOps.node_kind] at h
+      simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       cases k2 with
       | ForallE dom2 body mb2 =>
         obtain ⟨hd2wf, hbodywf, -⟩ := forall_e_wf_inv hiwf
@@ -545,7 +545,7 @@ theorem nat_op_ty_pinned_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     | _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
   · -- `Nat.pred`: the unary shape `Nat → cod`
     rw [if_pos (of_decide_eq_true ep.symm)]
-    simp only [reduceIte, arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [reduceIte, expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     cases k with
     | ForallE dom body mb =>
       obtain ⟨hdwf, hbodywf, -⟩ := forall_e_wf_inv hty

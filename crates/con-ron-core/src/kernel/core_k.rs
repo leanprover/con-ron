@@ -115,7 +115,7 @@ use crate::kernel::env::{
     ReducibilityHint,
 };
 use crate::kernel::expr;
-use crate::kernel::expr::{BinderMeta, Expr, ExprKind, Literal};
+use crate::kernel::expr::{BinderMeta, Expr, ExprView, Literal};
 use crate::kernel::expr_ops;
 use crate::kernel::fenv;
 use crate::kernel::fenv::FEnv;
@@ -419,8 +419,8 @@ pub fn proj_model_name(t: &Name, i: u64) -> Name {
 /// Is the expression headed by a stored constructor?
 pub fn is_ctor_app(fe: &FEnv, e: &Expr) -> bool {
     let f = expr_ops::get_app_fn(e);
-    match &f.0.kind {
-        ExprKind::Const(c, _) => match fenv::find(fe, c) {
+    match expr::view(&f) {
+        ExprView::Const(c, _) => match fenv::find(fe, c) {
             Some(ci) => is_ctor_info(ci),
             None => false,
         },
@@ -432,8 +432,8 @@ pub fn is_ctor_app(fe: &FEnv, e: &Expr) -> bool {
 /// Does the syntactic pi telescope end in a (normalized) `Prop`?
 pub fn pi_result_is_prop(e: &Expr) -> bool {
     let r = expr_ops::pi_result(e);
-    match &r.0.kind {
-        ExprKind::Sort(u) => match level::is_equiv(u, &level::zero()) {
+    match expr::view(&r) {
+        ExprView::Sort(u) => match level::is_equiv(u, &level::zero()) {
             Some(true) => true,
             Some(false) => false,
             None => false,
@@ -448,8 +448,8 @@ pub fn pi_result_is_prop(e: &Expr) -> bool {
 /// sort gets `ifAllZero []` — "zero at every valuation".
 pub fn pi_result_z(e: &Expr) -> PropWhen {
     let r = expr_ops::pi_result(e);
-    match &r.0.kind {
-        ExprKind::Sort(u) => level::zeroness_of(u),
+    match expr::view(&r) {
+        ExprView::Sort(u) => level::zeroness_of(u),
         _ => prop_when::if_all_zero(Vec::new()),
     }
 }
@@ -461,8 +461,8 @@ pub fn pi_result_z(e: &Expr) -> PropWhen {
 /// `beqRecursive` rule).
 pub fn pi_result_never_zero(lps: &Vec<Name>, us: &Vec<Level>, e: &Expr) -> bool {
     let r = expr_ops::pi_result(e);
-    match &r.0.kind {
-        ExprKind::Sort(u) => level::is_never_zero(&level::subst(lps, us, u)),
+    match expr::view(&r) {
+        ExprView::Sort(u) => level::is_never_zero(&level::subst(lps, us, u)),
         _ => false,
     }
 }
@@ -482,8 +482,8 @@ pub fn caps_never_zero(lps: &Vec<Name>, us: &Vec<Level>, caps: &IndCaps) -> bool
 /// task #161 item C1 computation downgrade, licensed by `unitLike_eq_punit`.
 /// The `&&` cascade is an `if` nest, and `[r]` is `rules.len() == 1`.
 pub fn is_unit_like_ty(fe: &FEnv, e: &Expr) -> bool {
-    match &e.0.kind {
-        ExprKind::Const(c, _) => {
+    match expr::view(&e) {
+        ExprView::Const(c, _) => {
             if name::beq(c, &basis_names::punit_name()) {
                 if is_punit_ind(fe) {
                     is_punit_rec_shape(fe)
@@ -538,8 +538,8 @@ pub fn is_punit_rec_shape(fe: &FEnv) -> bool {
 /// `unfoldable_head(fe, e) = unfold_definition(fe, e).is_some()`.
 pub fn unfoldable_head(fe: &FEnv, e: &Expr) -> bool {
     let f = expr_ops::get_app_fn(e);
-    match &f.0.kind {
-        ExprKind::Const(n, us) => match fenv::find(fe, n) {
+    match expr::view(&f) {
+        ExprView::Const(n, us) => match fenv::find(fe, n) {
             Some(ConstantInfo::DefnInfo(cv, _, _)) => us.len() == cv.level_params.len(),
             Some(_) => false,
             None => false,
@@ -554,8 +554,8 @@ pub fn unfoldable_head(fe: &FEnv, e: &Expr) -> bool {
 /// the head is not a stored definition — a theorem included).
 pub fn head_hint(fe: &FEnv, e: &Expr) -> ReducibilityHint {
     let f = expr_ops::get_app_fn(e);
-    match &f.0.kind {
-        ExprKind::Const(n, _) => match defn_probe(fe, n) {
+    match expr::view(&f) {
+        ExprView::Const(n, _) => match defn_probe(fe, n) {
             Some((_, _, hint)) => hint,
             None => ReducibilityHint::Opaque,
         },
@@ -568,14 +568,14 @@ pub fn head_hint(fe: &FEnv, e: &Expr) -> ReducibilityHint {
 /// Are `a` and `b` applications of the *same* constant (the lazy delta
 /// same-head short-circuit)?  Both sides must actually be applications.
 pub fn same_const_heads(a: &Expr, b: &Expr) -> bool {
-    match &a.0.kind {
-        ExprKind::App(f1, _) => match &b.0.kind {
-            ExprKind::App(f2, _) => {
+    match expr::view(&a) {
+        ExprView::App(f1, _) => match expr::view(&b) {
+            ExprView::App(f2, _) => {
                 let g1 = expr_ops::get_app_fn(f1);
                 let g2 = expr_ops::get_app_fn(f2);
-                match &g1.0.kind {
-                    ExprKind::Const(n1, _) => match &g2.0.kind {
-                        ExprKind::Const(n2, _) => name::beq(n1, n2),
+                match expr::view(&g1) {
+                    ExprView::Const(n1, _) => match expr::view(&g2) {
+                        ExprView::Const(n2, _) => name::beq(n1, n2),
                         _ => false,
                     },
                     _ => false,
@@ -647,10 +647,10 @@ pub fn nat_succ_ok(ci: Option<&ConstantInfo>) -> bool {
     match ci {
         Some(ConstantInfo::CtorInfo(cv, _, _)) => {
             if cv.level_params.len() == 0 {
-                match &cv.ty.0.kind {
-                    ExprKind::ForallE(dom, body, _) => match &dom.0.kind {
-                        ExprKind::Const(c1, us1) => match &body.0.kind {
-                            ExprKind::Const(c2, us2) => {
+                match expr::view(&cv.ty) {
+                    ExprView::ForallE(dom, body, _) => match expr::view(&dom) {
+                        ExprView::Const(c1, us1) => match expr::view(&body) {
+                            ExprView::Const(c2, us2) => {
                                 if us1.len() == 0 && us2.len() == 0 {
                                     name::beq(c1, &basis_names::nat_name())
                                         && name::beq(c2, &basis_names::nat_name())
@@ -697,41 +697,41 @@ pub fn nat_lit_supported(fe: &FEnv) -> bool {
 /// string-support ones.  Checked once per declaration by the install; the
 /// core never calls it.
 pub fn consts_resolve(fe: &FEnv, e: &Expr) -> bool {
-    match &e.0.kind {
-        ExprKind::Bvar(_) => true,
-        ExprKind::Sort(_) => true,
-        ExprKind::Lit(Literal::NatVal(_)) => nat_trio_stored(fe),
-        ExprKind::Lit(Literal::StrVal(_)) => {
+    match expr::view(&e) {
+        ExprView::Bvar(_) => true,
+        ExprView::Sort(_) => true,
+        ExprView::Lit(Literal::NatVal(_)) => nat_trio_stored(fe),
+        ExprView::Lit(Literal::StrVal(_)) => {
             if nat_trio_stored(fe) {
                 str_support_stored(fe)
             } else {
                 false
             }
         }
-        ExprKind::Const(n, _) => fenv::find(fe, n).is_some(),
-        ExprKind::Fvar(_, ty) => consts_resolve(fe, ty),
-        ExprKind::App(f, a) => {
+        ExprView::Const(n, _) => fenv::find(fe, n).is_some(),
+        ExprView::Fvar(_, ty) => consts_resolve(fe, ty),
+        ExprView::App(f, a) => {
             if consts_resolve(fe, f) {
                 consts_resolve(fe, a)
             } else {
                 false
             }
         }
-        ExprKind::Lam(ty, body, _) => {
+        ExprView::Lam(ty, body, _) => {
             if consts_resolve(fe, ty) {
                 consts_resolve(fe, body)
             } else {
                 false
             }
         }
-        ExprKind::ForallE(ty, body, _) => {
+        ExprView::ForallE(ty, body, _) => {
             if consts_resolve(fe, ty) {
                 consts_resolve(fe, body)
             } else {
                 false
             }
         }
-        ExprKind::LetE(ty, val, body) => {
+        ExprView::LetE(ty, val, body) => {
             if consts_resolve(fe, ty) {
                 if consts_resolve(fe, val) {
                     consts_resolve(fe, body)
@@ -742,7 +742,7 @@ pub fn consts_resolve(fe: &FEnv, e: &Expr) -> bool {
                 false
             }
         }
-        ExprKind::Proj(s, _, pe) => {
+        ExprView::Proj(s, _, pe) => {
             if fenv::find(fe, s).is_some() {
                 consts_resolve(fe, pe)
             } else {
@@ -802,8 +802,8 @@ pub fn str_support_stored(fe: &FEnv) -> bool {
 /// Convert a `Nat`-literal major premise to constructor form, one layer;
 /// anything else passes through.
 pub fn lit_to_ctor_if_nat(fe: &FEnv, e: &Expr) -> Expr {
-    match &e.0.kind {
-        ExprKind::Lit(Literal::NatVal(n)) => {
+    match expr::view(&e) {
+        ExprView::Lit(Literal::NatVal(n)) => {
             if nat_lit_supported(fe) {
                 nat_lit_to_constructor(n)
             } else {
@@ -819,9 +819,9 @@ pub fn lit_to_ctor_if_nat(fe: &FEnv, e: &Expr) -> Expr {
 /// A `Nat` literal reading of a whnf'd expression: literals and the
 /// `Nat.zero` constant (the official kernel's `rawNatLitExt?`).
 pub fn raw_nat_lit(e: &Expr) -> Option<Nat> {
-    match &e.0.kind {
-        ExprKind::Lit(Literal::NatVal(n)) => Some(nat::clone(n)),
-        ExprKind::Const(c, us) => {
+    match expr::view(&e) {
+        ExprView::Lit(Literal::NatVal(n)) => Some(nat::clone(n)),
+        ExprView::Const(c, us) => {
             if us.len() == 0 && name::beq(c, &basis_names::nat_zero_name()) {
                 Some(nat::zero())
             } else {
@@ -924,10 +924,10 @@ pub fn list_ty_ok(ci: Option<&ConstantInfo>) -> bool {
             let cv = env::to_constant_val(c);
             if cv.level_params.len() == 1 {
                 let p: &Name = &cv.level_params[0];
-                match &cv.ty.0.kind {
-                    ExprKind::ForallE(dom, body, _) => match &dom.0.kind {
-                        ExprKind::Sort(u1) => match &body.0.kind {
-                            ExprKind::Sort(u2) => {
+                match expr::view(&cv.ty) {
+                    ExprView::ForallE(dom, body, _) => match expr::view(&dom) {
+                        ExprView::Sort(u1) => match expr::view(&body) {
+                            ExprView::Sort(u2) => {
                                 let want = level::succ(level::param(name::dup(p)));
                                 level::beq(u1, &want) && level::beq(u2, &want)
                             }
@@ -954,12 +954,12 @@ pub fn list_nil_ty_ok(ci: Option<&ConstantInfo>) -> bool {
             let cv = env::to_constant_val(c);
             if cv.level_params.len() == 1 {
                 let p: &Name = &cv.level_params[0];
-                match &cv.ty.0.kind {
-                    ExprKind::ForallE(dom, body, _) => match &dom.0.kind {
-                        ExprKind::Sort(u1) => match &body.0.kind {
-                            ExprKind::App(hd, arg) => match &arg.0.kind {
-                                ExprKind::Bvar(0) => match &hd.0.kind {
-                                    ExprKind::Const(l1, us1) => {
+                match expr::view(&cv.ty) {
+                    ExprView::ForallE(dom, body, _) => match expr::view(&dom) {
+                        ExprView::Sort(u1) => match expr::view(&body) {
+                            ExprView::App(hd, arg) => match expr::view(&arg) {
+                                ExprView::Bvar(0) => match expr::view(&hd) {
+                                    ExprView::Const(l1, us1) => {
                                         if level::beq(
                                             u1,
                                             &level::succ(level::param(name::dup(p))),
@@ -1007,12 +1007,12 @@ pub fn list_cons_ty_ok(ci: Option<&ConstantInfo>) -> bool {
             let cv = env::to_constant_val(c);
             if cv.level_params.len() == 1 {
                 let p: &Name = &cv.level_params[0];
-                match &cv.ty.0.kind {
-                    ExprKind::ForallE(d1, b1, _) => match &d1.0.kind {
-                        ExprKind::Sort(u1) => match &b1.0.kind {
-                            ExprKind::ForallE(d2, b2, _) => match &d2.0.kind {
-                                ExprKind::Bvar(0) => match &b2.0.kind {
-                                    ExprKind::ForallE(d3, b3, _) => {
+                match expr::view(&cv.ty) {
+                    ExprView::ForallE(d1, b1, _) => match expr::view(&d1) {
+                        ExprView::Sort(u1) => match expr::view(&b1) {
+                            ExprView::ForallE(d2, b2, _) => match expr::view(&d2) {
+                                ExprView::Bvar(0) => match expr::view(&b2) {
+                                    ExprView::ForallE(d3, b3, _) => {
                                         list_cons_tail_ok(u1, d3, b3, p)
                                     }
                                     _ => false,
@@ -1039,13 +1039,13 @@ pub fn list_cons_ty_ok(ci: Option<&ConstantInfo>) -> bool {
 /// and the four comparisons — as their own function, so the nesting stays
 /// readable.
 pub fn list_cons_tail_ok(u1: &Level, d3: &Expr, b3: &Expr, p: &Name) -> bool {
-    match &d3.0.kind {
-        ExprKind::App(h1, a1) => match &b3.0.kind {
-            ExprKind::App(h2, a2) => match &a1.0.kind {
-                ExprKind::Bvar(1) => match &a2.0.kind {
-                    ExprKind::Bvar(2) => match &h1.0.kind {
-                        ExprKind::Const(l1, us1) => match &h2.0.kind {
-                            ExprKind::Const(l2, us2) => {
+    match expr::view(&d3) {
+        ExprView::App(h1, a1) => match expr::view(&b3) {
+            ExprView::App(h2, a2) => match expr::view(&a1) {
+                ExprView::Bvar(1) => match expr::view(&a2) {
+                    ExprView::Bvar(2) => match expr::view(&h1) {
+                        ExprView::Const(l1, us1) => match expr::view(&h2) {
+                            ExprView::Const(l2, us2) => {
                                 let want = level::singleton(level::param(name::dup(p)));
                                 if level::beq(u1, &level::succ(level::param(name::dup(p)))) {
                                     if name::beq(l1, &basis_names::list_name())
@@ -1082,10 +1082,10 @@ pub fn char_of_nat_ty_ok(ci: Option<&ConstantInfo>) -> bool {
         Some(c) => {
             let cv = env::to_constant_val(c);
             if cv.level_params.len() == 0 {
-                match &cv.ty.0.kind {
-                    ExprKind::ForallE(dom, body, _) => match &dom.0.kind {
-                        ExprKind::Const(c1, us1) => match &body.0.kind {
-                            ExprKind::Const(c2, us2) => {
+                match expr::view(&cv.ty) {
+                    ExprView::ForallE(dom, body, _) => match expr::view(&dom) {
+                        ExprView::Const(c1, us1) => match expr::view(&body) {
+                            ExprView::Const(c2, us2) => {
                                 if us1.len() == 0 && us2.len() == 0 {
                                     name::beq(c1, &basis_names::nat_name())
                                         && name::beq(c2, &basis_names::char_name())
@@ -1115,12 +1115,12 @@ pub fn string_of_list_ty_ok(ci: Option<&ConstantInfo>) -> bool {
         Some(c) => {
             let cv = env::to_constant_val(c);
             if cv.level_params.len() == 0 {
-                match &cv.ty.0.kind {
-                    ExprKind::ForallE(dom, body, _) => match &dom.0.kind {
-                        ExprKind::App(hd, arg) => match &body.0.kind {
-                            ExprKind::Const(c2, us2) => match &hd.0.kind {
-                                ExprKind::Const(l1, us1) => match &arg.0.kind {
-                                    ExprKind::Const(c1, us_c) => {
+                match expr::view(&cv.ty) {
+                    ExprView::ForallE(dom, body, _) => match expr::view(&dom) {
+                        ExprView::App(hd, arg) => match expr::view(&body) {
+                            ExprView::Const(c2, us2) => match expr::view(&hd) {
+                                ExprView::Const(l1, us1) => match expr::view(&arg) {
+                                    ExprView::Const(c1, us_c) => {
                                         if us2.len() == 0 && us_c.len() == 0 {
                                             if name::beq(l1, &basis_names::list_name()) {
                                                 if expr::levels_beq(
@@ -1344,8 +1344,8 @@ pub fn bool_false_name() -> Name {
 /// con-leche: ConLeche/Kernel/Core.lean:561-566 Expr.isBoolTrue
 /// Is `e` the constant `Bool.true` — the name, no universe levels?
 pub fn is_bool_true(e: &Expr) -> bool {
-    match &e.0.kind {
-        ExprKind::Const(c, us) => {
+    match expr::view(&e) {
+        ExprView::Const(c, us) => {
             if us.len() == 0 {
                 name::beq(c, &bool_true_name())
             } else {
@@ -1361,11 +1361,11 @@ pub fn is_bool_true(e: &Expr) -> bool {
 /// literals, two `∀`s, two `λ`s.  Charon expands the cited wildcard arm, as
 /// in `expr::beq_go` (task #11's note).
 pub fn quick_pair(a: &Expr, b: &Expr) -> bool {
-    match &a.0.kind {
-        ExprKind::Sort(_) => is_sort(b),
-        ExprKind::Lit(_) => is_lit(b),
-        ExprKind::ForallE(_, _, _) => is_forall(b),
-        ExprKind::Lam(_, _, _) => is_lam_k(b),
+    match expr::view(&a) {
+        ExprView::Sort(_) => is_sort(b),
+        ExprView::Lit(_) => is_lit(b),
+        ExprView::ForallE(_, _, _) => is_forall(b),
+        ExprView::Lam(_, _, _) => is_lam_k(b),
         _ => false,
     }
 }
@@ -1376,8 +1376,8 @@ pub fn quick_pair(a: &Expr, b: &Expr) -> bool {
 /// (`expr_ops::is_lam` is the `Expr.isLam` of `ExprOps.lean`, a different
 /// declaration).
 pub fn is_sort(e: &Expr) -> bool {
-    match &e.0.kind {
-        ExprKind::Sort(_) => true,
+    match expr::view(&e) {
+        ExprView::Sort(_) => true,
         _ => false,
     }
 }
@@ -1385,8 +1385,8 @@ pub fn is_sort(e: &Expr) -> bool {
 /// con-leche: ConLeche/Kernel/Core.lean:568-580 Expr.quickPair
 /// See `is_sort`.
 pub fn is_lit(e: &Expr) -> bool {
-    match &e.0.kind {
-        ExprKind::Lit(_) => true,
+    match expr::view(&e) {
+        ExprView::Lit(_) => true,
         _ => false,
     }
 }
@@ -1394,8 +1394,8 @@ pub fn is_lit(e: &Expr) -> bool {
 /// con-leche: ConLeche/Kernel/Core.lean:568-580 Expr.quickPair
 /// See `is_sort`.
 pub fn is_forall(e: &Expr) -> bool {
-    match &e.0.kind {
-        ExprKind::ForallE(_, _, _) => true,
+    match expr::view(&e) {
+        ExprView::ForallE(_, _, _) => true,
         _ => false,
     }
 }
@@ -1403,8 +1403,8 @@ pub fn is_forall(e: &Expr) -> bool {
 /// con-leche: ConLeche/Kernel/Core.lean:568-580 Expr.quickPair
 /// See `is_sort`.
 pub fn is_lam_k(e: &Expr) -> bool {
-    match &e.0.kind {
-        ExprKind::Lam(_, _, _) => true,
+    match expr::view(&e) {
+        ExprView::Lam(_, _, _) => true,
         _ => false,
     }
 }
@@ -1775,15 +1775,15 @@ pub fn nat_op_wf_names() -> Vec<Name> {
 /// application spine (the certification equations' self-references; the
 /// equation sides are binder-free, so only `app` recurses).
 pub fn subst_const0(n: &Name, r: &Expr, e: &Expr) -> Expr {
-    match &e.0.kind {
-        ExprKind::Const(c, us) => {
+    match expr::view(&e) {
+        ExprView::Const(c, us) => {
             if us.len() == 0 && name::beq(c, n) {
                 expr::dup(r)
             } else {
                 expr::dup(e)
             }
         }
-        ExprKind::App(f, a) => expr::app(subst_const0(n, r, f), subst_const0(n, r, a)),
+        ExprView::App(f, a) => expr::app(subst_const0(n, r, f), subst_const0(n, r, a)),
         _ => expr::dup(e),
     }
 }
@@ -1793,31 +1793,31 @@ pub fn subst_const0(n: &Name, r: &Expr, e: &Expr) -> Expr {
 /// everywhere, including under binders.  `fvar` annotations are not entered:
 /// the substitution runs on closed input terms only.
 pub fn subst_const_all(n: &Name, r: &Expr, e: &Expr) -> Expr {
-    match &e.0.kind {
-        ExprKind::Const(c, us) => {
+    match expr::view(&e) {
+        ExprView::Const(c, us) => {
             if us.len() == 0 && name::beq(c, n) {
                 expr::dup(r)
             } else {
                 expr::dup(e)
             }
         }
-        ExprKind::App(f, a) => expr::app(subst_const_all(n, r, f), subst_const_all(n, r, a)),
-        ExprKind::Lam(ty, b, mb) => expr::lam(
+        ExprView::App(f, a) => expr::app(subst_const_all(n, r, f), subst_const_all(n, r, a)),
+        ExprView::Lam(ty, b, mb) => expr::lam(
             subst_const_all(n, r, ty),
             subst_const_all(n, r, b),
             expr::binder_meta_dup(mb),
         ),
-        ExprKind::ForallE(ty, b, mb) => expr::forall_e(
+        ExprView::ForallE(ty, b, mb) => expr::forall_e(
             subst_const_all(n, r, ty),
             subst_const_all(n, r, b),
             expr::binder_meta_dup(mb),
         ),
-        ExprKind::LetE(ty, v, b) => expr::let_e(
+        ExprView::LetE(ty, v, b) => expr::let_e(
             subst_const_all(n, r, ty),
             subst_const_all(n, r, v),
             subst_const_all(n, r, b),
         ),
-        ExprKind::Proj(s, i, pe) => expr::proj(name::dup(s), *i, subst_const_all(n, r, pe)),
+        ExprView::Proj(s, i, pe) => expr::proj(name::dup(s), *i, subst_const_all(n, r, pe)),
         _ => expr::dup(e),
     }
 }
@@ -1865,8 +1865,8 @@ pub fn bool_stored_ok(fe: &FEnv) -> bool {
 pub fn nat_op_ty_pinned(fe: &FEnv, c: &Name, ty: &Expr) -> bool {
     let nat_ty = expr::mk_const(basis_names::nat_name(), Vec::new());
     if name::beq(c, &nat_pred_name()) {
-        match &ty.0.kind {
-            ExprKind::ForallE(dom, body, _) => {
+        match expr::view(&ty) {
+            ExprView::ForallE(dom, body, _) => {
                 if expr::beq(dom, &nat_ty) {
                     nat_op_cod(fe, c, body)
                 } else {
@@ -1876,9 +1876,9 @@ pub fn nat_op_ty_pinned(fe: &FEnv, c: &Name, ty: &Expr) -> bool {
             _ => false,
         }
     } else {
-        match &ty.0.kind {
-            ExprKind::ForallE(dom, inner, _) => match &inner.0.kind {
-                ExprKind::ForallE(dom2, body, _) => {
+        match expr::view(&ty) {
+            ExprView::ForallE(dom, inner, _) => match expr::view(&inner) {
+                ExprView::ForallE(dom2, body, _) => {
                     if expr::beq(dom, &nat_ty) && expr::beq(dom2, &nat_ty) {
                         nat_op_cod(fe, c, body)
                     } else {
@@ -1960,8 +1960,8 @@ pub fn pi_residual_from(e: &Expr, args: &Vec<Expr>, i: usize) -> Option<Expr> {
     if i >= args.len() {
         Some(expr::dup(e))
     } else {
-        match &e.0.kind {
-            ExprKind::ForallE(_, b, _) => {
+        match expr::view(&e) {
+            ExprView::ForallE(_, b, _) => {
                 let next = expr_ops::instantiate1(b, &args[i], 0);
                 pi_residual_from(&next, args, i + 1)
             }
@@ -2072,8 +2072,8 @@ pub fn struct_eta_shape_ok(
 /// to exactly its parameters and fields.
 pub fn eta_ctor_shape(fe: &FEnv, a: &Expr) -> bool {
     let f = expr_ops::get_app_fn(a);
-    match &f.0.kind {
-        ExprKind::Const(c, _) => match fenv::find(fe, c) {
+    match expr::view(&f) {
+        ExprView::Const(c, _) => match fenv::find(fe, c) {
             Some(ConstantInfo::CtorInfo(_, cn_p, cn_f)) => {
                 (expr_ops::get_app_args(a).len() as u64) == *cn_p + *cn_f
             }
@@ -2250,8 +2250,8 @@ pub fn rec_rule_k_of(fe: &FEnv, ctor: &Name) -> bool {
         Some((cvj, _, cn_f)) => {
             let res = expr_ops::pi_result(&cvj.ty);
             let head = expr_ops::get_app_fn(&res);
-            match &head.0.kind {
-                ExprKind::Const(t, _) => match ind_probe(fe, t) {
+            match expr::view(&head) {
+                ExprView::Const(t, _) => match ind_probe(fe, t) {
                     Some((_, caps)) => caps.rule_k && cn_f == 0,
                     None => false,
                 },
@@ -2273,8 +2273,8 @@ pub fn rec_rule_eta_of(fe: &FEnv, rec_name: &Name, ctor: &Name) -> bool {
         Some((cvj, _, _)) => {
             let res = expr_ops::pi_result(&cvj.ty);
             let head = expr_ops::get_app_fn(&res);
-            match &head.0.kind {
-                ExprKind::Const(t, _) => match ind_probe(fe, t) {
+            match expr::view(&head) {
+                ExprView::Const(t, _) => match ind_probe(fe, t) {
                     Some((cvt, caps)) => {
                         if !caps.eta {
                             false
@@ -2597,8 +2597,8 @@ pub fn infer_proj_at(
         116, 32, 97, 32, 110, 97, 116, 105, 118, 101, 32, 101, 110, 116, 114, 121,
     ];
     let f = expr_ops::get_app_fn(te);
-    match &f.0.kind {
-        ExprKind::Const(t, us) => match fenv::find_proj(fe, t, i) {
+    match expr::view(&f) {
+        ExprView::Const(t, us) => match fenv::find_proj(fe, t, i) {
             Some(entry) => {
                 let targs = expr_ops::get_app_args(te);
                 proj_type_at_checked(&entry, sn, t, us, &targs, pe)
@@ -2625,8 +2625,8 @@ pub fn succ_of(nn: &Nat, f: &Expr) -> Option<Nat> {
     if nat::is_zero(nn) {
         None
     } else {
-        match &f.0.kind {
-            ExprKind::Const(c, us) => {
+        match expr::view(&f) {
+            ExprView::Const(c, us) => {
                 if us.len() == 0 && name::beq(c, &basis_names::nat_succ_name()) {
                     Some(nat::pred(nn))
                 } else {
@@ -2644,8 +2644,8 @@ pub fn succ_of(nn: &Nat, f: &Expr) -> Option<Nat> {
 /// `tryStringLitExpansion`, which fires exactly when the other side's
 /// function part is the bare `String.ofList` constant.
 pub fn str_expansion_fires(fe: &FEnv, f: &Expr) -> bool {
-    match &f.0.kind {
-        ExprKind::Const(c, us) => {
+    match expr::view(&f) {
+        ExprView::Const(c, us) => {
             if us.len() == 0 && name::beq(c, &basis_names::string_of_list_name()) {
                 str_lit_supported(fe)
             } else {
@@ -2798,7 +2798,7 @@ mod tests {
     use crate::kernel::core_types::CheckError;
     use crate::kernel::env::{CheckMode, ConstantInfo, ConstantVal};
     use crate::kernel::expr;
-    use crate::kernel::expr::{BinderMeta, Expr, ExprKind};
+    use crate::kernel::expr::{BinderMeta, Expr, ExprView};
     use crate::kernel::fenv;
     use crate::kernel::fenv::FEnv;
     use crate::kernel::level;
@@ -2891,8 +2891,8 @@ mod tests {
         let s1 = expr::sort(level::succ(level::zero()));
         let lam = expr::lam(expr::dup(&s1), expr::bvar(0), never_meta());
         match core_c::infer(&mode, core_k::check_fuel(), &mut st, &fe, 0, &lam) {
-            Ok(t) => match &t.0.kind {
-                ExprKind::ForallE(dom, body, m) => {
+            Ok(t) => match expr::view(&t) {
+                ExprView::ForallE(dom, body, m) => {
                     assert!(expr::beq(dom, &s1));
                     assert!(expr::beq(body, &s1));
                     assert!(prop_when::is_never(&m.pw));
@@ -3069,8 +3069,8 @@ mod tests {
                 Ok(r) => r,
                 Err(_) => panic!("annotation failed"),
             };
-        match &annotated.0.kind {
-            ExprKind::Lam(dom, _, m) => {
+        match expr::view(&annotated) {
+            ExprView::Lam(dom, _, m) => {
                 assert!(expr::beq(dom, &s1));
                 assert!(prop_when::is_never(&m.pw), "`Sort 2` is never zero");
             }
@@ -3086,8 +3086,8 @@ mod tests {
         let kept = expr::lam(a_ty(), expr::bvar(0), prop_meta());
         let mut st2: CState = state_c::cstate_new();
         match core_c::annotate(&mode, core_k::check_fuel(), &mut st2, &fe, 0, &kept) {
-            Ok(r) => match &r.0.kind {
-                ExprKind::Lam(_, _, m) => {
+            Ok(r) => match expr::view(&r) {
+                ExprView::Lam(_, _, m) => {
                     assert!(!prop_when::is_never(&m.pw), "the input datum survives")
                 }
                 _ => panic!("expected a λ"),

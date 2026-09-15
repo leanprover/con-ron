@@ -57,7 +57,7 @@ theorem head_is_refines {t : name.Name} {e : expr.Expr} {b : Bool}
   rw [ConLeche.Frontend.headIs, ← habs]
   obtain ⟨⟨d, k⟩⟩ := e1
   cases k <;>
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h <;>
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h <;>
     simp only [absExpr_mk, absExprKind]
   case Const n us =>
     rw [Name.beq_refines (ExprWF.const_kids hwf).1 ht h]
@@ -410,8 +410,10 @@ theorem inst_pis_open_loop_refines (N : Nat) :
     rw [frontend.proj_rec.inst_pis_open_loop.eq_def] at h
     rust_norm h
     case h_7 =>
-      rename_i ea e1 hand i1 hi1
+      rename_i ty bo m hkd ea e1 hand i1 hi1
       obtain ⟨hidx, hinst⟩ := hand
+      have hkind : kind = .ForallE ty bo m := (of_kind_forall_e_iff _ _ _ _).mp hkd
+      subst hkind
       obtain ⟨-, hbo, -⟩ := ExprWF.forall_e_kids hcur
       obtain ⟨hlt, hea, hdrop⟩ := ExprOps.vec_index_expr hargs hidx
       obtain ⟨habs, hwf⟩ := inst1_lift_refines hbo hea hinst
@@ -419,6 +421,14 @@ theorem inst_pis_open_loop_refines (N : Nat) :
       rw [ih (n.val - i1.val) (by omega) args e1 n i1 (cur1, ok1) rfl hn hargs hwf h,
         habs, hdrop, hi1v]
       simp [ConLeche.Frontend.instPisOpen]
+    -- `rust_norm`'s `split` delta-unfolds `ExprView.ofKind` before generalising, so
+    -- the arm's equation is a bare matcher and the `of_kind_*_iff` simp lemmas do not
+    -- match it; fold it back first, then invert.
+    all_goals
+      try (rename_i hkd
+           replace hkd : ron.node.ExprView.ofKind _ = _ := hkd
+           of_kind_inv hkd
+           subst hkd)
     all_goals
       first
         | exact absurd trivial ‹¬True›
@@ -507,6 +517,9 @@ theorem build_binders_step_refines {M : Type} {inst : frontend.proj_rec.MkBinder
   rw [frontend.proj_rec.build_binders_step.eq_def] at h
   rust_norm h
   case h_7 =>
+    rename_i ty bo m hkd
+    have hkind : kind = .ForallE ty bo m := (of_kind_forall_e_iff _ _ _ _).mp hkd
+    subst hkind
     obtain ⟨hdom, hbody, -⟩ := ExprWF.forall_e_kids hcur
     rw [frontend.proj_rec.build_binders_step_at] at h
     obtain ⟨o1, hb, h⟩ := bind_eq_ok_iff.mp h
@@ -528,7 +541,14 @@ theorem build_binders_step_refines {M : Type} {inst : frontend.proj_rec.MkBinder
       simp only [Option.map_some] at hfa
       simp only [absExpr_mk, absExprKind, ConLeche.Frontend.buildBinders, ← hfa]
       simp [habs, option_bind_some]
-  all_goals (intro kk; rfl)
+  -- the nine arms that are not a `∀`: fold the unfolded `ExprView.ofKind` matcher
+  -- back so `of_kind_inv` can read the kind off the arm's equation
+  all_goals (rename_i hkd
+             replace hkd : ron.node.ExprView.ofKind _ = _ := hkd
+             of_kind_inv hkd
+             subst hkd
+             intro kk
+             rfl)
 
 /-- The countdown behind `proj_rec::build_binders`. -/
 theorem build_binders_loop_refines {M : Type} {inst : frontend.proj_rec.MkBinder M}
@@ -799,7 +819,8 @@ theorem mk_motive_refines {t : name.Name} {rr : expr.Expr} {l : level.Level}
     obtain ⟨he1, hbm⟩ := hbs _ hmem
     have hHI : ConLeche.Frontend.headIs (absName t) (absExpr e1) = true := by
       rw [← head_is_refines ht he1 hhi]; exact hbt
-    rw [lMkMotive, ← habs, binders_singleton hlen hidx, absExpr_of_kind hkd]
+    rw [lMkMotive, ← habs, binders_singleton hlen hidx,
+      absExpr_of_kind ((of_kind_sort_iff _ _).mp hkd)]
     simp only [absExprKind, hHI, if_true, Option.map_some, Expr.lam_refines hlam,
       Expr.binder_meta_dup_eq hbmd, (ExprOps.lift_loose_bvars_refines hr hlift).1]
     norm_num
@@ -809,12 +830,13 @@ theorem mk_motive_refines {t : name.Name} {rr : expr.Expr} {l : level.Level}
     obtain ⟨he1, hbm⟩ := hbs _ hmem
     have hHI : ConLeche.Frontend.headIs (absName t) (absExpr e1) = false := by
       rw [← head_is_refines ht he1 hhi]; simpa using hbf
-    rw [lMkMotive, ← habs, binders_singleton hlen hidx, absExpr_of_kind hkd]
+    rw [lMkMotive, ← habs, binders_singleton hlen hidx,
+      absExpr_of_kind ((of_kind_sort_iff _ _).mp hkd)]
     simp only [absExprKind, hHI, Bool.false_eq_true, if_false, Option.map_some,
       Expr.lam_refines hlam, Expr.binder_meta_dup_eq hbmd, punit_at_refines hpu]
   case h_3.isFalse =>
     rename_i _ u hkd hlen e1 hpu e2 hml
-    rw [lMkMotive, ← habs, absExpr_of_kind hkd]
+    rw [lMkMotive, ← habs, absExpr_of_kind ((of_kind_sort_iff _ _).mp hkd)]
     rcases binders_not_singleton hlen with hnil | ⟨a, b, tl, hcons⟩
     · rw [hnil]
       simp only [absExprKind, Option.map_some, mk_lams_refines hml,
@@ -822,7 +844,11 @@ theorem mk_motive_refines {t : name.Name} {rr : expr.Expr} {l : level.Level}
     · rw [hcons]
       simp only [absExprKind, Option.map_some, mk_lams_refines hml,
         punit_at_refines hpu, hcons]
+  -- the nine kinds whose `stripPisAll` body is not a `Sort`; as above, the arm's
+  -- equation needs folding back before `of_kind_inv` can invert it
   all_goals (rename_i hkd
+             replace hkd : ron.node.ExprView.ofKind _ = _ := hkd
+             of_kind_inv hkd
              rw [lMkMotive_not_sort habs.symm
                (by rw [absExpr_of_kind hkd]; intro u hc; simp [absExprKind] at hc)]
              rfl)
@@ -997,7 +1023,7 @@ theorem proj_rec_value_major_refines {o : frontend.proj_rec.ProjRecOwner}
   obtain ⟨⟨d, kind⟩⟩ := rty
   rw [frontend.proj_rec.proj_rec_value_major.eq_def] at h
   cases kind <;>
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, name_dup_eq] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, name_dup_eq] at h
   case ForallE maj_dom bo m =>
     rw [lProjRecMajor_eq (rty := absExpr (expr.Expr.mk (expr.ExprNode.mk d
       (expr.ExprKind.ForallE maj_dom bo m)))) rfl]
@@ -1695,7 +1721,7 @@ theorem proj_iota_level_refines (ty : expr.Expr) (hty : ExprWF ty) :
   rw [ConLeche.Frontend.projIotaLevel, ← hpra, ← hfa]
   obtain ⟨⟨d, k⟩⟩ := hd
   cases k <;>
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h <;>
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h <;>
     simp only [absExpr_mk, absExprKind]
   case Const n us =>
     obtain ⟨hnwf, huswf⟩ := ExprWF.const_kids hfwf
@@ -1803,31 +1829,31 @@ theorem occurs_const_go_refines {n : name.Name} (hn : NameWF n)
   | bvar d i hwf =>
     intro seen r hm h
     rw [frontend.proj_rec.occurs_const_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     exact ⟨rfl, hm⟩
   | fvar d idx ty hwf ihty =>
     intro seen r hm h
     rw [frontend.proj_rec.occurs_const_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     exact ⟨rfl, hm⟩
   | sort d u hwf =>
     intro seen r hm h
     rw [frontend.proj_rec.occurs_const_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     exact ⟨rfl, hm⟩
   | lit d lt hwf =>
     intro seen r hm h
     rw [frontend.proj_rec.occurs_const_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     exact ⟨rfl, hm⟩
   | mk_const d m us hwf =>
     intro seen r hm h
     rw [frontend.proj_rec.occurs_const_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨b, hbeq, h⟩ := bind_eq_ok_iff.mp h
     rw [← Result.ok_injective h]
     refine ⟨?_, hm⟩
@@ -1837,7 +1863,7 @@ theorem occurs_const_go_refines {n : name.Name} (hn : NameWF n)
     intro seen r hm h
     obtain ⟨hf, ha⟩ := ExprWF.app_kids hwf
     rw [frontend.proj_rec.occurs_const_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨bc, hcont, h⟩ := bind_eq_ok_iff.mp h
     cases bc with
     | true =>
@@ -1855,7 +1881,7 @@ theorem occurs_const_go_refines {n : name.Name} (hn : NameWF n)
             expr.Expr.Insts.Con_ron_coreRonHashmapEq2 p.2 e1 false
           ok (false, q.2)) = ok r := h
       rw [frontend.proj_rec.occurs_const_node.eq_def] at hnode
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hnode
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hnode
       obtain ⟨q, hq, hnode⟩ := bind_eq_ok_iff.mp hnode
       replace hnode : (if q.1 then ok (true, q.2)
         else frontend.proj_rec.occurs_const_go n q.2 a) = ok p := hnode
@@ -1896,7 +1922,7 @@ theorem occurs_const_go_refines {n : name.Name} (hn : NameWF n)
     intro seen r hm h
     obtain ⟨hty, hbo, -⟩ := ExprWF.lam_kids hwf
     rw [frontend.proj_rec.occurs_const_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨bc, hcont, h⟩ := bind_eq_ok_iff.mp h
     cases bc with
     | true =>
@@ -1915,7 +1941,7 @@ theorem occurs_const_go_refines {n : name.Name} (hn : NameWF n)
             expr.Expr.Insts.Con_ron_coreRonHashmapEq2 p.2 e1 false
           ok (false, q.2)) = ok r := h
       rw [frontend.proj_rec.occurs_const_node.eq_def] at hnode
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hnode
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hnode
       obtain ⟨q, hq, hnode⟩ := bind_eq_ok_iff.mp hnode
       replace hnode : (if q.1 then ok (true, q.2)
         else frontend.proj_rec.occurs_const_go n q.2 bo) = ok p := hnode
@@ -1956,7 +1982,7 @@ theorem occurs_const_go_refines {n : name.Name} (hn : NameWF n)
     intro seen r hm h
     obtain ⟨hty, hbo, -⟩ := ExprWF.forall_e_kids hwf
     rw [frontend.proj_rec.occurs_const_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨bc, hcont, h⟩ := bind_eq_ok_iff.mp h
     cases bc with
     | true =>
@@ -1975,7 +2001,7 @@ theorem occurs_const_go_refines {n : name.Name} (hn : NameWF n)
             expr.Expr.Insts.Con_ron_coreRonHashmapEq2 p.2 e1 false
           ok (false, q.2)) = ok r := h
       rw [frontend.proj_rec.occurs_const_node.eq_def] at hnode
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hnode
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hnode
       obtain ⟨q, hq, hnode⟩ := bind_eq_ok_iff.mp hnode
       replace hnode : (if q.1 then ok (true, q.2)
         else frontend.proj_rec.occurs_const_go n q.2 bo) = ok p := hnode
@@ -2016,7 +2042,7 @@ theorem occurs_const_go_refines {n : name.Name} (hn : NameWF n)
     intro seen r hm h
     obtain ⟨hty, hv, hbo⟩ := ExprWF.let_e_kids hwf
     rw [frontend.proj_rec.occurs_const_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨bc, hcont, h⟩ := bind_eq_ok_iff.mp h
     cases bc with
     | true =>
@@ -2035,7 +2061,7 @@ theorem occurs_const_go_refines {n : name.Name} (hn : NameWF n)
             expr.Expr.Insts.Con_ron_coreRonHashmapEq2 p.2 e1 false
           ok (false, q.2)) = ok r := h
       rw [frontend.proj_rec.occurs_const_node.eq_def] at hnode
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hnode
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hnode
       obtain ⟨q, hq, hnode⟩ := bind_eq_ok_iff.mp hnode
       replace hnode : (if q.1 then ok (true, q.2)
         else do
@@ -2094,7 +2120,7 @@ theorem occurs_const_go_refines {n : name.Name} (hn : NameWF n)
     intro seen r hm h
     obtain ⟨-, hx⟩ := ExprWF.proj_kids hwf
     rw [frontend.proj_rec.occurs_const_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨bc, hcont, h⟩ := bind_eq_ok_iff.mp h
     cases bc with
     | true =>
@@ -2113,7 +2139,7 @@ theorem occurs_const_go_refines {n : name.Name} (hn : NameWF n)
             expr.Expr.Insts.Con_ron_coreRonHashmapEq2 p.2 e1 false
           ok (false, q.2)) = ok r := h
       rw [frontend.proj_rec.occurs_const_node.eq_def] at hnode
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at hnode
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at hnode
       obtain ⟨hp1, hp2⟩ := ihx hx seen p hm hnode
       cases hpb : p.1 with
       | true =>
@@ -3187,7 +3213,7 @@ theorem proj_rec_owner_at_refines {t : frontend.proj_rec.ProjTypeRec}
         simp only [Option.map_some, option_bind_some_l]
         obtain ⟨⟨d, k⟩⟩ := tb
         cases k <;>
-          simp only [arc_deref_eq, bind_tc_ok, level_dup_eq] at h <;>
+          simp only [expr_view_eq, bind_tc_ok, level_dup_eq] at h <;>
           simp only [absExpr_mk, absExprKind]
         case «Sort» s =>
           obtain ⟨l0, hl0, h⟩ := bind_eq_ok_iff.mp h

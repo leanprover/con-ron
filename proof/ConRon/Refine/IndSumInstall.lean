@@ -1447,14 +1447,14 @@ theorem whnf_telescope_refines {mode : env.CheckMode}
       subst hn0
       cases k
       case «Sort» s =>
-        simp at h
+        simp [ron.node.ExprView.ofKind] at h
         obtain ⟨rfl, rfl, rfl⟩ := h
         refine ⟨lst1, [], ?_, by simp, hrel1, hwf1, hout, IndAbs.sort_node_wf hwe⟩
         simpa using whnfTelescope_zero (by simpa using hrun)
       -- the residual is not a sort: both sides throw `invalid`
       -- (`sum_install.rs:85`, `SumInstall.lean:57-58`)
       all_goals
-        (simp at h
+        (simp [ron.node.ExprView.ofKind] at h
          obtain ⟨y, hy, ce, hce, rfl, rfl⟩ := h
          obtain ⟨msg, hmsg⟩ :=
            whnfTelescope_zero_nonsort (by simpa using hrun) (by intro s; simp)
@@ -1468,7 +1468,7 @@ theorem whnf_telescope_refines {mode : env.CheckMode}
       case ForallE dom body bm =>
         obtain ⟨hdom, hbody, hbm⟩ := CoreK.ExprWF.forallE_children hwe rfl
         simp only [if_neg hn0] at h
-        simp at h
+        simp [ron.node.ExprView.ofKind] at h
         obtain ⟨fv, hfv, opened, hopened, bm1, hbm1, out1, hout1, i2, hi2, i3, hi3, h⟩ := h
         have hfvwf : ExprWF fv := Expr.fvar_wf hdom hfv
         have hfvabs : absExpr fv = .fvar i.val (absExpr dom) := Expr.fvar_refines hfv
@@ -1501,7 +1501,7 @@ theorem whnf_telescope_refines {mode : env.CheckMode}
       -- the residual is not a Π: both sides throw `invalid`
       -- (`sum_install.rs:97`, `SumInstall.lean:66-67`)
       all_goals
-        (simp [hn0] at h
+        (simp [hn0, ron.node.ExprView.ofKind] at h
          obtain ⟨y, hy, ce, hce, rfl, rfl⟩ := h
          obtain ⟨msg, hmsg⟩ :=
            whnfTelescope_succ_nonpi (by simpa using hrun) (by intro a b c; simp)
@@ -1687,7 +1687,7 @@ theorem check_sum_tele_refines {mode : env.CheckMode}
     simp at h
     cases k
     case «Sort» s =>
-      simp at h
+      simp [ron.node.ExprView.ofKind] at h
       obtain ⟨cv1, hcv1, rfl, rfl⟩ := h
       rw [Env.constant_val_dup_refines hcv1]
       refine ⟨lst, ?_, hrel, hst, hcv0, IndAbs.sort_node_wf he0wf⟩
@@ -1696,7 +1696,7 @@ theorem check_sum_tele_refines {mode : env.CheckMode}
         by simpa using hstrip]
       rfl
     all_goals
-      (simp at h
+      (simp [ron.node.ExprView.ofKind] at h
        rw [checkSumTeleF_fall (by intro bs' s; simp [hstrip]), ← hfer.1]
        exact check_sum_tele_whnf_refines hw hcv hst hfe hcvwf hcv0 h lst lfe hrel hfer)
 
@@ -2389,7 +2389,7 @@ theorem norm_pos_dom_refines {mode : env.CheckMode}
           cases k
           case ForallE dom body bm =>
             obtain ⟨hdomwf, hbodywf, hbmwf⟩ := CoreK.ExprWF.forallE_children hwwf rfl
-            simp at h
+            simp [ron.node.ExprView.ofKind] at h
             rcases h with ⟨hb2, bm2, hbm2, fv, hfv, opened, hopened, i1, hi1,
                 i2, hi2, r1, st2, hrec, hfin⟩
               | ⟨hb2, v, hv, ce, hce, rfl, rfl⟩
@@ -2434,7 +2434,7 @@ theorem norm_pos_dom_refines {mode : env.CheckMode}
               · rw [invalid_err hce]; exact ErrSim.invalid rfl
               · rw [hfsucc fuel hf0]; exact hmsg
           all_goals
-            (simp at h
+            (simp [ron.node.ExprView.ofKind] at h
              obtain ⟨rfl, rfl⟩ := h
              refine ⟨lst1, ?_, hrel1, hwf1, hwwf⟩
              rw [hfsucc fuel hf0]
@@ -2486,7 +2486,7 @@ theorem norm_field_doms_refines {mode : env.CheckMode}
   · rw [if_neg hn0] at h
     have hnpos : 1 ≤ n.val := by scalar_tac
     obtain ⟨⟨dd, k⟩⟩ := e
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     cases k
     case ForallE dom body bm h =>
       obtain ⟨hdomwf, hbodywf, hbmwf⟩ := CoreK.ExprWF.forallE_children he rfl

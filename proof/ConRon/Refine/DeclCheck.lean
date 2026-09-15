@@ -257,19 +257,19 @@ theorem consts_resolve_f_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.constsResolveF]
   | @sort u e hu h1 =>
     obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Expr.constsResolveF]
   | @mk_const n us e hn hus h1 =>
     obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff,
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff,
       Result.ok.injEq] at h
     obtain ⟨o, ho, h⟩ := h
     rw [← h, find_isSome hfe hn ho]
@@ -278,13 +278,13 @@ theorem consts_resolve_f_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     rw [ih c h]; simp [ConLeche.Expr.constsResolveF]
   | @lit l e hl h1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     cases l with
     | NatVal k =>
       rw [nat_trio_stored_refines hp hfe h]
@@ -307,7 +307,7 @@ theorem consts_resolve_f_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
     simp only [absExpr, absExprNode, absExprKind, ConLeche.Expr.constsResolveF]
     exact and_step (ihf b1 hb1) h (fun c' h' => iha c' h')
@@ -315,7 +315,7 @@ theorem consts_resolve_f_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
     simp only [absExpr, absExprNode, absExprKind, ConLeche.Expr.constsResolveF]
     exact and_step (iht b1 hb1) h (fun c' h' => ihb c' h')
@@ -323,7 +323,7 @@ theorem consts_resolve_f_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
     simp only [absExpr, absExprNode, absExprKind, ConLeche.Expr.constsResolveF]
     exact and_step (iht b1 hb1) h (fun c' h' => ihb c' h')
@@ -331,7 +331,7 @@ theorem consts_resolve_f_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
     simp only [absExpr, absExprNode, absExprKind, ConLeche.Expr.constsResolveF,
       Bool.and_assoc]
@@ -343,7 +343,7 @@ theorem consts_resolve_f_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
     intro c h
     rw [core_k.consts_resolve.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨o, ho, h⟩ := h
     simp only [absExpr, absExprNode, absExprKind, ConLeche.Expr.constsResolveF]
     exact and_step (by rw [find_isSome hfe hs ho]) h (fun c' h' => ih c' h')
@@ -388,7 +388,7 @@ theorem consts_resolve_f_go_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
     intro memo memo' lmemo b hm h
     rw [decl_check.consts_resolve_f_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨r, hr, h⟩ := h
     simp only [Result.ok.injEq, Prod.mk.injEq] at h
     obtain ⟨rfl, rfl⟩ := h
@@ -401,7 +401,7 @@ theorem consts_resolve_f_go_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     intro memo memo' lmemo b hm h
     rw [decl_check.consts_resolve_f_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨r, hr, h⟩ := h
     simp only [Result.ok.injEq, Prod.mk.injEq] at h
     obtain ⟨rfl, rfl⟩ := h
@@ -414,7 +414,7 @@ theorem consts_resolve_f_go_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro memo memo' lmemo b hm h
     rw [decl_check.consts_resolve_f_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨r, hr, h⟩ := h
     simp only [Result.ok.injEq, Prod.mk.injEq] at h
     obtain ⟨rfl, rfl⟩ := h
@@ -427,7 +427,7 @@ theorem consts_resolve_f_go_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
     intro memo memo' lmemo b hm h
     rw [decl_check.consts_resolve_f_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨r, hr, h⟩ := h
     simp only [Result.ok.injEq, Prod.mk.injEq] at h
     obtain ⟨rfl, rfl⟩ := h
@@ -440,7 +440,7 @@ theorem consts_resolve_f_go_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
     intro memo memo' lmemo b hm h
     rw [decl_check.consts_resolve_f_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     have hlk := memo_b_get_refines hm hwfe ho
     simp only [absExpr_mk, absExprKind] at hlk ⊢
@@ -473,7 +473,7 @@ theorem consts_resolve_f_go_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
     intro memo memo' lmemo b hm h
     rw [decl_check.consts_resolve_f_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     have hlk := memo_b_get_refines hm hwfe ho
     simp only [absExpr_mk, absExprKind] at hlk ⊢
@@ -509,7 +509,7 @@ theorem consts_resolve_f_go_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
     intro memo memo' lmemo b hm h
     rw [decl_check.consts_resolve_f_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     have hlk := memo_b_get_refines hm hwfe ho
     simp only [absExpr_mk, absExprKind] at hlk ⊢
@@ -546,7 +546,7 @@ theorem consts_resolve_f_go_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     intro memo memo' lmemo b hm h
     rw [decl_check.consts_resolve_f_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     have hlk := memo_b_get_refines hm hwfe ho
     simp only [absExpr_mk, absExprKind] at hlk ⊢
@@ -583,7 +583,7 @@ theorem consts_resolve_f_go_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
     intro memo memo' lmemo b hm h
     rw [decl_check.consts_resolve_f_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     have hlk := memo_b_get_refines hm hwfe ho
     simp only [absExpr_mk, absExprKind] at hlk ⊢
@@ -623,7 +623,7 @@ theorem consts_resolve_f_go_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
     intro memo memo' lmemo b hm h
     rw [decl_check.consts_resolve_f_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     have hlk := memo_b_get_refines hm hwfe ho
     simp only [absExpr_mk, absExprKind] at hlk ⊢
@@ -820,13 +820,13 @@ theorem name_is_model_suffix_refines {n : name.Name} {b : Bool} (hn : NameWF n)
   | @anonymous n ha =>
     rw [name_anonymous_inv ha] at h ⊢
     rw [level.name_is_model_suffix] at h
-    simp only [arc_deref_eq, name_node_kind, bind_tc_ok, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, name_node_kind, ron.node.ExprView.ofKind, bind_tc_ok, Result.ok.injEq] at h
     rw [← h, absName_mk, absNameKind]
     rfl
   | @str pre s n hpre hs hmk =>
     obtain ⟨hh, rfl⟩ := mk_str_inv hmk
     rw [level.name_is_model_suffix] at h
-    simp only [arc_deref_eq, name_node_kind, bind_tc_ok] at h
+    simp only [expr_view_eq, arc_deref_eq, name_node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
     have hp : (absString s = "_model") ↔
         s.val = [95#u32, 109#u32, 111#u32, 100#u32, 101#u32, 108#u32] := by
       rw [show ("_model" : String)
@@ -837,7 +837,7 @@ theorem name_is_model_suffix_refines {n : name.Name} {b : Bool} (hn : NameWF n)
   | @num pre m n hpre hmk =>
     obtain ⟨hh, rfl⟩ := mk_num_inv hmk
     rw [level.name_is_model_suffix] at h
-    simp only [arc_deref_eq, name_node_kind, bind_tc_ok, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, name_node_kind, ron.node.ExprView.ofKind, bind_tc_ok, Result.ok.injEq] at h
     rw [← h, absName_mk, absNameKind]
     rfl
 
@@ -3533,15 +3533,16 @@ theorem check_proj_iota_body_refines {mode : env.CheckMode} {fuel : Std.U64}
   obtain ⟨hhdabs, hhdwf⟩ := ExprOps.get_app_fn_refines hsb hhd
   obtain ⟨args, harg, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨hargabs, hargwf⟩ := ExprOps.get_app_args_refines hsb harg
-  obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
-  obtain ⟨head1, shaped⟩ := q
+  -- task #94: `check_proj_iota_body` binds a bare `shaped : Bool` where it used
+  -- to bind `(head, shaped)`.
+  obtain ⟨shaped, hq, h⟩ := bind_eq_ok_iff.mp h
   by_cases hl3 : alloc.vec.Vec.len args = 3#usize
   case neg =>
     -- `modeled.rs:2129` ← `DeclCheck.lean:825`: a spine of other than three
     -- arguments is not the cited body pattern
     replace hq := ite_neg_eq (c := (alloc.vec.Vec.len args = 3#usize)) hl3 hq
-    simp only [Result.ok.injEq, Prod.mk.injEq] at hq
-    obtain ⟨rfl, rfl⟩ := hq
+    simp only [Result.ok.injEq] at hq
+    subst hq
     obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
@@ -3556,21 +3557,18 @@ theorem check_proj_iota_body_refines {mode : env.CheckMode} {fuel : Std.U64}
       simpa [absExprs] using hL
     exact hl3 (by have := alloc.vec.Vec.len_val args; scalar_tac)
   replace hq := ite_pos_eq (c := (alloc.vec.Vec.len args = 3#usize)) hl3 hq
-  obtain ⟨en, hen, hq⟩ := bind_eq_ok_iff.mp hq
-  obtain ⟨bsh, hbsh, hq⟩ := bind_eq_ok_iff.mp hq
-  simp only [Result.ok.injEq, Prod.mk.injEq] at hq
-  obtain ⟨rfl, rfl⟩ := hq
+  obtain ⟨en, hen, hbsh⟩ := bind_eq_ok_iff.mp hq
   have hargslen : args.val.length = 3 := by
     have := alloc.vec.Vec.len_val args; scalar_tac
   obtain ⟨x0, x1, x2, hxs⟩ := len_eq_three hargslen
   have hargabs3 : (absExpr sbody).getAppArgs
       = [absExpr x0, absExpr x1, absExpr x2] := by
     rw [← hargabs, absExprs, hxs]; simp
-  by_cases hshd : bsh = true
+  by_cases hshd : shaped = true
   case neg =>
     -- `modeled.rs:2129` ← `DeclCheck.lean:825`: a head that is not a
     -- one-level constant is not the cited body pattern either
-    replace h := ite_neg_eq (c := (bsh = true)) hshd h
+    replace h := ite_neg_eq (c := (shaped = true)) hshd h
     obtain ⟨sl, hsl, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨vv, hvv, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨ce, hce, h⟩ := bind_eq_ok_iff.mp h
@@ -3581,16 +3579,20 @@ theorem check_proj_iota_body_refines {mode : env.CheckMode} {fuel : Std.U64}
     obtain ⟨n, us, hkind, huslen⟩ :=
       const_kind_of_abs (e := head) (c := c) (lu := lu)
         (by rw [hhdabs, hcon]; exact getAppFn_app3_const _ _ _ _ _)
-    have hene : en = head._0 := (Result.ok_injective hen).symm
+    -- task #94: `expr.view` hands back an `ExprView`, so what `hen` names is
+    -- `ofKind`'s image of the head's kind.
+    have hene : en = ron.node.ExprView.ofKind head._0.kind := by
+      rw [expr_view_eq] at hen; exact (Result.ok_injective hen).symm
     rw [hene, hkind] at hbsh
-    have hbv : bsh = decide (alloc.vec.Vec.len us = 1#usize) := by
+    simp only [ron.node.ExprView.ofKind] at hbsh
+    have hbv : shaped = decide (alloc.vec.Vec.len us = 1#usize) := by
       simpa using hbsh.symm
     refine hshd ?_
     rw [hbv]
     have := alloc.vec.Vec.len_val us
     simp only [decide_eq_true_eq]
     scalar_tac
-  replace h := ite_pos_eq (c := (bsh = true)) hshd h
+  replace h := ite_pos_eq (c := (shaped = true)) hshd h
   obtain ⟨beq, hbeq, h⟩ := bind_eq_ok_iff.mp h
   have hbeqabs := CheckerBase.is_eq_head_refines hhdwf hbeq
   split at h

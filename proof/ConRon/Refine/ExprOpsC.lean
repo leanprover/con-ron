@@ -124,61 +124,61 @@ theorem get_app_fn_refines {e r : expr.Expr} (he : ExprWF e)
   | @bvar i e h1 =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.bvar_inv h1
     rw [cached.expr_ops_c.get_app_fn.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [Expr.dup_eq h]
     exact ⟨by simp [ConLeche.Expr.getAppFn], ExprWF.bvar h1⟩
   | @fvar idx ty e hty h1 ih =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.fvar_inv h1
     rw [cached.expr_ops_c.get_app_fn.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [Expr.dup_eq h]
     exact ⟨by simp [ConLeche.Expr.getAppFn], ExprWF.fvar hty h1⟩
   | @sort u e hu h1 =>
     obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     rw [cached.expr_ops_c.get_app_fn.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [Expr.dup_eq h]
     exact ⟨by simp [ConLeche.Expr.getAppFn], ExprWF.sort hu h1⟩
   | @mk_const n us e hn hus h1 =>
     obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     rw [cached.expr_ops_c.get_app_fn.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [Expr.dup_eq h]
     exact ⟨by simp [ConLeche.Expr.getAppFn], ExprWF.mk_const hn hus h1⟩
   | @app f a e hf ha h1 ihf iha =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.app_inv h1
     rw [cached.expr_ops_c.get_app_fn.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨habs, hwf⟩ := ihf h
     exact ⟨by rw [habs]; simp [ConLeche.Expr.getAppFn], hwf⟩
   | @lam ty bo m e hty hbo hm h1 ihty ihbo =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.lam_inv h1
     rw [cached.expr_ops_c.get_app_fn.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [Expr.dup_eq h]
     exact ⟨by simp [ConLeche.Expr.getAppFn], ExprWF.lam hty hbo hm h1⟩
   | @forall_e ty bo m e hty hbo hm h1 ihty ihbo =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     rw [cached.expr_ops_c.get_app_fn.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [Expr.dup_eq h]
     exact ⟨by simp [ConLeche.Expr.getAppFn], ExprWF.forall_e hty hbo hm h1⟩
   | @let_e ty w bo e hty hw hbo h1 ihty ihw ihbo =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.let_e_inv h1
     rw [cached.expr_ops_c.get_app_fn.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [Expr.dup_eq h]
     exact ⟨by simp [ConLeche.Expr.getAppFn], ExprWF.let_e hty hw hbo h1⟩
   | @lit l e hl h1 =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.lit_inv h1
     rw [cached.expr_ops_c.get_app_fn.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [Expr.dup_eq h]
     exact ⟨by simp [ConLeche.Expr.getAppFn], ExprWF.lit hl h1⟩
   | @proj s i x e hs hx h1 ih =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.proj_inv h1
     rw [cached.expr_ops_c.get_app_fn.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [Expr.dup_eq h]
     exact ⟨by simp [ConLeche.Expr.getAppFn], ExprWF.proj hs hx h1⟩
 
@@ -197,35 +197,35 @@ theorem get_app_args_acc_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d, rfl, -, -, -⟩ := Expr.bvar_inv h1
     intro acc r hacc h
     rw [cached.expr_ops_c.get_app_args_acc.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     exact ⟨by simp [ConLeche.Expr.getAppArgs], hacc⟩
   | @fvar idx ty e hty h1 ih =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.fvar_inv h1
     intro acc r hacc h
     rw [cached.expr_ops_c.get_app_args_acc.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     exact ⟨by simp [ConLeche.Expr.getAppArgs], hacc⟩
   | @sort u e hu h1 =>
     obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     intro acc r hacc h
     rw [cached.expr_ops_c.get_app_args_acc.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     exact ⟨by simp [ConLeche.Expr.getAppArgs], hacc⟩
   | @mk_const n us e hn hus h1 =>
     obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro acc r hacc h
     rw [cached.expr_ops_c.get_app_args_acc.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     exact ⟨by simp [ConLeche.Expr.getAppArgs], hacc⟩
   | @app f a e hf ha h1 ihf iha =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.app_inv h1
     intro acc r hacc h
     rw [cached.expr_ops_c.get_app_args_acc.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨out2, hrec, c, hdup, hpush⟩ := h
     obtain ⟨habs, hwf⟩ := ihf acc out2 hacc hrec
     rw [Expr.dup_eq hdup] at hpush
@@ -236,35 +236,35 @@ theorem get_app_args_acc_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d, rfl, -, -, -⟩ := Expr.lam_inv h1
     intro acc r hacc h
     rw [cached.expr_ops_c.get_app_args_acc.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     exact ⟨by simp [ConLeche.Expr.getAppArgs], hacc⟩
   | @forall_e ty bo m e hty hbo hm h1 ihty ihbo =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     intro acc r hacc h
     rw [cached.expr_ops_c.get_app_args_acc.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     exact ⟨by simp [ConLeche.Expr.getAppArgs], hacc⟩
   | @let_e ty w bo e hty hw hbo h1 ihty ihw ihbo =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.let_e_inv h1
     intro acc r hacc h
     rw [cached.expr_ops_c.get_app_args_acc.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     exact ⟨by simp [ConLeche.Expr.getAppArgs], hacc⟩
   | @lit l e hl h1 =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.lit_inv h1
     intro acc r hacc h
     rw [cached.expr_ops_c.get_app_args_acc.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     exact ⟨by simp [ConLeche.Expr.getAppArgs], hacc⟩
   | @proj s i x e hs hx h1 ih =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.proj_inv h1
     intro acc r hacc h
     rw [cached.expr_ops_c.get_app_args_acc.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     exact ⟨by simp [ConLeche.Expr.getAppArgs], hacc⟩
 

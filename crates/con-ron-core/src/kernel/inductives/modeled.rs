@@ -37,7 +37,7 @@ use crate::kernel::env::{
     CheckMode, ConstantInfo, ConstantVal, IndCaps, RecRule, RecRuleFire,
 };
 use crate::kernel::expr;
-use crate::kernel::expr::{Expr, ExprKind};
+use crate::kernel::expr::{Expr, ExprView};
 use crate::kernel::expr_ops;
 use crate::kernel::expr_ops::NameToName;
 use crate::kernel::fenv;
@@ -873,11 +873,11 @@ pub fn nested_rule_shape(
     } else {
         match expr_ops::strip_pis(m_i, ty_a) {
             None => None,
-            Some(tq) => match &tq.1 .0.kind {
-                ExprKind::ForallE(dom, _, _) => {
+            Some(tq) => match expr::view(&tq.1 ) {
+                ExprView::ForallE(dom, _, _) => {
                     let head: Expr = expr_ops::get_app_fn(dom);
-                    match &head.0.kind {
-                        ExprKind::Const(_, lvls) => {
+                    match expr::view(&head) {
+                        ExprView::Const(_, lvls) => {
                             let args: Vec<Expr> = expr_ops::get_app_args(dom);
                             let k: u64 = m_i - r_p;
                             let pins: Vec<Expr> =
@@ -1053,8 +1053,8 @@ pub fn check_iota_thm_n(
                                 )),
                                 Some(bq) => {
                                     let rhead: Expr = expr_ops::get_app_fn(&bq.1);
-                                    match &rhead.0.kind {
-                                        ExprKind::Const(_, _) => {
+                                    match expr::view(&rhead) {
+                                        ExprView::Const(_, _) => {
                                             match check_iota_thm_n_ctor(
                                                 mode, st, fe_self, f, ty_a, m_i, r_p, cvj,
                                                 cn_p, cn_f, rhs_a, &fvs, &x_fvs, &largs,
@@ -2157,8 +2157,8 @@ pub fn check_proj_iota_body(
     let args: Vec<Expr> = expr_ops::get_app_args(sbody);
     // the cited `.app (.app (.app (.const c [_ℓ]) _tySlot) lhsC) rhsC` pattern
     let shaped = if args.len() == 3 {
-        match &head.0.kind {
-            ExprKind::Const(_, us) => us.len() == 1,
+        match expr::view(&head) {
+            ExprView::Const(_, us) => us.len() == 1,
             _ => false,
         }
     } else {

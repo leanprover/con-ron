@@ -48,42 +48,42 @@ theorem size_b_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
     intro r h
     rw [expr_ops.size_b.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     simp [ConLeche.Expr.sizeB]
   | @fvar idx ty e _hty h1 _ih =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
     intro r h
     rw [expr_ops.size_b.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     simp [ConLeche.Expr.sizeB]
   | @sort u e _hu h1 =>
     obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     intro r h
     rw [expr_ops.size_b.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     simp [ConLeche.Expr.sizeB]
   | @mk_const n us e _hn _hus h1 =>
     obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro r h
     rw [expr_ops.size_b.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     simp [ConLeche.Expr.sizeB]
   | @lit l e _hl h1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
     intro r h
     rw [expr_ops.size_b.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     simp [ConLeche.Expr.sizeB]
   | @app f a e _hf _ha h1 ihf iha =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
     intro r h
     rw [expr_ops.size_b.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨n1, hn1, n2, hn2, n3, hn3, hr⟩ := h
     rw [HashMap.uscalar_add_eq hr, HashMap.uscalar_add_eq hn3, ihf hn1, iha hn2]
     simp [ConLeche.Expr.sizeB]
@@ -91,7 +91,7 @@ theorem size_b_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
     intro r h
     rw [expr_ops.size_b.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨n1, hn1, n2, hn2, n3, hn3, hr⟩ := h
     rw [HashMap.uscalar_add_eq hr, HashMap.uscalar_add_eq hn3, ihty hn1, ihbo hn2]
     simp [ConLeche.Expr.sizeB]
@@ -99,7 +99,7 @@ theorem size_b_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     intro r h
     rw [expr_ops.size_b.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨n1, hn1, n2, hn2, n3, hn3, hr⟩ := h
     rw [HashMap.uscalar_add_eq hr, HashMap.uscalar_add_eq hn3, ihty hn1, ihbo hn2]
     simp [ConLeche.Expr.sizeB]
@@ -107,7 +107,7 @@ theorem size_b_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
     intro r h
     rw [expr_ops.size_b.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨n1, hn1, n2, hn2, n3, hn3, n4, hn4, n5, hn5, hr⟩ := h
     rw [HashMap.uscalar_add_eq hr, HashMap.uscalar_add_eq hn5, HashMap.uscalar_add_eq hn3,
       ihty hn1, ihw hn2, ihbo hn4]
@@ -116,7 +116,7 @@ theorem size_b_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
     intro r h
     rw [expr_ops.size_b.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨n1, hn1, hr⟩ := h
     rw [HashMap.uscalar_add_eq hr, ih hn1]
     simp [ConLeche.Expr.sizeB]
@@ -130,14 +130,14 @@ theorem size_f_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
     intro r h
     rw [expr_ops.size_f.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     simp [ConLeche.Expr.sizeF]
   | @fvar idx ty e _hty h1 ih =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
     intro r h
     rw [expr_ops.size_f.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨n1, hn1, hr⟩ := h
     rw [HashMap.uscalar_add_eq hr, ih hn1]
     simp [ConLeche.Expr.sizeF]
@@ -145,28 +145,28 @@ theorem size_f_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     intro r h
     rw [expr_ops.size_f.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     simp [ConLeche.Expr.sizeF]
   | @mk_const n us e _hn _hus h1 =>
     obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro r h
     rw [expr_ops.size_f.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     simp [ConLeche.Expr.sizeF]
   | @lit l e _hl h1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
     intro r h
     rw [expr_ops.size_f.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     simp [ConLeche.Expr.sizeF]
   | @app f a e _hf _ha h1 ihf iha =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
     intro r h
     rw [expr_ops.size_f.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨n1, hn1, n2, hn2, n3, hn3, hr⟩ := h
     rw [HashMap.uscalar_add_eq hr, HashMap.uscalar_add_eq hn3, ihf hn1, iha hn2]
     simp [ConLeche.Expr.sizeF]
@@ -174,7 +174,7 @@ theorem size_f_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
     intro r h
     rw [expr_ops.size_f.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨n1, hn1, n2, hn2, n3, hn3, hr⟩ := h
     rw [HashMap.uscalar_add_eq hr, HashMap.uscalar_add_eq hn3, ihty hn1, ihbo hn2]
     simp [ConLeche.Expr.sizeF]
@@ -182,7 +182,7 @@ theorem size_f_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     intro r h
     rw [expr_ops.size_f.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨n1, hn1, n2, hn2, n3, hn3, hr⟩ := h
     rw [HashMap.uscalar_add_eq hr, HashMap.uscalar_add_eq hn3, ihty hn1, ihbo hn2]
     simp [ConLeche.Expr.sizeF]
@@ -190,7 +190,7 @@ theorem size_f_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
     intro r h
     rw [expr_ops.size_f.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨n1, hn1, n2, hn2, n3, hn3, n4, hn4, n5, hn5, hr⟩ := h
     rw [HashMap.uscalar_add_eq hr, HashMap.uscalar_add_eq hn5, HashMap.uscalar_add_eq hn3,
       ihty hn1, ihw hn2, ihbo hn4]
@@ -199,7 +199,7 @@ theorem size_f_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
     intro r h
     rw [expr_ops.size_f.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨n1, hn1, hr⟩ := h
     rw [HashMap.uscalar_add_eq hr, ih hn1]
     simp [ConLeche.Expr.sizeF]
@@ -242,14 +242,14 @@ theorem wscoped_b_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
     intro d b h
     rw [expr_ops.wscoped_b.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]
     simp [ConLeche.Expr.wscopedB]
   | @fvar idx ty e _hty h1 ih =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
     intro d b h
     rw [expr_ops.wscoped_b.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     split at h
     · rename_i hlt
       have hlt' : idx.val < d.val := by scalar_tac
@@ -264,49 +264,49 @@ theorem wscoped_b_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     intro d b h
     rw [expr_ops.wscoped_b.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]
     simp [ConLeche.Expr.wscopedB]
   | @mk_const n us e _hn _hus h1 =>
     obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro d b h
     rw [expr_ops.wscoped_b.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]
     simp [ConLeche.Expr.wscopedB]
   | @lit l e _hl h1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
     intro d b h
     rw [expr_ops.wscoped_b.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, Result.ok.injEq] at h
     rw [← h]
     simp [ConLeche.Expr.wscopedB]
   | @app f a e _hf _ha h1 ihf iha =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
     intro d b h
     rw [expr_ops.wscoped_b.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [bool_and_step (fun _ hy => ihf hy) (fun _ hy => iha hy) h]
     simp [ConLeche.Expr.wscopedB]
   | @lam ty bo m e _hty _hbo _hm h1 ihty ihbo =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
     intro d b h
     rw [expr_ops.wscoped_b.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [bool_and_step (fun _ hy => ihty hy) (fun _ hy => ihbo hy) h]
     simp [ConLeche.Expr.wscopedB]
   | @forall_e ty bo m e _hty _hbo _hm h1 ihty ihbo =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     intro d b h
     rw [expr_ops.wscoped_b.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [bool_and_step (fun _ hy => ihty hy) (fun _ hy => ihbo hy) h]
     simp [ConLeche.Expr.wscopedB]
   | @let_e ty w bo e _hty _hw _hbo h1 ihty ihw ihbo =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
     intro d b h
     rw [expr_ops.wscoped_b.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [bool_and_step (fun _ hy => ihty hy)
       (fun _ hy => bool_and_step (fun _ hy' => ihw hy') (fun _ hy' => ihbo hy') hy) h]
     simp [ConLeche.Expr.wscopedB, Bool.and_assoc]
@@ -314,7 +314,7 @@ theorem wscoped_b_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
     intro d b h
     rw [expr_ops.wscoped_b.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [ih h]
     simp [ConLeche.Expr.wscopedB]
 
@@ -350,42 +350,42 @@ theorem bvar_bound_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
     intro r h
     rw [expr_ops.bvar_bound.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [HashMap.uscalar_add_eq h]
     simp [ConLeche.Expr.bvarBound]
   | @fvar idx ty e _hty h1 _ih =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
     intro r h
     rw [expr_ops.bvar_bound.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     simp [ConLeche.Expr.bvarBound]
   | @sort u e _hu h1 =>
     obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     intro r h
     rw [expr_ops.bvar_bound.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     simp [ConLeche.Expr.bvarBound]
   | @mk_const n us e _hn _hus h1 =>
     obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro r h
     rw [expr_ops.bvar_bound.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     simp [ConLeche.Expr.bvarBound]
   | @lit l e _hl h1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
     intro r h
     rw [expr_ops.bvar_bound.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     simp [ConLeche.Expr.bvarBound]
   | @app f a e _hf _ha h1 ihf iha =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
     intro r h
     rw [expr_ops.bvar_bound.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨n1, hn1, n2, hn2, hr⟩ := h
     rw [Expr.max_u64_val hr, ihf hn1, iha hn2]
     simp [ConLeche.Expr.bvarBound]
@@ -393,7 +393,7 @@ theorem bvar_bound_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
     intro r h
     rw [expr_ops.bvar_bound.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨n1, hn1, n2, hn2, n3, hn3, hr⟩ := h
     rw [Expr.max_u64_val hr, sub_nat_val_trunc hn3, ihty hn1, ihbo hn2]
     simp [ConLeche.Expr.bvarBound]
@@ -401,7 +401,7 @@ theorem bvar_bound_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     intro r h
     rw [expr_ops.bvar_bound.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨n1, hn1, n2, hn2, n3, hn3, hr⟩ := h
     rw [Expr.max_u64_val hr, sub_nat_val_trunc hn3, ihty hn1, ihbo hn2]
     simp [ConLeche.Expr.bvarBound]
@@ -409,7 +409,7 @@ theorem bvar_bound_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
     intro r h
     rw [expr_ops.bvar_bound.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨n1, hn1, n2, hn2, n3, hn3, n4, hn4, n5, hn5, hr⟩ := h
     rw [Expr.max_u64_val hr, Expr.max_u64_val hn3, sub_nat_val_trunc hn5,
       ihty hn1, ihw hn2, ihbo hn4]
@@ -418,7 +418,7 @@ theorem bvar_bound_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
     intro r h
     rw [expr_ops.bvar_bound.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [ih h]
     simp [ConLeche.Expr.bvarBound]
 
@@ -431,42 +431,42 @@ theorem fvar_range_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
     intro r h
     rw [expr_ops.fvar_range.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     simp [ConLeche.Expr.fvarRange]
   | @fvar idx ty e _hty h1 _ih =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
     intro r h
     rw [expr_ops.fvar_range.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [HashMap.uscalar_add_eq h]
     simp [ConLeche.Expr.fvarRange]
   | @sort u e _hu h1 =>
     obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     intro r h
     rw [expr_ops.fvar_range.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     simp [ConLeche.Expr.fvarRange]
   | @mk_const n us e _hn _hus h1 =>
     obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro r h
     rw [expr_ops.fvar_range.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     simp [ConLeche.Expr.fvarRange]
   | @lit l e _hl h1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
     intro r h
     rw [expr_ops.fvar_range.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     simp [ConLeche.Expr.fvarRange]
   | @app f a e _hf _ha h1 ihf iha =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
     intro r h
     rw [expr_ops.fvar_range.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨n1, hn1, n2, hn2, hr⟩ := h
     rw [Expr.max_u64_val hr, ihf hn1, iha hn2]
     simp [ConLeche.Expr.fvarRange]
@@ -474,7 +474,7 @@ theorem fvar_range_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
     intro r h
     rw [expr_ops.fvar_range.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨n1, hn1, n2, hn2, hr⟩ := h
     rw [Expr.max_u64_val hr, ihty hn1, ihbo hn2]
     simp [ConLeche.Expr.fvarRange]
@@ -482,7 +482,7 @@ theorem fvar_range_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     intro r h
     rw [expr_ops.fvar_range.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨n1, hn1, n2, hn2, hr⟩ := h
     rw [Expr.max_u64_val hr, ihty hn1, ihbo hn2]
     simp [ConLeche.Expr.fvarRange]
@@ -490,7 +490,7 @@ theorem fvar_range_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
     intro r h
     rw [expr_ops.fvar_range.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨n1, hn1, n2, hn2, n3, hn3, n4, hn4, hr⟩ := h
     rw [Expr.max_u64_val hr, Expr.max_u64_val hn3, ihty hn1, ihw hn2, ihbo hn4]
     simp [ConLeche.Expr.fvarRange]
@@ -498,7 +498,7 @@ theorem fvar_range_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
     intro r h
     rw [expr_ops.fvar_range.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [ih h]
     simp [ConLeche.Expr.fvarRange]
 
@@ -522,7 +522,7 @@ theorem abstract_range_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
     intro d k c r h
     rw [expr_ops.abstract_range.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     refine ⟨?_, Expr.bvar_wf h⟩
     rw [Expr.bvar_refines h]
     simp [ConLeche.Expr.abstractRange]
@@ -530,7 +530,7 @@ theorem abstract_range_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
     intro d k c r h
     rw [expr_ops.abstract_range.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     split at h
     · rename_i hle
       have hle' : d.val ≤ idx.val := by scalar_tac
@@ -570,28 +570,28 @@ theorem abstract_range_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     intro d k c r h
     rw [expr_ops.abstract_range.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [Expr.dup_eq h]
     exact ⟨by simp [ConLeche.Expr.abstractRange], ExprWF.sort hu h1⟩
   | @mk_const n us e hn hus h1 =>
     obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro d k c r h
     rw [expr_ops.abstract_range.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [Expr.dup_eq h]
     exact ⟨by simp [ConLeche.Expr.abstractRange], ExprWF.mk_const hn hus h1⟩
   | @lit l e hl h1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
     intro d k c r h
     rw [expr_ops.abstract_range.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     rw [Expr.dup_eq h]
     exact ⟨by simp [ConLeche.Expr.abstractRange], ExprWF.lit hl h1⟩
   | @app f a e _hf _ha h1 ihf iha =>
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
     intro d k c r h
     rw [expr_ops.abstract_range.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨f2, hf2, a2, ha2, happ⟩ := h
     obtain ⟨e1, w1⟩ := ihf hf2
     obtain ⟨e2, w2⟩ := iha ha2
@@ -602,7 +602,7 @@ theorem abstract_range_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
     intro d k c r h
     rw [expr_ops.abstract_range.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨t, ht, i, hi, b, hb, bm, hbm, hlam⟩ := h
     obtain ⟨e1, w1⟩ := ihty ht
     obtain ⟨e2, w2⟩ := ihbo hb
@@ -614,7 +614,7 @@ theorem abstract_range_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     intro d k c r h
     rw [expr_ops.abstract_range.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨t, ht, i, hi, b, hb, bm, hbm, hfa⟩ := h
     obtain ⟨e1, w1⟩ := ihty ht
     obtain ⟨e2, w2⟩ := ihbo hb
@@ -626,7 +626,7 @@ theorem abstract_range_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
     intro d k c r h
     rw [expr_ops.abstract_range.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨t, ht, w2, hw2, i, hi, b, hb, hlet⟩ := h
     obtain ⟨e1, x1⟩ := ihty ht
     obtain ⟨e2, x2⟩ := ihw hw2
@@ -638,7 +638,7 @@ theorem abstract_range_refines {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
     intro d k c r h
     rw [expr_ops.abstract_range.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
     obtain ⟨u, hu, n2, hn2, hproj⟩ := h
     have hsn : n2 = s := Result.ok_injective (hn2.symm.trans (name_dup_eq s))
     subst hsn
@@ -675,7 +675,7 @@ theorem lift_loose_bvars_go_refines {amount : Std.U64} {e : expr.Expr} (he : Exp
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
     intro memo memo' c r hm h
     rw [expr_ops.lift_loose_bvars_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     split at h
     · rename_i hge
       have hge' : c.val ≤ i.val := by scalar_tac
@@ -699,7 +699,7 @@ theorem lift_loose_bvars_go_refines {amount : Std.U64} {e : expr.Expr} (he : Exp
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
     intro memo memo' c r hm h
     rw [expr_ops.lift_loose_bvars_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff, Result.ok.injEq,
       Prod.mk.injEq] at h
     obtain ⟨cc, hdup, hr, hmm⟩ := h
     rw [Expr.dup_eq hdup] at hr
@@ -709,7 +709,7 @@ theorem lift_loose_bvars_go_refines {amount : Std.U64} {e : expr.Expr} (he : Exp
     obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     intro memo memo' c r hm h
     rw [expr_ops.lift_loose_bvars_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff, Result.ok.injEq,
       Prod.mk.injEq] at h
     obtain ⟨cc, hdup, hr, hmm⟩ := h
     rw [Expr.dup_eq hdup] at hr
@@ -719,7 +719,7 @@ theorem lift_loose_bvars_go_refines {amount : Std.U64} {e : expr.Expr} (he : Exp
     obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro memo memo' c r hm h
     rw [expr_ops.lift_loose_bvars_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff, Result.ok.injEq,
       Prod.mk.injEq] at h
     obtain ⟨cc, hdup, hr, hmm⟩ := h
     rw [Expr.dup_eq hdup] at hr
@@ -729,7 +729,7 @@ theorem lift_loose_bvars_go_refines {amount : Std.U64} {e : expr.Expr} (he : Exp
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
     intro memo memo' c r hm h
     rw [expr_ops.lift_loose_bvars_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff, Result.ok.injEq,
       Prod.mk.injEq] at h
     obtain ⟨cc, hdup, hr, hmm⟩ := h
     rw [Expr.dup_eq hdup] at hr
@@ -740,7 +740,7 @@ theorem lift_loose_bvars_go_refines {amount : Std.U64} {e : expr.Expr} (he : Exp
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
     intro memo memo' c r hm h
     rw [expr_ops.lift_loose_bvars_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     have hkk := expr_nat_key_eq hk
@@ -788,7 +788,7 @@ theorem lift_loose_bvars_go_refines {amount : Std.U64} {e : expr.Expr} (he : Exp
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
     intro memo memo' c r hm h
     rw [expr_ops.lift_loose_bvars_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     have hkk := expr_nat_key_eq hk
@@ -839,7 +839,7 @@ theorem lift_loose_bvars_go_refines {amount : Std.U64} {e : expr.Expr} (he : Exp
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     intro memo memo' c r hm h
     rw [expr_ops.lift_loose_bvars_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     have hkk := expr_nat_key_eq hk
@@ -890,7 +890,7 @@ theorem lift_loose_bvars_go_refines {amount : Std.U64} {e : expr.Expr} (he : Exp
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
     intro memo memo' c r hm h
     rw [expr_ops.lift_loose_bvars_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     have hkk := expr_nat_key_eq hk
@@ -942,7 +942,7 @@ theorem lift_loose_bvars_go_refines {amount : Std.U64} {e : expr.Expr} (he : Exp
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
     intro memo memo' c r hm h
     rw [expr_ops.lift_loose_bvars_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     have hkk := expr_nat_key_eq hk
@@ -1059,7 +1059,7 @@ theorem bvar_bound_go_refines {e : expr.Expr} (he : ExprWF e) :
         expr_key_exact hm hwfe (memo_n_get_hit ho)
       exact ⟨hhit, hm⟩
     | none =>
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       simp at h
       obtain ⟨hr1, x, hdup, x1, hins⟩ := h
       have hval : BoundQ (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Bvar i)))) r := by
@@ -1084,7 +1084,7 @@ theorem bvar_bound_go_refines {e : expr.Expr} (he : ExprWF e) :
         expr_key_exact hm hwfe (memo_n_get_hit ho)
       exact ⟨hhit, hm⟩
     | none =>
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       simp at h
       obtain ⟨x, hdup, ⟨x1, hins⟩, hr0⟩ := h
       subst hr0
@@ -1109,7 +1109,7 @@ theorem bvar_bound_go_refines {e : expr.Expr} (he : ExprWF e) :
         expr_key_exact hm hwfe (memo_n_get_hit ho)
       exact ⟨hhit, hm⟩
     | none =>
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       simp at h
       obtain ⟨x, hdup, ⟨x1, hins⟩, hr0⟩ := h
       subst hr0
@@ -1134,7 +1134,7 @@ theorem bvar_bound_go_refines {e : expr.Expr} (he : ExprWF e) :
         expr_key_exact hm hwfe (memo_n_get_hit ho)
       exact ⟨hhit, hm⟩
     | none =>
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       simp at h
       obtain ⟨x, hdup, ⟨x1, hins⟩, hr0⟩ := h
       subst hr0
@@ -1159,7 +1159,7 @@ theorem bvar_bound_go_refines {e : expr.Expr} (he : ExprWF e) :
         expr_key_exact hm hwfe (memo_n_get_hit ho)
       exact ⟨hhit, hm⟩
     | none =>
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       simp at h
       obtain ⟨x, hdup, ⟨x1, hins⟩, hr0⟩ := h
       subst hr0
@@ -1184,7 +1184,7 @@ theorem bvar_bound_go_refines {e : expr.Expr} (he : ExprWF e) :
         expr_key_exact hm hwfe (memo_n_get_hit ho)
       exact ⟨hhit, hm⟩
     | none =>
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       simp at h
       obtain ⟨rf, memo2, hgf, memo3, ⟨ra, hga, hop⟩, x, hdup, x1, hins⟩ := h
       obtain ⟨hvf, hm2⟩ := ihf memo memo2 rf hm hgf
@@ -1211,7 +1211,7 @@ theorem bvar_bound_go_refines {e : expr.Expr} (he : ExprWF e) :
         expr_key_exact hm hwfe (memo_n_get_hit ho)
       exact ⟨hhit, hm⟩
     | none =>
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       simp at h
       obtain ⟨rt, memo2, hgt, memo3, ⟨rb, hgb, i1, hsub, hop⟩, x, hdup, x1, hins⟩ := h
       obtain ⟨hvt, hm2⟩ := ihty memo memo2 rt hm hgt
@@ -1238,7 +1238,7 @@ theorem bvar_bound_go_refines {e : expr.Expr} (he : ExprWF e) :
         expr_key_exact hm hwfe (memo_n_get_hit ho)
       exact ⟨hhit, hm⟩
     | none =>
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       simp at h
       obtain ⟨rt, memo2, hgt, memo3, ⟨rb, hgb, i1, hsub, hop⟩, x, hdup, x1, hins⟩ := h
       obtain ⟨hvt, hm2⟩ := ihty memo memo2 rt hm hgt
@@ -1265,7 +1265,7 @@ theorem bvar_bound_go_refines {e : expr.Expr} (he : ExprWF e) :
         expr_key_exact hm hwfe (memo_n_get_hit ho)
       exact ⟨hhit, hm⟩
     | none =>
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       simp at h
       obtain ⟨rt, memo2, hgt, memo4,
         ⟨rv, memo3, hgv, rb, hgb, i0, hmax0, i1, hsub, hop⟩, x, hdup, x1, hins⟩ := h
@@ -1295,7 +1295,7 @@ theorem bvar_bound_go_refines {e : expr.Expr} (he : ExprWF e) :
         expr_key_exact hm hwfe (memo_n_get_hit ho)
       exact ⟨hhit, hm⟩
     | none =>
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       simp at h
       obtain ⟨memo2, hgs, xd, hdup, xi, hins⟩ := h
       obtain ⟨hvs, hm2⟩ := ih memo memo2 r hm hgs
@@ -1332,7 +1332,7 @@ theorem fvar_range_go_refines {e : expr.Expr} (he : ExprWF e) :
         expr_key_exact hm hwfe (memo_n_get_hit ho)
       exact ⟨hhit, hm⟩
     | none =>
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       simp at h
       obtain ⟨x, hdup, ⟨x1, hins⟩, hr0⟩ := h
       subst hr0
@@ -1357,7 +1357,7 @@ theorem fvar_range_go_refines {e : expr.Expr} (he : ExprWF e) :
         expr_key_exact hm hwfe (memo_n_get_hit ho)
       exact ⟨hhit, hm⟩
     | none =>
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       simp at h
       obtain ⟨hr1, x, hdup, x1, hins⟩ := h
       have hval : RangeQ (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Fvar idx ty)))) r := by
@@ -1382,7 +1382,7 @@ theorem fvar_range_go_refines {e : expr.Expr} (he : ExprWF e) :
         expr_key_exact hm hwfe (memo_n_get_hit ho)
       exact ⟨hhit, hm⟩
     | none =>
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       simp at h
       obtain ⟨x, hdup, ⟨x1, hins⟩, hr0⟩ := h
       subst hr0
@@ -1407,7 +1407,7 @@ theorem fvar_range_go_refines {e : expr.Expr} (he : ExprWF e) :
         expr_key_exact hm hwfe (memo_n_get_hit ho)
       exact ⟨hhit, hm⟩
     | none =>
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       simp at h
       obtain ⟨x, hdup, ⟨x1, hins⟩, hr0⟩ := h
       subst hr0
@@ -1432,7 +1432,7 @@ theorem fvar_range_go_refines {e : expr.Expr} (he : ExprWF e) :
         expr_key_exact hm hwfe (memo_n_get_hit ho)
       exact ⟨hhit, hm⟩
     | none =>
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       simp at h
       obtain ⟨x, hdup, ⟨x1, hins⟩, hr0⟩ := h
       subst hr0
@@ -1457,7 +1457,7 @@ theorem fvar_range_go_refines {e : expr.Expr} (he : ExprWF e) :
         expr_key_exact hm hwfe (memo_n_get_hit ho)
       exact ⟨hhit, hm⟩
     | none =>
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       simp at h
       obtain ⟨rf, memo2, hgf, memo3, ⟨ra, hga, hop⟩, x, hdup, x1, hins⟩ := h
       obtain ⟨hvf, hm2⟩ := ihf memo memo2 rf hm hgf
@@ -1484,7 +1484,7 @@ theorem fvar_range_go_refines {e : expr.Expr} (he : ExprWF e) :
         expr_key_exact hm hwfe (memo_n_get_hit ho)
       exact ⟨hhit, hm⟩
     | none =>
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       simp at h
       obtain ⟨rf, memo2, hgf, memo3, ⟨ra, hga, hop⟩, x, hdup, x1, hins⟩ := h
       obtain ⟨hvf, hm2⟩ := ihty memo memo2 rf hm hgf
@@ -1511,7 +1511,7 @@ theorem fvar_range_go_refines {e : expr.Expr} (he : ExprWF e) :
         expr_key_exact hm hwfe (memo_n_get_hit ho)
       exact ⟨hhit, hm⟩
     | none =>
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       simp at h
       obtain ⟨rf, memo2, hgf, memo3, ⟨ra, hga, hop⟩, x, hdup, x1, hins⟩ := h
       obtain ⟨hvf, hm2⟩ := ihty memo memo2 rf hm hgf
@@ -1538,7 +1538,7 @@ theorem fvar_range_go_refines {e : expr.Expr} (he : ExprWF e) :
         expr_key_exact hm hwfe (memo_n_get_hit ho)
       exact ⟨hhit, hm⟩
     | none =>
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       simp at h
       obtain ⟨rt, memo2, hgt, memo4,
         ⟨rv, memo3, hgv, rb, hgb, i0, hmax0, hop⟩, x, hdup, x1, hins⟩ := h
@@ -1567,7 +1567,7 @@ theorem fvar_range_go_refines {e : expr.Expr} (he : ExprWF e) :
         expr_key_exact hm hwfe (memo_n_get_hit ho)
       exact ⟨hhit, hm⟩
     | none =>
-      simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
       simp at h
       obtain ⟨memo2, hgs, xd, hdup, xi, hins⟩ := h
       obtain ⟨hvs, hm2⟩ := ih memo memo2 r hm hgs

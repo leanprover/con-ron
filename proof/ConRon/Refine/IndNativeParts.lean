@@ -669,10 +669,10 @@ private theorem rec_positivity_other_refines (hg : StructGens) {t : name.Name}
       = ConLeche.recPositivity (absName t) (absNames lps) n_p.val n_idx.val o.val
           (absExpr e) k.val := by
   rw [inductives.native_parts.rec_positivity] at h
-  simp only [arc_deref_eq, bind_tc_ok] at h
+  simp only [expr_view_eq, bind_tc_ok] at h
   rw [recPositivity_other hnf]
   split at h
-  case h_7 => rename_i ty bo m hkc; exact absurd hkc (hkf ty bo m)
+  case h_7 => rename_i ty bo m hkc; of_kind_inv hkc; exact absurd hkc (hkf ty bo m)
   all_goals
     obtain ⟨b0, hb0, h⟩ := bind_eq_ok_iff.mp h
     have hb0abs := hg.mentions_const t e b0 ht he hb0
@@ -776,7 +776,7 @@ private theorem rec_positivity_other_refines (hg : StructGens) {t : name.Name}
           ← hheadabs]
         obtain ⟨nd⟩ := head
         obtain ⟨dh, kh⟩ := nd
-        simp only [ExprOps.node_kind] at h
+        simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         cases kh with
         | Const t2 us =>
           obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
@@ -867,7 +867,7 @@ theorem rec_positivity_refines (hg : StructGens) {t : name.Name} {lps : alloc.ve
     intro k r h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     rw [inductives.native_parts.rec_positivity] at h
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
+    simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
     simp only [absExpr_mk, absExprKind, recPositivity_forallE]
     obtain ⟨b0, hb0, h⟩ := bind_eq_ok_iff.mp h
     have hb0abs := hg.mentions_const t ty b0 ht hty hb0
@@ -1215,7 +1215,7 @@ theorem pi_binders_go_refines {e : expr.Expr}
     intro out r hout h
     rw [inductives.native_parts.pi_binders_go] at h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.bvar_inv h1
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
+    simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
     obtain ⟨e1, he1, hr⟩ := bind_eq_ok_iff.mp h
     rw [Expr.dup_eq he1, Result.ok.injEq] at hr
     subst hr
@@ -1225,7 +1225,7 @@ theorem pi_binders_go_refines {e : expr.Expr}
     intro out r hout h
     rw [inductives.native_parts.pi_binders_go] at h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.fvar_inv h1
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
+    simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
     obtain ⟨e1, he1, hr⟩ := bind_eq_ok_iff.mp h
     rw [Expr.dup_eq he1, Result.ok.injEq] at hr
     subst hr
@@ -1235,7 +1235,7 @@ theorem pi_binders_go_refines {e : expr.Expr}
     intro out r hout h
     rw [inductives.native_parts.pi_binders_go] at h
     obtain ⟨d, bb, -, rfl, -, -, -⟩ := Expr.sort_inv h1
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
+    simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
     obtain ⟨e1, he1, hr⟩ := bind_eq_ok_iff.mp h
     rw [Expr.dup_eq he1, Result.ok.injEq] at hr
     subst hr
@@ -1245,7 +1245,7 @@ theorem pi_binders_go_refines {e : expr.Expr}
     intro out r hout h
     rw [inductives.native_parts.pi_binders_go] at h
     obtain ⟨d, bb, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
+    simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
     obtain ⟨e1, he1, hr⟩ := bind_eq_ok_iff.mp h
     rw [Expr.dup_eq he1, Result.ok.injEq] at hr
     subst hr
@@ -1255,7 +1255,7 @@ theorem pi_binders_go_refines {e : expr.Expr}
     intro out r hout h
     rw [inductives.native_parts.pi_binders_go] at h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.app_inv h1
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
+    simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
     obtain ⟨e1, he1, hr⟩ := bind_eq_ok_iff.mp h
     rw [Expr.dup_eq he1, Result.ok.injEq] at hr
     subst hr
@@ -1265,7 +1265,7 @@ theorem pi_binders_go_refines {e : expr.Expr}
     intro out r hout h
     rw [inductives.native_parts.pi_binders_go] at h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.lam_inv h1
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
+    simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
     obtain ⟨e1, he1, hr⟩ := bind_eq_ok_iff.mp h
     rw [Expr.dup_eq he1, Result.ok.injEq] at hr
     subst hr
@@ -1275,7 +1275,7 @@ theorem pi_binders_go_refines {e : expr.Expr}
     intro out r hout h
     rw [inductives.native_parts.pi_binders_go] at h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.forall_e_inv h1
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
+    simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
     obtain ⟨t1, ht1, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨bm, hbm, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨out1, hpush, h⟩ := bind_eq_ok_iff.mp h
@@ -1291,7 +1291,7 @@ theorem pi_binders_go_refines {e : expr.Expr}
     intro out r hout h
     rw [inductives.native_parts.pi_binders_go] at h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.let_e_inv h1
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
+    simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
     obtain ⟨e1, he1, hr⟩ := bind_eq_ok_iff.mp h
     rw [Expr.dup_eq he1, Result.ok.injEq] at hr
     subst hr
@@ -1301,7 +1301,7 @@ theorem pi_binders_go_refines {e : expr.Expr}
     intro out r hout h
     rw [inductives.native_parts.pi_binders_go] at h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.lit_inv h1
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
+    simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
     obtain ⟨e1, he1, hr⟩ := bind_eq_ok_iff.mp h
     rw [Expr.dup_eq he1, Result.ok.injEq] at hr
     subst hr
@@ -1311,7 +1311,7 @@ theorem pi_binders_go_refines {e : expr.Expr}
     intro out r hout h
     rw [inductives.native_parts.pi_binders_go] at h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.proj_inv h1
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
+    simp only [expr_view_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
     obtain ⟨e1, he1, hr⟩ := bind_eq_ok_iff.mp h
     rw [Expr.dup_eq he1, Result.ok.injEq] at hr
     subst hr
@@ -4056,14 +4056,14 @@ theorem native_counts_refines {n_pd : Std.U64} {cv_t : env.ConstantVal}
   obtain ⟨nd⟩ := e
   obtain ⟨de, ke⟩ := nd
   obtain ⟨en, hen, h⟩ := bind_eq_ok_iff.mp h
-  have henv : expr.ExprNode.mk de ke = en :=
-    Result.ok_injective ((arc_deref_eq Global (expr.ExprNode.mk de ke)).symm.trans hen)
+  rw [expr_view_eq] at hen
+  have henv : ron.node.ExprView.ofKind ke = en := Result.ok_injective hen
   subst henv
   cases ke with
   | «Sort» u =>
     simp only [absExpr_mk, absExprKind] at hpb
     rw [nativeCounts_eq_sort hpb]
-    simp only [exprNode_kind, lift_eq, bind_tc_ok] at h
+    simp only [ron.node.ExprView.ofKind, lift_eq, bind_tc_ok] at h
     split at h
     · rename_i hle
       obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
@@ -4081,7 +4081,7 @@ theorem native_counts_refines {n_pd : Std.U64} {cv_t : env.ConstantVal}
   | _ =>
     simp only [absExpr_mk, absExprKind] at hpb
     rw [nativeCounts_eq_other (by intro u; simp) hpb]
-    simp only [exprNode_kind, lift_eq, bind_tc_ok] at h
+    simp only [ron.node.ExprView.ofKind, lift_eq, bind_tc_ok] at h
     obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
     have hi2v : i2.val = cs.val.length + 1 := by
       rw [HashMap.uscalar_add_eq hi2, hccast]; rfl
@@ -4310,25 +4310,24 @@ theorem native_rec_pin_ok_refines {p : inductives.sum_parts.InductiveShape}
     have hlt : 0 < block.val.length := by scalar_tac
     obtain ⟨y, hy, hyv⟩ :=
       WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec block 0#usize hlt)
-    subst hyv
     simp only [alloc.vec.Vec.index_slice_index, hy, bind_tc_ok] at h
     have hltm : 0 < (absConstantInfos block).length := by
       simpa [absConstantInfos] using hlt
     have hcons : absConstantInfos block
-        = absConstantInfo block.val[(0#usize : Std.Usize).val]
-          :: (absConstantInfos block).drop 1 := by
+        = absConstantInfo y :: (absConstantInfos block).drop 1 := by
+      rw [hyv]
       have := List.drop_eq_getElem_cons (l := absConstantInfos block) (i := 0) hltm
       simpa [absConstantInfos] using this
     rw [hcons]
-    cases hci : block.val[(0#usize : Std.Usize).val] with
-    | AxiomInfo cv => rw [hci] at h; rw [← Result.ok_injective h]; rfl
-    | DefnInfo cv w hint => rw [hci] at h; rw [← Result.ok_injective h]; rfl
-    | ThmInfo cv w => rw [hci] at h; rw [← Result.ok_injective h]; rfl
-    | CtorInfo cv np nf => rw [hci] at h; rw [← Result.ok_injective h]; rfl
-    | RecInfo cv mi rp rs => rw [hci] at h; rw [← Result.ok_injective h]; rfl
-    | ProjInfo t => rw [hci] at h; rw [← Result.ok_injective h]; rfl
+    clear hyv hy
+    cases y with
+    | AxiomInfo cv => rw [← Result.ok_injective h]; rfl
+    | DefnInfo cv w hint => rw [← Result.ok_injective h]; rfl
+    | ThmInfo cv w => rw [← Result.ok_injective h]; rfl
+    | CtorInfo cv np nf => rw [← Result.ok_injective h]; rfl
+    | RecInfo cv mi rp rs => rw [← Result.ok_injective h]; rfl
+    | ProjInfo t => rw [← Result.ok_injective h]; rfl
     | IndInfo cv_t caps =>
-      rw [hci] at h
       simp only [absConstantInfo]
       obtain ⟨oq, hoq, h⟩ := bind_eq_ok_iff.mp h
       have hout : SumParts.CtorSpecsWF
@@ -4453,7 +4452,7 @@ theorem native_rec_lps_ok_refines {p : inductives.sum_parts.InductiveShape}
   simp only [ConLeche.nativeRecLpsOk, absInductiveShape]
   split at h
   · rename_i hlarge
-    rw [if_pos hlarge]
+    simp only [hlarge, reduceIte]
     simp only [name_dup_eq, bind_tc_ok] at h
     obtain ⟨expected, hexp, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨expected1, hexp1, h⟩ := bind_eq_ok_iff.mp h
@@ -4475,7 +4474,8 @@ theorem native_rec_lps_ok_refines {p : inductives.sum_parts.InductiveShape}
     rw [Bool.eq_iff_iff]
     simp
   · rename_i hsmall
-    rw [if_neg hsmall]
+    simp only [Bool.not_eq_true] at hsmall
+    simp only [hsmall, Bool.false_eq_true, if_false]
     rw [Env.names_beq_refines hcvr.2.1 hcvt.2.1 h]
     simp only [absConstantVal]
     rw [Bool.eq_iff_iff]
@@ -5012,29 +5012,28 @@ theorem native_shape_refines (hg : StructGens) {n_pd : Std.U64}
     have hlt : 0 < block.val.length := by scalar_tac
     obtain ⟨y, hy, hyv⟩ :=
       WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec block 0#usize hlt)
-    subst hyv
     simp only [alloc.vec.Vec.index_slice_index, hy, bind_tc_ok] at h
     have hltm : 0 < (absConstantInfos block).length := by
       simpa [absConstantInfos] using hlt
     have hcons : absConstantInfos block
-        = absConstantInfo block.val[(0#usize : Std.Usize).val]
-          :: (absConstantInfos block).drop 1 := by
+        = absConstantInfo y :: (absConstantInfos block).drop 1 := by
+      rw [hyv]
       have := List.drop_eq_getElem_cons (l := absConstantInfos block) (i := 0) hltm
       simpa [absConstantInfos] using this
-    have hciwf : ConstantInfoWF block.val[(0#usize : Std.Usize).val] :=
-      hblock _ (List.getElem_mem
+    have hciwf : ConstantInfoWF y := by
+      rw [hyv]
+      exact hblock _ (List.getElem_mem
         (show (0#usize : Std.Usize).val < block.val.length from hlt))
     rw [hcons]
-    cases hci : block.val[(0#usize : Std.Usize).val] with
-    | AxiomInfo cv => rw [hci] at h; rw [← Result.ok_injective h]; exact ⟨rfl, by simp⟩
-    | DefnInfo cv w hint => rw [hci] at h; rw [← Result.ok_injective h]; exact ⟨rfl, by simp⟩
-    | ThmInfo cv w => rw [hci] at h; rw [← Result.ok_injective h]; exact ⟨rfl, by simp⟩
-    | CtorInfo cv np nf => rw [hci] at h; rw [← Result.ok_injective h]; exact ⟨rfl, by simp⟩
-    | RecInfo cv mi rp rs => rw [hci] at h; rw [← Result.ok_injective h]; exact ⟨rfl, by simp⟩
-    | ProjInfo t => rw [hci] at h; rw [← Result.ok_injective h]; exact ⟨rfl, by simp⟩
+    clear hyv hy
+    cases y with
+    | AxiomInfo cv => rw [← Result.ok_injective h]; exact ⟨rfl, by simp⟩
+    | DefnInfo cv w hint => rw [← Result.ok_injective h]; exact ⟨rfl, by simp⟩
+    | ThmInfo cv w => rw [← Result.ok_injective h]; exact ⟨rfl, by simp⟩
+    | CtorInfo cv np nf => rw [← Result.ok_injective h]; exact ⟨rfl, by simp⟩
+    | RecInfo cv mi rp rs => rw [← Result.ok_injective h]; exact ⟨rfl, by simp⟩
+    | ProjInfo t => rw [← Result.ok_injective h]; exact ⟨rfl, by simp⟩
     | IndInfo cv_t caps =>
-      rw [hci] at h
-      rw [hci] at hciwf
       have hcvt : ConstantValWF cv_t := hciwf.1
       simp only [absConstantInfo]
       obtain ⟨oq, hoq, h⟩ := bind_eq_ok_iff.mp h
@@ -5109,13 +5108,13 @@ theorem native_shape_refines (hg : StructGens) {n_pd : Std.U64}
                 obtain ⟨de, ke⟩ := nd
                 cases ke with
                 | «Sort» u =>
-                  simp only [arc_deref_eq, bind_tc_ok, level_dup_eq] at hs
+                  simp only [expr_view_eq, ron.node.ExprView.ofKind, bind_tc_ok, level_dup_eq] at hs
                   simp at hs
                   refine ⟨?_, ?_⟩
                   · rw [← hs]; simp [absExpr_mk, absExprKind]
                   · rw [← hs]; exact wf_sort_inv htewf rfl
                 | _ =>
-                  simp only [arc_deref_eq, bind_tc_ok] at hs
+                  simp only [expr_view_eq, ron.node.ExprView.ofKind, bind_tc_ok] at hs
                   simp at hs
                   exact ⟨by rw [Level.zero_refines hs]; simp [absExpr_mk, absExprKind],
                     LevelWF.zero hs⟩

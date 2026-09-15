@@ -43,7 +43,7 @@ Since the node was repacked, every place that used to write the binder datum
 inline calls the smart constructor `expr::binder_meta`; and the `Vec`
 accumulators are pre-sized (`Vec::with_capacity`, task #34).  Both are the
 identity in the model, and both are stated as `simp` lemmas so that the bind
-they add collapses inside the `simp only [arc_deref_eq, bind_tc_ok, …]` step
+they add collapses inside the `simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, …]` step
 every walk below already runs.  (Task #38 made `BinderMeta.pw` an
 `Arc<PropWhen>`; task #90 shrank `PropWhen` to one word's payload and put the
 datum back by value, so `binder_meta` no longer allocates -- but it is still
@@ -651,7 +651,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
     intro memo memo' d r hm h
     rw [expr_ops.instantiate1_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     split at h
     · rename_i hid
       have hv' : i.val = d.val := by scalar_tac
@@ -687,7 +687,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
     intro memo memo' d r hm h
     rw [expr_ops.instantiate1_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff, Result.ok.injEq,
       Prod.mk.injEq] at h
     obtain ⟨c, hdup, hr, hmm⟩ := h
     rw [Expr.dup_eq hdup] at hr
@@ -697,7 +697,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     intro memo memo' d r hm h
     rw [expr_ops.instantiate1_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff, Result.ok.injEq,
       Prod.mk.injEq] at h
     obtain ⟨c, hdup, hr, hmm⟩ := h
     rw [Expr.dup_eq hdup] at hr
@@ -707,7 +707,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨d1, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     intro memo memo' d r hm h
     rw [expr_ops.instantiate1_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff, Result.ok.injEq,
       Prod.mk.injEq] at h
     obtain ⟨c, hdup, hr, hmm⟩ := h
     rw [Expr.dup_eq hdup] at hr
@@ -717,7 +717,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
     intro memo memo' d r hm h
     rw [expr_ops.instantiate1_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind, bind_eq_ok_iff, Result.ok.injEq,
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff, Result.ok.injEq,
       Prod.mk.injEq] at h
     obtain ⟨c, hdup, hr, hmm⟩ := h
     rw [Expr.dup_eq hdup] at hr
@@ -728,7 +728,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
     intro memo memo' d r hm h
     rw [expr_ops.instantiate1_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     have hkk := expr_nat_key_eq hk
@@ -776,7 +776,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
     intro memo memo' d r hm h
     rw [expr_ops.instantiate1_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     have hkk := expr_nat_key_eq hk
@@ -827,7 +827,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     intro memo memo' d r hm h
     rw [expr_ops.instantiate1_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     have hkk := expr_nat_key_eq hk
@@ -878,7 +878,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
     intro memo memo' d r hm h
     rw [expr_ops.instantiate1_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     have hkk := expr_nat_key_eq hk
@@ -930,7 +930,7 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
     intro memo memo' d r hm h
     rw [expr_ops.instantiate1_go.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, node_kind] at h
+    simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     have hkk := expr_nat_key_eq hk

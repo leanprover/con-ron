@@ -26,7 +26,7 @@
 use crate::kernel::env;
 use crate::kernel::env::{ConstantInfo, ConstantVal};
 use crate::kernel::expr;
-use crate::kernel::expr::{BinderMeta, Expr, ExprKind};
+use crate::kernel::expr::{BinderMeta, Expr, ExprView};
 use crate::kernel::expr_ops;
 use crate::kernel::expr_ops::{sub_nat, ExprNatKey};
 use crate::kernel::level;
@@ -178,8 +178,8 @@ pub fn replace_pis_pw(pw: &PropWhen, k: u64, e: &Expr, b: &Expr) -> Option<Expr>
     if k == 0 {
         Some(expr::dup(b))
     } else {
-        match &e.0.kind {
-            ExprKind::ForallE(ty, rest, _) => match replace_pis_pw(pw, k - 1, rest, b) {
+        match expr::view(&e) {
+            ExprView::ForallE(ty, rest, _) => match replace_pis_pw(pw, k - 1, rest, b) {
                 Some(r) => Some(expr::forall_e(
                     expr::dup(ty),
                     r,
@@ -200,8 +200,8 @@ pub fn pis_to_lams_pw(pw: &PropWhen, k: u64, e: &Expr, b: &Expr) -> Option<Expr>
     if k == 0 {
         Some(expr::dup(b))
     } else {
-        match &e.0.kind {
-            ExprKind::ForallE(ty, rest, _) => match pis_to_lams_pw(pw, k - 1, rest, b) {
+        match expr::view(&e) {
+            ExprView::ForallE(ty, rest, _) => match pis_to_lams_pw(pw, k - 1, rest, b) {
                 Some(r) => Some(expr::lam(
                     expr::dup(ty),
                     r,
@@ -320,9 +320,9 @@ pub fn struct_shape_motive(
     rbs: &Vec<(Expr, BinderMeta)>,
 ) -> bool {
     if (n_p as usize) < rbs.len() {
-        match &rbs[n_p as usize].0 .0.kind {
-            ExprKind::ForallE(mmaj, cod, _) => match &cod.0.kind {
-                ExprKind::Sort(s2) => {
+        match expr::view(&rbs[n_p as usize].0 ) {
+            ExprView::ForallE(mmaj, cod, _) => match expr::view(&cod) {
+                ExprView::Sort(s2) => {
                     let ok = if large {
                         level::beq(s2, &level::param(name::dup(elim)))
                     } else {
@@ -399,8 +399,8 @@ pub fn struct_shape(
     rty: &Expr,
 ) -> bool {
     match expr_ops::strip_pis(n_p, tty) {
-        Some(tq) => match &tq.1 .0.kind {
-            ExprKind::Sort(_) => match expr_ops::strip_pis(n_p + n_f, cty) {
+        Some(tq) => match expr::view(&tq.1 ) {
+            ExprView::Sort(_) => match expr_ops::strip_pis(n_p + n_f, cty) {
                 Some(cq) => match expr_ops::strip_pis(n_p + 3, rty) {
                     Some(rq) => {
                         if expr::beq(&cq.1, &struct_fam(t, lps, n_p, n_f)) {
@@ -598,8 +598,8 @@ pub fn struct_parts_core(block: &Vec<ConstantInfo>) -> Option<StructParts> {
                     cv_t, cv_c, cv_r, *n_p, *n_f, *m_i, *r_p, &rules[0],
                 ) {
                     match expr_ops::strip_pis(*n_p, &cv_t.ty) {
-                        Some(q) => match &q.1 .0.kind {
-                            ExprKind::Sort(s) => {
+                        Some(q) => match expr::view(&q.1 ) {
+                            ExprView::Sort(s) => {
                                 let is_prop = level_is_prop(s);
                                 match struct_parts_large(cv_t, cv_c, cv_r, *n_p, *n_f) {
                                     Some(elim) => Some(StructParts {
@@ -710,34 +710,34 @@ pub fn struct_proj_resid_p(t: &Name, n_p: u64, cty: &Expr, i: u64) -> Option<Exp
 /// bounded walk below; nothing executable calls it, and it is ported so the
 /// provenance gate stays in step with its source.
 pub fn has_loose_bvar(i: u64, e: &Expr) -> bool {
-    match &e.0.kind {
-        ExprKind::Bvar(j) => i == *j,
-        ExprKind::Fvar(_, _) => false,
-        ExprKind::Sort(_) => false,
-        ExprKind::Const(_, _) => false,
-        ExprKind::Lit(_) => false,
-        ExprKind::App(f, a) => {
+    match expr::view(&e) {
+        ExprView::Bvar(j) => i == *j,
+        ExprView::Fvar(_, _) => false,
+        ExprView::Sort(_) => false,
+        ExprView::Const(_, _) => false,
+        ExprView::Lit(_) => false,
+        ExprView::App(f, a) => {
             if has_loose_bvar(i, f) {
                 true
             } else {
                 has_loose_bvar(i, a)
             }
         }
-        ExprKind::Lam(ty, b, _) => {
+        ExprView::Lam(ty, b, _) => {
             if has_loose_bvar(i, ty) {
                 true
             } else {
                 has_loose_bvar(i + 1, b)
             }
         }
-        ExprKind::ForallE(ty, b, _) => {
+        ExprView::ForallE(ty, b, _) => {
             if has_loose_bvar(i, ty) {
                 true
             } else {
                 has_loose_bvar(i + 1, b)
             }
         }
-        ExprKind::LetE(t, v, b) => {
+        ExprView::LetE(t, v, b) => {
             if has_loose_bvar(i, t) {
                 true
             } else if has_loose_bvar(i, v) {
@@ -746,7 +746,7 @@ pub fn has_loose_bvar(i: u64, e: &Expr) -> bool {
                 has_loose_bvar(i + 1, b)
             }
         }
-        ExprKind::Proj(_, _, sub) => has_loose_bvar(i, sub),
+        ExprView::Proj(_, _, sub) => has_loose_bvar(i, sub),
     }
 }
 
@@ -760,34 +760,34 @@ pub fn has_loose_bvar_b_spec(i: u64, e: &Expr) -> bool {
     if expr_ops::bvar_b(e) <= i {
         false
     } else {
-        match &e.0.kind {
-            ExprKind::Bvar(j) => i == *j,
-            ExprKind::Fvar(_, _) => false,
-            ExprKind::Sort(_) => false,
-            ExprKind::Const(_, _) => false,
-            ExprKind::Lit(_) => false,
-            ExprKind::App(f, a) => {
+        match expr::view(&e) {
+            ExprView::Bvar(j) => i == *j,
+            ExprView::Fvar(_, _) => false,
+            ExprView::Sort(_) => false,
+            ExprView::Const(_, _) => false,
+            ExprView::Lit(_) => false,
+            ExprView::App(f, a) => {
                 if has_loose_bvar_b_spec(i, f) {
                     true
                 } else {
                     has_loose_bvar_b_spec(i, a)
                 }
             }
-            ExprKind::Lam(ty, b, _) => {
+            ExprView::Lam(ty, b, _) => {
                 if has_loose_bvar_b_spec(i, ty) {
                     true
                 } else {
                     has_loose_bvar_b_spec(i + 1, b)
                 }
             }
-            ExprKind::ForallE(ty, b, _) => {
+            ExprView::ForallE(ty, b, _) => {
                 if has_loose_bvar_b_spec(i, ty) {
                     true
                 } else {
                     has_loose_bvar_b_spec(i + 1, b)
                 }
             }
-            ExprKind::LetE(t, v, b) => {
+            ExprView::LetE(t, v, b) => {
                 if has_loose_bvar_b_spec(i, t) {
                     true
                 } else if has_loose_bvar_b_spec(i, v) {
@@ -796,7 +796,7 @@ pub fn has_loose_bvar_b_spec(i: u64, e: &Expr) -> bool {
                     has_loose_bvar_b_spec(i + 1, b)
                 }
             }
-            ExprKind::Proj(_, _, sub) => has_loose_bvar_b_spec(i, sub),
+            ExprView::Proj(_, _, sub) => has_loose_bvar_b_spec(i, sub),
         }
     }
 }
@@ -831,12 +831,12 @@ pub fn has_loose_bvar_b_go(memo: &mut HashMap<ExprNatKey, bool>, i: u64, e: &Exp
     if expr_ops::bvar_b(e) <= i {
         false
     } else {
-        match &e.0.kind {
-            ExprKind::Bvar(j) => i == *j,
-            ExprKind::Fvar(_, _) => false,
-            ExprKind::Sort(_) => false,
-            ExprKind::Const(_, _) => false,
-            ExprKind::Lit(_) => false,
+        match expr::view(&e) {
+            ExprView::Bvar(j) => i == *j,
+            ExprView::Fvar(_, _) => false,
+            ExprView::Sort(_) => false,
+            ExprView::Const(_, _) => false,
+            ExprView::Lit(_) => false,
             _ => {
                 let key = expr_ops::expr_nat_key(e, i);
                 match memo_b_get(memo, &key) {
@@ -859,29 +859,29 @@ pub fn has_loose_bvar_b_go(memo: &mut HashMap<ExprNatKey, bool>, i: u64, e: &Exp
 /// the container).  The `_ => (false, memo)` arm is the cited unreachable
 /// one — the five leaf kinds answered above.
 pub fn has_loose_bvar_b_node(memo: &mut HashMap<ExprNatKey, bool>, i: u64, e: &Expr) -> bool {
-    match &e.0.kind {
-        ExprKind::App(f, a) => {
+    match expr::view(&e) {
+        ExprView::App(f, a) => {
             if has_loose_bvar_b_go(memo, i, f) {
                 true
             } else {
                 has_loose_bvar_b_go(memo, i, a)
             }
         }
-        ExprKind::Lam(ty, b, _) => {
+        ExprView::Lam(ty, b, _) => {
             if has_loose_bvar_b_go(memo, i, ty) {
                 true
             } else {
                 has_loose_bvar_b_go(memo, i + 1, b)
             }
         }
-        ExprKind::ForallE(ty, b, _) => {
+        ExprView::ForallE(ty, b, _) => {
             if has_loose_bvar_b_go(memo, i, ty) {
                 true
             } else {
                 has_loose_bvar_b_go(memo, i + 1, b)
             }
         }
-        ExprKind::LetE(t, v, b) => {
+        ExprView::LetE(t, v, b) => {
             if has_loose_bvar_b_go(memo, i, t) {
                 true
             } else if has_loose_bvar_b_go(memo, i, v) {
@@ -890,7 +890,7 @@ pub fn has_loose_bvar_b_node(memo: &mut HashMap<ExprNatKey, bool>, i: u64, e: &E
                 has_loose_bvar_b_go(memo, i + 1, b)
             }
         }
-        ExprKind::Proj(_, _, sub) => has_loose_bvar_b_go(memo, i, sub),
+        ExprView::Proj(_, _, sub) => has_loose_bvar_b_go(memo, i, sub),
         _ => false,
     }
 }
@@ -1049,8 +1049,8 @@ pub fn struct_proj_bodies_go(
     if k == 0 {
         Some(out)
     } else {
-        match &e.0.kind {
-            ExprKind::ForallE(fdom, body, _) => {
+        match expr::view(&e) {
+            ExprView::ForallE(fdom, body, _) => {
                 let mut out = out;
                 out.push(expr::dup(fdom));
                 let next: Expr =
@@ -1090,34 +1090,34 @@ pub fn struct_proj_bodies(t: &Name, n_p: u64, n_f: u64, cty: &Expr) -> Option<Ve
 /// included; a `.proj` node names its structure).  The *logical* definition;
 /// the executed one is `mentions_const` below.
 pub fn mentions_const_spec(t: &Name, e: &Expr) -> bool {
-    match &e.0.kind {
-        ExprKind::Bvar(_) => false,
-        ExprKind::Sort(_) => false,
-        ExprKind::Lit(_) => false,
-        ExprKind::Const(n, _) => name::beq(n, t),
-        ExprKind::Fvar(_, ty) => mentions_const_spec(t, ty),
-        ExprKind::App(f, a) => {
+    match expr::view(&e) {
+        ExprView::Bvar(_) => false,
+        ExprView::Sort(_) => false,
+        ExprView::Lit(_) => false,
+        ExprView::Const(n, _) => name::beq(n, t),
+        ExprView::Fvar(_, ty) => mentions_const_spec(t, ty),
+        ExprView::App(f, a) => {
             if mentions_const_spec(t, f) {
                 true
             } else {
                 mentions_const_spec(t, a)
             }
         }
-        ExprKind::Lam(ty, b, _) => {
+        ExprView::Lam(ty, b, _) => {
             if mentions_const_spec(t, ty) {
                 true
             } else {
                 mentions_const_spec(t, b)
             }
         }
-        ExprKind::ForallE(ty, b, _) => {
+        ExprView::ForallE(ty, b, _) => {
             if mentions_const_spec(t, ty) {
                 true
             } else {
                 mentions_const_spec(t, b)
             }
         }
-        ExprKind::LetE(ty, v, b) => {
+        ExprView::LetE(ty, v, b) => {
             if mentions_const_spec(t, ty) {
                 true
             } else if mentions_const_spec(t, v) {
@@ -1126,7 +1126,7 @@ pub fn mentions_const_spec(t: &Name, e: &Expr) -> bool {
                 mentions_const_spec(t, b)
             }
         }
-        ExprKind::Proj(s, _, sub) => {
+        ExprView::Proj(s, _, sub) => {
             if name::beq(s, t) {
                 true
             } else {
@@ -1155,11 +1155,11 @@ pub fn memo_eb_get(memo: &HashMap<Expr, bool>, k: &Expr) -> Option<bool> {
 /// both answers.  The port keeps that, so the memo contents agree node for
 /// node with con-leche's.
 pub fn mentions_const_go(t: &Name, memo: &mut HashMap<Expr, bool>, e: &Expr) -> bool {
-    match &e.0.kind {
-        ExprKind::Bvar(_) => false,
-        ExprKind::Sort(_) => false,
-        ExprKind::Lit(_) => false,
-        ExprKind::Const(n, _) => name::beq(n, t),
+    match expr::view(&e) {
+        ExprView::Bvar(_) => false,
+        ExprView::Sort(_) => false,
+        ExprView::Lit(_) => false,
+        ExprView::Const(n, _) => name::beq(n, t),
         _ => match memo_eb_get(memo, e) {
             Some(r) => r,
             None => {
@@ -1177,9 +1177,9 @@ pub fn mentions_const_go(t: &Name, memo: &mut HashMap<Expr, bool>, e: &Expr) -> 
 /// final `| e => (e.mentionsConst T, memo)` arm is the cited unreachable one
 /// — the four leaf kinds answered above.
 pub fn mentions_const_node(t: &Name, memo: &mut HashMap<Expr, bool>, e: &Expr) -> bool {
-    match &e.0.kind {
-        ExprKind::Fvar(_, ty) => mentions_const_go(t, memo, ty),
-        ExprKind::App(f, a) => {
+    match expr::view(&e) {
+        ExprView::Fvar(_, ty) => mentions_const_go(t, memo, ty),
+        ExprView::App(f, a) => {
             let b1 = mentions_const_go(t, memo, f);
             let b2 = mentions_const_go(t, memo, a);
             if b1 {
@@ -1188,7 +1188,7 @@ pub fn mentions_const_node(t: &Name, memo: &mut HashMap<Expr, bool>, e: &Expr) -
                 b2
             }
         }
-        ExprKind::Lam(ty, body, _) => {
+        ExprView::Lam(ty, body, _) => {
             let b1 = mentions_const_go(t, memo, ty);
             let b2 = mentions_const_go(t, memo, body);
             if b1 {
@@ -1197,7 +1197,7 @@ pub fn mentions_const_node(t: &Name, memo: &mut HashMap<Expr, bool>, e: &Expr) -
                 b2
             }
         }
-        ExprKind::ForallE(ty, body, _) => {
+        ExprView::ForallE(ty, body, _) => {
             let b1 = mentions_const_go(t, memo, ty);
             let b2 = mentions_const_go(t, memo, body);
             if b1 {
@@ -1206,7 +1206,7 @@ pub fn mentions_const_node(t: &Name, memo: &mut HashMap<Expr, bool>, e: &Expr) -
                 b2
             }
         }
-        ExprKind::LetE(ty, val, body) => {
+        ExprView::LetE(ty, val, body) => {
             let b1 = mentions_const_go(t, memo, ty);
             let b2 = mentions_const_go(t, memo, val);
             let b3 = mentions_const_go(t, memo, body);
@@ -1218,7 +1218,7 @@ pub fn mentions_const_node(t: &Name, memo: &mut HashMap<Expr, bool>, e: &Expr) -
                 b3
             }
         }
-        ExprKind::Proj(s, _, sub) => {
+        ExprView::Proj(s, _, sub) => {
             let b = mentions_const_go(t, memo, sub);
             if name::beq(s, t) {
                 true
@@ -1264,8 +1264,8 @@ mod tests {
     fn bvars(xs: &Vec<Expr>) -> Vec<u64> {
         let mut out: Vec<u64> = Vec::new();
         for e in xs {
-            match &e.0.kind {
-                ExprKind::Bvar(i) => out.push(*i),
+            match expr::view(&e) {
+                ExprView::Bvar(i) => out.push(*i),
                 _ => out.push(9999),
             }
         }
@@ -1343,8 +1343,8 @@ mod tests {
         // the two re-datum rewrites
         let pw = prop_when::if_all_zero(Vec::new());
         match replace_pis_pw(&pw, 1, &tele, &expr::bvar(7)) {
-            Some(r) => match &r.0.kind {
-                ExprKind::ForallE(dom, body, m) => {
+            Some(r) => match expr::view(&r) {
+                ExprView::ForallE(dom, body, m) => {
                     assert!(expr::beq(dom, &a), "the domain is kept");
                     assert!(expr::beq(body, &expr::bvar(7)));
                     assert!(prop_when::beq(&m.pw, &pw), "the datum is reset");
@@ -1354,8 +1354,8 @@ mod tests {
             None => panic!("one binder is there to replace"),
         }
         match pis_to_lams_pw(&pw, 1, &tele, &expr::bvar(7)) {
-            Some(r) => match &r.0.kind {
-                ExprKind::Lam(_, _, m) => assert!(prop_when::beq(&m.pw, &pw)),
+            Some(r) => match expr::view(&r) {
+                ExprView::Lam(_, _, m) => assert!(prop_when::beq(&m.pw, &pw)),
                 _ => panic!("a λ comes out"),
             },
             None => panic!("one binder is there to convert"),

@@ -32,7 +32,7 @@ use con_ron_core::kernel::core_k;
 use con_ron_core::kernel::env;
 use con_ron_core::kernel::env::{ConstantInfo, ConstantVal, RecRule, ReducibilityHint};
 use con_ron_core::kernel::expr;
-use con_ron_core::kernel::expr::{Expr, ExprKind};
+use con_ron_core::kernel::expr::{Expr, ExprView};
 use con_ron_core::kernel::expr_ops;
 use con_ron_core::kernel::inductives::struct_parts;
 use con_ron_core::kernel::level;
@@ -202,8 +202,8 @@ pub fn aux_at(fam: &Family, tag: u64, o: u64, idx: &[Expr]) -> Expr {
 /// some index arguments?  Returns the member's tag and the index arguments.
 pub fn match_carrier(fam: &Family, o: u64, e: &Expr) -> Option<(u64, Vec<Expr>)> {
     let f = expr_ops::get_app_fn(e);
-    match &f.0.kind {
-        ExprKind::Const(x, us) => {
+    match expr::view(&f) {
+        ExprView::Const(x, us) => {
             let args = expr_ops::get_app_args(e);
             fam.mems.iter().find_map(|mem| {
                 if !name::beq(&mem.i_name, x) || !expr::levels_beq(us, &mem.lv) {
@@ -262,9 +262,9 @@ pub fn spec_all_go(
         let idx2 = spec_all_go_list(fam, memo, o, &idx);
         return aux_at(fam, tag, o, &idx2);
     }
-    match &e.0.kind {
-        ExprKind::Bvar(_) | ExprKind::Sort(_) | ExprKind::Fvar(_, _) | ExprKind::Const(_, _)
-        | ExprKind::Lit(_) => expr::dup(e),
+    match expr::view(&e) {
+        ExprView::Bvar(_) | ExprView::Sort(_) | ExprView::Fvar(_, _) | ExprView::Const(_, _)
+        | ExprView::Lit(_) => expr::dup(e),
         _ => {
             let key = (
                 crate::keys::ExprKey(expr::dup(e)),
@@ -273,29 +273,29 @@ pub fn spec_all_go(
             if let Some(r) = memo.get(&key) {
                 return expr::dup(r);
             }
-            let r = match &e.0.kind {
-                ExprKind::App(f, a) => {
+            let r = match expr::view(&e) {
+                ExprView::App(f, a) => {
                     let f2 = spec_all_go(fam, memo, o, f);
                     let a2 = spec_all_go(fam, memo, o, a);
                     expr::app(f2, a2)
                 }
-                ExprKind::Lam(d, b, m) => {
+                ExprView::Lam(d, b, m) => {
                     let d2 = spec_all_go(fam, memo, o, d);
                     let b2 = spec_all_go(fam, memo, o + 1, b);
                     expr::lam(d2, b2, expr::binder_meta_dup(m))
                 }
-                ExprKind::ForallE(d, b, m) => {
+                ExprView::ForallE(d, b, m) => {
                     let d2 = spec_all_go(fam, memo, o, d);
                     let b2 = spec_all_go(fam, memo, o + 1, b);
                     expr::forall_e(d2, b2, expr::binder_meta_dup(m))
                 }
-                ExprKind::LetE(t, v, b) => {
+                ExprView::LetE(t, v, b) => {
                     let t2 = spec_all_go(fam, memo, o, t);
                     let v2 = spec_all_go(fam, memo, o, v);
                     let b2 = spec_all_go(fam, memo, o + 1, b);
                     expr::let_e(t2, v2, b2)
                 }
-                ExprKind::Proj(s, i, x) => {
+                ExprView::Proj(s, i, x) => {
                     let x2 = spec_all_go(fam, memo, o, x);
                     expr::proj(name::dup(s), *i, x2)
                 }
@@ -335,8 +335,8 @@ pub fn strip_all_pis(e: &Expr) -> (Vec<(Expr, expr::BinderMeta)>, Expr) {
     let mut bs: Vec<(Expr, expr::BinderMeta)> = Vec::new();
     let mut cur = expr::dup(e);
     loop {
-        let next = match &cur.0.kind {
-            ExprKind::ForallE(d, b, m) => {
+        let next = match expr::view(&cur) {
+            ExprView::ForallE(d, b, m) => {
                 bs.push((expr::dup(d), expr::binder_meta_dup(m)));
                 expr::dup(b)
             }
@@ -363,7 +363,7 @@ pub fn read_mems(
         // it never mentions: lower it to the parameter frame
         let dom = expr_ops::lower_bvars(m, 0, &get_d(motives, m));
         let (bs, body) = strip_all_pis(&dom);
-        if !matches!(&body.0.kind, ExprKind::Sort(_)) {
+        if !matches!(expr::view(&body), ExprView::Sort(_)) {
             return Err(format!("motive {} does not end in a sort", m));
         }
         let carr = match bs.last() {
@@ -373,8 +373,8 @@ pub fn read_mems(
         let n_idx = sub(bs.len() as u64, 1);
         let idx_bs = pi_binders(&bs[..(n_idx as usize).min(bs.len())]);
         let head = expr_ops::get_app_fn(&carr);
-        let (i_name, us) = match &head.0.kind {
-            ExprKind::Const(i, us) => (name::dup(i), us.iter().map(level::dup).collect::<Vec<_>>()),
+        let (i_name, us) = match expr::view(&head) {
+            ExprView::Const(i, us) => (name::dup(i), us.iter().map(level::dup).collect::<Vec<_>>()),
             _ => return Err(format!("motive {}: carrier head is not a constant", m)),
         };
         let args = expr_ops::get_app_args(&carr);
@@ -473,8 +473,8 @@ pub fn read_ctors(
         let (bs, body) = strip_all_pis(&dom);
         // the motive: `bvar (bs.length + J + (M - 1 - m))`
         let head = expr_ops::get_app_fn(&body);
-        let mv = match &head.0.kind {
-            ExprKind::Bvar(i) => *i,
+        let mv = match expr::view(&head) {
+            ExprView::Bvar(i) => *i,
             _ => {
                 return Err(format!(
                     "minor {}: codomain head is not a motive",
@@ -492,8 +492,8 @@ pub fn read_ctors(
             None => return Err(format!("minor {}: no major", big_j)),
         };
         let chead = expr_ops::get_app_fn(&capp);
-        let (cname, clv) = match &chead.0.kind {
-            ExprKind::Const(c, us) => {
+        let (cname, clv) = match expr::view(&chead) {
+            ExprView::Const(c, us) => {
                 (name::dup(c), us.iter().map(level::dup).collect::<Vec<_>>())
             }
             _ => {
@@ -2389,8 +2389,8 @@ pub fn gen_nested(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
             name_str(&t_name)
         )
     })?;
-    let u: Level = match &resid0.0.kind {
-        ExprKind::Sort(u) => level::dup(u),
+    let u: Level = match expr::view(&resid0) {
+        ExprView::Sort(u) => level::dup(u),
         _ => {
             return Err(format!(
                 "former {} is not a telescope ending in a sort",
@@ -2406,7 +2406,7 @@ pub fn gen_nested(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
     let pbs: Vec<Expr> = pi_binders(&pbs0[..(n_p as usize).min(pbs0.len())]);
     for t in b.types.iter() {
         let ok = match expr_ops::strip_pis(n_p + t.n_idx, &t.cv.ty) {
-            Some((_, rr)) => matches!(&rr.0.kind, ExprKind::Sort(_)),
+            Some((_, rr)) => matches!(expr::view(&rr), ExprView::Sort(_)),
             None => false,
         };
         if !ok {
@@ -3681,8 +3681,8 @@ pub fn gen_nested(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
                     ));
                 }
                 let fdom = match expr_ops::inst_pis_at_lift(&args, &cty) {
-                    Some(e) => match &e.0.kind {
-                        ExprKind::ForallE(fdom, _, _) => expr::dup(fdom),
+                    Some(e) => match expr::view(&e) {
+                        ExprView::ForallE(fdom, _, _) => expr::dup(fdom),
                         _ => {
                             stop = true;
                             continue;
@@ -3746,10 +3746,10 @@ pub fn gen_nested(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
                                             ));
                                         }
                                         match expr_ops::inst_pis_at_lift(&args_s, &cty) {
-                                            Some(e) => match &e.0.kind {
+                                            Some(e) => match expr::view(&e) {
                                                 // `fd` is at frame `p⃗, x`: lift
                                                 // the parameters past the extras
-                                                ExprKind::ForallE(fd, _, _) => {
+                                                ExprView::ForallE(fd, _, _) => {
                                                     expr_ops::lift_loose_bvars(o2, 1, fd)
                                                 }
                                                 _ => expr::sort(level::zero()),

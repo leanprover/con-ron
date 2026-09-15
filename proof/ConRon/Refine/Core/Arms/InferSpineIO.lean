@@ -370,8 +370,8 @@ private theorem spine_aux (hw : Wrappers mode fuel) (N : Nat) :
         -- the syntactic `∀` step: no normalization, and the accumulator grows
         rename_i dm bd mtm
         obtain ⟨hdmWF, hbdWF⟩ := wf_forall_inv hty rfl
-        simp only [arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
-          expr.ExprNode.kind._simpLemma_, ConRon.Refine.State.expr_dup_eq] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+          expr.ExprNode.kind._simpLemma_, ron.node.ExprView.ofKind, ConRon.Refine.State.expr_dup_eq] at h
         obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
         have hbv := Env.io_skip_refines hb
         rcases ite_eq_ok h with ⟨hbt, h⟩ | ⟨hbt, h⟩
@@ -440,8 +440,8 @@ private theorem spine_aux (hw : Wrappers mode fuel) (N : Nat) :
       -- port's generated `match` repeats the same body in each, so one script
       -- discharges them all: substitute, normalize, and look for a `∀` again
       all_goals
-        simp only [arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
-          expr.ExprNode.kind._simpLemma_] at h
+        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+          expr.ExprNode.kind._simpLemma_, ron.node.ExprView.ofKind] at h
         obtain ⟨ty2, hinst, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨habs2, hty2⟩ := inst_list_rev_m_val hty hacc hinst
         obtain ⟨rw0, st1, hwn, h⟩ := bindP_eq_ok h

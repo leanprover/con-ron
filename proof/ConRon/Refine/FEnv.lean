@@ -134,7 +134,7 @@ theorem find_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {n : name.Name}
     by_cases hlt : i.val < fe.visible_below.val
     · rw [if_pos (show i < fe.visible_below by scalar_tac)] at h2
       rw [if_pos (show i.val < lfe.visibleBelow from hrel.2.1 ▸ hlt)]
-      simp only [arc_deref_eq, bind_eq_ok_iff, Result.ok.injEq, exists_eq_left'] at h2
+      simp only [expr_view_eq, arc_deref_eq, bind_eq_ok_iff, Result.ok.injEq, exists_eq_left'] at h2
       rw [← h2]; rfl
     · rw [if_neg (show ¬ i < fe.visible_below by scalar_tac), Result.ok.injEq] at h2
       rw [if_neg (show ¬ i.val < lfe.visibleBelow from hrel.2.1 ▸ hlt), ← h2]
@@ -160,7 +160,7 @@ theorem find_wf {fe : fenv.FEnv} {n : name.Name} {o : Option env.ConstantInfo}
     have hval : ConstantInfoWF a := hwf.vals n (i, a) he.symm
     by_cases hlt : i.val < fe.visible_below.val
     · rw [if_pos (show i < fe.visible_below by scalar_tac)] at h2
-      simp only [arc_deref_eq, bind_eq_ok_iff, Result.ok.injEq, exists_eq_left'] at h2
+      simp only [expr_view_eq, arc_deref_eq, bind_eq_ok_iff, Result.ok.injEq, exists_eq_left'] at h2
       rw [← h2, Option.some.injEq] at hc
       rw [← hc]; exact hval
     · rw [if_neg (show ¬ i < fe.visible_below by scalar_tac), Result.ok.injEq] at h2
@@ -308,7 +308,7 @@ theorem mk_fenv_go_refines {cs : alloc.vec.Vec env.ConstantInfo}
     have hl : i.val < cs.val.length := by omega
     obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec cs i hl)
     subst hyv
-    simp only [alloc.vec.Vec.index_slice_index, hy, arc_deref_eq,
+    simp only [alloc.vec.Vec.index_slice_index, hy, expr_view_eq, arc_deref_eq,
       env.constant_info_rc_dup, ptr_clone_eq, bind_eq_ok_iff, Result.ok.injEq,
       exists_eq_left'] at h
     obtain ⟨n, hn, q, hins, h⟩ := h
@@ -386,7 +386,7 @@ theorem push_consts {fe fe' : fenv.FEnv} {ci : env.ConstantInfo}
     (h : fenv.push fe ci = ok fe') :
     fe'.env.consts.val = fe.env.consts.val ++ [ci] := by
   rw [fenv.push] at h
-  simp only [env.constant_info_share, ptr_new_eq, arc_deref_eq,
+  simp only [env.constant_info_share, ptr_new_eq, expr_view_eq, arc_deref_eq,
     env.constant_info_rc_dup, ptr_clone_eq, bind_eq_ok_iff, Result.ok.injEq,
     exists_eq_left'] at h
   obtain ⟨n, hn, q, hins, h⟩ := h
@@ -414,7 +414,7 @@ theorem push_idx_refines {fe fe' : fenv.FEnv} {lfe : ConLeche.FEnv}
     HashMap.KeysOk NameWF fe'.idx ∧
     ValsOk (fun p => ConstantInfoWF p.2) fe'.idx := by
   rw [fenv.push] at h
-  simp only [env.constant_info_share, ptr_new_eq, arc_deref_eq,
+  simp only [env.constant_info_share, ptr_new_eq, expr_view_eq, arc_deref_eq,
     env.constant_info_rc_dup, ptr_clone_eq, bind_eq_ok_iff, Result.ok.injEq,
     exists_eq_left'] at h
   obtain ⟨n, hn, q, hins, h⟩ := h

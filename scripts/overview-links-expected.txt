@@ -386,16 +386,144 @@
   3303      | .Err er =>
   3304        ErrSimPos er
 
-== crates/con-ron-core/src/kernel/expr.rs#L356-L364
-   356      Sort(Level),
-   357      Const(Name, P<Vec<Level>>),
-   358      App(Expr, Expr),
-   359      Lam(Expr, Expr, BinderMeta),
-   360      ForallE(Expr, Expr, BinderMeta),
-   361      LetE(Expr, Expr, Expr),
-   362      Lit(Literal),
-   363      Proj(Name, u64, Expr),
-   364  }
+== crates/con-ron-core/src/kernel/expr.rs#L355-L366
+   355  pub enum ExprKind {
+   356      Bvar(u64),
+   357      Fvar(u64, Expr),
+   358      Sort(Level),
+   359      Const(Name, P<Vec<Level>>),
+   360      App(Expr, Expr),
+   361      Lam(Expr, Expr, BinderMeta),
+   362      ForallE(Expr, Expr, BinderMeta),
+   363      LetE(Expr, Expr, Expr),
+   364      Lit(Literal),
+   365      Proj(Name, u64, Expr),
+   366  }
+
+== crates/con-ron-core/src/ron/tagged.rs#L1-L20
+     1  //! con-leche: none — the tagged counted handle of DESIGN.md §3.2 (task #94).
+     2  //!
+     3  //! `ron::tagged` — **the crate's only `unsafe`, and it does not know what an
+     4  //! `Expr` is**.
+     5  //!
+     6  //! One counted handle, one word wide, whose low four bits say which of a
+     7  //! *scheme's* node types the rest of it points at.  Every block is allocated
+     8  //! 16-aligned, which is what frees those four bits; sixteen kinds fit, and
+     9  //! each kind's block is as wide as that kind needs rather than as wide as the
+    10  //! widest.  That is the whole idea, and the measurement behind it is task
+    11  //! #94's report: `Expr`'s nodes go from a flat 64-byte block to 32 or 48
+    12  //! bytes, which is −45 % of Mathlib's peak.
+    13  //!
+    14  //! **This module is generic.**  It names no term type, no constructor and no
+    15  //! kind: a *scheme* is a table, and [`tagged_kinds!`] turns it into the
+    16  //! tag→type dispatch and the release.  `ron::node` is the one instantiation
+    17  //! today (`Expr`'s ten blocks); `Name`, `Level` and `PropWhen` keep
+    18  //! `ron::ptr::P` (DESIGN.md §3.2 — their nodes are not the bulk, and a
+    19  //! uniform block costs them nothing).
+    20  //!
+
+== crates/con-ron-core/src/kernel/expr.rs#L121-L123
+   121  pub struct BinderMeta {
+   122      pub pw: PropWhen,
+   123  }
+
+== crates/con-ron-core/src/kernel/prop_when.rs#L285-L291
+   285  enum PropWhenRepr {
+   286      Never,
+   287      Always,
+   288      One(Name),
+   289      Two(P<(Name, Name)>),
+   290      Many(P<Vec<Name>>),
+   291  }
+
+== crates/con-ron-dump/src/lib.rs#L155-L203
+   155  pub struct MiMallocTight;
+   156  
+   157  #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
+   158  unsafe impl std::alloc::GlobalAlloc for MiMallocTight {
+   159      #[inline]
+   160      unsafe fn alloc(&self, layout: std::alloc::Layout) -> *mut u8 {
+   161          if layout.align() <= 16 {
+   162              libmimalloc_sys::mi_malloc(layout.size()) as *mut u8
+   163          } else {
+   164              libmimalloc_sys::mi_malloc_aligned(layout.size(), layout.align()) as *mut u8
+   165          }
+   166      }
+   167  
+   168      #[inline]
+   169      unsafe fn alloc_zeroed(&self, layout: std::alloc::Layout) -> *mut u8 {
+   170          if layout.align() <= 16 {
+   171              libmimalloc_sys::mi_zalloc(layout.size()) as *mut u8
+   172          } else {
+   173              libmimalloc_sys::mi_zalloc_aligned(layout.size(), layout.align()) as *mut u8
+   174          }
+   175      }
+   176  
+   177      #[inline]
+   178      unsafe fn dealloc(&self, ptr: *mut u8, _layout: std::alloc::Layout) {
+   179          libmimalloc_sys::mi_free(ptr as *mut std::ffi::c_void);
+   180      }
+   181  
+   182      #[inline]
+   183      unsafe fn realloc(
+   184          &self,
+   185          ptr: *mut u8,
+   186          layout: std::alloc::Layout,
+   187          new_size: usize,
+   188      ) -> *mut u8 {
+   189          if layout.align() <= 16 {
+   190              libmimalloc_sys::mi_realloc(ptr as *mut std::ffi::c_void, new_size) as *mut u8
+   191          } else {
+   192              libmimalloc_sys::mi_realloc_aligned(
+   193                  ptr as *mut std::ffi::c_void,
+   194                  new_size,
+   195                  layout.align(),
+   196              ) as *mut u8
+   197          }
+   198      }
+   199  }
+   200  
+   201  #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
+   202  #[global_allocator]
+   203  static GLOBAL_ALLOC: MiMallocTight = MiMallocTight;
+
+== crates/con-ron-core/src/ron/tagged.rs#L1-L20
+     1  //! con-leche: none — the tagged counted handle of DESIGN.md §3.2 (task #94).
+     2  //!
+     3  //! `ron::tagged` — **the crate's only `unsafe`, and it does not know what an
+     4  //! `Expr` is**.
+     5  //!
+     6  //! One counted handle, one word wide, whose low four bits say which of a
+     7  //! *scheme's* node types the rest of it points at.  Every block is allocated
+     8  //! 16-aligned, which is what frees those four bits; sixteen kinds fit, and
+     9  //! each kind's block is as wide as that kind needs rather than as wide as the
+    10  //! widest.  That is the whole idea, and the measurement behind it is task
+    11  //! #94's report: `Expr`'s nodes go from a flat 64-byte block to 32 or 48
+    12  //! bytes, which is −45 % of Mathlib's peak.
+    13  //!
+    14  //! **This module is generic.**  It names no term type, no constructor and no
+    15  //! kind: a *scheme* is a table, and [`tagged_kinds!`] turns it into the
+    16  //! tag→type dispatch and the release.  `ron::node` is the one instantiation
+    17  //! today (`Expr`'s ten blocks); `Name`, `Level` and `PropWhen` keep
+    18  //! `ron::ptr::P` (DESIGN.md §3.2 — their nodes are not the bulk, and a
+    19  //! uniform block costs them nothing).
+    20  //!
+
+== crates/con-ron-core/src/ron/node.rs#L1-L14
+     1  //! con-leche: none — `Expr`'s instantiation of `ron::tagged` (DESIGN.md §3.2, task #94).
+     2  //!
+     3  //! `ron::node` — **the ten `Expr` cells, as a table**.
+     4  //!
+     5  //! Until task #94 every `Expr` node was a `P<ExprNode>`: a block as wide as
+     6  //! the *widest* `ExprKind` arm, plus a kind word, plus `Arc`'s two counts —
+     7  //! 64 bytes for an `app`, which is 65 % of the live nodes of a real term
+     8  //! (task #88's census) and needs 32.  Lean's own representation does not do
+     9  //! that: the kind is in the object header, and each constructor's object is
+    10  //! as wide as its own fields.
+    11  //!
+    12  //! So the kind moved into the handle, and `ron::tagged` is the machinery that
+    13  //! puts it there.  **This file has no `unsafe` in it** — it is a table of ten
+    14  //! `tag => variant: type` lines, ten struct declarations, and thin wrappers:
 
 == crates/con-ron-core/src/ron/ptr.rs#L1-L8
      1  //! con-leche: none — the shared-pointer type of DESIGN.md §3.2; Lean's value semantics have no counterpart.
@@ -407,80 +535,24 @@
      7  //! reference counting: `P<T>` is the handle, and the model erases it
      8  //! (`Arc T := T`, plus four definitions).  Which *concrete* counted pointer
 
-== crates/con-ron-core/src/kernel/expr.rs#L430-L441
-   430  pub fn mk_const(n: Name, us: Vec<Level>) -> Expr {
-   431      let h: u64 = hash32(name::mix_hash(
-   432          11,
-   433          name::mix_hash(name::hash_data(&n), level::levels_hash(&us)),
-   434      ));
-   435      let d: u64 = pack_data(h, 0, 0, level::levels_have_param(&us));
-   436      Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Const(n, ptr::new(us)) }))
-   437  }
-   438  
-   439  /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-   440  /// con-leche: ConLeche/Cached/ExprNodes.lean:113 mkApp
-   441  /// `Expr.app`: hash tag 17; both ranges are the componentwise `max` and the
-
-== crates/con-ron-core/src/kernel/expr.rs#L353-L364
-   353  pub enum ExprKind {
-   354      Bvar(u64),
-   355      Fvar(u64, Expr),
-   356      Sort(Level),
-   357      Const(Name, P<Vec<Level>>),
-   358      App(Expr, Expr),
-   359      Lam(Expr, Expr, BinderMeta),
-   360      ForallE(Expr, Expr, BinderMeta),
-   361      LetE(Expr, Expr, Expr),
-   362      Lit(Literal),
-   363      Proj(Name, u64, Expr),
-   364  }
-
-== crates/con-ron-core/src/kernel/expr.rs#L119-L121
-   119  pub struct BinderMeta {
-   120      pub pw: PropWhen,
-   121  }
-
-== crates/con-ron-core/src/kernel/prop_when.rs#L285-L291
-   285  enum PropWhenRepr {
-   286      Never,
-   287      Always,
-   288      One(Name),
-   289      Two(P<(Name, Name)>),
-   290      Many(P<Vec<Name>>),
-   291  }
-
-== crates/con-ron-dump/src/lib.rs#L99-L129
-    99  /// **mimalloc, entered by `mi_malloc` rather than `mi_malloc_aligned`**
-   100  /// (task #92).
-   101  ///
-   102  /// The `mimalloc` crate's own `GlobalAlloc` sends *every* request through
-   103  /// `mi_malloc_aligned(size, align)`, whatever the alignment is.  That is
-   104  /// correct but it costs twice over, and con-ron pays it on every node:
-   105  ///
-   106  /// * **A size class.**  Measured resident bytes per live block (20 M blocks,
-   107  ///   `VmHWM`, this machine, mimalloc v3 as `libmimalloc-sys` builds it):
-   108  ///   through `mi_malloc` a 48-byte request occupies **48** bytes, through
-   109  ///   `mi_malloc_aligned(48, 8)` it occupies **64**.  mimalloc's own bin for a
-   110  ///   48-byte block is 48 and its stride keeps every block 16-aligned (audited:
-   111  ///   100 000 `mi_malloc(48)` pointers, all 16-aligned), so the aligned wrapper
-   112  ///   is being conservative about an alignment the plain bin already has.
-   113  /// * **A slow path.**  `mi_malloc_aligned` is a `noinline` function that
-   114  ///   re-checks and may over-allocate; `mi_malloc` is the inlined fast path.
-   115  ///   Measured on `_tmp/corpus/core.ndjson`, `--verified --jobs=1`: **−4.5 %
-   116  ///   instructions, −5.6 % cycles, −7.4 % wall**, with peak RSS unchanged
-   117  ///   (−0.2 %) because con-ron's *current* block sizes do not straddle a class
-   118  ///   boundary — 56 and 64 are one class either way.  DESIGN.md's task-#92
-   119  ///   entry has the table and the size-class measurements behind it.
-   120  ///
-   121  /// The fallback is kept for `align > 8`: mimalloc in fact guarantees 16, but 8
-   122  /// is what the bin structure gives with no appeal to a documented guarantee,
-   123  /// and nothing con-ron allocates is more aligned than a machine word.  This is
-   124  /// the same `unsafe impl GlobalAlloc` the `mimalloc` crate itself writes, minus
-   125  /// the one conservative branch; it is in the *unverified* crate, invisible to
-   126  /// Charon, and cannot change a verdict (see the note above).
-   127  #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
-   128  pub struct MiMallocTight;
-   129  
+== crates/con-ron-core/src/kernel/expr.rs#L479-L495
+   479  pub fn app(f: Expr, a: Expr) -> Expr {
+   480      let df: u64 = data(&f);
+   481      let da: u64 = data(&a);
+   482      let h: u64 = hash32(name::mix_hash(
+   483          17,
+   484          name::mix_hash(hash_of_data(df), hash_of_data(da)),
+   485      ));
+   486      let d: u64 = pack_data(
+   487          h,
+   488          max_u64(bvar_of_data(df), bvar_of_data(da)),
+   489          max_u64(fvar_of_data(df), fvar_of_data(da)),
+   490          lp_of_data(df) || lp_of_data(da),
+   491      );
+   492      node::alloc_app(d, f, a)
+   493  }
+   494  
+   495  /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
 
 == crates/con-ron-core/src/ron/nat.rs#L1-L8
      1  //! con-leche: none — replaces the runtime's `Nat` (GMP); no Lean source to cite.
@@ -743,20 +815,20 @@
    104    inv : HashMap.Inv name.Name.Insts.Con_ron_coreRonHashmapHashable fe.idx
 
 == proof/ConRon/Refine/Abs.lean#L515-L529
-   515  inductive ExprWF : expr.Expr → Prop where
-   516    | bvar {i e} : expr.bvar i = ok e → ExprWF e
-   517    | fvar {idx ty e} : ExprWF ty → expr.fvar idx ty = ok e → ExprWF e
-   518    | sort {u e} : LevelWF u → expr.sort u = ok e → ExprWF e
-   519    | mk_const {n us e} : NameWF n → LevelsWF us → expr.mk_const n us = ok e → ExprWF e
-   520    | app {f a e} : ExprWF f → ExprWF a → expr.app f a = ok e → ExprWF e
-   521    | lam {ty b m e} : ExprWF ty → ExprWF b → BinderMetaWF m →
-   522        expr.lam ty b m = ok e → ExprWF e
-   523    | forall_e {ty b m e} : ExprWF ty → ExprWF b → BinderMetaWF m →
-   524        expr.forall_e ty b m = ok e → ExprWF e
-   525    | let_e {ty v b e} : ExprWF ty → ExprWF v → ExprWF b →
-   526        expr.let_e ty v b = ok e → ExprWF e
-   527    | lit {l e} : LiteralWF l → expr.lit l = ok e → ExprWF e
-   528    | proj {s i x e} : NameWF s → ExprWF x → expr.proj s i x = ok e → ExprWF e
+   515    | .Lit l => .lit (absLiteral l)
+   516    | .Proj s i e => .proj (absName s) i.val (absExpr e)
+   517  
+   518  end
+   519  
+   520  /-- A `Vec<Expr>` as a `List ConLeche.Expr`. -/
+   521  def absExprs (es : alloc.vec.Vec expr.Expr) : List ConLeche.Expr :=
+   522    es.val.map absExpr
+   523  
+   524  @[simp] theorem absName_mk (h : Std.U64) (k : name.NameKind) :
+   525      absName (.mk (.mk h k)) = absNameKind k := by rw [absName, absNameNode]
+   526  
+   527  @[simp] theorem absLevel_mk (h : Std.U64) (k : level.LevelKind) :
+   528      absLevel (.mk (.mk h k)) = absLevelKind k := by rw [absLevel, absLevelNode]
    529  
 
 == proof/ConRon/Refine/Core/Arms/Shape.lean#L102-L119
@@ -780,14 +852,14 @@
    119  environment is a plain equation against its con-leche value. -/
 
 == proof/ConRon/Refine/Abs.lean#L938-L946
-   938  def ErrSim {γ : Type} (e : kernel.core_types.CheckError)
-   939      (x : Except ConLeche.CheckError γ) : Prop :=
-   940    ∀ k, absErrKind e = some k → ∃ le, x = .error le ∧ lErrKind le = k
-   941  
-   942  /-- The port's own failure claims nothing. -/
-   943  theorem ErrSim.native {γ : Type} {x : Except ConLeche.CheckError γ} (m) :
-   944      ErrSim (.Native m) x := by
-   945    intro k hk; simp at hk
+   938    | .DefnDecl cv v _ => ConstantValWF cv ∧ ExprWF v
+   939    | .ThmDecl cv v => ConstantValWF cv ∧ ExprWF v
+   940    | .OpaqueDecl cv v => ConstantValWF cv ∧ ExprWF v
+   941    | .BasisDecl _ => True
+   942    | .IndDecl block _ => ConstantInfosWF block
+   943    | .QuotDecl _ cv => ConstantValWF cv
+   944  
+   945  /-! ## Axiom census (DESIGN.md §5, the P3 gate)
    946  
 
 == proof/ConRon/Refine/Core/Statements.lean#L191-L194
@@ -906,10 +978,271 @@
     71  @[rust_fun "core::str::{str}::as_bytes"]
     72  def core.str.Str.as_bytes (s : Str) : Result (Slice Std.U8) := ok s
 
+== proof/ConRon/Generated/TypesExternal.lean#L74-L78
+    74  /-- [con_ron_core::ron::tagged::Raw]
+    75      Source: 'crates/con-ron-core/src/ron/tagged.rs'
+    76      Visibility: public -/
+    77  @[reducible, rust_type "con_ron_core::ron::tagged::Raw"]
+    78  def ron.tagged.Raw (T : Type) : Type := T
+
+== crates/con-ron-core/src/ron/tagged.rs#L284-L287
+   284  pub(crate) struct Raw<M> {
+   285      p: NonNull<u8>,
+   286      modeled: PhantomData<M>,
+   287  }
+
+== proof/ConRon/Generated/FunsExternal.lean#L114-L119
+   114      Source: 'crates/con-ron-core/src/ron/node.rs', lines 319:0-367:1
+   115      Visibility: public -/
+   116  @[rust_fun "con_ron_core::ron::node::view"]
+   117  def ron.node.view (e : kernel.expr.Expr) : Result ron.node.ExprView :=
+   118    match e with
+   119    | .mk (.mk _data k) => ok (ron.node.ExprView.ofKind k)
+
+== crates/con-ron-core/src/ron/node.rs#L228-L263
+   228  pub fn view(e: &Expr) -> ExprView<'_> {
+   229      match e.0.tag() {
+   230          TAG_BVAR => ExprView::Bvar(&e.0.cast::<NodeBvar>().i),
+   231          TAG_FVAR => {
+   232              let c: &NodeFvar = e.0.cast::<NodeFvar>();
+   233              ExprView::Fvar(&c.idx, &c.ty)
+   234          }
+   235          TAG_SORT => ExprView::Sort(&e.0.cast::<NodeSort>().u),
+   236          TAG_CONST => {
+   237              let c: &NodeConst = e.0.cast::<NodeConst>();
+   238              ExprView::Const(&c.n, &c.us)
+   239          }
+   240          TAG_APP => {
+   241              let c: &NodeApp = e.0.cast::<NodeApp>();
+   242              ExprView::App(&c.f, &c.a)
+   243          }
+   244          TAG_LAM => {
+   245              let c: &NodeLam = e.0.cast::<NodeLam>();
+   246              ExprView::Lam(&c.ty, &c.body, &c.m)
+   247          }
+   248          TAG_FORALL_E => {
+   249              let c: &NodeForallE = e.0.cast::<NodeForallE>();
+   250              ExprView::ForallE(&c.ty, &c.body, &c.m)
+   251          }
+   252          TAG_LET_E => {
+   253              let c: &NodeLetE = e.0.cast::<NodeLetE>();
+   254              ExprView::LetE(&c.ty, &c.value, &c.body)
+   255          }
+   256          TAG_LIT => ExprView::Lit(&e.0.cast::<NodeLit>().l),
+   257          TAG_PROJ => {
+   258              let c: &NodeProj = e.0.cast::<NodeProj>();
+   259              ExprView::Proj(&c.n, &c.idx, &c.e)
+   260          }
+   261          t => crate::ron::tagged::bad_tag(t),
+   262      }
+   263  }
+
+== proof/ConRon/Generated/FunsExternal.lean#L122-L127
+   122      Source: 'crates/con-ron-core/src/ron/node.rs', lines 477:0-479:1
+   123      Visibility: public -/
+   124  @[rust_fun "con_ron_core::ron::node::data"]
+   125  def ron.node.data (e : kernel.expr.Expr) : Result Std.U64 :=
+   126    match e with
+   127    | .mk (.mk data _k) => ok data
+
+== crates/con-ron-core/src/ron/node.rs#L394-L396
+   394  pub fn data(e: &Expr) -> u64 {
+   395      e.0.header().data
+   396  }
+
+== proof/ConRon/Generated/FunsExternal.lean#L130-L133
+   130      Source: 'crates/con-ron-core/src/ron/node.rs', lines 484:0-491:1
+   131      Visibility: public -/
+   132  @[rust_fun "con_ron_core::ron::node::dup"]
+   133  def ron.node.dup (e : kernel.expr.Expr) : Result kernel.expr.Expr := ok e
+
+== crates/con-ron-core/src/ron/node.rs#L401-L403
+   401  pub fn dup(e: &Expr) -> Expr {
+   402      Expr(e.0.bump())
+   403  }
+
+== proof/ConRon/Generated/FunsExternal.lean#L136-L142
+   136     takes the slow path, and each fast path is discharged by a reflexivity
+   137     lemma about the walk that uses it. -/
+   138  /-- [con_ron_core::ron::node::ptr_eq]:
+   139      Source: 'crates/con-ron-core/src/ron/node.rs', lines 500:0-502:1
+   140      Visibility: public -/
+   141  @[rust_fun "con_ron_core::ron::node::ptr_eq"]
+   142  def ron.node.ptr_eq (_a _b : kernel.expr.Expr) : Result Bool := ok false
+
+== crates/con-ron-core/src/ron/node.rs#L409-L411
+   409  pub fn ptr_eq(a: &Expr, b: &Expr) -> bool {
+   410      ExprHandle::ptr_eq(&a.0, &b.0)
+   411  }
+
+== proof/ConRon/Generated/FunsExternal.lean#L145-L149
+   145      Source: 'crates/con-ron-core/src/ron/node.rs', lines 402:0-404:1
+   146      Visibility: public -/
+   147  @[rust_fun "con_ron_core::ron::node::alloc_bvar"]
+   148  def ron.node.alloc_bvar (data i : Std.U64) : Result kernel.expr.Expr :=
+   149    ok (.mk (.mk data (.Bvar i)))
+
+== crates/con-ron-core/src/ron/node.rs#L272-L274
+   272  pub fn alloc_bvar(data: u64, i: u64) -> Expr {
+   273      Expr(ExprHandle::alloc(data, NodeBvar { i }))
+   274  }
+
+== proof/ConRon/Generated/FunsExternal.lean#L152-L157
+   152      Source: 'crates/con-ron-core/src/ron/node.rs', lines 409:0-411:1
+   153      Visibility: public -/
+   154  @[rust_fun "con_ron_core::ron::node::alloc_fvar"]
+   155  def ron.node.alloc_fvar (data idx : Std.U64) (ty : kernel.expr.Expr) :
+   156    Result kernel.expr.Expr := ok (.mk (.mk data (.Fvar idx ty)))
+   157  
+
+== crates/con-ron-core/src/ron/node.rs#L279-L281
+   279  pub fn alloc_fvar(data: u64, idx: u64, ty: Expr) -> Expr {
+   280      Expr(ExprHandle::alloc(data, NodeFvar { idx, ty }))
+   281  }
+
+== proof/ConRon/Generated/FunsExternal.lean#L160-L164
+   160      Visibility: public -/
+   161  @[rust_fun "con_ron_core::ron::node::alloc_sort"]
+   162  def ron.node.alloc_sort (data : Std.U64) (u : kernel.level.Level) :
+   163    Result kernel.expr.Expr := ok (.mk (.mk data (.«Sort» u)))
+   164  
+
+== crates/con-ron-core/src/ron/node.rs#L286-L288
+   286  pub fn alloc_sort(data: u64, u: Level) -> Expr {
+   287      Expr(ExprHandle::alloc(data, NodeSort { u }))
+   288  }
+
+== proof/ConRon/Generated/FunsExternal.lean#L167-L173
+   167      Visibility: public -/
+   168  @[rust_fun "con_ron_core::ron::node::alloc_const"]
+   169  def ron.node.alloc_const (data : Std.U64) (n : kernel.name.Name)
+   170    (us : alloc.sync.Arc (alloc.vec.Vec kernel.level.Level)) :
+   171    Result kernel.expr.Expr := ok (.mk (.mk data (.Const n us)))
+   172  
+   173  /-- [con_ron_core::ron::node::alloc_app]:
+
+== crates/con-ron-core/src/ron/node.rs#L293-L295
+   293  pub fn alloc_const(data: u64, n: Name, us: P<Vec<Level>>) -> Expr {
+   294      Expr(ExprHandle::alloc(data, NodeConst { n, us }))
+   295  }
+
+== proof/ConRon/Generated/FunsExternal.lean#L176-L181
+   176  @[rust_fun "con_ron_core::ron::node::alloc_app"]
+   177  def ron.node.alloc_app (data : Std.U64) (f a : kernel.expr.Expr) :
+   178    Result kernel.expr.Expr := ok (.mk (.mk data (.App f a)))
+   179  
+   180  /-- [con_ron_core::ron::node::alloc_lam]:
+   181      Source: 'crates/con-ron-core/src/ron/node.rs', lines 437:0-439:1
+
+== crates/con-ron-core/src/ron/node.rs#L300-L302
+   300  pub fn alloc_app(data: u64, f: Expr, a: Expr) -> Expr {
+   301      Expr(ExprHandle::alloc(data, NodeApp { f, a }))
+   302  }
+
+== proof/ConRon/Generated/FunsExternal.lean#L184-L190
+   184  def ron.node.alloc_lam (data : Std.U64) (ty body : kernel.expr.Expr)
+   185    (m : kernel.expr.BinderMeta) : Result kernel.expr.Expr :=
+   186    ok (.mk (.mk data (.Lam ty body m)))
+   187  
+   188  /-- [con_ron_core::ron::node::alloc_forall_e]:
+   189      Source: 'crates/con-ron-core/src/ron/node.rs', lines 444:0-446:1
+   190      Visibility: public -/
+
+== crates/con-ron-core/src/ron/node.rs#L307-L309
+   307  pub fn alloc_lam(data: u64, ty: Expr, body: Expr, m: BinderMeta) -> Expr {
+   308      Expr(ExprHandle::alloc(data, NodeLam { ty, body, m }))
+   309  }
+
+== proof/ConRon/Generated/FunsExternal.lean#L193-L199
+   193    (m : kernel.expr.BinderMeta) : Result kernel.expr.Expr :=
+   194    ok (.mk (.mk data (.ForallE ty body m)))
+   195  
+   196  /-- [con_ron_core::ron::node::alloc_let_e]:
+   197      Source: 'crates/con-ron-core/src/ron/node.rs', lines 451:0-453:1
+   198      Visibility: public -/
+   199  @[rust_fun "con_ron_core::ron::node::alloc_let_e"]
+
+== crates/con-ron-core/src/ron/node.rs#L314-L316
+   314  pub fn alloc_forall_e(data: u64, ty: Expr, body: Expr, m: BinderMeta) -> Expr {
+   315      Expr(ExprHandle::alloc(data, NodeForallE { ty, body, m }))
+   316  }
+
+== proof/ConRon/Generated/FunsExternal.lean#L202-L206
+   202    ok (.mk (.mk data (.LetE ty value body)))
+   203  
+   204  /-- [con_ron_core::ron::node::alloc_lit]:
+   205      Source: 'crates/con-ron-core/src/ron/node.rs', lines 458:0-460:1
+   206      Visibility: public -/
+
+== crates/con-ron-core/src/ron/node.rs#L321-L323
+   321  pub fn alloc_let_e(data: u64, ty: Expr, value: Expr, body: Expr) -> Expr {
+   322      Expr(ExprHandle::alloc(data, NodeLetE { ty, value, body }))
+   323  }
+
+== proof/ConRon/Generated/FunsExternal.lean#L209-L213
+   209    Result kernel.expr.Expr := ok (.mk (.mk data (.Lit l)))
+   210  
+   211  /-- [con_ron_core::ron::node::alloc_proj]:
+   212      Source: 'crates/con-ron-core/src/ron/node.rs', lines 465:0-467:1
+   213      Visibility: public -/
+
+== crates/con-ron-core/src/ron/node.rs#L328-L330
+   328  pub fn alloc_lit(data: u64, l: Literal) -> Expr {
+   329      Expr(ExprHandle::alloc(data, NodeLit { l }))
+   330  }
+
+== proof/ConRon/Generated/FunsExternal.lean#L216-L221
+   216    (idx : Std.U64) (e : kernel.expr.Expr) : Result kernel.expr.Expr :=
+   217    ok (.mk (.mk data (.Proj n idx e)))
+   218  
+   219  /-- [con_ron_core::ron::node::{impl core::ops::drop::Drop for con_ron_core::kernel::expr::Expr}::drop]:
+   220      Source: 'crates/con-ron-core/src/ron/node.rs', lines 566:4-568:5
+   221      Visibility: public -/
+
+== crates/con-ron-core/src/ron/node.rs#L335-L337
+   335  pub fn alloc_proj(data: u64, n: Name, idx: u64, e: Expr) -> Expr {
+   336      Expr(ExprHandle::alloc(data, NodeProj { n, idx, e }))
+   337  }
+
+== proof/ConRon/Generated/FunsExternal.lean#L222-L225
+   222  @[rust_fun
+   223    "con_ron_core::ron::node::{core::ops::drop::Drop<con_ron_core::kernel::expr::Expr>}::drop"]
+   224  def kernel.expr.Expr.Insts.CoreOpsDropDrop.drop (e : kernel.expr.Expr) :
+   225    Result kernel.expr.Expr := ok e
+
+== crates/con-ron-core/src/ron/node.rs#L419-L423
+   419  impl Drop for Expr {
+   420      fn drop(&mut self) {
+   421          release(&self.0)
+   422      }
+   423  }
+
+== crates/con-ron-core/src/ron/tagged.rs#L284-L287
+   284  pub(crate) struct Raw<M> {
+   285      p: NonNull<u8>,
+   286      modeled: PhantomData<M>,
+   287  }
+
+== crates/con-ron-core/src/ron/node.rs#L1-L14
+     1  //! con-leche: none — `Expr`'s instantiation of `ron::tagged` (DESIGN.md §3.2, task #94).
+     2  //!
+     3  //! `ron::node` — **the ten `Expr` cells, as a table**.
+     4  //!
+     5  //! Until task #94 every `Expr` node was a `P<ExprNode>`: a block as wide as
+     6  //! the *widest* `ExprKind` arm, plus a kind word, plus `Arc`'s two counts —
+     7  //! 64 bytes for an `app`, which is 65 % of the live nodes of a real term
+     8  //! (task #88's census) and needs 32.  Lean's own representation does not do
+     9  //! that: the kind is in the object header, and each constructor's object is
+    10  //! as wide as its own fields.
+    11  //!
+    12  //! So the kind moved into the handle, and `ron::tagged` is the machinery that
+    13  //! puts it there.  **This file has no `unsafe` in it** — it is a table of ten
+    14  //! `tag => variant: type` lines, ten struct declarations, and thin wrappers:
+
 == crates/con-ron-dump/src/lib.rs#L174-L176
-   174  #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
-   175  #[global_allocator]
-   176  static GLOBAL_ALLOC: MiMallocTight = MiMallocTight;
+   174          }
+   175      }
+   176  
 
 == Cargo.toml#L17-L21
     17  # The Aeneas model of the code is the checked-arithmetic one (an overflow is
@@ -952,8 +1285,40 @@
     20  //! so the pool cannot report the second failure of a stream that has two —
     21  //! `pool_reports_the_first_failure_at_every_jobs` is the test, at 1, 2, 3, 4
 
+== crates/con-ron-core/src/ron/tagged.rs#L1-L20
+     1  //! con-leche: none — the tagged counted handle of DESIGN.md §3.2 (task #94).
+     2  //!
+     3  //! `ron::tagged` — **the crate's only `unsafe`, and it does not know what an
+     4  //! `Expr` is**.
+     5  //!
+     6  //! One counted handle, one word wide, whose low four bits say which of a
+     7  //! *scheme's* node types the rest of it points at.  Every block is allocated
+     8  //! 16-aligned, which is what frees those four bits; sixteen kinds fit, and
+     9  //! each kind's block is as wide as that kind needs rather than as wide as the
+    10  //! widest.  That is the whole idea, and the measurement behind it is task
+    11  //! #94's report: `Expr`'s nodes go from a flat 64-byte block to 32 or 48
+    12  //! bytes, which is −45 % of Mathlib's peak.
+    13  //!
+    14  //! **This module is generic.**  It names no term type, no constructor and no
+    15  //! kind: a *scheme* is a table, and [`tagged_kinds!`] turns it into the
+    16  //! tag→type dispatch and the release.  `ron::node` is the one instantiation
+    17  //! today (`Expr`'s ten blocks); `Name`, `Level` and `PropWhen` keep
+    18  //! `ron::ptr::P` (DESIGN.md §3.2 — their nodes are not the bulk, and a
+    19  //! uniform block costs them nothing).
+    20  //!
+
+== crates/con-ron-core/src/ron/ptr.rs#L1-L8
+     1  //! con-leche: none — the shared-pointer type of DESIGN.md §3.2; Lean's value semantics have no counterpart.
+     2  //!
+     3  //! `ron::ptr` — **the one place the core names its shared pointer**
+     4  //! (DESIGN.md §3.2, task #44).
+     5  //!
+     6  //! con-leche's terms are persistent trees with sharing, which the port gives
+     7  //! reference counting: `P<T>` is the handle, and the model erases it
+     8  //! (`Arc T := T`, plus four definitions).  Which *concrete* counted pointer
+
 == proof/ConRon/Refine/Abs.lean#L170
-   170  macro "rust_grind" : tactic => `(tactic| grind (ematch := 12) (gen := 24))
+   170    cases k <;> simp [ron.node.ExprView.ofKind]
 
 == proof/lakefile.toml#L24-L26
     24  [leanOptions]

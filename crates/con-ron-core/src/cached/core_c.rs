@@ -123,7 +123,7 @@ use crate::kernel::core_types::CheckM;
 use crate::kernel::env;
 use crate::kernel::env::{CheckMode, ConstantVal, IndCaps, ProjEntry, RecRule, RecRuleFire};
 use crate::kernel::expr;
-use crate::kernel::expr::{BinderMeta, Expr, ExprKind, Literal};
+use crate::kernel::expr::{BinderMeta, Expr, ExprView, Literal};
 use crate::kernel::expr_ops;
 use crate::kernel::fenv;
 use crate::kernel::fenv::FEnv;
@@ -183,8 +183,8 @@ pub fn unfold_definition_i(
     e: &Expr,
 ) -> CheckM<Option<Expr>> {
     let f = expr_ops::get_app_fn(e);
-    match &f.0.kind {
-        ExprKind::Const(n, us) => {
+    match expr::view(&f) {
+        ExprView::Const(n, us) => {
             let n = name::dup(n);
             let us = env::levels_copy(us);
             match defn_lp_count(fe, &n) {
@@ -235,9 +235,9 @@ pub fn reduce_nat_i(
         110, 97, 116, 105, 118, 101, 32, 78, 97, 116, 32, 99, 111, 109, 112, 117, 116, 97, 116,
         105, 111, 110, 32, 111, 110, 32, 108, 105, 116, 101, 114, 97, 108, 115,
     ];
-    match &e.0.kind {
-        ExprKind::App(f, b) => match &f.0.kind {
-            ExprKind::Const(c, us) => {
+    match expr::view(&e) {
+        ExprView::App(f, b) => match expr::view(&f) {
+            ExprView::Const(c, us) => {
                 if us.len() == 0
                     && name::beq(c, &basis_names::nat_succ_name())
                     && core_k::nat_lit_supported(fe)
@@ -256,8 +256,8 @@ pub fn reduce_nat_i(
                     Ok(None)
                 }
             }
-            ExprKind::App(g, a) => match &g.0.kind {
-                ExprKind::Const(c, us) => {
+            ExprView::App(g, a) => match expr::view(&g) {
+                ExprView::Const(c, us) => {
                     if us.len() != 0 {
                         Ok(None)
                     } else if core_k::is_nat_bin_op(c) && core_k::nat_op_stored(fe, c) {
@@ -370,8 +370,8 @@ pub fn iota_certs_i_aux(
     if i >= args.len() {
         Ok(true)
     } else {
-        match &ty.0.kind {
-            ExprKind::ForallE(dom, body, mb) => {
+        match expr::view(&ty) {
+            ExprView::ForallE(dom, body, mb) => {
                 let dom = expr::dup(dom);
                 let body = expr::dup(body);
                 let acc2 = expr_ops::cons_expr(&args[i], acc);
@@ -393,7 +393,7 @@ pub fn iota_certs_i_aux(
                     }
                 }
             }
-            ExprKind::Bvar(_) => {
+            ExprView::Bvar(_) => {
                 if acc.len() == 0 {
                     Ok(false)
                 } else {
@@ -535,9 +535,9 @@ pub fn defeq_spine_i(
 ) -> CheckM<bool> {
     let fa = expr_ops::get_app_fn(a);
     let fb = expr_ops::get_app_fn(b);
-    match &fa.0.kind {
-        ExprKind::Const(n, us) => match &fb.0.kind {
-            ExprKind::Const(n2, us2) => {
+    match expr::view(&fa) {
+        ExprView::Const(n, us) => match expr::view(&fb) {
+            ExprView::Const(n2, us2) => {
                 let args_a = expr_ops::get_app_args(a);
                 let args_b = expr_ops::get_app_args(b);
                 if name::beq(n, n2) && args_a.len() == args_b.len() {
@@ -615,8 +615,8 @@ pub fn prop_legs_i(
         Err(err) => Err(err),
         Ok(tta) => match whnf(mode, fuel, st, fe, depth, &tta) {
             Err(err) => Err(err),
-            Ok(wtta) => match &wtta.0.kind {
-                ExprKind::Sort(u_t) => {
+            Ok(wtta) => match expr::view(&wtta) {
+                ExprView::Sort(u_t) => {
                     let eq_a = state_c::is_equiv_l_m(st, u_t, &level::zero());
                     match core_k::lift_fueled(eq_a) {
                         Err(err) => Err(err),
@@ -627,8 +627,8 @@ pub fn prop_legs_i(
                                 Ok(ttb) => {
                                     match whnf(mode, fuel, st, fe, depth, &ttb) {
                                         Err(err) => Err(err),
-                                        Ok(wttb) => match &wttb.0.kind {
-                                            ExprKind::Sort(v_t) => {
+                                        Ok(wttb) => match expr::view(&wttb) {
+                                            ExprView::Sort(v_t) => {
                                                 let eq_b = state_c::is_equiv_l_m(
                                                     st,
                                                     v_t,
@@ -847,16 +847,16 @@ pub fn struct_eta_cert_with_i(
     wtb: &Expr,
 ) -> CheckM<bool> {
     let fa = expr_ops::get_app_fn(a);
-    match &fa.0.kind {
-        ExprKind::Const(c, us) => match core_k::ctor_probe(fe, c) {
+    match expr::view(&fa) {
+        ExprView::Const(c, us) => match core_k::ctor_probe(fe, c) {
             Some((cvc, cn_p, cn_f)) => {
                 let aargs = expr_ops::get_app_args(a);
                 if aargs.len() as u64 != cn_p + cn_f {
                     Ok(false)
                 } else {
                     let ftb = expr_ops::get_app_fn(wtb);
-                    match &ftb.0.kind {
-                        ExprKind::Const(t, us2) => match core_k::ind_probe(fe, t) {
+                    match expr::view(&ftb) {
+                        ExprView::Const(t, us2) => match core_k::ind_probe(fe, t) {
                             Some((cvt, caps)) => {
                                 let targs = expr_ops::get_app_args(wtb);
                                 if core_k::struct_eta_shape_ok(
@@ -1074,8 +1074,8 @@ pub fn struct_unit_cert_i(
             Err(err) => Err(err),
             Ok(wta) => {
                 let f = expr_ops::get_app_fn(&wta);
-                match &f.0.kind {
-                    ExprKind::Const(t, us2) => match core_k::ind_probe(fe, t) {
+                match expr::view(&f) {
+                    ExprView::Const(t, us2) => match core_k::ind_probe(fe, t) {
                         Some((cvt, caps)) => {
                             let targs = expr_ops::get_app_args(&wta);
                             if core_k::unit_shape_ok(t, us2, &targs, &cvt, &caps) {
@@ -1160,8 +1160,8 @@ pub fn eta_cert_i(
         Err(err) => Err(err),
         Ok(tb) => match whnf(mode, fuel, st, fe, depth, &tb) {
             Err(err) => Err(err),
-            Ok(wtb) => match &wtb.0.kind {
-                ExprKind::ForallE(ty2, _, m2) => {
+            Ok(wtb) => match expr::view(&wtb) {
+                ExprView::ForallE(ty2, _, m2) => {
                     let ty2 = expr::dup(ty2);
                     let pw2 = prop_when::dup(&m2.pw);
                     match defeq(mode, fuel, st, fe, depth, &ty2, ty1) {
@@ -1314,8 +1314,8 @@ pub fn major_to_ctor_i(
             Some((cvj, cn_p, _)) => {
                 let res = expr_ops::pi_result(&cvj.ty);
                 let head = expr_ops::get_app_fn(&res);
-                match &head.0.kind {
-                    ExprKind::Const(t, _) => match core_k::ind_probe(fe, t) {
+                match expr::view(&head) {
+                    ExprView::Const(t, _) => match core_k::ind_probe(fe, t) {
                         Some((cvt, caps)) => {
                             if rl.k {
                                 major_to_ctor_k_i(
@@ -1367,8 +1367,8 @@ pub fn major_to_ctor_k_i(
         Err(err) => Err(err),
         Ok(tmaj) => {
             let head = expr_ops::get_app_fn(&tmaj);
-            match &head.0.kind {
-                ExprKind::Const(t2, ust) => {
+            match expr::view(&head) {
+                ExprView::Const(t2, ust) => {
                     let targs = expr_ops::get_app_args(&tmaj);
                     if !name::beq(t2, t) || cvj.level_params.len() != ust.len() {
                         Ok(expr::dup(major))
@@ -1490,8 +1490,8 @@ pub fn major_to_ctor_eta_i(
         Err(err) => Err(err),
         Ok(tmaj) => {
             let head = expr_ops::get_app_fn(&tmaj);
-            match &head.0.kind {
-                ExprKind::Const(t2, ust) => {
+            match expr::view(&head) {
+                ExprView::Const(t2, ust) => {
                     let targs = expr_ops::get_app_args(&tmaj);
                     if !name::beq(t2, t) {
                         Ok(expr::dup(major))
@@ -1598,8 +1598,8 @@ pub fn major_to_ctor_and_i(
         Err(err) => Err(err),
         Ok(tmaj) => {
             let head = expr_ops::get_app_fn(&tmaj);
-            match &head.0.kind {
-                ExprKind::Const(t2, ust) => {
+            match expr::view(&head) {
+                ExprView::Const(t2, ust) => {
                     let targs = expr_ops::get_app_args(&tmaj);
                     if !name::beq(t2, t) {
                         Ok(expr::dup(major))
@@ -1661,8 +1661,8 @@ pub fn lit_major_to_ctor_i(
     depth: u64,
     e: &Expr,
 ) -> CheckM<Expr> {
-    match &e.0.kind {
-        ExprKind::Lit(Literal::StrVal(s)) => {
+    match expr::view(&e) {
+        ExprView::Lit(Literal::StrVal(s)) => {
             if core_k::str_lit_supported(fe) {
                 let c = core_k::str_lit_to_constructor(s);
                 whnf(mode, fuel, st, fe, depth, &c)
@@ -1688,8 +1688,8 @@ pub fn proj_lit_to_ctor_i(
     depth: u64,
     e: &Expr,
 ) -> CheckM<Expr> {
-    match &e.0.kind {
-        ExprKind::Lit(Literal::StrVal(s)) => {
+    match expr::view(&e) {
+        ExprView::Lit(Literal::StrVal(s)) => {
             if core_k::str_lit_supported(fe) {
                 let c = core_k::str_lit_to_constructor(s);
                 whnf(mode, fuel, st, fe, depth, &c)
@@ -1779,8 +1779,8 @@ pub fn params_as_levels(ps: &Vec<Name>, i: usize, out: Vec<Level>) -> Vec<Level>
 /// con-leche: ConLeche/Cached/CoreC.lean:722-726 iotaNumArgs
 /// The length of an application spine, without building its argument list.
 pub fn iota_num_args(e: &Expr, n: u64) -> u64 {
-    match &e.0.kind {
-        ExprKind::App(f, _) => iota_num_args(f, n + 1),
+    match expr::view(&e) {
+        ExprView::App(f, _) => iota_num_args(f, n + 1),
         _ => n,
     }
 }
@@ -1809,8 +1809,8 @@ pub fn rec_arity_probe(fe: &FEnv, c: &Name) -> Option<(u64, usize)> {
 /// counterpart — the pure `whnfCoreBody` has no spine loop to ask.
 pub fn iota_arity_ok(fe: &FEnv, e: &Expr) -> bool {
     let f = expr_ops::get_app_fn(e);
-    match &f.0.kind {
-        ExprKind::Const(c, us) => match rec_arity_probe(fe, c) {
+    match expr::view(&f) {
+        ExprView::Const(c, us) => match rec_arity_probe(fe, c) {
             Some(p) => iota_num_args(e, 0) == p.0 + 1 && us.len() == p.1,
             None => false,
         },
@@ -1838,8 +1838,8 @@ pub fn iota_rec_i(
     e: &Expr,
 ) -> CheckM<Option<Expr>> {
     let f = expr_ops::get_app_fn(e);
-    match &f.0.kind {
-        ExprKind::Const(c, us) => match core_k::rec_probe(fe, c) {
+    match expr::view(&f) {
+        ExprView::Const(c, us) => match core_k::rec_probe(fe, c) {
             Some((cv, m_i, r_p, rules)) => {
                 let args = expr_ops::get_app_args(e);
                 if (args.len() as u64) == m_i + 1 && us.len() == cv.level_params.len() {
@@ -1888,8 +1888,8 @@ pub fn iota_rec_rule_i(
         121, 32, 114, 101, 99, 117, 114, 115, 111, 114, 32, 114, 117, 108, 101,
     ];
     let fj = expr_ops::get_app_fn(major);
-    match &fj.0.kind {
-        ExprKind::Const(cj, usj) => match core_k::ctor_probe(fe, cj) {
+    match expr::view(&fj) {
+        ExprView::Const(cj, usj) => match core_k::ctor_probe(fe, cj) {
             Some((cvj, _, _)) => match core_k::rules_find(rules, cj, 0) {
                 Some(k) => {
                     let rl = env::rec_rule_dup(&rules[k]);
@@ -2247,8 +2247,8 @@ pub fn whnf_app_i(
     if i >= args.len() {
         Ok(expr::dup(v))
     } else {
-        match &v.0.kind {
-            ExprKind::Lam(ty, body, mb) => {
+        match expr::view(&v) {
+            ExprView::Lam(ty, body, mb) => {
                 let ty = expr::dup(ty);
                 let body = expr::dup(body);
                 if env::beta_skip(mode, &mb.pw) {
@@ -2327,8 +2327,8 @@ pub fn beta_peel_i(
         let e2 = state_c::inst_list_m(st, t, acc, 0);
         whnf_core_loop_i(mode, fuel, st, fe, depth, n, &e2)
     } else {
-        match &t.0.kind {
-            ExprKind::Lam(ty, body, mb) => {
+        match expr::view(&t) {
+            ExprView::Lam(ty, body, mb) => {
                 let ty = expr::dup(ty);
                 let body = expr::dup(body);
                 if env::beta_skip(mode, &mb.pw) {
@@ -2402,14 +2402,14 @@ pub fn whnf_core_step_i(
         119, 104, 110, 102, 32, 98, 101, 121, 111, 110, 100, 32, 116, 104, 101, 32, 115, 117,
         112, 112, 111, 114, 116, 101, 100, 32, 102, 114, 97, 103, 109, 101, 110, 116,
     ];
-    match &e.0.kind {
-        ExprKind::Sort(_) => Ok(expr::dup(e)),
-        ExprKind::Fvar(_, _) => Ok(expr::dup(e)),
-        ExprKind::ForallE(_, _, _) => Ok(expr::dup(e)),
-        ExprKind::Lam(_, _, _) => Ok(expr::dup(e)),
-        ExprKind::Const(_, _) => Ok(expr::dup(e)),
-        ExprKind::Lit(_) => Ok(expr::dup(e)),
-        ExprKind::App(_, _) => {
+    match expr::view(&e) {
+        ExprView::Sort(_) => Ok(expr::dup(e)),
+        ExprView::Fvar(_, _) => Ok(expr::dup(e)),
+        ExprView::ForallE(_, _, _) => Ok(expr::dup(e)),
+        ExprView::Lam(_, _, _) => Ok(expr::dup(e)),
+        ExprView::Const(_, _) => Ok(expr::dup(e)),
+        ExprView::Lit(_) => Ok(expr::dup(e)),
+        ExprView::App(_, _) => {
             let h = expr_ops::get_app_fn(e);
             let args = expr_ops::get_app_args(e);
             match whnf_core(mode, fuel, st, fe, depth, &h) {
@@ -2417,7 +2417,7 @@ pub fn whnf_core_step_i(
                 Ok(v) => whnf_app_i(mode, fuel, st, fe, depth, n, &v, &args, 0),
             }
         }
-        ExprKind::Proj(sn, i, pe) => {
+        ExprView::Proj(sn, i, pe) => {
             let sn = name::dup(sn);
             let i = *i;
             match whnf(mode, fuel, st, fe, depth, pe) {
@@ -2428,10 +2428,10 @@ pub fn whnf_core_step_i(
                 },
             }
         }
-        ExprKind::LetE(_, _, _) => {
+        ExprView::LetE(_, _, _) => {
             Err(core_types::internal(core_types::code_points(&M_LET)))
         }
-        ExprKind::Bvar(_) => Err(core_types::not_implemented(core_types::code_points(
+        ExprView::Bvar(_) => Err(core_types::not_implemented(core_types::code_points(
             &M_BVAR,
         ))),
     }
@@ -2458,8 +2458,8 @@ pub fn whnf_core_proj_i(
     match fenv::find_proj(fe, sn, i) {
         Some(entry) => {
             let f = expr_ops::get_app_fn(e2);
-            match &f.0.kind {
-                ExprKind::Const(c, us) => {
+            match expr::view(&f) {
+                ExprView::Const(c, us) => {
                     let args = expr_ops::get_app_args(e2);
                     if core_k::proj_fire_shape_ok(&entry, c, i, us, &args) {
                         let arg = core_k::get_d_expr(&args, entry.num_params + i);
@@ -2632,8 +2632,8 @@ pub fn ensure_sort_i(
     ];
     match whnf(mode, fuel, st, fe, depth, e) {
         Err(err) => Err(err),
-        Ok(w) => match &w.0.kind {
-            ExprKind::Sort(u) => Ok(level::dup(u)),
+        Ok(w) => match expr::view(&w) {
+            ExprView::Sort(u) => Ok(level::dup(u)),
             _ => Err(core_types::invalid(core_types::code_points(&M))),
         },
     }
@@ -2703,8 +2703,8 @@ pub fn infer_spine_i(
     if i >= args.len() {
         Ok(state_c::inst_list_rev_m(ty, &acc, 0))
     } else {
-        match &ty.0.kind {
-            ExprKind::ForallE(dom, body, _) => {
+        match expr::view(&ty) {
+            ExprView::ForallE(dom, body, _) => {
                 let body = expr::dup(body);
                 let dom2 = state_c::inst_list_rev_m(dom, &acc, 0);
                 match infer(mode, fuel, st, fe, depth, &args[i]) {
@@ -2728,8 +2728,8 @@ pub fn infer_spine_i(
                 let ty2 = state_c::inst_list_rev_m(ty, &acc, 0);
                 match whnf(mode, fuel, st, fe, depth, &ty2) {
                     Err(err) => Err(err),
-                    Ok(w) => match &w.0.kind {
-                        ExprKind::ForallE(dom, body, _) => {
+                    Ok(w) => match expr::view(&w) {
+                        ExprView::ForallE(dom, body, _) => {
                             let dom = expr::dup(dom);
                             let body = expr::dup(body);
                             match infer(mode, fuel, st, fe, depth, &args[i]) {
@@ -2793,8 +2793,8 @@ pub fn infer_spine_io_i(
     if i >= args.len() {
         Ok(state_c::inst_list_rev_m(ty, &acc, 0))
     } else {
-        match &ty.0.kind {
-            ExprKind::ForallE(dom, body, mt) => {
+        match expr::view(&ty) {
+            ExprView::ForallE(dom, body, mt) => {
                 let body = expr::dup(body);
                 // Task #18's rule: a gated certificate whose arms rejoin
                 // must be two tail calls, not a joined `CheckM<()>`.  The
@@ -2824,8 +2824,8 @@ pub fn infer_spine_io_i(
                 let ty2 = state_c::inst_list_rev_m(ty, &acc, 0);
                 match whnf(mode, fuel, st, fe, depth, &ty2) {
                     Err(err) => Err(err),
-                    Ok(w) => match &w.0.kind {
-                        ExprKind::ForallE(dom, body, mt) => {
+                    Ok(w) => match expr::view(&w) {
+                        ExprView::ForallE(dom, body, mt) => {
                             let dom = expr::dup(dom);
                             let body = expr::dup(body);
                             let pw = prop_when::dup(&mt.pw);
@@ -3017,8 +3017,8 @@ pub fn infer_lams_leaf_sort_i(
         Err(err) => Err(err),
         Ok(btt) => match whnf(mode, fuel, st, fe, dk, &btt) {
             Err(err) => Err(err),
-            Ok(wbtt) => match &wbtt.0.kind {
-                ExprKind::Sort(vb) => {
+            Ok(wbtt) => match expr::view(&wbtt) {
+                ExprView::Sort(vb) => {
                     if stk.len() == 0 {
                         Ok(())
                     } else {
@@ -3078,8 +3078,8 @@ pub fn infer_lams_i(
     if peel == 0 {
         infer_lams_leaf_i(mode, fuel, st, fe, d, t, k, &fvs, &stk)
     } else {
-        match &t.0.kind {
-            ExprKind::Lam(ty, body, mb) => {
+        match expr::view(&t) {
+            ExprView::Lam(ty, body, mb) => {
                 let body = expr::dup(body);
                 let mb = expr::binder_meta_dup(mb);
                 let tyo = state_c::inst_list_rev_m(ty, &fvs, 0);
@@ -3178,8 +3178,8 @@ pub fn infer_pis_leaf_i(
         Err(err) => Err(err),
         Ok(bt) => match whnf(mode, fuel, st, fe, d + k, &bt) {
             Err(err) => Err(err),
-            Ok(wbt) => match &wbt.0.kind {
-                ExprKind::Sort(v) => {
+            Ok(wbt) => match expr::view(&wbt) {
+                ExprView::Sort(v) => {
                     let pv = level::zeroness_of(v);
                     match infer_pis_out_i(mode, stk, stk.len(), level::dup(v), &pv) {
                         Err(err) => Err(err),
@@ -3217,8 +3217,8 @@ pub fn infer_pis_i(
     if peel == 0 {
         infer_pis_leaf_i(mode, fuel, st, fe, d, t, k, &fvs, &stk)
     } else {
-        match &t.0.kind {
-            ExprKind::ForallE(ty, body, mb) => {
+        match expr::view(&t) {
+            ExprView::ForallE(ty, body, mb) => {
                 let body = expr::dup(body);
                 let pw = prop_when::dup(&mb.pw);
                 let tyo = state_c::inst_list_rev_m(ty, &fvs, 0);
@@ -3226,8 +3226,8 @@ pub fn infer_pis_i(
                     Err(err) => Err(err),
                     Ok(tty) => match whnf(mode, fuel, st, fe, d + k, &tty) {
                         Err(err) => Err(err),
-                        Ok(wtty) => match &wtty.0.kind {
-                            ExprKind::Sort(u) => {
+                        Ok(wtty) => match expr::view(&wtty) {
+                            ExprView::Sort(u) => {
                                 let u = level::dup(u);
                                 let fv = expr::fvar(d + k, expr::dup(&tyo));
                                 let mut fvs = fvs;
@@ -3348,19 +3348,19 @@ pub fn infer_body_i(
         104, 101, 32, 115, 117, 112, 112, 111, 114, 116, 101, 100, 32, 102, 114, 97, 103, 109,
         101, 110, 116,
     ];
-    match &e.0.kind {
-        ExprKind::Sort(u) => Ok(expr::sort(level::succ(level::dup(u)))),
-        ExprKind::Fvar(idx, ty) => core_k::infer_fvar(*idx, ty, depth),
-        ExprKind::Const(n, us) => infer_const_i(st, fe, n, us),
-        ExprKind::Lit(Literal::NatVal(_)) => core_k::infer_lit_nat(fe),
-        ExprKind::Lit(Literal::StrVal(_)) => core_k::infer_lit_str(fe),
-        ExprKind::ForallE(ty, body, mb) => {
+    match expr::view(&e) {
+        ExprView::Sort(u) => Ok(expr::sort(level::succ(level::dup(u)))),
+        ExprView::Fvar(idx, ty) => core_k::infer_fvar(*idx, ty, depth),
+        ExprView::Const(n, us) => infer_const_i(st, fe, n, us),
+        ExprView::Lit(Literal::NatVal(_)) => core_k::infer_lit_nat(fe),
+        ExprView::Lit(Literal::StrVal(_)) => core_k::infer_lit_str(fe),
+        ExprView::ForallE(ty, body, mb) => {
             infer_forall_i(mode, fuel, st, fe, depth, ty, body, mb)
         }
-        ExprKind::Lam(ty, body, mb) => {
+        ExprView::Lam(ty, body, mb) => {
             infer_lam_i(mode, fuel, st, fe, depth, ty, body, mb)
         }
-        ExprKind::App(_, _) => {
+        ExprView::App(_, _) => {
             let h = expr_ops::get_app_fn(e);
             let args = expr_ops::get_app_args(e);
             match infer(mode, fuel, st, fe, depth, &h) {
@@ -3370,13 +3370,13 @@ pub fn infer_body_i(
                 }
             }
         }
-        ExprKind::Proj(sn, i, pe) => {
+        ExprView::Proj(sn, i, pe) => {
             infer_proj_i(mode, fuel, st, fe, depth, sn, *i, pe, false)
         }
-        ExprKind::LetE(_, _, _) => {
+        ExprView::LetE(_, _, _) => {
             Err(core_types::internal(core_types::code_points(&M_LET)))
         }
-        ExprKind::Bvar(_) => Err(core_types::not_implemented(core_types::code_points(
+        ExprView::Bvar(_) => Err(core_types::not_implemented(core_types::code_points(
             &M_BVAR,
         ))),
     }
@@ -3402,8 +3402,8 @@ pub fn infer_forall_i(
         Err(err) => Err(err),
         Ok(tty) => match whnf(mode, fuel, st, fe, depth, &tty) {
             Err(err) => Err(err),
-            Ok(wtty) => match &wtty.0.kind {
-                ExprKind::Sort(u) => {
+            Ok(wtty) => match expr::view(&wtty) {
+                ExprView::Sort(u) => {
                     let u = level::dup(u);
                     let fv = expr::fvar(depth, expr::dup(ty));
                     let mut fvs: Vec<Expr> = Vec::new();
@@ -3512,8 +3512,8 @@ pub fn infer_proj_at_i(
         116, 32, 97, 32, 110, 97, 116, 105, 118, 101, 32, 101, 110, 116, 114, 121,
     ];
     let f = expr_ops::get_app_fn(te);
-    match &f.0.kind {
-        ExprKind::Const(t, us) => match fenv::find_proj(fe, t, i) {
+    match expr::view(&f) {
+        ExprView::Const(t, us) => match fenv::find_proj(fe, t, i) {
             Some(entry) => {
                 let targs = expr_ops::get_app_args(te);
                 proj_type_at_checked_i(&entry, sn, t, us, &targs, pe)
@@ -3615,8 +3615,8 @@ pub fn infer_body_io_i(
     depth: u64,
     e: &Expr,
 ) -> CheckM<Expr> {
-    match &e.0.kind {
-        ExprKind::App(_, _) => {
+    match expr::view(&e) {
+        ExprView::App(_, _) => {
             let h = expr_ops::get_app_fn(e);
             let args = expr_ops::get_app_args(e);
             match infer_io(mode, fuel, st, fe, depth, &h) {
@@ -3626,13 +3626,13 @@ pub fn infer_body_io_i(
                 }
             }
         }
-        ExprKind::ForallE(ty, body, mb) => {
+        ExprView::ForallE(ty, body, mb) => {
             infer_forall_io_i(mode, fuel, st, fe, depth, ty, body, mb)
         }
-        ExprKind::Lam(ty, body, mb) => {
+        ExprView::Lam(ty, body, mb) => {
             infer_lam_io_i(mode, fuel, st, fe, depth, ty, body, mb)
         }
-        ExprKind::Proj(sn, i, pe) => {
+        ExprView::Proj(sn, i, pe) => {
             infer_proj_i(mode, fuel, st, fe, depth, sn, *i, pe, true)
         }
         _ => infer_body_i(mode, fuel, st, fe, depth, e),
@@ -3665,8 +3665,8 @@ pub fn infer_forall_io_i(
         Err(err) => Err(err),
         Ok(tty) => match whnf(mode, fuel, st, fe, depth, &tty) {
             Err(err) => Err(err),
-            Ok(wtty) => match &wtty.0.kind {
-                ExprKind::Sort(u) => {
+            Ok(wtty) => match expr::view(&wtty) {
+                ExprView::Sort(u) => {
                     let u = level::dup(u);
                     let fv = expr::fvar(depth, expr::dup(ty));
                     let ob = state_c::inst1_m(body, &fv, 0);
@@ -4064,27 +4064,27 @@ pub fn defeq_struct_i(
     a: &Expr,
     b: &Expr,
 ) -> CheckM<bool> {
-    match (&a.0.kind, &b.0.kind) {
-        (ExprKind::Sort(u), ExprKind::Sort(v)) => {
+    match (expr::view(&a), expr::view(&b)) {
+        (ExprView::Sort(u), ExprView::Sort(v)) => {
             let eq = state_c::is_equiv_l_m(st, u, v);
             core_k::lift_fueled(eq)
         }
-        (ExprKind::Lit(l1), ExprKind::Lit(l2)) => Ok(expr::literal_beq(l1, l2)),
-        (ExprKind::Lit(Literal::NatVal(nn)), ExprKind::Const(c, us)) => {
+        (ExprView::Lit(l1), ExprView::Lit(l2)) => Ok(expr::literal_beq(l1, l2)),
+        (ExprView::Lit(Literal::NatVal(nn)), ExprView::Const(c, us)) => {
             if us.len() == 0 && name::beq(c, &basis_names::nat_zero_name()) {
                 Ok(nat::is_zero(nn))
             } else {
                 stuck_irrel_i(mode, fuel, st, fe, depth, a, b)
             }
         }
-        (ExprKind::Const(c, us), ExprKind::Lit(Literal::NatVal(nn))) => {
+        (ExprView::Const(c, us), ExprView::Lit(Literal::NatVal(nn))) => {
             if us.len() == 0 && name::beq(c, &basis_names::nat_zero_name()) {
                 Ok(nat::is_zero(nn))
             } else {
                 stuck_irrel_i(mode, fuel, st, fe, depth, a, b)
             }
         }
-        (ExprKind::Lit(Literal::NatVal(nn)), ExprKind::App(f, x)) => {
+        (ExprView::Lit(Literal::NatVal(nn)), ExprView::App(f, x)) => {
             match core_k::succ_of(nn, f) {
                 Some(k) => {
                     let lk = expr::lit(expr::literal_nat(k));
@@ -4093,7 +4093,7 @@ pub fn defeq_struct_i(
                 None => stuck_irrel_i(mode, fuel, st, fe, depth, a, b),
             }
         }
-        (ExprKind::App(f, x), ExprKind::Lit(Literal::NatVal(nn))) => {
+        (ExprView::App(f, x), ExprView::Lit(Literal::NatVal(nn))) => {
             match core_k::succ_of(nn, f) {
                 Some(k) => {
                     let lk = expr::lit(expr::literal_nat(k));
@@ -4102,7 +4102,7 @@ pub fn defeq_struct_i(
                 None => stuck_irrel_i(mode, fuel, st, fe, depth, a, b),
             }
         }
-        (ExprKind::Lit(Literal::StrVal(s)), ExprKind::App(f, _)) => {
+        (ExprView::Lit(Literal::StrVal(s)), ExprView::App(f, _)) => {
             if core_k::str_expansion_fires(fe, f) {
                 let c = core_k::str_lit_to_constructor(s);
                 defeq(mode, fuel, st, fe, depth, &c, b)
@@ -4110,7 +4110,7 @@ pub fn defeq_struct_i(
                 stuck_irrel_i(mode, fuel, st, fe, depth, a, b)
             }
         }
-        (ExprKind::App(f, _), ExprKind::Lit(Literal::StrVal(s))) => {
+        (ExprView::App(f, _), ExprView::Lit(Literal::StrVal(s))) => {
             if core_k::str_expansion_fires(fe, f) {
                 let c = core_k::str_lit_to_constructor(s);
                 defeq(mode, fuel, st, fe, depth, a, &c)
@@ -4118,14 +4118,14 @@ pub fn defeq_struct_i(
                 stuck_irrel_i(mode, fuel, st, fe, depth, a, b)
             }
         }
-        (ExprKind::Fvar(i, _), ExprKind::Fvar(j, _)) => {
+        (ExprView::Fvar(i, _), ExprView::Fvar(j, _)) => {
             if *i == *j {
                 Ok(true)
             } else {
                 stuck_irrel_i(mode, fuel, st, fe, depth, a, b)
             }
         }
-        (ExprKind::Const(n1, us1), ExprKind::Const(n2, us2)) => {
+        (ExprView::Const(n1, us1), ExprView::Const(n2, us2)) => {
             if name::beq(n1, n2) {
                 let eq = state_c::is_equiv_list_l_m(st, us1, us2);
                 match core_k::lift_fueled(eq) {
@@ -4137,16 +4137,16 @@ pub fn defeq_struct_i(
                 stuck_irrel_i(mode, fuel, st, fe, depth, a, b)
             }
         }
-        (ExprKind::ForallE(t1, b1, m1), ExprKind::ForallE(t2, b2, m2)) => {
+        (ExprView::ForallE(t1, b1, m1), ExprView::ForallE(t2, b2, m2)) => {
             defeq_binders_i(mode, fuel, st, fe, depth, t1, b1, m1, t2, b2, m2, true)
         }
-        (ExprKind::Lam(t1, b1, m1), ExprKind::Lam(t2, b2, m2)) => {
+        (ExprView::Lam(t1, b1, m1), ExprView::Lam(t2, b2, m2)) => {
             defeq_binders_i(mode, fuel, st, fe, depth, t1, b1, m1, t2, b2, m2, false)
         }
-        (ExprKind::App(_, _), ExprKind::App(_, _)) => {
+        (ExprView::App(_, _), ExprView::App(_, _)) => {
             defeq_apps_i(mode, fuel, st, fe, depth, a, b)
         }
-        (ExprKind::Proj(s1, i1, e1), ExprKind::Proj(s2, i2, e2)) => {
+        (ExprView::Proj(s1, i1, e1), ExprView::Proj(s2, i2, e2)) => {
             if name::beq(s1, s2) && *i1 == *i2 {
                 let e1 = expr::dup(e1);
                 let e2 = expr::dup(e2);
@@ -4159,7 +4159,7 @@ pub fn defeq_struct_i(
                 stuck_irrel_i(mode, fuel, st, fe, depth, a, b)
             }
         }
-        (ExprKind::Lam(t1, b1, m1), _) => {
+        (ExprView::Lam(t1, b1, m1), _) => {
             let t1 = expr::dup(t1);
             let b1 = expr::dup(b1);
             let m1 = expr::binder_meta_dup(m1);
@@ -4169,7 +4169,7 @@ pub fn defeq_struct_i(
                 Ok(false) => stuck_irrel_i(mode, fuel, st, fe, depth, a, b),
             }
         }
-        (_, ExprKind::Lam(t2, b2, m2)) => {
+        (_, ExprView::Lam(t2, b2, m2)) => {
             let t2 = expr::dup(t2);
             let b2 = expr::dup(b2);
             let m2 = expr::binder_meta_dup(m2);
@@ -4550,8 +4550,8 @@ pub fn annotate_pis_i(
     if peel == 0 {
         annotate_pis_leaf_i(mode, fuel, st, fe, d, t, k, &fvs, &stk)
     } else {
-        match &t.0.kind {
-            ExprKind::ForallE(ty, body, mb) => {
+        match expr::view(&t) {
+            ExprView::ForallE(ty, body, mb) => {
                 let body = expr::dup(body);
                 let mb = expr::binder_meta_dup(mb);
                 let tyo = state_c::inst_list_rev_m(ty, &fvs, 0);
@@ -4681,8 +4681,8 @@ pub fn annotate_lams_i(
     if peel == 0 {
         annotate_lams_leaf_i(mode, fuel, st, fe, d, t, k, &fvs, &stk)
     } else {
-        match &t.0.kind {
-            ExprKind::Lam(ty, body, mb) => {
+        match expr::view(&t) {
+            ExprView::Lam(ty, body, mb) => {
                 let body = expr::dup(body);
                 let mb = expr::binder_meta_dup(mb);
                 let tyo = state_c::inst_list_rev_m(ty, &fvs, 0);
@@ -4748,50 +4748,50 @@ pub fn annotate_body_i(
         102, 111, 114, 101, 32, 116, 104, 101, 32, 83, 116, 114, 105, 110, 103, 32, 115, 117,
         112, 112, 111, 114, 116, 32, 100, 101, 99, 108, 97, 114, 97, 116, 105, 111, 110, 115,
     ];
-    match &e.0.kind {
-        ExprKind::Bvar(_) => Ok(expr::dup(e)),
-        ExprKind::Fvar(idx, _) => {
+    match expr::view(&e) {
+        ExprView::Bvar(_) => Ok(expr::dup(e)),
+        ExprView::Fvar(idx, _) => {
             if *idx < depth {
                 Ok(expr::dup(e))
             } else {
                 Err(core_types::invalid(core_types::code_points(&M_FVAR)))
             }
         }
-        ExprKind::Sort(_) => Ok(expr::dup(e)),
-        ExprKind::Const(_, _) => Ok(expr::dup(e)),
-        ExprKind::Lit(Literal::NatVal(_)) => {
+        ExprView::Sort(_) => Ok(expr::dup(e)),
+        ExprView::Const(_, _) => Ok(expr::dup(e)),
+        ExprView::Lit(Literal::NatVal(_)) => {
             if core_k::nat_lit_supported(fe) {
                 Ok(expr::dup(e))
             } else {
                 Err(core_types::invalid(core_types::code_points(&M_NAT)))
             }
         }
-        ExprKind::Lit(Literal::StrVal(_)) => {
+        ExprView::Lit(Literal::StrVal(_)) => {
             if core_k::str_lit_supported(fe) {
                 Ok(expr::dup(e))
             } else {
                 Err(core_types::not_implemented(core_types::code_points(&M_STR)))
             }
         }
-        ExprKind::App(f, a) => match annotate(mode, fuel, st, fe, depth, f) {
+        ExprView::App(f, a) => match annotate(mode, fuel, st, fe, depth, f) {
             Err(err) => Err(err),
             Ok(f2) => match annotate(mode, fuel, st, fe, depth, a) {
                 Err(err) => Err(err),
                 Ok(a2) => Ok(expr::app(f2, a2)),
             },
         },
-        ExprKind::ForallE(ty, body, mb) => {
+        ExprView::ForallE(ty, body, mb) => {
             annotate_forall_i(mode, fuel, st, fe, depth, ty, body, mb)
         }
-        ExprKind::Lam(ty, body, mb) => {
+        ExprView::Lam(ty, body, mb) => {
             if state_c::bvar_bound_m(e) == 0 {
                 annotate_lam_loop_i(mode, fuel, st, fe, depth, ty, body, mb)
             } else {
                 annotate_lam_chain_i(mode, fuel, st, fe, depth, ty, body, mb)
             }
         }
-        ExprKind::LetE(ty, v, b) => annotate_let_i(mode, fuel, st, fe, depth, ty, v, b),
-        ExprKind::Proj(sn, i, pe) => {
+        ExprView::LetE(ty, v, b) => annotate_let_i(mode, fuel, st, fe, depth, ty, v, b),
+        ExprView::Proj(sn, i, pe) => {
             annotate_proj_i(mode, fuel, st, fe, depth, sn, *i, pe)
         }
     }
@@ -4992,8 +4992,8 @@ pub fn annotate_proj_i(
             Err(err) => Err(err),
             Ok(te) => {
                 let f = expr_ops::get_app_fn(&te);
-                match &f.0.kind {
-                    ExprKind::Const(t, _) => {
+                match expr::view(&f) {
+                    ExprView::Const(t, _) => {
                         let targs = expr_ops::get_app_args(&te);
                         core_k::annotate_proj_entry(fe, sn, t, i, &e2, &targs)
                     }
@@ -5701,8 +5701,8 @@ mod tests {
             Ok(r) => {
                 assert!(expr::beq(&r, &raw), "a validated chain is unchanged");
                 match core_c::infer(&mode, core_k::check_fuel(), &mut st2, &fe, 0, &r) {
-                    Ok(t) => match &t.0.kind {
-                        crate::kernel::expr::ExprKind::Sort(_) => (),
+                    Ok(t) => match expr::view(&t) {
+                        crate::kernel::expr::ExprView::Sort(_) => (),
                         _ => panic!("a ∀ types as a sort"),
                     },
                     Err(_) => panic!("infer of the annotated chain failed"),

@@ -16,7 +16,7 @@ use crate::kernel::env::{
     CheckMode, ConstantInfo, ConstantVal, IndCaps, RecRule, RecRuleFire,
 };
 use crate::kernel::expr;
-use crate::kernel::expr::{BinderMeta, Expr, ExprKind};
+use crate::kernel::expr::{BinderMeta, Expr, ExprView};
 use crate::kernel::expr_ops;
 use crate::kernel::fenv;
 use crate::kernel::fenv::FEnv;
@@ -80,13 +80,13 @@ pub fn whnf_telescope(
         Err(err) => Err(err),
         Ok(w) => {
             if n == 0 {
-                match &w.0.kind {
-                    ExprKind::Sort(s) => Ok((out, level::dup(s))),
+                match expr::view(&w) {
+                    ExprView::Sort(s) => Ok((out, level::dup(s))),
                     _ => Err(core_types::invalid(core_types::code_points(&M_SORT))),
                 }
             } else {
-                match &w.0.kind {
-                    ExprKind::ForallE(dom, body, bm) => {
+                match expr::view(&w) {
+                    ExprView::ForallE(dom, body, bm) => {
                         let dom2: Expr = expr::dup(dom);
                         let fv: Expr = expr::fvar(i, expr::dup(dom));
                         let opened: Expr = expr_ops::instantiate1(body, &fv, 0);
@@ -135,8 +135,8 @@ pub fn check_sum_tele(
     cv_ta0: &ConstantVal,
 ) -> CheckM<(ConstantVal, Level)> {
     match expr_ops::strip_pis(n, &cv_ta0.ty) {
-        Some(q) => match &q.1 .0.kind {
-            ExprKind::Sort(s) => Ok((env::constant_val_dup(cv_ta0), level::dup(s))),
+        Some(q) => match expr::view(&q.1 ) {
+            ExprView::Sort(s) => Ok((env::constant_val_dup(cv_ta0), level::dup(s))),
             _ => check_sum_tele_whnf(mode, st, fe, cv, n, cv_ta0),
         },
         None => check_sum_tele_whnf(mode, st, fe, cv, n, cv_ta0),
@@ -407,8 +407,8 @@ pub fn norm_pos_dom(
                 if !struct_parts::mentions_const(t, &w) {
                     Ok(w)
                 } else {
-                    match &w.0.kind {
-                        ExprKind::ForallE(dom, body, bm) => {
+                    match expr::view(&w) {
+                        ExprView::ForallE(dom, body, bm) => {
                             if struct_parts::mentions_const(t, dom) {
                                 Err(core_types::invalid(core_types::code_points(&M_NEG)))
                             } else {
@@ -465,8 +465,8 @@ pub fn norm_field_doms(
     if n == 0 {
         Ok((out, expr::dup(e)))
     } else {
-        match &e.0.kind {
-            ExprKind::ForallE(dom, body, bm) => {
+        match expr::view(&e) {
+            ExprView::ForallE(dom, body, bm) => {
                 match norm_pos_dom(mode, st, fe, t, i, 1024, dom) {
                     Err(err) => Err(err),
                     Ok(dom2) => {

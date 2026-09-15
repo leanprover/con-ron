@@ -50,7 +50,7 @@
 
 use crate::kernel::core_k;
 use crate::kernel::expr;
-use crate::kernel::expr::{Expr, ExprKind};
+use crate::kernel::expr::{Expr, ExprView};
 use crate::kernel::expr_ops;
 use crate::kernel::fenv;
 use crate::kernel::fenv::FEnv;
@@ -72,38 +72,38 @@ use crate::ron::hashmap::HashMap;
 /// The four leaf arms answer through the spec walk, as the cited clauses do
 /// (`(Expr.bvar i).constsResolveF fe` and friends): on a leaf it is `O(1)`.
 pub fn consts_resolve_f_go(fe: &FEnv, memo: &mut HashMap<Expr, bool>, e: &Expr) -> bool {
-    match &e.0.kind {
-        ExprKind::Bvar(_) => core_k::consts_resolve(fe, e),
-        ExprKind::Sort(_) => core_k::consts_resolve(fe, e),
-        ExprKind::Lit(_) => core_k::consts_resolve(fe, e),
-        ExprKind::Const(_, _) => core_k::consts_resolve(fe, e),
+    match expr::view(&e) {
+        ExprView::Bvar(_) => core_k::consts_resolve(fe, e),
+        ExprView::Sort(_) => core_k::consts_resolve(fe, e),
+        ExprView::Lit(_) => core_k::consts_resolve(fe, e),
+        ExprView::Const(_, _) => core_k::consts_resolve(fe, e),
         _ => match expr_ops::memo_b_get(memo, e) {
             Some(r) => r,
             None => {
-                let r: bool = match &e.0.kind {
-                    ExprKind::Fvar(_, ty) => consts_resolve_f_go(fe, memo, ty),
-                    ExprKind::App(f, a) => {
+                let r: bool = match expr::view(&e) {
+                    ExprView::Fvar(_, ty) => consts_resolve_f_go(fe, memo, ty),
+                    ExprView::App(f, a) => {
                         let b1: bool = consts_resolve_f_go(fe, memo, f);
                         let b2: bool = consts_resolve_f_go(fe, memo, a);
                         expr_ops::bool_and(b1, b2)
                     }
-                    ExprKind::Lam(ty, body, _) => {
+                    ExprView::Lam(ty, body, _) => {
                         let b1: bool = consts_resolve_f_go(fe, memo, ty);
                         let b2: bool = consts_resolve_f_go(fe, memo, body);
                         expr_ops::bool_and(b1, b2)
                     }
-                    ExprKind::ForallE(ty, body, _) => {
+                    ExprView::ForallE(ty, body, _) => {
                         let b1: bool = consts_resolve_f_go(fe, memo, ty);
                         let b2: bool = consts_resolve_f_go(fe, memo, body);
                         expr_ops::bool_and(b1, b2)
                     }
-                    ExprKind::LetE(ty, val, body) => {
+                    ExprView::LetE(ty, val, body) => {
                         let b1: bool = consts_resolve_f_go(fe, memo, ty);
                         let b2: bool = consts_resolve_f_go(fe, memo, val);
                         let b3: bool = consts_resolve_f_go(fe, memo, body);
                         expr_ops::bool_and3(b1, b2, b3)
                     }
-                    ExprKind::Proj(s, _, sub) => {
+                    ExprView::Proj(s, _, sub) => {
                         let b: bool = consts_resolve_f_go(fe, memo, sub);
                         let ok: bool = fenv::find(fe, s).is_some();
                         expr_ops::bool_and(ok, b)

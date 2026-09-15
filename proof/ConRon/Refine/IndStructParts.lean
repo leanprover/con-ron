@@ -535,7 +535,7 @@ theorem replace_pis_pw_refines_aux (N : Nat) :
       cases he with
       | @forall_e ty bo m e hty hbo hm h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.forall_e_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
         obtain ⟨i, hi, o1, ho1, h⟩ := h
         have hiv : i.val = n := by rw [HashMap.uscalar_sub_eq hi, hn]; scalar_tac
         obtain ⟨habs, hwf⟩ := ih n (by omega) pw i bo b o1 hiv hpw hbo hb ho1
@@ -568,47 +568,47 @@ theorem replace_pis_pw_refines_aux (N : Nat) :
           simp [absBinderMeta]
       | @bvar i e h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.bvar_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.Expr.replacePisPw], by simp⟩
       | @fvar idx ty e hty h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.fvar_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.Expr.replacePisPw], by simp⟩
       | @sort u e hu h1 =>
         obtain ⟨d, bb, -, rfl, -, -, -⟩ := Expr.sort_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.Expr.replacePisPw], by simp⟩
       | @mk_const n2 us e hn2 hus h1 =>
         obtain ⟨d, bb, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.Expr.replacePisPw], by simp⟩
       | @app f a e hf ha h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.app_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.Expr.replacePisPw], by simp⟩
       | @lam ty bo m e hty hbo hm h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.lam_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.Expr.replacePisPw], by simp⟩
       | @let_e ty w bo e hty hw hbo h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.let_e_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.Expr.replacePisPw], by simp⟩
       | @lit l e hl h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.lit_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.Expr.replacePisPw], by simp⟩
       | @proj s i x e hs hx h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.proj_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.Expr.replacePisPw], by simp⟩
 
@@ -653,7 +653,7 @@ theorem pis_to_lams_pw_refines_aux (N : Nat) :
       cases he with
       | @forall_e ty bo m e hty hbo hm h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.forall_e_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
         obtain ⟨i, hi, o1, ho1, h⟩ := h
         have hiv : i.val = n := by rw [HashMap.uscalar_sub_eq hi, hn]; scalar_tac
         obtain ⟨habs, hwf⟩ := ih n (by omega) pw i bo b o1 hiv hpw hbo hb ho1
@@ -686,47 +686,47 @@ theorem pis_to_lams_pw_refines_aux (N : Nat) :
           simp [absBinderMeta]
       | @bvar i e h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.bvar_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.Expr.pisToLamsPw], by simp⟩
       | @fvar idx ty e hty h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.fvar_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.Expr.pisToLamsPw], by simp⟩
       | @sort u e hu h1 =>
         obtain ⟨d, bb, -, rfl, -, -, -⟩ := Expr.sort_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.Expr.pisToLamsPw], by simp⟩
       | @mk_const n2 us e hn2 hus h1 =>
         obtain ⟨d, bb, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.Expr.pisToLamsPw], by simp⟩
       | @app f a e hf ha h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.app_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.Expr.pisToLamsPw], by simp⟩
       | @lam ty bo m e hty hbo hm h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.lam_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.Expr.pisToLamsPw], by simp⟩
       | @let_e ty w bo e hty hw hbo h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.let_e_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.Expr.pisToLamsPw], by simp⟩
       | @lit l e hl h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.lit_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.Expr.pisToLamsPw], by simp⟩
       | @proj s i x e hs hx h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.proj_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.Expr.pisToLamsPw], by simp⟩
 
@@ -1054,7 +1054,7 @@ theorem struct_shape_motive_refines {t : name.Name}
     | ForallE mmaj cod mm =>
       obtain ⟨hmajwf, hcodwf, -⟩ := wf_forall_inv hewf rfl
       obtain ⟨⟨d2, k2⟩⟩ := cod
-      simp only [ExprOps.node_kind] at h
+      simp only [ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       cases k2 with
       | «Sort» u =>
         have huwf : LevelWF u := wf_sort_inv hcodwf rfl
@@ -1100,15 +1100,15 @@ theorem struct_shape_motive_refines {t : name.Name}
       | LetE _ _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
       | Lit _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
       | Proj _ _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
-    | Bvar _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
-    | Fvar _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
-    | «Sort» _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
-    | Const _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
-    | App _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
-    | Lam _ _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
-    | LetE _ _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
-    | Lit _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
-    | Proj _ _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+    | Bvar _ => simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h; rw [← h]; simp
+    | Fvar _ _ => simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h; rw [← h]; simp
+    | «Sort» _ => simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h; rw [← h]; simp
+    | Const _ _ => simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h; rw [← h]; simp
+    | App _ _ => simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h; rw [← h]; simp
+    | Lam _ _ _ => simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h; rw [← h]; simp
+    | LetE _ _ _ => simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h; rw [← h]; simp
+    | Lit _ => simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h; rw [← h]; simp
+    | Proj _ _ _ => simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h; rw [← h]; simp
   · rename_i hge
     have hgev : rbs.val.length ≤ n_p.val := by
       have := alloc.vec.Vec.len_val rbs; scalar_tac
@@ -1377,15 +1377,15 @@ theorem struct_shape_refines {t c : name.Name} {lps : alloc.vec.Vec name.Name}
                   rw [struct_shape_major_refines ht hlps hrbswf (by omega) h,
                     ← hbbe, ← hb1e, ← hb2e, ← hb3e]
                   simp
-    | Bvar _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
-    | Fvar _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
-    | Const _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
-    | App _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
-    | Lam _ _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
-    | ForallE _ _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
-    | LetE _ _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
-    | Lit _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
-    | Proj _ _ _ => simp only [Result.ok.injEq] at h; rw [← h]; simp
+    | Bvar _ => simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h; rw [← h]; simp
+    | Fvar _ _ => simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h; rw [← h]; simp
+    | Const _ _ => simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h; rw [← h]; simp
+    | App _ _ => simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h; rw [← h]; simp
+    | Lam _ _ _ => simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h; rw [← h]; simp
+    | ForallE _ _ _ => simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h; rw [← h]; simp
+    | LetE _ _ _ => simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h; rw [← h]; simp
+    | Lit _ => simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h; rw [← h]; simp
+    | Proj _ _ _ => simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h; rw [← h]; simp
 
 /-- `ConLeche/Kernel/Inductives/StructParts.lean:283-329` —
 `struct_parts_front_ok` refines the block-independent front guards of
@@ -1894,23 +1894,23 @@ theorem struct_parts_core_refines {block : alloc.vec.Vec env.ConstantInfo}
                         exact ⟨by rw [e1]; exact hcvtwf, by rw [e2]; exact hcvcwf,
                           by rw [e3]; exact hcvrwf, Name.anonymous_wf han, hsuwf, hrrwf.2.2⟩
                 | Bvar _ =>
-                  simp only [Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
+                  simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
                 | Fvar _ _ =>
-                  simp only [Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
+                  simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
                 | Const _ _ =>
-                  simp only [Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
+                  simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
                 | App _ _ =>
-                  simp only [Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
+                  simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
                 | Lam _ _ _ =>
-                  simp only [Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
+                  simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
                 | ForallE _ _ _ =>
-                  simp only [Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
+                  simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
                 | LetE _ _ _ =>
-                  simp only [Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
+                  simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
                 | Lit _ =>
-                  simp only [Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
+                  simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
                 | Proj _ _ _ =>
-                  simp only [Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
+                  simp only [ron.node.ExprView.ofKind, Result.ok.injEq] at h6; rw [← h6]; exact ⟨by simp, by simp⟩
         all_goals
           (rw [← Result.ok_injective h3]
            refine ⟨?_, by simp⟩
@@ -2073,7 +2073,7 @@ theorem has_loose_bvar_refines_aux {e : expr.Expr} (he : ExprWF e) :
     intro i b h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.bvar_inv h1
     rw [inductives.struct_parts.has_loose_bvar.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     simp only [absExpr_mk, absExprKind, ConLeche.Expr.hasLooseBVar]
     refine Bool.eq_iff_iff.mpr ?_
@@ -2083,31 +2083,31 @@ theorem has_loose_bvar_refines_aux {e : expr.Expr} (he : ExprWF e) :
     intro i b h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.fvar_inv h1
     rw [inductives.struct_parts.has_loose_bvar.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]; simp [ConLeche.Expr.hasLooseBVar]
   | @sort u e hu h1 =>
     intro i b h
     obtain ⟨d, bw, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     rw [inductives.struct_parts.has_loose_bvar.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]; simp [ConLeche.Expr.hasLooseBVar]
   | @mk_const n us e hn hus h1 =>
     intro i b h
     obtain ⟨d, bw, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     rw [inductives.struct_parts.has_loose_bvar.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]; simp [ConLeche.Expr.hasLooseBVar]
   | @lit l e hl h1 =>
     intro i b h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.lit_inv h1
     rw [inductives.struct_parts.has_loose_bvar.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]; simp [ConLeche.Expr.hasLooseBVar]
   | @app f a e hf ha h1 ihf iha =>
     intro i b h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.app_inv h1
     rw [inductives.struct_parts.has_loose_bvar.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
     have hb1v := ihf i b1 hb1
     simp only [absExpr_mk, absExprKind, ConLeche.Expr.hasLooseBVar]
@@ -2121,7 +2121,7 @@ theorem has_loose_bvar_refines_aux {e : expr.Expr} (he : ExprWF e) :
     intro i b h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.lam_inv h1
     rw [inductives.struct_parts.has_loose_bvar.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
     have hb1v := iht i b1 hb1
     simp only [absExpr_mk, absExprKind, ConLeche.Expr.hasLooseBVar]
@@ -2137,7 +2137,7 @@ theorem has_loose_bvar_refines_aux {e : expr.Expr} (he : ExprWF e) :
     intro i b h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     rw [inductives.struct_parts.has_loose_bvar.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
     have hb1v := iht i b1 hb1
     simp only [absExpr_mk, absExprKind, ConLeche.Expr.hasLooseBVar]
@@ -2153,7 +2153,7 @@ theorem has_loose_bvar_refines_aux {e : expr.Expr} (he : ExprWF e) :
     intro i b h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.let_e_inv h1
     rw [inductives.struct_parts.has_loose_bvar.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
     have hb1v := iht i b1 hb1
     simp only [absExpr_mk, absExprKind, ConLeche.Expr.hasLooseBVar]
@@ -2176,7 +2176,7 @@ theorem has_loose_bvar_refines_aux {e : expr.Expr} (he : ExprWF e) :
     intro i b h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.proj_inv h1
     rw [inductives.struct_parts.has_loose_bvar.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     rw [ih i b h]
     simp [ConLeche.Expr.hasLooseBVar]
 
@@ -2210,7 +2210,7 @@ theorem has_loose_bvar_b_spec_refines_aux {e : expr.Expr} (he : ExprWF e) :
         if_pos (show (absExpr e).bvarB ≤ i.val by rw [← hbbv]; scalar_tac)]
     · rename_i hle
       rw [hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       rw [← Result.ok_injective h, ConLeche.Expr.hasLooseBVarB.eq_def,
         if_neg (show ¬ (absExpr e).bvarB ≤ i.val by rw [← hbbv]; scalar_tac), habs]
       refine Bool.eq_iff_iff.mpr ?_
@@ -2226,7 +2226,7 @@ theorem has_loose_bvar_b_spec_refines_aux {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨i1, hbb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · rw [← Result.ok_injective h, hspec]
-    · simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    · simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       rw [← Result.ok_injective h, hspec]
   | @sort u e hu h1 =>
     intro i b h
@@ -2238,7 +2238,7 @@ theorem has_loose_bvar_b_spec_refines_aux {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨i1, hbb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · rw [← Result.ok_injective h, hspec]
-    · simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    · simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       rw [← Result.ok_injective h, hspec]
   | @mk_const n us e hn hus h1 =>
     intro i b h
@@ -2250,7 +2250,7 @@ theorem has_loose_bvar_b_spec_refines_aux {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨i1, hbb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · rw [← Result.ok_injective h, hspec]
-    · simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    · simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       rw [← Result.ok_injective h, hspec]
   | @lit l e hl h1 =>
     intro i b h
@@ -2262,7 +2262,7 @@ theorem has_loose_bvar_b_spec_refines_aux {e : expr.Expr} (he : ExprWF e) :
     obtain ⟨i1, hbb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · rw [← Result.ok_injective h, hspec]
-    · simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    · simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       rw [← Result.ok_injective h, hspec]
   | @app f a e hf ha h1 ihf iha =>
     intro i b h
@@ -2285,7 +2285,7 @@ theorem has_loose_bvar_b_spec_refines_aux {e : expr.Expr} (he : ExprWF e) :
           if_neg (show ¬ ((absExpr f).app (absExpr a)).bvarB ≤ i.val by
             rw [← habs, ← hbbv]; scalar_tac)]
       rw [hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
       have hb1v := ihf i b1 hb1
       rw [hspec]
@@ -2317,7 +2317,7 @@ theorem has_loose_bvar_b_spec_refines_aux {e : expr.Expr} (he : ExprWF e) :
           if_neg (show ¬ ((absExpr ty).lam (absExpr bo) (absBinderMeta m)).bvarB
               ≤ i.val by rw [← habs, ← hbbv]; scalar_tac)]
       rw [hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
       have hb1v := iht i b1 hb1
       rw [hspec]
@@ -2351,7 +2351,7 @@ theorem has_loose_bvar_b_spec_refines_aux {e : expr.Expr} (he : ExprWF e) :
           if_neg (show ¬ ((absExpr ty).forallE (absExpr bo) (absBinderMeta m)).bvarB
               ≤ i.val by rw [← habs, ← hbbv]; scalar_tac)]
       rw [hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
       have hb1v := iht i b1 hb1
       rw [hspec]
@@ -2386,7 +2386,7 @@ theorem has_loose_bvar_b_spec_refines_aux {e : expr.Expr} (he : ExprWF e) :
           if_neg (show ¬ ((absExpr ty).letE (absExpr w) (absExpr bo)).bvarB
               ≤ i.val by rw [← habs, ← hbbv]; scalar_tac)]
       rw [hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
       have hb1v := iht i b1 hb1
       rw [hspec]
@@ -2425,7 +2425,7 @@ theorem has_loose_bvar_b_spec_refines_aux {e : expr.Expr} (he : ExprWF e) :
           if_neg (show ¬ (ConLeche.Expr.proj (absName s) j.val (absExpr x)).bvarB
               ≤ i.val by rw [← habs, ← hbbv]; scalar_tac)]
       rw [hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       rw [ih i b h, hspec]
 
 /-- `has_loose_bvar_b_spec` at its own statement. -/
@@ -2582,7 +2582,7 @@ theorem has_loose_bvar_b_walk {e : expr.Expr} (he : ExprWF e) :
           rw [ConLeche.Expr.hasLooseBVarB.eq_def,
             if_neg (show ¬ (absExpr e).bvarB ≤ i.val by rw [← hbbv]; scalar_tac), habs]
         rw [hde] at h
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨hr, hmm⟩ := pair_ok h
         rw [← hr, ← hmm, hspec]
         refine ⟨?_, hm⟩
@@ -2610,7 +2610,7 @@ theorem has_loose_bvar_b_walk {e : expr.Expr} (he : ExprWF e) :
         rw [← hr, ← hmm, hspec]
         exact ⟨rfl, hm⟩
       · rename_i hle
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨hr, hmm⟩ := pair_ok h
         rw [← hr, ← hmm, hspec]
         exact ⟨rfl, hm⟩
@@ -2633,7 +2633,7 @@ theorem has_loose_bvar_b_walk {e : expr.Expr} (he : ExprWF e) :
         rw [← hr, ← hmm, hspec]
         exact ⟨rfl, hm⟩
       · rename_i hle
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨hr, hmm⟩ := pair_ok h
         rw [← hr, ← hmm, hspec]
         exact ⟨rfl, hm⟩
@@ -2656,7 +2656,7 @@ theorem has_loose_bvar_b_walk {e : expr.Expr} (he : ExprWF e) :
         rw [← hr, ← hmm, hspec]
         exact ⟨rfl, hm⟩
       · rename_i hle
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨hr, hmm⟩ := pair_ok h
         rw [← hr, ← hmm, hspec]
         exact ⟨rfl, hm⟩
@@ -2679,7 +2679,7 @@ theorem has_loose_bvar_b_walk {e : expr.Expr} (he : ExprWF e) :
         rw [← hr, ← hmm, hspec]
         exact ⟨rfl, hm⟩
       · rename_i hle
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨hr, hmm⟩ := pair_ok h
         rw [← hr, ← hmm, hspec]
         exact ⟨rfl, hm⟩
@@ -2694,7 +2694,7 @@ theorem has_loose_bvar_b_walk {e : expr.Expr} (he : ExprWF e) :
     have hnode : LooseNodeOK e := by
       intro memo memo' i r _ hcut hm h
       rw [inductives.struct_parts.has_loose_bvar_b_node.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨b1, memo1⟩ := p1
       obtain ⟨hb1, hm1⟩ := ihf.1 memo memo1 i b1 hm h1'
@@ -2731,7 +2731,7 @@ theorem has_loose_bvar_b_walk {e : expr.Expr} (he : ExprWF e) :
       exact ⟨rfl, hm⟩
     · rename_i hle
       rw [hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
       rw [← hde] at hkey h
@@ -2746,7 +2746,7 @@ theorem has_loose_bvar_b_walk {e : expr.Expr} (he : ExprWF e) :
     have hnode : LooseNodeOK e := by
       intro memo memo' i r _ hcut hm h
       rw [inductives.struct_parts.has_loose_bvar_b_node.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨b1, memo1⟩ := p1
       obtain ⟨hb1, hm1⟩ := iht.1 memo memo1 i b1 hm h1'
@@ -2787,7 +2787,7 @@ theorem has_loose_bvar_b_walk {e : expr.Expr} (he : ExprWF e) :
       exact ⟨rfl, hm⟩
     · rename_i hle
       rw [hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
       rw [← hde] at hkey h
@@ -2802,7 +2802,7 @@ theorem has_loose_bvar_b_walk {e : expr.Expr} (he : ExprWF e) :
     have hnode : LooseNodeOK e := by
       intro memo memo' i r _ hcut hm h
       rw [inductives.struct_parts.has_loose_bvar_b_node.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨b1, memo1⟩ := p1
       obtain ⟨hb1, hm1⟩ := iht.1 memo memo1 i b1 hm h1'
@@ -2843,7 +2843,7 @@ theorem has_loose_bvar_b_walk {e : expr.Expr} (he : ExprWF e) :
       exact ⟨rfl, hm⟩
     · rename_i hle
       rw [hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
       rw [← hde] at hkey h
@@ -2858,7 +2858,7 @@ theorem has_loose_bvar_b_walk {e : expr.Expr} (he : ExprWF e) :
     have hnode : LooseNodeOK e := by
       intro memo memo' i r _ hcut hm h
       rw [inductives.struct_parts.has_loose_bvar_b_node.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨b1, memo1⟩ := p1
       obtain ⟨hb1, hm1⟩ := iht.1 memo memo1 i b1 hm h1'
@@ -2918,7 +2918,7 @@ theorem has_loose_bvar_b_walk {e : expr.Expr} (he : ExprWF e) :
       exact ⟨rfl, hm⟩
     · rename_i hle
       rw [hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
       rw [← hde] at hkey h
@@ -2932,7 +2932,7 @@ theorem has_loose_bvar_b_walk {e : expr.Expr} (he : ExprWF e) :
     have hnode : LooseNodeOK e := by
       intro memo memo' i r _ hcut hm h
       rw [inductives.struct_parts.has_loose_bvar_b_node.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨hb1, hm1⟩ := ih.1 memo memo' i r hm h
       have hspec : ConLeche.Expr.hasLooseBVarB i.val (absExpr e)
           = ConLeche.Expr.hasLooseBVarB i.val (absExpr x) := by
@@ -2956,7 +2956,7 @@ theorem has_loose_bvar_b_walk {e : expr.Expr} (he : ExprWF e) :
       exact ⟨rfl, hm⟩
     · rename_i hle
       rw [hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
       rw [← hde] at hkey h
@@ -3392,7 +3392,7 @@ theorem struct_proj_bodies_go_refines_aux {t : name.Name} (ht : NameWF t)
       cases he with
       | @forall_e ty bo m e hty hbo hm h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.forall_e_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
         obtain ⟨c, hdup, out1, hpush, e2, he2, next, hnext, i1, hi1, i2, hi2, hrec⟩ := h
         rw [Expr.dup_eq hdup] at hpush
         obtain ⟨he2abs, he2wf⟩ := struct_proj_arg_p_refines ht he2
@@ -3412,47 +3412,47 @@ theorem struct_proj_bodies_go_refines_aux {t : name.Name} (ht : NameWF t)
         | some l => simp
       | @bvar j e h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.bvar_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.structProjBodiesGo], by simp⟩
       | @fvar idx ty e hty h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.fvar_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.structProjBodiesGo], by simp⟩
       | @sort u e hu h1 =>
         obtain ⟨d, bb, -, rfl, -, -, -⟩ := Expr.sort_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.structProjBodiesGo], by simp⟩
       | @mk_const n2 us e hn2 hus h1 =>
         obtain ⟨d, bb, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.structProjBodiesGo], by simp⟩
       | @app f a e hf ha h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.app_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.structProjBodiesGo], by simp⟩
       | @lam ty bo m e hty hbo hm h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.lam_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.structProjBodiesGo], by simp⟩
       | @let_e ty w bo e hty hw hbo h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.let_e_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.structProjBodiesGo], by simp⟩
       | @lit l e hl h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.lit_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.structProjBodiesGo], by simp⟩
       | @proj s j x e hs hx h1 =>
         obtain ⟨d, rfl, -, -, -⟩ := Expr.proj_inv h1
-        simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+        simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
         rw [← Result.ok_injective h, hn]
         exact ⟨by simp [ConLeche.structProjBodiesGo], by simp⟩
 
@@ -3523,28 +3523,28 @@ theorem mentions_const_spec_refines_aux {t : name.Name} (ht : NameWF t)
     intro b h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.bvar_inv h1
     rw [inductives.struct_parts.mentions_const_spec.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     simp [ConLeche.Expr.mentionsConst]
   | @sort u e hu h1 =>
     intro b h
     obtain ⟨d, bw, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     rw [inductives.struct_parts.mentions_const_spec.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     simp [ConLeche.Expr.mentionsConst]
   | @lit l e hl h1 =>
     intro b h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.lit_inv h1
     rw [inductives.struct_parts.mentions_const_spec.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     rw [← Result.ok_injective h]
     simp [ConLeche.Expr.mentionsConst]
   | @mk_const n us e hn hus h1 =>
     intro b h
     obtain ⟨d, bw, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     rw [inductives.struct_parts.mentions_const_spec.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     rw [Name.name_beq_exact' hn ht h]
     simp only [absExpr_mk, absExprKind, ConLeche.Expr.mentionsConst]
     refine Bool.eq_iff_iff.mpr ?_
@@ -3553,14 +3553,14 @@ theorem mentions_const_spec_refines_aux {t : name.Name} (ht : NameWF t)
     intro b h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.fvar_inv h1
     rw [inductives.struct_parts.mentions_const_spec.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     rw [ih b h]
     simp [ConLeche.Expr.mentionsConst]
   | @app f a e hf ha h1 ihf iha =>
     intro b h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.app_inv h1
     rw [inductives.struct_parts.mentions_const_spec.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
     have hb1v := ihf b1 hb1
     simp only [absExpr_mk, absExprKind, ConLeche.Expr.mentionsConst]
@@ -3574,7 +3574,7 @@ theorem mentions_const_spec_refines_aux {t : name.Name} (ht : NameWF t)
     intro b h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.lam_inv h1
     rw [inductives.struct_parts.mentions_const_spec.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
     have hb1v := iht b1 hb1
     simp only [absExpr_mk, absExprKind, ConLeche.Expr.mentionsConst]
@@ -3588,7 +3588,7 @@ theorem mentions_const_spec_refines_aux {t : name.Name} (ht : NameWF t)
     intro b h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     rw [inductives.struct_parts.mentions_const_spec.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
     have hb1v := iht b1 hb1
     simp only [absExpr_mk, absExprKind, ConLeche.Expr.mentionsConst]
@@ -3602,7 +3602,7 @@ theorem mentions_const_spec_refines_aux {t : name.Name} (ht : NameWF t)
     intro b h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.let_e_inv h1
     rw [inductives.struct_parts.mentions_const_spec.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
     have hb1v := iht b1 hb1
     simp only [absExpr_mk, absExprKind, ConLeche.Expr.mentionsConst]
@@ -3623,7 +3623,7 @@ theorem mentions_const_spec_refines_aux {t : name.Name} (ht : NameWF t)
     intro b h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.proj_inv h1
     rw [inductives.struct_parts.mentions_const_spec.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
     have hb1v := Name.name_beq_exact' hs ht hb1
     simp only [absExpr_mk, absExprKind, ConLeche.Expr.mentionsConst]
@@ -3733,14 +3733,14 @@ theorem mentions_const_walk {t : name.Name} (ht : NameWF t) {e : expr.Expr}
     constructor
     · intro memo memo' r hm h
       rw [inductives.struct_parts.mentions_const_go.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq,
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, Result.ok.injEq,
         Prod.mk.injEq] at h
       obtain ⟨hr, hmm⟩ := h
       rw [← hr, ← hmm, hde]
       exact ⟨by simp [ConLeche.Expr.mentionsConst], hm⟩
     · intro memo memo' r hm h
       rw [inductives.struct_parts.mentions_const_node.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
       obtain ⟨b2, hb2, h⟩ := h
       simp only [Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨hr, hmm⟩ := h
@@ -3753,14 +3753,14 @@ theorem mentions_const_walk {t : name.Name} (ht : NameWF t) {e : expr.Expr}
     constructor
     · intro memo memo' r hm h
       rw [inductives.struct_parts.mentions_const_go.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq,
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, Result.ok.injEq,
         Prod.mk.injEq] at h
       obtain ⟨hr, hmm⟩ := h
       rw [← hr, ← hmm, hde]
       exact ⟨by simp [ConLeche.Expr.mentionsConst], hm⟩
     · intro memo memo' r hm h
       rw [inductives.struct_parts.mentions_const_node.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
       obtain ⟨b2, hb2, h⟩ := h
       simp only [Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨hr, hmm⟩ := h
@@ -3773,14 +3773,14 @@ theorem mentions_const_walk {t : name.Name} (ht : NameWF t) {e : expr.Expr}
     constructor
     · intro memo memo' r hm h
       rw [inductives.struct_parts.mentions_const_go.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, Result.ok.injEq,
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, Result.ok.injEq,
         Prod.mk.injEq] at h
       obtain ⟨hr, hmm⟩ := h
       rw [← hr, ← hmm, hde]
       exact ⟨by simp [ConLeche.Expr.mentionsConst], hm⟩
     · intro memo memo' r hm h
       rw [inductives.struct_parts.mentions_const_node.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
       obtain ⟨b2, hb2, h⟩ := h
       simp only [Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨hr, hmm⟩ := h
@@ -3793,7 +3793,7 @@ theorem mentions_const_walk {t : name.Name} (ht : NameWF t) {e : expr.Expr}
     constructor
     · intro memo memo' r hm h
       rw [inductives.struct_parts.mentions_const_go.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
       obtain ⟨b2, hb2, h⟩ := h
       simp only [Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨hr, hmm⟩ := h
@@ -3804,7 +3804,7 @@ theorem mentions_const_walk {t : name.Name} (ht : NameWF t) {e : expr.Expr}
       simp
     · intro memo memo' r hm h
       rw [inductives.struct_parts.mentions_const_node.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind, bind_eq_ok_iff] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_eq_ok_iff] at h
       obtain ⟨b2, hb2, h⟩ := h
       simp only [Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨hr, hmm⟩ := h
@@ -3817,13 +3817,13 @@ theorem mentions_const_walk {t : name.Name} (ht : NameWF t) {e : expr.Expr}
     have hnode : NodeOK t e := by
       intro memo memo' r hm h
       rw [inductives.struct_parts.mentions_const_node.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨hr, hm'⟩ := ih.1 memo memo' r hm h
       exact ⟨by rw [hr, habs]; simp [ConLeche.Expr.mentionsConst], hm'⟩
     refine ⟨?_, hnode⟩
     intro memo memo' r hm h
     rw [inductives.struct_parts.mentions_const_go.eq_def, hde] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
     rw [← hde] at hprobe h
     exact mentions_probe_step hewf hnode hm h hprobe
@@ -3834,7 +3834,7 @@ theorem mentions_const_walk {t : name.Name} (ht : NameWF t) {e : expr.Expr}
     have hnode : NodeOK t e := by
       intro memo memo' r hm h
       rw [inductives.struct_parts.mentions_const_node.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨b1, memo1⟩ := p1
       obtain ⟨hb1, hm1⟩ := ihf.1 memo memo1 b1 hm h1'
@@ -3851,7 +3851,7 @@ theorem mentions_const_walk {t : name.Name} (ht : NameWF t) {e : expr.Expr}
     refine ⟨?_, hnode⟩
     intro memo memo' r hm h
     rw [inductives.struct_parts.mentions_const_go.eq_def, hde] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
     rw [← hde] at hprobe h
     exact mentions_probe_step hewf hnode hm h hprobe
@@ -3863,7 +3863,7 @@ theorem mentions_const_walk {t : name.Name} (ht : NameWF t) {e : expr.Expr}
     have hnode : NodeOK t e := by
       intro memo memo' r hm h
       rw [inductives.struct_parts.mentions_const_node.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨b1, memo1⟩ := p1
       obtain ⟨hb1, hm1⟩ := iht.1 memo memo1 b1 hm h1'
@@ -3880,7 +3880,7 @@ theorem mentions_const_walk {t : name.Name} (ht : NameWF t) {e : expr.Expr}
     refine ⟨?_, hnode⟩
     intro memo memo' r hm h
     rw [inductives.struct_parts.mentions_const_go.eq_def, hde] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
     rw [← hde] at hprobe h
     exact mentions_probe_step hewf hnode hm h hprobe
@@ -3892,7 +3892,7 @@ theorem mentions_const_walk {t : name.Name} (ht : NameWF t) {e : expr.Expr}
     have hnode : NodeOK t e := by
       intro memo memo' r hm h
       rw [inductives.struct_parts.mentions_const_node.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨b1, memo1⟩ := p1
       obtain ⟨hb1, hm1⟩ := iht.1 memo memo1 b1 hm h1'
@@ -3909,7 +3909,7 @@ theorem mentions_const_walk {t : name.Name} (ht : NameWF t) {e : expr.Expr}
     refine ⟨?_, hnode⟩
     intro memo memo' r hm h
     rw [inductives.struct_parts.mentions_const_go.eq_def, hde] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
     rw [← hde] at hprobe h
     exact mentions_probe_step hewf hnode hm h hprobe
@@ -3921,7 +3921,7 @@ theorem mentions_const_walk {t : name.Name} (ht : NameWF t) {e : expr.Expr}
     have hnode : NodeOK t e := by
       intro memo memo' r hm h
       rw [inductives.struct_parts.mentions_const_node.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨b1, memo1⟩ := p1
       obtain ⟨hb1, hm1⟩ := iht.1 memo memo1 b1 hm h1'
@@ -3953,7 +3953,7 @@ theorem mentions_const_walk {t : name.Name} (ht : NameWF t) {e : expr.Expr}
     refine ⟨?_, hnode⟩
     intro memo memo' r hm h
     rw [inductives.struct_parts.mentions_const_go.eq_def, hde] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
     rw [← hde] at hprobe h
     exact mentions_probe_step hewf hnode hm h hprobe
@@ -3964,7 +3964,7 @@ theorem mentions_const_walk {t : name.Name} (ht : NameWF t) {e : expr.Expr}
     have hnode : NodeOK t e := by
       intro memo memo' r hm h
       rw [inductives.struct_parts.mentions_const_node.eq_def, hde] at h
-      simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+      simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
       obtain ⟨p1, h1', h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨b1, memo1⟩ := p1
       obtain ⟨hb1, hm1⟩ := ih.1 memo memo1 b1 hm h1'
@@ -3987,7 +3987,7 @@ theorem mentions_const_walk {t : name.Name} (ht : NameWF t) {e : expr.Expr}
     refine ⟨?_, hnode⟩
     intro memo memo' r hm h
     rw [inductives.struct_parts.mentions_const_go.eq_def, hde] at h
-    simp only [arc_deref_eq, bind_tc_ok, ExprOps.node_kind] at h
+    simp only [expr_view_eq, bind_tc_ok, ExprOps.node_kind, ron.node.ExprView.ofKind] at h
     obtain ⟨o, hprobe, h⟩ := bind_eq_ok_iff.mp h
     rw [← hde] at hprobe h
     exact mentions_probe_step hewf hnode hm h hprobe

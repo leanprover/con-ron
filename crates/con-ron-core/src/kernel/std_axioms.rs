@@ -54,7 +54,7 @@ use crate::kernel::basis_pins;
 use crate::kernel::env;
 use crate::kernel::env::{ConstantInfo, ConstantVal};
 use crate::kernel::expr;
-use crate::kernel::expr::{Expr, ExprKind};
+use crate::kernel::expr::{Expr, ExprView};
 use crate::kernel::fenv;
 use crate::kernel::fenv::FEnv;
 use crate::kernel::level;
@@ -137,21 +137,21 @@ pub fn nonempty_rec_name() -> Name {
 /// executed comparison is `erase_pw_eq` below (`@[csimp]`).  Ported, and
 /// uncalled, so the provenance gate stays in step with its source.
 pub fn erase_pw(e: &Expr) -> Expr {
-    match &e.0.kind {
-        ExprKind::Bvar(i) => expr::bvar(*i),
-        ExprKind::Fvar(i, ty) => expr::fvar(*i, erase_pw(ty)),
-        ExprKind::Sort(u) => expr::sort(level::dup(u)),
-        ExprKind::Const(n, us) => expr::mk_const(name::dup(n), env::levels_copy(us)),
-        ExprKind::App(f, a) => expr::app(erase_pw(f), erase_pw(a)),
-        ExprKind::Lam(ty, b, _) => {
+    match expr::view(&e) {
+        ExprView::Bvar(i) => expr::bvar(*i),
+        ExprView::Fvar(i, ty) => expr::fvar(*i, erase_pw(ty)),
+        ExprView::Sort(u) => expr::sort(level::dup(u)),
+        ExprView::Const(n, us) => expr::mk_const(name::dup(n), env::levels_copy(us)),
+        ExprView::App(f, a) => expr::app(erase_pw(f), erase_pw(a)),
+        ExprView::Lam(ty, b, _) => {
             expr::lam(erase_pw(ty), erase_pw(b), basis_builder::never_meta())
         }
-        ExprKind::ForallE(ty, b, _) => {
+        ExprView::ForallE(ty, b, _) => {
             expr::forall_e(erase_pw(ty), erase_pw(b), basis_builder::never_meta())
         }
-        ExprKind::LetE(ty, v, b) => expr::let_e(erase_pw(ty), erase_pw(v), erase_pw(b)),
-        ExprKind::Lit(l) => expr::lit(expr::literal_dup(l)),
-        ExprKind::Proj(s, i, sub) => expr::proj(name::dup(s), *i, erase_pw(sub)),
+        ExprView::LetE(ty, v, b) => expr::let_e(erase_pw(ty), erase_pw(v), erase_pw(b)),
+        ExprView::Lit(l) => expr::lit(expr::literal_dup(l)),
+        ExprView::Proj(s, i, sub) => expr::proj(name::dup(s), *i, erase_pw(sub)),
     }
 }
 
@@ -178,45 +178,45 @@ pub fn matches_pin(cv: &ConstantVal, pin: &ConstantVal) -> bool {
 /// pin's shape, so the walk is bounded by the PIN's tree size however large
 /// the stream side is.
 pub fn erase_pw_eq(a: &Expr, b: &Expr) -> bool {
-    match (&a.0.kind, &b.0.kind) {
-        (ExprKind::Bvar(i), ExprKind::Bvar(j)) => *i == *j,
-        (ExprKind::Fvar(i, t), ExprKind::Fvar(j, t2)) => {
+    match (expr::view(&a), expr::view(&b)) {
+        (ExprView::Bvar(i), ExprView::Bvar(j)) => *i == *j,
+        (ExprView::Fvar(i, t), ExprView::Fvar(j, t2)) => {
             if *i == *j {
                 erase_pw_eq(t, t2)
             } else {
                 false
             }
         }
-        (ExprKind::Sort(u), ExprKind::Sort(v)) => level::beq(u, v),
-        (ExprKind::Const(n, us), ExprKind::Const(n2, us2)) => {
+        (ExprView::Sort(u), ExprView::Sort(v)) => level::beq(u, v),
+        (ExprView::Const(n, us), ExprView::Const(n2, us2)) => {
             if name::beq(n, n2) {
                 expr::levels_beq(us, us2)
             } else {
                 false
             }
         }
-        (ExprKind::App(f, x), ExprKind::App(f2, x2)) => {
+        (ExprView::App(f, x), ExprView::App(f2, x2)) => {
             if erase_pw_eq(f, f2) {
                 erase_pw_eq(x, x2)
             } else {
                 false
             }
         }
-        (ExprKind::Lam(t, b, _), ExprKind::Lam(t2, b2, _)) => {
+        (ExprView::Lam(t, b, _), ExprView::Lam(t2, b2, _)) => {
             if erase_pw_eq(t, t2) {
                 erase_pw_eq(b, b2)
             } else {
                 false
             }
         }
-        (ExprKind::ForallE(t, b, _), ExprKind::ForallE(t2, b2, _)) => {
+        (ExprView::ForallE(t, b, _), ExprView::ForallE(t2, b2, _)) => {
             if erase_pw_eq(t, t2) {
                 erase_pw_eq(b, b2)
             } else {
                 false
             }
         }
-        (ExprKind::LetE(t, v, b), ExprKind::LetE(t2, v2, b2)) => {
+        (ExprView::LetE(t, v, b), ExprView::LetE(t2, v2, b2)) => {
             if erase_pw_eq(t, t2) {
                 if erase_pw_eq(v, v2) {
                     erase_pw_eq(b, b2)
@@ -227,8 +227,8 @@ pub fn erase_pw_eq(a: &Expr, b: &Expr) -> bool {
                 false
             }
         }
-        (ExprKind::Lit(l), ExprKind::Lit(l2)) => expr::literal_beq(l, l2),
-        (ExprKind::Proj(s, i, e), ExprKind::Proj(s2, j, e2)) => {
+        (ExprView::Lit(l), ExprView::Lit(l2)) => expr::literal_beq(l, l2),
+        (ExprView::Proj(s, i, e), ExprView::Proj(s2, j, e2)) => {
             if name::beq(s, s2) {
                 if *i == *j {
                     erase_pw_eq(e, e2)
@@ -786,10 +786,10 @@ mod tests {
 
     fn rewrite_pw(e: &Expr) -> Expr {
         let m = expr::binder_meta(prop_when::if_all_zero(Vec::new()));
-        match &e.0.kind {
-            expr::ExprKind::ForallE(t, b, _) => expr::forall_e(rewrite_pw(t), rewrite_pw(b), m),
-            expr::ExprKind::Lam(t, b, _) => expr::lam(rewrite_pw(t), rewrite_pw(b), m),
-            expr::ExprKind::App(f, a) => expr::app(rewrite_pw(f), rewrite_pw(a)),
+        match expr::view(&e) {
+            expr::ExprView::ForallE(t, b, _) => expr::forall_e(rewrite_pw(t), rewrite_pw(b), m),
+            expr::ExprView::Lam(t, b, _) => expr::lam(rewrite_pw(t), rewrite_pw(b), m),
+            expr::ExprView::App(f, a) => expr::app(rewrite_pw(f), rewrite_pw(a)),
             _ => expr::dup(e),
         }
     }

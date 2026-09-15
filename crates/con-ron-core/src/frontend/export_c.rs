@@ -143,7 +143,7 @@ use crate::kernel::env::{
     ConstantInfo, ConstantVal, Declaration, QuotKind, RecRule, ReducibilityHint,
 };
 use crate::kernel::expr;
-use crate::kernel::expr::{Expr, ExprKind};
+use crate::kernel::expr::{Expr, ExprView};
 use crate::kernel::expr_ops;
 use crate::kernel::level;
 use crate::kernel::level::Level;
@@ -769,9 +769,9 @@ pub fn parse_cv_d(st: &StateD, cv: &CVRec) -> Result<ConstantVal, LineErr> {
 /// `note_proj_iota` on a record the in-process modeller generated.
 pub fn proj_rewrite_d(st: &StateD, cv: &ConstantVal, vl: &Expr) -> Option<Expr> {
     let body = proj_rec::lam_body(vl);
-    let (t, i) = match &body.0.kind {
-        ExprKind::Proj(t, i, sub) => match &sub.0.kind {
-            ExprKind::Bvar(k) => {
+    let (t, i) = match expr::view(&body) {
+        ExprView::Proj(t, i, sub) => match expr::view(&sub) {
+            ExprView::Bvar(k) => {
                 if *k == 0 {
                     (name::dup(t), *i)
                 } else {
@@ -927,8 +927,8 @@ pub fn ind_pi_tele_len(e: &Expr) -> u64 {
 /// caller's guard has already stopped, so the arm is unreachable and returns
 /// the node itself.
 fn ind_pi_body(e: &Expr) -> Expr {
-    match &e.0.kind {
-        ExprKind::ForallE(_, b, _) => expr::dup(b),
+    match expr::view(&e) {
+        ExprView::ForallE(_, b, _) => expr::dup(b),
         _ => expr::dup(e),
     }
 }
@@ -1676,8 +1676,8 @@ pub fn k_expected_of(
         return Some(false);
     }
     let res = expr_ops::pi_result(&ty_types[0]);
-    match &res.0.kind {
-        ExprKind::Sort(s) => {
+    match expr::view(&res) {
+        ExprView::Sort(s) => {
             let z = level::zero();
             let is_prop = match level::is_equiv(s, &z) {
                 Some(b) => b,

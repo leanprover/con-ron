@@ -78,7 +78,7 @@ use crate::kernel::core_k;
 use crate::kernel::env;
 use crate::kernel::env::{ConstantInfo, Declaration};
 use crate::kernel::expr;
-use crate::kernel::expr::{Expr, ExprKind};
+use crate::kernel::expr::{Expr, ExprView};
 use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::ron::hashmap::HashMap;
@@ -187,41 +187,41 @@ pub fn used_consts_go(seen: &mut HashMap<Expr, bool>, acc: Vec<Name>, e: &Expr) 
         let x = expr::dup(&stack[sp]);
         if !seen.contains_key(&x) {
             seen.insert(expr::dup(&x), true);
-            match &x.0.kind {
-                ExprKind::Const(n, _) => acc.push(name::dup(n)),
-                ExprKind::App(f, a) => {
+            match expr::view(&x) {
+                ExprView::Const(n, _) => acc.push(name::dup(n)),
+                ExprView::App(f, a) => {
                     let r1 = stack_push_expr(stack, sp, expr::dup(a));
                     let r2 = stack_push_expr(r1.0, r1.1, expr::dup(f));
                     stack = r2.0;
                     sp = r2.1;
                 }
-                ExprKind::Lam(ty, b, _) | ExprKind::ForallE(ty, b, _) => {
+                ExprView::Lam(ty, b, _) | ExprView::ForallE(ty, b, _) => {
                     let r1 = stack_push_expr(stack, sp, expr::dup(b));
                     let r2 = stack_push_expr(r1.0, r1.1, expr::dup(ty));
                     stack = r2.0;
                     sp = r2.1;
                 }
-                ExprKind::LetE(ty, v, b) => {
+                ExprView::LetE(ty, v, b) => {
                     let r1 = stack_push_expr(stack, sp, expr::dup(b));
                     let r2 = stack_push_expr(r1.0, r1.1, expr::dup(v));
                     let r3 = stack_push_expr(r2.0, r2.1, expr::dup(ty));
                     stack = r3.0;
                     sp = r3.1;
                 }
-                ExprKind::Proj(sn, _, sub) => {
+                ExprView::Proj(sn, _, sub) => {
                     acc.push(name::dup(sn));
                     let r1 = stack_push_expr(stack, sp, expr::dup(sub));
                     stack = r1.0;
                     sp = r1.1;
                 }
-                ExprKind::Fvar(_, ty) => {
+                ExprView::Fvar(_, ty) => {
                     let r1 = stack_push_expr(stack, sp, expr::dup(ty));
                     stack = r1.0;
                     sp = r1.1;
                 }
-                ExprKind::Bvar(_) => {}
-                ExprKind::Sort(_) => {}
-                ExprKind::Lit(_) => {}
+                ExprView::Bvar(_) => {}
+                ExprView::Sort(_) => {}
+                ExprView::Lit(_) => {}
             }
         }
     }

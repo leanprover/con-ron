@@ -23,7 +23,7 @@
 use crate::kernel::env;
 use crate::kernel::env::ConstantVal;
 use crate::kernel::expr;
-use crate::kernel::expr::{Expr, ExprKind};
+use crate::kernel::expr::{Expr, ExprView};
 use crate::kernel::expr_ops;
 use crate::kernel::fenv;
 use crate::kernel::fenv::FEnv;
@@ -41,8 +41,8 @@ pub fn peel_never_pis(k: u64, e: &Expr) -> Option<Expr> {
     if k == 0 {
         Some(expr::dup(e))
     } else {
-        match &e.0.kind {
-            ExprKind::ForallE(_, b, m) => {
+        match expr::view(&e) {
+            ExprView::ForallE(_, b, m) => {
                 if prop_when::is_never(&m.pw) {
                     peel_never_pis(k - 1, b)
                 } else {
@@ -57,8 +57,8 @@ pub fn peel_never_pis(k: u64, e: &Expr) -> Option<Expr> {
 /// con-leche: ConLeche/Kernel/PropRead.lean:58-61 Expr.numArgs
 /// The number of arguments of an application spine.
 pub fn num_args(e: &Expr) -> u64 {
-    match &e.0.kind {
-        ExprKind::App(f, _) => num_args(f) + 1,
+    match expr::view(&e) {
+        ExprView::App(f, _) => num_args(f) + 1,
         _ => 0,
     }
 }
@@ -69,8 +69,8 @@ pub fn num_args(e: &Expr) -> u64 {
 /// always a fresh `peel_never_pis` result.
 pub fn residual_pw(e: Option<Expr>) -> Option<PropWhen> {
     match e {
-        Some(r) => match &r.0.kind {
-            ExprKind::Sort(u) => Some(level::zeroness_of(u)),
+        Some(r) => match expr::view(&r) {
+            ExprView::Sort(u) => Some(level::zeroness_of(u)),
             _ => None,
         },
         None => None,
@@ -114,15 +114,15 @@ pub fn stored_cv_at(fe: &FEnv, n: &Name, n_us: usize) -> Option<ConstantVal> {
 /// `residual_pw`.  The cited `Option.map` is an explicit `match` (§3.4 forbids
 /// closures).
 pub fn head_type_pw(fe: &FEnv, e: &Expr, n: u64) -> Option<PropWhen> {
-    match &e.0.kind {
-        ExprKind::Const(i, us) => match stored_cv_at(fe, i, us.len()) {
+    match expr::view(&e) {
+        ExprView::Const(i, us) => match stored_cv_at(fe, i, us.len()) {
             Some(cv) => match residual_pw(peel_never_pis(n, &cv.ty)) {
                 Some(pw) => Some(level::subst_pw(&cv.level_params, us, &pw)),
                 None => None,
             },
             None => None,
         },
-        ExprKind::Fvar(_, ty) => residual_pw(peel_never_pis(n, ty)),
+        ExprView::Fvar(_, ty) => residual_pw(peel_never_pis(n, ty)),
         _ => None,
     }
 }
@@ -131,9 +131,9 @@ pub fn head_type_pw(fe: &FEnv, e: &Expr, n: u64) -> Option<PropWhen> {
 /// The zero-ness datum of the sort of the *type* `t` ("is `t` a
 /// proposition?"), read off `t`'s head symbol and the annotations.
 pub fn type_sort_pw(fe: &FEnv, t: &Expr) -> Option<PropWhen> {
-    match &t.0.kind {
-        ExprKind::ForallE(_, _, m) => Some(prop_when::dup(&m.pw)),
-        ExprKind::Sort(_) => Some(prop_when::never()),
+    match expr::view(&t) {
+        ExprView::ForallE(_, _, m) => Some(prop_when::dup(&m.pw)),
+        ExprView::Sort(_) => Some(prop_when::never()),
         _ => head_type_pw(fe, &expr_ops::get_app_fn(t), num_args(t)),
     }
 }
@@ -143,18 +143,18 @@ pub fn type_sort_pw(fe: &FEnv, t: &Expr) -> Option<PropWhen> {
 /// stored type (prop-ness is invariant under application), an fvar head from
 /// its declared type; sorts, ∀s and literals are never proofs.
 pub fn head_proof_pw(fe: &FEnv, e: &Expr) -> Option<PropWhen> {
-    match &e.0.kind {
-        ExprKind::Const(c, us) => match stored_cv_at(fe, c, us.len()) {
+    match expr::view(&e) {
+        ExprView::Const(c, us) => match stored_cv_at(fe, c, us.len()) {
             Some(cv) => match type_sort_pw(fe, &cv.ty) {
                 Some(pw) => Some(level::subst_pw(&cv.level_params, us, &pw)),
                 None => None,
             },
             None => None,
         },
-        ExprKind::Fvar(_, ty) => type_sort_pw(fe, ty),
-        ExprKind::Sort(_) => Some(prop_when::never()),
-        ExprKind::ForallE(_, _, _) => Some(prop_when::never()),
-        ExprKind::Lit(_) => Some(prop_when::never()),
+        ExprView::Fvar(_, ty) => type_sort_pw(fe, ty),
+        ExprView::Sort(_) => Some(prop_when::never()),
+        ExprView::ForallE(_, _, _) => Some(prop_when::never()),
+        ExprView::Lit(_) => Some(prop_when::never()),
         _ => None,
     }
 }
@@ -163,8 +163,8 @@ pub fn head_proof_pw(fe: &FEnv, e: &Expr) -> Option<PropWhen> {
 /// The zero-ness datum of the sort of the *type* of `a` ("is `a` a proof?"),
 /// read off `a`'s head symbol at any arity.
 pub fn proof_pw(fe: &FEnv, a: &Expr) -> Option<PropWhen> {
-    match &a.0.kind {
-        ExprKind::Lam(_, _, m) => Some(prop_when::dup(&m.pw)),
+    match expr::view(&a) {
+        ExprView::Lam(_, _, m) => Some(prop_when::dup(&m.pw)),
         _ => head_proof_pw(fe, &expr_ops::get_app_fn(a)),
     }
 }

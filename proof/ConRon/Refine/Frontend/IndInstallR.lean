@@ -1456,7 +1456,7 @@ private theorem note_ind_blocks_loop_refines (N : Nat) :
     rw [frontend.export_c.note_ind_blocks_loop.eq_def] at h
     split at h
     · rename_i hlt
-      simp only [arc_deref_eq, bind_tc_ok, bind_eq_ok_iff] at h
+      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, bind_eq_ok_iff] at h
       obtain ⟨itr, hidx, n1, hn1, a, ha, p, hins, h⟩ := h
       obtain ⟨old, hm⟩ := p
       simp only [uncurry_apply_pair, bind_eq_ok_iff] at h
@@ -1500,7 +1500,7 @@ theorem note_ind_blocks_refines {st st' : frontend.export_c.StateD}
       ∧ StateDWF st' := by
   refine ⟨?_, note_ind_blocks_wf hwf h⟩
   rw [frontend.export_c.note_ind_blocks] at h
-  simp only [arc_deref_eq, bind_tc_ok] at h
+  simp only [expr_view_eq, arc_deref_eq, bind_tc_ok] at h
   have hh := note_ind_blocks_loop_refines _ st lst b _ 0#usize st' hrel hb
     (alloc.vec.Vec.len_val _) rfl h
   simpa [show ((0#usize : Std.Usize)).val = 0 by scalar_tac] using hh
@@ -1690,7 +1690,7 @@ theorem install_ind_d_refines {G : Type} {inst : frontend.in_model_rec.Modeller 
         have hdwf : DeclarationWF (env.Declaration.IndDecl v n_pd) := hbwf
         split at h
         · rename_i hmodel
-          simp only [arc_deref_eq, bind_tc_ok, bind_eq_ok_iff] at h
+          simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, bind_eq_ok_iff] at h
           obtain ⟨b1, hb1, h⟩ := h
           have hb1abs : b1 = ConLeche.Frontend.InModel.wants (absBlockRec v1) :=
             wants_refines hb1
@@ -1704,7 +1704,7 @@ theorem install_ind_d_refines {G : Type} {inst : frontend.in_model_rec.Modeller 
             rw [if_pos hcond]
             -- THE MODELLER
             rw [frontend.export_c.install_gen] at h
-            simp only [arc_deref_eq, bind_tc_ok, bind_eq_ok_iff] at h
+            simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, bind_eq_ok_iff] at h
             obtain ⟨ctx, hctx, gen, hg, h⟩ := h
             have hcr := state_model_ctx_refines hrel2 hctx
             cases gen with

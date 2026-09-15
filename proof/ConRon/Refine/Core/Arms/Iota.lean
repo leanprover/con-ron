@@ -172,31 +172,31 @@ private theorem iota_num_args_val {e : expr.Expr} (he : ExprWF e) :
     intro n r h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.bvar_inv h1
     unfold cached.core_c.iota_num_args at h
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Cached.iotaNumArgs]
   | @fvar idx ty e hty h1 ih =>
     intro n r h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.fvar_inv h1
     unfold cached.core_c.iota_num_args at h
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Cached.iotaNumArgs]
   | @sort u e hu h1 =>
     intro n r h
     obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.sort_inv h1
     unfold cached.core_c.iota_num_args at h
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Cached.iotaNumArgs]
   | @mk_const c us e hc hus h1 =>
     intro n r h
     obtain ⟨d, b, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
     unfold cached.core_c.iota_num_args at h
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Cached.iotaNumArgs]
   | @app f a e hf ha h1 ihf iha =>
     intro n r h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.app_inv h1
     unfold cached.core_c.iota_num_args at h
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
+    simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
     obtain ⟨n1, hn1, h⟩ := bind_eq_ok_iff.mp h
     have hn1v : n1.val = n.val + 1 := by
       simpa using HashMap.uscalar_add_eq hn1
@@ -206,31 +206,31 @@ private theorem iota_num_args_val {e : expr.Expr} (he : ExprWF e) :
     intro n r h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.lam_inv h1
     unfold cached.core_c.iota_num_args at h
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Cached.iotaNumArgs]
   | @forall_e ty b m e hty hb hm h1 ihty ihb =>
     intro n r h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.forall_e_inv h1
     unfold cached.core_c.iota_num_args at h
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Cached.iotaNumArgs]
   | @let_e ty v b e hty hv hb h1 ihty ihv ihb =>
     intro n r h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.let_e_inv h1
     unfold cached.core_c.iota_num_args at h
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Cached.iotaNumArgs]
   | @lit l e hl h1 =>
     intro n r h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.lit_inv h1
     unfold cached.core_c.iota_num_args at h
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Cached.iotaNumArgs]
   | @proj s i x e hs hx h1 ihx =>
     intro n r h
     obtain ⟨d, rfl, -, -, -⟩ := Expr.proj_inv h1
     unfold cached.core_c.iota_num_args at h
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok, Result.ok.injEq] at h
     rw [← h]; simp [ConLeche.Cached.iotaNumArgs]
 
 /-- `ConLeche/Cached/CoreC.lean:722-726` — **`iota_num_args` refines
@@ -305,7 +305,7 @@ theorem iota_arity_ok_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
   cases k with
   | Const n us =>
     obtain ⟨hn, hus⟩ := CoreK.wf_const_inv hfwf rfl
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at h
+    simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at h
     obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
     have hp := (rec_arity_probe_refines hfe hrel hn o ho).1
     simp only [absExpr_mk, absExprKind, id_eq]
@@ -334,7 +334,7 @@ theorem iota_arity_ok_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
           rw [hnav]; rfl
         split at h
         · rename_i hEq
-          simp only [arc_deref_eq, bind_tc_ok, Result.ok.injEq] at h
+          simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, Result.ok.injEq] at h
           rw [← h, hnum, ← hmi]
           have h1 : na.val = mi.val + 1 := by rw [hEq]; exact hi3v
           simp only [h1, beq_self_eq_true, Bool.true_and, absLevels, List.length_map,
@@ -358,7 +358,7 @@ theorem iota_arity_ok_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
         rw [← h]
   | Bvar _ | Fvar _ _ | «Sort» _ | App _ _ | Lam _ _ _ | ForallE _ _ _
   | LetE _ _ _ | Lit _ | Proj _ _ _ =>
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok, Result.ok.injEq] at h
+    simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok, Result.ok.injEq] at h
     rw [← h]
     simp only [absExpr_mk, absExprKind, id_eq]
 
@@ -2031,7 +2031,7 @@ theorem iota_rec_rule_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
   cases kk with
   | Const cj usj =>
     obtain ⟨hcjw, husjw⟩ := CoreK.wf_const_inv hfjw rfl
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at hok
+    simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at hok
     simp only [absExpr_mk, absExprKind, pure_bind]
     obtain ⟨o, ho, hok⟩ := bind_eq_ok_iff.mp hok
     obtain ⟨hov, how⟩ :=
@@ -2178,7 +2178,7 @@ theorem iota_rec_rule_i_refines (hd : IotaDeps mode fuel) (d : Std.U64)
         exact ⟨lst, by simp, hrel, hwf, by simp⟩
   | Bvar _ | Fvar _ _ | «Sort» _ | App _ _ | Lam _ _ _ | ForallE _ _ _
   | LetE _ _ _ | Lit _ | Proj _ _ _ =>
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at hok
+    simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at hok
     simp only [absExpr_mk, absExprKind]
     have hok' : (ok (core.result.Result.Ok none, st) :
         Result ((core.result.Result (Option expr.Expr) core_types.CheckError) ×
@@ -2212,7 +2212,7 @@ theorem iota_rec_i_refines (hw : Wrappers mode fuel) (hd : IotaDeps mode fuel)
   cases kk with
   | Const c us =>
     obtain ⟨hcw, husw⟩ := CoreK.wf_const_inv hfw rfl
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at hok
+    simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at hok
     simp only [absExpr_mk, absExprKind, pure_bind]
     obtain ⟨o, ho, hok⟩ := bind_eq_ok_iff.mp hok
     obtain ⟨hov, how⟩ :=
@@ -2345,7 +2345,7 @@ theorem iota_rec_i_refines (hw : Wrappers mode fuel) (hd : IotaDeps mode fuel)
         exact ⟨lst, by simp, hrel, hwf, by simp⟩
   | Bvar _ | Fvar _ _ | «Sort» _ | App _ _ | Lam _ _ _ | ForallE _ _ _
   | LetE _ _ _ | Lit _ | Proj _ _ _ =>
-    simp only [arc_deref_eq, ExprOps.node_kind, bind_tc_ok] at hok
+    simp only [expr_view_eq, arc_deref_eq, ExprOps.node_kind, ron.node.ExprView.ofKind, bind_tc_ok] at hok
     simp only [absExpr_mk, absExprKind]
     have hok' : (ok (core.result.Result.Ok none, st) :
         Result ((core.result.Result (Option expr.Expr) core_types.CheckError) ×
