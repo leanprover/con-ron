@@ -18291,13 +18291,17 @@ The model does not move (§3.2's trust accounting), so the tier's work is the
 | the constructor | `ptr_new_eq` → `node_alloc_<kind>_eq`, and the following `obtain` loses one `∃` layer | 10 + residue |
 | the split | `of_kind_inv hk` after a `rename_i hk`, which puts a `ofKind k = ExprView.X` back as `k = ExprKind.X` | 43 |
 | `step` specs | eleven `@[local step]` lemmas for `ron.node.data` and the ten `alloc_*`, each one line over its `rfl` hole lemma | 11 |
-| hand residue | 8 files, ~80 sites | — |
+| hand residue | 15 files | ~230 sites |
 
-Four scripts did the first three; the residue was four sub-agents on disjoint
-files.  `Refine/Abs.lean` carries the 26 hole lemmas and one tactic
-(`of_kind_inv`), all `rfl` or one `cases`.  **No statement changed, no lemma
-was restated, no `#[simp]` set was weakened, `absExpr`/`absExprNode`/
-`absExprKind` did not move, and `Refine/Main.lean`'s censuses are unchanged.**
+**63 of `Refine/`'s 120 files, +1 933 / −1 622 lines.**  Four scripts did the
+first three passes; the residue went to seven sub-agents on disjoint files.
+`Refine/Abs.lean` carries the 26 hole lemmas, the `of_kind_inv` tactic and the
+`bind_expr_view` pre-order head, all `rfl` or one `cases`; `ExprView.ofKind`
+joins `rust_reduce`/`rust_invert`, which is worth **83 hand sites** (25
+residual with it against 108 without).  **No statement changed, no lemma was
+restated, no simp set was weakened, `absExpr`/`absExprNode`/`absExprKind` did
+not move, and `Refine/Main.lean` was not touched — the `_refines` census is
+unchanged at 1 614.**
 
 Four findings from the pass are worth keeping, and the first is a trap that
 cost this task an hour:
@@ -18323,15 +18327,35 @@ cost this task an hour:
 * **`Raw::view` is stuck on a variable where `Arc::deref` was not.**  The old
   reader whnf'd to `ok f._0` on a variable `f`, so `Result.ok_injective` on it
   typechecked up to defeq with no rewriting; `view` matches on its argument, so
-  one site needed an explicit `rw [expr_view_eq]` first.  That is the only
-  place in the tier where the change was not a simp-set edit.
+  four sites needed an explicit `rw [expr_view_eq]` first, and what the result
+  names is `ofKind k`, not `k`.
+* **`rust_norm`'s `split` delta-unfolds `ofKind` before generalizing**, so the
+  arm hypothesis is a bare matcher and the ten `@[rust_invert]` iffs never
+  match it *syntactically* — `of_kind_inv` does not fire.  Two ways through,
+  both now in the tier: apply the iff as a **term** where the arm can be named
+  (`(of_kind_forall_e_iff _ _ _ _).mp hkd` typechecks up to defeq where
+  `simp only` cannot), and where an `all_goals` sweeps nine differing arms,
+  fold the matcher back first with
+  `replace hkd : ron.node.ExprView.ofKind _ = _ := hkd`.
+* **Two sites were not `ExprView` problems at all**, and both are worth
+  knowing.  `DeclCheck`'s `check_proj_iota` and its `IndModeled` twin now bind
+  a bare `shaped : Bool` where the body used to bind `(head, shaped)`: `head`
+  is unchanged across the `if`, and dropping the reader's `let` let Aeneas see
+  it and drop the component.  An `obtain ⟨_, _⟩` on a `Bool` is then read as an
+  *alternation* over its two constructors rather than as a pair, which splits
+  the proof silently and reports its failure somewhere else entirely.  And
+  three `rw` failures were motive failures — a `simp only` had rewritten an
+  `ite`'s condition but left a stale `Decidable` instance — for which
+  `simp only [hcond, reduceIte]` in place of `rw [if_pos hcond]` is the fix.
 
 #### 7. Gates, and what is on the branch
 
-`scripts/gates.sh` all nine green.  `scripts/diff-e2e.sh` **348 agree, 0
-differ** — the layout changes nothing observable, which is what it had to do.
-`cargo test` includes the new size table (five cells at 32, four at 48, header
-16, every one 16-aligned) and the `MiMallocTight` alignment audit.
+`scripts/gates.sh` **all nine green** (`extract-check` 78 s).
+`scripts/diff-e2e.sh` **348 agree, 0 differ** — the layout changes nothing
+observable, which is what it had to do.  `cargo test` includes the new size
+table (five cells at 32, four at 48, the header 16, every one 16-aligned) and
+the `MiMallocTight` alignment audit.  The Rust side is 35 files,
++2 236 / −1 294.
 
 The extraction gate grew a rule, and it is the one finding that matters beyond
 this task: Aeneas writes `@[rust_type]`/`@[rust_fun]` only for name-pattern

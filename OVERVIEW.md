@@ -978,7 +978,7 @@ are `abs*`, the relations `*Rel`, the well-formedness predicates `*WF`.
 5. `scripts/overview-links.sh` — every line-anchored link in this document and in `DESIGN.md` still points at the text it cited (the cited lines are a committed artefact, `scripts/overview-links-expected.txt`, in con-leche's idiom);
 6. `scripts/gen-pins.sh --check` — the embedded pin text is what con-leche's list generates;
 7. `scripts/gen-prelude.sh --check` — the embedded prelude text is con-leche's own committed `pins/<toolchain>.prelude.ndjson`;
-8. `scripts/extract.sh --check` — the committed model is what Charon and Aeneas produce;
+8. `scripts/extract.sh --check` — the committed model is what Charon and Aeneas produce, **and every hole it declares is filled by hand**.  That second half is checked two ways since task #94, because one of them turned out to be blind: Aeneas writes the `@[rust_type]`/`@[rust_fun]` attribute the older rule reads only for externals it maps by *name pattern*, i.e. another crate's, so a hole that is an opaque module of this crate arrived in the template as a bare `axiom` and the rule passed vacuously.  The gate now also requires every `axiom` a template declares to be defined in the corresponding hand-written file;
 9. `lake build` of the model and the proofs.
 
 It ends with the two summary lines of `progress.py` and `loc.py`.  The
