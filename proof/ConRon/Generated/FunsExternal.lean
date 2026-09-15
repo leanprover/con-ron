@@ -76,7 +76,7 @@ def core.str.Str.as_bytes (s : Str) : Result (Slice Std.U8) := ok s
 
    Fifteen holes, all of them one line, all of them `rfl` against
    `Generated/Types.lean`'s unchanged `Expr`/`ExprNode`/`ExprKind`.  The rule is
-   `TypesExternal.lean`'s: `TaggedNode T := T`, so an `Expr` *is* its
+   `TypesExternal.lean`'s: `ron.tagged.Raw T := T`, so an `Expr` *is* its
    `ExprNode`, and then
 
      * the ten `alloc_*` are the **constructors** — `alloc_app d f a` is
@@ -88,11 +88,13 @@ def core.str.Str.as_bytes (s : Str) : Result (Slice Std.U8) := ok s
      * `data` is the `@[computed_field]`, `dup` the identity and `ptr_eq`
        `false`, i.e. the `Arc` twins above, verbatim.
 
-   The `Drop` impl is the fifteenth: Charon sees it because `Expr` has one, and
-   Aeneas never calls it (nothing in `Generated/Funs.lean` mentions it but the
-   instance record).  It is modeled as the identity so that the instance is
-   well-typed and for no other purpose — the model has no deallocation, exactly
-   as it has no allocation. -/
+   The `Drop` impl is the fifteenth: Charon sees it because `Expr` has one
+   (`ron::tagged::Raw` deliberately has not — only a scheme's table knows which
+   type a tag names, so the owning newtype is what releases), and Aeneas never
+   calls it: nothing in `Generated/Funs.lean` mentions it but the instance
+   record.  It is modeled as the identity so that the instance is well-typed
+   and for no other purpose — the model has no deallocation, exactly as it has
+   no allocation. -/
 
 /-- [con_ron_core::ron::node::ExprView]: the projection's target, as the
     `ExprKind` it mirrors arm for arm. -/

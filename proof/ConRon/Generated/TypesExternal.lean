@@ -41,17 +41,17 @@ set_option maxRecDepth 2048
 @[reducible, rust_type "alloc::sync::Arc"]
 def alloc.sync.Arc (T : Type) : Type := T
 
-/- **`ron::node::TaggedNode<T>` is its contents** (task #94), which is the same
+/- **`ron::tagged::Raw<T>` is its contents** (task #94), which is the same
    line the `Arc` above gets and for the same reason.
 
    Since task #94 an `Expr` is not a `P<ExprNode>` but a *tagged handle*: the
    node's address with its constructor in the low four bits, pointing at one of
    ten per-kind node structs whose sizes differ (`ron/node.rs`'s module note has
    the table, and the measurement is task #94's report).  That representation is
-   not in Aeneas's subset — raw pointers, an `AtomicUsize`, `std::alloc` — and
-   it does not need to be: `TaggedNode<T>` carries the *modeled* contents as a
+   not in Aeneas's subset — raw pointers, an `AtomicUsize`, `Box::into_raw` —
+   and it does not need to be: `Raw<T>` carries the *modeled* contents as a
    `PhantomData<T>`, and `T` is `kernel::expr::ExprNode`, a Rust declaration
-   that is never built.  So Charon emits `Expr.mk : TaggedNode ExprNode` exactly
+   that is never built.  So Charon emits `Expr.mk : Raw ExprNode` exactly
    where it used to emit `Expr.mk : Arc ExprNode`, `Generated/Types.lean`'s
    `ExprKind`/`ExprNode`/`Expr` block is unchanged, and this one reducible
    definition is the whole of the type-level hole.
@@ -63,12 +63,16 @@ def alloc.sync.Arc (T : Type) : Type := T
    invisible to the value.  What the model additionally cannot see — which of
    the ten structs the bytes are in — is a *representation* choice that
    `ron::node`'s own invariant ties to the constructor: the tag is written by
-   `alloc_*` beside the struct it names, and `view` reads it back.  That is the
+   `alloc_*` beside the block it names, and `view` reads it back.  That is the
    content of the ten `view`/`alloc_*` equations in `FunsExternal.lean`.
 
-   `@[reducible]` for the same `SizeOf` reason as the `Arc`. -/
-/-- [con_ron_core::ron::node::TaggedNode]
-    Source: 'crates/con-ron-core/src/ron/node.rs', lines 148:0-151:1
+   `ron::tagged` is *generic*: it names no term type, and `ron::node` is the
+   one instantiation (`Expr`'s ten cells, as a ten-line table).  That is why
+   this hole has one parameter and no scheme in it. -/
+
+/- `@[reducible]` for the same `SizeOf` reason as the `Arc`. -/
+/-- [con_ron_core::ron::tagged::Raw]
+    Source: 'crates/con-ron-core/src/ron/tagged.rs'
     Visibility: public -/
-@[reducible, rust_type "con_ron_core::ron::node::TaggedNode"]
-def ron.node.TaggedNode (T : Type) : Type := T
+@[reducible, rust_type "con_ron_core::ron::tagged::Raw"]
+def ron.tagged.Raw (T : Type) : Type := T

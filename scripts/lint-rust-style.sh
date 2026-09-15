@@ -64,19 +64,20 @@ check_str_consts() {
 }
 check_str_consts
 # `unsafe`.  The rule is none at all (the 2026-09-12 ruling: `std` does it if
-# it can).  The ONE exemption is `crates/con-ron-core/src/ron/node.rs`, the
-# tagged `Expr` handle and its ten per-kind nodes (task #94): the kind lives in
-# the handle's low four bits, so the pointee type is chosen at run time and no
-# `std` smart pointer can express it.  Its surface is the module's own note,
-# and `cargo test`'s `node.rs` round-trip plus `scripts/diff-e2e.sh` are what
-# stand behind it.
+# it can).  The ONE exemption is `crates/con-ron-core/src/ron/tagged.rs`, the
+# generic tagged counted handle (task #94): the kind lives in the handle's low
+# four bits, so the pointee type is chosen at run time and no `std` smart
+# pointer can express it.  That file names no term type; its instantiation for
+# `Expr` (`ron/node.rs`) is a ten-line table and passes this lint like every
+# other file.  The surface is `tagged.rs`'s own module note -- four expressions,
+# two impls and one macro -- and `scripts/diff-e2e.sh` is what stands behind it.
 check_unsafe() {
   local hits
   hits=$(gather | grep -E '\bunsafe\b' \
     | grep -v '^\S*:\S*:\s*//' | grep -v 'lint: allow' \
-    | grep -v 'con-ron-core/src/ron/node.rs')   # unanchored: gates.sh passes an absolute dir
+    | grep -v 'con-ron-core/src/ron/tagged.rs')   # unanchored: gates.sh passes an absolute dir
   if [ -n "$hits" ]; then
-    echo "== unsafe (only crates/con-ron-core/src/ron/node.rs may, task #94)"
+    echo "== unsafe (only crates/con-ron-core/src/ron/tagged.rs may, task #94)"
     echo "$hits"; fail=1
   fi
 }

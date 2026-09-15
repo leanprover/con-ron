@@ -109,7 +109,7 @@ use crate::ron::ptr::P;
 /// `PropWhen` behind its own `P` handle, because a `PropWhen` was 24 bytes by
 /// value at the time (`PropWhenRepr::Many(Vec<Name>)` set the width) and a
 /// binder datum sits *inside* `ExprKind::Lam`/`ForallE` (as it now does inside
-/// `ron::node::NodeBinder`).  `PropWhen` is now
+/// `ron::node::NodeLam`).  `PropWhen` is now
 /// one word wider than its own tag — `Never`/`Always`/`One` cost no heap
 /// cell, and only the rare `Two`/`Many` box their payload (`prop_when.rs`'s
 /// module note) — so boxing `BinderMeta` on top of that bought nothing but
@@ -397,7 +397,7 @@ pub struct ExprNode {
 /// Deviation from the citation, unchanged by task #94: the `Nat` indices are
 /// `u64` (§3.3), and `const`'s `List Level` is a `Vec<Level>` *behind a
 /// handle* (task #38), which `P<Vec<Level>>` models as `Vec Level`.
-pub struct Expr(pub(crate) node::TaggedNode<ExprNode>);
+pub struct Expr(pub(crate) node::ExprHandle);
 
 /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
 /// The ten constructors as a borrowed enum — `ron::node`'s `ExprView` under
@@ -1791,7 +1791,7 @@ mod tests {
         eprintln!("PropWhen        {}", std::mem::size_of::<crate::kernel::prop_when::PropWhen>());
         eprintln!("BinderMeta      {}", std::mem::size_of::<BinderMeta>());
         eprintln!("Expr (handle)   {}", std::mem::size_of::<Expr>());
-        eprintln!("app node        {}", std::mem::size_of::<crate::ron::node::NodeApp>());
-        eprintln!("lam node        {}", std::mem::size_of::<crate::ron::node::NodeBinder>());
+        eprintln!("app cell        {}", std::mem::size_of::<crate::ron::tagged::Block<crate::ron::node::NodeApp>>());
+        eprintln!("lam cell        {}", std::mem::size_of::<crate::ron::tagged::Block<crate::ron::node::NodeLam>>());
     }
 }

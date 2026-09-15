@@ -211,15 +211,17 @@ use con_ron_core::kernel::expr::ExprView;
 #[allow(unused_imports)]
 use con_ron_core::kernel::expr::Literal;
 use con_ron_core::ron::node::NodeApp;
-use con_ron_core::ron::node::NodeBinder;
 use con_ron_core::ron::node::NodeBvar;
 use con_ron_core::ron::node::NodeConst;
+use con_ron_core::ron::node::NodeForallE;
 use con_ron_core::ron::node::NodeFvar;
-use con_ron_core::ron::node::NodeHeader;
+use con_ron_core::ron::node::NodeLam;
 use con_ron_core::ron::node::NodeLetE;
 use con_ron_core::ron::node::NodeLit;
 use con_ron_core::ron::node::NodeProj;
 use con_ron_core::ron::node::NodeSort;
+use con_ron_core::ron::tagged::Block;
+use con_ron_core::ron::tagged::Header;
 use con_ron_core::kernel::level;
 use con_ron_core::kernel::level::Level;
 use con_ron_core::kernel::level::LevelKind;
@@ -379,8 +381,9 @@ pub struct NodeSize {
 /// as the widest `ExprKind` arm (48 bytes) and behind a `P` whose two counts
 /// made a 64-byte block, whatever the kind — so an `app`, 65 % of the live
 /// nodes of a real term, paid 64 bytes for 32 bytes of content.  Since
-/// task #94 the kind is in the *handle* (`ron::node`), there is one atomic
-/// count and no weak count, and each kind has a node struct of its own size;
+/// task #94 the kind is in the *handle* (`ron::tagged`, instantiated for
+/// `Expr` by `ron::node`), there is one atomic count and no weak count, and
+/// each kind has a cell of its own size;
 /// the `heap` column is now equal to the `size` column, because a node **is**
 /// its block.  The rows below are the real structs, and the test pins them,
 /// so a further repacking shows up here with its saving attached.
@@ -397,16 +400,17 @@ pub fn node_sizes() -> Vec<NodeSize> {
     }
     vec![
         row::<Expr>("Expr (the tagged handle)", false),
-        node_row::<NodeHeader>("  node header (count + data)"),
-        node_row::<NodeApp>("  app node"),
-        node_row::<NodeBvar>("  bvar node"),
-        node_row::<NodeFvar>("  fvar node"),
-        node_row::<NodeSort>("  sort node"),
-        node_row::<NodeConst>("  const node"),
-        node_row::<NodeBinder>("  lam/forallE node"),
-        node_row::<NodeLetE>("  letE node"),
-        node_row::<NodeLit>("  lit node"),
-        node_row::<NodeProj>("  proj node"),
+        node_row::<Header>("  cell header (count + data)"),
+        node_row::<Block<NodeApp>>("  app cell"),
+        node_row::<Block<NodeBvar>>("  bvar cell"),
+        node_row::<Block<NodeFvar>>("  fvar cell"),
+        node_row::<Block<NodeSort>>("  sort cell"),
+        node_row::<Block<NodeConst>>("  const cell"),
+        node_row::<Block<NodeLam>>("  lam cell"),
+        node_row::<Block<NodeForallE>>("  forallE cell"),
+        node_row::<Block<NodeLetE>>("  letE cell"),
+        node_row::<Block<NodeLit>>("  lit cell"),
+        node_row::<Block<NodeProj>>("  proj cell"),
         row::<NameNode>("NameNode (hash + kind)", true),
         row::<NameKind>("  NameKind", false),
         row::<LevelNode>("LevelNode (hash + kind)", true),
@@ -428,8 +432,8 @@ pub fn node_sizes() -> Vec<NodeSize> {
 /// that wants to multiply by an `E` record count gets the census average.
 /// Task #94's report has the exact per-kind arithmetic.
 pub fn expr_node_bytes() -> usize {
-    let c32: usize = std::mem::size_of::<NodeApp>();
-    let c48: usize = std::mem::size_of::<NodeBinder>();
+    let c32: usize = std::mem::size_of::<Block<NodeApp>>();
+    let c48: usize = std::mem::size_of::<Block<NodeLam>>();
     // 23 230 860 of 28 134 596 live nodes are in the small class, 4 903 736
     // in the large one (task #88 section 3's census of `core`, at
     // install-done).
@@ -1387,23 +1391,24 @@ mod tests {
         // the live nodes of a real term — in the cheapest class.  The
         // assertions below are that table; the census-weighted average is
         // what `expr_node_bytes` reports.
-        assert_eq!(std::mem::size_of::<NodeHeader>(), 16);
-        assert_eq!(std::mem::align_of::<NodeHeader>(), 16);
-        assert_eq!(std::mem::size_of::<NodeApp>(), 32);
-        assert_eq!(std::mem::size_of::<NodeBvar>(), 32);
-        assert_eq!(std::mem::size_of::<NodeFvar>(), 32);
-        assert_eq!(std::mem::size_of::<NodeSort>(), 32);
-        assert_eq!(std::mem::size_of::<NodeConst>(), 32);
-        assert_eq!(std::mem::size_of::<NodeLit>(), 32);
-        assert_eq!(std::mem::size_of::<NodeBinder>(), 48);
-        assert_eq!(std::mem::size_of::<NodeLetE>(), 48);
-        assert_eq!(std::mem::size_of::<NodeProj>(), 48);
-        // every node is 16-aligned: that is what frees the handle's tag bits
+        assert_eq!(std::mem::size_of::<Header>(), 16);
+        assert_eq!(std::mem::align_of::<Header>(), 16);
+        assert_eq!(std::mem::size_of::<Block<NodeApp>>(), 32);
+        assert_eq!(std::mem::size_of::<Block<NodeBvar>>(), 32);
+        assert_eq!(std::mem::size_of::<Block<NodeFvar>>(), 32);
+        assert_eq!(std::mem::size_of::<Block<NodeSort>>(), 32);
+        assert_eq!(std::mem::size_of::<Block<NodeConst>>(), 32);
+        assert_eq!(std::mem::size_of::<Block<NodeLit>>(), 32);
+        assert_eq!(std::mem::size_of::<Block<NodeLam>>(), 48);
+        assert_eq!(std::mem::size_of::<Block<NodeForallE>>(), 48);
+        assert_eq!(std::mem::size_of::<Block<NodeLetE>>(), 48);
+        assert_eq!(std::mem::size_of::<Block<NodeProj>>(), 48);
+        // every cell is 16-aligned: that is what frees the handle's tag bits
         for r in node_sizes() {
             assert_eq!(r.size % 8, 0, "{} is not word-sized", r.what);
         }
-        assert_eq!(std::mem::align_of::<NodeApp>(), 16);
-        assert_eq!(std::mem::align_of::<NodeProj>(), 16);
+        assert_eq!(std::mem::align_of::<Block<NodeApp>>(), 16);
+        assert_eq!(std::mem::align_of::<Block<NodeProj>>(), 16);
         // the census average, against the flat 64 bytes of task #90
         assert_eq!(expr_node_bytes(), 34);
         assert_eq!(std::mem::size_of::<PropWhen>(), 16);

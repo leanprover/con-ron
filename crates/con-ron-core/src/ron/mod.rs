@@ -3,3 +3,4 @@ pub mod hashmap;
 pub mod nat;
 pub mod node;
 pub mod ptr;
+pub mod tagged;

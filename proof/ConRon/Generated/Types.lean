@@ -229,10 +229,10 @@ inductive kernel.expr.ExprNode where
 | mk : Std.U64 → kernel.expr.ExprKind → kernel.expr.ExprNode
 
 /-- [con_ron_core::kernel::expr::Expr]
-    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 400:0-400:55
+    Source: 'crates/con-ron-core/src/kernel/expr.rs', lines 400:0-400:45
     Visibility: public -/
 inductive kernel.expr.Expr where
-| mk : ron.node.TaggedNode kernel.expr.ExprNode → kernel.expr.Expr
+| mk : ron.tagged.Raw kernel.expr.ExprNode → kernel.expr.Expr
 
 end
 
@@ -256,7 +256,7 @@ def kernel.expr.Expr._0 (x : kernel.expr.Expr) :=
   match x with | kernel.expr.Expr.mk x1 => x1
 
 @[simp]
-theorem kernel.expr.Expr._0._simpLemma_ (_0 : ron.node.TaggedNode
+theorem kernel.expr.Expr._0._simpLemma_ (_0 : ron.tagged.Raw
   kernel.expr.ExprNode) : (kernel.expr.Expr.mk _0)._0 = _0 := by rfl
 
 /-- [con_ron_core::ron::hashmap::AList]
@@ -405,7 +405,7 @@ structure kernel.fenv.FEnv where
   visible_below : Std.U64
 
 /-- [con_ron_core::ron::node::ExprView]
-    Source: 'crates/con-ron-core/src/ron/node.rs', lines 299:0-310:1
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 190:0-201:1
     Visibility: public -/
 @[discriminant isize]
 inductive ron.node.ExprView where

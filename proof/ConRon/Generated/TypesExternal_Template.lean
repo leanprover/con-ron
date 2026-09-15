@@ -23,8 +23,8 @@ set_option maxRecDepth 2048
 @[rust_type "alloc::sync::Arc"]
 axiom alloc.sync.Arc (T : Type) : Type
 
-/-- [con_ron_core::ron::node::TaggedNode]
-    Source: 'crates/con-ron-core/src/ron/node.rs', lines 148:0-151:1
+/-- [con_ron_core::ron::tagged::Raw]
+    Source: 'crates/con-ron-core/src/ron/tagged.rs', lines 187:0-190:1
     Visibility: public -/
-axiom ron.node.TaggedNode (T : Type) : Type
+axiom ron.tagged.Raw (T : Type) : Type
 
