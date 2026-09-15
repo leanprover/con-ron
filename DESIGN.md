@@ -18418,6 +18418,15 @@ is the check that what is left really is the branches and not the calls.
 holes.  The template records the parameter's new name (`Raw (M : Type)`) and
 drops its "Visibility: public" line; the hand-written model is untouched.
 
+**Ruling (maintainer, 2026-09-15): no verification of this module.**  Asked
+whether the core could be verified — a RustBelt-style proof (the `Arc` case
+study is the template, but RustBelt works on hand-translated λRust, not on
+source), Miri under strict provenance, Kani harnesses, or RefinedRust — the
+maintainer declined for now: the long-term plan is an Aeneas-friendly arena
+representation (con-leche's arena checker and a bridge proof, upstream),
+which retires the hand-written pointer altogether.  The module is interim;
+the hardening above makes the stopgap sound, and OVERVIEW §7.2 says so.
+
 #### 5. The numbers
 
 `con-ron --verified --jobs=1 --progress=1000000` (the driver lane), release +
