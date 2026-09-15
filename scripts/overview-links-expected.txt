@@ -407,19 +407,19 @@
      4  //! `Expr` is**.
      5  //!
      6  //! One counted handle, one word wide, whose low four bits say which of a
-     7  //! *scheme's* node types the rest of it points at.  Every node is allocated
+     7  //! *scheme's* node types the rest of it points at.  Every block is allocated
      8  //! 16-aligned, which is what frees those four bits; sixteen kinds fit, and
-     9  //! each kind's cell is as wide as that kind needs rather than as wide as the
+     9  //! each kind's block is as wide as that kind needs rather than as wide as the
     10  //! widest.  That is the whole idea, and the measurement behind it is task
     11  //! #94's report: `Expr`'s nodes go from a flat 64-byte block to 32 or 48
-    12  //! bytes, which is −41 % of Mathlib's peak.
+    12  //! bytes, which is −45 % of Mathlib's peak.
     13  //!
     14  //! **This module is generic.**  It names no term type, no constructor and no
     15  //! kind: a *scheme* is a table, and [`tagged_kinds!`] turns it into the
-    16  //! tag→type dispatch and the release.  `ron::node` is
-    17  //! the one instantiation today (`Expr`'s ten nodes); `Name`, `Level` and
-    18  //! `PropWhen` keep `ron::ptr::P` (DESIGN.md §3.2 — their nodes are not the
-    19  //! bulk, and a uniform block costs them nothing).
+    16  //! tag→type dispatch and the release.  `ron::node` is the one instantiation
+    17  //! today (`Expr`'s ten blocks); `Name`, `Level` and `PropWhen` keep
+    18  //! `ron::ptr::P` (DESIGN.md §3.2 — their nodes are not the bulk, and a
+    19  //! uniform block costs them nothing).
     20  //!
 
 == crates/con-ron-core/src/kernel/expr.rs#L121-L123
@@ -436,56 +436,56 @@
    290      Many(P<Vec<Name>>),
    291  }
 
-== crates/con-ron-dump/src/lib.rs#L138-L186
-   138  pub struct MiMallocTight;
-   139  
-   140  #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
-   141  unsafe impl std::alloc::GlobalAlloc for MiMallocTight {
-   142      #[inline]
-   143      unsafe fn alloc(&self, layout: std::alloc::Layout) -> *mut u8 {
-   144          if layout.align() <= 16 {
-   145              libmimalloc_sys::mi_malloc(layout.size()) as *mut u8
-   146          } else {
-   147              libmimalloc_sys::mi_malloc_aligned(layout.size(), layout.align()) as *mut u8
-   148          }
-   149      }
-   150  
-   151      #[inline]
-   152      unsafe fn alloc_zeroed(&self, layout: std::alloc::Layout) -> *mut u8 {
-   153          if layout.align() <= 16 {
-   154              libmimalloc_sys::mi_zalloc(layout.size()) as *mut u8
-   155          } else {
-   156              libmimalloc_sys::mi_zalloc_aligned(layout.size(), layout.align()) as *mut u8
-   157          }
-   158      }
-   159  
-   160      #[inline]
-   161      unsafe fn dealloc(&self, ptr: *mut u8, _layout: std::alloc::Layout) {
-   162          libmimalloc_sys::mi_free(ptr as *mut std::ffi::c_void);
-   163      }
-   164  
-   165      #[inline]
-   166      unsafe fn realloc(
-   167          &self,
-   168          ptr: *mut u8,
-   169          layout: std::alloc::Layout,
-   170          new_size: usize,
-   171      ) -> *mut u8 {
-   172          if layout.align() <= 16 {
-   173              libmimalloc_sys::mi_realloc(ptr as *mut std::ffi::c_void, new_size) as *mut u8
-   174          } else {
-   175              libmimalloc_sys::mi_realloc_aligned(
-   176                  ptr as *mut std::ffi::c_void,
-   177                  new_size,
-   178                  layout.align(),
-   179              ) as *mut u8
-   180          }
-   181      }
-   182  }
-   183  
-   184  #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
-   185  #[global_allocator]
-   186  static GLOBAL_ALLOC: MiMallocTight = MiMallocTight;
+== crates/con-ron-dump/src/lib.rs#L155-L203
+   155  pub struct MiMallocTight;
+   156  
+   157  #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
+   158  unsafe impl std::alloc::GlobalAlloc for MiMallocTight {
+   159      #[inline]
+   160      unsafe fn alloc(&self, layout: std::alloc::Layout) -> *mut u8 {
+   161          if layout.align() <= 16 {
+   162              libmimalloc_sys::mi_malloc(layout.size()) as *mut u8
+   163          } else {
+   164              libmimalloc_sys::mi_malloc_aligned(layout.size(), layout.align()) as *mut u8
+   165          }
+   166      }
+   167  
+   168      #[inline]
+   169      unsafe fn alloc_zeroed(&self, layout: std::alloc::Layout) -> *mut u8 {
+   170          if layout.align() <= 16 {
+   171              libmimalloc_sys::mi_zalloc(layout.size()) as *mut u8
+   172          } else {
+   173              libmimalloc_sys::mi_zalloc_aligned(layout.size(), layout.align()) as *mut u8
+   174          }
+   175      }
+   176  
+   177      #[inline]
+   178      unsafe fn dealloc(&self, ptr: *mut u8, _layout: std::alloc::Layout) {
+   179          libmimalloc_sys::mi_free(ptr as *mut std::ffi::c_void);
+   180      }
+   181  
+   182      #[inline]
+   183      unsafe fn realloc(
+   184          &self,
+   185          ptr: *mut u8,
+   186          layout: std::alloc::Layout,
+   187          new_size: usize,
+   188      ) -> *mut u8 {
+   189          if layout.align() <= 16 {
+   190              libmimalloc_sys::mi_realloc(ptr as *mut std::ffi::c_void, new_size) as *mut u8
+   191          } else {
+   192              libmimalloc_sys::mi_realloc_aligned(
+   193                  ptr as *mut std::ffi::c_void,
+   194                  new_size,
+   195                  layout.align(),
+   196              ) as *mut u8
+   197          }
+   198      }
+   199  }
+   200  
+   201  #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
+   202  #[global_allocator]
+   203  static GLOBAL_ALLOC: MiMallocTight = MiMallocTight;
 
 == crates/con-ron-core/src/ron/tagged.rs#L1-L20
      1  //! con-leche: none — the tagged counted handle of DESIGN.md §3.2 (task #94).
@@ -494,19 +494,19 @@
      4  //! `Expr` is**.
      5  //!
      6  //! One counted handle, one word wide, whose low four bits say which of a
-     7  //! *scheme's* node types the rest of it points at.  Every node is allocated
+     7  //! *scheme's* node types the rest of it points at.  Every block is allocated
      8  //! 16-aligned, which is what frees those four bits; sixteen kinds fit, and
-     9  //! each kind's cell is as wide as that kind needs rather than as wide as the
+     9  //! each kind's block is as wide as that kind needs rather than as wide as the
     10  //! widest.  That is the whole idea, and the measurement behind it is task
     11  //! #94's report: `Expr`'s nodes go from a flat 64-byte block to 32 or 48
-    12  //! bytes, which is −41 % of Mathlib's peak.
+    12  //! bytes, which is −45 % of Mathlib's peak.
     13  //!
     14  //! **This module is generic.**  It names no term type, no constructor and no
     15  //! kind: a *scheme* is a table, and [`tagged_kinds!`] turns it into the
-    16  //! tag→type dispatch and the release.  `ron::node` is
-    17  //! the one instantiation today (`Expr`'s ten nodes); `Name`, `Level` and
-    18  //! `PropWhen` keep `ron::ptr::P` (DESIGN.md §3.2 — their nodes are not the
-    19  //! bulk, and a uniform block costs them nothing).
+    16  //! tag→type dispatch and the release.  `ron::node` is the one instantiation
+    17  //! today (`Expr`'s ten blocks); `Name`, `Level` and `PropWhen` keep
+    18  //! `ron::ptr::P` (DESIGN.md §3.2 — their nodes are not the bulk, and a
+    19  //! uniform block costs them nothing).
     20  //!
 
 == crates/con-ron-core/src/ron/node.rs#L1-L14
@@ -985,22 +985,11 @@
     77  @[reducible, rust_type "con_ron_core::ron::tagged::Raw"]
     78  def ron.tagged.Raw (T : Type) : Type := T
 
-== crates/con-ron-core/src/ron/tagged.rs#L178-L192
-   178  /// there so that Charon sees the shape §3.2 already models for `Arc<T>`.  The
-   179  /// hole is the same one line, `def ron.tagged.Raw (T : Type) : Type := T`, and
-   180  /// the proof tier's `Expr` stays `mk : … ExprNode`, unchanged.
-   181  ///
-   182  /// **A `Raw` is a share of a count, not an owner.**  It has no `Drop`, because
-   183  /// releasing needs the tag→type table only a scheme has; the owner is whatever
-   184  /// newtype wraps it, and that newtype's `Drop` must call the scheme's
-   185  /// `release` (which [`tagged_kinds!`] writes) exactly once.  `ron::node` is
-   186  /// the only wrapper in this crate and `Expr` is the only owner.
-   187  pub struct Raw<T> {
-   188      p: NonNull<u8>,
-   189      modeled: PhantomData<T>,
-   190  }
-   191  
-   192  /// con-leche: none — `Send` for the handle (DESIGN.md §3.2, task #45)
+== crates/con-ron-core/src/ron/tagged.rs#L284-L287
+   284  pub(crate) struct Raw<M> {
+   285      p: NonNull<u8>,
+   286      modeled: PhantomData<M>,
+   287  }
 
 == proof/ConRon/Generated/FunsExternal.lean#L114-L119
    114      Source: 'crates/con-ron-core/src/ron/node.rs', lines 319:0-367:1
@@ -1010,34 +999,43 @@
    118    match e with
    119    | .mk (.mk _data k) => ok (ron.node.ExprView.ofKind k)
 
-== crates/con-ron-core/src/ron/node.rs#L219-L245
-   219          TAG_CONST => {
-   220              let c: &NodeConst = e.0.cast::<NodeConst>();
-   221              ExprView::Const(&c.n, &c.us)
-   222          }
-   223          TAG_APP => {
-   224              let c: &NodeApp = e.0.cast::<NodeApp>();
-   225              ExprView::App(&c.f, &c.a)
-   226          }
-   227          TAG_LAM => {
-   228              let c: &NodeLam = e.0.cast::<NodeLam>();
-   229              ExprView::Lam(&c.ty, &c.body, &c.m)
-   230          }
-   231          TAG_FORALL_E => {
-   232              let c: &NodeForallE = e.0.cast::<NodeForallE>();
-   233              ExprView::ForallE(&c.ty, &c.body, &c.m)
+== crates/con-ron-core/src/ron/node.rs#L228-L263
+   228  pub fn view(e: &Expr) -> ExprView<'_> {
+   229      match e.0.tag() {
+   230          TAG_BVAR => ExprView::Bvar(&e.0.cast::<NodeBvar>().i),
+   231          TAG_FVAR => {
+   232              let c: &NodeFvar = e.0.cast::<NodeFvar>();
+   233              ExprView::Fvar(&c.idx, &c.ty)
    234          }
-   235          TAG_LET_E => {
-   236              let c: &NodeLetE = e.0.cast::<NodeLetE>();
-   237              ExprView::LetE(&c.ty, &c.value, &c.body)
-   238          }
-   239          TAG_LIT => ExprView::Lit(&e.0.cast::<NodeLit>().l),
-   240          TAG_PROJ => {
-   241              let c: &NodeProj = e.0.cast::<NodeProj>();
-   242              ExprView::Proj(&c.n, &c.idx, &c.e)
+   235          TAG_SORT => ExprView::Sort(&e.0.cast::<NodeSort>().u),
+   236          TAG_CONST => {
+   237              let c: &NodeConst = e.0.cast::<NodeConst>();
+   238              ExprView::Const(&c.n, &c.us)
+   239          }
+   240          TAG_APP => {
+   241              let c: &NodeApp = e.0.cast::<NodeApp>();
+   242              ExprView::App(&c.f, &c.a)
    243          }
-   244          t => crate::ron::tagged::bad_tag(t),
-   245      }
+   244          TAG_LAM => {
+   245              let c: &NodeLam = e.0.cast::<NodeLam>();
+   246              ExprView::Lam(&c.ty, &c.body, &c.m)
+   247          }
+   248          TAG_FORALL_E => {
+   249              let c: &NodeForallE = e.0.cast::<NodeForallE>();
+   250              ExprView::ForallE(&c.ty, &c.body, &c.m)
+   251          }
+   252          TAG_LET_E => {
+   253              let c: &NodeLetE = e.0.cast::<NodeLetE>();
+   254              ExprView::LetE(&c.ty, &c.value, &c.body)
+   255          }
+   256          TAG_LIT => ExprView::Lit(&e.0.cast::<NodeLit>().l),
+   257          TAG_PROJ => {
+   258              let c: &NodeProj = e.0.cast::<NodeProj>();
+   259              ExprView::Proj(&c.n, &c.idx, &c.e)
+   260          }
+   261          t => crate::ron::tagged::bad_tag(t),
+   262      }
+   263  }
 
 == proof/ConRon/Generated/FunsExternal.lean#L122-L127
    122      Source: 'crates/con-ron-core/src/ron/node.rs', lines 477:0-479:1
@@ -1047,11 +1045,10 @@
    126    match e with
    127    | .mk (.mk data _k) => ok data
 
-== crates/con-ron-core/src/ron/node.rs#L299-L302
-   299  }
-   300  
-   301  /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-   302  /// `Expr.letE`'s cell.
+== crates/con-ron-core/src/ron/node.rs#L394-L396
+   394  pub fn data(e: &Expr) -> u64 {
+   395      e.0.header().data
+   396  }
 
 == proof/ConRon/Generated/FunsExternal.lean#L130-L133
    130      Source: 'crates/con-ron-core/src/ron/node.rs', lines 484:0-491:1
@@ -1059,11 +1056,10 @@
    132  @[rust_fun "con_ron_core::ron::node::dup"]
    133  def ron.node.dup (e : kernel.expr.Expr) : Result kernel.expr.Expr := ok e
 
-== crates/con-ron-core/src/ron/node.rs#L305-L308
-   305      Expr(ExprHandle::alloc(data, NodeLetE { ty, value, body }))
-   306  }
-   307  
-   308  /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+== crates/con-ron-core/src/ron/node.rs#L401-L403
+   401  pub fn dup(e: &Expr) -> Expr {
+   402      Expr(e.0.bump())
+   403  }
 
 == proof/ConRon/Generated/FunsExternal.lean#L136-L142
    136     takes the slow path, and each fast path is discharged by a reflexivity
@@ -1074,12 +1070,10 @@
    141  @[rust_fun "con_ron_core::ron::node::ptr_eq"]
    142  def ron.node.ptr_eq (_a _b : kernel.expr.Expr) : Result Bool := ok false
 
-== crates/con-ron-core/src/ron/node.rs#L311-L315
-   311  pub fn alloc_lit(data: u64, l: Literal) -> Expr {
-   312      Expr(ExprHandle::alloc(data, NodeLit { l }))
-   313  }
-   314  
-   315  /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+== crates/con-ron-core/src/ron/node.rs#L409-L411
+   409  pub fn ptr_eq(a: &Expr, b: &Expr) -> bool {
+   410      ExprHandle::ptr_eq(&a.0, &b.0)
+   411  }
 
 == proof/ConRon/Generated/FunsExternal.lean#L145-L149
    145      Source: 'crates/con-ron-core/src/ron/node.rs', lines 402:0-404:1
@@ -1088,11 +1082,10 @@
    148  def ron.node.alloc_bvar (data i : Std.U64) : Result kernel.expr.Expr :=
    149    ok (.mk (.mk data (.Bvar i)))
 
-== crates/con-ron-core/src/ron/node.rs#L249-L252
-   249  // Allocation
-   250  // ---------------------------------------------------------------------------
-   251  
-   252  /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+== crates/con-ron-core/src/ron/node.rs#L272-L274
+   272  pub fn alloc_bvar(data: u64, i: u64) -> Expr {
+   273      Expr(ExprHandle::alloc(data, NodeBvar { i }))
+   274  }
 
 == proof/ConRon/Generated/FunsExternal.lean#L152-L157
    152      Source: 'crates/con-ron-core/src/ron/node.rs', lines 409:0-411:1
@@ -1102,11 +1095,10 @@
    156    Result kernel.expr.Expr := ok (.mk (.mk data (.Fvar idx ty)))
    157  
 
-== crates/con-ron-core/src/ron/node.rs#L255-L258
-   255  pub fn alloc_bvar(data: u64, i: u64) -> Expr {
-   256      Expr(ExprHandle::alloc(data, NodeBvar { i }))
-   257  }
-   258  
+== crates/con-ron-core/src/ron/node.rs#L279-L281
+   279  pub fn alloc_fvar(data: u64, idx: u64, ty: Expr) -> Expr {
+   280      Expr(ExprHandle::alloc(data, NodeFvar { idx, ty }))
+   281  }
 
 == proof/ConRon/Generated/FunsExternal.lean#L160-L164
    160      Visibility: public -/
@@ -1115,11 +1107,10 @@
    163    Result kernel.expr.Expr := ok (.mk (.mk data (.«Sort» u)))
    164  
 
-== crates/con-ron-core/src/ron/node.rs#L261-L264
-   261  #[inline]
-   262  pub fn alloc_fvar(data: u64, idx: u64, ty: Expr) -> Expr {
-   263      Expr(ExprHandle::alloc(data, NodeFvar { idx, ty }))
-   264  }
+== crates/con-ron-core/src/ron/node.rs#L286-L288
+   286  pub fn alloc_sort(data: u64, u: Level) -> Expr {
+   287      Expr(ExprHandle::alloc(data, NodeSort { u }))
+   288  }
 
 == proof/ConRon/Generated/FunsExternal.lean#L167-L173
    167      Visibility: public -/
@@ -1130,11 +1121,10 @@
    172  
    173  /-- [con_ron_core::ron::node::alloc_app]:
 
-== crates/con-ron-core/src/ron/node.rs#L267-L270
-   267  /// `Expr.sort`'s cell.
-   268  #[inline]
-   269  pub fn alloc_sort(data: u64, u: Level) -> Expr {
-   270      Expr(ExprHandle::alloc(data, NodeSort { u }))
+== crates/con-ron-core/src/ron/node.rs#L293-L295
+   293  pub fn alloc_const(data: u64, n: Name, us: P<Vec<Level>>) -> Expr {
+   294      Expr(ExprHandle::alloc(data, NodeConst { n, us }))
+   295  }
 
 == proof/ConRon/Generated/FunsExternal.lean#L176-L181
    176  @[rust_fun "con_ron_core::ron::node::alloc_app"]
@@ -1144,11 +1134,10 @@
    180  /-- [con_ron_core::ron::node::alloc_lam]:
    181      Source: 'crates/con-ron-core/src/ron/node.rs', lines 437:0-439:1
 
-== crates/con-ron-core/src/ron/node.rs#L273-L276
-   273  /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-   274  /// `Expr.const`'s cell; the level list arrives already behind its handle.
-   275  #[inline]
-   276  pub fn alloc_const(data: u64, n: Name, us: P<Vec<Level>>) -> Expr {
+== crates/con-ron-core/src/ron/node.rs#L300-L302
+   300  pub fn alloc_app(data: u64, f: Expr, a: Expr) -> Expr {
+   301      Expr(ExprHandle::alloc(data, NodeApp { f, a }))
+   302  }
 
 == proof/ConRon/Generated/FunsExternal.lean#L184-L190
    184  def ron.node.alloc_lam (data : Std.U64) (ty body : kernel.expr.Expr)
@@ -1159,11 +1148,10 @@
    189      Source: 'crates/con-ron-core/src/ron/node.rs', lines 444:0-446:1
    190      Visibility: public -/
 
-== crates/con-ron-core/src/ron/node.rs#L279-L282
-   279  
-   280  /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-   281  /// `Expr.app`'s cell — the hot one.
-   282  #[inline]
+== crates/con-ron-core/src/ron/node.rs#L307-L309
+   307  pub fn alloc_lam(data: u64, ty: Expr, body: Expr, m: BinderMeta) -> Expr {
+   308      Expr(ExprHandle::alloc(data, NodeLam { ty, body, m }))
+   309  }
 
 == proof/ConRon/Generated/FunsExternal.lean#L193-L199
    193    (m : kernel.expr.BinderMeta) : Result kernel.expr.Expr :=
@@ -1174,11 +1162,10 @@
    198      Visibility: public -/
    199  @[rust_fun "con_ron_core::ron::node::alloc_let_e"]
 
-== crates/con-ron-core/src/ron/node.rs#L285-L288
-   285  }
-   286  
-   287  /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
-   288  /// `Expr.lam`'s cell.
+== crates/con-ron-core/src/ron/node.rs#L314-L316
+   314  pub fn alloc_forall_e(data: u64, ty: Expr, body: Expr, m: BinderMeta) -> Expr {
+   315      Expr(ExprHandle::alloc(data, NodeForallE { ty, body, m }))
+   316  }
 
 == proof/ConRon/Generated/FunsExternal.lean#L202-L206
    202    ok (.mk (.mk data (.LetE ty value body)))
@@ -1187,11 +1174,10 @@
    205      Source: 'crates/con-ron-core/src/ron/node.rs', lines 458:0-460:1
    206      Visibility: public -/
 
-== crates/con-ron-core/src/ron/node.rs#L291-L294
-   291      Expr(ExprHandle::alloc(data, NodeLam { ty, body, m }))
-   292  }
-   293  
-   294  /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+== crates/con-ron-core/src/ron/node.rs#L321-L323
+   321  pub fn alloc_let_e(data: u64, ty: Expr, value: Expr, body: Expr) -> Expr {
+   322      Expr(ExprHandle::alloc(data, NodeLetE { ty, value, body }))
+   323  }
 
 == proof/ConRon/Generated/FunsExternal.lean#L209-L213
    209    Result kernel.expr.Expr := ok (.mk (.mk data (.Lit l)))
@@ -1200,11 +1186,10 @@
    212      Source: 'crates/con-ron-core/src/ron/node.rs', lines 465:0-467:1
    213      Visibility: public -/
 
-== crates/con-ron-core/src/ron/node.rs#L297-L300
-   297  pub fn alloc_forall_e(data: u64, ty: Expr, body: Expr, m: BinderMeta) -> Expr {
-   298      Expr(ExprHandle::alloc(data, NodeForallE { ty, body, m }))
-   299  }
-   300  
+== crates/con-ron-core/src/ron/node.rs#L328-L330
+   328  pub fn alloc_lit(data: u64, l: Literal) -> Expr {
+   329      Expr(ExprHandle::alloc(data, NodeLit { l }))
+   330  }
 
 == proof/ConRon/Generated/FunsExternal.lean#L216-L221
    216    (idx : Std.U64) (e : kernel.expr.Expr) : Result kernel.expr.Expr :=
@@ -1214,11 +1199,10 @@
    220      Source: 'crates/con-ron-core/src/ron/node.rs', lines 566:4-568:5
    221      Visibility: public -/
 
-== crates/con-ron-core/src/ron/node.rs#L303-L306
-   303  #[inline]
-   304  pub fn alloc_let_e(data: u64, ty: Expr, value: Expr, body: Expr) -> Expr {
-   305      Expr(ExprHandle::alloc(data, NodeLetE { ty, value, body }))
-   306  }
+== crates/con-ron-core/src/ron/node.rs#L335-L337
+   335  pub fn alloc_proj(data: u64, n: Name, idx: u64, e: Expr) -> Expr {
+   336      Expr(ExprHandle::alloc(data, NodeProj { n, idx, e }))
+   337  }
 
 == proof/ConRon/Generated/FunsExternal.lean#L222-L225
    222  @[rust_fun
@@ -1226,39 +1210,18 @@
    224  def kernel.expr.Expr.Insts.CoreOpsDropDrop.drop (e : kernel.expr.Expr) :
    225    Result kernel.expr.Expr := ok e
 
-== crates/con-ron-core/src/ron/node.rs#L317-L326
-   317  #[inline]
-   318  pub fn alloc_proj(data: u64, n: Name, idx: u64, e: Expr) -> Expr {
-   319      Expr(ExprHandle::alloc(data, NodeProj { n, idx, e }))
-   320  }
-   321  
-   322  // ---------------------------------------------------------------------------
-   323  // The pointer operations (DESIGN.md §3.2)
-   324  // ---------------------------------------------------------------------------
-   325  
-   326  /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+== crates/con-ron-core/src/ron/node.rs#L419-L423
+   419  impl Drop for Expr {
+   420      fn drop(&mut self) {
+   421          release(&self.0)
+   422      }
+   423  }
 
-== crates/con-ron-core/src/ron/tagged.rs#L1-L20
-     1  //! con-leche: none — the tagged counted handle of DESIGN.md §3.2 (task #94).
-     2  //!
-     3  //! `ron::tagged` — **the crate's only `unsafe`, and it does not know what an
-     4  //! `Expr` is**.
-     5  //!
-     6  //! One counted handle, one word wide, whose low four bits say which of a
-     7  //! *scheme's* node types the rest of it points at.  Every node is allocated
-     8  //! 16-aligned, which is what frees those four bits; sixteen kinds fit, and
-     9  //! each kind's cell is as wide as that kind needs rather than as wide as the
-    10  //! widest.  That is the whole idea, and the measurement behind it is task
-    11  //! #94's report: `Expr`'s nodes go from a flat 64-byte block to 32 or 48
-    12  //! bytes, which is −41 % of Mathlib's peak.
-    13  //!
-    14  //! **This module is generic.**  It names no term type, no constructor and no
-    15  //! kind: a *scheme* is a table, and [`tagged_kinds!`] turns it into the
-    16  //! tag→type dispatch and the release.  `ron::node` is
-    17  //! the one instantiation today (`Expr`'s ten nodes); `Name`, `Level` and
-    18  //! `PropWhen` keep `ron::ptr::P` (DESIGN.md §3.2 — their nodes are not the
-    19  //! bulk, and a uniform block costs them nothing).
-    20  //!
+== crates/con-ron-core/src/ron/tagged.rs#L284-L287
+   284  pub(crate) struct Raw<M> {
+   285      p: NonNull<u8>,
+   286      modeled: PhantomData<M>,
+   287  }
 
 == crates/con-ron-core/src/ron/node.rs#L1-L14
      1  //! con-leche: none — `Expr`'s instantiation of `ron::tagged` (DESIGN.md §3.2, task #94).
@@ -1277,9 +1240,9 @@
     14  //! `tag => variant: type` lines, ten struct declarations, and thin wrappers:
 
 == crates/con-ron-dump/src/lib.rs#L174-L176
-   174          } else {
-   175              libmimalloc_sys::mi_realloc_aligned(
-   176                  ptr as *mut std::ffi::c_void,
+   174          }
+   175      }
+   176  
 
 == Cargo.toml#L17-L21
     17  # The Aeneas model of the code is the checked-arithmetic one (an overflow is
@@ -1329,19 +1292,19 @@
      4  //! `Expr` is**.
      5  //!
      6  //! One counted handle, one word wide, whose low four bits say which of a
-     7  //! *scheme's* node types the rest of it points at.  Every node is allocated
+     7  //! *scheme's* node types the rest of it points at.  Every block is allocated
      8  //! 16-aligned, which is what frees those four bits; sixteen kinds fit, and
-     9  //! each kind's cell is as wide as that kind needs rather than as wide as the
+     9  //! each kind's block is as wide as that kind needs rather than as wide as the
     10  //! widest.  That is the whole idea, and the measurement behind it is task
     11  //! #94's report: `Expr`'s nodes go from a flat 64-byte block to 32 or 48
-    12  //! bytes, which is −41 % of Mathlib's peak.
+    12  //! bytes, which is −45 % of Mathlib's peak.
     13  //!
     14  //! **This module is generic.**  It names no term type, no constructor and no
     15  //! kind: a *scheme* is a table, and [`tagged_kinds!`] turns it into the
-    16  //! tag→type dispatch and the release.  `ron::node` is
-    17  //! the one instantiation today (`Expr`'s ten nodes); `Name`, `Level` and
-    18  //! `PropWhen` keep `ron::ptr::P` (DESIGN.md §3.2 — their nodes are not the
-    19  //! bulk, and a uniform block costs them nothing).
+    16  //! tag→type dispatch and the release.  `ron::node` is the one instantiation
+    17  //! today (`Expr`'s ten blocks); `Name`, `Level` and `PropWhen` keep
+    18  //! `ron::ptr::P` (DESIGN.md §3.2 — their nodes are not the bulk, and a
+    19  //! uniform block costs them nothing).
     20  //!
 
 == crates/con-ron-core/src/ron/ptr.rs#L1-L8

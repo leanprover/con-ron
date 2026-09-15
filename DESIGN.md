@@ -412,8 +412,9 @@ Measured against master, driver lane, `perf stat`:
 | | `init` (3 runs) | `core` (2 runs) | Mathlib (once) |
 |---|---:|---:|---:|
 | peak RSS, master | 798 MB | 2 157 MB | 14.31 GB |
-| peak RSS, task #94 | **476 MB (−40 %)** | **1 343 MB (−37.7 %)** | **7.80 GB (−45.4 %)** |
-| instructions | +3.78 % | +3.36 % | **+5.14 %** |
+| peak RSS, task #94 | **478 MB (−40 %)** | **1 343 MB (−37.7 %)** | **7.80 GB (−45.4 %)** |
+| instructions | +4.54 % | +3.36 % | +5.14 % |
+| (the `core` and Mathlib rows predate the review's two runtime guards, which `init` prices at +0.73 % of instructions at an unchanged peak) | | | |
 | cycles | −5 % | −6 % | −7 % |
 | wall | −2 % | −6 % | −10 % |
 
@@ -430,17 +431,35 @@ only**; `Name`, `Level`, `PropWhen` and `ConstantInfo` are still `P<T>` and
 still carry §3.2's four-operation model.  What it costs the trusted base:
 
 * **`ron/tagged.rs` is the crate's only `unsafe`**, and §3.4 makes that a
-  one-path lint exemption.  Nine lines: `unsafe trait Kind`, two `unsafe impl
-  Send`/`Sync`, four expressions (`NonNull::new_unchecked` after
-  `Box::into_raw`; the `*const Header` cast; the tag-checked `*const Block<K>`
-  cast; `Box::from_raw`), and the macro's `unsafe impl Kind` and its call to
-  `drop_block`.  The soundness argument is the module's own note and rests on
-  one invariant: a handle is only ever made by `Raw::alloc`, which writes the
-  block and attaches `K::TAG` in the same expression and is the sole writer of
-  the private field.  `Raw::get` is tag-checked and returns `Option`, so
-  asking for the wrong kind is a `None` and not undefined behaviour; `Raw` has
-  no `Drop`, because only a table knows which type a tag names, so the owning
-  newtype releases.
+  one-path lint exemption.  **Twelve lines at nine sites**: `unsafe trait
+  Kind` and `unsafe trait Model`; two `unsafe impl Send`/`Sync`; five
+  expressions (`byte_add` of the tag after `Box::leak`, `byte_sub` back off,
+  the `Header` cast, the tag-checked `Block<K>` cast, and `drop_block`'s
+  `Box::from_raw`); and the table macro's two `unsafe impl`s and its call to
+  `drop_block`.  The soundness argument is the module's own note and rests
+  on one invariant: a handle is only ever made by `Raw::alloc`, which writes
+  the block and attaches `K::TAG` in the same expression and is the sole
+  writer of the private field.  `Raw::get` is tag-checked and returns
+  `Option`, so asking for the wrong kind is a `None` and not undefined
+  behaviour; `Raw` has no `Drop`, because only a table knows which type a tag
+  names, so the owning newtype releases.
+* **The module is `pub(crate)`, and that is half the argument** (external
+  review, 2026-09-15).  What the invariant above needs is that nothing outside
+  the module can make, release or address a handle — and an earlier cut of the
+  file left `alloc`, `bump`, `drop_share`, the address accessors and the
+  generated `release` *public and safe*, which is a use-after-free any
+  downstream crate can write with no `unsafe` block.  The public API of the
+  representation is now exactly `Expr`'s ten `alloc_*`, `view`, `data`, `dup`,
+  `ptr_eq` and `addr_word`.  Two more of the reviewer's findings are fixed in
+  the types rather than the visibility: `Kind` names its `Model` and
+  `get`/`cast` demand `K: Kind<Model = M>`, so a handle cannot be cast to a
+  kind of another scheme (the table macro is no longer `#[macro_export]`); and
+  `Send`/`Sync` are conditioned on `Model::Payloads`, the tuple of every kind
+  in the table, so the compiler checks each kind's fields instead of the impl
+  promising for all `T`.  **The claim that the handle is "no worse than `Arc`"
+  was false of the public surface as it stood and is now true by
+  construction** — no safe release, no cross-scheme cast, auto traits derived
+  rather than asserted.
 * **The model does not move.**  `Raw<T>`'s phantom `T` is `ExprNode`, so
   Charon emits `Expr.mk : ron.tagged.Raw ExprNode` exactly where it emitted
   `Expr.mk : alloc.sync.Arc ExprNode`, and the hole is the same one line,
@@ -605,7 +624,10 @@ equality, hashing and `String.toList`/`Char.ofNat` for literal reduction);
   `crates/con-ron-core/src/ron/tagged.rs` — the generic tagged counted handle,
   and only that file — may write `unsafe`.  The reason is the 2026-09-12
   ruling's own test, applied honestly: the ruling is "`std` (or a common crate)
-  does it if it can", and here it cannot.  An `Expr`'s constructor lives in the
+  does it if it can", and here it cannot.  The exemption is a *path* and not a
+  budget, and what keeps it honest is that the file is `pub(crate)`: an
+  external review of 2026-09-15 found that a public, safe API over that
+  `unsafe` is a soundness hole whether or not the `unsafe` itself is right.  An `Expr`'s constructor lives in the
   low four bits of its handle, so the pointee type is chosen at run time and no
   `std` smart pointer expresses it; the two tagged-pointer crates on crates.io
   model *a pointer to one `T` plus a tag*, which is the opposite problem (§3.2
@@ -18244,7 +18266,7 @@ its layout.
 an exhaustive safe `match e.0.tag()`, the ten `alloc_*`, `data`, `dup`,
 `ptr_eq` and `Drop for Expr`.  It passes `lint-rust-style.sh` unexempted.
 
-Three design points earned their keep:
+Four design points earned their keep:
 
 * **`Raw` has no `Drop`.**  Only a table knows which type a tag names, so the
   owning newtype releases.  That is also what removes the `Scheme` *trait* the
@@ -18256,6 +18278,9 @@ Three design points earned their keep:
   `unwrap` and no `unreachable!` — the default arm is a *call* to `bad_tag`.
 * **`lam` and `forallE` are two types, not one type with two tags.**  The
   layouts are identical and the cost is zero; the table says what it means.
+* **The module is `pub(crate)` and the handle is parameterised by its
+  scheme** — which is §7 below, the external review's doing, and not how the
+  file was first written.
 
 #### 3. The sizes, and why they are the whole story
 
@@ -18310,6 +18335,89 @@ unchanged peak.  `Box::into_raw`/`from_raw` against the spike's raw
 `alloc`+`ptr::write` changed nothing: same `Layout`, same block, and the peak
 RSS is identical to the run-to-run spread.
 
+#### 4b. The external review, 2026-09-15, and what it changed
+
+A reviewer rejected the branch as written.  The internal `Expr` path was fine
+and the measurements stood; **the generic core's public API was unsound**, in
+three ways, and all three are worth recording because none of them is a bug in
+the `unsafe` — they are bugs in what the `unsafe` was wrapped in.
+
+1. **A use-after-free from safe code.**  `ron::tagged` was `pub mod`, and
+   `Raw::alloc`, `bump`, `drop_share`, `addr`, `header` and the
+   macro-generated `node::release` were `pub` and safe.  So any downstream
+   crate — including this workspace's own `con-ron` — could allocate a handle,
+   release it, and then read its header or release it again, without writing
+   `unsafe` anywhere.  **Fixed by visibility**: the module is `pub(crate)`,
+   every method on `Raw` is `pub(crate)` at most, and the generated
+   `release`/`free_block` are private to `ron::node`.  The public API of the
+   representation is now exactly the ten `alloc_*`, `view`, `data`, `dup`,
+   `ptr_eq` and `addr_word` — and `addr_word` hands out an integer for a hash
+   key, never a pointer.
+2. **Type confusion across schemes.**  `Raw::get::<K>` checked `K::TAG` and
+   nothing else, and `tagged_kinds!` was `#[macro_export]`, so a *second*
+   scheme with a kind at tag 0 would read an `Expr` block as that kind.
+   **Fixed in the type system**: `Kind` gained an associated `Model`, `Raw<M>`
+   is the handle of model `M`, and `get`/`cast` demand `K: Kind<Model = M>`.
+   The macro is crate-internal now (`pub(crate) use`, not `#[macro_export]`),
+   and `ron::node`'s own test asserts that all ten kinds have
+   `Model = ExprNode`.  **The modelled-contents phantom doubles as the scheme
+   marker**, which is what keeps the handle at one type parameter and the
+   Lean hole at one line — Charon still emits `Expr.mk : Raw ExprNode`.
+3. **Auto traits asserted rather than derived.**  `unsafe impl<T> Send for
+   Raw<T>` said nothing about what a block holds.  **Fixed by deriving them**:
+   `Model::Payloads` is the tuple of every kind in the table, and the impls
+   are `unsafe impl<M: Model> Send for Raw<M> where M::Payloads: Send + Sync`.
+   `tests/send_sync.rs` therefore now means something — its
+   `assert_send_sync::<Expr>()` makes the compiler check every payload's
+   fields.
+
+Three smaller items came with them.  **Strict provenance**: the tag rides
+through `NonNull::with_addr` rather than a `usize` round trip (`with_addr` and
+not `map_addr`, because §3.4 has no closures).  **The count's overflow
+guard**: `bump` aborts past `isize::MAX`, which is `Arc::clone`'s own guard,
+because a wrapped count frees a live block.  **The allocator contract**:
+`MiMallocTight`'s `align <= 16` fast path now carries a soundness obligation,
+so its note cites mimalloc's *documented* guarantee — `MI_MAX_ALIGN_SIZE` is
+16 and `MI_MAX_ALIGN_GUARANTEE` is `8 * MI_MAX_ALIGN_SIZE` = 128, "blocks up
+to this size are always allocated aligned", against blocks of 32 and 48 — and
+`Raw::alloc` *tests the address it actually got* and calls
+`std::process::abort` if the low bits are not zero.  Not a `debug_assert`, and
+not a panic: a violated allocator contract must never become a corrupted tag.
+
+And one piece of hygiene the review implies: `con-ron-dump` used to read
+`Block`/`Header`/`NodeApp` directly for its `--sizes` report.  Those types are
+`pub(crate)` now, so the table moved into `ron::node` as `block_sizes()` and
+`expr_block_bytes()`, with the assertions as a `#[cfg(test)]` there; the dump
+crate sees names and numbers and not the representation.
+
+**What it cost, measured.**  `init`, three runs, same lane: **542.118 G**
+instructions (542.113 / 542.122 / 542.120) against the pre-review **538.169 G**
+— **+0.73 %** — at a peak RSS inside the same band (475–481 MB against
+473–481).  Against master the layout is now +4.54 % rather than +3.78 %.  The
+0.73 % is the two runtime guards and nothing else: one `test`-and-branch per
+allocation for the alignment check, one `cmp`-and-branch per share for the
+count's ceiling, both with the abort out of line and `#[cold]`.  That is the
+price of "a violated allocator contract can never become a corrupted tag" and
+"a wrapped count can never free a live block", and it is worth paying.
+
+**One of the fixes had to be done twice, and the first way was expensive.**
+Strict provenance through `NonNull::with_addr` costs **+3.4 %** on `init`
+(560.6 G), because `with_addr` is `self.wrapping_byte_offset(dest - self)` —
+a subtract and an add where the old `as usize` round trip was one `and`, on a
+path every `data`, `dup`, `view` and drop takes.  `byte_add`/`byte_sub` of the
+tag is the same provenance story told as an *offset* rather than an address,
+compiles to the one instruction, and is if anything the better argument: the
+tag is an offset into a block at least 32 bytes long, so `byte_add` is
+in-bounds by inspection.  Marking the abort paths `#[cold] #[inline(never)]`
+on top of that was worth nothing measurable (542.113 against 542.118), which
+is the check that what is left really is the branches and not the calls.
+
+**The extraction does not move**: visibility is invisible to Charon,
+`Generated/Types.lean` changes by one source-line comment,
+`Generated/Funs.lean` by one, and `scripts/holes.sh` prints the same 22
+holes.  The template records the parameter's new name (`Raw (M : Type)`) and
+drops its "Visibility: public" line; the hand-written model is untouched.
+
 #### 5. The numbers
 
 `con-ron --verified --jobs=1 --progress=1000000` (the driver lane), release +
@@ -18321,7 +18429,8 @@ mimalloc, `perf stat -e instructions:u,cycles:u`, `ulimit -v` 2.6 / 5 / 27 GB.
 | `init`, 3 runs each | instructions:u | cycles:u | wall | peak RSS |
 |---|---:|---:|---:|---:|
 | master | 518.578 G | 275.3 / 276.4 / 302.4 G | 62.6 / 62.9 / 70.7 s | 797 736 / 798 452 / 800 844 kB |
-| **task #94** | **538.169 G (+3.78 %)** | 269.5 / 269.1 / 269.9 G (−4 %) | 61.1 / 61.8 / 61.8 s | **473 280 / 480 748 / 480 888 kB (−40 %)** |
+| **task #94, before the review** | 538.169 G (+3.78 %) | 269.5 / 269.1 / 269.9 G | 61.1 / 61.8 / 61.8 s | 473 280 / 480 748 / 480 888 kB |
+| **task #94, as it stands** | **542.118 G (+4.54 %)** | 269.6 / 270.7 / 270.4 G (−4 %) | 61.3 / 61.6 / 61.5 s | **475 288 / 480 508 / 477 976 kB (−40 %)** |
 
 | `core`, 2 runs each | instructions:u | cycles:u | wall | peak RSS |
 |---|---:|---:|---:|---:|

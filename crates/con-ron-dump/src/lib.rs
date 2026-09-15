@@ -120,20 +120,37 @@
 ///
 /// The fallback is kept for `align > 16`.  Task #92 drew the line at 8,
 /// because nothing con-ron allocated then was more aligned than a machine
-/// word; **task #94's nodes are `align(16)`** — that alignment is what frees
+/// word; **task #94's blocks are `align(16)`** — that alignment is what frees
 /// the four tag bits the kind lives in — so drawing it at 8 would have sent
-/// every `Expr` allocation down exactly the slow, class-losing path this
-/// type exists to avoid, and a 48-byte node would have been charged 64
-/// again.  Sixteen is safe by mimalloc's own construction and is audited
-/// here rather than assumed: on x86-64 `MI_MAX_ALIGN_SIZE` is 16, so
-/// `MI_ALIGN2W` is defined and every request of eight machine words or fewer
-/// is rounded up to an *even* number of words, giving every bin in that
-/// range a multiple-of-16 stride from a 16-aligned page start.  The test
-/// `mi_malloc_gives_16_aligned_blocks` below checks 100 000 blocks at each of
-/// the sizes con-ron allocates.  This is the same `unsafe impl GlobalAlloc`
-/// the `mimalloc` crate itself writes, minus the one conservative branch; it
-/// is in the *unverified* crate, invisible to Charon, and cannot change a
-/// verdict (see the note above).
+/// every `Expr` allocation down exactly the slow, class-losing path this type
+/// exists to avoid, and a 48-byte block would have been charged 64 again.
+///
+/// **Sixteen is mimalloc's documented guarantee, not an inference from its
+/// bin structure**, which matters because `ron::tagged` now depends on it for
+/// soundness and not only for size (the external review of 2026-09-15).
+/// `mimalloc/types.h` defines
+///
+/// ```text
+/// // Minimal alignment necessary. On most platforms 16 bytes are needed
+/// // due to SSE registers for example. This must be at least `sizeof(void*)`
+/// #define MI_MAX_ALIGN_SIZE  16   // sizeof(max_align_t)
+/// …
+/// // blocks up to this size are always allocated aligned
+/// #define MI_MAX_ALIGN_GUARANTEE  (8*MI_MAX_ALIGN_SIZE)
+/// ```
+///
+/// — so every allocation of at most **128** bytes comes back aligned to at
+/// least `MI_MAX_ALIGN_SIZE` = 16, against the 32- and 48-byte blocks
+/// `ron::node` asks for.  `mi_malloc_gives_16_aligned_blocks` below checks
+/// 100 000 blocks at each of the sizes con-ron allocates, which is evidence
+/// and not the argument; and `ron::tagged::Raw::alloc` tests the address it
+/// actually got and aborts if the low bits are not zero, so a violated
+/// contract is a dead process and never a corrupted tag.
+///
+/// This is the same `unsafe impl GlobalAlloc` the `mimalloc` crate itself
+/// writes, minus the one conservative branch; it is in the *unverified*
+/// crate, invisible to Charon, and cannot change a verdict (see the note
+/// above).
 #[cfg(all(feature = "mimalloc", not(feature = "jemalloc")))]
 pub struct MiMallocTight;
 
@@ -210,18 +227,7 @@ use con_ron_core::kernel::expr::Expr;
 use con_ron_core::kernel::expr::ExprView;
 #[allow(unused_imports)]
 use con_ron_core::kernel::expr::Literal;
-use con_ron_core::ron::node::NodeApp;
-use con_ron_core::ron::node::NodeBvar;
-use con_ron_core::ron::node::NodeConst;
-use con_ron_core::ron::node::NodeForallE;
-use con_ron_core::ron::node::NodeFvar;
-use con_ron_core::ron::node::NodeLam;
-use con_ron_core::ron::node::NodeLetE;
-use con_ron_core::ron::node::NodeLit;
-use con_ron_core::ron::node::NodeProj;
-use con_ron_core::ron::node::NodeSort;
-use con_ron_core::ron::tagged::Block;
-use con_ron_core::ron::tagged::Header;
+use con_ron_core::ron::node;
 use con_ron_core::kernel::level;
 use con_ron_core::kernel::level::Level;
 use con_ron_core::kernel::level::LevelKind;
@@ -395,22 +401,8 @@ pub fn node_sizes() -> Vec<NodeSize> {
             heap: if rc { std::mem::size_of::<PBlock<T>>() } else { 0 },
         }
     }
-    fn node_row<T>(what: &'static str) -> NodeSize {
-        NodeSize { what, size: std::mem::size_of::<T>(), heap: std::mem::size_of::<T>() }
-    }
-    vec![
+    let mut rows: Vec<NodeSize> = vec![
         row::<Expr>("Expr (the tagged handle)", false),
-        node_row::<Header>("  cell header (count + data)"),
-        node_row::<Block<NodeApp>>("  app cell"),
-        node_row::<Block<NodeBvar>>("  bvar cell"),
-        node_row::<Block<NodeFvar>>("  fvar cell"),
-        node_row::<Block<NodeSort>>("  sort cell"),
-        node_row::<Block<NodeConst>>("  const cell"),
-        node_row::<Block<NodeLam>>("  lam cell"),
-        node_row::<Block<NodeForallE>>("  forallE cell"),
-        node_row::<Block<NodeLetE>>("  letE cell"),
-        node_row::<Block<NodeLit>>("  lit cell"),
-        node_row::<Block<NodeProj>>("  proj cell"),
         row::<NameNode>("NameNode (hash + kind)", true),
         row::<NameKind>("  NameKind", false),
         row::<LevelNode>("LevelNode (hash + kind)", true),
@@ -422,7 +414,14 @@ pub fn node_sizes() -> Vec<NodeSize> {
         row::<Declaration>("Declaration", false),
         row::<ConstantInfo>("ConstantInfo (inline)", false),
         row::<ConstantVal>("ConstantVal (inline)", false),
-    ]
+    ];
+    // The per-constructor blocks come from the core's own table: the block
+    // types are `pub(crate)` since the external review of 2026-09-15, so
+    // nothing outside `con-ron-core` names them (`ron::tagged`'s module note).
+    for (what, size) in node::block_sizes() {
+        rows.insert(1, NodeSize { what, size, heap: size });
+    }
+    rows
 }
 
 /// The heap block of the *average* `Expr` node, weighted by task #88's live
@@ -432,12 +431,7 @@ pub fn node_sizes() -> Vec<NodeSize> {
 /// that wants to multiply by an `E` record count gets the census average.
 /// Task #94's report has the exact per-kind arithmetic.
 pub fn expr_node_bytes() -> usize {
-    let c32: usize = std::mem::size_of::<Block<NodeApp>>();
-    let c48: usize = std::mem::size_of::<Block<NodeLam>>();
-    // 23 230 860 of 28 134 596 live nodes are in the small class, 4 903 736
-    // in the large one (task #88 section 3's census of `core`, at
-    // install-done).
-    (23_230_860 * c32 + 4_903_736 * c48) / 28_134_596
+    node::expr_block_bytes()
 }
 
 /// The peak resident set of this process in KB, `VmHWM` from
@@ -1366,49 +1360,17 @@ mod tests {
         for r in node_sizes() {
             eprintln!("{:<32} size {:>3}  rc block {:>3}", r.what, r.size, r.heap);
         }
-        // Until task #94 an `ExprKind` was as wide as its widest variant and
-        // every node paid that width.  Before task #38 the widest was
-        // `lam`/`forallE`, whose `BinderMeta` was a `PropWhen` *by value* —
-        // 24 bytes — so 40 bytes of payload, 48 with the discriminant, 56
-        // with the cached `data` word and 72 of heap once `Rc`'s two counts
-        // were in front, while 85 % of the nodes are `app`, which needs 16.
-        // Task #38 put the binder datum, a `const`'s level list and a
-        // literal's payloads behind handles (three arms tied at 24;
-        // `ExprKind` 32, `ExprNode` 40, the block 56).  Task #90 took
-        // `PropWhen`'s own `Many(Vec<Name>)` behind a handle and put the
-        // datum back inline, which removed a whole allocation per binder and
-        // widened `lam`/`forallE` to 32 — `ExprKind` 40, `ExprNode` 48, the
-        // block 64.  Task #92 then measured what the allocator actually
-        // charges: 42–64 bytes all cost 64, 33–41 cost 48, ≤32 cost 32.  So
-        // the flat 64-byte block was 32 wasted bytes on two thirds of the
-        // nodes, and no amount of repacking one `ExprKind` could reach the
-        // next class down.
-        //
-        // **Task #94 stopped paying for the widest arm.**  The kind moved
-        // into the handle's four spare bits (`ron::node`), `Arc`'s unused
-        // weak count went with `Arc`, and each kind got a node struct of its
-        // own size: five kinds at 32 bytes, four at 48, and `app` — 65 % of
-        // the live nodes of a real term — in the cheapest class.  The
-        // assertions below are that table; the census-weighted average is
-        // what `expr_node_bytes` reports.
-        assert_eq!(std::mem::size_of::<Header>(), 16);
-        assert_eq!(std::mem::align_of::<Header>(), 16);
-        assert_eq!(std::mem::size_of::<Block<NodeApp>>(), 32);
-        assert_eq!(std::mem::size_of::<Block<NodeBvar>>(), 32);
-        assert_eq!(std::mem::size_of::<Block<NodeFvar>>(), 32);
-        assert_eq!(std::mem::size_of::<Block<NodeSort>>(), 32);
-        assert_eq!(std::mem::size_of::<Block<NodeConst>>(), 32);
-        assert_eq!(std::mem::size_of::<Block<NodeLit>>(), 32);
-        assert_eq!(std::mem::size_of::<Block<NodeLam>>(), 48);
-        assert_eq!(std::mem::size_of::<Block<NodeForallE>>(), 48);
-        assert_eq!(std::mem::size_of::<Block<NodeLetE>>(), 48);
-        assert_eq!(std::mem::size_of::<Block<NodeProj>>(), 48);
-        // every cell is 16-aligned: that is what frees the handle's tag bits
+        // **The per-constructor block sizes are pinned in the core**, by
+        // `ron::node`'s own `the_block_sizes_are_what_the_accounting_assumes`:
+        // the block types went `pub(crate)` at the external review of
+        // 2026-09-15, so this crate sees the table of numbers and not the
+        // types it is made of (`ron::tagged`'s module note, finding 1).  What
+        // is left here is what this crate can still see, plus the shape of the
+        // report itself.
+        assert_eq!(node_sizes().len(), 11 + 12);
         for r in node_sizes() {
             assert_eq!(r.size % 8, 0, "{} is not word-sized", r.what);
         }
-        assert_eq!(std::mem::align_of::<Block<NodeApp>>(), 16);
-        assert_eq!(std::mem::align_of::<Block<NodeProj>>(), 16);
         // the census average, against the flat 64 bytes of task #90
         assert_eq!(expr_node_bytes(), 34);
         assert_eq!(std::mem::size_of::<PropWhen>(), 16);
