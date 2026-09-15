@@ -197,6 +197,13 @@ jobs:
             extra-substituters = https://hacl.cachix.org
             extra-trusted-public-keys = hacl.cachix.org-1:FzsZ2xsByOwKwIWNPII7yMOelJNDZ12mDAj3d1eGX0c=
 
+      # A nix store cache of our own, backed by the Actions cache: the run at
+      # 8e7cb88c spent 14 minutes compiling Charon's OCaml closure because
+      # Aeneas' binary cache no longer served it.  Zero configuration; paths
+      # built here are restored on the next run.
+      - name: Cache the nix store
+        uses: DeterminateSystems/magic-nix-cache-action@v15
+
       # `--default-toolchain none` on purpose (con-leche's CI idiom): elan
       # then reads `lean-toolchain` on the first `lake` call, so the Lean
       # version lives in that file and nowhere else.

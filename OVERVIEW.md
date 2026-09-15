@@ -100,12 +100,13 @@ scripts/gates.sh` caps the parallelism.
 
 The one command a contributor runs before committing is
 `scripts/gates.sh`
-([the nine steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L53-L61)):
+([the ten steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L54-L63)):
 the Rust build and tests with warnings denied, the style lint (§3.6),
-the provenance check (§4), the link gate, the two embedded-text checks
-(the pin list and the built-in prelude), the extraction check
-(the committed Lean model must be what Charon and Aeneas produce from the
-crate today), and the Lean build.  §12 has the list.
+the provenance check (§4), the link gate, the hole gate (§7.1's inventory
+of what the proof does not see must be the model's own list of holes), the
+two embedded-text checks (the pin list and the built-in prelude), the
+extraction check (the committed Lean model must be what Charon and Aeneas
+produce from the crate today), and the Lean build.  §12 has the list.
 
 ## 2. What is proved
 
@@ -305,6 +306,21 @@ tag: `Never`, `Always` and `One` carry no heap cell at all, and only the rare
 `Two` and `Many` put their payload behind a handle
 ([`PropWhenRepr`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/prop_when.rs#L285-L291)).
 That datum is why a binder's block is 48 where an application's is 32.
+
+A constant's level list looks like the same opportunity and is not, which is
+worth one paragraph because the arithmetic is so inviting.  `Expr.const` holds
+its `List Level` behind a handle, so every constant reference costs a block
+plus the vector's own array — two allocations even for a monomorphic constant
+whose list is empty — and giving it `PropWhen`'s shape would remove both for
+four fifths of them.  A census says not to bother: of the 24.2 M distinct
+expression nodes alive when `Init`+`Std`+`Lean`'s environment is installed,
+only **286 610 — 1.2 % — are constant references**, because the export format
+already shares them harder than anything else (one record for every distinct
+subterm, so one node for every occurrence of `Nat.succ` in the file).  The
+whole prize is 12 MB of a 2.16 GB peak.  It was built and measured anyway:
+`Init`+`Std`+`Lean` fell 0.9 %, `Init` *rose* 3.9 %, and the change is not in
+the tree.  Only something that touches every node moves this number.
+
 
 Size classes are the unit a node is priced in, and they are why the shape
 above is the one that pays.  Measured on one machine with 20 M live blocks,
@@ -579,6 +595,10 @@ shortcut, the proof shows the result is what the full computation gives —
 the memo tables' pointer-verified buckets and `beq`'s pointer fast path
 each have that lemma.
 
+Those two are one type and five functions in all, and **§7.1 is the whole
+list**, with each model and the argument for it; `scripts/holes.sh` prints
+it from the templates Aeneas emits, and a gate checks the table against it.
+
 ### 5.2 Abstraction and well-formedness
 
 The proof relates Rust values to con-leche values through abstraction
@@ -757,7 +777,14 @@ one size.  Task #94 put the constructor in the handle and gave each of the ten
 its own block (§3.2), which takes Mathlib to **7.80 GB — 45 % less than before
 and below con-leche's own 8.75 GB** — for **5 % more instructions**, with
 cycles and wall down.  What is left of the gap at `Init`+`Std`+`Lean` is the
-`Vec`-backed memo tables against `Std.HashMap`.
+`Vec`-backed memo tables against `Std.HashMap`.  One
+footnote master left, which the close makes moot but not wrong: measured per
+symbol on `Init`+`Std`+`Lean`, `triomphe::Arc` on its own costs **nothing at
+all** (−0.09 %, three paired runs) where two earlier measurements recorded
++17 %, and the per-symbol diff shows one inlining change and no extra atomic.
+Mathlib was never re-run for it, so that 30 % is unexplained rather than
+refuted — and it no longer has to be, since the block it was buying is the one
+task #94 made unnecessary.
 
 The single-worker column has been re-measured four times since, at the
 changes that could have moved it.  Twice it did not: con-leche's bump
@@ -786,7 +813,87 @@ are one small allocation per record against a term DAG that is never copied.
 ## 7. Trust assumptions
 
 What has to be right for the theorem to mean what it says about the
-binary:
+binary.  §7.1 is the part a script can keep honest — the *holes*, the items
+Aeneas could not translate and that someone answered by hand — and
+`scripts/holes.sh --check` (gate 6) fails if that table and the model have
+drifted apart.  §7.2 is everything else that is trusted, and §7.3 is the
+argument behind both.
+
+### 7.1 What the proof does not see
+
+The theorem is about the verified crate *as Aeneas translates it*.  Where the
+translator meets an item it cannot translate — another crate's type or
+function, or an item of this crate deliberately marked opaque — it emits a
+**template** declaring that item as a bare `axiom` and asks for a model; the
+answers live in two hand-written, committed files,
+[`TypesExternal.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/TypesExternal.lean#L42)
+and
+[`FunsExternal.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L26-L45).
+Every one of them is a claim about the Rust that no proof checks, so here they
+all are, with their models and what makes each faithful.  There are
+**twenty-two**: two types and twenty functions.  Five are the counted
+pointer's, one is `str::as_bytes`, and the other sixteen are the tagged `Expr`
+handle of §3.2 — its type, its projection and cached word, its share and its
+identity test, its ten constructors and its `Drop`.  Every one of the sixteen
+is `rfl` against the `Expr` inductive `Generated/Types.lean` already had, which
+is the sense in which putting the constructor in the handle moved no model.
+`scripts/extract.sh` (gate 9) fails if the crate grows a hole nobody modelled;
+`scripts/holes.sh --check` (gate 6) fails if it grows one nobody wrote a row
+for.
+
+<!-- holes: begin — scripts/holes.sh --check keeps this table and the templates in step; the first cell is the Lean name of the hole, in backticks -->
+
+| hole | the Rust it stands for | the model | why the model is faithful |
+|---|---|---|---|
+| [`alloc.sync.Arc`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/TypesExternal.lean#L41-L42) | `alloc::sync::Arc<T>`, which the core names exactly once, as [`ron::ptr::P<T>`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/ptr.rs#L30-L36) | `alloc.sync.Arc T := T` — a handle *is* its contents | An allocated `P<T>` is an immutable owner: `get_mut`, `make_mut`, `Weak`, `as_ptr`, `into_raw`, the counts and every form of interior mutability are outside the subset, and `scripts/lint-rust-style.sh` gates those names for `P`, `Rc` and `Arc` alike.  So sharing is invisible to the value.  Atomicity is invisible too — an atomic count and a plain one erase to the same thing, which is why `P = std::sync::Arc` (task #45) needed no model change. |
+| [`alloc.sync.Arc.new`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L25-L26) | `Arc::new`, through the wrapper `ron::ptr::new` | `ok x` — the identity | Allocation is the only thing it does, and the model has no heap for it to be visible in. |
+| [`alloc.sync.Arc.Insts.CoreCloneClone.clone`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L44-L48) | `Arc::clone`, through `ron::ptr::clone` | `ok x` — the identity | A clone bumps a count and hands back the same immutable value; by the row above, the count is not part of the value. |
+| [`alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L54-L57) | `Deref::deref` — `*p`, `p.field` and `match &*p`, some 400 generated call sites, deliberately not wrapped | `ok x` — the identity | Reading through an immutable owner yields the value it owns. |
+| [`alloc.sync.Arc.ptr_eq`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L36-L38) | `Arc::ptr_eq`, through `ron::ptr::ptr_eq` | `ok false` — the model always takes the slow path | The one hole that is an *under-approximation* rather than an erasure, and the proof has to be sound against it: wherever the Rust takes a pointer-equal shortcut, a lemma shows the shortcut's answer is what the full computation gives.  The memo tables' pointer-verified buckets and `expr::beq`'s pointer fast path each carry theirs.  `true` would have been the unsound choice; `false` costs only that the model does more work than the binary. |
+| [`core.str.Str.as_bytes`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L71-L72) | `str::as_bytes`, at its single call site: `PINS_TEXT.as_bytes()` in `kernel::pins_decode::decode_embedded` | `ok s` — the identity | **Not a trust assumption at all.**  Aeneas models `Str` as `Slice U8` (`Aeneas/Std/StringDef.lean`), so the bytes of a `&str` already *are* the value and `as_bytes` is the identity on it.  The hole exists because Rust offers no other way to index a `&str`, and the alternative — a `b"…"` constant — extracts to a 532 456-element array literal Lean cannot elaborate (task #43). |
+
+| [`ron.tagged.Raw`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/TypesExternal.lean#L74-L78) | [`ron::tagged::Raw<T>`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/tagged.rs#L178-L192), the tagged counted handle an `Expr` is (§3.2) — a `NonNull<u8>` with the constructor in its low four bits, and a `PhantomData<T>` carrying the modelled contents | `ron.tagged.Raw T := T` — a handle *is* its contents | The `Arc` row's argument, for a handle the project wrote itself: a block is immutable for its whole life but for its atomic count, nothing outside `ron::tagged` can build or alter a handle (the address field is private), and the `T` is phantom, so there is no value of it to be wrong about.  What the model additionally cannot see — *which* of the ten blocks the bytes are in — is tied to the constructor by the rows below and by §7.2's `unsafe` row. |
+| [`ron.node.view`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L114-L119) | [`ron::node::view`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L219-L245), the projection every reader in the core goes through | `view (Expr.mk (ExprNode.mk d k)) = ok (ExprView.ofKind k)` — the node's constructor, read back | The tag was written beside the block by one of the `alloc_*` below, in the same expression, and nothing else can write one; `ExprView.ofKind` is the arm-for-arm bijection between the view and `ExprKind`, so this says only that reading a node back gives the constructor it was made from.  `Raw::get` checks the tag before it casts, so a wrong tag would be a `None` and not undefined behaviour. |
+| [`ron.node.data`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L122-L127) | [`ron::node::data`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L299-L302), con-leche's `@[computed_field]` read back | `ok e._0.data` — the stored word | Every block begins with the same `#[repr(C)]` header whatever its tag, so this read needs no dispatch and no tag check; the word is written once, by the smart constructor, and never again. |
+| [`ron.node.dup`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L130-L133) | [`ron::node::dup`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L305-L308), a `Relaxed` count bump | `ok e` — the identity | `Arc::clone`'s row, verbatim: a share bumps a count and hands back the same immutable value, and the count is not part of the value. |
+| [`ron.node.ptr_eq`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L136-L142) | [`ron::node::ptr_eq`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L311-L315), the identity test behind `expr::beq`'s fast path | `ok false` — the model always takes the slow path | `Arc::ptr_eq`'s row, verbatim, and the same reflexivity lemmas discharge it.  Comparing the *tagged* words is the same test as comparing the addresses, since a block's tag is a function of the block. |
+| [`ron.node.alloc_bvar`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L145-L149) | [`ron::node::alloc_bvar`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L249-L252), `Expr.bvar`'s block | `ok (Expr.mk (ExprNode.mk d (.Bvar i)))` — the constructor | Each `alloc_*` is one line over `Raw::alloc`, which writes the block and attaches *that kind's* `TAG` in the same expression and is the only thing that ever makes a handle.  So a handle's tag is always the tag of the `Kind` whose block the address holds, which is exactly what `view`'s row needs.  The ten tags are checked in range and pairwise distinct by a `const` assertion (`tagged_kinds!`). |
+| [`ron.node.alloc_fvar`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L152-L157) | [`ron::node::alloc_fvar`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L255-L258), `Expr.fvar`'s block | `ok (… (.Fvar idx ty))` | As `alloc_bvar`. |
+| [`ron.node.alloc_sort`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L160-L164) | [`ron::node::alloc_sort`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L261-L264), `Expr.sort`'s block | `ok (… (.Sort u))` | As `alloc_bvar`. |
+| [`ron.node.alloc_const`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L167-L173) | [`ron::node::alloc_const`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L267-L270), `Expr.const`'s block | `ok (… (.Const n us))` | As `alloc_bvar`; the level list arrives already behind its own `P` handle, which the `Arc` rows cover. |
+| [`ron.node.alloc_app`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L176-L181) | [`ron::node::alloc_app`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L273-L276), `Expr.app`'s block — 65 % of the nodes of a real term | `ok (… (.App f a))` | As `alloc_bvar`. |
+| [`ron.node.alloc_lam`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L184-L190) | [`ron::node::alloc_lam`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L279-L282), `Expr.lam`'s block | `ok (… (.Lam ty b m))` | As `alloc_bvar`. |
+| [`ron.node.alloc_forall_e`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L193-L199) | [`ron::node::alloc_forall_e`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L285-L288), `Expr.forallE`'s block | `ok (… (.ForallE ty b m))` | As `alloc_bvar`.  `lam` and `forallE` have the same fields but are two `Kind`s with two tags, so the cast is keyed on the constructor and not on a shared struct. |
+| [`ron.node.alloc_let_e`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L202-L206) | [`ron::node::alloc_let_e`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L291-L294), `Expr.letE`'s block | `ok (… (.LetE ty v b))` | As `alloc_bvar`. |
+| [`ron.node.alloc_lit`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L209-L213) | [`ron::node::alloc_lit`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L297-L300), `Expr.lit`'s block | `ok (… (.Lit l))` | As `alloc_bvar`. |
+| [`ron.node.alloc_proj`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L216-L221) | [`ron::node::alloc_proj`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L303-L306), `Expr.proj`'s block | `ok (… (.Proj n i e))` | As `alloc_bvar`. |
+| [`kernel.expr.Expr.Insts.CoreOpsDropDrop.drop`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L222-L225) | [`Drop for Expr`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L317-L326), which gives up one share and frees the block when it was the last | `ok e` — the identity | **Aeneas never calls it.**  `Generated/Funs.lean` mentions it only in the instance record; the model has no deallocation, exactly as it has no allocation, and the identity is there so that the instance is well typed and for no other reason.  `Raw` deliberately has no `Drop` of its own — only a scheme's table knows which type a tag names — so this is the one place the recursion is written down. |
+<!-- holes: end -->
+
+### 7.2 The rest of the trust surface
+
+Everything else that has to hold, and what stands in for it:
+
+| trusted | what it is | what stands in for it |
+|---|---|---|
+| **con-leche's own assumptions** | The theorem is con-leche's, at the Rust run | A set theory `V` with `ConLeche.SetTheory V`, Lean's kernel checking the proof, and the three standard axioms `propext`, `Classical.choice`, `Quot.sound`.  con-leche's OVERVIEW says what those are |
+| **Aeneas and Charon** | The Lean model *is* what the translator says the Rust means | Nothing: a translator bug is a hole.  The port stays inside the documented subset (§3.6, `scripts/lint-rust-style.sh`) and reports what it found — `AENEAS_FINDINGS.md`, fifteen findings, all worked around in the Rust |
+| **Nine lines of `unsafe`** | [`ron::tagged`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/tagged.rs#L1-L20), the tagged counted handle (§3.2): an `unsafe trait Kind`, two `unsafe impl Send`/`Sync`, four expressions and one macro.  It replaces `std::sync::Arc` as the trusted pointer implementation **for `Expr` nodes only** — `Name`, `Level`, `PropWhen` and `ConstantInfo` are still `P<T>` and still behind §7.1's four `Arc` rows | One invariant, argued in that module's note and checkable by reading ten adjacent one-line functions: **a handle is only ever made by the allocator**, which writes the block and attaches that kind's tag in the same expression and is the sole writer of the private address field.  Everything else follows — the projection is tag-checked and returns an `Option`, the header cast is sound at any tag by `#[repr(C)]`, and the count is `Arc`'s protocol verbatim.  The Expr side ([`ron::node`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L1-L14)) is a ten-line table with no `unsafe` in it, and `scripts/lint-rust-style.sh` (gate 3) enforces that boundary by path |
+| **`rustc` and the Rust standard library** | What compiles and runs the binary | Nothing.  This is the trade the project makes: Lean's compiler, runtime and GMP for these |
+| **The allocator** | [`MiMallocTight`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-dump/src/lib.rs#L174-L176), an inlined `GlobalAlloc` over `libmimalloc-sys`, chosen at build time (`--no-default-features` gives glibc `malloc`, `--features jemalloc` gives jemalloc) | Nothing, and nothing is needed: an allocator cannot change a verdict, only the memory and the time it takes to reach it.  It is in the *unverified* crate and Charon never sees it |
+| **`overflow-checks = true`** | The [release profile](https://github.com/leanprover/con-ron/blob/master/Cargo.toml#L17-L21) of the workspace | The model is the *checked*-arithmetic one: an overflow is a `fail` in the `Result` monad, which is a panic in the binary.  A build without it would wrap where the model fails, and the model would no longer describe it (task #7) |
+| **The modeller** | The in-process construction of `_model` records for mutual and nested inductive blocks, [`crates/con-ron/src/in_model/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/in_model/mod.rs#L12-L16) — unverified by design, and the whole of the residue | Two hypotheses of the chunk-level pair, [`ModellerWF` and `ModellerRefines`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Main.lean#L697-L703): that the declarations it generates are well formed, and that it declines where con-leche's declines.  Every record it makes is checked by the fold as a stream declaration, so a wrong one is rejected or declined and never accepted — what it decides is *coverage*, not soundness |
+| **The driver** | `Main.lean`'s four steps above `check_decls`, [`crates/con-ron/src/driver.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L21-L27) — the exit-code mapping, the two phase loops, the verdict lines | The chunk-level pair is the statement about the four steps; what stays outside Lean is that the driver *calls* them on the bytes it read, and that it calls the decoder on the embedded pin text |
+| **The worker pool** | Phase B on `n` threads, [`crates/con-ron/src/pool.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/pool.rs#L15-L21) | An argument, not a proof: the workers' results are merged by record index and walked in record order, so the verdict and the record a rejection names are the sequential walk's at every `--jobs`.  `pool_reports_the_first_failure_at_every_jobs` tests it at 1, 2, 3, 4 and 8 workers |
+| **One extra axiom, on the embedded pair alone** | `pins_text.PINS_TEXT._native.decide.ax_1` — Aeneas's `toStr` spends a `decide +native` on the size bound of every extracted `&str` constant (`AENEAS_FINDINGS.md` §3.8) | Nothing; it needs an upstream change.  It is the translator's artifact, not the port's, it lives in the constant's definition rather than in any computation, and `PINS_TEXT` is the port's last `&str` constant — the scanner's 68 went at task #86 |
+
+Nothing else: no `native_decide`, no `sorry`, no axiom beyond the three in the
+headline pair or in the chunk-level pair.
+
+### 7.3 The argument
+
+The same ground in prose, which is where the reasoning lives and which the
+tables above point back at:
 
 * **con-leche's own assumptions.**  The theorem is con-leche's, at the
   Rust run: it rests on a set theory `V` with `ConLeche.SetTheory V`, on
@@ -976,10 +1083,11 @@ are `abs*`, the relations `*Rel`, the well-formedness predicates `*WF`.
 3. `scripts/lint-rust-style.sh` — the Aeneas subset;
 4. `scripts/provenance.py check` — every item cites, every citation resolves, no `CHANGED` marker left;
 5. `scripts/overview-links.sh` — every line-anchored link in this document and in `DESIGN.md` still points at the text it cited (the cited lines are a committed artefact, `scripts/overview-links-expected.txt`, in con-leche's idiom);
-6. `scripts/gen-pins.sh --check` — the embedded pin text is what con-leche's list generates;
-7. `scripts/gen-prelude.sh --check` — the embedded prelude text is con-leche's own committed `pins/<toolchain>.prelude.ndjson`;
-8. `scripts/extract.sh --check` — the committed model is what Charon and Aeneas produce, **and every hole it declares is filled by hand**.  That second half is checked two ways since task #94, because one of them turned out to be blind: Aeneas writes the `@[rust_type]`/`@[rust_fun]` attribute the older rule reads only for externals it maps by *name pattern*, i.e. another crate's, so a hole that is an opaque module of this crate arrived in the template as a bare `axiom` and the rule passed vacuously.  The gate now also requires every `axiom` a template declares to be defined in the corresponding hand-written file;
-9. `lake build` of the model and the proofs.
+6. `scripts/holes.sh --check` — §7.1's table of holes is exactly the set of holes the Aeneas templates declare: a hole with no row, or a row for something that is no longer a hole, fails and names it;
+7. `scripts/gen-pins.sh --check` — the embedded pin text is what con-leche's list generates;
+8. `scripts/gen-prelude.sh --check` — the embedded prelude text is con-leche's own committed `pins/<toolchain>.prelude.ndjson`;
+9. `scripts/extract.sh --check` — the committed model is what Charon and Aeneas produce, **and every hole it declares is modelled by hand**.  That second half is checked two ways since task #94, because one of them turned out to be blind: Aeneas writes the `@[rust_type]`/`@[rust_fun]` attribute the older rule reads only for externals it maps by *name pattern*, i.e. another crate's, so a hole that is an opaque module of this crate arrived in the template as a bare `axiom` and the rule passed vacuously.  The gate now also requires every `axiom` a template declares to be defined in the corresponding hand-written file, which is the same set step 6 tabulates;
+10. `lake build` of the model and the proofs.
 
 It ends with the two summary lines of `progress.py` and `loc.py`.  The
 differential tests of §5.4 are not in the gates, since they need the
