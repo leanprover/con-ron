@@ -20525,6 +20525,70 @@ of them being findings.  `lake build ConRonArena` green (13 jobs, `WFProofs`
 `provenance-selftest.py` (8 clean shapes, 8 findings, 2 exempt paths) and
 `overview-links.sh` (67 links, 36 files) green.
 
+**Follow-up (same day): the sweep's scratch and log are keyed by the
+checkout.**  Task #97g's sweep read **330 agree / 18 DIFFER** where a lone
+run reads 348/0, and nothing was wrong with the checker: another agent was
+sweeping at the same time.  `_tmp` is ONE directory shared through a symlink
+by every worktree (CLAUDE.md), and `diff-e2e.sh` wrote two fixed paths under
+it — `_tmp/diff-e2e/`, which holds the gunzipped copies of the 21 compressed
+`e2e` fixtures and which every run starts by `rm -rf`-ing, and
+`_tmp/diff-e2e.log`, which every run starts by truncating.  Two sweeps
+therefore deleted each other's streams and overwrote each other's log.
+`extract.sh` and `gates.sh` have keyed their scratch by the checkout since
+2026-09-13; this script now uses the same idiom,
+
+    ckey=$(printf '%s' "$root" | sha256sum | cut -c1-12)
+    WORK="$root/_tmp/diff-e2e-$ckey"
+
+and everything the sweep writes lives in that directory: `run.log` (the
+default log), `build.log` (the default lane's `cargo build --release -p
+con-ron`, was `_tmp/diff-e2e-build.log`) and the gunzip scratch.  `LOG=PATH`
+still names the log, the summary still prints the path it used, and no other
+behaviour or output changed.
+
+Two details:
+
+  * **`_tmp/diff-e2e.log` survives as a publication, not a working file.**
+    It is the name CI's upload-artifact step collects and `ci.yml` is not
+    this task's to change, so nothing writes there *during* a sweep: the
+    finished `run.log` is copied to `$WORK/.alias.log` and renamed onto the
+    fixed name at the end.  The rename is atomic within the shared `_tmp`,
+    so the last sweep to finish owns the name and it always holds exactly
+    one run's log.  (A plain `cp` there was not enough: two sweeps finishing
+    together left a 23 kB file with 168 records, which is neither run.)
+  * **The arena snapshot is a cache, so it keeps its shared path** —
+    `_tmp/arena-tests`, still overridable with `ARENA_DIR=` — but it is now
+    published atomically: extracted into `$WORK/arena-stage` and `mv -T`'d
+    into place, the loser of a race dropping its staging copy.  A sweep in
+    another worktree can no longer see a half-extracted corpus.
+
+*Verified* with `--bin=target/release/con-ron-arena` on both sides, so
+neither sweep builds and both run the identical binary.  The two roots are
+this worktree and a second checkout (a directory whose `scripts/`, `proof/`
+and `_tmp` are symlinks to it — two roots, one shared `_tmp`, which is the
+situation that broke #97g; the keys came out `ac137bc10849` and
+`50edd10411f8`).
+
+  * lone run, one root: **348 agree, 0 DIFFER, 0 timed out, 0 other**, 13 s.
+  * both roots sweeping the full 348 at once: **348/0 and 348/0**, the same
+    numbers as the lone run, each summary naming its own
+    `_tmp/diff-e2e-<key>/run.log` and each log holding all 348 records.
+  * a full sweep in one root while the other ran short sweeps (`--only=annot/`)
+    back to back — ten to eleven of them, i.e. ten `rm -rf` and ten log
+    truncations landing inside it: **348/0**, log complete at 348 records.
+  * the same stress on the UNFIXED script, for contrast: the full sweep's
+    counters happened to survive, but the log it named held **50 of its 348
+    records** — the short sweeps had emptied it underneath it.  That is the
+    shape of #97g's misreading.
+  * `LOG=…` still overrides the log, and then `_tmp/diff-e2e.log` is left
+    untouched.
+
+Gates: `overview-links.sh` (67 links, 36 files) and `provenance.py check`
+(6 218 items, 4 822 citations, all current at pin `c431b1ca`) green; the
+build, test, extract and `lake build` gates were not re-run, since no Rust,
+no Lean and no generated file is in this change — it is one shell script and
+this paragraph.
+
 ### Task #97a — the arena stores (2026-09-20, Opus under Fable)
 
 Phase P2a of §8.6: the store layer of (B), under `proof/ConRon/Arena/`, as a
