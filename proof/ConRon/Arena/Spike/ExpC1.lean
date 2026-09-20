@@ -37,15 +37,6 @@ set_option maxHeartbeats 2000000
 theorem except_ok_bind {ε α β : Type} (a : α) (f : α → Except ε β) :
     (Except.ok a : Except ε α).bind f = f a := rfl
 
-/-- con-leche: none — the checked `u32` addition, inverted: it only fails on
-overflow, and the caller is told it did not. -/
-theorem u32_add_inv {x y z : U32} (h : (x + y : Result U32) = .ok z) :
-    z.val = x.val + y.val := by
-  have he := UScalar.add_equiv x y
-  rw [h] at he
-  simp only [Result.match.ok] at he
-  exact he.2.1
-
 /-! ## The two branching arms
 
 One lemma per constructor that recurses — con-leche's `Verify/Disc.lean`

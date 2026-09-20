@@ -40,6 +40,8 @@ import ConRon.Arena.Spike.MiniAbs
 import ConRon.Arena.Spike.ExpC1
 import ConRon.Arena.Spike.MiniSpecs
 import ConRon.Arena.Spike.ExpC2
+import ConRon.Arena.Spike.GenDenote
+import ConRon.Arena.Spike.ExpD
 import ConRon.Arena.Spike.ExpCD
 import ConRon.Arena.Spike.ExpAFast
 import ConRon.Arena.Spike.Axioms

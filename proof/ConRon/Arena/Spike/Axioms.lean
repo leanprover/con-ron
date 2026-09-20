@@ -1,17 +1,24 @@
 /-
 # The spike's axiom check (task #97s)
 
-`#print axioms` on the two theorems experiment A closed.  Measured:
+`#print axioms` on everything the spike closed.  Measured:
 
+* **round 2's theorems are all sorry-free** — `instantiate1_C1`,
+  `instantiate1_C2`, `instantiate1_D`, `instantiate1_D_of_C1_C2`,
+  `whnfCoreAppArm_spec` and `ExpAFast`'s three — `propext`,
+  `Classical.choice`, `Quot.sound` and nothing else.  None of them goes
+  through task #97a's `EStore`;
 * `memoWhnfCore_spec` (experiment A, subject 3) and `memoWhnfCore_run_hand`
-  (experiment B) are **sorry-free**;
-* `instantiate1A_spec` and `instantiate1Top_spec` (subject 1) depend on
-  `sorryAx` *today*, through `EStore.intern_spec` — whose `intern_wf` half
-  is one of task #97a's thirteen open store lemmas.  Nothing the spike wrote
-  is open: `ExpA.lean` and `ExpA3.lean` contain no `sorry`.
+  (experiment B) are sorry-free;
+* `instantiate1A_spec` and `instantiate1Top_spec` (subject 1, over the real
+  `EStore`) are sorry-free too since task #97a closed `EStore.intern_spec`.
+  The whole spike is sorry-free.
 -/
+import ConRon.Arena.Spike.ExpA2
 import ConRon.Arena.Spike.ExpA3
 import ConRon.Arena.Spike.ExpB
+import ConRon.Arena.Spike.ExpCD
+import ConRon.Arena.Spike.ExpAFast
 
 namespace ConRon.Arena.Spike
 
@@ -19,5 +26,18 @@ namespace ConRon.Arena.Spike
 #print axioms instantiate1Top_spec
 #print axioms memoWhnfCore_spec
 #print axioms memoWhnfCore_run_hand
+#print axioms whnfCoreAppArm_spec
+
+-- round 2: experiments C1, C2 and D, and the composition that makes them
+-- a comparison
+#print axioms instantiate1_C1
+#print axioms instantiate1_C2
+#print axioms instantiate1_D
+#print axioms instantiate1_D_of_C1_C2
+
+-- round 2: the elaboration recipe
+#print axioms Fast.instantiate1B_spec
+#print axioms Fast.instantiate1BTop_spec
+#print axioms Fast.instantiate1BTop_run
 
 end ConRon.Arena.Spike

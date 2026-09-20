@@ -192,6 +192,16 @@ theorem abs_view_lam (st : Generated.State) (h : U32) :
     rw [if_neg hteq, if_neg hm]
     exact ⟨none, rfl, rfl⟩
 
+
+/-- con-leche: none — the checked `u32` addition, inverted: it only fails on
+overflow, and the caller is told it did not. -/
+theorem u32_add_inv {x y z : U32} (h : (x + y : Result U32) = .ok z) :
+    z.val = x.val + y.val := by
+  have he := UScalar.add_equiv x y
+  rw [h] at he
+  simp only [Result.match.ok] at he
+  exact he.2.1
+
 /-! ## The cons tables
 
 `find_*_from` is the Rust's index-carrying recursion; `listFindIdx` is the

@@ -14,9 +14,9 @@ Round 2 closes them, and this module is where the three statements meet:
 * **C2** — `Spike/ExpC2.lean`, on `Spike/MiniSpecs.lean`'s `@[spec]` layer.
   Denotation only: no `Vec` and no `u32` occur.  This is experiment A's
   recipe (`mvcgen` + the seven-rule template) at three constructors.
-* **D** — `Spike/ExpD.lean`, on its own *Rust-side* denotation.  It mentions
-  neither `MState` nor `absState`: one induction that carries the
-  representation change and the denotation at once.
+* **D** — `Spike/ExpD.lean`, on `Spike/GenDenote.lean`'s *Rust-side*
+  denotation.  It mentions neither `MState` nor `absState`: one induction
+  that carries the representation change and the denotation at once.
 
 What established the spike's other claims stays here for the record:
 
@@ -36,6 +36,7 @@ What established the spike's other claims stays here for the record:
 -/
 import ConRon.Arena.Spike.ExpC1
 import ConRon.Arena.Spike.ExpC2
+import ConRon.Arena.Spike.ExpD
 
 namespace ConRon.Arena.Spike
 
