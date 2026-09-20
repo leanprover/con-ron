@@ -501,6 +501,15 @@ pub const RESET_KEEP_SLACK: usize = 16;
 ///   too small for the allocation to be worth avoiding.
 ///
 /// With all three: **769.3 G against 816.0 G, −5.7 %**.
+///
+/// **Task #97-P6-4a: the shrink branch PRE-SIZES instead of emptying.**  The
+/// branch fires when the last round used too little of the array; handing
+/// back a `HashMap::new` then makes the next round climb the doubling ladder
+/// from `MIN_CAPACITY` — an `allocate_slots` and a `move_elements` rehash at
+/// every rung.  The last round's row count is exactly the high-water mark
+/// DESIGN.md §8.6's lever asks `enter_scratch` to size from, and it is in
+/// hand right here, so the branch hands back an array sized for it instead.
+/// Same value (`∅`), same shrink, one allocation rather than a ladder.
 pub fn reset_map<K, V>(m: &mut HashMap<K, V>) {
     let n: usize = m.len();
     if n == 0 {
@@ -508,11 +517,21 @@ pub fn reset_map<K, V>(m: &mut HashMap<K, V>) {
     } else {
         let c: usize = m.capacity();
         if c > RESET_KEEP_FLOOR && c > n * RESET_KEEP_SLACK {
-            *m = HashMap::new()
+            *m = HashMap::with_capacity(rows_capacity(n))
         } else {
             m.clear()
         }
     }
+}
+
+/// con-leche: none — arena infrastructure (task #97-P6-4a)
+/// Lean twin: none — a bucket count, not a value.  `ron::HashMap` resizes at
+/// three quarters of its buckets (`max_load_for`), so a table that is to hold
+/// `n` rows without a single rehash wants at least `4n/3` of them; `n + n/2`
+/// is that with room to spare, and `with_capacity` rounds it up to a power of
+/// two and to `MIN_CAPACITY`.
+pub fn rows_capacity(n: usize) -> usize {
+    n + n / 2
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:394-398 CState.flushed

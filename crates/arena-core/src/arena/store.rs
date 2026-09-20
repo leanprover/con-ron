@@ -252,8 +252,9 @@ where
     /// the same profile attributes to `RawVec::finish_grow` over the whole
     /// run, persistent tier included.  `Vec::new` allocates nothing.
     pub fn reset(&mut self) {
-        self.nodes = Vec::new();
-        self.der = Vec::new();
+        let n: usize = self.nodes.len();
+        self.nodes = Vec::with_capacity(n);
+        self.der = Vec::with_capacity(n);
         reset_map(&mut self.cons)
     }
 }
