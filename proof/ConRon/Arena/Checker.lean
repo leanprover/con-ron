@@ -209,6 +209,30 @@ def checkDeclsPure (mode : CheckMode) (pins : List INatOpPinSet)
 
 /-! ## The two-phase fold the binary runs -/
 
+/-- con-leche: ConLeche/Cached/Installed.lean:185-195 annotDeclStep
+con-leche: ConLeche/Cached/Installed.lean:429-436 checkPendingList
+**The state a FAILING fold step hands back**, and the reason it is not the
+pre-step state.
+
+con-leche's two fold steps live in `StateT CState (Except (CheckError × Nat))`
+and their error arm is `.error (e, i)` — the state is *dropped*, because
+`Except` carries none.  (B) has ONE monad (DESIGN §8.4) whose error type is
+`CheckError`, so the position has to travel as a VALUE, and the error arm
+therefore has to produce *some* state.  Task #97d wrote the pre-step state `s`
+there, which reads as "restore".  It is not a restore that anything observes —
+both folds abandon the walk on an error, `installThenCheck` returns
+`.error`, `runPipelineTail` renders the message and `runPipeline` /
+`runPipelineIO` discard the state — but it is a second reference to the whole
+`AState`, held across the entire step, so **every store append, every cache
+insert and every memo insert inside that step ran at refcount 2 and copied**
+(task #97g: `lean_inc_ref(s)` before the call in `Checker.c`, 83 % of the run
+in `lean_copy_expand_array` + `lean_del_core_other`).
+
+So the arm hands back the EMPTY state — which is what con-leche's arm means
+(no state at all) and what the Rust twin will do (an `Err` return whose
+`&mut` state the caller stops using).  Nothing on the error path reads it. -/
+def AState.abandoned : AState := AState.init EStore.empty
+
 /-- con-leche: ConLeche/Cached/Installed.lean:83-91 PendingCheck — a phase-A
 record awaiting its phase-B check: the datum that crosses the install/check
 seam, the fold position of the declaration (its error tag) and the environment
@@ -226,11 +250,28 @@ tagged with.
 
 The counter is read BEFORE the push, so that `fe` reaches `push` unshared
 (con-leche's own RC-linearity note: read after it, the push copies the whole
-index at every install). -/
+index at every install).
+
+**Every arm begins with `flushCaches`** — con-leche's `annotStepC` reaches
+its four arms through `annotValueC` (`Cached/Installed.lean:139`), the
+`.thmDecl` arm's own `flushC` (`:168`) and `checkDeclStepC`
+(`Cached/ParsedC.lean:279-282`, "one step of the converted-declaration fold:
+flush, then check"), and each of those three starts with a flush, so con-leche
+enters every phase-A record with EMPTY caches.  Task #97d's twin mirrored
+`Kernel/Checker.lean`, the spec tier, which has no caches to flush, and so
+carried the eleven per-declaration tables across the whole of phase A —
+bounded only by `cacheCap` and answering queries at an environment the row was
+not computed at.  This is the same class of omission task #97f found for
+`mode.certs`: where the kernel tier and the EXECUTED tier of con-leche differ,
+(B) must have the executed tier's, because the executed tier is the knot (B)
+runs.  Measured on `Init` (task #97g): cycles 1 098 G → 926 G, wall 250 s →
+211 s, peak RSS 1.862 GB → 1.834 GB, instructions +3 % (the flush is also
+lost cache hits). -/
 def annotStep (mode : CheckMode) (pins : List INatOpPinSet) (i : Nat)
     (fe : IFEnv) (pend : Array PendingCheck) :
     IDeclaration → AM (IFEnv × Array PendingCheck)
   | .defnDecl cv value hint => do
+    flushCaches
     if (← natOpNames).contains cv.name || (← natDivModNames).contains cv.name then
       pure (← checkDecl mode pins fe (.defnDecl cv value hint), pend)
     else do
@@ -240,6 +281,7 @@ def annotStep (mode : CheckMode) (pins : List INatOpPinSet) (i : Nat)
       pure (fe.push (.defnInfo cvA jv hint),
         pend.push ⟨⟨.defn, cvA, jv⟩, i, vis⟩)
   | .thmDecl cv value => do
+    flushCaches
     -- a theorem installs BY STATEMENT: the header's install half only; the
     -- value is recorded raw and never touched here (phase B annotates it), so
     -- phase A never enters a theorem's body
@@ -247,6 +289,7 @@ def annotStep (mode : CheckMode) (pins : List INatOpPinSet) (i : Nat)
     let vis := fe.visibleBelow
     pure (fe.push (.thmInfo cvA value), pend.push ⟨⟨.thm, cvA, value⟩, i, vis⟩)
   | .opaqueDecl cv value => do
+    flushCaches
     if (← reduceOpNames).contains cv.name then
       pure (← checkDecl mode pins fe (.opaqueDecl cv value), pend)
     else do
@@ -255,6 +298,7 @@ def annotStep (mode : CheckMode) (pins : List INatOpPinSet) (i : Nat)
       let vis := fe.visibleBelow
       pure (fe.push (.axiomInfo cvA), pend.push ⟨⟨.opaque, cvA, jv⟩, i, vis⟩)
   | pd => do
+    flushCaches
     pure (← checkDecl mode pins fe pd, pend)
 
 /-- con-leche: ConLeche/Cached/Installed.lean:185-195 annotDeclStep — phase
@@ -271,7 +315,7 @@ def annotDeclStep (mode : CheckMode) (pins : List INatOpPinSet)
     AM (Except (CheckError × Nat) (Nat × IFEnv × Array PendingCheck)) := fun s =>
   match annotStep mode pins p.1 p.2.1 p.2.2 pd s with
   | .ok ((fe', pend'), s') => .ok (.ok (p.1 + 1, fe', pend'), s')
-  | .error e => .ok (.error (e, p.1), s)
+  | .error e => .ok (.error (e, p.1), AState.abandoned)
 
 /-- con-leche: ConLeche/Cached/Installed.lean:450-455 checkDecls — phase A as
 a fold over the records.  con-leche's `Array.foldlM` takes a closure; DESIGN
@@ -311,7 +355,7 @@ def checkPendingList (mode : CheckMode) (fe : IFEnv) :
   | pc :: rest => fun s =>
     match checkPending mode fe pc s with
     | .ok ((), s') => checkPendingList mode fe rest s'
-    | .error e => .ok (.error (e, pc.pos), s)
+    | .error e => .ok (.error (e, pc.pos), AState.abandoned)
 
 /-- con-leche: ConLeche/Cached/Installed.lean:438-455 checkDecls — **the
 declaration fold the binary runs**: install every record (phase A), check

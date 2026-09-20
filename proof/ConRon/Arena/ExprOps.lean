@@ -627,6 +627,170 @@ def wscopedB : Nat → Nat → EIdx → AM Bool
     | .proj _ _ sub => wscopedB fuel d sub
     | .bvar _ | .sort _ | .const _ _ | .lit _ => pure true
 
+/-! ## The scope queries, MEMOIZED — `Cached/ExprOpsC.lean:632-728`
+
+The three walks above (`fvarLeaves`, `wscopedB`, and `Core.lean`'s leaf-subset
+test) are `Kernel/ExprOps.lean`'s, and over an arena they are the wrong ones.
+con-leche runs them on `Expr` TREES, where a walk is linear in the term; (B)
+runs them on a hash-consed DAG, where an unmemoized walk is linear in the
+term's *unfolding* — which is what hash-consing exists to avoid.  con-leche's
+EXECUTED tier knows this and carries `wscopedBGoC` ("one memoized DAG walk"),
+`fvarLeavesGoC` (a `seen` set) and `leavesSubGo` (task #86's leaf guard, which
+never builds the fabrication's leaf list at all); task #97d's twin took the
+spec tier's and lost all three.  Measured (task #97g): on `core.ndjson`'s
+first 27 920 declarations the unmemoized `fabScopeOk` was **43.9 % of the
+cycles**, with `fvarLeaves` 2.6 % and `wscopedB` 1.6 % beside it.
+
+Each memo is threaded as an argument-and-result pair rather than put in
+`Memos`, which is con-leche's own spelling and the one `Frontend/ProjRec.lean`
+already uses for its `seen` set: the tables are per-CALL and two of the three
+depend on data that is not in the key (`leavesSubGo`'s base list), so a
+state-carried table would need a clear at every entry anyway.
+
+The `fvarB == 0` short-circuit at the head of each is con-leche's, and it is
+the RAW packed field: on the saturated branch the field is `satRange ≠ 0`, so
+the test simply does not fire and the walk proceeds — no recomputation. -/
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:634-658 wscopedBGoC — the
+memoized scope walk.  `fvar` annotations are descended (at the annotation's
+own index, not `d`), so the cached fvar range does not decide it and the memo
+key carries `d`. -/
+def wscopedBGo : Std.HashMap (EIdx × Nat) Bool → Nat → Nat → EIdx →
+    AM (Bool × Std.HashMap (EIdx × Nat) Bool)
+  | _, 0, _, _ => fail (.internal "fuel exhausted: wscopedBGo")
+  | memo, fuel + 1, d, h => do
+    if (fvarOfData (← derivedE h)).toNat == 0 then pure (true, memo)
+    else
+      match memo[(h, d)]? with
+      | some r => pure (r, memo)
+      | none => do
+        let (r, memo') ←
+          match ← view h with
+          | .bvar _ | .sort _ | .const _ _ | .lit _ => pure (true, memo)
+          | .fvar idx ty =>
+            if idx < d then wscopedBGo memo fuel idx ty
+            else pure (false, memo)
+          | .app f a => do
+            let (rf, memo) ← wscopedBGo memo fuel d f
+            if rf then wscopedBGo memo fuel d a else pure (false, memo)
+          | .lam ty body _ => do
+            let (rt, memo) ← wscopedBGo memo fuel d ty
+            if rt then wscopedBGo memo fuel d body else pure (false, memo)
+          | .forallE ty body _ => do
+            let (rt, memo) ← wscopedBGo memo fuel d ty
+            if rt then wscopedBGo memo fuel d body else pure (false, memo)
+          | .letE ty val body => do
+            let (rt, memo) ← wscopedBGo memo fuel d ty
+            if rt then do
+              let (rv, memo) ← wscopedBGo memo fuel d val
+              if rv then wscopedBGo memo fuel d body else pure (false, memo)
+            else pure (false, memo)
+          | .proj _ _ sub => wscopedBGo memo fuel d sub
+        pure (r, memo'.insert (h, d) r)
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:661 wscopedBC — the executed
+`wscopedB`: one memoized DAG walk from the empty memo. -/
+def wscopedBFast (fuel d : Nat) (h : EIdx) : AM Bool := do
+  let p ← wscopedBGo ∅ fuel d h
+  pure p.1
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:664-686 fvarLeavesGoC — the
+reachable `fvar` leaves, accumulated with a `seen` set so a shared subterm is
+walked once.  The accumulation order is con-leche's (its `acc` is consed on
+the way in), and the result is used only as a membership base. -/
+def fvarLeavesGo : List (Nat × EIdx) → Std.HashMap EIdx Unit → Nat → EIdx →
+    AM (List (Nat × EIdx) × Std.HashMap EIdx Unit)
+  | _, _, 0, _ => fail (.internal "fuel exhausted: fvarLeavesGo")
+  | acc, seen, fuel + 1, h => do
+    if (fvarOfData (← derivedE h)).toNat == 0 then pure (acc, seen)
+    else
+      match seen[h]? with
+      | some _ => pure (acc, seen)
+      | none => do
+        let seen := seen.insert h ()
+        match ← view h with
+        | .bvar _ | .sort _ | .const _ _ | .lit _ => pure (acc, seen)
+        | .fvar idx ty => fvarLeavesGo ((idx, ty) :: acc) seen fuel ty
+        | .app f a => do
+          let (acc, seen) ← fvarLeavesGo acc seen fuel f
+          fvarLeavesGo acc seen fuel a
+        | .lam ty body _ => do
+          let (acc, seen) ← fvarLeavesGo acc seen fuel ty
+          fvarLeavesGo acc seen fuel body
+        | .forallE ty body _ => do
+          let (acc, seen) ← fvarLeavesGo acc seen fuel ty
+          fvarLeavesGo acc seen fuel body
+        | .letE ty val body => do
+          let (acc, seen) ← fvarLeavesGo acc seen fuel ty
+          let (acc, seen) ← fvarLeavesGo acc seen fuel val
+          fvarLeavesGo acc seen fuel body
+        | .proj _ _ sub => fvarLeavesGo acc seen fuel sub
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:688-689 fvarLeavesC — the
+executed `fvarLeaves`. -/
+def fvarLeavesFast (fuel : Nat) (h : EIdx) : AM (List (Nat × EIdx)) := do
+  let p ← fvarLeavesGo [] ∅ fuel h
+  pure p.1
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:693-696 leafMem — is `(idx, ty)`
+in the base leaf list?  con-leche compares the annotation with `Expr.beq`;
+over handles it is handle equality, which is the same test (`denoteE` is
+injective, DESIGN §8.3). -/
+def leafMem : List (Nat × EIdx) → Nat → EIdx → Bool
+  | [], _, _ => false
+  | (i, t) :: rest, idx, ty =>
+    (i == idx && t == ty) || leafMem rest idx ty
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:699-723 leavesSubGo — the
+fabrication-side leaf-subset test: every reachable `fvar` leaf of the walked
+term is one of `bl`.  Memoized on the node, because `bl` is fixed for the
+call. -/
+def leavesSubGo : List (Nat × EIdx) → Std.HashMap EIdx Bool → Nat → EIdx →
+    AM (Bool × Std.HashMap EIdx Bool)
+  | _, _, 0, _ => fail (.internal "fuel exhausted: leavesSubGo")
+  | bl, memo, fuel + 1, h => do
+    if (fvarOfData (← derivedE h)).toNat == 0 then pure (true, memo)
+    else
+      match memo[h]? with
+      | some r => pure (r, memo)
+      | none => do
+        let (r, memo') ←
+          match ← view h with
+          | .bvar _ | .sort _ | .const _ _ | .lit _ => pure (true, memo)
+          | .fvar idx ty =>
+            if leafMem bl idx ty then leavesSubGo bl memo fuel ty
+            else pure (false, memo)
+          | .app f a => do
+            let (rf, memo) ← leavesSubGo bl memo fuel f
+            if rf then leavesSubGo bl memo fuel a else pure (false, memo)
+          | .lam ty body _ => do
+            let (rt, memo) ← leavesSubGo bl memo fuel ty
+            if rt then leavesSubGo bl memo fuel body else pure (false, memo)
+          | .forallE ty body _ => do
+            let (rt, memo) ← leavesSubGo bl memo fuel ty
+            if rt then leavesSubGo bl memo fuel body else pure (false, memo)
+          | .letE ty val body => do
+            let (rt, memo) ← leavesSubGo bl memo fuel ty
+            if rt then do
+              let (rv, memo) ← leavesSubGo bl memo fuel val
+              if rv then leavesSubGo bl memo fuel body else pure (false, memo)
+            else pure (false, memo)
+          | .proj _ _ sub => leavesSubGo bl memo fuel sub
+        pure (r, memo'.insert h r)
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:729-730 leafGuard — **the
+fabrication leaf guard**: every `fvar` leaf of `fab` is a leaf of `base`.
+Short-circuits on an `fvar`-free fabrication off the packed range, and
+otherwise walks `fab` ONCE against `base`'s leaf list — never building
+`fab`'s own list, and never running `Core.lean`'s quadratic
+`fvarLeavesSubset`. -/
+def leafGuard (fuel : Nat) (fab base : EIdx) : AM Bool := do
+  if (fvarOfData (← derivedE fab)).toNat == 0 then pure true
+  else do
+    let bl ← fvarLeavesFast fuel base
+    let p ← leavesSubGo bl ∅ fuel fab
+    pure p.1
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:863-877 looseBVarsBounded — the
 pure walk.  It is the SPECIFICATION; what executes is the `O(1)` field read
 `looseBVarsBoundedFast` below, exactly as in con-leche (the `@[csimp]`
