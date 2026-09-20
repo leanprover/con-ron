@@ -21347,10 +21347,10 @@ Five modules under `proof/ConRon/Arena/`:
 | module | raw lines | what |
 |---|---:|---|
 | `Monad.lean` | 534 | `AM`, `AState`, the store primitives, the eleven memo tables |
-| `ExprOps.lean` | 1310 | the twins: 62 functions covering 70 con-leche declarations |
+| `ExprOps.lean` | 1459 | the twins: 62 functions covering 70 con-leche declarations |
 | `ExprOpsTest.lean` | 584 | 183 kernel-reduced differential `#guard`s |
-| `Bench.lean` | 200 | `con-ron-arena-bench`, the micro-benchmark |
-| **total** | **2628** | |
+| `Bench.lean` | 215 | `con-ron-arena-bench`, the micro-benchmark |
+| **total** | **2792** | |
 
 `Monad.lean`, `ExprOps.lean` and `ExprOpsTest.lean` are in `lean_lib
 ConRonArena`; `Bench.lean` is an executable root (`lakefile.toml`, not a
