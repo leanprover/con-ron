@@ -163,7 +163,7 @@ where the translation's state passing is wanted, and recursion rather than
 loops (one exemption, §4.6).  `scripts/lint-rust-style.sh` enforces the
 mechanical part; DESIGN.md §3.4 has the rules and their reasons.
 `overflow-checks` is on in release builds
-([`Cargo.toml`](https://github.com/leanprover/con-ron/blob/master/Cargo.toml#L21)),
+([`Cargo.toml`](https://github.com/leanprover/con-ron/blob/master/Cargo.toml#L25)),
 so an overflow the model calls `fail` is a panic in the binary, not a wrap.
 
 ### 4.2 Terms
@@ -507,7 +507,7 @@ drift apart.
 | **Aeneas and Charon**: the Lean model is what the translator says the Rust means | Nothing; a translator bug is a hole.  The port stays inside the documented subset (§4.1) and records what it found in `AENEAS_FINDINGS.md`, all of it worked around in the Rust |
 | **`rustc`, the Rust standard library, and the allocator** | Nothing.  This is the trade the project makes: Lean's compiler, runtime and GMP for these.  The allocator cannot change a verdict, only memory and time; the tagged handle relies on 16-byte alignment, which mimalloc documents and which `alloc` checks, aborting on violation |
 | **Twelve lines of `unsafe`** in [`ron::tagged`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/tagged.rs#L284-L287) (§4.2) | The module's own note argues one invariant, checkable by reading ten adjacent one-line functions: a handle is only ever made by the allocator.  Nothing outside the module can release a block, reach an address, or cast a handle to another scheme's kind, and `Send`/`Sync` are derived from the payload types, so the `Expr` operations are trusted the way `Arc`'s were.  For `Expr` nodes only; `Name`, `Level`, `PropWhen` and `ConstantInfo` are still `Arc` |
-| **`overflow-checks = true`** in the [release profile](https://github.com/leanprover/con-ron/blob/master/Cargo.toml#L17-L21) | The model is the checked-arithmetic one.  A build without it would wrap where the model fails, and the model would no longer describe it |
+| **`overflow-checks = true`** in the [release profile](https://github.com/leanprover/con-ron/blob/master/Cargo.toml#L21-L25) | The model is the checked-arithmetic one.  A build without it would wrap where the model fails, and the model would no longer describe it |
 | **The modeller**, [`crates/con-ron/src/in_model/`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/in_model/mod.rs#L12-L16), unverified by design | The two hypotheses of §3, `ModellerWF` and `ModellerRefines`.  Every record it generates is checked by the fold as a stream declaration, so a wrong one is rejected or declined, never accepted; what it decides is which blocks the checker can accept, not whether an accepted one is sound |
 | **The driver**, [`driver.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/driver.rs#L21-L27) | That it calls the verified steps on the bytes it read and on the embedded pin text, and maps the outcome to the exit codes of §1 |
 | **The worker pool**, [`pool.rs`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron/src/pool.rs#L15-L21) | An argument, not a proof: the workers' results are merged by record index and walked in record order, so the verdict is the sequential walk's at every `--jobs`, and a test that a failure is reported first at every worker count |

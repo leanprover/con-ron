@@ -342,8 +342,8 @@
    397      (h : cached.installed.check_decls .Verified pins ds = ok (.Ok e)) :
    398      Nonempty (ConLeche.Model V (absEnv e)) :=
 
-== Cargo.toml#L21
-    21  # The Aeneas model of the code is the checked-arithmetic one (an overflow is
+== Cargo.toml#L25
+    25  overflow-checks = true
 
 == crates/con-ron-core/src/ron/tagged.rs#L1-L20
      1  //! con-leche: none — the tagged counted handle of DESIGN.md §3.2 (task #94).
@@ -957,12 +957,12 @@
    286      modeled: PhantomData<M>,
    287  }
 
-== Cargo.toml#L17-L21
-    17  # the workspace so that nothing the gates run touches it.  `charon cargo` is
-    18  # run inside its own directory by `scripts/extract-spike.sh`.
-    19  exclude = ["crates/arena-spike"]
-    20  
+== Cargo.toml#L21-L25
     21  # The Aeneas model of the code is the checked-arithmetic one (an overflow is
+    22  # a `fail`), so the shipped binary must check too, or the model would not
+    23  # describe it (task #7).
+    24  [profile.release]
+    25  overflow-checks = true
 
 == crates/con-ron/src/in_model/mod.rs#L12-L16
     12  //! Soundness needs nothing from this module: a wrong record is rejected or
