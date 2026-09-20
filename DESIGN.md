@@ -25716,3 +25716,247 @@ already gated at 348/348 fixtures in both modes.
   `arena::expr_ops::rename_consts_fast` take a `&Vec<(NIdx, NIdx)>` retires the
   `NIdxToNIdx` trait from the model.  It is a one-line change on each side and
   it should be made on the Lean side first.
+
+### Task #97-P4e part 2 — the Rust `ProjRec` twin (2026-09-20, Opus under Fable)
+
+Phase P4e of §8.6, **second half**: the Rust side of task #97e part 2's
+`ProjRec` twin and of the three `ExportC` stubs part 1 shipped, in lockstep
+with the Lean.  One new module, three stubs replaced, and one narrowing ended.
+
+| | shipped | tests | what |
+|---|---:|---:|---|
+| `src/frontend/proj_rec.rs` (new) | 1 502 | 939 | `Arena/Frontend/ProjRec.lean`'s 24 declarations as 68 items |
+| `src/frontend/export_c.rs` | +10 items, 18 signatures | — | the three stubs, their six helpers, and `ar : &mut AState` on the path |
+| `src/frontend/{mod,types,prelude}.rs`, `examples/arena_parse.rs` | +75 −54 | — | the module note, the owner's doc, the two knock-on signatures |
+
+`proj_rec.rs` is **2.9× the twin** (1 502 raw against `ProjRec.lean`'s 519;
+1 425 non-blank against 473), which is the campaign's *lowest* ratio so far —
+P4a 2.3×, P4b 2.2×, P4c 2.95×, P4d-2 3.8×.  The module is mostly straight-line
+term building, so the two things that inflate the others barely apply: there
+are seven `const M_*: [u32; N]` code-point arrays and no interpolated message
+at all (the module raises three fuel errors and nothing else), and the `match
+m { Err(e) => Err(e), Ok(x) => … }` nesting only gets four deep, in
+`projRecValue`, which is split five ways for it.
+
+#### The mapping, declaration for declaration
+
+Only the rows that are **not** a rename (camelCase ↔ snake_case) plus the
+campaign's two standing narrowings — the state parameter is first, a twin that
+cannot fail returns its value — carry a note.
+
+| Lean twin | Rust | one-to-one? |
+|---|---|---|
+| `projIotaName` | `proj_iota_name` | yes; the cited `s!"proj_{i}"` is `text::cat` of `text::u64_str` (§3.4 has no `format!`), as `con_ron_core::frontend::proj_rec`'s is |
+| `isProjIotaName` | `is_proj_iota_name` + `is_proj_iota_pre` | **no** in the count: the two inner `viewN`s are their own function so the outer view's loan is dead where the next is taken (extraction rule 5).  `String.startsWith` is `cps_starts_with`, `con_ron_core`'s own |
+| `projIotaLevel` | `proj_iota_level` + `proj_iota_level_at` | **no**, same rule: the `.const` arm interns `Eq`, so the `view`'s loan must die first |
+| `occursConstGo` | `occurs_const_go` + `occurs_const_node` + `occurs_const_two` + `occurs_record` + `occurs_seen` | **no** — the probe is its own function (rule 5), the compound arms are one function past it, and the twin's four identical two-child `match` nests are ONE `occurs_const_two`.  `occursConstB` has no twin on either side, for the reason the twin's section note gives (over a DAG the memo is what makes the walk linear, and the returned budget is no termination measure) |
+| the `Std.HashSet EIdx` threaded by value | `ron::HashMap<EIdx, bool>` moved in and returned | yes in shape — the twin's `AM (Bool × Std.HashSet EIdx)` term for term, and `arena::inductives::struct_parts`' own arrangement.  `con_ron_core::frontend::nat_op_ground` hands the same table down as a `&mut`; here the state is already borrowed and a moved `Vec`-backed table costs nothing |
+| `occursConstFast`, `lamBody`, `stripPisAll`, `headIs` | the same four | yes |
+| `mkLams`, `instPisOpen`, `internParamLevels` | the same three + their `_from` cursors | yes; `mkLams` conses on the way OUT in the twin, so the cursor recurses to the end of the list and interns outward from there |
+| `ProjBinderKind`, `ProjBuild` | the same enum and struct | yes — **and this is the one place the arena port and the tree port differ in kind**.  `con_ron_core::frontend::proj_rec` defunctionalises con-leche's `mk : Expr → Option Expr` as a one-method TRAIT (`MkBinder`); over handles the two builders intern, so a trait method would have to take `&mut AState` and the trait would be a generic instantiated with `&mut`, which §3.4 forbids outright.  The twin's tag was already the right answer and the Rust takes it |
+| `mkProjMotive`, `mkProjMinor` | the same two + `mk_proj_motive_at` / `mk_proj_minor_at` | **no** in the count, rule 5 again (both arms intern under a `view`) |
+| `buildBinders` | `build_binders` + `build_binders_at` | **no**, same.  The recursion is on `k`, as the twin's is — not the tree port's loop: `k` is a motive or minor count and never large |
+| `projRecValue` | `proj_rec_value` + `_ty` + `_at` + `_binders` + `_major` + `_app` | **no** — the twin is one 48-line `do` block and the port is six functions split at its own `let`-boundaries, which is P4c's arrangement for exactly this shape.  con-leche's `guard (body == .proj o.T i (.bvar 0))` is a `view` of the body on both sides: exactness (`denoteE_inj`) makes the two the same test |
+| `occursAnyOf`, `domsMentionAny`, `ctorsMentionBlock` | the same three + `_from` cursors | yes |
+| `findCtorRec`, `findRecRec` | `find_ctor_rec`, `find_rec_rec` + cursors | **no** in the RESULT: they return the index, not the record, because returning it would copy a `Vec<NIdx>` and an `EIdx` the caller reads in place.  `con_ron_core::frontend::proj_rec`'s `find_ctor` / `find_rec` are the same deviation |
+| `projRecCandidates` | `proj_rec_candidates` + `_from` + `proj_rec_candidate_at` + `proj_rec_candidate_rec` | **no**, and one ARGUMENT is dropped: the twin takes a `fuel` its body never reads (every walk inside it is structural — `stripPis` on the parameter count, one `view`, one `readLevel`), and an unused parameter is a warning under `-D warnings` and a dead argument in the model.  `proj_rec_owners` still takes it, for `ctors_mention_block` |
+| `projRecOwners` | `proj_rec_owners` + `proj_rec_owners_guard` + `type_names` + `any_is_rec` + `declared_num_params` | **no** in the count only.  The **cheap guard order** (the twin's deviation 3) is kept: the candidates first, the two recognisers only when there is a candidate to serve, which is the same value because both early branches return `[]` |
+| the two block recognisers | `arena::inductives::struct_parts::struct_parts_core` and `arena::inductives::native_parts::native_parts`, **called** | yes — P4d-2's own handle twins, which is where task #97f's dedup pointed the Lean.  **Nothing in the Rust frontend crosses to the `Expr` denotation either** |
+| `ProjRecOwner`'s record copy | `proj_rec_owner_dup` | the house `foo_dup`, §3.4.  It lives in `proj_rec.rs` and not beside the type in `types.rs` because this module is the only producer and `export_c`'s table the only consumer |
+| the `types` / `ctors` / `recs` tuples | `ProjTypeRec` / `ProjCtorRec` / `ProjRecRec`, three `pub type` aliases | yes — the twin's tuples, spelled as tuples, so `t.6` reads as `·.2.2.2.2.2.2`.  (`con_ron_core::frontend::proj_rec` names the seven fields instead; its original is con-leche, whose tuple it declined to transliterate.  Here the original is the twin) |
+
+`ExportC`'s three:
+
+| Lean twin | Rust | one-to-one? |
+|---|---|---|
+| `projRewriteD` | `proj_rewrite_d` + `proj_rewrite_at` + `proj_owner_of` + `proj_level_of` | **no** in the count: the shape test and the two table lookups are split for rule 5 (the lookups are `HashMap::get` matches that produce a value) |
+| `noteProjIota` | `note_proj_iota` | yes.  The twin detaches `st.projLevels` before inserting (§8.4 lesson 14); a `&mut` field is detached already |
+| `registerProjOwners` | `register_proj_owners` + `note_proj_owners` + `proj_types_of` + `proj_ctors_of` + `proj_recs_of` | **no** — the three `mapM`s are loops (the frontend's own relaxation) and the `foldl` insert is its own tail |
+
+#### The narrowing part 1 took, and where it ends
+
+Part 1's note said the frontend's monad could be `&mut EStore` rather than the
+twin's `AState`, *"because the frontend touches no memo"*, and that `arena/
+monad.rs` landing would make the first a field of the second with **no body
+changing**.  Part 2 is where that stops being true and where the prediction
+gets tested.
+
+The rewrite runs `ExprOps`' `instantiate1LiftFast`, `liftLooseBVarsFast` and
+`instLPFast`, whose memo tables ARE `AState` fields.  So the **eighteen**
+functions on the path from the four entry points (`chunk_step`,
+`chunk_finish`, `parse_bytes`, `parse_chunks`) down to the three rewrite
+functions now take `ar : &mut AState`, and hand `&ar.store` / `&mut ar.store`
+to the ninety-three that still only intern.  That is `prepare.rs`'s own
+arrangement since P4d (*"`prepare_d` takes the whole `AState` where everything
+else in this module takes the store"*), and the prediction held: **no body
+changed**, only the eighteen parameter types and the thirty-three places
+where `ar` is handed on to a function that still takes the store.
+
+`prelude::builtin_prelude_e` and `examples/arena_parse.rs` follow.  **The
+`Modeller` trait is untouched** — `install_gen` passes `&mut ar.store` to
+`m.generate` — which is what keeps the seam P4f implements stable.
+
+#### Tests: seven, and the fixture is the twin's
+
+`ProjRecTest.lean`'s fixture value for value — the two-field structure `S`,
+its constructor, its recursor and its two projection functions — with its 56
+`#guard`s grouped into seven `#[test]`s: the fixture's round trip (14
+assertions), the artifact name and its pre-filter, the artifact's level,
+`occursConst` at five subjects, the five telescope helpers, the rewrite at
+five values, and the owner census at two blocks.
+
+**The expected side is computed, never written out.**  Where the Lean test
+compares against con-leche's own `ConLeche/Frontend/ProjRec.lean` applied to
+the same con-leche value, this compares against
+**`con_ron_core::frontend::proj_rec`** — the `Expr`-tree port of the same
+con-leche file, which task #37 wrote and nothing in this campaign has touched
+— applied to the same values the store was interned from.  It is the Lean
+test's arrangement one representation down, and it is the same device
+`arena/inductives.rs`'s `mod tests` uses for the installs.
+
+`projRecOwners` is checked at **two** blocks, as the twin checks it: the
+structure alone, which `native_parts` recognises so that the rewrite serves
+none of it, and the same structure beside a second (indexed) type former — the
+MUTUAL shape where the owner list is `[S]`.  So the two delegated recognisers
+are exercised on both sides of their verdict.  Nine further assertions say the
+positive cases really are positive, so that a pair of agreeing `None`s cannot
+pass for a check.
+
+**Two deliberate mutations were confirmed to bite**, one test each and no
+other: the minor's field index (`bs.len() - 1 - i` → `bs.len() - i`) turns
+`the_rewrite_is_the_tree_ports_rewrite` red, and dropping the `nativeParts?`
+guard from the census turns `the_owner_census_agrees_at_both_blocks` red.
+Both were reverted.
+
+`cargo test -p arena-core`: **109 green** (102 before, plus these 7; part 1's
+17 `export_c` tests and 3 `prelude` tests re-run under the new signatures).
+Part 1's two load-bearing tests still pass **with the census wired in**:
+`the_arena_agrees_with_the_tree_parser_on_every_snippet` (all eight snippets
+through both Rust parsers, same outcome class, same line, same declaration
+count) and `the_prelude_interns_the_twins_own_node_counts` (196 / 5 / 55).
+Four of the eight snippets carry an inductive record and two of them get one
+as far as `install_ind_d` (measured), so `register_proj_owners` — and through
+it `proj_rec_owners`, `struct_parts_core` and `native_parts` — really runs in
+that comparison.  The REWRITE does not fire there, for the
+`proj_levels`-is-empty reason the `Init` section spells out; the seven tests
+above are what covers it.
+
+#### `Init`: the counts do not move, and that is the result
+
+`_tmp/corpus/init.ndjson`, 347 714 179 bytes, 6 490 422 lines, under
+`ulimit -v 12000000`; `perf stat -e instructions:u,cycles:u`, wall from five
+warm runs.  `cargo run --release --example arena_parse … --skip-modelled`.
+
+| `Init`, `--skip-modelled` | P4e part 1 | part 2 | tree parser (same session) |
+|---|---:|---:|---:|
+| declarations parsed | 57 977 | **57 977** | 57 977 |
+| expression nodes | 6 136 571 | **6 136 571** | — |
+| level nodes | 578 | **578** | — |
+| name nodes | 295 297 | **295 297** | — |
+| instructions:u | 19.72 G | **20.66 G** | 16.71 G |
+| cycles:u | 12.91 G | 13.56 G | 6.95 G |
+| wall (5 runs) | 2.63–2.70 s | **2.75 / 2.79 / 2.85 / 2.85 / 3.05 s** (spread 0.30 s) | 1.22 s |
+| peak RSS | 0.53 GB | **0.53 GB** | 0.39 GB |
+
+(The tree column is `--tree` in the same session and on the same machine:
+16.708 G instructions against part 1's 16.71 G, which is what says the two
+sessions are comparable.  The wall spread is wider than part 1's 0.07 s
+because other agents were building on the machine; the instruction count is
+the measure of record for exactly that reason.)
+
+**The delta on all four counts is zero, and the reason is the modeller.**
+With `--skip-modelled` (`inModel := false`) no `_model` family is generated,
+so no `T._model.proj_i.iota` artifact ever reaches `note_proj_iota`,
+`proj_levels` stays empty, and `proj_rewrite_d` answers `None` on every
+definition and every theorem — it never builds a node.  What part 2 *does* run
+on this path is `register_proj_owners`, on every inductive record of the
+stream; its only interning is `T.str "rec"` in the candidate test, a name the
+export declares itself, so cons-hashing finds it and the store does not grow.
+**The rewrite's own nodes on `Init` are zero because the rewrite cannot fire
+there**, which is con-leche's own situation on the same stream and the twin's.
+
+The Lean part 2's **6 137 973 / 581 / 295 343** are the modeller-ON numbers,
+and its own section accounts for the difference from part 1 as *"exactly the
+`_model` families the in-process modeller generated and the parse interned"* —
+**1 402 / 46 / 3** nodes.  Those are the generator's, not the rewrite's; the
+Rust has no in-process modeller yet (`types::DeclineModeller` is what this
+driver passes), so with the modeller ON it stops where part 1 stopped:
+
+| `Init`, declining modeller | part 1 | part 2 |
+|---|---|---|
+| stop point | line 78 503, `declined: in-process model of Lean.Syntax` | **the same line, the same verdict** |
+| instructions:u | 0.26 G | 0.27 G |
+
+**What the rewrite costs when it cannot fire: 0.94 G instructions, 4.8 %.**
+That is the owner census alone — `register_proj_owners` building the three
+shape-record lists for every inductive block, the candidate filter over them,
+and, on the blocks that have a candidate, `ctorsMentionBlock`'s memoised
+`occursConst` walks plus the two recognisers.  Peak RSS is unmoved at 0.53 GB
+(the census allocates per block and drops it).  The number to watch is what it
+becomes when the modeller lands and the rewrite starts firing; P6 owns it.
+
+#### Extraction
+
+`scripts/extract-arena.sh --dry`: **zero errors, zero warnings**, 61 838 lines
+of model (up from P4d's 59 464), **4 type holes and 208 function holes** (up
+from 207).
+
+**The one new hole is the boundary's**:
+`con_ron_core::kernel::basis_names::punit_unit_name`, which the rewrite speaks
+when it builds `PUnit.unit.{ℓ}`; `punit_name` was already on the list
+(`arena::core` pins it).  **The arena's own code contributes none**, which is
+P4a's standing rule for the boundary and still holds at the fourth phase to
+test it.  No new translator complaint either: the module was written against
+extraction rules 5–7 from the start (every `Option`-producing match over a
+state borrow is its own function; no `&&` under a live index loan; no `if`
+whose arms move a node's fields), and it went through Aeneas clean on the
+first run.
+
+Two shapes worth recording because they were *chosen* for the extractor:
+
+* **the memo travels by value.**  `occurs_const_go` takes the
+  `HashMap<EIdx, bool>` and returns it, so the probe's borrow is dead before
+  the descent mutates the table — rule 5 at a table rather than at a state.
+* **the binder KIND, not a trait.**  A `MkBinder`-style trait over `&mut
+  AState` is a generic instantiated with `&mut` (§3.4's own bullet) and would
+  have come out as a typeclass field taking a state; the twin's
+  `ProjBinderKind` dispatch is two `match` arms and no dictionary at all.
+
+#### Gates
+
+`cargo build` / `cargo test` under `RUSTFLAGS="-D warnings"` (**109 in
+`arena-core`**, 396 in the workspace), `scripts/lint-rust-style.sh` over both
+verified trees, `scripts/provenance.py check` **0 findings** (6 144 items —
+4 445 Rust, 1 699 arena Lean — and 4 762 citations, all current at pin
+`c431b1ca`), `provenance-selftest`, `overview-links` (67 links, 36 files),
+`holes.sh --check` (2 types, 20 fns), `gen-pins --check`, `gen-prelude
+--check`, `gen-prelude-lean --check`, `scripts/extract.sh --check`
+(con-ron-core's committed model unmoved) and `scripts/extract-arena.sh --dry`
+clean.  `cd proof && lake build` was **not** run, for part 1's and P4d-2's
+reason: this task touches no Lean at all — `proof/` is byte-identical to
+`arena`'s tip — and this worktree has no built `.lake` for the Mathlib-side
+targets.
+
+#### For P4f, and for the merge
+
+* **Four signatures moved**, and they are the ones `crates/con-ron-arena`
+  calls: `export_c::{chunk_step, chunk_finish, parse_bytes, parse_chunks}` and
+  `prelude::builtin_prelude_e` take `&mut AState` where they took `&mut
+  EStore`.  P4f's driver already holds one `AState` for the whole run
+  (`driver.rs`'s own module note, item 1), so the fix at the merge is to build
+  it before the parse instead of after: `let mut st = AState::init(EStore::
+  empty())`, pass `&mut st` through `parse_export_handle_d`, and delete the
+  later `AState::init(ar)`.  `state_d_init` still takes `&mut EStore`, and so
+  does the `Modeller` trait — nothing else changes.
+* **The rewrite is dark until the Rust modeller lands.**  `proj_levels` is
+  written only by `note_proj_iota`, which runs only on records `push_gen_d`
+  pushes, which is only what a `Modeller` generated.  A `con-ron-arena` that
+  ports `con_ron_core::frontend::in_model_rec` turns the rewrite on, and the
+  first thing to check then is the node census against the Lean's
+  **6 137 973 / 581 / 295 343**.
+* **`proj_rec.rs`'s three `pub type` aliases are the twin's tuples.**  If
+  Aeneas or a later proof wants named fields there, change the LEAN first
+  (§8.6's lockstep rule); the tree port's `ProjTypeRec` struct is the shape to
+  copy if so.
+* **The `fuel` argument `projRecCandidates` never reads** should come off the
+  Lean side too, for the same reason it came off here: it is dead in both.
