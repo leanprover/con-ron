@@ -1499,3 +1499,943 @@ pub fn proj_rec_owners_guard(
         Ok(None) => Ok(owners),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::arena::intern::{intern_ci_list, intern_expr};
+    use crate::arena::monad::{denote_l, denote_ls, denote_n, intern_level, intern_name};
+    use crate::arena::store::EStore;
+    use con_ron_core::frontend::proj_rec as tree;
+    use con_ron_core::kernel::env::{
+        ind_caps_default, rec_rule_parsed, ConstantInfo, ConstantVal,
+    };
+    use con_ron_core::kernel::expr::Expr;
+    use con_ron_core::kernel::level::Level;
+    use con_ron_core::kernel::name::Name;
+    use con_ron_core::kernel::prop_when;
+    use con_ron_core::kernel::{name, prop_when as pw};
+
+    // --- the fixture, as `con_ron_core` values ------------------------------
+    //
+    // `proof/ConRon/Arena/Frontend/ProjRecTest.lean`'s fixture, value for
+    // value.  A two-field structure and its two projection functions, which is
+    // the smallest thing the rewrite is about:
+    //
+    //     S.{u}      : ∀ (α : Sort (u+1)), Sort (u+1)
+    //     S.mk.{u}   : ∀ (α : Sort (u+1)) (a b : α), S α
+    //     S.rec.{v,u}: ∀ (α : Sort (u+1)) (motive : S α → Sort v)
+    //                    (mk : ∀ (a b : α), motive (S.mk α a b)) (t : S α),
+    //                    motive t
+    //     S.fst.{u}  : ∀ (α : Sort (u+1)) (self : S α), α
+    //                := fun α self => .proj S 0 self
+    //     S.snd.{u}  : the same at field 1
+    //
+    // The EXPECTED side of every check below is computed, never written out:
+    // it is `con_ron_core::frontend::proj_rec` — the `Expr`-tree port of the
+    // same con-leche file — applied to the same values the store was interned
+    // from, which is the Lean test's arrangement (it compares against
+    // con-leche's own functions) one representation down.
+
+    fn bn(s: &str) -> Name {
+        name::mk_str(name::anonymous(), s.chars().map(|c| c as u32).collect())
+    }
+
+    fn dotted(p: Name, s: &str) -> Name {
+        name::mk_str(p, s.chars().map(|c| c as u32).collect())
+    }
+
+    fn u_name() -> Name {
+        bn("u")
+    }
+    fn v_name() -> Name {
+        bn("v")
+    }
+    fn s_name() -> Name {
+        bn("S")
+    }
+    fn t_name() -> Name {
+        bn("T")
+    }
+    fn mk_name() -> Name {
+        dotted(s_name(), "mk")
+    }
+    fn rec_name() -> Name {
+        dotted(s_name(), "rec")
+    }
+    fn pu() -> Level {
+        level::param(u_name())
+    }
+    fn pv() -> Level {
+        level::param(v_name())
+    }
+    fn bm() -> BinderMeta {
+        BinderMeta { pw: pw::never() }
+    }
+    fn su() -> Expr {
+        expr::sort(level::succ(pu()))
+    }
+
+    /// `S α`, with `α` at `bvar k`.
+    fn s_app(k: u64) -> Expr {
+        expr::app(expr::mk_const(s_name(), one_level(pu())), expr::bvar(k))
+    }
+
+    fn one_level(l: Level) -> Vec<Level> {
+        let mut v: Vec<Level> = Vec::with_capacity(1);
+        v.push(l);
+        v
+    }
+
+    fn one_name(a: Name) -> Vec<Name> {
+        let mut v: Vec<Name> = Vec::with_capacity(1);
+        v.push(a);
+        v
+    }
+
+    fn two_names(a: Name, b: Name) -> Vec<Name> {
+        let mut v: Vec<Name> = Vec::with_capacity(2);
+        v.push(a);
+        v.push(b);
+        v
+    }
+
+    /// `S.{u} : ∀ (α : Sort (u+1)), Sort (u+1)`.
+    fn s_ty() -> Expr {
+        expr::forall_e(su(), su(), bm())
+    }
+
+    /// `T.{u} : ∀ (α : Sort (u+1)) (i : Sort (u+1)), Sort (u+1)` — the block's
+    /// second type former, INDEXED, so not a candidate for the rewrite.
+    fn t_ty() -> Expr {
+        expr::forall_e(su(), expr::forall_e(su(), su(), bm()), bm())
+    }
+
+    /// `S.mk.{u} : ∀ (α : Sort (u+1)) (a b : α), S α`.
+    fn ctor_ty() -> Expr {
+        expr::forall_e(
+            su(),
+            expr::forall_e(
+                expr::bvar(0),
+                expr::forall_e(expr::bvar(1), s_app(2), bm()),
+                bm(),
+            ),
+            bm(),
+        )
+    }
+
+    /// `S.mk α a b` in the minor's codomain frame.
+    fn mk_spine() -> Expr {
+        expr::app(
+            expr::app(
+                expr::app(expr::mk_const(mk_name(), one_level(pu())), expr::bvar(3)),
+                expr::bvar(1),
+            ),
+            expr::bvar(0),
+        )
+    }
+
+    /// `S.rec.{v,u}`: one motive, one minor, no indices.
+    fn rec_ty() -> Expr {
+        expr::forall_e(
+            su(),
+            expr::forall_e(
+                expr::forall_e(s_app(0), expr::sort(pv()), bm()),
+                expr::forall_e(
+                    expr::forall_e(
+                        expr::bvar(1),
+                        expr::forall_e(
+                            expr::bvar(2),
+                            expr::app(expr::bvar(2), mk_spine()),
+                            bm(),
+                        ),
+                        bm(),
+                    ),
+                    expr::forall_e(s_app(2), expr::app(expr::bvar(2), expr::bvar(0)), bm()),
+                    bm(),
+                ),
+                bm(),
+            ),
+            bm(),
+        )
+    }
+
+    /// `S.fst.{u} : ∀ (α : Sort (u+1)) (self : S α), α`.
+    fn proj_ty() -> Expr {
+        expr::forall_e(su(), expr::forall_e(s_app(0), expr::bvar(1), bm()), bm())
+    }
+
+    /// `fun α self => .proj S i self`, the shape the rewrite recognises.
+    fn proj_val(i: u64) -> Expr {
+        expr::lam(
+            su(),
+            expr::lam(s_app(0), expr::proj(s_name(), i, expr::bvar(0)), bm()),
+            bm(),
+        )
+    }
+
+    /// Not of the projection shape: the subject is not `bvar 0`.
+    fn bad_val() -> Expr {
+        expr::lam(
+            su(),
+            expr::lam(s_app(0), expr::proj(s_name(), 0, expr::bvar(1)), bm()),
+            bm(),
+        )
+    }
+
+    /// `∀ (x : Sort (u+1)), @Eq.{u} x x x` — what `proj_iota_level` reads the
+    /// field's sort off.
+    fn iota_ty() -> Expr {
+        expr::forall_e(
+            su(),
+            expr::app(
+                expr::app(
+                    expr::app(
+                        expr::mk_const(bnm::eq_name(), one_level(pu())),
+                        expr::bvar(0),
+                    ),
+                    expr::bvar(0),
+                ),
+                expr::bvar(0),
+            ),
+            bm(),
+        )
+    }
+
+    /// `S._model.proj_0.iota`.
+    fn iota_name() -> Name {
+        dotted(dotted(dotted(s_name(), "_model"), "proj_0"), "iota")
+    }
+
+    /// The rewrite's owner record, as the tree port states it.
+    fn owner_p() -> tree::ProjRecOwner {
+        tree::ProjRecOwner {
+            t: s_name(),
+            lps: one_name(u_name()),
+            n_p: 1,
+            ctor: mk_name(),
+            n_f: 2,
+            rec_name: rec_name(),
+            rec_lps: two_names(v_name(), u_name()),
+            rec_type: rec_ty(),
+            num_motives: 1,
+            num_minors: 1,
+        }
+    }
+
+    fn cv(n: Name, lps: Vec<Name>, ty: Expr) -> ConstantVal {
+        ConstantVal {
+            name: n,
+            level_params: lps,
+            ty,
+        }
+    }
+
+    fn dummy_rule() -> con_ron_core::kernel::env::RecRule {
+        rec_rule_parsed(mk_name(), 2, expr::bvar(0))
+    }
+
+    /// **The MUTUAL block**: two type formers, so neither `struct_parts_core`
+    /// (which pattern-matches a three-constant block) nor `native_parts`
+    /// (whose `sum_split` refuses several formers) recognises it — the class
+    /// the rewrite exists for.
+    fn block_p() -> Vec<ConstantInfo> {
+        let mut v: Vec<ConstantInfo> = Vec::new();
+        v.push(ConstantInfo::IndInfo(
+            cv(s_name(), one_name(u_name()), s_ty()),
+            ind_caps_default(),
+        ));
+        v.push(ConstantInfo::IndInfo(
+            cv(t_name(), one_name(u_name()), t_ty()),
+            ind_caps_default(),
+        ));
+        v.push(ConstantInfo::CtorInfo(
+            cv(mk_name(), one_name(u_name()), ctor_ty()),
+            1,
+            2,
+        ));
+        let mut rs: Vec<con_ron_core::kernel::env::RecRule> = Vec::new();
+        rs.push(dummy_rule());
+        v.push(ConstantInfo::RecInfo(
+            cv(
+                rec_name(),
+                two_names(v_name(), u_name()),
+                rec_ty(),
+            ),
+            3,
+            3,
+            rs,
+        ));
+        v
+    }
+
+    /// **The DIRECT block**: the same structure alone, which `native_parts`
+    /// recognises, so the rewrite serves none of it.  The two blocks put the
+    /// delegated recognisers on both sides of their verdict.
+    fn block_d() -> Vec<ConstantInfo> {
+        let mut v: Vec<ConstantInfo> = Vec::new();
+        v.push(ConstantInfo::IndInfo(
+            cv(s_name(), one_name(u_name()), s_ty()),
+            ind_caps_default(),
+        ));
+        v.push(ConstantInfo::CtorInfo(
+            cv(mk_name(), one_name(u_name()), ctor_ty()),
+            1,
+            2,
+        ));
+        let mut rs: Vec<con_ron_core::kernel::env::RecRule> = Vec::new();
+        rs.push(dummy_rule());
+        v.push(ConstantInfo::RecInfo(
+            cv(
+                rec_name(),
+                two_names(v_name(), u_name()),
+                rec_ty(),
+            ),
+            3,
+            3,
+            rs,
+        ));
+        v
+    }
+
+    fn types_p() -> Vec<tree::ProjTypeRec> {
+        let mut v: Vec<tree::ProjTypeRec> = Vec::new();
+        v.push(tree::ProjTypeRec {
+            name: s_name(),
+            lps: one_name(u_name()),
+            ty: s_ty(),
+            n_p: 1,
+            n_i: 0,
+            ctors: one_name(mk_name()),
+            is_rec: false,
+        });
+        v.push(tree::ProjTypeRec {
+            name: t_name(),
+            lps: one_name(u_name()),
+            ty: t_ty(),
+            n_p: 1,
+            n_i: 1,
+            ctors: Vec::new(),
+            is_rec: false,
+        });
+        v
+    }
+
+    fn types_d() -> Vec<tree::ProjTypeRec> {
+        let mut v: Vec<tree::ProjTypeRec> = Vec::new();
+        v.push(tree::ProjTypeRec {
+            name: s_name(),
+            lps: one_name(u_name()),
+            ty: s_ty(),
+            n_p: 1,
+            n_i: 0,
+            ctors: one_name(mk_name()),
+            is_rec: false,
+        });
+        v
+    }
+
+    fn ctors_p() -> Vec<tree::ProjCtorRec> {
+        let mut v: Vec<tree::ProjCtorRec> = Vec::new();
+        v.push(tree::ProjCtorRec {
+            name: mk_name(),
+            n_f: 2,
+            ty: ctor_ty(),
+        });
+        v
+    }
+
+    fn recs_p() -> Vec<tree::ProjRecRec> {
+        let mut v: Vec<tree::ProjRecRec> = Vec::new();
+        v.push(tree::ProjRecRec {
+            name: rec_name(),
+            lps: two_names(v_name(), u_name()),
+            ty: rec_ty(),
+            n_m: 1,
+            nm: 1,
+        });
+        v
+    }
+
+    // --- the fixture, interned ---------------------------------------------
+
+    /// The handles the checks below name — the Lean test's `Fx`.
+    struct Fx {
+        s_h: NIdx,
+        mk_h: NIdx,
+        rec_h: NIdx,
+        pu_h: LIdx,
+        s_ty_h: EIdx,
+        ctor_ty_h: EIdx,
+        rec_ty_h: EIdx,
+        proj_ty_h: EIdx,
+        proj_val0: EIdx,
+        proj_val1: EIdx,
+        bad_val_h: EIdx,
+        iota_ty_h: EIdx,
+        iota_name_h: NIdx,
+        s_app0: EIdx,
+        owner: ProjRecOwner,
+        block: Vec<crate::arena::env::IConstantInfo>,
+        block_d: Vec<crate::arena::env::IConstantInfo>,
+        types: Vec<ProjTypeRec>,
+        types_d: Vec<ProjTypeRec>,
+        ctors: Vec<ProjCtorRec>,
+        recs: Vec<ProjRecRec>,
+    }
+
+    /// `Result::unwrap` needs `E: Debug`, and `CheckError` deliberately has
+    /// none (DESIGN.md §3.4).
+    fn ok<T>(r: Result<T, CheckError>) -> T {
+        match r {
+            Ok(x) => x,
+            Err(_) => panic!("the arena declined an operation the test expected it to take"),
+        }
+    }
+
+    /// Intern the whole fixture into one empty store, through
+    /// `arena::intern`'s own walk (so the round trip below checks that too).
+    fn build() -> (Fx, AState) {
+        let mut st = AState::init(EStore::empty());
+        let s_h = ok(intern_name(&mut st, &s_name()));
+        let mk_h = ok(intern_name(&mut st, &mk_name()));
+        let rec_h = ok(intern_name(&mut st, &rec_name()));
+        let u_h = ok(intern_name(&mut st, &u_name()));
+        let v_h = ok(intern_name(&mut st, &v_name()));
+        let t_h = ok(intern_name(&mut st, &t_name()));
+        let pu_h = ok(intern_level(&mut st, &pu()));
+        let s_ty_h = ok(intern_expr(&mut st, &s_ty()));
+        let t_ty_h = ok(intern_expr(&mut st, &t_ty()));
+        let ctor_ty_h = ok(intern_expr(&mut st, &ctor_ty()));
+        let rec_ty_h = ok(intern_expr(&mut st, &rec_ty()));
+        let proj_ty_h = ok(intern_expr(&mut st, &proj_ty()));
+        let proj_val0 = ok(intern_expr(&mut st, &proj_val(0)));
+        let proj_val1 = ok(intern_expr(&mut st, &proj_val(1)));
+        let bad_val_h = ok(intern_expr(&mut st, &bad_val()));
+        let iota_ty_h = ok(intern_expr(&mut st, &iota_ty()));
+        let iota_name_h = ok(intern_name(&mut st, &iota_name()));
+        let s_app0 = ok(intern_expr(&mut st, &s_app(0)));
+        let block = ok(intern_ci_list(&mut st, &block_p()));
+        let block_d = ok(intern_ci_list(&mut st, &block_d()));
+        let owner = ProjRecOwner {
+            t: s_h.dup2(),
+            lps: one_nidx(&u_h),
+            n_p: 1,
+            ctor: mk_h.dup2(),
+            n_f: 2,
+            rec_name: rec_h.dup2(),
+            rec_lps: two_nidx(&v_h, &u_h),
+            rec_type: rec_ty_h.dup2(),
+            num_motives: 1,
+            num_minors: 1,
+        };
+        let mut types: Vec<ProjTypeRec> = Vec::new();
+        types.push((
+            s_h.dup2(),
+            one_nidx(&u_h),
+            s_ty_h.dup2(),
+            1,
+            0,
+            one_nidx(&mk_h),
+            false,
+        ));
+        types.push((
+            t_h.dup2(),
+            one_nidx(&u_h),
+            t_ty_h.dup2(),
+            1,
+            1,
+            Vec::new(),
+            false,
+        ));
+        let mut types_d: Vec<ProjTypeRec> = Vec::new();
+        types_d.push((
+            s_h.dup2(),
+            one_nidx(&u_h),
+            s_ty_h.dup2(),
+            1,
+            0,
+            one_nidx(&mk_h),
+            false,
+        ));
+        let mut ctors: Vec<ProjCtorRec> = Vec::new();
+        ctors.push((mk_h.dup2(), 2, ctor_ty_h.dup2()));
+        let mut recs: Vec<ProjRecRec> = Vec::new();
+        recs.push((
+            rec_h.dup2(),
+            two_nidx(&v_h, &u_h),
+            rec_ty_h.dup2(),
+            1,
+            1,
+        ));
+        (
+            Fx {
+                s_h,
+                mk_h,
+                rec_h,
+                pu_h,
+                s_ty_h,
+                ctor_ty_h,
+                rec_ty_h,
+                proj_ty_h,
+                proj_val0,
+                proj_val1,
+                bad_val_h,
+                iota_ty_h,
+                iota_name_h,
+                s_app0,
+                owner,
+                block,
+                block_d,
+                types,
+                types_d,
+                ctors,
+                recs,
+            },
+            st,
+        )
+    }
+
+    fn one_nidx(a: &NIdx) -> Vec<NIdx> {
+        let mut v: Vec<NIdx> = Vec::with_capacity(1);
+        v.push(a.dup2());
+        v
+    }
+
+    fn two_nidx(a: &NIdx, b: &NIdx) -> Vec<NIdx> {
+        let mut v: Vec<NIdx> = Vec::with_capacity(2);
+        v.push(a.dup2());
+        v.push(b.dup2());
+        v
+    }
+
+    /// The fuel every check runs at.  The fixture's deepest term is nine nodes
+    /// deep and the store holds under a hundred; 1000 is a comfortable margin.
+    const F: u64 = 1000;
+
+    // --- the readback (`Denote.lean:183-206`), test-only --------------------
+
+    fn denote_e_aux(st: &EStore, fuel: u64, i: &EIdx) -> Option<Expr> {
+        if fuel == 0 {
+            return None;
+        }
+        match st.view(i) {
+            None => None,
+            Some(ENodeView::BVar(k)) => Some(expr::bvar(k)),
+            Some(ENodeView::FVar(k, ty)) => {
+                denote_e_aux(st, fuel - 1, &ty).map(|t| expr::fvar(k, t))
+            }
+            Some(ENodeView::Sort(u)) => denote_l(st.ls(), &u).map(expr::sort),
+            Some(ENodeView::Const(n, us)) => {
+                match (denote_n(st.ns(), &n), denote_ls(st.ls_s(), &us)) {
+                    (Some(a), Some(b)) => Some(expr::mk_const(a, b)),
+                    _ => None,
+                }
+            }
+            Some(ENodeView::App(g, a)) => {
+                match (denote_e_aux(st, fuel - 1, &g), denote_e_aux(st, fuel - 1, &a)) {
+                    (Some(x), Some(y)) => Some(expr::app(x, y)),
+                    _ => None,
+                }
+            }
+            Some(ENodeView::Lam(ty, b, m)) => {
+                match (denote_e_aux(st, fuel - 1, &ty), denote_e_aux(st, fuel - 1, &b)) {
+                    (Some(x), Some(y)) => Some(expr::lam(x, y, m)),
+                    _ => None,
+                }
+            }
+            Some(ENodeView::ForallE(ty, b, m)) => {
+                match (denote_e_aux(st, fuel - 1, &ty), denote_e_aux(st, fuel - 1, &b)) {
+                    (Some(x), Some(y)) => Some(expr::forall_e(x, y, m)),
+                    _ => None,
+                }
+            }
+            Some(ENodeView::LetE(ty, v, b)) => match (
+                denote_e_aux(st, fuel - 1, &ty),
+                denote_e_aux(st, fuel - 1, &v),
+                denote_e_aux(st, fuel - 1, &b),
+            ) {
+                (Some(x), Some(y), Some(z)) => Some(expr::let_e(x, y, z)),
+                _ => None,
+            },
+            Some(ENodeView::Lit(l)) => Some(expr::lit(l)),
+            Some(ENodeView::Proj(n, k, e)) => {
+                match (denote_n(st.ns(), &n), denote_e_aux(st, fuel - 1, &e)) {
+                    (Some(s), Some(x)) => Some(expr::proj(s, k, x)),
+                    _ => None,
+                }
+            }
+        }
+    }
+
+    fn denote_e(st: &EStore, i: &EIdx) -> Option<Expr> {
+        denote_e_aux(st, st.node_count() as u64 + 1, i)
+    }
+
+    /// The denotation of a handle the run produced.
+    fn den(st: &AState, h: &EIdx) -> Expr {
+        match denote_e(&st.store, h) {
+            Some(e) => e,
+            None => panic!("a handle does not denote"),
+        }
+    }
+
+    /// An `Option EIdx`-valued twin against the tree port's `Option<Expr>`.
+    fn same_oe(st: &AState, got: Option<EIdx>, want: Option<Expr>) -> bool {
+        match (got, want) {
+            (Some(h), Some(e)) => expr::beq(&den(st, &h), &e),
+            (None, None) => true,
+            _ => false,
+        }
+    }
+
+    /// The owner record, denoted.
+    fn den_owner(st: &AState, o: &ProjRecOwner) -> tree::ProjRecOwner {
+        tree::ProjRecOwner {
+            t: denote_n(st.store.ns(), &o.t).expect("owner name"),
+            lps: den_names(st, &o.lps),
+            n_p: o.n_p,
+            ctor: denote_n(st.store.ns(), &o.ctor).expect("ctor name"),
+            n_f: o.n_f,
+            rec_name: denote_n(st.store.ns(), &o.rec_name).expect("rec name"),
+            rec_lps: den_names(st, &o.rec_lps),
+            rec_type: den(st, &o.rec_type),
+            num_motives: o.num_motives,
+            num_minors: o.num_minors,
+        }
+    }
+
+    fn den_names(st: &AState, ns: &Vec<NIdx>) -> Vec<Name> {
+        ns.iter()
+            .map(|n| denote_n(st.store.ns(), n).expect("a name handle denotes"))
+            .collect()
+    }
+
+    /// `ProjRecOwner` has no `BEq` on either side, so the comparison is field
+    /// by field — the Lean test's `beqOwner`.
+    fn beq_owner(a: &tree::ProjRecOwner, b: &tree::ProjRecOwner) -> bool {
+        name::beq(&a.t, &b.t)
+            && names_beq(&a.lps, &b.lps)
+            && a.n_p == b.n_p
+            && name::beq(&a.ctor, &b.ctor)
+            && a.n_f == b.n_f
+            && name::beq(&a.rec_name, &b.rec_name)
+            && names_beq(&a.rec_lps, &b.rec_lps)
+            && expr::beq(&a.rec_type, &b.rec_type)
+            && a.num_motives == b.num_motives
+            && a.num_minors == b.num_minors
+    }
+
+    fn names_beq(a: &Vec<Name>, b: &Vec<Name>) -> bool {
+        a.len() == b.len() && (0..a.len()).all(|i| name::beq(&a[i], &b[i]))
+    }
+
+    fn beq_owners(a: &Vec<tree::ProjRecOwner>, b: &Vec<tree::ProjRecOwner>) -> bool {
+        a.len() == b.len() && (0..a.len()).all(|i| beq_owner(&a[i], &b[i]))
+    }
+
+    // --- the tests ----------------------------------------------------------
+
+    /// **The fixture denotes what it should.**  The one place a
+    /// `con_ron_core` value is compared against a hand-written one; everything
+    /// after this compares a twin's answer against the tree port's function
+    /// applied to these same values, which is only meaningful because these
+    /// hold.  (The Lean test's fourteen round-trip `#guard`s.)
+    #[test]
+    fn the_fixture_denotes_what_it_should() {
+        let (fx, st) = build();
+        assert!(expr::beq(&den(&st, &fx.s_ty_h), &s_ty()));
+        assert!(expr::beq(&den(&st, &fx.ctor_ty_h), &ctor_ty()));
+        assert!(expr::beq(&den(&st, &fx.rec_ty_h), &rec_ty()));
+        assert!(expr::beq(&den(&st, &fx.proj_ty_h), &proj_ty()));
+        assert!(expr::beq(&den(&st, &fx.proj_val0), &proj_val(0)));
+        assert!(expr::beq(&den(&st, &fx.proj_val1), &proj_val(1)));
+        assert!(expr::beq(&den(&st, &fx.bad_val_h), &bad_val()));
+        assert!(expr::beq(&den(&st, &fx.iota_ty_h), &iota_ty()));
+        assert!(expr::beq(&den(&st, &fx.s_app0), &s_app(0)));
+        assert!(name::beq(
+            &denote_n(st.store.ns(), &fx.s_h).expect("S"),
+            &s_name()
+        ));
+        assert!(name::beq(
+            &denote_n(st.store.ns(), &fx.iota_name_h).expect("iota"),
+            &iota_name()
+        ));
+        assert!(level::beq(
+            &denote_l(st.store.ls(), &fx.pu_h).expect("u"),
+            &pu()
+        ));
+        // the two blocks were interned, member for member
+        assert_eq!(fx.block.len(), 4);
+        assert_eq!(fx.block_d.len(), 3);
+        assert!(beq_owner(&den_owner(&st, &fx.owner), &owner_p()));
+    }
+
+    /// `projIotaName` and its pre-filter `isProjIotaName`.
+    #[test]
+    fn the_artifact_name_and_its_prefilter() {
+        let (fx, mut st) = build();
+        let a = ok(proj_iota_name(&mut st, &fx.s_h, 0));
+        assert!(name::beq(
+            &denote_n(st.store.ns(), &a).expect("name"),
+            &tree::proj_iota_name(&s_name(), 0)
+        ));
+        let b = ok(proj_iota_name(&mut st, &fx.s_h, 3));
+        assert!(name::beq(
+            &denote_n(st.store.ns(), &b).expect("name"),
+            &tree::proj_iota_name(&s_name(), 3)
+        ));
+        assert_eq!(
+            ok(is_proj_iota_name(&st, &fx.iota_name_h)),
+            tree::is_proj_iota_name(&iota_name())
+        );
+        assert_eq!(
+            ok(is_proj_iota_name(&st, &fx.s_h)),
+            tree::is_proj_iota_name(&s_name())
+        );
+        assert_eq!(
+            ok(is_proj_iota_name(&st, &fx.mk_h)),
+            tree::is_proj_iota_name(&mk_name())
+        );
+        // the positive case really is positive, so the two `false`s above are
+        // not a check that passes for the wrong reason
+        assert!(tree::is_proj_iota_name(&iota_name()));
+    }
+
+    /// `projIotaLevel`: the `Eq` level of an artifact iota statement.
+    #[test]
+    fn the_artifact_names_the_fields_sort() {
+        let (fx, mut st) = build();
+        let got = ok(proj_iota_level(&mut st, F, &fx.iota_ty_h));
+        let want = tree::proj_iota_level(&iota_ty());
+        match (got, want) {
+            (Some(h), Some(u)) => assert!(level::beq(
+                &denote_l(st.store.ls(), &h).expect("level"),
+                &u
+            )),
+            _ => panic!("the two ports disagree on the artifact's level"),
+        }
+        assert!(ok(proj_iota_level(&mut st, F, &fx.rec_ty_h)).is_none());
+        assert!(tree::proj_iota_level(&rec_ty()).is_none());
+        // the positive case really is positive
+        assert!(tree::proj_iota_level(&iota_ty()).is_some());
+    }
+
+    /// `occursConst`, memoised: five subjects, both verdicts.
+    #[test]
+    fn occurs_const_agrees_on_every_subject() {
+        let (fx, st) = build();
+        assert_eq!(
+            ok(occurs_const_fast(&st, F, &fx.s_h, &fx.rec_ty_h)),
+            tree::occurs_const_fast(&s_name(), &rec_ty())
+        );
+        assert_eq!(
+            ok(occurs_const_fast(&st, F, &fx.mk_h, &fx.rec_ty_h)),
+            tree::occurs_const_fast(&mk_name(), &rec_ty())
+        );
+        assert_eq!(
+            ok(occurs_const_fast(&st, F, &fx.s_h, &fx.s_ty_h)),
+            tree::occurs_const_fast(&s_name(), &s_ty())
+        );
+        assert_eq!(
+            ok(occurs_const_fast(&st, F, &fx.rec_h, &fx.rec_ty_h)),
+            tree::occurs_const_fast(&rec_name(), &rec_ty())
+        );
+        assert_eq!(
+            ok(occurs_const_fast(&st, F, &fx.s_h, &fx.ctor_ty_h)),
+            tree::occurs_const_fast(&s_name(), &ctor_ty())
+        );
+        // both verdicts occur above
+        assert!(tree::occurs_const_fast(&s_name(), &rec_ty()));
+        assert!(!tree::occurs_const_fast(&rec_name(), &rec_ty()));
+    }
+
+    /// `lamBody`, `stripPisAll`, `mkLams`, `instPisOpen` and `headIs`.
+    #[test]
+    fn the_telescope_helpers_agree() {
+        let (fx, mut st) = build();
+        let lb = ok(lam_body(&st, F, &fx.proj_val0));
+        assert!(expr::beq(&den(&st, &lb), &tree::lam_body(&proj_val(0))));
+        let lb2 = ok(lam_body(&st, F, &fx.rec_ty_h));
+        assert!(expr::beq(&den(&st, &lb2), &tree::lam_body(&rec_ty())));
+
+        for (h, e) in [
+            (fx.rec_ty_h.dup2(), rec_ty()),
+            (fx.ctor_ty_h.dup2(), ctor_ty()),
+            (fx.s_app0.dup2(), s_app(0)),
+        ] {
+            let got = ok(strip_pis_all(&st, F, &h));
+            let want = tree::strip_pis_all(&e);
+            assert_eq!(got.0.len(), want.0.len());
+            for i in 0..got.0.len() {
+                assert!(expr::beq(&den(&st, &got.0[i].0), &want.0[i].0));
+            }
+            assert!(expr::beq(&den(&st, &got.1), &want.1));
+        }
+
+        // `mkLams` of what `stripPisAll` took apart is the term again
+        let p = ok(strip_pis_all(&st, F, &fx.ctor_ty_h));
+        let re = ok(mk_lams(&mut st, &p.0, &p.1));
+        let wp = tree::strip_pis_all(&ctor_ty());
+        assert!(expr::beq(
+            &den(&st, &re),
+            &tree::mk_lams(&wp.0, wp.1)
+        ));
+
+        let mut one: Vec<EIdx> = Vec::new();
+        one.push(fx.s_app0.dup2());
+        let mut one_t: Vec<Expr> = Vec::new();
+        one_t.push(s_app(0));
+        let got = ok(inst_pis_open(&mut st, F, &fx.rec_ty_h, &one));
+        assert!(same_oe(&st, got, tree::inst_pis_open(&rec_ty(), &one_t)));
+        let got = ok(inst_pis_open(&mut st, F, &fx.rec_ty_h, &Vec::new()));
+        assert!(same_oe(&st, got, tree::inst_pis_open(&rec_ty(), &Vec::new())));
+        let got = ok(inst_pis_open(&mut st, F, &fx.s_app0, &one));
+        assert!(same_oe(&st, got, tree::inst_pis_open(&s_app(0), &one_t)));
+
+        assert_eq!(
+            ok(head_is(&st, F, &fx.s_h, &fx.s_app0)),
+            tree::head_is(&s_name(), &s_app(0))
+        );
+        assert_eq!(
+            ok(head_is(&st, F, &fx.mk_h, &fx.s_app0)),
+            tree::head_is(&mk_name(), &s_app(0))
+        );
+        assert_eq!(
+            ok(head_is(&st, F, &fx.s_h, &fx.s_ty_h)),
+            tree::head_is(&s_name(), &s_ty())
+        );
+        assert!(tree::head_is(&s_name(), &s_app(0)));
+    }
+
+    /// **`projRecValue` — the rewrite itself.**  Both fields, the shape that
+    /// is not a projection, a field index out of range, and a value that is
+    /// not a λ at all.  `buildBinders`, `mkProjMotive` and `mkProjMinor` have
+    /// no con-leche counterpart of their own (they are the two lambdas inside
+    /// `projRecValue`), so they are checked here, through it.
+    #[test]
+    fn the_rewrite_is_the_tree_ports_rewrite() {
+        let (fx, mut st) = build();
+        let o = &fx.owner;
+        let got = ok(proj_rec_value(
+            &mut st,
+            F,
+            o,
+            &fx.pu_h,
+            &fx.proj_ty_h,
+            &fx.proj_val0,
+            0,
+        ));
+        assert!(same_oe(
+            &st,
+            got,
+            tree::proj_rec_value(&owner_p(), &pu(), &proj_ty(), &proj_val(0), 0)
+        ));
+        let got = ok(proj_rec_value(
+            &mut st,
+            F,
+            o,
+            &fx.pu_h,
+            &fx.proj_ty_h,
+            &fx.proj_val1,
+            1,
+        ));
+        assert!(same_oe(
+            &st,
+            got,
+            tree::proj_rec_value(&owner_p(), &pu(), &proj_ty(), &proj_val(1), 1)
+        ));
+        let got = ok(proj_rec_value(
+            &mut st,
+            F,
+            o,
+            &fx.pu_h,
+            &fx.proj_ty_h,
+            &fx.bad_val_h,
+            0,
+        ));
+        assert!(same_oe(
+            &st,
+            got,
+            tree::proj_rec_value(&owner_p(), &pu(), &proj_ty(), &bad_val(), 0)
+        ));
+        let got = ok(proj_rec_value(
+            &mut st,
+            F,
+            o,
+            &fx.pu_h,
+            &fx.proj_ty_h,
+            &fx.proj_val0,
+            5,
+        ));
+        assert!(same_oe(
+            &st,
+            got,
+            tree::proj_rec_value(&owner_p(), &pu(), &proj_ty(), &proj_val(0), 5)
+        ));
+        let got = ok(proj_rec_value(
+            &mut st,
+            F,
+            o,
+            &fx.pu_h,
+            &fx.proj_ty_h,
+            &fx.rec_ty_h,
+            0,
+        ));
+        assert!(same_oe(
+            &st,
+            got,
+            tree::proj_rec_value(&owner_p(), &pu(), &proj_ty(), &rec_ty(), 0)
+        ));
+        // the rewrite really fires on the first two, so the checks above are
+        // not agreeing `None`s
+        assert!(tree::proj_rec_value(&owner_p(), &pu(), &proj_ty(), &proj_val(0), 0).is_some());
+        assert!(tree::proj_rec_value(&owner_p(), &pu(), &proj_ty(), &proj_val(1), 1).is_some());
+        assert!(tree::proj_rec_value(&owner_p(), &pu(), &proj_ty(), &bad_val(), 0).is_none());
+    }
+
+    /// **`projRecOwners` — and with it the two delegated recognisers.**  The
+    /// MUTUAL block is the one the rewrite serves and the DIRECT one is not,
+    /// so `struct_parts_core` and `native_parts` are exercised on both sides
+    /// of their verdict.
+    #[test]
+    fn the_owner_census_agrees_at_both_blocks() {
+        let (fx, mut st) = build();
+        let got = ok(proj_rec_owners(
+            &mut st,
+            F,
+            &fx.block,
+            &fx.types,
+            &fx.ctors,
+            &fx.recs,
+        ));
+        let want = tree::proj_rec_owners(&block_p(), &types_p(), &ctors_p(), &recs_p());
+        let got_d: Vec<tree::ProjRecOwner> =
+            got.iter().map(|o| den_owner(&st, o)).collect();
+        assert!(beq_owners(&got_d, &want));
+
+        let got = ok(proj_rec_owners(
+            &mut st,
+            F,
+            &fx.block_d,
+            &fx.types_d,
+            &fx.ctors,
+            &fx.recs,
+        ));
+        let want_d = tree::proj_rec_owners(&block_d(), &types_d(), &ctors_p(), &recs_p());
+        let got_dd: Vec<tree::ProjRecOwner> =
+            got.iter().map(|o| den_owner(&st, o)).collect();
+        assert!(beq_owners(&got_dd, &want_d));
+
+        // both sides of the verdict
+        assert_eq!(
+            tree::proj_rec_owners(&block_p(), &types_p(), &ctors_p(), &recs_p()).len(),
+            1
+        );
+        assert_eq!(
+            tree::proj_rec_owners(&block_d(), &types_d(), &ctors_p(), &recs_p()).len(),
+            0
+        );
+        let _ = prop_when::never();
+    }
+}
