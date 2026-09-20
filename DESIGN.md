@@ -23188,3 +23188,235 @@ direction is the safe one (part 1's section argues it).
 * **`runPipelineHead` / `runPipelineTail` are the shape the fold plugs into.**
   P2c/P2d replace `runPipelineTail`'s last three lines and touch neither the
   read loop nor the pure seam.
+
+### Task #97-P4b — the Rust `Monad` and `ExprOps` twins (2026-09-20, Opus under Fable)
+
+Phase P4b of §8.6, under the REORDERED ruling: the Rust side of P2b's monad
+and `ExprOps` layer, in lockstep with the Lean twin
+(`proof/ConRon/Arena/{Monad,ExprOps}.lean`), as two new modules of
+`crates/arena-core` — `arena::monad` and `arena::expr_ops` — on task #97-P4a's
+frozen store layer.
+
+| | lines | what |
+|---|---:|---|
+| `arena/monad.rs` | 925 | `AState`, `Memos`, `fail`, the store primitives, the readback, the eleven memo triples |
+| `arena/expr_ops.rs`, shipped | 3 449 | the 63 twins + 17 Rust-side helpers |
+| `arena/expr_ops.rs`, `mod tests` | 1 388 | 21 `#[test]`s, 188 assertions |
+| `examples/bench.rs` | 322 | the twin of `Bench.lean` |
+| **total** | **6 084** | |
+
+Against the twin's 2 015 shipped lines — `Monad.lean` 545 + `ExprOps.lean`
+1 470 — the shipped Rust (925 + 3 449 = 4 374) is **2.2×**, which is P4a's
+2.3× again, and essentially all of the excess is `match m { Ok(x) => …,
+Err(e) => Err(e) }` where Lean writes `let x ← m` (§3.4 forbids `?`, so a
+three-child memoized arm is four nested matches).  The test file is 1 388
+lines against `ExprOpsTest.lean`'s 584, for the same reason plus the
+hand-written expectation shapes.
+
+#### `AM` is `&mut AState` plus `Result`, with two narrowings
+
+The twin's monad is `AM := StateT AState (Except CheckError)` and nothing else
+(§8.4).  Aeneas threads a `&mut` parameter back as a returned value and models
+`Result` as con-leche's `Except`, so the correspondence is `kernel::core_types`'
+own table, one bind per bind.  Two shapes come out narrower here, both
+deliberate and both in `monad.rs`'s module note:
+
+* **the state parameter is first, not last** (`kernel::core_types`' note writes
+  `fn(…, &mut CState)`).  `AM` threads the state as an invisible *first*
+  argument, so putting `st` first leaves every other argument in the twin's own
+  order and matches the position `EStore`'s `&mut self` already occupies one
+  layer down.  Nothing in the model cares; the reader does.
+* **a twin that cannot fail returns its value.**  `derivedE`, `derivedL`,
+  `LIdx.hasParam`, `Expr.hasLevelParam` and the twenty-two memo probes are
+  `AM α` only because `AM` is the module's one monad — no path in any of them
+  reaches a `fail`.  Their Rust reads the state and returns `α`; everything
+  that *can* decline (dangling handle, full constructor array, exhausted fuel)
+  returns `Result<α, CheckError>`, which is the twin's `Except` exactly.
+
+#### The API mapping
+
+Every declaration of the two twins, and what it became.  Only the rows that are
+**not** one-to-one carry a note; the rest are a rename (camelCase ↔ snake_case)
+and the two narrowings above.
+
+| Lean twin | Rust | one-to-one? |
+|---|---|---|
+| `Monad.lean`'s own `inductive CheckError` (4 ctors) | `con_ron_core::kernel::core_types::CheckError` | **no** — the twin declares its own only because it has no con-leche `Core.lean` in scope carrying the fourth constructor; con-ron-core's *is* that type (`NotImplemented`/`Invalid`/`Internal`/`Native`, `Vec<u32>` payloads).  Importing beats a second copy |
+| `Memos` (11 `Std.HashMap` fields) | `Memos` (11 `ron::HashMap` fields) | yes, field for field |
+| the memo key `(EIdx × Nat)` | `struct EIdxNat { h, d }` + `Hashable`/`Eq2`/`Dup` | **no**, in the spelling: Lean's `Prod` carries derived instances; the port writes the dictionaries by hand, exactly as `con_ron_core::kernel::expr_ops::ExprNatKey` does for `(Expr × Nat)` |
+| `Memos.empty`, `AState`, `AState.init`, `fail` | the same four | yes |
+| `view` / `viewN` / `viewL` / `viewLs` | the same four | yes |
+| `derivedE` / `derivedL` | `derived_e` / `derived_l`, returning `u64` / `LDer` | **no** — the narrowing above |
+| `internE` / `internNNode` / `internLNode` / `internLsNode` | the same four | **no** in *where the cap test sits*, yes in outcome.  The twin is total below and tests `sizeOf v < Idx.idxCap` at the wrapper (so `EStore.intern_spec`'s `capOK` becomes a branch condition); P4a's Rust `EStore::intern` already *is* that test, returning the same `Native` on the same condition.  The wrapper is a delegation and the branch is one layer down |
+| `readName` / `readLevel` / `readLevels` | the same three | yes |
+| `readNames` | `read_names` + `read_names_from` | **no** — §3.4's `List`-over-`Vec` cursor recursion.  The twin already has the same split, one layer up, because `ks.mapM readName` is a closure |
+| `internName` / `internLevel` / `internLevels` | the same three | yes (structural on the transient tree, no fuel) |
+| `internLevelList` | `intern_level_list` + `_from` | **no** — cursor recursion |
+| — | `denote_n_aux` / `denote_n` / `denote_l_aux` / `denote_l` / `denote_l_list(_from)` / `denote_ls` | **new in the shipped crate.**  `Denote.lean` has no Rust counterpart (P4a's ruling) — but `readLevel` *is* `denoteL` in the twin (§8.3 lesson 4: "the cheapest readback that is also *provably* the denotation is the denotation"), and `readLevel` is shipped.  So the name/level/level-list readbacks are shipped here, fuel and all.  `denoteE` is **not**: nothing above this module reads an expression back, and the differential test keeps its own copy in `mod tests`, as `arena::store` does |
+| the 33 memo probe/record/drop functions | the same 33 | yes.  Detach-before-update (lesson 14) and `@[noinline]` (lesson 15) have no Rust counterpart — `&mut` **is** the unique reference the detaching manufactures, and `@[noinline]` is a Lean RC concern (P4a's table says the same of the store's mutations).  A drop is `HashMap::new()`, the twin's `:= ∅` term for term, which allocates nothing (task #35) |
+| the 63 `ExprOps` twins | the same 63, snake_case | yes — same fuel arguments, same memo keys, same five cutoffs, arms inline |
+| `LIdx.hasParam` / `EIdx.hasLevelParam` | `lidx_has_param` / `eidx_has_level_param` | **no**, in the spelling only: free functions rather than inherent methods, so the state stays the first argument |
+| `exprPtrBEq` | `expr_ptr_beq` | yes — already monad-free in the twin |
+| `substLevelList` | `subst_level_list` + `_from` | **no** — cursor recursion |
+| `renameConstsGo (f : NIdx → NIdx)` | `rename_consts_go<F: NIdxToNIdx>` | **no** — §3.4 forbids the closure; a one-method trait, exactly as `con_ron_core::kernel::expr_ops::NameToName` stands for con-leche's `f : Name → Name`.  It is the module's one higher-order argument and con-leche's own |
+| `instPis` / `instPisAt` / `instLamsAt` / `instPisAtFGo` / `instLamsAtFGo` / `instSpine` / `instPisAtLift` / `mkAppN` | each + a `…_from` cursor companion | **no** — the same `List`-over-`Vec` rule; con-ron-core's `ExprOps` has the identical eight splits |
+| `x :: xs` on the way out of a recursion | `cons_eidx` / `cons_binder` (+ `eidx_copy_upto`, `binder_copy_from`) | **no** — a `Vec` has no cons, so the tail is copied.  Every call site is a telescope arity, not a term size |
+| `x ++ y` in `fvarLeaves` | `fvl_append` + `fvl_copy_from` | **no** — ditto |
+| `vs.take (j - d)` in `instantiateList` | `take_eidx` | **no** — ditto; `con_ron_core`'s `take_exprs` is the same deviation on the same line |
+| `args.take cnP == want` in `recRulePlain` | `eidx_take_beq` + `eidx_prefix_beq` | **no** — a length test plus an elementwise cursor recursion, which is what `List.take`'s length mismatch means; con-ron-core's `rec_rule_args_eq` is the same idea |
+| `Nat` (fuel, cursors, de Bruijn indices, binder counts) | `u64`; truncating `-` is `con_ron_core::kernel::expr_ops::sub_nat` where the cited arm has no guard, a bare `-` where it does | **no** — §3.3's standing deviation, and `sub_nat`'s own doc names the same three sites (`bvarBound`'s `y - 1`, `instSpine`'s `t - 1`, `recRulePlain`'s `mI - 1 - k`) |
+| the twin's `fuel + 1` pattern match, with its `0` arm a `fail` | `if fuel == 0 { fail(…) } else { … fuel - 1 … }` | yes in meaning; the twin's 23 distinct `"fuel exhausted: …"` strings are 23 `const M_FUEL_…: [u32; N]` here (§3.4's no-`&str`-constant rule) |
+
+**One order-of-effects decision worth its own line.**  `instPisAtFGo` computes
+its domain's `instantiateListFast` **after** the recursive call, and the Rust
+does the same — where `con_ron_core::kernel::expr_ops::inst_pis_at_f_go` does
+it *before*.  con-ron-core may: its `Expr`s are pure values and the order is
+invisible.  Here it is not: interning in a different order gives the same
+*denotation* but different *handles*, and this port is in lockstep with the
+twin at the handle (P4a's cross-check — "the two agree on the last handle
+word" — is the property this preserves).  The same reasoning is why
+`inst_pis_at`/`inst_lams_at` cons their domains on the way out instead of
+pushing them on the way in, though there the effect is nil.
+
+#### What the extraction says
+
+`scripts/extract-arena.sh --dry`: **zero errors, zero warnings**, 10 745 lines
+of model (up from P4a's 4 984), **3 type holes and 42 function holes — every
+one of them the `con-ron-core` boundary**, which is P4a's standing debt and not
+a new leak.  The fifteen new ones are all the dependency's:
+`level::{zero,succ,max,imax,param,subst,subst_pw}`,
+`name::{anonymous,mk_str,mk_num}`, `expr::{sat_range,binder_meta}`,
+`expr_ops::sub_nat`, `prop_when::never` (and `expr::str_copy`, already there).
+P4a's three extraction rules (no associated `mk`; no three-way `||` inside a
+`match` arm holding loans; no `Vec::clear`/`truncate`) were written into these
+modules from the start and none of them bit.
+
+#### The differential test: 188 assertions, all green on the first run
+
+`mod tests` in `expr_ops.rs`, **21 `#[test]` functions, 188 assertions** — all
+**183** `#guard`s of `ExprOpsTest.lean` at the same terms and the same cursors,
+plus five of its own (the `intern_expr` round-trip and the hash-consing
+identity it implies).  The shape is the twin's:
+
+> intern a term, run the twin, read the result back with `denote_e`, and
+> compare with `con_ron_core::kernel::expr_ops`' own function applied to the
+> *denotation of the input*.
+
+Two things make it worth more than a re-run of the Lean checks.  First, the
+comparison partner is **`con-ron-core`'s `ExprOps`** — the shipping checker's
+own port of the same con-leche file — so an agreement is an agreement between
+the arena and the tree-shaped checker on the same term, not between two
+readings of one body.  Second, the fixture is built by the **same `intern`
+calls in the same order** as the twin's `fx`, so a handle here is the same
+machine word as a handle there, which is the cheapest cross-check of the
+transliteration there is (P4a's finding, carried forward).
+
+The expected side is computed, never written out; what IS written by hand is
+the fixture's own denotation (`fixture_denotes_what_it_should`, nineteen
+assertions), exactly as the twin does it.  `Denote.lean`'s `denoteE` lives in
+`mod tests` and nowhere else; the name and level readbacks it calls are
+`arena::monad`'s shipped ones.
+
+`intern_expr` — the brief's "walk an `Expr` into the store" helper — is there
+too, with its round-trip: interning `denote_e(big)` gives back `big` itself,
+which is hash-consing and `denoteE_inj` observed from outside.
+
+**Every assertion passed on the first run.**
+
+#### The micro-benchmark, beside the Lean twin's
+
+`cargo run --release --example bench` — the same four shapes at the same sizes
+in the same order as `con-ron-arena-bench`, so the two read off line by line.
+Three runs, `ulimit -v 20000000`, release profile with `overflow-checks = true`
+(the shipped one).  The Lean column is task #97b's own measurement on this
+machine, not a fresh paired run.
+
+| subject | operation | Rust (3 runs) | Lean twin | Lean / Rust |
+|---|---|---:|---:|---:|
+| build | intern all four shapes (111 031 nodes) | 15.4 / 13.2 / 13.6 ms | 15.8 / 15.9 / 17.8 ms | **1.2×** |
+| spine, 50 000 apps | `instantiate1Fast` | 9.08 / 8.59 / 8.35 ms | 15.9 / 16.7 ms | **1.9×** |
+| | `abstract1Fast` | 17.6 / 19.0 / 17.7 ms | 29.2 ms | **1.6×** |
+| | `instLPFast` | 8.29 / 9.15 / 8.40 ms | 21.8 / 21.3 ms | **2.5×** |
+| | `bvarBoundMemo` | 2.94 / 3.14 / 2.96 ms | 6.5 ms | **2.1×** |
+| | `sizeB` (no intern, no memo) | 1.03 / 1.03 / 1.03 ms | 2.5 ms | **2.4×** |
+| telescope, 10 000 binders | `instantiate1Fast` | 2.30 / 2.40 / 2.30 ms | 3.4 / 3.6 ms | 1.5× |
+| | `abstract1Fast` (the `fvarB` cutoff fires) | 0.0006 ms | 0.003 ms | 5× |
+| | `instLPFast` | 3.19 / 3.22 / 3.20 ms | 5.6 ms | 1.8× |
+| | `liftLooseBVarsFast` | 1.46 ms | 2.8 ms | 1.9× |
+| DAG tower, 2^24 tree nodes | `instantiate1Fast` | 0.0050 / 0.0060 / 0.0058 ms | 3.0 / 3.4 ms | *(see below)* |
+| | `instantiate1LiftFast` | 0.0022 ms | 0.016 ms | 7× |
+| | `instLPFast` (the `hasLP` cutoff) | 0.0011 ms | 0.005 ms | 5× |
+| | `bvarBoundMemo` | 0.0079 ms | 0.008 ms | 1.0× |
+| task #215 | peel 1000 binders, 1000 `instantiate1` calls | 156 / 158 / 158 ms | 175 / 195 / 177 ms | **1.2×** |
+| cutoff fires | `instantiate1` / `abstract1` / `instLP` | 0.0004 / 0.0008 / 0.0035 ms | 0.0017 / 0.0025 / 0.006 ms | 2–4× |
+| cutoff does not | the same three, same-sized subject | 13.6–14.1 / 10.3–10.7 / 8.3–8.7 ms | 23–25 / 23–28 / 17–20 ms | **1.8×** |
+
+Whole run: **1.886 G instructions:u, 1.079 G cycles:u** (IPC 1.75), 0.276 s
+wall, 113 MB peak RSS.
+
+**Four things these numbers say.**
+
+1. **The Rust is 1.6–2.5× the twin on every walk**, which is the same band
+   P4a measured at the store layer (1.7× miss, 3.1× hit) and is what §8.1's
+   calibration should expect: the arena's cost is the store's cost, and the
+   `ExprOps` layer adds no new gap.
+2. **The tower's `instantiate1Fast` line is the twin's outlier, not the
+   Rust's.**  25 arena nodes answered in 3.0 ms would be 120 µs per node,
+   against 0.016 ms for `instantiate1LiftFast` on the *same* term in the *same*
+   Lean run — internally inconsistent by 200×.  Both benchmarks put
+   `instantiate1Fast` first in that group, and in the Rust the first line of
+   the group is 2.7× the second (0.0059 against 0.0022 ms), so a one-off cost
+   on the group's first timed call is the likely reading.  P2g should re-time
+   that line with a warm-up before anyone concludes anything from it; the
+   memo's own claim — 25 walked nodes where a tree walk is 2^24 — is
+   unaffected, and holds in both columns.
+3. **The cutoffs are worth four orders of magnitude here too** (0.0004 ms
+   against 13.6 ms on a same-sized subject the cutoff does not answer:
+   **34 000×**), which is the twin's finding reproduced, and the case for
+   giving `instantiateList` and `liftLooseBVars` one is unchanged.
+4. **con-leche's task #215 quadratic is reproduced exactly** (1000 peels of a
+   1000-binder telescope: 157 ms, 500 000 nodes allocated), and the Rust's
+   advantage there is the *smallest* of any line (1.2×), because the cost is
+   allocation and hashing, not interpretation.  That is one more argument for
+   §8.3's "Caches" question — a memo keyed on `(node, cursor, substituted
+   handle)` that survives the call — being a representation question and not a
+   language one.
+
+**The stack is the one new Rust-side fact.**  The spine is 50 000 nodes deep
+and every twin is a recursion, so a walk is 50 000 Rust frames; the benchmark
+runs on a thread with a 1 GB stack, as `con-ron`'s own checker threads already
+do (`bin/con-ron.rs`, `pool.rs`, and `pins_decode.rs` before them).  The Lean
+twin needs nothing of the kind — Lean's runtime grows its own stack — so this
+is a place where (B) and (C) are not interchangeable and where P4f's driver
+must do what `con-ron` does today.
+
+#### Gates
+
+`cargo build` / `cargo test` under `RUSTFLAGS="-D warnings"` (33 tests in
+`arena-core`, 320 in the workspace), `scripts/lint-rust-style.sh` over both
+verified trees, `scripts/provenance.py check` **0 findings** (3 706 items —
+2 893 Rust, 813 arena Lean — and 2 861 citations), `provenance-selftest`,
+`overview-links`, `holes --check`, `gen-pins --check`, `gen-prelude --check`,
+`scripts/extract.sh --check` (con-ron-core's committed model unmoved) and
+`scripts/extract-arena.sh --dry` clean.  `cd proof && lake build` was **not**
+run: this task touches no Lean, and P2c/P2e are editing `proof/` concurrently.
+
+#### For P4c
+
+* **The nesting is the cost, not the logic.**  A three-child arm with a memo
+  is four nested `match … { Err(e) => Err(e), Ok(x) => … }`; `Core`'s bodies
+  are deeper than `ExprOps`', so P4c should expect the same 1.9× line ratio
+  and resist the temptation to introduce a bind helper (it would be a closure).
+* **`AState` grows a second record, not more fields.**  §8.3's
+  per-DECLARATION caches (`whnfCore`, `whnf`, the three infer grades, `defeq`)
+  belong beside `Memos`, in their own record, so that the per-call clear and
+  the per-declaration drop stay visibly different operations — the twin's P2c
+  note says the same.
+* **The 42 holes are still exactly con-ron-core's.**  Watch the list, not the
+  count: a hole that is not `con_ron_core::…` (or `alloc::sync::Arc`) is a new
+  external, and that is the signal P4a asked for.
+* **`intern_expr` is in `mod tests` and should stay there** until the frontend
+  needs a tree-to-handle path, which it does not (§8.3: the parser builds
+  handles directly, no `Expr` tree is ever built).
+* **Re-time the tower line with a warm-up** before P2g reports any
+  memo-versus-no-memo ratio from it (finding 2 above).
