@@ -13,6 +13,7 @@
 //! | `fenv` | `proof/ConRon/Arena/FEnv.lean` |
 //! | `core_io` | `proof/ConRon/Arena/CoreIO.lean` |
 //! | `core_gated` | `proof/ConRon/Arena/CoreGated.lean` |
+//! | `inductives` | `proof/ConRon/Arena/Inductives.lean` and `Inductives/*` |
 //!
 //! `Denote.lean`, `WF.lean` and `WFProofs.lean` have no Rust counterpart and
 //! never will: they are the arena's own verification (DESIGN.md §8.6's P2a,
@@ -29,3 +30,4 @@ pub mod core;
 pub mod fenv;
 pub mod core_io;
 pub mod core_gated;
+pub mod inductives;
