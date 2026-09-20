@@ -250,11 +250,28 @@ tagged with.
 
 The counter is read BEFORE the push, so that `fe` reaches `push` unshared
 (con-leche's own RC-linearity note: read after it, the push copies the whole
-index at every install). -/
+index at every install).
+
+**Every arm begins with `flushCaches`** — con-leche's `annotStepC` reaches
+its four arms through `annotValueC` (`Cached/Installed.lean:139`), the
+`.thmDecl` arm's own `flushC` (`:168`) and `checkDeclStepC`
+(`Cached/ParsedC.lean:279-282`, "one step of the converted-declaration fold:
+flush, then check"), and each of those three starts with a flush, so con-leche
+enters every phase-A record with EMPTY caches.  Task #97d's twin mirrored
+`Kernel/Checker.lean`, the spec tier, which has no caches to flush, and so
+carried the eleven per-declaration tables across the whole of phase A —
+bounded only by `cacheCap` and answering queries at an environment the row was
+not computed at.  This is the same class of omission task #97f found for
+`mode.certs`: where the kernel tier and the EXECUTED tier of con-leche differ,
+(B) must have the executed tier's, because the executed tier is the knot (B)
+runs.  Measured on `Init` (task #97g): cycles 1 098 G → 926 G, wall 250 s →
+211 s, peak RSS 1.862 GB → 1.834 GB, instructions +3 % (the flush is also
+lost cache hits). -/
 def annotStep (mode : CheckMode) (pins : List INatOpPinSet) (i : Nat)
     (fe : IFEnv) (pend : Array PendingCheck) :
     IDeclaration → AM (IFEnv × Array PendingCheck)
   | .defnDecl cv value hint => do
+    flushCaches
     if (← natOpNames).contains cv.name || (← natDivModNames).contains cv.name then
       pure (← checkDecl mode pins fe (.defnDecl cv value hint), pend)
     else do
@@ -264,6 +281,7 @@ def annotStep (mode : CheckMode) (pins : List INatOpPinSet) (i : Nat)
       pure (fe.push (.defnInfo cvA jv hint),
         pend.push ⟨⟨.defn, cvA, jv⟩, i, vis⟩)
   | .thmDecl cv value => do
+    flushCaches
     -- a theorem installs BY STATEMENT: the header's install half only; the
     -- value is recorded raw and never touched here (phase B annotates it), so
     -- phase A never enters a theorem's body
@@ -271,6 +289,7 @@ def annotStep (mode : CheckMode) (pins : List INatOpPinSet) (i : Nat)
     let vis := fe.visibleBelow
     pure (fe.push (.thmInfo cvA value), pend.push ⟨⟨.thm, cvA, value⟩, i, vis⟩)
   | .opaqueDecl cv value => do
+    flushCaches
     if (← reduceOpNames).contains cv.name then
       pure (← checkDecl mode pins fe (.opaqueDecl cv value), pend)
     else do
@@ -279,6 +298,7 @@ def annotStep (mode : CheckMode) (pins : List INatOpPinSet) (i : Nat)
       let vis := fe.visibleBelow
       pure (fe.push (.axiomInfo cvA), pend.push ⟨⟨.opaque, cvA, jv⟩, i, vis⟩)
   | pd => do
+    flushCaches
     pure (← checkDecl mode pins fe pd, pend)
 
 /-- con-leche: ConLeche/Cached/Installed.lean:185-195 annotDeclStep — phase
