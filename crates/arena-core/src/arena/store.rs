@@ -2188,6 +2188,81 @@ pub fn der_of_let(dt: u64, dv: u64, db: u64) -> u64 {
     )
 }
 
+/// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin: none —
+/// **a tier test on the children, not a decode**: does any child handle of
+/// this view name the scratch tier?
+///
+/// A persistent node's children are persistent.  That is not an accident of
+/// the code but a clause `StoreWF` cannot do without: a persistent handle
+/// keeps its bits across `drop_scratch` (DESIGN.md §8.3, con-leche's lesson
+/// 6) and must still denote afterwards, which it could not if one of its
+/// children lived in the tier that just went away.  Operationally the same
+/// thing: `EStore::intern` appends to the persistent tier only while
+/// `scratch_on` is false, and while it is false no live handle is a scratch
+/// handle.
+///
+/// So a view with a scratch child **cannot** be in the persistent cons table,
+/// and `EStore::pers_find_maybe` does not probe it.  That probe is the single
+/// most expensive thing the checker does — the persistent `apps` table alone
+/// is millions of buckets over a 32 MB L3, so it is a guaranteed cache miss —
+/// and on `Init` skipping it is worth **17 % of the cycles and 17 % of the
+/// wall** at 1.7 % of the instructions, which is the shape of the IPC gap
+/// task #97-P4f measured.
+pub fn e_view_has_scratch_child(v: &ENodeView) -> bool {
+    match v {
+        ENodeView::BVar(_) => false,
+        ENodeView::FVar(_, ty) => !ty.is_persistent(),
+        ENodeView::Sort(u) => !u.is_persistent(),
+        ENodeView::Const(n, us) => {
+            if n.is_persistent() {
+                !us.is_persistent()
+            } else {
+                true
+            }
+        }
+        ENodeView::App(f, a) => {
+            if f.is_persistent() {
+                !a.is_persistent()
+            } else {
+                true
+            }
+        }
+        ENodeView::Lam(ty, b, _) => {
+            if ty.is_persistent() {
+                !b.is_persistent()
+            } else {
+                true
+            }
+        }
+        ENodeView::ForallE(ty, b, _) => {
+            if ty.is_persistent() {
+                !b.is_persistent()
+            } else {
+                true
+            }
+        }
+        ENodeView::LetE(ty, val, b) => {
+            if ty.is_persistent() {
+                if val.is_persistent() {
+                    !b.is_persistent()
+                } else {
+                    true
+                }
+            } else {
+                true
+            }
+        }
+        ENodeView::Lit(_) => false,
+        ENodeView::Proj(n, _, e) => {
+            if n.is_persistent() {
+                !e.is_persistent()
+            } else {
+                true
+            }
+        }
+    }
+}
+
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:922-1070 EStore
 impl EStore {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:925 EStore.empty
@@ -2375,10 +2450,29 @@ impl EStore {
         }
     }
 
+    /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean:1024-1027 EStore.find?` — **the
+    /// persistent half of the twin's probe**, skipped when the view has a
+    /// scratch child, which `e_view_has_scratch_child`'s note argues it may
+    /// be.  The twin probes unconditionally and is not changed by this; what
+    /// is owed is one Theorem-2 lemma, `pers_find_maybe st v = st.pers.find v`
+    /// under `StoreWF`, after which every `intern` lemma reads as before.
+    pub fn pers_find_maybe(&self, v: &ENodeView) -> Option<EIdx> {
+        if self.scratch_on {
+            if e_view_has_scratch_child(v) {
+                None
+            } else {
+                self.pers.find(v)
+            }
+        } else {
+            self.pers.find(v)
+        }
+    }
+
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1024-1027 EStore.find?
     /// Probe both tiers, persistent first (nanoda's `alloc_expr`).
     pub fn find(&self, v: &ENodeView) -> Option<EIdx> {
-        match self.pers.find(v) {
+        match self.pers_find_maybe(v) {
             Some(i) => Some(i),
             None => {
                 if self.scratch_on {
@@ -2396,7 +2490,7 @@ impl EStore {
     /// The cap test is the Lean's `capOK` turned into the `Native` decline
     /// §8.3 puts here.
     pub fn intern(&mut self, v: ENodeView) -> Result<EIdx, CheckError> {
-        match self.pers.find(&v) {
+        match self.pers_find_maybe(&v) {
             Some(i) => Ok(i),
             None => {
                 if self.scratch_on {

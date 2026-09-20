@@ -26113,3 +26113,49 @@ the Lean's, which has no journal field.
 
 Both fixture rows are 345/348 (`--verified` and `--trusted`), the three being
 P4e part 2's ProjRec stub as at P4f.
+
+#### Lever 4, taken early — the persistent cons probe that cannot hit
+
+After lever 1 the profile's largest single symbol is unchanged and is the one
+task #97-P4f named second: `ETables::find`, **15.1 % of the cycles self and
+24.4 % inclusive**.  Every `intern` probes the persistent cons table of its
+constructor first, and on `Init` that table is millions of buckets over a
+32 MB L3 — one guaranteed cache miss per intern, which is most of the IPC gap
+(1.52 against `con-ron`'s 1.91) P4f measured.
+
+**Most of those probes cannot hit, and the store knows it from the handle
+bits alone.**  A persistent node's children are persistent — not by accident
+but because `StoreWF` cannot do without it: a persistent handle keeps its bits
+across `drop_scratch` (§8.3, con-leche's lesson 6) and must still denote
+afterwards, which it could not if a child lived in the tier that just went
+away.  So a view with a scratch child is not in the persistent cons table, and
+`EStore::pers_find_maybe` does not probe for it.  Three `is_persistent()` bit
+tests replace a cold random load.
+
+| | instructions:u | cycles:u | IPC | wall, 3 runs (spread) | peak RSS |
+|---|---:|---:|---:|---:|---:|
+| after lever 1 | 769.3 G | 522.9 G | 1.47 | 115.16 / 115.57 / 115.65 (0.49 s) | 1 904 020 KB |
+| **after the probe skip** | **756.0 G** | **417.2 G** | **1.81** | **96.24 / 96.73 / 97.65 (1.41 s)** | 1 925 048 KB |
+| | −1.7 % | **−20.2 %** | | **−16.3 %** | +1.1 % |
+
+**1.7 % of the instructions and 20 % of the cycles**: this is not work
+removed, it is a cache miss removed, and it takes the IPC from 1.47 to 1.81 —
+past `con-ron`'s 1.91 being the remaining gap.  345/348 in both modes,
+`accepted 57977`.
+
+**What it costs the proof, stated precisely.**  This is the one change of
+this task whose refinement is not unconditional.  The twin's `EStore.find?`
+probes both tiers unconditionally and **is not changed**; what is owed is a
+single Theorem-2 lemma
+
+    pers_find_maybe st v = st.pers.find? v      (given StoreWF st)
+
+whose proof is exactly the WF clause "a persistent node's children are
+persistent", after which every `intern` lemma reads as it did.  `StoreWF` is a
+hypothesis of every store lemma already, so no statement anywhere else moves.
+
+And the failure mode if that clause were ever false is the safe one (§1's
+direction): the store would hold a duplicate node, i.e. two handles denoting
+one term.  That loses `defeqBody`'s `a == b` shortcut on those two handles —
+the checker does more work — and it cannot make two different terms share a
+handle, which is the direction that would be unsound.
