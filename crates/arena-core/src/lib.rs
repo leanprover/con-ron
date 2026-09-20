@@ -50,3 +50,4 @@
 //! everything again.
 
 pub mod arena;
+pub mod frontend;
