@@ -11,9 +11,10 @@ Its reason to exist before the checker does is the GATE.  §8.6 P2f is
 `scripts/diff-e2e.sh --bin=…` running the fixtures against a binary.  A
 binary that speaks the command line exactly — the same flags, the same
 usage text, the same 0/1/2/3 — can be put under that sweep from the first
-day, and every later phase is then measured rather than argued.  Today
-every fixture disagrees, because `runPipeline` declines; that is the
-baseline, and it is a true statement about the checker as it stands.
+day, and every later phase is then measured rather than argued.  The
+baseline was 36 of 348 with `runPipeline` a stub; with the frontend of task
+#97e behind it, 60 — and every one of the 288 that still differ is a
+decline where the fold would have decided, never a wrong verdict.
 
     lake -C proof build con-ron-lean
     scripts/diff-e2e.sh --bin=proof/.lake/build/bin/con-ron-lean
@@ -275,9 +276,14 @@ def usage : String := String.intercalate "\n" [
   "  3  error    -- bad usage, malformed input, or an internal failure of",
   "     unclear cause",
   "",
-  "STATUS.  The checker behind the command line is a stub: every run",
-  "declines (exit 2, 'arena checker not yet implemented').  The command line",
-  "is complete and is what DESIGN.md section 8.6's P2f gate is run through."]
+  "STATUS.  The FRONTEND is real: the input is parsed into the arena's",
+  "persistent tier and every verdict the parse itself reaches -- a malformed",
+  "line, a rebound index, an unsafe declaration, an inductive block whose",
+  "redundant fields contradict its own records -- is this binary's answer,",
+  "with con-leche's exit code.  The FOLD is not written yet, so a stream that",
+  "parses cleanly ends in a decline (exit 2) naming the declaration count it",
+  "would have checked.  DESIGN.md section 8.6's P2f gate is run through this",
+  "command line."]
 
 /-- con-leche: Main.lean:946-960 Args
 The parsed command line.  `progress = 0` is "no flag given"; `jobs = none`
