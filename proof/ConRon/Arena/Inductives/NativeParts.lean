@@ -35,7 +35,6 @@ import ConRon.Arena.Inductives.SumInstallF
 namespace ConRon.Arena
 
 open ConLeche
-open ConRon.Arena.IndBase (unwrapOr)
 
 /-! ## The field kinds -/
 

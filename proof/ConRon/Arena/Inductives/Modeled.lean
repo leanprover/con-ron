@@ -36,10 +36,39 @@ import ConRon.Arena.Inductives.SumParts
 namespace ConRon.Arena
 
 open ConLeche
-open ConRon.Arena.IndBase (unwrapOr checkConstantVal checkDefEqList checkTypedList
-  checkAnnotList isEqHead eqHeadLevel findCV? openPisAtFvars allLevelParamsDefined
-  domsMatch domsMatchRenamed checkProjShape checkProjRule unresolvedConstsError
-  recsFormSuffix eqBasisStored)
+
+/-! ## Two helpers of the modeled route
+
+`Arena/CheckerBase.lean` carries the declaration checker's own twins; these
+two are the modeled install's, and task #97d deliberately left them to it —
+the renaming domain comparison because renaming a constant over handles is
+monadic, and the `Eq`-basis guard because it is the one predicate three
+clauses of this file share and nothing else reads. -/
+
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:121-128 domsMatchAux —
+`domsMatchAux` with the right side renamed (`g = fun _ e => e.renameConsts f`,
+`checkProjIota`'s instance of con-leche's higher-order argument).  Over `List`,
+not `Array`: unlike the identity twin this one is not on a wide-telescope
+path, and its caller holds lists. -/
+def domsMatchRenamed (f : NIdx → NIdx) (bs₁ bs₂ : List (EIdx × BinderMeta))
+    (o₁ o₂ : Nat) : Nat → AM Bool
+  | 0 => pure true
+  | k + 1 => do
+    match bs₁[o₁ + k]?, bs₂[o₂ + k]? with
+    | some b₁, some b₂ => do
+      let r ← renameConstsFast coreWalkFuel f b₂.1
+      if b₁.1 == r then domsMatchRenamed f bs₁ bs₂ o₁ o₂ k else pure false
+    | _, _ => pure false
+
+/-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs —
+`env.find? eqName = some eqA`, the "requires the pinned `Eq` basis" guard,
+factored out because three call sites make it.  `Arena/StdAxioms.lean`'s `eqA`
+is the comparand: the same `ConstantInfo` through the same store, hence the
+same handle (`denoteE`/`denoteN` are injective, task #97a). -/
+def eqBasisStored (fe : IFEnv) : AM Bool := do
+  match fe.find? (← pin eqName) with
+  | some ci => pure (ci == (← eqA))
+  | none => pure false
 
 /-! ## The renaming tables -/
 
@@ -146,13 +175,13 @@ def checkIotaThm (mode : CheckMode) (fe' feSelf : IFEnv)
     (mI rP j : Nat) (r : IRecRule) (cvj : IConstantVal)
     (cnP cnF : Nat) (rhsA : EIdx) : AM Unit := do
   let nm ← readName cvName
-  let cvt ← unwrapOr (← findCV? fe' (← iotaThmName cvName j))
+  let cvt ← unwrapOr (← fe'.findCV? (← iotaThmName cvName j))
     (.notImplemented s!"missing iota theorem for {nm}")
   unless cvt.levelParams = lps do
     fail (.notImplemented s!"iota theorem level mismatch for {nm}")
   -- open the theorem's telescope: params, motives, minors, fields
   let depth := rP + cnF
-  let (fvs, tbody) ← unwrapOr (← openPisAtFvars depth cvt.type 0)
+  let (fvs, tbody) ← unwrapOr (← openPisAtFvarsF depth cvt.type 0)
     (.notImplemented s!"iota statement shape mismatch for {nm}")
   -- the body is an equation (at one level, like the pinned `Eq`)
   let targs ← getAppArgs coreWalkFuel tbody
@@ -205,13 +234,13 @@ def checkIotaThm (mode : CheckMode) (fe' feSelf : IFEnv)
   checkDefEqList mode feSelf depth (← (fvs.take rP).mapM fvarTypeD) rdoms
   -- the rule's λ-domains are the public recursor prefix and constructor field
   -- domains
-  let (fvsP, _) ← unwrapOr (← openPisAtFvars rP tyA 0)
+  let (fvsP, _) ← unwrapOr (← openPisAtFvarsF rP tyA 0)
     (.notImplemented s!"iota recursor telescope for {nm}")
   let (cdomsP, crestP) ← unwrapOr
       (← instPisAtF coreWalkFuel (fvsP.take cnP) cvj.type)
       (.notImplemented s!"iota constructor telescope for {nm}")
   checkDefEqList mode feSelf depth (← (fvsP.take cnP).mapM fvarTypeD) cdomsP
-  let (xFvsP, _) ← unwrapOr (← openPisAtFvars cnF crestP rP)
+  let (xFvsP, _) ← unwrapOr (← openPisAtFvarsF cnF crestP rP)
     (.notImplemented s!"iota constructor telescope for {nm}")
   let (ldoms, _) ← unwrapOr (← instLamsAtF coreWalkFuel (fvsP ++ xFvsP) rhsA)
     (.notImplemented s!"rule shape mismatch for {nm}")
@@ -232,7 +261,7 @@ The level list is a `List LIdx`, the shape `IRecRuleFire.nested` stores
 def nestedRuleShape (fe' feSelf : IFEnv) (cvName : NIdx) (lps : List NIdx)
     (tyA : EIdx) (mI rP cnP j : Nat) : AM (Option (List LIdx × List EIdx)) := do
   let thm ← iotaThmName cvName j
-  if !((← findCV? fe' thm).isSome && decide (rP ≤ mI)) then pure none else
+  if !((← fe'.findCV? thm).isSome && decide (rP ≤ mI)) then pure none else
   match ← stripPis mI tyA with
   | some (_, rest) => do
     match ← view rest with
@@ -273,12 +302,12 @@ def checkIotaThmN (mode : CheckMode) (fe' feSelf : IFEnv)
   | none => pure .inert
   | some (lvls, pins) => do
   let nm ← readName cvName
-  let cvt ← unwrapOr (← findCV? fe' (← iotaThmName cvName j))
+  let cvt ← unwrapOr (← fe'.findCV? (← iotaThmName cvName j))
     (.notImplemented s!"missing iota theorem for {nm}")
   unless cvt.levelParams = lps do
     fail (.notImplemented s!"iota theorem level mismatch for {nm}")
   let depth := rP + cnF
-  let (fvs, tbody) ← unwrapOr (← openPisAtFvars depth cvt.type 0)
+  let (fvs, tbody) ← unwrapOr (← openPisAtFvarsF depth cvt.type 0)
     (.notImplemented s!"iota statement shape mismatch for {nm}")
   let targs ← getAppArgs coreWalkFuel tbody
   let tfn ← getAppFn coreWalkFuel tbody
@@ -332,7 +361,7 @@ def checkIotaThmN (mode : CheckMode) (fe' feSelf : IFEnv)
   checkDefEqList mode feSelf depth (← (fvs.take rP).mapM fvarTypeD) rdoms
   -- the rule's λ-domains are the public recursor prefix and the constructor's
   -- field domains at the public instantiations
-  let (fvsP, _) ← unwrapOr (← openPisAtFvars rP tyA 0)
+  let (fvsP, _) ← unwrapOr (← openPisAtFvarsF rP tyA 0)
     (.notImplemented s!"iota recursor telescope for {nm}")
   let pinsP ← pins.mapM fun p => instSpine coreWalkFuel (fvsP.take rP) (rP - 1) p
   checkAnnotList mode feSelf depth pinsP
@@ -340,7 +369,7 @@ def checkIotaThmN (mode : CheckMode) (fe' feSelf : IFEnv)
   let (cdomsP, crestP) ← unwrapOr (← instPisAtF coreWalkFuel pinsP ctyL2)
     (.notImplemented s!"iota constructor telescope for {nm}")
   checkTypedList mode feSelf depth pinsP cdomsP
-  let (xFvsP, crest2P) ← unwrapOr (← openPisAtFvars cnF crestP rP)
+  let (xFvsP, crest2P) ← unwrapOr (← openPisAtFvarsF cnF crestP rP)
     (.notImplemented s!"iota constructor telescope for {nm}")
   unless (← getAppArgs coreWalkFuel crest2P).length == cnP + (mI - rP) do
     fail (.notImplemented s!"iota constructor arity for {nm}")
@@ -574,7 +603,7 @@ def checkProjIota (mode : CheckMode) (fe' feSelf : IFEnv) (T ctorName : NIdx)
       fail (.notImplemented "projection iota field mismatch")
   | none => fail (.notImplemented "projection iota body shape")
   -- certify both equation sides against the statement's type slot
-  let (_, sbodyO) ← unwrapOr (← openPisAtFvars depth tcv.type 0)
+  let (_, sbodyO) ← unwrapOr (← openPisAtFvarsF depth tcv.type 0)
     (.notImplemented "projection iota telescope")
   let targsO ← getAppArgs coreWalkFuel sbodyO
   let b0 ← internE (.bvar 0)
@@ -621,7 +650,7 @@ def checkEtaThm (mode : CheckMode) (fe' : IFEnv) (T ctorName : NIdx)
     if !projsOk then pure false else
     match ← stripPis (nP + 1) tcv.type, ← stripPis nP cvmT.type with
     | some (sbinders, sbody), some (tbindersM, tbodyM) => do
-      if !domsMatch sbinders tbindersM 0 0 nP then pure false else do
+      if !(domsMatchAux sbinders.toArray tbindersM.toArray 0 0 nP) then pure false else do
       let us ← paramLevels lps
       let tHd ← internE (.const tm us)
       let psLo ← structPsAt 0 nP
@@ -660,7 +689,7 @@ def checkUnitThm (mode : CheckMode) (fe' : IFEnv) (T : NIdx) (lps : List NIdx)
     if !(tcv.levelParams == lps && cvmT.levelParams == lps) then pure false else
     match ← stripPis (nP + 2) tcv.type, ← stripPis nP cvmT.type with
     | some (sbinders, sbody), some (tbindersM, tbodyM) => do
-      if !domsMatch sbinders tbindersM 0 0 nP then pure false else do
+      if !(domsMatchAux sbinders.toArray tbindersM.toArray 0 0 nP) then pure false else do
       let us ← paramLevels lps
       let tHd ← internE (.const tm us)
       let fam0 ← mkAppN tHd (← structPsAt 0 nP)
@@ -753,8 +782,8 @@ def checkModeled (mode : CheckMode) (fe : IFEnv) (block : List IConstantInfo) :
     AM IFEnv := do
   -- the recursors must form a suffix of the block: their rules may mention
   -- each other, so they install as a group after everything else
-  let recs := block.filter IndBase.isRecInfo
-  let nonrecs := block.filter (fun ci => !IndBase.isRecInfo ci)
+  let recs := block.filter isRecInfo
+  let nonrecs := block.filter (fun ci => !isRecInfo ci)
   -- the tag pass, not the derived structural equality on the members' types
   unless recsFormSuffix block do
     fail (.notImplemented "recursor before other block members")

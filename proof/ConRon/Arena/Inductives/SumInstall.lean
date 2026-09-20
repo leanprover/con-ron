@@ -37,7 +37,6 @@ import ConRon.Arena.Inductives.StructInstallF
 namespace ConRon.Arena
 
 open ConLeche
-open ConRon.Arena.IndBase (unwrapOr checkConstantVal openPisAtFvars)
 
 /-! ## The type former's stage -/
 
@@ -226,7 +225,7 @@ def normCtorVal (mode : CheckMode) (fe : IFEnv) (T : NIdx) (nP nF : Nat)
     (cvC cvCa : IConstantVal) : AM IConstantVal := do
   let (cbs, _) ← unwrapOr (← stripPis nP cvCa.type)
     (.notImplemented "direct sum: constructor telescope")
-  let (fvsP, crest) ← unwrapOr (← openPisAtFvars nP cvCa.type 0)
+  let (fvsP, crest) ← unwrapOr (← openPisAtFvarsF nP cvCa.type 0)
     (.notImplemented "direct sum: constructor telescope")
   let pbs ← zipFvarDoms fvsP cbs
   let (fbs, resid) ← normFieldDoms mode fe T nP nF crest
@@ -252,12 +251,12 @@ def checkSumCtor (mode : CheckMode) (fe₀ fe : IFEnv) (T : NIdx)
   -- decline (task #220)
   unless ← structCtorResidOk T lps nP nF nIdx cbody do
     fail (.invalid "direct sum: invalid constructor return type")
-  let cq ← unwrapOr (← openPisAtFvars nP cvCa.type 0)
+  let cq ← unwrapOr (← openPisAtFvarsF nP cvCa.type 0)
     (.notImplemented "direct sum: constructor telescope")
-  let tq ← unwrapOr (← openPisAtFvars nP cvTa.type 0)
+  let tq ← unwrapOr (← openPisAtFvarsF nP cvTa.type 0)
     (.notImplemented "direct sum: type former telescope")
   checkStructDomsAt mode fe 0 cq.1 (← tq.1.mapM fvarTypeD) nP
-  let xq ← unwrapOr (← openPisAtFvars nF cq.2 nP)
+  let xq ← unwrapOr (← openPisAtFvarsF nF cq.2 nP)
     (.notImplemented "direct sum: constructor field telescope")
   -- the opened residual is the family at the opened parameter variables
   -- followed by the index expressions
