@@ -2338,4 +2338,623 @@ def inferBodyIO (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
     | .bvar _ =>
       fail (.notImplemented "inferType beyond the supported fragment")
 
+
+/-! ## Definitional equality
+
+con-leche's `Core.lean`:2373-2697. -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:2373-2385 boolTrueShortcut — **the
+eq-true shortcut** (the divergence audit's E2): the left side is fully
+head-normalised and the verdict is `true` iff the reduct is `Bool.true`. -/
+def boolTrueShortcut (r : CoreFnsA) (depth : Nat) (a : EIdx) : AM Bool := do
+  let w ← r.whnf depth a
+  isBoolTrue w
+
+/-- con-leche: ConLeche/Kernel/Core.lean:2387-2406 defeqSpine —
+levels-and-spine congruence for two applications of the *same* stored
+constant (the lazy delta same-head short-circuit, official's
+`try_eq_const_app`). -/
+def defeqSpine (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (a b : EIdx) :
+    AM Bool := do
+  match ← view (← getAppFn coreWalkFuel a) with
+  | .const n us =>
+    match ← view (← getAppFn coreWalkFuel b) with
+    | .const n' us' => do
+      let aa ← getAppArgs coreWalkFuel a
+      let bb ← getAppArgs coreWalkFuel b
+      if n = n' ∧ aa.length = bb.length then
+        match ← lvlsEq? us us' with
+        | some true => defEqList r fe depth aa bb
+        | _ => pure false
+      else pure false
+    | _ => pure false
+  | _ => pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:2408-2668 defeqStep — the
+literal-acceleration guard: *both* sides free of free variables, mirroring
+the official kernel's `lazy_delta_reduction`.  The arena reads the `O(1)`
+eager per-node fvar range where the specification walks. -/
+def defeqNoFvars (a b : EIdx) : AM Bool := do
+  if ← hasFvarFast coreWalkFuel a then pure false
+  else do
+    let y ← hasFvarFast coreWalkFuel b
+    pure !y
+
+/-- con-leche: ConLeche/Kernel/Core.lean:2408-2668 defeqStep — the
+definitional-equality body: syntactic fast path, head normalization of both
+sides (**no delta**), proof irrelevance, then the *lazy delta* strategy of
+real kernels.  Each literal-acceleration and unfolding step is one
+**iteration of this loop**, handed to `k`. -/
+def defeqStep (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (k : Bool → EIdx → EIdx → AM Bool) (pi : Bool) (a b : EIdx) : AM Bool := do
+  -- syntactic fast path (the references' most-hit branch)
+  if a == b then pure true else do
+  -- the eq-true shortcut (E2): right side `Bool.true`, left side fvar-free,
+  -- at an entry only
+  let sc ←
+    if pi && (← isBoolTrue b) && !(← hasFvarFast coreWalkFuel a) then
+      boolTrueShortcut r depth a
+    else pure false
+  if sc then pure true else do
+  let a' ← r.whnfCore depth a
+  let b' ← r.whnfCore depth b
+  if a' == b' then pure true else do
+  -- proof irrelevance, hoisted before lazy delta exactly as in the official
+  -- kernel; once per `is_def_eq_core` entry (D3), and never on a pair
+  -- official's `quick_is_def_eq` decides itself (D4)
+  let pir ←
+    if pi && !(quickPair a' b') then propIrrel r fe depth a' b'
+    else pure false
+  if pir then pure true else do
+  let nf ← defeqNoFvars a' b'
+  match ← (if nf then reduceNat r fe depth a' else pure none) with
+  | some a₂ => k true a₂ b'
+  | none =>
+  match ← (if nf then reduceNat r fe depth b' else pure none) with
+  | some b₂ => k true a' b₂
+  | none => do
+  -- Lazy delta, **decision before materialization**
+  let ua ← unfoldableHead fe a'
+  let ub ← unfoldableHead fe b'
+  match ua, ub with
+  | true, false =>
+    match ← unfoldDefinition fe a' with
+    | some a₂ => k false a₂ b'
+    | none => pure false
+  | false, true =>
+    match ← unfoldDefinition fe b' with
+    | some b₂ => k false a' b₂
+    | none => pure false
+  | true, true => do
+    let ha ← headHint fe a'
+    let hb ← headHint fe b'
+    if ReducibilityHint.lt hb ha then
+      match ← unfoldDefinition fe a' with
+      | some a₂ => k false a₂ b'
+      | none => pure false
+    else if ReducibilityHint.lt ha hb then
+      match ← unfoldDefinition fe b' with
+      | some b₂ => k false a' b₂
+      | none => pure false
+    else if ReducibilityHint.sameRegular ha hb && (← sameConstHeads a' b') then do
+      -- same constant at equal *regular* hints: cheap congruence first
+      if ← defeqSpine r fe depth a' b' then pure true
+      else
+        match ← unfoldDefinition fe a', ← unfoldDefinition fe b' with
+        | some a₂, some b₂ => k false a₂ b₂
+        | _, _ => pure false
+    else
+      match ← unfoldDefinition fe a', ← unfoldDefinition fe b' with
+      | some a₂, some b₂ => k false a₂ b₂
+      | _, _ => pure false
+  | false, false =>
+    match ← view a', ← view b' with
+    | .sort u, .sort v => liftFueled "level comparison" (← lvlEq? u v)
+    | .lit l₁, .lit l₂ => pure (l₁ == l₂)
+    -- a packed literal against a constructor form: compare shape-directed
+    | .lit (.natVal n), .const c us => do
+      let el ← emptyLevels
+      let nz ← pin ConLeche.natZeroName
+      if c = nz ∧ us = el then pure (n == 0)
+      else stuckIrrel mode r fe depth a' b'
+    | .const c us, .lit (.natVal n) => do
+      let el ← emptyLevels
+      let nz ← pin ConLeche.natZeroName
+      if c = nz ∧ us = el then pure (n == 0)
+      else stuckIrrel mode r fe depth a' b'
+    | .lit (.natVal nn), .app f x => do
+      match nn with
+      | k' + 1 => do
+        match ← view f with
+        | .const c us => do
+          let el ← emptyLevels
+          let ns ← pin ConLeche.natSuccName
+          if c = ns ∧ us = el then do
+            let l ← internE (.lit (.natVal k'))
+            r.defeq depth l x
+          else stuckIrrel mode r fe depth a' b'
+        | _ => stuckIrrel mode r fe depth a' b'
+      | _ => stuckIrrel mode r fe depth a' b'
+    | .app f x, .lit (.natVal nn) => do
+      match nn with
+      | k' + 1 => do
+        match ← view f with
+        | .const c us => do
+          let el ← emptyLevels
+          let ns ← pin ConLeche.natSuccName
+          if c = ns ∧ us = el then do
+            let l ← internE (.lit (.natVal k'))
+            r.defeq depth x l
+          else stuckIrrel mode r fe depth a' b'
+        | _ => stuckIrrel mode r fe depth a' b'
+      | _ => stuckIrrel mode r fe depth a' b'
+    -- a string literal against a unary `String.ofList` application
+    | .lit (.strVal st), .app fo _ => do
+      match ← view fo with
+      | .const cO usO => do
+        let el ← emptyLevels
+        let sl ← pin ConLeche.stringOfListName
+        if cO = sl ∧ usO = el ∧ (← strLitSupported fe) then do
+          let c ← strLitToConstructor st
+          r.defeq depth c b'
+        else stuckIrrel mode r fe depth a' b'
+      | _ => stuckIrrel mode r fe depth a' b'
+    | .app fo _, .lit (.strVal st) => do
+      match ← view fo with
+      | .const cO usO => do
+        let el ← emptyLevels
+        let sl ← pin ConLeche.stringOfListName
+        if cO = sl ∧ usO = el ∧ (← strLitSupported fe) then do
+          let c ← strLitToConstructor st
+          r.defeq depth a' c
+        else stuckIrrel mode r fe depth a' b'
+      | _ => stuckIrrel mode r fe depth a' b'
+    | .fvar i _, .fvar j _ =>
+      if i == j then pure true else stuckIrrel mode r fe depth a' b'
+    | .const n us, .const n' us' => do
+      if n = n' then do
+        if ← liftFueled "level comparison" (← lvlsEq? us us') then pure true
+        else stuckIrrel mode r fe depth a' b'
+      else stuckIrrel mode r fe depth a' b'
+    | .forallE ty₁ body₁ m₁, .forallE ty₂ body₂ m₂ => do
+      -- binder congruence; the annotation comparison runs LAST
+      if !(← r.defeq depth ty₁ ty₂) then pure false else do
+        let fv ← internE (.fvar depth ty₂)
+        let o₁ ← instantiate1Fast coreWalkFuel body₁ fv 0
+        let o₂ ← instantiate1Fast coreWalkFuel body₂ fv 0
+        if !(← r.defeq (depth + 1) o₁ o₂) then pure false else do
+          if mode.verifiedChecks && !(m₁.pw == m₂.pw) then
+            fail (.notImplemented "sort-annotation mismatch (defeq-forall)")
+          else pure true
+    | .lam ty₁ body₁ m₁, .lam ty₂ body₂ m₂ => do
+      if !(← r.defeq depth ty₁ ty₂) then pure false else do
+        let fv ← internE (.fvar depth ty₂)
+        let o₁ ← instantiate1Fast coreWalkFuel body₁ fv 0
+        let o₂ ← instantiate1Fast coreWalkFuel body₂ fv 0
+        if !(← r.defeq (depth + 1) o₁ o₂) then pure false else do
+          if mode.verifiedChecks && !(m₁.pw == m₂.pw) then
+            fail (.notImplemented "sort-annotation mismatch (defeq-lam)")
+          else pure true
+    | .app _ _, .app _ _ => do
+      -- stuck applications: **spine-wise** congruence (official's
+      -- `is_def_eq_app`), never a recursion on the partial applications
+      let aa ← getAppArgs coreWalkFuel a'
+      let bb ← getAppArgs coreWalkFuel b'
+      if aa.length = bb.length then do
+        let fa ← getAppFn coreWalkFuel a'
+        let fb ← getAppFn coreWalkFuel b'
+        if ← r.defeq depth fa fb then do
+          if ← defEqList r fe depth aa bb then pure true
+          else stuckIrrel mode r fe depth a' b'
+        else stuckIrrel mode r fe depth a' b'
+      else stuckIrrel mode r fe depth a' b'
+    | .proj s₁ i₁ e₁, .proj s₂ i₂ e₂ => do
+      if s₁ == s₂ && i₁ == i₂ then do
+        if ← r.defeq depth e₁ e₂ then pure true
+        else stuckIrrel mode r fe depth a' b'
+      else stuckIrrel mode r fe depth a' b'
+    -- one-sided λ: eta, else the stuck fallbacks
+    | .lam ty₁ body₁ m₁, _ => do
+      if ← etaCert mode r fe depth ty₁ body₁ m₁ b' then pure true
+      else stuckIrrel mode r fe depth a' b'
+    | _, .lam ty₂ body₂ m₂ => do
+      if ← etaCert mode r fe depth ty₂ body₂ m₂ a' then pure true
+      else stuckIrrel mode r fe depth a' b'
+    -- distinct whnf-stuck head symbols
+    | _, _ => stuckIrrel mode r fe depth a' b'
+
+/-- con-leche: ConLeche/Kernel/Core.lean:2670-2675 defeqLoop — the lazy-delta
+loop: iterate `defeqStep` on its own step budget. -/
+def defeqLoop (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat) :
+    Nat → Bool → EIdx → EIdx → AM Bool
+  | 0, _, _, _ => fail (.internal "fuel exhausted: defeq loop")
+  | fl + 1, pi, a, b =>
+    defeqStep mode r fe depth (defeqLoop mode r fe depth fl) pi a b
+
+/-- con-leche: ConLeche/Kernel/Core.lean:2677-2681 defeqLoopFuel — step
+budget of the lazy-delta loop (lean4lean's `FuelConfig.lazyDelta`).
+Exhaustion is an internal error, never a verdict. -/
+def defeqLoopFuel : Nat := 100000
+
+/-- con-leche: ConLeche/Kernel/Core.lean:2683-2686 defeqBody — the
+definitional-equality body: the lazy-delta loop at its own step budget. -/
+def defeqBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
+    Nat → EIdx → EIdx → AM Bool :=
+  fun depth a b => defeqLoop mode r fe depth defeqLoopFuel true a b
+
+/-- con-leche: ConLeche/Kernel/Core.lean:2688-2697 isPropType — check that a
+(raw) type is a `Prop` by annotating it and inferring its sort. -/
+def isPropType (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (ty : EIdx) :
+    AM Bool := do
+  let ty' ← r.annotate depth ty
+  -- io grade: `ty'` is the pass's own output, already annotated
+  let s ← ensureSort r fe depth (← r.inferIO depth ty')
+  let z ← zeroLevel
+  liftFueled "level comparison" (← lvlEq? s z)
+
+/-! ## The untrusted annotation writes
+
+con-leche's `Core.lean`:2699-2893. -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:2713-2714 pwWritten — is this datum
+a real (non-placeholder) input annotation? -/
+@[inline] def pwWritten (pw : PropWhen) : Bool := !pw.isNever
+
+/-- con-leche: ConLeche/Kernel/Core.lean:2716-2722 annotBinderMeta — the
+datum a rebuilt binder ends up with: the one threaded in from the node below,
+unless it carries a real input annotation. -/
+def annotBinderMeta (pw? : Option PropWhen) (mb : BinderMeta) : BinderMeta :=
+  match pw? with
+  | some pw => if pwWritten mb.pw then mb else ⟨pw⟩
+  | none => mb
+
+/-- con-leche: ConLeche/Kernel/Core.lean:2724-2755 annotPwPi — the ∀ node's
+datum: the zero-ness of the *codomain*'s sort, on the already-annotated
+opened body.  The head-symbol reader comes first and subsumes the chain
+read. -/
+def annotPwPi (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (body' : EIdx) :
+    AM PropWhen := do
+  match ← typeSortPW fe coreWalkFuel body' with
+  | some pw => pure pw
+  | none => do
+    -- io grade: `body'` is already annotated (bottom-up)
+    let v ← ensureSort r fe depth (← r.inferIO depth body')
+    let lv ← readLevel v
+    pure (Level.zeronessOf lv)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:2757-2771 annotPwLam — the λ node's
+datum: the zero-ness of the sort of the *body's type*. -/
+def annotPwLam (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (body' : EIdx) :
+    AM PropWhen := do
+  match ← proofPW fe coreWalkFuel body' with
+  | some pw => pure pw
+  | none => do
+    let bt ← r.inferIO depth body'
+    let vb ← ensureSort r fe depth (← r.inferIO depth bt)
+    let lvb ← readLevel vb
+    pure (Level.zeronessOf lvb)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:2773-2893 annotateBody — the
+annotation body: compute the codomain-sort annotations of every binder,
+bottom-up, by real inference on the opened (already annotated) body.  The
+`.letE` clause runs the official `infer_let` triple and returns the ζ
+reduct, which is why no other pass ever meets a `let`. -/
+def annotateBody (r : CoreFnsA) (fe : IFEnv) : Nat → EIdx → AM EIdx :=
+  fun depth e => do
+    match ← view e with
+    | .bvar _ => pure e
+    | .fvar idx _ =>
+      -- leaf scope check, as in `inferBody`
+      if idx < depth then pure e
+      else fail (.invalid "free variable out of scope")
+    | .sort _ => pure e
+    | .const _ _ => pure e
+    | .lit (.natVal _) => do
+      if ← natLitSupported fe then pure e
+      else fail (.invalid "Nat literal without the Nat basis declarations")
+    | .lit (.strVal _) => do
+      if ← strLitSupported fe then pure e
+      else fail (.notImplemented
+        "string literals before the String support declarations")
+    | .app f a => do
+      -- structural (con-leche's task #100 stage 6)
+      let f' ← r.annotate depth f
+      let a' ← r.annotate depth a
+      internE (.app f' a')
+    | .forallE ty body mb => do
+      let ty' ← r.annotate depth ty
+      let fv ← internE (.fvar depth ty')
+      let ob ← instantiate1Fast coreWalkFuel body fv 0
+      let body' ← r.annotate (depth + 1) ob
+      let pw ←
+        if !pwWritten mb.pw then annotPwPi r fe (depth + 1) body'
+        else pure mb.pw
+      let ab ← abstract1Fast coreWalkFuel body' depth 0
+      internE (.forallE ty' ab ⟨pw⟩)
+    | .lam ty body mb => do
+      let ty' ← r.annotate depth ty
+      let fv ← internE (.fvar depth ty')
+      let ob ← instantiate1Fast coreWalkFuel body fv 0
+      let body' ← r.annotate (depth + 1) ob
+      let pw ←
+        if !pwWritten mb.pw then annotPwLam r fe (depth + 1) body'
+        else pure mb.pw
+      let ab ← abstract1Fast coreWalkFuel body' depth 0
+      internE (.lam ty' ab ⟨pw⟩)
+    | .letE ty v b => do
+      -- con-leche's task #217: the official `infer_let` triple runs HERE,
+      -- before the ζ reduct is taken
+      let ty' ← r.annotate depth ty
+      let _ ← ensureSort r fe depth (← r.infer depth ty')
+      let v' ← r.annotate depth v
+      let tv ← r.infer depth v'
+      if !(← r.defeq depth tv ty') then
+        fail (.invalid "let value type mismatch")
+      else do
+        let bz ← instantiate1Fast coreWalkFuel b v 0
+        r.annotate depth bz
+    | .proj sn i pe => do
+      let e' ← r.annotate depth pe
+      let te ← r.whnf depth (← r.inferIO depth e')
+      match ← view (← getAppFn coreWalkFuel te) with
+      | .const T _ => do
+        match ← fe.findProj? T i with
+        | some entry => do
+          -- con-leche's task #271 (issue #7): the node's OWN structure name
+          -- is official's `infer_proj` premise, checked HERE
+          if T != sn then
+            fail (.invalid
+              "invalid projection: the node names another structure")
+          else do
+            let targs ← getAppArgs coreWalkFuel te
+            if targs.length != entry.numParams then
+              fail (.invalid "projection parameter mismatch")
+            else internE (.proj T i e')
+        | none => do
+          let p0 ← fe.findProj? T 0
+          fail (if p0.isSome then
+              CheckError.invalid "projection index out of range"
+            else .notImplemented
+              "projection on a non-structure-like type")
+      | _ => fail (.notImplemented "projection on a non-structure type")
+
+/-! ## The knot
+
+con-leche's `Core.lean`:2897-2936 with the memo probes of
+`ConLeche/Cached/CoreC.lean`:1877-1906 inlined in the slots (deviation 6):
+`memoEI` passes a getter and a setter lambda per table, and two closures per
+slot is what DESIGN §3.4 rules out.  The bodies above are pure of memo
+logic, which is the property that matters. -/
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1877-1890 memoEI — record a
+`whnfCore` answer (detach before update, DESIGN §8.4 lesson 14; the cap is
+DESIGN §8.3's lesson 10 — past `cacheCap` the table is dropped whole). -/
+@[noinline] def whnfCoreSet (e r : EIdx) : AM Unit := do
+  let s ← get
+  let mp := s.caches.whnfCoreC
+  let mp := if mp.size < cacheCap then mp else ∅
+  let s := { s with caches := { s.caches with whnfCoreC := ∅ } }
+  set { s with caches := { s.caches with whnfCoreC := mp.insert e r } }
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1877-1890 memoEI — record a `whnf`
+answer. -/
+@[noinline] def whnfSet (e r : EIdx) : AM Unit := do
+  let s ← get
+  let mp := s.caches.whnfC
+  let mp := if mp.size < cacheCap then mp else ∅
+  let s := { s with caches := { s.caches with whnfC := ∅ } }
+  set { s with caches := { s.caches with whnfC := mp.insert e r } }
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1877-1890 memoEI — record a
+full-grade `infer` answer. -/
+@[noinline] def inferSet (e r : EIdx) : AM Unit := do
+  let s ← get
+  let mp := s.caches.inferC
+  let mp := if mp.size < cacheCap then mp else ∅
+  let s := { s with caches := { s.caches with inferC := ∅ } }
+  set { s with caches := { s.caches with inferC := mp.insert e r } }
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1877-1890 memoEI — record an
+io-grade `infer` answer, in the io grade's OWN table (con-leche's task #170
+memo ruling). -/
+@[noinline] def inferIOSet (e r : EIdx) : AM Unit := do
+  let s ← get
+  let mp := s.caches.inferIOC
+  let mp := if mp.size < cacheCap then mp else ∅
+  let s := { s with caches := { s.caches with inferIOC := ∅ } }
+  set { s with caches := { s.caches with inferIOC := mp.insert e r } }
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1877-1890 memoEI — record an
+`annotate` answer. -/
+@[noinline] def annotSet (e r : EIdx) : AM Unit := do
+  let s ← get
+  let mp := s.caches.annotC
+  let mp := if mp.size < cacheCap then mp else ∅
+  let s := { s with caches := { s.caches with annotC := ∅ } }
+  set { s with caches := { s.caches with annotC := mp.insert e r } }
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1892-1906 memoBI — record a `defeq`
+verdict at the ORDERED pair, both signs (con-leche's `defeqC` stores the
+`Bool` result `r`, which is what makes a negative memo sound). -/
+@[noinline] def defeqSet (a b : EIdx) (r : Bool) : AM Unit := do
+  let s ← get
+  let mp := s.caches.defeqC
+  let mp := if mp.size < cacheCap then mp else ∅
+  let s := { s with caches := { s.caches with defeqC := ∅ } }
+  set { s with caches := { s.caches with defeqC := mp.insert (a, b) r } }
+
+/-- con-leche: ConLeche/Kernel/Core.lean:2897-2936 coreKnot
+con-leche: ConLeche/Cached/CoreC.lean:1916-1979 coreKnotI
+Tie the bodies together: the record whose entry points are the bodies applied
+to the record one fuel level down, each under its own memo.  Fuel is *only*
+here — exhaustion is an internal error, never a verdict — and the next level
+is constructed lazily inside each entry point's closure.
+
+**The io slot's selector is `mode.betaGate`**, con-leche's `Kernel/Core.lean`
+spelling, not `Cached/CoreC.lean`'s `mode.ioGate`; the two agree at
+`.verified`, which is the only mode the bridge is stated at.  The io body
+runs under its own table (`inferIOC`), the full body under `inferC`: a hit in
+one grade never serves the other (DESIGN §8.3, lesson 9). -/
+def coreKnot (mode : CheckMode) (fe : IFEnv) (wrap : CoreFnsA → CoreFnsA) :
+    Nat → CoreFnsA
+  | 0 =>
+    { whnfCore := fun _ _ => fail (.internal "fuel exhausted: whnfCore")
+      whnf := fun _ _ => fail (.internal "fuel exhausted: whnf")
+      infer := fun _ _ => fail (.internal "fuel exhausted: infer")
+      defeq := fun _ _ _ => fail (.internal "fuel exhausted: defeq")
+      annotate := fun _ _ => fail (.internal "fuel exhausted: annotate")
+      inferIO := fun _ _ => fail (.internal "fuel exhausted: infer") }
+  | fuel + 1 =>
+    wrap
+      { whnfCore := fun d e => do
+          match (← get).caches.whnfCoreC[e]? with
+          | some x => pure x
+          | none => do
+            let x ← whnfCoreBody mode (coreKnot mode fe wrap fuel) fe d e
+            whnfCoreSet e x
+            pure x
+        whnf := fun d e => do
+          match (← get).caches.whnfC[e]? with
+          | some x => pure x
+          | none => do
+            let x ← whnfBody (coreKnot mode fe wrap fuel) fe d e
+            whnfSet e x
+            pure x
+        infer := fun d e => do
+          match (← get).caches.inferC[e]? with
+          | some x => pure x
+          | none => do
+            let x ← inferBody mode (coreKnot mode fe wrap fuel) fe d e
+            inferSet e x
+            pure x
+        defeq := fun d a b => do
+          match (← get).caches.defeqC[(a, b)]? with
+          | some x => pure x
+          | none => do
+            let x ← defeqBody mode (coreKnot mode fe wrap fuel) fe d a b
+            defeqSet a b x
+            pure x
+        annotate := fun d e => do
+          match (← get).caches.annotC[e]? with
+          | some x => pure x
+          | none => do
+            let x ← annotateBody (coreKnot mode fe wrap fuel) fe d e
+            annotSet e x
+            pure x
+        inferIO := fun d e =>
+          if mode.betaGate then do
+            match (← get).caches.inferIOC[e]? with
+            | some x => pure x
+            | none => do
+              let x ← inferBodyIO mode
+                (CoreFnsA.ioView (coreKnot mode fe wrap fuel)) fe d e
+              inferIOSet e x
+              pure x
+          else do
+            match (← get).caches.inferC[e]? with
+            | some x => pure x
+            | none => do
+              let x ← inferBody mode (coreKnot mode fe wrap fuel) fe d e
+              inferSet e x
+              pure x }
+
+/-- con-leche: ConLeche/Kernel/Core.lean:2938-2941 checkFuel — the shared
+fuel for the checker core: bounds the recursion depth of reduction,
+inference and definitional equality. -/
+def checkFuel : Nat := 100000
+
+/-! ## The fueled entry points
+
+`ConLeche/Kernel/TypeChecker.lean`, whose seven (T) declarations live here
+because the arena has ONE knot (deviation 5): con-leche's `pureFns` is
+`coreKnot mode env id` at `CheckM` with no memo, and the arena's
+`coreKnot` already carries the memos, so `pureFnsA` is the same expression
+over handles and the seven entries call it. -/
+
+/-- con-leche: ConLeche/Kernel/TypeChecker.lean:23-25 pureFns — the core, tied
+at `AM`, fuel in the knot.  Named `pureFnsA` because the arena's is the
+MEMOIZED knot; con-leche's `pureFns` is its unmemoized specification, whose
+verdicts the memo does not change (DESIGN §8.3: the memo answers what the
+body would have answered). -/
+def pureFnsA (mode : CheckMode) (fe : IFEnv) : Nat → CoreFnsA :=
+  coreKnot mode fe id
+
+/-- con-leche: ConLeche/Kernel/TypeChecker.lean:27-29 whnfCore — head
+normalization without delta (fueled). -/
+def whnfCore (mode : CheckMode) (fe : IFEnv) (fuel depth : Nat) (e : EIdx) :
+    AM EIdx :=
+  (pureFnsA mode fe fuel).whnfCore depth e
+
+/-- con-leche: ConLeche/Kernel/TypeChecker.lean:31-33 whnf — the full
+reduction loop (fueled). -/
+def whnf (mode : CheckMode) (fe : IFEnv) (fuel depth : Nat) (e : EIdx) :
+    AM EIdx :=
+  (pureFnsA mode fe fuel).whnf depth e
+
+/-- con-leche: ConLeche/Kernel/TypeChecker.lean:35-38 inferTypeCore —
+full-grade type inference (fueled): the declaration front door's entry. -/
+def inferTypeCore (mode : CheckMode) (fe : IFEnv) (fuel depth : Nat)
+    (e : EIdx) : AM EIdx :=
+  (pureFnsA mode fe fuel).infer depth e
+
+/-- con-leche: ConLeche/Kernel/TypeChecker.lean:40-46 inferTypeIO — type
+inference at the io grade (fueled): what every internal inference call site
+runs. -/
+def inferTypeIO (mode : CheckMode) (fe : IFEnv) (fuel depth : Nat)
+    (e : EIdx) : AM EIdx :=
+  (pureFnsA mode fe fuel).inferIO depth e
+
+/-- con-leche: ConLeche/Kernel/TypeChecker.lean:48-50 isDefEqCore —
+definitional equality (fueled). -/
+def isDefEqCore (mode : CheckMode) (fe : IFEnv) (fuel depth : Nat)
+    (a b : EIdx) : AM Bool :=
+  (pureFnsA mode fe fuel).defeq depth a b
+
+/-- con-leche: ConLeche/Kernel/TypeChecker.lean:52-54 annotateCore — the
+annotation pass (fueled). -/
+def annotateCore (mode : CheckMode) (fe : IFEnv) (fuel depth : Nat)
+    (e : EIdx) : AM EIdx :=
+  (pureFnsA mode fe fuel).annotate depth e
+
+/-- con-leche: ConLeche/Kernel/TypeChecker.lean:56-58 ensureSortCore —
+`ensureSort` over the knot (fueled). -/
+def ensureSortCore (mode : CheckMode) (fe : IFEnv) (fuel depth : Nat)
+    (e : EIdx) : AM LIdx :=
+  ensureSort (pureFnsA mode fe fuel) fe depth e
+
+/-! ## The per-declaration bracket
+
+DESIGN §8.3, "Drop".  P2d calls these at each declaration boundary: the
+store's scratch tier goes with `EStore.dropScratch`, and the caches lose
+exactly the entries that name a handle of that tier. -/
+
+/-- con-leche: none — **the per-declaration cache drop** (DESIGN §8.3): every
+memo entry whose key or value names a scratch handle goes with the tier,
+everything persistent stays (con-leche's arena #51).  P2d calls this beside
+`EStore.dropScratch`, which is why it is a state operation of its own. -/
+@[noinline] def dropScratchEntries : AM Unit := do
+  let s ← get
+  let c := s.caches
+  let s := { s with caches := Caches.empty }
+  set { s with caches := c.dropScratchEntries }
+
+/-- con-leche: none — **the per-declaration bracket, closed**: drop the
+scratch tier of the store and the cache entries that name it, in one
+operation, so the two halves cannot drift apart. -/
+@[noinline] def dropScratch : AM Unit := do
+  dropScratchEntries
+  let s ← get
+  let st := s.store
+  let s := { s with store := EStore.empty }
+  set { s with store := st.dropScratch }
+
+/-- con-leche: none — **the per-declaration bracket, opened**: turn the
+scratch tier on, and clear the per-call memo tables of `Memos`, which belong
+to no tier and whose keys the new tier may reuse. -/
+@[noinline] def enterScratch : AM Unit := do
+  let s ← get
+  let st := s.store
+  let s := { s with store := EStore.empty, memos := Memos.empty }
+  set { s with store := st.enableScratch }
+
 end ConRon.Arena
