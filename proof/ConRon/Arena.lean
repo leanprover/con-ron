@@ -46,7 +46,6 @@ import ConRon.Arena.CheckerBase
 import ConRon.Arena.CheckerSplit
 import ConRon.Arena.DeclCheck
 import ConRon.Arena.Inductives.StructParts
-import ConRon.Arena.Inductives.Base
 import ConRon.Arena.Inductives.SumParts
 import ConRon.Arena.Inductives.Modeled
 import ConRon.Arena.Inductives.StructInstall

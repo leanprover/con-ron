@@ -20,7 +20,6 @@ import ConRon.Arena.Inductives.Modeled
 namespace ConRon.Arena
 
 open ConLeche
-open ConRon.Arena.IndBase (unwrapOr allLevelParamsDefined)
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:32-51 checkStructDomsAt
 con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:27-36 checkStructDomsAtF

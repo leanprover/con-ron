@@ -55,15 +55,50 @@ the same one, read in `O(1)` off the derived column instead of recomputed:
 | `lowerBVarsGo` | `bvarB ≤ c + amount` | `lowerBVars_of_bvarBound_le` |
 | `instantiate1LiftGo` | `bvarB ≤ d` | `instantiate1Lift_of_bvarBound_le` |
 | `instLPGo` | `hasLP = false` | `Expr.instantiateLevelParams_eq_self` |
+| `instantiateList`, `instantiateListGo` | `bvarBRaw < satRange && bvarBRaw ≤ d` | DERIVED, below |
+| `liftLooseBVarsGo` | `bvarBRaw < satRange && bvarBRaw ≤ c` | DERIVED, below |
 
-`instantiate1Go`'s is the one cutoff con-leche does NOT have (its
+`instantiate1Go`'s is one of three cutoffs con-leche does NOT have (its
 `instantiate1Go` walks unconditionally); DESIGN §8.3 asks for it by name and
-task #97s proved its licence, so the arena takes it.  `instantiateList`,
-`liftLooseBVars`, `resetMeta` and `renameConsts` have no cutoff in con-leche
-and none here: a cutoff not in the original needs its own pure lemma, and the
-two that would earn one (`liftLooseBVars` at `bvarB ≤ c`, `instantiateList`
-at `bvarB ≤ d`) are recorded for the performance phase rather than invented
-here.
+task #97s proved its licence, so the arena takes it.  `resetMeta` and
+`renameConsts` have no cutoff in con-leche and none here — neither reads a
+derived field that decides them.
+
+**The two derived cutoffs (task #97f, P2f).**  `instantiateList` and
+`liftLooseBVars` have no cutoff in con-leche either, and task #97b left them
+without one because "a cutoff the original does not have needs its licence
+proved".  P2f's gate is what forced the question: `tests/e2e/proj_share.ndjson`
+does not finish without them, with 18 % of its cycles in `instantiateList`.
+The licence is elementary and is written out here for P3 to discharge as two
+`Expr`-level lemmas (the shape of `ExprOps.lean`'s own
+`lowerBVars_of_bvarBound_le`, which is the SAME argument at a different
+offset):
+
+  * `looseBVarsBounded d e → instantiateList e vs d = e`.  Induction on `e`.
+    The only clause that is not the congruence is `.bvar j`, and
+    `looseBVarsBounded d (.bvar j)` is `j < d`, which takes the `if j < d`
+    branch — `.bvar j` unchanged.  Under a binder the hypothesis weakens
+    from `d` to `d + 1`, which is what the recursive call passes.
+  * `looseBVarsBounded c e → liftLooseBVars e c amount = e`.  Identically:
+    `.bvar j` with `j < c` fails `j ≥ c` and is returned unchanged.
+
+`looseBVarsBounded k e` is `e.bvarBound ≤ k`, and the store's derived word is
+con-leche's own `Expr.data` (§8.3), so `bvarBRaw < satRange` is exactly the
+side condition under which the packed field IS `e.bvarBound` — the same guard
+`instantiate1Go` carries, and the reason neither cutoff needs the saturated
+branch's memoized recomputation (`bvarB`, which is defined below these walks
+anyway).  Both cutoffs are therefore DENOTATION-PRESERVING: on a handle they
+answer, the walk they replace returns that same handle, because the rebuild
+of an unchanged node is the node (`denoteE` is injective, so `intern` of a
+node's own view is that node).
+
+The pure `instantiateList` carries the cutoff too, not only the memoized
+`instantiateListGo`: its `.bvar` arm recurses into the REPLACEMENT
+`vs[j - d]` with a shorter list and no memo, and con-leche's own note says
+that on the `bvar`-closed replacements every checker call site passes, that
+recursion is the identity.  With the cutoff it *is* one `O(1)` test instead
+of a full traversal of the replacement, which is where `proj_share`'s 18 %
+lived.
 
 ## Levels are read back, not twinned (§8.3 lesson 4)
 
@@ -175,10 +210,20 @@ replacement with a *shorter* list and the memo is keyed for the outer one. -/
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList — the
 unmemoized bulk instantiation.  con-leche's termination measure is
 `(vs.length, sizeOf e)`; the arena's single fuel counter decreases on both
-kinds of recursive call, which is the same order flattened. -/
+kinds of recursive call, which is the same order flattened.
+
+DEVIATION (task #97f): the derived-word cutoff `bvarBRaw < satRange &&
+bvarBRaw ≤ d`, which con-leche does not have.  Denotation-preserving by
+`looseBVarsBounded d e → instantiateList e vs d = e` (the module note above
+states the induction; P3 discharges it).  It is what makes the `.bvar` arm's
+recursion into a `bvar`-closed replacement `O(1)` instead of a traversal. -/
 def instantiateList : List EIdx → Nat → EIdx → Nat → AM EIdx
   | _, 0, _, _ => fail (.internal "fuel exhausted: instantiateList")
   | vs, fuel + 1, h, d => do
+    let bRaw := (bvarOfData (← derivedE h)).toNat
+    if bRaw < satRange && bRaw ≤ d then
+      pure h
+    else
     match ← view h with
     | .bvar j =>
       if j < d then pure h
@@ -212,10 +257,17 @@ def instantiateList : List EIdx → Nat → EIdx → Nat → AM EIdx
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo — the
 memoized bulk instantiation.  The `bvar` arm delegates to the pure walk
-above, exactly as con-leche's does. -/
+above, exactly as con-leche's does.
+
+DEVIATION (task #97f): the same derived-word cutoff as the pure walk, with
+the same licence. -/
 def instantiateListGo (vs : List EIdx) : Nat → EIdx → Nat → AM EIdx
   | 0, _, _ => fail (.internal "fuel exhausted: instantiateList")
   | fuel + 1, h, d => do
+    let bRaw := (bvarOfData (← derivedE h)).toNat
+    if bRaw < satRange && bRaw ≤ d then
+      pure h
+    else
     match ← view h with
     | .bvar _ => instantiateList vs fuel h d
     | .fvar _ _ => pure h
@@ -281,10 +333,19 @@ def instantiateListFast (fuel : Nat) (e : EIdx) (vs : List EIdx) (d : Nat := 0) 
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:380-400 liftLooseBVars
 con-leche: ConLeche/Kernel/ExprOps.lean:430-466 liftLooseBVarsGo
-Bump every loose bound variable `≥ cutoff` by `amount`. -/
+Bump every loose bound variable `≥ cutoff` by `amount`.
+
+DEVIATION (task #97f): the derived-word cutoff `bvarBRaw < satRange &&
+bvarBRaw ≤ c`, which con-leche does not have.  Denotation-preserving by
+`looseBVarsBounded c e → liftLooseBVars e c amount = e` (the module note
+above states the induction; P3 discharges it). -/
 def liftLooseBVarsGo (amount : Nat) : Nat → EIdx → Nat → AM EIdx
   | 0, _, _ => fail (.internal "fuel exhausted: liftLooseBVars")
   | fuel + 1, h, c => do
+    let bRaw := (bvarOfData (← derivedE h)).toNat
+    if bRaw < satRange && bRaw ≤ c then
+      pure h
+    else
     match ← view h with
     | .bvar i => if i ≥ c then internE (.bvar (i + amount)) else pure h
     | .fvar _ _ => pure h

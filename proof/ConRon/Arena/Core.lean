@@ -1412,12 +1412,20 @@ def structEtaCertWith (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv)
                 uslen.length = cvT.levelParams.length ∧
                 cvc.levelParams = cvT.levelParams ∧ slots = true then do
               if ← liftFueled "level comparison" (← lvlsEq? us us') then do
-                let tyT ← constTyAt cvT us'
-                if ← iotaCerts r fe depth false tyT targs then do
+                -- the type-former telescope certificate and the per-slot
+                -- ones are certificate FAMILIES (official's
+                -- `try_eta_struct_core` runs neither), so `mode.certs` gates
+                -- them both: `Cached/CoreC.lean:437` and `:440`
+                let famT ←
+                  if mode.certs then
+                    iotaCerts r fe depth false (← constTyAt cvT us') targs
+                  else pure true
+                if famT then do
                   -- the per-slot certificates are the projection-function
                   -- kind's; a tabled family has none
                   let percerts ←
-                    if ← towerSlotsAll fe T caps.etaFields then pure true
+                    if !mode.certs then pure true
+                    else if ← towerSlotsAll fe T caps.etaFields then pure true
                     else
                       structEtaProjCerts r fe depth T us' targs b
                         cvT.levelParams (List.range caps.etaFields)
@@ -1475,8 +1483,8 @@ def structEtaCert (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv)
 /-- con-leche: ConLeche/Kernel/Core.lean:1178-1206 structUnitCert —
 unit-likeness certification: `a` and `b` inhabit the same stored unit-like
 family. -/
-def structUnitCert (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (a b : EIdx) :
-    AM Bool := do
+def structUnitCert (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv)
+    (depth : Nat) (a b : EIdx) : AM Bool := do
   let ta ← r.inferIO depth a
   let wta ← r.whnf depth ta
   match ← view (← getAppFn coreWalkFuel wta) with
@@ -1492,8 +1500,12 @@ def structUnitCert (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (a b : EIdx) :
         let tb ← r.inferIO depth b
         let wtb ← r.whnf depth tb
         if ← r.defeq depth wta wtb then do
-          let tyT ← constTyAt cvT us'
-          iotaCerts r fe depth false tyT targs
+          -- the type-former telescope certificate is a certificate FAMILY
+          -- (official's `is_def_eq_unit_like` stops at the defeq above), so
+          -- `mode.certs` gates it: `Cached/CoreC.lean:508`
+          if mode.certs then
+            iotaCerts r fe depth false (← constTyAt cvT us') targs
+          else pure true
         else pure false
       else pure false
     | _ => pure false
@@ -1524,7 +1536,7 @@ def stuckIrrel (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     (a b : EIdx) : AM Bool := do
   if ← structEtaCert mode r fe depth a b then pure true
   else if ← structEtaCert mode r fe depth b a then pure true
-  else if ← structUnitCert r fe depth a b then pure true
+  else if ← structUnitCert mode r fe depth a b then pure true
   else proofIrrel r fe depth a b
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1247-1255 etaFabArgs — the
@@ -1633,13 +1645,24 @@ def majorToCtor (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
                   let hd ← internE (.const rl.ctor ust)
                   let fab ← mkAppN hd (targs.take cnP)
                   if ← fabScopeOk depth fab major then do
-                    -- synthetic-spine certification (con-leche's task #71)
-                    let tyj ← constTyAt cvj ust
-                    if ← iotaCerts r fe depth false tyj (targs.take cnP) then do
-                      -- the official `to_cnstr_when_K` type check
+                    -- synthetic-spine certification (con-leche's task #71):
+                    -- a certificate FAMILY, gated on `mode.certs`
+                    -- (`Cached/CoreC.lean:576`)
+                    let famK ←
+                      if mode.certs then
+                        iotaCerts r fe depth false (← constTyAt cvj ust)
+                          (targs.take cnP)
+                      else pure true
+                    if famK then do
+                      -- the official `to_cnstr_when_K` type check, both modes
                       if ← r.defeq depth tmaj (← r.inferIO depth fab) then do
-                        if ← proofIrrel r fe depth fab major then pure fab
-                        else pure major
+                        -- `proofIrrel` is the soundness certificate here
+                        -- (official stops at the type check): a family, gated
+                        -- (`Cached/CoreC.lean:588`)
+                        let irK ←
+                          if mode.certs then proofIrrel r fe depth fab major
+                          else pure true
+                        if irK then pure fab else pure major
                       else pure major
                     else pure major
                   else pure major
@@ -1660,8 +1683,13 @@ def majorToCtor (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
                 let hd ← internE (.const caps.etaCtor ust)
                 let fab ← mkAppN hd fabArgs
                 if ← fabScopeOk depth fab major then do
-                  let tyj ← constTyAt cvj ust
-                  if ← iotaCerts r fe depth false tyj fabArgs then do
+                  -- the synthetic-spine certificate, a family
+                  -- (`Cached/CoreC.lean:621`)
+                  let famE ←
+                    if mode.certs then
+                      iotaCerts r fe depth false (← constTyAt cvj ust) fabArgs
+                    else pure true
+                  if famE then do
                     if ← structEtaCertWith mode r fe depth fab major tmaj then
                       pure fab
                     -- 0-field rescue for the pinned basis `PUnit`
@@ -1691,11 +1719,18 @@ def majorToCtor (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
                   let hd ← internE (.const rl.ctor ust)
                   let fab ← mkAppN hd fabArgs
                   if ← fabScopeOk depth fab major then do
-                    let tyj ← constTyAt cvj ust
-                    if ← iotaCerts r fe depth false tyj fabArgs then do
+                    -- the synthetic-spine certificate and the irrelevance
+                    -- one, both families (`Cached/CoreC.lean:654`, `:658`)
+                    let famA ←
+                      if mode.certs then
+                        iotaCerts r fe depth false (← constTyAt cvj ust) fabArgs
+                      else pure true
+                    if famA then do
                       if ← r.defeq depth tmaj (← r.inferIO depth fab) then do
-                        if ← proofIrrel r fe depth fab major then pure fab
-                        else pure major
+                        let irA ←
+                          if mode.certs then proofIrrel r fe depth fab major
+                          else pure true
+                        if irA then pure fab else pure major
                       else pure major
                     else pure major
                   else pure major
@@ -1905,25 +1940,44 @@ def iotaRec (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
                   let cmp ← recFireComparands rl cv.levelParams us
                     cvj.levelParams args rP
                   if ← liftFueled "level comparison" (← lvlsEq? usj cmp.1) then do
+                    -- the parameter comparison is verdict-relevant for a
+                    -- nested rule (the comparands ARE the pins) and for a
+                    -- projection-function rule, and a certificate family for
+                    -- every other plain rule: `Cached/CoreC.lean:797`'s
+                    -- `certUnlessI` with exactly that `keep`
                     let pOk ←
-                      if rl.compareParams then
-                        defEqList r fe depth (margs.take rl.ctorParams) cmp.2
+                      if rl.compareParams then do
+                        let keep ←
+                          match rl.fire with
+                          | .nested _ _ => pure true
+                          | _ => do pure (Name.isProjFnShape (← readName c))
+                        if mode.certs || keep then
+                          defEqList r fe depth (margs.take rl.ctorParams) cmp.2
+                        else pure true
                       else pure true
                     if pOk then do
-                      -- the two telescope runs, *licensed*
-                      let tyR ← constTyAt cv us
-                      if ← iotaCerts r fe depth mode.betaGate tyR
-                          (args.take mI ++ [major]) then do
-                        let tyC ← constTyAt cvj usj
-                        if ← iotaCerts r fe depth mode.betaGate tyC margs then do
-                          if ← iotaIndexOk r fe depth mI rP rl.ctorParams tyC
-                              margs ((args.take mI).drop rP) then do
-                            let rhs ← ruleRhsAt c rl.ctor cv.levelParams rl.rhs us
-                            let x ← mkAppN rhs
-                              (args.take rP ++ margs.drop rl.ctorParams)
-                            pure (some x)
-                          else pure none
-                        else pure none
+                      -- ONE certificate family: the two *licensed* telescope
+                      -- runs and the canonical-index comparison.  Nothing
+                      -- here is read outside the family, so the whole block
+                      -- is what `.trusted` omits, the two type lookups
+                      -- included (`Cached/CoreC.lean:814`)
+                      let fam ←
+                        if mode.certs then do
+                          let tyR ← constTyAt cv us
+                          if ← iotaCerts r fe depth mode.betaGate tyR
+                              (args.take mI ++ [major]) then do
+                            let tyC ← constTyAt cvj usj
+                            if ← iotaCerts r fe depth mode.betaGate tyC margs then
+                              iotaIndexOk r fe depth mI rP rl.ctorParams tyC
+                                margs ((args.take mI).drop rP)
+                            else pure false
+                          else pure false
+                        else pure true
+                      if fam then do
+                        let rhs ← ruleRhsAt c rl.ctor cv.levelParams rl.rhs us
+                        let x ← mkAppN rhs
+                          (args.take rP ++ margs.drop rl.ctorParams)
+                        pure (some x)
                       else pure none
                     else pure none
                   else pure none
@@ -1970,9 +2024,19 @@ def projCertAt (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (verified lic : Bool)
   if verified then projCert r fe depth lic c us args else pure true
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1896-1928 betaGateFires — **THE β
-SITE'S GATE**: at `mode.betaGate` a λ-binder whose *validated* annotation
-datum is `.never` licenses skipping the certificate.  Mode-and-datum only,
-so it is decidable before the certificate would have started. -/
+SITE'S GATE**, the SPEC's form: at `mode.betaGate` a λ-binder whose
+*validated* annotation datum is `.never` licenses skipping the certificate.
+Mode-and-datum only, so it is decidable before the certificate would have
+started.
+
+It has **no reader here**, for the reason `whnfCoreLoopFuel` has none: the β
+site of the twin runs `CheckMode.betaSkip`, which is what
+`Cached/CoreC.lean:876` and `:918` — the EXECUTED core, the one this module
+twins — read, and which is `betaGateFires` weakened by
+`!mode.certs` (the β certificate is a certificate FAMILY, skipped wholesale at
+`.trusted`).  The two agree at `.verified`, the mode the bridge is stated at;
+task #97f's `--trusted` sweep is what made the difference matter.  Twinned so
+P3 has the spec's subject by name. -/
 @[inline] def betaGateFires (mode : CheckMode) (pw : PropWhen) : Bool :=
   mode.betaGate && pw.isNever
 
@@ -1992,7 +2056,7 @@ def whnfCoreBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
       let f' ← r.whnfCore depth f
       match ← view f' with
       | .lam ty body mb => do
-        if betaGateFires mode mb.pw then do
+        if mode.betaSkip mb.pw then do
           let b ← instantiate1Fast coreWalkFuel body a 0
           r.whnfCore depth b
         else do
@@ -2303,7 +2367,7 @@ def inferBodyIO (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
         -- **THE io SITE.**  At a ∀ whose datum is `never` the certificate is
         -- dead weight; the read is the DATUM ALONE (the licence ruling of
         -- 2026-09-06), never the mode.
-        if !mt.pw.isNever then do
+        if !mode.ioSkip mt.pw then do
           let ta ← r.infer depth a
           if !(← r.defeq depth ta ty) then
             fail (.invalid "application type mismatch")
@@ -2790,11 +2854,19 @@ to the record one fuel level down, each under its own memo.  Fuel is *only*
 here — exhaustion is an internal error, never a verdict — and the next level
 is constructed lazily inside each entry point's closure.
 
-**The io slot's selector is `mode.betaGate`**, con-leche's `Kernel/Core.lean`
-spelling, not `Cached/CoreC.lean`'s `mode.ioGate`; the two agree at
-`.verified`, which is the only mode the bridge is stated at.  The io body
-runs under its own table (`inferIOC`), the full body under `inferC`: a hit in
-one grade never serves the other (DESIGN §8.3, lesson 9). -/
+**The io slot's selector is `mode.ioGate`**, `Cached/CoreC.lean:1971`'s
+spelling — the EXECUTED knot's, which is the knot this module twins
+(deviation 5: (B) has ONE knot and it is the memoized one).  con-leche's
+mode-parametric SPEC knot (`Kernel/Core.lean:2929`) selects on
+`mode.betaGate` instead, and the two disagree at `.trusted`, where `ioGate`
+is `true` and `betaGate` is `false` — `Kernel/Env.lean:109-133` says so, and
+says why: the io grade is a *licence*, not a certificate, so the trusted lane
+keeps it.  They agree at `.verified`, the mode the bridge is stated at.  The
+`ioGate = false` arm is dead at both modes and is kept because it is the
+clause structure the twin mirrors.
+
+The io body runs under its own table (`inferIOC`), the full body under
+`inferC`: a hit in one grade never serves the other (DESIGN §8.3, lesson 9). -/
 def coreKnot (mode : CheckMode) (fe : IFEnv) (wrap : CoreFnsA → CoreFnsA) :
     Nat → CoreFnsA
   | 0 =>
@@ -2842,7 +2914,7 @@ def coreKnot (mode : CheckMode) (fe : IFEnv) (wrap : CoreFnsA → CoreFnsA) :
             annotSet e x
             pure x
         inferIO := fun d e =>
-          if mode.betaGate then do
+          if mode.ioGate then do
             match (← get).caches.inferIOC[e]? with
             | some x => pure x
             | none => do
@@ -2932,17 +3004,15 @@ exactly the entries that name a handle of that tier. -/
 memo entry whose key or value names a scratch handle goes with the tier,
 everything persistent stays (con-leche's arena #51).  P2d calls this beside
 `EStore.dropScratch`, which is why it is a state operation of its own. -/
-@[noinline] def dropScratchEntries : AM Unit := do
+@[noinline] def flushCaches : AM Unit := do
   let s ← get
-  let c := s.caches
-  let s := { s with caches := Caches.empty }
-  set { s with caches := c.dropScratchEntries }
+  set { s with caches := Caches.empty }
 
 /-- con-leche: none — **the per-declaration bracket, closed**: drop the
 scratch tier of the store and the cache entries that name it, in one
 operation, so the two halves cannot drift apart. -/
 @[noinline] def dropScratch : AM Unit := do
-  dropScratchEntries
+  flushCaches
   let s ← get
   let st := s.store
   let s := { s with store := EStore.empty }

@@ -320,7 +320,8 @@ error.  It is con-leche's, shortened to what this binary actually has and
 saying plainly what it does not: the shape and the vocabulary are the same
 so that a script written against one reads against the other. -/
 def usage : String := String.intercalate "\n" [
-  "usage: con-ron-lean [--verified|--trusted] [--jobs=<n>] [--progress[=<stride>]] FILE.ndjson",
+  "usage: con-ron-lean [--verified|--trusted] [--jobs=<n>] [--no-pins]",
+  "                    [--progress[=<stride>]] FILE.ndjson",
   "       con-ron-lean --help",
   "",
   "  (B), the Lean arena checker of con-ron's DESIGN.md section 8: con-leche's",
@@ -341,6 +342,11 @@ def usage : String := String.intercalate "\n" [
   "                    accepted and ignored: the mark is a Lean-runtime",
   "                    measurement switch of the shipped con-leche, and the",
   "                    arena's two tiers are not it.  It changes no verdict.",
+  "  --no-pins         check with the EMPTY Nat-operation pin list instead of",
+  "                    the toolchain's own.  con-ron's flag, not con-leche's,",
+  "                    and the third row of scripts/diff-e2e.sh's matrix: the",
+  "                    seventeen fixtures that define Nat.div then decline,",
+  "                    which is the empty-list arm of the pin loop tested.",
   "  --progress[=<stride>]",
   "                    opt-in progress heartbeat on STDERR.  Bare --progress",
   "                    is stride 1.  A stride that is not a decimal numeral,",
@@ -358,14 +364,14 @@ def usage : String := String.intercalate "\n" [
   "  3  error    -- bad usage, malformed input, or an internal failure of",
   "     unclear cause",
   "",
-  "STATUS.  The FRONTEND is real: the input is parsed into the arena's",
-  "persistent tier and every verdict the parse itself reaches -- a malformed",
-  "line, a rebound index, an unsafe declaration, an inductive block whose",
-  "redundant fields contradict its own records -- is this binary's answer,",
-  "with con-leche's exit code.  The FOLD is not written yet, so a stream that",
-  "parses cleanly ends in a decline (exit 2) naming the declaration count it",
-  "would have checked.  DESIGN.md section 8.6's P2f gate is run through this",
-  "command line."]
+  "STATUS.  The checker is whole: the input is parsed into the arena's",
+  "persistent tier and the two-phase fold installs and checks every",
+  "declaration, each check inside its own scratch tier.  Every verdict is",
+  "this binary's own answer with con-leche's exit code.  DESIGN.md section",
+  "8.6's P2f gate is run through this command line and is MET: all 348",
+  "fixtures of scripts/diff-e2e.sh agree with con-leche, in both modes.",
+  "What is NOT here is the PROOF: Theorem 1 of section 8.2 (this checker",
+  "accepting implies con-leche's pure checker accepting) is phase P3."]
 
 /-- con-leche: Main.lean:946-960 Args
 The parsed command line.  `progress = 0` is "no flag given"; `jobs = none`
@@ -375,6 +381,7 @@ structure Args where
   progress : Nat := 0
   jobs : Option Nat := none
   noMark : Bool := false
+  noPins : Bool := false
   files : Array String := #[]
   bad : Option String := none
 
@@ -388,6 +395,7 @@ def parseArgs : List String → Args → Args
   | "--trusted" :: rest, a => parseArgs rest { a with mode := .trusted }
   | "--progress" :: rest, a => parseArgs rest { a with progress := 1 }
   | "--no-mark-persistent" :: rest, a => parseArgs rest { a with noMark := true }
+  | "--no-pins" :: rest, a => parseArgs rest { a with noPins := true }
   | s :: rest, a =>
     if s.startsWith "--progress=" then
       match progressStride (s.drop "--progress=".length).toString with
@@ -410,7 +418,8 @@ print the verdict.  Every VERDICT line names the mode — a `--trusted` run,
 the unverified lane, must never be mistaken for a `--verified` one in a
 log, whatever it says — and what the heartbeat prints between the steps
 touches no verdict, which is why there is one path and not two. -/
-def checkMain (file : String) (mode : CheckMode) (stride : Nat) : IO UInt32 := do
+def checkMain (file : String) (mode : CheckMode) (pins : List NatOpPinSet)
+    (stride : Nat) : IO UInt32 := do
   let t0 ← IO.monoMsNow
   let modeTag : String := match mode with
     | .verified => "--verified"
@@ -421,7 +430,7 @@ def checkMain (file : String) (mode : CheckMode) (stride : Nat) : IO UInt32 := d
       IO.eprintln s!"con-ron-lean: {file}: {e} ({modeTag})"
       pure none
   let some h := h? | return 3
-  let (verdict, chunks) ← runPipelineIO h mode ConLeche.natOpPinSets
+  let (verdict, chunks) ← runPipelineIO h mode pins
   if stride > 0 then
     let tRead ← IO.monoMsNow
     IO.eprintln s!"con-ron-lean: parse done: {chunks} chunks read \
@@ -451,7 +460,8 @@ def main (args : List String) : IO UInt32 := do
     IO.eprintln usage
     return 3
   match a.files.toList with
-  | [file] => checkMain file a.mode a.progress
+  | [file] =>
+    checkMain file a.mode (if a.noPins then [] else ConLeche.natOpPinSets) a.progress
   | _ =>
     IO.eprintln usage
     return 3
