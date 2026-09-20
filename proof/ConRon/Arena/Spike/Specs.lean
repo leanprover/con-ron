@@ -623,6 +623,91 @@ theorem Inst1MemoA.insert {ve : Expr} {s s' : AState} {k : EIdx × Nat} {r : EId
     exact ⟨e, he, hr e he⟩
   · exact hm k' r' hk'
 
+/-! ## Subject 3's layer: the `whnfCore` memo
+
+The same four moves as subject 1's, at the `whnfCore` grade.  The one
+difference is con-leche's **lesson 8**, and it is visible in the relation: a
+memo entry is justified by a *depth-universal* fact at *some* fuel,
+`∃ F, ∀ d, …`, because the key carries no ambient depth. -/
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK (the `whnfC` clause) — the
+`whnfCore` answer relation. -/
+def WhnfAt (pw : Nat → Nat → Expr → CheckM Expr) (st : EStore) (c : EIdx)
+    (st' : EStore) (r : EIdx) : Prop :=
+  ∀ a, denoteE st c = some a →
+    ∃ b, denoteE st' r = some b ∧ ∃ F, ∀ d, pw F d a = .ok b
+
+@[grind →] theorem WhnfAt.ext {pw : Nat → Nat → Expr → CheckM Expr}
+    {st st' st'' : EStore} {c r : EIdx} (h : WhnfAt pw st c st' r)
+    (hx : Ext st' st'') : WhnfAt pw st c st'' r := by
+  intro a ha
+  obtain ⟨b, hb, hF⟩ := h a ha
+  exact ⟨b, denote_ext hb hx, hF⟩
+
+@[grind →] theorem WhnfAt.of_ext {pw : Nat → Nat → Expr → CheckM Expr}
+    {st0 st st' : EStore} {c r : EIdx} (h : WhnfAt pw st c st' r)
+    (hx : Ext st0 st) : WhnfAt pw st0 c st' r :=
+  fun a ha => h a (denote_ext ha hx)
+
+/-- con-leche: none — the source-store retarget (subject 1's
+`Inst1At.retarget`, at this grade). -/
+@[grind →] theorem WhnfAt.retarget {pw : Nat → Nat → Expr → CheckM Expr}
+    {st st0 st' : EStore} {c r : EIdx} (h : WhnfAt pw st c st' r)
+    (hx : Ext st st0) (hs : (denoteE st c).isSome = true) :
+    WhnfAt pw st0 c st' r := by
+  intro a ha
+  obtain ⟨a0, ha0⟩ := Option.isSome_iff_exists.mp hs
+  have hh := denote_ext ha0 hx
+  rw [ha] at hh
+  have heq : a = a0 := Option.some.inj hh
+  subst heq
+  exact h a ha0
+
+@[grind →] theorem WhnfAt.isSome {pw : Nat → Nat → Expr → CheckM Expr}
+    {st st' : EStore} {c r : EIdx} (h : WhnfAt pw st c st' r)
+    (hs : (denoteE st c).isSome = true) : (denoteE st' r).isSome = true := by
+  obtain ⟨a, ha⟩ := Option.isSome_iff_exists.mp hs
+  obtain ⟨b, hb, _⟩ := h a ha
+  rw [hb]; rfl
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the memo hit**. -/
+@[grind →] theorem WhnfMemoOK.get {pw : Nat → Nat → Expr → CheckM Expr}
+    {s : AState} {i j : EIdx} (hm : WhnfMemoOK pw s)
+    (hk : s.whnfCoreC[i]? = some j) : WhnfAt pw s.store i s.store j := by
+  intro a ha
+  obtain ⟨a', b, h1, h2, hF⟩ := hm i j hk
+  rw [ha] at h1
+  have heq : a = a' := Option.some.inj h1
+  subst heq
+  exact ⟨b, h2, hF⟩
+
+/-- con-leche: none — the memo survives an arena extension. -/
+theorem WhnfMemoOK.mono {pw : Nat → Nat → Expr → CheckM Expr} {s s' : AState}
+    (hm : WhnfMemoOK pw s) (hx : Ext s.store s'.store)
+    (hc : s'.whnfCoreC = s.whnfCoreC) : WhnfMemoOK pw s' := by
+  intro i j hk
+  rw [hc] at hk
+  obtain ⟨a, b, h1, h2, hF⟩ := hm i j hk
+  exact ⟨a, b, denote_ext h1 hx, denote_ext h2 hx, hF⟩
+
+/-- con-leche: ConLeche/Verify/SimIKnot.lean:28 SSimI — the memo insert. -/
+theorem WhnfMemoOK.insert {pw : Nat → Nat → Expr → CheckM Expr} {s s' : AState}
+    {k r : EIdx} (hm : WhnfMemoOK pw s) (hst : s'.store = s.store)
+    (hc : s'.whnfCoreC = s.whnfCoreC.insert k r)
+    (hk : (denoteE s.store k).isSome = true)
+    (hr : WhnfAt pw s.store k s.store r) : WhnfMemoOK pw s' := by
+  obtain ⟨a, ha⟩ := Option.isSome_iff_exists.mp hk
+  obtain ⟨b, hb, hF⟩ := hr a ha
+  intro i j hk'
+  rw [hc, Std.HashMap.getElem?_insert] at hk'
+  rw [hst]
+  split at hk'
+  · rename_i hbeq
+    cases hk'
+    obtain rfl := eq_of_beq hbeq
+    exact ⟨a, b, ha, hb, hF⟩
+  · exact hm i j hk'
+
 /-! ## The spec theorems -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:62 CheckError — **the failure
@@ -720,12 +805,17 @@ probe. -/
   grind
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1885 memoEI — the `whnfCore` memo
-insert. -/
-@[spec] theorem whnfCoreSet_spec (s₀ : AState) (h r : EIdx) :
+insert, in the same invariant-carrying shape as `inst1Set_spec`. -/
+@[spec] theorem whnfCoreSet_spec (s₀ : AState)
+    (pw : Nat → Nat → Expr → CheckM Expr) (h r : EIdx)
+    (hm : WhnfMemoOK pw s₀) (hk : (denoteE s₀.store h).isSome = true)
+    (hr : WhnfAt pw s₀.store h s₀.store r) :
     ⦃fun s => ⌜s = s₀⌝⦄ whnfCoreSet h r
     ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.inst1C = s₀.inst1C ∧
-        s'.whnfCoreC = s₀.whnfCoreC.insert h r⌝⦄ := by
+        s'.whnfCoreC = s₀.whnfCoreC.insert h r ∧ WhnfMemoOK pw s'⌝⦄ := by
   mvcgen [whnfCoreSet]
-  grind
+  rename_i s hs _ _
+  subst hs
+  exact ⟨rfl, rfl, rfl, WhnfMemoOK.insert hm rfl rfl hk hr⟩
 
 end ConRon.Arena.Spike
