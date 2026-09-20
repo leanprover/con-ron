@@ -1968,10 +1968,20 @@ indexed from 0 — the tier bit selects the set, so a persistent handle's bits
 never change when the scratch tier comes and goes (con-leche's lesson 6:
 identity embedding; its low-bit `2·pos + tier` encoding broke every
 `<`-guarded traversal).  Drop = truncate the scratch arrays to length 0 and
-clear the scratch tables; memo entries whose key and value are both
-persistent survive (con-leche #51), the rest go with the tier (a bit test).
-Parallel checking (Rust): the persistent tier is immutable in phase B, each
-worker owns a scratch tier — no atomics anywhere.
+clear the scratch tables; ~~memo entries whose key and value are both
+persistent survive (con-leche #51), the rest go with the tier (a bit test)~~
+— **AMENDED, task #97f: the per-declaration caches go WHOLE**, which is
+con-leche's own `flushC` (`Cached/StateC.lean:394-400`), the operation its
+driver runs at exactly this point.  The survivor policy is sound (a dropped
+row is a cache miss and nothing else) but it is `O(table)` per declaration
+over a table whose survivors accumulate, so the fold pays `O(declarations ×
+surviving rows)`.  Measured (task #97f, on `Init`'s first 4 380
+declarations): the filter was 16 % of the cycles directly, and the flush
+takes that prefix from 213 s to 124 s.  The predicate stays in the code
+(`Caches.dropScratchEntries`) as the specification of what a surviving row
+is, which is what P3 needs to state that flushing is sound.  Parallel
+checking (Rust): the persistent tier is
+immutable in phase B, each worker owns a scratch tier — no atomics anywhere.
 
 **Free variables**: con-leche's discipline unchanged (`fvar idx ty`, a de
 Bruijn level with the binder type inside the node).  This is what makes a
@@ -2093,8 +2103,21 @@ the persistent tier (the byte recogniser is unchanged).
            `Init` parses to the end WITH the modeller at 57 977 declarations
            / 6 137 973 nodes, 30.66 G instructions, 0.76 GB.  What is left
            of P2e is `NatOpGround` alone, which needs P2c's pins;
-        f. Main + `diff-e2e.sh --bin`: 348/348 and Init parity — GATE;
-        g. measure (B) vs con-leche on Init (instructions, RSS).
+        f. Main + `diff-e2e.sh --bin`: 348/348 and Init parity — GATE.
+           **The fixture half is DONE** (task #97f, 2026-09-20): **348/348 at
+           `--verified`, 348/348 at `--trusted`**, and `--no-pins` gives the
+           documented 17 declines — `con-ron-lean` learnt that flag for the
+           third row.  **The `Init` half is NOT MET**: the run does not finish,
+           and 7.6 % of `Init`'s declarations already cost 2.2× con-leche's
+           whole-`Init` wall.  Task #97f's section has the prefix table, the
+           profile and the diagnosis; the work is P6's, which is where the
+           reordering above puts it.
+        g. measure (B) vs con-leche on Init (instructions, RSS).  The
+           Lean-side numbers that exist are RECORDED in task #97f: the parse
+           at 30.4 G instructions / 0.85 GB, the prefix curve, the peak RSS
+           (never above 1.31 GB, inside 3× con-leche's 0.48 GB), and the
+           top-three profile.  The instruction comparison itself waits on the
+           check phase finishing.
     P2s SPIKE (maintainer, 2026-09-20: "do this for some core functions
         first and figure out good idioms") — on P2a's stores, for two or
         three functions of rising complexity (`instantiate1` with its memo;
@@ -24476,11 +24499,16 @@ before and after: the cutoffs change no verdict anywhere in the corpus.
 
 #### Item 3 — the gate: 348/348, in both modes, and the `--no-pins` row
 
-| sweep | agree | DIFFER | timed out | other | wall |
-|---|---:|---:|---:|---:|---:|
-| `--verified`, embedded pins, `--jobs=1` | **348** | 0 | 0 | 0 | 45 s |
-| `--trusted`, embedded pins, `--jobs=1` | **348** | 0 | 0 | 0 | 43 s |
-| `--verified --no-pins` | 331 | **17** | 0 | 0 | 16 s |
+| sweep | agree | DIFFER | timed out | other | wall (item 3) | wall (final) |
+|---|---:|---:|---:|---:|---:|---:|
+| `--verified`, embedded pins, `--jobs=1` | **348** | 0 | 0 | 0 | 45 s | **35 s** |
+| `--trusted`, embedded pins, `--jobs=1` | **348** | 0 | 0 | 0 | 43 s | **36 s** |
+| `--verified --no-pins` | 331 | **17** | 0 | 0 | 16 s | **14 s** |
+
+(The "final" column is the same three sweeps re-run after items 4a and 5 —
+the cache flush and the `Base.lean` dedup — with every count identical.  For
+scale: the sweep was 526 s when task #97d merged the two halves of P2d, 106 s
+after its `constsResolveFFast` fix, and 35 s now.)
 
 The `--no-pins` row is green: those 17 are the documented declines — the
 fixtures that define `Nat.div`/`Nat.mod`, whose pin loop finds nothing in the
@@ -24555,3 +24583,183 @@ At `.verified` every one of these reads is the literal `true` (`certs`,
 `ioGate`) or `betaGateFires` (`betaSkip`, `ioSkip`), so **nothing in the
 verified lane moved**: the `--verified` sweep is 348/348 before and after, at
 45 s.
+
+#### Item 4 — `Init`: the count is not reachable, and why
+
+**The verdict: NOT MET.**  `con-ron-lean` does not finish `_tmp/corpus/init.ndjson`
+in any time worth spending, so there is no "accepted 57 977 declarations" line
+to compare.  What there is, is a measurement of how far away it is and a
+profile that says where.
+
+**First, the address-space cap, because it is a red herring.**  Under the
+brief's `ulimit -v 8000000` the run dies `INTERNAL PANIC: out of memory` after
+4.6 s with a peak RSS of 0.85 GB.  That is not a memory problem of the
+checker: a `con-ron-lean` process reserves **three 1 GiB anonymous regions
+before it reads a byte** (`VmPeak` is 3.43 GB on a 36-declaration fixture, and
+identical on `Init`), and the checker's allocation churn then takes `VmSize`
+to 13.45 GB while `VmRSS` sits at 1.31 GB — Lean's allocator returns pages
+with `MADV_FREE` and keeps the mappings.  `ulimit -v` is therefore the wrong
+knob for a Lean binary of this shape; con-leche's own baseline (§ the task
+#29 corpus) ran `Init` under `ulimit -v 22000000` for the same reason.  **The
+budget of §8.4 and CLAUDE.md is peak RSS**, and nothing measured here came
+near 3× con-leche's 0.48 GB.  Every number below is at `ulimit -v 16000000`,
+`LEAN_NUM_THREADS=4`, `timeout` throughout.
+
+**The parse is fine.**  `Init` parses to the end with the modeller in 4.6 s at
+**30.4 G instructions** and 0.85 GB — task #97e part 2's 30.66 G / 0.76 GB,
+reproduced.  That is 5 % of con-leche's whole-`Init` instruction count, so the
+frontend is not what is missing.  It is the CHECK phase.
+
+**Prefixes of `Init`** (`head -n N`, so the declaration mix is `Init`'s own
+order — early declarations are small, later ones are not, and that is part of
+the curve):
+
+| lines | declarations | wall, survivor policy | wall, flush (item 4a) | peak RSS |
+|---:|---:|---:|---:|---:|
+| 100 000 | 1 570 | 17.0 s | **8.9 s** | 0.18 GB |
+| 200 000 | 2 676 | — | **29.0 s** | 0.19 GB |
+| 300 000 | 3 746 | — | **62.8 s** | 0.22 GB |
+| 500 000 | 4 380 | 213.3 s | **123.8 s** | 0.30 GB |
+| 6 490 422 (all) | 57 977 | — | does not finish | — |
+
+**The honest comparison needs no extrapolation.**  con-leche checks ALL 57 977
+declarations of `Init` in 56 s at 585.9 G instructions (OVERVIEW §7.2).  (B)
+spends 124 s on the first 4 380 — **7.6 % of the declarations for 2.2× the
+whole run's wall**, and the 500 000-line prefix alone is 536 G cycles.  The
+budget is 3× con-leche's instructions; (B) is off by more than an order of
+magnitude, and the curve above is superlinear in the declaration count
+(1 570 → 4 380 is 2.8× the declarations and 13.9× the time), so the gap grows.
+
+**`Init`+`Std`+`Lean` was not run.**  The brief makes it conditional on `Init`
+being within 3×.  It is not.
+
+**The profile** (`perf record -F 199`, the 500 000-line prefix, 24 576
+samples, 536 G cycles), top three:
+
+| | symbol | share |
+|---:|---|---:|
+| 1 | `lean_copy_expand_array` | **46.3 %** |
+| 2 | `lean::lean_del_core_other` | **36.7 %** |
+| 3 | `lean_dec_ref_cold` | 1.9 % |
+
+(4th is `mi_free` at 1.3 %; nothing else reaches 1 %.)  **83 % of the run is
+copying an array and freeing the copy.**  No checker function appears at all
+— they are inlined into the two runtime symbols' callers, and the call graph
+is unrecoverable from frame pointers in Lean-generated code.
+
+Before item 4a's flush the same profile read `lean_copy_expand_array` 32.9 %,
+`lean_del_core_other` 25.6 % and `Caches.dropScratchEntries`'s `AssocList`
+filter 9.1 % + its bucket rebuild 6.9 %; removing the filter took the prefix
+from 213 s to 124 s and left the copy/free pair *larger* in share (83 %
+against 58 %).  So the filter was one instance of the same disease and not the
+disease.
+
+**What the disease is, as far as this task establishes it** (the brief: do
+not optimise beyond item 2's cutoffs unless one fix under an hour brings the
+run inside the budget, and no single fix does).  `lean_copy_expand_array` is
+what Lean calls when an `Array` or a `Std.HashMap` bucket array is written
+while *shared* — con-leche's own task #179 symptom, and DESIGN §8.4's lesson
+14 ("detach before update") is the rule that avoids it.  Three facts bound the
+search for P6:
+
+  * the idiom IS in the code.  Every store and cache primitive of
+    `Arena/Monad.lean` and `Arena/Core.lean` is written `let st := s.store;
+    let s := { s with store := EStore.empty }; …; set { s with store := st' }`,
+    with `@[noinline]` on the projections;
+  * and it WORKS in a tight loop: `con-ron-arena-bench` (task #97b) interns
+    111 031 nodes in 15.8 ms, 0.14 µs a node, which is not a run that copies a
+    growing array per push.  So the sharing is introduced by the checker's
+    call structure, not by the primitive;
+  * and the array being copied is big and is written a few times per
+    declaration: 124 s of copying at this machine's memory bandwidth is on the
+    order of a few thousand copies of a `Init`-sized (6.1 M-node) column.
+
+The hypothesis to test first is `StateT`'s `get`: it hands back a second
+reference to the whole `AState`, which stays live until the matching `set`, so
+the "detached" field is at refcount 2 anyway and the next write copies.  If
+that is it, the fix is to write each primitive as a single `modifyGet`, which
+passes the state linearly — ~40 call sites across two modules.  It wants the
+`lean-rc-linearity` skill's checks rather than a guess, and it is P6's, not
+P2f's.
+
+**The call graph is not recoverable.**  `--call-graph=fp` gives Lean-generated
+frames no parent, `--call-graph=dwarf` unwinds to nothing, and this machine's
+PMU refuses branch-stack sampling (`--call-graph=lbr`), so the two runtime
+symbols have no attributed caller.  P6 should reach for a build with frame
+pointers, or bisect by instrumenting the primitives one at a time.
+
+Two smaller things the same phase should look at, both visible above: the
+declaration fold's `IFEnv.push` and `pend.push` are performed on values
+projected out of a live tuple (`annotDeclStep`'s `p.2.1`, `p.2.2`), which is
+the same sharing hazard one level up; and `internAllPins` plus the reserved
+names are still `pin`-interned on demand (task #97c's `Pins` record, still not
+built).
+
+#### Item 5 — the dedup, and `projRecOwners` off the denotation
+
+`Arena/Inductives/Base.lean` (434 lines, 28 declarations) is **deleted**.
+Task #97d-2 wrote it under the concurrency contract, in a namespace of its
+own, and its own section says "every declaration in this file is a duplicate
+to be deleted at merge".  Twenty-four were; the residue is four, and each has
+a home now:
+
+| what | where it went |
+|---|---|
+| `unwrapOr`, `checkTypedList`, `checkAnnotList`, `checkDefEqList`, `isEqHead`, `eqHeadLevel`, `checkProjShape`, `checkProjRule`, `unresolvedConstsError`, `checkConstantVal`, `allLevelParamsDefinedGo`, `allLevelParamsDefined`, `openPisAtFvarsFGo` | deleted; `Arena/CheckerBase.lean`'s same-named twins, reached by dropping the `open ConRon.Arena.IndBase (…)` line (the five consumers are all inside `namespace ConRon.Arena` already) |
+| `openPisAtFvars`, `openPisAtFvarsPlain` | deleted; `CheckerBase.openPisAtFvarsF` and `openPisAtFvars` — the call sites were renamed, and that is the one rename that HAD to happen: `IndBase.openPisAtFvars` IS con-leche's `openPisAtFvarsF`, so a bare `openPisAtFvars` would have resolved silently to the PLAIN walk |
+| `nidxNodup` | deleted; `CheckerBase.nameNodup` (no reader was left) |
+| `findCV?` | deleted; `CheckerBase.IFEnv.findCV?`, three call sites now `fe'.findCV?` |
+| `domsMatch` (over `List`) | deleted; `CheckerBase.domsMatchAux` over `Array` (con-leche's `domsMatchAuxA`), two call sites now pass `.toArray` |
+| `internExpr`, `internCV`, `internCaps`, `internLevelsL` | deleted; `Arena/Intern.lean`'s, over `Frontend/Readback.lean`'s memoised walk |
+| `eqBasisCI` | deleted; it was already one line onto `Arena/StdAxioms.lean`'s `eqA` |
+| `isRecInfo`, `recsFormSuffix`, `indParamsOk` | **moved** to `Arena/CheckerBase.lean` — they are `ConLeche/Kernel/Env.lean`'s, placed at their only readers, the treatment task #97d already gave `Level.lean`'s six |
+| `eqBasisStored`, `domsMatchRenamed` | **moved** to `Arena/Inductives/Modeled.lean`, their only caller — task #97d left both to the modeled install on purpose (renaming a constant over handles is monadic; the `Eq`-basis guard is three clauses of that one file) |
+
+`ConLeche/Kernel/BasisA.lean`, which `Base.lean` imported to intern
+con-leche's annotated `Eq` pin, is gone with it — (B) no longer reaches into
+con-leche's annotated basis anywhere.
+
+**`checkConstantVal` was the one item on the list that was more than
+tidiness** (task #97d: "two front doors that could drift is the only item on
+this list that is more than tidiness").  There is one now.
+
+**`projRecOwners` is off the denotation.**  `Arena/Frontend/ProjRec.lean`'s
+two recogniser guards read the block BACK to `ConLeche.ConstantInfo` values
+and called con-leche's own `structPartsCore?` / `nativeParts?`, because when
+task #97e part 2 wrote them P2d had not twinned those yet.  It has
+(`Arena/Inductives/StructParts.lean:265` and
+`Arena/Inductives/NativeParts.lean:531`), so the two guards are now
+`(← structPartsCore? block)` and `(← nativeParts? nPd block)` on handles, the
+`readCIList` call is gone, and `ProjRec.lean` imports
+`ConRon.Arena.Inductives.NativeParts` instead of `ConLeche.Kernel.Inductives.
+NativeParts`.  **Nothing in (B)'s frontend crosses to the `Expr` denotation
+any more.**  The cheap guard ORDER (deviation 3) stays, because it is still
+free and still the same value.
+
+#### Gates
+
+`scripts/provenance.py check`: **0 findings** (4 807 items — 3 108 Rust,
+1 699 arena Lean — and 3 709 citations, all current at pin `c431b1ca`); the
+arena ledger 561 → **562 of 927 (60.6 %)**.  `lake build ConRonArena
+con-ron-lean` green with zero warnings, `LEAN_NUM_THREADS=4`, `ulimit -v
+60000000`.  The Rust-side gates were NOT run: a P4c agent owns `crates/` in
+parallel and this task touched nothing under it (nor `Refine/`, `Spike/`,
+`scripts/`, `OVERVIEW.md`, `README.md`).  The whole-`proof/` `lake build` was
+not re-run either, for task #97d's reason: nothing in that gate's scope
+changed (`proof/ConRon.lean` does not import `ConRon.Arena`).
+
+#### For P6, in the order the numbers put them
+
+1. **The copy/free pair, 83 % of the run** (item 4).  Nothing else matters
+   until it does.
+2. **The `Pins` record** task #97c deferred and task #97d re-priced: twenty-odd
+   `pin` call sites become field reads, and `constsResolveFGo`'s `.lit` clauses
+   intern ten reserved names per literal node.
+3. **`renameConsts` should take the TABLE**, not a `NIdx → NIdx` — task #97b
+   predicted it, task #97d-2 confirmed the map is an association list, and it
+   is the last higher-order argument in (B) outside a sort comparator.
+4. **`Arena/Bench.lean` still has no `Core`, `Checker` or inductive shapes.**
+   Three tasks in a row have asked for them; with `checkDecl` and
+   `checkIndDecl` both landed there is no reason left not to, and item 4's
+   diagnosis would have been an afternoon's work with a benchmark that
+   interned inside a declaration bracket.
