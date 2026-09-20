@@ -21605,6 +21605,17 @@ miss, which is about right.
 * The crate boundary's 30 holes are a standing debt, not a leak: §8.6's swap
   retires them.  Do **not** let the list grow with items that are not
   `con-ron-core`'s — that is the signal that a new external crept in.
+* **One allocating probe, to price at P6.**  `ron::HashMap::get` takes
+  `&K`, and there is no borrowed-key API, so `NTables::find` of a
+  `NNodeView::Str` has to build a whole `StrNode` — including an
+  `expr::str_copy` of the component — and `LsTables::find` a whole
+  `ListNode`.  The twin's `t.strs.find? ⟨p, s⟩` copies nothing (the `String`
+  is a value).  Both sit on the parse path and nowhere else (a name is
+  interned once, and after that every comparison is `NIdx` equality, §8.3),
+  and the other eight `find`s copy only handles or bump a reference, so this
+  is not a hot-loop cost — but it is a real difference from the twin and the
+  fix, a `get` that takes the key's parts, belongs to `ron::HashMap` rather
+  than to the arena.
 * The scratch lake package in `_tmp/t97-p4a/` is the Lean-side benchmark
   harness; P2g should take it into `proof/` as a `lean_exe` when it owns the
   measurement.  Building it populated `.c.o` files in the shared con-leche
