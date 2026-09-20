@@ -55,6 +55,7 @@ interned inside a scratch tier would compare unequal to the stream's own
 persistent copy of it, which is the one way hash-consing can go wrong across
 the tier boundary.
 -/
+import ConRon.Arena.DeclCheck
 import ConRon.Arena.Inductives
 
 namespace ConRon.Arena

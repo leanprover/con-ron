@@ -36,6 +36,7 @@ helpers the install paths share.
 `ConLeche/Kernel/Inductives/*`, which is P2d-2's half of this phase.
 -/
 import ConRon.Arena.NatOpPinSet
+import ConRon.Arena.Inductives.StructParts
 
 namespace ConRon.Arena
 
@@ -296,45 +297,14 @@ def fvarTypeDs : List EIdx → AM (List EIdx)
 
 /-! ## The front door's verdict at an unresolved constant -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:814-849 Expr.mentionsConstGo
-con-leche: ConLeche/Kernel/Inductives/StructParts.lean:922-924 Expr.mentionsConstFast
-Does the term mention the constant `n` (the `.proj` structure name included)?
-A memoized DAG walk, for con-leche's own reason: `unresolvedConstsError` runs
-it on a term `constsResolve` has just walked, and a DAG-shared term must not
-unfold here.
+/-! ## The front door's verdict at an unresolved constant
 
-The memo is a visited SET rather than the answer table: the walk stops at the
-first hit, so a node visited once and not answering `true` answers `false`.
-That is `ConLeche/Frontend/ProjRec.lean:182-225`'s `occursConstGo`, which task
-#97e part 2 twinned; this is the same walk at the kernel's own citation. -/
-def mentionsConstGo (n : NIdx) (seen : Std.HashSet EIdx) :
-    Nat → EIdx → AM (Bool × Std.HashSet EIdx)
-  | 0, _ => fail (.internal "fuel exhausted: mentionsConst")
-  | fuel + 1, h => do
-    if seen.contains h then pure (false, seen) else do
-      let seen := seen.insert h
-      match ← view h with
-      | .bvar _ | .sort _ | .lit _ => pure (false, seen)
-      | .const c _ => pure (c == n, seen)
-      | .fvar _ t => mentionsConstGo n seen fuel t
-      | .app f a => do
-        let (b, seen) ← mentionsConstGo n seen fuel f
-        if b then pure (true, seen) else mentionsConstGo n seen fuel a
-      | .lam t b _ | .forallE t b _ => do
-        let (x, seen) ← mentionsConstGo n seen fuel t
-        if x then pure (true, seen) else mentionsConstGo n seen fuel b
-      | .letE t v b => do
-        let (x, seen) ← mentionsConstGo n seen fuel t
-        if x then pure (true, seen) else do
-          let (y, seen) ← mentionsConstGo n seen fuel v
-          if y then pure (true, seen) else mentionsConstGo n seen fuel b
-      | .proj s _ e =>
-        if s == n then pure (true, seen) else mentionsConstGo n seen fuel e
-
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:922-924 Expr.mentionsConstFast
-The executed `mentionsConst`: one memoized DAG walk. -/
-def mentionsConst (n : NIdx) (e : EIdx) : AM Bool := do
-  pure (← mentionsConstGo n ∅ coreWalkFuel e).1
+`mentionsConst` — the memoized DAG walk `unresolvedConstsError` runs on a
+term `constsResolve` has just walked — is `Arena/Inductives/StructParts.lean`'s
+(P2d-2's half of this phase), which twins con-leche's own
+`Expr.mentionsConstGo`/`Fast` because the direct install asks the same
+question of a block's field types.  That module imports `Arena/FEnv.lean` and
+nothing above it, so it sits below this one and there is ONE walk. -/
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:71-91 unresolvedConstsError —
 **the verdict at a term whose constants do not all resolve.**  A term that

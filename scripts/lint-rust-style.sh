@@ -24,20 +24,22 @@ check "derive(Debug) (mixed recursion groups in Charon)" 'derive\([^)]*Debug'
 # keeps `a || b` and `x | y` out (`||` and `|_|`-less bars are not closures).
 check "closures" '\|\s*(_|mut |&|[a-z])[a-z_0-9,&: ]*\|\s*(\{|[a-z])'
 check "? operator" '\)\?[;.) ]|\)\?$'
-# Loops.  The rule is recursion (DESIGN.md §3.4); the ONE exemption is
-# `crates/con-ron-core/src/frontend/`, the ported parser (task #84): the Lean
-# it cites is a per-byte tail recursion that *Lean* compiles to a loop, and a
-# per-byte recursion in Rust overflows the stack on a long export line.
-# `-loops-to-rec` gives each loop a `foo_loop` function that mirrors the Lean
-# recursion one for one.  (The `:[0-9]+:` is the `file:line:` prefix `gather`
-# adds: a `^\s*` anchor here matched nothing at all until task #84 noticed.)
+# Loops.  The rule is recursion (DESIGN.md §3.4); the exemption is the two
+# ported PARSER directories -- `crates/con-ron-core/src/frontend/` (task #84)
+# and `crates/arena-core/src/frontend/` (task #97 P4e, the same parser over
+# store handles): the Lean they cite is a per-byte tail recursion that *Lean*
+# compiles to a loop, and a per-byte recursion in Rust overflows the stack on
+# a long export line.  `-loops-to-rec` gives each loop a `foo_loop` function
+# that mirrors the Lean recursion one for one.  (The `:[0-9]+:` is the
+# `file:line:` prefix `gather` adds: a `^\s*` anchor here matched nothing at
+# all until task #84 noticed.)
 check_loops() {
   local hits
   hits=$(gather | grep -E ':[0-9]+:[[:space:]]*(while|for|loop)\b' \
     | grep -v '^\S*:\S*:\s*//' | grep -v 'lint: allow' \
-    | grep -v 'con-ron-core/src/frontend/')   # unanchored: gates.sh passes an absolute dir
+    | grep -vE '(con-ron-core|arena-core)/src/frontend/')   # unanchored: gates.sh passes an absolute dir
   if [ -n "$hits" ]; then
-    echo "== loops (use recursion; only crates/con-ron-core/src/frontend/ may loop, DESIGN.md §3.4)"
+    echo "== loops (use recursion; only the two frontend/ directories may loop, DESIGN.md §3.4)"
     echo "$hits"; fail=1
   fi
 }

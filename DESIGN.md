@@ -23188,3 +23188,819 @@ direction is the safe one (part 1's section argues it).
 * **`runPipelineHead` / `runPipelineTail` are the shape the fold plugs into.**
   P2c/P2d replace `runPipelineTail`'s last three lines and touch neither the
   read loop nor the pure seam.
+
+### Task #97-P4b — the Rust `Monad` and `ExprOps` twins (2026-09-20, Opus under Fable)
+
+Phase P4b of §8.6, under the REORDERED ruling: the Rust side of P2b's monad
+and `ExprOps` layer, in lockstep with the Lean twin
+(`proof/ConRon/Arena/{Monad,ExprOps}.lean`), as two new modules of
+`crates/arena-core` — `arena::monad` and `arena::expr_ops` — on task #97-P4a's
+frozen store layer.
+
+| | lines | what |
+|---|---:|---|
+| `arena/monad.rs` | 925 | `AState`, `Memos`, `fail`, the store primitives, the readback, the eleven memo triples |
+| `arena/expr_ops.rs`, shipped | 3 449 | the 63 twins + 17 Rust-side helpers |
+| `arena/expr_ops.rs`, `mod tests` | 1 388 | 21 `#[test]`s, 188 assertions |
+| `examples/bench.rs` | 322 | the twin of `Bench.lean` |
+| **total** | **6 084** | |
+
+Against the twin's 2 015 shipped lines — `Monad.lean` 545 + `ExprOps.lean`
+1 470 — the shipped Rust (925 + 3 449 = 4 374) is **2.2×**, which is P4a's
+2.3× again, and essentially all of the excess is `match m { Ok(x) => …,
+Err(e) => Err(e) }` where Lean writes `let x ← m` (§3.4 forbids `?`, so a
+three-child memoized arm is four nested matches).  The test file is 1 388
+lines against `ExprOpsTest.lean`'s 584, for the same reason plus the
+hand-written expectation shapes.
+
+#### `AM` is `&mut AState` plus `Result`, with two narrowings
+
+The twin's monad is `AM := StateT AState (Except CheckError)` and nothing else
+(§8.4).  Aeneas threads a `&mut` parameter back as a returned value and models
+`Result` as con-leche's `Except`, so the correspondence is `kernel::core_types`'
+own table, one bind per bind.  Two shapes come out narrower here, both
+deliberate and both in `monad.rs`'s module note:
+
+* **the state parameter is first, not last** (`kernel::core_types`' note writes
+  `fn(…, &mut CState)`).  `AM` threads the state as an invisible *first*
+  argument, so putting `st` first leaves every other argument in the twin's own
+  order and matches the position `EStore`'s `&mut self` already occupies one
+  layer down.  Nothing in the model cares; the reader does.
+* **a twin that cannot fail returns its value.**  `derivedE`, `derivedL`,
+  `LIdx.hasParam`, `Expr.hasLevelParam` and the twenty-two memo probes are
+  `AM α` only because `AM` is the module's one monad — no path in any of them
+  reaches a `fail`.  Their Rust reads the state and returns `α`; everything
+  that *can* decline (dangling handle, full constructor array, exhausted fuel)
+  returns `Result<α, CheckError>`, which is the twin's `Except` exactly.
+
+#### The API mapping
+
+Every declaration of the two twins, and what it became.  Only the rows that are
+**not** one-to-one carry a note; the rest are a rename (camelCase ↔ snake_case)
+and the two narrowings above.
+
+| Lean twin | Rust | one-to-one? |
+|---|---|---|
+| `Monad.lean`'s own `inductive CheckError` (4 ctors) | `con_ron_core::kernel::core_types::CheckError` | **no** — the twin declares its own only because it has no con-leche `Core.lean` in scope carrying the fourth constructor; con-ron-core's *is* that type (`NotImplemented`/`Invalid`/`Internal`/`Native`, `Vec<u32>` payloads).  Importing beats a second copy |
+| `Memos` (11 `Std.HashMap` fields) | `Memos` (11 `ron::HashMap` fields) | yes, field for field |
+| the memo key `(EIdx × Nat)` | `struct EIdxNat { h, d }` + `Hashable`/`Eq2`/`Dup` | **no**, in the spelling: Lean's `Prod` carries derived instances; the port writes the dictionaries by hand, exactly as `con_ron_core::kernel::expr_ops::ExprNatKey` does for `(Expr × Nat)` |
+| `Memos.empty`, `AState`, `AState.init`, `fail` | the same four | yes |
+| `view` / `viewN` / `viewL` / `viewLs` | the same four | yes |
+| `derivedE` / `derivedL` | `derived_e` / `derived_l`, returning `u64` / `LDer` | **no** — the narrowing above |
+| `internE` / `internNNode` / `internLNode` / `internLsNode` | the same four | **no** in *where the cap test sits*, yes in outcome.  The twin is total below and tests `sizeOf v < Idx.idxCap` at the wrapper (so `EStore.intern_spec`'s `capOK` becomes a branch condition); P4a's Rust `EStore::intern` already *is* that test, returning the same `Native` on the same condition.  The wrapper is a delegation and the branch is one layer down |
+| `readName` / `readLevel` / `readLevels` | the same three | yes |
+| `readNames` | `read_names` + `read_names_from` | **no** — §3.4's `List`-over-`Vec` cursor recursion.  The twin already has the same split, one layer up, because `ks.mapM readName` is a closure |
+| `internName` / `internLevel` / `internLevels` | the same three | yes (structural on the transient tree, no fuel) |
+| `internLevelList` | `intern_level_list` + `_from` | **no** — cursor recursion |
+| — | `denote_n_aux` / `denote_n` / `denote_l_aux` / `denote_l` / `denote_l_list(_from)` / `denote_ls` | **new in the shipped crate.**  `Denote.lean` has no Rust counterpart (P4a's ruling) — but `readLevel` *is* `denoteL` in the twin (§8.3 lesson 4: "the cheapest readback that is also *provably* the denotation is the denotation"), and `readLevel` is shipped.  So the name/level/level-list readbacks are shipped here, fuel and all.  `denoteE` is **not**: nothing above this module reads an expression back, and the differential test keeps its own copy in `mod tests`, as `arena::store` does |
+| the 33 memo probe/record/drop functions | the same 33 | yes.  Detach-before-update (lesson 14) and `@[noinline]` (lesson 15) have no Rust counterpart — `&mut` **is** the unique reference the detaching manufactures, and `@[noinline]` is a Lean RC concern (P4a's table says the same of the store's mutations).  A drop is `HashMap::new()`, the twin's `:= ∅` term for term, which allocates nothing (task #35) |
+| the 63 `ExprOps` twins | the same 63, snake_case | yes — same fuel arguments, same memo keys, same five cutoffs, arms inline |
+| `LIdx.hasParam` / `EIdx.hasLevelParam` | `lidx_has_param` / `eidx_has_level_param` | **no**, in the spelling only: free functions rather than inherent methods, so the state stays the first argument |
+| `exprPtrBEq` | `expr_ptr_beq` | yes — already monad-free in the twin |
+| `substLevelList` | `subst_level_list` + `_from` | **no** — cursor recursion |
+| `renameConstsGo (f : NIdx → NIdx)` | `rename_consts_go<F: NIdxToNIdx>` | **no** — §3.4 forbids the closure; a one-method trait, exactly as `con_ron_core::kernel::expr_ops::NameToName` stands for con-leche's `f : Name → Name`.  It is the module's one higher-order argument and con-leche's own |
+| `instPis` / `instPisAt` / `instLamsAt` / `instPisAtFGo` / `instLamsAtFGo` / `instSpine` / `instPisAtLift` / `mkAppN` | each + a `…_from` cursor companion | **no** — the same `List`-over-`Vec` rule; con-ron-core's `ExprOps` has the identical eight splits |
+| `x :: xs` on the way out of a recursion | `cons_eidx` / `cons_binder` (+ `eidx_copy_upto`, `binder_copy_from`) | **no** — a `Vec` has no cons, so the tail is copied.  Every call site is a telescope arity, not a term size |
+| `x ++ y` in `fvarLeaves` | `fvl_append` + `fvl_copy_from` | **no** — ditto |
+| `vs.take (j - d)` in `instantiateList` | `take_eidx` | **no** — ditto; `con_ron_core`'s `take_exprs` is the same deviation on the same line |
+| `args.take cnP == want` in `recRulePlain` | `eidx_take_beq` + `eidx_prefix_beq` | **no** — a length test plus an elementwise cursor recursion, which is what `List.take`'s length mismatch means; con-ron-core's `rec_rule_args_eq` is the same idea |
+| `Nat` (fuel, cursors, de Bruijn indices, binder counts) | `u64`; truncating `-` is `con_ron_core::kernel::expr_ops::sub_nat` where the cited arm has no guard, a bare `-` where it does | **no** — §3.3's standing deviation, and `sub_nat`'s own doc names the same three sites (`bvarBound`'s `y - 1`, `instSpine`'s `t - 1`, `recRulePlain`'s `mI - 1 - k`) |
+| the twin's `fuel + 1` pattern match, with its `0` arm a `fail` | `if fuel == 0 { fail(…) } else { … fuel - 1 … }` | yes in meaning; the twin's 23 distinct `"fuel exhausted: …"` strings are 23 `const M_FUEL_…: [u32; N]` here (§3.4's no-`&str`-constant rule) |
+
+**One order-of-effects decision worth its own line.**  `instPisAtFGo` computes
+its domain's `instantiateListFast` **after** the recursive call, and the Rust
+does the same — where `con_ron_core::kernel::expr_ops::inst_pis_at_f_go` does
+it *before*.  con-ron-core may: its `Expr`s are pure values and the order is
+invisible.  Here it is not: interning in a different order gives the same
+*denotation* but different *handles*, and this port is in lockstep with the
+twin at the handle (P4a's cross-check — "the two agree on the last handle
+word" — is the property this preserves).  The same reasoning is why
+`inst_pis_at`/`inst_lams_at` cons their domains on the way out instead of
+pushing them on the way in, though there the effect is nil.
+
+#### What the extraction says
+
+`scripts/extract-arena.sh --dry`: **zero errors, zero warnings**, 10 745 lines
+of model (up from P4a's 4 984), **3 type holes and 42 function holes — every
+one of them the `con-ron-core` boundary**, which is P4a's standing debt and not
+a new leak.  The fifteen new ones are all the dependency's:
+`level::{zero,succ,max,imax,param,subst,subst_pw}`,
+`name::{anonymous,mk_str,mk_num}`, `expr::{sat_range,binder_meta}`,
+`expr_ops::sub_nat`, `prop_when::never` (and `expr::str_copy`, already there).
+P4a's three extraction rules (no associated `mk`; no three-way `||` inside a
+`match` arm holding loans; no `Vec::clear`/`truncate`) were written into these
+modules from the start and none of them bit.
+
+#### The differential test: 188 assertions, all green on the first run
+
+`mod tests` in `expr_ops.rs`, **21 `#[test]` functions, 188 assertions** — all
+**183** `#guard`s of `ExprOpsTest.lean` at the same terms and the same cursors,
+plus five of its own (the `intern_expr` round-trip and the hash-consing
+identity it implies).  The shape is the twin's:
+
+> intern a term, run the twin, read the result back with `denote_e`, and
+> compare with `con_ron_core::kernel::expr_ops`' own function applied to the
+> *denotation of the input*.
+
+Two things make it worth more than a re-run of the Lean checks.  First, the
+comparison partner is **`con-ron-core`'s `ExprOps`** — the shipping checker's
+own port of the same con-leche file — so an agreement is an agreement between
+the arena and the tree-shaped checker on the same term, not between two
+readings of one body.  Second, the fixture is built by the **same `intern`
+calls in the same order** as the twin's `fx`, so a handle here is the same
+machine word as a handle there, which is the cheapest cross-check of the
+transliteration there is (P4a's finding, carried forward).
+
+The expected side is computed, never written out; what IS written by hand is
+the fixture's own denotation (`fixture_denotes_what_it_should`, nineteen
+assertions), exactly as the twin does it.  `Denote.lean`'s `denoteE` lives in
+`mod tests` and nowhere else; the name and level readbacks it calls are
+`arena::monad`'s shipped ones.
+
+`intern_expr` — the brief's "walk an `Expr` into the store" helper — is there
+too, with its round-trip: interning `denote_e(big)` gives back `big` itself,
+which is hash-consing and `denoteE_inj` observed from outside.
+
+**Every assertion passed on the first run.**
+
+#### The micro-benchmark, beside the Lean twin's
+
+`cargo run --release --example bench` — the same four shapes at the same sizes
+in the same order as `con-ron-arena-bench`, so the two read off line by line.
+Three runs, `ulimit -v 20000000`, release profile with `overflow-checks = true`
+(the shipped one).  The Lean column is task #97b's own measurement on this
+machine, not a fresh paired run.
+
+| subject | operation | Rust (3 runs) | Lean twin | Lean / Rust |
+|---|---|---:|---:|---:|
+| build | intern all four shapes (111 031 nodes) | 15.4 / 13.2 / 13.6 ms | 15.8 / 15.9 / 17.8 ms | **1.2×** |
+| spine, 50 000 apps | `instantiate1Fast` | 9.08 / 8.59 / 8.35 ms | 15.9 / 16.7 ms | **1.9×** |
+| | `abstract1Fast` | 17.6 / 19.0 / 17.7 ms | 29.2 ms | **1.6×** |
+| | `instLPFast` | 8.29 / 9.15 / 8.40 ms | 21.8 / 21.3 ms | **2.5×** |
+| | `bvarBoundMemo` | 2.94 / 3.14 / 2.96 ms | 6.5 ms | **2.1×** |
+| | `sizeB` (no intern, no memo) | 1.03 / 1.03 / 1.03 ms | 2.5 ms | **2.4×** |
+| telescope, 10 000 binders | `instantiate1Fast` | 2.30 / 2.40 / 2.30 ms | 3.4 / 3.6 ms | 1.5× |
+| | `abstract1Fast` (the `fvarB` cutoff fires) | 0.0006 ms | 0.003 ms | 5× |
+| | `instLPFast` | 3.19 / 3.22 / 3.20 ms | 5.6 ms | 1.8× |
+| | `liftLooseBVarsFast` | 1.46 ms | 2.8 ms | 1.9× |
+| DAG tower, 2^24 tree nodes | `instantiate1Fast` | 0.0050 / 0.0060 / 0.0058 ms | 3.0 / 3.4 ms | *(see below)* |
+| | `instantiate1LiftFast` | 0.0022 ms | 0.016 ms | 7× |
+| | `instLPFast` (the `hasLP` cutoff) | 0.0011 ms | 0.005 ms | 5× |
+| | `bvarBoundMemo` | 0.0079 ms | 0.008 ms | 1.0× |
+| task #215 | peel 1000 binders, 1000 `instantiate1` calls | 156 / 158 / 158 ms | 175 / 195 / 177 ms | **1.2×** |
+| cutoff fires | `instantiate1` / `abstract1` / `instLP` | 0.0004 / 0.0008 / 0.0035 ms | 0.0017 / 0.0025 / 0.006 ms | 2–4× |
+| cutoff does not | the same three, same-sized subject | 13.6–14.1 / 10.3–10.7 / 8.3–8.7 ms | 23–25 / 23–28 / 17–20 ms | **1.8×** |
+
+Whole run: **1.886 G instructions:u, 1.079 G cycles:u** (IPC 1.75), 0.276 s
+wall, 113 MB peak RSS.
+
+**Four things these numbers say.**
+
+1. **The Rust is 1.6–2.5× the twin on every walk**, which is the same band
+   P4a measured at the store layer (1.7× miss, 3.1× hit) and is what §8.1's
+   calibration should expect: the arena's cost is the store's cost, and the
+   `ExprOps` layer adds no new gap.
+2. **The tower's `instantiate1Fast` line is the twin's outlier, not the
+   Rust's.**  25 arena nodes answered in 3.0 ms would be 120 µs per node,
+   against 0.016 ms for `instantiate1LiftFast` on the *same* term in the *same*
+   Lean run — internally inconsistent by 200×.  Both benchmarks put
+   `instantiate1Fast` first in that group, and in the Rust the first line of
+   the group is 2.7× the second (0.0059 against 0.0022 ms), so a one-off cost
+   on the group's first timed call is the likely reading.  P2g should re-time
+   that line with a warm-up before anyone concludes anything from it; the
+   memo's own claim — 25 walked nodes where a tree walk is 2^24 — is
+   unaffected, and holds in both columns.
+3. **The cutoffs are worth four orders of magnitude here too** (0.0004 ms
+   against 13.6 ms on a same-sized subject the cutoff does not answer:
+   **34 000×**), which is the twin's finding reproduced, and the case for
+   giving `instantiateList` and `liftLooseBVars` one is unchanged.
+4. **con-leche's task #215 quadratic is reproduced exactly** (1000 peels of a
+   1000-binder telescope: 157 ms, 500 000 nodes allocated), and the Rust's
+   advantage there is the *smallest* of any line (1.2×), because the cost is
+   allocation and hashing, not interpretation.  That is one more argument for
+   §8.3's "Caches" question — a memo keyed on `(node, cursor, substituted
+   handle)` that survives the call — being a representation question and not a
+   language one.
+
+**The stack is the one new Rust-side fact.**  The spine is 50 000 nodes deep
+and every twin is a recursion, so a walk is 50 000 Rust frames; the benchmark
+runs on a thread with a 1 GB stack, as `con-ron`'s own checker threads already
+do (`bin/con-ron.rs`, `pool.rs`, and `pins_decode.rs` before them).  The Lean
+twin needs nothing of the kind — Lean's runtime grows its own stack — so this
+is a place where (B) and (C) are not interchangeable and where P4f's driver
+must do what `con-ron` does today.
+
+#### Gates
+
+`cargo build` / `cargo test` under `RUSTFLAGS="-D warnings"` (33 tests in
+`arena-core`, 320 in the workspace), `scripts/lint-rust-style.sh` over both
+verified trees, `scripts/provenance.py check` **0 findings** (3 706 items —
+2 893 Rust, 813 arena Lean — and 2 861 citations), `provenance-selftest`,
+`overview-links`, `holes --check`, `gen-pins --check`, `gen-prelude --check`,
+`scripts/extract.sh --check` (con-ron-core's committed model unmoved) and
+`scripts/extract-arena.sh --dry` clean.  `cd proof && lake build` was **not**
+run: this task touches no Lean, and P2c/P2e are editing `proof/` concurrently.
+
+#### For P4c
+
+* **The nesting is the cost, not the logic.**  A three-child arm with a memo
+  is four nested `match … { Err(e) => Err(e), Ok(x) => … }`; `Core`'s bodies
+  are deeper than `ExprOps`', so P4c should expect the same 1.9× line ratio
+  and resist the temptation to introduce a bind helper (it would be a closure).
+* **`AState` grows a second record, not more fields.**  §8.3's
+  per-DECLARATION caches (`whnfCore`, `whnf`, the three infer grades, `defeq`)
+  belong beside `Memos`, in their own record, so that the per-call clear and
+  the per-declaration drop stay visibly different operations — the twin's P2c
+  note says the same.
+* **The 42 holes are still exactly con-ron-core's.**  Watch the list, not the
+  count: a hole that is not `con_ron_core::…` (or `alloc::sync::Arc`) is a new
+  external, and that is the signal P4a asked for.
+* **`intern_expr` is in `mod tests` and should stay there** until the frontend
+  needs a tree-to-handle path, which it does not (§8.3: the parser builds
+  handles directly, no `Expr` tree is ever built).
+* **Re-time the tower line with a warm-up** before P2g reports any
+  memo-versus-no-memo ratio from it (finding 2 above).
+
+### Task #97-P4e part 1 — the Rust parser into the store (2026-09-20, Opus under Fable)
+
+Phase P4e of §8.6, first half, under the REORDERED ruling (code first, twin
+and Rust in lockstep): the Rust side of task #97e, i.e.
+`proof/ConRon/Arena/Env.lean` and `proof/ConRon/Arena/Frontend/{Types,ExportC,
+Prepare,Prelude}.lean` transliterated into `crates/arena-core`, beside the
+store layer task #97-P4a landed.  Six new modules, 4 845 shipped lines
+(plus 749 of `mod tests` and a 355-line measurement driver):
+
+| Rust | Lean twin | shipped lines | twin's raw lines |
+|---|---|---:|---:|
+| `src/arena/env.rs` | `Arena/Env.lean` | 1 095 | 360 |
+| `src/frontend/mod.rs` | — (the directory note) | 80 | — |
+| `src/frontend/types.rs` | `Arena/Frontend/Types.lean` | 296 | 173 |
+| `src/frontend/export_c.rs` | `Arena/Frontend/ExportC.lean` | 3 009 | 838 |
+| `src/frontend/prepare.rs` | `Arena/Frontend/Prepare.lean` | 296 | 153 |
+| `src/frontend/prelude.rs` | `Arena/Frontend/Prelude.lean` | 69 | 58 |
+| **total** | | **4 845** | **1 582** |
+
+3.1× the twin, against P4a's 2.3× for the store — and the extra is the same
+two things plus one: the `match` chains §3.4's no-`?` rule forces where Lean
+writes a `do` block (`parse_expr_rec_d` is 90 lines for the twin's 20), the
+loop-per-`mapM` helpers, and the message machinery — of `export_c.rs`'s 3 009
+shipped lines **355 are `const M: [u32; N]` code-point arrays** and another
+479 are doc comments, where con-leche writes `s!"…"` and a one-line `/-- … -/`.
+`con_ron_core::frontend::export_c` is 3 059 lines for the same con-leche file,
+so the handle port is the *same size* as the tree port: the representation
+change costs nothing in lines.
+
+#### The mapping, module by module
+
+`Env.lean` (§8's census class (T) — types that carry a term) maps field for
+field with `Expr ↦ EIdx`, `Name ↦ NIdx`, `Level ↦ LIdx`:
+
+| Lean twin | Rust | one-to-one? |
+|---|---|---|
+| `IConstantVal`, `IRecRuleFire`, `IRecRule`, `IIndCaps`, `IProjTable`, `IProjEntry`, `IConstantInfo`, `IDeclaration` | the same eight, same constructors in the same order | yes.  `type` is `ty` (task #6's modulo rule); a `deriving`'d copy is the house-style `i_*_dup` |
+| `ReducibilityHint`, `BasisKind`, `QuotKind`, `PropWhen` | `con_ron_core::kernel::{env,prop_when}`'s own | yes — §8.7's ruling ((B) imports the representation-free types) applied across the crate line |
+| `IRecRule`'s five install-computed defaults | `i_rec_rule_parsed` | yes; Rust has no field defaults, as `con-ron-core`'s `env::rec_rule_parsed` records |
+| `IIndCaps`'s eight defaults | `i_ind_caps_default` | yes, `sortZ := .ifAllZero []` included (task #10's surprise 6) |
+| `IProjTable.tableName` | `IProjTable.table_name` | yes — **the twin's one added field**, which is what keeps `i_constant_info_name` and `i_declaration_names` PURE, hence `prepare::pick_idx`'s predicate a predicate |
+| `projFnName`, `projTableName`, `toConstantVal`, `.type`, `IDeclaration.name` | the same five, taking `&mut EStore` | yes; each one interns and the twin is monadic for the same reason |
+| `IEnv` + `empty`/`find?`/`findProj?` | `IEnv` + `i_env_empty`/`i_env_find`/`i_env_find_proj` | **no**, in the storage order: `consts` is **oldest-first** and `i_env_find` scans from the back, which is `con-ron-core`'s `kernel::env::Env` deviation (task #50 — `Vec::push` appends, the subset has no `cons`).  The cited order is what is scanned either way |
+| `IFEnv` + `mkIFEnvGo`/`mkIFEnv`/`find?`/`restrictTo`/`push`/`findProj?` | the same six over `ron::HashMap<NIdx, (u64, IConstantInfo)>` | **no**, in the sharing: `con-ron-core` stores a `P<ConstantInfo>` in both `Env` and `FEnv`; §8.5 gives the arena **no `ron::ptr`**, so the index holds its own copy.  For a handle-shaped record that is a `Vec` spine and no term; whether P2c wants it is P2c's measurement |
+| `piSortTeleLen?` | `pi_sort_tele_len(ar, fuel, h)` | yes |
+| `Monad.lean`'s `view`/`viewN`/`readName`/`readLevel` | `env::{view_e,view_n,read_name,read_level}` + `read_names` | **no, and temporarily**: their Rust home is `arena/monad.rs`, which P4b writes.  Four functions are needed *today* — `pi_sort_tele_len` and every `validate_ind_d` message — so they sit in a section of their own at the bottom of `env.rs` and move when that module lands |
+
+`Frontend/*`:
+
+| Lean twin | Rust | one-to-one? |
+|---|---|---|
+| `RecordVerdict` + `toError` | `types::RecordVerdict` + `record_verdict_to_error` | yes (a message is a `Vec<u32>`, §3.3) |
+| `ProjRecOwner`, `MIndTypeRec`, `MIndCtorRec`, `MIndRecRec`, `BlockRec` | the same five | yes.  `T` is `t` (Rust field names are lower case) |
+| `ConstTable`, `Ctx` | `types::ConstTable` (the table itself) and `ModelCtx<'a>` (three borrows) + `ctx_tbl`/`ctx_height`/`ctx_block` | **no** — the twin's three fields are Lean closures over the parse state and §3.4 has no closures; `con_ron_core::frontend::in_model_rec::ModelCtx`'s own deviation, unchanged |
+| `hintHeight`, `wants` | `hint_height`, `wants` (+ `wants_nested`, the cursor recursion behind `types.any`) | yes |
+| `structure Modeller` with one function field | `trait Modeller` with one method, on a type parameter | yes in meaning — `in_model_rec::Modeller`'s shape exactly, and a trait method on a type parameter extracts as a *typeclass field*, i.e. an opaque function, so the model is quantified over an arbitrary modeller |
+| `declineModeller` | `DeclineModeller {}` + its `impl`, same sentence | yes |
+| `StateD`'s 19 fields | the same 19 | yes, `inModelGen` INCLUDED — `con_ron_core::frontend::export_c` does not port it (it feeds con-leche's `CON_LECHE_INMODEL_DUMP`, whose writer con-ron has no port of), but §8.6's lockstep rule is clause-for-clause with the twin, so it is here |
+| `StateD.init` (monadic) | `state_d_init(ar, …) -> Result<StateD, CheckError>` | yes — index 0 of the name and level tables is the handle `.anonymous`/`.zero` intern at |
+| `IdTable NIdx/LIdx/EIdx` | `con_ron_core::frontend::scan_types::IdTable` at the three handle kinds | yes — **reused across the crate line**, as the twin imports con-leche's |
+| `scanLineFwd`, `newlineFrom`, `usizeInBounds` | `scan_fast::{scan_line_fwd,newline_from}` | yes, reused (the twin's "the scanner is term-free" check, applied to the port) |
+| `noteDecl`'s `.basisDecl` arm | `note_decl_entries`' `BasisDecl` arm, a loud `internal` | yes, the twin's own choice |
+| `parsePwD` | `parse_pw_d`, `st_names` then `env::read_names` | yes — the handles are READ BACK to build a `PropWhen`, which is `denoteN` (§8.3 lesson 4 at the name store) |
+| `parseExprEntryD` | `parse_expr_entry_d` + `parse_expr_rec_d` | yes.  A `const`'s universe arguments are one `LsIdx` (`intern_levels`), which is what keeps the node two words; a `natVal` goes through `nat_decimal::from_decimal` (`scan_types`' deviation 2) |
+| `projRewriteD`, `noteProjIota`, `registerProjOwners` | the same three, the same stubs | yes — part 2's `ProjRec` twin is what fills them, and at an empty owner table con-leche's own body answers `none` too |
+| `indPiTeleLen`, `ExprOps.piResult` | `ind_pi_tele_len`, `pi_result` | **no** in the second: `piResult` is `Arena/ExprOps.lean:784`'s, i.e. P4b's `arena/expr_ops.rs`.  Three lines of spine walk, spelled locally in its one frontend caller (`k_expected_of`) rather than left as a hole; the call site moves when P4b lands |
+| `validateIndD`'s two `for`/`mut` loops | `order_block_ctors`/`order_type_ctors` and `check_rec_records`/`check_one_rec` | **no** — Aeneas copies the code AFTER a loop into every loop exit, so each loop is its own function whose tail is one line, exactly as `con-ron-core`'s `validate_ind_d` is split |
+| `kExpected?` | `k_expected_of(ar, fuel, …)` | yes — `pi_result`, `view`, then `env::read_level` and `level::is_equiv`, which is the twin's `Level.isEquiv (← readLevel s) .zero` |
+| `flat.Nodup` | `names_have_dup`, a handle-keyed set pass | **no** in the algorithm, and forced: the obvious quadratic scan is two nested loops with a `return` inside, and Aeneas answers *"Returns inside of nested loops are not supported yet"*.  `con-ron-core`'s is the same set pass |
+| `installIndD` | `install_ind_d` + `install_gen` (the modeller arm, split for the same loop-exit reason) | yes |
+| `st.indBlocks` insert | `note_ind_blocks`, at one `block_rec_dup` per member type name | **no** — con-leche shares one block value and `con-ron-core` shares a `P<BlockRec>`; §8.5 has no `ron::ptr`, so the arena copies.  A block is shape data (counts and handles) and the copy is on the parse path only |
+| `processLineCoreD`, `applyDeclD`, `applyLine` | the same three | yes, branch for branch |
+| `ParseResultD` + `ofState` | the same, seven fields | yes |
+| `applyFinalLine`, `feedChunk`, `chunkSize`, `sizeError`, `parseBytes`, `parseExportD`, `chunkStep`, `chunkFinish`, `concatBytes`, `parseChunks(Go)`, `atLine` | the same eleven | yes.  `feedChunk`'s termination measure becomes a `while`; `parseChunksGo` is `parse_chunks`' loop — `-loops-to-rec` gives both recursions back |
+| `builtinPreludeText` (an `include_str` through the lake package directory) | `con_ron_core::frontend::prelude_text::prelude_text()` | **no, and better**: the Rust's is a *generated* constant committed inside `con-ron-core` with `scripts/gen-prelude.sh --check` behind it — the very arrangement the twin's task section files as a follow-up.  Reusing it costs one boundary hole and saves forking a 1 500-line generated file |
+| `preludeKey`, `declares`, `pick`, `frontOf`, `hoistNatOpGround`, `Prepared`, `prepareD`, `preparePrelude` | the same eight | `pick`/`frontOf` keep `con-ron-core`'s **mask** deviation (the subset cannot take an element out of a `Vec`), and the hoist is the twin's identity placeholder |
+
+#### `AM` is `&mut EStore` plus `Result<_, CheckError>`
+
+The twin's monad is `StateT AState (Except CheckError)` and `AState` is the
+store together with the eleven `ExprOps` memo tables (`Arena/Monad.lean`).
+**The frontend touches no memo**, so the Rust threads the one field it uses,
+by the `&mut` that `Vec`-shaped state gets everywhere in the port — which
+Aeneas threads back as a return value, so the shapes match.  When
+`arena/monad.rs` lands (P4b) an `AState` holds this `EStore` and every call
+site becomes `&mut ast.store`; no body in these five modules changes.
+
+The parse's two error channels merge as `con-ron-core`'s do, into
+`LineErr { Err(CheckError), Verdict(RecordVerdict) }`.  The one difference
+from `con-ron-core`'s `LineErr` is that the first arm carries a whole
+`CheckError` and not a `Vec<u32>`: `EStore::intern` declines with `Native` at
+the `2^27` cap (§8.3) and that KIND has to survive to the exit code.
+
+#### Tests: 38, and two of them are the ones that matter
+
+`cargo test -p arena-core`: 38 green (12 store tests from P4a, 17 in
+`export_c`, 6 in `prepare`, 3 in `prelude`).  The twin has
+no `#[guard]`s in its frontend modules — it was measured against the 348 e2e
+fixtures and `Init` — so the snippets are `con_ron_core::frontend::
+export_c`'s, which are con-leche's own fixtures in miniature: the minimal
+stream, an undefined index, the three rebinding errors, an unsafe axiom, a
+`#QUOT` record, an unknown quotient kind, a mutual block at the modeller
+seam (declining / `inModel := false` / census), a contradicted `numFields`, a
+K-like block at `k := false` and `k := true`, six chunk sizes plus empty
+chunks, a final line with no newline, the size guard and `at_line`.
+
+Two are the load-bearing ones:
+
+* **`the_arena_agrees_with_the_tree_parser_on_every_snippet`** runs all eight
+  streams through BOTH Rust parsers — this one and
+  `con_ron_core::frontend::export_c`, the `Expr`-tree port of the same
+  con-leche file — and asserts the same outcome class, the same line and the
+  same declaration count.  (The two modellers decline with different
+  sentences, so the decline's text is not compared; its kind is.)
+* **`the_prelude_interns_the_twins_own_node_counts`** asserts **196
+  expression, 5 level, 55 name** nodes after the built-in prelude — task
+  #97e's own measured numbers for the Lean twin on an empty input, to the
+  node.  It exercises every record kind the prelude uses, the derived word,
+  the cons tables and the level-list interning at once, and it is the cheapest
+  cross-check of the transliteration there is.  It passed on the first run.
+
+Beside them, `the_node_counts_are_the_streams_own_entry_counts` states §8.3's
+parse claim on a snippet (the expression node count IS the number of `"ie"`
+lines, the name count the `"in"` lines plus the implicit `Name.anonymous`, the
+level count the `"il"` lines plus the implicit `Level.zero`),
+`two_equal_entries_are_one_node` states what con-leche's tree parse cannot,
+and `the_parse_stays_in_the_persistent_tier` states that the frontend never
+enables the scratch tier.
+
+#### `Init`: the numbers, beside the twin's
+
+`_tmp/corpus/init.ndjson`, 347 714 179 bytes, 6 490 422 lines, under
+`ulimit -v 12000000`; `perf stat -e instructions:u,cycles:u`, wall from five
+warm runs.  The driver is `cargo run --release --example arena_parse`, which
+is the twin's `runPipelineM` minus the fold: the built-in prelude, the
+stream's 4 MiB chunks **read and parsed in lockstep**, `preparePrelude`.
+
+**With the shipped declining modeller** the parse stops at **line 78 503**,
+where `Lean.Syntax` — a nested block — reaches the seam.  The twin stops at
+the same line, for the same reason:
+
+| | Rust | Lean twin |
+|---|---:|---:|
+| stop point | line 78 503, `declined: in-process model of Lean.Syntax` | the same line, the same verdict |
+| instructions:u | **0.26 G** | 0.39 G |
+| wall | 0.02 s | 0.11 s |
+| peak RSS | 0.02 GB | 0.39 GB (it has read the whole file) |
+
+**With `--skip-modelled`** (con-leche's own `CON_LECHE_INMODEL=0`, i.e.
+`inModel := false` — the twin's measurement build) the whole file parses:
+
+| | Rust | Lean twin | Rust / twin |
+|---|---:|---:|---:|
+| declarations parsed | **57 977** | 57 977 | — |
+| expression nodes | **6 136 571** | 6 136 571 | — |
+| level nodes | **578** | 578 | — |
+| name nodes | **295 297** | 295 297 | — |
+| prelude records synthesised | 0 | — | (`Init` declares all twelve itself) |
+| instructions:u | **19.72 G** | 30.4 G | **0.65×** |
+| cycles:u | 12.91 G | — | — |
+| wall (5 runs) | **2.63 / 2.68 / 2.68 / 2.69 / 2.70 s** (spread 0.07 s) | 5.30 / 5.39 / 5.55 s (spread 0.25 s) | **0.49×** |
+| peak RSS | **0.53 GB** | 0.82 GB, of which 0.49 GB is store + tables | 1.08× against the store |
+
+**Every count is the twin's exactly**, which is the finding: two independent
+transliterations of the same Lean module into two languages, run on a
+347 MB real `lean4export` stream, agree to the node on all four numbers.  It
+is also a live re-check of task #97a's exactness — if `denoteE` were not
+injective the counts would come out *below* the export's own census
+(`init.counts`: `app` 5 222 431 + `ie` 555 691 + `forallE` 301 314 + `const`
+56 994 + `bvar` 141 = 6 136 571).
+
+The RSS comparison is against the twin's **0.49 GB of store and tables**, not
+its 0.82 GB peak: the twin's driver reads the whole file into a chunk list
+first, and its own task section flags that as the one memory problem it found.
+This driver interleaves the reads (`parseExportHandleD`'s loop, whose pure
+meaning is `parse_chunks` of the chunks the handle hands out), so 0.53 GB is
+the store plus the parse tables plus one 4 MiB buffer.
+
+#### The price of hash-consing, measured Rust against Rust
+
+`--tree` runs the same read loop against `con_ron_core::frontend::export_c`,
+the `Expr`-tree port of the same con-leche file, so that the cost of interning
+every node is a number from this machine and not a quotation:
+
+| `Init`, same driver, same chunks | arena (handles) | tree (`Expr` + `ron::ptr`) | arena / tree |
+|---|---:|---:|---:|
+| declarations parsed | 57 977 | 57 977 | — |
+| instructions:u | 19.72 G | **16.71 G** | **1.18×** |
+| cycles:u | 12.91 G | **6.71 G** | **1.93×** |
+| IPC | 1.53 | 2.49 | 0.61× |
+| wall (3 runs) | 2.63–2.70 s | **1.26 / 1.29 / 1.36 s** | **2.07×** |
+| peak RSS | 0.53 GB | **0.39 GB** | 1.36× |
+
+(The tree parser's 1.26–1.36 s at 0.39 GB reproduces task #83's 1.29 s /
+587 MB on the same file; the RSS is lower here because this driver streams the
+reads.)
+
+**So hash-consing the parse costs 18 % more instructions and 2.07× the wall.**
+The gap is not work, it is cache misses: IPC falls from 2.49 to 1.53, which is
+exactly what task #97-P4a's micro-benchmark predicted ("≈ 530 instructions per
+intern, at IPC 0.80: the run is memory-bound, which is what a 750 MB hash
+table over a 32 MB L3 predicts").  P4a's three levers are therefore the levers
+here too, and all three are P6's and none of them touches the twin's meaning:
+
+1. **pre-size the persistent tier's cons tables** from the export's
+   declaration count (`ron::HashMap` already has `with_capacity`, and the
+   `Vec::with_capacity` underneath it is modelled as `Vec::new`, so the model
+   does not notice) — this removes the ~23 doublings a 6.1 M-entry table
+   grows through;
+2. **pre-size `nodes`/`der`**, which removes the 0.67× `Vec` doubling
+   overshoot P4a priced at 27 % of a node's bytes;
+3. **drop the cons table after the parse** for constructors the checker never
+   re-interns, which P4a priced at two thirds of an interned node.
+
+What the 2 s buys is what §8.1 is actually chasing: every downstream
+comparison is a `u32` equality, every cache is keyed on a handle, and
+`ron::tagged`, the atomic reference counts and the tree-shaped memo keys go
+away.  `Init`'s whole con-ron run is 59 s today; two seconds of parse is the
+price of the other fifty-seven.
+
+#### Extraction
+
+`scripts/extract-arena.sh --dry`: **zero errors, zero warnings**, 11 867 lines
+of model (`Types.lean` 1 104, `Funs.lean` 10 763), 687 generated definitions —
+up from P4a's 4 984 lines and 371 definitions.
+
+Holes: **3 types and 67 functions**.  Sixty-five are the `con-ron-core`
+boundary (P4a's 27 plus `code_points`, `internal`, the three `*_kind_dup`s,
+`binder_meta_*`, `literal_*`, `level::{zero,succ,max,imax,param}`,
+`name::{anonymous,mk_str,mk_num}`, `prop_when::{dup,if_all_zero}`,
+`HashMap::with_capacity` and the rest of the parse's reads); one is
+`U64`'s `Dup` dictionary; and one is `core::str::as_bytes`, which is
+**already con-ron-core's own hole** (OVERVIEW §8.1, modelled as the identity
+because Aeneas reads a `&str` as its bytes) and arrives with `parseExportD`'s
+`contents.toUTF8`.  **The arena's own code contributes none**, which is P4a's
+standing rule for the boundary and still holds.
+
+One translator complaint, real and fixed in the crate rather than worked
+around, to add to P4a's three:
+
+4. **A `return` inside nested loops.**  `names_have_dup` as a quadratic scan
+   is two `while`s with a `return` in the inner one, and Aeneas answers
+   *"Returns inside of nested loops are not supported yet"*.  The fix is the
+   algorithm `con-ron-core` already uses — one pass over a handle-keyed set —
+   which is `List.Nodup`'s meaning either way and is linear besides.
+
+#### Gates
+
+`cargo build`/`cargo test` under `RUSTFLAGS="-D warnings"` (243 + 38 + the
+rest, all green), `lint-rust-style.sh` over **both** verified trees,
+`provenance.py check` **0 findings** — 3 738 items (2 925 Rust, 813 arena
+Lean), 2 903 citations, all current at pin `c431b1ca` — `provenance-selftest`,
+`overview-links.sh` (67 links, 36 files), `holes.sh --check`,
+`gen-pins.sh --check`, `gen-prelude.sh --check`, `extract.sh --check` and
+`extract-arena.sh --dry`.
+
+The one script edit this task was allowed and took:
+`scripts/lint-rust-style.sh`'s loop exemption now names **both** ported parser
+directories (`crates/con-ron-core/src/frontend/` and
+`crates/arena-core/src/frontend/`), for the reason task #84 gave for the
+first — the cited Lean is a per-byte tail recursion Lean compiles to a loop,
+a per-byte recursion in Rust overflows the stack on a long export line, and
+`-loops-to-rec` gives each loop back as a function mirroring the recursion.
+
+The whole-`proof/` `lake build` was NOT re-run: nothing under `proof/` changed
+(P2c/P2e own it), and this worktree has no built `.lake` for the Mathlib-side
+targets.
+
+#### For part 2 and for P4b
+
+* **`arena/monad.rs` takes back four functions.**  `env::{view_e, view_n,
+  read_name, read_names, read_level}` (and the two `dangling_*` helpers) are
+  `Monad.lean`'s `view`/`viewN`/`readName`/`readLevel` and `Denote.lean`'s
+  readback.  P4a kept the readback in `mod tests`; the frontend's error text
+  and its `is_K_target` need it in shipped code, so it is shipped now, in a
+  section of `env.rs` marked for the move.  P4b should move them and delete
+  the section, not duplicate them.
+* **`export_c::pi_result` is `ExprOps`'.**  Three lines, one caller
+  (`k_expected_of`); when `arena/expr_ops.rs` lands the caller switches and
+  this goes.
+* **The three parse stubs are the twin's** and go together with part 2's
+  `ProjRec` and `NatOpGround` twins: `proj_rewrite_d`, `note_proj_iota`,
+  `register_proj_owners` and `prepare::hoist_nat_op_ground`.  All four are the
+  safe direction — at an empty owner table con-leche's own body returns
+  `none`, and an un-hoisted ground can only decline a run that would otherwise
+  accept.
+* **The extraction rules are now four** (P4a's three plus the nested-loop
+  `return` above).
+* **A fifth boundary reuse to watch.**  This task added
+  `con_ron_core::frontend::{scan_types, scan_fast, text, nat_decimal,
+  prelude_text}` to what `arena-core` reads across the crate line.  All five
+  are the right call — the scanner is term-free (the twin checked that against
+  the source), the prelude text is generated with a `--check` gate — but they
+  are why the hole list went from 30 to 70.  §8.6's swap retires all of them
+  at once; nothing here should grow the list with an item that is not
+  `con-ron-core`'s.
+* **The `--tree` flag stays.**  It is 100 lines of the example and it is what
+  makes every future claim about the arena parse's cost a measurement rather
+  than a memory; P6 will want it when the three pre-sizing levers land.
+
+### Task #97d-2 — the inductives (2026-09-20, Opus under Fable)
+
+Phase P2d of §8.6, **part 2**: the ten files of
+`ConLeche/Kernel/Inductives/` twinned over handles, and the `.indDecl`
+dispatch that routes a block between them.  Part 1 — the declaration checker
+itself (`CheckerBase`/`DeclCheck`/`Checker`/`Canon`/pins/basis) — is the
+sibling task's; the two ran at the same time, which is what "Borrowed from
+P2d-1" below is about.
+
+#### The module map
+
+| module | raw | what |
+|---|---:|---|
+| `Arena/Inductives/StructParts.lean` | 530 | the generators: families, spines, rule bodies, Π→λ, `StructParts`, the projection bodies, `hasLooseBVarB`, `mentionsConst` |
+| `Arena/Inductives/Base.lean` | 434 | **P2d-1's helpers, borrowed** (below) |
+| `Arena/Inductives/SumParts.lean` | 64 | `InductiveShape`, `sumSplit`, `withSort` |
+| `Arena/Inductives/Modeled.lean` | 783 | the modeled route whole: the iota certificates, the member checks, the projection functions, the capability theorems, `checkModeled` |
+| `Arena/Inductives/StructInstall.lean` | 74 | the binder-domain walk and the projection TABLE |
+| `Arena/Inductives/StructInstallF.lean` | 46 | the `F` names as `abbrev`s |
+| `Arena/Inductives/SumInstall.lean` | 328 | official's telescope loop, the former's stage, the per-field universe bound, the positivity normalisation, the constructors' stage, `sumRules` |
+| `Arena/Inductives/SumInstallF.lean` | 52 | the `F` names as `abbrev`s |
+| `Arena/Inductives/NativeParts.lean` | 537 | `RecFieldKind`, the positivity classification, the generated recursor with its `ih` binders, `nativeRulesOk`, the recogniser |
+| `Arena/Inductives/NativeInstall.lean` | 382 | the capability record, `mentionsFvar`, the opened re-check, the recursor, the table, the two-pass install |
+| `Arena/Inductives/NativeInstallF.lean` | 36 | the `F` names as `abbrev`s |
+| `Arena/Inductives.lean` | 46 | `checkIndDecl` — con-leche's `.indDecl` arm |
+| `Arena/InductivesTest.lean` | 473 | 46 kernel-reduced differential `#guard`s |
+| **total** | **3 785** (3 425 non-blank) | |
+
+`ConRon/Arena.lean` gained the thirteen imports and nothing else.  No file
+outside `proof/ConRon/Arena/Inductives*` was touched.
+
+#### The deviations
+
+Task #97c's six are inherited unchanged (the `env ↦ fe` collapse, `view` for
+every structural match, interned reserved names, levels read back, one knot,
+inline memo probes).  What is NEW to this task:
+
+1. **The `…F` mirrors collapse, and their names survive as `abbrev`s.**
+   `StructInstallF`, `SumInstallF` and `NativeInstallF` are con-leche's same
+   functions over an `FEnv`; the arena has ONE environment type, so each IS
+   the `Struct`/`Sum`/`Native` twin, and the three `…F.lean` modules carry the
+   `F`-suffixed names as `abbrev`s — the arrangement `Arena/FEnv.lean`
+   already uses for `Core.lean`.  `checkStructDomsAtFA` and
+   `checkStructFieldSortsIFA` (the `Array` spellings) collapse the same way.
+   Eighteen con-leche declarations become zero new functions.
+2. **`StructWalkers` has NO twin.**  It is a record of two FUNCTION VALUES
+   whose only purpose is to let con-leche's cached driver substitute memoised
+   walks for the pure ones (`ConLeche.Cached.structWalkersC`).  The arena's
+   `constsResolve` and `structProjBodies` ARE the memoised walks; there is one
+   of each; and a record of two closures is what DESIGN §3.4 forbids.  So
+   `StructWalkers` and `StructWalkers.plain` are the two declarations of
+   `ConLeche/Kernel/Inductives/` this task does not cite (3/5 on
+   `StructInstallF.lean`), and every `w.resolve` / `w.projBodies` is the
+   arena's own function at the call site.
+3. **Five higher-order arguments removed, one answered.**  con-leche passes a
+   function where the arena passes data:
+   * `checkSumInd`'s `capsOf : InductiveShape → IndCaps` → `isRec : Bool`,
+     which moves `nativeCapsAt` one module earlier (into `SumInstall.lean`),
+     the same relocation task #97c made for `TypeChecker.lean`'s entries;
+   * `structIhPis`' and `structRuleBodyR`'s `teleOf`/`idxOf` → the
+     constructor type and the counts, the two readers called inside;
+   * `domsMatchAux`'s `g : Nat → Expr → Expr` → two concrete twins,
+     `domsMatch` (the identity, four call sites) and `domsMatchRenamed` (one);
+   * `sumRules`' `find? : Name → Option ConstantInfo` → `fe : IFEnv`;
+   * the three `foldlM`s of `checkModeled`/`checkIndRecs` → explicit
+     recursions (`checkIndMembers`, `installIndRecs`, `installProjFns`), and
+     `normCtorVal`'s `zipWith` → `zipFvarDoms`.
+
+   What was LEFT after task #97b is `renameConsts`' own `f : NIdx → NIdx`, and
+   **P2d answers its question**: the map is a precomputed association list of
+   interned pairs (`blockRenameTable`, `projBack`, `projFwd`) and `renameBy`
+   is its lookup, because over handles building a name means INTERNING one and
+   a pure `NIdx → NIdx` cannot.  The call still passes `renameBy tbl`, a
+   partial application; making `renameConsts` take the table itself is a
+   one-line change to `Arena/ExprOps.lean` that the Rust side should make at
+   P4, and the table is exactly the "concrete map type" #97b predicted.
+4. **The pure walk, the cutoff walk, the memoized walk and the entry are ONE
+   twin**, as #97b's rule has it for `ExprOps`' nine triples:
+   `hasLooseBVar`/`hasLooseBVarB`/`…Go`/`…Fast`,
+   `mentionsConst`/`…Go`/`…Fast` and `mentionsFvar`/`…Go`/`…Fast` are three
+   functions here, each citing its three or four con-leche declarations.  The
+   `@[csimp]` equivalences have no arena twin — the substitution they license
+   has already happened — and the three `…MemoInv` predicates are census
+   class (S).
+5. **The memos stay explicit ARGUMENTS.**  con-leche threads a
+   `Std.HashMap Expr Bool` through these three walks rather than putting it
+   in a state, because each answer depends on data fixed for one call.  The
+   twins do the same at `EIdx` keys: **nothing was added to `AState`**, and
+   `structProjGuards`' one shared memo across `nF` calls is con-leche's own
+   task #236 arrangement unchanged.
+6. **The fields' sorts are `List LIdx`, not the census's `LsIdx`.**
+   `Arena/Env.lean`'s `IProjTable.guards` is a `List LIdx` (task #97e), and
+   `structProjGuards` computes exactly that field; interning the list only to
+   read it back at the table would be a round trip with no reader.  A `const`
+   node's universe arguments stay `LsIdx`, as the representation requires.
+   Likewise `IRecRuleFire.nested`'s levels, which is what `nestedRuleShape`
+   returns.
+7. **`RecFieldKind` is twinned, not imported**, against §8.7's rule for a
+   term-free type.  `ConLeche/Kernel/Inductives/NativeParts.lean` also
+   declares `structFam`, `structPsAt`, `structShape`, `sumSplit`,
+   `InductiveShape` and `NativeParts`; every module here does `open ConLeche`,
+   so importing it for one five-constructor enum would make a dozen names
+   ambiguous against this port's own.
+8. **Everything that touches no term stays pure**: `sumSplit`,
+   `consSumCtors`, `nativeRecPinOk`, `nativeRecLpsOk`, `recIdxOf`,
+   `NativeParts.complete`, `NativeParts.withKinds`,
+   `InductiveShape.rulePrefix`, `InductiveShape.majorIdx`, `nativeIsRec`,
+   `recsFormSuffix`, `renameBy`.  The census's mechanical `AM` column is too
+   crude for them, as `Arena/ExprOps.lean` says of `exprPtrBEq`.
+9. **`NativePass` is not generic** in the environment representation:
+   con-leche parameterises it because it has two (`Env` and `FEnv`); the arena
+   has one.
+10. **`eqApp3?`** spells con-leche's `.app (.app (.app (.const c [ℓ]) ty) l) r`
+    once — four `view`s over handles, and three checks of `Modeled.lean` match
+    it.
+
+#### Borrowed from P2d-1: `Arena/Inductives/Base.lean`
+
+The installs call a dozen declarations of
+`ConLeche/Kernel/{CheckerBase,Env,Level}.lean`, which are the SIBLING task's
+(`Arena/CheckerBase.lean` &c.).  Under the coordinator's concurrency contract
+they are twinned here, in a namespace of their own
+(**`ConRon.Arena.IndBase`**, so nothing clashes at merge) and cited to the
+same con-leche declarations P2d-1 will cite.  **Every declaration in that
+file is a duplicate to be deleted at merge**, replaced by P2d-1's in
+`ConRon.Arena`; the call sites are then a `sed` of `IndBase.` away.
+
+| con-leche | arena name in `IndBase` |
+|---|---|
+| `CheckerBase.lean:233-239 unwrapOr` | `unwrapOr` |
+| `CheckerBase.lean:130-140 openPisAtFvars` | `openPisAtFvarsPlain` |
+| `CheckerBase.lean:153-167 openPisAtFvarsFGo` | `openPisAtFvarsFGo` |
+| `CheckerBase.lean:169-176 openPisAtFvarsF` | `openPisAtFvars` |
+| `CheckerBase.lean:121-128 domsMatchAux`, `:142-151 domsMatchAuxA` | `domsMatch`, `domsMatchRenamed` |
+| `CheckerBase.lean:71-91 unresolvedConstsError` | `unresolvedConstsError` |
+| `CheckerBase.lean:95-119 checkConstantVal` | `checkConstantVal` |
+| `CheckerBase.lean:178-190 checkTypedList` | `checkTypedList` |
+| `CheckerBase.lean:192-206 checkAnnotList` | `checkAnnotList` |
+| `CheckerBase.lean:222-231 checkDefEqList` | `checkDefEqList` |
+| `CheckerBase.lean:208-211 isEqHead`, `:213-220 eqHeadLevel` | `isEqHead`, `eqHeadLevel` |
+| `CheckerBase.lean:241-247 Env.findCV?` | `findCV?` |
+| `CheckerBase.lean:257-272 checkProjShape` | `checkProjShape` |
+| `CheckerBase.lean:274-311 checkProjRule` | `checkProjRule` |
+| `Env.lean:716-719 ConstantInfo.isRecInfo`, `:721-727 recsFormSuffix` | `isRecInfo`, `recsFormSuffix` |
+| `Env.lean:588-622 indParamsOk` | `indParamsOk` |
+| `Level.lean:213-216 Name.nodup` | `nidxNodup` |
+| `Level.lean:251-268 / :299-332 / :405-407 allLevelParamsDefined` | `allLevelParamsDefinedGo`, `allLevelParamsDefined` |
+
+Twenty-two arena declarations over nineteen con-leche ones, plus six
+`con-leche: none` converters (`internLevelsL`, `internExpr`, `internCV`,
+`internCaps`, `eqBasisCI`, `eqBasisStored`).
+
+**The one judgement call there.**  `checkIndRecs` and `checkProjLookups` ask
+`env.find? eqName = some eqA` — the stored `Eq` must BE the pinned basis
+constant.  P2d-1's `Arena/Basis.lean` owns the arena's `eqA`; until it lands,
+`Base.lean` imports `ConLeche/Kernel/BasisA.lean` and INTERNS con-leche's own
+value (`internExpr`/`internCV`/`internCaps`), which is the same predicate
+because `denoteE`/`denoteN` are injective.  Weakening the guard to "some `Eq`
+is stored" would make the arena ACCEPT blocks con-leche rejects, which no
+placeholder may do, and failing closed would decline every modelled recursor.
+The import costs 1.3 s of elaboration and is the only place (B) reaches into
+con-leche's annotated basis; it is the first thing the merge removes.
+
+#### The differential test: 46 `#guard`s, twelve blocks
+
+`Arena/InductivesTest.lean` writes a base environment and an inductive block
+ONCE, as con-leche `ConstantInfo` values, runs **con-leche's own
+`ConLeche.checkDecl` on `.indDecl block nP`** and the arena's
+`Inductives.checkIndDecl` on the interned block, and compares the WHOLE
+outcome.
+
+Two things make the comparison sharp.
+
+* **The environments are compared by HANDLE.**  con-leche's answer is
+  interned into the arena's own store *after* the arena's run, and the two
+  `List IConstantInfo`s are compared with `==`.  That is sound because
+  `intern` is hash-consing and `denoteE` is injective (task #97a), and it is
+  the strictest comparison available: it sees a difference in a binder's
+  `PropWhen` datum, in a capability record, in a rule's `k`/`eta`/`fire` bits
+  and in a projection table's bodies and guard levels — all of which a
+  definitional comparison would miss.
+* **The blocks are GENERATED, not hand-written.**  `mkNativeBlock` builds the
+  recursor's type and its rules with con-leche's own `structRecTyR` /
+  `structRecRhsR` — the very terms the install fabricates and compares
+  against — so a fixture is the block a real elaborator exports rather than a
+  hand-transcribed guess.  The generator is common INPUT to both checkers and
+  cannot bias the differential, which is between the two CHECKERS.
+
+The blocks are named outside the reserved basis family (`N`, `Lst`, `Pair`,
+`Eq'`, `Tru`, …) for two reasons at once: `checkConstantVal` rejects a
+reserved name outright, and `checkDecl`'s `basisPinHit` would otherwise
+install the PIN instead of running the routes — so on these fixtures
+`checkDecl` IS the `.indDecl` arm, which is what `checkIndDecl` twins.
+
+| # | fixture | route | outcome (both sides) |
+|---:|---|---|---|
+| 1 | `N` — the `Nat` shape, two constructors, one recursive | native | accept, 4 installs, no table |
+| 2 | `Lst.{u} (α : Type u)` — parametric, recursive, two constructors | native | accept, 4 installs, no table |
+| 3 | `Pair.{u} (α β : Sort u)` — two fields, one constructor, no index | native | accept, 4 installs, **projection table** (`off = 1`, two guards) |
+| 4 | `Eq'.{u} (α : Sort u) (a : α) : α → Prop` — indexed, `Prop`, large eliminator | native | accept, 3 installs, no table (an indexed family is not structure-like) |
+| 5 | `Tru : Prop` with one fieldless constructor | native | accept, 4 installs, table; `ruleK` and unit-likeness in the record |
+| 6 | a MUTUAL block (two type formers) with its `_model` companions | modeled | accept, 2 installs |
+| 6′ | the same block with NO models | modeled | `notImplemented "no install route for inductive block MutA: …"` |
+| 7 | a NESTED block (two recursor records) | modeled | the same decline, naming `Nest` |
+| 8 | `N` at `nP = 3`, `Lst` at `nP = 2` | — | `invalid "number of parameters mismatch"` |
+| 9 | `Bad.mk : (Bad → Bad) → Bad` | native | `invalid "direct sum: non positive occurrence of the inductive type"` |
+| 10 | `N` with both constructors under one name | native | `invalid "direct rec: duplicate constructor"` |
+| 11 | `N` with its recursor's rules dropped | native | the recursor pin, rejected |
+| 12 | a block re-declaring a stored name | native | `checkConstantVal`'s duplicate guard |
+
+Six accepting fixtures are what stops the differential passing vacuously
+(`chk` is satisfied by two agreeing *errors*): `accepts`, `installed` and
+`hasTable` pin what con-leche does on each, so "both checkers threw on
+everything" cannot be green.
+
+**Everything agreed on the first run.**  No twin needed a correction after it
+elaborated.  Two fixtures needed one: `Lst` at `Sort u` is official's
+`elim_only_at_universe_zero` reject (a multi-constructor family whose sort
+may be `Prop` cannot carry a large eliminator), so its parameter moved to
+`Type u`.  The four build failures during the task were a Lean keyword used
+as a binder name (`scoped`), two `pure (← f x).field` parses, and a `/-- … -/`
+doc comment placed before a `#guard`.
+
+#### Provenance and coverage
+
+`scripts/provenance.py check`: **0 findings** over the whole tree (4 013
+items — 2 710 Rust, 1 303 arena Lean — and 3 116 citations, all current at
+pin `c431b1ca`).  The Rust ledger is unmoved.  The arena ledger:
+
+```
+ConLeche/Kernel/Inductives/Modeled.lean         23/23  twinned
+ConLeche/Kernel/Inductives/NativeInstall.lean   18/18  twinned
+ConLeche/Kernel/Inductives/NativeInstallF.lean   5/5   twinned
+ConLeche/Kernel/Inductives/NativeParts.lean     34/34  twinned
+ConLeche/Kernel/Inductives/StructInstall.lean    2/2   twinned
+ConLeche/Kernel/Inductives/StructInstallF.lean   3/5   twinned
+ConLeche/Kernel/Inductives/StructParts.lean     32/32  twinned
+ConLeche/Kernel/Inductives/SumInstall.lean      14/14  twinned
+ConLeche/Kernel/Inductives/SumInstallF.lean      8/8   twinned
+ConLeche/Kernel/Inductives/SumParts.lean         3/3   twinned
+ConLeche/Kernel/CheckerBase.lean                16/20  twinned   (borrowed)
+ConLeche/Kernel/Env.lean                        27/41  twinned   (+3, borrowed)
+ConLeche/Kernel/Level.lean                       7/24  twinned   (+4, borrowed)
+ConLeche/Kernel/Checker.lean                     1/22  twinned
+ARENA TOTAL 431/927 twinned (46.5%), 496 to go
+```
+
+265 before this task, so **+166**: 142 from the ten modules, 23 from
+`Base.lean`'s borrowings and one for `checkDecl`'s arm.  The two uncovered
+declarations of `StructInstallF.lean` are `StructWalkers` and
+`StructWalkers.plain` (deviation 2).
+
+#### Build time
+
+`lake build ConRonArena` from a clean `Arena` build directory,
+`LEAN_NUM_THREADS=4`, `ulimit -v 60000000`: **37.3 / 36.6 s** wall over two
+runs, against task #97c's 25.2 s — this task's thirteen modules are **13.9 s**
+of it.  Per module: `StructParts` 0.91 s, `Base` 1.3 s, `SumParts` 0.76 s,
+`Modeled` 1.9 s, `StructInstall` 0.75 s, `StructInstallF` 0.68 s,
+`SumInstall` 1.1 s, `SumInstallF` 0.69 s, `NativeParts` 1.5 s,
+`NativeInstall` 1.1 s, `NativeInstallF` 0.70 s, `Inductives` 0.71 s,
+`InductivesTest` 1.7 s.  Nothing needed `maxHeartbeats`; the 46
+kernel-reduced `#guard`s — each of which runs BOTH checkers inside the
+elaborator, con-leche's on `Expr` trees and the arena's on handles — cost
+1.7 s between them.  `lake build con-ron-lean` is still green.
+
+#### For the merge, and for P2d's remainder
+
+* **`Arena/Inductives/Base.lean` is deleted at merge** and its twenty-two
+  declarations replaced by P2d-1's; the table above is the map.  Nothing else
+  in this task's files is P2d-1's.
+* **`Arena/Inductives.lean`'s `checkIndDecl` is the agreed interface**
+  (`(mode) (fe) (block) (numParams) : AM IFEnv`) and does NOT test
+  `basisPinHit`: that test is `checkDecl`'s, before the routes, exactly as
+  con-leche places it.
+* **The benchmark has no inductive shape yet.**  Task #97c asked for the
+  `Core` shapes once `checkDecl` existed; the subject that matters now is a
+  real block's install (a `Pair`-sized structure and an `Lst`-sized recursive
+  family, both generated), and it belongs beside them in
+  `con-ron-arena-bench`.
+* **`renameConsts` should take the table, not a function** (deviation 3);
+  that is the last higher-order argument in (B), and the Rust side needs it
+  gone at P4.
