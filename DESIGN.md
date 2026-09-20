@@ -2076,9 +2076,15 @@ the persistent tier (the byte recogniser is unchanged).
            **Part 1 DONE, task #97e** (2026-09-20): `ExportC`/`Prepare`/
            `Prelude` over handles, the `Env`/`FEnv` declaration layer
            (`Arena/Env.lean`), `runPipeline` wired — 60/348 fixtures and
-           `Init` parsed at 57 977 declarations / 6 136 571 nodes.  Part 2
-           is `ProjRec`, `NatOpGround` and the in-process modeller, which
-           are three placeholders in the twin today;
+           `Init` parsed at 57 977 declarations / 6 136 571 nodes.
+           **Part 2 DONE, task #97e part 2** (2026-09-20): the `ProjRec`
+           twin and the declaration layer's (memoised) denotation, the
+           modeller seam instantiated by delegating to con-leche's own
+           generator, the driver's read loop interleaved with `chunkStep`,
+           and the prelude as a committed constant with a `--check` gate —
+           `Init` parses to the end WITH the modeller at 57 977 declarations
+           / 6 137 973 nodes, 30.66 G instructions, 0.76 GB.  What is left
+           of P2e is `NatOpGround` alone, which needs P2c's pins;
         f. Main + `diff-e2e.sh --bin`: 348/348 and Init parity — GATE;
         g. measure (B) vs con-leche on Init (instructions, RSS).
     P2s SPIKE (maintainer, 2026-09-20: "do this for some core functions
@@ -22020,6 +22026,9 @@ and nothing in that gate's scope changed — `proof/ConRon.lean` does not import
 
 #### Part 2 — what is left of P2e
 
+*(Items 1, 3, 4 and 5 are DONE: see "Task #97e — part 2" below.  Item 2,
+`NatOpGround`, is still the identity placeholder and waits on P2c's pins.)*
+
 1. **`ConLeche/Frontend/ProjRec.lean`** (16 declarations, 260 lines) over the
    `ExprOps` twins: `projIotaName`, `isProjIotaName`, `projIotaLevel`,
    `occursConst`/`occursConstB`/`occursConstGo`/`occursConstFast`, `lamBody`,
@@ -22052,3 +22061,348 @@ and nothing in that gate's scope changed — `proof/ConRon.lean` does not import
 6. **`Main.lean`'s `CheckError` is merged** into `Monad.lean`'s as of this
    task (task #97b's "for P2c" note); `chunkSize` is now
    `Frontend.chunkSize`.  `CheckMode` is still the driver's copy.
+
+### Task #97e — part 2 (2026-09-20, Opus under Fable)
+
+The rest of phase P2e, less `NatOpGround` (which needs P2c's `natOpNames` and
+is left as the identity placeholder part 1 shipped): the `ProjRec` twin, the
+modeller at the seam, the driver's read loop, and the prelude as a committed
+constant.  Five new modules, 3 331 raw / 3 050 non-blank lines:
+
+| module | raw | non-blank | elaboration |
+|---|---:|---:|---:|
+| `Arena/Frontend/Readback.lean` | 664 | 605 | 2.1 s |
+| `Arena/Frontend/ProjRec.lean` | 523 | 477 | 1.8 s |
+| `Arena/Frontend/ProjRecTest.lean` | 477 | 406 | 2.6 s |
+| `Arena/Frontend/InModel.lean` | 208 | 181 | 1.3 s |
+| `Arena/Frontend/PreludeText.lean` (generated) | 1 459 | 1 381 | 11 s |
+
+#### 1. The `ProjRec` twin
+
+`ConLeche/Frontend/ProjRec.lean`'s 16 declarations over task #97b's `ExprOps`
+twins, so that `ExportC`'s `projRewriteD`, `noteProjIota` and
+`registerProjOwners` stop being placeholders.  What changes over handles is
+what always changes: a structural read is a `view`, so every walk carries
+DESIGN §8.4's explicit fuel; a term the rewrite BUILDS is interned, so
+`mkLams`, `instPisOpen`, `buildBinders` and `projRecValue` are monadic where
+con-leche's are pure; a name comparison is a handle comparison and a name the
+rewrite has to SPEAK (`T.str "rec"`, `PUnit`, `PUnit.unit`, `Eq`,
+`T._model.proj_i.iota`) is interned; and `Level.isEquiv` runs on a read-back
+level tree (§8.3 lesson 4).
+
+**Three deviations, each forced.**
+
+* **`buildBinders` takes a KIND, not a function.**  con-leche passes
+  `mkMotive` / `mkMinor` as `mk : Expr → Option Expr`; DESIGN §3.4 forbids a
+  closure in code Aeneas must translate, and this one would be monadic
+  besides.  The twin passes a `ProjBinderKind` and a `ProjBuild` record of
+  what the two bodies read (`T`, `ctor`, `R`, `i`, and the two `PUnit`
+  constants at the elimination level, interned once at the entry), and
+  dispatches on the tag — the enum the Rust would need anyway.  con-leche's
+  two lambdas become the top-level `mkProjMotive` / `mkProjMinor`.
+* **The `List.any` / `List.find?` / `filterMap` closures of `projRecOwners`
+  are explicit recursions** (`occursAnyOf`, `domsMentionAny`,
+  `ctorsMentionBlock`, `findCtorRec`, `findRecRec`, `projRecCandidates`),
+  which is §3.4's own rule for a `List` recursion and what task #97b did to
+  the same shapes in `ExprOps`.
+* **`occursConstB`, the budgeted allocation-free descent, has no twin.**  Its
+  purpose in con-leche is to answer a small TREE without allocating the
+  `Std.HashSet`, falling back to the memoised walk when the budget runs out.
+  Over a DAG the memo is not an optimisation but the thing that makes the walk
+  linear at all, and the budget cannot be the walk's termination measure
+  either — the budget a sub-call RETURNS is bounded by the one it was given,
+  not below it, while con-leche's recursion is structural on the `Expr` and
+  needs no measure.  So the arena walks once, memoised, on the DAG fuel, and
+  `occursConstGo` cites all three of con-leche's walks.
+
+**The two block recognisers are CALLED, not twinned.**  `projRecOwners` asks
+`structPartsCore?` and `nativeParts?` whether the direct install or the
+fixpoint route already serves the block — 1 585 lines of
+`ConLeche/Kernel/Inductives/{StructParts,NativeParts}.lean`, which are P2d's.
+Until P2d they run on the block's DENOTATION
+(`Arena/Frontend/Readback.lean`'s `readCIList`), which is exact by
+construction and bounded to one block.  To keep that readback off blocks that
+could not be rewritten anyway, **the guards are evaluated in the cheap
+order**: con-leche computes `recursive` and the two recognisers first and the
+`filterMap` last, but both early branches return `[]`, so an empty candidate
+list decides the function whatever the guards say, and computing the
+candidates first is the same value.  On `Init` the recognisers then run only
+on single-constructor, index-free, non-`Prop` blocks whose recursor carries an
+elimination level parameter.
+
+**The differential test**: `ProjRecTest.lean`, 56 kernel-reduced `#guard`s
+over a two-field structure `S`, its constructor, its recursor and its two
+projection functions, in `ExprOpsTest.lean`'s shape — intern the fixture, run
+the twin, read the answer back, compare against con-leche's own function
+applied to the same con-leche value.  Every expectation is computed, never
+written out; what IS written by hand is the fixture, and fourteen round-trip
+guards say the store holds exactly it.  `projRecOwners` is checked at TWO
+blocks — the structure alone, which `nativeParts?` recognises so that the
+rewrite serves none of it, and the same structure beside a second (indexed)
+type former, the MUTUAL shape where the owner list is `[S]` — so the delegated
+recognisers are exercised on both sides of their verdict.  Six further guards
+assert that the positive cases really are positive, so that a pair of agreeing
+`none`s cannot pass for a check.
+
+#### 2. The memo that is not an optimisation
+
+`Arena/Frontend/Readback.lean` lifts `Arena/Denote.lean`'s term denotation to
+the declaration layer, field for field, in BOTH directions:
+`denoteCV`/`denoteRule`/`denoteCaps`/`denoteProjTable`/`denoteCI`/`denoteDecl`
+and their inverses.  The forward direction is the specification side of
+DESIGN §8.2's parser tier (`denoteDecls (Arena.parse chunks) = parseChunks
+chunks`), written here once so that P3 states it rather than invents it; the
+inverse is what a delegation at a seam needs.
+
+**The finding, and it cost a stuck fixture to make.**  `denoteE` recurses at
+each child independently, so it re-denotes a shared subterm once per
+occurrence: it UNFOLDS the handle DAG.  con-leche's own
+`tests/e2e/tower_struct.ndjson`, whose expression table doubles at every
+second entry, denotes to 2^60 nodes, and the first fixture sweep after the
+`ProjRec` twin landed hung there.  So the EXECUTED readback is a second
+family, `denoteEGo` and its friends, threading a `Std.HashMap EIdx Expr` and
+rebuilding each node once — the same `Expr` value, held with the sharing
+con-leche's own parse gives it, which is what con-leche's `beqFast` and its
+hash-consed comparisons are fast on.  `denoteEShared st h = denoteE st h` is
+the exactness obligation this owes P3; the two differ only in how many times
+the tree is built.  The intern direction carries the mirror memo
+(`Std.HashMap Expr EIdx`, over con-leche's cached-hash `BEq`) for the mirror
+reason.
+
+The lesson generalises past this module: **anything that leaves the store by
+way of a denotation must carry a memo**, and the fact that `denoteE` is stated
+without one is exactly why it is a specification and not an implementation.
+
+#### 3. The modeller at the seam, by delegation
+
+`Arena/Frontend/InModel.lean` instantiates DESIGN §8.2's `Modeller` by reading
+the block's handles back, calling **con-leche's own
+`ConLeche.Frontend.InModel.generate`** verbatim, and interning the
+declarations it returns into the persistent tier —
+
+    con-leche: ConLeche/Frontend/InModel.lean:39-45 generate — called, not twinned
+
+— which is the right instantiation for (B) and not a shortcut, for four
+reasons the module note argues:
+
+* **exact by construction** — the records are con-leche's own records on the
+  denotation of the same block, so the seam cannot disagree with con-leche,
+  where a twin of the generator would have to be *argued* to agree with it;
+* **it claims no soundness, because the seam claims none** — §8.2 puts the
+  modeller outside the verified surface and con-leche's own module doc says
+  why ("a wrong record is rejected or declined by the fold, never accepted";
+  its correctness decides coverage only), so the unverified layer this adds is
+  the layer the design already calls unverified, and no theorem moves;
+* **bounded** — one block at a time, and only a block `wants` routes there
+  (`wants` reads counts and no term and stays a plain function);
+* **(C) keeps its own port** — `crates/con-ron-core/src/frontend/
+  in_model_rec.rs` is the Rust's unverified modeller and is untouched.  The
+  delegation is (B)'s alone, where con-leche is a library the same binary can
+  call; when P2g measures (B) against con-leche, both sides then run the same
+  generator, which is the honest comparison.
+
+`ConLeche.Frontend.InModel.Ctx`'s three fields are functions of a `Name`, so
+the bridge is three closures over a store snapshot: `nameHandle?` maps the
+name to its handle by probing the name store's cons table (pure — a name the
+store never interned is a name no declaration carries, so `none` / `0` is the
+right answer and not a failure), the arena's own `Ctx` answers, and the answer
+is read back.  That is why the memoised readback had to be PURE rather than
+monadic: a plain function cannot take a monad.
+
+`declineModeller` stays, as the seam's trivial instantiation.
+
+#### 4. `Init`: the parse reaches the end
+
+`_tmp/corpus/init.ndjson`, 347 714 179 bytes.  `ulimit -v 12000000`,
+`perf stat -e instructions:u,cycles:u`.
+
+| | part 1 (modeller SKIPPED) | part 2 |
+|---|---:|---:|
+| declarations parsed | 57 977 | **57 977** |
+| expression nodes | 6 136 571 | **6 137 973** |
+| level nodes | 578 | **581** |
+| name nodes | 295 297 | **295 343** |
+| instructions:u | 30.4 G | **30.66 G** |
+| wall (3 runs) | 5.30 / 5.39 / 5.55 s | 5.04 / 5.15 / 4.99 s |
+| peak RSS | 0.82 GB | **0.76 GB** |
+
+Part 1 could only reach the end of the file by SKIPPING the modeller
+(`inModel := false`, a measurement build); with the declining modeller it
+stopped at line 78 503, where `Lean.Syntax` reaches the seam.  Part 2 reaches
+the end with the modeller ON, at con-leche's own `Init` accepted count.  (The
+wall and RSS columns above are after item 5's read loop; item 3 alone measured
+30.66 G / 5.31, 5.67, 5.50 s / 0.89 GB.)
+
+**The node counts are still exact, and that is the check.**  `init.counts`'s
+first-key census is `app` 5 222 431, `ie` 555 691, `forallE` 301 314, `const`
+56 994, `bvar` 141 — 6 136 571 expression entries — plus `in` 295 296 and `il`
+577, and the store's totals are those, plus the implicit `Name.anonymous` and
+`Level.zero`, plus **1 402 / 46 / 3** nodes: exactly the `_model` families the
+in-process modeller generated and the parse interned.  Every other node still
+coincides with an export entry, so part 1's finding (the persistent tier holds
+one node per export entry; the export externalises the DAG and cons-hashing
+finds no *further* duplicate) survives the modeller running — and the whole
+delegation, readback and generator and intern together, costs **0.26 G
+instructions and 70 MB** on `Init`.
+
+#### 5. The driver's read loop
+
+Part 1's driver read the whole file into a chunk list before calling the pure
+seam.  `readFold` interleaves the 4 MiB reads with `Frontend.chunkStep`
+instead: each buffer is fed and then dropped, the first empty read is end of
+file, `Frontend.chunkFinish` closes the stream, and the handle is still read
+strictly forward and never seeked, so the source may still be a pipe.
+
+`runPipeline : List ByteArray → …` stays the pure SPECIFICATION and **the two
+are the same fold**: `Frontend.parseChunksGo` is `chunkStep` folded over a
+chunk list with `chunkFinish` at its end; `readFold` is the same `chunkStep`
+folded over the buffers the handle hands out, from the same `StateD.init`,
+ended by the same `chunkFinish`.  They differ only in where the next buffer
+comes from, so a later proof equates them by induction on the reads, which is
+con-leche's own `parseChunks_eq_parseExportD`.  What makes that a statement
+about ONE step rather than about two pipelines is that everything around the
+fold is now `runPipelineHead` (the prelude) and `runPipelineTail`
+(`preparePrelude` and the verdict), shared verbatim by both.
+
+`AState` is threaded by hand in the loop, because the step is `AM` and the
+loop is `IO`: that is what a `StateT … IO` compiles to, without giving (B)'s
+one monad (§8.4) an `IO` layer it must not have.
+
+`Init` peak RSS, three runs each, same verdict and same store census:
+
+| | peak RSS | wall | instructions:u |
+|---|---:|---:|---:|
+| before | 890 032 / 891 172 / 887 992 KB | 5.31 / 5.67 / 5.50 s | 30.663 G |
+| after | 757 004 / 757 796 / 757 672 KB | 5.04 / 5.15 / 4.99 s | 30.664 G |
+
+**−15 %, which is less than the input's 347 MB, and the reason is worth
+recording**: the old chunk list was also consumed linearly as the parse ran,
+so the peak was reached part-way through rather than at the read's end.  What
+the change removes outright is the 347 MB resident BEFORE a byte is parsed —
+on Mathlib that is 6.1 GB — and the peak's dependence on the input's size at
+all.  `--progress` now reports `parse done: N chunks read` after the loop
+where it reported `read done` before the parse.
+
+#### 6. The prelude as a committed constant
+
+`Arena/Frontend/PreludeText.lean`, generated by `scripts/gen-prelude-lean.sh`
+(with a `--check` mode, a step of `scripts/gates.sh` right after
+`gen-prelude`), ends part 1's `include_str` through the con-leche lake package
+directory — the objection `scripts/gen-prelude.sh` raised for the Rust port at
+task #84, and this is the same answer.
+
+**67 chunks of at most 256 bytes, to be one-to-one with
+`crates/con-ron-core/src/frontend/prelude_text.rs`.**  Neither of the Rust's
+two reasons for chunking binds Lean (Lean has string literals, and a
+16 922-element array literal is not Aeneas's `Array.make` chain), but a twin
+that chunks differently from its original is a twin that has to be read twice,
+and the chunking costs nothing at runtime: `preludeText` is a 0-ary `def`, so
+the concatenation runs once per process — which is what lets (B) have a
+CONSTANT where the Rust twin has to be a function.
+
+**Bytes and not a `String`**, because a 256-byte boundary may fall inside a
+multi-byte character (the prelude has two non-ASCII entries) and a `String`
+chunk could not hold the halves.  `Frontend.parseBytes` takes bytes anyway —
+`parseExportD` is `parseBytes` of `String.toUTF8` — so nothing is converted,
+and `builtinPreludeE` is now `parseBytes md preludeText`.
+
+The cost is **11 s of elaboration** for 16 922 `UInt8` literals, on a library
+that built in 17 s before: it is generated data that changes only at a
+toolchain bump and Lake caches it, but it is the one place this task made a
+clean `lake build ConRonArena` noticeably slower.  A single `String` literal
+would elaborate instantly and was not taken, because it would have to split at
+character boundaries and stop being the Rust's chunking.
+
+On an empty input the store still holds 196 expression, 5 level and 55 name
+nodes — exactly part 1's numbers — so the committed bytes parse to the same
+prelude the `include_str` did.
+
+#### The fixtures: 60 / 348, and a better 60
+
+`scripts/diff-e2e.sh --bin=proof/.lake/build/bin/con-ron-lean`, the same 348
+cases:
+
+| | part 1 | part 2 |
+|---|---:|---:|
+| agree | 60 | **60** |
+| DIFFER | 288 | 288 |
+| timed out / other errors | 0 / 0 | 0 / 0 |
+| wall | 3–4 s | 2–4 s |
+
+The COUNT is unmoved and the COMPOSITION is better.  Part 1's 60 were 23
+frontend rejects, 1 frontend error, 7 declines (six of them the declining
+modeller turning a block away — right code, mostly wrong reason) and 29 stub
+declines that happen to match an expected 2.  Part 2's are 23 rejects, 1
+error, 5 declines and 31 stub declines: **the four blocks the modeller still
+declines now decline for CON-LECHE'S OWN reason** — `reflexive member
+InfNest`, `reflexive member ViaRefl`, `reflexive member
+MutualStructProj.Node`, `former MA is not a telescope ending in a sort` —
+instead of "not ported yet", and two fixtures moved from a wrongly-reasoned
+frontend decline to a modeller success the fold stub then declines.  No false
+accept, no false reject, no crash, no timeout, no internal error anywhere in
+the sweep; every one of the 288 is still "expected 0 or 1, got 2" with the
+fold-not-implemented message.
+
+**The agree count cannot move further without the fold.**  Everything the
+frontend can decide, it decides; the 288 are all waiting on P2c/P2d.
+
+#### Provenance and the ledger
+
+`scripts/provenance.py check`: **0 findings**, 3 369 items (2 363 Rust, 1 006
+arena Lean), 2 776 citations, all current at pin `c431b1ca`.
+
+| | before | after |
+|---|---|---|
+| `ARENA TOTAL` | 110/927 (11.9 %) | **112/927 (12.1 %)**, 815 to go |
+| `ConLeche/Kernel/Inductives/StructParts.lean` | — | 1/32 (the *called* `structPartsCore?`) |
+| `ConLeche/Kernel/Inductives/NativeParts.lean` | — | 1/34 (the *called* `nativeParts?`) |
+| Rust `TOTAL` | 927/927 | 927/927 (unmoved) |
+
+The `ProjRec` and `InModel` twins do not move the ledger at all:
+`COVERAGE_GLOBS` is `ConLeche/Kernel` and `ConLeche/Cached`, and
+`ConLeche/Frontend` is outside the denominator the Rust port's ledger was
+built on (part 1 recorded the same).  The two-declaration jump is the two
+called-not-twinned recognisers; the "1 beyond the Rust port's denominator"
+line is `PreludeText.lean`'s module-level citation.
+
+#### Gates
+
+`cargo build` / `cargo test` (warnings denied), `lint-rust-style`,
+`provenance.py check` (0), `provenance-selftest.py`, `overview-links.sh` (67
+links, 36 files, re-anchored because `gates.sh` grew a twelfth step),
+`holes.sh --check` (2 types, 20 fns), `gen-pins.sh --check`, `gen-prelude.sh
+--check`, `gen-prelude-lean.sh --check` (new), `extract.sh --check` — all
+green.  `lake build ConRonArena con-ron-lean` green with zero warnings.  The
+whole-`proof/` `lake build` was NOT re-run, for part 1's reason: this worktree
+has no built `.lake` for the Mathlib-side targets (hours from cold) and
+nothing in that gate's scope changed — `proof/ConRon.lean` does not import
+`ConRon.Arena`, and the new modules are reachable only from `ConRon/Arena.lean`
+and the `con-ron-lean` executable.
+
+#### What is left of P2e
+
+**`ConLeche/Frontend/NatOpGround.lean` alone** (6 declarations, 111 lines):
+`usedConstsGo` over `view` and a `Std.HashSet EIdx`,
+`IDeclaration.usedConsts`, `isNatOpRecord`, `hoistTargets`, `applyHoist`,
+`hoistNatOpGround`.  It needs the kernel's `natOpNames` / `natDivModNames` /
+`natOpDeps`, which arrive with P2c's pins, so it was left out of this task by
+the brief; `Arena/Frontend/Prepare.lean` still ships the identity, whose
+direction is the safe one (part 1's section argues it).
+
+#### For P2c and P2d
+
+* **The two recognisers are the delegation to retire.**  `projRecOwners`'s
+  `structPartsCore?` / `nativeParts?` calls are the only place (B)'s FRONTEND
+  leaves the store, and P2d's twins of `StructParts` / `NativeParts` remove
+  them; the guard reordering can go back to con-leche's order at the same
+  time.
+* **Read `Readback.lean`'s module note before writing any readback.**  The
+  memo is load-bearing, and the bug it prevents is a fixture that HANGS rather
+  than one that answers wrongly — which no `#guard` finds.
+* **`Arena/Frontend/InModel.lean` is where a closure is allowed**, and the
+  only such place: it is the seam's instantiation, not translated code.
+  Whether (C) should call the same generator is a different decision, and the
+  Rust's own port stands until it is taken.
+* **`runPipelineHead` / `runPipelineTail` are the shape the fold plugs into.**
+  P2c/P2d replace `runPipelineTail`'s last three lines and touch neither the
+  read loop nor the pure seam.
