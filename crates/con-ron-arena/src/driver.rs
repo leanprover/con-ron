@@ -665,7 +665,7 @@ mod tests {
                 });
             assert_eq!(streamed.decls.len(), pure.decls.len(), "chunk {}", chunk);
             assert_eq!(streamed.decls.len(), 1, "chunk {}", chunk);
-            assert_eq!(ar.node_count(), ar2.node_count(), "chunk {}", chunk);
+            assert_eq!(ar.store.node_count(), ar2.store.node_count(), "chunk {}", chunk);
         }
     }
 
