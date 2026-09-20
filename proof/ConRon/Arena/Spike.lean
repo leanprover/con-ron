@@ -16,6 +16,9 @@ Modules:
 * `Spike/ExpA.lean`   — Theorem 1 for subject 1 via `mvcgen`;
 * `Spike/ExpA2.lean`  — subject 2 (the `whnfCore` β arm): statement only;
 * `Spike/ExpA3.lean`  — Theorem 1 for subject 3 (the memo wrapper) via `mvcgen`;
+* `Spike/ExpAFast.lean` — subject 1 again, under the round-2 elaboration recipe
+  (185 s -> 11.5 s); imported LAST, because its `attribute [-grind]` line is
+  inherited by every module that imports it;
 * `Spike/ExpB.lean`   — the same theorem by hand, in con-ron's forward style;
 * `Spike/Mini.lean`   — the three-constructor arena for experiments C and D;
 * `Spike/Generated/`  — the Aeneas model of `crates/arena-spike`
@@ -32,5 +35,11 @@ import ConRon.Arena.Spike.ExpA2
 import ConRon.Arena.Spike.ExpA3
 import ConRon.Arena.Spike.ExpB
 import ConRon.Arena.Spike.Mini
+import ConRon.Arena.Spike.MiniRun
+import ConRon.Arena.Spike.MiniAbs
+import ConRon.Arena.Spike.ExpC1
+import ConRon.Arena.Spike.MiniSpecs
+import ConRon.Arena.Spike.ExpC2
 import ConRon.Arena.Spike.ExpCD
+import ConRon.Arena.Spike.ExpAFast
 import ConRon.Arena.Spike.Axioms
