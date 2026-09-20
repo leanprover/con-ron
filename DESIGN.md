@@ -20741,8 +20741,8 @@ One `@[spec]` theorem per (B) function, in this shape and no other:
    tree-shaped proof never needed.
 6. **A memo insert's spec states that the invariant is preserved, not that
    the table grew.**  The single highest-value change of the spike: before
-   it, `mvcgen` left five open goals and the file took 4 min 50 s; after it,
-   zero and 1 min 01 s.  `Inst1MemoA` in *goal* position is skolemised by
+   it, `mvcgen` left five open goals and the file took **5 min 38 s**; after
+   it, two (both of them other bugs, since fixed) and **1 min 01 s**.  `Inst1MemoA` in *goal* position is skolemised by
    `grind` into `∀ k r, …` before any lemma can fire, so the invariant has to
    arrive as a hypothesis.
 7. **One named failure primitive.**  A bare `throw` in `StateT σ (Except ε)`
