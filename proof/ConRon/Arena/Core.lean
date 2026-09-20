@@ -1171,4 +1171,413 @@ def reduceNat (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (e : EIdx) :
     | _ => pure none
   | _ => pure none
 
+
+/-! ## The certification helpers
+
+con-leche's `Core.lean`:865-1310.  Every one of these recurses structurally
+on a LIST (an argument spine, a slot index list), so none of them takes
+fuel; what they call into the store does. -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:865-897 iotaCerts — certify a spine
+against a recursor telescope: each argument's inferred type is defeq to the
+corresponding (instantiated) domain.  **The ι-slot licence**: at a
+*licensed* walk (`lic = true`) a slot whose ∀-binder datum is `.never` is
+skipped. -/
+def iotaCerts (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (lic : Bool) :
+    EIdx → List EIdx → AM Bool
+  | _, [] => pure true
+  | h, arg :: rest => do
+    match ← view h with
+    | .forallE ty body mb =>
+      if lic && mb.pw.isNever then do
+        let b ← instantiate1Fast coreWalkFuel body arg 0
+        iotaCerts r fe depth lic b rest
+      else do
+        -- con-leche's task #172 B4: the spine certificate's inference at
+        -- the io grade
+        let ta ← r.inferIO depth arg
+        if ← r.defeq depth ta ty then do
+          let b ← instantiate1Fast coreWalkFuel body arg 0
+          iotaCerts r fe depth lic b rest
+        else pure false
+    | _ => pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:899-904 piResidual — peel a
+∀-telescope along an argument list. -/
+def piResidual : EIdx → List EIdx → AM (Option EIdx)
+  | e, [] => pure (some e)
+  | h, a :: as => do
+    match ← view h with
+    | .forallE _ b _ => do
+      let b' ← instantiate1Fast coreWalkFuel b a 0
+      piResidual b' as
+    | _ => pure none
+
+/-- con-leche: ConLeche/Kernel/Core.lean:906-915 defEqList — pairwise
+definitional equality of two spines. -/
+def defEqList (r : CoreFnsA) (fe : IFEnv) (depth : Nat) :
+    List EIdx → List EIdx → AM Bool
+  | [], [] => pure true
+  | a :: as, b :: bs => do
+    if ← r.defeq depth a b then defEqList r fe depth as bs else pure false
+  | _, _ => pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:917-933 iotaIndexOk — the
+canonical-index comparison of a firing ι redex. -/
+def iotaIndexOk (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (mI rP cnP : Nat)
+    (tyCtor : EIdx) (margs idx : List EIdx) : AM Bool :=
+  if mI = rP then pure true
+  else do
+    match ← piResidual tyCtor margs with
+    | some residual => do
+      let args ← getAppArgs coreWalkFuel residual
+      defEqList r fe depth (args.drop cnP) idx
+    | none => pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:935-966 proofIrrel — proof
+irrelevance certification: both sides' types whnf to the basis unit type,
+or both sides' types' *sorts* are `Prop`. -/
+def proofIrrel (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (a b : EIdx) :
+    AM Bool := do
+  -- con-leche's task #172 B4: every inference here is at the io grade
+  let ta ← r.inferIO depth a
+  if ← isUnitLikeTy fe (← r.whnf depth ta) then do
+    let tb ← r.inferIO depth b
+    if ← isUnitLikeTy fe (← r.whnf depth tb) then pure true else pure false
+  else do
+    match ← view (← r.whnf depth (← r.inferIO depth ta)) with
+    | .sort uT => do
+      let z ← zeroLevel
+      let okA ← liftFueled "level comparison" (← lvlEq? uT z)
+      let tb ← r.inferIO depth b
+      match ← view (← r.whnf depth (← r.inferIO depth tb)) with
+      | .sort vT => do
+        let okB ← liftFueled "level comparison" (← lvlEq? vT z)
+        pure (okA && okB)
+      | _ => pure false
+    | _ => pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:968-1010 propIrrel — **the hoisted
+proof-irrelevance test** (con-leche's task #168, Option U): the `Prop`
+branch of `proofIrrel` alone, with the head-symbol readers deciding both
+fast arms before any inference. -/
+def propIrrel (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (a b : EIdx) :
+    AM Bool := do
+  if (← notProofFast fe coreWalkFuel a) || (← notProofFast fe coreWalkFuel b) then
+    pure false
+  else if (← isProofFast fe coreWalkFuel a) && (← isProofFast fe coreWalkFuel b) then
+    -- the yes arm (con-leche's task #168 stage 3): the squash-regime licence
+    pure true
+  else do
+    let ta ← r.inferIO depth a
+    match ← view (← r.whnf depth (← r.inferIO depth ta)) with
+    | .sort uT => do
+      let z ← zeroLevel
+      let okA ← liftFueled "level comparison" (← lvlEq? uT z)
+      let tb ← r.inferIO depth b
+      match ← view (← r.whnf depth (← r.inferIO depth tb)) with
+      | .sort vT => do
+        let okB ← liftFueled "level comparison" (← lvlEq? vT z)
+        pure (okA && okB)
+      | _ => pure false
+    | _ => pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1012-1035 structEtaProjCerts — the
+per-projection telescope certificates of a structural eta certification at a
+**projection-function** slot family. -/
+def structEtaProjCerts (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (T : NIdx)
+    (us' : LsIdx) (targs : List EIdx) (b : EIdx) (lpsT : List NIdx) :
+    List Nat → AM Bool
+  | [] => pure true
+  | i :: rest => do
+    match fe.find? (← projFnName T i) with
+    | some (.recInfo cvp _ _ _) => do
+      let peeled ← stripPis (targs.length + 1) cvp.type
+      if cvp.levelParams = lpsT ∧ peeled.isSome = true then do
+        let ty ← constTyAt cvp us'
+        if ← iotaCerts r fe depth false ty (targs ++ [b]) then
+          structEtaProjCerts r fe depth T us' targs b lpsT rest
+        else pure false
+      else pure false
+    | _ => pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1037-1042 towerSlotsAll — the slot
+walk.  con-leche writes `(List.range nF).all fun j => …`; DESIGN §3.4's rule
+turns the closure into a counted recursion. -/
+def towerSlotsAllGo (fe : IFEnv) (T : NIdx) : Nat → Nat → AM Bool
+  | 0, _ => pure true
+  | n + 1, j => do
+    if (← fe.findProj? T j).isSome then towerSlotsAllGo fe T n (j + 1)
+    else pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1037-1042 towerSlotsAll
+con-leche: ConLeche/Kernel/FEnv.lean:97-99 FEnv.towerSlotsAllF
+Are all `nF` projection slots of `T` table entries? -/
+def towerSlotsAll (fe : IFEnv) (T : NIdx) (nF : Nat) : AM Bool :=
+  towerSlotsAllGo fe T nF 0
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1044-1052 recSlotsAll — the
+projection-function slot walk, as a counted recursion. -/
+def recSlotsAllGo (fe : IFEnv) (T : NIdx) : Nat → Nat → AM Bool
+  | 0, _ => pure true
+  | n + 1, j => do
+    match fe.find? (← projFnName T j) with
+    | some (.recInfo _ _ _ _) => recSlotsAllGo fe T n (j + 1)
+    | _ => pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1044-1052 recSlotsAll
+con-leche: ConLeche/Kernel/FEnv.lean:105-110 FEnv.recSlotsAllF
+Are all `nF` projection slots of `T` recursor-backed projection
+functions? -/
+def recSlotsAll (fe : IFEnv) (T : NIdx) (nF : Nat) : AM Bool :=
+  recSlotsAllGo fe T nF 0
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1054-1064 etaProjs — the `.proj`
+half of the fabricated projections, as a counted recursion. -/
+def projNodesGo (T : NIdx) (b : EIdx) : Nat → Nat → AM (List EIdx)
+  | 0, _ => pure []
+  | n + 1, j => do
+    let p ← internE (.proj T j b)
+    let rest ← projNodesGo T b n (j + 1)
+    pure (p :: rest)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1054-1064 etaProjs — the
+projection-function half, as a counted recursion. -/
+def projAppsGo (T : NIdx) (us : LsIdx) (targs : List EIdx) (b : EIdx) :
+    Nat → Nat → AM (List EIdx)
+  | 0, _ => pure []
+  | n + 1, j => do
+    let f ← internE (.const (← projFnName T j) us)
+    let p ← mkAppN f (targs ++ [b])
+    let rest ← projAppsGo T us targs b n (j + 1)
+    pure (p :: rest)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1054-1064 etaProjs — the fabricated
+projections of a structure-eta spine: `.proj T j b` nodes when every slot has
+a table entry, else the modeled path's projection-function applications. -/
+def etaProjs (fe : IFEnv) (T : NIdx) (us : LsIdx) (targs : List EIdx)
+    (b : EIdx) (nF : Nat) : AM (List EIdx) := do
+  if ← towerSlotsAll fe T nF then projNodesGo T b nF 0
+  else projAppsGo T us targs b nF 0
+
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
+the names reserved for the pinned basis blocks, interned.  `contains` is
+then handle equality, as everywhere else in this module. -/
+def reservedBasisNames : AM (List NIdx) := do
+  let a ← pin ConLeche.eqName
+  let b ← pin ConLeche.eqReflName
+  let c ← pin (ConLeche.eqName.str "rec")
+  let d ← pin ConLeche.natName
+  let e ← pin ConLeche.natZeroName
+  let f ← pin ConLeche.natSuccName
+  let g ← pin (ConLeche.natName.str "rec")
+  let h ← pin ConLeche.punitName
+  let i ← pin ConLeche.punitUnitName
+  let j ← pin (ConLeche.punitName.str "rec")
+  let k ← pin ConLeche.emptyName
+  let l ← pin (ConLeche.emptyName.str "rec")
+  let m ← pin ConLeche.falseName
+  let n ← pin (ConLeche.falseName.str "rec")
+  let o ← pin ConLeche.quotName
+  let p ← pin ConLeche.quotMkName
+  let q ← pin ConLeche.quotLiftName
+  let s ← pin ConLeche.quotIndName
+  let t ← pin ConLeche.quotSoundName
+  pure [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, s, t]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1066-1138 structEtaCertWith — the
+structure-eta certificate against a *given* weak-head-normal type of the
+stuck side. -/
+def structEtaCertWith (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv)
+    (depth : Nat) (a b wtb : EIdx) : AM Bool := do
+  match ← view (← getAppFn coreWalkFuel a) with
+  | .const c us =>
+    match fe.find? c with
+    | some (.ctorInfo cvc cnP cnF) => do
+      let aargs ← getAppArgs coreWalkFuel a
+      if aargs.length = cnP + cnF then do
+        match ← view (← getAppFn coreWalkFuel wtb) with
+        | .const T us' =>
+          match fe.find? T with
+          | some (.indInfo cvT caps) => do
+            let targs ← getAppArgs coreWalkFuel wtb
+            let reserved ← reservedBasisNames
+            let uslen ← viewLs us'
+            let slots ←
+              if ← towerSlotsAll fe T caps.etaFields then pure true
+              else recSlotsAll fe T caps.etaFields
+            if caps.eta = true ∧ caps.etaCtor = c ∧
+                reserved.contains T = false ∧ reserved.contains c = false ∧
+                targs.length = caps.etaParams ∧
+                uslen.length = cvT.levelParams.length ∧
+                cvc.levelParams = cvT.levelParams ∧ slots = true then do
+              if ← liftFueled "level comparison" (← lvlsEq? us us') then do
+                let tyT ← constTyAt cvT us'
+                if ← iotaCerts r fe depth false tyT targs then do
+                  -- the per-slot certificates are the projection-function
+                  -- kind's; a tabled family has none
+                  let percerts ←
+                    if ← towerSlotsAll fe T caps.etaFields then pure true
+                    else
+                      structEtaProjCerts r fe depth T us' targs b
+                        cvT.levelParams (List.range caps.etaFields)
+                  if percerts then do
+                    if ← defEqList r fe depth (aargs.take caps.etaParams) targs then do
+                      -- synthetic-spine certification (con-leche's task
+                      -- #137); a TT-lane check, skipped unless
+                      -- `mode.ttChecks`
+                      let tt ←
+                        if mode.ttChecks then do
+                          let tyC ← constTyAt cvc us
+                          let projs ← etaProjs fe T us' targs b caps.etaFields
+                          iotaCerts r fe depth false tyC (targs ++ projs)
+                        else pure true
+                      if tt then do
+                        let projs ← etaProjs fe T us' targs b caps.etaFields
+                        defEqList r fe depth (aargs.drop caps.etaParams) projs
+                      else pure false
+                    else pure false
+                  else pure false
+                else pure false
+              else pure false
+            else pure false
+          | _ => pure false
+        | _ => pure false
+      else pure false
+    | _ => pure false
+  | _ => pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1140-1151 etaCtorShape — the
+constructor shape official's `try_eta_struct_core` tests before inferring
+anything: the candidate's head is a stored constructor applied to exactly
+its parameters and fields. -/
+def etaCtorShape (fe : IFEnv) (a : EIdx) : AM Bool := do
+  match ← view (← getAppFn coreWalkFuel a) with
+  | .const c _ =>
+    match fe.find? c with
+    | some (.ctorInfo _ cnP cnF) => do
+      let args ← getAppArgs coreWalkFuel a
+      pure (args.length == cnP + cnF)
+    | _ => pure false
+  | _ => pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1153-1176 structEtaCert —
+structural eta certification for a stored eta-capable structure.  The
+constructor-shape test comes FIRST (the divergence audit's D13). -/
+def structEtaCert (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv)
+    (depth : Nat) (a b : EIdx) : AM Bool := do
+  if ← etaCtorShape fe a then do
+    let tb ← r.inferIO depth b
+    let wtb ← r.whnf depth tb
+    structEtaCertWith mode r fe depth a b wtb
+  else pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1178-1206 structUnitCert —
+unit-likeness certification: `a` and `b` inhabit the same stored unit-like
+family. -/
+def structUnitCert (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (a b : EIdx) :
+    AM Bool := do
+  let ta ← r.inferIO depth a
+  let wta ← r.whnf depth ta
+  match ← view (← getAppFn coreWalkFuel wta) with
+  | .const T us' =>
+    match fe.find? T with
+    | some (.indInfo cvT caps) => do
+      let targs ← getAppArgs coreWalkFuel wta
+      let reserved ← reservedBasisNames
+      let uslen ← viewLs us'
+      if caps.unitlike = true ∧ reserved.contains T = false ∧
+          targs.length = caps.unitParams ∧
+          uslen.length = cvT.levelParams.length then do
+        let tb ← r.inferIO depth b
+        let wtb ← r.whnf depth tb
+        if ← r.defeq depth wta wtb then do
+          let tyT ← constTyAt cvT us'
+          iotaCerts r fe depth false tyT targs
+        else pure false
+      else pure false
+    | _ => pure false
+  | _ => pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1208-1233 etaCert — eta
+certification for a one-sided λ against a stuck term `b`. -/
+def etaCert (mode : CheckMode) (r : CoreFnsA) (_fe : IFEnv) (depth : Nat)
+    (ty₁ body₁ : EIdx) (m₁ : BinderMeta) (b : EIdx) : AM Bool := do
+  let tb ← r.inferIO depth b
+  match ← view (← r.whnf depth tb) with
+  | .forallE ty₂ _ m₂ => do
+    if ← r.defeq depth ty₂ ty₁ then do
+      let fv ← internE (.fvar depth ty₁)
+      let lhs ← instantiate1Fast coreWalkFuel body₁ fv 0
+      let rhs ← internE (.app b fv)
+      if !(← r.defeq (depth + 1) lhs rhs) then pure false else do
+        if mode.verifiedChecks && !(m₁.pw == m₂.pw) then
+          fail (.notImplemented "sort-annotation mismatch (eta)")
+        else pure true
+    else pure false
+  | _ => pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1235-1245 stuckIrrel — the fallback
+for structurally distinct stuck terms: structural eta in either direction,
+unit-likeness, else proof irrelevance. -/
+def stuckIrrel (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (a b : EIdx) : AM Bool := do
+  if ← structEtaCert mode r fe depth a b then pure true
+  else if ← structEtaCert mode r fe depth b a then pure true
+  else if ← structUnitCert r fe depth a b then pure true
+  else proofIrrel r fe depth a b
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1247-1255 etaFabArgs — the
+eta-rescue fabrication's argument spine: the reduced type's arguments
+followed by the installed projection functions applied to the stuck
+major. -/
+def etaFabArgs (T : NIdx) (ust : LsIdx) (targs : List EIdx) (major : EIdx)
+    (nF : Nat) : AM (List EIdx) := do
+  let ps ← projAppsGo T ust targs major nF 0
+  pure (targs ++ ps)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1257-1262 etaFabArgsE —
+`etaFabArgs` at the entry kind: the projections are `etaProjs`'. -/
+def etaFabArgsE (fe : IFEnv) (T : NIdx) (ust : LsIdx) (targs : List EIdx)
+    (major : EIdx) (nF : Nat) : AM (List EIdx) := do
+  let ps ← etaProjs fe T ust targs major nF
+  pure (targs ++ ps)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1264-1290 ProjEntry.fireOk — **the
+tower-fire guard**: at a `Prop`-declared structure the field's guard level
+must be a proposition at this instantiation; at every other family the rule
+fires unconditionally. -/
+def IProjEntry.fireOk (entry : IProjEntry) (us : LsIdx) : AM Bool := do
+  let z ← zeroLevel
+  if !((← lvlEq? entry.structSort z) == some true) then pure true
+  else do
+    let ks ← readNames entry.levelParams
+    let vs ← readLevels us
+    let fs ← readLevel entry.fieldSort
+    pure (Level.isEquiv (Level.subst ks vs fs) .zero == some true)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1292-1305 andRescueSlotsOf — the
+two-slot walk, as a counted recursion (con-leche's `(List.range 2).all`). -/
+def andRescueSlotsGo (fe : IFEnv) (an ctor : NIdx) (nP : Nat) (ust : LsIdx) :
+    Nat → Nat → AM Bool
+  | 0, _ => pure true
+  | n + 1, j => do
+    match ← fe.findProj? an j with
+    | some e => do
+      if e.ctor == ctor && e.numParams == nP && e.numFields == 2 &&
+          (← e.fireOk ust) then
+        andRescueSlotsGo fe an ctor nP ust n (j + 1)
+      else pure false
+    | none => pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1292-1305 andRescueSlotsOf
+con-leche: ConLeche/Kernel/Core.lean:1307-1309 andRescueSlots
+con-leche: ConLeche/Kernel/FEnv.lean:101-103 FEnv.andRescueSlotsF
+**The pinned `And`'s projection slots, ready to fire.**  One twin for
+con-leche's three spellings (deviation 1). -/
+def andRescueSlots (fe : IFEnv) (ctor : NIdx) (nP : Nat) (ust : LsIdx) :
+    AM Bool := do
+  let an ← pin ConLeche.andName
+  andRescueSlotsGo fe an ctor nP ust 2 0
+
 end ConRon.Arena
