@@ -193,8 +193,12 @@ pub trait PhaseObserver {
     /// The phase boundary: every record installed, `pend` checks pending, and
     /// the store as phase A left it — the node counts are the one number P6
     /// asked this line for, because they are what the install ADDED to the
-    /// persistent tier on top of the parse's (the annotation interns, and
-    /// nothing in phase A opens a scratch tier).
+    /// persistent tier on top of the parse's.  Since task #97-P6-2 phase A
+    /// runs in the SCRATCH tier and promotes what the environment keeps, so
+    /// the figure to compare with the Lean twin's (`Init`: **6 508 719**, the
+    /// parse's 6 137 973 plus 370 746) is the PERSISTENT one, printed beside
+    /// the total; phase B promotes nothing, so it is also the count at the
+    /// end of the run.
     fn install_done(&mut self, _ar: &EStore, _total: usize, _pend: usize) {}
 
     /// con-leche: Main.lean:318-421 checkDeclsIO
@@ -433,12 +437,13 @@ impl PhaseObserver for Heartbeat {
         if self.stride > 0 {
             eprintln!(
                 "con-ron-arena: install done: {}/{} declarations installed, {} checks \
-                 pending; store {} expression, {} level, {} name nodes t={}s \
-                 (install {}s)",
+                 pending; store {} expression ({} persistent), {} level, {} name nodes \
+                 t={}s (install {}s)",
                 total,
                 total,
                 pend,
                 ar.node_count(),
+                ar.pers_count(),
                 ar.ls().node_count(),
                 ar.ns().node_count(),
                 ms_secs(self.t_install),
@@ -665,7 +670,7 @@ mod tests {
                 });
             assert_eq!(streamed.decls.len(), pure.decls.len(), "chunk {}", chunk);
             assert_eq!(streamed.decls.len(), 1, "chunk {}", chunk);
-            assert_eq!(ar.node_count(), ar2.node_count(), "chunk {}", chunk);
+            assert_eq!(ar.store.node_count(), ar2.store.node_count(), "chunk {}", chunk);
         }
     }
 

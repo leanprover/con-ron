@@ -1152,10 +1152,13 @@ pub fn kinds_any(ks: &Vec<RecFieldKind>, k: &RecFieldKind, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:556-574 checkNativePass
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:320-329 checkNativePass`
+/// con-leche: ConLeche/Cached/CheckerC.lean:179-191 checkNativePassS
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:319-330 checkNativePass`
 /// — **one pass over the former and the constructors** (con-leche's task #268)
 /// at a given `is_rec` verdict.  The last component says whether the
-/// classification confirms the verdict the pass ran at.
+/// classification confirms the verdict the pass ran at.  The `flush_caches`
+/// between the former and the constructors is the executed tier's (task #97g
+/// item 4).
 pub fn check_native_pass(
     st: &mut AState,
     mode: &CheckMode,
@@ -1170,6 +1173,8 @@ pub fn check_native_pass(
             let cv_ta: IConstantVal = q.1;
             let p1: sum_parts::InductiveShape = q.2;
             let p_c: NativeParts = native_parts::complete(p0, p1);
+            // The flush at the environment transition (task #97g item 4).
+            core::flush_caches(st);
             match sum_install::check_sum_ctors(
                 st,
                 mode,
@@ -1351,15 +1356,20 @@ pub fn check_native_tail_kinds(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:576-611 checkNativeTail
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:357-361 checkNativeTail`
+/// con-leche: ConLeche/Cached/CheckerC.lean:194-217 checkNativeTailS
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:337-367 checkNativeTail`
 /// — the constructors consed, the recursor with its rules, and the projection
-/// table.
+/// table, with the executed tier's flush before the recursor (task #97g
+/// item 4).
 pub fn check_native_tail_install(
     st: &mut AState,
     mode: &CheckMode,
     q: NativePass,
 ) -> Result<IFEnv, CheckError> {
     let fe2: IFEnv = sum_install::cons_sum_ctors(q.p.shape.n_p, &q.ctors_a, 0, q.env1);
+    // The flush at the environment transition (task #97g item 4);
+    // `checkNativeTailS` is the executed tier's own site.
+    core::flush_caches(st);
     match check_native_rec(st, mode, &fe2, &q.p, &q.cv_ta, &q.ctors_a) {
         Err(e) => Err(e),
         Ok(rq) => {
@@ -1395,10 +1405,12 @@ pub fn check_native_tail_install(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:613-640 checkNative
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:367-380 checkNative`
+/// con-leche: ConLeche/Cached/CheckerC.lean:220-231 checkNativeS
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:370-383 checkNative`
 /// — check and install a **direct recursive block**: the distinct names, the
 /// pass over the former and the constructors — again where the record's
-/// syntactic reading overshot — and the install after it.
+/// syntactic reading overshot — and the install after it.  The executed
+/// tier's two flushes, one before each pass, are task #97g item 4's.
 pub fn check_native(
     st: &mut AState,
     mode: &CheckMode,
@@ -1408,6 +1420,7 @@ pub fn check_native(
     if !ctor_names_nodup(&p0.shape.ctors, 0) {
         fail(core_types::invalid(code_points(&M_NAT_DUP)))
     } else {
+        core::flush_caches(st);
         match native_raw_rec(st, p0) {
             Err(e) => Err(e),
             Ok(raw) => match check_native_pass(st, mode, fe, p0, raw) {
@@ -1417,6 +1430,7 @@ pub fn check_native(
                         check_native_tail(st, mode, fe, q.0)
                     } else {
                         let again: bool = native_is_rec(&q.0.p.kinds);
+                        core::flush_caches(st);
                         match check_native_pass(st, mode, fe, p0, again) {
                             Err(e) => Err(e),
                             Ok(q2) => {

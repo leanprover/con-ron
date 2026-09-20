@@ -653,6 +653,48 @@ pub fn intern_levels(st: &mut AState, us: &Vec<Level>) -> Result<LsIdx, CheckErr
 }
 
 // ---------------------------------------------------------------------------
+// Interning into the PERSISTENT tier — the promotion's primitives
+// (`Monad.lean:329-397`, task #97-P6-2 — ADDITIVE)
+// ---------------------------------------------------------------------------
+//
+// DESIGN.md §8.3, "Phase A runs in the scratch tier too, with promotion".
+// Four twins of `intern_e` / `intern_n_node` / `intern_l_node` /
+// `intern_ls_node` that append to the PERSISTENT tier whatever tier the store
+// is in, over `arena::store`'s `intern_persistent` family.  The capacity test
+// is the same one against the persistent array and the error is the same
+// `Native` kind — and, as with `intern_e`, the test sits one layer down here
+// (the twin's `internPersistentE` tests `sizeOf v < Idx.idxCap` at the
+// wrapper; `EStore::intern_persistent` already *is* that test).
+// `arena::promote` is the only caller.
+
+/// con-leche: none — arena infrastructure; hash-cons an expression node into the persistent tier
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:348-358 internPersistentE`.
+pub fn intern_persistent_e(st: &mut AState, v: ENodeView) -> Result<EIdx, CheckError> {
+    st.store.intern_persistent(v)
+}
+
+/// con-leche: none — arena infrastructure; hash-cons a name node into the persistent tier
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:361-371 internPersistentN`, through
+/// the nesting.
+pub fn intern_persistent_n(st: &mut AState, v: NNodeView) -> Result<NIdx, CheckError> {
+    st.store.intern_name_persistent(v)
+}
+
+/// con-leche: none — arena infrastructure; hash-cons a level node into the persistent tier
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:374-384 internPersistentL`, through
+/// the nesting.
+pub fn intern_persistent_l(st: &mut AState, v: LNodeView) -> Result<LIdx, CheckError> {
+    st.store.intern_level_persistent(v)
+}
+
+/// con-leche: none — arena infrastructure; hash-cons a universe-argument list into the persistent tier
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:387-397 internPersistentLs`, through
+/// the nesting.
+pub fn intern_persistent_ls(st: &mut AState, v: LsNodeView) -> Result<LsIdx, CheckError> {
+    st.store.intern_levels_persistent(v)
+}
+
+// ---------------------------------------------------------------------------
 // The memo tables: one probe/record/drop triple per walk
 // (`Monad.lean:334-479`)
 //

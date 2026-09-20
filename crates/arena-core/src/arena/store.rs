@@ -2403,6 +2403,177 @@ impl EStore {
 }
 
 // ---------------------------------------------------------------------------
+// Interning into the PERSISTENT tier while the scratch tier is on
+// (`Store.lean:1125-1298`, task #97-P6-2 — ADDITIVE: nothing above moves)
+// ---------------------------------------------------------------------------
+//
+// DESIGN.md §8.3, "Phase A runs in the scratch tier too, with promotion": the
+// install phase opens the scratch tier exactly as phase B does, and the
+// handles the environment KEEPS are **promoted** before the tier is dropped —
+// a memoised structural copy scratch → persistent (`arena::promote`).  The
+// copy's target is the persistent tier while the scratch tier is still live,
+// and `intern` cannot say that: it appends to the tier the store is IN.  So
+// each store gets a twin of `intern`'s `else` branch, and nothing else about
+// the store changes.
+//
+// **The probe order is `intern`'s own, minus the scratch probe**: the
+// persistent cons table first, and an entry found there is the answer — so a
+// node the parse already interned promotes to ITSELF, and a node promoted once
+// is never duplicated.  The scratch table is deliberately NOT probed: a hit
+// there would hand back a SCRATCH handle, which is the one thing the promotion
+// exists to get rid of.
+//
+// The capacity test is `intern`'s, against the PERSISTENT array and with the
+// same `Native` decline; `cap_ok_persistent` mirrors the twin's `Prop`
+// `capOKPersistent` as the `bool` its `capOK` already is here.  The WF
+// obligations — the added `childOK` precondition ("the view's children are
+// persistent") and the transient `fresh` exception the bracket repairs — are
+// the twin's section note, and P3's.
+
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1172-1185 NStore.internPersistent
+/// The name store's promote-intern.
+impl NStore {
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1172-1180 NStore.internPersistent
+    /// Hash-cons a name node into the PERSISTENT tier whatever tier the store
+    /// is in: `intern`'s `else` branch, verbatim, with no scratch probe.
+    pub fn intern_persistent(&mut self, v: NNodeView) -> Result<NIdx, CheckError> {
+        match self.pers.find(&v) {
+            Some(i) => Ok(i),
+            None => {
+                if self.pers.size_of(&v) >= IDX_CAP as usize {
+                    Err(CheckError::Native(code_points(&M_N_CAP)))
+                } else {
+                    let d = self.der_of_view(&v);
+                    Ok(self.pers.push(v, d, TIER_P))
+                }
+            }
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1184-1185 NStore.capOKPersistent
+    /// `intern_persistent`'s capacity precondition, as a test rather than a
+    /// `Prop`: the constructor's PERSISTENT array has room for one more node.
+    pub fn cap_ok_persistent(&self, v: &NNodeView) -> bool {
+        self.pers.size_of(v) < IDX_CAP as usize
+    }
+}
+
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1189-1202 LStore.internPersistent
+/// The level store's promote-intern, and the name lift through it.
+impl LStore {
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1189-1197 LStore.internPersistent
+    /// Hash-cons a level node into the persistent tier.
+    pub fn intern_persistent(&mut self, v: LNodeView) -> Result<LIdx, CheckError> {
+        match self.pers.find(&v) {
+            Some(i) => Ok(i),
+            None => {
+                if self.pers.size_of(&v) >= IDX_CAP as usize {
+                    Err(CheckError::Native(code_points(&M_L_CAP)))
+                } else {
+                    let d = self.der_of_view(&v);
+                    Ok(self.pers.push(v, d, TIER_P))
+                }
+            }
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1201-1202 LStore.capOKPersistent
+    /// The level store's capacity precondition for `intern_persistent`.
+    pub fn cap_ok_persistent(&self, v: &LNodeView) -> bool {
+        self.pers.size_of(v) < IDX_CAP as usize
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1245-1251 LStore.internNamePersistent
+    /// Promote-intern a name from the level store.
+    pub fn intern_name_persistent(&mut self, v: NNodeView) -> Result<NIdx, CheckError> {
+        self.ns.intern_persistent(v)
+    }
+}
+
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1206-1219 LsStore.internPersistent
+/// The level-list store's promote-intern, and the two lifts through it.
+impl LsStore {
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1206-1214 LsStore.internPersistent
+    /// Hash-cons a level list into the persistent tier.
+    pub fn intern_persistent(&mut self, v: LsNodeView) -> Result<LsIdx, CheckError> {
+        match self.pers.find(&v) {
+            Some(i) => Ok(i),
+            None => {
+                if self.pers.size_of(&v) >= IDX_CAP as usize {
+                    Err(CheckError::Native(code_points(&M_LS_CAP)))
+                } else {
+                    let d = self.der_of_view(&v);
+                    Ok(self.pers.push(v, d, TIER_P))
+                }
+            }
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1218-1219 LsStore.capOKPersistent
+    /// The level-list store's capacity precondition for `intern_persistent`.
+    pub fn cap_ok_persistent(&self, v: &LsNodeView) -> bool {
+        self.pers.size_of(v) < IDX_CAP as usize
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1255-1261 LsStore.internNamePersistent
+    /// Promote-intern a name from the level-list store.
+    pub fn intern_name_persistent(&mut self, v: NNodeView) -> Result<NIdx, CheckError> {
+        self.ls.intern_name_persistent(v)
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1265-1271 LsStore.internLevelPersistent
+    /// Promote-intern a level from the level-list store.
+    pub fn intern_level_persistent(&mut self, v: LNodeView) -> Result<LIdx, CheckError> {
+        self.ls.intern_persistent(v)
+    }
+}
+
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1223-1236 EStore.internPersistent
+/// The expression store's promote-intern, and the three lifts through it.
+impl EStore {
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1223-1231 EStore.internPersistent
+    /// Hash-cons an expression node into the persistent tier whatever tier the
+    /// store is in.
+    pub fn intern_persistent(&mut self, v: ENodeView) -> Result<EIdx, CheckError> {
+        match self.pers.find(&v) {
+            Some(i) => Ok(i),
+            None => {
+                if self.pers.size_of(&v) >= IDX_CAP as usize {
+                    Err(CheckError::Native(code_points(&M_E_CAP)))
+                } else {
+                    let d = self.der_of_view(&v);
+                    Ok(self.pers.push(v, d, TIER_P))
+                }
+            }
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1235-1236 EStore.capOKPersistent
+    /// The expression store's capacity precondition for `intern_persistent`.
+    pub fn cap_ok_persistent(&self, v: &ENodeView) -> bool {
+        self.pers.size_of(v) < IDX_CAP as usize
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1275-1281 EStore.internNamePersistent
+    /// Promote-intern a name from the expression store.
+    pub fn intern_name_persistent(&mut self, v: NNodeView) -> Result<NIdx, CheckError> {
+        self.lss.intern_name_persistent(v)
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1285-1291 EStore.internLevelPersistent
+    /// Promote-intern a level from the expression store.
+    pub fn intern_level_persistent(&mut self, v: LNodeView) -> Result<LIdx, CheckError> {
+        self.lss.intern_level_persistent(v)
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1295-1298 EStore.internLevelsPersistent
+    /// Promote-intern a universe-argument list from the expression store.
+    pub fn intern_levels_persistent(&mut self, v: LsNodeView) -> Result<LsIdx, CheckError> {
+        self.lss.intern_persistent(v)
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tests: `proof/ConRon/Arena/StoreTest.lean`'s forty-four `#guard`s
 // ---------------------------------------------------------------------------
 

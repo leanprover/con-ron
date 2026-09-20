@@ -2403,9 +2403,16 @@ pub fn check_member_model(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:403-414 checkIndMember
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:435-443 checkIndMember`
+/// con-leche: ConLeche/Cached/CheckerC.lean:106-112 checkIndMemberS
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:464-476 checkIndMember`
 /// — check and install one non-recursor member of a modeled inductive block
 /// against its `_model` counterpart.
+///
+/// **The flush at an environment transition** (task #97g item 4): the spec
+/// tier this twin's first citation names has no caches, the EXECUTED tier
+/// does, and it flushes them here.  A dropped row is a cache miss and nothing
+/// else, so no verdict can move; what it buys is locality (−16 % cycles on
+/// `Init`) and answers computed at the environment they are asked at.
 pub fn check_ind_member(
     st: &mut AState,
     mode: &CheckMode,
@@ -2414,6 +2421,7 @@ pub fn check_ind_member(
     fe2: IFEnv,
     ci: &IConstantInfo,
 ) -> Result<IFEnv, CheckError> {
+    core::flush_caches(st);
     match env::i_constant_info_to_constant_val(&mut st.store, ci) {
         Err(e) => Err(e),
         Ok(cv) => match check_member_val(st, mode, block_names, &fe2, &cv) {
@@ -2457,11 +2465,13 @@ pub fn check_ind_members(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:416-433 provisionRecs
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:458-469 provisionRecs`
+/// con-leche: ConLeche/Cached/CheckerC.lean:116-131 provisionRecsS
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:491-504 provisionRecs`
 /// — phase 0 of the recursor group: check each recursor's constant and
 /// provision it *rule-less* on top of the previous ones.  Lean conses the
 /// checked record on the way out; the port pushes on the way in, at the same
-/// order of effects.
+/// order of effects.  The per-recursor `flush_caches` is the executed tier's
+/// (task #97g item 4).
 pub fn provision_recs(
     st: &mut AState,
     mode: &CheckMode,
@@ -2479,6 +2489,9 @@ pub fn provision_recs(
                 let m: u64 = *m_i;
                 let rp: u64 = *r_p;
                 let rl: Vec<IRecRule> = env::i_rec_rules_dup(rules);
+                // The flush at an environment transition (task #97g item 4);
+                // `provisionRecsS` is the executed tier's own site.
+                core::flush_caches(st);
                 match env::i_constant_info_to_constant_val(&mut st.store, &recs[i]) {
                     Err(e) => Err(e),
                     Ok(cv) => match check_member_val(st, mode, block_names, &fe_acc, &cv) {
@@ -2563,7 +2576,8 @@ pub fn install_ind_recs(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:485-495 checkIndRecs`
+/// con-leche: ConLeche/Cached/CheckerC.lean:136-146 checkIndRecsS
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:520-533 checkIndRecs`
 /// — check and install a block's recursors *as a group*: every rule right-hand
 /// side may mention any of them, so all are provisioned rule-less together and
 /// installed together.  The twin uses `fe₂` four times; Lean's value semantics
@@ -2596,7 +2610,12 @@ pub fn check_ind_recs(
                         Vec::new(),
                     ) {
                         Err(e) => Err(e),
-                        Ok(pq) => install_ind_recs(st, mode, &fe_env, &pq.0, &f, fe2, &pq.1, 0),
+                        Ok(pq) => {
+                            // One flush entering the install phase, none
+                            // inside the fold (task #97g item 4).
+                            core::flush_caches(st);
+                            install_ind_recs(st, mode, &fe_env, &pq.0, &f, fe2, &pq.1, 0)
+                        }
                     }
                 }
             },
@@ -3567,9 +3586,11 @@ pub fn ctor_targets_fam(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:712-722 installProjFnStep
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:702-706 installProjFnStep`
+/// con-leche: ConLeche/Cached/CheckerC.lean:170-176 installProjFnStepS
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:740-745 installProjFnStep`
 /// — one projection-function install step (skipped where the model's
-/// projection artifact is absent).
+/// projection artifact is absent), with the executed tier's flush at the
+/// environment transition (task #97g item 4).
 pub fn install_proj_fn_step(
     st: &mut AState,
     mode: &CheckMode,
@@ -3585,6 +3606,7 @@ pub fn install_proj_fn_step(
         Err(er) => Err(er),
         Ok(pmn) => {
             if env::ifenv_find(&e, &pmn).is_some() {
+                core::flush_caches(st);
                 check_proj_fn(st, mode, e, t, ctor_name, lps, n_p, n_f, i)
             } else {
                 Ok(e)

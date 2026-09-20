@@ -83,10 +83,10 @@ use crate::arena::env::{
     IConstantInfo, IConstantVal, IFEnv, IIndCaps, IProjEntry, IRecRule, IRecRuleFire,
 };
 use crate::arena::expr_ops::{
-    abstract1_fast, cons_eidx, fvar_leaves, get_app_args, get_app_fn,
+    abstract1_fast, cons_eidx, get_app_args, get_app_fn,
     has_fvar_fast, instantiate1_fast, instantiate_list_fast, inst_lp_fast, inst_spine,
-    lam_pw, loose_bvars_bounded_fast, mk_app_n, pi_result, rec_rule_plain, strip_pis,
-    take_eidx, wscoped_b,
+    lam_pw, leaf_guard, loose_bvars_bounded_fast, mk_app_n, pi_result, rec_rule_plain, strip_pis,
+    take_eidx, wscoped_b_fast,
 };
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx, ETAG_FORALL_E, ETAG_LAM, ETAG_LIT, ETAG_SORT};
 use crate::arena::monad::{
@@ -4940,29 +4940,34 @@ pub fn leaf_contains(ys: &Vec<(u64, EIdx)>, i: u64, ty: &EIdx, j: usize) -> bool
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1311-1493 majorToCtor
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1599-1605 fabScopeOk` — the scope
+/// con-leche: ConLeche/Cached/CoreC.lean:544-569 majorToCtorI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1621-1624 fabScopeOk` — the scope
 /// guard the three rescue branches share: the fabricated major is well-scoped,
 /// closed under loose bvars, and mentions no free variable the stuck major
 /// does not.
+///
+/// **The three tests are the EXECUTED tier's** (task #97g item 5).
+/// `Kernel/Core.lean` spells the last one `fab.fvarLeaves.all (fun l =>
+/// major.fvarLeaves.contains l)`, and task #97-P4d ported that literally: two
+/// unmemoized DAG walks and a quadratic list containment, which on
+/// `core.ndjson`'s first 27 920 declarations was 43.9 % of the whole run's
+/// cycles.  `Cached/CoreC.lean` runs `wscopedBC`, `looseBVarsBounded` off the
+/// packed field and `leafGuard` — the same predicate, one memoized walk each —
+/// and those are what runs here.  `fvar_leaves_subset` above stays as the
+/// specification of what `leaf_guard` decides.
 pub fn fab_scope_ok(
     st: &mut AState,
     depth: u64,
     fab: &EIdx,
     major: &EIdx,
 ) -> Result<bool, CheckError> {
-    match wscoped_b(st, CORE_WALK_FUEL, depth, fab) {
+    match wscoped_b_fast(st, CORE_WALK_FUEL, depth, fab) {
         Err(e) => Err(e),
         Ok(false) => Ok(false),
         Ok(true) => match loose_bvars_bounded_fast(st, CORE_WALK_FUEL, 0, fab) {
             Err(e) => Err(e),
             Ok(false) => Ok(false),
-            Ok(true) => match fvar_leaves(st, CORE_WALK_FUEL, fab) {
-                Err(e) => Err(e),
-                Ok(fl) => match fvar_leaves(st, CORE_WALK_FUEL, major) {
-                    Err(e) => Err(e),
-                    Ok(ml) => Ok(fvar_leaves_subset(&fl, &ml)),
-                },
-            },
+            Ok(true) => leaf_guard(st, CORE_WALK_FUEL, fab, major),
         },
     }
 }
