@@ -1388,12 +1388,164 @@ their cost estimate; each is a bookkeeping induction over the ten
 constructors' arrays, not a new idea — `intern_ext` above is the same
 argument carried all the way through. -/
 
+/-! ### The freshly appended node decodes
+
+`ETables.push_spec` is the ten-way tag dispatch done once: the new handle's
+tag and index round-trip (`Idx.tag_mk`, `Idx.idxNat_mk`), so `get` finds the
+record `Array.push` just wrote (`Tbl.node?_push_new`), and its tier bit is the
+tier it was appended to. -/
+
+theorem Idx.isPersistent_mkP {k : IdxKind} (tg n : UInt32) (htg : tg.toNat < 16)
+    (hn : n.toNat < idxCap) : (mk (k := k) tg tierP n).isPersistent = true := by
+  have h2 : (tierP : UInt32).toNat < 2 := by decide
+  show ((mk (k := k) tg tierP n).tier == 0) = true
+  rw [tier_mk tg tierP n htg h2 hn]
+  decide
+
+theorem Idx.isPersistent_mkS {k : IdxKind} (tg n : UInt32) (htg : tg.toNat < 16)
+    (hn : n.toNat < idxCap) : (mk (k := k) tg tierS n).isPersistent = false := by
+  have h2 : (tierS : UInt32).toNat < 2 := by decide
+  show ((mk (k := k) tg tierS n).tier == 0) = false
+  rw [tier_mk tg tierS n htg h2 hn]
+  decide
+
+private theorem ofNat_lt_cap {n : Nat} (h : n < Idx.idxCap) :
+    (UInt32.ofNat n).toNat < Idx.idxCap := by
+  rw [Idx.idxCap] at h ⊢; simp; omega
+
+theorem ETables.push_spec (t : ETables) (w : ENodeView) (d : UInt64) (tr : UInt32)
+    (htr : tr.toNat < 2) (hcap : t.sizeOf w < Idx.idxCap) :
+    (t.push w d tr).1.get (t.push w d tr).2 = some w ∧
+      (t.push w d tr).2.tier = tr := by
+  simp only [ETables.sizeOf] at hcap
+  cases w with
+  | bvar i =>
+    have htg : (ETag.bvar : UInt32).toNat < 16 := by decide
+    have hn := ofNat_lt_cap hcap
+    refine ⟨?_, ?_⟩
+    · simp only [ETables.push, ETables.get, Idx.tag_mk _ _ _ htg htr hn,
+        Idx.idxNat_mk _ _ _ htg htr hcap]
+      simp [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam,
+        ETag.forallE, ETag.letE, ETag.lit, ETag.proj, Tbl.node?_push_new]
+    · simp only [ETables.push, Idx.tier_mk _ _ _ htg htr hn]
+  | fvar j ty =>
+    have htg : (ETag.fvar : UInt32).toNat < 16 := by decide
+    have hn := ofNat_lt_cap hcap
+    refine ⟨?_, ?_⟩
+    · simp only [ETables.push, ETables.get, Idx.tag_mk _ _ _ htg htr hn,
+        Idx.idxNat_mk _ _ _ htg htr hcap]
+      simp [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam,
+        ETag.forallE, ETag.letE, ETag.lit, ETag.proj, Tbl.node?_push_new]
+    · simp only [ETables.push, Idx.tier_mk _ _ _ htg htr hn]
+  | sort u =>
+    have htg : (ETag.sort : UInt32).toNat < 16 := by decide
+    have hn := ofNat_lt_cap hcap
+    refine ⟨?_, ?_⟩
+    · simp only [ETables.push, ETables.get, Idx.tag_mk _ _ _ htg htr hn,
+        Idx.idxNat_mk _ _ _ htg htr hcap]
+      simp [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam,
+        ETag.forallE, ETag.letE, ETag.lit, ETag.proj, Tbl.node?_push_new]
+    · simp only [ETables.push, Idx.tier_mk _ _ _ htg htr hn]
+  | const n us =>
+    have htg : (ETag.const : UInt32).toNat < 16 := by decide
+    have hn := ofNat_lt_cap hcap
+    refine ⟨?_, ?_⟩
+    · simp only [ETables.push, ETables.get, Idx.tag_mk _ _ _ htg htr hn,
+        Idx.idxNat_mk _ _ _ htg htr hcap]
+      simp [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam,
+        ETag.forallE, ETag.letE, ETag.lit, ETag.proj, Tbl.node?_push_new]
+    · simp only [ETables.push, Idx.tier_mk _ _ _ htg htr hn]
+  | app f a =>
+    have htg : (ETag.app : UInt32).toNat < 16 := by decide
+    have hn := ofNat_lt_cap hcap
+    refine ⟨?_, ?_⟩
+    · simp only [ETables.push, ETables.get, Idx.tag_mk _ _ _ htg htr hn,
+        Idx.idxNat_mk _ _ _ htg htr hcap]
+      simp [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam,
+        ETag.forallE, ETag.letE, ETag.lit, ETag.proj, Tbl.node?_push_new]
+    · simp only [ETables.push, Idx.tier_mk _ _ _ htg htr hn]
+  | lam ty b m =>
+    have htg : (ETag.lam : UInt32).toNat < 16 := by decide
+    have hn := ofNat_lt_cap hcap
+    refine ⟨?_, ?_⟩
+    · simp only [ETables.push, ETables.get, Idx.tag_mk _ _ _ htg htr hn,
+        Idx.idxNat_mk _ _ _ htg htr hcap]
+      simp [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam,
+        ETag.forallE, ETag.letE, ETag.lit, ETag.proj, Tbl.node?_push_new]
+    · simp only [ETables.push, Idx.tier_mk _ _ _ htg htr hn]
+  | forallE ty b m =>
+    have htg : (ETag.forallE : UInt32).toNat < 16 := by decide
+    have hn := ofNat_lt_cap hcap
+    refine ⟨?_, ?_⟩
+    · simp only [ETables.push, ETables.get, Idx.tag_mk _ _ _ htg htr hn,
+        Idx.idxNat_mk _ _ _ htg htr hcap]
+      simp [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam,
+        ETag.forallE, ETag.letE, ETag.lit, ETag.proj, Tbl.node?_push_new]
+    · simp only [ETables.push, Idx.tier_mk _ _ _ htg htr hn]
+  | letE ty v b =>
+    have htg : (ETag.letE : UInt32).toNat < 16 := by decide
+    have hn := ofNat_lt_cap hcap
+    refine ⟨?_, ?_⟩
+    · simp only [ETables.push, ETables.get, Idx.tag_mk _ _ _ htg htr hn,
+        Idx.idxNat_mk _ _ _ htg htr hcap]
+      simp [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam,
+        ETag.forallE, ETag.letE, ETag.lit, ETag.proj, Tbl.node?_push_new]
+    · simp only [ETables.push, Idx.tier_mk _ _ _ htg htr hn]
+  | lit l =>
+    have htg : (ETag.lit : UInt32).toNat < 16 := by decide
+    have hn := ofNat_lt_cap hcap
+    refine ⟨?_, ?_⟩
+    · simp only [ETables.push, ETables.get, Idx.tag_mk _ _ _ htg htr hn,
+        Idx.idxNat_mk _ _ _ htg htr hcap]
+      simp [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam,
+        ETag.forallE, ETag.letE, ETag.lit, ETag.proj, Tbl.node?_push_new]
+    · simp only [ETables.push, Idx.tier_mk _ _ _ htg htr hn]
+  | proj n j e =>
+    have htg : (ETag.proj : UInt32).toNat < 16 := by decide
+    have hn := ofNat_lt_cap hcap
+    refine ⟨?_, ?_⟩
+    · simp only [ETables.push, ETables.get, Idx.tag_mk _ _ _ htg htr hn,
+        Idx.idxNat_mk _ _ _ htg htr hcap]
+      simp [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam,
+        ETag.forallE, ETag.letE, ETag.lit, ETag.proj, Tbl.node?_push_new]
+    · simp only [ETables.push, Idx.tier_mk _ _ _ htg htr hn]
+
 /-- con-leche: none — `view` of a freshly interned handle is the node that was
 interned (DESIGN §8.3's `view`/`intern` pair). -/
 theorem EStore.intern_view_spec {st : EStore} {w : ENodeView} (h : StoreWF st)
-    (hv : st.ViewOK w) (hcap : st.capOK w) :
+    (_hv : st.ViewOK w) (hcap : st.capOK w) :
     (st.intern w).1.view (st.intern w).2 = some w := by
-  sorry
+  obtain ⟨rk, hwf⟩ := h
+  simp only [EStore.capOK] at hcap
+  simp only [EStore.intern]
+  split
+  · rename_i i heq
+    exact ((hwf.consP w i).mp heq).1
+  · split
+    · rename_i hon
+      split
+      · rename_i i heq
+        exact ((hwf.consS w i).mp heq).1
+      · rw [if_pos hon] at hcap
+        have hspec := ETables.push_spec st.scr w (st.derOfView w) Idx.tierS
+          (by decide) hcap
+        have hp : ((st.scr.push w (st.derOfView w) Idx.tierS).2).isPersistent = false := by
+          show (_ == 0) = false
+          rw [hspec.2]; decide
+        simp only [EStore.view]
+        rw [if_neg (by simp [hp]), if_pos hon]
+        exact hspec.1
+    · rename_i hoff
+      rw [if_neg hoff] at hcap
+      have hspec := ETables.push_spec st.pers w (st.derOfView w) Idx.tierP
+        (by decide) hcap
+      have hp : ((st.pers.push w (st.derOfView w) Idx.tierP).2).isPersistent = true := by
+        show (_ == 0) = true
+        rw [hspec.2]; decide
+      simp only [EStore.view]
+      rw [if_pos hp]
+      exact hspec.1
+
 
 /-- con-leche: Setlec/Kernel/IExpr.lean:464 intern — `intern` preserves the
 store invariant. -/

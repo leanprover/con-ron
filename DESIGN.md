@@ -20220,6 +20220,7 @@ theorem LsStore.derived_exact : … = ⟨levelsHash xs, levelsHaveParam xs⟩
 theorem EStore.derived_exact  : denoteE st i = some x → st.derived i = x.data
 theorem Option.map_mono / Tbl.node?_push / Tbl.node?_push_new
       / ETables.get_mono / ETables.get_push_mono
+theorem Idx.isPersistent_mkP / isPersistent_mkS / ETables.push_spec
 theorem EStore.view_intern_mono / lss_intern / nodeCount_intern_le
 theorem denoteEAux_store_mono
 theorem EStore.intern_ext  : Ext st (st.intern w).1
@@ -20347,17 +20348,18 @@ witness.
 
 #### The sorry list
 
-Fourteen, all in `WFProofs.lean`, all of the same shape: a bookkeeping
+Thirteen, all in `WFProofs.lean`, all of the same shape: a bookkeeping
 induction over the per-constructor arrays that `ETables.get_mono` /
 `get_push_mono` / `intern_ext` already carry out for `Ext`, repeated for the
 other invariant clauses and for the three smaller stores.  **None of the
 three the brief names as load-bearing is among them** — `denoteE_inj` and
-`EStore.derived_exact` are complete, and `EStore.intern_spec` is *proved*
-from the two lemmas below, so closing those closes it.
+`EStore.derived_exact` are complete, `EStore.intern_view_spec` was closed
+(`ETables.push_spec`, the ten-way tag dispatch done once), and
+`EStore.intern_spec` is *proved* from `intern_view_spec` and `intern_wf`, so
+`intern_wf` alone closes it.
 
 | theorem | what is missing | estimate |
 |---|---|---|
-| `EStore.intern_view_spec` | the new handle decodes: `Idx.idxNat_mk` plus `Tbl.node?_push_new` through the ten-way tag dispatch | ½ day |
 | `EStore.intern_wf` | the fifteen `EWFAt` clauses after one append (cons graph, freshness, `derExact` at the new node, the rank update `rk' = update rk new (persCount or nodeCount)`) | 1½ days |
 | `EStore.enableScratch_wf` | `EWFAt` with `scr := empty, scratchOn := true`; every clause is the old one restricted | ¼ day |
 | `EStore.dropScratch_wf` | ditto with `scratchOn := false`; the only real content is that `childOK`'s persistent-closure conjunct keeps `derExact` pointwise | ¼ day |
@@ -20375,23 +20377,27 @@ answer is a local `tag_cases` macro, and P2b should write it first.
 
 #### Numbers
 
-| | lines |
+| | non-blank lines |
 |---|---|
 | code (definitions, instances, `#guard`s) | 1 109 |
-| proof (theorems and their tactic blocks) | 1 426 |
-| prose (module docs, section headers, citations) | 636 |
-| **total** | **3 648** |
+| proof (theorems and their tactic blocks) | 1 566 |
+| prose (module docs, section headers, citations) | 641 |
+| **total** | **3 316** (3 800 with blanks) |
 
-Per module: `Handle` 246, `Store` 1 103, `Denote` 297, `WF` 295, `WFProofs`
-1 518, `StoreTest` 169, `Arena` 20.  The proof-to-code ratio is **1.3 : 1**
-against con-leche's arena-era **4.3 : 1** (§6 lesson 39) — the gap is the
-fourteen open lemmas and, more, the tier regime §8.3 simplifies away.
+Per module (raw lines): `Handle` 246, `Store` 1 103, `Denote` 297, `WF` 295,
+`WFProofs` 1 670, `StoreTest` 169, `Arena` 20.  The proof-to-code ratio is
+**1.4 : 1** against con-leche's arena-era **4.3 : 1** (§6 lesson 39) — the
+gap is the thirteen open lemmas and, more, the tier regime §8.3 simplifies
+away.
 
 `lake build ConRonArena` from a clean `.lake/build/…/Arena*`, three runs:
-**6.28 / 6.18 / 6.18 s** wall (`LEAN_NUM_THREADS=8`).  Per module: `Handle`
-0.64 s, `Store` 2.3 s, `Denote` 0.57 s, `WF` 0.48 s, `StoreTest` 0.42 s,
-`WFProofs` 1.2 s, `Arena` 0.21 s.  Nothing here needs `maxHeartbeats`
-(contrast §6 lesson 36: con-leche's interned tower needed 2 M–12.8 M).
+**6.20 / 5.78 s** wall on an idle machine and **20.4 s** on the third, which
+overlapped a full `lake build` of the Mathlib-side targets — the spread is
+contention, not variance.  Per module: `Handle` 0.57 s, `Store` 2.3 s,
+`Denote` 0.59 s, `WF` 0.45 s, `StoreTest` 0.43 s, `WFProofs` 1.3 s, `Arena`
+0.21 s (`LEAN_NUM_THREADS=8`).  Nothing here needs `maxHeartbeats` (contrast
+§6 lesson 36: con-leche's interned tower needed 2 M–12.8 M).  A full `lake
+build` of `proof/` with `ConRonArena` in `defaultTargets` succeeds.
 
 `StoreTest.lean` is 40 kernel-reduced `#guard`s: the handle layout; the same
 node interned twice giving the same handle; cross-tier dedup (a persistent
