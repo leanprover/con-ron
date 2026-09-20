@@ -20079,3 +20079,175 @@ mended (a link edit, within the README rule).
 **Gates.**  Fast gates green; the link expectation regenerated (67 links,
 36 files); `holes.sh --check` 22/22.  Extraction and the proofs are
 untouched.
+
+### Task #97t — P2 tooling (2026-09-20, Opus under Fable)
+
+The tooling half of §8.6's P2, landed on `arena` beside the store agent's
+P2a.  Four deliverables, four commits, plus a one-line follow-up.  Nothing
+here is a checker; all of it is what lets the checker be *measured* from
+its first line instead of argued about.
+
+**1. `scripts/diff-e2e.sh --bin=PATH`.**  The 348-fixture differential
+against any binary that speaks con-leche's command line (`FILE.ndjson`,
+`--verified`/`--trusted`, `--jobs=<n>`, `--progress[=<stride>]`, exit codes
+0/1/2/3).  The default is unchanged and is the only shape the gates and CI
+use: `cargo build --release -p con-ron`, then `target/release/con-ron`.
+With `--bin` the script does NOT build — the caller owns the binary's
+freshness — a non-executable path is a usage error (exit 3), and a relative
+path resolves against the directory the script was *invoked* from, since
+the script `cd`s to the repository root first.  The binary is named in the
+summary, in the log's header and in every `DIFFER` line (which used to say
+the literal "con-ron" whatever produced the code).
+
+*Verified*: the default sweep 348/348 agree; `--bin` at the same binary by
+absolute path, 348/348 agree with byte-identical counters; `--bin` by
+relative path on the `e2e/tower` subset, 13/13; `--bin=/nonexistent` exits
+3; a stub binary that always exits 1 reports DIFFER 13/15 on the `annot`
+suite and the script exits 1.  **con-leche's own binary was NOT built**:
+`proof/.lake/packages/con-leche/.lake/build` holds `ir/` and `lib/` only,
+there is no `bin/`, nothing under `_tmp/` has one, and building inside the
+package directory is out of bounds for an agent (CLAUDE.md — the package
+directory is shared between worktrees).  So the foreign-binary lane was
+verified with con-ron's own binary twice plus the stub, and the first real
+foreign binary is `con-ron-lean` below.
+
+**2. `scripts/provenance.py` reads Lean.**  (B) is a port of con-leche
+written in Lean in this repository, so it belongs inside the gate that
+keeps the port in sync — the proofs would catch drift eventually, the way
+they do for the Rust, and just as uselessly late.  `proof/ConRon/Arena/**`
+joins the roots; the annotation is a doc line, `/-- con-leche: <path>:<a>-<b>
+<decl> -/` or `/-- con-leche: none — <why> -/`, with the same `check`,
+`update` and `coverage` semantics as the Rust side.  §3.7 has the rules;
+four things are new.
+
+  * A citation may OPEN a multi-line doc comment (the delta from the cited
+    code then follows it, as in the Rust), and a bare `con-leche:` line
+    inside one counts, so a twin merging several con-leche declarations
+    lists them one per line.  `update` rewrites the body between the exact
+    text it found on either side of it, so `/-- … -/` survives intact.
+  * A `theorem` need not cite: a theorem in `Arena/` is the arena's OWN
+    verification (§8.6 P2a's store lemmas, §8.2's bridge), not a port of
+    anything.  A cited one is still checked.
+  * The `CHANGED` marker's comment form is `--`, and the lemma it names is
+    the bridge (`…_bridge`), not `…_refines`.  A small `lean_block_start`
+    keeps a marked citation attached to its item, so a marked item does not
+    also read as UNCITED.
+  * `coverage` keeps the two ledgers APART.  The Rust group's numbers do
+    not move when an arena twin lands (verified: `TOTAL 927/927` and
+    `progress.py`'s three rows identical before and after), and the arena's
+    coverage of the same con-leche declarations prints as a second group,
+    *Arena checker (Lean)*, over the same denominator — which is what
+    `scripts/progress.py` will read when (B) is worth a column.  A
+    declaration `provenance-skip.txt` excuses the **Rust** port from counts
+    as "beyond", not as a finding: that file answers a different question.
+
+The Lean parser is a regex over a language whose comments nest, so it has a
+fixture: `scripts/testdata/provenance/{good,bad}/*.lean`, one declaration
+per accepted shape (one-line citation, doc-opening citation, two citations
+on one item, `none`, uncited theorem, cited theorem) and one per finding
+(MISSING, RANGE, NODECL, NAME, MALFORMED, UNCITED, UNRECONCILED).
+`scripts/provenance-selftest.py` fills the line ranges in from `locate` at
+the *current* pin before scanning — so a con-leche bump moves the fixture
+with the tree instead of rotting it — and asserts the exact finding set.
+It is gate 5; OVERVIEW §12's list and the `gates.sh` anchor moved with it.
+
+**3. `con-ron-lean`, the arena checker's driver.**  §8.6 P2f is "348/348
+and `Init` parity", and what decides it is `diff-e2e.sh --bin=…` on a
+binary — so the binary comes first and the checker behind it is a stub.
+`proof/ConRon/Arena/Main.lean` + a `[[lean_exe]]` (root
+`ConRon.Arena.Main`; **not** a default target, so `lake build` is
+untouched).  It is con-leche's `Main.lean`: the flags validated exactly as
+`Main.lean:423-459` validates them, `--no-mark-persistent` accepted and
+ignored, `--help` in any argument position on stdout with exit 0, the
+0/1/2/3 mapping of `CheckError.exitCode` verbatim, the verdict line
+`accepted N declarations (--verified)` whose N is the FILE's
+declaration-record count, and the input read strictly forward in 4 MiB
+chunks off a handle that is never seeked or re-opened.
+
+Everything below the command line is ONE function,
+
+    runPipeline : List ByteArray → CheckMode → List NatOpPinSet
+                → Except CheckError Nat
+
+today `.error (.notImplemented "arena checker not yet implemented")` —
+exit 2.  P2b–P2e fill it in without touching the driver, and §8.2's
+capstone is a statement about this one function.  `CheckMode` and
+`CheckError` are copied verbatim (census class (P)); `NatOpPinSet` is a
+marked placeholder, since its sixteen `Expr` fields are class (T) and need
+handles that do not exist before P2a; `natOpPinSets` is empty, i.e.
+`--no-pins`.  No `import ConRon.Refine`, and no `ConLeche.*` either: a twin
+that imports its original proves nothing.
+
+*Verified*: `lake build con-ron-lean` green under `ulimit -v 12000000`
+with `LEAN_NUM_THREADS=2`; `--help` exits 0; six usage-error paths exit 3
+with con-leche's own messages; a fixture declines with exit 2 and, with
+`--progress`, prints the read heartbeat first.  **The P2f baseline**:
+`scripts/diff-e2e.sh --bin=proof/.lake/build/bin/con-ron-lean` runs all 348
+— **36 agree, 312 DIFFER, 0 timed out, 0 other errors**.  The 36 are the
+fixtures con-leche itself declines, which a checker that declines
+everything gets right for the wrong reason; they are not credit, they are
+the floor a real P2f run has to rise from.
+
+**4. The twins census**, `_tmp/t97/twins-census.md` with a committed copy at
+`proof/ConRon/Arena/CENSUS.md` so the work list ships with the code it is
+about.  Every top-level definition of every con-leche module (B) must
+mirror, with its line range at the pin, its signature, its class and — for
+(T) — the twin's intended signature.  Generated off `provenance.py`'s own
+block locator (`_tmp/t97/{census,gencensus}.py`), so a row IS a citation
+body once a name is put after it.
+
+    phase                        decls   lines    (T)      (P)     (S)
+    P2a  stores/representation      72     759   47/653   15/58   10/48
+    P2b  ExprOps twins              81   1 005   70/972    0/0    11/33
+    P2c  Core twins + environment  236   3 940  190/3385  31/362  15/193
+    P2d  DeclCheck/Checker/…       423   5 407  366/5052  17/129  40/226
+    P2e  parser into the store      82   1 265   53/979   27/270   2/16
+    all                           894  12 376  726/11041  90/819  78/516
+
+12 376 con-leche lines to mirror is the independent check on §8.6's ~12 k
+budget for (B): about right for a one-for-one transliteration, with no room
+in it for the store's own apparatus — which is P2a's, and appears in P2a's
+row only as the `Name`/`Level`/`Expr` representation it replaces.
+
+(T) is the five term types of the brief plus the records that carry one in
+a field (`ConstantVal`, `RecRule`, `ProjEntry`, `ProjTable`, `IndCaps`,
+`InductiveType`, `Constructor`, `Env`, `FEnv`) — they need a handle twin
+for exactly the same reason.  (S) rows print their `provenance-skip.txt`
+reason AND the class they would otherwise have, because a skip is a fact
+about the **Rust** port and not a ruling for the arena.
+
+The two inventories §8.3 asks for by name:
+
+  * **`view`** — 163 bodies consume a term STRUCTURALLY (a match arm on its
+    constructors), so their shape changes and not merely their types; these
+    are the bodies the bridge's `denote`-commutation lemmas are written
+    for.  `Level` arms are called out apart: lesson 4 keeps the level
+    ALGORITHMS on read-back trees, so a `Level` arm costs a readback lemma
+    and not a commutation one.
+  * **`==`** — 293 comparison lines where index equality replaces
+    structural equality, each owing the bridge `denote h₁ = denote h₂ ↔
+    h₁ = h₂`.  §8.3's point exactly: exactness is a SOUNDNESS obligation,
+    because `defeqBody`'s `a == b` shortcut only ever returns `true` and
+    would still send the arena down an arm the pure run never took.
+
+The twin column is the mechanical transliteration (`Expr ↦ EIdx`, …, result
+wrapped in `AM`) with the `(ops : CheckerOps m)` binder dropped per §8.2,
+and the census says where the rule is knowingly too crude: a derived-word
+predicate wants no monad at all, `ExprOps`' explicitly threaded memo pairs
+become `AState` fields, `List Expr` spines are P2a's open question, and the
+frontend's own `M` collapses into `AM`.  `ConLeche/Kernel/NatOpPins.lean`
+has no top-level definitional declaration at all — its variants are spliced
+by `#load_natop_pins` out of the committed dumps — and is recorded as such
+rather than silently omitted.
+
+**Gates.**  `cargo build`/`cargo test` (warnings denied), `lint-rust-style`,
+`provenance.py check` (2 363 Rust + 18 arena Lean items, 2 399 citations),
+`provenance-selftest.py`, `overview-links.sh` (67 links, 36 files, the
+expectation regenerated for the new gate line), `holes.sh --check` (22/22),
+`gen-pins.sh --check`, `gen-prelude.sh --check`, `extract.sh --check` — all
+green.  `lake build` of the whole proof library was NOT re-run: this
+worktree has no built `.lake` for it (hours from cold) and the branch adds
+no module to the `ConRon` library root — `ConRon.lean` does not import
+`ConRon.Arena.Main`, and the executable is not a default target — so
+nothing in that gate's scope changed.  `lake build con-ron-lean` is green,
+which is the part that is new.
