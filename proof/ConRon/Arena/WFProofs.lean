@@ -1344,4 +1344,174 @@ theorem EStore.intern_ext (st : EStore) (w : ENodeView) :
         (by have := EStore.nodeCount_intern_le st w; omega) h
     exact hmono _ i e h1
 
+/-! ## The scratch-tier bracket
+
+`enableScratch` and `dropScratch` touch only the scratch arrays and the
+scratch flag, so a *persistent* handle's `view` is literally unchanged — that
+is the whole point of putting the tier bit above the index instead of in the
+low bit (DESIGN §8.3, con-leche's lesson 6). -/
+
+theorem EStore.view_dropScratch_pers (st : EStore) {i : EIdx}
+    (hp : i.isPersistent = true) : st.dropScratch.view i = st.view i := by
+  simp [EStore.view, EStore.dropScratch, hp]
+
+theorem EStore.view_dropScratch_scr (st : EStore) {i : EIdx}
+    (hp : i.isPersistent = false) : st.dropScratch.view i = none := by
+  simp [EStore.view, EStore.dropScratch, hp]
+
+theorem EStore.view_enableScratch_pers (st : EStore) {i : EIdx}
+    (hp : i.isPersistent = true) : st.enableScratch.view i = st.view i := by
+  simp [EStore.view, EStore.enableScratch, hp]
+
+theorem EStore.view_enableScratch_scr (st : EStore) {i : EIdx}
+    (hp : i.isPersistent = false) : st.enableScratch.view i = none := by
+  simp [EStore.view, EStore.enableScratch, hp, ETables.empty, ETables.get,
+    Tbl.empty, Tbl.node?]
+
+/-- A scratch handle denotes nothing once the scratch tier is dropped: this is
+the invalidation half of `dropScratch_spec`. -/
+theorem denoteE_dropScratch_scr (st : EStore) {i : EIdx}
+    (hp : i.isPersistent = false) : denoteE st.dropScratch i = none := by
+  simp only [denoteE, denoteEAux, EStore.view_dropScratch_scr st hp,
+    Option.bind_none]
+
+theorem denoteE_enableScratch_scr (st : EStore) {i : EIdx}
+    (hp : i.isPersistent = false) : denoteE st.enableScratch i = none := by
+  simp only [denoteE, denoteEAux, EStore.view_enableScratch_scr st hp,
+    Option.bind_none]
+
+/-! ## The remaining store-operation specifications
+
+These are the signatures the later phases of task #97 program against.  The
+three proofs left open at P2a are recorded in DESIGN.md §"Task #97a" with
+their cost estimate; each is a bookkeeping induction over the ten
+constructors' arrays, not a new idea — `intern_ext` above is the same
+argument carried all the way through. -/
+
+/-- con-leche: none — `view` of a freshly interned handle is the node that was
+interned (DESIGN §8.3's `view`/`intern` pair). -/
+theorem EStore.intern_view_spec {st : EStore} {w : ENodeView} (h : StoreWF st)
+    (hv : st.ViewOK w) (hcap : st.capOK w) :
+    (st.intern w).1.view (st.intern w).2 = some w := by
+  sorry
+
+/-- con-leche: Setlec/Kernel/IExpr.lean:464 intern — `intern` preserves the
+store invariant. -/
+theorem EStore.intern_wf {st : EStore} {w : ENodeView} (h : StoreWF st)
+    (hv : st.ViewOK w) (hcap : st.capOK w) : StoreWF (st.intern w).1 := by
+  sorry
+
+/-- con-leche: Setlec/Kernel/IExpr.lean:464 intern — **`intern_spec`**: the
+store stays well formed, the arena only grows, the new handle decodes to the
+node that was interned, and it denotes that node's denotation. -/
+theorem EStore.intern_spec {st : EStore} {w : ENodeView} (h : StoreWF st)
+    (hv : st.ViewOK w) (hcap : st.capOK w) :
+    StoreWF (st.intern w).1 ∧ Ext st (st.intern w).1 ∧
+      (st.intern w).1.view (st.intern w).2 = some w ∧
+      denoteE (st.intern w).1 (st.intern w).2 = denoteEView (st.intern w).1 w := by
+  have hwf := EStore.intern_wf h hv hcap
+  have hview := EStore.intern_view_spec h hv hcap
+  refine ⟨hwf, EStore.intern_ext st w, hview, ?_⟩
+  obtain ⟨rk', hwf'⟩ := hwf
+  exact denoteE_unfold hwf' hview
+
+/-- con-leche: Setlec/Kernel/IExpr.lean:472 enableTierTwo -/
+theorem EStore.enableScratch_wf {st : EStore} (h : StoreWF st) :
+    StoreWF st.enableScratch := by
+  sorry
+
+/-- con-leche: Setlec/Kernel/IExpr.lean:472 enableTierTwo — opening the
+scratch tier keeps the invariant and changes no persistent handle. -/
+theorem EStore.enableScratch_spec {st : EStore} (h : StoreWF st) :
+    StoreWF st.enableScratch ∧
+      (∀ i, i.isPersistent = true → st.enableScratch.view i = st.view i) ∧
+      (∀ i, i.isPersistent = false → denoteE st.enableScratch i = none) :=
+  ⟨EStore.enableScratch_wf h, fun i hp => EStore.view_enableScratch_pers st hp,
+   fun i hp => denoteE_enableScratch_scr st hp⟩
+
+/-- con-leche: Setlec/Kernel/IExpr.lean:480 truncateTierTwo -/
+theorem EStore.dropScratch_wf {st : EStore} (h : StoreWF st) :
+    StoreWF st.dropScratch := by
+  sorry
+
+/-- con-leche: Setlec/Kernel/IExpr.lean:480 truncateTierTwo — dropping the
+scratch tier keeps every persistent denotation and invalidates every scratch
+handle. -/
+theorem EStore.dropScratch_denote_pers {st : EStore} (h : StoreWF st)
+    {i : EIdx} {e : Expr} (hp : i.isPersistent = true)
+    (hd : denoteE st i = some e) : denoteE st.dropScratch i = some e := by
+  sorry
+
+/-- con-leche: Setlec/Kernel/IExpr.lean:480 truncateTierTwo — **the** tier
+discipline in one statement. -/
+theorem EStore.dropScratch_spec {st : EStore} (h : StoreWF st) :
+    StoreWF st.dropScratch ∧
+      (∀ i, i.isPersistent = true → st.dropScratch.view i = st.view i) ∧
+      (∀ i e, i.isPersistent = true → denoteE st i = some e →
+        denoteE st.dropScratch i = some e) ∧
+      (∀ i, i.isPersistent = false → denoteE st.dropScratch i = none) :=
+  ⟨EStore.dropScratch_wf h, fun i hp => EStore.view_dropScratch_pers st hp,
+   fun _ _ hp hd => EStore.dropScratch_denote_pers h hp hd,
+   fun i hp => denoteE_dropScratch_scr st hp⟩
+
+/-! ### The same, for the three stores underneath
+
+Names, levels and level lists have the identical shape; their `Ext`,
+`intern_spec`, `enableScratch_spec` and `dropScratch_spec` are the same
+arguments over three / five / one constructor arrays instead of ten. -/
+
+theorem NStore.intern_spec {st : NStore} {w : NNodeView} (h : NStoreWF st)
+    (hv : st.ViewOK w) (hcap : st.capOK w) :
+    NStoreWF (st.intern w).1 ∧ NExt st (st.intern w).1 ∧
+      (st.intern w).1.view (st.intern w).2 = some w := by
+  sorry
+
+theorem LStore.intern_spec {st : LStore} {w : LNodeView} (h : LStoreWF st)
+    (hv : st.ViewOK w) (hcap : st.capOK w) :
+    LStoreWF (st.intern w).1 ∧ LExt st (st.intern w).1 ∧
+      (st.intern w).1.view (st.intern w).2 = some w := by
+  sorry
+
+theorem LsStore.intern_spec {st : LsStore} {w : LsNodeView} (h : LsStoreWF st)
+    (hv : st.ViewOK w) (hcap : st.capOK w) :
+    LsStoreWF (st.intern w).1 ∧ LsExt st (st.intern w).1 ∧
+      (st.intern w).1.view (st.intern w).2 = some w := by
+  sorry
+
+theorem NStore.dropScratch_spec {st : NStore} (h : NStoreWF st) :
+    NStoreWF st.dropScratch ∧
+      (∀ i, i.isPersistent = true → st.dropScratch.view i = st.view i) ∧
+      (∀ i x, i.isPersistent = true → denoteN st i = some x →
+        denoteN st.dropScratch i = some x) := by
+  sorry
+
+theorem LStore.dropScratch_spec {st : LStore} (h : LStoreWF st) :
+    LStoreWF st.dropScratch ∧
+      (∀ i, i.isPersistent = true → st.dropScratch.view i = st.view i) ∧
+      (∀ i x, i.isPersistent = true → denoteL st i = some x →
+        denoteL st.dropScratch i = some x) := by
+  sorry
+
+theorem LsStore.dropScratch_spec {st : LsStore} (h : LsStoreWF st) :
+    LsStoreWF st.dropScratch ∧
+      (∀ i, i.isPersistent = true → st.dropScratch.view i = st.view i) ∧
+      (∀ i x, i.isPersistent = true → denoteLs st i = some x →
+        denoteLs st.dropScratch i = some x) := by
+  sorry
+
+theorem NStore.enableScratch_spec {st : NStore} (h : NStoreWF st) :
+    NStoreWF st.enableScratch ∧
+      (∀ i, i.isPersistent = true → st.enableScratch.view i = st.view i) := by
+  sorry
+
+theorem LStore.enableScratch_spec {st : LStore} (h : LStoreWF st) :
+    LStoreWF st.enableScratch ∧
+      (∀ i, i.isPersistent = true → st.enableScratch.view i = st.view i) := by
+  sorry
+
+theorem LsStore.enableScratch_spec {st : LsStore} (h : LsStoreWF st) :
+    LsStoreWF st.enableScratch ∧
+      (∀ i, i.isPersistent = true → st.enableScratch.view i = st.view i) := by
+  sorry
+
 end ConRon.Arena

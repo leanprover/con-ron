@@ -1046,4 +1046,57 @@ def capOK (st : EStore) (v : ENodeView) : Prop :=
 
 end EStore
 
+/-! ## Interning through the nesting
+
+The parser and the checker hold one `EStore` and intern into all four levels
+of it, so each level gets a lifted `intern*`.  Every one detaches the nested
+store before handing it to the level below (DESIGN §8.4 lesson 14) and is
+`@[noinline]` (lesson 15). -/
+
+/-- con-leche: none — intern a name from the level store. -/
+@[noinline] def LStore.internName (st : LStore) (v : NNodeView) : LStore × NIdx :=
+  let ns := st.ns
+  let st := { st with ns := NStore.empty }
+  let (ns, i) := ns.intern v
+  ({ st with ns := ns }, i)
+
+/-- con-leche: none — intern a name from the level-list store. -/
+@[noinline] def LsStore.internName (st : LsStore) (v : NNodeView) :
+    LsStore × NIdx :=
+  let ls := st.ls
+  let st := { st with ls := LStore.empty }
+  let (ls, i) := ls.internName v
+  ({ st with ls := ls }, i)
+
+/-- con-leche: none — intern a level from the level-list store. -/
+@[noinline] def LsStore.internLevel (st : LsStore) (v : LNodeView) :
+    LsStore × LIdx :=
+  let ls := st.ls
+  let st := { st with ls := LStore.empty }
+  let (ls, i) := ls.intern v
+  ({ st with ls := ls }, i)
+
+/-- con-leche: none — intern a name from the expression store. -/
+@[noinline] def EStore.internName (st : EStore) (v : NNodeView) : EStore × NIdx :=
+  let lss := st.lss
+  let st := { st with lss := LsStore.empty }
+  let (lss, i) := lss.internName v
+  ({ st with lss := lss }, i)
+
+/-- con-leche: none — intern a level from the expression store. -/
+@[noinline] def EStore.internLevel (st : EStore) (v : LNodeView) : EStore × LIdx :=
+  let lss := st.lss
+  let st := { st with lss := LsStore.empty }
+  let (lss, i) := lss.internLevel v
+  ({ st with lss := lss }, i)
+
+/-- con-leche: none — intern a universe-argument list from the expression
+store. -/
+@[noinline] def EStore.internLevels (st : EStore) (v : LsNodeView) :
+    EStore × LsIdx :=
+  let lss := st.lss
+  let st := { st with lss := LsStore.empty }
+  let (lss, i) := lss.intern v
+  ({ st with lss := lss }, i)
+
 end ConRon.Arena
