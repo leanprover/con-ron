@@ -25561,17 +25561,20 @@ which no placeholder may do.
 
 #### What the extraction says, and the two rules this phase adds
 
-`scripts/extract-arena.sh --dry`: **zero errors, zero warnings**, **50 033
-lines** of model (up from P4c's 32 454), **4 type holes and 153 function
-holes**.  Of the 153, **151 are the `con-ron-core` boundary** and the other two
-are `alloc::sync::Arc::deref` (P4a's standing hole) and `core::str::as_bytes`
-(P4c's, from `frontend/export_c.rs`'s test-facing entry) — **this phase's own
-modules contribute none**.  The boundary breakdown: `ron::nat` 22,
-`kernel::expr` 21, `kernel::core_k` 19, `kernel::basis_names` 16,
-`kernel::level` 15, `kernel::env` 9, `ron::hashmap` 8, `kernel::prop_when` 8,
-`kernel::name` 7, `kernel::core_types` 6, `frontend::*` 15, the rest 3, plus
-the `Dup` instances for `u64` and for a pair.  The fourth TYPE hole is new and
-is the boundary too: `kernel::expr::Expr`, which the interning of a
+`scripts/extract-arena.sh --dry`: **zero errors, zero warnings**.  At this
+half alone (before P4d-1's merged in) the model was **50 033 lines**, up from
+P4c's 32 454, with **4 type holes and 153 function holes**; with both halves
+of P4d in it is **59 464 lines, 4 type holes and 207 function holes**.  Of the
+207, **205 are the `con-ron-core` boundary** and the other two are
+`alloc::sync::Arc::deref` (P4a's standing hole) and `core::str::as_bytes`
+(P4c's, from `frontend/export_c.rs`'s test-facing entry) — **neither half of
+P4d contributes one of its own**.  The boundary breakdown at the merge:
+`kernel::expr` 24, `ron::nat` 22, `kernel::std_axioms` 19, `kernel::core_k` 19,
+`kernel::basis_names` 17, `kernel::trust_axioms` 15, `kernel::level` 15,
+`kernel::env` 15, `ron::hashmap` 8, `kernel::prop_when` 8, `kernel::name` 7,
+`kernel::core_types` 7, `frontend::*` 13, the rest 11, plus the `Dup`
+instances for `u64` and for a pair.  The fourth TYPE hole is new with this
+task and is the boundary too: `kernel::expr::Expr`, which the interning of a
 `con_ron_core` VALUE (the pinned `Eq` basis) takes.
 
 Three translator complaints, all three fixed **in the crate**:
@@ -25681,7 +25684,7 @@ merged),
 `provenance-selftest`, `overview-links`, `holes --check`, `gen-pins --check`,
 `gen-prelude --check`, `gen-prelude-lean --check`, `scripts/extract.sh --check`
 (con-ron-core's committed model unmoved) and `scripts/extract-arena.sh --dry`
-clean.  `cd proof && lake build` was **not** run: this task touches no Lean —
+clean, before and after the merge with P4d-1.  `cd proof && lake build` was **not** run: this task touches no Lean —
 the `proof/` changes in its history are the `arena` merge, which P2f had
 already gated at 348/348 fixtures in both modes.
 
