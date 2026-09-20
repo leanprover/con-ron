@@ -21367,7 +21367,7 @@ baseline, measured the same way (`import MiniAbs` 1.86 s; `import MiniAbs` +
 | C1 as | raw lines | code lines | proof body | hand lines | goals left by the normaliser | closed by the closer | elaboration, net |
 |---|---|---|---|---|---|---|---|
 | round 2, by hand (`ExpC1.lean`) | 394 | 340 | 378 | ~300 | — | — | **0.61 s** |
-| round 3, the idiom (`ExpC1Idiom.lean`) | 286 | 132 | **22** | **20** | **7** | **7 / 7** | **2.59 s** |
+| round 3, the idiom (`ExpC1Idiom.lean`) | 297 | 132 | **22** | **20** | **7** | **7 / 7** | **2.59 s** |
 | round 3, Aeneas `step*` (`ExpC1Step.lean`, `bvar` arm only) | 184 | 66 | 5 | 3 | 2 | 2 / 2 | 1.46 s |
 
 `ExpC1Idiom`'s 2.59 s splits as **0.79 s** for the in-file layer (fifteen
@@ -21495,3 +21495,8 @@ was changed for this experiment.
 `Spike/Axioms.lean` now prints `instantiate1_C1_idiom`,
 `instantiate1_C1_idiom_wf` and `bvar_demo`: `[propext, Classical.choice,
 Quot.sound]` and nothing else.  The spike remains sorry-free.
+
+Round 3 also added two `example`s to `Spike/Axioms.lean`: round 2's
+`instantiate1_C1` elaborates at round 3's `instantiate1_C1_idiom`'s type and
+vice versa, so the two rows of the table above are the same theorem proved
+twice.
