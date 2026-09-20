@@ -26216,3 +26216,149 @@ performance pass: a `pin` memo is a memo-policy change (DESIGN.md §3.1), a
 cached `static` is `std::sync` and an atomic the arena does not otherwise
 have, and hoisting the `pin`s out of the loops changes the twin's shape at
 seventy-three sites.  The number is here so the decision can be made on it.
+
+#### Lever 2 — pre-sizing: half of it is lever 1, and the other half needs the Lean
+
+**The scratch half is already done, and without new state.**  The brief's
+form of it is "`enter_scratch` can size the scratch tier from the previous
+declaration's high-water mark".  That is exactly what lever 1's `Tbl::reset`
+does to the cons tables: the bucket array the previous declaration grew is
+the array the next one starts with, adaptively, and no high-water field has to
+be carried to do it.  The two node columns are `Vec::new()` and the whole of
+`RawVec::finish_grow` — every `Vec` growth in the run, both tiers, all four
+stores — is **0.85 % of the cycles**, so there is nothing there to take.
+
+**The persistent half needs the Lean twin to change, so it is listed and not
+done.**  Sizing `EStore`'s persistent tables means a capacity where the twin
+has none: `Tbl.empty`, `NTables.empty`/`LTables.empty`/`LsTables.empty`/
+`ETables.empty`, `NStore.empty`/`LStore.empty`/`LsStore.empty`/`EStore.empty`
+and `AState.init` are nullary `def`s in `proof/ConRon/Arena/Store.lean` and
+`Monad.lean`, and a capacity argument changes all ten signatures and every
+lemma stated at them.  What it would buy, from the profile after the three
+levers above:
+
+| | share of cycles |
+|---|---:|
+| `allocate_slots`, all tables, all tiers | 5.59 % |
+| `move_elements` + `move_elements_from_list`, all tables | 5.85 % |
+| `RawVec::finish_grow`, all `Vec`s | 0.85 % |
+
+— of which the persistent tier's own growth is the part a pre-size removes,
+and the rest is the scratch tables' regrowth, which pre-sizing does not touch.
+And the parse genuinely knows nothing in advance, so the only honest size for
+the persistent tables is the one available AFTER the parse, at the phase
+boundary — which is a `presize` the driver calls, a no-op on the abstract
+state, and therefore a *different* and smaller proposal than a capacity
+parameter.  **That one is worth doing and is listed below**; it is also where
+the peak-RSS transient is (a rehash of the 11.2 M-entry `apps` table has the
+old and the new bucket array live at once, ≈ 400 MB on top of a 1.88 GB
+peak), which is why it belongs beside the phase-A scratch-bracket task rather
+than here.
+
+#### The table, beside `con-ron`'s
+
+`_tmp/corpus/init.ndjson`, `--jobs=1`, mimalloc, under `ulimit -v 8000000`,
+this machine.  `con-ron` is re-measured in the same session as the last row,
+and reads exactly what task #97-P4f recorded (539.8 G / 61.2 s / 0.48 GB), so
+the two rows are comparable.
+
+| | instructions:u | cycles:u | IPC | wall, 3 runs (spread) | peak RSS | verdict |
+|---|---:|---:|---:|---:|---:|---|
+| con-leche (OVERVIEW §7.2) | 585.9 G | — | — | 56 s | 0.48 GB | accepted 57 977 |
+| **con-ron**, re-measured here | 539.8 G | 271.2 G | 1.99 | 60.74 / 60.75 / 61.96 (1.22 s) | 503 420 KB | accepted 57 977 |
+| con-ron-arena at P4f (0fa122ee) | 816.0 G | 535.1 G | 1.52 | 122.50 / 122.70 / 123.19 (0.69 s) | 1 907 524 KB | accepted 57 977 |
+| **con-ron-arena after P6-1** | **736.2 G** | **399.3 G** | **1.84** | **93.76 / 94.95 / 96.93 (3.17 s)** | **1 880 916 KB** | accepted 57 977 |
+| | −9.8 % | **−25.4 %** | | **−23.0 %** | −1.4 % | |
+| ratio to `con-ron` | 1.36× (was 1.51×) | 1.47× (was 1.97×) | | 1.55× (was 2.01×) | 3.74× (was 3.79×) | |
+
+The IPC is the story: 1.52 → 1.84 against `con-ron`'s 1.99, which is the gap
+task #97-P4f said was half the problem, and most of it closed on one lever.
+Wall is noisier here than it was at P4f because sibling agents were building
+on the machine for part of the session — the spread is 3.17 s on the arena's
+row and 1.22 s on `con-ron`'s measured minutes apart, which is the honest
+uncertainty; the instruction counts are reproducible to six figures and are
+the measure of record.  The fixture sweep is **345/348 at `--verified` and
+345/348 at `--trusted`**, unchanged at every lever, the three being P4e
+part 2's ProjRec stub.
+
+#### The top five after, and what each one is
+
+`perf record -F 199`, the whole run, self time:
+
+| | share | what it is |
+|---|---:|---|
+| `HashMap<FVarNode,_>::clear_slots` | 7.29 % | **lever 1's own bill.**  The scratch `fvars` cons table is the one a declaration's check fills fastest (one node per binder entered) and it is the one `Tbl::reset` walks.  Clearing it is still the cheaper side of the trade — replacing the store tiers instead costs 13 G instructions (769.0 G against 756.0 G, measured) — but `ron::HashMap`'s `clear_slots` is a halving recursion with a drop per bucket, not a memset, and that is what a table with an open-addressed representation would take |
+| `ETables::find` | 6.95 % | the cons-table probe, down from 15.1 %: what is left is the scratch tier's own probe and the persistent probes that really can hit |
+| `instantiate1_go` | 5.92 % | the checker body itself — the first entry in the list that is *work* |
+| `ETables::der_at` | 3.09 % | the derived-word read, one indexed load per decode |
+| `ETables::get` | 2.99 % | the decode |
+
+By bucket over the whole run: `clear_slots` 10.35 %, `allocate_slots` 5.59 %,
+the `move_elements*` rehashes 5.85 %, `astate_dup`'s copying 6.38 %.
+
+#### What is left, in the order the numbers put it
+
+1. **`astate_dup`, 6.38 % of the cycles in the copying alone** (plus its share
+   of the allocator's 3 %).  Task #97-P4d wrote the diagnosis and the fix: the
+   tiers are append-only, so restoring a failed pin attempt is "truncate the
+   columns and remove the cons rows above the mark", `O(appended)` instead of
+   `O(store)` — and the only reason it is not written that way is that Aeneas
+   models neither `Vec::truncate` nor `Vec::clear`.  **This, and not lever 1,
+   is where the hole question actually bites**, and it has a third answer
+   P4a's rule did not consider: `alloc::vec::Vec::resize` **is** modelled
+   (`vendor/aeneas/backends/lean/Aeneas/Std/Vec.lean:440`, with a
+   `resize_spec`), and `v.resize(mark, dummy)` truncates in Rust and is
+   `v.val.resize mark dummy` in the model — zero new holes, at the price of a
+   `core::clone::Clone` impl per node type, which §3.4's "no `#[derive]`"
+   would have to be read on.  Worth a spike before either (a) or (b).
+2. **The `pin` traffic**: 140 M name interns, most of them constants rebuilt
+   from scratch (lever 3's section has the count and the three ways to take
+   it).  A decision, not a tweak.
+3. **`ron::HashMap`'s representation.**  `clear_slots` + `allocate_slots` +
+   `move_elements*` is **21.8 % of the run** after the levers above, and all
+   three are halving recursions over a chained-bucket array.  Nothing in this
+   task can move that; a different map is a `con-ron-core` project with a
+   refinement tower of its own.
+4. **`presize` at the phase boundary** (lever 2's section): a no-op on the
+   abstract state, worth part of the 11.4 % that `allocate_slots` and
+   `move_elements*` cost and — more to the point — the ≈ 400 MB transient of
+   the last `apps` rehash, which is on top of the 1.88 GB peak.
+5. **The twin-change task, untouched here as instructed**: phase A opens no
+   scratch tier, so the install appends **+5.06 M permanent nodes** (task
+   #97-P4f's heartbeat number).  That is the 3.74× memory, and it is a clause
+   of the twin before it is a line of Rust.
+6. **The pool** (§8.6 P4f deviation 4), unchanged: one `while`.
+
+#### Everything this task owes the proofs, in one list
+
+Nothing below is written — this task touches no Lean beyond the regenerated
+`proof/ConRon/Generated/Funs.lean`, and **no clause of any twin changes**.
+
+1. `capacity_spec : ron.hashmap.HashMap.capacity m = ok ⟨m.slots.length⟩`.
+2. `reset_map_refines : reset_map m = ok m' → m' ⊑ ∅`, a two-branch
+   disjunction over the already-proved `clear_refines` and `new_refines`.
+3. `Caches::reset`, `Memos::reset`, `Tbl::reset` and the four
+   `*Tables::reset` against the twins' `.empty`s — applications of (2).
+4. `pers_find_maybe st v = st.pers.find? v` given `StoreWF st`, whose proof is
+   the WF clause "a persistent node's children are persistent".  **The only
+   one of the five that is not unconditional**, and the failure direction is
+   the safe one (a duplicate node, i.e. a lost `defeq` shortcut).
+5. `NStore::intern_str` (and `intern_other`) against the twin's
+   `NStore.intern`: the same three probes in the same order on a record built
+   once instead of three times, so the obligation is a `rfl`-shaped
+   rearrangement plus `der_of_view`'s `str` line inlined at the caller.
+
+#### Gates
+
+`cargo build --release` / `cargo test` workspace-wide under
+`RUSTFLAGS="-D warnings"`: green, 15 test binaries, 0 failures.
+`scripts/lint-rust-style.sh` over both verified trees: clean.
+`scripts/provenance.py check`: **0 findings** (6 135 items, 4 744 citations,
+all current at pin `c431b1ca`).  `scripts/overview-links.sh`: green.
+`scripts/extract-arena.sh --dry`: 59 383 lines, 4 type and 208 function
+holes — the crate-boundary list grew by `ron::HashMap::clear` and
+`::capacity`, both `con-ron-core`'s own, which is the P4a rule.
+`scripts/extract.sh --check`: **OK**, the one `con-ron-core` change
+regenerated and committed in its own lever's commit.  `cd proof && lake build`
+was not run: a sibling agent is editing `proof/`, and the only Lean this task
+writes is the generated append (P4b's, P4c's, P4d's and P4f's ruling).
