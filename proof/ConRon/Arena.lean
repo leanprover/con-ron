@@ -31,3 +31,9 @@ import ConRon.Arena.FEnv
 import ConRon.Arena.CoreIO
 import ConRon.Arena.CoreGated
 import ConRon.Arena.CoreTest
+import ConRon.Arena.Intern
+import ConRon.Arena.Canon
+import ConRon.Arena.StdAxioms
+import ConRon.Arena.TrustAxioms
+import ConRon.Arena.Basis
+import ConRon.Arena.NatOpPinSet
