@@ -25100,3 +25100,303 @@ changed (`proof/ConRon.lean` does not import `ConRon.Arena`).
    `checkIndDecl` both landed there is no reason left not to, and item 4's
    diagnosis would have been an afternoon's work with a benchmark that
    interned inside a declaration bracket.
+
+### Task #97-P4d — the Rust declaration checker (2026-09-20, Opus under Fable)
+
+Phase P4d of §8.6, part 1, under the REORDERED ruling: the Rust side of P2d's
+declaration checker, in lockstep with the Lean twin
+(`proof/ConRon/Arena/{Intern,Canon,StdAxioms,TrustAxioms,Basis,NatOpPinSet,
+CheckerBase,CheckerSplit,DeclCheck,Checker,CheckerGated}.lean` and
+`Arena/Frontend/NatOpGround.lean`), as twelve new modules of
+`crates/arena-core` on task #97-P4c's core.  Part 2, the inductive installs,
+is a sibling agent's, against the fixed `arena::inductives` seam this task
+creates.
+
+| | shipped | tests | what |
+|---|---:|---:|---|
+| `arena/intern.rs` | 606 | — | con-ron-core's pinned VALUES into the store, at a memo |
+| `arena/canon.rs` | 774 | — | the lockstep canonical comparison, and the derived `BEq` of a stored constant |
+| `arena/std_axioms.rs` | 327 | — | the eight reserved names, `erasePwEq`, `matchesPin`, the `Iff`/`Nonempty` pins |
+| `arena/trust_axioms.rs` | 294 | — | the compiler-trust names, shapes and the reduce pins |
+| `arena/basis.rs` | 153 | — | `decls`/`declsA`, `basisPinHit`, `quotPinHit` |
+| `arena/nat_op_pin_set.rs` | 178 | — | `INatOpPinSet` and the pin-variant interning |
+| `arena/checker_base.rs` | 1 892 | — | the state snapshot, `orElseAttempt`, the two memoized walks, `mentionsConst`, `checkConstantVal`, the projection stages, `indParamsOk` |
+| `arena/checker_split.rs` | 342 | — | the install/check seam and `ValueKind.word` |
+| `arena/decl_check.rs` | 2 832 | — | the axiom/trust environment shapes, the pin variants' statements and certificates, the variant loop, the three value kinds |
+| `arena/checker.rs` | 1 338 | 749 | `checkDecl`, `checkDeclsPure`, the two-phase fold, `atDecl`, the startup pin walk |
+| `arena/checker_gated.rs` | 41 | — | the gated instantiation's name (census class (S)) |
+| `arena/inductives.rs` | 62 | — | **the seam**: `check_ind_decl`, part 2's to fill |
+| `frontend/nat_op_ground.rs` | 649 | — | the ground hoist, and `prepare_d` wired to it |
+| **total** | **9 488** | **749** | |
+
+Against the twin's 2 817 raw lines the shipped Rust is **3.4×**, above P4c's
+2.95×, and the excess is where P4c predicted it: `match m { Err(e) => Err(e),
+Ok(x) => … }` where Lean writes `let x ← m`, in a file (`decl_check.rs`) whose
+twin opens a `do` block with twenty `let`s.  `divModCertStmts` alone is 94
+lines of twin and 560 here.  Declarations: the twelve twins are **186**
+`def`/`structure`/`inductive`; the Rust is **420** public items.
+
+#### The pinned data is con-ron-core's own, not a second transcription
+
+DESIGN §8.7 rules that (B) IMPORTS con-leche's representation-free data rather
+than copying it, so each of the twin's pin modules is one line: the con-leche
+constant, interned.  The Rust cannot import con-leche — and does not have to.
+**`con-ron-core` already carries every one of those values**, ported at tasks
+#22/#27/#43: `kernel::basis_raw` and `kernel::basis_tables` for the six blocks
+in both forms (the annotated one *generated from con-leche's own `declsA`*),
+`kernel::std_axioms` / `trust_axioms` / `trust_pins` for the axiom pins, and
+`kernel::pins_decode::decode_embedded` of `kernel::pins_text::PINS_TEXT` for
+the `Nat`-operation variants.  So the arena's pin modules are one line each
+here too, and **a pin is the same value on both sides of the differential test
+by construction** rather than by two agreeing transcriptions.
+
+`arena::intern` is what walks them in: `Intern.lean`'s five fresh-memo entry
+points over `Frontend/Readback.lean`'s memoised walk, with the memo a
+`ron::HashMap<Expr, EIdx>` threaded as a `&mut` (`con_ron_core::kernel::
+decl_check::consts_resolve_f_go`'s shape) and the four LEAF arms bypassing it,
+as the twin's do.  It is the P4b `intern_expr` helper promoted out of `mod
+tests` and given the twin's memo, plus `internCV`/`internCI`/`internCIList`/
+`internDecl` — the last of which the differential test needs and which
+`Readback.lean` ships, so it ships here.
+
+**Two families are the RAW pin where the twin uses the annotated one**, and it
+is `con-ron-core`'s ruling, inherited: the `Iff`/`Nonempty` triples with
+`propext`/`choice`, and the four `reduce*`/`ofReduce*` shapes.  Their only
+consumer is `matchesPin`, which **erases the binder `pw` datum on both sides**,
+and the `pw` datum is the only thing the annotation writes — so `matchesPin cv
+iffRaw` and `matchesPin cv iffA` are the same predicate and con-ron-core never
+built the annotated ones.  The one pin compared by whole-constant EQUALITY
+rather than by `matchesPin` is the annotated `Eq` basis, and that one
+con-ron-core does have (`kernel::basis_pins::eq_a`).
+
+#### The API mapping
+
+Only the rows that are **not** one-to-one carry a note; the rest are a rename
+plus P4b's two standing narrowings (the state parameter is first; a twin that
+cannot fail returns its value).
+
+| Lean twin | Rust | one-to-one? |
+|---|---|---|
+| `Intern.lean`'s five entry points | `arena::intern`'s five, over `intern_expr_go` | yes; the memo is a `&mut` where the twin threads it as an argument and a result |
+| `Canon.lean`'s `canonNames`/`canonNameMap` | the same two | yes — the twin already made the renaming two lists rather than a function (its deviation 6) |
+| `canonLevelEq`/`canonExprEq`'s `match ← view a, ← view b` | `…_at(va, vb)` | **no** — the two views' borrows end before the recursion (task #97-P4c's split rule); the four identical `if ← … then … else pure false` arms are one `canon_expr_eq_two` |
+| `{r with rhs := default} == …` | `i_rec_rule_eq_but_rhs` | **no**, in the spelling: §3.4 has no record update and no derived `BEq`, so the seven fields are compared by hand |
+| — | `canon::i_constant_info_beq` and its four helpers | **new**: the twin's `fe.find? eqName == some eqA` is `deriving DecidableEq`, which Rust has not.  Placed in `canon.rs` beside `i_proj_table_beq`, which it needs |
+| `StdAxioms.lean`'s `iffA`…`choiceA` | `iff_raw`…`choice_raw` | **no** — the raw pins (above); the names are the twin's own for the raw family, so nothing is renamed, only *chosen* |
+| `erasePwEq` | `erase_pw_eq` + `_at` + `_two` | **no** — the same split as `canonExprEq`'s |
+| `CheckerOpsA`, `fueledOpsA`, `pureOpsA`, `fueledOpsGated`, `pureOpsGated` | **nothing**, and `checker_gated`'s two lane constants | **no** — §3.4 rules out a record of function values, so the record has no Rust counterpart at all, exactly as `pureFnsA` has none (P4c's deviation 1).  The five slots are `arena::core`'s fueled entry points by name and `orElse` is `or_else_attempt` |
+| `orElseAttempt` (a state function) | `or_else_attempt` (pure) + `astate_dup` at the call site | **no** — see below |
+| `nameNodup`, `NIdx.isModelSuffix`, `NIdx.isProjFnShape` | the same three | yes; the two string tests are `name::str_eq` against a code-point constant |
+| `allLevelParamsDefinedGo`, `constsResolveFGo`, `mentionsConstGo` | the same three, memo as `&mut`, arms split off | **no**, in the threading only.  All three keep the twin's structure exactly, leaf arms included, and all three walk BOTH children of a two-child arm — the conjunction is not short-circuited, because the memo the second walk fills is part of the state |
+| `mentionsConst` (`Inductives/StructParts.lean`) | `arena::checker_base`'s | **no**, in the module: the Lean import order puts `StructParts` BELOW `CheckerBase`, the Rust module graph puts `arena::inductives` ABOVE it (it calls `check_ind_decl`), so the walk is spelled at its one caller |
+| `checkConstantVal` / `installConstantVal` | `check_constant_val` / `install_constant_val` over shared `check_constant_val_guards` + `install_constant_val_tail` | **no** — con-leche writes the six guards and the two annotated-type guards TWICE and the twin follows; the port writes each group once and both front doors call it, so the two halves cannot drift |
+| `domsMatchAux` over `Array` | the same, over `Vec` | yes — pure, as the twin's is |
+| `divModCertStmts`' twenty opening `let`s | `CertCtx` + four `cert_ctx*` builders | **no** — P4c's `NatEqCtx` treatment, so the seven branches read as the twin's |
+| its eleven local lambdas | `eq_at1`, `nat_one`, `nat_var`, `cert_guard`, `cert_eq`, `cert_halves`, `cert_hyp1/2`, `cert_push` | **no** — named functions (§3.4), as the twin's own `def`s are |
+| `divModDeclPin`/`divModCertProofs`' seven-way `if c == …` chains | `div_mod_slot` + two `match`es | **no** — the twin spells the chain twice and each test INTERNS a name; the port walks it once and returns the slot |
+| `divModAttemptReason` | `core_types::message(e)` | **no** — §3.1's message rule: `con_ron_core::kernel::checker::check_div_mod_pin_loop`'s `tried` accumulator is the last recovered error's own message, and matching it is what lets the differential test compare error text |
+| `checkDivModPin`/`checkReducePin`'s `(fe, fe2)` pair | ONE index at two visibility bounds (`k_pre`) | **no** — `IFEnv` has no cheap copy; `con_ron_core::kernel::checker`'s own arrangement |
+| `checkDecl`'s one `match d with` | one dispatch and seven arm functions | **no** — every arm stays a tail call (P4c's split rule) |
+| `ValueKind.word` | `value_kind_word`, returning the whole message | **no**, and **ported where con-ron-core skips it** — see below |
+| `installThenCheck : AM (Except (CheckError × Nat) IFEnv)` | `Result<IFEnv, (CheckError, u64)>` | **no** — the outer `AM` failure the twin allows cannot occur (both phases tag every error into the inner `Except`), which is `cached::installed::check_decls`' shape |
+| `atDecl`'s `s!"{w} (declaration {n})"` | `at_decl` + `at_decl_text` + `cp_append` | **no** — `toString n` is `core_k::nat_to_dec` and the append is a cursor push (`Vec::append` is not in the subset) |
+| `NatOpGround.lean`'s `applyHoist` comparator | a bucket pass, no sort | **no** — the twin keeps `List.mergeSort` with a comparator ("a SORT's comparator is a function value both take"); §3.4 has neither closures nor `sort_by_key`, so the port is `con_ron_core::frontend::nat_op_ground`'s deviation 2, and `hoist_key`/`hoist_lt` are shipped as the SPECIFICATION of the order the bucket pass computes |
+| `hoistClosure`'s fuelled recursion over a stack | a `while` with its own top-of-stack index | **no** — `frontend/`'s loop exemption, and `Vec::pop` is not in the subset (`stack_push_u64`, con-ron-core's) |
+| the twin's 23 interpolated messages | `con_ron_core`'s own code-point constants, interpolation dropped | **no** — §3.1, and matching con-ron-core's is what makes the differential test compare error TEXT |
+
+##### `orElseAttempt`: the twin gets the pre-attempt state for free, the port pays for it
+
+The twin writes the attempt as a state function (`fun s => match att s with …`),
+which is what makes its snapshot free: the pre-attempt `s` is in hand at the
+error arm, so restoring it discards the memo rows, the cache rows AND the store
+nodes the failed attempt appended.  `&mut AState` has no such thing.  The port
+therefore splits the twin in two, exactly as `con_ron_core::cached::checker_c`
+splits con-leche's: `or_else_attempt` is the PURE four-way decision on an
+attempt's outcome, and the caller (`check_div_mod_pin_try`) takes an
+`astate_dup` snapshot before the attempt and restores it on `Recovered` —
+`cached::state_c::dup`'s role, one layer of representation down.
+
+`astate_dup` is new code, 160 lines of it: both tiers of all four stores
+(22 `Tbl`s = 44 `Vec`s and 22 cons tables), the eleven per-call memo tables and
+the eleven per-declaration caches with their journals.  It is `O(store)`, and
+it is taken **only when a pin variant's guards pass** — a handful of times in a
+run, all of them inside `Init`, where the store holds the stream's prefix and
+not Mathlib.  **A `Tbl` truncation primitive would make it `O(appended)`**: the
+tiers are append-only, so a restore is "truncate the four node columns and
+remove the cons rows above the mark", and the only reason it is not written
+that way is that Aeneas models neither `Vec::truncate` nor `Vec::clear` (task
+#97-P4a's third extraction rule).  P6's, with the eleven journals.
+
+##### `ValueKind.word` is ported, and the differential test is why
+
+`con_ron_core::kernel::checker_split` skips `ValueKind.word` — "message
+rendering only" — and its two lanes disagree in consequence: the one-phase
+`check_defn_val` says *type mismatch in definition* and the two-phase
+`check_pending_tail` says *type mismatch in declaration*.  Nothing in
+con-ron-core compares the two lanes, so nothing noticed.
+
+The arena's differential test DOES compare them (`chk_install` against
+`check_decls_pure`), because that agreement is exactly what con-leche's
+`fullyChecked_checkDecls` is about — and the twin's two folds agree there
+precisely because `checkValueGroup` interpolates the KIND.  So the port keeps
+the kind and drops only the NAME (§3.1): `value_kind_word` returns one of three
+whole messages, and the three are `kernel::checker`'s own.  **It is the one
+thing the test found**, and it found it on the first run.
+
+#### What the concurrent P2f changes cost, and where they landed
+
+The Lean twins moved under this task (the coordinator's six items, merged at
+`arena` 6e9d8c3e).  Four of them are P4b's and P4c's files, patched here
+because the transliteration predated them:
+
+1. **`CheckMode.certs` at the certificate families.**  Six sites in
+   `arena::core`: `structEtaCertWith`'s type-former run and its per-slot
+   certificates, `structUnitCert`'s, `majorToCtor`'s three rescues (the
+   synthetic-spine certificate and, in two of them, the `proofIrrel` below the
+   official type check), and `iotaRec`'s — whose parameter comparison is
+   verdict-relevant for a nested rule and for a projection-function rule
+   (`certUnlessI`'s `keep`) and a family otherwise, and whose two licensed
+   telescope runs and canonical-index comparison are ONE family, the two
+   `constTyAt` lookups included.  Each gate's `.trusted` arm skips the type
+   lookup too, because the twin puts it inside the branch.  `mode.betaSkip` at
+   the β site, `mode.ioSkip` at the io site, `mode.ioGate` for the knot's io
+   slot: all three are `con_ron_core::kernel::env`'s own accessors, which the
+   arena crate imports.
+2. **The per-declaration cache drop is `flushC`** — the caches go whole.
+   `Caches::drop_scratch_entries` and its eleven journals stay as the
+   SPECIFICATION of a surviving row (P3 needs it to state that flushing is
+   sound), and P4c's `mod tests` guard is rewritten to the twin's new one:
+   the flush empties the table, `drop_scratch_entries` does not.
+3. **The two derived cutoffs.**  `instantiate_list`, `instantiate_list_go` and
+   `lift_loose_bvars_go` gain `bvarBRaw < satRange && bvarBRaw ≤ k`
+   (`inst_list_cutoff`), with the twin's licence argument in its doc comment.
+4. **`indParamsOk` and its two helpers** moved from the deleted
+   `Inductives/Base.lean` into `CheckerBase.lean`, so they are this task's:
+   `is_rec_info`, `recs_form_suffix`, `ind_params_ok`.  Part 2's
+   `check_ind_decl` calls them.
+
+#### The seam for part 2
+
+`arena/inductives.rs` is created here with the agreed signature and a body that
+declines:
+
+```rust
+pub fn check_ind_decl(mode: CheckMode, fe: IFEnv, block: Vec<IConstantInfo>,
+                      num_params: u64, st: &mut AState) -> Result<IFEnv, CheckError>
+```
+
+— the argument order of the twin's `checkIndDecl`, with the state last rather
+than first, which is the one place this crate's state-first convention is
+broken and is broken on purpose: it is the interface both halves of P4d were
+handed in writing, and a seam is worth more than a convention.  Until part 2
+lands the arm declines with `NotImplemented`, which can only make the Rust
+reject and is sound for the accept direction (§1) — the Lean twin's own part-1
+sweep declined in exactly the same way on 287 of 348 fixtures.
+
+#### The differential test: 15 `#[test]`s, 74 assertions, and one finding
+
+`mod tests` in `checker.rs` is `CheckerTest.lean`'s shape one for one — all
+**69** of its `#guard`s, at the same subjects:
+
+> write the declaration list ONCE as `con-ron-core` `Declaration` values,
+> intern it into the arena, run the arena's `check_decl` / `check_decls_pure` /
+> `install_then_check` on handles, and compare with
+> `con_ron_core::kernel::checker`'s own applied to the SAME values.
+
+| what | checks |
+|---|---:|
+| con-ron-core's own outcome, pinned by hand | 5 |
+| `check_decls_pure` against con-ron-core's | 20 |
+| `check_decl` at a non-empty environment | 16 |
+| the TWO-PHASE `install_then_check` against the one-phase fold | 12 |
+| `std_axiom_ok`, `matchesPin`, `canon_eq_list`, `basis_pin_hit` directly | 16 |
+| the startup pin walk, and `at_decl` (beyond the twin) | 5 |
+| **total** | **74** |
+
+**The environment comparison goes the other way round from the twin's.**  The
+Lean reads the arena's environment BACK (`denoteCIList`) and compares with
+con-leche's; the port INTERNS con-ron-core's and compares handles.  It is the
+same test — `denoteE` is injective, so two constants have the same handles
+exactly when they denote the same values — it needs no second readback in the
+shipped crate, and it is slightly stronger: it compares the install-computed
+fields (`ctorParams`, `fire`, the reducibility hint) as well as the terms.
+
+The five hand-pinned lines are what stop the differential passing vacuously
+(two agreeing FAILURES agree): they pin the accepted environment's size at 7
+for the two basis blocks, 10 for the accepting list and 8 for the quotient
+package, and the two messages.  Two checks are the twin's own "beyond the
+`#guard`s": that `intern_all_pins` puts every pinned datum in the PERSISTENT
+tier — a scratch tier is opened afterwards and every name and every block
+member still comes back persistent, with no new node appended — and that
+`at_decl` renders the position into the message and only into the message.
+
+**Everything agreed on the first run but the `ValueKind.word` line above.**
+
+#### What the extraction says
+
+`scripts/extract-arena.sh --dry`: **zero errors, zero warnings**, **45 117
+lines** of model (up from P4c's 32 454), **4 type holes and 204 function
+holes**.  Of the 204, **202 are the `con-ron-core` boundary** and the other two
+are P4c's standing pair (`alloc::sync::Arc::deref` and `core::str::as_bytes`,
+the latter from `frontend/export_c.rs`'s test-facing entry).  **This task's own
+modules contribute none** — and two that they did contribute were removed
+before this line could be written: `Vec::pop` in the hoist's worklist (now
+con-ron-core's top-of-stack index) and `Vec::append` in `at_decl` (now a cursor
+push).
+
+The fourth TYPE hole is new and is the boundary too:
+`con_ron_core::kernel::expr::Expr`, because `arena::intern` walks an `Expr`
+tree — which is the brief's own design, and the reason the pins are the same
+values on both sides.  The function breakdown: `kernel::expr` 24, `ron::nat`
+22, `kernel::std_axioms` 19, `kernel::core_k` 19, `kernel::basis_names` 17,
+`kernel::trust_axioms` 15, `kernel::env` 15, `kernel::level` 13,
+`ron::hashmap` 8 (+ four primitive-type dictionary impls), `kernel::prop_when`
+8, `kernel::name` 7, `kernel::core_types` 7, `frontend::*` 15, the rest 1–2
+each.
+
+#### Gates
+
+`cargo build -p arena-core` from `cargo clean -p arena-core`: **0.99 s**.
+`cargo build` / `cargo test` workspace-wide under `RUSTFLAGS="-D warnings"`:
+**88 tests in `arena-core`** (up from 73), 375 in the workspace, all green.
+`scripts/lint-rust-style.sh` over both verified trees: clean.
+`scripts/provenance.py check`: **0 findings** (5 656 items — 3 957 Rust,
+1 699 arena Lean — and 4 402 citations, all current at pin `c431b1ca`).
+`scripts/extract-arena.sh --dry`: clean, above.
+`cd proof && lake build` was **not** run: this task touches no Lean, and a
+sibling agent is editing `proof/` — P4b's and P4c's ruling, unchanged.
+`scripts/extract.sh --check` was not run either: `con-ron-core` is untouched.
+
+#### For P4f — the driver and the `con-ron-arena` binary
+
+* **The entry points are three.**  `checker::install_then_check(st, mode,
+  &pins, &ds)` is what the binary runs; `checker::check_decls_pure` is the
+  theorem's shape and the differential test's partner; `checker::check_decl` is
+  the per-record step a streaming driver wants.  The error of the first two
+  carries the fold POSITION, and `checker::at_decl` is what renders it — beside
+  `frontend`'s `at_line`, which does the same for the PARSE's position and must
+  not be confused with it.
+* **`intern_all_pins` runs once, before the fold, with the scratch tier off.**
+  It returns the interned pin list the fold takes as its parameter; the binary's
+  own input is `con_ron_core::kernel::pins_decode::decode_embedded()`, and
+  `--no-pins` (the twin's new flag) is the empty `Vec`.
+* **`prepare_d` now takes the whole `AState`**, because step 2 of
+  `preparePrelude` is the real ground hoist.  Its only other caller is
+  `examples/arena_parse.rs`, already updated.
+* **The stack.**  P4b's and P4c's finding stands and is worse again here: a
+  `check_decl` on a deep term is tens of thousands of Rust frames through the
+  knot's six mutually recursive functions *and* the declaration checker's
+  splits.  The driver must run on a 1 GB-stack thread, as `con-ron`'s own
+  checker threads do.
+* **The bracket is `check_pending`'s and nowhere else.**  A driver that checks
+  records itself must open and close it per record, or the scratch tier grows
+  without bound.
+* **Watch the hole list, not its count.**  A hole that is not `con_ron_core::…`
+  (and not the two named above) is a new external — P4a's signal, still the
+  right one.
+* **The `Pins` record is now the biggest single lever in this half.**
+  `cert_ctx` interns twenty-one names and terms per `div_mod_cert_stmts` call,
+  `check_constant_val_guards` builds `reserved_basis_names` per declaration,
+  and `check_axiom_decl` interns six names before it decides anything.  Task
+  #97c deferred it, #97d re-priced it, and with the checker whole it is
+  measurable for the first time.
