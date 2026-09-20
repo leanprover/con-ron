@@ -12,7 +12,7 @@ resolver = "2"
 # theorem.  It is unverified like `con-ron-dump` and outside the style lint and
 # the extraction for the same reason, but it IS inside `provenance.py`'s roots:
 # the citation gate is the only sync signal the frontend will ever have (§3.7).
-members = ["crates/con-ron-core", "crates/con-ron-dump", "crates/con-ron"]
+members = ["crates/arena-core", "crates/con-ron-core", "crates/con-ron-dump", "crates/con-ron"]
 # The P2s spike's throw-away Rust (task #97s, DESIGN.md §8.6): excluded from
 # the workspace so that nothing the gates run touches it.  `charon cargo` is
 # run inside its own directory by `scripts/extract-spike.sh`.
