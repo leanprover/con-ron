@@ -589,7 +589,7 @@ functions are `abs*`, the relations `*Rel`, the well-formedness predicates
 ## 12. Gates
 
 `scripts/gates.sh` runs, in order, and stops at the first failure
-([the eleven steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L55-L65)):
+([the twelve steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L56-L66)):
 
 1. `cargo build` with warnings denied;
 2. `cargo test`;
@@ -600,8 +600,9 @@ functions are `abs*`, the relations `*Rel`, the well-formedness predicates
 7. `scripts/holes.sh --check`: §8.1's table is exactly the set of holes the Aeneas templates declare;
 8. `scripts/gen-pins.sh --check`: the embedded pin text is what con-leche's list generates;
 9. `scripts/gen-prelude.sh --check`: the embedded prelude text is con-leche's own;
-10. `scripts/extract.sh --check`: the committed model is what Charon and Aeneas produce, and every hole it declares is modelled by hand;
-11. `lake build` of the model and the proofs.
+10. `scripts/gen-prelude-lean.sh --check`: so are the arena checker's own committed prelude bytes (`proof/ConRon/Arena/Frontend/PreludeText.lean`, task #97e);
+11. `scripts/extract.sh --check`: the committed model is what Charon and Aeneas produce, and every hole it declares is modelled by hand;
+12. `lake build` of the model and the proofs.
 
 It ends with the summary lines of `progress.py` and `loc.py`.  The
 differential tests of §6.4 are not in the gates, since they need the
