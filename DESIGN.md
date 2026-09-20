@@ -22271,6 +22271,15 @@ cross-check of the transliteration there is.**
 ≈ 530 instructions per intern, at IPC 0.80: the run is memory-bound, which is
 what a 750 MB hash table over a 32 MB L3 predicts.
 
+**This is the number task #97b asked for.**  Its benchmark found that "about
+85 % of a rebuilding pass is the intern, not the traversal … and it is a
+store-layer question (the cons table's hash and probe), not an `ExprOps` one".
+Here is that question answered at the store layer: **72 ns for a hit and
+217 ns for a miss** in the Rust, **217 ns and 374 ns** in the twin, and two
+thirds of the miss is the cons table (its resizes and its probe's cache
+miss), not the append.  The three levers below are therefore the levers for
+#97b's 85 % as well.
+
 **Where the 76.7 bytes per `app` node go** — the run's 749 MB, and the
 breakdown matters because it is the number §8.1's calibration will be judged
 on:
