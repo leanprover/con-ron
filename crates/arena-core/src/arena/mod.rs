@@ -12,4 +12,5 @@
 pub mod handle;
 pub mod expr_ops;
 pub mod monad;
+pub mod env;
 pub mod store;

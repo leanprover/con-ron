@@ -23420,3 +23420,303 @@ run: this task touches no Lean, and P2c/P2e are editing `proof/` concurrently.
   handles directly, no `Expr` tree is ever built).
 * **Re-time the tower line with a warm-up** before P2g reports any
   memo-versus-no-memo ratio from it (finding 2 above).
+
+### Task #97-P4e part 1 — the Rust parser into the store (2026-09-20, Opus under Fable)
+
+Phase P4e of §8.6, first half, under the REORDERED ruling (code first, twin
+and Rust in lockstep): the Rust side of task #97e, i.e.
+`proof/ConRon/Arena/Env.lean` and `proof/ConRon/Arena/Frontend/{Types,ExportC,
+Prepare,Prelude}.lean` transliterated into `crates/arena-core`, beside the
+store layer task #97-P4a landed.  Six new modules, 4 845 shipped lines
+(plus 749 of `mod tests` and a 355-line measurement driver):
+
+| Rust | Lean twin | shipped lines | twin's raw lines |
+|---|---|---:|---:|
+| `src/arena/env.rs` | `Arena/Env.lean` | 1 095 | 360 |
+| `src/frontend/mod.rs` | — (the directory note) | 80 | — |
+| `src/frontend/types.rs` | `Arena/Frontend/Types.lean` | 296 | 173 |
+| `src/frontend/export_c.rs` | `Arena/Frontend/ExportC.lean` | 3 009 | 838 |
+| `src/frontend/prepare.rs` | `Arena/Frontend/Prepare.lean` | 296 | 153 |
+| `src/frontend/prelude.rs` | `Arena/Frontend/Prelude.lean` | 69 | 58 |
+| **total** | | **4 845** | **1 582** |
+
+3.1× the twin, against P4a's 2.3× for the store — and the extra is the same
+two things plus one: the `match` chains §3.4's no-`?` rule forces where Lean
+writes a `do` block (`parse_expr_rec_d` is 90 lines for the twin's 20), the
+loop-per-`mapM` helpers, and the message machinery — of `export_c.rs`'s 3 009
+shipped lines **355 are `const M: [u32; N]` code-point arrays** and another
+479 are doc comments, where con-leche writes `s!"…"` and a one-line `/-- … -/`.
+`con_ron_core::frontend::export_c` is 3 059 lines for the same con-leche file,
+so the handle port is the *same size* as the tree port: the representation
+change costs nothing in lines.
+
+#### The mapping, module by module
+
+`Env.lean` (§8's census class (T) — types that carry a term) maps field for
+field with `Expr ↦ EIdx`, `Name ↦ NIdx`, `Level ↦ LIdx`:
+
+| Lean twin | Rust | one-to-one? |
+|---|---|---|
+| `IConstantVal`, `IRecRuleFire`, `IRecRule`, `IIndCaps`, `IProjTable`, `IProjEntry`, `IConstantInfo`, `IDeclaration` | the same eight, same constructors in the same order | yes.  `type` is `ty` (task #6's modulo rule); a `deriving`'d copy is the house-style `i_*_dup` |
+| `ReducibilityHint`, `BasisKind`, `QuotKind`, `PropWhen` | `con_ron_core::kernel::{env,prop_when}`'s own | yes — §8.7's ruling ((B) imports the representation-free types) applied across the crate line |
+| `IRecRule`'s five install-computed defaults | `i_rec_rule_parsed` | yes; Rust has no field defaults, as `con-ron-core`'s `env::rec_rule_parsed` records |
+| `IIndCaps`'s eight defaults | `i_ind_caps_default` | yes, `sortZ := .ifAllZero []` included (task #10's surprise 6) |
+| `IProjTable.tableName` | `IProjTable.table_name` | yes — **the twin's one added field**, which is what keeps `i_constant_info_name` and `i_declaration_names` PURE, hence `prepare::pick_idx`'s predicate a predicate |
+| `projFnName`, `projTableName`, `toConstantVal`, `.type`, `IDeclaration.name` | the same five, taking `&mut EStore` | yes; each one interns and the twin is monadic for the same reason |
+| `IEnv` + `empty`/`find?`/`findProj?` | `IEnv` + `i_env_empty`/`i_env_find`/`i_env_find_proj` | **no**, in the storage order: `consts` is **oldest-first** and `i_env_find` scans from the back, which is `con-ron-core`'s `kernel::env::Env` deviation (task #50 — `Vec::push` appends, the subset has no `cons`).  The cited order is what is scanned either way |
+| `IFEnv` + `mkIFEnvGo`/`mkIFEnv`/`find?`/`restrictTo`/`push`/`findProj?` | the same six over `ron::HashMap<NIdx, (u64, IConstantInfo)>` | **no**, in the sharing: `con-ron-core` stores a `P<ConstantInfo>` in both `Env` and `FEnv`; §8.5 gives the arena **no `ron::ptr`**, so the index holds its own copy.  For a handle-shaped record that is a `Vec` spine and no term; whether P2c wants it is P2c's measurement |
+| `piSortTeleLen?` | `pi_sort_tele_len(ar, fuel, h)` | yes |
+| `Monad.lean`'s `view`/`viewN`/`readName`/`readLevel` | `env::{view_e,view_n,read_name,read_level}` + `read_names` | **no, and temporarily**: their Rust home is `arena/monad.rs`, which P4b writes.  Four functions are needed *today* — `pi_sort_tele_len` and every `validate_ind_d` message — so they sit in a section of their own at the bottom of `env.rs` and move when that module lands |
+
+`Frontend/*`:
+
+| Lean twin | Rust | one-to-one? |
+|---|---|---|
+| `RecordVerdict` + `toError` | `types::RecordVerdict` + `record_verdict_to_error` | yes (a message is a `Vec<u32>`, §3.3) |
+| `ProjRecOwner`, `MIndTypeRec`, `MIndCtorRec`, `MIndRecRec`, `BlockRec` | the same five | yes.  `T` is `t` (Rust field names are lower case) |
+| `ConstTable`, `Ctx` | `types::ConstTable` (the table itself) and `ModelCtx<'a>` (three borrows) + `ctx_tbl`/`ctx_height`/`ctx_block` | **no** — the twin's three fields are Lean closures over the parse state and §3.4 has no closures; `con_ron_core::frontend::in_model_rec::ModelCtx`'s own deviation, unchanged |
+| `hintHeight`, `wants` | `hint_height`, `wants` (+ `wants_nested`, the cursor recursion behind `types.any`) | yes |
+| `structure Modeller` with one function field | `trait Modeller` with one method, on a type parameter | yes in meaning — `in_model_rec::Modeller`'s shape exactly, and a trait method on a type parameter extracts as a *typeclass field*, i.e. an opaque function, so the model is quantified over an arbitrary modeller |
+| `declineModeller` | `DeclineModeller {}` + its `impl`, same sentence | yes |
+| `StateD`'s 19 fields | the same 19 | yes, `inModelGen` INCLUDED — `con_ron_core::frontend::export_c` does not port it (it feeds con-leche's `CON_LECHE_INMODEL_DUMP`, whose writer con-ron has no port of), but §8.6's lockstep rule is clause-for-clause with the twin, so it is here |
+| `StateD.init` (monadic) | `state_d_init(ar, …) -> Result<StateD, CheckError>` | yes — index 0 of the name and level tables is the handle `.anonymous`/`.zero` intern at |
+| `IdTable NIdx/LIdx/EIdx` | `con_ron_core::frontend::scan_types::IdTable` at the three handle kinds | yes — **reused across the crate line**, as the twin imports con-leche's |
+| `scanLineFwd`, `newlineFrom`, `usizeInBounds` | `scan_fast::{scan_line_fwd,newline_from}` | yes, reused (the twin's "the scanner is term-free" check, applied to the port) |
+| `noteDecl`'s `.basisDecl` arm | `note_decl_entries`' `BasisDecl` arm, a loud `internal` | yes, the twin's own choice |
+| `parsePwD` | `parse_pw_d`, `st_names` then `env::read_names` | yes — the handles are READ BACK to build a `PropWhen`, which is `denoteN` (§8.3 lesson 4 at the name store) |
+| `parseExprEntryD` | `parse_expr_entry_d` + `parse_expr_rec_d` | yes.  A `const`'s universe arguments are one `LsIdx` (`intern_levels`), which is what keeps the node two words; a `natVal` goes through `nat_decimal::from_decimal` (`scan_types`' deviation 2) |
+| `projRewriteD`, `noteProjIota`, `registerProjOwners` | the same three, the same stubs | yes — part 2's `ProjRec` twin is what fills them, and at an empty owner table con-leche's own body answers `none` too |
+| `indPiTeleLen`, `ExprOps.piResult` | `ind_pi_tele_len`, `pi_result` | **no** in the second: `piResult` is `Arena/ExprOps.lean:784`'s, i.e. P4b's `arena/expr_ops.rs`.  Three lines of spine walk, spelled locally in its one frontend caller (`k_expected_of`) rather than left as a hole; the call site moves when P4b lands |
+| `validateIndD`'s two `for`/`mut` loops | `order_block_ctors`/`order_type_ctors` and `check_rec_records`/`check_one_rec` | **no** — Aeneas copies the code AFTER a loop into every loop exit, so each loop is its own function whose tail is one line, exactly as `con-ron-core`'s `validate_ind_d` is split |
+| `kExpected?` | `k_expected_of(ar, fuel, …)` | yes — `pi_result`, `view`, then `env::read_level` and `level::is_equiv`, which is the twin's `Level.isEquiv (← readLevel s) .zero` |
+| `flat.Nodup` | `names_have_dup`, a handle-keyed set pass | **no** in the algorithm, and forced: the obvious quadratic scan is two nested loops with a `return` inside, and Aeneas answers *"Returns inside of nested loops are not supported yet"*.  `con-ron-core`'s is the same set pass |
+| `installIndD` | `install_ind_d` + `install_gen` (the modeller arm, split for the same loop-exit reason) | yes |
+| `st.indBlocks` insert | `note_ind_blocks`, at one `block_rec_dup` per member type name | **no** — con-leche shares one block value and `con-ron-core` shares a `P<BlockRec>`; §8.5 has no `ron::ptr`, so the arena copies.  A block is shape data (counts and handles) and the copy is on the parse path only |
+| `processLineCoreD`, `applyDeclD`, `applyLine` | the same three | yes, branch for branch |
+| `ParseResultD` + `ofState` | the same, seven fields | yes |
+| `applyFinalLine`, `feedChunk`, `chunkSize`, `sizeError`, `parseBytes`, `parseExportD`, `chunkStep`, `chunkFinish`, `concatBytes`, `parseChunks(Go)`, `atLine` | the same eleven | yes.  `feedChunk`'s termination measure becomes a `while`; `parseChunksGo` is `parse_chunks`' loop — `-loops-to-rec` gives both recursions back |
+| `builtinPreludeText` (an `include_str` through the lake package directory) | `con_ron_core::frontend::prelude_text::prelude_text()` | **no, and better**: the Rust's is a *generated* constant committed inside `con-ron-core` with `scripts/gen-prelude.sh --check` behind it — the very arrangement the twin's task section files as a follow-up.  Reusing it costs one boundary hole and saves forking a 1 500-line generated file |
+| `preludeKey`, `declares`, `pick`, `frontOf`, `hoistNatOpGround`, `Prepared`, `prepareD`, `preparePrelude` | the same eight | `pick`/`frontOf` keep `con-ron-core`'s **mask** deviation (the subset cannot take an element out of a `Vec`), and the hoist is the twin's identity placeholder |
+
+#### `AM` is `&mut EStore` plus `Result<_, CheckError>`
+
+The twin's monad is `StateT AState (Except CheckError)` and `AState` is the
+store together with the eleven `ExprOps` memo tables (`Arena/Monad.lean`).
+**The frontend touches no memo**, so the Rust threads the one field it uses,
+by the `&mut` that `Vec`-shaped state gets everywhere in the port — which
+Aeneas threads back as a return value, so the shapes match.  When
+`arena/monad.rs` lands (P4b) an `AState` holds this `EStore` and every call
+site becomes `&mut ast.store`; no body in these five modules changes.
+
+The parse's two error channels merge as `con-ron-core`'s do, into
+`LineErr { Err(CheckError), Verdict(RecordVerdict) }`.  The one difference
+from `con-ron-core`'s `LineErr` is that the first arm carries a whole
+`CheckError` and not a `Vec<u32>`: `EStore::intern` declines with `Native` at
+the `2^27` cap (§8.3) and that KIND has to survive to the exit code.
+
+#### Tests: 38, and two of them are the ones that matter
+
+`cargo test -p arena-core`: 38 green (12 store tests from P4a, 17 in
+`export_c`, 6 in `prepare`, 3 in `prelude`).  The twin has
+no `#[guard]`s in its frontend modules — it was measured against the 348 e2e
+fixtures and `Init` — so the snippets are `con_ron_core::frontend::
+export_c`'s, which are con-leche's own fixtures in miniature: the minimal
+stream, an undefined index, the three rebinding errors, an unsafe axiom, a
+`#QUOT` record, an unknown quotient kind, a mutual block at the modeller
+seam (declining / `inModel := false` / census), a contradicted `numFields`, a
+K-like block at `k := false` and `k := true`, six chunk sizes plus empty
+chunks, a final line with no newline, the size guard and `at_line`.
+
+Two are the load-bearing ones:
+
+* **`the_arena_agrees_with_the_tree_parser_on_every_snippet`** runs all eight
+  streams through BOTH Rust parsers — this one and
+  `con_ron_core::frontend::export_c`, the `Expr`-tree port of the same
+  con-leche file — and asserts the same outcome class, the same line and the
+  same declaration count.  (The two modellers decline with different
+  sentences, so the decline's text is not compared; its kind is.)
+* **`the_prelude_interns_the_twins_own_node_counts`** asserts **196
+  expression, 5 level, 55 name** nodes after the built-in prelude — task
+  #97e's own measured numbers for the Lean twin on an empty input, to the
+  node.  It exercises every record kind the prelude uses, the derived word,
+  the cons tables and the level-list interning at once, and it is the cheapest
+  cross-check of the transliteration there is.  It passed on the first run.
+
+Beside them, `the_node_counts_are_the_streams_own_entry_counts` states §8.3's
+parse claim on a snippet (the expression node count IS the number of `"ie"`
+lines, the name count the `"in"` lines plus the implicit `Name.anonymous`, the
+level count the `"il"` lines plus the implicit `Level.zero`),
+`two_equal_entries_are_one_node` states what con-leche's tree parse cannot,
+and `the_parse_stays_in_the_persistent_tier` states that the frontend never
+enables the scratch tier.
+
+#### `Init`: the numbers, beside the twin's
+
+`_tmp/corpus/init.ndjson`, 347 714 179 bytes, 6 490 422 lines, under
+`ulimit -v 12000000`; `perf stat -e instructions:u,cycles:u`, wall from five
+warm runs.  The driver is `cargo run --release --example arena_parse`, which
+is the twin's `runPipelineM` minus the fold: the built-in prelude, the
+stream's 4 MiB chunks **read and parsed in lockstep**, `preparePrelude`.
+
+**With the shipped declining modeller** the parse stops at **line 78 503**,
+where `Lean.Syntax` — a nested block — reaches the seam.  The twin stops at
+the same line, for the same reason:
+
+| | Rust | Lean twin |
+|---|---:|---:|
+| stop point | line 78 503, `declined: in-process model of Lean.Syntax` | the same line, the same verdict |
+| instructions:u | **0.26 G** | 0.39 G |
+| wall | 0.02 s | 0.11 s |
+| peak RSS | 0.02 GB | 0.39 GB (it has read the whole file) |
+
+**With `--skip-modelled`** (con-leche's own `CON_LECHE_INMODEL=0`, i.e.
+`inModel := false` — the twin's measurement build) the whole file parses:
+
+| | Rust | Lean twin | Rust / twin |
+|---|---:|---:|---:|
+| declarations parsed | **57 977** | 57 977 | — |
+| expression nodes | **6 136 571** | 6 136 571 | — |
+| level nodes | **578** | 578 | — |
+| name nodes | **295 297** | 295 297 | — |
+| prelude records synthesised | 0 | — | (`Init` declares all twelve itself) |
+| instructions:u | **19.72 G** | 30.4 G | **0.65×** |
+| cycles:u | 12.91 G | — | — |
+| wall (5 runs) | **2.63 / 2.68 / 2.68 / 2.69 / 2.70 s** (spread 0.07 s) | 5.30 / 5.39 / 5.55 s (spread 0.25 s) | **0.49×** |
+| peak RSS | **0.53 GB** | 0.82 GB, of which 0.49 GB is store + tables | 1.08× against the store |
+
+**Every count is the twin's exactly**, which is the finding: two independent
+transliterations of the same Lean module into two languages, run on a
+347 MB real `lean4export` stream, agree to the node on all four numbers.  It
+is also a live re-check of task #97a's exactness — if `denoteE` were not
+injective the counts would come out *below* the export's own census
+(`init.counts`: `app` 5 222 431 + `ie` 555 691 + `forallE` 301 314 + `const`
+56 994 + `bvar` 141 = 6 136 571).
+
+The RSS comparison is against the twin's **0.49 GB of store and tables**, not
+its 0.82 GB peak: the twin's driver reads the whole file into a chunk list
+first, and its own task section flags that as the one memory problem it found.
+This driver interleaves the reads (`parseExportHandleD`'s loop, whose pure
+meaning is `parse_chunks` of the chunks the handle hands out), so 0.53 GB is
+the store plus the parse tables plus one 4 MiB buffer.
+
+#### The price of hash-consing, measured Rust against Rust
+
+`--tree` runs the same read loop against `con_ron_core::frontend::export_c`,
+the `Expr`-tree port of the same con-leche file, so that the cost of interning
+every node is a number from this machine and not a quotation:
+
+| `Init`, same driver, same chunks | arena (handles) | tree (`Expr` + `ron::ptr`) | arena / tree |
+|---|---:|---:|---:|
+| declarations parsed | 57 977 | 57 977 | — |
+| instructions:u | 19.72 G | **16.71 G** | **1.18×** |
+| cycles:u | 12.91 G | **6.71 G** | **1.93×** |
+| IPC | 1.53 | 2.49 | 0.61× |
+| wall (3 runs) | 2.63–2.70 s | **1.26 / 1.29 / 1.36 s** | **2.07×** |
+| peak RSS | 0.53 GB | **0.39 GB** | 1.36× |
+
+(The tree parser's 1.26–1.36 s at 0.39 GB reproduces task #83's 1.29 s /
+587 MB on the same file; the RSS is lower here because this driver streams the
+reads.)
+
+**So hash-consing the parse costs 18 % more instructions and 2.07× the wall.**
+The gap is not work, it is cache misses: IPC falls from 2.49 to 1.53, which is
+exactly what task #97-P4a's micro-benchmark predicted ("≈ 530 instructions per
+intern, at IPC 0.80: the run is memory-bound, which is what a 750 MB hash
+table over a 32 MB L3 predicts").  P4a's three levers are therefore the levers
+here too, and all three are P6's and none of them touches the twin's meaning:
+
+1. **pre-size the persistent tier's cons tables** from the export's
+   declaration count (`ron::HashMap` already has `with_capacity`, and the
+   `Vec::with_capacity` underneath it is modelled as `Vec::new`, so the model
+   does not notice) — this removes the ~23 doublings a 6.1 M-entry table
+   grows through;
+2. **pre-size `nodes`/`der`**, which removes the 0.67× `Vec` doubling
+   overshoot P4a priced at 27 % of a node's bytes;
+3. **drop the cons table after the parse** for constructors the checker never
+   re-interns, which P4a priced at two thirds of an interned node.
+
+What the 2 s buys is what §8.1 is actually chasing: every downstream
+comparison is a `u32` equality, every cache is keyed on a handle, and
+`ron::tagged`, the atomic reference counts and the tree-shaped memo keys go
+away.  `Init`'s whole con-ron run is 59 s today; two seconds of parse is the
+price of the other fifty-seven.
+
+#### Extraction
+
+`scripts/extract-arena.sh --dry`: **zero errors, zero warnings**, 11 867 lines
+of model (`Types.lean` 1 104, `Funs.lean` 10 763), 687 generated definitions —
+up from P4a's 4 984 lines and 371 definitions.
+
+Holes: **3 types and 67 functions**.  Sixty-five are the `con-ron-core`
+boundary (P4a's 27 plus `code_points`, `internal`, the three `*_kind_dup`s,
+`binder_meta_*`, `literal_*`, `level::{zero,succ,max,imax,param}`,
+`name::{anonymous,mk_str,mk_num}`, `prop_when::{dup,if_all_zero}`,
+`HashMap::with_capacity` and the rest of the parse's reads); one is
+`U64`'s `Dup` dictionary; and one is `core::str::as_bytes`, which is
+**already con-ron-core's own hole** (OVERVIEW §8.1, modelled as the identity
+because Aeneas reads a `&str` as its bytes) and arrives with `parseExportD`'s
+`contents.toUTF8`.  **The arena's own code contributes none**, which is P4a's
+standing rule for the boundary and still holds.
+
+One translator complaint, real and fixed in the crate rather than worked
+around, to add to P4a's three:
+
+4. **A `return` inside nested loops.**  `names_have_dup` as a quadratic scan
+   is two `while`s with a `return` in the inner one, and Aeneas answers
+   *"Returns inside of nested loops are not supported yet"*.  The fix is the
+   algorithm `con-ron-core` already uses — one pass over a handle-keyed set —
+   which is `List.Nodup`'s meaning either way and is linear besides.
+
+#### Gates
+
+`cargo build`/`cargo test` under `RUSTFLAGS="-D warnings"` (243 + 38 + the
+rest, all green), `lint-rust-style.sh` over **both** verified trees,
+`provenance.py check` **0 findings** — 3 738 items (2 925 Rust, 813 arena
+Lean), 2 903 citations, all current at pin `c431b1ca` — `provenance-selftest`,
+`overview-links.sh` (67 links, 36 files), `holes.sh --check`,
+`gen-pins.sh --check`, `gen-prelude.sh --check`, `extract.sh --check` and
+`extract-arena.sh --dry`.
+
+The one script edit this task was allowed and took:
+`scripts/lint-rust-style.sh`'s loop exemption now names **both** ported parser
+directories (`crates/con-ron-core/src/frontend/` and
+`crates/arena-core/src/frontend/`), for the reason task #84 gave for the
+first — the cited Lean is a per-byte tail recursion Lean compiles to a loop,
+a per-byte recursion in Rust overflows the stack on a long export line, and
+`-loops-to-rec` gives each loop back as a function mirroring the recursion.
+
+The whole-`proof/` `lake build` was NOT re-run: nothing under `proof/` changed
+(P2c/P2e own it), and this worktree has no built `.lake` for the Mathlib-side
+targets.
+
+#### For part 2 and for P4b
+
+* **`arena/monad.rs` takes back four functions.**  `env::{view_e, view_n,
+  read_name, read_names, read_level}` (and the two `dangling_*` helpers) are
+  `Monad.lean`'s `view`/`viewN`/`readName`/`readLevel` and `Denote.lean`'s
+  readback.  P4a kept the readback in `mod tests`; the frontend's error text
+  and its `is_K_target` need it in shipped code, so it is shipped now, in a
+  section of `env.rs` marked for the move.  P4b should move them and delete
+  the section, not duplicate them.
+* **`export_c::pi_result` is `ExprOps`'.**  Three lines, one caller
+  (`k_expected_of`); when `arena/expr_ops.rs` lands the caller switches and
+  this goes.
+* **The three parse stubs are the twin's** and go together with part 2's
+  `ProjRec` and `NatOpGround` twins: `proj_rewrite_d`, `note_proj_iota`,
+  `register_proj_owners` and `prepare::hoist_nat_op_ground`.  All four are the
+  safe direction — at an empty owner table con-leche's own body returns
+  `none`, and an un-hoisted ground can only decline a run that would otherwise
+  accept.
+* **The extraction rules are now four** (P4a's three plus the nested-loop
+  `return` above).
+* **A fifth boundary reuse to watch.**  This task added
+  `con_ron_core::frontend::{scan_types, scan_fast, text, nat_decimal,
+  prelude_text}` to what `arena-core` reads across the crate line.  All five
+  are the right call — the scanner is term-free (the twin checked that against
+  the source), the prelude text is generated with a `--check` gate — but they
+  are why the hole list went from 30 to 70.  §8.6's swap retires all of them
+  at once; nothing here should grow the list with an item that is not
+  `con-ron-core`'s.
+* **The `--tree` flag stays.**  It is 100 lines of the example and it is what
+  makes every future claim about the arena parse's cost a measurement rather
+  than a memory; P6 will want it when the three pre-sizing levers land.
