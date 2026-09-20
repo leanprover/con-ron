@@ -335,6 +335,68 @@ def internLevels (us : List Level) : AM LsIdx := do
   let hs ← internLevelList us
   internLsNode hs
 
+/-! ## Interning into the PERSISTENT tier (the promotion's primitives)
+
+DESIGN §8.3, "Phase A runs in the scratch tier too, with promotion".  Four
+monadic twins of `internE` / `internNNode` / `internLNode` / `internLsNode`
+that append to the PERSISTENT tier whatever tier the store is in, over
+`Arena/Store.lean`'s `internPersistent` family.  The capacity test is the same
+one at the same place, against the persistent array; the error is the same
+`Native` kind.  `Arena/Promote.lean` is the only caller.
+-/
+
+/-- con-leche: none — arena infrastructure; hash-cons an expression node into
+the persistent tier. -/
+def internPersistentE (v : ENodeView) : AM EIdx := do
+  let s ← get
+  if s.store.pers.sizeOf v < Idx.idxCap then
+    let st := s.store
+    let s := { s with store := EStore.empty }
+    let (st, h) := st.internPersistent v
+    set { s with store := st }
+    pure h
+  else
+    fail (.native "arena: expression constructor array full")
+
+/-- con-leche: none — arena infrastructure; hash-cons a name node into the
+persistent tier, through the nesting. -/
+def internPersistentN (v : NNodeView) : AM NIdx := do
+  let s ← get
+  if s.store.ns.pers.sizeOf v < Idx.idxCap then
+    let st := s.store
+    let s := { s with store := EStore.empty }
+    let (st, h) := st.internNamePersistent v
+    set { s with store := st }
+    pure h
+  else
+    fail (.native "arena: name constructor array full")
+
+/-- con-leche: none — arena infrastructure; hash-cons a level node into the
+persistent tier, through the nesting. -/
+def internPersistentL (v : LNodeView) : AM LIdx := do
+  let s ← get
+  if s.store.ls.pers.sizeOf v < Idx.idxCap then
+    let st := s.store
+    let s := { s with store := EStore.empty }
+    let (st, h) := st.internLevelPersistent v
+    set { s with store := st }
+    pure h
+  else
+    fail (.native "arena: level constructor array full")
+
+/-- con-leche: none — arena infrastructure; hash-cons a universe-argument list
+into the persistent tier, through the nesting. -/
+def internPersistentLs (v : LsNodeView) : AM LsIdx := do
+  let s ← get
+  if s.store.lss.pers.sizeOf v < Idx.idxCap then
+    let st := s.store
+    let s := { s with store := EStore.empty }
+    let (st, h) := st.internLevelsPersistent v
+    set { s with store := st }
+    pure h
+  else
+    fail (.native "arena: level-list array full")
+
 /-! ## The memo tables, one probe/record/drop triple per walk
 
 Nine handle-valued tables and two `Nat`-valued ones.  Every record detaches

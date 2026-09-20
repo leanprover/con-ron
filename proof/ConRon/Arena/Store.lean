@@ -1122,4 +1122,177 @@ store. -/
   let (lss, i) := lss.intern v
   ({ st with lss := lss }, i)
 
+/-! ## Interning into the PERSISTENT tier while the scratch tier is on
+
+DESIGN §8.3, "Phase A runs in the scratch tier too, with promotion": the
+install phase opens the scratch tier exactly as phase B does, and the handles
+the environment KEEPS are **promoted** before the tier is dropped — a memoised
+structural copy scratch → persistent (`Arena/Promote.lean`).  The copy's
+target is the persistent tier while the scratch tier is still live, and
+`intern` cannot say that: it appends to the tier the store is IN.  So each
+store gets a twin of `intern`'s `else` branch, `internPersistent`, and nothing
+else about the store changes.  An ADDITIVE API change (DESIGN §8.6 P6-2).
+
+**The probe order is `intern`'s own, minus the scratch probe**: the persistent
+cons table first, and an entry found there is the answer — so a node the parse
+already interned promotes to ITSELF and a node promoted once is never
+duplicated.  The scratch table is deliberately NOT probed: a hit there would
+hand back a SCRATCH handle, which is the one thing the promotion exists to get
+rid of.
+
+**The WF obligations** (`Arena/WF.lean`), for P3:
+
+* `internPersistent` preserves every clause of `StoreWF` by the persistent
+  branch of `intern`'s own argument — it IS that branch — with ONE added
+  precondition and ONE transient exception.
+* **Added precondition**: `childOK` carries `i.isPersistent → c.isPersistent`,
+  so the view handed to `internPersistent` must have PERSISTENT CHILDREN.
+  `intern`'s persistent branch gets this for free (it runs only when
+  `scratchOn = false`, where `scrOff` makes every live handle persistent);
+  promotion gets it by construction, since it promotes the children first.
+* **Transient exception — `fresh`**: `fresh` says a view in the scratch cons
+  table is not in the persistent one.  A node BUILT in the scratch tier out of
+  already-persistent children (an `app` of two parse handles, say) sits in the
+  scratch table under a view whose children are persistent, and promoting it
+  appends that same view to the persistent table.  So `fresh` is broken while
+  the promotion runs.  It is not observable — nothing between the promotion
+  and the `dropScratch` that follows it reads the store — and `dropScratch`
+  empties the scratch tier, which restores `fresh` vacuously.  The obligation
+  P3 owes is therefore stated for the BRACKET: `StoreWF` minus `fresh` is
+  preserved by each `internPersistent`, and `promote … dropScratch` as a whole
+  takes `StoreWF` to `StoreWF`.
+* The denotation obligation is `denote (promote h) = denote h`, by induction
+  on the promotion's own recursion (each `internPersistent` is exact by
+  `consP`/`derExact`, and the children are exact by the induction hypothesis).
+-/
+
+/-- con-leche: none — arena infrastructure; hash-cons a name node into the
+PERSISTENT tier whatever tier the store is in.  `intern`'s `else` branch,
+verbatim. -/
+def NStore.internPersistent (st : NStore) (v : NNodeView) : NStore × NIdx :=
+  match st.pers.find? v with
+  | some i => (st, i)
+  | none =>
+    let d := st.derOfView v
+    let tb := st.pers
+    let st := { st with pers := NTables.empty }
+    let (tb, i) := tb.push v d Idx.tierP
+    ({ st with pers := tb }, i)
+
+/-- con-leche: none — arena infrastructure; `internPersistent`'s capacity
+precondition: the constructor's PERSISTENT array has room for one more node. -/
+def NStore.capOKPersistent (st : NStore) (v : NNodeView) : Prop :=
+  st.pers.sizeOf v < Idx.idxCap
+
+/-- con-leche: none — arena infrastructure; hash-cons a level node into the
+persistent tier. -/
+def LStore.internPersistent (st : LStore) (v : LNodeView) : LStore × LIdx :=
+  match st.pers.find? v with
+  | some i => (st, i)
+  | none =>
+    let d := st.derOfView v
+    let tb := st.pers
+    let st := { st with pers := LTables.empty }
+    let (tb, i) := tb.push v d Idx.tierP
+    ({ st with pers := tb }, i)
+
+/-- con-leche: none — arena infrastructure; the level store's capacity
+precondition for `internPersistent`. -/
+def LStore.capOKPersistent (st : LStore) (v : LNodeView) : Prop :=
+  st.pers.sizeOf v < Idx.idxCap
+
+/-- con-leche: none — arena infrastructure; hash-cons a level list into the
+persistent tier. -/
+def LsStore.internPersistent (st : LsStore) (v : LsNodeView) : LsStore × LsIdx :=
+  match st.pers.find? v with
+  | some i => (st, i)
+  | none =>
+    let d := st.derOfView v
+    let tb := st.pers
+    let st := { st with pers := LsTables.empty }
+    let (tb, i) := tb.push v d Idx.tierP
+    ({ st with pers := tb }, i)
+
+/-- con-leche: none — arena infrastructure; the level-list store's capacity
+precondition for `internPersistent`. -/
+def LsStore.capOKPersistent (st : LsStore) (v : LsNodeView) : Prop :=
+  st.pers.sizeOf v < Idx.idxCap
+
+/-- con-leche: none — arena infrastructure; hash-cons an expression node into
+the persistent tier whatever tier the store is in. -/
+def EStore.internPersistent (st : EStore) (v : ENodeView) : EStore × EIdx :=
+  match st.pers.find? v with
+  | some i => (st, i)
+  | none =>
+    let d := st.derOfView v
+    let tb := st.pers
+    let st := { st with pers := ETables.empty }
+    let (tb, i) := tb.push v d Idx.tierP
+    ({ st with pers := tb }, i)
+
+/-- con-leche: none — arena infrastructure; the expression store's capacity
+precondition for `internPersistent`. -/
+def EStore.capOKPersistent (st : EStore) (v : ENodeView) : Prop :=
+  st.pers.sizeOf v < Idx.idxCap
+
+/-! ### The same, through the nesting
+
+One lifted entry per level, each detaching the nested store before handing it
+down (DESIGN §8.4 lesson 14) and `@[noinline]` (lesson 15) — the shape of the
+`intern*` family above it. -/
+
+/-- con-leche: none — arena infrastructure; promote-intern a name from the
+level store. -/
+@[noinline] def LStore.internNamePersistent (st : LStore) (v : NNodeView) :
+    LStore × NIdx :=
+  let ns := st.ns
+  let st := { st with ns := NStore.empty }
+  let (ns, i) := ns.internPersistent v
+  ({ st with ns := ns }, i)
+
+/-- con-leche: none — arena infrastructure; promote-intern a name from the
+level-list store. -/
+@[noinline] def LsStore.internNamePersistent (st : LsStore) (v : NNodeView) :
+    LsStore × NIdx :=
+  let ls := st.ls
+  let st := { st with ls := LStore.empty }
+  let (ls, i) := ls.internNamePersistent v
+  ({ st with ls := ls }, i)
+
+/-- con-leche: none — arena infrastructure; promote-intern a level from the
+level-list store. -/
+@[noinline] def LsStore.internLevelPersistent (st : LsStore) (v : LNodeView) :
+    LsStore × LIdx :=
+  let ls := st.ls
+  let st := { st with ls := LStore.empty }
+  let (ls, i) := ls.internPersistent v
+  ({ st with ls := ls }, i)
+
+/-- con-leche: none — arena infrastructure; promote-intern a name from the
+expression store. -/
+@[noinline] def EStore.internNamePersistent (st : EStore) (v : NNodeView) :
+    EStore × NIdx :=
+  let lss := st.lss
+  let st := { st with lss := LsStore.empty }
+  let (lss, i) := lss.internNamePersistent v
+  ({ st with lss := lss }, i)
+
+/-- con-leche: none — arena infrastructure; promote-intern a level from the
+expression store. -/
+@[noinline] def EStore.internLevelPersistent (st : EStore) (v : LNodeView) :
+    EStore × LIdx :=
+  let lss := st.lss
+  let st := { st with lss := LsStore.empty }
+  let (lss, i) := lss.internLevelPersistent v
+  ({ st with lss := lss }, i)
+
+/-- con-leche: none — arena infrastructure; promote-intern a universe-argument
+list from the expression store. -/
+@[noinline] def EStore.internLevelsPersistent (st : EStore) (v : LsNodeView) :
+    EStore × LsIdx :=
+  let lss := st.lss
+  let st := { st with lss := LsStore.empty }
+  let (lss, i) := lss.internPersistent v
+  ({ st with lss := lss }, i)
+
 end ConRon.Arena

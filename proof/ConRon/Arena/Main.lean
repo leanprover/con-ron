@@ -310,22 +310,22 @@ not the parse (task #97g found it measuring the fold as parse time).  The
 reading is taken between `readFold` and `runPipelineTail`, which is where the
 parse actually ends. -/
 def runPipelineIO (h : IO.FS.Handle) (mode : CheckMode)
-    (pins : List NatOpPinSet) : IO (Except CheckError Nat × Nat × Nat) := do
+    (pins : List NatOpPinSet) : IO (Except CheckError Nat × Nat × Nat × Nat) := do
   let md := Frontend.inProcessModeller
   let s0 := AState.init EStore.empty
   match (runPipelineHead md).run s0 with
-  | .error e => pure (.error e, 0, 0)
-  | .ok (.error (e, n), _) => pure (.error (Frontend.atLine e n), 0, 0)
+  | .error e => pure (.error e, 0, 0, 0)
+  | .ok (.error (e, n), _) => pure (.error (Frontend.atLine e n), 0, 0, 0)
   | .ok (.ok (pre, st), s) =>
     match ← readFold md h st .empty 0 0 0 s with
-    | .error e => pure (.error e, 0, 0)
+    | .error e => pure (.error e, 0, 0, 0)
     | .ok (.error (e, n), _, chunks) =>
-      pure (.error (Frontend.atLine e n), chunks, ← IO.monoMsNow)
+      pure (.error (Frontend.atLine e n), chunks, ← IO.monoMsNow, 0)
     | .ok (.ok r, s, chunks) =>
       let tParse ← IO.monoMsNow
       match (runPipelineTail mode pins pre r).run s with
-      | .error e => pure (.error e, chunks, tParse)
-      | .ok (v, _) => pure (v, chunks, tParse)
+      | .error e => pure (.error e, chunks, tParse, 0)
+      | .ok (v, s') => pure (v, chunks, tParse, s'.store.persCount)
 
 /-- con-leche: Main.lean:714-944 usage
 The usage text, on stdout under `--help` and on stderr before a usage
@@ -443,11 +443,16 @@ def checkMain (file : String) (mode : CheckMode) (pins : List NatOpPinSet)
       IO.eprintln s!"con-ron-lean: {file}: {e} ({modeTag})"
       pure none
   let some h := h? | return 3
-  let (verdict, chunks, tParse) ← runPipelineIO h mode pins
+  let (verdict, chunks, tParse, nodes) ← runPipelineIO h mode pins
   if stride > 0 then
     let tRead ← IO.monoMsNow
     IO.eprintln s!"con-ron-lean: parse done: {chunks} chunks read \
       t={msSecs (tParse - t0)}s; fold t={msSecs (tRead - tParse)}s"
+    -- task #97-P6-2: the PERSISTENT expression-node count at the end of the
+    -- run, which after the promotion is the parse's DAG plus what the
+    -- installed environment kept.  The number the Rust twin is checked
+    -- against; it costs one field read and is printed only under --progress.
+    IO.eprintln s!"con-ron-lean: persistent expression nodes: {nodes}"
     (← IO.getStderr).flush
   match verdict with
   | .ok records =>

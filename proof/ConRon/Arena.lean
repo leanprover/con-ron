@@ -44,6 +44,7 @@ import ConRon.Arena.Basis
 import ConRon.Arena.NatOpPinSet
 import ConRon.Arena.CheckerBase
 import ConRon.Arena.CheckerSplit
+import ConRon.Arena.Promote
 import ConRon.Arena.DeclCheck
 import ConRon.Arena.Inductives.StructParts
 import ConRon.Arena.Inductives.SumParts

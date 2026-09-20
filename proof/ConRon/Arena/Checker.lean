@@ -21,27 +21,37 @@ con-leche has both, and so does (B), because they are different things:
   call the same `checkDecl` pieces, which is what keeps them the same
   computation.
 
-## The per-declaration bracket lives in phase B
+## Every declaration is bracketed, in both folds
 
 DESIGN §8.3: "Persistent = parse + installed environment; scratch = one
-declaration's check."  Phase A's business is exactly the terms the
-environment KEEPS — the annotated type and the annotated value — so it runs
-outside the bracket and everything it writes is persistent.  Phase B's
-business is exactly what a declaration merely COMPUTES — a sort, an inferred
-type, a conversion — so `checkPending` is `enterScratch` … `dropScratch`
-around `checkValueGroup` and every node it appends goes with the tier.
+declaration's check."  Phase B's business is exactly what a declaration merely
+COMPUTES — a sort, an inferred type, a conversion — so `checkPending` is
+`enterScratch` … `dropScratch` around `checkValueGroup`, and every node it
+appends goes with the tier.
 
-Two things are deliberately NOT bracketed, and both are con-leche's own shape:
+**Phase A is bracketed too, with promotion** (DESIGN §8.3's amendment, task
+#97-P6-2).  Task #97d ran phase A persistently, because the terms an install
+leaves behind must not be in a tier that is about to vanish.  They must not —
+but they are a handful of handles, and the install was interning every
+intermediate of the annotation and the inference under them beside those: on
+`Init`, 5.06 M permanent nodes on top of the parse's 6.14 M, **+82 %**.  So
+phase A opens the scratch tier as phase B does, and the handles that leave the
+step are **promoted** into the persistent tier first — a memoised structural
+copy, `Arena/Promote.lean`, run on the constants the step installed and on the
+`PendingCheck` it recorded.  `annotStep` is that bracket; `annotStepGo` is the
+four arms it wraps.
 
-* phase A's fallback (`annotStep`'s last clause) runs the WHOLE `checkDecl`
-  for the kinds whose check is not separable from their install — axioms,
-  basis and quotient blocks, inductive blocks, and the `Nat`-operation and
-  `reduce*` pin gates.  Those install what they check, so a scratch tier
-  under them would drop handles the environment holds;
-* `checkDeclsPure` has no bracket at all.  It is the theorem's shape and
-  Theorem 1 is stated about it; the bracket is an optimisation of the
-  driver's fold, and putting it here would make the two folds differ by more
-  than their phase structure.
+`checkDeclsPure` gets the same bracket, in `checkDeclStep`.  It is the
+theorem's shape and Theorem 1 is stated about it, and that is precisely why:
+the tier regime is where every term the checker builds lives, so the two folds
+must be one algorithm under it and differ only in their phase structure.
+
+What is NOT bracketed is `checkDecl` itself — a bracket belongs to a FOLD
+STEP, and `checkDecl` is also called from inside one (`annotStepGo`'s
+fall-through clause, for the kinds whose check is not separable from their
+install: axioms, basis and quotient blocks, inductive blocks and the
+`Nat`-operation and `reduce*` pin gates).  Those install what they check, and
+the enclosing step promotes the whole installed block.
 
 ## The pins are interned at startup
 
@@ -57,6 +67,7 @@ the tier boundary.
 -/
 import ConRon.Arena.DeclCheck
 import ConRon.Arena.Inductives
+import ConRon.Arena.Promote
 
 namespace ConRon.Arena
 
@@ -191,15 +202,38 @@ def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
       | .sound => "quotient soundness axiom mismatch"
       | _ => "quotient declaration mismatch"))
 
+/-- con-leche: ConLeche/Kernel/Checker.lean:628-632 checkDeclsPure — **one
+step of the pure fold, bracketed**: `checkDecl` inside the per-declaration
+scratch tier, with the constants it installed promoted before the tier goes.
+
+The bracket is `annotStep`'s, letter for letter — one `checkDecl` where phase
+A has an install half, and no `ValueGroup` because the pure fold checks what
+it installs in the same step.  DESIGN §8.3's amendment puts it here too, so
+that **the two folds stay one algorithm**: the tier regime is not an
+optimisation of the driver's fold that the theorem's fold may do without, it
+is where every term the checker builds lives, and a Theorem-1 statement about
+a fold with no tiers would say nothing about the fold the binary runs. -/
+def checkDeclStep (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
+    (d : IDeclaration) : AM IFEnv := do
+  let vis := fe.visibleBelow
+  flushCaches
+  enterScratch
+  let fe ← checkDecl mode pins fe d
+  let k := fe.visibleBelow - vis
+  let (_, fe) ← promoteNew PMemo.empty coreWalkFuel k fe
+  dropScratch
+  pure fe
+
 /-- con-leche: ConLeche/Kernel/Checker.lean:628-632 checkDeclsPure — check a
 list of declarations in order, starting from the empty environment.  THE
-THEOREM'S SHAPE (module note): one step per record, no bracket.  con-leche's
-`ds.foldlM (checkDecl mode ops pins) Env.empty` takes a closure, which DESIGN
-§3.4 forbids, so the fold is an explicit list recursion. -/
+THEOREM'S SHAPE (module note): one step per record, install and check
+together.  con-leche's `ds.foldlM (checkDecl mode ops pins) Env.empty` takes a
+closure, which DESIGN §3.4 forbids, so the fold is an explicit list
+recursion. -/
 def checkDeclsPureGo (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv) :
     List IDeclaration → AM IFEnv
   | [] => pure fe
-  | d :: ds => do checkDeclsPureGo mode pins (← checkDecl mode pins fe d) ds
+  | d :: ds => do checkDeclsPureGo mode pins (← checkDeclStep mode pins fe d) ds
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:628-632 checkDeclsPure — the fold
 from the empty environment. -/
@@ -245,61 +279,98 @@ structure PendingCheck where
 
 /-- con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC — phase A's
 step body: annotate-and-install for the three value kinds, the ordinary step
-`checkDecl` for everything else.  `i` is the fold position the record is
-tagged with.
+`checkDecl` for everything else.
 
-The counter is read BEFORE the push, so that `fe` reaches `push` unshared
-(con-leche's own RC-linearity note: read after it, the push copies the whole
-index at every install).
-
-**Every arm begins with `flushCaches`** — con-leche's `annotStepC` reaches
-its four arms through `annotValueC` (`Cached/Installed.lean:139`), the
-`.thmDecl` arm's own `flushC` (`:168`) and `checkDeclStepC`
-(`Cached/ParsedC.lean:279-282`, "one step of the converted-declaration fold:
-flush, then check"), and each of those three starts with a flush, so con-leche
-enters every phase-A record with EMPTY caches.  Task #97d's twin mirrored
-`Kernel/Checker.lean`, the spec tier, which has no caches to flush, and so
-carried the eleven per-declaration tables across the whole of phase A —
-bounded only by `cacheCap` and answering queries at an environment the row was
-not computed at.  This is the same class of omission task #97f found for
-`mode.certs`: where the kernel tier and the EXECUTED tier of con-leche differ,
-(B) must have the executed tier's, because the executed tier is the knot (B)
-runs.  Measured on `Init` (task #97g): cycles 1 098 G → 926 G, wall 250 s →
-211 s, peak RSS 1.862 GB → 1.834 GB, instructions +3 % (the flush is also
-lost cache hits). -/
-def annotStep (mode : CheckMode) (pins : List INatOpPinSet) (i : Nat)
-    (fe : IFEnv) (pend : Array PendingCheck) :
-    IDeclaration → AM (IFEnv × Array PendingCheck)
+**The body, not the step** — `annotStep` below is this under the
+per-declaration bracket, and the split exists so the bracket is written ONCE
+for the four arms instead of four times (DESIGN §8.3, "Phase A runs in the
+scratch tier too, with promotion").  What the body returns is what a step
+LEAVES BEHIND: the extended environment, and — for the three value kinds — the
+`ValueGroup` phase B will check.  The fold position and the environment
+counter the pending record carries are the bracket's to supply; it reads the
+counter BEFORE the step, which is both con-leche's own RC-linearity note (read
+it after the push and the push copies the whole index) and what makes the
+promotion's `k` computable without holding `fe` across the step. -/
+def annotStepGo (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv) :
+    IDeclaration → AM (IFEnv × Option ValueGroup)
   | .defnDecl cv value hint => do
-    flushCaches
     if (← natOpNames).contains cv.name || (← natDivModNames).contains cv.name then
-      pure (← checkDecl mode pins fe (.defnDecl cv value hint), pend)
+      pure (← checkDecl mode pins fe (.defnDecl cv value hint), none)
     else do
       let cvA ← installConstantVal mode fe cv
       let jv ← installValue mode fe cvA value
-      let vis := fe.visibleBelow
-      pure (fe.push (.defnInfo cvA jv hint),
-        pend.push ⟨⟨.defn, cvA, jv⟩, i, vis⟩)
+      pure (fe.push (.defnInfo cvA jv hint), some ⟨.defn, cvA, jv⟩)
   | .thmDecl cv value => do
-    flushCaches
     -- a theorem installs BY STATEMENT: the header's install half only; the
     -- value is recorded raw and never touched here (phase B annotates it), so
     -- phase A never enters a theorem's body
     let cvA ← installConstantVal mode fe cv
-    let vis := fe.visibleBelow
-    pure (fe.push (.thmInfo cvA value), pend.push ⟨⟨.thm, cvA, value⟩, i, vis⟩)
+    pure (fe.push (.thmInfo cvA value), some ⟨.thm, cvA, value⟩)
   | .opaqueDecl cv value => do
-    flushCaches
     if (← reduceOpNames).contains cv.name then
-      pure (← checkDecl mode pins fe (.opaqueDecl cv value), pend)
+      pure (← checkDecl mode pins fe (.opaqueDecl cv value), none)
     else do
       let cvA ← installConstantVal mode fe cv
       let jv ← installValue mode fe cvA value
-      let vis := fe.visibleBelow
-      pure (fe.push (.axiomInfo cvA), pend.push ⟨⟨.opaque, cvA, jv⟩, i, vis⟩)
+      pure (fe.push (.axiomInfo cvA), some ⟨.opaque, cvA, jv⟩)
   | pd => do
-    flushCaches
-    pure (← checkDecl mode pins fe pd, pend)
+    pure (← checkDecl mode pins fe pd, none)
+
+/-- con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC — **phase A's
+step, bracketed**; `i` is the fold position the record is tagged with.
+
+**The bracket, and why phase A has one** (DESIGN §8.3, "Phase A runs in the
+scratch tier too, with promotion", the coordinator's amendment after task
+#97-P4f's measurement).  Task #97d ran phase A in the PERSISTENT tier, on the
+reading that the install writes exactly the terms the environment keeps.  It
+does — but it does not write ONLY those: `installConstantVal` and
+`installValue` annotate, and annotation infers, and inference reduces, and
+every intermediate of all of that was interned permanently beside them.
+Measured on `Init`: 5.06 M permanent nodes on top of the parse's 6.14 M,
+**+82 %**, and con-ron's own peak RSS ×3.9.  con-leche and con-ron get the
+same effect from GC; the arena's answer is con-leche #64's, and it is the
+bracket phase B already has with one operation added at its end:
+
+    flushCaches; enterScratch; <the step>; promote; dropScratch
+
+`promote` (`Arena/Promote.lean`) is the memoised structural copy scratch →
+persistent, run on **exactly what leaves the step**: the `k` constants the
+step installed (`promoteNew`, `k` from the counter read before it) and the
+pending record (`promoteVG` — an `opaque`'s value is not in the environment,
+so the seam has to be promoted beside it, at the SAME memo, so that the
+sharing between a header's type and its value survives the copy).  A
+persistent handle promotes to itself, so a record that installs what the parse
+already built pays one tier-bit test per handle.  After it the environment and
+the `PendingCheck`s name persistent handles only, which is what lets
+`dropScratch` take the tier — and it must run after the step and before the
+drop: the scratch nodes are gone once the tier is dropped.
+
+**The flush stays where con-leche puts it, at the head** — `annotStepC`
+reaches its four arms through `annotValueC` (`Cached/Installed.lean:139`), the
+`.thmDecl` arm's own `flushC` (`:168`) and `checkDeclStepC`
+(`Cached/ParsedC.lean:279-282`, "one step of the converted-declaration fold:
+flush, then check"), so con-leche enters every phase-A record with EMPTY
+caches (task #97g's item 4).  `dropScratch` flushes too — no cache row may
+name a handle of the tier it drops — so what the head flush covers is the
+FIRST record of the fold, whose caches are whatever `internAllPins` left. -/
+def annotStep (mode : CheckMode) (pins : List INatOpPinSet) (i : Nat)
+    (fe : IFEnv) (pend : Array PendingCheck) (pd : IDeclaration) :
+    AM (IFEnv × Array PendingCheck) := do
+  let vis := fe.visibleBelow
+  flushCaches
+  enterScratch
+  let (fe, vg?) ← annotStepGo mode pins fe pd
+  let k := fe.visibleBelow - vis
+  match vg? with
+  | none => do
+    let (_, fe) ← promoteNew PMemo.empty coreWalkFuel k fe
+    dropScratch
+    pure (fe, pend)
+  | some vg => do
+    let (m, vg) ← promoteVG PMemo.empty coreWalkFuel vg
+    let (_, fe) ← promoteNew m coreWalkFuel k fe
+    dropScratch
+    pure (fe, pend.push ⟨vg, i, vis⟩)
 
 /-- con-leche: ConLeche/Cached/Installed.lean:185-195 annotDeclStep — phase
 A's step with the position carried and the error tagged: a failing step
@@ -334,12 +405,14 @@ def annotFold (mode : CheckMode) (pins : List INatOpPinSet)
 B's check of one record**, against the prefix view `fe.restrictTo pc.vis`,
 from a fresh memo state.
 
-**This is (B)'s per-declaration bracket** (DESIGN §8.3, module note): the
-scratch tier is turned on, `checkValueGroup` runs the inference and the
+**Phase B's half of the per-declaration bracket** (DESIGN §8.3, module note):
+the scratch tier is turned on, `checkValueGroup` runs the inference and the
 conversion, and the tier — with every node they appended and every cache row
-naming one — is dropped.  con-leche's `flushC` at the same place drops its
-memo tables whole; `dropScratch` keeps the rows whose key and value are
-persistent, which is strictly more (con-leche's arena #51). -/
+naming one — is dropped.  Nothing crosses back, so there is nothing to
+promote: phase B's business is exactly what a declaration does NOT keep, which
+is what made phase B the easy half and phase A the one that needed
+`Arena/Promote.lean`.  con-leche's `flushC` at the same place drops its memo
+tables whole, and so does `dropScratch` (task #97f's amendment). -/
 def checkPending (mode : CheckMode) (fe : IFEnv) (pc : PendingCheck) :
     AM Unit := do
   enterScratch
