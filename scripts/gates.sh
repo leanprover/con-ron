@@ -6,7 +6,7 @@
 # Runs, in order, and stops at the first failure:
 #   1. cargo build                          the crate compiles, warning-free
 #   2. cargo test                           the unit tests pass
-#   3. scripts/lint-rust-style.sh           the Aeneas subset (§3.4)
+#   3. scripts/lint-rust-style.sh           the Aeneas subset (§3.4), both crates
 #   4. scripts/provenance.py check          every item cites con-leche (§3.7)
 #   5. scripts/provenance-selftest.py        the gate's Lean parser, on its fixture
 #   6. scripts/overview-links.sh            OVERVIEW.md/DESIGN.md line anchors
@@ -54,7 +54,7 @@ run() { # run <name> <cmd...>
 # enforce by itself: `-D warnings` does.
 run cargo-build   env RUSTFLAGS="-D warnings" cargo build --manifest-path "$root/Cargo.toml"
 run cargo-test    env RUSTFLAGS="-D warnings" cargo test  --manifest-path "$root/Cargo.toml"
-run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src"
+run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src" "$root/crates/arena-core/src"
 run provenance    python3 "$root/scripts/provenance.py" check
 run provenance-self python3 "$root/scripts/provenance-selftest.py"
 run overview-links "$root/scripts/overview-links.sh"

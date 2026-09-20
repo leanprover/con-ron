@@ -3,6 +3,13 @@
 version = 4
 
 [[package]]
+name = "arena-core"
+version = "0.1.0"
+dependencies = [
+ "con-ron-core",
+]
+
+[[package]]
 name = "cc"
 version = "1.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"

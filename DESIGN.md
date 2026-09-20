@@ -20987,7 +20987,10 @@ so.  **Round 2 closed them and revises the reasoning** (see `#### Round 2`
 at the end of this section): the answer is unchanged, but the proof-cost
 argument of §6.1 is wrong — the one-layer route is 26 % *cheaper* in lines
 at spike scale, and (B) is kept for blast radius, the P2f differential and
-the shape of the conclusion instead.
+the shape of the conclusion instead.  **Round 3 revises the *cost* of C1**
+(`#### Round 3`, also at the end of this section): redone with the existing
+task-#70/#71 refinement idiom, C1 is 22 lines of proof rather than 378, so
+every "budget C1 as hand work" line below is superseded.
 
 #### The table
 
@@ -22375,3 +22378,460 @@ between them.
   matter (a real declaration's `annotate` + `infer` + `defeq` sweep) need
   P2d's `checkDecl` to exist.  Add them with it, and price the reserved-name
   interning at the same time.
+### Task #97-P4a — the Rust arena stores (2026-09-20, Opus under Fable)
+
+Phase P4a of §8.6, under the REORDERED ruling (code first, twin and Rust in
+lockstep): the Rust side of P2a's store layer, as a new verified-crate-to-be
+`crates/arena-core`, module `arena::{handle, store}`, transliterated from
+`proof/ConRon/Arena/{Handle,Store}.lean` function for function.  `Denote`,
+`WF` and `WFProofs` are the arena's own verification and have no Rust
+counterpart; the readback they define exists here only inside `mod tests`,
+where a `#guard` of the twin cannot be mirrored without it.
+
+#### The crate, and its one dependency
+
+`crates/arena-core` is a workspace member and a verified crate: every rule of
+§3.4 applies, `scripts/lint-rust-style.sh crates/arena-core/src` is green (and
+`scripts/gates.sh` now runs the lint over **both** verified trees),
+`scripts/provenance.py`'s `RUST_ROOTS` gained the one line that puts it inside
+the citation gate, and `cargo build`/`cargo test` are warning-free under
+`-D warnings`.
+
+It depends on `con-ron-core`, and that is the right call for four things the
+brief names and one it does not:
+
+* `ron::HashMap` with its `Hashable`/`Eq2`/`Dup` dictionaries, and `ron::Nat`
+  (inside `Literal`);
+* `kernel::core_types::CheckError` and `code_points`, for the `Native` decline
+  at the `2^27` cap;
+* `BinderMeta` and `Literal` — con-ron-core's own types, as the brief fixes,
+  and with them `PropWhen`, `Name` and the `P` handle they carry;
+* and the one the brief does not name: **`kernel::expr`'s packed-word
+  arithmetic**.  `EStore::der_of_view`'s ten arms are `expr::bvar`/`fvar`/
+  `sort`/`mk_const`/`app`/`lam`/`forall_e`/`let_e`/`lit`/`proj`'s own bodies
+  with `data(&child)` replaced by `self.derived(h)`: the same `pack_data`,
+  `hash32`, `sat_succ`, `sat_pred`, `max_u64`, `hash_of_data`,
+  `bvar_of_data`, `fvar_of_data`, `lp_of_data` and `name::mix_hash` calls, in
+  the same order, **imported and not copied**.  That is what makes `mod
+  tests`'s per-constructor `st.derived(&h) == expr::data(&e)` a real check
+  rather than two derivations agreeing with each other.
+
+**Is depending on it clean?  For `cargo`, yes.  For Charon, no — and the
+measurement is the finding of this phase.**  `charon cargo` does not descend
+into a path dependency: every `con_ron_core::…` item the crate calls comes out
+of `FunsExternal_Template.lean` as an `@[rust_fun]` axiom, and the types with
+private fields (`HashMap`, `PropWhen`) out of `TypesExternal_Template.lean`.
+Asking for the bodies (`charon cargo --include 'con_ron_core::_'`) *does*
+translate them — but from the dependency's **optimized** MIR, the only stage
+Charon has for a dependency (`charon cargo --help`: "This is only relevant for
+the current crate; for dependencies only MIR optimized is available") — and
+Aeneas then fails on `ron::hashmap::HashMap::move_elements_from_list` with
+*"There should be no bottoms in the value"*.  So the two options are a
+documented hole list or a 3.5 k-line copy of `nat.rs`, `hashmap.rs`, `ptr.rs`,
+`name.rs`, `prop_when.rs` and a split-out of `expr.rs` — proved code,
+duplicated, with its proofs forked.  **The hole list is the smaller debt**,
+and §8.6's swap retires it: when `arena-core` becomes `con-ron-core` the
+boundary is gone and `scripts/extract.sh`'s single-crate run covers
+everything again.  `Literal`, `BinderMeta`, `CheckError` and `ron::Nat` are
+*not* holes, by the way — Charon translates a dependency's type definitions,
+only not its function bodies.
+
+#### The API mapping
+
+Every public signature of the frozen twin, and what it became.  `&mut self`
+is the Rust of the twin's `XStore → XStore × XIdx`: Aeneas threads it back as
+a return value, so the shapes match (§8.6's P2s round 2 found the same).
+
+| Lean twin | Rust | one-to-one? |
+|---|---|---|
+| `Idx k` over phantom `IdxKind` | `EIdx`/`NIdx`/`LIdx`/`LsIdx`, four `u32` newtypes | **no**, and by the brief rather than by necessity — see "the phantom handle, measured" below.  The *arithmetic* is still written once, as five `word_*` functions on the raw word; each newtype's six operations are one-line wrappers, so the twin's `k`-generic lemmas transfer as lemmas about `word_*` |
+| `Idx.mk tag tier idx` | `EIdx::pack` (…and `NIdx`/`LIdx`/`LsIdx`), over `handle::word_mk` | **no**, in the name only — Aeneas names a structure's own constructor `EIdx.mk`, so an associated `mk` collides with it ("Name clash detected", measured).  The twin dodges the same collision from the other side, by naming `Idx`'s constructor `ofWord` |
+| `Idx.ofWord` | `EIdx::of_word` | yes |
+| `Idx.tag / tier / index / isPersistent / idxNat` | `.tag() / .tier() / .index() / .is_persistent() / .idx_nat()` over `word_tag / word_tier / word_index / word_is_persistent / word_idx_nat` | yes; `idxNat : Nat` is a `usize`, which `IDX_CAP` bounds |
+| `Idx.tierP / tierS / idxCap` | `TIER_P / TIER_S / IDX_CAP`, plus `TAG_SPAN` for the `2^28` the twin writes inline twice | yes |
+| `instBEq (Idx k)` / `instHashable (Idx k)` | `impl Eq2` / `impl Hashable` per kind (word equality; the word **is** the hash) | yes |
+| — | `impl Dup` per kind | **new**: §3.4 forbids `#[derive]` and a hand-written `Clone`/`Copy` would drag `core::clone::Clone` into the model, so copying a handle is `dup2()`, the crate's standard spelling for the copy Lean's value semantics hides |
+| `ETag.* / NTag.* / LTag.* / LsTag.list` | `ETAG_* / NTAG_* / LTAG_* / LSTAG_LIST` | yes, same nineteen values |
+| `Tbl α ι δ` + `[Inhabited δ]` | `Tbl<A, I, D>` with `A: Hashable + Eq2 + Dup, I: Dup, D: Dup + DerDefault` | yes; `Inhabited δ` is the local one-method `DerDefault` trait, for the reason `ron::hashmap::Eq2` is not `PartialEq` |
+| `Tbl.empty / size / node? / derAt / find? / push` | `Tbl::empty / size / node / der_at / find / push` | yes.  `node?` spells its bound test explicitly (`Vec::get` is not in Aeneas's model, indexing and `len` are); `push` takes the record once and copies it into the cons table, as the twin stores it twice.  The copy is `Dup`, which for fifteen of the seventeen records is a handle copy or a reference bump, and for `StrNode`/`ListNode` a real `Vec` copy where Lean shares the value — a name's component and a level list therefore cost twice in the Rust and once in the twin, on the parse path only |
+| the seventeen node records | the same seventeen structs | yes.  `StrNode.s : String` is a `Vec<u32>` of code points, `NumNode.n`/`BVarNode.i`/`FVarNode.idx`/`ProjNode.i : Nat` are `u64`, `ListNode.us : List LIdx` is a `Vec<LIdx>` — §3.3's three standing deviations, already the rest of the core's |
+| `deriving Hashable` on each | `impl Hashable` per record: `mixHash` folded over the fields from the constructor index `0`, as Lean's deriving does | yes in shape; the *values* differ wherever a `String` or a `Nat` is hashed, which §3.2 makes free (a hash need only be a function of the value) |
+| `deriving DecidableEq` on each | `impl Eq2` per record, field by field | yes |
+| — | `impl Dup` per record | **new**, as for the handles |
+| `NNodeView / LNodeView / ENodeView` | the same enums | yes |
+| `LsNodeView := List LIdx` | `type LsNodeView = Vec<LIdx>` | yes |
+| `LDer` | `LDer { hash: u64, has_param: bool }` + `Dup` + `DerDefault` (= `⟨0, false⟩`, the twin's `Inhabited`) | yes |
+| `{N,L,Ls,E}Tables` and `{N,L,Ls,E}Store` | the same eight structs, **nested as the twin nests them** (`NStore ⊂ LStore ⊂ LsStore ⊂ EStore`) | yes.  §8.3's "the Rust flattens it into one `Arena` struct with field prefixes" was **not** taken: the brief freezes the nesting, and it costs nothing — `EStore::ns()` is `&self.lss.ls.ns` |
+| `XTables.empty / count / get / derAt / find? / sizeOf / push` | the same seven, `push(&mut self, v, d, tier) -> XIdx` | yes, tag chain for tag chain |
+| `XStore.empty / persCount / scrCount / nodeCount / view / derived / derOfView / find? / intern / enableScratch / dropScratch` | the same eleven | yes, except `intern` (below) |
+| `XStore.capOK : Prop` | `XStore::cap_ok(&self, v) -> bool` | **no** — a `Prop` becomes the test that decides the `Native` decline |
+| `XStore.intern : XStore → XNodeView → XStore × XIdx` | `intern(&mut self, v) -> Result<XIdx, CheckError>` | **no**, and deliberately: the twin is total and carries the `2^27` cap as `capOK`, a *hypothesis* of `intern_spec`; §8.3 puts the test in the Rust ("the Rust raises `Native` at the limit, the Lean `throw`s the same kind"), so `intern` tests `size_of(&v) >= IDX_CAP` and returns `CheckError::Native`.  The probe order — persistent cons table, then scratch, then append to the tier the store is in — is the twin's, clause for clause |
+| `LsStore.derOfView` (recursion on the list) | `der_of_view` + `der_of_view_from(v, i)` | **no** — §3.4 has no loops and no list recursion over a `Vec`; the cursor recursion is `-loops-to-rec`'s own shape, and the rest of the core already spells every `List` fold this way |
+| `EStore.derOfView`'s `lam`/`forallE`/`letE` arms | `store::der_of_bind(tag, dt, db, hm, pm)` and `store::der_of_let(dt, dv, db)`, called from the arms | **no** — see "what the extraction changed" below.  `der_of_bind 19` and `der_of_bind 23` are the twin's two arms verbatim; the twin writes them out twice |
+| `EStore.lsS / ls / ns / nder / lder / lsder` | `ls_s() / ls() / ns() / nder() / lder() / lsder()` | yes |
+| `{L,Ls,E}Store.intern{Name,Level,Levels}` | the same six, plain delegations | yes.  The twin's detach-before-update (lesson 14) has no Rust counterpart: `&mut` **is** the unique reference the detaching exists to manufacture, and `@[noinline]` (lesson 15) is a Lean RC concern |
+| `dropScratch := { st with scr := .empty, scratchOn := false }` | `self.scr = XTables::empty(); self.scratch_on = false` | yes — and **not** the brief's "truncate + clear".  Aeneas models neither `Vec::clear` nor `Vec::truncate` (its `Vec.lean` has `new`, `push`, `len`, `index`, `insert`, `resize`, `with_capacity`), so either would add an external hole for an operation the twin does not perform.  `ron::HashMap::new` allocates nothing (task #35), so only the ten `Vec`s re-grow per declaration; P6 measures whether that is worth a hole |
+
+##### The phantom handle, measured
+
+The brief fixes four `u32` newtypes, and that is what the crate has.  It is
+worth recording that the twin's own shape would also have worked: a probe
+crate with `struct Idx<K> { word: u32, kind: PhantomData<K> }` and two
+zero-sized kind markers extracts with **no error and no hole** —
+`core::marker::PhantomData` is modelled natively (`@[reducible, rust_type
+"core::marker::PhantomData"] def core.marker.PhantomData (T : Type) := Unit`)
+and `Idx K` comes out as a two-field structure whose second field is that
+`Unit`.  So the choice is a style one, and it is the four newtypes that cost:
+~240 lines of wrappers and twelve dictionary impls where one generic set would
+do.  What they buy is that no type parameter threads through `Tbl`, the four
+`*Tables` and every signature below them.  P4b may revisit it; nothing in the
+model forbids either.
+
+#### What the extraction changed in the crate
+
+`scripts/extract-arena.sh` (new; `--dry` by default, since the model is not
+committed until the crate stops growing at P4b) is `scripts/extract.sh`'s
+invocation pointed at `crates/arena-core`, into `proof/ConRon/ArenaGen/`.
+Two translator complaints, both real, both fixed **in the crate** rather than
+worked around:
+
+1. **`Idx::mk` collides with the structure constructor.**  Aeneas names
+   `EIdx`'s own constructor `arena.handle.EIdx.mk`, so an associated `mk`
+   is "Name clash detected: … the generated code will be incorrect", four
+   times.  Renamed `pack`.
+2. **A three-way `||` under a `match`'s loans cannot be joined.**  The
+   `lam`/`forallE`/`letE` arms end in `lpOfData ty || lpOfData b ||
+   m.pw.hasParams`; inlined in a `match` arm that still holds borrows into the
+   `&ENodeView`, Aeneas reports *"Could not match the contexts"*
+   (`interp/Interp.ml:617`).  Hoisting the `has_params` read to its own `let`
+   does not help, nor does binding the whole disjunction.  The two-way
+   disjunction of the `app` arm is fine, and `con_ron_core::kernel::expr::lam`
+   — the same three-way disjunction with `m` owned and no enclosing match —
+   extracts today.  Lifting the arithmetic into `der_of_bind` /
+   `der_of_let`, functions of scalars, makes the loans dead at the join —
+   once for the two binder arms and once for `letE`.
+
+**Result: the crate extracts with zero errors and zero warnings.**  4 984
+lines of model (`Types.lean` 380, `Funs.lean` 4 604), 371 generated
+definitions.  Holes: **3 types and 27 functions, every one of them the
+`con-ron-core` boundary** — `alloc::sync::Arc` (already a hole in
+con-ron-core's own model), `ron::hashmap::HashMap`,
+`kernel::prop_when::PropWhen`, and the 27 functions the arena calls across the
+crate line (`pack_data`, `hash32`, `sat_succ`, `sat_pred`, `max_u64`, the four
+field readers, `mix_hash`, `str_hash`, `nat_hash`, `str_eq`, `str_copy`,
+`hash_pw`, `has_params`, the three `literal_*`, the three `binder_meta_*`,
+`code_points`, `HashMap::{new,get,insert}` and `u64`'s `Dup`).  **The arena's
+own code contributes none.**  The model is the twin term for term where it
+matters: `arena.handle.word_mk` is `tag * TAG_SPAN + tier * IDX_CAP + idx`,
+and `arena.store.EStore.intern` is `ETables.find self.pers v` → the
+`scratch_on` branch → the cap test → `ETables.push`, in the twin's order.
+
+#### Tests
+
+`mod tests` in `store.rs`, 12 `#[test]` functions, **81 assertions**: all
+**44** `#guard`s of `StoreTest.lean` (DESIGN's task #97a section says forty;
+`grep -c '^#guard'` says forty-four), same terms, same expectations —
+
+* the handle layout (7), hash-consing including cross-tier dedup (6), `view`
+  round-trips (3), the denotation against con-leche values (6), the derived
+  column against `Expr.data` / `Name.hashData` / `Level.hashData` /
+  `levelsHash` / `levelsHaveParam` (9), a binder and a `bvar` (4), the
+  `dropScratch` bracket (8), a persistent handle's bits surviving it (1);
+
+plus three tests the twin's `#guard`s do not have: the five expression arms
+(`fvar`, `forallE`, `letE`, `lit`, `proj`), the `num` name arm and the
+`max`/`imax`/`param` level arms, so that **every** `der_of_view` formula is
+checked against `con-ron-core`'s own `expr::data` / `name::hash_data` /
+`level::hash_data` of the tree the same smart constructors build; the two
+tiers' independent indexing; and `find` agreeing with `intern`.  Where the
+Lean compares Lean values, the Rust compares `expr::beq` / `name::beq` /
+`level::beq`.  The readback (`Denote.lean`'s four fuel-indexed functions)
+lives in `mod tests` and nowhere else.
+
+#### Sizes
+
+| | lines |
+|---|---|
+| `lib.rs` + `arena/mod.rs` (module notes) | 65 |
+| `handle.rs` | 553 (208 code, 265 comment) |
+| `store.rs`, shipped | 2 408 (1 609 code, ~610 comment) |
+| `store.rs`, `mod tests` | 500 |
+| `examples/intern_bench.rs` | 121 |
+| **total** | **3 647** |
+
+Against the twin's 1 572 raw lines of `Handle` (279) + `Store` (1 125) +
+`StoreTest` (168): the Rust is 2.3×, and almost all of the excess is the
+seventeen `Hashable`/`Eq2`/`Dup` dictionaries Lean gets from `deriving`
+(51 `impl` blocks, ~400 lines) and the four handle kinds' wrappers where the
+Lean has one phantom-typed `Idx` (~240 lines).  Nothing else in the two files
+is more than a rename apart.
+
+#### The micro-benchmark
+
+`cargo run --release --example intern_bench -- 10000000 4096`: 4 096 `bvar`
+leaves into the persistent tier, then 10 M **distinct** `app(leaf i, leaf j)`
+over the pairs in row-major order — every one a cons-table miss followed by an
+append, the store's worst case and the operation the parser spends its life
+in — then the same 10 M again, which is the *hit* path `whnfCore` and `infer`
+run.  Release profile, `overflow-checks = true` (the shipped one, because it
+is what the model describes).  Peak RSS is `VmHWM` from `/proc/self/status`.
+
+The Lean side is the same program against the twin
+(`_tmp/t97-p4a/`, a scratch lake package that compiles
+`proof/ConRon/Arena/{Handle,Store}.lean` through a symlink with
+`precompileModules = true` — P4a may not touch `proof/`, and P2b's benchmark
+is not on the branch).  **The two agree on the last handle word
+(1 083 741 823) at both ends of both passes, which is the cheapest
+cross-check of the transliteration there is.**
+
+| 10 M `app` nodes, base 4 096 | Rust | Lean twin | Lean / Rust |
+|---|---:|---:|---:|
+| intern, miss (three runs) | 215 / 220 / 217 ns | 372 / 381 / 380 ns | **1.7×** |
+| intern, hit (three runs) | 71 / 72 / 69 ns | 218 / 216 / 216 ns | **3.1×** |
+| bytes per `app` node | **76.7** | 114 | 1.5× |
+| instructions:u, whole run | **10.59 G** | 19.58 G | 1.85× |
+| cycles:u, whole run | 13.31 G | 32.52 G | 2.44× |
+| wall, whole run | 3.22 s | 7.42 s | 2.3× |
+
+≈ 530 instructions per intern, at IPC 0.80: the run is memory-bound, which is
+what a 750 MB hash table over a 32 MB L3 predicts.
+
+**This is the number task #97b asked for.**  Its benchmark found that "about
+85 % of a rebuilding pass is the intern, not the traversal … and it is a
+store-layer question (the cons table's hash and probe), not an `ExprOps` one".
+Here is that question answered at the store layer: **72 ns for a hit and
+217 ns for a miss** in the Rust, **217 ns and 374 ns** in the twin, and two
+thirds of the miss is the cons table (its resizes and its probe's cache
+miss), not the append.  The three levers below are therefore the levers for
+#97b's 85 % as well.
+
+**Where the 76.7 bytes per `app` node go** — the run's 749 MB, and the
+breakdown matters because it is the number §8.1's calibration will be judged
+on:
+
+| | bytes/node | share |
+|---|---:|---:|
+| `nodes: Vec<AppNode>` (8 B live, `Vec` doubling to 1.67× at 10 M) | 13.4 | 17 % |
+| `der: Vec<u64>` (ditto) | 13.4 | 17 % |
+| `cons` slot vector, 16.7 M × `sizeof(AList<AppNode, EIdx>) = 24 B` | 40.2 | 52 % |
+| chained buckets (`Option<Box<AList>>`, one block per collision past the first) | ~8 | 10 % |
+
+So **two thirds of an interned node is its cons table**, and half of that is
+the slot vector's spare capacity at load factor 0.75.  Three levers, all for
+P6 and none of them touching the twin's meaning: pre-size the persistent
+tier's tables from the export's declaration count (`ron::HashMap` already has
+`with_capacity`, and the `Vec::with_capacity` underneath it is modelled as
+`Vec::new`, so the model does not notice); the same for `nodes`/`der`, which
+removes the 0.67× doubling overshoot; and drop the cons table after the parse
+for constructors the checker never re-interns.  The `AppNode` itself is 8 B and its derived
+word 8 B, exactly what §8.5 prices the representation at — nanoda's 32 B
+`Expr` plus indexmap overhead is the number to beat and this is well inside
+it.
+
+The miss path's 217 ns is dominated by the nineteen doublings of the cons
+table (≈ 20 M entry moves for 10 M inserts) plus the cache miss per probe; the
+hit path's 71 ns is one hash, one bucket index and one `Eq2`, i.e. one cache
+miss, which is about right.
+
+#### For P4b
+
+* The three extraction rules this phase bought, to write into the next
+  modules from the start: no associated `mk`; no three-way `||` inside a
+  `match` arm that holds loans (lift the arithmetic into a function of
+  scalars); no `Vec::clear`/`truncate`.
+* `scripts/extract-arena.sh --dry` is the per-module gate; commit
+  `proof/ConRon/ArenaGen/` only when the crate stops moving.
+* The crate boundary's 30 holes are a standing debt, not a leak: §8.6's swap
+  retires them.  Do **not** let the list grow with items that are not
+  `con-ron-core`'s — that is the signal that a new external crept in.
+* **One allocating probe, to price at P6.**  `ron::HashMap::get` takes
+  `&K`, and there is no borrowed-key API, so `NTables::find` of a
+  `NNodeView::Str` has to build a whole `StrNode` — including an
+  `expr::str_copy` of the component — and `LsTables::find` a whole
+  `ListNode`.  The twin's `t.strs.find? ⟨p, s⟩` copies nothing (the `String`
+  is a value).  Both sit on the parse path and nowhere else (a name is
+  interned once, and after that every comparison is `NIdx` equality, §8.3),
+  and the other eight `find`s copy only handles or bump a reference, so this
+  is not a hot-loop cost — but it is a real difference from the twin and the
+  fix, a `get` that takes the key's parts, belongs to `ron::HashMap` rather
+  than to the arena.
+* The scratch lake package in `_tmp/t97-p4a/` is the Lean-side benchmark
+  harness.  It was written before task #97b's `con-ron-arena-bench`
+  (`ConRon/Arena/Bench.lean`) landed on the branch, and the two measure
+  different things — #97b times `instantiate1`/`abstract1`/
+  `instantiateLevelParams` over three term shapes, this one times `intern`
+  itself — so the intern case belongs in `Bench.lean` as a fourth shape when
+  P2g owns the measurement, and the scratch package can then go.  Building it
+  populated `.c.o` files in the shared con-leche package directory (additive,
+  no olean touched).
+  cheap way to buy the difference back.  **Superseded by round 3**: that
+  tactic already exists (`rust_norm` + `rust_grind`, `Refine/Abs.lean`, task
+  #71) and closes C1 in 22 lines.
+
+#### Round 3 (2026-09-20, Opus under Fable)
+
+The maintainer's question: *"For rust against the twin I thought we already
+had decent automation?  Is that different from the rust-against-cached-twin
+we already have?"*
+
+**It is not different, and round 2 was wrong.**  Experiment C1 redone with
+the task-#70/#71 idiom exactly as `ConRon/Refine/` uses it
+(`Spike/ExpC1Idiom.lean`, same statement, same extracted model, same twin) is
+**22 lines of proof, 20 of them the shape step**, against round 2's **378
+lines and ~300 hand**.  `rust_norm` leaves **seven** goals and the closing
+`grind` shuts **7 / 7**; nothing is left open and nothing is matched by hand.
+Full numbers and the two traps: `_tmp/t97/spike-report.md` §R6–R8.
+
+Round 2's sentence "there is no automation for *program-to-program*
+equality" was an observation about `mvcgen` — the Aeneas model threads state
+as a return value, so the `⦃s = s₀⦄` template has nothing to instantiate —
+and it does not apply to the task-#70 idiom, which is not a VC generator.
+That idiom normalises a Rust **success hypothesis** and closes each residual
+branch with `grind`; it never needs a state monad on either side.
+`MiniRun.mInstantiate1_run_succ` already puts the twin in the same
+`Except`-valued shape as the Rust, and from there C1 is a refinement lemma of
+exactly the kind the `Refine` tier has 1 614 of.
+
+##### The table
+
+`lake env lean` on one file, `LEAN_NUM_THREADS=2`, `ulimit -v 60000000`,
+three runs each, spread ≤ 0.07 s.  "net" subtracts that file's own import
+baseline, measured the same way (`import MiniAbs` 1.86 s; `import MiniAbs` +
+`import ConRon.Refine.Abs` 1.88 s; `import ExpC1Idiom` 1.94 s).
+
+| C1 as | raw lines | code lines | proof body | hand lines | goals left by the normaliser | closed by the closer | elaboration, net |
+|---|---|---|---|---|---|---|---|
+| round 2, by hand (`ExpC1.lean`) | 394 | 340 | 378 | ~300 | — | — | **0.61 s** |
+| round 3, the idiom (`ExpC1Idiom.lean`) | 297 | 132 | **22** | **20** | **7** | **7 / 7** | **2.59 s** |
+| round 3, Aeneas `step*` (`ExpC1Step.lean`, `bvar` arm only) | 184 | 66 | 5 | 3 | 2 | 2 / 2 | 1.46 s |
+
+`ExpC1Idiom`'s 2.59 s splits as **0.79 s** for the in-file layer (fifteen
+inversion lemmas, the dictionary, the `Spec`/`use` pair) and **1.80 s** for
+the seven `grind` calls — **0.26 s a goal**.  So the idiom costs **4.2× the
+hand proof's elaboration for 17× fewer proof lines**, which is inside
+`AUTOMATION.md`'s measured band for memo walks (3.3–3.8×) and is the same
+trade the `Refine` tier already took.
+
+##### What the idiom needed that the `Refine` tier does not
+
+Three things, all of them one line each and none of them per-branch tuning.
+
+1. **`attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp`** — and this
+   one is a *soundness* trap, not a performance one.  Aeneas registers those
+   two as `@[grind ext]` (`Aeneas/Std/Scalar/Core.lean:778`, `:903`), so
+   every machine-word disequality — and `split`ting a generated `if tag =
+   TAG_APP` produces one per arm — is blasted into `∀ i, x.bv[i] =
+   y.bv[i]`.  On an `@[irreducible]` generated constant
+   (`Generated.TAG_BVAR : U32 := 0#u32`, which is how Aeneas emits every
+   `const`) `grind`'s `lia` module then closes the goal with a
+   `decide`-by-`rfl` step the *elaborator* evaluates to `false` and the
+   *kernel*, which does unfold `irreducible`, evaluates to `true`:
+   `(kernel) application type mismatch … decide (0 = 0) = false`.  The
+   tactic reports success, the declaration is rejected afterwards.  Erasing
+   the two `ext` registrations removes it; `-lia` also removes it but then
+   the fuel bound `absU (fuel - 1) ≤ n` is out of reach.  **`attribute
+   [-grind]` does not travel through an import** — `ExpC1Step.lean` has to
+   repeat the line — so P4a should either erase them once in a module every
+   Rust-side proof imports *and re-erase per file*, or ask Aeneas upstream
+   to scope the `ext` registrations.
+2. **`(splits := 40)`.**  `rust_grind`'s fixed `(ematch := 12) (gen := 24)`
+   is one case-split short of the arena's body and says so
+   (`[limit] maximum number of case-splits has been reached, threshold:
+   (splits := 9)`): ten branches, three `Option` matches and four `Result`
+   binds in one arm is more splitting than a `Level` leaf.  Per
+   `AUTOMATION.md` this is a default to raise, not a per-lemma override —
+   `Refine/Abs.lean`'s `rust_grind` should become
+   `(ematch := 12) (gen := 24) (splits := 40)` when the Rust-side proofs
+   start.
+3. **A fuel shape step, twelve lines.**  `Generated.instantiate1.eq_def`,
+   the `fuel = 0#u32` branch, `absU fuel = m + 1`, then
+   `rw [hm, mInstantiate1_run_succ]`.  It is the exact analogue of
+   `ExprWF.ind_node`'s constructor inversion: what makes the twin's one-step
+   equation apply.  This is the part that does not automate, and it is
+   per-function.
+
+Everything else is the documented idiom: the callee lemmas as `@[grind →]`
+rules **keyed on the Rust equation** (fifteen one-line restatements of
+`MiniAbs.lean`'s existentials — `AUTOMATION.md` §"What does not work" already
+says an existential conclusion is invisible to `grind`), the induction
+hypothesis as a `C1Spec` predicate with a `use` lemma whose first hypothesis
+is the Rust equation, and `rust_norm hrun ; all_goals ⟨closer⟩`.
+
+##### The `step` variant (Aeneas's own `progress`)
+
+`progress` is the deprecated spelling of `step` in this Aeneas
+(`Aeneas/Tactic/Step/Deprecated.lean`); `@[progress]` is `@[step]`.
+`AENEAS_FINDINGS.md` §3.3 set it aside for the `Refine` tier because its
+goals are forward from an `= ok` hypothesis and `step` wants a `⦃ ⦄` goal.
+On the arena the answer splits in two.
+
+* **`step` does work here.**  `Spike/ExpC1Step.lean` gives the nine total
+  primitives `@[step]` specs — each is one line, `exists_imp_spec` applied to
+  the existential `MiniAbs.lean` already proves — and `step*` then walks the
+  whole generated body and leaves **the same seven goals** `rust_norm` does,
+  with the postconditions already named and Aeneas's own `U32.sub_spec`
+  already applied.  `bvar_demo` closes that arm end to end with
+  `step* ; all_goals ⟨closer⟩`, sorry-free.  §3.3's "not one proof script
+  transferred" was about `con-ron-core`'s `Arc`/`&mut`/tuple-`let` shapes,
+  not about a flat arena.
+* **But `⦃ ⦄` is total correctness and Theorem 2 is partial.**
+  `Aeneas/Std/WP.lean:249`, `spec_imp_exists : spec m P → ∃ y, m = ok y ∧ P
+  y` — a `⦃ ⦄` goal *claims the call succeeds*.  `instantiate1` can fail:
+  Aeneas models `Vec::push` as failing at `Usize.max` and nothing bounds the
+  memo (`GWF` bounds the three constructor arrays; the fuel bounds how often
+  the memo grows per call, not how long it is).  The premise a `⦃ ⦄`-shaped
+  C1 would carry is `memo.length + 2 ^ fuel < Usize.max`
+  (`ExpC1Step.MemoCapShape`), because a call at fuel `f + 1` makes two calls
+  at fuel `f` and each may insert — unsatisfiable at con-ron's fuel.  So
+  `step` is a usable *normaliser inside an arm* and is not a way to state the
+  theorem.
+
+##### The import, and what P5 should do about it
+
+`ConRon.Refine.Abs` costs **0.02 s** of elaboration per importing file: it
+brings no Mathlib, because Aeneas already imports Mathlib
+(`Aeneas/Data/Fin.lean:2` and others) and the spike already imports Aeneas —
+the "arena libraries must not import Mathlib" rule of task #97a was never
+actually holding for `Spike/`.  What it does bring is `ConRon.Generated`'s
+76 448 lines: **≈ 3.5 min** of one-off build in a fresh worktree at
+`LAKE_JOBS=1`, 134 MB of `.olean`.
+
+That is a pure accident of file layout.  `rust_norm`, `rust_grind`,
+`rust_pairs`, `bind_arc_deref` and the two `register_simp_attr` sets depend
+on nothing in the model; the `expr.*`/`name.*`/`level.*` lemmas populating
+those sets do.  **P5 should split `Refine/Abs.lean` into `Refine/Idiom.lean`
+(the two macros, `rust_pairs`, the generic `Result` plumbing, importing only
+`Aeneas` and `Refine/SimpSets.lean`) and the rest**, so that (B)'s Rust-side
+proofs get the idiom without the 76 k-line model.  Nothing under `Refine/`
+was changed for this experiment.
+
+##### For P5 — the per-function budget
+
+* **Per crate, once:** an inversion layer keyed on the Rust equation — here
+  92 code lines for nine primitives, i.e. **≈ 10 lines per primitive**, each
+  a mechanical restatement of an existential the abstraction tier proves
+  anyway — plus the two attribute lines and, per recursive function, a
+  `Spec` + `use` pair (13 lines).
+* **Per function:** **≈ 20 lines of shape step and 2 lines of idiom**, and
+  **0.26 s of `grind` per residual branch**.  `instantiate1` has seven
+  branches; a real ten-constructor walk will have twenty to twenty-five, so
+  **5–7 s per function**.  At 700 functions that is **1–1.5 h** of Theorem-2
+  elaboration — the same order as round 2's 2 h budget for Theorem 1, and
+  against round 2's estimate of 300 hand lines *per function*.
+* **Revise round 2's §"For P2b–P2d and P4a" item 5.**  "Budget C1 as hand
+  work and invest in a matching tactic instead" is superseded: the matching
+  tactic exists, it is `rust_norm` + `rust_grind`, it has been in
+  `Refine/Abs.lean` since task #71, and it wants three changes — the
+  `(splits := 40)` default, the `@[grind ext]` erasure, and the
+  `Refine/Idiom.lean` split.
+
+##### The axiom check
+
+`Spike/Axioms.lean` now prints `instantiate1_C1_idiom`,
+`instantiate1_C1_idiom_wf` and `bvar_demo`: `[propext, Classical.choice,
+Quot.sound]` and nothing else.  The spike remains sorry-free.
+
+Round 3 also added two `example`s to `Spike/Axioms.lean`: round 2's
+`instantiate1_C1` elaborates at round 3's `instantiate1_C1_idiom`'s type and
+vice versa, so the two rows of the table above are the same theorem proved
+twice.

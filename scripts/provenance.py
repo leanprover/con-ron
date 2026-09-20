@@ -51,6 +51,9 @@ import subprocess
 import sys
 
 # The Rust trees that must be annotated, relative to the repository root.
+# `crates/arena-core/src` is the arena rewrite's verified crate (DESIGN.md
+# §8.6, task #97 P4a): a second *verified* tree beside `con-ron-core`, inside
+# this gate and inside `lint-rust-style.sh`, until §8.6's swap merges the two.
 # `crates/con-ron/src` is the UNVERIFIED crate: the in-process modeller, the
 # driver and the pool (the parser left it for the verified core at task #84).
 # It is inside this gate and outside `lint-rust-style.sh` and `extract.sh` on
@@ -58,6 +61,7 @@ import sys
 # signal there is".  Its items are cited but not style-linted.
 RUST_ROOTS = [
     "crates/con-ron-core/src",
+    "crates/arena-core/src",
     "crates/con-ron/src",
 ]
 
