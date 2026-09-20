@@ -84,3 +84,14 @@ root = "ConRon.Dump.Pins"
 [[lean_exe]]
 name = "con-ron-lean"
 root = "ConRon.Arena.Main"
+
+# The `ExprOps` micro-benchmark (DESIGN.md §8.6 P2b, task #97b).  The
+# performance phase comes before the proofs, so the memo and cutoff choices of
+# `ConRon/Arena/ExprOps.lean` have to be measurable from the day they are
+# made: this builds a 50 000-node application spine, a 10 000-binder
+# telescope and a 25-node DAG tower denoting 2^24 tree nodes, and times
+# `instantiate1`, `abstract1` and `instantiateLevelParams` over each.  Not a
+# default target: it is a measurement, not a deliverable.
+[[lean_exe]]
+name = "con-ron-arena-bench"
+root = "ConRon.Arena.Bench"
