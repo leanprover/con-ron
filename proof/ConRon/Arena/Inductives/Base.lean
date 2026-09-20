@@ -423,7 +423,7 @@ def eqBasisCI : AM IConstantInfo := do
   | .indInfo cv caps => pure (.indInfo (← internCV cv) (← internCaps caps))
   | _ => fail (.internal "the pinned Eq basis is not an inductive")
 
-/-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:448-449 checkIndRecs —
+/-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs —
 `env.find? eqName = some eqA`, the "requires the pinned `Eq` basis" guard,
 factored out because three call sites make it. -/
 def eqBasisStored (fe : IFEnv) : AM Bool := do

@@ -50,7 +50,7 @@ def renameBy (tbl : List (NIdx × NIdx)) (n : NIdx) : NIdx :=
   | some p => p.2
   | none => n
 
-/-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:383-384 checkMemberVal
+/-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:373-401 checkMemberVal
 The block renaming as a table: every member name maps to its `_model`
 companion, every other name to itself. -/
 def blockRenameTable (blockNames : List NIdx) : AM (List (NIdx × NIdx)) :=
@@ -442,7 +442,7 @@ def checkIndMember (mode : CheckMode) (blockNames : List NIdx) (caps : IIndCaps)
     let an ← readName cvA.name
     fail (.invalid s!"non-inductive member {an} in block")
 
-/-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:814-815 checkModeled
+/-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:781-834 checkModeled
 The member fold of `checkModeled`, as an explicit recursion (DESIGN §3.4: a
 `foldlM` with a partially applied step is a helper of its own). -/
 def checkIndMembers (mode : CheckMode) (blockNames : List NIdx) (caps : IIndCaps)
@@ -468,7 +468,7 @@ def provisionRecs (mode : CheckMode) (blockNames : List NIdx) :
       pure (feSelf, (cvA, mI, rP, rules) :: others)
     | _ => fail (.notImplemented "recursor before other block members")
 
-/-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:451-455 checkIndRecs
+/-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs
 The install fold of `checkIndRecs`, as an explicit recursion. -/
 def installIndRecs (mode : CheckMode) (fe₂ feSelf : IFEnv) (f : List (NIdx × NIdx))
     (acc : IFEnv) : List (IConstantVal × Nat × Nat × List IRecRule) → AM IFEnv
@@ -705,7 +705,7 @@ def installProjFnStep (mode : CheckMode) (T ctorName : NIdx) (lps : List NIdx)
     checkProjFn mode e T ctorName lps nP nF i
   else pure e
 
-/-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:827-830 checkModeled
+/-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:781-834 checkModeled
 The projection fold of `checkModeled`, as an explicit recursion. -/
 def installProjFns (mode : CheckMode) (T ctorName : NIdx) (lps : List NIdx)
     (nP nF : Nat) (fe : IFEnv) : Nat → Nat → AM IFEnv

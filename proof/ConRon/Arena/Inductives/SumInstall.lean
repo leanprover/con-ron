@@ -89,7 +89,7 @@ def checkSumTele (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) (n : Nat)
     | _ => checkSumTeleSlow mode fe cv n cvTa₀
   | none => checkSumTeleSlow mode fe cv n cvTa₀
 where
-  /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:91-94 checkSumTele
+  /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:80-94 checkSumTele
   The `_` arm of `checkSumTele`'s match, named because over handles the
   syntactic test is two `view`s and duplicating the arm would duplicate the
   whnf loop. -/
@@ -206,7 +206,7 @@ def normFieldDoms (mode : CheckMode) (fe : IFEnv) (T : NIdx) :
       pure ((dom', bm) :: bs, r)
     | _ => fail (.notImplemented "direct sum: constructor field telescope")
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:201 normCtorVal
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:190-205 normCtorVal
 `List.zipWith (fun x b => (x.fvarTypeD, b.2)) fvsP cbs`, as an explicit
 recursion: the map's body reads the store, so con-leche's `zipWith` closure
 becomes a helper (DESIGN §3.4). -/
