@@ -21,6 +21,38 @@ namespace ConRon.Arena
 
 open ConLeche
 
+/-! ## `tag_cases` — the ten-way tag dispatch, without Mathlib
+
+`ETables.get`, `ETables.derAt` and their three smaller siblings are chains of
+`if i.tag == ETag.… then … else …`, one arm per constructor, and almost every
+proof below has to take them apart.  Mathlib's `split_ifs` is the tactic for
+that, and this library deliberately does not depend on Mathlib (DESIGN §8.3:
+`ConRon.Arena` imports `Std` and `ConLeche.Kernel.Expr`, nothing else), so here
+is the two-line replacement built out of core's `split`.
+
+* `tag_cases` splits every `if` in the goal, repeatedly.
+* `tag_cases h` splits the goal's chain *and* `h`'s together: each branch's
+  condition is named `hc`, and the same `if` is reduced in `h` by `if_pos hc` /
+  `if_neg hc`.  When the chain is only in `h` it splits `h` and reduces the
+  goal instead, so one tactic serves both directions.
+
+The `hygiene false` is what makes `hc` visible to the branch proofs — they use
+it as the tag equation (`eq_of_beq hc : i.tag = ETag.bvar`). -/
+
+syntax (name := tagCases) "tag_cases" (ppSpace colGt ident)? : tactic
+
+set_option hygiene false in
+macro_rules
+  | `(tactic| tag_cases) => `(tactic| repeat' split)
+  | `(tactic| tag_cases $h:ident) =>
+    `(tactic| repeat' first
+        | (split <;> rename_i hc <;> try (first
+            | simp only [if_pos hc] at $h:ident
+            | simp only [if_neg hc] at $h:ident))
+        | (split at $h:ident <;> rename_i hc <;> try (first
+            | simp only [if_pos hc]
+            | simp only [if_neg hc])))
+
 /-! ## con-leche's `Hashable` instances are the cached fields
 
 `instance : Hashable Name := ⟨Name.hashData⟩` (`Kernel/Name.lean:49`) and the
@@ -65,6 +97,32 @@ theorem EWFAt.rank_lt {st : EStore} {rk : EIdx → Nat} (h : EWFAt st rk) {i : E
     omega
   · exact h.rankS i (by simpa using hp) hv
 
+
+/-! ## Handles: the tier bit, and equality from the three fields -/
+
+/-- A scratch handle's tier bit is `tierS`: `tier` is below 2 and not 0. -/
+theorem Idx.tier_eq_tierS {k : IdxKind} {i : Idx k} (h : i.isPersistent = false) :
+    i.tier = Idx.tierS := by
+  have h2 := Idx.tier_lt i
+  apply UInt32.toNat_inj.mp
+  show i.tier.toNat = (1 : UInt32).toNat
+  have h0 : i.tier ≠ 0 := by
+    intro he; simp only [Idx.isPersistent, he] at h; exact absurd h (by decide)
+  have h0' : i.tier.toNat ≠ 0 := fun he => h0 (UInt32.toNat_inj.mp (by simpa using he))
+  simp only [UInt32.toNat_ofNat]
+  omega
+
+/-- A persistent handle's tier bit is `tierP`. -/
+theorem Idx.tier_eq_tierP {k : IdxKind} {i : Idx k} (h : i.isPersistent = true) :
+    i.tier = Idx.tierP := by
+  apply UInt32.toNat_inj.mp
+  simp only [Idx.isPersistent, beq_iff_eq] at h
+  rw [h]; rfl
+
+/-- `Idx.ext_of` with the index given as the `Nat` the array reads. -/
+theorem Idx.eq_of_idxNat {k : IdxKind} {i j : Idx k} (ht : i.tag = j.tag)
+    (hr : i.tier = j.tier) (hn : i.idxNat = j.idxNat) : i = j :=
+  Idx.ext_of ht hr (UInt32.toNat_inj.mp hn)
 /-! ## The fuel disappears: names -/
 
 /-- Any two fuels above the rank give the same readback.  Strong induction on
@@ -1179,6 +1237,285 @@ theorem Tbl.node?_push_new {α ι δ : Type} [BEq α] [Hashable α] {t : Tbl α 
   cases t
   simp [Tbl.push, Tbl.node?, Tbl.size, Array.getElem?_push]
 
+
+/-! ### One column: `Tbl` under `push`
+
+Everything the tier lemmas need about a single constructor's array, proved
+once over the generic `Tbl`. -/
+
+section Tbl
+variable {α ι δ : Type} [BEq α] [Hashable α]
+
+theorem Tbl.size_push (t : Tbl α ι δ) (a : α) (d : δ) (i : ι) :
+    (t.push a d i).size = t.size + 1 := by
+  cases t; simp [Tbl.push, Tbl.size]
+
+theorem Tbl.node?_push_eq {t : Tbl α ι δ} {a : α} {d : δ} {i : ι} {n : Nat} :
+    (t.push a d i).node? n = if n = t.size then some a else t.node? n := by
+  cases t; simp only [Tbl.push, Tbl.node?, Tbl.size, Array.getElem?_push]
+
+theorem Tbl.node?_size (t : Tbl α ι δ) : t.node? t.size = none := by
+  cases t; simp [Tbl.node?, Tbl.size]
+
+theorem Tbl.lt_of_node? {t : Tbl α ι δ} {n : Nat} {a : α} (h : t.node? n = some a) :
+    n < t.size := by
+  cases t with | mk ns ds cs =>
+  simp only [Tbl.node?, Array.getElem?_eq_some_iff] at h
+  exact h.1
+
+theorem Tbl.lt_of_map {β : Type} {t : Tbl α ι δ} {n : Nat} {f : α → β} {b : β}
+    (h : (t.node? n).map f = some b) : n < t.size := by
+  simp only [Option.map_eq_some_iff] at h
+  obtain ⟨a, ha, _⟩ := h
+  exact Tbl.lt_of_node? ha
+
+/-- One arm of a tag dispatch, inverted: what a decoded node was before the
+table grew. -/
+theorem Tbl.map_inv {β : Type} {tb tb' : Tbl α ι δ} {f : α → β} {n : Nat} {v : β}
+    {Q : β → Prop} (hh : ∀ a, tb'.node? n = some a → tb.node? n = some a ∨ Q (f a))
+    (h : (tb'.node? n).map f = some v) : (tb.node? n).map f = some v ∨ Q v := by
+  obtain ⟨a, ha, rfl⟩ := Option.map_eq_some_iff.mp h
+  exact (hh a ha).imp (fun h' => by rw [h']; rfl) id
+
+theorem Tbl.find?_push [LawfulBEq α] {t : Tbl α ι δ} {a b : α} {d : δ} {i : ι} :
+    (t.push a d i).find? b = if (a == b) = true then some i else t.find? b := by
+  cases t
+  simp only [Tbl.push, Tbl.find?, Std.HashMap.getElem?_insert]
+
+theorem Tbl.Sized_push {t : Tbl α ι δ} {a : α} {d : δ} {i : ι}
+    (hs : t.Sized) : (t.push a d i).Sized := by
+  cases t; simp_all [Tbl.push, Tbl.Sized]
+
+theorem Tbl.derAt_push_of_lt [Inhabited δ] {t : Tbl α ι δ} {a : α} {d : δ} {i : ι}
+    {n : Nat} (hs : t.Sized) (hn : n < t.size) :
+    (t.push a d i).derAt n = t.derAt n := by
+  cases t with | mk ns ds cs =>
+  simp only [Tbl.Sized, Tbl.size] at hs hn
+  simp only [Tbl.push, Tbl.derAt, Array.getD_eq_getD_getElem?, Array.getElem?_push]
+  rw [if_neg (by omega)]
+
+theorem Tbl.derAt_push_size [Inhabited δ] {t : Tbl α ι δ} {a : α} {d : δ} {i : ι}
+    (hs : t.Sized) : (t.push a d i).derAt t.size = d := by
+  cases t with | mk ns ds cs =>
+  simp only [Tbl.Sized] at hs
+  simp only [Tbl.push, Tbl.derAt, Tbl.size, Array.getD_eq_getD_getElem?,
+    Array.getElem?_push]
+  rw [if_pos hs.symm]
+  rfl
+
+theorem Tbl.Sized_empty : (Tbl.empty : Tbl α ι δ).Sized := rfl
+theorem Tbl.node?_empty (n : Nat) : (Tbl.empty : Tbl α ι δ).node? n = none := rfl
+theorem Tbl.find?_empty (a : α) : (Tbl.empty : Tbl α ι δ).find? a = none := by
+  simp [Tbl.empty, Tbl.find?]
+theorem Tbl.size_empty : (Tbl.empty : Tbl α ι δ).size = 0 := rfl
+
+end Tbl
+
+/-! ### The expression tier under `push`
+
+`ETables.get_inv` is the tag dispatch done once and for all: a node decoded
+from a *grown* tier either decoded from the old one, or is the one that was
+appended.  Every later `ETables` lemma is an instance of it or of
+`derAt_congr`, so the ten-way `if` chain is taken apart exactly twice. -/
+
+/-- con-leche: none — the constructor tag a node view lands under. -/
+def ENodeView.tagOf : ENodeView → UInt32
+  | .bvar _ => ETag.bvar
+  | .fvar _ _ => ETag.fvar
+  | .sort _ => ETag.sort
+  | .const _ _ => ETag.const
+  | .app _ _ => ETag.app
+  | .lam _ _ _ => ETag.lam
+  | .forallE _ _ _ => ETag.forallE
+  | .letE _ _ _ => ETag.letE
+  | .lit _ => ETag.lit
+  | .proj _ _ _ => ETag.proj
+
+theorem ENodeView.tagOf_lt (v : ENodeView) : v.tagOf.toNat < 16 := by
+  cases v <;> (simp only [ENodeView.tagOf]; decide)
+
+theorem ETables.get_inv {t t' : ETables} {Q : UInt32 → Nat → ENodeView → Prop}
+    {i : EIdx} {v : ENodeView}
+    (hb : ∀ n a, t'.bvars.node? n = some a →
+      t.bvars.node? n = some a ∨ Q ETag.bvar n (.bvar a.i))
+    (hfv : ∀ n a, t'.fvars.node? n = some a →
+      t.fvars.node? n = some a ∨ Q ETag.fvar n (.fvar a.idx a.ty))
+    (hso : ∀ n a, t'.sorts.node? n = some a →
+      t.sorts.node? n = some a ∨ Q ETag.sort n (.sort a.u))
+    (hco : ∀ n a, t'.consts.node? n = some a →
+      t.consts.node? n = some a ∨ Q ETag.const n (.const a.n a.us))
+    (hap : ∀ n a, t'.apps.node? n = some a →
+      t.apps.node? n = some a ∨ Q ETag.app n (.app a.f a.a))
+    (hla : ∀ n a, t'.lams.node? n = some a →
+      t.lams.node? n = some a ∨ Q ETag.lam n (.lam a.ty a.body a.m))
+    (hfa : ∀ n a, t'.foralls.node? n = some a →
+      t.foralls.node? n = some a ∨ Q ETag.forallE n (.forallE a.ty a.body a.m))
+    (hle : ∀ n a, t'.lets.node? n = some a →
+      t.lets.node? n = some a ∨ Q ETag.letE n (.letE a.ty a.val a.body))
+    (hli : ∀ n a, t'.lits.node? n = some a →
+      t.lits.node? n = some a ∨ Q ETag.lit n (.lit a.l))
+    (hpr : ∀ n a, t'.projs.node? n = some a →
+      t.projs.node? n = some a ∨ Q ETag.proj n (.proj a.n a.i a.e))
+    (h : t'.get i = some v) : t.get i = some v ∨ Q i.tag i.idxNat v := by
+  simp only [ETables.get] at h ⊢
+  tag_cases h
+  · rw [eq_of_beq hc]; exact Tbl.map_inv (hb _) h
+  · rw [eq_of_beq hc]; exact Tbl.map_inv (hfv _) h
+  · rw [eq_of_beq hc]; exact Tbl.map_inv (hso _) h
+  · rw [eq_of_beq hc]; exact Tbl.map_inv (hco _) h
+  · rw [eq_of_beq hc]; exact Tbl.map_inv (hap _) h
+  · rw [eq_of_beq hc]; exact Tbl.map_inv (hla _) h
+  · rw [eq_of_beq hc]; exact Tbl.map_inv (hfa _) h
+  · rw [eq_of_beq hc]; exact Tbl.map_inv (hle _) h
+  · rw [eq_of_beq hc]; exact Tbl.map_inv (hli _) h
+  · rw [eq_of_beq hc]; exact Tbl.map_inv (hpr _) h
+  · simp at h
+
+theorem ETables.get_push_inv {t : ETables} {w : ENodeView} {d : UInt64} {tr : UInt32}
+    {i : EIdx} {v : ENodeView} (h : (t.push w d tr).1.get i = some v) :
+    t.get i = some v ∨ (i.tag = w.tagOf ∧ i.idxNat = t.sizeOf w ∧ v = w) := by
+  refine ETables.get_inv (Q := fun tg n v' => tg = w.tagOf ∧ n = t.sizeOf w ∧ v' = w)
+    ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ h <;>
+    intro n a ha <;> cases w <;>
+    simp only [ETables.push] at ha <;>
+    first
+      | exact Or.inl ha
+      | (rw [Tbl.node?_push_eq] at ha
+         split at ha
+         · simp only [Option.some.injEq] at ha
+           subst ha
+           exact Or.inr ⟨rfl, by simp only [ETables.sizeOf]; assumption, rfl⟩
+         · exact Or.inl ha)
+
+/-- The index a `push` is about to use reads as absent *before* the push —
+which is what makes the appended handle fresh. -/
+theorem ETables.get_eq_none_of_size {t : ETables} {w : ENodeView} {i : EIdx}
+    (htg : i.tag = w.tagOf) (hix : i.idxNat = t.sizeOf w) : t.get i = none := by
+  cases w <;>
+    simp only [ENodeView.tagOf] at htg <;>
+    simp only [ETables.sizeOf] at hix <;>
+    simp [ETables.get, htg, hix, ETag.bvar, ETag.fvar, ETag.sort, ETag.const,
+      ETag.app, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj,
+      Tbl.node?_size]
+
+theorem ETables.push_tag {t : ETables} {w : ENodeView} {d : UInt64} {tr : UInt32}
+    (htr : tr.toNat < 2) (hcap : t.sizeOf w < Idx.idxCap) :
+    (t.push w d tr).2.tag = w.tagOf := by
+  have hn : ((UInt32.ofNat (t.sizeOf w)).toNat) < Idx.idxCap := by
+    rw [Idx.idxCap] at hcap ⊢; simp; omega
+  cases w <;>
+    simp only [ETables.push, ENodeView.tagOf, ETables.sizeOf] at * <;>
+    exact Idx.tag_mk _ _ _ (by decide) htr hn
+
+theorem ETables.push_idxNat {t : ETables} {w : ENodeView} {d : UInt64} {tr : UInt32}
+    (htr : tr.toNat < 2) (hcap : t.sizeOf w < Idx.idxCap) :
+    (t.push w d tr).2.idxNat = t.sizeOf w := by
+  cases w <;>
+    simp only [ETables.push, ETables.sizeOf] at * <;>
+    exact Idx.idxNat_mk _ _ _ (by decide) htr hcap
+
+theorem ETables.find?_push {t : ETables} {w v : ENodeView} {d : UInt64} {tr : UInt32} :
+    (t.push w d tr).1.find? v =
+      if w = v then some (t.push w d tr).2 else t.find? v := by
+  cases w <;> cases v <;>
+    simp only [ETables.push, ETables.find?, Tbl.find?_push, beq_iff_eq,
+      BVarNode.mk.injEq, FVarNode.mk.injEq, SortNode.mk.injEq, ConstNode.mk.injEq,
+      AppNode.mk.injEq, BindNode.mk.injEq, LetNode.mk.injEq, LitNode.mk.injEq,
+      ProjNode.mk.injEq, ENodeView.bvar.injEq, ENodeView.fvar.injEq,
+      ENodeView.sort.injEq, ENodeView.const.injEq, ENodeView.app.injEq,
+      ENodeView.lam.injEq, ENodeView.forallE.injEq, ENodeView.letE.injEq,
+      ENodeView.lit.injEq, ENodeView.proj.injEq, reduceCtorEq, if_false]
+
+theorem ETables.sizeOf_push_cases {t : ETables} {w v : ENodeView} {d : UInt64}
+    {tr : UInt32} :
+    (t.push w d tr).1.sizeOf v = t.sizeOf v ∨
+      ((t.push w d tr).1.sizeOf v = t.sizeOf w + 1 ∧ t.sizeOf v = t.sizeOf w) := by
+  cases w <;> cases v <;>
+    simp only [ETables.push, ETables.sizeOf] <;>
+    first
+      | exact Or.inl trivial
+      | exact Or.inr ⟨Tbl.size_push _ _ _ _, trivial⟩
+
+theorem ETables.Sized_push {t : ETables} {w : ENodeView} {d : UInt64} {tr : UInt32}
+    (hs : t.Sized) : (t.push w d tr).1.Sized := by
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ := hs
+  cases w <;>
+    (simp only [ETables.push, ETables.Sized]
+     refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+     first | assumption | exact Tbl.Sized_push (by assumption))
+
+theorem ETables.count_push {t : ETables} {w : ENodeView} {d : UInt64} {tr : UInt32} :
+    (t.push w d tr).1.count = t.count + 1 := by
+  cases w <;>
+    simp [ETables.push, ETables.count, Tbl.size_push] <;> omega
+
+/-- The derived column is read through the same tag dispatch as `get`, so a
+column-wise agreement transfers. -/
+theorem ETables.derAt_congr {t t' : ETables} {i : EIdx} {v : ENodeView}
+    (h : t.get i = some v)
+    (hb : ∀ n, n < t.bvars.size → t'.bvars.derAt n = t.bvars.derAt n)
+    (hfv : ∀ n, n < t.fvars.size → t'.fvars.derAt n = t.fvars.derAt n)
+    (hso : ∀ n, n < t.sorts.size → t'.sorts.derAt n = t.sorts.derAt n)
+    (hco : ∀ n, n < t.consts.size → t'.consts.derAt n = t.consts.derAt n)
+    (hap : ∀ n, n < t.apps.size → t'.apps.derAt n = t.apps.derAt n)
+    (hla : ∀ n, n < t.lams.size → t'.lams.derAt n = t.lams.derAt n)
+    (hfa : ∀ n, n < t.foralls.size → t'.foralls.derAt n = t.foralls.derAt n)
+    (hle : ∀ n, n < t.lets.size → t'.lets.derAt n = t.lets.derAt n)
+    (hli : ∀ n, n < t.lits.size → t'.lits.derAt n = t.lits.derAt n)
+    (hpr : ∀ n, n < t.projs.size → t'.projs.derAt n = t.projs.derAt n) :
+    t'.derAt i = t.derAt i := by
+  simp only [ETables.get] at h
+  simp only [ETables.derAt]
+  tag_cases h
+  · exact hb _ (Tbl.lt_of_map h)
+  · exact hfv _ (Tbl.lt_of_map h)
+  · exact hso _ (Tbl.lt_of_map h)
+  · exact hco _ (Tbl.lt_of_map h)
+  · exact hap _ (Tbl.lt_of_map h)
+  · exact hla _ (Tbl.lt_of_map h)
+  · exact hfa _ (Tbl.lt_of_map h)
+  · exact hle _ (Tbl.lt_of_map h)
+  · exact hli _ (Tbl.lt_of_map h)
+  · exact hpr _ (Tbl.lt_of_map h)
+  · simp at h
+
+theorem ETables.derAt_push_of_get {t : ETables} {w : ENodeView} {d : UInt64}
+    {tr : UInt32} {i : EIdx} {v : ENodeView} (hs : t.Sized) (h : t.get i = some v) :
+    (t.push w d tr).1.derAt i = t.derAt i := by
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ := hs
+  cases w <;>
+    refine ETables.derAt_congr h ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ <;>
+    intro n hn <;> simp only [ETables.push] <;>
+    first | rfl | exact Tbl.derAt_push_of_lt (by assumption) hn
+
+theorem ETables.derAt_push_new {t : ETables} {w : ENodeView} {d : UInt64}
+    {tr : UInt32} (hs : t.Sized) (htr : tr.toNat < 2)
+    (hcap : t.sizeOf w < Idx.idxCap) :
+    (t.push w d tr).1.derAt (t.push w d tr).2 = d := by
+  have htag := ETables.push_tag (t := t) (w := w) (d := d) (tr := tr) htr hcap
+  have hix := ETables.push_idxNat (t := t) (w := w) (d := d) (tr := tr) htr hcap
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ := hs
+  cases w <;>
+    simp only [ENodeView.tagOf] at htag <;>
+    simp only [ETables.sizeOf] at hix <;>
+    simp only [ETables.derAt, htag, hix, ETag.bvar, ETag.fvar,
+      ETag.sort, ETag.const, ETag.app, ETag.lam, ETag.forallE, ETag.letE,
+      ETag.lit, ETag.proj, beq_self_eq_true, if_true] <;>
+    (simp only [ETables.push]; exact Tbl.derAt_push_size (by assumption))
+
+theorem ETables.get_empty (i : EIdx) : (ETables.empty).get i = none := by
+  simp [ETables.empty, ETables.get, Tbl.empty, Tbl.node?]
+
+theorem ETables.find?_empty (v : ENodeView) : (ETables.empty).find? v = none := by
+  cases v <;> simp [ETables.empty, ETables.find?, Tbl.find?_empty]
+
+theorem ETables.sizeOf_empty (v : ENodeView) : (ETables.empty).sizeOf v = 0 := by
+  cases v <;> rfl
+
+theorem ETables.count_empty : (ETables.empty).count = 0 := rfl
+
+theorem ETables.Sized_empty : (ETables.empty).Sized :=
+  ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 /-- The expression tier's `get` is monotone in each of its ten arrays.  The
 `by_cases` chain is the tag dispatch, written out because this library
 deliberately does not depend on Mathlib (`split_ifs` is a Mathlib tactic). -/
@@ -1344,6 +1681,59 @@ theorem EStore.intern_ext (st : EStore) (w : ENodeView) :
         (by have := EStore.nodeCount_intern_le st w; omega) h
     exact hmono _ i e h1
 
+
+/-! ## `view` and `derived`, tier by tier -/
+
+theorem EStore.view_pers {st : EStore} {i : EIdx} (hp : i.isPersistent = true) :
+    st.view i = st.pers.get i := by simp [EStore.view, hp]
+
+theorem EStore.view_scr {st : EStore} {i : EIdx} (hp : i.isPersistent = false)
+    (hon : st.scratchOn = true) : st.view i = st.scr.get i := by
+  simp [EStore.view, hp, hon]
+
+theorem EStore.view_off {st : EStore} {i : EIdx} (hp : i.isPersistent = false)
+    (hon : st.scratchOn = false) : st.view i = none := by simp [EStore.view, hp, hon]
+
+theorem EStore.derived_pers {st : EStore} {i : EIdx} (hp : i.isPersistent = true) :
+    st.derived i = st.pers.derAt i := by simp [EStore.derived, hp]
+
+theorem EStore.derived_scr {st : EStore} {i : EIdx} (hp : i.isPersistent = false)
+    (hon : st.scratchOn = true) : st.derived i = st.scr.derAt i := by
+  simp [EStore.derived, hp, hon]
+
+/-- `derOfView` reads nothing but the children's derived words — which is why
+`derExact` survives both an append and a `dropScratch`. -/
+theorem EStore.derOfView_congr {st st' : EStore} {v : ENodeView}
+    (he : ∀ c ∈ v.echildren, st'.derived c = st.derived c)
+    (hn : ∀ c ∈ v.nchildren, st'.nder c = st.nder c)
+    (hl : ∀ c ∈ v.lchildren, st'.lder c = st.lder c)
+    (hs : ∀ c ∈ v.lschildren, st'.lsder c = st.lsder c) :
+    st'.derOfView v = st.derOfView v := by
+  cases v with
+  | bvar _ => rfl
+  | lit _ => rfl
+  | fvar j ty =>
+    simp only [EStore.derOfView, he ty (by simp [ENodeView.echildren])]
+  | sort u =>
+    simp only [EStore.derOfView, hl u (by simp [ENodeView.lchildren])]
+  | const n us =>
+    simp only [EStore.derOfView, hn n (by simp [ENodeView.nchildren]),
+      hs us (by simp [ENodeView.lschildren])]
+  | app f a =>
+    simp only [EStore.derOfView, he f (by simp [ENodeView.echildren]),
+      he a (by simp [ENodeView.echildren])]
+  | lam ty b m =>
+    simp only [EStore.derOfView, he ty (by simp [ENodeView.echildren]),
+      he b (by simp [ENodeView.echildren])]
+  | forallE ty b m =>
+    simp only [EStore.derOfView, he ty (by simp [ENodeView.echildren]),
+      he b (by simp [ENodeView.echildren])]
+  | letE ty val b =>
+    simp only [EStore.derOfView, he ty (by simp [ENodeView.echildren]),
+      he val (by simp [ENodeView.echildren]), he b (by simp [ENodeView.echildren])]
+  | proj n j e =>
+    simp only [EStore.derOfView, hn n (by simp [ENodeView.nchildren]),
+      he e (by simp [ENodeView.echildren])]
 /-! ## The scratch-tier bracket
 
 `enableScratch` and `dropScratch` touch only the scratch arrays and the
