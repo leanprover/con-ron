@@ -56,6 +56,7 @@
 //! differential test of `arena::expr_ops` — keeps its own copy in `mod
 //! tests`, as `arena::store` does.
 
+use crate::arena::core_state::Caches;
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
 use crate::arena::store::{
     ENodeView, EStore, LDer, LNodeView, LStore, LsNodeView, LsStore, NNodeView, NStore,
@@ -233,12 +234,18 @@ impl Memos {
 
 /// con-leche: ConLeche/Cached/StateC.lean:127-156 CState
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:114-116 AState` — the checker
-/// state of (C) as P4b needs it: the arena and the per-call memo tables.  P4c
-/// extends it with the per-declaration caches (`whnfCore`, `whnf`, the three
-/// infer grades, `defeq`) and the environment index.
+/// state of (C): the arena, the per-call memo tables and — since task
+/// #97-P4c — the per-declaration caches (`whnfCore`, `whnf`, the three infer
+/// grades, `defeq`, the level verdicts, the instantiated constants).
 pub struct AState {
     pub store: EStore,
     pub memos: Memos,
+    /// The per-DECLARATION caches (task #97-P4c, `arena::core_state`): the
+    /// five entry-point memos, the `defeq` verdict table, the two
+    /// level-verdict tables and the three lazy instantiated-constant tables.
+    /// A record of its own beside `memos`, because the per-call clear and the
+    /// per-declaration drop are different operations on different lifetimes.
+    pub caches: Caches,
 }
 
 /// con-leche: none — the initial state over a given arena
@@ -247,7 +254,7 @@ impl AState {
     /// con-leche: none — the initial state over a given arena
     /// Lean twin: `proof/ConRon/Arena/Monad.lean:124 AState.init`.
     pub fn init(st: EStore) -> AState {
-        AState { store: st, memos: Memos::empty() }
+        AState { store: st, memos: Memos::empty(), caches: Caches::empty() }
     }
 }
 
