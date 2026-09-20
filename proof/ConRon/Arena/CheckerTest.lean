@@ -135,70 +135,79 @@ pinned block" — so none of these lists needs an inductive install, which is
 what lets the accept lane be tested at all while `Arena/Inductives.lean` is a
 placeholder. -/
 
+/-- con-leche: none — a fixture value of the differential, written once as a con-leche value; the arena side is its interning. -/
 private def anon : ConLeche.Name := .anonymous
+/-- con-leche: none — a fixture value of the differential, written once as a con-leche value; the arena side is its interning. -/
 private def natTy : ConLeche.Expr := .const ConLeche.natName []
+/-- con-leche: none — a fixture value of the differential, written once as a con-leche value; the arena side is its interning. -/
 private def zeroE : ConLeche.Expr := .const ConLeche.natZeroName []
+/-- con-leche: none — a fixture value of the differential, written once as a con-leche value; the arena side is its interning. -/
 private def succE : ConLeche.Expr := .const ConLeche.natSuccName []
 
+/-- con-leche: none — a fixture value of the differential, written once as a con-leche value; the arena side is its interning. -/
 private def twoName : ConLeche.Name := anon.str "two"
+/-- con-leche: none — a fixture value of the differential, written once as a con-leche value; the arena side is its interning. -/
 private def twoVal : ConLeche.Expr := .app succE (.app succE zeroE)
+/-- con-leche: none — a fixture value of the differential, written once as a con-leche value; the arena side is its interning. -/
 private def dTwo : Declaration := .defnDecl ⟨twoName, [], natTy⟩ twoVal (.regular 1)
 
-/-- A definition whose value does not inhabit its declared type. -/
+/-- con-leche: none — A definition whose value does not inhabit its declared type. -/
 private def dTwoBad : Declaration :=
   .defnDecl ⟨anon.str "bad", [], natTy⟩ (.sort .zero) (.regular 1)
 
-/-- A definition whose type mentions a constant nothing declares. -/
+/-- con-leche: none — A definition whose type mentions a constant nothing declares. -/
 private def dUnknown : Declaration :=
   .defnDecl ⟨anon.str "u", [], .const (anon.str "nope") []⟩ zeroE (.regular 1)
 
-/-- A definition under a reserved basis name. -/
+/-- con-leche: none — A definition under a reserved basis name. -/
 private def dReserved : Declaration :=
   .defnDecl ⟨ConLeche.natName, [], natTy⟩ zeroE (.regular 1)
 
-/-- A definition with a loose bound variable in its value. -/
+/-- con-leche: none — A definition with a loose bound variable in its value. -/
 private def dLoose : Declaration :=
   .defnDecl ⟨anon.str "l", [], natTy⟩ (.bvar 0) (.regular 1)
 
-/-- A definition with duplicate universe parameters. -/
+/-- con-leche: none — A definition with duplicate universe parameters. -/
 private def dDupUniv : Declaration :=
   .defnDecl ⟨anon.str "d", [anon.str "u", anon.str "u"], natTy⟩ zeroE (.regular 1)
 
-/-- The proposition a theorem is stated at: `Eq.{1} Nat 0 0`, over the pinned
+/-- con-leche: none — The proposition a theorem is stated at: `Eq.{1} Nat 0 0`, over the pinned
 `Eq` basis — an ORDINARY user axiom is a positive decline at its own record,
 so a proposition has to come from the basis rather than be postulated. -/
 private def eq1 : ConLeche.Expr := .const ConLeche.eqName [.succ .zero]
+/-- con-leche: none — a fixture value of the differential, written once as a con-leche value; the arena side is its interning. -/
 private def pE : ConLeche.Expr := .app (.app (.app eq1 natTy) zeroE) zeroE
+/-- con-leche: none — a fixture value of the differential, written once as a con-leche value; the arena side is its interning. -/
 private def pfE : ConLeche.Expr :=
   .app (.app (.const ConLeche.eqReflName [.succ .zero]) natTy) zeroE
 
-/-- A theorem: `Eq.refl Nat 0` proves `0 = 0`. -/
+/-- con-leche: none — A theorem: `Eq.refl Nat 0` proves `0 = 0`. -/
 private def dThm : Declaration := .thmDecl ⟨anon.str "t", [], pE⟩ pfE
 
-/-- A theorem whose type is not a proposition. -/
+/-- con-leche: none — A theorem whose type is not a proposition. -/
 private def dThmNotProp : Declaration :=
   .thmDecl ⟨anon.str "tn", [], natTy⟩ zeroE
 
-/-- A theorem whose value does not inhabit its statement. -/
+/-- con-leche: none — A theorem whose value does not inhabit its statement. -/
 private def dThmBad : Declaration := .thmDecl ⟨anon.str "tb", [], pE⟩ zeroE
 
-/-- An `opaque`: stored as an `axiomInfo`, its value a discarded witness. -/
+/-- con-leche: none — An `opaque`: stored as an `axiomInfo`, its value a discarded witness. -/
 private def dOpaque : Declaration :=
   .opaqueDecl ⟨anon.str "o", [], natTy⟩ twoVal
 
-/-- `sorryAx`: the one axiom tolerated as a DECLARATION, installing nothing. -/
+/-- con-leche: none — `sorryAx`: the one axiom tolerated as a DECLARATION, installing nothing. -/
 private def dSorry : Declaration :=
   .axiomDecl ⟨ConLeche.sorryAxName, [],
     .forallE (.sort (.succ .zero)) (.bvar 0) ⟨.never⟩⟩
 
-/-- `propext` at a shape the pinned `Iff` family does not back. -/
+/-- con-leche: none — `propext` at a shape the pinned `Iff` family does not back. -/
 private def dPropext : Declaration :=
   .axiomDecl ⟨ConLeche.propextName, [], .sort .zero⟩
 
-/-- An ordinary user axiom: a positive decline at its own record. -/
+/-- con-leche: none — An ordinary user axiom: a positive decline at its own record. -/
 private def dOtherAx : Declaration := .axiomDecl ⟨anon.str "myax", [], natTy⟩
 
-/-- `Nat.add` under a nonstandard body: the structural-`Nat` pin gate's
+/-- con-leche: none — `Nat.add` under a nonstandard body: the structural-`Nat` pin gate's
 subject.  The environment has no `Nat.add` dependencies, so the gate declines
 with its environment message. -/
 private def dNatAdd : Declaration :=
@@ -206,7 +215,7 @@ private def dNatAdd : Declaration :=
     .forallE natTy (.forallE natTy natTy ⟨.never⟩) ⟨.never⟩⟩
     (.lam natTy (.lam natTy (.bvar 1) ⟨.never⟩) ⟨.never⟩) (.regular 1)
 
-/-- `Nat.div` under a nonstandard body: the WF-recursive pin gate's subject,
+/-- con-leche: none — `Nat.div` under a nonstandard body: the WF-recursive pin gate's subject,
 declining at `divModEnvGuard` (the environment has no `Nat.ble`). -/
 private def dNatDiv : Declaration :=
   .defnDecl ⟨ConLeche.natName.str "div", [],
@@ -215,24 +224,24 @@ private def dNatDiv : Declaration :=
 
 /-! ## The lists -/
 
-/-- The basis prefix every accepting list starts with: the pinned `Eq` block,
+/-- con-leche: none — The basis prefix every accepting list starts with: the pinned `Eq` block,
 then the pinned `Nat` block (which `Eq` does not need, and which the value
 declarations below do). -/
 private def basisPrefix : List Declaration := [.basisDecl .eqK, .basisDecl .natK]
 
-/-- The accepting list: the two basis blocks, a definition, a proposition and
+/-- con-leche: none — The accepting list: the two basis blocks, a definition, a proposition and
 its proof, a theorem, an opaque, and a tolerated `sorryAx`. -/
 private def dsGood : List Declaration :=
   basisPrefix ++ [dTwo, dThm, dOpaque, dSorry]
 
-/-- The quotient block, which requires the pinned `Eq` basis first. -/
+/-- con-leche: none — The quotient block, which requires the pinned `Eq` basis first. -/
 private def dsQuot : List Declaration := [.basisDecl .eqK, .basisDecl .quotK]
 
-/-- The quotient block WITHOUT the `Eq` basis: a decline, at con-leche's own
+/-- con-leche: none — The quotient block WITHOUT the `Eq` basis: a decline, at con-leche's own
 message. -/
 private def dsQuotBad : List Declaration := [.basisDecl .quotK]
 
-/-- A duplicate declaration: the second `two` is invalid input. -/
+/-- con-leche: none — A duplicate declaration: the second `two` is invalid input. -/
 private def dsDup : List Declaration := basisPrefix ++ [dTwo, dTwo]
 
 /-! ## What con-leche itself says

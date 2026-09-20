@@ -144,21 +144,21 @@ not twinned there (the store layer needed the representation, not the
 predicates); the declaration front door is their only reader, so they are
 here.  Each is a handle comparison or one `viewN`. -/
 
-/-- con-leche: ConLeche/Kernel/Level.lean:214-217 Name.nodup — no duplicates
+/-- con-leche: ConLeche/Kernel/Level.lean:213-216 Name.nodup — no duplicates
 in a list of name HANDLES.  A name comparison is a handle comparison (DESIGN
 §8.3: `denoteN` is injective). -/
 def nameNodup : List NIdx → Bool
   | [] => true
   | n :: ns => !ns.contains n && nameNodup ns
 
-/-- con-leche: ConLeche/Kernel/Level.lean:219-222 Name.isModelSuffix — is
+/-- con-leche: ConLeche/Kernel/Level.lean:218-221 Name.isModelSuffix — is
 this a `_model`-suffixed name (the shape of model companions)? -/
 def NIdx.isModelSuffix (n : NIdx) : AM Bool := do
   match ← viewN n with
   | .str _ s => pure (s == "_model")
   | _ => pure false
 
-/-- con-leche: ConLeche/Kernel/Level.lean:224-231 Name.isProjFnShape — is
+/-- con-leche: ConLeche/Kernel/Level.lean:223-230 Name.isProjFnShape — is
 this shaped like an installed projection function's name (`(T.proj).i`) or a
 projection table's (`(T.projTable).0`)?  Both shapes are reserved for the
 checker's own installs. -/
@@ -184,8 +184,8 @@ The parameter list is read BACK once at the entry, as `instLPFast` reads its
 own functions on transient values, and DESIGN §8.3's lesson 4 says a level
 algorithm runs on trees. -/
 
-/-- con-leche: ConLeche/Kernel/Level.lean:256-272 Expr.allLevelParamsDefined
-con-leche: ConLeche/Kernel/Level.lean:300-404 Expr.allLevelParamsDefinedGo
+/-- con-leche: ConLeche/Kernel/Level.lean:251-268 Expr.allLevelParamsDefined
+con-leche: ConLeche/Kernel/Level.lean:299-332 Expr.allLevelParamsDefinedGo
 The memoized walk.  `params` are transient names (see the section note); the
 memo is keyed on the node, which is what makes a shared subterm cost one
 probe. -/
@@ -223,7 +223,7 @@ def allLevelParamsDefinedGo (params : List ConLeche.Name)
         | .proj _ _ e => allLevelParamsDefinedGo params memo fuel e
       pure (p.1, p.2.insert h p.1)
 
-/-- con-leche: ConLeche/Kernel/Level.lean:406-408 Expr.allLevelParamsDefinedFast
+/-- con-leche: ConLeche/Kernel/Level.lean:405-407 Expr.allLevelParamsDefinedFast
 The executed `allLevelParamsDefined`: one memoized DAG walk, at the parameter
 list read back once. -/
 def allLevelParamsDefined (lps : List NIdx) (e : EIdx) : AM Bool := do
@@ -296,8 +296,8 @@ def fvarTypeDs : List EIdx → AM (List EIdx)
 
 /-! ## The front door's verdict at an unresolved constant -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:770-794 Expr.mentionsConstGo
-con-leche: ConLeche/Kernel/Inductives/StructParts.lean:838-840 Expr.mentionsConstFast
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:814-849 Expr.mentionsConstGo
+con-leche: ConLeche/Kernel/Inductives/StructParts.lean:922-924 Expr.mentionsConstFast
 Does the term mention the constant `n` (the `.proj` structure name included)?
 A memoized DAG walk, for con-leche's own reason: `unresolvedConstsError` runs
 it on a term `constsResolve` has just walked, and a DAG-shared term must not
@@ -331,7 +331,7 @@ def mentionsConstGo (n : NIdx) (seen : Std.HashSet EIdx) :
       | .proj s _ e =>
         if s == n then pure (true, seen) else mentionsConstGo n seen fuel e
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:838-840 Expr.mentionsConstFast
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:922-924 Expr.mentionsConstFast
 The executed `mentionsConst`: one memoized DAG walk. -/
 def mentionsConst (n : NIdx) (e : EIdx) : AM Bool := do
   pure (← mentionsConstGo n ∅ coreWalkFuel e).1

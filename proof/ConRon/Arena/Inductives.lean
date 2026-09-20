@@ -21,7 +21,7 @@ namespace ConRon.Arena.Inductives
 open ConLeche
 open ConRon.Arena
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:566-610 checkDecl — the `.indDecl`
+/-- con-leche: ConLeche/Kernel/Checker.lean:439-626 checkDecl — the `.indDecl`
 arm's route choice, once `basisPinHit` has declined the block: the declared
 parameter count (`indParamsOk`, one-sided, official's own reject), then
 `nativeParts?` between `checkNative` and `checkModeled`.

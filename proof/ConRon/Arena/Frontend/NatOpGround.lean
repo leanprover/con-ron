@@ -117,7 +117,7 @@ def isNatOpRecord : IDeclaration → AM (Option NIdx)
 
 /-! ## Which records must move, and how far -/
 
-/-- con-leche: ConLeche/Frontend/NatOpGround.lean:106-137 hoistTargets — the
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets — the
 name index's inner loop: the FIRST record declaring a name wins (a duplicate
 is rejected by the fold anyway). -/
 def insertNames (idx : Std.HashMap NIdx Nat) (i : Nat) :
@@ -126,7 +126,7 @@ def insertNames (idx : Std.HashMap NIdx Nat) (i : Nat) :
   | n :: ns =>
     insertNames (if idx.contains n then idx else idx.insert n i) i ns
 
-/-- con-leche: ConLeche/Frontend/NatOpGround.lean:106-137 hoistTargets — name
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets — name
 ↦ the index of the record declaring it.  con-leche's `for i in [0:ds.size]`
 over a stream of millions is DESIGN §8.4 lesson 16's "large linear state", so
 the loop is explicit tail recursion. -/
@@ -137,7 +137,7 @@ def nameIndex (ds : Array IDeclaration) (idx : Std.HashMap NIdx Nat) (k : Nat) :
   else idx
   termination_by ds.size - k
 
-/-- con-leche: ConLeche/Frontend/NatOpGround.lean:106-137 hoistTargets — the
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets — the
 worklist: the closure of `j` within the records after `i`, each reached
 record marked as having to precede `i`.  con-leche's `while h : stack.size >
 0` is a fuelled recursion over an explicit stack here; the fuel is
@@ -155,14 +155,14 @@ def hoistClosure (ds : Array IDeclaration) (idx : Std.HashMap NIdx Nat) (i : Nat
       else hoistClosure ds idx i fuel (target.insert k i) (← pushDeps k stack)
     | none => hoistClosure ds idx i fuel (target.insert k i) (← pushDeps k stack)
 where
-  /-- con-leche: ConLeche/Frontend/NatOpGround.lean:106-137 hoistTargets —
+  /-- con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets —
   push record `k`'s own dependencies that lie after `i`. -/
   pushDeps (k : Nat) (stack : List Nat) : AM (List Nat) := do
     if h : k < ds.size then do
       let ns ← IDeclaration.usedConsts ds[k]
       pure (pushOne ns.toList stack)
     else pure stack
-  /-- con-leche: ConLeche/Frontend/NatOpGround.lean:106-137 hoistTargets —
+  /-- con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets —
   the inner `for n in ds[k]!.usedConsts` loop. -/
   pushOne : List NIdx → List Nat → List Nat
     | [], stack => stack
@@ -171,7 +171,7 @@ where
       | some m => pushOne ns (if m > i then m :: stack else stack)
       | none => pushOne ns stack
 
-/-- con-leche: ConLeche/Frontend/NatOpGround.lean:106-137 hoistTargets — the
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets — the
 outer `for i in [0:ds.size]` loop: for every pinned-operation record, every
 ground of its `natOpDeps` declared LATER pulls its own closure forward. -/
 def hoistTargetsGo (ds : Array IDeclaration) (idx : Std.HashMap NIdx Nat)
@@ -186,7 +186,7 @@ def hoistTargetsGo (ds : Array IDeclaration) (idx : Std.HashMap NIdx Nat)
   else pure target
   termination_by ds.size - i
 where
-  /-- con-leche: ConLeche/Frontend/NatOpGround.lean:106-137 hoistTargets —
+  /-- con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets —
   the inner `for g in natOpDeps c` loop. -/
   hoistDeps (ds : Array IDeclaration) (idx : Std.HashMap NIdx Nat)
       (target : Std.HashMap Nat Nat) (i : Nat) : List NIdx →
@@ -201,7 +201,7 @@ where
         else hoistDeps ds idx target i gs
       | none => hoistDeps ds idx target i gs
 
-/-- con-leche: ConLeche/Frontend/NatOpGround.lean:106-137 hoistTargets — the
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets — the
 map from a record's index to the earliest pinned-operation index it must
 precede.  Empty — and then the hoist is the identity — on every stream whose
 ground precedes its operations. -/
@@ -210,7 +210,7 @@ def hoistTargets (ds : Array IDeclaration) : AM (Std.HashMap Nat Nat) :=
 
 /-! ## The reorder -/
 
-/-- con-leche: ConLeche/Frontend/NatOpGround.lean:139-161 applyHoist — a
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist — a
 moved record sorts at its target, just ahead of the operation record there
 (key `(t, 0, k)` against the operation's `(t, 1, t)`); everything else keeps
 its position (`(k, 1, k)`).  Moved records with the same target keep their
@@ -220,7 +220,7 @@ def hoistKey (target : Std.HashMap Nat Nat) (k : Nat) : Nat × Nat × Nat :=
   | some t => (t, 0, k)
   | none => (k, 1, k)
 
-/-- con-leche: ConLeche/Frontend/NatOpGround.lean:139-161 applyHoist — the
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist — the
 strict order on those keys. -/
 def hoistLt (target : Std.HashMap Nat Nat) (a b : Nat) : Bool :=
   let ka := hoistKey target a
@@ -228,7 +228,7 @@ def hoistLt (target : Std.HashMap Nat Nat) (a b : Nat) : Bool :=
   ka.1 < kb.1 ||
     (ka.1 == kb.1 && (ka.2.1 < kb.2.1 || (ka.2.1 == kb.2.1 && ka.2.2 < kb.2.2)))
 
-/-- con-leche: ConLeche/Frontend/NatOpGround.lean:139-161 applyHoist — the
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist — the
 names of the records that moved, in index order. -/
 def movedNames (ds : Array IDeclaration) (target : Std.HashMap Nat Nat)
     (acc : Array NIdx) (k : Nat) : Array NIdx :=
@@ -238,7 +238,7 @@ def movedNames (ds : Array IDeclaration) (target : Std.HashMap Nat Nat)
   else acc
   termination_by ds.size - k
 
-/-- con-leche: ConLeche/Frontend/NatOpGround.lean:139-161 applyHoist — the
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist — the
 records in the sorted order.  `List.mergeSort` and not `Array.qsort` for
 con-leche's own reason: the result is a PERMUTATION of the input, which is a
 property the prepared list's shape lemma states.  The keys are pairwise
@@ -247,14 +247,14 @@ produced. -/
 def reorder (ds : Array IDeclaration) (order : List Nat) : Array IDeclaration :=
   order.foldl (fun acc k => acc ++ (ds[k]?.toArray)) #[]
 
-/-- con-leche: ConLeche/Frontend/NatOpGround.lean:139-161 applyHoist — **the
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist — **the
 reorder**: the sorted record array and the names of the records moved. -/
 def applyHoist (ds : Array IDeclaration) (target : Std.HashMap Nat Nat) :
     Array IDeclaration × Array NIdx :=
   let order := (List.range ds.size).mergeSort (fun a b => !hoistLt target b a)
   (reorder ds order, movedNames ds target #[] 0)
 
-/-- con-leche: ConLeche/Frontend/NatOpGround.lean:163-169 hoistNatOpGround —
+/-- con-leche: ConLeche/Frontend/NatOpGround.lean:164-169 hoistNatOpGround —
 **the hoist.**  Returns the reordered records and the names of the records
 moved (empty, and the array untouched, when no operation's ground is declared
 after it). -/
