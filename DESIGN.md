@@ -25100,3 +25100,301 @@ changed (`proof/ConRon.lean` does not import `ConRon.Arena`).
    `checkIndDecl` both landed there is no reason left not to, and item 4's
    diagnosis would have been an afternoon's work with a benchmark that
    interned inside a declaration bracket.
+
+### Task #97-P4d-2 — the Rust inductives (2026-09-20, Opus under Fable)
+
+Phase P4d of §8.6, **part 2**: the Rust side of the eleven modules of
+`proof/ConRon/Arena/Inductives/` and the `.indDecl` dispatch that routes a
+block between them, in lockstep with the Lean twin.  Part 1 — the declaration
+checker itself (`arena::{checker_base, decl_check, checker, canon, basis}`) —
+is the sibling task's; the two ran at the same time, which is what
+`arena::inductives::ind_base` below is about.
+
+| | shipped | tests | what |
+|---|---:|---:|---|
+| `arena/inductives/struct_parts.rs` | 1 422 | — | the generators: families, spines, rule bodies, Π→λ, `StructParts`, the projection bodies, `hasLooseBVarB`, `mentionsConst` |
+| `arena/inductives/ind_base.rs` | 1 841 | — | **P4d-1's helpers, borrowed** (below) |
+| `arena/inductives/sum_parts.rs` | 199 | — | `InductiveShape`, `sumSplit`, `withSort` |
+| `arena/inductives/modeled.rs` | 3 917 | — | the modeled route whole: the iota certificates, the member checks, the projection functions, the capability theorems, `checkModeled` |
+| `arena/inductives/struct_install.rs` | 304 | — | the binder-domain walk and the projection TABLE |
+| `arena/inductives/struct_install_f.rs` | 85 | — | the `F` names |
+| `arena/inductives/sum_install.rs` | 1 140 | — | official's telescope loop, the former's stage, the per-field universe bound, the positivity normalisation, the constructors' stage, `sumRules` |
+| `arena/inductives/sum_install_f.rs` | 174 | — | the `F` names |
+| `arena/inductives/native_parts.rs` | 2 181 | — | `RecFieldKind`, the positivity classification, the generated recursor with its `ih` binders, `nativeRulesOk`, the recogniser |
+| `arena/inductives/native_install.rs` | 1 455 | — | the capability record, `mentionsFvar`, the opened re-check, the recursor, the table, the two-pass install |
+| `arena/inductives/native_install_f.rs` | 107 | — | the `F` names |
+| `arena/inductives.rs` | 96 | 773 | `check_ind_decl` and the module table; `mod tests` |
+| **total** | **12 921** | **773** | |
+
+Against the twin's 2 904 raw lines (`Inductives.lean` 47 + the eleven modules
+2 857) the shipped Rust is **4.4×**, and that is the campaign's highest ratio
+by a good margin — P4a measured 2.3×, P4b 2.2×, P4c 2.95×.  Three things
+account for all of it and none of them is new logic:
+
+* **the `match m { Err(e) => Err(e), Ok(x) => … }` nesting** P4b named, at
+  `Core`-like depth: `checkIotaThm` and `checkIotaThmN` are one `do` block of
+  eighty lines each in the twin and eight functions of ~200 each here;
+* **`ind_base.rs` is 1 841 lines that have no twin in `Inductives/`** — the
+  Lean's own borrowed copy (`Arena/Inductives/Base.lean`, 434 lines) was
+  deleted by task #97f, and what this file mirrors is `Arena/CheckerBase.lean`
+  plus four items of `Arena/{Env,Intern,StdAxioms}.lean`.  Take it out and the
+  ratio is **3.8×**;
+* **the cursor recursions**: every `List.mapM`, `List.allM`, `List.anyM`,
+  `foldlM`, `zipWith`, `filter`, `take`, `drop` and `++` of the twin is a
+  named helper here (§3.4's standing rule) — 25 `_from` companions and some
+  forty counted recursions, which is the densest use of the rule in the port.
+
+Declarations: the twin's eleven modules and `Inductives.lean` are **152**
+`def`/`abbrev`/`structure`/`inductive`; the Rust is **504** items
+(`pub fn`/`pub struct`/`pub enum`/`pub const`/`pub trait`/`impl`), of which 95
+are `ind_base.rs`'s and **120 are message constants** — the port's one-line
+`fail (.invalid s!"…")` becomes a named `[u32; N]` beside its function.
+
+#### The mapping, module by module
+
+Only the rows that are **not** a rename (camelCase ↔ snake_case) plus P4b's
+two standing narrowings — the state parameter is first, a twin that cannot
+fail returns its value — carry a note.
+
+| Lean twin | Rust | one-to-one? |
+|---|---|---|
+| `StructParts.lean`'s 30 | the same 30, plus 9 `_from` cursors and 2 splits | **no** in the count only; `structShape` and `structPartsCore?` are split at the twin's own `if … then pure false else do` boundaries (six functions between them), which is task #97-P4c's arrangement |
+| the two memo-threading walks (`hasLooseBVarBGo`, `mentionsConstGo`) | the same, with the memo **moved in and returned** | yes — `AM (Bool × Std.HashMap …)` term for term.  `con_ron_core::kernel::inductives::struct_parts` hands the same table down as a `&mut`; here the state parameter is already the one `&mut` (§3.4), and a moved `Vec`-backed table costs nothing |
+| `SumParts.lean`'s 4 | the same 4 + `ctors_copy(_from)` | yes.  `sumSplit`'s nested `Option`-of-tuple is one five-component tuple, as `con_ron_core`'s is |
+| `Modeled.lean`'s 34 | 68 | **no** — the two statement checks are eight functions each (see below), and `projBack`/`projFwd`'s two `go`s are one `proj_pairs_from(back: bool)`: they differ only in which side of the pair is which and both intern the same two names in the same order, so a shared body leaves the same store state |
+| `renameBy f` at a call site | `RenameBy { tbl }`, the `NIdxToNIdx` dictionary | **no** in spelling, yes in meaning — this is the twin's partial application with the closure defunctionalised, and it is **the last of con-leche's higher-order arguments**: after P2d answered `renameConsts`' `f`, the arena has no function-valued argument left outside the `lane` tag of `arena::core` |
+| `StructInstall.lean`'s 2 | 4 (the scoping walk and the name-family test split off) | **no** — the twin's `bodies.toList.allM` over a four-conjunct `do` is a cursor recursion, and `(List.range nF).allM` is a counted one |
+| `SumInstall.lean`'s 14 | 26 | **no** — `checkSumInd` and `checkSumCtor` are split at the twin's `let`-boundaries (three and four ways), `whnfTelescope`'s two clauses are merged into one that dispatches on the `view` and picks the clause's own message |
+| `NativeParts.lean`'s 29 | 50 | **no** — `structRecTyR`, `structRecRhsR`, `structMinorTyR`, `structIhPis`, `nativeShape?` and `nativeRulesOk` each split two or three ways at their `let`-boundaries, and `structMinorsPisR`/`structMinorsLamsR` are ONE function at `is_lam : bool` (the twin writes the two out; they differ in one node) |
+| `NativeInstall.lean`'s 15 | 34 | **no** — `nativeOpenedOk`'s three kind arms are three functions, `checkNativeRec` is four and `checkNativeTail` is four |
+| the three `…F.lean` modules' 16 `abbrev`s | 16 one-line delegations | yes — `arena::fenv`'s arrangement (task #97-P4c), and `nativeCapsAt` is re-exported from `sum_install_f` under the name `native_install` looks for |
+| `RecFieldKind` | the same enum + `_dup` + `_beq` | yes; §3.4 forbids `#[derive]`, so the two `deriving` clauses are spelled out |
+| `NativeParts extends InductiveShape` | a `shape` field | **no**, as `con_ron_core::kernel::inductives::native_parts`' is |
+| the twin's `s!`-interpolated messages | `con_ron_core`'s own code-point constants, interpolation dropped | **no** — §3.1 (a message need not match a theorem); matching *con-ron-core's* is what lets the differential test compare error text, and where the twin distinguishes two messages the executed con-ron-core merges into one (the iota statement's head/arity/prefix pins) the port takes the merged constant |
+
+##### The four places the order of effects is load-bearing
+
+P4c's "six places where Lean's `do` does NOT short-circuit" has four more here,
+and each is a `&&`/`||` whose operands INTERN:
+
+* `indBlockCaps`' `(cvC.levelParams = cvT.levelParams) && (← checkEtaThm …)` —
+  `checkEtaThm` interns `T._model`, `T._model.eta`, `C._model` and `nF`
+  projection-model names whatever the level test says;
+* `checkProjTy`'s three-conjunct well-formedness and `checkProjRule`'s
+  four-conjunct one — `hasFvarFast` and `looseBVarsBoundedFast` write the two
+  derived-bound memos;
+* `nestedRuleShape`'s per-pin four-conjunct test, which also calls
+  `constsResolveFFast` and `allLevelParamsDefined`;
+* `checkStructProjTable`'s per-body four-conjunct test, ditto.
+
+In each the port evaluates every conjunct into a `let` and combines the
+`bool`s afterwards.  Across the LIST, `List.allM` short-circuits and so does
+the port's cursor recursion — that is the twin's semantics, not a deviation.
+
+##### `checkProjIota`'s off-by-one, and what it cost to find
+
+Task #97f's P2f found the twin building the iota statement's expected redex
+with `structPsAt (nF + 1) nP` where the constructor spine sits at `nF`, which
+falsely declined four nested-block fixtures.  The Rust followed the twin
+before the fix and follows it after; the merge that brought the Lean fix in is
+this task's third commit, and `mod tests`' fixture 3 (`Pair`) is what would
+have caught it on the Rust side had the arena reached a modeled structure with
+projections.  Recorded because it is the one place where the two sides could
+have diverged silently: the Rust was a faithful transliteration of a wrong
+twin.
+
+#### Borrowed from P4d-1: `arena::inductives::ind_base`
+
+The installs call two dozen declarations that belong to
+`ConLeche/Kernel/{CheckerBase,Env,Level}.lean`, i.e. to the sibling task's
+`arena::checker_base`.  Under the coordinator's concurrency contract they are
+twinned here, in a module of their own, cited to the same con-leche
+declarations P4d-1 cites.  **Every item in that file is a duplicate to be
+deleted at merge**, and the file mirrors the FINAL Lean (task #97f deleted
+`Arena/Inductives/Base.lean` and moved its twenty-four declarations to
+`Arena/CheckerBase.lean` and `Arena/Inductives/Modeled.lean`), so the dedup is
+a move and not a rewrite.
+
+| Lean home after task #97f | Rust items in `ind_base` |
+|---|---|
+| `CheckerBase.lean:472-475 unwrapOr` | `unwrap_or` |
+| `CheckerBase.lean:151-153 nameNodup` | `nidx_nodup`, `nidx_nodup_from`, `nidx_contains_from` |
+| `CheckerBase.lean:157-174 NIdx.{isModelSuffix,isProjFnShape}` | `nidx_is_model_suffix`, `nidx_is_proj_fn_shape` |
+| `CheckerBase.lean:193-232 allLevelParamsDefined(Go)` | `all_level_params_defined{,_go,_node,_binder}`, `levels_all_params_defined`, `bool_probe` |
+| `CheckerBase.lean:250-286 constsResolveF{Go,Fast}` | `consts_resolve_f_{go,node,fast}`, `consts_resolve_leaf` |
+| `CheckerBase.lean:291-296 fvarTypeDs` | `fvar_type_ds(_from)` |
+| `CheckerBase.lean:365-373 domsMatchAux` | `doms_match_aux(_from)` |
+| `CheckerBase.lean:375-413 openPisAtFvars{,FGo,F}` | `open_pis_at_fvars{,_f_go,_f}` |
+| `CheckerBase.lean:315-319 unresolvedConstsError` | `unresolved_consts_error` |
+| `CheckerBase.lean:332-353 checkConstantVal` | `check_constant_val{,_scoped,_after_annot}` |
+| `CheckerBase.lean:416-470 check{Typed,Annot,DefEq}List` | the same three + their `_from` cursors |
+| `CheckerBase.lean:440-459 isEqHead`, `eqHeadLevel` | `is_eq_head`, `eq_head_level` |
+| `CheckerBase.lean:480-485 IFEnv.findCV?` | `find_cv` |
+| `CheckerBase.lean:496-543 checkProjShape`, `checkProjRule` | `check_proj_shape`, `check_proj_rule{,_wf,_shape,_certs,_lams}` |
+| `CheckerBase.lean:554-580 isRecInfo`, `recsFormSuffix`, `indParamsOk` | the same three + three cursors |
+| `Env.lean`'s seven `deriving DecidableEq` | `i_constant_info_beq` and its eight helpers — **`arena::env`'s at merge**, not P4d-1's: `env.rs` (task #97e) has the `*_dup`s and not the comparisons |
+| `Env.lean`'s value semantics on `IFEnv` | `ifenv_dup`, `i_env_dup`, `impl Dup for IConstantInfo` — `arena::env`'s too; `checkIndRecs` uses `fe₂` four times, which is exactly where `con_ron_core::kernel::fenv::dup` is called on the tree-shaped side |
+| `Intern.lean:48-62`, `StdAxioms.lean:136 eqA` | `intern_expr`, `intern_cv`, `intern_caps`, `intern_levels_l`, `intern_ls`, `model_name`, `eq_basis_ci` |
+| `Modeled.lean:56-74` (**stays there**) | `doms_match_renamed`, `eq_basis_stored` are in `arena::inductives::modeled`, as the twin puts them |
+
+Plus one item that is neither: `find_ci`, the copy of a stored `IConstantInfo`
+out of `fe.find?`, which exists because inlining it breaks the extraction (see
+below).
+
+**The one judgement call.**  Three clauses ask `env.find? eqName = some eqA` —
+the stored `Eq` must BE the pinned basis constant.  P4d-1's `arena::std_axioms`
+owns the arena's `eqA` (the Lean's is `internCI ConLeche.eqA`); until it lands,
+`eq_basis_ci` interns `con_ron_core::kernel::basis_pins::eq_a()`, which is the
+same value through the same store, hence the same handle.  Weakening the guard
+to "some `Eq` is stored" would make the arena ACCEPT blocks con-leche rejects,
+which no placeholder may do.
+
+#### What the extraction says, and the two rules this phase adds
+
+`scripts/extract-arena.sh --dry`: **zero errors, zero warnings**, **50 033
+lines** of model (up from P4c's 32 454), **4 type holes and 153 function
+holes**.  Of the 153, **151 are the `con-ron-core` boundary** and the other two
+are `alloc::sync::Arc::deref` (P4a's standing hole) and `core::str::as_bytes`
+(P4c's, from `frontend/export_c.rs`'s test-facing entry) — **this phase's own
+modules contribute none**.  The boundary breakdown: `ron::nat` 22,
+`kernel::expr` 21, `kernel::core_k` 19, `kernel::basis_names` 16,
+`kernel::level` 15, `kernel::env` 9, `ron::hashmap` 8, `kernel::prop_when` 8,
+`kernel::name` 7, `kernel::core_types` 6, `frontend::*` 15, the rest 3, plus
+the `Dup` instances for `u64` and for a pair.  The fourth TYPE hole is new and
+is the boundary too: `kernel::expr::Expr`, which `ind_base::intern_expr` takes
+because the pinned `Eq` basis is a `ConstantInfo` VALUE.
+
+Three translator complaints, all three fixed **in the crate**:
+
+1. **Extraction rule 5 bites at `ifenv_find`, not only at `HashMap::get`.**
+   Ten sites of `modeled.rs` and one of `ind_base.rs` wrote
+   `match env::ifenv_find(fe, n) { Some(ci) => Some(dup(ci)), None => None }`
+   inline — the copy P4c's table calls for — and Aeneas answered *"Could not
+   match the contexts"* (`interp/Interp.ml:617`) at every one.  The rule
+   generalises: **an `Option`-producing match over a borrow of the state is its
+   own function.**  `ind_base::find_ci` is that function and is never inlined.
+2. **A `&&` that still holds a loan into an indexed field cannot be joined.**
+   `nativeCapsAt` builds `IIndCaps` with `unitlike: p.nIdx == 0 &&
+   p.ctors[0].2 == 0` and two siblings; the loan into `p.ctors[0]` is live at
+   the record's join.  P4a's second rule again, at a struct literal rather
+   than a `match` arm: hoist the reads to scalars first.  **This is extraction
+   rule 6.**
+3. **An `if` whose two arms MOVE a node's fields cannot be joined either.**
+   `structMinorsPisR`'s `if is_lam { ENodeView::Lam(mty, rest, bm) } else {
+   ENodeView::ForallE(mty, rest, bm) }` moves three values into each arm.
+   `native_parts::intern_binder` builds AND interns inside each branch, so the
+   join is on a plain `EIdx`.  **Extraction rule 7.**
+
+And one item that is not an error but a new external: **`Vec::is_empty` is not
+in Aeneas's `Vec` model.**  Seven `xs.is_empty()` calls came out as an
+`alloc::vec::Vec::is_empty` axiom; `xs.len() == 0` is the same test and adds
+nothing.  Recorded with P4a's `Vec::clear`/`truncate` finding, and worth the
+same treatment: **watch the hole LIST, not the count.**
+
+#### The differential test: 13 `#[test]`s, 48 assertions, all green on the first run
+
+`mod tests` in `arena/inductives.rs` is `InductivesTest.lean`'s shape one for
+one, and covers all **46** of its `#guard`s (plus two of its own):
+
+> write a base environment and an inductive block ONCE, as `con_ron_core`
+> `ConstantInfo` values; run **con-ron-core's own executed `.indDecl` arm** on
+> them; run the arena's `check_ind_decl` on the interned block; compare the
+> WHOLE outcome.
+
+Three things about the partner are worth stating.
+
+* **It is the CACHED driver, not `kernel::checker`.**
+  `kernel::checker::check_ind_decl_route` is a stub that declines `Native`
+  ("the install routes are not ported yet"); what the binary runs — and what
+  `kernel::inductives::*` is reached through — is
+  `cached::parsed_c::check_ind_decl_c`, which tests `basisPinHit` first and
+  then dispatches exactly as the twin's `ConLeche.checkDecl` does.  That is
+  the function the test calls.
+* **The environments are compared by HANDLE.**  con-ron-core's answer is
+  interned into the arena's own store *after* the arena's run and the two
+  `Vec<IConstantInfo>`s are compared element for element with
+  `i_constant_info_beq`.  That is sound because `intern` is hash-consing and
+  `denoteE` is injective (task #97a), and it is the strictest comparison
+  available: it sees a difference in a binder's `PropWhen` datum, in a
+  capability record, in a rule's `k`/`eta`/`fire` bits and in a projection
+  table's bodies, guard levels and offset.
+* **The blocks are GENERATED, not hand-written.**  `mk_native_block` builds the
+  recursor's type and its rules with **con-ron-core's own** `struct_rec_ty_r` /
+  `struct_rec_rhs_r` — the very terms the install fabricates and compares
+  against — so a fixture is the block a real elaborator exports.  The
+  generator is common INPUT to both checkers and cannot bias the differential,
+  which is between the two CHECKERS.
+
+The twelve fixtures and their outcomes are the twin's, unchanged: `N` (the
+`Nat` shape, native, 4 installs), `Lst.{u}` (parametric recursive, 4),
+`Pair.{u}` (a two-field structure, 4 **with a projection table**), `Eq'.{u}`
+(indexed, `Prop`, large eliminator, 3, no table), `Tru` (a `Prop` with a
+fieldless constructor, 4, table), a MUTUAL block through the modeled route
+(2 installs with models, `notImplemented "no install route …"` without), a
+NESTED block (the same decline), the declared-parameter-count reject at two
+blocks, a non-positive occurrence, a duplicate constructor, a dropped rule
+list, and a member re-declaring a stored name.  Six accepting fixtures pin
+`accepts`, `installed` and `hasTable`, so "both checkers threw on everything"
+cannot be green.
+
+**Two deliberately wrong checks were confirmed to fail.**  Changing one code
+point of `M_NUM_PARAMS` turns fixture 8 red (the message comparison is real);
+changing the projection table's `off` from `1` to `2` turns fixtures 3 and 5
+red and nothing else (the handle-for-handle environment comparison is real,
+and it is the only thing that could have caught that one).  Both were reverted.
+
+#### What the Lean moved under P4b and P4c, and is not this task's to sync
+
+The `arena` merge that brought task #97f's dedup also brought two changes
+*below* this layer that the Rust does not yet have, because they are P4b's and
+P4c's files:
+
+* `Arena/ExprOps.lean` gained **two derived-word cutoffs** (`instantiateList`
+  and `liftLooseBVars` at `bvarBRaw < satRange && bvarBRaw ≤ d`/`≤ c`), without
+  which `tests/e2e/proj_share.ndjson` does not finish; both are
+  denotation-preserving, so no verdict moves, but `arena::expr_ops` is now one
+  optimisation behind its twin;
+* `Arena/Core.lean`'s per-declaration cache drop became con-leche's `flushC`
+  (task #97f 4a), 174 lines of diff in `Core.lean` and 32 in `CoreState.lean`.
+
+Neither changes what this task's modules compute.  Whoever next touches
+`arena::{expr_ops, core, core_state}` should carry them across.
+
+#### Gates
+
+`cargo build` / `cargo test` under `RUSTFLAGS="-D warnings"` (**86 tests in
+`arena-core`**, up from 73; **373** in the workspace), `scripts/lint-rust-style.sh`
+over both verified trees, `scripts/provenance.py check` **0 findings** (5 740
+items — 4 041 Rust, 1 699 arena Lean — and 4 398 citations),
+`provenance-selftest`, `overview-links`, `holes --check`, `gen-pins --check`,
+`gen-prelude --check`, `gen-prelude-lean --check`, `scripts/extract.sh --check`
+(con-ron-core's committed model unmoved) and `scripts/extract-arena.sh --dry`
+clean.  `cd proof && lake build` was **not** run: this task touches no Lean —
+the `proof/` changes in its history are the `arena` merge, which P2f had
+already gated at 348/348 fixtures in both modes.
+
+#### For the merge, and for P4d's remainder
+
+* **`arena::inductives::ind_base` is deleted when P4d-1's Rust lands** and its
+  items replaced by `arena::checker_base`'s (plus the nine `*_beq`s, the three
+  `*_dup`s and the seven converters, which are `arena::{env,intern,std_axioms}`'s);
+  the table above is the map and the call sites are a `sed` of `ind_base::`
+  away.  `doms_match_renamed` and `eq_basis_stored` stay in
+  `arena::inductives::modeled`, where the twin puts them.
+* **`arena/inductives.rs`'s `check_ind_decl` is the agreed interface** and does
+  NOT test `basisPinHit`: that test is the declaration checker's, before the
+  routes, exactly where con-leche places it.
+* **Extraction rules 5, 6 and 7** (an `Option`-producing match over a state
+  borrow is its own function; no `&&` under a live index loan in a record
+  literal; no `if` whose arms move a node's fields) belong in P4's standing
+  list beside P4a's three, and so does "`Vec::is_empty` is not modelled".
+* **The benchmark still has no inductive shape.**  Four tasks have now asked
+  for one; the subject that matters is a real block's install (a `Pair`-sized
+  structure and an `Lst`-sized recursive family, both generated), and
+  `examples/bench.rs` is where it goes on this side.
+* **`renameConsts` should take the table, not a dictionary.**  The twin's
+  `renameConstsGo (f : NIdx → NIdx)` is the arena's last higher-order argument
+  and `RenameBy` is the only thing that ever instantiates it; making
+  `arena::expr_ops::rename_consts_fast` take a `&Vec<(NIdx, NIdx)>` retires the
+  `NIdxToNIdx` trait from the model.  It is a one-line change on each side and
+  it should be made on the Lean side first.
