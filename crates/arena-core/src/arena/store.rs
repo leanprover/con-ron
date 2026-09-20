@@ -1156,17 +1156,17 @@ impl NTables {
     pub fn push(&mut self, v: NNodeView, d: u64, tier: u32) -> NIdx {
         match v {
             NNodeView::Anonymous => {
-                let i: NIdx = NIdx::mk(NTAG_ANONYMOUS, tier, self.anons.size() as u32);
+                let i: NIdx = NIdx::pack(NTAG_ANONYMOUS, tier, self.anons.size() as u32);
                 self.anons.push(AnonNode {}, d, i.dup2());
                 i
             }
             NNodeView::Str(p, s) => {
-                let i: NIdx = NIdx::mk(NTAG_STR, tier, self.strs.size() as u32);
+                let i: NIdx = NIdx::pack(NTAG_STR, tier, self.strs.size() as u32);
                 self.strs.push(StrNode { pre: p, s }, d, i.dup2());
                 i
             }
             NNodeView::Num(p, n) => {
-                let i: NIdx = NIdx::mk(NTAG_NUM, tier, self.nums.size() as u32);
+                let i: NIdx = NIdx::pack(NTAG_NUM, tier, self.nums.size() as u32);
                 self.nums.push(NumNode { pre: p, n }, d, i.dup2());
                 i
             }
@@ -1419,27 +1419,27 @@ impl LTables {
     pub fn push(&mut self, v: LNodeView, d: LDer, tier: u32) -> LIdx {
         match v {
             LNodeView::Zero => {
-                let i: LIdx = LIdx::mk(LTAG_ZERO, tier, self.zeros.size() as u32);
+                let i: LIdx = LIdx::pack(LTAG_ZERO, tier, self.zeros.size() as u32);
                 self.zeros.push(ZeroNode {}, d, i.dup2());
                 i
             }
             LNodeView::Succ(u) => {
-                let i: LIdx = LIdx::mk(LTAG_SUCC, tier, self.succs.size() as u32);
+                let i: LIdx = LIdx::pack(LTAG_SUCC, tier, self.succs.size() as u32);
                 self.succs.push(SuccNode { u }, d, i.dup2());
                 i
             }
             LNodeView::Max(u, w) => {
-                let i: LIdx = LIdx::mk(LTAG_MAX, tier, self.maxs.size() as u32);
+                let i: LIdx = LIdx::pack(LTAG_MAX, tier, self.maxs.size() as u32);
                 self.maxs.push(BinLNode { u, v: w }, d, i.dup2());
                 i
             }
             LNodeView::Imax(u, w) => {
-                let i: LIdx = LIdx::mk(LTAG_IMAX, tier, self.imaxs.size() as u32);
+                let i: LIdx = LIdx::pack(LTAG_IMAX, tier, self.imaxs.size() as u32);
                 self.imaxs.push(BinLNode { u, v: w }, d, i.dup2());
                 i
             }
             LNodeView::Param(n) => {
-                let i: LIdx = LIdx::mk(LTAG_PARAM, tier, self.params.size() as u32);
+                let i: LIdx = LIdx::pack(LTAG_PARAM, tier, self.params.size() as u32);
                 self.params.push(ParamNode { n }, d, i.dup2());
                 i
             }
@@ -1658,7 +1658,7 @@ impl LsTables {
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:702-707 LsTables.push
     pub fn push(&mut self, v: LsNodeView, d: LDer, tier: u32) -> LsIdx {
-        let i: LsIdx = LsIdx::mk(LSTAG_LIST, tier, self.lists.size() as u32);
+        let i: LsIdx = LsIdx::pack(LSTAG_LIST, tier, self.lists.size() as u32);
         self.lists.push(ListNode { us: v }, d, i.dup2());
         i
     }
@@ -2006,57 +2006,120 @@ impl ETables {
     pub fn push(&mut self, v: ENodeView, d: u64, tier: u32) -> EIdx {
         match v {
             ENodeView::BVar(i) => {
-                let h: EIdx = EIdx::mk(ETAG_BVAR, tier, self.bvars.size() as u32);
+                let h: EIdx = EIdx::pack(ETAG_BVAR, tier, self.bvars.size() as u32);
                 self.bvars.push(BVarNode { i }, d, h.dup2());
                 h
             }
             ENodeView::FVar(idx, ty) => {
-                let h: EIdx = EIdx::mk(ETAG_FVAR, tier, self.fvars.size() as u32);
+                let h: EIdx = EIdx::pack(ETAG_FVAR, tier, self.fvars.size() as u32);
                 self.fvars.push(FVarNode { idx, ty }, d, h.dup2());
                 h
             }
             ENodeView::Sort(u) => {
-                let h: EIdx = EIdx::mk(ETAG_SORT, tier, self.sorts.size() as u32);
+                let h: EIdx = EIdx::pack(ETAG_SORT, tier, self.sorts.size() as u32);
                 self.sorts.push(SortNode { u }, d, h.dup2());
                 h
             }
             ENodeView::Const(n, us) => {
-                let h: EIdx = EIdx::mk(ETAG_CONST, tier, self.consts.size() as u32);
+                let h: EIdx = EIdx::pack(ETAG_CONST, tier, self.consts.size() as u32);
                 self.consts.push(ConstNode { n, us }, d, h.dup2());
                 h
             }
             ENodeView::App(f, a) => {
-                let h: EIdx = EIdx::mk(ETAG_APP, tier, self.apps.size() as u32);
+                let h: EIdx = EIdx::pack(ETAG_APP, tier, self.apps.size() as u32);
                 self.apps.push(AppNode { f, a }, d, h.dup2());
                 h
             }
             ENodeView::Lam(ty, b, m) => {
-                let h: EIdx = EIdx::mk(ETAG_LAM, tier, self.lams.size() as u32);
+                let h: EIdx = EIdx::pack(ETAG_LAM, tier, self.lams.size() as u32);
                 self.lams.push(BindNode { ty, body: b, m }, d, h.dup2());
                 h
             }
             ENodeView::ForallE(ty, b, m) => {
-                let h: EIdx = EIdx::mk(ETAG_FORALL_E, tier, self.foralls.size() as u32);
+                let h: EIdx = EIdx::pack(ETAG_FORALL_E, tier, self.foralls.size() as u32);
                 self.foralls.push(BindNode { ty, body: b, m }, d, h.dup2());
                 h
             }
             ENodeView::LetE(ty, val, b) => {
-                let h: EIdx = EIdx::mk(ETAG_LET_E, tier, self.lets.size() as u32);
+                let h: EIdx = EIdx::pack(ETAG_LET_E, tier, self.lets.size() as u32);
                 self.lets.push(LetNode { ty, val, body: b }, d, h.dup2());
                 h
             }
             ENodeView::Lit(l) => {
-                let h: EIdx = EIdx::mk(ETAG_LIT, tier, self.lits.size() as u32);
+                let h: EIdx = EIdx::pack(ETAG_LIT, tier, self.lits.size() as u32);
                 self.lits.push(LitNode { l }, d, h.dup2());
                 h
             }
             ENodeView::Proj(n, i, e) => {
-                let h: EIdx = EIdx::mk(ETAG_PROJ, tier, self.projs.size() as u32);
+                let h: EIdx = EIdx::pack(ETAG_PROJ, tier, self.projs.size() as u32);
                 self.projs.push(ProjNode { n, i, e }, d, h.dup2());
                 h
             }
         }
     }
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:343-402 Expr
+/// Lean twin: `proof/ConRon/Arena/Store.lean:992-1005 EStore.derOfView` — the
+/// `lam` (hash tag 19) and `forallE` (23) arms, which differ in nothing but
+/// the tag.  It is `con_ron_core::kernel::expr::lam`'s body with `data(&ty)`
+/// and `data(&body)` replaced by the derived column, and `m`'s two reads
+/// passed in as scalars.
+///
+/// **Why it is a function and not the arm itself.**  The twin writes both
+/// arms out inline.  Inlined here, the three-way `lpOfData ty || lpOfData b
+/// || m.pw.hasParams` sits inside a `match` arm that still holds borrows into
+/// the `&ENodeView`, and Aeneas cannot join the short-circuit branches under
+/// those loans: *"Could not match the contexts"* (`interp/Interp.ml:617`),
+/// measured at P4a.  Neither hoisting the `has_params` read to its own `let`
+/// nor binding the whole disjunction to one moves it.  The two-way
+/// disjunction of the `app` arm is fine, and
+/// `con_ron_core::kernel::expr::lam` — the same three-way disjunction, with
+/// `m` owned and no enclosing match — extracts today.  Lifting the arm's
+/// arithmetic into a function of five scalars is what makes the loans dead at
+/// the join, and it costs the transliteration nothing: `der_of_bind 19` and
+/// `der_of_bind 23` are the twin's two arms verbatim.
+pub fn der_of_bind(tag: u64, dt: u64, db: u64, hm: u64, pm: bool) -> u64 {
+    let h: u64 = expr::hash32(name::mix_hash(
+        tag,
+        name::mix_hash(
+            expr::hash_of_data(dt),
+            name::mix_hash(expr::hash_of_data(db), hm),
+        ),
+    ));
+    expr::pack_data(
+        h,
+        expr::max_u64(expr::bvar_of_data(dt), expr::sat_pred(expr::bvar_of_data(db))),
+        expr::max_u64(expr::fvar_of_data(dt), expr::fvar_of_data(db)),
+        expr::lp_of_data(dt) || expr::lp_of_data(db) || pm,
+    )
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:343-402 Expr
+/// Lean twin: `proof/ConRon/Arena/Store.lean:1006-1014 EStore.derOfView` — the
+/// `letE` arm, `con_ron_core::kernel::expr::let_e`'s body over the derived
+/// column.  A function for the reason `der_of_bind` is one: its
+/// level-parameter bit is a three-way disjunction too.
+pub fn der_of_let(dt: u64, dv: u64, db: u64) -> u64 {
+    let h: u64 = expr::hash32(name::mix_hash(
+        29,
+        name::mix_hash(
+            expr::hash_of_data(dt),
+            name::mix_hash(expr::hash_of_data(dv), expr::hash_of_data(db)),
+        ),
+    ));
+    expr::pack_data(
+        h,
+        expr::max_u64(
+            expr::max_u64(expr::bvar_of_data(dt), expr::bvar_of_data(dv)),
+            expr::sat_pred(expr::bvar_of_data(db)),
+        ),
+        expr::max_u64(
+            expr::max_u64(expr::fvar_of_data(dt), expr::fvar_of_data(dv)),
+            expr::fvar_of_data(db),
+        ),
+        expr::lp_of_data(dt) || expr::lp_of_data(dv) || expr::lp_of_data(db),
+    )
 }
 
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:922-1070 EStore
@@ -2206,73 +2269,22 @@ impl EStore {
                     expr::lp_of_data(df) || expr::lp_of_data(da),
                 )
             }
-            ENodeView::Lam(ty, b, m) => {
-                let dt: u64 = self.derived(ty);
-                let db: u64 = self.derived(b);
-                let h: u64 = expr::hash32(name::mix_hash(
-                    19,
-                    name::mix_hash(
-                        expr::hash_of_data(dt),
-                        name::mix_hash(expr::hash_of_data(db), prop_when::hash_pw(&m.pw)),
-                    ),
-                ));
-                expr::pack_data(
-                    h,
-                    expr::max_u64(
-                        expr::bvar_of_data(dt),
-                        expr::sat_pred(expr::bvar_of_data(db)),
-                    ),
-                    expr::max_u64(expr::fvar_of_data(dt), expr::fvar_of_data(db)),
-                    expr::lp_of_data(dt)
-                        || expr::lp_of_data(db)
-                        || prop_when::has_params(&m.pw),
-                )
-            }
-            ENodeView::ForallE(ty, b, m) => {
-                let dt: u64 = self.derived(ty);
-                let db: u64 = self.derived(b);
-                let h: u64 = expr::hash32(name::mix_hash(
-                    23,
-                    name::mix_hash(
-                        expr::hash_of_data(dt),
-                        name::mix_hash(expr::hash_of_data(db), prop_when::hash_pw(&m.pw)),
-                    ),
-                ));
-                expr::pack_data(
-                    h,
-                    expr::max_u64(
-                        expr::bvar_of_data(dt),
-                        expr::sat_pred(expr::bvar_of_data(db)),
-                    ),
-                    expr::max_u64(expr::fvar_of_data(dt), expr::fvar_of_data(db)),
-                    expr::lp_of_data(dt)
-                        || expr::lp_of_data(db)
-                        || prop_when::has_params(&m.pw),
-                )
-            }
+            ENodeView::Lam(ty, b, m) => der_of_bind(
+                19,
+                self.derived(ty),
+                self.derived(b),
+                prop_when::hash_pw(&m.pw),
+                prop_when::has_params(&m.pw),
+            ),
+            ENodeView::ForallE(ty, b, m) => der_of_bind(
+                23,
+                self.derived(ty),
+                self.derived(b),
+                prop_when::hash_pw(&m.pw),
+                prop_when::has_params(&m.pw),
+            ),
             ENodeView::LetE(ty, val, b) => {
-                let dt: u64 = self.derived(ty);
-                let dv: u64 = self.derived(val);
-                let db: u64 = self.derived(b);
-                let h: u64 = expr::hash32(name::mix_hash(
-                    29,
-                    name::mix_hash(
-                        expr::hash_of_data(dt),
-                        name::mix_hash(expr::hash_of_data(dv), expr::hash_of_data(db)),
-                    ),
-                ));
-                expr::pack_data(
-                    h,
-                    expr::max_u64(
-                        expr::max_u64(expr::bvar_of_data(dt), expr::bvar_of_data(dv)),
-                        expr::sat_pred(expr::bvar_of_data(db)),
-                    ),
-                    expr::max_u64(
-                        expr::max_u64(expr::fvar_of_data(dt), expr::fvar_of_data(dv)),
-                        expr::fvar_of_data(db),
-                    ),
-                    expr::lp_of_data(dt) || expr::lp_of_data(dv) || expr::lp_of_data(db),
-                )
+                der_of_let(self.derived(ty), self.derived(val), self.derived(b))
             }
             ENodeView::Lit(l) => {
                 let h: u64 = expr::hash32(name::mix_hash(31, expr::literal_hash(l)));

@@ -37,6 +37,12 @@
 //! (`Idx.tag_mk`/`tier_mk`/`index_mk`/`eta`) transfer to the Rust as lemmas
 //! about `word_*` that each newtype's wrapper then inherits.
 //!
+//! The twin's `Idx.mk` is spelled `pack` here, and `Idx.ofWord` is `of_word`:
+//! Aeneas names a structure's own constructor `EIdx.mk`, so an associated
+//! function of that name collides with it in the generated Lean.  The Lean
+//! twin avoids the same collision from the other side, by naming `Idx`'s
+//! constructor `ofWord`.
+//!
 //! No handle type is `Copy`: DESIGN.md §3.4 forbids `#[derive]`, and a
 //! hand-written `Clone`/`Copy` pair would drag `core::clone::Clone` into the
 //! model for a `u32` field.  Copying a handle is `dup2()`, the crate's
@@ -158,7 +164,12 @@ pub struct LsIdx {
 /// `Idx.mk`/`tag`/`tier`/`index`/`isPersistent`/`idxNat` at `k = .expr`.
 impl EIdx {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:104-105 Idx.mk
-    pub fn mk(tag: u32, tier: u32, idx: u32) -> EIdx {
+    /// `pack`, not `mk`: Aeneas names a structure's own constructor
+    /// `EIdx.mk`, and an associated `mk` would collide with it in the
+    /// generated Lean (measured, P4a — "Name clash detected: … bound to the
+    /// same name").  The Lean twin dodges the same collision from the other
+    /// side, by naming `Idx`'s constructor `ofWord` so that `Idx.mk` is free.
+    pub fn pack(tag: u32, tier: u32, idx: u32) -> EIdx {
         EIdx { word: word_mk(tag, tier, idx) }
     }
 
@@ -197,7 +208,12 @@ impl EIdx {
 /// `Idx.mk`/`tag`/`tier`/`index`/`isPersistent`/`idxNat` at `k = .name`.
 impl NIdx {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:104-105 Idx.mk
-    pub fn mk(tag: u32, tier: u32, idx: u32) -> NIdx {
+    /// `pack`, not `mk`: Aeneas names a structure's own constructor
+    /// `EIdx.mk`, and an associated `mk` would collide with it in the
+    /// generated Lean (measured, P4a — "Name clash detected: … bound to the
+    /// same name").  The Lean twin dodges the same collision from the other
+    /// side, by naming `Idx`'s constructor `ofWord` so that `Idx.mk` is free.
+    pub fn pack(tag: u32, tier: u32, idx: u32) -> NIdx {
         NIdx { word: word_mk(tag, tier, idx) }
     }
 
@@ -236,7 +252,12 @@ impl NIdx {
 /// `Idx.mk`/`tag`/`tier`/`index`/`isPersistent`/`idxNat` at `k = .level`.
 impl LIdx {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:104-105 Idx.mk
-    pub fn mk(tag: u32, tier: u32, idx: u32) -> LIdx {
+    /// `pack`, not `mk`: Aeneas names a structure's own constructor
+    /// `EIdx.mk`, and an associated `mk` would collide with it in the
+    /// generated Lean (measured, P4a — "Name clash detected: … bound to the
+    /// same name").  The Lean twin dodges the same collision from the other
+    /// side, by naming `Idx`'s constructor `ofWord` so that `Idx.mk` is free.
+    pub fn pack(tag: u32, tier: u32, idx: u32) -> LIdx {
         LIdx { word: word_mk(tag, tier, idx) }
     }
 
@@ -275,7 +296,12 @@ impl LIdx {
 /// `Idx.mk`/`tag`/`tier`/`index`/`isPersistent`/`idxNat` at `k = .levels`.
 impl LsIdx {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:104-105 Idx.mk
-    pub fn mk(tag: u32, tier: u32, idx: u32) -> LsIdx {
+    /// `pack`, not `mk`: Aeneas names a structure's own constructor
+    /// `EIdx.mk`, and an associated `mk` would collide with it in the
+    /// generated Lean (measured, P4a — "Name clash detected: … bound to the
+    /// same name").  The Lean twin dodges the same collision from the other
+    /// side, by naming `Idx`'s constructor `ofWord` so that `Idx.mk` is free.
+    pub fn pack(tag: u32, tier: u32, idx: u32) -> LsIdx {
         LsIdx { word: word_mk(tag, tier, idx) }
     }
 
