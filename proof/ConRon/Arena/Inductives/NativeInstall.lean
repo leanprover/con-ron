@@ -32,7 +32,6 @@ import ConRon.Arena.Inductives.NativeParts
 namespace ConRon.Arena
 
 open ConLeche
-open ConRon.Arena.IndBase (unwrapOr checkConstantVal openPisAtFvars allLevelParamsDefined)
 
 /-! ## The capability record -/
 
@@ -123,10 +122,10 @@ The kinds the recogniser computed, re-checked on the annotated constructor type
 OPENED at variables, in the form the model reads. -/
 def nativeOpenedOk (fe₀ : IFEnv) (T : NIdx) (lps : List NIdx) (nP nIdx : Nat)
     (cty : EIdx) (nF : Nat) (ks : List RecFieldKind) : AM Bool := do
-  match ← openPisAtFvars nP cty 0 with
+  match ← openPisAtFvarsF nP cty 0 with
   | none => pure false
   | some (fvsP, crest) => do
-    match ← openPisAtFvars nF crest nP with
+    match ← openPisAtFvarsF nF crest nP with
     | none => pure false
     | some (xFvs, xrest) => do
       let us ← paramLevels lps
@@ -155,7 +154,7 @@ def nativeOpenedOk (fe₀ : IFEnv) (T : NIdx) (lps : List NIdx) (nP nIdx : Nat)
           -- depth (task #202)
           let xt ← fvarTypeD x
           let (tele, _) ← piBinders coreWalkFuel xt
-          match ← openPisAtFvars tele.length xt (nP + i) with
+          match ← openPisAtFvarsF tele.length xt (nP + i) with
           | none => pure false
           | some (afvs, body) => do
             if afvs.length == 0 then pure false else do
@@ -342,7 +341,7 @@ def checkNativeTail (mode : CheckMode) (fe : IFEnv) (q : NativePass) : AM IFEnv 
     fail (.invalid "direct rec: large eliminator on a multi-constructor inductive \
       whose sort may be Prop")
   -- the index binders' universes, exposed for the model's index-tuple universe
-  let tq ← unwrapOr (← openPisAtFvars (p.nP + p.nIdx) q.cvTa.type 0)
+  let tq ← unwrapOr (← openPisAtFvarsF (p.nP + p.nIdx) q.cvTa.type 0)
     (.internal "direct rec: type former telescope")
   let _isorts ← checkStructFieldSortsI mode q.env₁ true false p.resSort p.nP
     (tq.1.drop p.nP) [] p.nIdx

@@ -215,8 +215,8 @@ private def build : AM Fx := do
   let sApp0 ← internExpr (sApp 0)
   let tH ← internName tName
   let tTyH ← internExpr tTy
-  let (_, block) ← internCIList ∅ blockP
-  let (_, blockD) ← internCIList ∅ blockD
+  let (_, block) ← Frontend.internCIList ∅ blockP
+  let (_, blockD) ← Frontend.internCIList ∅ blockD
   pure { sH, mkH, recH, uH, vH, puH, sTyH, ctorTyH, recTyH, projTyH,
          projVal0, projVal1, badValH, iotaTyH, iotaNameH, sApp0,
          owner := ⟨sH, [uH], 1, mkH, 2, recH, [vH, uH], recTyH, 1, 1⟩,

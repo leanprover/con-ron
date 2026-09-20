@@ -15,9 +15,10 @@ an inductive route's.  con-leche's `checkDecl` makes that test first and only
 then reaches the two clauses below; the arena's does the same.
 
 Ten modules stand behind it, one per con-leche file of
-`ConLeche/Kernel/Inductives/`, plus `Arena/Inductives/Base.lean`, which holds
-the `CheckerBase`/`Env`/`Level` twins the sibling task P2d-1 also writes (its
-module note says why, and DESIGN.md lists them for the merge).
+`ConLeche/Kernel/Inductives/`.  The `CheckerBase`/`Env`/`Level` twins they
+call are `Arena/CheckerBase.lean`'s; task #97d-2 wrote a borrowed copy of them
+in an `Arena/Inductives/Base.lean` of its own because the two halves of P2d
+ran concurrently, and task #97f deleted it.
 -/
 import ConRon.Arena.Inductives.NativeInstallF
 
@@ -37,7 +38,7 @@ formers, resp. several recursors, so `sumSplit` refuses it outright and no
 model lookup is needed to route it. -/
 def checkIndDecl (mode : CheckMode) (fe : IFEnv) (block : List IConstantInfo)
     (numParams : Nat) : AM IFEnv := do
-  if ← IndBase.indParamsOk numParams block then
+  if ← indParamsOk numParams block then
     match ← nativeParts? numParams block with
     | some p => checkNative mode fe p
     | none => checkModeled mode fe block
