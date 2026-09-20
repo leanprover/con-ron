@@ -209,6 +209,30 @@ def checkDeclsPure (mode : CheckMode) (pins : List INatOpPinSet)
 
 /-! ## The two-phase fold the binary runs -/
 
+/-- con-leche: ConLeche/Cached/Installed.lean:185-195 annotDeclStep
+con-leche: ConLeche/Cached/Installed.lean:429-436 checkPendingList
+**The state a FAILING fold step hands back**, and the reason it is not the
+pre-step state.
+
+con-leche's two fold steps live in `StateT CState (Except (CheckError × Nat))`
+and their error arm is `.error (e, i)` — the state is *dropped*, because
+`Except` carries none.  (B) has ONE monad (DESIGN §8.4) whose error type is
+`CheckError`, so the position has to travel as a VALUE, and the error arm
+therefore has to produce *some* state.  Task #97d wrote the pre-step state `s`
+there, which reads as "restore".  It is not a restore that anything observes —
+both folds abandon the walk on an error, `installThenCheck` returns
+`.error`, `runPipelineTail` renders the message and `runPipeline` /
+`runPipelineIO` discard the state — but it is a second reference to the whole
+`AState`, held across the entire step, so **every store append, every cache
+insert and every memo insert inside that step ran at refcount 2 and copied**
+(task #97g: `lean_inc_ref(s)` before the call in `Checker.c`, 83 % of the run
+in `lean_copy_expand_array` + `lean_del_core_other`).
+
+So the arm hands back the EMPTY state — which is what con-leche's arm means
+(no state at all) and what the Rust twin will do (an `Err` return whose
+`&mut` state the caller stops using).  Nothing on the error path reads it. -/
+def AState.abandoned : AState := AState.init EStore.empty
+
 /-- con-leche: ConLeche/Cached/Installed.lean:83-91 PendingCheck — a phase-A
 record awaiting its phase-B check: the datum that crosses the install/check
 seam, the fold position of the declaration (its error tag) and the environment
@@ -271,7 +295,7 @@ def annotDeclStep (mode : CheckMode) (pins : List INatOpPinSet)
     AM (Except (CheckError × Nat) (Nat × IFEnv × Array PendingCheck)) := fun s =>
   match annotStep mode pins p.1 p.2.1 p.2.2 pd s with
   | .ok ((fe', pend'), s') => .ok (.ok (p.1 + 1, fe', pend'), s')
-  | .error e => .ok (.error (e, p.1), s)
+  | .error e => .ok (.error (e, p.1), AState.abandoned)
 
 /-- con-leche: ConLeche/Cached/Installed.lean:450-455 checkDecls — phase A as
 a fold over the records.  con-leche's `Array.foldlM` takes a closure; DESIGN
@@ -311,7 +335,7 @@ def checkPendingList (mode : CheckMode) (fe : IFEnv) :
   | pc :: rest => fun s =>
     match checkPending mode fe pc s with
     | .ok ((), s') => checkPendingList mode fe rest s'
-    | .error e => .ok (.error (e, pc.pos), s)
+    | .error e => .ok (.error (e, pc.pos), AState.abandoned)
 
 /-- con-leche: ConLeche/Cached/Installed.lean:438-455 checkDecls — **the
 declaration fold the binary runs**: install every record (phase A), check
