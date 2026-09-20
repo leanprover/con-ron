@@ -722,4 +722,453 @@ def strLitSupported (fe : IFEnv) : AM Bool := do
                 let co ← pin charOfNatName
                 charOfNatTyOk (fe.find? co)
 
+
+/-! ## Structural-`Nat` literal acceleration
+
+con-leche's certified fast path (`Core.lean:514-863`): an operation
+participates only when its defining recurrence equations hold by
+definitional equality — checked once, at install, so *presence in the store
+is the certificate*.  The sixteen reserved names are interned here exactly
+as the literal guards' are. -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:544 natPredName -/
+def natPredName : AM NIdx := pin (ConLeche.natName.str "pred")
+/-- con-leche: ConLeche/Kernel/Core.lean:545 natAddName -/
+def natAddName : AM NIdx := pin (ConLeche.natName.str "add")
+/-- con-leche: ConLeche/Kernel/Core.lean:546 natSubName -/
+def natSubName : AM NIdx := pin (ConLeche.natName.str "sub")
+/-- con-leche: ConLeche/Kernel/Core.lean:547 natMulName -/
+def natMulName : AM NIdx := pin (ConLeche.natName.str "mul")
+/-- con-leche: ConLeche/Kernel/Core.lean:548 natPowName -/
+def natPowName : AM NIdx := pin (ConLeche.natName.str "pow")
+/-- con-leche: ConLeche/Kernel/Core.lean:549 natBeqName -/
+def natBeqName : AM NIdx := pin (ConLeche.natName.str "beq")
+/-- con-leche: ConLeche/Kernel/Core.lean:550 natBleName -/
+def natBleName : AM NIdx := pin (ConLeche.natName.str "ble")
+/-- con-leche: ConLeche/Kernel/Core.lean:551 natDivName -/
+def natDivName : AM NIdx := pin (ConLeche.natName.str "div")
+/-- con-leche: ConLeche/Kernel/Core.lean:552 natModName -/
+def natModName : AM NIdx := pin (ConLeche.natName.str "mod")
+/-- con-leche: ConLeche/Kernel/Core.lean:553 natGcdName -/
+def natGcdName : AM NIdx := pin (ConLeche.natName.str "gcd")
+/-- con-leche: ConLeche/Kernel/Core.lean:554 natLandName -/
+def natLandName : AM NIdx := pin (ConLeche.natName.str "land")
+/-- con-leche: ConLeche/Kernel/Core.lean:555 natLorName -/
+def natLorName : AM NIdx := pin (ConLeche.natName.str "lor")
+/-- con-leche: ConLeche/Kernel/Core.lean:556 natXorName -/
+def natXorName : AM NIdx := pin (ConLeche.natName.str "xor")
+/-- con-leche: ConLeche/Kernel/Core.lean:557 natShiftLeftName -/
+def natShiftLeftName : AM NIdx := pin (ConLeche.natName.str "shiftLeft")
+/-- con-leche: ConLeche/Kernel/Core.lean:558 natShiftRightName -/
+def natShiftRightName : AM NIdx := pin (ConLeche.natName.str "shiftRight")
+/-- con-leche: ConLeche/Kernel/Core.lean:559 boolName -/
+def boolName : AM NIdx := pin (ConLeche.Name.anonymous.str "Bool")
+/-- con-leche: ConLeche/Kernel/Core.lean:560 boolTrueName -/
+def boolTrueName : AM NIdx := pin ((ConLeche.Name.anonymous.str "Bool").str "true")
+/-- con-leche: ConLeche/Kernel/Core.lean:561 boolFalseName -/
+def boolFalseName : AM NIdx := pin ((ConLeche.Name.anonymous.str "Bool").str "false")
+
+/-- con-leche: ConLeche/Kernel/Core.lean:561-566 Expr.isBoolTrue — is `e` the
+constant `Bool.true` (the official kernel's `is_constant(e, Bool.true)`):
+the name, no universe levels. -/
+def isBoolTrue (h : EIdx) : AM Bool := do
+  match ← view h with
+  | .const c us => do
+    let el ← emptyLevels
+    if us != el then pure false else do
+      let bt ← boolTrueName
+      pure (c == bt)
+  | _ => pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:568-580 Expr.quickPair — the pairs
+official's `quick_is_def_eq` decides by itself: two sorts, two literals, two
+∀s, two λs.
+
+**The one place the arena compares TAGS and not handles.**  con-leche's
+clause is a four-arm structural match that reads only the two constructors;
+DESIGN §8.3 makes index inequality structural inequality, so the twin of a
+match on the CONSTRUCTOR is a comparison of the handle's four tag bits —
+`Idx.tag`, no `view`, no state, no monad.  Comparing the handles themselves
+would be the twin of `a == b`, which is a different (and wrong)
+predicate. -/
+def quickPair (a b : EIdx) : Bool :=
+  (a.tag == ETag.sort && b.tag == ETag.sort) ||
+  (a.tag == ETag.lit && b.tag == ETag.lit) ||
+  (a.tag == ETag.forallE && b.tag == ETag.forallE) ||
+  (a.tag == ETag.lam && b.tag == ETag.lam)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:582-590 natOpNames — the certified
+structural-`Nat` operations. -/
+def natOpNames : AM (List NIdx) := do
+  let a ← natPredName; let b ← natAddName; let c ← natSubName
+  let d ← natMulName; let e ← natPowName; let f ← natBeqName
+  let g ← natBleName
+  pure [a, b, c, d, e, f, g]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:592-607 natDivModNames — the
+WF-recursive operations with a *pinned-declaration* certified fast path. -/
+def natDivModNames : AM (List NIdx) := do
+  let a ← natDivName; let b ← natModName; let c ← natGcdName
+  let d ← natLandName; let e ← natLorName; let f ← natXorName
+  let g ← natShiftLeftName; let h ← natShiftRightName
+  pure [a, b, c, d, e, f, g, h]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:609-632 natOpDeps — the operations
+(transitively) involved in `c`'s recurrences. -/
+def natOpDeps (c : NIdx) : AM (List NIdx) := do
+  let pr ← natPredName; let ad ← natAddName; let su ← natSubName
+  let mu ← natMulName; let po ← natPowName; let be ← natBeqName
+  let bl ← natBleName; let di ← natDivName; let mo ← natModName
+  let gc ← natGcdName; let la ← natLandName; let lo ← natLorName
+  let xo ← natXorName; let sl ← natShiftLeftName; let sr ← natShiftRightName
+  if c == pr then pure [pr]
+  else if c == ad then pure [ad]
+  else if c == su then pure [pr, su]
+  else if c == mu then pure [ad, mu]
+  else if c == po then pure [ad, mu, po]
+  else if c == be then pure [be]
+  else if c == bl then pure [bl]
+  else if c == di then pure [pr, su, bl, di]
+  else if c == mo then pure [pr, su, bl, mo]
+  else if c == gc then pure [bl, mo, gc]
+  else if c == la then pure [ad, mu, bl, di, mo, la]
+  else if c == lo then pure [ad, su, mu, bl, di, mo, lo]
+  else if c == xo then pure [ad, mu, bl, di, mo, xo]
+  else if c == sl then pure [su, mu, bl, sl]
+  else if c == sr then pure [su, bl, di, sr]
+  else pure []
+
+/-- con-leche: ConLeche/Kernel/Core.lean:634-663 natOpEquations — `ap1 n a`,
+one of the equation builder's three local lambdas.  DESIGN §3.4 forbids the
+closure, so each is a named `def`. -/
+def natAp1 (n : NIdx) (a : EIdx) : AM EIdx := do
+  let f ← constE n
+  internE (.app f a)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:634-663 natOpEquations — `ap2 n a b`. -/
+def natAp2 (n : NIdx) (a b : EIdx) : AM EIdx := do
+  let f ← natAp1 n a
+  internE (.app f b)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:634-663 natOpEquations — the
+defining recurrence equations of a structural-`Nat` operation, over
+constructor forms with free variables `d`, `d + 1` (binder-free, so the
+equation sides carry no annotations). -/
+def natOpEquations (d : Nat) (c : NIdx) : AM (List (EIdx × EIdx)) := do
+  let nN ← pin ConLeche.natName
+  let natTy ← constE nN
+  let x ← internE (.fvar d natTy)
+  let y ← internE (.fvar (d + 1) natTy)
+  let zN ← pin ConLeche.natZeroName
+  let z ← constE zN
+  let sN ← pin ConLeche.natSuccName
+  let sx ← natAp1 sN x
+  let sy ← natAp1 sN y
+  let bT ← constE (← boolTrueName)
+  let bF ← constE (← boolFalseName)
+  let pr ← natPredName; let ad ← natAddName; let su ← natSubName
+  let mu ← natMulName; let po ← natPowName; let be ← natBeqName
+  let bl ← natBleName
+  if c == pr then do
+    let l1 ← natAp1 c z
+    let l2 ← natAp1 c sx
+    pure [(l1, z), (l2, x)]
+  else if c == ad then do
+    let l1 ← natAp2 c x z
+    let l2 ← natAp2 c x sy
+    let r2 ← natAp1 sN (← natAp2 c x y)
+    pure [(l1, x), (l2, r2)]
+  else if c == su then do
+    let l1 ← natAp2 c x z
+    let l2 ← natAp2 c x sy
+    let r2 ← natAp1 pr (← natAp2 c x y)
+    pure [(l1, x), (l2, r2)]
+  else if c == mu then do
+    let l1 ← natAp2 c x z
+    let l2 ← natAp2 c x sy
+    let r2 ← natAp2 ad (← natAp2 c x y) x
+    pure [(l1, z), (l2, r2)]
+  else if c == po then do
+    let l1 ← natAp2 c x z
+    let sz ← natAp1 sN z
+    let l2 ← natAp2 c x sy
+    let r2 ← natAp2 mu (← natAp2 c x y) x
+    pure [(l1, sz), (l2, r2)]
+  else if c == be then do
+    let l1 ← natAp2 c z z
+    let l2 ← natAp2 c z sy
+    let l3 ← natAp2 c sx z
+    let l4 ← natAp2 c sx sy
+    let r4 ← natAp2 c x y
+    pure [(l1, bT), (l2, bF), (l3, bF), (l4, r4)]
+  else if c == bl then do
+    let l1 ← natAp2 c z y
+    let l2 ← natAp2 c sx z
+    let l3 ← natAp2 c sx sy
+    let r3 ← natAp2 c x y
+    pure [(l1, bT), (l2, bF), (l3, r3)]
+  else pure []
+
+/-- con-leche: ConLeche/Kernel/Core.lean:665-691 natOpResult — the reduct of
+op `c` on literal arguments (`pred` ignores the second slot).  `ron::Nat` is
+con-leche's `Nat` here, and a literal is a `Literal` value in a `lit`
+node. -/
+def natOpResult (c : NIdx) (a b : Nat) : AM (Option EIdx) := do
+  let pr ← natPredName; let ad ← natAddName; let su ← natSubName
+  let mu ← natMulName; let po ← natPowName; let be ← natBeqName
+  let bl ← natBleName; let di ← natDivName; let mo ← natModName
+  let gc ← natGcdName; let la ← natLandName; let lo ← natLorName
+  let xo ← natXorName; let sl ← natShiftLeftName; let sr ← natShiftRightName
+  if c == pr then do let x ← internE (.lit (.natVal (a - 1))); pure (some x)
+  else if c == ad then do let x ← internE (.lit (.natVal (a + b))); pure (some x)
+  else if c == su then do let x ← internE (.lit (.natVal (a - b))); pure (some x)
+  else if c == mu then do let x ← internE (.lit (.natVal (a * b))); pure (some x)
+  else if c == po then
+    -- the divergence audit's S2: official `reduce_pow` refuses exponents
+    -- above `ReducePowMaxExp = 1 << 24` and lets `Nat.pow` unfold instead
+    if b > 16777216 then pure none
+    else do let x ← internE (.lit (.natVal (a ^ b))); pure (some x)
+  else if c == di then do let x ← internE (.lit (.natVal (a / b))); pure (some x)
+  else if c == mo then do let x ← internE (.lit (.natVal (a % b))); pure (some x)
+  else if c == gc then do
+    let x ← internE (.lit (.natVal (Nat.gcd a b))); pure (some x)
+  else if c == la then do
+    let x ← internE (.lit (.natVal (Nat.land a b))); pure (some x)
+  else if c == lo then do
+    let x ← internE (.lit (.natVal (Nat.lor a b))); pure (some x)
+  else if c == xo then do
+    let x ← internE (.lit (.natVal (Nat.xor a b))); pure (some x)
+  else if c == sl then do
+    let x ← internE (.lit (.natVal (Nat.shiftLeft a b))); pure (some x)
+  else if c == sr then do
+    let x ← internE (.lit (.natVal (Nat.shiftRight a b))); pure (some x)
+  else if c == be then do
+    let n ← if a = b then boolTrueName else boolFalseName
+    let x ← constE n
+    pure (some x)
+  else if c == bl then do
+    let n ← if a <= b then boolTrueName else boolFalseName
+    let x ← constE n
+    pure (some x)
+  else pure none
+
+/-- con-leche: ConLeche/Kernel/Core.lean:693-709 natOpGuard — the dependency
+half of the guard.  con-leche writes `(natOpDeps c).all (fun n => …)`;
+DESIGN §3.4's rule for a `List` walk is a named helper, so this is one. -/
+def natOpDepsStored (fe : IFEnv) : List NIdx → AM Bool
+  | [] => pure true
+  | n :: ns =>
+    match fe.find? n with
+    | some (.defnInfo cv _ _) =>
+      if cv.levelParams.isEmpty then natOpDepsStored fe ns else pure false
+    | _ => pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:693-709 natOpGuard
+con-leche: ConLeche/Kernel/FEnv.lean:132-145 natOpGuardF
+Stored-constant guards for op `c`: the `Nat` basis, every dependency stored
+as a definition, and (for the `Bool`-valued ops and the `ble`-guarded
+`div`/`mod`) the `Bool` constructors stored. -/
+def natOpGuard (fe : IFEnv) (c : NIdx) : AM Bool := do
+  if !(← natLitSupported fe) then pure false else do
+    let deps ← natOpDeps c
+    if !(← natOpDepsStored fe deps) then pure false else do
+      let be ← natBeqName
+      let bl ← natBleName
+      let dm ← natDivModNames
+      if c == be || c == bl || dm.contains c then do
+        let bt ← boolTrueName
+        let okT ←
+          match fe.find? bt with
+          | some ci => do let cv ← ci.toConstantVal; pure cv.levelParams.isEmpty
+          | none => pure false
+        if !okT then pure false else do
+          let bf ← boolFalseName
+          match fe.find? bf with
+          | some ci => do let cv ← ci.toConstantVal; pure cv.levelParams.isEmpty
+          | none => pure false
+      else pure true
+
+/-- con-leche: ConLeche/Kernel/Core.lean:711-721 natOpWfNames — the
+pin-certified WF-recursive `Nat` operations, as a *safety net*. -/
+def natOpWfNames : AM (List NIdx) := do
+  let a ← natDivName; let b ← natModName; let c ← natGcdName
+  let d ← natLandName; let e ← natLorName; let f ← natXorName
+  let g ← natShiftLeftName; let h ← natShiftRightName
+  pure [a, b, c, d, e, f, g, h]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:723-729 Expr.substConst0 —
+substitute the level-monomorphic constant `n` by `r` through an application
+spine (the equation sides are binder-free, so only `app` recurses). -/
+def substConst0 (n : NIdx) (r : EIdx) : Nat → EIdx → AM EIdx
+  | 0, _ => fail (.internal "fuel exhausted: substConst0")
+  | fuel + 1, h => do
+    match ← view h with
+    | .const c us => do
+      let el ← emptyLevels
+      if c == n && us == el then pure r else pure h
+    | .app f a => do
+      let f' ← substConst0 n r fuel f
+      let a' ← substConst0 n r fuel a
+      internE (.app f' a')
+    | _ => pure h
+
+/-- con-leche: ConLeche/Kernel/Core.lean:731-747 Expr.substConstAll —
+substitute the level-monomorphic constant `n` by the *closed* term `r`
+everywhere, including under binders.  `fvar` annotations are not entered. -/
+def substConstAll (n : NIdx) (r : EIdx) : Nat → EIdx → AM EIdx
+  | 0, _ => fail (.internal "fuel exhausted: substConstAll")
+  | fuel + 1, h => do
+    match ← view h with
+    | .const c us => do
+      let el ← emptyLevels
+      if c == n && us == el then pure r else pure h
+    | .app f a => do
+      let f' ← substConstAll n r fuel f
+      let a' ← substConstAll n r fuel a
+      internE (.app f' a')
+    | .lam ty b mb => do
+      let ty' ← substConstAll n r fuel ty
+      let b' ← substConstAll n r fuel b
+      internE (.lam ty' b' mb)
+    | .forallE ty b mb => do
+      let ty' ← substConstAll n r fuel ty
+      let b' ← substConstAll n r fuel b
+      internE (.forallE ty' b' mb)
+    | .letE ty v b => do
+      let ty' ← substConstAll n r fuel ty
+      let v' ← substConstAll n r fuel v
+      let b' ← substConstAll n r fuel b
+      internE (.letE ty' v' b')
+    | .proj s i e => do
+      let e' ← substConstAll n r fuel e
+      internE (.proj s i e')
+    | _ => pure h
+
+/-- con-leche: ConLeche/Kernel/Core.lean:749-759 natOpCod — the pinned
+codomain of a structural-`Nat` operation: `Bool` for the comparisons, `Nat`
+otherwise. -/
+def natOpCod (fe : IFEnv) (c : NIdx) (e : EIdx) : AM Bool := do
+  let be ← natBeqName
+  let bl ← natBleName
+  if c == be || c == bl then do
+    let bn ← boolName
+    let bc ← constE bn
+    if e != bc then pure false else
+      match fe.find? bn with
+      | some ci => do
+        let cv ← ci.toConstantVal
+        let s1 ← sortOne
+        pure (cv.levelParams.isEmpty && cv.type == s1)
+      | none => pure false
+  else do
+    let nn ← pin ConLeche.natName
+    let nc ← constE nn
+    pure (e == nc)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:761-776 natOpTyPinned — the pinned
+type of a certified `Nat` operation: `Nat → Nat` for the unary `pred`,
+`Nat → Nat → Nat` for the arithmetic operations, `Nat → Nat → Bool` for the
+comparisons. -/
+def natOpTyPinned (fe : IFEnv) (c : NIdx) (ty : EIdx) : AM Bool := do
+  let nn ← pin ConLeche.natName
+  let nc ← constE nn
+  let pr ← natPredName
+  if c == pr then do
+    match ← view ty with
+    | .forallE dom body _mb =>
+      if dom == nc then natOpCod fe c body else pure false
+    | _ => pure false
+  else do
+    match ← view ty with
+    | .forallE dom rest _mb => do
+      match ← view rest with
+      | .forallE dom2 body _mb2 =>
+        if dom == nc && dom2 == nc then natOpCod fe c body else pure false
+      | _ => pure false
+    | _ => pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:778-784 natOpStoredOk — op `n` is
+stored as a level-monomorphic definition with the pinned type. -/
+def natOpStoredOk (fe : IFEnv) (n : NIdx) : AM Bool := do
+  match fe.find? n with
+  | some (.defnInfo cv _ _) =>
+    if cv.levelParams.isEmpty then natOpTyPinned fe n cv.type else pure false
+  | _ => pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:786-809 natOpStored
+con-leche: ConLeche/Kernel/FEnv.lean:147-151 natOpStoredF
+**The reduction-time test for a certified `Nat` operation** (con-leche's
+task #161 item B3): is `c` stored as a definition at all?  The full
+`natOpGuard` is carried by the install fold invariant. -/
+def natOpStored (fe : IFEnv) (c : NIdx) : AM Bool := do
+  match fe.find? c with
+  | some (.defnInfo _ _ _) => pure true
+  | _ => pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:811-863 reduceNat — the binary
+literal acceleration's name test.  con-leche writes a fourteen-way disjunction
+inline; over handles the comparands have to be interned first, so the
+chain is its own `def` and the caller reads one `Bool`. -/
+def natBinOpName (c : NIdx) : AM Bool := do
+  let ad ← natAddName; let su ← natSubName; let mu ← natMulName
+  let po ← natPowName; let be ← natBeqName; let bl ← natBleName
+  let di ← natDivName; let mo ← natModName; let gc ← natGcdName
+  let la ← natLandName; let lo ← natLorName; let xo ← natXorName
+  let sl ← natShiftLeftName; let sr ← natShiftRightName
+  pure (c == ad || c == su || c == mu || c == po || c == be || c == bl ||
+    c == di || c == mo || c == gc || c == la || c == lo || c == xo ||
+    c == sl || c == sr)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:811-863 reduceNat — literal
+acceleration (the official kernel's `reduceNat`, run in the `whnf` loop
+*before* delta-unfolding).  The divergence audit's D15 is preserved: the
+FIRST argument is head-normalised and, unless it is a literal, the step
+fails WITHOUT touching the second. -/
+def reduceNat (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (e : EIdx) :
+    AM (Option EIdx) := do
+  match ← view e with
+  | .app f b => do
+    match ← view f with
+    | .const c us => do
+      -- con-leche's `.app (.const c []) a`: `b` is its `a`
+      let el ← emptyLevels
+      if us != el then pure none else do
+        let ns ← pin ConLeche.natSuccName
+        if c == ns && (← natLitSupported fe) then do
+          match ← rawNatLit? (← r.whnf depth b) with
+          | some n => do
+            let x ← internE (.lit (.natVal (n + 1)))
+            pure (some x)
+          | none => pure none
+        else pure none
+    | .app g a => do
+      -- con-leche's `.app (.app (.const c []) a) b`
+      match ← view g with
+      | .const c us => do
+        let el ← emptyLevels
+        if us != el then pure none else do
+          if (← natBinOpName c) && (← natOpStored fe c) then do
+            match ← rawNatLit? (← r.whnf depth a) with
+            | some n₁ => do
+              match ← rawNatLit? (← r.whnf depth b) with
+              | some n₂ => natOpResult c n₁ n₂
+              | none => pure none
+            | none => pure none
+          else do
+            let wf ← natOpWfNames
+            if wf.contains c && (← natLitSupported fe) then do
+              match ← rawNatLit? (← r.whnf depth a) with
+              | some _ => do
+                match ← rawNatLit? (← r.whnf depth b) with
+                | some _ => do
+                  let nm ← readName c
+                  fail (.notImplemented
+                    s!"native Nat computation on literals ({nm})")
+                | none => pure none
+              | none => pure none
+            else pure none
+      | _ => pure none
+    | _ => pure none
+  | _ => pure none
+
 end ConRon.Arena
