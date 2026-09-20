@@ -2084,4 +2084,44 @@ mod tests {
             _ => panic!("at_decl keeps the kind"),
         }
     }
+
+    /// **The startup walk at the binary's own pin list**, not the empty one
+    /// every check above runs with: the embedded `con-ron-pins/1` text
+    /// (`kernel::pins_text::PINS_TEXT`, 26 721 records) decoded and interned
+    /// into the persistent tier.  This is the path `run_pipeline` takes and the
+    /// one thing about it that could fail quietly — the `2^27` handle cap, or a
+    /// fresh-memo walk that does not finish.
+    ///
+    /// It runs on a 1 GB stack for `pins_decode`'s own reason (it recurses once
+    /// per record), which is what the driver gives its checker threads anyway.
+    #[test]
+    fn the_startup_walk_interns_the_embedded_pins() {
+        let h = std::thread::Builder::new()
+            .stack_size(1 << 30)
+            .spawn(|| {
+                let pins = match con_ron_core::kernel::pins_decode::decode_embedded() {
+                    Ok(v) => v,
+                    Err(_) => panic!("the embedded pin text must decode"),
+                };
+                assert!(pins.len() > 0);
+                let mut st = AState::init(EStore::empty());
+                let ip = ok(intern_all_pins(&mut st, &pins));
+                assert_eq!(ip.len(), pins.len());
+                // every interned pin is a PERSISTENT handle — the startup walk
+                // runs before the first `enter_scratch`, which is what makes a
+                // later `intern` of the same node hand the persistent one back
+                let mut i: usize = 0;
+                while i < ip.len() {
+                    assert!(ip[i].div_pin.is_persistent());
+                    assert!(ip[i].mod_pin.is_persistent());
+                    assert!(ip[i].div_proofs.len() > 0);
+                    i += 1;
+                }
+                st.store.node_count()
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+        assert!(h > 0);
+    }
 }

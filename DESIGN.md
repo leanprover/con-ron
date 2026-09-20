@@ -25293,7 +25293,7 @@ lands the arm declines with `NotImplemented`, which can only make the Rust
 reject and is sound for the accept direction (§1) — the Lean twin's own part-1
 sweep declined in exactly the same way on 287 of 348 fixtures.
 
-#### The differential test: 15 `#[test]`s, 74 assertions, and one finding
+#### The differential test: 16 `#[test]`s, 81 assertions, and one finding
 
 `mod tests` in `checker.rs` is `CheckerTest.lean`'s shape one for one — all
 **69** of its `#guard`s, at the same subjects:
@@ -25311,7 +25311,8 @@ sweep declined in exactly the same way on 287 of 348 fixtures.
 | the TWO-PHASE `install_then_check` against the one-phase fold | 12 |
 | `std_axiom_ok`, `matchesPin`, `canon_eq_list`, `basis_pin_hit` directly | 16 |
 | the startup pin walk, and `at_decl` (beyond the twin) | 5 |
-| **total** | **74** |
+| the startup walk at the BINARY's own pin list (beyond the twin) | 7 |
+| **total** | **81** |
 
 **The environment comparison goes the other way round from the twin's.**  The
 Lean reads the arena's environment BACK (`denoteCIList`) and compares with
@@ -25329,6 +25330,14 @@ package, and the two messages.  Two checks are the twin's own "beyond the
 tier — a scratch tier is opened afterwards and every name and every block
 member still comes back persistent, with no new node appended — and that
 `at_decl` renders the position into the message and only into the message.
+
+One check has no `#guard` counterpart and is worth its own line: **the startup
+walk at the embedded pin list**, `kernel::pins_decode::decode_embedded()`'s
+26 721 records interned into the persistent tier rather than the empty `Vec`
+every other check runs with.  It is the path `run_pipeline` takes, the one
+thing about it that could fail quietly (the `2^27` handle cap, or a fresh-memo
+walk that does not finish), and it costs **0.08 s** — which is the number P4f
+wanted and did not have.
 
 **Everything agreed on the first run but the `ValueKind.word` line above.**
 
@@ -25358,7 +25367,7 @@ each.
 
 `cargo build -p arena-core` from `cargo clean -p arena-core`: **0.99 s**.
 `cargo build` / `cargo test` workspace-wide under `RUSTFLAGS="-D warnings"`:
-**88 tests in `arena-core`** (up from 73), 375 in the workspace, all green.
+**89 tests in `arena-core`** (up from 73), 376 in the workspace, all green.
 `scripts/lint-rust-style.sh` over both verified trees: clean.
 `scripts/provenance.py check`: **0 findings** (5 656 items — 3 957 Rust,
 1 699 arena Lean — and 4 402 citations, all current at pin `c431b1ca`).
@@ -25379,7 +25388,9 @@ sibling agent is editing `proof/` — P4b's and P4c's ruling, unchanged.
 * **`intern_all_pins` runs once, before the fold, with the scratch tier off.**
   It returns the interned pin list the fold takes as its parameter; the binary's
   own input is `con_ron_core::kernel::pins_decode::decode_embedded()`, and
-  `--no-pins` (the twin's new flag) is the empty `Vec`.
+  `--no-pins` (the twin's new flag) is the empty `Vec`.  Both are tested, and
+  the real one costs 0.08 s — but `decode_embedded` recurses once per record,
+  so it wants the 1 GB stack the driver's threads have anyway.
 * **`prepare_d` now takes the whole `AState`**, because step 2 of
   `preparePrelude` is the real ground hoist.  Its only other caller is
   `examples/arena_parse.rs`, already updated.
