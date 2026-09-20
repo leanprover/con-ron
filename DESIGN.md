@@ -2072,6 +2072,13 @@ the persistent tier (the byte recogniser is unchanged).
         alternative.  The spike decides whether (B) stays an intermediate
         model or the Rust is proved against the pure checker directly, and
         fixes the proof idioms before P2b–P2d and P3 start at scale.
+        **DONE, task #97s** (2026-09-20): (B) stays.  `mvcgen` + `@[spec]`
+        leaves a residue that is pure — subject 1 is 13 proof lines over 61
+        machine-generated verification conditions, 60 of which one `grind`
+        call closes — and the spec-theorem template that makes that true is
+        the P2b–P2d discipline, written out in task #97s's section.  The C/D
+        proofs were not closed; the decision is argued there from the
+        structure of the statements and from what was measured.
     P3  Theorem 1, tier by tier, mirroring P2's order; the frontend exactness.
     P4  (C): a. SPIKE — Rust for P2a+P2b, extract, prove the Theorem-2 lemmas
         with the grind idiom, measure lines and elaboration per lemma;
@@ -20803,3 +20810,230 @@ the extra field costs nothing measurable.
   store layer has no open lemma left for P2b to inherit.
 * The `@[noinline]` and detach-before-update discipline is in place at every
   mutation site in `Store.lean`; P2g measures whether it held.
+
+### Task #97s — the P2s spike (2026-09-20, Opus under Fable)
+
+DESIGN §8.6's `P2s SPIKE`, on P2a's stores.  Full report with every number
+and every dead end: `_tmp/t97/spike-report.md`.  The code is
+`proof/ConRon/Arena/Spike/` (a fourth library root `ConRonArenaSpike`, **not**
+imported by `ConRon.Arena` and not a default target),
+`crates/arena-spike/` (excluded from the cargo workspace) and
+`scripts/extract-spike.sh`.
+
+The maintainer asked two questions.  **(2) Can `mvcgen` + spec theorems make
+the residue pure, or does the handle floating between monadic states prevent
+it?  Yes it can, and no it does not.**  **(1) Is the intermediate Lean model
+worth it, or should the Rust be proved against the pure checker directly?
+Keep the model** — argued below from what was measured plus the shape of the
+statements; the C/D proofs were *not* closed and the section says so.
+
+#### The table
+
+| subject | experiment | statement | proof | VCs `mvcgen` leaves | closed by the closer | elaboration | verdict |
+|---|---|---|---|---|---|---|---|
+| 1 `instantiate1A` (10 ctors, memo, cutoff, fuel) | **A** `mvcgen` | 8 | **13** | **61** | **60 / 61** | **184 s** | works; the cutoff VC is 4 hand lines |
+| 1 `instantiate1Top` (the memo bracket) | **A** | 7 | 2 | 6 | 6 / 6 | — | works |
+| 3 `memoWhnfCore` (body as a hypothesis) | **A** | 11 | **2** | **8** | **8 / 8** | **2.0 s** | works, nothing by hand |
+| 3 `memoWhnfCore` | **B** hand, forward style | 11 | **22** | — | — | **0.95 s** | works; 9 iterations to find the `simp only` set |
+| 2 `whnfCoreAppArm` (β arm, knot abstracted) | A | 19 + 24 | — | — | — | — | statement only, `sorry` |
+| 1 Rust `instantiate1` ⊑ twin | **C1** | 4 | — | — | — | — | `sorry` |
+| 1 twin ⊑ pure `instantiate1` | **C2** | 5 | — | — | — | — | `sorry` |
+| 1 Rust `instantiate1` ⊑ pure | **D** | 7 | — | — | — | — | `sorry` |
+
+Supporting: the `@[spec]`/`@[grind]` layer is **822 lines once** (80
+theorems, 11 `@[spec]`, 35 `@[grind]`), elaborating in 1.1 s; the whole spike
+library is 2 860 lines and builds with four `sorry`s.
+
+**The residue after `mvcgen` is pure.**  All 61 of subject 1's verification
+conditions were read.  Every one is `StateOK s`, `Inst1MemoA ve s`,
+`denoteE … = some …` / `(denoteE …).isSome`, `st.ViewOK w`, or the
+conjunctive postcondition.  No `wp⟦⟧`, no `⊢ₛ`, no state threading appears in
+any of them.  The handle *is* carried across six or seven intermediate
+states per branch — as a chain of `Ext` hypotheses in the context, which the
+closer flattens and `grind` discharges by congruence.  Nothing about it is
+written by the proof author.
+
+#### The spec-theorem template — the P2b–P2d discipline
+
+One `@[spec]` theorem per (B) function, in this shape and no other:
+
+```lean
+@[spec] theorem f_spec (s₀ : AState) (args…) (pre…) :
+    ⦃fun s => ⌜s = s₀⌝⦄ f args ⦃⇓? r s' => ⌜Post s₀ r s'⌝⦄
+```
+
+1. **The precondition is `s = s₀` and nothing else.**  Real preconditions are
+   ordinary hypotheses of the theorem, so `mspec` turns them into side goals
+   instead of entailments; `s₀` is instantiated at the call site by
+   `mintro ∀s`, which is documented `mspec` behaviour for this shape.
+2. **`⇓?` (partial correctness), never `⇓`.**  A (B) function may fail and
+   Theorem 1 claims nothing then — con-leche's `SimAt`, `Verify/SimI.lean:244`.
+3. **The postcondition names `s₀`** — the only way to state
+   `Ext s₀.store s'.store` in a triple.
+4. **"The subject denotes" is an `isSome`, never a named `Expr`.**  With
+   `denoteE s₀.store h = some e` as a hypothesis, every recursive call leaves
+   `denoteE s.store f = some ?e`, a metavariable `grind` cannot invent; with
+   `(denoteE s₀.store h).isSome = true` the side goals are
+   metavariable-free and the value is recovered *inside* the postcondition.
+5. **The answer is a named relation** (`Inst1At`, `WhnfAt`, `PureAt`), never
+   a bare `∀ e, … → …`: a `∀`-hypothesis has no head symbol, so `grind`
+   cannot ematch on it.  Four eliminators (`.apply`, `.isSome`, `.ext`,
+   `.of_ext`) plus `.retarget` carry every use.  `.retarget` — the answer was
+   established against the store the call *started* in and the memo records
+   it against the store it *ended* in — is the one lemma con-leche's
+   tree-shaped proof never needed.
+6. **A memo insert's spec states that the invariant is preserved, not that
+   the table grew.**  The single highest-value change of the spike: before
+   it, `mvcgen` left five open goals and the file took **5 min 38 s**; after
+   it, two (both of them other bugs, since fixed) and **1 min 01 s**.  `Inst1MemoA` in *goal* position is skolemised by
+   `grind` into `∀ k r, …` before any lemma can fire, so the invariant has to
+   arrive as a hypothesis.
+7. **One named failure primitive.**  A bare `throw` in `StateT σ (Except ε)`
+   leaves `mvcgen` with universe metavariables (`Spec.throw_Except.{?u,?u,0}`)
+   and no spec applies.  `def fail (e : CheckError) : AM α :=
+   throwThe CheckError e`, with `@[spec] fail_spec : ⦃⌜True⌝⦄ fail e ⦃⇓? _ _
+   => ⌜False⌝⦄` proved by `intro _ _; trivial`, covers every failure site.
+
+The uniform closer, applied to every verification condition:
+
+```lean
+macro "spike_vcs" : tactic => `(tactic| first
+  | (intro hf; exact False.elim hf)
+  | (spike_peel; subst_vars; try unfold Inst1At
+     grind (instances := 8000) [ … ]))
+```
+
+`spike_peel` is twenty lines of meta code (`Spike/Peel.lean`) doing Mathlib's
+`casesm* _ ∧ _` without Mathlib — which the arena libraries must not import
+(task #97a: two orders of magnitude of build time).
+
+#### What did not work
+
+* **`repeat (obtain ⟨rfl, _⟩ := ‹(_ : AState) = _ ∧ _›)` as the peel.**  `‹_›`
+  elaborates to `assumption` with metavariables in the type; on a goal with
+  no such hypothesis left, that search `whnf`s the entire verification
+  condition.  Measured: six minutes and a heartbeat timeout, per goal.  Hence
+  the meta tactic.
+* **`(intro hf; cases hf)` as the `False → …` arm of a `first`.**  `cases`
+  succeeds on *any* inductive hypothesis and leaves the goal open, so the
+  closer "succeeds" without closing.  `exact False.elim hf` fails fast
+  instead.
+* **Adding lemmas to `grind`'s list made it worse twice.**  Same file, same
+  closer, only the lemma set changing: 4 open VCs at `instances := 1000`;
+  **1** at 8000; **6** after adding `Inst1At.cutoff` as `@[grind ←]`; **4**
+  after adding two-`Ext` composites as `@[grind →]`; **1** with the per-site
+  `_step` lemmas; **0** with a fallback second `grind`.  The rule the spike
+  extracted: a lemma whose hypotheses `grind` must assemble from two or three
+  other instantiations is a liability — the same fact with the chain already
+  inside it (the `Inst1At.*_step` forms, whose hypotheses are exactly what
+  `mvcgen` produces) is not.  Do not tune per theorem; package and keep one
+  list.
+* **The derived-word cutoff is the one VC that stayed manual.**
+  `Expr.instantiate1` together with `instantiate1_of_raw_le` sends `grind`
+  into an ematching spiral on `((e.instantiate1 v d).instantiate1 v d)…`.
+  `Inst1At.cutoff` packages the pair and is applied by hand in a `case`
+  block: four lines.
+
+#### The `WP Result` instance: already upstream
+
+The brief asks P2s to write one.  It exists:
+`_tmp/aeneas-lean/Aeneas/Std/WP.lean:878` declares
+
+```lean
+instance Result.instWP :
+    WP Result (.except (ULift Error) (.except PUnit (.except PUnit .pure)))
+```
+
+— three exception layers, for `fail`, for any other effect, and for `div` —
+with `Result.instWPMonad`, the soundness step `Result.of_wp`, and
+`spec_to_mvcgen` / `dspec_to_mvcgen`, which lift Aeneas's own `@[progress]`
+specs into `mvcgen`'s `@[spec]` set.  P4a should use it, not write it.
+`Generated.instantiate1.eq_def` also exists and is unconditional, so the fuel
+induction Theorem 2 needs is available even though Aeneas emits
+`partial_fixpoint`.
+
+#### The Rust side, measured
+
+`crates/arena-spike/src/lib.rs`, 394 lines, four tests green, through
+`scripts/extract-spike.sh`: Charon **0.5 s**, Aeneas **0.5 s**, output 51 +
+433 lines.  **No `TypesExternal_Template.lean` and no
+`FunsExternal_Template.lean` were emitted at all** — the arena's Rust has
+*zero* external holes, against today's `con-ron-core`'s sixteen (OVERVIEW
+§8.1).  DESIGN §8.5's claim about the trust surface is confirmed at spike
+scale, and the translation needed no iteration.
+
+#### The two answers
+
+**(2) `mvcgen` + spec theorems do exactly what the maintainer hoped**, given
+the seven-rule template.  Subject 1 — ten constructors, a memo, a cutoff and
+fuel — is thirteen lines of proof over 61 machine-generated, *pure*
+verification conditions, 60 of which one `grind` call closes.  Subject 3, with
+the layer already in place, is **two lines and 2.0 s** against **22 lines** for
+the same theorem by hand (experiment B).  The hand proof is not slower to
+elaborate (0.95 s vs 2.0 s) but it is per-function work, and finding its
+`simp only` set for `StateT`-over-`Except` took nine iterations; the `mvcgen`
+route's cost is a fixed 822-line layer and then nothing.  Extrapolating
+experiment B's ratio (22 lines for 8 VCs) to subject 1's 61 VCs gives
+200–350 hand lines where `mvcgen` needs 13 — and that ratio is the argument,
+not the elaboration seconds.
+
+**(1) Keep (B).**  The C/D proofs were not closed, so this is argued from
+structure plus what was measured:
+
+* **The two halves are independent and only one is hard.**  C1 (Rust ⊑ twin)
+  mentions no `Expr` — it is `u32 → Nat`, `Vec → List`, `Result → StateT`.
+  C2 (twin ⊑ pure) mentions no `Vec` and no `u32` — it is experiment A's
+  theorem.  Experiment A says where the difficulty lives: 61 VCs and an
+  822-line layer for a function whose representation content is "a `u32`
+  divided by 2^28 is a tag".  D must carry both in one induction, so its case
+  analysis is the product, not the sum.  `ExpCD.lean` proves
+  `D = C2 ∘ C1` in three lines, so the two-layer route loses nothing.
+* **The hard half does not mention Rust.**  C2 survives every representation
+  change on the (C) side.  con-ron has already banked this: the `Refine` tier
+  survived tasks #38, #44, #45, #90, #92 and #94 — six representation changes
+  to `con-ron-core` — because the abstraction functions absorbed them.
+* **con-leche measured the same thing from the other side** (§3 of
+  `_tmp/t97/conleche-arena-history.md`): its arena tier was retired because
+  "the state-dependent denotation made the Cached tier's proofs three times
+  cheaper" — the expensive part was the denotation, never the container.
+* **(B) is testable and a direct (C)→(A) proof is not.**  (B) is an
+  executable checker: §8.6's P2f gate runs it against con-leche on the 348
+  fixtures and on `Init` through `scripts/diff-e2e.sh --bin=` (task #97t built
+  that lane for this).  A port bug is then a failing fixture, not an
+  unprovable goal inside a 40 000-line tower.
+* **The cost of (B) is the second twin**, and `Mini.lean` prices it: the Lean
+  twin of a 394-line Rust file is 246 lines, nearly all of it the same clauses
+  in the other language.  §8.4's "Rust-shaped Lean" and
+  `scripts/provenance.py`'s Lean reader (task #97t) are what keep that a
+  transliteration rather than a design.
+
+#### The axiom check
+
+`Spike/Axioms.lean`: `memoWhnfCore_spec` (experiment A, subject 3) and
+`memoWhnfCore_run_hand` (experiment B) are **sorry-free**
+(`propext, Classical.choice, Quot.sound`).  `instantiate1A_spec` and
+`instantiate1Top_spec` carry `sorryAx` *today*, through
+`EStore.intern_spec` — whose `intern_wf` half is one of task #97a's thirteen
+open store lemmas.  Nothing the spike itself wrote is open in those two
+files.
+
+#### What is left open
+
+Four `sorry`s, all deliberate and none load-bearing for the two answers:
+`ExpA2.whnfCoreAppArm_spec` (subject 2's proof — the statement, the
+`CoreFnsA` record and the `CoreSimA` hypotheses are written) and `ExpCD`'s
+`instantiate1_C1` / `_C2` / `_D`.  P2c and P4a prove the real versions of all
+four anyway; close the spike's copies only if these answers are contested.
+
+#### For P2b
+
+* Grow `Specs.lean`'s **eight groups** once, for the real `EStore`, before
+  writing any twin proof: soundness (`AM.of_run`), transport, ten denote
+  inversions, the `isSome` calculus, the `isSome`-flavoured inversions, the
+  answer relation with its eliminators, the per-site step lemmas in *both*
+  forms, and `ViewOK` + the memo invariants.  822 lines bought a
+  three-primitive store with one memo; budget 2–3 k for the full store and
+  treat it as P2a's deliverable, not as proof debt.
+* Write the `tag_cases` macro task #97a asks for at the same time — the
+  spike's `spike_peel` is the model for "twenty lines of meta code instead of
+  a Mathlib dependency".
