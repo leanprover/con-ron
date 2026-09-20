@@ -1,47 +1,61 @@
 //! `arena::inductives::ind_base` — P4d-1's checker helpers, borrowed.
 //!
 //! **This module is not one of the eleven, and every item in it is a
-//! duplicate to be deleted at merge.**
+//! duplicate to be deleted when P4d-1's Rust lands.**
 //!
-//! The Rust twin of `proof/ConRon/Arena/Inductives/Base.lean`, which the Lean
-//! side wrote for exactly this reason: the inductive installs of
-//! `ConLeche/Kernel/Inductives/*` call a dozen declarations that belong to
-//! `ConLeche/Kernel/{CheckerBase,Env,Level}.lean`, i.e. to the SIBLING task
-//! (P4d-1: `arena::{checker_base, decl_check, checker, canon, basis,
-//! std_axioms}`).  The two tasks run at the same time, so — per the
-//! coordinator's concurrency contract — the twins those installs need are
-//! written here, cited to the same con-leche declarations P4d-1 cites, in a
-//! module of their own so that nothing clashes at merge.  DESIGN.md's task
-//! section carries the map; the call sites are then a `sed` of `ind_base::`
-//! away.
+//! Its twins are `proof/ConRon/Arena/{CheckerBase,Intern,StdAxioms}.lean`'s —
+//! the Lean side had the same problem and solved it the same way.  The
+//! inductive installs of `ConLeche/Kernel/Inductives/*` call two dozen
+//! declarations that belong to `ConLeche/Kernel/{CheckerBase,Env,Level}.lean`,
+//! i.e. to the SIBLING task (P4d-1: `arena::{checker_base, decl_check,
+//! checker, canon, basis, std_axioms}`).  The two halves of P4d run at the
+//! same time, so — per the coordinator's concurrency contract — the twins
+//! those installs need are written here, cited to the same con-leche
+//! declarations P4d-1 cites, in a module of their own so that nothing clashes
+//! at merge.  DESIGN.md's task section carries the map; the call sites are
+//! then a `sed` of `ind_base::` away.
 //!
-//! Three groups of items here are **not** in the Lean `Base.lean`, and each
-//! is borrowed from a different neighbour:
+//! The Lean's own borrowed copy was `Arena/Inductives/Base.lean`, and task
+//! #97f deleted it: its twenty-four declarations are now
+//! `Arena/CheckerBase.lean`'s (`unwrapOr`, `nameNodup`, the two name-shape
+//! readers, `allLevelParamsDefined`, `constsResolveFFast`, `fvarTypeDs`,
+//! `openPisAtFvars`/`…FGo`/`…F`, `domsMatchAux`, `unresolvedConstsError`,
+//! `checkConstantVal`, `checkTypedList`, `checkAnnotList`, `checkDefEqList`,
+//! `isEqHead`, `eqHeadLevel`, `IFEnv.findCV?`, `checkProjShape`,
+//! `checkProjRule`, `isRecInfo`, `recsFormSuffix`, `indParamsOk`) and
+//! `Arena/Inductives/Modeled.lean`'s (`domsMatchRenamed`, `eqBasisStored` —
+//! which live in `arena::inductives::modeled` here, as they do there).  **This
+//! module mirrors that final Lean**, one function per declaration, so the
+//! dedup is a move and not a rewrite.
 //!
-//! * `consts_resolve_f_go` / `consts_resolve_f_fast` / `fvar_type_ds` are
-//!   `proof/ConRon/Arena/CheckerBase.lean`'s, which the Lean `Base.lean`
-//!   simply imports.  The memoized resolution walk is what every front door
-//!   below calls: the pure `core::consts_resolve` re-traverses a DAG-shared
-//!   type as a tree and does not finish on con-leche's `tower_struct`;
+//! Three groups of items here are not `CheckerBase.lean`'s, and each is
+//! borrowed from a different neighbour:
+//!
 //! * the `*_beq` family (`i_constant_info_beq` and its five helpers) is
 //!   `arena::env`'s — `proof/ConRon/Arena/Env.lean` writes `deriving
 //!   DecidableEq` on all seven records and the Rust of `env.rs` (task #97e)
 //!   has the `*_dup`s but not the comparisons.  `eq_basis_stored` needs one,
 //!   and so does the differential test;
-//! * `intern_expr` / `intern_cv` / `intern_caps` / `intern_levels_l` are the
-//!   converters that turn a `con_ron_core` VALUE into handles.  They exist
-//!   for one caller: the pinned annotated `Eq` basis constant, the comparand
-//!   of the modeled route's two "requires the pinned `Eq` basis" guards.
+//! * `ifenv_dup` / `i_env_dup` / `impl Dup for IConstantInfo` are `arena::env`'s
+//!   too: Lean's value semantics copies a record for free and `checkIndRecs`
+//!   uses `fe₂` four times, which is exactly where
+//!   `con_ron_core::kernel::fenv::dup` is called on the tree-shaped side;
+//! * `intern_expr` / `intern_cv` / `intern_caps` / `intern_levels_l` are
+//!   `Arena/Intern.lean`'s converters, which turn a `con_ron_core` VALUE into
+//!   handles.  They exist here for one caller: the pinned annotated `Eq` basis
+//!   constant, the comparand of the modeled route's three "requires the pinned
+//!   `Eq` basis" guards.
 //!
 //! **The one judgement call.**  `checkIndRecs` and `checkProjLookups` ask
 //! `env.find? eqName = some eqA` — the stored `Eq` must BE the pinned basis
-//! constant.  P4d-1's `arena::basis` / `arena::std_axioms` owns the arena's
-//! `eqA`; until it lands, `eq_basis_ci` INTERNS `con_ron_core`'s own value
-//! (`kernel::basis_pins::eq_a`), which is the same predicate because
-//! `denoteE` and `denoteN` are injective (task #97a).  Weakening the guard to
-//! "some `Eq` is stored" would make the arena ACCEPT blocks con-leche
-//! rejects, which no placeholder may do, and failing closed would decline
-//! every modelled recursor.
+//! constant.  P4d-1's `arena::std_axioms` owns the arena's `eqA` (the Lean's
+//! `Arena/StdAxioms.lean:136` is `internCI ConLeche.eqA`); until it lands,
+//! `eq_basis_ci` INTERNS `con_ron_core`'s own value
+//! (`kernel::basis_pins::eq_a`), which is the same value through the same
+//! store, hence the same handle (`denoteE`/`denoteN` are injective, task
+//! #97a).  Weakening the guard to "some `Eq` is stored" would make the arena
+//! ACCEPT blocks con-leche rejects, which no placeholder may do, and failing
+//! closed would decline every modelled recursor.
 //!
 //! Messages are `con_ron_core`'s own code-point constants with the
 //! interpolation dropped, as task #97-P4c's table rules: §3.1 says a message
@@ -57,8 +71,7 @@ use crate::arena::env::{
 use crate::arena::expr_ops;
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
 use crate::arena::monad::{
-    fail, intern_e, intern_level, intern_levels, intern_n_node, intern_name, read_name, view,
-    view_ls, AState,
+    fail, intern_e, intern_level, intern_levels, intern_n_node, intern_name, view, view_ls, AState,
 };
 use crate::arena::store::{ENodeView, NNodeView};
 use con_ron_core::kernel::basis_names;
@@ -239,11 +252,11 @@ pub const M_PROJ_RULE_DOMS: [u32; 31] = [
 ];
 
 // ---------------------------------------------------------------------------
-// `Option` unwrapping (`Base.lean:34-41` of the twin)
+// `Option` unwrapping (`Arena/CheckerBase.lean:472-475`)
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:233-239 unwrapOr
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:38-41 unwrapOr` —
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:472-475 unwrapOr` —
 /// unwrap an optional value or fail with the given error.
 pub fn unwrap_or<T>(o: Option<T>, err: CheckError) -> Result<T, CheckError> {
     match o {
@@ -253,11 +266,11 @@ pub fn unwrap_or<T>(o: Option<T>, err: CheckError) -> Result<T, CheckError> {
 }
 
 // ---------------------------------------------------------------------------
-// Level parameters (`Base.lean:43-98` of the twin)
+// Level parameters (`Arena/CheckerBase.lean:149-232`)
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Level.lean:213-216 Name.nodup
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:48-50 nidxNodup` — are
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:151-153 nameNodup` — are
 /// the names pairwise distinct?  Over handles a name comparison is a handle
 /// comparison (`denoteN` is injective, task #97a).
 pub fn nidx_nodup(ns: &Vec<NIdx>) -> bool {
@@ -265,7 +278,7 @@ pub fn nidx_nodup(ns: &Vec<NIdx>) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Level.lean:213-216 Name.nodup
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:48-50 nidxNodup` — the
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:151-153 nameNodup` — the
 /// cursor recursion behind `nidx_nodup`.
 pub fn nidx_nodup_from(ns: &Vec<NIdx>, i: usize) -> bool {
     if i >= ns.len() {
@@ -278,7 +291,7 @@ pub fn nidx_nodup_from(ns: &Vec<NIdx>, i: usize) -> bool {
 }
 
 /// con-leche: none — `ns.contains n` over a `Vec<NIdx>` tail
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:50 nidxNodup` — the
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:153 nameNodup` — the
 /// `!ns.contains n` of the cited clause, at a cursor rather than a tail.
 pub fn nidx_contains_from(ns: &Vec<NIdx>, i: usize, n: &NIdx) -> bool {
     if i >= ns.len() {
@@ -291,7 +304,7 @@ pub fn nidx_contains_from(ns: &Vec<NIdx>, i: usize, n: &NIdx) -> bool {
 }
 
 /// con-leche: none — extraction rule 5 (DESIGN.md's task #97-P4c): a `HashMap::get` match is its own function
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:69 allLevelParamsDefinedGo`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:197 allLevelParamsDefinedGo`
 /// — the `memo[h]?` probe of the two node-keyed walks of this module.
 pub fn bool_probe(memo: &HashMap<EIdx, bool>, k: &EIdx) -> Option<bool> {
     match memo.get(k) {
@@ -302,13 +315,16 @@ pub fn bool_probe(memo: &HashMap<EIdx, bool>, k: &EIdx) -> Option<bool> {
 
 /// con-leche: ConLeche/Kernel/Level.lean:251-268 Expr.allLevelParamsDefined
 /// con-leche: ConLeche/Kernel/Level.lean:299-332 Expr.allLevelParamsDefinedGo
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:60-92 allLevelParamsDefinedGo`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:193-226 allLevelParamsDefinedGo`
 /// — are all level parameters occurring in `e` among `params` (binder
 /// prop-ness data included)?  con-leche's pure walk and its memoized twin are
 /// one function here (task #97b's rule); the levels are READ BACK and
 /// con-leche's own `Level.allParamsDefined` / `PropWhen.paramsDefined` decide
 /// them (DESIGN.md §8.3 lesson 4), and the memo is con-leche's own per-call
 /// table keyed by the node — `params` is fixed for the walk.
+///
+/// The twin probes the memo FIRST, before the `view`, and records EVERY
+/// constructor: a shared leaf then costs one probe rather than one readback.
 pub fn all_level_params_defined_go(
     st: &mut AState,
     ks: &Vec<con_ron_core::kernel::name::Name>,
@@ -319,17 +335,11 @@ pub fn all_level_params_defined_go(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_ALPD)))
     } else {
-        match view(st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::BVar(_)) => Ok((true, memo)),
-            Ok(ENodeView::Lit(_)) => Ok((true, memo)),
-            Ok(ENodeView::Sort(u)) => match crate::arena::monad::read_level(st, &u) {
+        match bool_probe(&memo, h) {
+            Some(r) => Ok((r, memo)),
+            None => match view(st, h) {
                 Err(e) => Err(e),
-                Ok(l) => Ok((level::all_params_defined(ks, &l), memo)),
-            },
-            Ok(v) => match bool_probe(&memo, h) {
-                Some(r) => Ok((r, memo)),
-                None => match all_level_params_defined_node(st, ks, memo, fuel - 1, v) {
+                Ok(v) => match all_level_params_defined_node(st, ks, memo, fuel - 1, v) {
                     Err(e) => Err(e),
                     Ok((r, m)) => {
                         let mut m2: HashMap<EIdx, bool> = m;
@@ -343,9 +353,9 @@ pub fn all_level_params_defined_go(
 }
 
 /// con-leche: ConLeche/Kernel/Level.lean:299-332 Expr.allLevelParamsDefinedGo
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:72-91 allLevelParamsDefinedGo`
-/// — the walk's compound arms, split off so that the `view`'s loans are dead
-/// at the memo's join (task #97-P4c's extraction rule 5).
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:199-225 allLevelParamsDefinedGo`
+/// — the walk's arms, split off so that the `view`'s loans are dead at the
+/// memo's join (task #97-P4c's extraction rule 5).
 pub fn all_level_params_defined_node(
     st: &mut AState,
     ks: &Vec<con_ron_core::kernel::name::Name>,
@@ -354,6 +364,12 @@ pub fn all_level_params_defined_node(
     v: ENodeView,
 ) -> Result<(bool, HashMap<EIdx, bool>), CheckError> {
     match v {
+        ENodeView::BVar(_) => Ok((true, memo)),
+        ENodeView::Lit(_) => Ok((true, memo)),
+        ENodeView::Sort(u) => match crate::arena::monad::read_level(st, &u) {
+            Err(e) => Err(e),
+            Ok(l) => Ok((level::all_params_defined(ks, &l), memo)),
+        },
         ENodeView::Const(_, us) => match crate::arena::monad::read_levels(st, &us) {
             Err(e) => Err(e),
             Ok(ls) => Ok((levels_all_params_defined(ks, &ls, 0), memo)),
@@ -380,12 +396,11 @@ pub fn all_level_params_defined_node(
             },
         },
         ENodeView::Proj(_, _, e) => all_level_params_defined_go(st, ks, memo, fuel, &e),
-        _ => Ok((true, memo)),
     }
 }
 
 /// con-leche: ConLeche/Kernel/Level.lean:299-332 Expr.allLevelParamsDefinedGo
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:79-83 allLevelParamsDefinedGo`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:213-217 allLevelParamsDefinedGo`
 /// — the two binder arms, which the twin writes as one `|`-pattern: the
 /// domain, the body, and the binder's own prop-ness datum.
 pub fn all_level_params_defined_binder(
@@ -408,7 +423,7 @@ pub fn all_level_params_defined_binder(
 }
 
 /// con-leche: none — `us.all (Level.allParamsDefined ks)` over a `Vec<Level>`
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:73 allLevelParamsDefinedGo`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:207 allLevelParamsDefinedGo`
 /// — the cursor recursion behind the `const` arm's `List.all`.
 pub fn levels_all_params_defined(
     ks: &Vec<con_ron_core::kernel::name::Name>,
@@ -425,7 +440,7 @@ pub fn levels_all_params_defined(
 }
 
 /// con-leche: ConLeche/Kernel/Level.lean:405-407 Expr.allLevelParamsDefinedFast
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:96-98 allLevelParamsDefined`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:230-232 allLevelParamsDefined`
 /// — the executed `allLevelParamsDefined` (one memoized DAG walk).
 pub fn all_level_params_defined(
     st: &mut AState,
@@ -442,7 +457,7 @@ pub fn all_level_params_defined(
 }
 
 // ---------------------------------------------------------------------------
-// The memoized resolution walk (`Arena/CheckerBase.lean:250-289`, borrowed)
+// The memoized resolution walk (`Arena/CheckerBase.lean:250-296`)
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:37-58 Expr.constsResolveF
@@ -594,14 +609,14 @@ pub fn fvar_type_ds_from(
 }
 
 // ---------------------------------------------------------------------------
-// Telescopes opened at free variables (`Base.lean:100-142` of the twin)
+// Telescopes opened at free variables (`Arena/CheckerBase.lean:375-413`)
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:130-140 openPisAtFvars
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:105-115 openPisAtFvarsPlain`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:375-389 openPisAtFvars`
 /// — open the first `n` `∀`-binders at fresh free variables `0..n-1` (each
 /// fvar's type is the binder domain, instantiated with the earlier fvars).
-pub fn open_pis_at_fvars_plain(
+pub fn open_pis_at_fvars(
     st: &mut AState,
     n: u64,
     h: &EIdx,
@@ -616,7 +631,7 @@ pub fn open_pis_at_fvars_plain(
                 Err(e) => Err(e),
                 Ok(fv) => match expr_ops::instantiate1_fast(st, CORE_WALK_FUEL, &body, &fv, 0) {
                     Err(e) => Err(e),
-                    Ok(b) => match open_pis_at_fvars_plain(st, n - 1, &b, i + 1) {
+                    Ok(b) => match open_pis_at_fvars(st, n - 1, &b, i + 1) {
                         Err(e) => Err(e),
                         Ok(None) => Ok(None),
                         Ok(Some(p)) => Ok(Some((expr_ops::cons_eidx(&fv, &p.0), p.1))),
@@ -629,7 +644,7 @@ pub fn open_pis_at_fvars_plain(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:153-167 openPisAtFvarsFGo
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:120-133 openPisAtFvarsFGo`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:391-405 openPisAtFvarsFGo`
 /// — the core of the one-pass opening: `acc` holds the already-created fvars,
 /// innermost binder first.
 pub fn open_pis_at_fvars_f_go(
@@ -669,10 +684,10 @@ pub fn open_pis_at_fvars_f_go(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:169-176 openPisAtFvarsF
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:138-142 openPisAtFvars`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:407-413 openPisAtFvarsF`
 /// — one-pass `openPisAtFvars`; the fallback covers telescopes whose binders
 /// only appear after substitution.
-pub fn open_pis_at_fvars(
+pub fn open_pis_at_fvars_f(
     st: &mut AState,
     n: u64,
     e: &EIdx,
@@ -682,89 +697,105 @@ pub fn open_pis_at_fvars(
     match open_pis_at_fvars_f_go(st, &acc, n, e, i) {
         Err(er) => Err(er),
         Ok(Some(r)) => Ok(Some(r)),
-        Ok(None) => open_pis_at_fvars_plain(st, n, e, i),
+        Ok(None) => open_pis_at_fvars(st, n, e, i),
     }
 }
 
 // ---------------------------------------------------------------------------
-// Binder-domain comparisons (`Base.lean:144-175` of the twin)
+// Binder-domain comparisons (`Arena/CheckerBase.lean:365-373`)
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:121-128 domsMatchAux
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:142-151 domsMatchAuxA
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:157-162 domsMatch` —
-/// compare binder domains at offsets `o₁`/`o₂` for `n` positions, the right
-/// side taken as it stands (con-leche's `g = fun _ e => e`).  The twin walks
-/// DOWN from `n`, and so does this.
-pub fn doms_match(
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:365-373 domsMatchAux` —
+/// compare binder domains at offsets `o₁`/`o₂` for `n` positions, at the
+/// IDENTITY view.  con-leche's `List` version is quadratic on a wide telescope
+/// and its `Array` twin is what the checker runs, so the twin is the array one
+/// — and over a `Vec` there is nothing left to distinguish.  Over handles a
+/// domain comparison is a handle comparison, so this is PURE.
+pub fn doms_match_aux(
     bs1: &Vec<(EIdx, BinderMeta)>,
     bs2: &Vec<(EIdx, BinderMeta)>,
     o1: u64,
     o2: u64,
-    k: u64,
+    n: u64,
 ) -> bool {
-    if k == 0 {
-        true
-    } else {
-        let j1: u64 = o1 + k - 1;
-        let j2: u64 = o2 + k - 1;
-        if j1 >= bs1.len() as u64 || j2 >= bs2.len() as u64 {
-            false
-        } else if bs1[j1 as usize].0.eq2(&bs2[j2 as usize].0) {
-            doms_match(bs1, bs2, o1, o2, k - 1)
-        } else {
-            false
-        }
-    }
+    doms_match_aux_from(bs1, bs2, o1, o2, n, 0)
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:121-128 domsMatchAux
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:167-175 domsMatchRenamed`
-/// — `domsMatch` with the right side renamed (`g = fun _ e => e.renameConsts
-/// f`, `checkProjIota`'s instance).  `f` is the `NIdxToNIdx` dictionary
-/// `arena::expr_ops` already uses for con-leche's one surviving function
-/// argument.
-pub fn doms_match_renamed<F>(
-    st: &mut AState,
-    f: &F,
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:366-369 domsMatchAux` — the
+/// `(List.range n).all` of the cited function as a cursor recursion.
+pub fn doms_match_aux_from(
     bs1: &Vec<(EIdx, BinderMeta)>,
     bs2: &Vec<(EIdx, BinderMeta)>,
     o1: u64,
     o2: u64,
-    k: u64,
-) -> Result<bool, CheckError>
-where
-    F: expr_ops::NIdxToNIdx,
-{
-    if k == 0 {
-        Ok(true)
+    n: u64,
+    i: u64,
+) -> bool {
+    if i >= n {
+        true
     } else {
-        let j1: u64 = o1 + k - 1;
-        let j2: u64 = o2 + k - 1;
+        let j1: u64 = o1 + i;
+        let j2: u64 = o2 + i;
         if j1 >= bs1.len() as u64 || j2 >= bs2.len() as u64 {
-            Ok(false)
+            false
+        } else if bs1[j1 as usize].0.eq2(&bs2[j2 as usize].0) {
+            doms_match_aux_from(bs1, bs2, o1, o2, n, i + 1)
         } else {
-            let b2: EIdx = bs2[j2 as usize].0.dup2();
-            match expr_ops::rename_consts_fast(st, CORE_WALK_FUEL, f, &b2) {
-                Err(e) => Err(e),
-                Ok(r) => {
-                    if bs1[j1 as usize].0.eq2(&r) {
-                        doms_match_renamed(st, f, bs1, bs2, o1, o2, k - 1)
-                    } else {
-                        Ok(false)
-                    }
-                }
-            }
+            false
         }
     }
 }
 
 // ---------------------------------------------------------------------------
-// The declaration front door (`Base.lean:177-221` of the twin)
+// The name shapes, read off the HANDLE (`Arena/CheckerBase.lean:151-172`)
+// ---------------------------------------------------------------------------
+
+/// con-leche: ConLeche/Kernel/Level.lean:218-221 Name.isModelSuffix
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:157-161 NIdx.isModelSuffix`
+/// — is this a `_model`-suffixed name (the shape of model companions)?  One
+/// `viewN`, no readback.
+pub fn nidx_is_model_suffix(st: &AState, n: &NIdx) -> Result<bool, CheckError> {
+    const MODEL: [u32; 6] = [95, 109, 111, 100, 101, 108];
+    match crate::arena::monad::view_n(st, n) {
+        Err(e) => Err(e),
+        Ok(NNodeView::Str(_, s)) => {
+            Ok(con_ron_core::kernel::name::str_eq(&s, &code_points(&MODEL)))
+        }
+        Ok(_) => Ok(false),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Level.lean:223-230 Name.isProjFnShape
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:166-174 NIdx.isProjFnShape`
+/// — is this shaped like an installed projection function's name (`(T.proj).i`)
+/// or a projection table's (`(T.projTable).0`)?  Both shapes are reserved for
+/// the checker's own installs.  Two `viewN`s, no readback.
+pub fn nidx_is_proj_fn_shape(st: &AState, n: &NIdx) -> Result<bool, CheckError> {
+    const PROJ: [u32; 4] = [112, 114, 111, 106];
+    const TBL: [u32; 9] = [112, 114, 111, 106, 84, 97, 98, 108, 101];
+    match crate::arena::monad::view_n(st, n) {
+        Err(e) => Err(e),
+        Ok(NNodeView::Num(p, _)) => match crate::arena::monad::view_n(st, &p) {
+            Err(e) => Err(e),
+            Ok(NNodeView::Str(_, s)) => {
+                Ok(con_ron_core::kernel::name::str_eq(&s, &code_points(&PROJ))
+                    || con_ron_core::kernel::name::str_eq(&s, &code_points(&TBL)))
+            }
+            Ok(_) => Ok(false),
+        },
+        Ok(_) => Ok(false),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The declaration front door (`Arena/CheckerBase.lean:315-353`)
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:71-91 unresolvedConstsError
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:182-186 unresolvedConstsError`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:315-319 unresolvedConstsError`
 /// — **the verdict at a term whose constants do not all resolve**: a term that
 /// mentions `sorryAx` DECLINES, anything else REJECTS as an unknown constant.
 /// The cited `where_ : String` only names the slot in the message, and §3.1
@@ -782,7 +813,7 @@ pub fn unresolved_consts_error(st: &mut AState, e: &EIdx) -> Result<CheckError, 
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:95-119 checkConstantVal
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:192-221 checkConstantVal`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:332-353 checkConstantVal`
 /// — checks common to all declarations: fresh name, well-formed universe
 /// parameters, and a type that is a type and mentions only declared
 /// parameters.  Returns the constant with its type **annotated**.
@@ -805,12 +836,11 @@ pub fn check_constant_val(
                 if env::nidx_vec_contains(&reserved, &cv.name) {
                     fail(core_types::invalid(code_points(&M_RESERVED_BASIS)))
                 } else {
-                    match read_name(st, &cv.name) {
+                    match nidx_is_proj_fn_shape(st, &cv.name) {
                         Err(e) => Err(e),
-                        Ok(n) => {
-                            if level::name_is_proj_fn_shape(&n) {
-                                fail(core_types::invalid(code_points(&M_RESERVED_PROJ)))
-                            } else if !nidx_nodup(&cv.level_params) {
+                        Ok(true) => fail(core_types::invalid(code_points(&M_RESERVED_PROJ))),
+                        Ok(false) => {
+                            if !nidx_nodup(&cv.level_params) {
                                 fail(core_types::invalid(code_points(&M_DUP_UNIV)))
                             } else {
                                 check_constant_val_scoped(st, mode, fe, cv)
@@ -824,7 +854,7 @@ pub fn check_constant_val(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:95-119 checkConstantVal
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:206-212 checkConstantVal`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:342-346 checkConstantVal`
 /// — the scoping guards on the DECLARED type, then the annotation.
 pub fn check_constant_val_scoped(
     st: &mut AState,
@@ -847,7 +877,7 @@ pub fn check_constant_val_scoped(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:95-119 checkConstantVal
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:213-221 checkConstantVal`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:347-353 checkConstantVal`
 /// — the tail past the annotation: the level-parameter and resolution guards
 /// on the ANNOTATED type, the type's own sort, and the record update
 /// `{ cv with type := type }`.
@@ -885,11 +915,11 @@ pub fn check_constant_val_after_annot(
 }
 
 // ---------------------------------------------------------------------------
-// The list checks (`Base.lean:223-260` of the twin)
+// The list checks (`Arena/CheckerBase.lean:416-470`)
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:178-190 checkTypedList
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:228-236 checkTypedList`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:416-424 checkTypedList`
 /// — check each expression's inferred type against the corresponding expected
 /// type (definitionally); throws on a length mismatch.
 pub fn check_typed_list(
@@ -908,7 +938,7 @@ pub fn check_typed_list(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:178-190 checkTypedList
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:230-235 checkTypedList`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:418-423 checkTypedList`
 /// — the cursor recursion behind `check_typed_list`.
 pub fn check_typed_list_from(
     st: &mut AState,
@@ -938,7 +968,7 @@ pub fn check_typed_list_from(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:192-206 checkAnnotList
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:241-248 checkAnnotList`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:429-438 checkAnnotList`
 /// — check that each expression is a fixed point of the annotation pass in the
 /// given context.
 pub fn check_annot_list(
@@ -952,7 +982,7 @@ pub fn check_annot_list(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:192-206 checkAnnotList
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:244-248 checkAnnotList`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:432-438 checkAnnotList`
 /// — the cursor recursion behind `check_annot_list`.
 pub fn check_annot_list_from(
     st: &mut AState,
@@ -980,7 +1010,7 @@ pub fn check_annot_list_from(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:222-231 checkDefEqList
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:253-260 checkDefEqList`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:461-470 checkDefEqList`
 /// — pairwise definitional-equality check of two spines (throws on any
 /// mismatch, including a length difference).
 pub fn check_def_eq_list(
@@ -999,7 +1029,7 @@ pub fn check_def_eq_list(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:222-231 checkDefEqList
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:256-259 checkDefEqList`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:464-469 checkDefEqList`
 /// — the cursor recursion behind `check_def_eq_list`.
 pub fn check_def_eq_list_from(
     st: &mut AState,
@@ -1024,22 +1054,22 @@ pub fn check_def_eq_list_from(
 }
 
 // ---------------------------------------------------------------------------
-// The pinned equality former (`Base.lean:262-283` of the twin)
+// The pinned equality former (`Arena/CheckerBase.lean:440-459`)
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:208-211 isEqHead
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:266-272 isEqHead` — is
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:440-448 isEqHead` — is
 /// the expression the pinned equality former at one level?
 pub fn is_eq_head(st: &mut AState, h: &EIdx) -> Result<bool, CheckError> {
     match view(st, h) {
         Err(e) => Err(e),
-        Ok(ENodeView::Const(c, us)) => match view_ls(st, &us) {
+        Ok(ENodeView::Const(c, us)) => match core::pin(st, &basis_names::eq_name()) {
             Err(e) => Err(e),
-            Ok(ls) => {
-                if ls.len() == 1 {
-                    match core::pin(st, &basis_names::eq_name()) {
+            Ok(en) => {
+                if c.eq2(&en) {
+                    match view_ls(st, &us) {
                         Err(e) => Err(e),
-                        Ok(en) => Ok(c.eq2(&en)),
+                        Ok(ls) => Ok(ls.len() == 1),
                     }
                 } else {
                     Ok(false)
@@ -1051,7 +1081,7 @@ pub fn is_eq_head(st: &mut AState, h: &EIdx) -> Result<bool, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:213-220 eqHeadLevel
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:277-283 eqHeadLevel` —
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:450-459 eqHeadLevel` —
 /// the level an equality head carries.  Off shape it is `.zero`, which
 /// `isEqHead` has already rejected wherever the result is used.
 pub fn eq_head_level(st: &mut AState, h: &EIdx) -> Result<LIdx, CheckError> {
@@ -1072,11 +1102,11 @@ pub fn eq_head_level(st: &mut AState, h: &EIdx) -> Result<LIdx, CheckError> {
 }
 
 // ---------------------------------------------------------------------------
-// Reading a stored constant (`Base.lean:285-292` of the twin)
+// Reading a stored constant (`Arena/CheckerBase.lean:480-485`)
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:241-247 Env.findCV?
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:289-292 findCV?` — the
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:480-485 IFEnv.findCV?` — the
 /// stored constant under `n`, as an `IConstantVal`, if any.  The stored record
 /// is COPIED before the state is taken mutably (task #97-P4c's row for
 /// `IConstantInfo` read out of `fe.find?`).
@@ -1095,11 +1125,11 @@ pub fn find_cv(st: &mut AState, fe: &IFEnv, n: &NIdx) -> Result<Option<IConstant
 }
 
 // ---------------------------------------------------------------------------
-// The projection function's shape and rule (`Base.lean:294-348` of the twin)
+// The projection function's shape and rule (`Arena/CheckerBase.lean:496-543`)
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:257-272 checkProjShape
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:300-309 checkProjShape`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:496-509 checkProjShape`
 /// — the projection type's parameter telescope is *syntactically* the
 /// constructor's, and the constructor's residual is the family applied to
 /// exactly the parameters.
@@ -1142,7 +1172,7 @@ pub fn check_proj_shape(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:274-311 checkProjRule
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:315-348 checkProjRule`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:511-543 checkProjRule`
 /// — stage 3 of the projection install: the reduction rule — λ over the
 /// constructor telescope returning field `i`, annotated; its λ-domains stay
 /// the constructor's.  Split at the twin's own `let`-boundaries, three ways.
@@ -1185,7 +1215,7 @@ pub fn check_proj_rule(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:274-311 checkProjRule
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:324-335 checkProjRule`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:519-529 checkProjRule`
 /// — the annotated right-hand side's well-formedness, its λ-telescope, its
 /// body and its domains against the constructor's.  **All four conjuncts of
 /// the well-formedness test run**, as the twin's `do` does: Lean lifts every
@@ -1224,7 +1254,7 @@ pub fn check_proj_rule_wf(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:274-311 checkProjRule
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:328-335 checkProjRule`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:523-529 checkProjRule`
 /// — the rule's λ-telescope, its body and the syntactic domain match against
 /// the constructor's Π-telescope.
 pub fn check_proj_rule_shape(
@@ -1249,7 +1279,7 @@ pub fn check_proj_rule_shape(
                     Err(e) => Err(e),
                     Ok(None) => fail(core_types::not_implemented(code_points(&M_PROJ_CTOR_TELE))),
                     Ok(Some(cq)) => {
-                        if !doms_match(&rq.0, &cq.0, 0, 0, n_p + n_f) {
+                        if !doms_match_aux(&rq.0, &cq.0, 0, 0, n_p + n_f) {
                             fail(core_types::not_implemented(code_points(&M_PROJ_RULE_DOMS)))
                         } else {
                             check_proj_rule_certs(st, mode, fe, pty, cvj, n_p, n_f, rhs_a)
@@ -1262,7 +1292,7 @@ pub fn check_proj_rule_shape(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:274-311 checkProjRule
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:336-348 checkProjRule`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:530-543 checkProjRule`
 /// — the frame walks and the definitional parameter/domain pins (con-leche's
 /// task #58), then the rule's own type inference.
 pub fn check_proj_rule_certs(
@@ -1275,7 +1305,7 @@ pub fn check_proj_rule_certs(
     n_f: u64,
     rhs_a: EIdx,
 ) -> Result<EIdx, CheckError> {
-    match open_pis_at_fvars(st, n_p, pty, 0) {
+    match open_pis_at_fvars_f(st, n_p, pty, 0) {
         Err(e) => Err(e),
         Ok(None) => fail(core_types::not_implemented(code_points(&M_PROJ_TY_TELE))),
         Ok(Some(pq)) => {
@@ -1287,7 +1317,7 @@ pub fn check_proj_rule_certs(
                     Err(e) => Err(e),
                     Ok(pdoms) => match check_def_eq_list(st, mode, fe, n_p + n_f, &pdoms, &cq.0) {
                         Err(e) => Err(e),
-                        Ok(()) => match open_pis_at_fvars(st, n_f, &cq.1, n_p) {
+                        Ok(()) => match open_pis_at_fvars_f(st, n_f, &cq.1, n_p) {
                             Err(e) => Err(e),
                             Ok(None) => {
                                 fail(core_types::not_implemented(code_points(&M_PROJ_CTOR_TELE)))
@@ -1305,7 +1335,7 @@ pub fn check_proj_rule_certs(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:274-311 checkProjRule
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:344-348 checkProjRule`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:538-543 checkProjRule`
 /// — the rule's λ-domains against the opened frame, and the rule's type.
 pub fn check_proj_rule_lams(
     st: &mut AState,
@@ -1334,11 +1364,11 @@ pub fn check_proj_rule_lams(
 
 // ---------------------------------------------------------------------------
 // The block's partition and its declared parameter count
-// (`Base.lean:350-379` of the twin)
+// (`Arena/CheckerBase.lean:545-580`)
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:716-719 ConstantInfo.isRecInfo
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:354-356 isRecInfo` — is
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:554-556 isRecInfo` — is
 /// this member a recursor record?
 pub fn is_rec_info(ci: &IConstantInfo) -> bool {
     match ci {
@@ -1348,14 +1378,14 @@ pub fn is_rec_info(ci: &IConstantInfo) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:721-727 recsFormSuffix
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:360-364 recsFormSuffix`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:560-564 recsFormSuffix`
 /// — do the recursors form a suffix of the block?  The tag pass.
 pub fn recs_form_suffix(block: &Vec<IConstantInfo>) -> bool {
     recs_form_suffix_from(block, 0)
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:721-727 recsFormSuffix
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:360-364 recsFormSuffix`
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:560-564 recsFormSuffix`
 /// — the cursor recursion behind `recs_form_suffix`.
 pub fn recs_form_suffix_from(block: &Vec<IConstantInfo>, i: usize) -> bool {
     if i >= block.len() {
@@ -1368,7 +1398,7 @@ pub fn recs_form_suffix_from(block: &Vec<IConstantInfo>, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:721-727 recsFormSuffix
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:363 recsFormSuffix` —
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:563 recsFormSuffix` —
 /// the `rest.all isRecInfo` of the cited clause.
 pub fn all_rec_info_from(block: &Vec<IConstantInfo>, i: usize) -> bool {
     if i >= block.len() {
@@ -1381,7 +1411,7 @@ pub fn all_rec_info_from(block: &Vec<IConstantInfo>, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:588-622 indParamsOk
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:369-379 indParamsOk` —
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:569-580 indParamsOk` —
 /// **the stream's declared parameter count, checked as official checks it**
 /// (con-leche's task #228).  Both halves are one-sided on purpose: `false`
 /// means official rejects.
@@ -1394,7 +1424,7 @@ pub fn ind_params_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:588-622 indParamsOk
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:369-379 indParamsOk` —
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:569-580 indParamsOk` —
 /// the cursor recursion behind `ind_params_ok`.
 pub fn ind_params_ok_from(
     st: &mut AState,
@@ -1414,7 +1444,7 @@ pub fn ind_params_ok_from(
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:588-622 indParamsOk
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:372-378 indParamsOk` —
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:572-579 indParamsOk` —
 /// one member's half of the test: a type former must be able to peel `nP`
 /// binders, a constructor must declare exactly `nP`, anything else passes.
 pub fn ind_params_ok_at(st: &mut AState, n_p: u64, ci: &IConstantInfo) -> Result<bool, CheckError> {
@@ -1590,11 +1620,11 @@ pub fn i_constant_info_beq(a: &IConstantInfo, b: &IConstantInfo) -> bool {
 }
 
 // ---------------------------------------------------------------------------
-// The pinned `Eq` basis constant (`Base.lean:381-433` of the twin)
+// The pinned `Eq` basis constant (`Arena/{Intern,StdAxioms}.lean`)
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — intern a con-leche `Level` list
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:392 internLevelsL` —
+/// Lean twin: `proof/ConRon/Arena/Intern.lean:48 internExpr` —
 /// `internLevelList` of `arena::monad` under the name the interning of a basis
 /// constant wants.
 pub fn intern_levels_l(st: &mut AState, us: &Vec<Level>) -> Result<Vec<LIdx>, CheckError> {
@@ -1602,7 +1632,7 @@ pub fn intern_levels_l(st: &mut AState, us: &Vec<Level>) -> Result<Vec<LIdx>, Ch
 }
 
 /// con-leche: none — intern a con-leche `Expr` into the store
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:397-408 internExpr` —
+/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean internExpr` —
 /// the arena's terms come from the parser, which builds them node by node; a
 /// basis PIN is a `ConstantInfo` VALUE, so it needs this one converter.
 pub fn intern_expr(st: &mut AState, e: &Expr) -> Result<EIdx, CheckError> {
@@ -1666,7 +1696,7 @@ pub fn intern_expr(st: &mut AState, e: &Expr) -> Result<EIdx, CheckError> {
 }
 
 /// con-leche: none — `cv.levelParams.mapM internName` over a `Vec<Name>`
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:412 internCV` — the
+/// Lean twin: `proof/ConRon/Arena/Intern.lean:55-57 internCV` — the
 /// cursor recursion the `mapM` becomes.
 pub fn intern_names(
     st: &mut AState,
@@ -1689,7 +1719,7 @@ pub fn intern_names(
 }
 
 /// con-leche: none — intern a con-leche `ConstantVal`
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:411-412 internCV`.
+/// Lean twin: `proof/ConRon/Arena/Intern.lean:55-57 internCV`.
 pub fn intern_cv(st: &mut AState, cv: &ConstantVal) -> Result<IConstantVal, CheckError> {
     match intern_name(st, &cv.name) {
         Err(e) => Err(e),
@@ -1708,7 +1738,7 @@ pub fn intern_cv(st: &mut AState, cv: &ConstantVal) -> Result<IConstantVal, Chec
 }
 
 /// con-leche: none — intern a con-leche `IndCaps`
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:415-418 internCaps`.
+/// Lean twin: `proof/ConRon/Arena/Intern.lean:59-62 internCI`.
 pub fn intern_caps(st: &mut AState, c: &IndCaps) -> Result<IIndCaps, CheckError> {
     match intern_name(st, &c.eta_ctor) {
         Err(e) => Err(e),
@@ -1726,7 +1756,7 @@ pub fn intern_caps(st: &mut AState, c: &IndCaps) -> Result<IIndCaps, CheckError>
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:29-48 _
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:424 eqBasisCI` — the
+/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:136 eqA` — the
 /// pinned annotated `Eq` type former, interned.  P4d-1's `arena::basis` owns
 /// this; until it lands, interning `con_ron_core`'s own value is the only
 /// spelling that makes the guard say what con-leche's says (the module note).
@@ -1744,31 +1774,8 @@ pub fn eq_basis_ci(st: &mut AState) -> Result<IConstantInfo, CheckError> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs
-/// Lean twin: `proof/ConRon/Arena/Inductives/Base.lean:429-432 eqBasisStored`
-/// — `env.find? eqName = some eqA`, the "requires the pinned `Eq` basis"
-/// guard, factored out because three call sites make it.
-pub fn eq_basis_stored(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
-    match core::pin(st, &basis_names::eq_name()) {
-        Err(e) => Err(e),
-        Ok(en) => {
-            let found: Option<IConstantInfo> = match env::ifenv_find(fe, &en) {
-                Some(ci) => Some(env::i_constant_info_dup(ci)),
-                None => None,
-            };
-            match found {
-                Some(ci) => match eq_basis_ci(st) {
-                    Err(e) => Err(e),
-                    Ok(want) => Ok(i_constant_info_beq(&ci, &want)),
-                },
-                None => Ok(false),
-            }
-        }
-    }
-}
-
 /// con-leche: none — `(n.str s)` at a fixed suffix, interned
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:60 blockRenameTable`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:89 blockRenameTable`
 /// — `.str n "_model"`, the one name suffix every modeled-route lookup builds.
 /// Here rather than in `arena::inductives::modeled` because `Base.lean` is
 /// where the shared name helpers of the borrowed layer sit.

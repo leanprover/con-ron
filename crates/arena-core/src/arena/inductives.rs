@@ -4,4 +4,6 @@
 pub mod ind_base;
 pub mod struct_parts;
 pub mod modeled;
+pub mod struct_install;
+pub mod struct_install_f;
 pub mod sum_parts;

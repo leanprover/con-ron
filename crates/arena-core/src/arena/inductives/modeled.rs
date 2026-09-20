@@ -431,6 +431,82 @@ pub const M_ETA_RESID: [u32; 47] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Two helpers of the modeled route (`Modeled.lean:40-71` of the twin)
+//
+// `arena::inductives::ind_base` carries the declaration checker's own twins;
+// these two are the modeled install's, and the Lean twin deliberately leaves
+// them here — the renaming domain comparison because renaming a constant over
+// handles is monadic, and the `Eq`-basis guard because it is the one predicate
+// three clauses of this file share and nothing else reads.
+// ---------------------------------------------------------------------------
+
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:121-128 domsMatchAux
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:56-65 domsMatchRenamed`
+/// — `domsMatchAux` with the right side renamed (`g = fun _ e => e.renameConsts
+/// f`, `checkProjIota`'s instance of con-leche's higher-order argument).  `f`
+/// is the `NIdxToNIdx` dictionary `arena::expr_ops` already uses for
+/// con-leche's one surviving function argument.
+pub fn doms_match_renamed<F>(
+    st: &mut AState,
+    f: &F,
+    bs1: &Vec<(EIdx, BinderMeta)>,
+    bs2: &Vec<(EIdx, BinderMeta)>,
+    o1: u64,
+    o2: u64,
+    k: u64,
+) -> Result<bool, CheckError>
+where
+    F: NIdxToNIdx,
+{
+    if k == 0 {
+        Ok(true)
+    } else {
+        let j1: u64 = o1 + k - 1;
+        let j2: u64 = o2 + k - 1;
+        if j1 >= bs1.len() as u64 || j2 >= bs2.len() as u64 {
+            Ok(false)
+        } else {
+            let b2: EIdx = bs2[j2 as usize].0.dup2();
+            match expr_ops::rename_consts_fast(st, CORE_WALK_FUEL, f, &b2) {
+                Err(e) => Err(e),
+                Ok(r) => {
+                    if bs1[j1 as usize].0.eq2(&r) {
+                        doms_match_renamed(st, f, bs1, bs2, o1, o2, k - 1)
+                    } else {
+                        Ok(false)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:71-74 eqBasisStored`
+/// — `env.find? eqName = some eqA`, the "requires the pinned `Eq` basis"
+/// guard, factored out because three call sites make it.  `eq_basis_ci` is the
+/// comparand: the same `ConstantInfo` through the same store, hence the same
+/// handle (`denoteE`/`denoteN` are injective, task #97a).
+pub fn eq_basis_stored(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
+    match core::pin(st, &basis_names::eq_name()) {
+        Err(e) => Err(e),
+        Ok(en) => {
+            let found: Option<IConstantInfo> = match env::ifenv_find(fe, &en) {
+                Some(ci) => Some(env::i_constant_info_dup(ci)),
+                None => None,
+            };
+            match found {
+                Some(ci) => match ind_base::eq_basis_ci(st) {
+                    Err(e) => Err(e),
+                    Ok(want) => Ok(ind_base::i_constant_info_beq(&ci, &want)),
+                },
+                None => Ok(false),
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // The renaming tables (`Modeled.lean:44-87` of the twin)
 // ---------------------------------------------------------------------------
 
@@ -792,7 +868,7 @@ pub fn iota_stmt_open_at(
     depth: u64,
     tty: &EIdx,
 ) -> Result<(Vec<EIdx>, Vec<EIdx>, LIdx), CheckError> {
-    match ind_base::open_pis_at_fvars(st, depth, tty, 0) {
+    match ind_base::open_pis_at_fvars_f(st, depth, tty, 0) {
         Err(e) => Err(e),
         Ok(None) => fail(core_types::not_implemented(code_points(&M_IOTA_SHAPE))),
         Ok(Some(q)) => match expr_ops::get_app_args(st, CORE_WALK_FUEL, &q.1) {
@@ -1138,7 +1214,7 @@ pub fn check_iota_thm_frames(
     b0: &EIdx,
 ) -> Result<(), CheckError> {
     let cn_f: u64 = sub_nat(depth, r_p);
-    match ind_base::open_pis_at_fvars(st, r_p, ty_a, 0) {
+    match ind_base::open_pis_at_fvars_f(st, r_p, ty_a, 0) {
         Err(e) => Err(e),
         Ok(None) => fail(core_types::not_implemented(code_points(&M_IOTA_RTELE))),
         Ok(Some(pq)) => {
@@ -1152,7 +1228,7 @@ pub fn check_iota_thm_frames(
                     Ok(pdoms) => {
                         match ind_base::check_def_eq_list(st, mode, fe_self, depth, &pdoms, &cq.0) {
                             Err(e) => Err(e),
-                            Ok(()) => match ind_base::open_pis_at_fvars(st, cn_f, &cq.1, r_p) {
+                            Ok(()) => match ind_base::open_pis_at_fvars_f(st, cn_f, &cq.1, r_p) {
                                 Err(e) => Err(e),
                                 Ok(None) => {
                                     fail(core_types::not_implemented(code_points(&M_IOTA_CTELE)))
@@ -1912,7 +1988,7 @@ pub fn check_iota_thm_n_frames(
     pins: &Vec<EIdx>,
 ) -> Result<(), CheckError> {
     let depth: u64 = r_p + cn_f;
-    match ind_base::open_pis_at_fvars(st, r_p, ty_a, 0) {
+    match ind_base::open_pis_at_fvars_f(st, r_p, ty_a, 0) {
         Err(e) => Err(e),
         Ok(None) => fail(core_types::not_implemented(code_points(&M_IOTA_RTELE))),
         Ok(Some(pq)) => {
@@ -1977,7 +2053,7 @@ pub fn check_iota_thm_n_fields(
     crest_p: &EIdx,
 ) -> Result<(), CheckError> {
     let depth: u64 = r_p + cn_f;
-    match ind_base::open_pis_at_fvars(st, cn_f, crest_p, r_p) {
+    match ind_base::open_pis_at_fvars_f(st, cn_f, crest_p, r_p) {
         Err(e) => Err(e),
         Ok(None) => fail(core_types::not_implemented(code_points(&M_IOTA_CTELE))),
         Ok(Some(xq)) => match expr_ops::get_app_args(st, CORE_WALK_FUEL, &xq.1) {
@@ -2481,7 +2557,7 @@ pub fn check_ind_recs(
     } else {
         match block_rename_table(st, block_names) {
             Err(e) => Err(e),
-            Ok(f) => match ind_base::eq_basis_stored(st, &fe2) {
+            Ok(f) => match eq_basis_stored(st, &fe2) {
                 Err(e) => Err(e),
                 Ok(false) => fail(core_types::not_implemented(code_points(&M_EQ_BASIS))),
                 Ok(true) => {
@@ -2568,7 +2644,7 @@ pub fn check_proj_lookups_model(
                                 } else if env::ifenv_find(fe2, t).is_none() {
                                     fail(core_types::not_implemented(code_points(&M_PL_PARENT)))
                                 } else {
-                                    match ind_base::eq_basis_stored(st, fe2) {
+                                    match eq_basis_stored(st, fe2) {
                                         Err(e) => Err(e),
                                         Ok(false) => {
                                             fail(core_types::not_implemented(code_points(&M_PL_EQ)))
@@ -2730,15 +2806,13 @@ pub fn check_proj_iota_doms(
             Ok(None) => fail(core_types::not_implemented(code_points(&M_PI_CTELE))),
             Ok(Some(cq)) => match proj_fwd(st, t, ctor_name, n_f) {
                 Err(e) => Err(e),
-                Ok(fwd) => {
-                    match ind_base::doms_match_renamed(st, &fwd, &sq.0, &cq.0, 0, 0, n_p + n_f) {
-                        Err(e) => Err(e),
-                        Ok(false) => fail(core_types::not_implemented(code_points(&M_PI_DOM))),
-                        Ok(true) => check_proj_iota_body(
-                            st, mode, fe_self, ctor_name, lps, cvj, n_p, n_f, i, pmn, tty, &sq.1,
-                        ),
-                    }
-                }
+                Ok(fwd) => match doms_match_renamed(st, &fwd, &sq.0, &cq.0, 0, 0, n_p + n_f) {
+                    Err(e) => Err(e),
+                    Ok(false) => fail(core_types::not_implemented(code_points(&M_PI_DOM))),
+                    Ok(true) => check_proj_iota_body(
+                        st, mode, fe_self, ctor_name, lps, cvj, n_p, n_f, i, pmn, tty, &sq.1,
+                    ),
+                },
             },
         },
     }
@@ -2762,7 +2836,7 @@ pub fn check_proj_iota_body(
     tty: &EIdx,
     sbody: &EIdx,
 ) -> Result<(), CheckError> {
-    match struct_parts::struct_ps_at(st, n_f + 1, n_p) {
+    match struct_parts::struct_ps_at(st, n_f, n_p) {
         Err(e) => Err(e),
         Ok(p_args) => match struct_parts::bvars_desc(st, n_f) {
             Err(e) => Err(e),
@@ -2861,7 +2935,7 @@ pub fn check_proj_iota_field(
             if !rhs_c.eq2(&fld) {
                 fail(core_types::not_implemented(code_points(&M_PI_FIELD)))
             } else {
-                match ind_base::open_pis_at_fvars(st, depth, tty, 0) {
+                match ind_base::open_pis_at_fvars_f(st, depth, tty, 0) {
                     Err(e) => Err(e),
                     Ok(None) => fail(core_types::not_implemented(code_points(&M_PI_TELE))),
                     Ok(Some(oq)) => match expr_ops::get_app_args(st, CORE_WALK_FUEL, &oq.1) {
@@ -3050,7 +3124,7 @@ pub fn check_eta_thm_at(
     cvm_t: &IConstantVal,
     cvm_c: &IConstantVal,
 ) -> Result<bool, CheckError> {
-    match ind_base::eq_basis_stored(st, fe2) {
+    match eq_basis_stored(st, fe2) {
         Err(e) => Err(e),
         Ok(false) => Ok(false),
         Ok(true) => {
@@ -3132,7 +3206,7 @@ pub fn check_eta_thm_shape(
             Err(e) => Err(e),
             Ok(None) => Ok(false),
             Ok(Some(tq)) => {
-                if !ind_base::doms_match(&sq.0, &tq.0, 0, 0, n_p) {
+                if !ind_base::doms_match_aux(&sq.0, &tq.0, 0, 0, n_p) {
                     Ok(false)
                 } else {
                     match struct_parts::param_levels(st, lps) {
@@ -3353,7 +3427,7 @@ pub fn check_unit_thm_at(
     mtty: &EIdx,
     mlps: &Vec<NIdx>,
 ) -> Result<bool, CheckError> {
-    match ind_base::eq_basis_stored(st, fe2) {
+    match eq_basis_stored(st, fe2) {
         Err(e) => Err(e),
         Ok(false) => Ok(false),
         Ok(true) => {
@@ -3367,7 +3441,7 @@ pub fn check_unit_thm_at(
                         Err(e) => Err(e),
                         Ok(None) => Ok(false),
                         Ok(Some(tq)) => {
-                            if !ind_base::doms_match(&sq.0, &tq.0, 0, 0, n_p) {
+                            if !ind_base::doms_match_aux(&sq.0, &tq.0, 0, 0, n_p) {
                                 Ok(false)
                             } else {
                                 check_unit_thm_shape(st, mode, lps, n_p, tm, &sq.0, &sq.1, &tq.1)
