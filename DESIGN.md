@@ -24426,3 +24426,50 @@ The error KIND and MESSAGE were already con-leche's own throw site
 same guard), so `ErrSim` was never the issue: the twin simply computed a
 different comparand and took a throw con-leche does not take.  With the fix
 the four accept at con-leche's own declaration counts (36, 36, 41, 119).
+
+#### Item 2 — the `instantiateList` / `liftLooseBVars` cutoffs
+
+Task #97b flagged these two as "the first thing the performance phase should
+price" and left them without a cutoff, because "a cutoff the original does
+not have needs its licence proved".  P2f is where the price was paid:
+`tests/e2e/proj_share.ndjson` — con-leche's own DAG-sharing fixture — ran
+**66.6 / 66.5 / 69.8 s** with 18 % of its cycles in `ConRon.Arena.instantiateList`.
+
+**con-leche has no fast variant to mirror.**  `ConLeche/Kernel/ExprOps.lean`
+carries `instantiateList` :191, `instantiateListGo` :267 (the `@[csimp]`
+executed form) and `instantiateListFast` :371, and the same triple for
+`liftLooseBVars` at :380/:430/:532; none of the six tests a derived field.
+The cutoff is therefore an arena DEVIATION and carries its own licence,
+written out in `Arena/ExprOps.lean`'s module note for P3 to discharge as two
+`Expr`-level lemmas of the shape `ExprOps.lean`'s own
+`lowerBVars_of_bvarBound_le` already has:
+
+  * `looseBVarsBounded d e → instantiateList e vs d = e`;
+  * `looseBVarsBounded c e → liftLooseBVars e c amount = e`.
+
+Both are the same one-clause induction: the only arm that is not the
+congruence is `.bvar j`, and the hypothesis puts `j` on the untouched side of
+the arm's test (`j < d`, resp. `¬ (j ≥ c)`).  The rebuild of an unchanged
+node is the node, because `intern` is hash-consing and `denoteE` injective,
+so the cutoff is DENOTATION-PRESERVING.
+
+The guard is `bvarBRaw < satRange && bvarBRaw ≤ d` — the raw packed field
+with the saturation side condition, `instantiate1Go`'s own idiom (the one
+other cutoff con-leche does not have), so no saturated-branch recomputation
+is needed and the test is one `O(1)` derived-word read.  It is on three
+walks: `instantiateListGo` (the memoized one), `liftLooseBVarsGo`, and — the
+one that mattered — the PURE `instantiateList`, whose `.bvar` arm recurses
+into the replacement `vs[j - d]` with a shorter list and no memo.  con-leche
+observes that on the `bvar`-closed replacements every checker call site
+passes, that recursion is the identity; with the cutoff it costs one test
+instead of a full traversal of the replacement, and that is where
+`proj_share`'s 18 % lived.
+
+| | before | after |
+|---|---:|---:|
+| `e2e/proj_share.ndjson`, 3 runs | 66.6 / 66.5 / 69.8 s | **0.114 / 0.119 / 0.117 s** |
+| the whole 348-fixture sweep | 110 s | **48 s** |
+
+A factor of **570** on the fixture, and the sweep is faster than task #97d's
+106 s even though seven more fixtures now run to an accept.  348/348 both
+before and after: the cutoffs change no verdict anywhere in the corpus.
