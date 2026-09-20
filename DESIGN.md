@@ -1880,6 +1880,18 @@ chasing nanoda on instructions; **the target is to beat today's con-ron on
 all three numbers** while deleting `ron::tagged`, the atomic reference
 counts and the tree-shaped memo keys.
 
+> **SUPERSEDED by task #97-P6-3** (2026-09-20).  Those two figures are from
+> different machines, different Mathlib exports and different nanoda builds,
+> and comparing them was wrong.  Measured side by side — same machine, same
+> `_tmp/corpus/mathlib.ndjson`, same session — **nanoda does 6 053.88 G
+> instructions against con-ron master's 11 535.07 G**, i.e. nanoda is
+> **1.91× cheaper**, at 1.92× less wall and 0.81× the peak RSS; the same
+> direction holds on `Init` (2.35×) and `Init+Std+Lean` (2.61×).  So beating
+> today's con-ron is the **floor**, not the goal, and the maintainer's "on
+> par with nanoda would be good" names a target that is 2× away.  The
+> baseline table, the harness (`scripts/bench-baselines.sh`) and the two
+> arena failures it exposed are in "Task #97-P6-3 — the baselines".
+
 ### 8.2 The three layers and the two theorems
 
     (A) con-leche, PURE:  checkDeclsPure μ (fueledOps μ F) pins ds   [Expr trees]
@@ -26990,3 +27002,193 @@ Rust's own run is compared against.
   that `consts.drop k` is the pre-step list.
 * `Arena/Bench.lean` still has no `Core`, `Checker` or inductive shapes —
   five tasks have now asked.
+### Task #97-P6-3 — the baselines (2026-09-20, Opus under Fable)
+
+§8.4's last paragraph makes the campaign's measure of record `con-ron-arena`
+against **`con-ron` at master** and against **`nanoda`**, on the same machine
+and the same exports.  This task takes those numbers so that every later P6
+tweak has something to be measured against.  The harness is committed:
+`scripts/bench-baselines.sh`, one flag per binary and per export (`--list`
+prints the matrix, `--dry-run` the commands).
+
+**It moves §8.1's calibration, and in the wrong direction.**  §8.1 priced
+nanoda from nomeata's `MONOMORPH.md` (22.84 T instructions, 2 836 s, 10.7 GB)
+against con-ron's 11.48 T and concluded "the rewrite is not chasing nanoda on
+instructions".  That comparison was across two different Mathlib exports and
+two different nanoda builds.  Measured here — same machine, same
+`_tmp/corpus/mathlib.ndjson`, same day — **nanoda does 6 053.88 G instructions
+where con-ron master does 11 535.07 G**: nanoda is **1.91× cheaper**, not 2×
+dearer, and it is 1.92× faster in wall and 0.81× in peak RSS.  The same ratio
+holds on the small exports (2.35× on `Init`, 2.61× on `core`).  So the
+maintainer's "on par with nanoda would be good" is a real target that con-ron
+is a long way from, and beating today's con-ron is the floor rather than the
+ceiling.  §8.1's paragraph is annotated accordingly.
+
+**The machine.**  AMD EPYC 9455 (48 cores, 96 threads), 125 GiB, Linux
+6.12.100, governor `schedutil`; `rustc 1.100.0-nightly (8fa1c96cf 2026-08-17)`,
+the flake's Charon-pinned toolchain.  The machine was **shared with other
+agents throughout** (load average 8–12) — which is why `instructions:u` is the
+measure of record and wall time is not.
+
+**The lane.**  Single-threaded everywhere.  For `con-ron` and `con-ron-arena`
+that is `--verified --jobs=1 --progress=1000000`: the driver lane, with the
+heartbeat at a stride large enough that nothing but the phase summaries is
+printed — a bare `--jobs=1` bypasses the driver.  For nanoda it is
+`"num_threads": 0`, nanoda's own serial default.
+
+**One run** is `time -v` around `perf stat -e instructions:u,cycles:u` around
+`timeout`, in a subshell that has set `ulimit -v` — the shape
+`_tmp/corpus/baseline.md` already used, plus `cycles:u`.  Caps: `Init`
+2 726 400 KB (2.6 GB), `Init+Std+Lean` 5 242 880 KB (5 GB), Mathlib
+28 311 552 KB (27 GB); timeouts 1 800 / 3 600 / 9 000 s.  Runs per cell follow
+CLAUDE.md: three for `Init`, which is small enough to repeat, one each for
+`core` and Mathlib, whose wall is therefore indicative only.
+
+**Provenance.**  `con-ron` is master, `3f5ebd55` (= `origin/master`):
+`git diff master -- crates/con-ron-core crates/con-ron crates/con-ron-dump` is
+empty on this branch, so `target/release/con-ron` *is* the master binary, and
+its `Init` count reproduces OVERVIEW §7.2's 542.1 G to 0.02 %.
+`con-ron-arena` is the branch's, at `be4c5c37`; its `Init` numbers reproduce
+task #97-P4f's 816.0 G / 1.85 GB.  Both from one `cargo build --release` of the
+workspace (mimalloc, `overflow-checks = true`).  The exports are
+`_tmp/corpus/{init,core,mathlib}.ndjson`, unchanged since task #29
+(`lean4export` 3.1.0, Lean 4.33.0).  Raw `.perf`/`.time`/`.out`/`.err`/`.exit`
+files: `_tmp/t97/p6-3/`.
+
+#### The table
+
+`Init` cells are three runs; instructions are given as the range over the
+three, wall as median with the min–max spread.  `core` and Mathlib are one run.
+con-leche's row is copied from OVERVIEW §7.2 (its own commit, another day,
+`cycles:u` not recorded then) and is **not** a same-session number — it is here
+for scale only.
+
+| export | binary | instructions:u | cycles:u | wall | peak RSS | verdict |
+|---|---|---:|---:|---|---:|---|
+| `Init` | con-leche (OVERVIEW §7.2) | 585.9 G | — | 56 s | 0.48 GB | accepted 57 977 |
+| `Init` | **nanoda** | **231 036 201 934 – 231 036 234 362** | 108 510 468 627 – 109 584 205 222 | 24.78 s (24.72–24.96, 0.24 s) | 365 348 KB | Checked 59 433, no errors |
+| `Init` | **con-ron @ master** | **542 010 416 256 – 542 019 421 300** | 273 039 651 341 – 276 045 372 500 | 62.19 s (62.14–62.81, 0.67 s) | 482 284 KB | accepted 57 977 |
+| `Init` | **con-ron-arena** (2.6 GB cap) | 56 130 832 179 *to the kill* | 47 107 202 829 | 18.50 s | 1 760 940 KB | **ABORT (exit 134)** — `memory allocation of 402 653 184 bytes failed`, in install |
+| `Init` | con-ron-arena (diagnostic, 20 GB cap) | 816 065 770 230 – 816 066 877 077 | 544 576 310 877 – 564 305 357 592 | 130.32 s (124.03–130.88, 6.85 s) | 1 937 940 KB | accepted 57 977 |
+| `core` | con-leche (OVERVIEW §7.2) | 1 176.3 G | — | 122 s | 1.22 GB | accepted 163 396 |
+| `core` | **nanoda** | **444 755 607 528** | 248 841 964 575 | 56.63 s | 764 100 KB | Checked 171 002, no errors |
+| `core` | **con-ron @ master** | **1 162 118 622 587** | 657 219 316 822 | 150.52 s | 1 324 724 KB | accepted 163 396 |
+| `core` | **con-ron-arena** (5 GB cap) | 49 049 446 878 *to the kill* | 27 636 356 741 | 15.53 s | 2 456 432 KB | **ABORT (exit 134)** — stack overflow, in install |
+| `core` | con-ron-arena (diagnostic, 20 GB cap) | 49 048 682 093 *to the kill* | 27 138 206 960 | 14.33 s | 2 458 660 KB | **ABORT (exit 134)** — same stack overflow |
+| Mathlib | con-leche (OVERVIEW §7.2) | 12 792.4 G | — | 1 220 s | 8.75 GB | accepted 691 128 |
+| Mathlib | **nanoda** | **6 053 882 497 951** | 4 536 296 030 715 | 1 048.26 s | 7 126 528 KB | Checked 707 508, no errors |
+| Mathlib | **con-ron @ master** | **11 535 069 219 315** | 8 675 692 607 885 | 2 011.98 s | 8 800 972 KB | accepted 691 128 |
+| Mathlib | **con-ron-arena** (27 GB cap) | 327 733 001 574 *to the kill* | 208 174 704 344 | 97.20 s | 9 687 456 KB | **ABORT (exit 134)** — stack overflow, in install |
+| Mathlib | con-ron-arena (diagnostic, 40 GB cap) | 327 738 393 612 *to the kill* | 198 841 950 216 | 85.32 s | 9 695 176 KB | **ABORT (exit 134)** — same stack overflow |
+
+The ratios that matter, single-threaded, instructions:u:
+
+| export | nanoda | con-ron master | con-ron/nanoda | con-ron-arena | arena/con-ron |
+|---|---:|---:|---:|---:|---:|
+| `Init` | 231.04 G | 542.01 G | **2.35×** | 816.07 G | **1.51×** |
+| `core` | 444.76 G | 1 162.12 G | **2.61×** | — (aborts) | — |
+| Mathlib | 6 053.88 G | 11 535.07 G | **1.91×** | — (aborts) | — |
+
+Peak RSS, same lane: `Init` 0.35 / 0.46 / 1.85 GB, `core` 0.73 / 1.26 / ≥2.34,
+Mathlib 6.80 / 8.39 / ≥9.24 GB (nanoda / con-ron / con-ron-arena).
+
+#### Two things the arena column says
+
+**1. `con-ron-arena` aborts on `Init+Std+Lean` and on Mathlib, and the cap is
+not why.**  On `core` it dies with a Rust `stack overflow` about 8 s in, while
+*installing* — and it dies identically at the rule's 5 GB cap and at a 20 GB
+diagnostic cap, so this is depth, not memory.  `--progress=1` names the
+declaration: it is **`Nat.mod`, install 261/165 454**.  Mathlib fails the same
+way (27 GB cap and a 40 GB diagnostic cap alike, ~9.7 GB resident at the kill),
+which is what one expects since both exports start with the same `Init` prefix
+— yet plain `Init` checks clean, so something about the larger exports' prefix
+(the 45 modelled inductive blocks and 60 projection rewrites `core` reports,
+against `Init`'s 1 and 0) reaches a recursion that `Init` alone does not.  The
+checking thread already gets `driver::STACK_BYTES` = 1 GiB
+(`crates/con-ron-arena/src/bin/con-ron-arena.rs:601`), so a 1 GiB stack is
+being exhausted: this is a runaway or unmemoised recursion, not a stack that
+wants raising.  **Fixing it is prerequisite to any `core`/Mathlib arena cell**;
+task #97-P4f's section only ever claimed `Init`.
+
+**2. Even on `Init`, the arena does not fit the memory rule.**  At the 2.6 GB
+cap it aborts on an allocation of 402 653 184 bytes with 1.76 GB resident; at a
+20 GB diagnostic cap it finishes and accepts 57 977 at **1.94 GB peak RSS, 4.0×
+con-ron master's 0.48 GB and 5.3× nanoda's 0.35 GB**, for 1.51× con-ron's
+instructions.  That reproduces task #97-P4f's 816.0 G / 1.85 GB, so it is the
+state of the rewrite and not a measurement artefact.
+
+#### nanoda: build, invocation, and its counting convention
+
+The clone is `_tmp/t97/nanoda_lib` at `4c544ed` (upstream `master`,
+2026-09-09), the one §8.1's research report surveyed.  Two pieces of plumbing
+were needed and nothing else:
+
+  * **It cannot be built where it sits.**  `_tmp/` is inside the con-ron
+    checkout, so Cargo walks up, finds the workspace `Cargo.toml` and refuses
+    ("current package believes it's in a workspace when it's not").  The
+    harness therefore copies the clone to `_tmp/t97/nanoda-build` and appends
+    an empty `[workspace]` table to its `Cargo.toml` — which also restores
+    nanoda's own `[profile.release]` (`opt-level = 3`, `lto = true`,
+    `overflow-checks = true`), the profile its numbers should be taken under.
+    The research clone is left untouched.
+  * **The dev shell's toolchain builds it unchanged.**  `cargo build --release`
+    with Charon's pinned nightly compiles nanoda 0.4.17 and its nine
+    dependencies; nanoda pins no toolchain, and no rustup/nix question arises.
+  * **It reads our exports as they are.**  nanoda accepts `lean4export` format
+    `[3.1.0, 3.2.0)` and `_tmp/corpus/*.ndjson` are 3.1.0, so **no conversion
+    is needed** — the files task #29 generated are the files nanoda checks.  It
+    has no CLI: one JSON config per run, which `scripts/bench-baselines.sh`
+    writes:
+
+        {"export_file_path": "…/mathlib.ndjson",
+         "use_stdin": false,
+         "unpermitted_axiom_hard_error": false,
+         "unsafe_permit_all_axioms": true,
+         "nat_extension": true,
+         "string_extension": true,
+         "num_threads": 0,
+         "print_axioms": false,
+         "print_success_message": true}
+
+    This is nomeata's own configuration for the Mathlib measurement
+    (`nanodatg/scripts/arena.sh`, `NAT-BRIDGE-FEASIBILITY.md` §1.1): the two
+    kernel extensions on (the corpus uses literals throughout and nanoda
+    refuses them outright otherwise), `unsafe_permit_all_axioms` so that the
+    axiom allow-list is not what is being measured — it requires
+    `unpermitted_axiom_hard_error: false` — and `num_threads: 0`, nanoda's
+    serial default.  `print_axioms: false` is ours: left at its default the run
+    ends "1 pretty printer errors: Unable to print axioms", which is noise on
+    the verdict line and nothing else.
+
+**nanoda counts declarations differently, and the difference is exact.**
+nanoda reports 59 433 / 171 002 / 707 508 where con-ron reports 57 977 /
+163 396 / 691 128.  It is a counting convention, not a disagreement:
+`parser.rs:773-883` inserts one `declars` entry per *kernel* declaration, so
+each `inductive` record of the stream becomes one entry per type, one per
+constructor and one per recursor, where con-ron counts the stream's declaration
+records.  Counting the exports' inductive blocks confirms it to the digit:
+
+| export | `inductive` records | types | ctors | recursors | records − blocks + parts | nanoda said |
+|---|---:|---:|---:|---:|---:|---:|
+| `Init` | 615 | 615 | 839 | 617 | 57 977 − 615 + 2 071 = **59 433** | 59 433 |
+| `core` | 2 823 | 2 850 | 4 612 | 2 967 | 163 396 − 2 823 + 10 429 = **171 002** | 171 002 |
+| Mathlib | 6 720 | 6 753 | 9 482 | 6 865 | 691 128 − 6 720 + 23 100 = **707 508** | 707 508 |
+
+The verdicts agree; only the denominator differs.  nanoda's accept is also not
+`--verified`: it has no verified/trusted split, so the comparison is
+checker-against-checker on the same input, not mode-against-mode.
+
+#### Reproducing
+
+    cargo build --release
+    scripts/bench-baselines.sh --list                  # the matrix and the caps
+    scripts/bench-baselines.sh                         # every cell, ~1 h + 2 h
+    scripts/bench-baselines.sh --bin nanoda --export mathlib --runs 1
+    scripts/bench-baselines.sh --bin con-ron-arena --export init \
+        --runs 3 --limit-kb 20971520                   # the diagnostic cells
+
+`--limit-kb` is diagnostic only and tags its output files; a number produced
+under it is not a baseline number, because the caps are CLAUDE.md's budget and
+a checker that does not fit one is a bug to fix rather than a cap to raise.
+The harness builds nanoda's config itself but not nanoda: do that once with
+the copy-plus-`[workspace]` recipe above.
