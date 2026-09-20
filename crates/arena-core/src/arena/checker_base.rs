@@ -36,14 +36,24 @@
 //!    `arena::inductives` *above* this module (it calls `check_ind_decl`), so
 //!    the walk is spelled here, at its one caller.  Task #97d's own "IndBase
 //!    duplication" note is the Lean-side record of the same seam.
-//! 6. **`or_else_attempt`'s state restore is `astate_dup`.**  The twin writes
-//!    the attempt as a state function, which makes the pre-attempt state free;
-//!    `&mut AState` has no such thing, so the caller snapshots, exactly as
-//!    `con_ron_core::kernel::checker::check_div_mod_pin_loop` does with
-//!    `cached::state_c::dup`.  The snapshot is `O(store)` and is taken only
-//!    when a pin variant's guards pass — a handful of times in a run, all of
-//!    them inside `Init` — and a `Tbl` truncation primitive would make it
-//!    `O(appended)`; P6's, not this task's.
+//! 6. **`or_else_attempt`'s state restore is the CACHES, not the store**
+//!    (task #97-P6-2, after task #97-P4d's `astate_dup` overflowed the stack
+//!    on `Init`+`Std`+`Lean`).  The twin writes the attempt as a state
+//!    function, which makes the whole pre-attempt state free; `&mut AState`
+//!    has no such thing, so the caller snapshots — and what it snapshots is
+//!    `Memos` and `Caches` alone, which is **what con-leche restores**:
+//!    `con_ron_core::kernel::checker::check_div_mod_pin_loop` takes
+//!    `cached::state_c::dup`, and a `CState` is memo tables, because con-leche
+//!    has no term store at all (its terms are values).  Restoring the ARENA's
+//!    store is an artifact of (B)'s one-state monad and it is not needed: the
+//!    store is APPEND-ONLY and hash-consed, so a failed attempt leaves
+//!    unreachable nodes behind, every handle that existed before denotes what
+//!    it denoted, and a later `intern` of one of those views is answered by
+//!    the cons probe with the same handle it would have appended.  Copying it
+//!    was `O(store)` — 12.3 M nodes at `Init`+`Std`+`Lean`'s `Nat.mod`, a
+//!    recursion one frame per node, and a stack overflow at a declaration
+//!    `Init` reaches with half the DAG.  See the task's twin ledger: the Lean
+//!    twin's `orElseAttempt` is to restore `caches`/`memos` and keep `store`.
 
 use crate::arena::core::{
     annotate_core, append_eidx, consts_resolve, ensure_sort_core, infer_type_core, is_def_eq_core,
@@ -64,7 +74,7 @@ use crate::arena::monad::{
     fail, intern_e, read_level, read_levels, read_names, view, view_ls, view_n, AState, Memos,
 };
 use crate::arena::store::{
-    ENodeView, EStore, ETables, LStore, LTables, LsStore, LsTables, NNodeView, NStore, NTables, Tbl,
+    ENodeView, NNodeView,
 };
 use con_ron_core::kernel::basis_names;
 use con_ron_core::kernel::core_types::{code_points, CheckError};
@@ -76,7 +86,7 @@ use con_ron_core::kernel::level::Level;
 use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::Name;
 use con_ron_core::kernel::prop_when;
-use con_ron_core::ron::hashmap::{Dup, Eq2, HashMap, Hashable};
+use con_ron_core::ron::hashmap::{Dup, Eq2, HashMap};
 
 // ---------------------------------------------------------------------------
 // The messages of this module's declines (con-ron-core's own spellings, so
@@ -256,100 +266,35 @@ pub const M_PROJ_RULE_DOMAIN: [u32; 31] = [
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — a `Vec` copy; Lean's value semantics hides it (DESIGN.md §3.2)
-/// The cursor recursion behind every `Vec` copy of the snapshot below.
-pub fn vec_dup<T: Dup>(xs: &Vec<T>, i: usize, out: Vec<T>) -> Vec<T> {
-    if i >= xs.len() {
-        out
+/// Every `Vec` copy of the snapshot below: the journals of `Caches`.
+pub fn vec_dup<T: Dup>(xs: &Vec<T>) -> Vec<T> {
+    let n = xs.len();
+    vec_dup_range(xs, Vec::with_capacity(n), 0, n)
+}
+
+/// con-leche: none — a `Vec` copy; Lean's value semantics hides it (DESIGN.md §3.2)
+/// `vec_dup`'s walk over `[lo, hi)`, pushing the copies onto `out` in index
+/// order.  **Halved rather than peeled one at a time**, so the recursion is
+/// `log2 n` deep — `con_ron_core::ron::hashmap::HashMap::dup_slots`' own
+/// shape, and for its own reason: a peeling recursion is one frame per
+/// element, which is a stack overflow on a long `Vec` (task #97-P6-2 found it
+/// as one, at `Init`+`Std`+`Lean`'s `Nat.mod`).  The left half is copied
+/// first, which is what keeps the pushes in order; the accumulator is passed
+/// by value and returned (task #6's rule).
+pub fn vec_dup_range<T: Dup>(xs: &Vec<T>, out: Vec<T>, lo: usize, hi: usize) -> Vec<T> {
+    if hi > lo {
+        let n = hi - lo;
+        if n == 1 {
+            let mut out2 = out;
+            out2.push(xs[lo].dup2());
+            out2
+        } else {
+            let mid = lo + n / 2;
+            let out2 = vec_dup_range(xs, out, lo, mid);
+            vec_dup_range(xs, out2, mid, hi)
+        }
     } else {
-        let mut out2 = out;
-        out2.push(xs[i].dup2());
-        vec_dup(xs, i + 1, out2)
-    }
-}
-
-/// con-leche: none — one interned table, copied
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:132-139 orElseAttempt` (the
-/// pre-attempt `s` the twin holds in its hand).  The nodes, the derived column
-/// and the cons table.
-pub fn tbl_dup<A: Dup + Hashable + Eq2, I: Dup, D: Dup>(t: &Tbl<A, I, D>) -> Tbl<A, I, D> {
-    Tbl {
-        nodes: vec_dup(&t.nodes, 0, Vec::with_capacity(t.nodes.len())),
-        der: vec_dup(&t.der, 0, Vec::with_capacity(t.der.len())),
-        cons: t.cons.dup(),
-    }
-}
-
-/// con-leche: none — the name store's three tables, copied
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:132-139 orElseAttempt`.
-pub fn ntables_dup(t: &NTables) -> NTables {
-    NTables {
-        anons: tbl_dup(&t.anons),
-        strs: tbl_dup(&t.strs),
-        nums: tbl_dup(&t.nums),
-    }
-}
-
-/// con-leche: none — the level store's five tables, copied
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:132-139 orElseAttempt`.
-pub fn ltables_dup(t: &LTables) -> LTables {
-    LTables {
-        zeros: tbl_dup(&t.zeros),
-        succs: tbl_dup(&t.succs),
-        maxs: tbl_dup(&t.maxs),
-        imaxs: tbl_dup(&t.imaxs),
-        params: tbl_dup(&t.params),
-    }
-}
-
-/// con-leche: none — the level-list store's one table, copied
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:132-139 orElseAttempt`.
-pub fn ls_tables_dup(t: &LsTables) -> LsTables {
-    LsTables {
-        lists: tbl_dup(&t.lists),
-    }
-}
-
-/// con-leche: none — the expression store's ten tables, copied
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:132-139 orElseAttempt`.
-pub fn etables_dup(t: &ETables) -> ETables {
-    ETables {
-        bvars: tbl_dup(&t.bvars),
-        fvars: tbl_dup(&t.fvars),
-        sorts: tbl_dup(&t.sorts),
-        consts: tbl_dup(&t.consts),
-        apps: tbl_dup(&t.apps),
-        lams: tbl_dup(&t.lams),
-        foralls: tbl_dup(&t.foralls),
-        lets: tbl_dup(&t.lets),
-        lits: tbl_dup(&t.lits),
-        projs: tbl_dup(&t.projs),
-    }
-}
-
-/// con-leche: none — the whole arena, copied
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:132-139 orElseAttempt` —
-/// both tiers of all four stores, so that a restored state decodes every
-/// handle exactly as the pre-attempt one did.
-pub fn estore_dup(st: &EStore) -> EStore {
-    EStore {
-        lss: LsStore {
-            ls: LStore {
-                ns: NStore {
-                    pers: ntables_dup(&st.lss.ls.ns.pers),
-                    scr: ntables_dup(&st.lss.ls.ns.scr),
-                    scratch_on: st.lss.ls.ns.scratch_on,
-                },
-                pers: ltables_dup(&st.lss.ls.pers),
-                scr: ltables_dup(&st.lss.ls.scr),
-                scratch_on: st.lss.ls.scratch_on,
-            },
-            pers: ls_tables_dup(&st.lss.pers),
-            scr: ls_tables_dup(&st.lss.scr),
-            scratch_on: st.lss.scratch_on,
-        },
-        pers: etables_dup(&st.pers),
-        scr: etables_dup(&st.scr),
-        scratch_on: st.scratch_on,
+        out
     }
 }
 
@@ -376,43 +321,62 @@ pub fn memos_dup(m: &Memos) -> Memos {
 pub fn caches_dup(c: &Caches) -> Caches {
     Caches {
         whnf_core_c: c.whnf_core_c.dup(),
-        whnf_core_j: vec_dup(&c.whnf_core_j, 0, Vec::new()),
+        whnf_core_j: vec_dup(&c.whnf_core_j),
         whnf_c: c.whnf_c.dup(),
-        whnf_j: vec_dup(&c.whnf_j, 0, Vec::new()),
+        whnf_j: vec_dup(&c.whnf_j),
         infer_c: c.infer_c.dup(),
-        infer_j: vec_dup(&c.infer_j, 0, Vec::new()),
+        infer_j: vec_dup(&c.infer_j),
         infer_io_c: c.infer_io_c.dup(),
-        infer_io_j: vec_dup(&c.infer_io_j, 0, Vec::new()),
+        infer_io_j: vec_dup(&c.infer_io_j),
         annot_c: c.annot_c.dup(),
-        annot_j: vec_dup(&c.annot_j, 0, Vec::new()),
+        annot_j: vec_dup(&c.annot_j),
         defeq_c: c.defeq_c.dup(),
-        defeq_j: vec_dup(&c.defeq_j, 0, Vec::new()),
+        defeq_j: vec_dup(&c.defeq_j),
         lvl_eq_c: c.lvl_eq_c.dup(),
-        lvl_eq_j: vec_dup(&c.lvl_eq_j, 0, Vec::new()),
+        lvl_eq_j: vec_dup(&c.lvl_eq_j),
         lvls_eq_c: c.lvls_eq_c.dup(),
-        lvls_eq_j: vec_dup(&c.lvls_eq_j, 0, Vec::new()),
+        lvls_eq_j: vec_dup(&c.lvls_eq_j),
         const_ty_c: c.const_ty_c.dup(),
-        const_ty_j: vec_dup(&c.const_ty_j, 0, Vec::new()),
+        const_ty_j: vec_dup(&c.const_ty_j),
         const_val_c: c.const_val_c.dup(),
-        const_val_j: vec_dup(&c.const_val_j, 0, Vec::new()),
+        const_val_j: vec_dup(&c.const_val_j),
         rule_rhs_c: c.rule_rhs_c.dup(),
-        rule_rhs_j: vec_dup(&c.rule_rhs_j, 0, Vec::new()),
+        rule_rhs_j: vec_dup(&c.rule_rhs_j),
     }
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:132-139 orElseAttempt` —
-/// **the pre-attempt state**, in hand.  The twin writes the attempt as a state
-/// function, so `s` costs nothing there; `&mut AState` has no such thing and
-/// the caller takes this copy instead, exactly as
-/// `con_ron_core::cached::state_c::dup` is taken before the cited attempt
-/// (module note 6).
-pub fn astate_dup(st: &AState) -> AState {
-    AState {
-        store: estore_dup(&st.store),
+/// **what a failed attempt is restored to**: the per-call memo tables and the
+/// per-declaration caches, which is what `cached::state_c::dup` is on
+/// con-leche's side (module note 6).  The STORE is not in it, and the note
+/// says why: it is append-only and hash-consed, so a failed attempt leaves
+/// unreachable nodes and nothing else behind.
+pub struct AttemptSnapshot {
+    pub memos: Memos,
+    pub caches: Caches,
+}
+
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:132-139 orElseAttempt` —
+/// take the snapshot, before the attempt runs.  `O(caches)`, and the caches at
+/// this point are one declaration's (the bracket's head flush is behind it),
+/// where the whole state was `O(store)` — 12.3 M nodes at `Init`+`Std`+`Lean`'s
+/// `Nat.mod`, which is what overflowed the stack.
+pub fn attempt_snapshot(st: &AState) -> AttemptSnapshot {
+    AttemptSnapshot {
         memos: memos_dup(&st.memos),
         caches: caches_dup(&st.caches),
     }
+}
+
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:25-53 CheckerOps
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:132-139 orElseAttempt` —
+/// the restore of `OrElseStep::Recovered`: the attempt's cache rows and memo
+/// rows go, its interned nodes stay (module note 6).
+pub fn attempt_restore(st: &mut AState, snap: AttemptSnapshot) {
+    st.memos = snap.memos;
+    st.caches = snap.caches;
 }
 
 // ---------------------------------------------------------------------------

@@ -29,8 +29,8 @@
 
 use crate::arena::canon::i_constant_info_beq;
 use crate::arena::checker_base::{
-    all_level_params_defined, astate_dup, consts_resolve_f_fast, or_else_attempt,
-    OrElseStep,
+    all_level_params_defined, attempt_restore, attempt_snapshot, consts_resolve_f_fast,
+    or_else_attempt, AttemptSnapshot, OrElseStep,
 };
 use crate::arena::checker_split::{
     install_value, M_THM_NOT_PROP, M_TYPE_MISMATCH_DEFN, M_TYPE_MISMATCH_OPAQUE,
@@ -2287,7 +2287,7 @@ pub fn div_mod_attempt_reason(e: CheckError) -> Vec<u32> {
 /// `ops.orElse … fun r => …` passes a continuation, which §3.4 forbids; the
 /// continuation is this loop's own tail call, and the decision is
 /// `or_else_attempt`'s four-way step — `Recovered` resumes at the PRE-attempt
-/// state, which is `astate_dup`'s snapshot here (the twin gets it free from
+/// state, which is `attempt_snapshot`'s here (the twin gets it free from
 /// its state function), and `Failed` (a `Native` error only) is the verdict.
 #[allow(clippy::too_many_arguments)]
 pub fn check_div_mod_pin_loop(
@@ -2337,7 +2337,7 @@ pub fn check_div_mod_pin_try(
     i: usize,
     tried: Vec<u32>,
 ) -> Result<(), CheckError> {
-    let snapshot: AState = astate_dup(st);
+    let snapshot: AttemptSnapshot = attempt_snapshot(st);
     let attempt: Result<bool, CheckError> =
         check_div_mod_pin_at(st, mode, fe, c, value2, &variants[i]);
     match or_else_attempt(attempt) {
@@ -2346,7 +2346,7 @@ pub fn check_div_mod_pin_try(
             check_div_mod_pin_loop(st, mode, fe, c, value2, variants, i + 1, tried)
         }
         OrElseStep::Recovered(e) => {
-            *st = snapshot;
+            attempt_restore(st, snapshot);
             check_div_mod_pin_loop(
                 st,
                 mode,
