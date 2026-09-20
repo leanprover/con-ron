@@ -508,6 +508,20 @@ pub fn const_e(st: &mut AState, n: &NIdx) -> Result<EIdx, CheckError> {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Level.lean:158-163 isEquiv
+/// Lean twin: `proof/ConRon/Arena/Core.lean:143-144 lvlEq?` — the verdict probe, as
+/// its own function over a *shared* state borrow (task #97-P4a's rule, and
+/// `con_ron_core::cached::core_c::whnf_core_probe`'s reason): the table's
+/// borrow ends with the lookup, so the miss branch can take the state mutably
+/// again.  Inlined, Aeneas cannot join the two arms' loan contexts ("Could
+/// not match the contexts", `interp/Interp.ml:617`).
+pub fn lvl_eq_probe(st: &AState, k: &LIdxPair) -> Option<bool> {
+    match st.caches.lvl_eq_c.get(k) {
+        Some(r) => Some(*r),
+        None => None,
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Level.lean:158-163 isEquiv
 /// Lean twin: `proof/ConRon/Arena/Core.lean:141-156 lvlEq?` — `Level.isEquiv`
 /// at two level HANDLES, with the verdict cached on the pair.  `None` is
 /// con-leche's fuel exhaustion and is never cached.  The twin's
@@ -515,11 +529,7 @@ pub fn const_e(st: &mut AState, n: &NIdx) -> Result<EIdx, CheckError> {
 /// unique reference the detaching manufactures.
 pub fn lvl_eq(st: &mut AState, u: &LIdx, v: &LIdx) -> Result<Option<bool>, CheckError> {
     let k: LIdxPair = lidx_pair(u, v);
-    let hit = match st.caches.lvl_eq_c.get(&k) {
-        Some(r) => Some(*r),
-        None => None,
-    };
-    match hit {
+    match lvl_eq_probe(st, &k) {
         Some(r) => Ok(Some(r)),
         None => match read_level(st, u) {
             Err(e) => Err(e),
@@ -558,15 +568,25 @@ pub fn lvl_eq_set(st: &mut AState, k: LIdxPair, r: bool) {
 }
 
 /// con-leche: ConLeche/Kernel/Level.lean:165-172 isEquivList
+/// Lean twin: `proof/ConRon/Arena/Core.lean:163-164 lvlsEq?` — the verdict probe, as
+/// its own function over a *shared* state borrow (task #97-P4a's rule, and
+/// `con_ron_core::cached::core_c::whnf_core_probe`'s reason): the table's
+/// borrow ends with the lookup, so the miss branch can take the state mutably
+/// again.  Inlined, Aeneas cannot join the two arms' loan contexts ("Could
+/// not match the contexts", `interp/Interp.ml:617`).
+pub fn lvls_eq_probe(st: &AState, k: &LsIdxPair) -> Option<bool> {
+    match st.caches.lvls_eq_c.get(k) {
+        Some(r) => Some(*r),
+        None => None,
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Level.lean:165-172 isEquivList
 /// Lean twin: `proof/ConRon/Arena/Core.lean:161-176 lvlsEq?` — pairwise
 /// `Level.isEquiv` at two universe-argument LIST handles, cached on the pair.
 pub fn lvls_eq(st: &mut AState, us: &LsIdx, vs: &LsIdx) -> Result<Option<bool>, CheckError> {
     let k: LsIdxPair = lsidx_pair(us, vs);
-    let hit = match st.caches.lvls_eq_c.get(&k) {
-        Some(r) => Some(*r),
-        None => None,
-    };
-    match hit {
+    match lvls_eq_probe(st, &k) {
         Some(r) => Ok(Some(r)),
         None => match read_levels(st, us) {
             Err(e) => Err(e),
@@ -605,6 +625,16 @@ pub fn lvls_eq_set(st: &mut AState, k: LsIdxPair, r: bool) {
 // The lazy instantiated-constant caches (`Core.lean:178-235`)
 // ---------------------------------------------------------------------------
 
+/// con-leche: none — DESIGN.md §8.3's instantiated-constant cache
+/// Lean twin: `proof/ConRon/Arena/Core.lean:191-192 constTyAt` — the probe, as its own
+/// function over a *shared* state borrow (see `lvl_eq_probe`).
+pub fn const_ty_probe(st: &AState, k: &NLsKey) -> Option<EIdx> {
+    match st.caches.const_ty_c.get(k) {
+        Some(r) => Some(r.dup2()),
+        None => None,
+    }
+}
+
 /// con-leche: none — DESIGN.md §8.3's instantiated-constant cache, `constTyAt`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:189-200 constTyAt` — a stored
 /// constant's TYPE at a universe instantiation, memoized on `(name, levels)`.
@@ -616,11 +646,7 @@ pub fn const_ty_at(
     us: &LsIdx,
 ) -> Result<EIdx, CheckError> {
     let k: NLsKey = nls_key(&cv.name, us);
-    let hit = match st.caches.const_ty_c.get(&k) {
-        Some(r) => Some(r.dup2()),
-        None => None,
-    };
-    match hit {
+    match const_ty_probe(st, &k) {
         Some(r) => Ok(r),
         None => match inst_lp_fast(st, CORE_WALK_FUEL, &cv.level_params, us, &cv.ty) {
             Err(e) => Err(e),
@@ -649,6 +675,16 @@ pub fn const_ty_set(st: &mut AState, k: NLsKey, r: &EIdx) {
     let _ = st.caches.const_ty_c.insert(k, r.dup2());
 }
 
+/// con-leche: none — DESIGN.md §8.3's instantiated-constant cache
+/// Lean twin: `proof/ConRon/Arena/Core.lean:207-208 constValAt` — the probe, as its own
+/// function over a *shared* state borrow (see `lvl_eq_probe`).
+pub fn const_val_probe(st: &AState, k: &NLsKey) -> Option<EIdx> {
+    match st.caches.const_val_c.get(k) {
+        Some(r) => Some(r.dup2()),
+        None => None,
+    }
+}
+
 /// con-leche: none — DESIGN.md §8.3's `constValAt`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:205-217 constValAt` — a stored
 /// definition's VALUE at a universe instantiation, memoized on `(name,
@@ -661,11 +697,7 @@ pub fn const_val_at(
     us: &LsIdx,
 ) -> Result<EIdx, CheckError> {
     let k: NLsKey = nls_key(n, us);
-    let hit = match st.caches.const_val_c.get(&k) {
-        Some(r) => Some(r.dup2()),
-        None => None,
-    };
-    match hit {
+    match const_val_probe(st, &k) {
         Some(r) => Ok(r),
         None => match inst_lp_fast(st, CORE_WALK_FUEL, lps, us, value) {
             Err(e) => Err(e),
@@ -694,6 +726,16 @@ pub fn const_val_set(st: &mut AState, k: NLsKey, r: &EIdx) {
     let _ = st.caches.const_val_c.insert(k, r.dup2());
 }
 
+/// con-leche: none — DESIGN.md §8.3's instantiated-constant cache
+/// Lean twin: `proof/ConRon/Arena/Core.lean:225-226 ruleRhsAt` — the probe, as its own
+/// function over a *shared* state borrow (see `lvl_eq_probe`).
+pub fn rule_rhs_probe(st: &AState, k: &NNLsKey) -> Option<EIdx> {
+    match st.caches.rule_rhs_c.get(k) {
+        Some(r) => Some(r.dup2()),
+        None => None,
+    }
+}
+
 /// con-leche: none — DESIGN.md §8.3's `ruleRhsAt`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:222-235 ruleRhsAt` — an iota
 /// rule's right-hand side at the recursor's universe instantiation, memoized
@@ -708,11 +750,7 @@ pub fn rule_rhs_at(
     us: &LsIdx,
 ) -> Result<EIdx, CheckError> {
     let k: NNLsKey = nnls_key(rec_name, ctor, us);
-    let hit = match st.caches.rule_rhs_c.get(&k) {
-        Some(r) => Some(r.dup2()),
-        None => None,
-    };
-    match hit {
+    match rule_rhs_probe(st, &k) {
         Some(r) => Ok(r),
         None => match inst_lp_fast(st, CORE_WALK_FUEL, lps, us, rhs) {
             Err(e) => Err(e),

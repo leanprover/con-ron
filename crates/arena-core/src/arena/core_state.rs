@@ -480,6 +480,20 @@ pub fn keep_nn_ls(k: &NNLsKey, v: &EIdx) -> bool {
     }
 }
 
+/// con-leche: none — the journal walk's per-key test, as its own function
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:142-153 Caches.dropScratchEntries`
+/// — whether the row at `k` must go.  A *probe*, as task #97-P4a's rule has
+/// it and as `con_ron_core::cached::core_c::whnf_core_probe` is: the map's
+/// borrow ends with the lookup, so the caller may take the map mutably again.
+/// Inlined into the walk, Aeneas cannot join the two arms' loan contexts
+/// ("Could not match the contexts", `interp/Interp.ml:617`).
+pub fn drop_e(m: &HashMap<EIdx, EIdx>, k: &EIdx) -> bool {
+    match m.get(k) {
+        Some(v) => !keep_e(k, v),
+        None => false,
+    }
+}
+
 /// con-leche: none — the journal walk behind `Caches::drop_scratch_entries`
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:142-153 Caches.dropScratchEntries`
 /// — `Std.HashMap.filter keepE` over one handle-valued table, spelled as the
@@ -490,14 +504,24 @@ pub fn filter_e(m: &mut HashMap<EIdx, EIdx>, j: &Vec<EIdx>, i: usize) {
     if i >= j.len() {
         ()
     } else {
-        let drop = match m.get(&j[i]) {
-            Some(v) => !keep_e(&j[i], v),
-            None => false,
-        };
-        if drop {
+        if drop_e(m, &j[i]) {
             let _ = m.remove(&j[i]);
         }
         filter_e(m, j, i + 1)
+    }
+}
+
+/// con-leche: none — the journal walk's per-key test, as its own function
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:142-153 Caches.dropScratchEntries`
+/// — whether the row at `k` must go.  A *probe*, as task #97-P4a's rule has
+/// it and as `con_ron_core::cached::core_c::whnf_core_probe` is: the map's
+/// borrow ends with the lookup, so the caller may take the map mutably again.
+/// Inlined into the walk, Aeneas cannot join the two arms' loan contexts
+/// ("Could not match the contexts", `interp/Interp.ml:617`).
+pub fn drop_ee(m: &HashMap<EIdxPair, bool>, k: &EIdxPair) -> bool {
+    match m.get(k) {
+        Some(v) => !keep_ee(k, *v),
+        None => false,
     }
 }
 
@@ -507,14 +531,24 @@ pub fn filter_ee(m: &mut HashMap<EIdxPair, bool>, j: &Vec<EIdxPair>, i: usize) {
     if i >= j.len() {
         ()
     } else {
-        let drop = match m.get(&j[i]) {
-            Some(v) => !keep_ee(&j[i], *v),
-            None => false,
-        };
-        if drop {
+        if drop_ee(m, &j[i]) {
             let _ = m.remove(&j[i]);
         }
         filter_ee(m, j, i + 1)
+    }
+}
+
+/// con-leche: none — the journal walk's per-key test, as its own function
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:142-153 Caches.dropScratchEntries`
+/// — whether the row at `k` must go.  A *probe*, as task #97-P4a's rule has
+/// it and as `con_ron_core::cached::core_c::whnf_core_probe` is: the map's
+/// borrow ends with the lookup, so the caller may take the map mutably again.
+/// Inlined into the walk, Aeneas cannot join the two arms' loan contexts
+/// ("Could not match the contexts", `interp/Interp.ml:617`).
+pub fn drop_ll(m: &HashMap<LIdxPair, bool>, k: &LIdxPair) -> bool {
+    match m.get(k) {
+        Some(v) => !keep_ll(k, *v),
+        None => false,
     }
 }
 
@@ -524,14 +558,24 @@ pub fn filter_ll(m: &mut HashMap<LIdxPair, bool>, j: &Vec<LIdxPair>, i: usize) {
     if i >= j.len() {
         ()
     } else {
-        let drop = match m.get(&j[i]) {
-            Some(v) => !keep_ll(&j[i], *v),
-            None => false,
-        };
-        if drop {
+        if drop_ll(m, &j[i]) {
             let _ = m.remove(&j[i]);
         }
         filter_ll(m, j, i + 1)
+    }
+}
+
+/// con-leche: none — the journal walk's per-key test, as its own function
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:142-153 Caches.dropScratchEntries`
+/// — whether the row at `k` must go.  A *probe*, as task #97-P4a's rule has
+/// it and as `con_ron_core::cached::core_c::whnf_core_probe` is: the map's
+/// borrow ends with the lookup, so the caller may take the map mutably again.
+/// Inlined into the walk, Aeneas cannot join the two arms' loan contexts
+/// ("Could not match the contexts", `interp/Interp.ml:617`).
+pub fn drop_ls_ls(m: &HashMap<LsIdxPair, bool>, k: &LsIdxPair) -> bool {
+    match m.get(k) {
+        Some(v) => !keep_ls_ls(k, *v),
+        None => false,
     }
 }
 
@@ -541,14 +585,24 @@ pub fn filter_ls_ls(m: &mut HashMap<LsIdxPair, bool>, j: &Vec<LsIdxPair>, i: usi
     if i >= j.len() {
         ()
     } else {
-        let drop = match m.get(&j[i]) {
-            Some(v) => !keep_ls_ls(&j[i], *v),
-            None => false,
-        };
-        if drop {
+        if drop_ls_ls(m, &j[i]) {
             let _ = m.remove(&j[i]);
         }
         filter_ls_ls(m, j, i + 1)
+    }
+}
+
+/// con-leche: none — the journal walk's per-key test, as its own function
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:142-153 Caches.dropScratchEntries`
+/// — whether the row at `k` must go.  A *probe*, as task #97-P4a's rule has
+/// it and as `con_ron_core::cached::core_c::whnf_core_probe` is: the map's
+/// borrow ends with the lookup, so the caller may take the map mutably again.
+/// Inlined into the walk, Aeneas cannot join the two arms' loan contexts
+/// ("Could not match the contexts", `interp/Interp.ml:617`).
+pub fn drop_n_ls(m: &HashMap<NLsKey, EIdx>, k: &NLsKey) -> bool {
+    match m.get(k) {
+        Some(v) => !keep_n_ls(k, v),
+        None => false,
     }
 }
 
@@ -558,14 +612,24 @@ pub fn filter_n_ls(m: &mut HashMap<NLsKey, EIdx>, j: &Vec<NLsKey>, i: usize) {
     if i >= j.len() {
         ()
     } else {
-        let drop = match m.get(&j[i]) {
-            Some(v) => !keep_n_ls(&j[i], v),
-            None => false,
-        };
-        if drop {
+        if drop_n_ls(m, &j[i]) {
             let _ = m.remove(&j[i]);
         }
         filter_n_ls(m, j, i + 1)
+    }
+}
+
+/// con-leche: none — the journal walk's per-key test, as its own function
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:142-153 Caches.dropScratchEntries`
+/// — whether the row at `k` must go.  A *probe*, as task #97-P4a's rule has
+/// it and as `con_ron_core::cached::core_c::whnf_core_probe` is: the map's
+/// borrow ends with the lookup, so the caller may take the map mutably again.
+/// Inlined into the walk, Aeneas cannot join the two arms' loan contexts
+/// ("Could not match the contexts", `interp/Interp.ml:617`).
+pub fn drop_nn_ls(m: &HashMap<NNLsKey, EIdx>, k: &NNLsKey) -> bool {
+    match m.get(k) {
+        Some(v) => !keep_nn_ls(k, v),
+        None => false,
     }
 }
 
@@ -575,11 +639,7 @@ pub fn filter_nn_ls(m: &mut HashMap<NNLsKey, EIdx>, j: &Vec<NNLsKey>, i: usize) 
     if i >= j.len() {
         ()
     } else {
-        let drop = match m.get(&j[i]) {
-            Some(v) => !keep_nn_ls(&j[i], v),
-            None => false,
-        };
-        if drop {
+        if drop_nn_ls(m, &j[i]) {
             let _ = m.remove(&j[i]);
         }
         filter_nn_ls(m, j, i + 1)
