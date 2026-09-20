@@ -17,3 +17,5 @@ import ConRon.Arena.Denote
 import ConRon.Arena.WF
 import ConRon.Arena.WFProofs
 import ConRon.Arena.StoreTest
+import ConRon.Arena.Monad
+import ConRon.Arena.ExprOps
