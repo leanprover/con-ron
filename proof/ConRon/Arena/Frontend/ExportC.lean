@@ -48,8 +48,9 @@ recognisers.
 `Arena/Frontend/ProjRec.lean`, over the `ExprOps` twins, feeding
 `projRewriteD`, `noteProjIota` and `registerProjOwners` below.  The in-process
 modeller sits behind the one-method `Modeller` seam of
-`Arena/Frontend/Types.lean` — DESIGN §8.2's unverified hook — which the driver
-instantiates.
+`Arena/Frontend/Types.lean` — DESIGN §8.2's unverified hook — and
+`Arena/Frontend/InModel.lean` instantiates it by delegating to con-leche's own
+generator on the block's denotation.
 
 **The `M`/line-number collapse** is described in `Arena/Frontend/Types.lean`:
 index errors are `fail (.internal …)` with con-leche's own text and no line

@@ -1,4 +1,5 @@
 import ConRon.Arena.Frontend.Prelude
+import ConRon.Arena.Frontend.InModel
 
 /-!
 # `con-ron-lean` — the arena checker's driver (DESIGN.md §8.4, task #97 P2f)
@@ -137,13 +138,15 @@ the in-process modeller generated, which no later step moves.
 
 **The FRONTEND half is real since task #97e**: the built-in prelude is
 parsed, the stream's chunks are parsed into the persistent tier of one
-`EStore`, and the prepared record list is built.  What is still a stub is the
-FOLD, so a run that parses cleanly ends in a decline that names the count it
-would have checked.  Every verdict the frontend itself reaches — a malformed
-line, a rebound index, an `unsafe` declaration, a block whose redundant
-fields contradict its own records, a mutual or nested block the declining
-modeller turns away — is already this function's answer, with con-leche's own
-exit code.
+`EStore`, the projection-function rewrite runs, the modeller seam is
+instantiated (`Frontend.inProcessModeller`, DESIGN §8.2's unverified hook,
+which delegates to con-leche's own generator on the block's denotation) and
+the prepared record list is built.  What is still a stub is the FOLD, so a run
+that parses cleanly ends in a decline that names the count it would have
+checked.  Every verdict the frontend itself reaches — a malformed line, a
+rebound index, an `unsafe` declaration, a block whose redundant fields
+contradict its own records, a block the modeller declines — is already this
+function's answer, with con-leche's own exit code.
 
 P2c (the `Core` knot) and P2d (the checker and the declaration check) replace
 the last three lines; the driver below is already what it will be. -/
@@ -166,7 +169,7 @@ own `(CheckError × Nat)` position folded into the message (`Frontend.atLine`)
 because this signature has no position channel. -/
 def runPipeline (chunks : List ByteArray) (_mode : CheckMode)
     (_pins : List NatOpPinSet) : Except CheckError Nat :=
-  match (runPipelineM Frontend.declineModeller chunks).run (AState.init EStore.empty) with
+  match (runPipelineM Frontend.inProcessModeller chunks).run (AState.init EStore.empty) with
   | .error e => .error e
   | .ok (.error (e, n), _) => .error (Frontend.atLine e n)
   | .ok (.ok (records, nE, nL, nN), _) =>

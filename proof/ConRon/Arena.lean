@@ -25,6 +25,7 @@ import ConRon.Arena.Frontend.Types
 import ConRon.Arena.Frontend.Readback
 import ConRon.Arena.Frontend.ProjRec
 import ConRon.Arena.Frontend.ProjRecTest
+import ConRon.Arena.Frontend.InModel
 import ConRon.Arena.Frontend.ExportC
 import ConRon.Arena.Frontend.Prepare
 import ConRon.Arena.Frontend.Prelude
