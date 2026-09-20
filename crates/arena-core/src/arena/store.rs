@@ -75,6 +75,8 @@ use con_ron_core::ron::hashmap::Dup;
 use con_ron_core::ron::hashmap::Eq2;
 use con_ron_core::ron::hashmap::HashMap;
 use con_ron_core::ron::hashmap::Hashable;
+
+use crate::arena::core_state::reset_map;
 use std::vec::Vec;
 
 use crate::arena::handle::EIdx;
@@ -233,6 +235,26 @@ where
         self.cons.insert(a.dup2(), i);
         self.nodes.push(a);
         self.der.push(d);
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean:74 Tbl.empty` — the same VALUE as
+    /// `empty`, with the cons table's bucket array kept
+    /// (`arena::core_state::reset_map`).  The scratch tier is emptied twice
+    /// per declaration (`enable_scratch` and `drop_scratch`), 57 362 times on
+    /// `Init`, and task #97-P4f measured the bucket arrays growing back from
+    /// `MIN_CAPACITY` at 15.6 % of the run.
+    ///
+    /// The two node columns are *not* kept, and that is deliberate: Aeneas
+    /// models neither `Vec::clear` nor `Vec::truncate` (task #97-P4a's third
+    /// extraction rule), so keeping them would cost an external hole, and
+    /// what it would buy is the columns' re-growth alone — under the 0.9 %
+    /// the same profile attributes to `RawVec::finish_grow` over the whole
+    /// run, persistent tier included.  `Vec::new` allocates nothing.
+    pub fn reset(&mut self) {
+        self.nodes = Vec::new();
+        self.der = Vec::new();
+        reset_map(&mut self.cons)
     }
 }
 
@@ -1085,6 +1107,15 @@ impl NTables {
         NTables { anons: Tbl::empty(), strs: Tbl::empty(), nums: Tbl::empty() }
     }
 
+    /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean NTables.empty` — the same value as `empty`,
+    /// with the cons tables' bucket arrays kept (`Tbl::reset`).
+    pub fn reset(&mut self) {
+        self.anons.reset();
+        self.strs.reset();
+        self.nums.reset()
+    }
+
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:375 NTables.count
     /// Nodes in this tier, over all constructors.
     pub fn count(&self) -> usize {
@@ -1293,7 +1324,7 @@ impl NStore {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:496-497 NStore.enableScratch
     /// Open the scratch tier (DESIGN.md §8.3's per-declaration bracket).
     pub fn enable_scratch(&mut self) {
-        self.scr = NTables::empty();
+        self.scr.reset();
         self.scratch_on = true;
     }
 
@@ -1301,7 +1332,7 @@ impl NStore {
     /// Drop the scratch tier.  Persistent handles keep their bits (DESIGN.md
     /// §8.3, con-leche's lesson 6).
     pub fn drop_scratch(&mut self) {
-        self.scr = NTables::empty();
+        self.scr.reset();
         self.scratch_on = false;
     }
 
@@ -1333,6 +1364,17 @@ impl LTables {
             imaxs: Tbl::empty(),
             params: Tbl::empty(),
         }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean LTables.empty` — the same value as `empty`,
+    /// with the cons tables' bucket arrays kept (`Tbl::reset`).
+    pub fn reset(&mut self) {
+        self.zeros.reset();
+        self.succs.reset();
+        self.maxs.reset();
+        self.imaxs.reset();
+        self.params.reset()
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:522-523 LTables.count
@@ -1579,7 +1621,7 @@ impl LStore {
     /// Open the scratch tier, here and in the name store.
     pub fn enable_scratch(&mut self) {
         self.ns.enable_scratch();
-        self.scr = LTables::empty();
+        self.scr.reset();
         self.scratch_on = true;
     }
 
@@ -1587,7 +1629,7 @@ impl LStore {
     /// Drop the scratch tier, here and in the name store.
     pub fn drop_scratch(&mut self) {
         self.ns.drop_scratch();
-        self.scr = LTables::empty();
+        self.scr.reset();
         self.scratch_on = false;
     }
 
@@ -1618,6 +1660,14 @@ impl LsTables {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:679 LsTables.empty
     pub fn empty() -> LsTables {
         LsTables { lists: Tbl::empty() }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean LsTables.empty` — the same value as `empty`,
+    /// with the cons tables' bucket arrays kept (`Tbl::reset`).
+    pub fn reset(&mut self) {
+
+        self.lists.reset()
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:684 LsTables.count
@@ -1789,14 +1839,14 @@ impl LsStore {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:777-778 LsStore.enableScratch
     pub fn enable_scratch(&mut self) {
         self.ls.enable_scratch();
-        self.scr = LsTables::empty();
+        self.scr.reset();
         self.scratch_on = true;
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:781-782 LsStore.dropScratch
     pub fn drop_scratch(&mut self) {
         self.ls.drop_scratch();
-        self.scr = LsTables::empty();
+        self.scr.reset();
         self.scratch_on = false;
     }
 
@@ -1840,6 +1890,22 @@ impl ETables {
             lits: Tbl::empty(),
             projs: Tbl::empty(),
         }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean ETables.empty` — the same value as `empty`,
+    /// with the cons tables' bucket arrays kept (`Tbl::reset`).
+    pub fn reset(&mut self) {
+        self.bvars.reset();
+        self.fvars.reset();
+        self.sorts.reset();
+        self.consts.reset();
+        self.apps.reset();
+        self.lams.reset();
+        self.foralls.reset();
+        self.lets.reset();
+        self.lits.reset();
+        self.projs.reset()
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:801-803 ETables.count
@@ -2360,7 +2426,7 @@ impl EStore {
     /// has its own array set and cons tables, both indexed from 0".
     pub fn enable_scratch(&mut self) {
         self.lss.enable_scratch();
-        self.scr = ETables::empty();
+        self.scr.reset();
         self.scratch_on = true;
     }
 
@@ -2370,7 +2436,7 @@ impl EStore {
     /// §8.3, con-leche's lesson 6).
     pub fn drop_scratch(&mut self) {
         self.lss.drop_scratch();
-        self.scr = ETables::empty();
+        self.scr.reset();
         self.scratch_on = false;
     }
 

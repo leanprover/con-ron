@@ -25982,3 +25982,134 @@ OVERVIEW §7 cites `Cargo.toml#L21-L25`.  `scripts/extract.sh --check` was not
 run (`con-ron-core` is untouched) and `cd proof && lake build` was not run
 (this task touches no Lean, and sibling agents are editing `proof/`) — P4b's,
 P4c's and P4d's ruling, unchanged.
+
+### Task #97-P6-1 — the first Rust-side performance pass (2026-09-20, Opus under Fable)
+
+Phase P6 item 1 of §8.6: profile-driven levers on `crates/arena-core`, each one
+a representation or allocation change with the **same denotation and the same
+Lean twin** — no clause of (B) moves, and the phase-A scratch bracket that
+would take the +5.06 M permanent nodes down is a separate later task, not
+this one.  Baseline is the `arena` tip 0fa122ee, task #97-P4f's number:
+**816.0 G instructions, 535.1 G cycles, 122.70/122.50/123.19 s, 1 907 524 KB
+peak RSS**, `accepted 57977 declarations`, 345/348 fixtures.  Every
+measurement below is `_tmp/corpus/init.ndjson`, `--jobs=1`, under
+`ulimit -v 8000000`, instructions and cycles from one `perf stat
+-e instructions:u,cycles:u` run and wall from three plain runs with the
+spread; the machine carried concurrent agent builds for part of the session,
+which is why the instruction count is the measure of record and the wall
+numbers below are all from runs taken with the load quiet.
+
+#### Lever 1 — the capacity-keeping reset, and why it is not the 15.6 % it looked like
+
+Task #97-P4f's first P6 item reads: 15.6 % of `Init`'s cycles are spent
+allocating and rehashing tables *from zero*, because `drop_scratch`,
+`flush_caches` and `enter_scratch` assign `::empty()` per declaration (57 362
+times) and `inst1_clear` and its ten siblings do the same per top-level call;
+give the tables a `clear` that keeps the buckets and the bracket becomes
+`O(appended)`.
+
+The `clear` was already there — `ron::hashmap::HashMap::clear` (task #35),
+already refined by `ConRon/Refine/HashMap.lean`'s `clear_refines`, so this
+lever needed **no new hole and no new spec lemma for the clear itself**.  But
+the naive lever is a large LOSS, and the measurements are worth recording
+because they correct the diagnosis:
+
+| variant of the reset | instructions:u | vs baseline |
+|---|---:|---:|
+| baseline (`= HashMap::new()`) | 816.0 G | — |
+| keep the buckets whenever the table held ≤ 512 rows | **3 039.5 G** | **+272 %** |
+| the same, plus "leave an already-empty table alone" | 959.9 G | +17.6 % |
+| — and a bucket-count guard, slack 4 | 772.7 G | −5.3 % |
+| — slack 16 (**shipped**) | **769.3 G** | **−5.7 %** |
+| — slack 64 | 772.3 G | −5.4 % |
+| the journals deleted and nothing else | 814.4 G | −0.2 % |
+
+The reason the first row is a catastrophe is task #35's *other* half: a fresh
+`ron::HashMap` **allocates nothing at all**, so dropping a table whole costs
+`O(1)` and is paid for only if the next round actually inserts, while `clear`
+costs `O(capacity)` up front every time.  `inst1_clear` runs per top-level
+call; one large `instantiate1` leaves a bucket array that every later small
+call then walks.  So the 15.6 % the profile attributes to `allocate_slots`
+and the `move_elements*` rehashes is **not** mostly "regrow from zero" — it is
+the genuine growth of the tables that do get used, and a clear does not avoid
+it, it only moves it and adds a walk.
+
+What makes the exchange positive is three guards, in
+`arena::core_state::reset_map`:
+
+* an already-empty table is left alone (`num_entries == 0` means every bucket
+  is already `Nil`), which is most of the twenty-two tables on most
+  declarations — worth 2 080 G instructions on its own;
+* the array is handed back when the last round used too little of it
+  (`capacity > len · RESET_KEEP_SLACK`), which keeps the walk within a
+  constant factor of the rows it is clearing and lets the array shrink again;
+* below `RESET_KEEP_FLOOR` = 64 buckets the shrink rule is off, because no
+  allocation that small is worth avoiding.
+
+The slack curve is flat (4 → 772.7, 16 → 769.3, 64 → 772.3); 16 ships.
+
+**The one `con-ron-core` change, and the owed lemma.**  The middle guard needs
+the ACTUAL bucket count, and `len` is not a proxy for it — that is what the
+second row of the table costs.  So `ron::hashmap::HashMap` gained
+`capacity(&self) -> usize`, nine lines, in a block of its own at the end of
+the file so that no existing definition moves and the regenerated
+`proof/ConRon/Generated/Funs.lean` is a **pure nine-line append** (it is, and
+`scripts/extract.sh --check` is green).  It is a pure read of a
+representation detail: it says nothing about the abstract map and no
+operation's meaning depends on it.
+
+> **Owed (P3/P5), listed and not written** — this task writes no Lean:
+> 1. `capacity_spec : HashMap.capacity m = ok ⟨m.slots.length⟩` — it cannot
+>    fail; nothing about the abstract map.
+> 2. `reset_map_refines : reset_map m = ok m' → m' ⊑ ∅` — a two-branch
+>    disjunction over `clear_refines` (already proved) and `new_refines`
+>    (already proved).  The branch condition is discharged by "both arms
+>    refine `∅`", which is why `capacity` needs no content lemma.
+> 3. `Caches::reset`, `Memos::reset`, `Tbl::reset` and the four
+>    `*Tables::reset` against the twins' `Caches.empty` / `Memos.empty` /
+>    `Tbl.empty` / `*Tables.empty` — eleven, eleven, one and four
+>    applications of (2) and `Vec::new`'s own lemma.  **No twin clause
+>    changes**: the twins still say the table is empty afterwards, and it is.
+
+**The hole decision.**  The brief asked which of (a) a `ron::vec_clear`
+external modelled by hand as `ok []` or (b) a crate-local `Vec` wrapper has
+the smaller trust footprint, for the two node columns of a `Tbl`.  **Neither
+is taken, because neither is needed.**  The allocation this lever is about
+lives in the bucket arrays, and `ron::HashMap::clear` reaches those with zero
+new holes.  What `Vec::clear` would additionally buy is the scratch tier's
+`nodes`/`der` columns not re-growing — and the whole of `RawVec::finish_grow`,
+*persistent tier included*, is 0.9 % of the run, of which the scratch columns
+are a small part: ~100 nodes per declaration spread over ten constructors is
+three or four doublings each from zero, and `Vec::new` allocates nothing.
+`Tbl::reset` therefore keeps `self.nodes = Vec::new()` and resets only the
+cons table, and its doc comment says why.  **Were one needed, (a) is the
+right answer**: one generic hand-written model, `fun v => ok ((), [])`,
+trivially checkable against `Vec::clear`'s documented semantics and identical
+at every one of the eighteen `Tbl`s, against (b)'s crate-local wrapper, which
+adds no hole but adds a logical-length invariant that every store lemma would
+then have to carry (`take len` in `denote`, `intern_spec`, `denote_inj` and
+the rank argument) and turns `push` into a conditional over `Vec::index_mut`.
+(b) trades one line of trusted Lean for a standing tax on the whole
+Theorem-1/Theorem-2 tower; that is the wrong side of the trade.
+
+**The eleven journals are gone.**  Task #97-P4c gave each cache a `Vec` of
+the keys whose row was not keepable, so that `Caches::drop_scratch_entries`
+could spell §8.3's survivor policy with a `ron::HashMap` that has no
+`retain`.  Task #97f replaced that policy with con-leche's own `flushC`,
+which left the journals dead: eleven `Vec`s copied through every
+`astate_dup`, a `keep_*` test and a `dup2` and a push per cache write, and no
+reader at all.  Deleting them is worth 1.6 G instructions by itself (−0.2 %)
+and 156 lines.  **The survivor predicate stays** — `keep_e` and its five
+siblings are the specification of a surviving row, which is what P3 needs to
+state that flushing is sound, and the twin's `Caches.dropScratchEntries`,
+untouched, is where it is stated.  The Rust twin of `Caches` is now closer to
+the Lean's, which has no journal field.
+
+| lever 1 | instructions:u | cycles:u | wall, 3 runs (spread) | peak RSS | fixtures |
+|---|---:|---:|---:|---:|---:|
+| baseline 0fa122ee | 816.0 G | 535.1 G | 122.70 / 122.50 / 123.19 (0.69 s) | 1 907 524 KB | 345/348 |
+| **after lever 1** | **769.3 G** | 522.9 G | **115.16 / 115.57 / 115.65 (0.49 s)** | 1 904 020 KB | 345/348 |
+| | **−5.7 %** | | **−6.0 %** | −0.2 % | unchanged |
+
+Both fixture rows are 345/348 (`--verified` and `--trusted`), the three being
+P4e part 2's ProjRec stub as at P4f.

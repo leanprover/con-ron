@@ -673,6 +673,32 @@ where
     }
 }
 
+// ---------------------------------------------------------------------------
+// The one representation query (task #97-P6-1)
+// ---------------------------------------------------------------------------
+
+/// The bucket count is **not** part of the abstract map, which is why this
+/// sits in a block of its own at the end of the file rather than beside
+/// `len`: nothing above reads it, no operation's meaning depends on it, and
+/// adding it here keeps every existing definition on the line it was on, so
+/// the regenerated `proof/ConRon/Generated/Funs.lean` is a pure append.
+impl<K, V> HashMap<K, V> {
+    /// How many buckets the table has: `0` for the unallocated table `new`
+    /// returns (the note on lazy allocation at the top of the file), a power
+    /// of two `>= MIN_CAPACITY` otherwise.
+    ///
+    /// It exists for one caller, `arena::core_state::reset_map`, which has to
+    /// choose between emptying a table with `clear` — which keeps the buckets
+    /// and costs `O(capacity)` — and dropping it whole, which costs `O(1)`
+    /// and grows back.  Task #97-P6-1 measured that the choice cannot be made
+    /// on `len` as a proxy: `clear` is paid up front whatever the table then
+    /// receives, so a table that grew once taxes every later reset, and the
+    /// lever is 3.73× SLOWER without the actual bucket count in hand.
+    pub fn capacity(&self) -> usize {
+        self.slots.len()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

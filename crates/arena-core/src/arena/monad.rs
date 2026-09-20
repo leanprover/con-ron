@@ -56,6 +56,7 @@
 //! differential test of `arena::expr_ops` — keeps its own copy in `mod
 //! tests`, as `arena::store` does.
 
+use crate::arena::core_state::reset_map;
 use crate::arena::core_state::Caches;
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
 use crate::arena::store::{
@@ -225,6 +226,25 @@ impl Memos {
             bvar_b_c: HashMap::new(),
             fvar_b_c: HashMap::new(),
         }
+    }
+
+    /// con-leche: ConLeche/Kernel/ExprOps.lean:182-184 instantiate1Fast
+    /// Lean twin: `proof/ConRon/Arena/Monad.lean:104 Memos.empty` — the same
+    /// value as `empty`, reached in place: `enter_scratch` runs this once per
+    /// declaration, and `arena::core_state::reset_map`'s note is why the
+    /// bucket arrays are kept rather than handed back (task #97-P6-1).
+    pub fn reset(&mut self) {
+        reset_map(&mut self.inst1_c);
+        reset_map(&mut self.inst_l_c);
+        reset_map(&mut self.lift_c);
+        reset_map(&mut self.reset_c);
+        reset_map(&mut self.rename_c);
+        reset_map(&mut self.abs1_c);
+        reset_map(&mut self.lower_c);
+        reset_map(&mut self.inst1_l_c);
+        reset_map(&mut self.inst_lp_c);
+        reset_map(&mut self.bvar_b_c);
+        reset_map(&mut self.fvar_b_c)
     }
 }
 
@@ -688,7 +708,7 @@ pub fn inst1_set(st: &mut AState, k: EIdxNat, r: &EIdx) {
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:351-353 inst1Clear` — the memo is
 /// "dropped after each call, since it also depends on `v`".
 pub fn inst1_clear(st: &mut AState) {
-    st.memos.inst1_c = HashMap::new();
+    reset_map(&mut st.memos.inst1_c)
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo
@@ -712,7 +732,7 @@ pub fn inst_l_set(st: &mut AState, k: EIdxNat, r: &EIdx) {
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:370-372 instLClear` — drop the
 /// `instantiateList` memo (it depends on `vs`).
 pub fn inst_l_clear(st: &mut AState) {
-    st.memos.inst_l_c = HashMap::new();
+    reset_map(&mut st.memos.inst_l_c)
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:430-466 liftLooseBVarsGo
@@ -736,7 +756,7 @@ pub fn lift_set(st: &mut AState, k: EIdxNat, r: &EIdx) {
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:389-391 liftClear` — drop the
 /// `liftLooseBVars` memo (it depends on `amount`).
 pub fn lift_clear(st: &mut AState) {
-    st.memos.lift_c = HashMap::new();
+    reset_map(&mut st.memos.lift_c)
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:579-615 resetMetaGo
@@ -760,7 +780,7 @@ pub fn reset_set(st: &mut AState, k: EIdxNat, r: &EIdx) {
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:408-410 resetClear` — drop the
 /// `resetMeta` memo.
 pub fn reset_clear(st: &mut AState) {
-    st.memos.reset_c = HashMap::new();
+    reset_map(&mut st.memos.reset_c)
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:999-1036 renameConstsGo
@@ -784,7 +804,7 @@ pub fn rename_set(st: &mut AState, k: EIdxNat, r: &EIdx) {
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:427-429 renameClear` — drop the
 /// `renameConsts` memo (it depends on the renaming).
 pub fn rename_clear(st: &mut AState) {
-    st.memos.rename_c = HashMap::new();
+    reset_map(&mut st.memos.rename_c)
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1789-1833 abstract1Go
@@ -808,7 +828,7 @@ pub fn abs1_set(st: &mut AState, k: EIdxNat, r: &EIdx) {
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:446-448 abs1Clear` — drop the
 /// `abstract1` memo (it depends on `d`).
 pub fn abs1_clear(st: &mut AState) {
-    st.memos.abs1_c = HashMap::new();
+    reset_map(&mut st.memos.abs1_c)
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2012-2049 lowerBVarsGo
@@ -832,7 +852,7 @@ pub fn lower_set(st: &mut AState, k: EIdxNat, r: &EIdx) {
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:465-467 lowerClear` — drop the
 /// `lowerBVars` memo (it depends on `amount`).
 pub fn lower_clear(st: &mut AState) {
-    st.memos.lower_c = HashMap::new();
+    reset_map(&mut st.memos.lower_c)
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2222-2261 instantiate1LiftGo
@@ -856,7 +876,7 @@ pub fn inst1_l_set(st: &mut AState, k: EIdxNat, r: &EIdx) {
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:484-486 inst1LClear` — drop the
 /// `instantiate1Lift` memo (it depends on `v`).
 pub fn inst1_l_clear(st: &mut AState) {
-    st.memos.inst1_l_c = HashMap::new();
+    reset_map(&mut st.memos.inst1_l_c)
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2564-2603 Expr.instLPGo
@@ -880,7 +900,7 @@ pub fn inst_lp_set(st: &mut AState, k: EIdxNat, r: &EIdx) {
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:503-505 instLPClear` — drop the
 /// level-substitution memo (it depends on `ks` and `us`).
 pub fn inst_lp_clear(st: &mut AState) {
-    st.memos.inst_lp_c = HashMap::new();
+    reset_map(&mut st.memos.inst_lp_c)
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1368-1392 bvarBoundGo
@@ -904,7 +924,7 @@ pub fn bvar_b_set(st: &mut AState, k: EIdx, r: u64) {
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:522-524 bvarBClear` — drop the
 /// loose-bvar-bound memo.
 pub fn bvar_b_clear(st: &mut AState) {
-    st.memos.bvar_b_c = HashMap::new();
+    reset_map(&mut st.memos.bvar_b_c)
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1397-1422 fvarRangeGo
@@ -928,5 +948,5 @@ pub fn fvar_b_set(st: &mut AState, k: EIdx, r: u64) {
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:541-543 fvarBClear` — drop the
 /// fvar-range memo.
 pub fn fvar_b_clear(st: &mut AState) {
-    st.memos.fvar_b_c = HashMap::new();
+    reset_map(&mut st.memos.fvar_b_c)
 }
