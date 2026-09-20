@@ -6,4 +6,6 @@ pub mod struct_parts;
 pub mod modeled;
 pub mod struct_install;
 pub mod struct_install_f;
+pub mod sum_install;
+pub mod sum_install_f;
 pub mod sum_parts;
