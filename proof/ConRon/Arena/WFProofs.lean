@@ -3874,6 +3874,1227 @@ theorem EStore.intern_wf_refuted_without_sync {st : EStore} (h : StoreWF st)
   rw [hup] at hcp
   exact absurd hcp (by simp)
 
+
+/-! ## `intern` on the level store -/
+
+/-- con-leche: none — the constructor tag a level node view lands under. -/
+def LNodeView.tagOf : LNodeView → UInt32
+  | .zero => LTag.zero
+  | .succ _ => LTag.succ
+  | .max _ _ => LTag.max
+  | .imax _ _ => LTag.imax
+  | .param _ => LTag.param
+
+theorem LTables.get_inv {t t' : LTables} {Q : UInt32 → Nat → LNodeView → Prop}
+    {i : LIdx} {v : LNodeView}
+    (hze : ∀ n a, t'.zeros.node? n = some a →
+      t.zeros.node? n = some a ∨ Q LTag.zero n .zero)
+    (hsu : ∀ n a, t'.succs.node? n = some a →
+      t.succs.node? n = some a ∨ Q LTag.succ n (.succ a.u))
+    (hma : ∀ n a, t'.maxs.node? n = some a →
+      t.maxs.node? n = some a ∨ Q LTag.max n (.max a.u a.v))
+    (him : ∀ n a, t'.imaxs.node? n = some a →
+      t.imaxs.node? n = some a ∨ Q LTag.imax n (.imax a.u a.v))
+    (hpa : ∀ n a, t'.params.node? n = some a →
+      t.params.node? n = some a ∨ Q LTag.param n (.param a.n))
+    (h : t'.get i = some v) : t.get i = some v ∨ Q i.tag i.idxNat v := by
+  simp only [LTables.get] at h ⊢
+  tag_cases h
+  · rw [eq_of_beq hc]; exact Tbl.map_inv (hze _) h
+  · rw [eq_of_beq hc]; exact Tbl.map_inv (hsu _) h
+  · rw [eq_of_beq hc]; exact Tbl.map_inv (hma _) h
+  · rw [eq_of_beq hc]; exact Tbl.map_inv (him _) h
+  · rw [eq_of_beq hc]; exact Tbl.map_inv (hpa _) h
+  · simp at h
+
+theorem LTables.get_push_inv {t : LTables} {w : LNodeView} {d : LDer} {tr : UInt32}
+    {i : LIdx} {v : LNodeView} (h : (t.push w d tr).1.get i = some v) :
+    t.get i = some v ∨ (i.tag = w.tagOf ∧ i.idxNat = t.sizeOf w ∧ v = w) := by
+  refine LTables.get_inv (Q := fun tg n v' => tg = w.tagOf ∧ n = t.sizeOf w ∧ v' = w)
+    ?_ ?_ ?_ ?_ ?_ h <;>
+    intro n a ha <;> cases w <;>
+    simp only [LTables.push] at ha <;>
+    first
+      | exact Or.inl ha
+      | (rw [Tbl.node?_push_eq] at ha
+         split at ha
+         · refine Or.inr ⟨rfl, by simp only [LTables.sizeOf]; assumption, ?_⟩
+           simp only [Option.some.injEq] at ha
+           first | (subst ha; rfl) | rfl
+         · exact Or.inl ha)
+
+theorem LTables.get_eq_none_of_size {t : LTables} {w : LNodeView} {i : LIdx}
+    (htg : i.tag = w.tagOf) (hix : i.idxNat = t.sizeOf w) : t.get i = none := by
+  cases w <;>
+    simp only [LNodeView.tagOf] at htg <;>
+    simp only [LTables.sizeOf] at hix <;>
+    simp [LTables.get, htg, hix, LTag.zero, LTag.succ, LTag.max, LTag.imax,
+      LTag.param, Tbl.node?_size]
+
+theorem LTables.get_mono {t t' : LTables}
+    (hze : ∀ n a, t.zeros.node? n = some a → t'.zeros.node? n = some a)
+    (hsu : ∀ n a, t.succs.node? n = some a → t'.succs.node? n = some a)
+    (hma : ∀ n a, t.maxs.node? n = some a → t'.maxs.node? n = some a)
+    (him : ∀ n a, t.imaxs.node? n = some a → t'.imaxs.node? n = some a)
+    (hpa : ∀ n a, t.params.node? n = some a → t'.params.node? n = some a)
+    {i : LIdx} {v : LNodeView} (h : t.get i = some v) : t'.get i = some v := by
+  simp only [LTables.get] at h ⊢
+  tag_cases h
+  · exact Option.map_mono (hze _) h
+  · exact Option.map_mono (hsu _) h
+  · exact Option.map_mono (hma _) h
+  · exact Option.map_mono (him _) h
+  · exact Option.map_mono (hpa _) h
+  · simp at h
+
+theorem LTables.get_push_mono (t : LTables) (w : LNodeView) (d : LDer)
+    (tr : UInt32) {i : LIdx} {v : LNodeView} (h : t.get i = some v) :
+    (t.push w d tr).1.get i = some v := by
+  cases w <;>
+    refine LTables.get_mono ?_ ?_ ?_ ?_ ?_ h <;>
+    intro n a ha <;> simp only [LTables.push] <;>
+    first | exact ha | exact Tbl.node?_push ha
+
+theorem LTables.push_spec (t : LTables) (w : LNodeView) (d : LDer) (tr : UInt32)
+    (htr : tr.toNat < 2) (hcap : t.sizeOf w < Idx.idxCap) :
+    (t.push w d tr).1.get (t.push w d tr).2 = some w ∧
+      (t.push w d tr).2.tier = tr := by
+  simp only [LTables.sizeOf] at hcap
+  cases w with
+  | zero =>
+    have htg : (LTag.zero : UInt32).toNat < 16 := by decide
+    have hn := ofNat_lt_cap hcap
+    refine ⟨?_, ?_⟩
+    · simp only [LTables.push, LTables.get, Idx.tag_mk _ _ _ htg htr hn,
+        Idx.idxNat_mk _ _ _ htg htr hcap]
+      simp [LTag.zero, Tbl.node?_push_new]
+    · simp only [LTables.push, Idx.tier_mk _ _ _ htg htr hn]
+  | succ u =>
+    have htg : (LTag.succ : UInt32).toNat < 16 := by decide
+    have hn := ofNat_lt_cap hcap
+    refine ⟨?_, ?_⟩
+    · simp only [LTables.push, LTables.get, Idx.tag_mk _ _ _ htg htr hn,
+        Idx.idxNat_mk _ _ _ htg htr hcap]
+      simp [LTag.zero, LTag.succ, Tbl.node?_push_new]
+    · simp only [LTables.push, Idx.tier_mk _ _ _ htg htr hn]
+  | max u v =>
+    have htg : (LTag.max : UInt32).toNat < 16 := by decide
+    have hn := ofNat_lt_cap hcap
+    refine ⟨?_, ?_⟩
+    · simp only [LTables.push, LTables.get, Idx.tag_mk _ _ _ htg htr hn,
+        Idx.idxNat_mk _ _ _ htg htr hcap]
+      simp [LTag.zero, LTag.succ, LTag.max, Tbl.node?_push_new]
+    · simp only [LTables.push, Idx.tier_mk _ _ _ htg htr hn]
+  | imax u v =>
+    have htg : (LTag.imax : UInt32).toNat < 16 := by decide
+    have hn := ofNat_lt_cap hcap
+    refine ⟨?_, ?_⟩
+    · simp only [LTables.push, LTables.get, Idx.tag_mk _ _ _ htg htr hn,
+        Idx.idxNat_mk _ _ _ htg htr hcap]
+      simp [LTag.zero, LTag.succ, LTag.max, LTag.imax, Tbl.node?_push_new]
+    · simp only [LTables.push, Idx.tier_mk _ _ _ htg htr hn]
+  | param n =>
+    have htg : (LTag.param : UInt32).toNat < 16 := by decide
+    have hn := ofNat_lt_cap hcap
+    refine ⟨?_, ?_⟩
+    · simp only [LTables.push, LTables.get, Idx.tag_mk _ _ _ htg htr hn,
+        Idx.idxNat_mk _ _ _ htg htr hcap]
+      simp [LTag.zero, LTag.succ, LTag.max, LTag.imax, LTag.param,
+        Tbl.node?_push_new]
+    · simp only [LTables.push, Idx.tier_mk _ _ _ htg htr hn]
+
+theorem LTables.push_tag {t : LTables} {w : LNodeView} {d : LDer} {tr : UInt32}
+    (htr : tr.toNat < 2) (hcap : t.sizeOf w < Idx.idxCap) :
+    (t.push w d tr).2.tag = w.tagOf := by
+  have hn : ((UInt32.ofNat (t.sizeOf w)).toNat) < Idx.idxCap := by
+    rw [Idx.idxCap] at hcap ⊢; simp; omega
+  cases w <;>
+    simp only [LTables.push, LNodeView.tagOf, LTables.sizeOf] at * <;>
+    exact Idx.tag_mk _ _ _ (by decide) htr hn
+
+theorem LTables.push_idxNat {t : LTables} {w : LNodeView} {d : LDer} {tr : UInt32}
+    (htr : tr.toNat < 2) (hcap : t.sizeOf w < Idx.idxCap) :
+    (t.push w d tr).2.idxNat = t.sizeOf w := by
+  cases w <;>
+    simp only [LTables.push, LTables.sizeOf] at * <;>
+    exact Idx.idxNat_mk _ _ _ (by decide) htr hcap
+
+theorem LTables.find?_push {t : LTables} {w v : LNodeView} {d : LDer} {tr : UInt32} :
+    (t.push w d tr).1.find? v =
+      if w = v then some (t.push w d tr).2 else t.find? v := by
+  cases w <;> cases v <;>
+    simp only [LTables.push, LTables.find?, Tbl.find?_push, beq_iff_eq,
+      SuccNode.mk.injEq, BinLNode.mk.injEq, ParamNode.mk.injEq,
+      LNodeView.succ.injEq, LNodeView.max.injEq, LNodeView.imax.injEq,
+      LNodeView.param.injEq, beq_self_eq_true, reduceCtorEq, if_false,
+      if_true] <;>
+    rfl
+
+theorem LTables.sizeOf_push_cases {t : LTables} {w v : LNodeView} {d : LDer}
+    {tr : UInt32} :
+    (t.push w d tr).1.sizeOf v = t.sizeOf v ∨
+      ((t.push w d tr).1.sizeOf v = t.sizeOf w + 1 ∧ t.sizeOf v = t.sizeOf w) := by
+  cases w <;> cases v <;>
+    simp only [LTables.push, LTables.sizeOf] <;>
+    first
+      | exact Or.inl trivial
+      | exact Or.inr ⟨Tbl.size_push _ _ _ _, trivial⟩
+
+theorem LTables.Sized_push {t : LTables} {w : LNodeView} {d : LDer} {tr : UInt32}
+    (hs : t.Sized) : (t.push w d tr).1.Sized := by
+  obtain ⟨h1, h2, h3, h4, h5⟩ := hs
+  cases w <;>
+    (simp only [LTables.push, LTables.Sized]
+     refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;>
+     first | assumption | exact Tbl.Sized_push (by assumption))
+
+theorem LTables.count_push {t : LTables} {w : LNodeView} {d : LDer} {tr : UInt32} :
+    (t.push w d tr).1.count = t.count + 1 := by
+  cases w <;> simp [LTables.push, LTables.count, Tbl.size_push] <;> omega
+
+theorem LTables.derAt_congr {t t' : LTables} {i : LIdx} {v : LNodeView}
+    (h : t.get i = some v)
+    (hze : ∀ n, n < t.zeros.size → t'.zeros.derAt n = t.zeros.derAt n)
+    (hsu : ∀ n, n < t.succs.size → t'.succs.derAt n = t.succs.derAt n)
+    (hma : ∀ n, n < t.maxs.size → t'.maxs.derAt n = t.maxs.derAt n)
+    (him : ∀ n, n < t.imaxs.size → t'.imaxs.derAt n = t.imaxs.derAt n)
+    (hpa : ∀ n, n < t.params.size → t'.params.derAt n = t.params.derAt n) :
+    t'.derAt i = t.derAt i := by
+  simp only [LTables.get] at h
+  simp only [LTables.derAt]
+  tag_cases h
+  · exact hze _ (Tbl.lt_of_map h)
+  · exact hsu _ (Tbl.lt_of_map h)
+  · exact hma _ (Tbl.lt_of_map h)
+  · exact him _ (Tbl.lt_of_map h)
+  · exact hpa _ (Tbl.lt_of_map h)
+  · simp at h
+
+theorem LTables.derAt_push_of_get {t : LTables} {w : LNodeView} {d : LDer}
+    {tr : UInt32} {i : LIdx} {v : LNodeView} (hs : t.Sized) (h : t.get i = some v) :
+    (t.push w d tr).1.derAt i = t.derAt i := by
+  obtain ⟨h1, h2, h3, h4, h5⟩ := hs
+  cases w <;>
+    refine LTables.derAt_congr h ?_ ?_ ?_ ?_ ?_ <;>
+    intro n hn <;> simp only [LTables.push] <;>
+    first | rfl | exact Tbl.derAt_push_of_lt (by assumption) hn
+
+theorem LTables.derAt_push_new {t : LTables} {w : LNodeView} {d : LDer}
+    {tr : UInt32} (hs : t.Sized) (htr : tr.toNat < 2)
+    (hcap : t.sizeOf w < Idx.idxCap) :
+    (t.push w d tr).1.derAt (t.push w d tr).2 = d := by
+  have htag := LTables.push_tag (t := t) (w := w) (d := d) (tr := tr) htr hcap
+  have hix := LTables.push_idxNat (t := t) (w := w) (d := d) (tr := tr) htr hcap
+  obtain ⟨h1, h2, h3, h4, h5⟩ := hs
+  cases w <;>
+    simp only [LNodeView.tagOf] at htag <;>
+    simp only [LTables.sizeOf] at hix <;>
+    simp only [LTables.derAt, htag, hix, LTag.zero, LTag.succ, LTag.max,
+      LTag.imax, LTag.param, beq_self_eq_true, if_true] <;>
+    (simp only [LTables.push]; exact Tbl.derAt_push_size (by assumption))
+
+/-- con-leche: none — the clause `LStoreWF` is missing (task #97a). -/
+def LStore.ScratchSync (st : LStore) : Prop := st.scratchOn = st.ns.scratchOn
+
+theorem LStore.wf_push_scr {st st' : LStore} {rk : LIdx → Nat} {w : LNodeView}
+    {tb : LTables} {inew : LIdx}
+    (h : LWFAt st rk) (hv : st.ViewOK w)
+    (hon : st.scratchOn = true) (hon' : st'.scratchOn = true)
+    (hns : st'.ns = st.ns) (hpers : st'.pers = st.pers)
+    (hpush : st.scr.push w (st.derOfView w) Idx.tierS = (tb, inew))
+    (hscr : st'.scr = tb)
+    (hcap : st.scr.sizeOf w < Idx.idxCap)
+    (hfp : st.pers.find? w = none) (hfs : st.scr.find? w = none) :
+    LStoreWF st' := by
+  have htr : (Idx.tierS : UInt32).toNat < 2 := by decide
+  have htb : (st.scr.push w (st.derOfView w) Idx.tierS).1 = tb := by rw [hpush]
+  have hid : (st.scr.push w (st.derOfView w) Idx.tierS).2 = inew := by rw [hpush]
+  have hgetnew : tb.get inew = some w := by
+    rw [← htb, ← hid]; exact (LTables.push_spec st.scr w _ Idx.tierS htr hcap).1
+  have hnp : inew.isPersistent = false := by
+    show (inew.tier == 0) = false
+    rw [← hid, (LTables.push_spec st.scr w _ Idx.tierS htr hcap).2]; decide
+  have htag : inew.tag = w.tagOf := by rw [← hid]; exact LTables.push_tag htr hcap
+  have hix : inew.idxNat = st.scr.sizeOf w := by
+    rw [← hid]; exact LTables.push_idxNat htr hcap
+  have hmonotb : ∀ i u, st.scr.get i = some u → tb.get i = some u := by
+    intro i u hi; rw [← htb]; exact LTables.get_push_mono _ _ _ _ hi
+  have hinvtb : ∀ i u, tb.get i = some u →
+      st.scr.get i = some u ∨ (i.tag = w.tagOf ∧ i.idxNat = st.scr.sizeOf w ∧ u = w) := by
+    intro i u hi; rw [← htb] at hi; exact LTables.get_push_inv hi
+  have hfindtb : ∀ u, tb.find? u = if w = u then some inew else st.scr.find? u := by
+    intro u; rw [← htb, ← hid]; exact LTables.find?_push
+  have hdertb : ∀ i u, st.scr.get i = some u → tb.derAt i = st.scr.derAt i := by
+    intro i u hi; rw [← htb]; exact LTables.derAt_push_of_get h.sizedS hi
+  have hdernew : tb.derAt inew = st.derOfView w := by
+    rw [← htb, ← hid]; exact LTables.derAt_push_new h.sizedS htr hcap
+  have hsizedtb : tb.Sized := by rw [← htb]; exact LTables.Sized_push h.sizedS
+  have hcounttb : tb.count = st.scr.count + 1 := by rw [← htb]; exact LTables.count_push
+  have hcaptb : ∀ u, tb.sizeOf u ≤ Idx.idxCap := by
+    intro u
+    rw [← htb]
+    rcases LTables.sizeOf_push_cases (t := st.scr) (w := w) (v := u)
+      (d := st.derOfView w) (tr := Idx.tierS) with h1 | ⟨h1, _⟩
+    · rw [h1]; exact h.capS u
+    · rw [h1]; omega
+  have hviewP : ∀ i, i.isPersistent = true → st'.view i = st.view i := by
+    intro i hp; rw [LStore.view_pers hp, LStore.view_pers hp, hpers]
+  have hviewS : ∀ i, i.isPersistent = false → st'.view i = tb.get i := by
+    intro i hp; rw [LStore.view_scr hp hon', hscr]
+  have hnew_none : st.view inew = none := by
+    rw [LStore.view_scr hnp hon]; exact LTables.get_eq_none_of_size htag hix
+  have hmono : ∀ i u, st.view i = some u → st'.view i = some u := by
+    intro i u hu
+    by_cases hp : i.isPersistent = true
+    · rw [hviewP i hp]; exact hu
+    · have hp' : i.isPersistent = false := by simpa using hp
+      rw [hviewS i hp']
+      exact hmonotb i u (by rwa [LStore.view_scr hp' hon] at hu)
+  have hmoneS : ∀ i, (st.view i).isSome = true → (st'.view i).isSome = true := by
+    intro i hi
+    obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hi
+    rw [hmono i u hu]; rfl
+  have hinv : ∀ i u, st'.view i = some u → st.view i = some u ∨ (i = inew ∧ u = w) := by
+    intro i u hu
+    by_cases hp : i.isPersistent = true
+    · exact Or.inl (by rwa [hviewP i hp] at hu)
+    · have hp' : i.isPersistent = false := by simpa using hp
+      rw [hviewS i hp'] at hu
+      rcases hinvtb i u hu with h1 | ⟨h2, h3, h4⟩
+      · exact Or.inl (by rw [LStore.view_scr hp' hon]; exact h1)
+      · exact Or.inr ⟨Idx.eq_of_idxNat (h2.trans htag.symm)
+          ((Idx.tier_eq_tierS hp').trans (Idx.tier_eq_tierS hnp).symm)
+          (h3.trans hix.symm), h4⟩
+  have hpc : st'.persCount = st.persCount := by simp only [LStore.persCount, hpers]
+  have hnc : st'.nodeCount = st.nodeCount + 1 := by
+    simp only [LStore.nodeCount, LStore.persCount, LStore.scrCount, hpers, hscr,
+      hcounttb]
+    omega
+  have hder : ∀ i, (st.view i).isSome = true → st'.derived i = st.derived i := by
+    intro i hi
+    by_cases hp : i.isPersistent = true
+    · rw [LStore.derived_pers hp, LStore.derived_pers hp, hpers]
+    · have hp' : i.isPersistent = false := by simpa using hp
+      obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hi
+      rw [LStore.derived_scr hp' hon', LStore.derived_scr hp' hon, hscr]
+      exact hdertb i u (by rwa [LStore.view_scr hp' hon] at hu)
+  have hdov : ∀ u : LNodeView, (∀ c ∈ u.lchildren, (st.view c).isSome = true) →
+      st'.derOfView u = st.derOfView u :=
+    fun u hu => LStore.derOfView_congr (fun c hc => hder c (hu c hc))
+      (fun c _ => by rw [hns])
+  have hrkold : ∀ c, (st.view c).isSome = true →
+      (if (st.view c).isNone = true then st.nodeCount else rk c) = rk c := by
+    intro c hc
+    obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hc
+    rw [hu]; rfl
+  have hrknew : (if (st.view inew).isNone = true then st.nodeCount else rk inew)
+      = st.nodeCount := by rw [hnew_none]; rfl
+  have hrkle : ∀ c, (if (st.view c).isNone = true then st.nodeCount else rk c)
+      ≤ st.nodeCount := by
+    intro c
+    by_cases hc : (st.view c).isSome = true
+    · rw [hrkold c hc]; exact Nat.le_of_lt (h.rank_lt hc)
+    · have hh : st.view c = none := by
+        cases hv' : st.view c with
+        | none => rfl
+        | some u => rw [hv'] at hc; exact absurd rfl hc
+      rw [hh]; exact Nat.le_refl _
+  refine ⟨fun c => if (st.view c).isNone = true then st.nodeCount else rk c,
+    { ns := by rw [hns]; exact h.ns, childOK := ?childOK, nchildOK := ?nchildOK,
+      rankP := ?rankP, rankS := ?rankS, consP := ?consP, consS := ?consS,
+      fresh := ?fresh, derExact := ?derExact, sizedP := ?sizedP,
+      sizedS := ?sizedS, capP := ?capP, capS := ?capS, scrOff := ?scrOff }⟩
+  case childOK =>
+    intro i u hi c hc
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · have hch := h.childOK i u hi' c hc
+      refine ⟨hmoneS c hch.1, ?_, hch.2.2⟩
+      rw [hrkold c hch.1, hrkold i (by rw [hi']; rfl)]
+      exact hch.2.1
+    · have hcs : (st.view c).isSome = true := hv.lvl c hc
+      refine ⟨hmoneS c hcs, ?_, ?_⟩
+      · rw [hrkold c hcs, hrknew]; exact h.rank_lt hcs
+      · intro hpp; exact absurd (hpp.symm.trans hnp) (by simp)
+  case nchildOK =>
+    intro i u hi c hc
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · rw [hns]; exact h.nchildOK i u hi' c hc
+    · refine ⟨by rw [hns]; exact hv.nm c hc, ?_⟩
+      intro hpp; exact absurd (hpp.symm.trans hnp) (by simp)
+  case rankP =>
+    intro i hp hi
+    have hi' : (st.view i).isSome = true := by rw [← hviewP i hp]; exact hi
+    rw [hrkold i hi', hpc]
+    exact h.rankP i hp hi'
+  case rankS =>
+    intro i _ _
+    have := hrkle i
+    omega
+  case consP =>
+    intro u i
+    rw [hpers]
+    constructor
+    · intro hf
+      obtain ⟨h1, h2⟩ := (h.consP u i).mp hf
+      exact ⟨hmono i u h1, h2⟩
+    · rintro ⟨h1, h2⟩
+      exact (h.consP u i).mpr ⟨by rwa [hviewP i h2] at h1, h2⟩
+  case consS =>
+    intro u i
+    rw [hscr, hfindtb u]
+    constructor
+    · intro hf
+      by_cases hw : w = u
+      · rw [if_pos hw] at hf
+        have hii : inew = i := Option.some.inj hf
+        subst hii; subst hw
+        exact ⟨by rw [hviewS inew hnp]; exact hgetnew, hnp⟩
+      · rw [if_neg hw] at hf
+        obtain ⟨h1, h2⟩ := (h.consS u i).mp hf
+        exact ⟨hmono i u h1, h2⟩
+    · rintro ⟨h1, h2⟩
+      rcases hinv i u h1 with h3 | ⟨rfl, rfl⟩
+      · have hf := (h.consS u i).mpr ⟨h3, h2⟩
+        have hw : w ≠ u := by
+          rintro rfl; rw [hfs] at hf; exact absurd hf (by simp)
+        rw [if_neg hw]; exact hf
+      · rw [if_pos rfl]
+  case fresh =>
+    intro u i hf
+    rw [hscr, hfindtb u] at hf
+    rw [hpers]
+    by_cases hw : w = u
+    · subst hw; exact hfp
+    · rw [if_neg hw] at hf; exact h.fresh u i hf
+  case derExact =>
+    intro i u hi
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · rw [hdov u (fun c hc => (h.childOK i u hi' c hc).1), hder i (by rw [hi']; rfl)]
+      exact h.derExact i u hi'
+    · rw [hdov u hv.lvl, LStore.derived_scr hnp hon', hscr, hdernew]
+  case sizedP => rw [hpers]; exact h.sizedP
+  case sizedS => rw [hscr]; exact hsizedtb
+  case capP => rw [hpers]; exact h.capP
+  case capS => rw [hscr]; exact hcaptb
+  case scrOff => intro hoff; rw [hon'] at hoff; exact absurd hoff (by simp)
+
+theorem LStore.wf_push_pers {st st' : LStore} {rk : LIdx → Nat} {w : LNodeView}
+    {tb : LTables} {inew : LIdx}
+    (h : LWFAt st rk) (hv : st.ViewOK w) (hsync : st.ScratchSync)
+    (hon : st.scratchOn = false) (hon' : st'.scratchOn = false)
+    (hns : st'.ns = st.ns) (hscr : st'.scr = st.scr)
+    (hpush : st.pers.push w (st.derOfView w) Idx.tierP = (tb, inew))
+    (hpers : st'.pers = tb)
+    (hcap : st.pers.sizeOf w < Idx.idxCap)
+    (hfp : st.pers.find? w = none) :
+    LStoreWF st' := by
+  have htr : (Idx.tierP : UInt32).toNat < 2 := by decide
+  have hscrE : st.scr = LTables.empty := h.scrOff hon
+  have htb : (st.pers.push w (st.derOfView w) Idx.tierP).1 = tb := by rw [hpush]
+  have hid : (st.pers.push w (st.derOfView w) Idx.tierP).2 = inew := by rw [hpush]
+  have hgetnew : tb.get inew = some w := by
+    rw [← htb, ← hid]; exact (LTables.push_spec st.pers w _ Idx.tierP htr hcap).1
+  have hnp : inew.isPersistent = true := by
+    show (inew.tier == 0) = true
+    rw [← hid, (LTables.push_spec st.pers w _ Idx.tierP htr hcap).2]; decide
+  have htag : inew.tag = w.tagOf := by rw [← hid]; exact LTables.push_tag htr hcap
+  have hix : inew.idxNat = st.pers.sizeOf w := by
+    rw [← hid]; exact LTables.push_idxNat htr hcap
+  have hmonotb : ∀ i u, st.pers.get i = some u → tb.get i = some u := by
+    intro i u hi; rw [← htb]; exact LTables.get_push_mono _ _ _ _ hi
+  have hinvtb : ∀ i u, tb.get i = some u →
+      st.pers.get i = some u ∨ (i.tag = w.tagOf ∧ i.idxNat = st.pers.sizeOf w ∧ u = w) := by
+    intro i u hi; rw [← htb] at hi; exact LTables.get_push_inv hi
+  have hfindtb : ∀ u, tb.find? u = if w = u then some inew else st.pers.find? u := by
+    intro u; rw [← htb, ← hid]; exact LTables.find?_push
+  have hdertb : ∀ i u, st.pers.get i = some u → tb.derAt i = st.pers.derAt i := by
+    intro i u hi; rw [← htb]; exact LTables.derAt_push_of_get h.sizedP hi
+  have hdernew : tb.derAt inew = st.derOfView w := by
+    rw [← htb, ← hid]; exact LTables.derAt_push_new h.sizedP htr hcap
+  have hsizedtb : tb.Sized := by rw [← htb]; exact LTables.Sized_push h.sizedP
+  have hcounttb : tb.count = st.pers.count + 1 := by rw [← htb]; exact LTables.count_push
+  have hcaptb : ∀ u, tb.sizeOf u ≤ Idx.idxCap := by
+    intro u
+    rw [← htb]
+    rcases LTables.sizeOf_push_cases (t := st.pers) (w := w) (v := u)
+      (d := st.derOfView w) (tr := Idx.tierP) with h1 | ⟨h1, _⟩
+    · rw [h1]; exact h.capP u
+    · rw [h1]; omega
+  have hnsoff : st.ns.scratchOn = false := by
+    rw [← hsync]; exact hon
+  have hallPN : ∀ c : NIdx, (st.ns.view c).isSome = true → c.isPersistent = true := by
+    intro c hc
+    by_cases hp : c.isPersistent = true
+    · exact hp
+    · rw [NStore.view_off (by simpa using hp) hnsoff] at hc; exact absurd hc (by simp)
+  have hviewP : ∀ i, i.isPersistent = true → st'.view i = tb.get i := by
+    intro i hp; rw [LStore.view_pers hp, hpers]
+  have hviewN' : ∀ i, i.isPersistent = false → st'.view i = none :=
+    fun i hp => LStore.view_off hp hon'
+  have hviewN : ∀ i, i.isPersistent = false → st.view i = none :=
+    fun i hp => LStore.view_off hp hon
+  have hallP : ∀ i u, st.view i = some u → i.isPersistent = true := by
+    intro i u hu
+    by_cases hp : i.isPersistent = true
+    · exact hp
+    · rw [hviewN i (by simpa using hp)] at hu; exact absurd hu (by simp)
+  have hnew_none : st.view inew = none := by
+    rw [LStore.view_pers hnp]; exact LTables.get_eq_none_of_size htag hix
+  have hmono : ∀ i u, st.view i = some u → st'.view i = some u := by
+    intro i u hu
+    have hp := hallP i u hu
+    rw [hviewP i hp]
+    exact hmonotb i u (by rwa [LStore.view_pers hp] at hu)
+  have hmoneS : ∀ i, (st.view i).isSome = true → (st'.view i).isSome = true := by
+    intro i hi
+    obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hi
+    rw [hmono i u hu]; rfl
+  have hinv : ∀ i u, st'.view i = some u → st.view i = some u ∨ (i = inew ∧ u = w) := by
+    intro i u hu
+    by_cases hp : i.isPersistent = true
+    · rw [hviewP i hp] at hu
+      rcases hinvtb i u hu with h1 | ⟨h2, h3, h4⟩
+      · exact Or.inl (by rw [LStore.view_pers hp]; exact h1)
+      · exact Or.inr ⟨Idx.eq_of_idxNat (h2.trans htag.symm)
+          ((Idx.tier_eq_tierP hp).trans (Idx.tier_eq_tierP hnp).symm)
+          (h3.trans hix.symm), h4⟩
+    · rw [hviewN' i (by simpa using hp)] at hu; exact absurd hu (by simp)
+  have hpc : st'.persCount = st.persCount + 1 := by
+    simp only [LStore.persCount, hpers, hcounttb]
+  have hder : ∀ i, (st.view i).isSome = true → st'.derived i = st.derived i := by
+    intro i hi
+    obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hi
+    have hp := hallP i u hu
+    rw [LStore.derived_pers hp, LStore.derived_pers hp, hpers]
+    exact hdertb i u (by rwa [LStore.view_pers hp] at hu)
+  have hdov : ∀ u : LNodeView, (∀ c ∈ u.lchildren, (st.view c).isSome = true) →
+      st'.derOfView u = st.derOfView u :=
+    fun u hu => LStore.derOfView_congr (fun c hc => hder c (hu c hc))
+      (fun c _ => by rw [hns])
+  have hrkold : ∀ c, (st.view c).isSome = true →
+      (if (st.view c).isNone = true then st.persCount else rk c) = rk c := by
+    intro c hc
+    obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hc
+    rw [hu]; rfl
+  have hrknew : (if (st.view inew).isNone = true then st.persCount else rk inew)
+      = st.persCount := by rw [hnew_none]; rfl
+  have hrkle : ∀ c, (if (st.view c).isNone = true then st.persCount else rk c)
+      ≤ st.persCount := by
+    intro c
+    by_cases hc : (st.view c).isSome = true
+    · obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hc
+      rw [hrkold c hc]
+      exact Nat.le_of_lt (h.rankP c (hallP c u hu) hc)
+    · have hh : st.view c = none := by
+        cases hv' : st.view c with
+        | none => rfl
+        | some u => rw [hv'] at hc; exact absurd rfl hc
+      rw [hh]; exact Nat.le_refl _
+  refine ⟨fun c => if (st.view c).isNone = true then st.persCount else rk c,
+    { ns := by rw [hns]; exact h.ns, childOK := ?childOK, nchildOK := ?nchildOK,
+      rankP := ?rankP, rankS := ?rankS, consP := ?consP, consS := ?consS,
+      fresh := ?fresh, derExact := ?derExact, sizedP := ?sizedP,
+      sizedS := ?sizedS, capP := ?capP, capS := ?capS, scrOff := ?scrOff }⟩
+  case childOK =>
+    intro i u hi c hc
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · have hch := h.childOK i u hi' c hc
+      refine ⟨hmoneS c hch.1, ?_, hch.2.2⟩
+      rw [hrkold c hch.1, hrkold i (by rw [hi']; rfl)]
+      exact hch.2.1
+    · have hcs : (st.view c).isSome = true := hv.lvl c hc
+      obtain ⟨uc, huc⟩ := Option.isSome_iff_exists.mp hcs
+      have hcp : c.isPersistent = true := hallP c uc huc
+      refine ⟨hmoneS c hcs, ?_, fun _ => hcp⟩
+      rw [hrkold c hcs, hrknew]
+      exact h.rankP c hcp hcs
+  case nchildOK =>
+    intro i u hi c hc
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · rw [hns]; exact h.nchildOK i u hi' c hc
+    · exact ⟨by rw [hns]; exact hv.nm c hc, fun _ => hallPN c (hv.nm c hc)⟩
+  case rankP =>
+    intro i _ _
+    rw [hpc]
+    have := hrkle i
+    omega
+  case rankS =>
+    intro i hp hi
+    rw [hviewN' i hp] at hi; exact absurd hi (by simp)
+  case consP =>
+    intro u i
+    rw [hpers, hfindtb u]
+    constructor
+    · intro hf
+      by_cases hw : w = u
+      · rw [if_pos hw] at hf
+        have hii : inew = i := Option.some.inj hf
+        subst hii; subst hw
+        exact ⟨by rw [hviewP inew hnp]; exact hgetnew, hnp⟩
+      · rw [if_neg hw] at hf
+        obtain ⟨h1, h2⟩ := (h.consP u i).mp hf
+        exact ⟨hmono i u h1, h2⟩
+    · rintro ⟨h1, h2⟩
+      rcases hinv i u h1 with h3 | ⟨rfl, rfl⟩
+      · have hf := (h.consP u i).mpr ⟨h3, h2⟩
+        have hw : w ≠ u := by
+          rintro rfl; rw [hfp] at hf; exact absurd hf (by simp)
+        rw [if_neg hw]; exact hf
+      · rw [if_pos rfl]
+  case consS =>
+    intro u i
+    rw [hscr, hscrE, LTables.find?_empty]
+    refine ⟨fun hf => absurd hf (by simp), ?_⟩
+    rintro ⟨h1, h2⟩
+    rw [hviewN' i h2] at h1; exact absurd h1 (by simp)
+  case fresh =>
+    intro u i hf
+    rw [hscr, hscrE, LTables.find?_empty] at hf
+    exact absurd hf (by simp)
+  case derExact =>
+    intro i u hi
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · rw [hdov u (fun c hc => (h.childOK i u hi' c hc).1), hder i (by rw [hi']; rfl)]
+      exact h.derExact i u hi'
+    · rw [hdov u hv.lvl, LStore.derived_pers hnp, hpers, hdernew]
+  case sizedP => rw [hpers]; exact hsizedtb
+  case sizedS => rw [hscr]; exact h.sizedS
+  case capP => rw [hpers]; exact hcaptb
+  case capS => rw [hscr]; exact h.capS
+  case scrOff => intro _; rw [hscr]; exact hscrE
+
+theorem LStore.intern_wf_of_sync {st : LStore} {w : LNodeView} (h : LStoreWF st)
+    (hsync : st.ScratchSync) (hv : st.ViewOK w) (hcap : st.capOK w) :
+    LStoreWF (st.intern w).1 := by
+  obtain ⟨rk, h⟩ := h
+  simp only [LStore.capOK] at hcap
+  simp only [LStore.intern]
+  split
+  · exact ⟨rk, h⟩
+  · rename_i hfp
+    split
+    · rename_i hon
+      split
+      · exact ⟨rk, h⟩
+      · rename_i hfs
+        rw [if_pos hon] at hcap
+        exact LStore.wf_push_scr h hv hon hon rfl rfl rfl rfl hcap hfp hfs
+    · rename_i hoff
+      have hoff' : st.scratchOn = false := by simpa using hoff
+      rw [if_neg hoff] at hcap
+      exact LStore.wf_push_pers h hv hsync hoff' hoff' rfl rfl rfl rfl hcap hfp
+
+theorem LStore.intern_view_spec {st : LStore} {w : LNodeView} (h : LStoreWF st)
+    (_hv : st.ViewOK w) (hcap : st.capOK w) :
+    (st.intern w).1.view (st.intern w).2 = some w := by
+  obtain ⟨rk, hwf⟩ := h
+  simp only [LStore.capOK] at hcap
+  simp only [LStore.intern]
+  split
+  · rename_i i heq
+    exact ((hwf.consP w i).mp heq).1
+  · split
+    · rename_i hon
+      split
+      · rename_i i heq
+        exact ((hwf.consS w i).mp heq).1
+      · rw [if_pos hon] at hcap
+        have hspec := LTables.push_spec st.scr w (st.derOfView w) Idx.tierS
+          (by decide) hcap
+        have hp : ((st.scr.push w (st.derOfView w) Idx.tierS).2).isPersistent = false := by
+          show (_ == 0) = false
+          rw [hspec.2]; decide
+        simp only [LStore.view]
+        rw [if_neg (by simp [hp]), if_pos hon]
+        exact hspec.1
+    · rename_i hoff
+      rw [if_neg hoff] at hcap
+      have hspec := LTables.push_spec st.pers w (st.derOfView w) Idx.tierP
+        (by decide) hcap
+      have hp : ((st.pers.push w (st.derOfView w) Idx.tierP).2).isPersistent = true := by
+        show (_ == 0) = true
+        rw [hspec.2]; decide
+      simp only [LStore.view]
+      rw [if_pos hp]
+      exact hspec.1
+
+theorem LStore.ns_intern (st : LStore) (w : LNodeView) :
+    (st.intern w).1.ns = st.ns := by
+  simp only [LStore.intern]
+  split
+  · rfl
+  · split
+    · split
+      · rfl
+      · rfl
+    · rfl
+
+theorem LStore.view_intern_mono (st : LStore) (w : LNodeView) {i : LIdx}
+    {v : LNodeView} (h : st.view i = some v) : (st.intern w).1.view i = some v := by
+  simp only [LStore.intern]
+  split
+  · exact h
+  · split
+    · rename_i hon
+      split
+      · exact h
+      · simp only [LStore.view, hon] at h ⊢
+        by_cases hp : i.isPersistent = true
+        · rw [if_pos hp] at h ⊢; exact h
+        · rw [if_neg hp] at h ⊢; exact LTables.get_push_mono _ _ _ _ h
+    · rename_i hoff
+      simp only [LStore.view, hoff] at h ⊢
+      by_cases hp : i.isPersistent = true
+      · rw [if_pos hp] at h ⊢; exact LTables.get_push_mono _ _ _ _ h
+      · rw [if_neg hp] at h ⊢; exact h
+
+theorem LStore.nodeCount_intern_le (st : LStore) (w : LNodeView) :
+    st.nodeCount ≤ (st.intern w).1.nodeCount := by
+  simp only [LStore.intern]
+  split
+  · exact Nat.le_refl _
+  · split
+    · split
+      · exact Nat.le_refl _
+      · simp only [LStore.nodeCount, LStore.persCount, LStore.scrCount,
+          LTables.count_push]
+        omega
+    · simp only [LStore.nodeCount, LStore.persCount, LStore.scrCount,
+        LTables.count_push]
+      omega
+
+theorem denoteLAux_store_mono {st st' : LStore}
+    (hv : ∀ i v, st.view i = some v → st'.view i = some v) (hns : st'.ns = st.ns) :
+    ∀ (f : Nat) (i : LIdx) (x : Level),
+      denoteLAux st f i = some x → denoteLAux st' f i = some x := by
+  intro f
+  induction f with
+  | zero => intro i x hd; simp [denoteLAux] at hd
+  | succ k ih =>
+    intro i x hd
+    simp only [denoteLAux, Option.bind_eq_some_iff] at hd ⊢
+    obtain ⟨v, hvv, hd⟩ := hd
+    refine ⟨v, hv i v hvv, ?_⟩
+    cases v with
+    | zero => exact hd
+    | param n => rw [hns]; exact hd
+    | succ u =>
+      simp only [Option.map_eq_some_iff] at hd ⊢
+      obtain ⟨q, hq, he⟩ := hd
+      exact ⟨q, ih u q hq, he⟩
+    | max u w =>
+      simp only [opt2_eq_some_iff] at hd ⊢
+      obtain ⟨a, b, ha, hb, he⟩ := hd
+      exact ⟨a, b, ih u a ha, ih w b hb, he⟩
+    | imax u w =>
+      simp only [opt2_eq_some_iff] at hd ⊢
+      obtain ⟨a, b, ha, hb, he⟩ := hd
+      exact ⟨a, b, ih u a ha, ih w b hb, he⟩
+
+/-- con-leche: Verify/SimI.lean:244 Ext — interning a level extends the store. -/
+theorem LStore.intern_ext (st : LStore) (w : LNodeView) : LExt st (st.intern w).1 := by
+  refine ⟨?_, ?_⟩
+  · rw [LStore.ns_intern]; exact NExt.refl _
+  · intro i x hd
+    simp only [denoteL] at hd ⊢
+    have h1 : denoteLAux st ((st.intern w).1.nodeCount + 1) i = some x :=
+      denoteLAux_mono st (st.nodeCount + 1) ((st.intern w).1.nodeCount + 1) i x
+        (by have := LStore.nodeCount_intern_le st w; omega) hd
+    exact denoteLAux_store_mono (fun _ _ hh => LStore.view_intern_mono st w hh)
+      (LStore.ns_intern st w) _ i x h1
+
+/-- con-leche: Setlec/Kernel/IExpr.lean:464 intern — `LStore.intern_spec` modulo
+`LStoreWF`'s missing flag-synchronisation clause (task #97a). -/
+theorem LStore.intern_spec_of_sync {st : LStore} {w : LNodeView} (h : LStoreWF st)
+    (hsync : st.ScratchSync) (hv : st.ViewOK w) (hcap : st.capOK w) :
+    LStoreWF (st.intern w).1 ∧ LExt st (st.intern w).1 ∧
+      (st.intern w).1.view (st.intern w).2 = some w :=
+  ⟨LStore.intern_wf_of_sync h hsync hv hcap, LStore.intern_ext st w,
+   LStore.intern_view_spec h hv hcap⟩
+
+
+/-! ## `intern` on the level-list store
+
+One constructor, and `LsWF` has no rank clause (a list node has no `LsIdx`
+children), so this is the smallest of the four. -/
+
+theorem LsTables.get_inv {t t' : LsTables} {Q : UInt32 → Nat → LsNodeView → Prop}
+    {i : LsIdx} {v : LsNodeView}
+    (hli : ∀ n a, t'.lists.node? n = some a →
+      t.lists.node? n = some a ∨ Q LsTag.list n a.us)
+    (h : t'.get i = some v) : t.get i = some v ∨ Q i.tag i.idxNat v := by
+  simp only [LsTables.get] at h ⊢
+  tag_cases h
+  · rw [eq_of_beq hc]; exact Tbl.map_inv (hli _) h
+  · simp at h
+
+theorem LsTables.get_push_inv {t : LsTables} {w v : LsNodeView} {d : LDer}
+    {tr : UInt32} {i : LsIdx} (h : (t.push w d tr).1.get i = some v) :
+    t.get i = some v ∨ (i.tag = LsTag.list ∧ i.idxNat = t.sizeOf w ∧ v = w) := by
+  refine LsTables.get_inv
+    (Q := fun tg n v' => tg = LsTag.list ∧ n = t.sizeOf w ∧ v' = w) ?_ h
+  intro n a ha
+  simp only [LsTables.push] at ha
+  rw [Tbl.node?_push_eq] at ha
+  split at ha
+  · refine Or.inr ⟨rfl, by simp only [LsTables.sizeOf]; assumption, ?_⟩
+    simp only [Option.some.injEq] at ha
+    first | (subst ha; rfl) | rfl
+  · exact Or.inl ha
+
+theorem LsTables.get_eq_none_of_size {t : LsTables} {w : LsNodeView} {i : LsIdx}
+    (htg : i.tag = LsTag.list) (hix : i.idxNat = t.sizeOf w) : t.get i = none := by
+  simp only [LsTables.sizeOf] at hix
+  simp [LsTables.get, htg, hix, Tbl.node?_size]
+
+theorem LsTables.get_mono {t t' : LsTables}
+    (hli : ∀ n a, t.lists.node? n = some a → t'.lists.node? n = some a)
+    {i : LsIdx} {v : LsNodeView} (h : t.get i = some v) : t'.get i = some v := by
+  simp only [LsTables.get] at h ⊢
+  tag_cases h
+  · exact Option.map_mono (hli _) h
+  · simp at h
+
+theorem LsTables.get_push_mono (t : LsTables) (w : LsNodeView) (d : LDer)
+    (tr : UInt32) {i : LsIdx} {v : LsNodeView} (h : t.get i = some v) :
+    (t.push w d tr).1.get i = some v := by
+  refine LsTables.get_mono ?_ h
+  intro n a ha; simp only [LsTables.push]; exact Tbl.node?_push ha
+
+theorem LsTables.push_spec (t : LsTables) (w : LsNodeView) (d : LDer) (tr : UInt32)
+    (htr : tr.toNat < 2) (hcap : t.sizeOf w < Idx.idxCap) :
+    (t.push w d tr).1.get (t.push w d tr).2 = some w ∧
+      (t.push w d tr).2.tier = tr := by
+  simp only [LsTables.sizeOf] at hcap
+  have htg : (LsTag.list : UInt32).toNat < 16 := by decide
+  have hn := ofNat_lt_cap hcap
+  refine ⟨?_, ?_⟩
+  · simp only [LsTables.push, LsTables.get, Idx.tag_mk _ _ _ htg htr hn,
+      Idx.idxNat_mk _ _ _ htg htr hcap]
+    simp [LsTag.list, Tbl.node?_push_new]
+  · simp only [LsTables.push, Idx.tier_mk _ _ _ htg htr hn]
+
+theorem LsTables.push_tag {t : LsTables} {w : LsNodeView} {d : LDer} {tr : UInt32}
+    (htr : tr.toNat < 2) (hcap : t.sizeOf w < Idx.idxCap) :
+    (t.push w d tr).2.tag = LsTag.list := by
+  have hn : ((UInt32.ofNat (t.sizeOf w)).toNat) < Idx.idxCap := by
+    rw [Idx.idxCap] at hcap ⊢; simp; omega
+  simp only [LsTables.push, LsTables.sizeOf] at *
+  exact Idx.tag_mk _ _ _ (by decide) htr hn
+
+theorem LsTables.push_idxNat {t : LsTables} {w : LsNodeView} {d : LDer} {tr : UInt32}
+    (htr : tr.toNat < 2) (hcap : t.sizeOf w < Idx.idxCap) :
+    (t.push w d tr).2.idxNat = t.sizeOf w := by
+  simp only [LsTables.push, LsTables.sizeOf] at *
+  exact Idx.idxNat_mk _ _ _ (by decide) htr hcap
+
+theorem LsTables.find?_push {t : LsTables} {w v : LsNodeView} {d : LDer}
+    {tr : UInt32} :
+    (t.push w d tr).1.find? v =
+      if w = v then some (t.push w d tr).2 else t.find? v := by
+  simp only [LsTables.push, LsTables.find?, Tbl.find?_push, beq_iff_eq,
+    ListNode.mk.injEq]
+
+theorem LsTables.sizeOf_push {t : LsTables} {w v : LsNodeView} {d : LDer}
+    {tr : UInt32} : (t.push w d tr).1.sizeOf v = t.sizeOf w + 1 := by
+  simp only [LsTables.push, LsTables.sizeOf, Tbl.size_push]
+
+theorem LsTables.Sized_push {t : LsTables} {w : LsNodeView} {d : LDer} {tr : UInt32}
+    (hs : t.Sized) : (t.push w d tr).1.Sized := by
+  simp only [LsTables.push, LsTables.Sized]
+  exact Tbl.Sized_push hs
+
+theorem LsTables.count_push {t : LsTables} {w : LsNodeView} {d : LDer} {tr : UInt32} :
+    (t.push w d tr).1.count = t.count + 1 := by
+  simp [LsTables.push, LsTables.count, Tbl.size_push]
+
+theorem LsTables.derAt_congr {t t' : LsTables} {i : LsIdx} {v : LsNodeView}
+    (h : t.get i = some v)
+    (hli : ∀ n, n < t.lists.size → t'.lists.derAt n = t.lists.derAt n) :
+    t'.derAt i = t.derAt i := by
+  simp only [LsTables.get] at h
+  simp only [LsTables.derAt]
+  tag_cases h
+  · exact hli _ (Tbl.lt_of_map h)
+  · simp at h
+
+theorem LsTables.derAt_push_of_get {t : LsTables} {w : LsNodeView} {d : LDer}
+    {tr : UInt32} {i : LsIdx} {v : LsNodeView} (hs : t.Sized)
+    (h : t.get i = some v) : (t.push w d tr).1.derAt i = t.derAt i := by
+  refine LsTables.derAt_congr h ?_
+  intro n hn; simp only [LsTables.push]; exact Tbl.derAt_push_of_lt hs hn
+
+theorem LsTables.derAt_push_new {t : LsTables} {w : LsNodeView} {d : LDer}
+    {tr : UInt32} (hs : t.Sized) (htr : tr.toNat < 2)
+    (hcap : t.sizeOf w < Idx.idxCap) :
+    (t.push w d tr).1.derAt (t.push w d tr).2 = d := by
+  have htag := LsTables.push_tag (t := t) (w := w) (d := d) (tr := tr) htr hcap
+  have hix := LsTables.push_idxNat (t := t) (w := w) (d := d) (tr := tr) htr hcap
+  simp only [LsTables.sizeOf] at hix
+  simp only [LsTables.derAt, htag, hix, beq_self_eq_true, if_true]
+  simp only [LsTables.push]
+  exact Tbl.derAt_push_size hs
+
+/-- con-leche: none — the clause `LsStoreWF` is missing (task #97a). -/
+def LsStore.ScratchSync (st : LsStore) : Prop := st.scratchOn = st.ls.scratchOn
+
+theorem LsStore.wf_push_scr {st st' : LsStore} {w : LsNodeView}
+    {tb : LsTables} {inew : LsIdx}
+    (h : LsWF st) (hv : st.ViewOK w)
+    (hon : st.scratchOn = true) (hon' : st'.scratchOn = true)
+    (hls : st'.ls = st.ls) (hpers : st'.pers = st.pers)
+    (hpush : st.scr.push w (st.derOfView w) Idx.tierS = (tb, inew))
+    (hscr : st'.scr = tb)
+    (hcap : st.scr.sizeOf w < Idx.idxCap)
+    (hfp : st.pers.find? w = none) (hfs : st.scr.find? w = none) :
+    LsStoreWF st' := by
+  have htr : (Idx.tierS : UInt32).toNat < 2 := by decide
+  have htb : (st.scr.push w (st.derOfView w) Idx.tierS).1 = tb := by rw [hpush]
+  have hid : (st.scr.push w (st.derOfView w) Idx.tierS).2 = inew := by rw [hpush]
+  have hgetnew : tb.get inew = some w := by
+    rw [← htb, ← hid]; exact (LsTables.push_spec st.scr w _ Idx.tierS htr hcap).1
+  have hnp : inew.isPersistent = false := by
+    show (inew.tier == 0) = false
+    rw [← hid, (LsTables.push_spec st.scr w _ Idx.tierS htr hcap).2]; decide
+  have htag : inew.tag = LsTag.list := by rw [← hid]; exact LsTables.push_tag htr hcap
+  have hix : inew.idxNat = st.scr.sizeOf w := by
+    rw [← hid]; exact LsTables.push_idxNat htr hcap
+  have hmonotb : ∀ i u, st.scr.get i = some u → tb.get i = some u := by
+    intro i u hi; rw [← htb]; exact LsTables.get_push_mono _ _ _ _ hi
+  have hinvtb : ∀ i u, tb.get i = some u →
+      st.scr.get i = some u ∨ (i.tag = LsTag.list ∧ i.idxNat = st.scr.sizeOf w ∧ u = w) := by
+    intro i u hi; rw [← htb] at hi; exact LsTables.get_push_inv hi
+  have hfindtb : ∀ u, tb.find? u = if w = u then some inew else st.scr.find? u := by
+    intro u; rw [← htb, ← hid]; exact LsTables.find?_push
+  have hdertb : ∀ i u, st.scr.get i = some u → tb.derAt i = st.scr.derAt i := by
+    intro i u hi; rw [← htb]; exact LsTables.derAt_push_of_get h.sizedS hi
+  have hdernew : tb.derAt inew = st.derOfView w := by
+    rw [← htb, ← hid]; exact LsTables.derAt_push_new h.sizedS htr hcap
+  have hsizedtb : tb.Sized := by rw [← htb]; exact LsTables.Sized_push h.sizedS
+  have hcaptb : ∀ u, tb.sizeOf u ≤ Idx.idxCap := by
+    intro u; rw [← htb, LsTables.sizeOf_push]; omega
+  have hviewP : ∀ i, i.isPersistent = true → st'.view i = st.view i := by
+    intro i hp; rw [LsStore.view_pers hp, LsStore.view_pers hp, hpers]
+  have hviewS : ∀ i, i.isPersistent = false → st'.view i = tb.get i := by
+    intro i hp; rw [LsStore.view_scr hp hon', hscr]
+  have hmono : ∀ i u, st.view i = some u → st'.view i = some u := by
+    intro i u hu
+    by_cases hp : i.isPersistent = true
+    · rw [hviewP i hp]; exact hu
+    · have hp' : i.isPersistent = false := by simpa using hp
+      rw [hviewS i hp']
+      exact hmonotb i u (by rwa [LsStore.view_scr hp' hon] at hu)
+  have hinv : ∀ i u, st'.view i = some u → st.view i = some u ∨ (i = inew ∧ u = w) := by
+    intro i u hu
+    by_cases hp : i.isPersistent = true
+    · exact Or.inl (by rwa [hviewP i hp] at hu)
+    · have hp' : i.isPersistent = false := by simpa using hp
+      rw [hviewS i hp'] at hu
+      rcases hinvtb i u hu with h1 | ⟨h2, h3, h4⟩
+      · exact Or.inl (by rw [LsStore.view_scr hp' hon]; exact h1)
+      · exact Or.inr ⟨Idx.eq_of_idxNat (h2.trans htag.symm)
+          ((Idx.tier_eq_tierS hp').trans (Idx.tier_eq_tierS hnp).symm)
+          (h3.trans hix.symm), h4⟩
+  have hder : ∀ i, (st.view i).isSome = true → st'.derived i = st.derived i := by
+    intro i hi
+    by_cases hp : i.isPersistent = true
+    · rw [LsStore.derived_pers hp, LsStore.derived_pers hp, hpers]
+    · have hp' : i.isPersistent = false := by simpa using hp
+      obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hi
+      rw [LsStore.derived_scr hp' hon', LsStore.derived_scr hp' hon, hscr]
+      exact hdertb i u (by rwa [LsStore.view_scr hp' hon] at hu)
+  have hdov : ∀ u : LsNodeView, st'.derOfView u = st.derOfView u :=
+    fun u => LsStore.derOfView_congr u (fun c _ => by rw [hls])
+  refine { ls := by rw [hls]; exact h.ls, lchildOK := ?lchildOK, consP := ?consP,
+           consS := ?consS, fresh := ?fresh, derExact := ?derExact,
+           sizedP := ?sizedP, sizedS := ?sizedS, capP := ?capP, capS := ?capS,
+           scrOff := ?scrOff }
+  case lchildOK =>
+    intro i u hi c hc
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · rw [hls]; exact h.lchildOK i u hi' c hc
+    · refine ⟨by rw [hls]; exact hv c hc, ?_⟩
+      intro hpp; exact absurd (hpp.symm.trans hnp) (by simp)
+  case consP =>
+    intro u i
+    rw [hpers]
+    constructor
+    · intro hf
+      obtain ⟨h1, h2⟩ := (h.consP u i).mp hf
+      exact ⟨hmono i u h1, h2⟩
+    · rintro ⟨h1, h2⟩
+      exact (h.consP u i).mpr ⟨by rwa [hviewP i h2] at h1, h2⟩
+  case consS =>
+    intro u i
+    rw [hscr, hfindtb u]
+    constructor
+    · intro hf
+      by_cases hw : w = u
+      · rw [if_pos hw] at hf
+        have hii : inew = i := Option.some.inj hf
+        subst hii; subst hw
+        exact ⟨by rw [hviewS inew hnp]; exact hgetnew, hnp⟩
+      · rw [if_neg hw] at hf
+        obtain ⟨h1, h2⟩ := (h.consS u i).mp hf
+        exact ⟨hmono i u h1, h2⟩
+    · rintro ⟨h1, h2⟩
+      rcases hinv i u h1 with h3 | ⟨rfl, rfl⟩
+      · have hf := (h.consS u i).mpr ⟨h3, h2⟩
+        have hw : w ≠ u := by
+          rintro rfl; rw [hfs] at hf; exact absurd hf (by simp)
+        rw [if_neg hw]; exact hf
+      · rw [if_pos rfl]
+  case fresh =>
+    intro u i hf
+    rw [hscr, hfindtb u] at hf
+    rw [hpers]
+    by_cases hw : w = u
+    · subst hw; exact hfp
+    · rw [if_neg hw] at hf; exact h.fresh u i hf
+  case derExact =>
+    intro i u hi
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · rw [hdov u, hder i (by rw [hi']; rfl)]
+      exact h.derExact i u hi'
+    · rw [hdov u, LsStore.derived_scr hnp hon', hscr, hdernew]
+  case sizedP => rw [hpers]; exact h.sizedP
+  case sizedS => rw [hscr]; exact hsizedtb
+  case capP => rw [hpers]; exact h.capP
+  case capS => rw [hscr]; exact hcaptb
+  case scrOff => intro hoff; rw [hon'] at hoff; exact absurd hoff (by simp)
+
+theorem LsStore.wf_push_pers {st st' : LsStore} {w : LsNodeView}
+    {tb : LsTables} {inew : LsIdx}
+    (h : LsWF st) (hv : st.ViewOK w) (hsync : st.ScratchSync)
+    (hon : st.scratchOn = false) (hon' : st'.scratchOn = false)
+    (hls : st'.ls = st.ls) (hscr : st'.scr = st.scr)
+    (hpush : st.pers.push w (st.derOfView w) Idx.tierP = (tb, inew))
+    (hpers : st'.pers = tb)
+    (hcap : st.pers.sizeOf w < Idx.idxCap)
+    (hfp : st.pers.find? w = none) :
+    LsStoreWF st' := by
+  have htr : (Idx.tierP : UInt32).toNat < 2 := by decide
+  have hscrE : st.scr = LsTables.empty := h.scrOff hon
+  have htb : (st.pers.push w (st.derOfView w) Idx.tierP).1 = tb := by rw [hpush]
+  have hid : (st.pers.push w (st.derOfView w) Idx.tierP).2 = inew := by rw [hpush]
+  have hgetnew : tb.get inew = some w := by
+    rw [← htb, ← hid]; exact (LsTables.push_spec st.pers w _ Idx.tierP htr hcap).1
+  have hnp : inew.isPersistent = true := by
+    show (inew.tier == 0) = true
+    rw [← hid, (LsTables.push_spec st.pers w _ Idx.tierP htr hcap).2]; decide
+  have htag : inew.tag = LsTag.list := by rw [← hid]; exact LsTables.push_tag htr hcap
+  have hix : inew.idxNat = st.pers.sizeOf w := by
+    rw [← hid]; exact LsTables.push_idxNat htr hcap
+  have hmonotb : ∀ i u, st.pers.get i = some u → tb.get i = some u := by
+    intro i u hi; rw [← htb]; exact LsTables.get_push_mono _ _ _ _ hi
+  have hinvtb : ∀ i u, tb.get i = some u →
+      st.pers.get i = some u ∨ (i.tag = LsTag.list ∧ i.idxNat = st.pers.sizeOf w ∧ u = w) := by
+    intro i u hi; rw [← htb] at hi; exact LsTables.get_push_inv hi
+  have hfindtb : ∀ u, tb.find? u = if w = u then some inew else st.pers.find? u := by
+    intro u; rw [← htb, ← hid]; exact LsTables.find?_push
+  have hdertb : ∀ i u, st.pers.get i = some u → tb.derAt i = st.pers.derAt i := by
+    intro i u hi; rw [← htb]; exact LsTables.derAt_push_of_get h.sizedP hi
+  have hdernew : tb.derAt inew = st.derOfView w := by
+    rw [← htb, ← hid]; exact LsTables.derAt_push_new h.sizedP htr hcap
+  have hsizedtb : tb.Sized := by rw [← htb]; exact LsTables.Sized_push h.sizedP
+  have hcaptb : ∀ u, tb.sizeOf u ≤ Idx.idxCap := by
+    intro u; rw [← htb, LsTables.sizeOf_push]; omega
+  have hlsoff : st.ls.scratchOn = false := by rw [← hsync]; exact hon
+  have hallPL : ∀ c : LIdx, (st.ls.view c).isSome = true → c.isPersistent = true := by
+    intro c hc
+    by_cases hp : c.isPersistent = true
+    · exact hp
+    · rw [LStore.view_off (by simpa using hp) hlsoff] at hc; exact absurd hc (by simp)
+  have hviewP : ∀ i, i.isPersistent = true → st'.view i = tb.get i := by
+    intro i hp; rw [LsStore.view_pers hp, hpers]
+  have hviewN' : ∀ i, i.isPersistent = false → st'.view i = none :=
+    fun i hp => LsStore.view_off hp hon'
+  have hviewN : ∀ i, i.isPersistent = false → st.view i = none :=
+    fun i hp => LsStore.view_off hp hon
+  have hallP : ∀ i u, st.view i = some u → i.isPersistent = true := by
+    intro i u hu
+    by_cases hp : i.isPersistent = true
+    · exact hp
+    · rw [hviewN i (by simpa using hp)] at hu; exact absurd hu (by simp)
+  have hmono : ∀ i u, st.view i = some u → st'.view i = some u := by
+    intro i u hu
+    have hp := hallP i u hu
+    rw [hviewP i hp]
+    exact hmonotb i u (by rwa [LsStore.view_pers hp] at hu)
+  have hinv : ∀ i u, st'.view i = some u → st.view i = some u ∨ (i = inew ∧ u = w) := by
+    intro i u hu
+    by_cases hp : i.isPersistent = true
+    · rw [hviewP i hp] at hu
+      rcases hinvtb i u hu with h1 | ⟨h2, h3, h4⟩
+      · exact Or.inl (by rw [LsStore.view_pers hp]; exact h1)
+      · exact Or.inr ⟨Idx.eq_of_idxNat (h2.trans htag.symm)
+          ((Idx.tier_eq_tierP hp).trans (Idx.tier_eq_tierP hnp).symm)
+          (h3.trans hix.symm), h4⟩
+    · rw [hviewN' i (by simpa using hp)] at hu; exact absurd hu (by simp)
+  have hder : ∀ i, (st.view i).isSome = true → st'.derived i = st.derived i := by
+    intro i hi
+    obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hi
+    have hp := hallP i u hu
+    rw [LsStore.derived_pers hp, LsStore.derived_pers hp, hpers]
+    exact hdertb i u (by rwa [LsStore.view_pers hp] at hu)
+  have hdov : ∀ u : LsNodeView, st'.derOfView u = st.derOfView u :=
+    fun u => LsStore.derOfView_congr u (fun c _ => by rw [hls])
+  refine { ls := by rw [hls]; exact h.ls, lchildOK := ?lchildOK, consP := ?consP,
+           consS := ?consS, fresh := ?fresh, derExact := ?derExact,
+           sizedP := ?sizedP, sizedS := ?sizedS, capP := ?capP, capS := ?capS,
+           scrOff := ?scrOff }
+  case lchildOK =>
+    intro i u hi c hc
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · rw [hls]; exact h.lchildOK i u hi' c hc
+    · exact ⟨by rw [hls]; exact hv c hc, fun _ => hallPL c (hv c hc)⟩
+  case consP =>
+    intro u i
+    rw [hpers, hfindtb u]
+    constructor
+    · intro hf
+      by_cases hw : w = u
+      · rw [if_pos hw] at hf
+        have hii : inew = i := Option.some.inj hf
+        subst hii; subst hw
+        exact ⟨by rw [hviewP inew hnp]; exact hgetnew, hnp⟩
+      · rw [if_neg hw] at hf
+        obtain ⟨h1, h2⟩ := (h.consP u i).mp hf
+        exact ⟨hmono i u h1, h2⟩
+    · rintro ⟨h1, h2⟩
+      rcases hinv i u h1 with h3 | ⟨rfl, rfl⟩
+      · have hf := (h.consP u i).mpr ⟨h3, h2⟩
+        have hw : w ≠ u := by
+          rintro rfl; rw [hfp] at hf; exact absurd hf (by simp)
+        rw [if_neg hw]; exact hf
+      · rw [if_pos rfl]
+  case consS =>
+    intro u i
+    rw [hscr, hscrE, LsTables.find?_empty]
+    refine ⟨fun hf => absurd hf (by simp), ?_⟩
+    rintro ⟨h1, h2⟩
+    rw [hviewN' i h2] at h1; exact absurd h1 (by simp)
+  case fresh =>
+    intro u i hf
+    rw [hscr, hscrE, LsTables.find?_empty] at hf
+    exact absurd hf (by simp)
+  case derExact =>
+    intro i u hi
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · rw [hdov u, hder i (by rw [hi']; rfl)]
+      exact h.derExact i u hi'
+    · rw [hdov u, LsStore.derived_pers hnp, hpers, hdernew]
+  case sizedP => rw [hpers]; exact hsizedtb
+  case sizedS => rw [hscr]; exact h.sizedS
+  case capP => rw [hpers]; exact hcaptb
+  case capS => rw [hscr]; exact h.capS
+  case scrOff => intro _; rw [hscr]; exact hscrE
+
+theorem LsStore.intern_wf_of_sync {st : LsStore} {w : LsNodeView} (h : LsStoreWF st)
+    (hsync : st.ScratchSync) (hv : st.ViewOK w) (hcap : st.capOK w) :
+    LsStoreWF (st.intern w).1 := by
+  simp only [LsStore.capOK] at hcap
+  simp only [LsStore.intern]
+  split
+  · exact h
+  · rename_i hfp
+    split
+    · rename_i hon
+      split
+      · exact h
+      · rename_i hfs
+        rw [if_pos hon] at hcap
+        exact LsStore.wf_push_scr h hv hon hon rfl rfl rfl rfl hcap hfp hfs
+    · rename_i hoff
+      have hoff' : st.scratchOn = false := by simpa using hoff
+      rw [if_neg hoff] at hcap
+      exact LsStore.wf_push_pers h hv hsync hoff' hoff' rfl rfl rfl rfl hcap hfp
+
+theorem LsStore.intern_view_spec {st : LsStore} {w : LsNodeView} (h : LsStoreWF st)
+    (_hv : st.ViewOK w) (hcap : st.capOK w) :
+    (st.intern w).1.view (st.intern w).2 = some w := by
+  simp only [LsStore.capOK] at hcap
+  simp only [LsStore.intern]
+  split
+  · rename_i i heq
+    exact ((h.consP w i).mp heq).1
+  · split
+    · rename_i hon
+      split
+      · rename_i i heq
+        exact ((h.consS w i).mp heq).1
+      · rw [if_pos hon] at hcap
+        have hspec := LsTables.push_spec st.scr w (st.derOfView w) Idx.tierS
+          (by decide) hcap
+        have hp : ((st.scr.push w (st.derOfView w) Idx.tierS).2).isPersistent = false := by
+          show (_ == 0) = false
+          rw [hspec.2]; decide
+        simp only [LsStore.view]
+        rw [if_neg (by simp [hp]), if_pos hon]
+        exact hspec.1
+    · rename_i hoff
+      rw [if_neg hoff] at hcap
+      have hspec := LsTables.push_spec st.pers w (st.derOfView w) Idx.tierP
+        (by decide) hcap
+      have hp : ((st.pers.push w (st.derOfView w) Idx.tierP).2).isPersistent = true := by
+        show (_ == 0) = true
+        rw [hspec.2]; decide
+      simp only [LsStore.view]
+      rw [if_pos hp]
+      exact hspec.1
+
+theorem LsStore.ls_intern (st : LsStore) (w : LsNodeView) :
+    (st.intern w).1.ls = st.ls := by
+  simp only [LsStore.intern]
+  split
+  · rfl
+  · split
+    · split
+      · rfl
+      · rfl
+    · rfl
+
+theorem LsStore.view_intern_mono (st : LsStore) (w : LsNodeView) {i : LsIdx}
+    {v : LsNodeView} (h : st.view i = some v) : (st.intern w).1.view i = some v := by
+  simp only [LsStore.intern]
+  split
+  · exact h
+  · split
+    · rename_i hon
+      split
+      · exact h
+      · simp only [LsStore.view, hon] at h ⊢
+        by_cases hp : i.isPersistent = true
+        · rw [if_pos hp] at h ⊢; exact h
+        · rw [if_neg hp] at h ⊢; exact LsTables.get_push_mono _ _ _ _ h
+    · rename_i hoff
+      simp only [LsStore.view, hoff] at h ⊢
+      by_cases hp : i.isPersistent = true
+      · rw [if_pos hp] at h ⊢; exact LsTables.get_push_mono _ _ _ _ h
+      · rw [if_neg hp] at h ⊢; exact h
+
+/-- con-leche: Verify/SimI.lean:244 Ext — interning a level list extends the
+store.  `denoteLs` carries no fuel, so this is `view` monotonicity and the
+level store standing still. -/
+theorem LsStore.intern_ext (st : LsStore) (w : LsNodeView) :
+    LsExt st (st.intern w).1 := by
+  refine ⟨?_, ?_⟩
+  · rw [LsStore.ls_intern]; exact LExt.refl _
+  · intro i us hd
+    obtain ⟨vs, hvs, hlist⟩ := denoteLs_view hd
+    rw [denoteLs, LsStore.view_intern_mono st w hvs, LsStore.ls_intern]
+    exact hlist
+
+/-- con-leche: Setlec/Kernel/IExpr.lean:464 intern — `LsStore.intern_spec`
+modulo `LsStoreWF`'s missing flag-synchronisation clause (task #97a). -/
+theorem LsStore.intern_spec_of_sync {st : LsStore} {w : LsNodeView}
+    (h : LsStoreWF st) (hsync : st.ScratchSync) (hv : st.ViewOK w)
+    (hcap : st.capOK w) :
+    LsStoreWF (st.intern w).1 ∧ LsExt st (st.intern w).1 ∧
+      (st.intern w).1.view (st.intern w).2 = some w :=
+  ⟨LsStore.intern_wf_of_sync h hsync hv hcap, LsStore.intern_ext st w,
+   LsStore.intern_view_spec h hv hcap⟩
+
 /-- con-leche: Setlec/Kernel/IExpr.lean:464 intern — `intern` preserves the
 store invariant.
 
@@ -3969,7 +5190,8 @@ theorem NStore.intern_spec {st : NStore} {w : NNodeView} (h : NStoreWF st)
 /-- **OPEN, and not provable as stated** — the same missing clause:
 `LWFAt.nchildOK` asks a persistent level node's *name* child to be
 persistent, and `st.ns.scratchOn` is not tied to `st.scratchOn`
-(task #97a; `EStore.intern_wf_refuted_without_sync`). -/
+(task #97a; `EStore.intern_wf_refuted_without_sync`).  Proved above as
+`LStore.intern_spec_of_sync`, under the missing clause. -/
 theorem LStore.intern_spec {st : LStore} {w : LNodeView} (h : LStoreWF st)
     (hv : st.ViewOK w) (hcap : st.capOK w) :
     LStoreWF (st.intern w).1 ∧ LExt st (st.intern w).1 ∧
@@ -3979,7 +5201,8 @@ theorem LStore.intern_spec {st : LStore} {w : LNodeView} (h : LStoreWF st)
 /-- **OPEN, and not provable as stated** — the same missing clause:
 `LsWF.lchildOK` asks a persistent list node's *level* children to be
 persistent, and `st.ls.scratchOn` is not tied to `st.scratchOn`
-(task #97a; `EStore.intern_wf_refuted_without_sync`). -/
+(task #97a; `EStore.intern_wf_refuted_without_sync`).  Proved above as
+`LsStore.intern_spec_of_sync`, under the missing clause. -/
 theorem LsStore.intern_spec {st : LsStore} {w : LsNodeView} (h : LsStoreWF st)
     (hv : st.ViewOK w) (hcap : st.capOK w) :
     LsStoreWF (st.intern w).1 ∧ LsExt st (st.intern w).1 ∧
