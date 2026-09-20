@@ -45,8 +45,8 @@ use crate::arena::checker_split::{
     check_value_group, install_constant_val, install_value, ValueGroup, ValueKind,
 };
 use crate::arena::core::{
-    drop_scratch, enter_scratch, nat_div_mod_names, nat_op_deps, nat_op_equations,
-    nat_op_guard, nat_op_names, pin,
+    drop_scratch, enter_scratch, flush_caches, nat_div_mod_names, nat_op_deps,
+    nat_op_equations, nat_op_guard, nat_op_names, pin, CORE_WALK_FUEL,
 };
 use crate::arena::decl_check::{
     certify_nat_eqs, check_defn_val, check_div_mod_pin, check_opaque_val, check_reduce_pin,
@@ -60,6 +60,7 @@ use crate::arena::env::{
 use crate::arena::handle::{EIdx, NIdx};
 use crate::arena::monad::{fail, AState};
 use crate::arena::nat_op_pin_set::{intern_pin_sets, INatOpPinSet};
+use crate::arena::promote::{promote_new, promote_vg, PMemo};
 use crate::arena::std_axioms::{choice_name, propext_name};
 use crate::arena::trust_axioms::{
     of_reduce_bool_name, of_reduce_nat_name, reduce_op_names, trust_compiler_name,
@@ -722,9 +723,48 @@ pub fn check_quot_decl(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Checker.lean:628-632 checkDeclsPure
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:199-202 checkDeclsPureGo` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:216-225 checkDeclStep` — **one
+/// step of the pure fold, bracketed**: `check_decl` inside the per-declaration
+/// scratch tier, with the constants it installed promoted before the tier
+/// goes.
+///
+/// The bracket is `annot_step`'s, letter for letter — one `check_decl` where
+/// phase A has an install half, and no `ValueGroup` because the pure fold
+/// checks what it installs in the same step.  DESIGN.md §8.3's amendment (task
+/// #97-P6-2) puts it here too, so that **the two folds stay one algorithm**:
+/// the tier regime is not an optimisation of the driver's fold that the
+/// theorem's fold may do without, it is where every term the checker builds
+/// lives, and a Theorem-1 statement about a fold with no tiers would say
+/// nothing about the fold the binary runs.
+pub fn check_decl_step(
+    st: &mut AState,
+    mode: &CheckMode,
+    pins: &Vec<INatOpPinSet>,
+    fe: IFEnv,
+    d: &IDeclaration,
+) -> Result<IFEnv, CheckError> {
+    let vis: u64 = fe.visible_below;
+    flush_caches(st);
+    enter_scratch(st);
+    match check_decl(st, mode, pins, fe, d) {
+        Err(e) => Err(e),
+        Ok(fe2) => {
+            let k: u64 = fe2.visible_below - vis;
+            match promote_new(st, PMemo::empty(), CORE_WALK_FUEL, k, fe2) {
+                Err(e) => Err(e),
+                Ok((_, fe3)) => {
+                    drop_scratch(st);
+                    Ok(fe3)
+                }
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Checker.lean:628-632 checkDeclsPure
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:228-231 checkDeclsPureGo` — the
 /// cited `foldlM` as an index recursion threading the index by value (§3.4
-/// forbids the closure).
+/// forbids the closure).  The step is the bracketed one.
 pub fn check_decls_pure_go(
     st: &mut AState,
     mode: &CheckMode,
@@ -736,7 +776,7 @@ pub fn check_decls_pure_go(
     if i >= ds.len() {
         Ok(fe)
     } else {
-        match check_decl(st, mode, pins, fe, &ds[i]) {
+        match check_decl_step(st, mode, pins, fe, &ds[i]) {
             Err(e) => Err(e),
             Ok(fe2) => check_decls_pure_go(st, mode, pins, fe2, ds, i + 1),
         }
@@ -744,9 +784,9 @@ pub fn check_decls_pure_go(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:628-632 checkDeclsPure
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:206-208 checkDeclsPure` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:235-237 checkDeclsPure` — the
 /// fold from the empty environment.  THE THEOREM'S SHAPE (module note): one
-/// step per record, no bracket.
+/// step per record, install and check together, each step bracketed.
 pub fn check_decls_pure(
     st: &mut AState,
     mode: &CheckMode,
@@ -772,11 +812,78 @@ pub struct PendingCheck {
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:230-258 annotStep` — phase A's
-/// step body: annotate-and-install for the three value kinds, the ordinary step
-/// `check_decl` for everything else.  `i` is the fold position the record is
-/// tagged with.  The four arms are four functions, so every one of them is a
-/// tail call.
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:255-286 annotStepGo` — phase
+/// A's step BODY: annotate-and-install for the three value kinds, the ordinary
+/// step `check_decl` for everything else.  The four arms are four functions,
+/// so every one of them is a tail call.
+///
+/// **The body, not the step** — `annot_step` below is this under the
+/// per-declaration bracket, and the split exists so the bracket is written
+/// ONCE for the four arms instead of four times (DESIGN.md §8.3, "Phase A runs
+/// in the scratch tier too, with promotion", task #97-P6-2).  What the body
+/// returns is what a step LEAVES BEHIND: the extended environment, and — for
+/// the three value kinds — the `ValueGroup` phase B will check.  The fold
+/// position and the environment counter the pending record carries are the
+/// bracket's to supply.
+pub fn annot_step_go(
+    st: &mut AState,
+    mode: &CheckMode,
+    pins: &Vec<INatOpPinSet>,
+    fe: IFEnv,
+    pd: &IDeclaration,
+) -> Result<(IFEnv, Option<ValueGroup>), CheckError> {
+    match pd {
+        IDeclaration::DefnDecl(cv, value, hint) => {
+            annot_step_defn(st, mode, pins, fe, pd, cv, value, hint)
+        }
+        IDeclaration::ThmDecl(cv, value) => annot_step_thm(st, mode, fe, cv, value),
+        IDeclaration::OpaqueDecl(cv, value) => {
+            annot_step_opaque(st, mode, pins, fe, pd, cv, value)
+        }
+        _ => annot_step_other(st, mode, pins, fe, pd),
+    }
+}
+
+/// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:318-341 annotStep` — **phase
+/// A's step, bracketed**; `i` is the fold position the record is tagged with.
+///
+/// **The bracket, and why phase A has one** (DESIGN.md §8.3, "Phase A runs in
+/// the scratch tier too, with promotion", the coordinator's amendment after
+/// task #97-P4f's measurement).  Task #97-P4d ran phase A in the PERSISTENT
+/// tier, on the reading that the install writes exactly the terms the
+/// environment keeps.  It does — but it does not write ONLY those:
+/// `install_constant_val` and `install_value` annotate, and annotation infers,
+/// and inference reduces, and every intermediate of all of that was interned
+/// permanently beside them.  Measured on `Init`: 5.06 M permanent nodes on top
+/// of the parse's 6.14 M, **+82 %**, and con-ron-arena's peak RSS 3.9× today's
+/// con-ron.  con-leche and con-ron get the same effect from GC; the arena's
+/// answer is con-leche #64's, and it is the bracket phase B already has with
+/// one operation added at its end:
+///
+/// ```text
+/// flush_caches; enter_scratch; <the step>; promote; drop_scratch
+/// ```
+///
+/// `promote` (`arena::promote`) is the memoised structural copy scratch →
+/// persistent, run on **exactly what leaves the step**: the `k` constants the
+/// step installed (`promote_new`, `k` from the counter read before it) and the
+/// pending record (`promote_vg` — an `opaque`'s value is not in the
+/// environment, so the seam has to be promoted beside it, at the SAME memo, so
+/// that the sharing between a header's type and its value survives the copy).
+/// A persistent handle promotes to itself, so a record that installs what the
+/// parse already built pays one tier-bit test per handle.  After it the
+/// environment and the `PendingCheck`s name persistent handles only, which is
+/// what lets `drop_scratch` take the tier — and it must run after the step and
+/// before the drop: the scratch nodes are gone once the tier is dropped.
+///
+/// **The flush stays where con-leche puts it, at the head** — `annotStepC`
+/// reaches its four arms through `annotValueC` (`Cached/Installed.lean:139`),
+/// the `.thmDecl` arm's own `flushC` (`:168`) and `checkDeclStepC`
+/// (`Cached/ParsedC.lean:279-282`), so con-leche enters every phase-A record
+/// with EMPTY caches (task #97g's item 4).  `drop_scratch` flushes too, so
+/// what the head flush covers is the FIRST record of the fold, whose caches
+/// are whatever `intern_all_pins` left.
 pub fn annot_step(
     st: &mut AState,
     mode: &CheckMode,
@@ -786,20 +893,61 @@ pub fn annot_step(
     pend: Vec<PendingCheck>,
     pd: &IDeclaration,
 ) -> Result<(IFEnv, Vec<PendingCheck>), CheckError> {
-    match pd {
-        IDeclaration::DefnDecl(cv, value, hint) => {
-            annot_step_defn(st, mode, pins, i, fe, pend, pd, cv, value, hint)
+    let vis: u64 = fe.visible_below;
+    flush_caches(st);
+    enter_scratch(st);
+    match annot_step_go(st, mode, pins, fe, pd) {
+        Err(e) => Err(e),
+        Ok((fe2, vg_opt)) => {
+            let k: u64 = fe2.visible_below - vis;
+            match vg_opt {
+                None => match promote_new(st, PMemo::empty(), CORE_WALK_FUEL, k, fe2) {
+                    Err(e) => Err(e),
+                    Ok((_, fe3)) => {
+                        drop_scratch(st);
+                        Ok((fe3, pend))
+                    }
+                },
+                Some(vg) => annot_step_promote(st, i, vis, k, fe2, pend, vg),
+            }
         }
-        IDeclaration::ThmDecl(cv, value) => annot_step_thm(st, mode, i, fe, pend, cv, value),
-        IDeclaration::OpaqueDecl(cv, value) => {
-            annot_step_opaque(st, mode, pins, i, fe, pend, pd, cv, value)
-        }
-        _ => annot_step_other(st, mode, pins, fe, pend, pd),
     }
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:230-258 annotStep` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:336-341 annotStep` — the
+/// bracket's `some vg` arm: the seam promoted first and the environment at the
+/// SAME memo, then the tier dropped and the record pushed.
+#[allow(clippy::too_many_arguments)]
+pub fn annot_step_promote(
+    st: &mut AState,
+    i: u64,
+    vis: u64,
+    k: u64,
+    fe: IFEnv,
+    pend: Vec<PendingCheck>,
+    vg: ValueGroup,
+) -> Result<(IFEnv, Vec<PendingCheck>), CheckError> {
+    match promote_vg(st, PMemo::empty(), CORE_WALK_FUEL, vg) {
+        Err(e) => Err(e),
+        Ok((m, vg2)) => match promote_new(st, m, CORE_WALK_FUEL, k, fe) {
+            Err(e) => Err(e),
+            Ok((_, fe2)) => {
+                drop_scratch(st);
+                let mut pend2 = pend;
+                pend2.push(PendingCheck {
+                    vg: vg2,
+                    pos: i,
+                    vis,
+                });
+                Ok((fe2, pend2))
+            }
+        },
+    }
+}
+
+/// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:256-264 annotStepGo` — the
 /// `.defnDecl` arm: a pin-certified operation takes the ordinary step (its
 /// check is not separable from its install), everything else is annotated,
 /// installed and recorded as pending.
@@ -808,14 +956,12 @@ pub fn annot_step_defn(
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
-    i: u64,
     fe: IFEnv,
-    pend: Vec<PendingCheck>,
     pd: &IDeclaration,
     cv: &IConstantVal,
     value: &EIdx,
     hint: &ReducibilityHint,
-) -> Result<(IFEnv, Vec<PendingCheck>), CheckError> {
+) -> Result<(IFEnv, Option<ValueGroup>), CheckError> {
     match nat_op_names(st) {
         Err(e) => Err(e),
         Ok(ns) => match nat_div_mod_names(st) {
@@ -823,9 +969,9 @@ pub fn annot_step_defn(
             Ok(ds) => {
                 if nidx_contains_from(&ns, 0, &cv.name) || nidx_contains_from(&ds, 0, &cv.name)
                 {
-                    annot_step_other(st, mode, pins, fe, pend, pd)
+                    annot_step_other(st, mode, pins, fe, pd)
                 } else {
-                    annot_step_defn_install(st, mode, i, fe, pend, cv, value, hint)
+                    annot_step_defn_install(st, mode, fe, cv, value, hint)
                 }
             }
         },
@@ -833,27 +979,25 @@ pub fn annot_step_defn(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:230-258 annotStep` — the
-/// `.defnDecl` arm's install and push.  **The counter is read BEFORE the
-/// push**, as the twin's note insists: read after it, the push copies the whole
-/// index at every install.
-#[allow(clippy::too_many_arguments)]
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:260-264 annotStepGo` — the
+/// `.defnDecl` arm's install and push.  The environment counter the pending
+/// record carries is the BRACKET's now (task #97-P6-2): it reads it before the
+/// step, which is both con-leche's own RC-linearity note — read it after the
+/// push and the push copies the whole index — and what makes the promotion's
+/// `k` computable without holding `fe` across the step.
 pub fn annot_step_defn_install(
     st: &mut AState,
     mode: &CheckMode,
-    i: u64,
     fe: IFEnv,
-    pend: Vec<PendingCheck>,
     cv: &IConstantVal,
     value: &EIdx,
     hint: &ReducibilityHint,
-) -> Result<(IFEnv, Vec<PendingCheck>), CheckError> {
+) -> Result<(IFEnv, Option<ValueGroup>), CheckError> {
     match install_constant_val(st, mode, &fe, cv) {
         Err(e) => Err(e),
         Ok(cv_a) => match install_value(st, mode, &fe, &cv_a, value) {
             Err(e) => Err(e),
             Ok(jv) => {
-                let vis: u64 = fe.visible_below;
                 let fe2: IFEnv = crate::arena::env::ifenv_push(
                     fe,
                     IConstantInfo::DefnInfo(
@@ -862,130 +1006,114 @@ pub fn annot_step_defn_install(
                         cenv::reducibility_hint_dup(hint),
                     ),
                 );
-                let mut pend2 = pend;
-                pend2.push(PendingCheck {
-                    vg: ValueGroup { kind: ValueKind::Defn, cv_a, jv },
-                    pos: i,
-                    vis,
-                });
-                Ok((fe2, pend2))
+                Ok((
+                    fe2,
+                    Some(ValueGroup { kind: ValueKind::Defn, cv_a, jv }),
+                ))
             }
         },
     }
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:230-258 annotStep` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:265-270 annotStepGo` — the
 /// `.thmDecl` arm: **a theorem installs BY STATEMENT**.  The header's install
 /// half only; the value is recorded raw and never touched here (phase B
 /// annotates it), so phase A never enters a theorem's body.
 pub fn annot_step_thm(
     st: &mut AState,
     mode: &CheckMode,
-    i: u64,
     fe: IFEnv,
-    pend: Vec<PendingCheck>,
     cv: &IConstantVal,
     value: &EIdx,
-) -> Result<(IFEnv, Vec<PendingCheck>), CheckError> {
+) -> Result<(IFEnv, Option<ValueGroup>), CheckError> {
     match install_constant_val(st, mode, &fe, cv) {
         Err(e) => Err(e),
         Ok(cv_a) => {
-            let vis: u64 = fe.visible_below;
             let fe2: IFEnv = crate::arena::env::ifenv_push(
                 fe,
                 IConstantInfo::ThmInfo(i_constant_val_dup(&cv_a), value.dup2()),
             );
-            let mut pend2 = pend;
-            pend2.push(PendingCheck {
-                vg: ValueGroup { kind: ValueKind::Thm, cv_a, jv: value.dup2() },
-                pos: i,
-                vis,
-            });
-            Ok((fe2, pend2))
+            Ok((
+                fe2,
+                Some(ValueGroup { kind: ValueKind::Thm, cv_a, jv: value.dup2() }),
+            ))
         }
     }
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:230-258 annotStep` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:271-279 annotStepGo` — the
 /// `.opaqueDecl` arm: a `reduce*` witness takes the ordinary step (its identity
 /// certificate is part of its install), everything else is annotated, installed
 /// **as an axiom** — an opaque's value being a discarded witness — and recorded
 /// as pending.
-#[allow(clippy::too_many_arguments)]
 pub fn annot_step_opaque(
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
-    i: u64,
     fe: IFEnv,
-    pend: Vec<PendingCheck>,
     pd: &IDeclaration,
     cv: &IConstantVal,
     value: &EIdx,
-) -> Result<(IFEnv, Vec<PendingCheck>), CheckError> {
+) -> Result<(IFEnv, Option<ValueGroup>), CheckError> {
     match reduce_op_names(st) {
         Err(e) => Err(e),
         Ok(ns) => {
             if nidx_contains_from(&ns, 0, &cv.name) {
-                annot_step_other(st, mode, pins, fe, pend, pd)
+                annot_step_other(st, mode, pins, fe, pd)
             } else {
-                annot_step_opaque_install(st, mode, i, fe, pend, cv, value)
+                annot_step_opaque_install(st, mode, fe, cv, value)
             }
         }
     }
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:230-258 annotStep` — the opaque
-/// arm's install and push, the counter read before it.
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:275-279 annotStepGo` — the
+/// opaque arm's install and push.  **An `opaque`'s value is not in the
+/// environment**: the arm pushes `.axiomInfo cvA` and hands the annotated
+/// VALUE to the pending record alone, which is why the bracket promotes the
+/// `ValueGroup` beside the environment and at the same memo.
 pub fn annot_step_opaque_install(
     st: &mut AState,
     mode: &CheckMode,
-    i: u64,
     fe: IFEnv,
-    pend: Vec<PendingCheck>,
     cv: &IConstantVal,
     value: &EIdx,
-) -> Result<(IFEnv, Vec<PendingCheck>), CheckError> {
+) -> Result<(IFEnv, Option<ValueGroup>), CheckError> {
     match install_constant_val(st, mode, &fe, cv) {
         Err(e) => Err(e),
         Ok(cv_a) => match install_value(st, mode, &fe, &cv_a, value) {
             Err(e) => Err(e),
             Ok(jv) => {
-                let vis: u64 = fe.visible_below;
                 let fe2: IFEnv = crate::arena::env::ifenv_push(
                     fe,
                     IConstantInfo::AxiomInfo(i_constant_val_dup(&cv_a)),
                 );
-                let mut pend2 = pend;
-                pend2.push(PendingCheck {
-                    vg: ValueGroup { kind: ValueKind::Opaque, cv_a, jv },
-                    pos: i,
-                    vis,
-                });
-                Ok((fe2, pend2))
+                Ok((
+                    fe2,
+                    Some(ValueGroup { kind: ValueKind::Opaque, cv_a, jv }),
+                ))
             }
         },
     }
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:230-258 annotStep` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:280-286 annotStepGo` — the
 /// catch-all arm, shared by the three gated branches above: the ordinary step,
-/// which leaves the records untouched.
+/// which records nothing pending.
 pub fn annot_step_other(
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
     fe: IFEnv,
-    pend: Vec<PendingCheck>,
     pd: &IDeclaration,
-) -> Result<(IFEnv, Vec<PendingCheck>), CheckError> {
+) -> Result<(IFEnv, Option<ValueGroup>), CheckError> {
     match check_decl(st, mode, pins, fe, pd) {
         Err(e) => Err(e),
-        Ok(fe2) => Ok((fe2, pend)),
+        Ok(fe2) => Ok((fe2, None)),
     }
 }
 
