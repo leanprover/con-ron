@@ -28,12 +28,17 @@
 //!
 //! The Lean has one `Idx k` over a phantom `IdxKind`, which is nanoda's
 //! `Ptr<A>` with `PhantomData<A>` spelled as a type index.  The Rust has four
-//! one-field structures instead (task #97 P4a's brief), for one measured
-//! reason: `core::marker::PhantomData` is not in Aeneas's subset, so a
-//! phantom-typed handle would put a type hole into the model where the four
-//! newtypes put none.  The *word* arithmetic is still written once, as the
-//! five `word_*` functions below; each newtype's six operations are one-line
-//! wrappers over them, so the `k`-generic Lean lemmas
+//! one-field structures instead, because task #97 P4a's brief fixes them —
+//! **not** because the phantom shape would not extract: a probe crate with
+//! `struct Idx<K> { word: u32, kind: PhantomData<K> }` translates with no
+//! error and no hole (Aeneas models `core::marker::PhantomData T` as `Unit`),
+//! measured at P4a.  What the four newtypes buy is that no type parameter
+//! threads through `Tbl`, the four `*Tables` and every signature below them;
+//! what they cost is these wrappers and twelve dictionary impls.
+//!
+//! The *word* arithmetic is still written once, as the five `word_*`
+//! functions below; each newtype's six operations are one-line wrappers over
+//! them, so the `k`-generic Lean lemmas
 //! (`Idx.tag_mk`/`tier_mk`/`index_mk`/`eta`) transfer to the Rust as lemmas
 //! about `word_*` that each newtype's wrapper then inherits.
 //!
