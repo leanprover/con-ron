@@ -20046,3 +20046,377 @@ mended (a link edit, within the README rule).
 **Gates.**  Fast gates green; the link expectation regenerated (67 links,
 36 files); `holes.sh --check` 22/22.  Extraction and the proofs are
 untouched.
+
+### Task #97a — the arena stores (2026-09-20, Opus under Fable)
+
+Phase P2a of §8.6: the store layer of (B), under `proof/ConRon/Arena/`, as a
+new `lean_lib ConRonArena` (root `ConRon.Arena`, added to `defaultTargets`).
+Six modules — `Handle`, `Store`, `Denote`, `WF`, `WFProofs`, `StoreTest` —
+importing `Std` and `ConLeche.Kernel.Expr` and **nothing else**: no Mathlib,
+no Aeneas, nothing from `ConRon.Refine` or `ConRon.Generated`.  That is
+con-leche's lesson 27 ("put the arena's own verification in the
+implementation layer") taken literally, and it is why this library builds in
+6.2 s while the rest of `proof/` needs Mathlib.
+
+#### The frozen API
+
+Every public signature, verbatim; later modules program against this list.
+
+**`ConRon/Arena/Handle.lean`**
+
+```lean
+inductive IdxKind where | expr | name | level | levels
+structure Idx (k : IdxKind) where ofWord :: word : UInt32
+abbrev EIdx := Idx .expr    abbrev NIdx  := Idx .name
+abbrev LIdx := Idx .level   abbrev LsIdx := Idx .levels
+
+instance : BEq (Idx k)        -- word equality
+instance : LawfulBEq (Idx k)
+instance : Hashable (Idx k)   -- the word IS the hash (nanoda's identity hasher)
+
+def Idx.tierP : UInt32 := 0             def Idx.tierS : UInt32 := 1
+def Idx.idxCap : Nat := 134217728       -- 2^27
+@[inline] def Idx.mk (tag tier idx : UInt32) : Idx k
+@[inline] def Idx.tag (i : Idx k) : UInt32
+@[inline] def Idx.tier (i : Idx k) : UInt32
+@[inline] def Idx.index (i : Idx k) : UInt32
+@[inline] def Idx.isPersistent (i : Idx k) : Bool
+@[inline] def Idx.idxNat (i : Idx k) : Nat
+
+theorem Idx.tag_mk / tier_mk / index_mk / eta / ext_of / tag_lt / tier_lt
+      / index_lt / idxNat_lt / idxNat_mk / ne_of_tier_ne
+
+namespace ETag  def bvar … proj : UInt32   -- 0…9, con-leche's ctor order
+namespace NTag  def anonymous, str, num    -- 0…2
+namespace LTag  def zero, succ, max, imax, param  -- 0…4
+namespace LsTag def list                   -- 0
+```
+
+**`ConRon/Arena/Store.lean`**
+
+```lean
+structure Tbl (α : Type) [BEq α] [Hashable α] (ι δ : Type) where
+  nodes : Array α ; der : Array δ ; cons : Std.HashMap α ι
+def Tbl.empty / size / node? / derAt / find? / push
+
+-- node records, one per constructor (the cons keys; derived data is NOT in them)
+structure AnonNode   structure StrNode (pre : NIdx) (s : String)
+structure NumNode (pre : NIdx) (n : Nat)
+structure ZeroNode   structure SuccNode (u : LIdx)
+structure BinLNode (u v : LIdx)   -- max and imax, one array each
+structure ParamNode (n : NIdx)    structure ListNode (us : List LIdx)
+structure BVarNode (i : Nat)      structure FVarNode (idx : Nat) (ty : EIdx)
+structure SortNode (u : LIdx)     structure ConstNode (n : NIdx) (us : LsIdx)
+structure AppNode (f a : EIdx)    structure BindNode (ty body : EIdx) (m : BinderMeta)
+structure LetNode (ty val body : EIdx)     structure LitNode (l : Literal)
+structure ProjNode (n : NIdx) (i : Nat) (e : EIdx)
+
+inductive NNodeView | anonymous | str (pre : NIdx) (s : String)
+                    | num (pre : NIdx) (n : Nat)
+inductive LNodeView | zero | succ (u : LIdx) | max (u v : LIdx)
+                    | imax (u v : LIdx) | param (n : NIdx)
+abbrev LsNodeView := List LIdx
+inductive ENodeView | bvar (i : Nat) | fvar (idx : Nat) (ty : EIdx)
+  | sort (u : LIdx) | const (n : NIdx) (us : LsIdx) | app (f a : EIdx)
+  | lam (ty body : EIdx) (m : BinderMeta) | forallE (ty body : EIdx) (m : BinderMeta)
+  | letE (ty val body : EIdx) | lit (l : Literal)
+  | proj (n : NIdx) (i : Nat) (e : EIdx)
+
+structure LDer where hash : UInt64 ; hasParam : Bool
+
+structure NTables  (anons strs nums)
+structure LTables  (zeros succs maxs imaxs params)
+structure LsTables (lists)
+structure ETables  (bvars fvars sorts consts apps lams foralls lets lits projs)
+structure NStore  where pers scr : NTables  ; scratchOn : Bool
+structure LStore  where ns : NStore  ; pers scr : LTables  ; scratchOn : Bool
+structure LsStore where ls : LStore  ; pers scr : LsTables ; scratchOn : Bool
+structure EStore  where lss : LsStore; pers scr : ETables  ; scratchOn : Bool
+
+-- per tier (X ∈ {N, L, Ls, E})
+def XTables.empty / count / get / derAt / find? / sizeOf
+@[noinline] def XTables.push (t) (v : XNodeView) (d) (tier : UInt32) : XTables × XIdx
+
+-- per store
+def XStore.empty : XStore
+@[inline] def XStore.persCount / scrCount / nodeCount : Nat
+def XStore.view      : XStore → XIdx → Option XNodeView
+def XStore.derived   : XStore → XIdx → UInt64       -- LDer for L and Ls
+def XStore.derOfView : XStore → XNodeView → UInt64  -- LDer for L and Ls
+def XStore.find?     : XStore → XNodeView → Option XIdx
+def XStore.intern    : XStore → XNodeView → XStore × XIdx
+def XStore.enableScratch / dropScratch : XStore → XStore
+def XStore.capOK     : XStore → XNodeView → Prop
+
+@[inline] def EStore.lsS / ls / ns          -- the nested stores
+@[inline] def EStore.nder / lder / lsder    -- children's derived words
+@[noinline] def LStore.internName  (st) (v : NNodeView)  : LStore × NIdx
+@[noinline] def LsStore.internName / internLevel
+@[noinline] def EStore.internName / internLevel / internLevels
+```
+
+**`ConRon/Arena/Denote.lean`**
+
+```lean
+@[inline] def opt2 (f : α → β → γ) : Option α → Option β → Option γ
+@[inline] def opt3 (f : α → β → γ → δ) : Option α → Option β → Option γ → Option δ
+@[simp] theorem opt2_eq_some_iff / opt3_eq_some_iff
+
+def denoteNAux  : NStore  → Nat → NIdx → Option ConLeche.Name
+def denoteN     : NStore  → NIdx  → Option ConLeche.Name
+def denoteLAux  : LStore  → Nat → LIdx → Option Level
+def denoteL     : LStore  → LIdx  → Option Level
+def denoteLList : LStore  → List LIdx → Option (List Level)
+def denoteLs    : LsStore → LsIdx → Option (List Level)
+def denoteEAux  : EStore  → Nat → EIdx → Option Expr
+def denoteE     : EStore  → EIdx  → Option Expr
+theorem denoteNAux_mono / denoteLAux_mono / denoteEAux_mono
+
+def NExt (st st' : NStore) : Prop
+structure LExt  (st st' : LStore)  : Prop where ns, lvl
+structure LsExt (st st' : LsStore) : Prop where ls, lst
+structure Ext   (st st' : EStore)  : Prop where lss, expr
+theorem {N,L,Ls,}Ext.refl / .trans
+```
+
+**`ConRon/Arena/WF.lean`**
+
+```lean
+def NNodeView.children   def LNodeView.lchildren / nchildren
+def ENodeView.echildren / nchildren / lchildren / lschildren
+def Tbl.Sized   def {N,L,Ls,E}Tables.Sized
+
+structure NWFAt (st : NStore) (rk : NIdx → Nat) : Prop where
+  childOK rankP rankS consP consS fresh derExact sizedP sizedS capP capS scrOff
+structure LWFAt (st : LStore) (rk : LIdx → Nat) : Prop where
+  ns childOK nchildOK rankP rankS consP consS fresh derExact sizedP sizedS
+  capP capS scrOff
+structure LsWF (st : LsStore) : Prop where
+  ls lchildOK consP consS fresh derExact sizedP sizedS capP capS scrOff
+structure EWFAt (st : EStore) (rk : EIdx → Nat) : Prop where
+  lss childOK nchildOK lchildOK lschildOK rankP rankS consP consS fresh
+  derExact sizedP sizedS capP capS scrOff
+
+def NStoreWF  (st : NStore)  : Prop := ∃ rk, NWFAt st rk
+def LStoreWF  (st : LStore)  : Prop := ∃ rk, LWFAt st rk
+def LsStoreWF (st : LsStore) : Prop := LsWF st
+def StoreWF   (st : EStore)  : Prop := ∃ rk, EWFAt st rk
+
+def NStore.ViewOK / LStore.ViewOK / LsStore.ViewOK / EStore.ViewOK
+def denoteNView / denoteLView / denoteLsView / denoteEView
+```
+
+**`ConRon/Arena/WFProofs.lean`** — the theorems the tier above consumes:
+
+```lean
+theorem denote{N,L,E}Aux_congr      -- the fuel is invisible above the rank
+theorem denote{N,L,Ls,E}_unfold     -- denote st i = denote*View st v
+theorem denote{N,L,E}_view          -- a denoting handle has a view
+theorem {N,L,Ls,E}WFAt.view_inj     -- cross-tier canonicity
+theorem denote{N,L,Ls,E}_inj        -- EXACTNESS
+theorem NStore.derived_exact  : denoteN st i = some x → st.derived i = x.hashData
+theorem LStore.derived_exact  : … = ⟨x.hashData, levelHasParam x⟩
+theorem LsStore.derived_exact : … = ⟨levelsHash xs, levelsHaveParam xs⟩
+theorem EStore.derived_exact  : denoteE st i = some x → st.derived i = x.data
+theorem Option.map_mono / Tbl.node?_push / Tbl.node?_push_new
+      / ETables.get_mono / ETables.get_push_mono
+theorem EStore.view_intern_mono / lss_intern / nodeCount_intern_le
+theorem denoteEAux_store_mono
+theorem EStore.intern_ext  : Ext st (st.intern w).1
+theorem EStore.view_{drop,enable}Scratch_{pers,scr}
+theorem denoteE_{drop,enable}Scratch_scr
+theorem EStore.intern_view_spec / intern_wf / intern_spec
+theorem EStore.{enable,drop}Scratch_wf / _spec / dropScratch_denote_pers
+theorem {N,L,Ls}Store.intern_spec / dropScratch_spec / enableScratch_spec
+```
+
+`intern_spec`'s statement, since it is the one everything downstream folds
+over:
+
+```lean
+theorem EStore.intern_spec {st : EStore} {w : ENodeView} (h : StoreWF st)
+    (hv : st.ViewOK w) (hcap : st.capOK w) :
+    StoreWF (st.intern w).1 ∧ Ext st (st.intern w).1 ∧
+      (st.intern w).1.view (st.intern w).2 = some w ∧
+      denoteE (st.intern w).1 (st.intern w).2 = denoteEView (st.intern w).1 w
+```
+
+#### The derived-word decision
+
+`Expr.data`'s formulas (`ConLeche/Kernel/Expr.lean:356-402`) are
+transliterated **verbatim** into `EStore.derOfView`, with `e.data` replaced by
+`st.derived h` and the level/name reads by the corresponding store's derived
+column (`levelHash u ↦ (st.lder u).hash`; `Hashable.hash (n : Name) ↦
+st.nder n`, the instance being `Name.hashData` itself; `levelsHash us ↦
+(st.lsder us).hash`).  `EStore.derived_exact` is then one `simp` per
+constructor, and `StoreTest.lean` computes both sides on hand-built terms.
+
+Two deltas from §8.3's sketch, both forced:
+
+* **Levels and level lists carry two derived values, not one.**  `Expr.data`
+  reads `levelHasParam u` / `levelsHaveParam us` as well as the hash, and the
+  hash is a full `UInt64` with no spare bit.  So `LDer = { hash : UInt64,
+  hasParam : Bool }` and `Tbl` is generic in its derived type `δ` (`UInt64`
+  for names and expressions).  con-leche recomputes `levelHasParam` by an
+  `O(|u|)` walk at every `.sort`/`.const` construction
+  (`Kernel/Expr.lean:114-127`); the interned store gets it in `O(1)`, a small
+  win the port takes for free.
+* **The cons table buckets on the node's *fields*, not on the derived hash.**
+  §8.3 says "bucketed by the derived hash", but `Std.HashMap` takes its bucket
+  from the key's `Hashable` instance and the key is the field record — putting
+  the derived word *into* the key is exactly what con-leche's lesson 1 forbids
+  ("derived fields never live inside `ENode`… they must not pollute it or its
+  hash").  So each node record `deriving Hashable`, over handles whose own
+  hash is the identity word: that is nanoda's `hash64!(TAG, child₁, …)` over
+  child *indices* (`_tmp/t97/nanoda-design.md` §3), "cheaper and, because
+  hash-consing makes the index a perfect identity for the subtree, just as
+  discriminating".  The choice is invisible to the proofs — `BEq` is
+  `LawfulBEq` and every cons clause is stated on `find?`, never on a bucket.
+
+#### The rank-vs-fuel decision: fuel
+
+`denote*` is fuel-indexed, at the store's own `nodeCount + 1`, and `StoreWF`
+carries the rank and proves the fuel sufficient (`denote*Aux_congr`, then
+`denote*_unfold`).  Three reasons, in order of weight:
+
+1. **`denote` must be total and hypothesis-free.**  The rank is existential
+   inside `StoreWF`, so a `denote` recursing on it would take the
+   well-formedness proof as an argument — and `intern_spec` relates `denote`
+   *before* and *after* the append, i.e. on the store whose `StoreWF` is the
+   thing being established.  With fuel, `denoteE : EStore → EIdx → Option
+   Expr` is a plain function every statement can mention.
+2. **Per-constructor arrays have no handle order.**  con-leche's arena could
+   recurse on the index itself (`ArenaWF.lean:477`: forward references denote
+   `none`, "which makes the recursion well-founded on the index") because it
+   had *one* node array.  Ten arrays have no common order, so some extra
+   measure is needed either way; fuel is the one that never has to be threaded
+   through a signature.
+3. **The primitive equations are definitional.**  `denoteEAux st (f+1) i`
+   unfolds by `rfl`; the fuel is traded for the rank exactly once, in
+   `denote*_unfold`, and no statement downstream mentions either.
+
+The unexpected payoff: **injectivity and exactness need no rank at all.**
+Both induct on the *denoted value* — a node's children denote structural
+subterms, so `Expr`'s own recursor is the well-founded order — and the rank
+appears only in `denote*_unfold`.  `denoteE_inj` and `EStore.derived_exact`
+are 120 and 90 lines, against con-leche's `denote_inj` at
+`ArenaWF.lean:2758` inside a 5 700-line invariant file.
+
+The rank clause itself is two-sided (`rankP : rk i < persCount` for a
+persistent handle, `rankS : rk i < nodeCount` for a scratch one) rather than
+one bound: `dropScratch` shrinks `nodeCount` to `persCount`, and a single
+`rk i < nodeCount` clause would not survive it without re-choosing the rank
+witness.
+
+#### Deviations from §8.3 / §8.4
+
+* **`Idx` packs with `*`, `/`, `%`, not `<<<`, `&&&`, `|||`** (§8.4 lesson 7
+  asks for the bitwise form).  The bitwise roundtrip lemmas are not
+  `omega`-provable and need `bv_decide` — and `bv_decide` **adds an axiom**
+  (`…_native.bv_decide.ax_…`, visible at `#print axioms`; measured here on a
+  trial `Idx.eta`), i.e. a new row in the trust surface (OVERVIEW §8, task
+  #95) for a fact `omega` proves outright.  con-leche took the same decision
+  for `packData` at its task #167 (`Kernel/Expr.lean:168-172`: "the code LLVM
+  emits is the same shift-and-mask, and every roundtrip lemma below is then
+  `omega` after `UInt64.toNat`").  Lesson 7's codegen worry is about `Nat`
+  multiplication (`lean_nat_mul` with an overflow check); `UInt32.mul`/`div`
+  by a constant are machine ops.
+* **Level lists are `List LIdx`, not `Array LIdx`.**  `ConLeche.Expr.const`
+  carries a `List Level`, so a list node denotes pointwise with no `toList` in
+  any statement, and `List` already has the `BEq`/`Hashable`/`DecidableEq` the
+  cons table needs.  §8.7's `LsIdx`-vs-flat-slice question is untouched by
+  this; it is still open for P2g.
+* **Four handle kinds share one `Idx k` over a phantom `IdxKind`** rather than
+  four separate structures.  This is nanoda's `Ptr<A>` with `PhantomData<A>`
+  spelled as a type index (`util.rs:35-46`); it keeps the four types distinct
+  to the elaborator, and `mk`/`tag`/`tier`/`index` and their eleven roundtrip
+  lemmas exist once instead of four times.  The Rust side is `Ptr<A>`
+  verbatim.
+* **`intern` stays total**, as the brief froze it (`EStore → ENodeView →
+  EStore × EIdx`).  The 2^27-per-constructor-per-tier limit is a *hypothesis*
+  (`EStore.capOK`) on `intern_spec`, not a branch: the checker tier (P2c)
+  tests it and raises `Native`, which is where §8.3 puts it ("the Rust raises
+  `Native` at the limit, the Lean `throw`s the same kind") — at the monadic
+  wrapper, not in the pure store op.
+* **The four stores nest** (`NStore ⊂ LStore ⊂ LsStore ⊂ EStore`) so that
+  §8.3's `denoteN : NStore → NIdx → Option Name` and `denoteE : EStore → EIdx
+  → Option Expr` are literally the signatures.  It costs nothing at runtime —
+  interning an expression node never touches the name arrays, because an
+  `ENodeView`'s children are handles — and the Rust flattens it into one
+  `Arena` struct with field prefixes, which is a mechanical change.
+
+#### The sorry list
+
+Fourteen, all in `WFProofs.lean`, all of the same shape: a bookkeeping
+induction over the per-constructor arrays that `ETables.get_mono` /
+`get_push_mono` / `intern_ext` already carry out for `Ext`, repeated for the
+other invariant clauses and for the three smaller stores.  **None of the
+three the brief names as load-bearing is among them** — `denoteE_inj` and
+`EStore.derived_exact` are complete, and `EStore.intern_spec` is *proved*
+from the two lemmas below, so closing those closes it.
+
+| theorem | what is missing | estimate |
+|---|---|---|
+| `EStore.intern_view_spec` | the new handle decodes: `Idx.idxNat_mk` plus `Tbl.node?_push_new` through the ten-way tag dispatch | ½ day |
+| `EStore.intern_wf` | the fifteen `EWFAt` clauses after one append (cons graph, freshness, `derExact` at the new node, the rank update `rk' = update rk new (persCount or nodeCount)`) | 1½ days |
+| `EStore.enableScratch_wf` | `EWFAt` with `scr := empty, scratchOn := true`; every clause is the old one restricted | ¼ day |
+| `EStore.dropScratch_wf` | ditto with `scratchOn := false`; the only real content is that `childOK`'s persistent-closure conjunct keeps `derExact` pointwise | ¼ day |
+| `EStore.dropScratch_denote_pers` | induction on the denoted value using `dropScratch_wf` and the two `view_dropScratch_*` lemmas (both proved) | ¼ day |
+| `NStore.intern_spec`, `LStore.intern_spec`, `LsStore.intern_spec` | the two `EStore` `intern` lemmas over 3 / 5 / 1 arrays | 1 day together |
+| `NStore.dropScratch_spec`, `LStore.…`, `LsStore.…` | mirrors of the `EStore` pair | ½ day together |
+| `NStore.enableScratch_spec`, `LStore.…`, `LsStore.…` | mirrors | ¼ day together |
+
+What made them expensive rather than hard: `split_ifs` is a **Mathlib**
+tactic and this library deliberately does not depend on Mathlib, so every
+ten-way tag dispatch is an explicit `by_cases` chain (`ETables.get_mono` is
+the worked example, 35 lines).  Pulling Mathlib in would shrink these proofs
+and multiply the library's build time by two orders of magnitude; the right
+answer is a local `tag_cases` macro, and P2b should write it first.
+
+#### Numbers
+
+| | lines |
+|---|---|
+| code (definitions, instances, `#guard`s) | 1 109 |
+| proof (theorems and their tactic blocks) | 1 426 |
+| prose (module docs, section headers, citations) | 636 |
+| **total** | **3 648** |
+
+Per module: `Handle` 246, `Store` 1 103, `Denote` 297, `WF` 295, `WFProofs`
+1 518, `StoreTest` 169, `Arena` 20.  The proof-to-code ratio is **1.3 : 1**
+against con-leche's arena-era **4.3 : 1** (§6 lesson 39) — the gap is the
+fourteen open lemmas and, more, the tier regime §8.3 simplifies away.
+
+`lake build ConRonArena` from a clean `.lake/build/…/Arena*`, three runs:
+**6.28 / 6.18 / 6.18 s** wall (`LEAN_NUM_THREADS=8`).  Per module: `Handle`
+0.64 s, `Store` 2.3 s, `Denote` 0.57 s, `WF` 0.48 s, `StoreTest` 0.42 s,
+`WFProofs` 1.2 s, `Arena` 0.21 s.  Nothing here needs `maxHeartbeats`
+(contrast §6 lesson 36: con-leche's interned tower needed 2 M–12.8 M).
+
+`StoreTest.lean` is 40 kernel-reduced `#guard`s: the handle layout; the same
+node interned twice giving the same handle; cross-tier dedup (a persistent
+node is never re-interned into scratch); `view` round-trips; `denoteE` /
+`denoteN` / `denoteLs` against hand-written con-leche values; the derived
+column against `Expr.data` / `Name.hashData` / `Level.hashData` /
+`levelsHash` / `levelsHaveParam` computed on both sides; and the
+`dropScratch` bracket (scratch handles denote `none`, persistent handles keep
+both their bits and their denotation).
+
+#### Provenance
+
+Every `def`, `structure`, `inductive` and `theorem` carries a doc line
+`/-- con-leche: <path>:<a>-<b> <decl> -/` where it mirrors con-leche, and
+`/-- con-leche: none — <reason> -/` otherwise, as §3.7 requires of the Rust
+crate.  `scripts/provenance.py` does not yet read Lean (a parallel task); the
+citations are written to the format it will expect.  Nothing in `crates/`,
+`proof/ConRon/Refine/`, `proof/ConRon/Generated/`, `OVERVIEW.md` or
+`README.md` was touched, so the Rust gates are unaffected.
+
+#### For P2b
+
+* Write the `tag_cases` macro first (above).
+* `EStore.intern_view_spec` and `intern_wf` are the two lemmas everything else
+  waits on; do them before any `ExprOps` twin, because their *statements* (not
+  their proofs) are already what the twins' specs quantify over.
+* The `@[noinline]` and detach-before-update discipline is in place at every
+  mutation site in `Store.lean`; P2g measures whether it held.
