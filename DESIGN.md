@@ -2071,7 +2071,15 @@ the persistent tier (the byte recogniser is unchanged).
            verification lives beside it (lesson 27);
         b. ExprOps twins with memo (instantiate/abstract/lift/…);
         c. Core twins: six bodies, knot, caches, the per-declaration bracket;
-        d. DeclCheck / Checker / CheckerBase / Canon / pins / Inductives twins;
+        d. DeclCheck / Checker / CheckerBase / Canon / pins / Inductives twins.
+           **DONE** (2026-09-20): part 1 the declaration checker (task #97d),
+           part 2 the inductive installs (task #97d-2), run concurrently
+           against the `Arena/Inductives.lean` seam.  `runPipeline` is wired
+           to the two-phase fold and `con-ron-lean` CHECKS: **343 of the 348
+           fixtures agree** with con-leche, the four that differ are one
+           message of the modeled projection install and the one that does
+           not finish is `instantiateList`'s missing cutoff (task #97b's, for
+           P2g).
         e. the parser into the store (ExportC over stores; Scan unchanged).
            **Part 1 DONE, task #97e** (2026-09-20): `ExportC`/`Prepare`/
            `Prelude` over handles, the `Env`/`FEnv` declaration layer
@@ -24004,3 +24012,375 @@ elaborator, con-leche's on `Expr` trees and the arena's on handles — cost
 * **`renameConsts` should take the table, not a function** (deviation 3);
   that is the last higher-order argument in (B), and the Rust side needs it
   gone at P4.
+### Task #97d — the declaration checker (2026-09-20, Opus under Fable)
+
+Phase P2d of §8.6, **part 1**: `CheckerBase` / `DeclCheck` / `Checker` /
+`CheckerSplit` / `CheckerGated` / `Canon` / the pin sets / the basis and axiom
+pins, the per-declaration bracket, and `runPipeline` wired to the fold — so
+`con-ron-lean FILE` now CHECKS.  Part 2, the inductive installs, is task
+#97d-2's; the two ran at the same time against a fixed seam
+(`Arena/Inductives.lean`'s `checkIndDecl`).
+
+#### The module map
+
+| module | raw / non-blank | what |
+|---|---:|---|
+| `Arena/Intern.lean` | 67 / 53 | the five fresh-memo entry points that put a con-leche VALUE into the store |
+| `Arena/Canon.lean` | 239 / 214 | `ConLeche/Kernel/Canon.lean` whole: the level-parameter canonical form, as the lockstep comparison |
+| `Arena/StdAxioms.lean` | 160 / 142 | the eight reserved names, `erasePwEq`, `matchesPin`, the `Iff`/`Nonempty` pins |
+| `Arena/TrustAxioms.lean` | 131 / 108 | `TrustAxioms.lean` + `TrustPins.lean`: the compiler-trust names, shapes and the reduce pin |
+| `Arena/Basis.lean` | 90 / 77 | `BasisKind.decls`/`declsA`, `basisPinHit`, `quotPinHit` |
+| `Arena/NatOpPinSet.lean` | 81 / 73 | `INatOpPinSet` and the pin-variant interning |
+| `Arena/CheckerBase.lean` | 545 / 487 | `CheckerOpsA` + `orElseAttempt`, `checkConstantVal`, the strategy-independent helpers, the memoized `constsResolveF` and `allLevelParamsDefined` |
+| `Arena/CheckerSplit.lean` | 125 / 112 | the install/check seam: `ValueGroup`, `installConstantVal`, `installValue`, `checkValueGroup` |
+| `Arena/DeclCheck.lean` | 659 / 603 | the six axiom/trust environment predicates, the `Nat.div`/`mod` pin gate whole, the three value kinds' checks |
+| `Arena/Checker.lean` | 375 / 341 | `checkBasisDecl`, `checkDecl`, `checkDeclsPure`, the two-phase `installThenCheck`, `internAllPins` |
+| `Arena/CheckerGated.lean` | 42 / 35 | the gated instantiations (census class (S), twinned as statement subjects) |
+| `Arena/CheckerTest.lean` | 407 / 338 | 69 kernel-reduced differential `#guard`s |
+| `Arena/Frontend/NatOpGround.lean` | 266 / 240 | deliverable (e): the ground hoist, un-stubbing the parser's placeholder |
+| **total** | **3 187 / 2 823** | |
+
+`Arena/Main.lean` changed in exactly the two places the brief allowed: the
+body of `runPipelineTail` (which both the pure seam and the driver's
+interleaved read loop go through, so ONE edit wires both), and the retirement
+of its two placeholders — `CheckMode` and `NatOpPinSet`, which task #97e's
+"for part 2" note item 6 left as the driver's own copies.
+
+#### The six deviations
+
+Task #97c's six are inherited unchanged.  What is NEW to this half:
+
+1. **`CheckerOps` is twinned but not passed.**  The brief asks for the record
+   with its one (memoized) instantiation, and DESIGN §8.2 says the record is
+   "a program seam at HEAD, not a proof seam" and that (B) "calls its own
+   bodies"; §3.4 forbids a record of function values in code Aeneas must
+   translate, and `crates/con-ron-core/src/kernel/checker.rs` drops the `ops`
+   binder for exactly that reason.  So `CheckerOpsA`, `fueledOpsA`,
+   `pureOpsA` and `CheckerGated.lean`'s two exist as the statement subjects
+   P3 needs — the treatment task #97c gives `CoreIO.lean`/`CoreGated.lean` —
+   and every body calls `Arena/Core.lean`'s fueled entries by name.
+2. **`orElse` is `orElseAttempt`, and it is the port's four-way step**, not
+   con-leche's three-way one.  `OVERVIEW §4.5`'s `or_else_step`
+   (`cached/checker_c.rs:123-132`) splits the error clause: a `native` error
+   — the arena's own machine-word limit, which has no `throw` behind it in
+   con-leche — is `failed` and the stream declines; anything else is
+   `recovered` and the loop moves to the next variant **at the pre-attempt
+   state**.  Writing the primitive as a state function (`fun s => match att s
+   with …`) is what makes the snapshot free: the pre-attempt `s` is in hand
+   at the error arm, so restoring it discards the memo rows, the cache rows
+   AND the store nodes the failed attempt appended — the Rust's
+   `state_c::dup` snapshot plus the tier growth it does not undo.  Discarding
+   an append is sound and invisible: the tiers are append-only, so every
+   handle that existed before the attempt still decodes at the restored
+   sizes, and no handle the attempt made survives the arm.
+3. **Each con-leche `Env`/`FEnv` PAIR collapses into one twin**, carrying a
+   `con-leche:` line per collapsed declaration — task #97c's deviation 1
+   applied to `Checker.lean` / `DeclCheck.lean` (fourteen pairs) and to
+   `StdAxioms.lean` / `TrustAxioms.lean` / `DeclCheck.lean` (six more).  The
+   twin keeps the UNSUFFIXED name.
+4. **`canonExpr`/`canonEq` and `erasePw`/`matchesPin` collapse the same way**
+   — con-leche carries the rebuild as the SPECIFICATION and the lockstep
+   descent as the `@[csimp]` twin both binaries execute, and the arena writes
+   one function per algorithm: the executed one.  (con-leche's reason for the
+   lockstep form is task #226: the rebuild is `O(tree)` on a DAG-shared
+   stream term and `tests/e2e/tower_axiom.ndjson` exhausts memory on it.  The
+   arena would not need it for that reason — a handle walk is memoizable —
+   but it needs the same verdict, and the lockstep walk is bounded by the
+   PIN's tree size on every input, which is what the callers rely on.)
+5. **The pinned DATA is con-leche's own, interned** (`Arena/Intern.lean`).
+   The basis blocks, the standard- and compiler-trust axiom pins and the
+   `Nat`-operation pin variants are ~120 con-leche declarations of pure
+   `Expr`/`ConstantInfo` values, hand-written against `Init.Prelude` through
+   a builder whose every helper is one `Expr` constructor, or spliced by
+   `#annotate_basis`/`#load_natop_pins`.  A handle twin of one of them would
+   be the same tree spelled with `internE`, and DESIGN §8.7's ruling is that
+   (B) IMPORTS con-leche's representation-free data rather than copying it.
+   So each twin is one line, and the walk is task #97e part 2's memoised
+   `Frontend/Readback.lean` intern direction.
+6. **`canonNameMap ps : Name → Name` becomes the two-list lookup
+   `canonNameMap ps cs`.**  The canonical renaming sends the `i`-th level
+   parameter to `.num .anonymous i`; over handles "building a name" means
+   INTERNING one, so the map cannot be computed on demand, and §3.4 forbids
+   the function value anyway.  The numbered names are interned ONCE
+   (`canonNames n`, which depends on the LENGTH alone) and one `cs` serves
+   both sides of every comparison, because each comparison tests the two
+   parameter lists for equal length before it looks at a term.
+
+Two smaller ones:
+
+* **`domsMatchAux`'s `g : Nat → Expr → Expr` is not a function value.**  It
+  is called at the identity everywhere in this half and at `renameConsts
+  (projFwd …)` in the modeled install; over handles the renaming one cannot
+  share the walk anyway, because renaming a constant is monadic.  The twin
+  here is the identity one, over the ARRAY (con-leche's `domsMatchAuxA`, the
+  version the checker runs — positional list indexing made the comparison
+  quadratic on wide telescopes), and it is PURE: a domain comparison is a
+  handle comparison.
+* **`divModCertStmts`' eleven local lambdas are named `def`s** (`eqAt1`,
+  `natOne`, `natVar`, over `Arena/Core.lean`'s `natAp1`/`natAp2`), the
+  treatment task #97c gives `natOpEquations`' three.
+
+#### The bracket, and where it goes
+
+DESIGN §8.3: "Persistent = parse + installed environment; scratch = one
+declaration's check."  The question this task had to answer is *which half of
+a declaration is the check*, because the terms a declaration INSTALLS must
+not be in a tier that is about to vanish.
+
+con-leche has the answer already, and it is `ConLeche/Kernel/CheckerSplit.lean`:
+the three value kinds split into an INSTALL half (the syntactic guards and
+the annotation — which produce exactly the annotated type and the annotated
+value the environment stores) and a CHECK half (the type's sort, the value's
+inferred type, the conversion — which produce nothing that is kept).
+`ConLeche/Cached/Installed.lean` makes that split GLOBAL, and it is what the
+binary runs.  So:
+
+* **`installThenCheck`** mirrors `Cached/Installed.lean`'s `checkDecls` phase
+  for phase: phase A folds `annotStep` over the records (install, PERSISTENT,
+  no bracket), phase B walks the `PendingCheck`s and each one is
+  `enterScratch` … `checkValueGroup` … `dropScratch`.
+* **`checkDeclsPure`** is the THEOREM's shape (`Model/Fold.lean`'s
+  `checkDeclsPure_sound_of` consumes it, and §8.2's Theorem 1 folds
+  `checkDecl` over the stream) and has NO bracket: the bracket is an
+  optimisation of the driver's fold, and putting it here would make the two
+  folds differ by more than their phase structure.
+* Phase A's fallback — `annotStep`'s last clause, which runs the whole
+  `checkDecl` for the kinds whose check is not separable from their install
+  (axioms, basis and quotient blocks, inductive blocks, and the
+  `Nat`-operation and `reduce*` pin gates) — is deliberately unbracketed, for
+  the same reason: those install what they check.
+
+**`internAllPins` is the other half of the same argument.**  A reserved name
+first interned INSIDE a scratch tier would be a scratch handle, and would
+compare unequal to the stream's own persistent copy of the same name — the
+one way hash-consing can go wrong across the tier boundary.  So the startup
+walk (DESIGN §8.6 P2d's "at startup — a one-time tree walk") interns every
+pinned datum and every reserved name while the scratch tier is still off, and
+after it `intern`'s persistent-first probe hands back the persistent handle
+whatever tier is live.  `runPipelineTail` runs it between `preparePrelude`
+and the fold.
+
+The bracket is tested from outside in `CheckerTest.lean`: a handle that
+leaked out of a scratch tier would make the readback of the installed
+environment `none`, and every `chkInstall` line compares that readback with
+con-leche's environment.
+
+#### The differential test: 69 `#guard`s
+
+`scripts/diff-e2e.sh` could not reach an ACCEPT while this half was alone:
+every one of the 348 fixtures declares an inductive block, so what the
+fixtures exercised of part 1 was the reject and decline lane only.
+`Arena/CheckerTest.lean` is the accept lane, and it is written so that it
+needs no inductive install at all — a list's `Nat` arrives as
+`.basisDecl .natK`, the fold's own record for "install the pinned block".
+
+The discipline is task #97b's and #97c's: the declaration list is written
+ONCE as con-leche `Declaration` values, the arena's is derived from it by
+interning, and the comparison is over the WHOLE outcome — an accept must meet
+an accept at the same environment (`denoteCIList` of the arena's against
+con-leche's `Env.consts`, so every constant, its annotated type and its
+stored value), a failure a failure of the same kind and the same message.
+
+| what | checks |
+|---|---:|
+| con-leche's own outcome, pinned by hand | 5 |
+| `checkDeclsPure` against con-leche's | 20 |
+| `checkDecl` at a non-empty environment | 16 |
+| the TWO-PHASE `installThenCheck` against con-leche's one-phase fold | 12 |
+| `stdAxiomOk`, `matchesPin`, `canonEqList`, `basisPinHit` directly | 16 |
+| **total** | **69** |
+
+The five hand-pinned lines are what stop the differential passing vacuously
+(`chkDecls` is satisfied by two agreeing FAILURES): they pin the accepted
+environment's size at 7 for the two basis blocks, 10 for the accepting list
+and 8 for the quotient package, and the two messages `quotient basis requires
+the pinned Eq basis` and `duplicate declaration two`.
+
+**What it found.**  Two of my own expectations, not the code's: an ordinary
+user axiom DECLINES at its own record (so a theorem's proposition has to come
+from the pinned `Eq` basis, not be postulated), and the count of the
+accepting list was off by the two records that mistake cost.  Every twin
+agreed on the first run.
+
+#### The fixtures
+
+`scripts/diff-e2e.sh --bin=proof/.lake/build/bin/con-ron-lean`, the same 348
+cases, at two points:
+
+| | task #97e part 2 | part 1 alone | + part 2 merged | **+ the memo fix** |
+|---|---:|---:|---:|---:|
+| agree | 60 | 61 | 336 | **343** |
+| DIFFER | 288 | 287 | 4 | **4** |
+| timed out | 0 | 0 | 8 | **1** |
+| other errors | 0 | 0 | 0 | **0** |
+| wall | 3–4 s | 22 s | 526 s | **106 s** |
+
+**Part 1 alone: every one of the 287 differences was exactly the stubbed
+inductive install** — `declined: arena: inductive install not yet wired` —
+with no false accept, no false reject, no internal error, no crash and no
+timeout anywhere in the sweep.  The 61 agreements were 32 real verdicts (up
+from 31) and 29 stub coincidences; the one new real verdict is
+`e2e/false_redefined.ndjson`, the first FOLD verdict the arena ever reached
+(`checkConstantVal`'s reserved-basis-name reject), and `tower_axiom` /
+`tower_quot` moved from the parser's decline to the fold's own
+(`checkDecl`'s `.axiomDecl` `Quot.sound` arm and its `.quotDecl` arm).
+
+**With part 2 merged, the four differences are all one message** —
+`declined: projection iota redex mismatch`, on `e2e/nested_rec`,
+`nested_pin_names`, `indexed_nested_aux` and `inmodel_nested`, which is
+`checkProjIota`'s redex comparison in `Arena/Inductives/Modeled.lean` (part
+2's) on a NESTED block.  Again: no false accept, no false reject, no internal
+error, no crash.
+
+**And the merge found a real bug, in the half this one did not write.**
+Eight of con-leche's `tower_*`/`proj_share` fixtures — the ones built to
+catch a tree walk unfolding a DAG — did not finish in 60 s.  `perf record`
+put 21 % of the cycles in `ConRon.Arena.constsResolve`, `Arena/Core.lean`'s
+**unmemoized** walk, which the inductive installs called at all fifteen sites
+where con-leche calls `constsResolveF` — whose executed form, by con-leche's
+own `@[csimp]`, is the MEMOIZED `constsResolveFFast` (con-leche's task #210
+Part B, and `tests/e2e/tower_struct.ndjson` is its stated reason).  Pointing
+those fifteen at `CheckerBase.lean`'s memoized twin took seven of the eight
+timeouts away and the whole sweep from 526 s to 106 s.  The lesson is a
+provenance one: a twin that cites `Expr.constsResolve` and a twin that cites
+`Expr.constsResolveF` are different functions, and only the second is what
+the binary runs.
+
+The one fixture still over 60 s is `e2e/proj_share.ndjson`, and it is a
+DIFFERENT walk: `perf` puts 18 % of its cycles in
+`ConRon.Arena.instantiateList`, the un-cutoff pure walk task #97b flagged
+("`instantiateList` and `liftLooseBVars` get no cutoff … recorded as the
+first thing the performance phase should price", at a measured factor of
+about 10 000 on a subject a cutoff answers).  That is P2g's, and this is the
+fixture that prices it.
+
+#### Deliverable (e): the ground hoist
+
+`ConLeche/Frontend/NatOpGround.lean` over handles, as a module of its own
+exactly as con-leche's is, and `Arena/Frontend/Prepare.lean`'s identity
+placeholder now calls it.  `usedConstsGo`'s `Std.HashSet Expr` becomes a
+`Std.HashSet EIdx` whose hash IS the handle word; con-leche's two `for`/`mut`
+loops over the record array become explicit tail recursions (§8.4 lesson 16 —
+the record array IS the stream) and the inner worklist's `while` a fuelled
+recursion over an explicit stack.  `applyHoist`'s comparator stays a function
+value: it is a SORT's comparator, which `List.mergeSort` and Rust's `sort_by`
+both take, and it closes over the target table rather than over the records.
+
+The pass is a no-op on every fixture, which is con-leche's own claim about it
+("no-op on every stream whose ground precedes its operations — the
+toolchain's own export order, `init-full` and Mathlib included"), so
+`diff-e2e` is unmoved by it; what it buys is the stream order `lean4export`
+produces from arbitrary roots.
+
+#### Provenance and coverage
+
+`scripts/provenance.py check`: **0 findings**.  The arena ledger, before this
+task and after it *with* part 2 merged:
+
+| con-leche module | before | part 1 | + part 2 |
+|---|---:|---:|---:|
+| `Kernel/CheckerBase.lean` | 0/20 | 20/20 | 20/20 |
+| `Kernel/Checker.lean` | 0/22 | 22/22 | 22/22 |
+| `Kernel/CheckerSplit.lean` | 0/6 | 6/6 | 6/6 |
+| `Kernel/DeclCheck.lean` | 0/39 | 28/39 | 23/39 |
+| `Kernel/Canon.lean` | 0/13 | 13/13 | 13/13 |
+| `Kernel/StdAxioms.lean` | 0/24 | 24/24 | 24/24 |
+| `Kernel/TrustAxioms.lean` | 0/26 | 26/26 | 26/26 |
+| `Kernel/TrustPins.lean` | 0/2 | 2/2 | 2/2 |
+| `Kernel/Basis.lean` | 0/3 | 3/3 | 3/3 |
+| `Kernel/BasisA.lean` | 0/1 | 1/1 | 1/1 |
+| `Kernel/NatOpPinSet.lean` | 1/1 | 1/1 | 1/1 |
+| `Kernel/Level.lean` | 3/24 | 9/24 | 9/24 |
+| **ARENA TOTAL** | **265/927** (28.6 %) | **425/927** (45.8 %) | **561/927** (60.5 %) |
+
+Three notes on the numbers.  `DeclCheck.lean` goes DOWN between the two
+columns because the five model-companion reads (`checkEtaThm`,
+`checkUnitThm`, `indBlockCaps`, `checkMemberVal`, `checkProjLookups`) were
+written on both sides of the concurrency seam and the duplicate was resolved
+in favour of `Arena/Inductives/Modeled.lean`'s, which is where their only
+callers are.  `Level.lean` climbs by six because `Name.nodup`,
+`Name.isModelSuffix`, `Name.isProjFnShape` and the three
+`allLevelParamsDefined` declarations are P2a's file but the declaration front
+door is their only reader, so they are `CheckerBase.lean`'s.  And
+`ConLeche/Kernel/Env.lean` loses one — `CheckMode`, which (B) now IMPORTS
+rather than copies (§8.7's ruling), and an import is not a twin.
+
+#### Build time
+
+`lake build ConRonArena con-ron-lean` from a clean `Arena` build directory,
+`LEAN_NUM_THREADS=4`, `ulimit -v 60000000`: **49.4 s** with part 2 merged (38.3 s for part 1 alone, before the merge).  Nothing in this half
+needs `maxHeartbeats`, and the 69 kernel-reduced `#guard`s of
+`CheckerTest.lean` — which run the whole memoized knot, the declaration fold
+and `denoteCIList` inside the elaborator — cost **2.4 s** between them.
+
+#### Gates
+
+`cargo build`/`cargo test` (243 + 19 tests, warnings denied),
+`lint-rust-style`, `provenance.py check` (0), `provenance-selftest.py`,
+`overview-links.sh` (67 links, 36 files), `holes.sh --check` (2 types, 20
+fns), `gen-pins.sh --check`, `gen-prelude.sh --check`,
+`gen-prelude-lean.sh --check`, `extract.sh --check` — all green.  `lake build
+ConRonArena con-ron-lean` green with zero warnings.  The whole-`proof/` `lake
+build` was NOT re-run, for task #97t's and #97e's reason: this worktree has
+no built `.lake` for the Mathlib-side targets and nothing in that gate's
+scope changed (`proof/ConRon.lean` does not import `ConRon.Arena`).
+
+#### What is left, and for whom
+
+**The `IndBase` duplication.**  The two halves of P2d ran concurrently and
+task #97d-2 needed a dozen of this half's helpers before this half existed,
+so it wrote its own under `ConRon.Arena.IndBase`
+(`Arena/Inductives/Base.lean`, 434 lines, 28 declarations).  Twenty-four of
+those are now duplicates of twins this half carries:
+
+| `IndBase.…` | this half's |
+|---|---|
+| `unwrapOr`, `checkTypedList`, `checkAnnotList`, `checkDefEqList`, `isEqHead`, `eqHeadLevel`, `checkProjShape`, `checkProjRule`, `unresolvedConstsError`, `checkConstantVal` | `CheckerBase.lean`'s, same names |
+| `nidxNodup` | `CheckerBase.nameNodup` |
+| `findCV?` | `CheckerBase.IFEnv.findCV?` |
+| `domsMatch` (over `List`) | `CheckerBase.domsMatchAux` (over `Array`, con-leche's `domsMatchAuxA`) |
+| `openPisAtFvarsPlain`, `openPisAtFvarsFGo`, `openPisAtFvars` | `CheckerBase.openPisAtFvars`, `openPisAtFvarsFGo`, `openPisAtFvarsF` |
+| `allLevelParamsDefinedGo`, `allLevelParamsDefined` | `CheckerBase.lean`'s, same names |
+| `internExpr`, `internCV`, `internCaps`, `internLevelsL` | `Arena/Intern.lean`'s over `Frontend/Readback.lean`'s memoised walk |
+| `eqBasisCI`, `eqBasisStored` | `Arena/StdAxioms.lean`'s `eqA` |
+
+The four that are NOT duplicates are `isRecInfo`, `recsFormSuffix`,
+`indParamsOk` (con-leche's `Env.lean:600-621`) and `domsMatchRenamed` (the
+renaming `domsMatchAux` this half deliberately left to the modeled install,
+because renaming a constant over handles is monadic).  Two duplicates were
+resolved during the merge because they were in the SAME namespace and so a
+hard error — `mentionsConst`/`mentionsConstGo` (this half's deleted, task
+#97d-2's `Arena/Inductives/StructParts.lean` kept, since that module imports
+`Arena/FEnv.lean` and nothing above it) and `paramLevels` (likewise).  The
+rest are namespace-separated and cost only duplication; **a dedup task
+follows**, and the shape it should take is to delete `Base.lean` and point
+its eleven consumers at the twins above, checking one thing while it does:
+`IndBase.checkConstantVal` is the declaration FRONT DOOR, and two front doors
+that could drift is the only item on this list that is more than tidiness.
+
+**For P2d's sequel and P2g:**
+
+* **The eleven `DeclCheck.lean` declarations this half does not carry** are
+  in `Arena/Inductives/Modeled.lean` and `Base.lean`; the ledger above counts
+  them there.
+* **`renameConstsFast` should take a TABLE, not a function** — task #97b's
+  closure audit predicted that the one call site's map "is a lookup in a
+  table, so a concrete map type is likely".  It is: `checkMemberVal` builds
+  `modelRenameTable` and passes `fun n => tbl.getD n n`, which is the last
+  closure in (B) outside a sort comparator.  The Rust takes the table by
+  reference; the Lean should too.
+* **The `Pins` record task #97c deferred is now worth pricing.**
+  `internAllPins` already fills the persistent tier at startup, which is half
+  of what the record would do; what is left is turning the twenty-odd `pin`
+  call sites into field reads.  `constsResolveFGo`'s `.lit` clauses intern
+  ten reserved names per literal node, and `checkDecl`'s `.axiomDecl` arm
+  interns six before it decides anything — those are the two hot ones.
+* **The fold's error carries a DECLARATION POSITION, not a line number**, and
+  `Arena/Checker.lean`'s `atDecl` renders it beside `Frontend.atLine`.  The
+  two must not be confused; the first version of this task's wiring ran the
+  fold's position through `atLine` and every fold verdict said "(line 10)"
+  when it meant the tenth declaration.
+* **`Arena/Bench.lean` still has no `Core` or `Checker` shapes.**  Task
+  #97c's "for P2d" note asked for a real declaration's `annotate` + `infer` +
+  `defeq` sweep; `checkDecl` exists now, and the subject the benchmark wants
+  is `CheckerTest.lean`'s `dsGood` at a larger `Nat`.
