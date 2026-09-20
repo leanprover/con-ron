@@ -351,24 +351,45 @@ pub fn hoist_push_deps(
     idx: &HashMap<NIdx, u64>,
     used: &Vec<NIdx>,
     stack: Vec<u64>,
+    sp: usize,
     i: u64,
     k: u64,
-) -> Vec<u64> {
+) -> (Vec<u64>, usize) {
     let mut stack = stack;
+    let mut sp = sp;
     let n = used.len();
     let mut u: usize = 0;
     while u < n {
         match idx_get(idx, &used[u]) {
             Some(m) => {
                 if m > i && m != k {
-                    stack.push(m);
+                    let r = stack_push_u64(stack, sp, m);
+                    stack = r.0;
+                    sp = r.1;
                 }
             }
             None => {}
         }
         u += 1;
     }
-    stack
+    (stack, sp)
+}
+
+/// con-leche: none — `Array.push` on the index worklist of `hoistTargets`
+/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:167-172 pushOne` —
+/// a worklist push.  `Vec::pop` is not in the Aeneas subset, so the walk
+/// carries its own top-of-stack index and overwrites the slot at it — a
+/// `Vec::push` only when the stack has never been that deep.  The vector and
+/// the top travel together (§3.4: accumulators by value), which is
+/// `con_ron_core::frontend::nat_op_ground::stack_push_u64` exactly.
+pub fn stack_push_u64(stack: Vec<u64>, sp: usize, x: u64) -> (Vec<u64>, usize) {
+    let mut stack = stack;
+    if sp < stack.len() {
+        stack[sp] = x;
+    } else {
+        stack.push(x);
+    }
+    (stack, sp + 1)
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets
@@ -389,16 +410,19 @@ pub fn hoist_close(
     let mut target = target;
     let mut stack: Vec<u64> = Vec::new();
     stack.push(j);
-    while stack.len() > 0 {
-        let k = stack[stack.len() - 1];
-        stack.pop();
+    let mut sp: usize = 1;
+    while sp > 0 {
+        sp -= 1;
+        let k = stack[sp];
         if !target_done(&target, k, i) {
             target.insert(k, i);
             let d = i_declaration_dup(&ds[k as usize]);
             match decl_used_consts(st, &d) {
                 Err(e) => return Err(e),
                 Ok(used) => {
-                    stack = hoist_push_deps(idx, &used, stack, i, k);
+                    let r = hoist_push_deps(idx, &used, stack, sp, i, k);
+                    stack = r.0;
+                    sp = r.1;
                 }
             }
         }

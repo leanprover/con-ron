@@ -1137,11 +1137,23 @@ pub fn at_decl(e: CheckError, n: u64) -> CheckError {
 /// `con_ron_core::kernel::core_k::nat_to_dec`, the port's own decimal
 /// recursion.
 pub fn at_decl_text(w: Vec<u32>, n: u64) -> Vec<u32> {
-    let mut out = w;
-    out.append(&mut code_points(&M_AT_DECL_OPEN));
-    out.append(&mut core_k::nat_to_dec(n));
-    out.append(&mut code_points(&M_AT_DECL_CLOSE));
-    out
+    let out = cp_append(w, &code_points(&M_AT_DECL_OPEN), 0);
+    let out = cp_append(out, &core_k::nat_to_dec(n), 0);
+    cp_append(out, &code_points(&M_AT_DECL_CLOSE), 0)
+}
+
+/// con-leche: none — `String.append`; the port stores a message as `Vec<u32>` (DESIGN.md §3.3)
+/// The cursor push behind `at_decl_text`: `Vec::append` is not in the Aeneas
+/// subset (it would be a new external), so the code points are pushed one at a
+/// time, which is what every other accumulator of the port does.
+pub fn cp_append(out: Vec<u32>, s: &Vec<u32>, i: usize) -> Vec<u32> {
+    if i >= s.len() {
+        out
+    } else {
+        let mut out2 = out;
+        out2.push(s[i]);
+        cp_append(out2, s, i + 1)
+    }
 }
 
 // ---------------------------------------------------------------------------
