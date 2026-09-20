@@ -56,3 +56,13 @@ root = "ConRon.Gen.Main"
 [[lean_exe]]
 name = "con-ron-dump-pins"
 root = "ConRon.Dump.Pins"
+
+# (B), THE LEAN ARENA CHECKER's driver (DESIGN.md §8.4, task #97 P2f).
+# con-leche's command line and con-leche's exit codes over
+# `ConRon.Arena.runPipeline`, so that `scripts/diff-e2e.sh --bin=…` can run
+# the same 348 fixtures against this binary and against `con-ron`.  Not a
+# default target: `lake build` elaborates the proof library, and the arena
+# checker's gate is the differential, not the build.
+[[lean_exe]]
+name = "con-ron-lean"
+root = "ConRon.Arena.Main"
