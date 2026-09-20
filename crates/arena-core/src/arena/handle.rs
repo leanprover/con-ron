@@ -92,7 +92,7 @@ pub const TAG_SPAN: u32 = 268435456;
 ///
 /// Deviation from the Lean: `UInt32` multiplication wraps, Rust's is checked
 /// (`overflow-checks = true`, DESIGN.md §3.4), so the model is a `fail` on
-/// `tag >= 16`.  Every caller passes one of the fourteen tag constants
+/// `tag >= 16`.  Every caller passes one of the nineteen tag constants
 /// below, and `tag * TAG_SPAN + tier * IDX_CAP + idx` is at most
 /// `u32::MAX` for `tag < 16`, `tier < 2`, `idx < IDX_CAP` — the same three
 /// hypotheses the Lean lemmas carry.
