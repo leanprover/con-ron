@@ -554,7 +554,7 @@ def checkProjIota (mode : CheckMode) (fe' feSelf : IFEnv) (T ctorName : NIdx)
   unless ← domsMatchRenamed (renameBy fwd) sbinders cbindersR 0 0 (nP + nF) do
     fail (.notImplemented "projection iota domain mismatch")
   let depth := nP + nF
-  let pArgs ← structPsAt (nF + 1) nP
+  let pArgs ← structPsAt nF nP
   let xArgs ← bvarsDesc nF
   let cmn ← internNNode (.str ctorName "_model")
   let cus ← paramLevels cvj.levelParams

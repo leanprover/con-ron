@@ -24384,3 +24384,45 @@ that could drift is the only item on this list that is more than tidiness.
   #97c's "for P2d" note asked for a real declaration's `annotate` + `infer` +
   `defeq` sweep; `checkDecl` exists now, and the subject the benchmark wants
   is `CheckerTest.lean`'s `dsGood` at a larger `Nat`.
+
+### Task #97f — the parity gate (2026-09-20, Opus under Fable)
+
+Phase P2f of §8.6: the 348 fixtures and `Init`, against con-leche.
+
+#### Item 1 — the four `projection iota redex mismatch` differences
+
+Task #97d left four fixtures differing, all with the same message and all on
+a NESTED block: `e2e/nested_rec`, `nested_pin_names`, `indexed_nested_aux`,
+`inmodel_nested`.  con-leche ACCEPTS all four (`0` in
+`tests/e2e-expected.txt`), so this was a false DECLINE, not a wording
+difference — a real deviation in `Arena/Inductives/Modeled.lean`'s
+`checkProjIota`, the twin of `ConLeche/Kernel/Inductives/Modeled.lean:513-563`.
+
+**The clause.**  con-leche builds the iota statement's expected left-hand
+side under the constructor telescope, at `depth := nP + nF`:
+
+    let pArgs := (List.range nP).map fun k => Expr.bvar (depth - 1 - k)
+
+i.e. `bvar (nP + nF - 1 - k)`.  The arena spelled the same list through
+`StructParts.lean`'s `structPsAt o nP`, whose element is `bvar (o + nP - 1 -
+k)` — so the offset `o` it wants is `nF`, and the twin passed `nF + 1`:
+
+    -  let pArgs ← structPsAt (nF + 1) nP
+    +  let pArgs ← structPsAt nF nP
+
+**Why NESTED blocks alone.**  `checkProjIota` is stage 4 of `checkProjFn`,
+which only runs for a modeled single-constructor structure that reaches the
+projection install — which on this corpus is exactly the four nested
+fixtures.  Task #97d-2's 46 `#guard`s cover the modeled route at fixtures 6,
+6' and 7, but all three of those DECLINE earlier (`no install route for
+inductive block …`), so no test in the tree reached the line.  The
+off-by-one came from the neighbouring idiom: `StructParts.lean:99` and
+`Modeled.lean`'s projection-body helpers genuinely stand under one extra
+binder (`structProjPs` is `structPsAt 1 nP`), and `nF + 1` is that
+convention applied one frame too deep.
+
+The error KIND and MESSAGE were already con-leche's own throw site
+(`.notImplemented "projection iota redex mismatch"`, the same string at the
+same guard), so `ErrSim` was never the issue: the twin simply computed a
+different comparand and took a throw con-leche does not take.  With the fix
+the four accept at con-leche's own declaration counts (36, 36, 41, 119).
