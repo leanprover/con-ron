@@ -1151,4 +1151,197 @@ theorem EStore.derived_exact {st : EStore} (h : StoreWF st) {i : EIdx}
   obtain ⟨rk, h⟩ := h
   exact EStore.derived_exact_at h x i hi
 
+/-! ## Appending to a table
+
+`Array.push` only *adds* readable indices, so every decoded node keeps
+decoding.  That is all `Ext` needs: `denote` is an `Option`, and the
+extension relation only claims `= some` is preserved. -/
+
+theorem Option.map_mono {α β : Type} {f : α → β} {o o' : Option α} {b : β}
+    (hm : ∀ a, o = some a → o' = some a) (h : o.map f = some b) :
+    o'.map f = some b := by
+  simp only [Option.map_eq_some_iff] at h ⊢
+  obtain ⟨a, ha, he⟩ := h
+  exact ⟨a, hm a ha, he⟩
+
+theorem Tbl.node?_push {α ι δ : Type} [BEq α] [Hashable α] {t : Tbl α ι δ}
+    {a w : α} {d : δ} {h : ι} {n : Nat} (hn : t.node? n = some a) :
+    (t.push w d h).node? n = some a := by
+  cases t with | mk ns ds cs =>
+  simp only [Tbl.node?, Tbl.push] at hn ⊢
+  rw [Array.getElem?_push]
+  split
+  · rename_i heq; rw [heq] at hn; simp at hn
+  · exact hn
+
+theorem Tbl.node?_push_new {α ι δ : Type} [BEq α] [Hashable α] {t : Tbl α ι δ}
+    {w : α} {d : δ} {h : ι} : (t.push w d h).node? t.size = some w := by
+  cases t
+  simp [Tbl.push, Tbl.node?, Tbl.size, Array.getElem?_push]
+
+/-- The expression tier's `get` is monotone in each of its ten arrays.  The
+`by_cases` chain is the tag dispatch, written out because this library
+deliberately does not depend on Mathlib (`split_ifs` is a Mathlib tactic). -/
+theorem ETables.get_mono {t t' : ETables}
+    (hb : ∀ n a, t.bvars.node? n = some a → t'.bvars.node? n = some a)
+    (hfv : ∀ n a, t.fvars.node? n = some a → t'.fvars.node? n = some a)
+    (hso : ∀ n a, t.sorts.node? n = some a → t'.sorts.node? n = some a)
+    (hco : ∀ n a, t.consts.node? n = some a → t'.consts.node? n = some a)
+    (hap : ∀ n a, t.apps.node? n = some a → t'.apps.node? n = some a)
+    (hla : ∀ n a, t.lams.node? n = some a → t'.lams.node? n = some a)
+    (hfa : ∀ n a, t.foralls.node? n = some a → t'.foralls.node? n = some a)
+    (hle : ∀ n a, t.lets.node? n = some a → t'.lets.node? n = some a)
+    (hli : ∀ n a, t.lits.node? n = some a → t'.lits.node? n = some a)
+    (hpr : ∀ n a, t.projs.node? n = some a → t'.projs.node? n = some a)
+    {i : EIdx} {v : ENodeView} (h : t.get i = some v) : t'.get i = some v := by
+  simp only [ETables.get] at h ⊢
+  by_cases c0 : (i.tag == ETag.bvar) = true
+  · rw [if_pos c0] at h ⊢; exact Option.map_mono (hb _) h
+  rw [if_neg c0] at h ⊢
+  by_cases c1 : (i.tag == ETag.fvar) = true
+  · rw [if_pos c1] at h ⊢; exact Option.map_mono (hfv _) h
+  rw [if_neg c1] at h ⊢
+  by_cases c2 : (i.tag == ETag.sort) = true
+  · rw [if_pos c2] at h ⊢; exact Option.map_mono (hso _) h
+  rw [if_neg c2] at h ⊢
+  by_cases c3 : (i.tag == ETag.const) = true
+  · rw [if_pos c3] at h ⊢; exact Option.map_mono (hco _) h
+  rw [if_neg c3] at h ⊢
+  by_cases c4 : (i.tag == ETag.app) = true
+  · rw [if_pos c4] at h ⊢; exact Option.map_mono (hap _) h
+  rw [if_neg c4] at h ⊢
+  by_cases c5 : (i.tag == ETag.lam) = true
+  · rw [if_pos c5] at h ⊢; exact Option.map_mono (hla _) h
+  rw [if_neg c5] at h ⊢
+  by_cases c6 : (i.tag == ETag.forallE) = true
+  · rw [if_pos c6] at h ⊢; exact Option.map_mono (hfa _) h
+  rw [if_neg c6] at h ⊢
+  by_cases c7 : (i.tag == ETag.letE) = true
+  · rw [if_pos c7] at h ⊢; exact Option.map_mono (hle _) h
+  rw [if_neg c7] at h ⊢
+  by_cases c8 : (i.tag == ETag.lit) = true
+  · rw [if_pos c8] at h ⊢; exact Option.map_mono (hli _) h
+  rw [if_neg c8] at h ⊢
+  by_cases c9 : (i.tag == ETag.proj) = true
+  · rw [if_pos c9] at h ⊢; exact Option.map_mono (hpr _) h
+  rw [if_neg c9] at h ⊢
+  exact absurd h (by simp)
+
+theorem ETables.get_push_mono (t : ETables) (w : ENodeView) (d : UInt64)
+    (tr : UInt32) {i : EIdx} {v : ENodeView} (h : t.get i = some v) :
+    (t.push w d tr).1.get i = some v := by
+  cases w <;>
+    refine ETables.get_mono ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ h <;>
+    intro n a ha <;> simp only [ETables.push] <;>
+    first | exact ha | exact Tbl.node?_push ha
+
+/-! ## `intern`: monotonicity and extension -/
+
+theorem EStore.view_intern_mono (st : EStore) (w : ENodeView) {i : EIdx}
+    {v : ENodeView} (h : st.view i = some v) : (st.intern w).1.view i = some v := by
+  simp only [EStore.intern]
+  split
+  · exact h
+  · split
+    · rename_i hon
+      split
+      · exact h
+      · simp only [EStore.view, hon] at h ⊢
+        by_cases hp : i.isPersistent = true
+        · rw [if_pos hp] at h ⊢; exact h
+        · rw [if_neg hp] at h ⊢; exact ETables.get_push_mono _ _ _ _ h
+    · rename_i hoff
+      simp only [EStore.view, hoff] at h ⊢
+      by_cases hp : i.isPersistent = true
+      · rw [if_pos hp] at h ⊢; exact ETables.get_push_mono _ _ _ _ h
+      · rw [if_neg hp] at h ⊢; exact h
+
+theorem EStore.lss_intern (st : EStore) (w : ENodeView) :
+    (st.intern w).1.lss = st.lss := by
+  simp only [EStore.intern]
+  split
+  · rfl
+  · split
+    · split
+      · rfl
+      · rfl
+    · rfl
+
+theorem EStore.nodeCount_intern_le (st : EStore) (w : ENodeView) :
+    st.nodeCount ≤ (st.intern w).1.nodeCount := by
+  simp only [EStore.intern]
+  split
+  · exact Nat.le_refl _
+  · split
+    · split
+      · exact Nat.le_refl _
+      · cases w <;>
+          simp [EStore.nodeCount, EStore.persCount, EStore.scrCount, ETables.push,
+            ETables.count, Tbl.push, Tbl.size] <;> omega
+    · cases w <;>
+        simp [EStore.nodeCount, EStore.persCount, EStore.scrCount, ETables.push,
+          ETables.count, Tbl.push, Tbl.size] <;> omega
+
+/-- `denoteEAux` only needs the store's `view` to grow and its sub-stores to
+stay put. -/
+theorem denoteEAux_store_mono {st st' : EStore}
+    (hv : ∀ i v, st.view i = some v → st'.view i = some v)
+    (hl : st'.lss = st.lss) :
+    ∀ (f : Nat) (i : EIdx) (e : Expr),
+      denoteEAux st f i = some e → denoteEAux st' f i = some e := by
+  intro f
+  induction f with
+  | zero => intro i e h; simp [denoteEAux] at h
+  | succ k ih =>
+    intro i e h
+    simp only [denoteEAux, Option.bind_eq_some_iff] at h ⊢
+    obtain ⟨v, hvv, h⟩ := h
+    refine ⟨v, hv i v hvv, ?_⟩
+    have hns : st'.ns = st.ns := by simp [EStore.ns, hl]
+    have hls : st'.ls = st.ls := by simp [EStore.ls, hl]
+    cases v with
+    | bvar _ => exact h
+    | lit _ => exact h
+    | sort u => rw [hls]; exact h
+    | const n l => rw [hns, hl]; exact h
+    | fvar j ty =>
+      simp only [Option.map_eq_some_iff] at h ⊢
+      obtain ⟨q, hq, he⟩ := h
+      exact ⟨q, ih ty q hq, he⟩
+    | proj n j e' =>
+      simp only [opt2_eq_some_iff] at h ⊢
+      obtain ⟨x, y, hx, hy, he⟩ := h
+      exact ⟨x, y, by rw [hns]; exact hx, ih e' y hy, he⟩
+    | app a b =>
+      simp only [opt2_eq_some_iff] at h ⊢
+      obtain ⟨x, y, hx, hy, he⟩ := h
+      exact ⟨x, y, ih a x hx, ih b y hy, he⟩
+    | lam ty b m =>
+      simp only [opt2_eq_some_iff] at h ⊢
+      obtain ⟨x, y, hx, hy, he⟩ := h
+      exact ⟨x, y, ih ty x hx, ih b y hy, he⟩
+    | forallE ty b m =>
+      simp only [opt2_eq_some_iff] at h ⊢
+      obtain ⟨x, y, hx, hy, he⟩ := h
+      exact ⟨x, y, ih ty x hx, ih b y hy, he⟩
+    | letE ty w b =>
+      simp only [opt3_eq_some_iff] at h ⊢
+      obtain ⟨x, y, z, hx, hy, hz, he⟩ := h
+      exact ⟨x, y, z, ih ty x hx, ih w y hy, ih b z hz, he⟩
+
+/-- con-leche: Verify/SimI.lean:244 Ext — `intern` extends the arena: every
+handle that denoted before denotes the same after. -/
+theorem EStore.intern_ext (st : EStore) (w : ENodeView) :
+    Ext st (st.intern w).1 := by
+  refine ⟨?_, ?_⟩
+  · rw [EStore.lss_intern]; exact LsExt.refl _
+  · intro i e h
+    simp only [denoteE] at h ⊢
+    have hmono := denoteEAux_store_mono (st := st) (st' := (st.intern w).1)
+      (fun _ _ hh => EStore.view_intern_mono st w hh) (EStore.lss_intern st w)
+    have h1 : denoteEAux st ((st.intern w).1.nodeCount + 1) i = some e :=
+      denoteEAux_mono st (st.nodeCount + 1) ((st.intern w).1.nodeCount + 1) i e
+        (by have := EStore.nodeCount_intern_le st w; omega) h
+    exact hmono _ i e h1
+
 end ConRon.Arena
