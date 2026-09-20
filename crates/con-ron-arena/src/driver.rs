@@ -583,13 +583,13 @@ pub fn verdict_failure(
 /// heartbeat, as the Lean twin's `readFold` returns it.
 pub fn parse_export_handle_d<R: Read, M: Modeller>(
     m: &M,
-    ar: &mut EStore,
+    ar: &mut AState,
     h: &mut R,
     in_model: bool,
     census: bool,
     chunk: usize,
 ) -> std::io::Result<(Result<ParseResultD, (CheckError, u64)>, u64)> {
-    let mut st = match export_c::state_d_init(ar, in_model, census) {
+    let mut st = match export_c::state_d_init(&mut ar.store, in_model, census) {
         Ok(s) => s,
         Err(e) => return Ok((Err((e, 0)), 0)),
     };
@@ -619,7 +619,7 @@ pub fn parse_export_handle_d<R: Read, M: Modeller>(
 /// Streaming direct parse of a file.
 pub fn parse_export_stream_d<M: Modeller>(
     m: &M,
-    ar: &mut EStore,
+    ar: &mut AState,
     path: &str,
     in_model: bool,
     census: bool,
@@ -650,14 +650,14 @@ mod tests {
         );
         let b = s.as_bytes();
         for chunk in [1usize, 2, 7, 8, 13, 64, 4096] {
-            let mut ar = EStore::empty();
+            let mut ar = AState::init(EStore::empty());
             let mut r = std::io::Cursor::new(b.to_vec());
             let (streamed, _) =
                 parse_export_handle_d(&DeclineModeller {}, &mut ar, &mut r, true, false, chunk)
                     .expect("no io error");
             let streamed = streamed
                 .unwrap_or_else(|(e, l)| panic!("chunk {} line {}: {}", chunk, l, message(&e)));
-            let mut ar2 = EStore::empty();
+            let mut ar2 = AState::init(EStore::empty());
             let cs: Vec<Vec<u8>> = b.chunks(chunk).map(|c| c.to_vec()).collect();
             let pure = export_c::parse_chunks(&DeclineModeller {}, &mut ar2, &cs, true, false)
                 .unwrap_or_else(|(e, l)| {
@@ -665,7 +665,7 @@ mod tests {
                 });
             assert_eq!(streamed.decls.len(), pure.decls.len(), "chunk {}", chunk);
             assert_eq!(streamed.decls.len(), 1, "chunk {}", chunk);
-            assert_eq!(ar.node_count(), ar2.node_count(), "chunk {}", chunk);
+            assert_eq!(ar.store.node_count(), ar2.store.node_count(), "chunk {}", chunk);
         }
     }
 

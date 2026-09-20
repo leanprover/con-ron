@@ -181,11 +181,17 @@ a tier that is about to vanish. -/
 def runPipelineTail (mode : CheckMode) (pins : List NatOpPinSet)
     (pre : Frontend.PreludeIx) (r : Frontend.ParseResultD) :
     AM (Except CheckError Nat) := do
+  -- The verdict number is read HERE, before the fold, so that `r` — whose
+  -- `inModelGen`, `genOwner`, `inModelDeclined`, `projRewrites` and
+  -- `inModelled` the fold never looks at — dies at `preparePrelude` instead
+  -- of being pinned across the whole check (DESIGN §8.4: decide the rare
+  -- branch, and read what a later line needs, BEFORE the expensive step).
+  let records := r.decls.size - r.genRecords
   let ds ← Frontend.preparePrelude pre r.decls
   let ipins ← internAllPins pins
   match ← installThenCheck mode ipins ds with
   | .error (e, n) => pure (.error (atDecl e n))
-  | .ok _ => pure (.ok (r.decls.size - r.genRecords))
+  | .ok _ => pure (.ok records)
 
 /-- con-leche: Main.lean:461-711 checkMain
 **THE PURE SEAM'S BODY**: the prelude, `parseChunks` (which is `chunkStep`
@@ -297,22 +303,29 @@ partial def readFold (md : Frontend.Modeller) (h : IO.FS.Handle)
 **THE SEAM, DRIVEN FROM A HANDLE**: `runPipelineHead`, then `readFold` in
 place of the pure seam's `parseChunksGo`, then `runPipelineTail` — the same
 three steps `runPipeline` runs, with the input never held whole.  The chunk
-count comes back for the heartbeat. -/
+count comes back for the heartbeat, and so does **the moment the parse
+ended** — `checkMain`'s heartbeat used to print its own clock reading AFTER
+this function returned and call it "parse done", which is the whole run and
+not the parse (task #97g found it measuring the fold as parse time).  The
+reading is taken between `readFold` and `runPipelineTail`, which is where the
+parse actually ends. -/
 def runPipelineIO (h : IO.FS.Handle) (mode : CheckMode)
-    (pins : List NatOpPinSet) : IO (Except CheckError Nat × Nat) := do
+    (pins : List NatOpPinSet) : IO (Except CheckError Nat × Nat × Nat × Nat) := do
   let md := Frontend.inProcessModeller
   let s0 := AState.init EStore.empty
   match (runPipelineHead md).run s0 with
-  | .error e => pure (.error e, 0)
-  | .ok (.error (e, n), _) => pure (.error (Frontend.atLine e n), 0)
+  | .error e => pure (.error e, 0, 0, 0)
+  | .ok (.error (e, n), _) => pure (.error (Frontend.atLine e n), 0, 0, 0)
   | .ok (.ok (pre, st), s) =>
     match ← readFold md h st .empty 0 0 0 s with
-    | .error e => pure (.error e, 0)
-    | .ok (.error (e, n), _, chunks) => pure (.error (Frontend.atLine e n), chunks)
+    | .error e => pure (.error e, 0, 0, 0)
+    | .ok (.error (e, n), _, chunks) =>
+      pure (.error (Frontend.atLine e n), chunks, ← IO.monoMsNow, 0)
     | .ok (.ok r, s, chunks) =>
+      let tParse ← IO.monoMsNow
       match (runPipelineTail mode pins pre r).run s with
-      | .error e => pure (.error e, chunks)
-      | .ok (v, _) => pure (v, chunks)
+      | .error e => pure (.error e, chunks, tParse, 0)
+      | .ok (v, s') => pure (v, chunks, tParse, s'.store.persCount)
 
 /-- con-leche: Main.lean:714-944 usage
 The usage text, on stdout under `--help` and on stderr before a usage
@@ -430,11 +443,16 @@ def checkMain (file : String) (mode : CheckMode) (pins : List NatOpPinSet)
       IO.eprintln s!"con-ron-lean: {file}: {e} ({modeTag})"
       pure none
   let some h := h? | return 3
-  let (verdict, chunks) ← runPipelineIO h mode pins
+  let (verdict, chunks, tParse, nodes) ← runPipelineIO h mode pins
   if stride > 0 then
     let tRead ← IO.monoMsNow
     IO.eprintln s!"con-ron-lean: parse done: {chunks} chunks read \
-      t={msSecs (tRead - t0)}s"
+      t={msSecs (tParse - t0)}s; fold t={msSecs (tRead - tParse)}s"
+    -- task #97-P6-2: the PERSISTENT expression-node count at the end of the
+    -- run, which after the promotion is the parse's DAG plus what the
+    -- installed environment kept.  The number the Rust twin is checked
+    -- against; it costs one field read and is printed only under --progress.
+    IO.eprintln s!"con-ron-lean: persistent expression nodes: {nodes}"
     (← IO.getStderr).flush
   match verdict with
   | .ok records =>

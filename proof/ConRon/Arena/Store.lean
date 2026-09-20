@@ -376,14 +376,14 @@ def count (t : NTables) : Nat := t.anons.size + t.strs.size + t.nums.size
 
 /-- con-leche: none — decode one handle against this tier's arrays.  The tier
 bit is *not* consulted: `NStore.view` selects the tier first. -/
-def get (t : NTables) (i : NIdx) : Option NNodeView :=
+@[inline] def get (t : NTables) (i : NIdx) : Option NNodeView :=
   if i.tag == NTag.anonymous then (t.anons.node? i.idxNat).map fun _ => .anonymous
   else if i.tag == NTag.str then (t.strs.node? i.idxNat).map fun r => .str r.pre r.s
   else if i.tag == NTag.num then (t.nums.node? i.idxNat).map fun r => .num r.pre r.n
   else none
 
 /-- con-leche: none — the derived word of one handle in this tier. -/
-def derAt (t : NTables) (i : NIdx) : UInt64 :=
+@[inline] def derAt (t : NTables) (i : NIdx) : UInt64 :=
   if i.tag == NTag.anonymous then t.anons.derAt i.idxNat
   else if i.tag == NTag.str then t.strs.derAt i.idxNat
   else if i.tag == NTag.num then t.nums.derAt i.idxNat
@@ -443,13 +443,13 @@ instance : Inhabited NStore := ⟨empty⟩
 
 /-- con-leche: none — decode a handle: the tier bit selects the array set,
 and a scratch handle reads as absent while the scratch tier is off. -/
-def view (st : NStore) (i : NIdx) : Option NNodeView :=
+@[inline] def view (st : NStore) (i : NIdx) : Option NNodeView :=
   if i.isPersistent then st.pers.get i
   else if st.scratchOn then st.scr.get i else none
 
 /-- con-leche: ConLeche/Kernel/Name.lean:34-44 Name — the `hashData` computed
 field, lines 41-44: the derived word of a handle. -/
-def derived (st : NStore) (i : NIdx) : UInt64 :=
+@[inline] def derived (st : NStore) (i : NIdx) : UInt64 :=
   if i.isPersistent then st.pers.derAt i
   else if st.scratchOn then st.scr.derAt i else 0
 
@@ -523,7 +523,7 @@ def count (t : LTables) : Nat :=
   t.zeros.size + t.succs.size + t.maxs.size + t.imaxs.size + t.params.size
 
 /-- con-leche: none — decode one handle against this tier's arrays. -/
-def get (t : LTables) (i : LIdx) : Option LNodeView :=
+@[inline] def get (t : LTables) (i : LIdx) : Option LNodeView :=
   if i.tag == LTag.zero then (t.zeros.node? i.idxNat).map fun _ => .zero
   else if i.tag == LTag.succ then (t.succs.node? i.idxNat).map fun r => .succ r.u
   else if i.tag == LTag.max then (t.maxs.node? i.idxNat).map fun r => .max r.u r.v
@@ -532,7 +532,7 @@ def get (t : LTables) (i : LIdx) : Option LNodeView :=
   else none
 
 /-- con-leche: none — the derived record of one handle in this tier. -/
-def derAt (t : LTables) (i : LIdx) : LDer :=
+@[inline] def derAt (t : LTables) (i : LIdx) : LDer :=
   if i.tag == LTag.zero then t.zeros.derAt i.idxNat
   else if i.tag == LTag.succ then t.succs.derAt i.idxNat
   else if i.tag == LTag.max then t.maxs.derAt i.idxNat
@@ -605,13 +605,13 @@ instance : Inhabited LStore := ⟨empty⟩
 @[inline] def nodeCount (st : LStore) : Nat := st.persCount + st.scrCount
 
 /-- con-leche: none — decode a level handle. -/
-def view (st : LStore) (i : LIdx) : Option LNodeView :=
+@[inline] def view (st : LStore) (i : LIdx) : Option LNodeView :=
   if i.isPersistent then st.pers.get i
   else if st.scratchOn then st.scr.get i else none
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:40-53 Level — the `hashData` computed
 field, lines 47-53: the derived record of a level handle. -/
-def derived (st : LStore) (i : LIdx) : LDer :=
+@[inline] def derived (st : LStore) (i : LIdx) : LDer :=
   if i.isPersistent then st.pers.derAt i
   else if st.scratchOn then st.scr.derAt i else default
 
@@ -684,12 +684,12 @@ instance : Inhabited LsTables := ⟨empty⟩
 def count (t : LsTables) : Nat := t.lists.size
 
 /-- con-leche: none — decode one handle against this tier's array. -/
-def get (t : LsTables) (i : LsIdx) : Option LsNodeView :=
+@[inline] def get (t : LsTables) (i : LsIdx) : Option LsNodeView :=
   if i.tag == LsTag.list then (t.lists.node? i.idxNat).map fun r => r.us
   else none
 
 /-- con-leche: none — the derived record of one handle in this tier. -/
-def derAt (t : LsTables) (i : LsIdx) : LDer :=
+@[inline] def derAt (t : LsTables) (i : LsIdx) : LDer :=
   if i.tag == LsTag.list then t.lists.derAt i.idxNat else default
 
 /-- con-leche: none — the cons-table probe. -/
@@ -726,13 +726,13 @@ instance : Inhabited LsStore := ⟨empty⟩
 @[inline] def ns (st : LsStore) : NStore := st.ls.ns
 
 /-- con-leche: none — decode a level-list handle. -/
-def view (st : LsStore) (i : LsIdx) : Option LsNodeView :=
+@[inline] def view (st : LsStore) (i : LsIdx) : Option LsNodeView :=
   if i.isPersistent then st.pers.get i
   else if st.scratchOn then st.scr.get i else none
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:136-139 levelsHash — the derived
 record of a level-list handle. -/
-def derived (st : LsStore) (i : LsIdx) : LDer :=
+@[inline] def derived (st : LsStore) (i : LsIdx) : LDer :=
   if i.isPersistent then st.pers.derAt i
   else if st.scratchOn then st.scr.derAt i else default
 
@@ -805,7 +805,7 @@ def count (t : ETables) : Nat :=
 /-- con-leche: none — decode one handle against this tier's arrays: read the
 tag, index one array, build the view.  There is no node enum in the store
 (DESIGN §8.3). -/
-def get (t : ETables) (i : EIdx) : Option ENodeView :=
+@[inline] def get (t : ETables) (i : EIdx) : Option ENodeView :=
   if i.tag == ETag.bvar then (t.bvars.node? i.idxNat).map fun r => .bvar r.i
   else if i.tag == ETag.fvar then (t.fvars.node? i.idxNat).map fun r => .fvar r.idx r.ty
   else if i.tag == ETag.sort then (t.sorts.node? i.idxNat).map fun r => .sort r.u
@@ -821,7 +821,7 @@ def get (t : ETables) (i : EIdx) : Option ENodeView :=
   else none
 
 /-- con-leche: none — the derived word of one handle in this tier. -/
-def derAt (t : ETables) (i : EIdx) : UInt64 :=
+@[inline] def derAt (t : ETables) (i : EIdx) : UInt64 :=
   if i.tag == ETag.bvar then t.bvars.derAt i.idxNat
   else if i.tag == ETag.fvar then t.fvars.derAt i.idxNat
   else if i.tag == ETag.sort then t.sorts.derAt i.idxNat
@@ -949,13 +949,13 @@ instance : Inhabited EStore := ⟨empty⟩
 
 /-- con-leche: none — decode an expression handle: the tier bit selects the
 array set, the tag selects the array, the index reads it. -/
-def view (st : EStore) (i : EIdx) : Option ENodeView :=
+@[inline] def view (st : EStore) (i : EIdx) : Option ENodeView :=
   if i.isPersistent then st.pers.get i
   else if st.scratchOn then st.scr.get i else none
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:343-402 Expr — the `data` computed
 field, lines 357-402: the packed derived word of an expression handle. -/
-def derived (st : EStore) (i : EIdx) : UInt64 :=
+@[inline] def derived (st : EStore) (i : EIdx) : UInt64 :=
   if i.isPersistent then st.pers.derAt i
   else if st.scratchOn then st.scr.derAt i else 0
 
@@ -1120,6 +1120,179 @@ store. -/
   let lss := st.lss
   let st := { st with lss := LsStore.empty }
   let (lss, i) := lss.intern v
+  ({ st with lss := lss }, i)
+
+/-! ## Interning into the PERSISTENT tier while the scratch tier is on
+
+DESIGN §8.3, "Phase A runs in the scratch tier too, with promotion": the
+install phase opens the scratch tier exactly as phase B does, and the handles
+the environment KEEPS are **promoted** before the tier is dropped — a memoised
+structural copy scratch → persistent (`Arena/Promote.lean`).  The copy's
+target is the persistent tier while the scratch tier is still live, and
+`intern` cannot say that: it appends to the tier the store is IN.  So each
+store gets a twin of `intern`'s `else` branch, `internPersistent`, and nothing
+else about the store changes.  An ADDITIVE API change (DESIGN §8.6 P6-2).
+
+**The probe order is `intern`'s own, minus the scratch probe**: the persistent
+cons table first, and an entry found there is the answer — so a node the parse
+already interned promotes to ITSELF and a node promoted once is never
+duplicated.  The scratch table is deliberately NOT probed: a hit there would
+hand back a SCRATCH handle, which is the one thing the promotion exists to get
+rid of.
+
+**The WF obligations** (`Arena/WF.lean`), for P3:
+
+* `internPersistent` preserves every clause of `StoreWF` by the persistent
+  branch of `intern`'s own argument — it IS that branch — with ONE added
+  precondition and ONE transient exception.
+* **Added precondition**: `childOK` carries `i.isPersistent → c.isPersistent`,
+  so the view handed to `internPersistent` must have PERSISTENT CHILDREN.
+  `intern`'s persistent branch gets this for free (it runs only when
+  `scratchOn = false`, where `scrOff` makes every live handle persistent);
+  promotion gets it by construction, since it promotes the children first.
+* **Transient exception — `fresh`**: `fresh` says a view in the scratch cons
+  table is not in the persistent one.  A node BUILT in the scratch tier out of
+  already-persistent children (an `app` of two parse handles, say) sits in the
+  scratch table under a view whose children are persistent, and promoting it
+  appends that same view to the persistent table.  So `fresh` is broken while
+  the promotion runs.  It is not observable — nothing between the promotion
+  and the `dropScratch` that follows it reads the store — and `dropScratch`
+  empties the scratch tier, which restores `fresh` vacuously.  The obligation
+  P3 owes is therefore stated for the BRACKET: `StoreWF` minus `fresh` is
+  preserved by each `internPersistent`, and `promote … dropScratch` as a whole
+  takes `StoreWF` to `StoreWF`.
+* The denotation obligation is `denote (promote h) = denote h`, by induction
+  on the promotion's own recursion (each `internPersistent` is exact by
+  `consP`/`derExact`, and the children are exact by the induction hypothesis).
+-/
+
+/-- con-leche: none — arena infrastructure; hash-cons a name node into the
+PERSISTENT tier whatever tier the store is in.  `intern`'s `else` branch,
+verbatim. -/
+def NStore.internPersistent (st : NStore) (v : NNodeView) : NStore × NIdx :=
+  match st.pers.find? v with
+  | some i => (st, i)
+  | none =>
+    let d := st.derOfView v
+    let tb := st.pers
+    let st := { st with pers := NTables.empty }
+    let (tb, i) := tb.push v d Idx.tierP
+    ({ st with pers := tb }, i)
+
+/-- con-leche: none — arena infrastructure; `internPersistent`'s capacity
+precondition: the constructor's PERSISTENT array has room for one more node. -/
+def NStore.capOKPersistent (st : NStore) (v : NNodeView) : Prop :=
+  st.pers.sizeOf v < Idx.idxCap
+
+/-- con-leche: none — arena infrastructure; hash-cons a level node into the
+persistent tier. -/
+def LStore.internPersistent (st : LStore) (v : LNodeView) : LStore × LIdx :=
+  match st.pers.find? v with
+  | some i => (st, i)
+  | none =>
+    let d := st.derOfView v
+    let tb := st.pers
+    let st := { st with pers := LTables.empty }
+    let (tb, i) := tb.push v d Idx.tierP
+    ({ st with pers := tb }, i)
+
+/-- con-leche: none — arena infrastructure; the level store's capacity
+precondition for `internPersistent`. -/
+def LStore.capOKPersistent (st : LStore) (v : LNodeView) : Prop :=
+  st.pers.sizeOf v < Idx.idxCap
+
+/-- con-leche: none — arena infrastructure; hash-cons a level list into the
+persistent tier. -/
+def LsStore.internPersistent (st : LsStore) (v : LsNodeView) : LsStore × LsIdx :=
+  match st.pers.find? v with
+  | some i => (st, i)
+  | none =>
+    let d := st.derOfView v
+    let tb := st.pers
+    let st := { st with pers := LsTables.empty }
+    let (tb, i) := tb.push v d Idx.tierP
+    ({ st with pers := tb }, i)
+
+/-- con-leche: none — arena infrastructure; the level-list store's capacity
+precondition for `internPersistent`. -/
+def LsStore.capOKPersistent (st : LsStore) (v : LsNodeView) : Prop :=
+  st.pers.sizeOf v < Idx.idxCap
+
+/-- con-leche: none — arena infrastructure; hash-cons an expression node into
+the persistent tier whatever tier the store is in. -/
+def EStore.internPersistent (st : EStore) (v : ENodeView) : EStore × EIdx :=
+  match st.pers.find? v with
+  | some i => (st, i)
+  | none =>
+    let d := st.derOfView v
+    let tb := st.pers
+    let st := { st with pers := ETables.empty }
+    let (tb, i) := tb.push v d Idx.tierP
+    ({ st with pers := tb }, i)
+
+/-- con-leche: none — arena infrastructure; the expression store's capacity
+precondition for `internPersistent`. -/
+def EStore.capOKPersistent (st : EStore) (v : ENodeView) : Prop :=
+  st.pers.sizeOf v < Idx.idxCap
+
+/-! ### The same, through the nesting
+
+One lifted entry per level, each detaching the nested store before handing it
+down (DESIGN §8.4 lesson 14) and `@[noinline]` (lesson 15) — the shape of the
+`intern*` family above it. -/
+
+/-- con-leche: none — arena infrastructure; promote-intern a name from the
+level store. -/
+@[noinline] def LStore.internNamePersistent (st : LStore) (v : NNodeView) :
+    LStore × NIdx :=
+  let ns := st.ns
+  let st := { st with ns := NStore.empty }
+  let (ns, i) := ns.internPersistent v
+  ({ st with ns := ns }, i)
+
+/-- con-leche: none — arena infrastructure; promote-intern a name from the
+level-list store. -/
+@[noinline] def LsStore.internNamePersistent (st : LsStore) (v : NNodeView) :
+    LsStore × NIdx :=
+  let ls := st.ls
+  let st := { st with ls := LStore.empty }
+  let (ls, i) := ls.internNamePersistent v
+  ({ st with ls := ls }, i)
+
+/-- con-leche: none — arena infrastructure; promote-intern a level from the
+level-list store. -/
+@[noinline] def LsStore.internLevelPersistent (st : LsStore) (v : LNodeView) :
+    LsStore × LIdx :=
+  let ls := st.ls
+  let st := { st with ls := LStore.empty }
+  let (ls, i) := ls.internPersistent v
+  ({ st with ls := ls }, i)
+
+/-- con-leche: none — arena infrastructure; promote-intern a name from the
+expression store. -/
+@[noinline] def EStore.internNamePersistent (st : EStore) (v : NNodeView) :
+    EStore × NIdx :=
+  let lss := st.lss
+  let st := { st with lss := LsStore.empty }
+  let (lss, i) := lss.internNamePersistent v
+  ({ st with lss := lss }, i)
+
+/-- con-leche: none — arena infrastructure; promote-intern a level from the
+expression store. -/
+@[noinline] def EStore.internLevelPersistent (st : EStore) (v : LNodeView) :
+    EStore × LIdx :=
+  let lss := st.lss
+  let st := { st with lss := LsStore.empty }
+  let (lss, i) := lss.internLevelPersistent v
+  ({ st with lss := lss }, i)
+
+/-- con-leche: none — arena infrastructure; promote-intern a universe-argument
+list from the expression store. -/
+@[noinline] def EStore.internLevelsPersistent (st : EStore) (v : LsNodeView) :
+    EStore × LsIdx :=
+  let lss := st.lss
+  let st := { st with lss := LsStore.empty }
+  let (lss, i) := lss.internPersistent v
   ({ st with lss := lss }, i)
 
 end ConRon.Arena

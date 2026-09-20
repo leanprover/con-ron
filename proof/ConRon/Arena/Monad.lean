@@ -144,7 +144,7 @@ def fail {α : Type} (e : CheckError) : AM α := throwThe CheckError e
 /-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — decode a handle.  A
 dangling handle is an internal error: the checker never builds one, and the
 bridge claims nothing on failure. -/
-def view (h : EIdx) : AM ENodeView := do
+@[inline] def view (h : EIdx) : AM ENodeView := do
   let s ← get
   match s.store.view h with
   | some v => pure v
@@ -153,7 +153,7 @@ def view (h : EIdx) : AM ENodeView := do
 /-- con-leche: ConLeche/Kernel/Expr.lean:343-402 Expr — the packed derived
 word of a handle (the `data` computed field, lines 357-402), read in `O(1)`
 off the derived column. -/
-def derivedE (h : EIdx) : AM UInt64 := do
+@[inline] def derivedE (h : EIdx) : AM UInt64 := do
   let s ← get
   pure (s.store.derived h)
 
@@ -176,7 +176,7 @@ def internE (v : ENodeView) : AM EIdx := do
 /-! ## The name store's primitives -/
 
 /-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — decode a name handle. -/
-def viewN (h : NIdx) : AM NNodeView := do
+@[inline] def viewN (h : NIdx) : AM NNodeView := do
   let s ← get
   match s.store.ns.view h with
   | some v => pure v
@@ -232,7 +232,7 @@ def internName : ConLeche.Name → AM NIdx
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:40-53 Level — decode a level
 handle. -/
-def viewL (h : LIdx) : AM LNodeView := do
+@[inline] def viewL (h : LIdx) : AM LNodeView := do
   let s ← get
   match s.store.ls.view h with
   | some v => pure v
@@ -241,7 +241,7 @@ def viewL (h : LIdx) : AM LNodeView := do
 /-- con-leche: ConLeche/Kernel/Expr.lean:40-53 Level — the level's derived
 pair (its 32-bit hash and its `hasParam` bit, the computed field at lines
 47-53), read in `O(1)`. -/
-def derivedL (h : LIdx) : AM LDer := do
+@[inline] def derivedL (h : LIdx) : AM LDer := do
   let s ← get
   pure (s.store.lder h)
 
@@ -293,7 +293,7 @@ def internLevel : Level → AM LIdx
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — decode a
 universe-argument list handle (the `const` node's second field, line 347). -/
-def viewLs (h : LsIdx) : AM LsNodeView := do
+@[inline] def viewLs (h : LsIdx) : AM LsNodeView := do
   let s ← get
   match s.store.lss.view h with
   | some v => pure v
@@ -335,6 +335,68 @@ def internLevels (us : List Level) : AM LsIdx := do
   let hs ← internLevelList us
   internLsNode hs
 
+/-! ## Interning into the PERSISTENT tier (the promotion's primitives)
+
+DESIGN §8.3, "Phase A runs in the scratch tier too, with promotion".  Four
+monadic twins of `internE` / `internNNode` / `internLNode` / `internLsNode`
+that append to the PERSISTENT tier whatever tier the store is in, over
+`Arena/Store.lean`'s `internPersistent` family.  The capacity test is the same
+one at the same place, against the persistent array; the error is the same
+`Native` kind.  `Arena/Promote.lean` is the only caller.
+-/
+
+/-- con-leche: none — arena infrastructure; hash-cons an expression node into
+the persistent tier. -/
+def internPersistentE (v : ENodeView) : AM EIdx := do
+  let s ← get
+  if s.store.pers.sizeOf v < Idx.idxCap then
+    let st := s.store
+    let s := { s with store := EStore.empty }
+    let (st, h) := st.internPersistent v
+    set { s with store := st }
+    pure h
+  else
+    fail (.native "arena: expression constructor array full")
+
+/-- con-leche: none — arena infrastructure; hash-cons a name node into the
+persistent tier, through the nesting. -/
+def internPersistentN (v : NNodeView) : AM NIdx := do
+  let s ← get
+  if s.store.ns.pers.sizeOf v < Idx.idxCap then
+    let st := s.store
+    let s := { s with store := EStore.empty }
+    let (st, h) := st.internNamePersistent v
+    set { s with store := st }
+    pure h
+  else
+    fail (.native "arena: name constructor array full")
+
+/-- con-leche: none — arena infrastructure; hash-cons a level node into the
+persistent tier, through the nesting. -/
+def internPersistentL (v : LNodeView) : AM LIdx := do
+  let s ← get
+  if s.store.ls.pers.sizeOf v < Idx.idxCap then
+    let st := s.store
+    let s := { s with store := EStore.empty }
+    let (st, h) := st.internLevelPersistent v
+    set { s with store := st }
+    pure h
+  else
+    fail (.native "arena: level constructor array full")
+
+/-- con-leche: none — arena infrastructure; hash-cons a universe-argument list
+into the persistent tier, through the nesting. -/
+def internPersistentLs (v : LsNodeView) : AM LsIdx := do
+  let s ← get
+  if s.store.lss.pers.sizeOf v < Idx.idxCap then
+    let st := s.store
+    let s := { s with store := EStore.empty }
+    let (st, h) := st.internLevelsPersistent v
+    set { s with store := st }
+    pure h
+  else
+    fail (.native "arena: level-list array full")
+
 /-! ## The memo tables, one probe/record/drop triple per walk
 
 Nine handle-valued tables and two `Nat`-valued ones.  Every record detaches
@@ -344,7 +406,7 @@ mutations are (lesson 15). -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — probe the
 `instantiate1` memo. -/
-def inst1Get (k : EIdx × Nat) : AM (Option EIdx) := do
+@[inline] def inst1Get (k : EIdx × Nat) : AM (Option EIdx) := do
   let s ← get; pure s.memos.inst1C[k]?
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — record an
@@ -363,7 +425,7 @@ memo is "dropped after each call, since it also depends on `v`". -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo — probe
 the `instantiateList` memo. -/
-def instLGet (k : EIdx × Nat) : AM (Option EIdx) := do
+@[inline] def instLGet (k : EIdx × Nat) : AM (Option EIdx) := do
   let s ← get; pure s.memos.instLC[k]?
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo — record
@@ -382,7 +444,7 @@ the `instantiateList` memo (it depends on `vs`). -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:430-466 liftLooseBVarsGo — probe
 the `liftLooseBVars` memo. -/
-def liftGet (k : EIdx × Nat) : AM (Option EIdx) := do
+@[inline] def liftGet (k : EIdx × Nat) : AM (Option EIdx) := do
   let s ← get; pure s.memos.liftC[k]?
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:430-466 liftLooseBVarsGo — record
@@ -401,7 +463,7 @@ the `liftLooseBVars` memo (it depends on `amount`). -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:579-615 resetMetaGo — probe the
 `resetMeta` memo. -/
-def resetGet (k : EIdx × Nat) : AM (Option EIdx) := do
+@[inline] def resetGet (k : EIdx × Nat) : AM (Option EIdx) := do
   let s ← get; pure s.memos.resetC[k]?
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:579-615 resetMetaGo — record a
@@ -420,7 +482,7 @@ def resetGet (k : EIdx × Nat) : AM (Option EIdx) := do
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:999-1036 renameConstsGo — probe
 the `renameConsts` memo. -/
-def renameGet (k : EIdx × Nat) : AM (Option EIdx) := do
+@[inline] def renameGet (k : EIdx × Nat) : AM (Option EIdx) := do
   let s ← get; pure s.memos.renameC[k]?
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:999-1036 renameConstsGo — record a
@@ -439,7 +501,7 @@ the `renameConsts` memo (it depends on the renaming). -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1789-1833 abstract1Go — probe the
 `abstract1` memo. -/
-def abs1Get (k : EIdx × Nat) : AM (Option EIdx) := do
+@[inline] def abs1Get (k : EIdx × Nat) : AM (Option EIdx) := do
   let s ← get; pure s.memos.abs1C[k]?
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1789-1833 abstract1Go — record an
@@ -458,7 +520,7 @@ def abs1Get (k : EIdx × Nat) : AM (Option EIdx) := do
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2012-2049 lowerBVarsGo — probe the
 `lowerBVars` memo. -/
-def lowerGet (k : EIdx × Nat) : AM (Option EIdx) := do
+@[inline] def lowerGet (k : EIdx × Nat) : AM (Option EIdx) := do
   let s ← get; pure s.memos.lowerC[k]?
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2012-2049 lowerBVarsGo — record a
@@ -477,7 +539,7 @@ the `lowerBVars` memo (it depends on `amount`). -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2222-2261 instantiate1LiftGo —
 probe the `instantiate1Lift` memo. -/
-def inst1LGet (k : EIdx × Nat) : AM (Option EIdx) := do
+@[inline] def inst1LGet (k : EIdx × Nat) : AM (Option EIdx) := do
   let s ← get; pure s.memos.inst1LC[k]?
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2222-2261 instantiate1LiftGo —
@@ -496,7 +558,7 @@ drop the `instantiate1Lift` memo (it depends on `v`). -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2564-2603 Expr.instLPGo — probe
 the level-substitution memo. -/
-def instLPGet (k : EIdx × Nat) : AM (Option EIdx) := do
+@[inline] def instLPGet (k : EIdx × Nat) : AM (Option EIdx) := do
   let s ← get; pure s.memos.instLPC[k]?
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2564-2603 Expr.instLPGo — record a
@@ -515,7 +577,7 @@ the level-substitution memo (it depends on `ks` and `us`). -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1368-1392 bvarBoundGo — probe the
 loose-bvar-bound memo. -/
-def bvarBGet (k : EIdx) : AM (Option Nat) := do
+@[inline] def bvarBGet (k : EIdx) : AM (Option Nat) := do
   let s ← get; pure s.memos.bvarBC[k]?
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1368-1392 bvarBoundGo — record a
@@ -534,7 +596,7 @@ loose-bvar-bound memo. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1397-1422 fvarRangeGo — probe the
 fvar-range memo. -/
-def fvarBGet (k : EIdx) : AM (Option Nat) := do
+@[inline] def fvarBGet (k : EIdx) : AM (Option Nat) := do
   let s ← get; pure s.memos.fvarBC[k]?
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1397-1422 fvarRangeGo — record an

@@ -320,6 +320,8 @@ def checkNativePass (mode : CheckMode) (fe : IFEnv) (p₀ : NativeParts) (isRec 
     AM (NativePass × Bool) := do
   let (fe₁, cvTa, p₁) ← checkSumInd mode fe p₀.toInductiveShape isRec
   let pC := p₀.complete p₁
+  -- con-leche: ConLeche/Cached/CheckerC.lean:179-191 checkNativePassS
+  flushCaches
   let (ctorsA, sortss) ← checkSumCtors mode fe₁ fe₁ pC.cvT.name pC.cvT.levelParams pC.nP
     pC.nIdx pC.resSort pC.isProp pC.large cvTa pC.ctors
   let kinds ← classifyFixKinds pC.cvT.name pC.cvT.levelParams pC.nP pC.nIdx ctorsA
@@ -354,6 +356,8 @@ def checkNativeTail (mode : CheckMode) (fe : IFEnv) (q : NativePass) : AM IFEnv 
       p.rhss p.cvR.type do
     fail (.invalid "direct rec: recursor rules are not the generated ones")
   let fe₂ := consSumCtors p.nP q.ctorsA q.env₁
+  -- con-leche: ConLeche/Cached/CheckerC.lean:194-217 checkNativeTailS
+  flushCaches
   let (cvRa, rhss) ← checkNativeRec mode fe₂ p q.cvTa q.ctorsA
   let rules ← sumRules fe₂ cvRa.name p.nP p.majorIdx p.rulePrefix cvRa.type q.ctorsA rhss
   checkNativeTable p q.ctorsA q.sortss
@@ -366,6 +370,8 @@ reading overshot — and the install after it. -/
 def checkNative (mode : CheckMode) (fe : IFEnv) (p₀ : NativeParts) : AM IFEnv := do
   unless (p₀.ctors.map (·.1.name)).Nodup do
     fail (.invalid "direct rec: duplicate constructor")
+  -- con-leche: ConLeche/Cached/CheckerC.lean:220-231 checkNativeS
+  flushCaches
   -- THE CAPABILITY RECORD'S VERDICT (task #268): the pass runs at the
   -- syntactic reading of `is_rec`, which the classification of the
   -- constructors it stored confirms at every block but one whose declared
@@ -373,6 +379,8 @@ def checkNative (mode : CheckMode) (fe : IFEnv) (p₀ : NativeParts) : AM IFEnv 
   let (q, settled) ← checkNativePass mode fe p₀ (← nativeRawRec p₀)
   if settled then checkNativeTail mode fe q
   else do
+    -- con-leche: ConLeche/Cached/CheckerC.lean:220-231 checkNativeS
+    flushCaches
     let (q', settled') ← checkNativePass mode fe p₀ (nativeIsRec q.p.kinds)
     unless settled' do
       fail (.internal "direct rec: the capability record did not settle")

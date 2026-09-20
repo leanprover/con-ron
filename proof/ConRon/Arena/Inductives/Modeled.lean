@@ -463,6 +463,10 @@ Check and install one non-recursor member of a modeled inductive block against
 its `_model` counterpart. -/
 def checkIndMember (mode : CheckMode) (blockNames : List NIdx) (caps : IIndCaps)
     (fe' : IFEnv) (ci : IConstantInfo) : AM IFEnv := do
+  -- con-leche: ConLeche/Cached/CheckerC.lean:106-112 checkIndMemberS -- the flush
+  -- at an environment transition (task #97g).  The spec tier this twin cites
+  -- has no caches; the EXECUTED tier does, and it is the one (B) runs.
+  flushCaches
   let cvA ← checkMemberVal mode blockNames fe' (← ci.toConstantVal)
   match ci with
   | .indInfo _ _ => pure (fe'.push (.indInfo cvA caps))
@@ -491,6 +495,8 @@ def provisionRecs (mode : CheckMode) (blockNames : List NIdx) :
   | feAcc, ci :: rest =>
     match ci with
     | .recInfo _ mI rP rules => do
+      -- con-leche: ConLeche/Cached/CheckerC.lean:116-131 provisionRecsS
+      flushCaches
       let cvA ← checkMemberVal mode blockNames feAcc (← ci.toConstantVal)
       let (feSelf, others) ← provisionRecs mode blockNames
         (feAcc.push (.recInfo cvA mI rP [])) rest
@@ -521,6 +527,9 @@ def checkIndRecs (mode : CheckMode) (blockNames : List NIdx) (fe₂ : IFEnv)
     unless ← eqBasisStored fe₂ do
       fail (.notImplemented "modeled recursor requires the pinned Eq basis")
     let (feSelf, checked) ← provisionRecs mode blockNames fe₂ recs
+    -- con-leche: ConLeche/Cached/CheckerC.lean:136-146 checkIndRecsS -- one flush
+    -- entering the phase, none inside the fold
+    flushCaches
     installIndRecs mode fe₂ feSelf f fe₂ checked
 
 /-! ## The projection functions -/
@@ -731,6 +740,8 @@ artifact is absent). -/
 def installProjFnStep (mode : CheckMode) (T ctorName : NIdx) (lps : List NIdx)
     (nP nF : Nat) (e : IFEnv) (i : Nat) : AM IFEnv := do
   if (e.find? (← projModelName T i)).isSome then
+    -- con-leche: ConLeche/Cached/CheckerC.lean:170-176 installProjFnStepS
+    flushCaches
     checkProjFn mode e T ctorName lps nP nF i
   else pure e
 

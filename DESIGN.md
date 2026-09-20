@@ -1983,6 +1983,30 @@ is, which is what P3 needs to state that flushing is sound.  Parallel
 checking (Rust): the persistent tier is
 immutable in phase B, each worker owns a scratch tier — no atomics anywhere.
 
+**Phase A runs in the scratch tier too, with promotion (coordinator, after
+task #97-P4f's measurement).**  The install phase (annotate the type and the
+value, infer, defeq) was interning every intermediate into the persistent
+tier — on `Init` 5.06 M permanent nodes on top of the parse's 6.14 M (+82 %),
+and the 1.85 GB peak against con-ron's 0.48 GB.  con-leche and con-ron get
+the same effect from GC.  The arena's answer is con-leche #64's: phase A
+opens the scratch tier like phase B, and the two handles it must keep (the
+annotated type, the annotated value) are **promoted** — a memoised
+structural copy scratch → persistent, `promote : EIdx → AM EIdx`, `view` +
+`intern` into the persistent tier with a `HashMap EIdx EIdx` memo, O(result
+size), denotation-preserving by construction (`denote (promote h) = denote
+h` is the exactness lemma P3 owes) — before the tier is dropped.  Persistent
+handles are promoted to themselves.  This is a twin change (Lean first,
+Rust in lockstep) scheduled as P6-2, after task #97g lands.  **The LEAN
+half is DONE (task #97-P6-2)**: `Arena/Promote.lean`, the four
+`internPersistent` twins the store had to grow for it, and the bracket in
+`annotStep` and in `checkDeclStep` — which also amends "the bracket lives
+in phase B" and P2d's "`checkDeclsPure` has no bracket": BOTH folds are
+bracketed now, so they stay one algorithm under the tier regime.  The
+promotion's WF obligation is NOT quite "the persistent branch of `intern`":
+it needs the view's children to be persistent, and it breaks `fresh`
+transiently, so the obligation is stated for the whole bracket — see that
+task's section and `Arena/Store.lean`'s own note.
+
 **Free variables**: con-leche's discipline unchanged (`fvar idx ty`, a de
 Bruijn level with the binder type inside the node).  This is what makes a
 handle determine its own typing context, hence what makes every cache keyed
@@ -2057,8 +2081,17 @@ transliteration:
 
 **Correctness before proofs.**  (B) is a checker: it must agree with
 con-leche on the 348 fixtures AND on `Init` (verdict and accepted count)
-before any bridge lemma is written, and it must run `Init` within 3× of
-con-leche's instructions (a Lean-vs-Lean comparison, the honest one).
+before any bridge lemma is written.  **Its performance does not matter**
+(maintainer, 2026-09-21: "Don't worry about the lean twin performance, it
+is only a proof artifact!  In particular do not optimize for lean's runtime
+issues.  The goal is fast rust code, it does not matter if the lean twin is
+not performing particularly well.  Compare the rust code against con-ron
+master (and against nanoda) instead!").  The earlier 3× instruction budget
+for (B) is withdrawn; task #97g's Lean-side fixes stand only where they are
+twin-semantic (the error-arm state, the flush sites, the memoised walks —
+which the Rust mirrors) or free.  The measure of record for the campaign is
+`con-ron-arena` against `con-ron` at master and against `nanoda`, on the
+same machine, same exports.
 
 ### 8.5 The Rust side (C)
 
@@ -2112,12 +2145,20 @@ the persistent tier (the byte recogniser is unchanged).
            whole-`Init` wall.  Task #97f's section has the prefix table, the
            profile and the diagnosis; the work is P6's, which is where the
            reordering above puts it.
-        g. measure (B) vs con-leche on Init (instructions, RSS).  The
-           Lean-side numbers that exist are RECORDED in task #97f: the parse
-           at 30.4 G instructions / 0.85 GB, the prefix curve, the peak RSS
-           (never above 1.31 GB, inside 3× con-leche's 0.48 GB), and the
-           top-three profile.  The instruction comparison itself waits on the
-           check phase finishing.
+        g. measure (B) vs con-leche on Init (instructions, RSS).
+           **DONE, task #97g** (2026-09-20): the check phase's copy/free pair
+           was `Checker.lean`'s two fold steps holding the PRE-STEP state
+           across the step, so the whole `AState` entered every declaration
+           at refcount 2; three more findings of the same kind followed (the
+           store readers not inlined, the per-declaration cache flush (B) had
+           none of, and `fabScopeOk`'s unmemoized walks over a DAG, 44 % of
+           `core`).  `Init` runs to the end — **accepted 57 977, 1 536.4 G
+           instructions (2.62× con-leche), 214.7 s, 1 833 MB** — and so does
+           `Init+Std+Lean` — **accepted 163 396, 3 265.6 G (2.77×), 679 s,
+           4 601 MB**.  §8.4's 3× INSTRUCTION budget is met on both; the 3×
+           RSS budget is NOT (3.81× / 3.70×), and task #97g's "What is left"
+           prices the three levers, the third of which is §8.7's own open
+           question about the parse DAG.
     P2s SPIKE (maintainer, 2026-09-20: "do this for some core functions
         first and figure out good idioms") — on P2a's stores, for two or
         three functions of rising complexity (`instantiate1` with its memo;
@@ -2161,6 +2202,20 @@ the persistent tier (the byte recogniser is unchanged).
         crates (master's gates stay green on the branch); the swap to
         `con-ron-core`/`con-ron` happens when the fixtures and the Mathlib
         run pass.
+    **P6 is RUST-FIRST (maintainer, 2026-09-21):** "As you are tuning
+        performance, do the change on the rust side first and then measure
+        and iterate.  No need to work on the lean twin at this stage (as long
+        as you only make changes that are in principle expressible in the
+        lean twin or can be handled by the aeneas proof, once we get
+        there)."  So from here every performance change lands in
+        `crates/arena-core` / `crates/con-ron-arena` with its measurement,
+        and each task section keeps a **twin ledger**: the clause-level list
+        of what the Lean twin must later mirror (or what the Aeneas
+        refinement absorbs as a representation difference — an allocation,
+        a capacity, a borrowed view — and needs no Lean change at all).  A
+        Lean catch-up task runs once, before P3/P5.  Not allowed: a change
+        with no expressible twin (a different algorithm, an unmodellable
+        Rust feature, `unsafe`).
     P3  Theorem 1, tier by tier, mirroring P2's order; the frontend exactness.
     P4  (C): a. SPIKE — Rust for P2a+P2b, extract, prove the Theorem-2 lemmas
         with the grind idiom, measure lines and elaboration per lemma;
@@ -2177,6 +2232,13 @@ the persistent tier (the byte recogniser is unchanged).
         section profiles.
     P5  Theorem 2 campaign.
     P6  performance vs today's con-ron; the OVERVIEW numbers.
+        2. §8.3's promotion, a twin change.  **The LEAN half is DONE, task
+        #97-P6-2** (2026-09-20): phase A runs in the scratch tier and
+        promotes what the environment keeps; `Arena/Promote.lean` and the
+        store's `internPersistent` family are its machinery, 348/348 in
+        both modes and `Init` accepted 57 977 unchanged.  The Rust half
+        follows in lockstep, and that task's section carries the clause
+        list it has to mirror.
 
 Branch `arena`; master stays shippable until (C) passes the gates and the
 fixtures.  Budget from con-leche's record, scaled: (B) ~12 k lines,
@@ -2193,7 +2255,14 @@ lines of Rust, Theorem 2 open until P4a prices it.
     the export DAG for the run; con-leche's #64 found the parse DAG is most
     of the persistent memory.  **Maintainer, 2026-09-20: keep the DAG for
     now** — the PropWhen computations allocate much less than they did then;
-    revisit at P2g if the numbers say otherwise.
+    revisit at P2g if the numbers say otherwise.  **P2g's numbers say
+    otherwise** (task #97g): peak RSS is 3.81× con-leche on `Init` and 3.70×
+    on `Init+Std+Lean`, against a 3× budget, and it is not a leak — the arena
+    holds three heap objects per expression node (the node record, a BOXED
+    `UInt64` derived word, a cons-table `AssocList` cell) where con-leche's
+    shared `Expr` holds one.  The decision is the maintainer's; task #97g
+    lists the three levers and the reason the cons tables are not one of them
+    (the cross-tier probe is what makes `denoteE` injective).
   * Branch policy (maintainer, 2026-09-20): `arena` stays a branch until (C)
     passes the gates and the fixtures; (B) is not merged to master early.
   * (B) IMPORTS con-leche's `Name`, `Level`, `PropWhen`, `Literal`,
@@ -20486,6 +20555,70 @@ of them being findings.  `lake build ConRonArena` green (13 jobs, `WFProofs`
 `provenance-selftest.py` (8 clean shapes, 8 findings, 2 exempt paths) and
 `overview-links.sh` (67 links, 36 files) green.
 
+**Follow-up (same day): the sweep's scratch and log are keyed by the
+checkout.**  Task #97g's sweep read **330 agree / 18 DIFFER** where a lone
+run reads 348/0, and nothing was wrong with the checker: another agent was
+sweeping at the same time.  `_tmp` is ONE directory shared through a symlink
+by every worktree (CLAUDE.md), and `diff-e2e.sh` wrote two fixed paths under
+it — `_tmp/diff-e2e/`, which holds the gunzipped copies of the 21 compressed
+`e2e` fixtures and which every run starts by `rm -rf`-ing, and
+`_tmp/diff-e2e.log`, which every run starts by truncating.  Two sweeps
+therefore deleted each other's streams and overwrote each other's log.
+`extract.sh` and `gates.sh` have keyed their scratch by the checkout since
+2026-09-13; this script now uses the same idiom,
+
+    ckey=$(printf '%s' "$root" | sha256sum | cut -c1-12)
+    WORK="$root/_tmp/diff-e2e-$ckey"
+
+and everything the sweep writes lives in that directory: `run.log` (the
+default log), `build.log` (the default lane's `cargo build --release -p
+con-ron`, was `_tmp/diff-e2e-build.log`) and the gunzip scratch.  `LOG=PATH`
+still names the log, the summary still prints the path it used, and no other
+behaviour or output changed.
+
+Two details:
+
+  * **`_tmp/diff-e2e.log` survives as a publication, not a working file.**
+    It is the name CI's upload-artifact step collects and `ci.yml` is not
+    this task's to change, so nothing writes there *during* a sweep: the
+    finished `run.log` is copied to `$WORK/.alias.log` and renamed onto the
+    fixed name at the end.  The rename is atomic within the shared `_tmp`,
+    so the last sweep to finish owns the name and it always holds exactly
+    one run's log.  (A plain `cp` there was not enough: two sweeps finishing
+    together left a 23 kB file with 168 records, which is neither run.)
+  * **The arena snapshot is a cache, so it keeps its shared path** —
+    `_tmp/arena-tests`, still overridable with `ARENA_DIR=` — but it is now
+    published atomically: extracted into `$WORK/arena-stage` and `mv -T`'d
+    into place, the loser of a race dropping its staging copy.  A sweep in
+    another worktree can no longer see a half-extracted corpus.
+
+*Verified* with `--bin=target/release/con-ron-arena` on both sides, so
+neither sweep builds and both run the identical binary.  The two roots are
+this worktree and a second checkout (a directory whose `scripts/`, `proof/`
+and `_tmp` are symlinks to it — two roots, one shared `_tmp`, which is the
+situation that broke #97g; the keys came out `ac137bc10849` and
+`50edd10411f8`).
+
+  * lone run, one root: **348 agree, 0 DIFFER, 0 timed out, 0 other**, 13 s.
+  * both roots sweeping the full 348 at once: **348/0 and 348/0**, the same
+    numbers as the lone run, each summary naming its own
+    `_tmp/diff-e2e-<key>/run.log` and each log holding all 348 records.
+  * a full sweep in one root while the other ran short sweeps (`--only=annot/`)
+    back to back — ten to eleven of them, i.e. ten `rm -rf` and ten log
+    truncations landing inside it: **348/0**, log complete at 348 records.
+  * the same stress on the UNFIXED script, for contrast: the full sweep's
+    counters happened to survive, but the log it named held **50 of its 348
+    records** — the short sweeps had emptied it underneath it.  That is the
+    shape of #97g's misreading.
+  * `LOG=…` still overrides the log, and then `_tmp/diff-e2e.log` is left
+    untouched.
+
+Gates: `overview-links.sh` (67 links, 36 files) and `provenance.py check`
+(6 218 items, 4 822 citations, all current at pin `c431b1ca`) green; the
+build, test, extract and `lake build` gates were not re-run, since no Rust,
+no Lean and no generated file is in this change — it is one shell script and
+this paragraph.
+
 ### Task #97a — the arena stores (2026-09-20, Opus under Fable)
 
 Phase P2a of §8.6: the store layer of (B), under `proof/ConRon/Arena/`, as a
@@ -25983,6 +26116,882 @@ run (`con-ron-core` is untouched) and `cd proof && lake build` was not run
 (this task touches no Lean, and sibling agents are editing `proof/`) — P4b's,
 P4c's and P4d's ruling, unchanged.
 
+### Task #97-P4e part 2 — the Rust `ProjRec` twin (2026-09-20, Opus under Fable)
+
+Phase P4e of §8.6, **second half**: the Rust side of task #97e part 2's
+`ProjRec` twin and of the three `ExportC` stubs part 1 shipped, in lockstep
+with the Lean.  One new module, three stubs replaced, and one narrowing ended.
+
+| | shipped | tests | what |
+|---|---:|---:|---|
+| `src/frontend/proj_rec.rs` (new) | 1 502 | 939 | `Arena/Frontend/ProjRec.lean`'s 24 declarations as 68 items |
+| `src/frontend/export_c.rs` | +10 items, 18 signatures | — | the three stubs, their six helpers, and `ar : &mut AState` on the path |
+| `src/frontend/{mod,types,prelude}.rs`, `examples/arena_parse.rs` | +75 −54 | — | the module note, the owner's doc, the two knock-on signatures |
+
+`proj_rec.rs` is **2.9× the twin** (1 502 raw against `ProjRec.lean`'s 519;
+1 425 non-blank against 473), which is the campaign's *lowest* ratio so far —
+P4a 2.3×, P4b 2.2×, P4c 2.95×, P4d-2 3.8×.  The module is mostly straight-line
+term building, so the two things that inflate the others barely apply: there
+are seven `const M_*: [u32; N]` code-point arrays and no interpolated message
+at all (the module raises three fuel errors and nothing else), and the `match
+m { Err(e) => Err(e), Ok(x) => … }` nesting only gets four deep, in
+`projRecValue`, which is split five ways for it.
+
+#### The mapping, declaration for declaration
+
+Only the rows that are **not** a rename (camelCase ↔ snake_case) plus the
+campaign's two standing narrowings — the state parameter is first, a twin that
+cannot fail returns its value — carry a note.
+
+| Lean twin | Rust | one-to-one? |
+|---|---|---|
+| `projIotaName` | `proj_iota_name` | yes; the cited `s!"proj_{i}"` is `text::cat` of `text::u64_str` (§3.4 has no `format!`), as `con_ron_core::frontend::proj_rec`'s is |
+| `isProjIotaName` | `is_proj_iota_name` + `is_proj_iota_pre` | **no** in the count: the two inner `viewN`s are their own function so the outer view's loan is dead where the next is taken (extraction rule 5).  `String.startsWith` is `cps_starts_with`, `con_ron_core`'s own |
+| `projIotaLevel` | `proj_iota_level` + `proj_iota_level_at` | **no**, same rule: the `.const` arm interns `Eq`, so the `view`'s loan must die first |
+| `occursConstGo` | `occurs_const_go` + `occurs_const_node` + `occurs_const_two` + `occurs_record` + `occurs_seen` | **no** — the probe is its own function (rule 5), the compound arms are one function past it, and the twin's four identical two-child `match` nests are ONE `occurs_const_two`.  `occursConstB` has no twin on either side, for the reason the twin's section note gives (over a DAG the memo is what makes the walk linear, and the returned budget is no termination measure) |
+| the `Std.HashSet EIdx` threaded by value | `ron::HashMap<EIdx, bool>` moved in and returned | yes in shape — the twin's `AM (Bool × Std.HashSet EIdx)` term for term, and `arena::inductives::struct_parts`' own arrangement.  `con_ron_core::frontend::nat_op_ground` hands the same table down as a `&mut`; here the state is already borrowed and a moved `Vec`-backed table costs nothing |
+| `occursConstFast`, `lamBody`, `stripPisAll`, `headIs` | the same four | yes |
+| `mkLams`, `instPisOpen`, `internParamLevels` | the same three + their `_from` cursors | yes; `mkLams` conses on the way OUT in the twin, so the cursor recurses to the end of the list and interns outward from there |
+| `ProjBinderKind`, `ProjBuild` | the same enum and struct | yes — **and this is the one place the arena port and the tree port differ in kind**.  `con_ron_core::frontend::proj_rec` defunctionalises con-leche's `mk : Expr → Option Expr` as a one-method TRAIT (`MkBinder`); over handles the two builders intern, so a trait method would have to take `&mut AState` and the trait would be a generic instantiated with `&mut`, which §3.4 forbids outright.  The twin's tag was already the right answer and the Rust takes it |
+| `mkProjMotive`, `mkProjMinor` | the same two + `mk_proj_motive_at` / `mk_proj_minor_at` | **no** in the count, rule 5 again (both arms intern under a `view`) |
+| `buildBinders` | `build_binders` + `build_binders_at` | **no**, same.  The recursion is on `k`, as the twin's is — not the tree port's loop: `k` is a motive or minor count and never large |
+| `projRecValue` | `proj_rec_value` + `_ty` + `_at` + `_binders` + `_major` + `_app` | **no** — the twin is one 48-line `do` block and the port is six functions split at its own `let`-boundaries, which is P4c's arrangement for exactly this shape.  con-leche's `guard (body == .proj o.T i (.bvar 0))` is a `view` of the body on both sides: exactness (`denoteE_inj`) makes the two the same test |
+| `occursAnyOf`, `domsMentionAny`, `ctorsMentionBlock` | the same three + `_from` cursors | yes |
+| `findCtorRec`, `findRecRec` | `find_ctor_rec`, `find_rec_rec` + cursors | **no** in the RESULT: they return the index, not the record, because returning it would copy a `Vec<NIdx>` and an `EIdx` the caller reads in place.  `con_ron_core::frontend::proj_rec`'s `find_ctor` / `find_rec` are the same deviation |
+| `projRecCandidates` | `proj_rec_candidates` + `_from` + `proj_rec_candidate_at` + `proj_rec_candidate_rec` | **no**, and one ARGUMENT is dropped: the twin takes a `fuel` its body never reads (every walk inside it is structural — `stripPis` on the parameter count, one `view`, one `readLevel`), and an unused parameter is a warning under `-D warnings` and a dead argument in the model.  `proj_rec_owners` still takes it, for `ctors_mention_block` |
+| `projRecOwners` | `proj_rec_owners` + `proj_rec_owners_guard` + `type_names` + `any_is_rec` + `declared_num_params` | **no** in the count only.  The **cheap guard order** (the twin's deviation 3) is kept: the candidates first, the two recognisers only when there is a candidate to serve, which is the same value because both early branches return `[]` |
+| the two block recognisers | `arena::inductives::struct_parts::struct_parts_core` and `arena::inductives::native_parts::native_parts`, **called** | yes — P4d-2's own handle twins, which is where task #97f's dedup pointed the Lean.  **Nothing in the Rust frontend crosses to the `Expr` denotation either** |
+| `ProjRecOwner`'s record copy | `proj_rec_owner_dup` | the house `foo_dup`, §3.4.  It lives in `proj_rec.rs` and not beside the type in `types.rs` because this module is the only producer and `export_c`'s table the only consumer |
+| the `types` / `ctors` / `recs` tuples | `ProjTypeRec` / `ProjCtorRec` / `ProjRecRec`, three `pub type` aliases | yes — the twin's tuples, spelled as tuples, so `t.6` reads as `·.2.2.2.2.2.2`.  (`con_ron_core::frontend::proj_rec` names the seven fields instead; its original is con-leche, whose tuple it declined to transliterate.  Here the original is the twin) |
+
+`ExportC`'s three:
+
+| Lean twin | Rust | one-to-one? |
+|---|---|---|
+| `projRewriteD` | `proj_rewrite_d` + `proj_rewrite_at` + `proj_owner_of` + `proj_level_of` | **no** in the count: the shape test and the two table lookups are split for rule 5 (the lookups are `HashMap::get` matches that produce a value) |
+| `noteProjIota` | `note_proj_iota` | yes.  The twin detaches `st.projLevels` before inserting (§8.4 lesson 14); a `&mut` field is detached already |
+| `registerProjOwners` | `register_proj_owners` + `note_proj_owners` + `proj_types_of` + `proj_ctors_of` + `proj_recs_of` | **no** — the three `mapM`s are loops (the frontend's own relaxation) and the `foldl` insert is its own tail |
+
+#### The narrowing part 1 took, and where it ends
+
+Part 1's note said the frontend's monad could be `&mut EStore` rather than the
+twin's `AState`, *"because the frontend touches no memo"*, and that `arena/
+monad.rs` landing would make the first a field of the second with **no body
+changing**.  Part 2 is where that stops being true and where the prediction
+gets tested.
+
+The rewrite runs `ExprOps`' `instantiate1LiftFast`, `liftLooseBVarsFast` and
+`instLPFast`, whose memo tables ARE `AState` fields.  So the **eighteen**
+functions on the path from the four entry points (`chunk_step`,
+`chunk_finish`, `parse_bytes`, `parse_chunks`) down to the three rewrite
+functions now take `ar : &mut AState`, and hand `&ar.store` / `&mut ar.store`
+to the ninety-three that still only intern.  That is `prepare.rs`'s own
+arrangement since P4d (*"`prepare_d` takes the whole `AState` where everything
+else in this module takes the store"*), and the prediction held: **no body
+changed**, only the eighteen parameter types and the thirty-three places
+where `ar` is handed on to a function that still takes the store.
+
+`prelude::builtin_prelude_e` and `examples/arena_parse.rs` follow.  **The
+`Modeller` trait is untouched** — `install_gen` passes `&mut ar.store` to
+`m.generate` — which is what keeps the seam P4f implements stable.
+
+#### Tests: seven, and the fixture is the twin's
+
+`ProjRecTest.lean`'s fixture value for value — the two-field structure `S`,
+its constructor, its recursor and its two projection functions — with its 56
+`#guard`s grouped into seven `#[test]`s: the fixture's round trip (14
+assertions), the artifact name and its pre-filter, the artifact's level,
+`occursConst` at five subjects, the five telescope helpers, the rewrite at
+five values, and the owner census at two blocks.
+
+**The expected side is computed, never written out.**  Where the Lean test
+compares against con-leche's own `ConLeche/Frontend/ProjRec.lean` applied to
+the same con-leche value, this compares against
+**`con_ron_core::frontend::proj_rec`** — the `Expr`-tree port of the same
+con-leche file, which task #37 wrote and nothing in this campaign has touched
+— applied to the same values the store was interned from.  It is the Lean
+test's arrangement one representation down, and it is the same device
+`arena/inductives.rs`'s `mod tests` uses for the installs.
+
+`projRecOwners` is checked at **two** blocks, as the twin checks it: the
+structure alone, which `native_parts` recognises so that the rewrite serves
+none of it, and the same structure beside a second (indexed) type former — the
+MUTUAL shape where the owner list is `[S]`.  So the two delegated recognisers
+are exercised on both sides of their verdict.  Nine further assertions say the
+positive cases really are positive, so that a pair of agreeing `None`s cannot
+pass for a check.
+
+**Two deliberate mutations were confirmed to bite**, one test each and no
+other: the minor's field index (`bs.len() - 1 - i` → `bs.len() - i`) turns
+`the_rewrite_is_the_tree_ports_rewrite` red, and dropping the `nativeParts?`
+guard from the census turns `the_owner_census_agrees_at_both_blocks` red.
+Both were reverted.
+
+`cargo test -p arena-core`: **109 green** (102 before, plus these 7; part 1's
+17 `export_c` tests and 3 `prelude` tests re-run under the new signatures).
+Part 1's two load-bearing tests still pass **with the census wired in**:
+`the_arena_agrees_with_the_tree_parser_on_every_snippet` (all eight snippets
+through both Rust parsers, same outcome class, same line, same declaration
+count) and `the_prelude_interns_the_twins_own_node_counts` (196 / 5 / 55).
+Four of the eight snippets carry an inductive record and two of them get one
+as far as `install_ind_d` (measured), so `register_proj_owners` — and through
+it `proj_rec_owners`, `struct_parts_core` and `native_parts` — really runs in
+that comparison.  The REWRITE does not fire there, for the
+`proj_levels`-is-empty reason the `Init` section spells out; the seven tests
+above are what covers it.
+
+#### `Init`: the counts do not move, and that is the result
+
+`_tmp/corpus/init.ndjson`, 347 714 179 bytes, 6 490 422 lines, under
+`ulimit -v 12000000`; `perf stat -e instructions:u,cycles:u`, wall from five
+warm runs.  `cargo run --release --example arena_parse … --skip-modelled`.
+
+| `Init`, `--skip-modelled` | P4e part 1 | part 2 | tree parser (same session) |
+|---|---:|---:|---:|
+| declarations parsed | 57 977 | **57 977** | 57 977 |
+| expression nodes | 6 136 571 | **6 136 571** | — |
+| level nodes | 578 | **578** | — |
+| name nodes | 295 297 | **295 297** | — |
+| instructions:u | 19.72 G | **20.66 G** | 16.71 G |
+| cycles:u | 12.91 G | 13.56 G | 6.95 G |
+| wall (5 runs) | 2.63–2.70 s | **2.75 / 2.79 / 2.85 / 2.85 / 3.05 s** (spread 0.30 s) | 1.22 s |
+| peak RSS | 0.53 GB | **0.53 GB** | 0.39 GB |
+
+(The tree column is `--tree` in the same session and on the same machine:
+16.708 G instructions against part 1's 16.71 G, which is what says the two
+sessions are comparable.  The wall spread is wider than part 1's 0.07 s
+because other agents were building on the machine; the instruction count is
+the measure of record for exactly that reason.)
+
+**The delta on all four counts is zero, and the reason is the modeller.**
+With `--skip-modelled` (`inModel := false`) no `_model` family is generated,
+so no `T._model.proj_i.iota` artifact ever reaches `note_proj_iota`,
+`proj_levels` stays empty, and `proj_rewrite_d` answers `None` on every
+definition and every theorem — it never builds a node.  What part 2 *does* run
+on this path is `register_proj_owners`, on every inductive record of the
+stream; its only interning is `T.str "rec"` in the candidate test, a name the
+export declares itself, so cons-hashing finds it and the store does not grow.
+**The rewrite's own nodes on `Init` are zero because the rewrite cannot fire
+there**, which is con-leche's own situation on the same stream and the twin's.
+
+The Lean part 2's **6 137 973 / 581 / 295 343** are the modeller-ON numbers,
+and its own section accounts for the difference from part 1 as *"exactly the
+`_model` families the in-process modeller generated and the parse interned"* —
+**1 402 / 46 / 3** nodes.  Those are the generator's, not the rewrite's; the
+Rust has no in-process modeller yet (`types::DeclineModeller` is what this
+driver passes), so with the modeller ON it stops where part 1 stopped:
+
+| `Init`, declining modeller | part 1 | part 2 |
+|---|---|---|
+| stop point | line 78 503, `declined: in-process model of Lean.Syntax` | **the same line, the same verdict** |
+| instructions:u | 0.26 G | 0.27 G |
+
+**What the rewrite costs when it cannot fire: 0.94 G instructions, 4.8 %.**
+That is the owner census alone — `register_proj_owners` building the three
+shape-record lists for every inductive block, the candidate filter over them,
+and, on the blocks that have a candidate, `ctorsMentionBlock`'s memoised
+`occursConst` walks plus the two recognisers.  Peak RSS is unmoved at 0.53 GB
+(the census allocates per block and drops it).  The number to watch is what it
+becomes when the modeller lands and the rewrite starts firing; P6 owns it.
+
+#### Extraction
+
+`scripts/extract-arena.sh --dry`: **zero errors, zero warnings**, 61 838 lines
+of model (up from P4d's 59 464), **4 type holes and 208 function holes** (up
+from 207).
+
+**The one new hole is the boundary's**:
+`con_ron_core::kernel::basis_names::punit_unit_name`, which the rewrite speaks
+when it builds `PUnit.unit.{ℓ}`; `punit_name` was already on the list
+(`arena::core` pins it).  **The arena's own code contributes none**, which is
+P4a's standing rule for the boundary and still holds at the fourth phase to
+test it.  No new translator complaint either: the module was written against
+extraction rules 5–7 from the start (every `Option`-producing match over a
+state borrow is its own function; no `&&` under a live index loan; no `if`
+whose arms move a node's fields), and it went through Aeneas clean on the
+first run.
+
+Two shapes worth recording because they were *chosen* for the extractor:
+
+* **the memo travels by value.**  `occurs_const_go` takes the
+  `HashMap<EIdx, bool>` and returns it, so the probe's borrow is dead before
+  the descent mutates the table — rule 5 at a table rather than at a state.
+* **the binder KIND, not a trait.**  A `MkBinder`-style trait over `&mut
+  AState` is a generic instantiated with `&mut` (§3.4's own bullet) and would
+  have come out as a typeclass field taking a state; the twin's
+  `ProjBinderKind` dispatch is two `match` arms and no dictionary at all.
+
+#### Gates
+
+`cargo build` / `cargo test` under `RUSTFLAGS="-D warnings"` (**109 in
+`arena-core`**, 396 in the workspace), `scripts/lint-rust-style.sh` over both
+verified trees, `scripts/provenance.py check` **0 findings** (6 144 items —
+4 445 Rust, 1 699 arena Lean — and 4 762 citations, all current at pin
+`c431b1ca`), `provenance-selftest`, `overview-links` (67 links, 36 files),
+`holes.sh --check` (2 types, 20 fns), `gen-pins --check`, `gen-prelude
+--check`, `gen-prelude-lean --check`, `scripts/extract.sh --check`
+(con-ron-core's committed model unmoved) and `scripts/extract-arena.sh --dry`
+clean.  `cd proof && lake build` was **not** run, for part 1's and P4d-2's
+reason: this task touches no Lean at all — `proof/` is byte-identical to
+`arena`'s tip — and this worktree has no built `.lake` for the Mathlib-side
+targets.
+
+#### For P4f, and for the merge
+
+* **Four signatures moved**, and they are the ones `crates/con-ron-arena`
+  calls: `export_c::{chunk_step, chunk_finish, parse_bytes, parse_chunks}` and
+  `prelude::builtin_prelude_e` take `&mut AState` where they took `&mut
+  EStore`.  P4f's driver already holds one `AState` for the whole run
+  (`driver.rs`'s own module note, item 1), so the fix at the merge is to build
+  it before the parse instead of after: `let mut st = AState::init(EStore::
+  empty())`, pass `&mut st` through `parse_export_handle_d`, and delete the
+  later `AState::init(ar)`.  `state_d_init` still takes `&mut EStore`, and so
+  does the `Modeller` trait — nothing else changes.
+* **The rewrite is dark until the Rust modeller lands.**  `proj_levels` is
+  written only by `note_proj_iota`, which runs only on records `push_gen_d`
+  pushes, which is only what a `Modeller` generated.  A `con-ron-arena` that
+  ports `con_ron_core::frontend::in_model_rec` turns the rewrite on, and the
+  first thing to check then is the node census against the Lean's
+  **6 137 973 / 581 / 295 343**.
+* **`proj_rec.rs`'s three `pub type` aliases are the twin's tuples.**  If
+  Aeneas or a later proof wants named fields there, change the LEAN first
+  (§8.6's lockstep rule); the tree port's `ProjTypeRec` struct is the shape to
+  copy if so.
+* **The `fuel` argument `projRecCandidates` never reads** should come off the
+  Lean side too, for the same reason it came off here: it is dead in both.
+### Task #97g — the check-phase copy (2026-09-20, Opus under Fable)
+
+Phase P2g of §8.6, and the item task #97f's "for P6" list put first: *the
+copy/free pair, 83 % of the run.  Nothing else matters until it does.*
+
+**The verdict.**  `con-ron-lean` now runs `Init` to the end — **accepted
+57 977 declarations** — and `Init`+`Std`+`Lean` too.  Four findings, each an
+RC-2 holder or a missing memo, and **all four are the same mistake**: (B)
+twins `ConLeche/Kernel/*`, the SPEC tier, and con-leche's EXECUTED tier
+(`Cached/*`) does something the spec tier has no need to do.  That is task
+#97f's `mode.certs` finding, three more times.
+
+#### Item 1 — the culprit: the two fold steps held the PRE-STEP state
+
+`Arena/Checker.lean`'s phase-A and phase-B steps both spelled their error arm
+with the state they were called at:
+
+```lean
+def annotDeclStep … := fun s =>
+  match annotStep mode pins p.1 p.2.1 p.2.2 pd s with
+  | .ok ((fe', pend'), s') => .ok (.ok (p.1 + 1, fe', pend'), s')
+  | .error e => .ok (.error (e, p.1), s)          -- ← `s` live across the step
+
+def checkPendingList … | pc :: rest => fun s =>
+  match checkPending mode fe pc s with
+  | .ok ((), s') => checkPendingList mode fe rest s'
+  | .error e => .ok (.error (e, pc.pos), s)       -- ← same
+```
+
+**The evidence is the generated C**, which says it in one line
+(`.lake/build/ir/ConRon/Arena/Checker.c`, `checkPendingList`):
+
+```c
+lean_inc_ref(v_a_1309_);                 /* v_a_1309_ IS the AState */
+lean_inc(v_head_1313_);
+lean_inc_ref(v_fe_1307_);
+v___x_1318_ = …ConRon_Arena_checkPending(mode, fe, head, v_a_1309_);
+```
+
+and identically in `annotDeclStep` (`lean_inc_ref(v_s_1202_)` before
+`…annotStep(…, v_s_1202_)`, its matching `lean_dec_ref` ninety lines later).
+So **the whole `AState` entered every declaration's step at refcount 2**, and
+the first write to each of the store's per-constructor tables — ten node
+arrays, ten derived arrays, ten cons tables — copied it.  In phase A those
+tables are the PERSISTENT tier, which after the parse holds 6 137 973 nodes:
+that is the "few thousand copies of an `Init`-sized column" item 4 of task
+#97f estimated from the memory bandwidth, and it is what
+`lean_copy_expand_array` (46.3 %) + `lean_del_core_other` (36.7 %) were.
+
+**§8.4's detach idiom was never the problem.**  `whnfCoreSet`'s generated C
+reaches `insert` with no surviving `lean_inc_ref`: it destructures `AState`
+and `Caches` through `lean_is_exclusive`, reuses both shells and writes in
+place.  `internE`'s is the same.  The idiom is correct and was defeated one
+frame up — the `lean-rc-linearity` skill's §0 corollary in its purest form,
+*retention across a mutation is taken far away.*
+
+**The `dbgTraceIfShared` probes are recorded because they MISLED.**  On a
+519-declaration prefix, probes at `internE`'s detached `EStore`, at
+`whnfCoreSet`'s table and at `inst1Set`'s table read **0**, 575 and 30 717
+shares.  The store probe never fired, which reads as "the store is linear".
+It is not; the probe was in the wrong phase.  `checkPending` opens with
+`enterScratch`, and `enterScratch` on a shared state MINTS A FRESH `AState`
+(and a fresh `EStore` record) — from that moment phase B's state is exclusive
+again, and only the tables the fresh record still shares with the old one
+copy.  The damage is phase A's, which has no bracket at all, so every one of
+its 57 977 steps struck the persistent tier.  **A probe that fires per
+mutation cannot see a holder that the first mutation pays off**; only the
+`lean_inc_ref` in the caller's C is conclusive, which is the skill's §4.5
+written from the other side.
+
+**The fix, and why it is con-leche's own meaning.**  con-leche's two steps
+live in `StateT CState (Except (CheckError × Nat))` and their error arm is
+`.error (e, i)` — *no state at all* (`Cached/Installed.lean:185-195`,
+`:429-436`).  (B) has ONE monad (§8.4) whose error type is `CheckError`, so
+the fold position has to travel as a VALUE and the arm has to produce *some*
+state.  Task #97d wrote `s` there, which reads as "restore"; nothing observes
+it — both folds abandon the walk, `installThenCheck` returns `.error`,
+`runPipelineTail` renders the message, and `runPipeline` / `runPipelineIO`
+discard the state — so the arm hands back `AState.abandoned`, the empty one.
+Two lines, no clause structure moved, and the Rust twin is unaffected: an
+`Err` return whose `&mut` state the caller stops using is what it would have
+written anyway.
+
+| `head -n N` of `init.ndjson`, `--verified` | decls | before | after |
+|---:|---:|---:|---:|
+| 100 000 | 1 570 | 8.7 s | **1.83 s** |
+| 200 000 | 2 676 | 29.0 s | **3.88 s** |
+| 300 000 | 3 746 | 62.8 s | **6.84 s** |
+| 500 000 | 4 380 | 123.8 s | **16.89 s** |
+
+and `Init` whole, which had never finished, came in at **2 001.6 G
+instructions, 4:47, 1.778 GB** — 3.42× con-leche's instructions, 3.70× its
+RSS.  `lean_copy_expand_array` went 46.3 % → 0.94 % of the cycles.
+
+#### Item 2 — the parse result dies before the fold
+
+`runPipelineTail` computed its verdict number (`r.decls.size -
+r.genRecords`) *after* `installThenCheck`, so the whole `ParseResultD` —
+`inModelGen`, `genOwner`, `inModelDeclined`, `projRewrites`, `inModelled`,
+none of which the fold looks at — was pinned across the entire check.  The
+number is read before the fold now, which is §8.4's "decide the rare branch
+before the expensive step" applied to a read.  It is worth ~170 MB on `Init`,
+visible in the RSS trace as the step down the moment the fold starts.
+
+#### Item 3 — the store's readers are `@[inline]`
+
+With the copy gone, **a third of the cycles were allocation and
+deallocation**: `lean_dec_ref_cold` 12.6 %, `mi_free` 7.7 %,
+`mi_malloc_small` 4.8 %, `lean_del_core_other` 3.8 %, `lean_alloc_ctor`
+1.9 %, and `lean_inc_heartbeat` 1.9 % — which is not a heartbeat at all, it
+is what mimalloc calls on **every** allocation (`lean.h:516`).
+
+Most of it is the monad meeting §8.3's deviation 2.  An out-of-line `AM` read
+allocates `Except.ok (v, s)` — two objects — at every call, and deviation 2
+makes EVERY structural match on a term one of those calls, where con-leche
+pattern-matches an `Expr` for free.  Inlined, the pair-and-`Except` is built
+and destructured in one basic block and the optimizer deletes both; and when
+the pure decoder under it is inlined too, the `ENodeView` constructor meets
+the caller's `match` and goes as well.
+
+`@[inline]` now on: `view`, `derivedE`, `viewN`, `viewL`, `derivedL`,
+`viewLs` and the eleven memo probes (`Arena/Monad.lean`);
+`EStore.view`/`derived`, `ETables.get`/`derAt` and the name-, level- and
+level-list-store counterparts (`Arena/Store.lean`).  **The mutations keep
+their `@[noinline]`** (lesson 15) untouched, and the reason the reads are
+safe is stronger than con-leche's own (its `viewI` stayed `@[inline]`
+because its result is always immediately matched): every one of these
+returns handles (`UInt32`) or a `UInt64`, so its result **cannot pin the
+store** even if the compiler does keep it live.
+
+| `instructions:u`, 500 000-line prefix, 2 runs each | |
+|---|---:|
+| after item 1 | 151.570 G |
+| + `view`, `derivedE` | 134.570 G |
+| + the other fifteen monadic readers | 130.239 G |
+| + `EStore.view` / `EStore.derived` | 113.488 G |
+| + `ETables.derAt` | 113.221 G |
+| + the name / level / level-list six | **112.440 G** (−25.8 %) |
+
+`ETables.get` inlined WITHOUT `EStore.view` is a regression (130.596 G): the
+decoder has to reach the call site for the fusion to happen, and
+`EStore.view` is the frame in between.
+
+#### Item 4 — the flush at every environment transition, which (B) had none of
+
+con-leche's EXECUTED tier flushes its per-declaration caches at every
+environment transition, and enters **every phase-A record with empty
+caches**: `annotValueC` (`Cached/Installed.lean:139`), the `.thmDecl` arm
+(`:168`), `checkDeclStepC` — *"one step of the converted-declaration fold:
+flush, then check"* (`Cached/ParsedC.lean:279-282`) — `checkPending`
+(`:261`), and eight more inside the inductive installs
+(`Cached/CheckerC.lean:108, 123, 146, 173, 184, 210, 223, 227`).
+
+Task #97d's twins mirror `Kernel/*`, which has no caches to flush.  So (B)
+carried its eleven tables across the WHOLE of phase A and across every
+inductive block, bounded only by `cacheCap` (4 194 304 entries a table,
+eleven tables), answering queries at an environment the row was not computed
+at.  Twelve `flushCaches` added at con-leche's own sites — `annotStep`'s four
+arms, `Modeled.lean`'s `checkIndMember` / `provisionRecs` / `checkIndRecs` /
+`installProjFnStep`, `NativeInstall.lean`'s `checkNativePass` /
+`checkNativeTail` / `checkNative` (twice).  A dropped row is a cache miss and
+nothing else, so no verdict can move, and none did.  On `Init`: **+3 %
+instructions** (the flush is lost cache hits) for **−16 % cycles and −16 %
+wall** (locality), and −29 MB of peak RSS.
+
+#### Item 5 — the scope queries were unmemoized walks over a DAG
+
+`Init` was inside the instruction budget at this point and `Init`+`Std`+`Lean`
+was not — 6.18× con-leche, against `Init`'s 2.62×.  One profile of
+`core.ndjson`'s first 3 300 000 lines said why in one line:
+
+| | symbol | share |
+|---:|---|---:|
+| 1 | `ConRon.Arena.fabScopeOk` | **43.85 %** |
+| 2 | `lean_dec_ref_cold` | 6.23 % |
+| 3 | `mi_free` | 3.74 % |
+
+(`ConRon.Arena.fvarLeaves` 2.60 % and `ConRon.Arena.wscopedB` 1.57 % are
+6th and 15th.)
+
+`fabScopeOk` is `majorToCtor`'s guard on the three stuck-major rescue
+branches, and task #97d twinned `Kernel/Core.lean`'s spelling literally:
+
+```lean
+fab.fvarLeaves.all (fun l => major.fvarLeaves.contains l)
+```
+
+two UNMEMOIZED walks and a quadratic list containment.  Over an `Expr` TREE
+that is linear in the term; over a hash-consed DAG it is linear in the term's
+*unfolding*, which is precisely what hash-consing exists to avoid — and the
+`++` of the leaf lists builds that unfolding in the heap, which is why it
+cost memory as well as time.  **This is §8.3's lesson 20 and task #97f's
+item 2 (the `instantiateList` cutoff) for a third time**: a walk that is fine
+on trees is not fine on a DAG.
+
+con-leche's executed tier knows it.  `Cached/ExprOpsC.lean` carries
+`wscopedBGoC` ("one memoized DAG walk"), `fvarLeavesGoC` (a `seen` set) and
+`leavesSubGo`/`leafGuard` (its task #86: walk the FABRICATION once against
+the major's leaf list, never building the fabrication's own list), each with
+an `fvarB == 0` short-circuit off the packed field; `Cached/CoreC.lean:567`
+is the call.  All five are twinned now and `fabScopeOk` is those three tests.
+The memos are threaded as argument-and-result pairs — con-leche's own
+spelling, and the one `Frontend/ProjRec.lean` already uses for its `seen`
+set — because two of the three depend on data that is not in the key.  The
+pure `wscopedB`, `fvarLeaves` and `fvarLeavesSubset` stay as the
+specification, and `ExprOpsTest.lean` gains sixteen differential `#guard`s
+comparing each memoized walk with the pure one it memoizes.
+
+| `core.ndjson`, first 3 300 000 lines, 27 920 declarations | instructions | wall | peak RSS |
+|---|---:|---:|---:|
+| before | 3 034.0 G | 4:42.0 | 4.51 GB |
+| after | **866.5 G** | **2:04.1** | **1.55 GB** |
+| | −71 % | | −66 % |
+
+`Init` does not move at all (its early declarations rarely reach the rescue):
+the 500 000-line prefix reads 115.085 G on both sides.
+
+#### Item 6 — `--progress` was timing the wrong thing
+
+`checkMain`'s heartbeat read its clock AFTER `runPipelineIO` returned and
+printed the result as "parse done", which is the whole run.  Task #97f's
+"the parse is fine at 4.6 s" was measured on a build whose fold was not
+wired; on a build that checks, the line said 18 s for a prefix whose parse is
+0.2 s.  The reading is taken between `readFold` and `runPipelineTail` now,
+where the parse actually ends, and the line carries both halves:
+
+    con-ron-lean: parse done: 7 chunks read t=0.21s; fold t=13.25s
+
+which is how item 5's diagnosis got its first clue (`core`'s first quarter:
+parse 2.20 s, fold 279.75 s).
+
+#### The numbers, beside con-leche's
+
+Every (B) cell: `LEAN_NUM_THREADS=4`, `ulimit -v 60000000`, `--verified`,
+`--jobs` unused (B is single-threaded), `perf stat -e
+instructions:u,cycles:u`.  con-leche's column is `_tmp/corpus/baseline.md`'s
+`--jobs=1` row, the OVERVIEW §7.2 number.  The **declaration counts differ by
+five on both exports and that is not this task's**: task #84's quotient
+package is five records where it used to be one `basisDecl`, so 57 977 /
+163 396 are the current counts and `baseline.md`'s 57 972 / 163 391 are its
+own run's (DESIGN "the accept count moved by five on every real export").
+
+**`Init`** (`_tmp/corpus/init.ndjson`, 6 490 422 lines, 347 MB)
+
+| | con-leche | (B) at task #97f | (B) now | ratio |
+|---|---:|---:|---:|---:|
+| verdict | accepted 57 972 | **did not finish** | accepted **57 977** | — |
+| `instructions:u` | 585.9 G | — | **1 536.4 G** | **2.62×** |
+| `cycles:u` | — | — | 940.1 / 945.6 / 975.7 G | — |
+| wall, 3 runs | 59.4 s | — | 213.7 / 214.7 / 222.4 s | **3.6×** |
+| … parse / fold | — | — | 3.9–4.1 s / 209.6–218.2 s | — |
+| peak RSS | 481 MB | — | **1 833 MB** | **3.81×** |
+
+**`Init`+`Std`+`Lean`** (`_tmp/corpus/core.ndjson`, 13 229 044 lines, 748 MB)
+
+| | con-leche | (B) now | ratio |
+|---|---:|---:|---:|
+| verdict | accepted 163 391 | accepted **163 396** | — |
+| `instructions:u` | 1 179.7 G | **3 265.6 G** | **2.77×** |
+| `cycles:u` | — | 2 886.7 G | — |
+| wall | 149.6 s | 679.0 s | **4.5×** |
+| … parse / fold | — | 9.3 s / 669.6 s | — |
+| peak RSS | 1 243 MB | **4 601 MB** | **3.70×** |
+
+**The instruction budget of §8.4 is MET on both** (3×: 1 757 G and 3 539 G).
+**The RSS budget is not**, at 3.81× and 3.70×; see "What is left" below.
+
+The whole campaign on one line, `instructions:u` on the 500 000-line prefix:
+151.6 G (after item 1) → 112.4 G (items 3) → 115.1 G (item 4's flushes buy
+their 3 % back in locality).  And on `core`'s first quarter: 3 034 G → 866 G
+(item 5).  `Init` whole: never finished → 2 001.6 G → 1 536.4 G.
+
+**The fold is linear in the declaration count now.**
+
+| `head -n N` of `init.ndjson` | decls | `instructions:u` | wall | peak RSS |
+|---:|---:|---:|---:|---:|
+| 100 000 | 1 570 | 15.17 G | 1.50 s | 148 MB |
+| 200 000 | 2 676 | 29.00 G | 2.96 s | 170 MB |
+| 300 000 | 3 746 | 53.01 G | 5.74 s | 206 MB |
+| 500 000 | 4 380 | 115.08 G | 13.88 s | 285 MB |
+| 6 490 422 (all) | 57 977 | 1 536.42 G | 214.7 s | 1 833 MB |
+
+4 380 → 57 977 declarations is **13.24×** the declarations for **13.35×** the
+instructions: 7.6 % of `Init`'s declarations cost 7.5 % of the run.  Task
+#97f's reading of the same prefix was "7.6 % of the declarations for 2.2× the
+whole run's wall".  The residual bend WITHIN the prefixes (1 570 → 4 380 is
+2.8× the declarations for 7.6× the instructions) is `Init`'s own shape — the
+first 100 000 lines are its smallest declarations — and it flattens where the
+declaration mix does.
+
+#### The top three, after
+
+`perf record -F 199` on the whole of `Init`, 42 276 samples, 913.8 G cycles:
+
+| | symbol | share |
+|---:|---|---:|
+| 1 | `lean_dec_ref_cold` | 11.00 % |
+| 2 | `Std.DHashMap…Const.get?` at `ETables.find?` | 7.24 % |
+| 3 | `ConRon.Arena.instantiate1Go` | 6.49 % |
+
+then `mi_free` 5.82 %, `EStore.derOfView` 5.42 %, `mi_malloc_small` 4.33 %,
+`EStore.intern` 4.19 %, `ETables.find?` 3.73 %, the `AssocList` walk under it
+3.27 %, `lean_del_core_other` 3.64 %, `mi_heap_collect_ex` 3.23 %.
+`lean_copy_expand_array`, which was **46.3 %** when this task started, is not
+in the top sixteen.
+
+Two groups account for nearly half the run and they are the two the
+representation buys:
+
+* **allocation and reference counting, ≈ 29.5 %** (`lean_dec_ref_cold` +
+  `mi_free` + `mi_malloc_small` + `lean_del_core_other` + `mi_heap_collect_ex`
+  + `lean_inc_heartbeat`, which mimalloc calls on every allocation).  Item 3
+  took the cheap half of this; what is left is `AM` itself — `StateT AState
+  (Except CheckError)` allocates a pair and an `Except` at every call that is
+  not inlined, and §8.3's deviation 2 makes every structural match on a term
+  such a call.
+* **the cons-table probe, ≈ 14.2 %** (`ETables.find?` and the two
+  `Std.DHashMap` functions under it) — hash-consing's own price, paid twice
+  per `intern` (persistent tier, then scratch).
+
+#### What is left
+
+1. **Peak RSS, 3.8× / 3.7×, and it is the representation, not a leak.**  The
+   `MADV_FREE` explanation is ruled out: `MIMALLOC_PURGE_DELAY=0` moves the
+   500 000-line prefix's peak by 2 % (272 → 279 MB, noise), so the bytes are
+   live.  Per expression node the arena holds three heap objects where
+   con-leche's shared `Expr` holds one — the node record, a BOXED `UInt64` in
+   the derived column (`Array UInt64` is an array of `lean_object*`; 16 bytes
+   plus the slot), and a cons-table `AssocList` cell (32 bytes plus its share
+   of the bucket array).  That is ≈ 2.5–3× per node before anything else, and
+   it is what the measurement shows.  Three levers, in increasing order of
+   disturbance: unbox the derived column (≈ 100 MB on `Init`, but `Array
+   UInt64` has no unboxed form in core Lean and `ByteArray` would cost the
+   store's WF proofs); shrink the cons entry; and **§8.7's own open question
+   — "whether the persistent tier should be *installed types only* (the
+   export's parse DAG dropped after the environment is built)", left open in
+   §8.7 with "keep the DAG for now — revisit at P2g if the numbers say
+   otherwise".  These are the numbers.**  The cons tables themselves cannot
+   simply be dropped after phase A: `EStore.intern` probes the persistent
+   table before appending to the scratch one, and that probe is what makes
+   `denoteE` injective across tiers (§8.3's `t_cons_fresh`), which is a
+   SOUNDNESS obligation and not an optimisation.
+2. **`orElseAttempt` still holds the pre-attempt state across the attempt**
+   (`Arena/CheckerBase.lean:132`) — the same shape as item 1, and here the
+   restore is real (`.recovered` resumes at the pre-attempt state, which is
+   what makes the failed variant invisible).  It is bounded: the attempt runs
+   only for `Nat.div`/`Nat.mod` and only until a variant matches, so the cost
+   is ~10 table copies per attempt and a handful of attempts per stream.  It
+   did not appear in any profile and the `Init` RSS trace puts the peak in
+   phase A, not at it.  Left as written, recorded here because it IS an
+   instance of item 1's disease and P3 will read it.
+3. **The `Pins` record** (task #97c's, re-priced by #97f) is still not built:
+   `reservedBasisNames`, `natOpNames`, `natDivModNames` and `reduceOpNames`
+   intern their names on every call, and `installConstantVal` calls the first
+   on every declaration.  It did not reach 1 % of any profile taken here, so
+   it is no longer "the first thing P2g should price" — the three items above
+   it are.
+4. **`Arena/Bench.lean` still has no `Core`, `Checker` or inductive shapes.**
+   Task #97f said item 4's diagnosis "would have been an afternoon's work
+   with a benchmark that interned inside a declaration bracket"; item 5's
+   would have been an hour's with one that ran `majorToCtor`.  Four tasks
+   have now asked.
+5. **The twin-fidelity lesson, for P4 and for whoever writes the next
+   module.**  Four of this task's five findings are one mistake: a twin of
+   `ConLeche/Kernel/*` where the thing (B) runs is `ConLeche/Cached/*`.  The
+   spec tier has no caches, so it has no flushes; it has no memo, so its
+   walks are the naive ones; its fold steps live in a monad whose error
+   carries the position, so they need no state on the error path.  **When the
+   two tiers differ, (B) must have the executed tier's** — task #97f said
+   this once for `mode.certs` and it is now said four more times.  A cheap
+   check for the next module: grep the `Cached/` counterpart for `flushC`,
+   for a `…C`/`…GoC` name that shadows the `Kernel/` one, and for a memo
+   argument, before declaring the twin done.
+
+#### Gates
+
+`scripts/diff-e2e.sh --bin=proof/.lake/build/bin/con-ron-lean`: **348/348
+`--verified`, 348/348 `--trusted`, 331/17 `--no-pins`** (the documented row),
+unchanged at every step of this task.  `scripts/provenance.py check`: **0
+findings** (5 245 items — 3 535 Rust, 1 710 arena Lean — and 4 057
+citations).  `lake build ConRonArena con-ron-lean` green with zero warnings,
+`LEAN_NUM_THREADS=4`, `ulimit -v 60000000`.  The Rust-side gates were NOT
+run: P4 agents own `crates/` in parallel and this task touched nothing under
+it, nor `Refine/`, `Spike/`, `scripts/`, `OVERVIEW.md` or `README.md`.
+
+(One sweep read 330/18 under `--no-pins`; it was a collision with a
+concurrent agent's `diff-e2e.sh` over the shared `_tmp/diff-e2e/`
+gunzip scratch — "no such file or directory" on a fixture another run had
+just removed.  Re-run alone it reads 331/17.  `scripts/diff-e2e.sh` does not
+key its scratch by checkout the way `extract.sh` and `gates.sh` do; worth a
+line of someone's next task.)
+
+#### What the Rust twin has to follow
+
+Nothing here changes a clause structure that the port mirrors, except item 5,
+which ADDS seven declarations (`wscopedBGo`, `wscopedBFast`, `fvarLeavesGo`,
+`fvarLeavesFast`, `leafMem`, `leavesSubGo`, `leafGuard`) and replaces
+`fabScopeOk`'s body with three calls.  Item 1 changes one expression in each
+of two functions (the error arm's state), item 2 moves one `let` earlier,
+item 4 adds twelve statements, and item 3 is attributes only.  The memos of
+item 5 are threaded as argument-and-result pairs, which in Rust is a moved
+`ron::HashMap` returned — `frontend::proj_rec`'s own arrangement for its
+`seen` set.
+
+### Task #97-P6-2 (Lean) — phase A in the scratch tier, and the promotion (2026-09-20, Opus under Fable)
+
+Phase P6 item 2 of §8.6, the LEAN half of a twin change (the Rust follows in
+lockstep; the clause list it has to mirror is at the end of this section).
+DESIGN §8.3's paragraph "**Phase A runs in the scratch tier too, with
+promotion**" is the design; task #97-P4f's measurement is the reason —
+**phase A was adding 5.06 M PERMANENT nodes to `Init`'s parse DAG of 6.14 M,
++82 %**, and with them con-ron-arena's 1.85 GB peak.
+
+**Maintainer's ruling, received mid-task**: *"Don't worry about the lean twin
+performance, it is only a proof artifact!  In particular do not optimize for
+lean's runtime issues.  The goal is fast rust code."*  So this task implements
+the change because the RUST needs it and verifies CORRECTNESS only; the
+instruction counts, the wall times and the RSS split §8.7 asks about are not
+measured here and are the Rust task's.
+
+#### What was wrong, in one sentence
+
+Task #97d put phase A outside the bracket on the reading that "phase A's
+business is exactly the terms the environment KEEPS".  Its business is — but
+it does not only write those: `installConstantVal` and `installValue`
+*annotate*, annotation *infers*, inference *reduces*, and every intermediate
+of all of that was interned into the tier that never goes away.  The terms
+actually kept are a handful of handles per declaration.
+
+#### The change, in three pieces
+
+**1. `internPersistent` (`Arena/Store.lean`, ADDITIVE).**  The promotion has
+to append to the PERSISTENT tier *while the scratch tier is live*, and
+`intern` cannot say that: it appends to the tier the store is IN.  So each of
+the four stores gets a twin of `intern`'s `else` branch — probe the persistent
+cons table, and on a miss compute the derived word and push to `pers` at
+`Idx.tierP` — plus the six lifts through the nesting and a
+`capOKPersistent` precondition each.  **The scratch table is deliberately not
+probed**: a hit there would hand back the very handle the promotion exists to
+get rid of.  `Arena/Monad.lean` gets the four monadic wrappers, with the same
+capacity test at the same place and the same `Native` message as `internE` and
+its three siblings.  Nothing existing changed in either file.
+
+**2. `Arena/Promote.lean` (new, 21 declarations).**  `promoteN` / `promoteL` /
+`promoteLs` / `promoteE`: `view` the node, promote the children, intern the
+result persistently, memoised on the handle; then the declaration layer field
+for field (`promoteCV`, `promoteFire`, `promoteRule(s)`, `promoteCaps`,
+`promoteProjTable`, `promoteCI`, `promoteCIList`, `promoteDecl`, `promoteVG`),
+which is `Arena/Frontend/Readback.lean`'s intern direction over handles.  The
+memo is a four-table `PMemo` threaded as an argument-and-result pair — task
+#97g item 5's spelling, a moved `ron::HashMap` returned in the Rust — fresh at
+every declaration, because a scratch handle means nothing once the tier is
+dropped.  Two properties carry the cost: **a persistent handle promotes to
+itself** by one tier-bit test and no store access (and most of an annotated
+term IS the parsed term, since `annotate` rebuilds only the spine it changes),
+and `internPersistent`'s persistent-first probe makes a second promotion of
+the same node a probe and nothing more.
+
+**3. The bracket (`Arena/Checker.lean`).**  `annotStep` splits in two:
+`annotStepGo` is the four arms, unchanged except that the per-arm
+`flushCaches` and the `vis` counter move out of them, and it returns
+`IFEnv × Option ValueGroup` instead of pushing the pending record itself.
+`annotStep` is the bracket:
+
+    vis := fe.visibleBelow;  flushCaches;  enterScratch
+    (fe, vg?) := annotStepGo …
+    k := fe.visibleBelow - vis
+    promoteVG (the pending record) and promoteNew k (the installed constants)
+    dropScratch;  push ⟨vg, i, vis⟩
+
+and `checkDeclStep` gives `checkDeclsPure` the same bracket around one
+`checkDecl`, so that **the two folds stay one algorithm**: the tier regime is
+not an optimisation of the driver's fold that the theorem's fold may do
+without — it is where every term the checker builds lives, and a Theorem-1
+statement about a fold with no tiers would say nothing about the fold the
+binary runs.  (DESIGN §8.3's "the bracket lives in phase B" and §8.6 P2d's
+"`checkDeclsPure` has no bracket" are amended by this task.)
+
+#### Four things the bracket had to get right
+
+* **`k` without holding `fe`.**  The promotion needs the constants the step
+  just installed, and computing that by *keeping* the pre-step environment
+  would put the whole index at refcount 2 across the step — task #97g's item 1
+  exactly.  So the bracket reads the COUNTER before the step (`fe.visibleBelow`
+  is a `Nat`) and takes the `k = fe'.visibleBelow - vis` newest entries after
+  it.  That is sound because **every install route in (B) grows the
+  environment by `IFEnv.push` alone** — `Checker.lean`, `DeclCheck.lean` and
+  all seven `Inductives/*` modules — and the provisional self-environments the
+  recursor installs build (`provisionRecs`'s `feSelf`, `checkNativeRec`'s
+  `feR`) are discarded by their own callers and never come back as the step's
+  result.  Also the reason `annotStepGo` no longer reads `vis` itself: the
+  three value arms each read it immediately before their single `push`, so it
+  is the same number.
+* **The index must be REPAIRED, not overwritten.**  `IFEnv.idx` is keyed on
+  the constant's name HANDLE, and promotion may move it: a name first interned
+  inside the scratch tier is a scratch handle (`intern` probes persistent
+  first, so this happens exactly when the name is new — a recursor's, a
+  projection table's).  Inserting the promoted row without erasing the old one
+  would leave a row under a scratch key, and `dropScratch` hands that word to
+  the NEXT declaration — `IFEnv.find?` would then answer a different
+  constant under it.  So `promoteNew` erases the `k` old keys and re-inserts
+  the promoted constants at the counters they were pushed with
+  (`eraseInstalled`, `indexPromoted`).
+* **An `opaque`'s value is not in the environment.**  `annotStepGo`'s
+  `.opaqueDecl` arm pushes `.axiomInfo cvA` and hands the annotated VALUE to
+  the pending record alone, so the `ValueGroup` has to be promoted beside the
+  environment — and at the SAME memo, so the sharing between a header's type
+  and its value survives the copy.
+* **The caches and the memos.**  `dropScratch` already flushes the eleven
+  per-declaration tables whole (task #97f), so no cache row can name a handle
+  of the tier it drops; `enterScratch` clears `Memos` for the same reason on
+  the way in.  The head `flushCaches` of task #97g's item 4 stays where
+  con-leche puts it — what it now covers is the FIRST record of the fold,
+  whose caches are whatever `internAllPins` left.  `internAllPins` itself is
+  unmoved: it runs before the fold, with the scratch tier still off, which is
+  what makes every pin handle persistent and every later `pin` of the same
+  datum a persistent-table hit.
+
+#### The WF obligation `internPersistent` carries (for P3)
+
+`Arena/Store.lean`'s new section states it and it is not quite "the same
+argument as the persistent branch of `intern`":
+
+* **Every clause but one** is that branch's argument verbatim — it IS that
+  branch.  `consP` gains the new row, `rankP` gets `persCount + 1`, `derExact`
+  is `derOfView` by construction, `consS`/`scrOff`/`sync` are untouched
+  because the scratch tier is not written.
+* **One added precondition**: `childOK` carries `i.isPersistent = true → c.isPersistent = true`,
+  so the view handed to `internPersistent` must have PERSISTENT CHILDREN.
+  `intern`'s persistent branch gets this free (it runs only when `scratchOn =
+  false`, where `scrOff` makes every live handle persistent); the promotion
+  gets it by construction, promoting the children first.
+* **One transient exception — `fresh`.**  `fresh` says a view in the scratch
+  cons table is not in the persistent one.  A node BUILT in the scratch tier
+  out of already-persistent children (an `app` of two parse handles) sits in
+  the scratch table under a view whose children are persistent, and promoting
+  it appends *that same view* to the persistent table.  So `fresh` is broken
+  while the promotion runs, and with it the cross-tier half of `denoteE`'s
+  injectivity.  It is not observable — nothing between the promotion and the
+  `dropScratch` that immediately follows reads the store — and `dropScratch`
+  empties the scratch tier, which restores `fresh` vacuously.  **The
+  obligation is therefore stated for the BRACKET**: `StoreWF` minus `fresh` is
+  preserved by each `internPersistent`, and `promote … dropScratch` as a whole
+  takes `StoreWF` to `StoreWF`.
+* The denotation obligation is `denote (promote h) = denote h`, by induction
+  on the promotion's own recursion.
+
+#### What was verified
+
+| | |
+|---|---|
+| `lake build ConRonArena con-ron-lean` | green, zero warnings, `LEAN_NUM_THREADS=4`, `ulimit -v 60000000` |
+| `CheckerTest.lean`'s 69 kernel-reduced `#guard`s | pass — and 32 of them ARE the differential test of the promotion: 20 run `checkDeclsPure` (now bracketed) and 12 the two-phase fold, each comparing the DENOTED environment against con-leche's |
+| `diff-e2e.sh --bin=…/con-ron-lean` | **348/348 `--verified`, 348/348 `--trusted`**, 331/17 `--no-pins` (the documented row) |
+| `con-ron-lean --verified _tmp/corpus/init.ndjson` | **accepted 57 977 declarations**, unchanged |
+| persistent expression nodes after the whole run | **6 508 719** — the parse's own 6 137 973 (task #97e part 2, unmoved by this task) plus **370 746**, +6.0 %.  Before: +5 063 000, **+82 %** (task #97-P4f).  Phase A's permanent footprint is **13.6× smaller** |
+| `scripts/provenance.py check` | 0 findings (6 261 items, 4 824 citations) |
+
+**Not measured, per the ruling above**: instructions, wall and peak RSS.  Two
+observations from the run, recorded as sanity checks and not as measurements —
+the `--progress` line read `parse t=4.42s; fold t=220.54s` against task #97g's
+3.9–4.1 s / 209.6–218.2 s, i.e. the promotion did not cost the fold anything
+visible at this resolution; and `ps` sampled the process at 0.83–0.89 GB
+throughout, where #97g's measured PEAK was 1.833 GB.  Neither is a `perf stat`
+number, neither tracks a peak, and another agent's Rust benchmark was on the
+machine for part of the run.  The Rust task measures.
+
+#### What the Rust twin has to follow
+
+A precise list, since this is a lockstep change.
+
+**`store` (additive only — no existing item changes):** four
+`intern_persistent` methods (`NStore`, `LStore`, `LsStore`, `EStore`), each
+`intern`'s `else` branch with the scratch probe left out, and six lifts
+through the nesting (`LStore::intern_name_persistent`,
+`LsStore::intern_name_persistent`, `LsStore::intern_level_persistent`,
+`EStore::intern_name_persistent`, `EStore::intern_level_persistent`,
+`EStore::intern_levels_persistent`).  The `capOKPersistent` foursome is Lean
+`Prop`s and has no Rust.
+
+**`state`/monad (additive only):** four wrappers `intern_persistent_e`,
+`intern_persistent_n`, `intern_persistent_l`, `intern_persistent_ls` — the
+capacity test against the PERSISTENT array's length and the same four `Native`
+messages as their `intern_*` twins.
+
+**`promote` (new module, 21 items):** `PMemo` (four maps) and `PMemo::empty`;
+`promote_n`, `promote_l`, `promote_l_list`, `promote_ls`, `promote_e`;
+`promote_n_list`, `promote_e_list`; `promote_cv`, `promote_fire`,
+`promote_rule`, `promote_rules`, `promote_caps`, `promote_proj_table`,
+`promote_ci`, `promote_ci_list`, `promote_decl`, `promote_vg`;
+`erase_installed`, `index_promoted`, `promote_new`.  Every memo is passed in
+and returned (a moved `ron::HashMap`), every walk takes the fuel explicitly.
+
+**`checker` (four changes, nothing else):**
+
+1. **`annot_step` splits.**  New `annot_step_go(mode, pins, fe, pd) ->
+   (IFEnv, Option<ValueGroup>)`: the old body with the four `flush_caches()`
+   calls removed, `let vis = fe.visible_below` removed, and each of the three
+   value arms returning `Some(ValueGroup{kind, cv_a, jv})` instead of pushing
+   onto `pend`; the three fall-through arms return `None`.  Clause structure,
+   guards, messages and order: untouched.
+2. **`annot_step` becomes the bracket**, with the body given above — six
+   statements plus a two-way match on the `Option<ValueGroup>`; it keeps its
+   signature (`i`, `fe`, `pend`, `pd`) and still returns `(IFEnv,
+   Vec<PendingCheck>)`.
+3. **New `check_decl_step(mode, pins, fe, d)`** — the same bracket around one
+   `check_decl` — and `check_decls_pure_go`'s recursive call goes through it
+   instead of calling `check_decl` directly (one expression).
+4. **Nothing else moves**: `check_decl`, `check_pending`,
+   `check_pending_list`, `install_then_check`, `annot_decl_step`,
+   `annot_fold`, `intern_all_pins`, `at_decl` and `AState::abandoned` are
+   unchanged, and phase B's bracket is unchanged.
+
+**Driver (unverified, optional):** `Arena/Main.lean`'s `runPipelineIO` returns
+the final store's persistent expression-node count as a fourth component and
+`checkMain` prints it under `--progress` — one field read, and the number the
+Rust's own run is compared against.
+
+#### For whoever takes the Rust half, and for P3
+
+* The `fresh` exception above is the one thing in this change that a reviewer
+  should not skim: it is a real (if transient and unobservable) break of a
+  soundness clause, and the bracket is what repairs it.  If the Rust ever
+  promotes without dropping the tier immediately afterwards, that reasoning
+  fails.
+* `promoteNew`'s "the `k` newest entries are the step's" rests on *every*
+  install route pushing and only pushing.  A future install that returns a
+  differently-built environment (a rebuilt index, a restriction) would break
+  it silently — the guard to add, should that ever be wanted, is an assertion
+  that `consts.drop k` is the pre-step list.
+* `Arena/Bench.lean` still has no `Core`, `Checker` or inductive shapes —
+  five tasks have now asked.
+
 ### Task #97-P6-1 — the first Rust-side performance pass (2026-09-20, Opus under Fable)
 
 Phase P6 item 1 of §8.6: profile-driven levers on `crates/arena-core`, each one
@@ -26362,3 +27371,41 @@ holes — the crate-boundary list grew by `ron::HashMap::clear` and
 regenerated and committed in its own lever's commit.  `cd proof && lake build`
 was not run: a sibling agent is editing `proof/`, and the only Lean this task
 writes is the generated append (P4b's, P4c's, P4d's and P4f's ruling).
+
+#### On the current `arena` tip, merged and re-measured
+
+The four commits above are on 0fa122ee, the tip the task started from; while
+they were being written `arena` took P4e part 2's `ProjRec` (348/348), task
+#97g's check-phase work and P6-2's Lean promotion.  The merge is clean in
+every Rust file this task touches — the only conflict is this log, and
+`crates/arena-core/src/arena/{store,core_state,core,monad,checker_base}.rs`
+and `ron/hashmap.rs` are untouched by everything that landed in between — and
+the A/B was re-run **on the merged tree**, with the levers reverted to
+`arena`'s versions for the baseline row so that both rows are the same tip:
+
+| on `arena` af3bb11c + P4e part 2's fixtures | instructions:u | cycles:u | IPC | wall, 3 runs (spread) | peak RSS | fixtures |
+|---|---:|---:|---:|---:|---:|---:|
+| tip, without these levers | 816.1 G | 546.1 G | 1.49 | 122.57 / 122.75 / 123.34 (0.77 s) | 1 940 636 KB | 348/348 |
+| **tip, with them** | **736.3 G** | **403.4 G** | **1.83** | **90.70 / 90.90 / 95.33 (4.63 s)** | 1 937 520 KB | **348/348** |
+| | −9.8 % | **−26.1 %** | | **−25.6 %** | −0.2 % | |
+
+`accepted 57977 declarations` on both, **348 of 348 fixtures at `--verified`
+and 348 of 348 at `--trusted`** — the three ProjRec differences of the P4f
+table are gone with P4e part 2, and none of these levers disturbs them.
+
+One fix rides along, because the merge does not build without it:
+`crates/con-ron-arena/src/driver.rs`'s reader test calls `ar.node_count()` on
+an `AState`, which has only `init` — the method is `EStore`'s.  It is broken
+at the `arena` tip too (`cargo test` does not compile there), from the change
+that made `parse_export_handle_d` take the state rather than the store; the
+fix is `ar.store.node_count()`.
+
+**One note for the Rust side of P6-2**, which is not written yet.  Promotion
+introduces an intern that appends to the PERSISTENT tier while the scratch
+tier is open, which is the first operation in the crate that does.  The probe
+skip above rests on "a persistent node's children are persistent", so
+`intern_persistent` must build its result bottom-up out of persistent
+children — which it must do anyway, since a promoted node has to survive the
+`drop_scratch` that follows.  The invariant is the same one; it just stops
+being implied by "nothing is appended to `pers` while `scratch_on`", and
+`e_view_has_scratch_child`'s note is written to say so.

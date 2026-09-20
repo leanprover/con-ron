@@ -80,6 +80,17 @@
 # binary reject its command line — which the sweep reports as a difference,
 # honestly, rather than hiding.
 #
+# SCRATCH AND LOG ARE KEYED BY THE CHECKOUT (task #97t).  `_tmp` is one
+# directory shared through a symlink by every agent worktree, so a fixed
+# `_tmp/diff-e2e/` and `_tmp/diff-e2e.log` made two concurrent sweeps clobber
+# each other: task #97g's sweep read 330/18 instead of 348/0 because another
+# worktree's `rm -rf` took its gunzipped streams away mid-run.  Everything
+# this script writes therefore lives in `_tmp/diff-e2e-<key>/`, with `<key>`
+# the same `sha256sum | cut -c1-12` of the checkout root that `extract.sh`
+# and `gates.sh` use for theirs.  `LOG=PATH` still names the log explicitly;
+# without it, the finished log is copied to `_tmp/diff-e2e.log` at the end of
+# the sweep, which is the name CI collects.
+#
 # A run is green when `differ`, `other` and `timed out` are all zero.
 set -u
 invoked_from="$PWD"
@@ -114,6 +125,14 @@ for a in "$@"; do
   esac
 done
 
+# Scratch is keyed by the checkout: `_tmp` is usually a symlink shared by
+# every agent worktree, and two concurrent sweeps sharing one scratch
+# directory clobber each other (task #97t).  Same idiom as `extract.sh` and
+# `gates.sh`.
+ckey=$(printf '%s' "$root" | sha256sum | cut -c1-12)
+WORK="$root/_tmp/diff-e2e-$ckey"
+rm -rf "$WORK"; mkdir -p "$WORK"
+
 if [ -n "$bin" ]; then
   # The caller's binary: not built here, and resolved against the directory
   # the script was invoked from when the path is relative.
@@ -123,8 +142,8 @@ if [ -n "$bin" ]; then
   esac
   [ -x "$BIN" ] || { echo "diff-e2e: --bin=$bin ($BIN) is not executable" >&2; exit 3; }
 else
-  cargo build --release -p con-ron >"$root/_tmp/diff-e2e-build.log" 2>&1 || {
-    echo "diff-e2e: cargo build failed, see _tmp/diff-e2e-build.log" >&2; exit 3; }
+  cargo build --release -p con-ron >"$WORK/build.log" 2>&1 || {
+    echo "diff-e2e: cargo build failed, see $WORK/build.log" >&2; exit 3; }
   BIN="$root/target/release/con-ron"
   [ -x "$BIN" ] || { echo "diff-e2e: $BIN is not executable" >&2; exit 3; }
 fi
@@ -132,10 +151,17 @@ fi
 # `con-ron`; with `--bin` that would name the wrong checker.
 binname=$(basename "$BIN")
 
+# The arena snapshot is a CACHE, not per-run scratch, so it stays at its
+# shared path (`ARENA_DIR` overrides it) -- but it is published atomically:
+# a sweep in another worktree must never see a half-extracted corpus.
 if [ ! -d "$ARENA_DIR/good" ]; then
   echo "extracting the vendored arena snapshot to $ARENA_DIR" >&2
-  mkdir -p "$ARENA_DIR"
-  tar -xzf "$CL/tests/arena/lean-arena-tests.tar.gz" -C "$ARENA_DIR" || exit 3
+  stage="$WORK/arena-stage"
+  mkdir -p "$stage" "$(dirname "$ARENA_DIR")"
+  tar -xzf "$CL/tests/arena/lean-arena-tests.tar.gz" -C "$stage" || exit 3
+  mv -T "$stage" "$ARENA_DIR" 2>/dev/null || rm -rf "$stage"
+  [ -d "$ARENA_DIR/good" ] || {
+    echo "diff-e2e: no arena snapshot at $ARENA_DIR" >&2; exit 3; }
 fi
 
 # The pin list.  Since task #43 the default needs NO argument: the pins are an
@@ -154,9 +180,7 @@ elif [ "$from_file" -eq 1 ]; then
   pinargs="--pins $PINDUMP"
 fi
 
-WORK="$root/_tmp/diff-e2e"
-rm -rf "$WORK"; mkdir -p "$WORK"
-log="${LOG:-$root/_tmp/diff-e2e.log}"
+log="${LOG:-$WORK/run.log}"
 : >"$log"
 printf '# binary: %s\n# mode: %s, pins: %s, --jobs=%s\n' \
   "$BIN" "$MODE" "${pinargs:-embedded}" "$jobs" >>"$log"
@@ -223,6 +247,17 @@ while read -r exp rel; do
 done <"$CL/tests/annot-expected.txt"
 
 t1=$(date +%s)
+
+# `_tmp/diff-e2e.log` is the fixed name CI collects.  Nothing WRITES there
+# during the sweep -- concurrent sweeps must not share a file -- so the
+# finished log is published there at the end, through a rename (atomic, same
+# filesystem) so that even two sweeps finishing together leave one whole log
+# and not a mixture.  The last sweep to finish owns the name; every sweep's
+# own `run.log` stays whole either way.
+if [ -z "${LOG:-}" ] && cp -f "$log" "$WORK/.alias.log" 2>/dev/null; then
+  mv -f "$WORK/.alias.log" "$root/_tmp/diff-e2e.log" 2>/dev/null || true
+fi
+
 echo
 echo "diff-e2e ($MODE, pins ${pinargs:-embedded}, --jobs=$jobs): $total fixtures"
 echo "  binary              $BIN"
