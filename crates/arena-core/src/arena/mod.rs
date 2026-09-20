@@ -14,6 +14,7 @@
 //! | `core_io` | `proof/ConRon/Arena/CoreIO.lean` |
 //! | `core_gated` | `proof/ConRon/Arena/CoreGated.lean` |
 //! | `inductives` | `proof/ConRon/Arena/Inductives.lean` and `Inductives/*` |
+//! | `promote` | `proof/ConRon/Arena/Promote.lean` |
 //!
 //! `Denote.lean`, `WF.lean` and `WFProofs.lean` have no Rust counterpart and
 //! never will: they are the arena's own verification (DESIGN.md §8.6's P2a,
@@ -40,5 +41,6 @@ pub mod checker_base;
 pub mod checker_split;
 pub mod decl_check;
 pub mod inductives;
+pub mod promote;
 pub mod checker;
 pub mod checker_gated;
