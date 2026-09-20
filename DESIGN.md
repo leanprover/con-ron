@@ -1983,6 +1983,21 @@ is, which is what P3 needs to state that flushing is sound.  Parallel
 checking (Rust): the persistent tier is
 immutable in phase B, each worker owns a scratch tier — no atomics anywhere.
 
+**Phase A runs in the scratch tier too, with promotion (coordinator, after
+task #97-P4f's measurement).**  The install phase (annotate the type and the
+value, infer, defeq) was interning every intermediate into the persistent
+tier — on `Init` 5.06 M permanent nodes on top of the parse's 6.14 M (+82 %),
+and the 1.85 GB peak against con-ron's 0.48 GB.  con-leche and con-ron get
+the same effect from GC.  The arena's answer is con-leche #64's: phase A
+opens the scratch tier like phase B, and the two handles it must keep (the
+annotated type, the annotated value) are **promoted** — a memoised
+structural copy scratch → persistent, `promote : EIdx → AM EIdx`, `view` +
+`intern` into the persistent tier with a `HashMap EIdx EIdx` memo, O(result
+size), denotation-preserving by construction (`denote (promote h) = denote
+h` is the exactness lemma P3 owes) — before the tier is dropped.  Persistent
+handles are promoted to themselves.  This is a twin change (Lean first,
+Rust in lockstep) scheduled as P6-2, after task #97g lands.
+
 **Free variables**: con-leche's discipline unchanged (`fvar idx ty`, a de
 Bruijn level with the binder type inside the node).  This is what makes a
 handle determine its own typing context, hence what makes every cache keyed
