@@ -75,6 +75,8 @@ use con_ron_core::ron::hashmap::Dup;
 use con_ron_core::ron::hashmap::Eq2;
 use con_ron_core::ron::hashmap::HashMap;
 use con_ron_core::ron::hashmap::Hashable;
+
+use crate::arena::core_state::reset_map;
 use std::vec::Vec;
 
 use crate::arena::handle::EIdx;
@@ -233,6 +235,26 @@ where
         self.cons.insert(a.dup2(), i);
         self.nodes.push(a);
         self.der.push(d);
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean:74 Tbl.empty` — the same VALUE as
+    /// `empty`, with the cons table's bucket array kept
+    /// (`arena::core_state::reset_map`).  The scratch tier is emptied twice
+    /// per declaration (`enable_scratch` and `drop_scratch`), 57 362 times on
+    /// `Init`, and task #97-P4f measured the bucket arrays growing back from
+    /// `MIN_CAPACITY` at 15.6 % of the run.
+    ///
+    /// The two node columns are *not* kept, and that is deliberate: Aeneas
+    /// models neither `Vec::clear` nor `Vec::truncate` (task #97-P4a's third
+    /// extraction rule), so keeping them would cost an external hole, and
+    /// what it would buy is the columns' re-growth alone — under the 0.9 %
+    /// the same profile attributes to `RawVec::finish_grow` over the whole
+    /// run, persistent tier included.  `Vec::new` allocates nothing.
+    pub fn reset(&mut self) {
+        self.nodes = Vec::new();
+        self.der = Vec::new();
+        reset_map(&mut self.cons)
     }
 }
 
@@ -1085,6 +1107,15 @@ impl NTables {
         NTables { anons: Tbl::empty(), strs: Tbl::empty(), nums: Tbl::empty() }
     }
 
+    /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean NTables.empty` — the same value as `empty`,
+    /// with the cons tables' bucket arrays kept (`Tbl::reset`).
+    pub fn reset(&mut self) {
+        self.anons.reset();
+        self.strs.reset();
+        self.nums.reset()
+    }
+
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:375 NTables.count
     /// Nodes in this tier, over all constructors.
     pub fn count(&self) -> usize {
@@ -1265,6 +1296,73 @@ impl NStore {
     /// Lean's `intern_spec`, and DESIGN.md §8.3 puts the test here — "the Rust
     /// raises `Native` at the limit, the Lean `throw`s the same kind".
     pub fn intern(&mut self, v: NNodeView) -> Result<NIdx, CheckError> {
+        match v {
+            NNodeView::Str(p, sv) => {
+                let d: u64 = name::mix_hash(
+                    name::mix_hash(1, self.derived(&p)),
+                    name::str_hash(&sv),
+                );
+                self.intern_str(StrNode { pre: p, s: sv }, d)
+            }
+            NNodeView::Anonymous => self.intern_other(NNodeView::Anonymous),
+            NNodeView::Num(p, n) => self.intern_other(NNodeView::Num(p, n)),
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean:474-490 NStore.intern`, the `str` arm —
+    /// **the probe key built once, by MOVE.**
+    ///
+    /// The twin's `t.strs.find? ⟨p, s⟩` copies nothing: a Lean `String` is a
+    /// value.  `NTables::find` of an `NNodeView::Str` has to build a whole
+    /// `StrNode` to hand `ron::HashMap::get` a `&K`, and that means
+    /// `expr::str_copy` of the component — a malloc, a copy and a free — on
+    /// every probe of every tier.  Task #97-P6-1 counted them on `Init`:
+    /// **140 083 646 name interns, 88 854 033 of them of a `str` node**, so
+    /// 88.9 M allocations whose only purpose was to be compared and dropped.
+    /// The recursors' and basis names' handles are re-pinned in the hot loops
+    /// (`pin` is `intern_name`, 73 call sites in `arena::core`), which is
+    /// where the count comes from.
+    ///
+    /// Building the record ONCE from the view the caller already owns costs
+    /// nothing at all: `sv` is moved in, not copied, and the same record is
+    /// probed against both tiers and then pushed.  Same probes, same order,
+    /// same result — `der_of_view`'s `str` line is spelled at the caller for
+    /// the same reason, so that `sv` is still in hand when it is needed.
+    pub fn intern_str(&mut self, node: StrNode, d: u64) -> Result<NIdx, CheckError> {
+        match self.pers.strs.find(&node) {
+            Some(i) => Ok(i),
+            None => {
+                if self.scratch_on {
+                    match self.scr.strs.find(&node) {
+                        Some(i) => Ok(i),
+                        None => {
+                            if self.scr.strs.size() >= IDX_CAP as usize {
+                                Err(CheckError::Native(code_points(&M_N_CAP)))
+                            } else {
+                                let i: NIdx =
+                                    NIdx::pack(NTAG_STR, TIER_S, self.scr.strs.size() as u32);
+                                self.scr.strs.push(node, d, i.dup2());
+                                Ok(i)
+                            }
+                        }
+                    }
+                } else if self.pers.strs.size() >= IDX_CAP as usize {
+                    Err(CheckError::Native(code_points(&M_N_CAP)))
+                } else {
+                    let i: NIdx = NIdx::pack(NTAG_STR, TIER_P, self.pers.strs.size() as u32);
+                    self.pers.strs.push(node, d, i.dup2());
+                    Ok(i)
+                }
+            }
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin:
+    /// `proof/ConRon/Arena/Store.lean:474-490 NStore.intern` — the two arms
+    /// whose record is all scalars, so that building it twice costs nothing
+    /// and the twin's spelling is kept verbatim.
+    pub fn intern_other(&mut self, v: NNodeView) -> Result<NIdx, CheckError> {
         match self.pers.find(&v) {
             Some(i) => Ok(i),
             None => {
@@ -1293,7 +1391,7 @@ impl NStore {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:496-497 NStore.enableScratch
     /// Open the scratch tier (DESIGN.md §8.3's per-declaration bracket).
     pub fn enable_scratch(&mut self) {
-        self.scr = NTables::empty();
+        self.scr.reset();
         self.scratch_on = true;
     }
 
@@ -1301,7 +1399,7 @@ impl NStore {
     /// Drop the scratch tier.  Persistent handles keep their bits (DESIGN.md
     /// §8.3, con-leche's lesson 6).
     pub fn drop_scratch(&mut self) {
-        self.scr = NTables::empty();
+        self.scr.reset();
         self.scratch_on = false;
     }
 
@@ -1333,6 +1431,17 @@ impl LTables {
             imaxs: Tbl::empty(),
             params: Tbl::empty(),
         }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean LTables.empty` — the same value as `empty`,
+    /// with the cons tables' bucket arrays kept (`Tbl::reset`).
+    pub fn reset(&mut self) {
+        self.zeros.reset();
+        self.succs.reset();
+        self.maxs.reset();
+        self.imaxs.reset();
+        self.params.reset()
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:522-523 LTables.count
@@ -1579,7 +1688,7 @@ impl LStore {
     /// Open the scratch tier, here and in the name store.
     pub fn enable_scratch(&mut self) {
         self.ns.enable_scratch();
-        self.scr = LTables::empty();
+        self.scr.reset();
         self.scratch_on = true;
     }
 
@@ -1587,7 +1696,7 @@ impl LStore {
     /// Drop the scratch tier, here and in the name store.
     pub fn drop_scratch(&mut self) {
         self.ns.drop_scratch();
-        self.scr = LTables::empty();
+        self.scr.reset();
         self.scratch_on = false;
     }
 
@@ -1618,6 +1727,14 @@ impl LsTables {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:679 LsTables.empty
     pub fn empty() -> LsTables {
         LsTables { lists: Tbl::empty() }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean LsTables.empty` — the same value as `empty`,
+    /// with the cons tables' bucket arrays kept (`Tbl::reset`).
+    pub fn reset(&mut self) {
+
+        self.lists.reset()
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:684 LsTables.count
@@ -1789,14 +1906,14 @@ impl LsStore {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:777-778 LsStore.enableScratch
     pub fn enable_scratch(&mut self) {
         self.ls.enable_scratch();
-        self.scr = LsTables::empty();
+        self.scr.reset();
         self.scratch_on = true;
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:781-782 LsStore.dropScratch
     pub fn drop_scratch(&mut self) {
         self.ls.drop_scratch();
-        self.scr = LsTables::empty();
+        self.scr.reset();
         self.scratch_on = false;
     }
 
@@ -1840,6 +1957,22 @@ impl ETables {
             lits: Tbl::empty(),
             projs: Tbl::empty(),
         }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean ETables.empty` — the same value as `empty`,
+    /// with the cons tables' bucket arrays kept (`Tbl::reset`).
+    pub fn reset(&mut self) {
+        self.bvars.reset();
+        self.fvars.reset();
+        self.sorts.reset();
+        self.consts.reset();
+        self.apps.reset();
+        self.lams.reset();
+        self.foralls.reset();
+        self.lets.reset();
+        self.lits.reset();
+        self.projs.reset()
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:801-803 ETables.count
@@ -2122,6 +2255,81 @@ pub fn der_of_let(dt: u64, dv: u64, db: u64) -> u64 {
     )
 }
 
+/// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin: none —
+/// **a tier test on the children, not a decode**: does any child handle of
+/// this view name the scratch tier?
+///
+/// A persistent node's children are persistent.  That is not an accident of
+/// the code but a clause `StoreWF` cannot do without: a persistent handle
+/// keeps its bits across `drop_scratch` (DESIGN.md §8.3, con-leche's lesson
+/// 6) and must still denote afterwards, which it could not if one of its
+/// children lived in the tier that just went away.  Operationally the same
+/// thing: `EStore::intern` appends to the persistent tier only while
+/// `scratch_on` is false, and while it is false no live handle is a scratch
+/// handle.
+///
+/// So a view with a scratch child **cannot** be in the persistent cons table,
+/// and `EStore::pers_find_maybe` does not probe it.  That probe is the single
+/// most expensive thing the checker does — the persistent `apps` table alone
+/// is millions of buckets over a 32 MB L3, so it is a guaranteed cache miss —
+/// and on `Init` skipping it is worth **17 % of the cycles and 17 % of the
+/// wall** at 1.7 % of the instructions, which is the shape of the IPC gap
+/// task #97-P4f measured.
+pub fn e_view_has_scratch_child(v: &ENodeView) -> bool {
+    match v {
+        ENodeView::BVar(_) => false,
+        ENodeView::FVar(_, ty) => !ty.is_persistent(),
+        ENodeView::Sort(u) => !u.is_persistent(),
+        ENodeView::Const(n, us) => {
+            if n.is_persistent() {
+                !us.is_persistent()
+            } else {
+                true
+            }
+        }
+        ENodeView::App(f, a) => {
+            if f.is_persistent() {
+                !a.is_persistent()
+            } else {
+                true
+            }
+        }
+        ENodeView::Lam(ty, b, _) => {
+            if ty.is_persistent() {
+                !b.is_persistent()
+            } else {
+                true
+            }
+        }
+        ENodeView::ForallE(ty, b, _) => {
+            if ty.is_persistent() {
+                !b.is_persistent()
+            } else {
+                true
+            }
+        }
+        ENodeView::LetE(ty, val, b) => {
+            if ty.is_persistent() {
+                if val.is_persistent() {
+                    !b.is_persistent()
+                } else {
+                    true
+                }
+            } else {
+                true
+            }
+        }
+        ENodeView::Lit(_) => false,
+        ENodeView::Proj(n, _, e) => {
+            if n.is_persistent() {
+                !e.is_persistent()
+            } else {
+                true
+            }
+        }
+    }
+}
+
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:922-1070 EStore
 impl EStore {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:925 EStore.empty
@@ -2309,10 +2517,29 @@ impl EStore {
         }
     }
 
+    /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean:1024-1027 EStore.find?` — **the
+    /// persistent half of the twin's probe**, skipped when the view has a
+    /// scratch child, which `e_view_has_scratch_child`'s note argues it may
+    /// be.  The twin probes unconditionally and is not changed by this; what
+    /// is owed is one Theorem-2 lemma, `pers_find_maybe st v = st.pers.find v`
+    /// under `StoreWF`, after which every `intern` lemma reads as before.
+    pub fn pers_find_maybe(&self, v: &ENodeView) -> Option<EIdx> {
+        if self.scratch_on {
+            if e_view_has_scratch_child(v) {
+                None
+            } else {
+                self.pers.find(v)
+            }
+        } else {
+            self.pers.find(v)
+        }
+    }
+
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1024-1027 EStore.find?
     /// Probe both tiers, persistent first (nanoda's `alloc_expr`).
     pub fn find(&self, v: &ENodeView) -> Option<EIdx> {
-        match self.pers.find(v) {
+        match self.pers_find_maybe(v) {
             Some(i) => Some(i),
             None => {
                 if self.scratch_on {
@@ -2330,7 +2557,7 @@ impl EStore {
     /// The cap test is the Lean's `capOK` turned into the `Native` decline
     /// §8.3 puts here.
     pub fn intern(&mut self, v: ENodeView) -> Result<EIdx, CheckError> {
-        match self.pers.find(&v) {
+        match self.pers_find_maybe(&v) {
             Some(i) => Ok(i),
             None => {
                 if self.scratch_on {
@@ -2360,7 +2587,7 @@ impl EStore {
     /// has its own array set and cons tables, both indexed from 0".
     pub fn enable_scratch(&mut self) {
         self.lss.enable_scratch();
-        self.scr = ETables::empty();
+        self.scr.reset();
         self.scratch_on = true;
     }
 
@@ -2370,7 +2597,7 @@ impl EStore {
     /// §8.3, con-leche's lesson 6).
     pub fn drop_scratch(&mut self) {
         self.lss.drop_scratch();
-        self.scr = ETables::empty();
+        self.scr.reset();
         self.scratch_on = false;
     }
 

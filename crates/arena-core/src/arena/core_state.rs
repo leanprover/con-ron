@@ -21,37 +21,29 @@
 //! `len()` test per insert, which is what the twin's `mp.size < cacheCap`
 //! says.
 //!
-//! ## The one deviation from the twin, and it is `ron::HashMap`'s
+//! ## The one deviation from the twin, and it is the RESET
 //!
-//! The twin's `Caches.dropScratchEntries` is eleven `Std.HashMap.filter`
-//! calls, and its own doc says "the Rust spelling is `HashMap::retain` per
-//! table".  **`ron::hashmap::HashMap` has no `retain` and no iteration API at
-//! all** — `new`, `with_capacity`, `len`, `get`, `contains_key`, `insert`,
-//! `remove`, `clear`, `dup` is the whole surface, and adding one belongs to
-//! `con-ron-core` rather than to this task.  So each table carries a
-//! **journal**: a `Vec` of the keys whose row was NOT keepable at the moment
-//! it was written (`keep_e` and its five siblings below).  At the drop the
-//! journal is walked, each journalled key's *current* value is re-tested, and
-//! the row is removed exactly when the test says so.
+//! The twin's per-declaration bracket assigns `Caches.empty`; the port calls
+//! `Caches::reset`, which empties the eleven tables **in place**
+//! (`reset_map`, below) and keeps their bucket arrays.  Same value, one
+//! allocation fewer per declaration — task #97-P6-1's first lever, and the
+//! reason is measured in `reset_map`'s own note.
 //!
-//! That is `filter keep` and not an approximation of it, by two invariants:
-//!
-//! 1. a key absent from the journal was keepable when it was last written,
-//!    and a row is only ever rewritten through `*_set` (which journals it
-//!    again if the new row is not keepable) — so every non-keepable row's key
-//!    IS in the journal;
-//! 2. the drop re-tests, so a journalled key whose row has since become
-//!    keepable survives.
-//!
-//! The journal costs one `Vec` push per *scratch-touching* insert, i.e. per
-//! row the drop is going to delete anyway, and nothing at all for the rows
-//! that survive.  A `ron::HashMap::retain` would retire it; that is a P6
-//! item, noted in DESIGN.md's task #97-P4c section.
+//! Until task #97-P6-1 each table also carried a **journal** of the keys
+//! whose row was not keepable, so that `Caches::drop_scratch_entries` could
+//! spell DESIGN.md §8.3's survivor policy with a `ron::HashMap` that has no
+//! `retain`.  Task #97f replaced that policy with con-leche's own `flushC`
+//! (the caches go whole at the declaration boundary), which left the journals
+//! and the walk dead: eleven `Vec`s carried through every `astate_dup`, a
+//! `keep_*` test and a `dup2` and a push per cache write, and no reader.
+//! They are gone.  The survivor predicate itself stays below — `keep_e` and
+//! its five siblings are the SPECIFICATION of a surviving row, which is what
+//! P3 needs to state that flushing is sound (`flushed ⊑ dropScratchEntries`),
+//! and the twin's `Caches.dropScratchEntries` is where it is stated.
 
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
 use con_ron_core::ron::hashmap::{Dup, Eq2, HashMap, Hashable};
 use con_ron_core::kernel::name;
-use std::vec::Vec;
 
 // ---------------------------------------------------------------------------
 // The composite keys
@@ -301,85 +293,61 @@ pub fn nnls_key(rec_name: &NIdx, ctor: &NIdx, us: &LsIdx) -> NNLsKey {
 /// `arena::monad`'s per-call `Memos`.  Keeping the two apart is deliberate:
 /// the per-call clear and the per-declaration drop are different operations
 /// on different lifetimes.
-///
-/// Each of the eleven tables is followed by its **journal** (the module
-/// note): the keys whose row was not keepable when it was written.
 pub struct Caches {
     /// `whnfCore` at the node (con-leche `CState.whnfCoreC`).  The depth is
     /// NOT in the key: a handle carries its own typing context, because an
     /// `fvar` node carries its type (DESIGN.md §8.3, "Free variables").
     pub whnf_core_c: HashMap<EIdx, EIdx>,
-    pub whnf_core_j: Vec<EIdx>,
     /// The full reduction loop at the node (`CState.whnfC`).
     pub whnf_c: HashMap<EIdx, EIdx>,
-    pub whnf_j: Vec<EIdx>,
     /// Full-grade inference (`CState.inferC`).
     pub infer_c: HashMap<EIdx, EIdx>,
-    pub infer_j: Vec<EIdx>,
     /// **The io grade's own table** (`CState.inferIOC`): a hit here never
     /// serves a full-`infer` query, and a full-`infer` hit never serves this
     /// one.
     pub infer_io_c: HashMap<EIdx, EIdx>,
-    pub infer_io_j: Vec<EIdx>,
     /// The annotation pass at the node (`CState.annotC`).
     pub annot_c: HashMap<EIdx, EIdx>,
-    pub annot_j: Vec<EIdx>,
     /// Definitional equality at the ORDERED pair, with the verdict — both
     /// signs, as con-leche's `defeqC` stores them.
     pub defeq_c: HashMap<EIdxPair, bool>,
-    pub defeq_j: Vec<EIdxPair>,
     /// `Level.isEquiv`'s verdict at a pair of level handles.
     pub lvl_eq_c: HashMap<LIdxPair, bool>,
-    pub lvl_eq_j: Vec<LIdxPair>,
     /// `Level.isEquivList`'s verdict at a pair of universe-argument lists.
     pub lvls_eq_c: HashMap<LsIdxPair, bool>,
-    pub lvls_eq_j: Vec<LsIdxPair>,
     /// A stored constant's TYPE at a universe instantiation.
     pub const_ty_c: HashMap<NLsKey, EIdx>,
-    pub const_ty_j: Vec<NLsKey>,
     /// A stored definition's VALUE at a universe instantiation.
     pub const_val_c: HashMap<NLsKey, EIdx>,
-    pub const_val_j: Vec<NLsKey>,
     /// An iota rule's right-hand side at the recursor's universe
     /// instantiation, keyed by the recursor, the rule's constructor and the
     /// levels — the three data that determine it.
     pub rule_rhs_c: HashMap<NNLsKey, EIdx>,
-    pub rule_rhs_j: Vec<NNLsKey>,
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:87-89 Caches.empty` — the
 /// empty cache set: what a fresh run and every capped table start from.
-/// `ron::HashMap::new` allocates nothing (task #35), and so does
-/// `Vec::new`, so eleven empty tables and eleven empty journals cost
-/// twenty-two headers.
+/// `ron::HashMap::new` allocates nothing (task #35), so eleven empty tables
+/// cost eleven headers.  This is what a fresh run and every capped table
+/// start from; the per-declaration flush is `Caches::reset` below, which
+/// reaches the same value without freeing the buckets.
 impl Caches {
     /// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
     /// Lean twin: `proof/ConRon/Arena/CoreState.lean:87-89 Caches.empty`.
     pub fn empty() -> Caches {
         Caches {
             whnf_core_c: HashMap::new(),
-            whnf_core_j: Vec::new(),
             whnf_c: HashMap::new(),
-            whnf_j: Vec::new(),
             infer_c: HashMap::new(),
-            infer_j: Vec::new(),
             infer_io_c: HashMap::new(),
-            infer_io_j: Vec::new(),
             annot_c: HashMap::new(),
-            annot_j: Vec::new(),
             defeq_c: HashMap::new(),
-            defeq_j: Vec::new(),
             lvl_eq_c: HashMap::new(),
-            lvl_eq_j: Vec::new(),
             lvls_eq_c: HashMap::new(),
-            lvls_eq_j: Vec::new(),
             const_ty_c: HashMap::new(),
-            const_ty_j: Vec::new(),
             const_val_c: HashMap::new(),
-            const_val_j: Vec::new(),
             rule_rhs_c: HashMap::new(),
-            rule_rhs_j: Vec::new(),
         }
     }
 }
@@ -480,204 +448,91 @@ pub fn keep_nn_ls(k: &NNLsKey, v: &EIdx) -> bool {
     }
 }
 
-/// con-leche: none — the journal walk's per-key test, as its own function
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:142-153 Caches.dropScratchEntries`
-/// — whether the row at `k` must go.  A *probe*, as task #97-P4a's rule has
-/// it and as `con_ron_core::cached::core_c::whnf_core_probe` is: the map's
-/// borrow ends with the lookup, so the caller may take the map mutably again.
-/// Inlined into the walk, Aeneas cannot join the two arms' loan contexts
-/// ("Could not match the contexts", `interp/Interp.ml:617`).
-pub fn drop_e(m: &HashMap<EIdx, EIdx>, k: &EIdx) -> bool {
-    match m.get(k) {
-        Some(v) => !keep_e(k, v),
-        None => false,
-    }
-}
+// ---------------------------------------------------------------------------
+// The per-declaration reset (`CoreState.lean:87-89 Caches.empty`), in place
+// ---------------------------------------------------------------------------
 
-/// con-leche: none — the journal walk behind `Caches::drop_scratch_entries`
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:142-153 Caches.dropScratchEntries`
-/// — `Std.HashMap.filter keepE` over one handle-valued table, spelled as the
-/// journal re-test the module note describes.  The journal is a superset of
-/// the table's non-keepable keys, so removing exactly the keys that fail
-/// `keep_e` *now* is the cited filter.
-pub fn filter_e(m: &mut HashMap<EIdx, EIdx>, j: &Vec<EIdx>, i: usize) {
-    if i >= j.len() {
+/// con-leche: none — arena infrastructure (task #97-P6-1)
+/// Lean twin: none — a bucket count, not a value: at or below this many
+/// buckets a non-empty table is always cleared in place, because walking that
+/// many is cheaper than the allocation that growing back would cost.
+/// `ron::HashMap`'s own `MIN_CAPACITY` is 32.
+pub const RESET_KEEP_FLOOR: usize = 64;
+
+/// con-leche: none — arena infrastructure (task #97-P6-1)
+/// Lean twin: none — how much spare bucket array a reset tolerates before it
+/// gives the array back instead of walking it.  `clear` is `O(capacity)`
+/// whatever the table holds, so keeping an array the last round barely used
+/// taxes every later reset.  Measured on `Init` (task #97-P6-1): 4 → 772.7 G
+/// instructions, **16 → 769.3 G**, 64 → 772.3 G; the curve is flat and 16 is
+/// its floor.
+pub const RESET_KEEP_SLACK: usize = 16;
+
+/// con-leche: none — arena infrastructure (task #97-P6-1)
+/// Lean twin: none — the RESULT is `Std.HashMap.empty`, which is what the
+/// twin's `Caches.empty`/`Memos.empty` assign; this is a representation
+/// choice with the same denotation (DESIGN.md §3.2).
+///
+/// **What it buys, and what it does not.**  The checker empties these tables
+/// per declaration (`flush_caches`, `enter_scratch`, `drop_scratch`) and per
+/// top-level call (`inst1_clear` and its ten siblings): 57 362 declarations
+/// on `Init` and far more calls.  Task #97-P4f attributed 15.6 % of the run
+/// to growing the bucket arrays back (`allocate_slots` 10.1 %, the
+/// `move_elements*` rehashes 3.1 %, `RawVec::finish_grow` 0.9 %) and asked
+/// for a clear that keeps them.  `ron::HashMap::clear` is that clear, and it
+/// has been there since task #35 — but it is **not** simply better than
+/// `HashMap::new`, and the reason is task #35's other half: `new` allocates
+/// nothing at all, so dropping a table whole costs `O(1)` and is paid for
+/// only if the next round actually inserts, while `clear` costs
+/// `O(capacity)` up front every time.  The three guards below are what turn
+/// the exchange positive, and each was measured on `Init`:
+///
+/// * **empty tables are left alone.**  `num_entries == 0` means every bucket
+///   is already `Nil`, so the walk is pure loss — and most of the twenty-two
+///   tables are untouched by any one declaration.  Without this guard the
+///   lever COSTS 144 G instructions (960 G against 816 G).
+/// * **`RESET_KEEP_SLACK`** gives the array back when the last round used
+///   too little of it, so the walk stays within a constant factor of the rows
+///   it is clearing.  Without it — keep whenever the table held at most 512
+///   rows — the lever costs **2 223 G** instructions (3 039 G against 816 G,
+///   3.73× slower): `inst1_clear` runs per top-level call, and one large
+///   `instantiate1` leaves an array that every later small call then walks.
+/// * **`RESET_KEEP_FLOOR`** stops the shrink rule from throwing away arrays
+///   too small for the allocation to be worth avoiding.
+///
+/// With all three: **769.3 G against 816.0 G, −5.7 %**.
+pub fn reset_map<K, V>(m: &mut HashMap<K, V>) {
+    let n: usize = m.len();
+    if n == 0 {
         ()
     } else {
-        if drop_e(m, &j[i]) {
-            let _ = m.remove(&j[i]);
+        let c: usize = m.capacity();
+        if c > RESET_KEEP_FLOOR && c > n * RESET_KEEP_SLACK {
+            *m = HashMap::new()
+        } else {
+            m.clear()
         }
-        filter_e(m, j, i + 1)
     }
 }
 
-/// con-leche: none — the journal walk's per-key test, as its own function
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:142-153 Caches.dropScratchEntries`
-/// — whether the row at `k` must go.  A *probe*, as task #97-P4a's rule has
-/// it and as `con_ron_core::cached::core_c::whnf_core_probe` is: the map's
-/// borrow ends with the lookup, so the caller may take the map mutably again.
-/// Inlined into the walk, Aeneas cannot join the two arms' loan contexts
-/// ("Could not match the contexts", `interp/Interp.ml:617`).
-pub fn drop_ee(m: &HashMap<EIdxPair, bool>, k: &EIdxPair) -> bool {
-    match m.get(k) {
-        Some(v) => !keep_ee(k, *v),
-        None => false,
-    }
-}
-
-/// con-leche: none — the journal walk behind `Caches::drop_scratch_entries`
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:148 defeqC.filter keepEE`.
-pub fn filter_ee(m: &mut HashMap<EIdxPair, bool>, j: &Vec<EIdxPair>, i: usize) {
-    if i >= j.len() {
-        ()
-    } else {
-        if drop_ee(m, &j[i]) {
-            let _ = m.remove(&j[i]);
-        }
-        filter_ee(m, j, i + 1)
-    }
-}
-
-/// con-leche: none — the journal walk's per-key test, as its own function
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:142-153 Caches.dropScratchEntries`
-/// — whether the row at `k` must go.  A *probe*, as task #97-P4a's rule has
-/// it and as `con_ron_core::cached::core_c::whnf_core_probe` is: the map's
-/// borrow ends with the lookup, so the caller may take the map mutably again.
-/// Inlined into the walk, Aeneas cannot join the two arms' loan contexts
-/// ("Could not match the contexts", `interp/Interp.ml:617`).
-pub fn drop_ll(m: &HashMap<LIdxPair, bool>, k: &LIdxPair) -> bool {
-    match m.get(k) {
-        Some(v) => !keep_ll(k, *v),
-        None => false,
-    }
-}
-
-/// con-leche: none — the journal walk behind `Caches::drop_scratch_entries`
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:149 lvlEqC.filter keepLL`.
-pub fn filter_ll(m: &mut HashMap<LIdxPair, bool>, j: &Vec<LIdxPair>, i: usize) {
-    if i >= j.len() {
-        ()
-    } else {
-        if drop_ll(m, &j[i]) {
-            let _ = m.remove(&j[i]);
-        }
-        filter_ll(m, j, i + 1)
-    }
-}
-
-/// con-leche: none — the journal walk's per-key test, as its own function
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:142-153 Caches.dropScratchEntries`
-/// — whether the row at `k` must go.  A *probe*, as task #97-P4a's rule has
-/// it and as `con_ron_core::cached::core_c::whnf_core_probe` is: the map's
-/// borrow ends with the lookup, so the caller may take the map mutably again.
-/// Inlined into the walk, Aeneas cannot join the two arms' loan contexts
-/// ("Could not match the contexts", `interp/Interp.ml:617`).
-pub fn drop_ls_ls(m: &HashMap<LsIdxPair, bool>, k: &LsIdxPair) -> bool {
-    match m.get(k) {
-        Some(v) => !keep_ls_ls(k, *v),
-        None => false,
-    }
-}
-
-/// con-leche: none — the journal walk behind `Caches::drop_scratch_entries`
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:150 lvlsEqC.filter keepLsLs`.
-pub fn filter_ls_ls(m: &mut HashMap<LsIdxPair, bool>, j: &Vec<LsIdxPair>, i: usize) {
-    if i >= j.len() {
-        ()
-    } else {
-        if drop_ls_ls(m, &j[i]) {
-            let _ = m.remove(&j[i]);
-        }
-        filter_ls_ls(m, j, i + 1)
-    }
-}
-
-/// con-leche: none — the journal walk's per-key test, as its own function
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:142-153 Caches.dropScratchEntries`
-/// — whether the row at `k` must go.  A *probe*, as task #97-P4a's rule has
-/// it and as `con_ron_core::cached::core_c::whnf_core_probe` is: the map's
-/// borrow ends with the lookup, so the caller may take the map mutably again.
-/// Inlined into the walk, Aeneas cannot join the two arms' loan contexts
-/// ("Could not match the contexts", `interp/Interp.ml:617`).
-pub fn drop_n_ls(m: &HashMap<NLsKey, EIdx>, k: &NLsKey) -> bool {
-    match m.get(k) {
-        Some(v) => !keep_n_ls(k, v),
-        None => false,
-    }
-}
-
-/// con-leche: none — the journal walk behind `Caches::drop_scratch_entries`
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:151-152 constTyC/constValC.filter keepNLs`.
-pub fn filter_n_ls(m: &mut HashMap<NLsKey, EIdx>, j: &Vec<NLsKey>, i: usize) {
-    if i >= j.len() {
-        ()
-    } else {
-        if drop_n_ls(m, &j[i]) {
-            let _ = m.remove(&j[i]);
-        }
-        filter_n_ls(m, j, i + 1)
-    }
-}
-
-/// con-leche: none — the journal walk's per-key test, as its own function
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:142-153 Caches.dropScratchEntries`
-/// — whether the row at `k` must go.  A *probe*, as task #97-P4a's rule has
-/// it and as `con_ron_core::cached::core_c::whnf_core_probe` is: the map's
-/// borrow ends with the lookup, so the caller may take the map mutably again.
-/// Inlined into the walk, Aeneas cannot join the two arms' loan contexts
-/// ("Could not match the contexts", `interp/Interp.ml:617`).
-pub fn drop_nn_ls(m: &HashMap<NNLsKey, EIdx>, k: &NNLsKey) -> bool {
-    match m.get(k) {
-        Some(v) => !keep_nn_ls(k, v),
-        None => false,
-    }
-}
-
-/// con-leche: none — the journal walk behind `Caches::drop_scratch_entries`
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:153 ruleRhsC.filter keepNNLs`.
-pub fn filter_nn_ls(m: &mut HashMap<NNLsKey, EIdx>, j: &Vec<NNLsKey>, i: usize) {
-    if i >= j.len() {
-        ()
-    } else {
-        if drop_nn_ls(m, &j[i]) {
-            let _ = m.remove(&j[i]);
-        }
-        filter_nn_ls(m, j, i + 1)
-    }
-}
-
-/// con-leche: none — **the per-declaration bracket's cache half**
-/// (DESIGN.md §8.3, "Drop")
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:142-153 Caches.dropScratchEntries`
-/// — every entry whose key or value names a scratch handle goes with the
-/// tier, everything persistent stays.  `arena::core::drop_scratch` calls this
-/// beside `EStore::drop_scratch` at each declaration boundary, so that the
-/// two halves of the drop are one operation on the state.
+/// con-leche: ConLeche/Cached/StateC.lean:394-398 CState.flushed
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:87-89 Caches.empty` — the
+/// per-declaration flush, as an in-place reset of the eleven tables rather
+/// than eleven fresh records.  `Caches::empty` stays for `AState::init`.
 impl Caches {
-    /// con-leche: none — DESIGN.md §8.3, "Drop"
-    /// Lean twin: `proof/ConRon/Arena/CoreState.lean:142-153 Caches.dropScratchEntries`.
-    pub fn drop_scratch_entries(&mut self) {
-        filter_e(&mut self.whnf_core_c, &self.whnf_core_j, 0);
-        self.whnf_core_j = Vec::new();
-        filter_e(&mut self.whnf_c, &self.whnf_j, 0);
-        self.whnf_j = Vec::new();
-        filter_e(&mut self.infer_c, &self.infer_j, 0);
-        self.infer_j = Vec::new();
-        filter_e(&mut self.infer_io_c, &self.infer_io_j, 0);
-        self.infer_io_j = Vec::new();
-        filter_e(&mut self.annot_c, &self.annot_j, 0);
-        self.annot_j = Vec::new();
-        filter_ee(&mut self.defeq_c, &self.defeq_j, 0);
-        self.defeq_j = Vec::new();
-        filter_ll(&mut self.lvl_eq_c, &self.lvl_eq_j, 0);
-        self.lvl_eq_j = Vec::new();
-        filter_ls_ls(&mut self.lvls_eq_c, &self.lvls_eq_j, 0);
-        self.lvls_eq_j = Vec::new();
-        filter_n_ls(&mut self.const_ty_c, &self.const_ty_j, 0);
-        self.const_ty_j = Vec::new();
-        filter_n_ls(&mut self.const_val_c, &self.const_val_j, 0);
-        self.const_val_j = Vec::new();
-        filter_nn_ls(&mut self.rule_rhs_c, &self.rule_rhs_j, 0);
-        self.rule_rhs_j = Vec::new();
+    /// con-leche: ConLeche/Cached/StateC.lean:394-398 CState.flushed
+    /// Lean twin: `proof/ConRon/Arena/CoreState.lean:87-89 Caches.empty`.
+    pub fn reset(&mut self) {
+        reset_map(&mut self.whnf_core_c);
+        reset_map(&mut self.whnf_c);
+        reset_map(&mut self.infer_c);
+        reset_map(&mut self.infer_io_c);
+        reset_map(&mut self.annot_c);
+        reset_map(&mut self.defeq_c);
+        reset_map(&mut self.lvl_eq_c);
+        reset_map(&mut self.lvls_eq_c);
+        reset_map(&mut self.const_ty_c);
+        reset_map(&mut self.const_val_c);
+        reset_map(&mut self.rule_rhs_c)
     }
 }

@@ -74,7 +74,7 @@
 
 use crate::arena::core_gated::whnf_core_body_gated;
 use crate::arena::core_state::{
-    eidx_pair, keep_e, keep_ee, keep_ll, keep_ls_ls, keep_n_ls, keep_nn_ls, lidx_pair,
+    eidx_pair, lidx_pair,
     lsidx_pair, nls_key, nnls_key, EIdxPair, LIdxPair, LsIdxPair, NLsKey, NNLsKey,
     CACHE_CAP,
 };
@@ -557,12 +557,6 @@ pub fn lvl_eq_set(st: &mut AState, k: LIdxPair, r: bool) {
         ()
     } else {
         st.caches.lvl_eq_c = con_ron_core::ron::hashmap::HashMap::new();
-        st.caches.lvl_eq_j = Vec::new();
-    }
-    if keep_ll(&k, r) {
-        ()
-    } else {
-        st.caches.lvl_eq_j.push(k.dup2());
     }
     let _ = st.caches.lvl_eq_c.insert(k, r);
 }
@@ -611,12 +605,6 @@ pub fn lvls_eq_set(st: &mut AState, k: LsIdxPair, r: bool) {
         ()
     } else {
         st.caches.lvls_eq_c = con_ron_core::ron::hashmap::HashMap::new();
-        st.caches.lvls_eq_j = Vec::new();
-    }
-    if keep_ls_ls(&k, r) {
-        ()
-    } else {
-        st.caches.lvls_eq_j.push(k.dup2());
     }
     let _ = st.caches.lvls_eq_c.insert(k, r);
 }
@@ -665,12 +653,6 @@ pub fn const_ty_set(st: &mut AState, k: NLsKey, r: &EIdx) {
         ()
     } else {
         st.caches.const_ty_c = con_ron_core::ron::hashmap::HashMap::new();
-        st.caches.const_ty_j = Vec::new();
-    }
-    if keep_n_ls(&k, r) {
-        ()
-    } else {
-        st.caches.const_ty_j.push(k.dup2());
     }
     let _ = st.caches.const_ty_c.insert(k, r.dup2());
 }
@@ -716,12 +698,6 @@ pub fn const_val_set(st: &mut AState, k: NLsKey, r: &EIdx) {
         ()
     } else {
         st.caches.const_val_c = con_ron_core::ron::hashmap::HashMap::new();
-        st.caches.const_val_j = Vec::new();
-    }
-    if keep_n_ls(&k, r) {
-        ()
-    } else {
-        st.caches.const_val_j.push(k.dup2());
     }
     let _ = st.caches.const_val_c.insert(k, r.dup2());
 }
@@ -769,12 +745,6 @@ pub fn rule_rhs_set(st: &mut AState, k: NNLsKey, r: &EIdx) {
         ()
     } else {
         st.caches.rule_rhs_c = con_ron_core::ron::hashmap::HashMap::new();
-        st.caches.rule_rhs_j = Vec::new();
-    }
-    if keep_nn_ls(&k, r) {
-        ()
-    } else {
-        st.caches.rule_rhs_j.push(k.dup2());
     }
     let _ = st.caches.rule_rhs_c.insert(k, r.dup2());
 }
@@ -8734,12 +8704,6 @@ pub fn whnf_core_set(st: &mut AState, e: &EIdx, r: &EIdx) {
         ()
     } else {
         st.caches.whnf_core_c = con_ron_core::ron::hashmap::HashMap::new();
-        st.caches.whnf_core_j = Vec::new();
-    }
-    if keep_e(e, r) {
-        ()
-    } else {
-        st.caches.whnf_core_j.push(e.dup2());
     }
     let _ = st.caches.whnf_core_c.insert(e.dup2(), r.dup2());
 }
@@ -8752,12 +8716,6 @@ pub fn whnf_set(st: &mut AState, e: &EIdx, r: &EIdx) {
         ()
     } else {
         st.caches.whnf_c = con_ron_core::ron::hashmap::HashMap::new();
-        st.caches.whnf_j = Vec::new();
-    }
-    if keep_e(e, r) {
-        ()
-    } else {
-        st.caches.whnf_j.push(e.dup2());
     }
     let _ = st.caches.whnf_c.insert(e.dup2(), r.dup2());
 }
@@ -8770,12 +8728,6 @@ pub fn infer_set(st: &mut AState, e: &EIdx, r: &EIdx) {
         ()
     } else {
         st.caches.infer_c = con_ron_core::ron::hashmap::HashMap::new();
-        st.caches.infer_j = Vec::new();
-    }
-    if keep_e(e, r) {
-        ()
-    } else {
-        st.caches.infer_j.push(e.dup2());
     }
     let _ = st.caches.infer_c.insert(e.dup2(), r.dup2());
 }
@@ -8789,12 +8741,6 @@ pub fn infer_io_set(st: &mut AState, e: &EIdx, r: &EIdx) {
         ()
     } else {
         st.caches.infer_io_c = con_ron_core::ron::hashmap::HashMap::new();
-        st.caches.infer_io_j = Vec::new();
-    }
-    if keep_e(e, r) {
-        ()
-    } else {
-        st.caches.infer_io_j.push(e.dup2());
     }
     let _ = st.caches.infer_io_c.insert(e.dup2(), r.dup2());
 }
@@ -8807,12 +8753,6 @@ pub fn annot_set(st: &mut AState, e: &EIdx, r: &EIdx) {
         ()
     } else {
         st.caches.annot_c = con_ron_core::ron::hashmap::HashMap::new();
-        st.caches.annot_j = Vec::new();
-    }
-    if keep_e(e, r) {
-        ()
-    } else {
-        st.caches.annot_j.push(e.dup2());
     }
     let _ = st.caches.annot_c.insert(e.dup2(), r.dup2());
 }
@@ -8826,14 +8766,8 @@ pub fn defeq_set(st: &mut AState, a: &EIdx, b: &EIdx, r: bool) {
         ()
     } else {
         st.caches.defeq_c = con_ron_core::ron::hashmap::HashMap::new();
-        st.caches.defeq_j = Vec::new();
     }
     let k: EIdxPair = eidx_pair(a, b);
-    if keep_ee(&k, r) {
-        ()
-    } else {
-        st.caches.defeq_j.push(k.dup2());
-    }
     let _ = st.caches.defeq_c.insert(k, r);
 }
 
@@ -9304,7 +9238,7 @@ pub const PURE_FNS_A: u32 = LANE_FULL;
 /// surviving row, and so does `Caches::drop_scratch_entries` below it with
 /// its eleven journals — P3 needs it to state that flushing is sound.
 pub fn flush_caches(st: &mut AState) {
-    st.caches = crate::arena::core_state::Caches::empty();
+    st.caches.reset();
 }
 
 /// con-leche: none — **the per-declaration bracket, closed** (DESIGN.md §8.3)
@@ -9321,7 +9255,7 @@ pub fn drop_scratch(st: &mut AState) {
 /// scratch tier on, and clear the per-call memo tables of `Memos`, which
 /// belong to no tier and whose keys the new tier may reuse.
 pub fn enter_scratch(st: &mut AState) {
-    st.memos = crate::arena::monad::Memos::empty();
+    st.memos.reset();
     st.store.enable_scratch();
 }
 
@@ -10198,14 +10132,16 @@ mod tests {
         drop_scratch(&mut f.st);
         assert!(before > 0);
         assert!(f.st.caches.whnf_c.len() == 0);
-        // the SPECIFICATION of a surviving row is still there, and still says
-        // a persistent-through row could have stayed
+        // the SPECIFICATION of a surviving row is still there, and still
+        // says this row could have stayed: `whnf` of a persistent handle
+        // outside a scratch tier answers with a persistent handle, so
+        // `keep_e` holds of the row the flush just threw away.  (The journal
+        // walk that used to spell the filter went with the journals at task
+        // #97-P6-1; the predicate is what P3 states `flushC`'s soundness
+        // against, and the twin's `Caches.dropScratchEntries` is where.)
         let mut g = build_fx();
-        let _ = whnf(&mut g.st, &m, &g.fe, F, 0, &g.two);
-        let before2 = g.st.caches.whnf_c.len();
-        g.st.caches.drop_scratch_entries();
-        assert!(before2 > 0);
-        assert!(g.st.caches.whnf_c.len() == before2);
+        let r = ok(whnf(&mut g.st, &m, &g.fe, F, 0, &g.two));
+        assert!(crate::arena::core_state::keep_e(&g.two, &r));
     }
 
     #[test]

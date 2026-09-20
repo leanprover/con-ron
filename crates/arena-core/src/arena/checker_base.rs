@@ -316,32 +316,21 @@ pub fn memos_dup(m: &Memos) -> Memos {
     }
 }
 
-/// con-leche: none — the per-declaration caches and their journals, copied
+/// con-leche: none — the per-declaration caches, copied
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:132-139 orElseAttempt`.
 pub fn caches_dup(c: &Caches) -> Caches {
     Caches {
         whnf_core_c: c.whnf_core_c.dup(),
-        whnf_core_j: vec_dup(&c.whnf_core_j),
         whnf_c: c.whnf_c.dup(),
-        whnf_j: vec_dup(&c.whnf_j),
         infer_c: c.infer_c.dup(),
-        infer_j: vec_dup(&c.infer_j),
         infer_io_c: c.infer_io_c.dup(),
-        infer_io_j: vec_dup(&c.infer_io_j),
         annot_c: c.annot_c.dup(),
-        annot_j: vec_dup(&c.annot_j),
         defeq_c: c.defeq_c.dup(),
-        defeq_j: vec_dup(&c.defeq_j),
         lvl_eq_c: c.lvl_eq_c.dup(),
-        lvl_eq_j: vec_dup(&c.lvl_eq_j),
         lvls_eq_c: c.lvls_eq_c.dup(),
-        lvls_eq_j: vec_dup(&c.lvls_eq_j),
         const_ty_c: c.const_ty_c.dup(),
-        const_ty_j: vec_dup(&c.const_ty_j),
         const_val_c: c.const_val_c.dup(),
-        const_val_j: vec_dup(&c.const_val_j),
         rule_rhs_c: c.rule_rhs_c.dup(),
-        rule_rhs_j: vec_dup(&c.rule_rhs_j),
     }
 }
 

@@ -74681,6 +74681,15 @@ def ron.hashmap.HashMap.remove
       let v := index_mut_back rest
       ok (removed, { self with num_entries := i4, slots := v })
 
+/-- [con_ron_core::ron::hashmap::{con_ron_core::ron::hashmap::HashMap<K, V>}::capacity]:
+    Source: 'crates/con-ron-core/src/ron/hashmap.rs', lines 697:4-699:5
+    Visibility: public -/
+def ron.hashmap.HashMap.capacity
+  {K : Type} {V : Type} (self : ron.hashmap.HashMap K V) :
+  Result Std.Usize
+  := do
+  ok (alloc.vec.Vec.len self.slots)
+
 /-- Trait implementation: [con_ron_core::ron::node::{impl core::ops::drop::Drop for con_ron_core::kernel::expr::Expr}]
     Source: 'crates/con-ron-core/src/ron/node.rs', lines 419:0-423:1 -/
 @[reducible]
