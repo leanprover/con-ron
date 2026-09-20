@@ -24473,3 +24473,85 @@ instead of a full traversal of the replacement, and that is where
 A factor of **570** on the fixture, and the sweep is faster than task #97d's
 106 s even though seven more fixtures now run to an accept.  348/348 both
 before and after: the cutoffs change no verdict anywhere in the corpus.
+
+#### Item 3 — the gate: 348/348, in both modes, and the `--no-pins` row
+
+| sweep | agree | DIFFER | timed out | other | wall |
+|---|---:|---:|---:|---:|---:|
+| `--verified`, embedded pins, `--jobs=1` | **348** | 0 | 0 | 0 | 45 s |
+| `--trusted`, embedded pins, `--jobs=1` | **348** | 0 | 0 | 0 | 43 s |
+| `--verified --no-pins` | 331 | **17** | 0 | 0 | 16 s |
+
+The `--no-pins` row is green: those 17 are the documented declines — the
+fixtures that define `Nat.div`/`Nat.mod`, whose pin loop finds nothing in the
+empty list — task #28's number, unchanged since, and the same 17 the Rust
+binary gives.  `con-ron-lean` did not have the flag: it speaks *con-leche's*
+command line (§8.4) and `--no-pins` is con-ron's, not con-leche's.  It has it
+now (`Main.lean`'s `Args.noPins`, one clause of `parseArgs` and one argument
+to `checkMain`), because the empty-list arm of the pin loop is a real lane of
+(B) and the third row of `diff-e2e.sh`'s matrix is what tests it.
+`Main.lean`'s usage STATUS paragraph, which still said "the FOLD is not
+written yet", was rewritten at the same time.
+
+#### The trusted lane's twin bug: (B) had no `mode.certs`
+
+`--trusted` was never swept before this task (#97d ran `--verified` only),
+and it found one difference: `e2e/prelude_bool_redefined.ndjson`, which
+con-leche REJECTS in both modes (exit 1, "application type mismatch" at
+`Nat.ble`, whose value applies `Bool.true` where a `Type 0` is wanted) and
+the arena DECLINED (exit 2, "projection on a non-structure type").
+
+The cause is a whole mode accessor the twin did not carry.  con-leche's
+`CheckMode` has four (`Kernel/Env.lean:52`): `verifiedChecks`, `betaGate`,
+`ioGate`, `certs`.  Task #97c's `Core.lean` twins the first two and reads
+neither of the last two — because it mirrors `Kernel/Core.lean`, the
+mode-parametric SPEC, where (as `Env.lean` puts it) "the certificate families
+have **no switch in the spec** — no proved instance ever omits them".  The
+knot (B) actually runs is the EXECUTED one, `Cached/CoreC.lean`, and there
+the certificate families are gated on `mode.certs`, `false` at `.trusted`.
+
+The consequence is the wrong way round from what one expects of a "trusted"
+lane: with the families ungated but their LICENCES off (`betaGate` is `false`
+at `.trusted`, and the licence is what lets a telescope certificate stop
+early), the arena's `.trusted` run certified *more* than con-leche's and
+certified it *less* cheaply — so an ι redex that con-leche fires did not
+fire, `whnf` left a term stuck, and `annotate`'s `.proj` clause met a type
+whose head is not a constant.  A decline where con-leche rejects.
+
+The fix is the fourteen sites `Cached/CoreC.lean` gates, mirrored:
+
+| con-leche | arena |
+|---|---|
+| `:437`, `:440` `certAtI` in `structEtaCertWithI` | the type-former and per-slot certificates of `structEtaCertWith` |
+| `:508` `certAtI` in `structUnitCertI` | `structUnitCert`'s type-former certificate (the twin gains the `mode`) |
+| `:576`, `:588` in `majorToCtorI`'s K branch | the synthetic-spine certificate and `proofIrrel` |
+| `:621` in the η branch | the synthetic-spine certificate (its `proofIrrel` is ungated on both sides) |
+| `:654`, `:658` in the `And` branch | both |
+| `:797` `certUnlessI` in `iotaRecI` | the plain-rule parameter re-comparison, with con-leche's own `keep` (a `.nested` rule, or a projection-function recursor) |
+| `:814` `certAtI` in `iotaRecI` | the two licensed telescope runs and the canonical-index comparison, as ONE block — the two `constTyAt` lookups inside it, exactly as con-leche has them |
+| `:876`, `:918` `mode.betaSkip` | the β site of `whnfCoreBody` |
+| `:1075`, `:1086` `mode.ioSkip` | the application clause of `inferBodyIO` |
+
+`certAtI`/`certUnlessI` take a monadic argument, which §3.4 forbids in code
+Aeneas must translate, so each site is an explicit `if mode.certs then … else
+pure true` instead — the same term, no closure, and one `if` in the Rust.
+`betaSkip` and `ioSkip` are `CheckMode` methods of con-leche's own
+`Kernel/Env.lean`, which (B) imports (§8.7), so those two sites just read
+them; `betaGateFires`, the SPEC's β gate, stays as P3's statement subject
+with no reader, the treatment `whnfCoreLoopFuel` already gets.
+
+**And the knot's io slot moves from `mode.betaGate` to `mode.ioGate`** —
+`Cached/CoreC.lean:1971`'s selector, not `Kernel/Core.lean:2929`'s.  Task
+#97c chose `betaGate` deliberately ("the bridge is stated at `.verified`",
+where the two agree) and recorded it as the one place the kernel tier and the
+executed tier of con-leche disagree; with `--trusted` now in the gate, the
+executed tier's spelling is the one (B) must have, for the same reason the
+`certs` gate is: `Env.lean:131` says the io grade is a *licence*, not a
+certificate, so the trusted lane keeps it.  On its own this changed no
+fixture's verdict — it was measured before the `certs` work, and the trusted
+sweep read 347/1 either way — so it is fidelity, not a fix.
+
+At `.verified` every one of these reads is the literal `true` (`certs`,
+`ioGate`) or `betaGateFires` (`betaSkip`, `ioSkip`), so **nothing in the
+verified lane moved**: the `--verified` sweep is 348/348 before and after, at
+45 s.
