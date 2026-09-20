@@ -46,28 +46,25 @@
 //!    `O(appended)`; P6's, not this task's.
 
 use crate::arena::core::{
-    annotate_core, append_eidx, consts_resolve, ensure_sort_core, infer_type_core,
-    is_def_eq_core, pin, reserved_basis_names, zero_level, CHECK_FUEL, CORE_WALK_FUEL,
-    M_SORRY, M_UNKNOWN_CONST,
+    annotate_core, append_eidx, consts_resolve, ensure_sort_core, infer_type_core, is_def_eq_core,
+    pin, reserved_basis_names, zero_level, CHECK_FUEL, CORE_WALK_FUEL, M_SORRY, M_UNKNOWN_CONST,
 };
 use crate::arena::core_state::Caches;
 use crate::arena::env::{
-    i_constant_info_dup, i_constant_info_to_constant_val, ifenv_find, nidx_vec_dup,
-    IConstantInfo, IConstantVal, IFEnv,
+    i_constant_info_dup, i_constant_info_to_constant_val, ifenv_find, nidx_vec_dup, IConstantInfo,
+    IConstantVal, IFEnv,
 };
 use crate::arena::expr_ops::{
-    cons_eidx, fvar_type_d, get_app_args, get_app_fn, has_fvar_fast, inst_lams_at_f,
-    inst_pis_at_f, instantiate1_fast, instantiate_list_fast, loose_bvars_bounded_fast,
-    pi_result, pis_to_lams, strip_lams, strip_pis,
+    cons_eidx, fvar_type_d, get_app_args, get_app_fn, has_fvar_fast, inst_lams_at_f, inst_pis_at_f,
+    instantiate1_fast, instantiate_list_fast, loose_bvars_bounded_fast, pi_result, pis_to_lams,
+    strip_lams, strip_pis,
 };
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
 use crate::arena::monad::{
-    fail, intern_e, read_level, read_levels, read_names, view, view_ls, view_n, AState,
-    Memos,
+    fail, intern_e, read_level, read_levels, read_names, view, view_ls, view_n, AState, Memos,
 };
 use crate::arena::store::{
-    ENodeView, EStore, ETables, LStore, LTables, LsStore, LsTables, NNodeView, NStore,
-    NTables, Tbl,
+    ENodeView, EStore, ETables, LStore, LTables, LsStore, LsTables, NNodeView, NStore, NTables, Tbl,
 };
 use con_ron_core::kernel::basis_names;
 use con_ron_core::kernel::core_types::{code_points, CheckError};
@@ -90,175 +87,169 @@ use con_ron_core::ron::hashmap::{Dup, Eq2, HashMap, Hashable};
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"duplicate declaration"`, as code points.
 pub const M_DUP_DECL: [u32; 21] = [
-    100, 117, 112, 108, 105, 99, 97, 116, 101, 32, 100, 101, 99, 108, 97, 114, 97, 116,
-    105, 111, 110
+    100, 117, 112, 108, 105, 99, 97, 116, 101, 32, 100, 101, 99, 108, 97, 114, 97, 116, 105, 111,
+    110,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"reserved basis name"`, as code points.
 pub const M_RESERVED_BASIS: [u32; 19] = [
-    114, 101, 115, 101, 114, 118, 101, 100, 32, 98, 97, 115, 105, 115, 32, 110, 97, 109,
-    101
+    114, 101, 115, 101, 114, 118, 101, 100, 32, 98, 97, 115, 105, 115, 32, 110, 97, 109, 101,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"reserved projection name"`, as code points.
 pub const M_RESERVED_PROJ: [u32; 24] = [
-    114, 101, 115, 101, 114, 118, 101, 100, 32, 112, 114, 111, 106, 101, 99, 116, 105,
-    111, 110, 32, 110, 97, 109, 101
+    114, 101, 115, 101, 114, 118, 101, 100, 32, 112, 114, 111, 106, 101, 99, 116, 105, 111, 110,
+    32, 110, 97, 109, 101,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"duplicate universe parameters in declaration"`, as code points.
 pub const M_DUP_UNIV: [u32; 44] = [
-    100, 117, 112, 108, 105, 99, 97, 116, 101, 32, 117, 110, 105, 118, 101, 114, 115, 101,
-    32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 115, 32, 105, 110, 32, 100, 101, 99,
-    108, 97, 114, 97, 116, 105, 111, 110
+    100, 117, 112, 108, 105, 99, 97, 116, 101, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 112,
+    97, 114, 97, 109, 101, 116, 101, 114, 115, 32, 105, 110, 32, 100, 101, 99, 108, 97, 114, 97,
+    116, 105, 111, 110,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"loose bound variable in type"`, as code points.
 pub const M_LOOSE_TYPE: [u32; 28] = [
-    108, 111, 111, 115, 101, 32, 98, 111, 117, 110, 100, 32, 118, 97, 114, 105, 97, 98,
-    108, 101, 32, 105, 110, 32, 116, 121, 112, 101
+    108, 111, 111, 115, 101, 32, 98, 111, 117, 110, 100, 32, 118, 97, 114, 105, 97, 98, 108, 101,
+    32, 105, 110, 32, 116, 121, 112, 101,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"unexpected free variable in type"`, as code points.
 pub const M_FVAR_TYPE: [u32; 32] = [
-    117, 110, 101, 120, 112, 101, 99, 116, 101, 100, 32, 102, 114, 101, 101, 32, 118, 97,
-    114, 105, 97, 98, 108, 101, 32, 105, 110, 32, 116, 121, 112, 101
+    117, 110, 101, 120, 112, 101, 99, 116, 101, 100, 32, 102, 114, 101, 101, 32, 118, 97, 114, 105,
+    97, 98, 108, 101, 32, 105, 110, 32, 116, 121, 112, 101,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"undeclared universe parameter in type"`, as code points.
 pub const M_UNDECL_TYPE: [u32; 37] = [
-    117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115,
-    101, 32, 112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 116, 121, 112,
-    101
+    117, 110, 100, 101, 99, 108, 97, 114, 101, 100, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32,
+    112, 97, 114, 97, 109, 101, 116, 101, 114, 32, 105, 110, 32, 116, 121, 112, 101,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"fuel exhausted: allLevelParamsDefined"`, as code points.
 pub const M_FUEL_ALPD: [u32; 37] = [
-    102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 97, 108,
-    108, 76, 101, 118, 101, 108, 80, 97, 114, 97, 109, 115, 68, 101, 102, 105, 110, 101,
-    100
+    102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 97, 108, 108, 76,
+    101, 118, 101, 108, 80, 97, 114, 97, 109, 115, 68, 101, 102, 105, 110, 101, 100,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"fuel exhausted: constsResolveF"`, as code points.
 pub const M_FUEL_CRF: [u32; 30] = [
-    102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 99, 111,
-    110, 115, 116, 115, 82, 101, 115, 111, 108, 118, 101, 70
+    102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 99, 111, 110, 115,
+    116, 115, 82, 101, 115, 111, 108, 118, 101, 70,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"fuel exhausted: mentionsConst"`, as code points.
 pub const M_FUEL_MENTIONS: [u32; 29] = [
-    102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 109, 101,
-    110, 116, 105, 111, 110, 115, 67, 111, 110, 115, 116
+    102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 109, 101, 110, 116,
+    105, 111, 110, 115, 67, 111, 110, 115, 116,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"nested pin type mismatch"`, as code points.
 pub const M_NESTED_PIN_TYPE: [u32; 24] = [
-    110, 101, 115, 116, 101, 100, 32, 112, 105, 110, 32, 116, 121, 112, 101, 32, 109, 105,
-    115, 109, 97, 116, 99, 104
+    110, 101, 115, 116, 101, 100, 32, 112, 105, 110, 32, 116, 121, 112, 101, 32, 109, 105, 115,
+    109, 97, 116, 99, 104,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"nested pin arity mismatch"`, as code points.
 pub const M_NESTED_PIN_ARITY: [u32; 25] = [
-    110, 101, 115, 116, 101, 100, 32, 112, 105, 110, 32, 97, 114, 105, 116, 121, 32, 109,
-    105, 115, 109, 97, 116, 99, 104
+    110, 101, 115, 116, 101, 100, 32, 112, 105, 110, 32, 97, 114, 105, 116, 121, 32, 109, 105, 115,
+    109, 97, 116, 99, 104,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"nested pin annotation mismatch"`, as code points.
 pub const M_NESTED_PIN_ANNOT: [u32; 30] = [
-    110, 101, 115, 116, 101, 100, 32, 112, 105, 110, 32, 97, 110, 110, 111, 116, 97, 116,
-    105, 111, 110, 32, 109, 105, 115, 109, 97, 116, 99, 104
+    110, 101, 115, 116, 101, 100, 32, 112, 105, 110, 32, 97, 110, 110, 111, 116, 97, 116, 105, 111,
+    110, 32, 109, 105, 115, 109, 97, 116, 99, 104,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"iota statement component mismatch"`, as code points.
 pub const M_IOTA_COMP_MISMATCH: [u32; 33] = [
-    105, 111, 116, 97, 32, 115, 116, 97, 116, 101, 109, 101, 110, 116, 32, 99, 111, 109,
-    112, 111, 110, 101, 110, 116, 32, 109, 105, 115, 109, 97, 116, 99, 104
+    105, 111, 116, 97, 32, 115, 116, 97, 116, 101, 109, 101, 110, 116, 32, 99, 111, 109, 112, 111,
+    110, 101, 110, 116, 32, 109, 105, 115, 109, 97, 116, 99, 104,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"iota statement component arity"`, as code points.
 pub const M_IOTA_COMP_ARITY: [u32; 30] = [
-    105, 111, 116, 97, 32, 115, 116, 97, 116, 101, 109, 101, 110, 116, 32, 99, 111, 109,
-    112, 111, 110, 101, 110, 116, 32, 97, 114, 105, 116, 121
+    105, 111, 116, 97, 32, 115, 116, 97, 116, 101, 109, 101, 110, 116, 32, 99, 111, 109, 112, 111,
+    110, 101, 110, 116, 32, 97, 114, 105, 116, 121,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"projection type telescope"`, as code points.
 pub const M_PROJ_TYPE_TELE: [u32; 25] = [
-    112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 116, 121, 112, 101, 32, 116, 101,
-    108, 101, 115, 99, 111, 112, 101
+    112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 116, 121, 112, 101, 32, 116, 101, 108,
+    101, 115, 99, 111, 112, 101,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"projection constructor telescope"`, as code points.
 pub const M_PROJ_CTOR_TELE: [u32; 32] = [
-    112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 99, 111, 110, 115, 116, 114, 117,
-    99, 116, 111, 114, 32, 116, 101, 108, 101, 115, 99, 111, 112, 101
+    112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 99, 111, 110, 115, 116, 114, 117, 99, 116,
+    111, 114, 32, 116, 101, 108, 101, 115, 99, 111, 112, 101,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"projection constructor residual arity"`, as code points.
 pub const M_PROJ_CTOR_ARITY: [u32; 37] = [
-    112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 99, 111, 110, 115, 116, 114, 117,
-    99, 116, 111, 114, 32, 114, 101, 115, 105, 100, 117, 97, 108, 32, 97, 114, 105, 116,
-    121
+    112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 99, 111, 110, 115, 116, 114, 117, 99, 116,
+    111, 114, 32, 114, 101, 115, 105, 100, 117, 97, 108, 32, 97, 114, 105, 116, 121,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"projection constructor residual head"`, as code points.
 pub const M_PROJ_CTOR_HEAD: [u32; 36] = [
-    112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 99, 111, 110, 115, 116, 114, 117,
-    99, 116, 111, 114, 32, 114, 101, 115, 105, 100, 117, 97, 108, 32, 104, 101, 97, 100
+    112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 99, 111, 110, 115, 116, 114, 117, 99, 116,
+    111, 114, 32, 114, 101, 115, 105, 100, 117, 97, 108, 32, 104, 101, 97, 100,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"projection rule telescope"`, as code points.
 pub const M_PROJ_RULE_TELE: [u32; 25] = [
-    112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 114, 117, 108, 101, 32, 116, 101,
-    108, 101, 115, 99, 111, 112, 101
+    112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 114, 117, 108, 101, 32, 116, 101, 108,
+    101, 115, 99, 111, 112, 101,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"projection rule scoping"`, as code points.
 pub const M_PROJ_RULE_SCOPING: [u32; 23] = [
-    112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 114, 117, 108, 101, 32, 115, 99,
-    111, 112, 105, 110, 103
+    112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 114, 117, 108, 101, 32, 115, 99, 111, 112,
+    105, 110, 103,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"projection rule wellformedness"`, as code points.
 pub const M_PROJ_RULE_WF: [u32; 30] = [
-    112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 114, 117, 108, 101, 32, 119, 101,
-    108, 108, 102, 111, 114, 109, 101, 100, 110, 101, 115, 115
+    112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 114, 117, 108, 101, 32, 119, 101, 108,
+    108, 102, 111, 114, 109, 101, 100, 110, 101, 115, 115,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"projection rule body"`, as code points.
 pub const M_PROJ_RULE_BODY: [u32; 20] = [
-    112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 114, 117, 108, 101, 32, 98, 111,
-    100, 121
+    112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 114, 117, 108, 101, 32, 98, 111, 100, 121,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"projection rule domain mismatch"`, as code points.
 pub const M_PROJ_RULE_DOMAIN: [u32; 31] = [
-    112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 114, 117, 108, 101, 32, 100, 111,
-    109, 97, 105, 110, 32, 109, 105, 115, 109, 97, 116, 99, 104
+    112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 114, 117, 108, 101, 32, 100, 111, 109, 97,
+    105, 110, 32, 109, 105, 115, 109, 97, 116, 99, 104,
 ];
-
 
 // ---------------------------------------------------------------------------
 // The state snapshot (`CheckerBase.lean:113-139`'s `orElseAttempt`, deviation 6)
@@ -313,7 +304,9 @@ pub fn ltables_dup(t: &LTables) -> LTables {
 /// con-leche: none — the level-list store's one table, copied
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:132-139 orElseAttempt`.
 pub fn ls_tables_dup(t: &LsTables) -> LsTables {
-    LsTables { lists: tbl_dup(&t.lists) }
+    LsTables {
+        lists: tbl_dup(&t.lists),
+    }
 }
 
 /// con-leche: none — the expression store's ten tables, copied
@@ -611,18 +604,16 @@ pub fn all_level_params_defined_node(
             Ok(ls) => Ok(all_params_defined_list(params, &ls, 0)),
         },
         Ok(ENodeView::FVar(_, t)) => all_level_params_defined_go(st, params, memo, fuel, &t),
-        Ok(ENodeView::App(f, a)) => {
-            match all_level_params_defined_go(st, params, memo, fuel, &f) {
-                Err(e) => Err(e),
-                Ok(b1) => {
-                    if b1 {
-                        all_level_params_defined_go(st, params, memo, fuel, &a)
-                    } else {
-                        Ok(false)
-                    }
+        Ok(ENodeView::App(f, a)) => match all_level_params_defined_go(st, params, memo, fuel, &f) {
+            Err(e) => Err(e),
+            Ok(b1) => {
+                if b1 {
+                    all_level_params_defined_go(st, params, memo, fuel, &a)
+                } else {
+                    Ok(false)
                 }
             }
-        }
+        },
         Ok(ENodeView::Lam(t, b, m)) => {
             all_level_params_defined_binder(st, params, memo, fuel, &t, &b, &m)
         }
@@ -740,18 +731,10 @@ pub fn consts_resolve_f_go(
     } else {
         match view(st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::BVar(_)) => {
-                consts_resolve(st, fe, CORE_WALK_FUEL, h)
-            }
-            Ok(ENodeView::Sort(_)) => {
-                consts_resolve(st, fe, CORE_WALK_FUEL, h)
-            }
-            Ok(ENodeView::Lit(_)) => {
-                consts_resolve(st, fe, CORE_WALK_FUEL, h)
-            }
-            Ok(ENodeView::Const(_, _)) => {
-                consts_resolve(st, fe, CORE_WALK_FUEL, h)
-            }
+            Ok(ENodeView::BVar(_)) => consts_resolve(st, fe, CORE_WALK_FUEL, h),
+            Ok(ENodeView::Sort(_)) => consts_resolve(st, fe, CORE_WALK_FUEL, h),
+            Ok(ENodeView::Lit(_)) => consts_resolve(st, fe, CORE_WALK_FUEL, h),
+            Ok(ENodeView::Const(_, _)) => consts_resolve(st, fe, CORE_WALK_FUEL, h),
             Ok(v) => match memo_b_get(memo, h) {
                 Some(r) => Ok(r),
                 None => match consts_resolve_f_node(st, fe, memo, fuel - 1, v) {
@@ -781,9 +764,7 @@ pub fn consts_resolve_f_node(
         ENodeView::FVar(_, ty) => consts_resolve_f_go(st, fe, memo, fuel, &ty),
         ENodeView::App(f, a) => consts_resolve_f_two(st, fe, memo, fuel, &f, &a),
         ENodeView::Lam(ty, body, _) => consts_resolve_f_two(st, fe, memo, fuel, &ty, &body),
-        ENodeView::ForallE(ty, body, _) => {
-            consts_resolve_f_two(st, fe, memo, fuel, &ty, &body)
-        }
+        ENodeView::ForallE(ty, body, _) => consts_resolve_f_two(st, fe, memo, fuel, &ty, &body),
         ENodeView::LetE(ty, val, body) => {
             match consts_resolve_f_two(st, fe, memo, fuel, &ty, &val) {
                 Err(e) => Err(e),
@@ -826,11 +807,7 @@ pub fn consts_resolve_f_two(
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:285-286 constsResolveFFast`
 /// — the executed `constsResolve` (one memoized DAG walk), which is what every
 /// front door below calls.
-pub fn consts_resolve_f_fast(
-    st: &mut AState,
-    fe: &IFEnv,
-    e: &EIdx,
-) -> Result<bool, CheckError> {
+pub fn consts_resolve_f_fast(st: &mut AState, fe: &IFEnv, e: &EIdx) -> Result<bool, CheckError> {
     let mut memo: HashMap<EIdx, bool> = HashMap::new();
     consts_resolve_f_go(st, fe, &mut memo, CORE_WALK_FUEL, e)
 }
@@ -863,107 +840,6 @@ pub fn fvar_type_ds(
 // `mentionsConst` (module note 5)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:773-782 Expr.mentionsConst
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:814-849 Expr.mentionsConstGo
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:487-523
-/// mentionsConstGo` — does the constant `t` occur in `h`?  A syntactic walk
-/// (`fvar` annotations included; a `.proj` node names its structure), with
-/// con-leche's per-call memo keyed by the node — `t` is fixed for the whole
-/// walk.  The four leaf arms bypass the memo, as the twin's do.
-pub fn mentions_const_go(
-    st: &AState,
-    t: &NIdx,
-    memo: &mut HashMap<EIdx, bool>,
-    fuel: u64,
-    h: &EIdx,
-) -> Result<bool, CheckError> {
-    if fuel == 0 {
-        fail(CheckError::Internal(code_points(&M_FUEL_MENTIONS)))
-    } else {
-        match view(st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::BVar(_)) => Ok(false),
-            Ok(ENodeView::Sort(_)) => Ok(false),
-            Ok(ENodeView::Lit(_)) => Ok(false),
-            Ok(ENodeView::Const(n, _)) => Ok(n.eq2(t)),
-            Ok(v) => match memo_b_get(memo, h) {
-                Some(r) => Ok(r),
-                None => match mentions_const_node(st, t, memo, fuel - 1, v) {
-                    Err(e) => Err(e),
-                    Ok(r) => {
-                        memo.insert(h.dup2(), r);
-                        Ok(r)
-                    }
-                },
-            },
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:814-849 Expr.mentionsConstGo
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:487-523
-/// mentionsConstGo` — the six memoized arms, past the probe.
-pub fn mentions_const_node(
-    st: &AState,
-    t: &NIdx,
-    memo: &mut HashMap<EIdx, bool>,
-    fuel: u64,
-    v: ENodeView,
-) -> Result<bool, CheckError> {
-    match v {
-        ENodeView::FVar(_, ty) => mentions_const_go(st, t, memo, fuel, &ty),
-        ENodeView::App(f, a) => mentions_const_two(st, t, memo, fuel, &f, &a),
-        ENodeView::Lam(ty, body, _) => mentions_const_two(st, t, memo, fuel, &ty, &body),
-        ENodeView::ForallE(ty, body, _) => mentions_const_two(st, t, memo, fuel, &ty, &body),
-        ENodeView::LetE(ty, val, body) => {
-            match mentions_const_two(st, t, memo, fuel, &ty, &val) {
-                Err(e) => Err(e),
-                Ok(b12) => match mentions_const_go(st, t, memo, fuel, &body) {
-                    Err(e) => Err(e),
-                    Ok(b3) => Ok(b12 || b3),
-                },
-            }
-        }
-        ENodeView::Proj(s, _, sub) => match mentions_const_go(st, t, memo, fuel, &sub) {
-            Err(e) => Err(e),
-            Ok(b) => Ok(s.eq2(t) || b),
-        },
-        _ => Ok(false),
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:814-849 Expr.mentionsConstGo
-/// The twin's `(b₁ || b₂, memo)` of the two-child arms; both children are
-/// walked, as the twin walks them.
-pub fn mentions_const_two(
-    st: &AState,
-    t: &NIdx,
-    memo: &mut HashMap<EIdx, bool>,
-    fuel: u64,
-    a: &EIdx,
-    b: &EIdx,
-) -> Result<bool, CheckError> {
-    match mentions_const_go(st, t, memo, fuel, a) {
-        Err(e) => Err(e),
-        Ok(b1) => match mentions_const_go(st, t, memo, fuel, b) {
-            Err(e) => Err(e),
-            Ok(b2) => Ok(b1 || b2),
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:922-924 Expr.mentionsConstFast
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:528-529
-/// mentionsConst` — the executed `mentionsConst` (one memoized DAG walk).
-pub fn mentions_const(st: &AState, t: &NIdx, e: &EIdx) -> Result<bool, CheckError> {
-    let mut memo: HashMap<EIdx, bool> = HashMap::new();
-    mentions_const_go(st, t, &mut memo, CORE_WALK_FUEL, e)
-}
-
-// ---------------------------------------------------------------------------
-// The front door's verdict at an unresolved constant (`CheckerBase.lean:298-319`)
-// ---------------------------------------------------------------------------
-
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:71-91 unresolvedConstsError
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:315-319 unresolvedConstsError`
 /// — **the verdict at a term whose constants do not all resolve.**  A term that
@@ -972,13 +848,10 @@ pub fn mentions_const(st: &AState, t: &NIdx, e: &EIdx) -> Result<bool, CheckErro
 /// feature); anything else is an unknown constant and REJECTS.  Monadic here
 /// because the walk reads the store; the twin's `where_ : String` argument only
 /// names the slot in the message, and §3.1 drops the interpolation.
-pub fn unresolved_consts_error(
-    st: &mut AState,
-    e: &EIdx,
-) -> Result<CheckError, CheckError> {
+pub fn unresolved_consts_error(st: &mut AState, e: &EIdx) -> Result<CheckError, CheckError> {
     match pin(st, &basis_names::sorry_ax_name()) {
         Err(err) => Err(err),
-        Ok(sa) => match mentions_const(st, &sa, e) {
+        Ok(sa) => match crate::arena::inductives::struct_parts::mentions_const(st, &sa, e) {
             Err(err) => Err(err),
             Ok(r) => {
                 if r {
@@ -1219,19 +1092,17 @@ pub fn open_pis_at_fvars(
     } else {
         match view(st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::ForallE(dom, body, _)) => {
-                match intern_e(st, ENodeView::FVar(i, dom)) {
+            Ok(ENodeView::ForallE(dom, body, _)) => match intern_e(st, ENodeView::FVar(i, dom)) {
+                Err(e) => Err(e),
+                Ok(fv) => match instantiate1_fast(st, CORE_WALK_FUEL, &body, &fv, 0) {
                     Err(e) => Err(e),
-                    Ok(fv) => match instantiate1_fast(st, CORE_WALK_FUEL, &body, &fv, 0) {
+                    Ok(b) => match open_pis_at_fvars(st, n - 1, &b, i + 1) {
                         Err(e) => Err(e),
-                        Ok(b) => match open_pis_at_fvars(st, n - 1, &b, i + 1) {
-                            Err(e) => Err(e),
-                            Ok(Some((fvs, e2))) => Ok(Some((cons_eidx(&fv, &fvs), e2))),
-                            Ok(None) => Ok(None),
-                        },
+                        Ok(Some((fvs, e2))) => Ok(Some((cons_eidx(&fv, &fvs), e2))),
+                        Ok(None) => Ok(None),
                     },
-                }
-            }
+                },
+            },
             Ok(_) => Ok(None),
         }
     }
@@ -1516,11 +1387,7 @@ pub fn check_proj_shape(
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:257-272 checkProjShape
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:496-505 checkProjShape` —
 /// the residual's arity and head, past the two telescopes.
-pub fn check_proj_shape_residual(
-    st: &AState,
-    cbody: &EIdx,
-    n_p: u64,
-) -> Result<(), CheckError> {
+pub fn check_proj_shape_residual(st: &AState, cbody: &EIdx, n_p: u64) -> Result<(), CheckError> {
     match get_app_args(st, CORE_WALK_FUEL, cbody) {
         Err(e) => Err(e),
         Ok(args) => {
@@ -1532,9 +1399,7 @@ pub fn check_proj_shape_residual(
                     Ok(f) => match view(st, &f) {
                         Err(e) => Err(e),
                         Ok(ENodeView::Const(_, _)) => Ok(()),
-                        Ok(_) => {
-                            fail(CheckError::NotImplemented(code_points(&M_PROJ_CTOR_HEAD)))
-                        }
+                        Ok(_) => fail(CheckError::NotImplemented(code_points(&M_PROJ_CTOR_HEAD))),
                     },
                 }
             }
@@ -1565,9 +1430,7 @@ pub fn check_proj_rule(
         Ok(bv) => match pis_to_lams(st, n_p + n_f, &cvj.ty, &bv) {
             Err(e) => Err(e),
             Ok(None) => fail(CheckError::NotImplemented(code_points(&M_PROJ_RULE_TELE))),
-            Ok(Some(rhs)) => {
-                check_proj_rule_scoped(st, mode, fe, pty, cvj, lps, n_p, n_f, bv, rhs)
-            }
+            Ok(Some(rhs)) => check_proj_rule_scoped(st, mode, fe, pty, cvj, lps, n_p, n_f, bv, rhs),
         },
     }
 }
@@ -1601,9 +1464,9 @@ pub fn check_proj_rule_scoped(
                 } else {
                     match annotate_core(st, mode, fe, CHECK_FUEL, 0, &rhs) {
                         Err(e) => Err(e),
-                        Ok(rhs_a) => check_proj_rule_wf(
-                            st, mode, fe, pty, cvj, lps, n_p, n_f, bv, rhs_a,
-                        ),
+                        Ok(rhs_a) => {
+                            check_proj_rule_wf(st, mode, fe, pty, cvj, lps, n_p, n_f, bv, rhs_a)
+                        }
                     }
                 }
             }
@@ -1688,14 +1551,10 @@ pub fn check_proj_rule_shape(
             } else {
                 match strip_pis(st, n_p + n_f, &cvj.ty) {
                     Err(e) => Err(e),
-                    Ok(None) => {
-                        fail(CheckError::NotImplemented(code_points(&M_PROJ_CTOR_TELE)))
-                    }
+                    Ok(None) => fail(CheckError::NotImplemented(code_points(&M_PROJ_CTOR_TELE))),
                     Ok(Some((cbinders_r, _))) => {
                         if !doms_match_aux(&rbinders, &cbinders_r, 0, 0, n_p + n_f) {
-                            fail(CheckError::NotImplemented(code_points(
-                                &M_PROJ_RULE_DOMAIN,
-                            )))
+                            fail(CheckError::NotImplemented(code_points(&M_PROJ_RULE_DOMAIN)))
                         } else {
                             check_proj_rule_certs(st, mode, fe, pty, cvj, n_p, n_f, rhs_a)
                         }
@@ -1727,27 +1586,17 @@ pub fn check_proj_rule_certs(
         Ok(Some((fvs_p, _))) => match inst_pis_at_f(st, CORE_WALK_FUEL, &fvs_p, &cvj.ty) {
             Err(e) => Err(e),
             Ok(None) => fail(CheckError::NotImplemented(code_points(&M_PROJ_CTOR_TELE))),
-            Ok(Some((cdoms_p, crest_p))) => {
-                match fvar_type_ds(st, &fvs_p, 0, Vec::new()) {
-                    Err(e) => Err(e),
-                    Ok(ptypes) => {
-                        match check_def_eq_list(
-                            st,
-                            mode,
-                            fe,
-                            n_p + n_f,
-                            &ptypes,
-                            &cdoms_p,
-                            0,
-                        ) {
-                            Err(e) => Err(e),
-                            Ok(()) => check_proj_rule_frame(
-                                st, mode, fe, n_p, n_f, fvs_p, crest_p, rhs_a,
-                            ),
+            Ok(Some((cdoms_p, crest_p))) => match fvar_type_ds(st, &fvs_p, 0, Vec::new()) {
+                Err(e) => Err(e),
+                Ok(ptypes) => {
+                    match check_def_eq_list(st, mode, fe, n_p + n_f, &ptypes, &cdoms_p, 0) {
+                        Err(e) => Err(e),
+                        Ok(()) => {
+                            check_proj_rule_frame(st, mode, fe, n_p, n_f, fvs_p, crest_p, rhs_a)
                         }
                     }
                 }
-            }
+            },
         },
     }
 }
@@ -1772,20 +1621,16 @@ pub fn check_proj_rule_frame(
             let frame: Vec<EIdx> = append_eidx(fvs_p, &x_fvs);
             match inst_lams_at_f(st, CORE_WALK_FUEL, &frame, &rhs_a) {
                 Err(e) => Err(e),
-                Ok(None) => {
-                    fail(CheckError::NotImplemented(code_points(&M_PROJ_RULE_TELE)))
-                }
+                Ok(None) => fail(CheckError::NotImplemented(code_points(&M_PROJ_RULE_TELE))),
                 Ok(Some((ldoms, _))) => match fvar_type_ds(st, &frame, 0, Vec::new()) {
                     Err(e) => Err(e),
                     Ok(ftypes) => {
                         match check_def_eq_list(st, mode, fe, n_p + n_f, &ftypes, &ldoms, 0) {
                             Err(e) => Err(e),
-                            Ok(()) => {
-                                match infer_type_core(st, mode, fe, CHECK_FUEL, 0, &rhs_a) {
-                                    Err(e) => Err(e),
-                                    Ok(_rhs_ty) => Ok(rhs_a),
-                                }
-                            }
+                            Ok(()) => match infer_type_core(st, mode, fe, CHECK_FUEL, 0, &rhs_a) {
+                                Err(e) => Err(e),
+                                Ok(_rhs_ty) => Ok(rhs_a),
+                            },
                         }
                     }
                 },
@@ -1873,11 +1718,7 @@ pub fn ind_params_ok(
 /// member's test: a type former's Π-telescope is at least `nP` long, a
 /// constructor's own parameter count is exactly `nP`, and everything else
 /// passes.
-pub fn ind_params_ok_at(
-    st: &mut AState,
-    n_p: u64,
-    ci: &IConstantInfo,
-) -> Result<bool, CheckError> {
+pub fn ind_params_ok_at(st: &mut AState, n_p: u64, ci: &IConstantInfo) -> Result<bool, CheckError> {
     match ci {
         IConstantInfo::IndInfo(cv_t, _) => {
             match crate::arena::env::pi_sort_tele_len(&st.store, CORE_WALK_FUEL, &cv_t.ty) {

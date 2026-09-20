@@ -275,11 +275,7 @@ pub fn i_rec_rules_dup(rs: &Vec<IRecRule>) -> Vec<IRecRule> {
 
 /// con-leche: none — a `List RecRule` copy; Lean's list is shared by value (DESIGN.md §3.2)
 /// The cursor recursion behind `i_rec_rules_dup`.
-pub fn i_rec_rules_dup_from(
-    rs: &Vec<IRecRule>,
-    i: usize,
-    out: Vec<IRecRule>,
-) -> Vec<IRecRule> {
+pub fn i_rec_rules_dup_from(rs: &Vec<IRecRule>, i: usize, out: Vec<IRecRule>) -> Vec<IRecRule> {
     if i >= rs.len() {
         out
     } else {
@@ -461,9 +457,7 @@ pub fn i_constant_info_dup(c: &IConstantInfo) -> IConstantInfo {
             v.dup2(),
             con_ron_core::kernel::env::reducibility_hint_dup(h),
         ),
-        IConstantInfo::ThmInfo(cv, v) => {
-            IConstantInfo::ThmInfo(i_constant_val_dup(cv), v.dup2())
-        }
+        IConstantInfo::ThmInfo(cv, v) => IConstantInfo::ThmInfo(i_constant_val_dup(cv), v.dup2()),
         IConstantInfo::IndInfo(cv, caps) => {
             IConstantInfo::IndInfo(i_constant_val_dup(cv), i_ind_caps_dup(caps))
         }
@@ -531,9 +525,7 @@ pub fn i_declaration_dup(d: &IDeclaration) -> IDeclaration {
             v.dup2(),
             con_ron_core::kernel::env::reducibility_hint_dup(h),
         ),
-        IDeclaration::ThmDecl(cv, v) => {
-            IDeclaration::ThmDecl(i_constant_val_dup(cv), v.dup2())
-        }
+        IDeclaration::ThmDecl(cv, v) => IDeclaration::ThmDecl(i_constant_val_dup(cv), v.dup2()),
         IDeclaration::OpaqueDecl(cv, v) => {
             IDeclaration::OpaqueDecl(i_constant_val_dup(cv), v.dup2())
         }
@@ -809,7 +801,10 @@ pub fn mk_ifenv_go(
         (c, m)
     } else {
         let mut m = m;
-        m.insert(i_constant_info_name(&cs[i]), (c, i_constant_info_dup(&cs[i])));
+        m.insert(
+            i_constant_info_name(&cs[i]),
+            (c, i_constant_info_dup(&cs[i])),
+        );
         mk_ifenv_go(cs, i + 1, c + 1, m)
     }
 }
@@ -819,12 +814,7 @@ pub fn mk_ifenv_go(
 /// of `env`, with nothing hidden.  Takes the environment by value: the `IFEnv`
 /// owns it.
 pub fn mk_ifenv(env: IEnv) -> IFEnv {
-    let p = mk_ifenv_go(
-        &env.consts,
-        0,
-        0,
-        HashMap::with_capacity(env.consts.len()),
-    );
+    let p = mk_ifenv_go(&env.consts, 0, 0, HashMap::with_capacity(env.consts.len()));
     IFEnv {
         env,
         idx: p.1,
@@ -898,6 +888,63 @@ pub fn ifenv_find_proj(
 }
 
 // ---------------------------------------------------------------------------
+// The environment's value semantics (`Env.lean`'s records are values)
+//
+// Lean copies a record for free; the three items below are what that costs in
+// Rust, and they are here because `Arena/Env.lean` is where the twin declares
+// the types.  `checkIndRecs` (`arena::inductives::modeled`) is the one reader
+// that needs a whole `IFEnv` copy — it uses `fe₂` four times — which is
+// exactly the site where `con_ron_core::kernel::fenv::dup` is called on the
+// tree-shaped side.
+// ---------------------------------------------------------------------------
+
+/// con-leche: ConLeche/Kernel/Env.lean:460-486 ConstantInfo
+/// Lean twin: `proof/ConRon/Arena/Env.lean:183-191 IConstantInfo` — the
+/// dictionary `ron::HashMap::dup` needs to copy an `IFEnv`'s index.
+impl Dup for IConstantInfo {
+    /// con-leche: ConLeche/Kernel/Env.lean:460-486 ConstantInfo
+    fn dup2(&self) -> IConstantInfo {
+        i_constant_info_dup(self)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:677-679 Env
+/// Lean twin: `proof/ConRon/Arena/Env.lean:280-282 IEnv` — the environment
+/// copy Lean's value semantics gives for free.
+pub fn i_env_dup(e: &IEnv) -> IEnv {
+    IEnv {
+        consts: i_constant_infos_dup(&e.consts),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/FEnv.lean:29-49 FEnv
+/// Lean twin: `proof/ConRon/Arena/Env.lean:309-312 IFEnv` — the indexed
+/// environment's copy: the constants, the index and the visibility bound.
+/// `O(size)`, as `con_ron_core::kernel::fenv::dup` is, and for the same reason.
+pub fn ifenv_dup(fe: &IFEnv) -> IFEnv {
+    IFEnv {
+        env: i_env_dup(&fe.env),
+        idx: fe.idx.dup(),
+        visible_below: fe.visible_below,
+    }
+}
+
+/// con-leche: ConLeche/Kernel/FEnv.lean:70-75 FEnv.find?
+/// Lean twin: `proof/ConRon/Arena/Env.lean:331-334 IFEnv.find?` — **the stored
+/// constant, COPIED.**  Every reader whose answer outlives a `&mut st` pays the
+/// copy (task #97-P4c's row); written INLINE, the `Option`-producing match
+/// leaves Aeneas with two loan contexts it cannot join (*"Could not match the
+/// contexts"*, `interp/Interp.ml:617`), which is task #97-P4c's extraction
+/// rule 5 at an `ifenv_find` rather than at a `HashMap::get`.  So the copy is
+/// one function and is never inlined.
+pub fn find_ci(fe: &IFEnv, n: &NIdx) -> Option<IConstantInfo> {
+    match ifenv_find(fe, n) {
+        Some(ci) => Some(i_constant_info_dup(ci)),
+        None => None,
+    }
+}
+
+// ---------------------------------------------------------------------------
 // `Monad.lean`'s primitives, pending `arena/monad.rs` (task #97 P4b)
 //
 // `view`, `viewN`, `readName` and `readLevel` are `Arena/Monad.lean`'s, whose
@@ -917,9 +964,8 @@ pub fn view_e(ar: &EStore, h: &EIdx) -> Result<ENodeView, CheckError> {
         Some(v) => Ok(v),
         None => {
             const M: [u32; 33] = [
-                97, 114, 101, 110, 97, 58, 32, 100, 97, 110, 103, 108, 105, 110, 103, 32,
-                101, 120, 112, 114, 101, 115, 115, 105, 111, 110, 32, 104, 97, 110, 100,
-                108, 101,
+                97, 114, 101, 110, 97, 58, 32, 100, 97, 110, 103, 108, 105, 110, 103, 32, 101, 120,
+                112, 114, 101, 115, 115, 105, 111, 110, 32, 104, 97, 110, 100, 108, 101,
             ];
             Err(core_types::internal(core_types::code_points(&M)))
         }
@@ -940,8 +986,8 @@ pub fn view_n(ar: &EStore, h: &NIdx) -> Result<NNodeView, CheckError> {
 /// the same error, as the twin's two primitives do.
 pub fn dangling_name() -> CheckError {
     const M: [u32; 27] = [
-        97, 114, 101, 110, 97, 58, 32, 100, 97, 110, 103, 108, 105, 110, 103, 32, 110, 97,
-        109, 101, 32, 104, 97, 110, 100, 108, 101,
+        97, 114, 101, 110, 97, 58, 32, 100, 97, 110, 103, 108, 105, 110, 103, 32, 110, 97, 109,
+        101, 32, 104, 97, 110, 100, 108, 101,
     ];
     core_types::internal(core_types::code_points(&M))
 }
@@ -1055,8 +1101,8 @@ pub fn read_level_at(ar: &EStore, fuel: u64, h: &LIdx) -> Result<Level, CheckErr
 /// `"arena: dangling level handle"`, named once.
 pub fn dangling_level() -> CheckError {
     const M: [u32; 28] = [
-        97, 114, 101, 110, 97, 58, 32, 100, 97, 110, 103, 108, 105, 110, 103, 32, 108, 101,
-        118, 101, 108, 32, 104, 97, 110, 100, 108, 101,
+        97, 114, 101, 110, 97, 58, 32, 100, 97, 110, 103, 108, 105, 110, 103, 32, 108, 101, 118,
+        101, 108, 32, 104, 97, 110, 100, 108, 101,
     ];
     core_types::internal(core_types::code_points(&M))
 }
@@ -1070,15 +1116,11 @@ pub fn dangling_level() -> CheckError {
 /// length of a syntactic Π-telescope ending in a SORT.  A spine walk, so the
 /// fuel is the store's node count; con-leche's structural recursion is the
 /// same walk with the node read through `view`.
-pub fn pi_sort_tele_len(
-    ar: &EStore,
-    fuel: u64,
-    h: &EIdx,
-) -> Result<Option<u64>, CheckError> {
+pub fn pi_sort_tele_len(ar: &EStore, fuel: u64, h: &EIdx) -> Result<Option<u64>, CheckError> {
     if fuel == 0 {
         const M: [u32; 34] = [
-            102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 112,
-            105, 83, 111, 114, 116, 84, 101, 108, 101, 76, 101, 110, 63, 32, 40, 69, 41,
+            102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 112, 105,
+            83, 111, 114, 116, 84, 101, 108, 101, 76, 101, 110, 63, 32, 40, 69, 41,
         ];
         return Err(core_types::internal(core_types::code_points(&M)));
     }
