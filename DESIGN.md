@@ -20408,6 +20408,12 @@ column against `Expr.data` / `Name.hashData` / `Level.hashData` /
 `dropScratch` bracket (scratch handles denote `none`, persistent handles keep
 both their bits and their denotation).
 
+`#print axioms` on the four load-bearing results — `denoteE_inj`,
+`EStore.derived_exact`, `EStore.intern_ext`, `EStore.intern_view_spec` —
+reports `[propext, Classical.choice, Quot.sound]` and nothing else: no
+`sorryAx`, and (the point of the arithmetic packing above) no `bv_decide`
+axiom.
+
 #### Provenance
 
 Every `def`, `structure`, `inductive` and `theorem` carries a doc line
