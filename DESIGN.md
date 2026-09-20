@@ -24645,7 +24645,7 @@ build", done as a Rust negative control.
 
 #### What the extraction says
 
-`scripts/extract-arena.sh --dry`: **zero errors, zero warnings**, **32 450
+`scripts/extract-arena.sh --dry`: **zero errors, zero warnings**, **32 454
 lines** of model (up from P4b's 10 745 — P4e's `frontend/` landed in between),
 **3 type holes and 143 function holes**.  Of the 143, **141 are the
 `con-ron-core` boundary** and the other two are `alloc::sync::Arc::deref`
