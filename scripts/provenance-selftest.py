@@ -15,6 +15,11 @@ case that cites one declaration's range under another's name).  So a
 con-leche bump moves the fixture with the tree and cannot rot it — which is
 the whole point of a gate that is about staying in sync.
 
+`provenance.ARENA_EXEMPT` (the arena's test and scratch code, outside the
+gate) cannot be reached from a fixture — it is a predicate on the
+repository-relative path, and the fixture lives elsewhere — so it is tested
+directly, as a third case.
+
     scripts/provenance-selftest.py [--verbose]
 
 Exit codes: 0 the parser behaves, 1 it does not, 2 usage/IO error.
@@ -40,9 +45,28 @@ FIXTURE_LEAN = "ConLeche/Kernel/Name.lean"
 PLACEHOLDER_RE = re.compile(r"@@(?P<bare>#?)(?P<decl>[^@]+)@@")
 
 # What `check` must say about `bad/Bad.lean`: one finding per declaration,
-# and no more.  The fixture's own doc comments name them.
+# and no more.  The fixture's own doc comments name them.  `NAME` twice: a
+# citation with a wrong declaration name, and the same one with a ` — …`
+# prose tail after it — the tail is not part of the citation and must not
+# hide the wrong name (task #97t).
 EXPECTED_BAD = ["MALFORMED", "UNRECONCILED", "MISSING", "RANGE", "NODECL",
-                "NAME", "UNCITED"]
+                "NAME", "NAME", "UNCITED"]
+
+# How many declarations `good/Good.lean` holds: the count `check` prints, so
+# a shape silently dropped by the scanner fails here rather than passing as
+# "clean".
+EXPECTED_GOOD = 8
+
+# The path exemption of `provenance.ARENA_EXEMPT` (task #97t): the arena's
+# test and scratch code is outside the gate, the port beside it is inside.
+EXEMPT_CASES = [
+    ("proof/ConRon/Arena/StoreTest.lean", True),
+    ("proof/ConRon/Arena/Spike/Mini.lean", True),
+    ("proof/ConRon/Arena/Spike/Generated/Funs.lean", True),
+    ("proof/ConRon/Arena/Store.lean", False),
+    ("proof/ConRon/Arena/Handle.lean", False),
+    ("crates/con-ron-core/src/lib.rs", False),
+]
 
 
 def scratch_dir():
@@ -133,9 +157,10 @@ def main(argv):
         m = re.search(r"(\d+) item\(s\) \((\d+) Rust, (\d+) arena Lean\)", out)
         if not m:
             failures.append("good/: no item count in %r" % out)
-        elif (int(m.group(2)), int(m.group(3))) != (0, 6):
-            failures.append("good/: expected 0 Rust and 6 arena items, got "
-                            "%s Rust and %s arena" % (m.group(2), m.group(3)))
+        elif (int(m.group(2)), int(m.group(3))) != (0, EXPECTED_GOOD):
+            failures.append("good/: expected 0 Rust and %d arena items, got "
+                            "%s Rust and %s arena"
+                            % (EXPECTED_GOOD, m.group(2), m.group(3)))
 
     # 2. The other half must raise exactly the listed findings, once each.
     bad = os.path.join(work, "bad")
@@ -150,15 +175,51 @@ def main(argv):
         failures.append("bad/: expected findings %s, got %s\n%s"
                         % (sorted(EXPECTED_BAD), sorted(got), out))
 
+    # 3. The path exemption is a plain predicate on the repository-relative
+    #    path, so it is tested as one — a fixture cannot exercise it, since
+    #    the fixture lives outside `proof/ConRon/Arena`.
+    for path, want in EXEMPT_CASES:
+        got = P.arena_exempt(os.path.join(REPO, path))
+        if got != want:
+            failures.append("arena_exempt(%s): expected %s, got %s"
+                            % (path, want, got))
+
+    # 4. What `update` writes back.  A relocation changes the RANGE and
+    #    nothing else, so for every citation of the clean half `render` must
+    #    reproduce its line byte for byte, and `rebase` must differ from it
+    #    in the range alone — the `/--` head, the `-/` closer and the
+    #    porter's ` — …` sentence are not the gate's to rewrite (task #97t).
+    for fn in sorted(os.listdir(good)):
+        if not fn.endswith(".lean"):
+            continue
+        full = os.path.join(good, fn)
+        with open(full, encoding="utf-8") as f:
+            lines = f.read().split("\n")
+        _, cites, _ = P.scan_lean_file(full)
+        for c in cites:
+            raw = lines[c.lineno - 1].rstrip()
+            indent = re.match(r"^[ \t]*", raw).group(0)
+            if c.render(indent) != raw:
+                failures.append("render is not the identity on %s:%d:\n  %r\n  %r"
+                                % (fn, c.lineno, raw, c.render(indent)))
+                continue
+            want = raw.replace("%s:%s " % (c.path, c.range),
+                               "%s:%d-%d " % (c.path, 100, 200), 1)
+            got_line = c.rebase(100, 200).render(indent)
+            if got_line != want:
+                failures.append("rebase touched more than the range on "
+                                "%s:%d:\n  %r\n  %r"
+                                % (fn, c.lineno, want, got_line))
+
     if failures:
         for f in failures:
             print("FAIL " + f)
         print("provenance-selftest: %d failure(s)." % len(failures))
         return 1
     shutil.rmtree(work, ignore_errors=True)
-    print("provenance-selftest: the Lean parser accepts %d clean shapes and "
-          "raises %d findings, as specified."
-          % (6, len(EXPECTED_BAD)))
+    print("provenance-selftest: the Lean parser accepts %d clean shapes, "
+          "raises %d findings and exempts %d path(s), as specified."
+          % (EXPECTED_GOOD, len(EXPECTED_BAD), len(P.ARENA_EXEMPT)))
     return 0
 
 

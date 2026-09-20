@@ -1205,9 +1205,28 @@ forms are the Rust's two forms:
 The citation may open a multi-line doc comment (the delta from the cited
 code then follows it in the same comment, as in the Rust), and a bare
 `con-leche: …` line inside a doc comment counts too, so a twin that merges
-several con-leche declarations lists them one per line.  Every top-level
+several con-leche declarations lists them one per line.  The declaration
+name may be followed by a **prose tail** introduced by an em dash (or its
+ASCII spelling, ` -- `), since in Lean the sentence saying how the twin
+differs from the cited code starts on the citation's own line:
+
+```
+/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the fuel-indexed
+readback of a name. -/
+```
+
+The tail is not part of the citation: nothing checks it, and `update`
+rewrites the range and hands the sentence back verbatim.  The **Rust** rule
+is unchanged — a `///` line still ends at the declaration name, because a
+Rust doc comment has the next line for prose.  Two Arena paths are outside
+the gate altogether, exactly as `#[cfg(test)]` and `mod tests` are on the
+Rust side: `Arena/StoreTest.lean` (the store's `#guard` fixtures, written
+against the twin and ported from nothing) and `Arena/Spike/**` (the
+throwaway experiments, deleted once the question they answer is settled).
+Not scanned means not scanned: neither their declarations nor their
+citations reach `check`, and `coverage` does not count them.  Every top-level
 `def`/`structure`/`inductive`/`abbrev`/`class`/`instance`/`opaque`/`axiom`
-of `proof/ConRon/Arena/**` must carry one; a `theorem` need not, because a
+of the rest of `proof/ConRon/Arena/**` must carry one; a `theorem` need not, because a
 theorem there is the arena's *own verification* (§8.6 P2a, §8.2's bridge)
 and not a port of anything — a cited theorem is still checked, it is only
 the requirement that is lifted.  `check`, `update` and the `CHANGED`
@@ -20282,6 +20301,71 @@ no module to the `ConRon` library root — `ConRon.lean` does not import
 `ConRon.Arena.Main`, and the executable is not a default target — so
 nothing in that gate's scope changed.  `lake build con-ron-lean` is green,
 which is the part that is new.
+
+**Follow-up (same day): two rules the P2a modules needed.**  With P2a's six
+modules on the branch, `provenance.py check` reported **220 findings, all
+under `proof/ConRon/Arena/**`**.  Two of them were the gate's fault, not the
+source's, and are now fixed.
+
+  * **The prose tail.**  A Lean citation's declaration name is usually not
+    the end of the sentence — the twin's delta from the cited code is
+    written right there, after an em dash: `/-- con-leche:
+    ConLeche/Kernel/Name.lean:34-37 Name — the fuel-indexed readback … -/`.
+    The Lean citation regex anchored the name at end of line, so every such
+    line read as MALFORMED.  A separate `LEAN_CITE_RE` now accepts an
+    optional ` — <prose>` (and ` -- <prose>`) tail after the name, `Cite`
+    carries it as `prose`, and `Cite.rebase` — which `update` now uses in
+    place of a fresh `Cite` — rewrites the RANGE and nothing else, so a
+    relocation keeps the `/--` head, the `-/` closer and the porter's
+    sentence.  **The Rust rule is unchanged**: a `///` line still ends at
+    the declaration name, since a Rust doc comment has the next line for
+    prose.  113 MALFORMED gone.
+  * **Test and scratch code is outside the gate.**  `Arena/StoreTest.lean`
+    is the store's `#guard` fixtures and `Arena/Spike/**` the throwaway
+    experiments; neither is ported from anything, so neither can cite
+    anything.  `ARENA_EXEMPT` drops both from the scan entirely — the Lean
+    counterpart of `#[cfg(test)]`/`mod tests` on the Rust side — so their
+    declarations, their citations and their share of `coverage` all
+    disappear together.  A file-by-file decision in the script with the
+    reason beside it, not a blanket rule about names.
+
+The fixture grew a citation with an em-dash tail and one with the ASCII
+tail (`good/`, 6 → 8 clean shapes) and a citation whose tail sits behind a
+WRONG declaration name (`bad/`, so `NAME` is now expected twice: a tail
+must not hide the name it follows).  `provenance-selftest.py` gained two
+cases that a fixture cannot reach — `arena_exempt` as the predicate it is,
+and the round trip, asserting that `render` is the identity on every clean
+citation and `rebase` differs from it in the range alone.  Green.
+
+*Counts.*  Rust unmoved, as required: **2 363 items / 2 382 citations**,
+`coverage` **TOTAL 927/927 (100.0 %)**, and the arena group still **7/927
+twinned** (the newly-parsed citations point at constructors and fields, not
+at top-level declarations, so the ledger does not move).
+
+*What is left: 98 findings, all of them the SOURCE's to fix, in modules
+this task was not allowed to touch.*  Recorded here so the P2a agents can
+take them:
+
+  * **39 MISSING** — citations to paths that are not in con-leche at any
+    pin: `Setlec/Kernel/ArenaWF.lean` (19), `Setlec/Kernel/IExpr.lean` (16)
+    and `Verify/SimI.lean` (4, missing its `ConLeche/` prefix).  `Setlec`
+    is not this port's source tree.  `WF.lean`, `WFProofs.lean`.
+  * **32 NODECL** — citations that name an inductive CONSTRUCTOR or a
+    structure FIELD (`Name.lean:35 Name.anonymous`, `Expr.lean:356-402
+    Expr.data`).  `first_decl_line` recognises only top-level declarations,
+    in both languages.  Either the citations move up to the parent
+    `inductive`, or the gate learns constructors — a rule change that
+    touches the Rust side too, so it wants its own task.
+  * **25 UNCITED** — `Handle.lean`'s three tag namespaces, whose citation
+    sits in a `/-!` section header above the `namespace` rather than on
+    each `def` (the Lean analogue of Rust's file-wide `//!` is not
+    implemented, and a section is not a file); and `Store.lean`'s
+    `persCount`/`scrCount`, which simply have none.
+  * **2 MALFORMED** — `WFProofs.lean:558,694`, two citations joined by a
+    prose `and` on one line (`…:47-53 Level.hashData and` / newline /
+    `…:118-122 levelHasParam — …`).  The supported shape for a twin that
+    merges two declarations is one `con-leche:` line each.
+
 ### Task #97a — the arena stores (2026-09-20, Opus under Fable)
 
 Phase P2a of §8.6: the store layer of (B), under `proof/ConRon/Arena/`, as a

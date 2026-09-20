@@ -24,6 +24,12 @@ NAME: the range is a real declaration's (`Name.beq`'s), but the name cited
 is another declaration's. -/
 def badName : Nat := 3
 
+/-- con-leche: @@#Name.beq@@ Name — and a prose tail after it, which excuses
+nothing.
+NAME: the tail is not part of the citation, so the name before it is checked
+exactly as it is without one. -/
+def badNameBehindTail : Nat := 7
+
 /-- con-leche: this is not a citation and not a `none`
 MALFORMED: the body parses as neither form. -/
 def badMalformed : Nat := 4

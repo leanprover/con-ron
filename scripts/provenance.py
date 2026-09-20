@@ -71,6 +71,28 @@ ARENA_ROOTS = [
     "proof/ConRon/Arena",
 ]
 
+# …minus the arena's own test and scratch code, which is exempt exactly as
+# `#[cfg(test)]` and `mod tests` are on the Rust side: NOT SCANNED AT ALL —
+# neither its declarations nor its citations reach `check`, and `coverage`
+# (which reads the same scan) does not count them either.
+#
+#   * `StoreTest.lean` — the store's `#guard` fixtures.  Executable test
+#     vectors for `Store.lean`, written against the twin, not ported from
+#     any con-leche declaration: there is nothing for them to cite, and a
+#     citation demanded of them would have to be invented.
+#   * `Spike/**` — the throwaway experiments of DESIGN.md §8 (`Mini`,
+#     `ExpA`/`ExpB`, the extracted `Spike/Generated`).  They exist to
+#     answer one design question each and are deleted once it is answered;
+#     holding scratch to the port's provenance discipline buys nothing and
+#     would make every spike a documentation chore.
+#
+# Everything else under `ARENA_ROOTS` is the port, and carries citations.
+# Prefix match on the repository-relative path, `/`-separated.
+ARENA_EXEMPT = (
+    "proof/ConRon/Arena/StoreTest.lean",
+    "proof/ConRon/Arena/Spike/",
+)
+
 DEFAULT_ROOTS = RUST_ROOTS + ARENA_ROOTS
 
 # con-leche is a plain lake dependency of proof/ (task #91): its checked-out
@@ -132,6 +154,23 @@ MODULE_ANNOT_RE = re.compile(r"^\s*//!\s*con-leche:\s*(?P<body>.*?)\s*$")
 CITE_RE = re.compile(
     r"^(?P<path>[^\s:]+):(?P<a>\d+)(?:-(?P<b>\d+))?\s+(?P<decl>\S+)$"
 )
+# The same citation as a LEAN doc line, where the declaration name is
+# usually not the end of the sentence: the arena writes the twin's delta
+# from the cited code right there, after an em dash —
+#
+#     /-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the fuel-indexed
+#     readback of a name. -/
+#
+# so `<decl>` may be followed by ` — <prose>` (or its ASCII spelling,
+# ` -- <prose>`).  The prose is NOT part of the citation: nothing checks
+# it, and `update` puts it back verbatim when it rewrites the range (see
+# `Cite.prose`).  The RUST rule is unchanged — a `///` line still ends at
+# the declaration name, because a Rust doc comment has the next line for
+# prose and the one-line-per-citation shape is what task #8 fixed.
+LEAN_CITE_RE = re.compile(
+    r"^(?P<path>[^\s:]+):(?P<a>\d+)(?:-(?P<b>\d+))?\s+(?P<decl>\S+)"
+    r"(?P<prose>\s+(?:—|--)(?:\s.*)?)?$"
+)
 NONE_RE = re.compile(r"^none\b")
 # The `CHANGED` marker, in either language's comment syntax: `///`/`//!` in
 # Rust, `--` or a doc comment's `/--` in Lean.
@@ -157,10 +196,18 @@ class Cite:
     Lean citation may open a multi-line doc comment or sit inside one, so
     an arena citation remembers the exact text around its body (`head`,
     `tail`) and `render` puts the rewritten body back between them; a Rust
-    one is rebuilt from its `pfx` as before."""
+    one is rebuilt from its `pfx` as before.  `prose` is the ` — …` tail a
+    Lean citation may carry after the declaration name (`LEAN_CITE_RE`):
+    unchecked text that `render` must hand back untouched, since `update`
+    rewrites only the RANGE and the porter's sentence is not its business.
+
+    `rebase(a, b)` is how `update` makes the relocated citation: the same
+    line with a new range, every other field — `source`, `head`, `prose`,
+    `tail` — carried over, so a rewritten Lean citation keeps its doc
+    comment and its sentence."""
 
     def __init__(self, rust_file, lineno, path, a, b, decl, pfx="///",
-                 source="rust", head=None, tail=""):
+                 source="rust", head=None, tail="", prose=""):
         self.rust_file = rust_file  # absolute path of the .rs / .lean file
         self.lineno = lineno  # 1-based line of the annotation
         self.path = path  # con-leche-relative Lean path
@@ -171,15 +218,22 @@ class Cite:
         self.source = source
         self.head = head if head is not None else pfx + " "
         self.tail = tail
+        self.prose = prose
 
     @property
     def range(self):
         return str(self.a) if self.a == self.b else "%d-%d" % (self.a, self.b)
 
+    def rebase(self, a, b):
+        """This citation with the range `(a, b)`, everything else kept."""
+        return Cite(self.rust_file, self.lineno, self.path, a, b, self.decl,
+                    self.pfx, self.source, self.head, self.tail, self.prose)
+
     def render(self, indent):
         if self.source == "arena":
-            return "%s%scon-leche: %s:%s %s%s" % (
-                indent, self.head, self.path, self.range, self.decl, self.tail)
+            return "%s%scon-leche: %s:%s %s%s%s" % (
+                indent, self.head, self.path, self.range, self.decl,
+                self.prose, self.tail)
         return "%s%s con-leche: %s:%s %s" % (
             indent, self.pfx, self.path, self.range, self.decl)
 
@@ -390,8 +444,18 @@ def rust_files(roots):
     return source_files(roots, ".rs")
 
 
+def arena_exempt(path):
+    """Is this arena Lean file test or scratch code (`ARENA_EXEMPT`)?
+
+    `path` may be absolute or repository-relative; a file outside the
+    repository (the self-test's scratch copy of its fixture) is never
+    exempt."""
+    p = rel(path).replace(os.sep, "/")
+    return any(p == e or p.startswith(e) for e in ARENA_EXEMPT)
+
+
 def arena_files(roots):
-    return source_files(roots, ".lean")
+    return [f for f in source_files(roots, ".lean") if not arena_exempt(f)]
 
 
 # ------------------------------------------------------------ the arena scan
@@ -477,7 +541,7 @@ def scan_lean_file(path):
         if NONE_RE.match(body):
             parsed[idx] = None
             continue
-        c = CITE_RE.match(body)
+        c = LEAN_CITE_RE.match(body)
         if not c:
             bad = ("malformed", path, idx + 1, body)
             parsed[idx] = bad
@@ -486,7 +550,8 @@ def scan_lean_file(path):
         cite = Cite(path, idx + 1, c.group("path"), int(c.group("a")),
                     int(c.group("b") or c.group("a")), c.group("decl"),
                     pfx="--", source="arena",
-                    head=m.group("head"), tail=m.group("tail") or "")
+                    head=m.group("head"), tail=m.group("tail") or "",
+                    prose=c.group("prose") or "")
         parsed[idx] = cite
         cites.append(cite)
 
@@ -936,7 +1001,10 @@ def cmd_update(args):
             continue
         na, nb = loc
         new_text = [l.rstrip() for l in lines[na - 1:nb]]
-        newcite = Cite(c.rust_file, c.lineno, c.path, na, nb, c.decl, c.pfx)
+        # `rebase`, not a fresh `Cite`: the rewrite changes the RANGE and
+        # nothing else, so a Lean citation keeps its `/--` head, its `-/`
+        # closer and the porter's ` — …` sentence after the name.
+        newcite = c.rebase(na, nb)
 
         if old_text != new_text and olines is not None:
             # The cited range may already have been rewritten (a second

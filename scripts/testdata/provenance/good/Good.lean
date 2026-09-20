@@ -6,8 +6,10 @@ cannot rot the fixture), and runs `provenance.py check` over the copy.
 
 This half must come out CLEAN.  It exercises every shape the Lean side of the
 gate accepts: a one-line citation, a citation that opens a multi-line doc
-comment, two citations on one item, an explicit `none`, and a `theorem` with
-no citation at all (the arena's own verification is not a port of anything).
+comment, a citation whose declaration name is followed by a ` — …` prose tail
+(and by its ASCII spelling, ` -- …`), two citations on one item, an explicit
+`none`, and a `theorem` with no citation at all (the arena's own verification
+is not a port of anything).
 -/
 
 namespace ConRon.ArenaFixture
@@ -21,6 +23,16 @@ The citation opens the doc comment and the prose follows it: the shape most
 twins are written in, since the delta from the cited code belongs right
 here. -/
 def goodMultiLine (x : Nat) : Nat := x
+
+/-- con-leche: @@Name@@ — the fuel-indexed readback of a name.  The sentence
+after the em dash is the twin's delta from the cited code, and it is where
+the arena writes it: the gate reads the citation and leaves the prose
+alone. -/
+def goodProseTail (x : Nat) : Nat := x
+
+/-- con-leche: @@Name.beq@@ -- the same tail in ASCII, for a keyboard with no
+em dash on it. -/
+def goodAsciiProseTail (x : Nat) : Nat := x
 
 /-- con-leche: @@Name@@
 con-leche: @@Name.beq@@
