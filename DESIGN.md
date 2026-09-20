@@ -26159,3 +26159,60 @@ direction): the store would hold a duplicate node, i.e. two handles denoting
 one term.  That loses `defeqBody`'s `a == b` shortcut on those two handles —
 the checker does more work — and it cannot make two different terms share a
 handle, which is the direction that would be unsound.
+
+#### Lever 3 — the borrowed view, where it actually is: 88.9 M probe keys that were copies
+
+Task #97-P4f's third P6 item is the owned view: `NStore::view` returns an
+owned `NNodeView`, so a name node's `Vec<u32>` is copied on every decode
+(`str_copy_from` 2.3 %, `code_points_from` 1.7 %).  A counter build settles
+where those copies are, and it is not the decode:
+
+| on `Init` | count | code points |
+|---|---:|---:|
+| `NTables::get`, i.e. a `view` of a `str` node | 19 329 986 | 32 111 505 |
+| **`NTables::find`, i.e. a PROBE of a `str` node** | **88 854 033** | **314 788 323** |
+| `StrNode::dup2`, i.e. the cons-table insert | 2 929 502 | 23 712 877 |
+| `NStore::intern` calls | **140 083 646** | |
+| `NStore::find` calls (probe only, not through `intern`) | 1 078 | |
+
+So the copies are the **probe keys**, and every one of them comes through
+`intern`.  `ron::HashMap::get` takes a `&K` and there is no borrowed-key API
+(task #97-P4a's "one allocating probe, to price at P6"), so
+`NTables::find` of an `NNodeView::Str` builds a whole `StrNode` — a malloc, a
+copy of three or four code points, and a free — purely to be compared and
+dropped.  The twin's `t.strs.find? ⟨p, s⟩` copies nothing, because a Lean
+`String` is a value.
+
+**The fix needs no new API and no borrowed view at all.**  `NStore::intern`
+receives the `NNodeView` BY VALUE, so the `str` arm can build the `StrNode`
+once, by MOVE, probe both tiers with it and then push it: `NStore::intern_str`.
+Same probes, same order, same result, zero copies.  (The `anonymous` and `num`
+arms keep the twin's spelling verbatim — their records are all scalars.)
+
+| | instructions:u | cycles:u | wall, 3 runs | peak RSS |
+|---|---:|---:|---:|---:|
+| after the probe skip | 756.0 G | 417.2 G | 96.24 / 96.73 / 97.65 | 1 925 048 KB |
+| **after lever 3** | **736.2 G** | **399.3 G** | **91.75 / 91.73 / (98.50)** | 1 880 916 KB |
+| | −2.6 % | −4.3 % | | −2.3 % |
+
+(The third wall run of the lever-3 set landed while a sibling agent's build
+was running; the two clean ones are 91.7 s and the final table below is
+re-measured.)
+
+**What the counter also says, and it is the largest thing left.**  140 M name
+interns is itself the finding: `pin` is `intern_name` and there are 73 `pin`
+call sites in `arena::core` alone, each of them re-interning a CONSTANT name
+— `basis_names::string_of_list_name()` and its forty siblings — in the
+checker's hot loops.  In the twin those are nullary `def`s, which Lean
+evaluates once and caches; in Rust they are `fn`s that rebuild the whole
+`Name` (a `code_points` malloc and an `Arc<NameNode>` per component) on every
+call, and then `intern_name` walks it component by component.  That is
+`code_points_from` (1.7 %), `mk_str`, `Arc<NameNode>::drop_slow` and a large
+share of the allocator's 4 % — and it is pure waste, tens of millions of
+rebuilds of forty constants.
+
+It is **not taken here**, because every way of taking it is a decision above a
+performance pass: a `pin` memo is a memo-policy change (DESIGN.md §3.1), a
+cached `static` is `std::sync` and an atomic the arena does not otherwise
+have, and hoisting the `pin`s out of the loops changes the twin's shape at
+seventy-three sites.  The number is here so the decision can be made on it.

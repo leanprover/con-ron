@@ -1296,6 +1296,73 @@ impl NStore {
     /// Lean's `intern_spec`, and DESIGN.md §8.3 puts the test here — "the Rust
     /// raises `Native` at the limit, the Lean `throw`s the same kind".
     pub fn intern(&mut self, v: NNodeView) -> Result<NIdx, CheckError> {
+        match v {
+            NNodeView::Str(p, sv) => {
+                let d: u64 = name::mix_hash(
+                    name::mix_hash(1, self.derived(&p)),
+                    name::str_hash(&sv),
+                );
+                self.intern_str(StrNode { pre: p, s: sv }, d)
+            }
+            NNodeView::Anonymous => self.intern_other(NNodeView::Anonymous),
+            NNodeView::Num(p, n) => self.intern_other(NNodeView::Num(p, n)),
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean:474-490 NStore.intern`, the `str` arm —
+    /// **the probe key built once, by MOVE.**
+    ///
+    /// The twin's `t.strs.find? ⟨p, s⟩` copies nothing: a Lean `String` is a
+    /// value.  `NTables::find` of an `NNodeView::Str` has to build a whole
+    /// `StrNode` to hand `ron::HashMap::get` a `&K`, and that means
+    /// `expr::str_copy` of the component — a malloc, a copy and a free — on
+    /// every probe of every tier.  Task #97-P6-1 counted them on `Init`:
+    /// **140 083 646 name interns, 88 854 033 of them of a `str` node**, so
+    /// 88.9 M allocations whose only purpose was to be compared and dropped.
+    /// The recursors' and basis names' handles are re-pinned in the hot loops
+    /// (`pin` is `intern_name`, 73 call sites in `arena::core`), which is
+    /// where the count comes from.
+    ///
+    /// Building the record ONCE from the view the caller already owns costs
+    /// nothing at all: `sv` is moved in, not copied, and the same record is
+    /// probed against both tiers and then pushed.  Same probes, same order,
+    /// same result — `der_of_view`'s `str` line is spelled at the caller for
+    /// the same reason, so that `sv` is still in hand when it is needed.
+    pub fn intern_str(&mut self, node: StrNode, d: u64) -> Result<NIdx, CheckError> {
+        match self.pers.strs.find(&node) {
+            Some(i) => Ok(i),
+            None => {
+                if self.scratch_on {
+                    match self.scr.strs.find(&node) {
+                        Some(i) => Ok(i),
+                        None => {
+                            if self.scr.strs.size() >= IDX_CAP as usize {
+                                Err(CheckError::Native(code_points(&M_N_CAP)))
+                            } else {
+                                let i: NIdx =
+                                    NIdx::pack(NTAG_STR, TIER_S, self.scr.strs.size() as u32);
+                                self.scr.strs.push(node, d, i.dup2());
+                                Ok(i)
+                            }
+                        }
+                    }
+                } else if self.pers.strs.size() >= IDX_CAP as usize {
+                    Err(CheckError::Native(code_points(&M_N_CAP)))
+                } else {
+                    let i: NIdx = NIdx::pack(NTAG_STR, TIER_P, self.pers.strs.size() as u32);
+                    self.pers.strs.push(node, d, i.dup2());
+                    Ok(i)
+                }
+            }
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin:
+    /// `proof/ConRon/Arena/Store.lean:474-490 NStore.intern` — the two arms
+    /// whose record is all scalars, so that building it twice costs nothing
+    /// and the twin's spelling is kept verbatim.
+    pub fn intern_other(&mut self, v: NNodeView) -> Result<NIdx, CheckError> {
         match self.pers.find(&v) {
             Some(i) => Ok(i),
             None => {
