@@ -37,3 +37,6 @@ pub mod basis;
 pub mod nat_op_pin_set;
 pub mod checker_base;
 pub mod checker_split;
+pub mod decl_check;
+pub mod inductives;
+pub mod checker;

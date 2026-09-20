@@ -27,7 +27,7 @@
 
 use crate::arena::core::CORE_WALK_FUEL;
 use crate::arena::env::{
-    IConstantInfo, IConstantVal, IProjTable, IRecRule, IRecRuleFire,
+    IConstantInfo, IConstantVal, IIndCaps, IProjTable, IRecRule, IRecRuleFire,
 };
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
 use crate::arena::monad::{fail, intern_n_node, view, view_l, view_ls, AState};
@@ -35,6 +35,7 @@ use crate::arena::store::{ENodeView, LNodeView, NNodeView};
 use con_ron_core::kernel::core_types::{code_points, CheckError};
 use con_ron_core::kernel::env as cenv;
 use con_ron_core::kernel::expr;
+use con_ron_core::kernel::prop_when;
 use con_ron_core::ron::hashmap::{Dup, Eq2};
 
 // ---------------------------------------------------------------------------
@@ -688,5 +689,86 @@ pub fn canon_eq_list(
                 }
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The derived equality on a stored constant
+//
+// `Arena/DeclCheck.lean` and `Arena/Checker.lean` compare a stored constant
+// with a pin by `==` (`fe.find? eqName == some eqA`), which in the twin is the
+// `deriving DecidableEq` of `IConstantInfo`.  Rust has no derive (§3.4), so
+// the instance is spelled out here, beside `i_proj_table_beq` which it needs.
+// ---------------------------------------------------------------------------
+
+/// con-leche: ConLeche/Kernel/Env.lean:186-191 ConstantVal
+/// Lean twin: `proof/ConRon/Arena/Env.lean:73-77 IConstantVal` — the cited
+/// `deriving DecidableEq`, field by field.
+pub fn i_constant_val_beq(a: &IConstantVal, b: &IConstantVal) -> bool {
+    a.name.eq2(&b.name) && nidx_vec_beq(&a.level_params, &b.level_params, 0) && a.ty.eq2(&b.ty)
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:239-282 RecRule
+/// Lean twin: `proof/ConRon/Arena/Env.lean:94-103 IRecRule` — the cited
+/// `deriving DecidableEq`: `i_rec_rule_eq_but_rhs` and the right-hand side.
+pub fn i_rec_rule_beq(a: &IRecRule, b: &IRecRule) -> bool {
+    i_rec_rule_eq_but_rhs(a, b) && a.rhs.eq2(&b.rhs)
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:239-282 RecRule
+/// A rule list compared elementwise.
+pub fn i_rec_rules_beq(a: &Vec<IRecRule>, b: &Vec<IRecRule>, i: usize) -> bool {
+    if i >= a.len() && i >= b.len() {
+        true
+    } else if i >= a.len() || i >= b.len() {
+        false
+    } else if i_rec_rule_beq(&a[i], &b[i]) {
+        i_rec_rules_beq(a, b, i + 1)
+    } else {
+        false
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:347-374 IndCaps
+/// Lean twin: `proof/ConRon/Arena/Env.lean:117-131 IIndCaps` — the cited
+/// `deriving DecidableEq`; `sortZ` goes through `PropWhen`'s own.
+pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
+    a.eta == b.eta
+        && a.eta_ctor.eq2(&b.eta_ctor)
+        && a.eta_params == b.eta_params
+        && a.eta_fields == b.eta_fields
+        && a.unitlike == b.unitlike
+        && a.unit_params == b.unit_params
+        && a.rule_k == b.rule_k
+        && prop_when::beq(&a.sort_z, &b.sort_z)
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:460-486 ConstantInfo
+/// Lean twin: `proof/ConRon/Arena/Env.lean:183-191 IConstantInfo` — the cited
+/// `deriving DecidableEq`, constructor for constructor.  This is the `==` of
+/// `fe.find? eqName == some eqA`, the whole-constant comparison the pinned
+/// `Eq` and `Nat` bases are recognised by.
+pub fn i_constant_info_beq(a: &IConstantInfo, b: &IConstantInfo) -> bool {
+    match (a, b) {
+        (IConstantInfo::AxiomInfo(x), IConstantInfo::AxiomInfo(y)) => {
+            i_constant_val_beq(x, y)
+        }
+        (IConstantInfo::DefnInfo(x, v, h), IConstantInfo::DefnInfo(y, w, h2)) => {
+            i_constant_val_beq(x, y) && v.eq2(w) && cenv::reducibility_hint_beq(h, h2)
+        }
+        (IConstantInfo::ThmInfo(x, v), IConstantInfo::ThmInfo(y, w)) => {
+            i_constant_val_beq(x, y) && v.eq2(w)
+        }
+        (IConstantInfo::IndInfo(x, c), IConstantInfo::IndInfo(y, d)) => {
+            i_constant_val_beq(x, y) && i_ind_caps_beq(c, d)
+        }
+        (IConstantInfo::CtorInfo(x, p, f), IConstantInfo::CtorInfo(y, q, g)) => {
+            i_constant_val_beq(x, y) && p == q && f == g
+        }
+        (IConstantInfo::RecInfo(x, m, p, rs), IConstantInfo::RecInfo(y, n, q, ss)) => {
+            i_constant_val_beq(x, y) && m == n && p == q && i_rec_rules_beq(rs, ss, 0)
+        }
+        (IConstantInfo::ProjInfo(t), IConstantInfo::ProjInfo(u)) => i_proj_table_beq(t, u),
+        _ => false,
     }
 }
