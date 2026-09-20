@@ -32,7 +32,10 @@ use crate::arena::checker_base::{
     all_level_params_defined, astate_dup, consts_resolve_f_fast, or_else_attempt,
     OrElseStep,
 };
-use crate::arena::checker_split::{install_value, M_THM_NOT_PROP};
+use crate::arena::checker_split::{
+    install_value, M_THM_NOT_PROP, M_TYPE_MISMATCH_DEFN, M_TYPE_MISMATCH_OPAQUE,
+    M_TYPE_MISMATCH_THM,
+};
 use crate::arena::core::{
     annotate_core, bool_false_name, bool_name, bool_true_name, const_e, ensure_sort_core,
     infer_type_core, is_def_eq_core, lift_fueled, lvl_eq, nat_add_name, nat_ap1, nat_ap2,
@@ -125,27 +128,6 @@ pub const M_REDUCE_NOT_ID: [u32; 48] = [
     112, 105, 110, 110, 101, 100, 32, 99, 111, 109, 112, 105, 108, 101, 114, 45, 116, 114,
     117, 115, 116, 32, 111, 112, 97, 113, 117, 101, 32, 105, 115, 32, 110, 111, 116, 32,
     116, 104, 101, 32, 105, 100, 101, 110, 116, 105, 116, 121
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"type mismatch in definition"`, as code points.
-pub const M_TYPE_MISMATCH_DEFN: [u32; 27] = [
-    116, 121, 112, 101, 32, 109, 105, 115, 109, 97, 116, 99, 104, 32, 105, 110, 32, 100,
-    101, 102, 105, 110, 105, 116, 105, 111, 110
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"type mismatch in theorem"`, as code points.
-pub const M_TYPE_MISMATCH_THM: [u32; 24] = [
-    116, 121, 112, 101, 32, 109, 105, 115, 109, 97, 116, 99, 104, 32, 105, 110, 32, 116,
-    104, 101, 111, 114, 101, 109
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"type mismatch in opaque"`, as code points.
-pub const M_TYPE_MISMATCH_OPAQUE: [u32; 23] = [
-    116, 121, 112, 101, 32, 109, 105, 115, 109, 97, 116, 99, 104, 32, 105, 110, 32, 111,
-    112, 97, 113, 117, 101
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)

@@ -19,10 +19,16 @@
 //!   compares it with the declared one.  Everything it allocates is
 //!   intermediate, and the scratch tier is dropped at its end.
 //!
-//! `ValueKind.word` (`CheckerSplit.lean:44-48`) has no Rust counterpart: it
-//! renders the kind into the type-mismatch message, and the port drops the
-//! interpolation (§3.1), so the message is one constant for all three kinds —
-//! `con_ron_core::kernel::checker_split`'s own note says the same.
+//! `ValueKind.word` IS ported, where `con_ron_core::kernel::checker_split`
+//! skips it: it renders the kind into the type-mismatch message, and the port
+//! drops the *name* interpolation (§3.1) but keeps the KIND, because that word
+//! is what makes the two folds — `check_decls_pure`'s
+//! `check{Defn,Thm,Opaque}Val` and `install_then_check`'s `check_value_group`
+//! — report the same message on the same stream.  con-ron-core's two lanes
+//! differ there ("type mismatch in definition" against "type mismatch in
+//! declaration") and nothing of it compares them; the arena's differential
+//! test does (`chk_install` against `check_decls_pure`), which is exactly the
+//! agreement con-leche's `fullyChecked_checkDecls` is about.
 
 use crate::arena::checker_base::{
     check_constant_val_guards, consts_resolve_f_fast, install_constant_val_tail,
@@ -75,10 +81,24 @@ pub const M_THM_NOT_PROP: [u32; 36] = [
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"type mismatch in declaration"`, as code points.
-pub const M_TYPE_MISMATCH_DECL: [u32; 28] = [
+/// `"type mismatch in definition"`, as code points.
+pub const M_TYPE_MISMATCH_DEFN: [u32; 27] = [
     116, 121, 112, 101, 32, 109, 105, 115, 109, 97, 116, 99, 104, 32, 105, 110, 32, 100,
-    101, 99, 108, 97, 114, 97, 116, 105, 111, 110
+    101, 102, 105, 110, 105, 116, 105, 111, 110
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"type mismatch in theorem"`, as code points.
+pub const M_TYPE_MISMATCH_THM: [u32; 24] = [
+    116, 121, 112, 101, 32, 109, 105, 115, 109, 97, 116, 99, 104, 32, 105, 110, 32, 116,
+    104, 101, 111, 114, 101, 109
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"type mismatch in opaque"`, as code points.
+pub const M_TYPE_MISMATCH_OPAQUE: [u32; 23] = [
+    116, 121, 112, 101, 32, 109, 105, 115, 109, 97, 116, 99, 104, 32, 105, 110, 32, 111,
+    112, 97, 113, 117, 101
 ];
 
 // ---------------------------------------------------------------------------
@@ -93,6 +113,20 @@ pub enum ValueKind {
     Defn,
     Thm,
     Opaque,
+}
+
+/// con-leche: ConLeche/Kernel/CheckerSplit.lean:44-48 ValueKind.word
+/// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:44-47 ValueKind.word` — the
+/// kind's word in `checkDecl`'s type-mismatch message.  The twin returns the
+/// word and the caller interpolates it into a `String`; the port has the three
+/// whole messages as constants and returns the one the kind selects, which is
+/// the same three strings minus the name (the module note).
+pub fn value_kind_word(k: &ValueKind) -> Vec<u32> {
+    match k {
+        ValueKind::Defn => code_points(&M_TYPE_MISMATCH_DEFN),
+        ValueKind::Thm => code_points(&M_TYPE_MISMATCH_THM),
+        ValueKind::Opaque => code_points(&M_TYPE_MISMATCH_OPAQUE),
+    }
 }
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:36-42 ValueKind
@@ -299,7 +333,7 @@ pub fn check_value_group_tail(
                     if ok {
                         Ok(())
                     } else {
-                        fail(CheckError::Invalid(code_points(&M_TYPE_MISMATCH_DECL)))
+                        fail(CheckError::Invalid(value_kind_word(&g.kind)))
                     }
                 }
             }

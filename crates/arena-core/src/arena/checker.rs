@@ -1319,3 +1319,757 @@ pub fn intern_all_names(st: &mut AState) -> Result<(), CheckError> {
         },
     }
 }
+
+// ---------------------------------------------------------------------------
+// The differential test (`proof/ConRon/Arena/CheckerTest.lean`)
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::arena::canon::i_constant_info_beq;
+    use crate::arena::intern::{intern_ci_list, intern_cv, intern_decls};
+    use crate::arena::std_axioms::i_constant_val_matches_pin;
+    use crate::arena::store::EStore;
+    use con_ron_core::cached::state_c;
+    use con_ron_core::cached::state_c::CState;
+    use con_ron_core::kernel::basis_raw;
+    use con_ron_core::kernel::canon as ccanon;
+    use con_ron_core::kernel::checker as ckr;
+    use con_ron_core::kernel::env::{ConstantInfo, ConstantVal, Declaration, Env};
+    use con_ron_core::kernel::expr;
+    use con_ron_core::kernel::expr::{BinderMeta, Expr};
+    use con_ron_core::kernel::fenv;
+    use con_ron_core::kernel::level;
+    use con_ron_core::kernel::name;
+    use con_ron_core::kernel::name::Name;
+    use con_ron_core::kernel::prop_when;
+    use con_ron_core::kernel::std_axioms as cstd;
+    use con_ron_core::ron::ptr::P;
+
+    // --- the mode, the pins, and the outcome comparisons ---------------------
+
+    /// The mode every check runs at: `.verified`, the lane the bridge is
+    /// stated at.
+    fn mu() -> CheckMode {
+        CheckMode::Verified
+    }
+
+    /// The empty pin list, which is what `CheckerTest.lean` passes: no subject
+    /// below reaches the `Nat.div`/`Nat.mod` variant loop with its guards
+    /// passing, so the list's contents are not what is under test.
+    fn no_pins() -> Vec<NatOpPinSet> {
+        Vec::new()
+    }
+
+    /// The empty pin list, interned.
+    fn no_pins_i() -> Vec<INatOpPinSet> {
+        Vec::new()
+    }
+
+    fn ok<T>(r: Result<T, CheckError>) -> T {
+        match r {
+            Ok(x) => x,
+            Err(_) => panic!("the fixture must build without a decline"),
+        }
+    }
+
+    /// The arena's error against con-ron-core's: same constructor, same
+    /// message.  `Native` — the port's own decline, which no con-leche `throw`
+    /// stands behind — never matches, which is right: a `Native` claims
+    /// nothing (the twin's `errEq`, whose fourth constructor has no con-leche
+    /// counterpart at all).
+    fn err_eq(a: &CheckError, b: &CheckError) -> bool {
+        match (a, b) {
+            (CheckError::NotImplemented(x), CheckError::NotImplemented(y)) => {
+                name::str_eq(x, y)
+            }
+            (CheckError::Invalid(x), CheckError::Invalid(y)) => name::str_eq(x, y),
+            (CheckError::Internal(x), CheckError::Internal(y)) => name::str_eq(x, y),
+            _ => false,
+        }
+    }
+
+    /// `Env.consts` as owned records: con-ron-core shares a stored constant
+    /// through a `P`, and `intern_ci_list` wants the values.
+    fn unshare(cs: &Vec<P<ConstantInfo>>) -> Vec<ConstantInfo> {
+        let mut out: Vec<ConstantInfo> = Vec::with_capacity(cs.len());
+        let mut i: usize = 0;
+        while i < cs.len() {
+            out.push(con_ron_core::kernel::env::constant_info_dup(&cs[i]));
+            i += 1;
+        }
+        out
+    }
+
+    /// **The whole-environment comparison.**  The twin reads the arena's
+    /// environment BACK (`denoteCIList`) and compares with con-leche's; the
+    /// port INTERNS con-ron-core's and compares handles, which is the same
+    /// test read in the other direction — `denoteE` is injective, so two
+    /// constants have the same handles exactly when they denote the same
+    /// values — and needs no second readback.  It is also slightly stronger:
+    /// it compares the install-computed fields (`ctorParams`, `fire`, the
+    /// reducibility hint) that a readback compares too but a `canon` would not.
+    fn env_agrees(st: &mut AState, fe: &IFEnv, env: &Env) -> bool {
+        let want = ok(intern_ci_list(st, &unshare(&env.consts)));
+        let got = &fe.env.consts;
+        if want.len() != got.len() {
+            return false;
+        }
+        let mut i: usize = 0;
+        while i < want.len() {
+            if !i_constant_info_beq(&want[i], &got[i]) {
+                return false;
+            }
+            i += 1;
+        }
+        true
+    }
+
+    // --- the three runs ------------------------------------------------------
+
+    /// Intern a declaration list and run the arena's `check_decls_pure` on it.
+    fn run_decls(ds_cl: &Vec<Declaration>) -> (AState, Result<IFEnv, CheckError>) {
+        let mut st = AState::init(EStore::empty());
+        let ds = ok(intern_decls(&mut st, ds_cl));
+        let r = check_decls_pure(&mut st, &mu(), &no_pins_i(), &ds);
+        (st, r)
+    }
+
+    /// con-ron-core's own `check_decls_pure` on the same values.
+    fn core_decls(ds_cl: &Vec<Declaration>) -> Result<Env, CheckError> {
+        let mut cst: CState = state_c::cstate_new();
+        match ckr::check_decls_pure(&mu(), &no_pins(), &mut cst, ds_cl) {
+            Ok(fe) => Ok(fe.env),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// The arena's `check_decls_pure` against con-ron-core's, over the WHOLE
+    /// outcome: the same environment, constant for constant, or the same error.
+    fn chk_decls(ds_cl: &Vec<Declaration>) -> bool {
+        let (mut st, r) = run_decls(ds_cl);
+        match (r, core_decls(ds_cl)) {
+            (Ok(fe), Ok(env)) => env_agrees(&mut st, &fe, &env),
+            (Err(a), Err(b)) => err_eq(&a, &b),
+            _ => false,
+        }
+    }
+
+    /// The arena's `check_decl` at a non-empty environment against
+    /// con-ron-core's.  The environment is built by `check_decls_pure` on
+    /// con-ron-core's side and by interning ITS result on the arena's, so the
+    /// two calls see the same environment and the check is about the STEP.
+    fn chk_decl(env_cl: &Env, d_cl: &Declaration) -> bool {
+        let mut st = AState::init(EStore::empty());
+        let cs = ok(intern_ci_list(&mut st, &unshare(&env_cl.consts)));
+        let mut ds1: Vec<Declaration> = Vec::with_capacity(1);
+        ds1.push(con_ron_core::frontend::export_c::declaration_dup(d_cl));
+        let ds = ok(intern_decls(&mut st, &ds1));
+        let fe0: IFEnv = mk_ifenv(crate::arena::env::IEnv { consts: cs });
+        let arena = check_decl(&mut st, &mu(), &no_pins_i(), fe0, &ds[0]);
+        let mut cst: CState = state_c::cstate_new();
+        let fe_cl = fenv::mk_fenv(con_ron_core::kernel::env::env_dup(env_cl));
+        let core = ckr::check_decl(&mu(), &no_pins(), &mut cst, fe_cl, d_cl);
+        match (arena, core) {
+            (Ok(fe), Ok(fe2)) => env_agrees(&mut st, &fe, &fe2.env),
+            (Err(a), Err(b)) => err_eq(&a, &b),
+            _ => false,
+        }
+    }
+
+    /// The TWO-PHASE fold against con-ron-core's ONE-PHASE `check_decls_pure`,
+    /// over the whole outcome — con-leche proves the two are the same accept
+    /// (`fullyChecked_checkDecls`), and this is that agreement, measured.  The
+    /// startup pin walk runs in front, as `run_pipeline` will.
+    ///
+    /// It is also the test of the per-declaration BRACKET, since `check_pending`
+    /// is the only caller of `enter_scratch`/`drop_scratch`: a handle that
+    /// leaked out of the scratch tier would make the installed environment
+    /// compare unequal to con-ron-core's.
+    fn chk_install(ds_cl: &Vec<Declaration>) -> bool {
+        let mut st = AState::init(EStore::empty());
+        let ds = ok(intern_decls(&mut st, ds_cl));
+        let pins = ok(intern_all_pins(&mut st, &no_pins()));
+        let arena = install_then_check(&mut st, &mu(), &pins, &ds);
+        match (arena, core_decls(ds_cl)) {
+            (Ok(fe), Ok(env)) => env_agrees(&mut st, &fe, &env),
+            (Err((a, _)), Err(b)) => err_eq(&a, &b),
+            _ => false,
+        }
+    }
+
+    /// con-ron-core's own outcome, pinned by hand: an accept whose environment
+    /// has this many constants.
+    fn ok_size(r: &Result<Env, CheckError>, n: usize) -> bool {
+        match r {
+            Ok(env) => env.consts.len() == n,
+            Err(_) => false,
+        }
+    }
+
+    /// con-ron-core's own outcome, pinned by hand: a failure of this kind and
+    /// this message.
+    fn fails_with(r: &Result<Env, CheckError>, x: &CheckError) -> bool {
+        match r {
+            Err(e) => err_eq(e, x),
+            Ok(_) => false,
+        }
+    }
+
+    // --- the subjects, written once as con-ron-core values -------------------
+
+    fn nm(s: &str) -> Name {
+        name::mk_str(name::anonymous(), s.chars().map(|c| c as u32).collect())
+    }
+
+    fn never() -> BinderMeta {
+        expr::binder_meta(prop_when::never())
+    }
+
+    fn nat_ty() -> Expr {
+        expr::mk_const(basis_names::nat_name(), Vec::new())
+    }
+
+    fn zero_e() -> Expr {
+        expr::mk_const(basis_names::nat_zero_name(), Vec::new())
+    }
+
+    fn succ_e() -> Expr {
+        expr::mk_const(basis_names::nat_succ_name(), Vec::new())
+    }
+
+    fn cv(n: Name, lps: Vec<Name>, ty: Expr) -> ConstantVal {
+        ConstantVal { name: n, level_params: lps, ty }
+    }
+
+    fn hint() -> ReducibilityHint {
+        ReducibilityHint::Regular(1)
+    }
+
+    /// `two := Nat.succ (Nat.succ Nat.zero)`.
+    fn d_two() -> Declaration {
+        Declaration::DefnDecl(
+            cv(nm("two"), Vec::new(), nat_ty()),
+            expr::app(succ_e(), expr::app(succ_e(), zero_e())),
+            hint(),
+        )
+    }
+
+    /// A definition whose value does not inhabit its declared type.
+    fn d_two_bad() -> Declaration {
+        Declaration::DefnDecl(
+            cv(nm("bad"), Vec::new(), nat_ty()),
+            expr::sort(level::zero()),
+            hint(),
+        )
+    }
+
+    /// A definition whose type mentions a constant nothing declares.
+    fn d_unknown() -> Declaration {
+        Declaration::DefnDecl(
+            cv(nm("u"), Vec::new(), expr::mk_const(nm("nope"), Vec::new())),
+            zero_e(),
+            hint(),
+        )
+    }
+
+    /// A definition under a reserved basis name.
+    fn d_reserved() -> Declaration {
+        Declaration::DefnDecl(
+            cv(basis_names::nat_name(), Vec::new(), nat_ty()),
+            zero_e(),
+            hint(),
+        )
+    }
+
+    /// A definition with a loose bound variable in its value.
+    fn d_loose() -> Declaration {
+        Declaration::DefnDecl(
+            cv(nm("l"), Vec::new(), nat_ty()),
+            expr::bvar(0),
+            hint(),
+        )
+    }
+
+    /// A definition with duplicate universe parameters.
+    fn d_dup_univ() -> Declaration {
+        let mut lps: Vec<Name> = Vec::with_capacity(2);
+        lps.push(nm("u"));
+        lps.push(nm("u"));
+        Declaration::DefnDecl(cv(nm("d"), lps, nat_ty()), zero_e(), hint())
+    }
+
+    /// The proposition a theorem is stated at: `Eq.{1} Nat 0 0`, over the
+    /// pinned `Eq` basis — an ORDINARY user axiom is a positive decline at its
+    /// own record, so a proposition has to come from the basis rather than be
+    /// postulated.
+    fn p_e() -> Expr {
+        expr::app(
+            expr::app(
+                expr::app(
+                    expr::mk_const(basis_names::eq_name(), cstd::one_level()),
+                    nat_ty(),
+                ),
+                zero_e(),
+            ),
+            zero_e(),
+        )
+    }
+
+    /// `Eq.refl Nat 0`.
+    fn pf_e() -> Expr {
+        expr::app(
+            expr::app(
+                expr::mk_const(basis_names::eq_refl_name(), cstd::one_level()),
+                nat_ty(),
+            ),
+            zero_e(),
+        )
+    }
+
+    /// A theorem: `Eq.refl Nat 0` proves `0 = 0`.
+    fn d_thm() -> Declaration {
+        Declaration::ThmDecl(cv(nm("t"), Vec::new(), p_e()), pf_e())
+    }
+
+    /// A theorem whose type is not a proposition.
+    fn d_thm_not_prop() -> Declaration {
+        Declaration::ThmDecl(cv(nm("tn"), Vec::new(), nat_ty()), zero_e())
+    }
+
+    /// A theorem whose value does not inhabit its statement.
+    fn d_thm_bad() -> Declaration {
+        Declaration::ThmDecl(cv(nm("tb"), Vec::new(), p_e()), zero_e())
+    }
+
+    /// An `opaque`: stored as an `axiomInfo`, its value a discarded witness.
+    fn d_opaque() -> Declaration {
+        Declaration::OpaqueDecl(
+            cv(nm("o"), Vec::new(), nat_ty()),
+            expr::app(succ_e(), expr::app(succ_e(), zero_e())),
+        )
+    }
+
+    /// `sorryAx`: the one axiom tolerated as a DECLARATION, installing nothing.
+    fn d_sorry() -> Declaration {
+        Declaration::AxiomDecl(cv(
+            basis_names::sorry_ax_name(),
+            Vec::new(),
+            expr::forall_e(
+                expr::sort(level::succ(level::zero())),
+                expr::bvar(0),
+                never(),
+            ),
+        ))
+    }
+
+    /// `propext` at a shape the pinned `Iff` family does not back.
+    fn d_propext() -> Declaration {
+        Declaration::AxiomDecl(cv(
+            cstd::propext_name(),
+            Vec::new(),
+            expr::sort(level::zero()),
+        ))
+    }
+
+    /// An ordinary user axiom: a positive decline at its own record.
+    fn d_other_ax() -> Declaration {
+        Declaration::AxiomDecl(cv(nm("myax"), Vec::new(), nat_ty()))
+    }
+
+    /// `Nat.add` under a nonstandard body: the structural-`Nat` pin gate's
+    /// subject.  The environment has no `Nat.add` dependencies, so the gate
+    /// declines with its environment message.
+    fn d_nat_op(n: Name) -> Declaration {
+        Declaration::DefnDecl(
+            cv(
+                n,
+                Vec::new(),
+                expr::forall_e(
+                    nat_ty(),
+                    expr::forall_e(nat_ty(), nat_ty(), never()),
+                    never(),
+                ),
+            ),
+            expr::lam(
+                nat_ty(),
+                expr::lam(nat_ty(), expr::bvar(1), never()),
+                never(),
+            ),
+            hint(),
+        )
+    }
+
+    fn d_nat_add() -> Declaration {
+        d_nat_op(name::mk_str(
+            basis_names::nat_name(),
+            "add".chars().map(|c| c as u32).collect(),
+        ))
+    }
+
+    /// `Nat.div` under a nonstandard body: the WF-recursive pin gate's subject,
+    /// declining at `divModEnvGuard` (the environment has no `Nat.ble`).
+    fn d_nat_div() -> Declaration {
+        d_nat_op(name::mk_str(
+            basis_names::nat_name(),
+            "div".chars().map(|c| c as u32).collect(),
+        ))
+    }
+
+    // --- the lists -----------------------------------------------------------
+
+    fn list1(a: Declaration) -> Vec<Declaration> {
+        let mut v: Vec<Declaration> = Vec::with_capacity(1);
+        v.push(a);
+        v
+    }
+
+    /// The basis prefix every accepting list starts with: the pinned `Eq`
+    /// block, then the pinned `Nat` block.
+    fn basis_prefix() -> Vec<Declaration> {
+        let mut v: Vec<Declaration> = Vec::with_capacity(2);
+        v.push(Declaration::BasisDecl(BasisKind::EqK));
+        v.push(Declaration::BasisDecl(BasisKind::NatK));
+        v
+    }
+
+    /// The basis prefix plus the given records.
+    fn prefixed(ds: Vec<Declaration>) -> Vec<Declaration> {
+        let mut v = basis_prefix();
+        let mut ds = ds;
+        while ds.len() > 0 {
+            let d = ds.remove(0);
+            v.push(d);
+        }
+        v
+    }
+
+    /// The accepting list: the two basis blocks, a definition, a theorem, an
+    /// opaque, and a tolerated `sorryAx`.
+    fn ds_good() -> Vec<Declaration> {
+        prefixed(vec![d_two(), d_thm(), d_opaque(), d_sorry()])
+    }
+
+    /// The quotient block, which requires the pinned `Eq` basis first.
+    fn ds_quot() -> Vec<Declaration> {
+        let mut v: Vec<Declaration> = Vec::with_capacity(2);
+        v.push(Declaration::BasisDecl(BasisKind::EqK));
+        v.push(Declaration::BasisDecl(BasisKind::QuotK));
+        v
+    }
+
+    /// The quotient block WITHOUT the `Eq` basis: a decline.
+    fn ds_quot_bad() -> Vec<Declaration> {
+        list1(Declaration::BasisDecl(BasisKind::QuotK))
+    }
+
+    /// A duplicate declaration: the second `two` is invalid input.
+    fn ds_dup() -> Vec<Declaration> {
+        prefixed(vec![d_two(), d_two()])
+    }
+
+    // --- what con-ron-core itself says ---------------------------------------
+
+    /// `chk_decls` passes when the two checkers AGREE, and two agreeing
+    /// failures agree.  These five lines pin con-ron-core's own outcome by
+    /// hand, so that the differential below is evidence of something.
+    #[test]
+    fn con_ron_cores_own_outcome_on_the_subjects() {
+        assert!(ok_size(&core_decls(&basis_prefix()), 7));
+        assert!(ok_size(&core_decls(&ds_good()), 10));
+        assert!(ok_size(&core_decls(&ds_quot()), 8));
+        assert!(fails_with(
+            &core_decls(&ds_quot_bad()),
+            &CheckError::NotImplemented(code_points(&M_QUOT_BASIS_EQ))
+        ));
+        assert!(fails_with(
+            &core_decls(&ds_dup()),
+            &CheckError::Invalid(code_points(
+                &crate::arena::checker_base::M_DUP_DECL
+            ))
+        ));
+    }
+
+    // --- the differential: `check_decls_pure` --------------------------------
+
+    #[test]
+    fn check_decls_pure_agrees_on_the_basis_blocks() {
+        assert!(chk_decls(&basis_prefix()));
+        assert!(chk_decls(&ds_quot()));
+        assert!(chk_decls(&ds_quot_bad()));
+        assert!(chk_decls(&list1(Declaration::BasisDecl(BasisKind::PunitK))));
+        assert!(chk_decls(&list1(Declaration::BasisDecl(BasisKind::EmptyK))));
+        assert!(chk_decls(&list1(Declaration::BasisDecl(BasisKind::FalseK))));
+    }
+
+    #[test]
+    fn check_decls_pure_agrees_on_the_accept_lane() {
+        assert!(chk_decls(&ds_good()));
+        assert!(chk_decls(&ds_dup()));
+        assert!(chk_decls(&prefixed(vec![d_sorry()])));
+    }
+
+    #[test]
+    fn check_decls_pure_agrees_on_the_reject_lane() {
+        assert!(chk_decls(&prefixed(vec![d_two_bad()])));
+        assert!(chk_decls(&prefixed(vec![d_unknown()])));
+        assert!(chk_decls(&prefixed(vec![d_reserved()])));
+        assert!(chk_decls(&prefixed(vec![d_loose()])));
+        assert!(chk_decls(&prefixed(vec![d_dup_univ()])));
+        assert!(chk_decls(&prefixed(vec![d_thm_bad()])));
+        assert!(chk_decls(&prefixed(vec![d_thm_not_prop()])));
+    }
+
+    #[test]
+    fn check_decls_pure_agrees_on_the_decline_lane() {
+        assert!(chk_decls(&prefixed(vec![d_propext()])));
+        assert!(chk_decls(&prefixed(vec![d_other_ax()])));
+        assert!(chk_decls(&prefixed(vec![d_nat_add()])));
+        assert!(chk_decls(&prefixed(vec![d_nat_div()])));
+    }
+
+    // --- the differential: `check_decl` at a non-empty environment ------------
+
+    /// The environment `basis_prefix` installs, on con-ron-core's side.
+    fn env_basis() -> Env {
+        match core_decls(&basis_prefix()) {
+            Ok(env) => env,
+            Err(_) => panic!("the basis prefix must install"),
+        }
+    }
+
+    #[test]
+    fn check_decl_agrees_at_a_non_empty_environment() {
+        let e = env_basis();
+        assert_eq!(e.consts.len(), 7);
+        assert!(chk_decl(&e, &d_two()));
+        assert!(chk_decl(&e, &d_two_bad()));
+        assert!(chk_decl(&e, &d_unknown()));
+        assert!(chk_decl(&e, &d_reserved()));
+        assert!(chk_decl(&e, &d_loose()));
+        assert!(chk_decl(&e, &d_dup_univ()));
+    }
+
+    #[test]
+    fn check_decl_agrees_on_the_axiom_and_basis_arms() {
+        let e = env_basis();
+        assert!(chk_decl(&e, &d_opaque()));
+        assert!(chk_decl(&e, &d_sorry()));
+        assert!(chk_decl(&e, &d_propext()));
+        assert!(chk_decl(&e, &d_other_ax()));
+        assert!(chk_decl(&e, &d_nat_add()));
+        assert!(chk_decl(&e, &d_nat_div()));
+        assert!(chk_decl(&e, &Declaration::BasisDecl(BasisKind::PunitK)));
+        assert!(chk_decl(&e, &Declaration::BasisDecl(BasisKind::QuotK)));
+        assert!(chk_decl(
+            &e,
+            &Declaration::QuotDecl(
+                QuotKind::Type,
+                cv(basis_names::quot_name(), Vec::new(), nat_ty())
+            )
+        ));
+    }
+
+    // --- the differential: the TWO-PHASE fold --------------------------------
+
+    #[test]
+    fn install_then_check_agrees_with_the_one_phase_fold() {
+        assert!(chk_install(&basis_prefix()));
+        assert!(chk_install(&ds_good()));
+        assert!(chk_install(&ds_quot()));
+        assert!(chk_install(&ds_quot_bad()));
+        assert!(chk_install(&ds_dup()));
+        assert!(chk_install(&prefixed(vec![d_two_bad()])));
+    }
+
+    #[test]
+    fn install_then_check_agrees_on_the_rest() {
+        assert!(chk_install(&prefixed(vec![d_unknown()])));
+        assert!(chk_install(&prefixed(vec![d_thm_bad()])));
+        assert!(chk_install(&prefixed(vec![d_thm_not_prop()])));
+        assert!(chk_install(&prefixed(vec![d_opaque()])));
+        assert!(chk_install(&prefixed(vec![d_nat_add()])));
+        assert!(chk_install(&prefixed(vec![d_nat_div()])));
+    }
+
+    // --- the pieces below `check_decl` ---------------------------------------
+
+    /// The arena's `std_axiom_ok` against con-ron-core's.
+    fn chk_std_axiom(env_cl: &Env, c: &ConstantVal) -> bool {
+        let mut st = AState::init(EStore::empty());
+        let cs = ok(intern_ci_list(&mut st, &unshare(&env_cl.consts)));
+        let icv = ok(intern_cv(&mut st, c));
+        let fe: IFEnv = mk_ifenv(crate::arena::env::IEnv { consts: cs });
+        let got = ok(crate::arena::decl_check::std_axiom_ok(&mut st, &fe, &icv));
+        let fe_cl = fenv::mk_fenv(con_ron_core::kernel::env::env_dup(env_cl));
+        got == cstd::std_axiom_ok(&fe_cl, c)
+    }
+
+    #[test]
+    fn std_axiom_ok_agrees() {
+        let e = env_basis();
+        assert!(chk_std_axiom(
+            &e,
+            &cv(cstd::propext_name(), Vec::new(), expr::sort(level::zero()))
+        ));
+        assert!(chk_std_axiom(
+            &e,
+            &cv(cstd::choice_name(), Vec::new(), expr::sort(level::zero()))
+        ));
+        assert!(chk_std_axiom(&e, &cv(nm("x"), Vec::new(), nat_ty())));
+    }
+
+    /// The arena's `matchesPin` against con-ron-core's, on a term that differs
+    /// only in a binder's `pw` datum (which the comparison forgives), on one
+    /// that differs in its type (which it does not), and on one that differs in
+    /// its level parameters.
+    fn chk_matches_pin(c: &ConstantVal, pin: &ConstantVal) -> bool {
+        let mut st = AState::init(EStore::empty());
+        let a = ok(intern_cv(&mut st, c));
+        let b = ok(intern_cv(&mut st, pin));
+        let got = ok(i_constant_val_matches_pin(&st, &a, &b));
+        got == cstd::matches_pin_fast(c, pin)
+    }
+
+    #[test]
+    fn matches_pin_agrees() {
+        let two = nm("two");
+        assert!(chk_matches_pin(
+            &cv(name::dup(&two), Vec::new(), nat_ty()),
+            &cv(name::dup(&two), Vec::new(), nat_ty())
+        ));
+        assert!(chk_matches_pin(
+            &cv(name::dup(&two), Vec::new(), nat_ty()),
+            &cv(name::dup(&two), Vec::new(), expr::sort(level::zero()))
+        ));
+        assert!(chk_matches_pin(
+            &cv(
+                name::dup(&two),
+                Vec::new(),
+                expr::forall_e(nat_ty(), nat_ty(), never())
+            ),
+            &cv(
+                name::dup(&two),
+                Vec::new(),
+                expr::forall_e(
+                    nat_ty(),
+                    nat_ty(),
+                    expr::binder_meta(prop_when::if_all_zero(Vec::new()))
+                )
+            )
+        ));
+        let mut lps: Vec<Name> = Vec::with_capacity(1);
+        lps.push(nm("u"));
+        assert!(chk_matches_pin(
+            &cv(name::dup(&two), lps, nat_ty()),
+            &cv(name::dup(&two), Vec::new(), nat_ty())
+        ));
+    }
+
+    /// The arena's `canonEqList` against con-ron-core's, on the pinned blocks
+    /// and on a block that is not one.
+    fn chk_canon_list(xs: &Vec<ConstantInfo>, ys: &Vec<ConstantInfo>) -> bool {
+        let mut st = AState::init(EStore::empty());
+        let a = ok(intern_ci_list(&mut st, xs));
+        let b = ok(intern_ci_list(&mut st, ys));
+        let got = ok(crate::arena::canon::canon_eq_list(&mut st, &a, &b, 0));
+        got == ccanon::canon_eq_list(xs, ys)
+    }
+
+    #[test]
+    fn canon_eq_list_agrees() {
+        let nat = basis_raw::basis_kind_decls(&BasisKind::NatK);
+        let eq = basis_raw::basis_kind_decls(&BasisKind::EqK);
+        assert!(chk_canon_list(&nat, &basis_raw::basis_kind_decls(&BasisKind::NatK)));
+        assert!(chk_canon_list(&eq, &basis_raw::basis_kind_decls(&BasisKind::EqK)));
+        assert!(chk_canon_list(&eq, &nat));
+        assert!(chk_canon_list(
+            &con_ron_core::kernel::basis_tables::basis_decls_a(&BasisKind::EqK),
+            &eq
+        ));
+    }
+
+    /// The arena's `basisPinHit` against con-ron-core's.
+    fn chk_basis_pin_hit(block: &Vec<ConstantInfo>) -> bool {
+        let mut st = AState::init(EStore::empty());
+        let b = ok(intern_ci_list(&mut st, block));
+        let got = ok(basis_pin_hit(&mut st, &b));
+        let want = basis_raw::basis_pin_hit(block);
+        match (got, want) {
+            (None, None) => true,
+            (Some(x), Some(y)) => basis_kind_beq(&x, &y),
+            _ => false,
+        }
+    }
+
+    /// The six-constructor enum's equality, which `kernel::env` does not carry.
+    fn basis_kind_beq(a: &BasisKind, b: &BasisKind) -> bool {
+        match (a, b) {
+            (BasisKind::EqK, BasisKind::EqK) => true,
+            (BasisKind::NatK, BasisKind::NatK) => true,
+            (BasisKind::PunitK, BasisKind::PunitK) => true,
+            (BasisKind::EmptyK, BasisKind::EmptyK) => true,
+            (BasisKind::FalseK, BasisKind::FalseK) => true,
+            (BasisKind::QuotK, BasisKind::QuotK) => true,
+            _ => false,
+        }
+    }
+
+    #[test]
+    fn basis_pin_hit_agrees() {
+        assert!(chk_basis_pin_hit(&basis_raw::basis_kind_decls(&BasisKind::NatK)));
+        assert!(chk_basis_pin_hit(&basis_raw::basis_kind_decls(&BasisKind::EqK)));
+        assert!(chk_basis_pin_hit(&basis_raw::basis_kind_decls(&BasisKind::PunitK)));
+        assert!(chk_basis_pin_hit(&basis_raw::basis_kind_decls(&BasisKind::QuotK)));
+        assert!(chk_basis_pin_hit(&Vec::new()));
+    }
+
+    // --- the startup walk and `atDecl` ---------------------------------------
+
+    /// `intern_all_pins` puts every pinned datum in the PERSISTENT tier, which
+    /// is what makes a later `pin` of the same name — inside a scratch tier —
+    /// hand back the persistent handle.  Beyond the twin's `#guard`s: the Lean
+    /// tests this from outside, through `chkInstall`'s readback.
+    #[test]
+    fn the_startup_walk_interns_into_the_persistent_tier() {
+        let mut st = AState::init(EStore::empty());
+        let _ = ok(intern_all_pins(&mut st, &no_pins()));
+        let n0 = st.store.pers_count();
+        assert!(n0 > 0);
+        // a scratch tier, and the same names again: nothing new is appended
+        // and every handle is persistent
+        enter_scratch(&mut st);
+        let eqn = ok(pin(&mut st, &basis_names::eq_name()));
+        assert!(eqn.is_persistent());
+        let blk = ok(basis_kind_decls_a(&mut st, &BasisKind::EqK));
+        let mut i: usize = 0;
+        while i < blk.len() {
+            let cvv = ok(crate::arena::env::i_constant_info_to_constant_val(
+                &mut st.store,
+                &blk[i],
+            ));
+            assert!(cvv.ty.is_persistent());
+            i += 1;
+        }
+        assert_eq!(st.store.pers_count(), n0);
+        drop_scratch(&mut st);
+    }
+
+    /// `at_decl` renders the fold position into the message, and only into the
+    /// message: the kind is untouched.  Beyond the twin's `#guard`s.
+    #[test]
+    fn at_decl_renders_the_position() {
+        let e = CheckError::Invalid(code_points(&M_NONSTD_AXIOM));
+        match at_decl(e, 12) {
+            CheckError::Invalid(m) => {
+                let want: Vec<u32> = "non-standard axiom (declaration 12)"
+                    .chars()
+                    .map(|c| c as u32)
+                    .collect();
+                assert!(name::str_eq(&m, &want));
+            }
+            _ => panic!("at_decl keeps the kind"),
+        }
+    }
+}
