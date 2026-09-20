@@ -1935,4 +1935,407 @@ def iotaRec (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     | _ => pure none
   | _ => pure none
 
+
+/-! ## The projection certificate and the reduction bodies
+
+con-leche's `Core.lean`:1834-2074. -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1834-1843 ProjEntry.typeAt — **the
+type of a `.proj` node at a tower-backed entry**: the stored body,
+level-instantiated at the subject type's levels, with the subject type's
+arguments and the subject substituted for its `numParams + 1` loose
+variables in ONE traversal. -/
+def IProjEntry.typeAt (entry : IProjEntry) (us : LsIdx) (targs : List EIdx)
+    (pe : EIdx) : AM EIdx := do
+  let b ← instLPFast coreWalkFuel entry.levelParams us entry.body
+  instantiateListFast coreWalkFuel b (pe :: targs.reverse) 0
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1845-1880 projCert — **the
+structural projection's certificate**: the redex `proj_i (C p⃗ x⃗)` fires only
+after its constructor spine is certified against `C`'s stored type at the
+redex's own levels. -/
+def projCert (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (lic : Bool)
+    (c : NIdx) (us : LsIdx) (args : List EIdx) : AM Bool := do
+  match fe.find? c with
+  | some (.ctorInfo cvC _ _) => do
+    let ty ← constTyAt cvC us
+    iotaCerts r fe depth lic ty args
+  | _ => pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1882-1894 projCertAt — **the fire
+certificate as the mode runs it**: the P core certifies the constructor
+spine; the parity core is the official kernel's, which certifies nothing. -/
+def projCertAt (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (verified lic : Bool)
+    (c : NIdx) (us : LsIdx) (args : List EIdx) : AM Bool :=
+  if verified then projCert r fe depth lic c us args else pure true
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1896-1928 betaGateFires — **THE β
+SITE'S GATE**: at `mode.betaGate` a λ-binder whose *validated* annotation
+datum is `.never` licenses skipping the certificate.  Mode-and-datum only,
+so it is decidable before the certificate would have started. -/
+@[inline] def betaGateFires (mode : CheckMode) (pw : PropWhen) : Bool :=
+  mode.betaGate && pw.isNever
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1930-2019 whnfCoreBody — the
+head-normalization body: beta (with the per-redex argument certificate),
+iota (with the stuck-major machinery) and the projection rule — but **no
+delta**.  Values return themselves, which over handles is the handle itself:
+hash-consing makes `.sort u` interned from a `.sort u` view the same
+node. -/
+def whnfCoreBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
+    Nat → EIdx → AM EIdx :=
+  fun depth e => do
+    match ← view e with
+    | .sort _ | .fvar _ _ | .forallE _ _ _ | .lam _ _ _ | .const _ _
+    | .lit _ => pure e
+    | .app f a => do
+      let f' ← r.whnfCore depth f
+      match ← view f' with
+      | .lam ty body mb => do
+        if betaGateFires mode mb.pw then do
+          let b ← instantiate1Fast coreWalkFuel body a 0
+          r.whnfCore depth b
+        else do
+          -- con-leche's task #172 B4: the certificate's inference runs at
+          -- the io grade
+          let ta ← r.inferIO depth a
+          if ← r.defeq depth ta ty then do
+            let b ← instantiate1Fast coreWalkFuel body a 0
+            r.whnfCore depth b
+          else internE (.app f' a)
+      | _ => do
+        let ap ← internE (.app f' a)
+        match ← iotaRec mode r fe depth ap with
+        | some e'' => r.whnfCore depth e''
+        | none => pure ap
+    | .proj sn i pe => do
+      let e0 ← r.whnf depth pe
+      -- a string-literal scrutinee first expands to its reduced
+      -- constructor form
+      let e' ← projLitToCtor r fe depth e0
+      match ← fe.findProj? sn i with
+      | some entry => do
+        match ← view (← getAppFn coreWalkFuel e') with
+        | .const c us => do
+          let args ← getAppArgs coreWalkFuel e'
+          let usl ← viewLs us
+          let fok ← entry.fireOk us
+          if c = entry.ctor ∧ i < entry.numFields ∧
+              args.length = entry.numParams + entry.numFields ∧
+              usl.length = entry.levelParams.length ∧ fok = true then do
+            let b0 ← internE (.bvar 0)
+            let arg := args.getD (entry.numParams + i) b0
+            if ← projCertAt r fe depth mode.verifiedChecks mode.betaGate c us
+                args then
+              r.whnfCore depth arg
+            else internE (.proj sn i e')
+          else internE (.proj sn i e')
+        | _ => internE (.proj sn i e')
+      | none => internE (.proj sn i e')
+    | .letE _ _ _ =>
+      -- **Unreachable by construction** (con-leche's task #241): annotate
+      -- output is let-free
+      fail (.internal "whnfCore: `let` in an annotated expression")
+    | .bvar _ =>
+      fail (.notImplemented "whnf beyond the supported fragment")
+
+/-- con-leche: ConLeche/Kernel/Core.lean:2021-2029 whnfCoreLoopFuel — step
+budget of the `whnfCore` head-normalization loop.  The arena's
+`whnfCoreBody` is con-leche's SPEC shape — beta, iota and projection steps
+chained through the knot, not iterated in a local loop — so this budget has
+no reader here yet; it is twinned because the executed loop
+(`Cached/CoreC.lean`'s `whnfCoreLoopI`) is what P2g will measure against,
+and its budget must be the same number. -/
+def whnfCoreLoopFuel : Nat := 1000000
+
+/-- con-leche: ConLeche/Kernel/Core.lean:2031-2038 whnfLoopFuel — step budget
+of the `whnf` reduction loop (lean4lean's `FuelConfig.whnf`, same value).
+Literal-acceleration and delta steps are *iteration*, not recursion. -/
+def whnfLoopFuel : Nat := 100000
+
+/-- con-leche: ConLeche/Kernel/Core.lean:2040-2055 whnfStep — one iteration
+of the reduction loop: head-normalize, try literal acceleration, unfold one
+definition — and hand the reduct to the loop's continuation `k`. -/
+def whnfStep (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (k : EIdx → AM EIdx)
+    (e : EIdx) : AM EIdx := do
+  let e₁ ← r.whnfCore depth e
+  match ← reduceNat r fe depth e₁ with
+  | some e₂ => k e₂
+  | none =>
+    match ← unfoldDefinition fe e₁ with
+    | some e₂ => k e₂
+    | none => pure e₁
+
+/-- con-leche: ConLeche/Kernel/Core.lean:2057-2062 whnfLoop — the reduction
+loop: iterate `whnfStep` on its own step budget, so the whole chain costs one
+knot level however many steps it takes. -/
+def whnfLoop (r : CoreFnsA) (fe : IFEnv) (depth : Nat) : Nat → EIdx → AM EIdx
+  | 0, _ => fail (.internal "fuel exhausted: whnf loop")
+  | n + 1, e => whnfStep r fe depth (whnfLoop r fe depth n) e
+
+/-- con-leche: ConLeche/Kernel/Core.lean:2064-2066 whnfBody — the reduction
+loop's body: run `whnfLoop` at its own step budget. -/
+def whnfBody (r : CoreFnsA) (fe : IFEnv) : Nat → EIdx → AM EIdx :=
+  fun depth e => whnfLoop r fe depth whnfLoopFuel e
+
+/-- con-leche: ConLeche/Kernel/Core.lean:2068-2074 ensureSort — ensure `e`
+(the type of some expression) is a sort, returning its level. -/
+def ensureSort (r : CoreFnsA) (_fe : IFEnv) (depth : Nat) (e : EIdx) :
+    AM LIdx := do
+  match ← view (← r.whnf depth e) with
+  | .sort u => pure u
+  | _ => fail (.invalid "expected a sort")
+
+/-- con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody — the λ clause's
+result, `.forallE ty (bt.abstract1 depth) mb`.  con-leche writes it once at
+the end of a clause with three exits; the arena names it, so the three exits
+share one spelling and no arm is duplicated (DESIGN §8.4's Rust shape). -/
+def inferLamResult (ty bt : EIdx) (depth : Nat) (mb : BinderMeta) : AM EIdx := do
+  let ab ← abstract1Fast coreWalkFuel bt depth 0
+  internE (.forallE ty ab mb)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody — the inference
+body.  The `.const` clause reads the stored type through `constTyAt`, so a
+constant inferred twice at the same levels pays the level substitution
+once. -/
+def inferBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
+    Nat → EIdx → AM EIdx :=
+  fun depth e => do
+    match ← view e with
+    | .sort u => do
+      let su ← internLNode (.succ u)
+      internE (.sort su)
+    | .fvar idx ty =>
+      -- scope check at the leaf of a traversal that happens anyway
+      if idx < depth then pure ty
+      else fail (.invalid "free variable out of scope")
+    | .const n us => do
+      match fe.find? n with
+      | none => do
+        let err ← unknownConstError n
+        fail err
+      | some ci => do
+        -- a projection table is not a term (con-leche's task #175 W4c)
+        if ci.isTowerEntry then do
+          let x ← readName n
+          fail (.invalid s!"projection table entry used as a constant {x}")
+        else do
+          let cv ← ci.toConstantVal
+          let usl ← viewLs us
+          if usl.length != cv.levelParams.length then do
+            let x ← readName n
+            fail (.invalid s!"incorrect number of universe levels for {x}")
+          else constTyAt cv us
+    | .lit (.natVal _) => do
+      if ← natLitSupported fe then do
+        let nn ← pin ConLeche.natName
+        constE nn
+      else fail (.invalid "Nat literal without the Nat basis declarations")
+    | .lit (.strVal _) => do
+      if ← strLitSupported fe then do
+        let sn ← pin ConLeche.stringName
+        constE sn
+      else fail (.notImplemented
+        "string literals before the String support declarations")
+    | .forallE ty body mb => do
+      match ← view (← r.whnf depth (← r.infer depth ty)) with
+      | .sort u => do
+        let fv ← internE (.fvar depth ty)
+        let ob ← instantiate1Fast coreWalkFuel body fv 0
+        let v ← ensureSort r fe (depth + 1) (← r.infer (depth + 1) ob)
+        let ok ←
+          if mode.verifiedChecks then do
+            let lv ← readLevel v
+            pure (Level.zeronessOf lv == mb.pw)
+          else pure true
+        if !ok then
+          fail (.notImplemented "sort-annotation mismatch (forall-cod)")
+        else do
+          let iu ← internLNode (.imax u v)
+          internE (.sort iu)
+      | _ => fail (.invalid "expected a sort")
+    | .lam ty body mb => do
+      match ← view (← r.whnf depth (← r.infer depth ty)) with
+      | .sort _ => do
+        let fv ← internE (.fvar depth ty)
+        let ob ← instantiate1Fast coreWalkFuel body fv 0
+        let bt ← r.infer (depth + 1) ob
+        if mode.verifiedChecks then do
+          match ← lamPw body with
+          | some pwI =>
+            -- con-leche's task #161 chain rule: datum equality with the
+            -- neighbour, no inference
+            if !(mb.pw == pwI) then
+              fail (.notImplemented "sort-annotation mismatch (lam-cod-chain)")
+            else inferLamResult ty bt depth mb
+          | none => do
+            -- the innermost binder: the task-#152 codomain-sort computation
+            let btt ← r.inferIO (depth + 1) bt
+            let vb ← ensureSort r fe (depth + 1) btt
+            let lvb ← readLevel vb
+            if !(Level.zeronessOf lvb == mb.pw) then
+              fail (.notImplemented "sort-annotation mismatch (lam-cod-leaf)")
+            else inferLamResult ty bt depth mb
+        else inferLamResult ty bt depth mb
+      | _ => fail (.invalid "expected a sort")
+    | .app f a => do
+      let tf ← r.infer depth f
+      match ← view (← r.whnf depth tf) with
+      | .forallE ty body _mt => do
+        -- per-argument re-check (con-leche's task #100 de-gating)
+        let ta ← r.infer depth a
+        if !(← r.defeq depth ta ty) then
+          fail (.invalid "application type mismatch")
+        else instantiate1Fast coreWalkFuel body a 0
+      | _ => fail (.invalid "function expected")
+    | .proj sn i pe => do
+      let te ← r.whnf depth (← r.infer depth pe)
+      match ← view (← getAppFn coreWalkFuel te) with
+      | .const T us => do
+        match ← fe.findProj? T i with
+        | some entry => do
+          let targs ← getAppArgs coreWalkFuel te
+          let usl ← viewLs us
+          -- con-leche's task #175 wiring W5: the node's struct name must be
+          -- the subject type's head
+          if T = sn ∧ targs.length = entry.numParams ∧
+              usl.length = entry.levelParams.length then do
+            let z ← zeroLevel
+            if (← lvlEq? entry.structSort z) == some true then do
+              let ks ← readNames entry.levelParams
+              let vs ← readLevels us
+              let fs ← readLevel entry.fieldSort
+              if !(Level.isEquiv (Level.subst ks vs fs) .zero == some true) then
+                fail (.invalid
+                  "projection from a propositional structure must be a proposition")
+              else entry.typeAt us targs pe
+            else entry.typeAt us targs pe
+          else fail (.notImplemented "projection without a native entry")
+        | none => fail (.notImplemented "projection without a native entry")
+      | _ => fail (.notImplemented "projection without a native entry")
+    | .letE _ _ _ =>
+      fail (.internal "inferType: `let` in an annotated expression")
+    | .bvar _ =>
+      fail (.notImplemented "inferType beyond the supported fragment")
+
+/-- con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO — **the io
+inference body**: `inferBody` with two clauses changed — no domain-sort run
+at the λ (official's `infer_lambda` skips it at `infer_only`), and the
+application rule's per-argument certificate skipped when the ∀'s validated
+annotation licenses it. -/
+def inferBodyIO (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
+    Nat → EIdx → AM EIdx :=
+  fun depth e => do
+    match ← view e with
+    | .sort u => do
+      let su ← internLNode (.succ u)
+      internE (.sort su)
+    | .fvar idx ty =>
+      if idx < depth then pure ty
+      else fail (.invalid "free variable out of scope")
+    | .const n us => do
+      match fe.find? n with
+      | none => do
+        let err ← unknownConstError n
+        fail err
+      | some ci => do
+        if ci.isTowerEntry then do
+          let x ← readName n
+          fail (.invalid s!"projection table entry used as a constant {x}")
+        else do
+          let cv ← ci.toConstantVal
+          let usl ← viewLs us
+          if usl.length != cv.levelParams.length then do
+            let x ← readName n
+            fail (.invalid s!"incorrect number of universe levels for {x}")
+          else constTyAt cv us
+    | .lit (.natVal _) => do
+      if ← natLitSupported fe then do
+        let nn ← pin ConLeche.natName
+        constE nn
+      else fail (.invalid "Nat literal without the Nat basis declarations")
+    | .lit (.strVal _) => do
+      if ← strLitSupported fe then do
+        let sn ← pin ConLeche.stringName
+        constE sn
+      else fail (.notImplemented
+        "string literals before the String support declarations")
+    | .forallE ty body mb => do
+      match ← view (← r.whnf depth (← r.infer depth ty)) with
+      | .sort u => do
+        let fv ← internE (.fvar depth ty)
+        let ob ← instantiate1Fast coreWalkFuel body fv 0
+        let v ← ensureSort r fe (depth + 1) (← r.infer (depth + 1) ob)
+        let ok ←
+          if mode.verifiedChecks then do
+            let lv ← readLevel v
+            pure (Level.zeronessOf lv == mb.pw)
+          else pure true
+        if !ok then
+          fail (.notImplemented "sort-annotation mismatch (forall-cod)")
+        else do
+          let iu ← internLNode (.imax u v)
+          internE (.sort iu)
+      | _ => fail (.invalid "expected a sort")
+    | .lam ty body mb => do
+      -- con-leche's task #168 stage 2: no domain-sort run at the io grade
+      let fv ← internE (.fvar depth ty)
+      let ob ← instantiate1Fast coreWalkFuel body fv 0
+      let bt ← r.infer (depth + 1) ob
+      if mode.verifiedChecks then do
+        match ← lamPw body with
+        | some pwI =>
+          if !(mb.pw == pwI) then
+            fail (.notImplemented "sort-annotation mismatch (lam-cod-chain)")
+          else inferLamResult ty bt depth mb
+        | none => do
+          let btt ← r.infer (depth + 1) bt
+          let vb ← ensureSort r fe (depth + 1) btt
+          let lvb ← readLevel vb
+          if !(Level.zeronessOf lvb == mb.pw) then
+            fail (.notImplemented "sort-annotation mismatch (lam-cod-leaf)")
+          else inferLamResult ty bt depth mb
+      else inferLamResult ty bt depth mb
+    | .app f a => do
+      let tf ← r.infer depth f
+      match ← view (← r.whnf depth tf) with
+      | .forallE ty body mt => do
+        -- **THE io SITE.**  At a ∀ whose datum is `never` the certificate is
+        -- dead weight; the read is the DATUM ALONE (the licence ruling of
+        -- 2026-09-06), never the mode.
+        if !mt.pw.isNever then do
+          let ta ← r.infer depth a
+          if !(← r.defeq depth ta ty) then
+            fail (.invalid "application type mismatch")
+          else instantiate1Fast coreWalkFuel body a 0
+        else instantiate1Fast coreWalkFuel body a 0
+      | _ => fail (.invalid "function expected")
+    | .proj sn i pe => do
+      let te ← r.whnf depth (← r.infer depth pe)
+      match ← view (← getAppFn coreWalkFuel te) with
+      | .const T us => do
+        match ← fe.findProj? T i with
+        | some entry => do
+          let targs ← getAppArgs coreWalkFuel te
+          let usl ← viewLs us
+          if T = sn ∧ targs.length = entry.numParams ∧
+              usl.length = entry.levelParams.length then do
+            let z ← zeroLevel
+            if (← lvlEq? entry.structSort z) == some true then do
+              let ks ← readNames entry.levelParams
+              let vs ← readLevels us
+              let fs ← readLevel entry.fieldSort
+              if !(Level.isEquiv (Level.subst ks vs fs) .zero == some true) then
+                fail (.invalid
+                  "projection from a propositional structure must be a proposition")
+              else entry.typeAt us targs pe
+            else entry.typeAt us targs pe
+          else fail (.notImplemented "projection without a native entry")
+        | none => fail (.notImplemented "projection without a native entry")
+      | _ => fail (.notImplemented "projection without a native entry")
+    | .letE _ _ _ =>
+      fail (.internal "inferType: `let` in an annotated expression")
+    | .bvar _ =>
+      fail (.notImplemented "inferType beyond the supported fragment")
+
 end ConRon.Arena
