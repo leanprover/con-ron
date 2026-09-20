@@ -338,6 +338,53 @@ private def chkBinders (c : AM (Option (List (EIdx × BinderMeta) × EIdx)))
 #guard chkB (wscopedB F 0 fx.big) (Expr.wscopedB 0 (E fx.big))
 #guard chkB (wscopedB F 2 fx.letT) (Expr.wscopedB 2 (E fx.letT))
 
+/-! ### The memoized scope queries (task #97g)
+
+`wscopedBFast`, `fvarLeavesFast` and `leafGuard` are `Cached/ExprOpsC.lean`'s
+walks, and the point of having the pure ones beside them is that the two can
+be compared: the expected side is the PURE arena walk (not a hand-written
+answer), so a memo that answers differently from the walk it memoizes fails
+the build. -/
+
+/-- con-leche: none — a `Bool`-valued twin whose EXPECTED side is another
+arena computation, for the memoized-against-pure differentials. -/
+private def chkBB (c d : AM Bool) : Bool :=
+  match c.run S0, d.run S0 with
+  | .ok (r, _), .ok (r', _) => r == r'
+  | _, _ => false
+
+/-- con-leche: none — the same for the `fvarLeaves` shape: the memoized walk
+accumulates on the way IN, so the two lists are compared as sets. -/
+private def chkFvLL (c d : AM (List (Nat × EIdx))) : Bool :=
+  match c.run S0, d.run S0 with
+  | .ok (r, _), .ok (r', _) =>
+    r.all (fun x => r'.contains x) && r'.all (fun x => r.contains x)
+  | _, _ => false
+
+#guard chkBB (wscopedBFast F 5 fx.big) (wscopedB F 5 fx.big)
+#guard chkBB (wscopedBFast F 1 fx.big) (wscopedB F 1 fx.big)
+#guard chkBB (wscopedBFast F 0 fx.big) (wscopedB F 0 fx.big)
+#guard chkBB (wscopedBFast F 2 fx.letT) (wscopedB F 2 fx.letT)
+#guard chkB (wscopedBFast F 5 fx.big) (Expr.wscopedB 5 (E fx.big))
+#guard chkB (wscopedBFast F 0 fx.big) (Expr.wscopedB 0 (E fx.big))
+
+#guard chkFvLL (fvarLeavesFast F fx.big) (fvarLeaves F fx.big)
+#guard chkFvLL (fvarLeavesFast F fx.fv1) (fvarLeaves F fx.fv1)
+#guard chkFvLL (fvarLeavesFast F fx.s0) (fvarLeaves F fx.s0)
+
+/-- con-leche: none — `leafGuard fab base` against `Core.lean`'s
+specification, `fvarLeavesSubset (fvarLeaves fab) (fvarLeaves base)`. -/
+private def leafSpec (fab base : EIdx) : AM Bool := do
+  let fl ← fvarLeaves F fab
+  let ml ← fvarLeaves F base
+  pure (fl.all (fun l => ml.contains l))
+
+#guard chkBB (leafGuard F fx.big fx.big) (leafSpec fx.big fx.big)
+#guard chkBB (leafGuard F fx.fv1 fx.big) (leafSpec fx.fv1 fx.big)
+#guard chkBB (leafGuard F fx.big fx.fv1) (leafSpec fx.big fx.fv1)
+#guard chkBB (leafGuard F fx.s0 fx.fv1) (leafSpec fx.s0 fx.fv1)
+#guard chkBB (leafGuard F fx.letT fx.big) (leafSpec fx.letT fx.big)
+
 #guard chkB (looseBVarsBounded F 3 fx.big) (Expr.looseBVarsBounded 3 (E fx.big))
 #guard chkB (looseBVarsBounded F 0 fx.big) (Expr.looseBVarsBounded 0 (E fx.big))
 #guard chkB (looseBVarsBounded F 1 fx.letT) (Expr.looseBVarsBounded 1 (E fx.letT))

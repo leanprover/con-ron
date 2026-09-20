@@ -1604,17 +1604,24 @@ def fvarLeavesSubset : List (Nat × EIdx) → List (Nat × EIdx) → Bool
   | [], _ => true
   | l :: ls, ms => ms.contains l && fvarLeavesSubset ls ms
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1311-1493 majorToCtor — the scope
-guard the three rescue branches share (cf. `annotateProjElim`): the
-fabricated major is well-scoped, closed under loose bvars, and mentions no
-free variable the stuck major does not. -/
+/-- con-leche: ConLeche/Kernel/Core.lean:1311-1493 majorToCtor
+con-leche: ConLeche/Cached/CoreC.lean:544-569 majorToCtorI — the scope guard
+the three rescue branches share (cf. `annotateProjElim`): the fabricated major
+is well-scoped, closed under loose bvars, and mentions no free variable the
+stuck major does not.
+
+**The three tests are the EXECUTED tier's** (task #97g).  `Kernel/Core.lean`
+spells the last one `fab.fvarLeaves.all (fun l => major.fvarLeaves.contains
+l)`, and task #97d twinned that literally: two unmemoized DAG walks and a
+quadratic list containment, which on `core.ndjson` was 43.9 % of the whole
+run's cycles.  `Cached/CoreC.lean` runs `wscopedBC`, `looseBVarsBounded` off
+the packed field and `leafGuard` instead — the same predicate, one memoized
+walk each — and those are what (B) runs now.  `fvarLeavesSubset` below stays
+as the specification of what `leafGuard` decides. -/
 def fabScopeOk (depth : Nat) (fab major : EIdx) : AM Bool := do
-  if !(← wscopedB coreWalkFuel depth fab) then pure false
+  if !(← wscopedBFast coreWalkFuel depth fab) then pure false
   else if !(← looseBVarsBoundedFast coreWalkFuel 0 fab) then pure false
-  else do
-    let fl ← fvarLeaves coreWalkFuel fab
-    let ml ← fvarLeaves coreWalkFuel major
-    pure (fvarLeavesSubset fl ml)
+  else leafGuard coreWalkFuel fab major
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1311-1493 majorToCtor — **the
 stuck-major rescue** (`to_cnstr_when_K` and `to_cnstr_when_structure`): a
