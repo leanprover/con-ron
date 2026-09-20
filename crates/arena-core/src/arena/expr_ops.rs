@@ -541,6 +541,28 @@ pub fn instantiate1_fast(
 // `instantiateList` — `ExprOps.lean:191-235`, `:267-303`, `:371-373`
 // ---------------------------------------------------------------------------
 
+/// con-leche: none — a derived-word cutoff con-leche does not have (task #97f)
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:214-217 instantiateList` (and
+/// `:264-267 instantiateListGo`, `:343-346 liftLooseBVarsGo`) — the cutoff
+/// `bvarBRaw < satRange && bvarBRaw ≤ k`.
+///
+/// **Denotation-preserving**, by the two elementary lemmas the twin's module
+/// note states for P3: `looseBVarsBounded d e → instantiateList e vs d = e`
+/// and `looseBVarsBounded c e → liftLooseBVars e c amount = e` (the `.bvar j`
+/// clause is the only non-congruence, and `j < k` takes the unchanged branch).
+/// `looseBVarsBounded k e` is `e.bvarBound ≤ k`, and the store's derived word
+/// is con-leche's own `Expr.data`, so `bvarBRaw < satRange` is exactly the side
+/// condition under which the packed field IS `e.bvarBound` — the same guard
+/// `instantiate1_go` carries.
+///
+/// P2f's gate is what forced it: `tests/e2e/proj_share.ndjson` does not finish
+/// without these two cutoffs, with 18 % of its cycles in `instantiateList`.
+pub fn inst_list_cutoff(st: &AState, h: &EIdx, k: u64) -> bool {
+    let der: u64 = derived_e(st, h);
+    let b: u64 = expr::bvar_of_data(der);
+    b < expr::sat_range() && b <= k
+}
+
 /// con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:179-211 instantiateList` — the
 /// unmemoized bulk instantiation.  con-leche's termination measure is
@@ -558,6 +580,8 @@ pub fn instantiate_list(
 ) -> Result<EIdx, CheckError> {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_INST_LIST)))
+    } else if inst_list_cutoff(st, h, d) {
+        Ok(h.dup2())
     } else {
         match view(st, h) {
             Err(e) => Err(e),
@@ -636,6 +660,8 @@ pub fn instantiate_list_go(
 ) -> Result<EIdx, CheckError> {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_INST_LIST)))
+    } else if inst_list_cutoff(st, h, d) {
+        Ok(h.dup2())
     } else {
         match view(st, h) {
             Err(e) => Err(e),
@@ -780,6 +806,8 @@ pub fn lift_loose_bvars_go(
 ) -> Result<EIdx, CheckError> {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_LIFT)))
+    } else if inst_list_cutoff(st, h, c) {
+        Ok(h.dup2())
     } else {
         match view(st, h) {
             Err(e) => Err(e),

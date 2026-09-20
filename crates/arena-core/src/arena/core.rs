@@ -4253,6 +4253,36 @@ pub fn struct_eta_cert_tail(
 
 /// con-leche: ConLeche/Kernel/Core.lean:1066-1138 structEtaCertWith
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1414-1443 structEtaCertWith` — the
+/// twin's `famT`: the type-former telescope certificate, a certificate FAMILY
+/// gated on `mode.certs` (task #97f, P2f).  Its own function so the gate's
+/// `.trusted` arm does not compute `constTyAt` either — the twin's `if
+/// mode.certs then iotaCerts … (← constTyAt cvT us') targs else pure true` has
+/// the lookup INSIDE the branch.
+pub fn struct_eta_cert_fam(
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    cvt: &IConstantVal,
+    us2: &LsIdx,
+    targs: &Vec<EIdx>,
+) -> Result<bool, CheckError> {
+    if !con_ron_core::kernel::env::certs(mode) {
+        Ok(true)
+    } else {
+        match const_ty_at(st, cvt, us2) {
+            Err(e) => Err(e),
+            Ok(ty_t) => {
+                iota_certs(st, mode, lane, fuel, fe, depth, false, &ty_t, targs, 0)
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:1066-1138 structEtaCertWith
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1414-1443 structEtaCertWith` — the
 /// certificate's middle, from the level comparison on: the structure's own
 /// telescope certificate, the per-slot certificates (which a tabled family
 /// does not have) and the tail above.
@@ -4279,43 +4309,47 @@ pub fn struct_eta_cert_certs(
         Ok(o) => match lift_fueled(o) {
             Err(e) => Err(e),
             Ok(false) => Ok(false),
-            Ok(true) => match const_ty_at(st, cvt, us2) {
+            // the type-former telescope certificate and the per-slot ones are
+            // certificate FAMILIES (official's `try_eta_struct_core` runs
+            // neither), so `mode.certs` gates them both (task #97f, P2f;
+            // `Cached/CoreC.lean:437` and `:440`).  At `.trusted` the two type
+            // lookups do not happen either: they are read nowhere else.
+            Ok(true) => match struct_eta_cert_fam(
+                st, mode, lane, fuel, fe, depth, cvt, us2, targs,
+            ) {
                 Err(e) => Err(e),
-                Ok(ty_t) => {
-                    match iota_certs(
-                        st, mode, lane, fuel, fe, depth, false, &ty_t, targs, 0,
-                    ) {
+                Ok(false) => Ok(false),
+                Ok(true) => {
+                    let percerts = if !con_ron_core::kernel::env::certs(mode) {
+                        Ok(true)
+                    } else {
+                        match tower_slots_all(st, fe, t, eta_fields) {
+                            Err(e) => Err(e),
+                            Ok(true) => Ok(true),
+                            Ok(false) => struct_eta_proj_certs(
+                                st,
+                                mode,
+                                lane,
+                                fuel,
+                                fe,
+                                depth,
+                                t,
+                                us2,
+                                targs,
+                                b,
+                                &cvt.level_params,
+                                eta_fields,
+                                0,
+                            ),
+                        }
+                    };
+                    match percerts {
                         Err(e) => Err(e),
                         Ok(false) => Ok(false),
-                        Ok(true) => {
-                            let percerts = match tower_slots_all(st, fe, t, eta_fields) {
-                                Err(e) => Err(e),
-                                Ok(true) => Ok(true),
-                                Ok(false) => struct_eta_proj_certs(
-                                    st,
-                                    mode,
-                                    lane,
-                                    fuel,
-                                    fe,
-                                    depth,
-                                    t,
-                                    us2,
-                                    targs,
-                                    b,
-                                    &cvt.level_params,
-                                    eta_fields,
-                                    0,
-                                ),
-                            };
-                            match percerts {
-                                Err(e) => Err(e),
-                                Ok(false) => Ok(false),
-                                Ok(true) => struct_eta_cert_tail(
-                                    st, mode, lane, fuel, fe, depth, cvc, us, t, us2,
-                                    targs, b, aargs, eta_params, eta_fields,
-                                ),
-                            }
-                        }
+                        Ok(true) => struct_eta_cert_tail(
+                            st, mode, lane, fuel, fe, depth, cvc, us, t, us2, targs, b,
+                            aargs, eta_params, eta_fields,
+                        ),
                     }
                 }
             },
@@ -4540,12 +4574,24 @@ pub fn struct_unit_cert_tail(
             Ok(wtb) => match knot_defeq(st, mode, lane, fuel, fe, depth, wta, &wtb) {
                 Err(e) => Err(e),
                 Ok(false) => Ok(false),
-                Ok(true) => match const_ty_at(st, cvt, us2) {
-                    Err(e) => Err(e),
-                    Ok(ty_t) => {
-                        iota_certs(st, mode, lane, fuel, fe, depth, false, &ty_t, targs, 0)
+                // the type-former telescope certificate is a certificate
+                // FAMILY (official's `is_def_eq_unit_like` stops at the defeq
+                // above), so `mode.certs` gates it — the twin's `if mode.certs
+                // then iotaCerts … (← constTyAt cvT us') targs else pure true`,
+                // lookup inside the branch (task #97f, P2f;
+                // `Cached/CoreC.lean:508`)
+                Ok(true) => {
+                    if !con_ron_core::kernel::env::certs(mode) {
+                        Ok(true)
+                    } else {
+                        match const_ty_at(st, cvt, us2) {
+                            Err(e) => Err(e),
+                            Ok(ty_t) => iota_certs(
+                                st, mode, lane, fuel, fe, depth, false, &ty_t, targs, 0,
+                            ),
+                        }
                     }
-                },
+                }
             },
         },
     }
@@ -4943,34 +4989,62 @@ pub fn major_to_ctor_certs(
     match fab_scope_ok(st, depth, fab, major) {
         Err(e) => Err(e),
         Ok(false) => Ok(major.dup2()),
-        Ok(true) => match const_ty_at(st, cvj, ust) {
+        // the synthetic-spine certification (con-leche's task #71) is a
+        // certificate FAMILY, gated on `mode.certs` (task #97f, P2f;
+        // `Cached/CoreC.lean:576` and `:654`), and so is the `proofIrrel`
+        // below the official `to_cnstr_when_K` type check (`:588`, `:658`).
+        // The type check itself runs at both modes.
+        Ok(true) => match iota_certs_fam(st, mode, lane, fuel, fe, depth, cvj, ust, spine) {
             Err(e) => Err(e),
-            Ok(tyj) => {
-                match iota_certs(st, mode, lane, fuel, fe, depth, false, &tyj, spine, 0) {
+            Ok(false) => Ok(major.dup2()),
+            Ok(true) => match knot_infer_io(st, mode, lane, fuel, fe, depth, fab) {
+                Err(e) => Err(e),
+                Ok(tfab) => match knot_defeq(st, mode, lane, fuel, fe, depth, tmaj, &tfab)
+                {
                     Err(e) => Err(e),
                     Ok(false) => Ok(major.dup2()),
-                    Ok(true) => match knot_infer_io(st, mode, lane, fuel, fe, depth, fab) {
-                        Err(e) => Err(e),
-                        Ok(tfab) => {
-                            match knot_defeq(st, mode, lane, fuel, fe, depth, tmaj, &tfab)
-                            {
-                                Err(e) => Err(e),
-                                Ok(false) => Ok(major.dup2()),
-                                Ok(true) => {
-                                    match proof_irrel(
-                                        st, mode, lane, fuel, fe, depth, fab, major,
-                                    ) {
-                                        Err(e) => Err(e),
-                                        Ok(true) => Ok(fab.dup2()),
-                                        Ok(false) => Ok(major.dup2()),
-                                    }
-                                }
-                            }
+                    Ok(true) => {
+                        let ir = if !con_ron_core::kernel::env::certs(mode) {
+                            Ok(true)
+                        } else {
+                            proof_irrel(st, mode, lane, fuel, fe, depth, fab, major)
+                        };
+                        match ir {
+                            Err(e) => Err(e),
+                            Ok(true) => Ok(fab.dup2()),
+                            Ok(false) => Ok(major.dup2()),
                         }
-                    },
-                }
-            }
+                    }
+                },
+            },
         },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:1311-1493 majorToCtor
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1635-1646 majorToCtor` — the
+/// twin's `famK`/`famE`/`famA`: the synthetic-spine certificate, a certificate
+/// FAMILY gated on `mode.certs` (task #97f, P2f).  Its own function so the
+/// gate's `.trusted` arm does not compute `constTyAt` either — the twin has
+/// the lookup INSIDE the branch — and because the three rescues spell it.
+pub fn iota_certs_fam(
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    cvj: &IConstantVal,
+    ust: &LsIdx,
+    spine: &Vec<EIdx>,
+) -> Result<bool, CheckError> {
+    if !con_ron_core::kernel::env::certs(mode) {
+        Ok(true)
+    } else {
+        match const_ty_at(st, cvj, ust) {
+            Err(e) => Err(e),
+            Ok(tyj) => iota_certs(st, mode, lane, fuel, fe, depth, false, &tyj, spine, 0),
+        }
     }
 }
 
@@ -5065,11 +5139,11 @@ pub fn major_to_ctor_eta_certs(
     match fab_scope_ok(st, depth, fab, major) {
         Err(e) => Err(e),
         Ok(false) => Ok(major.dup2()),
-        Ok(true) => match const_ty_at(st, cvj, ust) {
-            Err(e) => Err(e),
-            Ok(tyj) => {
-                match iota_certs(st, mode, lane, fuel, fe, depth, false, &tyj, fab_args, 0)
-                {
+        // the synthetic-spine certificate, a family (task #97f, P2f;
+        // `Cached/CoreC.lean:621`).  The structure-eta certificate below it is
+        // the VERDICT, not a family, and runs at both modes.
+        Ok(true) => {
+            match iota_certs_fam(st, mode, lane, fuel, fe, depth, cvj, ust, fab_args) {
                     Err(e) => Err(e),
                     Ok(false) => Ok(major.dup2()),
                     Ok(true) => {
@@ -5093,9 +5167,8 @@ pub fn major_to_ctor_eta_certs(
                             }
                         }
                     }
-                }
             }
-        },
+        }
     }
 }
 
@@ -5904,8 +5977,9 @@ pub fn iota_rec_fire(
                 Ok(false) => Ok(None),
                 Ok(true) => {
                     let p_ok = if env::i_rec_rule_compare_params(rl) {
-                        let head: Vec<EIdx> = take_eidx(margs, rl.ctor_params as usize);
-                        def_eq_list(st, mode, lane, fuel, fe, depth, &head, &cmp.1, 0)
+                        iota_rec_params(
+                            st, mode, lane, fuel, fe, depth, rl, rec_c, margs, &cmp.1,
+                        )
                     } else {
                         Ok(true)
                     };
@@ -5924,8 +5998,53 @@ pub fn iota_rec_fire(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1719-1832 iotaRec
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1913-1924 iotaRec` — the two
-/// licensed telescope runs, the index comparison and the reduct.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1943-1959 iotaRec` — the
+/// parameter comparison.  It is **verdict-relevant** for a nested rule (the
+/// comparands ARE the pins) and for a projection-function rule, and a
+/// certificate FAMILY for every other plain rule: `Cached/CoreC.lean:797`'s
+/// `certUnlessI` with exactly that `keep` (task #97f, P2f).  The
+/// projection-shape test reads the recursor's name BACK and runs con-leche's
+/// own pure predicate, as the twin does — this module sits below
+/// `arena::checker_base`, whose `nidx_is_proj_fn_shape` is the same test on a
+/// handle.
+pub fn iota_rec_params(
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    rl: &IRecRule,
+    rec_c: &NIdx,
+    margs: &Vec<EIdx>,
+    comparands: &Vec<EIdx>,
+) -> Result<bool, CheckError> {
+    let keep: Result<bool, CheckError> = match rl.fire {
+        IRecRuleFire::Nested(_, _) => Ok(true),
+        _ => match read_name(st, rec_c) {
+            Err(e) => Err(e),
+            Ok(n) => Ok(con_ron_core::kernel::level::name_is_proj_fn_shape(&n)),
+        },
+    };
+    match keep {
+        Err(e) => Err(e),
+        Ok(k) => {
+            if con_ron_core::kernel::env::certs(mode) || k {
+                let head: Vec<EIdx> = take_eidx(margs, rl.ctor_params as usize);
+                def_eq_list(st, mode, lane, fuel, fe, depth, &head, comparands, 0)
+            } else {
+                Ok(true)
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:1719-1832 iotaRec
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1960-1980 iotaRec` — **ONE
+/// certificate family**: the two *licensed* telescope runs and the
+/// canonical-index comparison.  Nothing here is read outside the family, so
+/// the whole block is what `.trusted` omits, the two type lookups included
+/// (task #97f, P2f; `Cached/CoreC.lean:814`).  Then the reduct.
 pub fn iota_rec_certs(
     st: &mut AState,
     mode: &CheckMode,
@@ -5945,50 +6064,81 @@ pub fn iota_rec_certs(
     margs: &Vec<EIdx>,
     major: &EIdx,
 ) -> Result<Option<EIdx>, CheckError> {
-    let lic: bool = con_ron_core::kernel::env::beta_gate(mode);
-    match const_ty_at(st, cv, us) {
+    match iota_rec_fam(
+        st, mode, lane, fuel, fe, depth, cv, cvj, rl, us, usj, m_i, r_p, args, margs,
+        major,
+    ) {
         Err(e) => Err(e),
-        Ok(ty_r) => {
-            let spine: Vec<EIdx> =
-                snoc_eidx(take_eidx(args, m_i as usize), major);
-            match iota_certs(st, mode, lane, fuel, fe, depth, lic, &ty_r, &spine, 0) {
-                Err(e) => Err(e),
-                Ok(false) => Ok(None),
-                Ok(true) => match const_ty_at(st, cvj, usj) {
+        Ok(false) => Ok(None),
+        Ok(true) => iota_rec_reduct(st, cv, rl, rec_c, us, r_p, args, margs),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:1719-1832 iotaRec
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1960-1980 iotaRec` — the family
+/// itself, gated on `mode.certs`.
+#[allow(clippy::too_many_arguments)]
+pub fn iota_rec_fam(
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    cv: &IConstantVal,
+    cvj: &IConstantVal,
+    rl: &IRecRule,
+    us: &LsIdx,
+    usj: &LsIdx,
+    m_i: u64,
+    r_p: u64,
+    args: &Vec<EIdx>,
+    margs: &Vec<EIdx>,
+    major: &EIdx,
+) -> Result<bool, CheckError> {
+    if !con_ron_core::kernel::env::certs(mode) {
+        Ok(true)
+    } else {
+        let lic: bool = con_ron_core::kernel::env::beta_gate(mode);
+        match const_ty_at(st, cv, us) {
+            Err(e) => Err(e),
+            Ok(ty_r) => {
+                let spine: Vec<EIdx> = snoc_eidx(take_eidx(args, m_i as usize), major);
+                match iota_certs(st, mode, lane, fuel, fe, depth, lic, &ty_r, &spine, 0) {
                     Err(e) => Err(e),
-                    Ok(ty_c) => {
-                        match iota_certs(
-                            st, mode, lane, fuel, fe, depth, lic, &ty_c, margs, 0,
-                        ) {
-                            Err(e) => Err(e),
-                            Ok(false) => Ok(None),
-                            Ok(true) => {
-                                let idx: Vec<EIdx> =
-                                    drop_eidx(&take_eidx(args, m_i as usize), r_p as usize);
-                                match iota_index_ok(
-                                    st,
-                                    mode,
-                                    lane,
-                                    fuel,
-                                    fe,
-                                    depth,
-                                    m_i,
-                                    r_p,
-                                    rl.ctor_params,
-                                    &ty_c,
-                                    margs,
-                                    &idx,
-                                ) {
-                                    Err(e) => Err(e),
-                                    Ok(false) => Ok(None),
-                                    Ok(true) => iota_rec_reduct(
-                                        st, cv, rl, rec_c, us, r_p, args, margs,
-                                    ),
+                    Ok(false) => Ok(false),
+                    Ok(true) => match const_ty_at(st, cvj, usj) {
+                        Err(e) => Err(e),
+                        Ok(ty_c) => {
+                            match iota_certs(
+                                st, mode, lane, fuel, fe, depth, lic, &ty_c, margs, 0,
+                            ) {
+                                Err(e) => Err(e),
+                                Ok(false) => Ok(false),
+                                Ok(true) => {
+                                    let idx: Vec<EIdx> = drop_eidx(
+                                        &take_eidx(args, m_i as usize),
+                                        r_p as usize,
+                                    );
+                                    iota_index_ok(
+                                        st,
+                                        mode,
+                                        lane,
+                                        fuel,
+                                        fe,
+                                        depth,
+                                        m_i,
+                                        r_p,
+                                        rl.ctor_params,
+                                        &ty_c,
+                                        margs,
+                                        &idx,
+                                    )
                                 }
                             }
                         }
-                    }
-                },
+                    },
+                }
             }
         }
     }
@@ -6395,7 +6545,12 @@ pub fn whnf_core_app(
     match view(st, fp) {
         Err(e) => Err(e),
         Ok(ENodeView::Lam(ty, body, mb)) => {
-            if beta_gate_fires(mode, &mb.pw) {
+            // **THE β SITE'S GATE** (task #97f, P2f): the EXECUTED core reads
+            // `CheckMode.betaSkip` (`Cached/CoreC.lean:876`/`:918`), which is
+            // `beta_gate_fires` weakened by `!mode.certs` — the β certificate
+            // is a certificate FAMILY, skipped wholesale at `.trusted`.  The
+            // two agree at `.verified`, the mode the bridge is stated at.
+            if con_ron_core::kernel::env::beta_skip(mode, &mb.pw) {
                 match instantiate1_fast(st, CORE_WALK_FUEL, &body, a, 0) {
                     Err(e) => Err(e),
                     Ok(b) => knot_whnf_core(st, mode, lane, fuel, fe, depth, &b),
@@ -7323,7 +7478,11 @@ pub fn infer_app_io_at(
             Ok(w) => match view(st, &w) {
                 Err(e) => Err(e),
                 Ok(ENodeView::ForallE(ty, body, mt)) => {
-                    if !prop_when::is_never(&mt.pw) {
+                    // **THE io SITE** (task #97f, P2f): the executed core reads
+                    // `CheckMode.ioSkip`, which is the datum weakened by
+                    // `!mode.certs` (the io-grade argument certificate is a
+                    // certificate FAMILY).  The two agree at `.verified`.
+                    if !con_ron_core::kernel::env::io_skip(mode, &mt.pw) {
                         match knot_infer_at(st, mode, lane, io, fuel, fe, depth, a) {
                             Err(e) => Err(e),
                             Ok(ta) => {
@@ -8872,7 +9031,7 @@ pub fn knot_infer_io(
         infer_body(st, mode, lane, fuel - 1, fe, depth, e)
     } else if lane == LANE_IO {
         infer_body_io(st, mode, lane, false, fuel - 1, fe, depth, e)
-    } else if con_ron_core::kernel::env::beta_gate(mode) {
+    } else if con_ron_core::kernel::env::io_gate(mode) {
         match infer_io_probe(st, e) {
             Some(r) => Ok(r),
             None => {
@@ -9125,14 +9284,22 @@ pub const PURE_FNS_A: u32 = LANE_FULL;
 // The per-declaration bracket (`Core.lean:2925-2958`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — **the per-declaration cache drop** (DESIGN.md §8.3)
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2935-2939 dropScratchEntries` —
-/// every memo entry whose key or value names a scratch handle goes with the
-/// tier, everything persistent stays (con-leche's arena #51).  `drop_scratch`
-/// calls this beside `EStore::drop_scratch`, which is why it is a state
-/// operation of its own.
-pub fn drop_scratch_entries(st: &mut AState) {
-    st.caches.drop_scratch_entries();
+/// con-leche: ConLeche/Cached/StateC.lean:394-398 CState.flushed
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3007-3009 flushCaches` — **what
+/// the per-declaration bracket does to the caches**: it drops them whole,
+/// which is con-leche's own `flushC`, the operation its driver runs at exactly
+/// this point.
+///
+/// Task #97-P4c ported DESIGN.md §8.3's survivor policy instead — keep the
+/// rows whose key AND value are persistent — which is sound and strictly more
+/// caching; task #97f measured what it costs (`filter` is `O(table)` and the
+/// survivors accumulate, so the fold pays `O(declarations × surviving rows)`:
+/// 16 % of `Init`'s first 4 380 declarations' cycles, 213 s → 124 s).  The
+/// twin's `Caches.dropScratchEntries` stays as the SPECIFICATION of a
+/// surviving row, and so does `Caches::drop_scratch_entries` below it with
+/// its eleven journals — P3 needs it to state that flushing is sound.
+pub fn flush_caches(st: &mut AState) {
+    st.caches = crate::arena::core_state::Caches::empty();
 }
 
 /// con-leche: none — **the per-declaration bracket, closed** (DESIGN.md §8.3)
@@ -9140,7 +9307,7 @@ pub fn drop_scratch_entries(st: &mut AState) {
 /// scratch tier of the store and the cache entries that name it, in one
 /// operation, so the two halves cannot drift apart.
 pub fn drop_scratch(st: &mut AState) {
-    drop_scratch_entries(st);
+    flush_caches(st);
     st.store.drop_scratch();
 }
 
@@ -10014,16 +10181,26 @@ mod tests {
     }
 
     #[test]
-    fn the_declaration_bracket_keeps_the_persistent_rows() {
+    fn the_declaration_bracket_flushes_the_caches_whole() {
         let mut f = build_fx();
         let m = mu();
-        // a cache entry over persistent handles survives the bracket
+        // the caches go whole, persistent rows included: `drop_scratch` is
+        // con-leche's `flushC` (task #97f, P2f — DESIGN.md §8.3's survivor
+        // policy is amended, and the twin's `#guard` says the same)
         let _ = whnf(&mut f.st, &m, &f.fe, F, 0, &f.two);
-        let kept = f.st.caches.whnf_c.len();
+        let before = f.st.caches.whnf_c.len();
         enter_scratch(&mut f.st);
         drop_scratch(&mut f.st);
-        assert!(kept > 0);
-        assert!(f.st.caches.whnf_c.len() == kept);
+        assert!(before > 0);
+        assert!(f.st.caches.whnf_c.len() == 0);
+        // the SPECIFICATION of a surviving row is still there, and still says
+        // a persistent-through row could have stayed
+        let mut g = build_fx();
+        let _ = whnf(&mut g.st, &m, &g.fe, F, 0, &g.two);
+        let before2 = g.st.caches.whnf_c.len();
+        g.st.caches.drop_scratch_entries();
+        assert!(before2 > 0);
+        assert!(g.st.caches.whnf_c.len() == before2);
     }
 
     #[test]

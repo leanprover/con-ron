@@ -40,3 +40,4 @@ pub mod checker_split;
 pub mod decl_check;
 pub mod inductives;
 pub mod checker;
+pub mod checker_gated;

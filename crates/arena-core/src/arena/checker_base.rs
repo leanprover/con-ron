@@ -53,7 +53,7 @@ use crate::arena::core::{
 use crate::arena::core_state::Caches;
 use crate::arena::env::{
     i_constant_info_dup, i_constant_info_to_constant_val, ifenv_find, nidx_vec_dup,
-    IConstantVal, IFEnv,
+    IConstantInfo, IConstantVal, IFEnv,
 };
 use crate::arena::expr_ops::{
     cons_eidx, fvar_type_d, get_app_args, get_app_fn, has_fvar_fast, inst_lams_at_f,
@@ -1791,5 +1791,102 @@ pub fn check_proj_rule_frame(
                 },
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The block's partition and its declared parameter count
+// (`CheckerBase.lean:545-579` of the twin)
+//
+// Three `ConLeche/Kernel/Env.lean` declarations, placed at their only readers —
+// the `.indDecl` arm and the modeled install — exactly as the six `Level.lean`
+// declarations above are.  Task #97d-2 wrote them in
+// `Arena/Inductives/Base.lean` under the concurrency contract; task #97f's
+// dedup deleted that file and brought them here, and the Rust follows.
+// ---------------------------------------------------------------------------
+
+/// con-leche: ConLeche/Kernel/Env.lean:716-719 ConstantInfo.isRecInfo
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:553-555 isRecInfo` — is this
+/// member a recursor record?
+pub fn is_rec_info(ci: &IConstantInfo) -> bool {
+    match ci {
+        IConstantInfo::RecInfo(_, _, _, _) => true,
+        _ => false,
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:721-727 recsFormSuffix
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:559-563 recsFormSuffix` — do
+/// the recursors form a suffix of the block?  The tag pass.  The cited `List`
+/// recursion is an index recursion over the tail `block[i..]`.
+pub fn recs_form_suffix(block: &Vec<IConstantInfo>, i: usize) -> bool {
+    if i >= block.len() {
+        true
+    } else if is_rec_info(&block[i]) {
+        all_rec_info(block, i + 1)
+    } else {
+        recs_form_suffix(block, i + 1)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:721-727 recsFormSuffix
+/// The cited `rest.all isRecInfo` (§3.4 forbids the closure `List.all` takes).
+pub fn all_rec_info(block: &Vec<IConstantInfo>, i: usize) -> bool {
+    if i >= block.len() {
+        true
+    } else if is_rec_info(&block[i]) {
+        all_rec_info(block, i + 1)
+    } else {
+        false
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:588-622 indParamsOk
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:567-579 indParamsOk` —
+/// **the stream's declared parameter count, checked as official checks it**
+/// (con-leche's task #228).  Both halves are one-sided on purpose: `false`
+/// means official rejects.
+pub fn ind_params_ok(
+    st: &mut AState,
+    n_p: u64,
+    block: &Vec<IConstantInfo>,
+    i: usize,
+) -> Result<bool, CheckError> {
+    if i >= block.len() {
+        Ok(true)
+    } else {
+        match ind_params_ok_at(st, n_p, &block[i]) {
+            Err(e) => Err(e),
+            Ok(ok) => {
+                if ok {
+                    ind_params_ok(st, n_p, block, i + 1)
+                } else {
+                    Ok(false)
+                }
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:588-622 indParamsOk
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:567-579 indParamsOk` — one
+/// member's test: a type former's Π-telescope is at least `nP` long, a
+/// constructor's own parameter count is exactly `nP`, and everything else
+/// passes.
+pub fn ind_params_ok_at(
+    st: &mut AState,
+    n_p: u64,
+    ci: &IConstantInfo,
+) -> Result<bool, CheckError> {
+    match ci {
+        IConstantInfo::IndInfo(cv_t, _) => {
+            match crate::arena::env::pi_sort_tele_len(&st.store, CORE_WALK_FUEL, &cv_t.ty) {
+                Err(e) => Err(e),
+                Ok(Some(n)) => Ok(n_p <= n),
+                Ok(None) => Ok(true),
+            }
+        }
+        IConstantInfo::CtorInfo(_, n_pc, _) => Ok(*n_pc == n_p),
+        _ => Ok(true),
     }
 }
