@@ -84,7 +84,7 @@ structure Caches where
   levels — the three data that determine it. -/
   ruleRhsC : Std.HashMap (NIdx × NIdx × LsIdx) EIdx
 
-/-- con-leche: ConLeche/Cached/StateC.lean:158-162 CState.init — the empty
+/-- con-leche: ConLeche/Cached/StateC.lean:131-156 CState — the empty
 cache set: what a fresh run and every capped table start from. -/
 def Caches.empty : Caches := ⟨∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅⟩
 

@@ -122,7 +122,9 @@ structure AState where
   drop are different operations on different lifetimes. -/
   caches : Caches
 
-/-- con-leche: ConLeche/Cached/StateC.lean:164-166 CheckCM — the one monad of (B)
+/-- con-leche: ConLeche/Cached/StateC.lean:164-166 CheckCM
+con-leche: ConLeche/Kernel/Core.lean:74 CheckM
+The one monad of (B)
 (DESIGN §8.4: "`AM := StateT AState (Except CheckError)` and nothing
 else"). -/
 abbrev AM := StateT AState (Except CheckError)

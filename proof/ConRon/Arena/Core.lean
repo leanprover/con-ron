@@ -731,41 +731,41 @@ definitional equality — checked once, at install, so *presence in the store
 is the certificate*.  The sixteen reserved names are interned here exactly
 as the literal guards' are. -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:544 natPredName -/
+/-- con-leche: ConLeche/Kernel/Core.lean:542 natPredName -/
 def natPredName : AM NIdx := pin (ConLeche.natName.str "pred")
-/-- con-leche: ConLeche/Kernel/Core.lean:545 natAddName -/
+/-- con-leche: ConLeche/Kernel/Core.lean:543 natAddName -/
 def natAddName : AM NIdx := pin (ConLeche.natName.str "add")
-/-- con-leche: ConLeche/Kernel/Core.lean:546 natSubName -/
+/-- con-leche: ConLeche/Kernel/Core.lean:544 natSubName -/
 def natSubName : AM NIdx := pin (ConLeche.natName.str "sub")
-/-- con-leche: ConLeche/Kernel/Core.lean:547 natMulName -/
+/-- con-leche: ConLeche/Kernel/Core.lean:545 natMulName -/
 def natMulName : AM NIdx := pin (ConLeche.natName.str "mul")
-/-- con-leche: ConLeche/Kernel/Core.lean:548 natPowName -/
+/-- con-leche: ConLeche/Kernel/Core.lean:546 natPowName -/
 def natPowName : AM NIdx := pin (ConLeche.natName.str "pow")
-/-- con-leche: ConLeche/Kernel/Core.lean:549 natBeqName -/
+/-- con-leche: ConLeche/Kernel/Core.lean:547 natBeqName -/
 def natBeqName : AM NIdx := pin (ConLeche.natName.str "beq")
-/-- con-leche: ConLeche/Kernel/Core.lean:550 natBleName -/
+/-- con-leche: ConLeche/Kernel/Core.lean:548 natBleName -/
 def natBleName : AM NIdx := pin (ConLeche.natName.str "ble")
-/-- con-leche: ConLeche/Kernel/Core.lean:551 natDivName -/
+/-- con-leche: ConLeche/Kernel/Core.lean:549 natDivName -/
 def natDivName : AM NIdx := pin (ConLeche.natName.str "div")
-/-- con-leche: ConLeche/Kernel/Core.lean:552 natModName -/
+/-- con-leche: ConLeche/Kernel/Core.lean:550 natModName -/
 def natModName : AM NIdx := pin (ConLeche.natName.str "mod")
-/-- con-leche: ConLeche/Kernel/Core.lean:553 natGcdName -/
+/-- con-leche: ConLeche/Kernel/Core.lean:551 natGcdName -/
 def natGcdName : AM NIdx := pin (ConLeche.natName.str "gcd")
-/-- con-leche: ConLeche/Kernel/Core.lean:554 natLandName -/
+/-- con-leche: ConLeche/Kernel/Core.lean:552 natLandName -/
 def natLandName : AM NIdx := pin (ConLeche.natName.str "land")
-/-- con-leche: ConLeche/Kernel/Core.lean:555 natLorName -/
+/-- con-leche: ConLeche/Kernel/Core.lean:553 natLorName -/
 def natLorName : AM NIdx := pin (ConLeche.natName.str "lor")
-/-- con-leche: ConLeche/Kernel/Core.lean:556 natXorName -/
+/-- con-leche: ConLeche/Kernel/Core.lean:554 natXorName -/
 def natXorName : AM NIdx := pin (ConLeche.natName.str "xor")
-/-- con-leche: ConLeche/Kernel/Core.lean:557 natShiftLeftName -/
+/-- con-leche: ConLeche/Kernel/Core.lean:555 natShiftLeftName -/
 def natShiftLeftName : AM NIdx := pin (ConLeche.natName.str "shiftLeft")
-/-- con-leche: ConLeche/Kernel/Core.lean:558 natShiftRightName -/
+/-- con-leche: ConLeche/Kernel/Core.lean:556 natShiftRightName -/
 def natShiftRightName : AM NIdx := pin (ConLeche.natName.str "shiftRight")
-/-- con-leche: ConLeche/Kernel/Core.lean:559 boolName -/
+/-- con-leche: ConLeche/Kernel/Core.lean:557 boolName -/
 def boolName : AM NIdx := pin (ConLeche.Name.anonymous.str "Bool")
-/-- con-leche: ConLeche/Kernel/Core.lean:560 boolTrueName -/
+/-- con-leche: ConLeche/Kernel/Core.lean:558 boolTrueName -/
 def boolTrueName : AM NIdx := pin ((ConLeche.Name.anonymous.str "Bool").str "true")
-/-- con-leche: ConLeche/Kernel/Core.lean:561 boolFalseName -/
+/-- con-leche: ConLeche/Kernel/Core.lean:559 boolFalseName -/
 def boolFalseName : AM NIdx := pin ((ConLeche.Name.anonymous.str "Bool").str "false")
 
 /-- con-leche: ConLeche/Kernel/Core.lean:561-566 Expr.isBoolTrue — is `e` the
@@ -2773,7 +2773,7 @@ memo ruling). -/
   let s := { s with caches := { s.caches with annotC := ∅ } }
   set { s with caches := { s.caches with annotC := mp.insert e r } }
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:1892-1906 memoBI — record a `defeq`
+/-- con-leche: ConLeche/Cached/CoreC.lean:1893-1906 memoBI — record a `defeq`
 verdict at the ORDERED pair, both signs (con-leche's `defeqC` stores the
 `Bool` result `r`, which is what makes a negative memo sound). -/
 @[noinline] def defeqSet (a b : EIdx) (r : Bool) : AM Unit := do
