@@ -10,4 +10,5 @@
 //! con-leche's lesson 27), stated about the Lean twin.
 
 pub mod handle;
+pub mod env;
 pub mod store;
