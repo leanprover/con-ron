@@ -13,7 +13,7 @@ and moves their fields — so the monad would buy nothing and cost a `do` block
 at every call.  The same judgement `Arena/ExprOps.lean` makes for
 `exprPtrBEq`.
 -/
-import ConRon.Arena.Inductives.Base
+import ConRon.Arena.CheckerBase
 
 namespace ConRon.Arena
 

@@ -56,9 +56,8 @@ open ConRon.Arena
 /-! ## Interning a con-leche environment
 
 The one direction the test needs.  `CoreTest.lean`'s converters are `private`
-to that module, and `Arena/Inductives/Base.lean`'s cover only what the pinned
-`Eq` basis needs, so the `projInfo` arm — which this module DOES reach — is
-written here. -/
+to that module and `Arena/Intern.lean`'s do not cover the `projInfo` arm —
+which this module DOES reach — so it is written here. -/
 
 /-- con-leche: none — intern a con-leche `Expr` into the arena, structurally.
 Test scaffolding: the real parser interns from the export's bytes. -/

@@ -542,4 +542,41 @@ def checkProjRule (mode : CheckMode) (fe : IFEnv) (pty : EIdx)
   let _rhsTy ← inferTypeCore mode fe checkFuel 0 rhsA
   pure rhsA
 
+/-! ## The block's partition and its declared parameter count
+
+Three `ConLeche/Kernel/Env.lean` declarations, placed at their only readers —
+the `.indDecl` arm and the modeled install — exactly as the six `Level.lean`
+declarations above are.  Task #97d-2 wrote them in
+`Arena/Inductives/Base.lean` under the concurrency contract; task #97f's dedup
+deleted that file and brought them here. -/
+
+/-- con-leche: ConLeche/Kernel/Env.lean:716-719 ConstantInfo.isRecInfo — is
+this member a recursor record? -/
+def isRecInfo : IConstantInfo → Bool
+  | .recInfo _ _ _ _ => true
+  | _ => false
+
+/-- con-leche: ConLeche/Kernel/Env.lean:721-727 recsFormSuffix — do the
+recursors form a suffix of the block?  The tag pass. -/
+def recsFormSuffix : List IConstantInfo → Bool
+  | [] => true
+  | ci :: rest =>
+    if isRecInfo ci then rest.all isRecInfo
+    else recsFormSuffix rest
+
+/-- con-leche: ConLeche/Kernel/Env.lean:588-622 indParamsOk — **the stream's
+declared parameter count, checked as official checks it** (con-leche's task
+#228).  Both halves are one-sided on purpose: `false` means official rejects. -/
+def indParamsOk (nP : Nat) : List IConstantInfo → AM Bool
+  | [] => pure true
+  | ci :: rest => do
+    let ok ← match ci with
+      | .indInfo cvT _ => do
+        match ← piSortTeleLen? coreWalkFuel cvT.type with
+        | some n => pure (decide (nP ≤ n))
+        | none => pure true
+      | .ctorInfo _ nPc _ => pure (nPc == nP)
+      | _ => pure true
+    if ok then indParamsOk nP rest else pure false
+
 end ConRon.Arena

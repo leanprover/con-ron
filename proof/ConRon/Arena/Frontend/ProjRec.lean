@@ -47,21 +47,20 @@ is the same value.**  con-leche computes `recursive` and runs
 `structPartsCore?` / `nativeParts?` FIRST and the `filterMap` last; both early
 branches return `[]`.  So when the `filterMap` is empty the whole function is
 `[]` whatever the guards say, and computing the `filterMap` first and the
-guards only when it is non-empty is the same function.  It matters here
-because the two recognisers are **not twinned yet** — they are P2d's
-(`ConLeche/Kernel/Inductives/{StructParts,NativeParts}.lean`, 1 585 lines) —
-and until they are, this module DELEGATES to con-leche's own by reading the
-block back (`Arena/Frontend/Readback.lean`'s `readCIList`).  The readback is
-exact by construction (it IS `denoteCI`), it is bounded (one block), and the
-reordering is what keeps it off every block that could not be rewritten
-anyway: on `Init` it runs on the single-constructor, index-free, non-`Prop`
-blocks alone.  When P2d twins the two recognisers, the delegation goes and
-the order may go back to con-leche's.
+guards only when it is non-empty is the same function.
+
+Task #97e part 2 had a second reason for the order: the two recognisers were
+not twinned then, so this module read the block BACK and called con-leche's
+own on `Expr` trees.  P2d twinned them (`Arena/Inductives/StructParts.lean`
+and `Arena/Inductives/NativeParts.lean`), and task #97f's dedup pointed the
+two guards at the twins — so nothing in the frontend crosses to the
+denotation any more.  The cheap order stays, because it is still free and
+still the same value.
 -/
 import ConRon.Arena.Frontend.Types
 import ConRon.Arena.Frontend.Readback
 import ConRon.Arena.ExprOps
-import ConLeche.Kernel.Inductives.NativeParts
+import ConRon.Arena.Inductives.NativeParts
 import ConLeche.Kernel.Level
 
 namespace ConRon.Arena.Frontend
@@ -493,11 +492,9 @@ parameter are left out.
 `ctors` `(name, numFields, type)`, `recs` `(name, levelParams, type,
 numMotives, numMinors)` — the export record's own data, over handles.
 
-The guard ORDER is the module note's deviation 3, and the two recognisers are
-its delegation:
-
-con-leche: ConLeche/Kernel/Inductives/StructParts.lean:286-320 structPartsCore? — called, not twinned (P2d)
-con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:651-654 nativeParts? — called, not twinned (P2d) -/
+The guard ORDER is the module note's deviation 3; the two recognisers are
+`Arena/Inductives/`'s own twins (task #97f's dedup — until then this read the
+block back and called con-leche's). -/
 def projRecOwners (fuel : Nat) (block : List IConstantInfo)
     (types : List (NIdx × List NIdx × EIdx × Nat × Nat × List NIdx × Bool))
     (ctors : List (NIdx × Nat × EIdx))
@@ -510,13 +507,12 @@ def projRecOwners (fuel : Nat) (block : List IConstantInfo)
     let blockNames := types.map (·.1)
     let recursive := types.any (·.2.2.2.2.2.2) ||
       (← ctorsMentionBlock fuel blockNames ctors)
-    let blockP ← readCIList block
-    if (structPartsCore? blockP).isSome && !recursive then pure []
+    if (← structPartsCore? block).isSome && !recursive then pure []
     -- a block the fixpoint route takes serves its structure-like member's
     -- `.proj` nodes natively, so no rewrite (the block's DECLARED parameter
     -- count: the first type record's, which is what the parse carries into
     -- `indDecl`)
-    else if (nativeParts? ((types.head?.map (·.2.2.2.1)).getD 0) blockP).isSome
+    else if (← nativeParts? ((types.head?.map (·.2.2.2.1)).getD 0) block).isSome
       then pure []
     else pure owners
 
