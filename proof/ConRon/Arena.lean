@@ -22,6 +22,9 @@ import ConRon.Arena.ExprOps
 import ConRon.Arena.ExprOpsTest
 import ConRon.Arena.Env
 import ConRon.Arena.Frontend.Types
+import ConRon.Arena.Frontend.Readback
+import ConRon.Arena.Frontend.ProjRec
+import ConRon.Arena.Frontend.ProjRecTest
 import ConRon.Arena.Frontend.ExportC
 import ConRon.Arena.Frontend.Prepare
 import ConRon.Arena.Frontend.Prelude
