@@ -74,10 +74,9 @@ pub fn record_verdict_to_error(v: RecordVerdict) -> CheckError {
 /// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:68-79 ProjRecOwner` —
 /// what the projection-function rewrite needs to know about one
 /// structure-like owner `T` of a parsed inductive block the direct install
-/// does not serve.  A field-for-field mirror; the rewrite that READS it is
-/// task #97e part 2 (it needs the `ExprOps` twins of
-/// `ConLeche/Frontend/ProjRec.lean`), so nothing writes this table today and
-/// `export_c::proj_rewrite_d` answers what con-leche answers at an empty one.
+/// does not serve.  A field-for-field mirror.  `super::proj_rec` is what
+/// builds these (`proj_rec_owners`) and what reads them (`proj_rec_value`);
+/// `export_c::register_proj_owners` is the table, one entry per owner name.
 ///
 /// Deviation: the field `T` is `t` (Rust field names are lower case).
 pub struct ProjRecOwner {

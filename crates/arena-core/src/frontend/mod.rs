@@ -51,17 +51,29 @@
 //! `validate_ind_d`'s eleven block-consistency verdicts, the safety and
 //! quotient-kind recognisers and the size guard.
 //!
-//! ## `AM` is `&mut EStore` plus `Result<_, CheckError>`
+//! ## `AM` is `&mut AState` plus `Result<_, CheckError>`
 //!
 //! The Lean twin's monad is `StateT AState (Except CheckError)`; `AState` is
-//! the store and the `ExprOps` memo tables, and the frontend touches no memo.
-//! So every function that reads the store takes `ar: &EStore` and every
-//! function that interns takes `ar: &mut EStore`, beside the `st: &mut StateD`
-//! that `con-ron-core`'s parser already threads.  `arena/monad.rs` (task #97
-//! P4b) makes the first of those two a field of `AState`, and no body here
-//! changes when it does.  The four `Monad.lean` primitives the parse needs —
-//! `view`, `viewN`, `readName`, `readLevel` — sit at the bottom of
-//! `arena/env.rs` until then, for the same reason.
+//! the store, the `ExprOps` memo tables and the per-declaration caches.
+//!
+//! Task #97 P4e part 1 could narrow that to the store alone — the parse
+//! touched no memo — so every function that read the store took
+//! `ar: &EStore` and every function that interned took `ar: &mut EStore`,
+//! beside the `st: &mut StateD` that `con-ron-core`'s parser already threads.
+//! **Part 2 ends the narrowing on the path that needs it.**  The projection
+//! rewrite (`proj_rec`) runs `ExprOps`' `instantiate1LiftFast`,
+//! `liftLooseBVarsFast` and `instLPFast`, whose memos ARE `AState` fields, so
+//! the eighteen functions between `chunk_step` / `chunk_finish` /
+//! `parse_bytes` / `parse_chunks` and the three rewrite entry points now take
+//! `ar: &mut AState` — the twin's own monad, unnarrowed — and hand
+//! `&ar.store` / `&mut ar.store` to the ninety-odd that still only intern.
+//! That is `prepare.rs`'s arrangement too ("`prepare_d` takes the whole
+//! `AState` where everything else in this module takes the store"), and it is
+//! the change part 1's note predicted, in the place that needed it.
+//!
+//! The four `Monad.lean` primitives at the bottom of `arena/env.rs`
+//! (`view`, `viewN`, `readName`, `readLevel`) still stand where P4b left
+//! them; nothing here depends on which of the two they take.
 //!
 //! ## The loop relaxation (DESIGN.md §3.4, dated 2026-09-14)
 //!

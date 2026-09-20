@@ -34,7 +34,7 @@
 //! with cannot change the result; the driver passes the same one it parses the
 //! stream with, as both other ports do.
 
-use crate::arena::store::EStore;
+use crate::arena::monad::AState;
 use crate::frontend::export_c;
 use crate::frontend::prepare::PreludeIx;
 use crate::frontend::types::Modeller;
@@ -58,7 +58,7 @@ pub fn builtin_prelude_text() -> Vec<u8> {
 /// alone since con-leche's task #293.
 pub fn builtin_prelude_e<G: Modeller>(
     m: &G,
-    ar: &mut EStore,
+    ar: &mut AState,
 ) -> Result<PreludeIx, (CheckError, u64)> {
     let text: Vec<u8> = builtin_prelude_text();
     match export_c::parse_bytes(m, ar, &text, true, false) {
@@ -76,7 +76,7 @@ mod tests {
     /// The prelude parses, and holds the declarations the fold expects of it.
     #[test]
     fn builtin_prelude_parses() {
-        let mut ar = EStore::empty();
+        let mut ar = AState::init(crate::arena::store::EStore::empty());
         let p = match builtin_prelude_e(&DeclineModeller {}, &mut ar) {
             Ok(p) => p,
             Err((_, line)) => panic!("the built-in prelude does not parse at line {}", line),
@@ -98,15 +98,15 @@ mod tests {
     /// the cheapest cross-check of the transliteration there is.
     #[test]
     fn the_prelude_interns_the_twins_own_node_counts() {
-        let mut ar = EStore::empty();
+        let mut ar = AState::init(crate::arena::store::EStore::empty());
         let p = match builtin_prelude_e(&DeclineModeller {}, &mut ar) {
             Ok(p) => p,
             Err((_, line)) => panic!("the built-in prelude does not parse at line {}", line),
         };
         assert_eq!(p.decls.len(), 12, "prelude declaration records");
-        assert_eq!(ar.node_count(), 196, "expression nodes");
-        assert_eq!(ar.ls().node_count(), 5, "level nodes");
-        assert_eq!(ar.ns().node_count(), 55, "name nodes");
+        assert_eq!(ar.store.node_count(), 196, "expression nodes");
+        assert_eq!(ar.store.ls().node_count(), 5, "level nodes");
+        assert_eq!(ar.store.ns().node_count(), 55, "name nodes");
     }
 
     /// The prelude text is `con-ron-core`'s generated constant, byte for byte

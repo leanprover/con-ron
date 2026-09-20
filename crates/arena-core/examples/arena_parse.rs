@@ -40,6 +40,7 @@
 //! RSS; there is no store to count nodes in, which is exactly the difference
 //! the rewrite exists to make.
 
+use arena_core::arena::monad::AState;
 use arena_core::arena::store::EStore;
 use arena_core::frontend::export_c;
 use arena_core::frontend::prelude::builtin_prelude_e;
@@ -121,7 +122,11 @@ fn main() {
     }
 
     let t0 = Instant::now();
-    let mut ar = EStore::empty();
+    // one `AState` for the whole run: since task #97-P4e part 2 the parser's
+    // projection rewrite runs `ExprOps`' memoised walks, so the frontend takes
+    // the checker state and not the bare store (DESIGN.md §8.4: the twin's one
+    // monad is `StateT AState (Except CheckError)` throughout).
+    let mut ar = AState::init(EStore::empty());
     let md = DeclineModeller {};
 
     // 1. the built-in prelude, into the same store
@@ -133,7 +138,11 @@ fn main() {
             std::process::exit(c);
         }
     };
-    let (pre_e, pre_l, pre_n) = (ar.node_count(), ar.ls().node_count(), ar.ns().node_count());
+    let (pre_e, pre_l, pre_n) = (
+        ar.store.node_count(),
+        ar.store.ls().node_count(),
+        ar.store.ns().node_count(),
+    );
 
     // 2. the stream, read and parsed in lockstep
     let mut f = match std::fs::File::open(&path) {
@@ -143,7 +152,7 @@ fn main() {
             std::process::exit(3);
         }
     };
-    let mut st = match export_c::state_d_init(&mut ar, in_model, false) {
+    let mut st = match export_c::state_d_init(&mut ar.store, in_model, false) {
         Ok(s) => s,
         Err(e) => {
             let (m, c) = render(&e);
@@ -187,7 +196,11 @@ fn main() {
         None => export_c::chunk_finish(&md, &mut ar, st, &carry[..], line_no),
     };
 
-    let (n_e, n_l, n_n) = (ar.node_count(), ar.ls().node_count(), ar.ns().node_count());
+    let (n_e, n_l, n_n) = (
+        ar.store.node_count(),
+        ar.store.ls().node_count(),
+        ar.store.ns().node_count(),
+    );
     let wall = t0.elapsed();
 
     match r {
@@ -218,7 +231,7 @@ fn main() {
             // `prepare_d` takes the whole state since task #97-P4d: step 2 of
             // `preparePrelude` is the real ground hoist, whose trigger set is
             // the kernel's pinned `Nat` operation names.
-            let mut ast = arena_core::arena::monad::AState::init(ar);
+            let mut ast = ar;
             let prepared = match prepare::prepare_d(&mut ast, pre, res.decls) {
                 Ok(p) => p,
                 Err(e) => {
