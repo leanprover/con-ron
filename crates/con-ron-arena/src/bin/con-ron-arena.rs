@@ -522,13 +522,6 @@ fn check_main(a: &Args, file: &str) -> u8 {
         Some(n) => n,
         None => 1,
     };
-    if jobs > 1 {
-        eprintln!(
-            "con-ron-arena: --jobs={} accepted and clamped to 1: the arena checker's \
-             phase B is single-lane today (DESIGN.md section 8.3 has the plan)",
-            jobs
-        );
-    }
     let verdict = if a.progress > 0 {
         driver::check_decls_driver(&mut st, &mode, &ipins, &prepared.decls, jobs, &mut hb)
     } else {
@@ -591,6 +584,19 @@ fn main() -> ExitCode {
     }
     if a.no_mark {
         eprintln!("con-ron-arena: {}", driver::mark_persistent_note());
+    }
+    // The other accepted-and-ignored flag says so too, and says it BEFORE the
+    // run rather than at the phase boundary: a log must read as the lane it
+    // was, and the lane is decided here.
+    if let Some(n) = a.jobs {
+        if n > 1 {
+            eprintln!(
+                "con-ron-arena: --jobs={} accepted and clamped to 1: the arena checker's \
+                 phase B is single-lane today (DESIGN.md section 8.3 has the plan, and \
+                 con_ron_arena::driver's phase-B loop is shaped for it)",
+                n
+            );
+        }
     }
     let file = a.files[0].clone();
     let h = std::thread::Builder::new()

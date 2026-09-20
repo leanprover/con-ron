@@ -59,10 +59,17 @@ import sys
 # It is inside this gate and outside `lint-rust-style.sh` and `extract.sh` on
 # purpose: DESIGN.md §3.7 — "for the unverified frontend it is the only sync
 # signal there is".  Its items are cited but not style-linted.
+# `crates/con-ron-arena/src` is the arena rewrite's own unverified crate (task
+# #97 P4f): the driver, the CLI and the modeller seam's instantiation, i.e.
+# `con-ron`'s three unverified pieces one representation down.  It is here for
+# `crates/con-ron`'s reason and nowhere else, and is outside
+# `lint-rust-style.sh` and `extract-arena.sh` for `crates/con-ron`'s reason
+# too.
 RUST_ROOTS = [
     "crates/con-ron-core/src",
     "crates/arena-core/src",
     "crates/con-ron/src",
+    "crates/con-ron-arena/src",
 ]
 
 # The Lean trees that must be annotated: the arena checker (B) of DESIGN.md
