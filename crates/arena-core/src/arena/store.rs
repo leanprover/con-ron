@@ -2389,3 +2389,508 @@ impl EStore {
         self.lss.intern(v)
     }
 }
+
+// ---------------------------------------------------------------------------
+// Tests: `proof/ConRon/Arena/StoreTest.lean`'s forty-four `#guard`s
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use con_ron_core::kernel::expr::Expr;
+    use con_ron_core::kernel::level;
+    use con_ron_core::kernel::level::Level;
+    use con_ron_core::kernel::name;
+    use con_ron_core::kernel::name::Name;
+    use con_ron_core::ron::nat;
+
+    /// `Result::unwrap` needs `E: Debug`, and `CheckError` deliberately has
+    /// none (DESIGN.md §3.4: no `derive(Debug)` on the core types).  This is
+    /// the tests' `unwrap`.
+    fn ok<T>(r: Result<T, CheckError>) -> T {
+        match r {
+            Ok(x) => x,
+            Err(_) => panic!("the store declined a node the test expected it to take"),
+        }
+    }
+
+    /// `"foo"` as the `Vec<u32>` of code points every string in the verified
+    /// core is (DESIGN.md §3.3).
+    fn cp(s: &str) -> Vec<u32> {
+        s.chars().map(|c| c as u32).collect()
+    }
+
+    // --- the readback (`Denote.lean`), test-only -----------------------------
+    //
+    // `Denote`, `WF` and `WFProofs` are the arena's own verification (DESIGN.md
+    // §8.6's P2a) and have no place in the shipped crate — but a `#guard` that
+    // says `denoteE fst hAp == some eAp` cannot be mirrored without a readback.
+    // These four functions are `Denote.lean`'s, fuel and all, and they live
+    // here and nowhere else.
+
+    fn denote_n_aux(st: &NStore, fuel: u64, i: &NIdx) -> Option<Name> {
+        if fuel == 0 {
+            return None;
+        }
+        match st.view(i) {
+            None => None,
+            Some(NNodeView::Anonymous) => Some(name::anonymous()),
+            Some(NNodeView::Str(p, s)) => {
+                denote_n_aux(st, fuel - 1, &p).map(|q| name::mk_str(q, s))
+            }
+            Some(NNodeView::Num(p, n)) => {
+                denote_n_aux(st, fuel - 1, &p).map(|q| name::mk_num(q, n))
+            }
+        }
+    }
+
+    fn denote_n(st: &NStore, i: &NIdx) -> Option<Name> {
+        denote_n_aux(st, st.node_count() as u64 + 1, i)
+    }
+
+    fn denote_l_aux(st: &LStore, fuel: u64, i: &LIdx) -> Option<Level> {
+        if fuel == 0 {
+            return None;
+        }
+        match st.view(i) {
+            None => None,
+            Some(LNodeView::Zero) => Some(level::zero()),
+            Some(LNodeView::Succ(u)) => denote_l_aux(st, fuel - 1, &u).map(level::succ),
+            Some(LNodeView::Max(u, v)) => {
+                match (denote_l_aux(st, fuel - 1, &u), denote_l_aux(st, fuel - 1, &v)) {
+                    (Some(a), Some(b)) => Some(level::max(a, b)),
+                    _ => None,
+                }
+            }
+            Some(LNodeView::Imax(u, v)) => {
+                match (denote_l_aux(st, fuel - 1, &u), denote_l_aux(st, fuel - 1, &v)) {
+                    (Some(a), Some(b)) => Some(level::imax(a, b)),
+                    _ => None,
+                }
+            }
+            Some(LNodeView::Param(n)) => denote_n(&st.ns, &n).map(level::param),
+        }
+    }
+
+    fn denote_l(st: &LStore, i: &LIdx) -> Option<Level> {
+        denote_l_aux(st, st.node_count() as u64 + 1, i)
+    }
+
+    fn denote_ls(st: &LsStore, i: &LsIdx) -> Option<Vec<Level>> {
+        match st.view(i) {
+            None => None,
+            Some(us) => {
+                let mut out: Vec<Level> = Vec::new();
+                for u in us.iter() {
+                    match denote_l(&st.ls, u) {
+                        None => return None,
+                        Some(l) => out.push(l),
+                    }
+                }
+                Some(out)
+            }
+        }
+    }
+
+    fn denote_e_aux(st: &EStore, fuel: u64, i: &EIdx) -> Option<Expr> {
+        if fuel == 0 {
+            return None;
+        }
+        match st.view(i) {
+            None => None,
+            Some(ENodeView::BVar(k)) => Some(expr::bvar(k)),
+            Some(ENodeView::FVar(k, ty)) => {
+                denote_e_aux(st, fuel - 1, &ty).map(|t| expr::fvar(k, t))
+            }
+            Some(ENodeView::Sort(u)) => denote_l(st.ls(), &u).map(expr::sort),
+            Some(ENodeView::Const(n, us)) => {
+                match (denote_n(st.ns(), &n), denote_ls(st.ls_s(), &us)) {
+                    (Some(a), Some(b)) => Some(expr::mk_const(a, b)),
+                    _ => None,
+                }
+            }
+            Some(ENodeView::App(g, a)) => {
+                match (denote_e_aux(st, fuel - 1, &g), denote_e_aux(st, fuel - 1, &a)) {
+                    (Some(x), Some(y)) => Some(expr::app(x, y)),
+                    _ => None,
+                }
+            }
+            Some(ENodeView::Lam(ty, b, m)) => {
+                match (denote_e_aux(st, fuel - 1, &ty), denote_e_aux(st, fuel - 1, &b)) {
+                    (Some(x), Some(y)) => Some(expr::lam(x, y, m)),
+                    _ => None,
+                }
+            }
+            Some(ENodeView::ForallE(ty, b, m)) => {
+                match (denote_e_aux(st, fuel - 1, &ty), denote_e_aux(st, fuel - 1, &b)) {
+                    (Some(x), Some(y)) => Some(expr::forall_e(x, y, m)),
+                    _ => None,
+                }
+            }
+            Some(ENodeView::LetE(ty, v, b)) => match (
+                denote_e_aux(st, fuel - 1, &ty),
+                denote_e_aux(st, fuel - 1, &v),
+                denote_e_aux(st, fuel - 1, &b),
+            ) {
+                (Some(x), Some(y), Some(z)) => Some(expr::let_e(x, y, z)),
+                _ => None,
+            },
+            Some(ENodeView::Lit(l)) => Some(expr::lit(l)),
+            Some(ENodeView::Proj(n, k, e)) => {
+                match (denote_n(st.ns(), &n), denote_e_aux(st, fuel - 1, &e)) {
+                    (Some(s), Some(x)) => Some(expr::proj(s, k, x)),
+                    _ => None,
+                }
+            }
+        }
+    }
+
+    fn denote_e(st: &EStore, i: &EIdx) -> Option<Expr> {
+        denote_e_aux(st, st.node_count() as u64 + 1, i)
+    }
+
+    // --- helpers -------------------------------------------------------------
+
+    fn eq_e(a: &Option<Expr>, b: &Expr) -> bool {
+        match a {
+            None => false,
+            Some(x) => expr::beq(x, b),
+        }
+    }
+
+    fn eq_n(a: &Option<Name>, b: &Name) -> bool {
+        match a {
+            None => false,
+            Some(x) => name::beq(x, b),
+        }
+    }
+
+    /// Structural equality of the four `ENodeView` shapes the `#guard`s
+    /// compare (the Lean gets it from `deriving DecidableEq`).
+    fn view_eq(a: &Option<ENodeView>, b: &Option<ENodeView>) -> bool {
+        match (a, b) {
+            (None, None) => true,
+            (Some(x), Some(y)) => match (x, y) {
+                (ENodeView::BVar(i), ENodeView::BVar(j)) => i == j,
+                (ENodeView::Sort(u), ENodeView::Sort(v)) => u.word == v.word,
+                (ENodeView::Const(n, us), ENodeView::Const(m, vs)) => {
+                    n.word == m.word && us.word == vs.word
+                }
+                (ENodeView::App(f, a2), ENodeView::App(g, b2)) => {
+                    f.word == g.word && a2.word == b2.word
+                }
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
+    /// `StoreTest.lean:28-40 fixture`: `Sort 0`, `Sort 1`, the name `foo`,
+    /// `foo.{0}` and an application, interned into the persistent tier, in the
+    /// order the parser would.
+    fn fixture() -> (EStore, LIdx, LIdx, NIdx, LsIdx, EIdx, EIdx, EIdx, EIdx) {
+        let mut st = EStore::empty();
+        let z = ok(st.intern_level(LNodeView::Zero));
+        let one = ok(st.intern_level(LNodeView::Succ(z.dup2())));
+        let anon = ok(st.intern_name(NNodeView::Anonymous));
+        let foo = ok(st.intern_name(NNodeView::Str(anon.dup2(), cp("foo"))));
+        let us = ok(st.intern_levels(vec![z.dup2()]));
+        let s0 = ok(st.intern(ENodeView::Sort(z.dup2())));
+        let s1 = ok(st.intern(ENodeView::Sort(one.dup2())));
+        let c = ok(st.intern(ENodeView::Const(foo.dup2(), us.dup2())));
+        let ap = ok(st.intern(ENodeView::App(c.dup2(), s0.dup2())));
+        (st, z, one, foo, us, s0, s1, c, ap)
+    }
+
+    // The con-leche values the fixture's handles are supposed to denote
+    // (`StoreTest.lean:49-53`), built by `con-ron-core`'s smart constructors.
+
+    fn e_s0() -> Expr {
+        expr::sort(level::zero())
+    }
+
+    fn e_s1() -> Expr {
+        expr::sort(level::succ(level::zero()))
+    }
+
+    fn n_foo() -> Name {
+        name::mk_str(name::anonymous(), cp("foo"))
+    }
+
+    fn e_c() -> Expr {
+        expr::mk_const(n_foo(), vec![level::zero()])
+    }
+
+    fn e_ap() -> Expr {
+        expr::app(e_c(), e_s0())
+    }
+
+    // --- `StoreTest.lean:55-62`: the handle layout round-trips ---------------
+
+    #[test]
+    fn handle_layout_round_trips() {
+        let (_st, _z, _one, _foo, _us, s0, s1, c, ap) = fixture();
+        assert_eq!(s0.tag(), ETAG_SORT); // #guard 1
+        assert_eq!(ap.tag(), ETAG_APP); // #guard 2
+        assert_eq!(c.tag(), ETAG_CONST); // #guard 3
+        assert!(s0.is_persistent()); // #guard 4
+        assert!(ap.is_persistent()); // #guard 5
+        assert_eq!(s0.index(), 0); // #guard 6
+        assert_eq!(s1.index(), 1); // #guard 7
+    }
+
+    // --- `StoreTest.lean:64-77`: interning is hash-consing -------------------
+
+    #[test]
+    fn interning_is_hash_consing() {
+        let (mut st, z, one, foo, _us, s0, _s1, c, ap) = fixture();
+
+        // #guard 8: the same node interned twice gives the same handle.
+        let a = ok(st.intern(ENodeView::App(c.dup2(), s0.dup2())));
+        let b = ok(st.intern(ENodeView::App(c.dup2(), s0.dup2())));
+        assert_eq!(a.word, b.word);
+        assert_eq!(a.word, ap.word);
+
+        // #guard 9
+        let a = ok(st.intern(ENodeView::Sort(z.dup2())));
+        assert_eq!(a.word, s0.word);
+
+        // #guard 10
+        let a = ok(st.intern_level(LNodeView::Succ(z.dup2())));
+        assert_eq!(a.word, one.word);
+
+        // #guard 11
+        let anon = ok(st.intern_name(NNodeView::Anonymous));
+        let a = ok(st.intern_name(NNodeView::Str(anon, cp("foo"))));
+        assert_eq!(a.word, foo.word);
+    }
+
+    // --- `StoreTest.lean:79-91`: cross-tier dedup ----------------------------
+
+    #[test]
+    fn cross_tier_dedup() {
+        // #guard 12: a persistent node is never re-interned into scratch.
+        let (mut st, _z, _one, _foo, _us, s0, _s1, c, ap) = fixture();
+        st.enable_scratch();
+        let a = ok(st.intern(ENodeView::App(c.dup2(), s0.dup2())));
+        assert_eq!(a.word, ap.word);
+        assert!(a.is_persistent());
+
+        // #guard 13: a genuinely new node lands in scratch, and dedups there.
+        let a = ok(st.intern(ENodeView::App(s0.dup2(), s0.dup2())));
+        let b = ok(st.intern(ENodeView::App(s0.dup2(), s0.dup2())));
+        assert_eq!(a.word, b.word);
+        assert!(!a.is_persistent());
+    }
+
+    // --- `StoreTest.lean:93-97`: `view` decodes what was interned ------------
+
+    #[test]
+    fn view_decodes_what_was_interned() {
+        let (st, z, _one, foo, us, s0, _s1, c, ap) = fixture();
+        // #guard 14
+        assert!(view_eq(&st.view(&ap), &Some(ENodeView::App(c.dup2(), s0.dup2()))));
+        // #guard 15
+        assert!(view_eq(&st.view(&s0), &Some(ENodeView::Sort(z.dup2()))));
+        // #guard 16
+        assert!(view_eq(&st.view(&c), &Some(ENodeView::Const(foo.dup2(), us.dup2()))));
+    }
+
+    // --- `StoreTest.lean:99-107`: the denotation is con-leche's own value ----
+
+    #[test]
+    fn denotation_is_con_leches_own_value() {
+        let (st, _z, _one, foo, us, s0, s1, c, ap) = fixture();
+        assert!(eq_e(&denote_e(&st, &s0), &e_s0())); // #guard 17
+        assert!(eq_e(&denote_e(&st, &s1), &e_s1())); // #guard 18
+        assert!(eq_e(&denote_e(&st, &c), &e_c())); // #guard 19
+        assert!(eq_e(&denote_e(&st, &ap), &e_ap())); // #guard 20
+        assert!(eq_n(&denote_n(st.ns(), &foo), &n_foo())); // #guard 21
+
+        // #guard 22
+        let ls = denote_ls(st.ls_s(), &us).unwrap();
+        assert_eq!(ls.len(), 1);
+        assert!(level::beq(&ls[0], &level::zero()));
+    }
+
+    // --- `StoreTest.lean:109-123`: the derived column IS `Expr.data` ---------
+
+    #[test]
+    fn derived_column_is_expr_data() {
+        let (st, z, one, foo, us, s0, s1, c, ap) = fixture();
+        assert_eq!(st.derived(&s0), expr::data(&e_s0())); // #guard 23
+        assert_eq!(st.derived(&s1), expr::data(&e_s1())); // #guard 24
+        assert_eq!(st.derived(&c), expr::data(&e_c())); // #guard 25
+        assert_eq!(st.derived(&ap), expr::data(&e_ap())); // #guard 26
+        assert_eq!(st.ns().derived(&foo), name::hash_data(&n_foo())); // #guard 27
+        assert_eq!(st.ls().derived(&z).hash, level::hash_data(&level::zero())); // #guard 28
+        // #guard 29
+        assert_eq!(
+            st.ls().derived(&one).hash,
+            level::hash_data(&level::succ(level::zero()))
+        );
+        // #guard 30
+        assert_eq!(st.lss.derived(&us).hash, level::levels_hash(&vec![level::zero()]));
+        // #guard 31
+        assert_eq!(
+            st.lss.derived(&us).has_param,
+            level::levels_have_param(&vec![level::zero()])
+        );
+    }
+
+    // --- `StoreTest.lean:125-140`: a binder, a bvar, the range fields --------
+
+    #[test]
+    fn binder_and_bvar_exercise_the_range_fields() {
+        let (mut st, _z, _one, _foo, _us, s0, _s1, _c, _ap) = fixture();
+        let b0 = ok(st.intern(ENodeView::BVar(0)));
+        let lam = ok(st.intern(ENodeView::Lam(
+            s0.dup2(),
+            b0.dup2(),
+            expr::binder_meta(prop_when::never()),
+        )));
+        let e_b0 = expr::bvar(0);
+        let e_lam = expr::lam(e_s0(), expr::bvar(0), expr::binder_meta(prop_when::never()));
+        assert!(eq_e(&denote_e(&st, &b0), &e_b0)); // #guard 32
+        assert!(eq_e(&denote_e(&st, &lam), &e_lam)); // #guard 33
+        assert_eq!(st.derived(&b0), expr::data(&e_b0)); // #guard 34
+        assert_eq!(st.derived(&lam), expr::data(&e_lam)); // #guard 35
+    }
+
+    // --- `StoreTest.lean:142-167`: the `dropScratch` bracket -----------------
+
+    #[test]
+    fn drop_scratch_invalidates_scratch_and_keeps_persistent() {
+        let (mut st, _z, _one, _foo, _us, s0, _s1, _c, ap) = fixture();
+        let pers_view_ap = st.view(&ap);
+        st.enable_scratch();
+        let scr = ok(st.intern(ENodeView::App(s0.dup2(), s0.dup2())));
+
+        assert!(!scr.is_persistent()); // #guard 36
+        assert!(eq_e(&denote_e(&st, &scr), &expr::app(e_s0(), e_s0()))); // #guard 37
+        assert!(eq_e(&denote_e(&st, &ap), &e_ap())); // #guard 38
+
+        st.drop_scratch();
+        assert!(denote_e(&st, &scr).is_none()); // #guard 39
+        assert!(st.view(&scr).is_none()); // #guard 40
+        assert!(eq_e(&denote_e(&st, &ap), &e_ap())); // #guard 41
+        assert!(view_eq(&st.view(&ap), &pers_view_ap)); // #guard 42
+        assert!(!st.scratch_on); // #guard 43
+    }
+
+    /// `StoreTest.lean:165-167`: a persistent handle's *bits* are unchanged by
+    /// the bracket — the point of putting the tier bit above the index.
+    #[test]
+    fn a_persistent_handles_bits_survive_the_bracket() {
+        let (mut st, z, _one, _foo, _us, s0, _s1, _c, _ap) = fixture();
+        st.enable_scratch();
+        let a = ok(st.intern(ENodeView::Sort(z.dup2())));
+        assert_eq!(a.word, s0.word); // #guard 44
+    }
+
+    // --- beyond the twin ----------------------------------------------------
+
+    /// `StoreTest.lean` exercises `sort`, `const`, `app`, `bvar` and `lam`.
+    /// The other five expression arms, the `num` name arm and the
+    /// `max`/`imax`/`param` level arms get the same treatment here, so that
+    /// every `der_of_view` formula is checked against `expr::data` (or
+    /// `name::hash_data` / `level::hash_data`) of the tree the same smart
+    /// constructors build.  An addition the Rust side can afford because
+    /// `cargo test` is cheaper than kernel reduction.
+    #[test]
+    fn every_der_of_view_arm_agrees_with_con_ron_cores_own() {
+        let (mut st, z, _one, foo, _us, s0, _s1, _c, _ap) = fixture();
+
+        let fv = ok(st.intern(ENodeView::FVar(3, s0.dup2())));
+        let e_fv = expr::fvar(3, e_s0());
+        assert!(eq_e(&denote_e(&st, &fv), &e_fv));
+        assert_eq!(st.derived(&fv), expr::data(&e_fv));
+
+        let b0 = ok(st.intern(ENodeView::BVar(0)));
+        let fa = ok(st.intern(ENodeView::ForallE(
+            s0.dup2(),
+            b0.dup2(),
+            expr::binder_meta(prop_when::never()),
+        )));
+        let e_fa = expr::forall_e(e_s0(), expr::bvar(0), expr::binder_meta(prop_when::never()));
+        assert!(eq_e(&denote_e(&st, &fa), &e_fa));
+        assert_eq!(st.derived(&fa), expr::data(&e_fa));
+
+        let le = ok(st.intern(ENodeView::LetE(s0.dup2(), s0.dup2(), b0.dup2())));
+        let e_le = expr::let_e(e_s0(), e_s0(), expr::bvar(0));
+        assert!(eq_e(&denote_e(&st, &le), &e_le));
+        assert_eq!(st.derived(&le), expr::data(&e_le));
+
+        let li = ok(st.intern(ENodeView::Lit(expr::literal_nat(nat::from_u64(7)))));
+        let e_li = expr::lit(expr::literal_nat(nat::from_u64(7)));
+        assert!(eq_e(&denote_e(&st, &li), &e_li));
+        assert_eq!(st.derived(&li), expr::data(&e_li));
+
+        let pj = ok(st.intern(ENodeView::Proj(foo.dup2(), 1, s0.dup2())));
+        let e_pj = expr::proj(n_foo(), 1, e_s0());
+        assert!(eq_e(&denote_e(&st, &pj), &e_pj));
+        assert_eq!(st.derived(&pj), expr::data(&e_pj));
+
+        let anon = ok(st.intern_name(NNodeView::Anonymous));
+        let n7 = ok(st.intern_name(NNodeView::Num(anon.dup2(), 7)));
+        let e_n7 = name::mk_num(name::anonymous(), 7);
+        assert!(eq_n(&denote_n(st.ns(), &n7), &e_n7));
+        assert_eq!(st.ns().derived(&n7), name::hash_data(&e_n7));
+
+        let p = ok(st.intern_level(LNodeView::Param(foo.dup2())));
+        let mx = ok(st.intern_level(LNodeView::Max(z.dup2(), p.dup2())));
+        let im = ok(st.intern_level(LNodeView::Imax(z.dup2(), p.dup2())));
+        let e_p = level::param(n_foo());
+        let e_mx = level::max(level::zero(), level::param(n_foo()));
+        let e_im = level::imax(level::zero(), level::param(n_foo()));
+        assert_eq!(st.ls().derived(&p).hash, level::hash_data(&e_p));
+        assert!(st.ls().derived(&p).has_param);
+        assert_eq!(st.ls().derived(&mx).hash, level::hash_data(&e_mx));
+        assert_eq!(st.ls().derived(&mx).has_param, level::level_has_param(&e_mx));
+        assert_eq!(st.ls().derived(&im).hash, level::hash_data(&e_im));
+        assert_eq!(st.ls().derived(&im).has_param, level::level_has_param(&e_im));
+
+        // a two-element universe list, so `der_of_view_from` recurses
+        let us2 = ok(st.intern_levels(vec![z.dup2(), p.dup2()]));
+        let e_us2 = vec![level::zero(), level::param(n_foo())];
+        assert_eq!(st.lss.derived(&us2).hash, level::levels_hash(&e_us2));
+        assert_eq!(st.lss.derived(&us2).has_param, level::levels_have_param(&e_us2));
+    }
+
+    /// The tier bit is what separates the two array sets: each tier is indexed
+    /// from zero, and `enable_scratch` empties the scratch tier again.
+    #[test]
+    fn the_two_tiers_are_indexed_from_zero_independently() {
+        let (mut st, _z, _one, _foo, _us, s0, _s1, _c, _ap) = fixture();
+        st.enable_scratch();
+        let scr = ok(st.intern(ENodeView::BVar(0)));
+        assert!(!scr.is_persistent());
+        assert_eq!(scr.index(), 0);
+        assert_eq!(scr.tag(), ETAG_BVAR);
+        assert_eq!(s0.index(), 0);
+        assert_ne!(scr.word, s0.word);
+        st.enable_scratch();
+        assert!(st.view(&scr).is_none());
+        assert_eq!(st.scr_count(), 0);
+    }
+
+    /// `find` is `intern` without the append: it misses before, hits after, and
+    /// `node_count` counts exactly what was appended.
+    #[test]
+    fn find_agrees_with_intern_and_node_count_counts() {
+        let (mut st, _z, _one, _foo, _us, s0, _s1, _c, _ap) = fixture();
+        let before = st.node_count();
+        assert!(st.find(&ENodeView::App(s0.dup2(), s0.dup2())).is_none());
+        assert!(st.cap_ok(&ENodeView::App(s0.dup2(), s0.dup2())));
+        let h = ok(st.intern(ENodeView::App(s0.dup2(), s0.dup2())));
+        assert_eq!(st.node_count(), before + 1);
+        match st.find(&ENodeView::App(s0.dup2(), s0.dup2())) {
+            None => panic!("an interned node was not found"),
+            Some(g) => assert_eq!(g.word, h.word),
+        }
+        // interning it again appends nothing
+        let h2 = ok(st.intern(ENodeView::App(s0.dup2(), s0.dup2())));
+        assert_eq!(h2.word, h.word);
+        assert_eq!(st.node_count(), before + 1);
+    }
+}
