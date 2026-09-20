@@ -20576,6 +20576,9 @@ witness.
 
 #### The sorry list
 
+*(Superseded by the follow-up subsection below: ten of these thirteen are
+closed, and the other three are not provable as stated.)*
+
 Thirteen, all in `WFProofs.lean`, all of the same shape: a bookkeeping
 induction over the per-constructor arrays that `ETables.get_mono` /
 `get_push_mono` / `intern_ext` already carry out for `Ext`, repeated for the
@@ -20652,11 +20655,114 @@ citations are written to the format it will expect.  Nothing in `crates/`,
 `proof/ConRon/Refine/`, `proof/ConRon/Generated/`, `OVERVIEW.md` or
 `README.md` was touched, so the Rust gates are unaffected.
 
+#### Follow-up (2026-09-20, Opus): ten of the thirteen `sorry`s closed
+
+**Sorries closed (10/13).**  `EStore.enableScratch_wf`,
+`EStore.dropScratch_wf`, `EStore.dropScratch_denote_pers`,
+`NStore.intern_spec`, and all six of
+`{N,L,Ls}Store.{dropScratch_spec, enableScratch_spec}`.  With them
+`EStore.enableScratch_spec` and `EStore.dropScratch_spec` are theorems.
+
+**Sorries left (3/13), and why.**  `EStore.intern_wf`, `LStore.intern_spec`
+and `LsStore.intern_spec` are **not provable as stated**.  `EWFAt.lchildOK`
+asks a *persistent* expression node's level child to be persistent, and
+`intern` appends to the persistent tier exactly when `st.scratchOn = false`;
+but a level handle decodes against `st.ls.scratchOn`, a **different flag**,
+and nothing in `WF.lean` ties the two.  A store with `scratchOn := false`
+over a level store with `scratchOn := true` and one scratch level `u`
+satisfies `StoreWF`, `ViewOK (.sort u)` and `capOK (.sort u)`, and
+`(st.intern (.sort u)).1` then has a persistent node with a scratch child.
+`EStore.intern_wf_refuted_without_sync` (in `WFProofs.lean`) mechanises that
+implication.  `LWFAt.nchildOK` and `LsWF.lchildOK` have the same hole.
+
+The synchronisation *is* an invariant of the API — `empty`, `enableScratch`
+and `dropScratch` set all four flags together, `intern` touches none of them
+— it is simply missing from `StoreWF`.  **`WF.lean` is frozen for this task,
+so it was not changed.**  The fix is one clause per store,
+`scratchOn = <substore>.scratchOn`; the three results are already proved
+under it, as `EStore.{intern_wf_of_sync, intern_spec_of_sync}`,
+`LStore.intern_spec_of_sync` and `LsStore.intern_spec_of_sync`, so adding the
+clause closes the three `sorry`s by
+
+```lean
+fun h hv hcap => EStore.intern_wf_of_sync h h.scratchSync hv hcap
+```
+
+and nothing else.  (`NStore` has no sub-store, which is why
+`NStore.intern_spec` is closed outright.)
+
+**Tactic.**  `tag_cases`, as P2a asked, at the top of `WFProofs.lean`: a
+`macro_rules` over core's `split` under `set_option hygiene false` (so the
+branch condition is visible to the proof as `hc`), with `tag_cases h`
+splitting the goal's `if i.tag == ETag.… ` chain and `h`'s together via
+`if_pos hc` / `if_neg hc`, and falling back to splitting `h` when the chain
+is only there.  Eleven lines, no Mathlib.
+
+The lesson is that the tactic alone was *not* the win.  A `cases w <;>
+tag_cases h` over `ETables.get` costs ~33 s (ten constructors × the eleven-way
+dispatch) and blows the default `maxHeartbeats`.  What made the file cheap is
+taking the dispatch apart **exactly twice** —
+
+* `ETables.get_inv`: a node decoded from a grown tier either decoded from the
+  old one, or is the one just appended (stated against a predicate
+  `Q : tag → index → view → Prop`, so `get_push_inv`, and with it every
+  `intern` lemma, is an instance);
+* `ETables.derAt_congr`: the derived column is read through the same dispatch
+  as `get`, so column-wise agreement transfers —
+
+and deriving the other fifteen `ETables` lemmas from those two by a
+`cases w <;> intro n a ha <;> …` over the ten *columns*, where no `if` chain
+appears at all.  Same shape for `NTables` (3), `LTables` (5), `LsTables` (1).
+
+**Shape of the store-level proofs.**  Two lemmas per store, `wf_push_scr` and
+`wf_push_pers`, stated over an abstract result store `st'` and an abstract
+pushed tier `tb` with `t.push w d tier = (tb, inew)` as a hypothesis — so the
+`intern` case split supplies only `rfl`s and no proof ever looks inside
+`push` twice.  The rank is extended by
+
+```lean
+rk' c = if (st.view c).isNone then <persCount or nodeCount> else rk c
+```
+
+which needs **no** `c ≠ inew` side condition: the appended handle is exactly
+the one the old store could not decode (`ETables.get_eq_none_of_size`).  The
+scratch bracket needs only one lemma per store, `wf_of_scr_empty` at an
+explicit rank, since `enableScratch` and `dropScratch` differ only in the flag
+they leave behind; the explicit rank is what lets
+`denote…_dropScratch_pers` trade the old fuel for the smaller new one through
+`denote…Aux_congr`.
+
+**`#print axioms`** on every closed result — the ten above, plus
+`EStore.{intern_view_spec, intern_ext, wf_push_scr, wf_push_pers}`,
+`{L,Ls}Store.intern_ext`, the four `…_of_sync`, and
+`EStore.intern_wf_refuted_without_sync` — reports
+`[propext, Classical.choice, Quot.sound]` and nothing else.  Three of them
+(`{N,L,Ls}Store.enableScratch_spec`) need only `[propext, Quot.sound]`.  No
+`sorryAx`, no `bv_decide` axiom.
+
+**Elaboration time.**  `WFProofs.lean` went from 1 670 to 5 261 raw lines
+(4 908 non-blank, 272 theorems).  `lake build ConRonArena` after touching
+only that module, three runs each, `LEAN_NUM_THREADS=4`:
+
+| | wall |
+|---|---|
+| before (P2a tip, `f0caec33`) | 2.48 / 2.50 / 2.55 s |
+| after | 13.09 / 13.15 / 13.35 s |
+
+i.e. 2.5 s → 13.2 s, ×5.3 for ×3.1 the lines — most of the extra is the four
+`wf_push_*` proofs, which are long but shallow.  **The module is still at the
+default `maxHeartbeats`**; nothing in it needed a raise.  The file's fifty
+linter warnings (unused simp arguments, a stale `opt3_eq_some_iff`, four
+unreferenced binder names) are gone: `push_spec`'s case *k* needs only the
+tags up to *k*, because the dispatch stops at the matching arm.
+
 #### For P2b
 
-* Write the `tag_cases` macro first (above).
-* `EStore.intern_view_spec` and `intern_wf` are the two lemmas everything else
-  waits on; do them before any `ExprOps` twin, because their *statements* (not
-  their proofs) are already what the twins' specs quantify over.
+* `tag_cases` is written (see the follow-up above); read that subsection's
+  lesson before reaching for it.
+* `EStore.intern_view_spec` is closed and `intern_wf` is closed modulo
+  `WF.lean`'s missing flag-synchronisation clause (follow-up above); adding
+  that clause is the first thing P2b should do, because every twin's spec
+  quantifies over these *statements*.
 * The `@[noinline]` and detach-before-update discipline is in place at every
   mutation site in `Store.lean`; P2g measures whether it held.
