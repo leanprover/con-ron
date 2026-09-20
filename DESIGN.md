@@ -21347,3 +21347,348 @@ arm); sharing one generic two-child memoised arm between `app`, `lam` and
   bind_tc_ok]`, `cases` the `Option`, the primitive's abstraction lemma,
   `simp only [hrec, except_ok_bind]`, close), so a matching *tactic* is the
   cheap way to buy the difference back.
+
+### Task #97b — the `ExprOps` twins (2026-09-20, Opus under Fable)
+
+Phase P2b of §8.6, on task #97a's frozen stores: the 70 (T) declarations of
+`ConLeche/Kernel/ExprOps.lean`, their differential test against con-leche,
+and a micro-benchmark.
+
+**Scope, changed mid-task by the maintainer**: *write the code first, prove
+later*.  Theorem 1 for this module was started (it was P3 pulled forward,
+because task #97s made it cheap) and then dropped; what it produced is in the
+branch history and is described under "The spec layer, written and set aside"
+below, because the two things it measured are facts about `mvcgen` that P3
+will meet again.  In its place the task delivers the performance instrument
+the new ordering needs.
+
+Five modules under `proof/ConRon/Arena/`:
+
+| module | raw lines | what |
+|---|---:|---|
+| `Monad.lean` | 545 | `AM`, `AState`, the store primitives, the eleven memo tables |
+| `ExprOps.lean` | 1470 | the twins: 63 functions covering 70 con-leche declarations |
+| `ExprOpsTest.lean` | 584 | 183 kernel-reduced differential `#guard`s |
+| `Bench.lean` | 215 | `con-ron-arena-bench`, the micro-benchmark |
+| **total** | **2814** | |
+
+`Monad.lean`, `ExprOps.lean` and `ExprOpsTest.lean` are in `lean_lib
+ConRonArena`; `Bench.lean` is an executable root (`lakefile.toml`, not a
+default target) and is the only file under `Arena/` that does `IO`.
+
+#### The monad and the state
+
+`AM := StateT AState (Except CheckError)` and nothing else (§8.4).  `AState`
+is the `EStore` plus a `Memos` record of **eleven** per-call tables — one per
+con-leche `…Go`, because the walks NEST (`instantiate1Lift`'s `bvar` arm runs
+`liftLooseBVars`, so a shared table would answer one walk with the other's
+answers).  Grouping them in one record rather than as eleven `AState` fields
+is what will make a frame condition ("this call touched only `liftC`") one
+equation instead of eleven when P3 needs one.
+
+Three decisions worth recording:
+
+* **`CheckError` gains a fourth constructor, `native`** (§8.3: "the Rust
+  raises `Native` at the limit, the Lean `throw`s the same kind"), and
+  `internE` / `internNNode` / `internLNode` / `internLsNode` test the
+  per-constructor-per-tier capacity **at the monadic wrapper**, which is what
+  keeps `EStore.intern` total and turns `EStore.intern_spec`'s `capOK`
+  hypothesis into a branch condition.  `Main.lean` still carries its own
+  three-constructor copy of `CheckError`; the two are in disjoint import
+  closures today and must be merged when P2f wires the driver to the checker.
+* **The level readback IS `denoteL`.**  §8.3 lesson 4 says a level ALGORITHM
+  runs on transient `ConLeche.Level` trees read out of the store; the
+  cheapest readback that is also *provably* the denotation is the denotation,
+  so `readLevel` / `readLevels` / `readName` call `denoteL` / `denoteLs` /
+  `denoteN` directly.  No readback memo: levels are small and only
+  `instLPGo`'s `.sort` and `.const` arms read one.  The benchmark below says
+  level substitution over a 50 000-node spine costs 21 ms against
+  `instantiate1`'s 16 ms on the same term, so the readback is not the
+  bottleneck at this scale; if P2g's `Init` numbers say otherwise, the table
+  goes into `Memos` beside the others.
+* **`exprPtrBEq` takes no monad**: it is `a == b` on handles, reads no state,
+  and the census's mechanical `AM Bool` is too crude for it (as the census
+  itself says of every derived-word predicate).
+
+#### The twins: 70 con-leche declarations, 62 functions
+
+The mechanical rule "one twin per con-leche declaration" is wrong for this
+module in one systematic way (the 63rd function is `substLevelList`, the closure audit below): con-leche carries a PURE walk, a MEMOIZED walk
+(`…Go`) and an ENTRY (`…Fast`) for nine of its algorithms, joined by
+`@[csimp]`.  The arena has one function per algorithm, so nine triples
+collapse into nine pairs (`…Go` + `…Fast`) and each twin cites two or three
+con-leche declarations, one `con-leche:` line each.  `instantiateList` is the
+exception: its `Go`'s `bvar` arm calls the PURE walk (that arm recurses into
+the replacement with a *shorter* list, which the outer memo is not keyed
+for), so both exist here too.
+
+| con-leche | arena twin | deviation |
+|---|---|---|
+| `instantiate1` :29, `…Go` :80, `…Fast` :182 | `instantiate1Go` + `instantiate1Fast` | cutoff added (below) |
+| `instantiateList` :191, `…Go` :267, `…Fast` :371 | `instantiateList` + `instantiateListGo` + `…Fast` | — |
+| `liftLooseBVars` :380, `…Go` :430, `…Fast` :532 | `liftLooseBVarsGo` + `…Fast` | — |
+| `resetMeta` :552, `…Go` :579, `…Fast` :687 | `resetMetaGo` + `…Fast` | memo keyed at cursor `0` |
+| `lowerBVars` :694, `…Go` :2012, `…Fast` :2144 | `lowerBVarsGo` + `…Fast` | placed at the `Go`'s line, not the pure walk's |
+| `instantiate1Lift` :718, `…Go` :2222, `…Fast` :2356 | `instantiate1LiftGo` + `…Fast` | ditto |
+| `abstract1` :760, `…Go` :1789, `…Fast` :1927 | `abstract1Go` + `…Fast` | ditto |
+| `renameConsts` :930, `…Go` :999, `…Fast` :1109 | `renameConstsGo` + `…Fast` | `f : NIdx → NIdx`; memo at cursor `0` |
+| `Expr.instLPGo` :2564, `…Fast` :2718 | `instLPGo` + `instLPFast` | `ks`/`us` are TRANSIENT (below) |
+| `Expr.bvarBound` :1293, `bvarBoundGo` :1368, `bvarBoundMemo` :1394 | `bvarBoundGo` + `bvarBoundMemo` | — |
+| `Expr.fvarRange` :1312, `fvarRangeGo` :1397, `fvarRangeMemo` :1424 | `fvarRangeGo` + `fvarRangeMemo` | — |
+| `Level.hasParam` :2399 | `LIdx.hasParam` | **not a walk**: the level store's derived `hasParam` bit, `O(1)` |
+| `Expr.hasLevelParam` :2420 | `EIdx.hasLevelParam` | **not a walk**: the `hasLP` bit of the packed word, `O(1)` |
+| `exprPtrBEq` :2382 | `exprPtrBEq` | no monad; index equality |
+| `recRulePlain` :1227 | `recRulePlain` + `bvarRange` | the comparand list is interned, so the twin has a helper |
+| the other 26 | one each | `Option.map` over a monadic body becomes an explicit `match` |
+
+**Fuel.**  Every walk over the handle DAG takes an explicit `fuel : Nat` and
+`fail`s when it runs out; a recursion structural on something else — a binder
+count (`stripPis`), an argument list (`mkAppN`), a transient `Level` tree
+(`internLevel`) — takes none.  `instantiateList`'s con-leche measure is the
+lexicographic `(vs.length, sizeOf e)`; one fuel counter decreasing on both
+kinds of call is that order flattened.
+
+**The arms are INLINE, and that is a deliberate reversal.**  Task #97s round
+2 asks (B) to be written with one `def` per constructor arm, because that is
+what takes a `mvcgen` proof from 185 s to 11.5 s.  This task wrote them that
+way, and then took them back out: the spike achieves the split by passing the
+dispatcher to each arm as a function ARGUMENT, and a closure is exactly what
+DESIGN §3.4 forbids in code Aeneas must translate — the maintainer's
+"transliterable to Rust one function at a time, no closures" rules it out.
+Inline is also con-leche's own shape (one function per walk, all ten arms
+inside it).  **When P3 splits the arms again the split must be a `mutual`
+block whose arms call the dispatcher by name**, which is Rust-legal (two
+functions calling each other) and costs a `termination_by (fuel, tag)`
+lexicographic measure; the memo probes mark where the cuts go.
+
+**The closure audit.**  "No closures" is not only about the arm split.  Three
+other places in the module took a function value where con-leche writes one,
+and all three are now explicit recursion, per DESIGN §3.4's own rule that a
+`List` recursion becomes a helper:
+
+* `stripLams` / `stripPis`'s `(…).map fun (bs, e) => …` → an explicit
+  `match` on the `Option`;
+* `instLPGo`'s `vs.map (Level.subst ks us)` → `substLevelList`;
+* `instLPFast`'s `ks.mapM readName` → `readNames` (in `Monad.lean`, beside
+  `readName`).
+
+What is LEFT is one: `renameConstsGo (f : NIdx → NIdx)`, and it is con-leche's
+own signature (`renameConsts (f : Name → Name)`).  What the Rust passes there
+is P2d's to decide — the only call site is the modeled-block contract, whose
+map is a lookup in a table, so a concrete map type is likely and no closure
+need survive.
+
+**One measured trap, recorded for P3.**  With the arms split, `mvcgen` has
+nothing in the PROGRAM to pin an arm spec's `v` (the substituted handle)
+against, and it unifies `v` with whichever handle comes to hand — the `app`
+arm's SECOND CHILD, both in the spike and here (the dispatcher's side goal
+came out as `Inst1Rec a ve (instantiate1Go v fuel)`).  Task #97s round 2 says
+to thread `v` into every arm even where the arm does not read it; that is
+confirmed, and it is one more `u32` in a register.
+
+#### The cutoffs
+
+| walk | cutoff | licence |
+|---|---|---|
+| `instantiate1Go` | `bvarBRaw < satRange && bvarBRaw ≤ d` | the arena's own `instantiate1_of_bvarBound_le` + `bvarBRaw_exact` |
+| `abstract1Go` | `fvarB ≤ d` | `abstract1_of_fvarRange_le` |
+| `lowerBVarsGo` | `bvarB ≤ c + amount` | `lowerBVars_of_bvarBound_le` |
+| `instantiate1LiftGo` | `bvarB ≤ d` | `instantiate1Lift_of_bvarBound_le` |
+| `instLPGo` | `hasLP = false` | `Expr.instantiateLevelParams_eq_self` |
+
+Four are con-leche's own; `instantiate1`'s is the one DESIGN §8.3 asks for by
+name and con-leche's `instantiate1Go` does not have.  The three cutoffs
+con-leche reads through the *exact* `bvarB` / `fvarB` are read the same way
+here, so the saturated branch recomputes through the memoized walk and no
+`< satRange` side condition appears; `instantiate1`'s reads the raw field
+directly, which is why it will carry one.
+
+**`instantiateList` and `liftLooseBVars` get no cutoff.**  Both would earn
+one (`bvarB ≤ d` and `bvarB ≤ c`) but neither has a pure lemma in con-leche,
+and a cutoff the original does not have needs its licence proved.  The
+benchmark says what they would be worth: a cutoff that fires answers a
+50 000-node subject in **0.002 ms** against **17–28 ms** for the same-sized
+subject it does not answer, a factor of about **10 000**.  Recorded as the
+first thing the performance phase should price.
+
+#### Levels: read back, not twinned
+
+`instLPGo` is the only twin that touches a level ALGORITHM.  Its `ks`/`us`
+are `List ConLeche.Name` and `List Level` — TRANSIENT values, not `List NIdx`
+and `LsIdx` as the census's mechanical column has them.  `instLPFast` reads
+them back once at the entry (`ks.mapM readName`, `readLevels us`), the walk
+runs con-leche's own `Level.subst` and `Level.substPW` on the trees, and
+`.sort` / `.const` re-intern the result.  That is §8.3 lesson 4 taken
+literally, and it is where the census's rule stops being useful.
+
+#### The differential test: 183 `#guard`s, all green
+
+`ExprOpsTest.lean` interns a fixture — two sorts, a parameter sort, two
+constants, three loose `bvar`s, two annotated `fvar`s, a literal, a λ over a
+`let` over a `∀` over a `proj` over a spine, a two-binder `∀`-telescope and
+its λ twin, an application spine — and for every twin with a con-leche
+counterpart on `Expr` runs
+
+> intern, run the twin, read the result back with `denoteE`, compare with
+> con-leche's own function applied to the *denotation of the input*.
+
+The expected side is computed, never written out, so a check cannot drift
+from the twin; what IS written by hand is the fixture's own denotation
+(nineteen `#guard`s), which is what makes the computed expectations
+trustworthy.  Every twin that has an `Expr`-level counterpart is covered,
+most at several terms and several cursors.
+
+**What it found.**  Every twin agreed on the first run.  The one check that
+failed was mine, not the code's: a fuel-exhaustion check written at the
+composite term passed at fuel 1, because that term's loose-bvar bound is 0
+and the derived-word cutoff answers it without recursing at all.  Moved to a
+term whose bound is 1.  That is the cutoff working, observed from outside.
+
+`#guard` kernel-reduces the whole monadic run, the `Std.HashMap` probes and
+`denoteE`, including through `PropWhen`'s sealed representation (which
+con-leche's own `ExprOps.lean` needs `import all` for — the arena does not,
+because it only *compares* `BinderMeta`s and never destructs one).  The file
+elaborates in **1.3 s**.
+
+#### The micro-benchmark
+
+`proof/ConRon/Arena/Bench.lean`, `lake build con-ron-arena-bench`, an
+executable so the numbers are wall time on real code and not `#eval` inside
+the elaborator.  Four shapes, each chosen to isolate one cost:
+
+* **the spine** `((… ((bvar 1) x) x) …) x`, 50 000 `app` nodes, no sharing at
+  all — a walk does 50 000 interns and the memo never hits.  The worst case
+  for the memo and the honest baseline for "what does one pass cost";
+* **the telescope** `∀ ty, … (bvar 10000)`, 10 000 binders — the cursor moves
+  under every binder;
+* **the DAG tower** `t₀ = bvar 1`, `t_{k+1} = app t_k t_k` at k = 24 — 25
+  arena nodes denoting a tree of 2^24 = 16.7 M nodes.  **The measurement the
+  memo exists for**;
+* **con-leche's task #215 workload** — peel a 1000-binder telescope one
+  binder at a time (`openPisAtFvars`), which is the call pattern that made
+  con-leche memoize `instantiate1` in the first place.
+
+Three runs, `ulimit -v 20000000`, on the shared machine; the spread across
+runs is given where it exceeds a millisecond.
+
+| subject | operation | wall |
+|---|---|---:|
+| build | intern all four shapes (111 031 nodes) | 15.8 / 15.9 / 17.8 ms |
+| spine, 50 000 apps | `instantiate1Fast` | 15.9 / 16.7 ms |
+| | `abstract1Fast` | 29.2 ms |
+| | `instLPFast` | 21.8 / 21.3 ms |
+| | `bvarBoundMemo` (the saturated-branch walk) | 6.5 ms |
+| | `sizeB` (no intern, no memo) | 2.5 ms |
+| telescope, 10 000 binders | `instantiate1Fast` | 3.4 / 3.6 ms |
+| | `abstract1Fast` | **0.003 ms** (the `fvarB` cutoff fires) |
+| | `instLPFast` | 5.6 ms |
+| | `liftLooseBVarsFast` | 2.8 ms |
+| DAG tower, 2^24 tree nodes | `instantiate1Fast` | **3.0 / 3.4 ms** |
+| | `instantiate1LiftFast` | 0.016 ms |
+| | `instLPFast` | 0.005 ms (the `hasLP` cutoff) |
+| | `bvarBoundMemo` | 0.008 ms |
+| task #215 | peel 1000 binders, 1000 `instantiate1` calls | 175 / 195 / 177 ms |
+| cutoff fires | `instantiate1` / `abstract1` / `instLP` | 0.0017 / 0.0025 / 0.006 ms |
+| cutoff does not | the same three, same-sized subject | 23–25 / 23–28 / 17–20 ms |
+
+**Four things the numbers say.**
+
+1. **The memo is worth exactly what §8.3 claims.**  `instantiate1` over a
+   term denoting 16.7 M tree nodes takes 3 ms because the arena walks 25
+   nodes and the memo answers the rest.  Without it the same call is 2^24
+   rebuilds.  The tower is in the benchmark permanently for that reason: if
+   the memo is ever removed this line stops finishing, which is a better
+   regression test than an assertion.
+2. **The cutoffs are worth about 10 000×** on a subject they answer, and cost
+   one `O(1)` derived-word read on a subject they do not.  That is the whole
+   case for `instantiateList` and `liftLooseBVars` getting one too.
+3. **One pass over unshared structure costs 0.3–0.6 µs per node**, intern
+   included (50 000 nodes in 16–29 ms).  `sizeB`, which walks the same term
+   and interns nothing, is 2.5 ms — so **about 85 % of a rebuilding pass is
+   the intern**, not the traversal.  That is where the performance phase
+   should look first, and it is a store-layer question (the cons table's hash
+   and probe), not an `ExprOps` one.
+4. **The per-call memo does not help ACROSS calls, and task #215's workload
+   is where that bites**: 1000 peels of a 1000-binder telescope cost 175 ms
+   and allocate 500 000 nodes — the quadratic con-leche's #215 describes,
+   reproduced exactly, because `instantiate1Fast` drops its memo at every
+   entry (it must: the memo's answers depend on the substituted term).
+   con-leche has the same shape.  Whether the arena can do better — a memo
+   keyed on `(node, cursor, substituted handle)` that survives the call, which
+   the store's identity hashing makes cheap in a way con-leche's `Expr` keys
+   were not — is the second question for the performance phase, and it is a
+   change to §8.3's "Caches", not a local one.
+
+#### The spec layer, written and set aside
+
+Theorem 1 for this module was written and then dropped when the ordering
+changed.  The LAYER survives on this branch and can be restored with a
+checkout: `Arena/Peel.lean` (59 lines — the spike's `casesm* _ ∧ _` without
+Mathlib) and `Arena/Specs.lean` (1318 lines — task #97s's eight lemma groups
+grown for the real `EStore`, plus the `@[spec]` theorem of every primitive of
+`Monad.lean`, the eleven memo triples included) are at commits `113deb64` and
+`b1c8c5bf`.  The per-twin file was never committed; before it was removed it
+carried a statement for all 70 twins and a complete proof of `instantiate1` —
+six arm specs, the fuel induction, the top-level bracket and the run — whose
+`#print axioms` reported `[propext, Classical.choice, Quot.sound]` and no
+`sorryAx`.  Two findings from that work are facts about the METHOD rather
+than about the file, so they are recorded here:
+
+1. **A generic answer relation pays for itself, with one exception.**
+   `RelAt f st c st' r` — "`r` in `st'` denotes `f` of what `c` denotes in
+   `st`" — gives all eleven structural walks one set of five eliminators and
+   six step lemmas, where the spike's monomorphic `Inst1At` would need eleven
+   copies of its 822-line layer.  The exception: a generic step lemma
+   **cannot be `@[grind →]`**, because its decomposition hypothesis
+   (`∀ x y, f (.app x y) = .app (ff x) (fa y)`) has a VARIABLE at its head and
+   `grind` finds no pattern.  The lemmas are applied by hand instead, which
+   task #97s round 2 recommends anyway.
+2. **A generic memo invariant breaks `mspec` outright.**  With
+   `MemoOK f tbl st` the memo insert's spec leaves `f` a higher-order
+   metavariable and the arm's verification condition comes out as
+   `RelAt (?f d) …`, which is not a Miller pattern and no `exact` can close.
+   The fix is an `abbrev` per table fixing `f` to a concrete lambda whose only
+   metavariable is first-order — which is con-leche's own eleven `…MemoInv`
+   declarations (`Inst1MemoInv` … `MemoFInv`), all eleven of which the RUST
+   port skips as `Prop`-only apparatus and all eleven of which are
+   load-bearing for the arena.  `abbrev` and not `def`, so the generic lemmas
+   still match syntactically.
+
+#### Provenance and coverage
+
+`scripts/provenance.py check`: **0 findings** over the whole tree (3074
+items — 2363 Rust, 711 arena Lean — and 2580 citations).  The Rust ledger is
+unmoved: `TOTAL 927/927 (100.0 %)`.  The arena ledger climbs by exactly this
+module's 70 declarations:
+
+```
+ConLeche/Kernel/ExprOps.lean                    70/70  twinned
+ARENA TOTAL 80/927 twinned (8.6%), 847 to go
+```
+
+(7/927 before this task; 80 = 70 + the 10 the store layer and the driver
+already carried.)  `ExprOpsTest.lean` and `Bench.lean` are NOT in
+`provenance.py`'s `ARENA_EXEMPT` list (that file is `scripts/`, outside this
+task's scope), so their helper definitions carry `con-leche: none —`
+citations; the `#guard`s themselves are not declarations and need none.
+
+#### For P2c
+
+* **The twins are inline and must be re-split for the proofs**, as a `mutual`
+  block and not by passing the dispatcher in.  Write the `Core` bodies inline
+  too, for the same Rust-shape reason, and expect P3 to do the split for both
+  modules at once.
+* **`EStore.internName` / `internLevel` / `internLevels` have no spec.**  P2a
+  froze them without one; every `Core` body that interns a name or a level
+  will need `Ext` and `StoreWF` for them, and so does `instLPFast`.
+* **The eleven memo tables of `Memos` are PER-CALL**; P2c's caches are
+  per-DECLARATION (§8.3) and want their own record beside it, so that the
+  per-call clear and the per-declaration drop stay visibly different
+  operations.
+* **`Main.lean`'s `CheckError` and `Monad.lean`'s are two copies of one type.**
+  Merge them the first time the driver has a checker to call.
+* **Benchmark before believing.**  `con-ron-arena-bench` takes ten seconds to
+  run and answers questions the proofs cannot: the intern is 85 % of a
+  rebuilding pass, the cutoffs are worth four orders of magnitude, and the
+  per-call memo leaves con-leche's task #215 quadratic.  Add the `Core`
+  shapes to it as they land.
