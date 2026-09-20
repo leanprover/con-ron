@@ -130,12 +130,12 @@ the name, the universe-argument list and the instantiated term. -/
     v.isPersistent
 
 /-- con-leche: none — **the per-declaration bracket's cache half**
-(DESIGN §8.3, "Drop"): every entry whose key or value names a scratch
-handle goes with the tier, everything persistent stays.  P2d calls this
-beside `EStore.dropScratch` at each declaration boundary, so that the two
-halves of the drop are one operation on the state.
+(DESIGN §8.3, "Drop"), kept as the *specification* of what a surviving row
+is: an entry whose key or value names a scratch handle must go with the tier
+that owns the handle, and an entry that is persistent through and through
+may stay.  Nothing calls it (see `Caches.flushed` below, and task #97f).
 
-The Rust spelling is `HashMap::retain` per table; the Lean is
+The Rust spelling would be `HashMap::retain` per table; the Lean is
 `Std.HashMap.filter`, whose predicate is one of the six named tests above
 rather than a lambda (DESIGN §3.4: no closures in code Aeneas must
 translate). -/
@@ -151,5 +151,27 @@ def Caches.dropScratchEntries (c : Caches) : Caches :=
     constTyC := c.constTyC.filter keepNLs
     constValC := c.constValC.filter keepNLs
     ruleRhsC := c.ruleRhsC.filter keepNNLs }
+
+/-- con-leche: ConLeche/Cached/StateC.lean:394-398 CState.flushed — **what the
+per-declaration bracket actually does to the caches**: it drops them whole,
+which is con-leche's own `flushC`, the operation its driver runs at exactly
+this point (`Cached/Installed.lean`'s phase B runs every pending check from
+`{}`).
+
+Task #97c took DESIGN §8.3's survivor policy instead — keep the rows whose key
+AND value are persistent — which is sound (a dropped row is a cache miss and
+nothing else) and strictly more caching.  Task #97f measured what it costs: a
+`filter` is `O(table)` and the survivors accumulate, so the fold pays
+`O(declarations × surviving rows)`.  On the first 4 380 declarations of `Init`
+the filter and its bucket-array rebuild were **16 % of the cycles** directly,
+and with the allocation traffic they drove the flush takes the same prefix
+from **213 s to 124 s**.  DESIGN §8.3's "Drop" clause is amended to say so.
+(It is not the whole story: that prefix is still superlinear in the
+declaration count, which is P6's.)
+
+`dropScratchEntries` stays above as the specification of a surviving row —
+P3 needs it to state that flushing is sound, since `flushed ⊑ dropScratchEntries`
+as caches. -/
+def Caches.flushed (_c : Caches) : Caches := Caches.empty
 
 end ConRon.Arena

@@ -635,21 +635,23 @@ it against a state whose table was filled by hand gives that entry back. -/
 
 /-! ## The per-declaration bracket
 
-`enterScratch` opens the scratch tier; `dropScratch` closes it and takes
-every cache entry that names a scratch handle with it, keeping the
-persistent ones (DESIGN §8.3, "Drop"). -/
+`enterScratch` opens the scratch tier; `dropScratch` closes it, drops the
+caches whole (con-leche's `flushC`, `Cached/StateC.lean:394-400` — task #97f
+replaced DESIGN §8.3's survivor policy with it, and §8.3 is amended) and
+truncates the scratch tier of the store. -/
 
-/- A cache entry over persistent handles survives the bracket. -/
+/- The caches go whole, persistent rows included: `dropScratch` is `flushC`. -/
 #guard runB (do
   let _ ← whnf MU FX.fe F 0 FX.two
-  let kept := (← get).caches.whnfC.size
+  let before := (← get).caches.whnfC.size
   enterScratch
   dropScratch
   let after := (← get).caches.whnfC.size
-  pure (kept > 0 && after == kept))
+  pure (before > 0 && after == 0))
 
-/- An entry whose VALUE is a scratch handle does not: the scratch term
-interned inside the bracket is gone, and so is its memo row. -/
+/- And a row whose VALUE is a scratch handle certainly goes: this is the one
+the bracket must not leave behind, because the handle it names is about to be
+reused by the next declaration. -/
 #guard runB (do
   enterScratch
   let h ← internE (.lit (.natVal 123456))
@@ -659,6 +661,14 @@ interned inside the bracket is gone, and so is its memo row. -/
   dropScratch
   let after := (← get).caches.whnfC.contains h
   pure (inside && scratch && !after))
+
+/- The specification of a surviving row is still there, and still says a
+persistent-through row could have stayed: `dropScratchEntries` keeps it. -/
+#guard runB (do
+  let _ ← whnf MU FX.fe F 0 FX.two
+  let before := (← get).caches.whnfC.size
+  let kept := ((← get).caches.dropScratchEntries).whnfC.size
+  pure (before > 0 && kept == before))
 
 /-! ## The gated and io knots agree with the executed one on the fixture
 

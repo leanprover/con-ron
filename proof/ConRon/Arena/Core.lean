@@ -3004,17 +3004,15 @@ exactly the entries that name a handle of that tier. -/
 memo entry whose key or value names a scratch handle goes with the tier,
 everything persistent stays (con-leche's arena #51).  P2d calls this beside
 `EStore.dropScratch`, which is why it is a state operation of its own. -/
-@[noinline] def dropScratchEntries : AM Unit := do
+@[noinline] def flushCaches : AM Unit := do
   let s ← get
-  let c := s.caches
-  let s := { s with caches := Caches.empty }
-  set { s with caches := c.dropScratchEntries }
+  set { s with caches := Caches.empty }
 
 /-- con-leche: none — **the per-declaration bracket, closed**: drop the
 scratch tier of the store and the cache entries that name it, in one
 operation, so the two halves cannot drift apart. -/
 @[noinline] def dropScratch : AM Unit := do
-  dropScratchEntries
+  flushCaches
   let s ← get
   let st := s.store
   let s := { s with store := EStore.empty }
