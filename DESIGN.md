@@ -2076,7 +2076,15 @@ lines of Rust, Theorem 2 open until P4a prices it.
   * Whether the persistent tier should be *installed types only* (the
     export's parse DAG dropped after the environment is built) — nanoda keeps
     the export DAG for the run; con-leche's #64 found the parse DAG is most
-    of the persistent memory.  Decide at P2g with numbers.
+    of the persistent memory.  **Maintainer, 2026-09-20: keep the DAG for
+    now** — the PropWhen computations allocate much less than they did then;
+    revisit at P2g if the numbers say otherwise.
+  * Branch policy (maintainer, 2026-09-20): `arena` stays a branch until (C)
+    passes the gates and the fixtures; (B) is not merged to master early.
+  * (B) IMPORTS con-leche's `Name`, `Level`, `PropWhen`, `Literal`,
+    `BinderMeta` and their pure functions rather than copying them (same
+    lake package); only term-touching algorithms get handle twins.
+    Accepted by the maintainer 2026-09-20.
 
 ## Task log
 
