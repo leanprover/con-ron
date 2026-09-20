@@ -1996,9 +1996,10 @@ structural copy scratch → persistent, `promote : EIdx → AM EIdx`, `view` +
 size), denotation-preserving by construction (`denote (promote h) = denote
 h` is the exactness lemma P3 owes) — before the tier is dropped.  Persistent
 handles are promoted to themselves.  This is a twin change (Lean first,
-Rust in lockstep) scheduled as P6-2, after task #97g lands.  **The LEAN
-half is DONE (task #97-P6-2)**: `Arena/Promote.lean`, the four
-`internPersistent` twins the store had to grow for it, and the bracket in
+Rust in lockstep) scheduled as P6-2, after task #97g lands.  **DONE, BOTH
+HALVES (task #97-P6-2, Lean and Rust)**: `Arena/Promote.lean` and
+`arena::promote`, the four `internPersistent` / `intern_persistent` twins
+the store had to grow for it, and the bracket in
 `annotStep` and in `checkDeclStep` — which also amends "the bracket lives
 in phase B" and P2d's "`checkDeclsPure` has no bracket": BOTH folds are
 bracketed now, so they stay one algorithm under the tier regime.  The
@@ -2232,13 +2233,18 @@ the persistent tier (the byte recogniser is unchanged).
         section profiles.
     P5  Theorem 2 campaign.
     P6  performance vs today's con-ron; the OVERVIEW numbers.
-        2. §8.3's promotion, a twin change.  **The LEAN half is DONE, task
-        #97-P6-2** (2026-09-20): phase A runs in the scratch tier and
-        promotes what the environment keeps; `Arena/Promote.lean` and the
-        store's `internPersistent` family are its machinery, 348/348 in
-        both modes and `Init` accepted 57 977 unchanged.  The Rust half
-        follows in lockstep, and that task's section carries the clause
-        list it has to mirror.
+        2. §8.3's promotion, a twin change.  **DONE, both halves** (task
+        #97-P6-2, Lean then Rust, 2026-09-20): phase A runs in the scratch
+        tier and promotes what the environment keeps; `Arena/Promote.lean`
+        / `arena::promote` and the store's `internPersistent` /
+        `intern_persistent` family are its machinery.  348/348 in both
+        modes on both binaries, `Init` accepted 57 977 unchanged, and the
+        two halves agree on the persistent node count to the node
+        (**6 508 719**, where phase A used to add 5.06 M).  The Rust:
+        **842.3 G instructions, 132 s, 1.61 GB**, against task #97-P4f's
+        816.0 G / 122.9 s / 1.85 GB — the promotion costs 3.1 % of the
+        instructions and takes a third of the gap to con-ron's own peak
+        RSS out.
 
 Branch `arena`; master stays shippable until (C) passes the gates and the
 fixtures.  Budget from con-leche's record, scaled: (B) ~12 k lines,
@@ -26990,3 +26996,171 @@ Rust's own run is compared against.
   that `consts.drop k` is the pre-step list.
 * `Arena/Bench.lean` still has no `Core`, `Checker` or inductive shapes —
   five tasks have now asked.
+
+### Task #97-P6-2 (Rust) — the promotion in the Rust, in lockstep (2026-09-20, Opus under Fable)
+
+Phase P6 item 2 of §8.6, the RUST half of the twin change whose Lean half is
+the section above, plus the two SEMANTIC findings of task #97g the port had
+never received.  Five commits, in the order the brief fixes them:
+
+| | what | files |
+|---|---|---|
+| 1/5 | task #97g's items 5 and 4 | `arena/expr_ops.rs`, `arena/core.rs`, `arena/inductives/{modeled,native_install}.rs` |
+| 2/5 | `intern_persistent` ×4 + `cap_ok_persistent` ×4 + the six lifts; the four monadic wrappers | `arena/store.rs`, `arena/monad.rs` (ADDITIVE) |
+| 3/5 | `arena::promote` | `arena/promote.rs` (new) |
+| 4/5 | both folds bracketed | `arena/checker.rs` |
+| 5/5 | the driver's persistent node count; the tests | `con-ron-arena/src/driver.rs`, two `mod tests` |
+
+#### The number the two halves are compared at
+
+**`Init`, persistent expression nodes after phase A: 6 508 719 — the Lean
+twin's number to the node**, and the twin's own decomposition holds here too:
+the parse's 6 137 973 (task #97e part 2, unmoved) plus **370 746**, +6.0 %.
+Task #97-P4f's phase A added **+5.06 M, +82 %**.  Phase A's permanent
+footprint is **13.6× smaller**, and the two implementations agree on exactly
+which nodes cross the boundary — which is the strongest lockstep evidence this
+campaign has produced, stronger than an agreeing verdict, because it is a
+count of what the two stores HOLD and not of what they answered.
+
+(Phase B promotes nothing and drops its tier at every record, so the count
+after phase A is also the count at the end of the run; `--progress`'s
+`install done:` line carries it beside the total.)
+
+#### The measurements
+
+`--verified --jobs=1`, `ulimit -v 8000000`, `perf stat -e
+instructions:u,cycles:u`, this machine, the release profile the gates build.
+The middle column is this task's commit 1/5 — task #97g's two items and
+nothing else — so that the promotion's own price is separated from theirs.
+
+| `Init` (6 490 422 lines, 347 MB) | task #97-P4f | + #97g's items 4, 5 | **+ the promotion** |
+|---|---:|---:|---:|
+| verdict | accepted 57 977 | accepted 57 977 | accepted **57 977** |
+| persistent expression nodes | 11.20 M | 11.20 M | **6 508 719** |
+| `instructions:u` | 816.0 G | 817.3 G | **842.3 G** |
+| `cycles:u` | — | 543.8 G | 559.2 G |
+| wall | 122.9 s | 123.7 s | 132.8 / 121.9 / 132.3 s |
+| peak RSS | 1.85 GB | 1.79 GB | **1.61 GB** |
+
+beside the two columns §8.1 calibrates against — **nanoda** 231.0 G / 25 s /
+365 MB, and **con-ron at master** 542.1 G / 61 s / 0.48 GB (OVERVIEW §7.2's
+`--jobs=1` row) — and con-leche's own 585.9 G / 56 s / 0.48 GB.
+
+**Four readings.**
+
+1. **The memory the promotion buys is the node arithmetic and nothing else.**
+   4.69 M fewer permanent nodes for 0.18 GB of peak — ≈ 40 bytes a node,
+   which is what a node costs in the Rust (the record, its derived word, its
+   cons-table entry, minus the fraction of them the promotion re-creates).
+   What remains is the parse DAG and its cons tables (§8.7's open question,
+   which this run does not touch), the pending list, and phase B's working
+   set: **the peak is no longer phase A's**, which makes §8.7's question the
+   whole of the remaining RSS story rather than a share of it.  Against
+   con-ron at master the arena is now **3.4×** on peak RSS where task
+   #97-P4f measured 3.9×.
+2. **The promotion costs +25.0 G instructions, +3.1 %**, and that is the
+   whole of this task's instruction cost: #97g's two items are +1.3 G on
+   `Init` (+0.16 %, inside the noise).  The copy is paid once per declaration
+   over exactly the handles the environment keeps, and a persistent handle —
+   most of an annotated term — is answered by one tier-bit test.
+3. **#97g's item 5 does nothing on `Init` and that is expected.**  The twin
+   measured the same: `Init`'s early declarations rarely reach `majorToCtor`'s
+   rescue branches, and the walk's 43.9 % of the cycles was `core.ndjson`'s.
+   The Rust's own `core` run belongs to the next P6 task; what is landed here
+   is that the port no longer carries the spec tier's quadratic walk into it.
+4. **Wall time is at the edge of what three runs resolve** (121.9–132.8 s,
+   ±4 % between runs of the SAME binary), so `instructions:u` is the reading
+   to quote and the wall column is reported for completeness.
+
+#### Task #97g's items 4 and 5, which the Rust had none of
+
+Finding 1 (the fold step's error arm) needs **no Rust change**, and the twin's
+own note says why: a `&mut` state whose caller stops using it on `Err` is what
+the Lean's `AState.abandoned` was written to mean, and `annot_decl_step` has
+never taken a snapshot.  Finding 3 (`@[inline]`) is a Lean RC concern.  The
+other two are real and are commit 1/5:
+
+* **Item 5** — `wscoped_b_go`/`wscoped_b_fast`, `fvar_leaves_go`/
+  `fvar_leaves_fast`, `leaf_mem`, `leaves_sub_go` and `leaf_guard`, each memo
+  a moved `ron::HashMap` returned (`frontend::proj_rec`'s spelling), each with
+  con-leche's `fvar_b == 0` short-circuit off the RAW packed field, and
+  `fab_scope_ok` reduced to those three tests.  `fvar_leaves_subset` stays as
+  the specification of what `leaf_guard` decides.
+* **Item 4** — the eight `flush_caches` of `Cached/CheckerC.lean` inside the
+  inductive installs (`check_ind_member`, `provision_recs`, `check_ind_recs`,
+  `install_proj_fn_step`, `check_native_pass`, `check_native_tail_install`,
+  `check_native` twice), plus the two the brackets carry at their head.
+
+#### The twin ledger (§8.6's P6 rule)
+
+The Lean twin of every item above is already written — this task IS the
+lockstep half — so what the ledger carries is the three places the Rust says
+the same thing differently.  Each is a representation difference the Aeneas
+refinement absorbs; none is a change the Lean owes.
+
+1. **`promote_new` rewrites the `k` newest SLOTS in place** where the twin
+   writes `installed ++ below` over a newest-first list.  `arena::env`'s
+   `IEnv` is oldest-first because `Vec::push` appends (its own standing
+   deviation), and the Aeneas subset cannot move an element out of an owned
+   `Vec`; rebuilding the list would copy the whole environment at every
+   declaration.  `index_promoted` walks down from the top with the twin's own
+   descending counter, so the rows it writes are the twin's rows, and
+   `erase_installed` runs over all `k` first, as the twin does.
+2. **`fvar_leaves_go` pushes where the twin conses**, so the two lists are
+   each other's reverse.  The list is a membership base and nothing else
+   (`leaf_mem` is its only reader) and a `Vec` has no cons; the twin's own
+   note already says the order is not observed.
+3. **Fifteen Rust-only splits** — `wscoped_b_node`/`_two`,
+   `fvar_leaves_node`/`_two`, `leaves_sub_node`/`_two`, the six memo
+   probe/record pairs, `promote_{n,l,e}_node`, `promote_{l,e}_two`,
+   `promote_proj_table_rest`, `annot_step_promote` and the five `*_from`
+   cursor companions — each at the twin's own `let` boundary or match arm,
+   split because a `HashMap::get` match that produces a value must be its own
+   function (extraction rule 5) and because the `view`'s loans must be dead at
+   the memo's join.
+
+#### What was verified
+
+| | |
+|---|---|
+| `cargo build --release` / `cargo test`, `RUSTFLAGS="-D warnings"` | green; **115 tests in `arena-core`** (up from 109), 404 in the workspace |
+| `scripts/lint-rust-style.sh` over both verified trees | clean |
+| `scripts/provenance.py check` | **0 findings** (6 354 items — 4 601 Rust, 1 753 arena Lean — and 4 855 citations) |
+| `scripts/extract-arena.sh --dry` | zero errors, zero warnings, 63 950 lines of model, **4 type holes and 208 function holes, every one of them the `con-ron-core` boundary** plus the two standing ones (`Arc::deref`, `str::as_bytes`); `arena::promote` contributes none |
+| `scripts/diff-e2e.sh --bin=target/release/con-ron-arena` | **348/348 `--verified`, 348/348 `--trusted`** — three better than task #97-P4f's 345, task #97-P4e part 2's projection rewrite having landed in between |
+| `con-ron-arena --verified _tmp/corpus/init.ndjson` | accepted **57 977**, unchanged, at the node count above |
+
+The differential is `CheckerTest.lean`'s thirty-two promotion `#guard`s — the
+twenty `chkDecls` and the twelve `chkInstall`, each comparing the DENOTED
+environment with con-ron-core's — which were already `arena::checker`'s `mod
+tests` at task #97-P4d and now run through the bracket.  Six tests were added
+for what a readback cannot see, because it cannot tell one tier from another:
+a persistent handle promotes to itself and appends nothing; a scratch node
+promotes to the very handle the persistent tier hands out for its view (which
+over an injective `denote` is `denote (promote h) = denote h` observed from
+outside); the memo answers the second promotion; the four kinds promote
+through the nesting; `promote_new` repairs the index and leaves no row under a
+scratch key; and each memoized scope walk equals the unmemoized one it
+replaces, `fab_scope_ok` included.  All green on the first run.
+
+One red test at the branch tip was fixed on the way in and is nobody's task:
+`con-ron-arena`'s chunk test called `AState::node_count`, which is a method of
+its `store` field.
+
+#### What is left
+
+* **§8.7's parse-DAG question is now the whole of the RSS story.**  Phase A's
+  permanent footprint is 370 746 nodes; the parse's is 6 137 973.
+* **`check_decl_step` is on the theorem's fold, which no binary runs.**  It
+  exists so that the two folds stay one algorithm under the tier regime
+  (§8.3's amendment), and its only callers are `check_decls_pure` and the
+  tests.  A P3 reader should start there: it is the bracket at its smallest.
+* **The `fresh` exception is the reviewer's line**, as the twin's section
+  says: the promotion breaks the cross-tier half of `denoteE`'s injectivity
+  while it runs and `drop_scratch` restores it, so the obligation is stated
+  for the bracket.  The Rust never promotes without dropping the tier
+  immediately afterwards — `annot_step`, `annot_step_promote` and
+  `check_decl_step` are the only call sites of `promote_new`/`promote_vg`, and
+  all three drop.
+* **`examples/bench.rs` still has no `Core`, `Checker` or inductive shapes**,
+  which is the sixth task to say so.
