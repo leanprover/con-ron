@@ -128,6 +128,9 @@ else
   BIN="$root/target/release/con-ron"
   [ -x "$BIN" ] || { echo "diff-e2e: $BIN is not executable" >&2; exit 3; }
 fi
+# What a DIFFER line calls the binary under test.  It was the literal
+# `con-ron`; with `--bin` that would name the wrong checker.
+binname=$(basename "$BIN")
 
 if [ ! -d "$ARENA_DIR/good" ]; then
   echo "extracting the vendored arena snapshot to $ARENA_DIR" >&2
@@ -189,7 +192,7 @@ one() { # one <suite> <label> <stream> <expected-exit>
     echo "INMODEL $suite/$label: con-leche expects $want; the block needs the modeller"
   else
     differ=$((differ + 1))
-    echo "DIFFER  $suite/$label: con-leche expects $want, con-ron got $rc"
+    echo "DIFFER  $suite/$label: con-leche expects $want, $binname got $rc"
     printf '%s' "$out" | head -2 | sed 's/^/          /'
   fi
 }
