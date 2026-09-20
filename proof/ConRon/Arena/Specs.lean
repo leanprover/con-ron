@@ -75,26 +75,30 @@ theorem AM.of_run {α : Type} {prog : AM α} {s s' : AState} {a : α}
 
 Four facts; after them no proof below ever unfolds `denote*`. -/
 
-/-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — a denotation survives
-every arena extension.  This is `Ext.expr` under the name the proofs use. -/
+/-- con-leche: none — arena infrastructure; a denotation survives every arena
+extension.  Precedent: con-leche's retired ConLeche/Verify/SimI.lean:244
+SimAt (at 94a1cf78).  This is `Ext.expr` under the name the proofs use.  This is `Ext.expr` under the name the proofs use. -/
 @[grind →] theorem denote_ext {st st' : EStore} {h : EIdx} {e : Expr}
     (hd : denoteE st h = some e) (hx : Ext st st') : denoteE st' h = some e :=
   hx.expr h e hd
 
-/-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — the same for a NAME
-handle: `Ext` carries the three nested stores too. -/
+/-- con-leche: none — arena infrastructure; the same for a NAME handle,
+`Ext` carrying the three nested stores.  Precedent: con-leche's retired
+ConLeche/Verify/SimI.lean:244 SimAt (at 94a1cf78). -/
 @[grind →] theorem denoteN_ext {st st' : EStore} {c : NIdx} {x : ConLeche.Name}
     (hd : denoteN st.ns c = some x) (hx : Ext st st') : denoteN st'.ns c = some x :=
   hx.lss.ls.ns c x hd
 
-/-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — and for a LEVEL
-handle. -/
+/-- con-leche: none — arena infrastructure; the same for a LEVEL handle.
+Precedent: con-leche's retired ConLeche/Verify/SimI.lean:244 SimAt (at
+94a1cf78). -/
 @[grind →] theorem denoteL_ext {st st' : EStore} {c : LIdx} {u : Level}
     (hd : denoteL st.ls c = some u) (hx : Ext st st') : denoteL st'.ls c = some u :=
   hx.lss.ls.lvl c u hd
 
-/-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — and for a
-universe-argument LIST handle. -/
+/-- con-leche: none — arena infrastructure; the same for a universe-argument
+LIST handle.  Precedent: con-leche's retired ConLeche/Verify/SimI.lean:244
+SimAt (at 94a1cf78). -/
 @[grind →] theorem denoteLs_ext {st st' : EStore} {c : LsIdx} {us : List Level}
     (hd : denoteLs st.lss c = some us) (hx : Ext st st') :
     denoteLs st'.lss c = some us :=
@@ -364,8 +368,9 @@ conditional postcondition, named (rule 5) and parametric in the pure function
 — so the five eliminators exist once for all eleven walks of this module
 instead of once each. -/
 
-/-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — "`r` in `st'` is what `f`
-makes of what `c` denotes in `st`". -/
+/-- con-leche: none — arena infrastructure; "`r` in `st'` is what `f` makes
+of what `c` denotes in `st`".  Precedent: con-leche's retired
+ConLeche/Verify/SimI.lean:250 RelE (at 94a1cf78). -/
 def RelAt (f : Expr → Expr) (st : EStore) (c : EIdx) (st' : EStore) (r : EIdx) :
     Prop :=
   ∀ e, denoteE st c = some e → denoteE st' r = some (f e)
@@ -682,8 +687,9 @@ theorem viewOK_proj {st : EStore} {n : NIdx} {i : Nat} {sub : EIdx}
 
 /-! ## Group 8b — the state invariant and the memo invariants -/
 
-/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the state invariant, cut to
-P2b's one clause: the arena is well formed.  P2c adds the environment index
+/-- con-leche: none — arena infrastructure; the state invariant, cut to
+P2b's one clause.  Precedent: con-leche's retired ConLeche/Verify/SimI.lean:54
+ISOK (at 94a1cf78). the arena is well formed.  P2c adds the environment index
 and the per-declaration caches. -/
 structure StateOK (s : AState) : Prop where
   wf : StoreWF s.store
@@ -878,8 +884,9 @@ readback. -/
   · grind
   · exact fun hf => hf.elim
 
-/-- con-leche: Setlec/Kernel/IExpr.lean:464 intern — **the one spec that
-carries the arena**: a handle for the node, the store still well formed, the
+/-- con-leche: none — arena infrastructure; **the one spec that carries the
+arena**.  Precedent: con-leche's retired Setlec/Kernel/IExpr.lean:464 intern
+(at 94a1cf78). a handle for the node, the store still well formed, the
 arena only grown, the memo tables untouched, and the three nested stores
 literally unchanged (so a name or level handle that had a view still has
 one).  The capacity branch raises `native` and claims nothing. -/
