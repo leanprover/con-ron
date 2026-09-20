@@ -8,12 +8,13 @@
 #   2. cargo test                           the unit tests pass
 #   3. scripts/lint-rust-style.sh           the Aeneas subset (§3.4)
 #   4. scripts/provenance.py check          every item cites con-leche (§3.7)
-#   5. scripts/overview-links.sh            OVERVIEW.md/DESIGN.md line anchors
-#   6. scripts/holes.sh --check             OVERVIEW.md §8.1 == the model's holes
-#   7. scripts/gen-pins.sh --check          embedded pin text == natOpPinSets
-#   8. scripts/gen-prelude.sh --check       embedded prelude text == con-leche's
-#   9. scripts/extract.sh --check           committed generated Lean == crate
-#  10. cd proof && lake build               the whole proof library elaborates
+#   5. scripts/provenance-selftest.py        the gate's Lean parser, on its fixture
+#   6. scripts/overview-links.sh            OVERVIEW.md/DESIGN.md line anchors
+#   7. scripts/holes.sh --check             OVERVIEW.md §8.1 == the model's holes
+#   8. scripts/gen-pins.sh --check          embedded pin text == natOpPinSets
+#   9. scripts/gen-prelude.sh --check       embedded prelude text == con-leche's
+#  10. scripts/extract.sh --check           committed generated Lean == crate
+#  11. cd proof && lake build               the whole proof library elaborates
 #      (LAKE_JOBS=N caps lake's parallelism through LEAN_NUM_THREADS — Lake 5
 #      has no jobs flag: on a many-core machine the first build of the
 #      vendored con-leche can exhaust memory, task #74)
@@ -55,6 +56,7 @@ run cargo-build   env RUSTFLAGS="-D warnings" cargo build --manifest-path "$root
 run cargo-test    env RUSTFLAGS="-D warnings" cargo test  --manifest-path "$root/Cargo.toml"
 run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src"
 run provenance    python3 "$root/scripts/provenance.py" check
+run provenance-self python3 "$root/scripts/provenance-selftest.py"
 run overview-links "$root/scripts/overview-links.sh"
 run holes         "$root/scripts/holes.sh" --check
 run gen-pins      "$root/scripts/gen-pins.sh" --check

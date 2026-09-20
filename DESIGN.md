@@ -1192,6 +1192,39 @@ reads a message).  The long argument for each lives in the Rust module note of
 the module that would have held it; the skip file is the machine-readable index
 of those notes.
 
+**The Lean side** (task #97 P2, §8.4).  The arena checker (B) is a port of
+con-leche written *in Lean in this repository*, so it is inside this gate
+like any other ported source.  The annotation is a doc line, and the two
+forms are the Rust's two forms:
+
+```
+/-- con-leche: ConLeche/Kernel/Core.lean:120-200 whnfCore -/
+/-- con-leche: none — the store's own handle arithmetic (§8.3) -/
+```
+
+The citation may open a multi-line doc comment (the delta from the cited
+code then follows it in the same comment, as in the Rust), and a bare
+`con-leche: …` line inside a doc comment counts too, so a twin that merges
+several con-leche declarations lists them one per line.  Every top-level
+`def`/`structure`/`inductive`/`abbrev`/`class`/`instance`/`opaque`/`axiom`
+of `proof/ConRon/Arena/**` must carry one; a `theorem` need not, because a
+theorem there is the arena's *own verification* (§8.6 P2a, §8.2's bridge)
+and not a port of anything — a cited theorem is still checked, it is only
+the requirement that is lifted.  `check`, `update` and the `CHANGED`
+markers are the same in both languages; the marker's comment form is `--`
+and the lemma it names is the bridge (`…_bridge`), not `…_refines`.
+`coverage` keeps the two ledgers APART — the Rust group's numbers do not
+move when an arena twin lands — and prints the arena's coverage of the same
+con-leche declarations as a second group, *Arena checker (Lean)*, over the
+same denominator; a declaration `provenance-skip.txt` excuses the Rust port
+from is reported as *beyond* rather than as a finding, because that file
+says what the **Rust** port does not carry, which is a different question.
+The Lean parser has a fixture of its own,
+`scripts/testdata/provenance/{good,bad}`, driven by
+`scripts/provenance-selftest.py` in the gates: one declaration per accepted
+shape and one per finding, with the line ranges filled in from `locate` at
+the current pin so a con-leche bump cannot rot it.
+
 **Why no hashes.**  The pin is the single source of truth: a citation is
 `(path, range, name)` and the text it denotes is fixed by the vendored
 commit; `update` diffs pins, and the only churn is line numbers on moved
