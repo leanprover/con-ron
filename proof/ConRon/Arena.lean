@@ -25,3 +25,5 @@ import ConRon.Arena.Frontend.Types
 import ConRon.Arena.Frontend.ExportC
 import ConRon.Arena.Frontend.Prepare
 import ConRon.Arena.Frontend.Prelude
+import ConRon.Arena.PropRead
+import ConRon.Arena.Core
