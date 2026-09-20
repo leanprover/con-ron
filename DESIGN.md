@@ -22322,6 +22322,11 @@ miss, which is about right.
   fix, a `get` that takes the key's parts, belongs to `ron::HashMap` rather
   than to the arena.
 * The scratch lake package in `_tmp/t97-p4a/` is the Lean-side benchmark
-  harness; P2g should take it into `proof/` as a `lean_exe` when it owns the
-  measurement.  Building it populated `.c.o` files in the shared con-leche
-  package directory (additive, no olean touched).
+  harness.  It was written before task #97b's `con-ron-arena-bench`
+  (`ConRon/Arena/Bench.lean`) landed on the branch, and the two measure
+  different things — #97b times `instantiate1`/`abstract1`/
+  `instantiateLevelParams` over three term shapes, this one times `intern`
+  itself — so the intern case belongs in `Bench.lean` as a fourth shape when
+  P2g owns the measurement, and the scratch package can then go.  Building it
+  populated `.c.o` files in the shared con-leche package directory (additive,
+  no olean touched).
