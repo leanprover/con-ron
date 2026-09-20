@@ -30,3 +30,4 @@ import ConRon.Arena.Core
 import ConRon.Arena.FEnv
 import ConRon.Arena.CoreIO
 import ConRon.Arena.CoreGated
+import ConRon.Arena.CoreTest
