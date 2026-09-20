@@ -23720,3 +23720,287 @@ targets.
 * **The `--tree` flag stays.**  It is 100 lines of the example and it is what
   makes every future claim about the arena parse's cost a measurement rather
   than a memory; P6 will want it when the three pre-sizing levers land.
+
+### Task #97d-2 — the inductives (2026-09-20, Opus under Fable)
+
+Phase P2d of §8.6, **part 2**: the ten files of
+`ConLeche/Kernel/Inductives/` twinned over handles, and the `.indDecl`
+dispatch that routes a block between them.  Part 1 — the declaration checker
+itself (`CheckerBase`/`DeclCheck`/`Checker`/`Canon`/pins/basis) — is the
+sibling task's; the two ran at the same time, which is what "Borrowed from
+P2d-1" below is about.
+
+#### The module map
+
+| module | raw | what |
+|---|---:|---|
+| `Arena/Inductives/StructParts.lean` | 530 | the generators: families, spines, rule bodies, Π→λ, `StructParts`, the projection bodies, `hasLooseBVarB`, `mentionsConst` |
+| `Arena/Inductives/Base.lean` | 434 | **P2d-1's helpers, borrowed** (below) |
+| `Arena/Inductives/SumParts.lean` | 64 | `InductiveShape`, `sumSplit`, `withSort` |
+| `Arena/Inductives/Modeled.lean` | 783 | the modeled route whole: the iota certificates, the member checks, the projection functions, the capability theorems, `checkModeled` |
+| `Arena/Inductives/StructInstall.lean` | 74 | the binder-domain walk and the projection TABLE |
+| `Arena/Inductives/StructInstallF.lean` | 46 | the `F` names as `abbrev`s |
+| `Arena/Inductives/SumInstall.lean` | 328 | official's telescope loop, the former's stage, the per-field universe bound, the positivity normalisation, the constructors' stage, `sumRules` |
+| `Arena/Inductives/SumInstallF.lean` | 52 | the `F` names as `abbrev`s |
+| `Arena/Inductives/NativeParts.lean` | 537 | `RecFieldKind`, the positivity classification, the generated recursor with its `ih` binders, `nativeRulesOk`, the recogniser |
+| `Arena/Inductives/NativeInstall.lean` | 382 | the capability record, `mentionsFvar`, the opened re-check, the recursor, the table, the two-pass install |
+| `Arena/Inductives/NativeInstallF.lean` | 36 | the `F` names as `abbrev`s |
+| `Arena/Inductives.lean` | 46 | `checkIndDecl` — con-leche's `.indDecl` arm |
+| `Arena/InductivesTest.lean` | 473 | 46 kernel-reduced differential `#guard`s |
+| **total** | **3 785** (3 425 non-blank) | |
+
+`ConRon/Arena.lean` gained the thirteen imports and nothing else.  No file
+outside `proof/ConRon/Arena/Inductives*` was touched.
+
+#### The deviations
+
+Task #97c's six are inherited unchanged (the `env ↦ fe` collapse, `view` for
+every structural match, interned reserved names, levels read back, one knot,
+inline memo probes).  What is NEW to this task:
+
+1. **The `…F` mirrors collapse, and their names survive as `abbrev`s.**
+   `StructInstallF`, `SumInstallF` and `NativeInstallF` are con-leche's same
+   functions over an `FEnv`; the arena has ONE environment type, so each IS
+   the `Struct`/`Sum`/`Native` twin, and the three `…F.lean` modules carry the
+   `F`-suffixed names as `abbrev`s — the arrangement `Arena/FEnv.lean`
+   already uses for `Core.lean`.  `checkStructDomsAtFA` and
+   `checkStructFieldSortsIFA` (the `Array` spellings) collapse the same way.
+   Eighteen con-leche declarations become zero new functions.
+2. **`StructWalkers` has NO twin.**  It is a record of two FUNCTION VALUES
+   whose only purpose is to let con-leche's cached driver substitute memoised
+   walks for the pure ones (`ConLeche.Cached.structWalkersC`).  The arena's
+   `constsResolve` and `structProjBodies` ARE the memoised walks; there is one
+   of each; and a record of two closures is what DESIGN §3.4 forbids.  So
+   `StructWalkers` and `StructWalkers.plain` are the two declarations of
+   `ConLeche/Kernel/Inductives/` this task does not cite (3/5 on
+   `StructInstallF.lean`), and every `w.resolve` / `w.projBodies` is the
+   arena's own function at the call site.
+3. **Five higher-order arguments removed, one answered.**  con-leche passes a
+   function where the arena passes data:
+   * `checkSumInd`'s `capsOf : InductiveShape → IndCaps` → `isRec : Bool`,
+     which moves `nativeCapsAt` one module earlier (into `SumInstall.lean`),
+     the same relocation task #97c made for `TypeChecker.lean`'s entries;
+   * `structIhPis`' and `structRuleBodyR`'s `teleOf`/`idxOf` → the
+     constructor type and the counts, the two readers called inside;
+   * `domsMatchAux`'s `g : Nat → Expr → Expr` → two concrete twins,
+     `domsMatch` (the identity, four call sites) and `domsMatchRenamed` (one);
+   * `sumRules`' `find? : Name → Option ConstantInfo` → `fe : IFEnv`;
+   * the three `foldlM`s of `checkModeled`/`checkIndRecs` → explicit
+     recursions (`checkIndMembers`, `installIndRecs`, `installProjFns`), and
+     `normCtorVal`'s `zipWith` → `zipFvarDoms`.
+
+   What was LEFT after task #97b is `renameConsts`' own `f : NIdx → NIdx`, and
+   **P2d answers its question**: the map is a precomputed association list of
+   interned pairs (`blockRenameTable`, `projBack`, `projFwd`) and `renameBy`
+   is its lookup, because over handles building a name means INTERNING one and
+   a pure `NIdx → NIdx` cannot.  The call still passes `renameBy tbl`, a
+   partial application; making `renameConsts` take the table itself is a
+   one-line change to `Arena/ExprOps.lean` that the Rust side should make at
+   P4, and the table is exactly the "concrete map type" #97b predicted.
+4. **The pure walk, the cutoff walk, the memoized walk and the entry are ONE
+   twin**, as #97b's rule has it for `ExprOps`' nine triples:
+   `hasLooseBVar`/`hasLooseBVarB`/`…Go`/`…Fast`,
+   `mentionsConst`/`…Go`/`…Fast` and `mentionsFvar`/`…Go`/`…Fast` are three
+   functions here, each citing its three or four con-leche declarations.  The
+   `@[csimp]` equivalences have no arena twin — the substitution they license
+   has already happened — and the three `…MemoInv` predicates are census
+   class (S).
+5. **The memos stay explicit ARGUMENTS.**  con-leche threads a
+   `Std.HashMap Expr Bool` through these three walks rather than putting it
+   in a state, because each answer depends on data fixed for one call.  The
+   twins do the same at `EIdx` keys: **nothing was added to `AState`**, and
+   `structProjGuards`' one shared memo across `nF` calls is con-leche's own
+   task #236 arrangement unchanged.
+6. **The fields' sorts are `List LIdx`, not the census's `LsIdx`.**
+   `Arena/Env.lean`'s `IProjTable.guards` is a `List LIdx` (task #97e), and
+   `structProjGuards` computes exactly that field; interning the list only to
+   read it back at the table would be a round trip with no reader.  A `const`
+   node's universe arguments stay `LsIdx`, as the representation requires.
+   Likewise `IRecRuleFire.nested`'s levels, which is what `nestedRuleShape`
+   returns.
+7. **`RecFieldKind` is twinned, not imported**, against §8.7's rule for a
+   term-free type.  `ConLeche/Kernel/Inductives/NativeParts.lean` also
+   declares `structFam`, `structPsAt`, `structShape`, `sumSplit`,
+   `InductiveShape` and `NativeParts`; every module here does `open ConLeche`,
+   so importing it for one five-constructor enum would make a dozen names
+   ambiguous against this port's own.
+8. **Everything that touches no term stays pure**: `sumSplit`,
+   `consSumCtors`, `nativeRecPinOk`, `nativeRecLpsOk`, `recIdxOf`,
+   `NativeParts.complete`, `NativeParts.withKinds`,
+   `InductiveShape.rulePrefix`, `InductiveShape.majorIdx`, `nativeIsRec`,
+   `recsFormSuffix`, `renameBy`.  The census's mechanical `AM` column is too
+   crude for them, as `Arena/ExprOps.lean` says of `exprPtrBEq`.
+9. **`NativePass` is not generic** in the environment representation:
+   con-leche parameterises it because it has two (`Env` and `FEnv`); the arena
+   has one.
+10. **`eqApp3?`** spells con-leche's `.app (.app (.app (.const c [ℓ]) ty) l) r`
+    once — four `view`s over handles, and three checks of `Modeled.lean` match
+    it.
+
+#### Borrowed from P2d-1: `Arena/Inductives/Base.lean`
+
+The installs call a dozen declarations of
+`ConLeche/Kernel/{CheckerBase,Env,Level}.lean`, which are the SIBLING task's
+(`Arena/CheckerBase.lean` &c.).  Under the coordinator's concurrency contract
+they are twinned here, in a namespace of their own
+(**`ConRon.Arena.IndBase`**, so nothing clashes at merge) and cited to the
+same con-leche declarations P2d-1 will cite.  **Every declaration in that
+file is a duplicate to be deleted at merge**, replaced by P2d-1's in
+`ConRon.Arena`; the call sites are then a `sed` of `IndBase.` away.
+
+| con-leche | arena name in `IndBase` |
+|---|---|
+| `CheckerBase.lean:233-239 unwrapOr` | `unwrapOr` |
+| `CheckerBase.lean:130-140 openPisAtFvars` | `openPisAtFvarsPlain` |
+| `CheckerBase.lean:153-167 openPisAtFvarsFGo` | `openPisAtFvarsFGo` |
+| `CheckerBase.lean:169-176 openPisAtFvarsF` | `openPisAtFvars` |
+| `CheckerBase.lean:121-128 domsMatchAux`, `:142-151 domsMatchAuxA` | `domsMatch`, `domsMatchRenamed` |
+| `CheckerBase.lean:71-91 unresolvedConstsError` | `unresolvedConstsError` |
+| `CheckerBase.lean:95-119 checkConstantVal` | `checkConstantVal` |
+| `CheckerBase.lean:178-190 checkTypedList` | `checkTypedList` |
+| `CheckerBase.lean:192-206 checkAnnotList` | `checkAnnotList` |
+| `CheckerBase.lean:222-231 checkDefEqList` | `checkDefEqList` |
+| `CheckerBase.lean:208-211 isEqHead`, `:213-220 eqHeadLevel` | `isEqHead`, `eqHeadLevel` |
+| `CheckerBase.lean:241-247 Env.findCV?` | `findCV?` |
+| `CheckerBase.lean:257-272 checkProjShape` | `checkProjShape` |
+| `CheckerBase.lean:274-311 checkProjRule` | `checkProjRule` |
+| `Env.lean:716-719 ConstantInfo.isRecInfo`, `:721-727 recsFormSuffix` | `isRecInfo`, `recsFormSuffix` |
+| `Env.lean:588-622 indParamsOk` | `indParamsOk` |
+| `Level.lean:213-216 Name.nodup` | `nidxNodup` |
+| `Level.lean:251-268 / :299-332 / :405-407 allLevelParamsDefined` | `allLevelParamsDefinedGo`, `allLevelParamsDefined` |
+
+Twenty-two arena declarations over nineteen con-leche ones, plus six
+`con-leche: none` converters (`internLevelsL`, `internExpr`, `internCV`,
+`internCaps`, `eqBasisCI`, `eqBasisStored`).
+
+**The one judgement call there.**  `checkIndRecs` and `checkProjLookups` ask
+`env.find? eqName = some eqA` — the stored `Eq` must BE the pinned basis
+constant.  P2d-1's `Arena/Basis.lean` owns the arena's `eqA`; until it lands,
+`Base.lean` imports `ConLeche/Kernel/BasisA.lean` and INTERNS con-leche's own
+value (`internExpr`/`internCV`/`internCaps`), which is the same predicate
+because `denoteE`/`denoteN` are injective.  Weakening the guard to "some `Eq`
+is stored" would make the arena ACCEPT blocks con-leche rejects, which no
+placeholder may do, and failing closed would decline every modelled recursor.
+The import costs 1.3 s of elaboration and is the only place (B) reaches into
+con-leche's annotated basis; it is the first thing the merge removes.
+
+#### The differential test: 46 `#guard`s, twelve blocks
+
+`Arena/InductivesTest.lean` writes a base environment and an inductive block
+ONCE, as con-leche `ConstantInfo` values, runs **con-leche's own
+`ConLeche.checkDecl` on `.indDecl block nP`** and the arena's
+`Inductives.checkIndDecl` on the interned block, and compares the WHOLE
+outcome.
+
+Two things make the comparison sharp.
+
+* **The environments are compared by HANDLE.**  con-leche's answer is
+  interned into the arena's own store *after* the arena's run, and the two
+  `List IConstantInfo`s are compared with `==`.  That is sound because
+  `intern` is hash-consing and `denoteE` is injective (task #97a), and it is
+  the strictest comparison available: it sees a difference in a binder's
+  `PropWhen` datum, in a capability record, in a rule's `k`/`eta`/`fire` bits
+  and in a projection table's bodies and guard levels — all of which a
+  definitional comparison would miss.
+* **The blocks are GENERATED, not hand-written.**  `mkNativeBlock` builds the
+  recursor's type and its rules with con-leche's own `structRecTyR` /
+  `structRecRhsR` — the very terms the install fabricates and compares
+  against — so a fixture is the block a real elaborator exports rather than a
+  hand-transcribed guess.  The generator is common INPUT to both checkers and
+  cannot bias the differential, which is between the two CHECKERS.
+
+The blocks are named outside the reserved basis family (`N`, `Lst`, `Pair`,
+`Eq'`, `Tru`, …) for two reasons at once: `checkConstantVal` rejects a
+reserved name outright, and `checkDecl`'s `basisPinHit` would otherwise
+install the PIN instead of running the routes — so on these fixtures
+`checkDecl` IS the `.indDecl` arm, which is what `checkIndDecl` twins.
+
+| # | fixture | route | outcome (both sides) |
+|---:|---|---|---|
+| 1 | `N` — the `Nat` shape, two constructors, one recursive | native | accept, 4 installs, no table |
+| 2 | `Lst.{u} (α : Type u)` — parametric, recursive, two constructors | native | accept, 4 installs, no table |
+| 3 | `Pair.{u} (α β : Sort u)` — two fields, one constructor, no index | native | accept, 4 installs, **projection table** (`off = 1`, two guards) |
+| 4 | `Eq'.{u} (α : Sort u) (a : α) : α → Prop` — indexed, `Prop`, large eliminator | native | accept, 3 installs, no table (an indexed family is not structure-like) |
+| 5 | `Tru : Prop` with one fieldless constructor | native | accept, 4 installs, table; `ruleK` and unit-likeness in the record |
+| 6 | a MUTUAL block (two type formers) with its `_model` companions | modeled | accept, 2 installs |
+| 6′ | the same block with NO models | modeled | `notImplemented "no install route for inductive block MutA: …"` |
+| 7 | a NESTED block (two recursor records) | modeled | the same decline, naming `Nest` |
+| 8 | `N` at `nP = 3`, `Lst` at `nP = 2` | — | `invalid "number of parameters mismatch"` |
+| 9 | `Bad.mk : (Bad → Bad) → Bad` | native | `invalid "direct sum: non positive occurrence of the inductive type"` |
+| 10 | `N` with both constructors under one name | native | `invalid "direct rec: duplicate constructor"` |
+| 11 | `N` with its recursor's rules dropped | native | the recursor pin, rejected |
+| 12 | a block re-declaring a stored name | native | `checkConstantVal`'s duplicate guard |
+
+Six accepting fixtures are what stops the differential passing vacuously
+(`chk` is satisfied by two agreeing *errors*): `accepts`, `installed` and
+`hasTable` pin what con-leche does on each, so "both checkers threw on
+everything" cannot be green.
+
+**Everything agreed on the first run.**  No twin needed a correction after it
+elaborated.  Two fixtures needed one: `Lst` at `Sort u` is official's
+`elim_only_at_universe_zero` reject (a multi-constructor family whose sort
+may be `Prop` cannot carry a large eliminator), so its parameter moved to
+`Type u`.  The four build failures during the task were a Lean keyword used
+as a binder name (`scoped`), two `pure (← f x).field` parses, and a `/-- … -/`
+doc comment placed before a `#guard`.
+
+#### Provenance and coverage
+
+`scripts/provenance.py check`: **0 findings** over the whole tree (4 013
+items — 2 710 Rust, 1 303 arena Lean — and 3 116 citations, all current at
+pin `c431b1ca`).  The Rust ledger is unmoved.  The arena ledger:
+
+```
+ConLeche/Kernel/Inductives/Modeled.lean         23/23  twinned
+ConLeche/Kernel/Inductives/NativeInstall.lean   18/18  twinned
+ConLeche/Kernel/Inductives/NativeInstallF.lean   5/5   twinned
+ConLeche/Kernel/Inductives/NativeParts.lean     34/34  twinned
+ConLeche/Kernel/Inductives/StructInstall.lean    2/2   twinned
+ConLeche/Kernel/Inductives/StructInstallF.lean   3/5   twinned
+ConLeche/Kernel/Inductives/StructParts.lean     32/32  twinned
+ConLeche/Kernel/Inductives/SumInstall.lean      14/14  twinned
+ConLeche/Kernel/Inductives/SumInstallF.lean      8/8   twinned
+ConLeche/Kernel/Inductives/SumParts.lean         3/3   twinned
+ConLeche/Kernel/CheckerBase.lean                16/20  twinned   (borrowed)
+ConLeche/Kernel/Env.lean                        27/41  twinned   (+3, borrowed)
+ConLeche/Kernel/Level.lean                       7/24  twinned   (+4, borrowed)
+ConLeche/Kernel/Checker.lean                     1/22  twinned
+ARENA TOTAL 431/927 twinned (46.5%), 496 to go
+```
+
+265 before this task, so **+166**: 142 from the ten modules, 23 from
+`Base.lean`'s borrowings and one for `checkDecl`'s arm.  The two uncovered
+declarations of `StructInstallF.lean` are `StructWalkers` and
+`StructWalkers.plain` (deviation 2).
+
+#### Build time
+
+`lake build ConRonArena` from a clean `Arena` build directory,
+`LEAN_NUM_THREADS=4`, `ulimit -v 60000000`: **37.3 / 36.6 s** wall over two
+runs, against task #97c's 25.2 s — this task's thirteen modules are **13.9 s**
+of it.  Per module: `StructParts` 0.91 s, `Base` 1.3 s, `SumParts` 0.76 s,
+`Modeled` 1.9 s, `StructInstall` 0.75 s, `StructInstallF` 0.68 s,
+`SumInstall` 1.1 s, `SumInstallF` 0.69 s, `NativeParts` 1.5 s,
+`NativeInstall` 1.1 s, `NativeInstallF` 0.70 s, `Inductives` 0.71 s,
+`InductivesTest` 1.7 s.  Nothing needed `maxHeartbeats`; the 46
+kernel-reduced `#guard`s — each of which runs BOTH checkers inside the
+elaborator, con-leche's on `Expr` trees and the arena's on handles — cost
+1.7 s between them.  `lake build con-ron-lean` is still green.
+
+#### For the merge, and for P2d's remainder
+
+* **`Arena/Inductives/Base.lean` is deleted at merge** and its twenty-two
+  declarations replaced by P2d-1's; the table above is the map.  Nothing else
+  in this task's files is P2d-1's.
+* **`Arena/Inductives.lean`'s `checkIndDecl` is the agreed interface**
+  (`(mode) (fe) (block) (numParams) : AM IFEnv`) and does NOT test
+  `basisPinHit`: that test is `checkDecl`'s, before the routes, exactly as
+  con-leche places it.
+* **The benchmark has no inductive shape yet.**  Task #97c asked for the
+  `Core` shapes once `checkDecl` existed; the subject that matters now is a
+  real block's install (a `Pair`-sized structure and an `Lst`-sized recursive
+  family, both generated), and it belongs beside them in
+  `con-ron-arena-bench`.
+* **`renameConsts` should take the table, not a function** (deviation 3);
+  that is the last higher-order argument in (B), and the Rust side needs it
+  gone at P4.
