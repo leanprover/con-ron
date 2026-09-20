@@ -13,8 +13,9 @@
 #   7. scripts/holes.sh --check             OVERVIEW.md §8.1 == the model's holes
 #   8. scripts/gen-pins.sh --check          embedded pin text == natOpPinSets
 #   9. scripts/gen-prelude.sh --check       embedded prelude text == con-leche's
-#  10. scripts/extract.sh --check           committed generated Lean == crate
-#  11. cd proof && lake build               the whole proof library elaborates
+#  10. scripts/gen-prelude-lean.sh --check  (B)'s embedded prelude bytes, ditto
+#  11. scripts/extract.sh --check           committed generated Lean == crate
+#  12. cd proof && lake build               the whole proof library elaborates
 #      (LAKE_JOBS=N caps lake's parallelism through LEAN_NUM_THREADS — Lake 5
 #      has no jobs flag: on a many-core machine the first build of the
 #      vendored con-leche can exhaust memory, task #74)
@@ -61,6 +62,7 @@ run overview-links "$root/scripts/overview-links.sh"
 run holes         "$root/scripts/holes.sh" --check
 run gen-pins      "$root/scripts/gen-pins.sh" --check
 run gen-prelude   "$root/scripts/gen-prelude.sh" --check
+run gen-prelude-lean "$root/scripts/gen-prelude-lean.sh" --check
 run extract-check "$root/scripts/extract.sh" --check
 run lake-build    env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build
 

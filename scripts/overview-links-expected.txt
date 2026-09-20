@@ -997,16 +997,16 @@
     25  weak.backward.isDefEq.respectTransparency = false
     26  weak.backward.do.legacy = true
 
-== scripts/gates.sh#L55-L65
-    55  run cargo-build   env RUSTFLAGS="-D warnings" cargo build --manifest-path "$root/Cargo.toml"
-    56  run cargo-test    env RUSTFLAGS="-D warnings" cargo test  --manifest-path "$root/Cargo.toml"
-    57  run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src"
-    58  run provenance    python3 "$root/scripts/provenance.py" check
-    59  run provenance-self python3 "$root/scripts/provenance-selftest.py"
-    60  run overview-links "$root/scripts/overview-links.sh"
-    61  run holes         "$root/scripts/holes.sh" --check
-    62  run gen-pins      "$root/scripts/gen-pins.sh" --check
-    63  run gen-prelude   "$root/scripts/gen-prelude.sh" --check
-    64  run extract-check "$root/scripts/extract.sh" --check
-    65  run lake-build    env -C "$root/proof" ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} lake build
+== scripts/gates.sh#L56-L66
+    56  run cargo-build   env RUSTFLAGS="-D warnings" cargo build --manifest-path "$root/Cargo.toml"
+    57  run cargo-test    env RUSTFLAGS="-D warnings" cargo test  --manifest-path "$root/Cargo.toml"
+    58  run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src"
+    59  run provenance    python3 "$root/scripts/provenance.py" check
+    60  run provenance-self python3 "$root/scripts/provenance-selftest.py"
+    61  run overview-links "$root/scripts/overview-links.sh"
+    62  run holes         "$root/scripts/holes.sh" --check
+    63  run gen-pins      "$root/scripts/gen-pins.sh" --check
+    64  run gen-prelude   "$root/scripts/gen-prelude.sh" --check
+    65  run gen-prelude-lean "$root/scripts/gen-prelude-lean.sh" --check
+    66  run extract-check "$root/scripts/extract.sh" --check
 
