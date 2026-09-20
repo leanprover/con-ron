@@ -4659,6 +4659,90 @@ mod tests {
         );
     }
 
+    // --- the scope queries, MEMOIZED against the pure ones (16) -------------
+
+    /// Task #97g's item 5, differentially: each memoized walk against the
+    /// unmemoized one it replaces, on the same subjects.  The memo may only
+    /// change the COST — `wscoped_b_fast` is `wscoped_b`, `leaf_guard` is
+    /// `fvar_leaves_subset` over the two leaf lists, and `fvar_leaves_fast` is
+    /// `fvar_leaves` as a SET (the `seen` guard drops the duplicates a shared
+    /// subterm contributes, which is the whole point of it, and the list is
+    /// used only as a membership base).
+    #[test]
+    fn t_scope_queries_memoized() {
+        let (mut st, fx) = fixture();
+
+        // `wscoped_b_fast` == `wscoped_b`, at four depths on three subjects
+        assert_eq!(
+            ok(wscoped_b_fast(&st, F, 5, &fx.big)),
+            ok(wscoped_b(&st, F, 5, &fx.big))
+        );
+        assert_eq!(
+            ok(wscoped_b_fast(&st, F, 1, &fx.big)),
+            ok(wscoped_b(&st, F, 1, &fx.big))
+        );
+        assert_eq!(
+            ok(wscoped_b_fast(&st, F, 0, &fx.big)),
+            ok(wscoped_b(&st, F, 0, &fx.big))
+        );
+        assert_eq!(
+            ok(wscoped_b_fast(&st, F, 2, &fx.let_t)),
+            ok(wscoped_b(&st, F, 2, &fx.let_t))
+        );
+        assert_eq!(
+            ok(wscoped_b_fast(&st, F, 2, &fx.fv1)),
+            ok(wscoped_b(&st, F, 2, &fx.fv1))
+        );
+        assert_eq!(
+            ok(wscoped_b_fast(&st, F, 0, &fx.s0)),
+            ok(wscoped_b(&st, F, 0, &fx.s0))
+        );
+        // the `fvar_b == 0` short-circuit answers `true` without a walk
+        assert!(ok(wscoped_b_fast(&st, F, 0, &fx.s0)));
+
+        // `fvar_leaves_fast` is `fvar_leaves` as a set
+        for h in [&fx.big, &fx.fv1, &fx.fv0, &fx.all_t, &fx.let_t, &fx.s0] {
+            let slow = ok(fvar_leaves(&st, F, h));
+            let fast = ok(fvar_leaves_fast(&st, F, h));
+            assert!(
+                slow.iter().all(|l| leaf_mem(&fast, l.0, &l.1)),
+                "every pure leaf is a memoized one"
+            );
+            assert!(
+                fast.iter().all(|l| leaf_mem(&slow, l.0, &l.1)),
+                "and back"
+            );
+        }
+
+        // `leaf_guard fab base` is `fvar_leaves_subset (leaves fab) (leaves base)`
+        for p in [
+            (&fx.fv1, &fx.big),
+            (&fx.big, &fx.fv1),
+            (&fx.big, &fx.big),
+            (&fx.s0, &fx.big),
+            (&fx.fv0, &fx.fv1),
+        ] {
+            let want = crate::arena::core::fvar_leaves_subset(
+                &ok(fvar_leaves(&st, F, p.0)),
+                &ok(fvar_leaves(&st, F, p.1)),
+            );
+            assert_eq!(ok(leaf_guard(&st, F, p.0, p.1)), want, "the leaf guard");
+        }
+
+        // and the three tests `fab_scope_ok` is, against the spelling task
+        // #97-P4d ported from the spec tier
+        for p in [(&fx.fv1, &fx.big), (&fx.big, &fx.fv1), (&fx.s0, &fx.s0)] {
+            let memo = ok(crate::arena::core::fab_scope_ok(&mut st, 5, p.0, p.1));
+            let slow = ok(wscoped_b(&st, F, 5, p.0))
+                && ok(loose_bvars_bounded(&st, F, 0, p.0))
+                && crate::arena::core::fvar_leaves_subset(
+                    &ok(fvar_leaves(&st, F, p.0)),
+                    &ok(fvar_leaves(&st, F, p.1)),
+                );
+            assert_eq!(memo, slow, "fab_scope_ok is the pure predicate");
+        }
+    }
+
     // --- the one-node readers (9) -------------------------------------------
 
     #[test]

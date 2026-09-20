@@ -1153,7 +1153,7 @@ pub fn kinds_any(ks: &Vec<RecFieldKind>, k: &RecFieldKind, i: usize) -> bool {
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:556-574 checkNativePass
 /// con-leche: ConLeche/Cached/CheckerC.lean:179-191 checkNativePassS
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:317-331 checkNativePass`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:319-330 checkNativePass`
 /// — **one pass over the former and the constructors** (con-leche's task #268)
 /// at a given `is_rec` verdict.  The last component says whether the
 /// classification confirms the verdict the pass ran at.  The `flush_caches`
@@ -1357,7 +1357,7 @@ pub fn check_native_tail_kinds(
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:576-611 checkNativeTail
 /// con-leche: ConLeche/Cached/CheckerC.lean:194-217 checkNativeTailS
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:359-365 checkNativeTail`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:337-367 checkNativeTail`
 /// — the constructors consed, the recursor with its rules, and the projection
 /// table, with the executed tier's flush before the recursor (task #97g
 /// item 4).
@@ -1406,7 +1406,7 @@ pub fn check_native_tail_install(
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:613-640 checkNative
 /// con-leche: ConLeche/Cached/CheckerC.lean:220-231 checkNativeS
-/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:370-387 checkNative`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstall.lean:370-383 checkNative`
 /// — check and install a **direct recursive block**: the distinct names, the
 /// pass over the former and the constructors — again where the record's
 /// syntactic reading overshot — and the install after it.  The executed

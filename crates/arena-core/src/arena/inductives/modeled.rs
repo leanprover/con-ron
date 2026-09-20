@@ -2404,7 +2404,7 @@ pub fn check_member_model(
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:403-414 checkIndMember
 /// con-leche: ConLeche/Cached/CheckerC.lean:106-112 checkIndMemberS
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:463-475 checkIndMember`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:464-476 checkIndMember`
 /// — check and install one non-recursor member of a modeled inductive block
 /// against its `_model` counterpart.
 ///
@@ -2466,7 +2466,7 @@ pub fn check_ind_members(
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:416-433 provisionRecs
 /// con-leche: ConLeche/Cached/CheckerC.lean:116-131 provisionRecsS
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:488-503 provisionRecs`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:491-504 provisionRecs`
 /// — phase 0 of the recursor group: check each recursor's constant and
 /// provision it *rule-less* on top of the previous ones.  Lean conses the
 /// checked record on the way out; the port pushes on the way in, at the same
@@ -2577,7 +2577,7 @@ pub fn install_ind_recs(
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:435-455 checkIndRecs
 /// con-leche: ConLeche/Cached/CheckerC.lean:136-146 checkIndRecsS
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:518-532 checkIndRecs`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:520-533 checkIndRecs`
 /// — check and install a block's recursors *as a group*: every rule right-hand
 /// side may mention any of them, so all are provisioned rule-less together and
 /// installed together.  The twin uses `fe₂` four times; Lean's value semantics
@@ -3587,7 +3587,7 @@ pub fn ctor_targets_fam(
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:712-722 installProjFnStep
 /// con-leche: ConLeche/Cached/CheckerC.lean:170-176 installProjFnStepS
-/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:739-746 installProjFnStep`
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:740-745 installProjFnStep`
 /// — one projection-function install step (skipped where the model's
 /// projection artifact is absent), with the executed tier's flush at the
 /// environment transition (task #97g item 4).
