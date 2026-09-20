@@ -27338,10 +27338,23 @@ the `move_elements*` rehashes 5.85 %, `astate_dup`'s copying 6.38 %.
    of the twin before it is a line of Rust.
 6. **The pool** (§8.6 P4f deviation 4), unchanged: one `while`.
 
-#### Everything this task owes the proofs, in one list
+#### The twin ledger
 
-Nothing below is written — this task touches no Lean beyond the regenerated
-`proof/ConRon/Generated/Funs.lean`, and **no clause of any twin changes**.
+§8.6's Rust-first ruling asks each P6 task for the clause-level list of what
+the Lean must later mirror, and what the Aeneas refinement absorbs as a
+representation difference needing no Lean change at all.  **Everything in this
+task is in the second column**: no clause of any twin changes, and the only
+Lean this task writes is the regenerated `proof/ConRon/Generated/Funs.lean`.
+
+| change | Lean must mirror | absorbed by the refinement |
+|---|---|---|
+| `reset_map` and the seven `reset`s | — | yes: an allocation choice, same value |
+| `HashMap::capacity` | — | yes: a representation query, no abstract content |
+| the eleven journals deleted | — | yes, and it moves the Rust TOWARD the twin, which never had them |
+| `pers_find_maybe` | — | yes, **conditionally on `StoreWF`** (see below) |
+| `NStore::intern_str` | — | yes: the same probes on a record built once |
+
+The five spec lemmas that absorption owes, none of them written here:
 
 1. `capacity_spec : ron.hashmap.HashMap.capacity m = ok ⟨m.slots.length⟩`.
 2. `reset_map_refines : reset_map m = ok m' → m' ⊑ ∅`, a two-branch
