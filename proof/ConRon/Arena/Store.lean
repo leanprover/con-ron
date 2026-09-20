@@ -376,14 +376,14 @@ def count (t : NTables) : Nat := t.anons.size + t.strs.size + t.nums.size
 
 /-- con-leche: none — decode one handle against this tier's arrays.  The tier
 bit is *not* consulted: `NStore.view` selects the tier first. -/
-def get (t : NTables) (i : NIdx) : Option NNodeView :=
+@[inline] def get (t : NTables) (i : NIdx) : Option NNodeView :=
   if i.tag == NTag.anonymous then (t.anons.node? i.idxNat).map fun _ => .anonymous
   else if i.tag == NTag.str then (t.strs.node? i.idxNat).map fun r => .str r.pre r.s
   else if i.tag == NTag.num then (t.nums.node? i.idxNat).map fun r => .num r.pre r.n
   else none
 
 /-- con-leche: none — the derived word of one handle in this tier. -/
-def derAt (t : NTables) (i : NIdx) : UInt64 :=
+@[inline] def derAt (t : NTables) (i : NIdx) : UInt64 :=
   if i.tag == NTag.anonymous then t.anons.derAt i.idxNat
   else if i.tag == NTag.str then t.strs.derAt i.idxNat
   else if i.tag == NTag.num then t.nums.derAt i.idxNat
@@ -443,13 +443,13 @@ instance : Inhabited NStore := ⟨empty⟩
 
 /-- con-leche: none — decode a handle: the tier bit selects the array set,
 and a scratch handle reads as absent while the scratch tier is off. -/
-def view (st : NStore) (i : NIdx) : Option NNodeView :=
+@[inline] def view (st : NStore) (i : NIdx) : Option NNodeView :=
   if i.isPersistent then st.pers.get i
   else if st.scratchOn then st.scr.get i else none
 
 /-- con-leche: ConLeche/Kernel/Name.lean:34-44 Name — the `hashData` computed
 field, lines 41-44: the derived word of a handle. -/
-def derived (st : NStore) (i : NIdx) : UInt64 :=
+@[inline] def derived (st : NStore) (i : NIdx) : UInt64 :=
   if i.isPersistent then st.pers.derAt i
   else if st.scratchOn then st.scr.derAt i else 0
 
@@ -523,7 +523,7 @@ def count (t : LTables) : Nat :=
   t.zeros.size + t.succs.size + t.maxs.size + t.imaxs.size + t.params.size
 
 /-- con-leche: none — decode one handle against this tier's arrays. -/
-def get (t : LTables) (i : LIdx) : Option LNodeView :=
+@[inline] def get (t : LTables) (i : LIdx) : Option LNodeView :=
   if i.tag == LTag.zero then (t.zeros.node? i.idxNat).map fun _ => .zero
   else if i.tag == LTag.succ then (t.succs.node? i.idxNat).map fun r => .succ r.u
   else if i.tag == LTag.max then (t.maxs.node? i.idxNat).map fun r => .max r.u r.v
@@ -532,7 +532,7 @@ def get (t : LTables) (i : LIdx) : Option LNodeView :=
   else none
 
 /-- con-leche: none — the derived record of one handle in this tier. -/
-def derAt (t : LTables) (i : LIdx) : LDer :=
+@[inline] def derAt (t : LTables) (i : LIdx) : LDer :=
   if i.tag == LTag.zero then t.zeros.derAt i.idxNat
   else if i.tag == LTag.succ then t.succs.derAt i.idxNat
   else if i.tag == LTag.max then t.maxs.derAt i.idxNat
@@ -605,13 +605,13 @@ instance : Inhabited LStore := ⟨empty⟩
 @[inline] def nodeCount (st : LStore) : Nat := st.persCount + st.scrCount
 
 /-- con-leche: none — decode a level handle. -/
-def view (st : LStore) (i : LIdx) : Option LNodeView :=
+@[inline] def view (st : LStore) (i : LIdx) : Option LNodeView :=
   if i.isPersistent then st.pers.get i
   else if st.scratchOn then st.scr.get i else none
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:40-53 Level — the `hashData` computed
 field, lines 47-53: the derived record of a level handle. -/
-def derived (st : LStore) (i : LIdx) : LDer :=
+@[inline] def derived (st : LStore) (i : LIdx) : LDer :=
   if i.isPersistent then st.pers.derAt i
   else if st.scratchOn then st.scr.derAt i else default
 
@@ -684,12 +684,12 @@ instance : Inhabited LsTables := ⟨empty⟩
 def count (t : LsTables) : Nat := t.lists.size
 
 /-- con-leche: none — decode one handle against this tier's array. -/
-def get (t : LsTables) (i : LsIdx) : Option LsNodeView :=
+@[inline] def get (t : LsTables) (i : LsIdx) : Option LsNodeView :=
   if i.tag == LsTag.list then (t.lists.node? i.idxNat).map fun r => r.us
   else none
 
 /-- con-leche: none — the derived record of one handle in this tier. -/
-def derAt (t : LsTables) (i : LsIdx) : LDer :=
+@[inline] def derAt (t : LsTables) (i : LsIdx) : LDer :=
   if i.tag == LsTag.list then t.lists.derAt i.idxNat else default
 
 /-- con-leche: none — the cons-table probe. -/
@@ -726,13 +726,13 @@ instance : Inhabited LsStore := ⟨empty⟩
 @[inline] def ns (st : LsStore) : NStore := st.ls.ns
 
 /-- con-leche: none — decode a level-list handle. -/
-def view (st : LsStore) (i : LsIdx) : Option LsNodeView :=
+@[inline] def view (st : LsStore) (i : LsIdx) : Option LsNodeView :=
   if i.isPersistent then st.pers.get i
   else if st.scratchOn then st.scr.get i else none
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:136-139 levelsHash — the derived
 record of a level-list handle. -/
-def derived (st : LsStore) (i : LsIdx) : LDer :=
+@[inline] def derived (st : LsStore) (i : LsIdx) : LDer :=
   if i.isPersistent then st.pers.derAt i
   else if st.scratchOn then st.scr.derAt i else default
 
@@ -805,7 +805,7 @@ def count (t : ETables) : Nat :=
 /-- con-leche: none — decode one handle against this tier's arrays: read the
 tag, index one array, build the view.  There is no node enum in the store
 (DESIGN §8.3). -/
-def get (t : ETables) (i : EIdx) : Option ENodeView :=
+@[inline] def get (t : ETables) (i : EIdx) : Option ENodeView :=
   if i.tag == ETag.bvar then (t.bvars.node? i.idxNat).map fun r => .bvar r.i
   else if i.tag == ETag.fvar then (t.fvars.node? i.idxNat).map fun r => .fvar r.idx r.ty
   else if i.tag == ETag.sort then (t.sorts.node? i.idxNat).map fun r => .sort r.u
@@ -821,7 +821,7 @@ def get (t : ETables) (i : EIdx) : Option ENodeView :=
   else none
 
 /-- con-leche: none — the derived word of one handle in this tier. -/
-def derAt (t : ETables) (i : EIdx) : UInt64 :=
+@[inline] def derAt (t : ETables) (i : EIdx) : UInt64 :=
   if i.tag == ETag.bvar then t.bvars.derAt i.idxNat
   else if i.tag == ETag.fvar then t.fvars.derAt i.idxNat
   else if i.tag == ETag.sort then t.sorts.derAt i.idxNat
@@ -949,13 +949,13 @@ instance : Inhabited EStore := ⟨empty⟩
 
 /-- con-leche: none — decode an expression handle: the tier bit selects the
 array set, the tag selects the array, the index reads it. -/
-def view (st : EStore) (i : EIdx) : Option ENodeView :=
+@[inline] def view (st : EStore) (i : EIdx) : Option ENodeView :=
   if i.isPersistent then st.pers.get i
   else if st.scratchOn then st.scr.get i else none
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:343-402 Expr — the `data` computed
 field, lines 357-402: the packed derived word of an expression handle. -/
-def derived (st : EStore) (i : EIdx) : UInt64 :=
+@[inline] def derived (st : EStore) (i : EIdx) : UInt64 :=
   if i.isPersistent then st.pers.derAt i
   else if st.scratchOn then st.scr.derAt i else 0
 
