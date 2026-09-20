@@ -2072,8 +2072,17 @@ transliteration:
 
 **Correctness before proofs.**  (B) is a checker: it must agree with
 con-leche on the 348 fixtures AND on `Init` (verdict and accepted count)
-before any bridge lemma is written, and it must run `Init` within 3× of
-con-leche's instructions (a Lean-vs-Lean comparison, the honest one).
+before any bridge lemma is written.  **Its performance does not matter**
+(maintainer, 2026-09-21: "Don't worry about the lean twin performance, it
+is only a proof artifact!  In particular do not optimize for lean's runtime
+issues.  The goal is fast rust code, it does not matter if the lean twin is
+not performing particularly well.  Compare the rust code against con-ron
+master (and against nanoda) instead!").  The earlier 3× instruction budget
+for (B) is withdrawn; task #97g's Lean-side fixes stand only where they are
+twin-semantic (the error-arm state, the flush sites, the memoised walks —
+which the Rust mirrors) or free.  The measure of record for the campaign is
+`con-ron-arena` against `con-ron` at master and against `nanoda`, on the
+same machine, same exports.
 
 ### 8.5 The Rust side (C)
 
