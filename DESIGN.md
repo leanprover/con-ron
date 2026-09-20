@@ -2056,6 +2056,22 @@ the persistent tier (the byte recogniser is unchanged).
         e. the parser into the store (ExportC over stores; Scan unchanged);
         f. Main + `diff-e2e.sh --bin`: 348/348 and Init parity — GATE;
         g. measure (B) vs con-leche on Init (instructions, RSS).
+    P2s SPIKE (maintainer, 2026-09-20: "do this for some core functions
+        first and figure out good idioms") — on P2a's stores, for two or
+        three functions of rising complexity (`instantiate1` with its memo;
+        one `whnfCore` arm; one memo-probing wrapper): (i) the (B) twin;
+        (ii) Theorem 1 for it with `mvcgen` (`Std.Do`, in v4.33: `WP`
+        instances for `StateT`/`ExceptT`/`EStateM`) and `@[spec]` theorems for
+        `view`/`intern`/memo probe/`Ext` transport, so that after `mvcgen`
+        only pure obligations about `Expr` remain — measure lines and
+        elaboration against a hand proof; (iii) the Rust for the same
+        functions, extracted, and Theorem 2 with `@[spec]` theorems for the
+        Aeneas primitives (`Vec` index/push, `ron::HashMap` get/insert,
+        scalars) — measure; (iv) the SAME function proved DIRECTLY from the
+        Aeneas output against the pure checker, to price the one-layer
+        alternative.  The spike decides whether (B) stays an intermediate
+        model or the Rust is proved against the pure checker directly, and
+        fixes the proof idioms before P2b–P2d and P3 start at scale.
     P3  Theorem 1, tier by tier, mirroring P2's order; the frontend exactness.
     P4  (C): a. SPIKE — Rust for P2a+P2b, extract, prove the Theorem-2 lemmas
         with the grind idiom, measure lines and elaboration per lemma;
