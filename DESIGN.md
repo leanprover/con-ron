@@ -23720,3 +23720,338 @@ targets.
 * **The `--tree` flag stays.**  It is 100 lines of the example and it is what
   makes every future claim about the arena parse's cost a measurement rather
   than a memory; P6 will want it when the three pre-sizing levers land.
+
+### Task #97-P4c — the Rust Core twins (2026-09-20, Opus under Fable)
+
+Phase P4c of §8.6, under the REORDERED ruling: the Rust side of P2c's checker
+core, in lockstep with the Lean twin (`proof/ConRon/Arena/{CoreState,PropRead,
+Core,FEnv,CoreIO,CoreGated}.lean`), as six new modules of `crates/arena-core`
+on task #97-P4b's monad and `ExprOps` layer and task #97-P4e's `arena::env`.
+
+| | shipped | tests | what |
+|---|---:|---:|---|
+| `arena/core_state.rs` | 684 | — | the `Caches` record (eleven tables + eleven journals), the five key dictionaries, the cap, `dropScratchEntries` |
+| `arena/prop_read.rs` | 321 | — | the two head-symbol prop-ness readers |
+| `arena/core.rs` | 9 152 | 930 | every helper, the six bodies, the knot with its memo probes inline, the seven fueled entry points, the bracket |
+| `arena/fenv.rs` | 107 | — | the seven `F`-suffixed names |
+| `arena/core_io.rs` | 68 | — | the io lane |
+| `arena/core_gated.rs` | 231 | — | the gated β site and the P knot |
+| **total** | **10 563** | **930** | |
+
+Against the twin's 3 576 shipped lines (`CoreState` 155 + `PropRead` 171 +
+`Core` 2 960 + `FEnv` 68 + `CoreIO` 61 + `CoreGated` 161) the shipped Rust is
+**2.95×** — above P4a's 2.3× and P4b's 2.2×, and P4b predicted exactly that
+("`Core`'s bodies are deeper than `ExprOps`', so P4c should expect the same
+1.9× line ratio and resist the temptation to introduce a bind helper").  The
+whole of the excess is `match m { Err(e) => Err(e), Ok(x) => … }` where Lean
+writes `let x ← m`: `structEtaCertWith` alone is one `do` block of 58 lines in
+the twin and four functions of 210 here.  No bind helper was introduced (it
+would be a closure); what was introduced instead is a **split at the twin's
+own `let`-boundaries**, 47 times, each split function carrying the twin's line
+range so the two read side by side.  The test file is 930 lines against
+`CoreTest.lean`'s 683.
+
+Declarations: the twin's six modules are **219** `def`/`structure`/`abbrev`;
+the Rust is **330** `pub fn` plus 8 consts and 5 key dictionaries.
+
+#### The two deviations this phase adds, and both are §3.4's
+
+Everything else is the twin's own six systematic deviations (task #97c's
+section) carried over unchanged.  These two are the port's:
+
+1. **`r : CoreFnsA` is `(lane, fuel)`, and `CoreFnsA.ioView` is `io: bool`.**
+   The twin's knot is a *record of functions* passed to every body.  §3.4
+   forbids closures and `con_ron_core::cached::core_c` already refuses the
+   record ("§3.1 ties the knot with a mutually recursive block of plain
+   functions, so there is no record whose `infer` field can be rebound"), so
+   the knot here is six plain mutually recursive functions — `knot_whnf_core`,
+   `knot_whnf`, `knot_infer`, `knot_infer_io`, `knot_defeq`, `knot_annotate`.
+
+   What a body still has to be told is **which of the arena's three knots it
+   belongs to**, because the arena has three and con-ron-core has one:
+   `coreKnot` (`LANE_FULL`, memoized), `coreKnotGated` (`LANE_GATED`,
+   `arena::core_gated`, no memo) and `coreKnotIO` (`LANE_IO`, `arena::core_io`,
+   no memo).  That is a `lane: u32` threaded beside `mode` through every
+   function whose twin takes `r` — defunctionalization of the twin's one
+   higher-order argument, the same move §3.4 already asks for at
+   `expr_ops::rename_consts_go`'s `f : NIdx → NIdx`.  The alternative was to
+   duplicate `whnfBody`, `inferBody`, `defeqBody`, `annotateBody` and their
+   thirty helpers into `core_gated.rs`, which is most of the file.
+
+   The lane dispatch lives in the six `knot_*` functions and nowhere else:
+   `LANE_GATED` selects `whnf_core_body_gated` in the `whnfCore` slot and no
+   probe in any slot; `LANE_IO` falls through to `LANE_FULL` in four slots
+   (which is literally what the twin's `coreKnotIO` does — `(coreKnot mode fe
+   id (fuel + 1)).whnfCore`, at the same fuel) and runs the unmemoized
+   `inferBodyIO` in the other two.  **At `LANE_FULL` the generated code is
+   the twin's `coreKnot` term for term**; the lane is a constant there and
+   every `if lane == …` is decided at the top of each slot.
+
+   `CoreFnsA.ioView` — `{ r with infer := r.inferIO }`, the *one* place the
+   twin rebinds the record — is `infer_body_io`'s extra `io: bool`, with
+   `knot_infer_at` as the dispatcher.  That function IS the `ioView`
+   substitution, exactly as `con_ron_core::cached::core_c::infer_at_i` is.
+   No other body and no helper calls `r.infer`, so no other one carries the
+   flag; it was checked by hand against the twin, arm by arm.
+
+   `coreKnot`'s `wrap : CoreFnsA → CoreFnsA` is dropped: `pureFnsA` is
+   `coreKnot mode fe id` and `id` is its only instantiation in the twin.
+   `PURE_FNS_A` is the constant `LANE_FULL` the seven entry points pass.
+
+2. **A continuation argument is the loop's step budget.**  `whnfStep` takes
+   `k : EIdx → AM EIdx` and `defeqStep` takes `k : Bool → EIdx → EIdx → AM
+   Bool`; both are only ever applied to the loop one step down, so `k x` is
+   `whnf_loop(…, n, x)` and `k pi x y` is `defeq_loop(…, n, pi, x, y)`.
+   `con_ron_core::cached::core_c::whnf_step_i` does the same, for the same
+   reason.
+
+#### `ron::HashMap` has no `retain`, and the journal is what replaces it
+
+`Caches.dropScratchEntries` is eleven `Std.HashMap.filter` calls, and the
+twin's own doc says "the Rust spelling is `HashMap::retain` per table".
+**There is no `retain`, and no iteration API at all**: `ron::hashmap::HashMap`
+is `new`, `with_capacity`, `len`, `is_empty`, `get`, `contains_key`, `insert`,
+`remove`, `clear`, `dup`, and adding one belongs to `con-ron-core` rather than
+to this task (which may not touch that crate).  Three ways out were weighed:
+
+* drop each table whole — sound (a memo is an accelerator) but **not the
+  twin's function**, and Theorem 2 compares states;
+* split each table in two, persistent and scratch — zero extra memory and an
+  `O(1)` drop, but **two lookups on the hot path**;
+* a **journal**: a `Vec` of the keys whose row was NOT keepable at the moment
+  it was written, walked at the drop with the current value re-tested.
+
+The journal is what landed.  It is `filter keep` and not an approximation, by
+two invariants: (i) a key absent from the journal was keepable when it was
+last written, and a row is only ever rewritten through a `*_set` that
+journals it again if the new row is not keepable — so every non-keepable
+row's key IS in the journal; (ii) the drop re-tests, so a journalled key whose
+row has since become keepable survives.  It costs one `Vec` push per
+scratch-touching insert — per row the drop is going to delete anyway — and
+nothing at all for the rows that survive, so the hot path keeps its single
+lookup.
+
+**A `ron::HashMap::retain` (or a `keys` iterator) would retire all eleven
+journals and eleven `Vec` fields.**  That is a P6 item and it is the first
+thing to do if the caches ever show up in a memory profile.
+
+#### The API mapping
+
+Only the rows that are **not** one-to-one carry a note; the rest are a rename
+(camelCase ↔ snake_case) plus P4b's two standing narrowings (the state
+parameter is first; a twin that cannot fail returns its value).
+
+| Lean twin | Rust | one-to-one? |
+|---|---|---|
+| `CoreState.lean`'s `Caches` (11 `Std.HashMap`s) | `Caches` (11 `ron::HashMap`s **+ 11 `Vec` journals**) | **no** — the journal above |
+| the keys `(EIdx × EIdx)`, `(LIdx × LIdx)`, `(LsIdx × LsIdx)`, `(NIdx × LsIdx)`, `(NIdx × NIdx × LsIdx)` | `EIdxPair`, `LIdxPair`, `LsIdxPair`, `NLsKey`, `NNLsKey` + `Hashable`/`Eq2`/`Dup` | **no**, in the spelling: Lean's `Prod` carries derived instances, the port writes the five dictionaries by hand (P4b's `EIdxNat`, again) |
+| `cacheCap`, `keepE`/`keepEE`/`keepLL`/`keepLsLs`/`keepNLs`/`keepNNLs` | `CACHE_CAP` and the same six | yes |
+| `Caches.dropScratchEntries` | the same + `filter_*`/`drop_*` pairs | **no** — the journal walk |
+| `PropRead.lean`'s nine | the same nine | yes |
+| `PropWhen.isProp` | `con_ron_core::kernel::prop_read::is_prop` | yes — §8.7's "(B) imports the representation-free types", across the crate line |
+| `Core.lean`'s `CoreFnsA` and `CoreFnsA.ioView` | `LANE_FULL`/`LANE_GATED`/`LANE_IO` and `knot_infer_at` | **no** — deviation 1 |
+| `coreKnot`'s six slots | `knot_whnf_core` … `knot_annotate` | **no** in shape, yes clause for clause: the fuel-zero decline, the probe, the body at `fuel - 1`, the record |
+| `pureFnsA`, `pureFnsIO`, `pureFnsGated` | `PURE_FNS_A`, `core_io::CORE_KNOT_IO`, `core_gated::CORE_KNOT_GATED` | **no** — a record of functions has no Rust spelling; the lane tag is what replaces it |
+| `whnfStep` / `defeqStep`'s continuation `k` | the loop's step budget `n` | **no** — deviation 2 |
+| `whnfCoreBody` / `whnfCoreBodyGated` | `whnf_core_body` / `whnf_core_body_gated`, sharing `whnf_core_proj`, `whnf_core_stuck_app` and `intern_app` | **no** — the twin writes the `.proj` clause and the ι half of `.app` out twice, verbatim; the port writes them once and both bodies call them |
+| `inferBody` / `inferBodyIO` | the same two, sharing `infer_sort`, `infer_fvar`, `infer_const`, `infer_lit_nat`, `infer_lit_str`, `infer_proj`, `infer_proj_at`, `infer_lam_open`, `infer_lam_cod` | **no**, same reason: the two bodies differ in exactly two clauses and the twin spells all ten twice.  `con_ron_core::cached::core_c` already shares `infer_const_i`/`infer_lit_nat`/`infer_fvar`/`infer_proj_at` |
+| `defeqStep` | `defeq_step` → `defeq_after_whnf` → `defeq_delta` → `defeq_delta_both` / `defeq_struct` | **no** — one `def` whose last arm is a sixteen-way match on a PAIR of views; inlined it would nest twenty deep.  Every cited clause is in the twin's order and the splits are the twin's own `let`-boundaries, which is `core_c::defeq_step_i`'s arrangement |
+| `defeqStep`'s `match ← view a', ← view b'` | `match (va, vb)` | yes, arm for arm in the twin's order, **except** that the twin's two `(literal, application)` arms are merged into one (`defeq_lit_app`, dispatching on the literal's constructor).  The scrutinee pair is fixed and the twin's fall-through for the other constructor is `stuckIrrel`, which is what the merged arm does |
+| the two binder-congruence arms of `defeqStep` | `defeq_binders(…, is_lam)` | **no** — the twin writes them twice and they differ only in the message |
+| the two binder clauses of `annotateBody` | `annotate_binder(…, is_lam)` | **no** — ditto, plus which datum computation runs |
+| `proofIrrel`'s and `propIrrel`'s `Prop` branch | `prop_sorts_zero` / `prop_sorts_zero_right` | **no** — the twin writes the same eleven lines in both |
+| `natDivModNames` / `natOpWfNames` | one function, cited twice | **no** — the twin spells the same eight names under two names, as con-leche does |
+| `natOpDeps` / `natOpResult` / `natBinOpName`'s fifteen `let`s | `NatOpPins` + `nat_op_pins` | **no** — the twin opens all three with the same fifteen `pin`s; the port interns them once into a record, so the pin cost is paid once per call rather than three times and the three `if` chains read as the twin's |
+| `natOpEquations`' eight `let`s | `NatEqCtx` + `nat_eq_ctx` | **no**, same reason |
+| `List` recursions (`iotaCerts`, `piResidual`, `defEqList`, `natOpDepsStored`, `substLevelsAt`, `substParamLevels`, `instSpinePins`, `findRule`, `fvarLeavesSubset`, `strLitConsSpine`, `reservedBasisNames`) | a cursor over the `Vec` | **no** — §3.4's standing rule, P4b's row |
+| `List.range nF` walks (`towerSlotsAllGo`, `recSlotsAllGo`, `projNodesGo`, `projAppsGo`, `andRescueSlotsGo`, `structEtaProjCerts`) | a counted recursion `(n, j)` | **no**, same rule; the twin already counts for five of the six |
+| `take`/`drop`/`++`/`reverse`/`getD` on an argument spine | `take_eidx` (P4b's), `drop_eidx`, `append_eidx`, `snoc_eidx`, `rev_eidx`, `get_d_eidx` | **no** — `con_ron_core::kernel::core_k` has the same six |
+| `findRule : List IRecRule → NIdx → Option IRecRule` | `find_rule(…) -> Option<usize>` | **no** — the index, not the record: the caller reads it out of the `Vec` it is stored in (`core_k::rules_find`'s shape) |
+| `Idx.tag` comparison in `quickPair` | `EIdx::tag()` against `ETAG_*` | yes — the module's one pure `EIdx → EIdx → bool` |
+| the fifteen reserved `Nat` names, `boolName`/`boolTrueName`/`boolFalseName`, the nineteen `reservedBasisNames`, `sorryAxName`, and the literal-support names | `pin(st, &con_ron_core::kernel::{basis_names,core_k}::…())` | yes — the `ConLeche.Name` VALUES are con-ron-core's own, so the two crates cannot spell a reserved name differently |
+| `Nat` (fuel, depths, arities, cursors) | `u64`; `rP - 1` is `expr_ops::sub_nat` | **no** — §3.3's standing deviation |
+| the twin's 23 interpolated messages | `con_ron_core`'s own code-point constants, interpolation dropped | **no** — §3.1 (a message need not match a theorem); matching *con-ron-core's* is what lets the differential test compare error text |
+| `IConstantInfo` read out of `fe.find?` | a **copy** (`i_constant_val_dup`, `i_ind_caps_dup`, `i_rec_rules_dup`) before the state is taken mutably | **no** — Lean's record share is a `Vec` copy here, task #14's rule.  Every read of a stored constant that outlives a `&mut st` pays it |
+
+##### Evaluation order: five places where Lean's `do` does NOT short-circuit
+
+This is the subtlety that cost the most care, and it is worth writing down
+because P4d will meet it again.  Lean's `do` **lifts every `(← e)` out of an
+`if` condition to a `let` before the `if`** — so `if pi && (← isBoolTrue b) &&
+!(← hasFvarFast … a)` runs both reads whatever `pi` is.  Rust's `&&` and `||`
+short-circuit.  Where the lifted call touches the state — and `isBoolTrue`
+interns `Bool.true` and the empty level list, `natLitSupported` interns five
+names, `hasFvarFast` writes the fvar-range memo, `notProofFast` may intern a
+`Sort 1` — a short-circuiting Rust would leave the store one node behind the
+twin's and every handle after it different.  The five sites, all now spelled
+with both operands evaluated:
+
+* `reduceNat`'s `c == ns && (← natLitSupported fe)` (the `Nat.succ` arm);
+* `reduceNat`'s `wf.contains c && (← natLitSupported fe)` (the WF safety net);
+* `propIrrel`'s `(← notProofFast a) || (← notProofFast b)` — and its
+  `(← isProofFast a) && (← isProofFast b)`;
+* `defeqStep`'s `pi && (← isBoolTrue b) && !(← hasFvarFast … a)`;
+* `andRescueSlotsGo`'s `… && (← e.fireOk ust)`.
+
+An **`else if` chain is different**: in do-notation the `else` branch is its
+own do-sequence, so `else if … && (← sameConstHeads a' b')` in `defeqStep`'s
+lazy-delta stage is reached only when the two hint comparisons have failed —
+and *within* that branch both conjuncts run.  `defeq_delta_both` is written
+that way; `sameConstHeads` reads the store and writes nothing, so nothing
+observable turned on it, but the shape is the twin's.
+
+The one place the port short-circuits where the twin does not is
+`reduceNat`'s `(← natBinOpName c) && (← natOpStored fe c)`: `nat_op_stored` is
+a pure `fe` lookup with no state at all, so `bin && nat_op_stored(fe, c)` is
+the same function.  Recorded here rather than worked around.
+
+##### What `core_io.rs` and `core_gated.rs` came out as
+
+Both are census class (S) — "the Rust port skips it" — and both are twinned,
+as the Lean twin twins them, because they are the *statement subjects* P3
+needs for the knot equations.  Between them they are **299 lines**, and
+almost all of it is the gated β site: `whnf_core_app_gated` is the twin's one
+changed clause, and the eleven entry points are one-line delegations to
+`arena::core`'s `knot_*` at their lane.  `core_io.rs` has **no body at all** —
+the io knot's every slot is `arena::core`'s, at `LANE_IO` — which is what
+deviation 1 buys.
+
+#### The differential test: 14 `#[test]`s, 103 assertions, all green on the first run
+
+`mod tests` in `core.rs` is `CoreTest.lean`'s shape one for one:
+
+> build a tiny environment by hand as `con-ron-core` `ConstantInfo` values,
+> intern it into the arena with `internCI`, run the arena twin on handles,
+> read the answer back with `denote_e`, and compare with `con_ron_core`'s own
+> `whnf` / `infer` / `defeq` / `annotate` applied to the *denotations*.
+
+The environment is written ONCE — the same eight constants (`Nat`,
+`Nat.zero`, `Nat.succ` at exactly the shapes `natLitSupported` pins, a
+definition that unfolds to a literal, an axiom that does not, a proposition
+and two of its proofs) — and the arena's is *derived* from it, so the two
+cannot drift.  The comparison is over the **whole outcome**: an `ok` must
+meet an `ok` at the same term (`expr::beq` of the readback), an error an
+error of the same KIND and the same code points (`err_eq`); `Native` matches
+nothing, which is right, because a `Native` claims nothing.
+
+| what | checks |
+|---|---:|
+| the fixture builds, and denotes what it should | 9 |
+| the positive outcomes, pinned by hand on con-ron-core's side | 7 |
+| **the same seven, pinned on the ARENA's side** (beyond the twin) | 7 |
+| `whnf` | 12 |
+| `whnfCore` (must NOT unfold where `whnf` does) | 5 |
+| `infer` (two failures) | 12 |
+| `inferIO` | 3 |
+| `defeq` (both verdicts) | 12 |
+| `annotate` (two failures) | 12 |
+| `ensureSort` | 3 |
+| the memos and the declaration bracket | 14 |
+| the gated and io knots | 6 |
+| **total** | **102** (+1 build guard = 103) |
+
+All 89 of the twin's `#guard`s are covered.  Two places are stronger and one
+is weaker, and the weaker one is not the port's fault:
+
+* **stronger**: the seven hand-pinned outcomes are mirrored on the arena's own
+  side (`whnf two = lit 2`, `whnf ((λx.succ x) 3) = lit 4`, `infer (lit 7) =
+  Nat`, `infer (λx:Nat.x) = ∀Nat,Nat`, `defeq pfA pfB`, `¬ defeq two 7`,
+  `annotate (λx:P.x) = ⟨ifAllZero []⟩`), so the differential cannot be vacuous
+  from either end; and `whnfCore two = two` is pinned as well;
+* **weaker**: the twin checks its gated and io lanes against **con-leche's
+  own** gated and io lanes.  `con-ron-core` has neither (census class (S)), so
+  the partner here is the executed core.  That is the weaker check the twin's
+  own note already describes ("what these check is that they are not
+  *broken*"), and at `.verified` it is exact: the gated `whnfCore`'s gate
+  (`verifiedChecks && pw.isNever`) and `betaGateFires` (`betaGate &&
+  pw.isNever`) agree there, and the io lane's `infer` is the same body the
+  memoized io slot runs.
+
+**A deliberately wrong check was confirmed to fail**: pointing `whnf_agrees`'
+expected side at `core_c::whnf_core` instead of `core_c::whnf` turns the test
+red at the first subject, and reverting it turns it green again.  That is the
+twin's own "a deliberately wrong check was added and confirmed to fail the
+build", done as a Rust negative control.
+
+`intern_expr` and `denote_e` are P4b's, copied into this `mod tests` (they are
+`#[cfg(test)]` items of `arena::expr_ops` and not reachable across modules);
+`denote_e` stays test-only, as task #97-P4a ruled.
+
+#### What the extraction says
+
+`scripts/extract-arena.sh --dry`: **zero errors, zero warnings**, **32 450
+lines** of model (up from P4b's 10 745 — P4e's `frontend/` landed in between),
+**3 type holes and 143 function holes**.  Of the 143, **141 are the
+`con-ron-core` boundary** and the other two are `alloc::sync::Arc::deref`
+(P4a's standing hole) and `core::str::as_bytes`, from
+`frontend/export_c.rs`'s test-facing `parse_text` entry — **P4c's own modules
+contribute none**.  The boundary breakdown: `ron::nat` 22, `kernel::expr` 20,
+`kernel::core_k` 19, `kernel::basis_names` 15, `kernel::level` 12,
+`kernel::env` 8, `ron::hashmap` 8, `kernel::name` 7, `kernel::prop_when` 7,
+`kernel::core_types` 6, `frontend::*` 15, `kernel::{expr_ops,prop_read}` 2.
+
+**One translator complaint, eleven times over, and it is P4a's finding again.**
+`interp/Interp.ml:617`, *"Could not match the contexts"*: a
+`match ron::HashMap::get(…) { Some(r) => …, None => … }` written **inline**
+leaves the two arms with loan contexts Aeneas cannot join.  It bit the five
+cache probes of `arena::core` (`lvl_eq`, `lvls_eq`, `const_ty_at`,
+`const_val_at`, `rule_rhs_at`) and the six journal tests of
+`arena::core_state`.  The fix is the one `con_ron_core::cached::core_c`
+already documents — "the probe is a function over a *shared* state borrow
+(task #14's rule)" — and the one the knot's own six probes already followed:
+`lvl_eq_probe`, `const_ty_probe`, `drop_e` and their eight siblings.  **This
+is extraction rule 5** for the campaign:
+
+> a `HashMap::get` match that produces a value is its own function; never
+> inline.
+
+#### Build and gates
+
+`cargo build -p arena-core` from `cargo clean -p arena-core`: **0.73 s** (dev,
+one crate, after the dependency is built); `cargo test -p arena-core --no-run`
+**1.30 s**.  `RUSTFLAGS="-D warnings"` throughout.
+
+`cargo build` / `cargo test` workspace-wide: **73 tests in `arena-core`** (up
+from 59), 360 in the workspace, all green.
+`scripts/lint-rust-style.sh` over both verified trees: clean.
+`scripts/provenance.py check`: **0 findings** (4 810 items — 3 535 Rust,
+1 275 arena Lean — and 3 665 citations).  The arena ledger is unmoved at
+`ARENA TOTAL 267/927` (this task adds no Lean).
+`scripts/extract-arena.sh --dry`: clean, above.
+`cd proof && lake build` was **not** run: this task touches no Lean, and
+P2d/P2e are editing `proof/` concurrently — P4b's ruling, unchanged.
+`scripts/extract.sh --check` was not run either: `con-ron-core` is untouched.
+
+#### For P4d
+
+* **The bracket is `enter_scratch` … `drop_scratch`**, both in `arena::core`.
+  Call them around each declaration's check; `drop_scratch` already does the
+  cache half and the store half, so do not call `EStore::drop_scratch`
+  yourself.
+* **The entry points are `arena::core`'s bottom section**: `whnf_core`,
+  `whnf`, `infer_type_core`, `infer_type_io`, `is_def_eq_core`,
+  `annotate_core`, `ensure_sort_core`, each `(st, mode, fe, fuel, depth, …)`.
+  `CHECK_FUEL` is the fuel con-leche passes them.
+* **The install-time helpers are here too**: `rec_rule_bits`, `proj_fn_rule`,
+  `rec_rule_k`, `nat_op_equations`, `nat_op_guard`, `nat_op_stored_ok`,
+  `subst_const0`, `subst_const_all`, `consts_resolve`, `pi_result_z`,
+  `pi_result_never_zero`, `caps_never_zero`, `proj_model_name`.  All take
+  `fe: &IFEnv`.
+* **`lane` is `LANE_FULL` everywhere P4d writes.**  The other two lanes are
+  statement subjects; nothing above this module should pass them.
+* **Watch the hole list, not its count.**  A hole that is not
+  `con_ron_core::…` (and not the two named above) is a new external, which is
+  the signal P4a asked for.
+* **The reserved-name pins are interned on demand**, as the twin's are.  The
+  `Pins` record the twin's section calls "the first thing P2g should price"
+  is a Rust change too: `nat_op_pins` alone interns fifteen names per
+  `reduceNat` call on the binary path.
+* **`ron::HashMap::retain`** (or a `keys` iterator) retires the eleven
+  journals; it belongs to `con-ron-core` and is a P6 item.
+* **The stack.**  P4b's finding stands and gets worse here: a `defeq` on a
+  50 000-node spine is 50 000 Rust frames through six mutually recursive
+  functions rather than one.  P4f's driver must run on a 1 GB-stack thread,
+  as `con-ron`'s own checker threads do.
+* **The micro-benchmark is still P4d's**, as the brief says: the knot's
+  subjects that matter (a real declaration's `annotate` + `infer` + `defeq`
+  sweep) need `check_decl` to exist.
