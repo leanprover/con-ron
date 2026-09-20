@@ -1105,17 +1105,28 @@ pub fn eq_head_level(st: &mut AState, h: &EIdx) -> Result<LIdx, CheckError> {
 // Reading a stored constant (`Arena/CheckerBase.lean:480-485`)
 // ---------------------------------------------------------------------------
 
+/// con-leche: ConLeche/Kernel/FEnv.lean:70-75 FEnv.find?
+/// Lean twin: `proof/ConRon/Arena/Env.lean:331-334 IFEnv.find?` — **the stored
+/// constant, COPIED.**  Every reader of `fe.find? n` whose answer outlives a
+/// `&mut st` pays the copy (task #97-P4c's row); written inline, the
+/// `Option`-producing match leaves Aeneas with two loan contexts it cannot
+/// join (*"Could not match the contexts"*, `interp/Interp.ml:617`), which is
+/// task #97-P4c's **extraction rule 5** at an `ifenv_find` rather than a
+/// `HashMap::get`.  So the copy is one function and is never inlined.
+pub fn find_ci(fe: &IFEnv, n: &NIdx) -> Option<IConstantInfo> {
+    match env::ifenv_find(fe, n) {
+        Some(ci) => Some(env::i_constant_info_dup(ci)),
+        None => None,
+    }
+}
+
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:241-247 Env.findCV?
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:480-485 IFEnv.findCV?` — the
 /// stored constant under `n`, as an `IConstantVal`, if any.  The stored record
 /// is COPIED before the state is taken mutably (task #97-P4c's row for
 /// `IConstantInfo` read out of `fe.find?`).
 pub fn find_cv(st: &mut AState, fe: &IFEnv, n: &NIdx) -> Result<Option<IConstantVal>, CheckError> {
-    let found: Option<IConstantInfo> = match env::ifenv_find(fe, n) {
-        Some(ci) => Some(env::i_constant_info_dup(ci)),
-        None => None,
-    };
-    match found {
+    match find_ci(fe, n) {
         Some(ci) => match env::i_constant_info_to_constant_val(&mut st.store, &ci) {
             Err(e) => Err(e),
             Ok(cv) => Ok(Some(cv)),

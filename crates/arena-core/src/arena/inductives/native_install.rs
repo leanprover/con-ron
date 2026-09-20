@@ -588,7 +588,7 @@ pub fn native_field_reflexive(
                     Err(e) => Err(e),
                     Ok(None) => Ok(false),
                     Ok(Some(aq)) => {
-                        if aq.0.is_empty() {
+                        if aq.0.len() == 0 {
                             Ok(false)
                         } else {
                             match sum_install::field_doms_resolve(st, fe0, &aq.0, 0) {

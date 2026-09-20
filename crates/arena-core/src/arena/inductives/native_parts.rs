@@ -1168,6 +1168,31 @@ pub fn lift_list(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:322-330 structMinorsPisR
+/// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:332-339 structMinorsLamsR
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:306 structMinorsPisR`
+/// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:319 structMinorsLamsR`
+/// — the one clause the twin's two functions differ in, as a function of its
+/// own: a `Π` binder or a `λ` one.  Inlined as `if is_lam { … } else { … }` it
+/// is an `if` whose two arms MOVE the node's three fields, and Aeneas cannot
+/// join the contexts (*"Could not match the contexts"*); with the whole node
+/// built inside one function the move happens once per branch and the join is
+/// on a plain `EIdx`.
+pub fn intern_binder(
+    st: &mut AState,
+    is_lam: bool,
+    ty: EIdx,
+    body: EIdx,
+    pw: &PropWhen,
+) -> Result<EIdx, CheckError> {
+    let bm: BinderMeta = expr::binder_meta(prop_when::dup(pw));
+    if is_lam {
+        intern_e(st, ENodeView::Lam(ty, body, bm))
+    } else {
+        intern_e(st, ENodeView::ForallE(ty, body, bm))
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:322-330 structMinorsPisR
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:297-306 structMinorsPisR`
 /// — the minor premises' `∀`-telescope at a recursive block, one per
 /// constructor.  `is_lam` selects the `λ` twin (`structMinorsLamsR`), which the
@@ -1199,18 +1224,10 @@ pub fn struct_minors_pis_r(
                 match struct_minors_pis_r(st, lps, n_p, pw, ctors, k + 1, o + 1, body, is_lam) {
                     Err(e) => Err(e),
                     Ok(None) => Ok(None),
-                    Ok(Some(rest)) => {
-                        let bm: BinderMeta = expr::binder_meta(prop_when::dup(pw));
-                        let node = if is_lam {
-                            ENodeView::Lam(mty, rest, bm)
-                        } else {
-                            ENodeView::ForallE(mty, rest, bm)
-                        };
-                        match intern_e(st, node) {
-                            Err(e) => Err(e),
-                            Ok(r) => Ok(Some(r)),
-                        }
-                    }
+                    Ok(Some(rest)) => match intern_binder(st, is_lam, mty, rest, pw) {
+                        Err(e) => Err(e),
+                        Ok(r) => Ok(Some(r)),
+                    },
                 }
             }
         }
@@ -1816,7 +1833,7 @@ pub fn native_counts(
 /// order, each rule naming its constructor with its field count.  Pure: tags,
 /// names and counts only.
 pub fn native_rec_pin_ok(p: &InductiveShape, block: &Vec<IConstantInfo>) -> bool {
-    if block.is_empty() {
+    if block.len() == 0 {
         false
     } else {
         match &block[0] {
@@ -1907,7 +1924,7 @@ pub fn native_shape(
     n_pd: u64,
     block: &Vec<IConstantInfo>,
 ) -> Result<Option<InductiveShape>, CheckError> {
-    if block.is_empty() {
+    if block.len() == 0 {
         Ok(None)
     } else {
         let head: Option<IConstantVal> = match &block[0] {
@@ -2045,7 +2062,7 @@ pub fn native_shape_elim(
                 };
                 let ctors: Vec<(IConstantVal, u64)> = ctors_of(cs, 0, Vec::new());
                 let rhss: Vec<EIdx> = rhss_of(rules, 0, Vec::new());
-                let large: Option<NIdx> = if cv_r.level_params.is_empty() {
+                let large: Option<NIdx> = if cv_r.level_params.len() == 0 {
                     None
                 } else {
                     Some(cv_r.level_params[0].dup2())

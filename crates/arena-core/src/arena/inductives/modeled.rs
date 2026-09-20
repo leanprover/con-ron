@@ -491,10 +491,7 @@ pub fn eq_basis_stored(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> 
     match core::pin(st, &basis_names::eq_name()) {
         Err(e) => Err(e),
         Ok(en) => {
-            let found: Option<IConstantInfo> = match env::ifenv_find(fe, &en) {
-                Some(ci) => Some(env::i_constant_info_dup(ci)),
-                None => None,
-            };
+            let found: Option<IConstantInfo> = ind_base::find_ci(fe, &en);
             match found {
                 Some(ci) => match ind_base::eq_basis_ci(st) {
                     Err(e) => Err(e),
@@ -817,7 +814,7 @@ pub fn iota_thm_name(st: &mut AState, cv_name: &NIdx, j: u64) -> Result<NIdx, Ch
 /// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:182 checkIotaThm` —
 /// the major premise is the argument spine's last entry.
 pub fn last_d_eidx(xs: &Vec<EIdx>, dflt: &EIdx) -> EIdx {
-    if xs.is_empty() {
+    if xs.len() == 0 {
         dflt.dup2()
     } else {
         xs[xs.len() - 1].dup2()
@@ -2093,10 +2090,7 @@ pub fn check_iota_rule(
     j: u64,
     r: &IRecRule,
 ) -> Result<IRecRule, CheckError> {
-    let found: Option<IConstantInfo> = match env::ifenv_find(fe2, &r.ctor) {
-        Some(ci) => Some(env::i_constant_info_dup(ci)),
-        None => None,
-    };
+    let found: Option<IConstantInfo> = ind_base::find_ci(fe2, &r.ctor);
     match found {
         Some(IConstantInfo::CtorInfo(cvj, cn_p, cn_f)) => {
             if r.nfields != cn_f {
@@ -2351,10 +2345,7 @@ pub fn check_member_model(
     match ind_base::model_name(st, &cv_a.name) {
         Err(e) => Err(e),
         Ok(mn) => {
-            let found: Option<IConstantInfo> = match env::ifenv_find(fe2, &mn) {
-                Some(ci) => Some(env::i_constant_info_dup(ci)),
-                None => None,
-            };
+            let found: Option<IConstantInfo> = ind_base::find_ci(fe2, &mn);
             match found {
                 Some(IConstantInfo::DefnInfo(cvm, _, _)) => {
                     if !core::nidx_vec_beq(&cvm.level_params, &cv_a.level_params) {
@@ -2552,7 +2543,7 @@ pub fn check_ind_recs(
     fe2: IFEnv,
     recs: &Vec<IConstantInfo>,
 ) -> Result<IFEnv, CheckError> {
-    if recs.is_empty() {
+    if recs.len() == 0 {
         Ok(fe2)
     } else {
         match block_rename_table(st, block_names) {
@@ -2596,10 +2587,7 @@ pub fn check_proj_lookups(
     n_f: u64,
     i: u64,
 ) -> Result<(IConstantVal, IConstantVal), CheckError> {
-    let found: Option<IConstantInfo> = match env::ifenv_find(fe2, ctor_name) {
-        Some(ci) => Some(env::i_constant_info_dup(ci)),
-        None => None,
-    };
+    let found: Option<IConstantInfo> = ind_base::find_ci(fe2, ctor_name);
     match found {
         Some(IConstantInfo::CtorInfo(cvj, cn_p, cn_f)) => {
             if !(cn_p == n_p && cn_f == n_f) {
@@ -2627,10 +2615,7 @@ pub fn check_proj_lookups_model(
     match core::proj_model_name(st, t, i) {
         Err(e) => Err(e),
         Ok(pmn) => {
-            let found: Option<IConstantInfo> = match env::ifenv_find(fe2, &pmn) {
-                Some(ci) => Some(env::i_constant_info_dup(ci)),
-                None => None,
-            };
+            let found: Option<IConstantInfo> = ind_base::find_ci(fe2, &pmn);
             match found {
                 Some(IConstantInfo::DefnInfo(mcv, _, _)) => {
                     if !core::nidx_vec_beq(&mcv.level_params, lps) {
@@ -2758,10 +2743,7 @@ pub fn check_proj_iota(
         Ok(pmn) => match intern_n_node(st, NNodeView::Str(pmn.dup2(), code_points(&IOTA))) {
             Err(e) => Err(e),
             Ok(itn) => {
-                let found: Option<IConstantInfo> = match env::ifenv_find(fe2, &itn) {
-                    Some(ci) => Some(env::i_constant_info_dup(ci)),
-                    None => None,
-                };
+                let found: Option<IConstantInfo> = ind_base::find_ci(fe2, &itn);
                 match found {
                     Some(IConstantInfo::ThmInfo(tcv, _)) => {
                         if !core::nidx_vec_beq(&tcv.level_params, lps) {
@@ -3078,18 +3060,9 @@ pub fn check_eta_thm(
             Ok(etn) => match ind_base::model_name(st, ctor_name) {
                 Err(e) => Err(e),
                 Ok(cm) => {
-                    let a = match env::ifenv_find(fe2, &etn) {
-                        Some(ci) => Some(env::i_constant_info_dup(ci)),
-                        None => None,
-                    };
-                    let b = match env::ifenv_find(fe2, &tm) {
-                        Some(ci) => Some(env::i_constant_info_dup(ci)),
-                        None => None,
-                    };
-                    let c = match env::ifenv_find(fe2, &cm) {
-                        Some(ci) => Some(env::i_constant_info_dup(ci)),
-                        None => None,
-                    };
+                    let a: Option<IConstantInfo> = ind_base::find_ci(fe2, &etn);
+                    let b: Option<IConstantInfo> = ind_base::find_ci(fe2, &tm);
+                    let c: Option<IConstantInfo> = ind_base::find_ci(fe2, &cm);
                     match (a, b, c) {
                         (
                             Some(IConstantInfo::ThmInfo(tcv, _)),
@@ -3163,10 +3136,7 @@ pub fn proj_models_ok(
         match core::proj_model_name(st, t, j) {
             Err(e) => Err(e),
             Ok(pmn) => {
-                let found: Option<IConstantInfo> = match env::ifenv_find(fe2, &pmn) {
-                    Some(ci) => Some(env::i_constant_info_dup(ci)),
-                    None => None,
-                };
+                let found: Option<IConstantInfo> = ind_base::find_ci(fe2, &pmn);
                 match found {
                     Some(IConstantInfo::DefnInfo(cvmj, _, _)) => {
                         if core::nidx_vec_beq(&cvmj.level_params, lps) {
@@ -3380,14 +3350,8 @@ pub fn check_unit_thm(
         Ok(tm) => match intern_n_node(st, NNodeView::Str(tm.dup2(), code_points(&UL))) {
             Err(e) => Err(e),
             Ok(utn) => {
-                let a = match env::ifenv_find(fe2, &utn) {
-                    Some(ci) => Some(env::i_constant_info_dup(ci)),
-                    None => None,
-                };
-                let b = match env::ifenv_find(fe2, &tm) {
-                    Some(ci) => Some(env::i_constant_info_dup(ci)),
-                    None => None,
-                };
+                let a: Option<IConstantInfo> = ind_base::find_ci(fe2, &utn);
+                let b: Option<IConstantInfo> = ind_base::find_ci(fe2, &tm);
                 match (a, b) {
                     (
                         Some(IConstantInfo::ThmInfo(tcv, _)),
@@ -3691,10 +3655,7 @@ pub fn ctor_residual_ok(
     if !con_ron_core::kernel::env::tt_checks(mode) || !eta {
         Ok(true)
     } else {
-        let found: Option<IConstantInfo> = match env::ifenv_find(fe2, ctor_name) {
-            Some(ci) => Some(env::i_constant_info_dup(ci)),
-            None => None,
-        };
+        let found: Option<IConstantInfo> = ind_base::find_ci(fe2, ctor_name);
         match found {
             Some(IConstantInfo::CtorInfo(cv_ca, _, _)) => {
                 match expr_ops::strip_pis(st, n_p + n_f, &cv_ca.ty) {

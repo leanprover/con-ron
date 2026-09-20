@@ -807,7 +807,7 @@ pub fn struct_parts_core_elim(
     is_prop: bool,
 ) -> Result<Option<StructParts>, CheckError> {
     let lps: &Vec<NIdx> = &cv_t.level_params;
-    let large: Option<NIdx> = if cv_r.level_params.is_empty() {
+    let large: Option<NIdx> = if cv_r.level_params.len() == 0 {
         None
     } else {
         Some(cv_r.level_params[0].dup2())

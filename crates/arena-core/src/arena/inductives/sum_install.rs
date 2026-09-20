@@ -339,16 +339,21 @@ pub fn native_caps_at(
     if p.ctors.len() != 1 {
         Ok(env::i_ind_caps_default())
     } else {
+        // the constructor's name and field count are read out FIRST: a `&&`
+        // that still holds a loan into `p.ctors[0]` while the record is built
+        // is what Aeneas cannot join (task #97-P4a's second extraction rule)
+        let c_name: NIdx = p.ctors[0].0.name.dup2();
+        let c_fields: u64 = p.ctors[0].1;
         match read_level(st, &p.res_sort) {
             Err(e) => Err(e),
             Ok(l) => Ok(IIndCaps {
                 eta: p.n_idx == 0 && !p.is_prop && !is_rec,
-                eta_ctor: p.ctors[0].0.name.dup2(),
+                eta_ctor: c_name,
                 eta_params: p.n_p,
-                eta_fields: p.ctors[0].1,
-                unitlike: p.n_idx == 0 && p.ctors[0].1 == 0,
+                eta_fields: c_fields,
+                unitlike: p.n_idx == 0 && c_fields == 0,
                 unit_params: p.n_p,
-                rule_k: p.ctors[0].1 == 0 && p.is_prop,
+                rule_k: c_fields == 0 && p.is_prop,
                 sort_z: level::zeroness_of(&l),
             }),
         }
