@@ -20961,7 +20961,10 @@ so.  **Round 2 closed them and revises the reasoning** (see `#### Round 2`
 at the end of this section): the answer is unchanged, but the proof-cost
 argument of §6.1 is wrong — the one-layer route is 26 % *cheaper* in lines
 at spike scale, and (B) is kept for blast radius, the P2f differential and
-the shape of the conclusion instead.
+the shape of the conclusion instead.  **Round 3 revises the *cost* of C1**
+(`#### Round 3`, also at the end of this section): redone with the existing
+task-#70/#71 refinement idiom, C1 is 22 lines of proof rather than 378, so
+every "budget C1 as hand work" line below is superseded.
 
 #### The table
 
@@ -21326,4 +21329,169 @@ arm); sharing one generic two-child memoised arm between `app`, `lam` and
   is the same six moves (`cases … using Result.cases`, `rw [hp,
   bind_tc_ok]`, `cases` the `Option`, the primitive's abstraction lemma,
   `simp only [hrec, except_ok_bind]`, close), so a matching *tactic* is the
-  cheap way to buy the difference back.
+  cheap way to buy the difference back.  **Superseded by round 3**: that
+  tactic already exists (`rust_norm` + `rust_grind`, `Refine/Abs.lean`, task
+  #71) and closes C1 in 22 lines.
+
+#### Round 3 (2026-09-20, Opus under Fable)
+
+The maintainer's question: *"For rust against the twin I thought we already
+had decent automation?  Is that different from the rust-against-cached-twin
+we already have?"*
+
+**It is not different, and round 2 was wrong.**  Experiment C1 redone with
+the task-#70/#71 idiom exactly as `ConRon/Refine/` uses it
+(`Spike/ExpC1Idiom.lean`, same statement, same extracted model, same twin) is
+**22 lines of proof, 20 of them the shape step**, against round 2's **378
+lines and ~300 hand**.  `rust_norm` leaves **seven** goals and the closing
+`grind` shuts **7 / 7**; nothing is left open and nothing is matched by hand.
+Full numbers and the two traps: `_tmp/t97/spike-report.md` §R6–R8.
+
+Round 2's sentence "there is no automation for *program-to-program*
+equality" was an observation about `mvcgen` — the Aeneas model threads state
+as a return value, so the `⦃s = s₀⦄` template has nothing to instantiate —
+and it does not apply to the task-#70 idiom, which is not a VC generator.
+That idiom normalises a Rust **success hypothesis** and closes each residual
+branch with `grind`; it never needs a state monad on either side.
+`MiniRun.mInstantiate1_run_succ` already puts the twin in the same
+`Except`-valued shape as the Rust, and from there C1 is a refinement lemma of
+exactly the kind the `Refine` tier has 1 614 of.
+
+##### The table
+
+`lake env lean` on one file, `LEAN_NUM_THREADS=2`, `ulimit -v 60000000`,
+three runs each, spread ≤ 0.07 s.  "net" subtracts that file's own import
+baseline, measured the same way (`import MiniAbs` 1.86 s; `import MiniAbs` +
+`import ConRon.Refine.Abs` 1.88 s; `import ExpC1Idiom` 1.94 s).
+
+| C1 as | raw lines | code lines | proof body | hand lines | goals left by the normaliser | closed by the closer | elaboration, net |
+|---|---|---|---|---|---|---|---|
+| round 2, by hand (`ExpC1.lean`) | 394 | 340 | 378 | ~300 | — | — | **0.61 s** |
+| round 3, the idiom (`ExpC1Idiom.lean`) | 286 | 132 | **22** | **20** | **7** | **7 / 7** | **2.59 s** |
+| round 3, Aeneas `step*` (`ExpC1Step.lean`, `bvar` arm only) | 184 | 66 | 5 | 3 | 2 | 2 / 2 | 1.46 s |
+
+`ExpC1Idiom`'s 2.59 s splits as **0.79 s** for the in-file layer (fifteen
+inversion lemmas, the dictionary, the `Spec`/`use` pair) and **1.80 s** for
+the seven `grind` calls — **0.26 s a goal**.  So the idiom costs **4.2× the
+hand proof's elaboration for 17× fewer proof lines**, which is inside
+`AUTOMATION.md`'s measured band for memo walks (3.3–3.8×) and is the same
+trade the `Refine` tier already took.
+
+##### What the idiom needed that the `Refine` tier does not
+
+Three things, all of them one line each and none of them per-branch tuning.
+
+1. **`attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp`** — and this
+   one is a *soundness* trap, not a performance one.  Aeneas registers those
+   two as `@[grind ext]` (`Aeneas/Std/Scalar/Core.lean:778`, `:903`), so
+   every machine-word disequality — and `split`ting a generated `if tag =
+   TAG_APP` produces one per arm — is blasted into `∀ i, x.bv[i] =
+   y.bv[i]`.  On an `@[irreducible]` generated constant
+   (`Generated.TAG_BVAR : U32 := 0#u32`, which is how Aeneas emits every
+   `const`) `grind`'s `lia` module then closes the goal with a
+   `decide`-by-`rfl` step the *elaborator* evaluates to `false` and the
+   *kernel*, which does unfold `irreducible`, evaluates to `true`:
+   `(kernel) application type mismatch … decide (0 = 0) = false`.  The
+   tactic reports success, the declaration is rejected afterwards.  Erasing
+   the two `ext` registrations removes it; `-lia` also removes it but then
+   the fuel bound `absU (fuel - 1) ≤ n` is out of reach.  **`attribute
+   [-grind]` does not travel through an import** — `ExpC1Step.lean` has to
+   repeat the line — so P4a should either erase them once in a module every
+   Rust-side proof imports *and re-erase per file*, or ask Aeneas upstream
+   to scope the `ext` registrations.
+2. **`(splits := 40)`.**  `rust_grind`'s fixed `(ematch := 12) (gen := 24)`
+   is one case-split short of the arena's body and says so
+   (`[limit] maximum number of case-splits has been reached, threshold:
+   (splits := 9)`): ten branches, three `Option` matches and four `Result`
+   binds in one arm is more splitting than a `Level` leaf.  Per
+   `AUTOMATION.md` this is a default to raise, not a per-lemma override —
+   `Refine/Abs.lean`'s `rust_grind` should become
+   `(ematch := 12) (gen := 24) (splits := 40)` when the Rust-side proofs
+   start.
+3. **A fuel shape step, twelve lines.**  `Generated.instantiate1.eq_def`,
+   the `fuel = 0#u32` branch, `absU fuel = m + 1`, then
+   `rw [hm, mInstantiate1_run_succ]`.  It is the exact analogue of
+   `ExprWF.ind_node`'s constructor inversion: what makes the twin's one-step
+   equation apply.  This is the part that does not automate, and it is
+   per-function.
+
+Everything else is the documented idiom: the callee lemmas as `@[grind →]`
+rules **keyed on the Rust equation** (fifteen one-line restatements of
+`MiniAbs.lean`'s existentials — `AUTOMATION.md` §"What does not work" already
+says an existential conclusion is invisible to `grind`), the induction
+hypothesis as a `C1Spec` predicate with a `use` lemma whose first hypothesis
+is the Rust equation, and `rust_norm hrun ; all_goals ⟨closer⟩`.
+
+##### The `step` variant (Aeneas's own `progress`)
+
+`progress` is the deprecated spelling of `step` in this Aeneas
+(`Aeneas/Tactic/Step/Deprecated.lean`); `@[progress]` is `@[step]`.
+`AENEAS_FINDINGS.md` §3.3 set it aside for the `Refine` tier because its
+goals are forward from an `= ok` hypothesis and `step` wants a `⦃ ⦄` goal.
+On the arena the answer splits in two.
+
+* **`step` does work here.**  `Spike/ExpC1Step.lean` gives the nine total
+  primitives `@[step]` specs — each is one line, `exists_imp_spec` applied to
+  the existential `MiniAbs.lean` already proves — and `step*` then walks the
+  whole generated body and leaves **the same seven goals** `rust_norm` does,
+  with the postconditions already named and Aeneas's own `U32.sub_spec`
+  already applied.  `bvar_demo` closes that arm end to end with
+  `step* ; all_goals ⟨closer⟩`, sorry-free.  §3.3's "not one proof script
+  transferred" was about `con-ron-core`'s `Arc`/`&mut`/tuple-`let` shapes,
+  not about a flat arena.
+* **But `⦃ ⦄` is total correctness and Theorem 2 is partial.**
+  `Aeneas/Std/WP.lean:249`, `spec_imp_exists : spec m P → ∃ y, m = ok y ∧ P
+  y` — a `⦃ ⦄` goal *claims the call succeeds*.  `instantiate1` can fail:
+  Aeneas models `Vec::push` as failing at `Usize.max` and nothing bounds the
+  memo (`GWF` bounds the three constructor arrays; the fuel bounds how often
+  the memo grows per call, not how long it is).  The premise a `⦃ ⦄`-shaped
+  C1 would carry is `memo.length + 2 ^ fuel < Usize.max`
+  (`ExpC1Step.MemoCapShape`), because a call at fuel `f + 1` makes two calls
+  at fuel `f` and each may insert — unsatisfiable at con-ron's fuel.  So
+  `step` is a usable *normaliser inside an arm* and is not a way to state the
+  theorem.
+
+##### The import, and what P5 should do about it
+
+`ConRon.Refine.Abs` costs **0.02 s** of elaboration per importing file: it
+brings no Mathlib, because Aeneas already imports Mathlib
+(`Aeneas/Data/Fin.lean:2` and others) and the spike already imports Aeneas —
+the "arena libraries must not import Mathlib" rule of task #97a was never
+actually holding for `Spike/`.  What it does bring is `ConRon.Generated`'s
+76 448 lines: **≈ 3.5 min** of one-off build in a fresh worktree at
+`LAKE_JOBS=1`, 134 MB of `.olean`.
+
+That is a pure accident of file layout.  `rust_norm`, `rust_grind`,
+`rust_pairs`, `bind_arc_deref` and the two `register_simp_attr` sets depend
+on nothing in the model; the `expr.*`/`name.*`/`level.*` lemmas populating
+those sets do.  **P5 should split `Refine/Abs.lean` into `Refine/Idiom.lean`
+(the two macros, `rust_pairs`, the generic `Result` plumbing, importing only
+`Aeneas` and `Refine/SimpSets.lean`) and the rest**, so that (B)'s Rust-side
+proofs get the idiom without the 76 k-line model.  Nothing under `Refine/`
+was changed for this experiment.
+
+##### For P5 — the per-function budget
+
+* **Per crate, once:** an inversion layer keyed on the Rust equation — here
+  92 code lines for nine primitives, i.e. **≈ 10 lines per primitive**, each
+  a mechanical restatement of an existential the abstraction tier proves
+  anyway — plus the two attribute lines and, per recursive function, a
+  `Spec` + `use` pair (13 lines).
+* **Per function:** **≈ 20 lines of shape step and 2 lines of idiom**, and
+  **0.26 s of `grind` per residual branch**.  `instantiate1` has seven
+  branches; a real ten-constructor walk will have twenty to twenty-five, so
+  **5–7 s per function**.  At 700 functions that is **1–1.5 h** of Theorem-2
+  elaboration — the same order as round 2's 2 h budget for Theorem 1, and
+  against round 2's estimate of 300 hand lines *per function*.
+* **Revise round 2's §"For P2b–P2d and P4a" item 5.**  "Budget C1 as hand
+  work and invest in a matching tactic instead" is superseded: the matching
+  tactic exists, it is `rust_norm` + `rust_grind`, it has been in
+  `Refine/Abs.lean` since task #71, and it wants three changes — the
+  `(splits := 40)` default, the `@[grind ext]` erasure, and the
+  `Refine/Idiom.lean` split.
+
+##### The axiom check
+
+`Spike/Axioms.lean` now prints `instantiate1_C1_idiom`,
+`instantiate1_C1_idiom_wf` and `bvar_demo`: `[propext, Classical.choice,
+Quot.sound]` and nothing else.  The spike remains sorry-free.

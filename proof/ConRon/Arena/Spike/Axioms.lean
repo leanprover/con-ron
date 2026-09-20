@@ -13,12 +13,15 @@
 * `instantiate1A_spec` and `instantiate1Top_spec` (subject 1, over the real
   `EStore`) are sorry-free too since task #97a closed `EStore.intern_spec`.
   The whole spike is sorry-free.
+* **round 3's two C1 variants are sorry-free** — `instantiate1_C1_idiom`
+  (the task-#70/#71 refinement idiom) and `bvar_demo` (Aeneas's `step*`).
 -/
 import ConRon.Arena.Spike.ExpA2
 import ConRon.Arena.Spike.ExpA3
 import ConRon.Arena.Spike.ExpB
 import ConRon.Arena.Spike.ExpCD
 import ConRon.Arena.Spike.ExpAFast
+import ConRon.Arena.Spike.ExpC1Step
 
 namespace ConRon.Arena.Spike
 
@@ -39,5 +42,10 @@ namespace ConRon.Arena.Spike
 #print axioms Fast.instantiate1B_spec
 #print axioms Fast.instantiate1BTop_spec
 #print axioms Fast.instantiate1BTop_run
+
+-- round 3: C1 by the `Refine`-tier idiom, and the `step*` demonstration
+#print axioms instantiate1_C1_idiom
+#print axioms instantiate1_C1_idiom_wf
+#print axioms bvar_demo
 
 end ConRon.Arena.Spike

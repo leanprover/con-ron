@@ -38,6 +38,8 @@ import ConRon.Arena.Spike.Mini
 import ConRon.Arena.Spike.MiniRun
 import ConRon.Arena.Spike.MiniAbs
 import ConRon.Arena.Spike.ExpC1
+import ConRon.Arena.Spike.ExpC1Idiom
+import ConRon.Arena.Spike.ExpC1Step
 import ConRon.Arena.Spike.MiniSpecs
 import ConRon.Arena.Spike.ExpC2
 import ConRon.Arena.Spike.GenDenote
