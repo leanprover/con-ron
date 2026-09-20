@@ -21346,11 +21346,11 @@ Five modules under `proof/ConRon/Arena/`:
 
 | module | raw lines | what |
 |---|---:|---|
-| `Monad.lean` | 534 | `AM`, `AState`, the store primitives, the eleven memo tables |
-| `ExprOps.lean` | 1459 | the twins: 62 functions covering 70 con-leche declarations |
+| `Monad.lean` | 545 | `AM`, `AState`, the store primitives, the eleven memo tables |
+| `ExprOps.lean` | 1470 | the twins: 63 functions covering 70 con-leche declarations |
 | `ExprOpsTest.lean` | 584 | 183 kernel-reduced differential `#guard`s |
 | `Bench.lean` | 215 | `con-ron-arena-bench`, the micro-benchmark |
-| **total** | **2792** | |
+| **total** | **2814** | |
 
 `Monad.lean`, `ExprOps.lean` and `ExprOpsTest.lean` are in `lean_lib
 ConRonArena`; `Bench.lean` is an executable root (`lakefile.toml`, not a
@@ -21393,7 +21393,7 @@ Three decisions worth recording:
 #### The twins: 70 con-leche declarations, 62 functions
 
 The mechanical rule "one twin per con-leche declaration" is wrong for this
-module in one systematic way: con-leche carries a PURE walk, a MEMOIZED walk
+module in one systematic way (the 63rd function is `substLevelList`, the closure audit below): con-leche carries a PURE walk, a MEMOIZED walk
 (`…Go`) and an ENTRY (`…Fast`) for nine of its algorithms, joined by
 `@[csimp]`.  The arena has one function per algorithm, so nine triples
 collapse into nine pairs (`…Go` + `…Fast`) and each twin cites two or three
@@ -21440,6 +21440,23 @@ inside it).  **When P3 splits the arms again the split must be a `mutual`
 block whose arms call the dispatcher by name**, which is Rust-legal (two
 functions calling each other) and costs a `termination_by (fuel, tag)`
 lexicographic measure; the memo probes mark where the cuts go.
+
+**The closure audit.**  "No closures" is not only about the arm split.  Three
+other places in the module took a function value where con-leche writes one,
+and all three are now explicit recursion, per DESIGN §3.4's own rule that a
+`List` recursion becomes a helper:
+
+* `stripLams` / `stripPis`'s `(…).map fun (bs, e) => …` → an explicit
+  `match` on the `Option`;
+* `instLPGo`'s `vs.map (Level.subst ks us)` → `substLevelList`;
+* `instLPFast`'s `ks.mapM readName` → `readNames` (in `Monad.lean`, beside
+  `readName`).
+
+What is LEFT is one: `renameConstsGo (f : NIdx → NIdx)`, and it is con-leche's
+own signature (`renameConsts (f : Name → Name)`).  What the Rust passes there
+is P2d's to decide — the only call site is the modeled-block contract, whose
+map is a lookup in a table, so a concrete map type is likely and no closure
+need survive.
 
 **One measured trap, recorded for P3.**  With the arms split, `mvcgen` has
 nothing in the PROGRAM to pin an arm spec's `v` (the substituted handle)

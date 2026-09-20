@@ -197,6 +197,17 @@ def readName (h : NIdx) : AM ConLeche.Name := do
   | some x => pure x
   | none => fail (.internal "arena: dangling name handle")
 
+/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — read a LIST of name
+handles back.  `ks.mapM readName` would do it with a closure, which DESIGN
+§3.4 forbids in code Aeneas must translate; §3.4's rule for a `List`
+recursion is a helper, so this is one. -/
+def readNames : List NIdx → AM (List ConLeche.Name)
+  | [] => pure []
+  | h :: hs => do
+    let x ← readName h
+    let xs ← readNames hs
+    pure (x :: xs)
+
 /-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — intern a transient
 name.  Structural on `Name`, so no fuel: the tree is a value, not a DAG. -/
 def internName : ConLeche.Name → AM NIdx

@@ -762,8 +762,9 @@ def stripLams : Nat → EIdx → AM (Option (List (EIdx × BinderMeta) × EIdx))
   | k + 1, h => do
     match ← view h with
     | .lam ty b m => do
-      let r ← stripLams k b
-      pure (r.map fun p => ((ty, m) :: p.1, p.2))
+      match ← stripLams k b with
+      | some p => pure (some ((ty, m) :: p.1, p.2))
+      | none => pure none
     | _ => pure none
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1126-1132 stripPis — strip `k`
@@ -773,8 +774,9 @@ def stripPis : Nat → EIdx → AM (Option (List (EIdx × BinderMeta) × EIdx))
   | k + 1, h => do
     match ← view h with
     | .forallE ty b m => do
-      let r ← stripPis k b
-      pure (r.map fun p => ((ty, m) :: p.1, p.2))
+      match ← stripPis k b with
+      | some p => pure (some ((ty, m) :: p.1, p.2))
+      | none => pure none
     | _ => pure none
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1134-1138 piResult — the body of a
@@ -1367,6 +1369,15 @@ trees and re-interns the result.  The twin's `ks`/`us` are therefore
 mechanical column has them — that column's rule stops where lesson 4
 starts. -/
 
+/-- con-leche: ConLeche/Kernel/Level.lean:26-37 subst — `vs.map (Level.subst
+ks us)` as explicit recursion.  con-leche writes the `.map`; a closure is
+what DESIGN §3.4 forbids in code Aeneas must translate, and §3.4's own rule
+for a `List` recursion is a helper, so the twin has one. -/
+def substLevelList (ks : List ConLeche.Name) (us : List Level) :
+    List Level → List Level
+  | [] => []
+  | u :: rest => Level.subst ks us u :: substLevelList ks us rest
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2564-2603 Expr.instLPGo —
 substitute level parameters throughout an expression, with con-leche's own
 `hasLP = false` cutoff (the whole subtree is level-parameter free, so the
@@ -1389,7 +1400,7 @@ def instLPGo (ks : List ConLeche.Name) (us : List Level) : Nat → EIdx → AM E
         internE (.sort l')
       | .const n vs => do
         let ls ← readLevels vs
-        let vs' ← internLevels (ls.map (Level.subst ks us))
+        let vs' ← internLevels (substLevelList ks us ls)
         internE (.const n vs')
       | .fvar i ty => do
         match ← instLPGet (h, 0) with
@@ -1449,7 +1460,7 @@ def instLPGo (ks : List ConLeche.Name) (us : List Level) : Nat → EIdx → AM E
 top-level entry: read the substitution back out of the store once, walk, drop
 the memo. -/
 def instLPFast (fuel : Nat) (ks : List NIdx) (us : LsIdx) (e : EIdx) : AM EIdx := do
-  let ksP ← ks.mapM readName
+  let ksP ← readNames ks
   let usP ← readLevels us
   instLPClear
   let r ← instLPGo ksP usP fuel e
