@@ -20825,7 +20825,12 @@ the residue pure, or does the handle floating between monadic states prevent
 it?  Yes it can, and no it does not.**  **(1) Is the intermediate Lean model
 worth it, or should the Rust be proved against the pure checker directly?
 Keep the model** — argued below from what was measured plus the shape of the
-statements; the C/D proofs were *not* closed and the section says so.
+statements; the C/D proofs were *not* closed in round 1 and the section says
+so.  **Round 2 closed them and revises the reasoning** (see `#### Round 2`
+at the end of this section): the answer is unchanged, but the proof-cost
+argument of §6.1 is wrong — the one-layer route is 26 % *cheaper* in lines
+at spike scale, and (B) is kept for blast radius, the P2f differential and
+the shape of the conclusion instead.
 
 #### The table
 
@@ -21019,11 +21024,12 @@ files.
 
 #### What is left open
 
-Four `sorry`s, all deliberate and none load-bearing for the two answers:
-`ExpA2.whnfCoreAppArm_spec` (subject 2's proof — the statement, the
-`CoreFnsA` record and the `CoreSimA` hypotheses are written) and `ExpCD`'s
-`instantiate1_C1` / `_C2` / `_D`.  P2c and P4a prove the real versions of all
-four anyway; close the spike's copies only if these answers are contested.
+**Nothing — round 2 below closed all four.**  As round 1 ended, four
+`sorry`s were open: `ExpA2.whnfCoreAppArm_spec` (subject 2) and `ExpCD`'s
+`instantiate1_C1` / `_C2` / `_D`.  Round 2 closes them, and its §"C1 against
+D" revises round 1's answer to question (1): the recommendation (keep (B))
+stands, but *not* for the proof-cost reason argued above, which the numbers
+reverse.
 
 #### For P2b
 
@@ -21037,3 +21043,156 @@ four anyway; close the spike's copies only if these answers are contested.
 * Write the `tag_cases` macro task #97a asks for at the same time — the
   spike's `spike_peel` is the model for "twenty lines of meta code instead of
   a Mathlib dependency".
+
+#### Round 2 (2026-09-20, Opus under Fable)
+
+The four `sorry`s above are closed and elaboration is priced at scale.  **The
+spike is now sorry-free**: `#print axioms` on all twelve closed theorems
+reports `[propext, Classical.choice, Quot.sound]` and nothing else.  Full
+numbers: `_tmp/t97/spike-report.md` §R1–R5.
+
+Machine: 96 cores, 125 GB; `lake env lean` on one file under
+`ulimit -v 60000000`, `LEAN_NUM_THREADS=4`; process overhead 0.9 s, already
+included in the file times below.
+
+##### The table
+
+| subject | experiment | statement | proof | VCs `mvcgen` leaves | closed by the closer | hand lines | layer | elaboration |
+|---|---|---|---|---|---|---|---|---|
+| 2 `whnfCoreAppArm` (β arm, knot abstracted) | **A** | 19 + 24 | **12** | **28** | **25 / 28** | **50** | — | **44.5 s** |
+| 1 Rust `instantiate1` ⊑ twin | **C1** | 6 | 378 | **0** (no `mvcgen`) | — | ~300 | `MiniRun` 116 + `MiniAbs` 651 | 1.5 + 2.6 + 2.4 = **6.4 s** |
+| 1 twin ⊑ pure `instantiate1` | **C2** | 7 | **2** | **39** | **39 / 39** | **0** | `MiniSpecs` 664 | 1.6 + 10.8 = **12.4 s** |
+| 1 Rust `instantiate1` ⊑ pure, one layer | **D** | 9 | 333 | **0** (no `mvcgen`) | — | ~280 | `GenDenote` 958 | 2.6 + 2.4 = **5.0 s** (+ 2.6 shared) |
+| 1 `instantiate1A`, round-1 recipe | A | 8 | 13 | 61 | 60 / 61 | 4 | `Specs` 821 | **185.1 s** |
+| 1 `instantiate1B`, round-2 recipe (`ExpAFast`) | A | 8 | 446 total | 15 / arm | all | 48 | same | **11.5 s** |
+
+Route totals, raw lines: **two layers (C1 + C2) 1907**, **one layer (D)
+1416** — D reuses the 109 lines of machine-word arithmetic (`abs_tag`,
+`abs_mk`, `abs_cast_*`, `vec_push_inv`, `GWF`), which are not twin lemmas
+and are charged to both.
+
+##### C1 against D — the answer, and where round 1 was wrong
+
+Round 1 predicted that the denotation half carries all the difficulty, so
+merging it with the representation half would multiply its case analysis.
+**Measured, the opposite is true.**
+
+* **C2 is the cheap half: 82 lines, of which two are proof.**  `mvcgen` plus
+  the seven-rule template closes all 39 verification conditions with one
+  uniform closer and **zero** hand lines — the template transfers from the
+  real `EStore` to the mini arena unchanged.
+* **C1 is the expensive half: 394 lines of hand matching.**  There is no
+  automation for *program-to-program* equality.  The Aeneas model is
+  `Result`-valued with the state threaded as a **return value**, so §8.6's
+  `⦃s = s₀⦄` template has nothing for `mspec` to instantiate: there are no
+  verification conditions, only two programs to line up `rw`-for-`rw`.
+  Aeneas's `Result.instWP` exists and does not help with that.
+* **D is C1 with the denotation carried alongside**, so it costs *less* than
+  C1 plus C2: 1416 lines against 1907, and 5.0 s against 18.9 s.
+
+**Keep (B) anyway**, for three reasons that are not proof cost:
+
+1. **Blast radius.**  Every one of `GenDenote`'s 958 lines mentions
+   `alloc.vec.Vec` or `Std.U32`, so a representation change invalidates the
+   whole one-layer proof.  In the two-layer route the same change touches
+   `MiniAbs` + `ExpC1` (1045 lines) and leaves `MiniSpecs` + `ExpC2` (746
+   lines, two of them proof) alone.  con-ron has paid this bill six times
+   (tasks #38, #44, #45, #90, #92, #94).
+2. **(B) is executable and differentially testable.**  §8.6's P2f runs it
+   against con-leche on the 348 fixtures and on `Init` before a single
+   bridge lemma exists.  A one-layer proof's first executable object is the
+   Rust, and a port bug shows up as an unprovable goal rather than a failing
+   fixture.  This remains the strongest single argument.
+3. **An honest D does not prove the same statement.**  Round 1 wrote D with
+   `denoteM ∘ absState`, which made `D = C2 ∘ C1` an identity.  A genuinely
+   one-layer D must not mention `absState`, so it proves its conclusion in
+   *its own* readback relation (`DenotesG`).  The two are isomorphic, not
+   equal.
+
+Two findings neither round predicted:
+
+* **Both halves need a capacity invariant.**  Rust's `n as u32` truncates
+  rather than failing, so the cons tables' index cast is faithful only below
+  `IDX_CAP` (`GWF`); and on the twin's side `mTagOf (mMk mTagApp j)` is
+  `mTagApp` only for `j < mIdxCap` (`MWF`).  The representation half is not
+  invariant-free.
+* **The mini denotation is a *relation*, not a function.**  `denoteE` is a
+  function because `StoreWF` supplies a rank witness that bounds its fuel;
+  the mini arena has none, so `DenotesM s h e := ∃ n, denoteMAux s n h = some e`
+  with a monotonicity lemma, and `DenotesM.uniq` replaces `Option.some.inj`.
+  One lemma group, and it buys the whole rank machinery.
+
+##### Rule 8 — what a body arm needs beyond the seven
+
+Subject 2 answers the brief's question sharply.  The *record* of knot
+hypotheses costs nothing: `hsim.whnfCore`, `hsim.inferIO` and `hsim.defeq`
+go into `mvcgen`'s list exactly as subject 3's single `hf` did, and all
+twelve resulting side goals fall to the uniform closer.  The three
+verification conditions that do not fall are the three **exits of the pure
+function** — the β gate fires, the argument certificate succeeds, the
+certificate fails — and each needs
+
+> **8. One step lemma per clause of the *pure* function**, not per
+> constructor of the subject: `PureAt.beta_step`, `.defeq_step`,
+> `.stuck_step`, on top of three `Except`-reduction lemmas that unfold
+> `whnfCoreBody`'s `.app` clause.
+
+`PureAt.defeq_step` has fourteen premises and `grind` will not assemble it
+from the flat context even at `instances := 20000`; it fires once the
+postcondition's conjunction is split first (`refine ⟨hOK, ?_, hE, ?_⟩`).
+**Split the postcondition before the last `grind`.**
+
+Two traps for P2c: `mvcgen [f, hsim.whnfCore]` does not parse as a spec
+(bind the projection with `have` first), and `instantiate1Top_spec` takes
+the substituted term explicitly, so passing it raw leaves `mvcgen` a goal
+`⊢ Expr` — specialise it at the arm's own `ea` with a `have`.
+
+##### Elaboration: 185 s → 11.5 s, and the style rule it implies
+
+**The cost is `grind`, not `mvcgen`.**  `ExpA.lean` with every VC closed by
+`sorry` elaborates in **3.7 s** of 185.1 s — `mvcgen`'s VC generation is 2 %.
+Of the rest, **41.6 s is one goal**: the single VC the first
+`grind (instances := 8000)` cannot close, which pays for a full
+8000-instance failure before the fallback runs.
+
+The root cause is attribute hygiene.  `Inst1At.ext`, `.of_ext` and
+`.retarget` are tagged `@[grind →]` in `Specs.lean` and close the answer
+relation under `Ext` in both directions, so every intermediate store
+multiplies every answer already known (measured on one `app` VC: 144
+instantiations each, against 33 for `Inst1At.app_step`).  The `_step` lemmas
+already carry the chain, so the transports are redundant *and* explosive.
+
+The recipe, in `proof/ConRon/Arena/Spike/ExpAFast.lean` (11.5 s, three runs
+11.73 / 11.55 / 11.49, spread 0.24 s):
+
+1. `attribute [-grind] Inst1At.ext Inst1At.of_ext Inst1At.retarget` — worth
+   70 s → 11.5 s on its own;
+2. **one `def` per constructor arm and one spec theorem per arm**, so each
+   `grind` sees fifteen VCs instead of sixty-one;
+3. the two structural VCs of every arm applied by hand with the matching
+   `Inst1At.*_step` — eight lines per arm;
+4. **do not `@[spec]`-tag the arm specs**: registration costs 2–7 s each,
+   while passing all six to the dispatcher's one `mvcgen` costs 8.78 s once.
+
+**(2) is a style rule for P2b, not a proof trick**: the twins must be
+written with one `def` per arm.  At 10.6 s of elaboration per function, 700
+functions is **2 h per build** rather than 36 h.  The remaining bottleneck
+is the dispatcher's `mvcgen`, linear in the arm count (≈ 2.0 s + 1.1 s per
+arm); sharing one generic two-child memoised arm between `app`, `lam` and
+`forallE` would reach ≈ 9 s, and that is a design change to (B).
+
+##### For P2b–P2d and P4a, updated
+
+* Adopt the seven rules **plus rule 8**, and the four-line elaboration
+  recipe, before writing any twin proof.
+* Budget the layer, not the theorems: 664 lines of denotation layer bought
+  two-line function proofs at three constructors; at ten constructors and
+  the real store expect 2–3 k lines and still two lines per function.
+* **P4a should expect no `mvcgen` on the Rust side.**  Round 1 recommended
+  starting from `Result.instWP`; round 2's C1 and D show the Aeneas model
+  threads its state as a return value, so Theorem 2 is an equational match
+  either way.  Budget C1 as hand work — and note that every arm of `ExpC1`
+  is the same six moves (`cases … using Result.cases`, `rw [hp,
+  bind_tc_ok]`, `cases` the `Option`, the primitive's abstraction lemma,
+  `simp only [hrec, except_ok_bind]`, close), so a matching *tactic* is the
+  cheap way to buy the difference back.
