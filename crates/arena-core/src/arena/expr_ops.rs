@@ -96,7 +96,7 @@ use con_ron_core::kernel::level::Level;
 use con_ron_core::kernel::name::Name;
 use con_ron_core::kernel::prop_when;
 use con_ron_core::kernel::prop_when::PropWhen;
-use con_ron_core::ron::hashmap::{Dup, Eq2};
+use con_ron_core::ron::hashmap::{Dup, Eq2, HashMap};
 
 // ---------------------------------------------------------------------------
 // The fuel-exhaustion messages, one per walk, as the twin has one per walk
@@ -163,6 +163,27 @@ const M_FUEL_FVAR_LEAVES: [u32; 26] = [
 const M_FUEL_WSCOPED: [u32; 24] = [
     102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 119, 115, 99,
     111, 112, 101, 100, 66,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"fuel exhausted: wscopedBGo"`, as code points.
+const M_FUEL_WSCOPED_GO: [u32; 26] = [
+    102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 119, 115, 99,
+    111, 112, 101, 100, 66, 71, 111,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"fuel exhausted: fvarLeavesGo"`, as code points.
+const M_FUEL_FVAR_LEAVES_GO: [u32; 28] = [
+    102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 102, 118, 97,
+    114, 76, 101, 97, 118, 101, 115, 71, 111,
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"fuel exhausted: leavesSubGo"`, as code points.
+const M_FUEL_LEAVES_SUB_GO: [u32; 27] = [
+    102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 108, 101, 97,
+    118, 101, 115, 83, 117, 98, 71, 111,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
@@ -1417,6 +1438,411 @@ pub fn wscoped_b(st: &AState, fuel: u64, d: u64, h: &EIdx) -> Result<bool, Check
             Ok(ENodeView::Sort(_)) => Ok(true),
             Ok(ENodeView::Const(_, _)) => Ok(true),
             Ok(ENodeView::Lit(_)) => Ok(true),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The scope queries, MEMOIZED (`ExprOps.lean:636-795`, task #97g item 5)
+// ---------------------------------------------------------------------------
+//
+// The two walks above (`fvar_leaves`, `wscoped_b`) and `arena::core`'s
+// `fvar_leaves_subset` are `Kernel/ExprOps.lean`'s, and over an arena they are
+// the wrong ones: con-leche runs them on `Expr` TREES, where a walk is linear
+// in the term; (B) and (C) run them on a hash-consed DAG, where an unmemoized
+// walk is linear in the term's *unfolding* — which is what hash-consing exists
+// to avoid.  con-leche's EXECUTED tier knows it and carries `wscopedBGoC`
+// ("one memoized DAG walk"), `fvarLeavesGoC` (a `seen` set) and `leavesSubGo`
+// (its task #86's leaf guard, which never builds the fabrication's leaf list
+// at all).  Measured by task #97g on `core.ndjson`'s first 27 920
+// declarations: the unmemoized `fabScopeOk` was **43.9 % of the cycles**, and
+// the three memoized walks took the prefix from 3 034 G instructions to 866 G.
+//
+// Each memo is threaded as an argument-and-result pair (a moved
+// `ron::HashMap` returned) rather than put in `Memos`, which is con-leche's
+// own spelling and `frontend::proj_rec`'s for its `seen` set: the tables are
+// per-CALL and two of the three depend on data that is not in the key
+// (`leaves_sub_go`'s base list), so a state-carried table would need a clear
+// at every entry anyway.
+//
+// The `fvar_b == 0` short-circuit at the head of each is con-leche's, and it
+// reads the RAW packed field: on the saturated branch the field is
+// `sat_range() != 0`, so the test does not fire and the walk proceeds — no
+// recomputation, and no `&mut` state (these three take `&AState`).
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:634-658 wscopedBGoC
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:658-690 wscopedBGo` — probe the
+/// scope memo (extraction rule 5: a `HashMap::get` match that produces a value
+/// is its own function).
+pub fn wscoped_memo_get(memo: &HashMap<EIdxNat, bool>, k: &EIdxNat) -> Option<bool> {
+    match memo.get(k) {
+        Some(r) => Some(*r),
+        None => None,
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:634-658 wscopedBGoC
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:690 wscopedBGo` — the cited
+/// `memo'.insert (h, d) r`, on the owned table.
+pub fn wscoped_memo_set(
+    memo: HashMap<EIdxNat, bool>,
+    k: EIdxNat,
+    r: bool,
+) -> HashMap<EIdxNat, bool> {
+    let mut m: HashMap<EIdxNat, bool> = memo;
+    m.insert(k, r);
+    m
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:634-658 wscopedBGoC
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:658-690 wscopedBGo` — the
+/// memoized scope walk.  `fvar` annotations are descended (at the annotation's
+/// own index, not `d`), so the cached fvar range does not decide it and the
+/// memo key carries `d`.
+pub fn wscoped_b_go(
+    st: &AState,
+    memo: HashMap<EIdxNat, bool>,
+    fuel: u64,
+    d: u64,
+    h: &EIdx,
+) -> Result<(bool, HashMap<EIdxNat, bool>), CheckError> {
+    if fuel == 0 {
+        fail(CheckError::Internal(code_points(&M_FUEL_WSCOPED_GO)))
+    } else if expr::fvar_of_data(derived_e(st, h)) == 0 {
+        Ok((true, memo))
+    } else {
+        let k: EIdxNat = eidx_nat_key(h, d);
+        match wscoped_memo_get(&memo, &k) {
+            Some(r) => Ok((r, memo)),
+            None => match view(st, h) {
+                Err(e) => Err(e),
+                Ok(v) => match wscoped_b_node(st, memo, fuel - 1, d, v) {
+                    Err(e) => Err(e),
+                    Ok((r, m)) => Ok((r, wscoped_memo_set(m, k, r))),
+                },
+            },
+        }
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:634-658 wscopedBGoC
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:665-688 wscopedBGo` — the arms,
+/// past the probe.  Split off so the `view`'s loans are dead at the memo's
+/// join (extraction rule 5, `frontend::proj_rec`'s arrangement).
+pub fn wscoped_b_node(
+    st: &AState,
+    memo: HashMap<EIdxNat, bool>,
+    fuel: u64,
+    d: u64,
+    v: ENodeView,
+) -> Result<(bool, HashMap<EIdxNat, bool>), CheckError> {
+    match v {
+        ENodeView::FVar(idx, ty) => {
+            if idx < d {
+                wscoped_b_go(st, memo, fuel, idx, &ty)
+            } else {
+                Ok((false, memo))
+            }
+        }
+        ENodeView::App(f, a) => wscoped_b_two(st, memo, fuel, d, &f, &a),
+        ENodeView::Lam(ty, body, _) => wscoped_b_two(st, memo, fuel, d, &ty, &body),
+        ENodeView::ForallE(ty, body, _) => wscoped_b_two(st, memo, fuel, d, &ty, &body),
+        ENodeView::LetE(ty, val, body) => match wscoped_b_go(st, memo, fuel, d, &ty) {
+            Err(e) => Err(e),
+            Ok((false, m)) => Ok((false, m)),
+            Ok((true, m)) => wscoped_b_two(st, m, fuel, d, &val, &body),
+        },
+        ENodeView::Proj(_, _, sub) => wscoped_b_go(st, memo, fuel, d, &sub),
+        ENodeView::BVar(_) => Ok((true, memo)),
+        ENodeView::Sort(_) => Ok((true, memo)),
+        ENodeView::Const(_, _) => Ok((true, memo)),
+        ENodeView::Lit(_) => Ok((true, memo)),
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:634-658 wscopedBGoC
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:673-687 wscopedBGo` — the
+/// two-child arms, whose `if rf then … else pure (false, memo)` is the cited
+/// short-circuit.
+pub fn wscoped_b_two(
+    st: &AState,
+    memo: HashMap<EIdxNat, bool>,
+    fuel: u64,
+    d: u64,
+    x: &EIdx,
+    y: &EIdx,
+) -> Result<(bool, HashMap<EIdxNat, bool>), CheckError> {
+    match wscoped_b_go(st, memo, fuel, d, x) {
+        Err(e) => Err(e),
+        Ok((false, m)) => Ok((false, m)),
+        Ok((true, m)) => wscoped_b_go(st, m, fuel, d, y),
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:661 wscopedBC
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:693-696 wscopedBFast` — the
+/// executed `wscoped_b`: one memoized DAG walk from the empty memo.
+pub fn wscoped_b_fast(st: &AState, fuel: u64, d: u64, h: &EIdx) -> Result<bool, CheckError> {
+    let memo: HashMap<EIdxNat, bool> = HashMap::new();
+    match wscoped_b_go(st, memo, fuel, d, h) {
+        Err(e) => Err(e),
+        Ok(p) => Ok(p.0),
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:664-686 fvarLeavesGoC
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:706 fvarLeavesGo` — probe the
+/// `seen` set (extraction rule 5).
+pub fn fvl_seen(seen: &HashMap<EIdx, bool>, h: &EIdx) -> bool {
+    match seen.get(h) {
+        Some(_) => true,
+        None => false,
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:664-686 fvarLeavesGoC
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:709 fvarLeavesGo` — the cited
+/// `seen.insert h ()`, on the owned table.
+pub fn fvl_record(seen: HashMap<EIdx, bool>, h: &EIdx) -> HashMap<EIdx, bool> {
+    let mut m: HashMap<EIdx, bool> = seen;
+    m.insert(h.dup2(), true);
+    m
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:664-686 fvarLeavesGoC
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:701-727 fvarLeavesGo` — the
+/// reachable `fvar` leaves, accumulated with a `seen` set so a shared subterm
+/// is walked once.
+///
+/// Deviation: the twin conses `(idx, ty)` onto its accumulator and this pushes
+/// onto the `Vec`, so the two lists are each other's reverse.  The result is
+/// used only as a membership base (`leaf_mem` below is its only reader), and a
+/// `Vec` has no cons — the copying combinators `fvl_append`/`cons_eidx` would
+/// make the accumulation quadratic for nothing.
+pub fn fvar_leaves_go(
+    st: &AState,
+    acc: Vec<(u64, EIdx)>,
+    seen: HashMap<EIdx, bool>,
+    fuel: u64,
+    h: &EIdx,
+) -> Result<(Vec<(u64, EIdx)>, HashMap<EIdx, bool>), CheckError> {
+    if fuel == 0 {
+        fail(CheckError::Internal(code_points(&M_FUEL_FVAR_LEAVES_GO)))
+    } else if expr::fvar_of_data(derived_e(st, h)) == 0 {
+        Ok((acc, seen))
+    } else if fvl_seen(&seen, h) {
+        Ok((acc, seen))
+    } else {
+        match view(st, h) {
+            Err(e) => Err(e),
+            Ok(v) => fvar_leaves_node(st, acc, fvl_record(seen, h), fuel - 1, v),
+        }
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:664-686 fvarLeavesGoC
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:710-727 fvarLeavesGo` — the
+/// arms, past the probe and the `seen` insert (extraction rule 5).
+pub fn fvar_leaves_node(
+    st: &AState,
+    acc: Vec<(u64, EIdx)>,
+    seen: HashMap<EIdx, bool>,
+    fuel: u64,
+    v: ENodeView,
+) -> Result<(Vec<(u64, EIdx)>, HashMap<EIdx, bool>), CheckError> {
+    match v {
+        ENodeView::FVar(idx, ty) => {
+            let mut acc2 = acc;
+            acc2.push((idx, ty.dup2()));
+            fvar_leaves_go(st, acc2, seen, fuel, &ty)
+        }
+        ENodeView::App(f, a) => fvar_leaves_two(st, acc, seen, fuel, &f, &a),
+        ENodeView::Lam(ty, body, _) => fvar_leaves_two(st, acc, seen, fuel, &ty, &body),
+        ENodeView::ForallE(ty, body, _) => fvar_leaves_two(st, acc, seen, fuel, &ty, &body),
+        ENodeView::LetE(ty, val, body) => match fvar_leaves_go(st, acc, seen, fuel, &ty) {
+            Err(e) => Err(e),
+            Ok((a2, s2)) => fvar_leaves_two(st, a2, s2, fuel, &val, &body),
+        },
+        ENodeView::Proj(_, _, sub) => fvar_leaves_go(st, acc, seen, fuel, &sub),
+        ENodeView::BVar(_) => Ok((acc, seen)),
+        ENodeView::Sort(_) => Ok((acc, seen)),
+        ENodeView::Const(_, _) => Ok((acc, seen)),
+        ENodeView::Lit(_) => Ok((acc, seen)),
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:664-686 fvarLeavesGoC
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:714-726 fvarLeavesGo` — the
+/// two-child arms, one `let (acc, seen) ←` pair in the twin.
+pub fn fvar_leaves_two(
+    st: &AState,
+    acc: Vec<(u64, EIdx)>,
+    seen: HashMap<EIdx, bool>,
+    fuel: u64,
+    x: &EIdx,
+    y: &EIdx,
+) -> Result<(Vec<(u64, EIdx)>, HashMap<EIdx, bool>), CheckError> {
+    match fvar_leaves_go(st, acc, seen, fuel, x) {
+        Err(e) => Err(e),
+        Ok((a2, s2)) => fvar_leaves_go(st, a2, s2, fuel, y),
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:688-689 fvarLeavesC
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:731-733 fvarLeavesFast` — the
+/// executed `fvar_leaves`: one `seen`-guarded DAG walk.
+pub fn fvar_leaves_fast(st: &AState, fuel: u64, h: &EIdx) -> Result<Vec<(u64, EIdx)>, CheckError> {
+    let seen: HashMap<EIdx, bool> = HashMap::new();
+    match fvar_leaves_go(st, Vec::new(), seen, fuel, h) {
+        Err(e) => Err(e),
+        Ok(p) => Ok(p.0),
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:693-696 leafMem
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:739-742 leafMem` — is
+/// `(idx, ty)` in the base leaf list?  con-leche compares the annotation with
+/// `Expr.beq`; over handles it is handle equality, which is the same test
+/// (`denoteE` is injective, DESIGN.md §8.3).
+pub fn leaf_mem(bl: &Vec<(u64, EIdx)>, idx: u64, ty: &EIdx) -> bool {
+    leaf_mem_from(bl, idx, ty, 0)
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:693-696 leafMem
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:739-742 leafMem` — the cursor
+/// recursion the cited `List` recursion becomes (DESIGN.md §3.4).
+pub fn leaf_mem_from(bl: &Vec<(u64, EIdx)>, idx: u64, ty: &EIdx, i: usize) -> bool {
+    if i >= bl.len() {
+        false
+    } else if bl[i].0 == idx && bl[i].1.eq2(ty) {
+        true
+    } else {
+        leaf_mem_from(bl, idx, ty, i + 1)
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:699-723 leavesSubGo
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:755 leavesSubGo` — probe the
+/// subset memo (extraction rule 5).
+pub fn leaves_sub_get(memo: &HashMap<EIdx, bool>, h: &EIdx) -> Option<bool> {
+    match memo.get(h) {
+        Some(r) => Some(*r),
+        None => None,
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:699-723 leavesSubGo
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:779 leavesSubGo` — the cited
+/// `memo'.insert h r`, on the owned table.
+pub fn leaves_sub_set(memo: HashMap<EIdx, bool>, h: &EIdx, r: bool) -> HashMap<EIdx, bool> {
+    let mut m: HashMap<EIdx, bool> = memo;
+    m.insert(h.dup2(), r);
+    m
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:699-723 leavesSubGo
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:748-779 leavesSubGo` — the
+/// fabrication-side leaf-subset test: every reachable `fvar` leaf of the
+/// walked term is one of `bl`.  Memoized on the node, because `bl` is fixed
+/// for the call.
+pub fn leaves_sub_go(
+    st: &AState,
+    bl: &Vec<(u64, EIdx)>,
+    memo: HashMap<EIdx, bool>,
+    fuel: u64,
+    h: &EIdx,
+) -> Result<(bool, HashMap<EIdx, bool>), CheckError> {
+    if fuel == 0 {
+        fail(CheckError::Internal(code_points(&M_FUEL_LEAVES_SUB_GO)))
+    } else if expr::fvar_of_data(derived_e(st, h)) == 0 {
+        Ok((true, memo))
+    } else {
+        match leaves_sub_get(&memo, h) {
+            Some(r) => Ok((r, memo)),
+            None => match view(st, h) {
+                Err(e) => Err(e),
+                Ok(v) => match leaves_sub_node(st, bl, memo, fuel - 1, v) {
+                    Err(e) => Err(e),
+                    Ok((r, m)) => Ok((r, leaves_sub_set(m, h, r))),
+                },
+            },
+        }
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:699-723 leavesSubGo
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:757-778 leavesSubGo` — the
+/// arms, past the probe (extraction rule 5).
+pub fn leaves_sub_node(
+    st: &AState,
+    bl: &Vec<(u64, EIdx)>,
+    memo: HashMap<EIdx, bool>,
+    fuel: u64,
+    v: ENodeView,
+) -> Result<(bool, HashMap<EIdx, bool>), CheckError> {
+    match v {
+        ENodeView::FVar(idx, ty) => {
+            if leaf_mem(bl, idx, &ty) {
+                leaves_sub_go(st, bl, memo, fuel, &ty)
+            } else {
+                Ok((false, memo))
+            }
+        }
+        ENodeView::App(f, a) => leaves_sub_two(st, bl, memo, fuel, &f, &a),
+        ENodeView::Lam(ty, body, _) => leaves_sub_two(st, bl, memo, fuel, &ty, &body),
+        ENodeView::ForallE(ty, body, _) => leaves_sub_two(st, bl, memo, fuel, &ty, &body),
+        ENodeView::LetE(ty, val, body) => match leaves_sub_go(st, bl, memo, fuel, &ty) {
+            Err(e) => Err(e),
+            Ok((false, m)) => Ok((false, m)),
+            Ok((true, m)) => leaves_sub_two(st, bl, m, fuel, &val, &body),
+        },
+        ENodeView::Proj(_, _, sub) => leaves_sub_go(st, bl, memo, fuel, &sub),
+        ENodeView::BVar(_) => Ok((true, memo)),
+        ENodeView::Sort(_) => Ok((true, memo)),
+        ENodeView::Const(_, _) => Ok((true, memo)),
+        ENodeView::Lit(_) => Ok((true, memo)),
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:699-723 leavesSubGo
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:763-777 leavesSubGo` — the
+/// two-child arms and their short-circuit.
+pub fn leaves_sub_two(
+    st: &AState,
+    bl: &Vec<(u64, EIdx)>,
+    memo: HashMap<EIdx, bool>,
+    fuel: u64,
+    x: &EIdx,
+    y: &EIdx,
+) -> Result<(bool, HashMap<EIdx, bool>), CheckError> {
+    match leaves_sub_go(st, bl, memo, fuel, x) {
+        Err(e) => Err(e),
+        Ok((false, m)) => Ok((false, m)),
+        Ok((true, m)) => leaves_sub_go(st, bl, m, fuel, y),
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:729-730 leafGuard
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:787-791 leafGuard` — **the
+/// fabrication leaf guard**: every `fvar` leaf of `fab` is a leaf of `base`.
+/// Short-circuits on an `fvar`-free fabrication off the packed range, and
+/// otherwise walks `fab` ONCE against `base`'s leaf list — never building
+/// `fab`'s own list, and never running `arena::core`'s quadratic
+/// `fvar_leaves_subset`, which stays as the specification of what this
+/// decides.
+pub fn leaf_guard(st: &AState, fuel: u64, fab: &EIdx, base: &EIdx) -> Result<bool, CheckError> {
+    if expr::fvar_of_data(derived_e(st, fab)) == 0 {
+        Ok(true)
+    } else {
+        match fvar_leaves_fast(st, fuel, base) {
+            Err(e) => Err(e),
+            Ok(bl) => {
+                let memo: HashMap<EIdx, bool> = HashMap::new();
+                match leaves_sub_go(st, &bl, memo, fuel, fab) {
+                    Err(e) => Err(e),
+                    Ok(p) => Ok(p.0),
+                }
+            }
         }
     }
 }
