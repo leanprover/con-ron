@@ -28,6 +28,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "con-ron-arena"
+version = "0.1.0"
+dependencies = [
+ "arena-core",
+ "con-ron",
+ "con-ron-core",
+ "con-ron-dump",
+]
+
+[[package]]
 name = "con-ron-core"
 version = "0.1.0"
 
