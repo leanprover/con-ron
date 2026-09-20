@@ -1789,6 +1789,262 @@ tens of GiB and tens of minutes; and any timing, since a shared runner
 measures noise (the measure of record is `perf stat` on the development
 machine).
 
+## 8. The arena rewrite (task #97, 2026-09-20)
+
+### 8.1 The ruling
+
+Maintainer, 2026-09-20, reversing the 2026-09-14 "arena belongs upstream":
+
+> instead of targeting the cached lean functions (…C), in this repository,
+> in Lean, write a lean checker that uses nanoda style expr representation:
+> an append DAG, instead of computed fields push to an array, fast
+> structural equality via cons hashing, additional caches on the expr
+> index, direct parsing into that DAG, during checking a throw-away per
+> decls second dag tier.  […] then rewrite the rust code based on that lean
+> model and complete the equivalence.  so all in all a full rewrite of
+> almost everything.  goals are faster code (on par with nanoda would be
+> good), and no unsafe ptr module needed.
+>
+> but do follow the pure checker of con-leche, we are only changing term
+> representation and caching/memoing.
+>
+> actually, we can be better than nanoda: store the expr ctor tag in the
+> u64 (like the tier), and have one array per ctor, so the DAG gets very
+> compact and uniformly sized.  quite our current idea, but explicit and safe
+
+Research behind this section: `_tmp/t97/conleche-arena-history.md` (con-leche
+had exactly this, tasks #26–#103 of its own log, 2026-08-21 to 09-05, retired
+at its task #172 — decisive reason: the state-dependent denotation made the
+Cached tier's proofs three times cheaper; NOT speed) and
+`_tmp/t97/nanoda-design.md` (nanoda: 9 552 lines of Rust, zero `unsafe`,
+already pure state threading; six index sets with an identity hasher; every
+cache keyed on the handle alone because a free variable carries its type).
+Both reports are worth reading before touching anything in this section.
+
+**Calibration.**  The maintainer's own measurement of `nanoda` on Mathlib
+(nanodatg `MONOMORPH.md`): 22.84 T instructions, 2 836 s, 10.7 GB.  con-ron
+today (§6.3 of OVERVIEW): 11.48 T, 1 979 s, 7.80 GB.  The rewrite is not
+chasing nanoda on instructions; **the target is to beat today's con-ron on
+all three numbers** while deleting `ron::tagged`, the atomic reference
+counts and the tree-shaped memo keys.
+
+### 8.2 The three layers and the two theorems
+
+    (A) con-leche, PURE:  checkDeclsPure μ (fueledOps μ F) pins ds   [Expr trees]
+        Model/Fold.lean:254  checkDeclsPure_sound_of : accept at any F ⇒ model
+        Model/Fold.lean:291/308  no_proof_of_{Empty,False}_pure
+    (B) con-ron ARENA CHECKER in Lean (new, executable, this repo):
+        proof/ConRon/Arena/*   Arena.checkDecls pins chunks   [handles into stores]
+    (C) con-ron Rust arena checker (rewritten), extracted by Aeneas.
+
+**Theorem 1 — the bridge (B ⇒ A)**, stated PER DECLARATION at the join point
+con-leche's history report identifies (its `checkDeclStepC_run`, BridgeC:609,
+is the shape; everything right of the last `∧` is representation-free):
+
+    theorem Arena.checkDecl_bridge (hμ : μ.verifiedChecks = true)
+        (hok : StateOK st) (h : Arena.checkDecl μ pins pd st = .ok ((), st')) :
+        StateOK st' ∧ Ext st st' ∧
+        ∃ F, ConLeche.checkDecl μ (fueledOps μ F) pins (denoteEnv st) (denoteDecl st pd)
+               = .ok (denoteEnv st')
+
+folded over the stream by con-ron's own `foldlM` lemma into
+`∃ F, checkDeclsPure μ (fueledOps μ F) pins (denoteDecls ds) = .ok (denoteEnv st')`,
+which `checkDeclsPure_sound_of` consumes with zero model-tier work.  The
+parser tier states `denoteDecls (Arena.parse chunks) = parseChunks chunks`
+(exactness, as the frontend tier does today), and the capstones are the
+same letters as today's `conron.no_False_declaration`, at (B).
+
+**Theorem 2 — the refinement (C ⇒ B)**: the Aeneas model of the Rust
+`check_decls` accepting implies (B) accepting with the abstracted
+state/result, over the whole outcome as today (`Sim`/`Out`/`ErrSim`; the
+port's `Native` error claims nothing).  Because (B) is written Rust-shaped
+(§8.4), every lemma of Theorem 2 has one shape and the grind idiom (task
+#70) is expected to discharge most of them; P4a measures that before P5.
+
+Capstones for the binary = Theorem 2 ∘ Theorem 1 ∘ con-leche.  After the
+rewrite nothing in con-ron references con-leche's `Cached` tier.
+
+**Not a `CheckerOps` plug-in.**  con-leche's `CheckerOps` record is a program
+seam at HEAD, not a proof seam (its `bridgeRel`/`OpsRel`/`pairOps` consumers
+were deleted at con-leche's #190), and `checkDeclsPure_sound_of` is stated
+at `fueledOps μ F` specifically.  The whole pipeline of (B) works on handles,
+so the bridge is a whole-checker simulation with a denotation, as con-ron's
+Rust proof already is today — just with `denote st` where `absExpr` stands.
+
+### 8.3 The representation
+
+**Handle word** (`EIdx`, `NIdx`, `LIdx`, `LsIdx`): `UInt32` = ctor tag (4
+bits, high) | tier bit | index (27 bits) into THAT CONSTRUCTOR'S array of
+THAT TIER.  `view h` decodes the tag and reads one element of one array;
+there is no node enum in the store.  134 M nodes per constructor per tier
+(Mathlib's persistent tier is ~24 M nodes today); the Rust raises `Native`
+at the limit, the Lean `throw`s the same kind.
+
+**One array per constructor**, uniform fixed-size records:
+
+    bvar (i : Nat)           fvar (idx : Nat) (ty : EIdx)      sort (u : LIdx)
+    const (n : NIdx) (us : LsIdx)   app (f a : EIdx)
+    lam / forallE (ty body : EIdx) (m : BinderMeta)   letE (ty val body : EIdx)
+    lit (l : Literal)        proj (n : NIdx) (i : Nat) (e : EIdx)
+
+and the same for names (`anonymous | str (pre : NIdx) (s : String) | num
+(pre : NIdx) (n : Nat)`), levels (`zero | succ | max | imax | param (n :
+NIdx)`) and level lists (`LsIdx` into an interned `Array LIdx` store — the
+`const` node stays two words).  A per-constructor **derived array** holds
+con-leche's own packed word — `Expr.data`'s formula verbatim (hash 32 |
+bvarB 15 | fvarB 15 | hasLP 1; `Kernel/Expr.lean:343-402`), computed at
+intern time from the children's derived words, and likewise `Name.hashData`
+and `Level`'s cached hash — so `derived st i = (denote st i).data` is an
+exactness lemma and every pure-side lemma that reads `data` transfers.
+(nanoda mixes child *indices*; we do not, for exactly this reason.)
+
+**Cons tables** per constructor and per tier, keyed by the constructor's
+fields (`(EIdx × EIdx)` for `app`), bucketed by the derived hash (the handle
+is the bucket for handle-keyed maps — nanoda's identity hasher).  `intern`
+probes the persistent table, then the scratch one, and appends to the tier
+the state is in.  **Exactness (`denote` injective) is a soundness
+obligation**, not a performance property: names are compared for inequality
+throughout the checker, and `defeqBody`'s `a == b` shortcut, which only
+returns `true`, would still send the arena into arms the pure run never took
+if two handles could denote one term.  Cross-tier: a scratch entry never
+duplicates a persistent one (probe order + the `t_cons_fresh` clause of
+con-leche's `TWF`).
+
+**Two tiers.**  Persistent = parse + installed environment; scratch = one
+declaration's check.  Each tier has its own array set and cons tables, both
+indexed from 0 — the tier bit selects the set, so a persistent handle's bits
+never change when the scratch tier comes and goes (con-leche's lesson 6:
+identity embedding; its low-bit `2·pos + tier` encoding broke every
+`<`-guarded traversal).  Drop = truncate the scratch arrays to length 0 and
+clear the scratch tables; memo entries whose key and value are both
+persistent survive (con-leche #51), the rest go with the tier (a bit test).
+Parallel checking (Rust): the persistent tier is immutable in phase B, each
+worker owns a scratch tier — no atomics anywhere.
+
+**Free variables**: con-leche's discipline unchanged (`fvar idx ty`, a de
+Bruijn level with the binder type inside the node).  This is what makes a
+handle determine its own typing context, hence what makes every cache keyed
+on handles alone sound (nanoda §5, con-leche lesson 8).
+
+**Caches** (all `HashMap` keyed by handles, identity hash):
+  * cleared at every top-level call, so the substitution vector is not in
+    the key (nanoda's trick): `instantiate (e, offset)`, `abstract (e,
+    offset)`, `instantiateLevelParams (e, ks, vs)`;
+  * per declaration: `whnfCore`, `whnf`, `infer`, `inferIO`, `annotate` :
+    `EIdx → EIdx` (three separate infer-grade tables — lesson 9: a hit in
+    one grade never serves another), `defeq` positive on the unordered pair;
+    a NEGATIVE defeq memo only if P2c shows the pure result at fixed fuel is
+    what the bridge needs it to be (con-leche's `defeqC` clause stores the
+    Bool result `r`, so both signs were justified there — copy that shape);
+  * persistent-surviving: entries with persistent key and value; the lazy
+    instantiated-constant cache `(NIdx, LsIdx) ↦ EIdx` for stored types,
+    values and rule right-hand sides (con-leche #26's `constTyAt` family);
+  * a cap, not an eviction policy (lesson 10): past a size the table is
+    dropped whole.
+  * every traversal has a cutoff off a derived field (lesson 20): instantiate
+    returns at `bvarB ≤ offset`, abstract at `fvarB = 0`, level-subst at
+    `hasLP = false`.
+
+**Levels and names: intern the representation, not the algorithm** (lesson
+4, ~1 800 proof lines learnt).  `Level` ops (`simplify`, `leqCore`,
+`isEquiv`) run on transient `Level` trees read back from `LIdx` (memoised
+readback per declaration; levels are small), with verdict caches keyed by
+`(LIdx, LIdx)`; `Name` equality is `NIdx` equality and readback happens
+only for the environment index's error text.  The environment index is
+`HashMap NIdx IConstantInfo` with an unconditional spec `find? = denoteEnv.find?`
+(lesson 13).
+
+**Well-formedness (for the bridge).**  `StoreWF st` carries an existential
+rank `r : EIdx → Nat` with every child ranked below its parent (an append
+gets rank `size + 1`), plus the derived-word exactness clauses and the
+cons-table exactness clauses; `denote st : EIdx → Option Expr` recurses on
+the rank and is total on WF stores.  Zero runtime cost, and no global array
+order is needed with per-constructor arrays.
+
+**Parsing.**  The export's expression index space is flat across
+constructors, so the parse state keeps an `Array EIdx` from export index to
+handle (today's `IdTable`, one array) — the export's sharing is preserved
+exactly (lesson 25), no `Expr` tree is ever built.
+
+### 8.4 (B), the Lean arena checker: what it is and how it is written
+
+Location: `proof/ConRon/Arena/` (a `lean_lib ConRonArena`), one module per
+con-leche `Kernel/*` file it mirrors, PLUS the store modules; an executable
+`con-ron-lean` (`ConRon/Arena/Main.lean`) with con-leche's CLI and exit
+codes, so `scripts/diff-e2e.sh --bin` can run the 348 fixtures against it.
+Provenance citations point at `ConLeche/Kernel/*` (and `Frontend/*`), never
+`Cached/*`; `scripts/provenance.py` learns to read Lean doc lines.
+
+**Rust-shaped Lean**, so that Theorem 2 is cheap and (C) is a
+transliteration:
+  * one `def` per intended Rust function, same name (camelCase ↔ snake_case);
+  * the monad is `AM := StateT AState (Except CheckError)` and nothing else
+    — no `IO`, no `partial`, no typeclass-polymorphic bodies;
+  * fuel as an explicit `Nat`; the knot is con-leche's `CoreFns` record over
+    handles with the six bodies as plain functions, tied by `coreKnot` at
+    fuel — clause for clause `Kernel/Core.lean`, the only differences being
+    `view`/`intern` and the memo probes;
+  * loops as explicit tail recursion with plain arguments — never `for`/
+    `mut` over a large linear state (lesson 16); Rust writes them as `loop`
+    and Aeneas's `-loops-to-rec` gives back the same recursion;
+  * **detach before update** (lesson 14) on every store and table mutation,
+    and `@[noinline]` on state projections (lesson 15) — the RC-2 forensics
+    in the history report are why;
+  * `Nat` literals behind top-level `def`s, `p + p` not `2 * p`, `>>>`/`&&&`
+    for the handle arithmetic (lesson 7).
+
+**Correctness before proofs.**  (B) is a checker: it must agree with
+con-leche on the 348 fixtures AND on `Init` (verdict and accepted count)
+before any bridge lemma is written, and it must run `Init` within 3× of
+con-leche's instructions (a Lean-vs-Lean comparison, the honest one).
+
+### 8.5 The Rust side (C)
+
+A transliteration of (B): per-constructor `Vec`s of `[u32; k]`-shaped
+records (`app` = 8 bytes + 8 derived), `ron::HashMap` cons tables and
+caches, `ron::Nat` for literals, `u32` handles.  No `Arc`, no `ron::tagged`,
+no `ron::ptr`, no `unsafe`; the trust-surface table (OVERVIEW §8) loses its
+`unsafe` row and the sixteen tagged-handle holes.  The frontend parses into
+the persistent tier (the byte recogniser is unchanged).
+
+### 8.6 Phases
+
+    P0  research — DONE (the two reports).
+    P1  this section; the store API frozen (P2a's deliverable includes the
+        signatures every later module programs against).
+    P2  (B), by module, Opus agents, in dependency order:
+        a. stores: handles, per-ctor arrays, derived words, cons tables,
+           tiers, intern/view/truncate; denote, rank-WF, exactness lemmas
+           (`denote_inj`, `derived_exact`, `intern_spec`) — the arena's own
+           verification lives beside it (lesson 27);
+        b. ExprOps twins with memo (instantiate/abstract/lift/…);
+        c. Core twins: six bodies, knot, caches, the per-declaration bracket;
+        d. DeclCheck / Checker / CheckerBase / Canon / pins / Inductives twins;
+        e. the parser into the store (ExportC over stores; Scan unchanged);
+        f. Main + `diff-e2e.sh --bin`: 348/348 and Init parity — GATE;
+        g. measure (B) vs con-leche on Init (instructions, RSS).
+    P3  Theorem 1, tier by tier, mirroring P2's order; the frontend exactness.
+    P4  (C): a. SPIKE — Rust for P2a+P2b, extract, prove the Theorem-2 lemmas
+        with the grind idiom, measure lines and elaboration per lemma;
+        b. the rest of the crate; the fixtures; Mathlib under the cap.
+    P5  Theorem 2 campaign.
+    P6  performance vs today's con-ron; the OVERVIEW numbers.
+
+Branch `arena`; master stays shippable until (C) passes the gates and the
+fixtures.  Budget from con-leche's record, scaled: (B) ~12 k lines,
+Theorem 1 ~40–50 k lines (con-leche's core tower was 34.5 k for the core
+alone, but a third of it was the tier regime we simplify away), (C) ~30 k
+lines of Rust, Theorem 2 open until P4a prices it.
+
+### 8.7 Open questions (maintainer)
+
+  * `LsIdx` (interned level lists) vs. a flat `Array LIdx` slice — P2a
+    decides by measurement on Init; the bridge is indifferent.
+  * Whether the persistent tier should be *installed types only* (the
+    export's parse DAG dropped after the environment is built) — nanoda keeps
+    the export DAG for the run; con-leche's #64 found the parse DAG is most
+    of the persistent memory.  Decide at P2g with numbers.
+
 ## Task log
 
 `spikes/` was removed at publication (task #76); its contents are in the
