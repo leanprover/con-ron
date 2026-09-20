@@ -1996,7 +1996,16 @@ structural copy scratch → persistent, `promote : EIdx → AM EIdx`, `view` +
 size), denotation-preserving by construction (`denote (promote h) = denote
 h` is the exactness lemma P3 owes) — before the tier is dropped.  Persistent
 handles are promoted to themselves.  This is a twin change (Lean first,
-Rust in lockstep) scheduled as P6-2, after task #97g lands.
+Rust in lockstep) scheduled as P6-2, after task #97g lands.  **The LEAN
+half is DONE (task #97-P6-2)**: `Arena/Promote.lean`, the four
+`internPersistent` twins the store had to grow for it, and the bracket in
+`annotStep` and in `checkDeclStep` — which also amends "the bracket lives
+in phase B" and P2d's "`checkDeclsPure` has no bracket": BOTH folds are
+bracketed now, so they stay one algorithm under the tier regime.  The
+promotion's WF obligation is NOT quite "the persistent branch of `intern`":
+it needs the view's children to be persistent, and it breaks `fresh`
+transiently, so the obligation is stated for the whole bracket — see that
+task's section and `Arena/Store.lean`'s own note.
 
 **Free variables**: con-leche's discipline unchanged (`fvar idx ty`, a de
 Bruijn level with the binder type inside the node).  This is what makes a
@@ -2200,6 +2209,13 @@ the persistent tier (the byte recogniser is unchanged).
         section profiles.
     P5  Theorem 2 campaign.
     P6  performance vs today's con-ron; the OVERVIEW numbers.
+        2. §8.3's promotion, a twin change.  **The LEAN half is DONE, task
+        #97-P6-2** (2026-09-20): phase A runs in the scratch tier and
+        promotes what the environment keeps; `Arena/Promote.lean` and the
+        store's `internPersistent` family are its machinery, 348/348 in
+        both modes and `Init` accepted 57 977 unchanged.  The Rust half
+        follows in lockstep, and that task's section carries the clause
+        list it has to mirror.
 
 Branch `arena`; master stays shippable until (C) passes the gates and the
 fixtures.  Budget from con-leche's record, scaled: (B) ~12 k lines,
@@ -26658,3 +26674,232 @@ item 4 adds twelve statements, and item 3 is attributes only.  The memos of
 item 5 are threaded as argument-and-result pairs, which in Rust is a moved
 `ron::HashMap` returned — `frontend::proj_rec`'s own arrangement for its
 `seen` set.
+
+### Task #97-P6-2 (Lean) — phase A in the scratch tier, and the promotion (2026-09-20, Opus under Fable)
+
+Phase P6 item 2 of §8.6, the LEAN half of a twin change (the Rust follows in
+lockstep; the clause list it has to mirror is at the end of this section).
+DESIGN §8.3's paragraph "**Phase A runs in the scratch tier too, with
+promotion**" is the design; task #97-P4f's measurement is the reason —
+**phase A was adding 5.06 M PERMANENT nodes to `Init`'s parse DAG of 6.14 M,
++82 %**, and with them con-ron-arena's 1.85 GB peak.
+
+**Maintainer's ruling, received mid-task**: *"Don't worry about the lean twin
+performance, it is only a proof artifact!  In particular do not optimize for
+lean's runtime issues.  The goal is fast rust code."*  So this task implements
+the change because the RUST needs it and verifies CORRECTNESS only; the
+instruction counts, the wall times and the RSS split §8.7 asks about are not
+measured here and are the Rust task's.
+
+#### What was wrong, in one sentence
+
+Task #97d put phase A outside the bracket on the reading that "phase A's
+business is exactly the terms the environment KEEPS".  Its business is — but
+it does not only write those: `installConstantVal` and `installValue`
+*annotate*, annotation *infers*, inference *reduces*, and every intermediate
+of all of that was interned into the tier that never goes away.  The terms
+actually kept are a handful of handles per declaration.
+
+#### The change, in three pieces
+
+**1. `internPersistent` (`Arena/Store.lean`, ADDITIVE).**  The promotion has
+to append to the PERSISTENT tier *while the scratch tier is live*, and
+`intern` cannot say that: it appends to the tier the store is IN.  So each of
+the four stores gets a twin of `intern`'s `else` branch — probe the persistent
+cons table, and on a miss compute the derived word and push to `pers` at
+`Idx.tierP` — plus the six lifts through the nesting and a
+`capOKPersistent` precondition each.  **The scratch table is deliberately not
+probed**: a hit there would hand back the very handle the promotion exists to
+get rid of.  `Arena/Monad.lean` gets the four monadic wrappers, with the same
+capacity test at the same place and the same `Native` message as `internE` and
+its three siblings.  Nothing existing changed in either file.
+
+**2. `Arena/Promote.lean` (new, 21 declarations).**  `promoteN` / `promoteL` /
+`promoteLs` / `promoteE`: `view` the node, promote the children, intern the
+result persistently, memoised on the handle; then the declaration layer field
+for field (`promoteCV`, `promoteFire`, `promoteRule(s)`, `promoteCaps`,
+`promoteProjTable`, `promoteCI`, `promoteCIList`, `promoteDecl`, `promoteVG`),
+which is `Arena/Frontend/Readback.lean`'s intern direction over handles.  The
+memo is a four-table `PMemo` threaded as an argument-and-result pair — task
+#97g item 5's spelling, a moved `ron::HashMap` returned in the Rust — fresh at
+every declaration, because a scratch handle means nothing once the tier is
+dropped.  Two properties carry the cost: **a persistent handle promotes to
+itself** by one tier-bit test and no store access (and most of an annotated
+term IS the parsed term, since `annotate` rebuilds only the spine it changes),
+and `internPersistent`'s persistent-first probe makes a second promotion of
+the same node a probe and nothing more.
+
+**3. The bracket (`Arena/Checker.lean`).**  `annotStep` splits in two:
+`annotStepGo` is the four arms, unchanged except that the per-arm
+`flushCaches` and the `vis` counter move out of them, and it returns
+`IFEnv × Option ValueGroup` instead of pushing the pending record itself.
+`annotStep` is the bracket:
+
+    vis := fe.visibleBelow;  flushCaches;  enterScratch
+    (fe, vg?) := annotStepGo …
+    k := fe.visibleBelow - vis
+    promoteVG (the pending record) and promoteNew k (the installed constants)
+    dropScratch;  push ⟨vg, i, vis⟩
+
+and `checkDeclStep` gives `checkDeclsPure` the same bracket around one
+`checkDecl`, so that **the two folds stay one algorithm**: the tier regime is
+not an optimisation of the driver's fold that the theorem's fold may do
+without — it is where every term the checker builds lives, and a Theorem-1
+statement about a fold with no tiers would say nothing about the fold the
+binary runs.  (DESIGN §8.3's "the bracket lives in phase B" and §8.6 P2d's
+"`checkDeclsPure` has no bracket" are amended by this task.)
+
+#### Four things the bracket had to get right
+
+* **`k` without holding `fe`.**  The promotion needs the constants the step
+  just installed, and computing that by *keeping* the pre-step environment
+  would put the whole index at refcount 2 across the step — task #97g's item 1
+  exactly.  So the bracket reads the COUNTER before the step (`fe.visibleBelow`
+  is a `Nat`) and takes the `k = fe'.visibleBelow - vis` newest entries after
+  it.  That is sound because **every install route in (B) grows the
+  environment by `IFEnv.push` alone** — `Checker.lean`, `DeclCheck.lean` and
+  all seven `Inductives/*` modules — and the provisional self-environments the
+  recursor installs build (`provisionRecs`'s `feSelf`, `checkNativeRec`'s
+  `feR`) are discarded by their own callers and never come back as the step's
+  result.  Also the reason `annotStepGo` no longer reads `vis` itself: the
+  three value arms each read it immediately before their single `push`, so it
+  is the same number.
+* **The index must be REPAIRED, not overwritten.**  `IFEnv.idx` is keyed on
+  the constant's name HANDLE, and promotion may move it: a name first interned
+  inside the scratch tier is a scratch handle (`intern` probes persistent
+  first, so this happens exactly when the name is new — a recursor's, a
+  projection table's).  Inserting the promoted row without erasing the old one
+  would leave a row under a scratch key, and `dropScratch` hands that word to
+  the NEXT declaration — `IFEnv.find?` would then answer a different
+  constant under it.  So `promoteNew` erases the `k` old keys and re-inserts
+  the promoted constants at the counters they were pushed with
+  (`eraseInstalled`, `indexPromoted`).
+* **An `opaque`'s value is not in the environment.**  `annotStepGo`'s
+  `.opaqueDecl` arm pushes `.axiomInfo cvA` and hands the annotated VALUE to
+  the pending record alone, so the `ValueGroup` has to be promoted beside the
+  environment — and at the SAME memo, so the sharing between a header's type
+  and its value survives the copy.
+* **The caches and the memos.**  `dropScratch` already flushes the eleven
+  per-declaration tables whole (task #97f), so no cache row can name a handle
+  of the tier it drops; `enterScratch` clears `Memos` for the same reason on
+  the way in.  The head `flushCaches` of task #97g's item 4 stays where
+  con-leche puts it — what it now covers is the FIRST record of the fold,
+  whose caches are whatever `internAllPins` left.  `internAllPins` itself is
+  unmoved: it runs before the fold, with the scratch tier still off, which is
+  what makes every pin handle persistent and every later `pin` of the same
+  datum a persistent-table hit.
+
+#### The WF obligation `internPersistent` carries (for P3)
+
+`Arena/Store.lean`'s new section states it and it is not quite "the same
+argument as the persistent branch of `intern`":
+
+* **Every clause but one** is that branch's argument verbatim — it IS that
+  branch.  `consP` gains the new row, `rankP` gets `persCount + 1`, `derExact`
+  is `derOfView` by construction, `consS`/`scrOff`/`sync` are untouched
+  because the scratch tier is not written.
+* **One added precondition**: `childOK` carries `i.isPersistent = true → c.isPersistent = true`,
+  so the view handed to `internPersistent` must have PERSISTENT CHILDREN.
+  `intern`'s persistent branch gets this free (it runs only when `scratchOn =
+  false`, where `scrOff` makes every live handle persistent); the promotion
+  gets it by construction, promoting the children first.
+* **One transient exception — `fresh`.**  `fresh` says a view in the scratch
+  cons table is not in the persistent one.  A node BUILT in the scratch tier
+  out of already-persistent children (an `app` of two parse handles) sits in
+  the scratch table under a view whose children are persistent, and promoting
+  it appends *that same view* to the persistent table.  So `fresh` is broken
+  while the promotion runs, and with it the cross-tier half of `denoteE`'s
+  injectivity.  It is not observable — nothing between the promotion and the
+  `dropScratch` that immediately follows reads the store — and `dropScratch`
+  empties the scratch tier, which restores `fresh` vacuously.  **The
+  obligation is therefore stated for the BRACKET**: `StoreWF` minus `fresh` is
+  preserved by each `internPersistent`, and `promote … dropScratch` as a whole
+  takes `StoreWF` to `StoreWF`.
+* The denotation obligation is `denote (promote h) = denote h`, by induction
+  on the promotion's own recursion.
+
+#### What was verified
+
+| | |
+|---|---|
+| `lake build ConRonArena con-ron-lean` | green, zero warnings, `LEAN_NUM_THREADS=4`, `ulimit -v 60000000` |
+| `CheckerTest.lean`'s 69 kernel-reduced `#guard`s | pass — and 32 of them ARE the differential test of the promotion: 20 run `checkDeclsPure` (now bracketed) and 12 the two-phase fold, each comparing the DENOTED environment against con-leche's |
+| `diff-e2e.sh --bin=…/con-ron-lean` | **348/348 `--verified`, 348/348 `--trusted`**, 331/17 `--no-pins` (the documented row) |
+| `con-ron-lean --verified _tmp/corpus/init.ndjson` | **accepted 57 977 declarations**, unchanged |
+| persistent expression nodes after the whole run | **6 508 719** — the parse's own 6 137 973 (task #97e part 2, unmoved by this task) plus **370 746**, +6.0 %.  Before: +5 063 000, **+82 %** (task #97-P4f).  Phase A's permanent footprint is **13.6× smaller** |
+| `scripts/provenance.py check` | 0 findings (6 261 items, 4 824 citations) |
+
+**Not measured, per the ruling above**: instructions, wall and peak RSS.  Two
+observations from the run, recorded as sanity checks and not as measurements —
+the `--progress` line read `parse t=4.42s; fold t=220.54s` against task #97g's
+3.9–4.1 s / 209.6–218.2 s, i.e. the promotion did not cost the fold anything
+visible at this resolution; and `ps` sampled the process at 0.83–0.89 GB
+throughout, where #97g's measured PEAK was 1.833 GB.  Neither is a `perf stat`
+number, neither tracks a peak, and another agent's Rust benchmark was on the
+machine for part of the run.  The Rust task measures.
+
+#### What the Rust twin has to follow
+
+A precise list, since this is a lockstep change.
+
+**`store` (additive only — no existing item changes):** four
+`intern_persistent` methods (`NStore`, `LStore`, `LsStore`, `EStore`), each
+`intern`'s `else` branch with the scratch probe left out, and six lifts
+through the nesting (`LStore::intern_name_persistent`,
+`LsStore::intern_name_persistent`, `LsStore::intern_level_persistent`,
+`EStore::intern_name_persistent`, `EStore::intern_level_persistent`,
+`EStore::intern_levels_persistent`).  The `capOKPersistent` foursome is Lean
+`Prop`s and has no Rust.
+
+**`state`/monad (additive only):** four wrappers `intern_persistent_e`,
+`intern_persistent_n`, `intern_persistent_l`, `intern_persistent_ls` — the
+capacity test against the PERSISTENT array's length and the same four `Native`
+messages as their `intern_*` twins.
+
+**`promote` (new module, 21 items):** `PMemo` (four maps) and `PMemo::empty`;
+`promote_n`, `promote_l`, `promote_l_list`, `promote_ls`, `promote_e`;
+`promote_n_list`, `promote_e_list`; `promote_cv`, `promote_fire`,
+`promote_rule`, `promote_rules`, `promote_caps`, `promote_proj_table`,
+`promote_ci`, `promote_ci_list`, `promote_decl`, `promote_vg`;
+`erase_installed`, `index_promoted`, `promote_new`.  Every memo is passed in
+and returned (a moved `ron::HashMap`), every walk takes the fuel explicitly.
+
+**`checker` (four changes, nothing else):**
+
+1. **`annot_step` splits.**  New `annot_step_go(mode, pins, fe, pd) ->
+   (IFEnv, Option<ValueGroup>)`: the old body with the four `flush_caches()`
+   calls removed, `let vis = fe.visible_below` removed, and each of the three
+   value arms returning `Some(ValueGroup{kind, cv_a, jv})` instead of pushing
+   onto `pend`; the three fall-through arms return `None`.  Clause structure,
+   guards, messages and order: untouched.
+2. **`annot_step` becomes the bracket**, with the body given above — six
+   statements plus a two-way match on the `Option<ValueGroup>`; it keeps its
+   signature (`i`, `fe`, `pend`, `pd`) and still returns `(IFEnv,
+   Vec<PendingCheck>)`.
+3. **New `check_decl_step(mode, pins, fe, d)`** — the same bracket around one
+   `check_decl` — and `check_decls_pure_go`'s recursive call goes through it
+   instead of calling `check_decl` directly (one expression).
+4. **Nothing else moves**: `check_decl`, `check_pending`,
+   `check_pending_list`, `install_then_check`, `annot_decl_step`,
+   `annot_fold`, `intern_all_pins`, `at_decl` and `AState::abandoned` are
+   unchanged, and phase B's bracket is unchanged.
+
+**Driver (unverified, optional):** `Arena/Main.lean`'s `runPipelineIO` returns
+the final store's persistent expression-node count as a fourth component and
+`checkMain` prints it under `--progress` — one field read, and the number the
+Rust's own run is compared against.
+
+#### For whoever takes the Rust half, and for P3
+
+* The `fresh` exception above is the one thing in this change that a reviewer
+  should not skim: it is a real (if transient and unobservable) break of a
+  soundness clause, and the bracket is what repairs it.  If the Rust ever
+  promotes without dropping the tier immediately afterwards, that reasoning
+  fails.
+* `promoteNew`'s "the `k` newest entries are the step's" rests on *every*
+  install route pushing and only pushing.  A future install that returns a
+  differently-built environment (a rebuilt index, a restriction) would break
+  it silently — the guard to add, should that ever be wanted, is an assertion
+  that `consts.drop k` is the pre-step list.
+* `Arena/Bench.lean` still has no `Core`, `Checker` or inductive shapes —
+  five tasks have now asked.
