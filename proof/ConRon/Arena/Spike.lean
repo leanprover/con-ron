@@ -20,7 +20,8 @@ Modules:
 * `Spike/Mini.lean`   — the three-constructor arena for experiments C and D;
 * `Spike/Generated/`  — the Aeneas model of `crates/arena-spike`
   (`scripts/extract-spike.sh`);
-* `Spike/ExpCD.lean`  — experiments C and D on the mini arena.
+* `Spike/ExpCD.lean`  — experiments C and D on the mini arena;
+* `Spike/Axioms.lean` — `#print axioms` on what experiments A and B closed.
 -/
 import ConRon.Arena.Spike.Base
 import ConRon.Arena.Spike.Twins
@@ -32,3 +33,4 @@ import ConRon.Arena.Spike.ExpA3
 import ConRon.Arena.Spike.ExpB
 import ConRon.Arena.Spike.Mini
 import ConRon.Arena.Spike.ExpCD
+import ConRon.Arena.Spike.Axioms

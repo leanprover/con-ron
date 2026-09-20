@@ -20864,6 +20864,16 @@ structure plus what was measured:
   `scripts/provenance.py`'s Lean reader (task #97t) are what keep that a
   transliteration rather than a design.
 
+#### The axiom check
+
+`Spike/Axioms.lean`: `memoWhnfCore_spec` (experiment A, subject 3) and
+`memoWhnfCore_run_hand` (experiment B) are **sorry-free**
+(`propext, Classical.choice, Quot.sound`).  `instantiate1A_spec` and
+`instantiate1Top_spec` carry `sorryAx` *today*, through
+`EStore.intern_spec` — whose `intern_wf` half is one of task #97a's thirteen
+open store lemmas.  Nothing the spike itself wrote is open in those two
+files.
+
 #### What is left open
 
 Four `sorry`s, all deliberate and none load-bearing for the two answers:
