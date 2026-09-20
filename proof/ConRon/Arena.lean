@@ -20,3 +20,5 @@ import ConRon.Arena.StoreTest
 import ConRon.Arena.Monad
 import ConRon.Arena.ExprOps
 import ConRon.Arena.ExprOpsTest
+import ConRon.Arena.Peel
+import ConRon.Arena.Specs
