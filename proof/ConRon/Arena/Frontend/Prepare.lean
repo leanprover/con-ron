@@ -33,6 +33,7 @@ and `declares` are pure, exactly as con-leche's are, because
 Nothing in this module reads or writes a term.
 -/
 import ConRon.Arena.Frontend.ExportC
+import ConRon.Arena.Frontend.NatOpGround
 
 namespace ConRon.Arena.Frontend
 
@@ -101,25 +102,13 @@ def frontOf (acc : Array IDeclaration) :
 
 /-! ## The ground hoist -/
 
-/-- con-leche: ConLeche/Frontend/NatOpGround.lean:164-169 hoistNatOpGround —
-THE HOIST: the reordered records and the names of the records moved.
+/-! ## The ground hoist — **no longer a placeholder** (task #97d)
 
-**Task #97e part 1 ships the identity.**  con-leche's body is
-`hoistTargets`/`applyHoist` over `Declaration.usedConsts`, a memoised DAG walk
-of every record's type and value (`NatOpGround.lean:54-77`) that over handles
-is `view` plus a `Std.HashSet EIdx` — the `ExprOps`-shaped work scheduled as
-part 2 — and its trigger set is the kernel's `natOpNames`/`natDivModNames`
-name lists, which the arena has no twin of until P2c interns the pins.
-
-The placeholder's direction is safe: con-leche's own justification for the
-pass is that a pinned operation whose ground the stream declares LATER
-declines at the install, so not moving it can only decline a run that would
-otherwise accept, never accept one that would otherwise be turned away.  It is
-also a no-op on every stream whose ground precedes its operations — the
-toolchain's own export order, `init-full` and Mathlib included. -/
-def hoistNatOpGround (ds : Array IDeclaration) :
-    AM (Array IDeclaration × Array NIdx) :=
-  pure (ds, #[])
+Task #97e part 1 shipped the identity here, because the pass needs the
+kernel's `natOpNames`/`natDivModNames`/`natOpDeps` name lists and the arena
+had no twin of them until P2d interned the pins.  It has them now, and the
+real pass is `Arena/Frontend/NatOpGround.lean`'s `hoistNatOpGround`, a module
+of its own exactly as con-leche's is.  `prepareD` below calls it. -/
 
 /-! ## The prepared stream -/
 

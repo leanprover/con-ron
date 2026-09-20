@@ -1,5 +1,6 @@
 import ConRon.Arena.Frontend.Prelude
 import ConRon.Arena.Frontend.InModel
+import ConRon.Arena.CheckerGated
 
 /-!
 # `con-ron-lean` — the arena checker's driver (DESIGN.md §8.4, task #97 P2f)
@@ -73,15 +74,15 @@ before it and `preparePrelude` after it — is `runPipelineHead` /
 
 namespace ConRon.Arena
 
-/-- con-leche: ConLeche/Kernel/Env.lean:20-62 CheckMode
-The checking mode, verbatim (DESIGN.md §8's census class (P): pure data,
-no term inside, copied rather than twinned).  The verified mode is the one
-the capstones are about; the trusted mode is the same bodies with the
-certification-only work switched off.  P2d moves this to the `Env` twin. -/
-inductive CheckMode where
-  | verified
-  | trusted
-  deriving DecidableEq, Repr
+open ConLeche
+
+/-! ## `CheckMode` is con-leche's own
+
+Task #97e's "for part 2" note item 6 left `CheckMode` as the driver's copy;
+P2d retires it.  `Arena/Core.lean` and every twin below it already branch on
+`ConLeche.CheckMode` (DESIGN §8.7: (B) IMPORTS con-leche's
+representation-free types rather than copying them), and two spellings of one
+two-constructor enum in one import closure is one too many. -/
 
 /-- con-leche: Main.lean:48-51 ConLeche.CheckError.exitCode
 The exit code of each error kind.  1 rejected, 2 declined, 3 error; 0 is
@@ -107,28 +108,19 @@ def CheckError.message : CheckError → String
   | .internal msg => s!"internal: {msg}"
   | .native what => s!"native: {what}"
 
-/-- con-leche: ConLeche/Kernel/NatOpPinSet.lean:28-51 NatOpPinSet
-One toolchain's `Nat`-operation pins.
+/-! ## The pin list is con-leche's data, interned at startup
 
-**Not yet the twin.**  con-leche's record holds sixteen `Expr` fields —
-eight pinned defining expressions and eight certificate-proof lists — so
-its twin is §8's census class (T): the same sixteen fields over `EIdx`
-handles into the persistent tier, decoded into the store at parse time.
-There is no store yet, so what stands here is the one field that is not a
-term (the toolchain string, which the decline message names) and a note
-saying so.  P2d replaces it whole. -/
-structure NatOpPinSet where
-  toolchain : String
+Task #97e left `NatOpPinSet` a one-field placeholder here; P2d replaces it
+with `Arena/NatOpPinSet.lean`'s `INatOpPinSet` — the same seventeen fields
+over handles — and `Arena/Checker.lean`'s `internAllPins`, the one-time tree
+walk of DESIGN §8.6 P2d.
 
-/-- con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
-The pin variants the binary hands the checker, in the order the install
-gate tries them: con-leche splices one per committed dump with the
-`#load_natop_pins` elaborator cited here, so the list has no source range
-of its own and the command pinned above is what it is generated from.  The
-arena decodes the same dumps into the persistent tier at P2d; until then
-the list is empty, which is exactly `--no-pins` and declines every stream
-that defines `Nat.div`. -/
-def natOpPinSets : List NatOpPinSet := []
+**The seam's parameter stays con-leche's `List NatOpPinSet`**, i.e. the pin
+VALUES: they are representation-free data (con-leche's task #304 made the
+list a parameter so that a statement about the checker can be made for an
+arbitrary one), and the store they are interned into is the seam's own.  The
+shipped binary passes `ConLeche.natOpPinSets`, the variants this toolchain
+committed, exactly as con-leche's driver does. -/
 
 /-- con-leche: none — the read size, 4 MiB, so a Mathlib-scale export never
 materialises as one buffer and the handle stays readable as a pipe.  It is
@@ -173,43 +165,53 @@ def runPipelineHead (md : Frontend.Modeller) :
   | .ok pre => pure (.ok (pre, ← Frontend.StateD.init true false))
 
 /-- con-leche: Main.lean:461-711 checkMain
-The pipeline AFTER the parse: `preparePrelude`, then the verdict number and
-the store's census.  Shared verbatim by the pure seam and by the driver's
-interleaved loop, which is what makes the two the same computation. -/
-def runPipelineTail (pre : Frontend.PreludeIx) (r : Frontend.ParseResultD) :
-    AM (Nat × Nat × Nat × Nat) := do
-  let _ ← Frontend.preparePrelude pre r.decls
-  let s ← get
-  pure (r.decls.size - r.genRecords,
-    s.store.nodeCount, s.store.ls.nodeCount, s.store.ns.nodeCount)
+The pipeline AFTER the parse: `preparePrelude`, then **the fold** (task
+#97d), then the verdict number.  Shared verbatim by the pure seam and by the
+driver's interleaved loop, which is what makes the two the same computation.
+
+The verdict number is con-leche's own, "a property of the INPUT"
+(`Main.lean:661-676`): the records the parse produced less the ones the
+in-process modeller generated, which no later step moves.  The fold's own
+environment is discarded — an accept is the statement, not the environment.
+
+`internAllPins` runs BEFORE the fold and while the scratch tier is still off,
+which is what DESIGN §8.6 P2d means by "at startup": every pinned datum is in
+the persistent cons table before any declaration's check can intern one into
+a tier that is about to vanish. -/
+def runPipelineTail (mode : CheckMode) (pins : List NatOpPinSet)
+    (pre : Frontend.PreludeIx) (r : Frontend.ParseResultD) :
+    AM (Except CheckError Nat) := do
+  let ds ← Frontend.preparePrelude pre r.decls
+  let ipins ← internAllPins pins
+  match ← installThenCheck mode ipins ds with
+  | .error (e, n) => pure (.error (atDecl e n))
+  | .ok _ => pure (.ok (r.decls.size - r.genRecords))
 
 /-- con-leche: Main.lean:461-711 checkMain
 **THE PURE SEAM'S BODY**: the prelude, `parseChunks` (which is `chunkStep`
 folded over the chunk list with `chunkFinish` at its end), and the tail.  The
 driver's `readFold` is the same fold over the same steps with the buffers read
 one at a time; see the module note. -/
-def runPipelineM (md : Frontend.Modeller) (chunks : List ByteArray) :
-    AM (Except (CheckError × Nat) (Nat × Nat × Nat × Nat)) := do
+def runPipelineM (md : Frontend.Modeller) (mode : CheckMode)
+    (pins : List NatOpPinSet) (chunks : List ByteArray) :
+    AM (Except CheckError Nat) := do
   match ← runPipelineHead md with
-  | .error e => pure (.error e)
+  | .error (e, n) => pure (.error (Frontend.atLine e n))
   | .ok (pre, st) =>
     match ← Frontend.parseChunksGo md st .empty 0 0 chunks with
-    | .error e => pure (.error e)
-    | .ok r => pure (.ok (← runPipelineTail pre r))
+    | .error (e, n) => pure (.error (Frontend.atLine e n))
+    | .ok r => runPipelineTail mode pins pre r
 
 /-- con-leche: Main.lean:461-711 checkMain
 **THE SEAM ITSELF**: `runPipelineM` run at the empty store, with the parse's
 own `(CheckError × Nat)` position folded into the message (`Frontend.atLine`)
 because this signature has no position channel. -/
-def runPipeline (chunks : List ByteArray) (_mode : CheckMode)
-    (_pins : List NatOpPinSet) : Except CheckError Nat :=
-  match (runPipelineM Frontend.inProcessModeller chunks).run (AState.init EStore.empty) with
+def runPipeline (chunks : List ByteArray) (mode : CheckMode)
+    (pins : List NatOpPinSet) : Except CheckError Nat :=
+  match (runPipelineM Frontend.inProcessModeller mode pins chunks).run
+      (AState.init EStore.empty) with
   | .error e => .error e
-  | .ok (.error (e, n), _) => .error (Frontend.atLine e n)
-  | .ok (.ok (records, nE, nL, nN), _) =>
-    .error (.notImplemented
-      s!"arena checker: fold not yet implemented ({records} declarations parsed; \
-        store: {nE} expression, {nL} level, {nN} name nodes)")
+  | .ok (r, _) => r
 
 /-- con-leche: Main.lean:423-434 progressStride
 The progress heartbeat's stride, read off `--progress[=<stride>]`.  No
@@ -296,8 +298,8 @@ partial def readFold (md : Frontend.Modeller) (h : IO.FS.Handle)
 place of the pure seam's `parseChunksGo`, then `runPipelineTail` — the same
 three steps `runPipeline` runs, with the input never held whole.  The chunk
 count comes back for the heartbeat. -/
-def runPipelineIO (h : IO.FS.Handle) (_mode : CheckMode)
-    (_pins : List NatOpPinSet) : IO (Except CheckError Nat × Nat) := do
+def runPipelineIO (h : IO.FS.Handle) (mode : CheckMode)
+    (pins : List NatOpPinSet) : IO (Except CheckError Nat × Nat) := do
   let md := Frontend.inProcessModeller
   let s0 := AState.init EStore.empty
   match (runPipelineHead md).run s0 with
@@ -308,12 +310,9 @@ def runPipelineIO (h : IO.FS.Handle) (_mode : CheckMode)
     | .error e => pure (.error e, 0)
     | .ok (.error (e, n), _, chunks) => pure (.error (Frontend.atLine e n), chunks)
     | .ok (.ok r, s, chunks) =>
-      match (runPipelineTail pre r).run s with
+      match (runPipelineTail mode pins pre r).run s with
       | .error e => pure (.error e, chunks)
-      | .ok ((records, nE, nL, nN), _) =>
-        pure (.error (.notImplemented
-          s!"arena checker: fold not yet implemented ({records} declarations \
-            parsed; store: {nE} expression, {nL} level, {nN} name nodes)"), chunks)
+      | .ok (v, _) => pure (v, chunks)
 
 /-- con-leche: Main.lean:714-944 usage
 The usage text, on stdout under `--help` and on stderr before a usage
@@ -422,7 +421,7 @@ def checkMain (file : String) (mode : CheckMode) (stride : Nat) : IO UInt32 := d
       IO.eprintln s!"con-ron-lean: {file}: {e} ({modeTag})"
       pure none
   let some h := h? | return 3
-  let (verdict, chunks) ← runPipelineIO h mode natOpPinSets
+  let (verdict, chunks) ← runPipelineIO h mode ConLeche.natOpPinSets
   if stride > 0 then
     let tRead ← IO.monoMsNow
     IO.eprintln s!"con-ron-lean: parse done: {chunks} chunks read \
