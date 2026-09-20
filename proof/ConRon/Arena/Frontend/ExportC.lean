@@ -44,22 +44,20 @@ checks the parse DOES make are all its own and are all here: the rebinding
 test, `validateIndD`'s block consistency checks, and the safety/kind
 recognisers.
 
-**Two non-decoding steps are stubs in part 1**, both marked below and both
-listed as task #97e part 2: the projection-function rewrite
-(`ConLeche/Frontend/ProjRec.lean`, which needs the `ExprOps` twins) and the
-in-process modeller (`ConLeche/Frontend/InModel/**`).  The modeller sits
-behind the one-method `Modeller` seam of `Arena/Frontend/Types.lean` — DESIGN
-§8.2's unverified hook — and the instantiation this task ships declines every
-mutual or nested block.  The rewrite's two feeder tables (`projOwners`,
-`projLevels`) stay empty, which is what makes the rewrite's own `none` the
-*same* answer con-leche gives on those streams: its `st.projOwners[T]?` misses
-too.
+**The projection-function rewrite is real since task #97e part 2**:
+`Arena/Frontend/ProjRec.lean`, over the `ExprOps` twins, feeding
+`projRewriteD`, `noteProjIota` and `registerProjOwners` below.  The in-process
+modeller sits behind the one-method `Modeller` seam of
+`Arena/Frontend/Types.lean` — DESIGN §8.2's unverified hook — and
+`Arena/Frontend/InModel.lean` instantiates it by delegating to con-leche's own
+generator on the block's denotation.
 
 **The `M`/line-number collapse** is described in `Arena/Frontend/Types.lean`:
 index errors are `fail (.internal …)` with con-leche's own text and no line
 number; a scan error and a record verdict keep theirs, since those are values.
 -/
 import ConRon.Arena.Frontend.Types
+import ConRon.Arena.Frontend.ProjRec
 import ConRon.Arena.ExprOps
 import ConLeche.Frontend.Scan.Fast
 import ConLeche.Kernel.Level
@@ -293,32 +291,47 @@ def parseCVD (st : StateD) (cv : CVRec) : AM IConstantVal := do
          type := ty }
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:291-302 projRewriteD — the
-projection-function rewrite at a definition record.
+projection-function rewrite at a definition record
+(`Arena/Frontend/ProjRec.lean`): the value is `fun p⃗ self => .proj T i self`
+for a recorded owner `T`, the field's sort is on record from the artifact,
+`PUnit` is available, and the definition's level parameters are the block's.
+`none` = leave the record as parsed.
 
-**Task #97e part 1 ships the `none` arm only.**  con-leche's body is
-`lamBody`, a `projOwners` lookup, a level-parameter comparison, a `projLevels`
-lookup and `projRecValue` — the last of which is 52 lines over `ExprOps`
-(`ConLeche/Frontend/ProjRec.lean:279-330`), scheduled as part 2.  Until then
-`projOwners` and `projLevels` are never written (see `registerProjOwners` and
-`noteProjIota` below), so con-leche's own second line — `let o ←
-st.projOwners[T]?` — would miss on every record too: the answer this returns
-is the answer con-leche's body computes at an empty owner table, and no record
-is rewritten by either side. -/
-def projRewriteD (_st : StateD) (_cv : IConstantVal) (_vl : EIdx) :
-    AM (Option EIdx) :=
-  pure none
+con-leche's `let .proj T i (.bvar 0) := lamBody vl | none` is a `view` of the
+body's node here; exactness (`denoteE_inj`) makes the two the same test. -/
+def projRewriteD (st : StateD) (cv : IConstantVal) (vl : EIdx) :
+    AM (Option EIdx) := do
+  let fuel ← storeFuel
+  match ← view (← lamBody fuel vl) with
+  | .proj t i sub =>
+    match ← view sub with
+    | .bvar 0 =>
+      match st.projOwners[t]? with
+      | none => pure none
+      | some o =>
+        if cv.levelParams != o.lps then pure none
+        else
+          match st.projLevels[← projIotaName t i]? with
+          | none => pure none
+          | some l => projRecValue fuel o l cv.type vl i
+    | _ => pure none
+  | _ => pure none
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:304-317 noteProjIota — an
-artifact `T._model.proj_i.iota` names the field's sort in its `Eq` level,
-recorded for the projection rewrite.
-
-**Part 1 records nothing**: the artifacts it reads are records the in-process
-modeller GENERATES (con-leche's task #219: the only source), and the modeller
-is the declining stub of `Arena/Frontend/Types.lean`, so no such record
-reaches this function.  Its two readers (`isProjIotaName`, `projIotaLevel`)
-are part 2 with the rest of `ProjRec`. -/
-def noteProjIota (st : StateD) (_cvp : IConstantVal) : AM StateD :=
-  pure st
+artifact `T._model.proj_i.iota` names the field's sort in its `Eq` level:
+recorded for the projection rewrite.  Run on the records the in-process
+modeller GENERATES and on those alone (con-leche's task #219: a stream record
+is an ordinary declaration whatever it is called). -/
+def noteProjIota (st : StateD) (cvp : IConstantVal) : AM StateD := do
+  if ← isProjIotaName cvp.name then
+    let fuel ← storeFuel
+    match ← projIotaLevel fuel cvp.type with
+    | some l =>
+      let m := st.projLevels
+      let st := { st with projLevels := {} }
+      pure { st with projLevels := m.insert cvp.name l }
+    | none => pure st
+  else pure st
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:319-326 pushGenD — push one
 record the in-process modeller generated: `pushDecl`, plus the projection-iota
@@ -384,17 +397,27 @@ def blockRecOf (st : StateD) (types : List IndTypeRec) (ctors : List IndCtorRec)
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:377-396 registerProjOwners —
 record the structure-like owners of a parsed block that the projection rewrite
-serves.
-
-**Part 1 registers nothing.**  The owners come from `projRecOwners`
-(`ConLeche/Frontend/ProjRec.lean:332-370`), which runs `occursConstFast` and
-`projRecValue` over the block's constructor types — the `ExprOps` work
-scheduled as task #97e part 2.  With the table empty, `projRewriteD` above
-returns what con-leche returns at an empty table. -/
-def registerProjOwners (st : StateD) (_tys : List IndTypeRec)
-    (_cts : List IndCtorRec) (_rcs : List IndRecRec)
-    (_block : List IConstantInfo) : AM StateD :=
-  pure st
+serves (`Arena/Frontend/ProjRec.lean`'s `projRecOwners`). -/
+def registerProjOwners (st : StateD) (tys : List IndTypeRec)
+    (cts : List IndCtorRec) (rcs : List IndRecRec)
+    (block : List IConstantInfo) : AM StateD := do
+  let types ← tys.mapM fun t => do
+    let cv ← parseCVD st t.cv
+    pure (cv.name, cv.levelParams, cv.type, t.numParams, t.numIndices,
+      ← t.ctors.mapM st.name, t.isRec)
+  let ctors ← cts.mapM fun c => do
+    let cv ← parseCVD st c.cv
+    pure (cv.name, c.numFields, cv.type)
+  let recs ← rcs.mapM fun r => do
+    let cv ← parseCVD st r.cv
+    pure (cv.name, cv.levelParams, cv.type, r.numMotives, r.numMinors)
+  let fuel ← storeFuel
+  match ← projRecOwners fuel block types ctors recs with
+  | [] => pure st
+  | owners =>
+    let m := st.projOwners
+    let st := { st with projOwners := {} }
+    pure { st with projOwners := owners.foldl (fun m o => m.insert o.T o) m }
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:398-404 pushGenList — push the
 records the in-process modeller generated, each booked as a declaration of the

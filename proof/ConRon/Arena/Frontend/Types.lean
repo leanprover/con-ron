@@ -29,11 +29,13 @@ folds the line into those messages before returning.
 
 **The in-process modeller is a one-method seam** (DESIGN §8.2's `Modeller`,
 the Rust port's unverified hook).  con-leche calls `InModel.generate` directly;
-(B) takes a `Modeller` parameter whose single method maps handles to handles,
-and P2e part 1 supplies `declineModeller`, which declines every block it is
-asked about.  Porting the generator itself is a separate task: it is ~4 500
-lines of con-leche over `Expr` and it owns no soundness (a wrong generated
-record is rejected or declined by the fold, never accepted) — only coverage.
+(B) takes a `Modeller` parameter whose single method maps handles to handles.
+Two instantiations exist: `declineModeller` below, which declines every block
+it is asked about, and `Arena/Frontend/InModel.lean`'s `inProcessModeller`,
+which the driver uses — it reads the block back and calls **con-leche's own
+generator**, which is exact by construction and unverified by design (a wrong
+generated record is rejected or declined by the fold, never accepted; the
+generator owns coverage and no soundness).
 -/
 import ConRon.Arena.Env
 
@@ -65,8 +67,8 @@ def RecordVerdict.toError : RecordVerdict → CheckError
 /-- con-leche: ConLeche/Frontend/ProjRec.lean:83-104 ProjRecOwner — what the
 projection-function rewrite needs to know about one structure-like owner `T` of
 a parsed inductive block the direct install does not serve.  A field-for-field
-mirror; the rewrite that READS it is task #97e part 2 (it needs the `ExprOps`
-twins of `ConLeche/Frontend/ProjRec.lean`). -/
+mirror; the rewrite that READS it is `Arena/Frontend/ProjRec.lean` (task #97e
+part 2). -/
 structure ProjRecOwner where
   T : NIdx
   lps : List NIdx
@@ -152,21 +154,27 @@ def wants (b : BlockRec) : Bool :=
 
 /-- con-leche: ConLeche/Frontend/InModel.lean:39-45 generate — **the modeller
 seam** (DESIGN §8.2's `Modeller`).  One method: a block in, the model records
-it generates in stream order or the reason it is declined.  Handles in, handles
-out — nothing in (B) may build an `Expr` tree, and a default instantiation that
-called con-leche's own generator on read-back terms would do exactly that.
+it generates in stream order or the reason it is declined.  Handles in,
+handles out: the CHECKER never sees an `Expr`, whatever an instantiation does
+behind the seam.
 
 The seam is UNVERIFIED by design: soundness needs nothing from it, since a
 wrong generated record is rejected or declined by the fold, and its
-correctness decides only coverage. -/
+correctness decides only coverage.  That is what licenses
+`Arena/Frontend/InModel.lean`'s instantiation, which reads the block back,
+calls con-leche's generator and interns the result: the readback is bounded to
+one block, it is exact (it IS the denotation), and the unverified layer it
+adds is the layer DESIGN §8.2 already calls unverified. -/
 structure Modeller where
   generate : Ctx → BlockRec → AM (Except String (List IDeclaration))
 
-/-- con-leche: none — the modeller that declines every block, which is what
-(B) has until the generator is ported (task #97e part 2 lists it).  A decline
-here is `installIndD`'s `.declined` verdict, naming the block: the same
-positive statement con-leche makes when its own generator declines a residual
-class, so the verdict machinery around it is exercised by the fixtures. -/
+/-- con-leche: none — the modeller that declines every block.  A decline here
+is `installIndD`'s `.declined` verdict, naming the block: the same positive
+statement con-leche makes when its own generator declines a residual class.
+It is no longer what the driver runs (`Arena/Frontend/InModel.lean`'s
+`inProcessModeller` is, since task #97e part 2) and is kept as the seam's
+trivial instantiation — the one a run with modelling switched off wants, and
+the one a proof about the seam is easiest to state at. -/
 def declineModeller : Modeller :=
   ⟨fun _ _ => pure (.error "the arena's in-process modeller is not ported yet")⟩
 

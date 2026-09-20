@@ -1,4 +1,5 @@
 import ConRon.Arena.Frontend.Prelude
+import ConRon.Arena.Frontend.InModel
 
 /-!
 # `con-ron-lean` — the arena checker's driver (DESIGN.md §8.4, task #97 P2f)
@@ -52,12 +53,22 @@ re-typed its original's byte recogniser would prove nothing either.
 
 **Chunked reading, 4 MiB** (`ConLeche/Frontend/ExportC.lean:903-931`): the
 handle is read strictly forward and never seeked, so the source may be a
-pipe.  con-leche folds the parse step INTO that loop; the pure meaning of
-its loop is `parseChunks` of the chunks the handle handed out, which is
-why the seam takes the chunk LIST.  Reading them into a list first is the
-stub's simplification and P2e's to undo: the loop it grows is
-`parseExportHandleD`'s, and what it computes is `runPipeline` of the same
-list (con-leche's `parseChunks_eq_parseExportD`).
+pipe.  **The reads are INTERLEAVED with the parse** (task #97e part 2): each
+4 MiB buffer is fed to `Frontend.chunkStep` and then dropped, so the input is
+never held whole.  Part 1 read the whole file into a chunk list first, which
+on `Init` was 0.33 GB of a 0.82 GB peak and on Mathlib would be 6.1 GB before
+a byte is parsed.
+
+**`runPipeline` stays the pure SPECIFICATION**, and the driver's loop is the
+SAME FOLD.  `Frontend.parseChunks` is `chunkStep` folded over a list with
+`chunkFinish` at its end (`parseChunksGo`); `readFold` below is the same
+`chunkStep` folded over the buffers the handle hands out, ended by the same
+`chunkFinish`, from the same `StateD.init` — the list and the handle differ
+only in where the next buffer comes from, so a later proof equates them by
+induction on the reads, which is con-leche's own
+`parseChunks_eq_parseExportD`.  Everything around the fold — the prelude parse
+before it and `preparePrelude` after it — is `runPipelineHead` /
+`runPipelineTail`, shared verbatim by the two.
 -/
 
 namespace ConRon.Arena
@@ -137,28 +148,54 @@ the in-process modeller generated, which no later step moves.
 
 **The FRONTEND half is real since task #97e**: the built-in prelude is
 parsed, the stream's chunks are parsed into the persistent tier of one
-`EStore`, and the prepared record list is built.  What is still a stub is the
-FOLD, so a run that parses cleanly ends in a decline that names the count it
-would have checked.  Every verdict the frontend itself reaches — a malformed
-line, a rebound index, an `unsafe` declaration, a block whose redundant
-fields contradict its own records, a mutual or nested block the declining
-modeller turns away — is already this function's answer, with con-leche's own
-exit code.
+`EStore`, the projection-function rewrite runs, the modeller seam is
+instantiated (`Frontend.inProcessModeller`, DESIGN §8.2's unverified hook,
+which delegates to con-leche's own generator on the block's denotation) and
+the prepared record list is built.  What is still a stub is the FOLD, so a run
+that parses cleanly ends in a decline that names the count it would have
+checked.  Every verdict the frontend itself reaches — a malformed line, a
+rebound index, an `unsafe` declaration, a block whose redundant fields
+contradict its own records, a block the modeller declines — is already this
+function's answer, with con-leche's own exit code.
 
 P2c (the `Core` knot) and P2d (the checker and the declaration check) replace
-the last three lines; the driver below is already what it will be. -/
-def runPipelineM (md : Frontend.Modeller) (chunks : List ByteArray) :
-    AM (Except (CheckError × Nat) (Nat × Nat × Nat × Nat)) := do
+`runPipelineTail`'s last three lines; the driver below is already what it will
+be.
+
+This is the pipeline BEFORE the parse: the built-in prelude, parsed into the
+same store the stream goes into, and the parse state the stream's first chunk
+is fed to.  Shared verbatim by the pure seam and by the driver's interleaved
+loop. -/
+def runPipelineHead (md : Frontend.Modeller) :
+    AM (Except (CheckError × Nat) (Frontend.PreludeIx × Frontend.StateD)) := do
   match ← Frontend.builtinPreludeE md with
   | .error e => pure (.error e)
-  | .ok pre =>
-    match ← Frontend.parseChunks md chunks with
+  | .ok pre => pure (.ok (pre, ← Frontend.StateD.init true false))
+
+/-- con-leche: Main.lean:461-711 checkMain
+The pipeline AFTER the parse: `preparePrelude`, then the verdict number and
+the store's census.  Shared verbatim by the pure seam and by the driver's
+interleaved loop, which is what makes the two the same computation. -/
+def runPipelineTail (pre : Frontend.PreludeIx) (r : Frontend.ParseResultD) :
+    AM (Nat × Nat × Nat × Nat) := do
+  let _ ← Frontend.preparePrelude pre r.decls
+  let s ← get
+  pure (r.decls.size - r.genRecords,
+    s.store.nodeCount, s.store.ls.nodeCount, s.store.ns.nodeCount)
+
+/-- con-leche: Main.lean:461-711 checkMain
+**THE PURE SEAM'S BODY**: the prelude, `parseChunks` (which is `chunkStep`
+folded over the chunk list with `chunkFinish` at its end), and the tail.  The
+driver's `readFold` is the same fold over the same steps with the buffers read
+one at a time; see the module note. -/
+def runPipelineM (md : Frontend.Modeller) (chunks : List ByteArray) :
+    AM (Except (CheckError × Nat) (Nat × Nat × Nat × Nat)) := do
+  match ← runPipelineHead md with
+  | .error e => pure (.error e)
+  | .ok (pre, st) =>
+    match ← Frontend.parseChunksGo md st .empty 0 0 chunks with
     | .error e => pure (.error e)
-    | .ok r =>
-      let _ ← Frontend.preparePrelude pre r.decls
-      let s ← get
-      pure (.ok (r.decls.size - r.genRecords,
-        s.store.nodeCount, s.store.ls.nodeCount, s.store.ns.nodeCount))
+    | .ok r => pure (.ok (← runPipelineTail pre r))
 
 /-- con-leche: Main.lean:461-711 checkMain
 **THE SEAM ITSELF**: `runPipelineM` run at the empty store, with the parse's
@@ -166,7 +203,7 @@ own `(CheckError × Nat)` position folded into the message (`Frontend.atLine`)
 because this signature has no position channel. -/
 def runPipeline (chunks : List ByteArray) (_mode : CheckMode)
     (_pins : List NatOpPinSet) : Except CheckError Nat :=
-  match (runPipelineM Frontend.declineModeller chunks).run (AState.init EStore.empty) with
+  match (runPipelineM Frontend.inProcessModeller chunks).run (AState.init EStore.empty) with
   | .error e => .error e
   | .ok (.error (e, n), _) => .error (Frontend.atLine e n)
   | .ok (.ok (records, nE, nL, nN), _) =>
@@ -219,18 +256,64 @@ def msSecs (ms : Nat) : String :=
   s!"{s}.{if c < 10 then "0" else ""}{c}"
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:903-931 parseExportHandleD
-The input's chunks, in order: the handle read strictly forward, 4 MiB at a
-time, stopping at the first empty read (its end of file).  Never seeked,
-never re-opened, never asked for its size — so the source may be a pipe,
-and no scratch file exists anywhere (con-leche's task #180).
+**THE READ LOOP**: the handle read strictly forward, 4 MiB at a time, each
+buffer fed to `Frontend.chunkStep` and then dropped; the first empty read is
+its end of file and `Frontend.chunkFinish` closes the stream.  Never seeked,
+never re-opened, never asked for its size — so the source may be a pipe, and
+no scratch file exists anywhere (con-leche's task #180).
 
-con-leche interleaves the parse step with these reads and so never holds
-the whole input; this reads them into a list first, which is the stub's
-simplification (see the module note) and P2e's to undo. -/
-partial def readChunks (h : IO.FS.Handle) (acc : Array ByteArray) :
-    IO (List ByteArray) := do
+**This is the same fold as `Frontend.parseChunksGo`**, which the pure seam
+runs over a chunk LIST: the same `chunkStep` at the same four accumulators,
+the same `chunkFinish` at the end, differing only in where the next buffer
+comes from.  A later proof equates the two by induction on the reads
+(con-leche's `parseChunks_eq_parseExportD` is that argument), which is why
+`runPipeline` keeps the list signature as the specification.
+
+`AState` is threaded by hand rather than in a transformer stack, because the
+step is `AM` (`StateT AState (Except CheckError)`, DESIGN §8.4's one monad)
+and the loop is `IO`: running the step and passing its state on is what a
+`StateT … IO` would compile to, without giving (B)'s own monad an `IO` layer
+it must not have. -/
+partial def readFold (md : Frontend.Modeller) (h : IO.FS.Handle)
+    (st : Frontend.StateD) (carry : ByteArray) (lineNo total chunks : Nat)
+    (s : AState) :
+    IO (Except CheckError (Except (CheckError × Nat) Frontend.ParseResultD ×
+      AState × Nat)) := do
   let buf ← h.read chunkSize
-  if buf.isEmpty then return acc.toList else readChunks h (acc.push buf)
+  if buf.isEmpty then
+    match (Frontend.chunkFinish md st carry lineNo).run s with
+    | .error e => pure (.error e)
+    | .ok (r, s) => pure (.ok (r, s, chunks))
+  else
+    match (Frontend.chunkStep md st carry lineNo total buf).run s with
+    | .error e => pure (.error e)
+    | .ok (.error e, s) => pure (.ok (.error e, s, chunks + 1))
+    | .ok (.ok (st, carry, lineNo, total), s) =>
+      readFold md h st carry lineNo total (chunks + 1) s
+
+/-- con-leche: Main.lean:461-711 checkMain
+**THE SEAM, DRIVEN FROM A HANDLE**: `runPipelineHead`, then `readFold` in
+place of the pure seam's `parseChunksGo`, then `runPipelineTail` — the same
+three steps `runPipeline` runs, with the input never held whole.  The chunk
+count comes back for the heartbeat. -/
+def runPipelineIO (h : IO.FS.Handle) (_mode : CheckMode)
+    (_pins : List NatOpPinSet) : IO (Except CheckError Nat × Nat) := do
+  let md := Frontend.inProcessModeller
+  let s0 := AState.init EStore.empty
+  match (runPipelineHead md).run s0 with
+  | .error e => pure (.error e, 0)
+  | .ok (.error (e, n), _) => pure (.error (Frontend.atLine e n), 0)
+  | .ok (.ok (pre, st), s) =>
+    match ← readFold md h st .empty 0 0 0 s with
+    | .error e => pure (.error e, 0)
+    | .ok (.error (e, n), _, chunks) => pure (.error (Frontend.atLine e n), chunks)
+    | .ok (.ok r, s, chunks) =>
+      match (runPipelineTail pre r).run s with
+      | .error e => pure (.error e, chunks)
+      | .ok ((records, nE, nL, nN), _) =>
+        pure (.error (.notImplemented
+          s!"arena checker: fold not yet implemented ({records} declarations \
+            parsed; store: {nE} expression, {nL} level, {nN} name nodes)"), chunks)
 
 /-- con-leche: Main.lean:714-944 usage
 The usage text, on stdout under `--help` and on stderr before a usage
@@ -339,13 +422,13 @@ def checkMain (file : String) (mode : CheckMode) (stride : Nat) : IO UInt32 := d
       IO.eprintln s!"con-ron-lean: {file}: {e} ({modeTag})"
       pure none
   let some h := h? | return 3
-  let chunks ← readChunks h #[]
-  let tRead ← IO.monoMsNow
+  let (verdict, chunks) ← runPipelineIO h mode natOpPinSets
   if stride > 0 then
-    IO.eprintln s!"con-ron-lean: read done: {chunks.length} chunks \
+    let tRead ← IO.monoMsNow
+    IO.eprintln s!"con-ron-lean: parse done: {chunks} chunks read \
       t={msSecs (tRead - t0)}s"
     (← IO.getStderr).flush
-  match runPipeline chunks mode natOpPinSets with
+  match verdict with
   | .ok records =>
     IO.println s!"con-ron-lean: accepted {records} declarations ({modeTag})"
     return 0
