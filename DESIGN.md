@@ -2098,6 +2098,26 @@ the persistent tier (the byte recogniser is unchanged).
         the P2b–P2d discipline, written out in task #97s's section.  The C/D
         proofs were not closed; the decision is argued there from the
         structure of the statements and from what was measured.
+    **REORDERED (maintainer, 2026-09-20): code first, proofs later.**
+        "maybe first write the twin and the rust code, without the proofs,
+        and measure performance, and tweak it based on profiling etc.
+        Better to first write the code the way we want it and then prove
+        it.  Keep the lean twin and the rust code in sync while doing that,
+        and keep in mind that it should be provably equal.  Investigate perf
+        or memory problems that are unexpected."  So: P2 (the twin) and P4
+        (the Rust) proceed module by module IN LOCKSTEP — each Lean module
+        landed is followed by its Rust transliteration while the next Lean
+        module is written — under the §8.4 discipline (Rust-shaped Lean, one
+        named `fail`, clause-for-clause fidelity) so that the later proofs
+        are the spike's shape; then P6 (measure, profile, tweak — Init,
+        Init+Std+Lean, Mathlib under the cap — with the twin kept in step
+        with every tweak); THEN P3 and P5.  The spike's spec theorems are
+        the template for that later phase, not a deliverable of P2/P4.
+        Rust layout during the campaign: a new verified crate
+        `crates/arena-core` and a binary `con-ron-arena`, beside the old
+        crates (master's gates stay green on the branch); the swap to
+        `con-ron-core`/`con-ron` happens when the fixtures and the Mathlib
+        run pass.
     P3  Theorem 1, tier by tier, mirroring P2's order; the frontend exactness.
     P4  (C): a. SPIKE — Rust for P2a+P2b, extract, prove the Theorem-2 lemmas
         with the grind idiom, measure lines and elaboration per lemma;
