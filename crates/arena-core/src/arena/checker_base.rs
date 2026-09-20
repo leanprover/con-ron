@@ -57,7 +57,7 @@
 
 use crate::arena::core::{
     annotate_core, append_eidx, consts_resolve, ensure_sort_core, infer_type_core, is_def_eq_core,
-    pin, reserved_basis_names, zero_level, CHECK_FUEL, CORE_WALK_FUEL, M_SORRY, M_UNKNOWN_CONST,
+    reserved_basis_names, zero_level, CHECK_FUEL, CORE_WALK_FUEL, M_SORRY, M_UNKNOWN_CONST,
 };
 use crate::arena::core_state::Caches;
 use crate::arena::env::{
@@ -76,7 +76,7 @@ use crate::arena::monad::{
 use crate::arena::store::{
     ENodeView, NNodeView,
 };
-use con_ron_core::kernel::basis_names;
+use crate::arena::pins::{pin_eq, pin_sorry_ax};
 use con_ron_core::kernel::core_types::{code_points, CheckError};
 use con_ron_core::kernel::env::CheckMode;
 use con_ron_core::kernel::expr::BinderMeta;
@@ -802,7 +802,7 @@ pub fn fvar_type_ds(
 /// because the walk reads the store; the twin's `where_ : String` argument only
 /// names the slot in the message, and §3.1 drops the interpolation.
 pub fn unresolved_consts_error(st: &mut AState, e: &EIdx) -> Result<CheckError, CheckError> {
-    match pin(st, &basis_names::sorry_ax_name()) {
+    match pin_sorry_ax(st) {
         Err(err) => Err(err),
         Ok(sa) => match crate::arena::inductives::struct_parts::mentions_const(st, &sa, e) {
             Err(err) => Err(err),
@@ -1188,7 +1188,7 @@ pub fn check_annot_list(
 pub fn is_eq_head(st: &mut AState, h: &EIdx) -> Result<bool, CheckError> {
     match view(st, h) {
         Err(e) => Err(e),
-        Ok(ENodeView::Const(c, us)) => match pin(st, &basis_names::eq_name()) {
+        Ok(ENodeView::Const(c, us)) => match pin_eq(st) {
             Err(e) => Err(e),
             Ok(en) => {
                 if c.eq2(&en) {

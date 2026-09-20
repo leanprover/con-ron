@@ -101,6 +101,18 @@ pub fn check_ind_decl(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// con-leche: none — a test fixture
+    /// The state the driver builds: an empty store with the reserved-name
+    /// pins interned (task #97-P6-4a).  Every subject below reads a pin
+    /// somewhere, so this is the only state they can run in.
+    fn pinned_state() -> AState {
+        let mut st = AState::init(EStore::empty());
+        match crate::arena::pins::intern_reserved_pins(&mut st) {
+            Ok(()) => st,
+            Err(_) => panic!("the reserved-name pins must intern"),
+        }
+    }
     use crate::arena::env::{
         i_constant_info_name, mk_ifenv, IConstantVal, IEnv, IIndCaps, IProjTable, IRecRule,
         IRecRuleFire,
@@ -264,7 +276,7 @@ mod tests {
     /// because `intern` is hash-consing and `denoteE` is injective (task #97a).
     fn chk(base: &Vec<ConstantInfo>, block: &Vec<ConstantInfo>, n_p: u64) -> bool {
         let want = expect(base, block, n_p);
-        let mut st = AState::init(EStore::empty());
+        let mut st = pinned_state();
         // `IEnv.consts` is oldest-first here and the cited list is
         // newest-first, so the base is interned back to front (`env_of` does
         // the same on con-ron-core's side)
@@ -848,7 +860,7 @@ mod tests {
     #[test]
     fn the_installed_names_line_up() {
         let b = pair_block();
-        let mut st = AState::init(EStore::empty());
+        let mut st = pinned_state();
         let fe = mk_ifenv(IEnv { consts: Vec::new() });
         let iblock: Vec<IConstantInfo> = b.iter().map(|c| intern_ci(&mut st, c)).collect();
         let got = match check_ind_decl(mode(), fe, iblock, 2, &mut st) {

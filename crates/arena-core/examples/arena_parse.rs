@@ -127,6 +127,15 @@ fn main() {
     // the checker state and not the bare store (DESIGN.md §8.4: the twin's one
     // monad is `StateT AState (Except CheckError)` throughout).
     let mut ar = AState::init(EStore::empty());
+    // The reserved-name pins, exactly as the driver interns them (task
+    // #97-P6-4a): before the parse, while the scratch tier is still closed.
+    match arena_core::arena::pins::intern_reserved_pins(&mut ar) {
+        Ok(()) => (),
+        Err(_) => {
+            eprintln!("arena_parse: the reserved-name pins do not intern");
+            std::process::exit(3);
+        }
+    }
     let md = DeclineModeller {};
 
     // 1. the built-in prelude, into the same store

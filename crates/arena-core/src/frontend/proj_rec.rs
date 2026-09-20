@@ -1897,6 +1897,9 @@ mod tests {
     /// `arena::intern`'s own walk (so the round trip below checks that too).
     fn build() -> (Fx, AState) {
         let mut st = AState::init(EStore::empty());
+        // The reserved-name pins, as the driver interns them (task
+        // #97-P6-4a): `proj_rec_owners` reaches `sort_one`, which is one.
+        ok(crate::arena::pins::intern_reserved_pins(&mut st));
         let s_h = ok(intern_name(&mut st, &s_name()));
         let mk_h = ok(intern_name(&mut st, &mk_name()));
         let rec_h = ok(intern_name(&mut st, &rec_name()));

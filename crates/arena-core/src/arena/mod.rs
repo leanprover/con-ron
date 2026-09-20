@@ -15,6 +15,7 @@
 //! | `core_gated` | `proof/ConRon/Arena/CoreGated.lean` |
 //! | `inductives` | `proof/ConRon/Arena/Inductives.lean` and `Inductives/*` |
 //! | `promote` | `proof/ConRon/Arena/Promote.lean` |
+//! | `pins` | OWED (task #97-P6-4a's twin ledger): `Pins` in `Monad.lean` |
 //!
 //! `Denote.lean`, `WF.lean` and `WFProofs.lean` have no Rust counterpart and
 //! never will: they are the arena's own verification (DESIGN.md §8.6's P2a,
@@ -23,6 +24,7 @@
 pub mod handle;
 pub mod store;
 pub mod core_state;
+pub mod pins;
 pub mod monad;
 pub mod expr_ops;
 pub mod env;

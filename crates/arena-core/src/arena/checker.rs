@@ -46,7 +46,7 @@ use crate::arena::checker_split::{
 };
 use crate::arena::core::{
     drop_scratch, enter_scratch, flush_caches, nat_div_mod_names, nat_op_deps,
-    nat_op_equations, nat_op_guard, nat_op_names, pin, CORE_WALK_FUEL,
+    nat_op_equations, nat_op_guard, nat_op_names, CORE_WALK_FUEL,
 };
 use crate::arena::decl_check::{
     certify_nat_eqs, check_defn_val, check_div_mod_pin, check_opaque_val, check_reduce_pin,
@@ -65,7 +65,7 @@ use crate::arena::std_axioms::{choice_name, propext_name};
 use crate::arena::trust_axioms::{
     of_reduce_bool_name, of_reduce_nat_name, reduce_op_names, trust_compiler_name,
 };
-use con_ron_core::kernel::basis_names;
+use crate::arena::pins::{pin_quot_sound, pin_sorry_ax};
 use con_ron_core::kernel::core_k;
 use con_ron_core::kernel::core_types::{code_points, CheckError};
 use con_ron_core::kernel::env as cenv;
@@ -466,7 +466,7 @@ pub fn check_axiom_decl(
     fe: IFEnv,
     cv: &IConstantVal,
 ) -> Result<IFEnv, CheckError> {
-    match pin(st, &basis_names::quot_sound_name()) {
+    match pin_quot_sound(st) {
         Err(e) => Err(e),
         Ok(qs) => {
             if cv.name.eq2(&qs) {
@@ -640,7 +640,7 @@ pub fn check_axiom_decl_rest(
                 if cv_a.name.eq2(&pn) || cv_a.name.eq2(&cn) {
                     fail(CheckError::NotImplemented(code_points(&M_STD_AXIOM_SHAPE)))
                 } else {
-                    match pin(st, &basis_names::sorry_ax_name()) {
+                    match pin_sorry_ax(st) {
                         Err(e) => Err(e),
                         Ok(sa) => {
                             if cv_a.name.eq2(&sa) {
@@ -1447,9 +1447,9 @@ pub fn intern_all_names(st: &mut AState) -> Result<(), CheckError> {
                 Err(e) => Err(e),
                 Ok(_) => match reduce_op_names(st) {
                     Err(e) => Err(e),
-                    Ok(_) => match pin(st, &basis_names::sorry_ax_name()) {
+                    Ok(_) => match pin_sorry_ax(st) {
                         Err(e) => Err(e),
-                        Ok(_) => match pin(st, &basis_names::quot_sound_name()) {
+                        Ok(_) => match pin_quot_sound(st) {
                             Err(e) => Err(e),
                             Ok(_) => Ok(()),
                         },
@@ -1467,12 +1467,26 @@ pub fn intern_all_names(st: &mut AState) -> Result<(), CheckError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// con-leche: none — a test fixture
+    /// The state the driver builds: an empty store with the reserved-name
+    /// pins interned (task #97-P6-4a).  Every subject below reads a pin
+    /// somewhere, so this is the only state they can run in.
+    fn pinned_state() -> AState {
+        let mut st = AState::init(EStore::empty());
+        match crate::arena::pins::intern_reserved_pins(&mut st) {
+            Ok(()) => st,
+            Err(_) => panic!("the reserved-name pins must intern"),
+        }
+    }
     use crate::arena::canon::i_constant_info_beq;
+    use crate::arena::core::pin;
     use crate::arena::intern::{intern_ci_list, intern_cv, intern_decls};
     use crate::arena::std_axioms::i_constant_val_matches_pin;
     use crate::arena::store::EStore;
     use con_ron_core::cached::state_c;
     use con_ron_core::cached::state_c::CState;
+    use con_ron_core::kernel::basis_names;
     use con_ron_core::kernel::basis_raw;
     use con_ron_core::kernel::canon as ccanon;
     use con_ron_core::kernel::checker as ckr;
@@ -1570,7 +1584,7 @@ mod tests {
 
     /// Intern a declaration list and run the arena's `check_decls_pure` on it.
     fn run_decls(ds_cl: &Vec<Declaration>) -> (AState, Result<IFEnv, CheckError>) {
-        let mut st = AState::init(EStore::empty());
+        let mut st = pinned_state();
         let ds = ok(intern_decls(&mut st, ds_cl));
         let r = check_decls_pure(&mut st, &mu(), &no_pins_i(), &ds);
         (st, r)
@@ -1601,7 +1615,7 @@ mod tests {
     /// con-ron-core's side and by interning ITS result on the arena's, so the
     /// two calls see the same environment and the check is about the STEP.
     fn chk_decl(env_cl: &Env, d_cl: &Declaration) -> bool {
-        let mut st = AState::init(EStore::empty());
+        let mut st = pinned_state();
         let cs = ok(intern_ci_list(&mut st, &unshare(&env_cl.consts)));
         let mut ds1: Vec<Declaration> = Vec::with_capacity(1);
         ds1.push(con_ron_core::frontend::export_c::declaration_dup(d_cl));
@@ -1628,7 +1642,7 @@ mod tests {
     /// leaked out of the scratch tier would make the installed environment
     /// compare unequal to con-ron-core's.
     fn chk_install(ds_cl: &Vec<Declaration>) -> bool {
-        let mut st = AState::init(EStore::empty());
+        let mut st = pinned_state();
         let ds = ok(intern_decls(&mut st, ds_cl));
         let pins = ok(intern_all_pins(&mut st, &no_pins()));
         let arena = install_then_check(&mut st, &mu(), &pins, &ds);
@@ -2037,7 +2051,7 @@ mod tests {
 
     /// The arena's `std_axiom_ok` against con-ron-core's.
     fn chk_std_axiom(env_cl: &Env, c: &ConstantVal) -> bool {
-        let mut st = AState::init(EStore::empty());
+        let mut st = pinned_state();
         let cs = ok(intern_ci_list(&mut st, &unshare(&env_cl.consts)));
         let icv = ok(intern_cv(&mut st, c));
         let fe: IFEnv = mk_ifenv(crate::arena::env::IEnv { consts: cs });
@@ -2065,7 +2079,7 @@ mod tests {
     /// that differs in its type (which it does not), and on one that differs in
     /// its level parameters.
     fn chk_matches_pin(c: &ConstantVal, pin: &ConstantVal) -> bool {
-        let mut st = AState::init(EStore::empty());
+        let mut st = pinned_state();
         let a = ok(intern_cv(&mut st, c));
         let b = ok(intern_cv(&mut st, pin));
         let got = ok(i_constant_val_matches_pin(&st, &a, &b));
@@ -2110,7 +2124,7 @@ mod tests {
     /// The arena's `canonEqList` against con-ron-core's, on the pinned blocks
     /// and on a block that is not one.
     fn chk_canon_list(xs: &Vec<ConstantInfo>, ys: &Vec<ConstantInfo>) -> bool {
-        let mut st = AState::init(EStore::empty());
+        let mut st = pinned_state();
         let a = ok(intern_ci_list(&mut st, xs));
         let b = ok(intern_ci_list(&mut st, ys));
         let got = ok(crate::arena::canon::canon_eq_list(&mut st, &a, &b, 0));
@@ -2132,7 +2146,7 @@ mod tests {
 
     /// The arena's `basisPinHit` against con-ron-core's.
     fn chk_basis_pin_hit(block: &Vec<ConstantInfo>) -> bool {
-        let mut st = AState::init(EStore::empty());
+        let mut st = pinned_state();
         let b = ok(intern_ci_list(&mut st, block));
         let got = ok(basis_pin_hit(&mut st, &b));
         let want = basis_raw::basis_pin_hit(block);
@@ -2173,7 +2187,7 @@ mod tests {
     /// tests this from outside, through `chkInstall`'s readback.
     #[test]
     fn the_startup_walk_interns_into_the_persistent_tier() {
-        let mut st = AState::init(EStore::empty());
+        let mut st = pinned_state();
         let _ = ok(intern_all_pins(&mut st, &no_pins()));
         let n0 = st.store.pers_count();
         assert!(n0 > 0);
@@ -2232,7 +2246,7 @@ mod tests {
                     Err(_) => panic!("the embedded pin text must decode"),
                 };
                 assert!(pins.len() > 0);
-                let mut st = AState::init(EStore::empty());
+                let mut st = pinned_state();
                 let ip = ok(intern_all_pins(&mut st, &pins));
                 assert_eq!(ip.len(), pins.len());
                 // every interned pin is a PERSISTENT handle — the startup walk

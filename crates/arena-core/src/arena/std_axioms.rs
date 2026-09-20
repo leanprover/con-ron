@@ -63,49 +63,49 @@ pub const M_FUEL_ERASE_PW: [u32; 25] = [
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:38-39 propextName
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:37 propextName`.
 pub fn propext_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    crate::arena::core::pin(st, &cstd::propext_name())
+    crate::arena::pins::pin_propext(st)
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:41-42 choiceName
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:39 choiceName`.
 pub fn choice_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    crate::arena::core::pin(st, &cstd::choice_name())
+    crate::arena::pins::pin_choice(st)
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:44-45 iffName
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:41 iffName`.
 pub fn iff_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    crate::arena::core::pin(st, &cstd::iff_name())
+    crate::arena::pins::pin_iff(st)
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:47-48 iffIntroName
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:43 iffIntroName`.
 pub fn iff_intro_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    crate::arena::core::pin(st, &cstd::iff_intro_name())
+    crate::arena::pins::pin_iff_intro(st)
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:50-51 iffRecName
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:45 iffRecName`.
 pub fn iff_rec_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    crate::arena::core::pin(st, &cstd::iff_rec_name())
+    crate::arena::pins::pin_iff_rec(st)
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:53-54 nonemptyName
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:47 nonemptyName`.
 pub fn nonempty_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    crate::arena::core::pin(st, &cstd::nonempty_name())
+    crate::arena::pins::pin_nonempty(st)
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:56-57 nonemptyIntroName
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:49 nonemptyIntroName`.
 pub fn nonempty_intro_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    crate::arena::core::pin(st, &cstd::nonempty_intro_name())
+    crate::arena::pins::pin_nonempty_intro(st)
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:59-60 nonemptyRecName
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:51 nonemptyRecName`.
 pub fn nonempty_rec_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    crate::arena::core::pin(st, &cstd::nonempty_rec_name())
+    crate::arena::pins::pin_nonempty_rec(st)
 }
 
 // ---------------------------------------------------------------------------

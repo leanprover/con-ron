@@ -59,6 +59,7 @@
 use crate::arena::core_state::reset_map;
 use crate::arena::core_state::Caches;
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
+use crate::arena::pins::Pins;
 use crate::arena::store::{
     ENodeView, EStore, LDer, LNodeView, LStore, LsNodeView, LsStore, NNodeView, NStore,
 };
@@ -266,6 +267,13 @@ pub struct AState {
     /// A record of its own beside `memos`, because the per-call clear and the
     /// per-declaration drop are different operations on different lifetimes.
     pub caches: Caches,
+    /// The reserved-name pins (task #97-P6-4a, `arena::pins`): the
+    /// forty-nine constant names, the empty level list, the level `0` and
+    /// `Sort 1`, interned ONCE into the persistent tier by the driver's
+    /// `intern_all_pins` and read by handle ever after.  Empty until then,
+    /// which is what makes a premature read a stop rather than a wrong
+    /// answer (task #97c's hazard).
+    pub pins: Pins,
 }
 
 /// con-leche: none — the initial state over a given arena
@@ -274,7 +282,12 @@ impl AState {
     /// con-leche: none — the initial state over a given arena
     /// Lean twin: `proof/ConRon/Arena/Monad.lean:124 AState.init`.
     pub fn init(st: EStore) -> AState {
-        AState { store: st, memos: Memos::empty(), caches: Caches::empty() }
+        AState {
+            store: st,
+            memos: Memos::empty(),
+            caches: Caches::empty(),
+            pins: Pins::empty(),
+        }
     }
 }
 

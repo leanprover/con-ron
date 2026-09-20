@@ -95,6 +95,7 @@ use crate::arena::monad::{
 };
 use crate::arena::prop_read::{is_proof_fast, not_proof_fast, proof_pw, type_sort_pw};
 use crate::arena::store::{ENodeView, LNodeView, NNodeView};
+use crate::arena::pins::{pin_and, pin_bool, pin_bool_false, pin_bool_true, pin_char, pin_char_of_nat, pin_empty_levels, pin_list, pin_list_cons, pin_list_nil, pin_nat, pin_nat_add, pin_nat_beq, pin_nat_ble, pin_nat_div, pin_nat_gcd, pin_nat_land, pin_nat_lor, pin_nat_mod, pin_nat_mul, pin_nat_pow, pin_nat_pred, pin_nat_shift_left, pin_nat_shift_right, pin_nat_sub, pin_nat_succ, pin_nat_xor, pin_nat_zero, pin_punit, pin_punit_rec, pin_sorry_ax, pin_sort_one, pin_string, pin_string_of_list, pin_zero_level};
 use con_ron_core::kernel::basis_names;
 use con_ron_core::kernel::core_k;
 use con_ron_core::kernel::core_types::{code_points, code_points_from, CheckError};
@@ -470,28 +471,30 @@ pub fn pin(st: &mut AState, n: &Name) -> Result<NIdx, CheckError> {
 /// con-leche: none — the empty universe-argument list, interned
 /// Lean twin: `proof/ConRon/Arena/Core.lean:113 emptyLevels` — `us ==
 /// emptyLevels` is con-leche's pattern `.const _ []`.
-pub fn empty_levels(st: &mut AState) -> Result<LsIdx, CheckError> {
-    intern_ls_node(st, Vec::new())
+///
+/// **Task #97-P6-4a: read off `arena::pins`, not interned.**  The twin's
+/// `internLs []` and this read hand back the same handle, because
+/// `intern_reserved_pins` interned exactly this node at startup and `intern` is
+/// idempotent on a hash-consed store.  `&AState`, not `&mut`: the state is
+/// only read, which is what lets the callers below keep their borrow.
+pub fn empty_levels(st: &AState) -> Result<LsIdx, CheckError> {
+    pin_empty_levels(st)
 }
 
 /// con-leche: none — the level `0`, interned
 /// Lean twin: `proof/ConRon/Arena/Core.lean:117 zeroLevel` — the comparand of
-/// every `Level.isEquiv u .zero` in this module.
-pub fn zero_level(st: &mut AState) -> Result<LIdx, CheckError> {
-    intern_l_node(st, LNodeView::Zero)
+/// every `Level.isEquiv u .zero` in this module.  Task #97-P6-4a: the pin.
+pub fn zero_level(st: &AState) -> Result<LIdx, CheckError> {
+    pin_zero_level(st)
 }
 
 /// con-leche: none — the expression `Sort 1`, interned
 /// Lean twin: `proof/ConRon/Arena/Core.lean:121-124 sortOne` — the pinned type
-/// of `Nat`, `String`, `Char` and `Bool`.
-pub fn sort_one(st: &mut AState) -> Result<EIdx, CheckError> {
-    match intern_l_node(st, LNodeView::Zero) {
-        Err(e) => Err(e),
-        Ok(z) => match intern_l_node(st, LNodeView::Succ(z)) {
-            Err(e) => Err(e),
-            Ok(o) => intern_e(st, ENodeView::Sort(o)),
-        },
-    }
+/// of `Nat`, `String`, `Char` and `Bool`.  Task #97-P6-4a: the pin, which
+/// saves three interns (the level `0`, its successor and the `sort` node) on
+/// every call.
+pub fn sort_one(st: &AState) -> Result<EIdx, CheckError> {
+    pin_sort_one(st)
 }
 
 /// con-leche: none — a level-monomorphic constant `.const n []`, interned
@@ -762,7 +765,7 @@ pub fn rule_rhs_set(st: &mut AState, k: NNLsKey, r: &EIdx) {
 /// readback is gone with it and the comparison is the handle equality
 /// DESIGN.md §8.3 licenses.
 pub fn unknown_const_error(st: &mut AState, n: &NIdx) -> Result<CheckError, CheckError> {
-    match pin(st, &basis_names::sorry_ax_name()) {
+    match pin_sorry_ax(st) {
         Err(e) => Err(e),
         Ok(sa) => {
             if n.eq2(&sa) {
@@ -920,7 +923,7 @@ pub fn caps_never_zero(
 pub fn is_unit_like_ty(st: &mut AState, fe: &IFEnv, h: &EIdx) -> Result<bool, CheckError> {
     match view(st, h) {
         Err(e) => Err(e),
-        Ok(ENodeView::Const(c, _)) => match pin(st, &basis_names::punit_name()) {
+        Ok(ENodeView::Const(c, _)) => match pin_punit(st) {
             Err(e) => Err(e),
             Ok(pu) => {
                 if !c.eq2(&pu) {
@@ -928,7 +931,7 @@ pub fn is_unit_like_ty(st: &mut AState, fe: &IFEnv, h: &EIdx) -> Result<bool, Ch
                 } else {
                     match env::ifenv_find(fe, &pu) {
                         Some(IConstantInfo::IndInfo(_, _)) => {
-                            match pin(st, &basis_names::punit_rec_name()) {
+                            match pin_punit_rec(st) {
                                 Err(e) => Err(e),
                                 Ok(pr) => match env::ifenv_find(fe, &pr) {
                                     Some(IConstantInfo::RecInfo(_, m_i, r_p, rules)) => {
@@ -1099,12 +1102,12 @@ pub fn same_const_heads(
 /// `con_ron_core::kernel::core_k::nat_lit_to_constructor` spells it.
 pub fn nat_lit_to_constructor(st: &mut AState, n: &Nat) -> Result<EIdx, CheckError> {
     if nat::is_zero(n) {
-        match pin(st, &basis_names::nat_zero_name()) {
+        match pin_nat_zero(st) {
             Err(e) => Err(e),
             Ok(z) => const_e(st, &z),
         }
     } else {
-        match pin(st, &basis_names::nat_succ_name()) {
+        match pin_nat_succ(st) {
             Err(e) => Err(e),
             Ok(s) => match const_e(st, &s) {
                 Err(e) => Err(e),
@@ -1157,7 +1160,7 @@ pub fn nat_zero_ok(
         Some(IConstantInfo::CtorInfo(cv, _, _)) => {
             let lp0 = cv.level_params.len() == 0;
             let ty: EIdx = cv.ty.dup2();
-            match pin(st, &basis_names::nat_name()) {
+            match pin_nat(st) {
                 Err(e) => Err(e),
                 Ok(nt) => match const_e(st, &nt) {
                     Err(e) => Err(e),
@@ -1189,7 +1192,7 @@ pub fn nat_succ_ok(
                 Ok(false)
             } else {
                 let ty: EIdx = cv.ty.dup2();
-                match pin(st, &basis_names::nat_name()) {
+                match pin_nat(st) {
                     Err(e) => Err(e),
                     Ok(nt) => match const_e(st, &nt) {
                         Err(e) => Err(e),
@@ -1219,17 +1222,17 @@ pub fn nat_succ_ok(
 /// the environment supports `Nat` literals.  One twin for con-leche's two
 /// spellings (deviation 1).
 pub fn nat_lit_supported(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
-    match pin(st, &basis_names::nat_name()) {
+    match pin_nat(st) {
         Err(e) => Err(e),
         Ok(nt) => match nat_ind_ok(st, env::ifenv_find(fe, &nt)) {
             Err(e) => Err(e),
             Ok(false) => Ok(false),
-            Ok(true) => match pin(st, &basis_names::nat_zero_name()) {
+            Ok(true) => match pin_nat_zero(st) {
                 Err(e) => Err(e),
                 Ok(nz) => match nat_zero_ok(st, env::ifenv_find(fe, &nz)) {
                     Err(e) => Err(e),
                     Ok(false) => Ok(false),
-                    Ok(true) => match pin(st, &basis_names::nat_succ_name()) {
+                    Ok(true) => match pin_nat_succ(st) {
                         Err(e) => Err(e),
                         Ok(ns) => nat_succ_ok(st, env::ifenv_find(fe, &ns)),
                     },
@@ -1256,11 +1259,11 @@ pub fn stored(fe: &IFEnv, n: &NIdx) -> bool {
 /// (`con_ron_core::kernel::core_k::nat_trio_stored`'s reason: the `String`
 /// arm repeats them).
 pub fn nat_trio_stored(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
-    match pin(st, &basis_names::nat_name()) {
+    match pin_nat(st) {
         Err(e) => Err(e),
-        Ok(nt) => match pin(st, &basis_names::nat_zero_name()) {
+        Ok(nt) => match pin_nat_zero(st) {
             Err(e) => Err(e),
-            Ok(nz) => match pin(st, &basis_names::nat_succ_name()) {
+            Ok(nz) => match pin_nat_succ(st) {
                 Err(e) => Err(e),
                 Ok(ns) => Ok(stored(fe, &nt) && stored(fe, &nz) && stored(fe, &ns)),
             },
@@ -1272,19 +1275,19 @@ pub fn nat_trio_stored(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> 
 /// Lean twin: `proof/ConRon/Arena/Core.lean:484-499 constsResolve` — the
 /// `.lit (.strVal _)` arm's seven further `find?`s.
 pub fn str_support_stored(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
-    match pin(st, &basis_names::string_name()) {
+    match pin_string(st) {
         Err(e) => Err(e),
-        Ok(a1) => match pin(st, &basis_names::string_of_list_name()) {
+        Ok(a1) => match pin_string_of_list(st) {
             Err(e) => Err(e),
-            Ok(a2) => match pin(st, &basis_names::list_name()) {
+            Ok(a2) => match pin_list(st) {
                 Err(e) => Err(e),
-                Ok(a3) => match pin(st, &basis_names::list_nil_name()) {
+                Ok(a3) => match pin_list_nil(st) {
                     Err(e) => Err(e),
-                    Ok(a4) => match pin(st, &basis_names::list_cons_name()) {
+                    Ok(a4) => match pin_list_cons(st) {
                         Err(e) => Err(e),
-                        Ok(a5) => match pin(st, &basis_names::char_name()) {
+                        Ok(a5) => match pin_char(st) {
                             Err(e) => Err(e),
-                            Ok(a6) => match pin(st, &basis_names::char_of_nat_name()) {
+                            Ok(a6) => match pin_char_of_nat(st) {
                                 Err(e) => Err(e),
                                 Ok(a7) => Ok(stored(fe, &a1)
                                     && stored(fe, &a2)
@@ -1407,7 +1410,7 @@ pub fn raw_nat_lit(st: &mut AState, h: &EIdx) -> Result<Option<Nat>, CheckError>
         Ok(ENodeView::Lit(Literal::NatVal(n))) => Ok(Some(nat::clone(&n))),
         Ok(ENodeView::Const(c, us)) => match empty_levels(st) {
             Err(e) => Err(e),
-            Ok(el) => match pin(st, &basis_names::nat_zero_name()) {
+            Ok(el) => match pin_nat_zero(st) {
                 Err(e) => Err(e),
                 Ok(nz) => {
                     if c.eq2(&nz) && us.eq2(&el) {
@@ -1474,13 +1477,13 @@ pub fn str_lit_to_constructor_rest(
     ch_c: &EIdx,
     nil_e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match pin(st, &basis_names::list_cons_name()) {
+    match pin_list_cons(st) {
         Err(e) => Err(e),
         Ok(lc_n) => match intern_e(st, ENodeView::Const(lc_n, zs.dup2())) {
             Err(e) => Err(e),
             Ok(lc) => match intern_e(st, ENodeView::App(lc, ch_c.dup2())) {
                 Err(e) => Err(e),
-                Ok(cons) => match pin(st, &basis_names::char_of_nat_name()) {
+                Ok(cons) => match pin_char_of_nat(st) {
                     Err(e) => Err(e),
                     Ok(co_n) => match const_e(st, &co_n) {
                         Err(e) => Err(e),
@@ -1488,7 +1491,7 @@ pub fn str_lit_to_constructor_rest(
                             match str_lit_cons_spine(st, &cons, &of_nat, nil_e, s, 0) {
                                 Err(e) => Err(e),
                                 Ok(spine) => {
-                                    match pin(st, &basis_names::string_of_list_name()) {
+                                    match pin_string_of_list(st) {
                                         Err(e) => Err(e),
                                         Ok(sl_n) => match const_e(st, &sl_n) {
                                             Err(e) => Err(e),
@@ -1519,11 +1522,11 @@ pub fn str_lit_to_constructor(st: &mut AState, s: &Vec<u32>) -> Result<EIdx, Che
             zl.push(z);
             match intern_ls_node(st, zl) {
                 Err(e) => Err(e),
-                Ok(zs) => match pin(st, &basis_names::char_name()) {
+                Ok(zs) => match pin_char(st) {
                     Err(e) => Err(e),
                     Ok(ch_n) => match const_e(st, &ch_n) {
                         Err(e) => Err(e),
-                        Ok(ch_c) => match pin(st, &basis_names::list_nil_name()) {
+                        Ok(ch_c) => match pin_list_nil(st) {
                             Err(e) => Err(e),
                             Ok(ln_n) => {
                                 match intern_e(st, ENodeView::Const(ln_n, zs.dup2())) {
@@ -1709,7 +1712,7 @@ pub fn list_nil_ty_ok(
                                     match intern_ls_node(st, pv) {
                                         Err(e) => Err(e),
                                         Ok(ps) => {
-                                            match pin(st, &basis_names::list_name()) {
+                                            match pin_list(st) {
                                                 Err(e) => Err(e),
                                                 Ok(li) => list_nil_ty_body(
                                                     st, &cv.ty, &sort, &ps, &li,
@@ -1794,7 +1797,7 @@ pub fn list_cons_ty_at(st: &mut AState, ty: &EIdx, p: &NIdx) -> Result<bool, Che
                     pv.push(pl);
                     match intern_ls_node(st, pv) {
                         Err(e) => Err(e),
-                        Ok(ps) => match pin(st, &basis_names::list_name()) {
+                        Ok(ps) => match pin_list(st) {
                             Err(e) => Err(e),
                             Ok(li) => match intern_e(st, ENodeView::BVar(0)) {
                                 Err(e) => Err(e),
@@ -1858,11 +1861,11 @@ pub fn char_of_nat_ty_ok(
                 if cv.level_params.len() != 0 {
                     Ok(false)
                 } else {
-                    match pin(st, &basis_names::nat_name()) {
+                    match pin_nat(st) {
                         Err(e) => Err(e),
                         Ok(nt) => match const_e(st, &nt) {
                             Err(e) => Err(e),
-                            Ok(nc) => match pin(st, &basis_names::char_name()) {
+                            Ok(nc) => match pin_char(st) {
                                 Err(e) => Err(e),
                                 Ok(ch) => match const_e(st, &ch) {
                                     Err(e) => Err(e),
@@ -1899,18 +1902,18 @@ pub fn string_of_list_ty_body(st: &mut AState, ty: &EIdx) -> Result<bool, CheckE
             zv.push(z);
             match intern_ls_node(st, zv) {
                 Err(e) => Err(e),
-                Ok(zs) => match pin(st, &basis_names::list_name()) {
+                Ok(zs) => match pin_list(st) {
                     Err(e) => Err(e),
                     Ok(li) => match intern_e(st, ENodeView::Const(li, zs)) {
                         Err(e) => Err(e),
-                        Ok(lc) => match pin(st, &basis_names::char_name()) {
+                        Ok(lc) => match pin_char(st) {
                             Err(e) => Err(e),
                             Ok(ch) => match const_e(st, &ch) {
                                 Err(e) => Err(e),
                                 Ok(cc) => match intern_e(st, ENodeView::App(lc, cc)) {
                                     Err(e) => Err(e),
                                     Ok(dom) => {
-                                        match pin(st, &basis_names::string_name()) {
+                                        match pin_string(st) {
                                             Err(e) => Err(e),
                                             Ok(stn) => match const_e(st, &stn) {
                                                 Err(e) => Err(e),
@@ -1966,28 +1969,28 @@ pub fn string_of_list_ty_ok(
 /// five guards of the cited chain (`List`, `List.nil`, `List.cons`, `Char`,
 /// `Char.ofNat`), split off so the nesting stays readable.
 pub fn str_lit_supported_rest(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
-    match pin(st, &basis_names::list_name()) {
+    match pin_list(st) {
         Err(e) => Err(e),
         Ok(li) => match list_ty_ok(st, env::ifenv_find(fe, &li)) {
             Err(e) => Err(e),
             Ok(false) => Ok(false),
-            Ok(true) => match pin(st, &basis_names::list_nil_name()) {
+            Ok(true) => match pin_list_nil(st) {
                 Err(e) => Err(e),
                 Ok(ln) => match list_nil_ty_ok(st, env::ifenv_find(fe, &ln)) {
                     Err(e) => Err(e),
                     Ok(false) => Ok(false),
-                    Ok(true) => match pin(st, &basis_names::list_cons_name()) {
+                    Ok(true) => match pin_list_cons(st) {
                         Err(e) => Err(e),
                         Ok(lc) => match list_cons_ty_ok(st, env::ifenv_find(fe, &lc)) {
                             Err(e) => Err(e),
                             Ok(false) => Ok(false),
-                            Ok(true) => match pin(st, &basis_names::char_name()) {
+                            Ok(true) => match pin_char(st) {
                                 Err(e) => Err(e),
                                 Ok(ch) => match char_ty_ok(st, env::ifenv_find(fe, &ch)) {
                                     Err(e) => Err(e),
                                     Ok(false) => Ok(false),
                                     Ok(true) => {
-                                        match pin(st, &basis_names::char_of_nat_name()) {
+                                        match pin_char_of_nat(st) {
                                             Err(e) => Err(e),
                                             Ok(co) => char_of_nat_ty_ok(
                                                 st,
@@ -2014,12 +2017,12 @@ pub fn str_lit_supported(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError
     match nat_lit_supported(st, fe) {
         Err(e) => Err(e),
         Ok(false) => Ok(false),
-        Ok(true) => match pin(st, &basis_names::string_name()) {
+        Ok(true) => match pin_string(st) {
             Err(e) => Err(e),
             Ok(stn) => match string_ty_ok(st, env::ifenv_find(fe, &stn)) {
                 Err(e) => Err(e),
                 Ok(false) => Ok(false),
-                Ok(true) => match pin(st, &basis_names::string_of_list_name()) {
+                Ok(true) => match pin_string_of_list(st) {
                     Err(e) => Err(e),
                     Ok(sl) => match string_of_list_ty_ok(st, env::ifenv_find(fe, &sl)) {
                         Err(e) => Err(e),
@@ -2046,109 +2049,109 @@ pub fn str_lit_supported(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError
 /// con-leche: ConLeche/Kernel/Core.lean:542 natPredName
 /// Lean twin: `proof/ConRon/Arena/Core.lean:735 natPredName`.
 pub fn nat_pred_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    pin(st, &core_k::nat_pred_name())
+    pin_nat_pred(st)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:543 natAddName
 /// Lean twin: `proof/ConRon/Arena/Core.lean:737 natAddName`.
 pub fn nat_add_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    pin(st, &core_k::nat_add_name())
+    pin_nat_add(st)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:544 natSubName
 /// Lean twin: `proof/ConRon/Arena/Core.lean:739 natSubName`.
 pub fn nat_sub_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    pin(st, &core_k::nat_sub_name())
+    pin_nat_sub(st)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:545 natMulName
 /// Lean twin: `proof/ConRon/Arena/Core.lean:741 natMulName`.
 pub fn nat_mul_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    pin(st, &core_k::nat_mul_name())
+    pin_nat_mul(st)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:546 natPowName
 /// Lean twin: `proof/ConRon/Arena/Core.lean:743 natPowName`.
 pub fn nat_pow_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    pin(st, &core_k::nat_pow_name())
+    pin_nat_pow(st)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:547 natBeqName
 /// Lean twin: `proof/ConRon/Arena/Core.lean:745 natBeqName`.
 pub fn nat_beq_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    pin(st, &core_k::nat_beq_name())
+    pin_nat_beq(st)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:548 natBleName
 /// Lean twin: `proof/ConRon/Arena/Core.lean:747 natBleName`.
 pub fn nat_ble_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    pin(st, &core_k::nat_ble_name())
+    pin_nat_ble(st)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:549 natDivName
 /// Lean twin: `proof/ConRon/Arena/Core.lean:749 natDivName`.
 pub fn nat_div_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    pin(st, &core_k::nat_div_name())
+    pin_nat_div(st)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:550 natModName
 /// Lean twin: `proof/ConRon/Arena/Core.lean:751 natModName`.
 pub fn nat_mod_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    pin(st, &core_k::nat_mod_name())
+    pin_nat_mod(st)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:551 natGcdName
 /// Lean twin: `proof/ConRon/Arena/Core.lean:753 natGcdName`.
 pub fn nat_gcd_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    pin(st, &core_k::nat_gcd_name())
+    pin_nat_gcd(st)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:552 natLandName
 /// Lean twin: `proof/ConRon/Arena/Core.lean:755 natLandName`.
 pub fn nat_land_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    pin(st, &core_k::nat_land_name())
+    pin_nat_land(st)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:553 natLorName
 /// Lean twin: `proof/ConRon/Arena/Core.lean:757 natLorName`.
 pub fn nat_lor_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    pin(st, &core_k::nat_lor_name())
+    pin_nat_lor(st)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:554 natXorName
 /// Lean twin: `proof/ConRon/Arena/Core.lean:759 natXorName`.
 pub fn nat_xor_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    pin(st, &core_k::nat_xor_name())
+    pin_nat_xor(st)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:555 natShiftLeftName
 /// Lean twin: `proof/ConRon/Arena/Core.lean:761 natShiftLeftName`.
 pub fn nat_shift_left_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    pin(st, &core_k::nat_shift_left_name())
+    pin_nat_shift_left(st)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:556 natShiftRightName
 /// Lean twin: `proof/ConRon/Arena/Core.lean:763 natShiftRightName`.
 pub fn nat_shift_right_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    pin(st, &core_k::nat_shift_right_name())
+    pin_nat_shift_right(st)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:557 boolName
 /// Lean twin: `proof/ConRon/Arena/Core.lean:765 boolName`.
 pub fn bool_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    pin(st, &core_k::bool_name())
+    pin_bool(st)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:558 boolTrueName
 /// Lean twin: `proof/ConRon/Arena/Core.lean:767 boolTrueName`.
 pub fn bool_true_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    pin(st, &core_k::bool_true_name())
+    pin_bool_true(st)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:559 boolFalseName
 /// Lean twin: `proof/ConRon/Arena/Core.lean:769 boolFalseName`.
 pub fn bool_false_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    pin(st, &core_k::bool_false_name())
+    pin_bool_false(st)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:561-566 Expr.isBoolTrue
@@ -2535,7 +2538,7 @@ pub struct NatEqCtx {
 /// Lean twin: `proof/ConRon/Arena/Core.lean:857-868 natOpEquations` — the `let`
 /// prefix, as its own function.
 pub fn nat_eq_ctx(st: &mut AState, d: u64) -> Result<NatEqCtx, CheckError> {
-    match pin(st, &basis_names::nat_name()) {
+    match pin_nat(st) {
         Err(e) => Err(e),
         Ok(n_n) => match const_e(st, &n_n) {
             Err(e) => Err(e),
@@ -2543,11 +2546,11 @@ pub fn nat_eq_ctx(st: &mut AState, d: u64) -> Result<NatEqCtx, CheckError> {
                 Err(e) => Err(e),
                 Ok(x) => match intern_e(st, ENodeView::FVar(d + 1, nat_ty)) {
                     Err(e) => Err(e),
-                    Ok(y) => match pin(st, &basis_names::nat_zero_name()) {
+                    Ok(y) => match pin_nat_zero(st) {
                         Err(e) => Err(e),
                         Ok(z_n) => match const_e(st, &z_n) {
                             Err(e) => Err(e),
-                            Ok(z) => match pin(st, &basis_names::nat_succ_name()) {
+                            Ok(z) => match pin_nat_succ(st) {
                                 Err(e) => Err(e),
                                 Ok(s_n) => nat_eq_ctx_rest(st, x, y, z, s_n),
                             },
@@ -3122,7 +3125,7 @@ pub fn nat_op_cod(
                         },
                     }
                 } else {
-                    match pin(st, &basis_names::nat_name()) {
+                    match pin_nat(st) {
                         Err(er) => Err(er),
                         Ok(nn) => match const_e(st, &nn) {
                             Err(er) => Err(er),
@@ -3168,7 +3171,7 @@ pub fn nat_op_ty_pinned(
     c: &NIdx,
     ty: &EIdx,
 ) -> Result<bool, CheckError> {
-    match pin(st, &basis_names::nat_name()) {
+    match pin_nat(st) {
         Err(er) => Err(er),
         Ok(nn) => match const_e(st, &nn) {
             Err(er) => Err(er),
@@ -3398,7 +3401,7 @@ pub fn reduce_nat_succ(
             if !us.eq2(&el) {
                 Ok(None)
             } else {
-                match pin(st, &basis_names::nat_succ_name()) {
+                match pin_nat_succ(st) {
                     Err(er) => Err(er),
                     // **Both conjuncts are evaluated**, because Lean's `do`
                     // lifts `(← natLitSupported fe)` out of the condition
@@ -4860,7 +4863,7 @@ pub fn and_rescue_slots(
     n_p: u64,
     ust: &LsIdx,
 ) -> Result<bool, CheckError> {
-    match pin(st, &basis_names::and_name()) {
+    match pin_and(st) {
         Err(e) => Err(e),
         Ok(an) => and_rescue_slots_go(st, fe, &an, ctor, n_p, ust, 2, 0),
     }
@@ -5374,7 +5377,7 @@ pub fn major_to_ctor_at(
     } else if eta {
         major_to_ctor_eta(st, mode, lane, fuel, fe, depth, cvj, cvt, caps, t, major)
     } else {
-        match pin(st, &basis_names::and_name()) {
+        match pin_and(st) {
             Err(e) => Err(e),
             Ok(an) => {
                 if t.eq2(&an) {
@@ -6845,7 +6848,7 @@ pub fn infer_const(
 pub fn infer_lit_nat(st: &mut AState, fe: &IFEnv) -> Result<EIdx, CheckError> {
     match nat_lit_supported(st, fe) {
         Err(e) => Err(e),
-        Ok(true) => match pin(st, &basis_names::nat_name()) {
+        Ok(true) => match pin_nat(st) {
             Err(e) => Err(e),
             Ok(nn) => const_e(st, &nn),
         },
@@ -6861,7 +6864,7 @@ pub fn infer_lit_nat(st: &mut AState, fe: &IFEnv) -> Result<EIdx, CheckError> {
 pub fn infer_lit_str(st: &mut AState, fe: &IFEnv) -> Result<EIdx, CheckError> {
     match str_lit_supported(st, fe) {
         Err(e) => Err(e),
-        Ok(true) => match pin(st, &basis_names::string_name()) {
+        Ok(true) => match pin_string(st) {
             Err(e) => Err(e),
             Ok(sn) => const_e(st, &sn),
         },
@@ -7704,7 +7707,7 @@ pub fn defeq_lit_app(
                     Err(e) => Err(e),
                     Ok(ENodeView::Const(c, us)) => match empty_levels(st) {
                         Err(e) => Err(e),
-                        Ok(el) => match pin(st, &basis_names::nat_succ_name()) {
+                        Ok(el) => match pin_nat_succ(st) {
                             Err(e) => Err(e),
                             Ok(ns) => {
                                 if c.eq2(&ns) && us.eq2(&el) {
@@ -7743,7 +7746,7 @@ pub fn defeq_lit_app(
                 Err(e) => Err(e),
                 Ok(ENodeView::Const(c_o, us_o)) => match empty_levels(st) {
                     Err(e) => Err(e),
-                    Ok(el) => match pin(st, &basis_names::string_of_list_name()) {
+                    Ok(el) => match pin_string_of_list(st) {
                         Err(e) => Err(e),
                         Ok(sl) => match str_lit_supported(st, fe) {
                             Err(e) => Err(e),
@@ -7797,7 +7800,7 @@ pub fn defeq_lit_const(
 ) -> Result<bool, CheckError> {
     match empty_levels(st) {
         Err(e) => Err(e),
-        Ok(el) => match pin(st, &basis_names::nat_zero_name()) {
+        Ok(el) => match pin_nat_zero(st) {
             Err(e) => Err(e),
             Ok(nz) => {
                 if c.eq2(&nz) && us.eq2(&el) {
@@ -9266,6 +9269,18 @@ pub fn enter_scratch(st: &mut AState) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// con-leche: none — a test fixture
+    /// The state the driver builds: an empty store with the reserved-name
+    /// pins interned (task #97-P6-4a).  Every subject below reads a pin
+    /// somewhere, so this is the only state they can run in.
+    fn pinned_state() -> AState {
+        let mut st = AState::init(EStore::empty());
+        match crate::arena::pins::intern_reserved_pins(&mut st) {
+            Ok(()) => st,
+            Err(_) => panic!("the reserved-name pins must intern"),
+        }
+    }
     use crate::arena::core_gated;
     use crate::arena::core_io;
     use crate::arena::env::{mk_ifenv, IConstantInfo, IEnv};
@@ -9626,7 +9641,7 @@ mod tests {
         let t = terms();
         let cs = env_cl(&t);
         let cfe = fenv::mk_fenv(cenv::env_of(&cs));
-        let mut st = AState::init(EStore::empty());
+        let mut st = pinned_state();
         // the arena's `IEnv.consts` is oldest-first, so the cited
         // (newest-first) list is interned back to front
         let mut ics: Vec<IConstantInfo> = Vec::new();

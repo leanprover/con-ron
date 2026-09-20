@@ -27,7 +27,6 @@ use crate::arena::handle::{EIdx, NIdx};
 use crate::arena::intern::{intern_cv, intern_expr};
 use crate::arena::monad::{intern_e, read_name, AState};
 use crate::arena::store::ENodeView;
-use con_ron_core::kernel::basis_names;
 use con_ron_core::kernel::core_types::CheckError;
 use con_ron_core::kernel::trust_axioms as ctrust;
 use con_ron_core::kernel::trust_pins;
@@ -40,43 +39,43 @@ use con_ron_core::ron::hashmap::Eq2;
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:51-52 trueName
 /// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:26 trueName`.
 pub fn true_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    crate::arena::core::pin(st, &ctrust::true_name())
+    crate::arena::pins::pin_true(st)
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:54-55 trueIntroName
 /// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:28 trueIntroName`.
 pub fn true_intro_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    crate::arena::core::pin(st, &ctrust::true_intro_name())
+    crate::arena::pins::pin_true_intro(st)
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:57-58 trustCompilerName
 /// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:30 trustCompilerName`.
 pub fn trust_compiler_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    crate::arena::core::pin(st, &ctrust::trust_compiler_name())
+    crate::arena::pins::pin_trust_compiler(st)
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:60-61 reduceNatName
 /// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:32 reduceNatName`.
 pub fn reduce_nat_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    crate::arena::core::pin(st, &ctrust::reduce_nat_name())
+    crate::arena::pins::pin_reduce_nat(st)
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:63-64 reduceBoolName
 /// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:34 reduceBoolName`.
 pub fn reduce_bool_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    crate::arena::core::pin(st, &ctrust::reduce_bool_name())
+    crate::arena::pins::pin_reduce_bool(st)
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:66-67 ofReduceNatName
 /// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:36 ofReduceNatName`.
 pub fn of_reduce_nat_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    crate::arena::core::pin(st, &ctrust::of_reduce_nat_name())
+    crate::arena::pins::pin_of_reduce_nat(st)
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:69-70 ofReduceBoolName
 /// Lean twin: `proof/ConRon/Arena/TrustAxioms.lean:38 ofReduceBoolName`.
 pub fn of_reduce_bool_name(st: &mut AState) -> Result<NIdx, CheckError> {
-    crate::arena::core::pin(st, &ctrust::of_reduce_bool_name())
+    crate::arena::pins::pin_of_reduce_bool(st)
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:72-73 reduceOpNames
@@ -151,7 +150,7 @@ pub fn reduce_elem_name(st: &mut AState, c: &NIdx) -> Result<NIdx, CheckError> {
         Err(e) => Err(e),
         Ok(rn) => {
             if c.eq2(&rn) {
-                crate::arena::core::pin(st, &basis_names::nat_name())
+                crate::arena::pins::pin_nat(st)
             } else {
                 crate::arena::core::bool_name(st)
             }

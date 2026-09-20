@@ -41,7 +41,7 @@ use crate::arena::core::{
     infer_type_core, is_def_eq_core, lift_fueled, lvl_eq, nat_add_name, nat_ap1, nat_ap2,
     nat_ble_name, nat_div_name, nat_gcd_name, nat_land_name, nat_lor_name, nat_mod_name,
     nat_mul_name, nat_op_deps, nat_op_guard, nat_op_stored_ok, nat_shift_left_name,
-    nat_shift_right_name, nat_sub_name, nat_xor_name, pin, subst_const0, subst_const_all,
+    nat_shift_right_name, nat_sub_name, nat_xor_name, subst_const0, subst_const_all,
     zero_level, CHECK_FUEL, CORE_WALK_FUEL,
 };
 use crate::arena::env::{
@@ -64,7 +64,7 @@ use crate::arena::trust_axioms::{
     reduce_nat_name, reduce_op_cv_a, true_cv_a, true_intro_cv_a, true_intro_name, true_name,
     trust_compiler_a,
 };
-use con_ron_core::kernel::basis_names;
+use crate::arena::pins::{pin_eq, pin_nat, pin_nat_succ, pin_nat_zero};
 use con_ron_core::kernel::core_types;
 use con_ron_core::kernel::core_types::{code_points, CheckError};
 use con_ron_core::kernel::env::{CheckMode, ReducibilityHint};
@@ -150,7 +150,7 @@ pub const M_DUP_DECL: [u32; 21] = [
 /// (`arena::canon::i_constant_info_beq`), which is what `deriving DecidableEq`
 /// gives the twin.
 pub fn eq_basis_pinned(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
-    match pin(st, &basis_names::eq_name()) {
+    match pin_eq(st) {
         Err(e) => Err(e),
         Ok(en) => match eq_a(st) {
             Err(e) => Err(e),
@@ -586,7 +586,7 @@ pub fn reduce_elem_ok(
         Err(e) => Err(e),
         Ok(rn) => {
             if c.eq2(&rn) {
-                match pin(st, &basis_names::nat_name()) {
+                match pin_nat(st) {
                     Err(e) => Err(e),
                     Ok(nn) => match nat_a(st) {
                         Err(e) => Err(e),
@@ -948,7 +948,7 @@ pub fn eq_at1_app(
     a: &EIdx,
     b: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match pin(st, &basis_names::eq_name()) {
+    match pin_eq(st) {
         Err(e) => Err(e),
         Ok(en) => match intern_e(st, ENodeView::Const(en, hus)) {
             Err(e) => Err(e),
@@ -967,9 +967,9 @@ pub fn eq_at1_app(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:222-225 natOne` — the numeral
 /// `1` as `Nat.succ Nat.zero`.
 pub fn nat_one(st: &mut AState) -> Result<EIdx, CheckError> {
-    match pin(st, &basis_names::nat_succ_name()) {
+    match pin_nat_succ(st) {
         Err(e) => Err(e),
-        Ok(s) => match pin(st, &basis_names::nat_zero_name()) {
+        Ok(s) => match pin_nat_zero(st) {
             Err(e) => Err(e),
             Ok(z) => match const_e(st, &z) {
                 Err(e) => Err(e),
@@ -983,7 +983,7 @@ pub fn nat_one(st: &mut AState) -> Result<EIdx, CheckError> {
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:229-231 natVar` — the open
 /// statements' variables `x := fvar 0`, `y := fvar 1` at `Nat`.
 pub fn nat_var(st: &mut AState, i: u64) -> Result<EIdx, CheckError> {
-    match pin(st, &basis_names::nat_name()) {
+    match pin_nat(st) {
         Err(e) => Err(e),
         Ok(nt) => match const_e(st, &nt) {
             Err(e) => Err(e),
@@ -1027,7 +1027,7 @@ pub struct CertCtx {
 /// first half of the twin's opening `let`s: the types, the variables and the
 /// two `Bool` constructors.
 pub fn cert_ctx(st: &mut AState) -> Result<CertCtx, CheckError> {
-    match pin(st, &basis_names::nat_name()) {
+    match pin_nat(st) {
         Err(e) => Err(e),
         Ok(nt) => match const_e(st, &nt) {
             Err(e) => Err(e),
@@ -1095,11 +1095,11 @@ pub fn cert_ctx_nums(
     b_t: EIdx,
     b_f: EIdx,
 ) -> Result<CertCtx, CheckError> {
-    match pin(st, &basis_names::nat_zero_name()) {
+    match pin_nat_zero(st) {
         Err(e) => Err(e),
         Ok(zn) => match const_e(st, &zn) {
             Err(e) => Err(e),
-            Ok(z) => match pin(st, &basis_names::nat_succ_name()) {
+            Ok(z) => match pin_nat_succ(st) {
                 Err(e) => Err(e),
                 Ok(sn) => match nat_ap1(st, &sn, &one) {
                     Err(e) => Err(e),
@@ -1695,7 +1695,7 @@ pub fn cert_rec_rhs(st: &mut AState, cx: &CertCtx, c: &NIdx) -> Result<EIdx, Che
             Err(e) => Err(e),
             Ok(step) => {
                 if c.eq2(&cx.div_n) {
-                    match pin(st, &basis_names::nat_succ_name()) {
+                    match pin_nat_succ(st) {
                         Err(e) => Err(e),
                         Ok(sn) => nat_ap1(st, &sn, &step),
                     }

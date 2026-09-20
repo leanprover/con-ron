@@ -11,11 +11,14 @@
 //! four and they are the Lean twin's `runPipeline` (`Arena/Main.lean`):
 //!
 //! ```text
-//! builtin_prelude_e  →  parse (chunk_step/chunk_finish)  →  prepare_d
-//!                    →  intern_all_pins  →  install_then_check
+//! intern_reserved_pins  →  builtin_prelude_e  →  parse (chunk_step/
+//! chunk_finish)  →  prepare_d  →  intern_all_pins  →  install_then_check
 //! ```
 //!
-//! — the built-in prelude parses into the persistent tier of one `EStore`
+//! — the checker's own reserved constants are interned once into the
+//! persistent tier of one `EStore` (`arena_core::arena::pins`, task
+//! #97-P6-4a; every later `pin_*` is a field read, and a read before this has
+//! run is an `Internal` stop), the built-in prelude parses into that tier
 //! (`arena_core::frontend::prelude`), the stream is read 4 MiB at a time and
 //! decoded into the same tier (`arena_core::frontend::export_c`; mutual and
 //! nested blocks get their `_model` family generated in process by
@@ -350,6 +353,24 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // ONE store for the whole run: the prelude, the stream and the pins are
     // hash-consed together into its persistent tier (DESIGN.md §8.3).
     let mut st = AState::init(EStore::empty());
+    // THE RESERVED-NAME PINS, interned once into that persistent tier before
+    // anything else touches it (task #97-P6-4a, `arena::pins`): the scratch
+    // tier is closed here, so every pinned handle is persistent and survives
+    // every `drop_scratch` of the run.  Until this has run, every `pin_*`
+    // read raises `Internal` rather than answering — which is what makes the
+    // initialisation-order hazard task #97c named impossible rather than
+    // unlikely.
+    match arena_core::arena::pins::intern_reserved_pins(&mut st) {
+        Ok(()) => (),
+        Err(e) => {
+            eprintln!(
+                "con-ron-arena: the reserved-name pins do not intern ({}) ({})",
+                con_ron::driver::message(&e),
+                mode_tag
+            );
+            return 3;
+        }
+    }
     // The in-process modeller, which the parse takes as a type parameter: the
     // arena core is quantified over an arbitrary `Modeller`, and this is the
     // one the binary supplies — `crates/con-ron`'s own generator behind a

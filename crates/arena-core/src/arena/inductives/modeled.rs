@@ -51,7 +51,6 @@ use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
 use crate::arena::monad::{fail, intern_e, intern_n_node, read_name, view, view_ls, AState};
 use crate::arena::std_axioms;
 use crate::arena::store::{ENodeView, NNodeView};
-use con_ron_core::kernel::basis_names;
 use con_ron_core::kernel::core_k;
 use con_ron_core::kernel::core_types;
 use con_ron_core::kernel::core_types::{code_points, code_points_from, CheckError};
@@ -490,7 +489,7 @@ where
 /// comparand: the same `ConstantInfo` through the same store, hence the same
 /// handle (`denoteE`/`denoteN` are injective, task #97a).
 pub fn eq_basis_stored(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
-    match core::pin(st, &basis_names::eq_name()) {
+    match crate::arena::pins::pin_eq(st) {
         Err(e) => Err(e),
         Ok(en) => {
             let found: Option<IConstantInfo> = env::find_ci(fe, &en);
@@ -2926,7 +2925,7 @@ pub fn check_proj_iota_lhs(
                     Ok(lhs_s) => match eq_app3(st, sbody) {
                         Err(e) => Err(e),
                         Ok(None) => fail(core_types::not_implemented(code_points(&M_PI_SHAPE))),
-                        Ok(Some(q)) => match core::pin(st, &basis_names::eq_name()) {
+                        Ok(Some(q)) => match crate::arena::pins::pin_eq(st) {
                             Err(e) => Err(e),
                             Ok(en) => {
                                 if !q.0.eq2(&en) {
@@ -3324,7 +3323,7 @@ pub fn check_eta_thm_eq(
                                 Err(e) => Err(e),
                                 Ok(want_rhs) => match intern_e(st, ENodeView::Sort(q.1.dup2())) {
                                     Err(e) => Err(e),
-                                    Ok(sort_a) => match core::pin(st, &basis_names::eq_name()) {
+                                    Ok(sort_a) => match crate::arena::pins::pin_eq(st) {
                                         Err(e) => Err(e),
                                         Ok(en) => Ok(q.0.eq2(&en)
                                             && q.3.eq2(&b0)
@@ -3547,7 +3546,7 @@ pub fn check_unit_thm_eq(
                 Err(e) => Err(e),
                 Ok(b1) => match intern_e(st, ENodeView::Sort(q.1.dup2())) {
                     Err(e) => Err(e),
-                    Ok(sort_a) => match core::pin(st, &basis_names::eq_name()) {
+                    Ok(sort_a) => match crate::arena::pins::pin_eq(st) {
                         Err(e) => Err(e),
                         Ok(en) => Ok(q.0.eq2(&en)
                             && q.3.eq2(&b1)
