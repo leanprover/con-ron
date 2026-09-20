@@ -113,8 +113,9 @@ def ETables.Sized (t : ETables) : Prop :=
 
 /-! ## The name store's invariant -/
 
-/-- con-leche: Setlec/Kernel/ArenaWF.lean:900 EStore.TWF — the name store's
-well-formedness at an explicit rank. -/
+/-- con-leche: none — arena infrastructure; the name store's well-formedness
+at an explicit rank.  Precedent: con-leche's retired
+`Setlec/Kernel/ArenaWF.lean:900 EStore.TWF` (at 94a1cf78). -/
 structure NWFAt (st : NStore) (rk : NIdx → Nat) : Prop where
   childOK : ∀ i v, st.view i = some v → ∀ c ∈ v.children,
     (st.view c).isSome = true ∧ rk c < rk i ∧
@@ -135,14 +136,17 @@ structure NWFAt (st : NStore) (rk : NIdx → Nat) : Prop where
   capS : ∀ v, st.scr.sizeOf v ≤ Idx.idxCap
   scrOff : st.scratchOn = false → st.scr = NTables.empty
 
-/-- con-leche: Setlec/Kernel/ArenaWF.lean:900 EStore.TWF — the name store is
-well formed. -/
+/-- con-leche: none — arena infrastructure; the name store is well formed.
+Precedent: con-leche's retired `Setlec/Kernel/ArenaWF.lean:900 EStore.TWF`
+(at 94a1cf78). -/
 def NStoreWF (st : NStore) : Prop := ∃ rk, NWFAt st rk
 
 /-! ## The level store's invariant -/
 
-/-- con-leche: Setlec/Kernel/ArenaWF.lean:900 EStore.TWF — the level store's
-well-formedness at an explicit rank; it carries the name store's. -/
+/-- con-leche: none — arena infrastructure; the level store's
+well-formedness at an explicit rank; it carries the name store's.
+Precedent: con-leche's retired `Setlec/Kernel/ArenaWF.lean:900 EStore.TWF`
+(at 94a1cf78). -/
 structure LWFAt (st : LStore) (rk : LIdx → Nat) : Prop where
   ns : NStoreWF st.ns
   childOK : ∀ i v, st.view i = some v → ∀ c ∈ v.lchildren,
@@ -167,7 +171,8 @@ structure LWFAt (st : LStore) (rk : LIdx → Nat) : Prop where
   scrOff : st.scratchOn = false → st.scr = LTables.empty
   sync : st.scratchOn = st.ns.scratchOn
 
-/-- con-leche: Setlec/Kernel/ArenaWF.lean:900 EStore.TWF -/
+/-- con-leche: none — arena infrastructure.  Precedent: con-leche's retired
+`Setlec/Kernel/ArenaWF.lean:900 EStore.TWF` (at 94a1cf78). -/
 def LStoreWF (st : LStore) : Prop := ∃ rk, LWFAt st rk
 
 /-! ## The level-list store's invariant
@@ -175,7 +180,8 @@ def LStoreWF (st : LStore) : Prop := ∃ rk, LWFAt st rk
 A list node has no `LsIdx` children, so there is no rank clause: the store is
 one level deep by construction. -/
 
-/-- con-leche: Setlec/Kernel/ArenaWF.lean:900 EStore.TWF -/
+/-- con-leche: none — arena infrastructure.  Precedent: con-leche's retired
+`Setlec/Kernel/ArenaWF.lean:900 EStore.TWF` (at 94a1cf78). -/
 structure LsWF (st : LsStore) : Prop where
   ls : LStoreWF st.ls
   lchildOK : ∀ i v, st.view i = some v → ∀ c ∈ v,
@@ -193,14 +199,16 @@ structure LsWF (st : LsStore) : Prop where
   scrOff : st.scratchOn = false → st.scr = LsTables.empty
   sync : st.scratchOn = st.ls.scratchOn
 
-/-- con-leche: Setlec/Kernel/ArenaWF.lean:900 EStore.TWF -/
+/-- con-leche: none — arena infrastructure.  Precedent: con-leche's retired
+`Setlec/Kernel/ArenaWF.lean:900 EStore.TWF` (at 94a1cf78). -/
 def LsStoreWF (st : LsStore) : Prop := LsWF st
 
 /-! ## The expression store's invariant -/
 
-/-- con-leche: Setlec/Kernel/ArenaWF.lean:900 EStore.TWF — the expression
-store's well-formedness at an explicit rank; it carries the three stores
-below it. -/
+/-- con-leche: none — arena infrastructure; the expression store's
+well-formedness at an explicit rank; it carries the three stores below it.
+Precedent: con-leche's retired `Setlec/Kernel/ArenaWF.lean:900 EStore.TWF`
+(at 94a1cf78). -/
 structure EWFAt (st : EStore) (rk : EIdx → Nat) : Prop where
   lss : LsStoreWF st.lss
   childOK : ∀ i v, st.view i = some v → ∀ c ∈ v.echildren,
@@ -229,8 +237,9 @@ structure EWFAt (st : EStore) (rk : EIdx → Nat) : Prop where
   scrOff : st.scratchOn = false → st.scr = ETables.empty
   sync : st.scratchOn = st.lss.scratchOn
 
-/-- con-leche: Setlec/Kernel/ArenaWF.lean:900 EStore.TWF — **the** store
-invariant: the arena is well formed. -/
+/-- con-leche: none — arena infrastructure; **the** store invariant: the
+arena is well formed.  Precedent: con-leche's retired
+`Setlec/Kernel/ArenaWF.lean:900 EStore.TWF` (at 94a1cf78). -/
 def StoreWF (st : EStore) : Prop := ∃ rk, EWFAt st rk
 
 /-! ## `intern`'s preconditions -/

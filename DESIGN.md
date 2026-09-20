@@ -20366,6 +20366,53 @@ take them:
     `…:118-122 levelHasParam — …`).  The supported shape for a twin that
     merges two declarations is one `con-leche:` line each.
 
+**Follow-up (same day): those 98 findings, closed on `arena`.**
+`provenance.py check` is back to **0 finding(s)** over the whole tree, with
+only doc lines of `Arena/{Handle,Store,Denote,WF,WFProofs}.lean` touched —
+each of the five modules is byte-identical to its predecessor once comments
+are stripped, so no definition, statement or proof moved.  One rule per
+class:
+
+  * **39 MISSING → `none`.**  `Setlec/Kernel/ArenaWF.lean`,
+    `Setlec/Kernel/IExpr.lean` and `Verify/SimI.lean` are con-leche's
+    *retired* arena, deleted at its task #172 and in no pin this port can
+    reach; the rule is to cite a declaration that exists at the pin or to
+    say `none` and why.  Each becomes `none — arena infrastructure; <the
+    twin's own sentence>.  Precedent: con-leche's retired <old path>:<line>
+    <decl> (at 94a1cf78).` — the machine-checked field says the honest
+    thing, the prose keeps the provenance of the idea.
+  * **32 NODECL → the parent declaration.**  A constructor and a
+    `@[computed_field]` are not top-level declarations in either language,
+    so the citation moves up to the `inductive` and the prose tail says
+    which part it means: `Name.lean:34-37 Name — the anonymous constructor,
+    line 35`; `Expr.lean:40-53 Level — the hashData computed field, lines
+    47-53`; `Expr.lean:343-402 Expr — the data computed field, lines
+    357-402`.  The ten `Expr` constructor pins were also off by one (they
+    counted `| bvar` as 345) and are now right.
+  * **25 UNCITED → one doc line per `def`.**  `Handle.lean`'s four tag
+    namespaces carried a single citation in a `/-!` section header, which is
+    not the Lean analogue of Rust's `//!`; each of the nineteen tags now
+    cites its parent inductive and names its constructor, and `LsTag.list`
+    says `none — arena infrastructure`, a level *list* having no con-leche
+    constructor.  `Store.lean`'s three `persCount`/`scrCount` pairs took
+    `NStore`'s own wording.
+  * **2 MALFORMED → one citation, one prose tail.**  A doc comment holds one
+    citation body: `LStore.derived_exact_at` cites `Level` and names
+    `levelHasParam` after the em dash, `LsStore.derOfView_exact` cites
+    `levelsHash` and names `levelsHaveParam`.  Both of those secondary
+    ranges were stale and were corrected in passing (114-122, 124-127).
+
+*Counts.*  Rust unmoved, as required: **2 363 items / 2 382 citations**,
+`coverage` **TOTAL 927/927 (100.0 %)**.  The arena side is 558 items and 77
+citations, and its ledger line does **not** move — **ARENA TOTAL 7/927
+twinned (0.8 %), 920 to go** before and after — because a citation lifted
+from a constructor to its parent names a declaration some other citation
+already covered; what changed is that all 77 are now checked rather than 98
+of them being findings.  `lake build ConRonArena` green (13 jobs, `WFProofs`
+11 s, `LEAN_NUM_THREADS=4`, `ulimit -v 60000000`) with zero warnings;
+`provenance-selftest.py` (8 clean shapes, 8 findings, 2 exempt paths) and
+`overview-links.sh` (67 links, 36 files) green.
+
 ### Task #97a — the arena stores (2026-09-20, Opus under Fable)
 
 Phase P2a of §8.6: the store layer of (B), under `proof/ConRon/Arena/`, as a

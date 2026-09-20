@@ -154,8 +154,9 @@ theorem denoteNAux_congr {st : NStore} {rk : NIdx → Nat} (h : NWFAt st rk) :
         have := hchild p (by simp [NNodeView.children])
         simp only [Option.bind_some, ih p g g' this.1 this.2.1 this.2.2]
 
-/-- con-leche: Setlec/Kernel/ArenaWF.lean:477 denote — **the** equation for
-`denoteN`: on a well-formed store the fuel is invisible. -/
+/-- con-leche: none — arena infrastructure; **the** equation for `denoteN`:
+on a well-formed store the fuel is invisible.  Precedent: con-leche's
+retired `Setlec/Kernel/ArenaWF.lean:477 denote` (at 94a1cf78). -/
 theorem denoteN_unfold {st : NStore} {rk : NIdx → Nat} (h : NWFAt st rk)
     {i : NIdx} {v : NNodeView} (hv : st.view i = some v) :
     denoteN st i = denoteNView st v := by
@@ -249,8 +250,9 @@ theorem denoteNView_num {st : NStore} {v : NNodeView} {q : ConLeche.Name}
     subst e1; subst e2
     exact ⟨p, rfl, hr⟩
 
-/-- con-leche: Setlec/Kernel/ArenaWF.lean:2758 denote_inj — the name store's
-denotation is injective. -/
+/-- con-leche: none — arena infrastructure; the name store's denotation is
+injective.  Precedent: con-leche's retired `Setlec/Kernel/ArenaWF.lean:2758
+denote_inj` (at 94a1cf78). -/
 theorem denoteN_inj_at {st : NStore} {rk : NIdx → Nat} (h : NWFAt st rk) :
     ∀ (x : ConLeche.Name) (i j : NIdx),
       denoteN st i = some x → denoteN st j = some x → i = j := by
@@ -290,7 +292,8 @@ theorem denoteN_inj_at {st : NStore} {rk : NIdx → Nat} (h : NWFAt st rk) :
     rw [hp] at hvi; rw [hp'] at hvj
     exact h.view_inj hvi hvj
 
-/-- con-leche: Setlec/Kernel/ArenaWF.lean:2758 denote_inj -/
+/-- con-leche: none — arena infrastructure.  Precedent: con-leche's retired
+`Setlec/Kernel/ArenaWF.lean:2758 denote_inj` (at 94a1cf78). -/
 theorem denoteN_inj {st : NStore} (h : NStoreWF st) {i j : NIdx}
     {x : ConLeche.Name} (hi : denoteN st i = some x)
     (hj : denoteN st j = some x) : i = j := by
@@ -299,9 +302,10 @@ theorem denoteN_inj {st : NStore} (h : NStoreWF st) {i j : NIdx}
 
 /-! ## Names: the derived column is con-leche's cached hash -/
 
-/-- con-leche: ConLeche/Kernel/Name.lean:41-44 Name.hashData — **exactness**
-(con-leche's lesson 2: prove exactness, not soundness).  The name store's
-derived column is the cached hash of the name the handle denotes. -/
+/-- con-leche: ConLeche/Kernel/Name.lean:34-44 Name — the `hashData` computed
+field, lines 41-44.  **Exactness** (con-leche's lesson 2: prove exactness,
+not soundness): the name store's derived column is the cached hash of the
+name the handle denotes. -/
 theorem NStore.derived_exact_at {st : NStore} {rk : NIdx → Nat}
     (h : NWFAt st rk) : ∀ (x : ConLeche.Name) (i : NIdx),
       denoteN st i = some x → st.derived i = x.hashData := by
@@ -331,7 +335,8 @@ theorem NStore.derived_exact_at {st : NStore} {rk : NIdx → Nat}
     rw [h.derExact i _ hv]
     simp [NStore.derOfView, ih p hdp, ConLeche.Name.hashData]
 
-/-- con-leche: ConLeche/Kernel/Name.lean:41-44 Name.hashData -/
+/-- con-leche: ConLeche/Kernel/Name.lean:34-44 Name — the `hashData` computed
+field, lines 41-44. -/
 theorem NStore.derived_exact {st : NStore} (h : NStoreWF st) {i : NIdx}
     {x : ConLeche.Name} (hi : denoteN st i = some x) :
     st.derived i = x.hashData := by
@@ -375,7 +380,8 @@ theorem denoteLAux_congr {st : LStore} {rk : LIdx → Nat} (h : LWFAt st rk) :
           ih w g g' h2.1 h2.2.1 h2.2.2]
       | param n => simp
 
-/-- con-leche: Setlec/Kernel/ArenaWF.lean:477 denote -/
+/-- con-leche: none — arena infrastructure.  Precedent: con-leche's retired
+`Setlec/Kernel/ArenaWF.lean:477 denote` (at 94a1cf78). -/
 theorem denoteL_unfold {st : LStore} {rk : LIdx → Nat} (h : LWFAt st rk)
     {i : LIdx} {v : LNodeView} (hv : st.view i = some v) :
     denoteL st i = denoteLView st v := by
@@ -482,8 +488,9 @@ theorem denoteLView_param {st : LStore} {v : LNodeView} {nm : ConLeche.Name}
     exact ⟨n, rfl, hr⟩
   | _ => simp_all [denoteLView, Option.map_eq_some_iff]
 
-/-- con-leche: Setlec/Kernel/ArenaWF.lean:2758 denote_inj — the level store's
-denotation is injective. -/
+/-- con-leche: none — arena infrastructure; the level store's denotation is
+injective.  Precedent: con-leche's retired `Setlec/Kernel/ArenaWF.lean:2758
+denote_inj` (at 94a1cf78). -/
 theorem denoteL_inj_at {st : LStore} {rk : LIdx → Nat} (h : LWFAt st rk) :
     ∀ (x : Level) (i j : LIdx),
       denoteL st i = some x → denoteL st j = some x → i = j := by
@@ -549,15 +556,16 @@ theorem denoteL_inj_at {st : LStore} {rk : LIdx → Nat} (h : LWFAt st rk) :
     rw [hn] at hvi; rw [hn'] at hvj
     exact h.view_inj hvi hvj
 
-/-- con-leche: Setlec/Kernel/ArenaWF.lean:2758 denote_inj -/
+/-- con-leche: none — arena infrastructure.  Precedent: con-leche's retired
+`Setlec/Kernel/ArenaWF.lean:2758 denote_inj` (at 94a1cf78). -/
 theorem denoteL_inj {st : LStore} (h : LStoreWF st) {i j : LIdx} {x : Level}
     (hi : denoteL st i = some x) (hj : denoteL st j = some x) : i = j := by
   obtain ⟨rk, h⟩ := h
   exact denoteL_inj_at h x i j hi hj
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:47-53 Level.hashData and
-ConLeche/Kernel/Expr.lean:118-122 levelHasParam — exactness of the level
-store's derived column. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:40-53 Level — the `hashData` computed
+field, lines 47-53, and `ConLeche/Kernel/Expr.lean:114-122 levelHasParam`:
+exactness of the level store's derived column. -/
 theorem LStore.derived_exact_at {st : LStore} {rk : LIdx → Nat}
     (h : LWFAt st rk) : ∀ (x : Level) (i : LIdx),
       denoteL st i = some x → st.derived i = ⟨x.hashData, levelHasParam x⟩ := by
@@ -606,7 +614,8 @@ theorem LStore.derived_exact_at {st : LStore} {rk : LIdx → Nat}
     simp [LStore.derOfView, NStore.derived_exact h.ns hdn,
       ConLeche.Level.hashData, levelHasParam]
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:47-53 Level.hashData -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:40-53 Level — the `hashData` computed
+field, lines 47-53. -/
 theorem LStore.derived_exact {st : LStore} (h : LStoreWF st) {i : LIdx}
     {x : Level} (hi : denoteL st i = some x) :
     st.derived i = ⟨x.hashData, levelHasParam x⟩ := by
@@ -626,8 +635,9 @@ theorem denoteLs_view {st : LsStore} {i : LsIdx} {xs : List Level}
   | none => rw [hv] at h; simp at h
   | some us => rw [hv] at h; exact ⟨us, rfl, h⟩
 
-/-- con-leche: Setlec/Kernel/ArenaWF.lean:477 denote — the level-list store's
-unfolding equation. -/
+/-- con-leche: none — arena infrastructure; the level-list store's unfolding
+equation.  Precedent: con-leche's retired `Setlec/Kernel/ArenaWF.lean:477
+denote` (at 94a1cf78). -/
 theorem denoteLs_unfold {st : LsStore} {i : LsIdx} {us : LsNodeView}
     (hv : st.view i = some us) : denoteLs st i = denoteLsView st us := by
   unfold denoteLs denoteLsView; rw [hv]
@@ -681,7 +691,8 @@ theorem denoteLList_inj {ls : LStore} (h : LStoreWF ls) :
       subst e1; subst e2
       rw [denoteL_inj h ha ha', ih r' _ has has']
 
-/-- con-leche: Setlec/Kernel/ArenaWF.lean:2758 denote_inj -/
+/-- con-leche: none — arena infrastructure.  Precedent: con-leche's retired
+`Setlec/Kernel/ArenaWF.lean:2758 denote_inj` (at 94a1cf78). -/
 theorem denoteLs_inj {st : LsStore} (h : LsStoreWF st) {i j : LsIdx}
     {xs : List Level} (hi : denoteLs st i = some xs)
     (hj : denoteLs st j = some xs) : i = j := by
@@ -691,8 +702,8 @@ theorem denoteLs_inj {st : LsStore} (h : LsStoreWF st) {i j : LsIdx}
   subst this
   exact h.view_inj hvi hvj
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:136-139 levelsHash and
-ConLeche/Kernel/Expr.lean:125-127 levelsHaveParam — the fold of the level
+/-- con-leche: ConLeche/Kernel/Expr.lean:136-139 levelsHash — and
+`ConLeche/Kernel/Expr.lean:124-127 levelsHaveParam`: the fold of the level
 store's exactness over a list. -/
 theorem LsStore.derOfView_exact {st : LsStore} (h : LStoreWF st.ls) :
     ∀ (us : List LIdx) (xs : List Level), denoteLList st.ls us = some xs →
@@ -789,8 +800,9 @@ theorem denoteEAux_congr {st : EStore} {rk : EIdx → Nat} (h : EWFAt st rk) :
         simp only [Option.bind_some, ih ty g g' h1.1 h1.2.1 h1.2.2,
           ih w g g' h2.1 h2.2.1 h2.2.2, ih b g g' h3.1 h3.2.1 h3.2.2]
 
-/-- con-leche: Setlec/Kernel/ArenaWF.lean:477 denote — **the** equation for
-`denoteE`. -/
+/-- con-leche: none — arena infrastructure; **the** equation for `denoteE`.
+Precedent: con-leche's retired `Setlec/Kernel/ArenaWF.lean:477 denote` (at
+94a1cf78). -/
 theorem denoteE_unfold {st : EStore} {rk : EIdx → Nat} (h : EWFAt st rk)
     {i : EIdx} {v : ENodeView} (hv : st.view i = some v) :
     denoteE st i = denoteEView st v := by
@@ -973,7 +985,8 @@ not a performance property: names are compared for inequality throughout the
 checker, and `defeqBody`'s `a == b` shortcut […] would still send the arena
 into arms the pure run never took if two handles could denote one term." -/
 
-/-- con-leche: Setlec/Kernel/ArenaWF.lean:2758 denote_inj -/
+/-- con-leche: none — arena infrastructure.  Precedent: con-leche's retired
+`Setlec/Kernel/ArenaWF.lean:2758 denote_inj` (at 94a1cf78). -/
 theorem denoteE_inj_at {st : EStore} {rk : EIdx → Nat} (h : EWFAt st rk) :
     ∀ (x : Expr) (i j : EIdx),
       denoteE st i = some x → denoteE st j = some x → i = j := by
@@ -1101,8 +1114,10 @@ theorem denoteE_inj_at {st : EStore} {rk : EIdx → Nat} (h : EWFAt st rk) :
     rw [hn] at hvi; rw [hn'] at hvj
     exact h.view_inj hvi hvj
 
-/-- con-leche: Setlec/Kernel/ArenaWF.lean:2758 denote_inj — **exactness**: on a
-well-formed arena, two handles denoting the same expression are equal. -/
+/-- con-leche: none — arena infrastructure; **exactness**: on a well-formed
+arena, two handles denoting the same expression are equal.  Precedent:
+con-leche's retired `Setlec/Kernel/ArenaWF.lean:2758 denote_inj` (at
+94a1cf78). -/
 theorem denoteE_inj {st : EStore} (h : StoreWF st) {i j : EIdx} {x : Expr}
     (hi : denoteE st i = some x) (hj : denoteE st j = some x) : i = j := by
   obtain ⟨rk, h⟩ := h
@@ -1110,10 +1125,10 @@ theorem denoteE_inj {st : EStore} (h : StoreWF st) {i j : EIdx} {x : Expr}
 
 /-! ### The derived word is `ConLeche.Expr.data` of the denotation -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:356-402 Expr.data — **exactness** of
-the packed derived word.  This is the lemma DESIGN §8.3 asks for: "so
-`derived st i = (denote st i).data` is an exactness lemma and every pure-side
-lemma that reads `data` transfers". -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:343-402 Expr — the `data` computed
+field, lines 357-402.  **Exactness** of the packed derived word: this is the
+lemma DESIGN §8.3 asks for, "so `derived st i = (denote st i).data` is an
+exactness lemma and every pure-side lemma that reads `data` transfers". -/
 theorem EStore.derived_exact_at {st : EStore} {rk : EIdx → Nat}
     (h : EWFAt st rk) : ∀ (x : Expr) (i : EIdx),
       denoteE st i = some x → st.derived i = x.data := by
@@ -1202,7 +1217,8 @@ theorem EStore.derived_exact_at {st : EStore} {rk : EIdx → Nat}
     simp [EStore.derOfView, EStore.nder, NStore.derived_exact h.nsWF hdn,
       ih e hde, Expr.data]
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:356-402 Expr.data -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:343-402 Expr — the `data` computed
+field, lines 357-402. -/
 theorem EStore.derived_exact {st : EStore} (h : StoreWF st) {i : EIdx}
     {x : Expr} (hi : denoteE st i = some x) : st.derived i = x.data := by
   obtain ⟨rk, h⟩ := h
@@ -1665,8 +1681,9 @@ theorem denoteEAux_store_mono {st st' : EStore}
       obtain ⟨x, y, z, hx, hy, hz, he⟩ := h
       exact ⟨x, y, z, ih ty x hx, ih w y hy, ih b z hz, he⟩
 
-/-- con-leche: Verify/SimI.lean:244 Ext — `intern` extends the arena: every
-handle that denoted before denotes the same after. -/
+/-- con-leche: none — arena infrastructure; `intern` extends the arena:
+every handle that denoted before denotes the same after.  Precedent:
+con-leche's retired `Verify/SimI.lean:244 Ext` (at 94a1cf78). -/
 theorem EStore.intern_ext (st : EStore) (w : ENodeView) :
     Ext st (st.intern w).1 := by
   refine ⟨?_, ?_⟩
@@ -2682,8 +2699,9 @@ persistent count (persistent), and the rank function is extended by
 which needs no `c ≠ inew` side condition: the appended handle is exactly the
 one the old store could not decode (`ETables.get_eq_none_of_size`). -/
 
-/-- con-leche: Setlec/Kernel/IExpr.lean:464 intern — appending to the scratch
-tier keeps `StoreWF`. -/
+/-- con-leche: none — arena infrastructure; appending to the scratch tier
+keeps `StoreWF`.  Precedent: con-leche's retired
+`Setlec/Kernel/IExpr.lean:464 intern` (at 94a1cf78). -/
 theorem EStore.wf_push_scr {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView}
     {tb : ETables} {inew : EIdx}
     (h : EWFAt st rk) (hv : st.ViewOK w)
@@ -3077,8 +3095,9 @@ theorem NTables.derAt_push_new {t : NTables} {w : NNodeView} {d : UInt64}
       beq_self_eq_true, if_true] <;>
     (simp only [NTables.push]; exact Tbl.derAt_push_size (by assumption))
 
-/-- con-leche: Setlec/Kernel/IExpr.lean:464 intern — appending a name to the
-scratch tier keeps `NStoreWF`. -/
+/-- con-leche: none — arena infrastructure; appending a name to the scratch
+tier keeps `NStoreWF`.  Precedent: con-leche's retired
+`Setlec/Kernel/IExpr.lean:464 intern` (at 94a1cf78). -/
 theorem NStore.wf_push_scr {st st' : NStore} {rk : NIdx → Nat} {w : NNodeView}
     {tb : NTables} {inew : NIdx}
     (h : NWFAt st rk) (hv : st.ViewOK w)
@@ -3253,10 +3272,11 @@ theorem NStore.wf_push_scr {st st' : NStore} {rk : NIdx → Nat} {w : NNodeView}
   case capS => rw [hscr]; exact hcaptb
   case scrOff => intro hoff; rw [hon'] at hoff; exact absurd hoff (by simp)
 
-/-- con-leche: Setlec/Kernel/IExpr.lean:464 intern — appending a name to the
-persistent tier keeps `NStoreWF`.  The scratch tier is empty here (`scrOff`),
-so every handle that decodes is persistent — which is exactly what
-`childOK`'s persistence conjunct needs for the new node. -/
+/-- con-leche: none — arena infrastructure; appending a name to the
+persistent tier keeps `NStoreWF`.  The scratch tier is empty here
+(`scrOff`), so every handle that decodes is persistent — which is exactly
+what `childOK`'s persistence conjunct needs for the new node.  Precedent:
+con-leche's retired `Setlec/Kernel/IExpr.lean:464 intern` (at 94a1cf78). -/
 theorem NStore.wf_push_pers {st st' : NStore} {rk : NIdx → Nat} {w : NNodeView}
     {tb : NTables} {inew : NIdx}
     (h : NWFAt st rk) (hv : st.ViewOK w)
@@ -3428,8 +3448,9 @@ theorem NStore.wf_push_pers {st st' : NStore} {rk : NIdx → Nat} {w : NNodeView
   case capS => rw [hscr]; exact h.capS
   case scrOff => intro _; rw [hscr]; exact hscrE
 
-/-- con-leche: Setlec/Kernel/IExpr.lean:464 intern — `intern` preserves the
-name store's invariant. -/
+/-- con-leche: none — arena infrastructure; `intern` preserves the name
+store's invariant.  Precedent: con-leche's retired
+`Setlec/Kernel/IExpr.lean:464 intern` (at 94a1cf78). -/
 theorem NStore.intern_wf {st : NStore} {w : NNodeView} (h : NStoreWF st)
     (hv : st.ViewOK w) (hcap : st.capOK w) : NStoreWF (st.intern w).1 := by
   obtain ⟨rk, h⟩ := h
@@ -3543,7 +3564,9 @@ theorem denoteNAux_store_mono {st st' : NStore}
       obtain ⟨q, hq, he⟩ := hd
       exact ⟨q, ih p q hq, he⟩
 
-/-- con-leche: Verify/SimI.lean:244 Ext — interning a name extends the store. -/
+/-- con-leche: none — arena infrastructure; interning a name extends the
+store.  Precedent: con-leche's retired `Verify/SimI.lean:244 Ext` (at
+94a1cf78). -/
 theorem NStore.intern_ext (st : NStore) (w : NNodeView) : NExt st (st.intern w).1 := by
   intro i x hd
   simp only [denoteN] at hd ⊢
@@ -3602,8 +3625,9 @@ theorem EWFAt.scratchSync {st : EStore} {rk : EIdx → Nat} (h : EWFAt st rk) :
 theorem StoreWF.scratchSync {st : EStore} (h : StoreWF st) : st.ScratchSync := by
   obtain ⟨rk, h⟩ := h; exact h.scratchSync
 
-/-- con-leche: Setlec/Kernel/IExpr.lean:464 intern — appending to the
-persistent tier keeps `StoreWF`.  `hsync` is the missing clause. -/
+/-- con-leche: none — arena infrastructure; appending to the persistent tier
+keeps `StoreWF`.  `hsync` is the missing clause.  Precedent: con-leche's
+retired `Setlec/Kernel/IExpr.lean:464 intern` (at 94a1cf78). -/
 theorem EStore.wf_push_pers {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView}
     {tb : ETables} {inew : EIdx}
     (h : EWFAt st rk) (hv : st.ViewOK w) (hsync : st.ScratchSync)
@@ -3819,8 +3843,9 @@ theorem EStore.wf_push_pers {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView
   case capS => rw [hscr]; exact h.capS
   case scrOff => intro _; rw [hscr]; exact hscrE
 
-/-- con-leche: Setlec/Kernel/IExpr.lean:464 intern — `EStore.intern_wf` modulo
-`StoreWF`'s missing flag-synchronisation clause (see above). -/
+/-- con-leche: none — arena infrastructure; `EStore.intern_wf` modulo
+`StoreWF`'s missing flag-synchronisation clause (see above).  Precedent:
+con-leche's retired `Setlec/Kernel/IExpr.lean:464 intern` (at 94a1cf78). -/
 theorem EStore.intern_wf_of_sync {st : EStore} {w : ENodeView} (h : StoreWF st)
     (hsync : st.ScratchSync) (hv : st.ViewOK w) (hcap : st.capOK w) :
     StoreWF (st.intern w).1 := by
@@ -3842,8 +3867,9 @@ theorem EStore.intern_wf_of_sync {st : EStore} {w : ENodeView} (h : StoreWF st)
       rw [if_neg hoff] at hcap
       exact EStore.wf_push_pers h hv hsync hoff' hoff' rfl rfl rfl rfl hcap hfp
 
-/-- con-leche: Setlec/Kernel/IExpr.lean:464 intern — `EStore.intern_spec`
-modulo the same missing clause. -/
+/-- con-leche: none — arena infrastructure; `EStore.intern_spec` modulo the
+same missing clause.  Precedent: con-leche's retired
+`Setlec/Kernel/IExpr.lean:464 intern` (at 94a1cf78). -/
 theorem EStore.intern_spec_of_sync {st : EStore} {w : ENodeView} (h : StoreWF st)
     (hsync : st.ScratchSync) (hv : st.ViewOK w) (hcap : st.capOK w) :
     StoreWF (st.intern w).1 ∧ Ext st (st.intern w).1 ∧
@@ -4601,7 +4627,9 @@ theorem denoteLAux_store_mono {st st' : LStore}
       obtain ⟨a, b, ha, hb, he⟩ := hd
       exact ⟨a, b, ih u a ha, ih w b hb, he⟩
 
-/-- con-leche: Verify/SimI.lean:244 Ext — interning a level extends the store. -/
+/-- con-leche: none — arena infrastructure; interning a level extends the
+store.  Precedent: con-leche's retired `Verify/SimI.lean:244 Ext` (at
+94a1cf78). -/
 theorem LStore.intern_ext (st : LStore) (w : LNodeView) : LExt st (st.intern w).1 := by
   refine ⟨?_, ?_⟩
   · rw [LStore.ns_intern]; exact NExt.refl _
@@ -4613,8 +4641,9 @@ theorem LStore.intern_ext (st : LStore) (w : LNodeView) : LExt st (st.intern w).
     exact denoteLAux_store_mono (fun _ _ hh => LStore.view_intern_mono st w hh)
       (LStore.ns_intern st w) _ i x h1
 
-/-- con-leche: Setlec/Kernel/IExpr.lean:464 intern — `LStore.intern_spec` modulo
-`LStoreWF`'s missing flag-synchronisation clause (task #97a). -/
+/-- con-leche: none — arena infrastructure; `LStore.intern_spec` modulo
+`LStoreWF`'s missing flag-synchronisation clause (task #97a).  Precedent:
+con-leche's retired `Setlec/Kernel/IExpr.lean:464 intern` (at 94a1cf78). -/
 theorem LStore.intern_spec_of_sync {st : LStore} {w : LNodeView} (h : LStoreWF st)
     (hsync : st.ScratchSync) (hv : st.ViewOK w) (hcap : st.capOK w) :
     LStoreWF (st.intern w).1 ∧ LExt st (st.intern w).1 ∧
@@ -5090,9 +5119,10 @@ theorem LsStore.view_intern_mono (st : LsStore) (w : LsNodeView) {i : LsIdx}
       · rw [if_pos hp] at h ⊢; exact LsTables.get_push_mono _ _ _ _ h
       · rw [if_neg hp] at h ⊢; exact h
 
-/-- con-leche: Verify/SimI.lean:244 Ext — interning a level list extends the
-store.  `denoteLs` carries no fuel, so this is `view` monotonicity and the
-level store standing still. -/
+/-- con-leche: none — arena infrastructure; interning a level list extends
+the store.  `denoteLs` carries no fuel, so this is `view` monotonicity and
+the level store standing still.  Precedent: con-leche's retired
+`Verify/SimI.lean:244 Ext` (at 94a1cf78). -/
 theorem LsStore.intern_ext (st : LsStore) (w : LsNodeView) :
     LsExt st (st.intern w).1 := by
   refine ⟨?_, ?_⟩
@@ -5102,8 +5132,9 @@ theorem LsStore.intern_ext (st : LsStore) (w : LsNodeView) :
     rw [denoteLs, LsStore.view_intern_mono st w hvs, LsStore.ls_intern]
     exact hlist
 
-/-- con-leche: Setlec/Kernel/IExpr.lean:464 intern — `LsStore.intern_spec`
-modulo `LsStoreWF`'s missing flag-synchronisation clause (task #97a). -/
+/-- con-leche: none — arena infrastructure; `LsStore.intern_spec` modulo
+`LsStoreWF`'s missing flag-synchronisation clause (task #97a).  Precedent:
+con-leche's retired `Setlec/Kernel/IExpr.lean:464 intern` (at 94a1cf78). -/
 theorem LsStore.intern_spec_of_sync {st : LsStore} {w : LsNodeView}
     (h : LsStoreWF st) (hsync : st.ScratchSync) (hv : st.ViewOK w)
     (hcap : st.capOK w) :
@@ -5112,16 +5143,18 @@ theorem LsStore.intern_spec_of_sync {st : LsStore} {w : LsNodeView}
   ⟨LsStore.intern_wf_of_sync h hsync hv hcap, LsStore.intern_ext st w,
    LsStore.intern_view_spec h hv hcap⟩
 
-/-- con-leche: Setlec/Kernel/IExpr.lean:464 intern — `intern` preserves the
-store invariant.  The flag synchronisation the persistent case needs is
-`EWFAt.sync`, read off `StoreWF` (task #97a). -/
+/-- con-leche: none — arena infrastructure; `intern` preserves the store
+invariant.  The flag synchronisation the persistent case needs is
+`EWFAt.sync`, read off `StoreWF` (task #97a).  Precedent: con-leche's
+retired `Setlec/Kernel/IExpr.lean:464 intern` (at 94a1cf78). -/
 theorem EStore.intern_wf {st : EStore} {w : ENodeView} (h : StoreWF st)
     (hv : st.ViewOK w) (hcap : st.capOK w) : StoreWF (st.intern w).1 :=
   EStore.intern_wf_of_sync h h.scratchSync hv hcap
 
-/-- con-leche: Setlec/Kernel/IExpr.lean:464 intern — **`intern_spec`**: the
-store stays well formed, the arena only grows, the new handle decodes to the
-node that was interned, and it denotes that node's denotation. -/
+/-- con-leche: none — arena infrastructure; **`intern_spec`**: the store
+stays well formed, the arena only grows, the new handle decodes to the node
+that was interned, and it denotes that node's denotation.  Precedent:
+con-leche's retired `Setlec/Kernel/IExpr.lean:464 intern` (at 94a1cf78). -/
 theorem EStore.intern_spec {st : EStore} {w : ENodeView} (h : StoreWF st)
     (hv : st.ViewOK w) (hcap : st.capOK w) :
     StoreWF (st.intern w).1 ∧ Ext st (st.intern w).1 ∧
@@ -5133,14 +5166,16 @@ theorem EStore.intern_spec {st : EStore} {w : ENodeView} (h : StoreWF st)
   obtain ⟨rk', hwf'⟩ := hwf
   exact denoteE_unfold hwf' hview
 
-/-- con-leche: Setlec/Kernel/IExpr.lean:472 enableTierTwo -/
+/-- con-leche: none — arena infrastructure.  Precedent: con-leche's retired
+`Setlec/Kernel/IExpr.lean:472 enableTierTwo` (at 94a1cf78). -/
 theorem EStore.enableScratch_wf {st : EStore} (h : StoreWF st) :
     StoreWF st.enableScratch := by
   obtain ⟨rk, h⟩ := h
   exact ⟨rk, EStore.enableScratch_wfAt h⟩
 
-/-- con-leche: Setlec/Kernel/IExpr.lean:472 enableTierTwo — opening the
-scratch tier keeps the invariant and changes no persistent handle. -/
+/-- con-leche: none — arena infrastructure; opening the scratch tier keeps
+the invariant and changes no persistent handle.  Precedent: con-leche's
+retired `Setlec/Kernel/IExpr.lean:472 enableTierTwo` (at 94a1cf78). -/
 theorem EStore.enableScratch_spec {st : EStore} (h : StoreWF st) :
     StoreWF st.enableScratch ∧
       (∀ i, i.isPersistent = true → st.enableScratch.view i = st.view i) ∧
@@ -5148,15 +5183,17 @@ theorem EStore.enableScratch_spec {st : EStore} (h : StoreWF st) :
   ⟨EStore.enableScratch_wf h, fun _ hp => EStore.view_enableScratch_pers st hp,
    fun _ hp => denoteE_enableScratch_scr st hp⟩
 
-/-- con-leche: Setlec/Kernel/IExpr.lean:480 truncateTierTwo -/
+/-- con-leche: none — arena infrastructure.  Precedent: con-leche's retired
+`Setlec/Kernel/IExpr.lean:480 truncateTierTwo` (at 94a1cf78). -/
 theorem EStore.dropScratch_wf {st : EStore} (h : StoreWF st) :
     StoreWF st.dropScratch := by
   obtain ⟨rk, h⟩ := h
   exact ⟨rk, EStore.dropScratch_wfAt h⟩
 
-/-- con-leche: Setlec/Kernel/IExpr.lean:480 truncateTierTwo — dropping the
-scratch tier keeps every persistent denotation and invalidates every scratch
-handle. -/
+/-- con-leche: none — arena infrastructure; dropping the scratch tier keeps
+every persistent denotation and invalidates every scratch handle.
+Precedent: con-leche's retired `Setlec/Kernel/IExpr.lean:480
+truncateTierTwo` (at 94a1cf78). -/
 theorem EStore.dropScratch_denote_pers {st : EStore} (h : StoreWF st)
     {i : EIdx} {e : Expr} (hp : i.isPersistent = true)
     (hd : denoteE st i = some e) : denoteE st.dropScratch i = some e := by
@@ -5173,8 +5210,9 @@ theorem EStore.dropScratch_denote_pers {st : EStore} (h : StoreWF st)
     (st.dropScratch.nodeCount + 1) (st.nodeCount + 1) (by omega) (by omega) (by omega)]
   exact h1
 
-/-- con-leche: Setlec/Kernel/IExpr.lean:480 truncateTierTwo — **the** tier
-discipline in one statement. -/
+/-- con-leche: none — arena infrastructure; **the** tier discipline in one
+statement.  Precedent: con-leche's retired `Setlec/Kernel/IExpr.lean:480
+truncateTierTwo` (at 94a1cf78). -/
 theorem EStore.dropScratch_spec {st : EStore} (h : StoreWF st) :
     StoreWF st.dropScratch ∧
       (∀ i, i.isPersistent = true → st.dropScratch.view i = st.view i) ∧

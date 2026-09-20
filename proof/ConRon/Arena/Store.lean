@@ -101,18 +101,21 @@ end Tbl
 
 /-! ## Names -/
 
-/-- con-leche: ConLeche/Kernel/Name.lean:35 Name.anonymous -/
+/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the `anonymous`
+constructor, line 35. -/
 structure AnonNode where
   mk ::
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Name.lean:36 Name.str -/
+/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the `str`
+constructor, line 36. -/
 structure StrNode where
   pre : NIdx
   s : String
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Name.lean:37 Name.num -/
+/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the `num`
+constructor, line 37. -/
 structure NumNode where
   pre : NIdx
   n : Nat
@@ -145,25 +148,28 @@ structure NStore where
 
 /-! ## Levels -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:41 Level.zero -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:40-45 Level — the `zero`
+constructor, line 41. -/
 structure ZeroNode where
   mk ::
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:42 Level.succ -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:40-45 Level — the `succ`
+constructor, line 42. -/
 structure SuccNode where
   u : LIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:43-44 Level.max — and `Level.imax`,
-which has the same two fields and therefore the same record in its own
-array. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:40-45 Level — the `max` constructor,
+line 43, and `imax`, line 44, which has the same two fields and therefore the
+same record in its own array. -/
 structure BinLNode where
   u : LIdx
   v : LIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:45 Level.param -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:40-45 Level — the `param`
+constructor, line 45. -/
 structure ParamNode where
   n : NIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
@@ -183,10 +189,10 @@ inductive LNodeView where
   | param (n : NIdx)
   deriving DecidableEq, Repr, Inhabited
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:47-53 Level.hashData — plus the
-has-a-parameter flag, which con-leche recomputes by a walk
-(`Kernel/Expr.lean:118-122 levelHasParam`) because a `Level` tree has nowhere
-to cache it. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:40-53 Level — the `hashData`
+computed field, lines 47-53, plus the has-a-parameter flag, which con-leche
+recomputes by a walk (`Kernel/Expr.lean:114-122 levelHasParam`) because a
+`Level` tree has nowhere to cache it. -/
 structure LDer where
   hash : UInt64
   hasParam : Bool
@@ -241,55 +247,64 @@ structure LsStore where
 
 /-! ## Expressions -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:345 Expr.bvar -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — the `bvar`
+constructor, line 344. -/
 structure BVarNode where
   i : Nat
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:346 Expr.fvar -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — the `fvar`
+constructor, line 345. -/
 structure FVarNode where
   idx : Nat
   ty : EIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:347 Expr.sort -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — the `sort`
+constructor, line 346. -/
 structure SortNode where
   u : LIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:348 Expr.const -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — the `const`
+constructor, line 347. -/
 structure ConstNode where
   n : NIdx
   us : LsIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:349 Expr.app -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — the `app`
+constructor, line 348. -/
 structure AppNode where
   f : EIdx
   a : EIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:350-351 Expr.lam — and
-`Expr.forallE`, same three fields, its own array. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — the `lam`
+constructor, line 349, and `forallE`, line 350: same three fields, its own
+array. -/
 structure BindNode where
   ty : EIdx
   body : EIdx
   m : ConLeche.BinderMeta
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:352 Expr.letE -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — the `letE`
+constructor, line 351. -/
 structure LetNode where
   ty : EIdx
   val : EIdx
   body : EIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:353 Expr.lit -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — the `lit`
+constructor, line 352. -/
 structure LitNode where
   l : ConLeche.Literal
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:354 Expr.proj -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — the `proj`
+constructor, line 353. -/
 structure ProjNode where
   n : NIdx
   i : Nat
@@ -306,7 +321,7 @@ instance : BEq LetNode := instBEqOfDecidableEq
 instance : BEq LitNode := instBEqOfDecidableEq
 instance : BEq ProjNode := instBEqOfDecidableEq
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr — the store-side view of
+/-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — the store-side view of
 an expression node: con-leche's ten constructors with every subterm replaced
 by a handle.  `BinderMeta` and `Literal` stay *values* (they are not
 expressions), exactly as DESIGN §8.3 specifies. -/
@@ -432,14 +447,15 @@ def view (st : NStore) (i : NIdx) : Option NNodeView :=
   if i.isPersistent then st.pers.get i
   else if st.scratchOn then st.scr.get i else none
 
-/-- con-leche: ConLeche/Kernel/Name.lean:41-44 Name.hashData — the derived
-word of a handle. -/
+/-- con-leche: ConLeche/Kernel/Name.lean:34-44 Name — the `hashData` computed
+field, lines 41-44: the derived word of a handle. -/
 def derived (st : NStore) (i : NIdx) : UInt64 :=
   if i.isPersistent then st.pers.derAt i
   else if st.scratchOn then st.scr.derAt i else 0
 
-/-- con-leche: ConLeche/Kernel/Name.lean:41-44 Name.hashData — the derived
-word a node view *would* get, computed in `O(1)` from the children's. -/
+/-- con-leche: ConLeche/Kernel/Name.lean:34-44 Name — the `hashData` computed
+field, lines 41-44: the derived word a node view *would* get, computed in
+`O(1)` from the children's. -/
 def derOfView (st : NStore) (v : NNodeView) : UInt64 :=
   match v with
   | .anonymous => 1723
@@ -581,7 +597,9 @@ def empty : LStore := ⟨.empty, .empty, .empty, false⟩
 
 instance : Inhabited LStore := ⟨empty⟩
 
+/-- con-leche: none — nodes in the persistent tier. -/
 @[inline] def persCount (st : LStore) : Nat := st.pers.count
+/-- con-leche: none — nodes in the scratch tier. -/
 @[inline] def scrCount (st : LStore) : Nat := st.scr.count
 /-- con-leche: none — the fuel bound `denoteL` uses. -/
 @[inline] def nodeCount (st : LStore) : Nat := st.persCount + st.scrCount
@@ -591,15 +609,15 @@ def view (st : LStore) (i : LIdx) : Option LNodeView :=
   if i.isPersistent then st.pers.get i
   else if st.scratchOn then st.scr.get i else none
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:47-53 Level.hashData — the derived
-record of a level handle. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:40-53 Level — the `hashData` computed
+field, lines 47-53: the derived record of a level handle. -/
 def derived (st : LStore) (i : LIdx) : LDer :=
   if i.isPersistent then st.pers.derAt i
   else if st.scratchOn then st.scr.derAt i else default
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:47-53 Level.hashData — and
-`Kernel/Expr.lean:118-122 levelHasParam`: the derived record a node view
-would get, in `O(1)` from the children's. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:40-53 Level — the `hashData` computed
+field, lines 47-53, and `Kernel/Expr.lean:114-122 levelHasParam`: the derived
+record a node view would get, in `O(1)` from the children's. -/
 def derOfView (st : LStore) (v : LNodeView) : LDer :=
   match v with
   | .zero => ⟨1, false⟩
@@ -697,7 +715,9 @@ def empty : LsStore := ⟨.empty, .empty, .empty, false⟩
 
 instance : Inhabited LsStore := ⟨empty⟩
 
+/-- con-leche: none — nodes in the persistent tier. -/
 @[inline] def persCount (st : LsStore) : Nat := st.pers.count
+/-- con-leche: none — nodes in the scratch tier. -/
 @[inline] def scrCount (st : LsStore) : Nat := st.scr.count
 /-- con-leche: none — the fuel bound `denoteLs` uses. -/
 @[inline] def nodeCount (st : LsStore) : Nat := st.persCount + st.scrCount
@@ -906,7 +926,9 @@ def empty : EStore := ⟨.empty, .empty, .empty, false⟩
 
 instance : Inhabited EStore := ⟨empty⟩
 
+/-- con-leche: none — nodes in the persistent tier. -/
 @[inline] def persCount (st : EStore) : Nat := st.pers.count
+/-- con-leche: none — nodes in the scratch tier. -/
 @[inline] def scrCount (st : EStore) : Nat := st.scr.count
 /-- con-leche: none — the fuel bound `denoteE` uses. -/
 @[inline] def nodeCount (st : EStore) : Nat := st.persCount + st.scrCount
@@ -931,15 +953,16 @@ def view (st : EStore) (i : EIdx) : Option ENodeView :=
   if i.isPersistent then st.pers.get i
   else if st.scratchOn then st.scr.get i else none
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:356-402 Expr.data — the packed
-derived word of an expression handle. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:343-402 Expr — the `data` computed
+field, lines 357-402: the packed derived word of an expression handle. -/
 def derived (st : EStore) (i : EIdx) : UInt64 :=
   if i.isPersistent then st.pers.derAt i
   else if st.scratchOn then st.scr.derAt i else 0
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:356-402 Expr.data — **the formulas,
-verbatim**, with `e.data` replaced by `st.derived h` and the level/name reads
-replaced by the corresponding stores' derived columns:
+/-- con-leche: ConLeche/Kernel/Expr.lean:343-402 Expr — the `data` computed
+field, lines 357-402: **the formulas, verbatim**, with `e.data` replaced by
+`st.derived h` and the level/name reads replaced by the corresponding
+stores' derived columns:
 
 * `levelHash u` ↦ `(st.lder u).hash`, `levelHasParam u` ↦ `(st.lder u).hasParam`;
 * `Hashable.hash (n : Name)` ↦ `st.nder n` (the `Hashable Name` instance

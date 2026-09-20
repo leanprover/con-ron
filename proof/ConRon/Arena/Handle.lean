@@ -200,45 +200,79 @@ end Idx
 /-! ## The constructor tags
 
 One namespace per store, values fixed by con-leche's own constructor order so
-that a reader can line the two up by eye.
+that a reader can line the two up by eye.  Each tag cites the parent
+inductive and names the constructor it stands for. -/
 
-con-leche: ConLeche/Kernel/Expr.lean:344-353 Expr — the ten expression
-constructor tags, in con-leche's declaration order. -/
 namespace ETag
+/-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — the `bvar`
+constructor, line 344. -/
 def bvar : UInt32 := 0
+/-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — the `fvar`
+constructor, line 345. -/
 def fvar : UInt32 := 1
+/-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — the `sort`
+constructor, line 346. -/
 def sort : UInt32 := 2
+/-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — the `const`
+constructor, line 347. -/
 def const : UInt32 := 3
+/-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — the `app`
+constructor, line 348. -/
 def app : UInt32 := 4
+/-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — the `lam`
+constructor, line 349. -/
 def lam : UInt32 := 5
+/-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — the `forallE`
+constructor, line 350. -/
 def forallE : UInt32 := 6
+/-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — the `letE`
+constructor, line 351. -/
 def letE : UInt32 := 7
+/-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — the `lit`
+constructor, line 352. -/
 def lit : UInt32 := 8
+/-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — the `proj`
+constructor, line 353. -/
 def proj : UInt32 := 9
 end ETag
 
-/-! con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the three name
-constructor tags. -/
+/-! The three name-constructor tags. -/
 namespace NTag
+/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the `anonymous`
+constructor, line 35. -/
 def anonymous : UInt32 := 0
+/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the `str`
+constructor, line 36. -/
 def str : UInt32 := 1
+/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the `num`
+constructor, line 37. -/
 def num : UInt32 := 2
 end NTag
 
-/-! con-leche: ConLeche/Kernel/Expr.lean:40-45 Level — the five level
-constructor tags. -/
+/-! The five level-constructor tags. -/
 namespace LTag
+/-- con-leche: ConLeche/Kernel/Expr.lean:40-45 Level — the `zero`
+constructor, line 41. -/
 def zero : UInt32 := 0
+/-- con-leche: ConLeche/Kernel/Expr.lean:40-45 Level — the `succ`
+constructor, line 42. -/
 def succ : UInt32 := 1
+/-- con-leche: ConLeche/Kernel/Expr.lean:40-45 Level — the `max`
+constructor, line 43. -/
 def max : UInt32 := 2
+/-- con-leche: ConLeche/Kernel/Expr.lean:40-45 Level — the `imax`
+constructor, line 44. -/
 def imax : UInt32 := 3
+/-- con-leche: ConLeche/Kernel/Expr.lean:40-45 Level — the `param`
+constructor, line 45. -/
 def param : UInt32 := 4
 end LTag
 
-/-! con-leche: none — level *lists* are interned as one object (nanoda's
-`LevelsPtr`, `_tmp/t97/nanoda-design.md` §1), so the store has a single
-constructor and a single tag. -/
+/-! The level-list store's single tag. -/
 namespace LsTag
+/-- con-leche: none — arena infrastructure: level *lists* are interned as
+one object (nanoda's `LevelsPtr`, `_tmp/t97/nanoda-design.md` §1), so the
+store has a single constructor and a single tag. -/
 def list : UInt32 := 0
 end LsTag
 
