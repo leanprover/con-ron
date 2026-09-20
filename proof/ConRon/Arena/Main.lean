@@ -181,11 +181,17 @@ a tier that is about to vanish. -/
 def runPipelineTail (mode : CheckMode) (pins : List NatOpPinSet)
     (pre : Frontend.PreludeIx) (r : Frontend.ParseResultD) :
     AM (Except CheckError Nat) := do
+  -- The verdict number is read HERE, before the fold, so that `r` — whose
+  -- `inModelGen`, `genOwner`, `inModelDeclined`, `projRewrites` and
+  -- `inModelled` the fold never looks at — dies at `preparePrelude` instead
+  -- of being pinned across the whole check (DESIGN §8.4: decide the rare
+  -- branch, and read what a later line needs, BEFORE the expensive step).
+  let records := r.decls.size - r.genRecords
   let ds ← Frontend.preparePrelude pre r.decls
   let ipins ← internAllPins pins
   match ← installThenCheck mode ipins ds with
   | .error (e, n) => pure (.error (atDecl e n))
-  | .ok _ => pure (.ok (r.decls.size - r.genRecords))
+  | .ok _ => pure (.ok records)
 
 /-- con-leche: Main.lean:461-711 checkMain
 **THE PURE SEAM'S BODY**: the prelude, `parseChunks` (which is `chunkStep`
