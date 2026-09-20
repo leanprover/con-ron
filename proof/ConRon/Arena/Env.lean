@@ -228,7 +228,7 @@ def IConstantInfo.toConstantVal : IConstantInfo → AM IConstantVal
     let ty ← internE (.sort one)
     pure ⟨tbl.tableName, tbl.levelParams, ty⟩
 
-/-- con-leche: ConLeche/Kernel/Env.lean:637-655 ConstantInfo — the constant's
+/-- con-leche: ConLeche/Kernel/Env.lean:644 name — the constant's
 name, `ConstantInfo.name` at line 644.  PURE, unlike `toConstantVal`: it is
 the environment index's key, and `IProjTable.tableName` is the stored handle
 that makes it so (see the module note). -/
@@ -248,7 +248,7 @@ declared type. -/
 def IConstantInfo.type (c : IConstantInfo) : AM EIdx := do
   pure (← c.toConstantVal).type
 
-/-- con-leche: ConLeche/Kernel/Env.lean:562-570 Declaration — the name of a
+/-- con-leche: ConLeche/Kernel/Env.lean:565-568 name — the name of a
 non-basis declaration, `Declaration.name` at lines 565-568.  con-leche's
 `.anonymous` fall-through is the interned anonymous name here. -/
 def IDeclaration.name : IDeclaration → AM NIdx

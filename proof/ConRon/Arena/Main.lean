@@ -1,3 +1,5 @@
+import ConRon.Arena.Frontend.Prelude
+
 /-!
 # `con-ron-lean` — the arena checker's driver (DESIGN.md §8.4, task #97 P2f)
 
@@ -33,11 +35,19 @@ plain run and `--progress` alike).
 
 **What is NOT here.**  No `import ConRon.Refine`: (B) is a checker, not a
 proof about the Rust one, and the two tiers meet only at Theorem 2 (§8.2).
-No `ConLeche.*` either — a twin is a port, and a port that imports its
-original proves nothing.  The three types the seam is stated in are
-therefore copied here (`CheckMode` and `CheckError` verbatim, as §8's
-census classifies them: pure data with no term inside), and P2d moves them
-into the `Kernel` twins beside the rest.
+`CheckMode` is still copied here (§8's census class (P): pure data with no
+term inside) and P2d moves it into the `Kernel` twins beside the rest;
+`CheckError` moved to `Arena/Monad.lean` with P2b, which needed it and gave
+it the fourth constructor the store's capacity limit raises (`native`).
+
+**con-leche IS imported, below the seam** (task #97e).  §8.7's ruling: (B)
+imports con-leche's representation-free types and pure functions rather than
+copying them, and since the parser landed that extends to the byte recogniser
+— `ConLeche/Frontend/Scan/{Types,Fast}.lean` produces records in stream
+indices with no `Expr`, `Name` or `Level` in them, so `scanLineFwd` is reused
+rather than twinned (`Arena/Frontend/ExportC.lean`'s note has the check).  A
+twin that imported its original's *checker* would prove nothing; a twin that
+re-typed its original's byte recogniser would prove nothing either.
 
 **Chunked reading, 4 MiB** (`ConLeche/Frontend/ExportC.lean:903-931`): the
 handle is read strictly forward and never seeked, so the source may be a
@@ -61,38 +71,29 @@ inductive CheckMode where
   | trusted
   deriving DecidableEq, Repr
 
-/-- con-leche: ConLeche/Kernel/Core.lean:47-66 CheckError
-The checker's error, verbatim (census class (P)).  Three constructors and
-three exit codes; the port's Rust carries a fourth, `Native`, for a
-machine-word limit, and so will the arena — §8.3's handle word runs out at
-134 M nodes per constructor per tier and `throw`s the same KIND of error a
-decline is.  Until there is a store to overflow there is nothing to raise
-it, so the constructor lands with the store (P2a). -/
-inductive CheckError where
-  | notImplemented (what : String)
-  | invalid (what : String)
-  | internal (msg : String)
-  deriving Repr
-
 /-- con-leche: Main.lean:48-51 ConLeche.CheckError.exitCode
 The exit code of each error kind.  1 rejected, 2 declined, 3 error; 0 is
 the accept and has no error to map.  The 1/2 distinction is con-leche's
 and is load-bearing: a reject is a verdict about the input, a decline a
 statement about the checker, and a decline is never "something
-unexpectedly went wrong" — that is 3. -/
+unexpectedly went wrong" — that is 3.  `native` — the arena's own fourth
+kind, raised when §8.3's handle word runs out at 2^27 nodes per constructor
+per tier — is a 3 for the same reason: it claims nothing about the input. -/
 def CheckError.exitCode : CheckError → UInt32
   | .notImplemented _ => 2
   | .invalid _ => 1
   | .internal _ => 3
+  | .native _ => 3
 
 /-- con-leche: Main.lean:48-51 ConLeche.CheckError.exitCode
 The message a failing run prints, beside the code above.  con-leche builds
 it from the error's own `ToString`; the arena's is the same three words in
-front of the same payload. -/
+front of the same payload, plus its own for `native`. -/
 def CheckError.message : CheckError → String
   | .notImplemented what => s!"declined: {what}"
   | .invalid what => s!"invalid: {what}"
   | .internal msg => s!"internal: {msg}"
+  | .native what => s!"native: {what}"
 
 /-- con-leche: ConLeche/Kernel/NatOpPinSet.lean:28-51 NatOpPinSet
 One toolchain's `Nat`-operation pins.
@@ -117,10 +118,11 @@ the list is empty, which is exactly `--no-pins` and declines every stream
 that defines `Nat.div`. -/
 def natOpPinSets : List NatOpPinSet := []
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:813-814 chunkSize
-The read size: 4 MiB, so a Mathlib-scale export never materialises as one
-buffer and the handle stays readable as a pipe. -/
-def chunkSize : USize := 4 * 1024 * 1024
+/-- con-leche: none — the read size, 4 MiB, so a Mathlib-scale export never
+materialises as one buffer and the handle stays readable as a pipe.  It is
+`Frontend.chunkSize` (con-leche's `ExportC.lean:813-814`), named here so the
+driver reads as con-leche's does. -/
+def chunkSize : USize := Frontend.chunkSize
 
 /-- con-leche: Main.lean:461-711 checkMain
 **THE SEAM** (DESIGN.md §8.4): the whole checker, from the input's chunks
@@ -132,14 +134,44 @@ declaration-record count — con-leche's verdict number, "a property of the
 INPUT" (`Main.lean:661-676`): the records the parse produced less the ones
 the in-process modeller generated, which no later step moves.
 
-**Today it is a stub** and declines.  The phases that fill it in are §8.6:
-P2b the `ExprOps` twins, P2c the `Core` knot, P2d the checker and the
-declaration check, P2e the parser into the store.  Each replaces a part of
-this body and nothing else in this file; the driver below is already what
-it will be. -/
-def runPipeline (_chunks : List ByteArray) (_mode : CheckMode)
+**The FRONTEND half is real since task #97e**: the built-in prelude is
+parsed, the stream's chunks are parsed into the persistent tier of one
+`EStore`, and the prepared record list is built.  What is still a stub is the
+FOLD, so a run that parses cleanly ends in a decline that names the count it
+would have checked.  Every verdict the frontend itself reaches — a malformed
+line, a rebound index, an `unsafe` declaration, a block whose redundant
+fields contradict its own records, a mutual or nested block the declining
+modeller turns away — is already this function's answer, with con-leche's own
+exit code.
+
+P2c (the `Core` knot) and P2d (the checker and the declaration check) replace
+the last three lines; the driver below is already what it will be. -/
+def runPipelineM (md : Frontend.Modeller) (chunks : List ByteArray) :
+    AM (Except (CheckError × Nat) (Nat × Nat × Nat × Nat)) := do
+  match ← Frontend.builtinPreludeE md with
+  | .error e => pure (.error e)
+  | .ok pre =>
+    match ← Frontend.parseChunks md chunks with
+    | .error e => pure (.error e)
+    | .ok r =>
+      let _ ← Frontend.preparePrelude pre r.decls
+      let s ← get
+      pure (.ok (r.decls.size - r.genRecords,
+        s.store.nodeCount, s.store.ls.nodeCount, s.store.ns.nodeCount))
+
+/-- con-leche: Main.lean:461-711 checkMain
+**THE SEAM ITSELF**: `runPipelineM` run at the empty store, with the parse's
+own `(CheckError × Nat)` position folded into the message (`Frontend.atLine`)
+because this signature has no position channel. -/
+def runPipeline (chunks : List ByteArray) (_mode : CheckMode)
     (_pins : List NatOpPinSet) : Except CheckError Nat :=
-  .error (.notImplemented "arena checker not yet implemented")
+  match (runPipelineM Frontend.declineModeller chunks).run (AState.init EStore.empty) with
+  | .error e => .error e
+  | .ok (.error (e, n), _) => .error (Frontend.atLine e n)
+  | .ok (.ok (records, nE, nL, nN), _) =>
+    .error (.notImplemented
+      s!"arena checker: fold not yet implemented ({records} declarations parsed; \
+        store: {nE} expression, {nL} level, {nN} name nodes)")
 
 /-- con-leche: Main.lean:423-434 progressStride
 The progress heartbeat's stride, read off `--progress[=<stride>]`.  No
