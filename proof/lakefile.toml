@@ -48,6 +48,16 @@ roots = ["ConRon.Spike.LevelName"]
 name = "ConRonArena"
 roots = ["ConRon.Arena"]
 
+# The P2s spike (DESIGN.md §8.6, task #97s): a FOURTH root, not a default
+# target and not imported by `ConRon.Arena`.  It prices the proof idioms of
+# §8's two theorems (`mvcgen` + `@[spec]` against a hand proof) on three
+# functions before P2b-P2d start at scale.  Kept out of `defaultTargets`
+# because it is a measurement, not a deliverable: build it with
+# `lake build ConRonArenaSpike`.
+[[lean_lib]]
+name = "ConRonArenaSpike"
+roots = ["ConRon.Arena.Spike"]
+
 # The build-time table generator (DESIGN.md §5 P1.5, task #22): prints Rust
 # source that rebuilds con-leche's elaboration-time tables
 # (`BasisKind.declsA`, later the Nat-op pin variants) with the crate's own
