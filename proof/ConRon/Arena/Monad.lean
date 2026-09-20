@@ -33,6 +33,7 @@ imports nothing from it); the two are the same constructors and P2d merges
 them when the driver is wired to the checker.
 -/
 import ConRon.Arena.WFProofs
+import ConRon.Arena.CoreState
 import ConLeche.Kernel.Level
 
 namespace ConRon.Arena
@@ -114,6 +115,12 @@ with the per-declaration caches (`whnfCore`, `whnf`, the three infer grades,
 structure AState where
   store : EStore
   memos : Memos
+  /-- The per-DECLARATION caches (task #97c, `Arena/CoreState.lean`): the
+  five entry-point memos, the `defeq` verdict table, the two level-verdict
+  tables and the three lazy instantiated-constant tables.  A record of its
+  own beside `memos`, because the per-call clear and the per-declaration
+  drop are different operations on different lifetimes. -/
+  caches : Caches
 
 /-- con-leche: ConLeche/Cached/StateC.lean:164-166 CheckCM — the one monad of (B)
 (DESIGN §8.4: "`AM := StateT AState (Except CheckError)` and nothing
@@ -121,7 +128,7 @@ else"). -/
 abbrev AM := StateT AState (Except CheckError)
 
 /-- con-leche: none — the initial state over a given arena. -/
-def AState.init (st : EStore) : AState := ⟨st, .empty⟩
+def AState.init (st : EStore) : AState := ⟨st, .empty, .empty⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:47-66 CheckError — **the one failure
 primitive of (B)** (task #97s template rule 7).  Written as a bare `throw`,
