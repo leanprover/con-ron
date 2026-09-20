@@ -1352,10 +1352,17 @@ pub fn consts_resolve(
             Ok(ENodeView::BVar(_)) => Ok(true),
             Ok(ENodeView::Sort(_)) => Ok(true),
             Ok(ENodeView::Lit(Literal::NatVal(_))) => nat_trio_stored(st, fe),
+            // **Both halves run**: the twin's `.strVal` arm `pin`s all ten
+            // names and *then* takes one conjunction, so short-circuiting the
+            // string half would leave seven names uninterned and the store
+            // behind the twin's (see the evaluation-order note in DESIGN.md's
+            // task #97-P4c section).
             Ok(ENodeView::Lit(Literal::StrVal(_))) => match nat_trio_stored(st, fe) {
                 Err(e) => Err(e),
-                Ok(false) => Ok(false),
-                Ok(true) => str_support_stored(st, fe),
+                Ok(nats) => match str_support_stored(st, fe) {
+                    Err(e) => Err(e),
+                    Ok(strs) => Ok(nats && strs),
+                },
             },
             Ok(ENodeView::Const(n, _)) => Ok(stored(fe, &n)),
             Ok(ENodeView::FVar(_, ty)) => consts_resolve(st, fe, fuel - 1, &ty),

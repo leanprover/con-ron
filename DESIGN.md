@@ -23873,7 +23873,7 @@ parameter is first; a twin that cannot fail returns its value).
 | the twin's 23 interpolated messages | `con_ron_core`'s own code-point constants, interpolation dropped | **no** — §3.1 (a message need not match a theorem); matching *con-ron-core's* is what lets the differential test compare error text |
 | `IConstantInfo` read out of `fe.find?` | a **copy** (`i_constant_val_dup`, `i_ind_caps_dup`, `i_rec_rules_dup`) before the state is taken mutably | **no** — Lean's record share is a `Vec` copy here, task #14's rule.  Every read of a stored constant that outlives a `&mut st` pays it |
 
-##### Evaluation order: five places where Lean's `do` does NOT short-circuit
+##### Evaluation order: six places where Lean's `do` does NOT short-circuit
 
 This is the subtlety that cost the most care, and it is worth writing down
 because P4d will meet it again.  Lean's `do` **lifts every `(← e)` out of an
@@ -23883,7 +23883,7 @@ short-circuit.  Where the lifted call touches the state — and `isBoolTrue`
 interns `Bool.true` and the empty level list, `natLitSupported` interns five
 names, `hasFvarFast` writes the fvar-range memo, `notProofFast` may intern a
 `Sort 1` — a short-circuiting Rust would leave the store one node behind the
-twin's and every handle after it different.  The five sites, all now spelled
+twin's and every handle after it different.  The six sites, all now spelled
 with both operands evaluated:
 
 * `reduceNat`'s `c == ns && (← natLitSupported fe)` (the `Nat.succ` arm);
@@ -23891,7 +23891,10 @@ with both operands evaluated:
 * `propIrrel`'s `(← notProofFast a) || (← notProofFast b)` — and its
   `(← isProofFast a) && (← isProofFast b)`;
 * `defeqStep`'s `pi && (← isBoolTrue b) && !(← hasFvarFast … a)`;
-* `andRescueSlotsGo`'s `… && (← e.fireOk ust)`.
+* `andRescueSlotsGo`'s `… && (← e.fireOk ust)`;
+* `constsResolve`'s `.lit (.strVal _)` arm, which `pin`s all TEN names and
+  then takes one conjunction — a Rust that stopped after the `Nat` trio
+  would leave seven names uninterned.
 
 An **`else if` chain is different**: in do-notation the `else` branch is its
 own do-sequence, so `else if … && (← sameConstHeads a' b')` in `defeqStep`'s
