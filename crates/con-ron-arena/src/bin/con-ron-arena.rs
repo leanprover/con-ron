@@ -349,14 +349,14 @@ fn check_main(a: &Args, file: &str) -> u8 {
     };
     // ONE store for the whole run: the prelude, the stream and the pins are
     // hash-consed together into its persistent tier (DESIGN.md §8.3).
-    let mut ar = EStore::empty();
+    let mut st = AState::init(EStore::empty());
     // The in-process modeller, which the parse takes as a type parameter: the
     // arena core is quantified over an arbitrary `Modeller`, and this is the
     // one the binary supplies — `crates/con-ron`'s own generator behind a
     // readback (`con_ron_arena::in_model`).
     let modeller = InProcess::new();
     // THE BUILT-IN PRELUDE, parsed into that store before anything else.
-    let prelude_ix = match prelude::builtin_prelude_e(&modeller, &mut ar) {
+    let prelude_ix = match prelude::builtin_prelude_e(&modeller, &mut st) {
         Ok(p) => p,
         Err((e, line)) => {
             let what = match classify(&e) {
@@ -380,7 +380,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // store above (plus the in-process modeller's).
     let parsed: ParseResultD = match driver::parse_export_stream_d(
         &modeller,
-        &mut ar,
+        &mut st,
         file,
         in_model,
         census,
@@ -413,7 +413,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
         let names: Vec<String> = parsed
             .in_modelled
             .iter()
-            .map(|n| driver::name_of(&ar, n))
+            .map(|n| driver::name_of(&st.store, n))
             .collect();
         eprintln!(
             "con-ron-arena: {} inductive blocks modelled in-process: {} ({} generated \
@@ -430,7 +430,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
         for (n, why) in parsed.in_model_declined.iter() {
             eprintln!(
                 "con-ron-arena: inmodel declined {}: {}",
-                driver::name_of(&ar, n),
+                driver::name_of(&st.store, n),
                 con_ron::render::from_cps(why)
             );
         }
@@ -451,7 +451,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
         );
         if std::env::var("CON_LECHE_PROJREC_TRACE").is_ok() {
             for n in parsed.proj_rewrites.iter() {
-                eprintln!("con-ron-arena:   rewritten {}", driver::name_of(&ar, n));
+                eprintln!("con-ron-arena:   rewritten {}", driver::name_of(&st.store, n));
             }
         }
     }
@@ -460,7 +460,6 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // From here on the store is the checker's state: the memo tables and the
     // per-declaration caches join it (`AState`), and every handle the parse
     // produced indexes into it.
-    let mut st = AState::init(ar);
     // **PREPARE** (`frontend::prepare`): what the fold runs over is
     // `prepare_prelude` of the file's records — the prelude's declarations
     // first (the stream's own copies where it has them, the rest synthesised),
