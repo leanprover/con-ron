@@ -1580,4 +1580,359 @@ def andRescueSlots (fe : IFEnv) (ctor : NIdx) (nP : Nat) (ust : LsIdx) :
   let an ← pin ConLeche.andName
   andRescueSlotsGo fe an ctor nP ust 2 0
 
+
+/-! ## The stuck-major rescue and the ι step
+
+con-leche's `Core.lean`:1311-1832. -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1311-1493 majorToCtor — the
+fabrication's fvar-leaf containment, `fab.fvarLeaves.all (fun l =>
+major.fvarLeaves.contains l)`, as a named recursion (DESIGN §3.4). -/
+def fvarLeavesSubset : List (Nat × EIdx) → List (Nat × EIdx) → Bool
+  | [], _ => true
+  | l :: ls, ms => ms.contains l && fvarLeavesSubset ls ms
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1311-1493 majorToCtor — the scope
+guard the three rescue branches share (cf. `annotateProjElim`): the
+fabricated major is well-scoped, closed under loose bvars, and mentions no
+free variable the stuck major does not. -/
+def fabScopeOk (depth : Nat) (fab major : EIdx) : AM Bool := do
+  if !(← wscopedB coreWalkFuel depth fab) then pure false
+  else if !(← looseBVarsBoundedFast coreWalkFuel 0 fab) then pure false
+  else do
+    let fl ← fvarLeaves coreWalkFuel fab
+    let ml ← fvarLeaves coreWalkFuel major
+    pure (fvarLeavesSubset fl ml)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1311-1493 majorToCtor — **the
+stuck-major rescue** (`to_cnstr_when_K` and `to_cnstr_when_structure`): a
+recursor's major premise that does not whnf to a constructor application may
+still be *replaced* by one — K-flagged, η-capable, or the pinned `And`.  An
+uncertified major stays put. -/
+def majorToCtor (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (_recName : NIdx) (rules : List IRecRule) (major : EIdx) : AM EIdx := do
+  -- cheap syntactic gates before any inference
+  if ← isCtorApp fe major then pure major else
+  match rules with
+  | [rl] =>
+    match fe.find? rl.ctor with
+    | some (.ctorInfo cvj cnP _cnF) => do
+      match ← view (← getAppFn coreWalkFuel (← piResult coreWalkFuel cvj.type)) with
+      | .const T _ =>
+        match fe.find? T with
+        | some (.indInfo cvT caps) => do
+          if rl.k = true then do
+            -- io grade (lean4lean `toCtorWhenK`'s `inferType`)
+            let tmaj ← r.whnf depth (← r.inferIO depth major)
+            match ← view (← getAppFn coreWalkFuel tmaj) with
+            | .const T' ust => do
+              let ustl ← viewLs ust
+              if T' = T ∧ cvj.levelParams.length = ustl.length then do
+                let targs ← getAppArgs coreWalkFuel tmaj
+                if cnP ≤ targs.length then do
+                  let hd ← internE (.const rl.ctor ust)
+                  let fab ← mkAppN hd (targs.take cnP)
+                  if ← fabScopeOk depth fab major then do
+                    -- synthetic-spine certification (con-leche's task #71)
+                    let tyj ← constTyAt cvj ust
+                    if ← iotaCerts r fe depth false tyj (targs.take cnP) then do
+                      -- the official `to_cnstr_when_K` type check
+                      if ← r.defeq depth tmaj (← r.inferIO depth fab) then do
+                        if ← proofIrrel r fe depth fab major then pure fab
+                        else pure major
+                      else pure major
+                    else pure major
+                  else pure major
+                else pure major
+              else pure major
+            | _ => pure major
+          else if rl.eta = true then do
+            let tmaj ← r.whnf depth (← r.inferIO depth major)
+            match ← view (← getAppFn coreWalkFuel tmaj) with
+            | .const T' ust => do
+              let ustl ← viewLs ust
+              let targs ← getAppArgs coreWalkFuel tmaj
+              -- the *instantiated* non-Prop test (con-leche's task #61)
+              let nz ← capsNeverZero cvT.levelParams ust caps
+              if T' = T ∧ targs.length = caps.etaParams ∧
+                  ustl.length = cvT.levelParams.length ∧ nz = true then do
+                let fabArgs ← etaFabArgsE fe T ust targs major caps.etaFields
+                let hd ← internE (.const caps.etaCtor ust)
+                let fab ← mkAppN hd fabArgs
+                if ← fabScopeOk depth fab major then do
+                  let tyj ← constTyAt cvj ust
+                  if ← iotaCerts r fe depth false tyj fabArgs then do
+                    if ← structEtaCertWith mode r fe depth fab major tmaj then
+                      pure fab
+                    -- 0-field rescue for the pinned basis `PUnit`
+                    else if caps.etaFields = 0 then do
+                      if ← proofIrrel r fe depth fab major then pure fab
+                      else pure major
+                    else pure major
+                  else pure major
+                else pure major
+              else pure major
+            | _ => pure major
+          else do
+            let an ← pin ConLeche.andName
+            if T = an then do
+              -- THE `And`-ONLY η RESCUE (user ruling: `And` and nothing else)
+              let tmaj ← r.whnf depth (← r.inferIO depth major)
+              match ← view (← getAppFn coreWalkFuel tmaj) with
+              | .const T' ust => do
+                let ustl ← viewLs ust
+                let targs ← getAppArgs coreWalkFuel tmaj
+                let ars ← andRescueSlots fe rl.ctor cnP ust
+                if T' = T ∧ targs.length = cnP ∧
+                    cvj.levelParams.length = ustl.length ∧ ars = true then do
+                  let p0 ← internE (.proj T 0 major)
+                  let p1 ← internE (.proj T 1 major)
+                  let fabArgs := targs ++ [p0, p1]
+                  let hd ← internE (.const rl.ctor ust)
+                  let fab ← mkAppN hd fabArgs
+                  if ← fabScopeOk depth fab major then do
+                    let tyj ← constTyAt cvj ust
+                    if ← iotaCerts r fe depth false tyj fabArgs then do
+                      if ← r.defeq depth tmaj (← r.inferIO depth fab) then do
+                        if ← proofIrrel r fe depth fab major then pure fab
+                        else pure major
+                      else pure major
+                    else pure major
+                  else pure major
+                else pure major
+              | _ => pure major
+            else pure major
+        | _ => pure major
+      | _ => pure major
+    | _ => pure major
+  | _ => pure major
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1495-1507 litMajorToCtor — convert a
+literal major premise to constructor form: a `Nat` literal one layer, a
+`String` literal to its *reduced* constructor form. -/
+def litMajorToCtor (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (h : EIdx) :
+    AM EIdx := do
+  match ← view h with
+  | .lit (.strVal s) => do
+    if ← strLitSupported fe then do
+      let c ← strLitToConstructor s
+      r.whnf depth c
+    else pure h
+  | _ => litToCtorIfNat fe h
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1509-1523 projLitToCtor — convert a
+string-literal projection scrutinee to its *reduced* constructor form. -/
+def projLitToCtor (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (h : EIdx) :
+    AM EIdx := do
+  match ← view h with
+  | .lit (.strVal s) => do
+    if ← strLitSupported fe then do
+      let c ← strLitToConstructor s
+      r.whnf depth c
+    else pure h
+  | _ => pure h
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1525-1540 recRuleKOf — **the K bit
+at install** (`RecRule.k`): the rule's constructor has no fields and belongs
+to an inductive stored with the K capability. -/
+def recRuleKOf (fe : IFEnv) (ctor : NIdx) : AM Bool := do
+  match fe.find? ctor with
+  | some (.ctorInfo cvj _ cnF) => do
+    match ← view (← getAppFn coreWalkFuel (← piResult coreWalkFuel cvj.type)) with
+    | .const T _ =>
+      match fe.find? T with
+      | some (.indInfo _ caps) => pure (caps.ruleK && cnF == 0)
+      | _ => pure false
+    | _ => pure false
+  | _ => pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1542-1568 recRuleEtaOf — **the
+η-rescue bit at install** (`RecRule.eta`).  `Name.isProjFnShape` is a
+predicate on a `ConLeche.Name`, so the recursor's name is read back for it —
+an install-time path, never a reduction-time one. -/
+def recRuleEtaOf (fe : IFEnv) (recName ctor : NIdx) : AM Bool := do
+  match fe.find? ctor with
+  | some (.ctorInfo cvj _ _) => do
+    match ← view (← getAppFn coreWalkFuel (← piResult coreWalkFuel cvj.type)) with
+    | .const T _ =>
+      match fe.find? T with
+      | some (.indInfo cvT caps) => do
+        let rn ← readName recName
+        pure (caps.eta && caps.etaCtor == ctor && !Name.isProjFnShape rn &&
+          cvj.levelParams == cvT.levelParams)
+      | _ => pure false
+    | _ => pure false
+  | _ => pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1570-1580 recRuleBits — **stamp a
+rule's two rescue bits at install** — the one place the K and η-rescue
+conditions are decided. -/
+def recRuleBits (fe : IFEnv) (recName : NIdx) (rl : IRecRule) : AM IRecRule := do
+  let k ← recRuleKOf fe rl.ctor
+  let eta ← recRuleEtaOf fe recName rl.ctor
+  pure { rl with k := k, eta := eta }
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1619-1631 projFnRule — **the stored
+rule of an installed projection function**: the degenerate recursor's single
+rule, with the two rescue bits stamped by `recRuleBits`. -/
+def projFnRule (fe : IFEnv) (T ctorName : NIdx) (pty : EIdx) (nP nF i : Nat)
+    (rhsA : EIdx) : AM IRecRule := do
+  let plain ← recRulePlain coreWalkFuel pty nP nP nP
+  let nm ← projFnName T i
+  recRuleBits fe nm
+    { ctor := ctorName, nfields := nF, ctorParams := nP,
+      fire := if plain then .plain else .inert,
+      rhs := rhsA, paramsBlind := false }
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1649-1656 recRuleK — is a recursor
+K-flagged?  The stored bit of its single rule; pure, as con-leche's is. -/
+def recRuleK (rules : List IRecRule) : Bool :=
+  match rules with
+  | [rl] => rl.k
+  | _ => false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1658-1695 prepareMajor — the major
+premise's preparation before a rule fires, in the official kernel's order:
+at a K-flagged recursor the K rescue runs on the **raw** major, elsewhere the
+major is head-normalized first. -/
+def prepareMajor (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (recName : NIdx) (rules : List IRecRule) (major : EIdx) : AM EIdx := do
+  if recRuleK rules then do
+    let majorK ← majorToCtor mode r fe depth recName rules major
+    let major₀ ← r.whnf depth majorK
+    litMajorToCtor r fe depth major₀
+  else do
+    let major₀ ← r.whnf depth major
+    let major₁ ← litMajorToCtor r fe depth major₀
+    majorToCtor mode r fe depth recName rules major₁
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1697-1717 recFireComparands — the
+nested rule's stored level comparands, substituted and re-interned
+(`lvls.map (Level.subst lps us)` as a named recursion). -/
+def substLevelsAt (ks : List ConLeche.Name) (vs : List Level) :
+    List LIdx → AM (List LIdx)
+  | [] => pure []
+  | u :: us => do
+    let l ← readLevel u
+    let h ← internLevel (Level.subst ks vs l)
+    let rest ← substLevelsAt ks vs us
+    pure (h :: rest)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1697-1717 recFireComparands — the
+canonical rule's level comparands, `cvjLps.map fun p => Level.subst lps us
+(.param p)`, as a named recursion. -/
+def substParamLevels (ks : List ConLeche.Name) (vs : List Level) :
+    List NIdx → AM (List LIdx)
+  | [] => pure []
+  | p :: ps => do
+    let pn ← readName p
+    let h ← internLevel (Level.subst ks vs (.param pn))
+    let rest ← substParamLevels ks vs ps
+    pure (h :: rest)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1697-1717 recFireComparands — the
+nested rule's stored parameter pins, level-instantiated and instantiated at
+the recursor's leading-argument spine, as a named recursion. -/
+def instSpinePins (lps : List NIdx) (us : LsIdx) (args : List EIdx) (rP : Nat) :
+    List EIdx → AM (List EIdx)
+  | [] => pure []
+  | p :: ps => do
+    let q ← instLPFast coreWalkFuel lps us p
+    let s ← instSpine coreWalkFuel (args.take rP) (rP - 1) q
+    let rest ← instSpinePins lps us args rP ps
+    pure (s :: rest)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1697-1717 recFireComparands — the
+level and constructor-parameter comparands a firing rule's checks compare the
+major's constructor levels and parameters against. -/
+def recFireComparands (rl : IRecRule) (lps : List NIdx) (us : LsIdx)
+    (cvjLps : List NIdx) (args : List EIdx) (rP : Nat) :
+    AM (LsIdx × List EIdx) := do
+  match rl.fire with
+  | .nested lvls pins => do
+    let ks ← readNames lps
+    let vs ← readLevels us
+    let ls ← substLevelsAt ks vs lvls
+    let lsh ← internLsNode ls
+    let ps ← instSpinePins lps us args rP pins
+    pure (lsh, ps)
+  | _ => do
+    let ks ← readNames lps
+    let vs ← readLevels us
+    let ls ← substParamLevels ks vs cvjLps
+    let lsh ← internLsNode ls
+    pure (lsh, args.take rl.ctorParams)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1719-1832 iotaRec — the rule lookup
+`rules.find? (fun r' => r'.ctor == cj)`, as a named recursion (DESIGN
+§3.4). -/
+def findRule : List IRecRule → NIdx → Option IRecRule
+  | [], _ => none
+  | rl :: rs, c => if rl.ctor == c then some rl else findRule rs c
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1719-1832 iotaRec — **one iota
+step**: the expression is a stored recursor applied to exactly its telescope,
+the major premise whnfs to a fully applied constructor with a matching rule,
+and the spine is certified against the recursor's own (pinned, annotated)
+type. -/
+def iotaRec (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (e : EIdx) : AM (Option EIdx) := do
+  match ← view (← getAppFn coreWalkFuel e) with
+  | .const c us =>
+    match fe.find? c with
+    | some (.recInfo cv mI rP rules) => do
+      let args ← getAppArgs coreWalkFuel e
+      let usl ← viewLs us
+      -- checker change #9: the recursor's level arity, guarded as
+      -- `unfoldDefinition` guards it
+      if args.length = mI + 1 ∧ usl.length = cv.levelParams.length then do
+        let b0 ← internE (.bvar 0)
+        let major ← prepareMajor mode r fe depth c rules (args.getD mI b0)
+        match ← view (← getAppFn coreWalkFuel major) with
+        | .const cj usj =>
+          match fe.find? cj with
+          | some (.ctorInfo cvj _ _) =>
+            match findRule rules cj with
+            | some rl => do
+              let margs ← getAppArgs coreWalkFuel major
+              if margs.length = rl.ctorParams + rl.nfields then do
+                -- a matched *inert* rule is a positive detection of an
+                -- unsupported feature
+                if rl.fire = .inert then
+                  fail (.notImplemented
+                    "iota reduction over a nested auxiliary recursor rule")
+                else do
+                  let cmp ← recFireComparands rl cv.levelParams us
+                    cvj.levelParams args rP
+                  if ← liftFueled "level comparison" (← lvlsEq? usj cmp.1) then do
+                    let pOk ←
+                      if rl.compareParams then
+                        defEqList r fe depth (margs.take rl.ctorParams) cmp.2
+                      else pure true
+                    if pOk then do
+                      -- the two telescope runs, *licensed*
+                      let tyR ← constTyAt cv us
+                      if ← iotaCerts r fe depth mode.betaGate tyR
+                          (args.take mI ++ [major]) then do
+                        let tyC ← constTyAt cvj usj
+                        if ← iotaCerts r fe depth mode.betaGate tyC margs then do
+                          if ← iotaIndexOk r fe depth mI rP rl.ctorParams tyC
+                              margs ((args.take mI).drop rP) then do
+                            let rhs ← ruleRhsAt c rl.ctor cv.levelParams rl.rhs us
+                            let x ← mkAppN rhs
+                              (args.take rP ++ margs.drop rl.ctorParams)
+                            pure (some x)
+                          else pure none
+                        else pure none
+                      else pure none
+                    else pure none
+                  else pure none
+              else pure none
+            | none => pure none
+          | _ => pure none
+        | _ => pure none
+      else pure none
+    | _ => pure none
+  | _ => pure none
+
 end ConRon.Arena
