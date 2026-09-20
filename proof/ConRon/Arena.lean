@@ -31,3 +31,5 @@ import ConRon.Arena.FEnv
 import ConRon.Arena.CoreIO
 import ConRon.Arena.CoreGated
 import ConRon.Arena.CoreTest
+import ConRon.Arena.Inductives.StructParts
+import ConRon.Arena.Inductives.Base
