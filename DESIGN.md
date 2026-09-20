@@ -20576,8 +20576,8 @@ witness.
 
 #### The sorry list
 
-*(Superseded by the follow-up subsection below: ten of these thirteen are
-closed, and the other three are not provable as stated.)*
+*(Superseded by the two follow-up subsections below: all thirteen are
+closed.)*
 
 Thirteen, all in `WFProofs.lean`, all of the same shape: a bookkeeping
 induction over the per-constructor arrays that `ETables.get_mono` /
@@ -20663,7 +20663,8 @@ citations are written to the format it will expect.  Nothing in `crates/`,
 `{N,L,Ls}Store.{dropScratch_spec, enableScratch_spec}`.  With them
 `EStore.enableScratch_spec` and `EStore.dropScratch_spec` are theorems.
 
-**Sorries left (3/13), and why.**  `EStore.intern_wf`, `LStore.intern_spec`
+**Sorries left (3/13), and why** *(all three closed by follow-up 2 below,
+which adds the clause this subsection asks for)*.  `EStore.intern_wf`, `LStore.intern_spec`
 and `LsStore.intern_spec` are **not provable as stated**.  `EWFAt.lchildOK`
 asks a *persistent* expression node's level child to be persistent, and
 `intern` appends to the persistent tier exactly when `st.scratchOn = false`;
@@ -20756,13 +20757,49 @@ linter warnings (unused simp arguments, a stale `opt3_eq_some_iff`, four
 unreferenced binder names) are gone: `push_spec`'s case *k* needs only the
 tags up to *k*, because the dispatch stops at the matching arm.
 
+#### Follow-up 2 (2026-09-20, Opus): the `sync` clause, and the last three
+
+**The clause.**  `WF.lean`'s three nested invariants each gained one field —
+`LWFAt.sync : st.scratchOn = st.ns.scratchOn`, `LsWF.sync : st.scratchOn =
+st.ls.scratchOn`, `EWFAt.sync : st.scratchOn = st.lss.scratchOn` (`NWFAt` has
+no substore) — closing the hole the follow-up above found: a persistent node
+may not point at a child of a tier that is about to vanish, and a child's
+handle decodes against the *substore's* flag.  `EWFAt.scratchSync` derives
+`EStore.ScratchSync`'s three flat equalities from the nested clauses
+transitively; `LWFAt.scratchSync` and `LsWF.scratchSync` are the fields
+themselves.
+
+**Why it is free.**  `empty`, `enableScratch` and `dropScratch` set all four
+flags together and `intern` touches none of them, so every record
+construction in `WFProofs.lean` discharges the new field in one line: `rfl`
+at the six `wf_of_scr_empty` call sites (the lemma takes the equation as a
+hypothesis, since it quantifies over an arbitrary `st'`), and `rw [hon',
+hns / hls / hlss, ← h.sync, hon]` at the six `wf_push_{scr,pers}` sites.
+
+**All thirteen closed.**  `EStore.intern_wf`, `LStore.intern_spec` and
+`LsStore.intern_spec` are now the one-liners the follow-up predicted
+(`… _of_sync h h.scratchSync hv hcap`), so `EStore.intern_spec` is a theorem
+and `grep -c sorry proof/ConRon/Arena/*.lean` is 0 outside `Spike/`.
+`EStore.intern_wf_refuted_without_sync` was **deleted**: under the `sync`
+clause its hypotheses are contradictory (`ViewOK` cannot hold of a scratch
+level handle once `st.ls.scratchOn = false`), so keeping it would leave a
+vacuous theorem posing as a refutation; the argument survives as prose at
+`WFProofs.lean`'s "The persistent tier — and the `sync` clause", and the
+mechanised version is in the history at `f5204257`.  `#print axioms` on
+`EStore.{intern_spec, intern_wf, enableScratch_spec, dropScratch_spec}` and
+`{N,L,Ls}Store.intern_spec`: `[propext, Classical.choice, Quot.sound]`, no
+`sorryAx`.  `StoreTest.lean`'s forty `#guard`s still pass, the module is
+still at the default `maxHeartbeats`, and a clean `lake build ConRonArena`
+(`LEAN_NUM_THREADS=4`, `ulimit -v 60000000`) is **17 s** wall — `WFProofs`
+11–12 s over three runs, unchanged from the same file before the clause, so
+the extra field costs nothing measurable.
+
 #### For P2b
 
-* `tag_cases` is written (see the follow-up above); read that subsection's
+* `tag_cases` is written (see the follow-ups above); read that subsection's
   lesson before reaching for it.
-* `EStore.intern_view_spec` is closed and `intern_wf` is closed modulo
-  `WF.lean`'s missing flag-synchronisation clause (follow-up above); adding
-  that clause is the first thing P2b should do, because every twin's spec
-  quantifies over these *statements*.
+* `EStore.intern_view_spec`, `intern_wf` and `intern_spec` are all closed,
+  and the flag-synchronisation clause is in `WF.lean` (follow-up 2): the
+  store layer has no open lemma left for P2b to inherit.
 * The `@[noinline]` and detach-before-update discipline is in place at every
   mutation site in `Store.lean`; P2g measures whether it held.

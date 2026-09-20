@@ -2011,7 +2011,8 @@ theorem LStore.wf_of_scr_empty {st st' : LStore} {rk : LIdx → Nat} (h : LWFAt 
     (hpers : st'.pers = st.pers) (hscr : st'.scr = LTables.empty)
     (hnsWF : NStoreWF st'.ns)
     (hnsv : ∀ c : NIdx, c.isPersistent = true → st'.ns.view c = st.ns.view c)
-    (hnsd : ∀ c : NIdx, c.isPersistent = true → st'.ns.derived c = st.ns.derived c) :
+    (hnsd : ∀ c : NIdx, c.isPersistent = true → st'.ns.derived c = st.ns.derived c)
+    (hsync : st'.scratchOn = st'.ns.scratchOn) :
     LWFAt st' rk := by
   have hviewP : ∀ i, i.isPersistent = true → st'.view i = st.view i := by
     intro i hp; rw [LStore.view_pers hp, LStore.view_pers hp, hpers]
@@ -2035,7 +2036,7 @@ theorem LStore.wf_of_scr_empty {st st' : LStore} {rk : LIdx → Nat} (h : LWFAt 
   refine { ns := hnsWF, childOK := ?childOK, nchildOK := ?nchildOK, rankP := ?rankP,
            rankS := ?rankS, consP := ?consP, consS := ?consS, fresh := ?fresh,
            derExact := ?derExact, sizedP := ?sizedP, sizedS := ?sizedS,
-           capP := ?capP, capS := ?capS, scrOff := ?scrOff }
+           capP := ?capP, capS := ?capS, scrOff := ?scrOff, sync := hsync }
   case childOK =>
     intro i v hi c hc
     obtain ⟨hi', hp⟩ := (hiff i v).mp hi
@@ -2108,14 +2109,14 @@ theorem LStore.dropScratch_wfAt {st : LStore} {rk : LIdx → Nat} (h : LWFAt st 
   obtain ⟨rkn, hn⟩ := h.ns
   exact LStore.wf_of_scr_empty h rfl rfl ⟨rkn, NStore.dropScratch_wfAt hn⟩
     (fun c hp => NStore.view_dropScratch_pers st.ns hp)
-    (fun c hp => NStore.derived_dropScratch_pers st.ns hp)
+    (fun c hp => NStore.derived_dropScratch_pers st.ns hp) rfl
 
 theorem LStore.enableScratch_wfAt {st : LStore} {rk : LIdx → Nat} (h : LWFAt st rk) :
     LWFAt st.enableScratch rk := by
   obtain ⟨rkn, hn⟩ := h.ns
   exact LStore.wf_of_scr_empty h rfl rfl ⟨rkn, NStore.enableScratch_wfAt hn⟩
     (fun c hp => NStore.view_enableScratch_pers st.ns hp)
-    (fun c hp => NStore.derived_enableScratch_pers st.ns hp)
+    (fun c hp => NStore.derived_enableScratch_pers st.ns hp) rfl
 
 theorem denoteLAux_dropScratch {st : LStore} {rk : LIdx → Nat} (h : LWFAt st rk) :
     ∀ (f : Nat) (i : LIdx) (x : Level), i.isPersistent = true →
@@ -2211,7 +2212,8 @@ theorem LsStore.wf_of_scr_empty {st st' : LsStore} (h : LsWF st)
     (hpers : st'.pers = st.pers) (hscr : st'.scr = LsTables.empty)
     (hlsWF : LStoreWF st'.ls)
     (hlv : ∀ c : LIdx, c.isPersistent = true → st'.ls.view c = st.ls.view c)
-    (hld : ∀ c : LIdx, c.isPersistent = true → st'.ls.derived c = st.ls.derived c) :
+    (hld : ∀ c : LIdx, c.isPersistent = true → st'.ls.derived c = st.ls.derived c)
+    (hsync : st'.scratchOn = st'.ls.scratchOn) :
     LsWF st' := by
   have hviewP : ∀ i, i.isPersistent = true → st'.view i = st.view i := by
     intro i hp; rw [LsStore.view_pers hp, LsStore.view_pers hp, hpers]
@@ -2233,7 +2235,8 @@ theorem LsStore.wf_of_scr_empty {st st' : LsStore} (h : LsWF st)
     intro i hp; rw [LsStore.derived_pers hp, LsStore.derived_pers hp, hpers]
   refine { ls := hlsWF, lchildOK := ?lchildOK, consP := ?consP, consS := ?consS,
            fresh := ?fresh, derExact := ?derExact, sizedP := ?sizedP,
-           sizedS := ?sizedS, capP := ?capP, capS := ?capS, scrOff := ?scrOff }
+           sizedS := ?sizedS, capP := ?capP, capS := ?capS, scrOff := ?scrOff,
+           sync := hsync }
   case lchildOK =>
     intro i v hi c hc
     obtain ⟨hi', hp⟩ := (hiff i v).mp hi
@@ -2282,14 +2285,14 @@ theorem LsStore.dropScratch_wf {st : LsStore} (h : LsWF st) : LsWF st.dropScratc
   obtain ⟨rkl, hl⟩ := h.ls
   exact LsStore.wf_of_scr_empty h rfl rfl ⟨rkl, LStore.dropScratch_wfAt hl⟩
     (fun c hp => LStore.view_dropScratch_pers st.ls hp)
-    (fun c hp => LStore.derived_dropScratch_pers st.ls hp)
+    (fun c hp => LStore.derived_dropScratch_pers st.ls hp) rfl
 
 theorem LsStore.enableScratch_wf {st : LsStore} (h : LsWF st) :
     LsWF st.enableScratch := by
   obtain ⟨rkl, hl⟩ := h.ls
   exact LsStore.wf_of_scr_empty h rfl rfl ⟨rkl, LStore.enableScratch_wfAt hl⟩
     (fun c hp => LStore.view_enableScratch_pers st.ls hp)
-    (fun c hp => LStore.derived_enableScratch_pers st.ls hp)
+    (fun c hp => LStore.derived_enableScratch_pers st.ls hp) rfl
 
 theorem denoteLList_dropScratch {ls : LStore} {rk : LIdx → Nat} (h : LWFAt ls rk) :
     ∀ (us : List LIdx) (xs : List Level), (∀ c ∈ us, c.isPersistent = true) →
@@ -2323,7 +2326,8 @@ theorem EStore.wf_of_scr_empty {st st' : EStore} {rk : EIdx → Nat} (h : EWFAt 
     (hlsv : ∀ c : LsIdx, c.isPersistent = true → st'.lss.view c = st.lss.view c)
     (hnsd : ∀ c : NIdx, c.isPersistent = true → st'.nder c = st.nder c)
     (hld : ∀ c : LIdx, c.isPersistent = true → st'.lder c = st.lder c)
-    (hlsd : ∀ c : LsIdx, c.isPersistent = true → st'.lsder c = st.lsder c) :
+    (hlsd : ∀ c : LsIdx, c.isPersistent = true → st'.lsder c = st.lsder c)
+    (hsync : st'.scratchOn = st'.lss.scratchOn) :
     EWFAt st' rk := by
   have hviewP : ∀ i, i.isPersistent = true → st'.view i = st.view i := by
     intro i hp; rw [EStore.view_pers hp, EStore.view_pers hp, hpers]
@@ -2348,7 +2352,7 @@ theorem EStore.wf_of_scr_empty {st st' : EStore} {rk : EIdx → Nat} (h : EWFAt 
            lchildOK := ?lchildOK, lschildOK := ?lschildOK, rankP := ?rankP,
            rankS := ?rankS, consP := ?consP, consS := ?consS, fresh := ?fresh,
            derExact := ?derExact, sizedP := ?sizedP, sizedS := ?sizedS,
-           capP := ?capP, capS := ?capS, scrOff := ?scrOff }
+           capP := ?capP, capS := ?capS, scrOff := ?scrOff, sync := hsync }
   case childOK =>
     intro i v hi c hc
     obtain ⟨hi', hp⟩ := (hiff i v).mp hi
@@ -2423,7 +2427,7 @@ theorem EStore.dropScratch_wfAt {st : EStore} {rk : EIdx → Nat} (h : EWFAt st 
     (fun c hp => LsStore.view_dropScratch_pers st.lss hp)
     (fun c hp => NStore.derived_dropScratch_pers st.ns hp)
     (fun c hp => LStore.derived_dropScratch_pers st.ls hp)
-    ?_
+    ?_ rfl
   intro c hp
   show (st.lss.dropScratch).derived c = st.lss.derived c
   rw [LsStore.derived_pers hp, LsStore.derived_pers hp]; rfl
@@ -2437,7 +2441,7 @@ theorem EStore.enableScratch_wfAt {st : EStore} {rk : EIdx → Nat} (h : EWFAt s
     (fun c hp => LsStore.view_enableScratch_pers st.lss hp)
     (fun c hp => NStore.derived_enableScratch_pers st.ns hp)
     (fun c hp => LStore.derived_enableScratch_pers st.ls hp)
-    ?_
+    ?_ rfl
   intro c hp
   show (st.lss.enableScratch).derived c = st.lss.derived c
   rw [LsStore.derived_pers hp, LsStore.derived_pers hp]; rfl
@@ -2797,7 +2801,8 @@ theorem EStore.wf_push_scr {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView}
       lchildOK := ?lchildOK, lschildOK := ?lschildOK,
       rankP := ?rankP, rankS := ?rankS, consP := ?consP, consS := ?consS,
       fresh := ?fresh, derExact := ?derExact, sizedP := ?sizedP,
-      sizedS := ?sizedS, capP := ?capP, capS := ?capS, scrOff := ?scrOff }⟩
+      sizedS := ?sizedS, capP := ?capP, capS := ?capS, scrOff := ?scrOff,
+      sync := by rw [hon', hlss, ← h.sync, hon] }⟩
   case lss => rw [hlss]; exact h.lss
   case childOK =>
     intro i u hi c hc
@@ -3548,38 +3553,54 @@ theorem NStore.intern_ext (st : NStore) (w : NNodeView) : NExt st (st.intern w).
   exact denoteNAux_store_mono (fun _ _ hh => NStore.view_intern_mono st w hh) _ i x h1
 
 
-/-! ### The persistent tier — and `StoreWF`'s missing clause
+/-! ### The persistent tier — and the `sync` clause
 
-**Task #97a's finding (2026-09-20).**  `EWFAt.lchildOK` demands that a
-*persistent* expression node's level child be persistent, and `intern` appends
-to the persistent tier exactly when `st.scratchOn = false`.  The child is known
-only to decode — `EStore.ViewOK` — and a level handle decodes against
-`st.ls.scratchOn`, a **different flag**, which `StoreWF` never ties to
-`st.scratchOn`.  So
+**Task #97a's finding (2026-09-20), and its fix.**  `EWFAt.lchildOK` demands
+that a *persistent* expression node's level child be persistent, and `intern`
+appends to the persistent tier exactly when `st.scratchOn = false`.  The child
+is known only to decode — `EStore.ViewOK` — and a level handle decodes against
+`st.ls.scratchOn`, a **different flag**.  While `WF.lean` did not tie the two,
 
     st := { lss := <a level store with scratchOn := true and one scratch level u>,
             pers := .empty, scr := .empty, scratchOn := false }
 
-satisfies `StoreWF st`, `st.ViewOK (.sort u)` and `st.capOK (.sort u)`, and
-`(st.intern (.sort u)).1` has a persistent node with a scratch level child:
-`StoreWF` fails.  `EStore.intern_wf` as stated in this file is therefore not
-provable, and the same hole sits under `LStore.intern_spec`
-(`LWFAt.nchildOK`) and `LsStore.intern_spec` (`LsWF.lchildOK`).
+satisfied `StoreWF st`, `st.ViewOK (.sort u)` and `st.capOK (.sort u)`, and
+`(st.intern (.sort u)).1` then had a persistent node with a scratch level
+child: `StoreWF` failed.  `EStore.intern_wf` was therefore *not provable*, and
+the same hole sat under `LStore.intern_spec` (`LWFAt.nchildOK`) and
+`LsStore.intern_spec` (`LsWF.lchildOK`).
 
 The flag synchronisation *is* an invariant of the API — `empty`,
 `enableScratch` and `dropScratch` set all four flags together and `intern`
-touches none of them — it is simply missing from `WF.lean`.  Adding it there
-(one clause per store, `scratchOn = <substore>.scratchOn`) turns the three
-`sorry`s below into the three theorems `…_of_sync` proved here, with `hsync`
-read off the invariant instead of taken as an argument.  `WF.lean` is frozen
-for this task, so the clause is *not* added here. -/
+touches none of them — it was simply missing from `WF.lean`.  It is now a
+clause of each nested invariant (`LWFAt.sync`, `LsWF.sync`, `EWFAt.sync`, one
+`scratchOn = <substore>.scratchOn` apiece), and the `…_of_sync` lemmas below
+take `hsync` as an argument only so that the two push lemmas can be stated
+about an arbitrary `st'`; every caller reads it off the invariant, via
+`EWFAt.scratchSync` and its two siblings.  The refutation that established the
+finding, `EStore.intern_wf_refuted_without_sync`, went with the hole: under the
+`sync` clause its hypotheses are contradictory, so it would now be a vacuous
+theorem. -/
 
-/-- con-leche: none — the clause `StoreWF` is missing: the nesting's scratch
-flags move together (task #97a). -/
+/-- con-leche: none — the three flat equalities of the `sync` clauses: the
+nesting's scratch flags move together (task #97a).  `EWFAt` states the fact
+one level at a time; this is the transitive closure the push lemmas want. -/
 structure EStore.ScratchSync (st : EStore) : Prop where
   ns : st.scratchOn = st.ns.scratchOn
   ls : st.scratchOn = st.ls.scratchOn
   lss : st.scratchOn = st.lss.scratchOn
+
+/-- con-leche: none — `EWFAt`'s `sync` clause, unfolded through the nesting. -/
+theorem EWFAt.scratchSync {st : EStore} {rk : EIdx → Nat} (h : EWFAt st rk) :
+    st.ScratchSync := by
+  have hlss : LsWF st.lss := h.lss
+  obtain ⟨rkl, hl⟩ := hlss.ls
+  exact { lss := h.sync, ls := h.sync.trans hlss.sync,
+          ns := (h.sync.trans hlss.sync).trans hl.sync }
+
+/-- con-leche: none — the same, off `StoreWF`. -/
+theorem StoreWF.scratchSync {st : EStore} (h : StoreWF st) : st.ScratchSync := by
+  obtain ⟨rk, h⟩ := h; exact h.scratchSync
 
 /-- con-leche: Setlec/Kernel/IExpr.lean:464 intern — appending to the
 persistent tier keeps `StoreWF`.  `hsync` is the missing clause. -/
@@ -3717,7 +3738,8 @@ theorem EStore.wf_push_pers {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView
       lchildOK := ?lchildOK, lschildOK := ?lschildOK,
       rankP := ?rankP, rankS := ?rankS, consP := ?consP, consS := ?consS,
       fresh := ?fresh, derExact := ?derExact, sizedP := ?sizedP,
-      sizedS := ?sizedS, capP := ?capP, capS := ?capS, scrOff := ?scrOff }⟩
+      sizedS := ?sizedS, capP := ?capP, capS := ?capS, scrOff := ?scrOff,
+      sync := by rw [hon', hlss, ← h.sync, hon] }⟩
   case lss => rw [hlss]; exact h.lss
   case childOK =>
     intro i u hi c hc
@@ -3851,28 +3873,6 @@ theorem EStore.intern_isPersistent_of_off {st : EStore} {w : ENodeView}
         (by decide) hcap
       show (_ == 0) = true
       rw [hspec.2]; decide
-
-/-- **The finding, mechanised.**  Any well-formed store whose scratch tier is
-off but whose *level* store still decodes a scratch handle refutes
-`EStore.intern_wf`: `intern` puts the new node in the persistent tier, and
-`EWFAt.lchildOK` then demands that its level child be persistent.  Such stores
-satisfy `StoreWF` — nothing in `WF.lean` ties `st.scratchOn` to
-`st.ls.scratchOn` — so `intern_wf` needs `StoreWF` to carry the flag
-synchronisation (`EStore.ScratchSync`).  The same argument with
-`.const n us` / `EWFAt.nchildOK` refutes `LStore.intern_spec`, and with
-`LsWF.lchildOK` refutes `LsStore.intern_spec`. -/
-theorem EStore.intern_wf_refuted_without_sync {st : EStore} (h : StoreWF st)
-    (hoff : st.scratchOn = false) {u : LIdx}
-    (hup : u.isPersistent = false)
-    (hv : st.ViewOK (.sort u)) (hcap : st.capOK (.sort u)) :
-    ¬ StoreWF (st.intern (.sort u)).1 := by
-  intro hwf'
-  obtain ⟨rk', h'⟩ := hwf'
-  have hview := EStore.intern_view_spec h hv hcap
-  have hp := EStore.intern_isPersistent_of_off h hoff hcap
-  have hcp := (h'.lchildOK _ _ hview u (by simp [ENodeView.lchildren])).2 hp
-  rw [hup] at hcp
-  exact absurd hcp (by simp)
 
 
 /-! ## `intern` on the level store -/
@@ -4093,8 +4093,16 @@ theorem LTables.derAt_push_new {t : LTables} {w : LNodeView} {d : LDer}
       LTag.imax, LTag.param, beq_self_eq_true, if_true] <;>
     (simp only [LTables.push]; exact Tbl.derAt_push_size (by assumption))
 
-/-- con-leche: none — the clause `LStoreWF` is missing (task #97a). -/
+/-- con-leche: none — `LWFAt`'s `sync` clause, named (task #97a). -/
 def LStore.ScratchSync (st : LStore) : Prop := st.scratchOn = st.ns.scratchOn
+
+/-- con-leche: none — read the clause off the invariant. -/
+theorem LWFAt.scratchSync {st : LStore} {rk : LIdx → Nat} (h : LWFAt st rk) :
+    st.ScratchSync := h.sync
+
+/-- con-leche: none — the same, off `LStoreWF`. -/
+theorem LStoreWF.scratchSync {st : LStore} (h : LStoreWF st) : st.ScratchSync := by
+  obtain ⟨rk, h⟩ := h; exact h.sync
 
 theorem LStore.wf_push_scr {st st' : LStore} {rk : LIdx → Nat} {w : LNodeView}
     {tb : LTables} {inew : LIdx}
@@ -4203,7 +4211,8 @@ theorem LStore.wf_push_scr {st st' : LStore} {rk : LIdx → Nat} {w : LNodeView}
     { ns := by rw [hns]; exact h.ns, childOK := ?childOK, nchildOK := ?nchildOK,
       rankP := ?rankP, rankS := ?rankS, consP := ?consP, consS := ?consS,
       fresh := ?fresh, derExact := ?derExact, sizedP := ?sizedP,
-      sizedS := ?sizedS, capP := ?capP, capS := ?capS, scrOff := ?scrOff }⟩
+      sizedS := ?sizedS, capP := ?capP, capS := ?capS, scrOff := ?scrOff,
+      sync := by rw [hon', hns, ← h.sync, hon] }⟩
   case childOK =>
     intro i u hi c hc
     rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
@@ -4394,7 +4403,8 @@ theorem LStore.wf_push_pers {st st' : LStore} {rk : LIdx → Nat} {w : LNodeView
     { ns := by rw [hns]; exact h.ns, childOK := ?childOK, nchildOK := ?nchildOK,
       rankP := ?rankP, rankS := ?rankS, consP := ?consP, consS := ?consS,
       fresh := ?fresh, derExact := ?derExact, sizedP := ?sizedP,
-      sizedS := ?sizedS, capP := ?capP, capS := ?capS, scrOff := ?scrOff }⟩
+      sizedS := ?sizedS, capP := ?capP, capS := ?capS, scrOff := ?scrOff,
+      sync := by rw [hon', hns, ← h.sync, hon] }⟩
   case childOK =>
     intro i u hi c hc
     rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
@@ -4738,6 +4748,13 @@ theorem LsTables.derAt_push_new {t : LsTables} {w : LsNodeView} {d : LDer}
 /-- con-leche: none — the clause `LsStoreWF` is missing (task #97a). -/
 def LsStore.ScratchSync (st : LsStore) : Prop := st.scratchOn = st.ls.scratchOn
 
+/-- con-leche: none — read the clause off the invariant. -/
+theorem LsWF.scratchSync {st : LsStore} (h : LsWF st) : st.ScratchSync := h.sync
+
+/-- con-leche: none — the same, off `LsStoreWF`. -/
+theorem LsStoreWF.scratchSync {st : LsStore} (h : LsStoreWF st) : st.ScratchSync :=
+  LsWF.sync h
+
 theorem LsStore.wf_push_scr {st st' : LsStore} {w : LsNodeView}
     {tb : LsTables} {inew : LsIdx}
     (h : LsWF st) (hv : st.ViewOK w)
@@ -4808,7 +4825,7 @@ theorem LsStore.wf_push_scr {st st' : LsStore} {w : LsNodeView}
   refine { ls := by rw [hls]; exact h.ls, lchildOK := ?lchildOK, consP := ?consP,
            consS := ?consS, fresh := ?fresh, derExact := ?derExact,
            sizedP := ?sizedP, sizedS := ?sizedS, capP := ?capP, capS := ?capS,
-           scrOff := ?scrOff }
+           scrOff := ?scrOff, sync := by rw [hon', hls, ← h.sync, hon] }
   case lchildOK =>
     intro i u hi c hc
     rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
@@ -4942,7 +4959,7 @@ theorem LsStore.wf_push_pers {st st' : LsStore} {w : LsNodeView}
   refine { ls := by rw [hls]; exact h.ls, lchildOK := ?lchildOK, consP := ?consP,
            consS := ?consS, fresh := ?fresh, derExact := ?derExact,
            sizedP := ?sizedP, sizedS := ?sizedS, capP := ?capP, capS := ?capS,
-           scrOff := ?scrOff }
+           scrOff := ?scrOff, sync := by rw [hon', hls, ← h.sync, hon] }
   case lchildOK =>
     intro i u hi c hc
     rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
@@ -5096,17 +5113,11 @@ theorem LsStore.intern_spec_of_sync {st : LsStore} {w : LsNodeView}
    LsStore.intern_view_spec h hv hcap⟩
 
 /-- con-leche: Setlec/Kernel/IExpr.lean:464 intern — `intern` preserves the
-store invariant.
-
-**OPEN, and not provable as stated** (task #97a): see
-`EStore.intern_wf_refuted_without_sync` above for the refutation and
-`EStore.intern_wf_of_sync` for the proof under `StoreWF`'s missing
-flag-synchronisation clause.  `WF.lean` is frozen for this task; adding
-`scratchOn = <substore>.scratchOn` to `EWFAt` turns this into
-`fun h hv hcap => EStore.intern_wf_of_sync h (h.scratchSync) hv hcap`. -/
+store invariant.  The flag synchronisation the persistent case needs is
+`EWFAt.sync`, read off `StoreWF` (task #97a). -/
 theorem EStore.intern_wf {st : EStore} {w : ENodeView} (h : StoreWF st)
-    (hv : st.ViewOK w) (hcap : st.capOK w) : StoreWF (st.intern w).1 := by
-  sorry
+    (hv : st.ViewOK w) (hcap : st.capOK w) : StoreWF (st.intern w).1 :=
+  EStore.intern_wf_of_sync h h.scratchSync hv hcap
 
 /-- con-leche: Setlec/Kernel/IExpr.lean:464 intern — **`intern_spec`**: the
 store stays well formed, the arena only grows, the new handle decodes to the
@@ -5187,27 +5198,23 @@ theorem NStore.intern_spec {st : NStore} {w : NNodeView} (h : NStoreWF st)
   ⟨NStore.intern_wf h hv hcap, NStore.intern_ext st w,
    NStore.intern_view_spec h hv hcap⟩
 
-/-- **OPEN, and not provable as stated** — the same missing clause:
-`LWFAt.nchildOK` asks a persistent level node's *name* child to be
-persistent, and `st.ns.scratchOn` is not tied to `st.scratchOn`
-(task #97a; `EStore.intern_wf_refuted_without_sync`).  Proved above as
-`LStore.intern_spec_of_sync`, under the missing clause. -/
+/-- `LWFAt.nchildOK` asks a persistent level node's *name* child to be
+persistent; `LWFAt.sync` ties `st.ns.scratchOn` to `st.scratchOn`, which is
+what makes that provable (task #97a). -/
 theorem LStore.intern_spec {st : LStore} {w : LNodeView} (h : LStoreWF st)
     (hv : st.ViewOK w) (hcap : st.capOK w) :
     LStoreWF (st.intern w).1 ∧ LExt st (st.intern w).1 ∧
-      (st.intern w).1.view (st.intern w).2 = some w := by
-  sorry
+      (st.intern w).1.view (st.intern w).2 = some w :=
+  LStore.intern_spec_of_sync h h.scratchSync hv hcap
 
-/-- **OPEN, and not provable as stated** — the same missing clause:
-`LsWF.lchildOK` asks a persistent list node's *level* children to be
-persistent, and `st.ls.scratchOn` is not tied to `st.scratchOn`
-(task #97a; `EStore.intern_wf_refuted_without_sync`).  Proved above as
-`LsStore.intern_spec_of_sync`, under the missing clause. -/
+/-- `LsWF.lchildOK` asks a persistent list node's *level* children to be
+persistent; `LsWF.sync` ties `st.ls.scratchOn` to `st.scratchOn`, which is
+what makes that provable (task #97a). -/
 theorem LsStore.intern_spec {st : LsStore} {w : LsNodeView} (h : LsStoreWF st)
     (hv : st.ViewOK w) (hcap : st.capOK w) :
     LsStoreWF (st.intern w).1 ∧ LsExt st (st.intern w).1 ∧
-      (st.intern w).1.view (st.intern w).2 = some w := by
-  sorry
+      (st.intern w).1.view (st.intern w).2 = some w :=
+  LsStore.intern_spec_of_sync h h.scratchSync hv hcap
 
 theorem NStore.dropScratch_spec {st : NStore} (h : NStoreWF st) :
     NStoreWF st.dropScratch ∧

@@ -29,6 +29,7 @@ The clauses, in the order a reader meets them:
 | `sized` | the derived array is as long as the node array |
 | `cap` | no constructor array exceeds 2^27 entries, so a handle's 27-bit index is injective on it |
 | `scrOff` | the scratch tier is empty while the scratch flag is off |
+| `sync` | the nesting's scratch flags move together (task #97a) |
 
 `childOK`'s third conjunct — *persistent parents have persistent children* —
 is what makes `dropScratch` sound: without it a persistent node could point
@@ -164,6 +165,7 @@ structure LWFAt (st : LStore) (rk : LIdx → Nat) : Prop where
   capP : ∀ v, st.pers.sizeOf v ≤ Idx.idxCap
   capS : ∀ v, st.scr.sizeOf v ≤ Idx.idxCap
   scrOff : st.scratchOn = false → st.scr = LTables.empty
+  sync : st.scratchOn = st.ns.scratchOn
 
 /-- con-leche: Setlec/Kernel/ArenaWF.lean:900 EStore.TWF -/
 def LStoreWF (st : LStore) : Prop := ∃ rk, LWFAt st rk
@@ -189,6 +191,7 @@ structure LsWF (st : LsStore) : Prop where
   capP : ∀ v, st.pers.sizeOf v ≤ Idx.idxCap
   capS : ∀ v, st.scr.sizeOf v ≤ Idx.idxCap
   scrOff : st.scratchOn = false → st.scr = LsTables.empty
+  sync : st.scratchOn = st.ls.scratchOn
 
 /-- con-leche: Setlec/Kernel/ArenaWF.lean:900 EStore.TWF -/
 def LsStoreWF (st : LsStore) : Prop := LsWF st
@@ -224,6 +227,7 @@ structure EWFAt (st : EStore) (rk : EIdx → Nat) : Prop where
   capP : ∀ v, st.pers.sizeOf v ≤ Idx.idxCap
   capS : ∀ v, st.scr.sizeOf v ≤ Idx.idxCap
   scrOff : st.scratchOn = false → st.scr = ETables.empty
+  sync : st.scratchOn = st.lss.scratchOn
 
 /-- con-leche: Setlec/Kernel/ArenaWF.lean:900 EStore.TWF — **the** store
 invariant: the arena is well formed. -/
