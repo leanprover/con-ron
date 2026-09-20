@@ -2202,6 +2202,20 @@ the persistent tier (the byte recogniser is unchanged).
         crates (master's gates stay green on the branch); the swap to
         `con-ron-core`/`con-ron` happens when the fixtures and the Mathlib
         run pass.
+    **P6 is RUST-FIRST (maintainer, 2026-09-21):** "As you are tuning
+        performance, do the change on the rust side first and then measure
+        and iterate.  No need to work on the lean twin at this stage (as long
+        as you only make changes that are in principle expressible in the
+        lean twin or can be handled by the aeneas proof, once we get
+        there)."  So from here every performance change lands in
+        `crates/arena-core` / `crates/con-ron-arena` with its measurement,
+        and each task section keeps a **twin ledger**: the clause-level list
+        of what the Lean twin must later mirror (or what the Aeneas
+        refinement absorbs as a representation difference — an allocation,
+        a capacity, a borrowed view — and needs no Lean change at all).  A
+        Lean catch-up task runs once, before P3/P5.  Not allowed: a change
+        with no expressible twin (a different algorithm, an unmodellable
+        Rust feature, `unsafe`).
     P3  Theorem 1, tier by tier, mirroring P2's order; the frontend exactness.
     P4  (C): a. SPIKE — Rust for P2a+P2b, extract, prove the Theorem-2 lemmas
         with the grind idiom, measure lines and elaboration per lemma;
