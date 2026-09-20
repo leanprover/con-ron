@@ -30,13 +30,14 @@
 //! executed driver the differential test compares against; the rest are
 //! `native_install`'s.
 
-use super::ind_base;
 use super::native_parts;
 use super::native_parts::{NativeParts, RecFieldKind};
 use super::struct_install;
 use super::struct_parts;
 use super::sum_install;
 use super::sum_parts;
+use crate::arena::canon;
+use crate::arena::checker_base;
 use crate::arena::core;
 use crate::arena::core::CORE_WALK_FUEL;
 use crate::arena::env;
@@ -415,10 +416,10 @@ pub fn native_opened_ok(
     n_f: u64,
     ks: &Vec<RecFieldKind>,
 ) -> Result<bool, CheckError> {
-    match ind_base::open_pis_at_fvars_f(st, n_p, cty, 0) {
+    match checker_base::open_pis_at_fvars_f(st, n_p, cty, 0) {
         Err(e) => Err(e),
         Ok(None) => Ok(false),
-        Ok(Some(pq)) => match ind_base::open_pis_at_fvars_f(st, n_f, &pq.1, n_p) {
+        Ok(Some(pq)) => match checker_base::open_pis_at_fvars_f(st, n_f, &pq.1, n_p) {
             Err(e) => Err(e),
             Ok(None) => Ok(false),
             Ok(Some(xq)) => match struct_parts::param_levels(st, lps) {
@@ -471,7 +472,7 @@ pub fn native_fields_at(
         match native_parts::kind_get_d(ks, i) {
             RecFieldKind::Ordinary => match expr_ops::fvar_type_d(st, &x) {
                 Err(e) => Err(e),
-                Ok(xt) => match ind_base::consts_resolve_f_fast(st, fe0, &xt) {
+                Ok(xt) => match checker_base::consts_resolve_f_fast(st, fe0, &xt) {
                     Err(e) => Err(e),
                     Ok(false) => Ok(false),
                     Ok(true) => native_fields_at(
@@ -584,7 +585,7 @@ pub fn native_field_reflexive(
             Err(e) => Err(e),
             Ok(tq) => {
                 let m: u64 = tq.0.len() as u64;
-                match ind_base::open_pis_at_fvars_f(st, m, &xt, n_p + i) {
+                match checker_base::open_pis_at_fvars_f(st, m, &xt, n_p + i) {
                     Err(e) => Err(e),
                     Ok(None) => Ok(false),
                     Ok(Some(aq)) => {
@@ -633,7 +634,7 @@ pub fn native_fam_app_ok(
             Ok(args) => {
                 let pre: Vec<EIdx> = expr_ops::take_eidx(&args, n_p as usize);
                 if !(fna.eq2(hd)
-                    && ind_base::eidx_vec_beq(&pre, fvs_p)
+                    && canon::eidx_vec_beq(&pre, fvs_p, 0)
                     && args.len() as u64 == n_p + n_idx)
                 {
                     Ok(false)
@@ -779,35 +780,37 @@ pub fn check_native_rules(
             st, t, lps, elim, large, n_p, n_idx, tty, ctors, rec_c, rlvls, j,
         ) {
             Err(e) => Err(e),
-            Ok(o) => match ind_base::unwrap_or(o, core_types::internal(code_points(&M_REC_RULE))) {
-                Err(e) => Err(e),
-                Ok(rhs) => match native_rule_scoped(st, fe_r, rlps, &rhs) {
+            Ok(o) => {
+                match checker_base::unwrap_or(o, core_types::internal(code_points(&M_REC_RULE))) {
                     Err(e) => Err(e),
-                    Ok(false) => fail(core_types::internal(code_points(&M_REC_RULE_SCOPE))),
-                    Ok(true) => {
-                        let mut o2: Vec<EIdx> = out;
-                        o2.push(rhs);
-                        check_native_rules(
-                            st,
-                            fe_r,
-                            rlps,
-                            t,
-                            lps,
-                            elim,
-                            large,
-                            n_p,
-                            n_idx,
-                            tty,
-                            ctors,
-                            rec_c,
-                            rlvls,
-                            k - 1,
-                            j + 1,
-                            o2,
-                        )
-                    }
-                },
-            },
+                    Ok(rhs) => match native_rule_scoped(st, fe_r, rlps, &rhs) {
+                        Err(e) => Err(e),
+                        Ok(false) => fail(core_types::internal(code_points(&M_REC_RULE_SCOPE))),
+                        Ok(true) => {
+                            let mut o2: Vec<EIdx> = out;
+                            o2.push(rhs);
+                            check_native_rules(
+                                st,
+                                fe_r,
+                                rlps,
+                                t,
+                                lps,
+                                elim,
+                                large,
+                                n_p,
+                                n_idx,
+                                tty,
+                                ctors,
+                                rec_c,
+                                rlvls,
+                                k - 1,
+                                j + 1,
+                                o2,
+                            )
+                        }
+                    },
+                }
+            }
         }
     }
 }
@@ -822,9 +825,9 @@ pub fn native_rule_scoped(
     rlps: &Vec<NIdx>,
     rhs: &EIdx,
 ) -> Result<bool, CheckError> {
-    match ind_base::all_level_params_defined(st, rlps, rhs) {
+    match checker_base::all_level_params_defined(st, rlps, rhs) {
         Err(e) => Err(e),
-        Ok(w1) => match ind_base::consts_resolve_f_fast(st, fe_r, rhs) {
+        Ok(w1) => match checker_base::consts_resolve_f_fast(st, fe_r, rhs) {
             Err(e) => Err(e),
             Ok(w2) => match expr_ops::loose_bvars_bounded_fast(st, CORE_WALK_FUEL, 0, rhs) {
                 Err(e) => Err(e),
@@ -863,7 +866,7 @@ pub fn check_native_rec(
             } else if !p.rec_pinned {
                 fail(core_types::invalid(code_points(&M_REC_PIN)))
             } else {
-                match ind_base::check_constant_val(st, mode, fe, &p.shape.cv_r) {
+                match checker_base::check_constant_val(st, mode, fe, &p.shape.cv_r) {
                     Err(e) => Err(e),
                     Ok(cv_ri) => check_native_rec_ty(st, mode, fe, p, cv_ta, ctors_a, &cv_ri.ty),
                 }
@@ -902,7 +905,7 @@ pub fn check_native_rec_ty(
         &ctors,
     ) {
         Err(e) => Err(e),
-        Ok(o) => match ind_base::unwrap_or(o, core_types::internal(code_points(&M_REC_TY))) {
+        Ok(o) => match checker_base::unwrap_or(o, core_types::internal(code_points(&M_REC_TY))) {
             Err(e) => Err(e),
             Ok(rec_ty) => match native_rule_scoped(st, fe, &p.shape.cv_r.level_params, &rec_ty) {
                 Err(e) => Err(e),
@@ -969,7 +972,7 @@ pub fn check_native_rec_rules(
         sum_parts::rule_prefix(&p.shape),
         Vec::new(),
     );
-    let fe_r: IFEnv = env::ifenv_push(ind_base::ifenv_dup(fe), stored);
+    let fe_r: IFEnv = env::ifenv_push(env::ifenv_dup(fe), stored);
     match struct_parts::param_levels(st, &p.shape.cv_r.level_params) {
         Err(e) => Err(e),
         Ok(rlvls) => {
@@ -1105,7 +1108,8 @@ pub fn classify_fix_kinds(
     match rec_ctor_kinds_all(st, t, lps, n_p, n_idx, ctors_a, 0, Vec::new()) {
         Err(e) => Err(e),
         Ok(o) => {
-            match ind_base::unwrap_or(o, core_types::not_implemented(code_points(&M_KIND_TELE))) {
+            match checker_base::unwrap_or(o, core_types::not_implemented(code_points(&M_KIND_TELE)))
+            {
                 Err(e) => Err(e),
                 Ok(kinds) => {
                     if kindss_any(&kinds, &RecFieldKind::Negative, 0) {
@@ -1159,7 +1163,7 @@ pub fn check_native_pass(
     p0: &NativeParts,
     is_rec: bool,
 ) -> Result<(NativePass, bool), CheckError> {
-    match sum_install::check_sum_ind(st, mode, ind_base::ifenv_dup(fe), &p0.shape, is_rec) {
+    match sum_install::check_sum_ind(st, mode, env::ifenv_dup(fe), &p0.shape, is_rec) {
         Err(e) => Err(e),
         Ok(q) => {
             let fe1: IFEnv = q.0;
@@ -1215,7 +1219,7 @@ pub fn check_native_pass_kinds(
                 Ok(a) => match sum_install::native_caps_at(st, &p.shape, is_rec) {
                     Err(e) => Err(e),
                     Ok(b) => {
-                        let settled: bool = ind_base::i_ind_caps_beq(&a, &b);
+                        let settled: bool = canon::i_ind_caps_beq(&a, &b);
                         Ok((
                             NativePass {
                                 env1: fe1,
@@ -1268,30 +1272,32 @@ pub fn check_native_tail_sorts(
     fe: &IFEnv,
     q: NativePass,
 ) -> Result<IFEnv, CheckError> {
-    match ind_base::open_pis_at_fvars_f(st, q.p.shape.n_p + q.p.shape.n_idx, &q.cv_ta.ty, 0) {
+    match checker_base::open_pis_at_fvars_f(st, q.p.shape.n_p + q.p.shape.n_idx, &q.cv_ta.ty, 0) {
         Err(e) => Err(e),
-        Ok(o) => match ind_base::unwrap_or(o, core_types::internal(code_points(&M_TAIL_TELE))) {
-            Err(e) => Err(e),
-            Ok(tq) => {
-                let idx_fvs: Vec<EIdx> = core::drop_eidx(&tq.0, q.p.shape.n_p as usize);
-                let none: Vec<EIdx> = Vec::new();
-                match sum_install::check_struct_field_sorts_i(
-                    st,
-                    mode,
-                    &q.env1,
-                    true,
-                    false,
-                    &q.p.shape.res_sort,
-                    q.p.shape.n_p,
-                    &idx_fvs,
-                    &none,
-                    q.p.shape.n_idx,
-                ) {
-                    Err(e) => Err(e),
-                    Ok(_isorts) => check_native_tail_kinds(st, mode, fe, q),
+        Ok(o) => {
+            match checker_base::unwrap_or(o, core_types::internal(code_points(&M_TAIL_TELE))) {
+                Err(e) => Err(e),
+                Ok(tq) => {
+                    let idx_fvs: Vec<EIdx> = core::drop_eidx(&tq.0, q.p.shape.n_p as usize);
+                    let none: Vec<EIdx> = Vec::new();
+                    match sum_install::check_struct_field_sorts_i(
+                        st,
+                        mode,
+                        &q.env1,
+                        true,
+                        false,
+                        &q.p.shape.res_sort,
+                        q.p.shape.n_p,
+                        &idx_fvs,
+                        &none,
+                        q.p.shape.n_idx,
+                    ) {
+                        Err(e) => Err(e),
+                        Ok(_isorts) => check_native_tail_kinds(st, mode, fe, q),
+                    }
                 }
             }
-        },
+        }
     }
 }
 

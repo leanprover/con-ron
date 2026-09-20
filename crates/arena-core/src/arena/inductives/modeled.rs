@@ -38,8 +38,9 @@
 //!   the message has to match is the differential's partner, not the twin's
 //!   `s!` string (§3.1: a message need not match a theorem).
 
-use super::ind_base;
 use super::struct_parts;
+use crate::arena::canon;
+use crate::arena::checker_base;
 use crate::arena::core;
 use crate::arena::core::CORE_WALK_FUEL;
 use crate::arena::env;
@@ -48,6 +49,7 @@ use crate::arena::expr_ops;
 use crate::arena::expr_ops::NIdxToNIdx;
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
 use crate::arena::monad::{fail, intern_e, intern_n_node, read_name, view, view_ls, AState};
+use crate::arena::std_axioms;
 use crate::arena::store::{ENodeView, NNodeView};
 use con_ron_core::kernel::basis_names;
 use con_ron_core::kernel::core_k;
@@ -433,8 +435,8 @@ pub const M_ETA_RESID: [u32; 47] = [
 // ---------------------------------------------------------------------------
 // Two helpers of the modeled route (`Modeled.lean:40-71` of the twin)
 //
-// `arena::inductives::ind_base` carries the declaration checker's own twins;
-// these two are the modeled install's, and the Lean twin deliberately leaves
+// `arena::checker_base` carries the declaration checker's own twins; these
+// two are the modeled install's, and the Lean twin deliberately leaves
 // them here — the renaming domain comparison because renaming a constant over
 // handles is monadic, and the `Eq`-basis guard because it is the one predicate
 // three clauses of this file share and nothing else reads.
@@ -491,16 +493,34 @@ pub fn eq_basis_stored(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> 
     match core::pin(st, &basis_names::eq_name()) {
         Err(e) => Err(e),
         Ok(en) => {
-            let found: Option<IConstantInfo> = ind_base::find_ci(fe, &en);
+            let found: Option<IConstantInfo> = env::find_ci(fe, &en);
             match found {
-                Some(ci) => match ind_base::eq_basis_ci(st) {
+                Some(ci) => match std_axioms::eq_a(st) {
                     Err(e) => Err(e),
-                    Ok(want) => Ok(ind_base::i_constant_info_beq(&ci, &want)),
+                    Ok(want) => Ok(canon::i_constant_info_beq(&ci, &want)),
                 },
                 None => Ok(false),
             }
         }
     }
+}
+
+/// con-leche: none — `(n.str "_model")`, interned
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:89 blockRenameTable`
+/// — the one name suffix every modeled-route lookup builds.  Over handles
+/// building a name means INTERNING one, which is why the renaming maps are
+/// tables and not functions (the module note).
+pub fn model_name(st: &mut AState, n: &NIdx) -> Result<NIdx, CheckError> {
+    const MODEL: [u32; 6] = [95, 109, 111, 100, 101, 108];
+    intern_n_node(st, NNodeView::Str(n.dup2(), code_points(&MODEL)))
+}
+
+/// con-leche: none — `internLsNode`, at a level list the install already holds
+/// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:307 checkIotaThmN` —
+/// the `LsIdx` a `const` node carries, from the `Vec<LIdx>` `nestedRuleShape`
+/// returned.
+pub fn intern_ls(st: &mut AState, us: &Vec<LIdx>) -> Result<LsIdx, CheckError> {
+    crate::arena::monad::intern_ls_node(st, env::lidx_vec_dup(us))
 }
 
 // ---------------------------------------------------------------------------
@@ -572,7 +592,7 @@ pub fn block_rename_table_from(
         Ok(out)
     } else {
         let n: NIdx = block_names[i].dup2();
-        match ind_base::model_name(st, &n) {
+        match model_name(st, &n) {
             Err(e) => Err(e),
             Ok(m) => {
                 let mut o: Vec<(NIdx, NIdx)> = out;
@@ -587,9 +607,9 @@ pub fn block_rename_table_from(
 /// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:65-74 projBack` —
 /// rename a model-side projection type back to public names, as a table.
 pub fn proj_back(st: &mut AState, t: &NIdx, ctor: &NIdx, n_f: u64) -> Result<RenameBy, CheckError> {
-    match ind_base::model_name(st, t) {
+    match model_name(st, t) {
         Err(e) => Err(e),
-        Ok(tm) => match ind_base::model_name(st, ctor) {
+        Ok(tm) => match model_name(st, ctor) {
             Err(e) => Err(e),
             Ok(cm) => {
                 let mut out: Vec<(NIdx, NIdx)> = Vec::new();
@@ -608,9 +628,9 @@ pub fn proj_back(st: &mut AState, t: &NIdx, ctor: &NIdx, n_f: u64) -> Result<Ren
 /// Lean twin: `proof/ConRon/Arena/Inductives/Modeled.lean:78-87 projFwd` — the
 /// forward (public → model) map on the projection family, as a table.
 pub fn proj_fwd(st: &mut AState, t: &NIdx, ctor: &NIdx, n_f: u64) -> Result<RenameBy, CheckError> {
-    match ind_base::model_name(st, t) {
+    match model_name(st, t) {
         Err(e) => Err(e),
-        Ok(tm) => match ind_base::model_name(st, ctor) {
+        Ok(tm) => match model_name(st, ctor) {
             Err(e) => Err(e),
             Ok(cm) => {
                 let mut out: Vec<(NIdx, NIdx)> = Vec::new();
@@ -800,7 +820,7 @@ pub fn check_iota_slot_ty(
 /// recursion.
 pub fn iota_thm_name(st: &mut AState, cv_name: &NIdx, j: u64) -> Result<NIdx, CheckError> {
     const IOTA_: [u32; 5] = [105, 111, 116, 97, 95];
-    match ind_base::model_name(st, cv_name) {
+    match model_name(st, cv_name) {
         Err(e) => Err(e),
         Ok(m) => {
             let digits: Vec<u32> = core_k::nat_to_dec(j);
@@ -838,11 +858,13 @@ pub fn iota_stmt_open(
 ) -> Result<(Vec<EIdx>, Vec<EIdx>, LIdx), CheckError> {
     match iota_thm_name(st, cv_name, j) {
         Err(e) => Err(e),
-        Ok(tn) => match ind_base::find_cv(st, fe2, &tn) {
+        Ok(tn) => match checker_base::ifenv_find_cv(st, fe2, &tn) {
             Err(e) => Err(e),
             Ok(o) => {
-                match ind_base::unwrap_or(o, core_types::not_implemented(code_points(&M_IOTA_MISS)))
-                {
+                match checker_base::unwrap_or(
+                    o,
+                    core_types::not_implemented(code_points(&M_IOTA_MISS)),
+                ) {
                     Err(e) => Err(e),
                     Ok(cvt) => {
                         if !core::nidx_vec_beq(&cvt.level_params, lps) {
@@ -865,21 +887,21 @@ pub fn iota_stmt_open_at(
     depth: u64,
     tty: &EIdx,
 ) -> Result<(Vec<EIdx>, Vec<EIdx>, LIdx), CheckError> {
-    match ind_base::open_pis_at_fvars_f(st, depth, tty, 0) {
+    match checker_base::open_pis_at_fvars_f(st, depth, tty, 0) {
         Err(e) => Err(e),
         Ok(None) => fail(core_types::not_implemented(code_points(&M_IOTA_SHAPE))),
         Ok(Some(q)) => match expr_ops::get_app_args(st, CORE_WALK_FUEL, &q.1) {
             Err(e) => Err(e),
             Ok(targs) => match expr_ops::get_app_fn(st, CORE_WALK_FUEL, &q.1) {
                 Err(e) => Err(e),
-                Ok(tfn) => match ind_base::is_eq_head(st, &tfn) {
+                Ok(tfn) => match checker_base::is_eq_head(st, &tfn) {
                     Err(e) => Err(e),
                     Ok(false) => fail(core_types::not_implemented(code_points(&M_IOTA_NOT_EQ))),
                     Ok(true) => {
                         if targs.len() != 3 {
                             fail(core_types::not_implemented(code_points(&M_IOTA_NOT_EQ)))
                         } else {
-                            match ind_base::eq_head_level(st, &tfn) {
+                            match checker_base::eq_head_level(st, &tfn) {
                                 Err(e) => Err(e),
                                 Ok(l_a) => Ok((q.0, targs, l_a)),
                             }
@@ -923,7 +945,7 @@ pub fn iota_lhs_prefix_ok(
                     } else {
                         let a: Vec<EIdx> = expr_ops::take_eidx(largs, r_p as usize);
                         let b: Vec<EIdx> = expr_ops::take_eidx(fvs, r_p as usize);
-                        Ok(ind_base::eidx_vec_beq(&a, &b))
+                        Ok(canon::eidx_vec_beq(&a, &b, 0))
                     }
                 }
             }
@@ -1119,14 +1141,14 @@ pub fn check_iota_thm_idx(
                 let lidx: Vec<EIdx> =
                     expr_ops::take_eidx(&core::drop_eidx(largs, r_p as usize), k as usize);
                 let cidx: Vec<EIdx> = core::drop_eidx(&cargs, cn_p as usize);
-                match ind_base::check_def_eq_list(st, mode, fe_self, depth, &lidx, &cidx) {
+                match checker_base::check_def_eq_list(st, mode, fe_self, depth, &lidx, &cidx, 0) {
                     Err(e) => Err(e),
-                    Ok(()) => match ind_base::fvar_type_ds(st, x_fvs) {
+                    Ok(()) => match checker_base::fvar_type_ds(st, x_fvs, 0, Vec::new()) {
                         Err(e) => Err(e),
                         Ok(xdoms) => {
                             let cdom_tail: Vec<EIdx> = core::drop_eidx(cdoms, cn_p as usize);
-                            match ind_base::check_def_eq_list(
-                                st, mode, fe_self, depth, &xdoms, &cdom_tail,
+                            match checker_base::check_def_eq_list(
+                                st, mode, fe_self, depth, &xdoms, &cdom_tail, 0,
                             ) {
                                 Err(e) => Err(e),
                                 Ok(()) => check_iota_thm_prefix(
@@ -1169,10 +1191,12 @@ pub fn check_iota_thm_prefix(
             match expr_ops::inst_pis_at_f(st, CORE_WALK_FUEL, &pfx, &ty_ar) {
                 Err(e) => Err(e),
                 Ok(None) => fail(core_types::not_implemented(code_points(&M_IOTA_RTELE))),
-                Ok(Some(rq)) => match ind_base::fvar_type_ds(st, &pfx) {
+                Ok(Some(rq)) => match checker_base::fvar_type_ds(st, &pfx, 0, Vec::new()) {
                     Err(e) => Err(e),
                     Ok(pdoms) => {
-                        match ind_base::check_def_eq_list(st, mode, fe_self, depth, &pdoms, &rq.0) {
+                        match checker_base::check_def_eq_list(
+                            st, mode, fe_self, depth, &pdoms, &rq.0, 0,
+                        ) {
                             Err(e) => Err(e),
                             Ok(()) => check_iota_thm_frames(
                                 st, mode, fe_self, f, ty_a, r_p, cvj, cn_p, depth, rhs_a, fvs,
@@ -1211,7 +1235,7 @@ pub fn check_iota_thm_frames(
     b0: &EIdx,
 ) -> Result<(), CheckError> {
     let cn_f: u64 = sub_nat(depth, r_p);
-    match ind_base::open_pis_at_fvars_f(st, r_p, ty_a, 0) {
+    match checker_base::open_pis_at_fvars_f(st, r_p, ty_a, 0) {
         Err(e) => Err(e),
         Ok(None) => fail(core_types::not_implemented(code_points(&M_IOTA_RTELE))),
         Ok(Some(pq)) => {
@@ -1220,12 +1244,15 @@ pub fn check_iota_thm_frames(
             match expr_ops::inst_pis_at_f(st, CORE_WALK_FUEL, &pfx, &cvj.ty) {
                 Err(e) => Err(e),
                 Ok(None) => fail(core_types::not_implemented(code_points(&M_IOTA_CTELE))),
-                Ok(Some(cq)) => match ind_base::fvar_type_ds(st, &pfx) {
+                Ok(Some(cq)) => match checker_base::fvar_type_ds(st, &pfx, 0, Vec::new()) {
                     Err(e) => Err(e),
                     Ok(pdoms) => {
-                        match ind_base::check_def_eq_list(st, mode, fe_self, depth, &pdoms, &cq.0) {
+                        match checker_base::check_def_eq_list(
+                            st, mode, fe_self, depth, &pdoms, &cq.0, 0,
+                        ) {
                             Err(e) => Err(e),
-                            Ok(()) => match ind_base::open_pis_at_fvars_f(st, cn_f, &cq.1, r_p) {
+                            Ok(()) => match checker_base::open_pis_at_fvars_f(st, cn_f, &cq.1, r_p)
+                            {
                                 Err(e) => Err(e),
                                 Ok(None) => {
                                     fail(core_types::not_implemented(code_points(&M_IOTA_CTELE)))
@@ -1266,10 +1293,10 @@ pub fn check_iota_thm_lams(
     match expr_ops::inst_lams_at_f(st, CORE_WALK_FUEL, all, rhs_a) {
         Err(e) => Err(e),
         Ok(None) => fail(core_types::not_implemented(code_points(&M_IOTA_RULE))),
-        Ok(Some(lq)) => match ind_base::fvar_type_ds(st, all) {
+        Ok(Some(lq)) => match checker_base::fvar_type_ds(st, all, 0, Vec::new()) {
             Err(e) => Err(e),
             Ok(ldoms) => {
-                match ind_base::check_def_eq_list(st, mode, fe_self, depth, &ldoms, &lq.0) {
+                match checker_base::check_def_eq_list(st, mode, fe_self, depth, &ldoms, &lq.0, 0) {
                     Err(e) => Err(e),
                     Ok(()) => check_iota_thm_rhs(
                         st, mode, fe_self, f, depth, rhs_a, fvs, targs, rhs_s, l_a, b0,
@@ -1347,7 +1374,7 @@ pub fn nested_rule_shape(
 ) -> Result<Option<(Vec<LIdx>, Vec<EIdx>)>, CheckError> {
     match iota_thm_name(st, cv_name, j) {
         Err(e) => Err(e),
-        Ok(thm) => match ind_base::find_cv(st, fe2, &thm) {
+        Ok(thm) => match checker_base::ifenv_find_cv(st, fe2, &thm) {
             Err(e) => Err(e),
             Ok(o) => {
                 if !(o.is_some() && r_p <= m_i) {
@@ -1432,13 +1459,14 @@ pub fn nested_rule_shape_args(
                                             Err(e) => Err(e),
                                             Ok(pins_ok) => {
                                                 if args.len() as u64 == cn_p + k
-                                                    && ind_base::eidx_vec_beq(&head, &lifted)
-                                                    && ind_base::eidx_vec_beq(
+                                                    && canon::eidx_vec_beq(&head, &lifted, 0)
+                                                    && canon::eidx_vec_beq(
                                                         &core::drop_eidx(&args, cn_p as usize),
                                                         &idx_spine,
+                                                        0,
                                                     )
                                                     && pins_ok
-                                                    && ind_base::levels_all_params_defined(
+                                                    && checker_base::all_params_defined_list(
                                                         &ks, &lvl_vals, 0,
                                                     )
                                                 {
@@ -1531,9 +1559,9 @@ pub fn nested_pins_ok(
             Err(e) => Err(e),
             Ok(w1) => match expr_ops::loose_bvars_bounded_fast(st, CORE_WALK_FUEL, r_p, &p) {
                 Err(e) => Err(e),
-                Ok(w2) => match ind_base::consts_resolve_f_fast(st, fe_self, &p) {
+                Ok(w2) => match checker_base::consts_resolve_f_fast(st, fe_self, &p) {
                     Err(e) => Err(e),
-                    Ok(w3) => match ind_base::all_level_params_defined(st, lps, &p) {
+                    Ok(w3) => match checker_base::all_level_params_defined(st, lps, &p) {
                         Err(e) => Err(e),
                         Ok(w4) => {
                             if !w1 && w2 && w3 && w4 {
@@ -1744,7 +1772,7 @@ pub fn check_iota_thm_n_major(
     r: &IRecRule,
 ) -> Result<(), CheckError> {
     let major: EIdx = last_d_eidx(largs, b0);
-    match ind_base::intern_ls(st, lvls) {
+    match intern_ls(st, lvls) {
         Err(e) => Err(e),
         Ok(lvls_idx) => {
             let rn: NIdx = f.rename(&r.ctor);
@@ -1887,14 +1915,14 @@ pub fn check_iota_thm_n_idx(
                 let lidx: Vec<EIdx> =
                     expr_ops::take_eidx(&core::drop_eidx(largs, r_p as usize), k as usize);
                 let cidx: Vec<EIdx> = core::drop_eidx(&cargs, cn_p as usize);
-                match ind_base::check_def_eq_list(st, mode, fe_self, depth, &lidx, &cidx) {
+                match checker_base::check_def_eq_list(st, mode, fe_self, depth, &lidx, &cidx, 0) {
                     Err(e) => Err(e),
-                    Ok(()) => match ind_base::fvar_type_ds(st, x_fvs) {
+                    Ok(()) => match checker_base::fvar_type_ds(st, x_fvs, 0, Vec::new()) {
                         Err(e) => Err(e),
                         Ok(xdoms) => {
                             let cdom_tail: Vec<EIdx> = core::drop_eidx(cdoms, cn_p as usize);
-                            match ind_base::check_def_eq_list(
-                                st, mode, fe_self, depth, &xdoms, &cdom_tail,
+                            match checker_base::check_def_eq_list(
+                                st, mode, fe_self, depth, &xdoms, &cdom_tail, 0,
                             ) {
                                 Err(e) => Err(e),
                                 Ok(()) => check_iota_thm_n_prefix(
@@ -1941,10 +1969,12 @@ pub fn check_iota_thm_n_prefix(
             match expr_ops::inst_pis_at_f(st, CORE_WALK_FUEL, &pfx, &ty_ar) {
                 Err(e) => Err(e),
                 Ok(None) => fail(core_types::not_implemented(code_points(&M_IOTA_RTELE))),
-                Ok(Some(rq)) => match ind_base::fvar_type_ds(st, &pfx) {
+                Ok(Some(rq)) => match checker_base::fvar_type_ds(st, &pfx, 0, Vec::new()) {
                     Err(e) => Err(e),
                     Ok(pdoms) => {
-                        match ind_base::check_def_eq_list(st, mode, fe_self, depth, &pdoms, &rq.0) {
+                        match checker_base::check_def_eq_list(
+                            st, mode, fe_self, depth, &pdoms, &rq.0, 0,
+                        ) {
                             Err(e) => Err(e),
                             Ok(()) => check_iota_thm_n_frames(
                                 st, mode, fe_self, f, ty_a, m_i, r_p, cvj, cn_p, cn_f, rhs_a, fvs,
@@ -1985,7 +2015,7 @@ pub fn check_iota_thm_n_frames(
     pins: &Vec<EIdx>,
 ) -> Result<(), CheckError> {
     let depth: u64 = r_p + cn_f;
-    match ind_base::open_pis_at_fvars_f(st, r_p, ty_a, 0) {
+    match checker_base::open_pis_at_fvars_f(st, r_p, ty_a, 0) {
         Err(e) => Err(e),
         Ok(None) => fail(core_types::not_implemented(code_points(&M_IOTA_RTELE))),
         Ok(Some(pq)) => {
@@ -1993,35 +2023,38 @@ pub fn check_iota_thm_n_frames(
             let pfx: Vec<EIdx> = expr_ops::take_eidx(&fvs_p, r_p as usize);
             match inst_spine_list(st, &pfx, sub_nat(r_p, 1), pins, 0, Vec::new()) {
                 Err(e) => Err(e),
-                Ok(pins_p) => match ind_base::check_annot_list(st, mode, fe_self, depth, &pins_p) {
-                    Err(e) => Err(e),
-                    Ok(()) => match expr_ops::inst_lp_fast(
-                        st,
-                        CORE_WALK_FUEL,
-                        &cvj.level_params,
-                        lvls_idx,
-                        &cvj.ty,
-                    ) {
+                Ok(pins_p) => {
+                    match checker_base::check_annot_list(st, mode, fe_self, depth, &pins_p, 0) {
                         Err(e) => Err(e),
-                        Ok(cty_l2) => {
-                            match expr_ops::inst_pis_at_f(st, CORE_WALK_FUEL, &pins_p, &cty_l2) {
-                                Err(e) => Err(e),
-                                Ok(None) => {
-                                    fail(core_types::not_implemented(code_points(&M_IOTA_CTELE)))
-                                }
-                                Ok(Some(cq)) => match ind_base::check_typed_list(
-                                    st, mode, fe_self, depth, &pins_p, &cq.0,
-                                ) {
+                        Ok(()) => match expr_ops::inst_lp_fast(
+                            st,
+                            CORE_WALK_FUEL,
+                            &cvj.level_params,
+                            lvls_idx,
+                            &cvj.ty,
+                        ) {
+                            Err(e) => Err(e),
+                            Ok(cty_l2) => {
+                                match expr_ops::inst_pis_at_f(st, CORE_WALK_FUEL, &pins_p, &cty_l2)
+                                {
                                     Err(e) => Err(e),
-                                    Ok(()) => check_iota_thm_n_fields(
-                                        st, mode, fe_self, f, m_i, r_p, cn_p, cn_f, rhs_a, fvs,
-                                        targs, rhs_s, l_a, b0, &fvs_p, &cq.1,
-                                    ),
-                                },
+                                    Ok(None) => fail(core_types::not_implemented(code_points(
+                                        &M_IOTA_CTELE,
+                                    ))),
+                                    Ok(Some(cq)) => match checker_base::check_typed_list(
+                                        st, mode, fe_self, depth, &pins_p, &cq.0, 0,
+                                    ) {
+                                        Err(e) => Err(e),
+                                        Ok(()) => check_iota_thm_n_fields(
+                                            st, mode, fe_self, f, m_i, r_p, cn_p, cn_f, rhs_a, fvs,
+                                            targs, rhs_s, l_a, b0, &fvs_p, &cq.1,
+                                        ),
+                                    },
+                                }
                             }
-                        }
-                    },
-                },
+                        },
+                    }
+                }
             }
         }
     }
@@ -2050,7 +2083,7 @@ pub fn check_iota_thm_n_fields(
     crest_p: &EIdx,
 ) -> Result<(), CheckError> {
     let depth: u64 = r_p + cn_f;
-    match ind_base::open_pis_at_fvars_f(st, cn_f, crest_p, r_p) {
+    match checker_base::open_pis_at_fvars_f(st, cn_f, crest_p, r_p) {
         Err(e) => Err(e),
         Ok(None) => fail(core_types::not_implemented(code_points(&M_IOTA_CTELE))),
         Ok(Some(xq)) => match expr_ops::get_app_args(st, CORE_WALK_FUEL, &xq.1) {
@@ -2090,7 +2123,7 @@ pub fn check_iota_rule(
     j: u64,
     r: &IRecRule,
 ) -> Result<IRecRule, CheckError> {
-    let found: Option<IConstantInfo> = ind_base::find_ci(fe2, &r.ctor);
+    let found: Option<IConstantInfo> = env::find_ci(fe2, &r.ctor);
     match found {
         Some(IConstantInfo::CtorInfo(cvj, cn_p, cn_f)) => {
             if r.nfields != cn_f {
@@ -2170,12 +2203,12 @@ pub fn check_iota_rule_fire(
     cn_f: u64,
     rhs_a: EIdx,
 ) -> Result<IRecRule, CheckError> {
-    match ind_base::all_level_params_defined(st, lps, &rhs_a) {
+    match checker_base::all_level_params_defined(st, lps, &rhs_a) {
         Err(e) => Err(e),
         Ok(false) => fail(core_types::invalid(code_points(&M_RULE_LPS))),
-        Ok(true) => match ind_base::consts_resolve_f_fast(st, fe_self, &rhs_a) {
+        Ok(true) => match checker_base::consts_resolve_f_fast(st, fe_self, &rhs_a) {
             Err(e) => Err(e),
-            Ok(false) => match ind_base::unresolved_consts_error(st, &rhs_a) {
+            Ok(false) => match checker_base::unresolved_consts_error(st, &rhs_a) {
                 Err(e) => Err(e),
                 Ok(er) => fail(er),
             },
@@ -2316,7 +2349,7 @@ pub fn check_member_val(
 ) -> Result<IConstantVal, CheckError> {
     match block_rename_table(st, block_names) {
         Err(e) => Err(e),
-        Ok(f) => match ind_base::check_constant_val(st, mode, fe2, cv) {
+        Ok(f) => match checker_base::check_constant_val(st, mode, fe2, cv) {
             Err(e) => Err(e),
             Ok(cv_a) => match read_name(st, &cv_a.name) {
                 Err(e) => Err(e),
@@ -2342,10 +2375,10 @@ pub fn check_member_model(
     fe2: &IFEnv,
     cv_a: IConstantVal,
 ) -> Result<IConstantVal, CheckError> {
-    match ind_base::model_name(st, &cv_a.name) {
+    match model_name(st, &cv_a.name) {
         Err(e) => Err(e),
         Ok(mn) => {
-            let found: Option<IConstantInfo> = ind_base::find_ci(fe2, &mn);
+            let found: Option<IConstantInfo> = env::find_ci(fe2, &mn);
             match found {
                 Some(IConstantInfo::DefnInfo(cvm, _, _)) => {
                     if !core::nidx_vec_beq(&cvm.level_params, &cv_a.level_params) {
@@ -2552,12 +2585,12 @@ pub fn check_ind_recs(
                 Err(e) => Err(e),
                 Ok(false) => fail(core_types::not_implemented(code_points(&M_EQ_BASIS))),
                 Ok(true) => {
-                    let fe_env: IFEnv = ind_base::ifenv_dup(&fe2);
+                    let fe_env: IFEnv = env::ifenv_dup(&fe2);
                     match provision_recs(
                         st,
                         mode,
                         block_names,
-                        ind_base::ifenv_dup(&fe2),
+                        env::ifenv_dup(&fe2),
                         recs,
                         0,
                         Vec::new(),
@@ -2587,7 +2620,7 @@ pub fn check_proj_lookups(
     n_f: u64,
     i: u64,
 ) -> Result<(IConstantVal, IConstantVal), CheckError> {
-    let found: Option<IConstantInfo> = ind_base::find_ci(fe2, ctor_name);
+    let found: Option<IConstantInfo> = env::find_ci(fe2, ctor_name);
     match found {
         Some(IConstantInfo::CtorInfo(cvj, cn_p, cn_f)) => {
             if !(cn_p == n_p && cn_f == n_f) {
@@ -2615,7 +2648,7 @@ pub fn check_proj_lookups_model(
     match core::proj_model_name(st, t, i) {
         Err(e) => Err(e),
         Ok(pmn) => {
-            let found: Option<IConstantInfo> = ind_base::find_ci(fe2, &pmn);
+            let found: Option<IConstantInfo> = env::find_ci(fe2, &pmn);
             match found {
                 Some(IConstantInfo::DefnInfo(mcv, _, _)) => {
                     if !core::nidx_vec_beq(&mcv.level_params, lps) {
@@ -2693,14 +2726,14 @@ pub fn check_proj_ty_wf(
     n_p: u64,
     pty: EIdx,
 ) -> Result<EIdx, CheckError> {
-    match ind_base::consts_resolve_f_fast(st, fe2, &pty) {
+    match checker_base::consts_resolve_f_fast(st, fe2, &pty) {
         Err(e) => Err(e),
         Ok(false) => fail(core_types::not_implemented(code_points(&M_PT_RES))),
         Ok(true) => match expr_ops::loose_bvars_bounded_fast(st, CORE_WALK_FUEL, 0, &pty) {
             Err(e) => Err(e),
             Ok(w1) => match expr_ops::has_fvar_fast(st, CORE_WALK_FUEL, &pty) {
                 Err(e) => Err(e),
-                Ok(w2) => match ind_base::all_level_params_defined(st, lps, &pty) {
+                Ok(w2) => match checker_base::all_level_params_defined(st, lps, &pty) {
                     Err(e) => Err(e),
                     Ok(w3) => {
                         if !(w1 && !w2 && w3) {
@@ -2743,7 +2776,7 @@ pub fn check_proj_iota(
         Ok(pmn) => match intern_n_node(st, NNodeView::Str(pmn.dup2(), code_points(&IOTA))) {
             Err(e) => Err(e),
             Ok(itn) => {
-                let found: Option<IConstantInfo> = ind_base::find_ci(fe2, &itn);
+                let found: Option<IConstantInfo> = env::find_ci(fe2, &itn);
                 match found {
                     Some(IConstantInfo::ThmInfo(tcv, _)) => {
                         if !core::nidx_vec_beq(&tcv.level_params, lps) {
@@ -2822,7 +2855,7 @@ pub fn check_proj_iota_body(
         Err(e) => Err(e),
         Ok(p_args) => match struct_parts::bvars_desc(st, n_f) {
             Err(e) => Err(e),
-            Ok(x_args) => match ind_base::model_name(st, ctor_name) {
+            Ok(x_args) => match model_name(st, ctor_name) {
                 Err(e) => Err(e),
                 Ok(cmn) => match struct_parts::param_levels(st, &cvj.level_params) {
                     Err(e) => Err(e),
@@ -2917,7 +2950,7 @@ pub fn check_proj_iota_field(
             if !rhs_c.eq2(&fld) {
                 fail(core_types::not_implemented(code_points(&M_PI_FIELD)))
             } else {
-                match ind_base::open_pis_at_fvars_f(st, depth, tty, 0) {
+                match checker_base::open_pis_at_fvars_f(st, depth, tty, 0) {
                     Err(e) => Err(e),
                     Ok(None) => fail(core_types::not_implemented(code_points(&M_PI_TELE))),
                     Ok(Some(oq)) => match expr_ops::get_app_args(st, CORE_WALK_FUEL, &oq.1) {
@@ -2926,7 +2959,7 @@ pub fn check_proj_iota_field(
                             Err(e) => Err(e),
                             Ok(b0) => match expr_ops::get_app_fn(st, CORE_WALK_FUEL, sbody) {
                                 Err(e) => Err(e),
-                                Ok(hd) => match ind_base::eq_head_level(st, &hd) {
+                                Ok(hd) => match checker_base::eq_head_level(st, &hd) {
                                     Err(e) => Err(e),
                                     Ok(l_a) => {
                                         let a0 = core::get_d_eidx(&targs_o, 0, &b0);
@@ -2969,7 +3002,7 @@ pub fn check_proj_fn(
             let mcv: IConstantVal = q.1;
             match check_proj_ty(st, &fe2, t, ctor_name, lps, &mcv.ty, n_p, n_f) {
                 Err(e) => Err(e),
-                Ok(pty) => match ind_base::check_proj_shape(st, &pty, &cvj.ty, n_p, n_f) {
+                Ok(pty) => match checker_base::check_proj_shape(st, &pty, &cvj.ty, n_p, n_f) {
                     Err(e) => Err(e),
                     Ok(()) => {
                         if i >= n_f {
@@ -3002,7 +3035,7 @@ pub fn check_proj_fn_rule(
     i: u64,
     pty: EIdx,
 ) -> Result<IFEnv, CheckError> {
-    match ind_base::check_proj_rule(st, mode, &fe2, &pty, cvj, lps, n_p, n_f, i) {
+    match checker_base::check_proj_rule(st, mode, &fe2, &pty, cvj, lps, n_p, n_f, i) {
         Err(e) => Err(e),
         Ok(rhs_a) => {
             match check_proj_iota(st, mode, &fe2, &fe2, t, ctor_name, lps, cvj, n_p, n_f, i) {
@@ -3053,16 +3086,16 @@ pub fn check_eta_thm(
     n_f: u64,
 ) -> Result<bool, CheckError> {
     const ETA: [u32; 3] = [101, 116, 97];
-    match ind_base::model_name(st, t) {
+    match model_name(st, t) {
         Err(e) => Err(e),
         Ok(tm) => match intern_n_node(st, NNodeView::Str(tm.dup2(), code_points(&ETA))) {
             Err(e) => Err(e),
-            Ok(etn) => match ind_base::model_name(st, ctor_name) {
+            Ok(etn) => match model_name(st, ctor_name) {
                 Err(e) => Err(e),
                 Ok(cm) => {
-                    let a: Option<IConstantInfo> = ind_base::find_ci(fe2, &etn);
-                    let b: Option<IConstantInfo> = ind_base::find_ci(fe2, &tm);
-                    let c: Option<IConstantInfo> = ind_base::find_ci(fe2, &cm);
+                    let a: Option<IConstantInfo> = env::find_ci(fe2, &etn);
+                    let b: Option<IConstantInfo> = env::find_ci(fe2, &tm);
+                    let c: Option<IConstantInfo> = env::find_ci(fe2, &cm);
                     match (a, b, c) {
                         (
                             Some(IConstantInfo::ThmInfo(tcv, _)),
@@ -3136,7 +3169,7 @@ pub fn proj_models_ok(
         match core::proj_model_name(st, t, j) {
             Err(e) => Err(e),
             Ok(pmn) => {
-                let found: Option<IConstantInfo> = ind_base::find_ci(fe2, &pmn);
+                let found: Option<IConstantInfo> = env::find_ci(fe2, &pmn);
                 match found {
                     Some(IConstantInfo::DefnInfo(cvmj, _, _)) => {
                         if core::nidx_vec_beq(&cvmj.level_params, lps) {
@@ -3176,7 +3209,7 @@ pub fn check_eta_thm_shape(
             Err(e) => Err(e),
             Ok(None) => Ok(false),
             Ok(Some(tq)) => {
-                if !ind_base::doms_match_aux(&sq.0, &tq.0, 0, 0, n_p) {
+                if !checker_base::doms_match_aux(&sq.0, &tq.0, 0, 0, n_p) {
                     Ok(false)
                 } else {
                     match struct_parts::param_levels(st, lps) {
@@ -3345,13 +3378,13 @@ pub fn check_unit_thm(
     n_p: u64,
 ) -> Result<bool, CheckError> {
     const UL: [u32; 8] = [117, 110, 105, 116, 108, 105, 107, 101];
-    match ind_base::model_name(st, t) {
+    match model_name(st, t) {
         Err(e) => Err(e),
         Ok(tm) => match intern_n_node(st, NNodeView::Str(tm.dup2(), code_points(&UL))) {
             Err(e) => Err(e),
             Ok(utn) => {
-                let a: Option<IConstantInfo> = ind_base::find_ci(fe2, &utn);
-                let b: Option<IConstantInfo> = ind_base::find_ci(fe2, &tm);
+                let a: Option<IConstantInfo> = env::find_ci(fe2, &utn);
+                let b: Option<IConstantInfo> = env::find_ci(fe2, &tm);
                 match (a, b) {
                     (
                         Some(IConstantInfo::ThmInfo(tcv, _)),
@@ -3405,7 +3438,7 @@ pub fn check_unit_thm_at(
                         Err(e) => Err(e),
                         Ok(None) => Ok(false),
                         Ok(Some(tq)) => {
-                            if !ind_base::doms_match_aux(&sq.0, &tq.0, 0, 0, n_p) {
+                            if !checker_base::doms_match_aux(&sq.0, &tq.0, 0, 0, n_p) {
                                 Ok(false)
                             } else {
                                 check_unit_thm_shape(st, mode, lps, n_p, tm, &sq.0, &sq.1, &tq.1)
@@ -3655,7 +3688,7 @@ pub fn ctor_residual_ok(
     if !con_ron_core::kernel::env::tt_checks(mode) || !eta {
         Ok(true)
     } else {
-        let found: Option<IConstantInfo> = ind_base::find_ci(fe2, ctor_name);
+        let found: Option<IConstantInfo> = env::find_ci(fe2, ctor_name);
         match found {
             Some(IConstantInfo::CtorInfo(cv_ca, _, _)) => {
                 match expr_ops::strip_pis(st, n_p + n_f, &cv_ca.ty) {
@@ -3687,7 +3720,7 @@ pub fn filter_recs(
 ) -> Vec<IConstantInfo> {
     if i >= block.len() {
         out
-    } else if ind_base::is_rec_info(&block[i]) == want {
+    } else if checker_base::is_rec_info(&block[i]) == want {
         let mut o: Vec<IConstantInfo> = out;
         o.push(env::i_constant_info_dup(&block[i]));
         filter_recs(block, want, i + 1, o)
@@ -3775,7 +3808,7 @@ pub fn check_modeled(
 ) -> Result<IFEnv, CheckError> {
     let recs: Vec<IConstantInfo> = filter_recs(block, true, 0, Vec::new());
     let nonrecs: Vec<IConstantInfo> = filter_recs(block, false, 0, Vec::new());
-    if !ind_base::recs_form_suffix(block) {
+    if !checker_base::recs_form_suffix(block, 0) {
         fail(core_types::not_implemented(code_points(&M_ORDER_BLOCK)))
     } else {
         let block_names: Vec<NIdx> = block_names_of(block, 0, Vec::new());

@@ -20,13 +20,12 @@
 //!   (preparePrelude ds).toList.Perm (ds.toList ++ extra)
 //! ```
 //!
-//! **Step 2 is a placeholder in part 1**, in the twin and here
-//! ([`hoist_nat_op_ground`]).  The direction is the safe one: con-leche's own
-//! argument for the hoist is that *not* moving a pinned operation's ground
-//! ahead of it makes the operation's install DECLINE, so an identity hoist can
-//! only turn an accept into a decline and never the other way round.  Part 2
-//! ports `ConLeche/Frontend/NatOpGround.lean` proper, into a module of its
-//! own.
+//! **Step 2 is `frontend::nat_op_ground`'s**, a module of its own exactly as
+//! con-leche's is (task #97-P4d; task #97-P4e part 1 shipped an identity
+//! placeholder here, because the pass needs the kernel's
+//! `natOpNames`/`natDivModNames`, which arrived with the pins).  It is why
+//! `prepare_d` takes the whole `AState` where everything else in this module
+//! needs only the store.
 //!
 //! **Where the store comes from.**  Only `prelude_key`, whose `.anonymous`
 //! fall-through has to be INTERNED, and the two functions that call it;
@@ -53,6 +52,7 @@
 use crate::arena::env;
 use crate::arena::env::{i_declaration_names, nidx_vec_contains, IDeclaration};
 use crate::arena::handle::NIdx;
+use crate::arena::monad::AState;
 use crate::arena::store::{EStore, NNodeView};
 use con_ron_core::kernel::core_types::CheckError;
 use con_ron_core::ron::hashmap::Dup;
@@ -219,27 +219,6 @@ pub fn prepared_rest(
     out
 }
 
-/// con-leche: ConLeche/Frontend/NatOpGround.lean:164-169 hoistNatOpGround
-/// Lean twin: `proof/ConRon/Arena/Frontend/Prepare.lean:131-132 hoistNatOpGround`
-/// — **THE HOIST**: the reordered records and the names of the records moved.
-///
-/// **Part 1 ships the identity**, in the twin and here.  con-leche's body is
-/// `hoistTargets`/`applyHoist` over `Declaration.usedConsts`, a memoised DAG
-/// walk of every record's type and value that over handles is `view` plus a
-/// handle-keyed set — the `ExprOps`-shaped work scheduled as part 2 — and its
-/// trigger set is the kernel's `natOpNames`/`natDivModNames` name lists, which
-/// the arena has no twin of until P2c interns the pins.
-///
-/// The placeholder's direction is safe: con-leche's own justification for the
-/// pass is that a pinned operation whose ground the stream declares LATER
-/// declines at the install, so not moving it can only decline a run that would
-/// otherwise accept, never accept one that would otherwise be turned away.  It
-/// is also a no-op on every stream whose ground precedes its operations — the
-/// toolchain's own export order, `init-full` and Mathlib included.
-pub fn hoist_nat_op_ground(ds: Vec<IDeclaration>) -> (Vec<IDeclaration>, Vec<NIdx>) {
-    (ds, Vec::new())
-}
-
 /// con-leche: ConLeche/Frontend/Prepare.lean:148-157 Prepared
 /// Lean twin: `proof/ConRon/Arena/Frontend/Prepare.lean:137-144 Prepared` —
 /// the prepared stream and the driver's receipts.
@@ -257,17 +236,24 @@ pub struct Prepared {
 /// Lean twin: `proof/ConRon/Arena/Frontend/Prepare.lean:147-150 prepareD` —
 /// `prepare_prelude`, with its receipts.
 pub fn prepare_d(
-    ar: &mut EStore,
+    st: &mut AState,
     pre: PreludeIx,
     ds: Vec<IDeclaration>,
 ) -> Result<Prepared, CheckError> {
     let n_in = ds.len();
-    let plan = match front_of(ar, &pre.decls, &ds) {
+    let plan = match front_of(&mut st.store, &pre.decls, &ds) {
         Err(e) => return Err(e),
         Ok(v) => v,
     };
     let all = prepared_stream(&pre.decls, &ds, &plan.0, &plan.1);
-    let hoisted = hoist_nat_op_ground(all);
+    // step 2, no longer a placeholder: `frontend::nat_op_ground`'s real pass
+    // (task #97-P4d), which is why this function takes the whole state and not
+    // just the store — the trigger set is the kernel's
+    // `natOpNames`/`natDivModNames` and the closure walks the records' terms.
+    let hoisted = match crate::frontend::nat_op_ground::hoist_nat_op_ground(st, all) {
+        Err(e) => return Err(e),
+        Ok(h) => h,
+    };
     let synthesised = crate::frontend::export_c::sat_sub(hoisted.0.len() as u64, n_in as u64);
     Ok(Prepared {
         decls: hoisted.0,
@@ -284,11 +270,11 @@ pub fn prepare_d(
 /// it.  An array in and an array out, the shape the parse returns and the fold
 /// consumes.
 pub fn prepare_prelude(
-    ar: &mut EStore,
+    st: &mut AState,
     pre: PreludeIx,
     ds: Vec<IDeclaration>,
 ) -> Result<Vec<IDeclaration>, CheckError> {
-    match prepare_d(ar, pre, ds) {
+    match prepare_d(st, pre, ds) {
         Err(e) => Err(e),
         Ok(p) => Ok(p.decls),
     }
@@ -385,8 +371,9 @@ mod tests {
             decls: vec![ax(&mut ar, "Eq"), ax(&mut ar, "Bool")],
         };
         let stream = vec![ax(&mut ar, "X"), ax(&mut ar, "Bool"), ax(&mut ar, "Y")];
-        let p = prepare_d(&mut ar, pre, stream).ok().unwrap();
-        assert_eq!(names_of(&ar, &p.decls), vec!["Eq", "Bool", "X", "Y"]);
+        let mut st = AState::init(ar);
+        let p = prepare_d(&mut st, pre, stream).ok().unwrap();
+        assert_eq!(names_of(&st.store, &p.decls), vec!["Eq", "Bool", "X", "Y"]);
         // one prelude record (`Eq`) was not declared by the stream
         assert_eq!(p.synthesised, 1);
         assert!(p.hoisted.is_empty());
@@ -401,8 +388,9 @@ mod tests {
             decls: vec![ax(&mut ar, "Eq"), ax(&mut ar, "Nat")],
         };
         let stream = vec![ax(&mut ar, "Nat"), ax(&mut ar, "A"), ax(&mut ar, "B")];
-        let out = prepare_prelude(&mut ar, pre, stream).ok().unwrap();
-        let got = names_of(&ar, &out);
+        let mut st = AState::init(ar);
+        let out = prepare_prelude(&mut st, pre, stream).ok().unwrap();
+        let got = names_of(&st.store, &out);
         for n in ["Nat", "A", "B"] {
             assert_eq!(got.iter().filter(|x| *x == n).count(), 1, "{}", n);
         }
@@ -415,8 +403,9 @@ mod tests {
     fn an_empty_prelude_changes_nothing() {
         let mut ar = EStore::empty();
         let stream = vec![ax(&mut ar, "A"), ax(&mut ar, "B")];
-        let p = prepare_d(&mut ar, prelude_ix_empty(), stream).ok().unwrap();
-        assert_eq!(names_of(&ar, &p.decls), vec!["A", "B"]);
+        let mut st = AState::init(ar);
+        let p = prepare_d(&mut st, prelude_ix_empty(), stream).ok().unwrap();
+        assert_eq!(names_of(&st.store, &p.decls), vec!["A", "B"]);
         assert_eq!(p.synthesised, 0);
     }
 
@@ -434,14 +423,20 @@ mod tests {
         assert_eq!(pick_idx(&key, &ds, &picked), ds.len());
     }
 
-    /// The hoist is the identity in part 1, and says so: nothing moves and no
-    /// name is reported moved.
+    /// The hoist is the identity on a stream that declares no pinned `Nat`
+    /// operation: nothing moves, no name is reported moved, and the vector
+    /// comes back uncopied (task #97-P4d; the pass itself is
+    /// `frontend::nat_op_ground`, tested there).
     #[test]
-    fn the_hoist_is_the_identity() {
+    fn the_hoist_is_the_identity_without_a_pinned_operation() {
         let mut ar = EStore::empty();
         let ds = vec![ax(&mut ar, "A"), ax(&mut ar, "B")];
-        let (out, moved) = hoist_nat_op_ground(ds);
-        assert_eq!(names_of(&ar, &out), vec!["A", "B"]);
+        let mut st = AState::init(ar);
+        let (out, moved) =
+            crate::frontend::nat_op_ground::hoist_nat_op_ground(&mut st, ds)
+                .ok()
+                .unwrap();
+        assert_eq!(names_of(&st.store, &out), vec!["A", "B"]);
         assert!(moved.is_empty());
     }
 }

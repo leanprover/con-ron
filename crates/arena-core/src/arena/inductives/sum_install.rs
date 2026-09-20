@@ -24,11 +24,12 @@
 //! * **The fields' sorts are a `Vec<LIdx>`**, not an interned `LsIdx`
 //!   (`arena::inductives::struct_parts`' module note).
 
-use super::ind_base;
 use super::struct_install;
 use super::struct_parts;
 use super::sum_parts;
 use super::sum_parts::InductiveShape;
+use crate::arena::canon;
+use crate::arena::checker_base;
 use crate::arena::core;
 use crate::arena::core::CORE_WALK_FUEL;
 use crate::arena::env;
@@ -314,7 +315,7 @@ pub fn check_sum_tele_slow(
                         level_params: env::nidx_vec_dup(&cv.level_params),
                         ty,
                     };
-                    match ind_base::check_constant_val(st, mode, fe, &cv2) {
+                    match checker_base::check_constant_val(st, mode, fe, &cv2) {
                         Err(e) => Err(e),
                         Ok(cv_ta) => Ok((cv_ta, q.1)),
                     }
@@ -372,7 +373,7 @@ pub fn check_sum_ind(
     p: &InductiveShape,
     is_rec: bool,
 ) -> Result<(IFEnv, IConstantVal, InductiveShape), CheckError> {
-    match ind_base::check_constant_val(st, mode, &fe, &p.cv_t) {
+    match checker_base::check_constant_val(st, mode, &fe, &p.cv_t) {
         Err(e) => Err(e),
         Ok(cv_ta0) => match check_sum_tele(st, mode, &fe, &p.cv_t, p.n_p + p.n_idx, &cv_ta0) {
             Err(e) => Err(e),
@@ -467,7 +468,7 @@ pub fn check_struct_field_sorts_i(
         } else {
             None
         };
-        match ind_base::unwrap_or(at, core_types::internal(code_points(&M_FLD_IDX))) {
+        match checker_base::unwrap_or(at, core_types::internal(code_points(&M_FLD_IDX))) {
             Err(e) => Err(e),
             Ok(fv) => match expr_ops::fvar_type_d(st, &fv) {
                 Err(e) => Err(e),
@@ -725,7 +726,7 @@ pub fn norm_ctor_val(
     match expr_ops::strip_pis(st, n_p, &cv_ca.ty) {
         Err(e) => Err(e),
         Ok(None) => fail(core_types::not_implemented(code_points(&M_CTOR_TELE))),
-        Ok(Some(cq)) => match ind_base::open_pis_at_fvars_f(st, n_p, &cv_ca.ty, 0) {
+        Ok(Some(cq)) => match checker_base::open_pis_at_fvars_f(st, n_p, &cv_ca.ty, 0) {
             Err(e) => Err(e),
             Ok(None) => fail(core_types::not_implemented(code_points(&M_CTOR_TELE))),
             Ok(Some(pq)) => match zip_fvar_doms(st, &pq.0, &cq.0, 0, Vec::new()) {
@@ -746,7 +747,7 @@ pub fn norm_ctor_val(
                                         level_params: env::nidx_vec_dup(&cv_c.level_params),
                                         ty: ty2,
                                     };
-                                    ind_base::check_constant_val(st, mode, fe, &cv2)
+                                    checker_base::check_constant_val(st, mode, fe, &cv2)
                                 }
                             }
                         }
@@ -781,7 +782,7 @@ pub fn check_sum_ctor(
     n_f: u64,
     cv_ta: &IConstantVal,
 ) -> Result<(IConstantVal, Vec<LIdx>), CheckError> {
-    match ind_base::check_constant_val(st, mode, fe, cv_c) {
+    match checker_base::check_constant_val(st, mode, fe, cv_c) {
         Err(e) => Err(e),
         Ok(cv_ca0) => match norm_ctor_val(st, mode, fe, t, n_p, n_f, cv_c, &cv_ca0) {
             Err(e) => Err(e),
@@ -825,19 +826,19 @@ pub fn check_sum_ctor_frames(
     cv_ta: &IConstantVal,
     cv_ca: IConstantVal,
 ) -> Result<(IConstantVal, Vec<LIdx>), CheckError> {
-    match ind_base::open_pis_at_fvars_f(st, n_p, &cv_ca.ty, 0) {
+    match checker_base::open_pis_at_fvars_f(st, n_p, &cv_ca.ty, 0) {
         Err(e) => Err(e),
         Ok(None) => fail(core_types::not_implemented(code_points(&M_CTOR_TELE))),
-        Ok(Some(cq)) => match ind_base::open_pis_at_fvars_f(st, n_p, &cv_ta.ty, 0) {
+        Ok(Some(cq)) => match checker_base::open_pis_at_fvars_f(st, n_p, &cv_ta.ty, 0) {
             Err(e) => Err(e),
             Ok(None) => fail(core_types::not_implemented(code_points(&M_CTOR_TTELE))),
-            Ok(Some(tq)) => match ind_base::fvar_type_ds(st, &tq.0) {
+            Ok(Some(tq)) => match checker_base::fvar_type_ds(st, &tq.0, 0, Vec::new()) {
                 Err(e) => Err(e),
                 Ok(tdoms) => {
                     match struct_install::check_struct_doms_at(st, mode, fe, 0, &cq.0, &tdoms, n_p)
                     {
                         Err(e) => Err(e),
-                        Ok(()) => match ind_base::open_pis_at_fvars_f(st, n_f, &cq.1, n_p) {
+                        Ok(()) => match checker_base::open_pis_at_fvars_f(st, n_f, &cq.1, n_p) {
                             Err(e) => Err(e),
                             Ok(None) => {
                                 fail(core_types::not_implemented(code_points(&M_FIELD_TELE)))
@@ -889,7 +890,7 @@ pub fn check_sum_ctor_resid(
                     Ok(xargs) => {
                         let pre: Vec<EIdx> = expr_ops::take_eidx(&xargs, n_p as usize);
                         if !(xfn.eq2(&hd)
-                            && ind_base::eidx_vec_beq(&pre, p_fvs)
+                            && canon::eidx_vec_beq(&pre, p_fvs, 0)
                             && xargs.len() as u64 == n_p + n_idx)
                         {
                             fail(core_types::not_implemented(code_points(&M_CTOR_RESID)))
@@ -956,7 +957,7 @@ pub fn field_doms_resolve(
     } else {
         match expr_ops::fvar_type_d(st, &x_fvs[i]) {
             Err(e) => Err(e),
-            Ok(t) => match ind_base::consts_resolve_f_fast(st, fe0, &t) {
+            Ok(t) => match checker_base::consts_resolve_f_fast(st, fe0, &t) {
                 Err(e) => Err(e),
                 Ok(false) => Ok(false),
                 Ok(true) => field_doms_resolve(st, fe0, x_fvs, i + 1),
@@ -978,7 +979,7 @@ pub fn idx_args_resolve(
         Ok(true)
     } else {
         let e: EIdx = idx_args[i].dup2();
-        match ind_base::consts_resolve_f_fast(st, fe0, &e) {
+        match checker_base::consts_resolve_f_fast(st, fe0, &e) {
             Err(er) => Err(er),
             Ok(false) => Ok(false),
             Ok(true) => idx_args_resolve(st, fe0, idx_args, i + 1),

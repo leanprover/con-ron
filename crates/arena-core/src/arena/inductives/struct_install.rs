@@ -17,8 +17,8 @@
 //! and `struct_proj_bodies` ARE the memoised walks that record exists to
 //! substitute, and a record of two closures is what DESIGN.md §3.4 forbids.
 
-use super::ind_base;
 use super::struct_parts;
+use crate::arena::checker_base;
 use crate::arena::core;
 use crate::arena::core::CORE_WALK_FUEL;
 use crate::arena::env;
@@ -114,27 +114,29 @@ pub fn check_struct_doms_at(
         } else {
             None
         };
-        match ind_base::unwrap_or(a, core_types::internal(code_points(&M_DOM_IDX))) {
+        match checker_base::unwrap_or(a, core_types::internal(code_points(&M_DOM_IDX))) {
             Err(e) => Err(e),
-            Ok(fv) => match ind_base::unwrap_or(b, core_types::internal(code_points(&M_DOM_IDX))) {
-                Err(e) => Err(e),
-                Ok(dom) => match expr_ops::fvar_type_d(st, &fv) {
+            Ok(fv) => {
+                match checker_base::unwrap_or(b, core_types::internal(code_points(&M_DOM_IDX))) {
                     Err(e) => Err(e),
-                    Ok(ty) => match core::is_def_eq_core(
-                        st,
-                        mode,
-                        fe,
-                        core::CHECK_FUEL,
-                        off + j,
-                        &ty,
-                        &dom,
-                    ) {
+                    Ok(dom) => match expr_ops::fvar_type_d(st, &fv) {
                         Err(e) => Err(e),
-                        Ok(false) => fail(core_types::not_implemented(code_points(&M_DOM_MIS))),
-                        Ok(true) => check_struct_doms_at(st, mode, fe, off, fvs, doms, j),
+                        Ok(ty) => match core::is_def_eq_core(
+                            st,
+                            mode,
+                            fe,
+                            core::CHECK_FUEL,
+                            off + j,
+                            &ty,
+                            &dom,
+                        ) {
+                            Err(e) => Err(e),
+                            Ok(false) => fail(core_types::not_implemented(code_points(&M_DOM_MIS))),
+                            Ok(true) => check_struct_doms_at(st, mode, fe, off, fvs, doms, j),
+                        },
                     },
-                },
-            },
+                }
+            }
         }
     }
 }
@@ -168,7 +170,8 @@ pub fn check_struct_proj_table(
 ) -> Result<IFEnv, CheckError> {
     match struct_parts::struct_proj_bodies(st, t, n_p, n_f, &cv_ca.ty) {
         Err(e) => Err(e),
-        Ok(o) => match ind_base::unwrap_or(o, core_types::internal(code_points(&M_TBL_BODIES))) {
+        Ok(o) => match checker_base::unwrap_or(o, core_types::internal(code_points(&M_TBL_BODIES)))
+        {
             Err(e) => Err(e),
             Ok(bodies) => match proj_bodies_scoped(st, &fe, lps, n_p, &bodies, 0) {
                 Err(e) => Err(e),
@@ -206,9 +209,9 @@ pub fn proj_bodies_scoped(
         let b: EIdx = bodies[i].dup2();
         match expr_ops::has_fvar_fast(st, CORE_WALK_FUEL, &b) {
             Err(e) => Err(e),
-            Ok(w1) => match ind_base::all_level_params_defined(st, lps, &b) {
+            Ok(w1) => match checker_base::all_level_params_defined(st, lps, &b) {
                 Err(e) => Err(e),
-                Ok(w2) => match ind_base::consts_resolve_f_fast(st, fe, &b) {
+                Ok(w2) => match checker_base::consts_resolve_f_fast(st, fe, &b) {
                     Err(e) => Err(e),
                     Ok(w3) => {
                         match expr_ops::loose_bvars_bounded_fast(st, CORE_WALK_FUEL, n_p + 1, &b) {

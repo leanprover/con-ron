@@ -215,7 +215,11 @@ fn main() {
         Ok(res) => {
             // 3. `preparePrelude`, as the twin's `runPipelineM` runs it
             let records = res.decls.len() as u64 - res.gen_records;
-            let prepared = match prepare::prepare_d(&mut ar, pre, res.decls) {
+            // `prepare_d` takes the whole state since task #97-P4d: step 2 of
+            // `preparePrelude` is the real ground hoist, whose trigger set is
+            // the kernel's pinned `Nat` operation names.
+            let mut ast = arena_core::arena::monad::AState::init(ar);
+            let prepared = match prepare::prepare_d(&mut ast, pre, res.decls) {
                 Ok(p) => p,
                 Err(e) => {
                     let (m, c) = render(&e);
@@ -223,6 +227,7 @@ fn main() {
                     std::process::exit(c);
                 }
             };
+            let ar = ast.store;
             let (n_e, n_l, n_n) =
                 (ar.node_count(), ar.ls().node_count(), ar.ns().node_count());
             let wall = t0.elapsed();

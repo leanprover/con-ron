@@ -75,6 +75,7 @@
 //! exemption by path.  Everything else in §3.4 stands.
 
 pub mod export_c;
+pub mod nat_op_ground;
 pub mod prelude;
 pub mod prepare;
 pub mod types;

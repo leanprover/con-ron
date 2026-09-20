@@ -24,15 +24,18 @@
 //! | `native_parts` | `Arena/Inductives/NativeParts.lean` |
 //! | `native_install` | `Arena/Inductives/NativeInstall.lean` |
 //! | `native_install_f` | `Arena/Inductives/NativeInstallF.lean` |
-//! | `ind_base` | **borrowed**: `Arena/{CheckerBase,Intern,StdAxioms}.lean` |
 //!
-//! `ind_base` is the one module with no twin of its own: it holds the
-//! declaration checker's helpers until P4d-1's `arena::checker_base` lands, and
-//! its own module note carries the map (the Lean side had the same file, as
-//! `Arena/Inductives/Base.lean`, and task #97f deleted it once the Lean halves
-//! merged).
+//! The declaration checker's own helpers — `unwrapOr`, `checkConstantVal`,
+//! `allLevelParamsDefined`, `constsResolveFFast`, `openPisAtFvarsF`,
+//! `domsMatchAux`, the three list checks, `isEqHead`, `IFEnv.findCV?`,
+//! `checkProjShape`, `checkProjRule`, `isRecInfo`, `recsFormSuffix`,
+//! `indParamsOk` — are `arena::checker_base`'s, the whole-constant
+//! comparisons `arena::canon`'s, the interning converters `arena::intern`'s
+//! and the pinned `Eq` basis `arena::std_axioms`'s.  While the two halves of
+//! P4d ran concurrently this module carried a borrowed copy of them
+//! (`arena::inductives::ind_base`, as the Lean carried
+//! `Arena/Inductives/Base.lean`); the merge deleted both.
 
-pub mod ind_base;
 pub mod modeled;
 pub mod native_install;
 pub mod native_install_f;
@@ -44,6 +47,7 @@ pub mod sum_install;
 pub mod sum_install_f;
 pub mod sum_parts;
 
+use crate::arena::checker_base;
 use crate::arena::env::{IConstantInfo, IFEnv};
 use crate::arena::monad::{fail, AState};
 use con_ron_core::kernel::core_types;
@@ -73,19 +77,19 @@ pub const M_NUM_PARAMS: [u32; 29] = [
 /// The signature is the one the coordinator froze for the two halves of P4d,
 /// with the state first as `arena::monad`'s convention has it.
 pub fn check_ind_decl(
-    mode: &CheckMode,
+    mode: CheckMode,
     fe: IFEnv,
     block: Vec<IConstantInfo>,
     num_params: u64,
     st: &mut AState,
 ) -> Result<IFEnv, CheckError> {
-    match ind_base::ind_params_ok(st, num_params, &block) {
+    match checker_base::ind_params_ok(st, num_params, &block, 0) {
         Err(e) => Err(e),
         Ok(false) => fail(core_types::invalid(code_points(&M_NUM_PARAMS))),
         Ok(true) => match native_parts::native_parts(st, num_params, &block) {
             Err(e) => Err(e),
-            Ok(Some(p)) => native_install::check_native(st, mode, &fe, &p),
-            Ok(None) => modeled::check_modeled(st, mode, fe, &block),
+            Ok(Some(p)) => native_install::check_native(st, &mode, &fe, &p),
+            Ok(None) => modeled::check_modeled(st, &mode, fe, &block),
         },
     }
 }
@@ -134,7 +138,7 @@ mod tests {
     }
 
     fn intern_expr(st: &mut AState, e: &Expr) -> EIdx {
-        ok(ind_base::intern_expr(st, e))
+        ok(crate::arena::intern::intern_expr(st, e))
     }
 
     fn intern_names(st: &mut AState, ns: &Vec<Name>) -> Vec<NIdx> {
@@ -142,11 +146,11 @@ mod tests {
     }
 
     fn intern_cv(st: &mut AState, cv: &ConstantVal) -> IConstantVal {
-        ok(ind_base::intern_cv(st, cv))
+        ok(crate::arena::intern::intern_cv(st, cv))
     }
 
     fn intern_caps(st: &mut AState, c: &IndCaps) -> IIndCaps {
-        ok(ind_base::intern_caps(st, c))
+        ok(crate::arena::intern::intern_caps(st, c))
     }
 
     fn intern_fire(st: &mut AState, f: &RecRuleFire) -> IRecRuleFire {
@@ -271,7 +275,7 @@ mod tests {
         }
         let fe = mk_ifenv(IEnv { consts: ics });
         let iblock: Vec<IConstantInfo> = block.iter().map(|c| intern_ci(&mut st, c)).collect();
-        let got = check_ind_decl(&mode(), fe, iblock, n_p, &mut st);
+        let got = check_ind_decl(mode(), fe, iblock, n_p, &mut st);
         match (got, want) {
             (Ok(fe2), Ok(wfe)) => {
                 let wics: Vec<IConstantInfo> = wfe
@@ -286,7 +290,7 @@ mod tests {
                         .consts
                         .iter()
                         .zip(wics.iter())
-                        .all(|(a, b)| ind_base::i_constant_info_beq(a, b))
+                        .all(|(a, b)| crate::arena::canon::i_constant_info_beq(a, b))
             }
             (Err(a), Err(b)) => err_eq(&a, &b),
             _ => false,
@@ -847,7 +851,7 @@ mod tests {
         let mut st = AState::init(EStore::empty());
         let fe = mk_ifenv(IEnv { consts: Vec::new() });
         let iblock: Vec<IConstantInfo> = b.iter().map(|c| intern_ci(&mut st, c)).collect();
-        let got = match check_ind_decl(&mode(), fe, iblock, 2, &mut st) {
+        let got = match check_ind_decl(mode(), fe, iblock, 2, &mut st) {
             Ok(x) => x,
             Err(_) => panic!("Pair installs"),
         };
