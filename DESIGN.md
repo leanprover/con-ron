@@ -21462,7 +21462,7 @@ model forbids either.
 `scripts/extract-arena.sh` (new; `--dry` by default, since the model is not
 committed until the crate stops growing at P4b) is `scripts/extract.sh`'s
 invocation pointed at `crates/arena-core`, into `proof/ConRon/ArenaGen/`.
-Three translator complaints, all real, all fixed **in the crate** rather than
+Two translator complaints, both real, both fixed **in the crate** rather than
 worked around:
 
 1. **`Idx::mk` collides with the structure constructor.**  Aeneas names
@@ -21478,8 +21478,8 @@ worked around:
    disjunction of the `app` arm is fine, and `con_ron_core::kernel::expr::lam`
    — the same three-way disjunction with `m` owned and no enclosing match —
    extracts today.  Lifting the arithmetic into `der_of_bind` /
-   `der_of_let`, functions of scalars, makes the loans dead at the join.
-3. (the same diagnosis, once per arm.)
+   `der_of_let`, functions of scalars, makes the loans dead at the join —
+   once for the two binder arms and once for `letE`.
 
 **Result: the crate extracts with zero errors and zero warnings.**  4 984
 lines of model (`Types.lean` 380, `Funs.lean` 4 604), 371 generated
@@ -21522,12 +21522,12 @@ lives in `mod tests` and nowhere else.
 
 | | lines |
 |---|---|
-| `lib.rs` + `arena/mod.rs` (module notes) | 67 |
-| `handle.rs` | 549 (208 code, 260 comment) |
+| `lib.rs` + `arena/mod.rs` (module notes) | 65 |
+| `handle.rs` | 553 (208 code, 265 comment) |
 | `store.rs`, shipped | 2 408 (1 609 code, ~610 comment) |
-| `store.rs`, `mod tests` | 501 |
+| `store.rs`, `mod tests` | 500 |
 | `examples/intern_bench.rs` | 121 |
-| **total** | **3 646** |
+| **total** | **3 647** |
 
 Against the twin's 1 572 raw lines of `Handle` (279) + `Store` (1 125) +
 `StoreTest` (168): the Rust is 2.3×, and almost all of the excess is the
