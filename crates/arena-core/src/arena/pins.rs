@@ -60,6 +60,7 @@
 //! `pin` clauses become field reads.  Nothing about the DENOTATION moves.
 
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
+use crate::arena::env::nidx_vec_dup;
 use crate::arena::intern::intern_name_list;
 use crate::arena::monad::{fail, intern_e, intern_l_node, intern_ls_node, AState};
 use crate::arena::store::{ENodeView, LNodeView};
@@ -218,6 +219,12 @@ pub const PIN_OF_REDUCE_BOOL: usize = 48;
 pub struct Pins {
     /// The `PIN_COUNT` reserved-name handles, indexed by the `PIN_*` slots.
     pub names: Vec<NIdx>,
+    /// `basis_names::reserved_basis_names()`, interned: the nineteen names a
+    /// stream may not declare.  Its own list rather than nineteen slots of
+    /// `names`, because its only reader wants the whole vector
+    /// (`nidx_contains_from`) and because five of the nineteen are `rec_of`
+    /// forms that nothing else pins.
+    pub reserved: Vec<NIdx>,
     /// `arena::core::empty_levels`: the empty universe-argument list.
     pub empty_levels: LsIdx,
     /// `arena::core::zero_level`: the level `0`.
@@ -234,6 +241,7 @@ impl Pins {
     pub fn empty() -> Pins {
         Pins {
             names: Vec::new(),
+            reserved: Vec::new(),
             empty_levels: LsIdx::of_word(0),
             zero_level: LIdx::of_word(0),
             sort_one: EIdx::of_word(0),
@@ -316,7 +324,9 @@ pub fn pin_names() -> Vec<Name> {
 pub fn intern_reserved_pins(st: &mut AState) -> Result<(), CheckError> {
     match intern_name_list(st, &pin_names()) {
         Err(e) => Err(e),
-        Ok(hs) => match intern_ls_node(st, Vec::new()) {
+        Ok(hs) => match intern_name_list(st, &basis_names::reserved_basis_names()) {
+        Err(e) => Err(e),
+        Ok(rs) => match intern_ls_node(st, Vec::new()) {
             Err(e) => Err(e),
             Ok(us) => match intern_l_node(st, LNodeView::Zero) {
                 Err(e) => Err(e),
@@ -327,6 +337,7 @@ pub fn intern_reserved_pins(st: &mut AState) -> Result<(), CheckError> {
                         Ok(s1) => {
                             st.pins = Pins {
                                 names: hs,
+                                reserved: rs,
                                 empty_levels: us,
                                 zero_level: z,
                                 sort_one: s1,
@@ -336,6 +347,7 @@ pub fn intern_reserved_pins(st: &mut AState) -> Result<(), CheckError> {
                     },
                 },
             },
+        },
         },
     }
 }
@@ -350,6 +362,19 @@ pub fn intern_reserved_pins(st: &mut AState) -> Result<(), CheckError> {
 /// test this.
 pub fn pins_ready(st: &AState) -> bool {
     st.pins.names.len() == PIN_COUNT
+}
+
+/// con-leche: none — the arena's own pin table (DESIGN.md §8.3, task #97c)
+/// The nineteen reserved basis names, off the table.  `arena::core`'s
+/// `reserved_basis_names` used to build and intern all nineteen on every
+/// call, which task #97-P6-4a's profile put at 1.1 % of `Init`'s cycles in
+/// the `Name` construction alone; its readers copy the vector.
+pub fn pin_reserved(st: &AState) -> Result<Vec<NIdx>, CheckError> {
+    if pins_ready(st) {
+        Ok(nidx_vec_dup(&st.pins.reserved))
+    } else {
+        fail(CheckError::Internal(code_points(&M_PINS_UNSET)))
+    }
 }
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3, task #97c)

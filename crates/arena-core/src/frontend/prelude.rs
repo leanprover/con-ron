@@ -73,10 +73,22 @@ mod tests {
     use crate::arena::env::i_declaration_names;
     use crate::frontend::types::DeclineModeller;
 
+    /// con-leche: none — a test fixture
+    /// The state the driver builds: an empty store with the reserved-name
+    /// pins interned (task #97-P6-4a).  `export_c`'s projection-rewrite seam
+    /// reads a pin, so this is the only state the prelude parses in.
+    fn pinned_state() -> AState {
+        let mut ar = AState::init(crate::arena::store::EStore::empty());
+        match crate::arena::pins::intern_reserved_pins(&mut ar) {
+            Ok(()) => ar,
+            Err(_) => panic!("the reserved-name pins must intern"),
+        }
+    }
+
     /// The prelude parses, and holds the declarations the fold expects of it.
     #[test]
     fn builtin_prelude_parses() {
-        let mut ar = AState::init(crate::arena::store::EStore::empty());
+        let mut ar = pinned_state();
         let p = match builtin_prelude_e(&DeclineModeller {}, &mut ar) {
             Ok(p) => p,
             Err((_, line)) => panic!("the built-in prelude does not parse at line {}", line),
@@ -98,15 +110,36 @@ mod tests {
     /// the cheapest cross-check of the transliteration there is.
     #[test]
     fn the_prelude_interns_the_twins_own_node_counts() {
-        let mut ar = AState::init(crate::arena::store::EStore::empty());
+        let mut ar = pinned_state();
+        // What the reserved-name pins put in the store before the prelude is
+        // read (task #97-P6-4a); the twin's numbers are about the PRELUDE, so
+        // the three counts below are differences.
+        let (e0, l0, n0) = (
+            ar.store.node_count(),
+            ar.store.ls().node_count(),
+            ar.store.ns().node_count(),
+        );
         let p = match builtin_prelude_e(&DeclineModeller {}, &mut ar) {
             Ok(p) => p,
             Err((_, line)) => panic!("the built-in prelude does not parse at line {}", line),
         };
         assert_eq!(p.decls.len(), 12, "prelude declaration records");
+        // The reserved-name pins are interned first and the store is
+        // hash-consed, so what the prelude ADDS is the twin's count minus
+        // what the two share: the pins' one expression node (`Sort 1`) and
+        // both its level nodes (`0`, `1`) are the prelude's too, and 24 of
+        // their 64 name nodes are.
+        assert_eq!(e0, 1, "the pins' expression nodes");
+        assert_eq!(l0, 2, "the pins' level nodes");
+        assert_eq!(n0, 64, "the pins' name nodes");
+        assert_eq!(ar.store.node_count() - e0, 195, "expression nodes added");
+        assert_eq!(ar.store.ls().node_count() - l0, 3, "level nodes added");
+        assert_eq!(ar.store.ns().node_count() - n0, 31, "name nodes added");
+        // …so the UNION is still the twin's own 196 and 5 on the two stores
+        // whose pinned nodes the prelude re-declares.
         assert_eq!(ar.store.node_count(), 196, "expression nodes");
         assert_eq!(ar.store.ls().node_count(), 5, "level nodes");
-        assert_eq!(ar.store.ns().node_count(), 55, "name nodes");
+        assert_eq!(ar.store.ns().node_count(), 55 + 40, "name nodes");
     }
 
     /// The prelude text is `con-ron-core`'s generated constant, byte for byte

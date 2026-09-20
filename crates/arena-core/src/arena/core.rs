@@ -95,8 +95,7 @@ use crate::arena::monad::{
 };
 use crate::arena::prop_read::{is_proof_fast, not_proof_fast, proof_pw, type_sort_pw};
 use crate::arena::store::{ENodeView, LNodeView, NNodeView};
-use crate::arena::pins::{pin_and, pin_bool, pin_bool_false, pin_bool_true, pin_char, pin_char_of_nat, pin_empty_levels, pin_list, pin_list_cons, pin_list_nil, pin_nat, pin_nat_add, pin_nat_beq, pin_nat_ble, pin_nat_div, pin_nat_gcd, pin_nat_land, pin_nat_lor, pin_nat_mod, pin_nat_mul, pin_nat_pow, pin_nat_pred, pin_nat_shift_left, pin_nat_shift_right, pin_nat_sub, pin_nat_succ, pin_nat_xor, pin_nat_zero, pin_punit, pin_punit_rec, pin_sorry_ax, pin_sort_one, pin_string, pin_string_of_list, pin_zero_level};
-use con_ron_core::kernel::basis_names;
+use crate::arena::pins::{pin_and, pin_reserved, pin_bool, pin_bool_false, pin_bool_true, pin_char, pin_char_of_nat, pin_empty_levels, pin_list, pin_list_cons, pin_list_nil, pin_nat, pin_nat_add, pin_nat_beq, pin_nat_ble, pin_nat_div, pin_nat_gcd, pin_nat_land, pin_nat_lor, pin_nat_mod, pin_nat_mul, pin_nat_pow, pin_nat_pred, pin_nat_shift_left, pin_nat_shift_right, pin_nat_sub, pin_nat_succ, pin_nat_xor, pin_nat_zero, pin_punit, pin_punit_rec, pin_sorry_ax, pin_sort_one, pin_string, pin_string_of_list, pin_zero_level};
 use con_ron_core::kernel::core_k;
 use con_ron_core::kernel::core_types::{code_points, code_points_from, CheckError};
 use con_ron_core::kernel::env::{CheckMode, ReducibilityHint};
@@ -4136,32 +4135,17 @@ pub fn eta_projs(
 /// handle equality, as everywhere else in this module.  The nineteen
 /// `ConLeche.Name` values are `con_ron_core::kernel::basis_names`' own list, in
 /// the cited order.
-pub fn reserved_basis_names(st: &mut AState) -> Result<Vec<NIdx>, CheckError> {
-    let ns: Vec<Name> = basis_names::reserved_basis_names();
-    reserved_basis_names_from(st, &ns, 0, Vec::new())
-}
-
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1366-1386 reservedBasisNames` — the
-/// cursor recursion that interns the cited list.
-pub fn reserved_basis_names_from(
-    st: &mut AState,
-    ns: &Vec<Name>,
-    i: usize,
-    out: Vec<NIdx>,
-) -> Result<Vec<NIdx>, CheckError> {
-    if i >= ns.len() {
-        Ok(out)
-    } else {
-        match pin(st, &ns[i]) {
-            Err(e) => Err(e),
-            Ok(h) => {
-                let mut out2 = out;
-                out2.push(h);
-                reserved_basis_names_from(st, ns, i + 1, out2)
-            }
-        }
-    }
+///
+/// **Task #97-P6-4a: read off `arena::pins`, not interned.**  Every caller is
+/// on a per-declaration path (`check_constant_val_guards` is one of them), and
+/// building the nineteen `Name` values alone was 1.1 % of `Init`'s cycles
+/// before the interning walk that followed it.  The handles are the same
+/// handles: `intern_reserved_pins` interned this very list at startup.  The
+/// twin's `reservedBasisNamesFrom` cursor goes with it — that walk now runs
+/// once, at the driver, as `arena::intern::intern_name_list`, which is the
+/// same recursion.
+pub fn reserved_basis_names(st: &AState) -> Result<Vec<NIdx>, CheckError> {
+    pin_reserved(st)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1066-1138 structEtaCertWith
@@ -9269,6 +9253,7 @@ pub fn enter_scratch(st: &mut AState) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use con_ron_core::kernel::basis_names;
 
     /// con-leche: none — a test fixture
     /// The state the driver builds: an empty store with the reserved-name
