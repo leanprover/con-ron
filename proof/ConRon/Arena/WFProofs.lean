@@ -3552,8 +3552,342 @@ theorem NStore.intern_ext (st : NStore) (w : NNodeView) : NExt st (st.intern w).
       (by have := NStore.nodeCount_intern_le st w; omega) hd
   exact denoteNAux_store_mono (fun _ _ hh => NStore.view_intern_mono st w hh) _ i x h1
 
+
+/-! ### The persistent tier — and `StoreWF`'s missing clause
+
+**Task #97a's finding (2026-09-20).**  `EWFAt.lchildOK` demands that a
+*persistent* expression node's level child be persistent, and `intern` appends
+to the persistent tier exactly when `st.scratchOn = false`.  The child is known
+only to decode — `EStore.ViewOK` — and a level handle decodes against
+`st.ls.scratchOn`, a **different flag**, which `StoreWF` never ties to
+`st.scratchOn`.  So
+
+    st := { lss := <a level store with scratchOn := true and one scratch level u>,
+            pers := .empty, scr := .empty, scratchOn := false }
+
+satisfies `StoreWF st`, `st.ViewOK (.sort u)` and `st.capOK (.sort u)`, and
+`(st.intern (.sort u)).1` has a persistent node with a scratch level child:
+`StoreWF` fails.  `EStore.intern_wf` as stated in this file is therefore not
+provable, and the same hole sits under `LStore.intern_spec`
+(`LWFAt.nchildOK`) and `LsStore.intern_spec` (`LsWF.lchildOK`).
+
+The flag synchronisation *is* an invariant of the API — `empty`,
+`enableScratch` and `dropScratch` set all four flags together and `intern`
+touches none of them — it is simply missing from `WF.lean`.  Adding it there
+(one clause per store, `scratchOn = <substore>.scratchOn`) turns the three
+`sorry`s below into the three theorems `…_of_sync` proved here, with `hsync`
+read off the invariant instead of taken as an argument.  `WF.lean` is frozen
+for this task, so the clause is *not* added here. -/
+
+/-- con-leche: none — the clause `StoreWF` is missing: the nesting's scratch
+flags move together (task #97a). -/
+structure EStore.ScratchSync (st : EStore) : Prop where
+  ns : st.scratchOn = st.ns.scratchOn
+  ls : st.scratchOn = st.ls.scratchOn
+  lss : st.scratchOn = st.lss.scratchOn
+
+/-- con-leche: Setlec/Kernel/IExpr.lean:464 intern — appending to the
+persistent tier keeps `StoreWF`.  `hsync` is the missing clause. -/
+theorem EStore.wf_push_pers {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView}
+    {tb : ETables} {inew : EIdx}
+    (h : EWFAt st rk) (hv : st.ViewOK w) (hsync : st.ScratchSync)
+    (hon : st.scratchOn = false) (hon' : st'.scratchOn = false)
+    (hlss : st'.lss = st.lss) (hscr : st'.scr = st.scr)
+    (hpush : st.pers.push w (st.derOfView w) Idx.tierP = (tb, inew))
+    (hpers : st'.pers = tb)
+    (hcap : st.pers.sizeOf w < Idx.idxCap)
+    (hfp : st.pers.find? w = none) :
+    StoreWF st' := by
+  have htr : (Idx.tierP : UInt32).toNat < 2 := by decide
+  have hscrE : st.scr = ETables.empty := h.scrOff hon
+  have htb : (st.pers.push w (st.derOfView w) Idx.tierP).1 = tb := by rw [hpush]
+  have hid : (st.pers.push w (st.derOfView w) Idx.tierP).2 = inew := by rw [hpush]
+  have hgetnew : tb.get inew = some w := by
+    rw [← htb, ← hid]; exact (ETables.push_spec st.pers w _ Idx.tierP htr hcap).1
+  have hnp : inew.isPersistent = true := by
+    show (inew.tier == 0) = true
+    rw [← hid, (ETables.push_spec st.pers w _ Idx.tierP htr hcap).2]; decide
+  have htag : inew.tag = w.tagOf := by rw [← hid]; exact ETables.push_tag htr hcap
+  have hix : inew.idxNat = st.pers.sizeOf w := by
+    rw [← hid]; exact ETables.push_idxNat htr hcap
+  have hmonotb : ∀ i u, st.pers.get i = some u → tb.get i = some u := by
+    intro i u hi; rw [← htb]; exact ETables.get_push_mono _ _ _ _ hi
+  have hinvtb : ∀ i u, tb.get i = some u →
+      st.pers.get i = some u ∨ (i.tag = w.tagOf ∧ i.idxNat = st.pers.sizeOf w ∧ u = w) := by
+    intro i u hi; rw [← htb] at hi; exact ETables.get_push_inv hi
+  have hfindtb : ∀ u, tb.find? u = if w = u then some inew else st.pers.find? u := by
+    intro u; rw [← htb, ← hid]; exact ETables.find?_push
+  have hdertb : ∀ i u, st.pers.get i = some u → tb.derAt i = st.pers.derAt i := by
+    intro i u hi; rw [← htb]; exact ETables.derAt_push_of_get h.sizedP hi
+  have hdernew : tb.derAt inew = st.derOfView w := by
+    rw [← htb, ← hid]; exact ETables.derAt_push_new h.sizedP htr hcap
+  have hsizedtb : tb.Sized := by rw [← htb]; exact ETables.Sized_push h.sizedP
+  have hcounttb : tb.count = st.pers.count + 1 := by rw [← htb]; exact ETables.count_push
+  have hcaptb : ∀ u, tb.sizeOf u ≤ Idx.idxCap := by
+    intro u
+    rw [← htb]
+    rcases ETables.sizeOf_push_cases (t := st.pers) (w := w) (v := u)
+      (d := st.derOfView w) (tr := Idx.tierP) with h1 | ⟨h1, _⟩
+    · rw [h1]; exact h.capP u
+    · rw [h1]; omega
+  -- the sub-stores are untouched, and their scratch tiers are off too
+  have hns : st'.ns = st.ns := by simp only [EStore.ns, hlss]
+  have hls : st'.ls = st.ls := by simp only [EStore.ls, hlss]
+  have hnsoff : st.ns.scratchOn = false := by rw [← hsync.ns]; exact hon
+  have hlsoff : st.ls.scratchOn = false := by rw [← hsync.ls]; exact hon
+  have hlssoff : st.lss.scratchOn = false := by rw [← hsync.lss]; exact hon
+  have hallPN : ∀ c : NIdx, (st.ns.view c).isSome = true → c.isPersistent = true := by
+    intro c hc
+    by_cases hp : c.isPersistent = true
+    · exact hp
+    · rw [NStore.view_off (by simpa using hp) hnsoff] at hc; exact absurd hc (by simp)
+  have hallPL : ∀ c : LIdx, (st.ls.view c).isSome = true → c.isPersistent = true := by
+    intro c hc
+    by_cases hp : c.isPersistent = true
+    · exact hp
+    · rw [LStore.view_off (by simpa using hp) hlsoff] at hc; exact absurd hc (by simp)
+  have hallPLs : ∀ c : LsIdx, (st.lss.view c).isSome = true → c.isPersistent = true := by
+    intro c hc
+    by_cases hp : c.isPersistent = true
+    · exact hp
+    · rw [LsStore.view_off (by simpa using hp) hlssoff] at hc; exact absurd hc (by simp)
+  -- the two tiers, as `view` sees them
+  have hviewP : ∀ i, i.isPersistent = true → st'.view i = tb.get i := by
+    intro i hp; rw [EStore.view_pers hp, hpers]
+  have hviewN' : ∀ i, i.isPersistent = false → st'.view i = none :=
+    fun i hp => EStore.view_off hp hon'
+  have hviewN : ∀ i, i.isPersistent = false → st.view i = none :=
+    fun i hp => EStore.view_off hp hon
+  have hallP : ∀ i u, st.view i = some u → i.isPersistent = true := by
+    intro i u hu
+    by_cases hp : i.isPersistent = true
+    · exact hp
+    · rw [hviewN i (by simpa using hp)] at hu; exact absurd hu (by simp)
+  have hnew_none : st.view inew = none := by
+    rw [EStore.view_pers hnp]; exact ETables.get_eq_none_of_size htag hix
+  have hmono : ∀ i u, st.view i = some u → st'.view i = some u := by
+    intro i u hu
+    have hp := hallP i u hu
+    rw [hviewP i hp]
+    exact hmonotb i u (by rwa [EStore.view_pers hp] at hu)
+  have hmoneS : ∀ i, (st.view i).isSome = true → (st'.view i).isSome = true := by
+    intro i hi
+    obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hi
+    rw [hmono i u hu]; rfl
+  have hinv : ∀ i u, st'.view i = some u → st.view i = some u ∨ (i = inew ∧ u = w) := by
+    intro i u hu
+    by_cases hp : i.isPersistent = true
+    · rw [hviewP i hp] at hu
+      rcases hinvtb i u hu with h1 | ⟨h2, h3, h4⟩
+      · exact Or.inl (by rw [EStore.view_pers hp]; exact h1)
+      · exact Or.inr ⟨Idx.eq_of_idxNat (h2.trans htag.symm)
+          ((Idx.tier_eq_tierP hp).trans (Idx.tier_eq_tierP hnp).symm)
+          (h3.trans hix.symm), h4⟩
+    · rw [hviewN' i (by simpa using hp)] at hu; exact absurd hu (by simp)
+  have hpc : st'.persCount = st.persCount + 1 := by
+    simp only [EStore.persCount, hpers, hcounttb]
+  have hder : ∀ i, (st.view i).isSome = true → st'.derived i = st.derived i := by
+    intro i hi
+    obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hi
+    have hp := hallP i u hu
+    rw [EStore.derived_pers hp, EStore.derived_pers hp, hpers]
+    exact hdertb i u (by rwa [EStore.view_pers hp] at hu)
+  have hdov : ∀ u : ENodeView, (∀ c ∈ u.echildren, (st.view c).isSome = true) →
+      st'.derOfView u = st.derOfView u := by
+    intro u hu
+    refine EStore.derOfView_congr (fun c hc => hder c (hu c hc)) ?_ ?_ ?_ <;>
+      intro c _ <;>
+      simp only [EStore.nder, EStore.lder, EStore.lsder, hns, hls, hlss]
+  have hrkold : ∀ c, (st.view c).isSome = true →
+      (if (st.view c).isNone = true then st.persCount else rk c) = rk c := by
+    intro c hc
+    obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hc
+    rw [hu]; rfl
+  have hrknew : (if (st.view inew).isNone = true then st.persCount else rk inew)
+      = st.persCount := by rw [hnew_none]; rfl
+  have hrkle : ∀ c, (if (st.view c).isNone = true then st.persCount else rk c)
+      ≤ st.persCount := by
+    intro c
+    by_cases hc : (st.view c).isSome = true
+    · obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hc
+      rw [hrkold c hc]
+      exact Nat.le_of_lt (h.rankP c (hallP c u hu) hc)
+    · have hh : st.view c = none := by
+        cases hv' : st.view c with
+        | none => rfl
+        | some u => rw [hv'] at hc; exact absurd rfl hc
+      rw [hh]; exact Nat.le_refl _
+  refine ⟨fun c => if (st.view c).isNone = true then st.persCount else rk c,
+    { lss := ?lss, childOK := ?childOK, nchildOK := ?nchildOK,
+      lchildOK := ?lchildOK, lschildOK := ?lschildOK,
+      rankP := ?rankP, rankS := ?rankS, consP := ?consP, consS := ?consS,
+      fresh := ?fresh, derExact := ?derExact, sizedP := ?sizedP,
+      sizedS := ?sizedS, capP := ?capP, capS := ?capS, scrOff := ?scrOff }⟩
+  case lss => rw [hlss]; exact h.lss
+  case childOK =>
+    intro i u hi c hc
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · have hch := h.childOK i u hi' c hc
+      refine ⟨hmoneS c hch.1, ?_, hch.2.2⟩
+      rw [hrkold c hch.1, hrkold i (by rw [hi']; rfl)]
+      exact hch.2.1
+    · have hcs : (st.view c).isSome = true := hv.expr c hc
+      obtain ⟨uc, huc⟩ := Option.isSome_iff_exists.mp hcs
+      have hcp : c.isPersistent = true := hallP c uc huc
+      refine ⟨hmoneS c hcs, ?_, fun _ => hcp⟩
+      rw [hrkold c hcs, hrknew]
+      exact h.rankP c hcp hcs
+  case nchildOK =>
+    intro i u hi c hc
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · rw [hns]; exact h.nchildOK i u hi' c hc
+    · exact ⟨by rw [hns]; exact hv.nm c hc, fun _ => hallPN c (hv.nm c hc)⟩
+  case lchildOK =>
+    intro i u hi c hc
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · rw [hls]; exact h.lchildOK i u hi' c hc
+    · exact ⟨by rw [hls]; exact hv.lvl c hc, fun _ => hallPL c (hv.lvl c hc)⟩
+  case lschildOK =>
+    intro i u hi c hc
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · rw [hlss]; exact h.lschildOK i u hi' c hc
+    · exact ⟨by rw [hlss]; exact hv.lst c hc, fun _ => hallPLs c (hv.lst c hc)⟩
+  case rankP =>
+    intro i _ _
+    rw [hpc]
+    have := hrkle i
+    omega
+  case rankS =>
+    intro i hp hi
+    rw [hviewN' i hp] at hi; exact absurd hi (by simp)
+  case consP =>
+    intro u i
+    rw [hpers, hfindtb u]
+    constructor
+    · intro hf
+      by_cases hw : w = u
+      · rw [if_pos hw] at hf
+        have hii : inew = i := Option.some.inj hf
+        subst hii; subst hw
+        exact ⟨by rw [hviewP inew hnp]; exact hgetnew, hnp⟩
+      · rw [if_neg hw] at hf
+        obtain ⟨h1, h2⟩ := (h.consP u i).mp hf
+        exact ⟨hmono i u h1, h2⟩
+    · rintro ⟨h1, h2⟩
+      rcases hinv i u h1 with h3 | ⟨rfl, rfl⟩
+      · have hf := (h.consP u i).mpr ⟨h3, h2⟩
+        have hw : w ≠ u := by
+          rintro rfl; rw [hfp] at hf; exact absurd hf (by simp)
+        rw [if_neg hw]; exact hf
+      · rw [if_pos rfl]
+  case consS =>
+    intro u i
+    rw [hscr, hscrE, ETables.find?_empty]
+    refine ⟨fun hf => absurd hf (by simp), ?_⟩
+    rintro ⟨h1, h2⟩
+    rw [hviewN' i h2] at h1; exact absurd h1 (by simp)
+  case fresh =>
+    intro u i hf
+    rw [hscr, hscrE, ETables.find?_empty] at hf
+    exact absurd hf (by simp)
+  case derExact =>
+    intro i u hi
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · rw [hdov u (fun c hc => (h.childOK i u hi' c hc).1), hder i (by rw [hi']; rfl)]
+      exact h.derExact i u hi'
+    · rw [hdov u hv.expr, EStore.derived_pers hnp, hpers, hdernew]
+  case sizedP => rw [hpers]; exact hsizedtb
+  case sizedS => rw [hscr]; exact h.sizedS
+  case capP => rw [hpers]; exact hcaptb
+  case capS => rw [hscr]; exact h.capS
+  case scrOff => intro _; rw [hscr]; exact hscrE
+
+/-- con-leche: Setlec/Kernel/IExpr.lean:464 intern — `EStore.intern_wf` modulo
+`StoreWF`'s missing flag-synchronisation clause (see above). -/
+theorem EStore.intern_wf_of_sync {st : EStore} {w : ENodeView} (h : StoreWF st)
+    (hsync : st.ScratchSync) (hv : st.ViewOK w) (hcap : st.capOK w) :
+    StoreWF (st.intern w).1 := by
+  obtain ⟨rk, h⟩ := h
+  simp only [EStore.capOK] at hcap
+  simp only [EStore.intern]
+  split
+  · exact ⟨rk, h⟩
+  · rename_i hfp
+    split
+    · rename_i hon
+      split
+      · exact ⟨rk, h⟩
+      · rename_i hfs
+        rw [if_pos hon] at hcap
+        exact EStore.wf_push_scr h hv hon hon rfl rfl rfl rfl hcap hfp hfs
+    · rename_i hoff
+      have hoff' : st.scratchOn = false := by simpa using hoff
+      rw [if_neg hoff] at hcap
+      exact EStore.wf_push_pers h hv hsync hoff' hoff' rfl rfl rfl rfl hcap hfp
+
+/-- con-leche: Setlec/Kernel/IExpr.lean:464 intern — `EStore.intern_spec`
+modulo the same missing clause. -/
+theorem EStore.intern_spec_of_sync {st : EStore} {w : ENodeView} (h : StoreWF st)
+    (hsync : st.ScratchSync) (hv : st.ViewOK w) (hcap : st.capOK w) :
+    StoreWF (st.intern w).1 ∧ Ext st (st.intern w).1 ∧
+      (st.intern w).1.view (st.intern w).2 = some w ∧
+      denoteE (st.intern w).1 (st.intern w).2 = denoteEView (st.intern w).1 w := by
+  have hwf := EStore.intern_wf_of_sync h hsync hv hcap
+  have hview := EStore.intern_view_spec h hv hcap
+  refine ⟨hwf, EStore.intern_ext st w, hview, ?_⟩
+  obtain ⟨rk', hwf'⟩ := hwf
+  exact denoteE_unfold hwf' hview
+
+
+/-- With the scratch tier off, `intern` hands out a persistent handle. -/
+theorem EStore.intern_isPersistent_of_off {st : EStore} {w : ENodeView}
+    (h : StoreWF st) (hoff : st.scratchOn = false) (hcap : st.capOK w) :
+    (st.intern w).2.isPersistent = true := by
+  obtain ⟨rk, hwf⟩ := h
+  simp only [EStore.capOK] at hcap
+  rw [if_neg (by simp [hoff])] at hcap
+  simp only [EStore.intern]
+  split
+  · rename_i i heq
+    exact ((hwf.consP w i).mp heq).2
+  · split
+    · rename_i hon; rw [hoff] at hon; exact absurd hon (by simp)
+    · have hspec := ETables.push_spec st.pers w (st.derOfView w) Idx.tierP
+        (by decide) hcap
+      show (_ == 0) = true
+      rw [hspec.2]; decide
+
+/-- **The finding, mechanised.**  Any well-formed store whose scratch tier is
+off but whose *level* store still decodes a scratch handle refutes
+`EStore.intern_wf`: `intern` puts the new node in the persistent tier, and
+`EWFAt.lchildOK` then demands that its level child be persistent.  Such stores
+satisfy `StoreWF` — nothing in `WF.lean` ties `st.scratchOn` to
+`st.ls.scratchOn` — so `intern_wf` needs `StoreWF` to carry the flag
+synchronisation (`EStore.ScratchSync`).  The same argument with
+`.const n us` / `EWFAt.nchildOK` refutes `LStore.intern_spec`, and with
+`LsWF.lchildOK` refutes `LsStore.intern_spec`. -/
+theorem EStore.intern_wf_refuted_without_sync {st : EStore} (h : StoreWF st)
+    (hoff : st.scratchOn = false) {u : LIdx}
+    (hup : u.isPersistent = false)
+    (hv : st.ViewOK (.sort u)) (hcap : st.capOK (.sort u)) :
+    ¬ StoreWF (st.intern (.sort u)).1 := by
+  intro hwf'
+  obtain ⟨rk', h'⟩ := hwf'
+  have hview := EStore.intern_view_spec h hv hcap
+  have hp := EStore.intern_isPersistent_of_off h hoff hcap
+  have hcp := (h'.lchildOK _ _ hview u (by simp [ENodeView.lchildren])).2 hp
+  rw [hup] at hcp
+  exact absurd hcp (by simp)
+
 /-- con-leche: Setlec/Kernel/IExpr.lean:464 intern — `intern` preserves the
-store invariant. -/
+store invariant.
+
+**OPEN, and not provable as stated** (task #97a): see
+`EStore.intern_wf_refuted_without_sync` above for the refutation and
+`EStore.intern_wf_of_sync` for the proof under `StoreWF`'s missing
+flag-synchronisation clause.  `WF.lean` is frozen for this task; adding
+`scratchOn = <substore>.scratchOn` to `EWFAt` turns this into
+`fun h hv hcap => EStore.intern_wf_of_sync h (h.scratchSync) hv hcap`. -/
 theorem EStore.intern_wf {st : EStore} {w : ENodeView} (h : StoreWF st)
     (hv : st.ViewOK w) (hcap : st.capOK w) : StoreWF (st.intern w).1 := by
   sorry
@@ -3637,12 +3971,20 @@ theorem NStore.intern_spec {st : NStore} {w : NNodeView} (h : NStoreWF st)
   ⟨NStore.intern_wf h hv hcap, NStore.intern_ext st w,
    NStore.intern_view_spec h hv hcap⟩
 
+/-- **OPEN, and not provable as stated** — the same missing clause:
+`LWFAt.nchildOK` asks a persistent level node's *name* child to be
+persistent, and `st.ns.scratchOn` is not tied to `st.scratchOn`
+(task #97a; `EStore.intern_wf_refuted_without_sync`). -/
 theorem LStore.intern_spec {st : LStore} {w : LNodeView} (h : LStoreWF st)
     (hv : st.ViewOK w) (hcap : st.capOK w) :
     LStoreWF (st.intern w).1 ∧ LExt st (st.intern w).1 ∧
       (st.intern w).1.view (st.intern w).2 = some w := by
   sorry
 
+/-- **OPEN, and not provable as stated** — the same missing clause:
+`LsWF.lchildOK` asks a persistent list node's *level* children to be
+persistent, and `st.ls.scratchOn` is not tied to `st.scratchOn`
+(task #97a; `EStore.intern_wf_refuted_without_sync`). -/
 theorem LsStore.intern_spec {st : LsStore} {w : LsNodeView} (h : LsStoreWF st)
     (hv : st.ViewOK w) (hcap : st.capOK w) :
     LsStoreWF (st.intern w).1 ∧ LsExt st (st.intern w).1 ∧
