@@ -3,3 +3,5 @@
 //! Placeholder: the eleven modules first, the dispatch last.
 pub mod ind_base;
 pub mod struct_parts;
+pub mod modeled;
+pub mod sum_parts;

@@ -1783,3 +1783,41 @@ pub fn model_name(st: &mut AState, n: &NIdx) -> Result<NIdx, CheckError> {
 pub fn intern_ls(st: &mut AState, us: &Vec<LIdx>) -> Result<LsIdx, CheckError> {
     crate::arena::monad::intern_ls_node(st, env::lidx_vec_dup(us))
 }
+
+// ---------------------------------------------------------------------------
+// The environment copy `arena::env` will own (Lean's value semantics)
+// ---------------------------------------------------------------------------
+
+/// con-leche: ConLeche/Kernel/Env.lean:460-486 ConstantInfo
+/// Lean twin: `proof/ConRon/Arena/Env.lean:183-191 IConstantInfo` — the
+/// dictionary `ron::HashMap::dup` needs to copy an `IFEnv`'s index.
+/// **`arena::env`'s at merge** (the module note).
+impl Dup for IConstantInfo {
+    /// con-leche: ConLeche/Kernel/Env.lean:460-486 ConstantInfo
+    fn dup2(&self) -> IConstantInfo {
+        env::i_constant_info_dup(self)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:677-679 Env
+/// Lean twin: `proof/ConRon/Arena/Env.lean:280-282 IEnv` — the environment
+/// copy Lean's value semantics gives for free.  **`arena::env`'s at merge.**
+pub fn i_env_dup(e: &env::IEnv) -> env::IEnv {
+    env::IEnv {
+        consts: env::i_constant_infos_dup(&e.consts),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/FEnv.lean:29-49 FEnv
+/// Lean twin: `proof/ConRon/Arena/Env.lean:309-312 IFEnv` — the indexed
+/// environment's copy: the constants, the index and the visibility bound.
+/// `con_ron_core::kernel::fenv::dup` is the same `O(size)` operation at the
+/// same call site (`checkIndRecs`, which uses `fe₂` four times), and the
+/// reason is the same: a Lean record is a value.  **`arena::env`'s at merge.**
+pub fn ifenv_dup(fe: &IFEnv) -> IFEnv {
+    IFEnv {
+        env: i_env_dup(&fe.env),
+        idx: fe.idx.dup(),
+        visible_below: fe.visible_below,
+    }
+}
