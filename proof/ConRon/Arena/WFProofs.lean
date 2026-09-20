@@ -952,8 +952,7 @@ theorem denoteEView_letE {st : EStore} {v : ENodeView} {x y z : Expr}
     obtain ⟨p, q, r, hp, hq, hr, he⟩ := h
     injection he with e1 e2 e3; subst e1; subst e2; subst e3
     exact ⟨ty, w, b, rfl, hp, hq, hr⟩
-  | _ => simp_all [denoteEView, Option.map_eq_some_iff, opt2_eq_some_iff,
-      opt3_eq_some_iff]
+  | _ => simp_all [denoteEView, Option.map_eq_some_iff, opt2_eq_some_iff]
 
 theorem denoteEView_proj {st : EStore} {v : ENodeView} {nm : ConLeche.Name}
     {j : Nat} {x : Expr} (h : denoteEView st v = some (.proj nm j x)) :
@@ -1235,7 +1234,7 @@ theorem Tbl.node?_push {α ι δ : Type} [BEq α] [Hashable α] {t : Tbl α ι �
 theorem Tbl.node?_push_new {α ι δ : Type} [BEq α] [Hashable α] {t : Tbl α ι δ}
     {w : α} {d : δ} {h : ι} : (t.push w d h).node? t.size = some w := by
   cases t
-  simp [Tbl.push, Tbl.node?, Tbl.size, Array.getElem?_push]
+  simp [Tbl.push, Tbl.node?, Tbl.size]
 
 
 /-! ### One column: `Tbl` under `push`
@@ -2544,8 +2543,7 @@ theorem ETables.push_spec (t : ETables) (w : ENodeView) (d : UInt64) (tr : UInt3
     refine ⟨?_, ?_⟩
     · simp only [ETables.push, ETables.get, Idx.tag_mk _ _ _ htg htr hn,
         Idx.idxNat_mk _ _ _ htg htr hcap]
-      simp [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam,
-        ETag.forallE, ETag.letE, ETag.lit, ETag.proj, Tbl.node?_push_new]
+      simp [ETag.bvar, Tbl.node?_push_new]
     · simp only [ETables.push, Idx.tier_mk _ _ _ htg htr hn]
   | fvar j ty =>
     have htg : (ETag.fvar : UInt32).toNat < 16 := by decide
@@ -2553,8 +2551,7 @@ theorem ETables.push_spec (t : ETables) (w : ENodeView) (d : UInt64) (tr : UInt3
     refine ⟨?_, ?_⟩
     · simp only [ETables.push, ETables.get, Idx.tag_mk _ _ _ htg htr hn,
         Idx.idxNat_mk _ _ _ htg htr hcap]
-      simp [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam,
-        ETag.forallE, ETag.letE, ETag.lit, ETag.proj, Tbl.node?_push_new]
+      simp [ETag.bvar, ETag.fvar, Tbl.node?_push_new]
     · simp only [ETables.push, Idx.tier_mk _ _ _ htg htr hn]
   | sort u =>
     have htg : (ETag.sort : UInt32).toNat < 16 := by decide
@@ -2562,8 +2559,7 @@ theorem ETables.push_spec (t : ETables) (w : ENodeView) (d : UInt64) (tr : UInt3
     refine ⟨?_, ?_⟩
     · simp only [ETables.push, ETables.get, Idx.tag_mk _ _ _ htg htr hn,
         Idx.idxNat_mk _ _ _ htg htr hcap]
-      simp [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam,
-        ETag.forallE, ETag.letE, ETag.lit, ETag.proj, Tbl.node?_push_new]
+      simp [ETag.bvar, ETag.fvar, ETag.sort, Tbl.node?_push_new]
     · simp only [ETables.push, Idx.tier_mk _ _ _ htg htr hn]
   | const n us =>
     have htg : (ETag.const : UInt32).toNat < 16 := by decide
@@ -2571,8 +2567,7 @@ theorem ETables.push_spec (t : ETables) (w : ENodeView) (d : UInt64) (tr : UInt3
     refine ⟨?_, ?_⟩
     · simp only [ETables.push, ETables.get, Idx.tag_mk _ _ _ htg htr hn,
         Idx.idxNat_mk _ _ _ htg htr hcap]
-      simp [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam,
-        ETag.forallE, ETag.letE, ETag.lit, ETag.proj, Tbl.node?_push_new]
+      simp [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, Tbl.node?_push_new]
     · simp only [ETables.push, Idx.tier_mk _ _ _ htg htr hn]
   | app f a =>
     have htg : (ETag.app : UInt32).toNat < 16 := by decide
@@ -2580,8 +2575,8 @@ theorem ETables.push_spec (t : ETables) (w : ENodeView) (d : UInt64) (tr : UInt3
     refine ⟨?_, ?_⟩
     · simp only [ETables.push, ETables.get, Idx.tag_mk _ _ _ htg htr hn,
         Idx.idxNat_mk _ _ _ htg htr hcap]
-      simp [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam,
-        ETag.forallE, ETag.letE, ETag.lit, ETag.proj, Tbl.node?_push_new]
+      simp [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
+        Tbl.node?_push_new]
     · simp only [ETables.push, Idx.tier_mk _ _ _ htg htr hn]
   | lam ty b m =>
     have htg : (ETag.lam : UInt32).toNat < 16 := by decide
@@ -2590,7 +2585,7 @@ theorem ETables.push_spec (t : ETables) (w : ENodeView) (d : UInt64) (tr : UInt3
     · simp only [ETables.push, ETables.get, Idx.tag_mk _ _ _ htg htr hn,
         Idx.idxNat_mk _ _ _ htg htr hcap]
       simp [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam,
-        ETag.forallE, ETag.letE, ETag.lit, ETag.proj, Tbl.node?_push_new]
+        Tbl.node?_push_new]
     · simp only [ETables.push, Idx.tier_mk _ _ _ htg htr hn]
   | forallE ty b m =>
     have htg : (ETag.forallE : UInt32).toNat < 16 := by decide
@@ -2599,7 +2594,7 @@ theorem ETables.push_spec (t : ETables) (w : ENodeView) (d : UInt64) (tr : UInt3
     · simp only [ETables.push, ETables.get, Idx.tag_mk _ _ _ htg htr hn,
         Idx.idxNat_mk _ _ _ htg htr hcap]
       simp [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam,
-        ETag.forallE, ETag.letE, ETag.lit, ETag.proj, Tbl.node?_push_new]
+        ETag.forallE, Tbl.node?_push_new]
     · simp only [ETables.push, Idx.tier_mk _ _ _ htg htr hn]
   | letE ty v b =>
     have htg : (ETag.letE : UInt32).toNat < 16 := by decide
@@ -2608,7 +2603,7 @@ theorem ETables.push_spec (t : ETables) (w : ENodeView) (d : UInt64) (tr : UInt3
     · simp only [ETables.push, ETables.get, Idx.tag_mk _ _ _ htg htr hn,
         Idx.idxNat_mk _ _ _ htg htr hcap]
       simp [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam,
-        ETag.forallE, ETag.letE, ETag.lit, ETag.proj, Tbl.node?_push_new]
+        ETag.forallE, ETag.letE, Tbl.node?_push_new]
     · simp only [ETables.push, Idx.tier_mk _ _ _ htg htr hn]
   | lit l =>
     have htg : (ETag.lit : UInt32).toNat < 16 := by decide
@@ -2617,7 +2612,7 @@ theorem ETables.push_spec (t : ETables) (w : ENodeView) (d : UInt64) (tr : UInt3
     · simp only [ETables.push, ETables.get, Idx.tag_mk _ _ _ htg htr hn,
         Idx.idxNat_mk _ _ _ htg htr hcap]
       simp [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam,
-        ETag.forallE, ETag.letE, ETag.lit, ETag.proj, Tbl.node?_push_new]
+        ETag.forallE, ETag.letE, ETag.lit, Tbl.node?_push_new]
     · simp only [ETables.push, Idx.tier_mk _ _ _ htg htr hn]
   | proj n j e =>
     have htg : (ETag.proj : UInt32).toNat < 16 := by decide
@@ -2974,7 +2969,7 @@ theorem NTables.push_spec (t : NTables) (w : NNodeView) (d : UInt64) (tr : UInt3
     refine ⟨?_, ?_⟩
     · simp only [NTables.push, NTables.get, Idx.tag_mk _ _ _ htg htr hn,
         Idx.idxNat_mk _ _ _ htg htr hcap]
-      simp [NTag.anonymous, NTag.str, NTag.num, Tbl.node?_push_new]
+      simp [NTag.anonymous, Tbl.node?_push_new]
     · simp only [NTables.push, Idx.tier_mk _ _ _ htg htr hn]
   | str p sv =>
     have htg : (NTag.str : UInt32).toNat < 16 := by decide
@@ -2982,7 +2977,7 @@ theorem NTables.push_spec (t : NTables) (w : NNodeView) (d : UInt64) (tr : UInt3
     refine ⟨?_, ?_⟩
     · simp only [NTables.push, NTables.get, Idx.tag_mk _ _ _ htg htr hn,
         Idx.idxNat_mk _ _ _ htg htr hcap]
-      simp [NTag.anonymous, NTag.str, NTag.num, Tbl.node?_push_new]
+      simp [NTag.anonymous, NTag.str, Tbl.node?_push_new]
     · simp only [NTables.push, Idx.tier_mk _ _ _ htg htr hn]
   | num p k =>
     have htg : (NTag.num : UInt32).toNat < 16 := by decide
@@ -3918,8 +3913,8 @@ theorem EStore.enableScratch_spec {st : EStore} (h : StoreWF st) :
     StoreWF st.enableScratch ∧
       (∀ i, i.isPersistent = true → st.enableScratch.view i = st.view i) ∧
       (∀ i, i.isPersistent = false → denoteE st.enableScratch i = none) :=
-  ⟨EStore.enableScratch_wf h, fun i hp => EStore.view_enableScratch_pers st hp,
-   fun i hp => denoteE_enableScratch_scr st hp⟩
+  ⟨EStore.enableScratch_wf h, fun _ hp => EStore.view_enableScratch_pers st hp,
+   fun _ hp => denoteE_enableScratch_scr st hp⟩
 
 /-- con-leche: Setlec/Kernel/IExpr.lean:480 truncateTierTwo -/
 theorem EStore.dropScratch_wf {st : EStore} (h : StoreWF st) :
@@ -3954,9 +3949,9 @@ theorem EStore.dropScratch_spec {st : EStore} (h : StoreWF st) :
       (∀ i e, i.isPersistent = true → denoteE st i = some e →
         denoteE st.dropScratch i = some e) ∧
       (∀ i, i.isPersistent = false → denoteE st.dropScratch i = none) :=
-  ⟨EStore.dropScratch_wf h, fun i hp => EStore.view_dropScratch_pers st hp,
+  ⟨EStore.dropScratch_wf h, fun _ hp => EStore.view_dropScratch_pers st hp,
    fun _ _ hp hd => EStore.dropScratch_denote_pers h hp hd,
-   fun i hp => denoteE_dropScratch_scr st hp⟩
+   fun _ hp => denoteE_dropScratch_scr st hp⟩
 
 /-! ### The same, for the three stores underneath
 
