@@ -22052,3 +22052,326 @@ and nothing in that gate's scope changed — `proof/ConRon.lean` does not import
 6. **`Main.lean`'s `CheckError` is merged** into `Monad.lean`'s as of this
    task (task #97b's "for P2c" note); `chunkSize` is now
    `Frontend.chunkSize`.  `CheckMode` is still the driver's copy.
+
+### Task #97c — the Core twins (2026-09-20, Opus under Fable)
+
+Phase P2c of §8.6, on task #97a's stores, #97b's `ExprOps` twins and #97e's
+declaration layer: the checker core of (B) — the six bodies, the knot that
+ties them, the per-declaration caches and the declaration bracket.
+
+#### The module map
+
+| module | raw / non-blank | what |
+|---|---:|---|
+| `Arena/CoreState.lean` | 155 / 133 | the `Caches` record, the cap, `dropScratchEntries` |
+| `Arena/PropRead.lean` | 171 / 153 | `ConLeche/Kernel/PropRead.lean` whole: the two head-symbol prop-ness readers |
+| `Arena/Core.lean` | 2 960 / 2 759 | `ConLeche/Kernel/Core.lean` whole, plus `TypeChecker.lean`'s seven entries and the bracket |
+| `Arena/FEnv.lean` | 68 / 54 | the seven `F`-suffixed names, as `abbrev`s onto the `Core.lean` twins |
+| `Arena/CoreIO.lean` | 61 / 52 | the io knot (the leaf lane) |
+| `Arena/CoreGated.lean` | 161 / 145 | the gated `whnfCore` body and its knot |
+| `Arena/CoreTest.lean` | 683 / 598 | 89 kernel-reduced differential `#guard`s |
+| **total** | **4 259 / 3 894** | |
+
+`Arena/Monad.lean` gained exactly two things: an import of `CoreState.lean`
+and the field `AState.caches` (plus the `.empty` in `AState.init`).  Keeping
+`Caches` in its own module — importing `Arena/Handle.lean` and nothing else
+— is what lets `Monad.lean` hold the record without a cycle, and it is why
+(B) still has ONE monad: there is no second state type and no lift.
+
+#### The six systematic deviations from con-leche's clause structure
+
+Written out at the top of `Core.lean`; summarized here because every one of
+them is a decision P2d and P4a inherit.
+
+1. **`env : Env` becomes `fe : IFEnv`.**  con-leche's kernel tier reads a
+   linear association list and its `Cached` tier reads the index; the arena
+   has ONE environment type, the index, because §8.3's lesson 13 makes
+   `find?` the only read of the environment.  So every `…Of`/`…F` PAIR of
+   con-leche declarations collapses into ONE twin carrying a `con-leche:`
+   line per collapsed declaration — thirteen pairs in all
+   (`natLitSupported`/`natLitSupportedF`, `strLitSupported`/`…F`,
+   `natOpGuard`/`…F`, `natOpStored`/`…F`, `towerSlotsAll`/`…F`,
+   `recSlotsAll`/`…F`, `andRescueSlotsOf`/`andRescueSlots`/`…F`, and the
+   four `find?`-abstracted install helpers `recRuleKOf`, `recRuleEtaOf`,
+   `recRuleBits`, `projFnRule`).  That is task #97b's own rule for the
+   `…Go`/`…Fast` triples, applied to the lookup abstraction instead of to
+   the memo.  It is also what DESIGN §3.4 requires: `fe.find?` passed as an
+   argument is a closure.
+2. **Every structural match on a term is a `view`**, so a pure `Expr → α`
+   becomes `EIdx → AM α` and a walk takes an explicit `fuel : Nat`.
+   Recursions structural on something else — a binder count, an argument
+   list, a `Nat` — take none, exactly as con-leche's do (`iotaCerts`,
+   `piResidual`, `defEqList`, `peelNeverPis`, the four slot walks).
+3. **Reserved names are interned, not compared structurally.**  `pin n`
+   interns a `ConLeche.Name` and every comparison against it is handle
+   equality, which §8.3 licenses (`denoteN` is injective, so index
+   inequality IS structural inequality).  See "The reserved-name cost"
+   below.
+4. **Levels are read back, not twinned** (§8.3 lesson 4): `Level.isEquiv`,
+   `Level.subst`, `Level.substPW`, `Level.zeronessOf`, `Level.isNeverZero`
+   are con-leche's own, on transient trees, with the two VERDICTS cached on
+   the handles (`lvlEq?`, `lvlsEq?`).
+5. **One knot, the memoized one.**  con-leche has three — `coreKnot` at
+   `id`, `Cached.coreKnotI` with the memos, `coreKnotGated`.  The arena's
+   `coreKnot` carries the memo probes in its own slots, exactly as the Rust
+   port has one knot (§3.1).  `ConLeche/Kernel/TypeChecker.lean`'s seven
+   fueled entries therefore live at the bottom of `Core.lean`, and
+   `pureFnsA` is `coreKnot mode fe id`.
+6. **The memo probes are inline in the knot's slots**, not a higher-order
+   `memoEI`: con-leche's spelling passes a getter and a setter lambda per
+   table, and two closures per slot is what §3.4 rules out.  The BODIES stay
+   pure of memo logic, which is the property that matters — every body above
+   the knot is the con-leche clause with `view`/`intern` substituted and
+   nothing else.
+
+Four smaller deviations, each local:
+
+* **`Expr.quickPair` compares TAGS.**  §8.3 says index inequality is
+  structural inequality, so the twin of a match on the CONSTRUCTOR is a
+  comparison of the handle's four tag bits — `Idx.tag`, no `view`, no state,
+  no monad.  It is the module's only pure `EIdx → EIdx → Bool`, and it is
+  the one place where comparing the *handles* would have been the wrong
+  predicate.
+* **`inferBody`'s λ clause names its result** (`inferLamResult`).
+  con-leche writes `.forallE ty (bt.abstract1 depth) mb` once at the end of
+  a clause with three exits; over handles that is three statements, so the
+  tail is a `def` and no arm is duplicated.
+* **`natOpEquations`' three local lambdas** (`s`, `ap1`, `ap2`) are `def`s
+  (`natAp1`, `natAp2`, and `natAp1` at `Nat.succ`), and `strLitToConstructor`'s
+  `foldr` closure is `strLitConsSpine`.  Same rule, same reason as task
+  #97b's closure audit; `reduceNat`'s fourteen-way `∨` chain is
+  `natBinOpName` because its comparands have to be interned first.
+* **The io slot's selector is `mode.betaGate`**, `Kernel/Core.lean`'s
+  spelling, not `Cached/CoreC.lean`'s `mode.ioGate`.  The two disagree only
+  at `.trusted`, and the bridge is stated at `.verified`.  Recorded because
+  it is the one place the kernel tier and the executed tier of con-leche do
+  not say the same thing, and (B) had to pick one.
+
+#### The cache design, as built
+
+`CoreState.lean`'s `Caches`, eleven tables, all per-DECLARATION and all in
+`AState` beside `Memos` (which is per-CALL — task #97b's "for P2c" note asked
+for exactly that separation):
+
+| table | key ↦ value | why |
+|---|---|---|
+| `whnfCoreC`, `whnfC`, `annotC` | `EIdx ↦ EIdx` | the three unary entry points |
+| `inferC`, `inferIOC` | `EIdx ↦ EIdx` | **two grades, two tables** (lesson 9): a hit in one never serves the other |
+| `defeqC` | `(EIdx × EIdx) ↦ Bool` | the ORDERED pair with the verdict, **both signs** |
+| `lvlEqC`, `lvlsEqC` | `(LIdx × LIdx)`, `(LsIdx × LsIdx)` ↦ `Bool` | §8.3's level VERDICT caches |
+| `constTyC`, `constValC` | `(NIdx × LsIdx) ↦ EIdx` | a stored constant's type / a definition's value at a universe instantiation |
+| `ruleRhsC` | `(NIdx × NIdx × LsIdx) ↦ EIdx` | an iota rule's right-hand side |
+
+Four decisions worth recording.
+
+* **The depth is not in any key.**  §8.3's free-variable discipline — an
+  `fvar` node carries its type — is what makes a handle determine its own
+  typing context, and con-leche's `memoEI` keys on the node alone for the
+  same reason.  The arena inherits it unchanged.
+* **The `defeq` memo is on the ORDERED pair and stores the verdict.**  §8.3
+  left the negative memo open ("only if P2c shows the pure result at fixed
+  fuel is what the bridge needs"); the answer is con-leche's own
+  (`Cached/CoreC.lean:1893-1906` stores the `Bool` result `r` at `(a, b)`),
+  so both signs are justified there and the arena copies the shape.  The
+  unordered key §8.3 sketched is NOT taken: `defeqStep` is not symmetric
+  (the eq-true shortcut reads `b`, the one-sided λ arms are ordered, the
+  lazy-delta hint comparison is), so an unordered key would answer a query
+  with the other direction's run.
+* **`ruleRhsAt`'s key is a TRIPLE**, not §8.3's `(NIdx × LsIdx)`.  A rule's
+  right-hand side is determined by the recursor, the rule's constructor and
+  the levels — the recursor's name alone does not pick the rule, and keying
+  on the stored `rhs` handle would be unsound under hash-consing (two
+  recursors may share a right-hand side and differ in their level
+  parameters).
+* **A cap, not an eviction policy** (lesson 10), at `cacheCap = 4 194 304`
+  entries: past it the table is dropped whole and starts again.  One
+  `size` test per insert, and the Rust is one `len()`.
+
+**The bracket.**  `enterScratch` turns the scratch tier on and clears the
+per-call `Memos` (they belong to no tier and the new tier reuses their
+keys); `dropScratch` runs `Caches.dropScratchEntries` and then
+`EStore.dropScratch`, in that order, in ONE state operation so the two
+halves cannot drift.  `dropScratchEntries` keeps exactly the rows whose key
+AND value are persistent — six named tier-bit predicates, one per key
+shape, no lambda, no denotation (con-leche's arena #51).  P2d calls the
+pair at each declaration boundary; `CoreTest.lean` has both directions of
+the test (a persistent row survives, a row whose value is a scratch handle
+does not).
+
+#### The reserved-name cost, and the `Pins` record that is NOT here
+
+`natName`, `punitName`, `andName`, the sixteen `Nat`-operation names, the
+nineteen `reservedBasisNames` — con-leche compares them as `Name` values;
+the arena interns them and compares handles.  `pin` is `internName`, so a
+name already in the store costs one cons-table probe per path segment
+(`Nat.zero` is three) and appends nothing; a name absent from the store
+interns into whatever tier is live, compares equal to nothing — which is
+the right answer — and goes with the tier.
+
+The obvious optimisation is a `Pins` record in `AState`, filled once per
+run, turning every one of these into an `O(1)` field read.  **It is
+deliberately not taken here**, because an initialisation-order hazard — a
+pin read before it is filled compares against the zero word and silently
+says "not `Nat`" — is exactly the kind of wrongness the code-first phase
+should not introduce before there is a number saying it is worth it.
+`natLitSupported` is the hot one (every literal inference, every `Nat.succ`
+in `reduceNat`): five probes on top of three `find?`s, against con-leche's
+three `find?`s and three `Name` comparisons.  **This is the first thing P2g
+should price**, and the fix is local: one record, one `initPins` at the
+driver, and the twenty-odd `pin` call sites become field reads.
+
+#### Fuel
+
+`coreWalkFuel = 4 000 000 000`, one top-level `def` (lesson 7), is what
+every `ExprOps` call inside `Core.lean` runs at.  It is above the
+representable node count (2^27 per constructor per tier, ten constructors,
+two tiers) and below 2^63, so it is one machine word and exhaustion is
+unreachable on a well-formed store.  The alternative — `nodeCount + 1`,
+which is what `denote` uses — costs twenty additions per `view`-heavy
+helper call, and the walks it would bound are already bounded by the DAG.
+
+`whnfCoreLoopFuel`, `whnfLoopFuel`, `defeqLoopFuel` and `checkFuel` are
+con-leche's numbers verbatim.  `whnfCoreLoopFuel` has **no reader** here:
+the arena's `whnfCoreBody` is con-leche's SPEC shape — beta, iota and
+projection steps chained through the knot — and the local loop that spends
+that budget is `Cached/CoreC.lean`'s `whnfCoreLoopI`.  It is twinned so
+that P2g measures against the same number when the loop lands.
+
+#### `FEnv.lean`, and why it is thin
+
+con-leche's `FEnv.lean` imports `Core.lean`; the arena's `Core.lean` has to
+CALL the guards from inside `whnfCoreBody` and `inferBody`.  So the import
+order inverts: the environment half of con-leche's file is `Arena/Env.lean`'s
+(task #97e), the guard half is `Arena/Core.lean`'s, and what is left for
+`Arena/FEnv.lean` is the seven `F`-suffixed NAMES as `abbrev`s — the same
+functions, so nothing can drift, and P2d or anyone reading con-leche's
+`Cached` tier beside the arena finds the name they are looking for.
+
+#### `CoreIO.lean` and `CoreGated.lean`: census class (S), twinned anyway
+
+Both are "Rust port skips it" in the census, and for the same reason the
+arena could have skipped them: the port has one knot and so does (B).  They
+are twinned because they are the *statement subjects* P3 needs for the knot
+equations, they cost 222 lines between them, and having them now means P3
+does not have to invent an arena spelling for them later.  Neither carries a
+memo — con-leche's leaf lane and P knot are specifications, and a second
+memoized knot over the same state would let one lane's table answer the
+other lane's query, which lesson 9 forbids in the other direction.
+
+`CoreTest.lean` checks six of their entry points against con-leche's own, so
+they are not merely present but right on the fixture.
+
+#### The differential test: 89 `#guard`s, all green on the first run
+
+`Arena/CoreTest.lean` builds an eight-constant environment — the `Nat`
+literal trio at exactly the shapes `natLitSupported` pins, a definition that
+unfolds to a literal, an axiom that does not unfold, a proposition and two
+of its proofs — **as con-leche `ConstantInfo` values**, and derives the
+arena's by `internCI`.  That is task #97b's discipline ("the expected side
+is computed, never written out") applied to the environment: there is only
+one environment, so the two cannot drift.
+
+Each check compares the **whole outcome**: an `ok` must meet an `ok` at the
+same term (`denoteE` of the arena's answer against con-leche's `Expr`), and
+an error must meet an error of the same KIND and the same MESSAGE (`errEq`).
+So the failure cases are real tests rather than "both sides threw": an
+unknown constant, an out-of-scope `fvar` at depth 0, a `let` whose value
+does not fit its type.
+
+| what | checks |
+|---|---:|
+| the fixture builds, and denotes what it should | 9 |
+| the positive outcomes, pinned by hand on con-leche's side | 7 |
+| `whnf` | 12 |
+| `whnfCore` (must NOT unfold where `whnf` does) | 4 |
+| `infer` (two failures) | 12 |
+| `inferIO` | 3 |
+| `defeq` (both verdicts) | 12 |
+| `annotate` (two failures) | 12 |
+| `ensureSort` | 3 |
+| the memos and the declaration bracket | 9 |
+| the gated and io knots | 6 |
+| **total** | **89** |
+
+The seven hand-pinned outcomes are what stop the differential passing
+vacuously — `chkE` is satisfied by two agreeing *errors*, so without them
+"both checkers threw on everything" would be green.  They pin
+`whnf two = lit 2`, `whnf ((λx.succ x) 3) = lit 4`, `infer (lit 7) = Nat`,
+`infer (λx:Nat.x) = ∀Nat,Nat`, `defeq pfA pfB = true` (proof irrelevance
+through both fast arms), `defeq two 7 = false`, and
+`annotate (λx:P.x) = ⟨ifAllZero []⟩` (the annotation pass writing a real
+datum, not the placeholder).  A deliberately wrong check was added and
+confirmed to fail the build.
+
+**Everything agreed on the first run.**  No twin needed a correction after
+it elaborated; the four build failures during the task were a Lean
+indentation rule (a continuation line under-indented against its
+application head), a missing import, an off-by-two in eighteen citation
+line numbers, and `#guard` refusing a doc comment.
+
+#### Provenance and coverage
+
+`scripts/provenance.py check`: **0 findings** over the whole tree (3 445
+items — 2 363 Rust, 1 082 arena Lean — and 2 877 citations).  The Rust
+ledger is unmoved at `TOTAL 927/927 (100.0 %)`.  The arena ledger:
+
+```
+ConLeche/Kernel/Core.lean                      127/127 twinned
+ConLeche/Kernel/FEnv.lean                       14/14  twinned
+ConLeche/Kernel/TypeChecker.lean                 7/7   twinned
+ConLeche/Kernel/PropRead.lean                    9/10  twinned
+ARENA TOTAL 265/927 twinned (28.6%), 662 to go
+```
+
+(110 before this task.)  The one uncovered declaration in `PropRead.lean` is
+`PropWhen.isProp`, which §8.7's ruling says (B) IMPORTS rather than copies —
+it is a `Bool`-valued predicate on a `PropWhen`, and `PropWhen` is
+con-leche's own type inside the store's binder metadata.  `CoreIO.lean`'s
+three and `CoreGated.lean`'s nine are "beyond the denominator": the Rust
+skip list excludes them, and the arena cites them anyway.
+
+#### Build time
+
+`lake build ConRonArena` from a clean `Arena` build directory,
+`LEAN_NUM_THREADS=4`, `ulimit -v 60000000`: **25.19 / 25.13 s** wall over
+two runs.  Per module, this task's: `CoreState` 0.34 s, `PropRead` 0.40 s,
+`Core` 3.2 s, `FEnv` 0.23 s, `CoreIO` 0.25 s, `CoreGated` 0.31 s,
+`CoreTest` 0.99 s — 5.7 s of the 25.2 s, against `WFProofs`' 11 s and the
+store layer's 4 s.  Nothing here needs `maxHeartbeats`, and the 89
+kernel-reduced `#guard`s — which run the whole memoized knot, the
+`Std.HashMap` probes and `denoteE` inside the elaborator — cost 0.99 s
+between them.
+
+#### For P2d — `DeclCheck` / `Checker` / `CheckerBase` / `Canon` / pins / `Inductives`
+
+* **The bracket is `enterScratch` … `dropScratch`**, both in `Core.lean`,
+  both `@[noinline]` state operations.  Call them around each declaration's
+  check; `dropScratch` already does the cache half and the store half in one
+  operation, so do not call `EStore.dropScratch` yourself.
+* **The entry points are `Core.lean`'s bottom section**: `whnfCore`, `whnf`,
+  `inferTypeCore`, `inferTypeIO`, `isDefEqCore`, `annotateCore`,
+  `ensureSortCore`, each `(mode) (fe) (fuel depth) …`.  `checkFuel` is the
+  fuel con-leche passes them.
+* **The install-time helpers are here too**: `recRuleBits`, `projFnRule`,
+  `recRuleK`, `natOpEquations`, `natOpGuard`, `natOpStoredOk`,
+  `substConst0`, `substConstAll`, `constsResolve`, `piResultZ`,
+  `piResultNeverZero`, `capsNeverZero`, `projFnName`/`projTableName`
+  (`Env.lean`'s).  All take `fe : IFEnv`.
+* **`IFEnv.push` is `Env.lean`'s and is pure**; after it, the caches are
+  still valid (they key on handles, not on the environment), but
+  `constTyC`/`constValC` rows for a name the push SHADOWS would be stale.
+  The fixture cannot produce that (the checker rejects duplicates), but if
+  P2d ever installs over an existing name it must drop those two tables.
+* **The reserved-name pins are `pin`-interned on demand.**  If P2d finds
+  itself calling `natLitSupported` or `reservedBasisNames` in a loop, that
+  is the moment to build the `Pins` record (see above) rather than to widen
+  the loop.
+* **`internCI`-shaped scaffolding exists only in `CoreTest.lean`** and is
+  `private`.  The real environment comes from the parser (`Frontend/*`,
+  task #97e), which builds `IConstantInfo`s directly; do not lift the test's
+  converters into the checker.
+* **The benchmark has no `Core` shapes yet.**  Task #97b's `for P2c` note
+  asked for them; this task did not add them, because the subjects that
+  matter (a real declaration's `annotate` + `infer` + `defeq` sweep) need
+  P2d's `checkDecl` to exist.  Add them with it, and price the reserved-name
+  interning at the same time.

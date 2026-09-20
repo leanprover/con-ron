@@ -424,7 +424,7 @@ private def okB : ConLeche.CheckM Bool → Bool → Bool
 #guard okE (ConLeche.annotateCore MU envCL F 0 tIdProp)
   (.lam propE (.bvar 0) ⟨.ifAllZero []⟩)
 
-/-! ## `whnf` — ten subjects
+/-! ## `whnf` — twelve subjects
 
 Each line is "the arena's `whnf` and con-leche's `whnf` agree on this term",
 with the con-leche side computed from the denotation. -/
@@ -453,7 +453,7 @@ The same subjects: `whnfCore` must NOT unfold `two`, where `whnf` does. -/
   (ConLeche.whnfCore MU envCL F 0 tSucc3)
 #guard chkE (whnfCore MU FX.fe F 0 FX.piPi) (ConLeche.whnfCore MU envCL F 0 tPiPi)
 
-/-! ## `infer` — ten subjects, the last two failures -/
+/-! ## `infer` — twelve subjects, the last two failures -/
 
 #guard chkE (inferTypeCore MU FX.fe F 0 FX.sort0)
   (ConLeche.inferTypeCore MU envCL F 0 tSort0)
@@ -494,7 +494,7 @@ the fixture, which they must at `.verified`. -/
 #guard chkE (inferTypeIO MU FX.fe F 0 FX.succ3)
   (ConLeche.inferTypeIO MU envCL F 0 tSucc3)
 
-/-! ## `defeq` — ten pairs, both verdicts -/
+/-! ## `defeq` — twelve pairs, both verdicts -/
 
 #guard chkB (isDefEqCore MU FX.fe F 0 FX.two FX.two)
   (ConLeche.isDefEqCore MU envCL F 0 tTwo tTwo)
@@ -521,7 +521,7 @@ the fixture, which they must at `.verified`. -/
 #guard chkB (isDefEqCore MU FX.fe F 0 FX.nat FX.sort0)
   (ConLeche.isDefEqCore MU envCL F 0 natTy tSort0)
 
-/-! ## `annotate` — ten subjects, the last two failures -/
+/-! ## `annotate` — twelve subjects, the last two failures -/
 
 #guard chkE (annotateCore MU FX.fe F 0 FX.sort0)
   (ConLeche.annotateCore MU envCL F 0 tSort0)
