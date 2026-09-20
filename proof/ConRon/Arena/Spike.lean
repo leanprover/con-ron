@@ -14,6 +14,7 @@ Modules:
 * `Spike/Specs.lean`  — the `@[spec]`/`@[grind]` layer (experiment A's
   infrastructure, and the template DESIGN §8.6 asks the spike to fix);
 * `Spike/ExpA.lean`   — Theorem 1 for subject 1 via `mvcgen`;
+* `Spike/ExpA2.lean`  — subject 2 (the `whnfCore` β arm): statement only;
 * `Spike/ExpA3.lean`  — Theorem 1 for subject 3 (the memo wrapper) via `mvcgen`;
 * `Spike/ExpB.lean`   — the same theorem by hand, in con-ron's forward style;
 * `Spike/Mini.lean`   — the three-constructor arena for experiments C and D;
@@ -26,6 +27,7 @@ import ConRon.Arena.Spike.Twins
 import ConRon.Arena.Spike.Peel
 import ConRon.Arena.Spike.Specs
 import ConRon.Arena.Spike.ExpA
+import ConRon.Arena.Spike.ExpA2
 import ConRon.Arena.Spike.ExpA3
 import ConRon.Arena.Spike.ExpB
 import ConRon.Arena.Spike.Mini

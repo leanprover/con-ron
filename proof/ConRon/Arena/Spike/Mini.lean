@@ -33,47 +33,53 @@ open ConLeche Std.Do
 
 set_option mvcgen.warning false
 
-/-! ## The mini arena -/
+/-! ## The mini arena
+
+Handles are `Nat` and the arrays are `List`s: the Lean twin is written in
+Lean-natural types, and the *abstraction* (`ExpCD.lean`) is where `Std.U32`
+becomes `Nat` and `alloc.vec.Vec` becomes `List`.  That is the same division
+of labour DESIGN §8.4 asks for at full scale — (B) is Rust-*shaped*, not
+Rust-*typed*. -/
 
 /-- con-leche: none — `crates/arena-spike/src/lib.rs:16` TAG_BVAR. -/
-def mTagBvar : UInt32 := 0
+def mTagBvar : Nat := 0
 /-- con-leche: none — `crates/arena-spike/src/lib.rs:18` TAG_APP. -/
-def mTagApp : UInt32 := 1
+def mTagApp : Nat := 1
 /-- con-leche: none — `crates/arena-spike/src/lib.rs:20` TAG_LAM. -/
-def mTagLam : UInt32 := 2
+def mTagLam : Nat := 2
 /-- con-leche: none — `crates/arena-spike/src/lib.rs:23` IDX_CAP. -/
-def mIdxCap : UInt32 := 268435456
+def mIdxCap : Nat := 268435456
 
 /-- con-leche: none — `crates/arena-spike/src/lib.rs:27` mk. -/
-def mMk (tag idx : UInt32) : UInt32 := tag * mIdxCap + idx
+def mMk (tag idx : Nat) : Nat := tag * mIdxCap + idx
 /-- con-leche: none — `crates/arena-spike/src/lib.rs:32` tag_of. -/
-def mTagOf (h : UInt32) : UInt32 := h / mIdxCap
+def mTagOf (h : Nat) : Nat := h / mIdxCap
 /-- con-leche: none — `crates/arena-spike/src/lib.rs:37` idx_of. -/
-def mIdxOf (h : UInt32) : UInt32 := h % mIdxCap
+def mIdxOf (h : Nat) : Nat := h % mIdxCap
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:120 CState — the mini state:
 three per-constructor arrays and the memo, mirroring
 `crates/arena-spike/src/lib.rs:65` State field for field. -/
 structure MState where
-  bvars : Array UInt32
-  apps : Array (UInt32 × UInt32)
-  lams : Array (UInt32 × UInt32)
-  memo : Array (UInt32 × UInt32 × UInt32)
+  bvars : List Nat
+  apps : List (Nat × Nat)
+  lams : List (Nat × Nat)
+  memo : List (Nat × Nat × Nat)
 
 /-- con-leche: none — the empty mini arena. -/
-def MState.empty : MState := ⟨#[], #[], #[], #[]⟩
+def MState.empty : MState := ⟨[], [], [], []⟩
 
 /-- con-leche: none — `crates/arena-spike/src/lib.rs:92` view_bvar. -/
-def MState.viewBvar (st : MState) (h : UInt32) : Option UInt32 :=
-  if mTagOf h = mTagBvar then st.bvars[(mIdxOf h).toNat]? else none
+def MState.viewBvar (st : MState) (h : Nat) : Option Nat :=
+  if mTagOf h = mTagBvar then st.bvars[mIdxOf h]? else none
 
 /-- con-leche: none — `crates/arena-spike/src/lib.rs:106` view_app. -/
-def MState.viewApp (st : MState) (h : UInt32) : Option (UInt32 × UInt32) :=
-  if mTagOf h = mTagApp then st.apps[(mIdxOf h).toNat]? else none
+def MState.viewApp (st : MState) (h : Nat) : Option (Nat × Nat) :=
+  if mTagOf h = mTagApp then st.apps[mIdxOf h]? else none
 
 /-- con-leche: none — `crates/arena-spike/src/lib.rs:120` view_lam. -/
-def MState.viewLam (st : MState) (h : UInt32) : Option (UInt32 × UInt32) :=
-  if mTagOf h = mTagLam then st.lams[(mIdxOf h).toNat]? else none
+def MState.viewLam (st : MState) (h : Nat) : Option (Nat × Nat) :=
+  if mTagOf h = mTagLam then st.lams[mIdxOf h]? else none
 
 /-! ## The denotation
 
@@ -82,14 +88,15 @@ Fuel-indexed on the total node count, exactly as `denoteE` is
 carries no extra idea). -/
 
 /-- con-leche: none — the number of nodes in the mini arena. -/
-def MState.nodeCount (st : MState) : Nat := st.bvars.size + st.apps.size + st.lams.size
+def MState.nodeCount (st : MState) : Nat :=
+  st.bvars.length + st.apps.length + st.lams.length
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:344 Expr — the fuel-indexed readback
 of a mini handle. -/
-def denoteMAux (st : MState) : Nat → UInt32 → Option Expr
+def denoteMAux (st : MState) : Nat → Nat → Option Expr
   | 0, _ => none
   | f + 1, h =>
-    if mTagOf h = mTagBvar then (st.viewBvar h).map (fun i => .bvar i.toNat)
+    if mTagOf h = mTagBvar then (st.viewBvar h).map Expr.bvar
     else if mTagOf h = mTagApp then
       match st.viewApp h with
       | none => none
@@ -102,7 +109,7 @@ def denoteMAux (st : MState) : Nat → UInt32 → Option Expr
     else none
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:344 Expr — the readback. -/
-def denoteM (st : MState) (h : UInt32) : Option Expr :=
+def denoteM (st : MState) (h : Nat) : Option Expr :=
   denoteMAux st (st.nodeCount + 1) h
 
 /-! ## The twin
@@ -115,97 +122,89 @@ abbrev MM := StateT MState (Except CheckError)
 /-- con-leche: ConLeche/Kernel/Core.lean:62 CheckError — the mini failure. -/
 def mfail {α : Type} (e : CheckError) : MM α := throwThe CheckError e
 
-/-- con-leche: none — `crates/arena-spike/src/lib.rs:135` find_bvar_from. -/
-def mFindBvarFrom (st : MState) (k : UInt32) : Nat → Option UInt32
-  | i =>
-    if h : i < st.bvars.size then
-      if st.bvars[i] = k then some (mMk mTagBvar (UInt32.ofNat i))
-      else mFindBvarFrom st k (i + 1)
-    else none
-  termination_by i => st.bvars.size - i
+/-- con-leche: none — the cons-table probe, shared by the three
+constructors: `crates/arena-spike/src/lib.rs:135` find_bvar_from and its two
+siblings are this function at three element types.  Structural on the list
+(the Rust is an index-carrying recursion over the same list, which
+`-loops-to-rec` turns into the same shape). -/
+def listFindIdx {α : Type} [BEq α] (l : List α) (k : α) (i : Nat) : Option Nat :=
+  match l with
+  | [] => none
+  | x :: rest => if x == k then some i else listFindIdx rest k (i + 1)
 
-/-- con-leche: none — `crates/arena-spike/src/lib.rs:153` find_app_from. -/
-def mFindAppFrom (st : MState) (f a : UInt32) : Nat → Option UInt32
-  | i =>
-    if h : i < st.apps.size then
-      if st.apps[i].1 = f && st.apps[i].2 = a then some (mMk mTagApp (UInt32.ofNat i))
-      else mFindAppFrom st f a (i + 1)
-    else none
-  termination_by i => st.apps.size - i
+/-- con-leche: none — `crates/arena-spike/src/lib.rs:148` find_bvar. -/
+def mFindBvar (st : MState) (k : Nat) : Option Nat :=
+  (listFindIdx st.bvars k 0).map (mMk mTagBvar)
 
-/-- con-leche: none — `crates/arena-spike/src/lib.rs:172` find_lam_from. -/
-def mFindLamFrom (st : MState) (ty b : UInt32) : Nat → Option UInt32
-  | i =>
-    if h : i < st.lams.size then
-      if st.lams[i].1 = ty && st.lams[i].2 = b then some (mMk mTagLam (UInt32.ofNat i))
-      else mFindLamFrom st ty b (i + 1)
-    else none
-  termination_by i => st.lams.size - i
+/-- con-leche: none — `crates/arena-spike/src/lib.rs:166` find_app. -/
+def mFindApp (st : MState) (f a : Nat) : Option Nat :=
+  (listFindIdx st.apps (f, a) 0).map (mMk mTagApp)
+
+/-- con-leche: none — `crates/arena-spike/src/lib.rs:185` find_lam. -/
+def mFindLam (st : MState) (ty b : Nat) : Option Nat :=
+  (listFindIdx st.lams (ty, b) 0).map (mMk mTagLam)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:81 instantiate1Go —
+`crates/arena-spike/src/lib.rs:253` memo_get. -/
+def mMemoGet (st : MState) (h d : Nat) : Option Nat :=
+  match listFindIdx (st.memo.map (fun e => (e.1, e.2.1))) (h, d) 0 with
+  | none => none
+  | some i => (st.memo[i]?).map (fun e => e.2.2)
 
 /-- con-leche: Setlec/Kernel/IExpr.lean:464 intern —
 `crates/arena-spike/src/lib.rs:191` intern_bvar. -/
-def mInternBvar (k : UInt32) : MM UInt32 := do
+def mInternBvar (k : Nat) : MM Nat := do
   let st ← get
-  match mFindBvarFrom st k 0 with
+  match mFindBvar st k with
   | some h => pure h
   | none =>
-    if st.bvars.size < mIdxCap.toNat then
+    if st.bvars.length < mIdxCap then
       let arr := st.bvars
-      let st := { st with bvars := #[] }
-      set { st with bvars := arr.push k }
-      pure (mMk mTagBvar (UInt32.ofNat arr.size))
+      let st := { st with bvars := [] }
+      set { st with bvars := arr ++ [k] }
+      pure (mMk mTagBvar arr.length)
     else mfail (.internal "arena-spike: bvar array full")
 
 /-- con-leche: Setlec/Kernel/IExpr.lean:464 intern —
 `crates/arena-spike/src/lib.rs:206` intern_app. -/
-def mInternApp (f a : UInt32) : MM UInt32 := do
+def mInternApp (f a : Nat) : MM Nat := do
   let st ← get
-  match mFindAppFrom st f a 0 with
+  match mFindApp st f a with
   | some h => pure h
   | none =>
-    if st.apps.size < mIdxCap.toNat then
+    if st.apps.length < mIdxCap then
       let arr := st.apps
-      let st := { st with apps := #[] }
-      set { st with apps := arr.push (f, a) }
-      pure (mMk mTagApp (UInt32.ofNat arr.size))
+      let st := { st with apps := [] }
+      set { st with apps := arr ++ [(f, a)] }
+      pure (mMk mTagApp arr.length)
     else mfail (.internal "arena-spike: app array full")
 
 /-- con-leche: Setlec/Kernel/IExpr.lean:464 intern —
 `crates/arena-spike/src/lib.rs:221` intern_lam. -/
-def mInternLam (ty b : UInt32) : MM UInt32 := do
+def mInternLam (ty b : Nat) : MM Nat := do
   let st ← get
-  match mFindLamFrom st ty b 0 with
+  match mFindLam st ty b with
   | some h => pure h
   | none =>
-    if st.lams.size < mIdxCap.toNat then
+    if st.lams.length < mIdxCap then
       let arr := st.lams
-      let st := { st with lams := #[] }
-      set { st with lams := arr.push (ty, b) }
-      pure (mMk mTagLam (UInt32.ofNat arr.size))
+      let st := { st with lams := [] }
+      set { st with lams := arr ++ [(ty, b)] }
+      pure (mMk mTagLam arr.length)
     else mfail (.internal "arena-spike: lam array full")
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:81 instantiate1Go —
-`crates/arena-spike/src/lib.rs:243` memo_get_from. -/
-def mMemoGetFrom (st : MState) (h d : UInt32) : Nat → Option UInt32
-  | i =>
-    if hi : i < st.memo.size then
-      if st.memo[i].1 = h && st.memo[i].2.1 = d then some st.memo[i].2.2
-      else mMemoGetFrom st h d (i + 1)
-    else none
-  termination_by i => st.memo.size - i
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:116 instantiate1Go —
 `crates/arena-spike/src/lib.rs:262` memo_set. -/
-def mMemoSet (h d r : UInt32) : MM Unit := do
+def mMemoSet (h d r : Nat) : MM Unit := do
   let st ← get
   let arr := st.memo
-  let st := { st with memo := #[] }
-  set { st with memo := arr.push (h, d, r) }
+  let st := { st with memo := [] }
+  set { st with memo := arr ++ [(h, d, r)] }
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:33 instantiate1, `:81`
 instantiate1Go — **the mini twin**, `crates/arena-spike/src/lib.rs:275`
 instantiate1, clause for clause. -/
-def mInstantiate1 (v : UInt32) : Nat → UInt32 → UInt32 → MM UInt32
+def mInstantiate1 (v : Nat) : Nat → Nat → Nat → MM Nat
   | 0, _, _ => mfail (.internal "fuel exhausted: instantiate1")
   | fuel + 1, h, d => do
     let st ← get
@@ -221,7 +220,7 @@ def mInstantiate1 (v : UInt32) : Nat → UInt32 → UInt32 → MM UInt32
       match st.viewApp h with
       | none => mfail (.internal "arena-spike: dangling handle")
       | some (f, a) =>
-        match mMemoGetFrom st h d 0 with
+        match mMemoGet st h d with
         | some r => pure r
         | none => do
           let f' ← mInstantiate1 v fuel f d
@@ -233,7 +232,7 @@ def mInstantiate1 (v : UInt32) : Nat → UInt32 → UInt32 → MM UInt32
       match st.viewLam h with
       | none => mfail (.internal "arena-spike: dangling handle")
       | some (ty, b) =>
-        match mMemoGetFrom st h d 0 with
+        match mMemoGet st h d with
         | some r => pure r
         | none => do
           let t' ← mInstantiate1 v fuel ty d
