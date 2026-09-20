@@ -190,8 +190,12 @@ pub trait PhaseObserver {
     fn install_failed(&mut self, _pos: u64, _total: usize) {}
 
     /// con-leche: Main.lean:318-421 checkDeclsIO
-    /// The phase boundary: every record installed, `pend` checks pending.
-    fn install_done(&mut self, _total: usize, _pend: usize) {}
+    /// The phase boundary: every record installed, `pend` checks pending, and
+    /// the store as phase A left it — the node counts are the one number P6
+    /// asked this line for, because they are what the install ADDED to the
+    /// persistent tier on top of the parse's (the annotation interns, and
+    /// nothing in phase A opens a scratch tier).
+    fn install_done(&mut self, _ar: &EStore, _total: usize, _pend: usize) {}
 
     /// con-leche: Main.lean:318-421 checkDeclsIO
     /// The worker count phase B is about to run on, so that the summary
@@ -251,7 +255,7 @@ pub fn check_decls_driver<O: PhaseObserver>(
     let pend: Vec<PendingCheck> = p.2;
     let m = pend.len();
     let mut fe: IFEnv = p.1;
-    obs.install_done(total, m);
+    obs.install_done(&st.store, total, m);
     let workers = workers_for(jobs, m);
     obs.phase_b_workers(workers);
     // Phase B, `checker::check_pending_list`'s walk with the observer between
@@ -424,15 +428,19 @@ impl PhaseObserver for Heartbeat {
 
     /// con-leche: Main.lean:318-421 checkDeclsIO
     /// `con-ron-arena: install done: <N>/<N> …, <M> checks pending …`.
-    fn install_done(&mut self, total: usize, pend: usize) {
+    fn install_done(&mut self, ar: &EStore, total: usize, pend: usize) {
         self.t_install = self.now();
         if self.stride > 0 {
             eprintln!(
                 "con-ron-arena: install done: {}/{} declarations installed, {} checks \
-                 pending t={}s (install {}s)",
+                 pending; store {} expression, {} level, {} name nodes t={}s \
+                 (install {}s)",
                 total,
                 total,
                 pend,
+                ar.node_count(),
+                ar.ls().node_count(),
+                ar.ns().node_count(),
                 ms_secs(self.t_install),
                 ms_secs(self.t_install - self.t_parse)
             );

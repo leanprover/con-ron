@@ -2165,6 +2165,16 @@ the persistent tier (the byte recogniser is unchanged).
     P4  (C): a. SPIKE — Rust for P2a+P2b, extract, prove the Theorem-2 lemmas
         with the grind idiom, measure lines and elaboration per lemma;
         b. the rest of the crate; the fixtures; Mathlib under the cap.
+        f. the driver and the binary `con-ron-arena`.  **DONE, task #97-P4f**
+        (2026-09-20): `crates/con-ron-arena`, unverified like `crates/con-ron`
+        and reusing its flag values, its exit codes and its in-process
+        modeller across the crate line.  `scripts/diff-e2e.sh --bin=target/
+        release/con-ron-arena` reads **345/348 in both modes**, the three that
+        differ being P4e part 2's missing projection rewrite (a decline, never
+        a wrong accept), and `Init` is a clean **accepted 57 977
+        declarations** at 816.0 G instructions / 122.9 s / 1.85 GB — 1.51× and
+        3.9× today's con-ron, which is P6's brief and which that task's
+        section profiles.
     P5  Theorem 2 campaign.
     P6  performance vs today's con-ron; the OVERVIEW numbers.
 
@@ -25716,3 +25726,259 @@ already gated at 348/348 fixtures in both modes.
   `arena::expr_ops::rename_consts_fast` take a `&Vec<(NIdx, NIdx)>` retires the
   `NIdxToNIdx` trait from the model.  It is a one-line change on each side and
   it should be made on the Lean side first.
+
+### Task #97-P4f — the Rust driver and `con-ron-arena` (2026-09-20, Opus under Fable)
+
+Phase P4f of §8.6: the binary half of (C).  A new workspace member
+`crates/con-ron-arena`, **unverified exactly as `crates/con-ron` is** — Charon
+never sees it, no refinement lemma mentions it, §3.4's subset does not apply,
+and it is outside `scripts/lint-rust-style.sh` and `scripts/extract-arena.sh`
+for `crates/con-ron`'s reason — carrying the three things `arena-core` cannot:
+the reads, the CLI, and the in-process modeller's instantiation.
+
+| | shipped | tests | what |
+|---|---:|---:|---|
+| `src/driver.rs` | 681 | 2 | the 4 MiB interleaved read loop, the two phases with the boundary visible behind one observer trait, the `--progress` heartbeat, the labels read back out of the store, the verdict lines |
+| `src/in_model.rs` | 443 | — | the modeller seam instantiated by delegation: the block read back (memoised), `con_ron::in_model::generate`, the records interned back |
+| `src/bin/con-ron-arena.rs` | 619 | — | the flags, the prelude, the parse, `prepare_d`, `intern_all_pins`, the fold, the receipts, the 1 GiB-stack thread |
+| `src/lib.rs` | 51 | — | the crate note |
+| **total** | **1 794** | **2** | |
+
+Against `crates/con-ron`'s 1 759 lines for the same three jobs (`driver.rs`
+1 143 + `bin/con-ron.rs` 616) that is the same size, which is the point: it is
+the same program over a different representation.
+
+#### What is CALLED across the crate line, and why that is the design
+
+`con-ron-arena` depends on `con-ron`, and everything in the driver that does
+not mention a TERM is that crate's, called and not copied:
+`con_ron::driver::{exit_code, verdict_word, message, ms_secs, progress_stride,
+jobs_count, pins_for_run, read_up_to, workers_for}` and
+`con_ron::render::{name_str, from_cps}`.  So the two binaries' flag grammar,
+the three verdict words and the 0/1/2/3 mapping **cannot drift**: there is one
+copy of each, and `scripts/diff-e2e.sh` reads the same numbers off either
+binary because they are the same function.  What had to be spelled again is
+exactly what mentions a handle — `decl_label` (seven arms over `IDeclaration`,
+the name READ BACK out of the store: a handle is not a label until the store is
+asked), `value_kind_word` (the arena has its own `ValueKind`), the two phase
+loops and the heartbeat's line bodies.
+
+Deviations from `con_ron::driver`, all four of them in the module note:
+
+1. **One `AState`** threaded through parse, preparation, pin walk and both
+   phases — the terms are in the state and the records are handles into it, so
+   nothing may be run against a state that is not the one they were interned
+   into.
+2. **`intern_all_pins` runs once, before the fold, with the scratch tier off**
+   (§8.6 P2d, task #97-P4d's "for P4f"): the interned list it returns is the
+   fold's pin parameter, and nothing the fold compares against then lives in a
+   tier that is about to vanish.
+3. **Phase B's bracket is `check_pending`'s and nothing else opens a tier.**
+4. **`--jobs=<n>` is accepted, validated and clamped to 1**, with a line on
+   stderr in the front matter beside `--no-mark-persistent`'s, so a log reads
+   as the lane it was.  The phase-B loop is shaped for the pool §8.3 plans: it
+   is a change to one `while` and to nothing else, where `con_ron::pool` slots
+   into `con_ron::driver::check_decls_driver`.
+
+`--no-mark-persistent` is accepted and a no-op for a *stronger* reason than
+the other binary's: the arena has no reference counts at all, and the note it
+prints says that rather than `con-ron`'s `Arc` sentence.
+
+#### The modeller is the SAME unverified port both binaries run
+
+`in_model::InProcess` reads the block's handles back to `con-ron-core`'s
+`Expr` trees, calls `con_ron::in_model::generate` — the 6 200 lines of
+`kit`/`mutual`/`nested`, untouched — and interns the records it returns back
+into the persistent tier.  It is the Lean twin's own instantiation one
+representation down (`Arena/Frontend/InModel.lean` delegates to con-leche's
+generator for the same reason), and it has a consequence the sweep depends on:
+a fixture whose block is modelled is modelled the *same way* by `con-ron` and
+by `con-ron-arena`, so a difference the sweep reports is the CHECKER's.
+Measured on `Init`: both binaries report `1 inductive blocks modelled
+in-process: Lean.Syntax (30 generated records)` and both reach 58 007 fold
+records.
+
+Three things keep the readback cheap, and they are the module's note:
+
+1. **Memoised on the handle**, for the life of the modeller — the export's
+   sharing survives the readback and `Expr` is a counted pointer, so a hit is
+   one bump.  (The twin memoises for the same reason: an unmemoised readback
+   unfolds the DAG and does not finish on `tower_struct`.)
+2. **The context is three CLOSURES, not three tables.**
+   `con_ron::in_model::mutual::Ctx` is three `dyn Fn`s — con-leche's
+   `InModel.Ctx` is `Name → …` — so a name the generator never asks about is
+   never read back.  Going through
+   `con_ron_core::frontend::in_model_rec::ModelCtx` instead would have meant
+   converting the parse's whole constant table per block, i.e. a second tree
+   parse of the stream, which is the one thing §8.3 forbids.  The bridge from
+   a `Name` to its handle is `NStore::find` up the prefix chain — a probe,
+   never an intern, which is the twin's `nameHandle?`.
+3. **Only a block `wants` routes there is read back at all.**  On `Init` that
+   is one block.
+
+`Ctx::blocks` hands the generator a `&BlockRec`, so a block read back on
+demand is `Box::leak`ed and remembered by handle word: safe Rust, bounded by
+the distinct blocks the nested rung asks about (a handful), each read back
+once.
+
+#### The gate: 345 of 348, and the three that differ are the ProjRec stub
+
+`scripts/diff-e2e.sh --bin=target/release/con-ron-arena`, at the `arena` tip
+that merges P4d-2's inductives (9fd7e742):
+
+| row | agree | differ | what differs |
+|---|---:|---:|---|
+| `--verified`, embedded pins | **345** | 3 | the three ProjRec fixtures below |
+| `--trusted` | **345** | 3 | the same three |
+| `--no-pins` | **328** | 20 | the same three, plus `con-ron`'s own documented 17 |
+
+The `--no-pins` row is exactly right: the sweep run against
+`target/release/con-ron` on the same day reads 17 differences, the fixtures
+that define `Nat.div` and then decline at the empty pin list, and the arena's
+set is those 17 plus the same three — no fourth.
+
+**All three differences have one cause and it is not this task's**:
+`frontend/proj_rec.rs` — the projection-function rewrite, P4e part 2's — is
+not written yet, so `export_c`'s three ProjRec stubs are the identity and a
+projection function of a non-direct structure-like is never rewritten to
+recursor form.  The fold then declines it:
+
+    con-ron-arena: declined: projection on a non-structure-like type
+      [at def InModelMutual.Node.val, fold position 80] (--verified)
+
+where `con-ron` on the same fixture prints `4 projection functions of
+non-direct structure-likes rewritten to recursor form` and accepts.  The three
+are `e2e/nested_struct_proj.ndjson`, `e2e/inmodel_mutual.ndjson` and
+`e2e/inmodel_nested.ndjson`, all expecting 0 and getting 2 — a DECLINE, never
+a wrong accept, which is §1's direction.  Nothing else in the 348 differs, in
+either mode.
+
+(Before the P4d-2 merge the same sweep read **61 agree / 287 differ**, every
+one of the 287 the inductive stub's `notImplemented` — the Lean twin's own
+part-1 number, to the fixture.)
+
+#### `Init`: the verdict is right, the instructions are 1.51×, the memory is 3.9×
+
+`_tmp/corpus/init.ndjson`, `--jobs=1`, mimalloc, under `ulimit -v 8000000`,
+this machine:
+
+| | instructions:u | cycles:u | IPC | wall | peak RSS | verdict |
+|---|---:|---:|---:|---:|---:|---|
+| con-leche (OVERVIEW §7.2) | 585.9 G | — | — | 56 s | 0.48 GB | accepted 57 977 |
+| con-ron (OVERVIEW §7.2) | 542.1 G | — | — | 61 s | 0.48 GB | accepted 57 977 |
+| con-ron, re-measured here | 539.8 G | 282.4 G | 1.91 | 61.2 s | 0.48 GB | accepted 57 977 |
+| **con-ron-arena** | **816.0 G** | **536.9 G** | **1.52** | **122.9 s** | **1.85 GB** | **accepted 57 977** |
+
+Wall is three runs (122.7 / 121.4 / 124.8 s, spread 3.4 s) of the plain
+binary; the instruction count is a fourth run under `perf stat` with
+`--progress=5000`, which costs nothing at that stride.  **The verdict and the
+count are right** — `con-ron-arena: accepted 57977 declarations (--verified)`,
+the number OVERVIEW §7.2 records for both other checkers — and the store the
+parse built is the Lean twin's to the node (6 137 973 expression, 581 level,
+295 343 name nodes: task #97e part 2's figure for (B) on the same input).
+
+The phase split:
+
+| phase | con-ron-arena | con-ron |
+|---|---:|---:|
+| parse (+ prelude, preparation, pins) | 2.34 s | 0.96 s |
+| install, phase A (58 007 records) | 11.92 s | — |
+| check, phase B (57 362 records) | 108.01 s | — |
+| total | 122.3 s | 61.2 s |
+
+So the rewrite is **1.51× con-ron's instructions and 1.39× con-leche's**, and
+§8.1's target — beat today's con-ron on all three numbers — is NOT met at P4f.
+That is P6's brief, which is where the REORDERED ruling puts it; what P4f adds
+is the first end-to-end number to aim at, and four facts about it.
+
+* **The gap is not the parse.**  2.34 s against 0.96 s is the price of
+  hash-consing every node (and it buys the 6.1 M-node DAG); it is 2 % of the
+  run.  Phase B is 88 % of it.
+* **The IPC is half the story.**  1.52 against con-ron's 1.91: the arena
+  executes 1.51× the instructions at 0.79× the rate, which is why the wall
+  ratio (2.0×) is worse than the instruction ratio.  A handle dereference is an
+  index into one of ten per-constructor arrays plus, on intern, a probe of a
+  cons table — two dependent loads where the tree checker followed one pointer
+  it had just allocated and was still warm.
+* **The memory is over CLAUDE.md's budget, and phase A is where it goes.**
+  1.85 GB against con-ron's and con-leche's 0.48 GB is **3.9×**, where the
+  standing rule for a con-ron run is 3× con-leche on the same input.  The
+  heartbeat's boundary line, which this task added for exactly this question,
+  says where: the parse leaves **6 137 973** expression nodes in the
+  persistent tier and phase A leaves **11 193 516** — the install ADDS 5.06 M
+  permanent nodes, +82 %, because the annotation interns and **nothing in
+  phase A opens a scratch tier**, so every intermediate it walks through is
+  appended to the persistent tier and probed against for the rest of the run.
+  It is the one number that must come down before `Init+Std+Lean` is
+  attempted, let alone Mathlib, and §8.1's promise (nanoda 10.7 GB, con-ron
+  today 7.80 GB) is what it will be judged against.
+* **Nothing hangs and nothing declines**: the run is a clean accept, so the
+  campaign's remaining work is performance and proofs, not coverage.
+
+#### Where the cycles go (perf record, 27 K samples, the whole run)
+
+| bucket | share | the symbols |
+|---|---:|---|
+| checker bodies and store reads | 23.8 % | `instantiate1_go` 4.4, `ETables::get` 2.4, `der_at` 2.2, `EStore::intern` 2.1, `get_app_fn` 1.2, `abstract1_go` 0.8, … |
+| **cons-table probe** | **15.9 %** | `ETables::find` **15.1**, `NTables::find` 0.8 |
+| **table (re)allocation** | **15.6 %** | `HashMap<EIdxNat,EIdx>::allocate_slots` 5.7, `<AppNode,_>::allocate_slots` 1.8, `<EIdx,EIdx>::allocate_slots` 1.6, `<BindNode,_>::allocate_slots` 1.0, the `move_elements*` rehashes 3.1, `RawVec::finish_grow` 0.9 |
+| table get/insert | 8.4 % | `HashMap<EIdxNat,EIdx>::insert` 2.9, `list_insert` 3.9, … |
+| view/record copies | 6.0 % | `expr::str_copy_from` 2.3, `core_types::code_points_from` 1.7, `binder_meta_dup` 0.8, `vec_dup` 0.7 |
+| allocator | 5.4 % | `mi_free` 1.8, `_mi_theap_malloc_zero` 1.4, … |
+
+(75 % of cycles listed; the rest is the tail below 0.3 %.)
+
+#### What P6 should open first
+
+1. **Give the tiers and the tables a `clear` that keeps capacity.**  15.6 % of
+   the run is allocating and rehashing tables *from zero*, and the reason is
+   structural: `drop_scratch` is `self.scr = ETables::empty()` (four stores),
+   `flush_caches` is `st.caches = Caches::empty()` (eleven tables and eleven
+   journals) and `enter_scratch` is `st.memos = Memos::empty()` (eleven more) —
+   **per declaration, 57 362 times** — and `inst1_clear` and its eight siblings
+   do the same per top-level call.  Every one of those tables then grows back
+   from `MIN_CAPACITY` with the rehashes the profile shows.  A `Tbl::truncate`
+   / `HashMap::clear` that keeps the buckets makes the bracket `O(appended)`
+   instead of `O(allocate + regrow)`, and it is the SAME primitive task
+   #97-P4d's `astate_dup` note asks for ("a `Tbl` truncation primitive would
+   make it `O(appended)`").  It changes no verdict and no twin clause — the
+   twin's `flushC` says the table is empty afterwards, and it would be.
+2. **Then `ETables::find` (15.1 %)**: every `intern` probes the cons table of
+   its constructor.  Two cheap things before anything structural: the bucket
+   is the derived hash, which for `app` is a mix of two child hashes — measure
+   the collision rate — and the probe is a `list_insert`-style chain, so a
+   table with a load factor tuned for handles (nanoda's identity hasher) is the
+   comparison to make.  The structural question behind it is whether phase A's
+   *intermediate* terms need to be interned at all: nothing opens a scratch
+   tier during the install, so every intermediate the annotation walks through
+   is appended to the persistent tier and probed against for the rest of the
+   run — and it is 5.06 M of the 11.2 M nodes the tier ends with (above).
+   That is also the first place to look for the 3.9× memory: a scratch bracket
+   around the install's per-record work, with the record's RESULT re-interned
+   persistently, is con-leche's own `flushC` shape one phase up, and it is a
+   twin question before it is a Rust one.
+3. **The owned views (6 %)**: `EStore::view`/`NStore::view` return an OWNED
+   `NNodeView`, so a name node's `Vec<u32>` string is copied on every decode
+   (`str_copy_from` 2.3 %, `code_points_from` 1.7 %) — and `read_name` decodes
+   one node per prefix.  A view that borrows, or a separate interned-string
+   column keyed by index, removes that whole row.
+4. **Then the pool**, which is a change to one `while` (above) and whose
+   speedup is con-leche's own, with no atomics to pay for: §8.3's persistent
+   tier is immutable in phase B by construction, which is the part `con-ron`
+   had to pay `Arc` traffic for.
+
+#### Gates
+
+`cargo build` / `cargo test` workspace-wide under `RUSTFLAGS="-D warnings"`:
+green, 2 new tests (the reader against `parse_chunks` at seven chunk sizes,
+including one byte at a time, and the rendering/flag values).
+`scripts/lint-rust-style.sh` over the two VERIFIED trees: clean — this crate
+is outside it, as `crates/con-ron` is.  `scripts/provenance.py check`: **0
+findings**, and `crates/con-ron-arena/src` is now one of its `RUST_ROOTS` for
+`crates/con-ron`'s reason (5 721 items, 4 444 citations, all current at pin
+`c431b1ca`).  `scripts/overview-links.sh`: green — and it is why the workspace
+note in `Cargo.toml` was rewritten in place rather than extended, since
+OVERVIEW §7 cites `Cargo.toml#L21-L25`.  `scripts/extract.sh --check` was not
+run (`con-ron-core` is untouched) and `cd proof && lake build` was not run
+(this task touches no Lean, and sibling agents are editing `proof/`) — P4b's,
+P4c's and P4d's ruling, unchanged.
