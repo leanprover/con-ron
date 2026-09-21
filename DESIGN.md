@@ -1841,6 +1841,19 @@ tens of GiB and tens of minutes; and any timing, since a shared runner
 measures noise (the measure of record is `perf stat` on the development
 machine).
 
+### 7.x Measurement scope by kind of task (maintainer, 2026-09-21)
+
+The measurement a task owes depends on what kind of task it is.  An
+**optimisation idea** — something worth investigating — gets the full
+treatment: `instructions:u` on the exports it targets, profiles, an A/B per
+lever.  Something that **has to be done anyway** — a sync, a refactor, a
+port — only needs to catch an unexpected regression, for which one `Init`
+run (`instructions:u`) is sufficient, plus the Mathlib landing run under the
+memory cap where the landing rule applies (anything touching memory).  Wall
+time is measured only with a stated reason.  Performance updates to
+OVERVIEW happen post-merge in their own task, never inside a bump or a
+feature task.
+
 ## 8. The arena rewrite (task #97, 2026-09-20)
 
 ### 8.1 The ruling
