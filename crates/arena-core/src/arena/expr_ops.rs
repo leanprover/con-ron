@@ -311,14 +311,15 @@ pub fn eidx_copy_upto(xs: &Vec<EIdx>, k: usize, i: usize, out: Vec<EIdx>) -> Vec
 /// con-leche: none — `List.take` over a `Vec<EIdx>`
 /// `xs.take k`.
 pub fn take_eidx(xs: &Vec<EIdx>, k: usize) -> Vec<EIdx> {
-    eidx_copy_upto(xs, k, 0, Vec::new())
+    let n: usize = if k < xs.len() { k } else { xs.len() };
+    eidx_copy_upto(xs, k, 0, Vec::with_capacity(n))
 }
 
 /// con-leche: none — `x :: xs` over a `Vec<EIdx>`
 /// Lean conses in `O(1)` and shares the tail; a `Vec` has no cons, so the
 /// tail is copied.  Every call site is a telescope arity, not a term size.
 pub fn cons_eidx(a: &EIdx, xs: &Vec<EIdx>) -> Vec<EIdx> {
-    let mut out: Vec<EIdx> = Vec::new();
+    let mut out: Vec<EIdx> = Vec::with_capacity(xs.len() + 1);
     out.push(a.dup2());
     eidx_copy_upto(xs, xs.len(), 0, out)
 }
@@ -2210,12 +2211,29 @@ pub fn get_app_args(
     fuel: u64,
     h: &EIdx,
 ) -> Result<Vec<EIdx>, CheckError>  {
+    get_app_args_go(pers, st, fuel, h, 0)
+}
+
+/// con-leche: ConLeche/Kernel/ExprOps.lean:920-923 getAppArgs
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:654-661 getAppArgs` — the
+/// cursor recursion behind `get_app_args`.  `k` counts the arguments seen on
+/// the way DOWN and is spent at the head as the vector's capacity (task
+/// #97-P6-9): a `Vec` grown from empty reallocates once per doubling, and this
+/// is on every reduction step.  A capacity is a representation difference the
+/// refinement absorbs (DESIGN §8.6's twin-ledger rule).
+pub fn get_app_args_go(
+    pers: &PersTier,
+    st: &AState,
+    fuel: u64,
+    h: &EIdx,
+    k: usize,
+) -> Result<Vec<EIdx>, CheckError>  {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_APP_ARGS)))
     } else {
         match view(pers, st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::App(f, a)) => match get_app_args(pers, st, fuel - 1, &f) {
+            Ok(ENodeView::App(f, a)) => match get_app_args_go(pers, st, fuel - 1, &f, k + 1) {
                 Err(e) => Err(e),
                 Ok(args) => {
                     let mut out: Vec<EIdx> = args;
@@ -2223,7 +2241,7 @@ pub fn get_app_args(
                     Ok(out)
                 }
             },
-            Ok(_) => Ok(Vec::new()),
+            Ok(_) => Ok(Vec::with_capacity(k)),
         }
     }
 }

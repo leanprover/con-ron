@@ -6951,12 +6951,32 @@ pub fn get_app_spine(
     fuel: u64,
     h: &EIdx,
 ) -> Result<(EIdx, Vec<EIdx>, Vec<EIdx>), CheckError> {
+    get_app_spine_go(pers, st, fuel, h, 0)
+}
+
+/// con-leche: none — `getAppFn`/`getAppArgsC` in one descent (see
+/// `get_app_spine`)
+/// Lean twin: OWED (task #97-P6-9's ledger) — the cursor recursion behind
+/// `get_app_spine`.
+///
+/// `k` counts the arguments seen on the way DOWN and is spent at the head, as
+/// the two vectors' capacity: `whnf_core` meets an application spine on every
+/// reduction step, and a `Vec` grown from empty reallocates ⌈log₂ n⌉ times per
+/// spine.  A capacity is a representation difference the refinement absorbs
+/// (DESIGN §8.6's twin-ledger rule), so this costs the twin nothing.
+pub fn get_app_spine_go(
+    pers: &PersTier,
+    st: &AState,
+    fuel: u64,
+    h: &EIdx,
+    k: usize,
+) -> Result<(EIdx, Vec<EIdx>, Vec<EIdx>), CheckError> {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_WHNF_SPINE)))
     } else {
         match view(pers, st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::App(f, a)) => match get_app_spine(pers, st, fuel - 1, &f) {
+            Ok(ENodeView::App(f, a)) => match get_app_spine_go(pers, st, fuel - 1, &f, k + 1) {
                 Err(e) => Err(e),
                 Ok(t) => {
                     let hd: EIdx = t.0;
@@ -6967,7 +6987,7 @@ pub fn get_app_spine(
                     Ok((hd, args, nodes))
                 }
             },
-            Ok(_) => Ok((h.dup2(), Vec::new(), Vec::new())),
+            Ok(_) => Ok((h.dup2(), Vec::with_capacity(k), Vec::with_capacity(k))),
         }
     }
 }
