@@ -34992,7 +34992,7 @@ defines, and the walks are the same walks.
 |---|---|
 | `cargo build --release` / `cargo test --release`, `RUSTFLAGS="-D warnings"` | clean, 0 failures |
 | `scripts/lint-rust-style.sh crates/arena-core/src` | clean |
-| `scripts/provenance.py check` | **0 findings** — `6732 item(s) (4979 Rust, 1753 arena Lean), 4966 citation(s), all current at pin 78ded4b6` |
+| `scripts/provenance.py check` | **0 findings** — `6734 item(s) (4981 Rust, 1753 arena Lean), 4968 citation(s), all current at pin 78ded4b6` |
 | `scripts/extract-arena.sh --dry` | **0 errors, 5 type + 210 function holes** — one FEWER than the tip's 211 |
 | `scripts/diff-e2e.sh --bin=target/release/con-ron-arena` | **383/383 agree**, 0 differ, 0 timed out — at `--jobs=1` in both modes and at `--jobs=4` |
 | the diff | `arena/{handle,store,monad,expr_ops,core}.rs` — nothing else under `crates/` |
