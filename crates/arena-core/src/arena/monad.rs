@@ -5,26 +5,32 @@
 //! written together, proofs later).  It is the seam between task #97-P4a's
 //! frozen store layer (`arena::{handle, store}`) and every twin above it.
 //!
-//! ## `AM` is `&mut AState` plus `Result`
+//! ## `AM` is `&PersTier` plus `&mut AState` plus `Result`
 //!
-//! The twin's monad is `AM := StateT AState (Except CheckError)` and nothing
-//! else (DESIGN.md §8.4).  Aeneas threads a `&mut` parameter back as a
-//! returned value and models `Result` as con-leche's `Except`
+//! The twin's monad is `AM := ReaderT PersTier (StateT AState (Except
+//! CheckError))` (DESIGN.md §8.4, amended by task #97-P6-6b).  Aeneas threads
+//! a `&mut` parameter back as a returned value, passes a shared one straight
+//! through and models `Result` as con-leche's `Except`
 //! (`kernel::core_types`' note), so the Rust of `AM α` is
 //!
 //! | Lean | Rust |
 //! |---|---|
-//! | `AM α` | `fn(st: &mut AState, …) -> Result<A, CheckError>` |
+//! | `AM α` | `fn(pers: &PersTier, st: &mut AState, …) -> Result<A, CheckError>` |
+//! | `read` | `pers` |
 //! | `pure a` | `Ok(a)` |
 //! | `fail e` | `fail(e)`, i.e. `Err(e)` |
 //! | `x ← m; k x` | `match m { Ok(x) => k(x), Err(e) => Err(e) }` |
 //!
 //! Two shapes of the twin come out narrower here, and both are deliberate:
 //!
-//! * **the state parameter is first, not last.**  `AM` threads the state as
-//!   an invisible first argument, so putting `st` first leaves every other
-//!   argument in the twin's own order, and it is the position `EStore`'s
-//!   `&mut self` already occupies one layer down.
+//! * **the reader is first and the state second, and neither is last.**  `AM`
+//!   threads both invisibly, so putting `pers` and then `st` at the front
+//!   leaves every other argument in the twin's own order, and `st` is the
+//!   position `EStore`'s `&mut self` already occupies one layer down.  A
+//!   function that cannot read the persistent tier on any path does not take
+//!   `pers` at all — the twenty-two memo probes below are the largest such
+//!   family — which costs the refinement nothing: `ReaderT` is free to
+//!   ignore its environment.
 //! * **a twin that cannot fail returns its value.**  `derivedE`, `derivedL`,
 //!   `LIdx.hasParam` and the twenty-two memo probes are `AM α` only because
 //!   `AM` is the module's one monad; none of them has a `fail` on any path.

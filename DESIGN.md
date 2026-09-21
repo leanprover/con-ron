@@ -2099,7 +2099,15 @@ Provenance citations point at `ConLeche/Kernel/*` (and `Frontend/*`), never
 transliteration:
   * one `def` per intended Rust function, same name (camelCase ↔ snake_case);
   * the monad is `AM := StateT AState (Except CheckError)` and nothing else
-    — no `IO`, no `partial`, no typeclass-polymorphic bodies;
+    — no `IO`, no `partial`, no typeclass-polymorphic bodies.  **AMENDED by
+    ONE transformer (task #97-P6-6b, the coordinator's ruling before §8.7):**
+    `AM := ReaderT PersTier (StateT AState (Except CheckError))`, the
+    persistent tier read and never written, which is what lets phase B's `n`
+    workers share it.  Nothing else about the discipline moves: no `IO`, no
+    `partial`, no typeclass-polymorphic bodies, and NO CLAUSE of any twin
+    changes — `view`/`intern`/`derived`/`find?` read `(← read)` where they
+    read the state's tier, and the refinement treats the reader exactly as it
+    treats `fe`;
   * fuel as an explicit `Nat`; the knot is con-leche's `CoreFns` record over
     handles with the six bodies as plain functions, tied by `coreKnot` at
     fuel — clause for clause `Kernel/Core.lean`, the only differences being
@@ -30168,7 +30176,7 @@ receiver is the state and `pers` is the first explicit argument.
 | — taking `pers: &PersTier` | **1 064** |
 | — taking `vis: u64` | **307** |
 | — taking both | 299 |
-| the diff, three commits | 7 909 + / 4 815 − over 46 files |
+| the diff, four commits | 7 975 + / 4 815 − over 46 files |
 
 The parameter goes only where a read can happen: the twenty-two memo probes,
 the eleven cache resets, `fail`, the handle arithmetic and the pin-table
@@ -30256,3 +30264,171 @@ and not the clamp-to-one it was.  `--progress` prints a check line per worker
 under the observer's mutex, and the plain lane and the heartbeat lane are ONE
 path through the driver (a plain run used to call `install_then_check`
 directly, which after the freeze would have been a second computation).
+
+#### 6. The numbers
+
+`--verified --progress=1000000`, mimalloc, under CLAUDE.md's caps, this
+machine (task #97-P6-3's: AMD EPYC 9455, 125 GiB, the flake's Charon-pinned
+`rustc`); `perf stat -e instructions:u,cycles:u` and GNU `time -v` around one
+run each.  **Every row is this session's own run**, the `arena` tip
+`f1af2622` rebuilt from its own sources here, for the reason task #97-P6-7's
+last note gives: `cycles:u` and wall are not session-independent.  **And this
+session was not a quiet one** — another agent held the machine between load
+average 6 and 160 throughout — so the cycles and wall columns are worth less
+than usual and the INSTRUCTION column, which does not notice, is what the
+comparison rests on.  Raw `.perf`/`.time`/`.err`: `_tmp/t97p66b/`.
+
+**The refactor at one worker** — the column the brief asks to be free:
+
+| `--jobs=1` | instructions:u | Δ | cycles:u | wall | peak RSS | verdict |
+|---|---:|---:|---:|---:|---:|---|
+| `Init`, tip | 413.83 G | — | 259.33 G | 65.19 s | 0.61 GB | accepted 57 977 |
+| `Init`, after | 422.34 G | **+2.06 %** | 267.19 G | 67.49 s | 0.63 GB | accepted 57 977 |
+| `core`, tip | 922.30 G | — | 523.56 G | 125.54 s | 1.39 GB | accepted 163 396 |
+| `core`, after | 924.71 G | **+0.26 %** | 479.63 G | 109.94 s | 1.39 GB | accepted 163 396 |
+| Mathlib, tip | 11 167.67 G | — | 5 817.36 G | 1 364.2 s | 7.66 GB | accepted 691 128 |
+| Mathlib, after | **11 380.23 G** | **+1.90 %** | 6 105.71 G | 1 462.6 s | 7.74 GB | accepted 691 128 |
+
+The tip's three instruction counts reproduce task #97-P6-7's to the digit —
+413.83 G, 922.30 G and **11 167.67 G** — which is what says this is that
+tree.  **The refactor is not quite free, and the price is small**: a
+`shared_on` test on the persistent side of every store read, and one more
+argument register on 1 371 signatures.  `Init` pays the most because a worker
+starts with empty tables and has to re-learn task #97-P6-7's `clear_fit`
+high-water mark, which on the smallest export is the largest share of the
+run.
+
+**The pool:**
+
+| | `--jobs` | instructions:u | cycles:u | check phase | total wall | peak RSS |
+|---|---:|---:|---:|---:|---:|---:|
+| `Init` | 1 | 422.34 G | 267.19 G | 62.74 s | 67.49 s | 0.63 GB |
+| `Init` | 8 | 427.90 G (+1.3 %) | 397.35 G | 14.23 s | 28.05 s | 0.85 GB |
+| `Init` | 16 | 428.40 G (+1.4 %) | 413.37 G | 9.02 s | 22.64 s | 1.06 GB |
+| `core` | 1 | 924.71 G | 479.63 G | 94.95 s | 109.94 s | 1.39 GB |
+| `core` | 8 | 937.64 G (+1.4 %) | 502.10 G | **12.57 s** | 27.42 s | 1.75 GB |
+| Mathlib | 1 | 11 380.23 G | 6 105.71 G | 1 297.7 s | 1 462.6 s | 7.74 GB |
+| Mathlib | 8 | 11 495.15 G (+1.0 %) | 6 374.36 G | **173.4 s** | **303.9 s** | 9.35 GB |
+
+(`Init`'s three rows and the `core` tip row were taken while the machine was
+at load 85–160 and their wall and cycles are not comparable with each other;
+the instruction column is.)
+
+**The per-worker replication is 1.0–1.4 % of the instructions and 30 MB of
+resident set on `Init`, 53 MB on `core`, 230 MB on Mathlib** — a scratch
+tier, the memos, the caches and sixty-eight pin handles, and **no environment
+at all**.  `con_ron::pool` gives each worker one `fenv::dup`, which OVERVIEW
+§7.2 prices at ≈1.4 GB a worker on Mathlib (7.80 → 17.8 GB over seven extra
+workers); this pool's seven extra workers cost **1.61 GB between them**, and
+the cost does not scale with the environment at all, which is what §2's
+scalar bought.
+
+**The check phase scales**, which is the column con-ron at master does worst:
+Mathlib's check phase is **1 297.7 → 173.4 s at eight workers, 7.5×**,
+`core`'s 94.95 → 12.57 s, **7.6×**, and `Init`'s 62.74 → 9.02 s at sixteen,
+7.0×.  OVERVIEW §7.2 blames con-ron's poor scaling on its atomic reference
+counts; the arena has no reference counts, and the only atomics here are the
+claim counter and the failure limit — one `fetch_add` and one `load` per
+record.
+
+**Beside the other two checkers at eight workers** (OVERVIEW §7.2: `Init`
+20 s / 1.18 GB, `core` 73 s / 2.80 GB, Mathlib 929 s / 17.8 GB for `con-ron`
+at master; 12 / 37 / 337 s for con-leche), and reading the arena's wall with
+the load caveat above:
+
+| at `--jobs=8` | `con-ron` master | con-leche | arena | vs master |
+|---|---:|---:|---:|---:|
+| `Init` wall | 20 s | 12 s | 28.05 s | 1.40× |
+| `core` wall | 73 s | 37 s | 27.42 s | **0.38×** |
+| **Mathlib wall** | **929 s** | **337 s** | **303.9 s** | **0.33×** |
+| Mathlib peak RSS | 17.8 GB | — | **9.35 GB** | **0.53×** |
+
+Mathlib at eight workers is **under con-leche's own eight-worker wall** and a
+third of `con-ron`'s, at half its resident set — the projection task
+#97-P6-6 §3 made from Amdahl (364 s) came out at 303.9 s.  `Init`'s cell is
+the one above 1.00× and it is the serial part showing: 13.7 s of its 28.05 s
+is parse and install, and that run was taken at load 124.  Task #97-P6-6's
+brief said the pool was "the largest lever left in P6"; on the measure of
+record it is worth nothing at all (instructions are up 1 %), and on wall it
+is worth 4.8× on Mathlib.
+
+#### 7. Gates
+
+| | |
+|---|---|
+| `cargo build --release` / `cargo test --release`, `RUSTFLAGS="-D warnings"` | green; 426 tests (120 `arena-core`, 7 `con-ron-arena`), 0 failures |
+| `scripts/lint-rust-style.sh` over both verified trees | clean |
+| `scripts/provenance.py check` | **0 findings** (6 552 items — 4 799 Rust, 1 753 arena Lean — 4 877 citations, all current at pin `c431b1ca`) |
+| `scripts/extract-arena.sh --dry` | **0 errors, 66 743 lines of model, 5 type and 209 function holes** — both template files byte-identical to the tip's, compared by `diff` against a run of the tip's own sources in this session, once after the refactor and once on the final tree |
+| `scripts/holes.sh --check` | 2 types, 20 functions, all in OVERVIEW §8.1, OK |
+| `scripts/provenance-selftest.py`, `scripts/overview-links.sh` | green (67 links, 36 files) |
+| `scripts/diff-e2e.sh --bin=target/release/con-ron-arena` | **348/348 `--verified` at `--jobs` 1, 2, 4 and 8**; 348/348 `--trusted --jobs=8`; the documented **331 agree / 17 decline** at `--no-pins` |
+| the full verdict LINE of all 177 stream fixtures, tip vs this tree at `--jobs=1` and at `--jobs=8` | **byte-identical** once the `t=<s>s` suffix is stripped |
+| `con-ron-arena --verified` on `init` / `core` / `mathlib` | accepted **57 977** / **163 396** / **691 128**, at one worker and at eight |
+| `scripts/extract.sh --check`, `cd proof && lake build` | not run: nothing under `crates/con-ron-core`, `crates/con-ron`, `crates/con-ron-dump` or `proof/` moved — P4b's, P4c's and P4d's standing ruling |
+
+**The one bug the fixture sweep could not see.**  The first version of the
+pool froze the tier into a local of `check_decls_driver` and dropped it on
+return, so every reader AFTER the fold — the verdict line's declaration
+label, the failing record's name, the receipts — read a frozen store over a
+tier that no longer existed: `nat_add_wrong.ndjson` printed `at theorem ?`
+where the tip prints `at theorem addOk`.  `diff-e2e.sh` compares exit codes
+and not text, so it read 348/348 straight through it.  `driver::thaw_tier`
+puts the tier back before the driver returns,
+`freezing_and_thawing_leave_every_handle_readable` is the regression, and the
+177-fixture line-for-line sweep is the gate that would have caught it and is
+now part of the record.
+
+#### 8. What is left
+
+1. **The Lean catch-up**, which now owes §3's five ledger items on top of task
+   #97-P6-4a's `Pins`/`internAllPins`, task #97-P6-5's `internRebuilt` and
+   task #97-P6-7's two clauses.  §8.4's monad sentence is amended in place.
+2. **The `shared_on` test is the refactor's whole price** (§6).  It cannot be
+   branchless — two tiers are two objects — but it could be hoisted: `view`,
+   `derived` and `find` are called from bodies that already know which phase
+   they are in.  That is a code-size trade against 0.3–2 % of the
+   instructions and wants a measurement before anyone takes it.
+3. **The parse and phase A are the serial part now.**  `Init` at sixteen
+   workers is 22.6 s of which 13.5 s is parse and install; `core` at eight is
+   27.4 s of which 14.8 s is.  Amdahl's next lever for the arena is no longer
+   the check phase, and §8.7's parse-DAG question is where it starts.
+4. **`--jobs` and `ulimit -v`.**  A worker reserves 1 GiB of address space, so
+   a pooled run needs CLAUDE.md's 3× plus a GiB a worker; the runs above used
+   12 GB (`Init` at 1), 20 GB (at 8), 28 GB (at 16), 6 GB (`core` at 1),
+   14 GB (at 8), 27 GB (Mathlib at 1) and 31 GB (at 8).
+
+#### 9. PAUSED HERE (maintainer, 2026-09-21: the arena is paused until the
+con-leche sync on master finishes)
+
+The wind-down state, for whoever resumes:
+
+  * **the task is COMPLETE and the worktree is green.**  Both halves of the
+    ruling landed and so did the pool, before the pause reached this agent;
+    `cargo build --release` and `cargo test --release` under
+    `RUSTFLAGS="-D warnings"` are clean, and §7's gates were all run on the
+    committed tree.
+  * **the `pers` parameter is EVERYWHERE it belongs**, not partway: all 1 064
+    of `arena-core`'s functions that can read the persistent tier carry it,
+    across every module (`arena/{store, monad, handle, expr_ops, core,
+    core_gated, core_io, core_state, canon, env, fenv, prop_read, intern,
+    pins, promote, basis, std_axioms, trust_axioms, nat_op_pin_set,
+    checker_base, checker_split, checker, decl_check, inductives/*}` and
+    `frontend/{export_c, prepare, prelude, proj_rec, nat_op_ground, types}`),
+    plus the two examples and `crates/con-ron-arena`.  The 711 functions that
+    do NOT carry it are the ones no read reaches — the memo probes, the cache
+    resets, `fail`, the handle arithmetic, the pure `Vec` helpers — and that
+    is deliberate, not unfinished.  Same for `vis: u64`: 307 functions, every
+    one that reads the environment.
+  * **nothing outside the two arena crates moved.**  `crates/con-ron-core`,
+    `crates/con-ron`, `crates/con-ron-dump`, `proof/`, `OVERVIEW.md` and
+    `README.md` are untouched, so the con-leche sync on master has nothing
+    to reconcile with this branch beyond DESIGN.md's §8.3/§8.4/§8.6
+    amendments and this section.
+  * **four commits**, in the order the work was done: the tier as a reader
+    parameter, `visible_below` out of the index, the pool, and the frozen-tier
+    bug the fixture sweep could not see (§7).
+  * **not done, and deliberately not started**: the Lean catch-up (§8 item 1),
+    which is a Lean task and belongs after the sync; the `shared_on` hoist
+    (item 2); and a quiet-machine re-run of §6's wall column, which every row
+    above carries a caveat for.
