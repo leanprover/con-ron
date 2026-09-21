@@ -2315,7 +2315,7 @@ the persistent tier (the byte recogniser is unchanged).
         10 942.50 G instructions, 8 109.66 G cycles, 1 862 s, 7.19 GB** —
         **0.95× / 0.93× / 0.93× / 0.86× `con-ron` at master, every column
         under 1.00× for the first time**, and 1.81× nanoda, from 2.12×.  The
-        install phase is 512.0 → 92.9 s; `Init` is 404.88 G (0.75× master) and
+        install phase is 504.1 → 92.9 s; `Init` is 404.88 G (0.75× master) and
         `core` 882.34 G (0.76×).  The twin owes ONE clause, `internRebuilt`.
 
 Branch `arena`; master stays shippable until (C) passes the gates and the
@@ -28801,7 +28801,9 @@ cycles from one `perf stat -e instructions:u,cycles:u`.  Raw
 whole of `_tmp/corpus/mathlib.ndjson` at the tip: **231 860 samples,
 10 181.88 G cycles, `accepted 691128`**, phases **parse 36.9 s / install
 512.0 s / check 1 780.4 s** (1.6 % / 22.0 % / 76.4 % of the wall, and 1.6 % /
-21.9 % / 76.5 % of the cycles).
+21.9 % / 76.5 % of the cycles).  Those phase times are under `perf record`;
+§5's plain `perf stat` run of the same binary reads 37.1 / 504.1 / 1 709.2,
+which is the 2 % the sampler costs.
 
 **The prefix is the working benchmark**, because 40 minutes a run is too slow
 to iterate on: `head -26948621`, the first 25 % of the file's 107 794 484
@@ -28883,10 +28885,10 @@ lesson 13's `O(1)` index) and `visible_below`.  Lean shares a record for free,
 so the twin writes `fe₂ := fe.push stored` and goes on reading `fe`; the port
 spells that `ifenv_push(ifenv_dup(fe), stored)`, and **`ifenv_dup` is
 `O(environment)` with a `Vec<NIdx>` malloc per constant.**
-`arena::inductives` does it three times per inductive block —
-`check_native_pass` (once, twice if the `isRec` guess does not settle),
-`check_native_rec_rules` (once), `modeled.rs` (twice, for the 2 072
-in-process blocks) — and Mathlib has **6 720 inductive records over an
+`arena::inductives` does it two to three times per inductive block —
+`check_native_pass` (once, twice if the `isRec` guess does not settle) and
+`check_native_rec_rules` (once) on the native route, `modeled.rs` (twice) on
+the modelled one — and Mathlib has **6 720 inductive records over an
 environment that ends at 691 128 constants**.
 
 It is invisible on `Init` (2.4 % of the run) because the environment there is
@@ -29021,7 +29023,7 @@ Theorem 1 is stated at `denoteEnv st`.
 
 **The environment copy is 17.13 % → 0.35 %, and the prefix's install phase is
 107.5 s → 20.8 s (5.2×).**  On the full export the install phase is
-**512.0 s → 92.9 s, 5.5×**.  The shape is now `Init`'s, which is the shape a
+**504.1 s → 92.9 s, 5.4×**.  The shape is now `Init`'s, which is the shape a
 checker should have: the store and the walks are 72 % of the run between them
 and everything else is under 10 %.
 
@@ -29066,11 +29068,15 @@ runs, `core`'s and Mathlib's is one and is indicative only.
 | nanoda (#97-P6-3) | 6 053.88 G | 4 536.30 G | 1.33 | 1 048 s | 6.80 GB | Checked 707 508 |
 | **`con-ron` @ master** (#97-P6-3) | **11 535.07 G** | 8 675.69 G | 1.33 | 2 012 s | 8.39 GB | accepted 691 128 |
 | con-leche (OVERVIEW §7.2) | 12 792.4 G | — | — | 1 220 s | 8.75 GB | accepted 691 128 |
-| `con-ron-arena`, `arena` tip (#97-P6-4a) | 12 824.40 G | 10 378.09 G | 1.24 | 2 390 s | 7.57 GB | accepted 691 128 |
+| `con-ron-arena`, `arena` tip 9fe6607e | 12 809.81 G | 9 855.29 G | 1.30 | 2 250 s | 7.62 GB | accepted 691 128 |
 | **`con-ron-arena`, after P6-5** | **10 942.50 G** | **8 109.66 G** | **1.35** | **1 862 s** | **7.19 GB** | **accepted 691 128** |
-| | **−14.7 %** | **−21.9 %** | | **−22.1 %** | −5.0 % | |
+| | **−14.6 %** | **−17.7 %** | | **−17.2 %** | −5.7 % | |
 | **ratio to `con-ron` @ master** | **0.95×** | **0.93×** | | **0.93×** | **0.86×** | |
 | ratio to nanoda | **1.81×** | 1.79× | | 1.78× | 1.06× | |
+
+(The tip's Mathlib row is this session's own run and reproduces task
+#97-P6-4a's 12 824.40 G to 0.11 %, which is what makes the comparison a
+same-binary, same-session one.)
 
 **§8.1's goal is met on Mathlib on every column, and by a margin.**  "The
 target is to beat today's con-ron on all three numbers": Mathlib is 0.95×
@@ -29080,18 +29086,19 @@ everywhere (0.75× / 0.76× / 0.95×) and on `Init`'s and `core`'s wall; what is
 left is the two small exports' peak RSS (1.26× and 1.06×), which is §8.7's
 untaken lever and not this task's.
 
-**And the IPC turned around.**  Mathlib's was 1.24 at the tip — below both
+**And the IPC turned around.**  Mathlib's was 1.30 at the tip — below both
 baselines' 1.33 — and is now **1.35**, above them.  That is what removing a
-copy whose working set is the whole environment does: the check phase's
-cache behaviour was never the problem at Mathlib scale, the install phase's
-was.
+copy whose working set is the whole environment does.
 
-**Mathlib's phases: parse 36.9 → 49.6 s, install 512.0 → 92.9 s (5.5×),
-check 1 780.4 → 1 719.5 s.**  Install is 22.0 % of the tip's wall and **5.0 %
-of the new one**; the check phase moves 3.4 %, which is levers 2 and 3.  (The
-parse's two readings are one run each of a phase that is I/O-bound on a 6.1 GB
-file and differ by page-cache state, not by code: no lever touches the
-frontend.)
+**Mathlib's phases: parse 37.1 → 49.6 s, install 504.1 → 92.9 s (5.4×),
+check 1 709.2 → 1 719.5 s.**  Install is 22.4 % of the tip's wall and **5.0 %
+of the new one**, and **that is where all of the win is**: the check phase
+moves +0.6 %, i.e. nothing outside one run's noise, so levers 2 and 3 —
+worth −2.1 % of the PREFIX's cycles in a controlled A/B — do not show at this
+resolution.  (The parse's two readings are one run each of a phase that is
+I/O-bound on a 6.1 GB file; the tip's ran on a quiet machine and the new one
+alongside this task's own prefix A/B, which is also why the new row's wall is
+if anything pessimistic.)
 
 **nanoda is 1.81× away on Mathlib**, from 3.04× at task #97-P6-4a's first
 arena run and 2.12× at its last.  On the two small exports it is 1.75× and
@@ -29163,10 +29170,11 @@ constant the environment no longer shows, which is a decline.
    environment is built) is the lever, and Mathlib is where it is worth the
    most: 103 M of the run's 110 M nodes are the parse DAG.
 4. **The `modeled.rs` environment copies**, the two `ifenv_dup`s this task did
-   not take: they are 2 072 blocks of Mathlib's 6 720 + 2 072 and they run the
-   same `O(environment)` copy, which the profile now shows as the whole of the
-   remaining 0.35 %.  Worth taking with lever 5's recipe when someone is next
-   in that file; not worth a task.
+   not take: they run the same `O(environment)` copy on the modelled route,
+   and they are what is left of the bucket — `i_constant_infos_dup_from`
+   0.06 %, `i_constant_info_dup` 0.04 %, `dup_slots` 0.02 % on the prefix after.
+   Worth taking with lever 5's recipe when someone is next in that file; not
+   worth a task.
 5. **`str_copy_from` is back at 1.0 % of the prefix** after the pins lever
    removed most of it.  What is left is `proj_table_name`, which interns a
    reserved name per projection lookup; the `Pins` record is the place for it.
