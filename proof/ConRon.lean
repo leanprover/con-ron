@@ -32,6 +32,8 @@ import ConRon.Refine.Core.Statements
 import ConRon.Refine.Automation.Study
 import ConRon.Refine.Core.Knot
 import ConRon.Refine.HashMapWF
+import ConRon.Refine.HashMap2
+import ConRon.Refine.HashMap2WF
 import ConRon.Refine.Nat
 import ConRon.Refine.Env
 import ConRon.Refine.Canon
