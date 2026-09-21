@@ -29188,12 +29188,12 @@ constant the environment no longer shows, which is a decline.
 |---|---|
 | `cargo build --release` / `cargo test --release`, `RUSTFLAGS="-D warnings"` | green; 120 tests in `arena-core`, 422 in the workspace, 0 failures |
 | `scripts/lint-rust-style.sh` over both verified trees | clean |
-| `scripts/provenance.py check` | **0 findings** (6 505 items — 4 752 Rust, 1 753 arena Lean — 4 862 citations, all current at pin `c431b1ca`) |
+| `scripts/provenance.py check` | **0 findings** (6 508 items — 4 755 Rust, 1 753 arena Lean — 4 865 citations, all current at pin `c431b1ca`) |
 | `scripts/extract-arena.sh --dry` | zero errors, 64 953 lines of model, **5 type and 209 function holes** — byte-identical to the `arena` tip's list.  `Vec::pop` would have made it 210, which is why `ifenv_pop_temp` shrinks with `Vec::resize` (§3) |
 | `scripts/extract.sh --check` | not re-run: `git diff 9fe6607e -- crates/con-ron-core crates/con-ron crates/con-ron-dump proof` is EMPTY, so the committed model of `con-ron-core` cannot have moved |
 | `scripts/holes.sh --check` | 2 types, 20 functions, all in OVERVIEW §8.1, OK |
 | `scripts/provenance-selftest.py`, `scripts/overview-links.sh` | green |
-| `scripts/diff-e2e.sh --bin=target/release/con-ron-arena` | **348/348 `--verified`, 348/348 `--trusted`**, at every one of the five levers |
+| `scripts/diff-e2e.sh --bin=target/release/con-ron-arena` | **348/348 `--verified`, 348/348 `--trusted`**, at every one of the five levers; `--no-pins` reads the documented **331 agree / 17 decline** |
 | `con-ron-arena --verified _tmp/corpus/init.ndjson` | accepted **57 977** |
 | `con-ron-arena --verified _tmp/corpus/core.ndjson` | accepted **163 396** |
 | `con-ron-arena --verified _tmp/corpus/mathlib.ndjson` | accepted **691 128** |
