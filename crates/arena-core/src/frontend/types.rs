@@ -38,7 +38,11 @@ use crate::arena::store::EStore;
 use con_ron_core::kernel::core_types;
 use con_ron_core::kernel::core_types::CheckError;
 use con_ron_core::kernel::env::ReducibilityHint;
-use con_ron_core::ron::hashmap::HashMap;
+// The arena's tables are the epoch-stamped open-addressed map
+// (DESIGN.md's `Task #97-P6-4b`), aliased so that every use site below
+// reads as it did.  `ron::hashmap::HashMap` is still what `crates/con-ron`
+// uses, and is still the one with proofs.
+use con_ron_core::ron::hashmap2::HashMap2 as HashMap;
 
 // ---------------------------------------------------------------------------
 // Record verdicts (`Types.lean:44-59` of the twin)

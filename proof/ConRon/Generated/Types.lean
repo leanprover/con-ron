@@ -1264,4 +1264,22 @@ structure kernel.pins_decode.Tables where
 structure kernel.prop_when.Valuation (Self : Type) where
   value_at : Self → kernel.name.Name → Result Std.U64
 
+/-- [con_ron_core::ron::hashmap2::Slot]
+    Source: 'crates/con-ron-core/src/ron/hashmap2.rs', lines 89:0-92:1
+    Visibility: public -/
+@[discriminant isize]
+inductive ron.hashmap2.Slot (K : Type) (V : Type) where
+| Vacant : ron.hashmap2.Slot K V
+| Live : Std.U32 → K → V → ron.hashmap2.Slot K V
+
+/-- [con_ron_core::ron::hashmap2::HashMap2]
+    Source: 'crates/con-ron-core/src/ron/hashmap2.rs', lines 104:0-116:1
+    Visibility: public -/
+structure ron.hashmap2.HashMap2 (K : Type) (V : Type) where
+  num_entries : Std.Usize
+  max_load : Std.Usize
+  epoch : Std.U32
+  saturated : Bool
+  slots : alloc.vec.Vec (ron.hashmap2.Slot K V)
+
 end ConRon.Generated

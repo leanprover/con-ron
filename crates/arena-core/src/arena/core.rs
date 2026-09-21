@@ -558,7 +558,7 @@ pub fn lvl_eq_set(st: &mut AState, k: LIdxPair, r: bool) {
     if st.caches.lvl_eq_c.len() < CACHE_CAP {
         ()
     } else {
-        st.caches.lvl_eq_c = con_ron_core::ron::hashmap::HashMap::new();
+        st.caches.lvl_eq_c = con_ron_core::ron::hashmap2::HashMap2::new();
     }
     let _ = st.caches.lvl_eq_c.insert(k, r);
 }
@@ -606,7 +606,7 @@ pub fn lvls_eq_set(st: &mut AState, k: LsIdxPair, r: bool) {
     if st.caches.lvls_eq_c.len() < CACHE_CAP {
         ()
     } else {
-        st.caches.lvls_eq_c = con_ron_core::ron::hashmap::HashMap::new();
+        st.caches.lvls_eq_c = con_ron_core::ron::hashmap2::HashMap2::new();
     }
     let _ = st.caches.lvls_eq_c.insert(k, r);
 }
@@ -654,7 +654,7 @@ pub fn const_ty_set(st: &mut AState, k: NLsKey, r: &EIdx) {
     if st.caches.const_ty_c.len() < CACHE_CAP {
         ()
     } else {
-        st.caches.const_ty_c = con_ron_core::ron::hashmap::HashMap::new();
+        st.caches.const_ty_c = con_ron_core::ron::hashmap2::HashMap2::new();
     }
     let _ = st.caches.const_ty_c.insert(k, r.dup2());
 }
@@ -699,7 +699,7 @@ pub fn const_val_set(st: &mut AState, k: NLsKey, r: &EIdx) {
     if st.caches.const_val_c.len() < CACHE_CAP {
         ()
     } else {
-        st.caches.const_val_c = con_ron_core::ron::hashmap::HashMap::new();
+        st.caches.const_val_c = con_ron_core::ron::hashmap2::HashMap2::new();
     }
     let _ = st.caches.const_val_c.insert(k, r.dup2());
 }
@@ -746,7 +746,7 @@ pub fn rule_rhs_set(st: &mut AState, k: NNLsKey, r: &EIdx) {
     if st.caches.rule_rhs_c.len() < CACHE_CAP {
         ()
     } else {
-        st.caches.rule_rhs_c = con_ron_core::ron::hashmap::HashMap::new();
+        st.caches.rule_rhs_c = con_ron_core::ron::hashmap2::HashMap2::new();
     }
     let _ = st.caches.rule_rhs_c.insert(k, r.dup2());
 }
@@ -8690,7 +8690,7 @@ pub fn whnf_core_set(st: &mut AState, e: &EIdx, r: &EIdx) {
     if st.caches.whnf_core_c.len() < CACHE_CAP {
         ()
     } else {
-        st.caches.whnf_core_c = con_ron_core::ron::hashmap::HashMap::new();
+        st.caches.whnf_core_c = con_ron_core::ron::hashmap2::HashMap2::new();
     }
     let _ = st.caches.whnf_core_c.insert(e.dup2(), r.dup2());
 }
@@ -8702,7 +8702,7 @@ pub fn whnf_set(st: &mut AState, e: &EIdx, r: &EIdx) {
     if st.caches.whnf_c.len() < CACHE_CAP {
         ()
     } else {
-        st.caches.whnf_c = con_ron_core::ron::hashmap::HashMap::new();
+        st.caches.whnf_c = con_ron_core::ron::hashmap2::HashMap2::new();
     }
     let _ = st.caches.whnf_c.insert(e.dup2(), r.dup2());
 }
@@ -8714,7 +8714,7 @@ pub fn infer_set(st: &mut AState, e: &EIdx, r: &EIdx) {
     if st.caches.infer_c.len() < CACHE_CAP {
         ()
     } else {
-        st.caches.infer_c = con_ron_core::ron::hashmap::HashMap::new();
+        st.caches.infer_c = con_ron_core::ron::hashmap2::HashMap2::new();
     }
     let _ = st.caches.infer_c.insert(e.dup2(), r.dup2());
 }
@@ -8727,7 +8727,7 @@ pub fn infer_io_set(st: &mut AState, e: &EIdx, r: &EIdx) {
     if st.caches.infer_io_c.len() < CACHE_CAP {
         ()
     } else {
-        st.caches.infer_io_c = con_ron_core::ron::hashmap::HashMap::new();
+        st.caches.infer_io_c = con_ron_core::ron::hashmap2::HashMap2::new();
     }
     let _ = st.caches.infer_io_c.insert(e.dup2(), r.dup2());
 }
@@ -8739,7 +8739,7 @@ pub fn annot_set(st: &mut AState, e: &EIdx, r: &EIdx) {
     if st.caches.annot_c.len() < CACHE_CAP {
         ()
     } else {
-        st.caches.annot_c = con_ron_core::ron::hashmap::HashMap::new();
+        st.caches.annot_c = con_ron_core::ron::hashmap2::HashMap2::new();
     }
     let _ = st.caches.annot_c.insert(e.dup2(), r.dup2());
 }
@@ -8752,7 +8752,7 @@ pub fn defeq_set(st: &mut AState, a: &EIdx, b: &EIdx, r: bool) {
     if st.caches.defeq_c.len() < CACHE_CAP {
         ()
     } else {
-        st.caches.defeq_c = con_ron_core::ron::hashmap::HashMap::new();
+        st.caches.defeq_c = con_ron_core::ron::hashmap2::HashMap2::new();
     }
     let k: EIdxPair = eidx_pair(a, b);
     let _ = st.caches.defeq_c.insert(k, r);

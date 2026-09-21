@@ -2260,6 +2260,21 @@ the persistent tier (the byte recogniser is unchanged).
         accepted 163 396, 1 878.3 G, 299 s, 1.67 GB, where it used to abort
         with a stack overflow.  Peak RSS against con-ron at master is
         1.46× / 1.25×, where P4f measured 3.9×.
+        4b. `ron::HashMap`'s representation, which task #97-P6-1's "what is
+        left" listed third at **21.8 % of `Init`**.  **DONE** (task
+        #97-P6-4b): the profile says the chains are fine (98.8 % of 1.23 G
+        lookups resolve in one step) and the slot vector is not (36.1 M
+        `clear`s walking 2.94 G buckets), so `ron::hashmap2::HashMap2` is a
+        flat, open-addressed, **epoch-stamped** map whose `clear` is a field
+        bump — landed as an UNPROVED sibling of `ron::hashmap`, which keeps
+        its proofs untouched.  `Init` goes **735.02 G → 525.22 G
+        instructions** (−28.5 %), 351.60 → 304.22 G cycles, 78.8 → 67.1 s,
+        727.6 → 600.2 MB, 348/348 in both modes — and the arena is now
+        **0.97× `con-ron` at master on instructions**, the first column of
+        the campaign to go under 1.00×.  The map's share of the cycles falls
+        31.4 % → 17.6 %.  The owed re-proof is priced in that task's §9 at
+        1 900–2 300 Lean lines against today's 2 595, against the SAME
+        mathematical specification.
 
 Branch `arena`; master stays shippable until (C) passes the gates and the
 fixtures.  Budget from con-leche's record, scaled: (B) ~12 k lines,
@@ -27890,3 +27905,429 @@ children — which it must do anyway, since a promoted node has to survive the
 `drop_scratch` that follows.  The invariant is the same one; it just stops
 being implied by "nothing is appended to `pers` while `scratch_on`", and
 `e_view_has_scratch_child`'s note is written to say so.
+
+### Task #97-P6-4b — the verified hash map under the arena's workload (2026-09-20, Opus under Fable)
+
+Phase P6 item 4b of §8.6.  Task #97-P6-1 closed with "`ron::HashMap`'s
+representation: `clear_slots` + `allocate_slots` + `move_elements*` is
+**21.8 %** of the run after the levers above, and all three are halving
+recursions over a chained-bucket array.  Nothing in this task can move that."
+This task profiles that 21.8 %, designs and measures the alternatives inside
+the Aeneas subset, and lands the winner as a **new, unproved sibling module**
+— `crates/con-ron-core/src/ron/hashmap2.rs`, `ron::HashMap2`.
+`ron::hashmap` is **untouched** and `proof/ConRon/Refine/HashMap*.lean` stays
+green; the owed proof is priced at the end of this section and is not written
+here.
+
+Baseline is the `arena` tip 316fd7fe: `_tmp/corpus/init.ndjson`, `--verified
+--jobs=1 --progress=1000000`, under `ulimit -v 8000000`, instructions and
+cycles from one `perf stat -e instructions:u,cycles:u`, wall from three plain
+runs, peak RSS from `time -v`.  Every number below is from this one session on
+the P6-3 machine.
+
+#### 1. The profile, and the counts under it
+
+`perf record -F 199` over the whole run, self time, bucketed:
+
+| share of cycles | |
+|---:|---|
+| 11.29 % | `clear_slots` |
+| 6.71 % | `allocate_slots` |
+| 5.68 % | `move_elements` + `move_elements_from_list` |
+| 2.86 % | `list_get` / `list_insert` / `list_remove` |
+| 4.83 % | the rest of `ron::hashmap` (`get`, `insert`, `dup`, the `AList` drop glue) |
+| **31.37 %** | **`ron::HashMap` in total** |
+
+So P6-1's 21.8 % is now 23.7 %, and the whole map is very nearly a third of
+the run.  An instrumented build (counters in `ron::hashmap`, dumped at exit;
+not committed) says what those recursions are actually doing:
+
+| on `Init` | count |
+|---|---:|
+| `get` calls | 1 228 953 968 |
+| — the table was unallocated | 9 648 382 |
+| — the home bucket was `Nil` | 513 242 497 |
+| — a hit | 578 025 892 |
+| — chain steps, total | 802 595 660 |
+| `insert` calls | 627 320 951 |
+| — chain steps, total | 160 386 752 |
+| — replacements (an existing key) | 144 |
+| `ensure_slots` fires (a table's first insert) | 636 341 |
+| resizes | 1 405 469 |
+| — entries moved by them | 349 323 629 |
+| buckets pushed by `allocate_slots` | 948 184 512 |
+| **`clear` calls** | **36 053 620** |
+| **— buckets walked by them** | **2 940 488 064** |
+| — entries those buckets held | 586 917 896 |
+| — of them, already-empty tables | 0 (`reset_map`'s guard catches those first) |
+
+and the chain-length histogram of a `get` is
+
+    0 steps 522 890 879 | 1 step 626 085 521 | 2 66 304 595 | 3 11 348 866
+    4 1 836 460 | 5 430 075 | 6 46 646 | 7 9 304 | 8 1 481 | 9 126 | 10 15 | >10 0
+
+**The diagnosis, in one line: the chains are fine and the slot vector is
+not.**  98.8 % of the 1.23 G lookups resolve in at most one chain step and
+the longest chain in the whole run is ten — the table is a good hash table,
+and no amount of work on `list_get` is worth anything.  What costs is the
+*array*: 2.94 G bucket writes to clear 0.59 G entries (**5.01 buckets walked
+per entry cleared**; the average cleared table is 82 buckets holding 16
+entries, a load factor of 0.20 at reset time) and 0.95 G `Vec::push`es to
+allocate them back.  96.6 % of the 36 M clears are of a 32- or 64-bucket
+table — these are `inst1_clear` and its ten siblings, which run *per top-level
+call*, not `Caches::reset`, which runs per declaration.
+
+Per unit, at 351.6 G cycles:
+
+| | cycles each |
+|---|---:|
+| a bucket written by `clear_slots` | **13.5** |
+| a bucket pushed by `allocate_slots` | **24.9** |
+| an entry moved by `move_elements*` | **57** |
+
+Thirteen cycles to write `AList::Nil` into a slot is what a halving recursion
+costs: two calls, a bounds check and a drop-glue call per bucket, where a
+`memset` would be a fraction of one.  This is a representation cost and it is
+the whole finding.
+
+#### 2. What was designed, and what it is
+
+The brief's (a) — "the same chained map with a flat, pre-sized slot vector and
+a bulk `Vec` reset" — **cannot be had**: `AList<K, V>` owns `Option<Box<…>>`,
+so a `Vec<AList>` cannot be reset with a `memset` in any language, and the
+subset has no loop to vectorise anyway.  The brief's (b) — open addressing —
+gets the slot down to a POD, and the profile then asks for one thing more,
+which is that a reset should not touch the slots at all.  Both together are
+`ron::HashMap2`:
+
+* `slots : Vec<Slot<K, V>>` with `enum Slot { Vacant, Live(u32, K, V) }`.
+  No `Box`, no chain: an entry **is** a slot.
+* A `Live` slot counts only if its stamp equals the table's `epoch`.  A stale
+  stamp is free space and is indistinguishable from `Vacant` to every
+  operation — including to a probe, which therefore stops at it.
+* **`clear` is `epoch += 1`.**  O(1).  That is the 2.94 G bucket writes gone.
+  The wrap at `u32::MAX` vacates the slots the hard way and restarts the
+  epoch; it is there for totality (`Init` clears its hottest table ~36 M
+  times, four wraps' worth of headroom below the bound) and it never fired.
+* Linear probing; `remove` is Knuth's algorithm R (backward-shift deletion),
+  so there are no tombstones and no third slot state.
+* Every §3.4 rule holds: the probe, the repair, the slot walks and
+  `pow2_at_least` are recursions with explicit fuel; no loop, no closure, no
+  `?`, no `unsafe`, no `std::collections`, no `derive`, no panic.  The API is
+  `ron::hashmap::HashMap`'s name for name (`new`, `with_capacity`, `get`,
+  `contains_key`, `insert`, `remove`, `clear`, `len`, `is_empty`, `capacity`,
+  `dup`) over the same `Hashable`/`Eq2`/`Dup` dictionaries, so a table swaps
+  by changing one import.
+
+**The epoch stamp is free.**  `Slot<AppNode, EIdx>` is 20 bytes and
+`Option<(AppNode, EIdx)>` is also 20: the tag word is padded either way, so
+the stamp rides in padding that already existed.  Measured slot sizes:
+
+| | `AList<K, V>` | `Slot<K, V>` |
+|---|---:|---:|
+| `AppNode → EIdx` (the `app` cons table) | 24 B | **20 B** |
+| `EIdx → EIdx` (`whnf_c`, `infer_c`, …) | 24 B | **16 B** |
+| `EIdx → bool` (the walk memos) | 16 B | **12 B** |
+
+#### 3. The one thing that nearly sank it: the identity hasher
+
+The first working version ran `Init` at **2 291.8 G instructions** against the
+chained map's 735.0 G — **3.1× worse**, with 25 % of the cycles inside one
+`HashMap2<EIdx, EIdx>::insert_no_resize`.  The cause is §8.3's own design
+decision seen from the other side.  `Hashable for EIdx` is **nanoda's identity
+hasher** (`Handle.lean:88`, "the word IS the hash"), so a handle's hash is its
+word, one constructor's handles are a *contiguous range* of indices, and
+several constructors' are several contiguous ranges laid on top of each other.
+Density is the best case for chaining — one entry per bucket, which is exactly
+what the histogram above shows — and the **worst** case for linear probing: a
+dense key set is one solid cluster, and every probe that lands inside it walks
+to the end.
+
+The fix is three instructions in `home_index`: multiply by the 64-bit golden
+ratio and fold the high half down before masking.
+
+    fn home_index(h: u64, n: usize) -> usize {
+        let m = h.wrapping_mul(0x9e3779b97f4a7c15);
+        let x = m ^ (m >> 32);
+        let n64 = n as u64;
+        let i = x & (n64 - 1);
+        i as usize
+    }
+
+| `Init` | instructions:u | cycles:u | wall |
+|---|---:|---:|---:|
+| `HashMap2`, bare mask (`h & (n-1)`, as `ron::hashmap` does) | 2 291.77 G | 604.05 G | 138.8 s |
+| **`HashMap2`, multiply-xor finalizer** | **642.16 G** | **308.22 G** | 70.1 s |
+
+This costs the proof nothing.  A hash is verdict-neutral (§3.2: any function
+of the value will do) and `ConRon/Refine/HashMap.lean` already treats the
+bucket function as a black box — `bucketAt` is "a plain function of the key:
+the proofs never look inside it", the invariant says only that a key sits
+where *this* function puts it, and **no assumption on `hash64` is made
+anywhere in the file**.  The owed `Inv` for `HashMap2` inherits that exactly.
+
+It is also a warning worth writing down: `ron::hashmap`'s bare mask is safe
+*because it chains*.  Any future open-addressed table in this crate must
+finalize, and the reason is a design decision (the identity hasher) that is
+correct and is not going to change.
+
+#### 4. The load factor, measured on `Init` and not chosen
+
+Linear probing pays for load in probe length, so the constant is a
+measurement.  Four whole-`Init` runs, everything else identical:
+
+| load factor | instructions:u | cycles:u | peak RSS |
+|---|---:|---:|---:|
+| 1/2 | 676.31 G | 325.65 G | 875 876 KB |
+| 5/8 | 652.03 G | 313.43 G | 811 748 KB |
+| **3/4 (shipped)** | **642.16 G** | **308.22 G** | **607 348 KB** |
+| 7/8 | 655.45 G | 314.24 G | 556 068 KB |
+
+3/4 is the best instruction count *and* very nearly the best memory, which is
+not the textbook expectation and has a plain cause: the slot count is a power
+of two, so a lower load factor does not buy shorter probe runs smoothly — it
+buys a *doubling* sooner, and the doubling costs an `allocate_slots` walk, a
+rehash and a colder table.  3/4 is also `ron::hashmap`'s own `LOAD_NUM /
+LOAD_DEN`, so the two modules keep one constant.
+
+#### 5. The micro-benchmark
+
+`crates/arena-core/examples/map_bench.rs`, committed, on the arena's three key
+shapes (`cargo run --release --example map_bench`).  Best of the numbers that
+matter, this machine:
+
+| | chained | open (3/4) |
+|---|---:|---:|
+| **1. cons table**, 4 M distinct `AppNode` keys | | |
+| insert (growth path) | 158.6 ns | **108.1 ns** |
+| get, hit | 26.4 ns | 26.6 ns |
+| get, miss | **25.1 ns** | 38.0 ns |
+| bytes per entry (RSS delta) | 57.8 B | **47.2 B** |
+| **2. memo cache**, fill / probe / **clear**, 20 000 rounds | 15 899 ns/round | **4 085 ns/round** (**3.9×**) |
+| **3. name cons table**, 400 k `StrNode` keys | | |
+| insert | 315.1 ns | **235.8 ns** |
+| get | 87.8 ns | **81.1 ns** |
+
+The one row where the chained map wins is the **miss**, and it is exactly the
+row the histogram predicted: 41.8 % of `Init`'s lookups find the home bucket
+`Nil` and stop after one cache line, where a linear probe at load 3/4 walks
+its run.  It is a real cost and it is bought back several times over by row 2,
+which is the workload that dominates: `clear` is 36 M calls and 2.94 G bucket
+writes in the run this is a model of.
+
+#### 6. `Init`, end to end — and the second lever the O(1) clear opens
+
+The swap is one import per file in `crates/arena-core` (fifteen files, plus
+eleven qualified `HashMap::new()` in `core.rs`) — every table of the arena at
+once: the eighteen cons tables of the four stores, the eleven `Caches`, the
+`Memos`, the environment index, the promotion memos and the walk memos.
+
+**And then `reset_map` has to go.**  Task #97-P6-1 bought its lever with three
+guards (leave an empty table alone; hand the bucket array back when the last
+round used less than a sixteenth of it; and not below 64 buckets), because
+against a chained map `clear` costs `O(capacity)` whatever the table holds.
+With an O(1) clear there is nothing to weigh, and the shrink those guards
+perform is now pure loss — giving the array back means allocating it again.
+`arena::core_state::reset_map` becomes `m.clear()`, one line, and
+`RESET_KEEP_FLOOR`/`RESET_KEEP_SLACK` go with it.  Measured as a clean
+interleaved A/B, the same binary either way:
+
+| `reset_map` under `HashMap2` | instructions:u | cycles:u | wall |
+|---|---:|---:|---:|
+| task #97-P6-1's three guards | 642.16 / 642.16 G | 305.42 / 305.45 G | 69.38 / 69.58 s |
+| **`m.clear()`** | **525.22 / 525.22 G** | **291.42 / 303.39 G** | **66.16 / 68.98 s** |
+
+(Two runs each, alternating, because a sibling agent was benchmarking on the
+machine: the instruction counts agree to six figures across the pair and the
+cycle counts do not, which is exactly the reason CLAUDE.md makes
+`instructions:u` the measure of record.)
+
+| `Init`, `--verified --jobs=1` | instructions:u | cycles:u | wall, 3 runs (spread) | peak RSS | verdict |
+|---|---:|---:|---:|---:|---|
+| **`arena` tip 316fd7fe** (`ron::HashMap`) | 735.02 G | 351.60 G | 78.48 / 78.79 / 79.15 (0.67 s) | 727 640 KB | accepted 57 977 |
+| `HashMap2`, `reset_map` unchanged | 642.16 G | 305.42 G | 69.38 / 69.58 / 70.09 (0.71 s) | 580 988 – 607 348 KB | accepted 57 977 |
+| **`HashMap2` + `reset_map = clear`** | **525.22 G** | **304.22 G** | **66.82 / 67.14 / 68.43 (1.61 s)** | **600 196 KB** | accepted 57 977 |
+| | **−28.5 %** | **−13.5 %** | **−15.0 %** | **−17.5 %** | |
+| `con-ron` @ master, re-measured this session | 542.01 G | 274.59 G | 61.16 / 61.43 / 62.28 (1.12 s) | 481 268 KB | accepted 57 977 |
+| nanoda (task #97-P6-3) | 231.04 G | 108.51 G | 24.78 s | 365 348 KB | Checked 59 433 |
+
+| ratio, arena to … | at the tip | after |
+|---|---:|---:|
+| `con-ron` master, instructions | 1.36× | **0.97×** |
+| `con-ron` master, cycles | 1.28× | 1.11× |
+| `con-ron` master, wall | 1.28× | 1.09× |
+| `con-ron` master, peak RSS | 1.51× | **1.25×** |
+| nanoda, instructions | 3.18× | **2.27×** |
+
+**`con-ron-arena` now executes fewer instructions on `Init` than `con-ron` at
+master** — 525.22 G against 542.01 G — which is the first time in the campaign
+that any of the four columns has gone under 1.00×.  Cycles and wall are still
+1.1× because the arena's working set is larger and its IPC lower (1.73 against
+master's 1.97), and peak RSS is 1.25× where P4f measured 3.9×.
+
+`scripts/diff-e2e.sh --bin=target/release/con-ron-arena`: **348/348 at
+`--verified` and 348/348 at `--trusted`**, unchanged at every step.
+
+The two peak-RSS readings on the middle row are two runs of the same binary;
+mimalloc's high-water mark moves by ~4 % between runs and both are given
+rather than one.
+
+#### 7. The profile after
+
+`perf record -F 199`, self time, same bucketing as §1:
+
+| share of cycles | | at the tip |
+|---:|---|---:|
+| **0.00 %** | `vacate_slots` — the epoch wrap never fires, so **`clear` costs nothing at all** | `clear_slots` 11.29 % |
+| **0.98 %** | `allocate_slots` | 6.71 % |
+| **0.34 %** | `move_slots` | `move_elements*` 5.68 % |
+| 16.26 % | the rest of `ron::hashmap2` (`get`, `insert_no_resize`, `dup`) | `list_*` + rest 7.69 % |
+| **17.58 %** | **the map in total** | **31.37 %** |
+
+In absolute cycles: **110.3 G → 53.5 G, −51 %**.  The clear is gone outright;
+`allocate_slots` collapses from 23.6 G to 3.0 G because with no shrink each
+table's array is allocated once and kept for the run; `move_slots` from 20.0 G
+to 1.0 G for the same reason plus no `Box` to free per entry.  What is left is
+the probing itself, which is the work.
+
+The top of the profile is now
+
+| | share | |
+|---|---:|---|
+| `instantiate1_go` | 13.04 % | the checker body |
+| `ETables::find` | 6.99 % | the cons-table probe |
+| `HashMap2<BindNode, EIdx>::insert_no_resize` | 6.68 % | the `lam`/`forallE` cons table, the one a check fills fastest |
+| `ETables::get` | 4.29 % | the decode |
+| `EStore::intern` | 4.27 % | |
+
+— i.e. for the first time in this campaign the run's largest symbol by a
+factor of two is *work* and not table maintenance.
+
+**What is left in the map.**  Nothing structural: `allocate_slots` is under
+1 %, so the `Vec::resize` spike task #97-P6-1's item 1 asks for is no longer
+worth taking for this module's sake (it still is for the `astate_dup`
+truncation it was really about).  The remaining 16 % is probes and inserts,
+i.e. the hash table doing its job, and the lever on *that* is the working set
+— §8.7's open question about the parse DAG, not the map.
+
+#### 8. What is landed, and what is not
+
+* `crates/con-ron-core/src/ron/hashmap2.rs` — the module, 13 tests including a
+  **differential against `ron::hashmap` on 200 000 random operations** (insert
+  / get / contains / remove / clear, ~16 k distinct keys) and a second one at
+  a constant hash, where every operation is one cluster and the backward shift
+  runs under maximum pressure.  Cited `none — arena infrastructure`, marked
+  **PROOF OWED** in its module note.
+* `crates/arena-core/examples/map_bench.rs` — the micro-benchmark above.
+* `proof/ConRon/Generated/{Types,Funs}.lean` — regenerated.  The diff is a
+  **pure append of 599 lines** (18 to `Types.lean`, 581 to `Funs.lean`): not a
+  single existing definition moves, no external appears (`extract.sh` still
+  reports the same 2 types and 20 functions modelled by hand), and
+  `scripts/extract.sh --check` is green.  This is what keeps
+  `ConRon/Refine/HashMap*.lean` compiling untouched.
+* **The arena-core swap is its own commit**, last, so that it can be reverted
+  on its own if it collides with concurrent P6 work: fifteen one-line import
+  changes, eleven qualified constructors, and `reset_map` back to one line.
+  It changes no checker logic and no twin clause.
+
+**Not landed**: any change to `ron::hashmap` or to
+`proof/ConRon/Refine/HashMap*.lean`.  The old map keeps its proofs and is
+still what `crates/con-ron` (master's binary) uses.
+
+#### 9. The twin ledger, and the owed proof
+
+§8.6's Rust-first rule asks for the clause-level list.  **Everything in this
+task is in the second column**: `ron::HashMap` is a *Rust* realization of the
+twin's `Std.HashMap`, and the twin never mentions it.  `proof/ConRon/Arena/`
+does not change by one clause, and neither does any statement in
+`ConRon/Refine/*` — those are stated at `toFun` / `Rel` / `RelOn`, never at
+`al_v`.
+
+| change | Lean must mirror | absorbed by the refinement |
+|---|---|---|
+| `ron::hashmap2` exists | — | yes: a new module, nothing imports it in `con-ron-core` |
+| the arena's tables are `HashMap2` | — | yes: the same abstract map, a different realization |
+| `home_index`'s finalizer | — | yes: a hash is verdict-neutral and the invariant never looks inside it |
+| `clear` is an epoch bump | — | yes: the same value afterwards (`toFun m' k = none` for every `k`) |
+| the stale rows a cleared table keeps | — | yes: they are not in `sl_v`, hence not in the abstract map |
+| `reset_map` back to `m.clear()` | — | yes, and it *removes* an owed lemma: task #97-P6-1's item 2 (`reset_map_refines`, a two-branch disjunction over `clear_refines` and `new_refines`) becomes one application of `clear_refines`, and `capacity_spec` loses its only caller |
+
+**What the module owes, and what it costs.**  The obligation is to re-prove
+`Refine/HashMap.lean`'s development for the new representation.  The
+*mathematical specification survives unchanged* — that is the load-bearing
+claim of this section, and it is why the estimate is what it is:
+
+    toFun m k = lookupK (⟦the table as a List (K × V)⟧) k
+
+with `lookupK`, `eraseK` and their eleven list lemmas (`HashMap.lean:120-200`,
+`369-430`) used verbatim, and `Rel` / `RelOn` / `Rel_get` / `Rel_insert` /
+`Rel_remove` (`HashMap.lean:1762-1800`, `HashMapWF.lean:716-750`) restated
+word for word over the new `toFun`.  Every consumer — `State.lean`,
+`FEnv.lean`, `ExprOps.lean`, `Abs.lean`, `PinsRun.lean`, `CoreKNames.lean` and
+the five `Frontend/*` files — imports those names and nothing below them, and
+**none of them moves**.
+
+What does move, by section of `HashMap.lean` (1 823 lines) and
+`HashMapWF.lean` (772):
+
+| what | today | for `HashMap2` |
+|---|---|---|
+| `alv` / `alvO` / `al_v` / `AList.recTail` (lines 206-246) | 40 lines | replaced by `sl_v : HashMap2 K V → List (K × V)` — the live slots in index order, a `List.filterMap` over `slots`, ~15 lines, **and no nested-inductive induction principle at all** (the `Option<Box<…>>` that forced `recTail` is gone) |
+| `list_get_spec` / `list_insert_spec` / `list_remove_spec` (287-467) | ~180 | **gone**, replaced by one `probe_spec`: "`probe` returns the key's slot if it is live in the run, and otherwise the first free slot of the run" — the one genuinely new lemma, and the one with real content, ~120 lines over the run induction |
+| `slotsFlat` and the bucket lemmas (524-610) | ~90 | a run-based analogue, ~90 |
+| `Inv` (265-275) | 5 clauses | 6: the run clause ("every live key is reachable from its home by live slots") replaces `slot_inv`, plus `1 ≤ epoch` |
+| `get` / `contains_key` / `len` / `is_empty` (612-690) | ~80 | the same, over `probe_spec`, ~80 |
+| `allocate_slots` / `new` / `ensure_slots` / `with_capacity` / `pow2_at_least` (698-860) | ~165 | **near-verbatim**: the same halving recursion over the same `Vec`, `Slot::Vacant` for `AList::Nil` |
+| `clear_slots_spec` / `clear_refines` (861-970) | ~110 | **much smaller**: `clear` is two field writes, and the wrap arm reuses the vacate walk — ~40, plus "no slot is live at the new epoch", which is where the epoch clause of `Inv` earns its keep |
+| `insert_no_resize_spec` (1048-1180) | ~135 | ~135, over `probe_spec` instead of `list_insert_spec` |
+| `move_elements*` / `try_resize` / `insert_refines` (1183-1470) | ~290 | ~290, same shape |
+| `remove_refines` (1474-1610) | ~135 | **the expensive one, ~350**: backward-shift deletion has to be shown to preserve the run clause, which is a cyclic-interval argument (`wraps_past`) the chained map never needed |
+| `dup` (1613-1760) | ~150 | ~120, simpler (no `AList` recursion) |
+| `Rel` / `RelOn` and the `*_wf` variants | ~330 | **verbatim**, only the `toFun` under them changes |
+
+**Estimate: 1 900 – 2 300 lines, against today's 2 595** — smaller than the
+original, because the nested inductive and its three `list_*` specs go away
+and `clear` becomes trivial, and larger in exactly two places: `probe_spec`
+(new, ~120) and `remove_refines` (~135 → ~350).  In calendar terms, by the
+rate the P3/P5 sections record for proofs of this shape, **one Opus task**,
+and it is a task that can be done at any time because nothing depends on it —
+`hashmap2` has no proof today and the capstones do not reach it until §8.6's
+swap makes `arena-core` the verified crate.
+
+One further obligation belongs to whoever writes it, and it is not in
+`HashMap.lean`'s list: **`probe`'s `fuel == 0` arm**.  It returns `(i, false)`
+— "this slot is free" — which is the arm that cannot be reached when
+`num_entries ≤ max_load < slots.len()`, and the proof has to discharge it from
+`Inv` rather than assume it.  If it were ever reached the failure is a lost
+memo row and nothing else (an insert would overwrite a live entry), which is
+the safe direction in §1's sense, but the lemma is owed and is stated in the
+function's doc comment.
+
+#### Gates
+
+`cargo build --release` and `cargo test --release` workspace-wide under
+`RUSTFLAGS="-D warnings"`: green, 15 test binaries, **13 new tests**, 0
+failures.  `scripts/diff-e2e.sh` on `con-ron-arena`: **348/348** at
+`--verified` and **348/348** at `--trusted`.  `scripts/lint-rust-style.sh` over both verified trees: clean.
+`scripts/provenance.py check`: **0 findings** (6 393 items, 4 860 citations,
+all current at pin `c431b1ca`).  `scripts/extract.sh --check`: **OK**, the
+regenerated `Generated/{Types,Funs}.lean` committed with the module.
+`scripts/holes.sh --check`, `scripts/provenance-selftest.py`,
+`scripts/overview-links.sh`, the three `gen-*.sh --check`: green.
+`scripts/extract-arena.sh --dry`: 63 665 lines, **5 type and 209 function
+holes** against the tip's 4 and 208 — the crate-boundary list swaps
+`ron::hashmap::HashMap::{new, with_capacity, len, clear, get, contains_key,
+insert, remove, dup, capacity}` for `ron::hashmap2::HashMap2`'s same nine
+(`capacity` loses its only caller with `reset_map`'s guards), and gains the
+`HashMap2` type beside `HashMap`, which a `con-ron-core` type still reaches.
+Every one is `con-ron-core`'s own, which is task #97-P4a's rule.
+`cd proof && lake build ConRon.Refine.HashMap ConRon.Refine.HashMapWF` under
+`LEAN_NUM_THREADS=4`: **green** (`Generated.Funs` 179 s, `Refine.HashMap`
+6.4 s, `Refine.HashMapWF` 5.4 s) — the append does not disturb the existing
+proofs, which is the point of making `hashmap2` a sibling rather than an edit.
+One note for whoever runs this next: a `ulimit -v 60000000` around `lake
+build` makes `ConRon.Generated.Funs` die with **exit 139** (SIGSEGV), not a
+Lean error — four Lean threads reserve more *virtual* address space than a
+60 GB cap allows.  `scripts/gates.sh` sets no `ulimit` for its `lake build`
+step and that is why; CLAUDE.md's `ulimit` rule is about *checker* runs on an
+export, where a runaway must die, and not about the elaborator.

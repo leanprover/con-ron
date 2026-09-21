@@ -42,7 +42,12 @@
 //! and the twin's `Caches.dropScratchEntries` is where it is stated.
 
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
-use con_ron_core::ron::hashmap::{Dup, Eq2, HashMap, Hashable};
+use con_ron_core::ron::hashmap::{Dup, Eq2, Hashable};
+// The arena's tables are the epoch-stamped open-addressed map
+// (DESIGN.md's `Task #97-P6-4b`), aliased so that every use site below
+// reads as it did.  `ron::hashmap::HashMap` is still what `crates/con-ron`
+// uses, and is still the one with proofs.
+use con_ron_core::ron::hashmap2::HashMap2 as HashMap;
 use con_ron_core::kernel::name;
 
 // ---------------------------------------------------------------------------
@@ -452,86 +457,36 @@ pub fn keep_nn_ls(k: &NNLsKey, v: &EIdx) -> bool {
 // The per-declaration reset (`CoreState.lean:87-89 Caches.empty`), in place
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — arena infrastructure (task #97-P6-1)
-/// Lean twin: none — a bucket count, not a value: at or below this many
-/// buckets a non-empty table is always cleared in place, because walking that
-/// many is cheaper than the allocation that growing back would cost.
-/// `ron::HashMap`'s own `MIN_CAPACITY` is 32.
-pub const RESET_KEEP_FLOOR: usize = 64;
-
-/// con-leche: none — arena infrastructure (task #97-P6-1)
-/// Lean twin: none — how much spare bucket array a reset tolerates before it
-/// gives the array back instead of walking it.  `clear` is `O(capacity)`
-/// whatever the table holds, so keeping an array the last round barely used
-/// taxes every later reset.  Measured on `Init` (task #97-P6-1): 4 → 772.7 G
-/// instructions, **16 → 769.3 G**, 64 → 772.3 G; the curve is flat and 16 is
-/// its floor.
-pub const RESET_KEEP_SLACK: usize = 16;
-
-/// con-leche: none — arena infrastructure (task #97-P6-1)
+/// con-leche: none — arena infrastructure (task #97-P6-1, rewritten by #97-P6-4b)
 /// Lean twin: none — the RESULT is `Std.HashMap.empty`, which is what the
 /// twin's `Caches.empty`/`Memos.empty` assign; this is a representation
 /// choice with the same denotation (DESIGN.md §3.2).
 ///
-/// **What it buys, and what it does not.**  The checker empties these tables
-/// per declaration (`flush_caches`, `enter_scratch`, `drop_scratch`) and per
-/// top-level call (`inst1_clear` and its ten siblings): 57 362 declarations
-/// on `Init` and far more calls.  Task #97-P4f attributed 15.6 % of the run
-/// to growing the bucket arrays back (`allocate_slots` 10.1 %, the
-/// `move_elements*` rehashes 3.1 %, `RawVec::finish_grow` 0.9 %) and asked
-/// for a clear that keeps them.  `ron::HashMap::clear` is that clear, and it
-/// has been there since task #35 — but it is **not** simply better than
-/// `HashMap::new`, and the reason is task #35's other half: `new` allocates
-/// nothing at all, so dropping a table whole costs `O(1)` and is paid for
-/// only if the next round actually inserts, while `clear` costs
-/// `O(capacity)` up front every time.  The three guards below are what turn
-/// the exchange positive, and each was measured on `Init`:
+/// **It is one line again, because the map's `clear` is O(1) now.**  The
+/// checker empties these tables per declaration (`flush_caches`,
+/// `enter_scratch`, `drop_scratch`) and per top-level call (`inst1_clear` and
+/// its ten siblings) — 36 053 620 times on `Init`.  Against
+/// `ron::hashmap`'s chained map that cost `O(capacity)` a call, and task
+/// #97-P6-1 had to buy the lever back with three guards (leave an empty table
+/// alone; hand the array back when the last round used less than a sixteenth
+/// of it; and not below 64 buckets) to get −5.7 % out of it at all.
 ///
-/// * **empty tables are left alone.**  `num_entries == 0` means every bucket
-///   is already `Nil`, so the walk is pure loss — and most of the twenty-two
-///   tables are untouched by any one declaration.  Without this guard the
-///   lever COSTS 144 G instructions (960 G against 816 G).
-/// * **`RESET_KEEP_SLACK`** gives the array back when the last round used
-///   too little of it, so the walk stays within a constant factor of the rows
-///   it is clearing.  Without it — keep whenever the table held at most 512
-///   rows — the lever costs **2 223 G** instructions (3 039 G against 816 G,
-///   3.73× slower): `inst1_clear` runs per top-level call, and one large
-///   `instantiate1` leaves an array that every later small call then walks.
-/// * **`RESET_KEEP_FLOOR`** stops the shrink rule from throwing away arrays
-///   too small for the allocation to be worth avoiding.
+/// `ron::hashmap2::HashMap2::clear` is an **epoch bump** (DESIGN.md's `Task
+/// #97-P6-4b`), so there is nothing left to weigh: the walk it used to save
+/// does not exist, and the shrink it used to perform is now pure loss,
+/// because giving the array back means allocating it again.  Measured on
+/// `Init` with `HashMap2` underneath, the same binary either way:
 ///
-/// With all three: **769.3 G against 816.0 G, −5.7 %**.
+/// | `reset_map` | instructions:u | cycles:u | wall |
+/// |---|---:|---:|---:|
+/// | task #97-P6-1's three guards | 642.16 G | 305.4 G | 69.4 / 69.6 s |
+/// | **`m.clear()`** | **525.22 G** | 291.4 / 303.4 G | 66.2 / 69.0 s |
 ///
-/// **Task #97-P6-4a: the shrink branch PRE-SIZES instead of emptying.**  The
-/// branch fires when the last round used too little of the array; handing
-/// back a `HashMap::new` then makes the next round climb the doubling ladder
-/// from `MIN_CAPACITY` — an `allocate_slots` and a `move_elements` rehash at
-/// every rung.  The last round's row count is exactly the high-water mark
-/// DESIGN.md §8.6's lever asks `enter_scratch` to size from, and it is in
-/// hand right here, so the branch hands back an array sized for it instead.
-/// Same value (`∅`), same shrink, one allocation rather than a ladder.
+/// `RESET_KEEP_FLOOR` and `RESET_KEEP_SLACK` are gone with the guards; the
+/// numbers task #97-P6-1's section records for them stand as the measurement
+/// of the map they were measured against.
 pub fn reset_map<K, V>(m: &mut HashMap<K, V>) {
-    let n: usize = m.len();
-    if n == 0 {
-        ()
-    } else {
-        let c: usize = m.capacity();
-        if c > RESET_KEEP_FLOOR && c > n * RESET_KEEP_SLACK {
-            *m = HashMap::with_capacity(rows_capacity(n))
-        } else {
-            m.clear()
-        }
-    }
-}
-
-/// con-leche: none — arena infrastructure (task #97-P6-4a)
-/// Lean twin: none — a bucket count, not a value.  `ron::HashMap` resizes at
-/// three quarters of its buckets (`max_load_for`), so a table that is to hold
-/// `n` rows without a single rehash wants at least `4n/3` of them; `n + n/2`
-/// is that with room to spare, and `with_capacity` rounds it up to a power of
-/// two and to `MIN_CAPACITY`.
-pub fn rows_capacity(n: usize) -> usize {
-    n + n / 2
+    m.clear()
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:394-398 CState.flushed
