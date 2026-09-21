@@ -65,6 +65,7 @@ lazy instantiated-constant tables that replace every
 `cv.type.instantiateLevelParams cv.levelParams us` in the checker.
 -/
 import ConRon.Arena.PropRead
+import ConRon.Arena.Pins
 import ConLeche.Kernel.Basis.Names
 
 namespace ConRon.Arena
@@ -95,33 +96,31 @@ nothing; a reserved name absent from the store interns into whatever tier
 is live and compares equal to nothing, which is the right answer and goes
 with the tier.
 
-A `Pins` record in the state, filled once per run, would make each of
-these an `O(1)` field read instead of a two-or-three-probe walk; it is the
-obvious P2g optimisation and is NOT taken here, because an
-initialisation-order hazard (a pin read before it is filled compares
-against the zero word) is exactly the kind of silent wrongness the
-code-first phase should not introduce before there is a number saying it
-is worth it. -/
+**The `Pins` record is in the state since task #97-P6-4a** (`Arena/Pins.lean`,
+`Arena/CoreState.lean`'s `Pins`): every reserved name is interned ONCE at the
+driver and each of these clauses is now a field read.  Task #97c's
+initialisation-order hazard — a pin read before it is filled compares against
+the zero word — is killed by the table being an `Array` rather than a record
+of fields: an unfilled table is EMPTY, so `pinAt` takes its bounds branch and
+stops.  `pin` itself survives for the names that are NOT reserved (the
+recursor and projection-function names the modeller builds). -/
 
 /-- con-leche: none — intern a reserved `ConLeche.Name` and hand back its
 handle.  The one place the arena turns a name VALUE into a name HANDLE
 outside the parser. -/
 @[inline] def pin (n : ConLeche.Name) : AM NIdx := internName n
 
-/-- con-leche: none — the empty universe-argument list, interned.  `us ==
-emptyLevels` is con-leche's pattern `.const _ []`. -/
-def emptyLevels : AM LsIdx := internLsNode []
+/-- con-leche: none — the empty universe-argument list, off the pin table.
+`us == emptyLevels` is con-leche's pattern `.const _ []`. -/
+def emptyLevels : AM LsIdx := pinEmptyLevels
 
-/-- con-leche: none — the level `0`, interned: the comparand of every
+/-- con-leche: none — the level `0`, off the pin table: the comparand of every
 `Level.isEquiv u .zero` in this module. -/
-def zeroLevel : AM LIdx := internLNode .zero
+def zeroLevel : AM LIdx := pinZeroLevel
 
-/-- con-leche: none — the expression `Sort 1` (`.sort (.succ .zero)`),
-interned: the pinned type of `Nat`, `String`, `Char` and `Bool`. -/
-def sortOne : AM EIdx := do
-  let z ← internLNode .zero
-  let o ← internLNode (.succ z)
-  internE (.sort o)
+/-- con-leche: none — the expression `Sort 1` (`.sort (.succ .zero)`), off the
+pin table: the pinned type of `Nat`, `String`, `Char` and `Bool`. -/
+def sortOne : AM EIdx := pinSortOne
 
 /-- con-leche: none — a level-monomorphic constant `.const n []`,
 interned. -/
@@ -242,7 +241,7 @@ positively detected unsupported feature and DECLINES, every other
 unresolved name is a malformed stream and REJECTS.  The name is read back
 for the message (DESIGN §8.3: readback happens only for error text). -/
 def unknownConstError (n : NIdx) : AM CheckError := do
-  let sa ← pin sorryAxName
+  let sa ← pinSorryAx
   if n == sa then pure (.notImplemented "use of the sorryAx axiom")
   else do
     let x ← readNameM n
@@ -340,12 +339,12 @@ short-circuits after one comparison at every other head. -/
 def isUnitLikeTy (fe : IFEnv) (h : EIdx) : AM Bool := do
   match ← view h with
   | .const c _ => do
-    let pu ← pin punitName
+    let pu ← pinPUnit
     if c != pu then pure false
     else
       match fe.find? pu with
       | some (.indInfo _ _) => do
-        let pr ← pin punitRecName
+        let pr ← pinPUnitRec
         match fe.find? pr with
         | some (.recInfo _ mI rP [r]) => pure (mI == rP && r.nfields == 0)
         | _ => pure false
@@ -416,10 +415,10 @@ constructor form of a `Nat` literal, one layer. -/
 def natLitToConstructor (n : Nat) : AM EIdx := do
   match n with
   | 0 => do
-    let z ← pin natZeroName
+    let z ← pinNatZero
     constE z
   | k + 1 => do
-    let s ← pin natSuccName
+    let s ← pinNatSucc
     let sc ← constE s
     let l ← internE (.lit (.natVal k))
     internE (.app sc l)
@@ -436,7 +435,7 @@ def natIndOk : Option IConstantInfo → AM Bool
 `Nat.zero` declaration has the expected shape. -/
 def natZeroOk : Option IConstantInfo → AM Bool
   | some (.ctorInfo cv _ _) => do
-    let nt ← pin natName
+    let nt ← pinNat
     let nc ← constE nt
     pure (cv.levelParams.isEmpty && cv.type == nc)
   | _ => pure false
@@ -446,7 +445,7 @@ def natZeroOk : Option IConstantInfo → AM Bool
 def natSuccOk : Option IConstantInfo → AM Bool
   | some (.ctorInfo cv _ _) => do
     if !cv.levelParams.isEmpty then pure false else do
-      let nt ← pin natName
+      let nt ← pinNat
       let nc ← constE nt
       match ← view cv.type with
       | .forallE dom body _mb => pure (dom == nc && body == nc)
@@ -458,11 +457,11 @@ con-leche: ConLeche/Kernel/FEnv.lean:116-119 natLitSupportedF
 Whether the environment supports `Nat` literals.  One twin for con-leche's
 two spellings (deviation 1). -/
 def natLitSupported (fe : IFEnv) : AM Bool := do
-  let nt ← pin natName
+  let nt ← pinNat
   if !(← natIndOk (fe.find? nt)) then pure false else do
-    let nz ← pin natZeroName
+    let nz ← pinNatZero
     if !(← natZeroOk (fe.find? nz)) then pure false else do
-      let ns ← pin natSuccName
+      let ns ← pinNatSucc
       natSuccOk (fe.find? ns)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:235-260 Expr.constsResolve — do all
@@ -476,22 +475,22 @@ def constsResolve (fe : IFEnv) : Nat → EIdx → AM Bool
     match ← view h with
     | .bvar _ | .sort _ => pure true
     | .lit (.natVal _) => do
-      let nt ← pin natName
-      let nz ← pin natZeroName
-      let ns ← pin natSuccName
+      let nt ← pinNat
+      let nz ← pinNatZero
+      let ns ← pinNatSucc
       pure ((fe.find? nt).isSome && (fe.find? nz).isSome &&
         (fe.find? ns).isSome)
     | .lit (.strVal _) => do
-      let nt ← pin natName
-      let nz ← pin natZeroName
-      let ns ← pin natSuccName
-      let st ← pin stringName
-      let sl ← pin stringOfListName
-      let li ← pin listName
-      let ln ← pin listNilName
-      let lc ← pin listConsName
-      let ch ← pin charName
-      let co ← pin charOfNatName
+      let nt ← pinNat
+      let nz ← pinNatZero
+      let ns ← pinNatSucc
+      let st ← pinString
+      let sl ← pinStringOfList
+      let li ← pinList
+      let ln ← pinListNil
+      let lc ← pinListCons
+      let ch ← pinChar
+      let co ← pinCharOfNat
       pure ((fe.find? nt).isSome && (fe.find? nz).isSome &&
         (fe.find? ns).isSome && (fe.find? st).isSome &&
         (fe.find? sl).isSome && (fe.find? li).isSome &&
@@ -529,7 +528,7 @@ def rawNatLit? (h : EIdx) : AM (Option Nat) := do
   | .lit (.natVal n) => pure (some n)
   | .const c us => do
     let e ← emptyLevels
-    let nz ← pin natZeroName
+    let nz ← pinNatZero
     pure (if c == nz && us == e then some 0 else none)
   | _ => pure none
 
@@ -555,18 +554,18 @@ constructor form of a `String` literal: `String.ofList (List.cons.{0} Char
 def strLitToConstructor (s : String) : AM EIdx := do
   let z ← zeroLevel
   let zs ← internLsNode [z]
-  let chN ← pin charName
+  let chN ← pinChar
   let chC ← constE chN
-  let lnN ← pin listNilName
+  let lnN ← pinListNil
   let ln ← internE (.const lnN zs)
   let nilE ← internE (.app ln chC)
-  let lcN ← pin listConsName
+  let lcN ← pinListCons
   let lc ← internE (.const lcN zs)
   let cons ← internE (.app lc chC)
-  let coN ← pin charOfNatName
+  let coN ← pinCharOfNat
   let ofNat ← constE coN
   let spine ← strLitConsSpine cons ofNat nilE s.toList
-  let slN ← pin stringOfListName
+  let slN ← pinStringOfList
   let sl ← constE slN
   internE (.app sl spine)
 
@@ -616,7 +615,7 @@ def listNilTyOk : Option IConstantInfo → AM Bool
       let sp ← internLNode (.succ pl)
       let sort ← internE (.sort sp)
       let ps ← internLsNode [pl]
-      let li ← pin listName
+      let li ← pinList
       match ← view cv.type with
       | .forallE d b _mb => do
         if d != sort then pure false else
@@ -644,7 +643,7 @@ def listConsTyOk : Option IConstantInfo → AM Bool
       let sp ← internLNode (.succ pl)
       let sort ← internE (.sort sp)
       let ps ← internLsNode [pl]
-      let li ← pin listName
+      let li ← pinList
       let b0 ← internE (.bvar 0)
       let b1 ← internE (.bvar 1)
       let b2 ← internE (.bvar 2)
@@ -671,9 +670,9 @@ def charOfNatTyOk : Option IConstantInfo → AM Bool
   | some ci => do
     let cv ← ci.toConstantVal
     if !cv.levelParams.isEmpty then pure false else do
-      let nt ← pin natName
+      let nt ← pinNat
       let nc ← constE nt
-      let ch ← pin charName
+      let ch ← pinChar
       let cc ← constE ch
       match ← view cv.type with
       | .forallE d b _mb => pure (d == nc && b == cc)
@@ -689,12 +688,12 @@ def stringOfListTyOk : Option IConstantInfo → AM Bool
     if !cv.levelParams.isEmpty then pure false else do
       let z ← zeroLevel
       let zs ← internLsNode [z]
-      let li ← pin listName
+      let li ← pinList
       let lc ← internE (.const li zs)
-      let ch ← pin charName
+      let ch ← pinChar
       let cc ← constE ch
       let dom ← internE (.app lc cc)
-      let st ← pin stringName
+      let st ← pinString
       let sc ← constE st
       match ← view cv.type with
       | .forallE d b _mb => pure (d == dom && b == sc)
@@ -707,19 +706,19 @@ Whether the environment supports `String` literals: the `Nat` literal guard
 plus the seven string-support declarations at exactly the expected types. -/
 def strLitSupported (fe : IFEnv) : AM Bool := do
   if !(← natLitSupported fe) then pure false else do
-    let st ← pin stringName
+    let st ← pinString
     if !(← stringTyOk (fe.find? st)) then pure false else do
-      let sl ← pin stringOfListName
+      let sl ← pinStringOfList
       if !(← stringOfListTyOk (fe.find? sl)) then pure false else do
-        let li ← pin listName
+        let li ← pinList
         if !(← listTyOk (fe.find? li)) then pure false else do
-          let ln ← pin listNilName
+          let ln ← pinListNil
           if !(← listNilTyOk (fe.find? ln)) then pure false else do
-            let lc ← pin listConsName
+            let lc ← pinListCons
             if !(← listConsTyOk (fe.find? lc)) then pure false else do
-              let ch ← pin charName
+              let ch ← pinChar
               if !(← charTyOk (fe.find? ch)) then pure false else do
-                let co ← pin charOfNatName
+                let co ← pinCharOfNat
                 charOfNatTyOk (fe.find? co)
 
 
@@ -732,41 +731,41 @@ is the certificate*.  The sixteen reserved names are interned here exactly
 as the literal guards' are. -/
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:433 natPredName -/
-def natPredName : AM NIdx := pin (ConLeche.natName.str "pred")
+def natPredName : AM NIdx := pinNatPred
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:434 natAddName -/
-def natAddName : AM NIdx := pin (ConLeche.natName.str "add")
+def natAddName : AM NIdx := pinNatAdd
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:435 natSubName -/
-def natSubName : AM NIdx := pin (ConLeche.natName.str "sub")
+def natSubName : AM NIdx := pinNatSub
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:436 natMulName -/
-def natMulName : AM NIdx := pin (ConLeche.natName.str "mul")
+def natMulName : AM NIdx := pinNatMul
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:437 natPowName -/
-def natPowName : AM NIdx := pin (ConLeche.natName.str "pow")
+def natPowName : AM NIdx := pinNatPow
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:438 natBeqName -/
-def natBeqName : AM NIdx := pin (ConLeche.natName.str "beq")
+def natBeqName : AM NIdx := pinNatBeq
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:439 natBleName -/
-def natBleName : AM NIdx := pin (ConLeche.natName.str "ble")
+def natBleName : AM NIdx := pinNatBle
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:440 natDivName -/
-def natDivName : AM NIdx := pin (ConLeche.natName.str "div")
+def natDivName : AM NIdx := pinNatDiv
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:441 natModName -/
-def natModName : AM NIdx := pin (ConLeche.natName.str "mod")
+def natModName : AM NIdx := pinNatMod
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:442 natGcdName -/
-def natGcdName : AM NIdx := pin (ConLeche.natName.str "gcd")
+def natGcdName : AM NIdx := pinNatGcd
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:443 natLandName -/
-def natLandName : AM NIdx := pin (ConLeche.natName.str "land")
+def natLandName : AM NIdx := pinNatLand
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:444 natLorName -/
-def natLorName : AM NIdx := pin (ConLeche.natName.str "lor")
+def natLorName : AM NIdx := pinNatLor
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:445 natXorName -/
-def natXorName : AM NIdx := pin (ConLeche.natName.str "xor")
+def natXorName : AM NIdx := pinNatXor
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:446 natShiftLeftName -/
-def natShiftLeftName : AM NIdx := pin (ConLeche.natName.str "shiftLeft")
+def natShiftLeftName : AM NIdx := pinNatShiftLeft
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:447 natShiftRightName -/
-def natShiftRightName : AM NIdx := pin (ConLeche.natName.str "shiftRight")
+def natShiftRightName : AM NIdx := pinNatShiftRight
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:448 boolName -/
-def boolName : AM NIdx := pin (ConLeche.Name.anonymous.str "Bool")
+def boolName : AM NIdx := pinBool
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:449 boolTrueName -/
-def boolTrueName : AM NIdx := pin ((ConLeche.Name.anonymous.str "Bool").str "true")
+def boolTrueName : AM NIdx := pinBoolTrue
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:450 boolFalseName -/
-def boolFalseName : AM NIdx := pin ((ConLeche.Name.anonymous.str "Bool").str "false")
+def boolFalseName : AM NIdx := pinBoolFalse
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:452-457 Expr.isBoolTrue — is `e` the
 constant `Bool.true` (the official kernel's `is_constant(e, Bool.true)`):
@@ -855,13 +854,13 @@ defining recurrence equations of a structural-`Nat` operation, over
 constructor forms with free variables `d`, `d + 1` (binder-free, so the
 equation sides carry no annotations). -/
 def natOpEquations (d : Nat) (c : NIdx) : AM (List (EIdx × EIdx)) := do
-  let nN ← pin ConLeche.natName
+  let nN ← pinNat
   let natTy ← constE nN
   let x ← internE (.fvar d natTy)
   let y ← internE (.fvar (d + 1) natTy)
-  let zN ← pin ConLeche.natZeroName
+  let zN ← pinNatZero
   let z ← constE zN
-  let sN ← pin ConLeche.natSuccName
+  let sN ← pinNatSucc
   let sx ← natAp1 sN x
   let sy ← natAp1 sN y
   let bT ← constE (← boolTrueName)
@@ -1061,7 +1060,7 @@ def natOpCod (fe : IFEnv) (c : NIdx) (e : EIdx) : AM Bool := do
         pure (cv.levelParams.isEmpty && cv.type == s1)
       | none => pure false
   else do
-    let nn ← pin ConLeche.natName
+    let nn ← pinNat
     let nc ← constE nn
     pure (e == nc)
 
@@ -1070,7 +1069,7 @@ type of a certified `Nat` operation: `Nat → Nat` for the unary `pred`,
 `Nat → Nat → Nat` for the arithmetic operations, `Nat → Nat → Bool` for the
 comparisons. -/
 def natOpTyPinned (fe : IFEnv) (c : NIdx) (ty : EIdx) : AM Bool := do
-  let nn ← pin ConLeche.natName
+  let nn ← pinNat
   let nc ← constE nn
   let pr ← natPredName
   if c == pr then do
@@ -1133,7 +1132,7 @@ def reduceNat (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (e : EIdx) :
       -- con-leche's `.app (.const c []) a`: `b` is its `a`
       let el ← emptyLevels
       if us != el then pure none else do
-        let ns ← pin ConLeche.natSuccName
+        let ns ← pinNatSucc
         if c == ns && (← natLitSupported fe) then do
           match ← rawNatLit? (← r.whnf depth b) with
           | some n => do
@@ -1388,14 +1387,14 @@ def etaProjs (fe : IFEnv) (T : NIdx) (us : LsIdx) (targs : List EIdx)
 the names reserved for the pinned basis blocks, interned.  `contains` is
 then handle equality, as everywhere else in this module. -/
 def reservedBasisNames : AM (List NIdx) := do
-  let a ← pin ConLeche.eqName
+  let a ← pinEq
   let b ← pin ConLeche.eqReflName
   let c ← pin (ConLeche.eqName.str "rec")
-  let d ← pin ConLeche.natName
-  let e ← pin ConLeche.natZeroName
-  let f ← pin ConLeche.natSuccName
+  let d ← pinNat
+  let e ← pinNatZero
+  let f ← pinNatSucc
   let g ← pin (ConLeche.natName.str "rec")
-  let h ← pin ConLeche.punitName
+  let h ← pinPUnit
   let i ← pin ConLeche.punitUnitName
   let j ← pin (ConLeche.punitName.str "rec")
   let k ← pin ConLeche.emptyName
@@ -1406,7 +1405,7 @@ def reservedBasisNames : AM (List NIdx) := do
   let p ← pin ConLeche.quotMkName
   let q ← pin ConLeche.quotLiftName
   let s ← pin ConLeche.quotIndName
-  let t ← pin ConLeche.quotSoundName
+  let t ← pinQuotSound
   pure [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, s, t]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — the
@@ -1613,7 +1612,7 @@ con-leche: ConLeche/Kernel/FEnv.lean:101-103 FEnv.andRescueSlotsF
 con-leche's three spellings (deviation 1). -/
 def andRescueSlots (fe : IFEnv) (ctor : NIdx) (nP : Nat) (ust : LsIdx) :
     AM Bool := do
-  let an ← pin ConLeche.andName
+  let an ← pinAnd
   andRescueSlotsGo fe an ctor nP ust 2 0
 
 
@@ -1733,7 +1732,7 @@ def majorToCtor (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
               else pure major
             | _ => pure major
           else do
-            let an ← pin ConLeche.andName
+            let an ← pinAnd
             if T = an then do
               -- THE `And`-ONLY η RESCUE (user ruling: `And` and nothing else)
               let tmaj ← r.whnf depth (← r.inferIO depth major)
@@ -2710,12 +2709,12 @@ def inferBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
           else constTyAt cv us
     | .lit (.natVal _) => do
       if ← natLitSupported fe then do
-        let nn ← pin ConLeche.natName
+        let nn ← pinNat
         constE nn
       else fail (.invalid "Nat literal without the Nat basis declarations")
     | .lit (.strVal _) => do
       if ← strLitSupported fe then do
-        let sn ← pin ConLeche.stringName
+        let sn ← pinString
         constE sn
       else fail (.notImplemented
         "string literals before the String support declarations")
@@ -2790,12 +2789,12 @@ def inferBodyIO (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
           else constTyAt cv us
     | .lit (.natVal _) => do
       if ← natLitSupported fe then do
-        let nn ← pin ConLeche.natName
+        let nn ← pinNat
         constE nn
       else fail (.invalid "Nat literal without the Nat basis declarations")
     | .lit (.strVal _) => do
       if ← strLitSupported fe then do
-        let sn ← pin ConLeche.stringName
+        let sn ← pinString
         constE sn
       else fail (.notImplemented
         "string literals before the String support declarations")
@@ -3130,12 +3129,12 @@ def defeqStep (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     -- a packed literal against a constructor form: compare shape-directed
     | .lit (.natVal n), .const c us => do
       let el ← emptyLevels
-      let nz ← pin ConLeche.natZeroName
+      let nz ← pinNatZero
       if c = nz ∧ us = el then pure (n == 0)
       else stuckIrrel mode r fe depth a' b'
     | .const c us, .lit (.natVal n) => do
       let el ← emptyLevels
-      let nz ← pin ConLeche.natZeroName
+      let nz ← pinNatZero
       if c = nz ∧ us = el then pure (n == 0)
       else stuckIrrel mode r fe depth a' b'
     | .lit (.natVal nn), .app f x => do
@@ -3144,7 +3143,7 @@ def defeqStep (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
         match ← view f with
         | .const c us => do
           let el ← emptyLevels
-          let ns ← pin ConLeche.natSuccName
+          let ns ← pinNatSucc
           if c = ns ∧ us = el then do
             let l ← internE (.lit (.natVal k'))
             r.defeq depth l x
@@ -3157,7 +3156,7 @@ def defeqStep (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
         match ← view f with
         | .const c us => do
           let el ← emptyLevels
-          let ns ← pin ConLeche.natSuccName
+          let ns ← pinNatSucc
           if c = ns ∧ us = el then do
             let l ← internE (.lit (.natVal k'))
             r.defeq depth x l
@@ -3169,7 +3168,7 @@ def defeqStep (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
       match ← view fo with
       | .const cO usO => do
         let el ← emptyLevels
-        let sl ← pin ConLeche.stringOfListName
+        let sl ← pinStringOfList
         if cO = sl ∧ usO = el ∧ (← strLitSupported fe) then do
           let c ← strLitToConstructor st
           r.defeq depth c b'
@@ -3179,7 +3178,7 @@ def defeqStep (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
       match ← view fo with
       | .const cO usO => do
         let el ← emptyLevels
-        let sl ← pin ConLeche.stringOfListName
+        let sl ← pinStringOfList
         if cO = sl ∧ usO = el ∧ (← strLitSupported fe) then do
           let c ← strLitToConstructor st
           r.defeq depth a' c

@@ -79,11 +79,11 @@ private def internExprT : ConLeche.Expr → AM EIdx
     internE (.proj hs i he)
 
 /-- con-leche: none — intern a list of names. -/
-private def internNameList : List ConLeche.Name → AM (List NIdx)
+private def internNameListT : List ConLeche.Name → AM (List NIdx)
   | [] => pure []
   | n :: ns => do
     let h ← internName n
-    let hs ← internNameList ns
+    let hs ← internNameListT ns
     pure (h :: hs)
 
 /-- con-leche: none — intern a list of expressions. -/
@@ -105,7 +105,7 @@ private def internLevelListT : List Level → AM (List LIdx)
 /-- con-leche: none — intern a `ConstantVal`. -/
 private def internCV (cv : ConstantVal) : AM IConstantVal := do
   let n ← internName cv.name
-  let lps ← internNameList cv.levelParams
+  let lps ← internNameListT cv.levelParams
   let ty ← internExprT cv.type
   pure ⟨n, lps, ty⟩
 
@@ -333,7 +333,7 @@ private def buildFx : AM Fx := do
 
 /-- con-leche: none — the fixture, built once; every check reads its state. -/
 private def fxE : Except CheckError (Fx × AState) :=
-  buildFx.run (AState.init EStore.empty)
+  (do internReservedPins; buildFx).run (AState.init EStore.empty)
 
 /- The fixture built without a `Native` or an internal error. -/
 #guard fxE.toOption.isSome

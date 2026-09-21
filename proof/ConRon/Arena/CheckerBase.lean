@@ -313,7 +313,7 @@ installs nothing, so a use of it is a positively detected unsupported
 feature); anything else is an unknown constant and REJECTS.  Monadic here
 because the walk reads the store. -/
 def unresolvedConstsError (where_ : String) (e : EIdx) : AM CheckError := do
-  let sa ← pin sorryAxName
+  let sa ← pinSorryAx
   if ← mentionsConst sa e then
     pure (.notImplemented s!"use of the sorryAx axiom in {where_}")
   else pure (.invalid s!"unknown constant in {where_}")
@@ -440,7 +440,7 @@ expression the pinned equality former at one level? -/
 def isEqHead (h : EIdx) : AM Bool := do
   match ← view h with
   | .const c us => do
-    let en ← pin eqName
+    let en ← pinEq
     if c == en then pure ((← viewLs us).length == 1) else pure false
   | _ => pure false
 

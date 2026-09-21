@@ -104,6 +104,38 @@ def Caches.empty : Caches := ⟨∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅
 
 instance : Inhabited Caches := ⟨Caches.empty⟩
 
+/-! ## The pin table (task #97-P6-4a) -/
+
+/-- con-leche: none — the arena's own PIN TABLE (DESIGN §8.3, task #97c): the
+reserved constant names and the three interned values the checker compares
+against, interned ONCE at the driver instead of once per comparison.
+
+The name table is an `Array` rather than forty-nine fields for the reason task
+#97c declined the record in the first place: every 32-bit word is a
+syntactically valid handle, so a record of fields read before it is filled
+silently answers "not `Nat`", while an EMPTY array makes `pinAt` take its
+bounds branch and stop.  `Arena/Pins.lean` is the module that fills and reads
+it. -/
+structure Pins where
+  /-- The `pinCount` reserved-name handles, indexed by the `PIN_*` slots. -/
+  names : Array NIdx
+  /-- `reservedBasisNames`, interned: the nineteen names a stream may not
+  declare.  Its own list rather than nineteen slots of `names`, because its
+  only reader wants the whole list. -/
+  reserved : List NIdx
+  /-- `Arena/Core.lean`'s `emptyLevels`: the empty universe-argument list. -/
+  emptyLevels : LsIdx
+  /-- `Arena/Core.lean`'s `zeroLevel`: the level `0`. -/
+  zeroLevel : LIdx
+  /-- `Arena/Core.lean`'s `sortOne`: the expression `Sort 1`. -/
+  sortOne : EIdx
+
+/-- con-leche: none — the UNFILLED table: the initial state's value, and the
+one `pinAt` refuses. -/
+def Pins.empty : Pins := ⟨#[], [], ⟨0⟩, ⟨0⟩, ⟨0⟩⟩
+
+instance : Inhabited Pins := ⟨Pins.empty⟩
+
 /-! ## The cap -/
 
 /-- con-leche: none — DESIGN §8.3's cap (lesson 10, "a cap, not an eviction

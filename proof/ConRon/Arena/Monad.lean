@@ -129,6 +129,11 @@ structure AState where
   own beside `memos`, because the per-call clear and the per-declaration
   drop are different operations on different lifetimes. -/
   caches : Caches
+  /-- The PIN TABLE (task #97-P6-4a, `Arena/CoreState.lean`): the reserved
+  constant names interned once at the driver.  Empty until `internAllPins`
+  fills it, which is what makes an early read a stop rather than a wrong
+  answer. -/
+  pins : Pins
 
 /-- con-leche: ConLeche/Cached/StateC.lean:164-166 CheckCM
 con-leche: ConLeche/Kernel/Core.lean:80 CheckM
@@ -138,7 +143,7 @@ else"). -/
 abbrev AM := StateT AState (Except CheckError)
 
 /-- con-leche: none — the initial state over a given arena. -/
-def AState.init (st : EStore) : AState := ⟨st, .empty, .empty⟩
+def AState.init (st : EStore) : AState := ⟨st, .empty, .empty, .empty⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:53-72 CheckError — **the one failure
 primitive of (B)** (task #97s template rule 7).  Written as a bare `throw`,
