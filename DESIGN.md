@@ -34675,7 +34675,7 @@ Phase P6 item 16 of §8.6, **the last optimisation round**: the two natural
 levers task #97-P6-15's verdict left, each with a price already on it —
 §8.6's own deferred `getAppFn`/`getAppNumArgs` side column (lever A, unblocked
 by the nanoda catch-up) and task #97-P6-10 §3's `BinderMeta` column (lever B,
-priced there at 2–3 % of `Init`).  RUST-FIRST under §8.6, twin ledger in §7.
+priced there at 2–3 % of `Init`).  RUST-FIRST under §8.6, twin ledger in §6.
 Branch `p6-16` off `arena`'s tip `fb7b1975`.  The scratch, the counting build
 and the profiles are `_tmp/t97-p6-16/`.
 
