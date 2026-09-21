@@ -43,6 +43,7 @@ use con_ron_core::kernel::env::ReducibilityHint;
 // reads as it did.  `ron::hashmap::HashMap` is still what `crates/con-ron`
 // uses, and is still the one with proofs.
 use con_ron_core::ron::hashmap2::HashMap2 as HashMap;
+use crate::arena::store::PersTier;
 
 // ---------------------------------------------------------------------------
 // Record verdicts (`Types.lean:44-59` of the twin)
@@ -262,6 +263,7 @@ pub trait Modeller {
     /// The one method: the block's model records, or the decline's text.
     fn generate(
         &self,
+    pers: &PersTier,
         ar: &mut EStore,
         ctx: &ModelCtx,
         b: &BlockRec,
@@ -285,6 +287,7 @@ impl Modeller for DeclineModeller {
     /// ported yet"`.
     fn generate(
         &self,
+        _pers: &PersTier,
         _ar: &mut EStore,
         _ctx: &ModelCtx,
         _b: &BlockRec,

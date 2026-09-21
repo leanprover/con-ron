@@ -40,12 +40,12 @@
 //! outside its own stdout/stderr and reads its input strictly forward, 4 MiB
 //! at a time.
 //!
-//! **The one flag that behaves differently from `con-ron`'s** is `--jobs=<n>`:
-//! it is accepted and validated, and phase B is single-lane
-//! (`driver`'s module note, item 4, and DESIGN.md §8.3's plan for the pool).
-//! A run that asks for more than one worker is told on stderr that it got one.
-//! `--no-mark-persistent`, `--pins FILE` and `--no-pins` are con-ron's own and
-//! mean exactly what they mean there.
+//! **`--jobs=<n>` is real** since task #97-P6-6b: phase B runs on `n` worker
+//! threads sharing the frozen persistent tier and the installed index by
+//! reference (`con_ron_arena::pool`), and the default is one per hardware
+//! thread capped at sixteen — `con_ron::driver::default_jobs`, the same
+//! function `con-ron` uses.  `--no-mark-persistent`, `--pins FILE` and
+//! `--no-pins` are con-ron's own and mean exactly what they mean there.
 
 use std::process::ExitCode;
 use std::time::Instant;
@@ -66,6 +66,7 @@ use con_ron_arena::driver;
 use con_ron_arena::driver::Heartbeat;
 use con_ron_arena::driver::STACK_BYTES;
 use con_ron_arena::in_model::InProcess;
+use arena_core::arena::store::PersTier;
 
 // The global allocator is `con-ron-dump`'s (task #35's mimalloc, declared by
 // that crate's lib): a program may declare only one, and this binary links
@@ -106,14 +107,16 @@ usage: con-ron-arena [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
   --trusted         the unverified mode: the SAME checker bodies at the mode
                     with the certification-only work switched off.  An accept
                     in this mode is outside the theorem.
-  --jobs=<n>        ACCEPTED AND VALIDATED, and today single-lane: the check
-                    phase runs one worker whatever <n> says, and a run that
-                    asks for more is told so on stderr.  DESIGN.md section 8.3
-                    has the plan the flag is kept for — the persistent tier is
-                    immutable in phase B and each worker owns a scratch tier
-                    and its own caches, so the pool adds no atomics — and the
-                    driver's phase-B loop is shaped for it.  0 or a
-                    non-numeral is a usage error, as in con-leche.
+  --jobs=<n>        the check phase runs on <n> worker threads sharing the
+                    persistent tier and the installed index by reference
+                    (DESIGN.md section 8.3): each worker owns a scratch tier,
+                    its own caches and a copy of the pin handles, and the
+                    results are merged by record index and walked in record
+                    order, so the verdict and the record a rejection names are
+                    the same at every <n>.  Default: one per hardware thread,
+                    capped at 16.  A worker reserves 1 GiB of stack, which a
+                    `ulimit -v` must allow for.  0 or a non-numeral is a usage
+                    error, as in con-leche.
   --no-mark-persistent
                     ACCEPTED AND A NO-OP, for a stronger reason than the
                     `con-ron` binary's: the mark it turns off is a
@@ -353,6 +356,13 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // ONE store for the whole run: the prelude, the stream and the pins are
     // hash-consed together into its persistent tier (DESIGN.md §8.3).
     let mut st = AState::init(EStore::empty());
+    // THE PERSISTENT TIER a phase-B worker reads (DESIGN.md §8.3, task
+    // #97-P6-6b).  The parse and phase A own their own — `shared_on` is
+    // false on every store until the boundary — so what they are handed here
+    // is the EMPTY tier, and the single-lane computation is unchanged.  Phase
+    // B freezes the store's tier into a `PersTier` and hands `&` it to every
+    // worker; `check_decls_driver` is where that happens.
+    let pers: &PersTier = &PersTier::empty();
     // THE RESERVED-NAME PINS, interned once into that persistent tier before
     // anything else touches it (task #97-P6-4a, `arena::pins`): the scratch
     // tier is closed here, so every pinned handle is persistent and survives
@@ -360,7 +370,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // read raises `Internal` rather than answering — which is what makes the
     // initialisation-order hazard task #97c named impossible rather than
     // unlikely.
-    match arena_core::arena::pins::intern_reserved_pins(&mut st) {
+    match arena_core::arena::pins::intern_reserved_pins(pers, &mut st) {
         Ok(()) => (),
         Err(e) => {
             eprintln!(
@@ -377,7 +387,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // readback (`con_ron_arena::in_model`).
     let modeller = InProcess::new();
     // THE BUILT-IN PRELUDE, parsed into that store before anything else.
-    let prelude_ix = match prelude::builtin_prelude_e(&modeller, &mut st) {
+    let prelude_ix = match prelude::builtin_prelude_e(pers, &modeller, &mut st) {
         Ok(p) => p,
         Err((e, line)) => {
             let what = match classify(&e) {
@@ -400,6 +410,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // file exists.  What comes out is the FILE's records as HANDLES into the
     // store above (plus the in-process modeller's).
     let parsed: ParseResultD = match driver::parse_export_stream_d(
+        pers,
         &modeller,
         &mut st,
         file,
@@ -434,7 +445,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
         let names: Vec<String> = parsed
             .in_modelled
             .iter()
-            .map(|n| driver::name_of(&st.store, n))
+            .map(|n| driver::name_of(pers, &st.store, n))
             .collect();
         eprintln!(
             "con-ron-arena: {} inductive blocks modelled in-process: {} ({} generated \
@@ -451,7 +462,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
         for (n, why) in parsed.in_model_declined.iter() {
             eprintln!(
                 "con-ron-arena: inmodel declined {}: {}",
-                driver::name_of(&st.store, n),
+                driver::name_of(pers, &st.store, n),
                 con_ron::render::from_cps(why)
             );
         }
@@ -472,7 +483,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
         );
         if std::env::var("CON_LECHE_PROJREC_TRACE").is_ok() {
             for n in parsed.proj_rewrites.iter() {
-                eprintln!("con-ron-arena:   rewritten {}", driver::name_of(&st.store, n));
+                eprintln!("con-ron-arena:   rewritten {}", driver::name_of(pers, &st.store, n));
             }
         }
     }
@@ -487,7 +498,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // then the stream's, with every pinned `Nat` operation's stream-certified
     // ground hoisted ahead of it.  It takes the whole state since task
     // #97-P4d: step 2 is the real ground hoist, which interns.
-    let prepared = match prepare::prepare_d(&mut st, prelude_ix, parsed.decls) {
+    let prepared = match prepare::prepare_d(pers, &mut st, prelude_ix, parsed.decls) {
         Ok(p) => p,
         Err(e) => return frontend_exit(&e, mode_tag),
     };
@@ -496,7 +507,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
         let names: Vec<String> = prepared
             .hoisted
             .iter()
-            .map(|n| driver::name_of(&st.store, n))
+            .map(|n| driver::name_of(pers, &st.store, n))
             .collect();
         eprintln!(
             "con-ron-arena: {} declarations hoisted ahead of the pinned Nat operations \
@@ -520,9 +531,9 @@ fn check_main(a: &Args, file: &str) -> u8 {
         gen_records,
         prepared.synthesised,
         (
-            st.store.node_count(),
-            st.store.ls().node_count(),
-            st.store.ns().node_count(),
+            st.store.node_count(pers),
+            st.store.ls().node_count(pers),
+            st.store.ns().node_count(pers),
         ),
     );
     // **THE STARTUP PIN WALK** (DESIGN.md §8.6 P2d, task #97-P4d): every
@@ -531,7 +542,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // `Nat`-operation variants — interned ONCE, here, while the scratch tier
     // is still off, so that nothing the fold compares against lives in a tier
     // that is about to vanish.  Its result is the fold's pin parameter.
-    let ipins = match checker::intern_all_pins(&mut st, &pins) {
+    let ipins = match checker::intern_all_pins(pers, &mut st, &pins) {
         Ok(p) => p,
         Err(e) => return frontend_exit(&e, mode_tag),
     };
@@ -540,12 +551,17 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // with the boundary visible (`driver::check_decls_driver`).
     let jobs: u64 = match a.jobs {
         Some(n) => n,
-        None => 1,
+        None => con_ron::driver::default_jobs(),
     };
+    // ONE lane, whatever the flags: the driver is what freezes the persistent
+    // tier at the phase boundary and phase B is the pool at every worker count
+    // (task #97-P6-6b), so a run with no heartbeat is the same computation as
+    // a run with one and `install_then_check` is no longer a second path.
     let verdict = if a.progress > 0 {
-        driver::check_decls_driver(&mut st, &mode, &ipins, &prepared.decls, jobs, &mut hb)
+        driver::check_decls_driver(pers, &mut st, &mode, &ipins, &prepared.decls, jobs, &mut hb)
     } else {
-        checker::install_then_check(&mut st, &mode, &ipins, &prepared.decls)
+        let mut silent = driver::Silent;
+        driver::check_decls_driver(pers, &mut st, &mode, &ipins, &prepared.decls, jobs, &mut silent)
     };
     // **The headline number is the FILE's declaration-record count**: the
     // records the PARSE produced, which are the file's own, less the records
@@ -562,10 +578,11 @@ fn check_main(a: &Args, file: &str) -> u8 {
                     parsed
                         .gen_owner
                         .get(&n)
-                        .map(|o| driver::name_of(&st.store, o))
+                        .map(|o| driver::name_of(pers, &st.store, o))
                 })
             });
             driver::verdict_failure(
+                pers,
                 &st.store,
                 &prepared.decls,
                 e,
@@ -604,19 +621,6 @@ fn main() -> ExitCode {
     }
     if a.no_mark {
         eprintln!("con-ron-arena: {}", driver::mark_persistent_note());
-    }
-    // The other accepted-and-ignored flag says so too, and says it BEFORE the
-    // run rather than at the phase boundary: a log must read as the lane it
-    // was, and the lane is decided here.
-    if let Some(n) = a.jobs {
-        if n > 1 {
-            eprintln!(
-                "con-ron-arena: --jobs={} accepted and clamped to 1: the arena checker's \
-                 phase B is single-lane today (DESIGN.md section 8.3 has the plan, and \
-                 con_ron_arena::driver's phase-B loop is shaped for it)",
-                n
-            );
-        }
     }
     let file = a.files[0].clone();
     let h = std::thread::Builder::new()

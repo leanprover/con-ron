@@ -49,6 +49,7 @@ use arena_core::frontend::types::DeclineModeller;
 use con_ron_core::kernel::core_types::CheckError;
 use std::io::Read;
 use std::time::Instant;
+use arena_core::arena::store::PersTier;
 
 fn vm_hwm_kb() -> u64 {
     let s = std::fs::read_to_string("/proc/self/status").unwrap_or_default();
@@ -127,9 +128,12 @@ fn main() {
     // the checker state and not the bare store (DESIGN.md §8.4: the twin's one
     // monad is `StateT AState (Except CheckError)` throughout).
     let mut ar = AState::init(EStore::empty());
+    // `shared_on` is false here, so every persistent read goes to the store's
+    // own tier and this one is never consulted (task #97-P6-6b).
+    let pers: &PersTier = &PersTier::empty();
     // The reserved-name pins, exactly as the driver interns them (task
     // #97-P6-4a): before the parse, while the scratch tier is still closed.
-    match arena_core::arena::pins::intern_reserved_pins(&mut ar) {
+    match arena_core::arena::pins::intern_reserved_pins(pers, &mut ar) {
         Ok(()) => (),
         Err(_) => {
             eprintln!("arena_parse: the reserved-name pins do not intern");
@@ -139,7 +143,7 @@ fn main() {
     let md = DeclineModeller {};
 
     // 1. the built-in prelude, into the same store
-    let pre = match builtin_prelude_e(&md, &mut ar) {
+    let pre = match builtin_prelude_e(pers, &md, &mut ar) {
         Ok(p) => p,
         Err((e, line)) => {
             let (m, c) = render(&e);
@@ -148,9 +152,9 @@ fn main() {
         }
     };
     let (pre_e, pre_l, pre_n) = (
-        ar.store.node_count(),
-        ar.store.ls().node_count(),
-        ar.store.ns().node_count(),
+        ar.store.node_count(pers),
+        ar.store.ls().node_count(pers),
+        ar.store.ns().node_count(pers),
     );
 
     // 2. the stream, read and parsed in lockstep
@@ -161,7 +165,7 @@ fn main() {
             std::process::exit(3);
         }
     };
-    let mut st = match export_c::state_d_init(&mut ar.store, in_model, false) {
+    let mut st = match export_c::state_d_init(pers, &mut ar.store, in_model, false) {
         Ok(s) => s,
         Err(e) => {
             let (m, c) = render(&e);
@@ -187,7 +191,7 @@ fn main() {
             break;
         }
         bytes += n as u64;
-        match export_c::chunk_step(&md, &mut ar, &mut st, carry, line_no, total, &buf[..n]) {
+        match export_c::chunk_step(pers, &md, &mut ar, &mut st, carry, line_no, total, &buf[..n]) {
             Ok((c2, l, t)) => {
                 carry = c2;
                 line_no = l;
@@ -202,13 +206,13 @@ fn main() {
     }
     let r = match failed {
         Some(e) => Err(e),
-        None => export_c::chunk_finish(&md, &mut ar, st, &carry[..], line_no),
+        None => export_c::chunk_finish(pers, &md, &mut ar, st, &carry[..], line_no),
     };
 
     let (n_e, n_l, n_n) = (
-        ar.store.node_count(),
-        ar.store.ls().node_count(),
-        ar.store.ns().node_count(),
+        ar.store.node_count(pers),
+        ar.store.ls().node_count(pers),
+        ar.store.ns().node_count(pers),
     );
     let wall = t0.elapsed();
 
@@ -241,7 +245,7 @@ fn main() {
             // `preparePrelude` is the real ground hoist, whose trigger set is
             // the kernel's pinned `Nat` operation names.
             let mut ast = ar;
-            let prepared = match prepare::prepare_d(&mut ast, pre, res.decls) {
+            let prepared = match prepare::prepare_d(pers, &mut ast, pre, res.decls) {
                 Ok(p) => p,
                 Err(e) => {
                     let (m, c) = render(&e);
@@ -251,7 +255,7 @@ fn main() {
             };
             let ar = ast.store;
             let (n_e, n_l, n_n) =
-                (ar.node_count(), ar.ls().node_count(), ar.ns().node_count());
+                (ar.node_count(pers), ar.ls().node_count(pers), ar.ns().node_count(pers));
             let wall = t0.elapsed();
             println!("arena-parse: {}", path);
             println!("  declarations parsed  {}", group(records));

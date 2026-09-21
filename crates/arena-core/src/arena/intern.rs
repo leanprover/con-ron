@@ -64,6 +64,7 @@ use con_ron_core::ron::hashmap::{Dup};
 // reads as it did.  `ron::hashmap::HashMap` is still what `crates/con-ron`
 // uses, and is still the one with proofs.
 use con_ron_core::ron::hashmap2::HashMap2 as HashMap;
+use crate::arena::store::PersTier;
 
 /// con-leche: none — the interning walk's memo; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:455-462 EMemo
 /// The memo of the interning walk: a transient `Expr` node to the handle it
@@ -94,24 +95,29 @@ pub fn memo_get(m: &EMemo, e: &Expr) -> Option<EIdx> {
 /// The memo is threaded as a `&mut`, where the twin threads it as an argument
 /// and a result: the same table, one borrow (`con_ron_core::kernel::
 /// decl_check::consts_resolve_f_go`'s shape).
-pub fn intern_expr_go(st: &mut AState, m: &mut EMemo, e: &Expr) -> Result<EIdx, CheckError> {
+pub fn intern_expr_go(
+    pers: &PersTier,
+    st: &mut AState,
+    m: &mut EMemo,
+    e: &Expr,
+) -> Result<EIdx, CheckError>  {
     match expr::view(e) {
-        ExprView::Bvar(i) => intern_e(st, ENodeView::BVar(*i)),
-        ExprView::Sort(u) => match intern_level(st, u) {
+        ExprView::Bvar(i) => intern_e(pers, st, ENodeView::BVar(*i)),
+        ExprView::Sort(u) => match intern_level(pers, st, u) {
             Err(err) => Err(err),
-            Ok(hu) => intern_e(st, ENodeView::Sort(hu)),
+            Ok(hu) => intern_e(pers, st, ENodeView::Sort(hu)),
         },
-        ExprView::Const(n, us) => match intern_name(st, n) {
+        ExprView::Const(n, us) => match intern_name(pers, st, n) {
             Err(err) => Err(err),
-            Ok(hn) => match intern_levels(st, us) {
+            Ok(hn) => match intern_levels(pers, st, us) {
                 Err(err) => Err(err),
-                Ok(hus) => intern_e(st, ENodeView::Const(hn, hus)),
+                Ok(hus) => intern_e(pers, st, ENodeView::Const(hn, hus)),
             },
         },
-        ExprView::Lit(l) => intern_e(st, ENodeView::Lit(expr::literal_dup(l))),
+        ExprView::Lit(l) => intern_e(pers, st, ENodeView::Lit(expr::literal_dup(l))),
         _ => match memo_get(m, e) {
             Some(h) => Ok(h),
-            None => match intern_expr_node(st, m, e) {
+            None => match intern_expr_node(pers, st, m, e) {
                 Err(err) => Err(err),
                 Ok(h) => {
                     m.insert(expr::dup(e), h.dup2());
@@ -125,65 +131,71 @@ pub fn intern_expr_go(st: &mut AState, m: &mut EMemo, e: &Expr) -> Result<EIdx, 
 /// con-leche: none — the non-leaf arms of the interning walk; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:464-523 internExprGo
 /// The six memoized arms, past the probe.  Split off so that the probe's
 /// `match` ends before the state is taken mutably again (extraction rule 5).
-pub fn intern_expr_node(st: &mut AState, m: &mut EMemo, e: &Expr) -> Result<EIdx, CheckError> {
+pub fn intern_expr_node(
+    pers: &PersTier,
+    st: &mut AState,
+    m: &mut EMemo,
+    e: &Expr,
+) -> Result<EIdx, CheckError>  {
     match expr::view(e) {
-        ExprView::Fvar(i, ty) => match intern_expr_go(st, m, ty) {
+        ExprView::Fvar(i, ty) => match intern_expr_go(pers, st, m, ty) {
             Err(err) => Err(err),
-            Ok(t) => intern_e(st, ENodeView::FVar(*i, t)),
+            Ok(t) => intern_e(pers, st, ENodeView::FVar(*i, t)),
         },
-        ExprView::App(f, a) => match intern_expr_go(st, m, f) {
+        ExprView::App(f, a) => match intern_expr_go(pers, st, m, f) {
             Err(err) => Err(err),
-            Ok(hf) => match intern_expr_go(st, m, a) {
+            Ok(hf) => match intern_expr_go(pers, st, m, a) {
                 Err(err) => Err(err),
-                Ok(ha) => intern_e(st, ENodeView::App(hf, ha)),
+                Ok(ha) => intern_e(pers, st, ENodeView::App(hf, ha)),
             },
         },
-        ExprView::Lam(ty, b, bi) => match intern_expr_go(st, m, ty) {
+        ExprView::Lam(ty, b, bi) => match intern_expr_go(pers, st, m, ty) {
             Err(err) => Err(err),
-            Ok(ht) => match intern_expr_go(st, m, b) {
+            Ok(ht) => match intern_expr_go(pers, st, m, b) {
                 Err(err) => Err(err),
-                Ok(hb) => intern_e(st, ENodeView::Lam(ht, hb, expr::binder_meta_dup(bi))),
+                Ok(hb) => intern_e(pers, st, ENodeView::Lam(ht, hb, expr::binder_meta_dup(bi))),
             },
         },
-        ExprView::ForallE(ty, b, bi) => match intern_expr_go(st, m, ty) {
+        ExprView::ForallE(ty, b, bi) => match intern_expr_go(pers, st, m, ty) {
             Err(err) => Err(err),
-            Ok(ht) => match intern_expr_go(st, m, b) {
+            Ok(ht) => match intern_expr_go(pers, st, m, b) {
                 Err(err) => Err(err),
-                Ok(hb) => intern_e(st, ENodeView::ForallE(ht, hb, expr::binder_meta_dup(bi))),
+                Ok(hb) => intern_e(pers, st, ENodeView::ForallE(ht, hb, expr::binder_meta_dup(bi))),
             },
         },
-        ExprView::LetE(ty, v, b) => match intern_expr_go(st, m, ty) {
+        ExprView::LetE(ty, v, b) => match intern_expr_go(pers, st, m, ty) {
             Err(err) => Err(err),
-            Ok(ht) => match intern_expr_go(st, m, v) {
+            Ok(ht) => match intern_expr_go(pers, st, m, v) {
                 Err(err) => Err(err),
-                Ok(hv) => match intern_expr_go(st, m, b) {
+                Ok(hv) => match intern_expr_go(pers, st, m, b) {
                     Err(err) => Err(err),
-                    Ok(hb) => intern_e(st, ENodeView::LetE(ht, hv, hb)),
+                    Ok(hb) => intern_e(pers, st, ENodeView::LetE(ht, hv, hb)),
                 },
             },
         },
-        ExprView::Proj(n, i, sub) => match intern_name(st, n) {
+        ExprView::Proj(n, i, sub) => match intern_name(pers, st, n) {
             Err(err) => Err(err),
-            Ok(hn) => match intern_expr_go(st, m, sub) {
+            Ok(hn) => match intern_expr_go(pers, st, m, sub) {
                 Err(err) => Err(err),
-                Ok(hs) => intern_e(st, ENodeView::Proj(hn, *i, hs)),
+                Ok(hs) => intern_e(pers, st, ENodeView::Proj(hn, *i, hs)),
             },
         },
-        _ => intern_expr_go(st, m, e),
+        _ => intern_expr_go(pers, st, m, e),
     }
 }
 
 /// con-leche: none — intern a transient term at a fresh memo
 /// Lean twin: `proof/ConRon/Arena/Intern.lean:47-48 internExpr`.
-pub fn intern_expr(st: &mut AState, e: &Expr) -> Result<EIdx, CheckError> {
+pub fn intern_expr(pers: &PersTier, st: &mut AState, e: &Expr) -> Result<EIdx, CheckError> {
     let mut m: EMemo = memo_empty();
-    intern_expr_go(st, &mut m, e)
+    intern_expr_go(pers, st, &mut m, e)
 }
 
 /// con-leche: none — intern a list of transient terms; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:528-533 internExprList
 /// The `List` recursion of the twin, as a cursor over the `Vec` (DESIGN.md
 /// §3.4's standing rule).
 pub fn intern_expr_list_go(
+    pers: &PersTier,
     st: &mut AState,
     m: &mut EMemo,
     es: &Vec<Expr>,
@@ -193,12 +205,12 @@ pub fn intern_expr_list_go(
     if i >= es.len() {
         Ok(out)
     } else {
-        match intern_expr_go(st, m, &es[i]) {
+        match intern_expr_go(pers, st, m, &es[i]) {
             Err(err) => Err(err),
             Ok(h) => {
                 let mut out2 = out;
                 out2.push(h);
-                intern_expr_list_go(st, m, es, i + 1, out2)
+                intern_expr_list_go(pers, st, m, es, i + 1, out2)
             }
         }
     }
@@ -206,15 +218,20 @@ pub fn intern_expr_list_go(
 
 /// con-leche: none — intern a list of transient terms at a fresh memo
 /// Lean twin: `proof/ConRon/Arena/Intern.lean:50-52 internExprList`.
-pub fn intern_expr_list(st: &mut AState, es: &Vec<Expr>) -> Result<Vec<EIdx>, CheckError> {
+pub fn intern_expr_list(
+    pers: &PersTier,
+    st: &mut AState,
+    es: &Vec<Expr>,
+) -> Result<Vec<EIdx>, CheckError>  {
     let mut m: EMemo = memo_empty();
-    intern_expr_list_go(st, &mut m, es, 0, Vec::new())
+    intern_expr_list_go(pers, st, &mut m, es, 0, Vec::new())
 }
 
 /// con-leche: none — intern a list of transient names; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:536-541 internNameList
 /// The cursor recursion; names carry no memo (a name is a small value and its
 /// cons table is the memo).
 pub fn intern_name_list_go(
+    pers: &PersTier,
     st: &mut AState,
     ns: &Vec<Name>,
     i: usize,
@@ -223,12 +240,12 @@ pub fn intern_name_list_go(
     if i >= ns.len() {
         Ok(out)
     } else {
-        match intern_name(st, &ns[i]) {
+        match intern_name(pers, st, &ns[i]) {
             Err(err) => Err(err),
             Ok(h) => {
                 let mut out2 = out;
                 out2.push(h);
-                intern_name_list_go(st, ns, i + 1, out2)
+                intern_name_list_go(pers, st, ns, i + 1, out2)
             }
         }
     }
@@ -236,8 +253,12 @@ pub fn intern_name_list_go(
 
 /// con-leche: none — intern a list of transient names
 /// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:536-541 internNameList`.
-pub fn intern_name_list(st: &mut AState, ns: &Vec<Name>) -> Result<Vec<NIdx>, CheckError> {
-    intern_name_list_go(st, ns, 0, Vec::new())
+pub fn intern_name_list(
+    pers: &PersTier,
+    st: &mut AState,
+    ns: &Vec<Name>,
+) -> Result<Vec<NIdx>, CheckError>  {
+    intern_name_list_go(pers, st, ns, 0, Vec::new())
 }
 
 /// con-leche: none — intern a list of transient levels; Lean twin: proof/ConRon/Arena/Monad.lean:316-320 internLevelList
@@ -246,6 +267,7 @@ pub fn intern_name_list(st: &mut AState, ns: &Vec<Name>) -> Result<Vec<NIdx>, Ch
 /// one is here so that `intern_fire` and `intern_proj_table` read like the
 /// twin's clauses.
 pub fn intern_level_list_go(
+    pers: &PersTier,
     st: &mut AState,
     us: &Vec<Level>,
     i: usize,
@@ -254,12 +276,12 @@ pub fn intern_level_list_go(
     if i >= us.len() {
         Ok(out)
     } else {
-        match intern_level(st, &us[i]) {
+        match intern_level(pers, st, &us[i]) {
             Err(err) => Err(err),
             Ok(h) => {
                 let mut out2 = out;
                 out2.push(h);
-                intern_level_list_go(st, us, i + 1, out2)
+                intern_level_list_go(pers, st, us, i + 1, out2)
             }
         }
     }
@@ -268,15 +290,16 @@ pub fn intern_level_list_go(
 /// con-leche: none — intern a `ConstantVal`; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:544-548 internCV
 /// The memoized form, for a block whose members share subterms.
 pub fn intern_cv_go(
+    pers: &PersTier,
     st: &mut AState,
     m: &mut EMemo,
     cv: &ConstantVal,
 ) -> Result<IConstantVal, CheckError> {
-    match intern_name(st, &cv.name) {
+    match intern_name(pers, st, &cv.name) {
         Err(err) => Err(err),
-        Ok(n) => match intern_name_list(st, &cv.level_params) {
+        Ok(n) => match intern_name_list(pers, st, &cv.level_params) {
             Err(err) => Err(err),
-            Ok(lps) => match intern_expr_go(st, m, &cv.ty) {
+            Ok(lps) => match intern_expr_go(pers, st, m, &cv.ty) {
                 Err(err) => Err(err),
                 Ok(ty) => Ok(IConstantVal { name: n, level_params: lps, ty }),
             },
@@ -286,14 +309,19 @@ pub fn intern_cv_go(
 
 /// con-leche: none — intern a transient `ConstantVal` at a fresh memo
 /// Lean twin: `proof/ConRon/Arena/Intern.lean:54-56 internCV`.
-pub fn intern_cv(st: &mut AState, cv: &ConstantVal) -> Result<IConstantVal, CheckError> {
+pub fn intern_cv(
+    pers: &PersTier,
+    st: &mut AState,
+    cv: &ConstantVal,
+) -> Result<IConstantVal, CheckError>  {
     let mut m: EMemo = memo_empty();
-    intern_cv_go(st, &mut m, cv)
+    intern_cv_go(pers, st, &mut m, cv)
 }
 
 /// con-leche: none — intern a recursor rule's firing mode
 /// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:551-557 internFire`.
 pub fn intern_fire(
+    pers: &PersTier,
     st: &mut AState,
     m: &mut EMemo,
     f: &RecRuleFire,
@@ -301,9 +329,9 @@ pub fn intern_fire(
     match f {
         RecRuleFire::Inert => Ok(IRecRuleFire::Inert),
         RecRuleFire::Plain => Ok(IRecRuleFire::Plain),
-        RecRuleFire::Nested(lvls, pins) => match intern_level_list_go(st, lvls, 0, Vec::new()) {
+        RecRuleFire::Nested(lvls, pins) => match intern_level_list_go(pers, st, lvls, 0, Vec::new()) {
             Err(err) => Err(err),
-            Ok(hls) => match intern_expr_list_go(st, m, pins, 0, Vec::new()) {
+            Ok(hls) => match intern_expr_list_go(pers, st, m, pins, 0, Vec::new()) {
                 Err(err) => Err(err),
                 Ok(hps) => Ok(IRecRuleFire::Nested(hls, hps)),
             },
@@ -313,12 +341,17 @@ pub fn intern_fire(
 
 /// con-leche: none — intern one recursor rule
 /// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:560-564 internRule`.
-pub fn intern_rule(st: &mut AState, m: &mut EMemo, rl: &RecRule) -> Result<IRecRule, CheckError> {
-    match intern_name(st, &rl.ctor) {
+pub fn intern_rule(
+    pers: &PersTier,
+    st: &mut AState,
+    m: &mut EMemo,
+    rl: &RecRule,
+) -> Result<IRecRule, CheckError>  {
+    match intern_name(pers, st, &rl.ctor) {
         Err(err) => Err(err),
-        Ok(c) => match intern_fire(st, m, &rl.fire) {
+        Ok(c) => match intern_fire(pers, st, m, &rl.fire) {
             Err(err) => Err(err),
-            Ok(f) => match intern_expr_go(st, m, &rl.rhs) {
+            Ok(f) => match intern_expr_go(pers, st, m, &rl.rhs) {
                 Err(err) => Err(err),
                 Ok(r) => Ok(IRecRule {
                     ctor: c,
@@ -338,6 +371,7 @@ pub fn intern_rule(st: &mut AState, m: &mut EMemo, rl: &RecRule) -> Result<IRecR
 /// con-leche: none — intern a rule list
 /// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:567-572 internRules`.
 pub fn intern_rules(
+    pers: &PersTier,
     st: &mut AState,
     m: &mut EMemo,
     rs: &Vec<RecRule>,
@@ -347,12 +381,12 @@ pub fn intern_rules(
     if i >= rs.len() {
         Ok(out)
     } else {
-        match intern_rule(st, m, &rs[i]) {
+        match intern_rule(pers, st, m, &rs[i]) {
             Err(err) => Err(err),
             Ok(r) => {
                 let mut out2 = out;
                 out2.push(r);
-                intern_rules(st, m, rs, i + 1, out2)
+                intern_rules(pers, st, m, rs, i + 1, out2)
             }
         }
     }
@@ -360,8 +394,8 @@ pub fn intern_rules(
 
 /// con-leche: none — intern an inductive's capabilities
 /// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:575-578 internCaps`.
-pub fn intern_caps(st: &mut AState, c: &IndCaps) -> Result<IIndCaps, CheckError> {
-    match intern_name(st, &c.eta_ctor) {
+pub fn intern_caps(pers: &PersTier, st: &mut AState, c: &IndCaps) -> Result<IIndCaps, CheckError> {
+    match intern_name(pers, st, &c.eta_ctor) {
         Err(err) => Err(err),
         Ok(ct) => Ok(IIndCaps {
             eta: c.eta,
@@ -381,15 +415,16 @@ pub fn intern_caps(st: &mut AState, c: &IndCaps) -> Result<IIndCaps, CheckError>
 /// `table_name` is the field `arena::env` adds: the reserved name, interned
 /// here so that `i_constant_info_name` stays pure.
 pub fn intern_proj_table(
+    pers: &PersTier,
     st: &mut AState,
     m: &mut EMemo,
     t: &ProjTable,
 ) -> Result<IProjTable, CheckError> {
-    match intern_name(st, &t.struct_name) {
+    match intern_name(pers, st, &t.struct_name) {
         Err(err) => Err(err),
-        Ok(sn) => match crate::arena::env::proj_table_name(&mut st.store, &sn) {
+        Ok(sn) => match crate::arena::env::proj_table_name(pers, &mut st.store, &sn) {
             Err(err) => Err(err),
-            Ok(tn) => intern_proj_table_rest(st, m, t, sn, tn),
+            Ok(tn) => intern_proj_table_rest(pers, st, m, t, sn, tn),
         },
     }
 }
@@ -399,21 +434,22 @@ pub fn intern_proj_table(
 /// Split at the twin's own `let`-boundary, so each state-threading call is a
 /// tail call (task #97-P4c's rule).
 pub fn intern_proj_table_rest(
+    pers: &PersTier,
     st: &mut AState,
     m: &mut EMemo,
     t: &ProjTable,
     sn: NIdx,
     tn: NIdx,
 ) -> Result<IProjTable, CheckError> {
-    match intern_name_list(st, &t.level_params) {
+    match intern_name_list(pers, st, &t.level_params) {
         Err(err) => Err(err),
-        Ok(lps) => match intern_name(st, &t.ctor) {
+        Ok(lps) => match intern_name(pers, st, &t.ctor) {
             Err(err) => Err(err),
-            Ok(c) => match intern_level(st, &t.struct_sort) {
+            Ok(c) => match intern_level(pers, st, &t.struct_sort) {
                 Err(err) => Err(err),
-                Ok(ss) => match intern_expr_list_go(st, m, &t.bodies, 0, Vec::new()) {
+                Ok(ss) => match intern_expr_list_go(pers, st, m, &t.bodies, 0, Vec::new()) {
                     Err(err) => Err(err),
-                    Ok(bs) => match intern_level_list_go(st, &t.guards, 0, Vec::new()) {
+                    Ok(bs) => match intern_level_list_go(pers, st, &t.guards, 0, Vec::new()) {
                         Err(err) => Err(err),
                         Ok(gs) => Ok(IProjTable {
                             struct_name: sn,
@@ -437,48 +473,49 @@ pub fn intern_proj_table_rest(
 /// con-leche: none — intern a stored constant
 /// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:594-619 internCI`.
 pub fn intern_ci_go(
+    pers: &PersTier,
     st: &mut AState,
     m: &mut EMemo,
     c: &ConstantInfo,
 ) -> Result<IConstantInfo, CheckError> {
     match c {
-        ConstantInfo::AxiomInfo(v) => match intern_cv_go(st, m, v) {
+        ConstantInfo::AxiomInfo(v) => match intern_cv_go(pers, st, m, v) {
             Err(err) => Err(err),
             Ok(cv) => Ok(IConstantInfo::AxiomInfo(cv)),
         },
-        ConstantInfo::DefnInfo(v, e, h) => match intern_cv_go(st, m, v) {
+        ConstantInfo::DefnInfo(v, e, h) => match intern_cv_go(pers, st, m, v) {
             Err(err) => Err(err),
-            Ok(cv) => match intern_expr_go(st, m, e) {
+            Ok(cv) => match intern_expr_go(pers, st, m, e) {
                 Err(err) => Err(err),
                 Ok(x) => Ok(IConstantInfo::DefnInfo(cv, x, cenv::reducibility_hint_dup(h))),
             },
         },
-        ConstantInfo::ThmInfo(v, e) => match intern_cv_go(st, m, v) {
+        ConstantInfo::ThmInfo(v, e) => match intern_cv_go(pers, st, m, v) {
             Err(err) => Err(err),
-            Ok(cv) => match intern_expr_go(st, m, e) {
+            Ok(cv) => match intern_expr_go(pers, st, m, e) {
                 Err(err) => Err(err),
                 Ok(x) => Ok(IConstantInfo::ThmInfo(cv, x)),
             },
         },
-        ConstantInfo::IndInfo(v, c2) => match intern_cv_go(st, m, v) {
+        ConstantInfo::IndInfo(v, c2) => match intern_cv_go(pers, st, m, v) {
             Err(err) => Err(err),
-            Ok(cv) => match intern_caps(st, c2) {
+            Ok(cv) => match intern_caps(pers, st, c2) {
                 Err(err) => Err(err),
                 Ok(caps) => Ok(IConstantInfo::IndInfo(cv, caps)),
             },
         },
-        ConstantInfo::CtorInfo(v, n_p, n_f) => match intern_cv_go(st, m, v) {
+        ConstantInfo::CtorInfo(v, n_p, n_f) => match intern_cv_go(pers, st, m, v) {
             Err(err) => Err(err),
             Ok(cv) => Ok(IConstantInfo::CtorInfo(cv, *n_p, *n_f)),
         },
-        ConstantInfo::RecInfo(v, m_i, r_p, rs) => match intern_cv_go(st, m, v) {
+        ConstantInfo::RecInfo(v, m_i, r_p, rs) => match intern_cv_go(pers, st, m, v) {
             Err(err) => Err(err),
-            Ok(cv) => match intern_rules(st, m, rs, 0, Vec::new()) {
+            Ok(cv) => match intern_rules(pers, st, m, rs, 0, Vec::new()) {
                 Err(err) => Err(err),
                 Ok(rules) => Ok(IConstantInfo::RecInfo(cv, *m_i, *r_p, rules)),
             },
         },
-        ConstantInfo::ProjInfo(t) => match intern_proj_table(st, m, t) {
+        ConstantInfo::ProjInfo(t) => match intern_proj_table(pers, st, m, t) {
             Err(err) => Err(err),
             Ok(tbl) => Ok(IConstantInfo::ProjInfo(tbl)),
         },
@@ -487,14 +524,19 @@ pub fn intern_ci_go(
 
 /// con-leche: none — intern a transient `ConstantInfo` at a fresh memo
 /// Lean twin: `proof/ConRon/Arena/Intern.lean:58-60 internCI`.
-pub fn intern_ci(st: &mut AState, c: &ConstantInfo) -> Result<IConstantInfo, CheckError> {
+pub fn intern_ci(
+    pers: &PersTier,
+    st: &mut AState,
+    c: &ConstantInfo,
+) -> Result<IConstantInfo, CheckError>  {
     let mut m: EMemo = memo_empty();
-    intern_ci_go(st, &mut m, c)
+    intern_ci_go(pers, st, &mut m, c)
 }
 
 /// con-leche: none — intern a block's constants
 /// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:622-627 internCIList`.
 pub fn intern_ci_list_go(
+    pers: &PersTier,
     st: &mut AState,
     m: &mut EMemo,
     cs: &Vec<ConstantInfo>,
@@ -504,12 +546,12 @@ pub fn intern_ci_list_go(
     if i >= cs.len() {
         Ok(out)
     } else {
-        match intern_ci_go(st, m, &cs[i]) {
+        match intern_ci_go(pers, st, m, &cs[i]) {
             Err(err) => Err(err),
             Ok(h) => {
                 let mut out2 = out;
                 out2.push(h);
-                intern_ci_list_go(st, m, cs, i + 1, out2)
+                intern_ci_list_go(pers, st, m, cs, i + 1, out2)
             }
         }
     }
@@ -519,11 +561,12 @@ pub fn intern_ci_list_go(
 /// Lean twin: `proof/ConRon/Arena/Intern.lean:62-65 internCIList` — one memo,
 /// so that the sharing between a block's members survives.
 pub fn intern_ci_list(
+    pers: &PersTier,
     st: &mut AState,
     cs: &Vec<ConstantInfo>,
 ) -> Result<Vec<IConstantInfo>, CheckError> {
     let mut m: EMemo = memo_empty();
-    intern_ci_list_go(st, &mut m, cs, 0, Vec::new())
+    intern_ci_list_go(pers, st, &mut m, cs, 0, Vec::new())
 }
 
 /// con-leche: none — intern a declaration record
@@ -533,44 +576,45 @@ pub fn intern_ci_list(
 /// arena's; it is shipped rather than test-only because `Readback.lean` ships
 /// it and the two modules are twins.
 pub fn intern_decl(
+    pers: &PersTier,
     st: &mut AState,
     m: &mut EMemo,
     d: &Declaration,
 ) -> Result<IDeclaration, CheckError> {
     match d {
-        Declaration::AxiomDecl(v) => match intern_cv_go(st, m, v) {
+        Declaration::AxiomDecl(v) => match intern_cv_go(pers, st, m, v) {
             Err(err) => Err(err),
             Ok(cv) => Ok(IDeclaration::AxiomDecl(cv)),
         },
-        Declaration::DefnDecl(v, e, h) => match intern_cv_go(st, m, v) {
+        Declaration::DefnDecl(v, e, h) => match intern_cv_go(pers, st, m, v) {
             Err(err) => Err(err),
-            Ok(cv) => match intern_expr_go(st, m, e) {
+            Ok(cv) => match intern_expr_go(pers, st, m, e) {
                 Err(err) => Err(err),
                 Ok(x) => Ok(IDeclaration::DefnDecl(cv, x, cenv::reducibility_hint_dup(h))),
             },
         },
-        Declaration::ThmDecl(v, e) => match intern_cv_go(st, m, v) {
+        Declaration::ThmDecl(v, e) => match intern_cv_go(pers, st, m, v) {
             Err(err) => Err(err),
-            Ok(cv) => match intern_expr_go(st, m, e) {
+            Ok(cv) => match intern_expr_go(pers, st, m, e) {
                 Err(err) => Err(err),
                 Ok(x) => Ok(IDeclaration::ThmDecl(cv, x)),
             },
         },
-        Declaration::OpaqueDecl(v, e) => match intern_cv_go(st, m, v) {
+        Declaration::OpaqueDecl(v, e) => match intern_cv_go(pers, st, m, v) {
             Err(err) => Err(err),
-            Ok(cv) => match intern_expr_go(st, m, e) {
+            Ok(cv) => match intern_expr_go(pers, st, m, e) {
                 Err(err) => Err(err),
                 Ok(x) => Ok(IDeclaration::OpaqueDecl(cv, x)),
             },
         },
         Declaration::BasisDecl(k) => Ok(IDeclaration::BasisDecl(cenv::basis_kind_dup(k))),
         Declaration::IndDecl(block, n_p) => {
-            match intern_ci_list_go(st, m, block, 0, Vec::new()) {
+            match intern_ci_list_go(pers, st, m, block, 0, Vec::new()) {
                 Err(err) => Err(err),
                 Ok(b) => Ok(IDeclaration::IndDecl(b, *n_p)),
             }
         }
-        Declaration::QuotDecl(k, v) => match intern_cv_go(st, m, v) {
+        Declaration::QuotDecl(k, v) => match intern_cv_go(pers, st, m, v) {
             Err(err) => Err(err),
             Ok(cv) => Ok(IDeclaration::QuotDecl(cenv::quot_kind_dup(k), cv)),
         },
@@ -580,6 +624,7 @@ pub fn intern_decl(
 /// con-leche: none — intern a declaration list
 /// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:657-662 internDecls`.
 pub fn intern_decls_go(
+    pers: &PersTier,
     st: &mut AState,
     m: &mut EMemo,
     ds: &Vec<Declaration>,
@@ -589,12 +634,12 @@ pub fn intern_decls_go(
     if i >= ds.len() {
         Ok(out)
     } else {
-        match intern_decl(st, m, &ds[i]) {
+        match intern_decl(pers, st, m, &ds[i]) {
             Err(err) => Err(err),
             Ok(h) => {
                 let mut out2 = out;
                 out2.push(h);
-                intern_decls_go(st, m, ds, i + 1, out2)
+                intern_decls_go(pers, st, m, ds, i + 1, out2)
             }
         }
     }
@@ -603,9 +648,10 @@ pub fn intern_decls_go(
 /// con-leche: none — intern a declaration list at ONE memo
 /// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:657-662 internDecls`.
 pub fn intern_decls(
+    pers: &PersTier,
     st: &mut AState,
     ds: &Vec<Declaration>,
 ) -> Result<Vec<IDeclaration>, CheckError> {
     let mut m: EMemo = memo_empty();
-    intern_decls_go(st, &mut m, ds, 0, Vec::new())
+    intern_decls_go(pers, st, &mut m, ds, 0, Vec::new())
 }

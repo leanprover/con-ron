@@ -30,11 +30,14 @@ use crate::arena::handle::{EIdx, LIdx, NIdx};
 use crate::arena::monad::AState;
 use con_ron_core::kernel::core_types::CheckError;
 use con_ron_core::kernel::env::CheckMode;
+use crate::arena::store::PersTier;
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:27-36 checkStructDomsAtF
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstallF.lean:34 checkStructDomsAtF`
 /// — `checkStructDomsAt` through the index; the same function (module note).
 pub fn check_struct_doms_at_f(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -43,7 +46,7 @@ pub fn check_struct_doms_at_f(
     doms: &Vec<EIdx>,
     k: u64,
 ) -> Result<(), CheckError> {
-    struct_install::check_struct_doms_at(st, mode, fe, off, fvs, doms, k)
+    struct_install::check_struct_doms_at(pers, vis, st, mode, fe, off, fvs, doms, k)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:38-48 checkStructDomsAtFA
@@ -51,6 +54,8 @@ pub fn check_struct_doms_at_f(
 /// — `checkStructDomsAtF` over arrays; the same function at `List.toArray`,
 /// and over a `Vec` there is nothing left to distinguish.
 pub fn check_struct_doms_at_fa(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -59,7 +64,7 @@ pub fn check_struct_doms_at_fa(
     doms: &Vec<EIdx>,
     k: u64,
 ) -> Result<(), CheckError> {
-    struct_install::check_struct_doms_at(st, mode, fe, off, fvs, doms, k)
+    struct_install::check_struct_doms_at(pers, vis, st, mode, fe, off, fvs, doms, k)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:73-95 checkStructProjTableF
@@ -67,6 +72,7 @@ pub fn check_struct_doms_at_fa(
 /// — `checkStructProjTable` through the index; the same function.
 #[allow(clippy::too_many_arguments)]
 pub fn check_struct_proj_table_f(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     c: &NIdx,
@@ -80,6 +86,7 @@ pub fn check_struct_proj_table_f(
     fe: IFEnv,
 ) -> Result<IFEnv, CheckError> {
     struct_install::check_struct_proj_table(
+        pers,
         st, t, c, lps, n_p, n_f, res_sort, guards, off, cv_ca, fe,
     )
 }

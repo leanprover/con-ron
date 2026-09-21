@@ -30,6 +30,7 @@ use con_ron_core::kernel::core_types;
 use con_ron_core::kernel::core_types::{code_points, CheckError};
 use con_ron_core::kernel::env::CheckMode;
 use con_ron_core::ron::hashmap::Dup;
+use crate::arena::store::PersTier;
 
 // ---------------------------------------------------------------------------
 // The messages (con-ron-core's own, interpolation dropped)
@@ -92,6 +93,8 @@ pub const M_TBL_TAKEN: [u32; 22] = [
 /// `j`-th expected domain, at frame `off + j`.  Walks from the last binder to
 /// the first, as the twin's `j + 1` recursion does.
 pub fn check_struct_doms_at(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -119,9 +122,11 @@ pub fn check_struct_doms_at(
             Ok(fv) => {
                 match checker_base::unwrap_or(b, core_types::internal(code_points(&M_DOM_IDX))) {
                     Err(e) => Err(e),
-                    Ok(dom) => match expr_ops::fvar_type_d(st, &fv) {
+                    Ok(dom) => match expr_ops::fvar_type_d(pers, st, &fv) {
                         Err(e) => Err(e),
                         Ok(ty) => match core::is_def_eq_core(
+                            pers,
+                            vis,
                             st,
                             mode,
                             fe,
@@ -132,7 +137,7 @@ pub fn check_struct_doms_at(
                         ) {
                             Err(e) => Err(e),
                             Ok(false) => fail(core_types::not_implemented(code_points(&M_DOM_MIS))),
-                            Ok(true) => check_struct_doms_at(st, mode, fe, off, fvs, doms, j),
+                            Ok(true) => check_struct_doms_at(pers, vis, st, mode, fe, off, fvs, doms, j),
                         },
                     },
                 }
@@ -156,6 +161,7 @@ pub fn check_struct_doms_at(
 /// (`arena::env`'s one added field).
 #[allow(clippy::too_many_arguments)]
 pub fn check_struct_proj_table(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     c: &NIdx,
@@ -168,18 +174,19 @@ pub fn check_struct_proj_table(
     cv_ca: &IConstantVal,
     fe: IFEnv,
 ) -> Result<IFEnv, CheckError> {
-    match struct_parts::struct_proj_bodies(st, t, n_p, n_f, &cv_ca.ty) {
+    match struct_parts::struct_proj_bodies(pers, st, t, n_p, n_f, &cv_ca.ty) {
         Err(e) => Err(e),
         Ok(o) => match checker_base::unwrap_or(o, core_types::internal(code_points(&M_TBL_BODIES)))
         {
             Err(e) => Err(e),
-            Ok(bodies) => match proj_bodies_scoped(st, &fe, lps, n_p, &bodies, 0) {
+            Ok(bodies) => match proj_bodies_scoped(pers, fe.visible_below, st, &fe, lps, n_p, &bodies, 0) {
                 Err(e) => Err(e),
                 Ok(scoped_ok) => {
                     if !(bodies.len() as u64 == n_f && scoped_ok) {
                         fail(core_types::internal(code_points(&M_TBL_SCOPE)))
                     } else {
                         check_struct_proj_table_names(
+                            pers,
                             st, t, c, lps, n_p, n_f, res_sort, guards, off, bodies, fe,
                         )
                     }
@@ -196,6 +203,8 @@ pub fn check_struct_proj_table(
 /// the subject.  **All four conjuncts run for every body**, as the twin's `do`
 /// does; the walk stops at the first body that fails, which is `List.allM`.
 pub fn proj_bodies_scoped(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     lps: &Vec<NIdx>,
@@ -207,18 +216,18 @@ pub fn proj_bodies_scoped(
         Ok(true)
     } else {
         let b: EIdx = bodies[i].dup2();
-        match expr_ops::has_fvar_fast(st, CORE_WALK_FUEL, &b) {
+        match expr_ops::has_fvar_fast(pers, st, CORE_WALK_FUEL, &b) {
             Err(e) => Err(e),
-            Ok(w1) => match checker_base::all_level_params_defined(st, lps, &b) {
+            Ok(w1) => match checker_base::all_level_params_defined(pers, st, lps, &b) {
                 Err(e) => Err(e),
-                Ok(w2) => match checker_base::consts_resolve_f_fast(st, fe, &b) {
+                Ok(w2) => match checker_base::consts_resolve_f_fast(pers, vis, st, fe, &b) {
                     Err(e) => Err(e),
                     Ok(w3) => {
-                        match expr_ops::loose_bvars_bounded_fast(st, CORE_WALK_FUEL, n_p + 1, &b) {
+                        match expr_ops::loose_bvars_bounded_fast(pers, st, CORE_WALK_FUEL, n_p + 1, &b) {
                             Err(e) => Err(e),
                             Ok(w4) => {
                                 if !w1 && w2 && w3 && w4 {
-                                    proj_bodies_scoped(st, fe, lps, n_p, bodies, i + 1)
+                                    proj_bodies_scoped(pers, vis, st, fe, lps, n_p, bodies, i + 1)
                                 } else {
                                     Ok(false)
                                 }
@@ -237,6 +246,7 @@ pub fn proj_bodies_scoped(
 /// must be free, and then the table is stored.
 #[allow(clippy::too_many_arguments)]
 pub fn check_struct_proj_table_names(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     c: &NIdx,
@@ -249,13 +259,13 @@ pub fn check_struct_proj_table_names(
     bodies: Vec<EIdx>,
     fe: IFEnv,
 ) -> Result<IFEnv, CheckError> {
-    match proj_fn_family_free(st, &fe, t, n_f, 0) {
+    match proj_fn_family_free(pers, fe.visible_below, st, &fe, t, n_f, 0) {
         Err(e) => Err(e),
         Ok(false) => fail(core_types::invalid(code_points(&M_TBL_FAM))),
-        Ok(true) => match env::proj_table_name(&mut st.store, t) {
+        Ok(true) => match env::proj_table_name(pers, &mut st.store, t) {
             Err(e) => Err(e),
             Ok(tn) => {
-                if env::ifenv_find(&fe, &tn).is_some() {
+                if env::ifenv_find(fe.visible_below, &fe, &tn).is_some() {
                     fail(core_types::invalid(code_points(&M_TBL_TAKEN)))
                 } else {
                     let tbl = IProjTable {
@@ -284,6 +294,8 @@ pub fn check_struct_proj_table_names(
 /// the same test at the modeled route's own call site; the twin writes it out
 /// at both.
 pub fn proj_fn_family_free(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     t: &NIdx,
@@ -293,11 +305,11 @@ pub fn proj_fn_family_free(
     if j >= n_f {
         Ok(true)
     } else {
-        match env::proj_fn_name(&mut st.store, t, j) {
+        match env::proj_fn_name(pers, &mut st.store, t, j) {
             Err(e) => Err(e),
             Ok(pn) => {
-                if env::ifenv_find(fe, &pn).is_none() {
-                    proj_fn_family_free(st, fe, t, n_f, j + 1)
+                if env::ifenv_find(vis, fe, &pn).is_none() {
+                    proj_fn_family_free(pers, vis, st, fe, t, n_f, j + 1)
                 } else {
                     Ok(false)
                 }

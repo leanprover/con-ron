@@ -44,6 +44,7 @@ use con_ron_core::kernel::core_types::{code_points, CheckError};
 use con_ron_core::kernel::env::CheckMode;
 use con_ron_core::kernel::prop_when;
 use con_ron_core::ron::hashmap::{Dup, Eq2};
+use crate::arena::store::PersTier;
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:61-115 whnfCoreBodyGated
 /// Lean twin: `proof/ConRon/Arena/CoreGated.lean:50-66 whnfCoreBodyGated` —
@@ -54,6 +55,8 @@ use con_ron_core::ron::hashmap::{Dup, Eq2};
 /// certificate infers at the FULL grade, where the plain body's infers at the
 /// io grade.
 pub fn whnf_core_app_gated(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -65,7 +68,7 @@ pub fn whnf_core_app_gated(
     fp: &EIdx,
     a: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match view(st, fp) {
+    match view(pers, st, fp) {
         Err(e) => Err(e),
         Ok(ENodeView::Lam(ty, body, mb)) => {
             let ok = if con_ron_core::kernel::env::verified_checks(mode)
@@ -73,21 +76,21 @@ pub fn whnf_core_app_gated(
             {
                 Ok(true)
             } else {
-                match knot_infer(st, mode, lane, fuel, fe, depth, a) {
+                match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, a) {
                     Err(e) => Err(e),
-                    Ok(ta) => knot_defeq(st, mode, lane, fuel, fe, depth, &ta, &ty),
+                    Ok(ta) => knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &ta, &ty),
                 }
             };
             match ok {
                 Err(e) => Err(e),
-                Ok(true) => match instantiate1_fast(st, CORE_WALK_FUEL, &body, a, 0) {
+                Ok(true) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, a, 0) {
                     Err(e) => Err(e),
-                    Ok(b) => knot_whnf_core(st, mode, lane, fuel, fe, depth, &b),
+                    Ok(b) => knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, &b),
                 },
-                Ok(false) => intern_app_rebuilt(st, h, same, fp, a),
+                Ok(false) => intern_app_rebuilt(pers, st, h, same, fp, a),
             }
         }
-        Ok(_) => whnf_core_stuck_app(st, mode, lane, fuel, fe, depth, h, same, fp, a),
+        Ok(_) => whnf_core_stuck_app(pers, vis, st, mode, lane, fuel, fe, depth, h, same, fp, a),
     }
 }
 
@@ -100,6 +103,8 @@ pub fn whnf_core_app_gated(
 /// has no `pw` datum of its own — so the `.proj` clause is `arena::core`'s,
 /// called and not copied.
 pub fn whnf_core_body_gated(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -108,7 +113,7 @@ pub fn whnf_core_body_gated(
     depth: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match view(st, e) {
+    match view(pers, st, e) {
         Err(er) => Err(er),
         Ok(ENodeView::Sort(_)) => Ok(e.dup2()),
         Ok(ENodeView::FVar(_, _)) => Ok(e.dup2()),
@@ -117,16 +122,16 @@ pub fn whnf_core_body_gated(
         Ok(ENodeView::Const(_, _)) => Ok(e.dup2()),
         Ok(ENodeView::Lit(_)) => Ok(e.dup2()),
         Ok(ENodeView::App(f, a)) => {
-            match knot_whnf_core(st, mode, lane, fuel, fe, depth, &f) {
+            match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, &f) {
                 Err(er) => Err(er),
                 Ok(fp) => {
                     let same: bool = fp.eq2(&f);
-                    whnf_core_app_gated(st, mode, lane, fuel, fe, depth, e, same, &fp, &a)
+                    whnf_core_app_gated(pers, vis, st, mode, lane, fuel, fe, depth, e, same, &fp, &a)
                 }
             }
         }
         Ok(ENodeView::Proj(sn, i, pe)) => {
-            whnf_core_proj(st, mode, lane, fuel, fe, depth, &sn, i, &pe)
+            whnf_core_proj(pers, vis, st, mode, lane, fuel, fe, depth, &sn, i, &pe)
         }
         Ok(ENodeView::LetE(_, _, _)) => {
             fail(CheckError::Internal(code_points(&M_LET_WHNF)))
@@ -153,6 +158,8 @@ pub const CORE_KNOT_GATED: u32 = LANE_GATED;
 /// Lean twin: `proof/ConRon/Arena/CoreGated.lean:127-129 whnfCoreGated` — head
 /// normalization with the β-cert gate (fueled).
 pub fn whnf_core_gated(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -160,13 +167,15 @@ pub fn whnf_core_gated(
     depth: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    knot_whnf_core(st, mode, CORE_KNOT_GATED, fuel, fe, depth, e)
+    knot_whnf_core(pers, vis, st, mode, CORE_KNOT_GATED, fuel, fe, depth, e)
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:161-163 whnfGated
 /// Lean twin: `proof/ConRon/Arena/CoreGated.lean:133-135 whnfGated` — the full
 /// reduction loop over the gated knot (fueled).
 pub fn whnf_gated(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -174,13 +183,15 @@ pub fn whnf_gated(
     depth: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    knot_whnf(st, mode, CORE_KNOT_GATED, fuel, fe, depth, e)
+    knot_whnf(pers, vis, st, mode, CORE_KNOT_GATED, fuel, fe, depth, e)
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:165-168 inferTypeCoreGated
 /// Lean twin: `proof/ConRon/Arena/CoreGated.lean:139-141 inferTypeCoreGated` —
 /// type inference over the gated knot (fueled).
 pub fn infer_type_core_gated(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -188,13 +199,15 @@ pub fn infer_type_core_gated(
     depth: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    knot_infer(st, mode, CORE_KNOT_GATED, fuel, fe, depth, e)
+    knot_infer(pers, vis, st, mode, CORE_KNOT_GATED, fuel, fe, depth, e)
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:170-173 isDefEqCoreGated
 /// Lean twin: `proof/ConRon/Arena/CoreGated.lean:145-147 isDefEqCoreGated` —
 /// definitional equality over the gated knot (fueled).
 pub fn is_def_eq_core_gated(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -203,13 +216,15 @@ pub fn is_def_eq_core_gated(
     a: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    knot_defeq(st, mode, CORE_KNOT_GATED, fuel, fe, depth, a, b)
+    knot_defeq(pers, vis, st, mode, CORE_KNOT_GATED, fuel, fe, depth, a, b)
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:175-178 annotateCoreGated
 /// Lean twin: `proof/ConRon/Arena/CoreGated.lean:151-153 annotateCoreGated` —
 /// the annotation pass over the gated knot (fueled).
 pub fn annotate_core_gated(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -217,13 +232,15 @@ pub fn annotate_core_gated(
     depth: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    crate::arena::core::knot_annotate(st, mode, CORE_KNOT_GATED, fuel, fe, depth, e)
+    crate::arena::core::knot_annotate(pers, vis, st, mode, CORE_KNOT_GATED, fuel, fe, depth, e)
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:180-183 ensureSortCoreGated
 /// Lean twin: `proof/ConRon/Arena/CoreGated.lean:157-159 ensureSortCoreGated` —
 /// `ensureSort` over the gated knot (fueled).
 pub fn ensure_sort_core_gated(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -231,5 +248,5 @@ pub fn ensure_sort_core_gated(
     depth: u64,
     e: &EIdx,
 ) -> Result<LIdx, CheckError> {
-    ensure_sort(st, mode, CORE_KNOT_GATED, fuel, fe, depth, e)
+    ensure_sort(pers, vis, st, mode, CORE_KNOT_GATED, fuel, fe, depth, e)
 }

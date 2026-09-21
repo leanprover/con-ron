@@ -136,6 +136,22 @@ const M_LS_CAP: [u32; 30] = [
     32, 99, 97, 112, 97, 99, 105, 116, 121, 10,
 ];
 
+/// con-leche: none — arena infrastructure (task #97-P6-6b); the frozen-tier guard
+/// `"arena: append to a frozen persistent tier"`, as code points — **the
+/// frozen-tier guard**.  A store whose persistent tier is SHARED
+/// (`shared_on`) may append to its scratch tier and to nothing else: a
+/// persistent append would hand back a handle whose index names a node of the
+/// shared tier, which is the one way the split could lose `denoteE`'s
+/// injectivity.  Phase B never takes the branch — `check_pending` opens the
+/// scratch tier before any term is built, and `intern_persistent`'s only
+/// caller is `arena::promote`, which is phase A's — so the guard states the
+/// discipline rather than walking a path the run takes.
+const M_FROZEN: [u32; 41] = [
+    97, 114, 101, 110, 97, 58, 32, 97, 112, 112, 101, 110, 100, 32, 116, 111, 32, 97, 32, 102,
+    114, 111, 122, 101, 110, 32, 112, 101, 114, 115, 105, 115, 116, 101, 110, 116, 32, 116, 105,
+    101, 114,
+];
+
 /// con-leche: none — the port's own `Native` decline, which con-leche cannot raise (DESIGN.md §3.4, task #67)
 /// `"arena: expr constructor at capacity"`, as code points.
 const M_E_CAP: [u32; 36] = [
@@ -483,6 +499,10 @@ pub struct NStore {
     pub pers: NTables,
     pub scr: NTables,
     pub scratch_on: bool,
+    /// The persistent tier is SHARED — this store's own `pers` is empty and
+    /// every persistent read goes to the `PersTier` parameter, which a
+    /// persistent append may not (task #97-P6-6b's frozen-tier guard).
+    pub shared_on: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -672,6 +692,10 @@ pub struct LStore {
     pub pers: LTables,
     pub scr: LTables,
     pub scratch_on: bool,
+    /// The persistent tier is SHARED — this store's own `pers` is empty and
+    /// every persistent read goes to the `PersTier` parameter, which a
+    /// persistent append may not (task #97-P6-6b's frozen-tier guard).
+    pub shared_on: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -728,6 +752,10 @@ pub struct LsStore {
     pub pers: LsTables,
     pub scr: LsTables,
     pub scratch_on: bool,
+    /// The persistent tier is SHARED — this store's own `pers` is empty and
+    /// every persistent read goes to the `PersTier` parameter, which a
+    /// persistent append may not (task #97-P6-6b's frozen-tier guard).
+    pub shared_on: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -1119,6 +1147,65 @@ pub struct EStore {
     pub pers: ETables,
     pub scr: ETables,
     pub scratch_on: bool,
+    /// The persistent tier is SHARED — this store's own `pers` is empty and
+    /// every persistent read goes to the `PersTier` parameter, which a
+    /// persistent append may not (task #97-P6-6b's frozen-tier guard).
+    pub shared_on: bool,
+}
+
+// ---------------------------------------------------------------------------
+// The persistent tier as ONE value (DESIGN.md §8.3, task #97-P6-6b)
+// ---------------------------------------------------------------------------
+
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:359-363 EStore
+/// **The persistent tier of all four stores, as one value `n` phase-B workers
+/// read by reference** — DESIGN.md §8.3's "the persistent tier is immutable in
+/// phase B, each worker owns a scratch tier — no atomics anywhere", made
+/// expressible.
+///
+/// Each store keeps its own `pers` field, which is the tier the PARSE and
+/// phase A append to, and a `shared_on` flag beside `scratch_on`.  While the
+/// flag is off — the parse, phase A, every test, and the whole single-lane
+/// run — each persistent read goes to the owned field and the computation is
+/// the one the tip performed, node for node.  While it is on, the owned field
+/// is empty, a persistent append is refused (`M_FROZEN`) and every persistent
+/// read goes to this record, which the driver holds and every worker borrows.
+///
+/// **Why a shared PARAMETER and not a field of the state.**  Task #97-P6-6
+/// measured a region inside the threaded `&mut` state eight ways: a bare
+/// `&u64` field on `AState` costs five function bodies Aeneas cannot
+/// translate and the same borrow inside the four stores costs sixteen, while
+/// everything else this split needs — the two-tier layout, the flag, the
+/// value-returning readers below — extracts at zero errors.  So the sharing
+/// arrives as an ordinary shared parameter, the shape `fe: &IFEnv` and `mode:
+/// &CheckMode` already have, and the twin's monad becomes `ReaderT PersTier
+/// (StateT AState (Except CheckError))`.
+pub struct PersTier {
+    pub n: NTables,
+    pub l: LTables,
+    pub ls: LsTables,
+    pub e: ETables,
+}
+
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:359-363 EStore
+impl PersTier {
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:359-363 EStore
+    /// The empty tier: what the parse and phase A are handed, since they read
+    /// their own (`shared_on` false) and never this one.
+    pub fn empty() -> PersTier {
+        PersTier {
+            n: NTables::empty(),
+            l: LTables::empty(),
+            ls: LsTables::empty(),
+            e: ETables::empty(),
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:934 EStore.nodeCount
+    /// Expression nodes in the tier — the boundary figure `--progress` prints.
+    pub fn e_count(&self) -> usize {
+        self.e.count()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1236,12 +1323,101 @@ impl NTables {
 impl NStore {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:433 NStore.empty
     pub fn empty() -> NStore {
-        NStore { pers: NTables::empty(), scr: NTables::empty(), scratch_on: false }
+        NStore {
+            pers: NTables::empty(),
+            scr: NTables::empty(),
+            scratch_on: false,
+            shared_on: false,
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-6b); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean` — the persistent arm of `NStore.view`
+    ///
+    /// One of the five **value-returning persistent readers** task #97-P6-6's
+    /// design (A) is written around: the choice between this store's own
+    /// persistent tier and the shared `PersTier` is made HERE and a value
+    /// comes back, so no borrow ever leaves the choice and no region enters
+    /// the record every function of the crate threads as `&mut`.
+    fn pers_get(&self, pers: &PersTier, i: &NIdx) -> Option<NNodeView> {
+        if self.shared_on {
+            pers.n.get(i)
+        } else {
+            self.pers.get(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-6b); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean` — the persistent arm of `NStore.derived`
+    ///
+    /// One of the five **value-returning persistent readers** task #97-P6-6's
+    /// design (A) is written around: the choice between this store's own
+    /// persistent tier and the shared `PersTier` is made HERE and a value
+    /// comes back, so no borrow ever leaves the choice and no region enters
+    /// the record every function of the crate threads as `&mut`.
+    fn pers_der_at(&self, pers: &PersTier, i: &NIdx) -> u64 {
+        if self.shared_on {
+            pers.n.der_at(i)
+        } else {
+            self.pers.der_at(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-6b); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean` — the persistent arm of `NStore.find?`
+    ///
+    /// One of the five **value-returning persistent readers** task #97-P6-6's
+    /// design (A) is written around: the choice between this store's own
+    /// persistent tier and the shared `PersTier` is made HERE and a value
+    /// comes back, so no borrow ever leaves the choice and no region enters
+    /// the record every function of the crate threads as `&mut`.
+    fn pers_find(&self, pers: &PersTier, v: &NNodeView) -> Option<NIdx> {
+        if self.shared_on {
+            pers.n.find(v)
+        } else {
+            self.pers.find(v)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-6b); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean` — the persistent arm of `NStore.capOK`
+    ///
+    /// One of the five **value-returning persistent readers** task #97-P6-6's
+    /// design (A) is written around: the choice between this store's own
+    /// persistent tier and the shared `PersTier` is made HERE and a value
+    /// comes back, so no borrow ever leaves the choice and no region enters
+    /// the record every function of the crate threads as `&mut`.
+    fn pers_size_of(&self, pers: &PersTier, v: &NNodeView) -> usize {
+        if self.shared_on {
+            pers.n.size_of(v)
+        } else {
+            self.pers.size_of(v)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-6b); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean` — the persistent arm of `NStore.internStr`
+    ///
+    /// One of the five **value-returning persistent readers** task #97-P6-6's
+    /// design (A) is written around: the choice between this store's own
+    /// persistent tier and the shared `PersTier` is made HERE and a value
+    /// comes back, so no borrow ever leaves the choice and no region enters
+    /// the record every function of the crate threads as `&mut`.
+    fn pers_strs_find(&self, pers: &PersTier, node: &StrNode) -> Option<NIdx> {
+        if self.shared_on {
+            pers.n.strs.find(node)
+        } else {
+            self.pers.strs.find(node)
+        }
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:438 NStore.persCount
-    pub fn pers_count(&self) -> usize {
-        self.pers.count()
+    pub fn pers_count(&self, pers: &PersTier) -> usize {
+        if self.shared_on {
+            pers.n.count()
+        } else {
+            self.pers.count()
+        }
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:440 NStore.scrCount
@@ -1251,16 +1427,16 @@ impl NStore {
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:442 NStore.nodeCount
     /// Nodes in both tiers; the fuel bound `denoteN` uses on the Lean side.
-    pub fn node_count(&self) -> usize {
-        self.pers_count() + self.scr_count()
+    pub fn node_count(&self, pers: &PersTier) -> usize {
+        self.pers_count(pers) + self.scr_count()
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:446-448 NStore.view
     /// Decode a handle: the tier bit selects the array set, and a scratch
     /// handle reads as absent while the scratch tier is off.
-    pub fn view(&self, i: &NIdx) -> Option<NNodeView> {
+    pub fn view(&self, pers: &PersTier, i: &NIdx) -> Option<NNodeView> {
         if i.is_persistent() {
-            self.pers.get(i)
+            self.pers_get(pers, i)
         } else if self.scratch_on {
             self.scr.get(i)
         } else {
@@ -1271,9 +1447,9 @@ impl NStore {
     /// con-leche: ConLeche/Kernel/Name.lean:34-44 Name
     /// Lean twin: `proof/ConRon/Arena/Store.lean:452-454 NStore.derived` — the
     /// `hashData` computed field, lines 41-44: the derived word of a handle.
-    pub fn derived(&self, i: &NIdx) -> u64 {
+    pub fn derived(&self, pers: &PersTier, i: &NIdx) -> u64 {
         if i.is_persistent() {
-            self.pers.der_at(i)
+            self.pers_der_at(pers, i)
         } else if self.scratch_on {
             self.scr.der_at(i)
         } else {
@@ -1286,15 +1462,15 @@ impl NStore {
     /// the `hashData` computed field, lines 41-44: the derived word a node
     /// view *would* get, in `O(1)` from the children's.  The three formulas
     /// are `name::anonymous`/`mk_str`/`mk_num`'s, with `hash_data(&pre)`
-    /// replaced by `self.derived(p)`.
-    pub fn der_of_view(&self, v: &NNodeView) -> u64 {
+    /// replaced by `self.derived(pers, p)`.
+    pub fn der_of_view(&self, pers: &PersTier, v: &NNodeView) -> u64 {
         match v {
             NNodeView::Anonymous => 1723,
             NNodeView::Str(p, s) => {
-                name::mix_hash(name::mix_hash(1, self.derived(p)), name::str_hash(s))
+                name::mix_hash(name::mix_hash(1, self.derived(pers, p)), name::str_hash(s))
             }
             NNodeView::Num(p, n) => {
-                name::mix_hash(name::mix_hash(2, self.derived(p)), name::nat_hash(*n))
+                name::mix_hash(name::mix_hash(2, self.derived(pers, p)), name::nat_hash(*n))
             }
         }
     }
@@ -1302,8 +1478,8 @@ impl NStore {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:467-470 NStore.find?
     /// Probe both tiers, persistent first (nanoda's `alloc_name`: "checks the
     /// longer-lived storage first").
-    pub fn find(&self, v: &NNodeView) -> Option<NIdx> {
-        match self.pers.find(v) {
+    pub fn find(&self, pers: &PersTier, v: &NNodeView) -> Option<NIdx> {
+        match self.pers_find(pers, v) {
             Some(i) => Some(i),
             None => {
                 if self.scratch_on {
@@ -1321,17 +1497,17 @@ impl NStore {
     /// `2^27`-per-constructor-per-tier limit is `capOK`, a *hypothesis* of the
     /// Lean's `intern_spec`, and DESIGN.md §8.3 puts the test here — "the Rust
     /// raises `Native` at the limit, the Lean `throw`s the same kind".
-    pub fn intern(&mut self, v: NNodeView) -> Result<NIdx, CheckError> {
+    pub fn intern(&mut self, pers: &PersTier, v: NNodeView) -> Result<NIdx, CheckError> {
         match v {
             NNodeView::Str(p, sv) => {
                 let d: u64 = name::mix_hash(
-                    name::mix_hash(1, self.derived(&p)),
+                    name::mix_hash(1, self.derived(pers, &p)),
                     name::str_hash(&sv),
                 );
-                self.intern_str(StrNode { pre: p, s: sv }, d)
+                self.intern_str(pers, StrNode { pre: p, s: sv }, d)
             }
-            NNodeView::Anonymous => self.intern_other(NNodeView::Anonymous),
-            NNodeView::Num(p, n) => self.intern_other(NNodeView::Num(p, n)),
+            NNodeView::Anonymous => self.intern_other(pers, NNodeView::Anonymous),
+            NNodeView::Num(p, n) => self.intern_other(pers, NNodeView::Num(p, n)),
         }
     }
 
@@ -1355,8 +1531,13 @@ impl NStore {
     /// probed against both tiers and then pushed.  Same probes, same order,
     /// same result — `der_of_view`'s `str` line is spelled at the caller for
     /// the same reason, so that `sv` is still in hand when it is needed.
-    pub fn intern_str(&mut self, node: StrNode, d: u64) -> Result<NIdx, CheckError> {
-        match self.pers.strs.find(&node) {
+    pub fn intern_str(
+        &mut self,
+        pers: &PersTier,
+        node: StrNode,
+        d: u64,
+    ) -> Result<NIdx, CheckError>  {
+        match self.pers_strs_find(pers, &node) {
             Some(i) => Ok(i),
             None => {
                 if self.scratch_on {
@@ -1373,6 +1554,8 @@ impl NStore {
                             }
                         }
                     }
+                } else if self.shared_on {
+                    Err(CheckError::Internal(code_points(&M_FROZEN)))
                 } else if self.pers.strs.size() >= IDX_CAP as usize {
                     Err(CheckError::Native(code_points(&M_N_CAP)))
                 } else {
@@ -1388,8 +1571,8 @@ impl NStore {
     /// `proof/ConRon/Arena/Store.lean:474-490 NStore.intern` — the two arms
     /// whose record is all scalars, so that building it twice costs nothing
     /// and the twin's spelling is kept verbatim.
-    pub fn intern_other(&mut self, v: NNodeView) -> Result<NIdx, CheckError> {
-        match self.pers.find(&v) {
+    pub fn intern_other(&mut self, pers: &PersTier, v: NNodeView) -> Result<NIdx, CheckError> {
+        match self.pers_find(pers, &v) {
             Some(i) => Ok(i),
             None => {
                 if self.scratch_on {
@@ -1399,15 +1582,17 @@ impl NStore {
                             if self.scr.size_of(&v) >= IDX_CAP as usize {
                                 Err(CheckError::Native(code_points(&M_N_CAP)))
                             } else {
-                                let d = self.der_of_view(&v);
+                                let d = self.der_of_view(pers, &v);
                                 Ok(self.scr.push(v, d, TIER_S))
                             }
                         }
                     }
-                } else if self.pers.size_of(&v) >= IDX_CAP as usize {
+                } else if self.shared_on {
+                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                } else if self.pers_size_of(pers, &v) >= IDX_CAP as usize {
                     Err(CheckError::Native(code_points(&M_N_CAP)))
                 } else {
-                    let d = self.der_of_view(&v);
+                    let d = self.der_of_view(pers, &v);
                     Ok(self.pers.push(v, d, TIER_P))
                 }
             }
@@ -1433,11 +1618,11 @@ impl NStore {
     /// `intern`'s capacity precondition, as a test rather than a `Prop`: the
     /// constructor's array in the tier being appended to has room for one more
     /// node.
-    pub fn cap_ok(&self, v: &NNodeView) -> bool {
+    pub fn cap_ok(&self, pers: &PersTier, v: &NNodeView) -> bool {
         if self.scratch_on {
             self.scr.size_of(v) < IDX_CAP as usize
         } else {
-            self.pers.size_of(v) < IDX_CAP as usize
+            self.pers_size_of(pers, v) < IDX_CAP as usize
         }
     }
 }
@@ -1591,12 +1776,82 @@ impl LStore {
             pers: LTables::empty(),
             scr: LTables::empty(),
             scratch_on: false,
+            shared_on: false,
+        }
+    }
+
+
+    /// con-leche: none — arena infrastructure (task #97-P6-6b); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean` — the persistent arm of `LStore.view`
+    ///
+    /// One of the five **value-returning persistent readers** task #97-P6-6's
+    /// design (A) is written around: the choice between this store's own
+    /// persistent tier and the shared `PersTier` is made HERE and a value
+    /// comes back, so no borrow ever leaves the choice and no region enters
+    /// the record every function of the crate threads as `&mut`.
+    fn pers_get(&self, pers: &PersTier, i: &LIdx) -> Option<LNodeView> {
+        if self.shared_on {
+            pers.l.get(i)
+        } else {
+            self.pers.get(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-6b); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean` — the persistent arm of `LStore.derived`
+    ///
+    /// One of the five **value-returning persistent readers** task #97-P6-6's
+    /// design (A) is written around: the choice between this store's own
+    /// persistent tier and the shared `PersTier` is made HERE and a value
+    /// comes back, so no borrow ever leaves the choice and no region enters
+    /// the record every function of the crate threads as `&mut`.
+    fn pers_der_at(&self, pers: &PersTier, i: &LIdx) -> LDer {
+        if self.shared_on {
+            pers.l.der_at(i)
+        } else {
+            self.pers.der_at(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-6b); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean` — the persistent arm of `LStore.find?`
+    ///
+    /// One of the five **value-returning persistent readers** task #97-P6-6's
+    /// design (A) is written around: the choice between this store's own
+    /// persistent tier and the shared `PersTier` is made HERE and a value
+    /// comes back, so no borrow ever leaves the choice and no region enters
+    /// the record every function of the crate threads as `&mut`.
+    fn pers_find(&self, pers: &PersTier, v: &LNodeView) -> Option<LIdx> {
+        if self.shared_on {
+            pers.l.find(v)
+        } else {
+            self.pers.find(v)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-6b); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean` — the persistent arm of `LStore.capOK`
+    ///
+    /// One of the five **value-returning persistent readers** task #97-P6-6's
+    /// design (A) is written around: the choice between this store's own
+    /// persistent tier and the shared `PersTier` is made HERE and a value
+    /// comes back, so no borrow ever leaves the choice and no region enters
+    /// the record every function of the crate threads as `&mut`.
+    fn pers_size_of(&self, pers: &PersTier, v: &LNodeView) -> usize {
+        if self.shared_on {
+            pers.l.size_of(v)
+        } else {
+            self.pers.size_of(v)
         }
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:601 LStore.persCount
-    pub fn pers_count(&self) -> usize {
-        self.pers.count()
+    pub fn pers_count(&self, pers: &PersTier) -> usize {
+        if self.shared_on {
+            pers.l.count()
+        } else {
+            self.pers.count()
+        }
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:603 LStore.scrCount
@@ -1605,14 +1860,14 @@ impl LStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:605 LStore.nodeCount
-    pub fn node_count(&self) -> usize {
-        self.pers_count() + self.scr_count()
+    pub fn node_count(&self, pers: &PersTier) -> usize {
+        self.pers_count(pers) + self.scr_count()
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:608-610 LStore.view
-    pub fn view(&self, i: &LIdx) -> Option<LNodeView> {
+    pub fn view(&self, pers: &PersTier, i: &LIdx) -> Option<LNodeView> {
         if i.is_persistent() {
-            self.pers.get(i)
+            self.pers_get(pers, i)
         } else if self.scratch_on {
             self.scr.get(i)
         } else {
@@ -1624,9 +1879,9 @@ impl LStore {
     /// Lean twin: `proof/ConRon/Arena/Store.lean:614-616 LStore.derived` — the
     /// `hashData` computed field, lines 47-53, and `Kernel/Expr.lean:114-122
     /// levelHasParam`.
-    pub fn derived(&self, i: &LIdx) -> LDer {
+    pub fn derived(&self, pers: &PersTier, i: &LIdx) -> LDer {
         if i.is_persistent() {
-            self.pers.der_at(i)
+            self.pers_der_at(pers, i)
         } else if self.scratch_on {
             self.scr.der_at(i)
         } else {
@@ -1640,38 +1895,38 @@ impl LStore {
     /// children's.  con-leche recomputes the parameter flag by an `O(|u|)`
     /// walk at every construction (`Kernel/Expr.lean:114-127`); the interned
     /// store reads it off the column.
-    pub fn der_of_view(&self, v: &LNodeView) -> LDer {
+    pub fn der_of_view(&self, pers: &PersTier, v: &LNodeView) -> LDer {
         match v {
             LNodeView::Zero => LDer { hash: 1, has_param: false },
             LNodeView::Succ(u) => {
-                let du = self.derived(u);
+                let du = self.derived(pers, u);
                 LDer { hash: name::mix_hash(3, du.hash), has_param: du.has_param }
             }
             LNodeView::Max(u, w) => {
-                let du = self.derived(u);
-                let dw = self.derived(w);
+                let du = self.derived(pers, u);
+                let dw = self.derived(pers, w);
                 LDer {
                     hash: name::mix_hash(5, name::mix_hash(du.hash, dw.hash)),
                     has_param: du.has_param || dw.has_param,
                 }
             }
             LNodeView::Imax(u, w) => {
-                let du = self.derived(u);
-                let dw = self.derived(w);
+                let du = self.derived(pers, u);
+                let dw = self.derived(pers, w);
                 LDer {
                     hash: name::mix_hash(7, name::mix_hash(du.hash, dw.hash)),
                     has_param: du.has_param || dw.has_param,
                 }
             }
             LNodeView::Param(n) => {
-                LDer { hash: name::mix_hash(11, self.ns.derived(n)), has_param: true }
+                LDer { hash: name::mix_hash(11, self.ns.derived(pers, n)), has_param: true }
             }
         }
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:634-637 LStore.find?
-    pub fn find(&self, v: &LNodeView) -> Option<LIdx> {
-        match self.pers.find(v) {
+    pub fn find(&self, pers: &PersTier, v: &LNodeView) -> Option<LIdx> {
+        match self.pers_find(pers, v) {
             Some(i) => Some(i),
             None => {
                 if self.scratch_on {
@@ -1684,8 +1939,8 @@ impl LStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:640-658 LStore.intern
-    pub fn intern(&mut self, v: LNodeView) -> Result<LIdx, CheckError> {
-        match self.pers.find(&v) {
+    pub fn intern(&mut self, pers: &PersTier, v: LNodeView) -> Result<LIdx, CheckError> {
+        match self.pers_find(pers, &v) {
             Some(i) => Ok(i),
             None => {
                 if self.scratch_on {
@@ -1695,15 +1950,17 @@ impl LStore {
                             if self.scr.size_of(&v) >= IDX_CAP as usize {
                                 Err(CheckError::Native(code_points(&M_L_CAP)))
                             } else {
-                                let d = self.der_of_view(&v);
+                                let d = self.der_of_view(pers, &v);
                                 Ok(self.scr.push(v, d, TIER_S))
                             }
                         }
                     }
-                } else if self.pers.size_of(&v) >= IDX_CAP as usize {
+                } else if self.shared_on {
+                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                } else if self.pers_size_of(pers, &v) >= IDX_CAP as usize {
                     Err(CheckError::Native(code_points(&M_L_CAP)))
                 } else {
-                    let d = self.der_of_view(&v);
+                    let d = self.der_of_view(pers, &v);
                     Ok(self.pers.push(v, d, TIER_P))
                 }
             }
@@ -1727,11 +1984,11 @@ impl LStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:669-670 LStore.capOK
-    pub fn cap_ok(&self, v: &LNodeView) -> bool {
+    pub fn cap_ok(&self, pers: &PersTier, v: &LNodeView) -> bool {
         if self.scratch_on {
             self.scr.size_of(v) < IDX_CAP as usize
         } else {
-            self.pers.size_of(v) < IDX_CAP as usize
+            self.pers_size_of(pers, v) < IDX_CAP as usize
         }
     }
 
@@ -1739,8 +1996,8 @@ impl LStore {
     /// Intern a name from the level store.  The Lean detaches the nested store
     /// before handing it down (lesson 14); `&mut` is that, so the Rust is the
     /// delegation the detaching exists to make safe.
-    pub fn intern_name(&mut self, v: NNodeView) -> Result<NIdx, CheckError> {
-        self.ns.intern(v)
+    pub fn intern_name(&mut self, pers: &PersTier, v: NNodeView) -> Result<NIdx, CheckError> {
+        self.ns.intern(pers, v)
     }
 }
 
@@ -1816,12 +2073,82 @@ impl LsStore {
             pers: LsTables::empty(),
             scr: LsTables::empty(),
             scratch_on: false,
+            shared_on: false,
+        }
+    }
+
+
+    /// con-leche: none — arena infrastructure (task #97-P6-6b); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean` — the persistent arm of `LsStore.view`
+    ///
+    /// One of the five **value-returning persistent readers** task #97-P6-6's
+    /// design (A) is written around: the choice between this store's own
+    /// persistent tier and the shared `PersTier` is made HERE and a value
+    /// comes back, so no borrow ever leaves the choice and no region enters
+    /// the record every function of the crate threads as `&mut`.
+    fn pers_get(&self, pers: &PersTier, i: &LsIdx) -> Option<LsNodeView> {
+        if self.shared_on {
+            pers.ls.get(i)
+        } else {
+            self.pers.get(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-6b); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean` — the persistent arm of `LsStore.derived`
+    ///
+    /// One of the five **value-returning persistent readers** task #97-P6-6's
+    /// design (A) is written around: the choice between this store's own
+    /// persistent tier and the shared `PersTier` is made HERE and a value
+    /// comes back, so no borrow ever leaves the choice and no region enters
+    /// the record every function of the crate threads as `&mut`.
+    fn pers_der_at(&self, pers: &PersTier, i: &LsIdx) -> LDer {
+        if self.shared_on {
+            pers.ls.der_at(i)
+        } else {
+            self.pers.der_at(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-6b); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean` — the persistent arm of `LsStore.find?`
+    ///
+    /// One of the five **value-returning persistent readers** task #97-P6-6's
+    /// design (A) is written around: the choice between this store's own
+    /// persistent tier and the shared `PersTier` is made HERE and a value
+    /// comes back, so no borrow ever leaves the choice and no region enters
+    /// the record every function of the crate threads as `&mut`.
+    fn pers_find(&self, pers: &PersTier, v: &LsNodeView) -> Option<LsIdx> {
+        if self.shared_on {
+            pers.ls.find(v)
+        } else {
+            self.pers.find(v)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-6b); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean` — the persistent arm of `LsStore.capOK`
+    ///
+    /// One of the five **value-returning persistent readers** task #97-P6-6's
+    /// design (A) is written around: the choice between this store's own
+    /// persistent tier and the shared `PersTier` is made HERE and a value
+    /// comes back, so no borrow ever leaves the choice and no region enters
+    /// the record every function of the crate threads as `&mut`.
+    fn pers_size_of(&self, pers: &PersTier, v: &LsNodeView) -> usize {
+        if self.shared_on {
+            pers.ls.size_of(v)
+        } else {
+            self.pers.size_of(v)
         }
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:719 LsStore.persCount
-    pub fn pers_count(&self) -> usize {
-        self.pers.count()
+    pub fn pers_count(&self, pers: &PersTier) -> usize {
+        if self.shared_on {
+            pers.ls.count()
+        } else {
+            self.pers.count()
+        }
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:721 LsStore.scrCount
@@ -1830,8 +2157,8 @@ impl LsStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:723 LsStore.nodeCount
-    pub fn node_count(&self) -> usize {
-        self.pers_count() + self.scr_count()
+    pub fn node_count(&self, pers: &PersTier) -> usize {
+        self.pers_count(pers) + self.scr_count()
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:726 LsStore.ns
@@ -1841,9 +2168,9 @@ impl LsStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:729-731 LsStore.view
-    pub fn view(&self, i: &LsIdx) -> Option<LsNodeView> {
+    pub fn view(&self, pers: &PersTier, i: &LsIdx) -> Option<LsNodeView> {
         if i.is_persistent() {
-            self.pers.get(i)
+            self.pers_get(pers, i)
         } else if self.scratch_on {
             self.scr.get(i)
         } else {
@@ -1854,9 +2181,9 @@ impl LsStore {
     /// con-leche: ConLeche/Kernel/Expr.lean:136-139 levelsHash
     /// Lean twin: `proof/ConRon/Arena/Store.lean:735-737 LsStore.derived` —
     /// the derived record of a level-list handle.
-    pub fn derived(&self, i: &LsIdx) -> LDer {
+    pub fn derived(&self, pers: &PersTier, i: &LsIdx) -> LDer {
         if i.is_persistent() {
-            self.pers.der_at(i)
+            self.pers_der_at(pers, i)
         } else if self.scratch_on {
             self.scr.der_at(i)
         } else {
@@ -1868,19 +2195,19 @@ impl LsStore {
     /// Lean twin: `proof/ConRon/Arena/Store.lean:742-747 LsStore.derOfView` —
     /// and `Kernel/Expr.lean:125-127 levelsHaveParam`: the derived record a
     /// level list would get.  `O(n)` in the list, as con-leche's own fold is.
-    pub fn der_of_view(&self, v: &LsNodeView) -> LDer {
-        self.der_of_view_from(v, 0)
+    pub fn der_of_view(&self, pers: &PersTier, v: &LsNodeView) -> LDer {
+        self.der_of_view_from(pers, v, 0)
     }
 
     /// con-leche: none — the index recursion behind `der_of_view`
     /// The Lean recurses on the list's tail; Rust carries the cursor, which
     /// is `-loops-to-rec`'s own shape (DESIGN.md §3.4: no loops).
-    pub fn der_of_view_from(&self, v: &LsNodeView, i: usize) -> LDer {
+    pub fn der_of_view_from(&self, pers: &PersTier, v: &LsNodeView, i: usize) -> LDer {
         if i >= v.len() {
             LDer { hash: 13, has_param: false }
         } else {
-            let hu = self.ls.derived(&v[i]);
-            let hr = self.der_of_view_from(v, i + 1);
+            let hu = self.ls.derived(pers, &v[i]);
+            let hr = self.der_of_view_from(pers, v, i + 1);
             LDer {
                 hash: name::mix_hash(hu.hash, hr.hash),
                 has_param: hu.has_param || hr.has_param,
@@ -1889,8 +2216,8 @@ impl LsStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:750-753 LsStore.find?
-    pub fn find(&self, v: &LsNodeView) -> Option<LsIdx> {
-        match self.pers.find(v) {
+    pub fn find(&self, pers: &PersTier, v: &LsNodeView) -> Option<LsIdx> {
+        match self.pers_find(pers, v) {
             Some(i) => Some(i),
             None => {
                 if self.scratch_on {
@@ -1903,8 +2230,8 @@ impl LsStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:756-774 LsStore.intern
-    pub fn intern(&mut self, v: LsNodeView) -> Result<LsIdx, CheckError> {
-        match self.pers.find(&v) {
+    pub fn intern(&mut self, pers: &PersTier, v: LsNodeView) -> Result<LsIdx, CheckError> {
+        match self.pers_find(pers, &v) {
             Some(i) => Ok(i),
             None => {
                 if self.scratch_on {
@@ -1914,15 +2241,17 @@ impl LsStore {
                             if self.scr.size_of(&v) >= IDX_CAP as usize {
                                 Err(CheckError::Native(code_points(&M_LS_CAP)))
                             } else {
-                                let d = self.der_of_view(&v);
+                                let d = self.der_of_view(pers, &v);
                                 Ok(self.scr.push(v, d, TIER_S))
                             }
                         }
                     }
-                } else if self.pers.size_of(&v) >= IDX_CAP as usize {
+                } else if self.shared_on {
+                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                } else if self.pers_size_of(pers, &v) >= IDX_CAP as usize {
                     Err(CheckError::Native(code_points(&M_LS_CAP)))
                 } else {
-                    let d = self.der_of_view(&v);
+                    let d = self.der_of_view(pers, &v);
                     Ok(self.pers.push(v, d, TIER_P))
                 }
             }
@@ -1944,22 +2273,22 @@ impl LsStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:785-786 LsStore.capOK
-    pub fn cap_ok(&self, v: &LsNodeView) -> bool {
+    pub fn cap_ok(&self, pers: &PersTier, v: &LsNodeView) -> bool {
         if self.scratch_on {
             self.scr.size_of(v) < IDX_CAP as usize
         } else {
-            self.pers.size_of(v) < IDX_CAP as usize
+            self.pers_size_of(pers, v) < IDX_CAP as usize
         }
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1087-1092 LsStore.internName
-    pub fn intern_name(&mut self, v: NNodeView) -> Result<NIdx, CheckError> {
-        self.ls.intern_name(v)
+    pub fn intern_name(&mut self, pers: &PersTier, v: NNodeView) -> Result<NIdx, CheckError> {
+        self.ls.intern_name(pers, v)
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1095-1100 LsStore.internLevel
-    pub fn intern_level(&mut self, v: LNodeView) -> Result<LIdx, CheckError> {
-        self.ls.intern(v)
+    pub fn intern_level(&mut self, pers: &PersTier, v: LNodeView) -> Result<LIdx, CheckError> {
+        self.ls.intern(pers, v)
     }
 }
 
@@ -2365,12 +2694,82 @@ impl EStore {
             pers: ETables::empty(),
             scr: ETables::empty(),
             scratch_on: false,
+            shared_on: false,
+        }
+    }
+
+
+    /// con-leche: none — arena infrastructure (task #97-P6-6b); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean` — the persistent arm of `EStore.view`
+    ///
+    /// One of the five **value-returning persistent readers** task #97-P6-6's
+    /// design (A) is written around: the choice between this store's own
+    /// persistent tier and the shared `PersTier` is made HERE and a value
+    /// comes back, so no borrow ever leaves the choice and no region enters
+    /// the record every function of the crate threads as `&mut`.
+    fn pers_get(&self, pers: &PersTier, i: &EIdx) -> Option<ENodeView> {
+        if self.shared_on {
+            pers.e.get(i)
+        } else {
+            self.pers.get(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-6b); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean` — the persistent arm of `EStore.derived`
+    ///
+    /// One of the five **value-returning persistent readers** task #97-P6-6's
+    /// design (A) is written around: the choice between this store's own
+    /// persistent tier and the shared `PersTier` is made HERE and a value
+    /// comes back, so no borrow ever leaves the choice and no region enters
+    /// the record every function of the crate threads as `&mut`.
+    fn pers_der_at(&self, pers: &PersTier, i: &EIdx) -> u64 {
+        if self.shared_on {
+            pers.e.der_at(i)
+        } else {
+            self.pers.der_at(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-6b); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean` — the persistent arm of `EStore.find?`
+    ///
+    /// One of the five **value-returning persistent readers** task #97-P6-6's
+    /// design (A) is written around: the choice between this store's own
+    /// persistent tier and the shared `PersTier` is made HERE and a value
+    /// comes back, so no borrow ever leaves the choice and no region enters
+    /// the record every function of the crate threads as `&mut`.
+    fn pers_find(&self, pers: &PersTier, v: &ENodeView) -> Option<EIdx> {
+        if self.shared_on {
+            pers.e.find(v)
+        } else {
+            self.pers.find(v)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-6b); Lean twin:
+    /// `proof/ConRon/Arena/Store.lean` — the persistent arm of `EStore.capOK`
+    ///
+    /// One of the five **value-returning persistent readers** task #97-P6-6's
+    /// design (A) is written around: the choice between this store's own
+    /// persistent tier and the shared `PersTier` is made HERE and a value
+    /// comes back, so no borrow ever leaves the choice and no region enters
+    /// the record every function of the crate threads as `&mut`.
+    fn pers_size_of(&self, pers: &PersTier, v: &ENodeView) -> usize {
+        if self.shared_on {
+            pers.e.size_of(v)
+        } else {
+            self.pers.size_of(v)
         }
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:930 EStore.persCount
-    pub fn pers_count(&self) -> usize {
-        self.pers.count()
+    pub fn pers_count(&self, pers: &PersTier) -> usize {
+        if self.shared_on {
+            pers.e.count()
+        } else {
+            self.pers.count()
+        }
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:932 EStore.scrCount
@@ -2379,8 +2778,8 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:934 EStore.nodeCount
-    pub fn node_count(&self) -> usize {
-        self.pers_count() + self.scr_count()
+    pub fn node_count(&self, pers: &PersTier) -> usize {
+        self.pers_count(pers) + self.scr_count()
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:937 EStore.lsS
@@ -2403,28 +2802,28 @@ impl EStore {
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:944 EStore.nder
     /// A name's derived word, read through the nesting.
-    pub fn nder(&self, i: &NIdx) -> u64 {
-        self.ns().derived(i)
+    pub fn nder(&self, pers: &PersTier, i: &NIdx) -> u64 {
+        self.ns().derived(pers, i)
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:946 EStore.lder
     /// A level's derived record.
-    pub fn lder(&self, i: &LIdx) -> LDer {
-        self.ls().derived(i)
+    pub fn lder(&self, pers: &PersTier, i: &LIdx) -> LDer {
+        self.ls().derived(pers, i)
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:948 EStore.lsder
     /// A level list's derived record.
-    pub fn lsder(&self, i: &LsIdx) -> LDer {
-        self.lss.derived(i)
+    pub fn lsder(&self, pers: &PersTier, i: &LsIdx) -> LDer {
+        self.lss.derived(pers, i)
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:952-954 EStore.view
     /// Decode an expression handle: the tier bit selects the array set, the
     /// tag selects the array, the index reads it.
-    pub fn view(&self, i: &EIdx) -> Option<ENodeView> {
+    pub fn view(&self, pers: &PersTier, i: &EIdx) -> Option<ENodeView> {
         if i.is_persistent() {
-            self.pers.get(i)
+            self.pers_get(pers, i)
         } else if self.scratch_on {
             self.scr.get(i)
         } else {
@@ -2436,9 +2835,9 @@ impl EStore {
     /// Lean twin: `proof/ConRon/Arena/Store.lean:958-960 EStore.derived` — the
     /// `data` computed field, lines 357-402: the packed derived word of an
     /// expression handle, an `O(1)` column read.
-    pub fn derived(&self, i: &EIdx) -> u64 {
+    pub fn derived(&self, pers: &PersTier, i: &EIdx) -> u64 {
         if i.is_persistent() {
-            self.pers.der_at(i)
+            self.pers_der_at(pers, i)
         } else if self.scratch_on {
             self.scr.der_at(i)
         } else {
@@ -2453,23 +2852,23 @@ impl EStore {
     /// **Not re-derived.**  Each arm is the body of the corresponding smart
     /// constructor of `con_ron_core::kernel::expr`
     /// (`bvar`/`fvar`/`sort`/`mk_const`/`app`/`lam`/`forall_e`/`let_e`/`lit`/
-    /// `proj`), with `data(&child)` replaced by `self.derived(h)`, the level
+    /// `proj`), with `data(&child)` replaced by `self.derived(pers, h)`, the level
     /// reads by the level store's derived column (`level_hash u ↦
-    /// self.lder(u).hash`, `level_has_param u ↦ self.lder(u).has_param`), the
-    /// name read by `self.nder(n)` (the `Hashable Name` instance *is*
-    /// `Name.hashData`) and `levels_hash us ↦ self.lsder(us).hash`.  Every
+    /// self.lder(pers, u).hash`, `level_has_param u ↦ self.lder(pers, u).has_param`), the
+    /// name read by `self.nder(pers, n)` (the `Hashable Name` instance *is*
+    /// `Name.hashData`) and `levels_hash us ↦ self.lsder(pers, us).hash`.  Every
     /// `pack_data`, `hash32`, `mix_hash`, `sat_succ`, `sat_pred` and `max_u64`
     /// call below is that crate's, imported and not copied, which is what
     /// makes the arena's word and `expr::data`'s word the same function of
     /// the same term — the equality `mod tests` checks per constructor.
-    pub fn der_of_view(&self, v: &ENodeView) -> u64 {
+    pub fn der_of_view(&self, pers: &PersTier, v: &ENodeView) -> u64 {
         match v {
             ENodeView::BVar(i) => {
                 let h: u64 = expr::hash32(name::mix_hash(3, name::nat_hash(*i)));
                 expr::pack_data(h, expr::sat_succ(*i), 0, false)
             }
             ENodeView::FVar(idx, ty) => {
-                let dt: u64 = self.derived(ty);
+                let dt: u64 = self.derived(pers, ty);
                 let h: u64 = expr::hash32(name::mix_hash(
                     5,
                     name::mix_hash(name::nat_hash(*idx), expr::hash_of_data(dt)),
@@ -2477,21 +2876,21 @@ impl EStore {
                 expr::pack_data(h, 0, expr::sat_succ(*idx), expr::lp_of_data(dt))
             }
             ENodeView::Sort(u) => {
-                let du = self.lder(u);
+                let du = self.lder(pers, u);
                 let h: u64 = expr::hash32(name::mix_hash(7, du.hash));
                 expr::pack_data(h, 0, 0, du.has_param)
             }
             ENodeView::Const(n, us) => {
-                let dus = self.lsder(us);
+                let dus = self.lsder(pers, us);
                 let h: u64 = expr::hash32(name::mix_hash(
                     11,
-                    name::mix_hash(self.nder(n), dus.hash),
+                    name::mix_hash(self.nder(pers, n), dus.hash),
                 ));
                 expr::pack_data(h, 0, 0, dus.has_param)
             }
             ENodeView::App(f, a) => {
-                let df: u64 = self.derived(f);
-                let da: u64 = self.derived(a);
+                let df: u64 = self.derived(pers, f);
+                let da: u64 = self.derived(pers, a);
                 let h: u64 = expr::hash32(name::mix_hash(
                     17,
                     name::mix_hash(expr::hash_of_data(df), expr::hash_of_data(da)),
@@ -2505,31 +2904,31 @@ impl EStore {
             }
             ENodeView::Lam(ty, b, m) => der_of_bind(
                 19,
-                self.derived(ty),
-                self.derived(b),
+                self.derived(pers, ty),
+                self.derived(pers, b),
                 prop_when::hash_pw(&m.pw),
                 prop_when::has_params(&m.pw),
             ),
             ENodeView::ForallE(ty, b, m) => der_of_bind(
                 23,
-                self.derived(ty),
-                self.derived(b),
+                self.derived(pers, ty),
+                self.derived(pers, b),
                 prop_when::hash_pw(&m.pw),
                 prop_when::has_params(&m.pw),
             ),
             ENodeView::LetE(ty, val, b) => {
-                der_of_let(self.derived(ty), self.derived(val), self.derived(b))
+                der_of_let(self.derived(pers, ty), self.derived(pers, val), self.derived(pers, b))
             }
             ENodeView::Lit(l) => {
                 let h: u64 = expr::hash32(name::mix_hash(31, expr::literal_hash(l)));
                 expr::pack_data(h, 0, 0, false)
             }
             ENodeView::Proj(s, i, e) => {
-                let de: u64 = self.derived(e);
+                let de: u64 = self.derived(pers, e);
                 let h: u64 = expr::hash32(name::mix_hash(
                     37,
                     name::mix_hash(
-                        self.nder(s),
+                        self.nder(pers, s),
                         name::mix_hash(name::nat_hash(*i), expr::hash_of_data(de)),
                     ),
                 ));
@@ -2550,22 +2949,22 @@ impl EStore {
     /// be.  The twin probes unconditionally and is not changed by this; what
     /// is owed is one Theorem-2 lemma, `pers_find_maybe st v = st.pers.find v`
     /// under `StoreWF`, after which every `intern` lemma reads as before.
-    pub fn pers_find_maybe(&self, v: &ENodeView) -> Option<EIdx> {
+    pub fn pers_find_maybe(&self, pers: &PersTier, v: &ENodeView) -> Option<EIdx> {
         if self.scratch_on {
             if e_view_has_scratch_child(v) {
                 None
             } else {
-                self.pers.find(v)
+                self.pers_find(pers, v)
             }
         } else {
-            self.pers.find(v)
+            self.pers_find(pers, v)
         }
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1024-1027 EStore.find?
     /// Probe both tiers, persistent first (nanoda's `alloc_expr`).
-    pub fn find(&self, v: &ENodeView) -> Option<EIdx> {
-        match self.pers_find_maybe(v) {
+    pub fn find(&self, pers: &PersTier, v: &ENodeView) -> Option<EIdx> {
+        match self.pers_find_maybe(pers, v) {
             Some(i) => Some(i),
             None => {
                 if self.scratch_on {
@@ -2582,8 +2981,8 @@ impl EStore {
     /// scratch one, then append to the tier the store is in (DESIGN.md §8.3).
     /// The cap test is the Lean's `capOK` turned into the `Native` decline
     /// §8.3 puts here.
-    pub fn intern(&mut self, v: ENodeView) -> Result<EIdx, CheckError> {
-        match self.pers_find_maybe(&v) {
+    pub fn intern(&mut self, pers: &PersTier, v: ENodeView) -> Result<EIdx, CheckError> {
+        match self.pers_find_maybe(pers, &v) {
             Some(i) => Ok(i),
             None => {
                 if self.scratch_on {
@@ -2593,15 +2992,17 @@ impl EStore {
                             if self.scr.size_of(&v) >= IDX_CAP as usize {
                                 Err(CheckError::Native(code_points(&M_E_CAP)))
                             } else {
-                                let d = self.der_of_view(&v);
+                                let d = self.der_of_view(pers, &v);
                                 Ok(self.scr.push(v, d, TIER_S))
                             }
                         }
                     }
-                } else if self.pers.size_of(&v) >= IDX_CAP as usize {
+                } else if self.shared_on {
+                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                } else if self.pers_size_of(pers, &v) >= IDX_CAP as usize {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
-                    let d = self.der_of_view(&v);
+                    let d = self.der_of_view(pers, &v);
                     Ok(self.pers.push(v, d, TIER_P))
                 }
             }
@@ -2628,30 +3029,30 @@ impl EStore {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1067-1068 EStore.capOK
-    pub fn cap_ok(&self, v: &ENodeView) -> bool {
+    pub fn cap_ok(&self, pers: &PersTier, v: &ENodeView) -> bool {
         if self.scratch_on {
             self.scr.size_of(v) < IDX_CAP as usize
         } else {
-            self.pers.size_of(v) < IDX_CAP as usize
+            self.pers_size_of(pers, v) < IDX_CAP as usize
         }
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1103-1107 EStore.internName
     /// Intern a name from the expression store.
-    pub fn intern_name(&mut self, v: NNodeView) -> Result<NIdx, CheckError> {
-        self.lss.intern_name(v)
+    pub fn intern_name(&mut self, pers: &PersTier, v: NNodeView) -> Result<NIdx, CheckError> {
+        self.lss.intern_name(pers, v)
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1110-1114 EStore.internLevel
     /// Intern a level from the expression store.
-    pub fn intern_level(&mut self, v: LNodeView) -> Result<LIdx, CheckError> {
-        self.lss.intern_level(v)
+    pub fn intern_level(&mut self, pers: &PersTier, v: LNodeView) -> Result<LIdx, CheckError> {
+        self.lss.intern_level(pers, v)
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1118-1123 EStore.internLevels
     /// Intern a universe-argument list from the expression store.
-    pub fn intern_levels(&mut self, v: LsNodeView) -> Result<LsIdx, CheckError> {
-        self.lss.intern(v)
+    pub fn intern_levels(&mut self, pers: &PersTier, v: LsNodeView) -> Result<LsIdx, CheckError> {
+        self.lss.intern(pers, v)
     }
 }
 
@@ -2689,14 +3090,16 @@ impl NStore {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1172-1180 NStore.internPersistent
     /// Hash-cons a name node into the PERSISTENT tier whatever tier the store
     /// is in: `intern`'s `else` branch, verbatim, with no scratch probe.
-    pub fn intern_persistent(&mut self, v: NNodeView) -> Result<NIdx, CheckError> {
-        match self.pers.find(&v) {
+    pub fn intern_persistent(&mut self, pers: &PersTier, v: NNodeView) -> Result<NIdx, CheckError> {
+        match self.pers_find(pers, &v) {
             Some(i) => Ok(i),
             None => {
-                if self.pers.size_of(&v) >= IDX_CAP as usize {
+                if self.shared_on {
+                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                } else if self.pers_size_of(pers, &v) >= IDX_CAP as usize {
                     Err(CheckError::Native(code_points(&M_N_CAP)))
                 } else {
-                    let d = self.der_of_view(&v);
+                    let d = self.der_of_view(pers, &v);
                     Ok(self.pers.push(v, d, TIER_P))
                 }
             }
@@ -2706,8 +3109,8 @@ impl NStore {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1184-1185 NStore.capOKPersistent
     /// `intern_persistent`'s capacity precondition, as a test rather than a
     /// `Prop`: the constructor's PERSISTENT array has room for one more node.
-    pub fn cap_ok_persistent(&self, v: &NNodeView) -> bool {
-        self.pers.size_of(v) < IDX_CAP as usize
+    pub fn cap_ok_persistent(&self, pers: &PersTier, v: &NNodeView) -> bool {
+        self.pers_size_of(pers, v) < IDX_CAP as usize
     }
 }
 
@@ -2716,14 +3119,16 @@ impl NStore {
 impl LStore {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1189-1197 LStore.internPersistent
     /// Hash-cons a level node into the persistent tier.
-    pub fn intern_persistent(&mut self, v: LNodeView) -> Result<LIdx, CheckError> {
-        match self.pers.find(&v) {
+    pub fn intern_persistent(&mut self, pers: &PersTier, v: LNodeView) -> Result<LIdx, CheckError> {
+        match self.pers_find(pers, &v) {
             Some(i) => Ok(i),
             None => {
-                if self.pers.size_of(&v) >= IDX_CAP as usize {
+                if self.shared_on {
+                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                } else if self.pers_size_of(pers, &v) >= IDX_CAP as usize {
                     Err(CheckError::Native(code_points(&M_L_CAP)))
                 } else {
-                    let d = self.der_of_view(&v);
+                    let d = self.der_of_view(pers, &v);
                     Ok(self.pers.push(v, d, TIER_P))
                 }
             }
@@ -2732,14 +3137,18 @@ impl LStore {
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1201-1202 LStore.capOKPersistent
     /// The level store's capacity precondition for `intern_persistent`.
-    pub fn cap_ok_persistent(&self, v: &LNodeView) -> bool {
-        self.pers.size_of(v) < IDX_CAP as usize
+    pub fn cap_ok_persistent(&self, pers: &PersTier, v: &LNodeView) -> bool {
+        self.pers_size_of(pers, v) < IDX_CAP as usize
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1245-1251 LStore.internNamePersistent
     /// Promote-intern a name from the level store.
-    pub fn intern_name_persistent(&mut self, v: NNodeView) -> Result<NIdx, CheckError> {
-        self.ns.intern_persistent(v)
+    pub fn intern_name_persistent(
+        &mut self,
+        pers: &PersTier,
+        v: NNodeView,
+    ) -> Result<NIdx, CheckError>  {
+        self.ns.intern_persistent(pers, v)
     }
 }
 
@@ -2748,14 +3157,20 @@ impl LStore {
 impl LsStore {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1206-1214 LsStore.internPersistent
     /// Hash-cons a level list into the persistent tier.
-    pub fn intern_persistent(&mut self, v: LsNodeView) -> Result<LsIdx, CheckError> {
-        match self.pers.find(&v) {
+    pub fn intern_persistent(
+        &mut self,
+        pers: &PersTier,
+        v: LsNodeView,
+    ) -> Result<LsIdx, CheckError>  {
+        match self.pers_find(pers, &v) {
             Some(i) => Ok(i),
             None => {
-                if self.pers.size_of(&v) >= IDX_CAP as usize {
+                if self.shared_on {
+                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                } else if self.pers_size_of(pers, &v) >= IDX_CAP as usize {
                     Err(CheckError::Native(code_points(&M_LS_CAP)))
                 } else {
-                    let d = self.der_of_view(&v);
+                    let d = self.der_of_view(pers, &v);
                     Ok(self.pers.push(v, d, TIER_P))
                 }
             }
@@ -2764,20 +3179,28 @@ impl LsStore {
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1218-1219 LsStore.capOKPersistent
     /// The level-list store's capacity precondition for `intern_persistent`.
-    pub fn cap_ok_persistent(&self, v: &LsNodeView) -> bool {
-        self.pers.size_of(v) < IDX_CAP as usize
+    pub fn cap_ok_persistent(&self, pers: &PersTier, v: &LsNodeView) -> bool {
+        self.pers_size_of(pers, v) < IDX_CAP as usize
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1255-1261 LsStore.internNamePersistent
     /// Promote-intern a name from the level-list store.
-    pub fn intern_name_persistent(&mut self, v: NNodeView) -> Result<NIdx, CheckError> {
-        self.ls.intern_name_persistent(v)
+    pub fn intern_name_persistent(
+        &mut self,
+        pers: &PersTier,
+        v: NNodeView,
+    ) -> Result<NIdx, CheckError>  {
+        self.ls.intern_name_persistent(pers, v)
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1265-1271 LsStore.internLevelPersistent
     /// Promote-intern a level from the level-list store.
-    pub fn intern_level_persistent(&mut self, v: LNodeView) -> Result<LIdx, CheckError> {
-        self.ls.intern_persistent(v)
+    pub fn intern_level_persistent(
+        &mut self,
+        pers: &PersTier,
+        v: LNodeView,
+    ) -> Result<LIdx, CheckError>  {
+        self.ls.intern_persistent(pers, v)
     }
 }
 
@@ -2787,14 +3210,16 @@ impl EStore {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1223-1231 EStore.internPersistent
     /// Hash-cons an expression node into the persistent tier whatever tier the
     /// store is in.
-    pub fn intern_persistent(&mut self, v: ENodeView) -> Result<EIdx, CheckError> {
-        match self.pers.find(&v) {
+    pub fn intern_persistent(&mut self, pers: &PersTier, v: ENodeView) -> Result<EIdx, CheckError> {
+        match self.pers_find(pers, &v) {
             Some(i) => Ok(i),
             None => {
-                if self.pers.size_of(&v) >= IDX_CAP as usize {
+                if self.shared_on {
+                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                } else if self.pers_size_of(pers, &v) >= IDX_CAP as usize {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
-                    let d = self.der_of_view(&v);
+                    let d = self.der_of_view(pers, &v);
                     Ok(self.pers.push(v, d, TIER_P))
                 }
             }
@@ -2803,26 +3228,38 @@ impl EStore {
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1235-1236 EStore.capOKPersistent
     /// The expression store's capacity precondition for `intern_persistent`.
-    pub fn cap_ok_persistent(&self, v: &ENodeView) -> bool {
-        self.pers.size_of(v) < IDX_CAP as usize
+    pub fn cap_ok_persistent(&self, pers: &PersTier, v: &ENodeView) -> bool {
+        self.pers_size_of(pers, v) < IDX_CAP as usize
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1275-1281 EStore.internNamePersistent
     /// Promote-intern a name from the expression store.
-    pub fn intern_name_persistent(&mut self, v: NNodeView) -> Result<NIdx, CheckError> {
-        self.lss.intern_name_persistent(v)
+    pub fn intern_name_persistent(
+        &mut self,
+        pers: &PersTier,
+        v: NNodeView,
+    ) -> Result<NIdx, CheckError>  {
+        self.lss.intern_name_persistent(pers, v)
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1285-1291 EStore.internLevelPersistent
     /// Promote-intern a level from the expression store.
-    pub fn intern_level_persistent(&mut self, v: LNodeView) -> Result<LIdx, CheckError> {
-        self.lss.intern_level_persistent(v)
+    pub fn intern_level_persistent(
+        &mut self,
+        pers: &PersTier,
+        v: LNodeView,
+    ) -> Result<LIdx, CheckError>  {
+        self.lss.intern_level_persistent(pers, v)
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1295-1298 EStore.internLevelsPersistent
     /// Promote-intern a universe-argument list from the expression store.
-    pub fn intern_levels_persistent(&mut self, v: LsNodeView) -> Result<LsIdx, CheckError> {
-        self.lss.intern_persistent(v)
+    pub fn intern_levels_persistent(
+        &mut self,
+        pers: &PersTier,
+        v: LsNodeView,
+    ) -> Result<LsIdx, CheckError>  {
+        self.lss.intern_persistent(pers, v)
     }
 }
 
@@ -2865,10 +3302,11 @@ mod tests {
     // here and nowhere else.
 
     fn denote_n_aux(st: &NStore, fuel: u64, i: &NIdx) -> Option<Name> {
+        let pers: &PersTier = &PersTier::empty();
         if fuel == 0 {
             return None;
         }
-        match st.view(i) {
+        match st.view(pers, i) {
             None => None,
             Some(NNodeView::Anonymous) => Some(name::anonymous()),
             Some(NNodeView::Str(p, s)) => {
@@ -2881,14 +3319,16 @@ mod tests {
     }
 
     fn denote_n(st: &NStore, i: &NIdx) -> Option<Name> {
-        denote_n_aux(st, st.node_count() as u64 + 1, i)
+        let pers: &PersTier = &PersTier::empty();
+        denote_n_aux(st, st.node_count(pers) as u64 + 1, i)
     }
 
     fn denote_l_aux(st: &LStore, fuel: u64, i: &LIdx) -> Option<Level> {
+        let pers: &PersTier = &PersTier::empty();
         if fuel == 0 {
             return None;
         }
-        match st.view(i) {
+        match st.view(pers, i) {
             None => None,
             Some(LNodeView::Zero) => Some(level::zero()),
             Some(LNodeView::Succ(u)) => denote_l_aux(st, fuel - 1, &u).map(level::succ),
@@ -2909,11 +3349,13 @@ mod tests {
     }
 
     fn denote_l(st: &LStore, i: &LIdx) -> Option<Level> {
-        denote_l_aux(st, st.node_count() as u64 + 1, i)
+        let pers: &PersTier = &PersTier::empty();
+        denote_l_aux(st, st.node_count(pers) as u64 + 1, i)
     }
 
     fn denote_ls(st: &LsStore, i: &LsIdx) -> Option<Vec<Level>> {
-        match st.view(i) {
+        let pers: &PersTier = &PersTier::empty();
+        match st.view(pers, i) {
             None => None,
             Some(us) => {
                 let mut out: Vec<Level> = Vec::new();
@@ -2929,10 +3371,11 @@ mod tests {
     }
 
     fn denote_e_aux(st: &EStore, fuel: u64, i: &EIdx) -> Option<Expr> {
+        let pers: &PersTier = &PersTier::empty();
         if fuel == 0 {
             return None;
         }
-        match st.view(i) {
+        match st.view(pers, i) {
             None => None,
             Some(ENodeView::BVar(k)) => Some(expr::bvar(k)),
             Some(ENodeView::FVar(k, ty)) => {
@@ -2982,7 +3425,8 @@ mod tests {
     }
 
     fn denote_e(st: &EStore, i: &EIdx) -> Option<Expr> {
-        denote_e_aux(st, st.node_count() as u64 + 1, i)
+        let pers: &PersTier = &PersTier::empty();
+        denote_e_aux(st, st.node_count(pers) as u64 + 1, i)
     }
 
     // --- helpers -------------------------------------------------------------
@@ -3025,16 +3469,17 @@ mod tests {
     /// `foo.{0}` and an application, interned into the persistent tier, in the
     /// order the parser would.
     fn fixture() -> (EStore, LIdx, LIdx, NIdx, LsIdx, EIdx, EIdx, EIdx, EIdx) {
+        let pers: &PersTier = &PersTier::empty();
         let mut st = EStore::empty();
-        let z = ok(st.intern_level(LNodeView::Zero));
-        let one = ok(st.intern_level(LNodeView::Succ(z.dup2())));
-        let anon = ok(st.intern_name(NNodeView::Anonymous));
-        let foo = ok(st.intern_name(NNodeView::Str(anon.dup2(), cp("foo"))));
-        let us = ok(st.intern_levels(vec![z.dup2()]));
-        let s0 = ok(st.intern(ENodeView::Sort(z.dup2())));
-        let s1 = ok(st.intern(ENodeView::Sort(one.dup2())));
-        let c = ok(st.intern(ENodeView::Const(foo.dup2(), us.dup2())));
-        let ap = ok(st.intern(ENodeView::App(c.dup2(), s0.dup2())));
+        let z = ok(st.intern_level(pers, LNodeView::Zero));
+        let one = ok(st.intern_level(pers, LNodeView::Succ(z.dup2())));
+        let anon = ok(st.intern_name(pers, NNodeView::Anonymous));
+        let foo = ok(st.intern_name(pers, NNodeView::Str(anon.dup2(), cp("foo"))));
+        let us = ok(st.intern_levels(pers, vec![z.dup2()]));
+        let s0 = ok(st.intern(pers, ENodeView::Sort(z.dup2())));
+        let s1 = ok(st.intern(pers, ENodeView::Sort(one.dup2())));
+        let c = ok(st.intern(pers, ENodeView::Const(foo.dup2(), us.dup2())));
+        let ap = ok(st.intern(pers, ENodeView::App(c.dup2(), s0.dup2())));
         (st, z, one, foo, us, s0, s1, c, ap)
     }
 
@@ -3079,25 +3524,26 @@ mod tests {
 
     #[test]
     fn interning_is_hash_consing() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, z, one, foo, _us, s0, _s1, c, ap) = fixture();
 
         // #guard 8: the same node interned twice gives the same handle.
-        let a = ok(st.intern(ENodeView::App(c.dup2(), s0.dup2())));
-        let b = ok(st.intern(ENodeView::App(c.dup2(), s0.dup2())));
+        let a = ok(st.intern(pers, ENodeView::App(c.dup2(), s0.dup2())));
+        let b = ok(st.intern(pers, ENodeView::App(c.dup2(), s0.dup2())));
         assert_eq!(a.word, b.word);
         assert_eq!(a.word, ap.word);
 
         // #guard 9
-        let a = ok(st.intern(ENodeView::Sort(z.dup2())));
+        let a = ok(st.intern(pers, ENodeView::Sort(z.dup2())));
         assert_eq!(a.word, s0.word);
 
         // #guard 10
-        let a = ok(st.intern_level(LNodeView::Succ(z.dup2())));
+        let a = ok(st.intern_level(pers, LNodeView::Succ(z.dup2())));
         assert_eq!(a.word, one.word);
 
         // #guard 11
-        let anon = ok(st.intern_name(NNodeView::Anonymous));
-        let a = ok(st.intern_name(NNodeView::Str(anon, cp("foo"))));
+        let anon = ok(st.intern_name(pers, NNodeView::Anonymous));
+        let a = ok(st.intern_name(pers, NNodeView::Str(anon, cp("foo"))));
         assert_eq!(a.word, foo.word);
     }
 
@@ -3105,16 +3551,17 @@ mod tests {
 
     #[test]
     fn cross_tier_dedup() {
+        let pers: &PersTier = &PersTier::empty();
         // #guard 12: a persistent node is never re-interned into scratch.
         let (mut st, _z, _one, _foo, _us, s0, _s1, c, ap) = fixture();
         st.enable_scratch();
-        let a = ok(st.intern(ENodeView::App(c.dup2(), s0.dup2())));
+        let a = ok(st.intern(pers, ENodeView::App(c.dup2(), s0.dup2())));
         assert_eq!(a.word, ap.word);
         assert!(a.is_persistent());
 
         // #guard 13: a genuinely new node lands in scratch, and dedups there.
-        let a = ok(st.intern(ENodeView::App(s0.dup2(), s0.dup2())));
-        let b = ok(st.intern(ENodeView::App(s0.dup2(), s0.dup2())));
+        let a = ok(st.intern(pers, ENodeView::App(s0.dup2(), s0.dup2())));
+        let b = ok(st.intern(pers, ENodeView::App(s0.dup2(), s0.dup2())));
         assert_eq!(a.word, b.word);
         assert!(!a.is_persistent());
     }
@@ -3123,13 +3570,14 @@ mod tests {
 
     #[test]
     fn view_decodes_what_was_interned() {
+        let pers: &PersTier = &PersTier::empty();
         let (st, z, _one, foo, us, s0, _s1, c, ap) = fixture();
         // #guard 14
-        assert!(view_eq(&st.view(&ap), &Some(ENodeView::App(c.dup2(), s0.dup2()))));
+        assert!(view_eq(&st.view(pers, &ap), &Some(ENodeView::App(c.dup2(), s0.dup2()))));
         // #guard 15
-        assert!(view_eq(&st.view(&s0), &Some(ENodeView::Sort(z.dup2()))));
+        assert!(view_eq(&st.view(pers, &s0), &Some(ENodeView::Sort(z.dup2()))));
         // #guard 16
-        assert!(view_eq(&st.view(&c), &Some(ENodeView::Const(foo.dup2(), us.dup2()))));
+        assert!(view_eq(&st.view(pers, &c), &Some(ENodeView::Const(foo.dup2(), us.dup2()))));
     }
 
     // --- `StoreTest.lean:99-107`: the denotation is con-leche's own value ----
@@ -3153,23 +3601,24 @@ mod tests {
 
     #[test]
     fn derived_column_is_expr_data() {
+        let pers: &PersTier = &PersTier::empty();
         let (st, z, one, foo, us, s0, s1, c, ap) = fixture();
-        assert_eq!(st.derived(&s0), expr::data(&e_s0())); // #guard 23
-        assert_eq!(st.derived(&s1), expr::data(&e_s1())); // #guard 24
-        assert_eq!(st.derived(&c), expr::data(&e_c())); // #guard 25
-        assert_eq!(st.derived(&ap), expr::data(&e_ap())); // #guard 26
-        assert_eq!(st.ns().derived(&foo), name::hash_data(&n_foo())); // #guard 27
-        assert_eq!(st.ls().derived(&z).hash, level::hash_data(&level::zero())); // #guard 28
+        assert_eq!(st.derived(pers, &s0), expr::data(&e_s0())); // #guard 23
+        assert_eq!(st.derived(pers, &s1), expr::data(&e_s1())); // #guard 24
+        assert_eq!(st.derived(pers, &c), expr::data(&e_c())); // #guard 25
+        assert_eq!(st.derived(pers, &ap), expr::data(&e_ap())); // #guard 26
+        assert_eq!(st.ns().derived(pers, &foo), name::hash_data(&n_foo())); // #guard 27
+        assert_eq!(st.ls().derived(pers, &z).hash, level::hash_data(&level::zero())); // #guard 28
         // #guard 29
         assert_eq!(
-            st.ls().derived(&one).hash,
+            st.ls().derived(pers, &one).hash,
             level::hash_data(&level::succ(level::zero()))
         );
         // #guard 30
-        assert_eq!(st.lss.derived(&us).hash, level::levels_hash(&vec![level::zero()]));
+        assert_eq!(st.lss.derived(pers, &us).hash, level::levels_hash(&vec![level::zero()]));
         // #guard 31
         assert_eq!(
-            st.lss.derived(&us).has_param,
+            st.lss.derived(pers, &us).has_param,
             level::levels_have_param(&vec![level::zero()])
         );
     }
@@ -3178,9 +3627,10 @@ mod tests {
 
     #[test]
     fn binder_and_bvar_exercise_the_range_fields() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, _z, _one, _foo, _us, s0, _s1, _c, _ap) = fixture();
-        let b0 = ok(st.intern(ENodeView::BVar(0)));
-        let lam = ok(st.intern(ENodeView::Lam(
+        let b0 = ok(st.intern(pers, ENodeView::BVar(0)));
+        let lam = ok(st.intern(pers, ENodeView::Lam(
             s0.dup2(),
             b0.dup2(),
             expr::binder_meta(prop_when::never()),
@@ -3189,18 +3639,19 @@ mod tests {
         let e_lam = expr::lam(e_s0(), expr::bvar(0), expr::binder_meta(prop_when::never()));
         assert!(eq_e(&denote_e(&st, &b0), &e_b0)); // #guard 32
         assert!(eq_e(&denote_e(&st, &lam), &e_lam)); // #guard 33
-        assert_eq!(st.derived(&b0), expr::data(&e_b0)); // #guard 34
-        assert_eq!(st.derived(&lam), expr::data(&e_lam)); // #guard 35
+        assert_eq!(st.derived(pers, &b0), expr::data(&e_b0)); // #guard 34
+        assert_eq!(st.derived(pers, &lam), expr::data(&e_lam)); // #guard 35
     }
 
     // --- `StoreTest.lean:142-167`: the `dropScratch` bracket -----------------
 
     #[test]
     fn drop_scratch_invalidates_scratch_and_keeps_persistent() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, _z, _one, _foo, _us, s0, _s1, _c, ap) = fixture();
-        let pers_view_ap = st.view(&ap);
+        let pers_view_ap = st.view(pers, &ap);
         st.enable_scratch();
-        let scr = ok(st.intern(ENodeView::App(s0.dup2(), s0.dup2())));
+        let scr = ok(st.intern(pers, ENodeView::App(s0.dup2(), s0.dup2())));
 
         assert!(!scr.is_persistent()); // #guard 36
         assert!(eq_e(&denote_e(&st, &scr), &expr::app(e_s0(), e_s0()))); // #guard 37
@@ -3208,9 +3659,9 @@ mod tests {
 
         st.drop_scratch();
         assert!(denote_e(&st, &scr).is_none()); // #guard 39
-        assert!(st.view(&scr).is_none()); // #guard 40
+        assert!(st.view(pers, &scr).is_none()); // #guard 40
         assert!(eq_e(&denote_e(&st, &ap), &e_ap())); // #guard 41
-        assert!(view_eq(&st.view(&ap), &pers_view_ap)); // #guard 42
+        assert!(view_eq(&st.view(pers, &ap), &pers_view_ap)); // #guard 42
         assert!(!st.scratch_on); // #guard 43
     }
 
@@ -3218,9 +3669,10 @@ mod tests {
     /// the bracket — the point of putting the tier bit above the index.
     #[test]
     fn a_persistent_handles_bits_survive_the_bracket() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, z, _one, _foo, _us, s0, _s1, _c, _ap) = fixture();
         st.enable_scratch();
-        let a = ok(st.intern(ENodeView::Sort(z.dup2())));
+        let a = ok(st.intern(pers, ENodeView::Sort(z.dup2())));
         assert_eq!(a.word, s0.word); // #guard 44
     }
 
@@ -3235,78 +3687,80 @@ mod tests {
     /// `cargo test` is cheaper than kernel reduction.
     #[test]
     fn every_der_of_view_arm_agrees_with_con_ron_cores_own() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, z, _one, foo, _us, s0, _s1, _c, _ap) = fixture();
 
-        let fv = ok(st.intern(ENodeView::FVar(3, s0.dup2())));
+        let fv = ok(st.intern(pers, ENodeView::FVar(3, s0.dup2())));
         let e_fv = expr::fvar(3, e_s0());
         assert!(eq_e(&denote_e(&st, &fv), &e_fv));
-        assert_eq!(st.derived(&fv), expr::data(&e_fv));
+        assert_eq!(st.derived(pers, &fv), expr::data(&e_fv));
 
-        let b0 = ok(st.intern(ENodeView::BVar(0)));
-        let fa = ok(st.intern(ENodeView::ForallE(
+        let b0 = ok(st.intern(pers, ENodeView::BVar(0)));
+        let fa = ok(st.intern(pers, ENodeView::ForallE(
             s0.dup2(),
             b0.dup2(),
             expr::binder_meta(prop_when::never()),
         )));
         let e_fa = expr::forall_e(e_s0(), expr::bvar(0), expr::binder_meta(prop_when::never()));
         assert!(eq_e(&denote_e(&st, &fa), &e_fa));
-        assert_eq!(st.derived(&fa), expr::data(&e_fa));
+        assert_eq!(st.derived(pers, &fa), expr::data(&e_fa));
 
-        let le = ok(st.intern(ENodeView::LetE(s0.dup2(), s0.dup2(), b0.dup2())));
+        let le = ok(st.intern(pers, ENodeView::LetE(s0.dup2(), s0.dup2(), b0.dup2())));
         let e_le = expr::let_e(e_s0(), e_s0(), expr::bvar(0));
         assert!(eq_e(&denote_e(&st, &le), &e_le));
-        assert_eq!(st.derived(&le), expr::data(&e_le));
+        assert_eq!(st.derived(pers, &le), expr::data(&e_le));
 
-        let li = ok(st.intern(ENodeView::Lit(expr::literal_nat(nat::from_u64(7)))));
+        let li = ok(st.intern(pers, ENodeView::Lit(expr::literal_nat(nat::from_u64(7)))));
         let e_li = expr::lit(expr::literal_nat(nat::from_u64(7)));
         assert!(eq_e(&denote_e(&st, &li), &e_li));
-        assert_eq!(st.derived(&li), expr::data(&e_li));
+        assert_eq!(st.derived(pers, &li), expr::data(&e_li));
 
-        let pj = ok(st.intern(ENodeView::Proj(foo.dup2(), 1, s0.dup2())));
+        let pj = ok(st.intern(pers, ENodeView::Proj(foo.dup2(), 1, s0.dup2())));
         let e_pj = expr::proj(n_foo(), 1, e_s0());
         assert!(eq_e(&denote_e(&st, &pj), &e_pj));
-        assert_eq!(st.derived(&pj), expr::data(&e_pj));
+        assert_eq!(st.derived(pers, &pj), expr::data(&e_pj));
 
-        let anon = ok(st.intern_name(NNodeView::Anonymous));
-        let n7 = ok(st.intern_name(NNodeView::Num(anon.dup2(), 7)));
+        let anon = ok(st.intern_name(pers, NNodeView::Anonymous));
+        let n7 = ok(st.intern_name(pers, NNodeView::Num(anon.dup2(), 7)));
         let e_n7 = name::mk_num(name::anonymous(), 7);
         assert!(eq_n(&denote_n(st.ns(), &n7), &e_n7));
-        assert_eq!(st.ns().derived(&n7), name::hash_data(&e_n7));
+        assert_eq!(st.ns().derived(pers, &n7), name::hash_data(&e_n7));
 
-        let p = ok(st.intern_level(LNodeView::Param(foo.dup2())));
-        let mx = ok(st.intern_level(LNodeView::Max(z.dup2(), p.dup2())));
-        let im = ok(st.intern_level(LNodeView::Imax(z.dup2(), p.dup2())));
+        let p = ok(st.intern_level(pers, LNodeView::Param(foo.dup2())));
+        let mx = ok(st.intern_level(pers, LNodeView::Max(z.dup2(), p.dup2())));
+        let im = ok(st.intern_level(pers, LNodeView::Imax(z.dup2(), p.dup2())));
         let e_p = level::param(n_foo());
         let e_mx = level::max(level::zero(), level::param(n_foo()));
         let e_im = level::imax(level::zero(), level::param(n_foo()));
-        assert_eq!(st.ls().derived(&p).hash, level::hash_data(&e_p));
-        assert!(st.ls().derived(&p).has_param);
-        assert_eq!(st.ls().derived(&mx).hash, level::hash_data(&e_mx));
-        assert_eq!(st.ls().derived(&mx).has_param, level::level_has_param(&e_mx));
-        assert_eq!(st.ls().derived(&im).hash, level::hash_data(&e_im));
-        assert_eq!(st.ls().derived(&im).has_param, level::level_has_param(&e_im));
+        assert_eq!(st.ls().derived(pers, &p).hash, level::hash_data(&e_p));
+        assert!(st.ls().derived(pers, &p).has_param);
+        assert_eq!(st.ls().derived(pers, &mx).hash, level::hash_data(&e_mx));
+        assert_eq!(st.ls().derived(pers, &mx).has_param, level::level_has_param(&e_mx));
+        assert_eq!(st.ls().derived(pers, &im).hash, level::hash_data(&e_im));
+        assert_eq!(st.ls().derived(pers, &im).has_param, level::level_has_param(&e_im));
 
         // a two-element universe list, so `der_of_view_from` recurses
-        let us2 = ok(st.intern_levels(vec![z.dup2(), p.dup2()]));
+        let us2 = ok(st.intern_levels(pers, vec![z.dup2(), p.dup2()]));
         let e_us2 = vec![level::zero(), level::param(n_foo())];
-        assert_eq!(st.lss.derived(&us2).hash, level::levels_hash(&e_us2));
-        assert_eq!(st.lss.derived(&us2).has_param, level::levels_have_param(&e_us2));
+        assert_eq!(st.lss.derived(pers, &us2).hash, level::levels_hash(&e_us2));
+        assert_eq!(st.lss.derived(pers, &us2).has_param, level::levels_have_param(&e_us2));
     }
 
     /// The tier bit is what separates the two array sets: each tier is indexed
     /// from zero, and `enable_scratch` empties the scratch tier again.
     #[test]
     fn the_two_tiers_are_indexed_from_zero_independently() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, _z, _one, _foo, _us, s0, _s1, _c, _ap) = fixture();
         st.enable_scratch();
-        let scr = ok(st.intern(ENodeView::BVar(0)));
+        let scr = ok(st.intern(pers, ENodeView::BVar(0)));
         assert!(!scr.is_persistent());
         assert_eq!(scr.index(), 0);
         assert_eq!(scr.tag(), ETAG_BVAR);
         assert_eq!(s0.index(), 0);
         assert_ne!(scr.word, s0.word);
         st.enable_scratch();
-        assert!(st.view(&scr).is_none());
+        assert!(st.view(pers, &scr).is_none());
         assert_eq!(st.scr_count(), 0);
     }
 
@@ -3314,19 +3768,20 @@ mod tests {
     /// `node_count` counts exactly what was appended.
     #[test]
     fn find_agrees_with_intern_and_node_count_counts() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, _z, _one, _foo, _us, s0, _s1, _c, _ap) = fixture();
-        let before = st.node_count();
-        assert!(st.find(&ENodeView::App(s0.dup2(), s0.dup2())).is_none());
-        assert!(st.cap_ok(&ENodeView::App(s0.dup2(), s0.dup2())));
-        let h = ok(st.intern(ENodeView::App(s0.dup2(), s0.dup2())));
-        assert_eq!(st.node_count(), before + 1);
-        match st.find(&ENodeView::App(s0.dup2(), s0.dup2())) {
+        let before = st.node_count(pers);
+        assert!(st.find(pers, &ENodeView::App(s0.dup2(), s0.dup2())).is_none());
+        assert!(st.cap_ok(pers, &ENodeView::App(s0.dup2(), s0.dup2())));
+        let h = ok(st.intern(pers, ENodeView::App(s0.dup2(), s0.dup2())));
+        assert_eq!(st.node_count(pers), before + 1);
+        match st.find(pers, &ENodeView::App(s0.dup2(), s0.dup2())) {
             None => panic!("an interned node was not found"),
             Some(g) => assert_eq!(g.word, h.word),
         }
         // interning it again appends nothing
-        let h2 = ok(st.intern(ENodeView::App(s0.dup2(), s0.dup2())));
+        let h2 = ok(st.intern(pers, ENodeView::App(s0.dup2(), s0.dup2())));
         assert_eq!(h2.word, h.word);
-        assert_eq!(st.node_count(), before + 1);
+        assert_eq!(st.node_count(pers), before + 1);
     }
 }

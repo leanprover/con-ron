@@ -70,6 +70,7 @@ use con_ron_core::ron::hashmap::{Dup};
 // reads as it did.  `ron::hashmap::HashMap` is still what `crates/con-ron`
 // uses, and is still the one with proofs.
 use con_ron_core::ron::hashmap2::HashMap2 as HashMap;
+use crate::arena::store::PersTier;
 
 // ---------------------------------------------------------------------------
 // The messages of this module's declines
@@ -157,6 +158,7 @@ pub fn pmemo_set_n(m: PMemo, h: &NIdx, r: &NIdx) -> PMemo {
 /// is the prefix chain and the fuel is the store's own bound
 /// (`core::CORE_WALK_FUEL`, DESIGN.md §8.4 lesson 7).
 pub fn promote_n(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
@@ -169,9 +171,9 @@ pub fn promote_n(
     } else {
         match pmemo_get_n(&m, h) {
             Some(r) => Ok((m, r)),
-            None => match view_n(st, h) {
+            None => match view_n(pers, st, h) {
                 Err(e) => Err(e),
-                Ok(v) => match promote_n_node(st, m, fuel - 1, v) {
+                Ok(v) => match promote_n_node(pers, st, m, fuel - 1, v) {
                     Err(e) => Err(e),
                     Ok((m2, r)) => {
                         let m3: PMemo = pmemo_set_n(m2, h, &r);
@@ -187,26 +189,27 @@ pub fn promote_n(
 /// The three name arms, past the probe — split off so the `view`'s loans are
 /// dead at the memo's join (extraction rule 5).
 pub fn promote_n_node(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
     v: NNodeView,
 ) -> Result<(PMemo, NIdx), CheckError> {
     match v {
-        NNodeView::Anonymous => match intern_persistent_n(st, NNodeView::Anonymous) {
+        NNodeView::Anonymous => match intern_persistent_n(pers, st, NNodeView::Anonymous) {
             Err(e) => Err(e),
             Ok(r) => Ok((m, r)),
         },
-        NNodeView::Str(p, s) => match promote_n(st, m, fuel, &p) {
+        NNodeView::Str(p, s) => match promote_n(pers, st, m, fuel, &p) {
             Err(e) => Err(e),
-            Ok((m2, p2)) => match intern_persistent_n(st, NNodeView::Str(p2, s)) {
+            Ok((m2, p2)) => match intern_persistent_n(pers, st, NNodeView::Str(p2, s)) {
                 Err(e) => Err(e),
                 Ok(r) => Ok((m2, r)),
             },
         },
-        NNodeView::Num(p, n) => match promote_n(st, m, fuel, &p) {
+        NNodeView::Num(p, n) => match promote_n(pers, st, m, fuel, &p) {
             Err(e) => Err(e),
-            Ok((m2, p2)) => match intern_persistent_n(st, NNodeView::Num(p2, n)) {
+            Ok((m2, p2)) => match intern_persistent_n(pers, st, NNodeView::Num(p2, n)) {
                 Err(e) => Err(e),
                 Ok(r) => Ok((m2, r)),
             },
@@ -234,6 +237,7 @@ pub fn pmemo_set_l(m: PMemo, h: &LIdx, r: &LIdx) -> PMemo {
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:104-128 promoteL
 /// **Promote a LEVEL handle.**
 pub fn promote_l(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
@@ -246,9 +250,9 @@ pub fn promote_l(
     } else {
         match pmemo_get_l(&m, h) {
             Some(r) => Ok((m, r)),
-            None => match view_l(st, h) {
+            None => match view_l(pers, st, h) {
                 Err(e) => Err(e),
-                Ok(v) => match promote_l_node(st, m, fuel - 1, v) {
+                Ok(v) => match promote_l_node(pers, st, m, fuel - 1, v) {
                     Err(e) => Err(e),
                     Ok((m2, r)) => {
                         let m3: PMemo = pmemo_set_l(m2, h, &r);
@@ -263,40 +267,41 @@ pub fn promote_l(
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:112-127 promoteL
 /// The five level arms, past the probe (extraction rule 5).
 pub fn promote_l_node(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
     v: LNodeView,
 ) -> Result<(PMemo, LIdx), CheckError> {
     match v {
-        LNodeView::Zero => match intern_persistent_l(st, LNodeView::Zero) {
+        LNodeView::Zero => match intern_persistent_l(pers, st, LNodeView::Zero) {
             Err(e) => Err(e),
             Ok(r) => Ok((m, r)),
         },
-        LNodeView::Succ(u) => match promote_l(st, m, fuel, &u) {
+        LNodeView::Succ(u) => match promote_l(pers, st, m, fuel, &u) {
             Err(e) => Err(e),
-            Ok((m2, u2)) => match intern_persistent_l(st, LNodeView::Succ(u2)) {
+            Ok((m2, u2)) => match intern_persistent_l(pers, st, LNodeView::Succ(u2)) {
                 Err(e) => Err(e),
                 Ok(r) => Ok((m2, r)),
             },
         },
-        LNodeView::Max(u, v2) => match promote_l_two(st, m, fuel, &u, &v2) {
+        LNodeView::Max(u, v2) => match promote_l_two(pers, st, m, fuel, &u, &v2) {
             Err(e) => Err(e),
-            Ok((m2, a, b)) => match intern_persistent_l(st, LNodeView::Max(a, b)) {
+            Ok((m2, a, b)) => match intern_persistent_l(pers, st, LNodeView::Max(a, b)) {
                 Err(e) => Err(e),
                 Ok(r) => Ok((m2, r)),
             },
         },
-        LNodeView::Imax(u, v2) => match promote_l_two(st, m, fuel, &u, &v2) {
+        LNodeView::Imax(u, v2) => match promote_l_two(pers, st, m, fuel, &u, &v2) {
             Err(e) => Err(e),
-            Ok((m2, a, b)) => match intern_persistent_l(st, LNodeView::Imax(a, b)) {
+            Ok((m2, a, b)) => match intern_persistent_l(pers, st, LNodeView::Imax(a, b)) {
                 Err(e) => Err(e),
                 Ok(r) => Ok((m2, r)),
             },
         },
-        LNodeView::Param(n) => match promote_n(st, m, fuel, &n) {
+        LNodeView::Param(n) => match promote_n(pers, st, m, fuel, &n) {
             Err(e) => Err(e),
-            Ok((m2, n2)) => match intern_persistent_l(st, LNodeView::Param(n2)) {
+            Ok((m2, n2)) => match intern_persistent_l(pers, st, LNodeView::Param(n2)) {
                 Err(e) => Err(e),
                 Ok(r) => Ok((m2, r)),
             },
@@ -307,15 +312,16 @@ pub fn promote_l_node(
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:116-123 promoteL
 /// The two-child level arms' pair of promotions, in the twin's order.
 pub fn promote_l_two(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
     u: &LIdx,
     v: &LIdx,
 ) -> Result<(PMemo, LIdx, LIdx), CheckError> {
-    match promote_l(st, m, fuel, u) {
+    match promote_l(pers, st, m, fuel, u) {
         Err(e) => Err(e),
-        Ok((m2, a)) => match promote_l(st, m2, fuel, v) {
+        Ok((m2, a)) => match promote_l(pers, st, m2, fuel, v) {
             Err(e) => Err(e),
             Ok((m3, b)) => Ok((m3, a, b)),
         },
@@ -325,17 +331,19 @@ pub fn promote_l_two(
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:133-138 promoteLList
 /// Promote the levels of a universe-argument list.
 pub fn promote_l_list(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
     us: &Vec<LIdx>,
 ) -> Result<(PMemo, Vec<LIdx>), CheckError> {
-    promote_l_list_from(st, m, fuel, us, 0, Vec::new())
+    promote_l_list_from(pers, st, m, fuel, us, 0, Vec::new())
 }
 
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:133-138 promoteLList
 /// The cursor recursion the cited `List` recursion becomes (DESIGN.md §3.4).
 pub fn promote_l_list_from(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
@@ -346,12 +354,12 @@ pub fn promote_l_list_from(
     if i >= us.len() {
         Ok((m, out))
     } else {
-        match promote_l(st, m, fuel, &us[i]) {
+        match promote_l(pers, st, m, fuel, &us[i]) {
             Err(e) => Err(e),
             Ok((m2, u)) => {
                 let mut o: Vec<LIdx> = out;
                 o.push(u);
-                promote_l_list_from(st, m2, fuel, us, i + 1, o)
+                promote_l_list_from(pers, st, m2, fuel, us, i + 1, o)
             }
         }
     }
@@ -378,6 +386,7 @@ pub fn pmemo_set_ls(m: PMemo, h: &LsIdx, r: &LsIdx) -> PMemo {
 /// **Promote a universe-argument LIST handle.**  The list node has no fuel
 /// clause in the twin: its children are levels and the walk is one level down.
 pub fn promote_ls(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
@@ -388,11 +397,11 @@ pub fn promote_ls(
     } else {
         match pmemo_get_ls(&m, h) {
             Some(r) => Ok((m, r)),
-            None => match view_ls(st, h) {
+            None => match view_ls(pers, st, h) {
                 Err(e) => Err(e),
-                Ok(us) => match promote_l_list(st, m, fuel, &us) {
+                Ok(us) => match promote_l_list(pers, st, m, fuel, &us) {
                     Err(e) => Err(e),
-                    Ok((m2, us2)) => match intern_persistent_ls(st, us2) {
+                    Ok((m2, us2)) => match intern_persistent_ls(pers, st, us2) {
                         Err(e) => Err(e),
                         Ok(r) => {
                             let m3: PMemo = pmemo_set_ls(m2, h, &r);
@@ -428,6 +437,7 @@ pub fn pmemo_set_e(m: PMemo, h: &EIdx, r: &EIdx) -> PMemo {
 /// promoting its own children first — `BinderMeta` and `Literal` are values
 /// and carry no handle (DESIGN.md §8.3), so they cross unchanged.
 pub fn promote_e(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
@@ -440,9 +450,9 @@ pub fn promote_e(
     } else {
         match pmemo_get_e(&m, h) {
             Some(r) => Ok((m, r)),
-            None => match view(st, h) {
+            None => match view(pers, st, h) {
                 Err(e) => Err(e),
-                Ok(v) => match promote_e_node(st, m, fuel - 1, v) {
+                Ok(v) => match promote_e_node(pers, st, m, fuel - 1, v) {
                     Err(e) => Err(e),
                     Ok((m2, r)) => {
                         let m3: PMemo = pmemo_set_e(m2, h, &r);
@@ -457,80 +467,81 @@ pub fn promote_e(
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:165-201 promoteE
 /// The ten expression arms, past the probe (extraction rule 5).
 pub fn promote_e_node(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
     v: ENodeView,
 ) -> Result<(PMemo, EIdx), CheckError> {
     match v {
-        ENodeView::BVar(i) => match intern_persistent_e(st, ENodeView::BVar(i)) {
+        ENodeView::BVar(i) => match intern_persistent_e(pers, st, ENodeView::BVar(i)) {
             Err(e) => Err(e),
             Ok(r) => Ok((m, r)),
         },
-        ENodeView::FVar(idx, ty) => match promote_e(st, m, fuel, &ty) {
+        ENodeView::FVar(idx, ty) => match promote_e(pers, st, m, fuel, &ty) {
             Err(e) => Err(e),
-            Ok((m2, ty2)) => match intern_persistent_e(st, ENodeView::FVar(idx, ty2)) {
+            Ok((m2, ty2)) => match intern_persistent_e(pers, st, ENodeView::FVar(idx, ty2)) {
                 Err(e) => Err(e),
                 Ok(r) => Ok((m2, r)),
             },
         },
-        ENodeView::Sort(u) => match promote_l(st, m, fuel, &u) {
+        ENodeView::Sort(u) => match promote_l(pers, st, m, fuel, &u) {
             Err(e) => Err(e),
-            Ok((m2, u2)) => match intern_persistent_e(st, ENodeView::Sort(u2)) {
+            Ok((m2, u2)) => match intern_persistent_e(pers, st, ENodeView::Sort(u2)) {
                 Err(e) => Err(e),
                 Ok(r) => Ok((m2, r)),
             },
         },
-        ENodeView::Const(n, us) => match promote_n(st, m, fuel, &n) {
+        ENodeView::Const(n, us) => match promote_n(pers, st, m, fuel, &n) {
             Err(e) => Err(e),
-            Ok((m2, n2)) => match promote_ls(st, m2, fuel, &us) {
+            Ok((m2, n2)) => match promote_ls(pers, st, m2, fuel, &us) {
                 Err(e) => Err(e),
-                Ok((m3, us2)) => match intern_persistent_e(st, ENodeView::Const(n2, us2)) {
+                Ok((m3, us2)) => match intern_persistent_e(pers, st, ENodeView::Const(n2, us2)) {
                     Err(e) => Err(e),
                     Ok(r) => Ok((m3, r)),
                 },
             },
         },
-        ENodeView::App(f, a) => match promote_e_two(st, m, fuel, &f, &a) {
+        ENodeView::App(f, a) => match promote_e_two(pers, st, m, fuel, &f, &a) {
             Err(e) => Err(e),
-            Ok((m2, x, y)) => match intern_persistent_e(st, ENodeView::App(x, y)) {
+            Ok((m2, x, y)) => match intern_persistent_e(pers, st, ENodeView::App(x, y)) {
                 Err(e) => Err(e),
                 Ok(r) => Ok((m2, r)),
             },
         },
-        ENodeView::Lam(ty, body, bm) => match promote_e_two(st, m, fuel, &ty, &body) {
+        ENodeView::Lam(ty, body, bm) => match promote_e_two(pers, st, m, fuel, &ty, &body) {
             Err(e) => Err(e),
-            Ok((m2, x, y)) => match intern_persistent_e(st, ENodeView::Lam(x, y, bm)) {
+            Ok((m2, x, y)) => match intern_persistent_e(pers, st, ENodeView::Lam(x, y, bm)) {
                 Err(e) => Err(e),
                 Ok(r) => Ok((m2, r)),
             },
         },
-        ENodeView::ForallE(ty, body, bm) => match promote_e_two(st, m, fuel, &ty, &body) {
+        ENodeView::ForallE(ty, body, bm) => match promote_e_two(pers, st, m, fuel, &ty, &body) {
             Err(e) => Err(e),
-            Ok((m2, x, y)) => match intern_persistent_e(st, ENodeView::ForallE(x, y, bm)) {
+            Ok((m2, x, y)) => match intern_persistent_e(pers, st, ENodeView::ForallE(x, y, bm)) {
                 Err(e) => Err(e),
                 Ok(r) => Ok((m2, r)),
             },
         },
-        ENodeView::LetE(ty, val, body) => match promote_e_two(st, m, fuel, &ty, &val) {
+        ENodeView::LetE(ty, val, body) => match promote_e_two(pers, st, m, fuel, &ty, &val) {
             Err(e) => Err(e),
-            Ok((m2, x, y)) => match promote_e(st, m2, fuel, &body) {
+            Ok((m2, x, y)) => match promote_e(pers, st, m2, fuel, &body) {
                 Err(e) => Err(e),
-                Ok((m3, z)) => match intern_persistent_e(st, ENodeView::LetE(x, y, z)) {
+                Ok((m3, z)) => match intern_persistent_e(pers, st, ENodeView::LetE(x, y, z)) {
                     Err(e) => Err(e),
                     Ok(r) => Ok((m3, r)),
                 },
             },
         },
-        ENodeView::Lit(l) => match intern_persistent_e(st, ENodeView::Lit(l)) {
+        ENodeView::Lit(l) => match intern_persistent_e(pers, st, ENodeView::Lit(l)) {
             Err(e) => Err(e),
             Ok(r) => Ok((m, r)),
         },
-        ENodeView::Proj(n, i, e) => match promote_n(st, m, fuel, &n) {
+        ENodeView::Proj(n, i, e) => match promote_n(pers, st, m, fuel, &n) {
             Err(e) => Err(e),
-            Ok((m2, n2)) => match promote_e(st, m2, fuel, &e) {
+            Ok((m2, n2)) => match promote_e(pers, st, m2, fuel, &e) {
                 Err(e) => Err(e),
-                Ok((m3, e2)) => match intern_persistent_e(st, ENodeView::Proj(n2, i, e2)) {
+                Ok((m3, e2)) => match intern_persistent_e(pers, st, ENodeView::Proj(n2, i, e2)) {
                     Err(e) => Err(e),
                     Ok(r) => Ok((m3, r)),
                 },
@@ -542,15 +553,16 @@ pub fn promote_e_node(
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:173-194 promoteE
 /// The two-child expression arms' pair of promotions, in the twin's order.
 pub fn promote_e_two(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
     x: &EIdx,
     y: &EIdx,
 ) -> Result<(PMemo, EIdx, EIdx), CheckError> {
-    match promote_e(st, m, fuel, x) {
+    match promote_e(pers, st, m, fuel, x) {
         Err(e) => Err(e),
-        Ok((m2, a)) => match promote_e(st, m2, fuel, y) {
+        Ok((m2, a)) => match promote_e(pers, st, m2, fuel, y) {
             Err(e) => Err(e),
             Ok((m3, b)) => Ok((m3, a, b)),
         },
@@ -564,17 +576,19 @@ pub fn promote_e_two(
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:205-210 promoteNList
 /// Promote a list of name handles.
 pub fn promote_n_list(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
     ns: &Vec<NIdx>,
 ) -> Result<(PMemo, Vec<NIdx>), CheckError> {
-    promote_n_list_from(st, m, fuel, ns, 0, Vec::new())
+    promote_n_list_from(pers, st, m, fuel, ns, 0, Vec::new())
 }
 
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:205-210 promoteNList
 /// The cursor recursion behind `promote_n_list` (DESIGN.md §3.4).
 pub fn promote_n_list_from(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
@@ -585,12 +599,12 @@ pub fn promote_n_list_from(
     if i >= ns.len() {
         Ok((m, out))
     } else {
-        match promote_n(st, m, fuel, &ns[i]) {
+        match promote_n(pers, st, m, fuel, &ns[i]) {
             Err(e) => Err(e),
             Ok((m2, n)) => {
                 let mut o: Vec<NIdx> = out;
                 o.push(n);
-                promote_n_list_from(st, m2, fuel, ns, i + 1, o)
+                promote_n_list_from(pers, st, m2, fuel, ns, i + 1, o)
             }
         }
     }
@@ -600,17 +614,19 @@ pub fn promote_n_list_from(
 /// Promote a list of expression handles at ONE memo, so a block's sharing
 /// survives the copy.
 pub fn promote_e_list(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
     es: &Vec<EIdx>,
 ) -> Result<(PMemo, Vec<EIdx>), CheckError> {
-    promote_e_list_from(st, m, fuel, es, 0, Vec::new())
+    promote_e_list_from(pers, st, m, fuel, es, 0, Vec::new())
 }
 
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:214-219 promoteEList
 /// The cursor recursion behind `promote_e_list` (DESIGN.md §3.4).
 pub fn promote_e_list_from(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
@@ -621,12 +637,12 @@ pub fn promote_e_list_from(
     if i >= es.len() {
         Ok((m, out))
     } else {
-        match promote_e(st, m, fuel, &es[i]) {
+        match promote_e(pers, st, m, fuel, &es[i]) {
             Err(e) => Err(e),
             Ok((m2, e)) => {
                 let mut o: Vec<EIdx> = out;
                 o.push(e);
-                promote_e_list_from(st, m2, fuel, es, i + 1, o)
+                promote_e_list_from(pers, st, m2, fuel, es, i + 1, o)
             }
         }
     }
@@ -646,16 +662,17 @@ pub fn promote_e_list_from(
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:231-237 promoteCV
 /// Promote a `ConstantVal`.
 pub fn promote_cv(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
     cv: &IConstantVal,
 ) -> Result<(PMemo, IConstantVal), CheckError> {
-    match promote_n(st, m, fuel, &cv.name) {
+    match promote_n(pers, st, m, fuel, &cv.name) {
         Err(e) => Err(e),
-        Ok((m2, n)) => match promote_n_list(st, m2, fuel, &cv.level_params) {
+        Ok((m2, n)) => match promote_n_list(pers, st, m2, fuel, &cv.level_params) {
             Err(e) => Err(e),
-            Ok((m3, lps)) => match promote_e(st, m3, fuel, &cv.ty) {
+            Ok((m3, lps)) => match promote_e(pers, st, m3, fuel, &cv.ty) {
                 Err(e) => Err(e),
                 Ok((m4, ty)) => Ok((
                     m4,
@@ -673,6 +690,7 @@ pub fn promote_cv(
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:239-247 promoteFire
 /// Promote a rule's firing mode.
 pub fn promote_fire(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
@@ -681,9 +699,9 @@ pub fn promote_fire(
     match f {
         IRecRuleFire::Inert => Ok((m, IRecRuleFire::Inert)),
         IRecRuleFire::Plain => Ok((m, IRecRuleFire::Plain)),
-        IRecRuleFire::Nested(lvls, pins) => match promote_l_list(st, m, fuel, lvls) {
+        IRecRuleFire::Nested(lvls, pins) => match promote_l_list(pers, st, m, fuel, lvls) {
             Err(e) => Err(e),
-            Ok((m2, ls)) => match promote_e_list(st, m2, fuel, pins) {
+            Ok((m2, ls)) => match promote_e_list(pers, st, m2, fuel, pins) {
                 Err(e) => Err(e),
                 Ok((m3, ps)) => Ok((m3, IRecRuleFire::Nested(ls, ps))),
             },
@@ -694,16 +712,17 @@ pub fn promote_fire(
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:249-255 promoteRule
 /// Promote one recursor rule.
 pub fn promote_rule(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
     rl: &IRecRule,
 ) -> Result<(PMemo, IRecRule), CheckError> {
-    match promote_n(st, m, fuel, &rl.ctor) {
+    match promote_n(pers, st, m, fuel, &rl.ctor) {
         Err(e) => Err(e),
-        Ok((m2, c)) => match promote_fire(st, m2, fuel, &rl.fire) {
+        Ok((m2, c)) => match promote_fire(pers, st, m2, fuel, &rl.fire) {
             Err(e) => Err(e),
-            Ok((m3, f)) => match promote_e(st, m3, fuel, &rl.rhs) {
+            Ok((m3, f)) => match promote_e(pers, st, m3, fuel, &rl.rhs) {
                 Err(e) => Err(e),
                 Ok((m4, r)) => Ok((
                     m4,
@@ -726,17 +745,19 @@ pub fn promote_rule(
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:257-263 promoteRules
 /// Promote a rule list.
 pub fn promote_rules(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
     rs: &Vec<IRecRule>,
 ) -> Result<(PMemo, Vec<IRecRule>), CheckError> {
-    promote_rules_from(st, m, fuel, rs, 0, Vec::new())
+    promote_rules_from(pers, st, m, fuel, rs, 0, Vec::new())
 }
 
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:257-263 promoteRules
 /// The cursor recursion behind `promote_rules` (DESIGN.md §3.4).
 pub fn promote_rules_from(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
@@ -747,12 +768,12 @@ pub fn promote_rules_from(
     if i >= rs.len() {
         Ok((m, out))
     } else {
-        match promote_rule(st, m, fuel, &rs[i]) {
+        match promote_rule(pers, st, m, fuel, &rs[i]) {
             Err(e) => Err(e),
             Ok((m2, r)) => {
                 let mut o: Vec<IRecRule> = out;
                 o.push(r);
-                promote_rules_from(st, m2, fuel, rs, i + 1, o)
+                promote_rules_from(pers, st, m2, fuel, rs, i + 1, o)
             }
         }
     }
@@ -762,12 +783,13 @@ pub fn promote_rules_from(
 /// Promote an inductive's capabilities.  `sort_z` is a `PropWhen` over
 /// con-leche `Name`s and carries no handle.
 pub fn promote_caps(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
     c: &IIndCaps,
 ) -> Result<(PMemo, IIndCaps), CheckError> {
-    match promote_n(st, m, fuel, &c.eta_ctor) {
+    match promote_n(pers, st, m, fuel, &c.eta_ctor) {
         Err(e) => Err(e),
         Ok((m2, ct)) => {
             let mut caps: IIndCaps = env::i_ind_caps_dup(c);
@@ -781,18 +803,19 @@ pub fn promote_caps(
 /// Promote a projection table, `table_name` included (it is a stored handle,
 /// not a recomputed name — `arena::env`'s one added field).
 pub fn promote_proj_table(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
     t: &IProjTable,
 ) -> Result<(PMemo, IProjTable), CheckError> {
-    match promote_n(st, m, fuel, &t.struct_name) {
+    match promote_n(pers, st, m, fuel, &t.struct_name) {
         Err(e) => Err(e),
-        Ok((m2, sn)) => match promote_n(st, m2, fuel, &t.table_name) {
+        Ok((m2, sn)) => match promote_n(pers, st, m2, fuel, &t.table_name) {
             Err(e) => Err(e),
-            Ok((m3, tn)) => match promote_n_list(st, m3, fuel, &t.level_params) {
+            Ok((m3, tn)) => match promote_n_list(pers, st, m3, fuel, &t.level_params) {
                 Err(e) => Err(e),
-                Ok((m4, lps)) => promote_proj_table_rest(st, m4, fuel, t, sn, tn, lps),
+                Ok((m4, lps)) => promote_proj_table_rest(pers, st, m4, fuel, t, sn, tn, lps),
             },
         },
     }
@@ -803,6 +826,7 @@ pub fn promote_proj_table(
 /// guards — split at the twin's own `let` boundary (task #97-P4c's rule).
 #[allow(clippy::too_many_arguments)]
 pub fn promote_proj_table_rest(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
@@ -811,13 +835,13 @@ pub fn promote_proj_table_rest(
     tn: NIdx,
     lps: Vec<NIdx>,
 ) -> Result<(PMemo, IProjTable), CheckError> {
-    match promote_n(st, m, fuel, &t.ctor) {
+    match promote_n(pers, st, m, fuel, &t.ctor) {
         Err(e) => Err(e),
-        Ok((m2, c)) => match promote_l(st, m2, fuel, &t.struct_sort) {
+        Ok((m2, c)) => match promote_l(pers, st, m2, fuel, &t.struct_sort) {
             Err(e) => Err(e),
-            Ok((m3, ss)) => match promote_e_list(st, m3, fuel, &t.bodies) {
+            Ok((m3, ss)) => match promote_e_list(pers, st, m3, fuel, &t.bodies) {
                 Err(e) => Err(e),
-                Ok((m4, bs)) => match promote_l_list(st, m4, fuel, &t.guards) {
+                Ok((m4, bs)) => match promote_l_list(pers, st, m4, fuel, &t.guards) {
                     Err(e) => Err(e),
                     Ok((m5, gs)) => Ok((
                         m5,
@@ -844,19 +868,20 @@ pub fn promote_proj_table_rest(
 /// **Promote a stored constant** — the seven `IConstantInfo` constructors,
 /// which is what "the handles the environment keeps" means.
 pub fn promote_ci(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
     ci: &IConstantInfo,
 ) -> Result<(PMemo, IConstantInfo), CheckError> {
     match ci {
-        IConstantInfo::AxiomInfo(v) => match promote_cv(st, m, fuel, v) {
+        IConstantInfo::AxiomInfo(v) => match promote_cv(pers, st, m, fuel, v) {
             Err(e) => Err(e),
             Ok((m2, cv)) => Ok((m2, IConstantInfo::AxiomInfo(cv))),
         },
-        IConstantInfo::DefnInfo(v, e, h) => match promote_cv(st, m, fuel, v) {
+        IConstantInfo::DefnInfo(v, e, h) => match promote_cv(pers, st, m, fuel, v) {
             Err(er) => Err(er),
-            Ok((m2, cv)) => match promote_e(st, m2, fuel, e) {
+            Ok((m2, cv)) => match promote_e(pers, st, m2, fuel, e) {
                 Err(er) => Err(er),
                 Ok((m3, x)) => Ok((
                     m3,
@@ -864,32 +889,32 @@ pub fn promote_ci(
                 )),
             },
         },
-        IConstantInfo::ThmInfo(v, e) => match promote_cv(st, m, fuel, v) {
+        IConstantInfo::ThmInfo(v, e) => match promote_cv(pers, st, m, fuel, v) {
             Err(er) => Err(er),
-            Ok((m2, cv)) => match promote_e(st, m2, fuel, e) {
+            Ok((m2, cv)) => match promote_e(pers, st, m2, fuel, e) {
                 Err(er) => Err(er),
                 Ok((m3, x)) => Ok((m3, IConstantInfo::ThmInfo(cv, x))),
             },
         },
-        IConstantInfo::IndInfo(v, c) => match promote_cv(st, m, fuel, v) {
+        IConstantInfo::IndInfo(v, c) => match promote_cv(pers, st, m, fuel, v) {
             Err(e) => Err(e),
-            Ok((m2, cv)) => match promote_caps(st, m2, fuel, c) {
+            Ok((m2, cv)) => match promote_caps(pers, st, m2, fuel, c) {
                 Err(e) => Err(e),
                 Ok((m3, caps)) => Ok((m3, IConstantInfo::IndInfo(cv, caps))),
             },
         },
-        IConstantInfo::CtorInfo(v, n_p, n_f) => match promote_cv(st, m, fuel, v) {
+        IConstantInfo::CtorInfo(v, n_p, n_f) => match promote_cv(pers, st, m, fuel, v) {
             Err(e) => Err(e),
             Ok((m2, cv)) => Ok((m2, IConstantInfo::CtorInfo(cv, *n_p, *n_f))),
         },
-        IConstantInfo::RecInfo(v, m_i, r_p, rs) => match promote_cv(st, m, fuel, v) {
+        IConstantInfo::RecInfo(v, m_i, r_p, rs) => match promote_cv(pers, st, m, fuel, v) {
             Err(e) => Err(e),
-            Ok((m2, cv)) => match promote_rules(st, m2, fuel, rs) {
+            Ok((m2, cv)) => match promote_rules(pers, st, m2, fuel, rs) {
                 Err(e) => Err(e),
                 Ok((m3, rules)) => Ok((m3, IConstantInfo::RecInfo(cv, *m_i, *r_p, rules))),
             },
         },
-        IConstantInfo::ProjInfo(t) => match promote_proj_table(st, m, fuel, t) {
+        IConstantInfo::ProjInfo(t) => match promote_proj_table(pers, st, m, fuel, t) {
             Err(e) => Err(e),
             Ok((m2, tbl)) => Ok((m2, IConstantInfo::ProjInfo(tbl))),
         },
@@ -900,17 +925,19 @@ pub fn promote_ci(
 /// Promote a block's constants at ONE memo, so that the sharing between a
 /// block's members survives.
 pub fn promote_ci_list(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
     cs: &Vec<IConstantInfo>,
 ) -> Result<(PMemo, Vec<IConstantInfo>), CheckError> {
-    promote_ci_list_from(st, m, fuel, cs, 0, Vec::new())
+    promote_ci_list_from(pers, st, m, fuel, cs, 0, Vec::new())
 }
 
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:320-326 promoteCIList
 /// The cursor recursion behind `promote_ci_list` (DESIGN.md §3.4).
 pub fn promote_ci_list_from(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
@@ -921,12 +948,12 @@ pub fn promote_ci_list_from(
     if i >= cs.len() {
         Ok((m, out))
     } else {
-        match promote_ci(st, m, fuel, &cs[i]) {
+        match promote_ci(pers, st, m, fuel, &cs[i]) {
             Err(e) => Err(e),
             Ok((m2, c)) => {
                 let mut o: Vec<IConstantInfo> = out;
                 o.push(c);
-                promote_ci_list_from(st, m2, fuel, cs, i + 1, o)
+                promote_ci_list_from(pers, st, m2, fuel, cs, i + 1, o)
             }
         }
     }
@@ -938,19 +965,20 @@ pub fn promote_ci_list_from(
 /// twinned whole (the twin's `Frontend/Readback.lean` has the same seven
 /// clauses for the intern direction).
 pub fn promote_decl(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
     d: &IDeclaration,
 ) -> Result<(PMemo, IDeclaration), CheckError> {
     match d {
-        IDeclaration::AxiomDecl(v) => match promote_cv(st, m, fuel, v) {
+        IDeclaration::AxiomDecl(v) => match promote_cv(pers, st, m, fuel, v) {
             Err(e) => Err(e),
             Ok((m2, cv)) => Ok((m2, IDeclaration::AxiomDecl(cv))),
         },
-        IDeclaration::DefnDecl(v, e, h) => match promote_cv(st, m, fuel, v) {
+        IDeclaration::DefnDecl(v, e, h) => match promote_cv(pers, st, m, fuel, v) {
             Err(er) => Err(er),
-            Ok((m2, cv)) => match promote_e(st, m2, fuel, e) {
+            Ok((m2, cv)) => match promote_e(pers, st, m2, fuel, e) {
                 Err(er) => Err(er),
                 Ok((m3, x)) => Ok((
                     m3,
@@ -958,26 +986,26 @@ pub fn promote_decl(
                 )),
             },
         },
-        IDeclaration::ThmDecl(v, e) => match promote_cv(st, m, fuel, v) {
+        IDeclaration::ThmDecl(v, e) => match promote_cv(pers, st, m, fuel, v) {
             Err(er) => Err(er),
-            Ok((m2, cv)) => match promote_e(st, m2, fuel, e) {
+            Ok((m2, cv)) => match promote_e(pers, st, m2, fuel, e) {
                 Err(er) => Err(er),
                 Ok((m3, x)) => Ok((m3, IDeclaration::ThmDecl(cv, x))),
             },
         },
-        IDeclaration::OpaqueDecl(v, e) => match promote_cv(st, m, fuel, v) {
+        IDeclaration::OpaqueDecl(v, e) => match promote_cv(pers, st, m, fuel, v) {
             Err(er) => Err(er),
-            Ok((m2, cv)) => match promote_e(st, m2, fuel, e) {
+            Ok((m2, cv)) => match promote_e(pers, st, m2, fuel, e) {
                 Err(er) => Err(er),
                 Ok((m3, x)) => Ok((m3, IDeclaration::OpaqueDecl(cv, x))),
             },
         },
         IDeclaration::BasisDecl(k) => Ok((m, IDeclaration::BasisDecl(cenv::basis_kind_dup(k)))),
-        IDeclaration::IndDecl(block, n_p) => match promote_ci_list(st, m, fuel, block) {
+        IDeclaration::IndDecl(block, n_p) => match promote_ci_list(pers, st, m, fuel, block) {
             Err(e) => Err(e),
             Ok((m2, b)) => Ok((m2, IDeclaration::IndDecl(b, *n_p))),
         },
-        IDeclaration::QuotDecl(k, v) => match promote_cv(st, m, fuel, v) {
+        IDeclaration::QuotDecl(k, v) => match promote_cv(pers, st, m, fuel, v) {
             Err(e) => Err(e),
             Ok((m2, cv)) => Ok((m2, IDeclaration::QuotDecl(cenv::quot_kind_dup(k), cv))),
         },
@@ -991,14 +1019,15 @@ pub fn promote_decl(
 /// beside the environment and at the SAME memo, so that the sharing between a
 /// header's type and its value survives the copy.
 pub fn promote_vg(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
     g: ValueGroup,
 ) -> Result<(PMemo, ValueGroup), CheckError> {
-    match promote_cv(st, m, fuel, &g.cv_a) {
+    match promote_cv(pers, st, m, fuel, &g.cv_a) {
         Err(e) => Err(e),
-        Ok((m2, cv_a)) => match promote_e(st, m2, fuel, &g.jv) {
+        Ok((m2, cv_a)) => match promote_e(pers, st, m2, fuel, &g.jv) {
             Err(e) => Err(e),
             Ok((m3, jv)) => Ok((
                 m3,
@@ -1048,6 +1077,7 @@ pub fn erase_installed(fe: IFEnv, i: usize) -> IFEnv {
 /// `Vec` (`arena::env`'s note), and rebuilding the list would copy the whole
 /// environment at every declaration.
 pub fn index_promoted(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
@@ -1059,7 +1089,7 @@ pub fn index_promoted(
     if j <= start {
         Ok((m, fe))
     } else {
-        match promote_ci(st, m, fuel, &fe.env.consts[j - 1]) {
+        match promote_ci(pers, st, m, fuel, &fe.env.consts[j - 1]) {
             Err(e) => Err(e),
             Ok((m2, ci)) => {
                 let mut fe2: IFEnv = fe;
@@ -1069,7 +1099,7 @@ pub fn index_promoted(
                 fe2.idx
                     .insert(env::i_constant_info_name(&ci), (c - 1, (j - 1) as u64));
                 fe2.env.consts[j - 1] = ci;
-                index_promoted(st, m2, fuel, fe2, start, j - 1, c - 1)
+                index_promoted(pers, st, m2, fuel, fe2, start, j - 1, c - 1)
             }
         }
     }
@@ -1088,6 +1118,7 @@ pub fn index_promoted(
 /// `check_native_rec`'s `fe_r`) are discarded by their own callers and never
 /// reach here.
 pub fn promote_new(
+    pers: &PersTier,
     st: &mut AState,
     m: PMemo,
     fuel: u64,
@@ -1105,7 +1136,7 @@ pub fn promote_new(
             let vb: u64 = fe.visible_below;
             let start: usize = n - kk;
             let fe2: IFEnv = erase_installed(fe, start);
-            index_promoted(st, m, fuel, fe2, start, n, vb)
+            index_promoted(pers, st, m, fuel, fe2, start, n, vb)
         }
     }
 }
@@ -1147,19 +1178,20 @@ mod tests {
     }
 
     /// A name `anonymous.str s`, interned in whatever tier is live.
-    fn nm(st: &mut AState, s: &str) -> NIdx {
-        let a = ok(intern_n_node(st, NNodeView::Anonymous));
+    fn nm(pers: &PersTier, st: &mut AState, s: &str) -> NIdx {
+        let a = ok(intern_n_node(pers, st, NNodeView::Anonymous));
         ok(intern_n_node(
+            pers,
             st,
             NNodeView::Str(a, s.chars().map(|c| c as u32).collect()),
         ))
     }
 
     /// `const s []`, interned in whatever tier is live.
-    fn cst(st: &mut AState, s: &str) -> EIdx {
-        let n = nm(st, s);
-        let us = ok(intern_ls_node(st, Vec::new()));
-        ok(intern_e(st, ENodeView::Const(n, us)))
+    fn cst(pers: &PersTier, st: &mut AState, s: &str) -> EIdx {
+        let n = nm(pers, st, s);
+        let us = ok(intern_ls_node(pers, st, Vec::new()));
+        ok(intern_e(pers, st, ENodeView::Const(n, us)))
     }
 
     /// A persistent handle promotes to ITSELF, by one tier-bit test and no
@@ -1167,13 +1199,14 @@ mod tests {
     /// module note's first bullet).
     #[test]
     fn a_persistent_handle_promotes_to_itself() {
+        let pers: &PersTier = &PersTier::empty();
         let mut st = AState::init(EStore::empty());
-        let f = cst(&mut st, "f");
-        let before = st.store.pers_count();
+        let f = cst(pers, &mut st, "f");
+        let before = st.store.pers_count(pers);
         enter_scratch(&mut st);
-        let (m, r) = ok(promote_e(&mut st, PMemo::empty(), CORE_WALK_FUEL, &f));
+        let (m, r) = ok(promote_e(pers, &mut st, PMemo::empty(), CORE_WALK_FUEL, &f));
         assert!(r.eq2(&f), "a persistent handle is its own promotion");
-        assert_eq!(st.store.pers_count(), before, "and nothing was appended");
+        assert_eq!(st.store.pers_count(pers), before, "and nothing was appended");
         assert_eq!(m.e_m.len(), 0, "nor was the memo touched");
         drop_scratch(&mut st);
     }
@@ -1185,23 +1218,24 @@ mod tests {
     /// this is `denote (promote h) = denote h` observed from outside.
     #[test]
     fn a_scratch_node_promotes_to_its_persistent_twin() {
+        let pers: &PersTier = &PersTier::empty();
         let mut st = AState::init(EStore::empty());
-        let f = cst(&mut st, "f");
-        let a = cst(&mut st, "a");
+        let f = cst(pers, &mut st, "f");
+        let a = cst(pers, &mut st, "a");
         enter_scratch(&mut st);
-        let app = ok(intern_e(&mut st, ENodeView::App(f.dup2(), a.dup2())));
+        let app = ok(intern_e(pers, &mut st, ENodeView::App(f.dup2(), a.dup2())));
         assert!(!app.is_persistent(), "the fixture must be a scratch node");
-        let (m, r) = ok(promote_e(&mut st, PMemo::empty(), CORE_WALK_FUEL, &app));
+        let (m, r) = ok(promote_e(pers, &mut st, PMemo::empty(), CORE_WALK_FUEL, &app));
         assert!(r.is_persistent(), "the promotion is persistent");
         assert!(!r.eq2(&app), "and it is a different word");
         assert_eq!(m.e_m.len(), 1, "one node was copied");
         // the memo answers the second promotion without appending
-        let n1 = st.store.pers_count();
-        let (_, r2) = ok(promote_e(&mut st, m, CORE_WALK_FUEL, &app));
+        let n1 = st.store.pers_count(pers);
+        let (_, r2) = ok(promote_e(pers, &mut st, m, CORE_WALK_FUEL, &app));
         assert!(r2.eq2(&r), "the memo answers the second promotion");
-        assert_eq!(st.store.pers_count(), n1, "and appends nothing");
+        assert_eq!(st.store.pers_count(pers), n1, "and appends nothing");
         drop_scratch(&mut st);
-        let again = ok(intern_e(&mut st, ENodeView::App(f, a)));
+        let again = ok(intern_e(pers, &mut st, ENodeView::App(f, a)));
         assert!(
             again.eq2(&r),
             "the promoted handle IS what the persistent tier hands out"
@@ -1213,23 +1247,25 @@ mod tests {
     /// persistent.
     #[test]
     fn the_four_kinds_promote_through_the_nesting() {
+        let pers: &PersTier = &PersTier::empty();
         let mut st = AState::init(EStore::empty());
         enter_scratch(&mut st);
-        let u = nm(&mut st, "u");
-        let p = ok(intern_l_node(&mut st, LNodeView::Param(u)));
-        let s = ok(intern_e(&mut st, ENodeView::Sort(p.dup2())));
+        let u = nm(pers, &mut st, "u");
+        let p = ok(intern_l_node(pers, &mut st, LNodeView::Param(u)));
+        let s = ok(intern_e(pers, &mut st, ENodeView::Sort(p.dup2())));
         let lit = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::Lit(Literal::NatVal(P::new(nat::from_u64(7)))),
         ));
-        let pair = ok(intern_e(&mut st, ENodeView::App(s.dup2(), lit)));
+        let pair = ok(intern_e(pers, &mut st, ENodeView::App(s.dup2(), lit)));
         assert!(!pair.is_persistent());
-        let (m, r) = ok(promote_e(&mut st, PMemo::empty(), CORE_WALK_FUEL, &pair));
+        let (m, r) = ok(promote_e(pers, &mut st, PMemo::empty(), CORE_WALK_FUEL, &pair));
         assert!(r.is_persistent(), "the application");
         assert_eq!(m.e_m.len(), 3, "three expression nodes were copied");
         assert_eq!(m.l_m.len(), 1, "one level node");
         assert_eq!(m.n_m.len(), 2, "two name nodes (`anonymous` and `u`)");
-        let (_, rl) = ok(promote_l(&mut st, PMemo::empty(), CORE_WALK_FUEL, &p));
+        let (_, rl) = ok(promote_l(pers, &mut st, PMemo::empty(), CORE_WALK_FUEL, &p));
         assert!(rl.is_persistent(), "the level promotes on its own too");
         drop_scratch(&mut st);
     }
@@ -1241,13 +1277,14 @@ mod tests {
     /// that word to the next declaration.
     #[test]
     fn promote_new_repairs_the_index() {
+        let pers: &PersTier = &PersTier::empty();
         let mut st = AState::init(EStore::empty());
         let fe0: IFEnv = mk_ifenv(i_env_empty());
         enter_scratch(&mut st);
         // a constant whose NAME is new, so the name handle is a scratch one
-        let n = nm(&mut st, "brandNew");
+        let n = nm(pers, &mut st, "brandNew");
         assert!(!n.is_persistent(), "the fixture's name must be scratch");
-        let ty = cst(&mut st, "T");
+        let ty = cst(pers, &mut st, "T");
         let fe1: IFEnv = ifenv_push(
             fe0,
             IConstantInfo::AxiomInfo(IConstantVal {
@@ -1256,16 +1293,16 @@ mod tests {
                 ty,
             }),
         );
-        assert!(ifenv_find(&fe1, &n).is_some(), "found under the scratch key");
-        let (_, fe2) = ok(promote_new(&mut st, PMemo::empty(), CORE_WALK_FUEL, 1, fe1));
+        assert!(ifenv_find(fe1.visible_below, &fe1, &n).is_some(), "found under the scratch key");
+        let (_, fe2) = ok(promote_new(pers, &mut st, PMemo::empty(), CORE_WALK_FUEL, 1, fe1));
         assert_eq!(fe2.env.consts.len(), 1);
         assert_eq!(fe2.visible_below, 1);
         let n2: NIdx = env::i_constant_info_name(&fe2.env.consts[0]);
         assert!(n2.is_persistent(), "the stored name is persistent now");
         assert!(!n2.eq2(&n), "and it moved");
-        assert!(ifenv_find(&fe2, &n2).is_some(), "found under the new key");
+        assert!(ifenv_find(fe2.visible_below, &fe2, &n2).is_some(), "found under the new key");
         assert!(
-            ifenv_find(&fe2, &n).is_none(),
+            ifenv_find(fe2.visible_below, &fe2, &n).is_none(),
             "and the stale scratch row is gone"
         );
         match &fe2.env.consts[0] {
@@ -1281,11 +1318,12 @@ mod tests {
     /// record that installs nothing.
     #[test]
     fn promote_new_at_zero_is_the_identity() {
+        let pers: &PersTier = &PersTier::empty();
         let mut st = AState::init(EStore::empty());
         let fe: IFEnv = mk_ifenv(IEnv { consts: Vec::new() });
-        let before = st.store.pers_count();
-        let (_, fe2) = ok(promote_new(&mut st, PMemo::empty(), CORE_WALK_FUEL, 0, fe));
+        let before = st.store.pers_count(pers);
+        let (_, fe2) = ok(promote_new(pers, &mut st, PMemo::empty(), CORE_WALK_FUEL, 0, fe));
         assert_eq!(fe2.env.consts.len(), 0);
-        assert_eq!(st.store.pers_count(), before);
+        assert_eq!(st.store.pers_count(pers), before);
     }
 }

@@ -112,6 +112,7 @@ use con_ron_core::ron::hashmap::{Dup, Eq2};
 // reads as it did.  `ron::hashmap::HashMap` is still what `crates/con-ron`
 // uses, and is still the one with proofs.
 use con_ron_core::ron::hashmap2::HashMap2 as HashMap;
+use crate::arena::store::PersTier;
 
 // ---------------------------------------------------------------------------
 // The shape records `projRecOwners` takes (`ProjRec.lean:498-501` of the twin)
@@ -202,14 +203,19 @@ pub fn cps_starts_with(s: &Vec<u32>, lit: &[u32]) -> bool {
 /// of `T`: `T._model.proj_i.iota`.  Building a name means interning it, so the
 /// twin is monadic and this takes the state; the cited `s!"proj_{i}"` is
 /// `text::cat` of `text::u64_str` (§3.4 has no `format!`).
-pub fn proj_iota_name(st: &mut AState, t: &NIdx, i: u64) -> Result<NIdx, CheckError> {
-    match intern_n_node(st, NNodeView::Str(t.dup2(), code_points(&M_MODEL))) {
+pub fn proj_iota_name(
+    pers: &PersTier,
+    st: &mut AState,
+    t: &NIdx,
+    i: u64,
+) -> Result<NIdx, CheckError>  {
+    match intern_n_node(pers, st, NNodeView::Str(t.dup2(), code_points(&M_MODEL))) {
         Err(e) => Err(e),
         Ok(a) => {
             let s = text::cat(code_points(&M_PROJ), &text::u64_str(i));
-            match intern_n_node(st, NNodeView::Str(a, s)) {
+            match intern_n_node(pers, st, NNodeView::Str(a, s)) {
                 Err(e) => Err(e),
-                Ok(b) => intern_n_node(st, NNodeView::Str(b, code_points(&M_IOTA))),
+                Ok(b) => intern_n_node(pers, st, NNodeView::Str(b, code_points(&M_IOTA))),
             }
         }
     }
@@ -219,14 +225,14 @@ pub fn proj_iota_name(st: &mut AState, t: &NIdx, i: u64) -> Result<NIdx, CheckEr
 /// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:85-94 isProjIotaName`
 /// — is `n` of the shape `X._model.proj_i.iota`?  The cheap pre-filter for the
 /// theorem records; the last component decides before anything is compared.
-pub fn is_proj_iota_name(st: &AState, n: &NIdx) -> Result<bool, CheckError> {
-    match view_n(st, n) {
+pub fn is_proj_iota_name(pers: &PersTier, st: &AState, n: &NIdx) -> Result<bool, CheckError> {
+    match view_n(pers, st, n) {
         Err(e) => Err(e),
         Ok(NNodeView::Str(p1, last)) => {
             if !text::cps_beq(&last, &M_IOTA) {
                 Ok(false)
             } else {
-                is_proj_iota_pre(st, &p1)
+                is_proj_iota_pre(pers, st, &p1)
             }
         }
         Ok(_) => Ok(false),
@@ -238,10 +244,10 @@ pub fn is_proj_iota_name(st: &AState, n: &NIdx) -> Result<bool, CheckError> {
 /// — the two inner `match ← viewN`es, past the `"iota"` test.  Its own
 /// function so that the outer `view_n`'s loan is dead where the next one is
 /// taken (extraction rule 5).
-pub fn is_proj_iota_pre(st: &AState, p1: &NIdx) -> Result<bool, CheckError> {
-    match view_n(st, p1) {
+pub fn is_proj_iota_pre(pers: &PersTier, st: &AState, p1: &NIdx) -> Result<bool, CheckError> {
+    match view_n(pers, st, p1) {
         Err(e) => Err(e),
-        Ok(NNodeView::Str(p2, s)) => match view_n(st, &p2) {
+        Ok(NNodeView::Str(p2, s)) => match view_n(pers, st, &p2) {
             Err(e) => Err(e),
             Ok(NNodeView::Str(_, m)) => {
                 Ok(text::cps_beq(&m, &M_MODEL) && cps_starts_with(&s, &M_PROJ))
@@ -259,17 +265,18 @@ pub fn is_proj_iota_pre(st: &AState, p1: &NIdx) -> Result<bool, CheckError> {
 /// ONE handle (DESIGN.md §8.3's `LsIdx`), so the singleton test is a
 /// `view_ls`; `Eq`'s own name is interned, which is why this takes `&mut`.
 pub fn proj_iota_level(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     ty: &EIdx,
 ) -> Result<Option<LIdx>, CheckError> {
-    match expr_ops::pi_result(st, fuel, ty) {
+    match expr_ops::pi_result(pers, st, fuel, ty) {
         Err(e) => Err(e),
-        Ok(r) => match expr_ops::get_app_fn(st, fuel, &r) {
+        Ok(r) => match expr_ops::get_app_fn(pers, st, fuel, &r) {
             Err(e) => Err(e),
-            Ok(f) => match view(st, &f) {
+            Ok(f) => match view(pers, st, &f) {
                 Err(e) => Err(e),
-                Ok(ENodeView::Const(n, us)) => proj_iota_level_at(st, &n, &us),
+                Ok(ENodeView::Const(n, us)) => proj_iota_level_at(pers, st, &n, &us),
                 Ok(_) => Ok(None),
             },
         },
@@ -282,17 +289,18 @@ pub fn proj_iota_level(
 /// own function because the `view`'s loan is dead before `Eq` is interned
 /// (extraction rule 5).
 pub fn proj_iota_level_at(
+    pers: &PersTier,
     st: &mut AState,
     n: &NIdx,
     us: &LsIdx,
 ) -> Result<Option<LIdx>, CheckError> {
-    match view_ls(st, us) {
+    match view_ls(pers, st, us) {
         Err(e) => Err(e),
         Ok(ls) => {
             if ls.len() != 1 {
                 Ok(None)
             } else {
-                match intern_name(st, &bnm::eq_name()) {
+                match intern_name(pers, st, &bnm::eq_name()) {
                     Err(e) => Err(e),
                     Ok(eq_h) => {
                         if n.eq2(&eq_h) {
@@ -340,6 +348,7 @@ pub fn occurs_seen(seen: &HashMap<EIdx, bool>, h: &EIdx) -> bool {
 /// with its cached hash; it is threaded **by value**, which is the twin's
 /// `AM (Bool × Std.HashSet EIdx)` term for term.
 pub fn occurs_const_go(
+    pers: &PersTier,
     st: &AState,
     n: &NIdx,
     seen: HashMap<EIdx, bool>,
@@ -349,7 +358,7 @@ pub fn occurs_const_go(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_OCCURS)))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
             Ok(ENodeView::Const(m, _)) => Ok((m.eq2(n), seen)),
             Ok(ENodeView::BVar(_)) => Ok((false, seen)),
@@ -360,7 +369,7 @@ pub fn occurs_const_go(
                 if occurs_seen(&seen, h) {
                     Ok((false, seen))
                 } else {
-                    occurs_const_node(st, n, seen, fuel - 1, h, v)
+                    occurs_const_node(pers, st, n, seen, fuel - 1, h, v)
                 }
             }
         }
@@ -373,6 +382,7 @@ pub fn occurs_const_go(
 /// when the answer is `false`.  Split off so the `view`'s loans are dead at
 /// the memo's join (extraction rule 5).
 pub fn occurs_const_node(
+    pers: &PersTier,
     st: &AState,
     n: &NIdx,
     seen: HashMap<EIdx, bool>,
@@ -381,15 +391,15 @@ pub fn occurs_const_node(
     v: ENodeView,
 ) -> Result<(bool, HashMap<EIdx, bool>), CheckError> {
     match v {
-        ENodeView::App(f, a) => occurs_const_two(st, n, seen, fuel, h, &f, &a),
-        ENodeView::Lam(ty, b, _) => occurs_const_two(st, n, seen, fuel, h, &ty, &b),
-        ENodeView::ForallE(ty, b, _) => occurs_const_two(st, n, seen, fuel, h, &ty, &b),
-        ENodeView::LetE(t, val, b) => match occurs_const_go(st, n, seen, fuel, &t) {
+        ENodeView::App(f, a) => occurs_const_two(pers, st, n, seen, fuel, h, &f, &a),
+        ENodeView::Lam(ty, b, _) => occurs_const_two(pers, st, n, seen, fuel, h, &ty, &b),
+        ENodeView::ForallE(ty, b, _) => occurs_const_two(pers, st, n, seen, fuel, h, &ty, &b),
+        ENodeView::LetE(t, val, b) => match occurs_const_go(pers, st, n, seen, fuel, &t) {
             Err(e) => Err(e),
             Ok((true, m)) => Ok((true, m)),
-            Ok((false, m)) => occurs_const_two(st, n, m, fuel, h, &val, &b),
+            Ok((false, m)) => occurs_const_two(pers, st, n, m, fuel, h, &val, &b),
         },
-        ENodeView::Proj(_, _, sub) => match occurs_const_go(st, n, seen, fuel, &sub) {
+        ENodeView::Proj(_, _, sub) => match occurs_const_go(pers, st, n, seen, fuel, &sub) {
             Err(e) => Err(e),
             Ok((true, m)) => Ok((true, m)),
             Ok((false, m)) => Ok((false, occurs_record(m, h))),
@@ -404,6 +414,7 @@ pub fn occurs_const_node(
 /// — the two-child arms (`app`, `lam`, `forallE`, and `letE`'s tail), which
 /// are one `match` nest in the twin and one function here.
 pub fn occurs_const_two(
+    pers: &PersTier,
     st: &AState,
     n: &NIdx,
     seen: HashMap<EIdx, bool>,
@@ -412,10 +423,10 @@ pub fn occurs_const_two(
     x: &EIdx,
     y: &EIdx,
 ) -> Result<(bool, HashMap<EIdx, bool>), CheckError> {
-    match occurs_const_go(st, n, seen, fuel, x) {
+    match occurs_const_go(pers, st, n, seen, fuel, x) {
         Err(e) => Err(e),
         Ok((true, m)) => Ok((true, m)),
-        Ok((false, m)) => match occurs_const_go(st, n, m, fuel, y) {
+        Ok((false, m)) => match occurs_const_go(pers, st, n, m, fuel, y) {
             Err(e) => Err(e),
             Ok((true, m2)) => Ok((true, m2)),
             Ok((false, m2)) => Ok((false, occurs_record(m2, h))),
@@ -437,13 +448,14 @@ pub fn occurs_record(seen: HashMap<EIdx, bool>, h: &EIdx) -> HashMap<EIdx, bool>
 /// occursConstFast` — the executed `occursConst`: the memoised descent at a
 /// fresh set.
 pub fn occurs_const_fast(
+    pers: &PersTier,
     st: &AState,
     fuel: u64,
     n: &NIdx,
     h: &EIdx,
 ) -> Result<bool, CheckError> {
     let seen: HashMap<EIdx, bool> = HashMap::new();
-    match occurs_const_go(st, n, seen, fuel, h) {
+    match occurs_const_go(pers, st, n, seen, fuel, h) {
         Err(e) => Err(e),
         Ok(p) => Ok(p.0),
     }
@@ -472,13 +484,13 @@ pub const M_FUEL_STRIP_PIS_ALL: [u32; 27] = [
 /// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:200-205 lamBody` — the
 /// body under every leading `λ` (the projection shape's pre-filter: the node
 /// under the value's binders).
-pub fn lam_body(st: &AState, fuel: u64, h: &EIdx) -> Result<EIdx, CheckError> {
+pub fn lam_body(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<EIdx, CheckError> {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_LAM_BODY)))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::Lam(_, b, _)) => lam_body(st, fuel - 1, &b),
+            Ok(ENodeView::Lam(_, b, _)) => lam_body(pers, st, fuel - 1, &b),
             Ok(_) => Ok(h.dup2()),
         }
     }
@@ -488,6 +500,7 @@ pub fn lam_body(st: &AState, fuel: u64, h: &EIdx) -> Result<EIdx, CheckError> {
 /// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:209-216 stripPisAll` —
 /// strip every leading `∀`: the binder list (outermost first) and the body.
 pub fn strip_pis_all(
+    pers: &PersTier,
     st: &AState,
     fuel: u64,
     h: &EIdx,
@@ -495,9 +508,9 @@ pub fn strip_pis_all(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_STRIP_PIS_ALL)))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::ForallE(ty, b, m)) => match strip_pis_all(st, fuel - 1, &b) {
+            Ok(ENodeView::ForallE(ty, b, m)) => match strip_pis_all(pers, st, fuel - 1, &b) {
                 Err(e) => Err(e),
                 Ok(p) => Ok((expr_ops::cons_binder(&ty, &m, &p.0), p.1)),
             },
@@ -512,11 +525,12 @@ pub fn strip_pis_all(
 /// on the list, so no fuel; every binder is interned.  The `i = 0` wrapper of
 /// the cursor recursion below.
 pub fn mk_lams(
+    pers: &PersTier,
     st: &mut AState,
     bs: &Vec<(EIdx, BinderMeta)>,
     body: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    mk_lams_from(st, bs, 0, body)
+    mk_lams_from(pers, st, bs, 0, body)
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:247-249 mkLams
@@ -524,6 +538,7 @@ pub fn mk_lams(
 /// cursor recursion behind `mk_lams`: the twin conses on the way OUT, so the
 /// cursor recurses to the end of the list and interns outward from there.
 pub fn mk_lams_from(
+    pers: &PersTier,
     st: &mut AState,
     bs: &Vec<(EIdx, BinderMeta)>,
     i: usize,
@@ -532,9 +547,10 @@ pub fn mk_lams_from(
     if i >= bs.len() {
         Ok(body.dup2())
     } else {
-        match mk_lams_from(st, bs, i + 1, body) {
+        match mk_lams_from(pers, st, bs, i + 1, body) {
             Err(e) => Err(e),
             Ok(acc) => intern_e(
+                pers,
                 st,
                 ENodeView::Lam(bs[i].0.dup2(), acc, expr::binder_meta_dup(&bs[i].1)),
             ),
@@ -550,18 +566,20 @@ pub fn mk_lams_from(
 /// `instantiate1_lift_fast` needs.  The `i = 0` wrapper of the cursor
 /// recursion below.
 pub fn inst_pis_open(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     e: &EIdx,
     args: &Vec<EIdx>,
 ) -> Result<Option<EIdx>, CheckError> {
-    inst_pis_open_from(st, fuel, e, args, 0)
+    inst_pis_open_from(pers, st, fuel, e, args, 0)
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:251-257 instPisOpen
 /// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:232-239 instPisOpen` —
 /// the cursor recursion behind `inst_pis_open`.
 pub fn inst_pis_open_from(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     e: &EIdx,
@@ -571,12 +589,12 @@ pub fn inst_pis_open_from(
     if i >= args.len() {
         Ok(Some(e.dup2()))
     } else {
-        match view(st, e) {
+        match view(pers, st, e) {
             Err(er) => Err(er),
             Ok(ENodeView::ForallE(_, body, _)) => {
-                match expr_ops::instantiate1_lift_fast(st, fuel, &body, &args[i], 0) {
+                match expr_ops::instantiate1_lift_fast(pers, st, fuel, &body, &args[i], 0) {
                     Err(er) => Err(er),
-                    Ok(b) => inst_pis_open_from(st, fuel, &b, args, i + 1),
+                    Ok(b) => inst_pis_open_from(pers, st, fuel, &b, args, i + 1),
                 }
             }
             Ok(_) => Ok(None),
@@ -618,10 +636,16 @@ pub struct ProjBuild {
 /// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:267-270 headIs` — is
 /// `T` the head of the owner's own carrier: the motive domain
 /// `∀ (t : T p⃗), Sort ℓ` (exactly one binder) or the major-premise domain.
-pub fn head_is(st: &AState, fuel: u64, t: &NIdx, e: &EIdx) -> Result<bool, CheckError> {
-    match expr_ops::get_app_fn(st, fuel, e) {
+pub fn head_is(
+    pers: &PersTier,
+    st: &AState,
+    fuel: u64,
+    t: &NIdx,
+    e: &EIdx,
+) -> Result<bool, CheckError>  {
+    match expr_ops::get_app_fn(pers, st, fuel, e) {
         Err(er) => Err(er),
-        Ok(f) => match view(st, &f) {
+        Ok(f) => match view(pers, st, &f) {
             Err(er) => Err(er),
             Ok(ENodeView::Const(n, _)) => Ok(n.eq2(t)),
             Ok(_) => Ok(false),
@@ -636,16 +660,17 @@ pub fn head_is(st: &AState, fuel: u64, t: &NIdx, e: &EIdx) -> Result<bool, Check
 /// subject reference IS the new binder — and every other one is the constant
 /// `PUnit.{ℓ}` over its telescope.
 pub fn mk_proj_motive(
+    pers: &PersTier,
     st: &mut AState,
     pb: &ProjBuild,
     fuel: u64,
     dom: &EIdx,
 ) -> Result<Option<EIdx>, CheckError> {
-    match strip_pis_all(st, fuel, dom) {
+    match strip_pis_all(pers, st, fuel, dom) {
         Err(e) => Err(e),
-        Ok(bse) => match view(st, &bse.1) {
+        Ok(bse) => match view(pers, st, &bse.1) {
             Err(e) => Err(e),
-            Ok(ENodeView::Sort(_)) => mk_proj_motive_at(st, pb, fuel, &bse.0),
+            Ok(ENodeView::Sort(_)) => mk_proj_motive_at(pers, st, pb, fuel, &bse.0),
             Ok(_) => Ok(None),
         },
     }
@@ -655,22 +680,24 @@ pub fn mk_proj_motive(
 /// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:280-288 mkProjMotive`
 /// — the cited `match bs with | [(d, m)] => … | bs => …`, past the sort test.
 pub fn mk_proj_motive_at(
+    pers: &PersTier,
     st: &mut AState,
     pb: &ProjBuild,
     fuel: u64,
     bs: &Vec<(EIdx, BinderMeta)>,
 ) -> Result<Option<EIdx>, CheckError> {
     if bs.len() != 1 {
-        match mk_lams(st, bs, &pb.punit_c) {
+        match mk_lams(pers, st, bs, &pb.punit_c) {
             Err(e) => Err(e),
             Ok(r) => Ok(Some(r)),
         }
     } else {
-        match head_is(st, fuel, &pb.t, &bs[0].0) {
+        match head_is(pers, st, fuel, &pb.t, &bs[0].0) {
             Err(e) => Err(e),
-            Ok(true) => match expr_ops::lift_loose_bvars_fast(st, fuel, 1, 1, &pb.r) {
+            Ok(true) => match expr_ops::lift_loose_bvars_fast(pers, st, fuel, 1, 1, &pb.r) {
                 Err(e) => Err(e),
                 Ok(rl) => match intern_e(
+                    pers,
                     st,
                     ENodeView::Lam(bs[0].0.dup2(), rl, expr::binder_meta_dup(&bs[0].1)),
                 ) {
@@ -679,6 +706,7 @@ pub fn mk_proj_motive_at(
                 },
             },
             Ok(false) => match intern_e(
+                pers,
                 st,
                 ENodeView::Lam(
                     bs[0].0.dup2(),
@@ -701,20 +729,21 @@ pub fn mk_proj_motive_at(
 /// `PUnit.unit.{ℓ}`.  The owner's minor is the one whose codomain applies a
 /// motive to the owner constructor.
 pub fn mk_proj_minor(
+    pers: &PersTier,
     st: &mut AState,
     pb: &ProjBuild,
     fuel: u64,
     dom: &EIdx,
 ) -> Result<Option<EIdx>, CheckError> {
-    match strip_pis_all(st, fuel, dom) {
+    match strip_pis_all(pers, st, fuel, dom) {
         Err(e) => Err(e),
-        Ok(bse) => match expr_ops::get_app_args(st, fuel, &bse.1) {
+        Ok(bse) => match expr_ops::get_app_args(pers, st, fuel, &bse.1) {
             Err(e) => Err(e),
             Ok(args) => {
                 if args.len() == 0 {
                     Ok(None)
                 } else {
-                    mk_proj_minor_at(st, pb, fuel, &bse.0, &args[args.len() - 1])
+                    mk_proj_minor_at(pers, st, pb, fuel, &bse.0, &args[args.len() - 1])
                 }
             }
         },
@@ -726,15 +755,16 @@ pub fn mk_proj_minor(
 /// the cited `if ← headIs fuel pb.ctor major then … else …`, at the spine's
 /// last argument.
 pub fn mk_proj_minor_at(
+    pers: &PersTier,
     st: &mut AState,
     pb: &ProjBuild,
     fuel: u64,
     bs: &Vec<(EIdx, BinderMeta)>,
     major: &EIdx,
 ) -> Result<Option<EIdx>, CheckError> {
-    match head_is(st, fuel, &pb.ctor, major) {
+    match head_is(pers, st, fuel, &pb.ctor, major) {
         Err(e) => Err(e),
-        Ok(false) => match mk_lams(st, bs, &pb.punit_unit_c) {
+        Ok(false) => match mk_lams(pers, st, bs, &pb.punit_unit_c) {
             Err(e) => Err(e),
             Ok(r) => Ok(Some(r)),
         },
@@ -742,9 +772,9 @@ pub fn mk_proj_minor_at(
             if pb.i >= bs.len() as u64 {
                 Ok(None)
             } else {
-                match intern_e(st, ENodeView::BVar(bs.len() as u64 - 1 - pb.i)) {
+                match intern_e(pers, st, ENodeView::BVar(bs.len() as u64 - 1 - pb.i)) {
                     Err(e) => Err(e),
-                    Ok(b) => match mk_lams(st, bs, &b) {
+                    Ok(b) => match mk_lams(pers, st, bs, &b) {
                         Err(e) => Err(e),
                         Ok(r) => Ok(Some(r)),
                     },
@@ -761,6 +791,7 @@ pub fn mk_proj_minor_at(
 /// that term before the next binder is read.  `kind` is con-leche's `mk`
 /// argument, as the module note explains.
 pub fn build_binders(
+    pers: &PersTier,
     st: &mut AState,
     kind: &ProjBinderKind,
     pb: &ProjBuild,
@@ -771,10 +802,10 @@ pub fn build_binders(
     if k == 0 {
         Ok(Some((Vec::new(), h.dup2())))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
             Ok(ENodeView::ForallE(dom, body, _)) => {
-                build_binders_at(st, kind, pb, fuel, k, &dom, &body)
+                build_binders_at(pers, st, kind, pb, fuel, k, &dom, &body)
             }
             Ok(_) => Ok(None),
         }
@@ -788,6 +819,7 @@ pub fn build_binders(
 /// recursion interns (extraction rule 5 / AENEAS_FINDINGS §2.1 F3: an arm ends
 /// in a call, never in a branch).
 pub fn build_binders_at(
+    pers: &PersTier,
     st: &mut AState,
     kind: &ProjBinderKind,
     pb: &ProjBuild,
@@ -797,15 +829,15 @@ pub fn build_binders_at(
     body: &EIdx,
 ) -> Result<Option<(Vec<EIdx>, EIdx)>, CheckError> {
     let t = match kind {
-        ProjBinderKind::Motive => mk_proj_motive(st, pb, fuel, dom),
-        ProjBinderKind::Minor => mk_proj_minor(st, pb, fuel, dom),
+        ProjBinderKind::Motive => mk_proj_motive(pers, st, pb, fuel, dom),
+        ProjBinderKind::Minor => mk_proj_minor(pers, st, pb, fuel, dom),
     };
     match t {
         Err(e) => Err(e),
         Ok(None) => Ok(None),
-        Ok(Some(t)) => match expr_ops::instantiate1_lift_fast(st, fuel, body, &t, 0) {
+        Ok(Some(t)) => match expr_ops::instantiate1_lift_fast(pers, st, fuel, body, &t, 0) {
             Err(e) => Err(e),
-            Ok(body2) => match build_binders(st, kind, pb, fuel, k - 1, &body2) {
+            Ok(body2) => match build_binders(pers, st, kind, pb, fuel, k - 1, &body2) {
                 Err(e) => Err(e),
                 Ok(None) => Ok(None),
                 Ok(Some(tsr)) => Ok(Some((expr_ops::cons_eidx(&t, &tsr.0), tsr.1))),
@@ -823,16 +855,18 @@ pub fn build_binders_at(
 /// internParamLevels` — `o.lps.map Level.param`, interned: a `List.map` with a
 /// closure is §3.4's explicit recursion here.  The `i = 0` wrapper.
 pub fn intern_param_levels(
+    pers: &PersTier,
     st: &mut AState,
     ns: &Vec<NIdx>,
 ) -> Result<Vec<LIdx>, CheckError> {
-    intern_param_levels_from(st, ns, 0)
+    intern_param_levels_from(pers, st, ns, 0)
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:279-330 projRecValue
 /// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:395-400
 /// internParamLevels` — the cursor recursion behind `intern_param_levels`.
 pub fn intern_param_levels_from(
+    pers: &PersTier,
     st: &mut AState,
     ns: &Vec<NIdx>,
     i: usize,
@@ -840,9 +874,9 @@ pub fn intern_param_levels_from(
     if i >= ns.len() {
         Ok(Vec::new())
     } else {
-        match intern_l_node(st, LNodeView::Param(ns[i].dup2())) {
+        match intern_l_node(pers, st, LNodeView::Param(ns[i].dup2())) {
             Err(e) => Err(e),
-            Ok(h) => match intern_param_levels_from(st, ns, i + 1) {
+            Ok(h) => match intern_param_levels_from(pers, st, ns, i + 1) {
                 Err(e) => Err(e),
                 Ok(hs) => Ok(cons_lidx(&h, &hs)),
             },
@@ -891,6 +925,7 @@ pub fn append_eidx(out: Vec<EIdx>, xs: &Vec<EIdx>) -> Vec<EIdx> {
 /// test (`denoteE_inj`), and destructuring does not put a node in the store
 /// when the answer is `false`.
 pub fn proj_rec_value(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     o: &ProjRecOwner,
@@ -899,18 +934,18 @@ pub fn proj_rec_value(
     val: &EIdx,
     i: u64,
 ) -> Result<Option<EIdx>, CheckError> {
-    match expr_ops::strip_lams(st, o.n_p + 1, val) {
+    match expr_ops::strip_lams(pers, st, o.n_p + 1, val) {
         Err(e) => Err(e),
         Ok(None) => Ok(None),
-        Ok(Some(lbsb)) => match view(st, &lbsb.1) {
+        Ok(Some(lbsb)) => match view(pers, st, &lbsb.1) {
             Err(e) => Err(e),
-            Ok(ENodeView::Proj(tn, bi, sub)) => match view(st, &sub) {
+            Ok(ENodeView::Proj(tn, bi, sub)) => match view(pers, st, &sub) {
                 Err(e) => Err(e),
                 Ok(ENodeView::BVar(0)) => {
                     if !tn.eq2(&o.t) || bi != i || i >= o.n_f {
                         Ok(None)
                     } else {
-                        proj_rec_value_ty(st, fuel, o, l, ty, i, &lbsb.0)
+                        proj_rec_value_ty(pers, st, fuel, o, l, ty, i, &lbsb.0)
                     }
                 }
                 Ok(_) => Ok(None),
@@ -924,6 +959,7 @@ pub fn proj_rec_value(
 /// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:353-355 projRecValue`
 /// — the cited `match ← stripPis (o.nP + 1) ty with`, past the shape test.
 pub fn proj_rec_value_ty(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     o: &ProjRecOwner,
@@ -932,10 +968,10 @@ pub fn proj_rec_value_ty(
     i: u64,
     lbs: &Vec<(EIdx, BinderMeta)>,
 ) -> Result<Option<EIdx>, CheckError> {
-    match expr_ops::strip_pis(st, o.n_p + 1, ty) {
+    match expr_ops::strip_pis(pers, st, o.n_p + 1, ty) {
         Err(e) => Err(e),
         Ok(None) => Ok(None),
-        Ok(Some(r)) => proj_rec_value_at(st, fuel, o, l, &r.1, i, lbs),
+        Ok(Some(r)) => proj_rec_value_at(pers, st, fuel, o, l, &r.1, i, lbs),
     }
 }
 
@@ -946,6 +982,7 @@ pub fn proj_rec_value_ty(
 /// `bvar (nP - k)`, the subject `bvar 0`), and the two `PUnit` constants the
 /// binder bodies read, interned once.
 pub fn proj_rec_value_at(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     o: &ProjRecOwner,
@@ -954,26 +991,26 @@ pub fn proj_rec_value_at(
     i: u64,
     lbs: &Vec<(EIdx, BinderMeta)>,
 ) -> Result<Option<EIdx>, CheckError> {
-    let ups = match intern_param_levels(st, &o.lps) {
+    let ups = match intern_param_levels(pers, st, &o.lps) {
         Err(e) => return Err(e),
         Ok(v) => v,
     };
-    let us = match intern_ls_node(st, cons_lidx(l, &ups)) {
+    let us = match intern_ls_node(pers, st, cons_lidx(l, &ups)) {
         Err(e) => return Err(e),
         Ok(v) => v,
     };
-    let rty0 = match expr_ops::inst_lp_fast(st, fuel, &o.rec_lps, &us, &o.rec_type) {
+    let rty0 = match expr_ops::inst_lp_fast(pers, st, fuel, &o.rec_lps, &us, &o.rec_type) {
         Err(e) => return Err(e),
         Ok(v) => v,
     };
-    let params = match expr_ops::bvar_range(st, o.n_p + 1, o.n_p, 0) {
+    let params = match expr_ops::bvar_range(pers, st, o.n_p + 1, o.n_p, 0) {
         Err(e) => return Err(e),
         Ok(v) => v,
     };
-    match inst_pis_open(st, fuel, &rty0, &params) {
+    match inst_pis_open(pers, st, fuel, &rty0, &params) {
         Err(e) => Err(e),
         Ok(None) => Ok(None),
-        Ok(Some(rty1)) => proj_rec_value_binders(st, fuel, o, l, r, i, lbs, &us, &params, &rty1),
+        Ok(Some(rty1)) => proj_rec_value_binders(pers, st, fuel, o, l, r, i, lbs, &us, &params, &rty1),
     }
 }
 
@@ -981,6 +1018,7 @@ pub fn proj_rec_value_at(
 /// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:366-378 projRecValue`
 /// — the `ProjBuild` record and the two `buildBinders` runs.
 pub fn proj_rec_value_binders(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     o: &ProjRecOwner,
@@ -992,23 +1030,23 @@ pub fn proj_rec_value_binders(
     params: &Vec<EIdx>,
     rty1: &EIdx,
 ) -> Result<Option<EIdx>, CheckError> {
-    let punit_h = match intern_name(st, &bnm::punit_name()) {
+    let punit_h = match intern_name(pers, st, &bnm::punit_name()) {
         Err(e) => return Err(e),
         Ok(v) => v,
     };
-    let punit_u_h = match intern_name(st, &bnm::punit_unit_name()) {
+    let punit_u_h = match intern_name(pers, st, &bnm::punit_unit_name()) {
         Err(e) => return Err(e),
         Ok(v) => v,
     };
-    let ls_one = match intern_ls_node(st, one_lidx(l)) {
+    let ls_one = match intern_ls_node(pers, st, one_lidx(l)) {
         Err(e) => return Err(e),
         Ok(v) => v,
     };
-    let punit_c = match intern_e(st, ENodeView::Const(punit_h, ls_one.dup2())) {
+    let punit_c = match intern_e(pers, st, ENodeView::Const(punit_h, ls_one.dup2())) {
         Err(e) => return Err(e),
         Ok(v) => v,
     };
-    let punit_unit_c = match intern_e(st, ENodeView::Const(punit_u_h, ls_one)) {
+    let punit_unit_c = match intern_e(pers, st, ENodeView::Const(punit_u_h, ls_one)) {
         Err(e) => return Err(e),
         Ok(v) => v,
     };
@@ -1020,14 +1058,15 @@ pub fn proj_rec_value_binders(
         punit_c,
         punit_unit_c,
     };
-    match build_binders(st, &ProjBinderKind::Motive, &pb, fuel, o.num_motives, rty1) {
+    match build_binders(pers, st, &ProjBinderKind::Motive, &pb, fuel, o.num_motives, rty1) {
         Err(e) => Err(e),
         Ok(None) => Ok(None),
         Ok(Some(mrt)) => {
-            match build_binders(st, &ProjBinderKind::Minor, &pb, fuel, o.num_minors, &mrt.1) {
+            match build_binders(pers, st, &ProjBinderKind::Minor, &pb, fuel, o.num_minors, &mrt.1) {
                 Err(e) => Err(e),
                 Ok(None) => Ok(None),
                 Ok(Some(nrt)) => proj_rec_value_major(
+                    pers,
                     st, fuel, o, lbs, us, params, &mrt.0, &nrt.0, &nrt.1,
                 ),
             }
@@ -1051,6 +1090,7 @@ pub fn one_lidx(l: &LIdx) -> Vec<LIdx> {
 /// value is `T.rec.{ℓ, u⃗} p⃗ motives minors (bvar 0)` under the definition's
 /// own binders.
 pub fn proj_rec_value_major(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     o: &ProjRecOwner,
@@ -1061,12 +1101,12 @@ pub fn proj_rec_value_major(
     minors: &Vec<EIdx>,
     rty3: &EIdx,
 ) -> Result<Option<EIdx>, CheckError> {
-    match view(st, rty3) {
+    match view(pers, st, rty3) {
         Err(e) => Err(e),
-        Ok(ENodeView::ForallE(maj_dom, _, _)) => match head_is(st, fuel, &o.t, &maj_dom) {
+        Ok(ENodeView::ForallE(maj_dom, _, _)) => match head_is(pers, st, fuel, &o.t, &maj_dom) {
             Err(e) => Err(e),
             Ok(false) => Ok(None),
-            Ok(true) => proj_rec_value_app(st, o, lbs, us, params, motives, minors),
+            Ok(true) => proj_rec_value_app(pers, st, o, lbs, us, params, motives, minors),
         },
         Ok(_) => Ok(None),
     }
@@ -1077,6 +1117,7 @@ pub fn proj_rec_value_major(
 /// — the spine itself, past the major-premise test: `mkAppN` of the recursor
 /// constant over `params ++ motives ++ minors ++ [bvar 0]`, under `mkLams`.
 pub fn proj_rec_value_app(
+    pers: &PersTier,
     st: &mut AState,
     o: &ProjRecOwner,
     lbs: &Vec<(EIdx, BinderMeta)>,
@@ -1085,11 +1126,11 @@ pub fn proj_rec_value_app(
     motives: &Vec<EIdx>,
     minors: &Vec<EIdx>,
 ) -> Result<Option<EIdx>, CheckError> {
-    let rc = match intern_e(st, ENodeView::Const(o.rec_name.dup2(), us.dup2())) {
+    let rc = match intern_e(pers, st, ENodeView::Const(o.rec_name.dup2(), us.dup2())) {
         Err(e) => return Err(e),
         Ok(v) => v,
     };
-    let b0 = match intern_e(st, ENodeView::BVar(0)) {
+    let b0 = match intern_e(pers, st, ENodeView::BVar(0)) {
         Err(e) => return Err(e),
         Ok(v) => v,
     };
@@ -1098,9 +1139,9 @@ pub fn proj_rec_value_app(
     args = append_eidx(args, motives);
     args = append_eidx(args, minors);
     args.push(b0);
-    match expr_ops::mk_app_n(st, &rc, &args) {
+    match expr_ops::mk_app_n(pers, st, &rc, &args) {
         Err(e) => Err(e),
-        Ok(app) => match mk_lams(st, lbs, &app) {
+        Ok(app) => match mk_lams(pers, st, lbs, &app) {
             Err(e) => Err(e),
             Ok(r) => Ok(Some(r)),
         },
@@ -1116,18 +1157,20 @@ pub fn proj_rec_value_app(
 /// does any of `ns` occur in `d`?  con-leche's inner `blockNames.any`, as an
 /// explicit recursion (§3.4).  The `i = 0` wrapper.
 pub fn occurs_any_of(
+    pers: &PersTier,
     st: &AState,
     fuel: u64,
     ns: &Vec<NIdx>,
     d: &EIdx,
 ) -> Result<bool, CheckError> {
-    occurs_any_of_from(st, fuel, ns, d, 0)
+    occurs_any_of_from(pers, st, fuel, ns, d, 0)
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
 /// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:407-411 occursAnyOf` —
 /// the cursor recursion behind `occurs_any_of`.
 pub fn occurs_any_of_from(
+    pers: &PersTier,
     st: &AState,
     fuel: u64,
     ns: &Vec<NIdx>,
@@ -1137,10 +1180,10 @@ pub fn occurs_any_of_from(
     if i >= ns.len() {
         Ok(false)
     } else {
-        match occurs_const_fast(st, fuel, &ns[i], d) {
+        match occurs_const_fast(pers, st, fuel, &ns[i], d) {
             Err(e) => Err(e),
             Ok(true) => Ok(true),
-            Ok(false) => occurs_any_of_from(st, fuel, ns, d, i + 1),
+            Ok(false) => occurs_any_of_from(pers, st, fuel, ns, d, i + 1),
         }
     }
 }
@@ -1151,18 +1194,20 @@ pub fn occurs_any_of_from(
 /// middle `(stripPisAll cty).1.any`, as an explicit recursion.  The `i = 0`
 /// wrapper.
 pub fn doms_mention_any(
+    pers: &PersTier,
     st: &AState,
     fuel: u64,
     ns: &Vec<NIdx>,
     bs: &Vec<(EIdx, BinderMeta)>,
 ) -> Result<bool, CheckError> {
-    doms_mention_any_from(st, fuel, ns, bs, 0)
+    doms_mention_any_from(pers, st, fuel, ns, bs, 0)
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
 /// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:416-420 domsMentionAny`
 /// — the cursor recursion behind `doms_mention_any`.
 pub fn doms_mention_any_from(
+    pers: &PersTier,
     st: &AState,
     fuel: u64,
     ns: &Vec<NIdx>,
@@ -1172,10 +1217,10 @@ pub fn doms_mention_any_from(
     if i >= bs.len() {
         Ok(false)
     } else {
-        match occurs_any_of(st, fuel, ns, &bs[i].0) {
+        match occurs_any_of(pers, st, fuel, ns, &bs[i].0) {
             Err(e) => Err(e),
             Ok(true) => Ok(true),
-            Ok(false) => doms_mention_any_from(st, fuel, ns, bs, i + 1),
+            Ok(false) => doms_mention_any_from(pers, st, fuel, ns, bs, i + 1),
         }
     }
 }
@@ -1186,18 +1231,20 @@ pub fn doms_mention_any_from(
 /// result names the owner by definition): con-leche's outer `ctors.any`, as an
 /// explicit recursion.  The `i = 0` wrapper.
 pub fn ctors_mention_block(
+    pers: &PersTier,
     st: &AState,
     fuel: u64,
     ns: &Vec<NIdx>,
     ctors: &Vec<ProjCtorRec>,
 ) -> Result<bool, CheckError> {
-    ctors_mention_block_from(st, fuel, ns, ctors, 0)
+    ctors_mention_block_from(pers, st, fuel, ns, ctors, 0)
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
 /// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:425-431
 /// ctorsMentionBlock` — the cursor recursion behind `ctors_mention_block`.
 pub fn ctors_mention_block_from(
+    pers: &PersTier,
     st: &AState,
     fuel: u64,
     ns: &Vec<NIdx>,
@@ -1207,12 +1254,12 @@ pub fn ctors_mention_block_from(
     if i >= ctors.len() {
         Ok(false)
     } else {
-        match strip_pis_all(st, fuel, &ctors[i].2) {
+        match strip_pis_all(pers, st, fuel, &ctors[i].2) {
             Err(e) => Err(e),
-            Ok(p) => match doms_mention_any(st, fuel, ns, &p.0) {
+            Ok(p) => match doms_mention_any(pers, st, fuel, ns, &p.0) {
                 Err(e) => Err(e),
                 Ok(true) => Ok(true),
-                Ok(false) => ctors_mention_block_from(st, fuel, ns, ctors, i + 1),
+                Ok(false) => ctors_mention_block_from(pers, st, fuel, ns, ctors, i + 1),
             },
         }
     }
@@ -1274,12 +1321,13 @@ pub fn find_rec_rec_from(recs: &Vec<ProjRecRec>, n: &NIdx, i: usize) -> Option<u
 /// and a dead dictionary argument in the model.  `proj_rec_owners` still takes
 /// the fuel, because `ctors_mention_block` needs it.
 pub fn proj_rec_candidates(
+    pers: &PersTier,
     st: &mut AState,
     ctors: &Vec<ProjCtorRec>,
     recs: &Vec<ProjRecRec>,
     types: &Vec<ProjTypeRec>,
 ) -> Result<Vec<ProjRecOwner>, CheckError> {
-    proj_rec_candidates_from(st, ctors, recs, types, 0)
+    proj_rec_candidates_from(pers, st, ctors, recs, types, 0)
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
@@ -1288,6 +1336,7 @@ pub fn proj_rec_candidates(
 /// The twin computes the TAIL first and conses; so does this, so that the
 /// order of the interning the candidate test does is the twin's order.
 pub fn proj_rec_candidates_from(
+    pers: &PersTier,
     st: &mut AState,
     ctors: &Vec<ProjCtorRec>,
     recs: &Vec<ProjRecRec>,
@@ -1297,9 +1346,9 @@ pub fn proj_rec_candidates_from(
     if i >= types.len() {
         Ok(Vec::new())
     } else {
-        match proj_rec_candidates_from(st, ctors, recs, types, i + 1) {
+        match proj_rec_candidates_from(pers, st, ctors, recs, types, i + 1) {
             Err(e) => Err(e),
-            Ok(tail) => match proj_rec_candidate_at(st, ctors, recs, &types[i]) {
+            Ok(tail) => match proj_rec_candidate_at(pers, st, ctors, recs, &types[i]) {
                 Err(e) => Err(e),
                 Ok(None) => Ok(tail),
                 Ok(Some(o)) => {
@@ -1323,6 +1372,7 @@ pub fn proj_rec_candidates_from(
 /// projRecCandidates` — the `filterMap`'s body at ONE type record: one
 /// constructor, no indices, a syntactic sort under the parameters, not `Prop`.
 pub fn proj_rec_candidate_at(
+    pers: &PersTier,
     st: &mut AState,
     ctors: &Vec<ProjCtorRec>,
     recs: &Vec<ProjRecRec>,
@@ -1331,17 +1381,17 @@ pub fn proj_rec_candidate_at(
     if t.5.len() != 1 || t.4 != 0 {
         return Ok(None);
     }
-    let body = match expr_ops::strip_pis(st, t.3, &t.2) {
+    let body = match expr_ops::strip_pis(pers, st, t.3, &t.2) {
         Err(e) => return Err(e),
         Ok(None) => return Ok(None),
         Ok(Some(b)) => b.1,
     };
-    let s = match view(st, &body) {
+    let s = match view(pers, st, &body) {
         Err(e) => return Err(e),
         Ok(ENodeView::Sort(s)) => s,
         Ok(_) => return Ok(None),
     };
-    let s_p = match read_level(st, &s) {
+    let s_p = match read_level(pers, st, &s) {
         Err(e) => return Err(e),
         Ok(v) => v,
     };
@@ -1349,7 +1399,7 @@ pub fn proj_rec_candidate_at(
         Some(true) => return Ok(None),
         _ => {}
     }
-    proj_rec_candidate_rec(st, ctors, recs, t)
+    proj_rec_candidate_rec(pers, st, ctors, recs, t)
 }
 
 /// con-leche: ConLeche/Frontend/ProjRec.lean:332-370 projRecOwners
@@ -1358,6 +1408,7 @@ pub fn proj_rec_candidate_at(
 /// recursor `T.rec`, and the elimination level parameter its level list must
 /// carry.
 pub fn proj_rec_candidate_rec(
+    pers: &PersTier,
     st: &mut AState,
     ctors: &Vec<ProjCtorRec>,
     recs: &Vec<ProjRecRec>,
@@ -1367,7 +1418,7 @@ pub fn proj_rec_candidate_rec(
         None => return Ok(None),
         Some(j) => j,
     };
-    let rn = match intern_n_node(st, NNodeView::Str(t.0.dup2(), code_points(&M_REC))) {
+    let rn = match intern_n_node(pers, st, NNodeView::Str(t.0.dup2(), code_points(&M_REC))) {
         Err(e) => return Err(e),
         Ok(v) => v,
     };
@@ -1450,6 +1501,7 @@ pub fn declared_num_params(types: &Vec<ProjTypeRec>) -> u64 {
 /// #97f's dedup, and after it nothing in the frontend crosses to the `Expr`
 /// denotation).
 pub fn proj_rec_owners(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     block: &Vec<crate::arena::env::IConstantInfo>,
@@ -1457,13 +1509,13 @@ pub fn proj_rec_owners(
     ctors: &Vec<ProjCtorRec>,
     recs: &Vec<ProjRecRec>,
 ) -> Result<Vec<ProjRecOwner>, CheckError> {
-    match proj_rec_candidates(st, ctors, recs, types) {
+    match proj_rec_candidates(pers, st, ctors, recs, types) {
         Err(e) => Err(e),
         Ok(owners) => {
             if owners.len() == 0 {
                 Ok(Vec::new())
             } else {
-                proj_rec_owners_guard(st, fuel, block, types, ctors, owners)
+                proj_rec_owners_guard(pers, st, fuel, block, types, ctors, owners)
             }
         }
     }
@@ -1473,6 +1525,7 @@ pub fn proj_rec_owners(
 /// Lean twin: `proof/ConRon/Arena/Frontend/ProjRec.lean:506-517 projRecOwners`
 /// — the two recogniser guards, run only when there is a candidate to serve.
 pub fn proj_rec_owners_guard(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     block: &Vec<crate::arena::env::IConstantInfo>,
@@ -1481,12 +1534,12 @@ pub fn proj_rec_owners_guard(
     owners: Vec<ProjRecOwner>,
 ) -> Result<Vec<ProjRecOwner>, CheckError> {
     let block_names = type_names(types);
-    let mentions = match ctors_mention_block(st, fuel, &block_names, ctors) {
+    let mentions = match ctors_mention_block(pers, st, fuel, &block_names, ctors) {
         Err(e) => return Err(e),
         Ok(v) => v,
     };
     let recursive = any_is_rec(types) || mentions;
-    let direct = match struct_parts::struct_parts_core(st, block) {
+    let direct = match struct_parts::struct_parts_core(pers, st, block) {
         Err(e) => return Err(e),
         Ok(Some(_)) => true,
         Ok(None) => false,
@@ -1498,7 +1551,7 @@ pub fn proj_rec_owners_guard(
     // `.proj` nodes natively, so no rewrite (the block's DECLARED parameter
     // count: the first type record's, which is what the parse carries into
     // `indDecl`)
-    match native_parts::native_parts(st, declared_num_params(types), block) {
+    match native_parts::native_parts(pers, st, declared_num_params(types), block) {
         Err(e) => Err(e),
         Ok(Some(_)) => Ok(Vec::new()),
         Ok(None) => Ok(owners),
@@ -1901,30 +1954,31 @@ mod tests {
     /// Intern the whole fixture into one empty store, through
     /// `arena::intern`'s own walk (so the round trip below checks that too).
     fn build() -> (Fx, AState) {
+        let pers: &PersTier = &PersTier::empty();
         let mut st = AState::init(EStore::empty());
         // The reserved-name pins, as the driver interns them (task
         // #97-P6-4a): `proj_rec_owners` reaches `sort_one`, which is one.
-        ok(crate::arena::pins::intern_reserved_pins(&mut st));
-        let s_h = ok(intern_name(&mut st, &s_name()));
-        let mk_h = ok(intern_name(&mut st, &mk_name()));
-        let rec_h = ok(intern_name(&mut st, &rec_name()));
-        let u_h = ok(intern_name(&mut st, &u_name()));
-        let v_h = ok(intern_name(&mut st, &v_name()));
-        let t_h = ok(intern_name(&mut st, &t_name()));
-        let pu_h = ok(intern_level(&mut st, &pu()));
-        let s_ty_h = ok(intern_expr(&mut st, &s_ty()));
-        let t_ty_h = ok(intern_expr(&mut st, &t_ty()));
-        let ctor_ty_h = ok(intern_expr(&mut st, &ctor_ty()));
-        let rec_ty_h = ok(intern_expr(&mut st, &rec_ty()));
-        let proj_ty_h = ok(intern_expr(&mut st, &proj_ty()));
-        let proj_val0 = ok(intern_expr(&mut st, &proj_val(0)));
-        let proj_val1 = ok(intern_expr(&mut st, &proj_val(1)));
-        let bad_val_h = ok(intern_expr(&mut st, &bad_val()));
-        let iota_ty_h = ok(intern_expr(&mut st, &iota_ty()));
-        let iota_name_h = ok(intern_name(&mut st, &iota_name()));
-        let s_app0 = ok(intern_expr(&mut st, &s_app(0)));
-        let block = ok(intern_ci_list(&mut st, &block_p()));
-        let block_d = ok(intern_ci_list(&mut st, &block_d()));
+        ok(crate::arena::pins::intern_reserved_pins(pers, &mut st));
+        let s_h = ok(intern_name(pers, &mut st, &s_name()));
+        let mk_h = ok(intern_name(pers, &mut st, &mk_name()));
+        let rec_h = ok(intern_name(pers, &mut st, &rec_name()));
+        let u_h = ok(intern_name(pers, &mut st, &u_name()));
+        let v_h = ok(intern_name(pers, &mut st, &v_name()));
+        let t_h = ok(intern_name(pers, &mut st, &t_name()));
+        let pu_h = ok(intern_level(pers, &mut st, &pu()));
+        let s_ty_h = ok(intern_expr(pers, &mut st, &s_ty()));
+        let t_ty_h = ok(intern_expr(pers, &mut st, &t_ty()));
+        let ctor_ty_h = ok(intern_expr(pers, &mut st, &ctor_ty()));
+        let rec_ty_h = ok(intern_expr(pers, &mut st, &rec_ty()));
+        let proj_ty_h = ok(intern_expr(pers, &mut st, &proj_ty()));
+        let proj_val0 = ok(intern_expr(pers, &mut st, &proj_val(0)));
+        let proj_val1 = ok(intern_expr(pers, &mut st, &proj_val(1)));
+        let bad_val_h = ok(intern_expr(pers, &mut st, &bad_val()));
+        let iota_ty_h = ok(intern_expr(pers, &mut st, &iota_ty()));
+        let iota_name_h = ok(intern_name(pers, &mut st, &iota_name()));
+        let s_app0 = ok(intern_expr(pers, &mut st, &s_app(0)));
+        let block = ok(intern_ci_list(pers, &mut st, &block_p()));
+        let block_d = ok(intern_ci_list(pers, &mut st, &block_d()));
         let owner = ProjRecOwner {
             t: s_h.dup2(),
             lps: one_nidx(&u_h),
@@ -2023,52 +2077,52 @@ mod tests {
 
     // --- the readback (`Denote.lean:183-206`), test-only --------------------
 
-    fn denote_e_aux(st: &EStore, fuel: u64, i: &EIdx) -> Option<Expr> {
+    fn denote_e_aux(pers: &PersTier, st: &EStore, fuel: u64, i: &EIdx) -> Option<Expr> {
         if fuel == 0 {
             return None;
         }
-        match st.view(i) {
+        match st.view(pers, i) {
             None => None,
             Some(ENodeView::BVar(k)) => Some(expr::bvar(k)),
             Some(ENodeView::FVar(k, ty)) => {
-                denote_e_aux(st, fuel - 1, &ty).map(|t| expr::fvar(k, t))
+                denote_e_aux(pers, st, fuel - 1, &ty).map(|t| expr::fvar(k, t))
             }
-            Some(ENodeView::Sort(u)) => denote_l(st.ls(), &u).map(expr::sort),
+            Some(ENodeView::Sort(u)) => denote_l(pers, st.ls(), &u).map(expr::sort),
             Some(ENodeView::Const(n, us)) => {
-                match (denote_n(st.ns(), &n), denote_ls(st.ls_s(), &us)) {
+                match (denote_n(pers, st.ns(), &n), denote_ls(pers, st.ls_s(), &us)) {
                     (Some(a), Some(b)) => Some(expr::mk_const(a, b)),
                     _ => None,
                 }
             }
             Some(ENodeView::App(g, a)) => {
-                match (denote_e_aux(st, fuel - 1, &g), denote_e_aux(st, fuel - 1, &a)) {
+                match (denote_e_aux(pers, st, fuel - 1, &g), denote_e_aux(pers, st, fuel - 1, &a)) {
                     (Some(x), Some(y)) => Some(expr::app(x, y)),
                     _ => None,
                 }
             }
             Some(ENodeView::Lam(ty, b, m)) => {
-                match (denote_e_aux(st, fuel - 1, &ty), denote_e_aux(st, fuel - 1, &b)) {
+                match (denote_e_aux(pers, st, fuel - 1, &ty), denote_e_aux(pers, st, fuel - 1, &b)) {
                     (Some(x), Some(y)) => Some(expr::lam(x, y, m)),
                     _ => None,
                 }
             }
             Some(ENodeView::ForallE(ty, b, m)) => {
-                match (denote_e_aux(st, fuel - 1, &ty), denote_e_aux(st, fuel - 1, &b)) {
+                match (denote_e_aux(pers, st, fuel - 1, &ty), denote_e_aux(pers, st, fuel - 1, &b)) {
                     (Some(x), Some(y)) => Some(expr::forall_e(x, y, m)),
                     _ => None,
                 }
             }
             Some(ENodeView::LetE(ty, v, b)) => match (
-                denote_e_aux(st, fuel - 1, &ty),
-                denote_e_aux(st, fuel - 1, &v),
-                denote_e_aux(st, fuel - 1, &b),
+                denote_e_aux(pers, st, fuel - 1, &ty),
+                denote_e_aux(pers, st, fuel - 1, &v),
+                denote_e_aux(pers, st, fuel - 1, &b),
             ) {
                 (Some(x), Some(y), Some(z)) => Some(expr::let_e(x, y, z)),
                 _ => None,
             },
             Some(ENodeView::Lit(l)) => Some(expr::lit(l)),
             Some(ENodeView::Proj(n, k, e)) => {
-                match (denote_n(st.ns(), &n), denote_e_aux(st, fuel - 1, &e)) {
+                match (denote_n(pers, st.ns(), &n), denote_e_aux(pers, st, fuel - 1, &e)) {
                     (Some(s), Some(x)) => Some(expr::proj(s, k, x)),
                     _ => None,
                 }
@@ -2076,46 +2130,46 @@ mod tests {
         }
     }
 
-    fn denote_e(st: &EStore, i: &EIdx) -> Option<Expr> {
-        denote_e_aux(st, st.node_count() as u64 + 1, i)
+    fn denote_e(pers: &PersTier, st: &EStore, i: &EIdx) -> Option<Expr> {
+        denote_e_aux(pers, st, st.node_count(pers) as u64 + 1, i)
     }
 
     /// The denotation of a handle the run produced.
-    fn den(st: &AState, h: &EIdx) -> Expr {
-        match denote_e(&st.store, h) {
+    fn den(pers: &PersTier, st: &AState, h: &EIdx) -> Expr {
+        match denote_e(pers, &st.store, h) {
             Some(e) => e,
             None => panic!("a handle does not denote"),
         }
     }
 
     /// An `Option EIdx`-valued twin against the tree port's `Option<Expr>`.
-    fn same_oe(st: &AState, got: Option<EIdx>, want: Option<Expr>) -> bool {
+    fn same_oe(pers: &PersTier, st: &AState, got: Option<EIdx>, want: Option<Expr>) -> bool {
         match (got, want) {
-            (Some(h), Some(e)) => expr::beq(&den(st, &h), &e),
+            (Some(h), Some(e)) => expr::beq(&den(pers, st, &h), &e),
             (None, None) => true,
             _ => false,
         }
     }
 
     /// The owner record, denoted.
-    fn den_owner(st: &AState, o: &ProjRecOwner) -> tree::ProjRecOwner {
+    fn den_owner(pers: &PersTier, st: &AState, o: &ProjRecOwner) -> tree::ProjRecOwner {
         tree::ProjRecOwner {
-            t: denote_n(st.store.ns(), &o.t).expect("owner name"),
-            lps: den_names(st, &o.lps),
+            t: denote_n(pers, st.store.ns(), &o.t).expect("owner name"),
+            lps: den_names(pers, st, &o.lps),
             n_p: o.n_p,
-            ctor: denote_n(st.store.ns(), &o.ctor).expect("ctor name"),
+            ctor: denote_n(pers, st.store.ns(), &o.ctor).expect("ctor name"),
             n_f: o.n_f,
-            rec_name: denote_n(st.store.ns(), &o.rec_name).expect("rec name"),
-            rec_lps: den_names(st, &o.rec_lps),
-            rec_type: den(st, &o.rec_type),
+            rec_name: denote_n(pers, st.store.ns(), &o.rec_name).expect("rec name"),
+            rec_lps: den_names(pers, st, &o.rec_lps),
+            rec_type: den(pers, st, &o.rec_type),
             num_motives: o.num_motives,
             num_minors: o.num_minors,
         }
     }
 
-    fn den_names(st: &AState, ns: &Vec<NIdx>) -> Vec<Name> {
+    fn den_names(pers: &PersTier, st: &AState, ns: &Vec<NIdx>) -> Vec<Name> {
         ns.iter()
-            .map(|n| denote_n(st.store.ns(), n).expect("a name handle denotes"))
+            .map(|n| denote_n(pers, st.store.ns(), n).expect("a name handle denotes"))
             .collect()
     }
 
@@ -2151,58 +2205,60 @@ mod tests {
     /// hold.  (The Lean test's fourteen round-trip `#guard`s.)
     #[test]
     fn the_fixture_denotes_what_it_should() {
+        let pers: &PersTier = &PersTier::empty();
         let (fx, st) = build();
-        assert!(expr::beq(&den(&st, &fx.s_ty_h), &s_ty()));
-        assert!(expr::beq(&den(&st, &fx.ctor_ty_h), &ctor_ty()));
-        assert!(expr::beq(&den(&st, &fx.rec_ty_h), &rec_ty()));
-        assert!(expr::beq(&den(&st, &fx.proj_ty_h), &proj_ty()));
-        assert!(expr::beq(&den(&st, &fx.proj_val0), &proj_val(0)));
-        assert!(expr::beq(&den(&st, &fx.proj_val1), &proj_val(1)));
-        assert!(expr::beq(&den(&st, &fx.bad_val_h), &bad_val()));
-        assert!(expr::beq(&den(&st, &fx.iota_ty_h), &iota_ty()));
-        assert!(expr::beq(&den(&st, &fx.s_app0), &s_app(0)));
+        assert!(expr::beq(&den(pers, &st, &fx.s_ty_h), &s_ty()));
+        assert!(expr::beq(&den(pers, &st, &fx.ctor_ty_h), &ctor_ty()));
+        assert!(expr::beq(&den(pers, &st, &fx.rec_ty_h), &rec_ty()));
+        assert!(expr::beq(&den(pers, &st, &fx.proj_ty_h), &proj_ty()));
+        assert!(expr::beq(&den(pers, &st, &fx.proj_val0), &proj_val(0)));
+        assert!(expr::beq(&den(pers, &st, &fx.proj_val1), &proj_val(1)));
+        assert!(expr::beq(&den(pers, &st, &fx.bad_val_h), &bad_val()));
+        assert!(expr::beq(&den(pers, &st, &fx.iota_ty_h), &iota_ty()));
+        assert!(expr::beq(&den(pers, &st, &fx.s_app0), &s_app(0)));
         assert!(name::beq(
-            &denote_n(st.store.ns(), &fx.s_h).expect("S"),
+            &denote_n(pers, st.store.ns(), &fx.s_h).expect("S"),
             &s_name()
         ));
         assert!(name::beq(
-            &denote_n(st.store.ns(), &fx.iota_name_h).expect("iota"),
+            &denote_n(pers, st.store.ns(), &fx.iota_name_h).expect("iota"),
             &iota_name()
         ));
         assert!(level::beq(
-            &denote_l(st.store.ls(), &fx.pu_h).expect("u"),
+            &denote_l(pers, st.store.ls(), &fx.pu_h).expect("u"),
             &pu()
         ));
         // the two blocks were interned, member for member
         assert_eq!(fx.block.len(), 4);
         assert_eq!(fx.block_d.len(), 3);
-        assert!(beq_owner(&den_owner(&st, &fx.owner), &owner_p()));
+        assert!(beq_owner(&den_owner(pers, &st, &fx.owner), &owner_p()));
     }
 
     /// `projIotaName` and its pre-filter `isProjIotaName`.
     #[test]
     fn the_artifact_name_and_its_prefilter() {
+        let pers: &PersTier = &PersTier::empty();
         let (fx, mut st) = build();
-        let a = ok(proj_iota_name(&mut st, &fx.s_h, 0));
+        let a = ok(proj_iota_name(pers, &mut st, &fx.s_h, 0));
         assert!(name::beq(
-            &denote_n(st.store.ns(), &a).expect("name"),
+            &denote_n(pers, st.store.ns(), &a).expect("name"),
             &tree::proj_iota_name(&s_name(), 0)
         ));
-        let b = ok(proj_iota_name(&mut st, &fx.s_h, 3));
+        let b = ok(proj_iota_name(pers, &mut st, &fx.s_h, 3));
         assert!(name::beq(
-            &denote_n(st.store.ns(), &b).expect("name"),
+            &denote_n(pers, st.store.ns(), &b).expect("name"),
             &tree::proj_iota_name(&s_name(), 3)
         ));
         assert_eq!(
-            ok(is_proj_iota_name(&st, &fx.iota_name_h)),
+            ok(is_proj_iota_name(pers, &st, &fx.iota_name_h)),
             tree::is_proj_iota_name(&iota_name())
         );
         assert_eq!(
-            ok(is_proj_iota_name(&st, &fx.s_h)),
+            ok(is_proj_iota_name(pers, &st, &fx.s_h)),
             tree::is_proj_iota_name(&s_name())
         );
         assert_eq!(
-            ok(is_proj_iota_name(&st, &fx.mk_h)),
+            ok(is_proj_iota_name(pers, &st, &fx.mk_h)),
             tree::is_proj_iota_name(&mk_name())
         );
         // the positive case really is positive, so the two `false`s above are
@@ -2213,17 +2269,18 @@ mod tests {
     /// `projIotaLevel`: the `Eq` level of an artifact iota statement.
     #[test]
     fn the_artifact_names_the_fields_sort() {
+        let pers: &PersTier = &PersTier::empty();
         let (fx, mut st) = build();
-        let got = ok(proj_iota_level(&mut st, F, &fx.iota_ty_h));
+        let got = ok(proj_iota_level(pers, &mut st, F, &fx.iota_ty_h));
         let want = tree::proj_iota_level(&iota_ty());
         match (got, want) {
             (Some(h), Some(u)) => assert!(level::beq(
-                &denote_l(st.store.ls(), &h).expect("level"),
+                &denote_l(pers, st.store.ls(), &h).expect("level"),
                 &u
             )),
             _ => panic!("the two ports disagree on the artifact's level"),
         }
-        assert!(ok(proj_iota_level(&mut st, F, &fx.rec_ty_h)).is_none());
+        assert!(ok(proj_iota_level(pers, &mut st, F, &fx.rec_ty_h)).is_none());
         assert!(tree::proj_iota_level(&rec_ty()).is_none());
         // the positive case really is positive
         assert!(tree::proj_iota_level(&iota_ty()).is_some());
@@ -2232,25 +2289,26 @@ mod tests {
     /// `occursConst`, memoised: five subjects, both verdicts.
     #[test]
     fn occurs_const_agrees_on_every_subject() {
+        let pers: &PersTier = &PersTier::empty();
         let (fx, st) = build();
         assert_eq!(
-            ok(occurs_const_fast(&st, F, &fx.s_h, &fx.rec_ty_h)),
+            ok(occurs_const_fast(pers, &st, F, &fx.s_h, &fx.rec_ty_h)),
             tree::occurs_const_fast(&s_name(), &rec_ty())
         );
         assert_eq!(
-            ok(occurs_const_fast(&st, F, &fx.mk_h, &fx.rec_ty_h)),
+            ok(occurs_const_fast(pers, &st, F, &fx.mk_h, &fx.rec_ty_h)),
             tree::occurs_const_fast(&mk_name(), &rec_ty())
         );
         assert_eq!(
-            ok(occurs_const_fast(&st, F, &fx.s_h, &fx.s_ty_h)),
+            ok(occurs_const_fast(pers, &st, F, &fx.s_h, &fx.s_ty_h)),
             tree::occurs_const_fast(&s_name(), &s_ty())
         );
         assert_eq!(
-            ok(occurs_const_fast(&st, F, &fx.rec_h, &fx.rec_ty_h)),
+            ok(occurs_const_fast(pers, &st, F, &fx.rec_h, &fx.rec_ty_h)),
             tree::occurs_const_fast(&rec_name(), &rec_ty())
         );
         assert_eq!(
-            ok(occurs_const_fast(&st, F, &fx.s_h, &fx.ctor_ty_h)),
+            ok(occurs_const_fast(pers, &st, F, &fx.s_h, &fx.ctor_ty_h)),
             tree::occurs_const_fast(&s_name(), &ctor_ty())
         );
         // both verdicts occur above
@@ -2261,32 +2319,33 @@ mod tests {
     /// `lamBody`, `stripPisAll`, `mkLams`, `instPisOpen` and `headIs`.
     #[test]
     fn the_telescope_helpers_agree() {
+        let pers: &PersTier = &PersTier::empty();
         let (fx, mut st) = build();
-        let lb = ok(lam_body(&st, F, &fx.proj_val0));
-        assert!(expr::beq(&den(&st, &lb), &tree::lam_body(&proj_val(0))));
-        let lb2 = ok(lam_body(&st, F, &fx.rec_ty_h));
-        assert!(expr::beq(&den(&st, &lb2), &tree::lam_body(&rec_ty())));
+        let lb = ok(lam_body(pers, &st, F, &fx.proj_val0));
+        assert!(expr::beq(&den(pers, &st, &lb), &tree::lam_body(&proj_val(0))));
+        let lb2 = ok(lam_body(pers, &st, F, &fx.rec_ty_h));
+        assert!(expr::beq(&den(pers, &st, &lb2), &tree::lam_body(&rec_ty())));
 
         for (h, e) in [
             (fx.rec_ty_h.dup2(), rec_ty()),
             (fx.ctor_ty_h.dup2(), ctor_ty()),
             (fx.s_app0.dup2(), s_app(0)),
         ] {
-            let got = ok(strip_pis_all(&st, F, &h));
+            let got = ok(strip_pis_all(pers, &st, F, &h));
             let want = tree::strip_pis_all(&e);
             assert_eq!(got.0.len(), want.0.len());
             for i in 0..got.0.len() {
-                assert!(expr::beq(&den(&st, &got.0[i].0), &want.0[i].0));
+                assert!(expr::beq(&den(pers, &st, &got.0[i].0), &want.0[i].0));
             }
-            assert!(expr::beq(&den(&st, &got.1), &want.1));
+            assert!(expr::beq(&den(pers, &st, &got.1), &want.1));
         }
 
         // `mkLams` of what `stripPisAll` took apart is the term again
-        let p = ok(strip_pis_all(&st, F, &fx.ctor_ty_h));
-        let re = ok(mk_lams(&mut st, &p.0, &p.1));
+        let p = ok(strip_pis_all(pers, &st, F, &fx.ctor_ty_h));
+        let re = ok(mk_lams(pers, &mut st, &p.0, &p.1));
         let wp = tree::strip_pis_all(&ctor_ty());
         assert!(expr::beq(
-            &den(&st, &re),
+            &den(pers, &st, &re),
             &tree::mk_lams(&wp.0, wp.1)
         ));
 
@@ -2294,23 +2353,23 @@ mod tests {
         one.push(fx.s_app0.dup2());
         let mut one_t: Vec<Expr> = Vec::new();
         one_t.push(s_app(0));
-        let got = ok(inst_pis_open(&mut st, F, &fx.rec_ty_h, &one));
-        assert!(same_oe(&st, got, tree::inst_pis_open(&rec_ty(), &one_t)));
-        let got = ok(inst_pis_open(&mut st, F, &fx.rec_ty_h, &Vec::new()));
-        assert!(same_oe(&st, got, tree::inst_pis_open(&rec_ty(), &Vec::new())));
-        let got = ok(inst_pis_open(&mut st, F, &fx.s_app0, &one));
-        assert!(same_oe(&st, got, tree::inst_pis_open(&s_app(0), &one_t)));
+        let got = ok(inst_pis_open(pers, &mut st, F, &fx.rec_ty_h, &one));
+        assert!(same_oe(pers, &st, got, tree::inst_pis_open(&rec_ty(), &one_t)));
+        let got = ok(inst_pis_open(pers, &mut st, F, &fx.rec_ty_h, &Vec::new()));
+        assert!(same_oe(pers, &st, got, tree::inst_pis_open(&rec_ty(), &Vec::new())));
+        let got = ok(inst_pis_open(pers, &mut st, F, &fx.s_app0, &one));
+        assert!(same_oe(pers, &st, got, tree::inst_pis_open(&s_app(0), &one_t)));
 
         assert_eq!(
-            ok(head_is(&st, F, &fx.s_h, &fx.s_app0)),
+            ok(head_is(pers, &st, F, &fx.s_h, &fx.s_app0)),
             tree::head_is(&s_name(), &s_app(0))
         );
         assert_eq!(
-            ok(head_is(&st, F, &fx.mk_h, &fx.s_app0)),
+            ok(head_is(pers, &st, F, &fx.mk_h, &fx.s_app0)),
             tree::head_is(&mk_name(), &s_app(0))
         );
         assert_eq!(
-            ok(head_is(&st, F, &fx.s_h, &fx.s_ty_h)),
+            ok(head_is(pers, &st, F, &fx.s_h, &fx.s_ty_h)),
             tree::head_is(&s_name(), &s_ty())
         );
         assert!(tree::head_is(&s_name(), &s_app(0)));
@@ -2323,9 +2382,11 @@ mod tests {
     /// `projRecValue`), so they are checked here, through it.
     #[test]
     fn the_rewrite_is_the_tree_ports_rewrite() {
+        let pers: &PersTier = &PersTier::empty();
         let (fx, mut st) = build();
         let o = &fx.owner;
         let got = ok(proj_rec_value(
+            pers,
             &mut st,
             F,
             o,
@@ -2335,11 +2396,13 @@ mod tests {
             0,
         ));
         assert!(same_oe(
+            pers,
             &st,
             got,
             tree::proj_rec_value(&owner_p(), &pu(), &proj_ty(), &proj_val(0), 0)
         ));
         let got = ok(proj_rec_value(
+            pers,
             &mut st,
             F,
             o,
@@ -2349,11 +2412,13 @@ mod tests {
             1,
         ));
         assert!(same_oe(
+            pers,
             &st,
             got,
             tree::proj_rec_value(&owner_p(), &pu(), &proj_ty(), &proj_val(1), 1)
         ));
         let got = ok(proj_rec_value(
+            pers,
             &mut st,
             F,
             o,
@@ -2363,11 +2428,13 @@ mod tests {
             0,
         ));
         assert!(same_oe(
+            pers,
             &st,
             got,
             tree::proj_rec_value(&owner_p(), &pu(), &proj_ty(), &bad_val(), 0)
         ));
         let got = ok(proj_rec_value(
+            pers,
             &mut st,
             F,
             o,
@@ -2377,11 +2444,13 @@ mod tests {
             5,
         ));
         assert!(same_oe(
+            pers,
             &st,
             got,
             tree::proj_rec_value(&owner_p(), &pu(), &proj_ty(), &proj_val(0), 5)
         ));
         let got = ok(proj_rec_value(
+            pers,
             &mut st,
             F,
             o,
@@ -2391,6 +2460,7 @@ mod tests {
             0,
         ));
         assert!(same_oe(
+            pers,
             &st,
             got,
             tree::proj_rec_value(&owner_p(), &pu(), &proj_ty(), &rec_ty(), 0)
@@ -2408,8 +2478,10 @@ mod tests {
     /// of their verdict.
     #[test]
     fn the_owner_census_agrees_at_both_blocks() {
+        let pers: &PersTier = &PersTier::empty();
         let (fx, mut st) = build();
         let got = ok(proj_rec_owners(
+            pers,
             &mut st,
             F,
             &fx.block,
@@ -2419,10 +2491,11 @@ mod tests {
         ));
         let want = tree::proj_rec_owners(&block_p(), &types_p(), &ctors_p(), &recs_p());
         let got_d: Vec<tree::ProjRecOwner> =
-            got.iter().map(|o| den_owner(&st, o)).collect();
+            got.iter().map(|o| den_owner(pers, &st, o)).collect();
         assert!(beq_owners(&got_d, &want));
 
         let got = ok(proj_rec_owners(
+            pers,
             &mut st,
             F,
             &fx.block_d,
@@ -2432,7 +2505,7 @@ mod tests {
         ));
         let want_d = tree::proj_rec_owners(&block_d(), &types_d(), &ctors_p(), &recs_p());
         let got_dd: Vec<tree::ProjRecOwner> =
-            got.iter().map(|o| den_owner(&st, o)).collect();
+            got.iter().map(|o| den_owner(pers, &st, o)).collect();
         assert!(beq_owners(&got_dd, &want_d));
 
         // both sides of the verdict

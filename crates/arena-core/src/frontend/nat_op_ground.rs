@@ -59,6 +59,7 @@ use con_ron_core::ron::hashmap::{Dup, Eq2};
 // reads as it did.  `ron::hashmap::HashMap` is still what `crates/con-ron`
 // uses, and is still the one with proofs.
 use con_ron_core::ron::hashmap2::HashMap2 as HashMap;
+use crate::arena::store::PersTier;
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"fuel exhausted: usedConsts"`, as code points.
@@ -85,6 +86,7 @@ pub fn seen_has(seen: &HashMap<EIdx, bool>, e: &EIdx) -> bool {
 /// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:50-70 usedConstsGo`
 /// — the constants an expression DAG references, each node visited once.
 pub fn used_consts_go(
+    pers: &PersTier,
     st: &AState,
     seen: &mut HashMap<EIdx, bool>,
     acc: Vec<NIdx>,
@@ -97,7 +99,7 @@ pub fn used_consts_go(
         Ok(acc)
     } else {
         seen.insert(e.dup2(), true);
-        used_consts_node(st, seen, acc, fuel - 1, e)
+        used_consts_node(pers, st, seen, acc, fuel - 1, e)
     }
 }
 
@@ -105,33 +107,34 @@ pub fn used_consts_go(
 /// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:50-70 usedConstsGo`
 /// — the arms, past the visited test.
 pub fn used_consts_node(
+    pers: &PersTier,
     st: &AState,
     seen: &mut HashMap<EIdx, bool>,
     acc: Vec<NIdx>,
     fuel: u64,
     e: &EIdx,
 ) -> Result<Vec<NIdx>, CheckError> {
-    match view(st, e) {
+    match view(pers, st, e) {
         Err(er) => Err(er),
         Ok(ENodeView::Const(n, _)) => {
             let mut out = acc;
             out.push(n);
             Ok(out)
         }
-        Ok(ENodeView::App(f, a)) => used_consts_two(st, seen, acc, fuel, &f, &a),
-        Ok(ENodeView::Lam(ty, b, _)) => used_consts_two(st, seen, acc, fuel, &ty, &b),
-        Ok(ENodeView::ForallE(ty, b, _)) => used_consts_two(st, seen, acc, fuel, &ty, &b),
-        Ok(ENodeView::LetE(ty, v, b)) => match used_consts_two(st, seen, acc, fuel, &ty, &v)
+        Ok(ENodeView::App(f, a)) => used_consts_two(pers, st, seen, acc, fuel, &f, &a),
+        Ok(ENodeView::Lam(ty, b, _)) => used_consts_two(pers, st, seen, acc, fuel, &ty, &b),
+        Ok(ENodeView::ForallE(ty, b, _)) => used_consts_two(pers, st, seen, acc, fuel, &ty, &b),
+        Ok(ENodeView::LetE(ty, v, b)) => match used_consts_two(pers, st, seen, acc, fuel, &ty, &v)
         {
             Err(er) => Err(er),
-            Ok(a2) => used_consts_go(st, seen, a2, fuel, &b),
+            Ok(a2) => used_consts_go(pers, st, seen, a2, fuel, &b),
         },
         Ok(ENodeView::Proj(sn, _, x)) => {
             let mut out = acc;
             out.push(sn);
-            used_consts_go(st, seen, out, fuel, &x)
+            used_consts_go(pers, st, seen, out, fuel, &x)
         }
-        Ok(ENodeView::FVar(_, ty)) => used_consts_go(st, seen, acc, fuel, &ty),
+        Ok(ENodeView::FVar(_, ty)) => used_consts_go(pers, st, seen, acc, fuel, &ty),
         Ok(_) => Ok(acc),
     }
 }
@@ -139,6 +142,7 @@ pub fn used_consts_node(
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:54-77 usedConstsGo
 /// The twin's two-child arms, which it spells three times.
 pub fn used_consts_two(
+    pers: &PersTier,
     st: &AState,
     seen: &mut HashMap<EIdx, bool>,
     acc: Vec<NIdx>,
@@ -146,9 +150,9 @@ pub fn used_consts_two(
     a: &EIdx,
     b: &EIdx,
 ) -> Result<Vec<NIdx>, CheckError> {
-    match used_consts_go(st, seen, acc, fuel, a) {
+    match used_consts_go(pers, st, seen, acc, fuel, a) {
         Err(e) => Err(e),
-        Ok(a2) => used_consts_go(st, seen, a2, fuel, b),
+        Ok(a2) => used_consts_go(pers, st, seen, a2, fuel, b),
     }
 }
 
@@ -156,6 +160,7 @@ pub fn used_consts_two(
 /// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:77-83 usedConstsRules`
 /// — a recursor's rules, folded over ONE visited set.
 pub fn used_consts_rules(
+    pers: &PersTier,
     st: &AState,
     seen: &mut HashMap<EIdx, bool>,
     acc: Vec<NIdx>,
@@ -165,7 +170,7 @@ pub fn used_consts_rules(
     let n = rules.len();
     let mut i: usize = 0;
     while i < n {
-        match used_consts_go(st, seen, out, CORE_WALK_FUEL, &rules[i].rhs) {
+        match used_consts_go(pers, st, seen, out, CORE_WALK_FUEL, &rules[i].rhs) {
             Err(e) => return Err(e),
             Ok(a2) => {
                 out = a2;
@@ -181,6 +186,7 @@ pub fn used_consts_rules(
 /// — an inductive block's members, folded over ONE visited set: the type of
 /// each member and, for a recursor, every rule's right-hand side.
 pub fn used_consts_block(
+    pers: &PersTier,
     st: &mut AState,
     seen: &mut HashMap<EIdx, bool>,
     acc: Vec<NIdx>,
@@ -191,11 +197,11 @@ pub fn used_consts_block(
     let mut i: usize = 0;
     while i < n {
         let ci = crate::arena::env::i_constant_info_dup(&block[i]);
-        let ty = match i_constant_info_to_constant_val(&mut st.store, &ci) {
+        let ty = match i_constant_info_to_constant_val(pers, &mut st.store, &ci) {
             Err(e) => return Err(e),
             Ok(cv) => cv.ty,
         };
-        match used_consts_go(st, seen, out, CORE_WALK_FUEL, &ty) {
+        match used_consts_go(pers, st, seen, out, CORE_WALK_FUEL, &ty) {
             Err(e) => return Err(e),
             Ok(a2) => {
                 out = a2;
@@ -203,7 +209,7 @@ pub fn used_consts_block(
         }
         match &block[i] {
             IConstantInfo::RecInfo(_, _, _, rules) => {
-                match used_consts_rules(st, seen, out, rules) {
+                match used_consts_rules(pers, st, seen, out, rules) {
                     Err(e) => return Err(e),
                     Ok(a3) => {
                         out = a3;
@@ -223,21 +229,22 @@ pub fn used_consts_block(
 /// values, recursor rule right-hand sides; a basis block references nothing the
 /// stream declares).
 pub fn decl_used_consts(
+    pers: &PersTier,
     st: &mut AState,
     d: &IDeclaration,
 ) -> Result<Vec<NIdx>, CheckError> {
     let mut seen: HashMap<EIdx, bool> = HashMap::new();
     match d {
         IDeclaration::AxiomDecl(cv) => {
-            used_consts_go(st, &mut seen, Vec::new(), CORE_WALK_FUEL, &cv.ty)
+            used_consts_go(pers, st, &mut seen, Vec::new(), CORE_WALK_FUEL, &cv.ty)
         }
         IDeclaration::DefnDecl(cv, v, _) => {
-            decl_used_consts_value(st, &mut seen, &cv.ty, v)
+            decl_used_consts_value(pers, st, &mut seen, &cv.ty, v)
         }
-        IDeclaration::ThmDecl(cv, v) => decl_used_consts_value(st, &mut seen, &cv.ty, v),
-        IDeclaration::OpaqueDecl(cv, v) => decl_used_consts_value(st, &mut seen, &cv.ty, v),
+        IDeclaration::ThmDecl(cv, v) => decl_used_consts_value(pers, st, &mut seen, &cv.ty, v),
+        IDeclaration::OpaqueDecl(cv, v) => decl_used_consts_value(pers, st, &mut seen, &cv.ty, v),
         IDeclaration::IndDecl(block, _) => {
-            used_consts_block(st, &mut seen, Vec::new(), block)
+            used_consts_block(pers, st, &mut seen, Vec::new(), block)
         }
         IDeclaration::BasisDecl(_) => Ok(Vec::new()),
         IDeclaration::QuotDecl(_, _) => Ok(Vec::new()),
@@ -249,14 +256,15 @@ pub fn decl_used_consts(
 /// IDeclaration.usedConsts` — the three value kinds' clause, which the twin
 /// spells once with an `|` pattern: the type and the value, at one visited set.
 pub fn decl_used_consts_value(
+    pers: &PersTier,
     st: &AState,
     seen: &mut HashMap<EIdx, bool>,
     ty: &EIdx,
     v: &EIdx,
 ) -> Result<Vec<NIdx>, CheckError> {
-    match used_consts_go(st, seen, Vec::new(), CORE_WALK_FUEL, ty) {
+    match used_consts_go(pers, st, seen, Vec::new(), CORE_WALK_FUEL, ty) {
         Err(e) => Err(e),
-        Ok(acc) => used_consts_go(st, seen, acc, CORE_WALK_FUEL, v),
+        Ok(acc) => used_consts_go(pers, st, seen, acc, CORE_WALK_FUEL, v),
     }
 }
 
@@ -405,6 +413,7 @@ pub fn stack_push_u64(stack: Vec<u64>, sp: usize, x: u64) -> (Vec<u64>, usize) {
 /// here: a record is inserted into `target` at a strictly smaller `i` each time
 /// it is revisited, which is what the twin's fuel bound says.
 pub fn hoist_close(
+    pers: &PersTier,
     st: &mut AState,
     ds: &Vec<IDeclaration>,
     idx: &HashMap<NIdx, u64>,
@@ -422,7 +431,7 @@ pub fn hoist_close(
         if !target_done(&target, k, i) {
             target.insert(k, i);
             let d = i_declaration_dup(&ds[k as usize]);
-            match decl_used_consts(st, &d) {
+            match decl_used_consts(pers, st, &d) {
                 Err(e) => return Err(e),
                 Ok(used) => {
                     let r = hoist_push_deps(idx, &used, stack, sp, i, k);
@@ -440,6 +449,7 @@ pub fn hoist_close(
 /// — the twin's inner `for g in natOpDeps c` loop of one operation record at
 /// index `i`: each ground declared LATER carries its closure with it.
 pub fn hoist_targets_at(
+    pers: &PersTier,
     st: &mut AState,
     ds: &Vec<IDeclaration>,
     idx: &HashMap<NIdx, u64>,
@@ -458,7 +468,7 @@ pub fn hoist_targets_at(
         match idx_get(idx, &gs[k]) {
             Some(j) => {
                 if j > i {
-                    match hoist_close(st, ds, idx, target, j, i) {
+                    match hoist_close(pers, st, ds, idx, target, j, i) {
                         Err(e) => return Err(e),
                         Ok(t) => {
                             target = t;
@@ -480,6 +490,7 @@ pub fn hoist_targets_at(
 /// Empty — and then the hoist is the identity — on every stream whose ground
 /// precedes its operations.
 pub fn hoist_targets(
+    pers: &PersTier,
     st: &mut AState,
     ds: &Vec<IDeclaration>,
 ) -> Result<HashMap<u64, u64>, CheckError> {
@@ -491,7 +502,7 @@ pub fn hoist_targets(
         let d = i_declaration_dup(&ds[i]);
         match is_nat_op_record(st, &d) {
             Err(e) => return Err(e),
-            Ok(Some(c)) => match hoist_targets_at(st, ds, &idx, target, &c, i as u64) {
+            Ok(Some(c)) => match hoist_targets_at(pers, st, ds, &idx, target, &c, i as u64) {
                 Err(e) => return Err(e),
                 Ok(t) => {
                     target = t;
@@ -638,10 +649,11 @@ pub fn apply_hoist(
 /// names of the records moved (empty, and the array untouched and uncopied,
 /// when no operation's ground is declared after it).
 pub fn hoist_nat_op_ground(
+    pers: &PersTier,
     st: &mut AState,
     ds: Vec<IDeclaration>,
 ) -> Result<(Vec<IDeclaration>, Vec<NIdx>), CheckError> {
-    match hoist_targets(st, &ds) {
+    match hoist_targets(pers, st, &ds) {
         Err(e) => Err(e),
         Ok(target) => {
             if target.len() == 0 {

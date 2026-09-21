@@ -96,6 +96,7 @@ use con_ron_core::ron::hashmap::{Dup, Eq2};
 // reads as it did.  `ron::hashmap::HashMap` is still what `crates/con-ron`
 // uses, and is still the one with proofs.
 use con_ron_core::ron::hashmap2::HashMap2 as HashMap;
+use crate::arena::store::PersTier;
 
 // ---------------------------------------------------------------------------
 // Handle vectors (Lean's `List NIdx` / `List EIdx`, which share by value)
@@ -558,22 +559,27 @@ pub fn i_declaration_dup(d: &IDeclaration) -> IDeclaration {
 /// Lean twin: `proof/ConRon/Arena/Env.lean:212-215 projFnName` — the public
 /// projection-*function* name for field `i` of structure `T`.  Building a name
 /// means interning it, so the twin is monadic and this takes the store.
-pub fn proj_fn_name(ar: &mut EStore, t: &NIdx, i: u64) -> Result<NIdx, CheckError> {
+pub fn proj_fn_name(
+    pers: &PersTier,
+    ar: &mut EStore,
+    t: &NIdx,
+    i: u64,
+) -> Result<NIdx, CheckError>  {
     const S: [u32; 4] = [112, 114, 111, 106];
-    match ar.intern_name(NNodeView::Str(t.dup2(), core_types::code_points(&S))) {
+    match ar.intern_name(pers, NNodeView::Str(t.dup2(), core_types::code_points(&S))) {
         Err(e) => Err(e),
-        Ok(s) => ar.intern_name(NNodeView::Num(s, i)),
+        Ok(s) => ar.intern_name(pers, NNodeView::Num(s, i)),
     }
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:631-635 projTableName
 /// Lean twin: `proof/ConRon/Arena/Env.lean:219-222 projTableName` — the
 /// reserved name of structure `T`'s projection table.
-pub fn proj_table_name(ar: &mut EStore, t: &NIdx) -> Result<NIdx, CheckError> {
+pub fn proj_table_name(pers: &PersTier, ar: &mut EStore, t: &NIdx) -> Result<NIdx, CheckError> {
     const S: [u32; 9] = [112, 114, 111, 106, 84, 97, 98, 108, 101];
-    match ar.intern_name(NNodeView::Str(t.dup2(), core_types::code_points(&S))) {
+    match ar.intern_name(pers, NNodeView::Str(t.dup2(), core_types::code_points(&S))) {
         Err(e) => Err(e),
-        Ok(s) => ar.intern_name(NNodeView::Num(s, 0)),
+        Ok(s) => ar.intern_name(pers, NNodeView::Num(s, 0)),
     }
 }
 
@@ -588,6 +594,7 @@ pub fn proj_table_name(ar: &mut EStore, t: &NIdx) -> Result<NIdx, CheckError> {
 /// reason this projection takes the store (the module note).  The table's own
 /// name is the stored `table_name` and is not recomputed.
 pub fn i_constant_info_to_constant_val(
+    pers: &PersTier,
     ar: &mut EStore,
     c: &IConstantInfo,
 ) -> Result<IConstantVal, CheckError> {
@@ -598,11 +605,11 @@ pub fn i_constant_info_to_constant_val(
         IConstantInfo::IndInfo(v, _) => Ok(i_constant_val_dup(v)),
         IConstantInfo::CtorInfo(v, _, _) => Ok(i_constant_val_dup(v)),
         IConstantInfo::RecInfo(v, _, _, _) => Ok(i_constant_val_dup(v)),
-        IConstantInfo::ProjInfo(tbl) => match ar.intern_level(LNodeView::Zero) {
+        IConstantInfo::ProjInfo(tbl) => match ar.intern_level(pers, LNodeView::Zero) {
             Err(e) => Err(e),
-            Ok(z) => match ar.intern_level(LNodeView::Succ(z)) {
+            Ok(z) => match ar.intern_level(pers, LNodeView::Succ(z)) {
                 Err(e) => Err(e),
-                Ok(one) => match ar.intern(ENodeView::Sort(one)) {
+                Ok(one) => match ar.intern(pers, ENodeView::Sort(one)) {
                     Err(e) => Err(e),
                     Ok(ty) => Ok(IConstantVal {
                         name: tbl.table_name.dup2(),
@@ -645,8 +652,12 @@ pub fn i_constant_info_is_tower_entry(c: &IConstantInfo) -> bool {
 /// con-leche: ConLeche/Kernel/Env.lean:653 ConstantInfo.type
 /// Lean twin: `proof/ConRon/Arena/Env.lean:255-256 IConstantInfo.type` — the
 /// constant's declared type.
-pub fn i_constant_info_type(ar: &mut EStore, c: &IConstantInfo) -> Result<EIdx, CheckError> {
-    match i_constant_info_to_constant_val(ar, c) {
+pub fn i_constant_info_type(
+    pers: &PersTier,
+    ar: &mut EStore,
+    c: &IConstantInfo,
+) -> Result<EIdx, CheckError>  {
+    match i_constant_info_to_constant_val(pers, ar, c) {
         Err(e) => Err(e),
         Ok(v) => Ok(v.ty),
     }
@@ -656,15 +667,19 @@ pub fn i_constant_info_type(ar: &mut EStore, c: &IConstantInfo) -> Result<EIdx, 
 /// Lean twin: `proof/ConRon/Arena/Env.lean:260-264 IDeclaration.name` — the
 /// name of a non-basis declaration.  con-leche's `.anonymous` fall-through is
 /// the interned anonymous name here, which is why the store is in hand.
-pub fn i_declaration_name(ar: &mut EStore, d: &IDeclaration) -> Result<NIdx, CheckError> {
+pub fn i_declaration_name(
+    pers: &PersTier,
+    ar: &mut EStore,
+    d: &IDeclaration,
+) -> Result<NIdx, CheckError>  {
     match d {
         IDeclaration::AxiomDecl(v) => Ok(v.name.dup2()),
         IDeclaration::DefnDecl(v, _, _) => Ok(v.name.dup2()),
         IDeclaration::ThmDecl(v, _) => Ok(v.name.dup2()),
         IDeclaration::OpaqueDecl(v, _) => Ok(v.name.dup2()),
         IDeclaration::QuotDecl(_, v) => Ok(v.name.dup2()),
-        IDeclaration::BasisDecl(_) => ar.intern_name(NNodeView::Anonymous),
-        IDeclaration::IndDecl(_, _) => ar.intern_name(NNodeView::Anonymous),
+        IDeclaration::BasisDecl(_) => ar.intern_name(pers, NNodeView::Anonymous),
+        IDeclaration::IndDecl(_, _) => ar.intern_name(pers, NNodeView::Anonymous),
     }
 }
 
@@ -764,12 +779,13 @@ pub fn i_env_find_from<'a>(
 /// (`proj_table_name T`), viewed at field `i`.  Takes the store only because
 /// the reserved name has to be interned to be looked up.
 pub fn i_env_find_proj(
+    pers: &PersTier,
     ar: &mut EStore,
     env: &IEnv,
     t: &NIdx,
     i: u64,
 ) -> Result<Option<IProjEntry>, CheckError> {
-    match proj_table_name(ar, t) {
+    match proj_table_name(pers, ar, t) {
         Err(e) => Err(e),
         Ok(tn) => match i_env_find(env, &tn) {
             Some(IConstantInfo::ProjInfo(tbl)) => {
@@ -789,6 +805,11 @@ pub fn i_env_find_proj(
 /// with its `O(1)` index (DESIGN.md §8.3 lesson 13).  Entries with counter
 /// `< visible_below` are visible; `visible_below` doubles as the next counter
 /// `push` hands out.
+///
+/// **The READERS take the bound as a scalar** (`vis: u64`, task #97-P6-6b),
+/// and this field is what phase A — which threads the record by value and
+/// pushes into it — passes them.  Phase B passes `pc.vis` and never touches
+/// the record, which is what lets `n` workers share one `&IFEnv`.
 ///
 /// **The index row is `(counter, SLOT)` and not `(counter, IConstantInfo)`**
 /// (task #97-P6-5, lever 1).  The twin's row carries the constant itself,
@@ -852,10 +873,20 @@ pub fn mk_ifenv(env: IEnv) -> IFEnv {
 /// con-leche: ConLeche/Kernel/FEnv.lean:70-75 FEnv.find?
 /// Lean twin: `proof/ConRon/Arena/Env.lean:331-334 IFEnv.find?` — indexed
 /// lookup, bounded by the visibility counter.
-pub fn ifenv_find<'a>(fe: &'a IFEnv, n: &NIdx) -> Option<&'a IConstantInfo> {
+///
+/// **The bound is a PARAMETER and not the record's field** (task #97-P6-6b).
+/// The twin reads `fe.visibleBelow`; the Rust reads `vis`, because phase B's
+/// `n` workers hold ONE `&IFEnv` between them and each checks its record at
+/// its own prefix view (`pc.vis`).  Splitting the scalar out of the index is
+/// what makes that possible: `check_pending` no longer takes the index by
+/// value to restrict it, so a worker copies no environment at all.  Every
+/// caller that still threads an environment BY VALUE — phase A's installs —
+/// passes that record's own `visible_below`, so the function's answer is the
+/// twin's `FEnv.find?` verbatim wherever the twin is what runs.
+pub fn ifenv_find<'a>(vis: u64, fe: &'a IFEnv, n: &NIdx) -> Option<&'a IConstantInfo> {
     match fe.idx.get(n) {
         Some(e) => {
-            if e.0 < fe.visible_below && (e.1 as usize) < fe.env.consts.len() {
+            if e.0 < vis && (e.1 as usize) < fe.env.consts.len() {
                 Some(&fe.env.consts[e.1 as usize])
             } else {
                 None
@@ -983,14 +1014,16 @@ pub fn ifenv_row(fe: &IFEnv, n: &NIdx) -> Option<(u64, u64)> {
 /// Lean twin: `proof/ConRon/Arena/Env.lean:350-353 IFEnv.findProj?` — indexed
 /// projection-table lookup.
 pub fn ifenv_find_proj(
+    pers: &PersTier,
+    vis: u64,
     ar: &mut EStore,
     fe: &IFEnv,
     t: &NIdx,
     i: u64,
 ) -> Result<Option<IProjEntry>, CheckError> {
-    match proj_table_name(ar, t) {
+    match proj_table_name(pers, ar, t) {
         Err(e) => Err(e),
-        Ok(tn) => match ifenv_find(fe, &tn) {
+        Ok(tn) => match ifenv_find(vis, fe, &tn) {
             Some(IConstantInfo::ProjInfo(tbl)) => {
                 if i < tbl.num_fields {
                     Ok(Some(i_proj_table_entry(tbl, i)))
@@ -1058,8 +1091,8 @@ pub fn ifenv_dup(fe: &IFEnv) -> IFEnv {
 /// contexts"*, `interp/Interp.ml:617`), which is task #97-P4c's extraction
 /// rule 5 at an `ifenv_find` rather than at a `HashMap::get`.  So the copy is
 /// one function and is never inlined.
-pub fn find_ci(fe: &IFEnv, n: &NIdx) -> Option<IConstantInfo> {
-    match ifenv_find(fe, n) {
+pub fn find_ci(vis: u64, fe: &IFEnv, n: &NIdx) -> Option<IConstantInfo> {
+    match ifenv_find(vis, fe, n) {
         Some(ci) => Some(i_constant_info_dup(ci)),
         None => None,
     }
@@ -1080,8 +1113,8 @@ pub fn find_ci(fe: &IFEnv, n: &NIdx) -> Option<IConstantInfo> {
 /// con-leche: none — the port's own dangling-handle guard; Lean twin: proof/ConRon/Arena/Monad.lean:133-138 view
 /// Decode an expression handle.  A dangling handle is an internal error: the
 /// checker never builds one, and the bridge claims nothing on failure.
-pub fn view_e(ar: &EStore, h: &EIdx) -> Result<ENodeView, CheckError> {
-    match ar.view(h) {
+pub fn view_e(pers: &PersTier, ar: &EStore, h: &EIdx) -> Result<ENodeView, CheckError> {
+    match ar.view(pers, h) {
         Some(v) => Ok(v),
         None => {
             const M: [u32; 33] = [
@@ -1095,8 +1128,8 @@ pub fn view_e(ar: &EStore, h: &EIdx) -> Result<ENodeView, CheckError> {
 
 /// con-leche: none — the port's own dangling-handle guard; Lean twin: proof/ConRon/Arena/Monad.lean:158-162 viewN
 /// Decode a name handle.
-pub fn view_n(ar: &EStore, h: &NIdx) -> Result<NNodeView, CheckError> {
-    match ar.ns().view(h) {
+pub fn view_n(pers: &PersTier, ar: &EStore, h: &NIdx) -> Result<NNodeView, CheckError> {
+    match ar.ns().view(pers, h) {
         Some(v) => Ok(v),
         None => Err(dangling_name()),
     }
@@ -1119,26 +1152,26 @@ pub fn dangling_name() -> CheckError {
 /// throughout the checker (DESIGN.md §8.3), so this is the error-text and
 /// level-substitution path only, and the readback IS the denotation
 /// (`Denote.lean`'s `denoteN`).
-pub fn read_name(ar: &EStore, h: &NIdx) -> Result<Name, CheckError> {
-    read_name_at(ar, ar.ns().node_count() as u64 + 1, h)
+pub fn read_name(pers: &PersTier, ar: &EStore, h: &NIdx) -> Result<Name, CheckError> {
+    read_name_at(pers, ar, ar.ns().node_count(pers) as u64 + 1, h)
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
 /// The fuel-indexed readback itself (`Denote.lean`'s `denoteNAux`): the store's
 /// name-node count bounds every path, because a prefix is interned before the
 /// name that carries it.
-pub fn read_name_at(ar: &EStore, fuel: u64, h: &NIdx) -> Result<Name, CheckError> {
+pub fn read_name_at(pers: &PersTier, ar: &EStore, fuel: u64, h: &NIdx) -> Result<Name, CheckError> {
     if fuel == 0 {
         return Err(dangling_name());
     }
-    match ar.ns().view(h) {
+    match ar.ns().view(pers, h) {
         None => Err(dangling_name()),
         Some(NNodeView::Anonymous) => Ok(name::anonymous()),
-        Some(NNodeView::Str(p, s)) => match read_name_at(ar, fuel - 1, &p) {
+        Some(NNodeView::Str(p, s)) => match read_name_at(pers, ar, fuel - 1, &p) {
             Err(e) => Err(e),
             Ok(q) => Ok(name::mk_str(q, s)),
         },
-        Some(NNodeView::Num(p, n)) => match read_name_at(ar, fuel - 1, &p) {
+        Some(NNodeView::Num(p, n)) => match read_name_at(pers, ar, fuel - 1, &p) {
             Err(e) => Err(e),
             Ok(q) => Ok(name::mk_num(q, n)),
         },
@@ -1149,13 +1182,14 @@ pub fn read_name_at(ar: &EStore, fuel: u64, h: &NIdx) -> Result<Name, CheckError
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:188-194 readNames` — read a LIST
 /// of name handles back.  `ks.mapM readName` would do it with a closure, which
 /// DESIGN.md §3.4 forbids, so this is the cursor recursion.
-pub fn read_names(ar: &EStore, hs: &Vec<NIdx>) -> Result<Vec<Name>, CheckError> {
-    read_names_from(ar, hs, 0, Vec::with_capacity(hs.len()))
+pub fn read_names(pers: &PersTier, ar: &EStore, hs: &Vec<NIdx>) -> Result<Vec<Name>, CheckError> {
+    read_names_from(pers, ar, hs, 0, Vec::with_capacity(hs.len()))
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
 /// The cursor recursion behind `read_names`.
 pub fn read_names_from(
+    pers: &PersTier,
     ar: &EStore,
     hs: &Vec<NIdx>,
     i: usize,
@@ -1164,12 +1198,12 @@ pub fn read_names_from(
     if i >= hs.len() {
         Ok(out)
     } else {
-        match read_name(ar, &hs[i]) {
+        match read_name(pers, ar, &hs[i]) {
             Err(e) => Err(e),
             Ok(x) => {
                 let mut out = out;
                 out.push(x);
-                read_names_from(ar, hs, i + 1, out)
+                read_names_from(pers, ar, hs, i + 1, out)
             }
         }
     }
@@ -1180,38 +1214,43 @@ pub fn read_names_from(
 /// readback** (DESIGN.md §8.3 lesson 4, "intern the representation, not the
 /// algorithm"): a level ALGORITHM runs on a transient `Level` tree read out of
 /// the store, never on handles.  The readback is `denoteL` itself.
-pub fn read_level(ar: &EStore, h: &LIdx) -> Result<Level, CheckError> {
-    read_level_at(ar, ar.ls().node_count() as u64 + 1, h)
+pub fn read_level(pers: &PersTier, ar: &EStore, h: &LIdx) -> Result<Level, CheckError> {
+    read_level_at(pers, ar, ar.ls().node_count(pers) as u64 + 1, h)
 }
 
 /// con-leche: ConLeche/Kernel/Level.lean:26-37 subst
 /// The fuel-indexed readback itself (`Denote.lean`'s `denoteLAux`).
-pub fn read_level_at(ar: &EStore, fuel: u64, h: &LIdx) -> Result<Level, CheckError> {
+pub fn read_level_at(
+    pers: &PersTier,
+    ar: &EStore,
+    fuel: u64,
+    h: &LIdx,
+) -> Result<Level, CheckError>  {
     if fuel == 0 {
         return Err(dangling_level());
     }
-    match ar.ls().view(h) {
+    match ar.ls().view(pers, h) {
         None => Err(dangling_level()),
         Some(LNodeView::Zero) => Ok(level::zero()),
-        Some(LNodeView::Succ(u)) => match read_level_at(ar, fuel - 1, &u) {
+        Some(LNodeView::Succ(u)) => match read_level_at(pers, ar, fuel - 1, &u) {
             Err(e) => Err(e),
             Ok(a) => Ok(level::succ(a)),
         },
-        Some(LNodeView::Max(u, v)) => match read_level_at(ar, fuel - 1, &u) {
+        Some(LNodeView::Max(u, v)) => match read_level_at(pers, ar, fuel - 1, &u) {
             Err(e) => Err(e),
-            Ok(a) => match read_level_at(ar, fuel - 1, &v) {
+            Ok(a) => match read_level_at(pers, ar, fuel - 1, &v) {
                 Err(e) => Err(e),
                 Ok(b) => Ok(level::max(a, b)),
             },
         },
-        Some(LNodeView::Imax(u, v)) => match read_level_at(ar, fuel - 1, &u) {
+        Some(LNodeView::Imax(u, v)) => match read_level_at(pers, ar, fuel - 1, &u) {
             Err(e) => Err(e),
-            Ok(a) => match read_level_at(ar, fuel - 1, &v) {
+            Ok(a) => match read_level_at(pers, ar, fuel - 1, &v) {
                 Err(e) => Err(e),
                 Ok(b) => Ok(level::imax(a, b)),
             },
         },
-        Some(LNodeView::Param(n)) => match read_name(ar, &n) {
+        Some(LNodeView::Param(n)) => match read_name(pers, ar, &n) {
             Err(e) => Err(e),
             Ok(x) => Ok(level::param(x)),
         },
@@ -1237,7 +1276,12 @@ pub fn dangling_level() -> CheckError {
 /// length of a syntactic Π-telescope ending in a SORT.  A spine walk, so the
 /// fuel is the store's node count; con-leche's structural recursion is the
 /// same walk with the node read through `view`.
-pub fn pi_sort_tele_len(ar: &EStore, fuel: u64, h: &EIdx) -> Result<Option<u64>, CheckError> {
+pub fn pi_sort_tele_len(
+    pers: &PersTier,
+    ar: &EStore,
+    fuel: u64,
+    h: &EIdx,
+) -> Result<Option<u64>, CheckError>  {
     if fuel == 0 {
         const M: [u32; 34] = [
             102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 112, 105,
@@ -1245,9 +1289,9 @@ pub fn pi_sort_tele_len(ar: &EStore, fuel: u64, h: &EIdx) -> Result<Option<u64>,
         ];
         return Err(core_types::internal(core_types::code_points(&M)));
     }
-    match view_e(ar, h) {
+    match view_e(pers, ar, h) {
         Err(e) => Err(e),
-        Ok(ENodeView::ForallE(_, body, _)) => match pi_sort_tele_len(ar, fuel - 1, &body) {
+        Ok(ENodeView::ForallE(_, body, _)) => match pi_sort_tele_len(pers, ar, fuel - 1, &body) {
             Err(e) => Err(e),
             Ok(None) => Ok(None),
             Ok(Some(n)) => Ok(Some(n + 1)),

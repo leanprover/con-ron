@@ -37,6 +37,7 @@ use con_ron_core::kernel::env as cenv;
 use con_ron_core::kernel::expr;
 use con_ron_core::kernel::prop_when;
 use con_ron_core::ron::hashmap::{Dup, Eq2};
+use crate::arena::store::PersTier;
 
 // ---------------------------------------------------------------------------
 // The messages of this module's declines
@@ -66,6 +67,7 @@ pub const M_FUEL_CANON_EXPR: [u32; 27] = [
 /// parameters to, interned.  The counter runs UP so the list comes out in
 /// index order; no fuel, because the recursion is structural on the count.
 pub fn canon_names_go(
+    pers: &PersTier,
     st: &mut AState,
     i: u64,
     n: u64,
@@ -74,14 +76,14 @@ pub fn canon_names_go(
     if n == 0 {
         Ok(out)
     } else {
-        match intern_n_node(st, NNodeView::Anonymous) {
+        match intern_n_node(pers, st, NNodeView::Anonymous) {
             Err(e) => Err(e),
-            Ok(a) => match intern_n_node(st, NNodeView::Num(a, i)) {
+            Ok(a) => match intern_n_node(pers, st, NNodeView::Num(a, i)) {
                 Err(e) => Err(e),
                 Ok(h) => {
                     let mut out2 = out;
                     out2.push(h);
-                    canon_names_go(st, i + 1, n - 1, out2)
+                    canon_names_go(pers, st, i + 1, n - 1, out2)
                 }
             },
         }
@@ -91,8 +93,8 @@ pub fn canon_names_go(
 /// con-leche: ConLeche/Kernel/Canon.lean:67-73 canonNameMap
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:63 canonNames` — the numbered
 /// names for a level-parameter list of length `n`.
-pub fn canon_names(st: &mut AState, n: u64) -> Result<Vec<NIdx>, CheckError> {
-    canon_names_go(st, 0, n, Vec::new())
+pub fn canon_names(pers: &PersTier, st: &mut AState, n: u64) -> Result<Vec<NIdx>, CheckError> {
+    canon_names_go(pers, st, 0, n, Vec::new())
 }
 
 /// con-leche: ConLeche/Kernel/Canon.lean:67-73 canonNameMap
@@ -134,6 +136,7 @@ pub fn canon_name_map_from(ps: &Vec<NIdx>, cs: &Vec<NIdx>, n: &NIdx, i: usize) -
 /// the `.param` leaf), so the two canonical forms are equal iff the originals
 /// agree constructor by constructor down to their leaves.
 pub fn canon_level_eq(
+    pers: &PersTier,
     st: &AState,
     ps: &Vec<NIdx>,
     ps2: &Vec<NIdx>,
@@ -145,11 +148,11 @@ pub fn canon_level_eq(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_CANON_LEVEL)))
     } else {
-        match view_l(st, u) {
+        match view_l(pers, st, u) {
             Err(e) => Err(e),
-            Ok(a) => match view_l(st, v) {
+            Ok(a) => match view_l(pers, st, v) {
                 Err(e) => Err(e),
-                Ok(b) => canon_level_eq_at(st, ps, ps2, cs, fuel - 1, a, b),
+                Ok(b) => canon_level_eq_at(pers, st, ps, ps2, cs, fuel - 1, a, b),
             },
         }
     }
@@ -160,6 +163,7 @@ pub fn canon_level_eq(
 /// past the two views.  Split at the twin's own `match` boundary so the views'
 /// borrows end before the recursion (task #97-P4c's rule).
 pub fn canon_level_eq_at(
+    pers: &PersTier,
     st: &AState,
     ps: &Vec<NIdx>,
     ps2: &Vec<NIdx>,
@@ -171,14 +175,14 @@ pub fn canon_level_eq_at(
     match (a, b) {
         (LNodeView::Zero, LNodeView::Zero) => Ok(true),
         (LNodeView::Succ(x), LNodeView::Succ(y)) => {
-            canon_level_eq(st, ps, ps2, cs, fuel, &x, &y)
+            canon_level_eq(pers, st, ps, ps2, cs, fuel, &x, &y)
         }
         (LNodeView::Max(x, y), LNodeView::Max(x2, y2)) => {
-            match canon_level_eq(st, ps, ps2, cs, fuel, &x, &x2) {
+            match canon_level_eq(pers, st, ps, ps2, cs, fuel, &x, &x2) {
                 Err(e) => Err(e),
                 Ok(r) => {
                     if r {
-                        canon_level_eq(st, ps, ps2, cs, fuel, &y, &y2)
+                        canon_level_eq(pers, st, ps, ps2, cs, fuel, &y, &y2)
                     } else {
                         Ok(false)
                     }
@@ -186,11 +190,11 @@ pub fn canon_level_eq_at(
             }
         }
         (LNodeView::Imax(x, y), LNodeView::Imax(x2, y2)) => {
-            match canon_level_eq(st, ps, ps2, cs, fuel, &x, &x2) {
+            match canon_level_eq(pers, st, ps, ps2, cs, fuel, &x, &x2) {
                 Err(e) => Err(e),
                 Ok(r) => {
                     if r {
-                        canon_level_eq(st, ps, ps2, cs, fuel, &y, &y2)
+                        canon_level_eq(pers, st, ps, ps2, cs, fuel, &y, &y2)
                     } else {
                         Ok(false)
                     }
@@ -210,6 +214,7 @@ pub fn canon_level_eq_at(
 /// two universe-argument lists read out of the level-list store.  The cited
 /// two-`List` recursion is one cursor.
 pub fn canon_level_list_eq(
+    pers: &PersTier,
     st: &AState,
     ps: &Vec<NIdx>,
     ps2: &Vec<NIdx>,
@@ -224,11 +229,11 @@ pub fn canon_level_list_eq(
     } else if i >= us.len() || i >= vs.len() {
         Ok(false)
     } else {
-        match canon_level_eq(st, ps, ps2, cs, fuel, &us[i], &vs[i]) {
+        match canon_level_eq(pers, st, ps, ps2, cs, fuel, &us[i], &vs[i]) {
             Err(e) => Err(e),
             Ok(r) => {
                 if r {
-                    canon_level_list_eq(st, ps, ps2, cs, fuel, us, vs, i + 1)
+                    canon_level_list_eq(pers, st, ps, ps2, cs, fuel, us, vs, i + 1)
                 } else {
                     Ok(false)
                 }
@@ -241,6 +246,7 @@ pub fn canon_level_list_eq(
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:115-117 canonLevelsEq` — the same
 /// at two interned universe-argument LIST handles.
 pub fn canon_levels_eq(
+    pers: &PersTier,
     st: &AState,
     ps: &Vec<NIdx>,
     ps2: &Vec<NIdx>,
@@ -249,11 +255,11 @@ pub fn canon_levels_eq(
     us: &LsIdx,
     vs: &LsIdx,
 ) -> Result<bool, CheckError> {
-    match view_ls(st, us) {
+    match view_ls(pers, st, us) {
         Err(e) => Err(e),
-        Ok(a) => match view_ls(st, vs) {
+        Ok(a) => match view_ls(pers, st, vs) {
             Err(e) => Err(e),
-            Ok(b) => canon_level_list_eq(st, ps, ps2, cs, fuel, &a, &b, 0),
+            Ok(b) => canon_level_list_eq(pers, st, ps, ps2, cs, fuel, &a, &b, 0),
         },
     }
 }
@@ -272,6 +278,7 @@ pub fn canon_levels_eq(
 /// their leaves.  The binder metadata is NOT compared, exactly as the cited
 /// clause does not: `canonExpr` writes `⟨.never⟩` on both sides.
 pub fn canon_expr_eq(
+    pers: &PersTier,
     st: &AState,
     ps: &Vec<NIdx>,
     ps2: &Vec<NIdx>,
@@ -283,11 +290,11 @@ pub fn canon_expr_eq(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_CANON_EXPR)))
     } else {
-        match view(st, a) {
+        match view(pers, st, a) {
             Err(e) => Err(e),
-            Ok(va) => match view(st, b) {
+            Ok(va) => match view(pers, st, b) {
                 Err(e) => Err(e),
-                Ok(vb) => canon_expr_eq_at(st, ps, ps2, cs, fuel - 1, va, vb),
+                Ok(vb) => canon_expr_eq_at(pers, st, ps, ps2, cs, fuel - 1, va, vb),
             },
         }
     }
@@ -297,6 +304,7 @@ pub fn canon_expr_eq(
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:131-163 canonExprEq` — the ten
 /// arms, past the two views.
 pub fn canon_expr_eq_at(
+    pers: &PersTier,
     st: &AState,
     ps: &Vec<NIdx>,
     ps2: &Vec<NIdx>,
@@ -309,36 +317,36 @@ pub fn canon_expr_eq_at(
         (ENodeView::BVar(i), ENodeView::BVar(j)) => Ok(i == j),
         (ENodeView::FVar(i, t), ENodeView::FVar(j, t2)) => {
             if i == j {
-                canon_expr_eq(st, ps, ps2, cs, fuel, &t, &t2)
+                canon_expr_eq(pers, st, ps, ps2, cs, fuel, &t, &t2)
             } else {
                 Ok(false)
             }
         }
         (ENodeView::Sort(u), ENodeView::Sort(v)) => {
-            canon_level_eq(st, ps, ps2, cs, fuel, &u, &v)
+            canon_level_eq(pers, st, ps, ps2, cs, fuel, &u, &v)
         }
         (ENodeView::Const(n, us), ENodeView::Const(n2, us2)) => {
             if n.eq2(&n2) {
-                canon_levels_eq(st, ps, ps2, cs, fuel, &us, &us2)
+                canon_levels_eq(pers, st, ps, ps2, cs, fuel, &us, &us2)
             } else {
                 Ok(false)
             }
         }
         (ENodeView::App(f, x), ENodeView::App(f2, x2)) => {
-            canon_expr_eq_two(st, ps, ps2, cs, fuel, &f, &f2, &x, &x2)
+            canon_expr_eq_two(pers, st, ps, ps2, cs, fuel, &f, &f2, &x, &x2)
         }
         (ENodeView::Lam(t, bd, _), ENodeView::Lam(t2, bd2, _)) => {
-            canon_expr_eq_two(st, ps, ps2, cs, fuel, &t, &t2, &bd, &bd2)
+            canon_expr_eq_two(pers, st, ps, ps2, cs, fuel, &t, &t2, &bd, &bd2)
         }
         (ENodeView::ForallE(t, bd, _), ENodeView::ForallE(t2, bd2, _)) => {
-            canon_expr_eq_two(st, ps, ps2, cs, fuel, &t, &t2, &bd, &bd2)
+            canon_expr_eq_two(pers, st, ps, ps2, cs, fuel, &t, &t2, &bd, &bd2)
         }
         (ENodeView::LetE(t, v, bd), ENodeView::LetE(t2, v2, bd2)) => {
-            match canon_expr_eq(st, ps, ps2, cs, fuel, &t, &t2) {
+            match canon_expr_eq(pers, st, ps, ps2, cs, fuel, &t, &t2) {
                 Err(e) => Err(e),
                 Ok(r) => {
                     if r {
-                        canon_expr_eq_two(st, ps, ps2, cs, fuel, &v, &v2, &bd, &bd2)
+                        canon_expr_eq_two(pers, st, ps, ps2, cs, fuel, &v, &v2, &bd, &bd2)
                     } else {
                         Ok(false)
                     }
@@ -348,7 +356,7 @@ pub fn canon_expr_eq_at(
         (ENodeView::Lit(l), ENodeView::Lit(l2)) => Ok(expr::literal_beq(&l, &l2)),
         (ENodeView::Proj(s, i, e), ENodeView::Proj(s2, i2, e2)) => {
             if s.eq2(&s2) && i == i2 {
-                canon_expr_eq(st, ps, ps2, cs, fuel, &e, &e2)
+                canon_expr_eq(pers, st, ps, ps2, cs, fuel, &e, &e2)
             } else {
                 Ok(false)
             }
@@ -362,6 +370,7 @@ pub fn canon_expr_eq_at(
 /// `if ← canonExprEq … then canonExprEq … else pure false`, which four of its
 /// arms spell identically.  One function rather than four copies.
 pub fn canon_expr_eq_two(
+    pers: &PersTier,
     st: &AState,
     ps: &Vec<NIdx>,
     ps2: &Vec<NIdx>,
@@ -372,11 +381,11 @@ pub fn canon_expr_eq_two(
     b: &EIdx,
     b2: &EIdx,
 ) -> Result<bool, CheckError> {
-    match canon_expr_eq(st, ps, ps2, cs, fuel, a, a2) {
+    match canon_expr_eq(pers, st, ps, ps2, cs, fuel, a, a2) {
         Err(e) => Err(e),
         Ok(r) => {
             if r {
-                canon_expr_eq(st, ps, ps2, cs, fuel, b, b2)
+                canon_expr_eq(pers, st, ps, ps2, cs, fuel, b, b2)
             } else {
                 Ok(false)
             }
@@ -397,14 +406,16 @@ pub fn canon_expr_eq_two(
 /// is why the length test stands in for comparing them — and why ONE
 /// `canon_names` serves both sides.
 pub fn i_constant_val_canon_eq(
+    pers: &PersTier,
     st: &mut AState,
     cv: &IConstantVal,
     cv2: &IConstantVal,
 ) -> Result<bool, CheckError> {
     if cv.name.eq2(&cv2.name) && cv.level_params.len() == cv2.level_params.len() {
-        match canon_names(st, cv.level_params.len() as u64) {
+        match canon_names(pers, st, cv.level_params.len() as u64) {
             Err(e) => Err(e),
             Ok(cs) => canon_expr_eq(
+                pers,
                 st,
                 &cv.level_params,
                 &cv2.level_params,
@@ -496,6 +507,7 @@ pub fn i_rec_rule_eq_but_rhs(r: &IRecRule, r2: &IRecRule) -> bool {
 /// lists compared through the canonical form of each rule's right-hand side.
 /// The two `_, _ => false` arms of the twin are the length mismatch.
 pub fn canon_rules_eq(
+    pers: &PersTier,
     st: &AState,
     ps: &Vec<NIdx>,
     ps2: &Vec<NIdx>,
@@ -512,11 +524,11 @@ pub fn canon_rules_eq(
     } else if !i_rec_rule_eq_but_rhs(&rs[i], &rs2[i]) {
         Ok(false)
     } else {
-        match canon_expr_eq(st, ps, ps2, cs, fuel, &rs[i].rhs, &rs2[i].rhs) {
+        match canon_expr_eq(pers, st, ps, ps2, cs, fuel, &rs[i].rhs, &rs2[i].rhs) {
             Err(e) => Err(e),
             Ok(r) => {
                 if r {
-                    canon_rules_eq(st, ps, ps2, cs, fuel, rs, rs2, i + 1)
+                    canon_rules_eq(pers, st, ps, ps2, cs, fuel, rs, rs2, i + 1)
                 } else {
                     Ok(false)
                 }
@@ -550,30 +562,31 @@ pub fn i_proj_table_beq(t: &IProjTable, t2: &IProjTable) -> bool {
 /// capabilities are not compared (`canon` resets both to `{}`), and a
 /// projection table is compared as it stands.
 pub fn i_constant_info_canon_eq(
+    pers: &PersTier,
     st: &mut AState,
     ci: &IConstantInfo,
     ci2: &IConstantInfo,
 ) -> Result<bool, CheckError> {
     match (ci, ci2) {
         (IConstantInfo::AxiomInfo(cv), IConstantInfo::AxiomInfo(cv2)) => {
-            i_constant_val_canon_eq(st, cv, cv2)
+            i_constant_val_canon_eq(pers, st, cv, cv2)
         }
         (IConstantInfo::DefnInfo(cv, v, h), IConstantInfo::DefnInfo(cv2, v2, h2)) => {
             if cenv::reducibility_hint_beq(h, h2) {
-                canon_eq_cv_and_value(st, cv, cv2, v, v2)
+                canon_eq_cv_and_value(pers, st, cv, cv2, v, v2)
             } else {
                 Ok(false)
             }
         }
         (IConstantInfo::ThmInfo(cv, v), IConstantInfo::ThmInfo(cv2, v2)) => {
-            canon_eq_cv_and_value(st, cv, cv2, v, v2)
+            canon_eq_cv_and_value(pers, st, cv, cv2, v, v2)
         }
         (IConstantInfo::IndInfo(cv, _), IConstantInfo::IndInfo(cv2, _)) => {
-            i_constant_val_canon_eq(st, cv, cv2)
+            i_constant_val_canon_eq(pers, st, cv, cv2)
         }
         (IConstantInfo::CtorInfo(cv, np, nf), IConstantInfo::CtorInfo(cv2, np2, nf2)) => {
             if np == np2 && nf == nf2 {
-                i_constant_val_canon_eq(st, cv, cv2)
+                i_constant_val_canon_eq(pers, st, cv, cv2)
             } else {
                 Ok(false)
             }
@@ -583,7 +596,7 @@ pub fn i_constant_info_canon_eq(
             IConstantInfo::RecInfo(cv2, mi2, rp2, rs2),
         ) => {
             if mi == mi2 && rp == rp2 {
-                canon_eq_cv_and_rules(st, cv, cv2, rs, rs2)
+                canon_eq_cv_and_rules(pers, st, cv, cv2, rs, rs2)
             } else {
                 Ok(false)
             }
@@ -601,21 +614,23 @@ pub fn i_constant_info_canon_eq(
 /// stored value at the same numbered names.  Split at the twin's own `let cs`
 /// boundary, which is where the two arms coincide.
 pub fn canon_eq_cv_and_value(
+    pers: &PersTier,
     st: &mut AState,
     cv: &IConstantVal,
     cv2: &IConstantVal,
     v: &EIdx,
     v2: &EIdx,
 ) -> Result<bool, CheckError> {
-    match i_constant_val_canon_eq(st, cv, cv2) {
+    match i_constant_val_canon_eq(pers, st, cv, cv2) {
         Err(e) => Err(e),
         Ok(r) => {
             if !r {
                 Ok(false)
             } else {
-                match canon_names(st, cv.level_params.len() as u64) {
+                match canon_names(pers, st, cv.level_params.len() as u64) {
                     Err(e) => Err(e),
                     Ok(cs) => canon_expr_eq(
+                        pers,
                         st,
                         &cv.level_params,
                         &cv2.level_params,
@@ -634,21 +649,23 @@ pub fn canon_eq_cv_and_value(
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:203-228 IConstantInfo.canonEq` —
 /// the `.recInfo` arm's tail: the common data, then the rule list.
 pub fn canon_eq_cv_and_rules(
+    pers: &PersTier,
     st: &mut AState,
     cv: &IConstantVal,
     cv2: &IConstantVal,
     rs: &Vec<IRecRule>,
     rs2: &Vec<IRecRule>,
 ) -> Result<bool, CheckError> {
-    match i_constant_val_canon_eq(st, cv, cv2) {
+    match i_constant_val_canon_eq(pers, st, cv, cv2) {
         Err(e) => Err(e),
         Ok(r) => {
             if !r {
                 Ok(false)
             } else {
-                match canon_names(st, cv.level_params.len() as u64) {
+                match canon_names(pers, st, cv.level_params.len() as u64) {
                     Err(e) => Err(e),
                     Ok(cs) => canon_rules_eq(
+                        pers,
                         st,
                         &cv.level_params,
                         &cv2.level_params,
@@ -669,6 +686,7 @@ pub fn canon_eq_cv_and_rules(
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:233-237 canonEqList` — two blocks
 /// are the same, member for member, up to the canonical form.
 pub fn canon_eq_list(
+    pers: &PersTier,
     st: &mut AState,
     xs: &Vec<IConstantInfo>,
     ys: &Vec<IConstantInfo>,
@@ -679,11 +697,11 @@ pub fn canon_eq_list(
     } else if i >= xs.len() || i >= ys.len() {
         Ok(false)
     } else {
-        match i_constant_info_canon_eq(st, &xs[i], &ys[i]) {
+        match i_constant_info_canon_eq(pers, st, &xs[i], &ys[i]) {
             Err(e) => Err(e),
             Ok(r) => {
                 if r {
-                    canon_eq_list(st, xs, ys, i + 1)
+                    canon_eq_list(pers, st, xs, ys, i + 1)
                 } else {
                     Ok(false)
                 }

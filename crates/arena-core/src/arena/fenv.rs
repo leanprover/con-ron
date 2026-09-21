@@ -34,73 +34,92 @@ use crate::arena::env::IFEnv;
 use crate::arena::handle::{LsIdx, NIdx};
 use crate::arena::monad::AState;
 use con_ron_core::kernel::core_types::CheckError;
+use crate::arena::store::PersTier;
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:97-99 FEnv.towerSlotsAllF
 /// Lean twin: `proof/ConRon/Arena/FEnv.lean:38-39 IFEnv.towerSlotsAllF` —
 /// `towerSlotsAll` through the index; the arena's `tower_slots_all` already is
 /// that (see the module note).
 pub fn ifenv_tower_slots_all_f(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     t: &NIdx,
     n_f: u64,
 ) -> Result<bool, CheckError> {
-    core::tower_slots_all(st, fe, t, n_f)
+    core::tower_slots_all(pers, vis, st, fe, t, n_f)
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:101-103 FEnv.andRescueSlotsF
 /// Lean twin: `proof/ConRon/Arena/FEnv.lean:43-45 IFEnv.andRescueSlotsF` —
 /// `andRescueSlots` through the index.
 pub fn ifenv_and_rescue_slots_f(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     ctor: &NIdx,
     n_p: u64,
     ust: &LsIdx,
 ) -> Result<bool, CheckError> {
-    core::and_rescue_slots(st, fe, ctor, n_p, ust)
+    core::and_rescue_slots(pers, vis, st, fe, ctor, n_p, ust)
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:105-110 FEnv.recSlotsAllF
 /// Lean twin: `proof/ConRon/Arena/FEnv.lean:49-50 IFEnv.recSlotsAllF` —
 /// `recSlotsAll` through the index.
 pub fn ifenv_rec_slots_all_f(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     t: &NIdx,
     n_f: u64,
 ) -> Result<bool, CheckError> {
-    core::rec_slots_all(st, fe, t, n_f)
+    core::rec_slots_all(pers, vis, st, fe, t, n_f)
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:116-119 natLitSupportedF
 /// Lean twin: `proof/ConRon/Arena/FEnv.lean:54 natLitSupportedF` —
 /// `natLitSupported` through the index.
-pub fn nat_lit_supported_f(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
-    core::nat_lit_supported(st, fe)
+pub fn nat_lit_supported_f(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+) -> Result<bool, CheckError>  {
+    core::nat_lit_supported(pers, vis, st, fe)
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:121-130 strLitSupportedF
 /// Lean twin: `proof/ConRon/Arena/FEnv.lean:58 strLitSupportedF` —
 /// `strLitSupported` through the index.
-pub fn str_lit_supported_f(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
-    core::str_lit_supported(st, fe)
+pub fn str_lit_supported_f(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+) -> Result<bool, CheckError>  {
+    core::str_lit_supported(pers, vis, st, fe)
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:132-145 natOpGuardF
 /// Lean twin: `proof/ConRon/Arena/FEnv.lean:62 natOpGuardF` — `natOpGuard`
 /// through the index.
 pub fn nat_op_guard_f(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     c: &NIdx,
 ) -> Result<bool, CheckError> {
-    core::nat_op_guard(st, fe, c)
+    core::nat_op_guard(pers, vis, st, fe, c)
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:147-151 natOpStoredF
 /// Lean twin: `proof/ConRon/Arena/FEnv.lean:66 natOpStoredF` — `natOpStored`
 /// through the index (con-leche's task #161 item B3).
-pub fn nat_op_stored_f(fe: &IFEnv, c: &NIdx) -> bool {
-    core::nat_op_stored(fe, c)
+pub fn nat_op_stored_f(vis: u64, fe: &IFEnv, c: &NIdx) -> bool {
+    core::nat_op_stored(vis, fe, c)
 }

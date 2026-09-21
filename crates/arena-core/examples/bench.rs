@@ -45,6 +45,7 @@ use con_ron_core::kernel::expr;
 use con_ron_core::kernel::prop_when;
 use con_ron_core::ron::hashmap::Dup;
 use std::time::Instant;
+use arena_core::arena::store::PersTier;
 
 /// `Bench.lean:44 benchFuel` — the deepest shape is 50 000 nodes, so 200 000
 /// is a comfortable margin and no run below ever reaches it.
@@ -79,20 +80,21 @@ fn cp(s: &str) -> Vec<u32> {
 
 /// `Bench.lean:48-53 mkSpine` — a left-nested application spine of `n` `app`
 /// nodes over a fixed argument.
-fn mk_spine(st: &mut AState, arg: &EIdx, n: u64, acc: EIdx) -> EIdx {
+fn mk_spine(pers: &PersTier, st: &mut AState, arg: &EIdx, n: u64, acc: EIdx) -> EIdx {
     let mut a = acc;
     for _ in 0..n {
-        a = take(intern_e(st, ENodeView::App(a, arg.dup2())));
+        a = take(intern_e(pers, st, ENodeView::App(a, arg.dup2())));
     }
     a
 }
 
 /// `Bench.lean:57-62 mkTele` — a `∀`-telescope of `n` binders over a fixed
 /// domain, innermost body first.
-fn mk_tele(st: &mut AState, dom: &EIdx, n: u64, body: EIdx) -> EIdx {
+fn mk_tele(pers: &PersTier, st: &mut AState, dom: &EIdx, n: u64, body: EIdx) -> EIdx {
     let mut b = body;
     for _ in 0..n {
         b = take(intern_e(
+            pers,
             st,
             ENodeView::ForallE(dom.dup2(), b, expr::binder_meta(prop_when::never())),
         ));
@@ -102,10 +104,10 @@ fn mk_tele(st: &mut AState, dom: &EIdx, n: u64, body: EIdx) -> EIdx {
 
 /// `Bench.lean:66-70 mkTower` — the DAG tower `t_{k+1} = app t_k t_k`: `k`
 /// arena nodes, `2^k` tree nodes.
-fn mk_tower(st: &mut AState, k: u64, t: EIdx) -> EIdx {
+fn mk_tower(pers: &PersTier, st: &mut AState, k: u64, t: EIdx) -> EIdx {
     let mut x = t;
     for _ in 0..k {
-        x = take(intern_e(st, ENodeView::App(x.dup2(), x)));
+        x = take(intern_e(pers, st, ENodeView::App(x.dup2(), x)));
     }
     x
 }
@@ -127,24 +129,24 @@ struct Fixture {
 /// `Bench.lean:94-112 build` — build the four shapes.  Chosen so that no
 /// cutoff fires at the root: the spine's head is `bvar 1` and its argument an
 /// `fvar`, the telescope's body is `bvar n`, the tower's leaf is `bvar 1`.
-fn build(st: &mut AState, spine_n: u64, tele_n: u64, tower_k: u64) -> Fixture {
-    let anon = take(intern_n_node(st, NNodeView::Anonymous));
-    let u_name = take(intern_n_node(st, NNodeView::Str(anon.dup2(), cp("u"))));
-    let zero = take(intern_l_node(st, LNodeView::Zero));
-    let pu = take(intern_l_node(st, LNodeView::Param(u_name.dup2())));
-    let us_zero = take(intern_ls_node(st, vec![zero.dup2()]));
-    let s0 = take(intern_e(st, ENodeView::Sort(zero.dup2())));
-    let su = take(intern_e(st, ENodeView::Sort(pu.dup2())));
-    let fv = take(intern_e(st, ENodeView::FVar(0, su.dup2())));
-    let b1 = take(intern_e(st, ENodeView::BVar(1)));
-    let spine = mk_spine(st, &fv, spine_n, b1.dup2());
-    let plain = mk_spine(st, &s0, spine_n, b1.dup2());
-    let bn = take(intern_e(st, ENodeView::BVar(tele_n)));
-    let tele = mk_tele(st, &su, tele_n, bn);
-    let bp = take(intern_e(st, ENodeView::BVar(1000)));
-    let peel = mk_tele(st, &s0, 1000, bp);
-    let tower = mk_tower(st, tower_k, b1);
-    let sub = take(intern_e(st, ENodeView::Const(u_name.dup2(), us_zero.dup2())));
+fn build(pers: &PersTier, st: &mut AState, spine_n: u64, tele_n: u64, tower_k: u64) -> Fixture {
+    let anon = take(intern_n_node(pers, st, NNodeView::Anonymous));
+    let u_name = take(intern_n_node(pers, st, NNodeView::Str(anon.dup2(), cp("u"))));
+    let zero = take(intern_l_node(pers, st, LNodeView::Zero));
+    let pu = take(intern_l_node(pers, st, LNodeView::Param(u_name.dup2())));
+    let us_zero = take(intern_ls_node(pers, st, vec![zero.dup2()]));
+    let s0 = take(intern_e(pers, st, ENodeView::Sort(zero.dup2())));
+    let su = take(intern_e(pers, st, ENodeView::Sort(pu.dup2())));
+    let fv = take(intern_e(pers, st, ENodeView::FVar(0, su.dup2())));
+    let b1 = take(intern_e(pers, st, ENodeView::BVar(1)));
+    let spine = mk_spine(pers, st, &fv, spine_n, b1.dup2());
+    let plain = mk_spine(pers, st, &s0, spine_n, b1.dup2());
+    let bn = take(intern_e(pers, st, ENodeView::BVar(tele_n)));
+    let tele = mk_tele(pers, st, &su, tele_n, bn);
+    let bp = take(intern_e(pers, st, ENodeView::BVar(1000)));
+    let peel = mk_tele(pers, st, &s0, 1000, bp);
+    let tower = mk_tower(pers, st, tower_k, b1);
+    let sub = take(intern_e(pers, st, ENodeView::Const(u_name.dup2(), us_zero.dup2())));
     Fixture { spine, plain, tele, peel, tower, sub, fv, u_name, us_zero }
 }
 
@@ -152,12 +154,12 @@ fn build(st: &mut AState, spine_n: u64, tele_n: u64, tower_k: u64) -> Fixture {
 /// `openPisAtFvars` opens a `∀`-telescope ONE BINDER AT A TIME, so a telescope
 /// of `n` binders costs `n` instantiations over a body that is still `O(n)`
 /// wide.
-fn peel_pis(st: &mut AState, fuel: u64, arg: &EIdx, n: u64, h: &EIdx) -> u64 {
+fn peel_pis(pers: &PersTier, st: &mut AState, fuel: u64, arg: &EIdx, n: u64, h: &EIdx) -> u64 {
     let mut cur = h.dup2();
     for _ in 0..n {
-        match take(view(st, &cur)) {
+        match take(view(pers, st, &cur)) {
             ENodeView::ForallE(_, body, _) => {
-                cur = take(instantiate1_fast(st, fuel, &body, arg, 0));
+                cur = take(instantiate1_fast(pers, st, fuel, &body, arg, 0));
             }
             _ => return cur.word as u64,
         }
@@ -194,24 +196,28 @@ fn run() {
     );
 
     let mut st = AState::init(EStore::empty());
+    // `shared_on` is false here, so every persistent read goes to the store's
+    // own tier and this one is never consulted (task #97-P6-6b).
+    let pers: &PersTier = &PersTier::empty();
     let t0 = Instant::now();
-    let fx = build(&mut st, spine_n, tele_n, tower_k);
+    let fx = build(pers, &mut st, spine_n, tele_n, tower_k);
     let t_build = t0.elapsed();
     println!(
-        "  intern (all four shapes): {:.4} ms, {} nodes",
+        "  intern(pers, all four shapes): {:.4} ms, {} nodes",
         t_build.as_secs_f64() * 1000.0,
-        st.store.node_count()
+        st.store.node_count(pers)
     );
 
     println!("the spine (no sharing: the memo never hits)");
     timed("instantiate1Fast  ", &mut st, |s| {
-        instantiate1_fast(s, BENCH_FUEL, &fx.spine, &fx.sub, 1).map(|r| r.word as u64)
+        instantiate1_fast(pers, s, BENCH_FUEL, &fx.spine, &fx.sub, 1).map(|r| r.word as u64)
     });
     timed("abstract1Fast     ", &mut st, |s| {
-        abstract1_fast(s, BENCH_FUEL, &fx.spine, 0, 0).map(|r| r.word as u64)
+        abstract1_fast(pers, s, BENCH_FUEL, &fx.spine, 0, 0).map(|r| r.word as u64)
     });
     timed("instLPFast        ", &mut st, |s| {
         inst_lp_fast(
+            pers,
             s,
             BENCH_FUEL,
             &vec![fx.u_name.dup2()],
@@ -221,39 +227,40 @@ fn run() {
         .map(|r| r.word as u64)
     });
     timed("bvarBoundMemo     ", &mut st, |s| {
-        bvar_bound_memo(s, BENCH_FUEL, &fx.spine)
+        bvar_bound_memo(pers, s, BENCH_FUEL, &fx.spine)
     });
     timed("sizeB             ", &mut st, |s| {
-        size_b(s, BENCH_FUEL, &fx.spine)
+        size_b(pers, s, BENCH_FUEL, &fx.spine)
     });
-    println!("  arena now {} nodes", st.store.node_count());
+    println!("  arena now {} nodes", st.store.node_count(pers));
 
     println!("the telescope (the cursor moves under every binder)");
     timed("instantiate1Fast  ", &mut st, |s| {
-        instantiate1_fast(s, BENCH_FUEL, &fx.tele, &fx.sub, 0).map(|r| r.word as u64)
+        instantiate1_fast(pers, s, BENCH_FUEL, &fx.tele, &fx.sub, 0).map(|r| r.word as u64)
     });
     timed("abstract1Fast     ", &mut st, |s| {
-        abstract1_fast(s, BENCH_FUEL, &fx.tele, 0, 0).map(|r| r.word as u64)
+        abstract1_fast(pers, s, BENCH_FUEL, &fx.tele, 0, 0).map(|r| r.word as u64)
     });
     timed("instLPFast        ", &mut st, |s| {
-        inst_lp_fast(s, BENCH_FUEL, &vec![fx.u_name.dup2()], &fx.us_zero, &fx.tele)
+        inst_lp_fast(pers, s, BENCH_FUEL, &vec![fx.u_name.dup2()], &fx.us_zero, &fx.tele)
             .map(|r| r.word as u64)
     });
     timed("liftLooseBVarsFast", &mut st, |s| {
-        lift_loose_bvars_fast(s, BENCH_FUEL, 1, 0, &fx.tele).map(|r| r.word as u64)
+        lift_loose_bvars_fast(pers, s, BENCH_FUEL, 1, 0, &fx.tele).map(|r| r.word as u64)
     });
-    println!("  arena now {} nodes", st.store.node_count());
+    println!("  arena now {} nodes", st.store.node_count(pers));
 
     println!("the DAG tower ({tower_k} arena nodes, 2^{tower_k} tree nodes)");
     println!("  -- without the memo every one of these is exponential");
     timed("instantiate1Fast  ", &mut st, |s| {
-        instantiate1_fast(s, BENCH_FUEL, &fx.tower, &fx.sub, 1).map(|r| r.word as u64)
+        instantiate1_fast(pers, s, BENCH_FUEL, &fx.tower, &fx.sub, 1).map(|r| r.word as u64)
     });
     timed("instantiate1LiftF ", &mut st, |s| {
-        instantiate1_lift_fast(s, BENCH_FUEL, &fx.tower, &fx.sub, 1).map(|r| r.word as u64)
+        instantiate1_lift_fast(pers, s, BENCH_FUEL, &fx.tower, &fx.sub, 1).map(|r| r.word as u64)
     });
     timed("instLPFast        ", &mut st, |s| {
         inst_lp_fast(
+            pers,
             s,
             BENCH_FUEL,
             &vec![fx.u_name.dup2()],
@@ -263,26 +270,27 @@ fn run() {
         .map(|r| r.word as u64)
     });
     timed("bvarBoundMemo     ", &mut st, |s| {
-        bvar_bound_memo(s, BENCH_FUEL, &fx.tower)
+        bvar_bound_memo(pers, s, BENCH_FUEL, &fx.tower)
     });
-    println!("  arena now {} nodes", st.store.node_count());
+    println!("  arena now {} nodes", st.store.node_count(pers));
 
     println!("con-leche's task #215 workload: peel a 1000-binder telescope");
     println!("  one binder at a time (`openPisAtFvars`) -- 1000 instantiations");
     timed("peelPis x1000     ", &mut st, |s| {
-        Ok(peel_pis(s, BENCH_FUEL, &fx.fv, 1000, &fx.peel))
+        Ok(peel_pis(pers, s, BENCH_FUEL, &fx.fv, 1000, &fx.peel))
     });
-    println!("  arena now {} nodes", st.store.node_count());
+    println!("  arena now {} nodes", st.store.node_count(pers));
 
     println!("the cutoffs (the subject is answered without a walk)");
     timed("instantiate1 (cut)", &mut st, |s| {
-        instantiate1_fast(s, BENCH_FUEL, &fx.tele, &fx.sub, 5000).map(|r| r.word as u64)
+        instantiate1_fast(pers, s, BENCH_FUEL, &fx.tele, &fx.sub, 5000).map(|r| r.word as u64)
     });
     timed("abstract1    (cut)", &mut st, |s| {
-        abstract1_fast(s, BENCH_FUEL, &fx.plain, 7, 0).map(|r| r.word as u64)
+        abstract1_fast(pers, s, BENCH_FUEL, &fx.plain, 7, 0).map(|r| r.word as u64)
     });
     timed("instLP       (cut)", &mut st, |s| {
         inst_lp_fast(
+            pers,
             s,
             BENCH_FUEL,
             &vec![fx.u_name.dup2()],
@@ -293,13 +301,14 @@ fn run() {
     });
     println!("the same three on a subject the cutoff does NOT answer");
     timed("instantiate1 (run)", &mut st, |s| {
-        instantiate1_fast(s, BENCH_FUEL, &fx.plain, &fx.sub, 1).map(|r| r.word as u64)
+        instantiate1_fast(pers, s, BENCH_FUEL, &fx.plain, &fx.sub, 1).map(|r| r.word as u64)
     });
     timed("abstract1    (run)", &mut st, |s| {
-        abstract1_fast(s, BENCH_FUEL, &fx.spine, 0, 0).map(|r| r.word as u64)
+        abstract1_fast(pers, s, BENCH_FUEL, &fx.spine, 0, 0).map(|r| r.word as u64)
     });
     timed("instLP       (run)", &mut st, |s| {
         inst_lp_fast(
+            pers,
             s,
             BENCH_FUEL,
             &vec![fx.u_name.dup2()],
@@ -308,7 +317,7 @@ fn run() {
         )
         .map(|r| r.word as u64)
     });
-    println!("  arena now {} nodes", st.store.node_count());
+    println!("  arena now {} nodes", st.store.node_count(pers));
     println!("  peak RSS delta {} kB", vm_hwm_kb() - rss0);
 }
 

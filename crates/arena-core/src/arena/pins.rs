@@ -75,6 +75,7 @@ use con_ron_core::kernel::name::Name;
 use con_ron_core::kernel::std_axioms as cstd;
 use con_ron_core::kernel::trust_axioms as ctrust;
 use con_ron_core::ron::hashmap::Dup;
+use crate::arena::store::PersTier;
 
 // ---------------------------------------------------------------------------
 // The messages of this module's declines
@@ -325,18 +326,18 @@ pub fn pin_names() -> Vec<Name> {
 /// persistent (the module note says why that matters).
 ///
 /// Lean twin: OWED — `internAllPins : AM Unit`, the same sequence.
-pub fn intern_reserved_pins(st: &mut AState) -> Result<(), CheckError> {
-    match intern_name_list(st, &pin_names()) {
+pub fn intern_reserved_pins(pers: &PersTier, st: &mut AState) -> Result<(), CheckError> {
+    match intern_name_list(pers, st, &pin_names()) {
         Err(e) => Err(e),
-        Ok(hs) => match intern_name_list(st, &basis_names::reserved_basis_names()) {
+        Ok(hs) => match intern_name_list(pers, st, &basis_names::reserved_basis_names()) {
         Err(e) => Err(e),
-        Ok(rs) => match intern_ls_node(st, Vec::new()) {
+        Ok(rs) => match intern_ls_node(pers, st, Vec::new()) {
             Err(e) => Err(e),
-            Ok(us) => match intern_l_node(st, LNodeView::Zero) {
+            Ok(us) => match intern_l_node(pers, st, LNodeView::Zero) {
                 Err(e) => Err(e),
-                Ok(z) => match intern_l_node(st, LNodeView::Succ(z.dup2())) {
+                Ok(z) => match intern_l_node(pers, st, LNodeView::Succ(z.dup2())) {
                     Err(e) => Err(e),
-                    Ok(o) => match intern_e(st, ENodeView::Sort(o)) {
+                    Ok(o) => match intern_e(pers, st, ENodeView::Sort(o)) {
                         Err(e) => Err(e),
                         Ok(s1) => {
                             st.pins = Pins {
@@ -739,8 +740,9 @@ mod tests {
     }
 
     fn pinned() -> AState {
+        let pers: &PersTier = &PersTier::empty();
         let mut st = AState::init(EStore::empty());
-        ok(intern_reserved_pins(&mut st));
+        ok(intern_reserved_pins(pers, &mut st));
         st
     }
 
@@ -749,13 +751,14 @@ mod tests {
     /// test failure rather than a wrong pin.
     #[test]
     fn pins_table_is_in_slot_order() {
+        let pers: &PersTier = &PersTier::empty();
         let ns = pin_names();
         assert_eq!(ns.len(), PIN_COUNT);
         let mut st = pinned();
         let mut i = 0;
         while i < PIN_COUNT {
             let h = ok(pin_at(&st, i));
-            let h2 = ok(intern_name(&mut st, &ns[i]));
+            let h2 = ok(intern_name(pers, &mut st, &ns[i]));
             assert!(h.eq2(&h2), "slot {} is not its own name", i);
             i += 1;
         }
@@ -782,11 +785,12 @@ mod tests {
     /// same `Name` gives, and interning it again appends nothing.
     #[test]
     fn a_pin_is_what_interning_would_give() {
+        let pers: &PersTier = &PersTier::empty();
         let mut st = pinned();
-        let before = st.store.ns().node_count();
-        let h = ok(intern_name(&mut st, &basis_names::nat_succ_name()));
+        let before = st.store.ns().node_count(pers);
+        let h = ok(intern_name(pers, &mut st, &basis_names::nat_succ_name()));
         assert!(h.eq2(&ok(pin_nat_succ(&st))));
-        assert_eq!(st.store.ns().node_count(), before);
+        assert_eq!(st.store.ns().node_count(pers), before);
     }
 
     /// Every pinned handle is PERSISTENT, so it survives the scratch tier —
@@ -813,15 +817,16 @@ mod tests {
     /// The three value pins are `arena::core`'s three nullary interns.
     #[test]
     fn the_value_pins_are_the_nodes_core_used_to_intern() {
+        let pers: &PersTier = &PersTier::empty();
         let mut st = pinned();
-        let before = st.store.node_count();
-        let us = ok(intern_ls_node(&mut st, Vec::new()));
-        let z = ok(intern_l_node(&mut st, LNodeView::Zero));
-        let o = ok(intern_l_node(&mut st, LNodeView::Succ(z.dup2())));
-        let s1 = ok(intern_e(&mut st, ENodeView::Sort(o)));
+        let before = st.store.node_count(pers);
+        let us = ok(intern_ls_node(pers, &mut st, Vec::new()));
+        let z = ok(intern_l_node(pers, &mut st, LNodeView::Zero));
+        let o = ok(intern_l_node(pers, &mut st, LNodeView::Succ(z.dup2())));
+        let s1 = ok(intern_e(pers, &mut st, ENodeView::Sort(o)));
         assert!(us.eq2(&ok(pin_empty_levels(&st))));
         assert!(z.eq2(&ok(pin_zero_level(&st))));
         assert!(s1.eq2(&ok(pin_sort_one(&st))));
-        assert_eq!(st.store.node_count(), before);
+        assert_eq!(st.store.node_count(pers), before);
     }
 }

@@ -44,6 +44,7 @@ use con_ron_core::kernel::core_types::{code_points, CheckError};
 use con_ron_core::kernel::expr;
 use con_ron_core::kernel::std_axioms as cstd;
 use con_ron_core::ron::hashmap::Eq2;
+use crate::arena::store::PersTier;
 
 // ---------------------------------------------------------------------------
 // The message of this module's one decline
@@ -122,6 +123,7 @@ pub fn nonempty_rec_name(st: &mut AState) -> Result<NIdx, CheckError> {
 /// datum is the one thing not compared, which is exactly what the erasure
 /// forgives.
 pub fn erase_pw_eq(
+    pers: &PersTier,
     st: &AState,
     fuel: u64,
     a: &EIdx,
@@ -130,11 +132,11 @@ pub fn erase_pw_eq(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_ERASE_PW)))
     } else {
-        match view(st, a) {
+        match view(pers, st, a) {
             Err(e) => Err(e),
-            Ok(va) => match view(st, b) {
+            Ok(va) => match view(pers, st, b) {
                 Err(e) => Err(e),
-                Ok(vb) => erase_pw_eq_at(st, fuel - 1, va, vb),
+                Ok(vb) => erase_pw_eq_at(pers, st, fuel - 1, va, vb),
             },
         }
     }
@@ -144,6 +146,7 @@ pub fn erase_pw_eq(
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:66-88 erasePwEq` — the ten
 /// arms, past the two views.
 pub fn erase_pw_eq_at(
+    pers: &PersTier,
     st: &AState,
     fuel: u64,
     va: ENodeView,
@@ -153,7 +156,7 @@ pub fn erase_pw_eq_at(
         (ENodeView::BVar(i), ENodeView::BVar(j)) => Ok(i == j),
         (ENodeView::FVar(i, t), ENodeView::FVar(j, t2)) => {
             if i == j {
-                erase_pw_eq(st, fuel, &t, &t2)
+                erase_pw_eq(pers, st, fuel, &t, &t2)
             } else {
                 Ok(false)
             }
@@ -163,20 +166,20 @@ pub fn erase_pw_eq_at(
             Ok(n.eq2(&n2) && us.eq2(&us2))
         }
         (ENodeView::App(f, x), ENodeView::App(f2, x2)) => {
-            erase_pw_eq_two(st, fuel, &f, &f2, &x, &x2)
+            erase_pw_eq_two(pers, st, fuel, &f, &f2, &x, &x2)
         }
         (ENodeView::Lam(t, bd, _), ENodeView::Lam(t2, bd2, _)) => {
-            erase_pw_eq_two(st, fuel, &t, &t2, &bd, &bd2)
+            erase_pw_eq_two(pers, st, fuel, &t, &t2, &bd, &bd2)
         }
         (ENodeView::ForallE(t, bd, _), ENodeView::ForallE(t2, bd2, _)) => {
-            erase_pw_eq_two(st, fuel, &t, &t2, &bd, &bd2)
+            erase_pw_eq_two(pers, st, fuel, &t, &t2, &bd, &bd2)
         }
         (ENodeView::LetE(t, v, bd), ENodeView::LetE(t2, v2, bd2)) => {
-            match erase_pw_eq(st, fuel, &t, &t2) {
+            match erase_pw_eq(pers, st, fuel, &t, &t2) {
                 Err(e) => Err(e),
                 Ok(r) => {
                     if r {
-                        erase_pw_eq_two(st, fuel, &v, &v2, &bd, &bd2)
+                        erase_pw_eq_two(pers, st, fuel, &v, &v2, &bd, &bd2)
                     } else {
                         Ok(false)
                     }
@@ -186,7 +189,7 @@ pub fn erase_pw_eq_at(
         (ENodeView::Lit(l), ENodeView::Lit(l2)) => Ok(expr::literal_beq(&l, &l2)),
         (ENodeView::Proj(s, i, e), ENodeView::Proj(s2, i2, e2)) => {
             if s.eq2(&s2) && i == i2 {
-                erase_pw_eq(st, fuel, &e, &e2)
+                erase_pw_eq(pers, st, fuel, &e, &e2)
             } else {
                 Ok(false)
             }
@@ -200,6 +203,7 @@ pub fn erase_pw_eq_at(
 /// `if ← erasePwEq … then erasePwEq … else pure false`, which four of its arms
 /// spell identically (`arena::canon::canon_expr_eq_two`'s reason).
 pub fn erase_pw_eq_two(
+    pers: &PersTier,
     st: &AState,
     fuel: u64,
     a: &EIdx,
@@ -207,11 +211,11 @@ pub fn erase_pw_eq_two(
     b: &EIdx,
     b2: &EIdx,
 ) -> Result<bool, CheckError> {
-    match erase_pw_eq(st, fuel, a, a2) {
+    match erase_pw_eq(pers, st, fuel, a, a2) {
         Err(e) => Err(e),
         Ok(r) => {
             if r {
-                erase_pw_eq(st, fuel, b, b2)
+                erase_pw_eq(pers, st, fuel, b, b2)
             } else {
                 Ok(false)
             }
@@ -227,6 +231,7 @@ pub fn erase_pw_eq_two(
 /// comparison (DESIGN.md §8.3: `denoteN` is injective, so index inequality IS
 /// structural inequality).
 pub fn i_constant_val_matches_pin(
+    pers: &PersTier,
     st: &AState,
     cv: &IConstantVal,
     pin: &IConstantVal,
@@ -234,7 +239,7 @@ pub fn i_constant_val_matches_pin(
     if cv.name.eq2(&pin.name)
         && crate::arena::canon::nidx_vec_beq(&cv.level_params, &pin.level_params, 0)
     {
-        erase_pw_eq(st, CORE_WALK_FUEL, &cv.ty, &pin.ty)
+        erase_pw_eq(pers, st, CORE_WALK_FUEL, &cv.ty, &pin.ty)
     } else {
         Ok(false)
     }
@@ -246,68 +251,68 @@ pub fn i_constant_val_matches_pin(
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:208-210 iffRaw
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:109 iffRaw`.
-pub fn iff_raw(st: &mut AState) -> Result<IConstantInfo, CheckError> {
-    intern_ci(st, &cstd::iff_raw())
+pub fn iff_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
+    intern_ci(pers, st, &cstd::iff_raw())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:212-220 iffIntroRaw
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:111 iffIntroRaw`.
-pub fn iff_intro_raw(st: &mut AState) -> Result<IConstantInfo, CheckError> {
-    intern_ci(st, &cstd::iff_intro_raw())
+pub fn iff_intro_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
+    intern_ci(pers, st, &cstd::iff_intro_raw())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:222-227 iffRecIntro
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:113 iffRecIntro`.
-pub fn iff_rec_intro(st: &mut AState) -> Result<EIdx, CheckError> {
-    intern_expr(st, &cstd::iff_rec_intro())
+pub fn iff_rec_intro(pers: &PersTier, st: &mut AState) -> Result<EIdx, CheckError> {
+    intern_expr(pers, st, &cstd::iff_rec_intro())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:229-239 iffRecRaw
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:115 iffRecRaw`.
-pub fn iff_rec_raw(st: &mut AState) -> Result<IConstantInfo, CheckError> {
-    intern_ci(st, &cstd::iff_rec_raw())
+pub fn iff_rec_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
+    intern_ci(pers, st, &cstd::iff_rec_raw())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:241-243 iffFamily
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:117 iffFamily`.
-pub fn iff_family(st: &mut AState) -> Result<Vec<IConstantInfo>, CheckError> {
-    intern_ci_list(st, &cstd::iff_family())
+pub fn iff_family(pers: &PersTier, st: &mut AState) -> Result<Vec<IConstantInfo>, CheckError> {
+    intern_ci_list(pers, st, &cstd::iff_family())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:245-252 propextRaw
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:119 propextRaw`.
-pub fn propext_raw(st: &mut AState) -> Result<IConstantVal, CheckError> {
-    intern_cv(st, &cstd::propext_raw())
+pub fn propext_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantVal, CheckError> {
+    intern_cv(pers, st, &cstd::propext_raw())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:254-256 nonemptyRaw
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:121 nonemptyRaw`.
-pub fn nonempty_raw(st: &mut AState) -> Result<IConstantInfo, CheckError> {
-    intern_ci(st, &cstd::nonempty_raw())
+pub fn nonempty_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
+    intern_ci(pers, st, &cstd::nonempty_raw())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:258-264 nonemptyIntroRaw
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:123 nonemptyIntroRaw`.
-pub fn nonempty_intro_raw(st: &mut AState) -> Result<IConstantInfo, CheckError> {
-    intern_ci(st, &cstd::nonempty_intro_raw())
+pub fn nonempty_intro_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
+    intern_ci(pers, st, &cstd::nonempty_intro_raw())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:266-278 nonemptyRecRaw
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:125 nonemptyRecRaw`.
-pub fn nonempty_rec_raw(st: &mut AState) -> Result<IConstantInfo, CheckError> {
-    intern_ci(st, &cstd::nonempty_rec_raw())
+pub fn nonempty_rec_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
+    intern_ci(pers, st, &cstd::nonempty_rec_raw())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:280-282 nonemptyFamily
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:127-128 nonemptyFamily`.
-pub fn nonempty_family(st: &mut AState) -> Result<Vec<IConstantInfo>, CheckError> {
-    intern_ci_list(st, &cstd::nonempty_family())
+pub fn nonempty_family(pers: &PersTier, st: &mut AState) -> Result<Vec<IConstantInfo>, CheckError> {
+    intern_ci_list(pers, st, &cstd::nonempty_family())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:284-289 choiceRaw
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:130 choiceRaw`.
-pub fn choice_raw(st: &mut AState) -> Result<IConstantVal, CheckError> {
-    intern_cv(st, &cstd::choice_raw())
+pub fn choice_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantVal, CheckError> {
+    intern_cv(pers, st, &cstd::choice_raw())
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:29-49 _
@@ -315,13 +320,13 @@ pub fn choice_raw(st: &mut AState) -> Result<IConstantVal, CheckError> {
 /// pin, interned.  It is the comparand of every "requires the pinned `Eq`
 /// basis" test in the checker, and the one pin compared by whole-constant
 /// EQUALITY rather than by `matchesPin` (the module note).
-pub fn eq_a(st: &mut AState) -> Result<IConstantInfo, CheckError> {
-    intern_ci(st, &basis_pins::eq_a())
+pub fn eq_a(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
+    intern_ci(pers, st, &basis_pins::eq_a())
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:29-49 _
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:140 natA` — the ANNOTATED
 /// `Nat` pin, interned.
-pub fn nat_a(st: &mut AState) -> Result<IConstantInfo, CheckError> {
-    intern_ci(st, &basis_pins::nat_a())
+pub fn nat_a(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
+    intern_ci(pers, st, &basis_pins::nat_a())
 }

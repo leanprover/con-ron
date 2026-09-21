@@ -102,6 +102,7 @@ use con_ron_core::ron::hashmap::{Dup, Eq2};
 // reads as it did.  `ron::hashmap::HashMap` is still what `crates/con-ron`
 // uses, and is still the one with proofs.
 use con_ron_core::ron::hashmap2::HashMap2 as HashMap;
+use crate::arena::store::PersTier;
 
 // ---------------------------------------------------------------------------
 // The fuel-exhaustion messages, one per walk, as the twin has one per walk
@@ -434,6 +435,7 @@ pub fn fvl_append(x: &Vec<(u64, EIdx)>, y: &Vec<(u64, EIdx)>) -> Vec<(u64, EIdx)
 /// reaches), so past the cutoff a loose `bvar` at or above `d` really is
 /// present and really does move — the test could only ever cost.
 pub fn intern_rebuilt(
+    pers: &PersTier,
     st: &mut AState,
     h: &EIdx,
     same: bool,
@@ -442,7 +444,7 @@ pub fn intern_rebuilt(
     if same {
         Ok(h.dup2())
     } else {
-        intern_e(st, v)
+        intern_e(pers, st, v)
     }
 }
 
@@ -461,6 +463,7 @@ pub fn intern_rebuilt(
 /// `else .bvar i` is `Ok(h.dup2())`: the node is already interned and
 /// `denoteE` is injective, so rebuilding it yields the same handle.
 pub fn instantiate1_go(
+    pers: &PersTier,
     st: &mut AState,
     v: &EIdx,
     fuel: u64,
@@ -470,18 +473,18 @@ pub fn instantiate1_go(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_INST1)))
     } else {
-        let der: u64 = derived_e(st, h);
+        let der: u64 = derived_e(pers, st, h);
         let b: u64 = expr::bvar_of_data(der);
         if b < expr::sat_range() && b <= d {
             Ok(h.dup2())
         } else {
-            match view(st, h) {
+            match view(pers, st, h) {
                 Err(e) => Err(e),
                 Ok(ENodeView::BVar(i)) => {
                     if i == d {
                         Ok(v.dup2())
                     } else if i > d {
-                        intern_e(st, ENodeView::BVar(i - 1))
+                        intern_e(pers, st, ENodeView::BVar(i - 1))
                     } else {
                         Ok(h.dup2())
                     }
@@ -494,11 +497,11 @@ pub fn instantiate1_go(
                     let k: EIdxNat = eidx_nat_key(h, d);
                     match inst1_get(st, &k) {
                         Some(r) => Ok(r),
-                        None => match instantiate1_go(st, v, fuel - 1, &f, d) {
+                        None => match instantiate1_go(pers, st, v, fuel - 1, &f, d) {
                             Err(e) => Err(e),
-                            Ok(f2) => match instantiate1_go(st, v, fuel - 1, &a, d) {
+                            Ok(f2) => match instantiate1_go(pers, st, v, fuel - 1, &a, d) {
                                 Err(e) => Err(e),
-                                Ok(a2) => match intern_e(st, ENodeView::App(f2, a2)) {
+                                Ok(a2) => match intern_e(pers, st, ENodeView::App(f2, a2)) {
                                     Err(e) => Err(e),
                                     Ok(r) => {
                                         inst1_set(st, k, &r);
@@ -513,11 +516,11 @@ pub fn instantiate1_go(
                     let k: EIdxNat = eidx_nat_key(h, d);
                     match inst1_get(st, &k) {
                         Some(r) => Ok(r),
-                        None => match instantiate1_go(st, v, fuel - 1, &ty, d) {
+                        None => match instantiate1_go(pers, st, v, fuel - 1, &ty, d) {
                             Err(e) => Err(e),
-                            Ok(t) => match instantiate1_go(st, v, fuel - 1, &body, d + 1) {
+                            Ok(t) => match instantiate1_go(pers, st, v, fuel - 1, &body, d + 1) {
                                 Err(e) => Err(e),
-                                Ok(b2) => match intern_e(st, ENodeView::Lam(t, b2, m)) {
+                                Ok(b2) => match intern_e(pers, st, ENodeView::Lam(t, b2, m)) {
                                     Err(e) => Err(e),
                                     Ok(r) => {
                                         inst1_set(st, k, &r);
@@ -532,11 +535,11 @@ pub fn instantiate1_go(
                     let k: EIdxNat = eidx_nat_key(h, d);
                     match inst1_get(st, &k) {
                         Some(r) => Ok(r),
-                        None => match instantiate1_go(st, v, fuel - 1, &ty, d) {
+                        None => match instantiate1_go(pers, st, v, fuel - 1, &ty, d) {
                             Err(e) => Err(e),
-                            Ok(t) => match instantiate1_go(st, v, fuel - 1, &body, d + 1) {
+                            Ok(t) => match instantiate1_go(pers, st, v, fuel - 1, &body, d + 1) {
                                 Err(e) => Err(e),
-                                Ok(b2) => match intern_e(st, ENodeView::ForallE(t, b2, m)) {
+                                Ok(b2) => match intern_e(pers, st, ENodeView::ForallE(t, b2, m)) {
                                     Err(e) => Err(e),
                                     Ok(r) => {
                                         inst1_set(st, k, &r);
@@ -551,13 +554,13 @@ pub fn instantiate1_go(
                     let k: EIdxNat = eidx_nat_key(h, d);
                     match inst1_get(st, &k) {
                         Some(r) => Ok(r),
-                        None => match instantiate1_go(st, v, fuel - 1, &ty, d) {
+                        None => match instantiate1_go(pers, st, v, fuel - 1, &ty, d) {
                             Err(e) => Err(e),
-                            Ok(t) => match instantiate1_go(st, v, fuel - 1, &val, d) {
+                            Ok(t) => match instantiate1_go(pers, st, v, fuel - 1, &val, d) {
                                 Err(e) => Err(e),
-                                Ok(w) => match instantiate1_go(st, v, fuel - 1, &body, d + 1) {
+                                Ok(w) => match instantiate1_go(pers, st, v, fuel - 1, &body, d + 1) {
                                     Err(e) => Err(e),
-                                    Ok(b2) => match intern_e(st, ENodeView::LetE(t, w, b2)) {
+                                    Ok(b2) => match intern_e(pers, st, ENodeView::LetE(t, w, b2)) {
                                         Err(e) => Err(e),
                                         Ok(r) => {
                                             inst1_set(st, k, &r);
@@ -573,9 +576,9 @@ pub fn instantiate1_go(
                     let k: EIdxNat = eidx_nat_key(h, d);
                     match inst1_get(st, &k) {
                         Some(r) => Ok(r),
-                        None => match instantiate1_go(st, v, fuel - 1, &sub, d) {
+                        None => match instantiate1_go(pers, st, v, fuel - 1, &sub, d) {
                             Err(e) => Err(e),
-                            Ok(u) => match intern_e(st, ENodeView::Proj(n, i, u)) {
+                            Ok(u) => match intern_e(pers, st, ENodeView::Proj(n, i, u)) {
                                 Err(e) => Err(e),
                                 Ok(r) => {
                                     inst1_set(st, k, &r);
@@ -595,6 +598,7 @@ pub fn instantiate1_go(
 /// top-level entry: `(instantiate1Go v {} e d).1`, i.e. the memo is fresh
 /// before and dropped after, because it depends on the substituted term.
 pub fn instantiate1_fast(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     e: &EIdx,
@@ -602,7 +606,7 @@ pub fn instantiate1_fast(
     d: u64,
 ) -> Result<EIdx, CheckError> {
     inst1_clear(st);
-    match instantiate1_go(st, v, fuel, e, d) {
+    match instantiate1_go(pers, st, v, fuel, e, d) {
         Err(er) => Err(er),
         Ok(r) => {
             inst1_clear(st);
@@ -631,8 +635,8 @@ pub fn instantiate1_fast(
 ///
 /// P2f's gate is what forced it: `tests/e2e/proj_share.ndjson` does not finish
 /// without these two cutoffs, with 18 % of its cycles in `instantiateList`.
-pub fn inst_list_cutoff(st: &AState, h: &EIdx, k: u64) -> bool {
-    let der: u64 = derived_e(st, h);
+pub fn inst_list_cutoff(pers: &PersTier, st: &AState, h: &EIdx, k: u64) -> bool {
+    let der: u64 = derived_e(pers, st, h);
     let b: u64 = expr::bvar_of_data(der);
     b < expr::sat_range() && b <= k
 }
@@ -646,6 +650,7 @@ pub fn inst_list_cutoff(st: &AState, h: &EIdx, k: u64) -> bool {
 /// recurses into the replacement with a *shorter* list and the memo is keyed
 /// for the outer one.
 pub fn instantiate_list(
+    pers: &PersTier,
     st: &mut AState,
     vs: &Vec<EIdx>,
     fuel: u64,
@@ -654,10 +659,10 @@ pub fn instantiate_list(
 ) -> Result<EIdx, CheckError> {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_INST_LIST)))
-    } else if inst_list_cutoff(st, h, d) {
+    } else if inst_list_cutoff(pers, st, h, d) {
         Ok(h.dup2())
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
             Ok(ENodeView::BVar(j)) => {
                 if j < d {
@@ -668,9 +673,9 @@ pub fn instantiate_list(
                         let i: usize = (j - d) as usize;
                         let pre: Vec<EIdx> = take_eidx(vs, i);
                         let vi: EIdx = vs[i].dup2();
-                        instantiate_list(st, &pre, fuel - 1, &vi, d)
+                        instantiate_list(pers, st, &pre, fuel - 1, &vi, d)
                     } else {
-                        intern_e(st, ENodeView::BVar(j - n))
+                        intern_e(pers, st, ENodeView::BVar(j - n))
                     }
                 }
             }
@@ -678,44 +683,44 @@ pub fn instantiate_list(
             Ok(ENodeView::Sort(_)) => Ok(h.dup2()),
             Ok(ENodeView::Const(_, _)) => Ok(h.dup2()),
             Ok(ENodeView::Lit(_)) => Ok(h.dup2()),
-            Ok(ENodeView::App(f, a)) => match instantiate_list(st, vs, fuel - 1, &f, d) {
+            Ok(ENodeView::App(f, a)) => match instantiate_list(pers, st, vs, fuel - 1, &f, d) {
                 Err(e) => Err(e),
-                Ok(f2) => match instantiate_list(st, vs, fuel - 1, &a, d) {
+                Ok(f2) => match instantiate_list(pers, st, vs, fuel - 1, &a, d) {
                     Err(e) => Err(e),
-                    Ok(a2) => intern_e(st, ENodeView::App(f2, a2)),
+                    Ok(a2) => intern_e(pers, st, ENodeView::App(f2, a2)),
                 },
             },
-            Ok(ENodeView::Lam(ty, body, m)) => match instantiate_list(st, vs, fuel - 1, &ty, d) {
+            Ok(ENodeView::Lam(ty, body, m)) => match instantiate_list(pers, st, vs, fuel - 1, &ty, d) {
                 Err(e) => Err(e),
-                Ok(t) => match instantiate_list(st, vs, fuel - 1, &body, d + 1) {
+                Ok(t) => match instantiate_list(pers, st, vs, fuel - 1, &body, d + 1) {
                     Err(e) => Err(e),
-                    Ok(b) => intern_e(st, ENodeView::Lam(t, b, m)),
+                    Ok(b) => intern_e(pers, st, ENodeView::Lam(t, b, m)),
                 },
             },
             Ok(ENodeView::ForallE(ty, body, m)) => {
-                match instantiate_list(st, vs, fuel - 1, &ty, d) {
+                match instantiate_list(pers, st, vs, fuel - 1, &ty, d) {
                     Err(e) => Err(e),
-                    Ok(t) => match instantiate_list(st, vs, fuel - 1, &body, d + 1) {
+                    Ok(t) => match instantiate_list(pers, st, vs, fuel - 1, &body, d + 1) {
                         Err(e) => Err(e),
-                        Ok(b) => intern_e(st, ENodeView::ForallE(t, b, m)),
+                        Ok(b) => intern_e(pers, st, ENodeView::ForallE(t, b, m)),
                     },
                 }
             }
             Ok(ENodeView::LetE(ty, val, body)) => {
-                match instantiate_list(st, vs, fuel - 1, &ty, d) {
+                match instantiate_list(pers, st, vs, fuel - 1, &ty, d) {
                     Err(e) => Err(e),
-                    Ok(t) => match instantiate_list(st, vs, fuel - 1, &val, d) {
+                    Ok(t) => match instantiate_list(pers, st, vs, fuel - 1, &val, d) {
                         Err(e) => Err(e),
-                        Ok(w) => match instantiate_list(st, vs, fuel - 1, &body, d + 1) {
+                        Ok(w) => match instantiate_list(pers, st, vs, fuel - 1, &body, d + 1) {
                             Err(e) => Err(e),
-                            Ok(b) => intern_e(st, ENodeView::LetE(t, w, b)),
+                            Ok(b) => intern_e(pers, st, ENodeView::LetE(t, w, b)),
                         },
                     },
                 }
             }
-            Ok(ENodeView::Proj(n, i, sub)) => match instantiate_list(st, vs, fuel - 1, &sub, d) {
+            Ok(ENodeView::Proj(n, i, sub)) => match instantiate_list(pers, st, vs, fuel - 1, &sub, d) {
                 Err(e) => Err(e),
-                Ok(u) => intern_e(st, ENodeView::Proj(n, i, u)),
+                Ok(u) => intern_e(pers, st, ENodeView::Proj(n, i, u)),
             },
         }
     }
@@ -726,6 +731,7 @@ pub fn instantiate_list(
 /// the memoized bulk instantiation.  The `bvar` arm delegates to the pure walk
 /// above, exactly as con-leche's does.
 pub fn instantiate_list_go(
+    pers: &PersTier,
     st: &mut AState,
     vs: &Vec<EIdx>,
     fuel: u64,
@@ -734,12 +740,12 @@ pub fn instantiate_list_go(
 ) -> Result<EIdx, CheckError> {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_INST_LIST)))
-    } else if inst_list_cutoff(st, h, d) {
+    } else if inst_list_cutoff(pers, st, h, d) {
         Ok(h.dup2())
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::BVar(_)) => instantiate_list(st, vs, fuel - 1, h, d),
+            Ok(ENodeView::BVar(_)) => instantiate_list(pers, st, vs, fuel - 1, h, d),
             Ok(ENodeView::FVar(_, _)) => Ok(h.dup2()),
             Ok(ENodeView::Sort(_)) => Ok(h.dup2()),
             Ok(ENodeView::Const(_, _)) => Ok(h.dup2()),
@@ -748,11 +754,11 @@ pub fn instantiate_list_go(
                 let k: EIdxNat = eidx_nat_key(h, d);
                 match inst_l_get(st, &k) {
                     Some(r) => Ok(r),
-                    None => match instantiate_list_go(st, vs, fuel - 1, &f, d) {
+                    None => match instantiate_list_go(pers, st, vs, fuel - 1, &f, d) {
                         Err(e) => Err(e),
-                        Ok(f2) => match instantiate_list_go(st, vs, fuel - 1, &a, d) {
+                        Ok(f2) => match instantiate_list_go(pers, st, vs, fuel - 1, &a, d) {
                             Err(e) => Err(e),
-                            Ok(a2) => match intern_e(st, ENodeView::App(f2, a2)) {
+                            Ok(a2) => match intern_e(pers, st, ENodeView::App(f2, a2)) {
                                 Err(e) => Err(e),
                                 Ok(r) => {
                                     inst_l_set(st, k, &r);
@@ -767,11 +773,11 @@ pub fn instantiate_list_go(
                 let k: EIdxNat = eidx_nat_key(h, d);
                 match inst_l_get(st, &k) {
                     Some(r) => Ok(r),
-                    None => match instantiate_list_go(st, vs, fuel - 1, &ty, d) {
+                    None => match instantiate_list_go(pers, st, vs, fuel - 1, &ty, d) {
                         Err(e) => Err(e),
-                        Ok(t) => match instantiate_list_go(st, vs, fuel - 1, &body, d + 1) {
+                        Ok(t) => match instantiate_list_go(pers, st, vs, fuel - 1, &body, d + 1) {
                             Err(e) => Err(e),
-                            Ok(b) => match intern_e(st, ENodeView::Lam(t, b, m)) {
+                            Ok(b) => match intern_e(pers, st, ENodeView::Lam(t, b, m)) {
                                 Err(e) => Err(e),
                                 Ok(r) => {
                                     inst_l_set(st, k, &r);
@@ -786,11 +792,11 @@ pub fn instantiate_list_go(
                 let k: EIdxNat = eidx_nat_key(h, d);
                 match inst_l_get(st, &k) {
                     Some(r) => Ok(r),
-                    None => match instantiate_list_go(st, vs, fuel - 1, &ty, d) {
+                    None => match instantiate_list_go(pers, st, vs, fuel - 1, &ty, d) {
                         Err(e) => Err(e),
-                        Ok(t) => match instantiate_list_go(st, vs, fuel - 1, &body, d + 1) {
+                        Ok(t) => match instantiate_list_go(pers, st, vs, fuel - 1, &body, d + 1) {
                             Err(e) => Err(e),
-                            Ok(b) => match intern_e(st, ENodeView::ForallE(t, b, m)) {
+                            Ok(b) => match intern_e(pers, st, ENodeView::ForallE(t, b, m)) {
                                 Err(e) => Err(e),
                                 Ok(r) => {
                                     inst_l_set(st, k, &r);
@@ -805,13 +811,13 @@ pub fn instantiate_list_go(
                 let k: EIdxNat = eidx_nat_key(h, d);
                 match inst_l_get(st, &k) {
                     Some(r) => Ok(r),
-                    None => match instantiate_list_go(st, vs, fuel - 1, &ty, d) {
+                    None => match instantiate_list_go(pers, st, vs, fuel - 1, &ty, d) {
                         Err(e) => Err(e),
-                        Ok(t) => match instantiate_list_go(st, vs, fuel - 1, &val, d) {
+                        Ok(t) => match instantiate_list_go(pers, st, vs, fuel - 1, &val, d) {
                             Err(e) => Err(e),
-                            Ok(w) => match instantiate_list_go(st, vs, fuel - 1, &body, d + 1) {
+                            Ok(w) => match instantiate_list_go(pers, st, vs, fuel - 1, &body, d + 1) {
                                 Err(e) => Err(e),
-                                Ok(b) => match intern_e(st, ENodeView::LetE(t, w, b)) {
+                                Ok(b) => match intern_e(pers, st, ENodeView::LetE(t, w, b)) {
                                     Err(e) => Err(e),
                                     Ok(r) => {
                                         inst_l_set(st, k, &r);
@@ -827,9 +833,9 @@ pub fn instantiate_list_go(
                 let k: EIdxNat = eidx_nat_key(h, d);
                 match inst_l_get(st, &k) {
                     Some(r) => Ok(r),
-                    None => match instantiate_list_go(st, vs, fuel - 1, &sub, d) {
+                    None => match instantiate_list_go(pers, st, vs, fuel - 1, &sub, d) {
                         Err(e) => Err(e),
-                        Ok(u) => match intern_e(st, ENodeView::Proj(n, i, u)) {
+                        Ok(u) => match intern_e(pers, st, ENodeView::Proj(n, i, u)) {
                             Err(e) => Err(e),
                             Ok(r) => {
                                 inst_l_set(st, k, &r);
@@ -847,6 +853,7 @@ pub fn instantiate_list_go(
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:273-278 instantiateListFast` —
 /// the top-level entry.
 pub fn instantiate_list_fast(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     e: &EIdx,
@@ -854,7 +861,7 @@ pub fn instantiate_list_fast(
     d: u64,
 ) -> Result<EIdx, CheckError> {
     inst_l_clear(st);
-    match instantiate_list_go(st, vs, fuel, e, d) {
+    match instantiate_list_go(pers, st, vs, fuel, e, d) {
         Err(er) => Err(er),
         Ok(r) => {
             inst_l_clear(st);
@@ -872,6 +879,7 @@ pub fn instantiate_list_fast(
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:285-338 liftLooseBVarsGo` —
 /// bump every loose bound variable `>= cutoff` by `amount`.
 pub fn lift_loose_bvars_go(
+    pers: &PersTier,
     st: &mut AState,
     amount: u64,
     fuel: u64,
@@ -880,14 +888,14 @@ pub fn lift_loose_bvars_go(
 ) -> Result<EIdx, CheckError> {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_LIFT)))
-    } else if inst_list_cutoff(st, h, c) {
+    } else if inst_list_cutoff(pers, st, h, c) {
         Ok(h.dup2())
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
             Ok(ENodeView::BVar(i)) => {
                 if i >= c {
-                    intern_e(st, ENodeView::BVar(i + amount))
+                    intern_e(pers, st, ENodeView::BVar(i + amount))
                 } else {
                     Ok(h.dup2())
                 }
@@ -900,11 +908,11 @@ pub fn lift_loose_bvars_go(
                 let k: EIdxNat = eidx_nat_key(h, c);
                 match lift_get(st, &k) {
                     Some(r) => Ok(r),
-                    None => match lift_loose_bvars_go(st, amount, fuel - 1, &a, c) {
+                    None => match lift_loose_bvars_go(pers, st, amount, fuel - 1, &a, c) {
                         Err(e) => Err(e),
-                        Ok(a2) => match lift_loose_bvars_go(st, amount, fuel - 1, &b, c) {
+                        Ok(a2) => match lift_loose_bvars_go(pers, st, amount, fuel - 1, &b, c) {
                             Err(e) => Err(e),
-                            Ok(b2) => match intern_e(st, ENodeView::App(a2, b2)) {
+                            Ok(b2) => match intern_e(pers, st, ENodeView::App(a2, b2)) {
                                 Err(e) => Err(e),
                                 Ok(r) => {
                                     lift_set(st, k, &r);
@@ -919,11 +927,11 @@ pub fn lift_loose_bvars_go(
                 let k: EIdxNat = eidx_nat_key(h, c);
                 match lift_get(st, &k) {
                     Some(r) => Ok(r),
-                    None => match lift_loose_bvars_go(st, amount, fuel - 1, &ty, c) {
+                    None => match lift_loose_bvars_go(pers, st, amount, fuel - 1, &ty, c) {
                         Err(e) => Err(e),
-                        Ok(t) => match lift_loose_bvars_go(st, amount, fuel - 1, &body, c + 1) {
+                        Ok(t) => match lift_loose_bvars_go(pers, st, amount, fuel - 1, &body, c + 1) {
                             Err(e) => Err(e),
-                            Ok(b) => match intern_e(st, ENodeView::Lam(t, b, m)) {
+                            Ok(b) => match intern_e(pers, st, ENodeView::Lam(t, b, m)) {
                                 Err(e) => Err(e),
                                 Ok(r) => {
                                     lift_set(st, k, &r);
@@ -938,11 +946,11 @@ pub fn lift_loose_bvars_go(
                 let k: EIdxNat = eidx_nat_key(h, c);
                 match lift_get(st, &k) {
                     Some(r) => Ok(r),
-                    None => match lift_loose_bvars_go(st, amount, fuel - 1, &ty, c) {
+                    None => match lift_loose_bvars_go(pers, st, amount, fuel - 1, &ty, c) {
                         Err(e) => Err(e),
-                        Ok(t) => match lift_loose_bvars_go(st, amount, fuel - 1, &body, c + 1) {
+                        Ok(t) => match lift_loose_bvars_go(pers, st, amount, fuel - 1, &body, c + 1) {
                             Err(e) => Err(e),
-                            Ok(b) => match intern_e(st, ENodeView::ForallE(t, b, m)) {
+                            Ok(b) => match intern_e(pers, st, ENodeView::ForallE(t, b, m)) {
                                 Err(e) => Err(e),
                                 Ok(r) => {
                                     lift_set(st, k, &r);
@@ -957,14 +965,14 @@ pub fn lift_loose_bvars_go(
                 let k: EIdxNat = eidx_nat_key(h, c);
                 match lift_get(st, &k) {
                     Some(r) => Ok(r),
-                    None => match lift_loose_bvars_go(st, amount, fuel - 1, &ty, c) {
+                    None => match lift_loose_bvars_go(pers, st, amount, fuel - 1, &ty, c) {
                         Err(e) => Err(e),
-                        Ok(t) => match lift_loose_bvars_go(st, amount, fuel - 1, &val, c) {
+                        Ok(t) => match lift_loose_bvars_go(pers, st, amount, fuel - 1, &val, c) {
                             Err(e) => Err(e),
                             Ok(w) => {
-                                match lift_loose_bvars_go(st, amount, fuel - 1, &body, c + 1) {
+                                match lift_loose_bvars_go(pers, st, amount, fuel - 1, &body, c + 1) {
                                     Err(e) => Err(e),
-                                    Ok(b) => match intern_e(st, ENodeView::LetE(t, w, b)) {
+                                    Ok(b) => match intern_e(pers, st, ENodeView::LetE(t, w, b)) {
                                         Err(e) => Err(e),
                                         Ok(r) => {
                                             lift_set(st, k, &r);
@@ -981,9 +989,9 @@ pub fn lift_loose_bvars_go(
                 let k: EIdxNat = eidx_nat_key(h, c);
                 match lift_get(st, &k) {
                     Some(r) => Ok(r),
-                    None => match lift_loose_bvars_go(st, amount, fuel - 1, &sub, c) {
+                    None => match lift_loose_bvars_go(pers, st, amount, fuel - 1, &sub, c) {
                         Err(e) => Err(e),
-                        Ok(u) => match intern_e(st, ENodeView::Proj(n, i, u)) {
+                        Ok(u) => match intern_e(pers, st, ENodeView::Proj(n, i, u)) {
                             Err(e) => Err(e),
                             Ok(r) => {
                                 lift_set(st, k, &r);
@@ -1001,6 +1009,7 @@ pub fn lift_loose_bvars_go(
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:342-346 liftLooseBVarsFast` —
 /// the top-level entry.
 pub fn lift_loose_bvars_fast(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     amount: u64,
@@ -1008,7 +1017,7 @@ pub fn lift_loose_bvars_fast(
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
     lift_clear(st);
-    match lift_loose_bvars_go(st, amount, fuel, e, c) {
+    match lift_loose_bvars_go(pers, st, amount, fuel, e, c) {
         Err(er) => Err(er),
         Ok(r) => {
             lift_clear(st);
@@ -1029,11 +1038,16 @@ pub fn lift_loose_bvars_fast(
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:357-417 resetMetaGo` — reset
 /// every binder's prop-ness datum to the parse placeholder; the `fvar`
 /// annotation is descended into.
-pub fn reset_meta_go(st: &mut AState, fuel: u64, h: &EIdx) -> Result<EIdx, CheckError> {
+pub fn reset_meta_go(
+    pers: &PersTier,
+    st: &mut AState,
+    fuel: u64,
+    h: &EIdx,
+) -> Result<EIdx, CheckError>  {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_RESET)))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
             Ok(ENodeView::BVar(_)) => Ok(h.dup2()),
             Ok(ENodeView::Sort(_)) => Ok(h.dup2()),
@@ -1043,11 +1057,11 @@ pub fn reset_meta_go(st: &mut AState, fuel: u64, h: &EIdx) -> Result<EIdx, Check
                 let k: EIdxNat = eidx_nat_key(h, 0);
                 match reset_get(st, &k) {
                     Some(r) => Ok(r),
-                    None => match reset_meta_go(st, fuel - 1, &ty) {
+                    None => match reset_meta_go(pers, st, fuel - 1, &ty) {
                         Err(e) => Err(e),
                         Ok(t) => {
                             let same: bool = t.eq2(&ty);
-                            match intern_rebuilt(st, h, same, ENodeView::FVar(i, t)) {
+                            match intern_rebuilt(pers, st, h, same, ENodeView::FVar(i, t)) {
                                 Err(e) => Err(e),
                                 Ok(r) => {
                                     reset_set(st, k, &r);
@@ -1062,13 +1076,13 @@ pub fn reset_meta_go(st: &mut AState, fuel: u64, h: &EIdx) -> Result<EIdx, Check
                 let k: EIdxNat = eidx_nat_key(h, 0);
                 match reset_get(st, &k) {
                     Some(r) => Ok(r),
-                    None => match reset_meta_go(st, fuel - 1, &f) {
+                    None => match reset_meta_go(pers, st, fuel - 1, &f) {
                         Err(e) => Err(e),
-                        Ok(f2) => match reset_meta_go(st, fuel - 1, &a) {
+                        Ok(f2) => match reset_meta_go(pers, st, fuel - 1, &a) {
                             Err(e) => Err(e),
                             Ok(a2) => {
                                 let same: bool = f2.eq2(&f) && a2.eq2(&a);
-                                match intern_rebuilt(st, h, same, ENodeView::App(f2, a2)) {
+                                match intern_rebuilt(pers, st, h, same, ENodeView::App(f2, a2)) {
                                     Err(e) => Err(e),
                                     Ok(r) => {
                                         reset_set(st, k, &r);
@@ -1084,16 +1098,16 @@ pub fn reset_meta_go(st: &mut AState, fuel: u64, h: &EIdx) -> Result<EIdx, Check
                 let k: EIdxNat = eidx_nat_key(h, 0);
                 match reset_get(st, &k) {
                     Some(r) => Ok(r),
-                    None => match reset_meta_go(st, fuel - 1, &ty) {
+                    None => match reset_meta_go(pers, st, fuel - 1, &ty) {
                         Err(e) => Err(e),
-                        Ok(t) => match reset_meta_go(st, fuel - 1, &body) {
+                        Ok(t) => match reset_meta_go(pers, st, fuel - 1, &body) {
                             Err(e) => Err(e),
                             Ok(b2) => {
                                 let m2: BinderMeta = expr::binder_meta(prop_when::never());
                                 let same: bool = t.eq2(&ty)
                                     && b2.eq2(&body)
                                     && expr::binder_meta_beq(&m2, &m0);
-                                match intern_rebuilt(st, h, same, ENodeView::Lam(t, b2, m2)) {
+                                match intern_rebuilt(pers, st, h, same, ENodeView::Lam(t, b2, m2)) {
                                     Err(e) => Err(e),
                                     Ok(r) => {
                                         reset_set(st, k, &r);
@@ -1109,16 +1123,16 @@ pub fn reset_meta_go(st: &mut AState, fuel: u64, h: &EIdx) -> Result<EIdx, Check
                 let k: EIdxNat = eidx_nat_key(h, 0);
                 match reset_get(st, &k) {
                     Some(r) => Ok(r),
-                    None => match reset_meta_go(st, fuel - 1, &ty) {
+                    None => match reset_meta_go(pers, st, fuel - 1, &ty) {
                         Err(e) => Err(e),
-                        Ok(t) => match reset_meta_go(st, fuel - 1, &body) {
+                        Ok(t) => match reset_meta_go(pers, st, fuel - 1, &body) {
                             Err(e) => Err(e),
                             Ok(b2) => {
                                 let m2: BinderMeta = expr::binder_meta(prop_when::never());
                                 let same: bool = t.eq2(&ty)
                                     && b2.eq2(&body)
                                     && expr::binder_meta_beq(&m2, &m0);
-                                match intern_rebuilt(st, h, same, ENodeView::ForallE(t, b2, m2)) {
+                                match intern_rebuilt(pers, st, h, same, ENodeView::ForallE(t, b2, m2)) {
                                     Err(e) => Err(e),
                                     Ok(r) => {
                                         reset_set(st, k, &r);
@@ -1134,16 +1148,17 @@ pub fn reset_meta_go(st: &mut AState, fuel: u64, h: &EIdx) -> Result<EIdx, Check
                 let k: EIdxNat = eidx_nat_key(h, 0);
                 match reset_get(st, &k) {
                     Some(r) => Ok(r),
-                    None => match reset_meta_go(st, fuel - 1, &ty) {
+                    None => match reset_meta_go(pers, st, fuel - 1, &ty) {
                         Err(e) => Err(e),
-                        Ok(t) => match reset_meta_go(st, fuel - 1, &val) {
+                        Ok(t) => match reset_meta_go(pers, st, fuel - 1, &val) {
                             Err(e) => Err(e),
-                            Ok(w) => match reset_meta_go(st, fuel - 1, &body) {
+                            Ok(w) => match reset_meta_go(pers, st, fuel - 1, &body) {
                                 Err(e) => Err(e),
                                 Ok(b2) => {
                                     let same: bool =
                                         t.eq2(&ty) && w.eq2(&val) && b2.eq2(&body);
                                     match intern_rebuilt(
+                                        pers,
                                         st,
                                         h,
                                         same,
@@ -1165,11 +1180,11 @@ pub fn reset_meta_go(st: &mut AState, fuel: u64, h: &EIdx) -> Result<EIdx, Check
                 let k: EIdxNat = eidx_nat_key(h, 0);
                 match reset_get(st, &k) {
                     Some(r) => Ok(r),
-                    None => match reset_meta_go(st, fuel - 1, &sub) {
+                    None => match reset_meta_go(pers, st, fuel - 1, &sub) {
                         Err(e) => Err(e),
                         Ok(u) => {
                             let same: bool = u.eq2(&sub);
-                            match intern_rebuilt(st, h, same, ENodeView::Proj(n, i, u)) {
+                            match intern_rebuilt(pers, st, h, same, ENodeView::Proj(n, i, u)) {
                                 Err(e) => Err(e),
                                 Ok(r) => {
                                     reset_set(st, k, &r);
@@ -1187,9 +1202,14 @@ pub fn reset_meta_go(st: &mut AState, fuel: u64, h: &EIdx) -> Result<EIdx, Check
 /// con-leche: ConLeche/Kernel/ExprOps.lean:687-688 resetMetaFast
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:421-425 resetMetaFast` — the
 /// top-level entry.
-pub fn reset_meta_fast(st: &mut AState, fuel: u64, e: &EIdx) -> Result<EIdx, CheckError> {
+pub fn reset_meta_fast(
+    pers: &PersTier,
+    st: &mut AState,
+    fuel: u64,
+    e: &EIdx,
+) -> Result<EIdx, CheckError>  {
     reset_clear(st);
-    match reset_meta_go(st, fuel, e) {
+    match reset_meta_go(pers, st, fuel, e) {
         Err(er) => Err(er),
         Ok(r) => {
             reset_clear(st);
@@ -1206,49 +1226,49 @@ pub fn reset_meta_fast(st: &mut AState, fuel: u64, e: &EIdx) -> Result<EIdx, Che
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:432-452 sizeB` — node count
 /// with `fvar` a leaf (its annotated type ignored): the termination measure
 /// for recursion into instantiated binder bodies.
-pub fn size_b(st: &AState, fuel: u64, h: &EIdx) -> Result<u64, CheckError> {
+pub fn size_b(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<u64, CheckError> {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_SIZE_B)))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
             Ok(ENodeView::BVar(_)) => Ok(1),
             Ok(ENodeView::FVar(_, _)) => Ok(1),
             Ok(ENodeView::Sort(_)) => Ok(1),
             Ok(ENodeView::Const(_, _)) => Ok(1),
             Ok(ENodeView::Lit(_)) => Ok(1),
-            Ok(ENodeView::App(f, a)) => match size_b(st, fuel - 1, &f) {
+            Ok(ENodeView::App(f, a)) => match size_b(pers, st, fuel - 1, &f) {
                 Err(e) => Err(e),
-                Ok(x) => match size_b(st, fuel - 1, &a) {
+                Ok(x) => match size_b(pers, st, fuel - 1, &a) {
                     Err(e) => Err(e),
                     Ok(y) => Ok(x + y + 1),
                 },
             },
-            Ok(ENodeView::Lam(ty, body, _)) => match size_b(st, fuel - 1, &ty) {
+            Ok(ENodeView::Lam(ty, body, _)) => match size_b(pers, st, fuel - 1, &ty) {
                 Err(e) => Err(e),
-                Ok(x) => match size_b(st, fuel - 1, &body) {
+                Ok(x) => match size_b(pers, st, fuel - 1, &body) {
                     Err(e) => Err(e),
                     Ok(y) => Ok(x + y + 1),
                 },
             },
-            Ok(ENodeView::ForallE(ty, body, _)) => match size_b(st, fuel - 1, &ty) {
+            Ok(ENodeView::ForallE(ty, body, _)) => match size_b(pers, st, fuel - 1, &ty) {
                 Err(e) => Err(e),
-                Ok(x) => match size_b(st, fuel - 1, &body) {
+                Ok(x) => match size_b(pers, st, fuel - 1, &body) {
                     Err(e) => Err(e),
                     Ok(y) => Ok(x + y + 1),
                 },
             },
-            Ok(ENodeView::LetE(ty, val, body)) => match size_b(st, fuel - 1, &ty) {
+            Ok(ENodeView::LetE(ty, val, body)) => match size_b(pers, st, fuel - 1, &ty) {
                 Err(e) => Err(e),
-                Ok(x) => match size_b(st, fuel - 1, &val) {
+                Ok(x) => match size_b(pers, st, fuel - 1, &val) {
                     Err(e) => Err(e),
-                    Ok(y) => match size_b(st, fuel - 1, &body) {
+                    Ok(y) => match size_b(pers, st, fuel - 1, &body) {
                         Err(e) => Err(e),
                         Ok(z) => Ok(x + y + z + 1),
                     },
                 },
             },
-            Ok(ENodeView::Proj(_, _, sub)) => match size_b(st, fuel - 1, &sub) {
+            Ok(ENodeView::Proj(_, _, sub)) => match size_b(pers, st, fuel - 1, &sub) {
                 Err(e) => Err(e),
                 Ok(x) => Ok(x + 1),
             },
@@ -1261,6 +1281,7 @@ pub fn size_b(st: &AState, fuel: u64, h: &EIdx) -> Result<u64, CheckError> {
 /// abstraction: close `k` binders in one traversal.  Unmemoized in con-leche,
 /// in the twin and here.
 pub fn abstract_range(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     h: &EIdx,
@@ -1271,12 +1292,12 @@ pub fn abstract_range(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_ABS_RANGE)))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
             Ok(ENodeView::BVar(_)) => Ok(h.dup2()),
             Ok(ENodeView::FVar(idx, _)) => {
                 if d <= idx && idx < d + k {
-                    intern_e(st, ENodeView::BVar(c + (d + k - 1 - idx)))
+                    intern_e(pers, st, ENodeView::BVar(c + (d + k - 1 - idx)))
                 } else {
                     Ok(h.dup2())
                 }
@@ -1284,42 +1305,42 @@ pub fn abstract_range(
             Ok(ENodeView::Sort(_)) => Ok(h.dup2()),
             Ok(ENodeView::Const(_, _)) => Ok(h.dup2()),
             Ok(ENodeView::Lit(_)) => Ok(h.dup2()),
-            Ok(ENodeView::App(f, a)) => match abstract_range(st, fuel - 1, &f, d, k, c) {
+            Ok(ENodeView::App(f, a)) => match abstract_range(pers, st, fuel - 1, &f, d, k, c) {
                 Err(e) => Err(e),
-                Ok(f2) => match abstract_range(st, fuel - 1, &a, d, k, c) {
+                Ok(f2) => match abstract_range(pers, st, fuel - 1, &a, d, k, c) {
                     Err(e) => Err(e),
-                    Ok(a2) => intern_e(st, ENodeView::App(f2, a2)),
+                    Ok(a2) => intern_e(pers, st, ENodeView::App(f2, a2)),
                 },
             },
-            Ok(ENodeView::Lam(ty, body, m)) => match abstract_range(st, fuel - 1, &ty, d, k, c) {
+            Ok(ENodeView::Lam(ty, body, m)) => match abstract_range(pers, st, fuel - 1, &ty, d, k, c) {
                 Err(e) => Err(e),
-                Ok(t) => match abstract_range(st, fuel - 1, &body, d, k, c + 1) {
+                Ok(t) => match abstract_range(pers, st, fuel - 1, &body, d, k, c + 1) {
                     Err(e) => Err(e),
-                    Ok(b) => intern_e(st, ENodeView::Lam(t, b, m)),
+                    Ok(b) => intern_e(pers, st, ENodeView::Lam(t, b, m)),
                 },
             },
             Ok(ENodeView::ForallE(ty, body, m)) => {
-                match abstract_range(st, fuel - 1, &ty, d, k, c) {
+                match abstract_range(pers, st, fuel - 1, &ty, d, k, c) {
                     Err(e) => Err(e),
-                    Ok(t) => match abstract_range(st, fuel - 1, &body, d, k, c + 1) {
+                    Ok(t) => match abstract_range(pers, st, fuel - 1, &body, d, k, c + 1) {
                         Err(e) => Err(e),
-                        Ok(b) => intern_e(st, ENodeView::ForallE(t, b, m)),
+                        Ok(b) => intern_e(pers, st, ENodeView::ForallE(t, b, m)),
                     },
                 }
             }
-            Ok(ENodeView::LetE(ty, val, body)) => match abstract_range(st, fuel - 1, &ty, d, k, c) {
+            Ok(ENodeView::LetE(ty, val, body)) => match abstract_range(pers, st, fuel - 1, &ty, d, k, c) {
                 Err(e) => Err(e),
-                Ok(t) => match abstract_range(st, fuel - 1, &val, d, k, c) {
+                Ok(t) => match abstract_range(pers, st, fuel - 1, &val, d, k, c) {
                     Err(e) => Err(e),
-                    Ok(w) => match abstract_range(st, fuel - 1, &body, d, k, c + 1) {
+                    Ok(w) => match abstract_range(pers, st, fuel - 1, &body, d, k, c + 1) {
                         Err(e) => Err(e),
-                        Ok(b) => intern_e(st, ENodeView::LetE(t, w, b)),
+                        Ok(b) => intern_e(pers, st, ENodeView::LetE(t, w, b)),
                     },
                 },
             },
-            Ok(ENodeView::Proj(n, i, sub)) => match abstract_range(st, fuel - 1, &sub, d, k, c) {
+            Ok(ENodeView::Proj(n, i, sub)) => match abstract_range(pers, st, fuel - 1, &sub, d, k, c) {
                 Err(e) => Err(e),
-                Ok(u) => intern_e(st, ENodeView::Proj(n, i, u)),
+                Ok(u) => intern_e(pers, st, ENodeView::Proj(n, i, u)),
             },
         }
     }
@@ -1328,52 +1349,52 @@ pub fn abstract_range(
 /// con-leche: ConLeche/Kernel/ExprOps.lean:810-819 sizeF
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:491-514 sizeF` — full node
 /// count, `fvar` annotations included.
-pub fn size_f(st: &AState, fuel: u64, h: &EIdx) -> Result<u64, CheckError> {
+pub fn size_f(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<u64, CheckError> {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_SIZE_F)))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
             Ok(ENodeView::BVar(_)) => Ok(1),
             Ok(ENodeView::Sort(_)) => Ok(1),
             Ok(ENodeView::Const(_, _)) => Ok(1),
             Ok(ENodeView::Lit(_)) => Ok(1),
-            Ok(ENodeView::FVar(_, ty)) => match size_f(st, fuel - 1, &ty) {
+            Ok(ENodeView::FVar(_, ty)) => match size_f(pers, st, fuel - 1, &ty) {
                 Err(e) => Err(e),
                 Ok(x) => Ok(x + 1),
             },
-            Ok(ENodeView::App(f, a)) => match size_f(st, fuel - 1, &f) {
+            Ok(ENodeView::App(f, a)) => match size_f(pers, st, fuel - 1, &f) {
                 Err(e) => Err(e),
-                Ok(x) => match size_f(st, fuel - 1, &a) {
+                Ok(x) => match size_f(pers, st, fuel - 1, &a) {
                     Err(e) => Err(e),
                     Ok(y) => Ok(x + y + 1),
                 },
             },
-            Ok(ENodeView::Lam(ty, body, _)) => match size_f(st, fuel - 1, &ty) {
+            Ok(ENodeView::Lam(ty, body, _)) => match size_f(pers, st, fuel - 1, &ty) {
                 Err(e) => Err(e),
-                Ok(x) => match size_f(st, fuel - 1, &body) {
+                Ok(x) => match size_f(pers, st, fuel - 1, &body) {
                     Err(e) => Err(e),
                     Ok(y) => Ok(x + y + 1),
                 },
             },
-            Ok(ENodeView::ForallE(ty, body, _)) => match size_f(st, fuel - 1, &ty) {
+            Ok(ENodeView::ForallE(ty, body, _)) => match size_f(pers, st, fuel - 1, &ty) {
                 Err(e) => Err(e),
-                Ok(x) => match size_f(st, fuel - 1, &body) {
+                Ok(x) => match size_f(pers, st, fuel - 1, &body) {
                     Err(e) => Err(e),
                     Ok(y) => Ok(x + y + 1),
                 },
             },
-            Ok(ENodeView::LetE(ty, val, body)) => match size_f(st, fuel - 1, &ty) {
+            Ok(ENodeView::LetE(ty, val, body)) => match size_f(pers, st, fuel - 1, &ty) {
                 Err(e) => Err(e),
-                Ok(x) => match size_f(st, fuel - 1, &val) {
+                Ok(x) => match size_f(pers, st, fuel - 1, &val) {
                     Err(e) => Err(e),
-                    Ok(y) => match size_f(st, fuel - 1, &body) {
+                    Ok(y) => match size_f(pers, st, fuel - 1, &body) {
                         Err(e) => Err(e),
                         Ok(z) => Ok(x + y + z + 1),
                     },
                 },
             },
-            Ok(ENodeView::Proj(_, _, sub)) => match size_f(st, fuel - 1, &sub) {
+            Ok(ENodeView::Proj(_, _, sub)) => match size_f(pers, st, fuel - 1, &sub) {
                 Err(e) => Err(e),
                 Ok(x) => Ok(x + 1),
             },
@@ -1386,6 +1407,7 @@ pub fn size_f(st: &AState, fuel: u64, h: &EIdx) -> Result<u64, CheckError> {
 /// reachable `fvar` leaves, hereditarily through their annotations.  Lean's
 /// `::` and `++` are the copying combinators above.
 pub fn fvar_leaves(
+    pers: &PersTier,
     st: &AState,
     fuel: u64,
     h: &EIdx,
@@ -1393,9 +1415,9 @@ pub fn fvar_leaves(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_FVAR_LEAVES)))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::FVar(idx, ty)) => match fvar_leaves(st, fuel - 1, &ty) {
+            Ok(ENodeView::FVar(idx, ty)) => match fvar_leaves(pers, st, fuel - 1, &ty) {
                 Err(e) => Err(e),
                 Ok(rest) => {
                     let mut out: Vec<(u64, EIdx)> = Vec::new();
@@ -1403,38 +1425,38 @@ pub fn fvar_leaves(
                     Ok(fvl_copy_from(&rest, 0, out))
                 }
             },
-            Ok(ENodeView::App(f, a)) => match fvar_leaves(st, fuel - 1, &f) {
+            Ok(ENodeView::App(f, a)) => match fvar_leaves(pers, st, fuel - 1, &f) {
                 Err(e) => Err(e),
-                Ok(x) => match fvar_leaves(st, fuel - 1, &a) {
+                Ok(x) => match fvar_leaves(pers, st, fuel - 1, &a) {
                     Err(e) => Err(e),
                     Ok(y) => Ok(fvl_append(&x, &y)),
                 },
             },
-            Ok(ENodeView::Lam(ty, b, _)) => match fvar_leaves(st, fuel - 1, &ty) {
+            Ok(ENodeView::Lam(ty, b, _)) => match fvar_leaves(pers, st, fuel - 1, &ty) {
                 Err(e) => Err(e),
-                Ok(x) => match fvar_leaves(st, fuel - 1, &b) {
+                Ok(x) => match fvar_leaves(pers, st, fuel - 1, &b) {
                     Err(e) => Err(e),
                     Ok(y) => Ok(fvl_append(&x, &y)),
                 },
             },
-            Ok(ENodeView::ForallE(ty, b, _)) => match fvar_leaves(st, fuel - 1, &ty) {
+            Ok(ENodeView::ForallE(ty, b, _)) => match fvar_leaves(pers, st, fuel - 1, &ty) {
                 Err(e) => Err(e),
-                Ok(x) => match fvar_leaves(st, fuel - 1, &b) {
+                Ok(x) => match fvar_leaves(pers, st, fuel - 1, &b) {
                     Err(e) => Err(e),
                     Ok(y) => Ok(fvl_append(&x, &y)),
                 },
             },
-            Ok(ENodeView::LetE(t, v, b)) => match fvar_leaves(st, fuel - 1, &t) {
+            Ok(ENodeView::LetE(t, v, b)) => match fvar_leaves(pers, st, fuel - 1, &t) {
                 Err(e) => Err(e),
-                Ok(x) => match fvar_leaves(st, fuel - 1, &v) {
+                Ok(x) => match fvar_leaves(pers, st, fuel - 1, &v) {
                     Err(e) => Err(e),
-                    Ok(y) => match fvar_leaves(st, fuel - 1, &b) {
+                    Ok(y) => match fvar_leaves(pers, st, fuel - 1, &b) {
                         Err(e) => Err(e),
                         Ok(z) => Ok(fvl_append(&fvl_append(&x, &y), &z)),
                     },
                 },
             },
-            Ok(ENodeView::Proj(_, _, sub)) => fvar_leaves(st, fuel - 1, &sub),
+            Ok(ENodeView::Proj(_, _, sub)) => fvar_leaves(pers, st, fuel - 1, &sub),
             Ok(ENodeView::BVar(_)) => Ok(Vec::new()),
             Ok(ENodeView::Sort(_)) => Ok(Vec::new()),
             Ok(ENodeView::Const(_, _)) => Ok(Vec::new()),
@@ -1448,58 +1470,64 @@ pub fn fvar_leaves(
 /// check: every reachable `fvar` index is below `d`, hereditarily through
 /// annotations.  con-leche's `&&` is short-circuiting, and so is the explicit
 /// `if` chain here.
-pub fn wscoped_b(st: &AState, fuel: u64, d: u64, h: &EIdx) -> Result<bool, CheckError> {
+pub fn wscoped_b(
+    pers: &PersTier,
+    st: &AState,
+    fuel: u64,
+    d: u64,
+    h: &EIdx,
+) -> Result<bool, CheckError>  {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_WSCOPED)))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
             Ok(ENodeView::FVar(idx, ty)) => {
                 if idx < d {
-                    wscoped_b(st, fuel - 1, idx, &ty)
+                    wscoped_b(pers, st, fuel - 1, idx, &ty)
                 } else {
                     Ok(false)
                 }
             }
-            Ok(ENodeView::App(f, a)) => match wscoped_b(st, fuel - 1, d, &f) {
+            Ok(ENodeView::App(f, a)) => match wscoped_b(pers, st, fuel - 1, d, &f) {
                 Err(e) => Err(e),
                 Ok(x) => {
                     if x {
-                        wscoped_b(st, fuel - 1, d, &a)
+                        wscoped_b(pers, st, fuel - 1, d, &a)
                     } else {
                         Ok(false)
                     }
                 }
             },
-            Ok(ENodeView::Lam(ty, body, _)) => match wscoped_b(st, fuel - 1, d, &ty) {
+            Ok(ENodeView::Lam(ty, body, _)) => match wscoped_b(pers, st, fuel - 1, d, &ty) {
                 Err(e) => Err(e),
                 Ok(x) => {
                     if x {
-                        wscoped_b(st, fuel - 1, d, &body)
+                        wscoped_b(pers, st, fuel - 1, d, &body)
                     } else {
                         Ok(false)
                     }
                 }
             },
-            Ok(ENodeView::ForallE(ty, body, _)) => match wscoped_b(st, fuel - 1, d, &ty) {
+            Ok(ENodeView::ForallE(ty, body, _)) => match wscoped_b(pers, st, fuel - 1, d, &ty) {
                 Err(e) => Err(e),
                 Ok(x) => {
                     if x {
-                        wscoped_b(st, fuel - 1, d, &body)
+                        wscoped_b(pers, st, fuel - 1, d, &body)
                     } else {
                         Ok(false)
                     }
                 }
             },
-            Ok(ENodeView::LetE(ty, val, body)) => match wscoped_b(st, fuel - 1, d, &ty) {
+            Ok(ENodeView::LetE(ty, val, body)) => match wscoped_b(pers, st, fuel - 1, d, &ty) {
                 Err(e) => Err(e),
                 Ok(x) => {
                     if x {
-                        match wscoped_b(st, fuel - 1, d, &val) {
+                        match wscoped_b(pers, st, fuel - 1, d, &val) {
                             Err(e) => Err(e),
                             Ok(y) => {
                                 if y {
-                                    wscoped_b(st, fuel - 1, d, &body)
+                                    wscoped_b(pers, st, fuel - 1, d, &body)
                                 } else {
                                     Ok(false)
                                 }
@@ -1510,7 +1538,7 @@ pub fn wscoped_b(st: &AState, fuel: u64, d: u64, h: &EIdx) -> Result<bool, Check
                     }
                 }
             },
-            Ok(ENodeView::Proj(_, _, sub)) => wscoped_b(st, fuel - 1, d, &sub),
+            Ok(ENodeView::Proj(_, _, sub)) => wscoped_b(pers, st, fuel - 1, d, &sub),
             Ok(ENodeView::BVar(_)) => Ok(true),
             Ok(ENodeView::Sort(_)) => Ok(true),
             Ok(ENodeView::Const(_, _)) => Ok(true),
@@ -1577,6 +1605,7 @@ pub fn wscoped_memo_set(
 /// own index, not `d`), so the cached fvar range does not decide it and the
 /// memo key carries `d`.
 pub fn wscoped_b_go(
+    pers: &PersTier,
     st: &AState,
     memo: HashMap<EIdxNat, bool>,
     fuel: u64,
@@ -1585,15 +1614,15 @@ pub fn wscoped_b_go(
 ) -> Result<(bool, HashMap<EIdxNat, bool>), CheckError> {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_WSCOPED_GO)))
-    } else if expr::fvar_of_data(derived_e(st, h)) == 0 {
+    } else if expr::fvar_of_data(derived_e(pers, st, h)) == 0 {
         Ok((true, memo))
     } else {
         let k: EIdxNat = eidx_nat_key(h, d);
         match wscoped_memo_get(&memo, &k) {
             Some(r) => Ok((r, memo)),
-            None => match view(st, h) {
+            None => match view(pers, st, h) {
                 Err(e) => Err(e),
-                Ok(v) => match wscoped_b_node(st, memo, fuel - 1, d, v) {
+                Ok(v) => match wscoped_b_node(pers, st, memo, fuel - 1, d, v) {
                     Err(e) => Err(e),
                     Ok((r, m)) => Ok((r, wscoped_memo_set(m, k, r))),
                 },
@@ -1607,6 +1636,7 @@ pub fn wscoped_b_go(
 /// past the probe.  Split off so the `view`'s loans are dead at the memo's
 /// join (extraction rule 5, `frontend::proj_rec`'s arrangement).
 pub fn wscoped_b_node(
+    pers: &PersTier,
     st: &AState,
     memo: HashMap<EIdxNat, bool>,
     fuel: u64,
@@ -1616,20 +1646,20 @@ pub fn wscoped_b_node(
     match v {
         ENodeView::FVar(idx, ty) => {
             if idx < d {
-                wscoped_b_go(st, memo, fuel, idx, &ty)
+                wscoped_b_go(pers, st, memo, fuel, idx, &ty)
             } else {
                 Ok((false, memo))
             }
         }
-        ENodeView::App(f, a) => wscoped_b_two(st, memo, fuel, d, &f, &a),
-        ENodeView::Lam(ty, body, _) => wscoped_b_two(st, memo, fuel, d, &ty, &body),
-        ENodeView::ForallE(ty, body, _) => wscoped_b_two(st, memo, fuel, d, &ty, &body),
-        ENodeView::LetE(ty, val, body) => match wscoped_b_go(st, memo, fuel, d, &ty) {
+        ENodeView::App(f, a) => wscoped_b_two(pers, st, memo, fuel, d, &f, &a),
+        ENodeView::Lam(ty, body, _) => wscoped_b_two(pers, st, memo, fuel, d, &ty, &body),
+        ENodeView::ForallE(ty, body, _) => wscoped_b_two(pers, st, memo, fuel, d, &ty, &body),
+        ENodeView::LetE(ty, val, body) => match wscoped_b_go(pers, st, memo, fuel, d, &ty) {
             Err(e) => Err(e),
             Ok((false, m)) => Ok((false, m)),
-            Ok((true, m)) => wscoped_b_two(st, m, fuel, d, &val, &body),
+            Ok((true, m)) => wscoped_b_two(pers, st, m, fuel, d, &val, &body),
         },
-        ENodeView::Proj(_, _, sub) => wscoped_b_go(st, memo, fuel, d, &sub),
+        ENodeView::Proj(_, _, sub) => wscoped_b_go(pers, st, memo, fuel, d, &sub),
         ENodeView::BVar(_) => Ok((true, memo)),
         ENodeView::Sort(_) => Ok((true, memo)),
         ENodeView::Const(_, _) => Ok((true, memo)),
@@ -1642,6 +1672,7 @@ pub fn wscoped_b_node(
 /// two-child arms, whose `if rf then … else pure (false, memo)` is the cited
 /// short-circuit.
 pub fn wscoped_b_two(
+    pers: &PersTier,
     st: &AState,
     memo: HashMap<EIdxNat, bool>,
     fuel: u64,
@@ -1649,19 +1680,25 @@ pub fn wscoped_b_two(
     x: &EIdx,
     y: &EIdx,
 ) -> Result<(bool, HashMap<EIdxNat, bool>), CheckError> {
-    match wscoped_b_go(st, memo, fuel, d, x) {
+    match wscoped_b_go(pers, st, memo, fuel, d, x) {
         Err(e) => Err(e),
         Ok((false, m)) => Ok((false, m)),
-        Ok((true, m)) => wscoped_b_go(st, m, fuel, d, y),
+        Ok((true, m)) => wscoped_b_go(pers, st, m, fuel, d, y),
     }
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:661 wscopedBC
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:693-696 wscopedBFast` — the
 /// executed `wscoped_b`: one memoized DAG walk from the empty memo.
-pub fn wscoped_b_fast(st: &AState, fuel: u64, d: u64, h: &EIdx) -> Result<bool, CheckError> {
+pub fn wscoped_b_fast(
+    pers: &PersTier,
+    st: &AState,
+    fuel: u64,
+    d: u64,
+    h: &EIdx,
+) -> Result<bool, CheckError>  {
     let memo: HashMap<EIdxNat, bool> = HashMap::new();
-    match wscoped_b_go(st, memo, fuel, d, h) {
+    match wscoped_b_go(pers, st, memo, fuel, d, h) {
         Err(e) => Err(e),
         Ok(p) => Ok(p.0),
     }
@@ -1697,6 +1734,7 @@ pub fn fvl_record(seen: HashMap<EIdx, bool>, h: &EIdx) -> HashMap<EIdx, bool> {
 /// `Vec` has no cons — the copying combinators `fvl_append`/`cons_eidx` would
 /// make the accumulation quadratic for nothing.
 pub fn fvar_leaves_go(
+    pers: &PersTier,
     st: &AState,
     acc: Vec<(u64, EIdx)>,
     seen: HashMap<EIdx, bool>,
@@ -1705,14 +1743,14 @@ pub fn fvar_leaves_go(
 ) -> Result<(Vec<(u64, EIdx)>, HashMap<EIdx, bool>), CheckError> {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_FVAR_LEAVES_GO)))
-    } else if expr::fvar_of_data(derived_e(st, h)) == 0 {
+    } else if expr::fvar_of_data(derived_e(pers, st, h)) == 0 {
         Ok((acc, seen))
     } else if fvl_seen(&seen, h) {
         Ok((acc, seen))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
-            Ok(v) => fvar_leaves_node(st, acc, fvl_record(seen, h), fuel - 1, v),
+            Ok(v) => fvar_leaves_node(pers, st, acc, fvl_record(seen, h), fuel - 1, v),
         }
     }
 }
@@ -1721,6 +1759,7 @@ pub fn fvar_leaves_go(
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:710-727 fvarLeavesGo` — the
 /// arms, past the probe and the `seen` insert (extraction rule 5).
 pub fn fvar_leaves_node(
+    pers: &PersTier,
     st: &AState,
     acc: Vec<(u64, EIdx)>,
     seen: HashMap<EIdx, bool>,
@@ -1731,16 +1770,16 @@ pub fn fvar_leaves_node(
         ENodeView::FVar(idx, ty) => {
             let mut acc2 = acc;
             acc2.push((idx, ty.dup2()));
-            fvar_leaves_go(st, acc2, seen, fuel, &ty)
+            fvar_leaves_go(pers, st, acc2, seen, fuel, &ty)
         }
-        ENodeView::App(f, a) => fvar_leaves_two(st, acc, seen, fuel, &f, &a),
-        ENodeView::Lam(ty, body, _) => fvar_leaves_two(st, acc, seen, fuel, &ty, &body),
-        ENodeView::ForallE(ty, body, _) => fvar_leaves_two(st, acc, seen, fuel, &ty, &body),
-        ENodeView::LetE(ty, val, body) => match fvar_leaves_go(st, acc, seen, fuel, &ty) {
+        ENodeView::App(f, a) => fvar_leaves_two(pers, st, acc, seen, fuel, &f, &a),
+        ENodeView::Lam(ty, body, _) => fvar_leaves_two(pers, st, acc, seen, fuel, &ty, &body),
+        ENodeView::ForallE(ty, body, _) => fvar_leaves_two(pers, st, acc, seen, fuel, &ty, &body),
+        ENodeView::LetE(ty, val, body) => match fvar_leaves_go(pers, st, acc, seen, fuel, &ty) {
             Err(e) => Err(e),
-            Ok((a2, s2)) => fvar_leaves_two(st, a2, s2, fuel, &val, &body),
+            Ok((a2, s2)) => fvar_leaves_two(pers, st, a2, s2, fuel, &val, &body),
         },
-        ENodeView::Proj(_, _, sub) => fvar_leaves_go(st, acc, seen, fuel, &sub),
+        ENodeView::Proj(_, _, sub) => fvar_leaves_go(pers, st, acc, seen, fuel, &sub),
         ENodeView::BVar(_) => Ok((acc, seen)),
         ENodeView::Sort(_) => Ok((acc, seen)),
         ENodeView::Const(_, _) => Ok((acc, seen)),
@@ -1752,6 +1791,7 @@ pub fn fvar_leaves_node(
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:714-726 fvarLeavesGo` — the
 /// two-child arms, one `let (acc, seen) ←` pair in the twin.
 pub fn fvar_leaves_two(
+    pers: &PersTier,
     st: &AState,
     acc: Vec<(u64, EIdx)>,
     seen: HashMap<EIdx, bool>,
@@ -1759,18 +1799,23 @@ pub fn fvar_leaves_two(
     x: &EIdx,
     y: &EIdx,
 ) -> Result<(Vec<(u64, EIdx)>, HashMap<EIdx, bool>), CheckError> {
-    match fvar_leaves_go(st, acc, seen, fuel, x) {
+    match fvar_leaves_go(pers, st, acc, seen, fuel, x) {
         Err(e) => Err(e),
-        Ok((a2, s2)) => fvar_leaves_go(st, a2, s2, fuel, y),
+        Ok((a2, s2)) => fvar_leaves_go(pers, st, a2, s2, fuel, y),
     }
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:688-689 fvarLeavesC
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:731-733 fvarLeavesFast` — the
 /// executed `fvar_leaves`: one `seen`-guarded DAG walk.
-pub fn fvar_leaves_fast(st: &AState, fuel: u64, h: &EIdx) -> Result<Vec<(u64, EIdx)>, CheckError> {
+pub fn fvar_leaves_fast(
+    pers: &PersTier,
+    st: &AState,
+    fuel: u64,
+    h: &EIdx,
+) -> Result<Vec<(u64, EIdx)>, CheckError>  {
     let seen: HashMap<EIdx, bool> = HashMap::new();
-    match fvar_leaves_go(st, Vec::new(), seen, fuel, h) {
+    match fvar_leaves_go(pers, st, Vec::new(), seen, fuel, h) {
         Err(e) => Err(e),
         Ok(p) => Ok(p.0),
     }
@@ -1823,6 +1868,7 @@ pub fn leaves_sub_set(memo: HashMap<EIdx, bool>, h: &EIdx, r: bool) -> HashMap<E
 /// walked term is one of `bl`.  Memoized on the node, because `bl` is fixed
 /// for the call.
 pub fn leaves_sub_go(
+    pers: &PersTier,
     st: &AState,
     bl: &Vec<(u64, EIdx)>,
     memo: HashMap<EIdx, bool>,
@@ -1831,14 +1877,14 @@ pub fn leaves_sub_go(
 ) -> Result<(bool, HashMap<EIdx, bool>), CheckError> {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_LEAVES_SUB_GO)))
-    } else if expr::fvar_of_data(derived_e(st, h)) == 0 {
+    } else if expr::fvar_of_data(derived_e(pers, st, h)) == 0 {
         Ok((true, memo))
     } else {
         match leaves_sub_get(&memo, h) {
             Some(r) => Ok((r, memo)),
-            None => match view(st, h) {
+            None => match view(pers, st, h) {
                 Err(e) => Err(e),
-                Ok(v) => match leaves_sub_node(st, bl, memo, fuel - 1, v) {
+                Ok(v) => match leaves_sub_node(pers, st, bl, memo, fuel - 1, v) {
                     Err(e) => Err(e),
                     Ok((r, m)) => Ok((r, leaves_sub_set(m, h, r))),
                 },
@@ -1851,6 +1897,7 @@ pub fn leaves_sub_go(
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:757-778 leavesSubGo` — the
 /// arms, past the probe (extraction rule 5).
 pub fn leaves_sub_node(
+    pers: &PersTier,
     st: &AState,
     bl: &Vec<(u64, EIdx)>,
     memo: HashMap<EIdx, bool>,
@@ -1860,20 +1907,20 @@ pub fn leaves_sub_node(
     match v {
         ENodeView::FVar(idx, ty) => {
             if leaf_mem(bl, idx, &ty) {
-                leaves_sub_go(st, bl, memo, fuel, &ty)
+                leaves_sub_go(pers, st, bl, memo, fuel, &ty)
             } else {
                 Ok((false, memo))
             }
         }
-        ENodeView::App(f, a) => leaves_sub_two(st, bl, memo, fuel, &f, &a),
-        ENodeView::Lam(ty, body, _) => leaves_sub_two(st, bl, memo, fuel, &ty, &body),
-        ENodeView::ForallE(ty, body, _) => leaves_sub_two(st, bl, memo, fuel, &ty, &body),
-        ENodeView::LetE(ty, val, body) => match leaves_sub_go(st, bl, memo, fuel, &ty) {
+        ENodeView::App(f, a) => leaves_sub_two(pers, st, bl, memo, fuel, &f, &a),
+        ENodeView::Lam(ty, body, _) => leaves_sub_two(pers, st, bl, memo, fuel, &ty, &body),
+        ENodeView::ForallE(ty, body, _) => leaves_sub_two(pers, st, bl, memo, fuel, &ty, &body),
+        ENodeView::LetE(ty, val, body) => match leaves_sub_go(pers, st, bl, memo, fuel, &ty) {
             Err(e) => Err(e),
             Ok((false, m)) => Ok((false, m)),
-            Ok((true, m)) => leaves_sub_two(st, bl, m, fuel, &val, &body),
+            Ok((true, m)) => leaves_sub_two(pers, st, bl, m, fuel, &val, &body),
         },
-        ENodeView::Proj(_, _, sub) => leaves_sub_go(st, bl, memo, fuel, &sub),
+        ENodeView::Proj(_, _, sub) => leaves_sub_go(pers, st, bl, memo, fuel, &sub),
         ENodeView::BVar(_) => Ok((true, memo)),
         ENodeView::Sort(_) => Ok((true, memo)),
         ENodeView::Const(_, _) => Ok((true, memo)),
@@ -1885,6 +1932,7 @@ pub fn leaves_sub_node(
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:763-777 leavesSubGo` — the
 /// two-child arms and their short-circuit.
 pub fn leaves_sub_two(
+    pers: &PersTier,
     st: &AState,
     bl: &Vec<(u64, EIdx)>,
     memo: HashMap<EIdx, bool>,
@@ -1892,10 +1940,10 @@ pub fn leaves_sub_two(
     x: &EIdx,
     y: &EIdx,
 ) -> Result<(bool, HashMap<EIdx, bool>), CheckError> {
-    match leaves_sub_go(st, bl, memo, fuel, x) {
+    match leaves_sub_go(pers, st, bl, memo, fuel, x) {
         Err(e) => Err(e),
         Ok((false, m)) => Ok((false, m)),
-        Ok((true, m)) => leaves_sub_go(st, bl, m, fuel, y),
+        Ok((true, m)) => leaves_sub_go(pers, st, bl, m, fuel, y),
     }
 }
 
@@ -1907,15 +1955,21 @@ pub fn leaves_sub_two(
 /// `fab`'s own list, and never running `arena::core`'s quadratic
 /// `fvar_leaves_subset`, which stays as the specification of what this
 /// decides.
-pub fn leaf_guard(st: &AState, fuel: u64, fab: &EIdx, base: &EIdx) -> Result<bool, CheckError> {
-    if expr::fvar_of_data(derived_e(st, fab)) == 0 {
+pub fn leaf_guard(
+    pers: &PersTier,
+    st: &AState,
+    fuel: u64,
+    fab: &EIdx,
+    base: &EIdx,
+) -> Result<bool, CheckError>  {
+    if expr::fvar_of_data(derived_e(pers, st, fab)) == 0 {
         Ok(true)
     } else {
-        match fvar_leaves_fast(st, fuel, base) {
+        match fvar_leaves_fast(pers, st, fuel, base) {
             Err(e) => Err(e),
             Ok(bl) => {
                 let memo: HashMap<EIdx, bool> = HashMap::new();
-                match leaves_sub_go(st, &bl, memo, fuel, fab) {
+                match leaves_sub_go(pers, st, &bl, memo, fuel, fab) {
                     Err(e) => Err(e),
                     Ok(p) => Ok(p.0),
                 }
@@ -1930,6 +1984,7 @@ pub fn leaf_guard(st: &AState, fuel: u64, fab: &EIdx, base: &EIdx) -> Result<boo
 /// read `loose_bvars_bounded_fast` below, exactly as in con-leche (the
 /// `@[csimp]` pair).
 pub fn loose_bvars_bounded(
+    pers: &PersTier,
     st: &AState,
     fuel: u64,
     k: u64,
@@ -1938,39 +1993,39 @@ pub fn loose_bvars_bounded(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_LOOSE)))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
             Ok(ENodeView::BVar(i)) => Ok(i < k),
             Ok(ENodeView::FVar(_, _)) => Ok(true),
             Ok(ENodeView::Sort(_)) => Ok(true),
             Ok(ENodeView::Const(_, _)) => Ok(true),
             Ok(ENodeView::Lit(_)) => Ok(true),
-            Ok(ENodeView::App(f, a)) => match loose_bvars_bounded(st, fuel - 1, k, &f) {
+            Ok(ENodeView::App(f, a)) => match loose_bvars_bounded(pers, st, fuel - 1, k, &f) {
                 Err(e) => Err(e),
                 Ok(x) => {
                     if x {
-                        loose_bvars_bounded(st, fuel - 1, k, &a)
+                        loose_bvars_bounded(pers, st, fuel - 1, k, &a)
                     } else {
                         Ok(false)
                     }
                 }
             },
-            Ok(ENodeView::Lam(ty, body, _)) => match loose_bvars_bounded(st, fuel - 1, k, &ty) {
+            Ok(ENodeView::Lam(ty, body, _)) => match loose_bvars_bounded(pers, st, fuel - 1, k, &ty) {
                 Err(e) => Err(e),
                 Ok(x) => {
                     if x {
-                        loose_bvars_bounded(st, fuel - 1, k + 1, &body)
+                        loose_bvars_bounded(pers, st, fuel - 1, k + 1, &body)
                     } else {
                         Ok(false)
                     }
                 }
             },
             Ok(ENodeView::ForallE(ty, body, _)) => {
-                match loose_bvars_bounded(st, fuel - 1, k, &ty) {
+                match loose_bvars_bounded(pers, st, fuel - 1, k, &ty) {
                     Err(e) => Err(e),
                     Ok(x) => {
                         if x {
-                            loose_bvars_bounded(st, fuel - 1, k + 1, &body)
+                            loose_bvars_bounded(pers, st, fuel - 1, k + 1, &body)
                         } else {
                             Ok(false)
                         }
@@ -1978,15 +2033,15 @@ pub fn loose_bvars_bounded(
                 }
             }
             Ok(ENodeView::LetE(ty, val, body)) => {
-                match loose_bvars_bounded(st, fuel - 1, k, &ty) {
+                match loose_bvars_bounded(pers, st, fuel - 1, k, &ty) {
                     Err(e) => Err(e),
                     Ok(x) => {
                         if x {
-                            match loose_bvars_bounded(st, fuel - 1, k, &val) {
+                            match loose_bvars_bounded(pers, st, fuel - 1, k, &val) {
                                 Err(e) => Err(e),
                                 Ok(y) => {
                                     if y {
-                                        loose_bvars_bounded(st, fuel - 1, k + 1, &body)
+                                        loose_bvars_bounded(pers, st, fuel - 1, k + 1, &body)
                                     } else {
                                         Ok(false)
                                     }
@@ -1998,7 +2053,7 @@ pub fn loose_bvars_bounded(
                     }
                 }
             }
-            Ok(ENodeView::Proj(_, _, sub)) => loose_bvars_bounded(st, fuel - 1, k, &sub),
+            Ok(ENodeView::Proj(_, _, sub)) => loose_bvars_bounded(pers, st, fuel - 1, k, &sub),
         }
     }
 }
@@ -2010,8 +2065,8 @@ pub fn loose_bvars_bounded(
 /// con-leche: ConLeche/Kernel/ExprOps.lean:879-885 isLam
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:600-603 isLam` — is the
 /// expression a λ?
-pub fn is_lam(st: &AState, h: &EIdx) -> Result<bool, CheckError> {
-    match view(st, h) {
+pub fn is_lam(pers: &PersTier, st: &AState, h: &EIdx) -> Result<bool, CheckError> {
+    match view(pers, st, h) {
         Err(e) => Err(e),
         Ok(ENodeView::Lam(_, _, _)) => Ok(true),
         Ok(_) => Ok(false),
@@ -2022,8 +2077,8 @@ pub fn is_lam(st: &AState, h: &EIdx) -> Result<bool, CheckError> {
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:608-611 lamPw` — a λ node's
 /// prop-ness annotation, `none` off λs.  `PropWhen` is a value and not a term,
 /// so it crosses the signature unchanged.
-pub fn lam_pw(st: &AState, h: &EIdx) -> Result<Option<PropWhen>, CheckError> {
-    match view(st, h) {
+pub fn lam_pw(pers: &PersTier, st: &AState, h: &EIdx) -> Result<Option<PropWhen>, CheckError> {
+    match view(pers, st, h) {
         Err(e) => Err(e),
         Ok(ENodeView::Lam(_, _, m)) => Ok(Some(m.pw)),
         Ok(_) => Ok(None),
@@ -2033,8 +2088,8 @@ pub fn lam_pw(st: &AState, h: &EIdx) -> Result<Option<PropWhen>, CheckError> {
 /// con-leche: ConLeche/Kernel/ExprOps.lean:896-902 forallPw
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:615-618 forallPw` — the ∀ twin
 /// of `lam_pw`.
-pub fn forall_pw(st: &AState, h: &EIdx) -> Result<Option<PropWhen>, CheckError> {
-    match view(st, h) {
+pub fn forall_pw(pers: &PersTier, st: &AState, h: &EIdx) -> Result<Option<PropWhen>, CheckError> {
+    match view(pers, st, h) {
         Err(e) => Err(e),
         Ok(ENodeView::ForallE(_, _, m)) => Ok(Some(m.pw)),
         Ok(_) => Ok(None),
@@ -2044,67 +2099,67 @@ pub fn forall_pw(st: &AState, h: &EIdx) -> Result<Option<PropWhen>, CheckError> 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:904-913 hasFvar
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:622-639 hasFvar` — the pure
 /// walk; what executes is `has_fvar_fast` below (the fvar-range field read).
-pub fn has_fvar(st: &AState, fuel: u64, h: &EIdx) -> Result<bool, CheckError> {
+pub fn has_fvar(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<bool, CheckError> {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_HAS_FVAR)))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
             Ok(ENodeView::BVar(_)) => Ok(false),
             Ok(ENodeView::Sort(_)) => Ok(false),
             Ok(ENodeView::Const(_, _)) => Ok(false),
             Ok(ENodeView::Lit(_)) => Ok(false),
             Ok(ENodeView::FVar(_, _)) => Ok(true),
-            Ok(ENodeView::App(f, a)) => match has_fvar(st, fuel - 1, &f) {
+            Ok(ENodeView::App(f, a)) => match has_fvar(pers, st, fuel - 1, &f) {
                 Err(e) => Err(e),
                 Ok(x) => {
                     if x {
                         Ok(true)
                     } else {
-                        has_fvar(st, fuel - 1, &a)
+                        has_fvar(pers, st, fuel - 1, &a)
                     }
                 }
             },
-            Ok(ENodeView::Lam(ty, body, _)) => match has_fvar(st, fuel - 1, &ty) {
+            Ok(ENodeView::Lam(ty, body, _)) => match has_fvar(pers, st, fuel - 1, &ty) {
                 Err(e) => Err(e),
                 Ok(x) => {
                     if x {
                         Ok(true)
                     } else {
-                        has_fvar(st, fuel - 1, &body)
+                        has_fvar(pers, st, fuel - 1, &body)
                     }
                 }
             },
-            Ok(ENodeView::ForallE(ty, body, _)) => match has_fvar(st, fuel - 1, &ty) {
+            Ok(ENodeView::ForallE(ty, body, _)) => match has_fvar(pers, st, fuel - 1, &ty) {
                 Err(e) => Err(e),
                 Ok(x) => {
                     if x {
                         Ok(true)
                     } else {
-                        has_fvar(st, fuel - 1, &body)
+                        has_fvar(pers, st, fuel - 1, &body)
                     }
                 }
             },
-            Ok(ENodeView::LetE(ty, val, body)) => match has_fvar(st, fuel - 1, &ty) {
+            Ok(ENodeView::LetE(ty, val, body)) => match has_fvar(pers, st, fuel - 1, &ty) {
                 Err(e) => Err(e),
                 Ok(x) => {
                     if x {
                         Ok(true)
                     } else {
-                        match has_fvar(st, fuel - 1, &val) {
+                        match has_fvar(pers, st, fuel - 1, &val) {
                             Err(e) => Err(e),
                             Ok(y) => {
                                 if y {
                                     Ok(true)
                                 } else {
-                                    has_fvar(st, fuel - 1, &body)
+                                    has_fvar(pers, st, fuel - 1, &body)
                                 }
                             }
                         }
                     }
                 }
             },
-            Ok(ENodeView::Proj(_, _, sub)) => has_fvar(st, fuel - 1, &sub),
+            Ok(ENodeView::Proj(_, _, sub)) => has_fvar(pers, st, fuel - 1, &sub),
         }
     }
 }
@@ -2116,13 +2171,13 @@ pub fn has_fvar(st: &AState, fuel: u64, h: &EIdx) -> Result<bool, CheckError> {
 /// con-leche: ConLeche/Kernel/ExprOps.lean:915-918 getAppFn
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:645-650 getAppFn` — the head of
 /// an application spine.
-pub fn get_app_fn(st: &AState, fuel: u64, h: &EIdx) -> Result<EIdx, CheckError> {
+pub fn get_app_fn(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<EIdx, CheckError> {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_APP_FN)))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::App(f, _)) => get_app_fn(st, fuel - 1, &f),
+            Ok(ENodeView::App(f, _)) => get_app_fn(pers, st, fuel - 1, &f),
             Ok(_) => Ok(h.dup2()),
         }
     }
@@ -2132,13 +2187,18 @@ pub fn get_app_fn(st: &AState, fuel: u64, h: &EIdx) -> Result<EIdx, CheckError> 
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:654-661 getAppArgs` — the
 /// arguments of an application spine, outermost last.  Lean's `as ++ [a]` is a
 /// `push` here, which is the same list in one pass.
-pub fn get_app_args(st: &AState, fuel: u64, h: &EIdx) -> Result<Vec<EIdx>, CheckError> {
+pub fn get_app_args(
+    pers: &PersTier,
+    st: &AState,
+    fuel: u64,
+    h: &EIdx,
+) -> Result<Vec<EIdx>, CheckError>  {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_APP_ARGS)))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::App(f, a)) => match get_app_args(st, fuel - 1, &f) {
+            Ok(ENodeView::App(f, a)) => match get_app_args(pers, st, fuel - 1, &f) {
                 Err(e) => Err(e),
                 Ok(args) => {
                     let mut out: Vec<EIdx> = args;
@@ -2155,14 +2215,20 @@ pub fn get_app_args(st: &AState, fuel: u64, h: &EIdx) -> Result<Vec<EIdx>, Check
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:665-669 mkAppN` — apply to a
 /// list of arguments.  Structural on the list, so no fuel; the `i = 0` wrapper
 /// of the cursor recursion below.
-pub fn mk_app_n(st: &mut AState, f: &EIdx, args: &Vec<EIdx>) -> Result<EIdx, CheckError> {
-    mk_app_n_from(st, f, args, 0)
+pub fn mk_app_n(
+    pers: &PersTier,
+    st: &mut AState,
+    f: &EIdx,
+    args: &Vec<EIdx>,
+) -> Result<EIdx, CheckError>  {
+    mk_app_n_from(pers, st, f, args, 0)
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:925-928 mkAppN
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:665-669 mkAppN` — the cursor
 /// recursion behind `mk_app_n`.
 pub fn mk_app_n_from(
+    pers: &PersTier,
     st: &mut AState,
     f: &EIdx,
     args: &Vec<EIdx>,
@@ -2171,9 +2237,9 @@ pub fn mk_app_n_from(
     if i >= args.len() {
         Ok(f.dup2())
     } else {
-        match intern_e(st, ENodeView::App(f.dup2(), args[i].dup2())) {
+        match intern_e(pers, st, ENodeView::App(f.dup2(), args[i].dup2())) {
             Err(e) => Err(e),
-            Ok(g) => mk_app_n_from(st, &g, args, i + 1),
+            Ok(g) => mk_app_n_from(pers, st, &g, args, i + 1),
         }
     }
 }
@@ -2205,6 +2271,7 @@ pub trait NIdxToNIdx {
 /// here as it is in con-leche — it rebuilds one node and does not recurse —
 /// so it is not memoized.
 pub fn rename_consts_go<F>(
+    pers: &PersTier,
     st: &mut AState,
     f: &F,
     fuel: u64,
@@ -2216,22 +2283,22 @@ where
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_RENAME)))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
             Ok(ENodeView::BVar(_)) => Ok(h.dup2()),
             Ok(ENodeView::Sort(_)) => Ok(h.dup2()),
             Ok(ENodeView::Lit(_)) => Ok(h.dup2()),
             Ok(ENodeView::Const(n, us)) => {
                 let n2: NIdx = f.rename(&n);
-                intern_e(st, ENodeView::Const(n2, us))
+                intern_e(pers, st, ENodeView::Const(n2, us))
             }
             Ok(ENodeView::FVar(i, ty)) => {
                 let k: EIdxNat = eidx_nat_key(h, 0);
                 match rename_get(st, &k) {
                     Some(r) => Ok(r),
-                    None => match rename_consts_go(st, f, fuel - 1, &ty) {
+                    None => match rename_consts_go(pers, st, f, fuel - 1, &ty) {
                         Err(e) => Err(e),
-                        Ok(t) => match intern_e(st, ENodeView::FVar(i, t)) {
+                        Ok(t) => match intern_e(pers, st, ENodeView::FVar(i, t)) {
                             Err(e) => Err(e),
                             Ok(r) => {
                                 rename_set(st, k, &r);
@@ -2245,11 +2312,11 @@ where
                 let k: EIdxNat = eidx_nat_key(h, 0);
                 match rename_get(st, &k) {
                     Some(r) => Ok(r),
-                    None => match rename_consts_go(st, f, fuel - 1, &a) {
+                    None => match rename_consts_go(pers, st, f, fuel - 1, &a) {
                         Err(e) => Err(e),
-                        Ok(a2) => match rename_consts_go(st, f, fuel - 1, &b) {
+                        Ok(a2) => match rename_consts_go(pers, st, f, fuel - 1, &b) {
                             Err(e) => Err(e),
-                            Ok(b2) => match intern_e(st, ENodeView::App(a2, b2)) {
+                            Ok(b2) => match intern_e(pers, st, ENodeView::App(a2, b2)) {
                                 Err(e) => Err(e),
                                 Ok(r) => {
                                     rename_set(st, k, &r);
@@ -2264,11 +2331,11 @@ where
                 let k: EIdxNat = eidx_nat_key(h, 0);
                 match rename_get(st, &k) {
                     Some(r) => Ok(r),
-                    None => match rename_consts_go(st, f, fuel - 1, &ty) {
+                    None => match rename_consts_go(pers, st, f, fuel - 1, &ty) {
                         Err(e) => Err(e),
-                        Ok(t) => match rename_consts_go(st, f, fuel - 1, &body) {
+                        Ok(t) => match rename_consts_go(pers, st, f, fuel - 1, &body) {
                             Err(e) => Err(e),
-                            Ok(b) => match intern_e(st, ENodeView::Lam(t, b, m)) {
+                            Ok(b) => match intern_e(pers, st, ENodeView::Lam(t, b, m)) {
                                 Err(e) => Err(e),
                                 Ok(r) => {
                                     rename_set(st, k, &r);
@@ -2283,11 +2350,11 @@ where
                 let k: EIdxNat = eidx_nat_key(h, 0);
                 match rename_get(st, &k) {
                     Some(r) => Ok(r),
-                    None => match rename_consts_go(st, f, fuel - 1, &ty) {
+                    None => match rename_consts_go(pers, st, f, fuel - 1, &ty) {
                         Err(e) => Err(e),
-                        Ok(t) => match rename_consts_go(st, f, fuel - 1, &body) {
+                        Ok(t) => match rename_consts_go(pers, st, f, fuel - 1, &body) {
                             Err(e) => Err(e),
-                            Ok(b) => match intern_e(st, ENodeView::ForallE(t, b, m)) {
+                            Ok(b) => match intern_e(pers, st, ENodeView::ForallE(t, b, m)) {
                                 Err(e) => Err(e),
                                 Ok(r) => {
                                     rename_set(st, k, &r);
@@ -2302,13 +2369,13 @@ where
                 let k: EIdxNat = eidx_nat_key(h, 0);
                 match rename_get(st, &k) {
                     Some(r) => Ok(r),
-                    None => match rename_consts_go(st, f, fuel - 1, &ty) {
+                    None => match rename_consts_go(pers, st, f, fuel - 1, &ty) {
                         Err(e) => Err(e),
-                        Ok(t) => match rename_consts_go(st, f, fuel - 1, &val) {
+                        Ok(t) => match rename_consts_go(pers, st, f, fuel - 1, &val) {
                             Err(e) => Err(e),
-                            Ok(w) => match rename_consts_go(st, f, fuel - 1, &body) {
+                            Ok(w) => match rename_consts_go(pers, st, f, fuel - 1, &body) {
                                 Err(e) => Err(e),
-                                Ok(b) => match intern_e(st, ENodeView::LetE(t, w, b)) {
+                                Ok(b) => match intern_e(pers, st, ENodeView::LetE(t, w, b)) {
                                     Err(e) => Err(e),
                                     Ok(r) => {
                                         rename_set(st, k, &r);
@@ -2324,9 +2391,9 @@ where
                 let k: EIdxNat = eidx_nat_key(h, 0);
                 match rename_get(st, &k) {
                     Some(r) => Ok(r),
-                    None => match rename_consts_go(st, f, fuel - 1, &sub) {
+                    None => match rename_consts_go(pers, st, f, fuel - 1, &sub) {
                         Err(e) => Err(e),
-                        Ok(u) => match intern_e(st, ENodeView::Proj(n, i, u)) {
+                        Ok(u) => match intern_e(pers, st, ENodeView::Proj(n, i, u)) {
                             Err(e) => Err(e),
                             Ok(r) => {
                                 rename_set(st, k, &r);
@@ -2344,6 +2411,7 @@ where
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:750-754 renameConstsFast` — the
 /// top-level entry.
 pub fn rename_consts_fast<F>(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     f: &F,
@@ -2353,7 +2421,7 @@ where
     F: NIdxToNIdx,
 {
     rename_clear(st);
-    match rename_consts_go(st, f, fuel, e) {
+    match rename_consts_go(pers, st, f, fuel, e) {
         Err(er) => Err(er),
         Ok(r) => {
             rename_clear(st);
@@ -2371,6 +2439,7 @@ where
 /// leading λs.  The recursion is structural on `k`, so no fuel; Lean's
 /// `(ty, m) :: p.1` is `cons_binder`.
 pub fn strip_lams(
+    pers: &PersTier,
     st: &AState,
     k: u64,
     h: &EIdx,
@@ -2378,9 +2447,9 @@ pub fn strip_lams(
     if k == 0 {
         Ok(Some((Vec::new(), h.dup2())))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::Lam(ty, b, m)) => match strip_lams(st, k - 1, &b) {
+            Ok(ENodeView::Lam(ty, b, m)) => match strip_lams(pers, st, k - 1, &b) {
                 Err(e) => Err(e),
                 Ok(Some(p)) => Ok(Some((cons_binder(&ty, &m, &p.0), p.1))),
                 Ok(None) => Ok(None),
@@ -2394,6 +2463,7 @@ pub fn strip_lams(
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:772-780 stripPis` — strip `k`
 /// leading `∀`s.
 pub fn strip_pis(
+    pers: &PersTier,
     st: &AState,
     k: u64,
     h: &EIdx,
@@ -2401,9 +2471,9 @@ pub fn strip_pis(
     if k == 0 {
         Ok(Some((Vec::new(), h.dup2())))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::ForallE(ty, b, m)) => match strip_pis(st, k - 1, &b) {
+            Ok(ENodeView::ForallE(ty, b, m)) => match strip_pis(pers, st, k - 1, &b) {
                 Err(e) => Err(e),
                 Ok(Some(p)) => Ok(Some((cons_binder(&ty, &m, &p.0), p.1))),
                 Ok(None) => Ok(None),
@@ -2416,13 +2486,13 @@ pub fn strip_pis(
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1134-1138 piResult
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:784-789 piResult` — the body of
 /// a syntactic `∀`-telescope.
-pub fn pi_result(st: &AState, fuel: u64, h: &EIdx) -> Result<EIdx, CheckError> {
+pub fn pi_result(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<EIdx, CheckError> {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_PI_RESULT)))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::ForallE(_, b, _)) => pi_result(st, fuel - 1, &b),
+            Ok(ENodeView::ForallE(_, b, _)) => pi_result(pers, st, fuel - 1, &b),
             Ok(_) => Ok(h.dup2()),
         }
     }
@@ -2434,18 +2504,20 @@ pub fn pi_result(st: &AState, fuel: u64, h: &EIdx) -> Result<EIdx, CheckError> {
 /// the fuel is the one `instantiate1_fast` needs.  The `i = 0` wrapper of the
 /// cursor recursion below.
 pub fn inst_pis(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     e: &EIdx,
     args: &Vec<EIdx>,
 ) -> Result<Option<EIdx>, CheckError> {
-    inst_pis_from(st, fuel, e, args, 0)
+    inst_pis_from(pers, st, fuel, e, args, 0)
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1140-1144 instPis
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:794-801 instPis` — the cursor
 /// recursion behind `inst_pis`.
 pub fn inst_pis_from(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     e: &EIdx,
@@ -2455,13 +2527,13 @@ pub fn inst_pis_from(
     if i >= args.len() {
         Ok(Some(e.dup2()))
     } else {
-        match view(st, e) {
+        match view(pers, st, e) {
             Err(er) => Err(er),
             Ok(ENodeView::ForallE(_, body, _)) => {
                 let a: EIdx = args[i].dup2();
-                match instantiate1_fast(st, fuel, &body, &a, 0) {
+                match instantiate1_fast(pers, st, fuel, &body, &a, 0) {
                     Err(er) => Err(er),
-                    Ok(b) => inst_pis_from(st, fuel, &b, args, i + 1),
+                    Ok(b) => inst_pis_from(pers, st, fuel, &b, args, i + 1),
                 }
             }
             Ok(_) => Ok(None),
@@ -2476,12 +2548,13 @@ pub fn inst_pis_from(
 /// `Option.map` over a pure body is an explicit `match`, as it is in the twin:
 /// the body is monadic.
 pub fn inst_pis_at(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     args: &Vec<EIdx>,
     h: &EIdx,
 ) -> Result<Option<(Vec<EIdx>, EIdx)>, CheckError> {
-    inst_pis_at_from(st, fuel, args, 0, h)
+    inst_pis_at_from(pers, st, fuel, args, 0, h)
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1146-1154 instPisAt
@@ -2489,6 +2562,7 @@ pub fn inst_pis_at(
 /// recursion behind `inst_pis_at`.  The domain is consed on the way OUT, as
 /// the twin conses it, and not pushed on the way in.
 pub fn inst_pis_at_from(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     args: &Vec<EIdx>,
@@ -2498,13 +2572,13 @@ pub fn inst_pis_at_from(
     if i >= args.len() {
         Ok(Some((Vec::new(), h.dup2())))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
             Ok(ENodeView::ForallE(dom, body, _)) => {
                 let a: EIdx = args[i].dup2();
-                match instantiate1_fast(st, fuel, &body, &a, 0) {
+                match instantiate1_fast(pers, st, fuel, &body, &a, 0) {
                     Err(e) => Err(e),
-                    Ok(b) => match inst_pis_at_from(st, fuel, args, i + 1, &b) {
+                    Ok(b) => match inst_pis_at_from(pers, st, fuel, args, i + 1, &b) {
                         Err(e) => Err(e),
                         Ok(Some(p)) => Ok(Some((cons_eidx(&dom, &p.0), p.1))),
                         Ok(None) => Ok(None),
@@ -2520,18 +2594,20 @@ pub fn inst_pis_at_from(
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:820-829 instLamsAt` —
 /// `inst_pis_at` for λ-binders.
 pub fn inst_lams_at(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     args: &Vec<EIdx>,
     h: &EIdx,
 ) -> Result<Option<(Vec<EIdx>, EIdx)>, CheckError> {
-    inst_lams_at_from(st, fuel, args, 0, h)
+    inst_lams_at_from(pers, st, fuel, args, 0, h)
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1156-1162 instLamsAt
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:820-829 instLamsAt` — the
 /// cursor recursion behind `inst_lams_at`.
 pub fn inst_lams_at_from(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     args: &Vec<EIdx>,
@@ -2541,13 +2617,13 @@ pub fn inst_lams_at_from(
     if i >= args.len() {
         Ok(Some((Vec::new(), h.dup2())))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
             Ok(ENodeView::Lam(dom, body, _)) => {
                 let a: EIdx = args[i].dup2();
-                match instantiate1_fast(st, fuel, &body, &a, 0) {
+                match instantiate1_fast(pers, st, fuel, &body, &a, 0) {
                     Err(e) => Err(e),
-                    Ok(b) => match inst_lams_at_from(st, fuel, args, i + 1, &b) {
+                    Ok(b) => match inst_lams_at_from(pers, st, fuel, args, i + 1, &b) {
                         Err(e) => Err(e),
                         Ok(Some(p)) => Ok(Some((cons_eidx(&dom, &p.0), p.1))),
                         Ok(None) => Ok(None),
@@ -2571,6 +2647,7 @@ pub fn inst_lams_at_from(
 /// different order gives the same denotation but different handles, and this
 /// port is in lockstep with the twin at the handle).
 pub fn inst_pis_at_f_go(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     acc: &Vec<EIdx>,
@@ -2579,18 +2656,18 @@ pub fn inst_pis_at_f_go(
     h: &EIdx,
 ) -> Result<Option<(Vec<EIdx>, EIdx)>, CheckError> {
     if i >= args.len() {
-        match instantiate_list_fast(st, fuel, h, acc, 0) {
+        match instantiate_list_fast(pers, st, fuel, h, acc, 0) {
             Err(e) => Err(e),
             Ok(r) => Ok(Some((Vec::new(), r))),
         }
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
             Ok(ENodeView::ForallE(dom, body, _)) => {
                 let acc2: Vec<EIdx> = cons_eidx(&args[i], acc);
-                match inst_pis_at_f_go(st, fuel, &acc2, args, i + 1, &body) {
+                match inst_pis_at_f_go(pers, st, fuel, &acc2, args, i + 1, &body) {
                     Err(e) => Err(e),
-                    Ok(Some(p)) => match instantiate_list_fast(st, fuel, &dom, acc, 0) {
+                    Ok(Some(p)) => match instantiate_list_fast(pers, st, fuel, &dom, acc, 0) {
                         Err(e) => Err(e),
                         Ok(d) => Ok(Some((cons_eidx(&d, &p.0), p.1))),
                     },
@@ -2607,16 +2684,17 @@ pub fn inst_pis_at_f_go(
 /// `inst_pis_at`, with the cited fall-back to the sequential definition when
 /// the raw telescope is shorter than the argument list.
 pub fn inst_pis_at_f(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     args: &Vec<EIdx>,
     e: &EIdx,
 ) -> Result<Option<(Vec<EIdx>, EIdx)>, CheckError> {
     let acc: Vec<EIdx> = Vec::new();
-    match inst_pis_at_f_go(st, fuel, &acc, args, 0, e) {
+    match inst_pis_at_f_go(pers, st, fuel, &acc, args, 0, e) {
         Err(er) => Err(er),
         Ok(Some(r)) => Ok(Some(r)),
-        Ok(None) => inst_pis_at(st, fuel, args, e),
+        Ok(None) => inst_pis_at(pers, st, fuel, args, e),
     }
 }
 
@@ -2624,6 +2702,7 @@ pub fn inst_pis_at_f(
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:859-872 instLamsAtFGo` — the λ
 /// counterpart of `inst_pis_at_f_go`.
 pub fn inst_lams_at_f_go(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     acc: &Vec<EIdx>,
@@ -2632,18 +2711,18 @@ pub fn inst_lams_at_f_go(
     h: &EIdx,
 ) -> Result<Option<(Vec<EIdx>, EIdx)>, CheckError> {
     if i >= args.len() {
-        match instantiate_list_fast(st, fuel, h, acc, 0) {
+        match instantiate_list_fast(pers, st, fuel, h, acc, 0) {
             Err(e) => Err(e),
             Ok(r) => Ok(Some((Vec::new(), r))),
         }
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
             Ok(ENodeView::Lam(dom, body, _)) => {
                 let acc2: Vec<EIdx> = cons_eidx(&args[i], acc);
-                match inst_lams_at_f_go(st, fuel, &acc2, args, i + 1, &body) {
+                match inst_lams_at_f_go(pers, st, fuel, &acc2, args, i + 1, &body) {
                     Err(e) => Err(e),
-                    Ok(Some(p)) => match instantiate_list_fast(st, fuel, &dom, acc, 0) {
+                    Ok(Some(p)) => match instantiate_list_fast(pers, st, fuel, &dom, acc, 0) {
                         Err(e) => Err(e),
                         Ok(d) => Ok(Some((cons_eidx(&d, &p.0), p.1))),
                     },
@@ -2659,24 +2738,25 @@ pub fn inst_lams_at_f_go(
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:876-880 instLamsAtF` — one-pass
 /// `inst_lams_at`.
 pub fn inst_lams_at_f(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     args: &Vec<EIdx>,
     e: &EIdx,
 ) -> Result<Option<(Vec<EIdx>, EIdx)>, CheckError> {
     let acc: Vec<EIdx> = Vec::new();
-    match inst_lams_at_f_go(st, fuel, &acc, args, 0, e) {
+    match inst_lams_at_f_go(pers, st, fuel, &acc, args, 0, e) {
         Err(er) => Err(er),
         Ok(Some(r)) => Ok(Some(r)),
-        Ok(None) => inst_lams_at(st, fuel, args, e),
+        Ok(None) => inst_lams_at(pers, st, fuel, args, e),
     }
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1210-1215 fvarTypeD
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:884-887 fvarTypeD` — the type
 /// annotation of a free-variable leaf (the expression itself otherwise).
-pub fn fvar_type_d(st: &AState, h: &EIdx) -> Result<EIdx, CheckError> {
-    match view(st, h) {
+pub fn fvar_type_d(pers: &PersTier, st: &AState, h: &EIdx) -> Result<EIdx, CheckError> {
+    match view(pers, st, h) {
         Err(e) => Err(e),
         Ok(ENodeView::FVar(_, ty)) => Ok(ty),
         Ok(_) => Ok(h.dup2()),
@@ -2687,13 +2767,14 @@ pub fn fvar_type_d(st: &AState, h: &EIdx) -> Result<EIdx, CheckError> {
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:891-895 instSpine` —
 /// instantiate a telescope-context expression at an argument spine.
 pub fn inst_spine(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     args: &Vec<EIdx>,
     t: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    inst_spine_from(st, fuel, args, 0, t, e)
+    inst_spine_from(pers, st, fuel, args, 0, t, e)
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1217-1225 instSpine
@@ -2701,6 +2782,7 @@ pub fn inst_spine(
 /// recursion behind `inst_spine`.  `t - 1` is Lean's truncating subtraction,
 /// hence `sub_nat` (the cited arm carries no guard).
 pub fn inst_spine_from(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     args: &Vec<EIdx>,
@@ -2712,9 +2794,9 @@ pub fn inst_spine_from(
         Ok(e.dup2())
     } else {
         let a: EIdx = args[i].dup2();
-        match instantiate1_fast(st, fuel, e, &a, t) {
+        match instantiate1_fast(pers, st, fuel, e, &a, t) {
             Err(er) => Err(er),
-            Ok(e2) => inst_spine_from(st, fuel, args, i + 1, sub_nat(t, 1), &e2),
+            Ok(e2) => inst_spine_from(pers, st, fuel, args, i + 1, sub_nat(t, 1), &e2),
         }
     }
 }
@@ -2725,6 +2807,7 @@ pub fn inst_spine_from(
 /// interned.  Structural on the count, so no fuel; `mI - 1 - k` is Lean's
 /// truncating subtraction, hence `sub_nat`.
 pub fn bvar_range(
+    pers: &PersTier,
     st: &mut AState,
     m_i: u64,
     n: u64,
@@ -2733,9 +2816,9 @@ pub fn bvar_range(
     if n == 0 {
         Ok(Vec::new())
     } else {
-        match intern_e(st, ENodeView::BVar(sub_nat(sub_nat(m_i, 1), k))) {
+        match intern_e(pers, st, ENodeView::BVar(sub_nat(sub_nat(m_i, 1), k))) {
             Err(e) => Err(e),
-            Ok(b) => match bvar_range(st, m_i, n - 1, k + 1) {
+            Ok(b) => match bvar_range(pers, st, m_i, n - 1, k + 1) {
                 Err(e) => Err(e),
                 Ok(rest) => Ok(cons_eidx(&b, &rest)),
             },
@@ -2752,6 +2835,7 @@ pub fn bvar_range(
 /// `decide (cnP ≤ rP) && decide (rP ≤ mI)` is an `if` nest (task #3's pattern
 /// 9).
 pub fn rec_rule_plain(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     rec_ty: &EIdx,
@@ -2760,14 +2844,14 @@ pub fn rec_rule_plain(
     cn_p: u64,
 ) -> Result<bool, CheckError> {
     if cn_p <= r_p && r_p <= m_i {
-        match strip_pis(st, m_i, rec_ty) {
+        match strip_pis(pers, st, m_i, rec_ty) {
             Err(e) => Err(e),
             Ok(None) => Ok(false),
-            Ok(Some(p)) => match view(st, &p.1) {
+            Ok(Some(p)) => match view(pers, st, &p.1) {
                 Err(e) => Err(e),
-                Ok(ENodeView::ForallE(dom, _, _)) => match get_app_args(st, fuel, &dom) {
+                Ok(ENodeView::ForallE(dom, _, _)) => match get_app_args(pers, st, fuel, &dom) {
                     Err(e) => Err(e),
-                    Ok(args) => match bvar_range(st, m_i, cn_p, 0) {
+                    Ok(args) => match bvar_range(pers, st, m_i, cn_p, 0) {
                         Err(e) => Err(e),
                         Ok(want) => Ok(eidx_take_beq(&args, &want)),
                     },
@@ -2786,6 +2870,7 @@ pub fn rec_rule_plain(
 /// metadata keeps only the display info, so the result carries the parse
 /// placeholder and every consumer must annotate it.
 pub fn pis_to_lams(
+    pers: &PersTier,
     st: &mut AState,
     k: u64,
     h: &EIdx,
@@ -2794,13 +2879,13 @@ pub fn pis_to_lams(
     if k == 0 {
         Ok(Some(body.dup2()))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::ForallE(ty, rest, _)) => match pis_to_lams(st, k - 1, &rest, body) {
+            Ok(ENodeView::ForallE(ty, rest, _)) => match pis_to_lams(pers, st, k - 1, &rest, body) {
                 Err(e) => Err(e),
                 Ok(Some(b)) => {
                     let m: BinderMeta = expr::binder_meta(prop_when::never());
-                    match intern_e(st, ENodeView::Lam(ty, b, m)) {
+                    match intern_e(pers, st, ENodeView::Lam(ty, b, m)) {
                         Err(e) => Err(e),
                         Ok(r) => Ok(Some(r)),
                     }
@@ -2817,6 +2902,7 @@ pub fn pis_to_lams(
 /// replace the body under the first `k` `∀`-binders, domains and prop-ness
 /// data kept.
 pub fn replace_pi_body(
+    pers: &PersTier,
     st: &mut AState,
     k: u64,
     h: &EIdx,
@@ -2825,13 +2911,13 @@ pub fn replace_pi_body(
     if k == 0 {
         Ok(Some(b.dup2()))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::ForallE(ty, rest, m)) => match replace_pi_body(st, k - 1, &rest, b) {
+            Ok(ENodeView::ForallE(ty, rest, m)) => match replace_pi_body(pers, st, k - 1, &rest, b) {
                 Err(e) => Err(e),
                 Ok(Some(r)) => {
                     let m2: BinderMeta = expr::binder_meta(m.pw);
-                    match intern_e(st, ENodeView::ForallE(ty, r, m2)) {
+                    match intern_e(pers, st, ENodeView::ForallE(ty, r, m2)) {
                         Err(e) => Err(e),
                         Ok(x) => Ok(Some(x)),
                     }
@@ -2846,13 +2932,13 @@ pub fn replace_pi_body(
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1269-1272 piArity
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:958-965 piArity` — the length
 /// of the leading `∀`-telescope.
-pub fn pi_arity(st: &AState, fuel: u64, h: &EIdx) -> Result<u64, CheckError> {
+pub fn pi_arity(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<u64, CheckError> {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_PI_ARITY)))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::ForallE(_, b, _)) => match pi_arity(st, fuel - 1, &b) {
+            Ok(ENodeView::ForallE(_, b, _)) => match pi_arity(pers, st, fuel - 1, &b) {
                 Err(e) => Err(e),
                 Ok(n) => Ok(n + 1),
             },
@@ -2864,13 +2950,18 @@ pub fn pi_arity(st: &AState, fuel: u64, h: &EIdx) -> Result<u64, CheckError> {
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1274-1278 resultSort
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:969-975 resultSort` — the
 /// result sort at the end of a `∀`-telescope.
-pub fn result_sort(st: &AState, fuel: u64, h: &EIdx) -> Result<Option<LIdx>, CheckError> {
+pub fn result_sort(
+    pers: &PersTier,
+    st: &AState,
+    fuel: u64,
+    h: &EIdx,
+) -> Result<Option<LIdx>, CheckError>  {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_RESULT_SORT)))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::ForallE(_, b, _)) => result_sort(st, fuel - 1, &b),
+            Ok(ENodeView::ForallE(_, b, _)) => result_sort(pers, st, fuel - 1, &b),
             Ok(ENodeView::Sort(u)) => Ok(Some(u)),
             Ok(_) => Ok(None),
         }
@@ -2892,49 +2983,54 @@ pub fn result_sort(st: &AState, fuel: u64, h: &EIdx) -> Result<Option<LIdx>, Che
 /// memoized exact loose-bvar bound.  The memo is probed for every node, leaves
 /// included, as con-leche probes it.  `y - 1` is Lean's truncating
 /// subtraction, hence `sub_nat`.
-pub fn bvar_bound_go(st: &mut AState, fuel: u64, h: &EIdx) -> Result<u64, CheckError> {
+pub fn bvar_bound_go(
+    pers: &PersTier,
+    st: &mut AState,
+    fuel: u64,
+    h: &EIdx,
+) -> Result<u64, CheckError>  {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_BVAR_BOUND)))
     } else {
         match bvar_b_get(st, h) {
             Some(r) => Ok(r),
             None => {
-                let body: Result<u64, CheckError> = match view(st, h) {
+                let body: Result<u64, CheckError> = match view(pers, st, h) {
                     Err(e) => Err(e),
                     Ok(ENodeView::BVar(i)) => Ok(i + 1),
                     Ok(ENodeView::FVar(_, _)) => Ok(0),
                     Ok(ENodeView::Sort(_)) => Ok(0),
                     Ok(ENodeView::Const(_, _)) => Ok(0),
                     Ok(ENodeView::Lit(_)) => Ok(0),
-                    Ok(ENodeView::App(f, a)) => match bvar_bound_go(st, fuel - 1, &f) {
+                    Ok(ENodeView::App(f, a)) => match bvar_bound_go(pers, st, fuel - 1, &f) {
                         Err(e) => Err(e),
-                        Ok(x) => match bvar_bound_go(st, fuel - 1, &a) {
+                        Ok(x) => match bvar_bound_go(pers, st, fuel - 1, &a) {
                             Err(e) => Err(e),
                             Ok(y) => Ok(expr::max_u64(x, y)),
                         },
                     },
-                    Ok(ENodeView::Lam(ty, body, _)) => match bvar_bound_go(st, fuel - 1, &ty) {
+                    Ok(ENodeView::Lam(ty, body, _)) => match bvar_bound_go(pers, st, fuel - 1, &ty) {
                         Err(e) => Err(e),
-                        Ok(x) => match bvar_bound_go(st, fuel - 1, &body) {
+                        Ok(x) => match bvar_bound_go(pers, st, fuel - 1, &body) {
                             Err(e) => Err(e),
                             Ok(y) => Ok(expr::max_u64(x, sub_nat(y, 1))),
                         },
                     },
                     Ok(ENodeView::ForallE(ty, body, _)) => {
-                        match bvar_bound_go(st, fuel - 1, &ty) {
+                        match bvar_bound_go(pers, st, fuel - 1, &ty) {
                             Err(e) => Err(e),
-                            Ok(x) => match bvar_bound_go(st, fuel - 1, &body) {
+                            Ok(x) => match bvar_bound_go(pers, st, fuel - 1, &body) {
                                 Err(e) => Err(e),
                                 Ok(y) => Ok(expr::max_u64(x, sub_nat(y, 1))),
                             },
                         }
                     }
                     Ok(ENodeView::LetE(ty, val, body)) => {
-                        match bvar_bound_go(st, fuel - 1, &ty) {
+                        match bvar_bound_go(pers, st, fuel - 1, &ty) {
                             Err(e) => Err(e),
-                            Ok(x) => match bvar_bound_go(st, fuel - 1, &val) {
+                            Ok(x) => match bvar_bound_go(pers, st, fuel - 1, &val) {
                                 Err(e) => Err(e),
-                                Ok(y) => match bvar_bound_go(st, fuel - 1, &body) {
+                                Ok(y) => match bvar_bound_go(pers, st, fuel - 1, &body) {
                                     Err(e) => Err(e),
                                     Ok(z) => {
                                         Ok(expr::max_u64(expr::max_u64(x, y), sub_nat(z, 1)))
@@ -2943,7 +3039,7 @@ pub fn bvar_bound_go(st: &mut AState, fuel: u64, h: &EIdx) -> Result<u64, CheckE
                             },
                         }
                     }
-                    Ok(ENodeView::Proj(_, _, sub)) => bvar_bound_go(st, fuel - 1, &sub),
+                    Ok(ENodeView::Proj(_, _, sub)) => bvar_bound_go(pers, st, fuel - 1, &sub),
                 };
                 match body {
                     Err(e) => Err(e),
@@ -2960,9 +3056,14 @@ pub fn bvar_bound_go(st: &mut AState, fuel: u64, h: &EIdx) -> Result<u64, CheckE
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1394-1395 bvarBoundMemo
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1019-1023 bvarBoundMemo` — the
 /// top-level entry of the memoized walk.
-pub fn bvar_bound_memo(st: &mut AState, fuel: u64, e: &EIdx) -> Result<u64, CheckError> {
+pub fn bvar_bound_memo(
+    pers: &PersTier,
+    st: &mut AState,
+    fuel: u64,
+    e: &EIdx,
+) -> Result<u64, CheckError>  {
     bvar_b_clear(st);
-    match bvar_bound_go(st, fuel, e) {
+    match bvar_bound_go(pers, st, fuel, e) {
         Err(er) => Err(er),
         Ok(r) => {
             bvar_b_clear(st);
@@ -2976,56 +3077,61 @@ pub fn bvar_bound_memo(st: &mut AState, fuel: u64, e: &EIdx) -> Result<u64, Chec
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1029-1054 fvarRangeGo` — the
 /// memoized exact fvar range (`fvar` annotations are not descended into,
 /// matching the abstraction traversals).
-pub fn fvar_range_go(st: &mut AState, fuel: u64, h: &EIdx) -> Result<u64, CheckError> {
+pub fn fvar_range_go(
+    pers: &PersTier,
+    st: &mut AState,
+    fuel: u64,
+    h: &EIdx,
+) -> Result<u64, CheckError>  {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_FVAR_RANGE)))
     } else {
         match fvar_b_get(st, h) {
             Some(r) => Ok(r),
             None => {
-                let body: Result<u64, CheckError> = match view(st, h) {
+                let body: Result<u64, CheckError> = match view(pers, st, h) {
                     Err(e) => Err(e),
                     Ok(ENodeView::FVar(idx, _)) => Ok(idx + 1),
                     Ok(ENodeView::BVar(_)) => Ok(0),
                     Ok(ENodeView::Sort(_)) => Ok(0),
                     Ok(ENodeView::Const(_, _)) => Ok(0),
                     Ok(ENodeView::Lit(_)) => Ok(0),
-                    Ok(ENodeView::App(f, a)) => match fvar_range_go(st, fuel - 1, &f) {
+                    Ok(ENodeView::App(f, a)) => match fvar_range_go(pers, st, fuel - 1, &f) {
                         Err(e) => Err(e),
-                        Ok(x) => match fvar_range_go(st, fuel - 1, &a) {
+                        Ok(x) => match fvar_range_go(pers, st, fuel - 1, &a) {
                             Err(e) => Err(e),
                             Ok(y) => Ok(expr::max_u64(x, y)),
                         },
                     },
-                    Ok(ENodeView::Lam(ty, body, _)) => match fvar_range_go(st, fuel - 1, &ty) {
+                    Ok(ENodeView::Lam(ty, body, _)) => match fvar_range_go(pers, st, fuel - 1, &ty) {
                         Err(e) => Err(e),
-                        Ok(x) => match fvar_range_go(st, fuel - 1, &body) {
+                        Ok(x) => match fvar_range_go(pers, st, fuel - 1, &body) {
                             Err(e) => Err(e),
                             Ok(y) => Ok(expr::max_u64(x, y)),
                         },
                     },
                     Ok(ENodeView::ForallE(ty, body, _)) => {
-                        match fvar_range_go(st, fuel - 1, &ty) {
+                        match fvar_range_go(pers, st, fuel - 1, &ty) {
                             Err(e) => Err(e),
-                            Ok(x) => match fvar_range_go(st, fuel - 1, &body) {
+                            Ok(x) => match fvar_range_go(pers, st, fuel - 1, &body) {
                                 Err(e) => Err(e),
                                 Ok(y) => Ok(expr::max_u64(x, y)),
                             },
                         }
                     }
                     Ok(ENodeView::LetE(ty, val, body)) => {
-                        match fvar_range_go(st, fuel - 1, &ty) {
+                        match fvar_range_go(pers, st, fuel - 1, &ty) {
                             Err(e) => Err(e),
-                            Ok(x) => match fvar_range_go(st, fuel - 1, &val) {
+                            Ok(x) => match fvar_range_go(pers, st, fuel - 1, &val) {
                                 Err(e) => Err(e),
-                                Ok(y) => match fvar_range_go(st, fuel - 1, &body) {
+                                Ok(y) => match fvar_range_go(pers, st, fuel - 1, &body) {
                                     Err(e) => Err(e),
                                     Ok(z) => Ok(expr::max_u64(expr::max_u64(x, y), z)),
                                 },
                             },
                         }
                     }
-                    Ok(ENodeView::Proj(_, _, sub)) => fvar_range_go(st, fuel - 1, &sub),
+                    Ok(ENodeView::Proj(_, _, sub)) => fvar_range_go(pers, st, fuel - 1, &sub),
                 };
                 match body {
                     Err(e) => Err(e),
@@ -3042,9 +3148,14 @@ pub fn fvar_range_go(st: &mut AState, fuel: u64, h: &EIdx) -> Result<u64, CheckE
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1424-1425 fvarRangeMemo
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1058-1062 fvarRangeMemo` — the
 /// top-level entry of the memoized walk.
-pub fn fvar_range_memo(st: &mut AState, fuel: u64, e: &EIdx) -> Result<u64, CheckError> {
+pub fn fvar_range_memo(
+    pers: &PersTier,
+    st: &mut AState,
+    fuel: u64,
+    e: &EIdx,
+) -> Result<u64, CheckError>  {
     fvar_b_clear(st);
-    match fvar_range_go(st, fuel, e) {
+    match fvar_range_go(pers, st, fuel, e) {
         Err(er) => Err(er),
         Ok(r) => {
             fvar_b_clear(st);
@@ -3057,11 +3168,11 @@ pub fn fvar_range_memo(st: &mut AState, fuel: u64, e: &EIdx) -> Result<u64, Chec
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1068-1071 bvarB` — **the
 /// loose-bvar bound the checker reads**: the packed field, or — on the
 /// saturated branch alone — the exact memoized recomputation.
-pub fn bvar_b(st: &mut AState, fuel: u64, e: &EIdx) -> Result<u64, CheckError> {
-    let der: u64 = derived_e(st, e);
+pub fn bvar_b(pers: &PersTier, st: &mut AState, fuel: u64, e: &EIdx) -> Result<u64, CheckError> {
+    let der: u64 = derived_e(pers, st, e);
     let r: u64 = expr::bvar_of_data(der);
     if r == expr::sat_range() {
-        bvar_bound_memo(st, fuel, e)
+        bvar_bound_memo(pers, st, fuel, e)
     } else {
         Ok(r)
     }
@@ -3071,11 +3182,11 @@ pub fn bvar_b(st: &mut AState, fuel: u64, e: &EIdx) -> Result<u64, CheckError> {
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1076-1079 fvarB` — **the fvar
 /// range the checker reads**: the packed field, or the exact memoized
 /// recomputation on the saturated branch.
-pub fn fvar_b(st: &mut AState, fuel: u64, e: &EIdx) -> Result<u64, CheckError> {
-    let der: u64 = derived_e(st, e);
+pub fn fvar_b(pers: &PersTier, st: &mut AState, fuel: u64, e: &EIdx) -> Result<u64, CheckError> {
+    let der: u64 = derived_e(pers, st, e);
     let r: u64 = expr::fvar_of_data(der);
     if r == expr::sat_range() {
-        fvar_range_memo(st, fuel, e)
+        fvar_range_memo(pers, st, fuel, e)
     } else {
         Ok(r)
     }
@@ -3084,8 +3195,13 @@ pub fn fvar_b(st: &mut AState, fuel: u64, e: &EIdx) -> Result<u64, CheckError> {
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1707-1708 hasFvarFast
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1083-1085 hasFvarFast` — the
 /// executed `hasFvar`: the fvar-range field read.
-pub fn has_fvar_fast(st: &mut AState, fuel: u64, e: &EIdx) -> Result<bool, CheckError> {
-    match fvar_b(st, fuel, e) {
+pub fn has_fvar_fast(
+    pers: &PersTier,
+    st: &mut AState,
+    fuel: u64,
+    e: &EIdx,
+) -> Result<bool, CheckError>  {
+    match fvar_b(pers, st, fuel, e) {
         Err(er) => Err(er),
         Ok(r) => Ok(r != 0),
     }
@@ -3095,12 +3211,13 @@ pub fn has_fvar_fast(st: &mut AState, fuel: u64, e: &EIdx) -> Result<bool, Check
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1089-1091 looseBVarsBoundedFast`
 /// — the executed `looseBVarsBounded`: the loose-bvar field read.
 pub fn loose_bvars_bounded_fast(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     k: u64,
     e: &EIdx,
 ) -> Result<bool, CheckError> {
-    match bvar_b(st, fuel, e) {
+    match bvar_b(pers, st, fuel, e) {
         Err(er) => Err(er),
         Ok(r) => Ok(r <= k),
     }
@@ -3119,6 +3236,7 @@ pub fn loose_bvars_bounded_fast(
 /// a binder body: replace `fvar d …` leaves by `bvar k`, bumping `k` under
 /// binders.  `fvar` annotations are not descended into.
 pub fn abstract1_go(
+    pers: &PersTier,
     st: &mut AState,
     d: u64,
     fuel: u64,
@@ -3128,18 +3246,18 @@ pub fn abstract1_go(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_ABS1)))
     } else {
-        match fvar_b(st, fuel - 1, h) {
+        match fvar_b(pers, st, fuel - 1, h) {
             Err(e) => Err(e),
             Ok(fb) => {
                 if fb <= d {
                     Ok(h.dup2())
                 } else {
-                    match view(st, h) {
+                    match view(pers, st, h) {
                         Err(e) => Err(e),
                         Ok(ENodeView::BVar(_)) => Ok(h.dup2()),
                         Ok(ENodeView::FVar(idx, _)) => {
                             if idx == d {
-                                intern_e(st, ENodeView::BVar(k))
+                                intern_e(pers, st, ENodeView::BVar(k))
                             } else {
                                 Ok(h.dup2())
                             }
@@ -3151,13 +3269,14 @@ pub fn abstract1_go(
                             let ky: EIdxNat = eidx_nat_key(h, k);
                             match abs1_get(st, &ky) {
                                 Some(r) => Ok(r),
-                                None => match abstract1_go(st, d, fuel - 1, &f, k) {
+                                None => match abstract1_go(pers, st, d, fuel - 1, &f, k) {
                                     Err(e) => Err(e),
-                                    Ok(f2) => match abstract1_go(st, d, fuel - 1, &a, k) {
+                                    Ok(f2) => match abstract1_go(pers, st, d, fuel - 1, &a, k) {
                                         Err(e) => Err(e),
                                         Ok(a2) => {
                                             let same: bool = f2.eq2(&f) && a2.eq2(&a);
                                             match intern_rebuilt(
+                                                pers,
                                                 st,
                                                 h,
                                                 same,
@@ -3178,13 +3297,14 @@ pub fn abstract1_go(
                             let ky: EIdxNat = eidx_nat_key(h, k);
                             match abs1_get(st, &ky) {
                                 Some(r) => Ok(r),
-                                None => match abstract1_go(st, d, fuel - 1, &ty, k) {
+                                None => match abstract1_go(pers, st, d, fuel - 1, &ty, k) {
                                     Err(e) => Err(e),
-                                    Ok(t) => match abstract1_go(st, d, fuel - 1, &body, k + 1) {
+                                    Ok(t) => match abstract1_go(pers, st, d, fuel - 1, &body, k + 1) {
                                         Err(e) => Err(e),
                                         Ok(b2) => {
                                             let same: bool = t.eq2(&ty) && b2.eq2(&body);
                                             match intern_rebuilt(
+                                                pers,
                                                 st,
                                                 h,
                                                 same,
@@ -3205,13 +3325,14 @@ pub fn abstract1_go(
                             let ky: EIdxNat = eidx_nat_key(h, k);
                             match abs1_get(st, &ky) {
                                 Some(r) => Ok(r),
-                                None => match abstract1_go(st, d, fuel - 1, &ty, k) {
+                                None => match abstract1_go(pers, st, d, fuel - 1, &ty, k) {
                                     Err(e) => Err(e),
-                                    Ok(t) => match abstract1_go(st, d, fuel - 1, &body, k + 1) {
+                                    Ok(t) => match abstract1_go(pers, st, d, fuel - 1, &body, k + 1) {
                                         Err(e) => Err(e),
                                         Ok(b2) => {
                                             let same: bool = t.eq2(&ty) && b2.eq2(&body);
                                             match intern_rebuilt(
+                                                pers,
                                                 st,
                                                 h,
                                                 same,
@@ -3232,18 +3353,19 @@ pub fn abstract1_go(
                             let ky: EIdxNat = eidx_nat_key(h, k);
                             match abs1_get(st, &ky) {
                                 Some(r) => Ok(r),
-                                None => match abstract1_go(st, d, fuel - 1, &ty, k) {
+                                None => match abstract1_go(pers, st, d, fuel - 1, &ty, k) {
                                     Err(e) => Err(e),
-                                    Ok(t) => match abstract1_go(st, d, fuel - 1, &val, k) {
+                                    Ok(t) => match abstract1_go(pers, st, d, fuel - 1, &val, k) {
                                         Err(e) => Err(e),
                                         Ok(w) => {
-                                            match abstract1_go(st, d, fuel - 1, &body, k + 1) {
+                                            match abstract1_go(pers, st, d, fuel - 1, &body, k + 1) {
                                                 Err(e) => Err(e),
                                                 Ok(b2) => {
                                                     let same: bool = t.eq2(&ty)
                                                         && w.eq2(&val)
                                                         && b2.eq2(&body);
                                                     match intern_rebuilt(
+                                                        pers,
                                                         st,
                                                         h,
                                                         same,
@@ -3266,11 +3388,12 @@ pub fn abstract1_go(
                             let ky: EIdxNat = eidx_nat_key(h, k);
                             match abs1_get(st, &ky) {
                                 Some(r) => Ok(r),
-                                None => match abstract1_go(st, d, fuel - 1, &sub, k) {
+                                None => match abstract1_go(pers, st, d, fuel - 1, &sub, k) {
                                     Err(e) => Err(e),
                                     Ok(u) => {
                                         let same: bool = u.eq2(&sub);
                                         match intern_rebuilt(
+                                            pers,
                                             st,
                                             h,
                                             same,
@@ -3297,6 +3420,7 @@ pub fn abstract1_go(
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1163-1167 abstract1Fast` — the
 /// top-level entry.
 pub fn abstract1_fast(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     e: &EIdx,
@@ -3304,7 +3428,7 @@ pub fn abstract1_fast(
     k: u64,
 ) -> Result<EIdx, CheckError> {
     abs1_clear(st);
-    match abstract1_go(st, d, fuel, e, k) {
+    match abstract1_go(pers, st, d, fuel, e, k) {
         Err(er) => Err(er),
         Ok(r) => {
             abs1_clear(st);
@@ -3323,6 +3447,7 @@ pub fn abstract1_fast(
 /// every loose bound variable `>= cutoff + amount` by `amount`, with
 /// con-leche's own `bvarB <= c + amount` cutoff.
 pub fn lower_bvars_go(
+    pers: &PersTier,
     st: &mut AState,
     amount: u64,
     fuel: u64,
@@ -3332,17 +3457,17 @@ pub fn lower_bvars_go(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_LOWER)))
     } else {
-        match bvar_b(st, fuel - 1, h) {
+        match bvar_b(pers, st, fuel - 1, h) {
             Err(e) => Err(e),
             Ok(bb) => {
                 if bb <= c + amount {
                     Ok(h.dup2())
                 } else {
-                    match view(st, h) {
+                    match view(pers, st, h) {
                         Err(e) => Err(e),
                         Ok(ENodeView::BVar(i)) => {
                             if i >= c + amount {
-                                intern_e(st, ENodeView::BVar(i - amount))
+                                intern_e(pers, st, ENodeView::BVar(i - amount))
                             } else {
                                 Ok(h.dup2())
                             }
@@ -3355,11 +3480,11 @@ pub fn lower_bvars_go(
                             let k: EIdxNat = eidx_nat_key(h, c);
                             match lower_get(st, &k) {
                                 Some(r) => Ok(r),
-                                None => match lower_bvars_go(st, amount, fuel - 1, &f, c) {
+                                None => match lower_bvars_go(pers, st, amount, fuel - 1, &f, c) {
                                     Err(e) => Err(e),
-                                    Ok(f2) => match lower_bvars_go(st, amount, fuel - 1, &a, c) {
+                                    Ok(f2) => match lower_bvars_go(pers, st, amount, fuel - 1, &a, c) {
                                         Err(e) => Err(e),
-                                        Ok(a2) => match intern_e(st, ENodeView::App(f2, a2)) {
+                                        Ok(a2) => match intern_e(pers, st, ENodeView::App(f2, a2)) {
                                             Err(e) => Err(e),
                                             Ok(r) => {
                                                 lower_set(st, k, &r);
@@ -3374,13 +3499,13 @@ pub fn lower_bvars_go(
                             let k: EIdxNat = eidx_nat_key(h, c);
                             match lower_get(st, &k) {
                                 Some(r) => Ok(r),
-                                None => match lower_bvars_go(st, amount, fuel - 1, &ty, c) {
+                                None => match lower_bvars_go(pers, st, amount, fuel - 1, &ty, c) {
                                     Err(e) => Err(e),
                                     Ok(t) => {
-                                        match lower_bvars_go(st, amount, fuel - 1, &body, c + 1) {
+                                        match lower_bvars_go(pers, st, amount, fuel - 1, &body, c + 1) {
                                             Err(e) => Err(e),
                                             Ok(b) => {
-                                                match intern_e(st, ENodeView::Lam(t, b, m)) {
+                                                match intern_e(pers, st, ENodeView::Lam(t, b, m)) {
                                                     Err(e) => Err(e),
                                                     Ok(r) => {
                                                         lower_set(st, k, &r);
@@ -3397,13 +3522,13 @@ pub fn lower_bvars_go(
                             let k: EIdxNat = eidx_nat_key(h, c);
                             match lower_get(st, &k) {
                                 Some(r) => Ok(r),
-                                None => match lower_bvars_go(st, amount, fuel - 1, &ty, c) {
+                                None => match lower_bvars_go(pers, st, amount, fuel - 1, &ty, c) {
                                     Err(e) => Err(e),
                                     Ok(t) => {
-                                        match lower_bvars_go(st, amount, fuel - 1, &body, c + 1) {
+                                        match lower_bvars_go(pers, st, amount, fuel - 1, &body, c + 1) {
                                             Err(e) => Err(e),
                                             Ok(b) => {
-                                                match intern_e(st, ENodeView::ForallE(t, b, m)) {
+                                                match intern_e(pers, st, ENodeView::ForallE(t, b, m)) {
                                                     Err(e) => Err(e),
                                                     Ok(r) => {
                                                         lower_set(st, k, &r);
@@ -3420,16 +3545,16 @@ pub fn lower_bvars_go(
                             let k: EIdxNat = eidx_nat_key(h, c);
                             match lower_get(st, &k) {
                                 Some(r) => Ok(r),
-                                None => match lower_bvars_go(st, amount, fuel - 1, &ty, c) {
+                                None => match lower_bvars_go(pers, st, amount, fuel - 1, &ty, c) {
                                     Err(e) => Err(e),
-                                    Ok(t) => match lower_bvars_go(st, amount, fuel - 1, &val, c) {
+                                    Ok(t) => match lower_bvars_go(pers, st, amount, fuel - 1, &val, c) {
                                         Err(e) => Err(e),
                                         Ok(w) => {
-                                            match lower_bvars_go(st, amount, fuel - 1, &body, c + 1)
+                                            match lower_bvars_go(pers, st, amount, fuel - 1, &body, c + 1)
                                             {
                                                 Err(e) => Err(e),
                                                 Ok(b) => {
-                                                    match intern_e(st, ENodeView::LetE(t, w, b)) {
+                                                    match intern_e(pers, st, ENodeView::LetE(t, w, b)) {
                                                         Err(e) => Err(e),
                                                         Ok(r) => {
                                                             lower_set(st, k, &r);
@@ -3447,9 +3572,9 @@ pub fn lower_bvars_go(
                             let k: EIdxNat = eidx_nat_key(h, c);
                             match lower_get(st, &k) {
                                 Some(r) => Ok(r),
-                                None => match lower_bvars_go(st, amount, fuel - 1, &sub, c) {
+                                None => match lower_bvars_go(pers, st, amount, fuel - 1, &sub, c) {
                                     Err(e) => Err(e),
-                                    Ok(u) => match intern_e(st, ENodeView::Proj(n, i, u)) {
+                                    Ok(u) => match intern_e(pers, st, ENodeView::Proj(n, i, u)) {
                                         Err(e) => Err(e),
                                         Ok(r) => {
                                             lower_set(st, k, &r);
@@ -3470,6 +3595,7 @@ pub fn lower_bvars_go(
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1236-1240 lowerBVarsFast` — the
 /// top-level entry.
 pub fn lower_bvars_fast(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     amount: u64,
@@ -3477,7 +3603,7 @@ pub fn lower_bvars_fast(
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
     lower_clear(st);
-    match lower_bvars_go(st, amount, fuel, e, c) {
+    match lower_bvars_go(pers, st, amount, fuel, e, c) {
         Err(er) => Err(er),
         Ok(r) => {
             lower_clear(st);
@@ -3502,6 +3628,7 @@ pub fn lower_bvars_fast(
 /// replace `bvar d` by `v`, lifting `v`'s loose `bvar`s past the binders
 /// crossed on the way, with con-leche's own `bvarB <= d` cutoff.
 pub fn instantiate1_lift_go(
+    pers: &PersTier,
     st: &mut AState,
     v: &EIdx,
     fuel: u64,
@@ -3511,19 +3638,19 @@ pub fn instantiate1_lift_go(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_INST1_LIFT)))
     } else {
-        match bvar_b(st, fuel - 1, h) {
+        match bvar_b(pers, st, fuel - 1, h) {
             Err(e) => Err(e),
             Ok(bb) => {
                 if bb <= d {
                     Ok(h.dup2())
                 } else {
-                    match view(st, h) {
+                    match view(pers, st, h) {
                         Err(e) => Err(e),
                         Ok(ENodeView::BVar(i)) => {
                             if i == d {
-                                lift_loose_bvars_fast(st, fuel - 1, d, 0, v)
+                                lift_loose_bvars_fast(pers, st, fuel - 1, d, 0, v)
                             } else if i > d {
-                                intern_e(st, ENodeView::BVar(i - 1))
+                                intern_e(pers, st, ENodeView::BVar(i - 1))
                             } else {
                                 Ok(h.dup2())
                             }
@@ -3536,13 +3663,13 @@ pub fn instantiate1_lift_go(
                             let k: EIdxNat = eidx_nat_key(h, d);
                             match inst1_l_get(st, &k) {
                                 Some(r) => Ok(r),
-                                None => match instantiate1_lift_go(st, v, fuel - 1, &f, d) {
+                                None => match instantiate1_lift_go(pers, st, v, fuel - 1, &f, d) {
                                     Err(e) => Err(e),
                                     Ok(f2) => {
-                                        match instantiate1_lift_go(st, v, fuel - 1, &a, d) {
+                                        match instantiate1_lift_go(pers, st, v, fuel - 1, &a, d) {
                                             Err(e) => Err(e),
                                             Ok(a2) => {
-                                                match intern_e(st, ENodeView::App(f2, a2)) {
+                                                match intern_e(pers, st, ENodeView::App(f2, a2)) {
                                                     Err(e) => Err(e),
                                                     Ok(r) => {
                                                         inst1_l_set(st, k, &r);
@@ -3559,13 +3686,13 @@ pub fn instantiate1_lift_go(
                             let k: EIdxNat = eidx_nat_key(h, d);
                             match inst1_l_get(st, &k) {
                                 Some(r) => Ok(r),
-                                None => match instantiate1_lift_go(st, v, fuel - 1, &ty, d) {
+                                None => match instantiate1_lift_go(pers, st, v, fuel - 1, &ty, d) {
                                     Err(e) => Err(e),
                                     Ok(t) => {
-                                        match instantiate1_lift_go(st, v, fuel - 1, &body, d + 1) {
+                                        match instantiate1_lift_go(pers, st, v, fuel - 1, &body, d + 1) {
                                             Err(e) => Err(e),
                                             Ok(b) => {
-                                                match intern_e(st, ENodeView::Lam(t, b, m)) {
+                                                match intern_e(pers, st, ENodeView::Lam(t, b, m)) {
                                                     Err(e) => Err(e),
                                                     Ok(r) => {
                                                         inst1_l_set(st, k, &r);
@@ -3582,13 +3709,13 @@ pub fn instantiate1_lift_go(
                             let k: EIdxNat = eidx_nat_key(h, d);
                             match inst1_l_get(st, &k) {
                                 Some(r) => Ok(r),
-                                None => match instantiate1_lift_go(st, v, fuel - 1, &ty, d) {
+                                None => match instantiate1_lift_go(pers, st, v, fuel - 1, &ty, d) {
                                     Err(e) => Err(e),
                                     Ok(t) => {
-                                        match instantiate1_lift_go(st, v, fuel - 1, &body, d + 1) {
+                                        match instantiate1_lift_go(pers, st, v, fuel - 1, &body, d + 1) {
                                             Err(e) => Err(e),
                                             Ok(b) => {
-                                                match intern_e(st, ENodeView::ForallE(t, b, m)) {
+                                                match intern_e(pers, st, ENodeView::ForallE(t, b, m)) {
                                                     Err(e) => Err(e),
                                                     Ok(r) => {
                                                         inst1_l_set(st, k, &r);
@@ -3605,13 +3732,14 @@ pub fn instantiate1_lift_go(
                             let k: EIdxNat = eidx_nat_key(h, d);
                             match inst1_l_get(st, &k) {
                                 Some(r) => Ok(r),
-                                None => match instantiate1_lift_go(st, v, fuel - 1, &ty, d) {
+                                None => match instantiate1_lift_go(pers, st, v, fuel - 1, &ty, d) {
                                     Err(e) => Err(e),
                                     Ok(t) => {
-                                        match instantiate1_lift_go(st, v, fuel - 1, &val, d) {
+                                        match instantiate1_lift_go(pers, st, v, fuel - 1, &val, d) {
                                             Err(e) => Err(e),
                                             Ok(w) => {
                                                 match instantiate1_lift_go(
+                                                    pers,
                                                     st,
                                                     v,
                                                     fuel - 1,
@@ -3621,6 +3749,7 @@ pub fn instantiate1_lift_go(
                                                     Err(e) => Err(e),
                                                     Ok(b) => {
                                                         match intern_e(
+                                                            pers,
                                                             st,
                                                             ENodeView::LetE(t, w, b),
                                                         ) {
@@ -3642,9 +3771,9 @@ pub fn instantiate1_lift_go(
                             let k: EIdxNat = eidx_nat_key(h, d);
                             match inst1_l_get(st, &k) {
                                 Some(r) => Ok(r),
-                                None => match instantiate1_lift_go(st, v, fuel - 1, &sub, d) {
+                                None => match instantiate1_lift_go(pers, st, v, fuel - 1, &sub, d) {
                                     Err(e) => Err(e),
-                                    Ok(u) => match intern_e(st, ENodeView::Proj(n, i, u)) {
+                                    Ok(u) => match intern_e(pers, st, ENodeView::Proj(n, i, u)) {
                                         Err(e) => Err(e),
                                         Ok(r) => {
                                             inst1_l_set(st, k, &r);
@@ -3665,6 +3794,7 @@ pub fn instantiate1_lift_go(
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1318-1322 instantiate1LiftFast`
 /// — the top-level entry.
 pub fn instantiate1_lift_fast(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     e: &EIdx,
@@ -3672,7 +3802,7 @@ pub fn instantiate1_lift_fast(
     d: u64,
 ) -> Result<EIdx, CheckError> {
     inst1_l_clear(st);
-    match instantiate1_lift_go(st, v, fuel, e, d) {
+    match instantiate1_lift_go(pers, st, v, fuel, e, d) {
         Err(er) => Err(er),
         Ok(r) => {
             inst1_l_clear(st);
@@ -3685,18 +3815,20 @@ pub fn instantiate1_lift_fast(
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1326-1333 instPisAtLift` —
 /// instantiate the leading `∀`-binders at *open* arguments.
 pub fn inst_pis_at_lift(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     args: &Vec<EIdx>,
     h: &EIdx,
 ) -> Result<Option<EIdx>, CheckError> {
-    inst_pis_at_lift_from(st, fuel, args, 0, h)
+    inst_pis_at_lift_from(pers, st, fuel, args, 0, h)
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2365-2378 instPisAtLift
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1326-1333 instPisAtLift` — the
 /// cursor recursion behind `inst_pis_at_lift`.
 pub fn inst_pis_at_lift_from(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     args: &Vec<EIdx>,
@@ -3706,13 +3838,13 @@ pub fn inst_pis_at_lift_from(
     if i >= args.len() {
         Ok(Some(h.dup2()))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
             Ok(ENodeView::ForallE(_, body, _)) => {
                 let a: EIdx = args[i].dup2();
-                match instantiate1_lift_fast(st, fuel, &body, &a, 0) {
+                match instantiate1_lift_fast(pers, st, fuel, &body, &a, 0) {
                     Err(e) => Err(e),
-                    Ok(b) => inst_pis_at_lift_from(st, fuel, args, i + 1, &b),
+                    Ok(b) => inst_pis_at_lift_from(pers, st, fuel, args, i + 1, &b),
                 }
             }
             Ok(_) => Ok(None),
@@ -3744,8 +3876,8 @@ pub fn expr_ptr_beq(a: &EIdx, b: &EIdx) -> bool {
 /// level-substitution cutoff in `O(1)`.  A free function rather than an
 /// inherent method, so that the state stays the first argument as it is
 /// everywhere else in this module.
-pub fn lidx_has_param(st: &AState, h: &LIdx) -> bool {
-    derived_l(st, h).has_param
+pub fn lidx_has_param(pers: &PersTier, st: &AState, h: &LIdx) -> bool {
+    derived_l(pers, st, h).has_param
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2420-2435 Expr.hasLevelParam
@@ -3753,8 +3885,8 @@ pub fn lidx_has_param(st: &AState, h: &LIdx) -> bool {
 /// whether an expression mentions any level parameter.  Again a field read:
 /// this is exactly the `hasLP` bit of the packed derived word, and
 /// `Expr.hasLP_eq` is con-leche's own proof that the two agree.
-pub fn eidx_has_level_param(st: &AState, h: &EIdx) -> bool {
-    expr::lp_of_data(derived_e(st, h))
+pub fn eidx_has_level_param(pers: &PersTier, st: &AState, h: &EIdx) -> bool {
+    expr::lp_of_data(derived_e(pers, st, h))
 }
 
 // ---------------------------------------------------------------------------
@@ -3803,6 +3935,7 @@ pub fn subst_level_list_from(
 /// levels back, run `Level.subst` on the transient trees and re-intern;
 /// nothing else in this module touches a level.
 pub fn inst_lp_go(
+    pers: &PersTier,
     st: &mut AState,
     ks: &Vec<Name>,
     us: &Vec<Level>,
@@ -3812,36 +3945,36 @@ pub fn inst_lp_go(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_INST_LP)))
     } else {
-        let der: u64 = derived_e(st, h);
+        let der: u64 = derived_e(pers, st, h);
         if !expr::lp_of_data(der) {
             Ok(h.dup2())
         } else {
-            match view(st, h) {
+            match view(pers, st, h) {
                 Err(e) => Err(e),
                 Ok(ENodeView::BVar(_)) => Ok(h.dup2()),
                 Ok(ENodeView::Lit(_)) => Ok(h.dup2()),
-                Ok(ENodeView::Sort(u)) => match read_level(st, &u) {
+                Ok(ENodeView::Sort(u)) => match read_level(pers, st, &u) {
                     Err(e) => Err(e),
                     Ok(l) => {
                         let l2: Level = level::subst(ks, us, &l);
-                        match intern_level(st, &l2) {
+                        match intern_level(pers, st, &l2) {
                             Err(e) => Err(e),
                             Ok(hl) => {
                                 let same: bool = hl.eq2(&u);
-                                intern_rebuilt(st, h, same, ENodeView::Sort(hl))
+                                intern_rebuilt(pers, st, h, same, ENodeView::Sort(hl))
                             }
                         }
                     }
                 },
-                Ok(ENodeView::Const(n, vs)) => match read_levels(st, &vs) {
+                Ok(ENodeView::Const(n, vs)) => match read_levels(pers, st, &vs) {
                     Err(e) => Err(e),
                     Ok(ls) => {
                         let ls2: Vec<Level> = subst_level_list(ks, us, &ls);
-                        match intern_levels(st, &ls2) {
+                        match intern_levels(pers, st, &ls2) {
                             Err(e) => Err(e),
                             Ok(vs2) => {
                                 let same: bool = vs2.eq2(&vs);
-                                intern_rebuilt(st, h, same, ENodeView::Const(n, vs2))
+                                intern_rebuilt(pers, st, h, same, ENodeView::Const(n, vs2))
                             }
                         }
                     }
@@ -3850,11 +3983,11 @@ pub fn inst_lp_go(
                     let k: EIdxNat = eidx_nat_key(h, 0);
                     match inst_lp_get(st, &k) {
                         Some(r) => Ok(r),
-                        None => match inst_lp_go(st, ks, us, fuel - 1, &ty) {
+                        None => match inst_lp_go(pers, st, ks, us, fuel - 1, &ty) {
                             Err(e) => Err(e),
                             Ok(t) => {
                                 let same: bool = t.eq2(&ty);
-                                match intern_rebuilt(st, h, same, ENodeView::FVar(i, t)) {
+                                match intern_rebuilt(pers, st, h, same, ENodeView::FVar(i, t)) {
                                     Err(e) => Err(e),
                                     Ok(r) => {
                                         inst_lp_set(st, k, &r);
@@ -3869,13 +4002,13 @@ pub fn inst_lp_go(
                     let k: EIdxNat = eidx_nat_key(h, 0);
                     match inst_lp_get(st, &k) {
                         Some(r) => Ok(r),
-                        None => match inst_lp_go(st, ks, us, fuel - 1, &f) {
+                        None => match inst_lp_go(pers, st, ks, us, fuel - 1, &f) {
                             Err(e) => Err(e),
-                            Ok(f2) => match inst_lp_go(st, ks, us, fuel - 1, &a) {
+                            Ok(f2) => match inst_lp_go(pers, st, ks, us, fuel - 1, &a) {
                                 Err(e) => Err(e),
                                 Ok(a2) => {
                                     let same: bool = f2.eq2(&f) && a2.eq2(&a);
-                                    match intern_rebuilt(st, h, same, ENodeView::App(f2, a2)) {
+                                    match intern_rebuilt(pers, st, h, same, ENodeView::App(f2, a2)) {
                                         Err(e) => Err(e),
                                         Ok(r) => {
                                             inst_lp_set(st, k, &r);
@@ -3891,9 +4024,9 @@ pub fn inst_lp_go(
                     let k: EIdxNat = eidx_nat_key(h, 0);
                     match inst_lp_get(st, &k) {
                         Some(r) => Ok(r),
-                        None => match inst_lp_go(st, ks, us, fuel - 1, &ty) {
+                        None => match inst_lp_go(pers, st, ks, us, fuel - 1, &ty) {
                             Err(e) => Err(e),
-                            Ok(t) => match inst_lp_go(st, ks, us, fuel - 1, &body) {
+                            Ok(t) => match inst_lp_go(pers, st, ks, us, fuel - 1, &body) {
                                 Err(e) => Err(e),
                                 Ok(b2) => {
                                     let m2: BinderMeta =
@@ -3901,7 +4034,7 @@ pub fn inst_lp_go(
                                     let same: bool = t.eq2(&ty)
                                         && b2.eq2(&body)
                                         && expr::binder_meta_beq(&m2, &m);
-                                    match intern_rebuilt(st, h, same, ENodeView::Lam(t, b2, m2)) {
+                                    match intern_rebuilt(pers, st, h, same, ENodeView::Lam(t, b2, m2)) {
                                         Err(e) => Err(e),
                                         Ok(r) => {
                                             inst_lp_set(st, k, &r);
@@ -3917,9 +4050,9 @@ pub fn inst_lp_go(
                     let k: EIdxNat = eidx_nat_key(h, 0);
                     match inst_lp_get(st, &k) {
                         Some(r) => Ok(r),
-                        None => match inst_lp_go(st, ks, us, fuel - 1, &ty) {
+                        None => match inst_lp_go(pers, st, ks, us, fuel - 1, &ty) {
                             Err(e) => Err(e),
-                            Ok(t) => match inst_lp_go(st, ks, us, fuel - 1, &body) {
+                            Ok(t) => match inst_lp_go(pers, st, ks, us, fuel - 1, &body) {
                                 Err(e) => Err(e),
                                 Ok(b2) => {
                                     let m2: BinderMeta =
@@ -3928,6 +4061,7 @@ pub fn inst_lp_go(
                                         && b2.eq2(&body)
                                         && expr::binder_meta_beq(&m2, &m);
                                     match intern_rebuilt(
+                                        pers,
                                         st,
                                         h,
                                         same,
@@ -3948,16 +4082,17 @@ pub fn inst_lp_go(
                     let k: EIdxNat = eidx_nat_key(h, 0);
                     match inst_lp_get(st, &k) {
                         Some(r) => Ok(r),
-                        None => match inst_lp_go(st, ks, us, fuel - 1, &ty) {
+                        None => match inst_lp_go(pers, st, ks, us, fuel - 1, &ty) {
                             Err(e) => Err(e),
-                            Ok(t) => match inst_lp_go(st, ks, us, fuel - 1, &val) {
+                            Ok(t) => match inst_lp_go(pers, st, ks, us, fuel - 1, &val) {
                                 Err(e) => Err(e),
-                                Ok(w) => match inst_lp_go(st, ks, us, fuel - 1, &body) {
+                                Ok(w) => match inst_lp_go(pers, st, ks, us, fuel - 1, &body) {
                                     Err(e) => Err(e),
                                     Ok(b2) => {
                                         let same: bool =
                                             t.eq2(&ty) && w.eq2(&val) && b2.eq2(&body);
                                         match intern_rebuilt(
+                                            pers,
                                             st,
                                             h,
                                             same,
@@ -3979,11 +4114,11 @@ pub fn inst_lp_go(
                     let k: EIdxNat = eidx_nat_key(h, 0);
                     match inst_lp_get(st, &k) {
                         Some(r) => Ok(r),
-                        None => match inst_lp_go(st, ks, us, fuel - 1, &sub) {
+                        None => match inst_lp_go(pers, st, ks, us, fuel - 1, &sub) {
                             Err(e) => Err(e),
                             Ok(u2) => {
                                 let same: bool = u2.eq2(&sub);
-                                match intern_rebuilt(st, h, same, ENodeView::Proj(n, i, u2)) {
+                                match intern_rebuilt(pers, st, h, same, ENodeView::Proj(n, i, u2)) {
                                     Err(e) => Err(e),
                                     Ok(r) => {
                                         inst_lp_set(st, k, &r);
@@ -4004,19 +4139,20 @@ pub fn inst_lp_go(
 /// top-level entry: read the substitution back out of the store once, walk,
 /// drop the memo.
 pub fn inst_lp_fast(
+    pers: &PersTier,
     st: &mut AState,
     fuel: u64,
     ks: &Vec<NIdx>,
     us: &LsIdx,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match read_names(st, ks) {
+    match read_names(pers, st, ks) {
         Err(er) => Err(er),
-        Ok(ks_p) => match read_levels(st, us) {
+        Ok(ks_p) => match read_levels(pers, st, us) {
             Err(er) => Err(er),
             Ok(us_p) => {
                 inst_lp_clear(st);
-                match inst_lp_go(st, &ks_p, &us_p, fuel, e) {
+                match inst_lp_go(pers, st, &ks_p, &us_p, fuel, e) {
                     Err(er) => Err(er),
                     Ok(r) => {
                         inst_lp_clear(st);
@@ -4087,52 +4223,52 @@ mod tests {
 
     // --- the expression readback (`Denote.lean:183-206`), test-only ---------
 
-    fn denote_e_aux(st: &EStore, fuel: u64, i: &EIdx) -> Option<Expr> {
+    fn denote_e_aux(pers: &PersTier, st: &EStore, fuel: u64, i: &EIdx) -> Option<Expr> {
         if fuel == 0 {
             return None;
         }
-        match st.view(i) {
+        match st.view(pers, i) {
             None => None,
             Some(ENodeView::BVar(k)) => Some(expr::bvar(k)),
             Some(ENodeView::FVar(k, ty)) => {
-                denote_e_aux(st, fuel - 1, &ty).map(|t| expr::fvar(k, t))
+                denote_e_aux(pers, st, fuel - 1, &ty).map(|t| expr::fvar(k, t))
             }
-            Some(ENodeView::Sort(u)) => denote_l(st.ls(), &u).map(expr::sort),
+            Some(ENodeView::Sort(u)) => denote_l(pers, st.ls(), &u).map(expr::sort),
             Some(ENodeView::Const(n, us)) => {
-                match (denote_n(st.ns(), &n), denote_ls(st.ls_s(), &us)) {
+                match (denote_n(pers, st.ns(), &n), denote_ls(pers, st.ls_s(), &us)) {
                     (Some(a), Some(b)) => Some(expr::mk_const(a, b)),
                     _ => None,
                 }
             }
             Some(ENodeView::App(g, a)) => {
-                match (denote_e_aux(st, fuel - 1, &g), denote_e_aux(st, fuel - 1, &a)) {
+                match (denote_e_aux(pers, st, fuel - 1, &g), denote_e_aux(pers, st, fuel - 1, &a)) {
                     (Some(x), Some(y)) => Some(expr::app(x, y)),
                     _ => None,
                 }
             }
             Some(ENodeView::Lam(ty, b, m)) => {
-                match (denote_e_aux(st, fuel - 1, &ty), denote_e_aux(st, fuel - 1, &b)) {
+                match (denote_e_aux(pers, st, fuel - 1, &ty), denote_e_aux(pers, st, fuel - 1, &b)) {
                     (Some(x), Some(y)) => Some(expr::lam(x, y, m)),
                     _ => None,
                 }
             }
             Some(ENodeView::ForallE(ty, b, m)) => {
-                match (denote_e_aux(st, fuel - 1, &ty), denote_e_aux(st, fuel - 1, &b)) {
+                match (denote_e_aux(pers, st, fuel - 1, &ty), denote_e_aux(pers, st, fuel - 1, &b)) {
                     (Some(x), Some(y)) => Some(expr::forall_e(x, y, m)),
                     _ => None,
                 }
             }
             Some(ENodeView::LetE(ty, v, b)) => match (
-                denote_e_aux(st, fuel - 1, &ty),
-                denote_e_aux(st, fuel - 1, &v),
-                denote_e_aux(st, fuel - 1, &b),
+                denote_e_aux(pers, st, fuel - 1, &ty),
+                denote_e_aux(pers, st, fuel - 1, &v),
+                denote_e_aux(pers, st, fuel - 1, &b),
             ) {
                 (Some(x), Some(y), Some(z)) => Some(expr::let_e(x, y, z)),
                 _ => None,
             },
             Some(ENodeView::Lit(l)) => Some(expr::lit(l)),
             Some(ENodeView::Proj(n, k, e)) => {
-                match (denote_n(st.ns(), &n), denote_e_aux(st, fuel - 1, &e)) {
+                match (denote_n(pers, st.ns(), &n), denote_e_aux(pers, st, fuel - 1, &e)) {
                     (Some(s), Some(x)) => Some(expr::proj(s, k, x)),
                     _ => None,
                 }
@@ -4140,29 +4276,29 @@ mod tests {
         }
     }
 
-    fn denote_e(st: &EStore, i: &EIdx) -> Option<Expr> {
-        denote_e_aux(st, st.node_count() as u64 + 1, i)
+    fn denote_e(pers: &PersTier, st: &EStore, i: &EIdx) -> Option<Expr> {
+        denote_e_aux(pers, st, st.node_count(pers) as u64 + 1, i)
     }
 
     /// The twin's `E h`: the denotation of a fixture handle.
-    fn den(st: &AState, h: &EIdx) -> Expr {
-        match denote_e(&st.store, h) {
+    fn den(pers: &PersTier, st: &AState, h: &EIdx) -> Expr {
+        match denote_e(pers, &st.store, h) {
             Some(e) => e,
             None => panic!("a fixture handle does not denote"),
         }
     }
 
     /// The twin's `L h`.
-    fn den_l(st: &AState, h: &LIdx) -> Level {
-        match denote_l(st.store.ls(), h) {
+    fn den_l(pers: &PersTier, st: &AState, h: &LIdx) -> Level {
+        match denote_l(pers, st.store.ls(), h) {
             Some(u) => u,
             None => panic!("a fixture level handle does not denote"),
         }
     }
 
     /// The twin's `N h`.
-    fn den_n(st: &AState, h: &NIdx) -> Name {
-        match denote_n(st.store.ns(), h) {
+    fn den_n(pers: &PersTier, st: &AState, h: &NIdx) -> Name {
+        match denote_n(pers, st.store.ns(), h) {
             Some(n) => n,
             None => panic!("a fixture name handle does not denote"),
         }
@@ -4175,84 +4311,86 @@ mod tests {
     /// `intern_expr_round_trips` checks; it is also how a test that starts
     /// from a `con-ron-core` term rather than from a handle gets into the
     /// arena.
-    fn intern_expr(st: &mut AState, e: &Expr) -> EIdx {
+    fn intern_expr(pers: &PersTier, st: &mut AState, e: &Expr) -> EIdx {
         match expr::view(e) {
-            expr::ExprView::Bvar(i) => ok(intern_e(st, ENodeView::BVar(*i))),
+            expr::ExprView::Bvar(i) => ok(intern_e(pers, st, ENodeView::BVar(*i))),
             expr::ExprView::Fvar(i, ty) => {
-                let t = intern_expr(st, ty);
-                ok(intern_e(st, ENodeView::FVar(*i, t)))
+                let t = intern_expr(pers, st, ty);
+                ok(intern_e(pers, st, ENodeView::FVar(*i, t)))
             }
             expr::ExprView::Sort(u) => {
-                let hu = ok(crate::arena::monad::intern_level(st, u));
-                ok(intern_e(st, ENodeView::Sort(hu)))
+                let hu = ok(crate::arena::monad::intern_level(pers, st, u));
+                ok(intern_e(pers, st, ENodeView::Sort(hu)))
             }
             expr::ExprView::Const(n, us) => {
-                let hn = ok(crate::arena::monad::intern_name(st, n));
-                let hus = ok(crate::arena::monad::intern_levels(st, us));
-                ok(intern_e(st, ENodeView::Const(hn, hus)))
+                let hn = ok(crate::arena::monad::intern_name(pers, st, n));
+                let hus = ok(crate::arena::monad::intern_levels(pers, st, us));
+                ok(intern_e(pers, st, ENodeView::Const(hn, hus)))
             }
             expr::ExprView::App(f, a) => {
-                let hf = intern_expr(st, f);
-                let ha = intern_expr(st, a);
-                ok(intern_e(st, ENodeView::App(hf, ha)))
+                let hf = intern_expr(pers, st, f);
+                let ha = intern_expr(pers, st, a);
+                ok(intern_e(pers, st, ENodeView::App(hf, ha)))
             }
             expr::ExprView::Lam(ty, b, m) => {
-                let ht = intern_expr(st, ty);
-                let hb = intern_expr(st, b);
-                ok(intern_e(st, ENodeView::Lam(ht, hb, expr::binder_meta_dup(m))))
+                let ht = intern_expr(pers, st, ty);
+                let hb = intern_expr(pers, st, b);
+                ok(intern_e(pers, st, ENodeView::Lam(ht, hb, expr::binder_meta_dup(m))))
             }
             expr::ExprView::ForallE(ty, b, m) => {
-                let ht = intern_expr(st, ty);
-                let hb = intern_expr(st, b);
-                ok(intern_e(st, ENodeView::ForallE(ht, hb, expr::binder_meta_dup(m))))
+                let ht = intern_expr(pers, st, ty);
+                let hb = intern_expr(pers, st, b);
+                ok(intern_e(pers, st, ENodeView::ForallE(ht, hb, expr::binder_meta_dup(m))))
             }
             expr::ExprView::LetE(ty, v, b) => {
-                let ht = intern_expr(st, ty);
-                let hv = intern_expr(st, v);
-                let hb = intern_expr(st, b);
-                ok(intern_e(st, ENodeView::LetE(ht, hv, hb)))
+                let ht = intern_expr(pers, st, ty);
+                let hv = intern_expr(pers, st, v);
+                let hb = intern_expr(pers, st, b);
+                ok(intern_e(pers, st, ENodeView::LetE(ht, hv, hb)))
             }
-            expr::ExprView::Lit(l) => ok(intern_e(st, ENodeView::Lit(expr::literal_dup(l)))),
+            expr::ExprView::Lit(l) => ok(intern_e(pers, st, ENodeView::Lit(expr::literal_dup(l)))),
             expr::ExprView::Proj(n, i, sub) => {
-                let hn = ok(crate::arena::monad::intern_name(st, n));
-                let hs = intern_expr(st, sub);
-                ok(intern_e(st, ENodeView::Proj(hn, *i, hs)))
+                let hn = ok(crate::arena::monad::intern_name(pers, st, n));
+                let hs = intern_expr(pers, st, sub);
+                ok(intern_e(pers, st, ENodeView::Proj(hn, *i, hs)))
             }
         }
     }
 
     // --- the comparison shapes ---------------------------------------------
 
-    fn eq_e(st: &AState, got: &EIdx, want: &Expr) -> bool {
-        expr::beq(&den(st, got), want)
+    fn eq_e(pers: &PersTier, st: &AState, got: &EIdx, want: &Expr) -> bool {
+        expr::beq(&den(pers, st, got), want)
     }
 
-    fn eq_le(st: &AState, got: &Vec<EIdx>, want: &Vec<Expr>) -> bool {
+    fn eq_le(pers: &PersTier, st: &AState, got: &Vec<EIdx>, want: &Vec<Expr>) -> bool {
         got.len() == want.len()
-            && (0..got.len()).all(|i| expr::beq(&den(st, &got[i]), &want[i]))
+            && (0..got.len()).all(|i| expr::beq(&den(pers, st, &got[i]), &want[i]))
     }
 
-    fn eq_ope(st: &AState, got: &Option<EIdx>, want: &Option<Expr>) -> bool {
+    fn eq_ope(pers: &PersTier, st: &AState, got: &Option<EIdx>, want: &Option<Expr>) -> bool {
         match (got, want) {
-            (Some(g), Some(w)) => eq_e(st, g, w),
+            (Some(g), Some(w)) => eq_e(pers, st, g, w),
             (None, None) => true,
             _ => false,
         }
     }
 
     fn eq_pair(
+    pers: &PersTier,
         st: &AState,
         got: &Option<(Vec<EIdx>, EIdx)>,
         want: &Option<(Vec<Expr>, Expr)>,
     ) -> bool {
         match (got, want) {
-            (Some(g), Some(w)) => eq_le(st, &g.0, &w.0) && eq_e(st, &g.1, &w.1),
+            (Some(g), Some(w)) => eq_le(pers, st, &g.0, &w.0) && eq_e(pers, st, &g.1, &w.1),
             (None, None) => true,
             _ => false,
         }
     }
 
     fn eq_binders(
+    pers: &PersTier,
         st: &AState,
         got: &Option<(Vec<(EIdx, BinderMeta)>, EIdx)>,
         want: &Option<(Vec<(Expr, BinderMeta)>, Expr)>,
@@ -4261,20 +4399,25 @@ mod tests {
             (Some(g), Some(w)) => {
                 g.0.len() == w.0.len()
                     && (0..g.0.len()).all(|i| {
-                        expr::beq(&den(st, &g.0[i].0), &w.0[i].0)
+                        expr::beq(&den(pers, st, &g.0[i].0), &w.0[i].0)
                             && expr::binder_meta_beq(&g.0[i].1, &w.0[i].1)
                     })
-                    && eq_e(st, &g.1, &w.1)
+                    && eq_e(pers, st, &g.1, &w.1)
             }
             (None, None) => true,
             _ => false,
         }
     }
 
-    fn eq_fvl(st: &AState, got: &Vec<(u64, EIdx)>, want: &Vec<(u64, Expr)>) -> bool {
+    fn eq_fvl(
+        pers: &PersTier,
+        st: &AState,
+        got: &Vec<(u64, EIdx)>,
+        want: &Vec<(u64, Expr)>,
+    ) -> bool  {
         got.len() == want.len()
             && (0..got.len())
-                .all(|i| got[i].0 == want[i].0 && expr::beq(&den(st, &got[i].1), &want[i].1))
+                .all(|i| got[i].0 == want[i].0 && expr::beq(&den(pers, st, &got[i].1), &want[i].1))
     }
 
     fn eq_opw(got: &Option<PropWhen>, want: &Option<PropWhen>) -> bool {
@@ -4285,9 +4428,9 @@ mod tests {
         }
     }
 
-    fn eq_ol(st: &AState, got: &Option<LIdx>, want: &Option<Level>) -> bool {
+    fn eq_ol(pers: &PersTier, st: &AState, got: &Option<LIdx>, want: &Option<Level>) -> bool {
         match (got, want) {
-            (Some(g), Some(w)) => core_level::beq(&den_l(st, g), w),
+            (Some(g), Some(w)) => core_level::beq(&den_l(pers, st, g), w),
             (None, None) => true,
             _ => false,
         }
@@ -4335,89 +4478,103 @@ mod tests {
     /// walk (a λ over a `let` over a `∀` over a `proj` over a spine; a
     /// two-binder `∀`-telescope and its λ twin; an application spine).
     fn fixture() -> (AState, Fx) {
+        let pers: &PersTier = &PersTier::empty();
         let mut st = AState::init(EStore::empty());
         let nev = || expr::binder_meta(prop_when::never());
-        let z = ok(intern_l_node(&mut st, LNodeView::Zero));
-        let one = ok(intern_l_node(&mut st, LNodeView::Succ(z.dup2())));
-        let anon = ok(intern_n_node(&mut st, NNodeView::Anonymous));
-        let foo = ok(intern_n_node(&mut st, NNodeView::Str(anon.dup2(), cp("foo"))));
-        let bar = ok(intern_n_node(&mut st, NNodeView::Str(anon.dup2(), cp("bar"))));
-        let u_n = ok(intern_n_node(&mut st, NNodeView::Str(anon.dup2(), cp("u"))));
-        let pu = ok(intern_l_node(&mut st, LNodeView::Param(u_n.dup2())));
-        let us_z = ok(intern_ls_node(&mut st, vec![z.dup2()]));
-        let us_u = ok(intern_ls_node(&mut st, vec![pu.dup2()]));
-        let s0 = ok(intern_e(&mut st, ENodeView::Sort(z.dup2())));
-        let s1 = ok(intern_e(&mut st, ENodeView::Sort(one.dup2())));
-        let su = ok(intern_e(&mut st, ENodeView::Sort(pu.dup2())));
-        let cf = ok(intern_e(&mut st, ENodeView::Const(foo.dup2(), us_z.dup2())));
-        let cb = ok(intern_e(&mut st, ENodeView::Const(bar.dup2(), us_u.dup2())));
-        let b0 = ok(intern_e(&mut st, ENodeView::BVar(0)));
-        let b1 = ok(intern_e(&mut st, ENodeView::BVar(1)));
-        let b2 = ok(intern_e(&mut st, ENodeView::BVar(2)));
+        let z = ok(intern_l_node(pers, &mut st, LNodeView::Zero));
+        let one = ok(intern_l_node(pers, &mut st, LNodeView::Succ(z.dup2())));
+        let anon = ok(intern_n_node(pers, &mut st, NNodeView::Anonymous));
+        let foo = ok(intern_n_node(pers, &mut st, NNodeView::Str(anon.dup2(), cp("foo"))));
+        let bar = ok(intern_n_node(pers, &mut st, NNodeView::Str(anon.dup2(), cp("bar"))));
+        let u_n = ok(intern_n_node(pers, &mut st, NNodeView::Str(anon.dup2(), cp("u"))));
+        let pu = ok(intern_l_node(pers, &mut st, LNodeView::Param(u_n.dup2())));
+        let us_z = ok(intern_ls_node(pers, &mut st, vec![z.dup2()]));
+        let us_u = ok(intern_ls_node(pers, &mut st, vec![pu.dup2()]));
+        let s0 = ok(intern_e(pers, &mut st, ENodeView::Sort(z.dup2())));
+        let s1 = ok(intern_e(pers, &mut st, ENodeView::Sort(one.dup2())));
+        let su = ok(intern_e(pers, &mut st, ENodeView::Sort(pu.dup2())));
+        let cf = ok(intern_e(pers, &mut st, ENodeView::Const(foo.dup2(), us_z.dup2())));
+        let cb = ok(intern_e(pers, &mut st, ENodeView::Const(bar.dup2(), us_u.dup2())));
+        let b0 = ok(intern_e(pers, &mut st, ENodeView::BVar(0)));
+        let b1 = ok(intern_e(pers, &mut st, ENodeView::BVar(1)));
+        let b2 = ok(intern_e(pers, &mut st, ENodeView::BVar(2)));
         let lit7 = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::Lit(expr::literal_nat(nat::from_u64(7))),
         ));
-        let fv0 = ok(intern_e(&mut st, ENodeView::FVar(0, s0.dup2())));
-        let fv1 = ok(intern_e(&mut st, ENodeView::FVar(1, s1.dup2())));
-        let ap1 = ok(intern_e(&mut st, ENodeView::App(cf.dup2(), b0.dup2())));
-        let pj = ok(intern_e(&mut st, ENodeView::Proj(foo.dup2(), 0, ap1.dup2())));
+        let fv0 = ok(intern_e(pers, &mut st, ENodeView::FVar(0, s0.dup2())));
+        let fv1 = ok(intern_e(pers, &mut st, ENodeView::FVar(1, s1.dup2())));
+        let ap1 = ok(intern_e(pers, &mut st, ENodeView::App(cf.dup2(), b0.dup2())));
+        let pj = ok(intern_e(pers, &mut st, ENodeView::Proj(foo.dup2(), 0, ap1.dup2())));
         let lam_t = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::Lam(s0.dup2(), ap1.dup2(), nev()),
         ));
-        let apbf = ok(intern_e(&mut st, ENodeView::App(b1.dup2(), fv0.dup2())));
+        let apbf = ok(intern_e(pers, &mut st, ENodeView::App(b1.dup2(), fv0.dup2())));
         let all_t = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::ForallE(s0.dup2(), apbf.dup2(), nev()),
         ));
-        let apbb = ok(intern_e(&mut st, ENodeView::App(b0.dup2(), b1.dup2())));
+        let apbb = ok(intern_e(pers, &mut st, ENodeView::App(b0.dup2(), b1.dup2())));
         let let_t = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::LetE(s0.dup2(), cf.dup2(), apbb.dup2()),
         ));
-        let apcb = ok(intern_e(&mut st, ENodeView::App(cb.dup2(), b0.dup2())));
-        let apfv = ok(intern_e(&mut st, ENodeView::App(fv1.dup2(), b0.dup2())));
-        let apb2 = ok(intern_e(&mut st, ENodeView::App(b2.dup2(), apfv.dup2())));
+        let apcb = ok(intern_e(pers, &mut st, ENodeView::App(cb.dup2(), b0.dup2())));
+        let apfv = ok(intern_e(pers, &mut st, ENodeView::App(fv1.dup2(), b0.dup2())));
+        let apb2 = ok(intern_e(pers, &mut st, ENodeView::App(b2.dup2(), apfv.dup2())));
         let pj2 = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::Proj(foo.dup2(), 0, apb2.dup2()),
         ));
         let inner = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::ForallE(s1.dup2(), pj2.dup2(), nev()),
         ));
         let let_b = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::LetE(su.dup2(), apcb.dup2(), inner.dup2()),
         ));
         let big = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::Lam(s0.dup2(), let_b.dup2(), nev()),
         ));
-        let apb10 = ok(intern_e(&mut st, ENodeView::App(b1.dup2(), b0.dup2())));
+        let apb10 = ok(intern_e(pers, &mut st, ENodeView::App(b1.dup2(), b0.dup2())));
         let pi_in = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::ForallE(s1.dup2(), apb10.dup2(), nev()),
         ));
         let pi_t = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::ForallE(s0.dup2(), pi_in.dup2(), nev()),
         ));
         let pi_s = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::ForallE(s0.dup2(), s1.dup2(), nev()),
         ));
         let lam_in = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::Lam(s1.dup2(), apb10.dup2(), nev()),
         ));
         let lam_t2 = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::Lam(s0.dup2(), lam_in.dup2(), nev()),
         ));
-        let sp1 = ok(intern_e(&mut st, ENodeView::App(cf.dup2(), fv0.dup2())));
-        let spine = ok(intern_e(&mut st, ENodeView::App(sp1.dup2(), b0.dup2())));
+        let sp1 = ok(intern_e(pers, &mut st, ENodeView::App(cf.dup2(), fv0.dup2())));
+        let spine = ok(intern_e(pers, &mut st, ENodeView::App(sp1.dup2(), b0.dup2())));
         let fx = Fx {
             z,
             one,
@@ -4497,29 +4654,34 @@ mod tests {
 
     #[test]
     fn fixture_denotes_what_it_should() {
+        let pers: &PersTier = &PersTier::empty();
         let (st, fx) = fixture();
         let anon = name::anonymous();
         let nfoo = name::mk_str(name::anonymous(), cp("foo"));
         let nbar = name::mk_str(name::anonymous(), cp("bar"));
         let nu = name::mk_str(name::anonymous(), cp("u"));
         let nev = || expr::binder_meta(prop_when::never());
-        assert!(eq_e(&st, &fx.s0, &expr::sort(core_level::zero())));
+        assert!(eq_e(pers, &st, &fx.s0, &expr::sort(core_level::zero())));
         assert!(eq_e(
+            pers,
             &st,
             &fx.s1,
             &expr::sort(core_level::succ(core_level::zero()))
         ));
         assert!(eq_e(
+            pers,
             &st,
             &fx.su,
             &expr::sort(core_level::param(name::dup(&nu)))
         ));
         assert!(eq_e(
+            pers,
             &st,
             &fx.cf,
             &expr::mk_const(name::dup(&nfoo), vec![core_level::zero()])
         ));
         assert!(eq_e(
+            pers,
             &st,
             &fx.cb,
             &expr::mk_const(
@@ -4528,16 +4690,19 @@ mod tests {
             )
         ));
         assert!(eq_e(
+            pers,
             &st,
             &fx.fv1,
             &expr::fvar(1, expr::sort(core_level::succ(core_level::zero())))
         ));
         assert!(eq_e(
+            pers,
             &st,
             &fx.lit7,
             &expr::lit(expr::literal_nat(nat::from_u64(7)))
         ));
         assert!(eq_e(
+            pers,
             &st,
             &fx.lam_t,
             &expr::lam(
@@ -4550,6 +4715,7 @@ mod tests {
             )
         ));
         assert!(eq_e(
+            pers,
             &st,
             &fx.big,
             &expr::lam(
@@ -4586,6 +4752,7 @@ mod tests {
             )
         ));
         assert!(eq_e(
+            pers,
             &st,
             &fx.pi_t,
             &expr::forall_e(
@@ -4598,18 +4765,18 @@ mod tests {
                 nev()
             )
         ));
-        assert!(denote_e(&st.store, &fx.let_t).is_some());
-        assert!(denote_e(&st.store, &fx.all_t).is_some());
-        assert!(denote_e(&st.store, &fx.pj).is_some());
-        assert!(denote_e(&st.store, &fx.spine).is_some());
-        assert!(denote_e(&st.store, &fx.lam_t2).is_some());
-        assert!(denote_e(&st.store, &fx.pi_s).is_some());
-        assert!(name::beq(&den_n(&st, &fx.foo), &nfoo));
+        assert!(denote_e(pers, &st.store, &fx.let_t).is_some());
+        assert!(denote_e(pers, &st.store, &fx.all_t).is_some());
+        assert!(denote_e(pers, &st.store, &fx.pj).is_some());
+        assert!(denote_e(pers, &st.store, &fx.spine).is_some());
+        assert!(denote_e(pers, &st.store, &fx.lam_t2).is_some());
+        assert!(denote_e(pers, &st.store, &fx.pi_s).is_some());
+        assert!(name::beq(&den_n(pers, &st, &fx.foo), &nfoo));
         assert!(core_level::beq(
-            &den_l(&st, &fx.pu),
+            &den_l(pers, &st, &fx.pu),
             &core_level::param(name::dup(&nu))
         ));
-        assert!(match denote_ls(st.store.ls_s(), &fx.us_z) {
+        assert!(match denote_ls(pers, st.store.ls_s(), &fx.us_z) {
             Some(us) => us.len() == 1 && core_level::beq(&us[0], &core_level::zero()),
             None => false,
         });
@@ -4621,10 +4788,11 @@ mod tests {
     /// `#guard`s — it is what licenses using `intern_expr` at all.
     #[test]
     fn intern_expr_round_trips() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, fx) = fixture();
-        let e = den(&st, &fx.big);
-        let h = intern_expr(&mut st, &e);
-        assert!(eq_e(&st, &h, &e));
+        let e = den(pers, &st, &fx.big);
+        let h = intern_expr(pers, &mut st, &e);
+        assert!(eq_e(pers, &st, &h, &e));
         // hash-consing: the tree came out of the store, so it goes back in at
         // the same handle.
         assert!(expr_ptr_beq(&h, &fx.big));
@@ -4634,179 +4802,184 @@ mod tests {
 
     #[test]
     fn t_instantiate1() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, fx) = fixture();
-        let big = den(&st, &fx.big);
-        let cf = den(&st, &fx.cf);
-        let let_t = den(&st, &fx.let_t);
-        let s1 = den(&st, &fx.s1);
-        let b2 = den(&st, &fx.b2);
-        let b0 = den(&st, &fx.b0);
-        let lit7 = den(&st, &fx.lit7);
-        let pj = den(&st, &fx.pj);
-        let fv0 = den(&st, &fx.fv0);
+        let big = den(pers, &st, &fx.big);
+        let cf = den(pers, &st, &fx.cf);
+        let let_t = den(pers, &st, &fx.let_t);
+        let s1 = den(pers, &st, &fx.s1);
+        let b2 = den(pers, &st, &fx.b2);
+        let b0 = den(pers, &st, &fx.b0);
+        let lit7 = den(pers, &st, &fx.lit7);
+        let pj = den(pers, &st, &fx.pj);
+        let fv0 = den(pers, &st, &fx.fv0);
 
         let w = core_ops::instantiate1(&big, &cf, 0);
-        let r = ok(instantiate1_fast(&mut st, F, &fx.big, &fx.cf, 0));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(instantiate1_fast(pers, &mut st, F, &fx.big, &fx.cf, 0));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::instantiate1(&big, &cf, 1);
-        let r = ok(instantiate1_fast(&mut st, F, &fx.big, &fx.cf, 1));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(instantiate1_fast(pers, &mut st, F, &fx.big, &fx.cf, 1));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::instantiate1(&let_t, &s1, 0);
-        let r = ok(instantiate1_fast(&mut st, F, &fx.let_t, &fx.s1, 0));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(instantiate1_fast(pers, &mut st, F, &fx.let_t, &fx.s1, 0));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::instantiate1(&b2, &cf, 0);
-        let r = ok(instantiate1_fast(&mut st, F, &fx.b2, &fx.cf, 0));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(instantiate1_fast(pers, &mut st, F, &fx.b2, &fx.cf, 0));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::instantiate1(&b0, &cf, 0);
-        let r = ok(instantiate1_fast(&mut st, F, &fx.b0, &fx.cf, 0));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(instantiate1_fast(pers, &mut st, F, &fx.b0, &fx.cf, 0));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::instantiate1(&lit7, &cf, 0);
-        let r = ok(instantiate1_fast(&mut st, F, &fx.lit7, &fx.cf, 0));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(instantiate1_fast(pers, &mut st, F, &fx.lit7, &fx.cf, 0));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::instantiate1(&pj, &fv0, 0);
-        let r = ok(instantiate1_fast(&mut st, F, &fx.pj, &fx.fv0, 0));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(instantiate1_fast(pers, &mut st, F, &fx.pj, &fx.fv0, 0));
+        assert!(eq_e(pers, &st, &r, &w));
         // the memoized walk without the top-level bracket is the same answer
         let w = core_ops::instantiate1(&big, &cf, 0);
-        let r = ok(instantiate1_go(&mut st, &fx.cf, F, &fx.big, 0));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(instantiate1_go(pers, &mut st, &fx.cf, F, &fx.big, 0));
+        assert!(eq_e(pers, &st, &r, &w));
     }
 
     // --- `instantiateList` (6) ----------------------------------------------
 
     #[test]
     fn t_instantiate_list() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, fx) = fixture();
-        let big = den(&st, &fx.big);
-        let cf = den(&st, &fx.cf);
-        let s1 = den(&st, &fx.s1);
-        let let_t = den(&st, &fx.let_t);
-        let fv0 = den(&st, &fx.fv0);
-        let b2 = den(&st, &fx.b2);
+        let big = den(pers, &st, &fx.big);
+        let cf = den(pers, &st, &fx.cf);
+        let s1 = den(pers, &st, &fx.s1);
+        let let_t = den(pers, &st, &fx.let_t);
+        let fv0 = den(pers, &st, &fx.fv0);
+        let b2 = den(pers, &st, &fx.b2);
         let two = vec![expr::dup(&cf), expr::dup(&s1)];
         let hs2 = vec![fx.cf.dup2(), fx.s1.dup2()];
 
         let w = core_ops::instantiate_list(&big, &two, 0);
-        let r = ok(instantiate_list_fast(&mut st, F, &fx.big, &hs2, 0));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(instantiate_list_fast(pers, &mut st, F, &fx.big, &hs2, 0));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::instantiate_list(&big, &two, 1);
-        let r = ok(instantiate_list_fast(&mut st, F, &fx.big, &hs2, 1));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(instantiate_list_fast(pers, &mut st, F, &fx.big, &hs2, 1));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::instantiate_list(&let_t, &vec![expr::dup(&fv0)], 0);
-        let r = ok(instantiate_list_fast(&mut st, F, &fx.let_t, &vec![fx.fv0.dup2()], 0));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(instantiate_list_fast(pers, &mut st, F, &fx.let_t, &vec![fx.fv0.dup2()], 0));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::instantiate_list(&b2, &vec![expr::dup(&cf)], 0);
-        let r = ok(instantiate_list_fast(&mut st, F, &fx.b2, &vec![fx.cf.dup2()], 0));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(instantiate_list_fast(pers, &mut st, F, &fx.b2, &vec![fx.cf.dup2()], 0));
+        assert!(eq_e(pers, &st, &r, &w));
         // the unmemoized walk (the one `instantiate_list_go`'s `bvar` arm calls)
         let w = core_ops::instantiate_list(&big, &two, 0);
-        let r = ok(instantiate_list(&mut st, &hs2, F, &fx.big, 0));
-        assert!(eq_e(&st, &r, &w));
-        let b0 = den(&st, &fx.b0);
+        let r = ok(instantiate_list(pers, &mut st, &hs2, F, &fx.big, 0));
+        assert!(eq_e(pers, &st, &r, &w));
+        let b0 = den(pers, &st, &fx.b0);
         let w = core_ops::instantiate_list(&b0, &vec![expr::dup(&cf)], 0);
-        let r = ok(instantiate_list(&mut st, &vec![fx.cf.dup2()], F, &fx.b0, 0));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(instantiate_list(pers, &mut st, &vec![fx.cf.dup2()], F, &fx.b0, 0));
+        assert!(eq_e(pers, &st, &r, &w));
     }
 
     // --- `liftLooseBVars` (4) -----------------------------------------------
 
     #[test]
     fn t_lift_loose_bvars() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, fx) = fixture();
-        let big = den(&st, &fx.big);
-        let let_t = den(&st, &fx.let_t);
+        let big = den(pers, &st, &fx.big);
+        let let_t = den(pers, &st, &fx.let_t);
 
         let w = core_ops::lift_loose_bvars(2, 0, &big);
-        let r = ok(lift_loose_bvars_fast(&mut st, F, 2, 0, &fx.big));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(lift_loose_bvars_fast(pers, &mut st, F, 2, 0, &fx.big));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::lift_loose_bvars(3, 1, &big);
-        let r = ok(lift_loose_bvars_fast(&mut st, F, 3, 1, &fx.big));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(lift_loose_bvars_fast(pers, &mut st, F, 3, 1, &fx.big));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::lift_loose_bvars(1, 0, &let_t);
-        let r = ok(lift_loose_bvars_fast(&mut st, F, 1, 0, &fx.let_t));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(lift_loose_bvars_fast(pers, &mut st, F, 1, 0, &fx.let_t));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::lift_loose_bvars(2, 0, &big);
-        let r = ok(lift_loose_bvars_go(&mut st, 2, F, &fx.big, 0));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(lift_loose_bvars_go(pers, &mut st, 2, F, &fx.big, 0));
+        assert!(eq_e(pers, &st, &r, &w));
     }
 
     // --- `resetMeta` (4) -----------------------------------------------------
 
     #[test]
     fn t_reset_meta() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, fx) = fixture();
-        let big = den(&st, &fx.big);
-        let lam_t = den(&st, &fx.lam_t);
-        let fv1 = den(&st, &fx.fv1);
+        let big = den(pers, &st, &fx.big);
+        let lam_t = den(pers, &st, &fx.lam_t);
+        let fv1 = den(pers, &st, &fx.fv1);
 
         let w = core_ops::reset_meta(&big);
-        let r = ok(reset_meta_fast(&mut st, F, &fx.big));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(reset_meta_fast(pers, &mut st, F, &fx.big));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::reset_meta(&lam_t);
-        let r = ok(reset_meta_fast(&mut st, F, &fx.lam_t));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(reset_meta_fast(pers, &mut st, F, &fx.lam_t));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::reset_meta(&fv1);
-        let r = ok(reset_meta_fast(&mut st, F, &fx.fv1));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(reset_meta_fast(pers, &mut st, F, &fx.fv1));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::reset_meta(&big);
-        let r = ok(reset_meta_go(&mut st, F, &fx.big));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(reset_meta_go(pers, &mut st, F, &fx.big));
+        assert!(eq_e(pers, &st, &r, &w));
     }
 
     // --- the measures and the scope predicates (17) -------------------------
 
     #[test]
     fn t_measures_and_scope() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, fx) = fixture();
-        let big = den(&st, &fx.big);
-        let fv1 = den(&st, &fx.fv1);
-        let all_t = den(&st, &fx.all_t);
-        let let_t = den(&st, &fx.let_t);
-        let s0 = den(&st, &fx.s0);
+        let big = den(pers, &st, &fx.big);
+        let fv1 = den(pers, &st, &fx.fv1);
+        let all_t = den(pers, &st, &fx.all_t);
+        let let_t = den(pers, &st, &fx.let_t);
+        let s0 = den(pers, &st, &fx.s0);
 
-        assert_eq!(ok(size_b(&st, F, &fx.big)), core_ops::size_b(&big));
-        assert_eq!(ok(size_b(&st, F, &fx.fv1)), core_ops::size_b(&fv1));
-        assert_eq!(ok(size_f(&st, F, &fx.big)), core_ops::size_f(&big));
-        assert_eq!(ok(size_f(&st, F, &fx.fv1)), core_ops::size_f(&fv1));
+        assert_eq!(ok(size_b(pers, &st, F, &fx.big)), core_ops::size_b(&big));
+        assert_eq!(ok(size_b(pers, &st, F, &fx.fv1)), core_ops::size_b(&fv1));
+        assert_eq!(ok(size_f(pers, &st, F, &fx.big)), core_ops::size_f(&big));
+        assert_eq!(ok(size_f(pers, &st, F, &fx.fv1)), core_ops::size_f(&fv1));
 
         let w = core_ops::abstract_range(&big, 0, 2, 0);
-        let r = ok(abstract_range(&mut st, F, &fx.big, 0, 2, 0));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(abstract_range(pers, &mut st, F, &fx.big, 0, 2, 0));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::abstract_range(&big, 1, 1, 0);
-        let r = ok(abstract_range(&mut st, F, &fx.big, 1, 1, 0));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(abstract_range(pers, &mut st, F, &fx.big, 1, 1, 0));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::abstract_range(&all_t, 0, 3, 1);
-        let r = ok(abstract_range(&mut st, F, &fx.all_t, 0, 3, 1));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(abstract_range(pers, &mut st, F, &fx.all_t, 0, 3, 1));
+        assert!(eq_e(pers, &st, &r, &w));
 
         let w = core_ops::fvar_leaves(&big);
-        let r = ok(fvar_leaves(&st, F, &fx.big));
-        assert!(eq_fvl(&st, &r, &w));
+        let r = ok(fvar_leaves(pers, &st, F, &fx.big));
+        assert!(eq_fvl(pers, &st, &r, &w));
         let w = core_ops::fvar_leaves(&fv1);
-        let r = ok(fvar_leaves(&st, F, &fx.fv1));
-        assert!(eq_fvl(&st, &r, &w));
+        let r = ok(fvar_leaves(pers, &st, F, &fx.fv1));
+        assert!(eq_fvl(pers, &st, &r, &w));
         let w = core_ops::fvar_leaves(&s0);
-        let r = ok(fvar_leaves(&st, F, &fx.s0));
-        assert!(eq_fvl(&st, &r, &w));
+        let r = ok(fvar_leaves(pers, &st, F, &fx.s0));
+        assert!(eq_fvl(pers, &st, &r, &w));
 
-        assert_eq!(ok(wscoped_b(&st, F, 5, &fx.big)), core_ops::wscoped_b(5, &big));
-        assert_eq!(ok(wscoped_b(&st, F, 1, &fx.big)), core_ops::wscoped_b(1, &big));
-        assert_eq!(ok(wscoped_b(&st, F, 0, &fx.big)), core_ops::wscoped_b(0, &big));
+        assert_eq!(ok(wscoped_b(pers, &st, F, 5, &fx.big)), core_ops::wscoped_b(5, &big));
+        assert_eq!(ok(wscoped_b(pers, &st, F, 1, &fx.big)), core_ops::wscoped_b(1, &big));
+        assert_eq!(ok(wscoped_b(pers, &st, F, 0, &fx.big)), core_ops::wscoped_b(0, &big));
         assert_eq!(
-            ok(wscoped_b(&st, F, 2, &fx.let_t)),
+            ok(wscoped_b(pers, &st, F, 2, &fx.let_t)),
             core_ops::wscoped_b(2, &let_t)
         );
 
         assert_eq!(
-            ok(loose_bvars_bounded(&st, F, 3, &fx.big)),
+            ok(loose_bvars_bounded(pers, &st, F, 3, &fx.big)),
             core_ops::loose_bvars_bounded(3, &big)
         );
         assert_eq!(
-            ok(loose_bvars_bounded(&st, F, 0, &fx.big)),
+            ok(loose_bvars_bounded(pers, &st, F, 0, &fx.big)),
             core_ops::loose_bvars_bounded(0, &big)
         );
         assert_eq!(
-            ok(loose_bvars_bounded(&st, F, 1, &fx.let_t)),
+            ok(loose_bvars_bounded(pers, &st, F, 1, &fx.let_t)),
             core_ops::loose_bvars_bounded(1, &let_t)
         );
     }
@@ -4822,40 +4995,41 @@ mod tests {
     /// used only as a membership base).
     #[test]
     fn t_scope_queries_memoized() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, fx) = fixture();
 
         // `wscoped_b_fast` == `wscoped_b`, at four depths on three subjects
         assert_eq!(
-            ok(wscoped_b_fast(&st, F, 5, &fx.big)),
-            ok(wscoped_b(&st, F, 5, &fx.big))
+            ok(wscoped_b_fast(pers, &st, F, 5, &fx.big)),
+            ok(wscoped_b(pers, &st, F, 5, &fx.big))
         );
         assert_eq!(
-            ok(wscoped_b_fast(&st, F, 1, &fx.big)),
-            ok(wscoped_b(&st, F, 1, &fx.big))
+            ok(wscoped_b_fast(pers, &st, F, 1, &fx.big)),
+            ok(wscoped_b(pers, &st, F, 1, &fx.big))
         );
         assert_eq!(
-            ok(wscoped_b_fast(&st, F, 0, &fx.big)),
-            ok(wscoped_b(&st, F, 0, &fx.big))
+            ok(wscoped_b_fast(pers, &st, F, 0, &fx.big)),
+            ok(wscoped_b(pers, &st, F, 0, &fx.big))
         );
         assert_eq!(
-            ok(wscoped_b_fast(&st, F, 2, &fx.let_t)),
-            ok(wscoped_b(&st, F, 2, &fx.let_t))
+            ok(wscoped_b_fast(pers, &st, F, 2, &fx.let_t)),
+            ok(wscoped_b(pers, &st, F, 2, &fx.let_t))
         );
         assert_eq!(
-            ok(wscoped_b_fast(&st, F, 2, &fx.fv1)),
-            ok(wscoped_b(&st, F, 2, &fx.fv1))
+            ok(wscoped_b_fast(pers, &st, F, 2, &fx.fv1)),
+            ok(wscoped_b(pers, &st, F, 2, &fx.fv1))
         );
         assert_eq!(
-            ok(wscoped_b_fast(&st, F, 0, &fx.s0)),
-            ok(wscoped_b(&st, F, 0, &fx.s0))
+            ok(wscoped_b_fast(pers, &st, F, 0, &fx.s0)),
+            ok(wscoped_b(pers, &st, F, 0, &fx.s0))
         );
         // the `fvar_b == 0` short-circuit answers `true` without a walk
-        assert!(ok(wscoped_b_fast(&st, F, 0, &fx.s0)));
+        assert!(ok(wscoped_b_fast(pers, &st, F, 0, &fx.s0)));
 
         // `fvar_leaves_fast` is `fvar_leaves` as a set
         for h in [&fx.big, &fx.fv1, &fx.fv0, &fx.all_t, &fx.let_t, &fx.s0] {
-            let slow = ok(fvar_leaves(&st, F, h));
-            let fast = ok(fvar_leaves_fast(&st, F, h));
+            let slow = ok(fvar_leaves(pers, &st, F, h));
+            let fast = ok(fvar_leaves_fast(pers, &st, F, h));
             assert!(
                 slow.iter().all(|l| leaf_mem(&fast, l.0, &l.1)),
                 "every pure leaf is a memoized one"
@@ -4875,21 +5049,21 @@ mod tests {
             (&fx.fv0, &fx.fv1),
         ] {
             let want = crate::arena::core::fvar_leaves_subset(
-                &ok(fvar_leaves(&st, F, p.0)),
-                &ok(fvar_leaves(&st, F, p.1)),
+                &ok(fvar_leaves(pers, &st, F, p.0)),
+                &ok(fvar_leaves(pers, &st, F, p.1)),
             );
-            assert_eq!(ok(leaf_guard(&st, F, p.0, p.1)), want, "the leaf guard");
+            assert_eq!(ok(leaf_guard(pers, &st, F, p.0, p.1)), want, "the leaf guard");
         }
 
         // and the three tests `fab_scope_ok` is, against the spelling task
         // #97-P4d ported from the spec tier
         for p in [(&fx.fv1, &fx.big), (&fx.big, &fx.fv1), (&fx.s0, &fx.s0)] {
-            let memo = ok(crate::arena::core::fab_scope_ok(&mut st, 5, p.0, p.1));
-            let slow = ok(wscoped_b(&st, F, 5, p.0))
-                && ok(loose_bvars_bounded(&st, F, 0, p.0))
+            let memo = ok(crate::arena::core::fab_scope_ok(pers, &mut st, 5, p.0, p.1));
+            let slow = ok(wscoped_b(pers, &st, F, 5, p.0))
+                && ok(loose_bvars_bounded(pers, &st, F, 0, p.0))
                 && crate::arena::core::fvar_leaves_subset(
-                    &ok(fvar_leaves(&st, F, p.0)),
-                    &ok(fvar_leaves(&st, F, p.1)),
+                    &ok(fvar_leaves(pers, &st, F, p.0)),
+                    &ok(fvar_leaves(pers, &st, F, p.1)),
                 );
             assert_eq!(memo, slow, "fab_scope_ok is the pure predicate");
         }
@@ -4899,63 +5073,66 @@ mod tests {
 
     #[test]
     fn t_one_node_readers() {
+        let pers: &PersTier = &PersTier::empty();
         let (st, fx) = fixture();
-        let big = den(&st, &fx.big);
-        let pi_t = den(&st, &fx.pi_t);
-        let fv0 = den(&st, &fx.fv0);
+        let big = den(pers, &st, &fx.big);
+        let pi_t = den(pers, &st, &fx.pi_t);
+        let fv0 = den(pers, &st, &fx.fv0);
 
-        assert_eq!(ok(is_lam(&st, &fx.big)), core_ops::is_lam(&big));
-        assert_eq!(ok(is_lam(&st, &fx.pi_t)), core_ops::is_lam(&pi_t));
-        assert!(eq_opw(&ok(lam_pw(&st, &fx.big)), &core_ops::lam_pw(&big)));
-        assert!(eq_opw(&ok(lam_pw(&st, &fx.pi_t)), &core_ops::lam_pw(&pi_t)));
+        assert_eq!(ok(is_lam(pers, &st, &fx.big)), core_ops::is_lam(&big));
+        assert_eq!(ok(is_lam(pers, &st, &fx.pi_t)), core_ops::is_lam(&pi_t));
+        assert!(eq_opw(&ok(lam_pw(pers, &st, &fx.big)), &core_ops::lam_pw(&big)));
+        assert!(eq_opw(&ok(lam_pw(pers, &st, &fx.pi_t)), &core_ops::lam_pw(&pi_t)));
         assert!(eq_opw(
-            &ok(forall_pw(&st, &fx.pi_t)),
+            &ok(forall_pw(pers, &st, &fx.pi_t)),
             &core_ops::forall_pw(&pi_t)
         ));
         assert!(eq_opw(
-            &ok(forall_pw(&st, &fx.big)),
+            &ok(forall_pw(pers, &st, &fx.big)),
             &core_ops::forall_pw(&big)
         ));
-        assert_eq!(ok(has_fvar(&st, F, &fx.big)), core_ops::has_fvar(&big));
-        assert_eq!(ok(has_fvar(&st, F, &fx.pi_t)), core_ops::has_fvar(&pi_t));
-        assert_eq!(ok(has_fvar(&st, F, &fx.fv0)), core_ops::has_fvar(&fv0));
+        assert_eq!(ok(has_fvar(pers, &st, F, &fx.big)), core_ops::has_fvar(&big));
+        assert_eq!(ok(has_fvar(pers, &st, F, &fx.pi_t)), core_ops::has_fvar(&pi_t));
+        assert_eq!(ok(has_fvar(pers, &st, F, &fx.fv0)), core_ops::has_fvar(&fv0));
     }
 
     // --- application spines (6) ---------------------------------------------
 
     #[test]
     fn t_spines() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, fx) = fixture();
-        let spine = den(&st, &fx.spine);
-        let cf = den(&st, &fx.cf);
-        let fv0 = den(&st, &fx.fv0);
-        let b0 = den(&st, &fx.b0);
+        let spine = den(pers, &st, &fx.spine);
+        let cf = den(pers, &st, &fx.cf);
+        let fv0 = den(pers, &st, &fx.fv0);
+        let b0 = den(pers, &st, &fx.b0);
 
         let w = core_ops::get_app_fn(&spine);
-        let r = ok(get_app_fn(&st, F, &fx.spine));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(get_app_fn(pers, &st, F, &fx.spine));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::get_app_fn(&cf);
-        let r = ok(get_app_fn(&st, F, &fx.cf));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(get_app_fn(pers, &st, F, &fx.cf));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::get_app_args(&spine);
-        let r = ok(get_app_args(&st, F, &fx.spine));
-        assert!(eq_le(&st, &r, &w));
+        let r = ok(get_app_args(pers, &st, F, &fx.spine));
+        assert!(eq_le(pers, &st, &r, &w));
         let w = core_ops::get_app_args(&cf);
-        let r = ok(get_app_args(&st, F, &fx.cf));
-        assert!(eq_le(&st, &r, &w));
+        let r = ok(get_app_args(pers, &st, F, &fx.cf));
+        assert!(eq_le(pers, &st, &r, &w));
         let w = core_ops::mk_app_n(
             expr::dup(&cf),
             &vec![expr::dup(&fv0), expr::dup(&b0)],
         );
         let r = ok(mk_app_n(
+            pers,
             &mut st,
             &fx.cf,
             &vec![fx.fv0.dup2(), fx.b0.dup2()],
         ));
-        assert!(eq_e(&st, &r, &w));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::mk_app_n(expr::dup(&cf), &Vec::new());
-        let r = ok(mk_app_n(&mut st, &fx.cf, &Vec::new()));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(mk_app_n(pers, &mut st, &fx.cf, &Vec::new()));
+        assert!(eq_e(pers, &st, &r, &w));
     }
 
     // --- `renameConsts` (4) --------------------------------------------------
@@ -4966,90 +5143,101 @@ mod tests {
 
     #[test]
     fn t_rename_consts() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, fx) = fixture();
-        let big = den(&st, &fx.big);
-        let cf = den(&st, &fx.cf);
-        let fv1 = den(&st, &fx.fv1);
+        let big = den(pers, &st, &fx.big);
+        let cf = den(pers, &st, &fx.cf);
+        let fv1 = den(pers, &st, &fx.fv1);
         let ren_h = RenH {
             foo: EIdxRenameKey { from: fx.foo.dup2(), to: fx.bar.dup2() },
         };
-        let ren_p = RenP { from: den_n(&st, &fx.foo), to: den_n(&st, &fx.bar) };
+        let ren_p = RenP { from: den_n(pers, &st, &fx.foo), to: den_n(pers, &st, &fx.bar) };
 
         let w = core_ops::rename_consts(&ren_p, &big);
-        let r = ok(rename_consts_fast(&mut st, F, &ren_h, &fx.big));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(rename_consts_fast(pers, &mut st, F, &ren_h, &fx.big));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::rename_consts(&ren_p, &cf);
-        let r = ok(rename_consts_fast(&mut st, F, &ren_h, &fx.cf));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(rename_consts_fast(pers, &mut st, F, &ren_h, &fx.cf));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::rename_consts(&ren_p, &fv1);
-        let r = ok(rename_consts_fast(&mut st, F, &ren_h, &fx.fv1));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(rename_consts_fast(pers, &mut st, F, &ren_h, &fx.fv1));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::rename_consts(&ren_p, &big);
-        let r = ok(rename_consts_go(&mut st, &ren_h, F, &fx.big));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(rename_consts_go(pers, &mut st, &ren_h, F, &fx.big));
+        assert!(eq_e(pers, &st, &r, &w));
     }
 
     // --- telescopes, part 1: strip / result / arity / sort (13) --------------
 
     #[test]
     fn t_telescopes_readers() {
+        let pers: &PersTier = &PersTier::empty();
         let (st, fx) = fixture();
-        let lam_t2 = den(&st, &fx.lam_t2);
-        let pi_t = den(&st, &fx.pi_t);
-        let cf = den(&st, &fx.cf);
-        let pi_s = den(&st, &fx.pi_s);
-        let s1 = den(&st, &fx.s1);
+        let lam_t2 = den(pers, &st, &fx.lam_t2);
+        let pi_t = den(pers, &st, &fx.pi_t);
+        let cf = den(pers, &st, &fx.cf);
+        let pi_s = den(pers, &st, &fx.pi_s);
+        let s1 = den(pers, &st, &fx.s1);
 
         assert!(eq_binders(
+            pers,
             &st,
-            &ok(strip_lams(&st, 2, &fx.lam_t2)),
+            &ok(strip_lams(pers, &st, 2, &fx.lam_t2)),
             &core_ops::strip_lams(2, &lam_t2)
         ));
         assert!(eq_binders(
+            pers,
             &st,
-            &ok(strip_lams(&st, 0, &fx.lam_t2)),
+            &ok(strip_lams(pers, &st, 0, &fx.lam_t2)),
             &core_ops::strip_lams(0, &lam_t2)
         ));
         assert!(eq_binders(
+            pers,
             &st,
-            &ok(strip_lams(&st, 3, &fx.lam_t2)),
+            &ok(strip_lams(pers, &st, 3, &fx.lam_t2)),
             &core_ops::strip_lams(3, &lam_t2)
         ));
         assert!(eq_binders(
+            pers,
             &st,
-            &ok(strip_pis(&st, 2, &fx.pi_t)),
+            &ok(strip_pis(pers, &st, 2, &fx.pi_t)),
             &core_ops::strip_pis(2, &pi_t)
         ));
         assert!(eq_binders(
+            pers,
             &st,
-            &ok(strip_pis(&st, 1, &fx.pi_t)),
+            &ok(strip_pis(pers, &st, 1, &fx.pi_t)),
             &core_ops::strip_pis(1, &pi_t)
         ));
         assert!(eq_binders(
+            pers,
             &st,
-            &ok(strip_pis(&st, 3, &fx.pi_t)),
+            &ok(strip_pis(pers, &st, 3, &fx.pi_t)),
             &core_ops::strip_pis(3, &pi_t)
         ));
 
         let w = core_ops::pi_result(&pi_t);
-        assert!(eq_e(&st, &ok(pi_result(&st, F, &fx.pi_t)), &w));
+        assert!(eq_e(pers, &st, &ok(pi_result(pers, &st, F, &fx.pi_t)), &w));
         let w = core_ops::pi_result(&cf);
-        assert!(eq_e(&st, &ok(pi_result(&st, F, &fx.cf)), &w));
-        assert_eq!(ok(pi_arity(&st, F, &fx.pi_t)), core_ops::pi_arity(&pi_t));
-        assert_eq!(ok(pi_arity(&st, F, &fx.cf)), core_ops::pi_arity(&cf));
+        assert!(eq_e(pers, &st, &ok(pi_result(pers, &st, F, &fx.cf)), &w));
+        assert_eq!(ok(pi_arity(pers, &st, F, &fx.pi_t)), core_ops::pi_arity(&pi_t));
+        assert_eq!(ok(pi_arity(pers, &st, F, &fx.cf)), core_ops::pi_arity(&cf));
         assert!(eq_ol(
+            pers,
             &st,
-            &ok(result_sort(&st, F, &fx.pi_s)),
+            &ok(result_sort(pers, &st, F, &fx.pi_s)),
             &core_ops::result_sort(&pi_s)
         ));
         assert!(eq_ol(
+            pers,
             &st,
-            &ok(result_sort(&st, F, &fx.pi_t)),
+            &ok(result_sort(pers, &st, F, &fx.pi_t)),
             &core_ops::result_sort(&pi_t)
         ));
         assert!(eq_ol(
+            pers,
             &st,
-            &ok(result_sort(&st, F, &fx.s1)),
+            &ok(result_sort(pers, &st, F, &fx.s1)),
             &core_ops::result_sort(&s1)
         ));
     }
@@ -5058,46 +5246,47 @@ mod tests {
 
     #[test]
     fn t_telescopes_instantiation() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, fx) = fixture();
-        let pi_t = den(&st, &fx.pi_t);
-        let cf = den(&st, &fx.cf);
-        let s1 = den(&st, &fx.s1);
-        let lam_t2 = den(&st, &fx.lam_t2);
-        let fv0 = den(&st, &fx.fv0);
+        let pi_t = den(pers, &st, &fx.pi_t);
+        let cf = den(pers, &st, &fx.cf);
+        let s1 = den(pers, &st, &fx.s1);
+        let lam_t2 = den(pers, &st, &fx.lam_t2);
+        let fv0 = den(pers, &st, &fx.fv0);
         let two = vec![expr::dup(&cf), expr::dup(&s1)];
         let hs2 = vec![fx.cf.dup2(), fx.s1.dup2()];
         let one_cf = vec![expr::dup(&cf)];
         let hs1 = vec![fx.cf.dup2()];
 
         let w = core_ops::inst_pis(&pi_t, &two);
-        let r = ok(inst_pis(&mut st, F, &fx.pi_t, &hs2));
-        assert!(eq_ope(&st, &r, &w));
+        let r = ok(inst_pis(pers, &mut st, F, &fx.pi_t, &hs2));
+        assert!(eq_ope(pers, &st, &r, &w));
         let w = core_ops::inst_pis(&pi_t, &Vec::new());
-        let r = ok(inst_pis(&mut st, F, &fx.pi_t, &Vec::new()));
-        assert!(eq_ope(&st, &r, &w));
+        let r = ok(inst_pis(pers, &mut st, F, &fx.pi_t, &Vec::new()));
+        assert!(eq_ope(pers, &st, &r, &w));
         let w = core_ops::inst_pis(&cf, &vec![expr::dup(&s1)]);
-        let r = ok(inst_pis(&mut st, F, &fx.cf, &vec![fx.s1.dup2()]));
-        assert!(eq_ope(&st, &r, &w));
+        let r = ok(inst_pis(pers, &mut st, F, &fx.cf, &vec![fx.s1.dup2()]));
+        assert!(eq_ope(pers, &st, &r, &w));
 
         let w = core_ops::inst_pis_at(&two, &pi_t);
-        let r = ok(inst_pis_at(&mut st, F, &hs2, &fx.pi_t));
-        assert!(eq_pair(&st, &r, &w));
+        let r = ok(inst_pis_at(pers, &mut st, F, &hs2, &fx.pi_t));
+        assert!(eq_pair(pers, &st, &r, &w));
         let w = core_ops::inst_pis_at(&Vec::new(), &pi_t);
-        let r = ok(inst_pis_at(&mut st, F, &Vec::new(), &fx.pi_t));
-        assert!(eq_pair(&st, &r, &w));
+        let r = ok(inst_pis_at(pers, &mut st, F, &Vec::new(), &fx.pi_t));
+        assert!(eq_pair(pers, &st, &r, &w));
         let w = core_ops::inst_pis_at(&one_cf, &lam_t2);
-        let r = ok(inst_pis_at(&mut st, F, &hs1, &fx.lam_t2));
-        assert!(eq_pair(&st, &r, &w));
+        let r = ok(inst_pis_at(pers, &mut st, F, &hs1, &fx.lam_t2));
+        assert!(eq_pair(pers, &st, &r, &w));
         let w = core_ops::inst_lams_at(&two, &lam_t2);
-        let r = ok(inst_lams_at(&mut st, F, &hs2, &fx.lam_t2));
-        assert!(eq_pair(&st, &r, &w));
+        let r = ok(inst_lams_at(pers, &mut st, F, &hs2, &fx.lam_t2));
+        assert!(eq_pair(pers, &st, &r, &w));
         let w = core_ops::inst_lams_at(&one_cf, &pi_t);
-        let r = ok(inst_lams_at(&mut st, F, &hs1, &fx.pi_t));
-        assert!(eq_pair(&st, &r, &w));
+        let r = ok(inst_lams_at(pers, &mut st, F, &hs1, &fx.pi_t));
+        assert!(eq_pair(pers, &st, &r, &w));
 
         let w = core_ops::inst_pis_at_f_go(&Vec::new(), &two, 0, &pi_t, Vec::new());
-        let r = ok(inst_pis_at_f_go(&mut st, F, &Vec::new(), &hs2, 0, &fx.pi_t));
-        assert!(eq_pair(&st, &r, &w));
+        let r = ok(inst_pis_at_f_go(pers, &mut st, F, &Vec::new(), &hs2, 0, &fx.pi_t));
+        assert!(eq_pair(pers, &st, &r, &w));
         let w = core_ops::inst_pis_at_f_go(
             &vec![expr::dup(&fv0)],
             &one_cf,
@@ -5106,6 +5295,7 @@ mod tests {
             Vec::new(),
         );
         let r = ok(inst_pis_at_f_go(
+            pers,
             &mut st,
             F,
             &vec![fx.fv0.dup2()],
@@ -5113,15 +5303,16 @@ mod tests {
             0,
             &fx.pi_t,
         ));
-        assert!(eq_pair(&st, &r, &w));
+        assert!(eq_pair(pers, &st, &r, &w));
         let w = core_ops::inst_pis_at_f(&two, &pi_t);
-        let r = ok(inst_pis_at_f(&mut st, F, &hs2, &fx.pi_t));
-        assert!(eq_pair(&st, &r, &w));
+        let r = ok(inst_pis_at_f(pers, &mut st, F, &hs2, &fx.pi_t));
+        assert!(eq_pair(pers, &st, &r, &w));
         let w = core_ops::inst_pis_at_f(&one_cf, &lam_t2);
-        let r = ok(inst_pis_at_f(&mut st, F, &hs1, &fx.lam_t2));
-        assert!(eq_pair(&st, &r, &w));
+        let r = ok(inst_pis_at_f(pers, &mut st, F, &hs1, &fx.lam_t2));
+        assert!(eq_pair(pers, &st, &r, &w));
         let w = core_ops::inst_lams_at_f_go(&Vec::new(), &two, 0, &lam_t2, Vec::new());
         let r = ok(inst_lams_at_f_go(
+            pers,
             &mut st,
             F,
             &Vec::new(),
@@ -5129,149 +5320,151 @@ mod tests {
             0,
             &fx.lam_t2,
         ));
-        assert!(eq_pair(&st, &r, &w));
+        assert!(eq_pair(pers, &st, &r, &w));
         let w = core_ops::inst_lams_at_f(&two, &lam_t2);
-        let r = ok(inst_lams_at_f(&mut st, F, &hs2, &fx.lam_t2));
-        assert!(eq_pair(&st, &r, &w));
+        let r = ok(inst_lams_at_f(pers, &mut st, F, &hs2, &fx.lam_t2));
+        assert!(eq_pair(pers, &st, &r, &w));
         let w = core_ops::inst_lams_at_f(&one_cf, &pi_t);
-        let r = ok(inst_lams_at_f(&mut st, F, &hs1, &fx.pi_t));
-        assert!(eq_pair(&st, &r, &w));
+        let r = ok(inst_lams_at_f(pers, &mut st, F, &hs1, &fx.pi_t));
+        assert!(eq_pair(pers, &st, &r, &w));
 
-        let fv1 = den(&st, &fx.fv1);
+        let fv1 = den(pers, &st, &fx.fv1);
         let w = core_ops::fvar_type_d(&fv1);
-        assert!(eq_e(&st, &ok(fvar_type_d(&st, &fx.fv1)), &w));
+        assert!(eq_e(pers, &st, &ok(fvar_type_d(pers, &st, &fx.fv1)), &w));
         let w = core_ops::fvar_type_d(&cf);
-        assert!(eq_e(&st, &ok(fvar_type_d(&st, &fx.cf)), &w));
+        assert!(eq_e(pers, &st, &ok(fvar_type_d(pers, &st, &fx.cf)), &w));
     }
 
     // --- telescopes, part 3: spine, recursor rules, rebuilding (12) ----------
 
     #[test]
     fn t_telescopes_rebuilding() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, fx) = fixture();
-        let big = den(&st, &fx.big);
-        let pi_t = den(&st, &fx.pi_t);
-        let cf = den(&st, &fx.cf);
-        let s1 = den(&st, &fx.s1);
+        let big = den(pers, &st, &fx.big);
+        let pi_t = den(pers, &st, &fx.pi_t);
+        let cf = den(pers, &st, &fx.cf);
+        let s1 = den(pers, &st, &fx.s1);
         let two = vec![expr::dup(&cf), expr::dup(&s1)];
         let hs2 = vec![fx.cf.dup2(), fx.s1.dup2()];
 
         let w = core_ops::inst_spine(&two, 1, &big);
-        let r = ok(inst_spine(&mut st, F, &hs2, 1, &fx.big));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(inst_spine(pers, &mut st, F, &hs2, 1, &fx.big));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::inst_spine(&Vec::new(), 0, &big);
-        let r = ok(inst_spine(&mut st, F, &Vec::new(), 0, &fx.big));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(inst_spine(pers, &mut st, F, &Vec::new(), 0, &fx.big));
+        assert!(eq_e(pers, &st, &r, &w));
 
         assert_eq!(
-            ok(rec_rule_plain(&mut st, F, &fx.pi_t, 2, 2, 1)),
+            ok(rec_rule_plain(pers, &mut st, F, &fx.pi_t, 2, 2, 1)),
             core_ops::rec_rule_plain(&pi_t, 2, 2, 1)
         );
         assert_eq!(
-            ok(rec_rule_plain(&mut st, F, &fx.pi_t, 1, 1, 1)),
+            ok(rec_rule_plain(pers, &mut st, F, &fx.pi_t, 1, 1, 1)),
             core_ops::rec_rule_plain(&pi_t, 1, 1, 1)
         );
         assert_eq!(
-            ok(rec_rule_plain(&mut st, F, &fx.pi_t, 2, 1, 2)),
+            ok(rec_rule_plain(pers, &mut st, F, &fx.pi_t, 2, 1, 2)),
             core_ops::rec_rule_plain(&pi_t, 2, 1, 2)
         );
         assert_eq!(
-            ok(rec_rule_plain(&mut st, F, &fx.big, 2, 2, 1)),
+            ok(rec_rule_plain(pers, &mut st, F, &fx.big, 2, 2, 1)),
             core_ops::rec_rule_plain(&big, 2, 2, 1)
         );
 
         let w = core_ops::pis_to_lams(2, &pi_t, &cf);
-        let r = ok(pis_to_lams(&mut st, 2, &fx.pi_t, &fx.cf));
-        assert!(eq_ope(&st, &r, &w));
+        let r = ok(pis_to_lams(pers, &mut st, 2, &fx.pi_t, &fx.cf));
+        assert!(eq_ope(pers, &st, &r, &w));
         let w = core_ops::pis_to_lams(0, &pi_t, &cf);
-        let r = ok(pis_to_lams(&mut st, 0, &fx.pi_t, &fx.cf));
-        assert!(eq_ope(&st, &r, &w));
+        let r = ok(pis_to_lams(pers, &mut st, 0, &fx.pi_t, &fx.cf));
+        assert!(eq_ope(pers, &st, &r, &w));
         let w = core_ops::pis_to_lams(3, &pi_t, &cf);
-        let r = ok(pis_to_lams(&mut st, 3, &fx.pi_t, &fx.cf));
-        assert!(eq_ope(&st, &r, &w));
+        let r = ok(pis_to_lams(pers, &mut st, 3, &fx.pi_t, &fx.cf));
+        assert!(eq_ope(pers, &st, &r, &w));
         let w = core_ops::replace_pi_body(2, &pi_t, &cf);
-        let r = ok(replace_pi_body(&mut st, 2, &fx.pi_t, &fx.cf));
-        assert!(eq_ope(&st, &r, &w));
+        let r = ok(replace_pi_body(pers, &mut st, 2, &fx.pi_t, &fx.cf));
+        assert!(eq_ope(pers, &st, &r, &w));
         let w = core_ops::replace_pi_body(1, &pi_t, &cf);
-        let r = ok(replace_pi_body(&mut st, 1, &fx.pi_t, &fx.cf));
-        assert!(eq_ope(&st, &r, &w));
+        let r = ok(replace_pi_body(pers, &mut st, 1, &fx.pi_t, &fx.cf));
+        assert!(eq_ope(pers, &st, &r, &w));
         let w = core_ops::replace_pi_body(3, &pi_t, &cf);
-        let r = ok(replace_pi_body(&mut st, 3, &fx.pi_t, &fx.cf));
-        assert!(eq_ope(&st, &r, &w));
+        let r = ok(replace_pi_body(pers, &mut st, 3, &fx.pi_t, &fx.cf));
+        assert!(eq_ope(pers, &st, &r, &w));
     }
 
     // --- the packed range fields (19) ---------------------------------------
 
     #[test]
     fn t_packed_range_fields() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, fx) = fixture();
-        let big = den(&st, &fx.big);
-        let let_t = den(&st, &fx.let_t);
-        let b2 = den(&st, &fx.b2);
-        let fv1 = den(&st, &fx.fv1);
-        let pi_t = den(&st, &fx.pi_t);
+        let big = den(pers, &st, &fx.big);
+        let let_t = den(pers, &st, &fx.let_t);
+        let b2 = den(pers, &st, &fx.b2);
+        let fv1 = den(pers, &st, &fx.fv1);
+        let pi_t = den(pers, &st, &fx.pi_t);
 
         assert_eq!(
-            ok(bvar_bound_memo(&mut st, F, &fx.big)),
+            ok(bvar_bound_memo(pers, &mut st, F, &fx.big)),
             core_ops::bvar_bound(&big)
         );
         assert_eq!(
-            ok(bvar_bound_memo(&mut st, F, &fx.let_t)),
+            ok(bvar_bound_memo(pers, &mut st, F, &fx.let_t)),
             core_ops::bvar_bound(&let_t)
         );
         assert_eq!(
-            ok(bvar_bound_memo(&mut st, F, &fx.b2)),
+            ok(bvar_bound_memo(pers, &mut st, F, &fx.b2)),
             core_ops::bvar_bound(&b2)
         );
         assert_eq!(
-            ok(bvar_bound_go(&mut st, F, &fx.big)),
+            ok(bvar_bound_go(pers, &mut st, F, &fx.big)),
             core_ops::bvar_bound(&big)
         );
         assert_eq!(
-            ok(fvar_range_memo(&mut st, F, &fx.big)),
+            ok(fvar_range_memo(pers, &mut st, F, &fx.big)),
             core_ops::fvar_range(&big)
         );
         assert_eq!(
-            ok(fvar_range_memo(&mut st, F, &fx.fv1)),
+            ok(fvar_range_memo(pers, &mut st, F, &fx.fv1)),
             core_ops::fvar_range(&fv1)
         );
         assert_eq!(
-            ok(fvar_range_go(&mut st, F, &fx.big)),
+            ok(fvar_range_go(pers, &mut st, F, &fx.big)),
             core_ops::fvar_range(&big)
         );
-        assert_eq!(ok(bvar_b(&mut st, F, &fx.big)), core_ops::bvar_b(&big));
-        assert_eq!(ok(bvar_b(&mut st, F, &fx.b2)), core_ops::bvar_b(&b2));
-        assert_eq!(ok(fvar_b(&mut st, F, &fx.big)), core_ops::fvar_b(&big));
-        assert_eq!(ok(fvar_b(&mut st, F, &fx.fv1)), core_ops::fvar_b(&fv1));
+        assert_eq!(ok(bvar_b(pers, &mut st, F, &fx.big)), core_ops::bvar_b(&big));
+        assert_eq!(ok(bvar_b(pers, &mut st, F, &fx.b2)), core_ops::bvar_b(&b2));
+        assert_eq!(ok(fvar_b(pers, &mut st, F, &fx.big)), core_ops::fvar_b(&big));
+        assert_eq!(ok(fvar_b(pers, &mut st, F, &fx.fv1)), core_ops::fvar_b(&fv1));
         // `Expr.hasFvarFast` and `Expr.looseBVarsBoundedFast` are the field
         // reads themselves; con-ron-core spells them at the call site, so the
         // comparison partner is the definition.
         assert_eq!(
-            ok(has_fvar_fast(&mut st, F, &fx.big)),
+            ok(has_fvar_fast(pers, &mut st, F, &fx.big)),
             core_ops::fvar_b(&big) != 0
         );
         assert_eq!(
-            ok(has_fvar_fast(&mut st, F, &fx.pi_t)),
+            ok(has_fvar_fast(pers, &mut st, F, &fx.pi_t)),
             core_ops::fvar_b(&pi_t) != 0
         );
         assert_eq!(
-            ok(loose_bvars_bounded_fast(&mut st, F, 3, &fx.big)),
+            ok(loose_bvars_bounded_fast(pers, &mut st, F, 3, &fx.big)),
             core_ops::bvar_b(&big) <= 3
         );
         assert_eq!(
-            ok(loose_bvars_bounded_fast(&mut st, F, 0, &fx.big)),
+            ok(loose_bvars_bounded_fast(pers, &mut st, F, 0, &fx.big)),
             core_ops::bvar_b(&big) <= 0
         );
         // the field read and the walk agree, which is con-leche's `bvarB_eq` /
         // `fvarB_eq` / `hasFvar_eq` at the fixture
-        assert_eq!(ok(bvar_b(&mut st, F, &fx.big)), core_ops::bvar_bound(&big));
-        assert_eq!(ok(fvar_b(&mut st, F, &fx.big)), core_ops::fvar_range(&big));
+        assert_eq!(ok(bvar_b(pers, &mut st, F, &fx.big)), core_ops::bvar_bound(&big));
+        assert_eq!(ok(fvar_b(pers, &mut st, F, &fx.big)), core_ops::fvar_range(&big));
         assert_eq!(
-            ok(has_fvar_fast(&mut st, F, &fx.big)),
+            ok(has_fvar_fast(pers, &mut st, F, &fx.big)),
             core_ops::has_fvar(&big)
         );
         assert_eq!(
-            ok(loose_bvars_bounded_fast(&mut st, F, 3, &fx.big)),
+            ok(loose_bvars_bounded_fast(pers, &mut st, F, 3, &fx.big)),
             core_ops::loose_bvars_bounded(3, &big)
         );
     }
@@ -5280,111 +5473,116 @@ mod tests {
 
     #[test]
     fn t_abstract1() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, fx) = fixture();
-        let big = den(&st, &fx.big);
-        let fv0 = den(&st, &fx.fv0);
+        let big = den(pers, &st, &fx.big);
+        let fv0 = den(pers, &st, &fx.fv0);
 
         let w = core_ops::abstract1(&big, 0, 0);
-        let r = ok(abstract1_fast(&mut st, F, &fx.big, 0, 0));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(abstract1_fast(pers, &mut st, F, &fx.big, 0, 0));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::abstract1(&big, 1, 0);
-        let r = ok(abstract1_fast(&mut st, F, &fx.big, 1, 0));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(abstract1_fast(pers, &mut st, F, &fx.big, 1, 0));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::abstract1(&big, 2, 0);
-        let r = ok(abstract1_fast(&mut st, F, &fx.big, 2, 0));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(abstract1_fast(pers, &mut st, F, &fx.big, 2, 0));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::abstract1(&big, 1, 3);
-        let r = ok(abstract1_fast(&mut st, F, &fx.big, 1, 3));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(abstract1_fast(pers, &mut st, F, &fx.big, 1, 3));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::abstract1(&fv0, 0, 0);
-        let r = ok(abstract1_fast(&mut st, F, &fx.fv0, 0, 0));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(abstract1_fast(pers, &mut st, F, &fx.fv0, 0, 0));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::abstract1(&big, 1, 0);
-        let r = ok(abstract1_go(&mut st, 1, F, &fx.big, 0));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(abstract1_go(pers, &mut st, 1, F, &fx.big, 0));
+        assert!(eq_e(pers, &st, &r, &w));
     }
 
     // --- `lowerBVars` (5) ----------------------------------------------------
 
     #[test]
     fn t_lower_bvars() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, fx) = fixture();
-        let big = den(&st, &fx.big);
+        let big = den(pers, &st, &fx.big);
 
         let w = core_ops::lower_bvars(1, 0, &big);
-        let r = ok(lower_bvars_fast(&mut st, F, 1, 0, &fx.big));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(lower_bvars_fast(pers, &mut st, F, 1, 0, &fx.big));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::lower_bvars(2, 0, &big);
-        let r = ok(lower_bvars_fast(&mut st, F, 2, 0, &fx.big));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(lower_bvars_fast(pers, &mut st, F, 2, 0, &fx.big));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::lower_bvars(1, 1, &big);
-        let r = ok(lower_bvars_fast(&mut st, F, 1, 1, &fx.big));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(lower_bvars_fast(pers, &mut st, F, 1, 1, &fx.big));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::lower_bvars(5, 0, &big);
-        let r = ok(lower_bvars_fast(&mut st, F, 5, 0, &fx.big));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(lower_bvars_fast(pers, &mut st, F, 5, 0, &fx.big));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::lower_bvars(1, 0, &big);
-        let r = ok(lower_bvars_go(&mut st, 1, F, &fx.big, 0));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(lower_bvars_go(pers, &mut st, 1, F, &fx.big, 0));
+        assert!(eq_e(pers, &st, &r, &w));
     }
 
     // --- `instantiate1Lift` and `instPisAtLift` (8) --------------------------
 
     #[test]
     fn t_instantiate1_lift() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, fx) = fixture();
-        let big = den(&st, &fx.big);
-        let cf = den(&st, &fx.cf);
-        let b1 = den(&st, &fx.b1);
-        let let_t = den(&st, &fx.let_t);
-        let b0 = den(&st, &fx.b0);
-        let pi_t = den(&st, &fx.pi_t);
-        let lam_t2 = den(&st, &fx.lam_t2);
+        let big = den(pers, &st, &fx.big);
+        let cf = den(pers, &st, &fx.cf);
+        let b1 = den(pers, &st, &fx.b1);
+        let let_t = den(pers, &st, &fx.let_t);
+        let b0 = den(pers, &st, &fx.b0);
+        let pi_t = den(pers, &st, &fx.pi_t);
+        let lam_t2 = den(pers, &st, &fx.lam_t2);
 
         let w = core_ops::instantiate1_lift(&big, &cf, 0);
-        let r = ok(instantiate1_lift_fast(&mut st, F, &fx.big, &fx.cf, 0));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(instantiate1_lift_fast(pers, &mut st, F, &fx.big, &fx.cf, 0));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::instantiate1_lift(&big, &b1, 0);
-        let r = ok(instantiate1_lift_fast(&mut st, F, &fx.big, &fx.b1, 0));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(instantiate1_lift_fast(pers, &mut st, F, &fx.big, &fx.b1, 0));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::instantiate1_lift(&big, &let_t, 1);
-        let r = ok(instantiate1_lift_fast(&mut st, F, &fx.big, &fx.let_t, 1));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(instantiate1_lift_fast(pers, &mut st, F, &fx.big, &fx.let_t, 1));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::instantiate1_lift(&let_t, &b0, 0);
-        let r = ok(instantiate1_lift_fast(&mut st, F, &fx.let_t, &fx.b0, 0));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(instantiate1_lift_fast(pers, &mut st, F, &fx.let_t, &fx.b0, 0));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::instantiate1_lift(&big, &cf, 0);
-        let r = ok(instantiate1_lift_go(&mut st, &fx.cf, F, &fx.big, 0));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(instantiate1_lift_go(pers, &mut st, &fx.cf, F, &fx.big, 0));
+        assert!(eq_e(pers, &st, &r, &w));
 
         let w = core_ops::inst_pis_at_lift(&vec![expr::dup(&cf), expr::dup(&b0)], &pi_t);
         let r = ok(inst_pis_at_lift(
+            pers,
             &mut st,
             F,
             &vec![fx.cf.dup2(), fx.b0.dup2()],
             &fx.pi_t,
         ));
-        assert!(eq_ope(&st, &r, &w));
+        assert!(eq_ope(pers, &st, &r, &w));
         let w = core_ops::inst_pis_at_lift(&Vec::new(), &pi_t);
-        let r = ok(inst_pis_at_lift(&mut st, F, &Vec::new(), &fx.pi_t));
-        assert!(eq_ope(&st, &r, &w));
+        let r = ok(inst_pis_at_lift(pers, &mut st, F, &Vec::new(), &fx.pi_t));
+        assert!(eq_ope(pers, &st, &r, &w));
         let w = core_ops::inst_pis_at_lift(&vec![expr::dup(&cf)], &lam_t2);
-        let r = ok(inst_pis_at_lift(&mut st, F, &vec![fx.cf.dup2()], &fx.lam_t2));
-        assert!(eq_ope(&st, &r, &w));
+        let r = ok(inst_pis_at_lift(pers, &mut st, F, &vec![fx.cf.dup2()], &fx.lam_t2));
+        assert!(eq_ope(pers, &st, &r, &w));
     }
 
     // --- equality, and the two derived bits (11) ----------------------------
 
     #[test]
     fn t_equality_and_bits() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, fx) = fixture();
-        let big = den(&st, &fx.big);
-        let let_t = den(&st, &fx.let_t);
-        let s0 = den(&st, &fx.s0);
-        let s1 = den(&st, &fx.s1);
-        let pi_t = den(&st, &fx.pi_t);
-        let su = den(&st, &fx.su);
-        let cb = den(&st, &fx.cb);
+        let big = den(pers, &st, &fx.big);
+        let let_t = den(pers, &st, &fx.let_t);
+        let s0 = den(pers, &st, &fx.s0);
+        let s1 = den(pers, &st, &fx.s1);
+        let pi_t = den(pers, &st, &fx.pi_t);
+        let su = den(pers, &st, &fx.su);
+        let cb = den(pers, &st, &fx.cb);
 
         assert_eq!(
             expr_ptr_beq(&fx.big, &fx.big),
@@ -5401,37 +5599,38 @@ mod tests {
         // interning is hash-consing, so a rebuilt node is the SAME handle and
         // the index test is the structural test (`denoteE_inj`, task #97a)
         let r = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::App(fx.cf.dup2(), fx.b0.dup2()),
         ));
         assert!(expr_ptr_beq(&r, &fx.ap1));
 
         assert_eq!(
-            lidx_has_param(&st, &fx.pu),
-            core_level::level_has_param(&den_l(&st, &fx.pu))
+            lidx_has_param(pers, &st, &fx.pu),
+            core_level::level_has_param(&den_l(pers, &st, &fx.pu))
         );
         assert_eq!(
-            lidx_has_param(&st, &fx.z),
-            core_level::level_has_param(&den_l(&st, &fx.z))
+            lidx_has_param(pers, &st, &fx.z),
+            core_level::level_has_param(&den_l(pers, &st, &fx.z))
         );
         assert_eq!(
-            lidx_has_param(&st, &fx.one),
-            core_level::level_has_param(&den_l(&st, &fx.one))
+            lidx_has_param(pers, &st, &fx.one),
+            core_level::level_has_param(&den_l(pers, &st, &fx.one))
         );
         assert_eq!(
-            eidx_has_level_param(&st, &fx.big),
+            eidx_has_level_param(pers, &st, &fx.big),
             core_ops::has_level_param(&big)
         );
         assert_eq!(
-            eidx_has_level_param(&st, &fx.pi_t),
+            eidx_has_level_param(pers, &st, &fx.pi_t),
             core_ops::has_level_param(&pi_t)
         );
         assert_eq!(
-            eidx_has_level_param(&st, &fx.su),
+            eidx_has_level_param(pers, &st, &fx.su),
             core_ops::has_level_param(&su)
         );
         assert_eq!(
-            eidx_has_level_param(&st, &fx.cb),
+            eidx_has_level_param(pers, &st, &fx.cb),
             core_ops::has_level_param(&cb)
         );
     }
@@ -5440,71 +5639,73 @@ mod tests {
 
     #[test]
     fn t_instantiate_level_params() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, fx) = fixture();
-        let big = den(&st, &fx.big);
-        let su = den(&st, &fx.su);
-        let cb = den(&st, &fx.cb);
-        let pi_t = den(&st, &fx.pi_t);
-        let ks = vec![den_n(&st, &fx.u_n)];
-        let zs = vec![den_l(&st, &fx.z)];
-        let ps = vec![den_l(&st, &fx.pu)];
+        let big = den(pers, &st, &fx.big);
+        let su = den(pers, &st, &fx.su);
+        let cb = den(pers, &st, &fx.cb);
+        let pi_t = den(pers, &st, &fx.pi_t);
+        let ks = vec![den_n(pers, &st, &fx.u_n)];
+        let zs = vec![den_l(pers, &st, &fx.z)];
+        let ps = vec![den_l(pers, &st, &fx.pu)];
         let hks = vec![fx.u_n.dup2()];
 
         let w = core_ops::instantiate_level_params(&ks, &zs, &big);
-        let r = ok(inst_lp_fast(&mut st, F, &hks, &fx.us_z, &fx.big));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(inst_lp_fast(pers, &mut st, F, &hks, &fx.us_z, &fx.big));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::instantiate_level_params(&ks, &ps, &big);
-        let r = ok(inst_lp_fast(&mut st, F, &hks, &fx.us_u, &fx.big));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(inst_lp_fast(pers, &mut st, F, &hks, &fx.us_u, &fx.big));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::instantiate_level_params(&ks, &zs, &su);
-        let r = ok(inst_lp_fast(&mut st, F, &hks, &fx.us_z, &fx.su));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(inst_lp_fast(pers, &mut st, F, &hks, &fx.us_z, &fx.su));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::instantiate_level_params(&ks, &zs, &cb);
-        let r = ok(inst_lp_fast(&mut st, F, &hks, &fx.us_z, &fx.cb));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(inst_lp_fast(pers, &mut st, F, &hks, &fx.us_z, &fx.cb));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::instantiate_level_params(&ks, &zs, &pi_t);
-        let r = ok(inst_lp_fast(&mut st, F, &hks, &fx.us_z, &fx.pi_t));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(inst_lp_fast(pers, &mut st, F, &hks, &fx.us_z, &fx.pi_t));
+        assert!(eq_e(pers, &st, &r, &w));
         let w = core_ops::instantiate_level_params(&ks, &zs, &big);
-        let r = ok(inst_lp_go(&mut st, &ks, &zs, F, &fx.big));
-        assert!(eq_e(&st, &r, &w));
+        let r = ok(inst_lp_go(pers, &mut st, &ks, &zs, F, &fx.big));
+        assert!(eq_e(pers, &st, &r, &w));
     }
 
     // --- the store primitives of `Monad.lean` (6) ---------------------------
 
     #[test]
     fn t_monad_primitives() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, fx) = fixture();
 
-        match ok(view(&st, &fx.big)) {
+        match ok(view(pers, &st, &fx.big)) {
             ENodeView::Lam(ty, body, _) => {
                 assert!(ty.eq2(&fx.s0));
                 assert!(!body.eq2(&fx.s0));
             }
             _ => panic!("`big` is a λ"),
         }
-        let u = ok(crate::arena::monad::read_level(&st, &fx.pu));
+        let u = ok(crate::arena::monad::read_level(pers, &st, &fx.pu));
         assert!(core_level::beq(
             &u,
             &core_level::param(name::mk_str(name::anonymous(), cp("u")))
         ));
-        let n = ok(crate::arena::monad::read_name(&st, &fx.foo));
+        let n = ok(crate::arena::monad::read_name(pers, &st, &fx.foo));
         assert!(name::beq(&n, &name::mk_str(name::anonymous(), cp("foo"))));
 
         let l = core_level::succ(core_level::succ(core_level::zero()));
-        let hl = ok(crate::arena::monad::intern_level(&mut st, &l));
-        assert!(core_level::beq(&den_l(&st, &hl), &l));
+        let hl = ok(crate::arena::monad::intern_level(pers, &mut st, &l));
+        assert!(core_level::beq(&den_l(pers, &st, &hl), &l));
 
         let nm = name::mk_str(name::mk_str(name::anonymous(), cp("a")), cp("b"));
-        let hn = ok(crate::arena::monad::intern_name(&mut st, &nm));
-        assert!(name::beq(&den_n(&st, &hn), &nm));
+        let hn = ok(crate::arena::monad::intern_name(pers, &mut st, &nm));
+        assert!(name::beq(&den_n(pers, &st, &hn), &nm));
 
         let us = vec![
             core_level::zero(),
             core_level::param(name::mk_str(name::anonymous(), cp("u"))),
         ];
-        let hus = ok(crate::arena::monad::intern_levels(&mut st, &us));
-        let back = ok(crate::arena::monad::read_levels(&st, &hus));
+        let hus = ok(crate::arena::monad::intern_levels(pers, &mut st, &us));
+        let back = ok(crate::arena::monad::read_levels(pers, &st, &hus));
         assert!(back.len() == 2);
         assert!(core_level::beq(&back[0], &us[0]));
         assert!(core_level::beq(&back[1], &us[1]));
@@ -5514,14 +5715,15 @@ mod tests {
 
     #[test]
     fn t_fuel_exhaustion() {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, fx) = fixture();
         // `big`'s loose-bvar bound is 0, so the derived-word cutoff answers it
         // at any fuel; `let_t`'s is 1, so the walk really descends and fuel 1
         // runs out.
-        let w = core_ops::instantiate1(&den(&st, &fx.big), &den(&st, &fx.cf), 0);
-        let r = ok(instantiate1_fast(&mut st, 1, &fx.big, &fx.cf, 0));
-        assert!(eq_e(&st, &r, &w));
-        assert!(instantiate1_fast(&mut st, 1, &fx.let_t, &fx.cf, 0).is_err());
-        assert!(size_b(&st, 0, &fx.big).is_err());
+        let w = core_ops::instantiate1(&den(pers, &st, &fx.big), &den(pers, &st, &fx.cf), 0);
+        let r = ok(instantiate1_fast(pers, &mut st, 1, &fx.big, &fx.cf, 0));
+        assert!(eq_e(pers, &st, &r, &w));
+        assert!(instantiate1_fast(pers, &mut st, 1, &fx.let_t, &fx.cf, 0).is_err());
+        assert!(size_b(pers, &st, 0, &fx.big).is_err());
     }
 }

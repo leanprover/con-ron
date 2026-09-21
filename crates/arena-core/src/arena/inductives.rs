@@ -53,6 +53,7 @@ use crate::arena::monad::{fail, AState};
 use con_ron_core::kernel::core_types;
 use con_ron_core::kernel::core_types::{code_points, CheckError};
 use con_ron_core::kernel::env::CheckMode;
+use crate::arena::store::PersTier;
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `'number of parameters mismatch'`, as code points —
@@ -77,19 +78,20 @@ pub const M_NUM_PARAMS: [u32; 29] = [
 /// The signature is the one the coordinator froze for the two halves of P4d,
 /// with the state first as `arena::monad`'s convention has it.
 pub fn check_ind_decl(
+    pers: &PersTier,
     mode: CheckMode,
     fe: IFEnv,
     block: Vec<IConstantInfo>,
     num_params: u64,
     st: &mut AState,
 ) -> Result<IFEnv, CheckError> {
-    match checker_base::ind_params_ok(st, num_params, &block, 0) {
+    match checker_base::ind_params_ok(pers, st, num_params, &block, 0) {
         Err(e) => Err(e),
         Ok(false) => fail(core_types::invalid(code_points(&M_NUM_PARAMS))),
-        Ok(true) => match native_parts::native_parts(st, num_params, &block) {
+        Ok(true) => match native_parts::native_parts(pers, st, num_params, &block) {
             Err(e) => Err(e),
-            Ok(Some(p)) => native_install::check_native(st, &mode, fe, &p),
-            Ok(None) => modeled::check_modeled(st, &mode, fe, &block),
+            Ok(Some(p)) => native_install::check_native(pers, st, &mode, fe, &p),
+            Ok(None) => modeled::check_modeled(pers, st, &mode, fe, &block),
         },
     }
 }
@@ -107,8 +109,9 @@ mod tests {
     /// pins interned (task #97-P6-4a).  Every subject below reads a pin
     /// somewhere, so this is the only state they can run in.
     fn pinned_state() -> AState {
+        let pers: &PersTier = &PersTier::empty();
         let mut st = AState::init(EStore::empty());
-        match crate::arena::pins::intern_reserved_pins(&mut st) {
+        match crate::arena::pins::intern_reserved_pins(pers, &mut st) {
             Ok(()) => st,
             Err(_) => panic!("the reserved-name pins must intern"),
         }
@@ -149,40 +152,40 @@ mod tests {
         }
     }
 
-    fn intern_expr(st: &mut AState, e: &Expr) -> EIdx {
-        ok(crate::arena::intern::intern_expr(st, e))
+    fn intern_expr(pers: &PersTier, st: &mut AState, e: &Expr) -> EIdx {
+        ok(crate::arena::intern::intern_expr(pers, st, e))
     }
 
-    fn intern_names(st: &mut AState, ns: &Vec<Name>) -> Vec<NIdx> {
-        ns.iter().map(|n| ok(intern_name(st, n))).collect()
+    fn intern_names(pers: &PersTier, st: &mut AState, ns: &Vec<Name>) -> Vec<NIdx> {
+        ns.iter().map(|n| ok(intern_name(pers, st, n))).collect()
     }
 
-    fn intern_cv(st: &mut AState, cv: &ConstantVal) -> IConstantVal {
-        ok(crate::arena::intern::intern_cv(st, cv))
+    fn intern_cv(pers: &PersTier, st: &mut AState, cv: &ConstantVal) -> IConstantVal {
+        ok(crate::arena::intern::intern_cv(pers, st, cv))
     }
 
-    fn intern_caps(st: &mut AState, c: &IndCaps) -> IIndCaps {
-        ok(crate::arena::intern::intern_caps(st, c))
+    fn intern_caps(pers: &PersTier, st: &mut AState, c: &IndCaps) -> IIndCaps {
+        ok(crate::arena::intern::intern_caps(pers, st, c))
     }
 
-    fn intern_fire(st: &mut AState, f: &RecRuleFire) -> IRecRuleFire {
+    fn intern_fire(pers: &PersTier, st: &mut AState, f: &RecRuleFire) -> IRecRuleFire {
         match f {
             RecRuleFire::Inert => IRecRuleFire::Inert,
             RecRuleFire::Plain => IRecRuleFire::Plain,
             RecRuleFire::Nested(lvls, pins) => IRecRuleFire::Nested(
-                lvls.iter().map(|l| ok(intern_level(st, l))).collect(),
-                pins.iter().map(|p| intern_expr(st, p)).collect(),
+                lvls.iter().map(|l| ok(intern_level(pers, st, l))).collect(),
+                pins.iter().map(|p| intern_expr(pers, st, p)).collect(),
             ),
         }
     }
 
-    fn intern_rule(st: &mut AState, r: &RecRule) -> IRecRule {
+    fn intern_rule(pers: &PersTier, st: &mut AState, r: &RecRule) -> IRecRule {
         IRecRule {
-            ctor: ok(intern_name(st, &r.ctor)),
+            ctor: ok(intern_name(pers, st, &r.ctor)),
             nfields: r.nfields,
             ctor_params: r.ctor_params,
-            fire: intern_fire(st, &r.fire),
-            rhs: intern_expr(st, &r.rhs),
+            fire: intern_fire(pers, st, &r.fire),
+            rhs: intern_expr(pers, st, &r.rhs),
             k: r.k,
             eta: r.eta,
             params_blind: r.params_blind,
@@ -192,50 +195,50 @@ mod tests {
     /// The twin's `iTbl`.  `IProjTable.table_name` is the field `arena::env`
     /// adds: the reserved name the install interned, which is by construction
     /// `proj_table_name struct_name`.
-    fn intern_tbl(st: &mut AState, t: &ProjTable) -> IProjTable {
-        let sn = ok(intern_name(st, &t.struct_name));
-        let tn = ok(crate::arena::env::proj_table_name(&mut st.store, &sn));
+    fn intern_tbl(pers: &PersTier, st: &mut AState, t: &ProjTable) -> IProjTable {
+        let sn = ok(intern_name(pers, st, &t.struct_name));
+        let tn = ok(crate::arena::env::proj_table_name(pers, &mut st.store, &sn));
         IProjTable {
             struct_name: sn,
             table_name: tn,
-            level_params: intern_names(st, &t.level_params),
+            level_params: intern_names(pers, st, &t.level_params),
             num_params: t.num_params,
-            ctor: ok(intern_name(st, &t.ctor)),
+            ctor: ok(intern_name(pers, st, &t.ctor)),
             num_fields: t.num_fields,
-            struct_sort: ok(intern_level(st, &t.struct_sort)),
-            bodies: t.bodies.iter().map(|b| intern_expr(st, b)).collect(),
-            guards: t.guards.iter().map(|g| ok(intern_level(st, g))).collect(),
+            struct_sort: ok(intern_level(pers, st, &t.struct_sort)),
+            bodies: t.bodies.iter().map(|b| intern_expr(pers, st, b)).collect(),
+            guards: t.guards.iter().map(|g| ok(intern_level(pers, st, g))).collect(),
             off: t.off,
         }
     }
 
-    fn intern_ci(st: &mut AState, c: &ConstantInfo) -> IConstantInfo {
+    fn intern_ci(pers: &PersTier, st: &mut AState, c: &ConstantInfo) -> IConstantInfo {
         match c {
-            ConstantInfo::AxiomInfo(cv) => IConstantInfo::AxiomInfo(intern_cv(st, cv)),
+            ConstantInfo::AxiomInfo(cv) => IConstantInfo::AxiomInfo(intern_cv(pers, st, cv)),
             ConstantInfo::DefnInfo(cv, v, h) => {
-                let icv = intern_cv(st, cv);
-                let iv = intern_expr(st, v);
+                let icv = intern_cv(pers, st, cv);
+                let iv = intern_expr(pers, st, v);
                 IConstantInfo::DefnInfo(icv, iv, cenv::reducibility_hint_dup(h))
             }
             ConstantInfo::ThmInfo(cv, v) => {
-                let icv = intern_cv(st, cv);
-                let iv = intern_expr(st, v);
+                let icv = intern_cv(pers, st, cv);
+                let iv = intern_expr(pers, st, v);
                 IConstantInfo::ThmInfo(icv, iv)
             }
             ConstantInfo::IndInfo(cv, caps) => {
-                let icv = intern_cv(st, cv);
-                let ic = intern_caps(st, caps);
+                let icv = intern_cv(pers, st, cv);
+                let ic = intern_caps(pers, st, caps);
                 IConstantInfo::IndInfo(icv, ic)
             }
             ConstantInfo::CtorInfo(cv, n_p, n_f) => {
-                IConstantInfo::CtorInfo(intern_cv(st, cv), *n_p, *n_f)
+                IConstantInfo::CtorInfo(intern_cv(pers, st, cv), *n_p, *n_f)
             }
             ConstantInfo::RecInfo(cv, m_i, r_p, rules) => {
-                let icv = intern_cv(st, cv);
-                let irs = rules.iter().map(|r| intern_rule(st, r)).collect();
+                let icv = intern_cv(pers, st, cv);
+                let irs = rules.iter().map(|r| intern_rule(pers, st, r)).collect();
                 IConstantInfo::RecInfo(icv, *m_i, *r_p, irs)
             }
-            ConstantInfo::ProjInfo(t) => IConstantInfo::ProjInfo(intern_tbl(st, t)),
+            ConstantInfo::ProjInfo(t) => IConstantInfo::ProjInfo(intern_tbl(pers, st, t)),
         }
     }
 
@@ -275,6 +278,7 @@ mod tests {
     /// after the run, so the comparison is handle equality, which is sound
     /// because `intern` is hash-consing and `denoteE` is injective (task #97a).
     fn chk(base: &Vec<ConstantInfo>, block: &Vec<ConstantInfo>, n_p: u64) -> bool {
+        let pers: &PersTier = &PersTier::empty();
         let want = expect(base, block, n_p);
         let mut st = pinned_state();
         // `IEnv.consts` is oldest-first here and the cited list is
@@ -282,19 +286,19 @@ mod tests {
         // the same on con-ron-core's side)
         let mut ics: Vec<IConstantInfo> = Vec::new();
         for c in base.iter().rev() {
-            let ic = intern_ci(&mut st, c);
+            let ic = intern_ci(pers, &mut st, c);
             ics.push(ic);
         }
         let fe = mk_ifenv(IEnv { consts: ics });
-        let iblock: Vec<IConstantInfo> = block.iter().map(|c| intern_ci(&mut st, c)).collect();
-        let got = check_ind_decl(mode(), fe, iblock, n_p, &mut st);
+        let iblock: Vec<IConstantInfo> = block.iter().map(|c| intern_ci(pers, &mut st, c)).collect();
+        let got = check_ind_decl(pers, mode(), fe, iblock, n_p, &mut st);
         match (got, want) {
             (Ok(fe2), Ok(wfe)) => {
                 let wics: Vec<IConstantInfo> = wfe
                     .env
                     .consts
                     .iter()
-                    .map(|c| intern_ci(&mut st, c))
+                    .map(|c| intern_ci(pers, &mut st, c))
                     .collect();
                 fe2.env.consts.len() == wics.len()
                     && fe2
@@ -859,11 +863,12 @@ mod tests {
     /// lists agrees position by position.
     #[test]
     fn the_installed_names_line_up() {
+        let pers: &PersTier = &PersTier::empty();
         let b = pair_block();
         let mut st = pinned_state();
         let fe = mk_ifenv(IEnv { consts: Vec::new() });
-        let iblock: Vec<IConstantInfo> = b.iter().map(|c| intern_ci(&mut st, c)).collect();
-        let got = match check_ind_decl(mode(), fe, iblock, 2, &mut st) {
+        let iblock: Vec<IConstantInfo> = b.iter().map(|c| intern_ci(pers, &mut st, c)).collect();
+        let got = match check_ind_decl(pers, mode(), fe, iblock, 2, &mut st) {
             Ok(x) => x,
             Err(_) => panic!("Pair installs"),
         };
@@ -875,7 +880,7 @@ mod tests {
             .env
             .consts
             .iter()
-            .map(|c| intern_ci(&mut st, c))
+            .map(|c| intern_ci(pers, &mut st, c))
             .collect();
         assert_eq!(got.env.consts.len(), wics.len());
         for (a, w) in got.env.consts.iter().zip(wics.iter()) {

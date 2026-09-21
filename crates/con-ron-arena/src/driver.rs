@@ -64,15 +64,22 @@ use arena_core::arena::env as ienv;
 use arena_core::arena::env::{IDeclaration, IFEnv};
 use arena_core::arena::monad::AState;
 use arena_core::arena::nat_op_pin_set::INatOpPinSet;
+use arena_core::arena::pins::Pins;
 use arena_core::arena::store::EStore;
+use arena_core::arena::store::ETables;
+use arena_core::arena::store::LTables;
+use arena_core::arena::store::LsTables;
+use arena_core::arena::store::NTables;
 use arena_core::frontend::export_c;
 use arena_core::frontend::export_c::ParseResultD;
 use arena_core::frontend::types::Modeller;
 
 use con_ron_core::kernel::core_types::CheckError;
+use con_ron_core::ron::hashmap::Dup;
 use con_ron_core::kernel::env::CheckMode;
 
 use con_ron::driver::{message, ms_secs};
+use arena_core::arena::store::PersTier;
 
 /// con-leche: none — the Lean runtime's per-thread stack reservation, which
 /// `Main.lean`'s `--jobs` note measures at 1 GiB per worker.
@@ -109,20 +116,20 @@ pub fn value_kind_word(k: &ValueKind) -> &'static str {
 /// store is asked, which is the one thing every rendering in this crate has to
 /// do that con-ron's does not.  A dangling handle renders as `?` rather than
 /// failing — this is a log line, never a verdict.
-pub fn decl_label(ar: &EStore, d: &IDeclaration) -> String {
+pub fn decl_label(pers: &PersTier, ar: &EStore, d: &IDeclaration) -> String {
     let (kind, n) = match d {
-        IDeclaration::AxiomDecl(cv) => ("axiom", Some(name_of(ar, &cv.name))),
-        IDeclaration::DefnDecl(cv, _, _) => ("def", Some(name_of(ar, &cv.name))),
-        IDeclaration::ThmDecl(cv, _) => ("theorem", Some(name_of(ar, &cv.name))),
-        IDeclaration::OpaqueDecl(cv, _) => ("opaque", Some(name_of(ar, &cv.name))),
+        IDeclaration::AxiomDecl(cv) => ("axiom", Some(name_of(pers, ar, &cv.name))),
+        IDeclaration::DefnDecl(cv, _, _) => ("def", Some(name_of(pers, ar, &cv.name))),
+        IDeclaration::ThmDecl(cv, _) => ("theorem", Some(name_of(pers, ar, &cv.name))),
+        IDeclaration::OpaqueDecl(cv, _) => ("opaque", Some(name_of(pers, ar, &cv.name))),
         IDeclaration::BasisDecl(_) => ("basis", None),
         IDeclaration::IndDecl(block, _) => (
             "inductive",
             block
                 .first()
-                .map(|ci| name_of(ar, &ienv::i_constant_info_name(ci))),
+                .map(|ci| name_of(pers, ar, &ienv::i_constant_info_name(ci))),
         ),
-        IDeclaration::QuotDecl(_, cv) => ("quot", Some(name_of(ar, &cv.name))),
+        IDeclaration::QuotDecl(_, cv) => ("quot", Some(name_of(pers, ar, &cv.name))),
     };
     match n {
         Some(n) => format!("{} {}", kind, n),
@@ -134,8 +141,8 @@ pub fn decl_label(ar: &EStore, d: &IDeclaration) -> String {
 /// A name handle, rendered.  `arena_core::arena::env::read_name` is the
 /// readback and `con_ron::render::name_str` the rendering; a handle the store
 /// does not know renders as `?`.
-pub fn name_of(ar: &EStore, h: &arena_core::arena::handle::NIdx) -> String {
-    match ienv::read_name(ar, h) {
+pub fn name_of(pers: &PersTier, ar: &EStore, h: &arena_core::arena::handle::NIdx) -> String {
+    match ienv::read_name(pers, ar, h) {
         Ok(n) => con_ron::render::name_str(&n),
         Err(_) => "?".to_string(),
     }
@@ -160,13 +167,12 @@ pub fn mark_persistent_note() -> &'static str {
 }
 
 /// con-leche: Main.lean:318-421 checkDeclsIO
-/// The worker count a run reports: `max 1 (min jobs pend.size)` as con-leche
-/// computes it, clamped again to ONE because phase B is single-lane here (the
-/// module note's item 4).  The requested count is kept so that the summary can
-/// say what was asked for and what was run.
+/// The worker count a run reports and the pool spawns: `max 1 (min jobs
+/// pend.size)`, which is `con_ron::driver::workers_for` and nothing else —
+/// the two binaries cannot drift on what `--jobs=<n>` means (task #97-P6-6b;
+/// until then this clamped to ONE, because phase B was single-lane).
 pub fn workers_for(jobs: u64, m: usize) -> usize {
-    let _ = con_ron::driver::workers_for(jobs, m);
-    1
+    con_ron::driver::workers_for(jobs, m)
 }
 
 // ---------------------------------------------------------------------------
@@ -183,7 +189,7 @@ pub fn workers_for(jobs: u64, m: usize) -> usize {
 pub trait PhaseObserver {
     /// con-leche: Main.lean:67-141 installLoop
     /// Before record `pos` of `total` is installed.
-    fn install_before(&mut self, _ar: &EStore, _pos: u64, _total: usize, _d: &IDeclaration) {}
+    fn install_before(&mut self, _pers: &PersTier, _ar: &EStore, _pos: u64, _total: usize, _d: &IDeclaration) {}
 
     /// con-leche: Main.lean:318-421 checkDeclsIO
     /// Phase A failed at fold position `pos`.
@@ -199,16 +205,25 @@ pub trait PhaseObserver {
     /// parse's 6 137 973 plus 370 746) is the PERSISTENT one, printed beside
     /// the total; phase B promotes nothing, so it is also the count at the
     /// end of the run.
-    fn install_done(&mut self, _ar: &EStore, _total: usize, _pend: usize) {}
+    fn install_done(&mut self, _pers: &PersTier, _ar: &EStore, _total: usize, _pend: usize) {}
 
     /// con-leche: Main.lean:318-421 checkDeclsIO
     /// The worker count phase B is about to run on, so that the summary
     /// reports the lane the run actually took.
     fn phase_b_workers(&mut self, _workers: usize) {}
 
+    /// con-leche: Main.lean:240-260 checkOne
+    /// Does this observer print a line per check?  The pool asks ONCE, before
+    /// it spawns: off, no worker touches the completed-count atomic or the
+    /// observer lock at all, which is the difference between a plain pooled
+    /// run and the `--progress` lane.
+    fn wants_check_lines(&self) -> bool {
+        false
+    }
+
     /// con-leche: Main.lean:143-158 checkHeartbeat
     /// After the `done`-th of `m` recorded checks completed.
-    fn check_after(&mut self, _ar: &EStore, _done: usize, _m: usize, _pc: &PendingCheck) {}
+    fn check_after(&mut self, _pers: &PersTier, _ar: &EStore, _done: usize, _m: usize, _pc: &PendingCheck) {}
 
     /// con-leche: Main.lean:318-421 checkDeclsIO
     /// Phase B failed at fold position `pos`.
@@ -218,6 +233,17 @@ pub trait PhaseObserver {
     /// Every recorded check passed.
     fn check_done(&mut self, _m: usize) {}
 }
+
+/// con-leche: Main.lean:318-421 checkDeclsIO
+/// The observer a plain run (no `--progress`) hands the driver: it prints
+/// nothing and wants no check lines, so no worker touches the completed-count
+/// atomic or the observer lock at all.  ONE lane serves both runs since task
+/// #97-P6-6b — the phase boundary freezes the tier, and a second path that
+/// did not would be a second computation.
+pub struct Silent;
+
+/// con-leche: Main.lean:318-421 checkDeclsIO
+impl PhaseObserver for Silent {}
 
 /// con-leche: ConLeche/Cached/Installed.lean:438-455 checkDecls
 /// **The driver**: `checker::install_then_check`'s body with the phase
@@ -229,12 +255,18 @@ pub trait PhaseObserver {
 /// and the `--progress` heartbeat alike.  A run with no observer calls
 /// `install_then_check` itself and never comes through here.
 ///
-/// **The two-phase shape is the pool's seam** (DESIGN.md §8.3, the module
-/// note's item 4): after the boundary the persistent tier is immutable, the
-/// installed index is read-only, and each pending record is checked inside its
-/// own scratch tier from its own caches — so `n` workers claiming records off
-/// a counter is a change to this `while` and to nothing else.
-pub fn check_decls_driver<O: PhaseObserver>(
+/// **The boundary is where the tier is FROZEN** (task #97-P6-6b).  Phase A
+/// owns its persistent tier and appends to it; at the boundary the driver
+/// moves the four stores' persistent tables out into one `PersTier`, sets the
+/// `shared_on` flag that makes every later persistent read go to it and every
+/// persistent append a decline, and hands `&` it to `pool::check_pool`.  The
+/// installed index goes the same way, by reference, since `check_pending`
+/// takes the visibility bound as a scalar — so `n` workers share one
+/// environment and one term DAG and own nothing but a scratch tier, their
+/// caches and a copy of the pin handles.  That is DESIGN.md §8.3's "no
+/// atomics anywhere" with the two atomics the CLAIM needs and no more.
+pub fn check_decls_driver<O: PhaseObserver + Send>(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
@@ -246,8 +278,8 @@ pub fn check_decls_driver<O: PhaseObserver>(
     let mut p: (u64, IFEnv, Vec<PendingCheck>) = (0, ienv::mk_ifenv(ienv::i_env_empty()), Vec::new());
     let mut i = 0usize;
     while i < total {
-        obs.install_before(&st.store, p.0, total, &ds[i]);
-        match checker::annot_decl_step(st, mode, pins, p, &ds[i]) {
+        obs.install_before(pers, &st.store, p.0, total, &ds[i]);
+        match checker::annot_decl_step(pers, st, mode, pins, p, &ds[i]) {
             Err(e) => {
                 obs.install_failed(e.1, total);
                 return Err(e);
@@ -258,28 +290,100 @@ pub fn check_decls_driver<O: PhaseObserver>(
     }
     let pend: Vec<PendingCheck> = p.2;
     let m = pend.len();
-    let mut fe: IFEnv = p.1;
-    obs.install_done(&st.store, total, m);
+    let fe: IFEnv = p.1;
+    obs.install_done(pers, &st.store, total, m);
     let workers = workers_for(jobs, m);
     obs.phase_b_workers(workers);
-    // Phase B, `checker::check_pending_list`'s walk with the observer between
-    // the records: every record checked at its own prefix view, inside its own
-    // scratch tier (`check_pending` is the bracket, task #97-P4d), with the
-    // installed index threaded through.
-    let mut j = 0usize;
-    while j < m {
-        match checker::check_pending(st, mode, fe, &pend[j]) {
-            Err(e) => {
-                obs.check_failed(pend[j].pos);
-                return Err((e, pend[j].pos));
-            }
-            Ok(fe2) => fe = fe2,
+    // THE PHASE BOUNDARY: the persistent tier leaves the state and becomes a
+    // value every worker reads (the doc comment above).  `st` keeps its
+    // (empty) store with the flags set, so the observer can still read a
+    // label back through the shared tier.
+    let tier: PersTier = freeze_tier(&mut st.store);
+    let pins_b: Pins = pins_ref(&st.pins);
+    // Phase B, `checker::check_pending_list`'s walk on `workers` threads: every
+    // record checked at its own prefix view, inside its own scratch tier
+    // (`check_pending` is the bracket, task #97-P4d), the results merged by
+    // record index and walked in record order — so the verdict and the record
+    // a rejection names are the sequential walk's at every `--jobs`.
+    let lock = std::sync::Mutex::new(obs);
+    let r = crate::pool::check_pool(&tier, mode, &fe, &pend, &pins_b, workers, &lock);
+    let obs: &mut O = match lock.into_inner() {
+        Ok(o) => o,
+        Err(e) => e.into_inner(),
+    };
+    // AND THE TIER GOES BACK.  Everything after the fold — the verdict line's
+    // declaration label, the failing record's name, the receipts — reads a
+    // handle back out of `st`, and a state left frozen over a tier that has
+    // gone out of scope answers `None` to every one of them (the first
+    // version of this printed `at theorem ?` where the tip printed `at
+    // theorem addOk`).  `thaw_tier` is `freeze_tier` inverted.
+    thaw_tier(&mut st.store, tier);
+    match r {
+        Err((e, pos)) => {
+            obs.check_failed(pos);
+            Err((e, pos))
         }
-        j += 1;
-        obs.check_after(&st.store, j, m, &pend[j - 1]);
+        Ok(()) => {
+            obs.check_done(m);
+            Ok(fe)
+        }
     }
-    obs.check_done(m);
-    Ok(fe)
+}
+
+/// con-leche: none — the phase boundary, which con-leche has no tier to make
+/// **The persistent tier out of the state and into a value** (task
+/// #97-P6-6b), and the four stores marked as reading a shared one.  This is
+/// the ONE operation of the split that is not `arena-core`'s: the verified
+/// crate never moves a tier, it only ever reads one it is handed, and the
+/// driver is where a phase boundary belongs.
+///
+/// After it the store is empty and frozen — `arena::store`'s guard declines a
+/// persistent append — which is exactly the invariant phase B needs and which
+/// task #97-P6-6 read out of the code before any of this was written
+/// (`check_pending` is the bracket; `intern_persistent`'s only caller is
+/// phase A's `arena::promote`).
+pub fn freeze_tier(ar: &mut EStore) -> PersTier {
+    let tier = PersTier {
+        n: std::mem::replace(&mut ar.lss.ls.ns.pers, NTables::empty()),
+        l: std::mem::replace(&mut ar.lss.ls.pers, LTables::empty()),
+        ls: std::mem::replace(&mut ar.lss.pers, LsTables::empty()),
+        e: std::mem::replace(&mut ar.pers, ETables::empty()),
+    };
+    ar.shared_on = true;
+    ar.lss.shared_on = true;
+    ar.lss.ls.shared_on = true;
+    ar.lss.ls.ns.shared_on = true;
+    tier
+}
+
+/// con-leche: none — the phase boundary, which con-leche has no tier to make
+/// **`freeze_tier` inverted**: the tier back into the store and the flags
+/// down, so that everything after phase B — the verdict line's label, the
+/// failing record's name, the receipts — reads the handles it was given.
+/// `thaw_tier(ar, freeze_tier(ar))` leaves `ar` as it found it, which is what
+/// makes the boundary invisible to every reader outside phase B.
+pub fn thaw_tier(ar: &mut EStore, tier: PersTier) {
+    ar.lss.ls.ns.pers = tier.n;
+    ar.lss.ls.pers = tier.l;
+    ar.lss.pers = tier.ls;
+    ar.pers = tier.e;
+    ar.shared_on = false;
+    ar.lss.shared_on = false;
+    ar.lss.ls.shared_on = false;
+    ar.lss.ls.ns.shared_on = false;
+}
+
+/// con-leche: none — the pin table is handles, so a worker's copy is a memcpy
+/// The driver's `Pins` as the pool's parameter (`pool::worker_state` copies it
+/// per worker): sixty-eight handles into the now-frozen tier.
+fn pins_ref(p: &Pins) -> Pins {
+    Pins {
+        names: ienv::nidx_vec_dup(&p.names),
+        reserved: ienv::nidx_vec_dup(&p.reserved),
+        empty_levels: p.empty_levels.dup2(),
+        zero_level: p.zero_level.dup2(),
+        sort_one: p.sort_one.dup2(),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -402,13 +506,20 @@ impl Heartbeat {
 impl PhaseObserver for Heartbeat {
     /// con-leche: Main.lean:67-141 installLoop
     /// `con-ron-arena: install <i>/<N> <decl> t=<s>s`, before the install.
-    fn install_before(&mut self, ar: &EStore, pos: u64, total: usize, d: &IDeclaration) {
+    fn install_before(
+        &mut self,
+        pers: &PersTier,
+        ar: &EStore,
+        pos: u64,
+        total: usize,
+        d: &IDeclaration,
+    ) {
         if self.stride > 0 && pos % self.stride == 0 {
             eprintln!(
                 "con-ron-arena: install {}/{} {} t={}s",
                 pos,
                 total,
-                decl_label(ar, d),
+                decl_label(pers, ar, d),
                 ms_secs(self.now())
             );
         }
@@ -432,7 +543,7 @@ impl PhaseObserver for Heartbeat {
 
     /// con-leche: Main.lean:318-421 checkDeclsIO
     /// `con-ron-arena: install done: <N>/<N> …, <M> checks pending …`.
-    fn install_done(&mut self, ar: &EStore, total: usize, pend: usize) {
+    fn install_done(&mut self, pers: &PersTier, ar: &EStore, total: usize, pend: usize) {
         self.t_install = self.now();
         if self.stride > 0 {
             eprintln!(
@@ -442,10 +553,10 @@ impl PhaseObserver for Heartbeat {
                 total,
                 total,
                 pend,
-                ar.node_count(),
-                ar.pers_count(),
-                ar.ls().node_count(),
-                ar.ns().node_count(),
+                ar.node_count(pers),
+                ar.pers_count(pers),
+                ar.ls().node_count(pers),
+                ar.ns().node_count(pers),
                 ms_secs(self.t_install),
                 ms_secs(self.t_install - self.t_parse)
             );
@@ -458,16 +569,29 @@ impl PhaseObserver for Heartbeat {
         self.workers = workers;
     }
 
+    /// con-leche: Main.lean:240-260 checkOne
+    /// The heartbeat prints a check line exactly when it has a stride.
+    fn wants_check_lines(&self) -> bool {
+        self.stride > 0
+    }
+
     /// con-leche: Main.lean:143-158 checkHeartbeat
     /// `con-ron-arena: check <done>/<M> <kind> <name> t=<s>s`, after the check.
-    fn check_after(&mut self, ar: &EStore, done: usize, m: usize, pc: &PendingCheck) {
+    fn check_after(
+        &mut self,
+        pers: &PersTier,
+        ar: &EStore,
+        done: usize,
+        m: usize,
+        pc: &PendingCheck,
+    ) {
         if self.stride > 0 && (done as u64) % self.stride == 0 {
             eprintln!(
                 "con-ron-arena: check {}/{} {} {} t={}s",
                 done,
                 m,
                 value_kind_word(&pc.vg.kind),
-                name_of(ar, &pc.vg.cv_a.name),
+                name_of(pers, ar, &pc.vg.cv_a.name),
                 ms_secs(self.now())
             );
         }
@@ -536,6 +660,7 @@ pub fn verdict_accept(records: u64, mode_tag: &str) -> u8 {
 /// handle.  `owner` is the inductive block a generated `_model` record belongs
 /// to, where the caller can say.
 pub fn verdict_failure(
+    pers: &PersTier,
     ar: &EStore,
     ds: &Vec<IDeclaration>,
     e: &CheckError,
@@ -550,11 +675,11 @@ pub fn verdict_failure(
         Some(d) => match owner {
             Some(t) => format!(
                 " [at {}, a generated model record of inductive {}, fold position {}]",
-                decl_label(ar, d),
+                decl_label(pers, ar, d),
                 t,
                 i
             ),
-            None => format!(" [at {}, fold position {}]", decl_label(ar, d), i),
+            None => format!(" [at {}, fold position {}]", decl_label(pers, ar, d), i),
         },
     };
     eprintln!(
@@ -587,6 +712,7 @@ pub fn verdict_failure(
 /// stopping at the first empty read.  The chunk count comes back for the
 /// heartbeat, as the Lean twin's `readFold` returns it.
 pub fn parse_export_handle_d<R: Read, M: Modeller>(
+    pers: &PersTier,
     m: &M,
     ar: &mut AState,
     h: &mut R,
@@ -594,7 +720,7 @@ pub fn parse_export_handle_d<R: Read, M: Modeller>(
     census: bool,
     chunk: usize,
 ) -> std::io::Result<(Result<ParseResultD, (CheckError, u64)>, u64)> {
-    let mut st = match export_c::state_d_init(&mut ar.store, in_model, census) {
+    let mut st = match export_c::state_d_init(pers, &mut ar.store, in_model, census) {
         Ok(s) => s,
         Err(e) => return Ok((Err((e, 0)), 0)),
     };
@@ -606,10 +732,10 @@ pub fn parse_export_handle_d<R: Read, M: Modeller>(
     loop {
         let n = con_ron::driver::read_up_to(h, &mut buf0)?;
         if n == 0 {
-            return Ok((export_c::chunk_finish(m, ar, st, &carry[..], line_no), chunks));
+            return Ok((export_c::chunk_finish(pers, m, ar, st, &carry[..], line_no), chunks));
         }
         chunks += 1;
-        match export_c::chunk_step(m, ar, &mut st, carry, line_no, total, &buf0[..n]) {
+        match export_c::chunk_step(pers, m, ar, &mut st, carry, line_no, total, &buf0[..n]) {
             Err(e) => return Ok((Err(e), chunks)),
             Ok((c, l, t)) => {
                 carry = c;
@@ -623,6 +749,7 @@ pub fn parse_export_handle_d<R: Read, M: Modeller>(
 /// con-leche: ConLeche/Frontend/ExportC.lean:933-938 parseExportStreamD
 /// Streaming direct parse of a file.
 pub fn parse_export_stream_d<M: Modeller>(
+    pers: &PersTier,
     m: &M,
     ar: &mut AState,
     path: &str,
@@ -631,7 +758,7 @@ pub fn parse_export_stream_d<M: Modeller>(
     chunk: usize,
 ) -> std::io::Result<(Result<ParseResultD, (CheckError, u64)>, u64)> {
     let mut f = std::fs::File::open(path)?;
-    parse_export_handle_d(m, ar, &mut f, in_model, census, chunk)
+    parse_export_handle_d(pers, m, ar, &mut f, in_model, census, chunk)
 }
 
 #[cfg(test)]
@@ -647,6 +774,7 @@ mod tests {
     /// records.  `con_ron::driver`'s own test, over the arena's parser.
     #[test]
     fn the_reader_is_parse_chunks_with_the_reads() {
+        let pers: &PersTier = &PersTier::empty();
         let s = concat!(
             "{\"meta\":{\"exporter\":{\"name\":\"lean4export\"}}}\n",
             "{\"in\":1,\"str\":{\"pre\":0,\"str\":\"A\"}}\n",
@@ -658,19 +786,19 @@ mod tests {
             let mut ar = AState::init(EStore::empty());
             let mut r = std::io::Cursor::new(b.to_vec());
             let (streamed, _) =
-                parse_export_handle_d(&DeclineModeller {}, &mut ar, &mut r, true, false, chunk)
+                parse_export_handle_d(pers, &DeclineModeller {}, &mut ar, &mut r, true, false, chunk)
                     .expect("no io error");
             let streamed = streamed
                 .unwrap_or_else(|(e, l)| panic!("chunk {} line {}: {}", chunk, l, message(&e)));
             let mut ar2 = AState::init(EStore::empty());
             let cs: Vec<Vec<u8>> = b.chunks(chunk).map(|c| c.to_vec()).collect();
-            let pure = export_c::parse_chunks(&DeclineModeller {}, &mut ar2, &cs, true, false)
+            let pure = export_c::parse_chunks(pers, &DeclineModeller {}, &mut ar2, &cs, true, false)
                 .unwrap_or_else(|(e, l)| {
                     panic!("pure chunk {} line {}: {}", chunk, l, message(&e))
                 });
             assert_eq!(streamed.decls.len(), pure.decls.len(), "chunk {}", chunk);
             assert_eq!(streamed.decls.len(), 1, "chunk {}", chunk);
-            assert_eq!(ar.store.node_count(), ar2.store.node_count(), "chunk {}", chunk);
+            assert_eq!(ar.store.node_count(pers), ar2.store.node_count(pers), "chunk {}", chunk);
         }
     }
 
@@ -686,8 +814,53 @@ mod tests {
         assert!(con_ron::driver::progress_stride("0").is_err());
         assert_eq!(con_ron::driver::jobs_count("8"), Ok(8));
         assert!(con_ron::driver::jobs_count("0").is_err());
-        // phase B is single-lane here, whatever `--jobs` asked for
-        assert_eq!(workers_for(8, 100), 1);
+        // the worker count is `con_ron::driver::workers_for` and nothing else
+        // (task #97-P6-6b): the two binaries cannot drift on `--jobs`
+        assert_eq!(workers_for(8, 100), 8);
+        assert_eq!(workers_for(8, 3), 3);
         assert_eq!(workers_for(1, 0), 1);
+        assert_eq!(workers_for(8, 100), con_ron::driver::workers_for(8, 100));
+    }
+
+    /// **The phase boundary is invisible to every reader outside phase B**
+    /// (task #97-P6-6b).  `freeze_tier` takes the persistent tier out of the
+    /// store and `thaw_tier` puts it back; between them a worker reads the
+    /// tier it was handed, and after them the store answers exactly as it did
+    /// before — which is what the verdict line needs, because it renders the
+    /// failing record's NAME out of the store after the fold has returned.
+    /// The first version of the pool dropped the tier at the end of the
+    /// driver and printed `at theorem ?`; this is the regression.
+    #[test]
+    fn freezing_and_thawing_leave_every_handle_readable() {
+        let empty: &PersTier = &PersTier::empty();
+        let mut st = AState::init(EStore::empty());
+        let anon = match arena_core::arena::monad::intern_n_node(
+            empty,
+            &mut st,
+            arena_core::arena::store::NNodeView::Anonymous,
+        ) {
+            Ok(h) => h,
+            Err(_) => panic!("the anonymous name interns"),
+        };
+        let n = match arena_core::arena::monad::intern_n_node(
+            empty,
+            &mut st,
+            arena_core::arena::store::NNodeView::Str(anon, vec![0x61, 0x64, 0x64]),
+        ) {
+            Ok(h) => h,
+            Err(_) => panic!("`add` interns"),
+        };
+        assert_eq!(name_of(empty, &st.store, &n), "add");
+        // frozen: the store's own tier is empty and the shared one answers
+        let tier = freeze_tier(&mut st.store);
+        assert!(st.store.shared_on);
+        assert_eq!(name_of(&tier, &st.store, &n), "add");
+        // and a worker, whose store is its own, reads it too
+        let w = crate::pool::worker_state(&st.pins);
+        assert_eq!(name_of(&tier, &w.store, &n), "add");
+        // thawed: the store is what phase A left
+        thaw_tier(&mut st.store, tier);
+        assert!(!st.store.shared_on);
+        assert_eq!(name_of(empty, &st.store, &n), "add");
     }
 }

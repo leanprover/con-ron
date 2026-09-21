@@ -79,6 +79,7 @@ use con_ron_core::kernel::name::{Name, NameKind};
 use con_ron_core::kernel::{expr, level, name};
 
 use con_ron::in_model::mutual::{BlockRec, Ctx, IndCtorRec, IndRecRec, IndTypeRec};
+use arena_core::arena::store::PersTier;
 
 /// con-leche: none — the seam's instantiation (task #97 P4f); Lean twin: proof/ConRon/Arena/Frontend/InModel.lean:196-206 inProcessModeller
 /// **The modeller the binary passes**: `con_ron::in_model`'s generator behind
@@ -123,63 +124,63 @@ impl Default for InProcess {
 /// con-leche: none — the readback of a name handle; Lean twin: proof/ConRon/Arena/Denote.lean:87-88 denoteN
 /// A name, read back.  Names are short and the store is shallow, so this one
 /// is unmemoised, as the twin's `denoteN` is.
-fn read_name(ar: &EStore, h: &NIdx) -> Option<Name> {
-    match ar.ns().view(h) {
+fn read_name(pers: &PersTier, ar: &EStore, h: &NIdx) -> Option<Name> {
+    match ar.ns().view(pers, h) {
         None => None,
         Some(NNodeView::Anonymous) => Some(name::anonymous()),
-        Some(NNodeView::Str(p, s)) => read_name(ar, &p).map(|q| name::mk_str(q, s)),
-        Some(NNodeView::Num(p, k)) => read_name(ar, &p).map(|q| name::mk_num(q, k)),
+        Some(NNodeView::Str(p, s)) => read_name(pers, ar, &p).map(|q| name::mk_str(q, s)),
+        Some(NNodeView::Num(p, k)) => read_name(pers, ar, &p).map(|q| name::mk_num(q, k)),
     }
 }
 
 /// con-leche: none — the readback of a name-handle list; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean denoteNList
 /// A list of names, read back.
-fn read_names(ar: &EStore, hs: &[NIdx]) -> Option<Vec<Name>> {
+fn read_names(pers: &PersTier, ar: &EStore, hs: &[NIdx]) -> Option<Vec<Name>> {
     let mut out: Vec<Name> = Vec::with_capacity(hs.len());
     for h in hs.iter() {
-        out.push(read_name(ar, h)?);
+        out.push(read_name(pers, ar, h)?);
     }
     Some(out)
 }
 
 /// con-leche: none — the readback of a level handle; Lean twin: proof/ConRon/Arena/Denote.lean:99-107 denoteL
 /// A level, read back.
-fn read_level(ar: &EStore, h: &LIdx) -> Option<Level> {
-    match ar.ls().view(h) {
+fn read_level(pers: &PersTier, ar: &EStore, h: &LIdx) -> Option<Level> {
+    match ar.ls().view(pers, h) {
         None => None,
         Some(LNodeView::Zero) => Some(level::zero()),
-        Some(LNodeView::Succ(u)) => read_level(ar, &u).map(level::succ),
+        Some(LNodeView::Succ(u)) => read_level(pers, ar, &u).map(level::succ),
         Some(LNodeView::Max(u, v)) => {
-            let a = read_level(ar, &u)?;
-            let b = read_level(ar, &v)?;
+            let a = read_level(pers, ar, &u)?;
+            let b = read_level(pers, ar, &v)?;
             Some(level::max(a, b))
         }
         Some(LNodeView::Imax(u, v)) => {
-            let a = read_level(ar, &u)?;
-            let b = read_level(ar, &v)?;
+            let a = read_level(pers, ar, &u)?;
+            let b = read_level(pers, ar, &v)?;
             Some(level::imax(a, b))
         }
-        Some(LNodeView::Param(n)) => read_name(ar, &n).map(level::param),
+        Some(LNodeView::Param(n)) => read_name(pers, ar, &n).map(level::param),
     }
 }
 
 /// con-leche: none — the readback of a level-list handle; Lean twin: proof/ConRon/Arena/Denote.lean denoteLs
 /// An interned level list, read back.
-fn read_levels(ar: &EStore, h: &LsIdx) -> Option<Vec<Level>> {
-    let us = ar.ls_s().view(h)?;
+fn read_levels(pers: &PersTier, ar: &EStore, h: &LsIdx) -> Option<Vec<Level>> {
+    let us = ar.ls_s().view(pers, h)?;
     let mut out: Vec<Level> = Vec::with_capacity(us.len());
     for u in us.iter() {
-        out.push(read_level(ar, u)?);
+        out.push(read_level(pers, ar, u)?);
     }
     Some(out)
 }
 
 /// con-leche: none — the readback of a level-handle list; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean denoteLList
 /// A `Vec<LIdx>` (a recursor rule's nested levels), read back.
-fn read_level_list(ar: &EStore, hs: &[LIdx]) -> Option<Vec<Level>> {
+fn read_level_list(pers: &PersTier, ar: &EStore, hs: &[LIdx]) -> Option<Vec<Level>> {
     let mut out: Vec<Level> = Vec::with_capacity(hs.len());
     for h in hs.iter() {
-        out.push(read_level(ar, h)?);
+        out.push(read_level(pers, ar, h)?);
     }
     Some(out)
 }
@@ -189,41 +190,41 @@ fn read_level_list(ar: &EStore, hs: &[LIdx]) -> Option<Vec<Level>> {
 /// of parents.  The recursion is on the store's own rank (a child is interned
 /// before its parent), so the depth is the term's and the 1 GB stack the
 /// driver's thread has is what carries it, as it carries the checker.
-fn read_expr(m: &mut HashMap<u32, Expr>, ar: &EStore, h: &EIdx) -> Option<Expr> {
+fn read_expr(pers: &PersTier, m: &mut HashMap<u32, Expr>, ar: &EStore, h: &EIdx) -> Option<Expr> {
     if let Some(e) = m.get(&h.word) {
         return Some(expr::dup(e));
     }
-    let v = ar.view(h)?;
+    let v = ar.view(pers, h)?;
     let e: Expr = match v {
         ENodeView::BVar(k) => expr::bvar(k),
-        ENodeView::FVar(k, ty) => expr::fvar(k, read_expr(m, ar, &ty)?),
-        ENodeView::Sort(u) => expr::sort(read_level(ar, &u)?),
-        ENodeView::Const(n, us) => expr::mk_const(read_name(ar, &n)?, read_levels(ar, &us)?),
+        ENodeView::FVar(k, ty) => expr::fvar(k, read_expr(pers, m, ar, &ty)?),
+        ENodeView::Sort(u) => expr::sort(read_level(pers, ar, &u)?),
+        ENodeView::Const(n, us) => expr::mk_const(read_name(pers, ar, &n)?, read_levels(pers, ar, &us)?),
         ENodeView::App(f, a) => {
-            let x = read_expr(m, ar, &f)?;
-            let y = read_expr(m, ar, &a)?;
+            let x = read_expr(pers, m, ar, &f)?;
+            let y = read_expr(pers, m, ar, &a)?;
             expr::app(x, y)
         }
         ENodeView::Lam(ty, b, bm) => {
-            let x = read_expr(m, ar, &ty)?;
-            let y = read_expr(m, ar, &b)?;
+            let x = read_expr(pers, m, ar, &ty)?;
+            let y = read_expr(pers, m, ar, &b)?;
             expr::lam(x, y, bm)
         }
         ENodeView::ForallE(ty, b, bm) => {
-            let x = read_expr(m, ar, &ty)?;
-            let y = read_expr(m, ar, &b)?;
+            let x = read_expr(pers, m, ar, &ty)?;
+            let y = read_expr(pers, m, ar, &b)?;
             expr::forall_e(x, y, bm)
         }
         ENodeView::LetE(ty, val, b) => {
-            let x = read_expr(m, ar, &ty)?;
-            let y = read_expr(m, ar, &val)?;
-            let z = read_expr(m, ar, &b)?;
+            let x = read_expr(pers, m, ar, &ty)?;
+            let y = read_expr(pers, m, ar, &val)?;
+            let z = read_expr(pers, m, ar, &b)?;
             expr::let_e(x, y, z)
         }
         ENodeView::Lit(l) => expr::lit(l),
         ENodeView::Proj(n, k, e) => {
-            let s = read_name(ar, &n)?;
-            let x = read_expr(m, ar, &e)?;
+            let s = read_name(pers, ar, &n)?;
+            let x = read_expr(pers, m, ar, &e)?;
             expr::proj(s, k, x)
         }
     };
@@ -233,35 +234,45 @@ fn read_expr(m: &mut HashMap<u32, Expr>, ar: &EStore, h: &EIdx) -> Option<Expr> 
 
 /// con-leche: none — the readback of a constant value; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean denoteCV
 /// A `ConstantVal`, read back.
-fn read_cv(m: &mut HashMap<u32, Expr>, ar: &EStore, cv: &IConstantVal) -> Option<ConstantVal> {
+fn read_cv(
+    pers: &PersTier,
+    m: &mut HashMap<u32, Expr>,
+    ar: &EStore,
+    cv: &IConstantVal,
+) -> Option<ConstantVal>  {
     Some(ConstantVal {
-        name: read_name(ar, &cv.name)?,
-        level_params: read_names(ar, &cv.level_params)?,
-        ty: read_expr(m, ar, &cv.ty)?,
+        name: read_name(pers, ar, &cv.name)?,
+        level_params: read_names(pers, ar, &cv.level_params)?,
+        ty: read_expr(pers, m, ar, &cv.ty)?,
     })
 }
 
 /// con-leche: none — the readback of a recursor rule; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean denoteRule
 /// A `RecRule`, read back, its firing datum included.
-fn read_rule(m: &mut HashMap<u32, Expr>, ar: &EStore, r: &IRecRule) -> Option<RecRule> {
+fn read_rule(
+    pers: &PersTier,
+    m: &mut HashMap<u32, Expr>,
+    ar: &EStore,
+    r: &IRecRule,
+) -> Option<RecRule>  {
     let fire = match &r.fire {
         IRecRuleFire::Inert => RecRuleFire::Inert,
         IRecRuleFire::Plain => RecRuleFire::Plain,
         IRecRuleFire::Nested(us, pins) => {
-            let ls = read_level_list(ar, us)?;
+            let ls = read_level_list(pers, ar, us)?;
             let mut ps: Vec<Expr> = Vec::with_capacity(pins.len());
             for p in pins.iter() {
-                ps.push(read_expr(m, ar, p)?);
+                ps.push(read_expr(pers, m, ar, p)?);
             }
             RecRuleFire::Nested(ls, ps)
         }
     };
     Some(RecRule {
-        ctor: read_name(ar, &r.ctor)?,
+        ctor: read_name(pers, ar, &r.ctor)?,
         nfields: r.nfields,
         ctor_params: r.ctor_params,
         fire,
-        rhs: read_expr(m, ar, &r.rhs)?,
+        rhs: read_expr(pers, m, ar, &r.rhs)?,
         k: r.k,
         eta: r.eta,
         params_blind: r.params_blind,
@@ -269,12 +280,17 @@ fn read_rule(m: &mut HashMap<u32, Expr>, ar: &EStore, r: &IRecRule) -> Option<Re
 }
 
 /// con-leche: none — the readback of one type former of a parsed block; Lean twin: proof/ConRon/Arena/Frontend/InModel.lean:66-73 denoteMTypeGo
-fn read_type(m: &mut HashMap<u32, Expr>, ar: &EStore, t: &MIndTypeRec) -> Option<IndTypeRec> {
+fn read_type(
+    pers: &PersTier,
+    m: &mut HashMap<u32, Expr>,
+    ar: &EStore,
+    t: &MIndTypeRec,
+) -> Option<IndTypeRec>  {
     Some(IndTypeRec {
-        cv: read_cv(m, ar, &t.cv)?,
+        cv: read_cv(pers, m, ar, &t.cv)?,
         n_p: t.n_p,
         n_idx: t.n_idx,
-        ctors: read_names(ar, &t.ctors)?,
+        ctors: read_names(pers, ar, &t.ctors)?,
         is_rec: t.is_rec,
         is_reflexive: t.is_reflexive,
         num_nested: t.num_nested,
@@ -282,22 +298,32 @@ fn read_type(m: &mut HashMap<u32, Expr>, ar: &EStore, t: &MIndTypeRec) -> Option
 }
 
 /// con-leche: none — the readback of one constructor of a parsed block; Lean twin: proof/ConRon/Arena/Frontend/InModel.lean:88-93 denoteMCtorGo
-fn read_ctor(m: &mut HashMap<u32, Expr>, ar: &EStore, c: &MIndCtorRec) -> Option<IndCtorRec> {
+fn read_ctor(
+    pers: &PersTier,
+    m: &mut HashMap<u32, Expr>,
+    ar: &EStore,
+    c: &MIndCtorRec,
+) -> Option<IndCtorRec>  {
     Some(IndCtorRec {
-        cv: read_cv(m, ar, &c.cv)?,
+        cv: read_cv(pers, m, ar, &c.cv)?,
         n_p: c.n_p,
         n_f: c.n_f,
     })
 }
 
 /// con-leche: none — the readback of one recursor of a parsed block; Lean twin: proof/ConRon/Arena/Frontend/InModel.lean:107-115 denoteMRecGo
-fn read_rec(m: &mut HashMap<u32, Expr>, ar: &EStore, r: &MIndRecRec) -> Option<IndRecRec> {
+fn read_rec(
+    pers: &PersTier,
+    m: &mut HashMap<u32, Expr>,
+    ar: &EStore,
+    r: &MIndRecRec,
+) -> Option<IndRecRec>  {
     let mut rules: Vec<RecRule> = Vec::with_capacity(r.rules.len());
     for rl in r.rules.iter() {
-        rules.push(read_rule(m, ar, rl)?);
+        rules.push(read_rule(pers, m, ar, rl)?);
     }
     Some(IndRecRec {
-        cv: read_cv(m, ar, &r.cv)?,
+        cv: read_cv(pers, m, ar, &r.cv)?,
         n_p: r.n_p,
         n_m: r.n_m,
         nm: r.nm,
@@ -310,18 +336,23 @@ fn read_rec(m: &mut HashMap<u32, Expr>, ar: &EStore, r: &MIndRecRec) -> Option<I
 /// The block the generator takes.  One memo for the whole block *and* for the
 /// whole run, so the sharing between its types, constructors and recursors —
 /// and between one block and the next — survives the readback.
-fn read_block(m: &mut HashMap<u32, Expr>, ar: &EStore, b: &IBlockRec) -> Option<BlockRec> {
+fn read_block(
+    pers: &PersTier,
+    m: &mut HashMap<u32, Expr>,
+    ar: &EStore,
+    b: &IBlockRec,
+) -> Option<BlockRec>  {
     let mut types: Vec<IndTypeRec> = Vec::with_capacity(b.types.len());
     for t in b.types.iter() {
-        types.push(read_type(m, ar, t)?);
+        types.push(read_type(pers, m, ar, t)?);
     }
     let mut ctors: Vec<IndCtorRec> = Vec::with_capacity(b.ctors.len());
     for c in b.ctors.iter() {
-        ctors.push(read_ctor(m, ar, c)?);
+        ctors.push(read_ctor(pers, m, ar, c)?);
     }
     let mut recs: Vec<IndRecRec> = Vec::with_capacity(b.recs.len());
     for r in b.recs.iter() {
-        recs.push(read_rec(m, ar, r)?);
+        recs.push(read_rec(pers, m, ar, r)?);
     }
     Some(BlockRec {
         types,
@@ -340,16 +371,16 @@ fn read_block(m: &mut HashMap<u32, Expr>, ar: &EStore, b: &IBlockRec) -> Option<
 /// name no declaration carries, so `None` here is the right answer and not a
 /// failure — which is exactly what the twin's `nameHandle?` says.  It is
 /// `NStore::find` up the prefix chain, the cons table's own probe.
-fn name_handle(ar: &EStore, n: &Name) -> Option<NIdx> {
+fn name_handle(pers: &PersTier, ar: &EStore, n: &Name) -> Option<NIdx> {
     match &n.0.kind {
-        NameKind::Anonymous => ar.ns().find(&NNodeView::Anonymous),
+        NameKind::Anonymous => ar.ns().find(pers, &NNodeView::Anonymous),
         NameKind::Str(p, s) => {
-            let h = name_handle(ar, p)?;
-            ar.ns().find(&NNodeView::Str(h, s.clone()))
+            let h = name_handle(pers, ar, p)?;
+            ar.ns().find(pers, &NNodeView::Str(h, s.clone()))
         }
         NameKind::Num(p, k) => {
-            let h = name_handle(ar, p)?;
-            ar.ns().find(&NNodeView::Num(h, *k))
+            let h = name_handle(pers, ar, p)?;
+            ar.ns().find(pers, &NNodeView::Num(h, *k))
         }
     }
 }
@@ -370,38 +401,39 @@ impl Modeller for InProcess {
     /// generator has answered.
     fn generate(
         &self,
+    pers: &PersTier,
         ar: &mut EStore,
         ctx: &ModelCtx,
         b: &IBlockRec,
     ) -> Result<Vec<IDeclaration>, Vec<u32>> {
         let gen: Result<Vec<Declaration>, String> = {
             let store: &EStore = ar;
-            let bp = match read_block(&mut self.memo.borrow_mut(), store, b) {
+            let bp = match read_block(pers, &mut self.memo.borrow_mut(), store, b) {
                 Some(x) => x,
                 None => return Err(cps("arena: dangling handle in a modelled block")),
             };
             // The three closures of `ctxOf`: a name to its handle, the arena's
             // own context at that handle, the answer read back.
             let tbl = |n: &Name| -> Option<(Vec<Name>, Expr)> {
-                let h = name_handle(store, n)?;
+                let h = name_handle(pers, store, n)?;
                 let (lps, ty) = arena_core::frontend::types::ctx_tbl(ctx, &h)?;
-                let ls = read_names(store, lps)?;
-                let t = read_expr(&mut self.memo.borrow_mut(), store, ty)?;
+                let ls = read_names(pers, store, lps)?;
+                let t = read_expr(pers, &mut self.memo.borrow_mut(), store, ty)?;
                 Some((ls, t))
             };
             let hs = |n: &Name| -> u64 {
-                match name_handle(store, n) {
+                match name_handle(pers, store, n) {
                     None => 0,
                     Some(h) => arena_core::frontend::types::ctx_height(ctx, &h),
                 }
             };
             let bl = |n: &Name| -> Option<&BlockRec> {
-                let h = name_handle(store, n)?;
+                let h = name_handle(pers, store, n)?;
                 if let Some(r) = self.blocks.borrow().get(&h.word) {
                     return Some(*r);
                 }
                 let ib = arena_core::frontend::types::ctx_block(ctx, &h)?;
-                let tree = read_block(&mut self.memo.borrow_mut(), store, ib)?;
+                let tree = read_block(pers, &mut self.memo.borrow_mut(), store, ib)?;
                 // `Ctx::blocks` hands back a REFERENCE (the core's own parse
                 // has one to hand); this one is built on demand, so it is
                 // leaked and remembered.  Bounded by the distinct blocks the
@@ -427,7 +459,7 @@ impl Modeller for InProcess {
         // memo tables an `AState::init` brings are empty and stay empty, the
         // intern touching nothing but the store and its cons tables.
         let mut ast = AState::init(std::mem::replace(ar, EStore::empty()));
-        let r = arena_core::arena::intern::intern_decls(&mut ast, &ds);
+        let r = arena_core::arena::intern::intern_decls(pers, &mut ast, &ds);
         *ar = ast.store;
         match r {
             Ok(hs) => Ok(hs),

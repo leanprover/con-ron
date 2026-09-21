@@ -22,6 +22,7 @@ use crate::arena::monad::AState;
 use con_ron_core::kernel::core_types::CheckError;
 use con_ron_core::kernel::expr;
 use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
+use crate::arena::store::PersTier;
 
 /// con-leche: ConLeche/Kernel/NatOpPinSet.lean:28-51 NatOpPinSet
 /// Lean twin: `proof/ConRon/Arena/NatOpPinSet.lean:29-48 INatOpPinSet` — the
@@ -59,26 +60,28 @@ pub struct INatOpPinSet {
 /// sixteen terms deep.  The twin's sixteen `let`s are sixteen nested matches
 /// (§3.4 forbids `?`), split in two so that each half is one expression.
 pub fn intern_pin_set(
+    pers: &PersTier,
     st: &mut AState,
     ps: &NatOpPinSet,
 ) -> Result<INatOpPinSet, CheckError> {
-    match intern_expr(st, &ps.div_pin) {
+    match intern_expr(pers, st, &ps.div_pin) {
         Err(e) => Err(e),
-        Ok(dp) => match intern_expr(st, &ps.mod_pin) {
+        Ok(dp) => match intern_expr(pers, st, &ps.mod_pin) {
             Err(e) => Err(e),
-            Ok(mp) => match intern_expr(st, &ps.gcd_pin) {
+            Ok(mp) => match intern_expr(pers, st, &ps.gcd_pin) {
                 Err(e) => Err(e),
-                Ok(gp) => match intern_expr(st, &ps.land_pin) {
+                Ok(gp) => match intern_expr(pers, st, &ps.land_pin) {
                     Err(e) => Err(e),
-                    Ok(lap) => match intern_expr(st, &ps.lor_pin) {
+                    Ok(lap) => match intern_expr(pers, st, &ps.lor_pin) {
                         Err(e) => Err(e),
-                        Ok(lop) => match intern_expr(st, &ps.xor_pin) {
+                        Ok(lop) => match intern_expr(pers, st, &ps.xor_pin) {
                             Err(e) => Err(e),
-                            Ok(xp) => match intern_expr(st, &ps.shift_left_pin) {
+                            Ok(xp) => match intern_expr(pers, st, &ps.shift_left_pin) {
                                 Err(e) => Err(e),
-                                Ok(slp) => match intern_expr(st, &ps.shift_right_pin) {
+                                Ok(slp) => match intern_expr(pers, st, &ps.shift_right_pin) {
                                     Err(e) => Err(e),
                                     Ok(srp) => intern_pin_set_proofs(
+                                        pers,
                                         st, ps, dp, mp, gp, lap, lop, xp, slp, srp,
                                     ),
                                 },
@@ -96,6 +99,7 @@ pub fn intern_pin_set(
 /// eight certificate-proof lists, and the record.  Split at the twin's own
 /// `let dc ←` boundary (task #97-P4c's rule for a long `do` block).
 pub fn intern_pin_set_proofs(
+    pers: &PersTier,
     st: &mut AState,
     ps: &NatOpPinSet,
     dp: EIdx,
@@ -107,22 +111,22 @@ pub fn intern_pin_set_proofs(
     slp: EIdx,
     srp: EIdx,
 ) -> Result<INatOpPinSet, CheckError> {
-    match intern_expr_list(st, &ps.div_proofs) {
+    match intern_expr_list(pers, st, &ps.div_proofs) {
         Err(e) => Err(e),
-        Ok(dc) => match intern_expr_list(st, &ps.mod_proofs) {
+        Ok(dc) => match intern_expr_list(pers, st, &ps.mod_proofs) {
             Err(e) => Err(e),
-            Ok(mc) => match intern_expr_list(st, &ps.gcd_proofs) {
+            Ok(mc) => match intern_expr_list(pers, st, &ps.gcd_proofs) {
                 Err(e) => Err(e),
-                Ok(gc) => match intern_expr_list(st, &ps.land_proofs) {
+                Ok(gc) => match intern_expr_list(pers, st, &ps.land_proofs) {
                     Err(e) => Err(e),
-                    Ok(lac) => match intern_expr_list(st, &ps.lor_proofs) {
+                    Ok(lac) => match intern_expr_list(pers, st, &ps.lor_proofs) {
                         Err(e) => Err(e),
-                        Ok(loc) => match intern_expr_list(st, &ps.xor_proofs) {
+                        Ok(loc) => match intern_expr_list(pers, st, &ps.xor_proofs) {
                             Err(e) => Err(e),
-                            Ok(xc) => match intern_expr_list(st, &ps.shift_left_proofs) {
+                            Ok(xc) => match intern_expr_list(pers, st, &ps.shift_left_proofs) {
                                 Err(e) => Err(e),
                                 Ok(slc) => {
-                                    match intern_expr_list(st, &ps.shift_right_proofs) {
+                                    match intern_expr_list(pers, st, &ps.shift_right_proofs) {
                                         Err(e) => Err(e),
                                         Ok(src) => Ok(INatOpPinSet {
                                             toolchain: expr::str_copy(&ps.toolchain),
@@ -158,6 +162,7 @@ pub fn intern_pin_set_proofs(
 /// Lean twin: `proof/ConRon/Arena/NatOpPinSet.lean:74-79 internPinSets` —
 /// intern the variant LIST, in the order the install gate tries them.
 pub fn intern_pin_sets(
+    pers: &PersTier,
     st: &mut AState,
     pss: &Vec<NatOpPinSet>,
     i: usize,
@@ -166,12 +171,12 @@ pub fn intern_pin_sets(
     if i >= pss.len() {
         Ok(out)
     } else {
-        match intern_pin_set(st, &pss[i]) {
+        match intern_pin_set(pers, st, &pss[i]) {
             Err(e) => Err(e),
             Ok(h) => {
                 let mut out2 = out;
                 out2.push(h);
-                intern_pin_sets(st, pss, i + 1, out2)
+                intern_pin_sets(pers, st, pss, i + 1, out2)
             }
         }
     }

@@ -27,6 +27,7 @@ use arena_core::arena::store::ENodeView;
 use arena_core::arena::store::EStore;
 use con_ron_core::ron::hashmap::Dup;
 use std::time::Instant;
+use arena_core::arena::store::PersTier;
 
 fn vm_hwm_kb() -> u64 {
     let s = std::fs::read_to_string("/proc/self/status").unwrap_or_default();
@@ -56,11 +57,14 @@ fn main() {
 
     let rss0 = vm_hwm_kb();
     let mut st = EStore::empty();
+    // `shared_on` is false here, so every persistent read goes to the store's
+    // own tier and this one is never consulted (task #97-P6-6b).
+    let pers: &PersTier = &PersTier::empty();
 
     let t_base = Instant::now();
     let mut leaves: Vec<EIdx> = Vec::with_capacity(base);
     for i in 0..base {
-        leaves.push(take(st.intern(ENodeView::BVar(i as u64))));
+        leaves.push(take(st.intern(pers, ENodeView::BVar(i as u64))));
     }
     let base_ns = t_base.elapsed().as_nanos();
 
@@ -71,7 +75,7 @@ fn main() {
     while k < nodes {
         let i = k / base;
         let j = k % base;
-        last = take(st.intern(ENodeView::App(leaves[i].dup2(), leaves[j].dup2())));
+        last = take(st.intern(pers, ENodeView::App(leaves[i].dup2(), leaves[j].dup2())));
         k += 1;
     }
     let miss = t.elapsed();
@@ -83,12 +87,12 @@ fn main() {
     while k < nodes {
         let i = k / base;
         let j = k % base;
-        last = take(st.intern(ENodeView::App(leaves[i].dup2(), leaves[j].dup2())));
+        last = take(st.intern(pers, ENodeView::App(leaves[i].dup2(), leaves[j].dup2())));
         k += 1;
     }
     let hit = t.elapsed();
 
-    let total_nodes = st.node_count();
+    let total_nodes = st.node_count(pers);
     let rss_bytes = (rss1 - rss0) * 1024;
 
     println!("arena-core intern_bench");

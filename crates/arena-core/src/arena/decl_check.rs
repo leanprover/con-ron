@@ -69,6 +69,7 @@ use con_ron_core::kernel::core_types;
 use con_ron_core::kernel::core_types::{code_points, CheckError};
 use con_ron_core::kernel::env::{CheckMode, ReducibilityHint};
 use con_ron_core::ron::hashmap::{Dup, Eq2};
+use crate::arena::store::PersTier;
 
 // ---------------------------------------------------------------------------
 // The messages of this module's declines
@@ -149,12 +150,17 @@ pub const M_DUP_DECL: [u32; 21] = [
 /// `fe.find? eqName == some eqA` is a whole-constant comparison
 /// (`arena::canon::i_constant_info_beq`), which is what `deriving DecidableEq`
 /// gives the twin.
-pub fn eq_basis_pinned(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
+pub fn eq_basis_pinned(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+) -> Result<bool, CheckError>  {
     match pin_eq(st) {
         Err(e) => Err(e),
-        Ok(en) => match eq_a(st) {
+        Ok(en) => match eq_a(pers, st) {
             Err(e) => Err(e),
-            Ok(ea) => match ifenv_find(fe, &en) {
+            Ok(ea) => match ifenv_find(vis, fe, &en) {
                 Some(ci) => Ok(i_constant_info_beq(ci, &ea)),
                 None => Ok(false),
             },
@@ -168,15 +174,20 @@ pub fn eq_basis_pinned(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> 
 /// `Iff` type former against the pin.  Factored out of the twin's `&&` cascade
 /// so each lookup's `match` ends before the next one begins (task #14's borrow
 /// rule, `con_ron_core::kernel::std_axioms::iff_pinned`'s arrangement).
-pub fn iff_pinned(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
+pub fn iff_pinned(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+) -> Result<bool, CheckError>  {
     match iff_name(st) {
         Err(e) => Err(e),
-        Ok(n) => match ifenv_find(fe, &n) {
+        Ok(n) => match ifenv_find(vis, fe, &n) {
             Some(IConstantInfo::IndInfo(cv_i, _)) => {
                 let cv = crate::arena::env::i_constant_val_dup(cv_i);
-                match iff_raw(st) {
+                match iff_raw(pers, st) {
                     Err(e) => Err(e),
-                    Ok(p) => matches_pin_of_ci(st, &cv, p),
+                    Ok(p) => matches_pin_of_ci(pers, st, &cv, p),
                 }
             }
             _ => Ok(false),
@@ -189,13 +200,14 @@ pub fn iff_pinned(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
 /// twin's `cvI.matchesPin (← (← iffA).toConstantVal)`: the pin's common data,
 /// then the comparison.  One function, because six call sites spell it.
 pub fn matches_pin_of_ci(
+    pers: &PersTier,
     st: &mut AState,
     cv: &IConstantVal,
     pin_ci: IConstantInfo,
 ) -> Result<bool, CheckError> {
-    match i_constant_info_to_constant_val(&mut st.store, &pin_ci) {
+    match i_constant_info_to_constant_val(pers, &mut st.store, &pin_ci) {
         Err(e) => Err(e),
-        Ok(pcv) => i_constant_val_matches_pin(st, cv, &pcv),
+        Ok(pcv) => i_constant_val_matches_pin(pers, st, cv, &pcv),
     }
 }
 
@@ -203,16 +215,21 @@ pub fn matches_pin_of_ci(
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:240-270 stdAxiomOkF
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:54-90 stdAxiomOk` — the stored
 /// `Iff.intro` against the pin, at the pinned arity `2 2`.
-pub fn iff_intro_pinned(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
+pub fn iff_intro_pinned(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+) -> Result<bool, CheckError>  {
     match iff_intro_name(st) {
         Err(e) => Err(e),
-        Ok(n) => match ifenv_find(fe, &n) {
+        Ok(n) => match ifenv_find(vis, fe, &n) {
             Some(IConstantInfo::CtorInfo(cv_ii, n_p, n_f)) => {
                 if *n_p == 2 && *n_f == 2 {
                     let cv = crate::arena::env::i_constant_val_dup(cv_ii);
-                    match iff_intro_raw(st) {
+                    match iff_intro_raw(pers, st) {
                     Err(e) => Err(e),
-                    Ok(p) => matches_pin_of_ci(st, &cv, p),
+                    Ok(p) => matches_pin_of_ci(pers, st, &cv, p),
                 }
                 } else {
                     Ok(false)
@@ -228,16 +245,21 @@ pub fn iff_intro_pinned(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError>
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:54-90 stdAxiomOk` — the stored
 /// `Iff.rec` against the pin, at the pinned arity `4 4`.  Only its *type* is
 /// used, never its reduction rules.
-pub fn iff_rec_pinned(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
+pub fn iff_rec_pinned(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+) -> Result<bool, CheckError>  {
     match iff_rec_name(st) {
         Err(e) => Err(e),
-        Ok(n) => match ifenv_find(fe, &n) {
+        Ok(n) => match ifenv_find(vis, fe, &n) {
             Some(IConstantInfo::RecInfo(cv_ir, m_i, r_p, _)) => {
                 if *m_i == 4 && *r_p == 4 {
                     let cv = crate::arena::env::i_constant_val_dup(cv_ir);
-                    match iff_rec_raw(st) {
+                    match iff_rec_raw(pers, st) {
                     Err(e) => Err(e),
-                    Ok(p) => matches_pin_of_ci(st, &cv, p),
+                    Ok(p) => matches_pin_of_ci(pers, st, &cv, p),
                 }
                 } else {
                     Ok(false)
@@ -252,15 +274,20 @@ pub fn iff_rec_pinned(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:240-270 stdAxiomOkF
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:54-90 stdAxiomOk` — the stored
 /// `Nonempty` type former against the pin.
-pub fn nonempty_pinned(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
+pub fn nonempty_pinned(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+) -> Result<bool, CheckError>  {
     match nonempty_name(st) {
         Err(e) => Err(e),
-        Ok(n) => match ifenv_find(fe, &n) {
+        Ok(n) => match ifenv_find(vis, fe, &n) {
             Some(IConstantInfo::IndInfo(cv_n, _)) => {
                 let cv = crate::arena::env::i_constant_val_dup(cv_n);
-                match nonempty_raw(st) {
+                match nonempty_raw(pers, st) {
                     Err(e) => Err(e),
-                    Ok(p) => matches_pin_of_ci(st, &cv, p),
+                    Ok(p) => matches_pin_of_ci(pers, st, &cv, p),
                 }
             }
             _ => Ok(false),
@@ -272,16 +299,21 @@ pub fn nonempty_pinned(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> 
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:240-270 stdAxiomOkF
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:54-90 stdAxiomOk` — the stored
 /// `Nonempty.intro` against the pin, at the pinned arity `1 1`.
-pub fn nonempty_intro_pinned(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
+pub fn nonempty_intro_pinned(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+) -> Result<bool, CheckError>  {
     match nonempty_intro_name(st) {
         Err(e) => Err(e),
-        Ok(n) => match ifenv_find(fe, &n) {
+        Ok(n) => match ifenv_find(vis, fe, &n) {
             Some(IConstantInfo::CtorInfo(cv_ni, n_p, n_f)) => {
                 if *n_p == 1 && *n_f == 1 {
                     let cv = crate::arena::env::i_constant_val_dup(cv_ni);
-                    match nonempty_intro_raw(st) {
+                    match nonempty_intro_raw(pers, st) {
                     Err(e) => Err(e),
-                    Ok(p) => matches_pin_of_ci(st, &cv, p),
+                    Ok(p) => matches_pin_of_ci(pers, st, &cv, p),
                 }
                 } else {
                     Ok(false)
@@ -296,16 +328,21 @@ pub fn nonempty_intro_pinned(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckE
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:240-270 stdAxiomOkF
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:54-90 stdAxiomOk` — the stored
 /// `Nonempty.rec` against the pin, at the pinned arity `3 3`.
-pub fn nonempty_rec_pinned(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
+pub fn nonempty_rec_pinned(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+) -> Result<bool, CheckError>  {
     match nonempty_rec_name(st) {
         Err(e) => Err(e),
-        Ok(n) => match ifenv_find(fe, &n) {
+        Ok(n) => match ifenv_find(vis, fe, &n) {
             Some(IConstantInfo::RecInfo(cv_nr, m_i, r_p, _)) => {
                 if *m_i == 3 && *r_p == 3 {
                     let cv = crate::arena::env::i_constant_val_dup(cv_nr);
-                    match nonempty_rec_raw(st) {
+                    match nonempty_rec_raw(pers, st) {
                     Err(e) => Err(e),
-                    Ok(p) => matches_pin_of_ci(st, &cv, p),
+                    Ok(p) => matches_pin_of_ci(pers, st, &cv, p),
                 }
                 } else {
                     Ok(false)
@@ -326,6 +363,8 @@ pub fn nonempty_rec_pinned(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckErr
 /// an inhabitant of an opaque family into its fields except that family's own
 /// recursor.
 pub fn std_axiom_ok(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     cv_a: &IConstantVal,
@@ -334,13 +373,13 @@ pub fn std_axiom_ok(
         Err(e) => Err(e),
         Ok(pn) => {
             if cv_a.name.eq2(&pn) {
-                std_axiom_ok_propext(st, fe, cv_a)
+                std_axiom_ok_propext(pers, vis, st, fe, cv_a)
             } else {
                 match choice_name(st) {
                     Err(e) => Err(e),
                     Ok(cn) => {
                         if cv_a.name.eq2(&cn) {
-                            std_axiom_ok_choice(st, fe, cv_a)
+                            std_axiom_ok_choice(pers, vis, st, fe, cv_a)
                         } else {
                             Ok(false)
                         }
@@ -358,23 +397,25 @@ pub fn std_axiom_ok(
 /// `propextA`, which `matchesPin` cannot tell apart (`arena::std_axioms`'
 /// module note).
 pub fn std_axiom_ok_propext(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     cv_a: &IConstantVal,
 ) -> Result<bool, CheckError> {
-    match eq_basis_pinned(st, fe) {
+    match eq_basis_pinned(pers, vis, st, fe) {
         Err(e) => Err(e),
         Ok(b) => {
             if !b {
                 Ok(false)
             } else {
-                match iff_pinned(st, fe) {
+                match iff_pinned(pers, vis, st, fe) {
                     Err(e) => Err(e),
                     Ok(b1) => {
                         if !b1 {
                             Ok(false)
                         } else {
-                            std_axiom_ok_propext_rest(st, fe, cv_a)
+                            std_axiom_ok_propext_rest(pers, vis, st, fe, cv_a)
                         }
                     }
                 }
@@ -387,25 +428,27 @@ pub fn std_axiom_ok_propext(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:54-90 stdAxiomOk` — the two
 /// remaining `Iff` constants and `propext`'s own type.
 pub fn std_axiom_ok_propext_rest(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     cv_a: &IConstantVal,
 ) -> Result<bool, CheckError> {
-    match iff_intro_pinned(st, fe) {
+    match iff_intro_pinned(pers, vis, st, fe) {
         Err(e) => Err(e),
         Ok(b2) => {
             if !b2 {
                 Ok(false)
             } else {
-                match iff_rec_pinned(st, fe) {
+                match iff_rec_pinned(pers, vis, st, fe) {
                     Err(e) => Err(e),
                     Ok(b3) => {
                         if !b3 {
                             Ok(false)
                         } else {
-                            match propext_raw(st) {
+                            match propext_raw(pers, st) {
                                 Err(e) => Err(e),
-                                Ok(p) => i_constant_val_matches_pin(st, cv_a, &p),
+                                Ok(p) => i_constant_val_matches_pin(pers, st, cv_a, &p),
                             }
                         }
                     }
@@ -420,23 +463,25 @@ pub fn std_axiom_ok_propext_rest(
 /// `Classical.choice` branch: the three `Nonempty` constants, then the axiom's
 /// own type.
 pub fn std_axiom_ok_choice(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     cv_a: &IConstantVal,
 ) -> Result<bool, CheckError> {
-    match nonempty_pinned(st, fe) {
+    match nonempty_pinned(pers, vis, st, fe) {
         Err(e) => Err(e),
         Ok(b1) => {
             if !b1 {
                 Ok(false)
             } else {
-                match nonempty_intro_pinned(st, fe) {
+                match nonempty_intro_pinned(pers, vis, st, fe) {
                     Err(e) => Err(e),
                     Ok(b2) => {
                         if !b2 {
                             Ok(false)
                         } else {
-                            std_axiom_ok_choice_rest(st, fe, cv_a)
+                            std_axiom_ok_choice_rest(pers, vis, st, fe, cv_a)
                         }
                     }
                 }
@@ -449,19 +494,21 @@ pub fn std_axiom_ok_choice(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:54-90 stdAxiomOk` — the
 /// recursor and `Classical.choice`'s own type.
 pub fn std_axiom_ok_choice_rest(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     cv_a: &IConstantVal,
 ) -> Result<bool, CheckError> {
-    match nonempty_rec_pinned(st, fe) {
+    match nonempty_rec_pinned(pers, vis, st, fe) {
         Err(e) => Err(e),
         Ok(b3) => {
             if !b3 {
                 Ok(false)
             } else {
-                match choice_raw(st) {
+                match choice_raw(pers, st) {
                     Err(e) => Err(e),
-                    Ok(c) => i_constant_val_matches_pin(st, cv_a, &c),
+                    Ok(c) => i_constant_val_matches_pin(pers, st, cv_a, &c),
                 }
             }
         }
@@ -476,15 +523,20 @@ pub fn std_axiom_ok_choice_rest(
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:272-280 trustCompilerOkF
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:98-107 trustCompilerOk` — the
 /// stored `True` against its pin.
-pub fn true_pinned(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
+pub fn true_pinned(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+) -> Result<bool, CheckError>  {
     match true_name(st) {
         Err(e) => Err(e),
-        Ok(n) => match ifenv_find(fe, &n) {
+        Ok(n) => match ifenv_find(vis, fe, &n) {
             Some(IConstantInfo::IndInfo(cv_t, _)) => {
                 let cv = crate::arena::env::i_constant_val_dup(cv_t);
-                match true_cv_a(st) {
+                match true_cv_a(pers, st) {
                     Err(e) => Err(e),
-                    Ok(p) => i_constant_val_matches_pin(st, &cv, &p),
+                    Ok(p) => i_constant_val_matches_pin(pers, st, &cv, &p),
                 }
             }
             _ => Ok(false),
@@ -496,16 +548,21 @@ pub fn true_pinned(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:272-280 trustCompilerOkF
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:98-107 trustCompilerOk` — the
 /// stored `True.intro` against its pin, at the pinned arity `0 0`.
-pub fn true_intro_pinned(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
+pub fn true_intro_pinned(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+) -> Result<bool, CheckError>  {
     match true_intro_name(st) {
         Err(e) => Err(e),
-        Ok(n) => match ifenv_find(fe, &n) {
+        Ok(n) => match ifenv_find(vis, fe, &n) {
             Some(IConstantInfo::CtorInfo(cv_ti, n_p, n_f)) => {
                 if *n_p == 0 && *n_f == 0 {
                     let cv = crate::arena::env::i_constant_val_dup(cv_ti);
-                    match true_intro_cv_a(st) {
+                    match true_intro_cv_a(pers, st) {
                         Err(e) => Err(e),
-                        Ok(p) => i_constant_val_matches_pin(st, &cv, &p),
+                        Ok(p) => i_constant_val_matches_pin(pers, st, &cv, &p),
                     }
                 } else {
                     Ok(false)
@@ -522,25 +579,27 @@ pub fn true_intro_pinned(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError
 /// `Lean.trustCompiler` installable here?  The `True` family must be stored
 /// with the pinned shapes, and the checked axiom's type must match the pin.
 pub fn trust_compiler_ok(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     cv_a: &IConstantVal,
 ) -> Result<bool, CheckError> {
-    match true_pinned(st, fe) {
+    match true_pinned(pers, vis, st, fe) {
         Err(e) => Err(e),
         Ok(b1) => {
             if !b1 {
                 Ok(false)
             } else {
-                match true_intro_pinned(st, fe) {
+                match true_intro_pinned(pers, vis, st, fe) {
                     Err(e) => Err(e),
                     Ok(b2) => {
                         if !b2 {
                             Ok(false)
                         } else {
-                            match trust_compiler_a(st) {
+                            match trust_compiler_a(pers, st) {
                                 Err(e) => Err(e),
-                                Ok(p) => i_constant_val_matches_pin(st, cv_a, &p),
+                                Ok(p) => i_constant_val_matches_pin(pers, st, cv_a, &p),
                             }
                         }
                     }
@@ -556,16 +615,18 @@ pub fn trust_compiler_ok(
 /// the reduce operation `c` stored as a checked opaque (`axiomInfo`, the
 /// storage kind of every checked `opaque`) of the pinned type?
 pub fn reduce_stored_ok(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     c: &NIdx,
 ) -> Result<bool, CheckError> {
-    match ifenv_find(fe, c) {
+    match ifenv_find(vis, fe, c) {
         Some(IConstantInfo::AxiomInfo(cv_r)) => {
             let cv = crate::arena::env::i_constant_val_dup(cv_r);
-            match reduce_op_cv_a(st, c) {
+            match reduce_op_cv_a(pers, st, c) {
                 Err(e) => Err(e),
-                Ok(p) => i_constant_val_matches_pin(st, &cv, &p),
+                Ok(p) => i_constant_val_matches_pin(pers, st, &cv, &p),
             }
         }
         _ => Ok(false),
@@ -578,6 +639,8 @@ pub fn reduce_stored_ok(
 /// element-inductive shape an `ofReduce*` axiom needs: the pinned `Nat` basis
 /// resp. a standardly-shaped stored `Bool`.
 pub fn reduce_elem_ok(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     c: &NIdx,
@@ -588,16 +651,16 @@ pub fn reduce_elem_ok(
             if c.eq2(&rn) {
                 match pin_nat(st) {
                     Err(e) => Err(e),
-                    Ok(nn) => match nat_a(st) {
+                    Ok(nn) => match nat_a(pers, st) {
                         Err(e) => Err(e),
-                        Ok(na) => match ifenv_find(fe, &nn) {
+                        Ok(na) => match ifenv_find(vis, fe, &nn) {
                             Some(ci) => Ok(i_constant_info_beq(ci, &na)),
                             None => Ok(false),
                         },
                     },
                 }
             } else {
-                reduce_elem_ok_bool(st, fe)
+                reduce_elem_ok_bool(pers, vis, st, fe)
             }
         }
     }
@@ -606,15 +669,20 @@ pub fn reduce_elem_ok(
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:179-186 reduceElemOk
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:122-130 reduceElemOk` — the
 /// `Bool` branch: a standardly-shaped stored `Bool` inductive.
-pub fn reduce_elem_ok_bool(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
+pub fn reduce_elem_ok_bool(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+) -> Result<bool, CheckError>  {
     match bool_name(st) {
         Err(e) => Err(e),
-        Ok(bn) => match ifenv_find(fe, &bn) {
+        Ok(bn) => match ifenv_find(vis, fe, &bn) {
             Some(IConstantInfo::IndInfo(cv_b, _)) => {
                 let cv = crate::arena::env::i_constant_val_dup(cv_b);
-                match bool_cv_a(st) {
+                match bool_cv_a(pers, st) {
                     Err(e) => Err(e),
-                    Ok(p) => i_constant_val_matches_pin(st, &cv, &p),
+                    Ok(p) => i_constant_val_matches_pin(pers, st, &cv, &p),
                 }
             }
             _ => Ok(false),
@@ -628,19 +696,21 @@ pub fn reduce_elem_ok_bool(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckErr
 /// this checked axiom a pinned `ofReduce*` over a standardly-shaped
 /// environment?
 pub fn of_reduce_ax_ok(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     cv_a: &IConstantVal,
 ) -> Result<bool, CheckError> {
     match of_reduce_op(st, &cv_a.name) {
         Err(e) => Err(e),
-        Ok(c) => match eq_basis_pinned(st, fe) {
+        Ok(c) => match eq_basis_pinned(pers, vis, st, fe) {
             Err(e) => Err(e),
             Ok(b) => {
                 if !b {
                     Ok(false)
                 } else {
-                    of_reduce_ax_ok_rest(st, fe, cv_a, &c)
+                    of_reduce_ax_ok_rest(pers, vis, st, fe, cv_a, &c)
                 }
             }
         },
@@ -651,26 +721,28 @@ pub fn of_reduce_ax_ok(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:136-142 ofReduceAxOk` — the
 /// element and storage guards, then the axiom's own type.
 pub fn of_reduce_ax_ok_rest(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     cv_a: &IConstantVal,
     c: &NIdx,
 ) -> Result<bool, CheckError> {
-    match reduce_elem_ok(st, fe, c) {
+    match reduce_elem_ok(pers, vis, st, fe, c) {
         Err(e) => Err(e),
         Ok(b1) => {
             if !b1 {
                 Ok(false)
             } else {
-                match reduce_stored_ok(st, fe, c) {
+                match reduce_stored_ok(pers, vis, st, fe, c) {
                     Err(e) => Err(e),
                     Ok(b2) => {
                         if !b2 {
                             Ok(false)
                         } else {
-                            match of_reduce_pin_a(st, &cv_a.name) {
+                            match of_reduce_pin_a(pers, st, &cv_a.name) {
                                 Err(e) => Err(e),
-                                Ok(p) => i_constant_val_matches_pin(st, cv_a, &p),
+                                Ok(p) => i_constant_val_matches_pin(pers, st, cv_a, &p),
                             }
                         }
                     }
@@ -685,13 +757,15 @@ pub fn of_reduce_ax_ok_rest(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:147-152 reducePinGuard` —
 /// syntactic guards on the generated reduce pin (checked once at install).
 pub fn reduce_pin_guard(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     c: &NIdx,
 ) -> Result<bool, CheckError> {
-    match reduce_decl_pin(st, c) {
+    match reduce_decl_pin(pers, st, c) {
         Err(e) => Err(e),
-        Ok(p) => ground_guards(st, fe, &p),
+        Ok(p) => ground_guards(pers, vis, st, fe, &p),
     }
 }
 
@@ -702,23 +776,25 @@ pub fn reduce_pin_guard(
 /// pin) — closed, free-variable-free, level-monomorphic and resolving.  The
 /// twin writes the four out twice; one function here.
 pub fn ground_guards(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     p: &EIdx,
 ) -> Result<bool, CheckError> {
-    match loose_bvars_bounded_fast(st, CORE_WALK_FUEL, 0, p) {
+    match loose_bvars_bounded_fast(pers, st, CORE_WALK_FUEL, 0, p) {
         Err(e) => Err(e),
         Ok(b) => {
             if !b {
                 Ok(false)
             } else {
-                match has_fvar_fast(st, CORE_WALK_FUEL, p) {
+                match has_fvar_fast(pers, st, CORE_WALK_FUEL, p) {
                     Err(e) => Err(e),
                     Ok(f) => {
                         if f {
                             Ok(false)
                         } else {
-                            ground_guards_rest(st, fe, p)
+                            ground_guards_rest(pers, vis, st, fe, p)
                         }
                     }
                 }
@@ -731,18 +807,20 @@ pub fn ground_guards(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:147-152 reducePinGuard` — the
 /// two semantic guards, past the two syntactic ones.
 pub fn ground_guards_rest(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     p: &EIdx,
 ) -> Result<bool, CheckError> {
     let empty: Vec<NIdx> = Vec::new();
-    match all_level_params_defined(st, &empty, p) {
+    match all_level_params_defined(pers, st, &empty, p) {
         Err(e) => Err(e),
         Ok(d) => {
             if !d {
                 Ok(false)
             } else {
-                consts_resolve_f_fast(st, fe, p)
+                consts_resolve_f_fast(pers, vis, st, fe, p)
             }
         }
     }
@@ -754,6 +832,8 @@ pub fn ground_guards_rest(
 /// takes).  con-leche's `natOpGuard` has the WEAKER dependency test; this is
 /// the stronger one `divModEnvGuard` asks for, which pins the type too.
 pub fn nat_op_stored_ok_all(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     ns: &Vec<NIdx>,
@@ -762,11 +842,11 @@ pub fn nat_op_stored_ok_all(
     if i >= ns.len() {
         Ok(true)
     } else {
-        match nat_op_stored_ok(st, fe, &ns[i]) {
+        match nat_op_stored_ok(pers, vis, st, fe, &ns[i]) {
             Err(e) => Err(e),
             Ok(ok) => {
                 if ok {
-                    nat_op_stored_ok_all(st, fe, ns, i + 1)
+                    nat_op_stored_ok_all(pers, vis, st, fe, ns, i + 1)
                 } else {
                     Ok(false)
                 }
@@ -917,6 +997,7 @@ pub fn div_mod_cert_proofs(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:210-218 eqAt1` — the
 /// statements' `Eq.{1} τ a b` former.
 pub fn eq_at1(
+    pers: &PersTier,
     st: &mut AState,
     ty: &EIdx,
     a: &EIdx,
@@ -924,14 +1005,14 @@ pub fn eq_at1(
 ) -> Result<EIdx, CheckError> {
     match zero_level(st) {
         Err(e) => Err(e),
-        Ok(z) => match intern_l_node(st, LNodeView::Succ(z)) {
+        Ok(z) => match intern_l_node(pers, st, LNodeView::Succ(z)) {
             Err(e) => Err(e),
             Ok(one) => {
                 let mut us: Vec<crate::arena::handle::LIdx> = Vec::with_capacity(1);
                 us.push(one);
-                match intern_ls_node(st, us) {
+                match intern_ls_node(pers, st, us) {
                     Err(e) => Err(e),
-                    Ok(hus) => eq_at1_app(st, hus, ty, a, b),
+                    Ok(hus) => eq_at1_app(pers, st, hus, ty, a, b),
                 }
             }
         },
@@ -942,6 +1023,7 @@ pub fn eq_at1(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:210-218 eqAt1` — the three
 /// applications, past the universe argument.
 pub fn eq_at1_app(
+    pers: &PersTier,
     st: &mut AState,
     hus: crate::arena::handle::LsIdx,
     ty: &EIdx,
@@ -950,13 +1032,13 @@ pub fn eq_at1_app(
 ) -> Result<EIdx, CheckError> {
     match pin_eq(st) {
         Err(e) => Err(e),
-        Ok(en) => match intern_e(st, ENodeView::Const(en, hus)) {
+        Ok(en) => match intern_e(pers, st, ENodeView::Const(en, hus)) {
             Err(e) => Err(e),
-            Ok(e0) => match intern_e(st, ENodeView::App(e0, ty.dup2())) {
+            Ok(e0) => match intern_e(pers, st, ENodeView::App(e0, ty.dup2())) {
                 Err(e) => Err(e),
-                Ok(e1) => match intern_e(st, ENodeView::App(e1, a.dup2())) {
+                Ok(e1) => match intern_e(pers, st, ENodeView::App(e1, a.dup2())) {
                     Err(e) => Err(e),
-                    Ok(e2) => intern_e(st, ENodeView::App(e2, b.dup2())),
+                    Ok(e2) => intern_e(pers, st, ENodeView::App(e2, b.dup2())),
                 },
             },
         },
@@ -966,14 +1048,14 @@ pub fn eq_at1_app(
 /// con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:222-225 natOne` — the numeral
 /// `1` as `Nat.succ Nat.zero`.
-pub fn nat_one(st: &mut AState) -> Result<EIdx, CheckError> {
+pub fn nat_one(pers: &PersTier, st: &mut AState) -> Result<EIdx, CheckError> {
     match pin_nat_succ(st) {
         Err(e) => Err(e),
         Ok(s) => match pin_nat_zero(st) {
             Err(e) => Err(e),
-            Ok(z) => match const_e(st, &z) {
+            Ok(z) => match const_e(pers, st, &z) {
                 Err(e) => Err(e),
-                Ok(ze) => nat_ap1(st, &s, &ze),
+                Ok(ze) => nat_ap1(pers, st, &s, &ze),
             },
         },
     }
@@ -982,12 +1064,12 @@ pub fn nat_one(st: &mut AState) -> Result<EIdx, CheckError> {
 /// con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:229-231 natVar` — the open
 /// statements' variables `x := fvar 0`, `y := fvar 1` at `Nat`.
-pub fn nat_var(st: &mut AState, i: u64) -> Result<EIdx, CheckError> {
+pub fn nat_var(pers: &PersTier, st: &mut AState, i: u64) -> Result<EIdx, CheckError> {
     match pin_nat(st) {
         Err(e) => Err(e),
-        Ok(nt) => match const_e(st, &nt) {
+        Ok(nt) => match const_e(pers, st, &nt) {
             Err(e) => Err(e),
-            Ok(ty) => intern_e(st, ENodeView::FVar(i, ty)),
+            Ok(ty) => intern_e(pers, st, ENodeView::FVar(i, ty)),
         },
     }
 }
@@ -1026,18 +1108,18 @@ pub struct CertCtx {
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:239-332 divModCertStmts` — the
 /// first half of the twin's opening `let`s: the types, the variables and the
 /// two `Bool` constructors.
-pub fn cert_ctx(st: &mut AState) -> Result<CertCtx, CheckError> {
+pub fn cert_ctx(pers: &PersTier, st: &mut AState) -> Result<CertCtx, CheckError> {
     match pin_nat(st) {
         Err(e) => Err(e),
-        Ok(nt) => match const_e(st, &nt) {
+        Ok(nt) => match const_e(pers, st, &nt) {
             Err(e) => Err(e),
-            Ok(nat_ty) => match nat_var(st, 0) {
+            Ok(nat_ty) => match nat_var(pers, st, 0) {
                 Err(e) => Err(e),
-                Ok(x) => match nat_var(st, 1) {
+                Ok(x) => match nat_var(pers, st, 1) {
                     Err(e) => Err(e),
-                    Ok(y) => match nat_one(st) {
+                    Ok(y) => match nat_one(pers, st) {
                         Err(e) => Err(e),
-                        Ok(one) => cert_ctx_bool(st, nat_ty, x, y, one),
+                        Ok(one) => cert_ctx_bool(pers, st, nat_ty, x, y, one),
                     },
                 },
             },
@@ -1049,6 +1131,7 @@ pub fn cert_ctx(st: &mut AState) -> Result<CertCtx, CheckError> {
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:239-332 divModCertStmts` — the
 /// `Bool` constants and the numerals `0` and `2`.
 pub fn cert_ctx_bool(
+    pers: &PersTier,
     st: &mut AState,
     nat_ty: EIdx,
     x: EIdx,
@@ -1059,17 +1142,18 @@ pub fn cert_ctx_bool(
         Err(e) => Err(e),
         Ok(ble_n) => match bool_name(st) {
             Err(e) => Err(e),
-            Ok(bn) => match const_e(st, &bn) {
+            Ok(bn) => match const_e(pers, st, &bn) {
                 Err(e) => Err(e),
                 Ok(bool_ty) => match bool_true_name(st) {
                     Err(e) => Err(e),
-                    Ok(btn) => match const_e(st, &btn) {
+                    Ok(btn) => match const_e(pers, st, &btn) {
                         Err(e) => Err(e),
                         Ok(b_t) => match bool_false_name(st) {
                             Err(e) => Err(e),
-                            Ok(bfn) => match const_e(st, &bfn) {
+                            Ok(bfn) => match const_e(pers, st, &bfn) {
                                 Err(e) => Err(e),
                                 Ok(b_f) => cert_ctx_nums(
+                                    pers,
                                     st, nat_ty, x, y, one, ble_n, bool_ty, b_t, b_f,
                                 ),
                             },
@@ -1085,6 +1169,7 @@ pub fn cert_ctx_bool(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:239-332 divModCertStmts` — the
 /// numerals and the eleven operation names.
 pub fn cert_ctx_nums(
+    pers: &PersTier,
     st: &mut AState,
     nat_ty: EIdx,
     x: EIdx,
@@ -1097,11 +1182,11 @@ pub fn cert_ctx_nums(
 ) -> Result<CertCtx, CheckError> {
     match pin_nat_zero(st) {
         Err(e) => Err(e),
-        Ok(zn) => match const_e(st, &zn) {
+        Ok(zn) => match const_e(pers, st, &zn) {
             Err(e) => Err(e),
             Ok(z) => match pin_nat_succ(st) {
                 Err(e) => Err(e),
-                Ok(sn) => match nat_ap1(st, &sn, &one) {
+                Ok(sn) => match nat_ap1(pers, st, &sn, &one) {
                     Err(e) => Err(e),
                     Ok(two) => cert_ctx_names(
                         st, nat_ty, x, y, one, ble_n, bool_ty, b_t, b_f, z, two,
@@ -1249,17 +1334,18 @@ pub fn cert_push(
 /// twin's `eqAt1 boolTy (← natAp2 bleN a b) r`, the guard shape all seven
 /// branches are written with.
 pub fn cert_guard(
+    pers: &PersTier,
     st: &mut AState,
     cx: &CertCtx,
     a: &EIdx,
     b: &EIdx,
     r: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match nat_ap2(st, &cx.ble_n, a, b) {
+    match nat_ap2(pers, st, &cx.ble_n, a, b) {
         Err(e) => Err(e),
         Ok(g) => {
             let bt = cx.bool_ty.dup2();
-            eq_at1(st, &bt, &g, r)
+            eq_at1(pers, st, &bt, &g, r)
         }
     }
 }
@@ -1269,6 +1355,7 @@ pub fn cert_guard(
 /// twin's `eqAt1 natTy (← natAp2 c x y) rhs`, the characteristic equation all
 /// seven branches are written with.
 pub fn cert_eq(
+    pers: &PersTier,
     st: &mut AState,
     cx: &CertCtx,
     c: &NIdx,
@@ -1276,11 +1363,11 @@ pub fn cert_eq(
 ) -> Result<EIdx, CheckError> {
     let x = cx.x.dup2();
     let y = cx.y.dup2();
-    match nat_ap2(st, c, &x, &y) {
+    match nat_ap2(pers, st, c, &x, &y) {
         Err(e) => Err(e),
         Ok(lhs) => {
             let nt = cx.nat_ty.dup2();
-            eq_at1(st, &nt, &lhs, rhs)
+            eq_at1(pers, st, &nt, &lhs, rhs)
         }
     }
 }
@@ -1289,13 +1376,18 @@ pub fn cert_eq(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:239-332 divModCertStmts` — the
 /// bitwise branches' `op2 (div2 x two) (div2 y two)`, written three times in
 /// the twin.
-pub fn cert_halves(st: &mut AState, cx: &CertCtx, c: &NIdx) -> Result<EIdx, CheckError> {
+pub fn cert_halves(
+    pers: &PersTier,
+    st: &mut AState,
+    cx: &CertCtx,
+    c: &NIdx,
+) -> Result<EIdx, CheckError>  {
     let (x, y, two, dn) = (cx.x.dup2(), cx.y.dup2(), cx.two.dup2(), cx.div_n.dup2());
-    match nat_ap2(st, &dn, &x, &two) {
+    match nat_ap2(pers, st, &dn, &x, &two) {
         Err(e) => Err(e),
-        Ok(hx) => match nat_ap2(st, &dn, &y, &two) {
+        Ok(hx) => match nat_ap2(pers, st, &dn, &y, &two) {
             Err(e) => Err(e),
-            Ok(hy) => nat_ap2(st, c, &hx, &hy),
+            Ok(hy) => nat_ap2(pers, st, c, &hx, &hy),
         },
     }
 }
@@ -1308,12 +1400,13 @@ pub fn cert_halves(st: &mut AState, cx: &CertCtx, c: &NIdx) -> Result<EIdx, Chec
 /// characteristic equation `Eq Nat lhs rhs`.  The guards are spelled with the
 /// already-certified `Nat.ble` and the numeral `1` as `Nat.succ Nat.zero`.
 pub fn div_mod_cert_stmts(
+    pers: &PersTier,
     st: &mut AState,
     c: &NIdx,
 ) -> Result<Vec<(Vec<EIdx>, EIdx)>, CheckError> {
-    match cert_ctx(st) {
+    match cert_ctx(pers, st) {
         Err(e) => Err(e),
-        Ok(cx) => div_mod_cert_stmts_at(st, &cx, c),
+        Ok(cx) => div_mod_cert_stmts_at(pers, st, &cx, c),
     }
 }
 
@@ -1321,24 +1414,25 @@ pub fn div_mod_cert_stmts(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:239-332 divModCertStmts` — the
 /// seven-way branch, in the twin's order.
 pub fn div_mod_cert_stmts_at(
+    pers: &PersTier,
     st: &mut AState,
     cx: &CertCtx,
     c: &NIdx,
 ) -> Result<Vec<(Vec<EIdx>, EIdx)>, CheckError> {
     if c.eq2(&cx.gcd_n) {
-        cert_gcd(st, cx, c)
+        cert_gcd(pers, st, cx, c)
     } else if c.eq2(&cx.sl_n) {
-        cert_shift_left(st, cx, c)
+        cert_shift_left(pers, st, cx, c)
     } else if c.eq2(&cx.sr_n) {
-        cert_shift_right(st, cx, c)
+        cert_shift_right(pers, st, cx, c)
     } else if c.eq2(&cx.land_n) {
-        cert_land(st, cx, c)
+        cert_land(pers, st, cx, c)
     } else if c.eq2(&cx.lor_n) {
-        cert_lor(st, cx, c)
+        cert_lor(pers, st, cx, c)
     } else if c.eq2(&cx.xor_n) {
-        cert_xor(st, cx, c)
+        cert_xor(pers, st, cx, c)
     } else {
-        cert_div_mod(st, cx, c)
+        cert_div_mod(pers, st, cx, c)
     }
 }
 
@@ -1346,6 +1440,7 @@ pub fn div_mod_cert_stmts_at(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:239-332 divModCertStmts` —
 /// `gcd`: `1 ≤ x → gcd x y = gcd (y % x) x`, `x = 0 → gcd x y = y`.
 pub fn cert_gcd(
+    pers: &PersTier,
     st: &mut AState,
     cx: &CertCtx,
     c: &NIdx,
@@ -1358,17 +1453,17 @@ pub fn cert_gcd(
         cx.b_f.dup2(),
         cx.mod_n.dup2(),
     );
-    match cert_guard(st, cx, &one, &x, &bt) {
+    match cert_guard(pers, st, cx, &one, &x, &bt) {
         Err(e) => Err(e),
-        Ok(h1) => match cert_guard(st, cx, &one, &x, &bf) {
+        Ok(h1) => match cert_guard(pers, st, cx, &one, &x, &bf) {
             Err(e) => Err(e),
-            Ok(h2) => match nat_ap2(st, &mn, &y, &x) {
+            Ok(h2) => match nat_ap2(pers, st, &mn, &y, &x) {
                 Err(e) => Err(e),
-                Ok(yx) => match nat_ap2(st, c, &yx, &x) {
+                Ok(yx) => match nat_ap2(pers, st, c, &yx, &x) {
                     Err(e) => Err(e),
-                    Ok(r1) => match cert_eq(st, cx, c, &r1) {
+                    Ok(r1) => match cert_eq(pers, st, cx, c, &r1) {
                         Err(e) => Err(e),
-                        Ok(e1) => match cert_eq(st, cx, c, &y) {
+                        Ok(e1) => match cert_eq(pers, st, cx, c, &y) {
                             Err(e) => Err(e),
                             Ok(e2) => Ok(cert_push(
                                 cert_push(Vec::new(), cert_hyp1(h1), e1),
@@ -1387,6 +1482,7 @@ pub fn cert_gcd(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:239-332 divModCertStmts` —
 /// `1 ≤ y → x <<< y = (2*x) <<< (y-1)`, `y = 0 → x <<< y = x`.
 pub fn cert_shift_left(
+    pers: &PersTier,
     st: &mut AState,
     cx: &CertCtx,
     c: &NIdx,
@@ -1401,17 +1497,17 @@ pub fn cert_shift_left(
         cx.sub_n.dup2(),
         cx.two.dup2(),
     );
-    match cert_guard(st, cx, &one, &y, &bt) {
+    match cert_guard(pers, st, cx, &one, &y, &bt) {
         Err(e) => Err(e),
-        Ok(h1) => match cert_guard(st, cx, &one, &y, &bf) {
+        Ok(h1) => match cert_guard(pers, st, cx, &one, &y, &bf) {
             Err(e) => Err(e),
-            Ok(h2) => match nat_ap2(st, &mul, &two, &x) {
+            Ok(h2) => match nat_ap2(pers, st, &mul, &two, &x) {
                 Err(e) => Err(e),
-                Ok(tx) => match nat_ap2(st, &sub, &y, &one) {
+                Ok(tx) => match nat_ap2(pers, st, &sub, &y, &one) {
                     Err(e) => Err(e),
-                    Ok(y1) => match nat_ap2(st, c, &tx, &y1) {
+                    Ok(y1) => match nat_ap2(pers, st, c, &tx, &y1) {
                         Err(e) => Err(e),
-                        Ok(r1) => cert_two_eqs(st, cx, c, h1, h2, r1, x),
+                        Ok(r1) => cert_two_eqs(pers, st, cx, c, h1, h2, r1, x),
                     },
                 },
             },
@@ -1423,6 +1519,7 @@ pub fn cert_shift_left(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:239-332 divModCertStmts` — the
 /// `pure [([h1], e1), ([h2], e2)]` the six non-`div`/`mod` branches end with.
 pub fn cert_two_eqs(
+    pers: &PersTier,
     st: &mut AState,
     cx: &CertCtx,
     c: &NIdx,
@@ -1431,9 +1528,9 @@ pub fn cert_two_eqs(
     r1: EIdx,
     r2: EIdx,
 ) -> Result<Vec<(Vec<EIdx>, EIdx)>, CheckError> {
-    match cert_eq(st, cx, c, &r1) {
+    match cert_eq(pers, st, cx, c, &r1) {
         Err(e) => Err(e),
-        Ok(e1) => match cert_eq(st, cx, c, &r2) {
+        Ok(e1) => match cert_eq(pers, st, cx, c, &r2) {
             Err(e) => Err(e),
             Ok(e2) => Ok(cert_push(
                 cert_push(Vec::new(), cert_hyp1(h1), e1),
@@ -1448,6 +1545,7 @@ pub fn cert_two_eqs(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:239-332 divModCertStmts` —
 /// `1 ≤ y → x >>> y = (x >>> (y-1)) / 2`, `y = 0 → x >>> y = x`.
 pub fn cert_shift_right(
+    pers: &PersTier,
     st: &mut AState,
     cx: &CertCtx,
     c: &NIdx,
@@ -1462,17 +1560,17 @@ pub fn cert_shift_right(
         cx.sub_n.dup2(),
         cx.two.dup2(),
     );
-    match cert_guard(st, cx, &one, &y, &bt) {
+    match cert_guard(pers, st, cx, &one, &y, &bt) {
         Err(e) => Err(e),
-        Ok(h1) => match cert_guard(st, cx, &one, &y, &bf) {
+        Ok(h1) => match cert_guard(pers, st, cx, &one, &y, &bf) {
             Err(e) => Err(e),
-            Ok(h2) => match nat_ap2(st, &sub, &y, &one) {
+            Ok(h2) => match nat_ap2(pers, st, &sub, &y, &one) {
                 Err(e) => Err(e),
-                Ok(y1) => match nat_ap2(st, c, &x, &y1) {
+                Ok(y1) => match nat_ap2(pers, st, c, &x, &y1) {
                     Err(e) => Err(e),
-                    Ok(inner) => match nat_ap2(st, &div, &inner, &two) {
+                    Ok(inner) => match nat_ap2(pers, st, &div, &inner, &two) {
                         Err(e) => Err(e),
-                        Ok(r1) => cert_two_eqs(st, cx, c, h1, h2, r1, x),
+                        Ok(r1) => cert_two_eqs(pers, st, cx, c, h1, h2, r1, x),
                     },
                 },
             },
@@ -1484,6 +1582,7 @@ pub fn cert_shift_right(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:239-332 divModCertStmts` —
 /// `1 ≤ x → x &&& y = 2*((x/2) &&& (y/2)) + (x%2)*(y%2)`, `x = 0 → … = 0`.
 pub fn cert_land(
+    pers: &PersTier,
     st: &mut AState,
     cx: &CertCtx,
     c: &NIdx,
@@ -1500,23 +1599,23 @@ pub fn cert_land(
         cx.two.dup2(),
         cx.z.dup2(),
     );
-    match cert_guard(st, cx, &one, &x, &bt) {
+    match cert_guard(pers, st, cx, &one, &x, &bt) {
         Err(e) => Err(e),
-        Ok(h1) => match cert_guard(st, cx, &one, &x, &bf) {
+        Ok(h1) => match cert_guard(pers, st, cx, &one, &x, &bf) {
             Err(e) => Err(e),
-            Ok(h2) => match cert_halves(st, cx, c) {
+            Ok(h2) => match cert_halves(pers, st, cx, c) {
                 Err(e) => Err(e),
-                Ok(rec1) => match nat_ap2(st, &mul, &two, &rec1) {
+                Ok(rec1) => match nat_ap2(pers, st, &mul, &two, &rec1) {
                     Err(e) => Err(e),
-                    Ok(t2) => match nat_ap2(st, &mn, &x, &two) {
+                    Ok(t2) => match nat_ap2(pers, st, &mn, &x, &two) {
                         Err(e) => Err(e),
-                        Ok(mx) => match nat_ap2(st, &mn, &y, &two) {
+                        Ok(mx) => match nat_ap2(pers, st, &mn, &y, &two) {
                             Err(e) => Err(e),
-                            Ok(my) => match nat_ap2(st, &mul, &mx, &my) {
+                            Ok(my) => match nat_ap2(pers, st, &mul, &mx, &my) {
                                 Err(e) => Err(e),
-                                Ok(p) => match nat_ap2(st, &add, &t2, &p) {
+                                Ok(p) => match nat_ap2(pers, st, &add, &t2, &p) {
                                     Err(e) => Err(e),
-                                    Ok(r1) => cert_two_eqs(st, cx, c, h1, h2, r1, z),
+                                    Ok(r1) => cert_two_eqs(pers, st, cx, c, h1, h2, r1, z),
                                 },
                             },
                         },
@@ -1532,6 +1631,7 @@ pub fn cert_land(
 /// `1 ≤ x → x ||| y = 2*((x/2) ||| (y/2)) + (x%2 + y%2 - (x%2)*(y%2))`,
 /// `x = 0 → x ||| y = y`.
 pub fn cert_lor(
+    pers: &PersTier,
     st: &mut AState,
     cx: &CertCtx,
     c: &NIdx,
@@ -1543,13 +1643,13 @@ pub fn cert_lor(
         cx.b_t.dup2(),
         cx.b_f.dup2(),
     );
-    match cert_guard(st, cx, &one, &x, &bt) {
+    match cert_guard(pers, st, cx, &one, &x, &bt) {
         Err(e) => Err(e),
-        Ok(h1) => match cert_guard(st, cx, &one, &x, &bf) {
+        Ok(h1) => match cert_guard(pers, st, cx, &one, &x, &bf) {
             Err(e) => Err(e),
-            Ok(h2) => match cert_lor_rhs(st, cx, c) {
+            Ok(h2) => match cert_lor_rhs(pers, st, cx, c) {
                 Err(e) => Err(e),
-                Ok(r1) => cert_two_eqs(st, cx, c, h1, h2, r1, y),
+                Ok(r1) => cert_two_eqs(pers, st, cx, c, h1, h2, r1, y),
             },
         },
     }
@@ -1559,6 +1659,7 @@ pub fn cert_lor(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:239-332 divModCertStmts` — the
 /// `lor` branch's right-hand side.
 pub fn cert_lor_rhs(
+    pers: &PersTier,
     st: &mut AState,
     cx: &CertCtx,
     c: &NIdx,
@@ -1572,21 +1673,21 @@ pub fn cert_lor_rhs(
         cx.mod_n.dup2(),
         cx.two.dup2(),
     );
-    match cert_halves(st, cx, c) {
+    match cert_halves(pers, st, cx, c) {
         Err(e) => Err(e),
-        Ok(rec1) => match nat_ap2(st, &mul, &two, &rec1) {
+        Ok(rec1) => match nat_ap2(pers, st, &mul, &two, &rec1) {
             Err(e) => Err(e),
-            Ok(t2) => match nat_ap2(st, &mn, &x, &two) {
+            Ok(t2) => match nat_ap2(pers, st, &mn, &x, &two) {
                 Err(e) => Err(e),
-                Ok(mx) => match nat_ap2(st, &mn, &y, &two) {
+                Ok(mx) => match nat_ap2(pers, st, &mn, &y, &two) {
                     Err(e) => Err(e),
-                    Ok(my) => match nat_ap2(st, &add, &mx, &my) {
+                    Ok(my) => match nat_ap2(pers, st, &add, &mx, &my) {
                         Err(e) => Err(e),
-                        Ok(s) => match nat_ap2(st, &mul, &mx, &my) {
+                        Ok(s) => match nat_ap2(pers, st, &mul, &mx, &my) {
                             Err(e) => Err(e),
-                            Ok(p) => match nat_ap2(st, &sub, &s, &p) {
+                            Ok(p) => match nat_ap2(pers, st, &sub, &s, &p) {
                                 Err(e) => Err(e),
-                                Ok(d) => nat_ap2(st, &add, &t2, &d),
+                                Ok(d) => nat_ap2(pers, st, &add, &t2, &d),
                             },
                         },
                     },
@@ -1601,6 +1702,7 @@ pub fn cert_lor_rhs(
 /// `1 ≤ x → x ^^^ y = 2*((x/2) ^^^ (y/2)) + (x%2 + y%2) % 2`,
 /// `x = 0 → x ^^^ y = y`.
 pub fn cert_xor(
+    pers: &PersTier,
     st: &mut AState,
     cx: &CertCtx,
     c: &NIdx,
@@ -1612,13 +1714,13 @@ pub fn cert_xor(
         cx.b_t.dup2(),
         cx.b_f.dup2(),
     );
-    match cert_guard(st, cx, &one, &x, &bt) {
+    match cert_guard(pers, st, cx, &one, &x, &bt) {
         Err(e) => Err(e),
-        Ok(h1) => match cert_guard(st, cx, &one, &x, &bf) {
+        Ok(h1) => match cert_guard(pers, st, cx, &one, &x, &bf) {
             Err(e) => Err(e),
-            Ok(h2) => match cert_xor_rhs(st, cx, c) {
+            Ok(h2) => match cert_xor_rhs(pers, st, cx, c) {
                 Err(e) => Err(e),
-                Ok(r1) => cert_two_eqs(st, cx, c, h1, h2, r1, y),
+                Ok(r1) => cert_two_eqs(pers, st, cx, c, h1, h2, r1, y),
             },
         },
     }
@@ -1628,6 +1730,7 @@ pub fn cert_xor(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:239-332 divModCertStmts` — the
 /// `xor` branch's right-hand side.
 pub fn cert_xor_rhs(
+    pers: &PersTier,
     st: &mut AState,
     cx: &CertCtx,
     c: &NIdx,
@@ -1640,19 +1743,19 @@ pub fn cert_xor_rhs(
         cx.mod_n.dup2(),
         cx.two.dup2(),
     );
-    match cert_halves(st, cx, c) {
+    match cert_halves(pers, st, cx, c) {
         Err(e) => Err(e),
-        Ok(rec1) => match nat_ap2(st, &mul, &two, &rec1) {
+        Ok(rec1) => match nat_ap2(pers, st, &mul, &two, &rec1) {
             Err(e) => Err(e),
-            Ok(t2) => match nat_ap2(st, &mn, &x, &two) {
+            Ok(t2) => match nat_ap2(pers, st, &mn, &x, &two) {
                 Err(e) => Err(e),
-                Ok(mx) => match nat_ap2(st, &mn, &y, &two) {
+                Ok(mx) => match nat_ap2(pers, st, &mn, &y, &two) {
                     Err(e) => Err(e),
-                    Ok(my) => match nat_ap2(st, &add, &mx, &my) {
+                    Ok(my) => match nat_ap2(pers, st, &add, &mx, &my) {
                         Err(e) => Err(e),
-                        Ok(s) => match nat_ap2(st, &mn, &s, &two) {
+                        Ok(s) => match nat_ap2(pers, st, &mn, &s, &two) {
                             Err(e) => Err(e),
-                            Ok(m) => nat_ap2(st, &add, &t2, &m),
+                            Ok(m) => nat_ap2(pers, st, &add, &t2, &m),
                         },
                     },
                 },
@@ -1666,11 +1769,12 @@ pub fn cert_xor_rhs(
 /// twin's `else` branch, `Nat.div` and `Nat.mod`: three certificates, with
 /// `recRhs`/`baseRhs` as the twin's two locals.
 pub fn cert_div_mod(
+    pers: &PersTier,
     st: &mut AState,
     cx: &CertCtx,
     c: &NIdx,
 ) -> Result<Vec<(Vec<EIdx>, EIdx)>, CheckError> {
-    match cert_rec_rhs(st, cx, c) {
+    match cert_rec_rhs(pers, st, cx, c) {
         Err(e) => Err(e),
         Ok(rec_rhs) => {
             let base_rhs: EIdx = if c.eq2(&cx.div_n) {
@@ -1678,7 +1782,7 @@ pub fn cert_div_mod(
             } else {
                 cx.x.dup2()
             };
-            cert_div_mod_guards(st, cx, c, rec_rhs, base_rhs)
+            cert_div_mod_guards(pers, st, cx, c, rec_rhs, base_rhs)
         }
     }
 }
@@ -1687,17 +1791,22 @@ pub fn cert_div_mod(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:239-332 divModCertStmts` — the
 /// twin's `recRhs`: `Nat.succ (c (x - y) y)` for `Nat.div`, `c (x - y) y` for
 /// `Nat.mod`.
-pub fn cert_rec_rhs(st: &mut AState, cx: &CertCtx, c: &NIdx) -> Result<EIdx, CheckError> {
+pub fn cert_rec_rhs(
+    pers: &PersTier,
+    st: &mut AState,
+    cx: &CertCtx,
+    c: &NIdx,
+) -> Result<EIdx, CheckError>  {
     let (x, y, sub) = (cx.x.dup2(), cx.y.dup2(), cx.sub_n.dup2());
-    match nat_ap2(st, &sub, &x, &y) {
+    match nat_ap2(pers, st, &sub, &x, &y) {
         Err(e) => Err(e),
-        Ok(d) => match nat_ap2(st, c, &d, &y) {
+        Ok(d) => match nat_ap2(pers, st, c, &d, &y) {
             Err(e) => Err(e),
             Ok(step) => {
                 if c.eq2(&cx.div_n) {
                     match pin_nat_succ(st) {
                         Err(e) => Err(e),
-                        Ok(sn) => nat_ap1(st, &sn, &step),
+                        Ok(sn) => nat_ap1(pers, st, &sn, &step),
                     }
                 } else {
                     Ok(step)
@@ -1711,6 +1820,7 @@ pub fn cert_rec_rhs(st: &mut AState, cx: &CertCtx, c: &NIdx) -> Result<EIdx, Che
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:239-332 divModCertStmts` — the
 /// `div`/`mod` branch's four guards and three certificates.
 pub fn cert_div_mod_guards(
+    pers: &PersTier,
     st: &mut AState,
     cx: &CertCtx,
     c: &NIdx,
@@ -1724,16 +1834,16 @@ pub fn cert_div_mod_guards(
         cx.b_t.dup2(),
         cx.b_f.dup2(),
     );
-    match cert_guard(st, cx, &y, &x, &bt) {
+    match cert_guard(pers, st, cx, &y, &x, &bt) {
         Err(e) => Err(e),
-        Ok(h1) => match cert_guard(st, cx, &one, &y, &bt) {
+        Ok(h1) => match cert_guard(pers, st, cx, &one, &y, &bt) {
             Err(e) => Err(e),
-            Ok(h2) => match cert_guard(st, cx, &y, &x, &bf) {
+            Ok(h2) => match cert_guard(pers, st, cx, &y, &x, &bf) {
                 Err(e) => Err(e),
-                Ok(h3) => match cert_guard(st, cx, &one, &y, &bf) {
+                Ok(h3) => match cert_guard(pers, st, cx, &one, &y, &bf) {
                     Err(e) => Err(e),
                     Ok(h4) => {
-                        cert_div_mod_eqs(st, cx, c, h1, h2, h3, h4, rec_rhs, base_rhs)
+                        cert_div_mod_eqs(pers, st, cx, c, h1, h2, h3, h4, rec_rhs, base_rhs)
                     }
                 },
             },
@@ -1746,6 +1856,7 @@ pub fn cert_div_mod_guards(
 /// twin's `pure [([h1, h2], e1), ([h3], e2), ([h4], e2)]`.
 #[allow(clippy::too_many_arguments)]
 pub fn cert_div_mod_eqs(
+    pers: &PersTier,
     st: &mut AState,
     cx: &CertCtx,
     c: &NIdx,
@@ -1756,9 +1867,9 @@ pub fn cert_div_mod_eqs(
     rec_rhs: EIdx,
     base_rhs: EIdx,
 ) -> Result<Vec<(Vec<EIdx>, EIdx)>, CheckError> {
-    match cert_eq(st, cx, c, &rec_rhs) {
+    match cert_eq(pers, st, cx, c, &rec_rhs) {
         Err(e) => Err(e),
-        Ok(e1) => match cert_eq(st, cx, c, &base_rhs) {
+        Ok(e1) => match cert_eq(pers, st, cx, c, &base_rhs) {
             Err(e) => Err(e),
             Ok(e2) => {
                 let out = cert_push(Vec::new(), cert_hyp2(h1, h2), e1);
@@ -1779,19 +1890,20 @@ pub fn cert_div_mod_eqs(
 /// then one `fvar` per hypothesis, carrying the hypothesis *type* as its
 /// annotation — the checker's implicit local context).
 pub fn div_mod_cert_applied(
+    pers: &PersTier,
     st: &mut AState,
     proof_s: &EIdx,
     hyps: &Vec<EIdx>,
 ) -> Result<EIdx, CheckError> {
-    match nat_var(st, 0) {
+    match nat_var(pers, st, 0) {
         Err(e) => Err(e),
-        Ok(x) => match nat_var(st, 1) {
+        Ok(x) => match nat_var(pers, st, 1) {
             Err(e) => Err(e),
-            Ok(y) => match intern_e(st, ENodeView::App(proof_s.dup2(), x)) {
+            Ok(y) => match intern_e(pers, st, ENodeView::App(proof_s.dup2(), x)) {
                 Err(e) => Err(e),
-                Ok(b1) => match intern_e(st, ENodeView::App(b1, y)) {
+                Ok(b1) => match intern_e(pers, st, ENodeView::App(b1, y)) {
                     Err(e) => Err(e),
-                    Ok(base) => div_mod_cert_applied_hyps(st, base, hyps),
+                    Ok(base) => div_mod_cert_applied_hyps(pers, st, base, hyps),
                 },
             },
         },
@@ -1802,23 +1914,24 @@ pub fn div_mod_cert_applied(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:338-352 divModCertApplied` —
 /// the twin's three-way `match hyps with | [h1] | [h1, h2] | _`.
 pub fn div_mod_cert_applied_hyps(
+    pers: &PersTier,
     st: &mut AState,
     base: EIdx,
     hyps: &Vec<EIdx>,
 ) -> Result<EIdx, CheckError> {
     if hyps.len() == 1 {
-        match intern_e(st, ENodeView::FVar(2, hyps[0].dup2())) {
+        match intern_e(pers, st, ENodeView::FVar(2, hyps[0].dup2())) {
             Err(e) => Err(e),
-            Ok(f2) => intern_e(st, ENodeView::App(base, f2)),
+            Ok(f2) => intern_e(pers, st, ENodeView::App(base, f2)),
         }
     } else if hyps.len() == 2 {
-        match intern_e(st, ENodeView::FVar(2, hyps[0].dup2())) {
+        match intern_e(pers, st, ENodeView::FVar(2, hyps[0].dup2())) {
             Err(e) => Err(e),
-            Ok(f2) => match intern_e(st, ENodeView::App(base, f2)) {
+            Ok(f2) => match intern_e(pers, st, ENodeView::App(base, f2)) {
                 Err(e) => Err(e),
-                Ok(a1) => match intern_e(st, ENodeView::FVar(3, hyps[1].dup2())) {
+                Ok(a1) => match intern_e(pers, st, ENodeView::FVar(3, hyps[1].dup2())) {
                     Err(e) => Err(e),
-                    Ok(f3) => intern_e(st, ENodeView::App(a1, f3)),
+                    Ok(f3) => intern_e(pers, st, ENodeView::App(a1, f3)),
                 },
             },
         }
@@ -1831,6 +1944,7 @@ pub fn div_mod_cert_applied_hyps(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:356-361 substConst0List` — an
 /// explicit list recursion (§3.4 forbids the closure).
 pub fn subst_const0_list(
+    pers: &PersTier,
     st: &mut AState,
     n: &NIdx,
     r: &EIdx,
@@ -1841,12 +1955,12 @@ pub fn subst_const0_list(
     if i >= hs.len() {
         Ok(out)
     } else {
-        match subst_const0(st, n, r, CORE_WALK_FUEL, &hs[i]) {
+        match subst_const0(pers, st, n, r, CORE_WALK_FUEL, &hs[i]) {
             Err(e) => Err(e),
             Ok(h) => {
                 let mut out2 = out;
                 out2.push(h);
-                subst_const0_list(st, n, r, hs, i + 1, out2)
+                subst_const0_list(pers, st, n, r, hs, i + 1, out2)
             }
         }
     }
@@ -1856,6 +1970,8 @@ pub fn subst_const0_list(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:365-368 constsResolveAll` — an
 /// explicit list recursion.
 pub fn consts_resolve_all(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     hs: &Vec<EIdx>,
@@ -1864,11 +1980,11 @@ pub fn consts_resolve_all(
     if i >= hs.len() {
         Ok(true)
     } else {
-        match consts_resolve_f_fast(st, fe, &hs[i]) {
+        match consts_resolve_f_fast(pers, vis, st, fe, &hs[i]) {
             Err(e) => Err(e),
             Ok(r) => {
                 if r {
-                    consts_resolve_all(st, fe, hs, i + 1)
+                    consts_resolve_all(pers, vis, st, fe, hs, i + 1)
                 } else {
                     Ok(false)
                 }
@@ -1884,6 +2000,8 @@ pub fn consts_resolve_all(
 /// level-monomorphic and resolving, and the substituted statement components
 /// resolve.
 pub fn div_mod_cert_guard(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     c: &NIdx,
@@ -1892,15 +2010,15 @@ pub fn div_mod_cert_guard(
     eq_e: &EIdx,
     proof: &EIdx,
 ) -> Result<bool, CheckError> {
-    match subst_const_all(st, c, ann_val, CORE_WALK_FUEL, proof) {
+    match subst_const_all(pers, st, c, ann_val, CORE_WALK_FUEL, proof) {
         Err(e) => Err(e),
-        Ok(p) => match ground_guards(st, fe, &p) {
+        Ok(p) => match ground_guards(pers, vis, st, fe, &p) {
             Err(e) => Err(e),
             Ok(g) => {
                 if !g {
                     Ok(false)
                 } else {
-                    div_mod_cert_guard_rest(st, fe, c, ann_val, hyps, eq_e)
+                    div_mod_cert_guard_rest(pers, vis, st, fe, c, ann_val, hyps, eq_e)
                 }
             }
         },
@@ -1911,6 +2029,8 @@ pub fn div_mod_cert_guard(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:375-384 divModCertGuard` — the
 /// two statement-component guards, past the proof's four.
 pub fn div_mod_cert_guard_rest(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     c: &NIdx,
@@ -1918,17 +2038,17 @@ pub fn div_mod_cert_guard_rest(
     hyps: &Vec<EIdx>,
     eq_e: &EIdx,
 ) -> Result<bool, CheckError> {
-    match subst_const0_list(st, c, ann_val, hyps, 0, Vec::new()) {
+    match subst_const0_list(pers, st, c, ann_val, hyps, 0, Vec::new()) {
         Err(e) => Err(e),
-        Ok(hs) => match consts_resolve_all(st, fe, &hs, 0) {
+        Ok(hs) => match consts_resolve_all(pers, vis, st, fe, &hs, 0) {
             Err(e) => Err(e),
             Ok(r) => {
                 if !r {
                     Ok(false)
                 } else {
-                    match subst_const0(st, c, ann_val, CORE_WALK_FUEL, eq_e) {
+                    match subst_const0(pers, st, c, ann_val, CORE_WALK_FUEL, eq_e) {
                         Err(e) => Err(e),
-                        Ok(q) => consts_resolve_f_fast(st, fe, &q),
+                        Ok(q) => consts_resolve_f_fast(pers, vis, st, fe, &q),
                     }
                 }
             }
@@ -1943,11 +2063,13 @@ pub fn div_mod_cert_guard_rest(
 /// guard, pinned dependencies, the pinned `Eq` basis, and the `Bool`
 /// constructors stored at the type `Bool` itself.
 pub fn div_mod_env_guard(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe2: &IFEnv,
     c: &NIdx,
 ) -> Result<bool, CheckError> {
-    match nat_op_guard(st, fe2, c) {
+    match nat_op_guard(pers, vis, st, fe2, c) {
         Err(e) => Err(e),
         Ok(g) => {
             if !g {
@@ -1955,13 +2077,13 @@ pub fn div_mod_env_guard(
             } else {
                 match nat_op_deps(st, c) {
                     Err(e) => Err(e),
-                    Ok(deps) => match nat_op_stored_ok_all(st, fe2, &deps, 0) {
+                    Ok(deps) => match nat_op_stored_ok_all(pers, vis, st, fe2, &deps, 0) {
                         Err(e) => Err(e),
                         Ok(d) => {
                             if !d {
                                 Ok(false)
                             } else {
-                                div_mod_env_guard_rest(st, fe2)
+                                div_mod_env_guard_rest(pers, vis, st, fe2)
                             }
                         }
                     },
@@ -1974,8 +2096,13 @@ pub fn div_mod_env_guard(
 /// con-leche: ConLeche/Kernel/Checker.lean:277-290 divModEnvGuard
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:391-405 divModEnvGuard` — the
 /// pinned `Eq` basis and the two `Bool` constructors.
-pub fn div_mod_env_guard_rest(st: &mut AState, fe2: &IFEnv) -> Result<bool, CheckError> {
-    match eq_basis_pinned(st, fe2) {
+pub fn div_mod_env_guard_rest(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe2: &IFEnv,
+) -> Result<bool, CheckError>  {
+    match eq_basis_pinned(pers, vis, st, fe2) {
         Err(e) => Err(e),
         Ok(b) => {
             if !b {
@@ -1983,7 +2110,7 @@ pub fn div_mod_env_guard_rest(st: &mut AState, fe2: &IFEnv) -> Result<bool, Chec
             } else {
                 match bool_true_name(st) {
                     Err(e) => Err(e),
-                    Ok(btn) => match bool_ctor_typed(st, fe2, &btn) {
+                    Ok(btn) => match bool_ctor_typed(pers, vis, st, fe2, &btn) {
                         Err(e) => Err(e),
                         Ok(t) => {
                             if !t {
@@ -1991,7 +2118,7 @@ pub fn div_mod_env_guard_rest(st: &mut AState, fe2: &IFEnv) -> Result<bool, Chec
                             } else {
                                 match bool_false_name(st) {
                                     Err(e) => Err(e),
-                                    Ok(bfn) => bool_ctor_typed(st, fe2, &bfn),
+                                    Ok(bfn) => bool_ctor_typed(pers, vis, st, fe2, &bfn),
                                 }
                             }
                         }
@@ -2007,18 +2134,20 @@ pub fn div_mod_env_guard_rest(st: &mut AState, fe2: &IFEnv) -> Result<bool, Chec
 /// twin's `(← ci.toConstantVal).type != boolTy`, which it spells twice: the
 /// guards' `true`/`false` must inhabit the `Bool` value semantically.
 pub fn bool_ctor_typed(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe2: &IFEnv,
     n: &NIdx,
 ) -> Result<bool, CheckError> {
-    match ifenv_find(fe2, n) {
+    match ifenv_find(vis, fe2, n) {
         Some(ci) => {
             let c = i_constant_info_dup(ci);
-            match i_constant_info_to_constant_val(&mut st.store, &c) {
+            match i_constant_info_to_constant_val(pers, &mut st.store, &c) {
                 Err(e) => Err(e),
                 Ok(cv) => match bool_name(st) {
                     Err(e) => Err(e),
-                    Ok(bn) => match const_e(st, &bn) {
+                    Ok(bn) => match const_e(pers, st, &bn) {
                         Err(e) => Err(e),
                         Ok(bool_ty) => Ok(cv.ty.eq2(&bool_ty)),
                     },
@@ -2035,6 +2164,8 @@ pub fn bool_ctor_typed(
 /// syntactic guards on one variant's pin (generated; checked once at install
 /// rather than proven about the blob).
 pub fn div_mod_pin_guard(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     ps: &INatOpPinSet,
     fe: &IFEnv,
@@ -2042,7 +2173,7 @@ pub fn div_mod_pin_guard(
 ) -> Result<bool, CheckError> {
     match div_mod_decl_pin(st, ps, c) {
         Err(e) => Err(e),
-        Ok(p) => ground_guards(st, fe, &p),
+        Ok(p) => ground_guards(pers, vis, st, fe, &p),
     }
 }
 
@@ -2053,6 +2184,8 @@ pub fn div_mod_pin_guard(
 /// the statements.  A `zip` stops at the shorter list, which is why the bound
 /// is the minimum (the twin's two `[]` clauses are both `true`).
 pub fn div_mod_certs_guard_go(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     c: &NIdx,
@@ -2065,6 +2198,8 @@ pub fn div_mod_certs_guard_go(
         Ok(true)
     } else {
         match div_mod_cert_guard(
+            pers,
+            vis,
             st,
             fe,
             c,
@@ -2076,7 +2211,7 @@ pub fn div_mod_certs_guard_go(
             Err(e) => Err(e),
             Ok(r) => {
                 if r {
-                    div_mod_certs_guard_go(st, fe, c, ann_val, stmts, proofs, i + 1)
+                    div_mod_certs_guard_go(pers, vis, st, fe, c, ann_val, stmts, proofs, i + 1)
                 } else {
                     Ok(false)
                 }
@@ -2090,17 +2225,19 @@ pub fn div_mod_certs_guard_go(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:436-438 divModCertsGuard` —
 /// the statements and the variant's proofs, zipped.
 pub fn div_mod_certs_guard(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     ps: &INatOpPinSet,
     fe: &IFEnv,
     c: &NIdx,
     ann_val: &EIdx,
 ) -> Result<bool, CheckError> {
-    match div_mod_cert_stmts(st, c) {
+    match div_mod_cert_stmts(pers, st, c) {
         Err(e) => Err(e),
         Ok(stmts) => match div_mod_cert_proofs(st, ps, c) {
             Err(e) => Err(e),
-            Ok(proofs) => div_mod_certs_guard_go(st, fe, c, ann_val, &stmts, &proofs, 0),
+            Ok(proofs) => div_mod_certs_guard_go(pers, vis, st, fe, c, ann_val, &stmts, &proofs, 0),
         },
     }
 }
@@ -2117,6 +2254,8 @@ pub fn div_mod_certs_guard(
 /// the length mismatch.
 #[allow(clippy::too_many_arguments)]
 pub fn check_div_mod_certs(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -2131,13 +2270,13 @@ pub fn check_div_mod_certs(
     } else if i >= stmts.len() || i >= proofs.len() {
         Ok(false)
     } else {
-        match div_mod_cert_guard(st, fe, c, ann_val, &stmts[i].0, &stmts[i].1, &proofs[i]) {
+        match div_mod_cert_guard(pers, vis, st, fe, c, ann_val, &stmts[i].0, &stmts[i].1, &proofs[i]) {
             Err(e) => Err(e),
             Ok(g) => {
                 if !g {
                     Ok(false)
                 } else {
-                    check_div_mod_cert_at(st, mode, fe, c, ann_val, stmts, proofs, i)
+                    check_div_mod_cert_at(pers, vis, st, mode, fe, c, ann_val, stmts, proofs, i)
                 }
             }
         }
@@ -2150,6 +2289,8 @@ pub fn check_div_mod_certs(
 /// inferred and compared.
 #[allow(clippy::too_many_arguments)]
 pub fn check_div_mod_cert_at(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -2159,16 +2300,16 @@ pub fn check_div_mod_cert_at(
     proofs: &Vec<EIdx>,
     i: usize,
 ) -> Result<bool, CheckError> {
-    match subst_const_all(st, c, ann_val, CORE_WALK_FUEL, &proofs[i]) {
+    match subst_const_all(pers, st, c, ann_val, CORE_WALK_FUEL, &proofs[i]) {
         Err(e) => Err(e),
-        Ok(p) => match subst_const0_list(st, c, ann_val, &stmts[i].0, 0, Vec::new()) {
+        Ok(p) => match subst_const0_list(pers, st, c, ann_val, &stmts[i].0, 0, Vec::new()) {
             Err(e) => Err(e),
-            Ok(hs) => match div_mod_cert_applied(st, &p, &hs) {
+            Ok(hs) => match div_mod_cert_applied(pers, st, &p, &hs) {
                 Err(e) => Err(e),
-                Ok(applied) => match annotate_core(st, mode, fe, CHECK_FUEL, 4, &applied) {
+                Ok(applied) => match annotate_core(pers, vis, st, mode, fe, CHECK_FUEL, 4, &applied) {
                     Err(e) => Err(e),
                     Ok(applied_a) => {
-                        check_div_mod_cert_tail(st, mode, fe, c, ann_val, stmts, proofs, i, applied_a)
+                        check_div_mod_cert_tail(pers, vis, st, mode, fe, c, ann_val, stmts, proofs, i, applied_a)
                     }
                 },
             },
@@ -2181,6 +2322,8 @@ pub fn check_div_mod_cert_at(
 /// the inference and the comparison, then the next certificate.
 #[allow(clippy::too_many_arguments)]
 pub fn check_div_mod_cert_tail(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -2191,15 +2334,15 @@ pub fn check_div_mod_cert_tail(
     i: usize,
     applied_a: EIdx,
 ) -> Result<bool, CheckError> {
-    match infer_type_core(st, mode, fe, CHECK_FUEL, 4, &applied_a) {
+    match infer_type_core(pers, vis, st, mode, fe, CHECK_FUEL, 4, &applied_a) {
         Err(e) => Err(e),
-        Ok(tp) => match subst_const0(st, c, ann_val, CORE_WALK_FUEL, &stmts[i].1) {
+        Ok(tp) => match subst_const0(pers, st, c, ann_val, CORE_WALK_FUEL, &stmts[i].1) {
             Err(e) => Err(e),
-            Ok(rhs) => match is_def_eq_core(st, mode, fe, CHECK_FUEL, 4, &tp, &rhs) {
+            Ok(rhs) => match is_def_eq_core(pers, vis, st, mode, fe, CHECK_FUEL, 4, &tp, &rhs) {
                 Err(e) => Err(e),
                 Ok(ok) => {
                     if ok {
-                        check_div_mod_certs(st, mode, fe, c, ann_val, stmts, proofs, i + 1)
+                        check_div_mod_certs(pers, vis, st, mode, fe, c, ann_val, stmts, proofs, i + 1)
                     } else {
                         Ok(false)
                     }
@@ -2218,6 +2361,8 @@ pub fn check_div_mod_cert_tail(
 /// not check.  The third outcome is an error thrown from inside, which
 /// `or_else_attempt` turns into "this variant does not match".
 pub fn check_div_mod_pin_at(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -2227,13 +2372,13 @@ pub fn check_div_mod_pin_at(
 ) -> Result<bool, CheckError> {
     match div_mod_decl_pin(st, ps, c) {
         Err(e) => Err(e),
-        Ok(p) => match annotate_core(st, mode, fe, CHECK_FUEL, 0, &p) {
+        Ok(p) => match annotate_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &p) {
             Err(e) => Err(e),
-            Ok(pin_a) => match is_def_eq_core(st, mode, fe, CHECK_FUEL, 0, value2, &pin_a) {
+            Ok(pin_a) => match is_def_eq_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, value2, &pin_a) {
                 Err(e) => Err(e),
                 Ok(ok_pin) => {
                     if ok_pin {
-                        check_div_mod_pin_certs(st, mode, fe, c, value2, ps)
+                        check_div_mod_pin_certs(pers, vis, st, mode, fe, c, value2, ps)
                     } else {
                         Ok(false)
                     }
@@ -2247,6 +2392,8 @@ pub fn check_div_mod_pin_at(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:470-477 checkDivModPinAt` —
 /// the certificates, past the pin comparison.
 pub fn check_div_mod_pin_certs(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -2254,12 +2401,12 @@ pub fn check_div_mod_pin_certs(
     value2: &EIdx,
     ps: &INatOpPinSet,
 ) -> Result<bool, CheckError> {
-    match div_mod_cert_stmts(st, c) {
+    match div_mod_cert_stmts(pers, st, c) {
         Err(e) => Err(e),
         Ok(stmts) => match div_mod_cert_proofs(st, ps, c) {
             Err(e) => Err(e),
             Ok(proofs) => {
-                check_div_mod_certs(st, mode, fe, c, value2, &stmts, &proofs, 0)
+                check_div_mod_certs(pers, vis, st, mode, fe, c, value2, &stmts, &proofs, 0)
             }
         },
     }
@@ -2291,6 +2438,8 @@ pub fn div_mod_attempt_reason(e: CheckError) -> Vec<u32> {
 /// its state function), and `Failed` (a `Native` error only) is the verdict.
 #[allow(clippy::too_many_arguments)]
 pub fn check_div_mod_pin_loop(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -2303,15 +2452,17 @@ pub fn check_div_mod_pin_loop(
     if i >= variants.len() {
         fail(CheckError::NotImplemented(tried))
     } else {
-        match div_mod_pin_guard(st, &variants[i], fe, c) {
+        match div_mod_pin_guard(pers, vis, st, &variants[i], fe, c) {
             Err(e) => Err(e),
-            Ok(g1) => match div_mod_certs_guard(st, &variants[i], fe, c, value2) {
+            Ok(g1) => match div_mod_certs_guard(pers, vis, st, &variants[i], fe, c, value2) {
                 Err(e) => Err(e),
                 Ok(g2) => {
                     if g1 && g2 {
-                        check_div_mod_pin_try(st, mode, fe, c, value2, variants, i, tried)
+                        check_div_mod_pin_try(pers, vis, st, mode, fe, c, value2, variants, i, tried)
                     } else {
                         check_div_mod_pin_loop(
+                            pers,
+                            vis,
                             st, mode, fe, c, value2, variants, i + 1, tried,
                         )
                     }
@@ -2328,6 +2479,8 @@ pub fn check_div_mod_pin_loop(
 /// in hand for free (`arena::checker_base`'s module note 6).
 #[allow(clippy::too_many_arguments)]
 pub fn check_div_mod_pin_try(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -2339,15 +2492,17 @@ pub fn check_div_mod_pin_try(
 ) -> Result<(), CheckError> {
     let snapshot: AttemptSnapshot = attempt_snapshot(st);
     let attempt: Result<bool, CheckError> =
-        check_div_mod_pin_at(st, mode, fe, c, value2, &variants[i]);
+        check_div_mod_pin_at(pers, vis, st, mode, fe, c, value2, &variants[i]);
     match or_else_attempt(attempt) {
         OrElseStep::Matched => Ok(()),
         OrElseStep::Continued => {
-            check_div_mod_pin_loop(st, mode, fe, c, value2, variants, i + 1, tried)
+            check_div_mod_pin_loop(pers, vis, st, mode, fe, c, value2, variants, i + 1, tried)
         }
         OrElseStep::Recovered(e) => {
             attempt_restore(st, snapshot);
             check_div_mod_pin_loop(
+                pers,
+                vis,
                 st,
                 mode,
                 fe,
@@ -2375,6 +2530,7 @@ pub fn check_div_mod_pin_try(
 /// `con_ron_core::kernel::checker::check_div_mod_pin`'s own arrangement, and
 /// the reason is the same: `IFEnv` has no cheap copy.
 pub fn check_div_mod_pin(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
@@ -2382,16 +2538,16 @@ pub fn check_div_mod_pin(
     k_pre: u64,
     c: &NIdx,
 ) -> Result<IFEnv, CheckError> {
-    match div_mod_env_guard(st, &fe2, c) {
+    match div_mod_env_guard(pers, fe2.visible_below, st, &fe2, c) {
         Err(e) => Err(e),
         Ok(g) => {
             if !g {
                 fail(CheckError::NotImplemented(code_points(&M_DIVMOD_ENV)))
             } else {
-                match defn_value(&fe2, c) {
+                match defn_value(fe2.visible_below, &fe2, c) {
                     None => fail(CheckError::Internal(code_points(&M_DIVMOD_NOT_STORED))),
                     Some(value2) => {
-                        check_div_mod_pin_at_pre(st, mode, pins, fe2, k_pre, c, value2)
+                        check_div_mod_pin_at_pre(pers, st, mode, pins, fe2, k_pre, c, value2)
                     }
                 }
             }
@@ -2405,6 +2561,7 @@ pub fn check_div_mod_pin(
 /// came in at.
 #[allow(clippy::too_many_arguments)]
 pub fn check_div_mod_pin_at_pre(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
@@ -2415,7 +2572,7 @@ pub fn check_div_mod_pin_at_pre(
 ) -> Result<IFEnv, CheckError> {
     let k2: u64 = fe2.visible_below;
     let fe_pre: IFEnv = crate::arena::env::ifenv_restrict_to(fe2, k_pre);
-    let r: Result<(), CheckError> = check_div_mod_pin_loop(
+    let r: Result<(), CheckError> = check_div_mod_pin_loop(pers, fe_pre.visible_below,
         st,
         mode,
         &fe_pre,
@@ -2436,8 +2593,8 @@ pub fn check_div_mod_pin_at_pre(
 /// twin's `match fe2.find? c with | some (.defnInfo _ value' _)`: the stored
 /// definition's value, COPIED before the state is taken mutably (task #14's
 /// rule).
-pub fn defn_value(fe: &IFEnv, c: &NIdx) -> Option<EIdx> {
-    match ifenv_find(fe, c) {
+pub fn defn_value(vis: u64, fe: &IFEnv, c: &NIdx) -> Option<EIdx> {
+    match ifenv_find(vis, fe, c) {
         Some(IConstantInfo::DefnInfo(_, v, _)) => Some(v.dup2()),
         _ => None,
     }
@@ -2454,6 +2611,7 @@ pub fn defn_value(fe: &IFEnv, c: &NIdx) -> Option<EIdx> {
 /// Deviation: as `check_div_mod_pin`, the two environments are one index at two
 /// visibility bounds.
 pub fn check_reduce_pin(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe2: IFEnv,
@@ -2461,7 +2619,7 @@ pub fn check_reduce_pin(
     c: &NIdx,
     value: &EIdx,
 ) -> Result<IFEnv, CheckError> {
-    match reduce_stored_ok(st, &fe2, c) {
+    match reduce_stored_ok(pers, fe2.visible_below, st, &fe2, c) {
         Err(e) => Err(e),
         Ok(s) => {
             if !s {
@@ -2470,7 +2628,7 @@ pub fn check_reduce_pin(
                 let k2: u64 = fe2.visible_below;
                 let fe_pre: IFEnv = crate::arena::env::ifenv_restrict_to(fe2, k_pre);
                 let r: Result<(), CheckError> =
-                    check_reduce_pin_pre(st, mode, &fe_pre, c, value);
+                    check_reduce_pin_pre(pers, fe_pre.visible_below, st, mode, &fe_pre, c, value);
                 match r {
                     Err(e) => Err(e),
                     Ok(()) => Ok(crate::arena::env::ifenv_restrict_to(fe_pre, k2)),
@@ -2486,19 +2644,21 @@ pub fn check_reduce_pin(
 /// guards, the definitional comparison of the witness against the pin, and the
 /// identity certificate.
 pub fn check_reduce_pin_pre(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
     c: &NIdx,
     value: &EIdx,
 ) -> Result<(), CheckError> {
-    match reduce_elem_ok(st, fe, c) {
+    match reduce_elem_ok(pers, vis, st, fe, c) {
         Err(e) => Err(e),
         Ok(el) => {
             if !el {
                 fail(CheckError::NotImplemented(code_points(&M_REDUCE_DECL)))
             } else {
-                match reduce_pin_guard(st, fe, c) {
+                match reduce_pin_guard(pers, vis, st, fe, c) {
                     Err(e) => Err(e),
                     Ok(g) => {
                         if !g {
@@ -2506,7 +2666,7 @@ pub fn check_reduce_pin_pre(
                                 &M_REDUCE_PIN_ABSENT,
                             )))
                         } else {
-                            check_reduce_pin_value(st, mode, fe, c, value)
+                            check_reduce_pin_value(pers, vis, st, mode, fe, c, value)
                         }
                     }
                 }
@@ -2519,24 +2679,26 @@ pub fn check_reduce_pin_pre(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:545-564 checkReducePin` — the
 /// witness and the pin, annotated and compared.
 pub fn check_reduce_pin_value(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
     c: &NIdx,
     value: &EIdx,
 ) -> Result<(), CheckError> {
-    match annotate_core(st, mode, fe, CHECK_FUEL, 0, value) {
+    match annotate_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, value) {
         Err(e) => Err(e),
-        Ok(val_a) => match reduce_decl_pin(st, c) {
+        Ok(val_a) => match reduce_decl_pin(pers, st, c) {
             Err(e) => Err(e),
-            Ok(p) => match annotate_core(st, mode, fe, CHECK_FUEL, 0, &p) {
+            Ok(p) => match annotate_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &p) {
                 Err(e) => Err(e),
                 Ok(pin_a) => {
-                    match is_def_eq_core(st, mode, fe, CHECK_FUEL, 0, &val_a, &pin_a) {
+                    match is_def_eq_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &val_a, &pin_a) {
                         Err(e) => Err(e),
                         Ok(ok_pin) => {
                             if ok_pin {
-                                check_reduce_identity(st, mode, fe, c, &val_a)
+                                check_reduce_identity(pers, vis, st, mode, fe, c, &val_a)
                             } else {
                                 fail(CheckError::NotImplemented(code_points(
                                     &M_REDUCE_SPELLING,
@@ -2554,17 +2716,19 @@ pub fn check_reduce_pin_value(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:545-564 checkReducePin` — the
 /// identity certificate: `valA x ≡ x` at depth 1 over `reduceCertVar`.
 pub fn check_reduce_identity(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
     c: &NIdx,
     val_a: &EIdx,
 ) -> Result<(), CheckError> {
-    match reduce_cert_var(st, c) {
+    match reduce_cert_var(pers, st, c) {
         Err(e) => Err(e),
-        Ok(x) => match intern_e(st, ENodeView::App(val_a.dup2(), x.dup2())) {
+        Ok(x) => match intern_e(pers, st, ENodeView::App(val_a.dup2(), x.dup2())) {
             Err(e) => Err(e),
-            Ok(ax) => match is_def_eq_core(st, mode, fe, CHECK_FUEL, 1, &ax, &x) {
+            Ok(ax) => match is_def_eq_core(pers, vis, st, mode, fe, CHECK_FUEL, 1, &ax, &x) {
                 Err(e) => Err(e),
                 Ok(ok) => {
                     if ok {
@@ -2587,6 +2751,8 @@ pub fn check_reduce_identity(
 /// certify a list of recurrence equations by definitional equality (at depth 2:
 /// the equations' variables are `fvar 0`/`fvar 1`).
 pub fn certify_nat_eqs(
+    pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -2596,11 +2762,11 @@ pub fn certify_nat_eqs(
     if i >= eqs.len() {
         Ok(true)
     } else {
-        match is_def_eq_core(st, mode, fe, CHECK_FUEL, 2, &eqs[i].0, &eqs[i].1) {
+        match is_def_eq_core(pers, vis, st, mode, fe, CHECK_FUEL, 2, &eqs[i].0, &eqs[i].1) {
             Err(e) => Err(e),
             Ok(ok) => {
                 if ok {
-                    certify_nat_eqs(st, mode, fe, eqs, i + 1)
+                    certify_nat_eqs(pers, vis, st, mode, fe, eqs, i + 1)
                 } else {
                     Ok(false)
                 }
@@ -2613,6 +2779,7 @@ pub fn certify_nat_eqs(
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:581-587 substConst0Pairs` — an
 /// explicit list recursion.
 pub fn subst_const0_pairs(
+    pers: &PersTier,
     st: &mut AState,
     n: &NIdx,
     r: &EIdx,
@@ -2623,14 +2790,14 @@ pub fn subst_const0_pairs(
     if i >= eqs.len() {
         Ok(out)
     } else {
-        match subst_const0(st, n, r, CORE_WALK_FUEL, &eqs[i].0) {
+        match subst_const0(pers, st, n, r, CORE_WALK_FUEL, &eqs[i].0) {
             Err(e) => Err(e),
-            Ok(a) => match subst_const0(st, n, r, CORE_WALK_FUEL, &eqs[i].1) {
+            Ok(a) => match subst_const0(pers, st, n, r, CORE_WALK_FUEL, &eqs[i].1) {
                 Err(e) => Err(e),
                 Ok(b) => {
                     let mut out2 = out;
                     out2.push((a, b));
-                    subst_const0_pairs(st, n, r, eqs, i + 1, out2)
+                    subst_const0_pairs(pers, st, n, r, eqs, i + 1, out2)
                 }
             },
         }
@@ -2648,6 +2815,7 @@ pub fn subst_const0_pairs(
 /// pushed index.  The reducibility hint is stored untouched: it steers only the
 /// lazy delta unfolding order, never a verdict.
 pub fn check_defn_val(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: IFEnv,
@@ -2655,12 +2823,12 @@ pub fn check_defn_val(
     value: &EIdx,
     hint: &ReducibilityHint,
 ) -> Result<IFEnv, CheckError> {
-    match install_value(st, mode, &fe, cv, value) {
+    match install_value(pers, fe.visible_below, st, mode, &fe, cv, value) {
         Err(e) => Err(e),
-        Ok(value_a) => match infer_type_core(st, mode, &fe, CHECK_FUEL, 0, &value_a) {
+        Ok(value_a) => match infer_type_core(pers, fe.visible_below, st, mode, &fe, CHECK_FUEL, 0, &value_a) {
             Err(e) => Err(e),
             Ok(vtype) => {
-                match is_def_eq_core(st, mode, &fe, CHECK_FUEL, 0, &vtype, &cv.ty) {
+                match is_def_eq_core(pers, fe.visible_below, st, mode, &fe, CHECK_FUEL, 0, &vtype, &cv.ty) {
                     Err(e) => Err(e),
                     Ok(ok) => {
                         if ok {
@@ -2689,25 +2857,26 @@ pub fn check_defn_val(
 /// the constant keeps the record's own (raw) value as an unread datum, and the
 /// annotated value is a realizability witness, checked and then discarded.
 pub fn check_thm_val(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: IFEnv,
     cv: &IConstantVal,
     value: &EIdx,
 ) -> Result<IFEnv, CheckError> {
-    match infer_type_core(st, mode, &fe, CHECK_FUEL, 0, &cv.ty) {
+    match infer_type_core(pers, fe.visible_below, st, mode, &fe, CHECK_FUEL, 0, &cv.ty) {
         Err(e) => Err(e),
-        Ok(stype) => match ensure_sort_core(st, mode, &fe, CHECK_FUEL, 0, &stype) {
+        Ok(stype) => match ensure_sort_core(pers, fe.visible_below, st, mode, &fe, CHECK_FUEL, 0, &stype) {
             Err(e) => Err(e),
             Ok(u) => match zero_level(st) {
                 Err(e) => Err(e),
-                Ok(z) => match lvl_eq(st, &u, &z) {
+                Ok(z) => match lvl_eq(pers, st, &u, &z) {
                     Err(e) => Err(e),
                     Ok(o) => match lift_fueled(o) {
                         Err(e) => Err(e),
                         Ok(is_prop) => {
                             if is_prop {
-                                check_thm_val_witness(st, mode, fe, cv, value)
+                                check_thm_val_witness(pers, st, mode, fe, cv, value)
                             } else {
                                 fail(CheckError::Invalid(code_points(&M_THM_NOT_PROP)))
                             }
@@ -2725,18 +2894,19 @@ pub fn check_thm_val(
 /// the statement, and the push of `.thmInfo cv value` — the **raw** value, as
 /// the twin's clause stores it.
 pub fn check_thm_val_witness(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: IFEnv,
     cv: &IConstantVal,
     value: &EIdx,
 ) -> Result<IFEnv, CheckError> {
-    match install_value(st, mode, &fe, cv, value) {
+    match install_value(pers, fe.visible_below, st, mode, &fe, cv, value) {
         Err(e) => Err(e),
-        Ok(jv) => match infer_type_core(st, mode, &fe, CHECK_FUEL, 0, &jv) {
+        Ok(jv) => match infer_type_core(pers, fe.visible_below, st, mode, &fe, CHECK_FUEL, 0, &jv) {
             Err(e) => Err(e),
             Ok(vtype) => {
-                match is_def_eq_core(st, mode, &fe, CHECK_FUEL, 0, &vtype, &cv.ty) {
+                match is_def_eq_core(pers, fe.visible_below, st, mode, &fe, CHECK_FUEL, 0, &vtype, &cv.ty) {
                     Err(e) => Err(e),
                     Ok(ok) => {
                         if ok {
@@ -2764,18 +2934,19 @@ pub fn check_thm_val_witness(
 /// stored as an `axiomInfo` — the checked value is a realizability witness,
 /// consumed by the model extension and then discarded.
 pub fn check_opaque_val(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: IFEnv,
     cv: &IConstantVal,
     value: &EIdx,
 ) -> Result<IFEnv, CheckError> {
-    match install_value(st, mode, &fe, cv, value) {
+    match install_value(pers, fe.visible_below, st, mode, &fe, cv, value) {
         Err(e) => Err(e),
-        Ok(value_a) => match infer_type_core(st, mode, &fe, CHECK_FUEL, 0, &value_a) {
+        Ok(value_a) => match infer_type_core(pers, fe.visible_below, st, mode, &fe, CHECK_FUEL, 0, &value_a) {
             Err(e) => Err(e),
             Ok(vtype) => {
-                match is_def_eq_core(st, mode, &fe, CHECK_FUEL, 0, &vtype, &cv.ty) {
+                match is_def_eq_core(pers, fe.visible_below, st, mode, &fe, CHECK_FUEL, 0, &vtype, &cv.ty) {
                     Err(e) => Err(e),
                     Ok(ok) => {
                         if ok {
@@ -2806,7 +2977,7 @@ pub fn install_basis_decl(
     fe: IFEnv,
     ci: IConstantInfo,
 ) -> Result<IFEnv, CheckError> {
-    if ifenv_find(&fe, &crate::arena::env::i_constant_info_name(&ci)).is_some() {
+    if ifenv_find(fe.visible_below, &fe, &crate::arena::env::i_constant_info_name(&ci)).is_some() {
         fail(CheckError::Invalid(code_points(&M_DUP_DECL)))
     } else {
         Ok(ifenv_push(fe, ci))

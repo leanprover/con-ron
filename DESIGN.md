@@ -2005,6 +2005,16 @@ sharing has to arrive as a reader PARAMETER (`&PersTier` beside `&mut
 AState`, the shape `fe: &IFEnv` already has), which makes the twin's monad a
 `ReaderT` over §8.4's `AM` and is the maintainer's ruling to make.  Task
 #97-P6-6 has the five measurements and prices the alternatives.
+**DONE (task #97-P6-6b)**: the ruling's design (A) landed — `PersTier`, the
+`shared_on` flag and the five value-returning persistent readers in
+`arena::store`, `pers: &PersTier` on 1 064 of `arena-core`'s 1 775
+functions, `visible_below` out of the index as a `vis: u64` scalar on 307 of
+them, `con_ron_arena::pool` over the frozen tier, and the extraction
+unchanged at **0 errors and the tip's own 5 type and 209 function holes,
+byte-identical**.  Phase B is `n` `std::thread::scope`d workers sharing
+`&PersTier` and `&IFEnv`, each owning a scratch tier, its caches and a copy
+of the pin handles; the atomics are the claim counter and the failure limit
+and nothing else, so the sentence above is now true of the code.
 
 **Phase A runs in the scratch tier too, with promotion (coordinator, after
 task #97-P4f's measurement).**  The install phase (annotate the type and the
@@ -2089,7 +2099,15 @@ Provenance citations point at `ConLeche/Kernel/*` (and `Frontend/*`), never
 transliteration:
   * one `def` per intended Rust function, same name (camelCase ↔ snake_case);
   * the monad is `AM := StateT AState (Except CheckError)` and nothing else
-    — no `IO`, no `partial`, no typeclass-polymorphic bodies;
+    — no `IO`, no `partial`, no typeclass-polymorphic bodies.  **AMENDED by
+    ONE transformer (task #97-P6-6b, the coordinator's ruling before §8.7):**
+    `AM := ReaderT PersTier (StateT AState (Except CheckError))`, the
+    persistent tier read and never written, which is what lets phase B's `n`
+    workers share it.  Nothing else about the discipline moves: no `IO`, no
+    `partial`, no typeclass-polymorphic bodies, and NO CLAUSE of any twin
+    changes — `view`/`intern`/`derived`/`find?` read `(← read)` where they
+    read the state's tier, and the refinement treats the reader exactly as it
+    treats `fe`;
   * fuel as an explicit `Nat`; the knot is con-leche's `CoreFns` record over
     handles with the six bodies as plain functions, tied by `coreKnot` at
     fuel — clause for clause `Kernel/Core.lean`, the only differences being
@@ -2347,6 +2365,19 @@ the persistent tier (the byte recogniser is unchanged).
         priced in that task's section and wants the maintainer's ruling and a
         window with no other agent in the crate.  Phase B is **87–93 % of the
         wall** at every size, so this is the largest lever left in P6.
+        6b. the ruling's design (A), and the pool.  **DONE** (task
+        #97-P6-6b): `PersTier` and the `shared_on` flag in `arena::store`
+        with the five value-returning persistent readers, `pers: &PersTier`
+        on **1 064 of `arena-core`'s 1 775 functions**, `visible_below` out
+        of the index as a `vis: u64` scalar on **307** of them — so
+        `check_pending` takes `fe: &IFEnv` and a worker copies no
+        environment — and `con_ron_arena::pool`, `con_ron::pool`'s four
+        functions over the tier the driver freezes at the phase boundary.
+        The extraction is **0 errors and the tip's own 5 type and 209
+        function holes, the two template files byte-identical**, which is
+        what the refactor was for; `--jobs=<n>` is real and the fixtures read
+        348/348 at 1, 2, 4 and 8 workers.  That task's section has the
+        table.
         7. the check-phase round toward nanoda — task #97-P6-5 left the check
         phase at ~95 % of Mathlib and its own next lever asked for counters
         rather than a fifth sampling profile.  **DONE** (task #97-P6-7): the
@@ -30655,3 +30686,369 @@ nothing else, and `_tmp/t97-p6-8b/` (untracked) holds the scripts, the
 profiles, the disassembly and the binaries.  All four arena binaries agree
 with the tip on the verdict, `accepted 57 977` on `Init`, and nanoda's
 `Checked 59 433`.
+### Task #97-P6-6b — the persistent tier as a reader parameter, and the worker pool (2026-09-21, Opus under Fable)
+
+Phase P6 item 6b of §8.6, the coordinator's ruling before §8.7: design (A),
+`pers: &PersTier` beside `st: &mut AState` through every function that reads
+the store, `visible_below`'s scalar split out of the index, then the pool.
+Task #97-P6-6 measured what forced this shape — a REGION inside the `&mut`
+state that 1 155 of the crate's functions thread is outside Aeneas's subset,
+eight ways — and left the design priced but unwritten.  This task wrote it.
+
+Three commits: the tier, the scalar, the pool.
+
+#### 1. The tier: `PersTier`, a flag, and five value-returning readers
+
+`arena::store` grows one record —
+
+```rust
+pub struct PersTier { pub n: NTables, pub l: LTables, pub ls: LsTables, pub e: ETables }
+```
+
+— and each of the four stores keeps its own `pers` field and gains a
+`shared_on: bool` beside `scratch_on`.  Every persistent read goes through
+one of **five value-returning readers** per store (`pers_get`, `pers_der_at`,
+`pers_find`, `pers_size_of`, `pers_strs_find`, and `pers_count`), each of
+which is
+
+```rust
+fn pers_get(&self, pers: &PersTier, i: &EIdx) -> Option<ENodeView> {
+    if self.shared_on { pers.e.get(i) } else { self.pers.get(i) }
+}
+```
+
+so **the choice is made inside the reader and a VALUE comes back**: no borrow
+ever leaves it, and no region enters the record every function threads as
+`&mut`.  That is exactly the control row task #97-P6-6 measured at zero
+extraction errors.
+
+While `shared_on` is off — the parse, phase A, every test, every example —
+each read goes to the store's own tier and **the computation is the tip's,
+node for node**; the parameter names an empty tier nothing consults.  At the
+phase boundary the driver moves the four tables out and sets the flag, and
+from then on every persistent read goes to the shared record.
+
+**The frozen-tier guard.**  A store whose tier is shared may append to its
+scratch tier and to nothing else: a persistent append would hand back a
+handle whose index names a node of the SHARED tier, which is the one way the
+split could lose `denoteE`'s injectivity.  `intern`'s persistent branch and
+all four `intern_persistent`s test `shared_on` first and decline
+`Internal("arena: append to a frozen persistent tier")`.  Phase B never takes
+the branch — `check_pending` opens the scratch tier before any term is built
+and `intern_persistent`'s only caller is phase A's `arena::promote`, which is
+what task #97-P6-6 read out of the code — so the guard states the discipline
+rather than walking a path the run takes.
+
+**Why the store keeps an owned tier at all**, rather than the brief's
+`pers: &mut PersTier` for the writers.  `arena::intern` — the tree-to-handle
+interner — is called BOTH from the parse and the preparation (scratch tier
+off, so it appends persistently) and from `arena::{basis, std_axioms,
+trust_axioms, nat_op_pin_set, inductives}` inside phase A's and phase B's
+brackets (scratch tier on, so it appends to scratch).  With no owned tier in
+the store those two uses need two families of 611 lines each.  With the owned
+tier and the flag they are the one function they have always been, the
+writers are unchanged, and `&mut PersTier` never appears — which is also why
+the extraction's hole list does not move.
+
+#### 2. The scalar: `visible_below` out of the index
+
+`check_pending` used to take the installed index BY VALUE, restrict it to the
+record's prefix bound and hand it back at the installed one:
+
+```rust
+pub fn check_pending(st: &mut AState, mode: &CheckMode, fe: IFEnv, pc: &PendingCheck)
+    -> Result<IFEnv, CheckError>
+```
+
+That is what forbade a pool, and not the store: `n` workers can neither each
+own the environment (`ifenv_dup` is ≈1.4 GB a worker on Mathlib, OVERVIEW
+§7.2) nor each restrict a shared one.  So `ifenv_find` reads a `vis: u64`
+PARAMETER, and the bound travels beside `pers` through every function that
+reads the environment:
+
+```rust
+pub fn check_pending(pers: &PersTier, st: &mut AState, mode: &CheckMode,
+                     fe: &IFEnv, pc: &PendingCheck) -> Result<(), CheckError> {
+    enter_scratch(st);
+    let r = check_value_group(pers, pc.vis, st, mode, fe, &pc.vg);
+    drop_scratch(st);
+    r
+}
+```
+
+Phase A still threads its environment by value and pushes into it, so the
+record keeps the field and phase A's callers pass `fe.visible_below` — the
+seventeen functions of `arena::inductives` that hold TWO environments at once
+pass whichever one the callee reads.  The twin's `FEnv.find?` is therefore
+what runs wherever the twin runs, and what the refinement owes is one
+equation and not a clause.
+
+#### 3. The argument convention, and the size of the edit
+
+**`pers` first, then `vis`, then `st`, then the rest, uniformly** — the
+reader block ahead of the state, which is how `ReaderT PersTier (StateT
+AState (Except CheckError))` reads.  In method position (`arena::store`) the
+receiver is the state and `pers` is the first explicit argument.
+
+| | |
+|---|---:|
+| `arena-core` functions outside `#[cfg(test)]` | 1 775 |
+| — taking `pers: &PersTier` | **1 064** |
+| — taking `vis: u64` | **307** |
+| — taking both | 299 |
+| the diff, four commits | 7 975 + / 4 815 − over 46 files |
+
+The parameter goes only where a read can happen: the twenty-two memo probes,
+the eleven cache resets, `fail`, the handle arithmetic and the pin-table
+readers take neither, and the pass that put them everywhere was run backwards
+against the compiler until every unused one was gone.  That is what the
+difference between 1 064 and task #97-P6-6's estimated 1 155 is.
+
+**The twin ledger** (§8.6's P6 rule) — the monad change and nothing else:
+
+1. `AM := StateT AState (Except CheckError)` becomes `ReaderT PersTier
+   (StateT AState (Except CheckError))`.  §8.4's "and nothing else" is
+   amended by one transformer.  **No clause of any twin changes**: `view`,
+   `intern`, `derived` and `find?` read `(← read)` where they read the
+   state's tier, and every body above them is unchanged.
+2. `EStore` (and its three nested stores) gains `sharedOn : Bool` beside
+   `scratchOn`, and the persistent arm of `view`/`derived`/`find?`/`sizeOf`
+   reads the reader when it is set.  The refinement relation for the store
+   gains one conjunct (`sharedOn → pers = ∅`), which is what makes the two
+   arms the same tier.
+3. `internPersistent` and `intern`'s persistent branch gain the `¬ sharedOn`
+   guard.  Under the bracket discipline the hypothesis is discharged, not
+   assumed: phase B's `checkPending` opens the scratch tier first.
+4. `IFEnv.find?` takes the bound as an argument: `find? (vis : Nat) (fe :
+   IFEnv) (n : NIdx)`.  The twin's own `fe.visibleBelow` is what phase A
+   passes, so `find? fe.visibleBelow fe n = fe.find? n` is the equation the
+   refinement uses and every clause above is unchanged.
+5. `checkPending` takes the index by reference and the bound from the pending
+   record; its result is `Unit` rather than the index.  `checkPendingList`
+   follows.
+
+Nothing here is a clause change and nothing is an algorithm change, which is
+the rule §8.6's P6 sets for a Rust-first round.
+
+#### 4. The extraction, which is what the refactor was for
+
+`scripts/extract-arena.sh --dry`, run on the refactor BEFORE the pool was
+written:
+
+| | the `arena` tip `f1af2622` | after the refactor |
+|---|---:|---:|
+| Aeneas errors | 0 | **0** |
+| lines of model | 65 025 | 66 743 |
+| type holes | 5 | **5** |
+| function holes | 209 | **209** |
+
+and `TypesExternal_Template.lean` and `FunsExternal_Template.lean` are
+**byte-identical** to the tip's, both compared by `diff` against a run of the
+tip's own sources in this session.  The reader parameter costs nothing at
+all: no new hole, no untranslatable body, and 1 718 lines of model for the
+1 371 extra arguments.
+
+#### 5. The pool
+
+`crates/con-ron-arena/src/pool.rs`, 474 lines, `con_ron::pool`'s four
+functions one to one (`check_one`, `check_worker`, `merge_results`,
+`check_pool`) plus `collect_checks`.  **Threads live in the driver crate and
+never in `arena-core`** (§8.5).
+
+The phase boundary is `driver::freeze_tier`: the four stores' persistent
+tables move out into one `PersTier`, the four `shared_on` flags go up, and
+`check_pool` hands `&` it to `n` `std::thread::scope`d workers with 1 GiB
+stacks.  A worker owns
+
+  * an `AState` whose store is empty and frozen — one per worker for the
+    whole run, not one per record, because `check_pending` brackets the state
+    at both ends and keeping the tables lets task #97-P6-7's `clear_fit`
+    high-water mark settle exactly as it does in one lane;
+  * a copy of the sixty-eight pin HANDLES (`Pins` is handles and nothing
+    else, which is the decision the brief asked for: it stays in `AState`
+    and is copied per worker, while the level readback memo is per-worker
+    already);
+  * **no environment at all**.
+
+The claim counter and the failure limit are the only atomics, both `Relaxed`,
+and the results are merged by record index and walked in record order — so
+the verdict and the record a rejection names are the sequential walk's at
+every `--jobs`.  `pool_reports_the_first_failure_at_every_jobs` asserts it at
+1, 2, 3, 4 and 8 workers on a list whose records 2 and 4 both fail, over a
+fixture that freezes a real tier and builds real records into it.
+
+`--jobs=<n>` is real and defaults to `con_ron::driver::default_jobs()` (one
+per hardware thread, capped at 16) — the same function `con-ron` uses, so the
+two binaries cannot drift; `workers_for` is now `con_ron::driver::workers_for`
+and not the clamp-to-one it was.  `--progress` prints a check line per worker
+under the observer's mutex, and the plain lane and the heartbeat lane are ONE
+path through the driver (a plain run used to call `install_then_check`
+directly, which after the freeze would have been a second computation).
+
+#### 6. The numbers
+
+`--verified --progress=1000000`, mimalloc, under CLAUDE.md's caps, this
+machine (task #97-P6-3's: AMD EPYC 9455, 125 GiB, the flake's Charon-pinned
+`rustc`); `perf stat -e instructions:u,cycles:u` and GNU `time -v` around one
+run each.  **Every row is this session's own run**, the `arena` tip
+`f1af2622` rebuilt from its own sources here, for the reason task #97-P6-7's
+last note gives: `cycles:u` and wall are not session-independent.  **And this
+session was not a quiet one** — another agent held the machine between load
+average 6 and 160 throughout — so the cycles and wall columns are worth less
+than usual and the INSTRUCTION column, which does not notice, is what the
+comparison rests on.  Raw `.perf`/`.time`/`.err`: `_tmp/t97p66b/`.
+
+**The refactor at one worker** — the column the brief asks to be free:
+
+| `--jobs=1` | instructions:u | Δ | cycles:u | wall | peak RSS | verdict |
+|---|---:|---:|---:|---:|---:|---|
+| `Init`, tip | 413.83 G | — | 259.33 G | 65.19 s | 0.61 GB | accepted 57 977 |
+| `Init`, after | 422.34 G | **+2.06 %** | 267.19 G | 67.49 s | 0.63 GB | accepted 57 977 |
+| `core`, tip | 922.30 G | — | 523.56 G | 125.54 s | 1.39 GB | accepted 163 396 |
+| `core`, after | 924.71 G | **+0.26 %** | 479.63 G | 109.94 s | 1.39 GB | accepted 163 396 |
+| Mathlib, tip | 11 167.67 G | — | 5 817.36 G | 1 364.2 s | 7.66 GB | accepted 691 128 |
+| Mathlib, after | **11 380.23 G** | **+1.90 %** | 6 105.71 G | 1 462.6 s | 7.74 GB | accepted 691 128 |
+
+The tip's three instruction counts reproduce task #97-P6-7's to the digit —
+413.83 G, 922.30 G and **11 167.67 G** — which is what says this is that
+tree.  **The refactor is not quite free, and the price is small**: a
+`shared_on` test on the persistent side of every store read, and one more
+argument register on 1 371 signatures.  `Init` pays the most because a worker
+starts with empty tables and has to re-learn task #97-P6-7's `clear_fit`
+high-water mark, which on the smallest export is the largest share of the
+run.
+
+**The pool:**
+
+| | `--jobs` | instructions:u | cycles:u | check phase | total wall | peak RSS |
+|---|---:|---:|---:|---:|---:|---:|
+| `Init` | 1 | 422.34 G | 267.19 G | 62.74 s | 67.49 s | 0.63 GB |
+| `Init` | 8 | 427.90 G (+1.3 %) | 397.35 G | 14.23 s | 28.05 s | 0.85 GB |
+| `Init` | 16 | 428.40 G (+1.4 %) | 413.37 G | 9.02 s | 22.64 s | 1.06 GB |
+| `core` | 1 | 924.71 G | 479.63 G | 94.95 s | 109.94 s | 1.39 GB |
+| `core` | 8 | 937.64 G (+1.4 %) | 502.10 G | **12.57 s** | 27.42 s | 1.75 GB |
+| Mathlib | 1 | 11 380.23 G | 6 105.71 G | 1 297.7 s | 1 462.6 s | 7.74 GB |
+| Mathlib | 8 | 11 495.15 G (+1.0 %) | 6 374.36 G | **173.4 s** | **303.9 s** | 9.35 GB |
+
+(`Init`'s three rows and the `core` tip row were taken while the machine was
+at load 85–160 and their wall and cycles are not comparable with each other;
+the instruction column is.)
+
+**The per-worker replication is 1.0–1.4 % of the instructions and 30 MB of
+resident set on `Init`, 53 MB on `core`, 230 MB on Mathlib** — a scratch
+tier, the memos, the caches and sixty-eight pin handles, and **no environment
+at all**.  `con_ron::pool` gives each worker one `fenv::dup`, which OVERVIEW
+§7.2 prices at ≈1.4 GB a worker on Mathlib (7.80 → 17.8 GB over seven extra
+workers); this pool's seven extra workers cost **1.61 GB between them**, and
+the cost does not scale with the environment at all, which is what §2's
+scalar bought.
+
+**The check phase scales**, which is the column con-ron at master does worst:
+Mathlib's check phase is **1 297.7 → 173.4 s at eight workers, 7.5×**,
+`core`'s 94.95 → 12.57 s, **7.6×**, and `Init`'s 62.74 → 9.02 s at sixteen,
+7.0×.  OVERVIEW §7.2 blames con-ron's poor scaling on its atomic reference
+counts; the arena has no reference counts, and the only atomics here are the
+claim counter and the failure limit — one `fetch_add` and one `load` per
+record.
+
+**Beside the other two checkers at eight workers** (OVERVIEW §7.2: `Init`
+20 s / 1.18 GB, `core` 73 s / 2.80 GB, Mathlib 929 s / 17.8 GB for `con-ron`
+at master; 12 / 37 / 337 s for con-leche), and reading the arena's wall with
+the load caveat above:
+
+| at `--jobs=8` | `con-ron` master | con-leche | arena | vs master |
+|---|---:|---:|---:|---:|
+| `Init` wall | 20 s | 12 s | 28.05 s | 1.40× |
+| `core` wall | 73 s | 37 s | 27.42 s | **0.38×** |
+| **Mathlib wall** | **929 s** | **337 s** | **303.9 s** | **0.33×** |
+| Mathlib peak RSS | 17.8 GB | — | **9.35 GB** | **0.53×** |
+
+Mathlib at eight workers is **under con-leche's own eight-worker wall** and a
+third of `con-ron`'s, at half its resident set — the projection task
+#97-P6-6 §3 made from Amdahl (364 s) came out at 303.9 s.  `Init`'s cell is
+the one above 1.00× and it is the serial part showing: 13.7 s of its 28.05 s
+is parse and install, and that run was taken at load 124.  Task #97-P6-6's
+brief said the pool was "the largest lever left in P6"; on the measure of
+record it is worth nothing at all (instructions are up 1 %), and on wall it
+is worth 4.8× on Mathlib.
+
+#### 7. Gates
+
+| | |
+|---|---|
+| `cargo build --release` / `cargo test --release`, `RUSTFLAGS="-D warnings"` | green; 426 tests (120 `arena-core`, 7 `con-ron-arena`), 0 failures |
+| `scripts/lint-rust-style.sh` over both verified trees | clean |
+| `scripts/provenance.py check` | **0 findings** (6 552 items — 4 799 Rust, 1 753 arena Lean — 4 877 citations, all current at pin `c431b1ca`) |
+| `scripts/extract-arena.sh --dry` | **0 errors, 66 743 lines of model, 5 type and 209 function holes** — both template files byte-identical to the tip's, compared by `diff` against a run of the tip's own sources in this session, once after the refactor and once on the final tree |
+| `scripts/holes.sh --check` | 2 types, 20 functions, all in OVERVIEW §8.1, OK |
+| `scripts/provenance-selftest.py`, `scripts/overview-links.sh` | green (67 links, 36 files) |
+| `scripts/diff-e2e.sh --bin=target/release/con-ron-arena` | **348/348 `--verified` at `--jobs` 1, 2, 4 and 8**; 348/348 `--trusted --jobs=8`; the documented **331 agree / 17 decline** at `--no-pins` |
+| the full verdict LINE of all 177 stream fixtures, tip vs this tree at `--jobs=1` and at `--jobs=8` | **byte-identical** once the `t=<s>s` suffix is stripped |
+| `con-ron-arena --verified` on `init` / `core` / `mathlib` | accepted **57 977** / **163 396** / **691 128**, at one worker and at eight |
+| `scripts/extract.sh --check`, `cd proof && lake build` | not run: nothing under `crates/con-ron-core`, `crates/con-ron`, `crates/con-ron-dump` or `proof/` moved — P4b's, P4c's and P4d's standing ruling |
+
+**The one bug the fixture sweep could not see.**  The first version of the
+pool froze the tier into a local of `check_decls_driver` and dropped it on
+return, so every reader AFTER the fold — the verdict line's declaration
+label, the failing record's name, the receipts — read a frozen store over a
+tier that no longer existed: `nat_add_wrong.ndjson` printed `at theorem ?`
+where the tip prints `at theorem addOk`.  `diff-e2e.sh` compares exit codes
+and not text, so it read 348/348 straight through it.  `driver::thaw_tier`
+puts the tier back before the driver returns,
+`freezing_and_thawing_leave_every_handle_readable` is the regression, and the
+177-fixture line-for-line sweep is the gate that would have caught it and is
+now part of the record.
+
+#### 8. What is left
+
+1. **The Lean catch-up**, which now owes §3's five ledger items on top of task
+   #97-P6-4a's `Pins`/`internAllPins`, task #97-P6-5's `internRebuilt` and
+   task #97-P6-7's two clauses.  §8.4's monad sentence is amended in place.
+2. **The `shared_on` test is the refactor's whole price** (§6).  It cannot be
+   branchless — two tiers are two objects — but it could be hoisted: `view`,
+   `derived` and `find` are called from bodies that already know which phase
+   they are in.  That is a code-size trade against 0.3–2 % of the
+   instructions and wants a measurement before anyone takes it.
+3. **The parse and phase A are the serial part now.**  `Init` at sixteen
+   workers is 22.6 s of which 13.5 s is parse and install; `core` at eight is
+   27.4 s of which 14.8 s is.  Amdahl's next lever for the arena is no longer
+   the check phase, and §8.7's parse-DAG question is where it starts.
+4. **`--jobs` and `ulimit -v`.**  A worker reserves 1 GiB of address space, so
+   a pooled run needs CLAUDE.md's 3× plus a GiB a worker; the runs above used
+   12 GB (`Init` at 1), 20 GB (at 8), 28 GB (at 16), 6 GB (`core` at 1),
+   14 GB (at 8), 27 GB (Mathlib at 1) and 31 GB (at 8).
+
+#### 9. PAUSED HERE (maintainer, 2026-09-21: the arena is paused until the
+con-leche sync on master finishes)
+
+The wind-down state, for whoever resumes:
+
+  * **the task is COMPLETE and the worktree is green.**  Both halves of the
+    ruling landed and so did the pool, before the pause reached this agent;
+    `cargo build --release` and `cargo test --release` under
+    `RUSTFLAGS="-D warnings"` are clean, and §7's gates were all run on the
+    committed tree.
+  * **the `pers` parameter is EVERYWHERE it belongs**, not partway: all 1 064
+    of `arena-core`'s functions that can read the persistent tier carry it,
+    across every module (`arena/{store, monad, handle, expr_ops, core,
+    core_gated, core_io, core_state, canon, env, fenv, prop_read, intern,
+    pins, promote, basis, std_axioms, trust_axioms, nat_op_pin_set,
+    checker_base, checker_split, checker, decl_check, inductives/*}` and
+    `frontend/{export_c, prepare, prelude, proj_rec, nat_op_ground, types}`),
+    plus the two examples and `crates/con-ron-arena`.  The 711 functions that
+    do NOT carry it are the ones no read reaches — the memo probes, the cache
+    resets, `fail`, the handle arithmetic, the pure `Vec` helpers — and that
+    is deliberate, not unfinished.  Same for `vis: u64`: 307 functions, every
+    one that reads the environment.
+  * **nothing outside the two arena crates moved.**  `crates/con-ron-core`,
+    `crates/con-ron`, `crates/con-ron-dump`, `proof/`, `OVERVIEW.md` and
+    `README.md` are untouched, so the con-leche sync on master has nothing
+    to reconcile with this branch beyond DESIGN.md's §8.3/§8.4/§8.6
+    amendments and this section.
+  * **four commits**, in the order the work was done: the tier as a reader
+    parameter, `visible_below` out of the index, the pool, and the frozen-tier
+    bug the fixture sweep could not see (§7).
+  * **not done, and deliberately not started**: the Lean catch-up (§8 item 1),
+    which is a Lean task and belongs after the sync; the `shared_on` hoist
+    (item 2); and a quiet-machine re-run of §6's wall column, which every row
+    above carries a caveat for.
