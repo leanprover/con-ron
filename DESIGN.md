@@ -2354,6 +2354,20 @@ Theorem 1 ~40–50 k lines (con-leche's core tower was 34.5 k for the core
 alone, but a third of it was the tier regime we simplify away), (C) ~30 k
 lines of Rust, Theorem 2 open until P4a prices it.
 
+**Ruling on the pool's state split (coordinator, 2026-09-21, after task
+#97-P6-6):** design (A) — the persistent tier is a READER PARAMETER,
+`pers : &PersTier` beside `st : &mut AState`, threaded through every
+function that reads the store (≈1 155 signatures), exactly the shape `fe :
+&IFEnv` and `mode` already have; phase B's workers share one `PersTier` by
+reference and own their `AState` (scratch tier, memos, caches, pins view).
+The twin's monad becomes `ReaderT PersTier (StateT AState (Except
+CheckError))` — the Lean catch-up carries it; the refinement treats the
+reader exactly as it treats `fe`.  `visible_below`'s scalar is split out of
+the index so a worker copies no environment.  Design (B), a process-global
+`OnceLock`, is rejected (a hidden channel in the verified core, and it does
+not extract).  The `Pers` enum / borrow-field designs are dead ends and are
+not to be retried.  Scheduled as P6-6b after P6-7 lands (same files).
+
 ### 8.7 Open questions (maintainer)
 
   * `LsIdx` (interned level lists) vs. a flat `Array LIdx` slice — P2a
