@@ -2684,7 +2684,11 @@ con-leche's CACHED tier keeps `defeqStepI`'s `.forallE`/`.lam` arms chained
 and the ruling before this one does not license a port-side batched defeq
 binder descent: it would be the arena's own algorithm with its own
 identification to prove.  By the maintainer's earlier ruling on
-`instantiate1`, the natural home is con-leche first; relayed.
+`instantiate1`, the natural home is con-leche first; relayed.  **Ruling
+(maintainer, 2026-09-21): do it here** — the batched defeq binder descent
+is licensed as a port-side lever, with its own identification lemma against
+the pure tier's chained arms owed by the bridge (P3); if it is impactful,
+con-leche may adopt it too.  Task #97-P6-14.
 
 ### 8.7 Open questions (maintainer)
 
