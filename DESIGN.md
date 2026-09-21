@@ -2675,6 +2675,17 @@ known levers (`ETables::find`, the per-declaration readback memo, the
 `BinderMeta` column, handle-vector copies) are natural and stay in the
 queue; anything beyond them is not.
 
+**Blocked lever, needs a ruling (from task #97-P6-12):** after the
+inference binder loops were batched, 24.3 M of the prefix's new nodes moved
+to `defeqStep`'s binder-congruence arms (`defeq_binders` 3.7 M → 28.0 M, at
+unchanged attempts — inference used to hash-cons those opens for defeq).
+con-leche's CACHED tier keeps `defeqStepI`'s `.forallE`/`.lam` arms chained
+(`Cached/CoreC.lean:1456-1623`), so there is no cached-tier clause to copy,
+and the ruling before this one does not license a port-side batched defeq
+binder descent: it would be the arena's own algorithm with its own
+identification to prove.  By the maintainer's earlier ruling on
+`instantiate1`, the natural home is con-leche first; relayed.
+
 ### 8.7 Open questions (maintainer)
 
   * `LsIdx` (interned level lists) vs. a flat `Array LIdx` slice — P2a
