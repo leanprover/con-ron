@@ -3562,23 +3562,538 @@ theorem ETables.getWith_push_spec (t : ETables)
           htr hn
     all_goals (exfalso; apply hnb; simp only [ENodeView.tagOf]; decide)
 
+/-! ### Inverting an append at a binder tag
+
+`get_push_inv` says what a node decoded from a grown tier was before it grew.
+Since task #97-P6-16 the binder tags go through `getBind` and the datum
+reader, so the same inversion is done once more there, and `getWith_push_inv`
+is the two halves put back together.  The datum handle the appended record
+names is the caller's `mi` — which is what `BMOK` pins down. -/
+
+theorem ENodeView.bmOf_of_isBind {v : ENodeView} (h : ETag.isBind v.tagOf = true) :
+    ∃ m, v.bmOf = some m := by
+  cases v
+  case lam _ _ m => exact ⟨m, rfl⟩
+  case forallE _ _ m => exact ⟨m, rfl⟩
+  all_goals (exfalso; revert h; simp only [ENodeView.tagOf]; decide)
+
+theorem ETables.getBind_push_of_not_isBind {t : ETables} {w : ENodeView} {d : UInt64}
+    {mi : BMIdx} {tr : UInt32} (hnb : ETag.isBind w.tagOf = false) (i : EIdx) :
+    (t.push w d mi tr).1.getBind i = t.getBind i := by
+  cases w
+  case lam _ _ _ =>
+    simp [ENodeView.tagOf, ETag.isBind, ETag.lam, ETag.forallE] at hnb
+  case forallE _ _ _ =>
+    simp [ENodeView.tagOf, ETag.isBind, ETag.lam, ETag.forallE] at hnb
+  all_goals rfl
+
+theorem ETables.getBind_push_inv {t : ETables} {w : ENodeView} {d : UInt64}
+    {mi : BMIdx} {tr : UInt32} {i : EIdx} {ty b : EIdx} {mj : BMIdx}
+    (h : (t.push w d mi tr).1.getBind i = some (ty, b, mj)) :
+    t.getBind i = some (ty, b, mj) ∨
+      (i.tag = w.tagOf ∧ i.idxNat = t.sizeOf w ∧ mj = mi ∧
+        ∀ m, w.bmOf = some m → w = eBindView i.tag ty b m) := by
+  cases w
+  case lam ty0 b0 m0 =>
+    simp only [ETables.getBind] at h ⊢
+    by_cases hc : (i.tag == ETag.lam) = true
+    · rw [if_pos hc] at h ⊢
+      rw [ETables.push_lam_lams, Tbl.node?_push_eq] at h
+      split at h
+      · rename_i hn
+        simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq] at h
+        obtain ⟨rfl, rfl, rfl⟩ := h
+        refine Or.inr ⟨by rw [eq_of_beq hc]; rfl, by rw [hn]; rfl, rfl, ?_⟩
+        intro m hm
+        simp only [ENodeView.bmOf, Option.some.injEq] at hm
+        subst hm
+        rw [eq_of_beq hc]
+        simp [eBindView, ETag.lam]
+      · exact Or.inl h
+    · rw [if_neg hc] at h ⊢
+      exact Or.inl h
+  case forallE ty0 b0 m0 =>
+    simp only [ETables.getBind] at h ⊢
+    by_cases hc : (i.tag == ETag.lam) = true
+    · rw [if_pos hc] at h ⊢
+      exact Or.inl h
+    · rw [if_neg hc] at h ⊢
+      by_cases hc2 : (i.tag == ETag.forallE) = true
+      · rw [if_pos hc2] at h ⊢
+        rw [ETables.push_forallE_foralls, Tbl.node?_push_eq] at h
+        split at h
+        · rename_i hn
+          simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq] at h
+          obtain ⟨rfl, rfl, rfl⟩ := h
+          refine Or.inr ⟨by rw [eq_of_beq hc2]; rfl, by rw [hn]; rfl, rfl, ?_⟩
+          intro m hm
+          simp only [ENodeView.bmOf, Option.some.injEq] at hm
+          subst hm
+          rw [eq_of_beq hc2]
+          simp [eBindView, ETag.lam, ETag.forallE]
+        · exact Or.inl h
+      · rw [if_neg hc2] at h; exact absurd h (by simp)
+  all_goals (left; rw [← h]; rfl)
+
+theorem ETables.getWith_push_inv {t : ETables}
+    {bm : BMIdx → Option ConLeche.BinderMeta} {w : ENodeView} {d : UInt64}
+    {mi : BMIdx} {tr : UInt32} {i : EIdx} {v : ENodeView}
+    (hmi : ENodeView.BMOK bm w mi)
+    (h : (t.push w d mi tr).1.getWith bm i = some v) :
+    t.getWith bm i = some v ∨ (i.tag = w.tagOf ∧ i.idxNat = t.sizeOf w ∧ v = w) := by
+  by_cases hb : ETag.isBind i.tag = true
+  · simp only [ETables.getWith, if_pos hb] at h ⊢
+    cases hg : (t.push w d mi tr).1.getBind i with
+    | none => rw [hg] at h; exact absurd h (by simp)
+    | some p =>
+      obtain ⟨ty, b, mj⟩ := p
+      rw [hg] at h
+      dsimp only at h
+      rcases ETables.getBind_push_inv hg with hold | ⟨h1, h2, h3, h4⟩
+      · rw [hold]; exact Or.inl h
+      · subst h3
+        obtain ⟨m0, hm0⟩ := ENodeView.bmOf_of_isBind (by rw [← h1]; exact hb)
+        rw [hmi m0 hm0] at h
+        simp only [Option.map_some, Option.some.injEq] at h
+        exact Or.inr ⟨h1, h2, by rw [← h]; exact (h4 m0 hm0).symm⟩
+  · simp only [ETables.getWith, if_neg hb] at h ⊢
+    exact ETables.get_push_inv h
+
+/-- The cons key a probe uses and the view it probes for agree exactly when
+the views do: the datum's handle is the datum, because `findBM` and `viewBM`
+are inverse on a well-formed store (task #97-P6-16). -/
+theorem EWFAt.consKeyEq_iff {st : EStore} {rk : EIdx → Nat} (h : EWFAt st rk)
+    {w u : ENodeView} {mi mj : BMIdx} (hmi : ENodeView.BMOK st.viewBM w mi)
+    (hmj : st.findBMOfView u = some mj) :
+    ETables.consKeyEq w mi u mj = true ↔ w = u := by
+  cases w
+  case lam ty b m =>
+    have hbm : st.viewBM mi = some m := hmi m rfl
+    cases u
+    case lam ty' b' m' =>
+      have hmj' : st.findBM m' = some mj := by
+        rw [← EStore.findBMOfView_eq_findBM st
+          (rfl : (ENodeView.lam ty' b' m').bmOf = some m')]
+        exact hmj
+      constructor
+      · intro hk
+        simp only [ETables.consKeyEq, Bool.and_eq_true, beq_iff_eq] at hk
+        obtain ⟨⟨rfl, rfl⟩, rfl⟩ := hk
+        have hvv := h.viewBM_of_findBM hmj'
+        rw [hbm] at hvv
+        rw [Option.some.inj hvv]
+      · intro he
+        simp only [ENodeView.lam.injEq] at he
+        obtain ⟨rfl, rfl, rfl⟩ := he
+        have hf := h.findBM_of_viewBM hbm
+        rw [hf] at hmj'
+        have hij : mi = mj := Option.some.inj hmj'
+        subst hij
+        simp [ETables.consKeyEq]
+    all_goals simp [ETables.consKeyEq]
+  case forallE ty b m =>
+    have hbm : st.viewBM mi = some m := hmi m rfl
+    cases u
+    case forallE ty' b' m' =>
+      have hmj' : st.findBM m' = some mj := by
+        rw [← EStore.findBMOfView_eq_findBM st
+          (rfl : (ENodeView.forallE ty' b' m').bmOf = some m')]
+        exact hmj
+      constructor
+      · intro hk
+        simp only [ETables.consKeyEq, Bool.and_eq_true, beq_iff_eq] at hk
+        obtain ⟨⟨rfl, rfl⟩, rfl⟩ := hk
+        have hvv := h.viewBM_of_findBM hmj'
+        rw [hbm] at hvv
+        rw [Option.some.inj hvv]
+      · intro he
+        simp only [ENodeView.forallE.injEq] at he
+        obtain ⟨rfl, rfl, rfl⟩ := he
+        have hf := h.findBM_of_viewBM hbm
+        rw [hf] at hmj'
+        have hij : mi = mj := Option.some.inj hmj'
+        subst hij
+        simp [ETables.consKeyEq]
+    all_goals simp [ETables.consKeyEq]
+  all_goals (cases u <;> simp [ETables.consKeyEq, and_assoc])
+
 theorem EStore.intern_view_spec {st : EStore} {w : ENodeView} (h : StoreWF st)
     (_hv : st.ViewOK w) (hcap : st.capOK w) :
     (st.intern w).1.view (st.intern w).2 = some w := by
   sorry
+theorem ETables.findBM_push (t : ETables) (w : ENodeView) (d : UInt64) (mi : BMIdx)
+    (tr : UInt32) (m : ConLeche.BinderMeta) :
+    (t.push w d mi tr).1.findBM m = t.findBM m := by cases w <;> rfl
 
+theorem ETables.getBMDer_push (t : ETables) (w : ENodeView) (d : UInt64) (mi : BMIdx)
+    (tr : UInt32) (i : BMIdx) :
+    (t.push w d mi tr).1.getBMDer i = t.getBMDer i := by cases w <;> rfl
+
+theorem ETables.bmSize_push (t : ETables) (w : ENodeView) (d : UInt64) (mi : BMIdx)
+    (tr : UInt32) : (t.push w d mi tr).1.bmSize = t.bmSize := by cases w <;> rfl
+
+theorem ETables.isBind_of_getBind {t : ETables} {i : EIdx} {p : EIdx × EIdx × BMIdx}
+    (h : t.getBind i = some p) : ETag.isBind i.tag = true := by
+  simp only [ETables.getBind] at h
+  split at h
+  · rename_i hc; simp [ETag.isBind, hc]
+  · split at h
+    · rename_i hc; simp [ETag.isBind, hc]
+    · exact absurd h (by simp)
+
+theorem ETables.find?_bmOf_none {t : ETables} {v : ENodeView} (h : v.bmOf = none)
+    (mi mj : BMIdx) : t.find? v mi = t.find? v mj := by
+  cases v
+  case lam _ _ _ => simp [ENodeView.bmOf] at h
+  case forallE _ _ _ => simp [ENodeView.bmOf] at h
+  all_goals rfl
+
+/-- con-leche: none — arena infrastructure; appending to the scratch tier
+keeps `StoreWF`.  Precedent: con-leche's retired
+`Setlec/Kernel/IExpr.lean:464 intern` (at 94a1cf78). -/
 theorem EStore.wf_push_scr {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView}
     {tb : ETables} {inew : EIdx}
     (h : EWFAt st rk) (hv : st.ViewOK w)
     (hon : st.scratchOn = true) (hon' : st'.scratchOn = true)
     (hlss : st'.lss = st.lss) (hpers : st'.pers = st.pers)
-    {mi : BMIdx}
+    {mi : BMIdx} (hmi : ENodeView.BMOK st.viewBM w mi)
     (hpush : st.scr.push w (st.derOfView w) mi Idx.tierS = (tb, inew))
     (hscr : st'.scr = tb)
     (hcap : st.scr.sizeOf w < Idx.idxCap)
     (hfp : st.pers.find? w mi = none) (hfs : st.scr.find? w mi = none) :
     StoreWF st' := by
-  sorry
+  have htr : (Idx.tierS : UInt32).toNat < 2 := by decide
+  have htb : (st.scr.push w (st.derOfView w) mi Idx.tierS).1 = tb := by rw [hpush]
+  have hid : (st.scr.push w (st.derOfView w) mi Idx.tierS).2 = inew := by rw [hpush]
+  -- the datum store is untouched, so `viewBM` and `findBM` do not move
+  have hvbm : ∀ j : BMIdx, st'.viewBM j = st.viewBM j := by
+    intro j
+    by_cases hjp : j.isPersistent = true
+    · rw [EStore.viewBM_pers hjp, EStore.viewBM_pers hjp, hpers]
+    · have hjp' : j.isPersistent = false := by simpa using hjp
+      rw [EStore.viewBM_scr hjp' hon', EStore.viewBM_scr hjp' hon, hscr, ← htb,
+        ETables.getBM_push]
+  have hfbm : ∀ m : ConLeche.BinderMeta, st'.findBM m = st.findBM m := by
+    intro m
+    simp only [EStore.findBM, EStore.persFindBM, hpers, hscr, hon, hon', ← htb,
+      ETables.findBM_push]
+  have hfov : ∀ v : ENodeView, st'.findBMOfView v = st.findBMOfView v := by
+    intro v
+    cases hb : v.bmOf with
+    | none =>
+      rw [EStore.findBMOfView_eq_zero _ hb, EStore.findBMOfView_eq_zero _ hb]
+    | some m =>
+      rw [EStore.findBMOfView_eq_findBM _ hb, EStore.findBMOfView_eq_findBM _ hb,
+        hfbm]
+  -- `w`'s own probe, at the handle the caller interned its datum at
+  have hfovw : ∃ mw, st.findBMOfView w = some mw := by
+    cases hb : w.bmOf with
+    | none => exact ⟨_, EStore.findBMOfView_eq_zero _ hb⟩
+    | some m =>
+      exact ⟨mi, by rw [EStore.findBMOfView_eq_findBM _ hb,
+        h.findBM_of_viewBM (hmi m hb)]⟩
+  have hprobe : ∀ (t : ETables) (mw : BMIdx), st.findBMOfView w = some mw →
+      t.find? w mw = t.find? w mi := by
+    intro t mw hw
+    cases hb : w.bmOf with
+    | none => exact ETables.find?_bmOf_none hb _ _
+    | some m =>
+      rw [EStore.findBMOfView_eq_findBM _ hb, h.findBM_of_viewBM (hmi m hb)] at hw
+      rw [Option.some.inj hw]
+  -- the appended column, read back
+  have hgetnew : tb.getWith st.viewBM inew = some w := by
+    rw [← htb, ← hid]
+    exact (ETables.getWith_push_spec st.scr st.viewBM w _ mi Idx.tierS hmi htr hcap).1
+  have hnp : inew.isPersistent = false := by
+    show (inew.tier == 0) = false
+    rw [← hid,
+      (ETables.getWith_push_spec st.scr st.viewBM w _ mi Idx.tierS hmi htr hcap).2]
+    decide
+  have htag : inew.tag = w.tagOf := by rw [← hid]; exact ETables.push_tag htr hcap
+  have hix : inew.idxNat = st.scr.sizeOf w := by
+    rw [← hid]; exact ETables.push_idxNat htr hcap
+  have hmonotb : ∀ i u, st.scr.getWith st.viewBM i = some u →
+      tb.getWith st.viewBM i = some u := by
+    intro i u hi; rw [← htb]; exact ETables.getWith_push_mono _ _ _ _ _ _ hi
+  have hinvtb : ∀ i u, tb.getWith st.viewBM i = some u →
+      st.scr.getWith st.viewBM i = some u ∨
+        (i.tag = w.tagOf ∧ i.idxNat = st.scr.sizeOf w ∧ u = w) := by
+    intro i u hi; rw [← htb] at hi; exact ETables.getWith_push_inv hmi hi
+  have hfindtb : ∀ u mj, st.findBMOfView u = some mj →
+      tb.find? u mj = if w = u then some inew else st.scr.find? u mj := by
+    intro u mj hmj
+    rw [← htb, ← hid, ETables.find?_push_gen]
+    by_cases hk : ETables.consKeyEq w mi u mj = true
+    · rw [if_pos hk, if_pos ((h.consKeyEq_iff hmi hmj).mp hk)]
+    · rw [if_neg hk, if_neg (fun he => hk ((h.consKeyEq_iff hmi hmj).mpr he))]
+  have hdertb : ∀ i, st.scr.Decodes i → tb.derAt i = st.scr.derAt i := by
+    intro i hi; rw [← htb]; exact ETables.derAt_push_of_decodes h.sizedS hi
+  have hdernew : tb.derAt inew = st.derOfView w := by
+    rw [← htb, ← hid]; exact ETables.derAt_push_new h.sizedS htr hcap
+  have hsizedtb : tb.Sized := by rw [← htb]; exact ETables.Sized_push h.sizedS
+  have hcounttb : tb.count = st.scr.count + 1 := by rw [← htb]; exact ETables.count_push
+  have hcaptb : ∀ u, tb.sizeOf u ≤ Idx.idxCap := by
+    intro u
+    rw [← htb]
+    rcases ETables.sizeOf_push_cases (t := st.scr) (w := w) (v := u)
+      (d := st.derOfView w) (mi := mi) (tr := Idx.tierS) with h1 | ⟨h1, _⟩
+    · rw [h1]; exact h.capS u
+    · rw [h1]; omega
+  -- the two tiers, as `view` sees them
+  have hviewP : ∀ i, i.isPersistent = true → st'.view i = st.view i := by
+    intro i hp
+    rw [EStore.view_pers hp, EStore.view_pers hp, hpers]
+    exact ETables.getWith_congr (fun ty b mj _ => hvbm mj)
+  have hviewS : ∀ i, i.isPersistent = false → st'.view i = tb.getWith st.viewBM i := by
+    intro i hp
+    rw [EStore.view_scr hp hon', hscr]
+    exact ETables.getWith_congr (fun ty b mj _ => hvbm mj)
+  have hviewSold : ∀ i, i.isPersistent = false →
+      st.view i = st.scr.getWith st.viewBM i := fun i hp => EStore.view_scr hp hon
+  have hnew_none : st.view inew = none := by
+    rw [hviewSold inew hnp]; exact ETables.getWith_eq_none_of_size htag hix
+  have hmono : ∀ i u, st.view i = some u → st'.view i = some u := by
+    intro i u hu
+    by_cases hp : i.isPersistent = true
+    · rw [hviewP i hp]; exact hu
+    · have hp' : i.isPersistent = false := by simpa using hp
+      rw [hviewS i hp']
+      exact hmonotb i u (by rwa [hviewSold i hp'] at hu)
+  have hmoneS : ∀ i, (st.view i).isSome = true → (st'.view i).isSome = true := by
+    intro i hi
+    obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hi
+    rw [hmono i u hu]; rfl
+  have hinv : ∀ i u, st'.view i = some u → st.view i = some u ∨ (i = inew ∧ u = w) := by
+    intro i u hu
+    by_cases hp : i.isPersistent = true
+    · exact Or.inl (by rwa [hviewP i hp] at hu)
+    · have hp' : i.isPersistent = false := by simpa using hp
+      rw [hviewS i hp'] at hu
+      rcases hinvtb i u hu with h1 | ⟨h2, h3, h4⟩
+      · exact Or.inl (by rw [hviewSold i hp']; exact h1)
+      · exact Or.inr ⟨Idx.eq_of_idxNat (h2.trans htag.symm)
+          ((Idx.tier_eq_tierS hp').trans (Idx.tier_eq_tierS hnp).symm)
+          (h3.trans hix.symm), h4⟩
+  -- counts
+  have hpc : st'.persCount = st.persCount := by simp only [EStore.persCount, hpers]
+  have hnc : st'.nodeCount = st.nodeCount + 1 := by
+    simp only [EStore.nodeCount, EStore.persCount, EStore.scrCount, hpers, hscr,
+      hcounttb]
+    omega
+  -- derived words
+  have hder : ∀ i, (st.view i).isSome = true → st'.derived i = st.derived i := by
+    intro i hi
+    by_cases hp : i.isPersistent = true
+    · rw [EStore.derived_pers hp, EStore.derived_pers hp, hpers]
+    · have hp' : i.isPersistent = false := by simpa using hp
+      obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hi
+      rw [EStore.derived_scr hp' hon', EStore.derived_scr hp' hon, hscr]
+      exact hdertb i (ETables.Decodes_of_getWith (by rwa [hviewSold i hp'] at hu))
+  have hns : st'.ns = st.ns := by simp only [EStore.ns, hlss]
+  have hls : st'.ls = st.ls := by simp only [EStore.ls, hlss]
+  have hdov : ∀ u : ENodeView, (∀ c ∈ u.echildren, (st.view c).isSome = true) →
+      st'.derOfView u = st.derOfView u := by
+    intro u hu
+    refine EStore.derOfView_congr (fun c hc => hder c (hu c hc)) ?_ ?_ ?_ <;>
+      intro c _ <;>
+      simp only [EStore.nder, EStore.lder, EStore.lsder, hns, hls, hlss]
+  -- the rank
+  have hrkold : ∀ c, (st.view c).isSome = true →
+      (if (st.view c).isNone = true then st.nodeCount else rk c) = rk c := by
+    intro c hc
+    obtain ⟨u, hu⟩ := Option.isSome_iff_exists.mp hc
+    rw [hu]; rfl
+  have hrknew : (if (st.view inew).isNone = true then st.nodeCount else rk inew)
+      = st.nodeCount := by rw [hnew_none]; rfl
+  have hrkle : ∀ c, (if (st.view c).isNone = true then st.nodeCount else rk c)
+      ≤ st.nodeCount := by
+    intro c
+    by_cases hc : (st.view c).isSome = true
+    · rw [hrkold c hc]; exact Nat.le_of_lt (h.rank_lt hc)
+    · have hh : st.view c = none := by
+        cases hv' : st.view c with
+        | none => rfl
+        | some u => rw [hv'] at hc; exact absurd rfl hc
+      rw [hh]; exact Nat.le_refl _
+  refine ⟨fun c => if (st.view c).isNone = true then st.nodeCount else rk c,
+    { lss := ?lss, childOK := ?childOK, nchildOK := ?nchildOK,
+      lchildOK := ?lchildOK, lschildOK := ?lschildOK,
+      rankP := ?rankP, rankS := ?rankS, bmChildOK := ?bmChildOK,
+      consP := ?consP, consS := ?consS, fresh := ?fresh,
+      bmConsP := ?bmConsP, bmConsS := ?bmConsS, bmFresh := ?bmFresh,
+      derExact := ?derExact, bmDerExact := ?bmDerExact, sizedP := ?sizedP,
+      sizedS := ?sizedS, capP := ?capP, capS := ?capS, bmCapP := ?bmCapP,
+      bmCapS := ?bmCapS, scrOff := ?scrOff,
+      sync := by rw [hon', hlss, ← h.sync, hon] }⟩
+  case lss => rw [hlss]; exact h.lss
+  case childOK =>
+    intro i u hi c hc
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · have hch := h.childOK i u hi' c hc
+      refine ⟨hmoneS c hch.1, ?_, hch.2.2⟩
+      rw [hrkold c hch.1, hrkold i (by rw [hi']; rfl)]
+      exact hch.2.1
+    · have hcs : (st.view c).isSome = true := hv.expr c hc
+      refine ⟨hmoneS c hcs, ?_, ?_⟩
+      · rw [hrkold c hcs, hrknew]; exact h.rank_lt hcs
+      · intro hpp; exact absurd (hpp.symm.trans hnp) (by simp)
+  case nchildOK =>
+    intro i u hi c hc
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · rw [hns]; exact h.nchildOK i u hi' c hc
+    · refine ⟨by rw [hns]; exact hv.nm c hc, ?_⟩
+      intro hpp; exact absurd (hpp.symm.trans hnp) (by simp)
+  case lchildOK =>
+    intro i u hi c hc
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · rw [hls]; exact h.lchildOK i u hi' c hc
+    · refine ⟨by rw [hls]; exact hv.lvl c hc, ?_⟩
+      intro hpp; exact absurd (hpp.symm.trans hnp) (by simp)
+  case lschildOK =>
+    intro i u hi c hc
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · rw [hlss]; exact h.lschildOK i u hi' c hc
+    · refine ⟨by rw [hlss]; exact hv.lst c hc, ?_⟩
+      intro hpp; exact absurd (hpp.symm.trans hnp) (by simp)
+  case rankP =>
+    intro i hp hi
+    have hi' : (st.view i).isSome = true := by rw [← hviewP i hp]; exact hi
+    rw [hrkold i hi', hpc]
+    exact h.rankP i hp hi'
+  case rankS =>
+    intro i _ _
+    have := hrkle i
+    omega
+  case bmChildOK =>
+    intro i ty b mj hvb
+    by_cases hp : i.isPersistent = true
+    · have hvb' : st.viewBindI i = some (ty, b, mj) := by
+        rw [EStore.viewBindI_pers hp, ← hpers, ← EStore.viewBindI_pers hp]; exact hvb
+      have hch := h.bmChildOK i ty b mj hvb'
+      exact ⟨by rw [hvbm mj]; exact hch.1, hch.2⟩
+    · have hp' : i.isPersistent = false := by simpa using hp
+      rw [EStore.viewBindI_scr hp' hon', hscr, ← htb] at hvb
+      rcases ETables.getBind_push_inv hvb with hold | ⟨h1, _, h3, _⟩
+      · have hvb' : st.viewBindI i = some (ty, b, mj) := by
+          rw [EStore.viewBindI_scr hp' hon]; exact hold
+        have hch := h.bmChildOK i ty b mj hvb'
+        exact ⟨by rw [hvbm mj]; exact hch.1, hch.2⟩
+      · subst h3
+        obtain ⟨m0, hm0⟩ := ENodeView.bmOf_of_isBind
+          (by rw [← h1]; exact ETables.isBind_of_getBind hvb)
+        refine ⟨by rw [hvbm mj, hmi m0 hm0]; rfl, ?_⟩
+        intro hpp; exact absurd (hpp.symm.trans hp') (by simp)
+  case consP =>
+    intro u i
+    have hpf : st'.persFind? u = st.persFind? u := by
+      simp only [EStore.persFind?, hfov, hpers]
+    rw [hpf]
+    constructor
+    · intro hf
+      obtain ⟨h1, h2⟩ := (h.consP u i).mp hf
+      exact ⟨hmono i u h1, h2⟩
+    · rintro ⟨h1, h2⟩
+      exact (h.consP u i).mpr ⟨by rwa [hviewP i h2] at h1, h2⟩
+  case consS =>
+    intro u i
+    cases hmj : st.findBMOfView u with
+    | none =>
+      have hsf : st'.scrFind? u = none := by
+        simp only [EStore.scrFind?, hfov, hmj]
+      have hsfold : st.scrFind? u = none := by
+        simp only [EStore.scrFind?, hmj]
+      rw [hsf]
+      refine ⟨fun hf => absurd hf (by simp), ?_⟩
+      rintro ⟨h1, h2⟩
+      exfalso
+      rcases hinv i u h1 with h3 | ⟨rfl, rfl⟩
+      · rw [(h.consS u i).mpr ⟨h3, h2⟩] at hsfold; exact absurd hsfold (by simp)
+      · obtain ⟨mw, hw⟩ := hfovw; rw [hw] at hmj; exact absurd hmj (by simp)
+    | some mj =>
+      have hsf : st'.scrFind? u = tb.find? u mj := by
+        simp only [EStore.scrFind?, hfov, hmj, hscr]
+      have hsfold : st.scrFind? u = st.scr.find? u mj := by
+        simp only [EStore.scrFind?, hmj]
+      rw [hsf, hfindtb u mj hmj]
+      constructor
+      · intro hf
+        by_cases hw : w = u
+        · rw [if_pos hw] at hf
+          have hii : inew = i := Option.some.inj hf
+          subst hii; subst hw
+          exact ⟨by rw [hviewS inew hnp]; exact hgetnew, hnp⟩
+        · rw [if_neg hw] at hf
+          have hf' : st.scrFind? u = some i := by rw [hsfold]; exact hf
+          obtain ⟨h1, h2⟩ := (h.consS u i).mp hf'
+          exact ⟨hmono i u h1, h2⟩
+      · rintro ⟨h1, h2⟩
+        rcases hinv i u h1 with h3 | ⟨rfl, rfl⟩
+        · have hf := (h.consS u i).mpr ⟨h3, h2⟩
+          rw [hsfold] at hf
+          have hw : w ≠ u := by
+            rintro rfl
+            rw [hprobe st.scr mj hmj, hfs] at hf
+            exact absurd hf (by simp)
+          rw [if_neg hw]; exact hf
+        · rw [if_pos rfl]
+  case fresh =>
+    intro u i hf
+    cases hmj : st.findBMOfView u with
+    | none => simp only [EStore.persFind?, hfov, hmj]
+    | some mj =>
+      have hsf : st'.scrFind? u = tb.find? u mj := by
+        simp only [EStore.scrFind?, hfov, hmj, hscr]
+      rw [hsf, hfindtb u mj hmj] at hf
+      have hpf : st'.persFind? u = st.pers.find? u mj := by
+        simp only [EStore.persFind?, hfov, hmj, hpers]
+      rw [hpf]
+      by_cases hw : w = u
+      · subst hw
+        rw [hprobe st.pers mj hmj]
+        exact hfp
+      · rw [if_neg hw] at hf
+        have hf' : st.scrFind? u = some i := by
+          simp only [EStore.scrFind?, hmj]; exact hf
+        have hfr := h.fresh u i hf'
+        simp only [EStore.persFind?, hmj] at hfr
+        exact hfr
+  case bmConsP =>
+    intro m j
+    rw [hpers, hvbm j]
+    exact h.bmConsP m j
+  case bmConsS =>
+    intro m j
+    rw [hscr, ← htb, ETables.findBM_push, hvbm j]
+    exact h.bmConsS m j
+  case bmFresh =>
+    intro m j hf
+    rw [hscr, ← htb, ETables.findBM_push] at hf
+    rw [hpers]
+    exact h.bmFresh m j hf
+  case derExact =>
+    intro i u hi
+    rcases hinv i u hi with hi' | ⟨rfl, rfl⟩
+    · rw [hdov u (fun c hc => (h.childOK i u hi' c hc).1), hder i (by rw [hi']; rfl)]
+      exact h.derExact i u hi'
+    · rw [hdov u hv.expr, EStore.derived_scr hnp hon', hscr, hdernew]
+  case bmDerExact =>
+    intro j m hj
+    rw [hvbm j] at hj
+    have hbd : st'.bmDer j = st.bmDer j := by
+      by_cases hjp : j.isPersistent = true
+      · simp only [EStore.bmDer, EStore.persGetBMDer, hjp, if_true, hpers]
+      · have hjp' : j.isPersistent = false := by simpa using hjp
+        simp only [EStore.bmDer, EStore.persGetBMDer, hjp', hon, hon',
+          Bool.false_eq_true, if_false, if_true, hscr, ← htb, ETables.getBMDer_push]
+    rw [hbd]
+    exact h.bmDerExact j m hj
+  case sizedP => rw [hpers]; exact h.sizedP
+  case sizedS => rw [hscr]; exact hsizedtb
+  case capP => rw [hpers]; exact h.capP
+  case capS => rw [hscr]; exact hcaptb
+  case bmCapP => rw [hpers]; exact h.bmCapP
+  case bmCapS => rw [hscr, ← htb, ETables.bmSize_push]; exact h.bmCapS
+  case scrOff => intro hoff; rw [hon'] at hoff; exact absurd hoff (by simp)
 
 def NNodeView.tagOf : NNodeView → UInt32
   | .anonymous => NTag.anonymous
