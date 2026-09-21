@@ -34346,7 +34346,7 @@ filter, and the third is a different checker.**
 Task #97-P6-4b landed `ron::HashMap2` — the open-addressed, epoch-stamped,
 flat-slot map the arena's twenty-two tables now use — marked **PROOF OWED**,
 and priced the owed proof in its §4.  This task writes it:
-`proof/ConRon/Refine/HashMap2.lean` (**3 006 lines**) and
+`proof/ConRon/Refine/HashMap2.lean` (**3 009 lines**) and
 `proof/ConRon/Refine/HashMap2WF.lean` (**211**), against `ron::hashmap`'s
 1 823 + 772.  **The tier is `sorry`-free.**  Nothing in `crates/` is touched, `Refine/HashMap*.lean` is not
 edited, and the two files are new leaves of `ConRon.lean`'s import graph.
@@ -34379,7 +34379,7 @@ lookupK ⟦table⟧ k` is the same equation over a different `⟦·⟧`.
 | cyclic index arithmetic (new) | — | 55 (`idx`, `cyc`, `idx_cases`, `idx_inj`, `idx_surj`, `cap_div_four`) |
 
 **Against the estimate.**  Task #97-P6-4b priced 1 900–2 300 lines; the
-delivered tier is **3 217**, so the estimate is low by about 40 %.  Three
+delivered tier is **3 220**, so the estimate is low by about 40 %.  Three
 lines of its table account for nearly all of the gap and they go both ways:
 `remove_refines` was priced at ~350 and came in at ~500 (the loop invariant
 has six clauses, not three, and the `fuel` clause was not foreseen at all);
