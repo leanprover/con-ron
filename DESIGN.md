@@ -30402,3 +30402,256 @@ Both instrumented builds were verified against their uninstrumented twins on
 the verdict: `accepted 57 977` / `accepted 155 288` for the arena and
 `Checked 59 433` / `Checked 164 049` for nanoda, and the arena's instrumented
 persistent-tier node count (`Init` 6 508 719) is task #97-P6-2's to the node.
+
+### Task #97-P6-8b — where a node touch spends 110 instructions (2026-09-21, Opus under Fable)
+
+Phase P6 item 8b of §8.6, the follow-up to task #97-P6-8a's verdict: *the
+arena visits the same DAG as nanoda, builds two and a half times as many
+nodes for the same price each, and pays three times as much per node it looks
+at.*  That task named the 110-instructions-per-touch number and said the
+counts could not say where it goes; this one opens the two walks with `perf`
+and with the disassembly and attributes it.  It is a MEASUREMENT task under
+§8's rule: **no lever was taken and no code changed** — `crates/` is
+byte-identical to the `arena` tip `745f23b8`, the only file edited was the
+workspace `Cargo.toml`'s `[profile.release]` (for §6's build-setting
+experiment), and that was restored.
+
+**Scope.**  The brief had two questions.  The maintainer paused the arena
+branch part way through (the con-leche sync on master), so only the first —
+*where does a node touch spend its instructions* — was answered.  The second,
+*who interns the 262 M names of the prefix*, was **not started** and is still
+open; §7 says what it would need.
+
+Benchmark: **`Init` whole**, not the prefix.  P6-8a §6 measured 110
+instructions per touch on the prefix and 108 on `Init`, and 275 against 316
+per construction attempt, so the mechanism is the same on both and `Init`
+costs a fifth of the prefix to iterate on.  `--verified --jobs=1
+--progress=1000000` under `ulimit -v 8388608`; nanoda `"num_threads": 0`.
+The scripts, the profiles, the disassembly and the four binaries:
+`_tmp/t97-p6-8b/` (its `README.md` is the recipe).
+
+#### 1. The instrument, and what it can and cannot say
+
+Both binaries were rebuilt with `debug = 1` added to their release profiles —
+**line tables only, no codegen change**: the arena's run reproduces the clean
+binary's `Init` count to five digits (413 818 000 000 sampled against
+413 826 565 797 counted) and nanoda keeps its own `lto = true`.  Then
+`perf record -e instructions:u -c 2000000` (period sampling, so ~207 k
+samples on the arena and ~115 k on nanoda — enough for `perf annotate`).
+
+**And then the annotation had to be thrown away.**  This is an AMD Zen 5
+machine with no precise instruction event, so the sample IP skids: one
+`movups` immediately after a GOT-indirect call collects **48.6 % of
+`instantiate1_go`'s samples**, which is the whole callee's cost landing on
+the caller's next instruction.  Per-instruction attribution inside a symbol
+is therefore not usable here.  What IS usable, and what every number below
+comes from, is:
+
+  * **per-SYMBOL totals** from the profile — skid crosses a symbol boundary
+    only within a few instructions, and these symbols are tens to hundreds of
+    instructions long; combined with P6-8a's exact call counts they give an
+    exact cost per elementary operation;
+  * **per-PATH STATIC counts** off `objdump -d`, which have no skid at all
+    and say what one visit executes, instruction by instruction.
+
+#### 2. The profile, bucketed by elementary operation (`Init`)
+
+Every symbol assigned to one bucket (`_tmp/t97-p6-8b/fine.py`, P6-8a's
+`buckets.py` split finer).  nanoda has no read row and almost no probe row
+because `read_expr` and its memo probes are inlined into the walks; both are
+inside its walk bodies.
+
+| `Init` | arena | | nanoda | |
+|---|---:|---:|---:|---:|
+| the walk bodies | **171.61 G** | 41.47 % | **74.94 G** | 32.51 % |
+| cons — the tables (probe, push, grow) | 98.32 G | 23.76 % | 24.41 G | 10.59 % |
+| the memo insert, clear and grow | 27.27 G | 6.59 % | 18.72 G | 8.12 % |
+| cons — `intern`, `derOfView`, `internRebuilt` | 25.16 G | 6.08 % | 65.42 G | 28.38 % |
+| **the derived-word read** (`ETables::der_at`) | **20.24 G** | 4.89 % | — | inlined |
+| the allocator | 19.16 G | 4.63 % | 17.13 G | 7.43 % |
+| **the decode** (`ETables::get`, `monad::view`) | **19.12 G** | 4.62 % | — | inlined |
+| the name store (`str_copy_from`, `mk_str`, `anonymous`, the hashes) | 13.28 G | 3.21 % | — | — |
+| the parse | 11.63 G | 2.81 % | 23.47 G | 10.18 % |
+| the memo probe | 5.26 G | 1.27 % | 0.39 G | 0.17 % |
+| other | 1.16 G | 0.28 % | 5.81 G | 2.52 % |
+| **total** | **413.83 G** | | **230.52 G** | |
+
+#### 3. Per node touched
+
+P6-8a's counters for the same input: 2 058 530 356 arena touches against
+nanoda's 2 063 643 403, the arena's being 1 011 513 899 decodes and
+1 047 016 457 derived-word reads.
+
+| instructions per node touched, `Init` | arena | nanoda |
+|---|---:|---:|
+| the read itself | **18.9** | inside the walk |
+| — `ETables::der_at`, per derived-word read | 19.3 | — |
+| — `ETables::get`, per decode | 18.0 | — |
+| the walk bodies | **83.4** | **36.3** |
+| **walk + read** | **102.5** | **36.3** |
+
+and per walk, the body only — **add 18.9 to every arena row** for the read it
+calls out to:
+
+| the walk | arena | per touch | nanoda | per touch |
+|---|---:|---:|---:|---:|
+| `instantiate1_go` | 52.93 G / 1 168.57 M | **45.3** | `inst_aux` 20.10 G / 902.95 M | **22.3** |
+| `abstract1_go` | 7.90 G / 129.23 M | **61.2** | `abstr_aux(+_levels)` 1.59 G / 43.79 M | **36.3** |
+| `inst_lp_go` | 3.10 G / 81.41 M | **38.1** | `subst_aux` 5.99 G / 165.04 M | **36.3** |
+
+**The Bool walks the brief named are cold and cannot carry the comparison**:
+`wscoped_b_go` is 0.01 % of `Init` and `bvar_bound_go` does not appear in the
+profile at all — P6-7's counters agree, `bvarBound` and `fvarRange` have zero
+memo traffic over the whole prefix.  The second walk of the table is
+`abstract1_go`, which is the arena's other substituting walk and nanoda's
+`abstr_aux`'s twin.
+
+#### 4. One visit, instruction by instruction (the static counts)
+
+**The arena's `instantiate1_go`.**  Frame: `sub $0x88,%rsp` plus six
+callee-saved pushes plus the return address = **192 bytes per recursion
+level**.
+
+| step | instr |
+|---|---:|
+| prologue + epilogue (6 `push`, `sub`, 6 `pop`, `ret`) | 17 |
+| the fuel check | 2 |
+| spilling five of the six arguments | 5 |
+| the derived-word read: the tier test inlined, `add`/`mov`, a GOT-indirect `call` | 7–9 |
+| — `ETables::der_at`'s body | 16 (8 of them the tag jump table, 3 the bounds check, 1 the load) |
+| `bvarOfData` + the two cutoff comparisons | 8 |
+| **the downward cutoff ends here** (37 % of visits) | **≈ 52** |
+| the decode: the tier test AGAIN, `lea`/`mov`, a GOT-indirect `call` | 7–9 |
+| — `ETables::get`'s body, `app` arm | 27 (11 dispatch, 3 `push`, 5 tail) |
+| the `Option` → `Result` test | 2 |
+| copying the 32-byte `ENodeView` out of the sret slot into a local | 5 (4 × `movups`) |
+| the constructor jump table — a SECOND dispatch on the same tag | 5 |
+| the `app` arm, memo HIT: key build, the `call`, `test`/`jne` | 11 |
+| — `inst1_get`'s body (`mixHash` 16, home index 2, the probe run 7–15) | 8–44 |
+| **the `app` arm, memo MISS and rebuild** | **48** |
+| the drop-flag tail, before every return | 2–7 (+ a `drop_glue::<ENodeView>` call) |
+
+**nanoda's `inst_aux`.**  Frame: `sub $0x28,%rsp` plus six pushes plus the
+return address = **96 bytes per level**, exactly half.
+
+| step | instr |
+|---|---:|
+| prologue + epilogue | 16 |
+| the dag-marker test + the bounds check | 7 |
+| `read_expr` INLINED + the tag jump table | 8 |
+| the `app` cutoff test | 4 |
+| **the cutoff ends here** | **≈ 35** |
+| the `FxHashMap` probe, inlined (SSE2, sixteen slots per compare) | ≈ 29 |
+| a second inlined `read_expr`, all fields at once | ≈ 15 |
+| **the `app` arm, rebuild** | **24** |
+| the memo insert's call setup | 4 |
+
+#### 5. The three largest differences
+
+  1. **The read is a call, and nanoda's is eight instructions of inline
+     code.**  Every `instantiate1_go` visit leaves the function twice — once
+     for the derived word, once for the decode — and each exit costs the tier
+     test inlined in the caller (the `isPersistent` bit plus `scratchOn`),
+     the argument setup, a GOT-indirect `call`, a ten-way tag jump table
+     inside the callee, a bounds check, the load, and the return: **16 + 27
+     instructions of callee plus 14–18 of caller, against nanoda's 8**, whose
+     single inlined `read_expr` serves the cutoff and the constructor
+     dispatch at once.  Measured, that is 19.3 per derived-word read and 18.0
+     per decode, 18.9 of the arena's 102.5 per touch; the caller-side half is
+     inside the walk bodies.  **The arena's win on the cutoff — a derived
+     word off a column instead of nanoda's 32-byte record copy — is real, and
+     it is spent twice over on making the read a function call.**
+  2. **`Result<EIdx, CheckError>` is a 24-byte sret return, and it is paid at
+     every call.**  The `app` rebuild arm is **48 instructions against
+     nanoda's 24**, and the difference is exactly the monadic plumbing: five
+     `call`s each followed by `cmpl $0xffffffff,(%rbx)` / `jne` to test the
+     discriminant and a `mov 0x8(%rbx),%eax` to read the handle back out of
+     the return buffer, where nanoda's recursion returns an `ExprPtr` in
+     `%eax` and tests nothing.  Add the 32-byte `ENodeView` copied out of
+     `view`'s sret slot into a local (5 instructions) and the second jump
+     table that re-dispatches on the tag `ETables::get` had just dispatched
+     on (5 more), and the arena has spent 58 instructions of a visit moving a
+     value nanoda keeps in registers.
+  3. **Nothing is inlined, and the calls are indirect through the GOT.**  The
+     shipped binary has **26 746 call sites of the form `call *disp(%rip)`
+     against 12 126 direct `call`s**; nanoda's has 2 698 against 9 031.  The
+     targets are ordinary local functions — the relocation at the slot
+     `instantiate1_go`'s own recursion calls through is
+     `R_X86_64_RELATIVE → 0x1ea180`, `instantiate1_go` itself, and the slots
+     for `view`, `derivedE`, `inst1Get` and `internE` resolve to
+     `ETables::get`, `ETables::der_at`, `monad::inst1_get` and
+     `EStore::intern` — so each is a load plus an indirect branch where a
+     `call rel32` would do.  The cause is the release profile, not the code:
+     §6.
+
+And a fourth, smaller but structural: **`ENodeView` is not a POD.**  Its
+`lam`/`forallE` arms carry a `BinderMeta`, whose `PropWhen` holds `Name`s and
+`Arc`s, so `ETables::get` runs `binder_meta_dup` (an `Arc` clone) on every
+decode of a binder node and every return runs a drop-flag check — and
+sometimes `drop_glue::<ENodeView>` or `drop_glue::<BinderMeta>`.
+`binder_meta_dup` + `binder_meta_hash` + the two drop glues +
+`Arc<NameNode>::drop_slow` are **2.12 % of `Init`, 8.77 G**.  nanoda's binder
+carries a `NamePtr` (a `u32` handle) and a one-byte `BinderStyle`.
+
+#### 6. The build settings, and what they are worth
+
+The workspace `[profile.release]` carries **only** `overflow-checks = true`
+(task #7's reason, which stands), so the shipped binary is `opt-level = 3`,
+`lto = false`, `codegen-units = 16`, `panic = "unwind"`, `debug = false`.
+nanoda's carries `lto = true`.  Three builds of the SAME source, one
+`perf stat` of each on `Init`:
+
+| `Init`, same source | instructions:u | Δ | cycles:u | Δ | wall |
+|---|---:|---:|---:|---:|---:|
+| the shipped release profile | 413 826 755 411 | — | 206 148 108 347 | — | 46.89 s |
+| + `codegen-units = 1` | 408 999 079 673 | −1.17 % | 201 759 655 942 | −2.13 % | 46.23 s |
+| + `lto = "fat"` | **365 712 379 008** | **−11.63 %** | 185 053 752 856 | −10.23 % | 42.52 s |
+
+(another agent was benchmarking Mathlib on the same machine throughout, so
+read the instruction counts and treat the wall column as indicative.)  The
+ratio to nanoda on `Init` goes from **1.79× to 1.58×** for a three-line
+profile edit.  `codegen-units = 1` alone is nearly worthless — it does **not**
+remove the GOT indirection (24 686 indirect calls against 10 778 after it) —
+and fat LTO is what does: 6 218 against 28 086.
+
+**Where the 48 G goes** (the same bucketing on the LTO binary): cons −38.8 G
+(the tables −22.6, `intern` −8.7, the name store −7.5), the decode −3.5 G,
+and the walk bodies only −6.2 G.  So **LTO is a cons-side win, not a
+walk-side one**: walk + read per touch goes 102.5 → **97.5**, still 2.7×
+nanoda's 36.3.  The 110-instruction node touch is the code's shape, not the
+profile's.
+
+`panic = "abort"` was not measured.  It would remove the unwind tables and
+the landing pads, which the profile shows are cold, but not the drop-flag
+tests on the normal path, so the expected win is small; and it is a
+behavioural decision, where LTO is not.  **This section takes no lever**: the
+change is to `Cargo.toml`, `charon` never reads `[profile.release]`,
+`overflow-checks = true` is kept and the verdict is unchanged
+(`accepted 57 977` on all three binaries) — but it is still a change to what
+ships, and the coordinator decides.
+
+#### 7. What is still open
+
+  * **Question 2 was not started.**  Who performs the prefix's 262 481 212
+    name interns (nanoda: 1 089 136) is unanswered.  The machinery is
+    ready — task #97-P6-8a's `instrument-arena.py` already tags every
+    `NStore::intern` by the innermost walk; what it needs is a per-CALL-SITE
+    tag instead of a per-walk one, so that a `mkStr` of `.rec` inside
+    `iotaRec` is not reported as "whnf_core".  `str_copy_from` is 3.34 % of
+    the prefix and `name::anonymous` 0.87 % (P6-8a §7), and on `Init` the
+    whole name bucket is 3.21 %, so the prize is of the same order as one of
+    §5's three differences.
+  * The per-touch cost §5 decomposes is **not** a cache or a table effect and
+    **not** the cutoff: it is the read being a call, the `Result` being an
+    sret buffer and the view being a droppable 32-byte value.  Each of those
+    is a twin-visible shape, so none of them is a free rewrite; that is the
+    coordinator's call, and this task proposes nothing.
+
+#### 8. Gates
+
+Measurement only.  The diff against the `arena` tip `745f23b8` is EMPTY for
+`crates/`, for `proof/` and for `Cargo.toml`; this task commits DESIGN.md and
+nothing else, and `_tmp/t97-p6-8b/` (untracked) holds the scripts, the
+profiles, the disassembly and the binaries.  All four arena binaries agree
+with the tip on the verdict, `accepted 57 977` on `Init`, and nanoda's
+`Checked 59 433`.
