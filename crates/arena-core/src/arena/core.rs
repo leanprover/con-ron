@@ -9270,6 +9270,16 @@ pub fn defeq_no_fvars(
 /// binder-congruence arms, which the twin writes twice (once for `∀`, once
 /// for `λ`) and which differ only in the message of the annotation mismatch.
 /// `is_lam` selects it.
+///
+/// **The FIRST binder of the joint peel** (task #97-P6-14).  This clause is
+/// con-leche's own, unchanged, down to the free variable: the domains are
+/// compared at `depth`, the fresh `fvar (depth, ty₂)` carries the SECOND
+/// side's domain, and the annotation data are compared after the bodies are.
+/// What changes is what happens to the bodies: instead of opening both with
+/// `instantiate1` and re-entering the knot — which walks the whole remaining
+/// telescope twice per binder — the two RAW bodies go to `defeq_peel`, which
+/// continues the descent without building them.  See that function's note for
+/// the identification the bridge owes.
 pub fn defeq_binders(
     pers: &PersTier,
     vis: u64,
@@ -9292,36 +9302,248 @@ pub fn defeq_binders(
         Ok(false) => Ok(false),
         Ok(true) => match intern_e_fvar(pers, st, depth, ty2.dup2()) {
             Err(e) => Err(e),
-            Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body1, &fv, 0) {
-                Err(e) => Err(e),
-                Ok(o1) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body2, &fv, 0) {
-                    Err(e) => Err(e),
-                    Ok(o2) => {
-                        match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth + 1, &o1, &o2) {
-                            Err(e) => Err(e),
-                            Ok(false) => Ok(false),
-                            Ok(true) => {
-                                if con_ron_core::kernel::env::verified_checks(mode)
-                                    && !prop_when::beq(&m1.pw, &m2.pw)
-                                {
-                                    if is_lam {
-                                        fail(CheckError::NotImplemented(code_points(
-                                            &M_DEFEQ_LAM,
-                                        )))
+            Ok(fv) => {
+                let fvs: Vec<EIdx> = cons_eidx(&fv, &Vec::new());
+                let mm: bool = con_ron_core::kernel::env::verified_checks(mode)
+                    && !prop_when::beq(&m1.pw, &m2.pw);
+                let ml: bool = if mm { is_lam } else { false };
+                defeq_peel(
+                    pers, vis, st, mode, lane, fuel, fe, depth, PEEL_FUEL, body1, body2, 1,
+                    &fvs, mm, ml,
+                )
+            }
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:1441-1701 defeqStep
+/// Lean twin: OWED (task #97-P6-14's ledger) — **the batched defeq binder
+/// descent**, and the one lever of this campaign that is the PORT's own
+/// algorithm rather than a clause copied from con-leche's cached tier:
+/// `Cached/CoreC.lean:1456-1623 defeqStepI` keeps its `.forallE`/`.lam` arms
+/// chained, so there is nothing upstream to mirror and the bridge owes its own
+/// identification lemma.  Licensed by the maintainer's ruling before
+/// DESIGN.md §8.7 ("do it here — with its own identification lemma against the
+/// pure tier's chained arms owed by the bridge (P3)").
+///
+/// **What it does.**  `a` and `b` are the two RAW bodies of the binders peeled
+/// so far — never opened — `fvs` holds the `k` free variables the peel has
+/// introduced, innermost first, and `d + k` is the depth the next binder sits
+/// at.  While both handles carry the SAME binder tag the loop peels one more
+/// level: each domain is opened against the accumulated `fvs` in ONE
+/// `instantiate_list`, the two opened domains are compared with `knot_defeq`
+/// exactly where the chain compares them, the fresh `fvar (d + k, ty₂')` is
+/// pushed, and the two raw bodies go round again.  The leaf
+/// (`defeq_peel_leaf`) opens both residuals ONCE against the whole `fvs` and
+/// hands the pair back to the knot.
+///
+/// **The identification the bridge owes** — *batched descent = the pure
+/// chain*, on every input, by `instantiateList_cons` and the per-binder domain
+/// check.  Its four parts, which are what makes the loop's guard what it is:
+///
+///  1. *The opens agree.*  The chain's `k`-fold `instantiate1` of a domain at
+///     cursors `k-1, …, 0` is one `instantiateList` against the same free
+///     variables at cursor 0 — con-leche's `Expr.instantiateList_cons`
+///     (`Verify/InstList.lean:54-117`), the equation tasks #97-P6-9, -11 and
+///     -12 already cite.  The same equation identifies the leaf's single open
+///     with the chain's last one.
+///  2. *The chain really reaches this arm at every peeled level.*  At level
+///     `j` the chain runs a WHOLE `defeqStep` on the opened pair, so the peel
+///     is sound only because every earlier arm is a no-op on a pair of
+///     same-kind binder nodes: `whnfCore` is the identity on `.forallE` and
+///     `.lam` (its first four clauses), `isBoolTrue` is `false` off any
+///     non-`.const`, the hoisted proof irrelevance is skipped because
+///     `quickPair` holds of two `∀`s and of two `λ`s, `reduceNat` is `none`
+///     off any non-`.app`, and `unfoldableHead` is `false` on both sides
+///     because `getAppFn` of a binder is the binder — so lazy delta falls
+///     straight through to the structural stage and its binder arm.  The
+///     guard peels only when both handles carry the same binder tag, and
+///     stopping EARLIER is always safe: the leaf hands the pair to the knot,
+///     which is the chain's own next step.
+///  3. *A failure lands at the same binder.*  The domain comparison at level
+///     `j` runs before the descent past `j`, in the chain's order, so a
+///     domain that is not defeq returns the same `false` (and an erroring
+///     domain the same error) at the same `k` the chain returns it at.  The
+///     annotation-data check is the other way round — the chain tests it on
+///     the way OUT, innermost binder first, and only once the body's
+///     comparison has returned `true` — so the loop carries the INNERMOST
+///     mismatching level (`mism`, with `mism_lam` for the message that level
+///     would raise) and the leaf raises it after, and only after, the residual
+///     pair has come back `true`.  Deeper mismatches, past the peel, are
+///     raised inside that call, before this one looks at its own flag, which
+///     is again the chain's order.
+///  4. *The caches see less, and that is all.*  The chain probes and writes
+///     the `defeq` memo at each of the `k` intermediate opened pairs; the
+///     batch never builds those pairs, so it neither probes nor writes them.
+///     A probe that would have hit returns the memo's stored verdict, which is
+///     the verdict of recomputing it (that is the memo's own soundness
+///     obligation, unchanged here), so the result is the same; a write that
+///     does not happen only turns a later hit into a later miss.  Likewise the
+///     per-level `whnfCore` and `hasFvar` memo entries.  The one asymmetry
+///     that is NOT a cache: the batch spends one unit of knot `fuel` where the
+///     chain spends `k`, so it can return a verdict where the chain runs out.
+///     Fuel exhaustion is an `Internal` error and never a verdict, and the
+///     bridge's statement is existential in the fuel (`∃ F`), so this is the
+///     same latitude `PEEL_FUEL` itself has.
+///
+/// The stack the chain would hold is two scalars because the only per-level
+/// datum the outward pass needs is that innermost mismatch; the domains and
+/// the binder kinds are not revisited.
+pub fn defeq_peel(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    d: u64,
+    peel: u64,
+    a: &EIdx,
+    b: &EIdx,
+    k: u64,
+    fvs: &Vec<EIdx>,
+    mism: bool,
+    mism_lam: bool,
+) -> Result<bool, CheckError> {
+    // The peel's test is a tag read off the two handle words (the ruling
+    // before §8.7's "isApp/isLam/isForallE … off the u32 handle alone") and
+    // the binder PROJECTION (task #97-P6-10), as `infer_pis`' and
+    // `annotate_pis`' are.
+    let ta: u32 = a.tag();
+    if a.eq2(b) {
+        // `defeqStep`'s OWN first arm, one level up: the chain opens these two
+        // residuals against the same free variables and hands the pair to the
+        // knot, whose `a == b` test then decides `true` — so the peel may stop
+        // here without opening anything.  (Equal handles are equal nodes, so
+        // every binder inside carries the same annotation datum on both sides
+        // and the checks the chain skips with it all hold.)  The outward
+        // annotation pass of the binders ALREADY peeled still runs.
+        defeq_peel_done(mism, mism_lam)
+    } else if peel == 0 || ta != b.tag() || (ta != ETAG_FORALL_E && ta != ETAG_LAM) {
+        defeq_peel_leaf(
+            pers, vis, st, mode, lane, fuel, fe, d, a, b, k, fvs, mism, mism_lam,
+        )
+    } else {
+        match view_bind(pers, st, a) {
+            None => fail_dangling_e(),
+            Some(pa) => match view_bind(pers, st, b) {
+                None => fail_dangling_e(),
+                Some(pb) => {
+                    // The domains are the same walk of the same input when the
+                    // two RAW domains are the same handle, and the chain's own
+                    // `a == b` arm decides them `true`; one open, no knot call.
+                    let same_dom: bool = pa.0.eq2(&pb.0);
+                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &pa.0, fvs, 0) {
+                        Err(e) => Err(e),
+                        Ok(t1) => {
+                            let t2r: Result<EIdx, CheckError> = if same_dom {
+                                Ok(t1.dup2())
+                            } else {
+                                instantiate_list_fast(pers, st, CORE_WALK_FUEL, &pb.0, fvs, 0)
+                            };
+                            match t2r {
+                                Err(e) => Err(e),
+                                Ok(t2) => {
+                                    let dq: Result<bool, CheckError> = if same_dom {
+                                        Ok(true)
                                     } else {
-                                        fail(CheckError::NotImplemented(code_points(
-                                            &M_DEFEQ_PI,
-                                        )))
+                                        knot_defeq(
+                                            pers, vis, st, mode, lane, fuel, fe, d + k, &t1, &t2,
+                                        )
+                                    };
+                                    match dq {
+                                        Err(e) => Err(e),
+                                        Ok(false) => Ok(false),
+                                        Ok(true) => {
+                                            match intern_e(
+                                                pers,
+                                                st,
+                                                ENodeView::FVar(d + k, t2.dup2()),
+                                            ) {
+                                                Err(e) => Err(e),
+                                                Ok(fv) => {
+                                                    let fvs2: Vec<EIdx> = cons_eidx(&fv, fvs);
+                                                    let mm: bool =
+                                                        con_ron_core::kernel::env::verified_checks(
+                                                            mode,
+                                                        ) && !prop_when::beq(&pa.2.pw, &pb.2.pw);
+                                                    let m2: bool = mism || mm;
+                                                    let ml2: bool = if mm {
+                                                        ta == ETAG_LAM
+                                                    } else {
+                                                        mism_lam
+                                                    };
+                                                    defeq_peel(
+                                                        pers, vis, st, mode, lane, fuel, fe, d,
+                                                        peel - 1, &pa.1, &pb.1, k + 1, &fvs2,
+                                                        m2, ml2,
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
-                                } else {
-                                    Ok(true)
                                 }
                             }
                         }
                     }
-                },
+                }
+            },
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:1441-1701 defeqStep
+/// Lean twin: OWED (task #97-P6-14's ledger) — the batched descent's LEAF
+/// phase: the two residuals are opened ONCE against the whole accumulated
+/// `fvs` and handed back to the knot at the depth the peel reached, which is
+/// the chain's own recursive call at its last binder; then, and only if that
+/// pair came back `true`, the innermost annotation-data mismatch the peel
+/// recorded is raised, with the message of the binder kind that level had.
+pub fn defeq_peel_leaf(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    d: u64,
+    a: &EIdx,
+    b: &EIdx,
+    k: u64,
+    fvs: &Vec<EIdx>,
+    mism: bool,
+    mism_lam: bool,
+) -> Result<bool, CheckError> {
+    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, a, fvs, 0) {
+        Err(e) => Err(e),
+        Ok(o1) => match instantiate_list_fast(pers, st, CORE_WALK_FUEL, b, fvs, 0) {
+            Err(e) => Err(e),
+            Ok(o2) => match knot_defeq(pers, vis, st, mode, lane, fuel, fe, d + k, &o1, &o2) {
+                Err(e) => Err(e),
+                Ok(false) => Ok(false),
+                Ok(true) => defeq_peel_done(mism, mism_lam),
             },
         },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:1441-1701 defeqStep
+/// Lean twin: OWED (task #97-P6-14's ledger) — the batched descent's OUTWARD
+/// annotation pass, reached once the residual pair has come back `true`: the
+/// chain tests `m₁.pw == m₂.pw` on the way out, innermost binder first, and
+/// raises at the first mismatch, so the one the peel recorded is the one that
+/// fires and `mism_lam` is the message of the binder kind it sat at.
+pub fn defeq_peel_done(mism: bool, mism_lam: bool) -> Result<bool, CheckError> {
+    if mism {
+        if mism_lam {
+            fail(CheckError::NotImplemented(code_points(&M_DEFEQ_LAM)))
+        } else {
+            fail(CheckError::NotImplemented(code_points(&M_DEFEQ_PI)))
+        }
+    } else {
+        Ok(true)
     }
 }
 
