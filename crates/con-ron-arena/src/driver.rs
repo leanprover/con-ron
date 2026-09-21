@@ -64,12 +64,18 @@ use arena_core::arena::env as ienv;
 use arena_core::arena::env::{IDeclaration, IFEnv};
 use arena_core::arena::monad::AState;
 use arena_core::arena::nat_op_pin_set::INatOpPinSet;
+use arena_core::arena::pins::Pins;
 use arena_core::arena::store::EStore;
+use arena_core::arena::store::ETables;
+use arena_core::arena::store::LTables;
+use arena_core::arena::store::LsTables;
+use arena_core::arena::store::NTables;
 use arena_core::frontend::export_c;
 use arena_core::frontend::export_c::ParseResultD;
 use arena_core::frontend::types::Modeller;
 
 use con_ron_core::kernel::core_types::CheckError;
+use con_ron_core::ron::hashmap::Dup;
 use con_ron_core::kernel::env::CheckMode;
 
 use con_ron::driver::{message, ms_secs};
@@ -161,13 +167,12 @@ pub fn mark_persistent_note() -> &'static str {
 }
 
 /// con-leche: Main.lean:318-421 checkDeclsIO
-/// The worker count a run reports: `max 1 (min jobs pend.size)` as con-leche
-/// computes it, clamped again to ONE because phase B is single-lane here (the
-/// module note's item 4).  The requested count is kept so that the summary can
-/// say what was asked for and what was run.
+/// The worker count a run reports and the pool spawns: `max 1 (min jobs
+/// pend.size)`, which is `con_ron::driver::workers_for` and nothing else —
+/// the two binaries cannot drift on what `--jobs=<n>` means (task #97-P6-6b;
+/// until then this clamped to ONE, because phase B was single-lane).
 pub fn workers_for(jobs: u64, m: usize) -> usize {
-    let _ = con_ron::driver::workers_for(jobs, m);
-    1
+    con_ron::driver::workers_for(jobs, m)
 }
 
 // ---------------------------------------------------------------------------
@@ -207,6 +212,15 @@ pub trait PhaseObserver {
     /// reports the lane the run actually took.
     fn phase_b_workers(&mut self, _workers: usize) {}
 
+    /// con-leche: Main.lean:240-260 checkOne
+    /// Does this observer print a line per check?  The pool asks ONCE, before
+    /// it spawns: off, no worker touches the completed-count atomic or the
+    /// observer lock at all, which is the difference between a plain pooled
+    /// run and the `--progress` lane.
+    fn wants_check_lines(&self) -> bool {
+        false
+    }
+
     /// con-leche: Main.lean:143-158 checkHeartbeat
     /// After the `done`-th of `m` recorded checks completed.
     fn check_after(&mut self, _pers: &PersTier, _ar: &EStore, _done: usize, _m: usize, _pc: &PendingCheck) {}
@@ -220,6 +234,17 @@ pub trait PhaseObserver {
     fn check_done(&mut self, _m: usize) {}
 }
 
+/// con-leche: Main.lean:318-421 checkDeclsIO
+/// The observer a plain run (no `--progress`) hands the driver: it prints
+/// nothing and wants no check lines, so no worker touches the completed-count
+/// atomic or the observer lock at all.  ONE lane serves both runs since task
+/// #97-P6-6b — the phase boundary freezes the tier, and a second path that
+/// did not would be a second computation.
+pub struct Silent;
+
+/// con-leche: Main.lean:318-421 checkDeclsIO
+impl PhaseObserver for Silent {}
+
 /// con-leche: ConLeche/Cached/Installed.lean:438-455 checkDecls
 /// **The driver**: `checker::install_then_check`'s body with the phase
 /// boundary visible — phase A installs every record with
@@ -230,12 +255,17 @@ pub trait PhaseObserver {
 /// and the `--progress` heartbeat alike.  A run with no observer calls
 /// `install_then_check` itself and never comes through here.
 ///
-/// **The two-phase shape is the pool's seam** (DESIGN.md §8.3, the module
-/// note's item 4): after the boundary the persistent tier is immutable, the
-/// installed index is read-only, and each pending record is checked inside its
-/// own scratch tier from its own caches — so `n` workers claiming records off
-/// a counter is a change to this `while` and to nothing else.
-pub fn check_decls_driver<O: PhaseObserver>(
+/// **The boundary is where the tier is FROZEN** (task #97-P6-6b).  Phase A
+/// owns its persistent tier and appends to it; at the boundary the driver
+/// moves the four stores' persistent tables out into one `PersTier`, sets the
+/// `shared_on` flag that makes every later persistent read go to it and every
+/// persistent append a decline, and hands `&` it to `pool::check_pool`.  The
+/// installed index goes the same way, by reference, since `check_pending`
+/// takes the visibility bound as a scalar — so `n` workers share one
+/// environment and one term DAG and own nothing but a scratch tier, their
+/// caches and a copy of the pin handles.  That is DESIGN.md §8.3's "no
+/// atomics anywhere" with the two atomics the CLAIM needs and no more.
+pub fn check_decls_driver<O: PhaseObserver + Send>(
     pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
@@ -264,24 +294,72 @@ pub fn check_decls_driver<O: PhaseObserver>(
     obs.install_done(pers, &st.store, total, m);
     let workers = workers_for(jobs, m);
     obs.phase_b_workers(workers);
-    // Phase B, `checker::check_pending_list`'s walk with the observer between
-    // the records: every record checked at its own prefix view, inside its own
-    // scratch tier (`check_pending` is the bracket, task #97-P4d), with the
-    // installed index threaded through.
-    let mut j = 0usize;
-    while j < m {
-        match checker::check_pending(pers, st, mode, &fe, &pend[j]) {
-            Err(e) => {
-                obs.check_failed(pend[j].pos);
-                return Err((e, pend[j].pos));
-            }
-            Ok(()) => (),
+    // THE PHASE BOUNDARY: the persistent tier leaves the state and becomes a
+    // value every worker reads (the doc comment above).  `st` keeps its
+    // (empty) store with the flags set, so the observer can still read a
+    // label back through the shared tier.
+    let tier: PersTier = freeze_tier(&mut st.store);
+    let pins_b: Pins = pins_ref(&st.pins);
+    // Phase B, `checker::check_pending_list`'s walk on `workers` threads: every
+    // record checked at its own prefix view, inside its own scratch tier
+    // (`check_pending` is the bracket, task #97-P4d), the results merged by
+    // record index and walked in record order — so the verdict and the record
+    // a rejection names are the sequential walk's at every `--jobs`.
+    let lock = std::sync::Mutex::new(obs);
+    let r = crate::pool::check_pool(&tier, mode, &fe, &pend, &pins_b, workers, &lock);
+    let obs: &mut O = match lock.into_inner() {
+        Ok(o) => o,
+        Err(e) => e.into_inner(),
+    };
+    match r {
+        Err((e, pos)) => {
+            obs.check_failed(pos);
+            Err((e, pos))
         }
-        j += 1;
-        obs.check_after(pers, &st.store, j, m, &pend[j - 1]);
+        Ok(()) => {
+            obs.check_done(m);
+            Ok(fe)
+        }
     }
-    obs.check_done(m);
-    Ok(fe)
+}
+
+/// con-leche: none — the phase boundary, which con-leche has no tier to make
+/// **The persistent tier out of the state and into a value** (task
+/// #97-P6-6b), and the four stores marked as reading a shared one.  This is
+/// the ONE operation of the split that is not `arena-core`'s: the verified
+/// crate never moves a tier, it only ever reads one it is handed, and the
+/// driver is where a phase boundary belongs.
+///
+/// After it the store is empty and frozen — `arena::store`'s guard declines a
+/// persistent append — which is exactly the invariant phase B needs and which
+/// task #97-P6-6 read out of the code before any of this was written
+/// (`check_pending` is the bracket; `intern_persistent`'s only caller is
+/// phase A's `arena::promote`).
+pub fn freeze_tier(ar: &mut EStore) -> PersTier {
+    let tier = PersTier {
+        n: std::mem::replace(&mut ar.lss.ls.ns.pers, NTables::empty()),
+        l: std::mem::replace(&mut ar.lss.ls.pers, LTables::empty()),
+        ls: std::mem::replace(&mut ar.lss.pers, LsTables::empty()),
+        e: std::mem::replace(&mut ar.pers, ETables::empty()),
+    };
+    ar.shared_on = true;
+    ar.lss.shared_on = true;
+    ar.lss.ls.shared_on = true;
+    ar.lss.ls.ns.shared_on = true;
+    tier
+}
+
+/// con-leche: none — the pin table is handles, so a worker's copy is a memcpy
+/// The driver's `Pins` as the pool's parameter (`pool::worker_state` copies it
+/// per worker): sixty-eight handles into the now-frozen tier.
+fn pins_ref(p: &Pins) -> Pins {
+    Pins {
+        names: ienv::nidx_vec_dup(&p.names),
+        reserved: ienv::nidx_vec_dup(&p.reserved),
+        empty_levels: p.empty_levels.dup2(),
+        zero_level: p.zero_level.dup2(),
+        sort_one: p.sort_one.dup2(),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -465,6 +543,12 @@ impl PhaseObserver for Heartbeat {
     /// The cited `workers`, for the summary's last field.
     fn phase_b_workers(&mut self, workers: usize) {
         self.workers = workers;
+    }
+
+    /// con-leche: Main.lean:240-260 checkOne
+    /// The heartbeat prints a check line exactly when it has a stride.
+    fn wants_check_lines(&self) -> bool {
+        self.stride > 0
     }
 
     /// con-leche: Main.lean:143-158 checkHeartbeat
@@ -706,8 +790,11 @@ mod tests {
         assert!(con_ron::driver::progress_stride("0").is_err());
         assert_eq!(con_ron::driver::jobs_count("8"), Ok(8));
         assert!(con_ron::driver::jobs_count("0").is_err());
-        // phase B is single-lane here, whatever `--jobs` asked for
-        assert_eq!(workers_for(8, 100), 1);
+        // the worker count is `con_ron::driver::workers_for` and nothing else
+        // (task #97-P6-6b): the two binaries cannot drift on `--jobs`
+        assert_eq!(workers_for(8, 100), 8);
+        assert_eq!(workers_for(8, 3), 3);
         assert_eq!(workers_for(1, 0), 1);
+        assert_eq!(workers_for(8, 100), con_ron::driver::workers_for(8, 100));
     }
 }

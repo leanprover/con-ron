@@ -38,13 +38,12 @@
 //! sweep reports is the CHECKER's.  The Lean twin does the same thing with
 //! con-leche's own generator, for the same reason.
 //!
-//! **What this crate does NOT have that `con_ron` does**: the worker pool.
-//! `--jobs=<n>` is accepted and validated and phase B is single-lane
-//! (`driver`'s module note, item 4); DESIGN.md §8.3 has the plan — the
-//! persistent tier is immutable in phase B, each worker owns a scratch tier
-//! and its own caches, so there are no atomics to add — and the loop is
-//! shaped so that it slots in where `con_ron::pool` slots into
-//! `con_ron::driver::check_decls_driver`.
+//! **The worker pool is `pool`** (task #97-P6-6b), `con_ron::pool` over the
+//! arena: DESIGN.md §8.3's "the persistent tier is immutable in phase B,
+//! each worker owns a scratch tier — no atomics anywhere", with the tier
+//! frozen at the phase boundary and shared by reference.  Threads live here
+//! and never in `arena-core` (§8.5).
 
 pub mod driver;
 pub mod in_model;
+pub mod pool;

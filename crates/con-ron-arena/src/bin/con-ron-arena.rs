@@ -40,12 +40,12 @@
 //! outside its own stdout/stderr and reads its input strictly forward, 4 MiB
 //! at a time.
 //!
-//! **The one flag that behaves differently from `con-ron`'s** is `--jobs=<n>`:
-//! it is accepted and validated, and phase B is single-lane
-//! (`driver`'s module note, item 4, and DESIGN.md §8.3's plan for the pool).
-//! A run that asks for more than one worker is told on stderr that it got one.
-//! `--no-mark-persistent`, `--pins FILE` and `--no-pins` are con-ron's own and
-//! mean exactly what they mean there.
+//! **`--jobs=<n>` is real** since task #97-P6-6b: phase B runs on `n` worker
+//! threads sharing the frozen persistent tier and the installed index by
+//! reference (`con_ron_arena::pool`), and the default is one per hardware
+//! thread capped at sixteen — `con_ron::driver::default_jobs`, the same
+//! function `con-ron` uses.  `--no-mark-persistent`, `--pins FILE` and
+//! `--no-pins` are con-ron's own and mean exactly what they mean there.
 
 use std::process::ExitCode;
 use std::time::Instant;
@@ -107,14 +107,16 @@ usage: con-ron-arena [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
   --trusted         the unverified mode: the SAME checker bodies at the mode
                     with the certification-only work switched off.  An accept
                     in this mode is outside the theorem.
-  --jobs=<n>        ACCEPTED AND VALIDATED, and today single-lane: the check
-                    phase runs one worker whatever <n> says, and a run that
-                    asks for more is told so on stderr.  DESIGN.md section 8.3
-                    has the plan the flag is kept for — the persistent tier is
-                    immutable in phase B and each worker owns a scratch tier
-                    and its own caches, so the pool adds no atomics — and the
-                    driver's phase-B loop is shaped for it.  0 or a
-                    non-numeral is a usage error, as in con-leche.
+  --jobs=<n>        the check phase runs on <n> worker threads sharing the
+                    persistent tier and the installed index by reference
+                    (DESIGN.md section 8.3): each worker owns a scratch tier,
+                    its own caches and a copy of the pin handles, and the
+                    results are merged by record index and walked in record
+                    order, so the verdict and the record a rejection names are
+                    the same at every <n>.  Default: one per hardware thread,
+                    capped at 16.  A worker reserves 1 GiB of stack, which a
+                    `ulimit -v` must allow for.  0 or a non-numeral is a usage
+                    error, as in con-leche.
   --no-mark-persistent
                     ACCEPTED AND A NO-OP, for a stronger reason than the
                     `con-ron` binary's: the mark it turns off is a
@@ -549,12 +551,17 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // with the boundary visible (`driver::check_decls_driver`).
     let jobs: u64 = match a.jobs {
         Some(n) => n,
-        None => 1,
+        None => con_ron::driver::default_jobs(),
     };
+    // ONE lane, whatever the flags: the driver is what freezes the persistent
+    // tier at the phase boundary and phase B is the pool at every worker count
+    // (task #97-P6-6b), so a run with no heartbeat is the same computation as
+    // a run with one and `install_then_check` is no longer a second path.
     let verdict = if a.progress > 0 {
         driver::check_decls_driver(pers, &mut st, &mode, &ipins, &prepared.decls, jobs, &mut hb)
     } else {
-        checker::install_then_check(pers, &mut st, &mode, &ipins, &prepared.decls)
+        let mut silent = driver::Silent;
+        driver::check_decls_driver(pers, &mut st, &mode, &ipins, &prepared.decls, jobs, &mut silent)
     };
     // **The headline number is the FILE's declaration-record count**: the
     // records the PARSE produced, which are the file's own, less the records
@@ -614,19 +621,6 @@ fn main() -> ExitCode {
     }
     if a.no_mark {
         eprintln!("con-ron-arena: {}", driver::mark_persistent_note());
-    }
-    // The other accepted-and-ignored flag says so too, and says it BEFORE the
-    // run rather than at the phase boundary: a log must read as the lane it
-    // was, and the lane is decided here.
-    if let Some(n) = a.jobs {
-        if n > 1 {
-            eprintln!(
-                "con-ron-arena: --jobs={} accepted and clamped to 1: the arena checker's \
-                 phase B is single-lane today (DESIGN.md section 8.3 has the plan, and \
-                 con_ron_arena::driver's phase-B loop is shaped for it)",
-                n
-            );
-        }
     }
     let file = a.files[0].clone();
     let h = std::thread::Builder::new()
