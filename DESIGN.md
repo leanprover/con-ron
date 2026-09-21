@@ -34141,6 +34141,205 @@ symbol still above 1 % of the profile is either the hash-consing the design is
 built on or a walk that already carries every cutoff and every memo con-leche
 itself has.
 
+### Task #97-survey — still-nanoda and sonanoda (2026-09-21, Opus under Fable)
+
+Maintainer, 2026-09-21: "peek at still-nanoda and sonanoda for perf tweaks we
+should maybe also use."  Read against `_tmp/t97/nanoda-design.md` (nanoda_lib)
+and §8 + tasks #97-P6-8a … #97-P6-15.  Research only: nothing is implemented
+and nothing outside this file is touched.  The long form, with the code
+excerpts, is `_tmp/t97/still-sonanoda-survey.md`; clones are
+`_tmp/t97/still-nanoda` and `_tmp/t97/sonanoda`.
+
+#### 1. What they are
+
+Neither is a checker of its own; they are a chain of forks of nanoda_lib:
+
+    ammkrn/nanoda_lib                         upstream (master 4c544ed = our baseline)
+      └── datokrat/sonanoda                   "faster definitional equality check"
+            └── SchrodingerZhu/still-nanoda   "some cache optimization"
+                  └── intgrah/sokonanoda      "Lean 4 kernel with NbE"
+                        └── still-nanoda's branches
+                              experimental-arena / sokonanoda-arena / binding
+
+(`ammkrn/sonanoda`, `ammkrn/sokonanoda` and `ammkrn/nanobruijn` are ammkrn's
+*mirrors* of other people's forks; the upstreams are datokrat, SchrodingerZhu,
+intgrah and nomeata.)
+
+| | sonanoda | still-nanoda |
+|---|---|---|
+| author | Paul Reichert (`datokrat`) | Yifan Zhu (`SchrodingerZhu`) |
+| clone / rev | `48a11bc` master (+ `fast-proof-irrel`) | `d7bd656` `cache-study-port` (+ 3 branches) |
+| last activity | 2026-04-28 | 2026-06-19 |
+| the delta | **7 commits, one file (`src/tc.rs`), +26/−24 lines** | cache study **1 commit, `src/util.rs`, +74/−9**; arena branch +1 288/−788; NbE branches +2 830/−544 |
+| status | experiment; **not upstreamed** (nanoda master took only ammkrn's own `infer_proj` fix, PR #19) | experiment, "may contribute back once the evaluation stabilizes" |
+| kernel arena | **no entry** | `checkers/still-nanoda.yaml`, pinned at `cache-study-port` `06a07b7`, `num_threads: 4` |
+
+The arena also carries `checkers/sokonanoda.yaml` (intgrah master `28c03d0`),
+built with **PGO** and `-C target-cpu=native`.
+
+**Benchmark hygiene.**  Every number either project publishes is wall clock,
+four threads, on an unnamed aarch64 machine, median of three runs, against its
+own parent.  Ours is `instructions:u`, single-threaded, on the named EPYC 9455
+(task #97-P6-3).  Their percentages are directional only; they also include
+the parse, which their own `binding` report profiles at ~54 % of a lean-side
+replay.
+
+Claimed numbers, for the record: still-nanoda **5 %** (local-first alloc) and
+**another 10 %** (local-only filter) on cedar and Mathlib; its
+`experimental-arena` pointer arena cedar 15.18 s/829 MB → 13.96 s/920 MB
+(→ 13.88 s/911 MB with Top-Byte-Ignore) and Mathlib 2:53.5/5.22 GB →
+2:38.2/6.45 GB (→ 2:33.8/6.45 GB), i.e. **−8…−11 % wall for +10…+23 % peak
+RSS**; the NbE branch **another 35 % on Mathlib at +40 % peak memory**, and as
+a `lean --external-checker-lib` plugin **1.88–2.10× the builtin C++ kernel on
+reduction-heavy declarations** but **1.06× slower on cedar / 1.11× faster on
+mathlib** end to end single-threaded, at 99.2 % accept/reject parity (18 of
+783 tests/elab files fail on "genuine NbE limitations").  sonanoda publishes
+**no numbers at all**.
+
+#### 2. sonanoda's one change, and why we already have it
+
+A `skip_prop_check: bool` threaded through `def_eq`, `true` at exactly two
+sites (the argument loop of `def_eq_app`, and the same-head `Const`/`Const`
+argument loop in `lazy_delta_step`), making `proof_irrel_eq` accept two proofs
+**without comparing their types**; verdicts obtained under the flag are not
+entered in the positive `eq_cache` (`22e5940`, "fix caching problem").  The
+unconditional version was written and **reverted** (`c61c1ca` → `d142c75`,
+"revert to conservative approach").
+
+**The arena already does the unconditional version.**  con-leche's
+`proofIrrel`, hence `arena::core::proof_irrel` (`core.rs:4044`), never
+compares the two proofs' types: "both sides' types whnf to the basis unit
+type, or both sides' types' *sorts* are `Prop`" — `prop_sorts_zero` /
+`prop_sorts_zero_right` infer each side's type, infer *that*, check both are
+`Sort 0`, and return `ok_a && ok_b`.  That is datokrat's reverted commit
+applied everywhere, licensed by con-leche's model theorem (an inhabited
+`Prop` denotes the same subsingleton whatever it is) — which nanoda, having no
+model, cannot invoke — and the verdict is *cached*, which sonanoda's cannot
+be.  So sonanoda contributes **no lever**, but a good citation for P3 when
+that clause is justified: an independent checker reached for the same
+optimisation and could not justify the general form.
+
+#### 3. still-nanoda's cache study, and what of it is new here
+
+`cache-study-port` = sonanoda + one commit (`289d48d`), all of it in
+`alloc_expr`:
+
+  (a) **local-first probe order** — probe the per-declaration table before the
+      export file's, using `IndexMap`'s `Entry` so a miss yields the vacant
+      slot and the insert needs **no second hash and probe** (claimed 5 %);
+  (b) **local-only filtering** — `is_expr_local_only(e)` tests the *children's*
+      tier bit, and a node with any TcCtx child (or any `Local`) skips the
+      persistent probe entirely (claimed 10 %).
+
+(b) **is already ours**, per constructor and off the tier bit in the handle:
+the `sk` local in each of the ten `intern_<ctor>` paths of `store.rs`.  (a) is
+not ours in either half — N1 and N2 below.  Note also that they apply both to
+expressions only: `alloc_name`/`alloc_level`/`alloc_levels` keep the
+global-first order with no filter, exactly as our name/level/level-list stores
+do (N3).
+
+Memo design, where the forks differ from nanoda master: both carry a
+**union-find positive def-eq cache** (`eq_cache.union` / `check_uf_eq`) that
+upstream has since **disabled** (nanoda PR #27, "in favor of sorted pairs which
+do not try to exploit transitivity").  The NbE branches key every cache on
+`*const Value`, hash the environment cons cells, split the negative cache into
+a committed one and a `conv_cache_neg_probe` for verdicts found inside a
+speculation, and filter admission by `is_cacheable`.  One memo there was
+**removed as unsound**: `7b296ad`, "fix possible hash collision unsoundness",
+deletes a shortcut that concluded convertibility from equal value hashes.
+
+#### 4. The classified list
+
+(N) natural — a shape the twin already has, a memo, a capacity, an inlining, a
+cached column; (A) algorithmic — a different strategy, order of checks, or
+caching semantics needing its own identification lemma.
+
+| id | technique | class | est. value here | where |
+|---|---|---|---|---|
+| N1 | scratch tier probed before persistent when `sk == false` | N | 0–3 % of `Init`, **sign unknown** — counter first | `store.rs`, ten `intern_<ctor>` |
+| N2 | fused find-or-push: one hash + one probe per interning miss | N | 1–3 % of `Init`; +1 op on the owed `HashMap2` re-proof | `ron::hashmap2`, `Tbl::find`/`push` |
+| N3 | local-only skip for the name / level / level-list stores | N | < 1 % (P6-10 measured names at 0.49 % of `Init`) | `NStore`/`LStore`/`LsStore::intern*` |
+| N4 | def-eq memo admission filter (sokonanoda's `is_cacheable`) | N | unmeasured; same family as `clear_fit`'s −25.6 % cycles | `core::defeq_set` (`core.rs:11152`) |
+| N5 | PGO (+ `target-cpu=native`) in the release build | N — build-only, Charon never reads `[profile.release]` | 5–10 % cycles/wall, little on instructions | `scripts/`, `[profile.release]` |
+| A1 | argument-position proof irrelevance (sonanoda) | — | **already ours, unconditionally and cached** | `core::proof_irrel` |
+| A2 | union-find positive def-eq cache (transitivity) | A | needs transitivity of the fuel-indexed pure `defeq` — a theorem we do not have and that is not true as stated; **removed upstream** | do not take |
+| A3 | negative / congruence-failure caches, speculative tier | A (probe split) / N (plain negative, already ours) | **priced out by task #97-P6-7**: 22 045 def-eq and 11 369 congruence failures in the whole 25 % prefix | — |
+| A4 | NbE / glued evaluation (sokonanoda) | A, maximal | 35 % over still-nanoda at +40 % RSS, and an *incomplete* conversion check | out of bounds under "natural tweaks only" |
+| A5 | bump arena + tagged real pointers + aarch64 TBI | A | 8–11 % wall for 10–23 % RSS; `unsafe`, outside Aeneas's subset, deletes §8.5's own property | structurally unavailable |
+| A6 | hash equality ⇒ convertible | — | unsound; they removed it | never (our cons tables compare the record) |
+
+Detail on the two that are real:
+
+* **N1.**  Correctness is free — insertion still happens only after *both*
+  probes miss, so the tiers stay disjoint and `denote` stays injective; §8.3's
+  cross-tier sentence restates as table *disjointness* rather than as an
+  artefact of the order (one clause of `intern_spec`).  The value is uncertain
+  and may be negative: unlike nanoda we already skip the persistent probe when
+  it cannot hit, so `sk == false` is exactly the population that plausibly *is*
+  persistent, where persistent-first is the right guess.  The win is confined
+  to nodes with all-persistent children built this declaration (β-built `app`s
+  over persistent children).  **Instrument first**: hit-persistent /
+  hit-scratch / miss-both counters on that path.
+* **N2.**  `Tbl::find` then `Tbl::push` hashes the record and walks the probe
+  sequence twice on every interning miss — 372 M of them on the prefix.
+  `ron::hashmap2` is open-addressed with an epoch stamp, so "the slot where it
+  would go" is what its probe loop already computes; the twin grows a
+  `Tbl.findOrPush` with a lemma that it equals `find?`-then-`insert`, and the
+  owed `HashMap2` re-proof (task #97-P6-4b, 1 900–2 300 lines) grows by one
+  operation with the same specification.
+
+#### 5. What the arena does better, honestly
+
+1. **The constructor tag is in the handle.**  Both forks dereference (and, in
+   the low-bit build, mask) a pointer to learn a node's constructor; tasks
+   #97-P6-10/13 decide the wrong-constructor case at 144 sites with no store
+   read at all.  Their `is_expr_local_only` is the one place they get tier bits
+   for free — and it is their largest published win.
+2. **Memory**: 32-bit handles against 64-bit tagged pointers, dense
+   per-constructor arrays with the derived word in the record's existing
+   padding (task #97-P6-15) against a bump allocation plus a table slot per
+   node.  Their pointer arena costs **+10…23 % peak RSS**; the arena is 0.95×
+   con-ron master.
+3. **Per-declaration reuse**: `with_tc_and_declar` calls `Arena::new()` for
+   *every* declaration (their README lists arena reuse as future work), and
+   nanoda's cache policy is "reallocate above capacity 1024, else clear"; our
+   bracket keeps the bucket arrays and sizes them with `clear_fit`'s decaying
+   high-water mark (−25.6 % of the prefix's cycles).
+4. **A stored, packed node hash** against `experimental-arena`'s freshly
+   recomputed `FxHash` on every probe.
+5. **Batched multi-substitution** (tasks #97-P6-9/11/12/14) where both forks
+   loop `instantiate1` per argument — which is why the arena builds 0.82×
+   nanoda's nodes.  The NbE fork gets the same effect by changing the
+   algorithm; we got it by citing con-leche's own cached tier.
+6. **No `unsafe`, no provenance games, no architecture-specific feature**
+   (`top-byte-ignore` is a hard compile error off aarch64).
+7. **Proof irrelevance without the type comparison** — the thing sonanoda
+   exists to explore (§2).
+8. **We measure what does not move**, and we record the levers priced and *not*
+   taken beside the ones that were.
+
+Where they are genuinely ahead, and we knew it: **levels**.  nanoda and both
+forks run level operations on interned levels directly; §8.3 deliberately reads
+levels back into transient `Level` trees (~1 800 proof lines of reason) and
+mitigates with task #97-P6-13's readback memo (−4.35 %).  An accepted cost, not
+a lever.
+
+#### 6. Verdict
+
+1. **Counters first**, one instrumented build with no semantic change: on the
+   `sk == false` interning path (hit-persistent / hit-scratch / miss-both), and
+   on `defeq_set` (the tag profile of the pairs stored).  Those two numbers
+   decide N1, N2 and N4 without writing any of them.
+2. **N2 regardless of N1** — it is "one hash instead of two" and is the only
+   item on the list with a mechanism the arena visibly lacks.
+3. **N5 measured once**, reported, and kept out of the default build unless the
+   maintainer wants the kernel-arena entry to carry it.
+
+N3 is a rounding error; A1 and A3 are already ours or already priced out; A2,
+A4, A5 and A6 are not to be taken.  The strongest takeaway is the negative one:
+**the two forks' published wins are 5 %, 10 % and 35 % — the first is an
+ordering we can test in an afternoon, the second is already the arena's `sk`
+filter, and the third is a different checker.**
 ### Task #97-HM2 — the `HashMap2` spec tier (2026-09-21, Opus under Fable)
 
 Task #97-P6-4b landed `ron::HashMap2` — the open-addressed, epoch-stamped,
