@@ -1179,7 +1179,7 @@ con-leche's `Core.lean`:865-1310.  Every one of these recurses structurally
 on a LIST (an argument spine, a slot index list), so none of them takes
 fuel; what they call into the store does. -/
 
-/-- con-leche: ConLeche/Cached/DiscC1.lean:154-193 iotaCertsIAux — certify a
+/-- con-leche: ConLeche/Cached/CoreC.lean:168-193 iotaCertsIAux — certify a
 spine against a recursor telescope: each argument's inferred type is defeq to
 the corresponding (instantiated) domain.  **The ι-slot licence**: at a
 *licensed* walk (`lic = true`) a slot whose ∀-binder datum is `.never` is
@@ -2107,7 +2107,7 @@ The obligation is `whnfCoreBody e = pure e` for the six tags. -/
   else if t == ETag.bvar then false
   else true
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1090-1108 whnfBody — **the head kinds
+/-- con-leche: ConLeche/Kernel/Core.lean:1097-1099 whnfBody — **the head kinds
 `whnfBody` returns unchanged**, the same lever one rung up: `sort`, `fvar`,
 `lam`, `forallE` and `lit`.  The obligation adds `reduceNat e = none` (its
 `match` is on `.app`) and `unfoldDefinition e = none` (`getAppFn` of a

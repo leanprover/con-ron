@@ -2231,6 +2231,7 @@ theorem EStore.wf_push_scr {st st' : EStore} {rk : EIdx → Nat} {w : ENodeView}
     StoreWF st' := by
   sorry
 
+/-- con-leche: none — the constructor tag a name node view lands under. -/
 def NNodeView.tagOf : NNodeView → UInt32
   | .anonymous => NTag.anonymous
   | .str _ _ => NTag.str
@@ -2979,6 +2980,7 @@ theorem EStore.intern_isPersistent_of_off {st : EStore} {w : ENodeView}
     (st.intern w).2.isPersistent = true := by
   sorry
 
+/-- con-leche: none — the constructor tag a level node view lands under. -/
 def LNodeView.tagOf : LNodeView → UInt32
   | .zero => LTag.zero
   | .succ _ => LTag.succ
