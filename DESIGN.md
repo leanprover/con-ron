@@ -30045,3 +30045,353 @@ was building on the machine.  Every ratio in §3 and §4 is between runs of the
 same session on the same benchmark, and the tip's rows of §5 were re-measured
 here for exactly that reason.  A cycles number copied across task sections is
 not a comparison.
+
+### Task #97-P6-8a — node construction, arena vs nanoda (2026-09-21, Opus under Fable)
+
+Phase P6 item 8a of §8.6.  Task #97-P6-7 closed with "**2.36 G `intern`s and
+3.25 G `instantiate1_go` visits** are the two numbers that have to come down,
+and neither is a cache effect"; this task counts both **on both checkers, on
+the same inputs**, and says where the instruction gap actually is.  It is a
+MEASUREMENT task under §8's rule that the catch-up with nanoda comes before
+any further optimisation: **no lever was taken and no code changed** —
+`crates/` is byte-identical to the `arena` tip `7da187a8`, the instrumented
+builds were thrown away, and §7 below names what the numbers point at without
+proposing anything.
+
+Benchmarks: **`Init` whole** and task #97-P6-5's validated proxy, the Mathlib
+25 % prefix (`head -26948621 _tmp/corpus/mathlib.ndjson`, 156 945 fold
+records).  Both binaries single-threaded — `--verified --jobs=1
+--progress=1000000` for the arena, `"num_threads": 0` for nanoda — under
+`ulimit -v`.  Every cell in this section is from THIS session.  Raw dumps,
+the two instrumentation scripts, the profiles and the binaries:
+`_tmp/t97-p6-8a/` (its `README.md` is the recipe).
+
+#### 1. What was counted, and why the two counts are comparable
+
+**The arena** (`crates/arena-core/src/instr2.rs` + `instrument-arena.py`,
+applied in place and reverted): every `EStore::intern` by **outcome** — a hit
+in the persistent cons table / a hit in the scratch cons table / a new node
+appended — by **constructor**, and by **caller**; the same by outcome and
+caller for the name, level and level-list stores; `monad::view` (a decode) and
+`EStore::derived` (a derived-word read); and one line per declaration, both
+phases, with the name.  The **caller** is a dynamic tag — a guard at the top
+of each function of interest saves and restores a static, so the innermost
+tagged function wins — over `instantiate1_go`, `instantiate_list_go`,
+`instantiate1_lift_go`, `lift_loose_bvars_go`, `lower_bvars_go`,
+`abstract1_go`, `inst_lp_go`, `reset_meta_go`, `rename_consts_go`,
+`whnf_core_body(_gated)`, `whnf_body`, `infer_body`, `infer_body_io`,
+`annotate_binder`, `annotate_body`/`annotate_core_gated`, `defeq_step`,
+`defeq_after_whnf`, the parse (`chunk_step`), the pins (`intern_expr_go`),
+`promote_*`, `inductives::check_ind_decl`, `annot_decl_step` (phase A) and
+`check_pending` (phase B).
+
+**nanoda** (`nanoda-instr2.rs` + `instrument-nanoda.py`, applied to a PRIVATE
+copy of the clone; `_tmp/t97/nanoda-build` was left untouched and is what
+every `perf` cell of this section ran): `TcCtx::alloc_expr` by the same three
+outcomes — a hit in the export-file dag / a hit in the per-declaration temp
+dag / a new node in the temp dag — by constructor and by caller;
+`alloc_name`/`alloc_level`/`alloc_levels(_slice)`; the parser's own
+`insert_full`s into the export dag; `read_expr`; and one line per declaration.
+Tagged: `inst_aux`, `abstr_aux`, `abstr_aux_levels`, `subst_aux`, `whnf`,
+`whnf_no_unfolding_aux`, `infer`, `def_eq`, `reduce_rec`, `check_declar_info`,
+`check_inductive_declar`, `check_quot`.
+
+Two notes on comparability, both of which the counts settle:
+
+  * **a construction attempt is the same event on both sides.**  nanoda's
+    `alloc_expr` probes the export dag and then inserts-or-finds in the temp
+    dag; the arena's `intern` probes the persistent cons table and then the
+    scratch one and then appends.  Same three outcomes, same order
+    (`_tmp/t97/nanoda-design.md` §3's "the cons step"), one call per node
+    requested on both.  The arena's count is if anything the more favourable
+    one: task #97-P6-5's and #97-P6-7's upward cutoff returns the original
+    handle BEFORE `intern` is reached, and nanoda has no upward cutoff at all.
+  * **a node touch is NOT the same event**, until the arena's second counter
+    is added.  nanoda's cutoff tests are `num_loose_bvars(e)` and
+    `has_fvars(e)`, which are `self.read_expr(e).…` — a full 32-byte record
+    copy (`expr.rs:807-809`).  The arena's cutoffs read the derived word off
+    the handle's own column and never decode.  Counting only `view` would
+    have made the arena look half as busy as it is; counting `view` +
+    `EStore::derived` against `read_expr` compares like with like, and that
+    is what §3's "node touches" row is.
+
+#### 2. The two runs, side by side
+
+`instructions:u` and `cycles:u` from one `perf stat` of the UNINSTRUMENTED
+binaries (`_tmp/t97-p6-8a/bin-arena-clean` is the `arena` tip built without
+the patch; nanoda is `_tmp/t97/nanoda-build`).  The arena's `Init` reproduces
+task #97-P6-7's 413.83 G to five digits and its prefix reproduces that task's
+cumulative 2 314.65 G exactly, so the counts below belong to the same binary
+the campaign's table describes.
+
+| `Init` | arena | nanoda | ratio |
+|---|---:|---:|---:|
+| instructions:u | 413 826 565 797 | 231 248 123 456 | **1.79×** |
+| cycles:u | 211 217 066 401 | 112 283 332 084 | 1.88× |
+| wall | 48.12 s | 25.55 s | 1.88× |
+| verdict | accepted 57 977 | Checked 59 433 | — |
+
+| Mathlib 25 % prefix | arena | nanoda | ratio |
+|---|---:|---:|---:|
+| instructions:u | 2 314 647 548 634 | 1 187 196 874 884 | **1.95×** |
+| cycles:u | 1 109 217 894 001 | 737 444 963 047 | 1.50× |
+| wall | 253.45 s | 168.22 s | 1.51× |
+| verdict | accepted 155 288 | Checked 164 049 | — |
+
+(nanoda's declaration count is task #97-P6-3's counting convention, one entry
+per kernel declaration, and is not a disagreement.)
+
+#### 3. Nodes built, nodes attempted, nodes touched
+
+| `Init` | arena | nanoda | ratio |
+|---|---:|---:|---:|
+| expression construction attempts | 378 358 458 | 281 737 648 | **1.34×** |
+| — hit in the persistent / export tier | 54 224 581 | 68 288 490 | 0.79× |
+| — hit in the scratch / temp tier | 133 314 186 | 120 047 361 | 1.11× |
+| — **NEW nodes** | **190 819 691** | **93 401 797** | **2.04×** |
+| name interns | 7 686 067 | 302 637 | 25.4× |
+| level interns | 15 204 030 | 8 495 182 | 1.79× |
+| level-list interns | 5 744 763 | 19 376 909 | 0.30× |
+| **node touches** | **2 058 530 356** | **2 063 643 403** | **1.00×** |
+
+| Mathlib 25 % prefix | arena | nanoda | ratio |
+|---|---:|---:|---:|
+| expression construction attempts | 2 273 509 573 | 1 518 610 714 | **1.50×** |
+| — hit in the persistent / export tier | 268 679 988 | 284 907 710 | 0.94× |
+| — hit in the scratch / temp tier | 866 793 440 | 778 321 820 | 1.11× |
+| — **NEW nodes** | **1 138 036 145** | **455 381 184** | **2.50×** |
+| name interns | 262 481 212 | 1 089 136 | 241× |
+| level interns | 213 331 328 | 88 233 993 | 2.42× |
+| level-list interns | 69 889 959 | 101 803 309 | 0.69× |
+| **node touches** | **10 857 412 695** | **9 744 127 313** | **1.11×** |
+
+nanoda's columns include its parse (the export dag is built by the parser's
+own `insert_full`s, which `assert_ie` proves are all new: `Init` 6 136 571
+expression nodes, the prefix 25 763 101 — the arena's parse tag reads
+6 136 370 and 25 763 094 for the same file, which is the same DAG).  The
+arena's include its parse and its promotion.
+
+**The headline of this section: the two checkers touch the same number of
+nodes, and the arena builds two and a half times as many.**  Of the arena's
+10 857 M prefix touches, 6 549 M (60 %) are derived-word reads and 4 308 M are
+decodes; nanoda gets the cutoff fields inside the record it copies, so its
+9 744 M `read_expr`s are both at once.
+
+#### 4. By caller, side by side (the prefix; attempts / NEW)
+
+The tag is the innermost tagged function, and the two checkers do not put the
+spine rebuild in the same place — nanoda's `whnf_no_unfolding_aux` re-applies
+the spine with `mk_app` itself, where the arena's beta goes through
+`instantiate1` — so read the substituting-walk rows and the TOTALS, not the
+reduction rows, across the table.
+
+| the arena | attempts | NEW | | nanoda | attempts | NEW |
+|---|---:|---:|---|---|---:|---:|
+| `instantiate1_go` | 1 576 644 054 | 876 666 171 | ↔ | `inst_aux` | 532 196 009 | 203 740 236 |
+| `inst_lp_go` | 283 154 078 | 136 473 528 | ↔ | `subst_aux` | 322 860 319 | 116 695 601 |
+| `abstract1_go` | 277 272 329 | 47 381 812 | ↔ | `abstr_aux` + `_levels` | 103 123 960 | 9 914 540 |
+| `defeq` | 32 404 606 | 14 260 219 | ↔ | `def_eq` | 129 481 083 | 33 071 593 |
+| `whnf` | 28 464 984 | 18 553 016 | ↔ | `whnf` | 37 121 330 | 21 553 093 |
+| `whnf_core` | 15 498 846 | 6 947 197 | ↔ | `whnf_no_unfolding` | 347 494 773 | 34 242 784 |
+| `infer` + `infer_io` | 8 306 204 | 3 724 766 | ↔ | `infer` | 10 410 141 | 6 056 077 |
+| `annotate_binder` + other | 8 855 933 | 5 669 013 | ↔ | — | — | — |
+| the parse | 25 844 903 | 25 763 094 | ↔ | the parser | 25 763 101 | 25 763 101 |
+| phase A (`annot_decl_step`) | 7 667 145 | 1 116 | ↔ | `check_declar_info` | 0 | 0 |
+| the inductive installs | 1 043 333 | 72 754 | ↔ | `check_inductive_declar` | 2 725 931 | 594 927 |
+| the promotion | 1 432 485 | 1 432 485 | ↔ | — | — | — |
+| the pins | 916 721 | 167 621 | ↔ | — | — | — |
+| the other walks | 6 003 952 | 923 353 | ↔ | `reduce_rec`, `check_quot` | 7 434 067 | 3 749 232 |
+| **TOTAL** | **2 273 509 573** | **1 138 036 145** | | **TOTAL** | **1 518 610 714** | **455 381 184** |
+
+**The top fifteen (caller × constructor × outcome) cells of the prefix**, the
+arena first:
+
+| the arena | | | nanoda | | |
+|---|---|---:|---|---|---:|
+| `instantiate1_go` `app` | NEW | 660 162 351 | `whnf_no_unfolding` `app` | hit temp | 288 864 472 |
+| `instantiate1_go` `app` | hit scratch | 577 842 098 | `inst_aux` `app` | hit temp | 280 659 257 |
+| `abstract1_go` `app` | hit scratch | 137 288 980 | `inst_aux` `app` | NEW | 178 589 657 |
+| `instantiate1_go` `forallE` | NEW | 114 415 009 | `subst_aux` `app` | hit export | 96 922 168 |
+| `instantiate1_go` `lam` | NEW | 96 982 946 | `subst_aux` `app` | NEW | 73 922 653 |
+| `inst_lp_go` `app` | NEW | 92 015 643 | `def_eq` `app` | hit temp | 50 279 905 |
+| `instantiate1_go` `forallE` | hit scratch | 59 345 000 | `subst_aux` `const` | hit export | 50 151 241 |
+| `inst_lp_go` `app` | hit persistent | 55 246 239 | `def_eq` `const` | hit export | 42 397 362 |
+| `abstract1_go` `app` | hit persistent | 52 422 434 | `whnf_no_unfolding` `app` | NEW | 33 690 349 |
+| `inst_lp_go` `const` | hit persistent | 45 839 796 | `def_eq` `app` | NEW | 31 901 875 |
+| `instantiate1_go` `app` | hit persistent | 41 755 347 | `abstr_aux_levels` `app` | hit temp | 27 521 422 |
+| `abstract1_go` `bvar` | hit persistent | 30 290 773 | `abstr_aux` `app` | hit temp | 25 995 063 |
+| `abstract1_go` `app` | NEW | 29 983 024 | `whnf_no_unfolding` `app` | hit export | 22 460 053 |
+| `inst_lp_go` `forallE` | NEW | 23 873 014 | `whnf` `app` | NEW | 21 552 784 |
+| the parse, `app` | NEW | 22 114 981 | `subst_aux` `forallE` | NEW | 20 941 625 |
+
+**By constructor**, the whole prefix (the arena's column includes its parse,
+nanoda's does not — its parser inserts into the export dag directly):
+
+| constructor | arena attempts | arena NEW | nanoda attempts | nanoda NEW | NEW ratio |
+|---|---:|---:|---:|---:|---:|
+| `app` | 1 769 180 974 | 845 597 303 | 1 213 874 527 | 347 760 822 | 2.43× |
+| `forallE` | 224 704 818 | **151 478 311** | 67 593 726 | **29 440 824** | **5.15×** |
+| `lam` | 149 548 046 | **124 144 231** | 49 217 155 | **31 921 043** | **3.89×** |
+| `const` | 61 631 788 | 5 684 126 | 101 863 664 | 4 986 028 | 1.14× |
+| `bvar` | 36 824 957 | 228 | 4 102 951 | 0 | — |
+| `sort` | 15 852 675 | 1 711 549 | 23 059 664 | 2 207 057 | 0.78× |
+| `fvar` | 8 755 788 | 3 691 079 | 10 565 762 | 4 725 357 | 0.78× |
+| `proj` | 6 325 208 | 5 208 569 | 21 115 632 | 7 530 912 | 0.69× |
+| `letE` | 522 700 | 515 912 | 1 191 459 | 1 042 401 | 0.49× |
+| `lit` | 162 619 | 4 837 | 263 073 | 3 639 | 1.33× |
+
+`app` is the run on both sides — 78 % of the arena's attempts and 81 % of
+nanoda's — but **the excess is in the binders**: the arena interns 5.15× as
+many new `forallE` nodes and 3.89× as many new `lam` nodes as nanoda, against
+2.43× for `app`, and its `bvar` probes (36.8 M, all hits) are nine times
+nanoda's.
+
+#### 5. Per declaration
+
+| prefix | arena | nanoda |
+|---|---:|---:|
+| declarations | 156 945 | 164 049 |
+| new nodes, total | 1 112 102 990 | 429 618 083 |
+| new nodes, mean | 7 085.9 | 2 618.8 |
+| new nodes, **median** | **1 309** | **361** |
+| new nodes, max | 3 182 152 | 4 700 943 |
+| attempts, mean / median | 14 319 / 3 044 | 9 100 / 1 244 |
+
+| `Init` | arena | nanoda |
+|---|---:|---:|
+| declarations | 58 007 | 59 433 |
+| new nodes, mean / median / max | 3 183.4 / 430 / 790 488 | 1 468.3 / 147 / 421 604 |
+
+Joined on the 155 288 names both checkers see in the prefix, the arena builds
+**2.60×** the new nodes and makes **1.54×** the attempts; per declaration, over
+the 118 653 declarations where nanoda builds at least a hundred nodes, the
+ratio is **p5 1.13, p25 2.25, median 3.02, p75 4.08, p95 6.85, mean 3.42**.  On
+`Init` the same distribution is median 2.35, mean 2.76.  So the extra
+construction is not a few pathological declarations: **the typical declaration
+costs the arena three times the nodes.**
+
+The arena's ten heaviest declarations of the prefix, with nanoda beside
+(new nodes, and the touch counts, which are decodes for the arena):
+
+| arena new | nanoda new | ratio | declaration |
+|---:|---:|---:|---|
+| 3 182 152 | 4 700 943 | 0.68× | `AlgebraicGeometry.Proj.awayι_comp_map` |
+| 1 844 347 | 648 929 | 2.84× | `Lean.Meta.Grind.Arith.Cutsat.EqCnstr` |
+| 1 406 062 | 328 044 | 4.29× | `…LieAlgebra.ExtendScalars.bracket_leibniz_lie` |
+| 1 259 835 | 139 225 | 9.05× | `Representation.LinearizeMonoidal.assoc_comp_δ` |
+| 1 247 224 | 312 317 | 3.99× | `Rep.barComplex.d_comp_diagonalSuccIsoFree_inv_eq` |
+| 1 175 845 | 197 635 | 5.95× | `Module.Grassmannian.map_comp` |
+| 1 159 047 | 301 581 | 3.84× | `LieModule.lowerCentralSeries_one_inf_center_le_ker_traceForm` |
+| 1 118 601 | 112 743 | 9.92× | `CategoryTheory.Bicategory.mateEquiv_vcomp` |
+| 992 429 | 157 671 | 6.29× | `Representation.LinearizeMonoidal.μ_comp_assoc` |
+| 950 100 | 213 183 | 4.46× | `TensorProduct.AlgebraTensorModule.lTensor_comp_cancelBaseChange` |
+
+The first row is nanoda's own worst declaration of the prefix and the arena's:
+nanoda builds 4.70 M nodes there and performs **174 690 531 `read_expr`s**,
+1.8 % of its whole prefix, against the arena's 9 953 369 decodes.  On `Init`
+the ten heaviest are the same `Array.extract`/`Vector.extract` proofs on both
+sides at a flat 1.8–2.1×.
+
+#### 6. Where the gap is: the same profile, bucketed
+
+`perf record -e instructions:u -F 199` of each uninstrumented binary on each
+input, `perf report --no-children`, every symbol assigned to one bucket
+(`_tmp/t97-p6-8a/buckets.py`): **cons** = the hash-cons (the cons-table
+probe, the derived word at intern time, the append, the growth, and for the
+arena the name/level/level-list interns), **read** = decoding a node or
+reading its derived word, **walk** = the walks, the knot, defeq, infer, the
+declaration checker, **memo** = the per-call memos and the per-declaration
+caches, plus allocator, parser and the rest.  nanoda has no **read** row:
+`read_expr` is inlined into its callers, which is why the comparison below
+adds **walk + read** on the arena's side.
+
+| Mathlib 25 % prefix | arena | nanoda | Δ | share of the gap |
+|---|---:|---:|---:|---:|
+| **walk + read** | **1 189.50 G** | **378.24 G** | **+811.26 G** | **72 %** |
+| cons | 775.18 G | 515.48 G | +259.70 G | 23 % |
+| memo | 177.07 G | 87.14 G | +89.93 G | 8 % |
+| allocator | 107.17 G | 87.85 G | +19.32 G | 2 % |
+| the parse | 50.00 G | 96.76 G | −46.76 G | −4 % |
+| other | 7.41 G | 20.90 G | −13.49 G | −1 % |
+| **total** | **2 314.65 G** | **1 187.20 G** | **+1 127.45 G** | |
+
+| `Init` | arena | nanoda | Δ | share |
+|---|---:|---:|---:|---:|
+| **walk + read** | **221.85 G** | **74.60 G** | **+147.25 G** | **81 %** |
+| cons | 128.70 G | 91.39 G | +37.31 G | 20 % |
+| memo | 35.01 G | 17.95 G | +17.07 G | 9 % |
+| allocator | 15.15 G | 18.80 G | −3.65 G | −2 % |
+| the parse | 11.38 G | 22.59 G | −11.21 G | −6 % |
+| other | 1.49 G | 5.90 G | −4.41 G | −2 % |
+| **total** | **413.83 G** | **231.25 G** | **+182.58 G** | |
+
+Normalised by this task's own counts:
+
+| instructions per … | arena | nanoda | ratio |
+|---|---:|---:|---:|
+| construction attempt (all four stores), prefix | **275** | **302** | **0.91×** |
+| construction attempt (all four stores), `Init` | **316** | **295** | **1.07×** |
+| node touched (walk + read), prefix | **110** | **39** | **2.82×** |
+| node touched (walk + read), `Init` | **108** | **36** | **2.98×** |
+| node touched (memo), prefix | 16.3 | 8.9 | 1.83× |
+
+#### 7. The verdict, and what the numbers point at
+
+**(b) is out and (a) is a fifth of it: the gap is (c), the code between the
+interns.**  Per construction attempt the arena's hash-cons costs what nanoda's
+does — 275 against 302 instructions on the prefix, 316 against 295 on `Init`,
+parity inside the spread of a sampled profile — so the arena's table, its
+derived word and its two-tier probe are not the problem.  The arena DOES build
+more: 2.50× the new nodes and 1.50× the attempts on the prefix (2.04× and
+1.34× on `Init`), and the typical declaration costs it three times the nodes;
+but at parity per attempt that whole excess is +259.70 G of the +1 127.45 G
+gap, 23 %.  **72 % of the gap is the walk code**, and it is not that the arena
+walks more — the two checkers touch almost exactly the same number of nodes
+(1.11× on the prefix, 1.00× on `Init`) — it is that **a node touch costs the
+arena 110 instructions against nanoda's 39**, and the memo tables another 16
+against 9.  The one-line summary of the campaign's remaining 1.85×: *the arena
+visits the same DAG as nanoda, builds two and a half times as many nodes for
+the same price each, and pays three times as much per node it looks at.*
+
+Three things the counts name, without any lever being proposed here:
+
+  1. **`instantiate1` is where the extra nodes are.**  It performs 1 576.64 M
+     of the arena's 2 273.51 M attempts (69 %) and 876.67 M of its 1 138.04 M
+     new nodes (77 %), against `inst_aux`'s 532.20 M and 203.74 M (35 % and
+     45 %) — 2.96× the attempts and **4.30× the new nodes**.  The shape of the
+     difference is visible in the code the counts come from and needs no
+     profile: con-leche's `instSpine` / `instPisAt` / `instLamsAt` loop
+     `instantiate1` once per argument (`expr_ops::inst_spine_from` is the
+     recursion), so a telescope of `n` binders is `n` walks and `n − 1`
+     intermediate terms interned, where nanoda's `inst e [v₁…vₙ]`
+     (`expr.rs:164-216`) substitutes the whole vector in one walk.  The
+     arena's own `instantiate_list_go` — con-leche's `instantiateList` — is
+     the same shape as nanoda's `inst` and is used for 1.90 M of the prefix's
+     2 273.51 M attempts.  §4's constructor table is that shape's signature:
+     each per-argument pass re-interns the binder telescope it walks under, so
+     the excess is 5.15× on `forallE` and 3.89× on `lam` against 2.43× on
+     `app`.
+  2. **The name store is a cost nanoda does not have at all.**  262 481 212
+     name interns on the prefix against nanoda's 1 089 136, and `str_copy_from`
+     — the `StrNode` probe key built by copying the component (task
+     #97-P6-1's finding, reduced but not removed by task #97-P6-4a's pins) —
+     is **3.34 % of the prefix's instructions**, with `name::anonymous` another
+     0.87 %.  Both are inside the cons bucket above.
+  3. **60 % of the arena's node touches are derived-word-only reads**
+     (6 549 M of 10 857 M on the prefix).  Those are the cutoffs, and they are
+     the arena's advantage — nanoda pays a 32-byte record copy for the same
+     test — yet the arena's walk+read bucket is still 2.8× nanoda's per touch.
+     Whatever the per-touch cost is, it is NOT the cutoff and it is NOT the
+     store: `ETables::get` and `der_at` together are 7.88 % of the prefix
+     against `instantiate1_go`'s own 14.84 % and the rest of `arena::expr_ops`
+     and `arena::core`.
+
+#### 8. Gates
+
+Measurement only.  `git diff` against the `arena` tip is EMPTY for `crates/`
+and for `proof/`; this task commits DESIGN.md and nothing else, and
+`_tmp/t97-p6-8a/` (not in git) holds the scripts, the dumps and the binaries.
+Both instrumented builds were verified against their uninstrumented twins on
+the verdict: `accepted 57 977` / `accepted 155 288` for the arena and
+`Checked 59 433` / `Checked 164 049` for nanoda, and the arena's instrumented
+persistent-tier node count (`Init` 6 508 719) is task #97-P6-2's to the node.
