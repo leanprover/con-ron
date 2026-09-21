@@ -97,8 +97,7 @@ use crate::arena::handle::{
 use crate::arena::monad::{
     fail, intern_e, intern_l_node, intern_ls_node, intern_n_node, intern_level, intern_name,
     read_level, read_levels, read_name, read_names, view, view_app, view_ls, view_ls_len,
-    AState, fail_dangling_e, fail_dangling_ls,
-};
+    AState, fail_dangling_e, fail_dangling_ls, view_bind, view_bvar, view_const, view_const_name, view_lit, view_sort};
 use crate::arena::prop_read::{is_proof_fast, not_proof_fast, proof_pw, type_sort_pw};
 use crate::arena::store::{ENodeView, LNodeView, NNodeView};
 use crate::arena::pins::{pin_and, pin_reserved, pin_bool, pin_bool_false, pin_bool_true, pin_char, pin_char_of_nat, pin_empty_levels, pin_list, pin_list_cons, pin_list_nil, pin_nat, pin_nat_add, pin_nat_beq, pin_nat_ble, pin_nat_div, pin_nat_gcd, pin_nat_land, pin_nat_lor, pin_nat_mod, pin_nat_mul, pin_nat_pow, pin_nat_pred, pin_nat_shift_left, pin_nat_shift_right, pin_nat_sub, pin_nat_succ, pin_nat_xor, pin_nat_zero, pin_punit, pin_punit_rec, pin_sorry_ax, pin_sort_one, pin_string, pin_string_of_list, pin_zero_level};
@@ -855,14 +854,17 @@ pub fn is_ctor_app(
 ) -> Result<bool, CheckError>  {
     match get_app_fn(pers, st, CORE_WALK_FUEL, e) {
         Err(er) => Err(er),
-        Ok(h) => match view(pers, st, &h) {
-            Err(er) => Err(er),
-            Ok(ENodeView::Const(c, _)) => match env::ifenv_find(vis, fe, &c) {
-                Some(IConstantInfo::CtorInfo(_, _, _)) => Ok(true),
-                Some(_) => Ok(false),
-                None => Ok(false),
-            },
-            Ok(_) => Ok(false),
+        Ok(h) => if h.tag() == ETAG_CONST {
+            match view_const_name(pers, st, &h) {
+                None => fail_dangling_e(),
+                Some(c) => match env::ifenv_find(vis, fe, &c) {
+                    Some(IConstantInfo::CtorInfo(_, _, _)) => Ok(true),
+                    Some(_) => Ok(false),
+                    None => Ok(false),
+                },
+            }
+        } else {
+            Ok(false)
         },
     }
 }
@@ -873,17 +875,20 @@ pub fn is_ctor_app(
 pub fn pi_result_is_prop(pers: &PersTier, st: &mut AState, e: &EIdx) -> Result<bool, CheckError> {
     match pi_result(pers, st, CORE_WALK_FUEL, e) {
         Err(er) => Err(er),
-        Ok(h) => match view(pers, st, &h) {
-            Err(er) => Err(er),
-            Ok(ENodeView::Sort(u)) => match zero_level(st) {
-                Err(er) => Err(er),
-                Ok(z) => match lvl_eq(pers, st, &u, &z) {
+        Ok(h) => if h.tag() == ETAG_SORT {
+            match view_sort(pers, st, &h) {
+                None => fail_dangling_e(),
+                Some(u) => match zero_level(st) {
                     Err(er) => Err(er),
-                    Ok(Some(true)) => Ok(true),
-                    Ok(_) => Ok(false),
+                    Ok(z) => match lvl_eq(pers, st, &u, &z) {
+                        Err(er) => Err(er),
+                        Ok(Some(true)) => Ok(true),
+                        Ok(_) => Ok(false),
+                    },
                 },
-            },
-            Ok(_) => Ok(false),
+            }
+        } else {
+            Ok(false)
         },
     }
 }
@@ -894,13 +899,16 @@ pub fn pi_result_is_prop(pers: &PersTier, st: &mut AState, e: &EIdx) -> Result<b
 pub fn pi_result_z(pers: &PersTier, st: &mut AState, e: &EIdx) -> Result<PropWhen, CheckError> {
     match pi_result(pers, st, CORE_WALK_FUEL, e) {
         Err(er) => Err(er),
-        Ok(h) => match view(pers, st, &h) {
-            Err(er) => Err(er),
-            Ok(ENodeView::Sort(u)) => match read_level(pers, st, &u) {
-                Err(er) => Err(er),
-                Ok(l) => Ok(level::zeroness_of(&l)),
-            },
-            Ok(_) => Ok(prop_when::if_all_zero(Vec::new())),
+        Ok(h) => if h.tag() == ETAG_SORT {
+            match view_sort(pers, st, &h) {
+                None => fail_dangling_e(),
+                Some(u) => match read_level(pers, st, &u) {
+                    Err(er) => Err(er),
+                    Ok(l) => Ok(level::zeroness_of(&l)),
+                },
+            }
+        } else {
+            Ok(prop_when::if_all_zero(Vec::new()))
         },
     }
 }
@@ -918,19 +926,22 @@ pub fn pi_result_never_zero(
 ) -> Result<bool, CheckError> {
     match pi_result(pers, st, CORE_WALK_FUEL, e) {
         Err(er) => Err(er),
-        Ok(h) => match view(pers, st, &h) {
-            Err(er) => Err(er),
-            Ok(ENodeView::Sort(u)) => match read_names(pers, st, lps) {
-                Err(er) => Err(er),
-                Ok(ks) => match read_levels(pers, st, us) {
+        Ok(h) => if h.tag() == ETAG_SORT {
+            match view_sort(pers, st, &h) {
+                None => fail_dangling_e(),
+                Some(u) => match read_names(pers, st, lps) {
                     Err(er) => Err(er),
-                    Ok(vs) => match read_level(pers, st, &u) {
+                    Ok(ks) => match read_levels(pers, st, us) {
                         Err(er) => Err(er),
-                        Ok(l) => Ok(level::is_never_zero(&level::subst(&ks, &vs, &l))),
+                        Ok(vs) => match read_level(pers, st, &u) {
+                            Err(er) => Err(er),
+                            Ok(l) => Ok(level::is_never_zero(&level::subst(&ks, &vs, &l))),
+                        },
                     },
                 },
-            },
-            Ok(_) => Ok(false),
+            }
+        } else {
+            Ok(false)
         },
     }
 }
@@ -966,42 +977,45 @@ pub fn is_unit_like_ty(
     fe: &IFEnv,
     h: &EIdx,
 ) -> Result<bool, CheckError>  {
-    match view(pers, st, h) {
-        Err(e) => Err(e),
-        Ok(ENodeView::Const(c, _)) => match pin_punit(st) {
-            Err(e) => Err(e),
-            Ok(pu) => {
-                if !c.eq2(&pu) {
-                    Ok(false)
-                } else {
-                    match env::ifenv_find(vis, fe, &pu) {
-                        Some(IConstantInfo::IndInfo(_, _)) => {
-                            match pin_punit_rec(st) {
-                                Err(e) => Err(e),
-                                Ok(pr) => match env::ifenv_find(vis, fe, &pr) {
-                                    Some(IConstantInfo::RecInfo(_, m_i, r_p, rules)) => {
-                                        if rules.len() == 1 {
-                                            if *m_i == *r_p {
-                                                Ok(rules[0].nfields == 0)
+    if h.tag() == ETAG_CONST {
+        match view_const_name(pers, st, h) {
+            None => fail_dangling_e(),
+            Some(c) => match pin_punit(st) {
+                Err(e) => Err(e),
+                Ok(pu) => {
+                    if !c.eq2(&pu) {
+                        Ok(false)
+                    } else {
+                        match env::ifenv_find(vis, fe, &pu) {
+                            Some(IConstantInfo::IndInfo(_, _)) => {
+                                match pin_punit_rec(st) {
+                                    Err(e) => Err(e),
+                                    Ok(pr) => match env::ifenv_find(vis, fe, &pr) {
+                                        Some(IConstantInfo::RecInfo(_, m_i, r_p, rules)) => {
+                                            if rules.len() == 1 {
+                                                if *m_i == *r_p {
+                                                    Ok(rules[0].nfields == 0)
+                                                } else {
+                                                    Ok(false)
+                                                }
                                             } else {
                                                 Ok(false)
                                             }
-                                        } else {
-                                            Ok(false)
                                         }
-                                    }
-                                    Some(_) => Ok(false),
-                                    None => Ok(false),
-                                },
+                                        Some(_) => Ok(false),
+                                        None => Ok(false),
+                                    },
+                                }
                             }
+                            Some(_) => Ok(false),
+                            None => Ok(false),
                         }
-                        Some(_) => Ok(false),
-                        None => Ok(false),
                     }
                 }
-            }
-        },
-        Ok(_) => Ok(false),
+            },
+        }
+    } else {
+        Ok(false)
     }
 }
 
@@ -1019,36 +1033,39 @@ pub fn unfold_definition(
 ) -> Result<Option<EIdx>, CheckError> {
     match get_app_fn(pers, st, CORE_WALK_FUEL, e) {
         Err(er) => Err(er),
-        Ok(h) => match view(pers, st, &h) {
-            Err(er) => Err(er),
-            Ok(ENodeView::Const(n, us)) => match env::ifenv_find(vis, fe, &n) {
-                Some(IConstantInfo::DefnInfo(cv, value, _)) => {
-                    let lps: Vec<NIdx> = env::nidx_vec_dup(&cv.level_params);
-                    let val: EIdx = value.dup2();
-                    match view_ls_len(pers, st, &us) {
-                        None => fail_dangling_ls(),
-                        Some(usl) => {
-                            if usl == lps.len() {
-                                match const_val_at(pers, st, &n, &lps, &val, &us) {
-                                    Err(er) => Err(er),
-                                    Ok(v) => match get_app_args(pers, st, CORE_WALK_FUEL, e) {
+        Ok(h) => if h.tag() == ETAG_CONST {
+            match view_const(pers, st, &h) {
+                None => fail_dangling_e(),
+                Some((n, us)) => match env::ifenv_find(vis, fe, &n) {
+                    Some(IConstantInfo::DefnInfo(cv, value, _)) => {
+                        let lps: Vec<NIdx> = env::nidx_vec_dup(&cv.level_params);
+                        let val: EIdx = value.dup2();
+                        match view_ls_len(pers, st, &us) {
+                            None => fail_dangling_ls(),
+                            Some(usl) => {
+                                if usl == lps.len() {
+                                    match const_val_at(pers, st, &n, &lps, &val, &us) {
                                         Err(er) => Err(er),
-                                        Ok(args) => match mk_app_n(pers, st, &v, &args) {
+                                        Ok(v) => match get_app_args(pers, st, CORE_WALK_FUEL, e) {
                                             Err(er) => Err(er),
-                                            Ok(r) => Ok(Some(r)),
+                                            Ok(args) => match mk_app_n(pers, st, &v, &args) {
+                                                Err(er) => Err(er),
+                                                Ok(r) => Ok(Some(r)),
+                                            },
                                         },
-                                    },
+                                    }
+                                } else {
+                                    Ok(None)
                                 }
-                            } else {
-                                Ok(None)
                             }
                         }
                     }
-                }
-                Some(_) => Ok(None),
-                None => Ok(None),
-            },
-            Ok(_) => Ok(None),
+                    Some(_) => Ok(None),
+                    None => Ok(None),
+                },
+            }
+        } else {
+            Ok(None)
         },
     }
 }
@@ -1066,20 +1083,23 @@ pub fn unfoldable_head(
 ) -> Result<bool, CheckError>  {
     match get_app_fn(pers, st, CORE_WALK_FUEL, e) {
         Err(er) => Err(er),
-        Ok(h) => match view(pers, st, &h) {
-            Err(er) => Err(er),
-            Ok(ENodeView::Const(n, us)) => match env::ifenv_find(vis, fe, &n) {
-                Some(IConstantInfo::DefnInfo(cv, _, _)) => {
-                    let k = cv.level_params.len();
-                    match view_ls_len(pers, st, &us) {
-                        None => fail_dangling_ls(),
-                        Some(usl) => Ok(usl == k),
+        Ok(h) => if h.tag() == ETAG_CONST {
+            match view_const(pers, st, &h) {
+                None => fail_dangling_e(),
+                Some((n, us)) => match env::ifenv_find(vis, fe, &n) {
+                    Some(IConstantInfo::DefnInfo(cv, _, _)) => {
+                        let k = cv.level_params.len();
+                        match view_ls_len(pers, st, &us) {
+                            None => fail_dangling_ls(),
+                            Some(usl) => Ok(usl == k),
+                        }
                     }
-                }
-                Some(_) => Ok(false),
-                None => Ok(false),
-            },
-            Ok(_) => Ok(false),
+                    Some(_) => Ok(false),
+                    None => Ok(false),
+                },
+            }
+        } else {
+            Ok(false)
         },
     }
 }
@@ -1096,16 +1116,19 @@ pub fn head_hint(
 ) -> Result<ReducibilityHint, CheckError> {
     match get_app_fn(pers, st, CORE_WALK_FUEL, e) {
         Err(er) => Err(er),
-        Ok(h) => match view(pers, st, &h) {
-            Err(er) => Err(er),
-            Ok(ENodeView::Const(n, _)) => match env::ifenv_find(vis, fe, &n) {
-                Some(IConstantInfo::DefnInfo(_, _, hint)) => {
-                    Ok(con_ron_core::kernel::env::reducibility_hint_dup(hint))
-                }
-                Some(_) => Ok(ReducibilityHint::Opaque),
-                None => Ok(ReducibilityHint::Opaque),
-            },
-            Ok(_) => Ok(ReducibilityHint::Opaque),
+        Ok(h) => if h.tag() == ETAG_CONST {
+            match view_const_name(pers, st, &h) {
+                None => fail_dangling_e(),
+                Some(n) => match env::ifenv_find(vis, fe, &n) {
+                    Some(IConstantInfo::DefnInfo(_, _, hint)) => {
+                        Ok(con_ron_core::kernel::env::reducibility_hint_dup(hint))
+                    }
+                    Some(_) => Ok(ReducibilityHint::Opaque),
+                    None => Ok(ReducibilityHint::Opaque),
+                },
+            }
+        } else {
+            Ok(ReducibilityHint::Opaque)
         },
     }
 }
@@ -1120,30 +1143,42 @@ pub fn same_const_heads(
     a: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    match view(pers, st, a) {
-        Err(e) => Err(e),
-        Ok(ENodeView::App(f1, _)) => match view(pers, st, b) {
-            Err(e) => Err(e),
-            Ok(ENodeView::App(f2, _)) => match get_app_fn(pers, st, CORE_WALK_FUEL, &f1) {
-                Err(e) => Err(e),
-                Ok(h1) => match view(pers, st, &h1) {
-                    Err(e) => Err(e),
-                    Ok(ENodeView::Const(n1, _)) => {
-                        match get_app_fn(pers, st, CORE_WALK_FUEL, &f2) {
-                            Err(e) => Err(e),
-                            Ok(h2) => match view(pers, st, &h2) {
-                                Err(e) => Err(e),
-                                Ok(ENodeView::Const(n2, _)) => Ok(n1.eq2(&n2)),
-                                Ok(_) => Ok(false),
-                            },
-                        }
-                    }
-                    Ok(_) => Ok(false),
-                },
+    if a.tag() == ETAG_APP {
+        match view_app(pers, st, a) {
+            None => fail_dangling_e(),
+            Some((f1, _)) => if b.tag() == ETAG_APP {
+                match view_app(pers, st, b) {
+                    None => fail_dangling_e(),
+                    Some((f2, _)) => match get_app_fn(pers, st, CORE_WALK_FUEL, &f1) {
+                        Err(e) => Err(e),
+                        Ok(h1) => if h1.tag() == ETAG_CONST {
+                            match view_const_name(pers, st, &h1) {
+                                None => fail_dangling_e(),
+                                Some(n1) => {
+                                    match get_app_fn(pers, st, CORE_WALK_FUEL, &f2) {
+                                        Err(e) => Err(e),
+                                        Ok(h2) => if h2.tag() == ETAG_CONST {
+                                            match view_const_name(pers, st, &h2) {
+                                                None => fail_dangling_e(),
+                                                Some(n2) => Ok(n1.eq2(&n2)),
+                                            }
+                                        } else {
+                                            Ok(false)
+                                        },
+                                    }
+                                },
+                            }
+                        } else {
+                            Ok(false)
+                        },
+                    },
+                }
+            } else {
+                Ok(false)
             },
-            Ok(_) => Ok(false),
-        },
-        Ok(_) => Ok(false),
+        }
+    } else {
+        Ok(false)
     }
 }
 
@@ -1258,16 +1293,19 @@ pub fn nat_succ_ok(
                     Err(e) => Err(e),
                     Ok(nt) => match const_e(pers, st, &nt) {
                         Err(e) => Err(e),
-                        Ok(nc) => match view(pers, st, &ty) {
-                            Err(e) => Err(e),
-                            Ok(ENodeView::ForallE(dom, body, _)) => {
-                                if dom.eq2(&nc) {
-                                    Ok(body.eq2(&nc))
-                                } else {
-                                    Ok(false)
-                                }
+                        Ok(nc) => if ty.tag() == ETAG_FORALL_E {
+                            match view_bind(pers, st, &ty) {
+                                None => fail_dangling_e(),
+                                Some((dom, body, _)) => {
+                                    if dom.eq2(&nc) {
+                                        Ok(body.eq2(&nc))
+                                    } else {
+                                        Ok(false)
+                                    }
+                                },
                             }
-                            Ok(_) => Ok(false),
+                        } else {
+                            Ok(false)
                         },
                     },
                 }
@@ -1457,17 +1495,21 @@ pub fn lit_to_ctor_if_nat(
     fe: &IFEnv,
     h: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match view(pers, st, h) {
-        Err(e) => Err(e),
-        Ok(ENodeView::Lit(Literal::NatVal(n))) => {
-            let m: Nat = nat::clone(&n);
-            match nat_lit_supported(pers, vis, st, fe) {
-                Err(e) => Err(e),
-                Ok(true) => nat_lit_to_constructor(pers, st, &m),
-                Ok(false) => Ok(h.dup2()),
+    if h.tag() == ETAG_LIT {
+        match view_lit(pers, st, h) {
+            None => fail_dangling_e(),
+            Some(Literal::NatVal(n)) => {
+                let m: Nat = nat::clone(&n);
+                match nat_lit_supported(pers, vis, st, fe) {
+                    Err(e) => Err(e),
+                    Ok(true) => nat_lit_to_constructor(pers, st, &m),
+                    Ok(false) => Ok(h.dup2()),
+                }
             }
+            Some(_) => Ok(h.dup2()),
         }
-        Ok(_) => Ok(h.dup2()),
+    } else {
+        Ok(h.dup2())
     }
 }
 
@@ -1703,16 +1745,19 @@ pub fn list_ty_ok(
                             Err(e) => Err(e),
                             Ok(sp) => match intern_e(pers, st, ENodeView::Sort(sp)) {
                                 Err(e) => Err(e),
-                                Ok(sort) => match view(pers, st, &cv.ty) {
-                                    Err(e) => Err(e),
-                                    Ok(ENodeView::ForallE(d, b, _)) => {
-                                        if d.eq2(&sort) {
-                                            Ok(b.eq2(&sort))
-                                        } else {
-                                            Ok(false)
-                                        }
+                                Ok(sort) => if cv.ty.tag() == ETAG_FORALL_E {
+                                    match view_bind(pers, st, &cv.ty) {
+                                        None => fail_dangling_e(),
+                                        Some((d, b, _)) => {
+                                            if d.eq2(&sort) {
+                                                Ok(b.eq2(&sort))
+                                            } else {
+                                                Ok(false)
+                                            }
+                                        },
                                     }
-                                    Ok(_) => Ok(false),
+                                } else {
+                                    Ok(false)
                                 },
                             },
                         },
@@ -1736,34 +1781,47 @@ pub fn list_nil_ty_body(
     ps: &LsIdx,
     li: &NIdx,
 ) -> Result<bool, CheckError> {
-    match view(pers, st, ty) {
-        Err(e) => Err(e),
-        Ok(ENodeView::ForallE(d, b, _)) => {
-            if !d.eq2(sort) {
-                Ok(false)
-            } else {
-                match view(pers, st, &b) {
-                    Err(e) => Err(e),
-                    Ok(ENodeView::App(f, a)) => match view(pers, st, &f) {
-                        Err(e) => Err(e),
-                        Ok(ENodeView::Const(l1, us1)) => match view(pers, st, &a) {
-                            Err(e) => Err(e),
-                            Ok(ENodeView::BVar(0)) => {
-                                if l1.eq2(li) {
-                                    Ok(us1.eq2(ps))
-                                } else {
-                                    Ok(false)
+    if ty.tag() == ETAG_FORALL_E {
+        match view_bind(pers, st, ty) {
+            None => fail_dangling_e(),
+            Some((d, b, _)) => {
+                if !d.eq2(sort) {
+                    Ok(false)
+                } else {
+                    if b.tag() == ETAG_APP {
+                        match view_app(pers, st, &b) {
+                            None => fail_dangling_e(),
+                            Some((f, a)) => if f.tag() == ETAG_CONST {
+                                match view_const(pers, st, &f) {
+                                    None => fail_dangling_e(),
+                                    Some((l1, us1)) => if a.tag() == ETAG_BVAR {
+                                        match view_bvar(pers, st, &a) {
+                                            None => fail_dangling_e(),
+                                            Some(0) => {
+                                                if l1.eq2(li) {
+                                                    Ok(us1.eq2(ps))
+                                                } else {
+                                                    Ok(false)
+                                                }
+                                            }
+                                            Some(_) => Ok(false),
+                                        }
+                                    } else {
+                                        Ok(false)
+                                    },
                                 }
-                            }
-                            Ok(_) => Ok(false),
-                        },
-                        Ok(_) => Ok(false),
-                    },
-                    Ok(_) => Ok(false),
+                            } else {
+                                Ok(false)
+                            },
+                        }
+                    } else {
+                        Ok(false)
+                    }
                 }
-            }
+            },
         }
-        Ok(_) => Ok(false),
+    } else {
+        Ok(false)
     }
 }
 
@@ -1832,36 +1890,45 @@ pub fn list_cons_ty_body(
         Err(e) => Err(e),
         Ok(dom3) => match intern_e(pers, st, ENodeView::App(l1.dup2(), b2.dup2())) {
             Err(e) => Err(e),
-            Ok(cod3) => match view(pers, st, ty) {
-                Err(e) => Err(e),
-                Ok(ENodeView::ForallE(d1, r1, _)) => {
-                    if !d1.eq2(sort) {
-                        Ok(false)
-                    } else {
-                        match view(pers, st, &r1) {
-                            Err(e) => Err(e),
-                            Ok(ENodeView::ForallE(d2, r2, _)) => {
-                                if !d2.eq2(b0) {
-                                    Ok(false)
-                                } else {
-                                    match view(pers, st, &r2) {
-                                        Err(e) => Err(e),
-                                        Ok(ENodeView::ForallE(d3, c3, _)) => {
-                                            if d3.eq2(&dom3) {
-                                                Ok(c3.eq2(&cod3))
+            Ok(cod3) => if ty.tag() == ETAG_FORALL_E {
+                match view_bind(pers, st, ty) {
+                    None => fail_dangling_e(),
+                    Some((d1, r1, _)) => {
+                        if !d1.eq2(sort) {
+                            Ok(false)
+                        } else {
+                            if r1.tag() == ETAG_FORALL_E {
+                                match view_bind(pers, st, &r1) {
+                                    None => fail_dangling_e(),
+                                    Some((d2, r2, _)) => {
+                                        if !d2.eq2(b0) {
+                                            Ok(false)
+                                        } else {
+                                            if r2.tag() == ETAG_FORALL_E {
+                                                match view_bind(pers, st, &r2) {
+                                                    None => fail_dangling_e(),
+                                                    Some((d3, c3, _)) => {
+                                                        if d3.eq2(&dom3) {
+                                                            Ok(c3.eq2(&cod3))
+                                                        } else {
+                                                            Ok(false)
+                                                        }
+                                                    },
+                                                }
                                             } else {
                                                 Ok(false)
                                             }
                                         }
-                                        Ok(_) => Ok(false),
-                                    }
+                                    },
                                 }
+                            } else {
+                                Ok(false)
                             }
-                            Ok(_) => Ok(false),
                         }
-                    }
+                    },
                 }
-                Ok(_) => Ok(false),
+            } else {
+                Ok(false)
             },
         },
     }
@@ -1962,16 +2029,19 @@ pub fn char_of_nat_ty_ok(
                                 Err(e) => Err(e),
                                 Ok(ch) => match const_e(pers, st, &ch) {
                                     Err(e) => Err(e),
-                                    Ok(cc) => match view(pers, st, &cv.ty) {
-                                        Err(e) => Err(e),
-                                        Ok(ENodeView::ForallE(d, b, _)) => {
-                                            if d.eq2(&nc) {
-                                                Ok(b.eq2(&cc))
-                                            } else {
-                                                Ok(false)
-                                            }
+                                    Ok(cc) => if cv.ty.tag() == ETAG_FORALL_E {
+                                        match view_bind(pers, st, &cv.ty) {
+                                            None => fail_dangling_e(),
+                                            Some((d, b, _)) => {
+                                                if d.eq2(&nc) {
+                                                    Ok(b.eq2(&cc))
+                                                } else {
+                                                    Ok(false)
+                                                }
+                                            },
                                         }
-                                        Ok(_) => Ok(false),
+                                    } else {
+                                        Ok(false)
                                     },
                                 },
                             },
@@ -2014,16 +2084,19 @@ pub fn string_of_list_ty_body(
                                             Err(e) => Err(e),
                                             Ok(stn) => match const_e(pers, st, &stn) {
                                                 Err(e) => Err(e),
-                                                Ok(sc) => match view(pers, st, ty) {
-                                                    Err(e) => Err(e),
-                                                    Ok(ENodeView::ForallE(d, b, _)) => {
-                                                        if d.eq2(&dom) {
-                                                            Ok(b.eq2(&sc))
-                                                        } else {
-                                                            Ok(false)
-                                                        }
+                                                Ok(sc) => if ty.tag() == ETAG_FORALL_E {
+                                                    match view_bind(pers, st, ty) {
+                                                        None => fail_dangling_e(),
+                                                        Some((d, b, _)) => {
+                                                            if d.eq2(&dom) {
+                                                                Ok(b.eq2(&sc))
+                                                            } else {
+                                                                Ok(false)
+                                                            }
+                                                        },
                                                     }
-                                                    Ok(_) => Ok(false),
+                                                } else {
+                                                    Ok(false)
                                                 },
                                             },
                                         }
@@ -2268,22 +2341,25 @@ pub fn bool_false_name(st: &mut AState) -> Result<NIdx, CheckError> {
 /// constant `Bool.true` (the official kernel's `is_constant(e, Bool.true)`):
 /// the name, no universe levels.
 pub fn is_bool_true(pers: &PersTier, st: &mut AState, h: &EIdx) -> Result<bool, CheckError> {
-    match view(pers, st, h) {
-        Err(e) => Err(e),
-        Ok(ENodeView::Const(c, us)) => match empty_levels(st) {
-            Err(e) => Err(e),
-            Ok(el) => {
-                if !us.eq2(&el) {
-                    Ok(false)
-                } else {
-                    match bool_true_name(st) {
-                        Err(e) => Err(e),
-                        Ok(bt) => Ok(c.eq2(&bt)),
+    if h.tag() == ETAG_CONST {
+        match view_const(pers, st, h) {
+            None => fail_dangling_e(),
+            Some((c, us)) => match empty_levels(st) {
+                Err(e) => Err(e),
+                Ok(el) => {
+                    if !us.eq2(&el) {
+                        Ok(false)
+                    } else {
+                        match bool_true_name(st) {
+                            Err(e) => Err(e),
+                            Ok(bt) => Ok(c.eq2(&bt)),
+                        }
                     }
                 }
-            }
-        },
-        Ok(_) => Ok(false),
+            },
+        }
+    } else {
+        Ok(false)
     }
 }
 
@@ -3327,32 +3403,41 @@ pub fn nat_op_ty_pinned(
                 Err(er) => Err(er),
                 Ok(pr) => {
                     if c.eq2(&pr) {
-                        match view(pers, st, ty) {
-                            Err(er) => Err(er),
-                            Ok(ENodeView::ForallE(dom, body, _)) => {
-                                if dom.eq2(&nc) {
-                                    nat_op_cod(pers, vis, st, fe, c, &body)
-                                } else {
-                                    Ok(false)
-                                }
-                            }
-                            Ok(_) => Ok(false),
-                        }
-                    } else {
-                        match view(pers, st, ty) {
-                            Err(er) => Err(er),
-                            Ok(ENodeView::ForallE(dom, rest, _)) => match view(pers, st, &rest) {
-                                Err(er) => Err(er),
-                                Ok(ENodeView::ForallE(dom2, body, _)) => {
-                                    if dom.eq2(&nc) && dom2.eq2(&nc) {
+                        if ty.tag() == ETAG_FORALL_E {
+                            match view_bind(pers, st, ty) {
+                                None => fail_dangling_e(),
+                                Some((dom, body, _)) => {
+                                    if dom.eq2(&nc) {
                                         nat_op_cod(pers, vis, st, fe, c, &body)
                                     } else {
                                         Ok(false)
                                     }
-                                }
-                                Ok(_) => Ok(false),
-                            },
-                            Ok(_) => Ok(false),
+                                },
+                            }
+                        } else {
+                            Ok(false)
+                        }
+                    } else {
+                        if ty.tag() == ETAG_FORALL_E {
+                            match view_bind(pers, st, ty) {
+                                None => fail_dangling_e(),
+                                Some((dom, rest, _)) => if rest.tag() == ETAG_FORALL_E {
+                                    match view_bind(pers, st, &rest) {
+                                        None => fail_dangling_e(),
+                                        Some((dom2, body, _)) => {
+                                            if dom.eq2(&nc) && dom2.eq2(&nc) {
+                                                nat_op_cod(pers, vis, st, fe, c, &body)
+                                            } else {
+                                                Ok(false)
+                                            }
+                                        },
+                                    }
+                                } else {
+                                    Ok(false)
+                                },
+                            }
+                        } else {
+                            Ok(false)
                         }
                     }
                 }
@@ -3513,23 +3598,29 @@ pub fn reduce_nat(
     depth: u64,
     e: &EIdx,
 ) -> Result<Option<EIdx>, CheckError> {
-    match view(pers, st, e) {
-        Err(er) => Err(er),
-        Ok(ENodeView::App(f, b)) => match view(pers, st, &f) {
-            Err(er) => Err(er),
-            Ok(ENodeView::Const(c, us)) => {
-                reduce_nat_succ(pers, vis, st, mode, lane, fuel, fe, depth, &c, &us, &b)
-            }
-            Ok(ENodeView::App(g, a)) => match view(pers, st, &g) {
+    if e.tag() == ETAG_APP {
+        match view_app(pers, st, e) {
+            None => fail_dangling_e(),
+            Some((f, b)) => match view(pers, st, &f) {
                 Err(er) => Err(er),
                 Ok(ENodeView::Const(c, us)) => {
-                    reduce_nat_bin(pers, vis, st, mode, lane, fuel, fe, depth, &c, &us, &a, &b)
+                    reduce_nat_succ(pers, vis, st, mode, lane, fuel, fe, depth, &c, &us, &b)
                 }
+                Ok(ENodeView::App(g, a)) => if g.tag() == ETAG_CONST {
+                    match view_const(pers, st, &g) {
+                        None => fail_dangling_e(),
+                        Some((c, us)) => {
+                            reduce_nat_bin(pers, vis, st, mode, lane, fuel, fe, depth, &c, &us, &a, &b)
+                        },
+                    }
+                } else {
+                    Ok(None)
+                },
                 Ok(_) => Ok(None),
             },
-            Ok(_) => Ok(None),
-        },
-        Ok(_) => Ok(None),
+        }
+    } else {
+        Ok(None)
     }
 }
 
@@ -3831,16 +3922,19 @@ pub fn pi_residual(
     if i >= args.len() {
         Ok(Some(e.dup2()))
     } else {
-        match view(pers, st, e) {
-            Err(er) => Err(er),
-            Ok(ENodeView::ForallE(_, b, _)) => {
-                let a: EIdx = args[i].dup2();
-                match instantiate1_fast(pers, st, CORE_WALK_FUEL, &b, &a, 0) {
-                    Err(er) => Err(er),
-                    Ok(b2) => pi_residual(pers, st, &b2, args, i + 1),
-                }
+        if e.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, e) {
+                None => fail_dangling_e(),
+                Some((_, b, _)) => {
+                    let a: EIdx = args[i].dup2();
+                    match instantiate1_fast(pers, st, CORE_WALK_FUEL, &b, &a, 0) {
+                        Err(er) => Err(er),
+                        Ok(b2) => pi_residual(pers, st, &b2, args, i + 1),
+                    }
+                },
             }
-            Ok(_) => Ok(None),
+        } else {
+            Ok(None)
         }
     }
 }
@@ -3978,28 +4072,31 @@ pub fn prop_sorts_zero(
         Err(e) => Err(e),
         Ok(tta) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tta) {
             Err(e) => Err(e),
-            Ok(wa) => match view(pers, st, &wa) {
-                Err(e) => Err(e),
-                Ok(ENodeView::Sort(u_t)) => match zero_level(st) {
-                    Err(e) => Err(e),
-                    Ok(z) => match lvl_eq(pers, st, &u_t, &z) {
+            Ok(wa) => if wa.tag() == ETAG_SORT {
+                match view_sort(pers, st, &wa) {
+                    None => fail_dangling_e(),
+                    Some(u_t) => match zero_level(st) {
                         Err(e) => Err(e),
-                        Ok(o) => match lift_fueled(o) {
+                        Ok(z) => match lvl_eq(pers, st, &u_t, &z) {
                             Err(e) => Err(e),
-                            Ok(ok_a) => {
-                                match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, b) {
-                                    Err(e) => Err(e),
-                                    Ok(tb) => prop_sorts_zero_right(
-                                        pers,
-                                        vis,
-                                        st, mode, lane, fuel, fe, depth, ok_a, &tb,
-                                    ),
+                            Ok(o) => match lift_fueled(o) {
+                                Err(e) => Err(e),
+                                Ok(ok_a) => {
+                                    match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, b) {
+                                        Err(e) => Err(e),
+                                        Ok(tb) => prop_sorts_zero_right(
+                                            pers,
+                                            vis,
+                                            st, mode, lane, fuel, fe, depth, ok_a, &tb,
+                                        ),
+                                    }
                                 }
-                            }
+                            },
                         },
                     },
-                },
-                Ok(_) => Ok(false),
+                }
+            } else {
+                Ok(false)
             },
         },
     }
@@ -4024,19 +4121,22 @@ pub fn prop_sorts_zero_right(
         Err(e) => Err(e),
         Ok(ttb) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &ttb) {
             Err(e) => Err(e),
-            Ok(wb) => match view(pers, st, &wb) {
-                Err(e) => Err(e),
-                Ok(ENodeView::Sort(v_t)) => match zero_level(st) {
-                    Err(e) => Err(e),
-                    Ok(z) => match lvl_eq(pers, st, &v_t, &z) {
+            Ok(wb) => if wb.tag() == ETAG_SORT {
+                match view_sort(pers, st, &wb) {
+                    None => fail_dangling_e(),
+                    Some(v_t) => match zero_level(st) {
                         Err(e) => Err(e),
-                        Ok(o) => match lift_fueled(o) {
+                        Ok(z) => match lvl_eq(pers, st, &v_t, &z) {
                             Err(e) => Err(e),
-                            Ok(ok_b) => Ok(ok_a && ok_b),
+                            Ok(o) => match lift_fueled(o) {
+                                Err(e) => Err(e),
+                                Ok(ok_b) => Ok(ok_a && ok_b),
+                            },
                         },
                     },
-                },
-                Ok(_) => Ok(false),
+                }
+            } else {
+                Ok(false)
             },
         },
     }
@@ -4601,76 +4701,79 @@ pub fn struct_eta_cert_at(
 ) -> Result<bool, CheckError> {
     match get_app_fn(pers, st, CORE_WALK_FUEL, wtb) {
         Err(e) => Err(e),
-        Ok(hd) => match view(pers, st, &hd) {
-            Err(e) => Err(e),
-            Ok(ENodeView::Const(t, us2)) => match env::ifenv_find(vis, fe, &t) {
-                Some(IConstantInfo::IndInfo(cvt0, caps0)) => {
-                    let cvt: IConstantVal = env::i_constant_val_dup(cvt0);
-                    let caps: IIndCaps = env::i_ind_caps_dup(caps0);
-                    match get_app_args(pers, st, CORE_WALK_FUEL, wtb) {
-                        Err(e) => Err(e),
-                        Ok(targs) => match reserved_basis_names(st) {
+        Ok(hd) => if hd.tag() == ETAG_CONST {
+            match view_const(pers, st, &hd) {
+                None => fail_dangling_e(),
+                Some((t, us2)) => match env::ifenv_find(vis, fe, &t) {
+                    Some(IConstantInfo::IndInfo(cvt0, caps0)) => {
+                        let cvt: IConstantVal = env::i_constant_val_dup(cvt0);
+                        let caps: IIndCaps = env::i_ind_caps_dup(caps0);
+                        match get_app_args(pers, st, CORE_WALK_FUEL, wtb) {
                             Err(e) => Err(e),
-                            Ok(reserved) => match view_ls(pers, st, &us2) {
+                            Ok(targs) => match reserved_basis_names(st) {
                                 Err(e) => Err(e),
-                                Ok(uslen) => {
-                                    let slots =
-                                        match tower_slots_all(pers, vis, st, fe, &t, caps.eta_fields) {
+                                Ok(reserved) => match view_ls(pers, st, &us2) {
+                                    Err(e) => Err(e),
+                                    Ok(uslen) => {
+                                        let slots =
+                                            match tower_slots_all(pers, vis, st, fe, &t, caps.eta_fields) {
+                                                Err(e) => Err(e),
+                                                Ok(true) => Ok(true),
+                                                Ok(false) => {
+                                                    rec_slots_all(pers, vis, st, fe, &t, caps.eta_fields)
+                                                }
+                                            };
+                                        match slots {
                                             Err(e) => Err(e),
-                                            Ok(true) => Ok(true),
-                                            Ok(false) => {
-                                                rec_slots_all(pers, vis, st, fe, &t, caps.eta_fields)
-                                            }
-                                        };
-                                    match slots {
-                                        Err(e) => Err(e),
-                                        Ok(sl) => {
-                                            if caps.eta
-                                                && caps.eta_ctor.eq2(c)
-                                                && !env::nidx_vec_contains(&reserved, &t)
-                                                && !env::nidx_vec_contains(&reserved, c)
-                                                && targs.len() as u64 == caps.eta_params
-                                                && uslen.len() == cvt.level_params.len()
-                                                && nidx_vec_beq(
-                                                    &cvc.level_params,
-                                                    &cvt.level_params,
-                                                )
-                                                && sl
-                                            {
-                                                struct_eta_cert_certs(
-                                                    pers,
-                                                    vis,
-                                                    st,
-                                                    mode,
-                                                    lane,
-                                                    fuel,
-                                                    fe,
-                                                    depth,
-                                                    cvc,
-                                                    &cvt,
-                                                    us,
-                                                    &t,
-                                                    &us2,
-                                                    &targs,
-                                                    b,
-                                                    aargs,
-                                                    caps.eta_params,
-                                                    caps.eta_fields,
-                                                )
-                                            } else {
-                                                Ok(false)
+                                            Ok(sl) => {
+                                                if caps.eta
+                                                    && caps.eta_ctor.eq2(c)
+                                                    && !env::nidx_vec_contains(&reserved, &t)
+                                                    && !env::nidx_vec_contains(&reserved, c)
+                                                    && targs.len() as u64 == caps.eta_params
+                                                    && uslen.len() == cvt.level_params.len()
+                                                    && nidx_vec_beq(
+                                                        &cvc.level_params,
+                                                        &cvt.level_params,
+                                                    )
+                                                    && sl
+                                                {
+                                                    struct_eta_cert_certs(
+                                                        pers,
+                                                        vis,
+                                                        st,
+                                                        mode,
+                                                        lane,
+                                                        fuel,
+                                                        fe,
+                                                        depth,
+                                                        cvc,
+                                                        &cvt,
+                                                        us,
+                                                        &t,
+                                                        &us2,
+                                                        &targs,
+                                                        b,
+                                                        aargs,
+                                                        caps.eta_params,
+                                                        caps.eta_fields,
+                                                    )
+                                                } else {
+                                                    Ok(false)
+                                                }
                                             }
                                         }
                                     }
-                                }
+                                },
                             },
-                        },
+                        }
                     }
-                }
-                Some(_) => Ok(false),
-                None => Ok(false),
-            },
-            Ok(_) => Ok(false),
+                    Some(_) => Ok(false),
+                    None => Ok(false),
+                },
+            }
+        } else {
+            Ok(false)
         },
     }
 }
@@ -4694,32 +4797,35 @@ pub fn struct_eta_cert_with(
 ) -> Result<bool, CheckError> {
     match get_app_fn(pers, st, CORE_WALK_FUEL, a) {
         Err(e) => Err(e),
-        Ok(hd) => match view(pers, st, &hd) {
-            Err(e) => Err(e),
-            Ok(ENodeView::Const(c, us)) => match env::ifenv_find(vis, fe, &c) {
-                Some(IConstantInfo::CtorInfo(cvc0, cn_p, cn_f)) => {
-                    let cvc: IConstantVal = env::i_constant_val_dup(cvc0);
-                    let want: u64 = *cn_p + *cn_f;
-                    match get_app_args(pers, st, CORE_WALK_FUEL, a) {
-                        Err(e) => Err(e),
-                        Ok(aargs) => {
-                            if aargs.len() as u64 == want {
-                                struct_eta_cert_at(
-                                    pers,
-                                    vis,
-                                    st, mode, lane, fuel, fe, depth, &cvc, &c, &us, b,
-                                    wtb, &aargs,
-                                )
-                            } else {
-                                Ok(false)
+        Ok(hd) => if hd.tag() == ETAG_CONST {
+            match view_const(pers, st, &hd) {
+                None => fail_dangling_e(),
+                Some((c, us)) => match env::ifenv_find(vis, fe, &c) {
+                    Some(IConstantInfo::CtorInfo(cvc0, cn_p, cn_f)) => {
+                        let cvc: IConstantVal = env::i_constant_val_dup(cvc0);
+                        let want: u64 = *cn_p + *cn_f;
+                        match get_app_args(pers, st, CORE_WALK_FUEL, a) {
+                            Err(e) => Err(e),
+                            Ok(aargs) => {
+                                if aargs.len() as u64 == want {
+                                    struct_eta_cert_at(
+                                        pers,
+                                        vis,
+                                        st, mode, lane, fuel, fe, depth, &cvc, &c, &us, b,
+                                        wtb, &aargs,
+                                    )
+                                } else {
+                                    Ok(false)
+                                }
                             }
                         }
                     }
-                }
-                Some(_) => Ok(false),
-                None => Ok(false),
-            },
-            Ok(_) => Ok(false),
+                    Some(_) => Ok(false),
+                    None => Ok(false),
+                },
+            }
+        } else {
+            Ok(false)
         },
     }
 }
@@ -4738,20 +4844,23 @@ pub fn eta_ctor_shape(
 ) -> Result<bool, CheckError>  {
     match get_app_fn(pers, st, CORE_WALK_FUEL, a) {
         Err(e) => Err(e),
-        Ok(hd) => match view(pers, st, &hd) {
-            Err(e) => Err(e),
-            Ok(ENodeView::Const(c, _)) => match env::ifenv_find(vis, fe, &c) {
-                Some(IConstantInfo::CtorInfo(_, cn_p, cn_f)) => {
-                    let want: u64 = *cn_p + *cn_f;
-                    match get_app_args(pers, st, CORE_WALK_FUEL, a) {
-                        Err(e) => Err(e),
-                        Ok(args) => Ok(args.len() as u64 == want),
+        Ok(hd) => if hd.tag() == ETAG_CONST {
+            match view_const_name(pers, st, &hd) {
+                None => fail_dangling_e(),
+                Some(c) => match env::ifenv_find(vis, fe, &c) {
+                    Some(IConstantInfo::CtorInfo(_, cn_p, cn_f)) => {
+                        let want: u64 = *cn_p + *cn_f;
+                        match get_app_args(pers, st, CORE_WALK_FUEL, a) {
+                            Err(e) => Err(e),
+                            Ok(args) => Ok(args.len() as u64 == want),
+                        }
                     }
-                }
-                Some(_) => Ok(false),
-                None => Ok(false),
-            },
-            Ok(_) => Ok(false),
+                    Some(_) => Ok(false),
+                    None => Ok(false),
+                },
+            }
+        } else {
+            Ok(false)
         },
     }
 }
@@ -4860,42 +4969,45 @@ pub fn struct_unit_cert(
             Err(e) => Err(e),
             Ok(wta) => match get_app_fn(pers, st, CORE_WALK_FUEL, &wta) {
                 Err(e) => Err(e),
-                Ok(hd) => match view(pers, st, &hd) {
-                    Err(e) => Err(e),
-                    Ok(ENodeView::Const(t, us2)) => match env::ifenv_find(vis, fe, &t) {
-                        Some(IConstantInfo::IndInfo(cvt0, caps0)) => {
-                            let cvt: IConstantVal = env::i_constant_val_dup(cvt0);
-                            let caps: IIndCaps = env::i_ind_caps_dup(caps0);
-                            match get_app_args(pers, st, CORE_WALK_FUEL, &wta) {
-                                Err(e) => Err(e),
-                                Ok(targs) => match reserved_basis_names(st) {
+                Ok(hd) => if hd.tag() == ETAG_CONST {
+                    match view_const(pers, st, &hd) {
+                        None => fail_dangling_e(),
+                        Some((t, us2)) => match env::ifenv_find(vis, fe, &t) {
+                            Some(IConstantInfo::IndInfo(cvt0, caps0)) => {
+                                let cvt: IConstantVal = env::i_constant_val_dup(cvt0);
+                                let caps: IIndCaps = env::i_ind_caps_dup(caps0);
+                                match get_app_args(pers, st, CORE_WALK_FUEL, &wta) {
                                     Err(e) => Err(e),
-                                    Ok(reserved) => match view_ls(pers, st, &us2) {
+                                    Ok(targs) => match reserved_basis_names(st) {
                                         Err(e) => Err(e),
-                                        Ok(uslen) => {
-                                            if caps.unitlike
-                                                && !env::nidx_vec_contains(&reserved, &t)
-                                                && targs.len() as u64 == caps.unit_params
-                                                && uslen.len() == cvt.level_params.len()
-                                            {
-                                                struct_unit_cert_tail(
-                                                    pers,
-                                                    vis,
-                                                    st, mode, lane, fuel, fe, depth, &cvt,
-                                                    &us2, &targs, &wta, b,
-                                                )
-                                            } else {
-                                                Ok(false)
+                                        Ok(reserved) => match view_ls(pers, st, &us2) {
+                                            Err(e) => Err(e),
+                                            Ok(uslen) => {
+                                                if caps.unitlike
+                                                    && !env::nidx_vec_contains(&reserved, &t)
+                                                    && targs.len() as u64 == caps.unit_params
+                                                    && uslen.len() == cvt.level_params.len()
+                                                {
+                                                    struct_unit_cert_tail(
+                                                        pers,
+                                                        vis,
+                                                        st, mode, lane, fuel, fe, depth, &cvt,
+                                                        &us2, &targs, &wta, b,
+                                                    )
+                                                } else {
+                                                    Ok(false)
+                                                }
                                             }
-                                        }
+                                        },
                                     },
-                                },
+                                }
                             }
-                        }
-                        Some(_) => Ok(false),
-                        None => Ok(false),
-                    },
-                    Ok(_) => Ok(false),
+                            Some(_) => Ok(false),
+                            None => Ok(false),
+                        },
+                    }
+                } else {
+                    Ok(false)
                 },
             },
         },
@@ -4923,19 +5035,22 @@ pub fn eta_cert(
         Err(e) => Err(e),
         Ok(tb) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tb) {
             Err(e) => Err(e),
-            Ok(w) => match view(pers, st, &w) {
-                Err(e) => Err(e),
-                Ok(ENodeView::ForallE(ty2, _, m2)) => {
-                    match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &ty2, ty1) {
-                        Err(e) => Err(e),
-                        Ok(false) => Ok(false),
-                        Ok(true) => {
-                            eta_cert_body(pers, vis, st, mode, lane, fuel, fe, depth, ty1, body1, m1,
-                                &m2, b)
+            Ok(w) => if w.tag() == ETAG_FORALL_E {
+                match view_bind(pers, st, &w) {
+                    None => fail_dangling_e(),
+                    Some((ty2, _, m2)) => {
+                        match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &ty2, ty1) {
+                            Err(e) => Err(e),
+                            Ok(false) => Ok(false),
+                            Ok(true) => {
+                                eta_cert_body(pers, vis, st, mode, lane, fuel, fe, depth, ty1, body1, m1,
+                                    &m2, b)
+                            }
                         }
-                    }
+                    },
                 }
-                Ok(_) => Ok(false),
+            } else {
+                Ok(false)
             },
         },
     }
@@ -5343,48 +5458,51 @@ pub fn major_to_ctor_k(
             Err(e) => Err(e),
             Ok(tmaj) => match get_app_fn(pers, st, CORE_WALK_FUEL, &tmaj) {
                 Err(e) => Err(e),
-                Ok(hd0) => match view(pers, st, &hd0) {
-                    Err(e) => Err(e),
-                    Ok(ENodeView::Const(t2, ust)) => match view_ls(pers, st, &ust) {
-                        Err(e) => Err(e),
-                        Ok(ustl) => {
-                            if t2.eq2(t) && cvj.level_params.len() == ustl.len() {
-                                match get_app_args(pers, st, CORE_WALK_FUEL, &tmaj) {
-                                    Err(e) => Err(e),
-                                    Ok(targs) => {
-                                        if cn_p <= targs.len() as u64 {
-                                            let spine: Vec<EIdx> =
-                                                take_eidx(&targs, cn_p as usize);
-                                            match intern_e(
-                                                pers,
-                                                st,
-                                                ENodeView::Const(ctor.dup2(), ust.dup2()),
-                                            ) {
-                                                Err(e) => Err(e),
-                                                Ok(hd) => {
-                                                    match mk_app_n(pers, st, &hd, &spine) {
-                                                        Err(e) => Err(e),
-                                                        Ok(fab) => major_to_ctor_certs(
-                                                            pers,
-                                                            vis,
-                                                            st, mode, lane, fuel, fe,
-                                                            depth, cvj, &ust, &spine,
-                                                            &fab, &tmaj, major,
-                                                        ),
+                Ok(hd0) => if hd0.tag() == ETAG_CONST {
+                    match view_const(pers, st, &hd0) {
+                        None => fail_dangling_e(),
+                        Some((t2, ust)) => match view_ls(pers, st, &ust) {
+                            Err(e) => Err(e),
+                            Ok(ustl) => {
+                                if t2.eq2(t) && cvj.level_params.len() == ustl.len() {
+                                    match get_app_args(pers, st, CORE_WALK_FUEL, &tmaj) {
+                                        Err(e) => Err(e),
+                                        Ok(targs) => {
+                                            if cn_p <= targs.len() as u64 {
+                                                let spine: Vec<EIdx> =
+                                                    take_eidx(&targs, cn_p as usize);
+                                                match intern_e(
+                                                    pers,
+                                                    st,
+                                                    ENodeView::Const(ctor.dup2(), ust.dup2()),
+                                                ) {
+                                                    Err(e) => Err(e),
+                                                    Ok(hd) => {
+                                                        match mk_app_n(pers, st, &hd, &spine) {
+                                                            Err(e) => Err(e),
+                                                            Ok(fab) => major_to_ctor_certs(
+                                                                pers,
+                                                                vis,
+                                                                st, mode, lane, fuel, fe,
+                                                                depth, cvj, &ust, &spine,
+                                                                &fab, &tmaj, major,
+                                                            ),
+                                                        }
                                                     }
                                                 }
+                                            } else {
+                                                Ok(major.dup2())
                                             }
-                                        } else {
-                                            Ok(major.dup2())
                                         }
                                     }
+                                } else {
+                                    Ok(major.dup2())
                                 }
-                            } else {
-                                Ok(major.dup2())
                             }
-                        }
-                    },
-                    Ok(_) => Ok(major.dup2()),
+                        },
+                    }
+                } else {
+                    Ok(major.dup2())
                 },
             },
         },
@@ -5478,36 +5596,39 @@ pub fn major_to_ctor_eta(
             Err(e) => Err(e),
             Ok(tmaj) => match get_app_fn(pers, st, CORE_WALK_FUEL, &tmaj) {
                 Err(e) => Err(e),
-                Ok(hd0) => match view(pers, st, &hd0) {
-                    Err(e) => Err(e),
-                    Ok(ENodeView::Const(t2, ust)) => match view_ls(pers, st, &ust) {
-                        Err(e) => Err(e),
-                        Ok(ustl) => match get_app_args(pers, st, CORE_WALK_FUEL, &tmaj) {
+                Ok(hd0) => if hd0.tag() == ETAG_CONST {
+                    match view_const(pers, st, &hd0) {
+                        None => fail_dangling_e(),
+                        Some((t2, ust)) => match view_ls(pers, st, &ust) {
                             Err(e) => Err(e),
-                            Ok(targs) => {
-                                match caps_never_zero(pers, st, &cvt.level_params, &ust, caps) {
-                                    Err(e) => Err(e),
-                                    Ok(nz) => {
-                                        if t2.eq2(t)
-                                            && targs.len() as u64 == caps.eta_params
-                                            && ustl.len() == cvt.level_params.len()
-                                            && nz
-                                        {
-                                            major_to_ctor_eta_build(
-                                                pers,
-                                                vis,
-                                                st, mode, lane, fuel, fe, depth, cvj,
-                                                caps, t, &ust, &targs, &tmaj, major,
-                                            )
-                                        } else {
-                                            Ok(major.dup2())
+                            Ok(ustl) => match get_app_args(pers, st, CORE_WALK_FUEL, &tmaj) {
+                                Err(e) => Err(e),
+                                Ok(targs) => {
+                                    match caps_never_zero(pers, st, &cvt.level_params, &ust, caps) {
+                                        Err(e) => Err(e),
+                                        Ok(nz) => {
+                                            if t2.eq2(t)
+                                                && targs.len() as u64 == caps.eta_params
+                                                && ustl.len() == cvt.level_params.len()
+                                                && nz
+                                            {
+                                                major_to_ctor_eta_build(
+                                                    pers,
+                                                    vis,
+                                                    st, mode, lane, fuel, fe, depth, cvj,
+                                                    caps, t, &ust, &targs, &tmaj, major,
+                                                )
+                                            } else {
+                                                Ok(major.dup2())
+                                            }
                                         }
                                     }
                                 }
-                            }
+                            },
                         },
-                    },
-                    Ok(_) => Ok(major.dup2()),
+                    }
+                } else {
+                    Ok(major.dup2())
                 },
             },
         },
@@ -5589,36 +5710,39 @@ pub fn major_to_ctor_and(
             Err(e) => Err(e),
             Ok(tmaj) => match get_app_fn(pers, st, CORE_WALK_FUEL, &tmaj) {
                 Err(e) => Err(e),
-                Ok(hd0) => match view(pers, st, &hd0) {
-                    Err(e) => Err(e),
-                    Ok(ENodeView::Const(t2, ust)) => match view_ls(pers, st, &ust) {
-                        Err(e) => Err(e),
-                        Ok(ustl) => match get_app_args(pers, st, CORE_WALK_FUEL, &tmaj) {
+                Ok(hd0) => if hd0.tag() == ETAG_CONST {
+                    match view_const(pers, st, &hd0) {
+                        None => fail_dangling_e(),
+                        Some((t2, ust)) => match view_ls(pers, st, &ust) {
                             Err(e) => Err(e),
-                            Ok(targs) => {
-                                match and_rescue_slots(pers, vis, st, fe, ctor, cn_p, &ust) {
-                                    Err(e) => Err(e),
-                                    Ok(ars) => {
-                                        if t2.eq2(t)
-                                            && targs.len() as u64 == cn_p
-                                            && cvj.level_params.len() == ustl.len()
-                                            && ars
-                                        {
-                                            major_to_ctor_and_build(
-                                                pers,
-                                                vis,
-                                                st, mode, lane, fuel, fe, depth, cvj,
-                                                ctor, t, &ust, &targs, &tmaj, major,
-                                            )
-                                        } else {
-                                            Ok(major.dup2())
+                            Ok(ustl) => match get_app_args(pers, st, CORE_WALK_FUEL, &tmaj) {
+                                Err(e) => Err(e),
+                                Ok(targs) => {
+                                    match and_rescue_slots(pers, vis, st, fe, ctor, cn_p, &ust) {
+                                        Err(e) => Err(e),
+                                        Ok(ars) => {
+                                            if t2.eq2(t)
+                                                && targs.len() as u64 == cn_p
+                                                && cvj.level_params.len() == ustl.len()
+                                                && ars
+                                            {
+                                                major_to_ctor_and_build(
+                                                    pers,
+                                                    vis,
+                                                    st, mode, lane, fuel, fe, depth, cvj,
+                                                    ctor, t, &ust, &targs, &tmaj, major,
+                                                )
+                                            } else {
+                                                Ok(major.dup2())
+                                            }
                                         }
                                     }
                                 }
-                            }
+                            },
                         },
-                    },
-                    Ok(_) => Ok(major.dup2()),
+                    }
+                } else {
+                    Ok(major.dup2())
                 },
             },
         },
@@ -5751,28 +5875,31 @@ pub fn major_to_ctor(
                             Err(e) => Err(e),
                             Ok(pr) => match get_app_fn(pers, st, CORE_WALK_FUEL, &pr) {
                                 Err(e) => Err(e),
-                                Ok(hd) => match view(pers, st, &hd) {
-                                    Err(e) => Err(e),
-                                    Ok(ENodeView::Const(t, _)) => {
-                                        match env::ifenv_find(vis, fe, &t) {
-                                            Some(IConstantInfo::IndInfo(cvt0, caps0)) => {
-                                                let cvt: IConstantVal =
-                                                    env::i_constant_val_dup(cvt0);
-                                                let caps: IIndCaps =
-                                                    env::i_ind_caps_dup(caps0);
-                                                major_to_ctor_at(
-                                                    pers,
-                                                    vis,
-                                                    st, mode, lane, fuel, fe, depth,
-                                                    &cvj, cn_p, &ctor, k, eta, &cvt,
-                                                    &caps, &t, major,
-                                                )
+                                Ok(hd) => if hd.tag() == ETAG_CONST {
+                                    match view_const_name(pers, st, &hd) {
+                                        None => fail_dangling_e(),
+                                        Some(t) => {
+                                            match env::ifenv_find(vis, fe, &t) {
+                                                Some(IConstantInfo::IndInfo(cvt0, caps0)) => {
+                                                    let cvt: IConstantVal =
+                                                        env::i_constant_val_dup(cvt0);
+                                                    let caps: IIndCaps =
+                                                        env::i_ind_caps_dup(caps0);
+                                                    major_to_ctor_at(
+                                                        pers,
+                                                        vis,
+                                                        st, mode, lane, fuel, fe, depth,
+                                                        &cvj, cn_p, &ctor, k, eta, &cvt,
+                                                        &caps, &t, major,
+                                                    )
+                                                }
+                                                Some(_) => Ok(major.dup2()),
+                                                None => Ok(major.dup2()),
                                             }
-                                            Some(_) => Ok(major.dup2()),
-                                            None => Ok(major.dup2()),
-                                        }
+                                        },
                                     }
-                                    Ok(_) => Ok(major.dup2()),
+                                } else {
+                                    Ok(major.dup2())
                                 },
                             },
                         }
@@ -5800,20 +5927,24 @@ pub fn lit_major_to_ctor(
     depth: u64,
     h: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match view(pers, st, h) {
-        Err(e) => Err(e),
-        Ok(ENodeView::Lit(Literal::StrVal(s))) => {
-            let cs: Vec<u32> = expr::str_copy(&s);
-            match str_lit_supported(pers, vis, st, fe) {
-                Err(e) => Err(e),
-                Ok(false) => Ok(h.dup2()),
-                Ok(true) => match str_lit_to_constructor(pers, st, &cs) {
+    if h.tag() == ETAG_LIT {
+        match view_lit(pers, st, h) {
+            None => fail_dangling_e(),
+            Some(Literal::StrVal(s)) => {
+                let cs: Vec<u32> = expr::str_copy(&s);
+                match str_lit_supported(pers, vis, st, fe) {
                     Err(e) => Err(e),
-                    Ok(c) => knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &c),
-                },
+                    Ok(false) => Ok(h.dup2()),
+                    Ok(true) => match str_lit_to_constructor(pers, st, &cs) {
+                        Err(e) => Err(e),
+                        Ok(c) => knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &c),
+                    },
+                }
             }
+            Some(_) => lit_to_ctor_if_nat(pers, vis, st, fe, h),
         }
-        Ok(_) => lit_to_ctor_if_nat(pers, vis, st, fe, h),
+    } else {
+        lit_to_ctor_if_nat(pers, vis, st, fe, h)
     }
 }
 
@@ -5831,20 +5962,24 @@ pub fn proj_lit_to_ctor(
     depth: u64,
     h: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match view(pers, st, h) {
-        Err(e) => Err(e),
-        Ok(ENodeView::Lit(Literal::StrVal(s))) => {
-            let cs: Vec<u32> = expr::str_copy(&s);
-            match str_lit_supported(pers, vis, st, fe) {
-                Err(e) => Err(e),
-                Ok(false) => Ok(h.dup2()),
-                Ok(true) => match str_lit_to_constructor(pers, st, &cs) {
+    if h.tag() == ETAG_LIT {
+        match view_lit(pers, st, h) {
+            None => fail_dangling_e(),
+            Some(Literal::StrVal(s)) => {
+                let cs: Vec<u32> = expr::str_copy(&s);
+                match str_lit_supported(pers, vis, st, fe) {
                     Err(e) => Err(e),
-                    Ok(c) => knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &c),
-                },
+                    Ok(false) => Ok(h.dup2()),
+                    Ok(true) => match str_lit_to_constructor(pers, st, &cs) {
+                        Err(e) => Err(e),
+                        Ok(c) => knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &c),
+                    },
+                }
             }
+            Some(_) => Ok(h.dup2()),
         }
-        Ok(_) => Ok(h.dup2()),
+    } else {
+        Ok(h.dup2())
     }
 }
 
@@ -5867,16 +6002,19 @@ pub fn rec_rule_k_of(
                 Err(e) => Err(e),
                 Ok(pr) => match get_app_fn(pers, st, CORE_WALK_FUEL, &pr) {
                     Err(e) => Err(e),
-                    Ok(hd) => match view(pers, st, &hd) {
-                        Err(e) => Err(e),
-                        Ok(ENodeView::Const(t, _)) => match env::ifenv_find(vis, fe, &t) {
-                            Some(IConstantInfo::IndInfo(_, caps)) => {
-                                Ok(caps.rule_k && cn_f == 0)
-                            }
-                            Some(_) => Ok(false),
-                            None => Ok(false),
-                        },
-                        Ok(_) => Ok(false),
+                    Ok(hd) => if hd.tag() == ETAG_CONST {
+                        match view_const_name(pers, st, &hd) {
+                            None => fail_dangling_e(),
+                            Some(t) => match env::ifenv_find(vis, fe, &t) {
+                                Some(IConstantInfo::IndInfo(_, caps)) => {
+                                    Ok(caps.rule_k && cn_f == 0)
+                                }
+                                Some(_) => Ok(false),
+                                None => Ok(false),
+                            },
+                        }
+                    } else {
+                        Ok(false)
                     },
                 },
             }
@@ -5907,26 +6045,29 @@ pub fn rec_rule_eta_of(
                 Err(e) => Err(e),
                 Ok(pr) => match get_app_fn(pers, st, CORE_WALK_FUEL, &pr) {
                     Err(e) => Err(e),
-                    Ok(hd) => match view(pers, st, &hd) {
-                        Err(e) => Err(e),
-                        Ok(ENodeView::Const(t, _)) => match env::ifenv_find(vis, fe, &t) {
-                            Some(IConstantInfo::IndInfo(cvt, caps)) => {
-                                let eta: bool = caps.eta;
-                                let eta_ctor: NIdx = caps.eta_ctor.dup2();
-                                let cvt_lps: Vec<NIdx> =
-                                    env::nidx_vec_dup(&cvt.level_params);
-                                match read_name(pers, st, rec_name) {
-                                    Err(e) => Err(e),
-                                    Ok(rn) => Ok(eta
-                                        && eta_ctor.eq2(ctor)
-                                        && !level::name_is_proj_fn_shape(&rn)
-                                        && nidx_vec_beq(&cvj_lps, &cvt_lps)),
+                    Ok(hd) => if hd.tag() == ETAG_CONST {
+                        match view_const_name(pers, st, &hd) {
+                            None => fail_dangling_e(),
+                            Some(t) => match env::ifenv_find(vis, fe, &t) {
+                                Some(IConstantInfo::IndInfo(cvt, caps)) => {
+                                    let eta: bool = caps.eta;
+                                    let eta_ctor: NIdx = caps.eta_ctor.dup2();
+                                    let cvt_lps: Vec<NIdx> =
+                                        env::nidx_vec_dup(&cvt.level_params);
+                                    match read_name(pers, st, rec_name) {
+                                        Err(e) => Err(e),
+                                        Ok(rn) => Ok(eta
+                                            && eta_ctor.eq2(ctor)
+                                            && !level::name_is_proj_fn_shape(&rn)
+                                            && nidx_vec_beq(&cvj_lps, &cvt_lps)),
+                                    }
                                 }
-                            }
-                            Some(_) => Ok(false),
-                            None => Ok(false),
-                        },
-                        Ok(_) => Ok(false),
+                                Some(_) => Ok(false),
+                                None => Ok(false),
+                            },
+                        }
+                    } else {
+                        Ok(false)
                     },
                 },
             }
@@ -6541,45 +6682,48 @@ pub fn iota_rec_major(
 ) -> Result<Option<EIdx>, CheckError> {
     match get_app_fn(pers, st, CORE_WALK_FUEL, major) {
         Err(e) => Err(e),
-        Ok(hd) => match view(pers, st, &hd) {
-            Err(e) => Err(e),
-            Ok(ENodeView::Const(cj, usj)) => match env::ifenv_find(vis, fe, &cj) {
-                Some(IConstantInfo::CtorInfo(cvj0, _, _)) => {
-                    let cvj: IConstantVal = env::i_constant_val_dup(cvj0);
-                    match find_rule(rules, &cj, 0) {
-                        None => Ok(None),
-                        Some(k) => {
-                            let rl: IRecRule = env::i_rec_rule_dup(&rules[k]);
-                            match get_app_args(pers, st, CORE_WALK_FUEL, major) {
-                                Err(e) => Err(e),
-                                Ok(margs) => {
-                                    if margs.len() as u64 != rl.ctor_params + rl.nfields {
-                                        Ok(None)
-                                    } else {
-                                        match rl.fire {
-                                            IRecRuleFire::Inert => {
-                                                fail(CheckError::NotImplemented(
-                                                    code_points(&M_NESTED_RULE),
-                                                ))
+        Ok(hd) => if hd.tag() == ETAG_CONST {
+            match view_const(pers, st, &hd) {
+                None => fail_dangling_e(),
+                Some((cj, usj)) => match env::ifenv_find(vis, fe, &cj) {
+                    Some(IConstantInfo::CtorInfo(cvj0, _, _)) => {
+                        let cvj: IConstantVal = env::i_constant_val_dup(cvj0);
+                        match find_rule(rules, &cj, 0) {
+                            None => Ok(None),
+                            Some(k) => {
+                                let rl: IRecRule = env::i_rec_rule_dup(&rules[k]);
+                                match get_app_args(pers, st, CORE_WALK_FUEL, major) {
+                                    Err(e) => Err(e),
+                                    Ok(margs) => {
+                                        if margs.len() as u64 != rl.ctor_params + rl.nfields {
+                                            Ok(None)
+                                        } else {
+                                            match rl.fire {
+                                                IRecRuleFire::Inert => {
+                                                    fail(CheckError::NotImplemented(
+                                                        code_points(&M_NESTED_RULE),
+                                                    ))
+                                                }
+                                                _ => iota_rec_fire(
+                                                    pers,
+                                                    vis,
+                                                    st, mode, lane, fuel, fe, depth, cv,
+                                                    &cvj, &rl, rec_c, us, &usj, m_i, r_p,
+                                                    args, &margs, major,
+                                                ),
                                             }
-                                            _ => iota_rec_fire(
-                                                pers,
-                                                vis,
-                                                st, mode, lane, fuel, fe, depth, cv,
-                                                &cvj, &rl, rec_c, us, &usj, m_i, r_p,
-                                                args, &margs, major,
-                                            ),
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                }
-                Some(_) => Ok(None),
-                None => Ok(None),
-            },
-            Ok(_) => Ok(None),
+                    Some(_) => Ok(None),
+                    None => Ok(None),
+                },
+            }
+        } else {
+            Ok(None)
         },
     }
 }
@@ -6638,65 +6782,68 @@ pub fn iota_rec_at(
     n: usize,
 ) -> Result<Option<EIdx>, CheckError> {
     {
-        match view(pers, st, hd) {
-            Err(er) => Err(er),
-            Ok(ENodeView::Const(c, us)) => match env::ifenv_find(vis, fe, &c) {
-                Some(IConstantInfo::RecInfo(cv0, m_i0, r_p0, rules0)) => {
-                    let m_i: u64 = *m_i0;
-                    // **The arity test hoisted over the copies** (task
-                    // #97-P6-10), the move this function's note already makes
-                    // for the level-list read.  `whnf_app` asks `iota_rec_at`
-                    // at every reduction step and the answer is `none` at the
-                    // wrong arity, so copying the recursor's `IConstantVal`
-                    // and its whole rule vector first — Lean shares both by
-                    // value; the Rust copies (DESIGN.md §3.2) — is work for a
-                    // branch that reads neither.  Both are pure tests of the
-                    // same conjunction and this one is `O(1)`.
-                    if n as u64 != m_i + 1 {
-                        Ok(None)
-                    } else {
-                        let cv: IConstantVal = env::i_constant_val_dup(cv0);
-                        let r_p: u64 = *r_p0;
-                        let rules: Vec<IRecRule> = env::i_rec_rules_dup(rules0);
-                        let args: Vec<EIdx> = take_eidx(sargs, n);
-                        match view_ls_len(pers, st, &us) {
-                            None => fail_dangling_ls(),
-                            Some(usl) => {
-                                if args.len() as u64 == m_i + 1
-                                    && usl == cv.level_params.len()
-                                {
-                                    match intern_e(pers, st, ENodeView::BVar(0)) {
-                                        Err(er) => Err(er),
-                                        Ok(b0) => {
-                                            let maj0: EIdx = get_d_eidx(&args, m_i, &b0);
-                                            match prepare_major(
-                                                pers,
-                                                vis,
-                                                st, mode, lane, fuel, fe, depth, &c,
-                                                &rules, &maj0,
-                                            ) {
-                                                Err(er) => Err(er),
-                                                Ok(major) => iota_rec_major(
+        if hd.tag() == ETAG_CONST {
+            match view_const(pers, st, hd) {
+                None => fail_dangling_e(),
+                Some((c, us)) => match env::ifenv_find(vis, fe, &c) {
+                    Some(IConstantInfo::RecInfo(cv0, m_i0, r_p0, rules0)) => {
+                        let m_i: u64 = *m_i0;
+                        // **The arity test hoisted over the copies** (task
+                        // #97-P6-10), the move this function's note already makes
+                        // for the level-list read.  `whnf_app` asks `iota_rec_at`
+                        // at every reduction step and the answer is `none` at the
+                        // wrong arity, so copying the recursor's `IConstantVal`
+                        // and its whole rule vector first — Lean shares both by
+                        // value; the Rust copies (DESIGN.md §3.2) — is work for a
+                        // branch that reads neither.  Both are pure tests of the
+                        // same conjunction and this one is `O(1)`.
+                        if n as u64 != m_i + 1 {
+                            Ok(None)
+                        } else {
+                            let cv: IConstantVal = env::i_constant_val_dup(cv0);
+                            let r_p: u64 = *r_p0;
+                            let rules: Vec<IRecRule> = env::i_rec_rules_dup(rules0);
+                            let args: Vec<EIdx> = take_eidx(sargs, n);
+                            match view_ls_len(pers, st, &us) {
+                                None => fail_dangling_ls(),
+                                Some(usl) => {
+                                    if args.len() as u64 == m_i + 1
+                                        && usl == cv.level_params.len()
+                                    {
+                                        match intern_e(pers, st, ENodeView::BVar(0)) {
+                                            Err(er) => Err(er),
+                                            Ok(b0) => {
+                                                let maj0: EIdx = get_d_eidx(&args, m_i, &b0);
+                                                match prepare_major(
                                                     pers,
                                                     vis,
-                                                    st, mode, lane, fuel, fe, depth, &cv,
-                                                    &rules, &c, &us, m_i, r_p, &args,
-                                                    &major,
-                                                ),
+                                                    st, mode, lane, fuel, fe, depth, &c,
+                                                    &rules, &maj0,
+                                                ) {
+                                                    Err(er) => Err(er),
+                                                    Ok(major) => iota_rec_major(
+                                                        pers,
+                                                        vis,
+                                                        st, mode, lane, fuel, fe, depth, &cv,
+                                                        &rules, &c, &us, m_i, r_p, &args,
+                                                        &major,
+                                                    ),
+                                                }
                                             }
                                         }
+                                    } else {
+                                        Ok(None)
                                     }
-                                } else {
-                                    Ok(None)
                                 }
                             }
                         }
                     }
-                }
-                Some(_) => Ok(None),
-                None => Ok(None),
-            },
-            Ok(_) => Ok(None),
+                    Some(_) => Ok(None),
+                    None => Ok(None),
+                },
+            }
+        } else {
+            Ok(None)
         }
     }
 }
@@ -6871,36 +7018,39 @@ pub fn whnf_core_proj_at(
 ) -> Result<EIdx, CheckError> {
     match get_app_fn(pers, st, CORE_WALK_FUEL, ep) {
         Err(e) => Err(e),
-        Ok(hd) => match view(pers, st, &hd) {
-            Err(e) => Err(e),
-            Ok(ENodeView::Const(c, us)) => match get_app_args(pers, st, CORE_WALK_FUEL, ep) {
-                Err(e) => Err(e),
-                Ok(args) => match view_ls_len(pers, st, &us) {
-                    None => fail_dangling_ls(),
-                    Some(usl) => match proj_entry_fire_ok(pers, st, entry, &us) {
-                        Err(e) => Err(e),
-                        Ok(fok) => {
-                            if c.eq2(&entry.ctor)
-                                && i < entry.num_fields
-                                && args.len() as u64
-                                    == entry.num_params + entry.num_fields
-                                && usl == entry.level_params.len()
-                                && fok
-                            {
-                                whnf_core_proj_fire(
-                                    pers,
-                                    vis,
-                                    st, mode, lane, fuel, fe, depth, sn, i, ep, entry,
-                                    &c, &us, &args,
-                                )
-                            } else {
-                                intern_e(pers, st, ENodeView::Proj(sn.dup2(), i, ep.dup2()))
+        Ok(hd) => if hd.tag() == ETAG_CONST {
+            match view_const(pers, st, &hd) {
+                None => fail_dangling_e(),
+                Some((c, us)) => match get_app_args(pers, st, CORE_WALK_FUEL, ep) {
+                    Err(e) => Err(e),
+                    Ok(args) => match view_ls_len(pers, st, &us) {
+                        None => fail_dangling_ls(),
+                        Some(usl) => match proj_entry_fire_ok(pers, st, entry, &us) {
+                            Err(e) => Err(e),
+                            Ok(fok) => {
+                                if c.eq2(&entry.ctor)
+                                    && i < entry.num_fields
+                                    && args.len() as u64
+                                        == entry.num_params + entry.num_fields
+                                    && usl == entry.level_params.len()
+                                    && fok
+                                {
+                                    whnf_core_proj_fire(
+                                        pers,
+                                        vis,
+                                        st, mode, lane, fuel, fe, depth, sn, i, ep, entry,
+                                        &c, &us, &args,
+                                    )
+                                } else {
+                                    intern_e(pers, st, ENodeView::Proj(sn.dup2(), i, ep.dup2()))
+                                }
                             }
-                        }
+                        },
                     },
                 },
-            },
-            Ok(_) => intern_e(pers, st, ENodeView::Proj(sn.dup2(), i, ep.dup2())),
+            }
+        } else {
+            intern_e(pers, st, ENodeView::Proj(sn.dup2(), i, ep.dup2()))
         },
     }
 }
@@ -7080,56 +7230,59 @@ pub fn whnf_app(
     } else {
         let a: EIdx = args[i].dup2();
         let node: EIdx = nodes[i].dup2();
-        match view(pers, st, v) {
-            Err(e) => Err(e),
-            Ok(ENodeView::Lam(ty, body, mb)) => {
-                // **THE β SITE'S GATE** (task #97f, P2f): the EXECUTED core
-                // reads `CheckMode.betaSkip` (`Cached/CoreC.lean:876`/`:918`), which
-                // is `beta_gate_fires` weakened by `!mode.certs` — the β
-                // certificate is a certificate FAMILY, skipped wholesale at
-                // `.trusted`.  The two agree at `.verified`, the mode the
-                // bridge is stated at.
-                if con_ron_core::kernel::env::beta_skip(mode, &mb.pw) {
-                    let acc: Vec<EIdx> = cons_eidx(&a, &Vec::new());
-                    beta_peel(
-                        pers, vis, st, mode, lane, fuel, fe, depth, &body, &acc, args, nodes,
-                        i + 1,
-                    )
-                } else {
-                    // con-leche's task #172 B4: the certificate's inference
-                    // runs at the io grade.
-                    match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, &a) {
-                        Err(e) => Err(e),
-                        Ok(ta) => {
-                            match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &ta, &ty) {
-                                Err(e) => Err(e),
-                                Ok(true) => {
-                                    let acc: Vec<EIdx> = cons_eidx(&a, &Vec::new());
-                                    beta_peel(
-                                        pers, vis, st, mode, lane, fuel, fe, depth, &body, &acc,
-                                        args, nodes, i + 1,
-                                    )
-                                }
-                                // The certificate failed: the redex is stuck.
-                                // ι cannot fire under a λ head, so the twin's
-                                // `mkAppNM fa rest` re-applies the rest without
-                                // another ι attempt, and so does this.
-                                Ok(false) => {
-                                    match intern_app_rebuilt(pers, st, &node, same, v, &a) {
-                                        Err(e) => Err(e),
-                                        Ok(fa) => mk_app_n_from(pers, st, &fa, args, i + 1),
+        if v.tag() == ETAG_LAM {
+            match view_bind(pers, st, v) {
+                None => fail_dangling_e(),
+                Some((ty, body, mb)) => {
+                    // **THE β SITE'S GATE** (task #97f, P2f): the EXECUTED core
+                    // reads `CheckMode.betaSkip` (`Cached/CoreC.lean:876`/`:918`), which
+                    // is `beta_gate_fires` weakened by `!mode.certs` — the β
+                    // certificate is a certificate FAMILY, skipped wholesale at
+                    // `.trusted`.  The two agree at `.verified`, the mode the
+                    // bridge is stated at.
+                    if con_ron_core::kernel::env::beta_skip(mode, &mb.pw) {
+                        let acc: Vec<EIdx> = cons_eidx(&a, &Vec::new());
+                        beta_peel(
+                            pers, vis, st, mode, lane, fuel, fe, depth, &body, &acc, args, nodes,
+                            i + 1,
+                        )
+                    } else {
+                        // con-leche's task #172 B4: the certificate's inference
+                        // runs at the io grade.
+                        match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, &a) {
+                            Err(e) => Err(e),
+                            Ok(ta) => {
+                                match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &ta, &ty) {
+                                    Err(e) => Err(e),
+                                    Ok(true) => {
+                                        let acc: Vec<EIdx> = cons_eidx(&a, &Vec::new());
+                                        beta_peel(
+                                            pers, vis, st, mode, lane, fuel, fe, depth, &body, &acc,
+                                            args, nodes, i + 1,
+                                        )
+                                    }
+                                    // The certificate failed: the redex is stuck.
+                                    // ι cannot fire under a λ head, so the twin's
+                                    // `mkAppNM fa rest` re-applies the rest without
+                                    // another ι attempt, and so does this.
+                                    Ok(false) => {
+                                        match intern_app_rebuilt(pers, st, &node, same, v, &a) {
+                                            Err(e) => Err(e),
+                                            Ok(fa) => mk_app_n_from(pers, st, &fa, args, i + 1),
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
+                // The stuck step: `whnf_core_stuck_app`'s two lines, opened up so
+                // that the head and the argument vector can be carried rather than
+                // re-walked — applying one more argument to a spine does NOT move
+                // its head, and its argument vector is one `push`.,
             }
-            // The stuck step: `whnf_core_stuck_app`'s two lines, opened up so
-            // that the head and the argument vector can be carried rather than
-            // re-walked — applying one more argument to a spine does NOT move
-            // its head, and its argument vector is one `push`.
-            Ok(_) => match intern_app_rebuilt(pers, st, &node, same, v, &a) {
+        } else {
+            match intern_app_rebuilt(pers, st, &node, same, v, &a) {
                 Err(e) => Err(e),
                 Ok(ap) => {
                     let same2: bool = ap.eq2(&node);
@@ -7166,7 +7319,7 @@ pub fn whnf_app(
                         }
                     }
                 }
-            },
+            }
         }
     }
 }
@@ -7204,52 +7357,55 @@ pub fn beta_peel(
         }
     } else {
         let a: EIdx = args[i].dup2();
-        match view(pers, st, t) {
-            Err(e) => Err(e),
-            Ok(ENodeView::Lam(ty, body, mb)) => {
-                if con_ron_core::kernel::env::beta_skip(mode, &mb.pw) {
-                    let acc2: Vec<EIdx> = cons_eidx(&a, acc);
-                    beta_peel(
-                        pers, vis, st, mode, lane, fuel, fe, depth, &body, &acc2, args, nodes,
-                        i + 1,
-                    )
-                } else {
-                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, acc, 0) {
-                        Err(e) => Err(e),
-                        Ok(ty2) => {
-                            match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, &a) {
-                                Err(e) => Err(e),
-                                Ok(ta) => match knot_defeq(
-                                    pers, vis, st, mode, lane, fuel, fe, depth, &ta, &ty2,
-                                ) {
+        if t.tag() == ETAG_LAM {
+            match view_bind(pers, st, t) {
+                None => fail_dangling_e(),
+                Some((ty, body, mb)) => {
+                    if con_ron_core::kernel::env::beta_skip(mode, &mb.pw) {
+                        let acc2: Vec<EIdx> = cons_eidx(&a, acc);
+                        beta_peel(
+                            pers, vis, st, mode, lane, fuel, fe, depth, &body, &acc2, args, nodes,
+                            i + 1,
+                        )
+                    } else {
+                        match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, acc, 0) {
+                            Err(e) => Err(e),
+                            Ok(ty2) => {
+                                match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, &a) {
                                     Err(e) => Err(e),
-                                    Ok(true) => {
-                                        let acc2: Vec<EIdx> = cons_eidx(&a, acc);
-                                        beta_peel(
-                                            pers, vis, st, mode, lane, fuel, fe, depth, &body,
-                                            &acc2, args, nodes, i + 1,
-                                        )
-                                    }
-                                    Ok(false) => {
-                                        match instantiate_list_fast(
-                                            pers, st, CORE_WALK_FUEL, t, acc, 0,
-                                        ) {
-                                            Err(e) => Err(e),
-                                            Ok(f2) => match intern_app(pers, st, &f2, &a) {
-                                                Err(e) => Err(e),
-                                                Ok(fa) => {
-                                                    mk_app_n_from(pers, st, &fa, args, i + 1)
-                                                }
-                                            },
+                                    Ok(ta) => match knot_defeq(
+                                        pers, vis, st, mode, lane, fuel, fe, depth, &ta, &ty2,
+                                    ) {
+                                        Err(e) => Err(e),
+                                        Ok(true) => {
+                                            let acc2: Vec<EIdx> = cons_eidx(&a, acc);
+                                            beta_peel(
+                                                pers, vis, st, mode, lane, fuel, fe, depth, &body,
+                                                &acc2, args, nodes, i + 1,
+                                            )
                                         }
-                                    }
-                                },
+                                        Ok(false) => {
+                                            match instantiate_list_fast(
+                                                pers, st, CORE_WALK_FUEL, t, acc, 0,
+                                            ) {
+                                                Err(e) => Err(e),
+                                                Ok(f2) => match intern_app(pers, st, &f2, &a) {
+                                                    Err(e) => Err(e),
+                                                    Ok(fa) => {
+                                                        mk_app_n_from(pers, st, &fa, args, i + 1)
+                                                    }
+                                                },
+                                            }
+                                        }
+                                    },
+                                }
                             }
                         }
                     }
-                }
+                },
             }
-            Ok(_) => match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, acc, 0) {
+        } else {
+            match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, acc, 0) {
                 Err(e) => Err(e),
                 Ok(e2) => match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, &e2) {
                     Err(e) => Err(e),
@@ -7265,7 +7421,7 @@ pub fn beta_peel(
                         ),
                     },
                 },
-            },
+            }
         }
     }
 }
@@ -7519,10 +7675,13 @@ pub fn ensure_sort(
 ) -> Result<LIdx, CheckError> {
     match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, e) {
         Err(er) => Err(er),
-        Ok(w) => match view(pers, st, &w) {
-            Err(er) => Err(er),
-            Ok(ENodeView::Sort(u)) => Ok(u),
-            Ok(_) => fail(CheckError::Invalid(code_points(&M_SORT))),
+        Ok(w) => if w.tag() == ETAG_SORT {
+            match view_sort(pers, st, &w) {
+                None => fail_dangling_e(),
+                Some(u) => Ok(u),
+            }
+        } else {
+            fail(CheckError::Invalid(code_points(&M_SORT)))
         },
     }
 }
@@ -7695,12 +7854,15 @@ pub fn infer_forall(
         Err(e) => Err(e),
         Ok(tty) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tty) {
             Err(e) => Err(e),
-            Ok(w) => match view(pers, st, &w) {
-                Err(e) => Err(e),
-                Ok(ENodeView::Sort(u)) => {
-                    infer_forall_at(pers, vis, st, mode, lane, fuel, fe, depth, ty, body, mb, &u)
+            Ok(w) => if w.tag() == ETAG_SORT {
+                match view_sort(pers, st, &w) {
+                    None => fail_dangling_e(),
+                    Some(u) => {
+                        infer_forall_at(pers, vis, st, mode, lane, fuel, fe, depth, ty, body, mb, &u)
+                    },
                 }
-                Ok(_) => fail(CheckError::Invalid(code_points(&M_SORT))),
+            } else {
+                fail(CheckError::Invalid(code_points(&M_SORT)))
             },
         },
     }
@@ -7793,20 +7955,23 @@ pub fn infer_proj(
             Err(e) => Err(e),
             Ok(te) => match get_app_fn(pers, st, CORE_WALK_FUEL, &te) {
                 Err(e) => Err(e),
-                Ok(hd) => match view(pers, st, &hd) {
-                    Err(e) => Err(e),
-                    Ok(ENodeView::Const(t, us)) => {
-                        match env::ifenv_find_proj(pers, vis, &mut st.store, fe, &t, i) {
-                            Err(e) => Err(e),
-                            Ok(Some(entry)) => {
-                                infer_proj_at(pers, st, &te, sn, pe, &t, &us, &entry)
+                Ok(hd) => if hd.tag() == ETAG_CONST {
+                    match view_const(pers, st, &hd) {
+                        None => fail_dangling_e(),
+                        Some((t, us)) => {
+                            match env::ifenv_find_proj(pers, vis, &mut st.store, fe, &t, i) {
+                                Err(e) => Err(e),
+                                Ok(Some(entry)) => {
+                                    infer_proj_at(pers, st, &te, sn, pe, &t, &us, &entry)
+                                }
+                                Ok(None) => {
+                                    fail(CheckError::NotImplemented(code_points(&M_NOENTRY)))
+                                }
                             }
-                            Ok(None) => {
-                                fail(CheckError::NotImplemented(code_points(&M_NOENTRY)))
-                            }
-                        }
+                        },
                     }
-                    Ok(_) => fail(CheckError::NotImplemented(code_points(&M_NOENTRY))),
+                } else {
+                    fail(CheckError::NotImplemented(code_points(&M_NOENTRY)))
                 },
             },
         },
@@ -7908,12 +8073,15 @@ pub fn infer_lam(
         Err(e) => Err(e),
         Ok(tty) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tty) {
             Err(e) => Err(e),
-            Ok(w) => match view(pers, st, &w) {
-                Err(e) => Err(e),
-                Ok(ENodeView::Sort(_)) => {
-                    infer_lam_open(pers, vis, st, mode, lane, fuel, fe, depth, ty, body, mb, false)
+            Ok(w) => if w.tag() == ETAG_SORT {
+                match view_sort(pers, st, &w) {
+                    None => fail_dangling_e(),
+                    Some(_) => {
+                        infer_lam_open(pers, vis, st, mode, lane, fuel, fe, depth, ty, body, mb, false)
+                    },
                 }
-                Ok(_) => fail(CheckError::Invalid(code_points(&M_SORT))),
+            } else {
+                fail(CheckError::Invalid(code_points(&M_SORT)))
             },
         },
     }
@@ -8067,63 +8235,69 @@ pub fn infer_spine(
         instantiate_list_fast(pers, st, CORE_WALK_FUEL, ty, acc, 0)
     } else {
         let a: EIdx = args[i].dup2();
-        match view(pers, st, ty) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(dom, body, _)) => {
-                match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &dom, acc, 0) {
-                    Err(e) => Err(e),
-                    Ok(dom2) => {
-                        match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, &a) {
-                            Err(e) => Err(e),
-                            Ok(ta) => match knot_defeq(
-                                pers, vis, st, mode, lane, fuel, fe, depth, &ta, &dom2,
-                            ) {
-                                Err(e) => Err(e),
-                                Ok(false) => {
-                                    fail(CheckError::Invalid(code_points(&M_APP_MISMATCH)))
-                                }
-                                Ok(true) => {
-                                    let acc2: Vec<EIdx> = cons_eidx(&a, acc);
-                                    infer_spine(
-                                        pers, vis, st, mode, lane, fuel, fe, depth, &body, &acc2,
-                                        args, i + 1,
-                                    )
-                                }
-                            },
-                        }
-                    }
-                }
-            }
-            Ok(_) => match instantiate_list_fast(pers, st, CORE_WALK_FUEL, ty, acc, 0) {
-                Err(e) => Err(e),
-                Ok(ty2) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &ty2) {
-                    Err(e) => Err(e),
-                    Ok(w) => match view(pers, st, &w) {
+        if ty.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, ty) {
+                None => fail_dangling_e(),
+                Some((dom, body, _)) => {
+                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &dom, acc, 0) {
                         Err(e) => Err(e),
-                        Ok(ENodeView::ForallE(dom, body, _)) => {
+                        Ok(dom2) => {
                             match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, &a) {
                                 Err(e) => Err(e),
                                 Ok(ta) => match knot_defeq(
-                                    pers, vis, st, mode, lane, fuel, fe, depth, &ta, &dom,
+                                    pers, vis, st, mode, lane, fuel, fe, depth, &ta, &dom2,
                                 ) {
                                     Err(e) => Err(e),
                                     Ok(false) => {
                                         fail(CheckError::Invalid(code_points(&M_APP_MISMATCH)))
                                     }
                                     Ok(true) => {
-                                        let acc2: Vec<EIdx> = cons_eidx(&a, &Vec::new());
+                                        let acc2: Vec<EIdx> = cons_eidx(&a, acc);
                                         infer_spine(
-                                            pers, vis, st, mode, lane, fuel, fe, depth, &body,
-                                            &acc2, args, i + 1,
+                                            pers, vis, st, mode, lane, fuel, fe, depth, &body, &acc2,
+                                            args, i + 1,
                                         )
                                     }
                                 },
                             }
                         }
-                        Ok(_) => fail(CheckError::Invalid(code_points(&M_FN))),
+                    }
+                },
+            }
+        } else {
+            match instantiate_list_fast(pers, st, CORE_WALK_FUEL, ty, acc, 0) {
+                Err(e) => Err(e),
+                Ok(ty2) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &ty2) {
+                    Err(e) => Err(e),
+                    Ok(w) => if w.tag() == ETAG_FORALL_E {
+                        match view_bind(pers, st, &w) {
+                            None => fail_dangling_e(),
+                            Some((dom, body, _)) => {
+                                match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, &a) {
+                                    Err(e) => Err(e),
+                                    Ok(ta) => match knot_defeq(
+                                        pers, vis, st, mode, lane, fuel, fe, depth, &ta, &dom,
+                                    ) {
+                                        Err(e) => Err(e),
+                                        Ok(false) => {
+                                            fail(CheckError::Invalid(code_points(&M_APP_MISMATCH)))
+                                        }
+                                        Ok(true) => {
+                                            let acc2: Vec<EIdx> = cons_eidx(&a, &Vec::new());
+                                            infer_spine(
+                                                pers, vis, st, mode, lane, fuel, fe, depth, &body,
+                                                &acc2, args, i + 1,
+                                            )
+                                        }
+                                    },
+                                }
+                            },
+                        }
+                    } else {
+                        fail(CheckError::Invalid(code_points(&M_FN)))
                     },
                 },
-            },
+            }
         }
     }
 }
@@ -8269,14 +8443,17 @@ pub fn infer_forall_io(
         Err(e) => Err(e),
         Ok(tty) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tty) {
             Err(e) => Err(e),
-            Ok(w) => match view(pers, st, &w) {
-                Err(e) => Err(e),
-                Ok(ENodeView::Sort(u)) => infer_forall_io_at(
-                    pers,
-                    vis,
-                    st, mode, lane, io, fuel, fe, depth, ty, body, mb, &u,
-                ),
-                Ok(_) => fail(CheckError::Invalid(code_points(&M_SORT))),
+            Ok(w) => if w.tag() == ETAG_SORT {
+                match view_sort(pers, st, &w) {
+                    None => fail_dangling_e(),
+                    Some(u) => infer_forall_io_at(
+                        pers,
+                        vis,
+                        st, mode, lane, io, fuel, fe, depth, ty, body, mb, &u,
+                    ),
+                }
+            } else {
+                fail(CheckError::Invalid(code_points(&M_SORT)))
             },
         },
     }
@@ -8409,75 +8586,81 @@ pub fn infer_spine_io(
         instantiate_list_fast(pers, st, CORE_WALK_FUEL, ty, acc, 0)
     } else {
         let a: EIdx = args[i].dup2();
-        match view(pers, st, ty) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(dom, body, mt)) => {
-                let cert = if con_ron_core::kernel::env::io_skip(mode, &mt.pw) {
-                    Ok(true)
-                } else {
-                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &dom, acc, 0) {
-                        Err(e) => Err(e),
-                        Ok(dom2) => {
-                            match knot_infer_at(
-                                pers, vis, st, mode, lane, io, fuel, fe, depth, &a,
-                            ) {
-                                Err(e) => Err(e),
-                                Ok(ta) => knot_defeq(
-                                    pers, vis, st, mode, lane, fuel, fe, depth, &ta, &dom2,
-                                ),
-                            }
-                        }
-                    }
-                };
-                match cert {
-                    Err(e) => Err(e),
-                    Ok(false) => fail(CheckError::Invalid(code_points(&M_APP_MISMATCH))),
-                    Ok(true) => {
-                        let acc2: Vec<EIdx> = cons_eidx(&a, acc);
-                        infer_spine_io(
-                            pers, vis, st, mode, lane, io, fuel, fe, depth, &body, &acc2, args,
-                            i + 1,
-                        )
-                    }
-                }
-            }
-            Ok(_) => match instantiate_list_fast(pers, st, CORE_WALK_FUEL, ty, acc, 0) {
-                Err(e) => Err(e),
-                Ok(ty2) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &ty2) {
-                    Err(e) => Err(e),
-                    Ok(w) => match view(pers, st, &w) {
-                        Err(e) => Err(e),
-                        Ok(ENodeView::ForallE(dom, body, mt)) => {
-                            let cert = if con_ron_core::kernel::env::io_skip(mode, &mt.pw) {
-                                Ok(true)
-                            } else {
+        if ty.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, ty) {
+                None => fail_dangling_e(),
+                Some((dom, body, mt)) => {
+                    let cert = if con_ron_core::kernel::env::io_skip(mode, &mt.pw) {
+                        Ok(true)
+                    } else {
+                        match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &dom, acc, 0) {
+                            Err(e) => Err(e),
+                            Ok(dom2) => {
                                 match knot_infer_at(
                                     pers, vis, st, mode, lane, io, fuel, fe, depth, &a,
                                 ) {
                                     Err(e) => Err(e),
                                     Ok(ta) => knot_defeq(
-                                        pers, vis, st, mode, lane, fuel, fe, depth, &ta, &dom,
+                                        pers, vis, st, mode, lane, fuel, fe, depth, &ta, &dom2,
                                     ),
-                                }
-                            };
-                            match cert {
-                                Err(e) => Err(e),
-                                Ok(false) => {
-                                    fail(CheckError::Invalid(code_points(&M_APP_MISMATCH)))
-                                }
-                                Ok(true) => {
-                                    let acc2: Vec<EIdx> = cons_eidx(&a, &Vec::new());
-                                    infer_spine_io(
-                                        pers, vis, st, mode, lane, io, fuel, fe, depth, &body,
-                                        &acc2, args, i + 1,
-                                    )
                                 }
                             }
                         }
-                        Ok(_) => fail(CheckError::Invalid(code_points(&M_FN))),
+                    };
+                    match cert {
+                        Err(e) => Err(e),
+                        Ok(false) => fail(CheckError::Invalid(code_points(&M_APP_MISMATCH))),
+                        Ok(true) => {
+                            let acc2: Vec<EIdx> = cons_eidx(&a, acc);
+                            infer_spine_io(
+                                pers, vis, st, mode, lane, io, fuel, fe, depth, &body, &acc2, args,
+                                i + 1,
+                            )
+                        }
+                    }
+                },
+            }
+        } else {
+            match instantiate_list_fast(pers, st, CORE_WALK_FUEL, ty, acc, 0) {
+                Err(e) => Err(e),
+                Ok(ty2) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &ty2) {
+                    Err(e) => Err(e),
+                    Ok(w) => if w.tag() == ETAG_FORALL_E {
+                        match view_bind(pers, st, &w) {
+                            None => fail_dangling_e(),
+                            Some((dom, body, mt)) => {
+                                let cert = if con_ron_core::kernel::env::io_skip(mode, &mt.pw) {
+                                    Ok(true)
+                                } else {
+                                    match knot_infer_at(
+                                        pers, vis, st, mode, lane, io, fuel, fe, depth, &a,
+                                    ) {
+                                        Err(e) => Err(e),
+                                        Ok(ta) => knot_defeq(
+                                            pers, vis, st, mode, lane, fuel, fe, depth, &ta, &dom,
+                                        ),
+                                    }
+                                };
+                                match cert {
+                                    Err(e) => Err(e),
+                                    Ok(false) => {
+                                        fail(CheckError::Invalid(code_points(&M_APP_MISMATCH)))
+                                    }
+                                    Ok(true) => {
+                                        let acc2: Vec<EIdx> = cons_eidx(&a, &Vec::new());
+                                        infer_spine_io(
+                                            pers, vis, st, mode, lane, io, fuel, fe, depth, &body,
+                                            &acc2, args, i + 1,
+                                        )
+                                    }
+                                }
+                            },
+                        }
+                    } else {
+                        fail(CheckError::Invalid(code_points(&M_FN)))
                     },
                 },
-            },
+            }
         }
     }
 }
@@ -8505,20 +8688,23 @@ pub fn infer_proj_io(
             Err(e) => Err(e),
             Ok(te) => match get_app_fn(pers, st, CORE_WALK_FUEL, &te) {
                 Err(e) => Err(e),
-                Ok(hd) => match view(pers, st, &hd) {
-                    Err(e) => Err(e),
-                    Ok(ENodeView::Const(t, us)) => {
-                        match env::ifenv_find_proj(pers, vis, &mut st.store, fe, &t, i) {
-                            Err(e) => Err(e),
-                            Ok(Some(entry)) => {
-                                infer_proj_at(pers, st, &te, sn, pe, &t, &us, &entry)
+                Ok(hd) => if hd.tag() == ETAG_CONST {
+                    match view_const(pers, st, &hd) {
+                        None => fail_dangling_e(),
+                        Some((t, us)) => {
+                            match env::ifenv_find_proj(pers, vis, &mut st.store, fe, &t, i) {
+                                Err(e) => Err(e),
+                                Ok(Some(entry)) => {
+                                    infer_proj_at(pers, st, &te, sn, pe, &t, &us, &entry)
+                                }
+                                Ok(None) => {
+                                    fail(CheckError::NotImplemented(code_points(&M_NOENTRY)))
+                                }
                             }
-                            Ok(None) => {
-                                fail(CheckError::NotImplemented(code_points(&M_NOENTRY)))
-                            }
-                        }
+                        },
                     }
-                    Ok(_) => fail(CheckError::NotImplemented(code_points(&M_NOENTRY))),
+                } else {
+                    fail(CheckError::NotImplemented(code_points(&M_NOENTRY)))
                 },
             },
         },
@@ -8569,37 +8755,43 @@ pub fn defeq_spine(
 ) -> Result<bool, CheckError> {
     match get_app_fn(pers, st, CORE_WALK_FUEL, a) {
         Err(e) => Err(e),
-        Ok(ha) => match view(pers, st, &ha) {
-            Err(e) => Err(e),
-            Ok(ENodeView::Const(n, us)) => match get_app_fn(pers, st, CORE_WALK_FUEL, b) {
-                Err(e) => Err(e),
-                Ok(hb) => match view(pers, st, &hb) {
+        Ok(ha) => if ha.tag() == ETAG_CONST {
+            match view_const(pers, st, &ha) {
+                None => fail_dangling_e(),
+                Some((n, us)) => match get_app_fn(pers, st, CORE_WALK_FUEL, b) {
                     Err(e) => Err(e),
-                    Ok(ENodeView::Const(n2, us2)) => match get_app_args(pers, st, CORE_WALK_FUEL, a) {
-                        Err(e) => Err(e),
-                        Ok(aa) => match get_app_args(pers, st, CORE_WALK_FUEL, b) {
-                            Err(e) => Err(e),
-                            Ok(bb) => {
-                                if n.eq2(&n2) && aa.len() == bb.len() {
-                                    match lvls_eq(pers, st, &us, &us2) {
-                                        Err(e) => Err(e),
-                                        Ok(Some(true)) => def_eq_list(
-                                            pers,
-                                            vis,
-                                            st, mode, lane, fuel, fe, depth, &aa, &bb, 0,
-                                        ),
-                                        Ok(_) => Ok(false),
+                    Ok(hb) => if hb.tag() == ETAG_CONST {
+                        match view_const(pers, st, &hb) {
+                            None => fail_dangling_e(),
+                            Some((n2, us2)) => match get_app_args(pers, st, CORE_WALK_FUEL, a) {
+                                Err(e) => Err(e),
+                                Ok(aa) => match get_app_args(pers, st, CORE_WALK_FUEL, b) {
+                                    Err(e) => Err(e),
+                                    Ok(bb) => {
+                                        if n.eq2(&n2) && aa.len() == bb.len() {
+                                            match lvls_eq(pers, st, &us, &us2) {
+                                                Err(e) => Err(e),
+                                                Ok(Some(true)) => def_eq_list(
+                                                    pers,
+                                                    vis,
+                                                    st, mode, lane, fuel, fe, depth, &aa, &bb, 0,
+                                                ),
+                                                Ok(_) => Ok(false),
+                                            }
+                                        } else {
+                                            Ok(false)
+                                        }
                                     }
-                                } else {
-                                    Ok(false)
-                                }
-                            }
-                        },
+                                },
+                            },
+                        }
+                    } else {
+                        Ok(false)
                     },
-                    Ok(_) => Ok(false),
                 },
-            },
-            Ok(_) => Ok(false),
+            }
+        } else {
+            Ok(false)
         },
     }
 }
@@ -8716,88 +8908,94 @@ pub fn defeq_lit_app(
                 stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
             } else {
                 let k2: Nat = nat::pred(nn);
-                match view(pers, st, f) {
-                    Err(e) => Err(e),
-                    Ok(ENodeView::Const(c, us)) => match empty_levels(st) {
-                        Err(e) => Err(e),
-                        Ok(el) => match pin_nat_succ(st) {
+                if f.tag() == ETAG_CONST {
+                    match view_const(pers, st, f) {
+                        None => fail_dangling_e(),
+                        Some((c, us)) => match empty_levels(st) {
                             Err(e) => Err(e),
-                            Ok(ns) => {
-                                if c.eq2(&ns) && us.eq2(&el) {
-                                    match intern_e(
-                                        pers,
-                                        st,
-                                        ENodeView::Lit(expr::literal_nat(k2)),
-                                    ) {
-                                        Err(e) => Err(e),
-                                        Ok(lh) => {
-                                            if flipped {
-                                                knot_defeq(
-                                                    pers,
-                                                    vis,
-                                                    st, mode, lane, fuel, fe, depth, x,
-                                                    &lh,
-                                                )
-                                            } else {
-                                                knot_defeq(
-                                                    pers,
-                                                    vis,
-                                                    st, mode, lane, fuel, fe, depth, &lh,
-                                                    x,
-                                                )
+                            Ok(el) => match pin_nat_succ(st) {
+                                Err(e) => Err(e),
+                                Ok(ns) => {
+                                    if c.eq2(&ns) && us.eq2(&el) {
+                                        match intern_e(
+                                            pers,
+                                            st,
+                                            ENodeView::Lit(expr::literal_nat(k2)),
+                                        ) {
+                                            Err(e) => Err(e),
+                                            Ok(lh) => {
+                                                if flipped {
+                                                    knot_defeq(
+                                                        pers,
+                                                        vis,
+                                                        st, mode, lane, fuel, fe, depth, x,
+                                                        &lh,
+                                                    )
+                                                } else {
+                                                    knot_defeq(
+                                                        pers,
+                                                        vis,
+                                                        st, mode, lane, fuel, fe, depth, &lh,
+                                                        x,
+                                                    )
+                                                }
                                             }
                                         }
+                                    } else {
+                                        stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
                                     }
-                                } else {
-                                    stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
                                 }
-                            }
+                            },
                         },
-                    },
-                    Ok(_) => stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2),
+                    }
+                } else {
+                    stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
                 }
             }
         }
         Literal::StrVal(s) => {
             let cs: Vec<u32> = expr::str_copy(s);
-            match view(pers, st, f) {
-                Err(e) => Err(e),
-                Ok(ENodeView::Const(c_o, us_o)) => match empty_levels(st) {
-                    Err(e) => Err(e),
-                    Ok(el) => match pin_string_of_list(st) {
+            if f.tag() == ETAG_CONST {
+                match view_const(pers, st, f) {
+                    None => fail_dangling_e(),
+                    Some((c_o, us_o)) => match empty_levels(st) {
                         Err(e) => Err(e),
-                        Ok(sl) => match str_lit_supported(pers, vis, st, fe) {
+                        Ok(el) => match pin_string_of_list(st) {
                             Err(e) => Err(e),
-                            Ok(sup) => {
-                                if c_o.eq2(&sl) && us_o.eq2(&el) && sup {
-                                    match str_lit_to_constructor(pers, st, &cs) {
-                                        Err(e) => Err(e),
-                                        Ok(ce) => {
-                                            if flipped {
-                                                knot_defeq(
-                                                    pers,
-                                                    vis,
-                                                    st, mode, lane, fuel, fe, depth, a2,
-                                                    &ce,
-                                                )
-                                            } else {
-                                                knot_defeq(
-                                                    pers,
-                                                    vis,
-                                                    st, mode, lane, fuel, fe, depth, &ce,
-                                                    b2,
-                                                )
+                            Ok(sl) => match str_lit_supported(pers, vis, st, fe) {
+                                Err(e) => Err(e),
+                                Ok(sup) => {
+                                    if c_o.eq2(&sl) && us_o.eq2(&el) && sup {
+                                        match str_lit_to_constructor(pers, st, &cs) {
+                                            Err(e) => Err(e),
+                                            Ok(ce) => {
+                                                if flipped {
+                                                    knot_defeq(
+                                                        pers,
+                                                        vis,
+                                                        st, mode, lane, fuel, fe, depth, a2,
+                                                        &ce,
+                                                    )
+                                                } else {
+                                                    knot_defeq(
+                                                        pers,
+                                                        vis,
+                                                        st, mode, lane, fuel, fe, depth, &ce,
+                                                        b2,
+                                                    )
+                                                }
                                             }
                                         }
+                                    } else {
+                                        stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
                                     }
-                                } else {
-                                    stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
                                 }
-                            }
+                            },
                         },
                     },
-                },
-                Ok(_) => stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2),
+                }
+            } else {
+                stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
             }
         }
     }
@@ -9668,33 +9866,36 @@ pub fn annotate_pis(
     if peel == 0 {
         annotate_pis_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk)
     } else {
-        match view(pers, st, t) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(ty, body, mb)) => {
-                match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, fvs, 0) {
-                    Err(e) => Err(e),
-                    Ok(tyo) => {
-                        match knot_annotate(pers, vis, st, mode, lane, fuel, fe, d + k, &tyo) {
-                            Err(e) => Err(e),
-                            Ok(typ) => {
-                                match intern_e(pers, st, ENodeView::FVar(d + k, typ.dup2())) {
-                                    Err(e) => Err(e),
-                                    Ok(fv) => {
-                                        let fvs2: Vec<EIdx> = cons_eidx(&fv, fvs);
-                                        let mut stk2: Vec<(EIdx, BinderMeta)> = stk;
-                                        stk2.push((typ, mb));
-                                        annotate_pis(
-                                            pers, vis, st, mode, lane, fuel, fe, d, peel - 1,
-                                            &body, k + 1, &fvs2, stk2,
-                                        )
+        if t.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, t) {
+                None => fail_dangling_e(),
+                Some((ty, body, mb)) => {
+                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, fvs, 0) {
+                        Err(e) => Err(e),
+                        Ok(tyo) => {
+                            match knot_annotate(pers, vis, st, mode, lane, fuel, fe, d + k, &tyo) {
+                                Err(e) => Err(e),
+                                Ok(typ) => {
+                                    match intern_e(pers, st, ENodeView::FVar(d + k, typ.dup2())) {
+                                        Err(e) => Err(e),
+                                        Ok(fv) => {
+                                            let fvs2: Vec<EIdx> = cons_eidx(&fv, fvs);
+                                            let mut stk2: Vec<(EIdx, BinderMeta)> = stk;
+                                            stk2.push((typ, mb));
+                                            annotate_pis(
+                                                pers, vis, st, mode, lane, fuel, fe, d, peel - 1,
+                                                &body, k + 1, &fvs2, stk2,
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                }
+                },
             }
-            Ok(_) => annotate_pis_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk),
+        } else {
+            annotate_pis_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk)
         }
     }
 }
@@ -9762,33 +9963,36 @@ pub fn annotate_lams(
     if peel == 0 {
         annotate_lams_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk)
     } else {
-        match view(pers, st, t) {
-            Err(e) => Err(e),
-            Ok(ENodeView::Lam(ty, body, mb)) => {
-                match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, fvs, 0) {
-                    Err(e) => Err(e),
-                    Ok(tyo) => {
-                        match knot_annotate(pers, vis, st, mode, lane, fuel, fe, d + k, &tyo) {
-                            Err(e) => Err(e),
-                            Ok(typ) => {
-                                match intern_e(pers, st, ENodeView::FVar(d + k, typ.dup2())) {
-                                    Err(e) => Err(e),
-                                    Ok(fv) => {
-                                        let fvs2: Vec<EIdx> = cons_eidx(&fv, fvs);
-                                        let mut stk2: Vec<(EIdx, BinderMeta)> = stk;
-                                        stk2.push((typ, mb));
-                                        annotate_lams(
-                                            pers, vis, st, mode, lane, fuel, fe, d, peel - 1,
-                                            &body, k + 1, &fvs2, stk2,
-                                        )
+        if t.tag() == ETAG_LAM {
+            match view_bind(pers, st, t) {
+                None => fail_dangling_e(),
+                Some((ty, body, mb)) => {
+                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, fvs, 0) {
+                        Err(e) => Err(e),
+                        Ok(tyo) => {
+                            match knot_annotate(pers, vis, st, mode, lane, fuel, fe, d + k, &tyo) {
+                                Err(e) => Err(e),
+                                Ok(typ) => {
+                                    match intern_e(pers, st, ENodeView::FVar(d + k, typ.dup2())) {
+                                        Err(e) => Err(e),
+                                        Ok(fv) => {
+                                            let fvs2: Vec<EIdx> = cons_eidx(&fv, fvs);
+                                            let mut stk2: Vec<(EIdx, BinderMeta)> = stk;
+                                            stk2.push((typ, mb));
+                                            annotate_lams(
+                                                pers, vis, st, mode, lane, fuel, fe, d, peel - 1,
+                                                &body, k + 1, &fvs2, stk2,
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                }
+                },
             }
-            Ok(_) => annotate_lams_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk),
+        } else {
+            annotate_lams_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk)
         }
     }
 }
@@ -9964,12 +10168,15 @@ pub fn annotate_proj(
                 Err(e) => Err(e),
                 Ok(te) => match get_app_fn(pers, st, CORE_WALK_FUEL, &te) {
                     Err(e) => Err(e),
-                    Ok(hd) => match view(pers, st, &hd) {
-                        Err(e) => Err(e),
-                        Ok(ENodeView::Const(tn, _)) => {
-                            annotate_proj_at(pers, vis, st, fe, sn, i, &ep, &te, &tn)
+                    Ok(hd) => if hd.tag() == ETAG_CONST {
+                        match view_const_name(pers, st, &hd) {
+                            None => fail_dangling_e(),
+                            Some(tn) => {
+                                annotate_proj_at(pers, vis, st, fe, sn, i, &ep, &te, &tn)
+                            },
                         }
-                        Ok(_) => {
+                    } else {
+                        {
                             fail(CheckError::NotImplemented(code_points(&M_NONSTRUCT)))
                         }
                     },

@@ -32,11 +32,10 @@
 
 use crate::arena::env;
 use crate::arena::env::IFEnv;
-use crate::arena::handle::EIdx;
+use crate::arena::handle::{EIdx, ETAG_APP, ETAG_FORALL_E, ETAG_LAM, ETAG_SORT};
 use crate::arena::expr_ops::get_app_fn;
 use crate::arena::monad::{
-    fail, fail_dangling_ls, read_levels, read_names, view, view_ls_len, AState,
-};
+    fail, fail_dangling_ls, read_levels, read_names, view, view_ls_len, AState, fail_dangling_e, view_app, view_bind, view_sort};
 use crate::arena::monad::read_level;
 use crate::arena::store::ENodeView;
 use con_ron_core::kernel::core_types::{code_points, CheckError};
@@ -68,16 +67,19 @@ pub fn peel_never_pis(
     if k == 0 {
         Ok(Some(h.dup2()))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(_, b, m)) => {
-                if prop_when::is_never(&m.pw) {
-                    peel_never_pis(pers, st, k - 1, &b)
-                } else {
-                    Ok(None)
-                }
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((_, b, m)) => {
+                    if prop_when::is_never(&m.pw) {
+                        peel_never_pis(pers, st, k - 1, &b)
+                    } else {
+                        Ok(None)
+                    }
+                },
             }
-            Ok(_) => Ok(None),
+        } else {
+            Ok(None)
         }
     }
 }
@@ -89,13 +91,16 @@ pub fn num_args(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<u64
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_NUM_ARGS)))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::App(f, _)) => match num_args(pers, st, fuel - 1, &f) {
-                Err(e) => Err(e),
-                Ok(n) => Ok(n + 1),
-            },
-            Ok(_) => Ok(0),
+        if h.tag() == ETAG_APP {
+            match view_app(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((f, _)) => match num_args(pers, st, fuel - 1, &f) {
+                    Err(e) => Err(e),
+                    Ok(n) => Ok(n + 1),
+                },
+            }
+        } else {
+            Ok(0)
         }
     }
 }
@@ -110,13 +115,16 @@ pub fn residual_pw(
     h: Option<EIdx>,
 ) -> Result<Option<PropWhen>, CheckError> {
     match h {
-        Some(r) => match view(pers, st, &r) {
-            Err(e) => Err(e),
-            Ok(ENodeView::Sort(u)) => match read_level(pers, st, &u) {
-                Err(e) => Err(e),
-                Ok(l) => Ok(Some(level::zeroness_of(&l))),
-            },
-            Ok(_) => Ok(None),
+        Some(r) => if r.tag() == ETAG_SORT {
+            match view_sort(pers, st, &r) {
+                None => fail_dangling_e(),
+                Some(u) => match read_level(pers, st, &u) {
+                    Err(e) => Err(e),
+                    Ok(l) => Ok(Some(level::zeroness_of(&l))),
+                },
+            }
+        } else {
+            Ok(None)
         },
         None => Ok(None),
     }
@@ -311,13 +319,16 @@ pub fn proof_pw(
     fuel: u64,
     a: &EIdx,
 ) -> Result<Option<PropWhen>, CheckError> {
-    match view(pers, st, a) {
-        Err(e) => Err(e),
-        Ok(ENodeView::Lam(_, _, m)) => Ok(Some(m.pw)),
-        Ok(_) => match get_app_fn(pers, st, fuel, a) {
+    if a.tag() == ETAG_LAM {
+        match view_bind(pers, st, a) {
+            None => fail_dangling_e(),
+            Some((_, _, m)) => Ok(Some(m.pw)),
+        }
+    } else {
+        match get_app_fn(pers, st, fuel, a) {
             Err(e) => Err(e),
             Ok(fnh) => head_proof_pw(pers, vis, st, fe, fuel, &fnh),
-        },
+        }
     }
 }
 

@@ -35,8 +35,8 @@ use crate::arena::core::CORE_WALK_FUEL;
 use crate::arena::env;
 use crate::arena::env::{IConstantInfo, IConstantVal, IRecRule};
 use crate::arena::expr_ops;
-use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
-use crate::arena::monad::{fail, intern_e, read_level, view, AState};
+use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx, ETAG_CONST, ETAG_FORALL_E, ETAG_SORT};
+use crate::arena::monad::{fail, intern_e, read_level, AState, fail_dangling_e, view_bind, view_const_name, view_sort};
 use crate::arena::store::ENodeView;
 use con_ron_core::kernel::core_types;
 use con_ron_core::kernel::core_types::{code_points, CheckError};
@@ -241,20 +241,23 @@ pub fn rec_positivity(
     if fuel == 0 {
         fail(core_types::internal(code_points(&M_FUEL_POS)))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(dom, body, _)) => {
-                match struct_parts::mentions_const(pers, st, t, &dom) {
-                    Err(e) => Err(e),
-                    Ok(true) => Ok(RecFieldKind::Negative),
-                    Ok(false) => rec_positivity(pers, st, t, lps, n_p, n_idx, o, fuel - 1, &body, k + 1),
-                }
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((dom, body, _)) => {
+                    match struct_parts::mentions_const(pers, st, t, &dom) {
+                        Err(e) => Err(e),
+                        Ok(true) => Ok(RecFieldKind::Negative),
+                        Ok(false) => rec_positivity(pers, st, t, lps, n_p, n_idx, o, fuel - 1, &body, k + 1),
+                    }
+                },
             }
-            Ok(_) => match struct_parts::mentions_const(pers, st, t, h) {
+        } else {
+            match struct_parts::mentions_const(pers, st, t, h) {
                 Err(e) => Err(e),
                 Ok(false) => Ok(RecFieldKind::Ordinary),
                 Ok(true) => rec_positivity_at(pers, st, t, lps, n_p, n_idx, o, h, k),
-            },
+            }
         }
     }
 }
@@ -309,16 +312,19 @@ pub fn rec_positivity_at(
                                 }
                             }
                         } else {
-                            match view(pers, st, &fna) {
-                                Err(e) => Err(e),
-                                Ok(ENodeView::Const(t2, _)) => {
-                                    if t2.eq2(t) {
-                                        Ok(RecFieldKind::Negative)
-                                    } else {
-                                        Ok(RecFieldKind::Unsupported)
-                                    }
+                            if fna.tag() == ETAG_CONST {
+                                match view_const_name(pers, st, &fna) {
+                                    None => fail_dangling_e(),
+                                    Some(t2) => {
+                                        if t2.eq2(t) {
+                                            Ok(RecFieldKind::Negative)
+                                        } else {
+                                            Ok(RecFieldKind::Unsupported)
+                                        }
+                                    },
                                 }
-                                Ok(_) => Ok(RecFieldKind::Unsupported),
+                            } else {
+                                Ok(RecFieldKind::Unsupported)
                             }
                         }
                     }
@@ -481,14 +487,17 @@ pub fn pi_binders(
     if fuel == 0 {
         fail(core_types::internal(code_points(&M_FUEL_PI_BINDERS)))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(ty, b, m)) => {
-                let mut o: Vec<(EIdx, BinderMeta)> = out;
-                o.push((ty, m));
-                pi_binders(pers, st, fuel - 1, &b, o)
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((ty, b, m)) => {
+                    let mut o: Vec<(EIdx, BinderMeta)> = out;
+                    o.push((ty, m));
+                    pi_binders(pers, st, fuel - 1, &b, o)
+                },
             }
-            Ok(_) => Ok((out, h.dup2())),
+        } else {
+            Ok((out, h.dup2()))
         }
     }
 }
@@ -1857,17 +1866,20 @@ pub fn native_counts(
 ) -> Result<Option<(u64, u64)>, CheckError> {
     match pi_binders(pers, st, CORE_WALK_FUEL, &cv_t.ty, Vec::new()) {
         Err(e) => Err(e),
-        Ok(q) => match view(pers, st, &q.1) {
-            Err(e) => Err(e),
-            Ok(ENodeView::Sort(_)) => {
-                let n: u64 = q.0.len() as u64;
-                if n_pd <= n {
-                    Ok(Some((n_pd, n - n_pd)))
-                } else {
-                    Ok(None)
-                }
+        Ok(q) => if q.1.tag() == ETAG_SORT {
+            match view_sort(pers, st, &q.1) {
+                None => fail_dangling_e(),
+                Some(_) => {
+                    let n: u64 = q.0.len() as u64;
+                    if n_pd <= n {
+                        Ok(Some((n_pd, n - n_pd)))
+                    } else {
+                        Ok(None)
+                    }
+                },
             }
-            Ok(_) => {
+        } else {
+            {
                 if r_p < n_ctors + 1 || m_i < r_p {
                     Ok(None)
                 } else if sub_nat(r_p, n_ctors + 1) == n_pd {
@@ -2077,13 +2089,16 @@ pub fn native_shape_sort(
 ) -> Result<Option<InductiveShape>, CheckError> {
     match expr_ops::strip_pis(pers, st, n_p + n_idx, &cv_t.ty) {
         Err(e) => Err(e),
-        Ok(Some(q)) => match view(pers, st, &q.1) {
-            Err(e) => Err(e),
-            Ok(ENodeView::Sort(s)) => native_shape_elim(pers, st, cv_t, cs, cv_r, rules, n_p, n_idx, s),
-            Ok(_) => match core::zero_level(st) {
+        Ok(Some(q)) => if q.1.tag() == ETAG_SORT {
+            match view_sort(pers, st, &q.1) {
+                None => fail_dangling_e(),
+                Some(s) => native_shape_elim(pers, st, cv_t, cs, cv_r, rules, n_p, n_idx, s),
+            }
+        } else {
+            match core::zero_level(st) {
                 Err(e) => Err(e),
                 Ok(z) => native_shape_elim(pers, st, cv_t, cs, cv_r, rules, n_p, n_idx, z),
-            },
+            }
         },
         Ok(None) => match core::zero_level(st) {
             Err(e) => Err(e),

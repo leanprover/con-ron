@@ -78,8 +78,8 @@
 //!   column and nothing else.
 
 use crate::arena::handle::{
-    e_tag_is_bind, EIdx, LIdx, LsIdx, NIdx, ETAG_APP, ETAG_BVAR, ETAG_FVAR, ETAG_LET_E,
-    ETAG_PROJ,
+    e_tag_is_bind, EIdx, LIdx, LsIdx, NIdx, ETAG_APP, ETAG_BVAR, ETAG_FORALL_E, ETAG_FVAR,
+    ETAG_LAM, ETAG_LET_E, ETAG_PROJ,
 };
 use crate::arena::monad::{
     abs1_clear, abs1_get, abs1_set, bvar_b_clear, bvar_b_get, bvar_b_set, derived_e, derived_l,
@@ -88,7 +88,8 @@ use crate::arena::monad::{
     inst_lp_get, inst_lp_set, intern_e, intern_level, intern_levels, lift_clear, lift_get, lift_set,
     lower_clear, lower_get, lower_set, read_level, read_levels, read_names, rename_clear,
     rename_get, rename_set, reset_clear, reset_get, reset_set, view, view_app, view_bind,
-    view_bvar, view_fvar_idx, view_let, view_proj, AState, EIdxNat, fail_dangling_e,
+    view_bvar, view_fvar_idx, view_fvar_ty, view_let, view_proj, AState, EIdxNat,
+    fail_dangling_e,
 };
 use crate::arena::store::{e_bind_view, ENodeView};
 use con_ron_core::kernel::core_types::{code_points, CheckError};
@@ -2173,10 +2174,13 @@ pub fn loose_bvars_bounded(
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:600-603 isLam` — is the
 /// expression a λ?
 pub fn is_lam(pers: &PersTier, st: &AState, h: &EIdx) -> Result<bool, CheckError> {
-    match view(pers, st, h) {
-        Err(e) => Err(e),
-        Ok(ENodeView::Lam(_, _, _)) => Ok(true),
-        Ok(_) => Ok(false),
+    if h.tag() == ETAG_LAM {
+        match view_bind(pers, st, h) {
+            None => fail_dangling_e(),
+            Some((_, _, _)) => Ok(true),
+        }
+    } else {
+        Ok(false)
     }
 }
 
@@ -2185,10 +2189,13 @@ pub fn is_lam(pers: &PersTier, st: &AState, h: &EIdx) -> Result<bool, CheckError
 /// prop-ness annotation, `none` off λs.  `PropWhen` is a value and not a term,
 /// so it crosses the signature unchanged.
 pub fn lam_pw(pers: &PersTier, st: &AState, h: &EIdx) -> Result<Option<PropWhen>, CheckError> {
-    match view(pers, st, h) {
-        Err(e) => Err(e),
-        Ok(ENodeView::Lam(_, _, m)) => Ok(Some(m.pw)),
-        Ok(_) => Ok(None),
+    if h.tag() == ETAG_LAM {
+        match view_bind(pers, st, h) {
+            None => fail_dangling_e(),
+            Some((_, _, m)) => Ok(Some(m.pw)),
+        }
+    } else {
+        Ok(None)
     }
 }
 
@@ -2196,10 +2203,13 @@ pub fn lam_pw(pers: &PersTier, st: &AState, h: &EIdx) -> Result<Option<PropWhen>
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:615-618 forallPw` — the ∀ twin
 /// of `lam_pw`.
 pub fn forall_pw(pers: &PersTier, st: &AState, h: &EIdx) -> Result<Option<PropWhen>, CheckError> {
-    match view(pers, st, h) {
-        Err(e) => Err(e),
-        Ok(ENodeView::ForallE(_, _, m)) => Ok(Some(m.pw)),
-        Ok(_) => Ok(None),
+    if h.tag() == ETAG_FORALL_E {
+        match view_bind(pers, st, h) {
+            None => fail_dangling_e(),
+            Some((_, _, m)) => Ok(Some(m.pw)),
+        }
+    } else {
+        Ok(None)
     }
 }
 
@@ -2577,14 +2587,17 @@ pub fn strip_lams(
     if k == 0 {
         Ok(Some((Vec::new(), h.dup2())))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::Lam(ty, b, m)) => match strip_lams(pers, st, k - 1, &b) {
-                Err(e) => Err(e),
-                Ok(Some(p)) => Ok(Some((cons_binder(&ty, &m, &p.0), p.1))),
-                Ok(None) => Ok(None),
-            },
-            Ok(_) => Ok(None),
+        if h.tag() == ETAG_LAM {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((ty, b, m)) => match strip_lams(pers, st, k - 1, &b) {
+                    Err(e) => Err(e),
+                    Ok(Some(p)) => Ok(Some((cons_binder(&ty, &m, &p.0), p.1))),
+                    Ok(None) => Ok(None),
+                },
+            }
+        } else {
+            Ok(None)
         }
     }
 }
@@ -2601,14 +2614,17 @@ pub fn strip_pis(
     if k == 0 {
         Ok(Some((Vec::new(), h.dup2())))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(ty, b, m)) => match strip_pis(pers, st, k - 1, &b) {
-                Err(e) => Err(e),
-                Ok(Some(p)) => Ok(Some((cons_binder(&ty, &m, &p.0), p.1))),
-                Ok(None) => Ok(None),
-            },
-            Ok(_) => Ok(None),
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((ty, b, m)) => match strip_pis(pers, st, k - 1, &b) {
+                    Err(e) => Err(e),
+                    Ok(Some(p)) => Ok(Some((cons_binder(&ty, &m, &p.0), p.1))),
+                    Ok(None) => Ok(None),
+                },
+            }
+        } else {
+            Ok(None)
         }
     }
 }
@@ -2620,10 +2636,13 @@ pub fn pi_result(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<EI
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_PI_RESULT)))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(_, b, _)) => pi_result(pers, st, fuel - 1, &b),
-            Ok(_) => Ok(h.dup2()),
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((_, b, _)) => pi_result(pers, st, fuel - 1, &b),
+            }
+        } else {
+            Ok(h.dup2())
         }
     }
 }
@@ -2657,16 +2676,19 @@ pub fn inst_pis_from(
     if i >= args.len() {
         Ok(Some(e.dup2()))
     } else {
-        match view(pers, st, e) {
-            Err(er) => Err(er),
-            Ok(ENodeView::ForallE(_, body, _)) => {
-                let a: EIdx = args[i].dup2();
-                match instantiate1_fast(pers, st, fuel, &body, &a, 0) {
-                    Err(er) => Err(er),
-                    Ok(b) => inst_pis_from(pers, st, fuel, &b, args, i + 1),
-                }
+        if e.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, e) {
+                None => fail_dangling_e(),
+                Some((_, body, _)) => {
+                    let a: EIdx = args[i].dup2();
+                    match instantiate1_fast(pers, st, fuel, &body, &a, 0) {
+                        Err(er) => Err(er),
+                        Ok(b) => inst_pis_from(pers, st, fuel, &b, args, i + 1),
+                    }
+                },
             }
-            Ok(_) => Ok(None),
+        } else {
+            Ok(None)
         }
     }
 }
@@ -2702,20 +2724,23 @@ pub fn inst_pis_at_from(
     if i >= args.len() {
         Ok(Some((Vec::new(), h.dup2())))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(dom, body, _)) => {
-                let a: EIdx = args[i].dup2();
-                match instantiate1_fast(pers, st, fuel, &body, &a, 0) {
-                    Err(e) => Err(e),
-                    Ok(b) => match inst_pis_at_from(pers, st, fuel, args, i + 1, &b) {
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((dom, body, _)) => {
+                    let a: EIdx = args[i].dup2();
+                    match instantiate1_fast(pers, st, fuel, &body, &a, 0) {
                         Err(e) => Err(e),
-                        Ok(Some(p)) => Ok(Some((cons_eidx(&dom, &p.0), p.1))),
-                        Ok(None) => Ok(None),
-                    },
-                }
+                        Ok(b) => match inst_pis_at_from(pers, st, fuel, args, i + 1, &b) {
+                            Err(e) => Err(e),
+                            Ok(Some(p)) => Ok(Some((cons_eidx(&dom, &p.0), p.1))),
+                            Ok(None) => Ok(None),
+                        },
+                    }
+                },
             }
-            Ok(_) => Ok(None),
+        } else {
+            Ok(None)
         }
     }
 }
@@ -2747,20 +2772,23 @@ pub fn inst_lams_at_from(
     if i >= args.len() {
         Ok(Some((Vec::new(), h.dup2())))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::Lam(dom, body, _)) => {
-                let a: EIdx = args[i].dup2();
-                match instantiate1_fast(pers, st, fuel, &body, &a, 0) {
-                    Err(e) => Err(e),
-                    Ok(b) => match inst_lams_at_from(pers, st, fuel, args, i + 1, &b) {
+        if h.tag() == ETAG_LAM {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((dom, body, _)) => {
+                    let a: EIdx = args[i].dup2();
+                    match instantiate1_fast(pers, st, fuel, &body, &a, 0) {
                         Err(e) => Err(e),
-                        Ok(Some(p)) => Ok(Some((cons_eidx(&dom, &p.0), p.1))),
-                        Ok(None) => Ok(None),
-                    },
-                }
+                        Ok(b) => match inst_lams_at_from(pers, st, fuel, args, i + 1, &b) {
+                            Err(e) => Err(e),
+                            Ok(Some(p)) => Ok(Some((cons_eidx(&dom, &p.0), p.1))),
+                            Ok(None) => Ok(None),
+                        },
+                    }
+                },
             }
-            Ok(_) => Ok(None),
+        } else {
+            Ok(None)
         }
     }
 }
@@ -2791,20 +2819,23 @@ pub fn inst_pis_at_f_go(
             Ok(r) => Ok(Some((Vec::new(), r))),
         }
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(dom, body, _)) => {
-                let acc2: Vec<EIdx> = cons_eidx(&args[i], acc);
-                match inst_pis_at_f_go(pers, st, fuel, &acc2, args, i + 1, &body) {
-                    Err(e) => Err(e),
-                    Ok(Some(p)) => match instantiate_list_fast(pers, st, fuel, &dom, acc, 0) {
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((dom, body, _)) => {
+                    let acc2: Vec<EIdx> = cons_eidx(&args[i], acc);
+                    match inst_pis_at_f_go(pers, st, fuel, &acc2, args, i + 1, &body) {
                         Err(e) => Err(e),
-                        Ok(d) => Ok(Some((cons_eidx(&d, &p.0), p.1))),
-                    },
-                    Ok(None) => Ok(None),
-                }
+                        Ok(Some(p)) => match instantiate_list_fast(pers, st, fuel, &dom, acc, 0) {
+                            Err(e) => Err(e),
+                            Ok(d) => Ok(Some((cons_eidx(&d, &p.0), p.1))),
+                        },
+                        Ok(None) => Ok(None),
+                    }
+                },
             }
-            Ok(_) => Ok(None),
+        } else {
+            Ok(None)
         }
     }
 }
@@ -2846,20 +2877,23 @@ pub fn inst_lams_at_f_go(
             Ok(r) => Ok(Some((Vec::new(), r))),
         }
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::Lam(dom, body, _)) => {
-                let acc2: Vec<EIdx> = cons_eidx(&args[i], acc);
-                match inst_lams_at_f_go(pers, st, fuel, &acc2, args, i + 1, &body) {
-                    Err(e) => Err(e),
-                    Ok(Some(p)) => match instantiate_list_fast(pers, st, fuel, &dom, acc, 0) {
+        if h.tag() == ETAG_LAM {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((dom, body, _)) => {
+                    let acc2: Vec<EIdx> = cons_eidx(&args[i], acc);
+                    match inst_lams_at_f_go(pers, st, fuel, &acc2, args, i + 1, &body) {
                         Err(e) => Err(e),
-                        Ok(d) => Ok(Some((cons_eidx(&d, &p.0), p.1))),
-                    },
-                    Ok(None) => Ok(None),
-                }
+                        Ok(Some(p)) => match instantiate_list_fast(pers, st, fuel, &dom, acc, 0) {
+                            Err(e) => Err(e),
+                            Ok(d) => Ok(Some((cons_eidx(&d, &p.0), p.1))),
+                        },
+                        Ok(None) => Ok(None),
+                    }
+                },
             }
-            Ok(_) => Ok(None),
+        } else {
+            Ok(None)
         }
     }
 }
@@ -2886,10 +2920,13 @@ pub fn inst_lams_at_f(
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:908-911 fvarTypeD` — the type
 /// annotation of a free-variable leaf (the expression itself otherwise).
 pub fn fvar_type_d(pers: &PersTier, st: &AState, h: &EIdx) -> Result<EIdx, CheckError> {
-    match view(pers, st, h) {
-        Err(e) => Err(e),
-        Ok(ENodeView::FVar(_, ty)) => Ok(ty),
-        Ok(_) => Ok(h.dup2()),
+    if h.tag() == ETAG_FVAR {
+        match view_fvar_ty(pers, st, h) {
+            None => fail_dangling_e(),
+            Some(ty) => Ok(ty),
+        }
+    } else {
+        Ok(h.dup2())
     }
 }
 
@@ -2977,16 +3014,19 @@ pub fn rec_rule_plain(
         match strip_pis(pers, st, m_i, rec_ty) {
             Err(e) => Err(e),
             Ok(None) => Ok(false),
-            Ok(Some(p)) => match view(pers, st, &p.1) {
-                Err(e) => Err(e),
-                Ok(ENodeView::ForallE(dom, _, _)) => match get_app_args(pers, st, fuel, &dom) {
-                    Err(e) => Err(e),
-                    Ok(args) => match bvar_range(pers, st, m_i, cn_p, 0) {
+            Ok(Some(p)) => if p.1.tag() == ETAG_FORALL_E {
+                match view_bind(pers, st, &p.1) {
+                    None => fail_dangling_e(),
+                    Some((dom, _, _)) => match get_app_args(pers, st, fuel, &dom) {
                         Err(e) => Err(e),
-                        Ok(want) => Ok(eidx_take_beq(&args, &want)),
+                        Ok(args) => match bvar_range(pers, st, m_i, cn_p, 0) {
+                            Err(e) => Err(e),
+                            Ok(want) => Ok(eidx_take_beq(&args, &want)),
+                        },
                     },
-                },
-                Ok(_) => Ok(false),
+                }
+            } else {
+                Ok(false)
             },
         }
     } else {
@@ -3009,20 +3049,23 @@ pub fn pis_to_lams(
     if k == 0 {
         Ok(Some(body.dup2()))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(ty, rest, _)) => match pis_to_lams(pers, st, k - 1, &rest, body) {
-                Err(e) => Err(e),
-                Ok(Some(b)) => {
-                    let m: BinderMeta = expr::binder_meta(prop_when::never());
-                    match intern_e(pers, st, ENodeView::Lam(ty, b, m)) {
-                        Err(e) => Err(e),
-                        Ok(r) => Ok(Some(r)),
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((ty, rest, _)) => match pis_to_lams(pers, st, k - 1, &rest, body) {
+                    Err(e) => Err(e),
+                    Ok(Some(b)) => {
+                        let m: BinderMeta = expr::binder_meta(prop_when::never());
+                        match intern_e(pers, st, ENodeView::Lam(ty, b, m)) {
+                            Err(e) => Err(e),
+                            Ok(r) => Ok(Some(r)),
+                        }
                     }
-                }
-                Ok(None) => Ok(None),
-            },
-            Ok(_) => Ok(None),
+                    Ok(None) => Ok(None),
+                },
+            }
+        } else {
+            Ok(None)
         }
     }
 }
@@ -3041,20 +3084,23 @@ pub fn replace_pi_body(
     if k == 0 {
         Ok(Some(b.dup2()))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(ty, rest, m)) => match replace_pi_body(pers, st, k - 1, &rest, b) {
-                Err(e) => Err(e),
-                Ok(Some(r)) => {
-                    let m2: BinderMeta = expr::binder_meta(m.pw);
-                    match intern_e(pers, st, ENodeView::ForallE(ty, r, m2)) {
-                        Err(e) => Err(e),
-                        Ok(x) => Ok(Some(x)),
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((ty, rest, m)) => match replace_pi_body(pers, st, k - 1, &rest, b) {
+                    Err(e) => Err(e),
+                    Ok(Some(r)) => {
+                        let m2: BinderMeta = expr::binder_meta(m.pw);
+                        match intern_e(pers, st, ENodeView::ForallE(ty, r, m2)) {
+                            Err(e) => Err(e),
+                            Ok(x) => Ok(Some(x)),
+                        }
                     }
-                }
-                Ok(None) => Ok(None),
-            },
-            Ok(_) => Ok(None),
+                    Ok(None) => Ok(None),
+                },
+            }
+        } else {
+            Ok(None)
         }
     }
 }
@@ -3066,13 +3112,16 @@ pub fn pi_arity(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<u64
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_PI_ARITY)))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(_, b, _)) => match pi_arity(pers, st, fuel - 1, &b) {
-                Err(e) => Err(e),
-                Ok(n) => Ok(n + 1),
-            },
-            Ok(_) => Ok(0),
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((_, b, _)) => match pi_arity(pers, st, fuel - 1, &b) {
+                    Err(e) => Err(e),
+                    Ok(n) => Ok(n + 1),
+                },
+            }
+        } else {
+            Ok(0)
         }
     }
 }
@@ -4238,16 +4287,19 @@ pub fn inst_pis_at_lift_from(
     if i >= args.len() {
         Ok(Some(h.dup2()))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(_, body, _)) => {
-                let a: EIdx = args[i].dup2();
-                match instantiate1_lift_fast(pers, st, fuel, &body, &a, 0) {
-                    Err(e) => Err(e),
-                    Ok(b) => inst_pis_at_lift_from(pers, st, fuel, args, i + 1, &b),
-                }
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((_, body, _)) => {
+                    let a: EIdx = args[i].dup2();
+                    match instantiate1_lift_fast(pers, st, fuel, &body, &a, 0) {
+                        Err(e) => Err(e),
+                        Ok(b) => inst_pis_at_lift_from(pers, st, fuel, args, i + 1, &b),
+                    }
+                },
             }
-            Ok(_) => Ok(None),
+        } else {
+            Ok(None)
         }
     }
 }

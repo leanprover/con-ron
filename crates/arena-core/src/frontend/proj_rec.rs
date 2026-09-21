@@ -91,13 +91,12 @@
 
 use crate::arena::env::nidx_vec_dup;
 use crate::arena::expr_ops;
-use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
+use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx, ETAG_BVAR, ETAG_CONST, ETAG_FORALL_E, ETAG_LAM, ETAG_PROJ, ETAG_SORT};
 use crate::arena::inductives::native_parts;
 use crate::arena::inductives::struct_parts;
 use crate::arena::monad::{
     fail, intern_e, intern_l_node, intern_ls_node, intern_n_node, intern_name, read_level,
-    view, view_ls, view_n, AState,
-};
+    view, view_ls, view_n, AState, fail_dangling_e, view_bind, view_bvar, view_const, view_const_name, view_proj, view_sort};
 use crate::arena::store::{ENodeView, LNodeView, NNodeView};
 use crate::frontend::types::ProjRecOwner;
 use con_ron_core::frontend::text;
@@ -274,10 +273,13 @@ pub fn proj_iota_level(
         Err(e) => Err(e),
         Ok(r) => match expr_ops::get_app_fn(pers, st, fuel, &r) {
             Err(e) => Err(e),
-            Ok(f) => match view(pers, st, &f) {
-                Err(e) => Err(e),
-                Ok(ENodeView::Const(n, us)) => proj_iota_level_at(pers, st, &n, &us),
-                Ok(_) => Ok(None),
+            Ok(f) => if f.tag() == ETAG_CONST {
+                match view_const(pers, st, &f) {
+                    None => fail_dangling_e(),
+                    Some((n, us)) => proj_iota_level_at(pers, st, &n, &us),
+                }
+            } else {
+                Ok(None)
             },
         },
     }
@@ -488,10 +490,13 @@ pub fn lam_body(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<EId
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_LAM_BODY)))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::Lam(_, b, _)) => lam_body(pers, st, fuel - 1, &b),
-            Ok(_) => Ok(h.dup2()),
+        if h.tag() == ETAG_LAM {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((_, b, _)) => lam_body(pers, st, fuel - 1, &b),
+            }
+        } else {
+            Ok(h.dup2())
         }
     }
 }
@@ -508,13 +513,16 @@ pub fn strip_pis_all(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_STRIP_PIS_ALL)))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(ty, b, m)) => match strip_pis_all(pers, st, fuel - 1, &b) {
-                Err(e) => Err(e),
-                Ok(p) => Ok((expr_ops::cons_binder(&ty, &m, &p.0), p.1)),
-            },
-            Ok(_) => Ok((Vec::new(), h.dup2())),
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((ty, b, m)) => match strip_pis_all(pers, st, fuel - 1, &b) {
+                    Err(e) => Err(e),
+                    Ok(p) => Ok((expr_ops::cons_binder(&ty, &m, &p.0), p.1)),
+                },
+            }
+        } else {
+            Ok((Vec::new(), h.dup2()))
         }
     }
 }
@@ -589,15 +597,18 @@ pub fn inst_pis_open_from(
     if i >= args.len() {
         Ok(Some(e.dup2()))
     } else {
-        match view(pers, st, e) {
-            Err(er) => Err(er),
-            Ok(ENodeView::ForallE(_, body, _)) => {
-                match expr_ops::instantiate1_lift_fast(pers, st, fuel, &body, &args[i], 0) {
-                    Err(er) => Err(er),
-                    Ok(b) => inst_pis_open_from(pers, st, fuel, &b, args, i + 1),
-                }
+        if e.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, e) {
+                None => fail_dangling_e(),
+                Some((_, body, _)) => {
+                    match expr_ops::instantiate1_lift_fast(pers, st, fuel, &body, &args[i], 0) {
+                        Err(er) => Err(er),
+                        Ok(b) => inst_pis_open_from(pers, st, fuel, &b, args, i + 1),
+                    }
+                },
             }
-            Ok(_) => Ok(None),
+        } else {
+            Ok(None)
         }
     }
 }
@@ -645,10 +656,13 @@ pub fn head_is(
 ) -> Result<bool, CheckError>  {
     match expr_ops::get_app_fn(pers, st, fuel, e) {
         Err(er) => Err(er),
-        Ok(f) => match view(pers, st, &f) {
-            Err(er) => Err(er),
-            Ok(ENodeView::Const(n, _)) => Ok(n.eq2(t)),
-            Ok(_) => Ok(false),
+        Ok(f) => if f.tag() == ETAG_CONST {
+            match view_const_name(pers, st, &f) {
+                None => fail_dangling_e(),
+                Some(n) => Ok(n.eq2(t)),
+            }
+        } else {
+            Ok(false)
         },
     }
 }
@@ -668,10 +682,13 @@ pub fn mk_proj_motive(
 ) -> Result<Option<EIdx>, CheckError> {
     match strip_pis_all(pers, st, fuel, dom) {
         Err(e) => Err(e),
-        Ok(bse) => match view(pers, st, &bse.1) {
-            Err(e) => Err(e),
-            Ok(ENodeView::Sort(_)) => mk_proj_motive_at(pers, st, pb, fuel, &bse.0),
-            Ok(_) => Ok(None),
+        Ok(bse) => if bse.1.tag() == ETAG_SORT {
+            match view_sort(pers, st, &bse.1) {
+                None => fail_dangling_e(),
+                Some(_) => mk_proj_motive_at(pers, st, pb, fuel, &bse.0),
+            }
+        } else {
+            Ok(None)
         },
     }
 }
@@ -802,12 +819,15 @@ pub fn build_binders(
     if k == 0 {
         Ok(Some((Vec::new(), h.dup2())))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(dom, body, _)) => {
-                build_binders_at(pers, st, kind, pb, fuel, k, &dom, &body)
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((dom, body, _)) => {
+                    build_binders_at(pers, st, kind, pb, fuel, k, &dom, &body)
+                },
             }
-            Ok(_) => Ok(None),
+        } else {
+            Ok(None)
         }
     }
 }
@@ -937,20 +957,27 @@ pub fn proj_rec_value(
     match expr_ops::strip_lams(pers, st, o.n_p + 1, val) {
         Err(e) => Err(e),
         Ok(None) => Ok(None),
-        Ok(Some(lbsb)) => match view(pers, st, &lbsb.1) {
-            Err(e) => Err(e),
-            Ok(ENodeView::Proj(tn, bi, sub)) => match view(pers, st, &sub) {
-                Err(e) => Err(e),
-                Ok(ENodeView::BVar(0)) => {
-                    if !tn.eq2(&o.t) || bi != i || i >= o.n_f {
-                        Ok(None)
-                    } else {
-                        proj_rec_value_ty(pers, st, fuel, o, l, ty, i, &lbsb.0)
+        Ok(Some(lbsb)) => if lbsb.1.tag() == ETAG_PROJ {
+            match view_proj(pers, st, &lbsb.1) {
+                None => fail_dangling_e(),
+                Some((tn, bi, sub)) => if sub.tag() == ETAG_BVAR {
+                    match view_bvar(pers, st, &sub) {
+                        None => fail_dangling_e(),
+                        Some(0) => {
+                            if !tn.eq2(&o.t) || bi != i || i >= o.n_f {
+                                Ok(None)
+                            } else {
+                                proj_rec_value_ty(pers, st, fuel, o, l, ty, i, &lbsb.0)
+                            }
+                        }
+                        Some(_) => Ok(None),
                     }
-                }
-                Ok(_) => Ok(None),
-            },
-            Ok(_) => Ok(None),
+                } else {
+                    Ok(None)
+                },
+            }
+        } else {
+            Ok(None)
         },
     }
 }
@@ -1101,14 +1128,17 @@ pub fn proj_rec_value_major(
     minors: &Vec<EIdx>,
     rty3: &EIdx,
 ) -> Result<Option<EIdx>, CheckError> {
-    match view(pers, st, rty3) {
-        Err(e) => Err(e),
-        Ok(ENodeView::ForallE(maj_dom, _, _)) => match head_is(pers, st, fuel, &o.t, &maj_dom) {
-            Err(e) => Err(e),
-            Ok(false) => Ok(None),
-            Ok(true) => proj_rec_value_app(pers, st, o, lbs, us, params, motives, minors),
-        },
-        Ok(_) => Ok(None),
+    if rty3.tag() == ETAG_FORALL_E {
+        match view_bind(pers, st, rty3) {
+            None => fail_dangling_e(),
+            Some((maj_dom, _, _)) => match head_is(pers, st, fuel, &o.t, &maj_dom) {
+                Err(e) => Err(e),
+                Ok(false) => Ok(None),
+                Ok(true) => proj_rec_value_app(pers, st, o, lbs, us, params, motives, minors),
+            },
+        }
+    } else {
+        Ok(None)
     }
 }
 

@@ -2477,6 +2477,43 @@ impl ETables {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-13) — `ETables.getSort`, the `sort` projection of
+    /// `ETables.get`.  The sibling of `getApp` at the one-field constructor:
+    /// a caller that has read `ETag.sort` off the handle word wants the level
+    /// handle and nothing else.
+    #[inline(always)]
+    pub fn get_sort(&self, i: &EIdx) -> Option<LIdx> {
+        match self.sorts.node(i.idx_nat()) {
+            None => None,
+            Some(r) => Some(r.u.dup2()),
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-13) — `ETables.getConst`, the `const` projection of
+    /// `ETables.get`.
+    #[inline(always)]
+    pub fn get_const(&self, i: &EIdx) -> Option<(NIdx, LsIdx)> {
+        match self.consts.node(i.idx_nat()) {
+            None => None,
+            Some(r) => Some((r.n.dup2(), r.us.dup2())),
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-13) — `ETables.getConstName`, the NAME of a `const` node.  The
+    /// level arguments beside it are not read: most of the crate's `const`
+    /// tests compare the head name alone, and the `LsIdx` copy is work for
+    /// nothing there.  The sibling of `getFVarIdx`.
+    #[inline(always)]
+    pub fn get_const_name(&self, i: &EIdx) -> Option<NIdx> {
+        match self.consts.node(i.idx_nat()) {
+            None => None,
+            Some(r) => Some(r.n.dup2()),
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
     /// #97-P6-10) — `ETables.getBVar`, the `bvar` projection of `ETables.get`.
     #[inline(always)]
     pub fn get_bvar(&self, i: &EIdx) -> Option<u64> {
@@ -2496,6 +2533,31 @@ impl ETables {
         match self.fvars.node(i.idx_nat()) {
             None => None,
             Some(r) => Some(r.idx),
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-13) — `ETables.getFVarTy`, the binder TYPE of an `fvar` node,
+    /// the other half of `getFVarIdx`.  `fvarTypeD` wants the annotation and
+    /// not the de Bruijn level.
+    #[inline(always)]
+    pub fn get_fvar_ty(&self, i: &EIdx) -> Option<EIdx> {
+        match self.fvars.node(i.idx_nat()) {
+            None => None,
+            Some(r) => Some(r.ty.dup2()),
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-13) — `ETables.getLit`, the `lit` projection of `ETables.get`.
+    /// The one projection whose payload is not a handle: `Literal` is the
+    /// datum `ENodeView::Lit` carries, and `literal_dup` is the copy the view
+    /// makes anyway.
+    #[inline(always)]
+    pub fn get_lit(&self, i: &EIdx) -> Option<Literal> {
+        match self.lits.node(i.idx_nat()) {
+            None => None,
+            Some(r) => Some(expr::literal_dup(&r.l)),
         }
     }
 
@@ -3002,6 +3064,79 @@ impl EStore {
         }
     }
 
+    /// con-leche: none — arena infrastructure (task #97-P6-13); Lean twin:
+    /// OWED — the persistent arm of `EStore.viewSort`.
+    #[inline(always)]
+    fn pers_get_sort(&self, pers: &PersTier, i: &EIdx) -> Option<LIdx> {
+        if self.shared_on {
+            pers.e.get_sort(i)
+        } else {
+            self.pers.get_sort(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-13) — `EStore.viewSort`, the `sort` projection of `EStore.view`.
+    #[inline(always)]
+    pub fn view_sort(&self, pers: &PersTier, i: &EIdx) -> Option<LIdx> {
+        if i.is_persistent() {
+            self.pers_get_sort(pers, i)
+        } else if self.scratch_on {
+            self.scr.get_sort(i)
+        } else {
+            None
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-13); Lean twin:
+    /// OWED — the persistent arm of `EStore.viewConst`.
+    #[inline(always)]
+    fn pers_get_const(&self, pers: &PersTier, i: &EIdx) -> Option<(NIdx, LsIdx)> {
+        if self.shared_on {
+            pers.e.get_const(i)
+        } else {
+            self.pers.get_const(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-13) — `EStore.viewConst`, the `const` projection of
+    /// `EStore.view`.
+    #[inline(always)]
+    pub fn view_const(&self, pers: &PersTier, i: &EIdx) -> Option<(NIdx, LsIdx)> {
+        if i.is_persistent() {
+            self.pers_get_const(pers, i)
+        } else if self.scratch_on {
+            self.scr.get_const(i)
+        } else {
+            None
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-13); Lean twin:
+    /// OWED — the persistent arm of `EStore.viewConstName`.
+    #[inline(always)]
+    fn pers_get_const_name(&self, pers: &PersTier, i: &EIdx) -> Option<NIdx> {
+        if self.shared_on {
+            pers.e.get_const_name(i)
+        } else {
+            self.pers.get_const_name(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-13) — `EStore.viewConstName`, the head NAME of a `const` node.
+    #[inline(always)]
+    pub fn view_const_name(&self, pers: &PersTier, i: &EIdx) -> Option<NIdx> {
+        if i.is_persistent() {
+            self.pers_get_const_name(pers, i)
+        } else if self.scratch_on {
+            self.scr.get_const_name(i)
+        } else {
+            None
+        }
+    }
+
     /// con-leche: none — arena infrastructure (task #97-P6-10); Lean twin:
     /// OWED — the persistent arms of the four projections below.
     #[inline(always)]
@@ -3061,6 +3196,54 @@ impl EStore {
             self.pers_get_fvar_idx(pers, i)
         } else if self.scratch_on {
             self.scr.get_fvar_idx(i)
+        } else {
+            None
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-13); Lean twin:
+    /// OWED — the persistent arm of `EStore.viewFVarTy`.
+    #[inline(always)]
+    fn pers_get_fvar_ty(&self, pers: &PersTier, i: &EIdx) -> Option<EIdx> {
+        if self.shared_on {
+            pers.e.get_fvar_ty(i)
+        } else {
+            self.pers.get_fvar_ty(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-13) — `EStore.viewFVarTy`, the `fvar` binder-type projection.
+    #[inline(always)]
+    pub fn view_fvar_ty(&self, pers: &PersTier, i: &EIdx) -> Option<EIdx> {
+        if i.is_persistent() {
+            self.pers_get_fvar_ty(pers, i)
+        } else if self.scratch_on {
+            self.scr.get_fvar_ty(i)
+        } else {
+            None
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-13); Lean twin:
+    /// OWED — the persistent arm of `EStore.viewLit`.
+    #[inline(always)]
+    fn pers_get_lit(&self, pers: &PersTier, i: &EIdx) -> Option<Literal> {
+        if self.shared_on {
+            pers.e.get_lit(i)
+        } else {
+            self.pers.get_lit(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-13) — `EStore.viewLit`, the `lit` projection of `EStore.view`.
+    #[inline(always)]
+    pub fn view_lit(&self, pers: &PersTier, i: &EIdx) -> Option<Literal> {
+        if i.is_persistent() {
+            self.pers_get_lit(pers, i)
+        } else if self.scratch_on {
+            self.scr.get_lit(i)
         } else {
             None
         }

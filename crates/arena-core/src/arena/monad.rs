@@ -72,6 +72,7 @@ use crate::arena::store::{
 use con_ron_core::kernel::core_types::{code_points, CheckError};
 use con_ron_core::kernel::expr;
 use con_ron_core::kernel::expr::BinderMeta;
+use con_ron_core::kernel::expr::Literal;
 use con_ron_core::kernel::level;
 use con_ron_core::kernel::level::Level;
 use con_ron_core::kernel::name;
@@ -365,10 +366,46 @@ pub fn view_bvar(pers: &PersTier, st: &AState, h: &EIdx) -> Option<u64> {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// Lean twin: OWED (task #97-P6-13) — `viewSort`, the `sort` projection.
+#[inline(always)]
+pub fn view_sort(pers: &PersTier, st: &AState, h: &EIdx) -> Option<LIdx> {
+    st.store.view_sort(pers, h)
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// Lean twin: OWED (task #97-P6-13) — `viewConst`, the `const` projection.
+#[inline(always)]
+pub fn view_const(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(NIdx, LsIdx)> {
+    st.store.view_const(pers, h)
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// Lean twin: OWED (task #97-P6-13) — `viewConstName`, the head NAME of a
+/// `const` node; the level arguments are left in the store.
+#[inline(always)]
+pub fn view_const_name(pers: &PersTier, st: &AState, h: &EIdx) -> Option<NIdx> {
+    st.store.view_const_name(pers, h)
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
 /// Lean twin: OWED (task #97-P6-10) — `viewFVarIdx`, the `fvar` index.
 #[inline(always)]
 pub fn view_fvar_idx(pers: &PersTier, st: &AState, h: &EIdx) -> Option<u64> {
     st.store.view_fvar_idx(pers, h)
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// Lean twin: OWED (task #97-P6-13) — `viewFVarTy`, the `fvar` binder type.
+#[inline(always)]
+pub fn view_fvar_ty(pers: &PersTier, st: &AState, h: &EIdx) -> Option<EIdx> {
+    st.store.view_fvar_ty(pers, h)
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// Lean twin: OWED (task #97-P6-13) — `viewLit`, the `lit` projection.
+#[inline(always)]
+pub fn view_lit(pers: &PersTier, st: &AState, h: &EIdx) -> Option<Literal> {
+    st.store.view_lit(pers, h)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr

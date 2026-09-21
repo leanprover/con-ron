@@ -35,8 +35,8 @@ use crate::arena::core::CORE_WALK_FUEL;
 use crate::arena::env;
 use crate::arena::env::{IConstantInfo, IConstantVal, IFEnv, IIndCaps, IRecRule, IRecRuleFire};
 use crate::arena::expr_ops;
-use crate::arena::handle::{EIdx, LIdx, NIdx};
-use crate::arena::monad::{fail, intern_e, read_level, view, AState};
+use crate::arena::handle::{EIdx, LIdx, NIdx, ETAG_FORALL_E, ETAG_SORT};
+use crate::arena::monad::{fail, intern_e, read_level, view, AState, fail_dangling_e, view_bind, view_sort};
 use crate::arena::store::ENodeView;
 use con_ron_core::kernel::core_types;
 use con_ron_core::kernel::core_types::{code_points, CheckError};
@@ -287,10 +287,13 @@ pub fn check_sum_tele(
 ) -> Result<(IConstantVal, LIdx), CheckError> {
     match expr_ops::strip_pis(pers, st, n, &cv_ta0.ty) {
         Err(e) => Err(e),
-        Ok(Some(q)) => match view(pers, st, &q.1) {
-            Err(e) => Err(e),
-            Ok(ENodeView::Sort(s)) => Ok((env::i_constant_val_dup(cv_ta0), s)),
-            Ok(_) => check_sum_tele_slow(pers, vis, st, mode, fe, cv, n, cv_ta0),
+        Ok(Some(q)) => if q.1.tag() == ETAG_SORT {
+            match view_sort(pers, st, &q.1) {
+                None => fail_dangling_e(),
+                Some(s) => Ok((env::i_constant_val_dup(cv_ta0), s)),
+            }
+        } else {
+            check_sum_tele_slow(pers, vis, st, mode, fe, cv, n, cv_ta0)
         },
         Ok(None) => check_sum_tele_slow(pers, vis, st, mode, fe, cv, n, cv_ta0),
     }
@@ -629,28 +632,31 @@ pub fn norm_pos_dom_at(
     fuel: u64,
     w: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match view(pers, st, w) {
-        Err(er) => Err(er),
-        Ok(ENodeView::ForallE(dom, body, bm)) => match struct_parts::mentions_const(pers, st, t, &dom) {
-            Err(er) => Err(er),
-            Ok(true) => fail(core_types::invalid(code_points(&M_POS_NEG))),
-            Ok(false) => match intern_e(pers, st, ENodeView::FVar(d, dom.dup2())) {
+    if w.tag() == ETAG_FORALL_E {
+        match view_bind(pers, st, w) {
+            None => fail_dangling_e(),
+            Some((dom, body, bm)) => match struct_parts::mentions_const(pers, st, t, &dom) {
                 Err(er) => Err(er),
-                Ok(fv) => match expr_ops::instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &fv, 0) {
+                Ok(true) => fail(core_types::invalid(code_points(&M_POS_NEG))),
+                Ok(false) => match intern_e(pers, st, ENodeView::FVar(d, dom.dup2())) {
                     Err(er) => Err(er),
-                    Ok(opened) => match norm_pos_dom(pers, vis, st, mode, fe, t, d + 1, fuel, &opened) {
+                    Ok(fv) => match expr_ops::instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &fv, 0) {
                         Err(er) => Err(er),
-                        Ok(body2) => {
-                            match expr_ops::abstract1_fast(pers, st, CORE_WALK_FUEL, &body2, d, 0) {
-                                Err(er) => Err(er),
-                                Ok(closed) => intern_e(pers, st, ENodeView::ForallE(dom, closed, bm)),
+                        Ok(opened) => match norm_pos_dom(pers, vis, st, mode, fe, t, d + 1, fuel, &opened) {
+                            Err(er) => Err(er),
+                            Ok(body2) => {
+                                match expr_ops::abstract1_fast(pers, st, CORE_WALK_FUEL, &body2, d, 0) {
+                                    Err(er) => Err(er),
+                                    Ok(closed) => intern_e(pers, st, ENodeView::ForallE(dom, closed, bm)),
+                                }
                             }
-                        }
+                        },
                     },
                 },
             },
-        },
-        Ok(_) => Ok(w.dup2()),
+        }
+    } else {
+        Ok(w.dup2())
     }
 }
 
@@ -679,27 +685,30 @@ pub fn norm_field_doms(
     if n == 0 {
         Ok((out, h.dup2()))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(dom, body, bm)) => {
-                match norm_pos_dom(pers, vis, st, mode, fe, t, i, POS_WALK_FUEL, &dom) {
-                    Err(e) => Err(e),
-                    Ok(dom2) => match intern_e(pers, st, ENodeView::FVar(i, dom)) {
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((dom, body, bm)) => {
+                    match norm_pos_dom(pers, vis, st, mode, fe, t, i, POS_WALK_FUEL, &dom) {
                         Err(e) => Err(e),
-                        Ok(fv) => {
-                            match expr_ops::instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &fv, 0) {
-                                Err(e) => Err(e),
-                                Ok(opened) => {
-                                    let mut o: Vec<(EIdx, BinderMeta)> = out;
-                                    o.push((dom2, bm));
-                                    norm_field_doms(pers, vis, st, mode, fe, t, i + 1, n - 1, &opened, o)
+                        Ok(dom2) => match intern_e(pers, st, ENodeView::FVar(i, dom)) {
+                            Err(e) => Err(e),
+                            Ok(fv) => {
+                                match expr_ops::instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &fv, 0) {
+                                    Err(e) => Err(e),
+                                    Ok(opened) => {
+                                        let mut o: Vec<(EIdx, BinderMeta)> = out;
+                                        o.push((dom2, bm));
+                                        norm_field_doms(pers, vis, st, mode, fe, t, i + 1, n - 1, &opened, o)
+                                    }
                                 }
                             }
-                        }
-                    },
-                }
+                        },
+                    }
+                },
             }
-            Ok(_) => fail(core_types::not_implemented(code_points(&M_FIELD_TELE))),
+        } else {
+            fail(core_types::not_implemented(code_points(&M_FIELD_TELE)))
         }
     }
 }
