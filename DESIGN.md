@@ -34140,3 +34140,248 @@ arena from 1.91× nanoda at task #97-P6-3's baseline to 0.656×, and every
 symbol still above 1 % of the profile is either the hash-consing the design is
 built on or a walk that already carries every cutoff and every memo con-leche
 itself has.
+
+### Task #97-HM2 — the `HashMap2` spec tier (2026-09-21, Opus under Fable)
+
+Task #97-P6-4b landed `ron::HashMap2` — the open-addressed, epoch-stamped,
+flat-slot map the arena's twenty-two tables now use — marked **PROOF OWED**,
+and priced the owed proof in its §4.  This task writes it:
+`proof/ConRon/Refine/HashMap2.lean` (**2 357 lines**) and
+`proof/ConRon/Refine/HashMap2WF.lean` (**208**), against `ron::hashmap`'s
+1 823 + 772.  Nothing in `crates/` is touched, `Refine/HashMap*.lean` is not
+edited, and the two files are new leaves of `ConRon.lean`'s import graph.
+
+#### 1. What survived, and what moved
+
+The load-bearing claim of task #97-P6-4b §4 — *"the mathematical specification
+survives unchanged"* — holds, and more literally than that section expected:
+`lookupK`, `eraseK` and their eleven list lemmas are **imported from
+`Refine/HashMap.lean`** rather than restated, and so are `bind_eq_ok_iff`, the
+four `uscalar_*` equations, the five `Vec` lemmas, `getElem!_set_*`,
+`Eq2Spec`, `Eq2Fwd`, `eq2_ite`, `DupId` and `take_one_drop`.  `toFun m k =
+lookupK ⟦table⟧ k` is the same equation over a different `⟦·⟧`.
+
+| what | `ron::hashmap` | `ron::HashMap2` |
+|---|---:|---:|
+| `alv`/`alvO`/`al_v`/`AList.recTail` | 40 | `liveAt`/`sl_v`/`slotKV`/`isLive`/`rest`, **20** — and no induction principle: the nested inductive is gone |
+| the `filterMap` plumbing (new) | — | 60 — split the slot list at one index, replace that index, recover a member's index |
+| `list_get_spec`/`list_insert_spec`/`list_remove_spec` | ~180 | **gone**; `probe_walk` + `probe_spec`, **175** |
+| `slotsFlat` and the bucket lemmas | ~90 | `slotsLive` and five lemmas, **45** |
+| `Inv` | 5 clauses | **10**, in two structures (see §2) |
+| `get`/`contains_key`/`len`/`is_empty`/`capacity` | ~80 | ~110 (`capacity_refines` is new) |
+| `allocate_slots`/`new`/`ensure_slots`/`with_capacity`/`pow2_at_least` | ~165 | **~190** — near-verbatim, plus task #97-P6-7's eight-push leaf and `max_load_for` |
+| `clear_slots_spec`/`clear_refines` | ~110 | **~130** for `vacate_slots_spec` + `clear_refines` + **`clear_fit_refines`**, which `ron::hashmap` has no counterpart to |
+| `insert_no_resize_spec` | ~135 | **~200** |
+| `move_elements*`/`try_resize`/`insert_refines` | ~290 | **~330** |
+| `remove_refines` | ~135 | **stated, not proved** — see §5 |
+| `dup` | ~150 | **~105**, simpler (no `AList` recursion) |
+| `Rel`/`RelOn` and the `*_wf` variants | ~330 | **~200**, because they are not re-proved (see §3) |
+| cyclic index arithmetic (new) | — | 55 (`idx`, `cyc`, `idx_cases`, `idx_inj`, `idx_surj`, `cap_div_four`) |
+
+**Against the estimate.**  Task #97-P6-4b priced 1 900–2 300 lines; the
+delivered tier is 2 565 with `remove` *missing*, so the estimate is low, and
+by roughly the amount `remove` was priced at (~350).  The two places it was
+wrong in the other direction are that `probe_spec` came in at 175 rather than
+~120 (the walk and the invariant-level lemma are two lemmas, not one) and that
+the `Eq2Fwd` deduplication of §3 saved about 500 lines the estimate had
+budgeted twice.
+
+#### 2. The invariant, and the clauses that are new
+
+`Inv0` is the nine clauses and `Inv` is `Inv0` plus the load clause; the split
+exists because `insert_no_resize` **transiently breaks exactly the load
+clause** — it writes an entry without checking — and `insert`'s doubling is
+what puts it back.
+
+* `pow2`, `min_cap` — verbatim, including task #35's unallocated case.
+* `max_load_eq` (`0 < n → max_load = 3·⌊n/4⌋`) and `fit`
+  (`num_entries ≤ max_load`) — **new**.  Together with `min_cap` they give
+  `num_entries < n`: *there is always a free slot*.  This is what makes
+  `probe`'s `fuel == 0` arm unreachable, and it is the only reason the two
+  clauses exist.
+* `sat` (`saturated = false`) — **new**; see §4.
+* `epoch_pos` (`1 ≤ epoch`) and `stamps` (no slot's stamp exceeds the epoch) —
+  **new**, and `stamps` exists for one proof only: it is what makes `clear`'s
+  `epoch += 1` empty the table without touching a slot.
+* `nodup`, `entries` — verbatim over `sl_v`.
+* `run` — replaces `slot_inv`.  "`j` is `D` steps forward of the key's home
+  slot, `D < n`, and every slot strictly closer to the home is live."  Stated
+  with an **existential distance rather than a modular one** (`idx n a d =
+  (a+d) % n`), which is `cyc`-free and therefore `omega`-friendly; `cyc` and
+  `wraps_past` appear only in the `remove`/`repair` section, which is the one
+  place the code computes a cyclic distance.  The `i.val < n` conjunct of the
+  clause is also where the *bound on `home_index`'s result* comes from — no
+  property of `hash64` is assumed anywhere, exactly as in `HashMap.lean`, so
+  task #97-P6-4b's multiply-xor finalizer costs the proof nothing, as its §3
+  predicted.
+
+**`probe`'s `fuel == 0` obligation is discharged**, and `probe_spec`'s
+docstring carries the argument: `Inv.fit` gives a free slot, the walk visits
+`d` distinct slots, and `idx_surj` says that at `d = slots.len()` it has
+visited *all* of them — the free one included — contradicting the walk's own
+"every slot before the stop is live".  So the walk stops strictly before the
+fuel does.  `#print axioms ConRon.Refine.HashMap2.probe_spec` is the three
+axioms.
+
+#### 3. One departure of shape: `Eq2Fwd` once, `Eq2Spec` as a corollary
+
+`HashMap.lean` proves the unrestricted form and `HashMapWF.lean` re-proves the
+key-restricted one by copying the scripts — two copies of
+`insert_no_resize_spec`, of `move_elements*`, of `try_resize` and of `insert`,
+about 500 lines.  The restricted form is *strictly more general*
+(`Eq2Fwd_of_Eq2Spec` at `P := fun _ => True`, where `KeysOk` is vacuous), so
+here every lemma is proved once in the general form and `HashMap.lean`'s nine
+entry points are one-line corollaries.  `HashMap2WF.lean` is the `_wf` naming
+plus `RelOn` and its bridge, statement for statement as `HashMapWF.lean` gives
+them; a consumer written against `HashMapWF` compiles against `HashMap2WF` by
+changing the namespace.
+
+The deliverable's test — *a consumer can swap `HashMap` for `HashMap2` in a
+relation statement without changing the statement* — is met: `Rel`,
+`Rel_empty`, `Rel_get`, `Rel_insert`, `Rel_remove`, `RelOn`, `RelOn_of_Rel`,
+`RelOn_empty`, `Rel_get_wf`, `Rel_insert_wf` are the same text over the new
+`toFun`, and `Rel_remove_wf` is one `HashMapWF.lean` does not have.
+
+#### 4. The saturation corner: a real (unreachable) port bug
+
+`try_resize` sets `saturated := true` when the slot count exceeds
+`usize::MAX / 2`; from then on `insert` never resizes, so `num_entries` can
+climb to `slots.len()`, `probe`'s `fuel == 0` arm becomes reachable, and an
+`insert` **overwrites a live entry** — the specification is *false* in that
+corner, not merely unprovable.  `ron/hashmap2.rs`'s own doc comment says so in
+passing ("`num_entries` … is at most `max_load` after an `insert` returns
+**unless the table is `saturated`**").
+
+It needs a table of `2^63` slots (`2^63 · 20` bytes) and cannot happen; but it
+is a model state, and **no capacity clause of `Inv` is preserved by the
+doubling that reaches it** (a table of `2^62` slots doubles to `2^63`, which
+is exactly where saturation begins, so "`n ≤ 2^62`" is not an invariant).  So
+the three growing lemmas — `try_resize_spec`, `insert_refines_gen`,
+`insert_refines`, and `Rel_insert`/`Rel_insert_wf` through them — carry the
+hypothesis
+
+    2 * m.slots.val.length ≤ Usize.max
+
+*"the table can still double"*, which excludes the branch outright.  Every
+non-growing operation is unconditional.  **The clean fix is in the Rust**, and
+it is one line: `insert` must not add a *new* entry when `saturated &&
+num_entries == max_load` (or, equivalently, `probe`'s exhausted arm must
+report "no room" rather than "this slot is free").  This task touches no Rust
+(a sibling agent owns `crates/`), so it is recorded here and left to whoever
+next edits `hashmap2.rs`; with that guard the hypothesis disappears from all
+five statements.  This is DESIGN.md §3.5's own rule — *"a strengthening that
+turns out false is a port bug; fix the Rust"* — deferred, not waived.
+
+#### 5. What is owed: `repair_spec`
+
+`remove_refines` is **stated in full and carries a `sorry`**, and so does the
+lemma it needs, `repair_spec`.  Those two are the tier's only `sorry`s.  What
+is stated — and therefore what is left — is precise:
+
+* `RepairInv HashableInst t hole j fuel` — Knuth algorithm R's loop
+  invariant, six clauses: the hole is free (`free`); the slots strictly
+  between `hole` and `j` are live (`scanned`); every live entry's run from its
+  home is live **except** that it may be broken at `hole`, and only for
+  entries at or past the scan point (`runs`); and `stop`, which is `repair`'s
+  *own* `fuel == 0` obligation — there is a free slot other than the hole
+  within the remaining fuel, so the scan meets one and returns.  `remove`
+  supplies `stop` from `Inv.fit`: the table it hands `repair` has at least two
+  free slots, the one it has just vacated and one more.
+* `repair_spec` — `repair` preserves the entries as a multiset and restores
+  the run clause.  Its docstring carries the step analysis of all three arms
+  (`act = 0` stop, `act = 2` keep, `act = 1` move) and of the `fuel == 0` arm.
+
+The argument was worked out on paper and is sound; what is missing is the Lean
+text and the cyclic-interval algebra it needs on top of what is landed
+(`idx_cases`/`idx_inj`/`idx_surj`): a transitivity lemma
+`cyc n a c = (cyc n a b + cyc n b c) % n` and the two `idx`/`cyc` round-trips.
+Estimated at **300–400 lines**, i.e. task #97-P6-4b's ~350 for
+`remove_refines` — the one line of its table that this task's other numbers
+say was right.
+
+**Nothing in the arena depends on it today.**  `remove` has one caller in the
+whole checker (`arena::promote::erase_installed`), the capstones do not reach
+`hashmap2` until §8.6's swap makes `arena-core` the verified crate, and the
+other twelve entry points are green.
+
+#### 6. The axiom check, and the lemma table
+
+Fifteen `#guard_msgs in #print axioms` at the foot of the two files.  Fourteen
+read `[propext, Classical.choice, Quot.sound]`:
+
+`insert_refines`, `get_refines`, `contains_key_refines`, `new_refines`,
+`with_capacity_refines`, `clear_refines`, `clear_fit_refines`, `len_refines`,
+`is_empty_refines`, `capacity_refines`, `dup_spec`, `probe_spec`, and — in
+`HashMap2WF.lean` — `insert_refines_wf`, `get_refines_wf`, `Rel_insert_wf`.
+
+One reads `[propext, sorryAx, Classical.choice, Quot.sound]` —
+`remove_refines` — and the check is committed in *that* form, so that the day
+it goes green is a diff and not a discovery.
+
+The API, against `HashMap.lean`'s:
+
+| `ron::hashmap` | `ron::HashMap2` | state |
+|---|---|---|
+| `new_refines` | `new_refines` | proved |
+| `with_capacity_refines` | `with_capacity_refines` | proved |
+| `get_refines` / `get_refines_wf` | same | proved |
+| `contains_key_refines` | `contains_key_refines` / `_wf` | proved |
+| `len_refines`, `is_empty_refines` | same | proved |
+| — | `capacity_refines` | proved (new) |
+| `clear_refines` | `clear_refines` | proved |
+| — | `clear_fit_refines` | proved (new; task #97-P6-7's lever 1) |
+| `insert_refines` / `_wf` | same | proved, under §4's hypothesis |
+| `insert_no_resize_spec` / `_wf` | same | proved |
+| `move_elements_spec` | `move_slots_spec` | proved |
+| `try_resize_spec` / `_wf` | same | proved, under §4's hypothesis |
+| `remove_refines` / `_wf` | same | **owed** (`repair_spec`) |
+| `dup_spec`, `dup_toFun`, `dup_al_v`, `dup_inv` | `dup_spec`, `dup_toFun`, `dup_sl_v`, `dup_inv` | proved |
+| `Rel`, `Rel_empty`, `Rel_get`, `Rel_insert`, `Rel_remove` | same | proved (`Rel_remove` owed through `remove_refines`) |
+| `RelOn`, `RelOn_of_Rel`, `RelOn_empty`, `Rel_get_wf`, `Rel_insert_wf` | same, plus `Rel_remove_wf` | proved |
+| `list_get_spec`, `list_insert_spec`, `list_remove_spec` | `probe_walk`, `probe_spec` | proved |
+| `Inv` (5 clauses) | `Inv0` (9) + `Inv` (10) | — |
+
+**`clear_fit` is invisible to the specification**, which is the thing task
+#97-P6-7's lever 1 wanted checked: `fit_hw` appears in no clause of `Inv` and
+in no equation of `toFun` (`Inv_fit_hw` is the one-line lemma that says so),
+and `clear_fit_refines`'s three arms — `clear`, `clear`, and a fresh table —
+all denote `∅`.  A capacity choice is a representation choice (§3.2).
+
+#### 7. Build, and the two `lake` notes
+
+`lake build ConRon.Refine.HashMap2WF` from a warm dependency cache: **9.2 s**
+wall for the two files (`HashMap2` ~6 s, `HashMap2WF` 1.5 s) at
+`LEAN_NUM_THREADS=4`.  `lake build ConRon` whole-library: **5 m 23 s** wall,
+37 m 31 s CPU, exit 0.
+
+Two mechanical notes that cost real time and are worth writing down, because
+every future proof over generated Aeneas code will meet them:
+
+* **`split at h` cannot see through the pattern `let`s the generated bodies
+  bind their tuples with.**  `let (i2, b) ← probe …` elaborates to a
+  `Prod.casesOn` that `split`, `dsimp only` and `simp only []` all decline
+  ("Could not split an `if` or `match` expression in the type").  What works
+  is applying a **lemma** to the hypothesis, because unification runs `whnf`
+  and reduces them: `bind_eq_ok_iff.mp h`, `Result.ok_injective h`, and this
+  file's new `ite_eq_ok h`, which splits an `if` the same way.  For a `match`
+  on a slot the recipe is `cases hsc : s` then `rw [hsc] at h`, after which the
+  defeq lemmas apply.  `ite_eq_ok` is three lines and is the tool the rest of
+  the file is written with.
+* **A record update `{ m with a := x, b := y }` must be on one line** inside a
+  tactic block; broken across two it is a parse error ("unexpected
+  identifier; expected `}`").
+
+#### 8. Gates
+
+`LEAN_NUM_THREADS=4 LAKE_JOBS=8 scripts/gates.sh`: **all 12 OK** in 2 m 25 s
+(`cargo-build` 3 s, `cargo-test` 8 s, `lint-rust` 2 s, `provenance` 1 s,
+`provenance-self`, `overview-links`, `holes`, `gen-pins`, `gen-prelude`,
+`gen-prelude-lean` 0–1 s, `extract-check` 74 s, `lake-build` 52 s).  Nothing
+in `crates/` and nothing generated changed, so the first eleven are the arena
+tip's own; `lake-build` is the one this task moves, and it is green with the
+two `sorry` warnings of §5.
+
+Note for the ledger: **no gate fails on a `sorry` in the proof tier** —
+`lake build` reports it as a warning.  The `#print axioms` checks of §6 are
+what makes the two owed statements visible, and `remove_refines`' committed
+`sorryAx` line is the marker to grep for.
