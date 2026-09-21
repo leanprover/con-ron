@@ -854,7 +854,7 @@ pub fn native_rule_scoped(
 pub fn check_native_rec(
     st: &mut AState,
     mode: &CheckMode,
-    fe: &IFEnv,
+    fe: &mut IFEnv,
     p: &NativeParts,
     cv_ta: &IConstantVal,
     ctors_a: &Vec<(IConstantVal, u64)>,
@@ -888,7 +888,7 @@ pub fn check_native_rec(
 pub fn check_native_rec_ty(
     st: &mut AState,
     mode: &CheckMode,
-    fe: &IFEnv,
+    fe: &mut IFEnv,
     p: &NativeParts,
     cv_ta: &IConstantVal,
     ctors_a: &Vec<(IConstantVal, u64)>,
@@ -931,7 +931,7 @@ pub fn check_native_rec_ty(
 pub fn check_native_rec_defeq(
     st: &mut AState,
     mode: &CheckMode,
-    fe: &IFEnv,
+    fe: &mut IFEnv,
     p: &NativeParts,
     cv_ta: &IConstantVal,
     ctors: &Vec<(NIdx, u64, EIdx, Vec<u64>)>,
@@ -960,7 +960,7 @@ pub fn check_native_rec_defeq(
 #[allow(clippy::too_many_arguments)]
 pub fn check_native_rec_rules(
     st: &mut AState,
-    fe: &IFEnv,
+    fe: &mut IFEnv,
     p: &NativeParts,
     cv_ta: &IConstantVal,
     ctors: &Vec<(NIdx, u64, EIdx, Vec<u64>)>,
@@ -977,15 +977,22 @@ pub fn check_native_rec_rules(
         sum_parts::rule_prefix(&p.shape),
         Vec::new(),
     );
-    let fe_r: IFEnv = env::ifenv_push(env::ifenv_dup(fe), stored);
-    match struct_parts::param_levels(st, &p.shape.cv_r.level_params) {
+    // The twin's `fe_r := fe.push stored`, as a BRACKET rather than a copy
+    // (task #97-P6-5, lever 4): the recursor's rule-less constant is visible
+    // only while the rules are generated, so the port pushes it in place and
+    // pops it afterwards instead of paying `ifenv_dup`'s `O(environment)`.
+    // `ifenv_pop_temp` restores the row the push displaced, so the bracket is
+    // the identity on `fe` — see `arena::env`'s note.
+    let rec_name: NIdx = cv_ra.name.dup2();
+    let prev: Option<(u64, u64)> = env::ifenv_push_temp(fe, stored);
+    let r = match struct_parts::param_levels(st, &p.shape.cv_r.level_params) {
         Err(e) => Err(e),
         Ok(rlvls) => {
             let t: NIdx = p.shape.cv_t.name.dup2();
             let lps: Vec<NIdx> = env::nidx_vec_dup(&p.shape.cv_t.level_params);
             match check_native_rules(
                 st,
-                &fe_r,
+                fe,
                 &p.shape.cv_r.level_params,
                 &t,
                 &lps,
@@ -1002,9 +1009,14 @@ pub fn check_native_rec_rules(
                 Vec::new(),
             ) {
                 Err(e) => Err(e),
-                Ok(rhss) => Ok((cv_ra, rhss)),
+                Ok(rhss) => Ok(rhss),
             }
         }
+    };
+    env::ifenv_pop_temp(fe, &rec_name, prev);
+    match r {
+        Err(e) => Err(e),
+        Ok(rhss) => Ok((cv_ra, rhss)),
     }
 }
 
@@ -1375,7 +1387,8 @@ pub fn check_native_tail_install(
     // The flush at the environment transition (task #97g item 4);
     // `checkNativeTailS` is the executed tier's own site.
     core::flush_caches(st);
-    match check_native_rec(st, mode, &fe2, &q.p, &q.cv_ta, &q.ctors_a) {
+    let mut fe2: IFEnv = fe2;
+    match check_native_rec(st, mode, &mut fe2, &q.p, &q.cv_ta, &q.ctors_a) {
         Err(e) => Err(e),
         Ok(rq) => {
             let cv_ra: IConstantVal = rq.0;

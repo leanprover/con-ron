@@ -85,7 +85,7 @@ pub fn check_native_rules_f(
 pub fn check_native_rec_f(
     st: &mut AState,
     mode: &CheckMode,
-    fe: &IFEnv,
+    fe: &mut IFEnv,
     p: &NativeParts,
     cv_ta: &IConstantVal,
     ctors_a: &Vec<(IConstantVal, u64)>,

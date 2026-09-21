@@ -890,6 +890,49 @@ pub fn ifenv_push(fe: IFEnv, ci: IConstantInfo) -> IFEnv {
     fe
 }
 
+/// con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push
+/// Lean twin: `proof/ConRon/Arena/Env.lean:344-346 IFEnv.push` — **the push of
+/// a TEMPORARY extension, with what it displaced** (task #97-P6-5, lever 4).
+///
+/// The twin writes `fe_r := fe.push stored` and goes on using `fe`, which in
+/// Lean is free; in Rust that is `ifenv_push(ifenv_dup(fe), stored)`, an
+/// `O(environment)` deep copy, and `arena::inductives` does it once per
+/// inductive block over an environment that is 691 128 constants at the end
+/// of Mathlib.  Where the extension is read-only and its lifetime is a
+/// bracket — `check_native_rec_rules`'s recursor self-environment — the port
+/// pushes in place and pops afterwards, which is `O(1)`.
+///
+/// The pop is EXACT and needs no side condition: `insert` hands back the row
+/// it displaced (`None` when the name was fresh), so `ifenv_pop_temp` puts
+/// that row back rather than assuming the name was new.  `pop (push fe ci) =
+/// fe` is therefore an equation, which is what the refinement needs to keep
+/// reading the twin's `fe` where the Rust reads the restored record.
+pub fn ifenv_push_temp(fe: &mut IFEnv, ci: IConstantInfo) -> Option<(u64, u64)> {
+    let c = fe.visible_below;
+    let s = fe.env.consts.len() as u64;
+    let prev = fe.idx.insert(i_constant_info_name(&ci), (c, s));
+    fe.env.consts.push(ci);
+    fe.visible_below = c + 1;
+    prev
+}
+
+/// con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push
+/// Lean twin: `proof/ConRon/Arena/Env.lean:344-346 IFEnv.push` — the inverse
+/// of `ifenv_push_temp`: the constant popped, the displaced index row put
+/// back, the visibility bound restored.  See that function's note.
+pub fn ifenv_pop_temp(fe: &mut IFEnv, n: &NIdx, prev: Option<(u64, u64)>) {
+    let _ = fe.env.consts.pop();
+    match prev {
+        Some(row) => {
+            let _ = fe.idx.insert(n.dup2(), row);
+        }
+        None => {
+            let _ = fe.idx.remove(n);
+        }
+    }
+    fe.visible_below = fe.visible_below - 1;
+}
+
 /// con-leche: ConLeche/Kernel/FEnv.lean:91-95 FEnv.findProj?
 /// Lean twin: `proof/ConRon/Arena/Env.lean:350-353 IFEnv.findProj?` — indexed
 /// projection-table lookup.
