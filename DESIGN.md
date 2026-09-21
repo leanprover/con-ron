@@ -2401,6 +2401,13 @@ Worth it only if many `getAppFn` calls do NOT also want the argument list
 Expressible in the twin as a derived column with an exactness lemma; a
 sibling `getAppNumArgs` column has the same shape.
 
+**Ruling (maintainer, 2026-09-21) on task #97-P6-8a's finding:** the
+per-argument `instantiate1` loops in con-leche's spine/telescope
+instantiation (`instSpine`/`instPisAt`), which make the arena build 2.5×
+nanoda's nodes, are to be fixed **in con-leche first** — one
+multi-substitution walk upstream, then followed here at the next bump.  Not
+a port-side deviation.  The maintainer relays it upstream.
+
 ### 8.7 Open questions (maintainer)
 
   * `LsIdx` (interned level lists) vs. a flat `Array LIdx` slice — P2a
