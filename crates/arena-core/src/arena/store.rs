@@ -73,7 +73,11 @@ use con_ron_core::kernel::name;
 use con_ron_core::kernel::prop_when;
 use con_ron_core::ron::hashmap::Dup;
 use con_ron_core::ron::hashmap::Eq2;
-use con_ron_core::ron::hashmap::HashMap;
+// The arena's tables are the epoch-stamped open-addressed map
+// (DESIGN.md's `Task #97-P6-4b`), aliased so that every use site below
+// reads as it did.  `ron::hashmap::HashMap` is still what `crates/con-ron`
+// uses, and is still the one with proofs.
+use con_ron_core::ron::hashmap2::HashMap2 as HashMap;
 use con_ron_core::ron::hashmap::Hashable;
 
 use crate::arena::core_state::reset_map;

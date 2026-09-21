@@ -106,7 +106,12 @@ use con_ron_core::kernel::core_types::{code_points, CheckError};
 use con_ron_core::kernel::expr;
 use con_ron_core::kernel::expr::BinderMeta;
 use con_ron_core::kernel::level;
-use con_ron_core::ron::hashmap::{Dup, Eq2, HashMap};
+use con_ron_core::ron::hashmap::{Dup, Eq2};
+// The arena's tables are the epoch-stamped open-addressed map
+// (DESIGN.md's `Task #97-P6-4b`), aliased so that every use site below
+// reads as it did.  `ron::hashmap::HashMap` is still what `crates/con-ron`
+// uses, and is still the one with proofs.
+use con_ron_core::ron::hashmap2::HashMap2 as HashMap;
 
 // ---------------------------------------------------------------------------
 // The shape records `projRecOwners` takes (`ProjRec.lean:498-501` of the twin)

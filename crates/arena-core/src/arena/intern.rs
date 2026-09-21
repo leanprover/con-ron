@@ -58,7 +58,12 @@ use con_ron_core::kernel::expr::{Expr, ExprView};
 use con_ron_core::kernel::level::Level;
 use con_ron_core::kernel::name::Name;
 use con_ron_core::kernel::prop_when;
-use con_ron_core::ron::hashmap::{Dup, HashMap};
+use con_ron_core::ron::hashmap::{Dup};
+// The arena's tables are the epoch-stamped open-addressed map
+// (DESIGN.md's `Task #97-P6-4b`), aliased so that every use site below
+// reads as it did.  `ron::hashmap::HashMap` is still what `crates/con-ron`
+// uses, and is still the one with proofs.
+use con_ron_core::ron::hashmap2::HashMap2 as HashMap;
 
 /// con-leche: none — the interning walk's memo; Lean twin: proof/ConRon/Arena/Frontend/Readback.lean:455-462 EMemo
 /// The memo of the interning walk: a transient `Expr` node to the handle it

@@ -68,7 +68,12 @@ use con_ron_core::kernel::level;
 use con_ron_core::kernel::level::Level;
 use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::Name;
-use con_ron_core::ron::hashmap::{Dup, Eq2, HashMap, Hashable};
+use con_ron_core::ron::hashmap::{Dup, Eq2, Hashable};
+// The arena's tables are the epoch-stamped open-addressed map
+// (DESIGN.md's `Task #97-P6-4b`), aliased so that every use site below
+// reads as it did.  `ron::hashmap::HashMap` is still what `crates/con-ron`
+// uses, and is still the one with proofs.
+use con_ron_core::ron::hashmap2::HashMap2 as HashMap;
 
 // ---------------------------------------------------------------------------
 // The messages of this module's declines
