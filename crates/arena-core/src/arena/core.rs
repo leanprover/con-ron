@@ -3563,6 +3563,43 @@ pub fn snoc_eidx(xs: Vec<EIdx>, y: &EIdx) -> Vec<EIdx> {
     xs
 }
 
+/// con-leche: none — `xs ++ [y]` on a `Vec`, WITHOUT copying `xs` first
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1295 structEtaProjCerts` — the
+/// same `targs ++ [b]`, at a borrowed `targs` (task #97-P6-13).
+///
+/// `snoc_eidx(eidx_vec_dup(targs), b)` is what the call sites wrote, and it
+/// is TWO allocations and `2n` handle copies: `eidx_vec_dup` allocates
+/// exactly `n` and fills it, and the `push` then overflows that capacity and
+/// re-allocates and copies again.  Sized once, it is one allocation and
+/// `n + 1` copies.  A capacity, so the refinement absorbs it (DESIGN.md §3.2).
+pub fn snoc_eidx_of(xs: &Vec<EIdx>, y: &EIdx) -> Vec<EIdx> {
+    let out: Vec<EIdx> = Vec::with_capacity(xs.len() + 1);
+    let mut out = crate::arena::expr_ops::eidx_copy_upto(xs, xs.len(), 0, out);
+    out.push(y.dup2());
+    out
+}
+
+/// con-leche: none — `xs ++ [y] ++ [z]` on a `Vec`, sized once
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1295 structEtaProjCerts` — the
+/// two-element case of `snoc_eidx_of` (task #97-P6-13); nested `snoc_eidx`
+/// was three allocations.
+pub fn snoc2_eidx_of(xs: &Vec<EIdx>, y: &EIdx, z: &EIdx) -> Vec<EIdx> {
+    let out: Vec<EIdx> = Vec::with_capacity(xs.len() + 2);
+    let mut out = crate::arena::expr_ops::eidx_copy_upto(xs, xs.len(), 0, out);
+    out.push(y.dup2());
+    out.push(z.dup2());
+    out
+}
+
+/// con-leche: none — `xs ++ ys` on a `Vec`, at a borrowed `xs`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1298 structEtaProjCerts` — the
+/// same `++` sized once (task #97-P6-13); see `snoc_eidx_of`.
+pub fn append_eidx_of(xs: &Vec<EIdx>, ys: &Vec<EIdx>) -> Vec<EIdx> {
+    let out: Vec<EIdx> = Vec::with_capacity(xs.len() + ys.len());
+    let out2 = crate::arena::expr_ops::eidx_copy_upto(xs, xs.len(), 0, out);
+    append_eidx_from(out2, ys, 0)
+}
+
 /// con-leche: none — `List.getD` on a `Vec`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1890 iotaRec` — `args.getD i b0`,
 /// the out-of-range guard the cited `.bvar 0` default stands for.
@@ -4248,7 +4285,7 @@ pub fn struct_eta_proj_certs(
                                     Err(e) => Err(e),
                                     Ok(ty) => {
                                         let spine: Vec<EIdx> =
-                                            snoc_eidx(env::eidx_vec_dup(targs), b);
+                                            snoc_eidx_of(targs, b);
                                         match iota_certs(
                                             pers,
                                             vis,
@@ -4439,7 +4476,7 @@ pub fn proj_apps_go(
             Ok(nm) => match intern_e(pers, st, ENodeView::Const(nm, us.dup2())) {
                 Err(e) => Err(e),
                 Ok(f) => {
-                    let spine: Vec<EIdx> = snoc_eidx(env::eidx_vec_dup(targs), b);
+                    let spine: Vec<EIdx> = snoc_eidx_of(targs, b);
                     match mk_app_n(pers, st, &f, &spine) {
                         Err(e) => Err(e),
                         Ok(p) => match proj_apps_go(pers, st, t, us, targs, b, n - 1, j + 1) {
@@ -4532,7 +4569,7 @@ pub fn struct_eta_cert_tail(
                         Err(e) => Err(e),
                         Ok(projs) => {
                             let spine: Vec<EIdx> =
-                                append_eidx(env::eidx_vec_dup(targs), &projs);
+                                append_eidx_of(targs, &projs);
                             iota_certs(
                                 pers,
                                 vis,
@@ -5144,7 +5181,7 @@ pub fn eta_fab_args(
 ) -> Result<Vec<EIdx>, CheckError> {
     match proj_apps_go(pers, st, t, ust, targs, major, n_f, 0) {
         Err(e) => Err(e),
-        Ok(ps) => Ok(append_eidx(env::eidx_vec_dup(targs), &ps)),
+        Ok(ps) => Ok(append_eidx_of(targs, &ps)),
     }
 }
 
@@ -5164,7 +5201,7 @@ pub fn eta_fab_args_e(
 ) -> Result<Vec<EIdx>, CheckError> {
     match eta_projs(pers, vis, st, fe, t, ust, targs, major, n_f) {
         Err(e) => Err(e),
-        Ok(ps) => Ok(append_eidx(env::eidx_vec_dup(targs), &ps)),
+        Ok(ps) => Ok(append_eidx_of(targs, &ps)),
     }
 }
 
@@ -5772,7 +5809,7 @@ pub fn major_to_ctor_and_build(
             Err(e) => Err(e),
             Ok(p1) => {
                 let fab_args: Vec<EIdx> =
-                    snoc_eidx(snoc_eidx(env::eidx_vec_dup(targs), &p0), &p1);
+                    snoc2_eidx_of(targs, &p0, &p1);
                 match intern_e(pers, st, ENodeView::Const(ctor.dup2(), ust.dup2())) {
                     Err(e) => Err(e),
                     Ok(hd) => match mk_app_n(pers, st, &hd, &fab_args) {

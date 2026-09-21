@@ -4371,7 +4371,7 @@ pub fn subst_level_list_from(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo
-/// Lean twin: OWED (task #97-P6-13) — `substLevelAt`, `instLPGo`'s `.sort`
+/// Lean twin: OWED (task #97-P6-13) — `substLMemoAt`, `instLPGo`'s `.sort`
 /// arm's level work behind a memo on the level handle.
 ///
 /// `ks` and `us` are fixed for the whole `instLPFast` call, so a level handle
@@ -4381,7 +4381,7 @@ pub fn subst_level_list_from(
 /// itself memoised per declaration), runs `Level.subst` on the transient tree
 /// and re-interns.  A `.sort` node recurs once per OCCURRENCE in a term and
 /// the same universe occurs over and over.
-pub fn subst_level_at(
+pub fn subst_l_memo_at(
     pers: &PersTier,
     st: &mut AState,
     ks: &Vec<Name>,
@@ -4407,12 +4407,12 @@ pub fn subst_level_at(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo
-/// Lean twin: OWED (task #97-P6-13) — `substLevelsAt`, the `.const` arm's
-/// twin of `substLevelAt` at an interned universe-argument LIST.  The list is
+/// Lean twin: OWED (task #97-P6-13) — `substLsMemoAt`, the `.const` arm's
+/// twin of `substLMemoAt` at an interned universe-argument LIST.  The list is
 /// one interned object, so the memo saves the readback, the per-element
 /// substitution, the re-interning AND the two `Vec<Level>` copies the
 /// readback memo would otherwise hand out and drop.
-pub fn subst_levels_at(
+pub fn subst_ls_memo_at(
     pers: &PersTier,
     st: &mut AState,
     ks: &Vec<Name>,
@@ -4463,14 +4463,14 @@ pub fn inst_lp_go(
                 Err(e) => Err(e),
                 Ok(ENodeView::BVar(_)) => Ok(h.dup2()),
                 Ok(ENodeView::Lit(_)) => Ok(h.dup2()),
-                Ok(ENodeView::Sort(u)) => match subst_level_at(pers, st, ks, us, &u) {
+                Ok(ENodeView::Sort(u)) => match subst_l_memo_at(pers, st, ks, us, &u) {
                     Err(e) => Err(e),
                     Ok(hl) => {
                         let same: bool = hl.eq2(&u);
                         intern_rebuilt(pers, st, h, same, ENodeView::Sort(hl))
                     }
                 },
-                Ok(ENodeView::Const(n, vs)) => match subst_levels_at(pers, st, ks, us, &vs) {
+                Ok(ENodeView::Const(n, vs)) => match subst_ls_memo_at(pers, st, ks, us, &vs) {
                     Err(e) => Err(e),
                     Ok(vs2) => {
                         let same: bool = vs2.eq2(&vs);

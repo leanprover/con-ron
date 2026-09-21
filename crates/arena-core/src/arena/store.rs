@@ -844,7 +844,7 @@ pub struct ProjNode {
 impl Hashable for BVarNode {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:252-254 BVarNode
     fn hash64(&self) -> u64 {
-        name::mix_hash(0, name::nat_hash(self.i))
+        name::nat_hash(self.i)
     }
 }
 
@@ -852,15 +852,46 @@ impl Hashable for BVarNode {
 impl Hashable for FVarNode {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:258-261 FVarNode
     fn hash64(&self) -> u64 {
-        name::mix_hash(name::mix_hash(0, name::nat_hash(self.idx)), self.ty.hash64())
+        fold3(self.ty.hash64(), name::nat_hash(self.idx))
     }
+}
+
+/// con-leche: none — arena infrastructure (task #97-P6-13); Lean twin: OWED
+/// **The cons-table hash of a node: the fields PACKED, not mixed.**
+///
+/// A hash is verdict-neutral (DESIGN.md §3.2: any function of the value will
+/// do, and `ron::hashmap2`'s own note says the refinement never looks inside
+/// one — the owed `Inv` says only that a key sits where `home_index` puts
+/// it).  So the question is what is cheapest that the table's FINALIZER can
+/// still spread, and `home_index` is already a multiply-xor avalanche over
+/// the whole word.  A handle is a `u32`, so two of them are one `u64`
+/// INJECTIVELY and the packing loses nothing at all, where `Lean.mixHash` was
+/// five instructions per field on top — paid on every probe of every intern
+/// attempt, twice per attempt for the two tiers.
+///
+/// **Measured** (`Init`, task #97-P6-13 §4): the bare packing is 233.32 G
+/// against 242.31 G for the `mixHash` chains, and wrapping the packed word in
+/// ONE `mixHash` — better avalanche, five more instructions — is 235.94 G and
+/// 110.1 G cycles against the bare packing's 108.5–109.9 G, i.e. the extra
+/// mixing costs on both columns and buys no shorter probe.  Two handle words
+/// as one `u64`: one `or` and one shift.
+fn pack2(a: u32, b: u32) -> u64 {
+    (a as u64) | ((b as u64) << 32)
+}
+
+/// con-leche: none — arena infrastructure (task #97-P6-13); Lean twin: OWED
+/// A third datum folded into a packed pair.  The pair already fills the word,
+/// so a third field is the one place that needs mixing; the constant is
+/// `home_index`'s own.
+fn fold3(ab: u64, c: u64) -> u64 {
+    ab ^ c.wrapping_mul(0x9e3779b97f4a7c15)
 }
 
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:265-267 SortNode
 impl Hashable for SortNode {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:265-267 SortNode
     fn hash64(&self) -> u64 {
-        name::mix_hash(0, self.u.hash64())
+        self.u.hash64()
     }
 }
 
@@ -868,7 +899,7 @@ impl Hashable for SortNode {
 impl Hashable for ConstNode {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:271-274 ConstNode
     fn hash64(&self) -> u64 {
-        name::mix_hash(name::mix_hash(0, self.n.hash64()), self.us.hash64())
+        pack2(self.n.word, self.us.word)
     }
 }
 
@@ -876,7 +907,7 @@ impl Hashable for ConstNode {
 impl Hashable for AppNode {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:278-281 AppNode
     fn hash64(&self) -> u64 {
-        name::mix_hash(name::mix_hash(0, self.f.hash64()), self.a.hash64())
+        pack2(self.f.word, self.a.word)
     }
 }
 
@@ -884,10 +915,7 @@ impl Hashable for AppNode {
 impl Hashable for BindNode {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:286-290 BindNode
     fn hash64(&self) -> u64 {
-        name::mix_hash(
-            name::mix_hash(name::mix_hash(0, self.ty.hash64()), self.body.hash64()),
-            expr::binder_meta_hash(&self.m),
-        )
+        fold3(pack2(self.ty.word, self.body.word), expr::binder_meta_hash(&self.m))
     }
 }
 
@@ -895,10 +923,7 @@ impl Hashable for BindNode {
 impl Hashable for LetNode {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:294-298 LetNode
     fn hash64(&self) -> u64 {
-        name::mix_hash(
-            name::mix_hash(name::mix_hash(0, self.ty.hash64()), self.val.hash64()),
-            self.body.hash64(),
-        )
+        fold3(pack2(self.ty.word, self.val.word), self.body.hash64())
     }
 }
 
@@ -906,7 +931,7 @@ impl Hashable for LetNode {
 impl Hashable for LitNode {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:302-304 LitNode
     fn hash64(&self) -> u64 {
-        name::mix_hash(0, expr::literal_hash(&self.l))
+        expr::literal_hash(&self.l)
     }
 }
 
@@ -914,10 +939,7 @@ impl Hashable for LitNode {
 impl Hashable for ProjNode {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:308-312 ProjNode
     fn hash64(&self) -> u64 {
-        name::mix_hash(
-            name::mix_hash(name::mix_hash(0, self.n.hash64()), name::nat_hash(self.i)),
-            self.e.hash64(),
-        )
+        fold3(pack2(self.n.word, self.e.word), name::nat_hash(self.i))
     }
 }
 
@@ -2629,6 +2651,15 @@ impl ETables {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:838-849 ETables.find?
+    ///
+    /// **`#[inline(always)]`** (task #97-P6-13): `EStore::intern` calls this
+    /// twice with the SAME view, once per tier, and out of line each call
+    /// re-dispatched on the view's tag, rebuilt the node record and re-hashed
+    /// it.  Inlined, the two probes share all three.  −1.62 % of `Init` on
+    /// its own; plain `#[inline]` is declined by LLVM on a ten-arm jump table
+    /// and is worth nothing (measured).  `ETables::push` given the same
+    /// attribute is +3.8 % cycles and is not taken.
+    #[inline(always)]
     pub fn find(&self, v: &ENodeView) -> Option<EIdx> {
         match v {
             ENodeView::BVar(i) => self.bvars.find(&BVarNode { i: *i }),
