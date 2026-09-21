@@ -35196,8 +35196,169 @@ with peak RSS falling from 1.94 GB to 0.63 GB on `Init` and the two larger
 exports going from "does not finish" to comfortably inside CLAUDE.md's 3×
 budget.
 
-**5. What is not done.**  The Lean twin is a round behind: every P6 task since
-the RUST-FIRST ruling keeps a twin ledger, and the Lean catch-up that consumes
-them all runs once before P3/P5.  The OVERVIEW numbers are a post-merge task
-of their own (§7.x).  And task #97-survey's N1/N2/N4/N5 are a separate queue
-the maintainer may schedule — they are not P6 items.
+**5. What is not done.**  ~~The Lean twin is a round behind~~ — **DONE,
+task #97-LC** (2026-09-21): every P6 task since the RUST-FIRST ruling kept a
+twin ledger, and the Lean catch-up that consumes them all has run; see its
+section below.  The OVERVIEW numbers are a post-merge task of their own
+(§7.x).  And task #97-survey's N1/N2/N4/N5 are a separate queue the maintainer
+may schedule — they are not P6 items.
+
+### Task #97-LC — the Lean twin catch-up (2026-09-21, Opus under Fable)
+
+**The ONE catch-up DESIGN §8.6's RUST-FIRST ruling schedules**: "each task
+section keeps a twin ledger … A Lean catch-up task runs once, before P3/P5."
+This is that task.  Every P6 ledger row is consumed here — mirrored in
+`proof/ConRon/Arena/**` function for function, or recorded as absorbed with
+the reason.  The Rust at `arena`'s tip is the source of truth; nothing under
+`crates/` is touched.
+
+After it, **every function of `crates/arena-core` has a Lean twin with the
+same clause structure**, carrying the same con-leche citations the Rust
+carries.  `scripts/provenance.py check` counts **2 060 arena Lean items**
+against the tip's 1 753 — **307 new Lean declarations** — at 0 findings.
+
+#### 1. The monad: the reader layer is NOT taken, and why
+
+The coordinator's ruling after task #97-P6-6 was "the twin's monad becomes
+`ReaderT PersTier (StateT AState (Except CheckError))`", with the licence to
+take "the cheaper faithful shape if the refinement absorbs it".  **The cheaper
+shape is taken.**  The argument, which belongs in the ledger rather than in
+the code:
+
+* The Rust's `pers : &PersTier` exists for ONE reason: phase B's `n` workers
+  must read one persistent tier while each owns its `AState`, and Rust cannot
+  put that sharing inside the state (task #97-P6-6 measured the eight ways it
+  does not extract).  **(B) is single-threaded by construction** — `con-ron-lean`
+  has no `--jobs` and `§8.4`'s discipline gives it none — so the parameter
+  carries no information the state does not already carry.
+* The two are the same tier under one abstraction function.  `shared_on`
+  selects which of the two holds it, and `shared_on → self.pers = ∅` is the
+  conjunct task #97-P6-6b's own ledger names, so
+
+      absStore (pers, st) = { st.store with
+        pers := if st.store.shared_on then pers.e else st.store.pers }
+
+  and every `pers_get_*` is the twin's own persistent-arm read on that
+  abstract store.  That is the same shape `fe : &IFEnv` has, which §8.3's
+  ruling already calls "a reader PARAMETER … the shape `fe: &IFEnv` already
+  has".
+* The COST of taking it is not the signature change the ruling priced.  `AM`
+  is an `abbrev`, so no twin's *text* moves; what moves is the PURE store API
+  one layer down — `EStore.view`, `derived`, `find?`, `sizeOf` would each take
+  a `pers` argument, and `StoreWF`, `denoteE` and `WFProofs.lean`'s 5 300
+  lines of closed store proofs are stated on exactly those.  That is a large,
+  already-discharged proof tier rewritten for zero semantic content.
+
+So the twin keeps `AM := StateT AState (Except CheckError)`, and the ledger
+carries the relation instead.  The three riders of task #97-P6-6b's ledger go
+the same way: `internPersistent`'s `¬shared_on` guard is a defensive stop
+whose hypothesis the bracket discharges (its `Internal` arm is unreachable);
+`IFEnv.find?`'s bound argument is `fe.visibleBelow` at every phase-A call, so
+`find? fe.visibleBelow fe n = fe.find? n` is the equation; and
+`checkPending`'s by-reference index and `Unit` result are Rust ownership.
+**This reverses the earlier "ReaderT" line under the licence the brief gives
+it, and is flagged for the coordinator.**
+
+#### 2. The ledger, row by row
+
+| ledger row | mirrored (file:function) — or absorbed, and why |
+|---|---|
+| **#97-P6-1** (`reset_map`, `HashMap::capacity`, the journals, `pers_find_maybe`, `NStore::intern_str`) | **absorbed**, as that ledger says: allocation choices, a representation query, and a probe order conditional on `StoreWF`.  No twin clause. |
+| **#97-P6-2** `orElseAttempt` restores caches/memos and keeps the store | **mirrored in shape, not in state** — `CheckerBase.lean`'s `AttemptSnapshot`, `attemptSnapshot`, `attemptRestore` and the PURE `orElseStepOf` are the Rust's four declarations.  The store half is **not expressible in this monad**: a throw in `StateT σ (Except ε)` carries no state, so the error arm resumes at the pre-attempt store where the port keeps the attempt's (unreachable) appends.  The difference is handle NUMBERING, never a denotation and never a verdict; what the refinement owes at this seam is `Ext` rather than store equality, and the arm runs **eight times on the whole of `Init`**.  Written out on `orElseAttempt`. |
+| #97-P6-2 `promote_new`'s in-place slots, `fvar_leaves_go`'s push, the fifteen Rust-only splits | **absorbed** (that ledger's own three rows) |
+| **#97-P6-4a** the `Pins` record, `internAllPins`, ~110 pin clauses as field reads | **mirrored**: new `Arena/Pins.lean` (`Pins` in `Arena/CoreState.lean`, `AState.pins`), `pinNames`, `reservedBasisNameValues`, `internNameList`, **`internReservedPins`** — the Rust's own name, since `internAllPins` is already the `--pins` RECEIPT walker of `Arena/Checker.lean` — `pinsReady`, `pinAt`, `pinReserved`, `pinEmptyLevels`, `pinZeroLevel`, `pinSortOne` and the forty-nine named readers.  **106 `pin <reservedName>` clauses** across `Core`, `Checker`, `CheckerBase`, `DeclCheck`, `StdAxioms`, `TrustAxioms` and `Inductives/Modeled` become field reads; `emptyLevels`/`zeroLevel`/`sortOne` read the record; `internReservedPins` runs at the top of `runPipelineHead`.  The table is an `Array`, which is what kills task #97c's hazard. |
+| #97-P6-4a the `Vec` pin table with a bounds branch, `pin_reserved`'s copy, `reservedBasisNamesFrom` | **absorbed** (that ledger's own three) |
+| **#97-P6-4b / #97-HM2** `ron::hashmap2` | **absorbed**: the twin uses `Std.HashMap` and never mentions either map. |
+| **#97-P6-5** lever 2 `internRebuilt` at the four inexact walks | **mirrored**: `ExprOps.lean`'s `internRebuilt` and its eleven per-constructor forms, applied at `abstract1Go`, `abstractRangeGo`, `instLPGo`, `resetMetaGo` and `renameConstsGo`. |
+| #97-P6-5 levers 1, 3, 4, 5 (the index row, the `Tbl` column of pairs, the recursor bracket, the moved environment) | **absorbed** (that ledger's own five rows, with its two owed `IFEnv` lemmas unchanged) |
+| **#97-P6-7** lever 2 `stuckTag` at the `whnfCore`/`whnf` slots | **mirrored**: `Core.lean`'s `whnfCoreStuckTag` / `whnfStuckTag`, in `coreKnot`'s two slots before the memo probe. |
+| **#97-P6-7** lever 4 `internRebuilt` at four more sites | **mirrored**: `Core.lean`'s `internAppRebuilt`, used by `whnfApp`, `whnfCoreStuckApp`, `CoreGated.lean`'s `whnfCoreAppGated` and `annotateBody`'s `.app` clause. |
+| #97-P6-7 lever 1 (`clear_fit`, `fit_hw`, the eight-slot leaf) | **absorbed**: a capacity; the value is `Std.HashMap.empty`, which is what the twin's `Caches.empty` assigns. |
+| **#97-P6-9** the batched instantiation (eight cached-tier clauses + the `iotaRec` hoist) | **mirrored**: `Core.lean`'s `getAppSpineGo`/`getAppSpine`, `headAndArgs`, `whnfApp`, `betaPeel` (a `mutual` block at measure `(args.size - i, phase)`), `whnfCoreBody`'s `.app` clause, `inferSpine`/`inferApp`, `inferSpineIO`/`inferAppIOAt` and `inferBody`/`inferBodyIO`'s `.app` clauses, `iotaCertsAux` (with the `.bvar` re-entry that makes its measure lexicographic) and `iotaRecAt` with `iotaRec` as its walk-it-yourself entry; `ExprOps.lean`'s `instListCutoff` hoisted over the prefix copy. |
+| #97-P6-9 the capacities, `hd`/`vargs`/`same` threaded, `len() == 0` | **absorbed** (that ledger's own row); the gated lane is NOT batched, here as there. |
+| **#97-P6-10** the projections, `eBindView`, `ETag.isBind`, the two `failDangling*`, the memo-probe reorder, two readback cutoffs | **mirrored**: `ETables.{getApp,getSort,getConst,getConstName,getBVar,getFVarIdx,getFVarTy,getLit,getBind,getLet,getProj}`, `LsTables.getLen`, the `EStore.persGet*`/`view*` pairs, `LsStore.persGetLen`/`viewLen`, `eBindView`, `Handle.lean`'s `ETag.isBind`, `Monad.lean`'s thirteen monadic projections and `failDanglingE`/`failDanglingLs`; the memo probe now precedes the node read at `instantiate1Go`, `instantiateListGo`, `abstract1Go` and `abstractRangeGo`; `instLPFast`'s `hasLP` cutoff and `headTypePW`/`headProofPW`'s `PropWhen.hasParams` cutoff are hoisted over their readbacks; nine `(← viewLs us).length` sites are `viewLsLen`. |
+| #97-P6-10 `#[inline(always)]`, `iotaRecAt`'s value copies, `usl.len()` | **absorbed** (attributes; Lean's value semantics) |
+| **#97-P6-11** the annotation telescopes + the executed `abstractRange` | **mirrored**: `Core.lean`'s `peelFuel`, `annotateBindersOut`, `annotatePisLeaf`, `annotatePis`, `annotateLamsLeaf`, `annotateLams`, `annotateBinder` (kept as the λ residual con-leche's `annotateBodyI` also keeps) and `annotateBody`'s two binder clauses; `ExprOps.lean`'s `abstractRangeGo`/`abstractRangeFast`, with the spec descent `abstractRange` kept as the statement subject. |
+| #97-P6-11 the stack/`fvs` directions, `is_lam`, the shared `abs1_*` table | **absorbed** (that ledger's own row) |
+| **#97-P6-12** `inferLamsI`/`inferPisI` | **mirrored**: `inferLamsOut`, `inferLamsLeafCheck`, `inferLamsLeaf`, `inferLams`, `inferPisOut` (with the task-#272 THREADED zero-ness datum), `inferPisLeaf`, `inferPis`, `inferLam`, `inferForall`, and `inferBody`'s `.lam`/`.forallE` clauses.  The io lane keeps its chained clauses, here as there. |
+| **#97-P6-13** 137 tag clauses, six projections, two memos, node hashes | **projections and memos mirrored; the tag clauses and the hashes ABSORBED.**  The six projections are in the table above; `Caches.{readLC,readNC,readLsC}` with `readLevelM`/`readNameM`/`readNamesM`/`readLevelsM` (and all 31 readback sites in `Core.lean` routed through them, which is what `core.rs` does); `Memos.{instLPLC,instLPLsC}` with `instLPLGet`/`Set`, `instLPLsGet`/`Set` and `substLMemoAt`/`substLsMemoAt`.  The `pack2`/`fold3` node hashes are absorbed for the SAME reason `ron::hashmap2` is (the row above): the twin's tables are `Std.HashMap`, whose hash the refinement never looks inside — it relates the two at the abstract map, not at `homeIndex`.  The node records' `deriving Hashable` is therefore Lean's own and owes nothing; what IS mirrored is the record EQUALITY (`deriving DecidableEq` + `instBEqOfDecidableEq`), which is the cons key.  The tag TEST itself is absorbed under the brief's own rule — on a well-formed store `h.tag == ETag.C` and `match ← view h with \| .C .. \| _` are the same clause (a handle carries the tag of its own view, `StoreWF`'s `intern`/`push` clause), and the two differ only on a DANGLING handle, which `StoreWF` excludes.  The twin nonetheless spells the tag dispatch at the seven hottest walks (`instantiate1Go`, `instantiateList`, `instantiateListGo`, `abstract1Go`, `abstractRangeGo`, `getAppFn`, `getAppArgs`) plus the batched loops' peels, so the shape is there to read; the other ~60 `if let` sites keep `match ← view`. |
+| #97-P6-13 `#[cold]`, `snoc_eidx_of`, `level_list_dup`, `level::dup` | **absorbed** (that ledger's own rows) |
+| **#97-P6-14** the batched defeq binder descent (PORT-SIDE, six rows) | **mirrored**: `defeqPeelDone`, `defeqPeelLeaf`, `defeqPeel`, `defeqBinders` and `defeqStep`'s two binder arms, with both equality short-circuits.  **The identification argument is copied as `defeqPeel`'s doc comment** — its four parts (the opens agree by `instantiateList_cons`; the chain reaches this arm at every peeled level, by the five one-clause facts about `defeqStep`'s earlier arms; a failure lands at the same binder, the annotation test carried outward in two scalars; the caches see less and the fuel is existential). |
+| **#97-P6-15** ten per-constructor interns, nine `der_of_*`, twenty-one monadic wrappers, the `Array.push` accumulators | **mirrored**: `EStore.{internBVar…internProj}` (each `intern` at that constructor's view, which is the equation the ledger itself asks for and is `rfl`), `EStore.{derOfBVar…derOfProj, derOfBindAt, derOfLetAt}` with the free `derOfBind`/`derOfLet`, `Monad.lean`'s ten `intern*E`, and the **CLAUSE change**: every substitution accumulator is an `Array` built with `Array.push`, so `instantiateList` reads its vector from the END (`ExprOps.lean`'s `eidxCopyUpto`, `takeEidx`, `lastEidx`, `mkAppNFrom`).  Thirteen accumulator sites moved: `betaPeel`, `iotaCertsAux`, `inferSpine`, `inferSpineIO`, the four binder telescopes and their leaves, `openPisAtFvarsFGo`, `defeqPeel`, `instPisAtFGo`, `instLamsAtFGo` and `IProjEntry.typeAt`'s `targs ++ [pe]`. |
+| #97-P6-15 the borrows made moves, the capacities, the attributes | **absorbed** (that ledger's own rows) |
+| **#97-P6-16** the `BinderMeta` store | **mirrored**: `Handle.lean`'s fifth `IdxKind` and `BMIdx`; `Store.lean`'s `BMNode`, `ETables.bms` with `getBM`/`getBMDer`/`findBM`/`bmSize`/`pushBM`, `BindNode.m : BMIdx`, `EStore.{persGetBM,viewBM,persGetBMDer,bmDer,persFindBM,findBM,internBM,internBMPersistent,findBMOfView,internBMOfView,internBMOfViewPersistent,viewBindI,viewBind,internBindI,internLamI,internForallEI,internEBindI,derOfBindAtI}`, `ETables.{findBind,pushBind,bindSizeOf}`, `Monad.lean`'s `viewBindI`/`viewBM`/`internLamIE`/`internForallEIE`/`internBindIE` and `ExprOps.lean`'s `internRebuiltBindI`.  `ETables.get`'s two binder arms answer `none` and `EStore.view` dispatches them, exactly as the Rust does; `defeqPeel`'s annotation test is `BMIdx` equality. |
+| #97-P6-16 the rebuilding walks carrying `BMIdx`, `prop_when::dup`, the attributes | **absorbed** (that ledger's own rows) |
+| **#97-catchup** `withExclusive` | **nothing owed**, as that section says. |
+| **#97-P6-6b** the monad's reader layer, `sharedOn`, the guarded `internPersistent`, `IFEnv.find?`'s bound, `checkPending`'s reference | **absorbed** — §1 above argues it. |
+
+`ENodeView` is **unchanged**: the Rust's keeps its `BinderMeta`, so `denoteE`,
+`denoteEView` and `ENodeView.echildren` are untouched and the brief's
+expectation that the binder view would change does not arise.  What changed
+below `view` is `BindNode`, and that is where the proof cost landed (§3).
+
+#### 3. The store-layer proofs
+
+`Arena/WF.lean`'s `EWFAt` gains the binder-datum clauses — `bmChildOK`,
+`bmConsP`, `bmConsS`, `bmFresh`, `bmDerExact`, `bmCapP`, `bmCapS` — and its
+`consP`/`consS`/`fresh` move from the tier's `find?` to the whole-view probes
+`EStore.persFind?` / `scrFind?`, because the cons key now needs the datum's
+handle.  `ETables.Sized` gains the datum column.
+
+`Arena/WFProofs.lean` is the one place this task leaves debt: **34
+declarations carry a `sorry`**, all of them in the `ETables`/`EStore` tier
+whose ten-way `if` chain lost its two binder arms — `ETables.get_inv`,
+`get_push_inv`, `push_tag`, `push_idxNat`, `find?_push`, `sizeOf_push_cases`,
+`Sized_push`, `count_push`, `derAt_congr`, `derAt_push_of_get`,
+`derAt_push_new`, `find?_empty`, `Sized_empty`, `get_mono`, `get_push_mono`,
+`push_spec`, `EStore.derived_exact_at`, `view_intern_mono`, `lss_intern`,
+`nodeCount_intern_le`, `view_pers`, `view_scr`, `view_off`,
+`derOfView_congr`, `view_dropScratch_{pers,scr}`,
+`view_enableScratch_{pers,scr}`, `wf_of_scr_empty`, `intern_view_spec`,
+`wf_push_scr`, `wf_push_pers`, `intern_wf_of_sync`,
+`intern_isPersistent_of_off`.  Two statements were GUARDED rather than left
+false: `ETables.push_spec` and `ETables.find?_push` take a
+`ETag.isBind w.tagOf = false` hypothesis, because at a binder the tier's
+`get` answers `none` and its cons key is the datum handle rather than the
+view's own field.  Nothing else in the arena carries a `sorry`; the checker
+tier, the frontend tier and the twin itself are sorry-free.
+
+#### 4. Gates
+
+| gate | |
+|---|---|
+| `cd proof && lake build ConRonArena con-ron-lean` (`LEAN_NUM_THREADS=4`, `ulimit -v 60000000`) | green, 194 jobs; every `#guard` in `StoreTest`, `ExprOpsTest`, `CoreTest`, `CheckerTest`, `InductivesTest` and `Frontend/ProjRecTest` elaborates `true` |
+| `scripts/provenance.py check` | **0 findings** — `7 041 item(s) (4 981 Rust, 2 060 arena Lean), 5 132 citation(s), all current at pin 78ded4b6` |
+| `scripts/overview-links.sh` | 70 links, 36 files, OK |
+| `scripts/holes.sh --check` | 2 type(s), 21 fn(s), OK |
+| `scripts/diff-e2e.sh --bin=proof/.lake/build/bin/con-ron-lean` | **383/383 agree at `--verified` and 383/383 at `--trusted`**; 0 differ, 0 timed out |
+| `con-ron-lean --verified _tmp/corpus/init.ndjson` | **accepted 57 977** (ONE run; the twin's performance is not measured — §8.4's ruling) |
+| the diff | `proof/ConRon/Arena/**` only.  `crates/`, `OVERVIEW.md` and `README.md` are untouched, and no Rust gate is re-run: this task changes no Rust file. |
+
+Twelve new `#guard`s put each batched twin against con-leche's own chained
+body on the denotation at a depth the single-binder subjects cannot reach: a
+three-binder ∀, a two-binder λ, a two-argument β redex and four defeq pairs.
+`ExprOpsTest` gained the executed `abstractRange` against the spec descent
+(including the `k = 0` identity on a term that HAS free variables, and
+`abstractRange … 1 = abstract1`), and the `instantiateList` guards are now the
+push-order array's own test — con-leche's `[cf, s1]` is the twin's
+`#[s1, cf]`.
+
+#### 5. Rust functions still without a same-shape twin
+
+**None.**  Every `Lean twin: OWED` site of `crates/arena-core/src/arena`
+(156 of them) is now either a named twin in `proof/ConRon/Arena/**` or an
+absorbed row of the table in §2, and the two genuinely unmirrorable items are
+named there: `orElseAttempt`'s store half (not expressible in
+`StateT σ (Except ε)`) and the reader parameter (§1).  The Rust's `Lean twin:
+OWED` doc lines are now stale and should be repointed at the twin they name —
+a small, mechanical follow-up in `crates/`, which this task may not touch.
+
+#### 6. What the next round owes
+
+* `WFProofs.lean`'s 34 `sorry`s (§3): the `ETables` tier's `if` chain redrawn
+  for nine arms plus the binder dispatch, and the datum store's own `Tbl`
+  lemmas, which transfer unchanged because `Tbl` is generic.
+* Repointing the Rust's 156 `Lean twin: OWED` doc lines (above).
+* P3's own list is unchanged and is what the ledger's "the equation the bridge
+  cites" column has been collecting since task #97-P6-9.
+

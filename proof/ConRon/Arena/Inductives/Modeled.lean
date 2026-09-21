@@ -66,7 +66,7 @@ factored out because three call sites make it.  `Arena/StdAxioms.lean`'s `eqA`
 is the comparand: the same `ConstantInfo` through the same store, hence the
 same handle (`denoteE`/`denoteN` are injective, task #97a). -/
 def eqBasisStored (fe : IFEnv) : AM Bool := do
-  match fe.find? (← pin eqName) with
+  match fe.find? (← pinEq) with
   | some ci => pure (ci == (← eqA))
   | none => pure false
 
@@ -603,7 +603,7 @@ def checkProjIota (mode : CheckMode) (fe' feSelf : IFEnv) (T ctorName : NIdx)
   let lhsS ← mkAppN pHd (pArgs ++ [mkSpine])
   match ← eqApp3? sbody with
   | some (c, _l, _tySlot, lhsC, rhsC) => do
-    unless c = (← pin eqName) do
+    unless c = (← pinEq) do
       fail (.notImplemented "projection iota head")
     unless lhsC == lhsS do
       fail (.notImplemented "projection iota redex mismatch")
@@ -679,7 +679,7 @@ def checkEtaThm (mode : CheckMode) (fe' : IFEnv) (T ctorName : NIdx)
           mkAppN pHd (psHi ++ [b0])
         let wantRhs ← mkAppN cHd (psHi ++ projArgs)
         let sortA ← internE (.sort lA)
-        pure (c == (← pin eqName) && lhsC == b0 && tySlot == famHi &&
+        pure (c == (← pinEq) && lhsC == b0 && tySlot == famHi &&
           rhsC == wantRhs && (!mode.ttChecks || tbodyM == sortA))
       | none => pure false
     | _, _ => pure false
@@ -716,7 +716,7 @@ def checkUnitThm (mode : CheckMode) (fe' : IFEnv) (T : NIdx) (lps : List NIdx)
         let b0 ← internE (.bvar 0)
         let b1 ← internE (.bvar 1)
         let sortA ← internE (.sort lA)
-        pure (c == (← pin eqName) && lhsC == b1 && rhsC == b0 &&
+        pure (c == (← pinEq) && lhsC == b1 && rhsC == b0 &&
           tySlot == fam2 && (!mode.ttChecks || tbodyM == sortA))
       | none => pure false
     | _, _ => pure false

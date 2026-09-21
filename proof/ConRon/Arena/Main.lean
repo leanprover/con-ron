@@ -160,6 +160,10 @@ is fed to.  Shared verbatim by the pure seam and by the driver's interleaved
 loop. -/
 def runPipelineHead (md : Frontend.Modeller) :
     AM (Except (CheckError × Nat) (Frontend.PreludeIx × Frontend.StateD)) := do
+  -- **The reserved-name pins, interned ONCE** (task #97-P6-4a): immediately
+  -- after the state is made and before the prelude, so the scratch tier is
+  -- closed and every pinned handle is persistent.
+  internReservedPins
   match ← Frontend.builtinPreludeE md with
   | .error e => pure (.error e)
   | .ok pre => pure (.ok (pre, ← Frontend.StateD.init true false))

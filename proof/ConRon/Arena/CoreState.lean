@@ -42,8 +42,11 @@ record is data over handles, and every operation on it that needs the
 monad lives in `Arena/Core.lean` beside the knot that probes it.
 -/
 import ConRon.Arena.Handle
+import ConLeche.Kernel.Expr
 
 namespace ConRon.Arena
+
+open ConLeche
 
 /-! ## The record -/
 
@@ -83,12 +86,55 @@ structure Caches where
   instantiation, keyed by the recursor, the rule's constructor and the
   levels — the three data that determine it. -/
   ruleRhsC : Std.HashMap (NIdx × NIdx × LsIdx) EIdx
+  /-- **The readback memo DESIGN §8.3 promised** and nothing had built
+  (task #97-P6-13): "`Level` ops … run on transient `Level` trees read back
+  from `LIdx` (*memoised readback per declaration*; levels are small)".  A
+  level handle's denotation is a function of the handle and of the tier it
+  names, so it is stable for exactly as long as the other eleven tables are,
+  and the per-declaration flush is what makes that true. -/
+  readLC : Std.HashMap LIdx Level
+  /-- The same for a NAME handle (`readName`). -/
+  readNC : Std.HashMap NIdx ConLeche.Name
+  /-- The same for an interned universe-argument LIST (`readLevels`). -/
+  readLsC : Std.HashMap LsIdx (List Level)
 
 /-- con-leche: ConLeche/Cached/StateC.lean:131-156 CState — the empty
 cache set: what a fresh run and every capped table start from. -/
-def Caches.empty : Caches := ⟨∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅⟩
+def Caches.empty : Caches := ⟨∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅⟩
 
 instance : Inhabited Caches := ⟨Caches.empty⟩
+
+/-! ## The pin table (task #97-P6-4a) -/
+
+/-- con-leche: none — the arena's own PIN TABLE (DESIGN §8.3, task #97c): the
+reserved constant names and the three interned values the checker compares
+against, interned ONCE at the driver instead of once per comparison.
+
+The name table is an `Array` rather than forty-nine fields for the reason task
+#97c declined the record in the first place: every 32-bit word is a
+syntactically valid handle, so a record of fields read before it is filled
+silently answers "not `Nat`", while an EMPTY array makes `pinAt` take its
+bounds branch and stop.  `Arena/Pins.lean` is the module that fills and reads
+it. -/
+structure Pins where
+  /-- The `pinCount` reserved-name handles, indexed by the `PIN_*` slots. -/
+  names : Array NIdx
+  /-- `reservedBasisNames`, interned: the nineteen names a stream may not
+  declare.  Its own list rather than nineteen slots of `names`, because its
+  only reader wants the whole list. -/
+  reserved : List NIdx
+  /-- `Arena/Core.lean`'s `emptyLevels`: the empty universe-argument list. -/
+  emptyLevels : LsIdx
+  /-- `Arena/Core.lean`'s `zeroLevel`: the level `0`. -/
+  zeroLevel : LIdx
+  /-- `Arena/Core.lean`'s `sortOne`: the expression `Sort 1`. -/
+  sortOne : EIdx
+
+/-- con-leche: none — the UNFILLED table: the initial state's value, and the
+one `pinAt` refuses. -/
+def Pins.empty : Pins := ⟨#[], [], ⟨0⟩, ⟨0⟩, ⟨0⟩⟩
+
+instance : Inhabited Pins := ⟨Pins.empty⟩
 
 /-! ## The cap -/
 
@@ -124,6 +170,16 @@ the name, the universe-argument list and the instantiated term. -/
 @[inline] def keepNLs (k : NIdx × LsIdx) (v : EIdx) : Bool :=
   k.1.isPersistent && k.2.isPersistent && v.isPersistent
 
+/-- con-leche: none — the readback memos' survival test (task #97-P6-13):
+the KEY names a tier, the value is a transient tree and names none. -/
+@[inline] def keepReadL (k : LIdx) (_v : Level) : Bool := k.isPersistent
+
+/-- con-leche: none — the name readback memo's survival test. -/
+@[inline] def keepReadN (k : NIdx) (_v : ConLeche.Name) : Bool := k.isPersistent
+
+/-- con-leche: none — the level-list readback memo's survival test. -/
+@[inline] def keepReadLs (k : LsIdx) (_v : List Level) : Bool := k.isPersistent
+
 /-- con-leche: none — `ruleRhsC`'s survival test. -/
 @[inline] def keepNNLs (k : NIdx × NIdx × LsIdx) (v : EIdx) : Bool :=
   k.1.isPersistent && k.2.1.isPersistent && k.2.2.isPersistent &&
@@ -150,7 +206,10 @@ def Caches.dropScratchEntries (c : Caches) : Caches :=
     lvlsEqC := c.lvlsEqC.filter keepLsLs
     constTyC := c.constTyC.filter keepNLs
     constValC := c.constValC.filter keepNLs
-    ruleRhsC := c.ruleRhsC.filter keepNNLs }
+    ruleRhsC := c.ruleRhsC.filter keepNNLs
+    readLC := c.readLC.filter keepReadL
+    readNC := c.readNC.filter keepReadN
+    readLsC := c.readLsC.filter keepReadLs }
 
 /-- con-leche: ConLeche/Cached/StateC.lean:394-398 CState.flushed — **what the
 per-declaration bracket actually does to the caches**: it drops them whole,

@@ -73,7 +73,7 @@ private def runDecl (envCL : ConLeche.Env) (dCL : Declaration) : AM IFEnv := do
 whole outcome: the same environment, constant for constant, or the same
 error. -/
 private def chkDecl (envCL : ConLeche.Env) (dCL : Declaration) : Bool :=
-  match (runDecl envCL dCL).run (AState.init EStore.empty),
+  match (do internReservedPins; runDecl envCL dCL).run (AState.init EStore.empty),
       ConLeche.checkDecl MU OPS [] envCL dCL with
   | .ok (fe, s'), .ok env =>
     Frontend.denoteCIList s'.store fe.env.consts == some env.consts
@@ -89,7 +89,7 @@ private def runDecls (dsCL : List Declaration) : AM IFEnv := do
 /-- con-leche: none — the arena's `checkDeclsPure` against con-leche's, over
 the whole outcome. -/
 private def chkDecls (dsCL : List Declaration) : Bool :=
-  match (runDecls dsCL).run (AState.init EStore.empty),
+  match (do internReservedPins; runDecls dsCL).run (AState.init EStore.empty),
       ConLeche.checkDeclsPure MU OPS [] dsCL with
   | .ok (fe, s'), .ok env =>
     Frontend.denoteCIList s'.store fe.env.consts == some env.consts
@@ -109,7 +109,7 @@ private def runInstall (dsCL : List Declaration) :
 `checkDeclsPure`, over the whole outcome.  con-leche proves the two are the
 same accept (`fullyChecked_checkDecls`); this is that agreement, measured. -/
 private def chkInstall (dsCL : List Declaration) : Bool :=
-  match (runInstall dsCL).run (AState.init EStore.empty),
+  match (do internReservedPins; runInstall dsCL).run (AState.init EStore.empty),
       ConLeche.checkDeclsPure MU OPS [] dsCL with
   | .ok (.ok fe, s'), .ok env =>
     Frontend.denoteCIList s'.store fe.env.consts == some env.consts
@@ -346,7 +346,7 @@ private def chkStdAxiom (envCL : ConLeche.Env) (cv : ConstantVal) : Bool :=
     let cs ← internCIList envCL.consts
     let (_, icv) ← Frontend.internCV ∅ cv
     stdAxiomOk (mkIFEnv ⟨cs⟩) icv
-  match prog.run (AState.init EStore.empty) with
+  match (do internReservedPins; prog).run (AState.init EStore.empty) with
   | .ok (r, _) => r == ConLeche.stdAxiomOk envCL cv
   | .error _ => false
 
@@ -363,7 +363,7 @@ private def chkMatchesPin (cv pin : ConstantVal) : Bool :=
     let (m, a) ← Frontend.internCV ∅ cv
     let (_, b) ← Frontend.internCV m pin
     a.matchesPin b
-  match prog.run (AState.init EStore.empty) with
+  match (do internReservedPins; prog).run (AState.init EStore.empty) with
   | .ok (r, _) => r == ConLeche.ConstantVal.matchesPin cv pin
   | .error _ => false
 
@@ -380,7 +380,7 @@ private def chkCanonList (xs ys : List ConstantInfo) : Bool :=
     let (m, a) ← Frontend.internCIList ∅ xs
     let (_, b) ← Frontend.internCIList m ys
     canonEqList a b
-  match prog.run (AState.init EStore.empty) with
+  match (do internReservedPins; prog).run (AState.init EStore.empty) with
   | .ok (r, _) => r == ConLeche.canonEqList xs ys
   | .error _ => false
 
@@ -394,7 +394,7 @@ private def chkBasisPinHit (block : List ConstantInfo) : Bool :=
   let prog : AM (Option BasisKind) := do
     let (_, b) ← Frontend.internCIList ∅ block
     basisPinHit b
-  match prog.run (AState.init EStore.empty) with
+  match (do internReservedPins; prog).run (AState.init EStore.empty) with
   | .ok (r, _) => r == ConLeche.basisPinHit block
   | .error _ => false
 

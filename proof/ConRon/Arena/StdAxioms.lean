@@ -34,21 +34,21 @@ open ConLeche
 /-! ## The reserved names, interned -/
 
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:38-39 propextName -/
-def propextName : AM NIdx := pin ConLeche.propextName
+def propextName : AM NIdx := pinPropext
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:41-42 choiceName -/
-def choiceName : AM NIdx := pin ConLeche.choiceName
+def choiceName : AM NIdx := pinChoice
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:44-45 iffName -/
-def iffName : AM NIdx := pin ConLeche.iffName
+def iffName : AM NIdx := pinIff
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:47-48 iffIntroName -/
-def iffIntroName : AM NIdx := pin ConLeche.iffIntroName
+def iffIntroName : AM NIdx := pinIffIntro
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:50-51 iffRecName -/
-def iffRecName : AM NIdx := pin ConLeche.iffRecName
+def iffRecName : AM NIdx := pinIffRec
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:53-54 nonemptyName -/
-def nonemptyName : AM NIdx := pin ConLeche.nonemptyName
+def nonemptyName : AM NIdx := pinNonempty
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:56-57 nonemptyIntroName -/
-def nonemptyIntroName : AM NIdx := pin ConLeche.nonemptyIntroName
+def nonemptyIntroName : AM NIdx := pinNonemptyIntro
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:59-60 nonemptyRecName -/
-def nonemptyRecName : AM NIdx := pin ConLeche.nonemptyRecName
+def nonemptyRecName : AM NIdx := pinNonemptyRec
 
 /-! ## The shape comparison -/
 

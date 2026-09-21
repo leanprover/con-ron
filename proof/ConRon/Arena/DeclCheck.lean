@@ -55,7 +55,7 @@ def stdAxiomOk (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
   let pn ← propextName
   let cn ← choiceName
   if cvA.name == pn then do
-    let en ← pin eqName
+    let en ← pinEq
     let ea ← eqA
     if fe.find? en != some ea then pure false else do
       match fe.find? (← iffName) with
@@ -122,7 +122,7 @@ resp. a standardly-shaped stored `Bool`. -/
 def reduceElemOk (fe : IFEnv) (c : NIdx) : AM Bool := do
   let rn ← reduceNatName
   if c == rn then do
-    let nn ← pin ConLeche.natName
+    let nn ← pinNat
     pure (fe.find? nn == some (← natA))
   else
     match fe.find? (← boolName) with
@@ -135,7 +135,7 @@ Is this checked axiom a pinned `ofReduce*` over a standardly-shaped
 environment? -/
 def ofReduceAxOk (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
   let c ← ofReduceOp cvA.name
-  let en ← pin eqName
+  let en ← pinEq
   if fe.find? en != some (← eqA) then pure false
   else if !(← reduceElemOk fe c) then pure false
   else if !(← reduceStoredOk fe c) then pure false
@@ -211,7 +211,7 @@ def eqAt1 (ty a b : EIdx) : AM EIdx := do
   let z ← zeroLevel
   let one ← internLNode (.succ z)
   let us ← internLsNode [one]
-  let en ← pin eqName
+  let en ← pinEq
   let e ← internE (.const en us)
   let e1 ← internE (.app e ty)
   let e2 ← internE (.app e1 a)
@@ -220,14 +220,14 @@ def eqAt1 (ty a b : EIdx) : AM EIdx := do
 /-- con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts — the
 numeral `1` as `Nat.succ Nat.zero`. -/
 def natOne : AM EIdx := do
-  let s ← pin natSuccName
-  let z ← pin natZeroName
+  let s ← pinNatSucc
+  let z ← pinNatZero
   natAp1 s (← constE z)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts — the
 open statements' variables `x := fvar 0`, `y := fvar 1` at `Nat`. -/
 def natVar (i : Nat) : AM EIdx := do
-  let nt ← pin ConLeche.natName
+  let nt ← pinNat
   internE (.fvar i (← constE nt))
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:144-222 divModCertStmts — **the
@@ -237,7 +237,7 @@ pinned characterization statements** of a pin-certified WF-recursive op, in
 characteristic equation `Eq Nat lhs rhs`.  The guards are spelled with the
 already-certified `Nat.ble` and the numeral `1` as `Nat.succ Nat.zero`. -/
 def divModCertStmts (c : NIdx) : AM (List (List EIdx × EIdx)) := do
-  let nt ← pin ConLeche.natName
+  let nt ← pinNat
   let natTy ← constE nt
   let x ← natVar 0
   let y ← natVar 1
@@ -247,8 +247,8 @@ def divModCertStmts (c : NIdx) : AM (List (List EIdx × EIdx)) := do
   let boolTy ← constE bn
   let bT ← constE (← boolTrueName)
   let bF ← constE (← boolFalseName)
-  let z ← constE (← pin natZeroName)
-  let two ← natAp1 (← pin natSuccName) one
+  let z ← constE (← pinNatZero)
+  let two ← natAp1 (← pinNatSucc) one
   let modN ← natModName
   let divN ← natDivName
   let addN ← natAddName
@@ -320,7 +320,7 @@ def divModCertStmts (c : NIdx) : AM (List (List EIdx × EIdx)) := do
     pure [([h1], e1), ([h2], e2)]
   else do
     let recRhs ←
-      if c == divN then natAp1 (← pin natSuccName) (← natAp2 c (← natAp2 subN x y) y)
+      if c == divN then natAp1 (← pinNatSucc) (← natAp2 c (← natAp2 subN x y) y)
       else natAp2 c (← natAp2 subN x y) y
     let baseRhs ← if c == divN then pure z else pure x
     let h1 ← eqAt1 boolTy (← natAp2 bleN y x) bT
@@ -392,7 +392,7 @@ def divModEnvGuard (fe2 : IFEnv) (c : NIdx) : AM Bool := do
   if !(← natOpGuard fe2 c) then pure false else do
     let deps ← natOpDeps c
     if !(← natOpStoredOkAll fe2 deps) then pure false else do
-      let en ← pin eqName
+      let en ← pinEq
       if fe2.find? en != some (← eqA) then pure false else do
         let bn ← boolName
         let boolTy ← constE bn
