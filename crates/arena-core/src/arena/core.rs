@@ -7069,7 +7069,7 @@ pub fn whnf_app(
             Err(e) => Err(e),
             Ok(ENodeView::Lam(ty, body, mb)) => {
                 // **THE β SITE'S GATE** (task #97f, P2f): the EXECUTED core
-                // reads `CheckMode.betaSkip` (`Cached/CoreC.lean:868`), which
+                // reads `CheckMode.betaSkip` (`Cached/CoreC.lean:876`/`:918`), which
                 // is `beta_gate_fires` weakened by `!mode.certs` — the β
                 // certificate is a certificate FAMILY, skipped wholesale at
                 // `.trusted`.  The two agree at `.verified`, the mode the
