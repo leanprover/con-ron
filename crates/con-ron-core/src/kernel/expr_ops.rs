@@ -177,22 +177,26 @@ pub fn memo_n_get(memo: &HashMap<Expr, u64>, k: &Expr) -> Option<u64> {
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:231-248 MemoXP.shared
 /// The cursored node→node probe, `excl`-gated: an exclusive node is not
-/// looked up.  `memo1_get`'s contract otherwise (the answer is owned, so the
-/// map's borrow ends here).
-pub fn memo1_probe(memo: &HashMap<ExprNatKey, Expr>, excl: bool, e: &Expr, d: u64) -> Option<Expr> {
+/// looked up, so it pays neither the hash nor the bucket walk.  `memo1_get`'s
+/// contract otherwise (the answer is owned, so the map's borrow ends here).
+pub fn memo1_get_if(memo: &HashMap<ExprNatKey, Expr>, excl: bool, k: &ExprNatKey) -> Option<Expr> {
     if excl {
         None
     } else {
-        memo1_get(memo, &expr_nat_key(e, d))
+        memo1_get(memo, k)
     }
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:223-229 MemoXP.insert
 /// The cursored node→node record, `excl`-gated: an exclusive node is not
-/// stored.
-pub fn memo1_record(memo: &mut HashMap<ExprNatKey, Expr>, excl: bool, e: &Expr, d: u64, r: &Expr) {
+/// stored, so it pays neither the entry, nor the `dup` the entry would hold,
+/// nor the table's growth.  The key is **consumed either way** — that is the
+/// whole reason this is a function and not an `if` at each of the six call
+/// sites: the drop of an unused key belongs in one place, and the model of
+/// the `false` branch is then the bare insert the walks' proofs read.
+pub fn memo1_insert_if(memo: &mut HashMap<ExprNatKey, Expr>, excl: bool, k: ExprNatKey, r: &Expr) {
     if !excl {
-        memo.insert(expr_nat_key(e, d), expr::dup(r));
+        memo.insert(k, expr::dup(r));
     }
 }
 

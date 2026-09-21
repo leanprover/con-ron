@@ -151,7 +151,7 @@ def ron.node.ptr_eq (_a _b : kernel.expr.Expr) : Result Bool := ok false
    of WHAT: the fast path stores and reads nothing, where `ptr_eq`'s fast path
    at least asserts an equality.  OVERVIEW.md §8.1 carries the argument. -/
 /-- [con_ron_core::ron::node::is_exclusive]:
-    Source: 'crates/con-ron-core/src/ron/node.rs', lines 438:0-440:1
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 437:0-439:1
     Visibility: public -/
 @[rust_fun "con_ron_core::ron::node::is_exclusive"]
 def ron.node.is_exclusive (_e : kernel.expr.Expr) : Result Bool := ok false

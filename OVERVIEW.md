@@ -474,11 +474,13 @@ binary.  §8.1 is the part a script keeps honest; §8.2 is everything else.
 The theorem is about the verified crate *as Aeneas translates it*.  Where
 the translator meets an item it cannot translate, it declares it as an
 axiom and asks for a model (§6.1).  Every such model is a claim about the
-Rust that no proof checks, so here they all are: **twenty-two**, two types
-and twenty functions.  Six are the standard library's (`Arc` and
-`str::as_bytes`); sixteen are the tagged `Expr` handle of §4.2, each
+Rust that no proof checks, so here they all are: **twenty-three**, two types
+and twenty-one functions.  Six are the standard library's (`Arc` and
+`str::as_bytes`); seventeen are the tagged `Expr` handle of §4.2, each
 modelled by `rfl` against the `Expr` inductive the generated model already
-has.  `scripts/extract.sh --check` fails if the crate grows a hole nobody
+has, except the two that read the runtime — the pointer test and the
+reference-count test — whose models are `false` and whose rows say what the
+binary may do instead.  `scripts/extract.sh --check` fails if the crate grows a hole nobody
 modelled; `scripts/holes.sh --check` fails if this table and the holes
 drift apart.
 
@@ -495,7 +497,8 @@ drift apart.
 | [`ron.node.data`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L122-L127) | [`ron::node::data`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L394-L396), the packed word | `ok data`, the `ExprNode`'s first field | Every block starts with the same header under `#[repr(C)]`, and the word is written once by the allocator |
 | [`ron.node.dup`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L130-L133), `kernel.expr.Expr.Insts.CoreOpsDropDrop.drop` | [`ron::node::dup`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L401-L403), a count bump; `Drop for Expr`, the decrement and free at zero | `ok e`: the identity | `Arc::clone`'s and `Arc::drop`'s rows, for `Arc`'s own protocol (`Relaxed` increment with an overflow abort, `Release` decrement, `Acquire` fence) |
 | [`ron.node.ptr_eq`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L136-L142) | [`ron::node::ptr_eq`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L409-L411) | `ok false` | `Arc::ptr_eq`'s row; comparing tagged words is comparing addresses, since the tag is a function of the block |
-| [`ron.node.alloc_bvar`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L145-L149), `ron.node.alloc_fvar`, `ron.node.alloc_sort`, `ron.node.alloc_const`, `ron.node.alloc_app`, `ron.node.alloc_lam`, `ron.node.alloc_forall_e`, `ron.node.alloc_let_e`, `ron.node.alloc_lit`, `ron.node.alloc_proj` | the ten [`ron::node::alloc_*`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L272-L274), one per constructor | `ok (Expr.mk (ExprNode.mk d (.Bvar i)))` and likewise for each constructor | Each is one line over the allocator, which writes the block and attaches *that kind's* tag in the same expression and is the only thing that ever makes a handle; the ten tags are checked distinct by a `const` assertion |
+| [`ron.node.is_exclusive`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L153-L157) | [`ron::node::is_exclusive`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L437-L439), a `Relaxed` load of the block's own count against one — con-leche's `withExclusive` (`ConLeche/Kernel/Exclusive.lean`), and the official kernel's `is_likely_unshared`/`is_shared` in front of their caches | `ok false`: "not known to be exclusive", so the model always memoises | The binary may answer `true` instead and then rebuild the node with the memo untouched.  That spends no key, no probe, no entry and no stored `dup` on a node with ONE reference — which the walk inside its only parent meets once, so an entry for it could never be read — and it stores and reads nothing, where `ptr_eq`'s fast path at least asserts an equality.  The answer reaches one `if` per memo gate (`expr::beq_memoise`, `expr_ops_c::memo_skip`, the six `memo*_probe`/`memo*_record` helpers) and no value; the `_refines` lemmas are about the always-memoising walk, which is what the model is.  The node is passed borrowed, so the count read is the count of the references inside the term |
+| [`ron.node.alloc_bvar`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Generated/FunsExternal.lean#L160-L164), `ron.node.alloc_fvar`, `ron.node.alloc_sort`, `ron.node.alloc_const`, `ron.node.alloc_app`, `ron.node.alloc_lam`, `ron.node.alloc_forall_e`, `ron.node.alloc_let_e`, `ron.node.alloc_lit`, `ron.node.alloc_proj` | the ten [`ron::node::alloc_*`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L272-L274), one per constructor | `ok (Expr.mk (ExprNode.mk d (.Bvar i)))` and likewise for each constructor | Each is one line over the allocator, which writes the block and attaches *that kind's* tag in the same expression and is the only thing that ever makes a handle; the ten tags are checked distinct by a `const` assertion |
 
 <!-- holes: end -->
 

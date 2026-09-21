@@ -503,7 +503,14 @@ and fails (task #4).
 
 The first four are the same model Aeneas already uses for `Box`; they are
 faithful because the port never uses `Arc::get_mut`, `make_mut`, weak
-pointers or interior mutability (a `grep` gate enforces this).
+pointers or interior mutability (a `grep` gate enforces this).  Task #98
+added the one thing that *reads* the count, `ron::node::is_exclusive` (the
+port of con-leche's `withExclusive`): it does not break the rule above —
+it mutates nothing through the share and yields no value, only the choice
+of whether to spend a memo entry on a node that cannot be reached twice —
+and it is modeled `false` exactly as `ptr_eq` is, so the model is the
+branch that always memoises.  It is a method on the crate's own handle,
+not `Arc::strong_count`, which stays banned.
 
 **`ptr_eq` is modeled as `false`**, so the model always takes the slow path.
 The real program may take the fast path; the two agree iff every walk that
@@ -598,8 +605,23 @@ equality, hashing and `String.toList`/`Char.ofNat` for literal reduction);
   generated Lean shaped like con-leche's `do` blocks); no `loop`/`while`
   except where the next bullet allows it; no generic instantiated
   with `&mut`; no `unsafe` (one exemption, below); no `std::collections`; no
-  counted-pointer API beyond `new/clone/deref/ptr_eq`; `&mut` only for the
-  state parameter.
+  counted-pointer API beyond `new/clone/deref/ptr_eq` and the count *read*
+  of the bullet after next; `&mut` only for the state parameter.
+* **The count read, and why it is not the banned API (2026-09-21, task
+  #98).**  `ron::tagged::Raw::is_exclusive` loads the block's own count and
+  compares it with one; `ron::node::is_exclusive` is its one caller in the
+  core's reach.  The lint keeps banning `Arc::get_mut`, `Arc::make_mut` and
+  `Arc::strong_count`, and the reason it bans them is the reason this is
+  allowed: those let the count or the pointee escape into a VALUE — mutation
+  through a share is invisible to "an `Arc` is its contents", and a count in
+  a number is a value the model has not got — whereas this answer is
+  consumed by one `if` that chooses between two ways of computing the same
+  result, and is modeled `false`, the way that always memoises.  The rule is
+  therefore *a count read may select a path, never produce a value*, and what
+  keeps it is that there is exactly one such function, it returns `bool`, and
+  every caller is a memo gate (`expr::beq_memoise`, `expr_ops_c::memo_skip`
+  and the six `memo*_probe`/`memo*_record` helpers).  OVERVIEW.md §8.1's hole
+  row carries the trust argument.
 * **Loops, the one exemption (2026-09-14, task #84).**
   `crates/con-ron-core/src/frontend/` — the ported export parser, and only
   that directory — may use `while`, `loop` and `for … in a..b` where the cited

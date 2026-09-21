@@ -30,11 +30,18 @@
 //!    (`!is_likely_unshared(e)`).
 //!
 //!    The two tests are the cited `enter*P` steps, and this port spends them
-//!    through `expr_ops::memo1_probe`/`memo1_record` and their four siblings,
-//!    which take the verdict and build the key themselves: a key built above
-//!    the read would be a second share of the node and the read would answer
-//!    `false` everywhere (con-leche's borrowed-parameter requirement,
-//!    `ConLeche/Kernel/Exclusive.lean`).  For the four `Bool` walks the
+//!    through the `*_if` pair of each memo — `expr_ops::memo1_get_if` and
+//!    `memo1_insert_if`, and their four siblings — which take the verdict
+//!    beside the key.  The **read comes first and the key second**: a
+//!    cursored memo's key takes the node by a `dup`, so a key built above the
+//!    read would be a second share and the read would answer `false`
+//!    everywhere — con-leche's borrowed-parameter requirement
+//!    (`ConLeche/Kernel/Exclusive.lean`), in the one shape Rust can violate
+//!    it.  A skipped node still pays that `dup` and its drop, which
+//!    con-leche's address key does not: that is the price of keeping the
+//!    generated model the one the walks' `_refines` lemmas were written
+//!    against, and what it buys is the hash, the bucket walk, the entry, the
+//!    entry's `dup` and the table's growth.  For the four `Bool` walks the
 //!    verdict is `memo_skip` below, which folds in the compound test; the
 //!    substitution walks make it in their match, as they always did.
 //!
@@ -258,8 +265,8 @@ pub fn is_compound_f(e: &Expr) -> bool {
 /// `enter*` steps make past the cutoff, as one predicate: a LEAF is decided
 /// on the spot, so an entry for it can never save a descent, and an
 /// EXCLUSIVE node — one reference, hence one place it is reachable from —
-/// cannot be met again by this walk.  Either way the node costs no key, no
-/// probe, no bucket and no stored `dup`.
+/// cannot be met again by this walk.  Either way the node costs no hash, no
+/// bucket walk, no entry and no stored `dup`.
 ///
 /// Before this the guards recorded every node they decided, leaves included,
 /// which is what con-leche measured away.  In the model `is_exclusive` is
@@ -274,33 +281,31 @@ pub fn memo_skip(e: &Expr) -> bool {
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:953-970 MemoB.shared
-/// The cursored `Bool` probe, `excl`-gated: an exclusive node is not looked
-/// up, so it costs neither the key (which would be a second share of the
-/// node — `kernel::expr_ops`'s note on the six helpers) nor the bucket walk.
-pub fn memo_b1_probe(
+/// The cursored `Bool` probe, `excl`-gated: a skipped node pays neither the
+/// hash nor the bucket walk (`expr_ops::memo1_get_if`'s note).
+pub fn memo_b1_get_if(
     memo: &HashMap<ExprNatKey, bool>,
     excl: bool,
-    e: &Expr,
-    d: u64,
+    k: &ExprNatKey,
 ) -> Option<bool> {
     if excl {
         None
     } else {
-        memo_b1_get(memo, &expr_ops::expr_nat_key(e, d))
+        memo_b1_get(memo, k)
     }
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:945-951 MemoB.insert
-/// The cursored `Bool` record, `excl`-gated.
-pub fn memo_b1_record(
+/// The cursored `Bool` record, `excl`-gated; the key is consumed either way
+/// (`expr_ops::memo1_insert_if`'s note).
+pub fn memo_b1_insert_if(
     memo: &mut HashMap<ExprNatKey, bool>,
     excl: bool,
-    e: &Expr,
-    d: u64,
+    k: ExprNatKey,
     r: bool,
 ) {
     if !excl {
-        memo.insert(expr_ops::expr_nat_key(e, d), r);
+        memo.insert(k, r);
     }
 }
 
@@ -342,7 +347,8 @@ pub fn instantiate1_go(v: &Expr, memo: &mut MemoN, e: &Expr, d: u64) -> Expr {
             ExprView::Lit(_) => expr::dup(e),
             _ => {
                 let excl: bool = node::is_exclusive(e);
-                match expr_ops::memo1_probe(memo, excl, e, d) {
+                let key: ExprNatKey = expr_ops::expr_nat_key(e, d);
+                match expr_ops::memo1_get_if(memo, excl, &key) {
                     Some(r) => r,
                     None => {
                         let r: Expr = match expr::view(&e) {
@@ -373,7 +379,7 @@ pub fn instantiate1_go(v: &Expr, memo: &mut MemoN, e: &Expr, d: u64) -> Expr {
                             }
                             _ => expr::dup(e),
                         };
-                        expr_ops::memo1_record(memo, excl, e, d, &r);
+                        expr_ops::memo1_insert_if(memo, excl, key, &r);
                         r
                     }
                 }
@@ -410,7 +416,8 @@ pub fn instantiate1_lift_go(v: &Expr, memo: &mut MemoN, e: &Expr, d: u64) -> Exp
             ExprView::Lit(_) => expr::dup(e),
             _ => {
                 let excl: bool = node::is_exclusive(e);
-                match expr_ops::memo1_probe(memo, excl, e, d) {
+                let key: ExprNatKey = expr_ops::expr_nat_key(e, d);
+                match expr_ops::memo1_get_if(memo, excl, &key) {
                     Some(r) => r,
                     None => {
                         let r: Expr = match expr::view(&e) {
@@ -441,7 +448,7 @@ pub fn instantiate1_lift_go(v: &Expr, memo: &mut MemoN, e: &Expr, d: u64) -> Exp
                             }
                             _ => expr::dup(e),
                         };
-                        expr_ops::memo1_record(memo, excl, e, d, &r);
+                        expr_ops::memo1_insert_if(memo, excl, key, &r);
                         r
                     }
                 }
@@ -519,7 +526,8 @@ pub fn instantiate_list_go(vs: &Vec<Expr>, memo: &mut MemoNL, e: &Expr, k: u64, 
             ExprView::Lit(_) => expr::dup(e),
             _ => {
                 let excl: bool = node::is_exclusive(e);
-                match expr_ops::memo1_probe(memo, excl, e, d) {
+                let key: ExprNatKey = expr_ops::expr_nat_key(e, d);
+                match expr_ops::memo1_get_if(memo, excl, &key) {
                     Some(r) => r,
                     None => {
                         let r: Expr = match expr::view(&e) {
@@ -550,7 +558,7 @@ pub fn instantiate_list_go(vs: &Vec<Expr>, memo: &mut MemoNL, e: &Expr, k: u64, 
                             }
                             _ => expr::dup(e),
                         };
-                        expr_ops::memo1_record(memo, excl, e, d, &r);
+                        expr_ops::memo1_insert_if(memo, excl, key, &r);
                         r
                     }
                 }
@@ -624,7 +632,8 @@ pub fn instantiate_rev_go(vs: &Vec<Expr>, memo: &mut MemoNL, e: &Expr, k: u64, d
             ExprView::Lit(_) => expr::dup(e),
             _ => {
                 let excl: bool = node::is_exclusive(e);
-                match expr_ops::memo1_probe(memo, excl, e, d) {
+                let key: ExprNatKey = expr_ops::expr_nat_key(e, d);
+                match expr_ops::memo1_get_if(memo, excl, &key) {
                     Some(r) => r,
                     None => {
                         let r: Expr = match expr::view(&e) {
@@ -655,7 +664,7 @@ pub fn instantiate_rev_go(vs: &Vec<Expr>, memo: &mut MemoNL, e: &Expr, k: u64, d
                             }
                             _ => expr::dup(e),
                         };
-                        expr_ops::memo1_record(memo, excl, e, d, &r);
+                        expr_ops::memo1_insert_if(memo, excl, key, &r);
                         r
                     }
                 }
@@ -724,7 +733,8 @@ pub fn abstract1_go(d: u64, memo: &mut MemoN, e: &Expr, k: u64) -> Expr {
             ExprView::Lit(_) => expr::dup(e),
             _ => {
                 let excl: bool = node::is_exclusive(e);
-                match expr_ops::memo1_probe(memo, excl, e, k) {
+                let key: ExprNatKey = expr_ops::expr_nat_key(e, k);
+                match expr_ops::memo1_get_if(memo, excl, &key) {
                     Some(r) => r,
                     None => {
                         let r: Expr = match expr::view(&e) {
@@ -755,7 +765,7 @@ pub fn abstract1_go(d: u64, memo: &mut MemoN, e: &Expr, k: u64) -> Expr {
                             }
                             _ => expr::dup(e),
                         };
-                        expr_ops::memo1_record(memo, excl, e, k, &r);
+                        expr_ops::memo1_insert_if(memo, excl, key, &r);
                         r
                     }
                 }
@@ -802,7 +812,8 @@ pub fn abstract_range_go(d: u64, k: u64, memo: &mut MemoN, e: &Expr, c: u64) -> 
             ExprView::Lit(_) => expr::dup(e),
             _ => {
                 let excl: bool = node::is_exclusive(e);
-                match expr_ops::memo1_probe(memo, excl, e, c) {
+                let key: ExprNatKey = expr_ops::expr_nat_key(e, c);
+                match expr_ops::memo1_get_if(memo, excl, &key) {
                     Some(r) => r,
                     None => {
                         let r: Expr = match expr::view(&e) {
@@ -833,7 +844,7 @@ pub fn abstract_range_go(d: u64, k: u64, memo: &mut MemoN, e: &Expr, c: u64) -> 
                             }
                             _ => expr::dup(e),
                         };
-                        expr_ops::memo1_record(memo, excl, e, c, &r);
+                        expr_ops::memo1_insert_if(memo, excl, key, &r);
                         r
                     }
                 }
@@ -997,7 +1008,8 @@ pub fn wscoped_b_go(memo: &mut HashMap<ExprNatKey, bool>, d: u64, e: &Expr) -> b
         true
     } else {
         let skip: bool = memo_skip(e);
-        match memo_b1_probe(memo, skip, e, d) {
+        let key: ExprNatKey = expr_ops::expr_nat_key(e, d);
+        match memo_b1_get_if(memo, skip, &key) {
             Some(r) => r,
             None => {
                 let r: bool = match expr::view(&e) {
@@ -1012,7 +1024,7 @@ pub fn wscoped_b_go(memo: &mut HashMap<ExprNatKey, bool>, d: u64, e: &Expr) -> b
                     ExprView::LetE(ty, val, body) => wscoped_b_triple(memo, d, ty, val, body),
                     ExprView::Proj(_, _, sub) => wscoped_b_go(memo, d, sub),
                 };
-                memo_b1_record(memo, skip, e, d, r);
+                memo_b1_insert_if(memo, skip, key, r);
                 r
             }
         }
