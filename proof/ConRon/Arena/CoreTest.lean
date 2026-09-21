@@ -263,6 +263,20 @@ private def tLetBad : ConLeche.Expr := .letE natTy tSort0 (.bvar 0)
 private def tAppAx : ConLeche.Expr := .app tIdNat tAx
 /-- con-leche: none — a subject term, written once as a con-leche value; the arena side is its interning. -/
 private def tPiPi : ConLeche.Expr := .forallE natTy tPiNat ⟨.never⟩
+/-- con-leche: none — a subject term, written once as a con-leche value; the
+arena side is its interning.  A THREE-binder ∀ and a TWO-binder λ, so that the
+telescope loops of tasks #97-P6-11 and #97-P6-12 are compared against
+con-leche's chained bodies at a depth the single-binder subjects cannot
+reach. -/
+private def tPi3 : ConLeche.Expr :=
+  .forallE natTy (.forallE natTy (.forallE natTy natTy ⟨.never⟩) ⟨.never⟩) ⟨.never⟩
+/-- con-leche: none — a subject term, written once as a con-leche value; the arena side is its interning. -/
+private def tLam2 : ConLeche.Expr :=
+  .lam natTy (.lam natTy (.app succE (.bvar 1)) ⟨.never⟩) ⟨.never⟩
+/-- con-leche: none — a subject term, written once as a con-leche value; the
+arena side is its interning.  A TWO-argument β redex, which is what task
+#97-P6-9's `betaPeel` peels in one group. -/
+private def tBeta2 : ConLeche.Expr := .app (.app tLam2 tLit3) tTwo
 
 /-! ## The fixture: the environment and the subjects, interned -/
 
@@ -292,12 +306,15 @@ private structure Fx where
   piPi : EIdx
   nat : EIdx
   zero : EIdx
+  pi3 : EIdx
+  lam2 : EIdx
+  beta2 : EIdx
 
 private instance : Inhabited IFEnv := ⟨⟨IEnv.empty, ∅, 0⟩⟩
 private instance : Inhabited Fx := ⟨⟨default, default, default, default, default,
   default, default, default, default, default, default, default, default,
   default, default, default, default, default, default, default, default,
-  default, default, default⟩⟩
+  default, default, default, default, default, default⟩⟩
 
 /-- con-leche: none — build the arena fixture: intern the environment, index
 it, and intern every subject term. -/
@@ -327,9 +344,12 @@ private def buildFx : AM Fx := do
   let piPi ← internExprT tPiPi
   let nat ← internExprT natTy
   let zero ← internExprT zeroE
+  let pi3 ← internExprT tPi3
+  let lam2 ← internExprT tLam2
+  let beta2 ← internExprT tBeta2
   pure ⟨fe, two, ax, lit7, lit3, succ3, idNat, betaTwo, succLam, betaSucc,
     piNat, sort0, sort1, fv0, pfA, pfB, idProp, unknown, letTwo, letBad,
-    appAx, piPi, nat, zero⟩
+    appAx, piPi, nat, zero, pi3, lam2, beta2⟩
 
 /-- con-leche: none — the fixture, built once; every check reads its state. -/
 private def fxE : Except CheckError (Fx × AState) :=
@@ -549,6 +569,45 @@ the fixture, which they must at `.verified`. -/
   (ConLeche.annotateCore MU envCL F 0 tLetBad)
 #guard chkE (annotateCore MU FX.fe F 0 FX.fv0)
   (ConLeche.annotateCore MU envCL F 0 tFv0)
+
+/-! ## The batched walks, against con-leche's own chained bodies
+
+Task #97-LC.  Each of the four binder-telescope loops (tasks #97-P6-11 and
+#97-P6-12), the two application spines and the batched β and defeq descents
+(tasks #97-P6-9 and #97-P6-14) is exercised here on a subject at depth ≥ 2, so
+that a clause the single-binder subjects above cannot reach is still compared
+against `ConLeche`'s chained body on the denotation. -/
+
+-- `inferPis` / `inferPisOut`'s `imax` fold, three binders deep
+#guard chkE (inferTypeCore MU FX.fe F 0 FX.pi3)
+  (ConLeche.inferTypeCore MU envCL F 0 tPi3)
+-- `annotatePis` / `annotateBindersOut`, the same subject
+#guard chkE (annotateCore MU FX.fe F 0 FX.pi3)
+  (ConLeche.annotateCore MU envCL F 0 tPi3)
+-- `inferLams` / `inferLamsLeaf` / `inferLamsOut`, two binders deep
+#guard chkE (inferTypeCore MU FX.fe F 0 FX.lam2)
+  (ConLeche.inferTypeCore MU envCL F 0 tLam2)
+-- `annotateLams` / `annotateLamsLeaf`, the same subject
+#guard chkE (annotateCore MU FX.fe F 0 FX.lam2)
+  (ConLeche.annotateCore MU envCL F 0 tLam2)
+-- `whnfApp` / `betaPeel`: a two-argument β redex peeled in ONE group
+#guard chkE (whnfCore MU FX.fe F 0 FX.beta2)
+  (ConLeche.whnfCore MU envCL F 0 tBeta2)
+#guard chkE (whnf MU FX.fe F 0 FX.beta2) (ConLeche.whnf MU envCL F 0 tBeta2)
+-- `inferApp` / `inferSpine`: the same spine, inferred head-first
+#guard chkE (inferTypeCore MU FX.fe F 0 FX.beta2)
+  (ConLeche.inferTypeCore MU envCL F 0 tBeta2)
+#guard chkE (inferTypeIO MU FX.fe F 0 FX.beta2)
+  (ConLeche.inferTypeIO MU envCL F 0 tBeta2)
+-- `defeqBinders` / `defeqPeel`: two telescopes peeled together
+#guard chkB (isDefEqCore MU FX.fe F 0 FX.pi3 FX.pi3)
+  (ConLeche.isDefEqCore MU envCL F 0 tPi3 tPi3)
+#guard chkB (isDefEqCore MU FX.fe F 0 FX.pi3 FX.piPi)
+  (ConLeche.isDefEqCore MU envCL F 0 tPi3 tPiPi)
+#guard chkB (isDefEqCore MU FX.fe F 0 FX.lam2 FX.lam2)
+  (ConLeche.isDefEqCore MU envCL F 0 tLam2 tLam2)
+#guard chkB (isDefEqCore MU FX.fe F 0 FX.lam2 FX.idNat)
+  (ConLeche.isDefEqCore MU envCL F 0 tLam2 tIdNat)
 
 /-! ## `ensureSort` -/
 
