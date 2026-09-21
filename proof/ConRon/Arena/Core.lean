@@ -2389,6 +2389,195 @@ def inferLamResult (ty bt : EIdx) (depth : Nat) (mb : BinderMeta) : AM EIdx := d
   let ab ← abstract1Fast coreWalkFuel bt depth 0
   internE (.forallE ty ab mb)
 
+/-! ### The binder telescopes
+
+DESIGN §8.6 items 11 and 12.  con-leche's cached tier keeps four
+binder-telescope loops that its PURE tier writes as per-binder chains, and
+`ConLeche/Verify/BinderLoop.lean` proves all four sound against the chained
+bodies; `Verify/Cached/BinderLoopC.lean` relates the cached spelling to those
+pure mirrors walk by walk.  A loop peels the whole chain, opens every domain
+against the free variables it has introduced in ONE `instantiateList`, and
+rebuilds outward with `abstractRange` — where the chain paid one
+`instantiate1` per binder per domain and one `abstract1` per binder on the way
+out.
+
+The stack is an `Array` pushed outermost-first and consumed by a count
+counting down, where con-leche conses a `List` innermost-first and consumes
+its head: the same entries in the same order, and `stk[j]`'s index IS
+con-leche's `j`.  `fvs` is a push-order `Array` read by `instantiateList` from
+the end, which is the same convention the batched β already uses. -/
+
+/-- con-leche: ConLeche/Cached/StateC.lean:168-172 peelFuel — the telescope
+loops' own step budget.  con-leche's note says the peel fuel is semantically
+transparent: on exhaustion the leaf phase hands the residual chain back to the
+knot, which is the chained spec's next step. -/
+def peelFuel : Nat := 16777216
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1142-1160 inferLamsOutI — the λ
+loop's OUTWARD rebuild: `abstractRange` closes each stored domain over the `j`
+free variables below it and the ∀ node is rebuilt, innermost binder first.
+The task-#161 chain check rides with it: a binder's datum must equal the datum
+of the binder inside it. -/
+def inferLamsOut (mode : CheckMode) (d : Nat) (stk : Array (EIdx × BinderMeta))
+    (n : Nat) (cur : EIdx) (prevPw : PropWhen) : AM EIdx := do
+  if n = 0 then pure cur
+  else do
+    let j := n - 1
+    let e := stk[j]!
+    if mode.verifiedChecks && !(e.2.pw == prevPw) then
+      fail (.notImplemented "sort-annotation mismatch (lam-cod-chain)")
+    else do
+      let tyAbs ← abstractRangeFast coreWalkFuel e.1 d j 0
+      let nd ← internForallEE tyAbs cur e.2
+      inferLamsOut mode d stk j nd e.2.pw
+termination_by n
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1162-1206 inferLamsLeafI — the
+statement the λ leaf runs when the body carries no datum of its own: the
+codomain-sort computation of con-leche's task #152, named so that the leaf's
+common tail is written once. -/
+def inferLamsLeafCheck (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (d k : Nat)
+    (stk : Array (EIdx × BinderMeta)) (bt : EIdx) : AM Unit := do
+  if !mode.verifiedChecks then pure ()
+  else do
+    let btt ← r.inferIO (d + k) bt
+    let vb ← ensureSort r fe (d + k) btt
+    let n := stk.size
+    if n = 0 then pure ()
+    else do
+      let lvb ← readLevelM vb
+      if Level.zeronessOf lvb == stk[n - 1]!.2.pw then pure ()
+      else fail (.notImplemented "sort-annotation mismatch (lam-cod-leaf)")
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1162-1206 inferLamsLeafI — the λ
+loop's LEAF: open the residual body against every free variable at once,
+infer it, run the datum check the chain ran at the innermost binder, and hand
+the outward rebuild its starting point. -/
+def inferLamsLeaf (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (d : Nat)
+    (t : EIdx) (k : Nat) (fvs : Array EIdx) (stk : Array (EIdx × BinderMeta)) :
+    AM EIdx := do
+  let ob ← instantiateListFast coreWalkFuel t fvs 0
+  let bt ← r.infer (d + k) ob
+  let lpw ← lamPw t
+  match lpw with
+  | some _ => pure ()
+  | none => inferLamsLeafCheck mode r fe d k stk bt
+  let n := stk.size
+  let prevPw :=
+    match lpw with
+    | some pw => pw
+    | none => if n = 0 then .never else stk[n - 1]!.2.pw
+  let cur ← abstractRangeFast coreWalkFuel bt d k 0
+  inferLamsOut mode d stk n cur prevPw
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1208-1228 inferLamsI — the
+λ-telescope inference loop: peel a consecutive run of λ binders, opening each
+domain against the free variables introduced so far and checking that it is a
+type, then hand the residual to the leaf. -/
+def inferLams (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (d : Nat) :
+    Nat → EIdx → Nat → Array EIdx → Array (EIdx × BinderMeta) → AM EIdx
+  | 0, t, k, fvs, stk => inferLamsLeaf mode r fe d t k fvs stk
+  | peel + 1, t, k, fvs, stk => do
+    -- The peel's test is a tag read off the handle word and the binder
+    -- PROJECTION (task #97-P6-10).
+    if t.tag != ETag.lam then inferLamsLeaf mode r fe d t k fvs stk
+    else
+      match ← viewBind t with
+      | none => failDanglingE
+      | some (ty, body, mb) => do
+        let tyo ← instantiateListFast coreWalkFuel ty fvs 0
+        let tty ← r.infer (d + k) tyo
+        let w ← r.whnf (d + k) tty
+        -- The codomain sort itself is not read: the `.lam` case wants only
+        -- that the type's whnf IS a sort, which the handle's own tag says.
+        if w.tag == ETag.sort then do
+          let fv ← internFVarE (d + k) tyo
+          inferLams mode r fe d peel body (k + 1) (fvs.push fv) (stk.push (tyo, mb))
+        else fail (.invalid "expected a sort")
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1230-1254 inferPisOutI — the ∀
+loop's outward `imax` fold, with the **THREADED** zero-ness datum: the leaf
+reads its sort's zero-ness ONCE, and `Level.zeronessOf (imax u v) =
+Level.zeronessOf v` makes it invariant under the fold, so the chain's one
+`readLevel` per binder becomes one per telescope (con-leche's task #272). -/
+def inferPisOut (mode : CheckMode) (stk : Array (LIdx × PropWhen)) (n : Nat)
+    (v : LIdx) (pv : PropWhen) : AM LIdx := do
+  if n = 0 then pure v
+  else do
+    let j := n - 1
+    let e := stk[j]!
+    if mode.verifiedChecks && !(pv == e.2) then
+      fail (.notImplemented "sort-annotation mismatch (forall-cod)")
+    else do
+      let v2 ← internLNode (.imax e.1 v)
+      inferPisOut mode stk j v2 pv
+termination_by n
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1256-1267 inferPisLeafI — the ∀
+loop's LEAF: open the residual codomain against every free variable at once,
+infer its sort, read the zero-ness once and fold `imax` outward. -/
+def inferPisLeaf (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (d : Nat)
+    (t : EIdx) (k : Nat) (fvs : Array EIdx) (stk : Array (LIdx × PropWhen)) :
+    AM EIdx := do
+  let ob ← instantiateListFast coreWalkFuel t fvs 0
+  let bt ← r.infer (d + k) ob
+  let v ← ensureSort r fe (d + k) bt
+  let lv ← readLevelM v
+  let pv := Level.zeronessOf lv
+  let iv ← inferPisOut mode stk stk.size v pv
+  internSortE iv
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1269-1290 inferPisI — the
+∀-telescope inference loop, `inferLams`' twin: peel the chain, open each
+domain in bulk, and stack the binder's SORT (for the `imax` fold) beside its
+datum (for the chain check). -/
+def inferPis (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (d : Nat) :
+    Nat → EIdx → Nat → Array EIdx → Array (LIdx × PropWhen) → AM EIdx
+  | 0, t, k, fvs, stk => inferPisLeaf mode r fe d t k fvs stk
+  | peel + 1, t, k, fvs, stk => do
+    if t.tag != ETag.forallE then inferPisLeaf mode r fe d t k fvs stk
+    else
+      match ← viewBind t with
+      | none => failDanglingE
+      | some (ty, body, mb) => do
+        let tyo ← instantiateListFast coreWalkFuel ty fvs 0
+        let tty ← r.infer (d + k) tyo
+        let w ← r.whnf (d + k) tty
+        if w.tag == ETag.sort then
+          match ← viewSort w with
+          | none => failDanglingE
+          | some u => do
+            let fv ← internFVarE (d + k) tyo
+            inferPis mode r fe d peel body (k + 1) (fvs.push fv) (stk.push (u, mb.pw))
+        else fail (.invalid "expected a sort")
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1292-1389 inferBodyI — the `.lam`
+clause: the binder's own domain is checked to be a type here (which is why the
+loop starts at `k = 1` with one free variable and a one-entry stack), and the
+rest of the λ-chain is peeled by `inferLams`. -/
+def inferLam (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (ty body : EIdx) (mb : BinderMeta) : AM EIdx := do
+  let tty ← r.infer depth ty
+  let w ← r.whnf depth tty
+  if w.tag == ETag.sort then do
+    let fv ← internFVarE depth ty
+    inferLams mode r fe depth peelFuel body 1 #[fv] #[(ty, mb)]
+  else fail (.invalid "expected a sort")
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1292-1389 inferBodyI — the
+`.forallE` clause, `inferLam`'s twin. -/
+def inferForall (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (ty body : EIdx) (mb : BinderMeta) : AM EIdx := do
+  let tty ← r.infer depth ty
+  let w ← r.whnf depth tty
+  if w.tag == ETag.sort then
+    match ← viewSort w with
+    | none => failDanglingE
+    | some u => do
+      let fv ← internFVarE depth ty
+      inferPis mode r fe depth peelFuel body 1 #[fv] #[(u, mb.pw)]
+  else fail (.invalid "expected a sort")
+
 /-! ### The application spine's inference
 
 con-leche's own CACHED-tier clauses `Cached/CoreC.lean:1011-1042 inferSpineI`
@@ -2530,47 +2719,11 @@ def inferBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
         constE sn
       else fail (.notImplemented
         "string literals before the String support declarations")
-    | .forallE ty body mb => do
-      match ← view (← r.whnf depth (← r.infer depth ty)) with
-      | .sort u => do
-        let fv ← internE (.fvar depth ty)
-        let ob ← instantiate1Fast coreWalkFuel body fv 0
-        let v ← ensureSort r fe (depth + 1) (← r.infer (depth + 1) ob)
-        let ok ←
-          if mode.verifiedChecks then do
-            let lv ← readLevelM v
-            pure (Level.zeronessOf lv == mb.pw)
-          else pure true
-        if !ok then
-          fail (.notImplemented "sort-annotation mismatch (forall-cod)")
-        else do
-          let iu ← internLNode (.imax u v)
-          internE (.sort iu)
-      | _ => fail (.invalid "expected a sort")
-    | .lam ty body mb => do
-      match ← view (← r.whnf depth (← r.infer depth ty)) with
-      | .sort _ => do
-        let fv ← internE (.fvar depth ty)
-        let ob ← instantiate1Fast coreWalkFuel body fv 0
-        let bt ← r.infer (depth + 1) ob
-        if mode.verifiedChecks then do
-          match ← lamPw body with
-          | some pwI =>
-            -- con-leche's task #161 chain rule: datum equality with the
-            -- neighbour, no inference
-            if !(mb.pw == pwI) then
-              fail (.notImplemented "sort-annotation mismatch (lam-cod-chain)")
-            else inferLamResult ty bt depth mb
-          | none => do
-            -- the innermost binder: the task-#152 codomain-sort computation
-            let btt ← r.inferIO (depth + 1) bt
-            let vb ← ensureSort r fe (depth + 1) btt
-            let lvb ← readLevelM vb
-            if !(Level.zeronessOf lvb == mb.pw) then
-              fail (.notImplemented "sort-annotation mismatch (lam-cod-leaf)")
-            else inferLamResult ty bt depth mb
-        else inferLamResult ty bt depth mb
-      | _ => fail (.invalid "expected a sort")
+    -- **The binder-telescope loops** (task #97-P6-12), con-leche's own
+    -- `Cached/CoreC.lean:1292-1389 inferBodyI`: the whole chain is peeled and
+    -- opened in bulk rather than one binder at a time through the knot.
+    | .forallE ty body mb => inferForall mode r fe depth ty body mb
+    | .lam ty body mb => inferLam mode r fe depth ty body mb
     -- **The batched spine** (task #97-P6-9), con-leche's own
     -- `Cached/CoreC.lean:1292-1389 inferBodyI`.
     | .app _ _ => inferApp mode r fe depth e
@@ -3012,6 +3165,109 @@ def annotPwLam (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (body' : EIdx) :
     let lvb ← readLevelM vb
     pure (Level.zeronessOf lvb)
 
+/-! ### The annotation's binder telescopes
+
+DESIGN §8.6 item 11: con-leche's cached-tier `annotatePisI`/`annotateLamsI`
+with `annotateBindersOutI`'s outward rebuild and its task #161 P5 datum
+threading, in place of the per-binder `annotateBinder` clause — which survives
+as the λ residual con-leche also keeps.  `Verify/BinderLoop.lean` proves the
+two loops sound against the chained bodies (`annotatePis_sound:1612`,
+`annotateLams_sound:1714`), over `Expr.instantiateList_cons`. -/
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1649-1676 annotateBindersOutI — the
+annotation's OUTWARD rebuild, shared by the two loops: `abstractRange` closes
+each annotated domain over the `j` free variables below it, the datum threads
+outward (task #161's P5 rule: a binder keeps its own written annotation and
+otherwise takes the one from the node below), and the node is rebuilt at the
+tag the loop peeled it at. -/
+def annotateBindersOut (isLam : Bool) (d : Nat) (pw? : Option PropWhen)
+    (stk : Array (EIdx × BinderMeta)) (n : Nat) (cur : EIdx) : AM EIdx := do
+  if n = 0 then pure cur
+  else do
+    let j := n - 1
+    let e := stk[j]!
+    let tyAbs ← abstractRangeFast coreWalkFuel e.1 d j 0
+    let written := pw?.isSome
+    let m := annotBinderMeta pw? e.2
+    let pw2 := if written then some m.pw else none
+    let nd ←
+      if isLam then internLamE tyAbs cur m else internForallEE tyAbs cur m
+    annotateBindersOut isLam d pw2 stk j nd
+termination_by n
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1704-1713 annotatePisLeafI — the ∀
+loop's LEAF, with `:1693-1702 annotatePisPwI` inlined: open the residual
+codomain against every free variable at once, annotate it, compute the datum
+the ∀ chain wants, and hand the outward rebuild its starting point. -/
+def annotatePisLeaf (r : CoreFnsA) (fe : IFEnv) (d : Nat) (t : EIdx) (k : Nat)
+    (fvs : Array EIdx) (stk : Array (EIdx × BinderMeta)) : AM EIdx := do
+  let to ← instantiateListFast coreWalkFuel t fvs 0
+  let leafp ← r.annotate (d + k) to
+  let p ← annotPwPi r fe (d + k) leafp
+  let cur ← abstractRangeFast coreWalkFuel leafp d k 0
+  annotateBindersOut false d (some p) stk stk.size cur
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1715-1730 annotatePisI — the
+∀-telescope annotation loop: peel a consecutive run of ∀ binders, annotating
+and opening each domain in bulk, then hand the residual to the leaf. -/
+def annotatePis (r : CoreFnsA) (fe : IFEnv) (d : Nat) :
+    Nat → EIdx → Nat → Array EIdx → Array (EIdx × BinderMeta) → AM EIdx
+  | 0, t, k, fvs, stk => annotatePisLeaf r fe d t k fvs stk
+  | peel + 1, t, k, fvs, stk => do
+    if t.tag == ETag.forallE then
+      match ← viewBind t with
+      | none => failDanglingE
+      | some (ty, body, mb) => do
+        let tyo ← instantiateListFast coreWalkFuel ty fvs 0
+        let typ ← r.annotate (d + k) tyo
+        let fv ← internFVarE (d + k) typ
+        annotatePis r fe d peel body (k + 1) (fvs.push fv) (stk.push (typ, mb))
+    else annotatePisLeaf r fe d t k fvs stk
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1753-1762 annotateLamsLeafI —
+`annotatePisLeaf` at the λ datum (`:1747-1751 annotateLamsPwI` inlined). -/
+def annotateLamsLeaf (r : CoreFnsA) (fe : IFEnv) (d : Nat) (t : EIdx) (k : Nat)
+    (fvs : Array EIdx) (stk : Array (EIdx × BinderMeta)) : AM EIdx := do
+  let to ← instantiateListFast coreWalkFuel t fvs 0
+  let leafp ← r.annotate (d + k) to
+  let p ← annotPwLam r fe (d + k) leafp
+  let cur ← abstractRangeFast coreWalkFuel leafp d k 0
+  annotateBindersOut true d (some p) stk stk.size cur
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1764-1777 annotateLamsI — the λ twin
+of `annotatePis`. -/
+def annotateLams (r : CoreFnsA) (fe : IFEnv) (d : Nat) :
+    Nat → EIdx → Nat → Array EIdx → Array (EIdx × BinderMeta) → AM EIdx
+  | 0, t, k, fvs, stk => annotateLamsLeaf r fe d t k fvs stk
+  | peel + 1, t, k, fvs, stk => do
+    if t.tag == ETag.lam then
+      match ← viewBind t with
+      | none => failDanglingE
+      | some (ty, body, mb) => do
+        let tyo ← instantiateListFast coreWalkFuel ty fvs 0
+        let typ ← r.annotate (d + k) tyo
+        let fv ← internFVarE (d + k) typ
+        annotateLams r fe d peel body (k + 1) (fvs.push fv) (stk.push (typ, mb))
+    else annotateLamsLeaf r fe d t k fvs stk
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1779-1867 annotateBodyI — the
+per-binder annotation clause, which con-leche's cached tier keeps as the λ
+RESIDUAL (the loop is chain-identical only on `bvar`-closed nodes; the cached
+bound decides in `O(1)`, and on both corpora this arm is entered zero times). -/
+def annotateBinder (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (ty body : EIdx)
+    (mb : BinderMeta) (isLam : Bool) : AM EIdx := do
+  let typ ← r.annotate depth ty
+  let fv ← internFVarE depth typ
+  let ob ← instantiate1Fast coreWalkFuel body fv 0
+  let bodyp ← r.annotate (depth + 1) ob
+  let pw ←
+    if !pwWritten mb.pw then
+      if isLam then annotPwLam r fe (depth + 1) bodyp
+      else annotPwPi r fe (depth + 1) bodyp
+    else pure mb.pw
+  let ab ← abstract1Fast coreWalkFuel bodyp depth 0
+  if isLam then internLamE typ ab ⟨pw⟩ else internForallEE typ ab ⟨pw⟩
+
 /-- con-leche: ConLeche/Kernel/Core.lean:1795-1915 annotateBody — the
 annotation body: compute the codomain-sort annotations of every binder,
 bottom-up, by real inference on the opened (already annotated) body.  The
@@ -3035,30 +3291,31 @@ def annotateBody (r : CoreFnsA) (fe : IFEnv) : Nat → EIdx → AM EIdx :=
       else fail (.notImplemented
         "string literals before the String support declarations")
     | .app f a => do
-      -- structural (con-leche's task #100 stage 6)
+      -- structural (con-leche's task #100 stage 6), with task #97-P6-7's
+      -- upward cutoff: 91.5 % of the annotation's rebuilds answer with their
+      -- own argument
       let f' ← r.annotate depth f
       let a' ← r.annotate depth a
-      internE (.app f' a')
+      internRebuiltApp e (f' == f && a' == a) f' a'
+    -- **The binder-telescope loops** (task #97-P6-11), con-leche's own
+    -- `annotateBodyI`: the first binder is peeled here, which is why the loop
+    -- starts at `k = 1` with one free variable and a one-entry stack.
     | .forallE ty body mb => do
-      let ty' ← r.annotate depth ty
-      let fv ← internE (.fvar depth ty')
-      let ob ← instantiate1Fast coreWalkFuel body fv 0
-      let body' ← r.annotate (depth + 1) ob
-      let pw ←
-        if !pwWritten mb.pw then annotPwPi r fe (depth + 1) body'
-        else pure mb.pw
-      let ab ← abstract1Fast coreWalkFuel body' depth 0
-      internE (.forallE ty' ab ⟨pw⟩)
+      let typ ← r.annotate depth ty
+      let fv ← internFVarE depth typ
+      annotatePis r fe depth peelFuel body 1 #[fv] #[(typ, mb)]
     | .lam ty body mb => do
-      let ty' ← r.annotate depth ty
-      let fv ← internE (.fvar depth ty')
-      let ob ← instantiate1Fast coreWalkFuel body fv 0
-      let body' ← r.annotate (depth + 1) ob
-      let pw ←
-        if !pwWritten mb.pw then annotPwLam r fe (depth + 1) body'
-        else pure mb.pw
-      let ab ← abstract1Fast coreWalkFuel body' depth 0
-      internE (.lam ty' ab ⟨pw⟩)
+      -- con-leche's `annotateBodyI`'s `.lam` case: "the λ-loop is chain-
+      -- identical only on bvar-closed nodes (the chained tails re-open exactly
+      -- what they closed); disciplined inputs always are, and the cached bound
+      -- decides in O(1)".  Otherwise the spec-shaped single-binder clause runs,
+      -- unchanged.
+      let b ← bvarB coreWalkFuel e
+      if b = 0 then do
+        let typ ← r.annotate depth ty
+        let fv ← internFVarE depth typ
+        annotateLams r fe depth peelFuel body 1 #[fv] #[(typ, mb)]
+      else annotateBinder r fe depth ty body mb true
     | .letE ty v b => do
       -- con-leche's task #217: the official `infer_let` triple runs HERE,
       -- before the ζ reduct is taken
