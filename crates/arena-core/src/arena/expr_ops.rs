@@ -399,6 +399,54 @@ pub fn fvl_append(x: &Vec<(u64, EIdx)>, y: &Vec<(u64, EIdx)>) -> Vec<(u64, EIdx)
 }
 
 // ---------------------------------------------------------------------------
+// The UPWARD cutoff of a substituting walk (task #97-P6-5, lever 2)
+// ---------------------------------------------------------------------------
+
+/// con-leche: none — DESIGN.md §8.3's lesson 20, the UPWARD half
+/// Lean twin: OWED (task #97-P6-5's twin ledger) — `internRebuilt`, one clause
+/// per rebuild site of the walks whose DOWNWARD cutoff is not exact.
+///
+/// **A rebuilt spine whose children did not change is the same node.**  `h`
+/// decodes to a view whose children this walk has just rewritten; if every
+/// rewritten child is the child it started from, then the view handed here IS
+/// the view `h` decodes to, and `intern` would answer `h` — the store is
+/// hash-consed, `denoteE` is injective, and §8.3's cross-tier rule ("a scratch
+/// entry never duplicates a persistent one") makes the answer `h` and not some
+/// twin of `h` in the other tier.  So the test replaces a cons-table probe —
+/// on Mathlib a guaranteed miss against a 10⁸-entry table over a 32 MB L3 —
+/// with one word comparison per child.
+///
+/// It is applied **only to the walks whose downward cutoff is inexact**, which
+/// is where it can fire at all:
+///
+///   * `abstract1Go` — the cutoff is `fvarB <= d`, i.e. "no `fvar` of index
+///     `≥ d`", where the arm abstracts the index `= d`;
+///   * `instLPGo` — the cutoff is the `hasLP` bit, and a level substitution
+///     that touches none of the parameters actually present is the identity;
+///   * `resetMetaGo` — no downward cutoff at all, so it rebuilds every node of
+///     a term whose binder data may already be the placeholder;
+///   * `renameConstsGo` — renames some constants and rebuilds the rest.
+///
+/// `instantiate1Go`, `instantiateListGo`, `liftLooseBVarsGo`, `lowerBVarsGo`
+/// and `instantiate1LiftGo` are NOT given it, and that is measured rather than
+/// assumed: their cutoff is `bvarB <= d` against a field that is EXACT below
+/// saturation (`expr::sat_range()`, 32 767, which no term of the corpus
+/// reaches), so past the cutoff a loose `bvar` at or above `d` really is
+/// present and really does move — the test could only ever cost.
+pub fn intern_rebuilt(
+    st: &mut AState,
+    h: &EIdx,
+    same: bool,
+    v: ENodeView,
+) -> Result<EIdx, CheckError> {
+    if same {
+        Ok(h.dup2())
+    } else {
+        intern_e(st, v)
+    }
+}
+
+// ---------------------------------------------------------------------------
 // `instantiate1` — `ExprOps.lean:29-45`, `:80-116`, `:182-184`
 // ---------------------------------------------------------------------------
 
@@ -997,13 +1045,16 @@ pub fn reset_meta_go(st: &mut AState, fuel: u64, h: &EIdx) -> Result<EIdx, Check
                     Some(r) => Ok(r),
                     None => match reset_meta_go(st, fuel - 1, &ty) {
                         Err(e) => Err(e),
-                        Ok(t) => match intern_e(st, ENodeView::FVar(i, t)) {
-                            Err(e) => Err(e),
-                            Ok(r) => {
-                                reset_set(st, k, &r);
-                                Ok(r)
+                        Ok(t) => {
+                            let same: bool = t.eq2(&ty);
+                            match intern_rebuilt(st, h, same, ENodeView::FVar(i, t)) {
+                                Err(e) => Err(e),
+                                Ok(r) => {
+                                    reset_set(st, k, &r);
+                                    Ok(r)
+                                }
                             }
-                        },
+                        }
                     },
                 }
             }
@@ -1015,28 +1066,9 @@ pub fn reset_meta_go(st: &mut AState, fuel: u64, h: &EIdx) -> Result<EIdx, Check
                         Err(e) => Err(e),
                         Ok(f2) => match reset_meta_go(st, fuel - 1, &a) {
                             Err(e) => Err(e),
-                            Ok(a2) => match intern_e(st, ENodeView::App(f2, a2)) {
-                                Err(e) => Err(e),
-                                Ok(r) => {
-                                    reset_set(st, k, &r);
-                                    Ok(r)
-                                }
-                            },
-                        },
-                    },
-                }
-            }
-            Ok(ENodeView::Lam(ty, body, _)) => {
-                let k: EIdxNat = eidx_nat_key(h, 0);
-                match reset_get(st, &k) {
-                    Some(r) => Ok(r),
-                    None => match reset_meta_go(st, fuel - 1, &ty) {
-                        Err(e) => Err(e),
-                        Ok(t) => match reset_meta_go(st, fuel - 1, &body) {
-                            Err(e) => Err(e),
-                            Ok(b) => {
-                                let m: BinderMeta = expr::binder_meta(prop_when::never());
-                                match intern_e(st, ENodeView::Lam(t, b, m)) {
+                            Ok(a2) => {
+                                let same: bool = f2.eq2(&f) && a2.eq2(&a);
+                                match intern_rebuilt(st, h, same, ENodeView::App(f2, a2)) {
                                     Err(e) => Err(e),
                                     Ok(r) => {
                                         reset_set(st, k, &r);
@@ -1048,7 +1080,7 @@ pub fn reset_meta_go(st: &mut AState, fuel: u64, h: &EIdx) -> Result<EIdx, Check
                     },
                 }
             }
-            Ok(ENodeView::ForallE(ty, body, _)) => {
+            Ok(ENodeView::Lam(ty, body, m0)) => {
                 let k: EIdxNat = eidx_nat_key(h, 0);
                 match reset_get(st, &k) {
                     Some(r) => Ok(r),
@@ -1056,9 +1088,37 @@ pub fn reset_meta_go(st: &mut AState, fuel: u64, h: &EIdx) -> Result<EIdx, Check
                         Err(e) => Err(e),
                         Ok(t) => match reset_meta_go(st, fuel - 1, &body) {
                             Err(e) => Err(e),
-                            Ok(b) => {
-                                let m: BinderMeta = expr::binder_meta(prop_when::never());
-                                match intern_e(st, ENodeView::ForallE(t, b, m)) {
+                            Ok(b2) => {
+                                let m2: BinderMeta = expr::binder_meta(prop_when::never());
+                                let same: bool = t.eq2(&ty)
+                                    && b2.eq2(&body)
+                                    && expr::binder_meta_beq(&m2, &m0);
+                                match intern_rebuilt(st, h, same, ENodeView::Lam(t, b2, m2)) {
+                                    Err(e) => Err(e),
+                                    Ok(r) => {
+                                        reset_set(st, k, &r);
+                                        Ok(r)
+                                    }
+                                }
+                            }
+                        },
+                    },
+                }
+            }
+            Ok(ENodeView::ForallE(ty, body, m0)) => {
+                let k: EIdxNat = eidx_nat_key(h, 0);
+                match reset_get(st, &k) {
+                    Some(r) => Ok(r),
+                    None => match reset_meta_go(st, fuel - 1, &ty) {
+                        Err(e) => Err(e),
+                        Ok(t) => match reset_meta_go(st, fuel - 1, &body) {
+                            Err(e) => Err(e),
+                            Ok(b2) => {
+                                let m2: BinderMeta = expr::binder_meta(prop_when::never());
+                                let same: bool = t.eq2(&ty)
+                                    && b2.eq2(&body)
+                                    && expr::binder_meta_beq(&m2, &m0);
+                                match intern_rebuilt(st, h, same, ENodeView::ForallE(t, b2, m2)) {
                                     Err(e) => Err(e),
                                     Ok(r) => {
                                         reset_set(st, k, &r);
@@ -1080,13 +1140,22 @@ pub fn reset_meta_go(st: &mut AState, fuel: u64, h: &EIdx) -> Result<EIdx, Check
                             Err(e) => Err(e),
                             Ok(w) => match reset_meta_go(st, fuel - 1, &body) {
                                 Err(e) => Err(e),
-                                Ok(b) => match intern_e(st, ENodeView::LetE(t, w, b)) {
-                                    Err(e) => Err(e),
-                                    Ok(r) => {
-                                        reset_set(st, k, &r);
-                                        Ok(r)
+                                Ok(b2) => {
+                                    let same: bool =
+                                        t.eq2(&ty) && w.eq2(&val) && b2.eq2(&body);
+                                    match intern_rebuilt(
+                                        st,
+                                        h,
+                                        same,
+                                        ENodeView::LetE(t, w, b2),
+                                    ) {
+                                        Err(e) => Err(e),
+                                        Ok(r) => {
+                                            reset_set(st, k, &r);
+                                            Ok(r)
+                                        }
                                     }
-                                },
+                                }
                             },
                         },
                     },
@@ -1098,13 +1167,16 @@ pub fn reset_meta_go(st: &mut AState, fuel: u64, h: &EIdx) -> Result<EIdx, Check
                     Some(r) => Ok(r),
                     None => match reset_meta_go(st, fuel - 1, &sub) {
                         Err(e) => Err(e),
-                        Ok(u) => match intern_e(st, ENodeView::Proj(n, i, u)) {
-                            Err(e) => Err(e),
-                            Ok(r) => {
-                                reset_set(st, k, &r);
-                                Ok(r)
+                        Ok(u) => {
+                            let same: bool = u.eq2(&sub);
+                            match intern_rebuilt(st, h, same, ENodeView::Proj(n, i, u)) {
+                                Err(e) => Err(e),
+                                Ok(r) => {
+                                    reset_set(st, k, &r);
+                                    Ok(r)
+                                }
                             }
-                        },
+                        }
                     },
                 }
             }
@@ -3083,13 +3155,21 @@ pub fn abstract1_go(
                                     Err(e) => Err(e),
                                     Ok(f2) => match abstract1_go(st, d, fuel - 1, &a, k) {
                                         Err(e) => Err(e),
-                                        Ok(a2) => match intern_e(st, ENodeView::App(f2, a2)) {
-                                            Err(e) => Err(e),
-                                            Ok(r) => {
-                                                abs1_set(st, ky, &r);
-                                                Ok(r)
+                                        Ok(a2) => {
+                                            let same: bool = f2.eq2(&f) && a2.eq2(&a);
+                                            match intern_rebuilt(
+                                                st,
+                                                h,
+                                                same,
+                                                ENodeView::App(f2, a2),
+                                            ) {
+                                                Err(e) => Err(e),
+                                                Ok(r) => {
+                                                    abs1_set(st, ky, &r);
+                                                    Ok(r)
+                                                }
                                             }
-                                        },
+                                        }
                                     },
                                 },
                             }
@@ -3102,13 +3182,21 @@ pub fn abstract1_go(
                                     Err(e) => Err(e),
                                     Ok(t) => match abstract1_go(st, d, fuel - 1, &body, k + 1) {
                                         Err(e) => Err(e),
-                                        Ok(b) => match intern_e(st, ENodeView::Lam(t, b, m)) {
-                                            Err(e) => Err(e),
-                                            Ok(r) => {
-                                                abs1_set(st, ky, &r);
-                                                Ok(r)
+                                        Ok(b2) => {
+                                            let same: bool = t.eq2(&ty) && b2.eq2(&body);
+                                            match intern_rebuilt(
+                                                st,
+                                                h,
+                                                same,
+                                                ENodeView::Lam(t, b2, m),
+                                            ) {
+                                                Err(e) => Err(e),
+                                                Ok(r) => {
+                                                    abs1_set(st, ky, &r);
+                                                    Ok(r)
+                                                }
                                             }
-                                        },
+                                        }
                                     },
                                 },
                             }
@@ -3121,13 +3209,21 @@ pub fn abstract1_go(
                                     Err(e) => Err(e),
                                     Ok(t) => match abstract1_go(st, d, fuel - 1, &body, k + 1) {
                                         Err(e) => Err(e),
-                                        Ok(b) => match intern_e(st, ENodeView::ForallE(t, b, m)) {
-                                            Err(e) => Err(e),
-                                            Ok(r) => {
-                                                abs1_set(st, ky, &r);
-                                                Ok(r)
+                                        Ok(b2) => {
+                                            let same: bool = t.eq2(&ty) && b2.eq2(&body);
+                                            match intern_rebuilt(
+                                                st,
+                                                h,
+                                                same,
+                                                ENodeView::ForallE(t, b2, m),
+                                            ) {
+                                                Err(e) => Err(e),
+                                                Ok(r) => {
+                                                    abs1_set(st, ky, &r);
+                                                    Ok(r)
+                                                }
                                             }
-                                        },
+                                        }
                                     },
                                 },
                             }
@@ -3143,8 +3239,16 @@ pub fn abstract1_go(
                                         Ok(w) => {
                                             match abstract1_go(st, d, fuel - 1, &body, k + 1) {
                                                 Err(e) => Err(e),
-                                                Ok(b) => {
-                                                    match intern_e(st, ENodeView::LetE(t, w, b)) {
+                                                Ok(b2) => {
+                                                    let same: bool = t.eq2(&ty)
+                                                        && w.eq2(&val)
+                                                        && b2.eq2(&body);
+                                                    match intern_rebuilt(
+                                                        st,
+                                                        h,
+                                                        same,
+                                                        ENodeView::LetE(t, w, b2),
+                                                    ) {
                                                         Err(e) => Err(e),
                                                         Ok(r) => {
                                                             abs1_set(st, ky, &r);
@@ -3164,13 +3268,21 @@ pub fn abstract1_go(
                                 Some(r) => Ok(r),
                                 None => match abstract1_go(st, d, fuel - 1, &sub, k) {
                                     Err(e) => Err(e),
-                                    Ok(u) => match intern_e(st, ENodeView::Proj(n, i, u)) {
-                                        Err(e) => Err(e),
-                                        Ok(r) => {
-                                            abs1_set(st, ky, &r);
-                                            Ok(r)
+                                    Ok(u) => {
+                                        let same: bool = u.eq2(&sub);
+                                        match intern_rebuilt(
+                                            st,
+                                            h,
+                                            same,
+                                            ENodeView::Proj(n, i, u),
+                                        ) {
+                                            Err(e) => Err(e),
+                                            Ok(r) => {
+                                                abs1_set(st, ky, &r);
+                                                Ok(r)
+                                            }
                                         }
-                                    },
+                                    }
                                 },
                             }
                         }
@@ -3714,7 +3826,10 @@ pub fn inst_lp_go(
                         let l2: Level = level::subst(ks, us, &l);
                         match intern_level(st, &l2) {
                             Err(e) => Err(e),
-                            Ok(hl) => intern_e(st, ENodeView::Sort(hl)),
+                            Ok(hl) => {
+                                let same: bool = hl.eq2(&u);
+                                intern_rebuilt(st, h, same, ENodeView::Sort(hl))
+                            }
                         }
                     }
                 },
@@ -3724,7 +3839,10 @@ pub fn inst_lp_go(
                         let ls2: Vec<Level> = subst_level_list(ks, us, &ls);
                         match intern_levels(st, &ls2) {
                             Err(e) => Err(e),
-                            Ok(vs2) => intern_e(st, ENodeView::Const(n, vs2)),
+                            Ok(vs2) => {
+                                let same: bool = vs2.eq2(&vs);
+                                intern_rebuilt(st, h, same, ENodeView::Const(n, vs2))
+                            }
                         }
                     }
                 },
@@ -3734,13 +3852,16 @@ pub fn inst_lp_go(
                         Some(r) => Ok(r),
                         None => match inst_lp_go(st, ks, us, fuel - 1, &ty) {
                             Err(e) => Err(e),
-                            Ok(t) => match intern_e(st, ENodeView::FVar(i, t)) {
-                                Err(e) => Err(e),
-                                Ok(r) => {
-                                    inst_lp_set(st, k, &r);
-                                    Ok(r)
+                            Ok(t) => {
+                                let same: bool = t.eq2(&ty);
+                                match intern_rebuilt(st, h, same, ENodeView::FVar(i, t)) {
+                                    Err(e) => Err(e),
+                                    Ok(r) => {
+                                        inst_lp_set(st, k, &r);
+                                        Ok(r)
+                                    }
                                 }
-                            },
+                            }
                         },
                     }
                 }
@@ -3752,13 +3873,16 @@ pub fn inst_lp_go(
                             Err(e) => Err(e),
                             Ok(f2) => match inst_lp_go(st, ks, us, fuel - 1, &a) {
                                 Err(e) => Err(e),
-                                Ok(a2) => match intern_e(st, ENodeView::App(f2, a2)) {
-                                    Err(e) => Err(e),
-                                    Ok(r) => {
-                                        inst_lp_set(st, k, &r);
-                                        Ok(r)
+                                Ok(a2) => {
+                                    let same: bool = f2.eq2(&f) && a2.eq2(&a);
+                                    match intern_rebuilt(st, h, same, ENodeView::App(f2, a2)) {
+                                        Err(e) => Err(e),
+                                        Ok(r) => {
+                                            inst_lp_set(st, k, &r);
+                                            Ok(r)
+                                        }
                                     }
-                                },
+                                }
                             },
                         },
                     }
@@ -3771,10 +3895,13 @@ pub fn inst_lp_go(
                             Err(e) => Err(e),
                             Ok(t) => match inst_lp_go(st, ks, us, fuel - 1, &body) {
                                 Err(e) => Err(e),
-                                Ok(b) => {
+                                Ok(b2) => {
                                     let m2: BinderMeta =
                                         expr::binder_meta(level::subst_pw(ks, us, &m.pw));
-                                    match intern_e(st, ENodeView::Lam(t, b, m2)) {
+                                    let same: bool = t.eq2(&ty)
+                                        && b2.eq2(&body)
+                                        && expr::binder_meta_beq(&m2, &m);
+                                    match intern_rebuilt(st, h, same, ENodeView::Lam(t, b2, m2)) {
                                         Err(e) => Err(e),
                                         Ok(r) => {
                                             inst_lp_set(st, k, &r);
@@ -3794,10 +3921,18 @@ pub fn inst_lp_go(
                             Err(e) => Err(e),
                             Ok(t) => match inst_lp_go(st, ks, us, fuel - 1, &body) {
                                 Err(e) => Err(e),
-                                Ok(b) => {
+                                Ok(b2) => {
                                     let m2: BinderMeta =
                                         expr::binder_meta(level::subst_pw(ks, us, &m.pw));
-                                    match intern_e(st, ENodeView::ForallE(t, b, m2)) {
+                                    let same: bool = t.eq2(&ty)
+                                        && b2.eq2(&body)
+                                        && expr::binder_meta_beq(&m2, &m);
+                                    match intern_rebuilt(
+                                        st,
+                                        h,
+                                        same,
+                                        ENodeView::ForallE(t, b2, m2),
+                                    ) {
                                         Err(e) => Err(e),
                                         Ok(r) => {
                                             inst_lp_set(st, k, &r);
@@ -3819,13 +3954,22 @@ pub fn inst_lp_go(
                                 Err(e) => Err(e),
                                 Ok(w) => match inst_lp_go(st, ks, us, fuel - 1, &body) {
                                     Err(e) => Err(e),
-                                    Ok(b) => match intern_e(st, ENodeView::LetE(t, w, b)) {
-                                        Err(e) => Err(e),
-                                        Ok(r) => {
-                                            inst_lp_set(st, k, &r);
-                                            Ok(r)
+                                    Ok(b2) => {
+                                        let same: bool =
+                                            t.eq2(&ty) && w.eq2(&val) && b2.eq2(&body);
+                                        match intern_rebuilt(
+                                            st,
+                                            h,
+                                            same,
+                                            ENodeView::LetE(t, w, b2),
+                                        ) {
+                                            Err(e) => Err(e),
+                                            Ok(r) => {
+                                                inst_lp_set(st, k, &r);
+                                                Ok(r)
+                                            }
                                         }
-                                    },
+                                    }
                                 },
                             },
                         },
@@ -3837,13 +3981,16 @@ pub fn inst_lp_go(
                         Some(r) => Ok(r),
                         None => match inst_lp_go(st, ks, us, fuel - 1, &sub) {
                             Err(e) => Err(e),
-                            Ok(u2) => match intern_e(st, ENodeView::Proj(n, i, u2)) {
-                                Err(e) => Err(e),
-                                Ok(r) => {
-                                    inst_lp_set(st, k, &r);
-                                    Ok(r)
+                            Ok(u2) => {
+                                let same: bool = u2.eq2(&sub);
+                                match intern_rebuilt(st, h, same, ENodeView::Proj(n, i, u2)) {
+                                    Err(e) => Err(e),
+                                    Ok(r) => {
+                                        inst_lp_set(st, k, &r);
+                                        Ok(r)
+                                    }
                                 }
-                            },
+                            }
                         },
                     }
                 }
