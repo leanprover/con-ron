@@ -96,6 +96,7 @@ use con_ron_core::ron::hashmap::{Dup, Eq2};
 // reads as it did.  `ron::hashmap::HashMap` is still what `crates/con-ron`
 // uses, and is still the one with proofs.
 use con_ron_core::ron::hashmap2::HashMap2 as HashMap;
+use crate::arena::store::PersTier;
 
 // ---------------------------------------------------------------------------
 // The error channel (`Types.lean`'s note, `ExportC.lean`'s `fail`)
@@ -202,8 +203,8 @@ pub fn scan_err_to_check(e: &ScanErr) -> CheckError {
 /// store's node count, which bounds the length of any path through it because
 /// a child is interned before its parent.  con-leche's walks are structural on
 /// `Expr` and need none.
-pub fn store_fuel(ar: &EStore) -> u64 {
-    ar.node_count() as u64 + 1
+pub fn store_fuel(pers: &PersTier, ar: &EStore) -> u64 {
+    ar.node_count(pers) as u64 + 1
 }
 
 // ---------------------------------------------------------------------------
@@ -268,15 +269,16 @@ pub struct StateD {
 /// parse appends to (`scratch_on` is `false` on `EStore::empty` and the parse
 /// never enables the scratch one).
 pub fn state_d_init(
+    pers: &PersTier,
     ar: &mut EStore,
     in_model: bool,
     census: bool,
 ) -> Result<StateD, CheckError> {
-    let n0 = match ar.intern_name(NNodeView::Anonymous) {
+    let n0 = match ar.intern_name(pers, NNodeView::Anonymous) {
         Err(e) => return Err(e),
         Ok(h) => h,
     };
-    let l0 = match ar.intern_level(LNodeView::Zero) {
+    let l0 = match ar.intern_level(pers, LNodeView::Zero) {
         Err(e) => return Err(e),
         Ok(h) => h,
     };
@@ -329,6 +331,7 @@ pub fn state_model_ctx<'a>(st: &'a StateD) -> ModelCtx<'a> {
 /// are P2d's, and a loud `internal` beats a silent empty list the day someone
 /// makes it reachable.
 pub fn note_decl_entries(
+    pers: &PersTier,
     ar: &mut EStore,
     d: &IDeclaration,
 ) -> Result<Vec<(NIdx, Vec<NIdx>, EIdx, Option<u64>)>, LineErr> {
@@ -346,7 +349,7 @@ pub fn note_decl_entries(
             ];
             merr(core_types::code_points(&M_BASISDECL))
         }
-        IDeclaration::IndDecl(bl, _) => note_block(ar, bl, 0, Vec::new()),
+        IDeclaration::IndDecl(bl, _) => note_block(pers, ar, bl, 0, Vec::new()),
     }
 }
 
@@ -373,6 +376,7 @@ pub fn note_one(
 /// the twin because `toConstantVal` interns a `.projInfo`'s dummy type — which
 /// no parsed block is.
 pub fn note_block(
+    pers: &PersTier,
     ar: &mut EStore,
     bl: &Vec<IConstantInfo>,
     i: usize,
@@ -382,7 +386,7 @@ pub fn note_block(
     let n = bl.len();
     let mut k = i;
     while k < n {
-        match env::i_constant_info_to_constant_val(ar, &bl[k]) {
+        match env::i_constant_info_to_constant_val(pers, ar, &bl[k]) {
             Err(e) => return fail(e),
             Ok(cv) => out.push((
                 cv.name.dup2(),
@@ -420,8 +424,13 @@ pub fn note_entries(st: &mut StateD, es: &Vec<(NIdx, Vec<NIdx>, EIdx, Option<u64
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:135-153 noteDecl
 /// Record a pushed declaration's constants in the declaration table.
-pub fn note_decl(ar: &mut EStore, st: &mut StateD, d: &IDeclaration) -> Result<(), LineErr> {
-    match note_decl_entries(ar, d) {
+pub fn note_decl(
+    pers: &PersTier,
+    ar: &mut EStore,
+    st: &mut StateD,
+    d: &IDeclaration,
+) -> Result<(), LineErr>  {
+    match note_decl_entries(pers, ar, d) {
         Err(e) => Err(e),
         Ok(es) => {
             note_entries(st, &es);
@@ -435,11 +444,12 @@ pub fn note_decl(ar: &mut EStore, st: &mut StateD, d: &IDeclaration) -> Result<(
 /// one parsed record, appended: the decoder keeps the file's records in the
 /// file's order.
 pub fn push_decl(
+    pers: &PersTier,
     ar: &mut EStore,
     st: &mut StateD,
     d: IDeclaration,
 ) -> Result<(), LineErr> {
-    match note_decl(ar, st, &d) {
+    match note_decl(pers, ar, st, &d) {
         Err(e) => Err(e),
         Ok(()) => {
             st.decls.push(d);
@@ -553,12 +563,17 @@ pub fn get_decl_d(st: &StateD, i: u64) -> Result<EIdx, LineErr> {
 /// #97a's store already carries `BinderMeta`, hence `PropWhen`, inside its
 /// binder node — so the resolved handles are READ BACK to names here, which is
 /// `denoteN` itself (DESIGN.md §8.3 lesson 4's move, at the name store).
-pub fn parse_pw_d(ar: &EStore, st: &StateD, r: &PwRec) -> Result<PropWhen, LineErr> {
+pub fn parse_pw_d(
+    pers: &PersTier,
+    ar: &EStore,
+    st: &StateD,
+    r: &PwRec,
+) -> Result<PropWhen, LineErr>  {
     match r {
         PwRec::Never => Ok(prop_when::never()),
         PwRec::IfAllZero(ns) => match st_names(st, ns) {
             Err(e) => Err(e),
-            Ok(hs) => match env::read_names(ar, &hs) {
+            Ok(hs) => match env::read_names(pers, ar, &hs) {
                 Err(e) => fail(e),
                 Ok(out) => Ok(prop_when::if_all_zero(out)),
             },
@@ -650,6 +665,7 @@ pub fn st_fresh_expr(st: &StateD, i: u64) -> Result<(), LineErr> {
 /// handle.  The parent index is resolved before the freshness test, as in the
 /// cited `do` block.
 pub fn parse_name_entry_d(
+    pers: &PersTier,
     ar: &mut EStore,
     st: &mut StateD,
     i: u64,
@@ -671,7 +687,7 @@ pub fn parse_name_entry_d(
             },
         },
     };
-    match ar.intern_name(v) {
+    match ar.intern_name(pers, v) {
         Err(e) => fail(e),
         Ok(h) => {
             id_table_insert(&mut st.names, i, h);
@@ -684,6 +700,7 @@ pub fn parse_name_entry_d(
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:242-249 parseLevelEntryD`
 /// — a level-table entry, interned.
 pub fn parse_level_entry_d(
+    pers: &PersTier,
     ar: &mut EStore,
     st: &mut StateD,
     i: u64,
@@ -697,7 +714,7 @@ pub fn parse_level_entry_d(
         Err(e) => return Err(e),
         Ok(v) => v,
     };
-    match ar.intern_level(v) {
+    match ar.intern_level(pers, v) {
         Err(e) => fail(e),
         Ok(h) => {
             id_table_insert(&mut st.levels, i, h);
@@ -746,6 +763,7 @@ pub fn parse_level_rec_d(st: &StateD, r: &LevelRec) -> Result<LNodeView, LineErr
 /// ignore; ours are anonymous on every parsed binder, so handle equality is
 /// α-equivalence downstream, exactly as `==` is in con-leche.
 pub fn parse_expr_entry_d(
+    pers: &PersTier,
     ar: &mut EStore,
     st: &mut StateD,
     i: u64,
@@ -755,7 +773,7 @@ pub fn parse_expr_entry_d(
         Err(e) => return Err(e),
         Ok(()) => {}
     }
-    match parse_expr_rec_d(ar, st, r) {
+    match parse_expr_rec_d(pers, ar, st, r) {
         Err(e) => Err(e),
         Ok(h) => {
             id_table_insert(&mut st.exprs, i, h);
@@ -771,18 +789,19 @@ pub fn parse_expr_entry_d(
 /// keeps the `const` node two words (DESIGN.md §8.3), so the arm cannot hand
 /// a single view back.
 pub fn parse_expr_rec_d(
+    pers: &PersTier,
     ar: &mut EStore,
     st: &StateD,
     r: &ExprRec,
 ) -> Result<EIdx, LineErr> {
     match r {
-        ExprRec::Bvar(k) => match ar.intern(ENodeView::BVar(*k)) {
+        ExprRec::Bvar(k) => match ar.intern(pers, ENodeView::BVar(*k)) {
             Err(e) => fail(e),
             Ok(h) => Ok(h),
         },
         ExprRec::Sort(u) => match st_level(st, *u) {
             Err(e) => Err(e),
-            Ok(l) => match ar.intern(ENodeView::Sort(l)) {
+            Ok(l) => match ar.intern(pers, ENodeView::Sort(l)) {
                 Err(e) => fail(e),
                 Ok(h) => Ok(h),
             },
@@ -791,9 +810,9 @@ pub fn parse_expr_rec_d(
             Err(e) => Err(e),
             Ok(nm) => match st_levels(st, us) {
                 Err(e) => Err(e),
-                Ok(ls) => match ar.intern_levels(ls) {
+                Ok(ls) => match ar.intern_levels(pers, ls) {
                     Err(e) => fail(e),
-                    Ok(lsh) => match ar.intern(ENodeView::Const(nm, lsh)) {
+                    Ok(lsh) => match ar.intern(pers, ENodeView::Const(nm, lsh)) {
                         Err(e) => fail(e),
                         Ok(h) => Ok(h),
                     },
@@ -804,7 +823,7 @@ pub fn parse_expr_rec_d(
             Err(e) => Err(e),
             Ok(x) => match st_expr(st, *a) {
                 Err(e) => Err(e),
-                Ok(y) => match ar.intern(ENodeView::App(x, y)) {
+                Ok(y) => match ar.intern(pers, ENodeView::App(x, y)) {
                     Err(e) => fail(e),
                     Ok(h) => Ok(h),
                 },
@@ -814,9 +833,9 @@ pub fn parse_expr_rec_d(
             Err(e) => Err(e),
             Ok(t) => match st_expr(st, *bd) {
                 Err(e) => Err(e),
-                Ok(b) => match parse_pw_d(ar, st, pw) {
+                Ok(b) => match parse_pw_d(pers, ar, st, pw) {
                     Err(e) => Err(e),
-                    Ok(p) => match ar.intern(ENodeView::Lam(t, b, expr::binder_meta(p))) {
+                    Ok(p) => match ar.intern(pers, ENodeView::Lam(t, b, expr::binder_meta(p))) {
                         Err(e) => fail(e),
                         Ok(h) => Ok(h),
                     },
@@ -827,10 +846,10 @@ pub fn parse_expr_rec_d(
             Err(e) => Err(e),
             Ok(t) => match st_expr(st, *bd) {
                 Err(e) => Err(e),
-                Ok(b) => match parse_pw_d(ar, st, pw) {
+                Ok(b) => match parse_pw_d(pers, ar, st, pw) {
                     Err(e) => Err(e),
                     Ok(p) => {
-                        match ar.intern(ENodeView::ForallE(t, b, expr::binder_meta(p))) {
+                        match ar.intern(pers, ENodeView::ForallE(t, b, expr::binder_meta(p))) {
                             Err(e) => fail(e),
                             Ok(h) => Ok(h),
                         }
@@ -844,7 +863,7 @@ pub fn parse_expr_rec_d(
                 Err(e) => Err(e),
                 Ok(v) => match st_expr(st, *bd) {
                     Err(e) => Err(e),
-                    Ok(b) => match ar.intern(ENodeView::LetE(t, v, b)) {
+                    Ok(b) => match ar.intern(pers, ENodeView::LetE(t, v, b)) {
                         Err(e) => fail(e),
                         Ok(h) => Ok(h),
                     },
@@ -855,7 +874,7 @@ pub fn parse_expr_rec_d(
             Err(e) => Err(e),
             Ok(t) => match st_expr(st, *s) {
                 Err(e) => Err(e),
-                Ok(x) => match ar.intern(ENodeView::Proj(t, *ix, x)) {
+                Ok(x) => match ar.intern(pers, ENodeView::Proj(t, *ix, x)) {
                     Err(e) => fail(e),
                     Ok(h) => Ok(h),
                 },
@@ -863,14 +882,14 @@ pub fn parse_expr_rec_d(
         },
         ExprRec::NatVal(digits) => match nat_decimal::from_decimal(digits) {
             None => merr(scan_types::err_tag_describe(&ErrTag::BadNatVal)),
-            Some(n) => match ar.intern(ENodeView::Lit(expr::literal_nat(n))) {
+            Some(n) => match ar.intern(pers, ENodeView::Lit(expr::literal_nat(n))) {
                 Err(e) => fail(e),
                 Ok(h) => Ok(h),
             },
         },
         ExprRec::StrVal(s) => {
             let l = expr::literal_str(core_types::code_points(s));
-            match ar.intern(ENodeView::Lit(l)) {
+            match ar.intern(pers, ENodeView::Lit(l)) {
                 Err(e) => fail(e),
                 Ok(h) => Ok(h),
             }
@@ -915,21 +934,22 @@ pub fn parse_cv_d(st: &StateD, cv: &CVRec) -> Result<IConstantVal, LineErr> {
 /// the body's node here; exactness (`denoteE_inj`) makes the two the same
 /// test.
 pub fn proj_rewrite_d(
+    pers: &PersTier,
     ar: &mut AState,
     st: &StateD,
     cv: &IConstantVal,
     vl: &EIdx,
 ) -> Result<Option<EIdx>, CheckError> {
-    let fuel = store_fuel(&ar.store);
-    let body = match proj_rec::lam_body(ar, fuel, vl) {
+    let fuel = store_fuel(pers, &ar.store);
+    let body = match proj_rec::lam_body(pers, ar, fuel, vl) {
         Err(e) => return Err(e),
         Ok(v) => v,
     };
-    match monad::view(ar, &body) {
+    match monad::view(pers, ar, &body) {
         Err(e) => Err(e),
-        Ok(ENodeView::Proj(t, i, sub)) => match monad::view(ar, &sub) {
+        Ok(ENodeView::Proj(t, i, sub)) => match monad::view(pers, ar, &sub) {
             Err(e) => Err(e),
-            Ok(ENodeView::BVar(0)) => proj_rewrite_at(ar, st, cv, vl, &t, i, fuel),
+            Ok(ENodeView::BVar(0)) => proj_rewrite_at(pers, ar, st, cv, vl, &t, i, fuel),
             Ok(_) => Ok(None),
         },
         Ok(_) => Ok(None),
@@ -942,6 +962,7 @@ pub fn proj_rewrite_d(
 /// shape test.  Its own function so the `view`'s loans are dead where
 /// `proj_iota_name` interns (extraction rule 5).
 pub fn proj_rewrite_at(
+    pers: &PersTier,
     ar: &mut AState,
     st: &StateD,
     cv: &IConstantVal,
@@ -956,11 +977,11 @@ pub fn proj_rewrite_at(
             if !canon::nidx_vec_beq(&cv.level_params, &o.lps, 0) {
                 Ok(None)
             } else {
-                match proj_rec::proj_iota_name(ar, t, i) {
+                match proj_rec::proj_iota_name(pers, ar, t, i) {
                     Err(e) => Err(e),
                     Ok(k) => match proj_level_of(st, &k) {
                         None => Ok(None),
-                        Some(l) => proj_rec::proj_rec_value(ar, fuel, o, l, &cv.ty, vl, i),
+                        Some(l) => proj_rec::proj_rec_value(pers, ar, fuel, o, l, &cv.ty, vl, i),
                     },
                 }
             }
@@ -997,16 +1018,17 @@ pub fn proj_level_of<'a>(st: &'a StateD, k: &NIdx) -> Option<&'a LIdx> {
 /// The twin detaches `st.projLevels` before it inserts (DESIGN.md §8.4 lesson
 /// 14); a `&mut` field is detached already.
 pub fn note_proj_iota(
+    pers: &PersTier,
     ar: &mut AState,
     st: &mut StateD,
     cvp: &IConstantVal,
 ) -> Result<(), CheckError> {
-    match proj_rec::is_proj_iota_name(ar, &cvp.name) {
+    match proj_rec::is_proj_iota_name(pers, ar, &cvp.name) {
         Err(e) => Err(e),
         Ok(false) => Ok(()),
         Ok(true) => {
-            let fuel = store_fuel(&ar.store);
-            match proj_rec::proj_iota_level(ar, fuel, &cvp.ty) {
+            let fuel = store_fuel(pers, &ar.store);
+            match proj_rec::proj_iota_level(pers, ar, fuel, &cvp.ty) {
                 Err(e) => Err(e),
                 Ok(None) => Ok(()),
                 Ok(Some(l)) => {
@@ -1023,6 +1045,7 @@ pub fn note_proj_iota(
 /// push one record the in-process modeller generated: `push_decl`, plus the
 /// projection-iota registration (the ONLY place it runs).
 pub fn push_gen_d(
+    pers: &PersTier,
     ar: &mut AState,
     st: &mut StateD,
     d: IDeclaration,
@@ -1030,14 +1053,14 @@ pub fn push_gen_d(
     match &d {
         IDeclaration::ThmDecl(cv, _) => {
             let cv2 = i_constant_val_dup(cv);
-            match note_proj_iota(ar, st, &cv2) {
+            match note_proj_iota(pers, ar, st, &cv2) {
                 Err(e) => return fail(e),
                 Ok(()) => {}
             }
         }
         _ => {}
     }
-    push_decl(&mut ar.store, st, d)
+    push_decl(pers, &mut ar.store, st, d)
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:328-336 noteGen
@@ -1071,6 +1094,7 @@ pub fn note_gen_names(st: &mut StateD, names: Vec<NIdx>, t0: &NIdx) {
 /// and each record copied in: the Aeneas subset has no way to move an element
 /// out of an owned `Vec`.
 pub fn push_gen_list(
+    pers: &PersTier,
     ar: &mut AState,
     st: &mut StateD,
     gen: &Vec<IDeclaration>,
@@ -1080,7 +1104,7 @@ pub fn push_gen_list(
     let mut i = 0usize;
     while i < n {
         let names = i_declaration_names(&gen[i]);
-        match push_gen_d(ar, st, env::i_declaration_dup(&gen[i])) {
+        match push_gen_d(pers, ar, st, env::i_declaration_dup(&gen[i])) {
             Err(e) => return Err(e),
             Ok(()) => {}
         }
@@ -1098,12 +1122,12 @@ pub fn push_gen_list(
 ///
 /// The twin's fuelled recursion is a `while` here (this directory's loop
 /// relaxation); `-loops-to-rec` gives the recursion back.
-pub fn ind_pi_tele_len(ar: &EStore, fuel: u64, h: &EIdx) -> Result<u64, LineErr> {
+pub fn ind_pi_tele_len(pers: &PersTier, ar: &EStore, fuel: u64, h: &EIdx) -> Result<u64, LineErr> {
     let mut n: u64 = 0;
     let mut cur = h.dup2();
     let mut left = fuel;
     while left > 0 {
-        match env::view_e(ar, &cur) {
+        match env::view_e(pers, ar, &cur) {
             Err(e) => return fail(e),
             Ok(ENodeView::ForallE(_, b, _)) => {
                 cur = b;
@@ -1127,11 +1151,11 @@ pub fn ind_pi_tele_len(ar: &EStore, fuel: u64, h: &EIdx) -> Result<u64, LineErr>
 /// which task #97 P4b writes, and this call site moves to it then.  Three
 /// lines, spelled here rather than left as a hole in the one function that
 /// needs it.
-pub fn pi_result(ar: &EStore, fuel: u64, h: &EIdx) -> Result<EIdx, LineErr> {
+pub fn pi_result(pers: &PersTier, ar: &EStore, fuel: u64, h: &EIdx) -> Result<EIdx, LineErr> {
     let mut cur = h.dup2();
     let mut left = fuel;
     while left > 0 {
-        match env::view_e(ar, &cur) {
+        match env::view_e(pers, ar, &cur) {
             Err(e) => return fail(e),
             Ok(ENodeView::ForallE(_, b, _)) => cur = b,
             Ok(_) => return Ok(cur),
@@ -1412,6 +1436,7 @@ pub fn m_ind_rec_recs_dup(
 /// that the projection rewrite serves (`frontend::proj_rec`'s
 /// `proj_rec_owners`).
 pub fn register_proj_owners(
+    pers: &PersTier,
     ar: &mut AState,
     st: &mut StateD,
     tys: &Vec<IndTypeRec>,
@@ -1431,8 +1456,8 @@ pub fn register_proj_owners(
         Err(e) => return Err(e),
         Ok(v) => v,
     };
-    let fuel = store_fuel(&ar.store);
-    match proj_rec::proj_rec_owners(ar, fuel, block, &types, &ctors, &recs) {
+    let fuel = store_fuel(pers, &ar.store);
+    match proj_rec::proj_rec_owners(pers, ar, fuel, block, &types, &ctors, &recs) {
         Err(e) => fail(e),
         Ok(owners) => {
             note_proj_owners(st, &owners);
@@ -1826,8 +1851,8 @@ pub fn fields_error(n: &Vec<u32>, f: u64, p: u64, b: u64) -> Vec<u32> {
 /// `text::name_str`.  Every `validate_ind_d` message that names a declaration
 /// goes through it, which is what keeps the arena's verdict text the pure
 /// checker's word for word.
-pub fn show_name(ar: &EStore, h: &NIdx) -> Result<Vec<u32>, LineErr> {
-    match env::read_name(ar, h) {
+pub fn show_name(pers: &PersTier, ar: &EStore, h: &NIdx) -> Result<Vec<u32>, LineErr> {
+    match env::read_name(pers, ar, h) {
         Err(e) => fail(e),
         Ok(n) => Ok(text::name_str(&n)),
     }
@@ -1837,6 +1862,7 @@ pub fn show_name(ar: &EStore, h: &NIdx) -> Result<Vec<u32>, LineErr> {
 /// One constructor record, validated against the block's own declarations:
 /// the redundant `cidx` and `induct` fields and the declared `numFields`.
 pub fn check_one_ctor(
+    pers: &PersTier,
     ar: &EStore,
     fuel: u64,
     st: &StateD,
@@ -1850,11 +1876,11 @@ pub fn check_one_ctor(
         None => {}
         Some(ci) => {
             if ci != j {
-                let ns = match show_name(ar, n) {
+                let ns = match show_name(pers, ar, n) {
                     Err(e) => return Err(e),
                     Ok(v) => v,
                 };
-                let ts = match show_name(ar, t) {
+                let ts = match show_name(pers, ar, t) {
                     Err(e) => return Err(e),
                     Ok(v) => v,
                 };
@@ -1870,15 +1896,15 @@ pub fn check_one_ctor(
                 Ok(v) => v,
             };
             if !iwn.eq2(t) {
-                let ns = match show_name(ar, n) {
+                let ns = match show_name(pers, ar, n) {
                     Err(e) => return Err(e),
                     Ok(v) => v,
                 };
-                let is = match show_name(ar, &iwn) {
+                let is = match show_name(pers, ar, &iwn) {
                     Err(e) => return Err(e),
                     Ok(v) => v,
                 };
-                let ts = match show_name(ar, t) {
+                let ts = match show_name(pers, ar, t) {
                     Err(e) => return Err(e),
                     Ok(v) => v,
                 };
@@ -1893,12 +1919,12 @@ pub fn check_one_ctor(
         Err(e) => return Err(e),
         Ok(v) => v,
     };
-    let b = match ind_pi_tele_len(ar, fuel, &cty) {
+    let b = match ind_pi_tele_len(pers, ar, fuel, &cty) {
         Err(e) => return Err(e),
         Ok(v) => v,
     };
     if n_pd + c.num_fields != b {
-        let ns = match show_name(ar, n) {
+        let ns = match show_name(pers, ar, n) {
             Err(e) => return Err(e),
             Ok(v) => v,
         };
@@ -1912,6 +1938,7 @@ pub fn check_one_ctor(
 /// the inner `for` of the twin's reordering, with the accumulator passed by
 /// value.
 pub fn order_type_ctors(
+    pers: &PersTier,
     ar: &EStore,
     fuel: u64,
     st: &StateD,
@@ -1929,19 +1956,19 @@ pub fn order_type_ctors(
     while i < n {
         let nm = &ns[i];
         let k = match ctor_ix.get(nm) {
-            None => match show_name(ar, nm) {
+            None => match show_name(pers, ar, nm) {
                 Err(e) => return Err(e),
                 Ok(v) => return invalid(no_such_ctor_error(&v)),
             },
             Some(k) => *k as usize,
         };
         if k >= cts.len() {
-            match show_name(ar, nm) {
+            match show_name(pers, ar, nm) {
                 Err(e) => return Err(e),
                 Ok(v) => return invalid(no_such_ctor_error(&v)),
             }
         }
-        match check_one_ctor(ar, fuel, st, nm, t, &cts[k], j, n_pd) {
+        match check_one_ctor(pers, ar, fuel, st, nm, t, &cts[k], j, n_pd) {
             Err(e) => return Err(e),
             Ok(()) => {}
         }
@@ -1957,6 +1984,7 @@ pub fn order_type_ctors(
 /// order: a record array in another order is the same block, and the recursor
 /// generated from it is the same one.
 pub fn order_block_ctors(
+    pers: &PersTier,
     ar: &EStore,
     fuel: u64,
     st: &StateD,
@@ -1970,7 +1998,7 @@ pub fn order_block_ctors(
     let n = ty_names.len();
     let mut t_at = 0usize;
     while t_at < n {
-        match order_type_ctors(
+        match order_type_ctors(pers,
             ar,
             fuel,
             st,
@@ -2000,6 +2028,7 @@ pub fn order_block_ctors(
 /// `con_ron_core::kernel::level::is_equiv`, which is the twin's
 /// `Level.isEquiv (← readLevel s) .zero`.
 pub fn k_expected_of(
+    pers: &PersTier,
     ar: &EStore,
     fuel: u64,
     ty_types: &Vec<EIdx>,
@@ -2012,13 +2041,13 @@ pub fn k_expected_of(
     if listed[0].len() != 1 {
         return Ok(Some(false));
     }
-    let res = match pi_result(ar, fuel, &ty_types[0]) {
+    let res = match pi_result(pers, ar, fuel, &ty_types[0]) {
         Err(e) => return Err(e),
         Ok(v) => v,
     };
-    match env::view_e(ar, &res) {
+    match env::view_e(pers, ar, &res) {
         Err(e) => fail(e),
-        Ok(ENodeView::Sort(s)) => match env::read_level(ar, &s) {
+        Ok(ENodeView::Sort(s)) => match env::read_level(pers, ar, &s) {
             Err(e) => fail(e),
             Ok(l) => {
                 let z = level::zero();
@@ -2178,6 +2207,7 @@ pub fn rec_indices_error(rn: &Vec<u32>, a: u64, t: &Vec<u32>, b: u64, p: u64) ->
 /// parameters are peeled; unreadable at a former declared at a definition, and
 /// then not checked.
 pub fn check_rec_indices(
+    pers: &PersTier,
     ar: &EStore,
     fuel: u64,
     rn: &NIdx,
@@ -2191,16 +2221,16 @@ pub fn check_rec_indices(
     let mut i = 0usize;
     while i < n {
         if ty_names[i].eq2(t_pre) {
-            match env::pi_sort_tele_len(ar, fuel, &ty_types[i]) {
+            match env::pi_sort_tele_len(pers, ar, fuel, &ty_types[i]) {
                 Err(e) => return fail(e),
                 Ok(None) => {}
                 Ok(Some(k)) => {
                     if n_pd + num_indices != k {
-                        let rs = match show_name(ar, rn) {
+                        let rs = match show_name(pers, ar, rn) {
                             Err(e) => return Err(e),
                             Ok(v) => v,
                         };
-                        let ts = match show_name(ar, t_pre) {
+                        let ts = match show_name(pers, ar, t_pre) {
                             Err(e) => return Err(e),
                             Ok(v) => v,
                         };
@@ -2224,6 +2254,7 @@ pub fn check_rec_indices(
 /// One recursor record: the counts and the K flag the GENERATED recursor
 /// carries.
 pub fn check_one_rec(
+    pers: &PersTier,
     ar: &EStore,
     fuel: u64,
     st: &StateD,
@@ -2240,19 +2271,19 @@ pub fn check_one_rec(
         Ok(v) => v,
     };
     if r.num_params != n_pd {
-        match show_name(ar, &rn) {
+        match show_name(pers, ar, &rn) {
             Err(e) => return Err(e),
             Ok(v) => return invalid(rec_params_error(&v, r.num_params, n_pd)),
         }
     }
     if r.num_motives != n_types {
-        match show_name(ar, &rn) {
+        match show_name(pers, ar, &rn) {
             Err(e) => return Err(e),
             Ok(v) => return invalid(rec_motives_error(&v, r.num_motives, n_types)),
         }
     }
     if r.num_minors != n_ctors {
-        match show_name(ar, &rn) {
+        match show_name(pers, ar, &rn) {
             Err(e) => return Err(e),
             Ok(v) => return invalid(rec_minors_error(&v, r.num_minors, n_ctors)),
         }
@@ -2261,21 +2292,21 @@ pub fn check_one_rec(
         None => {}
         Some(k_e) => {
             if r.k != *k_e {
-                match show_name(ar, &rn) {
+                match show_name(pers, ar, &rn) {
                     Err(e) => return Err(e),
                     Ok(v) => return invalid(rec_k_error(&v, r.k, *k_e)),
                 }
             }
         }
     }
-    match env::view_n(ar, &rn) {
+    match env::view_n(pers, ar, &rn) {
         Err(e) => fail(e),
         Ok(NNodeView::Str(t_pre, last)) => {
             const R_REC: [u32; 3] = [
                 114, 101, 99,
             ];
             if text::cps_beq(&last, &R_REC) {
-                check_rec_indices(ar, fuel, &rn, &t_pre, r.num_indices, ty_names, ty_types, n_pd)
+                check_rec_indices(pers, ar, fuel, &rn, &t_pre, r.num_indices, ty_names, ty_types, n_pd)
             } else {
                 Ok(())
             }
@@ -2289,6 +2320,7 @@ pub fn check_one_rec(
 /// specialises a nested block into a mutual one with a mimic type per nested
 /// occurrence, and the recursors it generates are the SPECIALISED block's.
 pub fn check_rec_records(
+    pers: &PersTier,
     ar: &EStore,
     fuel: u64,
     st: &StateD,
@@ -2303,7 +2335,7 @@ pub fn check_rec_records(
     let n = rcs.len();
     let mut i = 0usize;
     while i < n {
-        match check_one_rec(
+        match check_one_rec(pers,
             ar, fuel, st, &rcs[i], ty_names, ty_types, n_pd, n_types, n_ctors, k_exp,
         ) {
             Err(e) => return Err(e),
@@ -2327,6 +2359,7 @@ pub fn check_rec_records(
 /// error channel.  The twin's two `for`/`mut` loops are the functions above
 /// (this module's note).
 pub fn validate_ind_d(
+    pers: &PersTier,
     ar: &EStore,
     st: &StateD,
     tys: &Vec<IndTypeRec>,
@@ -2386,8 +2419,8 @@ pub fn validate_ind_d(
         return invalid(ctor_count_error(flat.len() as u64, cts.len() as u64));
     }
     let ctor_ix = ctor_index_of(&ctor_names);
-    let fuel = store_fuel(ar);
-    let ordered = match order_block_ctors(ar, fuel, st, &ty_names, &listed, cts, &ctor_ix, n_pd)
+    let fuel = store_fuel(pers, ar);
+    let ordered = match order_block_ctors(pers, ar, fuel, st, &ty_names, &listed, cts, &ctor_ix, n_pd)
     {
         Err(e) => return Err(e),
         Ok(v) => v,
@@ -2397,12 +2430,12 @@ pub fn validate_ind_d(
     let nested = any_ty_nested(tys);
     let n_types = tys.len() as u64;
     let n_ctors = ordered.len() as u64;
-    let k_exp = match k_expected_of(ar, fuel, &ty_types, &listed, &ordered) {
+    let k_exp = match k_expected_of(pers, ar, fuel, &ty_types, &listed, &ordered) {
         Err(e) => return Err(e),
         Ok(v) => v,
     };
     if !nested {
-        match check_rec_records(
+        match check_rec_records(pers,
             ar, fuel, st, rcs, &ty_names, &ty_types, n_pd, n_types, n_ctors, &k_exp,
         ) {
             Err(e) => return Err(e),
@@ -2546,6 +2579,7 @@ pub fn in_model_decline(t0: &Vec<u32>, why: &Vec<u32>) -> Vec<u32> {
 /// Split out of [`install_ind_d`] so that the caller's tail after its own
 /// `match` is one call.
 pub fn install_gen<G: Modeller>(
+    pers: &PersTier,
     m: &G,
     ar: &mut AState,
     st: &mut StateD,
@@ -2556,15 +2590,15 @@ pub fn install_gen<G: Modeller>(
 ) -> Result<(), LineErr> {
     let gen = {
         let ctx = state_model_ctx(st);
-        m.generate(&mut ar.store, &ctx, b)
+        m.generate(pers, &mut ar.store, &ctx, b)
     };
     match gen {
         Err(why) => {
             if st.in_model_census {
                 st.in_model_declined.push((t0.dup2(), why));
-                push_decl(&mut ar.store, st, IDeclaration::IndDecl(block, n_pd))
+                push_decl(pers, &mut ar.store, st, IDeclaration::IndDecl(block, n_pd))
             } else {
-                match show_name(&ar.store, t0) {
+                match show_name(pers, &ar.store, t0) {
                     Err(e) => Err(e),
                     Ok(t) => declined(in_model_decline(&t, &why)),
                 }
@@ -2574,7 +2608,7 @@ pub fn install_gen<G: Modeller>(
             // a generated record is a declaration of the FOLD and not a record
             // of the file: booked in `push_gen_list`, so the verdict line
             // reports the file's own count
-            match push_gen_list(ar, st, &gen2, t0) {
+            match push_gen_list(pers, ar, st, &gen2, t0) {
                 Err(e) => return Err(e),
                 Ok(()) => {}
             }
@@ -2588,7 +2622,7 @@ pub fn install_gen<G: Modeller>(
                 i += 1;
             }
             st.in_model_gen.push((ord, copy));
-            push_decl(&mut ar.store, st, IDeclaration::IndDecl(block, n_pd))
+            push_decl(pers, &mut ar.store, st, IDeclaration::IndDecl(block, n_pd))
         }
     }
 }
@@ -2602,6 +2636,7 @@ pub fn install_gen<G: Modeller>(
 /// **EVERY BLOCK IS AN `IndDecl`**: the basis-pin match is `prepare`'s and the
 /// fold's, never the parser's.
 pub fn install_ind_d<G: Modeller>(
+    pers: &PersTier,
     m: &G,
     ar: &mut AState,
     st: &mut StateD,
@@ -2615,12 +2650,12 @@ pub fn install_ind_d<G: Modeller>(
         Ok(v) => v,
     };
     // the projection rewrite's owner table (the export's own shape data)
-    match register_proj_owners(ar, st, tys, &cts, rcs, &block) {
+    match register_proj_owners(pers, ar, st, tys, &cts, rcs, &block) {
         Err(e) => return Err(e),
         Ok(()) => {}
     }
     let t0 = if block.len() == 0 {
-        match (&mut ar.store).intern_name(NNodeView::Anonymous) {
+        match (&mut ar.store).intern_name(pers, NNodeView::Anonymous) {
             Err(e) => return fail(e),
             Ok(h) => h,
         }
@@ -2633,9 +2668,9 @@ pub fn install_ind_d<G: Modeller>(
     };
     note_ind_blocks(st, &b);
     if st.in_model && wants(&b) {
-        install_gen(m, ar, st, block, n_pd, &t0, &b)
+        install_gen(pers, m, ar, st, block, n_pd, &t0, &b)
     } else {
-        push_decl(&mut ar.store, st, IDeclaration::IndDecl(block, n_pd))
+        push_decl(pers, &mut ar.store, st, IDeclaration::IndDecl(block, n_pd))
     }
 }
 
@@ -2711,6 +2746,7 @@ pub fn quot_kind_of(k: &Vec<u32>) -> Option<QuotKind> {
 /// `IDeclaration` records.  Every branch, guard and error string is
 /// con-leche's.
 pub fn process_line_core_d<G: Modeller>(
+    pers: &PersTier,
     m: &G,
     ar: &mut AState,
     st: &mut StateD,
@@ -2730,7 +2766,7 @@ pub fn process_line_core_d<G: Modeller>(
             }
             // `Quot.sound` is the FOLD's: the axiom record is forwarded like
             // any other, and `sorryAx` with it.
-            push_decl(&mut ar.store, st, IDeclaration::AxiomDecl(cvp))
+            push_decl(pers, &mut ar.store, st, IDeclaration::AxiomDecl(cvp))
         }
         DeclRec::Defn(cvr, value, hints, safety) => {
             let cvp = match parse_cv_d(st, cvr) {
@@ -2753,11 +2789,11 @@ pub fn process_line_core_d<G: Modeller>(
                 HintsRec::Regular(n) => ReducibilityHint::Regular(*n),
             };
             // the projection-function rewrite
-            match proj_rewrite_d(ar, st, &cvp, &vl) {
+            match proj_rewrite_d(pers, ar, st, &cvp, &vl) {
                 Err(e) => fail(e),
                 Ok(Some(vl2)) => {
                     let n = cvp.name.dup2();
-                    match push_decl(&mut ar.store, st, IDeclaration::DefnDecl(cvp, vl2, h)) {
+                    match push_decl(pers, &mut ar.store, st, IDeclaration::DefnDecl(cvp, vl2, h)) {
                         Err(e) => Err(e),
                         Ok(()) => {
                             st.proj_rewrites.push(n);
@@ -2765,7 +2801,7 @@ pub fn process_line_core_d<G: Modeller>(
                         }
                     }
                 }
-                Ok(None) => push_decl(&mut ar.store, st, IDeclaration::DefnDecl(cvp, vl, h)),
+                Ok(None) => push_decl(pers, &mut ar.store, st, IDeclaration::DefnDecl(cvp, vl, h)),
             }
         }
         DeclRec::Thm(cvr, value) => {
@@ -2778,11 +2814,11 @@ pub fn process_line_core_d<G: Modeller>(
                 Ok(v) => v,
             };
             // a proof field's projection function is exported as a theorem
-            match proj_rewrite_d(ar, st, &cvp, &vl) {
+            match proj_rewrite_d(pers, ar, st, &cvp, &vl) {
                 Err(e) => fail(e),
                 Ok(Some(vl2)) => {
                     let n = cvp.name.dup2();
-                    match push_decl(&mut ar.store, st, IDeclaration::ThmDecl(cvp, vl2)) {
+                    match push_decl(pers, &mut ar.store, st, IDeclaration::ThmDecl(cvp, vl2)) {
                         Err(e) => Err(e),
                         Ok(()) => {
                             st.proj_rewrites.push(n);
@@ -2790,7 +2826,7 @@ pub fn process_line_core_d<G: Modeller>(
                         }
                     }
                 }
-                Ok(None) => push_decl(&mut ar.store, st, IDeclaration::ThmDecl(cvp, vl)),
+                Ok(None) => push_decl(pers, &mut ar.store, st, IDeclaration::ThmDecl(cvp, vl)),
             }
         }
         DeclRec::Opaq(cvr, value, is_unsafe) => {
@@ -2809,7 +2845,7 @@ pub fn process_line_core_d<G: Modeller>(
                 Err(e) => return Err(e),
                 Ok(v) => v,
             };
-            push_decl(&mut ar.store, st, IDeclaration::OpaqueDecl(cvp, vl))
+            push_decl(pers, &mut ar.store, st, IDeclaration::OpaqueDecl(cvp, vl))
         }
         DeclRec::Quot(cvr, kind) => {
             // ONE RECORD PER `#QUOT` LINE: the constant as the file declares
@@ -2820,14 +2856,14 @@ pub fn process_line_core_d<G: Modeller>(
             };
             match quot_kind_of(kind) {
                 None => merr(quot_kind_error(kind)),
-                Some(qk) => push_decl(&mut ar.store, st, IDeclaration::QuotDecl(qk, cv)),
+                Some(qk) => push_decl(pers, &mut ar.store, st, IDeclaration::QuotDecl(qk, cv)),
             }
         }
         DeclRec::Ind(tys, cts, rcs) => {
             st.ind_count += 1;
-            match validate_ind_d(&ar.store, st, tys, cts, rcs) {
+            match validate_ind_d(pers, &ar.store, st, tys, cts, rcs) {
                 Err(e) => Err(e),
-                Ok((cts2, n_pd)) => install_ind_d(m, ar, st, tys, cts2, rcs, n_pd),
+                Ok((cts2, n_pd)) => install_ind_d(pers, m, ar, st, tys, cts2, rcs, n_pd),
             }
         }
     }
@@ -2838,12 +2874,13 @@ pub fn process_line_core_d<G: Modeller>(
 /// a declaration record.  `sorryAx` is the FOLD's: the parse forwards every
 /// declaration record, the `sorryAx` axiom record included.
 pub fn apply_decl_d<G: Modeller>(
+    pers: &PersTier,
     m: &G,
     ar: &mut AState,
     st: &mut StateD,
     d: &DeclRec,
 ) -> Result<(), LineErr> {
-    process_line_core_d(m, ar, st, d)
+    process_line_core_d(pers, m, ar, st, d)
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:713-726 applyLine
@@ -2853,16 +2890,17 @@ pub fn apply_decl_d<G: Modeller>(
 /// does with it is resolve the indices, INTERN the nodes, and run the rewrite
 /// and the modeller seam.
 pub fn apply_line<G: Modeller>(
+    pers: &PersTier,
     m: &G,
     ar: &mut AState,
     st: &mut StateD,
     r: &LineRec,
 ) -> Result<(), LineErr> {
     match r {
-        LineRec::Expr(i, e) => parse_expr_entry_d(&mut ar.store, st, *i, e),
-        LineRec::Name(i, n) => parse_name_entry_d(&mut ar.store, st, *i, n),
-        LineRec::Level(i, l) => parse_level_entry_d(&mut ar.store, st, *i, l),
-        LineRec::Decl(d) => apply_decl_d(m, ar, st, d),
+        LineRec::Expr(i, e) => parse_expr_entry_d(pers, &mut ar.store, st, *i, e),
+        LineRec::Name(i, n) => parse_name_entry_d(pers, &mut ar.store, st, *i, n),
+        LineRec::Level(i, l) => parse_level_entry_d(pers, &mut ar.store, st, *i, l),
+        LineRec::Decl(d) => apply_decl_d(pers, m, ar, st, d),
         LineRec::Header => Ok(()),
         LineRec::Blank => Ok(()),
     }
@@ -2917,6 +2955,7 @@ pub fn parse_result_of_state(st: StateD) -> ParseResultD {
 /// `scanLineSpec` and lets `@[csimp]` substitute `scanLineFwd`; this calls
 /// `scan_line_fwd`, which is what all three binaries execute.
 pub fn apply_final_line<G: Modeller>(
+    pers: &PersTier,
     m: &G,
     ar: &mut AState,
     st: &mut StateD,
@@ -2932,7 +2971,7 @@ pub fn apply_final_line<G: Modeller>(
             }),
             line_no,
         )),
-        Ok((r, _)) => match apply_line(m, ar, st, &r) {
+        Ok((r, _)) => match apply_line(pers, m, ar, st, &r) {
             Err(e) => Err(line_err_to_check(e, line_no)),
             Ok(()) => Ok(()),
         },
@@ -2946,6 +2985,7 @@ pub fn apply_final_line<G: Modeller>(
 /// from a malformed one by whether the rest of the chunk holds a newline at
 /// all — which is why a scan failure is not immediately an error.
 pub fn feed_chunk<G: Modeller>(
+    pers: &PersTier,
     m: &G,
     ar: &mut AState,
     st: &mut StateD,
@@ -2975,7 +3015,7 @@ pub fn feed_chunk<G: Modeller>(
                 if j == 0 {
                     return Ok((line_no, i));
                 }
-                match apply_line(m, ar, st, &r) {
+                match apply_line(pers, m, ar, st, &r) {
                     Err(e) => return Err(line_err_to_check(e, line_no + 1)),
                     Ok(()) => {}
                 }
@@ -3032,6 +3072,7 @@ pub fn size_error() -> (CheckError, u64) {
 /// then the last line.  The specification the streaming parse is proved equal
 /// to.
 pub fn parse_bytes<G: Modeller>(
+    pers: &PersTier,
     m: &G,
     ar: &mut AState,
     b: &[u8],
@@ -3041,19 +3082,20 @@ pub fn parse_bytes<G: Modeller>(
     if (b.len() as u128) >= USIZE_SIZE {
         return Err(size_error());
     }
-    let mut st = match state_d_init(&mut ar.store, in_model, census) {
+    let mut st = match state_d_init(pers, &mut ar.store, in_model, census) {
         Err(e) => return Err((e, 0)),
         Ok(v) => v,
     };
-    match feed_chunk(m, ar, &mut st, b, 0, 0) {
+    match feed_chunk(pers, m, ar, &mut st, b, 0, 0) {
         Err(e) => Err(e),
-        Ok((line_no, tail)) => parse_bytes_final(m, ar, st, b, tail, line_no),
+        Ok((line_no, tail)) => parse_bytes_final(pers, m, ar, st, b, tail, line_no),
     }
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:827-839 parseBytes
 /// The cited tail of `parseBytes`: the last line, the one no newline ends.
 pub fn parse_bytes_final<G: Modeller>(
+    pers: &PersTier,
     m: &G,
     ar: &mut AState,
     st: StateD,
@@ -3063,7 +3105,7 @@ pub fn parse_bytes_final<G: Modeller>(
 ) -> Result<ParseResultD, (CheckError, u64)> {
     let mut st = st;
     if tail < b.len() {
-        match apply_final_line(m, ar, &mut st, b, tail, line_no + 1) {
+        match apply_final_line(pers, m, ar, &mut st, b, tail, line_no + 1) {
             Err(e) => return Err(e),
             Ok(()) => {}
         }
@@ -3076,13 +3118,14 @@ pub fn parse_bytes_final<G: Modeller>(
 /// — wholesale direct parse of a string (the built-in prelude, tests and small
 /// inputs): `parse_bytes` of its UTF-8.
 pub fn parse_export_d<G: Modeller>(
+    pers: &PersTier,
     m: &G,
     ar: &mut AState,
     contents: &str,
     in_model: bool,
     census: bool,
 ) -> Result<ParseResultD, (CheckError, u64)> {
-    parse_bytes(m, ar, contents.as_bytes(), in_model, census)
+    parse_bytes(pers, m, ar, contents.as_bytes(), in_model, census)
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:848-865 chunkStep
@@ -3092,6 +3135,7 @@ pub fn parse_export_d<G: Modeller>(
 /// new incomplete tail is cut off for the next chunk; `total` counts the bytes
 /// read before this chunk, for the size guard.
 pub fn chunk_step<G: Modeller>(
+    pers: &PersTier,
     m: &G,
     ar: &mut AState,
     st: &mut StateD,
@@ -3110,7 +3154,7 @@ pub fn chunk_step<G: Modeller>(
         v.extend_from_slice(buf0);
         v
     };
-    match feed_chunk(m, ar, st, &buf[..], 0, line_no) {
+    match feed_chunk(pers, m, ar, st, &buf[..], 0, line_no) {
         Err(e) => Err(e),
         Ok((line_no2, tail)) => Ok((
             buf[tail..].to_vec(),
@@ -3124,6 +3168,7 @@ pub fn chunk_step<G: Modeller>(
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:792-797 chunkFinish` —
 /// the end of the stream: the carried tail, if any, is its last line.
 pub fn chunk_finish<G: Modeller>(
+    pers: &PersTier,
     m: &G,
     ar: &mut AState,
     st: StateD,
@@ -3134,7 +3179,7 @@ pub fn chunk_finish<G: Modeller>(
     if carry.len() == 0 {
         return Ok(parse_result_of_state(st));
     }
-    match apply_final_line(m, ar, &mut st, carry, 0, line_no + 1) {
+    match apply_final_line(pers, m, ar, &mut st, carry, 0, line_no + 1) {
         Err(e) => Err(e),
         Ok(()) => Ok(parse_result_of_state(st)),
     }
@@ -3164,13 +3209,14 @@ pub fn concat_bytes(chunks: &Vec<Vec<u8>>) -> Vec<u8> {
 /// was cut.  The twin's `parseChunksGo` is this loop; `-loops-to-rec` gives it
 /// back.
 pub fn parse_chunks<G: Modeller>(
+    pers: &PersTier,
     m: &G,
     ar: &mut AState,
     chunks: &Vec<Vec<u8>>,
     in_model: bool,
     census: bool,
 ) -> Result<ParseResultD, (CheckError, u64)> {
-    let mut st = match state_d_init(&mut ar.store, in_model, census) {
+    let mut st = match state_d_init(pers, &mut ar.store, in_model, census) {
         Err(e) => return Err((e, 0)),
         Ok(v) => v,
     };
@@ -3180,7 +3226,7 @@ pub fn parse_chunks<G: Modeller>(
     let n = chunks.len();
     let mut i = 0usize;
     while i < n {
-        match chunk_step(m, ar, &mut st, carry, line_no, total, &chunks[i][..]) {
+        match chunk_step(pers, m, ar, &mut st, carry, line_no, total, &chunks[i][..]) {
             Err(e) => return Err(e),
             Ok((c2, l, t)) => {
                 carry = c2;
@@ -3190,7 +3236,7 @@ pub fn parse_chunks<G: Modeller>(
         }
         i += 1;
     }
-    chunk_finish(m, ar, st, &carry[..], line_no)
+    chunk_finish(pers, m, ar, st, &carry[..], line_no)
 }
 
 /// con-leche: none — the line number folded into the message
@@ -3359,13 +3405,14 @@ mod tests {
     }
 
     fn parse_with(text: &str, in_model: bool, census: bool) -> Parsed {
+        let pers: &PersTier = &PersTier::empty();
         let mut ar = AState::init(EStore::empty());
-        let r = parse_export_d(&DeclineModeller {}, &mut ar, text, in_model, census);
+        let r = parse_export_d(pers, &DeclineModeller {}, &mut ar, text, in_model, census);
         Parsed {
             r,
-            n_e: ar.store.node_count(),
-            n_l: ar.store.ls().node_count(),
-            n_n: ar.store.ns().node_count(),
+            n_e: ar.store.node_count(pers),
+            n_l: ar.store.ls().node_count(pers),
+            n_n: ar.store.ns().node_count(pers),
         }
     }
 
@@ -3375,8 +3422,8 @@ mod tests {
 
     /// A `NIdx` read back and rendered, as a Rust string: the tests' own
     /// `readName`, which is what every `validate_ind_d` message does.
-    fn nm(ar: &EStore, h: &NIdx) -> String {
-        match env::read_name(ar, h) {
+    fn nm(pers: &PersTier, ar: &EStore, h: &NIdx) -> String {
+        match env::read_name(pers, ar, h) {
             Ok(n) => s_of(&text::name_str(&n)),
             Err(_) => "<dangling>".to_string(),
         }
@@ -3410,12 +3457,13 @@ mod tests {
     /// axiom over it.
     #[test]
     fn a_minimal_stream_parses() {
+        let pers: &PersTier = &PersTier::empty();
         let mut ar = AState::init(EStore::empty());
-        let r = parse_export_d(&DeclineModeller {}, &mut ar, minimal(), true, false)
+        let r = parse_export_d(pers, &DeclineModeller {}, &mut ar, minimal(), true, false)
             .unwrap_or_else(|e| panic!("{}", show(&e)));
         assert_eq!(r.decls.len(), 1);
         match &r.decls[0] {
-            IDeclaration::AxiomDecl(cv) => assert_eq!(nm(&ar.store, &cv.name), "A"),
+            IDeclaration::AxiomDecl(cv) => assert_eq!(nm(pers, &ar.store, &cv.name), "A"),
             _ => panic!("not an axiom"),
         }
     }
@@ -3481,19 +3529,20 @@ mod tests {
     /// against a pin.
     #[test]
     fn a_quot_record_is_one_quot_decl() {
+        let pers: &PersTier = &PersTier::empty();
         let s = concat!(
             "{\"in\":1,\"str\":{\"pre\":0,\"str\":\"Whatever\"}}\n",
             "{\"ie\":0,\"sort\":0}\n",
             "{\"quot\":{\"kind\":\"lift\",\"levelParams\":[],\"name\":1,\"type\":0}}\n"
         );
         let mut ar = AState::init(EStore::empty());
-        let r = parse_export_d(&DeclineModeller {}, &mut ar, s, true, false)
+        let r = parse_export_d(pers, &DeclineModeller {}, &mut ar, s, true, false)
             .unwrap_or_else(|e| panic!("{}", show(&e)));
         assert_eq!(r.decls.len(), 1);
         match &r.decls[0] {
             IDeclaration::QuotDecl(k, cv) => {
                 assert_eq!(cenv::quot_kind_slot(k), 2);
-                assert_eq!(nm(&ar.store, &cv.name), "Whatever");
+                assert_eq!(nm(pers, &ar.store, &cv.name), "Whatever");
             }
             _ => panic!("not a quotient record"),
         }
@@ -3523,6 +3572,7 @@ mod tests {
     /// mode it is recorded and the parse continues.
     #[test]
     fn a_mutual_block_declines_at_the_modeller_point() {
+        let pers: &PersTier = &PersTier::empty();
         let s = mutual_block();
         let p = parse(s);
         match &p.r {
@@ -3539,10 +3589,10 @@ mod tests {
             other => panic!("{}", shown(other)),
         }
         let mut ar = AState::init(EStore::empty());
-        let r = parse_export_d(&DeclineModeller {}, &mut ar, s, true, true)
+        let r = parse_export_d(pers, &DeclineModeller {}, &mut ar, s, true, true)
             .unwrap_or_else(|e| panic!("{}", show(&e)));
         assert_eq!(r.in_model_declined.len(), 1);
-        assert_eq!(nm(&ar.store, &r.in_model_declined[0].0), "T");
+        assert_eq!(nm(pers, &ar.store, &r.in_model_declined[0].0), "T");
     }
 
     /// A block whose constructor declares the wrong `numFields` is INVALID
@@ -3589,6 +3639,7 @@ mod tests {
     /// and not misreported.  An empty chunk anywhere contributes nothing.
     #[test]
     fn chunking_does_not_change_the_parse() {
+        let pers: &PersTier = &PersTier::empty();
         let s = minimal();
         let whole = parse(s);
         let (wd, wn) = match &whole.r {
@@ -3598,11 +3649,11 @@ mod tests {
         for chunk in [1usize, 2, 7, 8, 13, 64] {
             let cs: Vec<Vec<u8>> = s.as_bytes().chunks(chunk).map(|c| c.to_vec()).collect();
             let mut ar = AState::init(EStore::empty());
-            let r = parse_chunks(&DeclineModeller {}, &mut ar, &cs, true, false)
+            let r = parse_chunks(pers, &DeclineModeller {}, &mut ar, &cs, true, false)
                 .unwrap_or_else(|e| panic!("chunk {}: {}", chunk, show(&e)));
             assert_eq!(r.decls.len(), wd, "chunk {}", chunk);
             assert_eq!(
-                (ar.store.node_count(), ar.store.ls().node_count(), ar.store.ns().node_count()),
+                (ar.store.node_count(pers), ar.store.ls().node_count(pers), ar.store.ns().node_count(pers)),
                 wn,
                 "chunk {}",
                 chunk
@@ -3619,7 +3670,7 @@ mod tests {
             Vec::new(),
         ];
         let mut ar = AState::init(EStore::empty());
-        let r = parse_chunks(&DeclineModeller {}, &mut ar, &cs, true, false)
+        let r = parse_chunks(pers, &DeclineModeller {}, &mut ar, &cs, true, false)
             .unwrap_or_else(|e| panic!("{}", show(&e)));
         assert_eq!(r.decls.len(), wd);
     }
@@ -3731,6 +3782,7 @@ mod tests {
     /// its two entries are two allocations that only `==` relates.
     #[test]
     fn two_equal_entries_are_one_node() {
+        let pers: &PersTier = &PersTier::empty();
         let s = concat!(
             "{\"in\":1,\"str\":{\"pre\":0,\"str\":\"A\"}}\n",
             "{\"ie\":0,\"sort\":0}\n",
@@ -3738,23 +3790,24 @@ mod tests {
             "{\"axiom\":{\"isUnsafe\":false,\"levelParams\":[],\"name\":1,\"type\":1}}\n"
         );
         let mut ar = AState::init(EStore::empty());
-        let r = parse_export_d(&DeclineModeller {}, &mut ar, s, true, false)
+        let r = parse_export_d(pers, &DeclineModeller {}, &mut ar, s, true, false)
             .unwrap_or_else(|e| panic!("{}", show(&e)));
         assert_eq!(r.decls.len(), 1);
         // two `ie` entries, one interned node
-        assert_eq!(ar.store.node_count(), 1);
+        assert_eq!(ar.store.node_count(pers), 1);
     }
 
     /// The parse appends to the PERSISTENT tier and never enables the scratch
     /// one (DESIGN.md §8.3: every node the frontend makes is persistent).
     #[test]
     fn the_parse_stays_in_the_persistent_tier() {
+        let pers: &PersTier = &PersTier::empty();
         let mut ar = AState::init(EStore::empty());
-        let r = parse_export_d(&DeclineModeller {}, &mut ar, minimal(), true, false)
+        let r = parse_export_d(pers, &DeclineModeller {}, &mut ar, minimal(), true, false)
             .unwrap_or_else(|e| panic!("{}", show(&e)));
         assert_eq!(r.decls.len(), 1);
         assert_eq!(ar.store.scr_count(), 0);
-        assert_eq!(ar.store.pers_count(), ar.store.node_count());
+        assert_eq!(ar.store.pers_count(pers), ar.store.node_count(pers));
         match &r.decls[0] {
             IDeclaration::AxiomDecl(cv) => {
                 assert!(cv.ty.is_persistent());

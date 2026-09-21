@@ -46,6 +46,7 @@ use crate::arena::monad::{fail, AState};
 use con_ron_core::kernel::core_types::{code_points, CheckError};
 use con_ron_core::kernel::env::CheckMode;
 use con_ron_core::ron::hashmap::Dup;
+use crate::arena::store::PersTier;
 
 // ---------------------------------------------------------------------------
 // The messages of this module's declines
@@ -165,16 +166,17 @@ pub struct ValueGroup {
 /// clause groups, so nothing is lost and a drift between the halves is
 /// impossible.
 pub fn install_constant_val(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
     cv: &IConstantVal,
 ) -> Result<IConstantVal, CheckError> {
-    match check_constant_val_guards(st, fe, cv) {
+    match check_constant_val_guards(pers, st, fe, cv) {
         Err(e) => Err(e),
-        Ok(()) => match annotate_core(st, mode, fe, CHECK_FUEL, 0, &cv.ty) {
+        Ok(()) => match annotate_core(pers, st, mode, fe, CHECK_FUEL, 0, &cv.ty) {
             Err(e) => Err(e),
-            Ok(ty) => install_constant_val_tail(st, fe, cv, ty),
+            Ok(ty) => install_constant_val_tail(pers, st, fe, cv, ty),
         },
     }
 }
@@ -184,27 +186,28 @@ pub fn install_constant_val(
 /// value half of `check{Defn,Thm,Opaque}Val` minus its inference: the guards
 /// and the annotation of the value.
 pub fn install_value(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
     cv: &IConstantVal,
     value: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match loose_bvars_bounded_fast(st, CORE_WALK_FUEL, 0, value) {
+    match loose_bvars_bounded_fast(pers, st, CORE_WALK_FUEL, 0, value) {
         Err(e) => Err(e),
         Ok(b) => {
             if !b {
                 fail(CheckError::Invalid(code_points(&M_LOOSE_VALUE)))
             } else {
-                match has_fvar_fast(st, CORE_WALK_FUEL, value) {
+                match has_fvar_fast(pers, st, CORE_WALK_FUEL, value) {
                     Err(e) => Err(e),
                     Ok(f) => {
                         if f {
                             fail(CheckError::Invalid(code_points(&M_FVAR_VALUE)))
                         } else {
-                            match annotate_core(st, mode, fe, CHECK_FUEL, 0, value) {
+                            match annotate_core(pers, st, mode, fe, CHECK_FUEL, 0, value) {
                                 Err(e) => Err(e),
-                                Ok(value_a) => install_value_tail(st, fe, cv, value_a),
+                                Ok(value_a) => install_value_tail(pers, st, fe, cv, value_a),
                             }
                         }
                     }
@@ -219,22 +222,23 @@ pub fn install_value(
 /// tail past the annotation: the level-parameter and resolution guards on the
 /// ANNOTATED value.
 pub fn install_value_tail(
+    pers: &PersTier,
     st: &mut AState,
     fe: &IFEnv,
     cv: &IConstantVal,
     value_a: EIdx,
 ) -> Result<EIdx, CheckError> {
-    match all_level_params_defined(st, &cv.level_params, &value_a) {
+    match all_level_params_defined(pers, st, &cv.level_params, &value_a) {
         Err(e) => Err(e),
         Ok(d) => {
             if !d {
                 fail(CheckError::Invalid(code_points(&M_UNDECL_VALUE)))
             } else {
-                match consts_resolve_f_fast(st, fe, &value_a) {
+                match consts_resolve_f_fast(pers, st, fe, &value_a) {
                     Err(e) => Err(e),
                     Ok(r) => {
                         if !r {
-                            match unresolved_consts_error(st, &value_a) {
+                            match unresolved_consts_error(pers, st, &value_a) {
                                 Err(e) => Err(e),
                                 Ok(e) => fail(e),
                             }
@@ -260,16 +264,17 @@ pub fn install_value_tail(
 /// the declared one — the inference and conversion calls of `checkConstantVal`
 /// and `check{Defn,Thm,Opaque}Val`, in their order, with their messages.
 pub fn check_value_group(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
     g: &ValueGroup,
 ) -> Result<(), CheckError> {
-    match infer_type_core(st, mode, fe, CHECK_FUEL, 0, &g.cv_a.ty) {
+    match infer_type_core(pers, st, mode, fe, CHECK_FUEL, 0, &g.cv_a.ty) {
         Err(e) => Err(e),
-        Ok(stype) => match ensure_sort_core(st, mode, fe, CHECK_FUEL, 0, &stype) {
+        Ok(stype) => match ensure_sort_core(pers, st, mode, fe, CHECK_FUEL, 0, &stype) {
             Err(e) => Err(e),
-            Ok(u) => check_value_group_value(st, mode, fe, g, &u),
+            Ok(u) => check_value_group_value(pers, st, mode, fe, g, &u),
         },
     }
 }
@@ -281,6 +286,7 @@ pub fn check_value_group(
 /// run here.  A definition's or an opaque's value was annotated at the install
 /// and is taken as it is.
 pub fn check_value_group_value(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -290,15 +296,15 @@ pub fn check_value_group_value(
     if is_thm(&g.kind) {
         match zero_level(st) {
             Err(e) => Err(e),
-            Ok(z) => match lvl_eq(st, u, &z) {
+            Ok(z) => match lvl_eq(pers, st, u, &z) {
                 Err(e) => Err(e),
                 Ok(o) => match lift_fueled(o) {
                     Err(e) => Err(e),
                     Ok(is_prop) => {
                         if is_prop {
-                            match install_value(st, mode, fe, &g.cv_a, &g.jv) {
+                            match install_value(pers, st, mode, fe, &g.cv_a, &g.jv) {
                                 Err(e) => Err(e),
-                                Ok(jv) => check_value_group_tail(st, mode, fe, g, jv),
+                                Ok(jv) => check_value_group_tail(pers, st, mode, fe, g, jv),
                             }
                         } else {
                             fail(CheckError::Invalid(code_points(&M_THM_NOT_PROP)))
@@ -308,7 +314,7 @@ pub fn check_value_group_value(
             },
         }
     } else {
-        check_value_group_tail(st, mode, fe, g, g.jv.dup2())
+        check_value_group_tail(pers, st, mode, fe, g, g.jv.dup2())
     }
 }
 
@@ -318,16 +324,17 @@ pub fn check_value_group_value(
 /// against the declared one.  Split off so the two branches of the join are
 /// tail calls.
 pub fn check_value_group_tail(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
     g: &ValueGroup,
     jv: EIdx,
 ) -> Result<(), CheckError> {
-    match infer_type_core(st, mode, fe, CHECK_FUEL, 0, &jv) {
+    match infer_type_core(pers, st, mode, fe, CHECK_FUEL, 0, &jv) {
         Err(e) => Err(e),
         Ok(vtype) => {
-            match is_def_eq_core(st, mode, fe, CHECK_FUEL, 0, &vtype, &g.cv_a.ty) {
+            match is_def_eq_core(pers, st, mode, fe, CHECK_FUEL, 0, &vtype, &g.cv_a.ty) {
                 Err(e) => Err(e),
                 Ok(ok) => {
                     if ok {

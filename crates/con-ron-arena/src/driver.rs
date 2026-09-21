@@ -73,6 +73,7 @@ use con_ron_core::kernel::core_types::CheckError;
 use con_ron_core::kernel::env::CheckMode;
 
 use con_ron::driver::{message, ms_secs};
+use arena_core::arena::store::PersTier;
 
 /// con-leche: none — the Lean runtime's per-thread stack reservation, which
 /// `Main.lean`'s `--jobs` note measures at 1 GiB per worker.
@@ -109,20 +110,20 @@ pub fn value_kind_word(k: &ValueKind) -> &'static str {
 /// store is asked, which is the one thing every rendering in this crate has to
 /// do that con-ron's does not.  A dangling handle renders as `?` rather than
 /// failing — this is a log line, never a verdict.
-pub fn decl_label(ar: &EStore, d: &IDeclaration) -> String {
+pub fn decl_label(pers: &PersTier, ar: &EStore, d: &IDeclaration) -> String {
     let (kind, n) = match d {
-        IDeclaration::AxiomDecl(cv) => ("axiom", Some(name_of(ar, &cv.name))),
-        IDeclaration::DefnDecl(cv, _, _) => ("def", Some(name_of(ar, &cv.name))),
-        IDeclaration::ThmDecl(cv, _) => ("theorem", Some(name_of(ar, &cv.name))),
-        IDeclaration::OpaqueDecl(cv, _) => ("opaque", Some(name_of(ar, &cv.name))),
+        IDeclaration::AxiomDecl(cv) => ("axiom", Some(name_of(pers, ar, &cv.name))),
+        IDeclaration::DefnDecl(cv, _, _) => ("def", Some(name_of(pers, ar, &cv.name))),
+        IDeclaration::ThmDecl(cv, _) => ("theorem", Some(name_of(pers, ar, &cv.name))),
+        IDeclaration::OpaqueDecl(cv, _) => ("opaque", Some(name_of(pers, ar, &cv.name))),
         IDeclaration::BasisDecl(_) => ("basis", None),
         IDeclaration::IndDecl(block, _) => (
             "inductive",
             block
                 .first()
-                .map(|ci| name_of(ar, &ienv::i_constant_info_name(ci))),
+                .map(|ci| name_of(pers, ar, &ienv::i_constant_info_name(ci))),
         ),
-        IDeclaration::QuotDecl(_, cv) => ("quot", Some(name_of(ar, &cv.name))),
+        IDeclaration::QuotDecl(_, cv) => ("quot", Some(name_of(pers, ar, &cv.name))),
     };
     match n {
         Some(n) => format!("{} {}", kind, n),
@@ -134,8 +135,8 @@ pub fn decl_label(ar: &EStore, d: &IDeclaration) -> String {
 /// A name handle, rendered.  `arena_core::arena::env::read_name` is the
 /// readback and `con_ron::render::name_str` the rendering; a handle the store
 /// does not know renders as `?`.
-pub fn name_of(ar: &EStore, h: &arena_core::arena::handle::NIdx) -> String {
-    match ienv::read_name(ar, h) {
+pub fn name_of(pers: &PersTier, ar: &EStore, h: &arena_core::arena::handle::NIdx) -> String {
+    match ienv::read_name(pers, ar, h) {
         Ok(n) => con_ron::render::name_str(&n),
         Err(_) => "?".to_string(),
     }
@@ -183,7 +184,7 @@ pub fn workers_for(jobs: u64, m: usize) -> usize {
 pub trait PhaseObserver {
     /// con-leche: Main.lean:67-141 installLoop
     /// Before record `pos` of `total` is installed.
-    fn install_before(&mut self, _ar: &EStore, _pos: u64, _total: usize, _d: &IDeclaration) {}
+    fn install_before(&mut self, _pers: &PersTier, _ar: &EStore, _pos: u64, _total: usize, _d: &IDeclaration) {}
 
     /// con-leche: Main.lean:318-421 checkDeclsIO
     /// Phase A failed at fold position `pos`.
@@ -199,7 +200,7 @@ pub trait PhaseObserver {
     /// parse's 6 137 973 plus 370 746) is the PERSISTENT one, printed beside
     /// the total; phase B promotes nothing, so it is also the count at the
     /// end of the run.
-    fn install_done(&mut self, _ar: &EStore, _total: usize, _pend: usize) {}
+    fn install_done(&mut self, _pers: &PersTier, _ar: &EStore, _total: usize, _pend: usize) {}
 
     /// con-leche: Main.lean:318-421 checkDeclsIO
     /// The worker count phase B is about to run on, so that the summary
@@ -208,7 +209,7 @@ pub trait PhaseObserver {
 
     /// con-leche: Main.lean:143-158 checkHeartbeat
     /// After the `done`-th of `m` recorded checks completed.
-    fn check_after(&mut self, _ar: &EStore, _done: usize, _m: usize, _pc: &PendingCheck) {}
+    fn check_after(&mut self, _pers: &PersTier, _ar: &EStore, _done: usize, _m: usize, _pc: &PendingCheck) {}
 
     /// con-leche: Main.lean:318-421 checkDeclsIO
     /// Phase B failed at fold position `pos`.
@@ -235,6 +236,7 @@ pub trait PhaseObserver {
 /// own scratch tier from its own caches — so `n` workers claiming records off
 /// a counter is a change to this `while` and to nothing else.
 pub fn check_decls_driver<O: PhaseObserver>(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
@@ -246,8 +248,8 @@ pub fn check_decls_driver<O: PhaseObserver>(
     let mut p: (u64, IFEnv, Vec<PendingCheck>) = (0, ienv::mk_ifenv(ienv::i_env_empty()), Vec::new());
     let mut i = 0usize;
     while i < total {
-        obs.install_before(&st.store, p.0, total, &ds[i]);
-        match checker::annot_decl_step(st, mode, pins, p, &ds[i]) {
+        obs.install_before(pers, &st.store, p.0, total, &ds[i]);
+        match checker::annot_decl_step(pers, st, mode, pins, p, &ds[i]) {
             Err(e) => {
                 obs.install_failed(e.1, total);
                 return Err(e);
@@ -259,7 +261,7 @@ pub fn check_decls_driver<O: PhaseObserver>(
     let pend: Vec<PendingCheck> = p.2;
     let m = pend.len();
     let mut fe: IFEnv = p.1;
-    obs.install_done(&st.store, total, m);
+    obs.install_done(pers, &st.store, total, m);
     let workers = workers_for(jobs, m);
     obs.phase_b_workers(workers);
     // Phase B, `checker::check_pending_list`'s walk with the observer between
@@ -268,7 +270,7 @@ pub fn check_decls_driver<O: PhaseObserver>(
     // installed index threaded through.
     let mut j = 0usize;
     while j < m {
-        match checker::check_pending(st, mode, fe, &pend[j]) {
+        match checker::check_pending(pers, st, mode, fe, &pend[j]) {
             Err(e) => {
                 obs.check_failed(pend[j].pos);
                 return Err((e, pend[j].pos));
@@ -276,7 +278,7 @@ pub fn check_decls_driver<O: PhaseObserver>(
             Ok(fe2) => fe = fe2,
         }
         j += 1;
-        obs.check_after(&st.store, j, m, &pend[j - 1]);
+        obs.check_after(pers, &st.store, j, m, &pend[j - 1]);
     }
     obs.check_done(m);
     Ok(fe)
@@ -402,13 +404,20 @@ impl Heartbeat {
 impl PhaseObserver for Heartbeat {
     /// con-leche: Main.lean:67-141 installLoop
     /// `con-ron-arena: install <i>/<N> <decl> t=<s>s`, before the install.
-    fn install_before(&mut self, ar: &EStore, pos: u64, total: usize, d: &IDeclaration) {
+    fn install_before(
+        &mut self,
+        pers: &PersTier,
+        ar: &EStore,
+        pos: u64,
+        total: usize,
+        d: &IDeclaration,
+    ) {
         if self.stride > 0 && pos % self.stride == 0 {
             eprintln!(
                 "con-ron-arena: install {}/{} {} t={}s",
                 pos,
                 total,
-                decl_label(ar, d),
+                decl_label(pers, ar, d),
                 ms_secs(self.now())
             );
         }
@@ -432,7 +441,7 @@ impl PhaseObserver for Heartbeat {
 
     /// con-leche: Main.lean:318-421 checkDeclsIO
     /// `con-ron-arena: install done: <N>/<N> …, <M> checks pending …`.
-    fn install_done(&mut self, ar: &EStore, total: usize, pend: usize) {
+    fn install_done(&mut self, pers: &PersTier, ar: &EStore, total: usize, pend: usize) {
         self.t_install = self.now();
         if self.stride > 0 {
             eprintln!(
@@ -442,10 +451,10 @@ impl PhaseObserver for Heartbeat {
                 total,
                 total,
                 pend,
-                ar.node_count(),
-                ar.pers_count(),
-                ar.ls().node_count(),
-                ar.ns().node_count(),
+                ar.node_count(pers),
+                ar.pers_count(pers),
+                ar.ls().node_count(pers),
+                ar.ns().node_count(pers),
                 ms_secs(self.t_install),
                 ms_secs(self.t_install - self.t_parse)
             );
@@ -460,14 +469,21 @@ impl PhaseObserver for Heartbeat {
 
     /// con-leche: Main.lean:143-158 checkHeartbeat
     /// `con-ron-arena: check <done>/<M> <kind> <name> t=<s>s`, after the check.
-    fn check_after(&mut self, ar: &EStore, done: usize, m: usize, pc: &PendingCheck) {
+    fn check_after(
+        &mut self,
+        pers: &PersTier,
+        ar: &EStore,
+        done: usize,
+        m: usize,
+        pc: &PendingCheck,
+    ) {
         if self.stride > 0 && (done as u64) % self.stride == 0 {
             eprintln!(
                 "con-ron-arena: check {}/{} {} {} t={}s",
                 done,
                 m,
                 value_kind_word(&pc.vg.kind),
-                name_of(ar, &pc.vg.cv_a.name),
+                name_of(pers, ar, &pc.vg.cv_a.name),
                 ms_secs(self.now())
             );
         }
@@ -536,6 +552,7 @@ pub fn verdict_accept(records: u64, mode_tag: &str) -> u8 {
 /// handle.  `owner` is the inductive block a generated `_model` record belongs
 /// to, where the caller can say.
 pub fn verdict_failure(
+    pers: &PersTier,
     ar: &EStore,
     ds: &Vec<IDeclaration>,
     e: &CheckError,
@@ -550,11 +567,11 @@ pub fn verdict_failure(
         Some(d) => match owner {
             Some(t) => format!(
                 " [at {}, a generated model record of inductive {}, fold position {}]",
-                decl_label(ar, d),
+                decl_label(pers, ar, d),
                 t,
                 i
             ),
-            None => format!(" [at {}, fold position {}]", decl_label(ar, d), i),
+            None => format!(" [at {}, fold position {}]", decl_label(pers, ar, d), i),
         },
     };
     eprintln!(
@@ -587,6 +604,7 @@ pub fn verdict_failure(
 /// stopping at the first empty read.  The chunk count comes back for the
 /// heartbeat, as the Lean twin's `readFold` returns it.
 pub fn parse_export_handle_d<R: Read, M: Modeller>(
+    pers: &PersTier,
     m: &M,
     ar: &mut AState,
     h: &mut R,
@@ -594,7 +612,7 @@ pub fn parse_export_handle_d<R: Read, M: Modeller>(
     census: bool,
     chunk: usize,
 ) -> std::io::Result<(Result<ParseResultD, (CheckError, u64)>, u64)> {
-    let mut st = match export_c::state_d_init(&mut ar.store, in_model, census) {
+    let mut st = match export_c::state_d_init(pers, &mut ar.store, in_model, census) {
         Ok(s) => s,
         Err(e) => return Ok((Err((e, 0)), 0)),
     };
@@ -606,10 +624,10 @@ pub fn parse_export_handle_d<R: Read, M: Modeller>(
     loop {
         let n = con_ron::driver::read_up_to(h, &mut buf0)?;
         if n == 0 {
-            return Ok((export_c::chunk_finish(m, ar, st, &carry[..], line_no), chunks));
+            return Ok((export_c::chunk_finish(pers, m, ar, st, &carry[..], line_no), chunks));
         }
         chunks += 1;
-        match export_c::chunk_step(m, ar, &mut st, carry, line_no, total, &buf0[..n]) {
+        match export_c::chunk_step(pers, m, ar, &mut st, carry, line_no, total, &buf0[..n]) {
             Err(e) => return Ok((Err(e), chunks)),
             Ok((c, l, t)) => {
                 carry = c;
@@ -623,6 +641,7 @@ pub fn parse_export_handle_d<R: Read, M: Modeller>(
 /// con-leche: ConLeche/Frontend/ExportC.lean:933-938 parseExportStreamD
 /// Streaming direct parse of a file.
 pub fn parse_export_stream_d<M: Modeller>(
+    pers: &PersTier,
     m: &M,
     ar: &mut AState,
     path: &str,
@@ -631,7 +650,7 @@ pub fn parse_export_stream_d<M: Modeller>(
     chunk: usize,
 ) -> std::io::Result<(Result<ParseResultD, (CheckError, u64)>, u64)> {
     let mut f = std::fs::File::open(path)?;
-    parse_export_handle_d(m, ar, &mut f, in_model, census, chunk)
+    parse_export_handle_d(pers, m, ar, &mut f, in_model, census, chunk)
 }
 
 #[cfg(test)]
@@ -647,6 +666,7 @@ mod tests {
     /// records.  `con_ron::driver`'s own test, over the arena's parser.
     #[test]
     fn the_reader_is_parse_chunks_with_the_reads() {
+        let pers: &PersTier = &PersTier::empty();
         let s = concat!(
             "{\"meta\":{\"exporter\":{\"name\":\"lean4export\"}}}\n",
             "{\"in\":1,\"str\":{\"pre\":0,\"str\":\"A\"}}\n",
@@ -658,19 +678,19 @@ mod tests {
             let mut ar = AState::init(EStore::empty());
             let mut r = std::io::Cursor::new(b.to_vec());
             let (streamed, _) =
-                parse_export_handle_d(&DeclineModeller {}, &mut ar, &mut r, true, false, chunk)
+                parse_export_handle_d(pers, &DeclineModeller {}, &mut ar, &mut r, true, false, chunk)
                     .expect("no io error");
             let streamed = streamed
                 .unwrap_or_else(|(e, l)| panic!("chunk {} line {}: {}", chunk, l, message(&e)));
             let mut ar2 = AState::init(EStore::empty());
             let cs: Vec<Vec<u8>> = b.chunks(chunk).map(|c| c.to_vec()).collect();
-            let pure = export_c::parse_chunks(&DeclineModeller {}, &mut ar2, &cs, true, false)
+            let pure = export_c::parse_chunks(pers, &DeclineModeller {}, &mut ar2, &cs, true, false)
                 .unwrap_or_else(|(e, l)| {
                     panic!("pure chunk {} line {}: {}", chunk, l, message(&e))
                 });
             assert_eq!(streamed.decls.len(), pure.decls.len(), "chunk {}", chunk);
             assert_eq!(streamed.decls.len(), 1, "chunk {}", chunk);
-            assert_eq!(ar.store.node_count(), ar2.store.node_count(), "chunk {}", chunk);
+            assert_eq!(ar.store.node_count(pers), ar2.store.node_count(pers), "chunk {}", chunk);
         }
     }
 

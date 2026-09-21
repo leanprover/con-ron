@@ -57,6 +57,7 @@ use con_ron_core::ron::hashmap::{Dup, Eq2};
 // reads as it did.  `ron::hashmap::HashMap` is still what `crates/con-ron`
 // uses, and is still the one with proofs.
 use con_ron_core::ron::hashmap2::HashMap2 as HashMap;
+use crate::arena::store::PersTier;
 
 // ---------------------------------------------------------------------------
 // The messages of this module's declines
@@ -110,10 +111,14 @@ pub fn nidx_vec_tail_from(ns: &Vec<NIdx>, i: usize, out: Vec<NIdx>) -> Vec<NIdx>
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:55-62 paramLevels`
 /// — con-leche writes the list inline at every use; over handles a level list
 /// is a node, so it is built once by a function of its own.
-pub fn param_levels(st: &mut AState, lps: &Vec<NIdx>) -> Result<LsIdx, CheckError> {
-    match param_levels_go(st, lps, 0, Vec::new()) {
+pub fn param_levels(
+    pers: &PersTier,
+    st: &mut AState,
+    lps: &Vec<NIdx>,
+) -> Result<LsIdx, CheckError>  {
+    match param_levels_go(pers, st, lps, 0, Vec::new()) {
         Err(e) => Err(e),
-        Ok(us) => intern_ls_node(st, us),
+        Ok(us) => intern_ls_node(pers, st, us),
     }
 }
 
@@ -121,6 +126,7 @@ pub fn param_levels(st: &mut AState, lps: &Vec<NIdx>) -> Result<LsIdx, CheckErro
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:56-61 paramLevels.go`
 /// — the cursor recursion behind `param_levels`.
 pub fn param_levels_go(
+    pers: &PersTier,
     st: &mut AState,
     lps: &Vec<NIdx>,
     i: usize,
@@ -129,12 +135,12 @@ pub fn param_levels_go(
     if i >= lps.len() {
         Ok(out)
     } else {
-        match intern_l_node(st, LNodeView::Param(lps[i].dup2())) {
+        match intern_l_node(pers, st, LNodeView::Param(lps[i].dup2())) {
             Err(e) => Err(e),
             Ok(u) => {
                 let mut o: Vec<LIdx> = out;
                 o.push(u);
-                param_levels_go(st, lps, i + 1, o)
+                param_levels_go(pers, st, lps, i + 1, o)
             }
         }
     }
@@ -148,14 +154,20 @@ pub fn param_levels_go(
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:70-77 structPsAt`
 /// — the parameter variables as seen from under `o` extra binders:
 /// `p_k = bvar (o + nP - 1 - k)`, `structFam`'s argument spine.
-pub fn struct_ps_at(st: &mut AState, o: u64, n_p: u64) -> Result<Vec<EIdx>, CheckError> {
-    struct_ps_at_from(st, o, n_p, 0, Vec::new())
+pub fn struct_ps_at(
+    pers: &PersTier,
+    st: &mut AState,
+    o: u64,
+    n_p: u64,
+) -> Result<Vec<EIdx>, CheckError>  {
+    struct_ps_at_from(pers, st, o, n_p, 0, Vec::new())
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:134-137 structPsAt
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:71-76 structPsAt.go`
 /// — the cursor recursion behind `struct_ps_at`.
 pub fn struct_ps_at_from(
+    pers: &PersTier,
     st: &mut AState,
     o: u64,
     n_p: u64,
@@ -165,12 +177,12 @@ pub fn struct_ps_at_from(
     if k >= n_p {
         Ok(out)
     } else {
-        match intern_e(st, ENodeView::BVar(o + n_p - 1 - k)) {
+        match intern_e(pers, st, ENodeView::BVar(o + n_p - 1 - k)) {
             Err(e) => Err(e),
             Ok(b) => {
                 let mut o2: Vec<EIdx> = out;
                 o2.push(b);
-                struct_ps_at_from(st, o, n_p, k + 1, o2)
+                struct_ps_at_from(pers, st, o, n_p, k + 1, o2)
             }
         }
     }
@@ -180,8 +192,8 @@ pub fn struct_ps_at_from(
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:82 bvarsDesc` —
 /// the FIELD variables' spine.  `structPsAt 0 n` is the same list; it is named
 /// apart because con-leche writes the two inline at different frames.
-pub fn bvars_desc(st: &mut AState, n: u64) -> Result<Vec<EIdx>, CheckError> {
-    struct_ps_at(st, 0, n)
+pub fn bvars_desc(pers: &PersTier, st: &mut AState, n: u64) -> Result<Vec<EIdx>, CheckError> {
+    struct_ps_at(pers, st, 0, n)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:82-86 structFam
@@ -189,19 +201,20 @@ pub fn bvars_desc(st: &mut AState, n: u64) -> Result<Vec<EIdx>, CheckError> {
 /// — the type former applied to its parameter variables, `bvar` indices offset
 /// by `o` (the number of binders crossed since the parameters).
 pub fn struct_fam(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     lps: &Vec<NIdx>,
     n_p: u64,
     o: u64,
 ) -> Result<EIdx, CheckError> {
-    match param_levels(st, lps) {
+    match param_levels(pers, st, lps) {
         Err(e) => Err(e),
-        Ok(us) => match intern_e(st, ENodeView::Const(t.dup2(), us)) {
+        Ok(us) => match intern_e(pers, st, ENodeView::Const(t.dup2(), us)) {
             Err(e) => Err(e),
-            Ok(hd) => match struct_ps_at(st, o, n_p) {
+            Ok(hd) => match struct_ps_at(pers, st, o, n_p) {
                 Err(e) => Err(e),
-                Ok(ps) => expr_ops::mk_app_n(st, &hd, &ps),
+                Ok(ps) => expr_ops::mk_app_n(pers, st, &hd, &ps),
             },
         },
     }
@@ -213,23 +226,24 @@ pub fn struct_fam(
 /// inside the recursor's minor premise (parameters sit above the motive
 /// binder).
 pub fn struct_ctor_spine(
+    pers: &PersTier,
     st: &mut AState,
     c: &NIdx,
     lps: &Vec<NIdx>,
     n_p: u64,
     n_f: u64,
 ) -> Result<EIdx, CheckError> {
-    match param_levels(st, lps) {
+    match param_levels(pers, st, lps) {
         Err(e) => Err(e),
-        Ok(us) => match intern_e(st, ENodeView::Const(c.dup2(), us)) {
+        Ok(us) => match intern_e(pers, st, ENodeView::Const(c.dup2(), us)) {
             Err(e) => Err(e),
-            Ok(hd) => match struct_ps_at(st, n_f + 1, n_p) {
+            Ok(hd) => match struct_ps_at(pers, st, n_f + 1, n_p) {
                 Err(e) => Err(e),
-                Ok(ps) => match bvars_desc(st, n_f) {
+                Ok(ps) => match bvars_desc(pers, st, n_f) {
                     Err(e) => Err(e),
                     Ok(fs) => {
                         let args: Vec<EIdx> = core::append_eidx(ps, &fs);
-                        expr_ops::mk_app_n(st, &hd, &args)
+                        expr_ops::mk_app_n(pers, st, &hd, &args)
                     }
                 },
             },
@@ -241,12 +255,12 @@ pub fn struct_ctor_spine(
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:106-108 structRuleBody`
 /// — the recursor rule's right-hand side body: the minor premise applied to
 /// the field variables.
-pub fn struct_rule_body(st: &mut AState, n_f: u64) -> Result<EIdx, CheckError> {
-    match intern_e(st, ENodeView::BVar(n_f)) {
+pub fn struct_rule_body(pers: &PersTier, st: &mut AState, n_f: u64) -> Result<EIdx, CheckError> {
+    match intern_e(pers, st, ENodeView::BVar(n_f)) {
         Err(e) => Err(e),
-        Ok(hd) => match bvars_desc(st, n_f) {
+        Ok(hd) => match bvars_desc(pers, st, n_f) {
             Err(e) => Err(e),
-            Ok(fs) => expr_ops::mk_app_n(st, &hd, &fs),
+            Ok(fs) => expr_ops::mk_app_n(pers, st, &hd, &fs),
         },
     }
 }
@@ -255,11 +269,16 @@ pub fn struct_rule_body(st: &mut AState, n_f: u64) -> Result<EIdx, CheckError> {
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:113-114 structElimLevel`
 /// — the recursor's elimination level: the fresh parameter at the large
 /// eliminator, `zero` at the small one.
-pub fn struct_elim_level(st: &mut AState, elim: &NIdx, large: bool) -> Result<LIdx, CheckError> {
+pub fn struct_elim_level(
+    pers: &PersTier,
+    st: &mut AState,
+    elim: &NIdx,
+    large: bool,
+) -> Result<LIdx, CheckError>  {
     if large {
-        intern_l_node(st, LNodeView::Param(elim.dup2()))
+        intern_l_node(pers, st, LNodeView::Param(elim.dup2()))
     } else {
-        intern_l_node(st, LNodeView::Zero)
+        intern_l_node(pers, st, LNodeView::Zero)
     }
 }
 
@@ -269,6 +288,7 @@ pub fn struct_elim_level(st: &mut AState, elim: &NIdx, large: bool) -> Result<LI
 /// under `o` binders between the parameters and the fields (the motive and the
 /// earlier minor premises); `struct_ctor_spine` is the `o = 1` case.
 pub fn struct_ctor_spine_at(
+    pers: &PersTier,
     st: &mut AState,
     c: &NIdx,
     lps: &Vec<NIdx>,
@@ -276,17 +296,17 @@ pub fn struct_ctor_spine_at(
     n_p: u64,
     n_f: u64,
 ) -> Result<EIdx, CheckError> {
-    match param_levels(st, lps) {
+    match param_levels(pers, st, lps) {
         Err(e) => Err(e),
-        Ok(us) => match intern_e(st, ENodeView::Const(c.dup2(), us)) {
+        Ok(us) => match intern_e(pers, st, ENodeView::Const(c.dup2(), us)) {
             Err(e) => Err(e),
-            Ok(hd) => match struct_ps_at(st, o + n_f, n_p) {
+            Ok(hd) => match struct_ps_at(pers, st, o + n_f, n_p) {
                 Err(e) => Err(e),
-                Ok(ps) => match bvars_desc(st, n_f) {
+                Ok(ps) => match bvars_desc(pers, st, n_f) {
                     Err(e) => Err(e),
                     Ok(fs) => {
                         let args: Vec<EIdx> = core::append_eidx(ps, &fs);
-                        expr_ops::mk_app_n(st, &hd, &args)
+                        expr_ops::mk_app_n(pers, st, &hd, &args)
                     }
                 },
             },
@@ -299,6 +319,7 @@ pub fn struct_ctor_spine_at(
 /// — replace the body under the first `k` `∀`-binders, resetting their codomain
 /// data to `pw` (the domains are kept).
 pub fn replace_pis_pw(
+    pers: &PersTier,
     st: &mut AState,
     pw: &PropWhen,
     k: u64,
@@ -308,14 +329,14 @@ pub fn replace_pis_pw(
     if k == 0 {
         Ok(Some(b.dup2()))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::ForallE(ty, rest, _)) => match replace_pis_pw(st, pw, k - 1, &rest, b) {
+            Ok(ENodeView::ForallE(ty, rest, _)) => match replace_pis_pw(pers, st, pw, k - 1, &rest, b) {
                 Err(e) => Err(e),
                 Ok(None) => Ok(None),
                 Ok(Some(r)) => {
                     let m: BinderMeta = expr::binder_meta(prop_when::dup(pw));
-                    match intern_e(st, ENodeView::ForallE(ty, r, m)) {
+                    match intern_e(pers, st, ENodeView::ForallE(ty, r, m)) {
                         Err(e) => Err(e),
                         Ok(n) => Ok(Some(n)),
                     }
@@ -331,6 +352,7 @@ pub fn replace_pis_pw(
 /// — convert the first `k` `∀`-binders into `λ`-binders with datum `pw` over a
 /// body.
 pub fn pis_to_lams_pw(
+    pers: &PersTier,
     st: &mut AState,
     pw: &PropWhen,
     k: u64,
@@ -340,14 +362,14 @@ pub fn pis_to_lams_pw(
     if k == 0 {
         Ok(Some(b.dup2()))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::ForallE(ty, rest, _)) => match pis_to_lams_pw(st, pw, k - 1, &rest, b) {
+            Ok(ENodeView::ForallE(ty, rest, _)) => match pis_to_lams_pw(pers, st, pw, k - 1, &rest, b) {
                 Err(e) => Err(e),
                 Ok(None) => Ok(None),
                 Ok(Some(r)) => {
                     let m: BinderMeta = expr::binder_meta(prop_when::dup(pw));
-                    match intern_e(st, ENodeView::Lam(ty, r, m)) {
+                    match intern_e(pers, st, ENodeView::Lam(ty, r, m)) {
                         Err(e) => Err(e),
                         Ok(n) => Ok(Some(n)),
                     }
@@ -366,6 +388,7 @@ pub fn pis_to_lams_pw(
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:161-166 structFamI`
 /// — the family applied to its parameter variables and its index variables.
 pub fn struct_fam_i(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     lps: &Vec<NIdx>,
@@ -374,17 +397,17 @@ pub fn struct_fam_i(
     e: u64,
     o: u64,
 ) -> Result<EIdx, CheckError> {
-    match param_levels(st, lps) {
+    match param_levels(pers, st, lps) {
         Err(er) => Err(er),
-        Ok(us) => match intern_e(st, ENodeView::Const(t.dup2(), us)) {
+        Ok(us) => match intern_e(pers, st, ENodeView::Const(t.dup2(), us)) {
             Err(er) => Err(er),
-            Ok(hd) => match struct_ps_at(st, o + e + n_idx, n_p) {
+            Ok(hd) => match struct_ps_at(pers, st, o + e + n_idx, n_p) {
                 Err(er) => Err(er),
-                Ok(ps) => match struct_ps_at(st, o, n_idx) {
+                Ok(ps) => match struct_ps_at(pers, st, o, n_idx) {
                     Err(er) => Err(er),
                     Ok(is) => {
                         let args: Vec<EIdx> = core::append_eidx(ps, &is);
-                        expr_ops::mk_app_n(st, &hd, &args)
+                        expr_ops::mk_app_n(pers, st, &hd, &args)
                     }
                 },
             },
@@ -398,6 +421,7 @@ pub fn struct_fam_i(
 /// the parameter variables (`o` binders below the parameter frame) followed by
 /// `nIdx` index expressions.
 pub fn struct_ctor_resid_ok(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     lps: &Vec<NIdx>,
@@ -406,15 +430,15 @@ pub fn struct_ctor_resid_ok(
     n_idx: u64,
     cbody: &EIdx,
 ) -> Result<bool, CheckError> {
-    match param_levels(st, lps) {
+    match param_levels(pers, st, lps) {
         Err(e) => Err(e),
-        Ok(us) => match intern_e(st, ENodeView::Const(t.dup2(), us)) {
+        Ok(us) => match intern_e(pers, st, ENodeView::Const(t.dup2(), us)) {
             Err(e) => Err(e),
-            Ok(hd) => match expr_ops::get_app_fn(st, CORE_WALK_FUEL, cbody) {
+            Ok(hd) => match expr_ops::get_app_fn(pers, st, CORE_WALK_FUEL, cbody) {
                 Err(e) => Err(e),
-                Ok(fna) => match expr_ops::get_app_args(st, CORE_WALK_FUEL, cbody) {
+                Ok(fna) => match expr_ops::get_app_args(pers, st, CORE_WALK_FUEL, cbody) {
                     Err(e) => Err(e),
-                    Ok(args) => match struct_ps_at(st, o, n_p) {
+                    Ok(args) => match struct_ps_at(pers, st, o, n_p) {
                         Err(e) => Err(e),
                         Ok(ps) => Ok(fna.eq2(&hd)
                             && args.len() as u64 == n_p + n_idx
@@ -430,6 +454,7 @@ pub fn struct_ctor_resid_ok(
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:183-188 structMotiveTyI`
 /// — the motive's type `∀ ı⃗ (t : T p⃗ ı⃗), Sort ℓ` at the parameters' frame.
 pub fn struct_motive_ty_i(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     lps: &Vec<NIdx>,
@@ -438,17 +463,17 @@ pub fn struct_motive_ty_i(
     l: &LIdx,
     itele: &EIdx,
 ) -> Result<Option<EIdx>, CheckError> {
-    match struct_fam_i(st, t, lps, n_p, n_idx, 0, 0) {
+    match struct_fam_i(pers, st, t, lps, n_p, n_idx, 0, 0) {
         Err(e) => Err(e),
-        Ok(fam) => match intern_e(st, ENodeView::Sort(l.dup2())) {
+        Ok(fam) => match intern_e(pers, st, ENodeView::Sort(l.dup2())) {
             Err(e) => Err(e),
             Ok(s) => {
                 let m: BinderMeta = expr::binder_meta(prop_when::never());
-                match intern_e(st, ENodeView::ForallE(fam, s, m)) {
+                match intern_e(pers, st, ENodeView::ForallE(fam, s, m)) {
                     Err(e) => Err(e),
                     Ok(body) => {
                         let pw: PropWhen = prop_when::never();
-                        replace_pis_pw(st, &pw, n_idx, itele, &body)
+                        replace_pis_pw(pers, st, &pw, n_idx, itele, &body)
                     }
                 }
             }
@@ -493,6 +518,7 @@ pub struct StructParts {
 /// twin's one `do` block is four functions here, split at its own
 /// `if … then pure false else do` boundaries (task #97-P4c's arrangement).
 pub fn struct_shape(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     c: &NIdx,
@@ -505,19 +531,19 @@ pub fn struct_shape(
     cty: &EIdx,
     rty: &EIdx,
 ) -> Result<bool, CheckError> {
-    match expr_ops::strip_pis(st, n_p, tty) {
+    match expr_ops::strip_pis(pers, st, n_p, tty) {
         Err(e) => Err(e),
         Ok(None) => Ok(false),
-        Ok(Some(tq)) => match expr_ops::strip_pis(st, n_p + n_f, cty) {
+        Ok(Some(tq)) => match expr_ops::strip_pis(pers, st, n_p + n_f, cty) {
             Err(e) => Err(e),
             Ok(None) => Ok(false),
-            Ok(Some(cq)) => match expr_ops::strip_pis(st, n_p + 3, rty) {
+            Ok(Some(cq)) => match expr_ops::strip_pis(pers, st, n_p + 3, rty) {
                 Err(e) => Err(e),
                 Ok(None) => Ok(false),
-                Ok(Some(rq)) => match view(st, &tq.1) {
+                Ok(Some(rq)) => match view(pers, st, &tq.1) {
                     Err(e) => Err(e),
                     Ok(ENodeView::Sort(_)) => {
-                        struct_shape_at(st, t, c, lps, elim, large, n_p, n_f, &cq.1, &rq.0, &rq.1)
+                        struct_shape_at(pers, st, t, c, lps, elim, large, n_p, n_f, &cq.1, &rq.0, &rq.1)
                     }
                     Ok(_) => Ok(false),
                 },
@@ -532,6 +558,7 @@ pub fn struct_shape(
 /// former's residual is a sort: the constructor residual and the recursor
 /// body, then the motive, minor and major domains.
 pub fn struct_shape_at(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     c: &NIdx,
@@ -544,25 +571,25 @@ pub fn struct_shape_at(
     rbs: &Vec<(EIdx, BinderMeta)>,
     rbody: &EIdx,
 ) -> Result<bool, CheckError> {
-    match struct_fam(st, t, lps, n_p, n_f) {
+    match struct_fam(pers, st, t, lps, n_p, n_f) {
         Err(e) => Err(e),
-        Ok(fam) => match intern_e(st, ENodeView::BVar(2)) {
+        Ok(fam) => match intern_e(pers, st, ENodeView::BVar(2)) {
             Err(e) => Err(e),
-            Ok(b2) => match intern_e(st, ENodeView::BVar(0)) {
+            Ok(b2) => match intern_e(pers, st, ENodeView::BVar(0)) {
                 Err(e) => Err(e),
-                Ok(b0) => match intern_e(st, ENodeView::App(b2, b0)) {
+                Ok(b0) => match intern_e(pers, st, ENodeView::App(b2, b0)) {
                     Err(e) => Err(e),
                     Ok(want) => {
                         if !(cbody.eq2(&fam) && rbody.eq2(&want)) {
                             Ok(false)
                         } else {
-                            match struct_shape_motive(st, t, lps, elim, large, n_p, rbs) {
+                            match struct_shape_motive(pers, st, t, lps, elim, large, n_p, rbs) {
                                 Err(e) => Err(e),
                                 Ok(false) => Ok(false),
-                                Ok(true) => match struct_shape_minor(st, c, lps, n_p, n_f, rbs) {
+                                Ok(true) => match struct_shape_minor(pers, st, c, lps, n_p, n_f, rbs) {
                                     Err(e) => Err(e),
                                     Ok(false) => Ok(false),
-                                    Ok(true) => struct_shape_major(st, t, lps, n_p, rbs),
+                                    Ok(true) => struct_shape_major(pers, st, t, lps, n_p, rbs),
                                 },
                             }
                         }
@@ -578,6 +605,7 @@ pub fn struct_shape_at(
 /// — the motive binder's codomain: `Sort elim` for the large eliminator,
 /// `Prop` for the small one (con-leche's task #175 W4c/O4).
 pub fn struct_shape_motive(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     lps: &Vec<NIdx>,
@@ -590,13 +618,13 @@ pub fn struct_shape_motive(
         Ok(false)
     } else {
         let mdom: EIdx = rbs[n_p as usize].0.dup2();
-        match view(st, &mdom) {
+        match view(pers, st, &mdom) {
             Err(e) => Err(e),
-            Ok(ENodeView::ForallE(mmaj, mcod, _)) => match view(st, &mcod) {
+            Ok(ENodeView::ForallE(mmaj, mcod, _)) => match view(pers, st, &mcod) {
                 Err(e) => Err(e),
-                Ok(ENodeView::Sort(s2)) => match struct_elim_level(st, elim, large) {
+                Ok(ENodeView::Sort(s2)) => match struct_elim_level(pers, st, elim, large) {
                     Err(e) => Err(e),
-                    Ok(want) => match struct_fam(st, t, lps, n_p, 0) {
+                    Ok(want) => match struct_fam(pers, st, t, lps, n_p, 0) {
                         Err(e) => Err(e),
                         Ok(fam0) => Ok(s2.eq2(&want) && mmaj.eq2(&fam0)),
                     },
@@ -612,6 +640,7 @@ pub fn struct_shape_motive(
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:244-253 structShape`
 /// — the minor premise's body is the minor variable at the constructor spine.
 pub fn struct_shape_minor(
+    pers: &PersTier,
     st: &mut AState,
     c: &NIdx,
     lps: &Vec<NIdx>,
@@ -623,14 +652,14 @@ pub fn struct_shape_minor(
         Ok(false)
     } else {
         let mindom: EIdx = rbs[(n_p + 1) as usize].0.dup2();
-        match expr_ops::strip_pis(st, n_f, &mindom) {
+        match expr_ops::strip_pis(pers, st, n_f, &mindom) {
             Err(e) => Err(e),
             Ok(None) => Ok(false),
-            Ok(Some(q)) => match intern_e(st, ENodeView::BVar(n_f)) {
+            Ok(Some(q)) => match intern_e(pers, st, ENodeView::BVar(n_f)) {
                 Err(e) => Err(e),
-                Ok(hd) => match struct_ctor_spine(st, c, lps, n_p, n_f) {
+                Ok(hd) => match struct_ctor_spine(pers, st, c, lps, n_p, n_f) {
                     Err(e) => Err(e),
-                    Ok(sp) => match intern_e(st, ENodeView::App(hd, sp)) {
+                    Ok(sp) => match intern_e(pers, st, ENodeView::App(hd, sp)) {
                         Err(e) => Err(e),
                         Ok(want) => Ok(q.1.eq2(&want)),
                     },
@@ -644,6 +673,7 @@ pub fn struct_shape_minor(
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:255-259 structShape`
 /// — the major premise's domain is the family at two extra binders.
 pub fn struct_shape_major(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     lps: &Vec<NIdx>,
@@ -654,7 +684,7 @@ pub fn struct_shape_major(
         Ok(false)
     } else {
         let majdom: EIdx = rbs[(n_p + 2) as usize].0.dup2();
-        match struct_fam(st, t, lps, n_p, 2) {
+        match struct_fam(pers, st, t, lps, n_p, 2) {
             Err(e) => Err(e),
             Ok(fam2) => Ok(majdom.eq2(&fam2)),
         }
@@ -667,6 +697,7 @@ pub fn struct_shape_major(
 /// class".  The twin's one `match` on the block is this function's guard; its
 /// two eliminator branches are `struct_parts_core_elim`.
 pub fn struct_parts_core(
+    pers: &PersTier,
     st: &mut AState,
     block: &Vec<crate::arena::env::IConstantInfo>,
 ) -> Result<Option<StructParts>, CheckError> {
@@ -682,7 +713,7 @@ pub fn struct_parts_core(
                 if rules.len() != 1 {
                     Ok(None)
                 } else {
-                    struct_parts_core_at(st, cv_t, cv_c, *n_p, *n_f, cv_r, *m_i, *r_p, &rules[0])
+                    struct_parts_core_at(pers, st, cv_t, cv_c, *n_p, *n_f, cv_r, *m_i, *r_p, &rules[0])
                 }
             }
             _ => Ok(None),
@@ -695,6 +726,7 @@ pub fn struct_parts_core(
 /// — the recogniser's body once the block's three members are in hand: the
 /// name and arity pins, then the result sort and the two eliminator shapes.
 pub fn struct_parts_core_at(
+    pers: &PersTier,
     st: &mut AState,
     cv_t: &IConstantVal,
     cv_c: &IConstantVal,
@@ -708,14 +740,14 @@ pub fn struct_parts_core_at(
     const REC: [u32; 3] = [114, 101, 99];
     let t: NIdx = cv_t.name.dup2();
     let c: NIdx = cv_c.name.dup2();
-    match crate::arena::monad::intern_n_node(
+    match crate::arena::monad::intern_n_node(pers,
         st,
         crate::arena::store::NNodeView::Str(t.dup2(), code_points(&REC)),
     ) {
         Err(e) => Err(e),
         Ok(rec_name) => match core::reserved_basis_names(st) {
             Err(e) => Err(e),
-            Ok(reserved) => match struct_parts_rhs_ok(st, n_p, n_f, &rule.rhs) {
+            Ok(reserved) => match struct_parts_rhs_ok(pers, st, n_p, n_f, &rule.rhs) {
                 Err(e) => Err(e),
                 Ok(rhs_ok) => {
                     if cv_r.name.eq2(&rec_name)
@@ -729,7 +761,7 @@ pub fn struct_parts_core_at(
                         && rule.nfields == n_f
                         && rhs_ok
                     {
-                        struct_parts_core_sort(st, cv_t, cv_c, n_p, n_f, cv_r, rule)
+                        struct_parts_core_sort(pers, st, cv_t, cv_c, n_p, n_f, cv_r, rule)
                     } else {
                         Ok(None)
                     }
@@ -743,15 +775,16 @@ pub fn struct_parts_core_at(
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:273-277 structPartsCore?`
 /// — the exported rule's right-hand side is the generated one.
 pub fn struct_parts_rhs_ok(
+    pers: &PersTier,
     st: &mut AState,
     n_p: u64,
     n_f: u64,
     rhs: &EIdx,
 ) -> Result<bool, CheckError> {
-    match expr_ops::strip_lams(st, n_p + 2 + n_f, rhs) {
+    match expr_ops::strip_lams(pers, st, n_p + 2 + n_f, rhs) {
         Err(e) => Err(e),
         Ok(None) => Ok(false),
-        Ok(Some(q)) => match struct_rule_body(st, n_f) {
+        Ok(Some(q)) => match struct_rule_body(pers, st, n_f) {
             Err(e) => Err(e),
             Ok(want) => Ok(q.1.eq2(&want)),
         },
@@ -763,6 +796,7 @@ pub fn struct_parts_rhs_ok(
 /// — the result sort, then the large eliminator (a fresh elimination level
 /// parameter in front of the block's own) and, failing that, the small one.
 pub fn struct_parts_core_sort(
+    pers: &PersTier,
     st: &mut AState,
     cv_t: &IConstantVal,
     cv_c: &IConstantVal,
@@ -771,14 +805,14 @@ pub fn struct_parts_core_sort(
     cv_r: &IConstantVal,
     rule: &crate::arena::env::IRecRule,
 ) -> Result<Option<StructParts>, CheckError> {
-    match expr_ops::strip_pis(st, n_p, &cv_t.ty) {
+    match expr_ops::strip_pis(pers, st, n_p, &cv_t.ty) {
         Err(e) => Err(e),
         Ok(None) => Ok(None),
-        Ok(Some(q)) => match view(st, &q.1) {
+        Ok(Some(q)) => match view(pers, st, &q.1) {
             Err(e) => Err(e),
             Ok(ENodeView::Sort(s)) => match core::zero_level(st) {
                 Err(e) => Err(e),
-                Ok(z) => match core::lvl_eq(st, &s, &z) {
+                Ok(z) => match core::lvl_eq(pers, st, &s, &z) {
                     Err(e) => Err(e),
                     Ok(eq) => {
                         let is_prop: bool = match eq {
@@ -786,7 +820,7 @@ pub fn struct_parts_core_sort(
                             Some(false) => false,
                             None => false,
                         };
-                        struct_parts_core_elim(st, cv_t, cv_c, n_p, n_f, cv_r, rule, &s, is_prop)
+                        struct_parts_core_elim(pers, st, cv_t, cv_c, n_p, n_f, cv_r, rule, &s, is_prop)
                     }
                 },
             },
@@ -801,6 +835,7 @@ pub fn struct_parts_core_sort(
 /// level parameter in front of the block's own and passes `structShape` at
 /// `large := true`; else the small one at `.anonymous`.
 pub fn struct_parts_core_elim(
+    pers: &PersTier,
     st: &mut AState,
     cv_t: &IConstantVal,
     cv_c: &IConstantVal,
@@ -822,7 +857,7 @@ pub fn struct_parts_core_elim(
             let relps: Vec<NIdx> = nidx_vec_tail(&cv_r.level_params);
             if core::nidx_vec_beq(&relps, lps) && !crate::arena::env::nidx_vec_contains(lps, &elim)
             {
-                match struct_shape(
+                match struct_shape(pers,
                     st, &cv_t.name, &cv_c.name, lps, &elim, true, n_p, n_f, &cv_t.ty, &cv_c.ty,
                     &cv_r.ty,
                 ) {
@@ -840,14 +875,14 @@ pub fn struct_parts_core_elim(
                         is_prop,
                     })),
                     Ok(false) => {
-                        struct_parts_core_small(st, cv_t, cv_c, n_p, n_f, cv_r, rule, s, is_prop)
+                        struct_parts_core_small(pers, st, cv_t, cv_c, n_p, n_f, cv_r, rule, s, is_prop)
                     }
                 }
             } else {
-                struct_parts_core_small(st, cv_t, cv_c, n_p, n_f, cv_r, rule, s, is_prop)
+                struct_parts_core_small(pers, st, cv_t, cv_c, n_p, n_f, cv_r, rule, s, is_prop)
             }
         }
-        None => struct_parts_core_small(st, cv_t, cv_c, n_p, n_f, cv_r, rule, s, is_prop),
+        None => struct_parts_core_small(pers, st, cv_t, cv_c, n_p, n_f, cv_r, rule, s, is_prop),
     }
 }
 
@@ -856,6 +891,7 @@ pub fn struct_parts_core_elim(
 /// — the small eliminator's branch: the recursor's level parameters are the
 /// block's and `structShape` holds at `large := false`.
 pub fn struct_parts_core_small(
+    pers: &PersTier,
     st: &mut AState,
     cv_t: &IConstantVal,
     cv_c: &IConstantVal,
@@ -866,11 +902,11 @@ pub fn struct_parts_core_small(
     s: &LIdx,
     is_prop: bool,
 ) -> Result<Option<StructParts>, CheckError> {
-    match crate::arena::monad::intern_n_node(st, crate::arena::store::NNodeView::Anonymous) {
+    match crate::arena::monad::intern_n_node(pers, st, crate::arena::store::NNodeView::Anonymous) {
         Err(e) => Err(e),
         Ok(anon) => {
             if core::nidx_vec_beq(&cv_r.level_params, &cv_t.level_params) {
-                match struct_shape(
+                match struct_shape(pers,
                     st,
                     &cv_t.name,
                     &cv_c.name,
@@ -913,18 +949,23 @@ pub fn struct_parts_core_small(
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:318 structProjPs`
 /// — the parameter spine of the generated projection types, spelled at the
 /// frame of the final `∀ p⃗ (t : T p⃗), _` telescope: `p_k = bvar (nP - k)`.
-pub fn struct_proj_ps(st: &mut AState, n_p: u64) -> Result<Vec<EIdx>, CheckError> {
-    struct_ps_at(st, 1, n_p)
+pub fn struct_proj_ps(pers: &PersTier, st: &mut AState, n_p: u64) -> Result<Vec<EIdx>, CheckError> {
+    struct_ps_at(pers, st, 1, n_p)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:339-345 structProjArgP
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:323-325 structProjArgP`
 /// — the `j`-th earlier-field substitute in a tower entry's generated type: the
 /// first-class node `t.j` (`.proj T j` of the subject).
-pub fn struct_proj_arg_p(st: &mut AState, t: &NIdx, j: u64) -> Result<EIdx, CheckError> {
-    match intern_e(st, ENodeView::BVar(0)) {
+pub fn struct_proj_arg_p(
+    pers: &PersTier,
+    st: &mut AState,
+    t: &NIdx,
+    j: u64,
+) -> Result<EIdx, CheckError>  {
+    match intern_e(pers, st, ENodeView::BVar(0)) {
         Err(e) => Err(e),
-        Ok(b) => intern_e(st, ENodeView::Proj(t.dup2(), j, b)),
+        Ok(b) => intern_e(pers, st, ENodeView::Proj(t.dup2(), j, b)),
     }
 }
 
@@ -933,6 +974,7 @@ pub fn struct_proj_arg_p(st: &mut AState, t: &NIdx, j: u64) -> Result<EIdx, Chec
 /// — `structProjResid` in the `.proj`-node spelling: the constructor telescope
 /// peeled at the parameters and the first `i` subject projections.
 pub fn struct_proj_resid_p(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     n_p: u64,
@@ -940,20 +982,20 @@ pub fn struct_proj_resid_p(
     i: u64,
 ) -> Result<Option<EIdx>, CheckError> {
     if i == 0 {
-        match struct_proj_ps(st, n_p) {
+        match struct_proj_ps(pers, st, n_p) {
             Err(e) => Err(e),
-            Ok(ps) => expr_ops::inst_pis_at_lift(st, CORE_WALK_FUEL, &ps, cty),
+            Ok(ps) => expr_ops::inst_pis_at_lift(pers, st, CORE_WALK_FUEL, &ps, cty),
         }
     } else {
-        match struct_proj_resid_p(st, t, n_p, cty, i - 1) {
+        match struct_proj_resid_p(pers, st, t, n_p, cty, i - 1) {
             Err(e) => Err(e),
             Ok(None) => Ok(None),
-            Ok(Some(r)) => match struct_proj_arg_p(st, t, i - 1) {
+            Ok(Some(r)) => match struct_proj_arg_p(pers, st, t, i - 1) {
                 Err(e) => Err(e),
                 Ok(a) => {
                     let mut args: Vec<EIdx> = Vec::new();
                     args.push(a);
-                    expr_ops::inst_pis_at_lift(st, CORE_WALK_FUEL, &args, &r)
+                    expr_ops::inst_pis_at_lift(pers, st, CORE_WALK_FUEL, &args, &r)
                 }
             },
         }
@@ -999,6 +1041,7 @@ pub fn has_loose_bvar_b_ins(
 /// across the paths that reach it.  The memo is keyed by the node AND the
 /// index, because the index shifts under binders.
 pub fn has_loose_bvar_b_go(
+    pers: &PersTier,
     st: &mut AState,
     memo: HashMap<EIdxNat, bool>,
     i: u64,
@@ -1008,13 +1051,13 @@ pub fn has_loose_bvar_b_go(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_HLB)))
     } else {
-        match expr_ops::bvar_b(st, fuel - 1, h) {
+        match expr_ops::bvar_b(pers, st, fuel - 1, h) {
             Err(e) => Err(e),
             Ok(bb) => {
                 if bb <= i {
                     Ok((false, memo))
                 } else {
-                    match view(st, h) {
+                    match view(pers, st, h) {
                         Err(e) => Err(e),
                         Ok(ENodeView::BVar(j)) => Ok((i == j, memo)),
                         Ok(ENodeView::FVar(_, _)) => Ok((false, memo)),
@@ -1025,7 +1068,7 @@ pub fn has_loose_bvar_b_go(
                             let k: EIdxNat = eidx_nat_key(h, i);
                             match hlb_probe(&memo, &k) {
                                 Some(r) => Ok((r, memo)),
-                                None => match has_loose_bvar_b_node(st, memo, i, fuel - 1, v) {
+                                None => match has_loose_bvar_b_node(pers, st, memo, i, fuel - 1, v) {
                                     Err(e) => Err(e),
                                     Ok(r) => Ok(has_loose_bvar_b_ins(h, i, r)),
                                 },
@@ -1043,6 +1086,7 @@ pub fn has_loose_bvar_b_go(
 /// — the walk's compound arms, split off so that the `view`'s loans are dead
 /// at the memo's join (task #97-P4c's extraction rule 5, and P4a's second).
 pub fn has_loose_bvar_b_node(
+    pers: &PersTier,
     st: &mut AState,
     memo: HashMap<EIdxNat, bool>,
     i: u64,
@@ -1050,31 +1094,31 @@ pub fn has_loose_bvar_b_node(
     v: ENodeView,
 ) -> Result<(bool, HashMap<EIdxNat, bool>), CheckError> {
     match v {
-        ENodeView::App(f, a) => match has_loose_bvar_b_go(st, memo, i, fuel, &f) {
+        ENodeView::App(f, a) => match has_loose_bvar_b_go(pers, st, memo, i, fuel, &f) {
             Err(e) => Err(e),
             Ok((true, m)) => Ok((true, m)),
-            Ok((false, m)) => has_loose_bvar_b_go(st, m, i, fuel, &a),
+            Ok((false, m)) => has_loose_bvar_b_go(pers, st, m, i, fuel, &a),
         },
-        ENodeView::Lam(ty, b, _) => match has_loose_bvar_b_go(st, memo, i, fuel, &ty) {
+        ENodeView::Lam(ty, b, _) => match has_loose_bvar_b_go(pers, st, memo, i, fuel, &ty) {
             Err(e) => Err(e),
             Ok((true, m)) => Ok((true, m)),
-            Ok((false, m)) => has_loose_bvar_b_go(st, m, i + 1, fuel, &b),
+            Ok((false, m)) => has_loose_bvar_b_go(pers, st, m, i + 1, fuel, &b),
         },
-        ENodeView::ForallE(ty, b, _) => match has_loose_bvar_b_go(st, memo, i, fuel, &ty) {
+        ENodeView::ForallE(ty, b, _) => match has_loose_bvar_b_go(pers, st, memo, i, fuel, &ty) {
             Err(e) => Err(e),
             Ok((true, m)) => Ok((true, m)),
-            Ok((false, m)) => has_loose_bvar_b_go(st, m, i + 1, fuel, &b),
+            Ok((false, m)) => has_loose_bvar_b_go(pers, st, m, i + 1, fuel, &b),
         },
-        ENodeView::LetE(t, val, b) => match has_loose_bvar_b_go(st, memo, i, fuel, &t) {
+        ENodeView::LetE(t, val, b) => match has_loose_bvar_b_go(pers, st, memo, i, fuel, &t) {
             Err(e) => Err(e),
             Ok((true, m)) => Ok((true, m)),
-            Ok((false, m)) => match has_loose_bvar_b_go(st, m, i, fuel, &val) {
+            Ok((false, m)) => match has_loose_bvar_b_go(pers, st, m, i, fuel, &val) {
                 Err(e) => Err(e),
                 Ok((true, m2)) => Ok((true, m2)),
-                Ok((false, m2)) => has_loose_bvar_b_go(st, m2, i + 1, fuel, &b),
+                Ok((false, m2)) => has_loose_bvar_b_go(pers, st, m2, i + 1, fuel, &b),
             },
         },
-        ENodeView::Proj(_, _, sub) => has_loose_bvar_b_go(st, memo, i, fuel, &sub),
+        ENodeView::Proj(_, _, sub) => has_loose_bvar_b_go(pers, st, memo, i, fuel, &sub),
         _ => Ok((false, memo)),
     }
 }
@@ -1082,8 +1126,13 @@ pub fn has_loose_bvar_b_node(
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:624-626 Expr.hasLooseBVarBFast
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:396-397 hasLooseBVarBFast`
 /// — the executed `hasLooseBVarB` (one memoized DAG walk).
-pub fn has_loose_bvar_b_fast(st: &mut AState, i: u64, e: &EIdx) -> Result<bool, CheckError> {
-    match has_loose_bvar_b_go(st, HashMap::new(), i, CORE_WALK_FUEL, e) {
+pub fn has_loose_bvar_b_fast(
+    pers: &PersTier,
+    st: &mut AState,
+    i: u64,
+    e: &EIdx,
+) -> Result<bool, CheckError>  {
+    match has_loose_bvar_b_go(pers, st, HashMap::new(), i, CORE_WALK_FUEL, e) {
         Err(er) => Err(er),
         Ok(r) => Ok(r.0),
     }
@@ -1098,14 +1147,15 @@ pub fn has_loose_bvar_b_fast(st: &mut AState, i: u64, e: &EIdx) -> Result<bool, 
 /// — **field `j` is used by a later field**, the official `infer_proj`'s
 /// `has_loose_bvars(binding_body(r))` at step `j`.
 pub fn struct_used_later(
+    pers: &PersTier,
     st: &mut AState,
     cty: &EIdx,
     n_p: u64,
     j: u64,
 ) -> Result<bool, CheckError> {
-    match expr_ops::strip_pis(st, n_p + j + 1, cty) {
+    match expr_ops::strip_pis(pers, st, n_p + j + 1, cty) {
         Err(e) => Err(e),
-        Ok(Some(q)) => has_loose_bvar_b_fast(st, 0, &q.1),
+        Ok(Some(q)) => has_loose_bvar_b_fast(pers, st, 0, &q.1),
         Ok(None) => Ok(false),
     }
 }
@@ -1114,15 +1164,16 @@ pub fn struct_used_later(
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:409-413 structUsedLaterGo`
 /// — memoized `structUsedLater`, taking and returning the shared memo.
 pub fn struct_used_later_go(
+    pers: &PersTier,
     st: &mut AState,
     memo: HashMap<EIdxNat, bool>,
     cty: &EIdx,
     n_p: u64,
     j: u64,
 ) -> Result<(bool, HashMap<EIdxNat, bool>), CheckError> {
-    match expr_ops::strip_pis(st, n_p + j + 1, cty) {
+    match expr_ops::strip_pis(pers, st, n_p + j + 1, cty) {
         Err(e) => Err(e),
-        Ok(Some(q)) => has_loose_bvar_b_go(st, memo, 0, CORE_WALK_FUEL, &q.1),
+        Ok(Some(q)) => has_loose_bvar_b_go(pers, st, memo, 0, CORE_WALK_FUEL, &q.1),
         Ok(None) => Ok((false, memo)),
     }
 }
@@ -1133,6 +1184,7 @@ pub fn struct_used_later_go(
 /// through one shared memo.  Lean conses on the way out; the port pushes on the
 /// way in, which is the same list at the same order of effects.
 pub fn struct_used_later_list(
+    pers: &PersTier,
     st: &mut AState,
     memo: HashMap<EIdxNat, bool>,
     cty: &EIdx,
@@ -1144,12 +1196,12 @@ pub fn struct_used_later_list(
     if n == 0 {
         Ok(out)
     } else {
-        match struct_used_later_go(st, memo, cty, n_p, base) {
+        match struct_used_later_go(pers, st, memo, cty, n_p, base) {
             Err(e) => Err(e),
             Ok((r, m)) => {
                 let mut o: Vec<bool> = out;
                 o.push(r);
-                struct_used_later_list(st, m, cty, n_p, n - 1, base + 1, o)
+                struct_used_later_list(pers, st, m, cty, n_p, n - 1, base + 1, o)
             }
         }
     }
@@ -1184,6 +1236,7 @@ pub fn sort_get_d(sorts: &Vec<LIdx>, j: u64, z: &LIdx) -> LIdx {
 /// — the inner fold: field `i`'s own sort joined with the sorts of the earlier
 /// fields that a later field uses.
 pub fn struct_proj_guards_col(
+    pers: &PersTier,
     st: &mut AState,
     used: &Vec<bool>,
     sorts: &Vec<LIdx>,
@@ -1196,12 +1249,12 @@ pub fn struct_proj_guards_col(
         Ok(acc)
     } else if used_get_d(used, j) {
         let s: LIdx = sort_get_d(sorts, j, z);
-        match intern_l_node(st, LNodeView::Max(acc, s)) {
+        match intern_l_node(pers, st, LNodeView::Max(acc, s)) {
             Err(e) => Err(e),
-            Ok(m) => struct_proj_guards_col(st, used, sorts, z, j + 1, k - 1, m),
+            Ok(m) => struct_proj_guards_col(pers, st, used, sorts, z, j + 1, k - 1, m),
         }
     } else {
-        struct_proj_guards_col(st, used, sorts, z, j + 1, k - 1, acc)
+        struct_proj_guards_col(pers, st, used, sorts, z, j + 1, k - 1, acc)
     }
 }
 
@@ -1211,6 +1264,7 @@ pub fn struct_proj_guards_col(
 /// — the outer fold, one guard level per field.  Lean conses on the way out;
 /// the port pushes on the way in, at the same order of effects.
 pub fn struct_proj_guards_row(
+    pers: &PersTier,
     st: &mut AState,
     used: &Vec<bool>,
     sorts: &Vec<LIdx>,
@@ -1223,12 +1277,12 @@ pub fn struct_proj_guards_row(
         Ok(out)
     } else {
         let a: LIdx = sort_get_d(sorts, i, z);
-        match struct_proj_guards_col(st, used, sorts, z, 0, i, a) {
+        match struct_proj_guards_col(pers, st, used, sorts, z, 0, i, a) {
             Err(e) => Err(e),
             Ok(g) => {
                 let mut o: Vec<LIdx> = out;
                 o.push(g);
-                struct_proj_guards_row(st, used, sorts, z, i + 1, k - 1, o)
+                struct_proj_guards_row(pers, st, used, sorts, z, i + 1, k - 1, o)
             }
         }
     }
@@ -1242,6 +1296,7 @@ pub fn struct_proj_guards_row(
 /// (its task #236 arrangement), then the fold runs over the recorded answers.
 /// `sorts` and the result are a `Vec<LIdx>` — the twin's module note says why.
 pub fn struct_proj_guards(
+    pers: &PersTier,
     st: &mut AState,
     cty: &EIdx,
     n_p: u64,
@@ -1250,9 +1305,9 @@ pub fn struct_proj_guards(
 ) -> Result<Vec<LIdx>, CheckError> {
     match core::zero_level(st) {
         Err(e) => Err(e),
-        Ok(z) => match struct_used_later_list(st, HashMap::new(), cty, n_p, n_f, 0, Vec::new()) {
+        Ok(z) => match struct_used_later_list(pers, st, HashMap::new(), cty, n_p, n_f, 0, Vec::new()) {
             Err(e) => Err(e),
-            Ok(used) => struct_proj_guards_row(st, &used, sorts, &z, 0, n_f, Vec::new()),
+            Ok(used) => struct_proj_guards_row(pers, st, &used, sorts, &z, 0, n_f, Vec::new()),
         },
     }
 }
@@ -1264,6 +1319,7 @@ pub fn struct_proj_guards(
 /// replaced by the subject's projection `.proj T i (bvar 0)` before the walk
 /// continues.  Lean conses on the way out; the port pushes on the way in.
 pub fn struct_proj_bodies_go(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     k: u64,
@@ -1274,16 +1330,16 @@ pub fn struct_proj_bodies_go(
     if k == 0 {
         Ok(Some(out))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::ForallE(fdom, body, _)) => match struct_proj_arg_p(st, t, i) {
+            Ok(ENodeView::ForallE(fdom, body, _)) => match struct_proj_arg_p(pers, st, t, i) {
                 Err(e) => Err(e),
-                Ok(a) => match expr_ops::instantiate1_lift_fast(st, CORE_WALK_FUEL, &body, &a, 0) {
+                Ok(a) => match expr_ops::instantiate1_lift_fast(pers, st, CORE_WALK_FUEL, &body, &a, 0) {
                     Err(e) => Err(e),
                     Ok(b) => {
                         let mut o: Vec<EIdx> = out;
                         o.push(fdom);
-                        struct_proj_bodies_go(st, t, k - 1, i + 1, &b, o)
+                        struct_proj_bodies_go(pers, st, t, k - 1, i + 1, &b, o)
                     }
                 },
             },
@@ -1296,18 +1352,19 @@ pub fn struct_proj_bodies_go(
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:471-478 structProjBodies`
 /// — the block's projection bodies, as the table stores them.
 pub fn struct_proj_bodies(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     n_p: u64,
     n_f: u64,
     cty: &EIdx,
 ) -> Result<Option<Vec<EIdx>>, CheckError> {
-    match struct_proj_ps(st, n_p) {
+    match struct_proj_ps(pers, st, n_p) {
         Err(e) => Err(e),
-        Ok(ps) => match expr_ops::inst_pis_at_lift(st, CORE_WALK_FUEL, &ps, cty) {
+        Ok(ps) => match expr_ops::inst_pis_at_lift(pers, st, CORE_WALK_FUEL, &ps, cty) {
             Err(e) => Err(e),
             Ok(None) => Ok(None),
-            Ok(Some(r)) => struct_proj_bodies_go(st, t, n_f, 0, &r, Vec::new()),
+            Ok(Some(r)) => struct_proj_bodies_go(pers, st, t, n_f, 0, &r, Vec::new()),
         },
     }
 }
@@ -1334,6 +1391,7 @@ pub fn mc_probe(memo: &HashMap<EIdx, bool>, k: &EIdx) -> Option<bool> {
 /// annotations included; a `.proj` node names its structure), with con-leche's
 /// per-call memo keyed by the node — `T` is fixed for the whole walk.
 pub fn mentions_const_go(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     memo: HashMap<EIdx, bool>,
@@ -1343,7 +1401,7 @@ pub fn mentions_const_go(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_MENTIONS)))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
             Ok(ENodeView::BVar(_)) => Ok((false, memo)),
             Ok(ENodeView::Sort(_)) => Ok((false, memo)),
@@ -1351,7 +1409,7 @@ pub fn mentions_const_go(
             Ok(ENodeView::Const(n, _)) => Ok((n.eq2(t), memo)),
             Ok(v) => match mc_probe(&memo, h) {
                 Some(r) => Ok((r, memo)),
-                None => match mentions_const_node(st, t, memo, fuel - 1, v) {
+                None => match mentions_const_node(pers, st, t, memo, fuel - 1, v) {
                     Err(e) => Err(e),
                     Ok((r, m)) => {
                         let mut m2: HashMap<EIdx, bool> = m;
@@ -1369,6 +1427,7 @@ pub fn mentions_const_go(
 /// — the walk's compound arms, split off so that the `view`'s loans are dead at
 /// the memo's join (extraction rule 5).
 pub fn mentions_const_node(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     memo: HashMap<EIdx, bool>,
@@ -1376,39 +1435,39 @@ pub fn mentions_const_node(
     v: ENodeView,
 ) -> Result<(bool, HashMap<EIdx, bool>), CheckError> {
     match v {
-        ENodeView::FVar(_, ty) => mentions_const_go(st, t, memo, fuel, &ty),
-        ENodeView::App(f, a) => match mentions_const_go(st, t, memo, fuel, &f) {
+        ENodeView::FVar(_, ty) => mentions_const_go(pers, st, t, memo, fuel, &ty),
+        ENodeView::App(f, a) => match mentions_const_go(pers, st, t, memo, fuel, &f) {
             Err(e) => Err(e),
-            Ok((b1, m)) => match mentions_const_go(st, t, m, fuel, &a) {
+            Ok((b1, m)) => match mentions_const_go(pers, st, t, m, fuel, &a) {
                 Err(e) => Err(e),
                 Ok((b2, m2)) => Ok((b1 || b2, m2)),
             },
         },
-        ENodeView::Lam(ty, body, _) => match mentions_const_go(st, t, memo, fuel, &ty) {
+        ENodeView::Lam(ty, body, _) => match mentions_const_go(pers, st, t, memo, fuel, &ty) {
             Err(e) => Err(e),
-            Ok((b1, m)) => match mentions_const_go(st, t, m, fuel, &body) {
+            Ok((b1, m)) => match mentions_const_go(pers, st, t, m, fuel, &body) {
                 Err(e) => Err(e),
                 Ok((b2, m2)) => Ok((b1 || b2, m2)),
             },
         },
-        ENodeView::ForallE(ty, body, _) => match mentions_const_go(st, t, memo, fuel, &ty) {
+        ENodeView::ForallE(ty, body, _) => match mentions_const_go(pers, st, t, memo, fuel, &ty) {
             Err(e) => Err(e),
-            Ok((b1, m)) => match mentions_const_go(st, t, m, fuel, &body) {
+            Ok((b1, m)) => match mentions_const_go(pers, st, t, m, fuel, &body) {
                 Err(e) => Err(e),
                 Ok((b2, m2)) => Ok((b1 || b2, m2)),
             },
         },
-        ENodeView::LetE(ty, val, body) => match mentions_const_go(st, t, memo, fuel, &ty) {
+        ENodeView::LetE(ty, val, body) => match mentions_const_go(pers, st, t, memo, fuel, &ty) {
             Err(e) => Err(e),
-            Ok((b1, m)) => match mentions_const_go(st, t, m, fuel, &val) {
+            Ok((b1, m)) => match mentions_const_go(pers, st, t, m, fuel, &val) {
                 Err(e) => Err(e),
-                Ok((b2, m2)) => match mentions_const_go(st, t, m2, fuel, &body) {
+                Ok((b2, m2)) => match mentions_const_go(pers, st, t, m2, fuel, &body) {
                     Err(e) => Err(e),
                     Ok((b3, m3)) => Ok((b1 || b2 || b3, m3)),
                 },
             },
         },
-        ENodeView::Proj(s, _, sub) => match mentions_const_go(st, t, memo, fuel, &sub) {
+        ENodeView::Proj(s, _, sub) => match mentions_const_go(pers, st, t, memo, fuel, &sub) {
             Err(e) => Err(e),
             Ok((b, m)) => Ok((s.eq2(t) || b, m)),
         },
@@ -1419,8 +1478,13 @@ pub fn mentions_const_node(
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:922-924 Expr.mentionsConstFast
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:527-528 mentionsConst`
 /// — the executed `mentionsConst` (one memoized DAG walk).
-pub fn mentions_const(st: &mut AState, t: &NIdx, e: &EIdx) -> Result<bool, CheckError> {
-    match mentions_const_go(st, t, HashMap::new(), CORE_WALK_FUEL, e) {
+pub fn mentions_const(
+    pers: &PersTier,
+    st: &mut AState,
+    t: &NIdx,
+    e: &EIdx,
+) -> Result<bool, CheckError>  {
+    match mentions_const_go(pers, st, t, HashMap::new(), CORE_WALK_FUEL, e) {
         Err(er) => Err(er),
         Ok(r) => Ok(r.0),
     }

@@ -56,6 +56,7 @@ use crate::arena::monad::AState;
 use crate::arena::store::{EStore, NNodeView};
 use con_ron_core::kernel::core_types::CheckError;
 use con_ron_core::ron::hashmap::Dup;
+use crate::arena::store::PersTier;
 
 /// con-leche: ConLeche/Frontend/Prepare.lean:83-88 PreludeIx
 /// Lean twin: `proof/ConRon/Arena/Frontend/Prepare.lean:48-49 PreludeIx` — the
@@ -79,10 +80,10 @@ pub fn prelude_ix_empty() -> PreludeIx {
 /// the name a prelude record is looked up by: the block's type former, the
 /// quotient constant, the axiom.  con-leche's `.anonymous` fall-through is the
 /// interned anonymous name, which is the one reason this takes the store.
-pub fn prelude_key(ar: &mut EStore, d: &IDeclaration) -> Result<NIdx, CheckError> {
+pub fn prelude_key(pers: &PersTier, ar: &mut EStore, d: &IDeclaration) -> Result<NIdx, CheckError> {
     let ns = i_declaration_names(d);
     if ns.len() == 0 {
-        ar.intern_name(NNodeView::Anonymous)
+        ar.intern_name(pers, NNodeView::Anonymous)
     } else {
         Ok(ns[0].dup2())
     }
@@ -138,6 +139,7 @@ pub fn no_picks(n: usize) -> Vec<bool> {
 /// `ds.len()` when the stream does not declare it.  The second component is
 /// the mask of the records so picked — [`prepared_stream`] reads both.
 pub fn front_of(
+    pers: &PersTier,
     ar: &mut EStore,
     ps: &Vec<IDeclaration>,
     ds: &Vec<IDeclaration>,
@@ -148,7 +150,7 @@ pub fn front_of(
     let mut picks: Vec<usize> = Vec::with_capacity(np);
     let mut j: usize = 0;
     while j < np {
-        let key = match prelude_key(ar, &ps[j]) {
+        let key = match prelude_key(pers, ar, &ps[j]) {
             Err(e) => return Err(e),
             Ok(v) => v,
         };
@@ -236,12 +238,13 @@ pub struct Prepared {
 /// Lean twin: `proof/ConRon/Arena/Frontend/Prepare.lean:147-150 prepareD` —
 /// `prepare_prelude`, with its receipts.
 pub fn prepare_d(
+    pers: &PersTier,
     st: &mut AState,
     pre: PreludeIx,
     ds: Vec<IDeclaration>,
 ) -> Result<Prepared, CheckError> {
     let n_in = ds.len();
-    let plan = match front_of(&mut st.store, &pre.decls, &ds) {
+    let plan = match front_of(pers, &mut st.store, &pre.decls, &ds) {
         Err(e) => return Err(e),
         Ok(v) => v,
     };
@@ -250,7 +253,7 @@ pub fn prepare_d(
     // (task #97-P4d), which is why this function takes the whole state and not
     // just the store — the trigger set is the kernel's
     // `natOpNames`/`natDivModNames` and the closure walks the records' terms.
-    let hoisted = match crate::frontend::nat_op_ground::hoist_nat_op_ground(st, all) {
+    let hoisted = match crate::frontend::nat_op_ground::hoist_nat_op_ground(pers, st, all) {
         Err(e) => return Err(e),
         Ok(h) => h,
     };
@@ -270,11 +273,12 @@ pub fn prepare_d(
 /// it.  An array in and an array out, the shape the parse returns and the fold
 /// consumes.
 pub fn prepare_prelude(
+    pers: &PersTier,
     st: &mut AState,
     pre: PreludeIx,
     ds: Vec<IDeclaration>,
 ) -> Result<Vec<IDeclaration>, CheckError> {
-    match prepare_d(st, pre, ds) {
+    match prepare_d(pers, st, pre, ds) {
         Err(e) => Err(e),
         Ok(p) => Ok(p.decls),
     }
@@ -291,11 +295,11 @@ mod tests {
     }
 
     /// An axiom record named `n : Sort 0`, over a fresh store.
-    fn ax(ar: &mut EStore, n: &str) -> IDeclaration {
-        let anon = ar.intern_name(NNodeView::Anonymous).ok().unwrap();
-        let name = ar.intern_name(NNodeView::Str(anon, cp(n))).ok().unwrap();
-        let z = ar.intern_level(LNodeView::Zero).ok().unwrap();
-        let ty = ar.intern(ENodeView::Sort(z)).ok().unwrap();
+    fn ax(pers: &PersTier, ar: &mut EStore, n: &str) -> IDeclaration {
+        let anon = ar.intern_name(pers, NNodeView::Anonymous).ok().unwrap();
+        let name = ar.intern_name(pers, NNodeView::Str(anon, cp(n))).ok().unwrap();
+        let z = ar.intern_level(pers, LNodeView::Zero).ok().unwrap();
+        let ty = ar.intern(pers, ENodeView::Sort(z)).ok().unwrap();
         IDeclaration::AxiomDecl(IConstantVal {
             name,
             level_params: Vec::new(),
@@ -303,11 +307,11 @@ mod tests {
         })
     }
 
-    fn names_of(ar: &EStore, ds: &[IDeclaration]) -> Vec<String> {
+    fn names_of(pers: &PersTier, ar: &EStore, ds: &[IDeclaration]) -> Vec<String> {
         ds.iter()
             .map(|d| {
                 let ns = i_declaration_names(d);
-                match env::read_name(ar, &ns[0]) {
+                match env::read_name(pers, ar, &ns[0]) {
                     Ok(n) => con_ron_core::frontend::text::name_str(&n)
                         .iter()
                         .filter_map(|c| char::from_u32(*c))
@@ -340,11 +344,12 @@ mod tests {
     /// declared at all.
     #[test]
     fn pick_agrees_with_its_specification() {
+        let pers: &PersTier = &PersTier::empty();
         for want in ["A", "C", "Z"] {
             let mut ar = EStore::empty();
-            let ds = vec![ax(&mut ar, "A"), ax(&mut ar, "B"), ax(&mut ar, "C")];
+            let ds = vec![ax(pers, &mut ar, "A"), ax(pers, &mut ar, "B"), ax(pers, &mut ar, "C")];
             let key = {
-                let d = ax(&mut ar, want);
+                let d = ax(pers, &mut ar, want);
                 i_declaration_names(&d)[0].dup2()
             };
             let none: Vec<bool> = vec![false; ds.len()];
@@ -366,14 +371,15 @@ mod tests {
     /// record the stream does not declare is synthesised there.
     #[test]
     fn the_streams_own_copy_is_moved_to_the_front() {
+        let pers: &PersTier = &PersTier::empty();
         let mut ar = EStore::empty();
         let pre = PreludeIx {
-            decls: vec![ax(&mut ar, "Eq"), ax(&mut ar, "Bool")],
+            decls: vec![ax(pers, &mut ar, "Eq"), ax(pers, &mut ar, "Bool")],
         };
-        let stream = vec![ax(&mut ar, "X"), ax(&mut ar, "Bool"), ax(&mut ar, "Y")];
+        let stream = vec![ax(pers, &mut ar, "X"), ax(pers, &mut ar, "Bool"), ax(pers, &mut ar, "Y")];
         let mut st = AState::init(ar);
-        let p = prepare_d(&mut st, pre, stream).ok().unwrap();
-        assert_eq!(names_of(&st.store, &p.decls), vec!["Eq", "Bool", "X", "Y"]);
+        let p = prepare_d(pers, &mut st, pre, stream).ok().unwrap();
+        assert_eq!(names_of(pers, &st.store, &p.decls), vec!["Eq", "Bool", "X", "Y"]);
         // one prelude record (`Eq`) was not declared by the stream
         assert_eq!(p.synthesised, 1);
         assert!(p.hoisted.is_empty());
@@ -383,14 +389,15 @@ mod tests {
     /// exactly once, whatever the prelude holds.
     #[test]
     fn every_stream_record_survives_exactly_once() {
+        let pers: &PersTier = &PersTier::empty();
         let mut ar = EStore::empty();
         let pre = PreludeIx {
-            decls: vec![ax(&mut ar, "Eq"), ax(&mut ar, "Nat")],
+            decls: vec![ax(pers, &mut ar, "Eq"), ax(pers, &mut ar, "Nat")],
         };
-        let stream = vec![ax(&mut ar, "Nat"), ax(&mut ar, "A"), ax(&mut ar, "B")];
+        let stream = vec![ax(pers, &mut ar, "Nat"), ax(pers, &mut ar, "A"), ax(pers, &mut ar, "B")];
         let mut st = AState::init(ar);
-        let out = prepare_prelude(&mut st, pre, stream).ok().unwrap();
-        let got = names_of(&st.store, &out);
+        let out = prepare_prelude(pers, &mut st, pre, stream).ok().unwrap();
+        let got = names_of(pers, &st.store, &out);
         for n in ["Nat", "A", "B"] {
             assert_eq!(got.iter().filter(|x| *x == n).count(), 1, "{}", n);
         }
@@ -401,11 +408,12 @@ mod tests {
     /// identity in part 1): the parse of the prelude itself runs against this.
     #[test]
     fn an_empty_prelude_changes_nothing() {
+        let pers: &PersTier = &PersTier::empty();
         let mut ar = EStore::empty();
-        let stream = vec![ax(&mut ar, "A"), ax(&mut ar, "B")];
+        let stream = vec![ax(pers, &mut ar, "A"), ax(pers, &mut ar, "B")];
         let mut st = AState::init(ar);
-        let p = prepare_d(&mut st, prelude_ix_empty(), stream).ok().unwrap();
-        assert_eq!(names_of(&st.store, &p.decls), vec!["A", "B"]);
+        let p = prepare_d(pers, &mut st, prelude_ix_empty(), stream).ok().unwrap();
+        assert_eq!(names_of(pers, &st.store, &p.decls), vec!["A", "B"]);
         assert_eq!(p.synthesised, 0);
     }
 
@@ -414,8 +422,9 @@ mod tests {
     /// would have.
     #[test]
     fn a_masked_record_is_not_picked_twice() {
+        let pers: &PersTier = &PersTier::empty();
         let mut ar = EStore::empty();
-        let ds = vec![ax(&mut ar, "A"), ax(&mut ar, "B")];
+        let ds = vec![ax(pers, &mut ar, "A"), ax(pers, &mut ar, "B")];
         let key = i_declaration_names(&ds[0])[0].dup2();
         let mut picked: Vec<bool> = vec![false; ds.len()];
         assert_eq!(pick_idx(&key, &ds, &picked), 0);
@@ -429,14 +438,15 @@ mod tests {
     /// `frontend::nat_op_ground`, tested there).
     #[test]
     fn the_hoist_is_the_identity_without_a_pinned_operation() {
+        let pers: &PersTier = &PersTier::empty();
         let mut ar = EStore::empty();
-        let ds = vec![ax(&mut ar, "A"), ax(&mut ar, "B")];
+        let ds = vec![ax(pers, &mut ar, "A"), ax(pers, &mut ar, "B")];
         let mut st = AState::init(ar);
         let (out, moved) =
-            crate::frontend::nat_op_ground::hoist_nat_op_ground(&mut st, ds)
+            crate::frontend::nat_op_ground::hoist_nat_op_ground(pers, &mut st, ds)
                 .ok()
                 .unwrap();
-        assert_eq!(names_of(&st.store, &out), vec!["A", "B"]);
+        assert_eq!(names_of(pers, &st.store, &out), vec!["A", "B"]);
         assert!(moved.is_empty());
     }
 }

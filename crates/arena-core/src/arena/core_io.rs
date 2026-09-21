@@ -38,6 +38,7 @@ use crate::arena::handle::EIdx;
 use crate::arena::monad::AState;
 use con_ron_core::kernel::core_types::CheckError;
 use con_ron_core::kernel::env::CheckMode;
+use crate::arena::store::PersTier;
 
 /// con-leche: ConLeche/Kernel/CoreIO.lean:91-119 coreKnotIO
 /// con-leche: ConLeche/Kernel/CoreIO.lean:121-124 pureFnsIO
@@ -56,6 +57,7 @@ pub const CORE_KNOT_IO: u32 = LANE_IO;
 /// infer-only (io-grade) type inference, fueled: the io lane's single entry
 /// point.
 pub fn infer_type_core_io(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -63,5 +65,5 @@ pub fn infer_type_core_io(
     depth: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    knot_infer(st, mode, CORE_KNOT_IO, fuel, fe, depth, e)
+    knot_infer(pers, st, mode, CORE_KNOT_IO, fuel, fe, depth, e)
 }

@@ -43,6 +43,7 @@ use con_ron_core::kernel::prop_read;
 use con_ron_core::kernel::prop_when;
 use con_ron_core::kernel::prop_when::PropWhen;
 use con_ron_core::ron::hashmap::Dup;
+use crate::arena::store::PersTier;
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"fuel exhausted: numArgs"`, as code points.
@@ -57,6 +58,7 @@ const M_FUEL_NUM_ARGS: [u32; 23] = [
 /// `.never`.  Structural on `k`, so no fuel: con-leche's own recursion
 /// measure survives the change of representation unchanged.
 pub fn peel_never_pis(
+    pers: &PersTier,
     st: &AState,
     k: u64,
     h: &EIdx,
@@ -64,11 +66,11 @@ pub fn peel_never_pis(
     if k == 0 {
         Ok(Some(h.dup2()))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
             Ok(ENodeView::ForallE(_, b, m)) => {
                 if prop_when::is_never(&m.pw) {
-                    peel_never_pis(st, k - 1, &b)
+                    peel_never_pis(pers, st, k - 1, &b)
                 } else {
                     Ok(None)
                 }
@@ -81,13 +83,13 @@ pub fn peel_never_pis(
 /// con-leche: ConLeche/Kernel/PropRead.lean:58-61 Expr.numArgs
 /// Lean twin: `proof/ConRon/Arena/PropRead.lean:54-61 numArgs` — the number of
 /// arguments of an application spine.  A spine walk, hence fuel.
-pub fn num_args(st: &AState, fuel: u64, h: &EIdx) -> Result<u64, CheckError> {
+pub fn num_args(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<u64, CheckError> {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_NUM_ARGS)))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::App(f, _)) => match num_args(st, fuel - 1, &f) {
+            Ok(ENodeView::App(f, _)) => match num_args(pers, st, fuel - 1, &f) {
                 Err(e) => Err(e),
                 Ok(n) => Ok(n + 1),
             },
@@ -101,13 +103,14 @@ pub fn num_args(st: &AState, fuel: u64, h: &EIdx) -> Result<u64, CheckError> {
 /// zero-ness datum of the sort of a *residual type*.  The level is read back
 /// and `level::zeroness_of` is con-leche's own (deviation 3).
 pub fn residual_pw(
+    pers: &PersTier,
     st: &AState,
     h: Option<EIdx>,
 ) -> Result<Option<PropWhen>, CheckError> {
     match h {
-        Some(r) => match view(st, &r) {
+        Some(r) => match view(pers, st, &r) {
             Err(e) => Err(e),
-            Ok(ENodeView::Sort(u)) => match read_level(st, &u) {
+            Ok(ENodeView::Sort(u)) => match read_level(pers, st, &u) {
                 Err(e) => Err(e),
                 Ok(l) => Ok(Some(level::zeroness_of(&l))),
             },
@@ -123,32 +126,33 @@ pub fn residual_pw(
 /// reads its stored type, an fvar head its declared type; the residual after
 /// `n` syntactic binders is read by `residual_pw`.
 pub fn head_type_pw(
+    pers: &PersTier,
     st: &mut AState,
     fe: &IFEnv,
     h: &EIdx,
     n: u64,
 ) -> Result<Option<PropWhen>, CheckError> {
-    match view(st, h) {
+    match view(pers, st, h) {
         Err(e) => Err(e),
         Ok(ENodeView::Const(i, us)) => match env::ifenv_find(fe, &i) {
             Some(ci) => {
                 if env::i_constant_info_is_tower_entry(ci) {
                     Ok(None)
                 } else {
-                    match env::i_constant_info_to_constant_val(&mut st.store, ci) {
+                    match env::i_constant_info_to_constant_val(pers, &mut st.store, ci) {
                         Err(e) => Err(e),
-                        Ok(cv) => match view_ls(st, &us) {
+                        Ok(cv) => match view_ls(pers, st, &us) {
                             Err(e) => Err(e),
                             Ok(usl) => {
                                 if usl.len() == cv.level_params.len() {
-                                    match peel_never_pis(st, n, &cv.ty) {
+                                    match peel_never_pis(pers, st, n, &cv.ty) {
                                         Err(e) => Err(e),
-                                        Ok(res) => match residual_pw(st, res) {
+                                        Ok(res) => match residual_pw(pers, st, res) {
                                             Err(e) => Err(e),
                                             Ok(Some(pw)) => {
-                                                match read_names(st, &cv.level_params) {
+                                                match read_names(pers, st, &cv.level_params) {
                                                     Err(e) => Err(e),
-                                                    Ok(ks) => match read_levels(st, &us) {
+                                                    Ok(ks) => match read_levels(pers, st, &us) {
                                                         Err(e) => Err(e),
                                                         Ok(vs) => Ok(Some(
                                                             level::subst_pw(&ks, &vs, &pw),
@@ -169,9 +173,9 @@ pub fn head_type_pw(
             }
             None => Ok(None),
         },
-        Ok(ENodeView::FVar(_, ty)) => match peel_never_pis(st, n, &ty) {
+        Ok(ENodeView::FVar(_, ty)) => match peel_never_pis(pers, st, n, &ty) {
             Err(e) => Err(e),
-            Ok(res) => residual_pw(st, res),
+            Ok(res) => residual_pw(pers, st, res),
         },
         Ok(_) => Ok(None),
     }
@@ -182,20 +186,21 @@ pub fn head_type_pw(
 /// zero-ness datum of the sort of the *type* `t` ("is `t` a proposition?").
 /// con-leche's last arm rebinds the scrutinee; the twin keeps the handle.
 pub fn type_sort_pw(
+    pers: &PersTier,
     st: &mut AState,
     fe: &IFEnv,
     fuel: u64,
     t: &EIdx,
 ) -> Result<Option<PropWhen>, CheckError> {
-    match view(st, t) {
+    match view(pers, st, t) {
         Err(e) => Err(e),
         Ok(ENodeView::ForallE(_, _, m)) => Ok(Some(m.pw)),
         Ok(ENodeView::Sort(_)) => Ok(Some(prop_when::never())),
-        Ok(_) => match get_app_fn(st, fuel, t) {
+        Ok(_) => match get_app_fn(pers, st, fuel, t) {
             Err(e) => Err(e),
-            Ok(fnh) => match num_args(st, fuel, t) {
+            Ok(fnh) => match num_args(pers, st, fuel, t) {
                 Err(e) => Err(e),
-                Ok(n) => head_type_pw(st, fe, &fnh, n),
+                Ok(n) => head_type_pw(pers, st, fe, &fnh, n),
             },
         },
     }
@@ -207,30 +212,31 @@ pub fn type_sort_pw(
 /// stored type, an fvar head from its declared type; sorts, ∀s and literals
 /// are never proofs.
 pub fn head_proof_pw(
+    pers: &PersTier,
     st: &mut AState,
     fe: &IFEnv,
     fuel: u64,
     h: &EIdx,
 ) -> Result<Option<PropWhen>, CheckError> {
-    match view(st, h) {
+    match view(pers, st, h) {
         Err(e) => Err(e),
         Ok(ENodeView::Const(c, us)) => match env::ifenv_find(fe, &c) {
             Some(ci) => {
                 if env::i_constant_info_is_tower_entry(ci) {
                     Ok(None)
                 } else {
-                    match env::i_constant_info_to_constant_val(&mut st.store, ci) {
+                    match env::i_constant_info_to_constant_val(pers, &mut st.store, ci) {
                         Err(e) => Err(e),
-                        Ok(cv) => match view_ls(st, &us) {
+                        Ok(cv) => match view_ls(pers, st, &us) {
                             Err(e) => Err(e),
                             Ok(usl) => {
                                 if usl.len() == cv.level_params.len() {
-                                    match type_sort_pw(st, fe, fuel, &cv.ty) {
+                                    match type_sort_pw(pers, st, fe, fuel, &cv.ty) {
                                         Err(e) => Err(e),
                                         Ok(Some(pw)) => {
-                                            match read_names(st, &cv.level_params) {
+                                            match read_names(pers, st, &cv.level_params) {
                                                 Err(e) => Err(e),
-                                                Ok(ks) => match read_levels(st, &us) {
+                                                Ok(ks) => match read_levels(pers, st, &us) {
                                                     Err(e) => Err(e),
                                                     Ok(vs) => Ok(Some(level::subst_pw(
                                                         &ks, &vs, &pw,
@@ -250,7 +256,7 @@ pub fn head_proof_pw(
             }
             None => Ok(None),
         },
-        Ok(ENodeView::FVar(_, ty)) => type_sort_pw(st, fe, fuel, &ty),
+        Ok(ENodeView::FVar(_, ty)) => type_sort_pw(pers, st, fe, fuel, &ty),
         Ok(ENodeView::Sort(_)) => Ok(Some(prop_when::never())),
         Ok(ENodeView::ForallE(_, _, _)) => Ok(Some(prop_when::never())),
         Ok(ENodeView::Lit(_)) => Ok(Some(prop_when::never())),
@@ -263,17 +269,18 @@ pub fn head_proof_pw(
 /// zero-ness datum of the sort of the *type* of `a` ("is `a` a proof?"), read
 /// off `a`'s head symbol at any arity.
 pub fn proof_pw(
+    pers: &PersTier,
     st: &mut AState,
     fe: &IFEnv,
     fuel: u64,
     a: &EIdx,
 ) -> Result<Option<PropWhen>, CheckError> {
-    match view(st, a) {
+    match view(pers, st, a) {
         Err(e) => Err(e),
         Ok(ENodeView::Lam(_, _, m)) => Ok(Some(m.pw)),
-        Ok(_) => match get_app_fn(st, fuel, a) {
+        Ok(_) => match get_app_fn(pers, st, fuel, a) {
             Err(e) => Err(e),
-            Ok(fnh) => head_proof_pw(st, fe, fuel, &fnh),
+            Ok(fnh) => head_proof_pw(pers, st, fe, fuel, &fnh),
         },
     }
 }
@@ -284,12 +291,13 @@ pub fn proof_pw(
 /// Refusing the proof-irrelevance shortcut is always sound.  The cited
 /// `!pw.isProp` is an `if` nest, as `con_ron_core::kernel::prop_read`'s is.
 pub fn not_proof_fast(
+    pers: &PersTier,
     st: &mut AState,
     fe: &IFEnv,
     fuel: u64,
     a: &EIdx,
 ) -> Result<bool, CheckError> {
-    match proof_pw(st, fe, fuel, a) {
+    match proof_pw(pers, st, fe, fuel, a) {
         Err(e) => Err(e),
         Ok(Some(pw)) => {
             if prop_read::is_prop(&pw) {
@@ -307,12 +315,13 @@ pub fn not_proof_fast(
 /// **definitely a proof**: the datum is known and always-zero (the
 /// squash-regime licence, con-leche's `prf_of_isProofFast`).
 pub fn is_proof_fast(
+    pers: &PersTier,
     st: &mut AState,
     fe: &IFEnv,
     fuel: u64,
     a: &EIdx,
 ) -> Result<bool, CheckError> {
-    match proof_pw(st, fe, fuel, a) {
+    match proof_pw(pers, st, fe, fuel, a) {
         Err(e) => Err(e),
         Ok(Some(pw)) => Ok(prop_read::is_prop(&pw)),
         Ok(None) => Ok(false),

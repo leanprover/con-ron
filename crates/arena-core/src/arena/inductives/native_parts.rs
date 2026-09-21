@@ -47,6 +47,7 @@ use con_ron_core::kernel::level;
 use con_ron_core::kernel::prop_when;
 use con_ron_core::kernel::prop_when::PropWhen;
 use con_ron_core::ron::hashmap::{Dup, Eq2};
+use crate::arena::store::PersTier;
 
 // ---------------------------------------------------------------------------
 // The messages of this module's declines
@@ -160,6 +161,7 @@ pub fn kind_get_d(ks: &Vec<RecFieldKind>, i: u64) -> RecFieldKind {
 /// Official's `is_valid_ind_app` exactly.
 #[allow(clippy::too_many_arguments)]
 pub fn rec_fam_ok(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     lps: &Vec<NIdx>,
@@ -168,15 +170,15 @@ pub fn rec_fam_ok(
     o: u64,
     e: &EIdx,
 ) -> Result<bool, CheckError> {
-    match struct_parts::param_levels(st, lps) {
+    match struct_parts::param_levels(pers, st, lps) {
         Err(er) => Err(er),
-        Ok(us) => match intern_e(st, ENodeView::Const(t.dup2(), us)) {
+        Ok(us) => match intern_e(pers, st, ENodeView::Const(t.dup2(), us)) {
             Err(er) => Err(er),
-            Ok(hd) => match expr_ops::get_app_fn(st, CORE_WALK_FUEL, e) {
+            Ok(hd) => match expr_ops::get_app_fn(pers, st, CORE_WALK_FUEL, e) {
                 Err(er) => Err(er),
-                Ok(fna) => match expr_ops::get_app_args(st, CORE_WALK_FUEL, e) {
+                Ok(fna) => match expr_ops::get_app_args(pers, st, CORE_WALK_FUEL, e) {
                     Err(er) => Err(er),
-                    Ok(args) => match struct_parts::struct_ps_at(st, o, n_p) {
+                    Ok(args) => match struct_parts::struct_ps_at(pers, st, o, n_p) {
                         Err(er) => Err(er),
                         Ok(ps) => {
                             if !(fna.eq2(&hd)
@@ -186,7 +188,7 @@ pub fn rec_fam_ok(
                                 Ok(false)
                             } else {
                                 let idx: Vec<EIdx> = core::drop_eidx(&args, n_p as usize);
-                                idx_free_of(st, t, &idx, 0)
+                                idx_free_of(pers, st, t, &idx, 0)
                             }
                         }
                     },
@@ -201,6 +203,7 @@ pub fn rec_fam_ok(
 /// the `(args.drop nP).allM` of the cited clause: no index expression mentions
 /// the block.
 pub fn idx_free_of(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     idx: &Vec<EIdx>,
@@ -210,10 +213,10 @@ pub fn idx_free_of(
         Ok(true)
     } else {
         let a: EIdx = idx[i].dup2();
-        match struct_parts::mentions_const(st, t, &a) {
+        match struct_parts::mentions_const(pers, st, t, &a) {
             Err(e) => Err(e),
             Ok(true) => Ok(false),
-            Ok(false) => idx_free_of(st, t, idx, i + 1),
+            Ok(false) => idx_free_of(pers, st, t, idx, i + 1),
         }
     }
 }
@@ -224,6 +227,7 @@ pub fn idx_free_of(
 /// mentions the block, syntactically.
 #[allow(clippy::too_many_arguments)]
 pub fn rec_positivity(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     lps: &Vec<NIdx>,
@@ -237,19 +241,19 @@ pub fn rec_positivity(
     if fuel == 0 {
         fail(core_types::internal(code_points(&M_FUEL_POS)))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
             Ok(ENodeView::ForallE(dom, body, _)) => {
-                match struct_parts::mentions_const(st, t, &dom) {
+                match struct_parts::mentions_const(pers, st, t, &dom) {
                     Err(e) => Err(e),
                     Ok(true) => Ok(RecFieldKind::Negative),
-                    Ok(false) => rec_positivity(st, t, lps, n_p, n_idx, o, fuel - 1, &body, k + 1),
+                    Ok(false) => rec_positivity(pers, st, t, lps, n_p, n_idx, o, fuel - 1, &body, k + 1),
                 }
             }
-            Ok(_) => match struct_parts::mentions_const(st, t, h) {
+            Ok(_) => match struct_parts::mentions_const(pers, st, t, h) {
                 Err(e) => Err(e),
                 Ok(false) => Ok(RecFieldKind::Ordinary),
-                Ok(true) => rec_positivity_at(st, t, lps, n_p, n_idx, o, h, k),
+                Ok(true) => rec_positivity_at(pers, st, t, lps, n_p, n_idx, o, h, k),
             },
         }
     }
@@ -262,6 +266,7 @@ pub fn rec_positivity(
 /// block is negative, and a head that is another constant is unsupported.
 #[allow(clippy::too_many_arguments)]
 pub fn rec_positivity_at(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     lps: &Vec<NIdx>,
@@ -271,23 +276,23 @@ pub fn rec_positivity_at(
     h: &EIdx,
     k: u64,
 ) -> Result<RecFieldKind, CheckError> {
-    match struct_parts::param_levels(st, lps) {
+    match struct_parts::param_levels(pers, st, lps) {
         Err(e) => Err(e),
-        Ok(us) => match intern_e(st, ENodeView::Const(t.dup2(), us)) {
+        Ok(us) => match intern_e(pers, st, ENodeView::Const(t.dup2(), us)) {
             Err(e) => Err(e),
-            Ok(hd) => match expr_ops::get_app_fn(st, CORE_WALK_FUEL, h) {
+            Ok(hd) => match expr_ops::get_app_fn(pers, st, CORE_WALK_FUEL, h) {
                 Err(e) => Err(e),
-                Ok(fna) => match expr_ops::get_app_args(st, CORE_WALK_FUEL, h) {
+                Ok(fna) => match expr_ops::get_app_args(pers, st, CORE_WALK_FUEL, h) {
                     Err(e) => Err(e),
                     Ok(args) => {
                         if fna.eq2(&hd) {
-                            match struct_parts::struct_ps_at(st, o + k, n_p) {
+                            match struct_parts::struct_ps_at(pers, st, o + k, n_p) {
                                 Err(e) => Err(e),
                                 Ok(ps) => {
                                     if args.len() as u64 == n_p + n_idx
                                         && expr_ops::eidx_take_beq(&args, &ps)
                                     {
-                                        match rec_fam_ok(st, t, lps, n_p, n_idx, o + k, h) {
+                                        match rec_fam_ok(pers, st, t, lps, n_p, n_idx, o + k, h) {
                                             Err(e) => Err(e),
                                             Ok(true) => {
                                                 if k == 0 {
@@ -304,7 +309,7 @@ pub fn rec_positivity_at(
                                 }
                             }
                         } else {
-                            match view(st, &fna) {
+                            match view(pers, st, &fna) {
                                 Err(e) => Err(e),
                                 Ok(ENodeView::Const(t2, _)) => {
                                     if t2.eq2(t) {
@@ -329,6 +334,7 @@ pub fn rec_positivity_at(
 /// constructor's telescope.
 #[allow(clippy::too_many_arguments)]
 pub fn rec_field_kind(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     lps: &Vec<NIdx>,
@@ -337,9 +343,9 @@ pub fn rec_field_kind(
     o: u64,
     dom: &EIdx,
 ) -> Result<RecFieldKind, CheckError> {
-    match struct_parts::mentions_const(st, t, dom) {
+    match struct_parts::mentions_const(pers, st, t, dom) {
         Err(e) => Err(e),
-        Ok(true) => rec_positivity(st, t, lps, n_p, n_idx, o, CORE_WALK_FUEL, dom, 0),
+        Ok(true) => rec_positivity(pers, st, t, lps, n_p, n_idx, o, CORE_WALK_FUEL, dom, 0),
         Ok(false) => Ok(RecFieldKind::Ordinary),
     }
 }
@@ -351,6 +357,7 @@ pub fn rec_field_kind(
 /// unsupported; a residual that mentions the block anywhere past the
 /// parameters makes every field negative.
 pub fn rec_ctor_kinds(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     lps: &Vec<NIdx>,
@@ -358,17 +365,17 @@ pub fn rec_ctor_kinds(
     n_idx: u64,
     c: &(IConstantVal, u64),
 ) -> Result<Option<Vec<RecFieldKind>>, CheckError> {
-    match expr_ops::strip_pis(st, n_p + c.1, &c.0.ty) {
+    match expr_ops::strip_pis(pers, st, n_p + c.1, &c.0.ty) {
         Err(e) => Err(e),
         Ok(None) => Ok(None),
         Ok(Some(q)) => {
-            match rec_ctor_kinds_from(st, t, lps, n_p, n_idx, &c.0.ty, c.1, &q.0, 0, Vec::new()) {
+            match rec_ctor_kinds_from(pers, st, t, lps, n_p, n_idx, &c.0.ty, c.1, &q.0, 0, Vec::new()) {
                 Err(e) => Err(e),
-                Ok(ks) => match expr_ops::get_app_args(st, CORE_WALK_FUEL, &q.1) {
+                Ok(ks) => match expr_ops::get_app_args(pers, st, CORE_WALK_FUEL, &q.1) {
                     Err(e) => Err(e),
                     Ok(cargs) => {
                         let idx: Vec<EIdx> = core::drop_eidx(&cargs, n_p as usize);
-                        match idx_free_of(st, t, &idx, 0) {
+                        match idx_free_of(pers, st, t, &idx, 0) {
                             Err(e) => Err(e),
                             Ok(true) => Ok(Some(ks)),
                             Ok(false) => Ok(Some(all_negative(c.1, 0, Vec::new()))),
@@ -385,6 +392,7 @@ pub fn rec_ctor_kinds(
 /// — the `(List.range c.2).mapM` of the cited clause, as a cursor recursion.
 #[allow(clippy::too_many_arguments)]
 pub fn rec_ctor_kinds_from(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     lps: &Vec<NIdx>,
@@ -404,14 +412,14 @@ pub fn rec_ctor_kinds_from(
         } else {
             EIdx::of_word(0)
         };
-        match rec_field_kind(st, t, lps, n_p, n_idx, i, &dom) {
+        match rec_field_kind(pers, st, t, lps, n_p, n_idx, i, &dom) {
             Err(e) => Err(e),
-            Ok(k) => match rec_ctor_kind_at(st, cty, n_p, i, k) {
+            Ok(k) => match rec_ctor_kind_at(pers, st, cty, n_p, i, k) {
                 Err(e) => Err(e),
                 Ok(k2) => {
                     let mut o: Vec<RecFieldKind> = out;
                     o.push(k2);
-                    rec_ctor_kinds_from(st, t, lps, n_p, n_idx, cty, n_f, cbs, i + 1, o)
+                    rec_ctor_kinds_from(pers, st, t, lps, n_p, n_idx, cty, n_f, cbs, i + 1, o)
                 }
             },
         }
@@ -423,6 +431,7 @@ pub fn rec_ctor_kinds_from(
 /// — a recursive or reflexive field a LATER field uses is unsupported; every
 /// other kind passes through.
 pub fn rec_ctor_kind_at(
+    pers: &PersTier,
     st: &mut AState,
     cty: &EIdx,
     n_p: u64,
@@ -430,12 +439,12 @@ pub fn rec_ctor_kind_at(
     k: RecFieldKind,
 ) -> Result<RecFieldKind, CheckError> {
     match k {
-        RecFieldKind::Recursive => match struct_parts::struct_used_later(st, cty, n_p, i) {
+        RecFieldKind::Recursive => match struct_parts::struct_used_later(pers, st, cty, n_p, i) {
             Err(e) => Err(e),
             Ok(true) => Ok(RecFieldKind::Unsupported),
             Ok(false) => Ok(RecFieldKind::Recursive),
         },
-        RecFieldKind::Reflexive => match struct_parts::struct_used_later(st, cty, n_p, i) {
+        RecFieldKind::Reflexive => match struct_parts::struct_used_later(pers, st, cty, n_p, i) {
             Err(e) => Err(e),
             Ok(true) => Ok(RecFieldKind::Unsupported),
             Ok(false) => Ok(RecFieldKind::Reflexive),
@@ -463,6 +472,7 @@ pub fn all_negative(n: u64, i: u64, out: Vec<RecFieldKind>) -> Vec<RecFieldKind>
 /// — all leading `∀` binders of an expression (outermost first) and the body.
 /// Lean conses on the way out; the port pushes on the way in.
 pub fn pi_binders(
+    pers: &PersTier,
     st: &AState,
     fuel: u64,
     h: &EIdx,
@@ -471,12 +481,12 @@ pub fn pi_binders(
     if fuel == 0 {
         fail(core_types::internal(code_points(&M_FUEL_PI_BINDERS)))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
             Ok(ENodeView::ForallE(ty, b, m)) => {
                 let mut o: Vec<(EIdx, BinderMeta)> = out;
                 o.push((ty, m));
-                pi_binders(st, fuel - 1, &b, o)
+                pi_binders(pers, st, fuel - 1, &b, o)
             }
             Ok(_) => Ok((out, h.dup2())),
         }
@@ -488,13 +498,14 @@ pub fn pi_binders(
 /// — field `i`'s own telescope `a⃗ : A⃗` (at the field's frame), off the
 /// constructor's type.
 pub fn struct_field_tele_of(
+    pers: &PersTier,
     st: &mut AState,
     cty: &EIdx,
     n_p: u64,
     n_f: u64,
     i: u64,
 ) -> Result<Vec<(EIdx, BinderMeta)>, CheckError> {
-    match expr_ops::strip_pis(st, n_p + n_f, cty) {
+    match expr_ops::strip_pis(pers, st, n_p + n_f, cty) {
         Err(e) => Err(e),
         Ok(None) => Ok(Vec::new()),
         Ok(Some(q)) => {
@@ -503,7 +514,7 @@ pub fn struct_field_tele_of(
             } else {
                 EIdx::of_word(0)
             };
-            match pi_binders(st, CORE_WALK_FUEL, &dom, Vec::new()) {
+            match pi_binders(pers, st, CORE_WALK_FUEL, &dom, Vec::new()) {
                 Err(e) => Err(e),
                 Ok(p) => Ok(p.0),
             }
@@ -516,13 +527,14 @@ pub fn struct_field_tele_of(
 /// — the index expressions of field `i`'s domain `Π a⃗, T p⃗ e⃗`, off the
 /// constructor's type; `[]` when the field is not of that shape.
 pub fn struct_field_idx_of(
+    pers: &PersTier,
     st: &mut AState,
     cty: &EIdx,
     n_p: u64,
     n_f: u64,
     i: u64,
 ) -> Result<Vec<EIdx>, CheckError> {
-    match expr_ops::strip_pis(st, n_p + n_f, cty) {
+    match expr_ops::strip_pis(pers, st, n_p + n_f, cty) {
         Err(e) => Err(e),
         Ok(None) => Ok(Vec::new()),
         Ok(Some(q)) => {
@@ -531,9 +543,9 @@ pub fn struct_field_idx_of(
             } else {
                 EIdx::of_word(0)
             };
-            match pi_binders(st, CORE_WALK_FUEL, &dom, Vec::new()) {
+            match pi_binders(pers, st, CORE_WALK_FUEL, &dom, Vec::new()) {
                 Err(e) => Err(e),
-                Ok(p) => match expr_ops::get_app_args(st, CORE_WALK_FUEL, &p.1) {
+                Ok(p) => match expr_ops::get_app_args(pers, st, CORE_WALK_FUEL, &p.1) {
                     Err(e) => Err(e),
                     Ok(args) => Ok(core::drop_eidx(&args, n_p as usize)),
                 },
@@ -622,17 +634,18 @@ pub fn with_kinds(p: NativeParts, ks: Vec<Vec<RecFieldKind>>) -> NativeParts {
 /// fields (and `e` further binders): the recursor's leading spine
 /// `p⃗ motive m⃗`.
 pub fn struct_rec_prefix_at(
+    pers: &PersTier,
     st: &mut AState,
     n_p: u64,
     n: u64,
     n_f: u64,
     e: u64,
 ) -> Result<Vec<EIdx>, CheckError> {
-    match struct_parts::struct_ps_at(st, e + n_f + n + 1, n_p) {
+    match struct_parts::struct_ps_at(pers, st, e + n_f + n + 1, n_p) {
         Err(er) => Err(er),
-        Ok(ps) => match intern_e(st, ENodeView::BVar(e + n_f + n)) {
+        Ok(ps) => match intern_e(pers, st, ENodeView::BVar(e + n_f + n)) {
             Err(er) => Err(er),
-            Ok(motive) => match struct_parts::struct_ps_at(st, e + n_f, n) {
+            Ok(motive) => match struct_parts::struct_ps_at(pers, st, e + n_f, n) {
                 Err(er) => Err(er),
                 Ok(minors) => {
                     let mid: Vec<EIdx> = core::snoc_eidx(ps, &motive);
@@ -649,6 +662,7 @@ pub fn struct_rec_prefix_at(
 /// of the field's own telescope, spelled at the recursor-rule frame.
 #[allow(clippy::too_many_arguments)]
 pub fn struct_idx_at(
+    pers: &PersTier,
     st: &mut AState,
     n_f: u64,
     o: u64,
@@ -657,9 +671,9 @@ pub fn struct_idx_at(
     m: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match expr_ops::lift_loose_bvars_fast(st, CORE_WALK_FUEL, sub_nat(n_f, i) + l, m, e) {
+    match expr_ops::lift_loose_bvars_fast(pers, st, CORE_WALK_FUEL, sub_nat(n_f, i) + l, m, e) {
         Err(er) => Err(er),
-        Ok(a) => expr_ops::lift_loose_bvars_fast(st, CORE_WALK_FUEL, o, n_f + l + m, &a),
+        Ok(a) => expr_ops::lift_loose_bvars_fast(pers, st, CORE_WALK_FUEL, o, n_f + l + m, &a),
     }
 }
 
@@ -669,6 +683,7 @@ pub fn struct_idx_at(
 /// with every binder's datum reset to the elimination datum.
 #[allow(clippy::too_many_arguments)]
 pub fn struct_tele_at(
+    pers: &PersTier,
     st: &mut AState,
     n_f: u64,
     o: u64,
@@ -683,12 +698,12 @@ pub fn struct_tele_at(
         Ok(out)
     } else {
         let b: EIdx = tele[k].0.dup2();
-        match struct_idx_at(st, n_f, o, i, l, k as u64, &b) {
+        match struct_idx_at(pers, st, n_f, o, i, l, k as u64, &b) {
             Err(e) => Err(e),
             Ok(a) => {
                 let mut o2: Vec<(EIdx, BinderMeta)> = out;
                 o2.push((a, expr::binder_meta(prop_when::dup(pw))));
-                struct_tele_at(st, n_f, o, i, l, pw, tele, k + 1, o2)
+                struct_tele_at(pers, st, n_f, o, i, l, pw, tele, k + 1, o2)
             }
         }
     }
@@ -697,14 +712,15 @@ pub fn struct_tele_at(
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:254-255 structTeleVars
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:211 structTeleVars`
 /// — the variables of an `m`-binder telescope, innermost last.
-pub fn struct_tele_vars(st: &mut AState, m: u64) -> Result<Vec<EIdx>, CheckError> {
-    struct_parts::bvars_desc(st, m)
+pub fn struct_tele_vars(pers: &PersTier, st: &mut AState, m: u64) -> Result<Vec<EIdx>, CheckError> {
+    struct_parts::bvars_desc(pers, st, m)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:257-260 Expr.mkPisOf
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:215-217 mkPisOf`
 /// — `∀ tele, body` over a binder list (outermost first).
 pub fn mk_pis_of(
+    pers: &PersTier,
     st: &mut AState,
     tele: &Vec<(EIdx, BinderMeta)>,
     k: usize,
@@ -713,12 +729,12 @@ pub fn mk_pis_of(
     if k >= tele.len() {
         Ok(body.dup2())
     } else {
-        match mk_pis_of(st, tele, k + 1, body) {
+        match mk_pis_of(pers, st, tele, k + 1, body) {
             Err(e) => Err(e),
             Ok(rest) => {
                 let ty: EIdx = tele[k].0.dup2();
                 let mt: BinderMeta = expr::binder_meta_dup(&tele[k].1);
-                intern_e(st, ENodeView::ForallE(ty, rest, mt))
+                intern_e(pers, st, ENodeView::ForallE(ty, rest, mt))
             }
         }
     }
@@ -728,6 +744,7 @@ pub fn mk_pis_of(
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:221-223 mkLamsOf`
 /// — `λ tele, body` over a binder list (outermost first).
 pub fn mk_lams_of(
+    pers: &PersTier,
     st: &mut AState,
     tele: &Vec<(EIdx, BinderMeta)>,
     k: usize,
@@ -736,12 +753,12 @@ pub fn mk_lams_of(
     if k >= tele.len() {
         Ok(body.dup2())
     } else {
-        match mk_lams_of(st, tele, k + 1, body) {
+        match mk_lams_of(pers, st, tele, k + 1, body) {
             Err(e) => Err(e),
             Ok(rest) => {
                 let ty: EIdx = tele[k].0.dup2();
                 let mt: BinderMeta = expr::binder_meta_dup(&tele[k].1);
-                intern_e(st, ENodeView::Lam(ty, rest, mt))
+                intern_e(pers, st, ENodeView::Lam(ty, rest, mt))
             }
         }
     }
@@ -752,6 +769,7 @@ pub fn mk_lams_of(
 /// — the cursor recursion the `mapM` becomes.
 #[allow(clippy::too_many_arguments)]
 pub fn struct_idx_list(
+    pers: &PersTier,
     st: &mut AState,
     n_f: u64,
     o: u64,
@@ -766,12 +784,12 @@ pub fn struct_idx_list(
         Ok(out)
     } else {
         let e: EIdx = idx[k].dup2();
-        match struct_idx_at(st, n_f, o, i, l, m, &e) {
+        match struct_idx_at(pers, st, n_f, o, i, l, m, &e) {
             Err(er) => Err(er),
             Ok(a) => {
                 let mut o2: Vec<EIdx> = out;
                 o2.push(a);
-                struct_idx_list(st, n_f, o, i, l, m, idx, k + 1, o2)
+                struct_idx_list(pers, st, n_f, o, i, l, m, idx, k + 1, o2)
             }
         }
     }
@@ -783,6 +801,7 @@ pub fn struct_idx_list(
 /// `tele` and index expressions `idx`, spelled under the fields of a rule body.
 #[allow(clippy::too_many_arguments)]
 pub fn struct_ih_app(
+    pers: &PersTier,
     st: &mut AState,
     rec_c: &NIdx,
     rlvls: &LsIdx,
@@ -795,28 +814,28 @@ pub fn struct_ih_app(
     idx: &Vec<EIdx>,
 ) -> Result<EIdx, CheckError> {
     let m: u64 = tele.len() as u64;
-    match intern_e(st, ENodeView::Const(rec_c.dup2(), rlvls.dup2())) {
+    match intern_e(pers, st, ENodeView::Const(rec_c.dup2(), rlvls.dup2())) {
         Err(e) => Err(e),
-        Ok(hd) => match struct_rec_prefix_at(st, n_p, n, n_f, m) {
+        Ok(hd) => match struct_rec_prefix_at(pers, st, n_p, n, n_f, m) {
             Err(e) => Err(e),
             Ok(prefix_spine) => {
-                match struct_idx_list(st, n_f, n + 1, i, 0, m, idx, 0, Vec::new()) {
+                match struct_idx_list(pers, st, n_f, n + 1, i, 0, m, idx, 0, Vec::new()) {
                     Err(e) => Err(e),
                     Ok(idx2) => {
-                        match intern_e(st, ENodeView::BVar(sub_nat(sub_nat(n_f, 1), i) + m)) {
+                        match intern_e(pers, st, ENodeView::BVar(sub_nat(sub_nat(n_f, 1), i) + m)) {
                             Err(e) => Err(e),
-                            Ok(fvar) => match struct_tele_vars(st, m) {
+                            Ok(fvar) => match struct_tele_vars(pers, st, m) {
                                 Err(e) => Err(e),
-                                Ok(tvars) => match expr_ops::mk_app_n(st, &fvar, &tvars) {
+                                Ok(tvars) => match expr_ops::mk_app_n(pers, st, &fvar, &tvars) {
                                     Err(e) => Err(e),
                                     Ok(fapp) => {
                                         let args: Vec<EIdx> = core::snoc_eidx(
                                             core::append_eidx(prefix_spine, &idx2),
                                             &fapp,
                                         );
-                                        match expr_ops::mk_app_n(st, &hd, &args) {
+                                        match expr_ops::mk_app_n(pers, st, &hd, &args) {
                                             Err(e) => Err(e),
-                                            Ok(body) => match struct_tele_at(
+                                            Ok(body) => match struct_tele_at(pers,
                                                 st,
                                                 n_f,
                                                 n + 1,
@@ -828,7 +847,7 @@ pub fn struct_ih_app(
                                                 Vec::new(),
                                             ) {
                                                 Err(e) => Err(e),
-                                                Ok(tl) => mk_lams_of(st, &tl, 0, &body),
+                                                Ok(tl) => mk_lams_of(pers, st, &tl, 0, &body),
                                             },
                                         }
                                     }
@@ -849,6 +868,7 @@ pub fn struct_ih_app(
 /// `cty` and the counts replace con-leche's two function arguments.
 #[allow(clippy::too_many_arguments)]
 pub fn struct_rule_body_r(
+    pers: &PersTier,
     st: &mut AState,
     rec_c: &NIdx,
     rlvls: &LsIdx,
@@ -860,11 +880,11 @@ pub fn struct_rule_body_r(
     rec_idx: &Vec<u64>,
     cty: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match intern_e(st, ENodeView::BVar(sub_nat(sub_nat(n_f + n, 1), j))) {
+    match intern_e(pers, st, ENodeView::BVar(sub_nat(sub_nat(n_f + n, 1), j))) {
         Err(e) => Err(e),
-        Ok(hd) => match struct_parts::bvars_desc(st, n_f) {
+        Ok(hd) => match struct_parts::bvars_desc(pers, st, n_f) {
             Err(e) => Err(e),
-            Ok(fs) => match struct_ih_list(
+            Ok(fs) => match struct_ih_list(pers,
                 st,
                 rec_c,
                 rlvls,
@@ -880,7 +900,7 @@ pub fn struct_rule_body_r(
                 Err(e) => Err(e),
                 Ok(ihs) => {
                     let args: Vec<EIdx> = core::append_eidx(fs, &ihs);
-                    expr_ops::mk_app_n(st, &hd, &args)
+                    expr_ops::mk_app_n(pers, st, &hd, &args)
                 }
             },
         },
@@ -893,6 +913,7 @@ pub fn struct_rule_body_r(
 /// as `teleOf`/`idxOf` are called here.
 #[allow(clippy::too_many_arguments)]
 pub fn struct_ih_list(
+    pers: &PersTier,
     st: &mut AState,
     rec_c: &NIdx,
     rlvls: &LsIdx,
@@ -909,16 +930,16 @@ pub fn struct_ih_list(
         Ok(out)
     } else {
         let i: u64 = rec_idx[k];
-        match struct_field_tele_of(st, cty, n_p, n_f, i) {
+        match struct_field_tele_of(pers, st, cty, n_p, n_f, i) {
             Err(e) => Err(e),
-            Ok(tele) => match struct_field_idx_of(st, cty, n_p, n_f, i) {
+            Ok(tele) => match struct_field_idx_of(pers, st, cty, n_p, n_f, i) {
                 Err(e) => Err(e),
-                Ok(idx) => match struct_ih_app(st, rec_c, rlvls, pw, n_p, n, n_f, i, &tele, &idx) {
+                Ok(idx) => match struct_ih_app(pers, st, rec_c, rlvls, pw, n_p, n, n_f, i, &tele, &idx) {
                     Err(e) => Err(e),
                     Ok(a) => {
                         let mut o: Vec<EIdx> = out;
                         o.push(a);
-                        struct_ih_list(st, rec_c, rlvls, pw, n_p, n, n_f, rec_idx, cty, k + 1, o)
+                        struct_ih_list(pers, st, rec_c, rlvls, pw, n_p, n, n_f, rec_idx, cty, k + 1, o)
                     }
                 },
             },
@@ -933,6 +954,7 @@ pub fn struct_ih_list(
 /// and `nP` replace con-leche's two function arguments.
 #[allow(clippy::too_many_arguments)]
 pub fn struct_ih_pis(
+    pers: &PersTier,
     st: &mut AState,
     n_f: u64,
     o: u64,
@@ -948,18 +970,18 @@ pub fn struct_ih_pis(
         Ok(body.dup2())
     } else {
         let i: u64 = is[k];
-        match struct_field_tele_of(st, cty, n_p, n_f, i) {
+        match struct_field_tele_of(pers, st, cty, n_p, n_f, i) {
             Err(e) => Err(e),
-            Ok(tele) => match struct_field_idx_of(st, cty, n_p, n_f, i) {
+            Ok(tele) => match struct_field_idx_of(pers, st, cty, n_p, n_f, i) {
                 Err(e) => Err(e),
                 Ok(idx) => {
                     let m: u64 = tele.len() as u64;
-                    match intern_e(st, ENodeView::BVar(sub_nat(n_f + o, 1) + l + m)) {
+                    match intern_e(pers, st, ENodeView::BVar(sub_nat(n_f + o, 1) + l + m)) {
                         Err(e) => Err(e),
                         Ok(motive) => {
-                            match struct_idx_list(st, n_f, o, i, l, m, &idx, 0, Vec::new()) {
+                            match struct_idx_list(pers, st, n_f, o, i, l, m, &idx, 0, Vec::new()) {
                                 Err(e) => Err(e),
-                                Ok(idx2) => struct_ih_pis_at(
+                                Ok(idx2) => struct_ih_pis_at(pers,
                                     st, n_f, o, n_p, pw, cty, is, k, l, body, &tele, &idx2,
                                     &motive, i, m,
                                 ),
@@ -977,6 +999,7 @@ pub fn struct_ih_pis(
 /// — one `ih` binder's conclusion and domain, and the recursion under it.
 #[allow(clippy::too_many_arguments)]
 pub fn struct_ih_pis_at(
+    pers: &PersTier,
     st: &mut AState,
     n_f: u64,
     o: u64,
@@ -993,23 +1016,23 @@ pub fn struct_ih_pis_at(
     i: u64,
     m: u64,
 ) -> Result<EIdx, CheckError> {
-    match intern_e(st, ENodeView::BVar(sub_nat(sub_nat(n_f, 1), i) + l + m)) {
+    match intern_e(pers, st, ENodeView::BVar(sub_nat(sub_nat(n_f, 1), i) + l + m)) {
         Err(e) => Err(e),
-        Ok(fvar) => match struct_tele_vars(st, m) {
+        Ok(fvar) => match struct_tele_vars(pers, st, m) {
             Err(e) => Err(e),
-            Ok(tvars) => match expr_ops::mk_app_n(st, &fvar, &tvars) {
+            Ok(tvars) => match expr_ops::mk_app_n(pers, st, &fvar, &tvars) {
                 Err(e) => Err(e),
                 Ok(fapp) => {
                     let cargs: Vec<EIdx> = core::snoc_eidx(env::eidx_vec_dup(idx2), &fapp);
-                    match expr_ops::mk_app_n(st, motive, &cargs) {
+                    match expr_ops::mk_app_n(pers, st, motive, &cargs) {
                         Err(e) => Err(e),
                         Ok(concl) => {
-                            match struct_tele_at(st, n_f, o, i, l, pw, tele, 0, Vec::new()) {
+                            match struct_tele_at(pers, st, n_f, o, i, l, pw, tele, 0, Vec::new()) {
                                 Err(e) => Err(e),
-                                Ok(tl) => match mk_pis_of(st, &tl, 0, &concl) {
+                                Ok(tl) => match mk_pis_of(pers, st, &tl, 0, &concl) {
                                     Err(e) => Err(e),
                                     Ok(dom) => {
-                                        match struct_ih_pis(
+                                        match struct_ih_pis(pers,
                                             st,
                                             n_f,
                                             o,
@@ -1025,7 +1048,7 @@ pub fn struct_ih_pis_at(
                                             Ok(rest) => {
                                                 let bm: BinderMeta =
                                                     expr::binder_meta(prop_when::dup(pw));
-                                                intern_e(st, ENodeView::ForallE(dom, rest, bm))
+                                                intern_e(pers, st, ENodeView::ForallE(dom, rest, bm))
                                             }
                                         }
                                     }
@@ -1047,6 +1070,7 @@ pub fn struct_ih_pis_at(
 /// the `ih`s.
 #[allow(clippy::too_many_arguments)]
 pub fn struct_minor_ty_r(
+    pers: &PersTier,
     st: &mut AState,
     c: &NIdx,
     lps: &Vec<NIdx>,
@@ -1057,14 +1081,14 @@ pub fn struct_minor_ty_r(
     cty: &EIdx,
     rec_idx: &Vec<u64>,
 ) -> Result<Option<EIdx>, CheckError> {
-    match expr_ops::strip_pis(st, n_p, cty) {
+    match expr_ops::strip_pis(pers, st, n_p, cty) {
         Err(e) => Err(e),
         Ok(None) => Ok(None),
-        Ok(Some(q)) => match expr_ops::strip_pis(st, n_f, &q.1) {
+        Ok(Some(q)) => match expr_ops::strip_pis(pers, st, n_f, &q.1) {
             Err(e) => Err(e),
             Ok(None) => Ok(None),
             Ok(Some(r)) => {
-                struct_minor_ty_at(st, c, lps, n_p, n_f, o, pw, cty, rec_idx, &q.1, &r.1)
+                struct_minor_ty_at(pers, st, c, lps, n_p, n_f, o, pw, cty, rec_idx, &q.1, &r.1)
             }
         },
     }
@@ -1075,6 +1099,7 @@ pub fn struct_minor_ty_r(
 /// — the conclusion, the `ih` binders and the re-datumed field telescope.
 #[allow(clippy::too_many_arguments)]
 pub fn struct_minor_ty_at(
+    pers: &PersTier,
     st: &mut AState,
     c: &NIdx,
     lps: &Vec<NIdx>,
@@ -1087,21 +1112,21 @@ pub fn struct_minor_ty_at(
     q2: &EIdx,
     r2: &EIdx,
 ) -> Result<Option<EIdx>, CheckError> {
-    match intern_e(st, ENodeView::BVar(sub_nat(n_f + o, 1))) {
+    match intern_e(pers, st, ENodeView::BVar(sub_nat(n_f + o, 1))) {
         Err(e) => Err(e),
-        Ok(motive) => match expr_ops::get_app_args(st, CORE_WALK_FUEL, r2) {
+        Ok(motive) => match expr_ops::get_app_args(pers, st, CORE_WALK_FUEL, r2) {
             Err(e) => Err(e),
             Ok(rargs) => {
                 let tail: Vec<EIdx> = core::drop_eidx(&rargs, n_p as usize);
-                match lift_list(st, o, n_f, &tail, 0, Vec::new()) {
+                match lift_list(pers, st, o, n_f, &tail, 0, Vec::new()) {
                     Err(e) => Err(e),
-                    Ok(idx) => match struct_parts::struct_ctor_spine_at(st, c, lps, o, n_p, n_f) {
+                    Ok(idx) => match struct_parts::struct_ctor_spine_at(pers, st, c, lps, o, n_p, n_f) {
                         Err(e) => Err(e),
                         Ok(spine) => {
                             let cargs: Vec<EIdx> = core::snoc_eidx(idx, &spine);
-                            match expr_ops::mk_app_n(st, &motive, &cargs) {
+                            match expr_ops::mk_app_n(pers, st, &motive, &cargs) {
                                 Err(e) => Err(e),
-                                Ok(concl0) => struct_minor_ty_close(
+                                Ok(concl0) => struct_minor_ty_close(pers,
                                     st, n_f, o, n_p, pw, cty, rec_idx, q2, &concl0,
                                 ),
                             }
@@ -1119,6 +1144,7 @@ pub fn struct_minor_ty_at(
 /// telescope re-datumed around them.
 #[allow(clippy::too_many_arguments)]
 pub fn struct_minor_ty_close(
+    pers: &PersTier,
     st: &mut AState,
     n_f: u64,
     o: u64,
@@ -1129,13 +1155,13 @@ pub fn struct_minor_ty_close(
     q2: &EIdx,
     concl0: &EIdx,
 ) -> Result<Option<EIdx>, CheckError> {
-    match expr_ops::lift_loose_bvars_fast(st, CORE_WALK_FUEL, rec_idx.len() as u64, 0, concl0) {
+    match expr_ops::lift_loose_bvars_fast(pers, st, CORE_WALK_FUEL, rec_idx.len() as u64, 0, concl0) {
         Err(e) => Err(e),
-        Ok(concl) => match struct_ih_pis(st, n_f, o, n_p, pw, cty, rec_idx, 0, 0, &concl) {
+        Ok(concl) => match struct_ih_pis(pers, st, n_f, o, n_p, pw, cty, rec_idx, 0, 0, &concl) {
             Err(e) => Err(e),
-            Ok(inner) => match expr_ops::lift_loose_bvars_fast(st, CORE_WALK_FUEL, o, 0, q2) {
+            Ok(inner) => match expr_ops::lift_loose_bvars_fast(pers, st, CORE_WALK_FUEL, o, 0, q2) {
                 Err(e) => Err(e),
-                Ok(lifted) => struct_parts::replace_pis_pw(st, pw, n_f, &lifted, &inner),
+                Ok(lifted) => struct_parts::replace_pis_pw(pers, st, pw, n_f, &lifted, &inner),
             },
         },
     }
@@ -1145,6 +1171,7 @@ pub fn struct_minor_ty_close(
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeParts.lean:286 structMinorTyR`
 /// — the cursor recursion the `mapM` becomes.
 pub fn lift_list(
+    pers: &PersTier,
     st: &mut AState,
     amount: u64,
     c: u64,
@@ -1156,12 +1183,12 @@ pub fn lift_list(
         Ok(out)
     } else {
         let e: EIdx = xs[i].dup2();
-        match expr_ops::lift_loose_bvars_fast(st, CORE_WALK_FUEL, amount, c, &e) {
+        match expr_ops::lift_loose_bvars_fast(pers, st, CORE_WALK_FUEL, amount, c, &e) {
             Err(er) => Err(er),
             Ok(a) => {
                 let mut o: Vec<EIdx> = out;
                 o.push(a);
-                lift_list(st, amount, c, xs, i + 1, o)
+                lift_list(pers, st, amount, c, xs, i + 1, o)
             }
         }
     }
@@ -1178,6 +1205,7 @@ pub fn lift_list(
 /// built inside one function the move happens once per branch and the join is
 /// on a plain `EIdx`.
 pub fn intern_binder(
+    pers: &PersTier,
     st: &mut AState,
     is_lam: bool,
     ty: EIdx,
@@ -1186,9 +1214,9 @@ pub fn intern_binder(
 ) -> Result<EIdx, CheckError> {
     let bm: BinderMeta = expr::binder_meta(prop_when::dup(pw));
     if is_lam {
-        intern_e(st, ENodeView::Lam(ty, body, bm))
+        intern_e(pers, st, ENodeView::Lam(ty, body, bm))
     } else {
-        intern_e(st, ENodeView::ForallE(ty, body, bm))
+        intern_e(pers, st, ENodeView::ForallE(ty, body, bm))
     }
 }
 
@@ -1199,6 +1227,7 @@ pub fn intern_binder(
 /// twin writes out a second time and which differs only in the node built.
 #[allow(clippy::too_many_arguments)]
 pub fn struct_minors_pis_r(
+    pers: &PersTier,
     st: &mut AState,
     lps: &Vec<NIdx>,
     n_p: u64,
@@ -1217,14 +1246,14 @@ pub fn struct_minors_pis_r(
         let n_f: u64 = c.1;
         let cty: EIdx = c.2.dup2();
         let rec_idx: Vec<u64> = u64_vec_dup(&c.3, 0, Vec::new());
-        match struct_minor_ty_r(st, &cn, lps, n_p, n_f, o, pw, &cty, &rec_idx) {
+        match struct_minor_ty_r(pers, st, &cn, lps, n_p, n_f, o, pw, &cty, &rec_idx) {
             Err(e) => Err(e),
             Ok(None) => Ok(None),
             Ok(Some(mty)) => {
-                match struct_minors_pis_r(st, lps, n_p, pw, ctors, k + 1, o + 1, body, is_lam) {
+                match struct_minors_pis_r(pers, st, lps, n_p, pw, ctors, k + 1, o + 1, body, is_lam) {
                     Err(e) => Err(e),
                     Ok(None) => Ok(None),
-                    Ok(Some(rest)) => match intern_binder(st, is_lam, mty, rest, pw) {
+                    Ok(Some(rest)) => match intern_binder(pers, st, is_lam, mty, rest, pw) {
                         Err(e) => Err(e),
                         Ok(r) => Ok(Some(r)),
                     },
@@ -1240,6 +1269,7 @@ pub fn struct_minors_pis_r(
 /// `is_lam = true`.
 #[allow(clippy::too_many_arguments)]
 pub fn struct_minors_lams_r(
+    pers: &PersTier,
     st: &mut AState,
     lps: &Vec<NIdx>,
     n_p: u64,
@@ -1249,7 +1279,7 @@ pub fn struct_minors_lams_r(
     o: u64,
     body: &EIdx,
 ) -> Result<Option<EIdx>, CheckError> {
-    struct_minors_pis_r(st, lps, n_p, pw, ctors, k, o, body, true)
+    struct_minors_pis_r(pers, st, lps, n_p, pw, ctors, k, o, body, true)
 }
 
 /// con-leche: none — a `List Nat` copy; Lean shares the list
@@ -1269,6 +1299,7 @@ pub fn u64_vec_dup(xs: &Vec<u64>, i: usize, out: Vec<u64>) -> Vec<u64> {
 /// — **the generated recursor type at a recursive block.**
 #[allow(clippy::too_many_arguments)]
 pub fn struct_rec_ty_r(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     lps: &Vec<NIdx>,
@@ -1279,21 +1310,21 @@ pub fn struct_rec_ty_r(
     tty: &EIdx,
     ctors: &Vec<(NIdx, u64, EIdx, Vec<u64>)>,
 ) -> Result<Option<EIdx>, CheckError> {
-    match struct_parts::struct_elim_level(st, elim, large) {
+    match struct_parts::struct_elim_level(pers, st, elim, large) {
         Err(e) => Err(e),
-        Ok(l) => match read_level(st, &l) {
+        Ok(l) => match read_level(pers, st, &l) {
             Err(e) => Err(e),
             Ok(lv) => {
                 let pw: PropWhen = level::zeroness_of(&lv);
                 let n: u64 = ctors.len() as u64;
-                match expr_ops::strip_pis(st, n_p, tty) {
+                match expr_ops::strip_pis(pers, st, n_p, tty) {
                     Err(e) => Err(e),
                     Ok(None) => Ok(None),
                     Ok(Some(q)) => {
-                        match struct_parts::struct_motive_ty_i(st, t, lps, n_p, n_idx, &l, &q.1) {
+                        match struct_parts::struct_motive_ty_i(pers, st, t, lps, n_p, n_idx, &l, &q.1) {
                             Err(e) => Err(e),
                             Ok(None) => Ok(None),
-                            Ok(Some(motive_ty)) => struct_rec_ty_at(
+                            Ok(Some(motive_ty)) => struct_rec_ty_at(pers,
                                 st, t, lps, n_p, n_idx, tty, ctors, &pw, n, &q.1, &motive_ty,
                             ),
                         }
@@ -1309,6 +1340,7 @@ pub fn struct_rec_ty_r(
 /// — the major premise, the minors and the parameter telescope re-datumed.
 #[allow(clippy::too_many_arguments)]
 pub fn struct_rec_ty_at(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     lps: &Vec<NIdx>,
@@ -1321,23 +1353,23 @@ pub fn struct_rec_ty_at(
     q2: &EIdx,
     motive_ty: &EIdx,
 ) -> Result<Option<EIdx>, CheckError> {
-    match struct_parts::struct_fam_i(st, t, lps, n_p, n_idx, n + 1, 0) {
+    match struct_parts::struct_fam_i(pers, st, t, lps, n_p, n_idx, n + 1, 0) {
         Err(e) => Err(e),
-        Ok(fam) => match intern_e(st, ENodeView::BVar(n_idx + n + 1)) {
+        Ok(fam) => match intern_e(pers, st, ENodeView::BVar(n_idx + n + 1)) {
             Err(e) => Err(e),
-            Ok(motive_var) => match struct_parts::struct_ps_at(st, 1, n_idx) {
+            Ok(motive_var) => match struct_parts::struct_ps_at(pers, st, 1, n_idx) {
                 Err(e) => Err(e),
-                Ok(idx_vars) => match intern_e(st, ENodeView::BVar(0)) {
+                Ok(idx_vars) => match intern_e(pers, st, ENodeView::BVar(0)) {
                     Err(e) => Err(e),
                     Ok(b0) => {
                         let cargs: Vec<EIdx> = core::snoc_eidx(idx_vars, &b0);
-                        match expr_ops::mk_app_n(st, &motive_var, &cargs) {
+                        match expr_ops::mk_app_n(pers, st, &motive_var, &cargs) {
                             Err(e) => Err(e),
                             Ok(concl) => {
                                 let bm: BinderMeta = expr::binder_meta(prop_when::dup(pw));
-                                match intern_e(st, ENodeView::ForallE(fam, concl, bm)) {
+                                match intern_e(pers, st, ENodeView::ForallE(fam, concl, bm)) {
                                     Err(e) => Err(e),
-                                    Ok(major_body) => struct_rec_ty_close(
+                                    Ok(major_body) => struct_rec_ty_close(pers,
                                         st,
                                         lps,
                                         n_p,
@@ -1366,6 +1398,7 @@ pub fn struct_rec_ty_at(
 /// binder and the parameter telescope.
 #[allow(clippy::too_many_arguments)]
 pub fn struct_rec_ty_close(
+    pers: &PersTier,
     st: &mut AState,
     lps: &Vec<NIdx>,
     n_p: u64,
@@ -1378,20 +1411,20 @@ pub fn struct_rec_ty_close(
     motive_ty: &EIdx,
     major_body: &EIdx,
 ) -> Result<Option<EIdx>, CheckError> {
-    match expr_ops::lift_loose_bvars_fast(st, CORE_WALK_FUEL, n + 1, 0, q2) {
+    match expr_ops::lift_loose_bvars_fast(pers, st, CORE_WALK_FUEL, n + 1, 0, q2) {
         Err(e) => Err(e),
-        Ok(lifted) => match struct_parts::replace_pis_pw(st, pw, n_idx, &lifted, major_body) {
+        Ok(lifted) => match struct_parts::replace_pis_pw(pers, st, pw, n_idx, &lifted, major_body) {
             Err(e) => Err(e),
             Ok(None) => Ok(None),
             Ok(Some(major)) => {
-                match struct_minors_pis_r(st, lps, n_p, pw, ctors, 0, 1, &major, false) {
+                match struct_minors_pis_r(pers, st, lps, n_p, pw, ctors, 0, 1, &major, false) {
                     Err(e) => Err(e),
                     Ok(None) => Ok(None),
                     Ok(Some(minors)) => {
                         let bm: BinderMeta = expr::binder_meta(prop_when::dup(pw));
-                        match intern_e(st, ENodeView::ForallE(motive_ty.dup2(), minors, bm)) {
+                        match intern_e(pers, st, ENodeView::ForallE(motive_ty.dup2(), minors, bm)) {
                             Err(e) => Err(e),
-                            Ok(body) => struct_parts::replace_pis_pw(st, pw, n_p, tty, &body),
+                            Ok(body) => struct_parts::replace_pis_pw(pers, st, pw, n_p, tty, &body),
                         }
                     }
                 }
@@ -1405,6 +1438,7 @@ pub fn struct_rec_ty_close(
 /// — **the generated rule** for constructor `j` at a recursive block.
 #[allow(clippy::too_many_arguments)]
 pub fn struct_rec_rhs_r(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     lps: &Vec<NIdx>,
@@ -1418,9 +1452,9 @@ pub fn struct_rec_rhs_r(
     rlvls: &LsIdx,
     j: u64,
 ) -> Result<Option<EIdx>, CheckError> {
-    match struct_parts::struct_elim_level(st, elim, large) {
+    match struct_parts::struct_elim_level(pers, st, elim, large) {
         Err(e) => Err(e),
-        Ok(l) => match read_level(st, &l) {
+        Ok(l) => match read_level(pers, st, &l) {
             Err(e) => Err(e),
             Ok(lv) => {
                 let pw: PropWhen = level::zeroness_of(&lv);
@@ -1431,7 +1465,7 @@ pub fn struct_rec_rhs_r(
                     let n_f: u64 = ctors[j as usize].1;
                     let cty: EIdx = ctors[j as usize].2.dup2();
                     let rec_idx: Vec<u64> = u64_vec_dup(&ctors[j as usize].3, 0, Vec::new());
-                    struct_rec_rhs_at(
+                    struct_rec_rhs_at(pers,
                         st, t, lps, n_p, n_idx, tty, ctors, rec_c, rlvls, j, &pw, n, n_f, &cty,
                         &rec_idx, &l,
                     )
@@ -1447,6 +1481,7 @@ pub fn struct_rec_rhs_r(
 /// parameter λs.
 #[allow(clippy::too_many_arguments)]
 pub fn struct_rec_rhs_at(
+    pers: &PersTier,
     st: &mut AState,
     t: &NIdx,
     lps: &Vec<NIdx>,
@@ -1464,19 +1499,19 @@ pub fn struct_rec_rhs_at(
     rec_idx: &Vec<u64>,
     l: &LIdx,
 ) -> Result<Option<EIdx>, CheckError> {
-    match expr_ops::strip_pis(st, n_p, tty) {
+    match expr_ops::strip_pis(pers, st, n_p, tty) {
         Err(e) => Err(e),
         Ok(None) => Ok(None),
-        Ok(Some(tq)) => match struct_parts::struct_motive_ty_i(st, t, lps, n_p, n_idx, l, &tq.1) {
+        Ok(Some(tq)) => match struct_parts::struct_motive_ty_i(pers, st, t, lps, n_p, n_idx, l, &tq.1) {
             Err(e) => Err(e),
             Ok(None) => Ok(None),
-            Ok(Some(motive_ty)) => match expr_ops::strip_pis(st, n_p, cty) {
+            Ok(Some(motive_ty)) => match expr_ops::strip_pis(pers, st, n_p, cty) {
                 Err(e) => Err(e),
                 Ok(None) => Ok(None),
                 Ok(Some(cq)) => {
-                    match struct_rule_body_r(st, rec_c, rlvls, pw, n_p, n, n_f, j, rec_idx, cty) {
+                    match struct_rule_body_r(pers, st, rec_c, rlvls, pw, n_p, n, n_f, j, rec_idx, cty) {
                         Err(e) => Err(e),
-                        Ok(body) => struct_rec_rhs_close(
+                        Ok(body) => struct_rec_rhs_close(pers,
                             st, lps, n_p, tty, ctors, pw, n, n_f, &cq.1, &body, &motive_ty,
                         ),
                     }
@@ -1491,6 +1526,7 @@ pub fn struct_rec_rhs_at(
 /// — the field λs, the minors' λs, the motive λ and the parameter λs.
 #[allow(clippy::too_many_arguments)]
 pub fn struct_rec_rhs_close(
+    pers: &PersTier,
     st: &mut AState,
     lps: &Vec<NIdx>,
     n_p: u64,
@@ -1503,19 +1539,19 @@ pub fn struct_rec_rhs_close(
     body: &EIdx,
     motive_ty: &EIdx,
 ) -> Result<Option<EIdx>, CheckError> {
-    match expr_ops::lift_loose_bvars_fast(st, CORE_WALK_FUEL, n + 1, 0, q2) {
+    match expr_ops::lift_loose_bvars_fast(pers, st, CORE_WALK_FUEL, n + 1, 0, q2) {
         Err(e) => Err(e),
-        Ok(lifted) => match struct_parts::pis_to_lams_pw(st, pw, n_f, &lifted, body) {
+        Ok(lifted) => match struct_parts::pis_to_lams_pw(pers, st, pw, n_f, &lifted, body) {
             Err(e) => Err(e),
             Ok(None) => Ok(None),
-            Ok(Some(inner)) => match struct_minors_lams_r(st, lps, n_p, pw, ctors, 0, 1, &inner) {
+            Ok(Some(inner)) => match struct_minors_lams_r(pers, st, lps, n_p, pw, ctors, 0, 1, &inner) {
                 Err(e) => Err(e),
                 Ok(None) => Ok(None),
                 Ok(Some(minors)) => {
                     let bm: BinderMeta = expr::binder_meta(prop_when::dup(pw));
-                    match intern_e(st, ENodeView::Lam(motive_ty.dup2(), minors, bm)) {
+                    match intern_e(pers, st, ENodeView::Lam(motive_ty.dup2(), minors, bm)) {
                         Err(e) => Err(e),
-                        Ok(lam) => struct_parts::pis_to_lams_pw(st, pw, n_p, tty, &lam),
+                        Ok(lam) => struct_parts::pis_to_lams_pw(pers, st, pw, n_p, tty, &lam),
                     }
                 }
             },
@@ -1560,6 +1596,7 @@ pub fn native_ctors4(
 /// those binder types appears again in the recursor RECORD's own type.
 #[allow(clippy::too_many_arguments)]
 pub fn native_rule_prefix_ok(
+    pers: &PersTier,
     st: &mut AState,
     rec_ty: &EIdx,
     n_p: u64,
@@ -1568,13 +1605,13 @@ pub fn native_rule_prefix_ok(
     n_f: u64,
     rhs: &EIdx,
 ) -> Result<bool, CheckError> {
-    match expr_ops::strip_lams(st, n_p + 1 + n + n_f, rhs) {
+    match expr_ops::strip_lams(pers, st, n_p + 1 + n + n_f, rhs) {
         Err(e) => Err(e),
         Ok(None) => Ok(false),
-        Ok(Some(rq)) => match expr_ops::strip_pis(st, n_p + 1 + n, rec_ty) {
+        Ok(Some(rq)) => match expr_ops::strip_pis(pers, st, n_p + 1 + n, rec_ty) {
             Err(e) => Err(e),
             Ok(None) => Ok(false),
-            Ok(Some(tq)) => match binders_reset_beq(st, &rq.0, &tq.0, 0, 0, n_p + 1 + n) {
+            Ok(Some(tq)) => match binders_reset_beq(pers, st, &rq.0, &tq.0, 0, 0, n_p + 1 + n) {
                 Err(e) => Err(e),
                 Ok(false) => Ok(false),
                 Ok(true) => {
@@ -1582,7 +1619,7 @@ pub fn native_rule_prefix_ok(
                         Ok(false)
                     } else {
                         let mty: EIdx = tq.0[(n_p + 1 + j) as usize].0.dup2();
-                        native_rule_fields_ok(st, n_p, n, j, n_f, &rq.0, &mty)
+                        native_rule_fields_ok(pers, st, n_p, n, j, n_f, &rq.0, &mty)
                     }
                 }
             },
@@ -1596,6 +1633,7 @@ pub fn native_rule_prefix_ok(
 /// the later minors.
 #[allow(clippy::too_many_arguments)]
 pub fn native_rule_fields_ok(
+    pers: &PersTier,
     st: &mut AState,
     n_p: u64,
     n: u64,
@@ -1604,12 +1642,12 @@ pub fn native_rule_fields_ok(
     rbs: &Vec<(EIdx, BinderMeta)>,
     mty: &EIdx,
 ) -> Result<bool, CheckError> {
-    match expr_ops::lift_loose_bvars_fast(st, CORE_WALK_FUEL, sub_nat(n, j), 0, mty) {
+    match expr_ops::lift_loose_bvars_fast(pers, st, CORE_WALK_FUEL, sub_nat(n, j), 0, mty) {
         Err(e) => Err(e),
-        Ok(lifted) => match expr_ops::strip_pis(st, n_f, &lifted) {
+        Ok(lifted) => match expr_ops::strip_pis(pers, st, n_f, &lifted) {
             Err(e) => Err(e),
             Ok(None) => Ok(false),
-            Ok(Some(fq)) => binders_reset_beq(st, rbs, &fq.0, n_p + 1 + n, 0, n_f),
+            Ok(Some(fq)) => binders_reset_beq(pers, st, rbs, &fq.0, n_p + 1 + n, 0, n_f),
         },
     }
 }
@@ -1621,6 +1659,7 @@ pub fn native_rule_fields_ok(
 /// to the prop-ness data the two sides datum differently.
 #[allow(clippy::too_many_arguments)]
 pub fn binders_reset_beq(
+    pers: &PersTier,
     st: &mut AState,
     bs1: &Vec<(EIdx, BinderMeta)>,
     bs2: &Vec<(EIdx, BinderMeta)>,
@@ -1628,7 +1667,7 @@ pub fn binders_reset_beq(
     o2: u64,
     n: u64,
 ) -> Result<bool, CheckError> {
-    binders_reset_beq_from(st, bs1, bs2, o1, o2, n, 0)
+    binders_reset_beq_from(pers, st, bs1, bs2, o1, o2, n, 0)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeParts.lean:394-445 nativeRulePrefixOk
@@ -1636,6 +1675,7 @@ pub fn binders_reset_beq(
 /// — the cursor recursion behind `binders_reset_beq`.
 #[allow(clippy::too_many_arguments)]
 pub fn binders_reset_beq_from(
+    pers: &PersTier,
     st: &mut AState,
     bs1: &Vec<(EIdx, BinderMeta)>,
     bs2: &Vec<(EIdx, BinderMeta)>,
@@ -1654,13 +1694,13 @@ pub fn binders_reset_beq_from(
         } else {
             let a: EIdx = bs1[j1 as usize].0.dup2();
             let b: EIdx = bs2[j2 as usize].0.dup2();
-            match expr_ops::reset_meta_fast(st, CORE_WALK_FUEL, &a) {
+            match expr_ops::reset_meta_fast(pers, st, CORE_WALK_FUEL, &a) {
                 Err(e) => Err(e),
-                Ok(ra) => match expr_ops::reset_meta_fast(st, CORE_WALK_FUEL, &b) {
+                Ok(ra) => match expr_ops::reset_meta_fast(pers, st, CORE_WALK_FUEL, &b) {
                     Err(e) => Err(e),
                     Ok(rb) => {
                         if ra.eq2(&rb) {
-                            binders_reset_beq_from(st, bs1, bs2, o1, o2, n, i + 1)
+                            binders_reset_beq_from(pers, st, bs1, bs2, o1, o2, n, i + 1)
                         } else {
                             Ok(false)
                         }
@@ -1679,6 +1719,7 @@ pub fn binders_reset_beq_from(
 /// binder data.
 #[allow(clippy::too_many_arguments)]
 pub fn native_rules_ok(
+    pers: &PersTier,
     st: &mut AState,
     rec_c: &NIdx,
     rlvls: &LsIdx,
@@ -1693,7 +1734,7 @@ pub fn native_rules_ok(
     if !(rhss.len() as u64 == n && kinds.len() as u64 == n) {
         Ok(false)
     } else {
-        native_rules_ok_from(st, rec_c, rlvls, pw, n_p, n, cs, kinds, rhss, rec_ty, 0)
+        native_rules_ok_from(pers, st, rec_c, rlvls, pw, n_p, n, cs, kinds, rhss, rec_ty, 0)
     }
 }
 
@@ -1702,6 +1743,7 @@ pub fn native_rules_ok(
 /// — the `(List.range n).allM` of the cited clause, as a counted recursion.
 #[allow(clippy::too_many_arguments)]
 pub fn native_rules_ok_from(
+    pers: &PersTier,
     st: &mut AState,
     rec_c: &NIdx,
     rlvls: &LsIdx,
@@ -1727,13 +1769,13 @@ pub fn native_rules_ok_from(
             let rhs: EIdx = rhss[j as usize].dup2();
             let cty: EIdx = cs[j as usize].0.ty.dup2();
             let rec_idx: Vec<u64> = rec_idx_of(&kinds[j as usize], 0, Vec::new());
-            match native_rule_body_ok(st, rec_c, rlvls, pw, n_p, n, n_f, j, &rec_idx, &cty, &rhs) {
+            match native_rule_body_ok(pers, st, rec_c, rlvls, pw, n_p, n, n_f, j, &rec_idx, &cty, &rhs) {
                 Err(e) => Err(e),
                 Ok(false) => Ok(false),
-                Ok(true) => match native_rule_prefix_ok(st, rec_ty, n_p, n, j, n_f, &rhs) {
+                Ok(true) => match native_rule_prefix_ok(pers, st, rec_ty, n_p, n, j, n_f, &rhs) {
                     Err(e) => Err(e),
                     Ok(false) => Ok(false),
-                    Ok(true) => native_rules_ok_from(
+                    Ok(true) => native_rules_ok_from(pers,
                         st,
                         rec_c,
                         rlvls,
@@ -1758,6 +1800,7 @@ pub fn native_rules_ok_from(
 /// body at the parse placeholder's binder data.
 #[allow(clippy::too_many_arguments)]
 pub fn native_rule_body_ok(
+    pers: &PersTier,
     st: &mut AState,
     rec_c: &NIdx,
     rlvls: &LsIdx,
@@ -1770,13 +1813,13 @@ pub fn native_rule_body_ok(
     cty: &EIdx,
     rhs: &EIdx,
 ) -> Result<bool, CheckError> {
-    match expr_ops::strip_lams(st, n_p + 1 + n + n_f, rhs) {
+    match expr_ops::strip_lams(pers, st, n_p + 1 + n + n_f, rhs) {
         Err(e) => Err(e),
         Ok(None) => Ok(false),
         Ok(Some(q)) => {
-            match struct_rule_body_r(st, rec_c, rlvls, pw, n_p, n, n_f, j, rec_idx, cty) {
+            match struct_rule_body_r(pers, st, rec_c, rlvls, pw, n_p, n, n_f, j, rec_idx, cty) {
                 Err(e) => Err(e),
-                Ok(want) => match expr_ops::reset_meta_fast(st, CORE_WALK_FUEL, &want) {
+                Ok(want) => match expr_ops::reset_meta_fast(pers, st, CORE_WALK_FUEL, &want) {
                     Err(e) => Err(e),
                     Ok(rw) => Ok(q.1.eq2(&rw)),
                 },
@@ -1794,6 +1837,7 @@ pub fn native_rule_body_ok(
 /// — **the block's parameter and index counts** (con-leche's task #228), read
 /// as official reads them.
 pub fn native_counts(
+    pers: &PersTier,
     st: &mut AState,
     n_pd: u64,
     cv_t: &IConstantVal,
@@ -1801,9 +1845,9 @@ pub fn native_counts(
     m_i: u64,
     r_p: u64,
 ) -> Result<Option<(u64, u64)>, CheckError> {
-    match pi_binders(st, CORE_WALK_FUEL, &cv_t.ty, Vec::new()) {
+    match pi_binders(pers, st, CORE_WALK_FUEL, &cv_t.ty, Vec::new()) {
         Err(e) => Err(e),
-        Ok(q) => match view(st, &q.1) {
+        Ok(q) => match view(pers, st, &q.1) {
             Err(e) => Err(e),
             Ok(ENodeView::Sort(_)) => {
                 let n: u64 = q.0.len() as u64;
@@ -1920,6 +1964,7 @@ pub fn nidx_cons_from(ns: &Vec<NIdx>, i: usize, out: Vec<NIdx>) -> Vec<NIdx> {
 /// and the counts, with the rules' right-hand sides as exported and the
 /// recursor's level-parameter shape.
 pub fn native_shape(
+    pers: &PersTier,
     st: &mut AState,
     n_pd: u64,
     block: &Vec<IConstantInfo>,
@@ -1938,7 +1983,7 @@ pub fn native_shape(
                     env::i_constant_infos_dup_from(block, 1, Vec::with_capacity(block.len()));
                 match sum_parts::sum_split(&rest) {
                     None => Ok(None),
-                    Some(q) => native_shape_at(st, n_pd, &cv_t, &q.0, &q.1, q.2, q.3, &q.4),
+                    Some(q) => native_shape_at(pers, st, n_pd, &cv_t, &q.0, &q.1, q.2, q.3, &q.4),
                 }
             }
         }
@@ -1951,6 +1996,7 @@ pub fn native_shape(
 /// the eliminator.
 #[allow(clippy::too_many_arguments)]
 pub fn native_shape_at(
+    pers: &PersTier,
     st: &mut AState,
     n_pd: u64,
     cv_t: &IConstantVal,
@@ -1960,7 +2006,7 @@ pub fn native_shape_at(
     r_p: u64,
     rules: &Vec<IRecRule>,
 ) -> Result<Option<InductiveShape>, CheckError> {
-    match native_counts(st, n_pd, cv_t, cs.len() as u64, m_i, r_p) {
+    match native_counts(pers, st, n_pd, cv_t, cs.len() as u64, m_i, r_p) {
         Err(e) => Err(e),
         Ok(None) => Ok(None),
         Ok(Some(counts)) => match core::reserved_basis_names(st) {
@@ -1972,7 +2018,7 @@ pub fn native_shape_at(
                 {
                     Ok(None)
                 } else {
-                    native_shape_sort(st, cv_t, cs, cv_r, rules, counts.0, counts.1)
+                    native_shape_sort(pers, st, cv_t, cs, cv_r, rules, counts.0, counts.1)
                 }
             }
         },
@@ -2010,6 +2056,7 @@ pub fn ctors_pin_ok(
 /// recursor is (task #220).
 #[allow(clippy::too_many_arguments)]
 pub fn native_shape_sort(
+    pers: &PersTier,
     st: &mut AState,
     cv_t: &IConstantVal,
     cs: &Vec<(IConstantVal, u64, u64)>,
@@ -2018,19 +2065,19 @@ pub fn native_shape_sort(
     n_p: u64,
     n_idx: u64,
 ) -> Result<Option<InductiveShape>, CheckError> {
-    match expr_ops::strip_pis(st, n_p + n_idx, &cv_t.ty) {
+    match expr_ops::strip_pis(pers, st, n_p + n_idx, &cv_t.ty) {
         Err(e) => Err(e),
-        Ok(Some(q)) => match view(st, &q.1) {
+        Ok(Some(q)) => match view(pers, st, &q.1) {
             Err(e) => Err(e),
-            Ok(ENodeView::Sort(s)) => native_shape_elim(st, cv_t, cs, cv_r, rules, n_p, n_idx, s),
+            Ok(ENodeView::Sort(s)) => native_shape_elim(pers, st, cv_t, cs, cv_r, rules, n_p, n_idx, s),
             Ok(_) => match core::zero_level(st) {
                 Err(e) => Err(e),
-                Ok(z) => native_shape_elim(st, cv_t, cs, cv_r, rules, n_p, n_idx, z),
+                Ok(z) => native_shape_elim(pers, st, cv_t, cs, cv_r, rules, n_p, n_idx, z),
             },
         },
         Ok(None) => match core::zero_level(st) {
             Err(e) => Err(e),
-            Ok(z) => native_shape_elim(st, cv_t, cs, cv_r, rules, n_p, n_idx, z),
+            Ok(z) => native_shape_elim(pers, st, cv_t, cs, cv_r, rules, n_p, n_idx, z),
         },
     }
 }
@@ -2041,6 +2088,7 @@ pub fn native_shape_sort(
 /// level-parameter shape.
 #[allow(clippy::too_many_arguments)]
 pub fn native_shape_elim(
+    pers: &PersTier,
     st: &mut AState,
     cv_t: &IConstantVal,
     cs: &Vec<(IConstantVal, u64, u64)>,
@@ -2052,7 +2100,7 @@ pub fn native_shape_elim(
 ) -> Result<Option<InductiveShape>, CheckError> {
     match core::zero_level(st) {
         Err(e) => Err(e),
-        Ok(z) => match core::lvl_eq(st, &s, &z) {
+        Ok(z) => match core::lvl_eq(pers, st, &s, &z) {
             Err(e) => Err(e),
             Ok(eq) => {
                 let is_prop: bool = match eq {
@@ -2086,10 +2134,10 @@ pub fn native_shape_elim(
                                 is_prop,
                             }))
                         } else {
-                            native_shape_small(st, cv_t, cv_r, n_p, n_idx, s, is_prop, ctors, rhss)
+                            native_shape_small(pers, st, cv_t, cv_r, n_p, n_idx, s, is_prop, ctors, rhss)
                         }
                     }
-                    None => native_shape_small(st, cv_t, cv_r, n_p, n_idx, s, is_prop, ctors, rhss),
+                    None => native_shape_small(pers, st, cv_t, cv_r, n_p, n_idx, s, is_prop, ctors, rhss),
                 }
             }
         },
@@ -2101,6 +2149,7 @@ pub fn native_shape_elim(
 /// — the small eliminator's branch, at `.anonymous`.
 #[allow(clippy::too_many_arguments)]
 pub fn native_shape_small(
+    pers: &PersTier,
     st: &mut AState,
     cv_t: &IConstantVal,
     cv_r: &IConstantVal,
@@ -2111,7 +2160,7 @@ pub fn native_shape_small(
     ctors: Vec<(IConstantVal, u64)>,
     rhss: Vec<EIdx>,
 ) -> Result<Option<InductiveShape>, CheckError> {
-    match crate::arena::monad::intern_n_node(st, crate::arena::store::NNodeView::Anonymous) {
+    match crate::arena::monad::intern_n_node(pers, st, crate::arena::store::NNodeView::Anonymous) {
         Err(e) => Err(e),
         Ok(anon) => Ok(Some(InductiveShape {
             cv_t: env::i_constant_val_dup(cv_t),
@@ -2162,11 +2211,12 @@ pub fn rhss_of(rules: &Vec<IRecRule>, i: usize, out: Vec<EIdx>) -> Vec<EIdx> {
 /// the fields' kinds are a PLACEHOLDER the install fills after normalising
 /// every field domain by official's positivity walk.
 pub fn native_parts(
+    pers: &PersTier,
     st: &mut AState,
     n_pd: u64,
     block: &Vec<IConstantInfo>,
 ) -> Result<Option<NativeParts>, CheckError> {
-    match native_shape(st, n_pd, block) {
+    match native_shape(pers, st, n_pd, block) {
         Err(e) => Err(e),
         Ok(None) => Ok(None),
         Ok(Some(p)) => {

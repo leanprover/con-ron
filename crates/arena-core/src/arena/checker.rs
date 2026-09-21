@@ -72,6 +72,7 @@ use con_ron_core::kernel::env as cenv;
 use con_ron_core::kernel::env::{BasisKind, CheckMode, QuotKind, ReducibilityHint};
 use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
 use con_ron_core::ron::hashmap::{Dup, Eq2};
+use crate::arena::store::PersTier;
 
 // ---------------------------------------------------------------------------
 // The messages of this module's declines
@@ -171,22 +172,23 @@ pub const M_AT_DECL_CLOSE: [u32; 1] = [41];
 /// — share this body.  The quotient block's types mention the pinned equality
 /// former, which is why it requires the `Eq` basis first.
 pub fn check_basis_decl(
+    pers: &PersTier,
     st: &mut AState,
     fe: IFEnv,
     kind: &BasisKind,
 ) -> Result<IFEnv, CheckError> {
     match kind {
-        BasisKind::QuotK => match crate::arena::decl_check::eq_basis_pinned(st, &fe) {
+        BasisKind::QuotK => match crate::arena::decl_check::eq_basis_pinned(pers, st, &fe) {
             Err(e) => Err(e),
             Ok(b) => {
                 if !b {
                     fail(CheckError::NotImplemented(code_points(&M_QUOT_BASIS_EQ)))
                 } else {
-                    check_basis_decl_install(st, fe, kind)
+                    check_basis_decl_install(pers, st, fe, kind)
                 }
             }
         },
-        _ => check_basis_decl_install(st, fe, kind),
+        _ => check_basis_decl_install(pers, st, fe, kind),
     }
 }
 
@@ -195,11 +197,12 @@ pub fn check_basis_decl(
 /// cited `installBasisDecls fe (← BasisKind.declsA kind)`, past the quotient
 /// gate.  Split off so the gate's two branches are tail calls.
 pub fn check_basis_decl_install(
+    pers: &PersTier,
     st: &mut AState,
     fe: IFEnv,
     kind: &BasisKind,
 ) -> Result<IFEnv, CheckError> {
-    match basis_kind_decls_a(st, kind) {
+    match basis_kind_decls_a(pers, st, kind) {
         Err(e) => Err(e),
         Ok(decls) => install_basis_decls(fe, &decls, 0),
     }
@@ -215,6 +218,7 @@ pub fn check_basis_decl_install(
 /// `match d with` is one dispatch and seven arm functions here, so every arm
 /// stays a tail call (task #97-P4c's split rule).
 pub fn check_decl(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
@@ -223,14 +227,14 @@ pub fn check_decl(
 ) -> Result<IFEnv, CheckError> {
     match d {
         IDeclaration::DefnDecl(cv, value, hint) => {
-            check_defn_decl(st, mode, pins, fe, cv, value, hint)
+            check_defn_decl(pers, st, mode, pins, fe, cv, value, hint)
         }
-        IDeclaration::ThmDecl(cv, value) => check_thm_decl(st, mode, fe, cv, value),
-        IDeclaration::OpaqueDecl(cv, value) => check_opaque_decl(st, mode, fe, cv, value),
-        IDeclaration::AxiomDecl(cv) => check_axiom_decl(st, mode, fe, cv),
-        IDeclaration::BasisDecl(kind) => check_basis_decl(st, fe, kind),
-        IDeclaration::IndDecl(block, n_p) => check_ind_decl(st, mode, fe, block, *n_p),
-        IDeclaration::QuotDecl(k, cv) => check_quot_decl(st, fe, k, cv),
+        IDeclaration::ThmDecl(cv, value) => check_thm_decl(pers, st, mode, fe, cv, value),
+        IDeclaration::OpaqueDecl(cv, value) => check_opaque_decl(pers, st, mode, fe, cv, value),
+        IDeclaration::AxiomDecl(cv) => check_axiom_decl(pers, st, mode, fe, cv),
+        IDeclaration::BasisDecl(kind) => check_basis_decl(pers, st, fe, kind),
+        IDeclaration::IndDecl(block, n_p) => check_ind_decl(pers, st, mode, fe, block, *n_p),
+        IDeclaration::QuotDecl(k, cv) => check_quot_decl(pers, st, fe, k, cv),
     }
 }
 
@@ -244,6 +248,7 @@ pub fn check_decl(
 /// pre-insertion visibility bound `k_pre` —
 /// `con_ron_core::kernel::checker::check_defn_decl`'s own arrangement.
 pub fn check_defn_decl(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
@@ -253,11 +258,11 @@ pub fn check_defn_decl(
     hint: &ReducibilityHint,
 ) -> Result<IFEnv, CheckError> {
     let k_pre: u64 = fe.visible_below;
-    match check_constant_val(st, mode, &fe, cv) {
+    match check_constant_val(pers, st, mode, &fe, cv) {
         Err(e) => Err(e),
-        Ok(cv_a) => match check_defn_val(st, mode, fe, &cv_a, value, hint) {
+        Ok(cv_a) => match check_defn_val(pers, st, mode, fe, &cv_a, value, hint) {
             Err(e) => Err(e),
-            Ok(fe2) => check_defn_pins(st, mode, pins, fe2, k_pre, &cv_a.name),
+            Ok(fe2) => check_defn_pins(pers, st, mode, pins, fe2, k_pre, &cv_a.name),
         },
     }
 }
@@ -266,6 +271,7 @@ pub fn check_defn_decl(
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:97-203 checkDecl` — the
 /// `.defnDecl` arm's two pinned-`Nat` gates, in the twin's order.
 pub fn check_defn_pins(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
@@ -277,12 +283,12 @@ pub fn check_defn_pins(
         Err(e) => Err(e),
         Ok(ns) => {
             if nidx_contains_from(&ns, 0, n) {
-                match check_structural_nat_pin(st, mode, fe2, k_pre, n) {
+                match check_structural_nat_pin(pers, st, mode, fe2, k_pre, n) {
                     Err(e) => Err(e),
-                    Ok(fe3) => check_defn_div_mod_pin(st, mode, pins, fe3, k_pre, n),
+                    Ok(fe3) => check_defn_div_mod_pin(pers, st, mode, pins, fe3, k_pre, n),
                 }
             } else {
-                check_defn_div_mod_pin(st, mode, pins, fe2, k_pre, n)
+                check_defn_div_mod_pin(pers, st, mode, pins, fe2, k_pre, n)
             }
         }
     }
@@ -292,6 +298,7 @@ pub fn check_defn_pins(
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:97-203 checkDecl` — the
 /// `natDivModNames.contains` gate of the `.defnDecl` arm.
 pub fn check_defn_div_mod_pin(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
@@ -303,7 +310,7 @@ pub fn check_defn_div_mod_pin(
         Err(e) => Err(e),
         Ok(ns) => {
             if nidx_contains_from(&ns, 0, n) {
-                check_div_mod_pin(st, mode, pins, fe2, k_pre, n)
+                check_div_mod_pin(pers, st, mode, pins, fe2, k_pre, n)
             } else {
                 Ok(fe2)
             }
@@ -319,23 +326,24 @@ pub fn check_defn_div_mod_pin(
 /// let the operation's own fast path discharge its all-literal equations
 /// vacuously.
 pub fn check_structural_nat_pin(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe2: IFEnv,
     k_pre: u64,
     n: &NIdx,
 ) -> Result<IFEnv, CheckError> {
-    match nat_op_guard(st, &fe2, n) {
+    match nat_op_guard(pers, st, &fe2, n) {
         Err(e) => Err(e),
         Ok(g) => match nat_op_deps(st, n) {
             Err(e) => Err(e),
-            Ok(deps) => match nat_op_stored_ok_all(st, &fe2, &deps, 0) {
+            Ok(deps) => match nat_op_stored_ok_all(pers, st, &fe2, &deps, 0) {
                 Err(e) => Err(e),
                 Ok(d) => {
                     if !g || !d {
                         fail(CheckError::NotImplemented(code_points(&M_NONSTD_NAT_ENV)))
                     } else {
-                        check_structural_nat_pin_eqs(st, mode, fe2, k_pre, n)
+                        check_structural_nat_pin_eqs(pers, st, mode, fe2, k_pre, n)
                     }
                 }
             },
@@ -347,6 +355,7 @@ pub fn check_structural_nat_pin(
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:97-203 checkDecl` — the stored
 /// value, the equations, and their certification at the pre-insertion view.
 pub fn check_structural_nat_pin_eqs(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe2: IFEnv,
@@ -355,11 +364,11 @@ pub fn check_structural_nat_pin_eqs(
 ) -> Result<IFEnv, CheckError> {
     match defn_value(&fe2, n) {
         None => fail(CheckError::Internal(code_points(&M_NAT_NOT_STORED))),
-        Some(value2) => match nat_op_equations(st, 0, n) {
+        Some(value2) => match nat_op_equations(pers, st, 0, n) {
             Err(e) => Err(e),
-            Ok(eqs) => match subst_const0_pairs(st, n, &value2, &eqs, 0, Vec::new()) {
+            Ok(eqs) => match subst_const0_pairs(pers, st, n, &value2, &eqs, 0, Vec::new()) {
                 Err(e) => Err(e),
-                Ok(seqs) => check_structural_nat_pin_certify(st, mode, fe2, k_pre, &seqs),
+                Ok(seqs) => check_structural_nat_pin_certify(pers, st, mode, fe2, k_pre, &seqs),
             },
         },
     }
@@ -370,6 +379,7 @@ pub fn check_structural_nat_pin_eqs(
 /// certification itself, with the index restricted to the pre-insertion bound
 /// and handed back at the bound it came in at (the arm's standing deviation).
 pub fn check_structural_nat_pin_certify(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe2: IFEnv,
@@ -378,7 +388,7 @@ pub fn check_structural_nat_pin_certify(
 ) -> Result<IFEnv, CheckError> {
     let k2: u64 = fe2.visible_below;
     let fe_pre: IFEnv = ifenv_restrict_to(fe2, k_pre);
-    let r: Result<bool, CheckError> = certify_nat_eqs(st, mode, &fe_pre, seqs, 0);
+    let r: Result<bool, CheckError> = certify_nat_eqs(pers, st, mode, &fe_pre, seqs, 0);
     let fe3: IFEnv = ifenv_restrict_to(fe_pre, k2);
     match r {
         Err(e) => Err(e),
@@ -396,15 +406,16 @@ pub fn check_structural_nat_pin_certify(
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:97-203 checkDecl` — the
 /// `.thmDecl` arm.
 pub fn check_thm_decl(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: IFEnv,
     cv: &IConstantVal,
     value: &EIdx,
 ) -> Result<IFEnv, CheckError> {
-    match check_constant_val(st, mode, &fe, cv) {
+    match check_constant_val(pers, st, mode, &fe, cv) {
         Err(e) => Err(e),
-        Ok(cv_a) => check_thm_val(st, mode, fe, &cv_a, value),
+        Ok(cv_a) => check_thm_val(pers, st, mode, fe, &cv_a, value),
     }
 }
 
@@ -413,6 +424,7 @@ pub fn check_thm_decl(
 /// `.opaqueDecl` arm: the opaque check, then the compiler-trust gate for
 /// `Lean.reduceNat`/`Lean.reduceBool`.
 pub fn check_opaque_decl(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: IFEnv,
@@ -420,11 +432,11 @@ pub fn check_opaque_decl(
     value: &EIdx,
 ) -> Result<IFEnv, CheckError> {
     let k_pre: u64 = fe.visible_below;
-    match check_constant_val(st, mode, &fe, cv) {
+    match check_constant_val(pers, st, mode, &fe, cv) {
         Err(e) => Err(e),
-        Ok(cv_a) => match check_opaque_val(st, mode, fe, &cv_a, value) {
+        Ok(cv_a) => match check_opaque_val(pers, st, mode, fe, &cv_a, value) {
             Err(e) => Err(e),
-            Ok(fe2) => check_opaque_reduce_pin(st, mode, fe2, k_pre, &cv_a.name, value),
+            Ok(fe2) => check_opaque_reduce_pin(pers, st, mode, fe2, k_pre, &cv_a.name, value),
         },
     }
 }
@@ -433,6 +445,7 @@ pub fn check_opaque_decl(
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:97-203 checkDecl` — the
 /// `reduceOpNames.contains` gate of the `.opaqueDecl` arm.
 pub fn check_opaque_reduce_pin(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe2: IFEnv,
@@ -444,7 +457,7 @@ pub fn check_opaque_reduce_pin(
         Err(e) => Err(e),
         Ok(ns) => {
             if nidx_contains_from(&ns, 0, n) {
-                check_reduce_pin(st, mode, fe2, k_pre, n, value)
+                check_reduce_pin(pers, st, mode, fe2, k_pre, n, value)
             } else {
                 Ok(fe2)
             }
@@ -461,6 +474,7 @@ pub fn check_opaque_reduce_pin(
 /// precedes the common checks because the name is a reserved basis name: this
 /// record IS the pinned block's, not a redeclaration of it.
 pub fn check_axiom_decl(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: IFEnv,
@@ -470,9 +484,9 @@ pub fn check_axiom_decl(
         Err(e) => Err(e),
         Ok(qs) => {
             if cv.name.eq2(&qs) {
-                check_quot_sound_record(st, fe, cv)
+                check_quot_sound_record(pers, st, fe, cv)
             } else {
-                check_axiom_decl_std(st, mode, fe, cv)
+                check_axiom_decl_std(pers, st, mode, fe, cv)
             }
         }
     }
@@ -484,11 +498,12 @@ pub fn check_axiom_decl(
 /// block.  The twin's `blk[4]?` is the bound test; the block has exactly five
 /// members, so the `none` arm is unreachable and declines, as the twin's does.
 pub fn check_quot_sound_record(
+    pers: &PersTier,
     st: &mut AState,
     fe: IFEnv,
     cv: &IConstantVal,
 ) -> Result<IFEnv, CheckError> {
-    match basis_kind_decls(st, &BasisKind::QuotK) {
+    match basis_kind_decls(pers, st, &BasisKind::QuotK) {
         Err(e) => Err(e),
         Ok(blk) => {
             if blk.len() <= 4 {
@@ -499,7 +514,7 @@ pub fn check_quot_sound_record(
                 let pinned: IConstantInfo = i_constant_info_dup(&blk[4]);
                 let mine: IConstantInfo =
                     IConstantInfo::AxiomInfo(i_constant_val_dup(cv));
-                match i_constant_info_canon_eq(st, &mine, &pinned) {
+                match i_constant_info_canon_eq(pers, st, &mine, &pinned) {
                     Err(e) => Err(e),
                     Ok(r) => {
                         if r {
@@ -523,14 +538,15 @@ pub fn check_quot_sound_record(
 /// anything else — including a pinned NAME with a non-pinned shape — is a
 /// positive decline at its own record.
 pub fn check_axiom_decl_std(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: IFEnv,
     cv: &IConstantVal,
 ) -> Result<IFEnv, CheckError> {
-    match check_constant_val(st, mode, &fe, cv) {
+    match check_constant_val(pers, st, mode, &fe, cv) {
         Err(e) => Err(e),
-        Ok(cv_a) => match std_axiom_ok(st, &fe, &cv_a) {
+        Ok(cv_a) => match std_axiom_ok(pers, st, &fe, &cv_a) {
             Err(e) => Err(e),
             Ok(ok) => {
                 if ok {
@@ -539,7 +555,7 @@ pub fn check_axiom_decl_std(
                         IConstantInfo::AxiomInfo(cv_a),
                     ))
                 } else {
-                    check_axiom_decl_trust(st, fe, cv_a)
+                    check_axiom_decl_trust(pers, st, fe, cv_a)
                 }
             }
         },
@@ -552,6 +568,7 @@ pub fn check_axiom_decl_std(
 /// installed exactly like a checked `opaque` with witness `True.intro` over the
 /// pinned `True` family.
 pub fn check_axiom_decl_trust(
+    pers: &PersTier,
     st: &mut AState,
     fe: IFEnv,
     cv_a: IConstantVal,
@@ -560,7 +577,7 @@ pub fn check_axiom_decl_trust(
         Err(e) => Err(e),
         Ok(tn) => {
             if cv_a.name.eq2(&tn) {
-                match trust_compiler_ok(st, &fe, &cv_a) {
+                match trust_compiler_ok(pers, st, &fe, &cv_a) {
                     Err(e) => Err(e),
                     Ok(ok) => {
                         if ok {
@@ -576,7 +593,7 @@ pub fn check_axiom_decl_trust(
                     }
                 }
             } else {
-                check_axiom_decl_of_reduce(st, fe, cv_a)
+                check_axiom_decl_of_reduce(pers, st, fe, cv_a)
             }
         }
     }
@@ -588,6 +605,7 @@ pub fn check_axiom_decl_trust(
 /// the identity-certified reduce opaque, `∀ a b, reduce a = b → a = b`
 /// interprets to an inhabited proposition.
 pub fn check_axiom_decl_of_reduce(
+    pers: &PersTier,
     st: &mut AState,
     fe: IFEnv,
     cv_a: IConstantVal,
@@ -598,7 +616,7 @@ pub fn check_axiom_decl_of_reduce(
             Err(e) => Err(e),
             Ok(ob) => {
                 if cv_a.name.eq2(&on) || cv_a.name.eq2(&ob) {
-                    match of_reduce_ax_ok(st, &fe, &cv_a) {
+                    match of_reduce_ax_ok(pers, st, &fe, &cv_a) {
                         Err(e) => Err(e),
                         Ok(ok) => {
                             if ok {
@@ -666,16 +684,17 @@ pub fn check_axiom_decl_rest(
 /// `check_constant_val`'s reserved-name check REJECTS it.  The route itself is
 /// `arena::inductives`' seam (task #97-P4d part 2).
 pub fn check_ind_decl(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: IFEnv,
     block: &Vec<IConstantInfo>,
     n_p: u64,
 ) -> Result<IFEnv, CheckError> {
-    match basis_pin_hit(st, block) {
+    match basis_pin_hit(pers, st, block) {
         Err(e) => Err(e),
-        Ok(Some(kind)) => check_basis_decl(st, fe, &kind),
-        Ok(None) => crate::arena::inductives::check_ind_decl(
+        Ok(Some(kind)) => check_basis_decl(pers, st, fe, &kind),
+        Ok(None) => crate::arena::inductives::check_ind_decl(pers,
             cenv::check_mode_dup(mode),
             fe,
             i_constant_infos_dup(block),
@@ -691,17 +710,18 @@ pub fn check_ind_decl(
 /// with the pinned block's constant at its own kind, and the FIRST that matches
 /// installs the pinned block whole.
 pub fn check_quot_decl(
+    pers: &PersTier,
     st: &mut AState,
     fe: IFEnv,
     k: &QuotKind,
     cv: &IConstantVal,
 ) -> Result<IFEnv, CheckError> {
-    match quot_pin_hit(st, k, cv) {
+    match quot_pin_hit(pers, st, k, cv) {
         Err(e) => Err(e),
         Ok(hit) => {
             if hit {
                 match k {
-                    QuotKind::Type => check_basis_decl(st, fe, &BasisKind::QuotK),
+                    QuotKind::Type => check_basis_decl(pers, st, fe, &BasisKind::QuotK),
                     _ => Ok(fe),
                 }
             } else {
@@ -737,6 +757,7 @@ pub fn check_quot_decl(
 /// lives, and a Theorem-1 statement about a fold with no tiers would say
 /// nothing about the fold the binary runs.
 pub fn check_decl_step(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
@@ -746,11 +767,11 @@ pub fn check_decl_step(
     let vis: u64 = fe.visible_below;
     flush_caches(st);
     enter_scratch(st);
-    match check_decl(st, mode, pins, fe, d) {
+    match check_decl(pers, st, mode, pins, fe, d) {
         Err(e) => Err(e),
         Ok(fe2) => {
             let k: u64 = fe2.visible_below - vis;
-            match promote_new(st, PMemo::empty(), CORE_WALK_FUEL, k, fe2) {
+            match promote_new(pers, st, PMemo::empty(), CORE_WALK_FUEL, k, fe2) {
                 Err(e) => Err(e),
                 Ok((_, fe3)) => {
                     drop_scratch(st);
@@ -766,6 +787,7 @@ pub fn check_decl_step(
 /// cited `foldlM` as an index recursion threading the index by value (§3.4
 /// forbids the closure).  The step is the bracketed one.
 pub fn check_decls_pure_go(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
@@ -776,9 +798,9 @@ pub fn check_decls_pure_go(
     if i >= ds.len() {
         Ok(fe)
     } else {
-        match check_decl_step(st, mode, pins, fe, &ds[i]) {
+        match check_decl_step(pers, st, mode, pins, fe, &ds[i]) {
             Err(e) => Err(e),
-            Ok(fe2) => check_decls_pure_go(st, mode, pins, fe2, ds, i + 1),
+            Ok(fe2) => check_decls_pure_go(pers, st, mode, pins, fe2, ds, i + 1),
         }
     }
 }
@@ -788,12 +810,13 @@ pub fn check_decls_pure_go(
 /// fold from the empty environment.  THE THEOREM'S SHAPE (module note): one
 /// step per record, install and check together, each step bracketed.
 pub fn check_decls_pure(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
     ds: &Vec<IDeclaration>,
 ) -> Result<IFEnv, CheckError> {
-    check_decls_pure_go(st, mode, pins, mk_ifenv(i_env_empty()), ds, 0)
+    check_decls_pure_go(pers, st, mode, pins, mk_ifenv(i_env_empty()), ds, 0)
 }
 
 // ---------------------------------------------------------------------------
@@ -826,6 +849,7 @@ pub struct PendingCheck {
 /// position and the environment counter the pending record carries are the
 /// bracket's to supply.
 pub fn annot_step_go(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
@@ -834,13 +858,13 @@ pub fn annot_step_go(
 ) -> Result<(IFEnv, Option<ValueGroup>), CheckError> {
     match pd {
         IDeclaration::DefnDecl(cv, value, hint) => {
-            annot_step_defn(st, mode, pins, fe, pd, cv, value, hint)
+            annot_step_defn(pers, st, mode, pins, fe, pd, cv, value, hint)
         }
-        IDeclaration::ThmDecl(cv, value) => annot_step_thm(st, mode, fe, cv, value),
+        IDeclaration::ThmDecl(cv, value) => annot_step_thm(pers, st, mode, fe, cv, value),
         IDeclaration::OpaqueDecl(cv, value) => {
-            annot_step_opaque(st, mode, pins, fe, pd, cv, value)
+            annot_step_opaque(pers, st, mode, pins, fe, pd, cv, value)
         }
-        _ => annot_step_other(st, mode, pins, fe, pd),
+        _ => annot_step_other(pers, st, mode, pins, fe, pd),
     }
 }
 
@@ -885,6 +909,7 @@ pub fn annot_step_go(
 /// what the head flush covers is the FIRST record of the fold, whose caches
 /// are whatever `intern_all_pins` left.
 pub fn annot_step(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
@@ -896,19 +921,19 @@ pub fn annot_step(
     let vis: u64 = fe.visible_below;
     flush_caches(st);
     enter_scratch(st);
-    match annot_step_go(st, mode, pins, fe, pd) {
+    match annot_step_go(pers, st, mode, pins, fe, pd) {
         Err(e) => Err(e),
         Ok((fe2, vg_opt)) => {
             let k: u64 = fe2.visible_below - vis;
             match vg_opt {
-                None => match promote_new(st, PMemo::empty(), CORE_WALK_FUEL, k, fe2) {
+                None => match promote_new(pers, st, PMemo::empty(), CORE_WALK_FUEL, k, fe2) {
                     Err(e) => Err(e),
                     Ok((_, fe3)) => {
                         drop_scratch(st);
                         Ok((fe3, pend))
                     }
                 },
-                Some(vg) => annot_step_promote(st, i, vis, k, fe2, pend, vg),
+                Some(vg) => annot_step_promote(pers, st, i, vis, k, fe2, pend, vg),
             }
         }
     }
@@ -920,6 +945,7 @@ pub fn annot_step(
 /// SAME memo, then the tier dropped and the record pushed.
 #[allow(clippy::too_many_arguments)]
 pub fn annot_step_promote(
+    pers: &PersTier,
     st: &mut AState,
     i: u64,
     vis: u64,
@@ -928,9 +954,9 @@ pub fn annot_step_promote(
     pend: Vec<PendingCheck>,
     vg: ValueGroup,
 ) -> Result<(IFEnv, Vec<PendingCheck>), CheckError> {
-    match promote_vg(st, PMemo::empty(), CORE_WALK_FUEL, vg) {
+    match promote_vg(pers, st, PMemo::empty(), CORE_WALK_FUEL, vg) {
         Err(e) => Err(e),
-        Ok((m, vg2)) => match promote_new(st, m, CORE_WALK_FUEL, k, fe) {
+        Ok((m, vg2)) => match promote_new(pers, st, m, CORE_WALK_FUEL, k, fe) {
             Err(e) => Err(e),
             Ok((_, fe2)) => {
                 drop_scratch(st);
@@ -953,6 +979,7 @@ pub fn annot_step_promote(
 /// installed and recorded as pending.
 #[allow(clippy::too_many_arguments)]
 pub fn annot_step_defn(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
@@ -969,9 +996,9 @@ pub fn annot_step_defn(
             Ok(ds) => {
                 if nidx_contains_from(&ns, 0, &cv.name) || nidx_contains_from(&ds, 0, &cv.name)
                 {
-                    annot_step_other(st, mode, pins, fe, pd)
+                    annot_step_other(pers, st, mode, pins, fe, pd)
                 } else {
-                    annot_step_defn_install(st, mode, fe, cv, value, hint)
+                    annot_step_defn_install(pers, st, mode, fe, cv, value, hint)
                 }
             }
         },
@@ -986,6 +1013,7 @@ pub fn annot_step_defn(
 /// push and the push copies the whole index — and what makes the promotion's
 /// `k` computable without holding `fe` across the step.
 pub fn annot_step_defn_install(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: IFEnv,
@@ -993,9 +1021,9 @@ pub fn annot_step_defn_install(
     value: &EIdx,
     hint: &ReducibilityHint,
 ) -> Result<(IFEnv, Option<ValueGroup>), CheckError> {
-    match install_constant_val(st, mode, &fe, cv) {
+    match install_constant_val(pers, st, mode, &fe, cv) {
         Err(e) => Err(e),
-        Ok(cv_a) => match install_value(st, mode, &fe, &cv_a, value) {
+        Ok(cv_a) => match install_value(pers, st, mode, &fe, &cv_a, value) {
             Err(e) => Err(e),
             Ok(jv) => {
                 let fe2: IFEnv = crate::arena::env::ifenv_push(
@@ -1021,13 +1049,14 @@ pub fn annot_step_defn_install(
 /// half only; the value is recorded raw and never touched here (phase B
 /// annotates it), so phase A never enters a theorem's body.
 pub fn annot_step_thm(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: IFEnv,
     cv: &IConstantVal,
     value: &EIdx,
 ) -> Result<(IFEnv, Option<ValueGroup>), CheckError> {
-    match install_constant_val(st, mode, &fe, cv) {
+    match install_constant_val(pers, st, mode, &fe, cv) {
         Err(e) => Err(e),
         Ok(cv_a) => {
             let fe2: IFEnv = crate::arena::env::ifenv_push(
@@ -1049,6 +1078,7 @@ pub fn annot_step_thm(
 /// **as an axiom** — an opaque's value being a discarded witness — and recorded
 /// as pending.
 pub fn annot_step_opaque(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
@@ -1061,9 +1091,9 @@ pub fn annot_step_opaque(
         Err(e) => Err(e),
         Ok(ns) => {
             if nidx_contains_from(&ns, 0, &cv.name) {
-                annot_step_other(st, mode, pins, fe, pd)
+                annot_step_other(pers, st, mode, pins, fe, pd)
             } else {
-                annot_step_opaque_install(st, mode, fe, cv, value)
+                annot_step_opaque_install(pers, st, mode, fe, cv, value)
             }
         }
     }
@@ -1076,15 +1106,16 @@ pub fn annot_step_opaque(
 /// VALUE to the pending record alone, which is why the bracket promotes the
 /// `ValueGroup` beside the environment and at the same memo.
 pub fn annot_step_opaque_install(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: IFEnv,
     cv: &IConstantVal,
     value: &EIdx,
 ) -> Result<(IFEnv, Option<ValueGroup>), CheckError> {
-    match install_constant_val(st, mode, &fe, cv) {
+    match install_constant_val(pers, st, mode, &fe, cv) {
         Err(e) => Err(e),
-        Ok(cv_a) => match install_value(st, mode, &fe, &cv_a, value) {
+        Ok(cv_a) => match install_value(pers, st, mode, &fe, &cv_a, value) {
             Err(e) => Err(e),
             Ok(jv) => {
                 let fe2: IFEnv = crate::arena::env::ifenv_push(
@@ -1105,13 +1136,14 @@ pub fn annot_step_opaque_install(
 /// catch-all arm, shared by the three gated branches above: the ordinary step,
 /// which records nothing pending.
 pub fn annot_step_other(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
     fe: IFEnv,
     pd: &IDeclaration,
 ) -> Result<(IFEnv, Option<ValueGroup>), CheckError> {
-    match check_decl(st, mode, pins, fe, pd) {
+    match check_decl(pers, st, mode, pins, fe, pd) {
         Err(e) => Err(e),
         Ok(fe2) => Ok((fe2, None)),
     }
@@ -1128,6 +1160,7 @@ pub fn annot_step_other(
 /// the state afterwards and no snapshot is taken —
 /// `con_ron_core::cached::installed::annot_decl_step`'s arrangement.
 pub fn annot_decl_step(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
@@ -1135,7 +1168,7 @@ pub fn annot_decl_step(
     pd: &IDeclaration,
 ) -> Result<(u64, IFEnv, Vec<PendingCheck>), (CheckError, u64)> {
     let i: u64 = p.0;
-    match annot_step(st, mode, pins, i, p.1, p.2, pd) {
+    match annot_step(pers, st, mode, pins, i, p.1, p.2, pd) {
         Err(e) => Err((e, i)),
         Ok(q) => Ok((i + 1, q.0, q.1)),
     }
@@ -1146,6 +1179,7 @@ pub fn annot_decl_step(
 /// a fold over the records, as an index recursion threading the accumulator by
 /// value.
 pub fn annot_fold(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
@@ -1156,9 +1190,9 @@ pub fn annot_fold(
     if i >= ds.len() {
         Ok(p)
     } else {
-        match annot_decl_step(st, mode, pins, p, &ds[i]) {
+        match annot_decl_step(pers, st, mode, pins, p, &ds[i]) {
             Err(e) => Err(e),
-            Ok(q) => annot_fold(st, mode, pins, q, ds, i + 1),
+            Ok(q) => annot_fold(pers, st, mode, pins, q, ds, i + 1),
         }
     }
 }
@@ -1177,6 +1211,7 @@ pub fn annot_fold(
 /// untouched) without a snapshot.  The index comes in at the installed bound
 /// and goes back out there, the twin's `restrictTo` happening in between.
 pub fn check_pending(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: IFEnv,
@@ -1185,7 +1220,7 @@ pub fn check_pending(
     enter_scratch(st);
     let k: u64 = fe.visible_below;
     let fe_v: IFEnv = ifenv_restrict_to(fe, pc.vis);
-    let r: Result<(), CheckError> = check_value_group(st, mode, &fe_v, &pc.vg);
+    let r: Result<(), CheckError> = check_value_group(pers, st, mode, &fe_v, &pc.vg);
     drop_scratch(st);
     match r {
         Err(e) => Err(e),
@@ -1198,6 +1233,7 @@ pub fn check_pending(
 /// phase B as a pure walk: every record checked at its own prefix view, a
 /// failure tagged with the record's fold position.
 pub fn check_pending_list(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: IFEnv,
@@ -1207,9 +1243,9 @@ pub fn check_pending_list(
     if i >= pend.len() {
         Ok(fe)
     } else {
-        match check_pending(st, mode, fe, &pend[i]) {
+        match check_pending(pers, st, mode, fe, &pend[i]) {
             Err(e) => Err((e, pend[i].pos)),
-            Ok(fe2) => check_pending_list(st, mode, fe2, pend, i + 1),
+            Ok(fe2) => check_pending_list(pers, st, mode, fe2, pend, i + 1),
         }
     }
 }
@@ -1226,12 +1262,13 @@ pub fn check_pending_list(
 /// the one `Result` with the tagged error, which is
 /// `con_ron_core::cached::installed::check_decls`' shape.
 pub fn install_then_check(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     pins: &Vec<INatOpPinSet>,
     ds: &Vec<IDeclaration>,
 ) -> Result<IFEnv, (CheckError, u64)> {
-    match annot_fold(
+    match annot_fold(pers,
         st,
         mode,
         pins,
@@ -1240,7 +1277,7 @@ pub fn install_then_check(
         0,
     ) {
         Err(e) => Err(e),
-        Ok(p) => check_pending_list(st, mode, p.1, &p.2, 0),
+        Ok(p) => check_pending_list(pers, st, mode, p.1, &p.2, 0),
     }
 }
 
@@ -1301,16 +1338,17 @@ pub fn cp_append(out: Vec<u32>, s: &Vec<u32>, i: usize) -> Vec<u32> {
 /// the guards compare by handle, and the `Nat`-operation pin variants, whose
 /// interned form is the checker's pin-list parameter (con-leche's task #304).
 pub fn intern_all_pins(
+    pers: &PersTier,
     st: &mut AState,
     pins: &Vec<NatOpPinSet>,
 ) -> Result<Vec<INatOpPinSet>, CheckError> {
-    match intern_all_basis(st, 0) {
+    match intern_all_basis(pers, st, 0) {
         Err(e) => Err(e),
-        Ok(()) => match intern_all_axiom_pins(st) {
+        Ok(()) => match intern_all_axiom_pins(pers, st) {
             Err(e) => Err(e),
             Ok(()) => match intern_all_names(st) {
                 Err(e) => Err(e),
-                Ok(()) => intern_pin_sets(st, pins, 0, Vec::new()),
+                Ok(()) => intern_pin_sets(pers, st, pins, 0, Vec::new()),
             },
         },
     }
@@ -1321,16 +1359,16 @@ pub fn intern_all_pins(
 /// basis blocks in both forms, as a cursor over
 /// `con_ron_core::kernel::basis_raw::block_pin_kinds` plus `quotK` (the twin
 /// spells the twelve calls out).
-pub fn intern_all_basis(st: &mut AState, i: usize) -> Result<(), CheckError> {
+pub fn intern_all_basis(pers: &PersTier, st: &mut AState, i: usize) -> Result<(), CheckError> {
     let ks: Vec<BasisKind> = all_basis_kinds();
     if i >= ks.len() {
         Ok(())
     } else {
-        match basis_kind_decls(st, &ks[i]) {
+        match basis_kind_decls(pers, st, &ks[i]) {
             Err(e) => Err(e),
-            Ok(_) => match basis_kind_decls_a(st, &ks[i]) {
+            Ok(_) => match basis_kind_decls_a(pers, st, &ks[i]) {
                 Err(e) => Err(e),
-                Ok(_) => intern_all_basis(st, i + 1),
+                Ok(_) => intern_all_basis(pers, st, i + 1),
             },
         }
     }
@@ -1355,16 +1393,16 @@ pub fn all_basis_kinds() -> Vec<BasisKind> {
 /// standard and compiler-trust axiom pins, in the twin's order.  The twin's
 /// `iffA`/`propextA` family is this port's raw one (`arena::std_axioms`'
 /// module note).
-pub fn intern_all_axiom_pins(st: &mut AState) -> Result<(), CheckError> {
-    match crate::arena::std_axioms::iff_raw(st) {
+pub fn intern_all_axiom_pins(pers: &PersTier, st: &mut AState) -> Result<(), CheckError> {
+    match crate::arena::std_axioms::iff_raw(pers, st) {
         Err(e) => Err(e),
-        Ok(_) => match crate::arena::std_axioms::iff_intro_raw(st) {
+        Ok(_) => match crate::arena::std_axioms::iff_intro_raw(pers, st) {
             Err(e) => Err(e),
-            Ok(_) => match crate::arena::std_axioms::iff_rec_raw(st) {
+            Ok(_) => match crate::arena::std_axioms::iff_rec_raw(pers, st) {
                 Err(e) => Err(e),
-                Ok(_) => match crate::arena::std_axioms::nonempty_raw(st) {
+                Ok(_) => match crate::arena::std_axioms::nonempty_raw(pers, st) {
                     Err(e) => Err(e),
-                    Ok(_) => intern_all_axiom_pins_rest(st),
+                    Ok(_) => intern_all_axiom_pins_rest(pers, st),
                 },
             },
         },
@@ -1374,16 +1412,16 @@ pub fn intern_all_axiom_pins(st: &mut AState) -> Result<(), CheckError> {
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:473-490 internAllPins` — the
 /// rest of the axiom pins and the two reduce pins.
-pub fn intern_all_axiom_pins_rest(st: &mut AState) -> Result<(), CheckError> {
-    match crate::arena::std_axioms::nonempty_intro_raw(st) {
+pub fn intern_all_axiom_pins_rest(pers: &PersTier, st: &mut AState) -> Result<(), CheckError> {
+    match crate::arena::std_axioms::nonempty_intro_raw(pers, st) {
         Err(e) => Err(e),
-        Ok(_) => match crate::arena::std_axioms::nonempty_rec_raw(st) {
+        Ok(_) => match crate::arena::std_axioms::nonempty_rec_raw(pers, st) {
             Err(e) => Err(e),
-            Ok(_) => match crate::arena::std_axioms::propext_raw(st) {
+            Ok(_) => match crate::arena::std_axioms::propext_raw(pers, st) {
                 Err(e) => Err(e),
-                Ok(_) => match crate::arena::std_axioms::choice_raw(st) {
+                Ok(_) => match crate::arena::std_axioms::choice_raw(pers, st) {
                     Err(e) => Err(e),
-                    Ok(_) => intern_all_trust_pins(st),
+                    Ok(_) => intern_all_trust_pins(pers, st),
                 },
             },
         },
@@ -1393,16 +1431,16 @@ pub fn intern_all_axiom_pins_rest(st: &mut AState) -> Result<(), CheckError> {
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:473-490 internAllPins` — the
 /// compiler-trust shapes and the two reduce pins.
-pub fn intern_all_trust_pins(st: &mut AState) -> Result<(), CheckError> {
-    match crate::arena::trust_axioms::true_cv_a(st) {
+pub fn intern_all_trust_pins(pers: &PersTier, st: &mut AState) -> Result<(), CheckError> {
+    match crate::arena::trust_axioms::true_cv_a(pers, st) {
         Err(e) => Err(e),
-        Ok(_) => match crate::arena::trust_axioms::true_intro_cv_a(st) {
+        Ok(_) => match crate::arena::trust_axioms::true_intro_cv_a(pers, st) {
             Err(e) => Err(e),
-            Ok(_) => match crate::arena::trust_axioms::trust_compiler_a(st) {
+            Ok(_) => match crate::arena::trust_axioms::trust_compiler_a(pers, st) {
                 Err(e) => Err(e),
-                Ok(_) => match crate::arena::trust_axioms::bool_cv_a(st) {
+                Ok(_) => match crate::arena::trust_axioms::bool_cv_a(pers, st) {
                     Err(e) => Err(e),
-                    Ok(_) => intern_all_reduce_pins(st),
+                    Ok(_) => intern_all_reduce_pins(pers, st),
                 },
             },
         },
@@ -1412,18 +1450,18 @@ pub fn intern_all_trust_pins(st: &mut AState) -> Result<(), CheckError> {
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:473-490 internAllPins` — the
 /// four `reduce*`/`ofReduce*` shapes and the two pinned defining expressions.
-pub fn intern_all_reduce_pins(st: &mut AState) -> Result<(), CheckError> {
-    match crate::arena::trust_axioms::reduce_nat_cv_a(st) {
+pub fn intern_all_reduce_pins(pers: &PersTier, st: &mut AState) -> Result<(), CheckError> {
+    match crate::arena::trust_axioms::reduce_nat_cv_a(pers, st) {
         Err(e) => Err(e),
-        Ok(_) => match crate::arena::trust_axioms::reduce_bool_cv_a(st) {
+        Ok(_) => match crate::arena::trust_axioms::reduce_bool_cv_a(pers, st) {
             Err(e) => Err(e),
-            Ok(_) => match crate::arena::trust_axioms::of_reduce_nat_a(st) {
+            Ok(_) => match crate::arena::trust_axioms::of_reduce_nat_a(pers, st) {
                 Err(e) => Err(e),
-                Ok(_) => match crate::arena::trust_axioms::of_reduce_bool_a(st) {
+                Ok(_) => match crate::arena::trust_axioms::of_reduce_bool_a(pers, st) {
                     Err(e) => Err(e),
-                    Ok(_) => match crate::arena::trust_axioms::reduce_nat_decl_pin(st) {
+                    Ok(_) => match crate::arena::trust_axioms::reduce_nat_decl_pin(pers, st) {
                         Err(e) => Err(e),
-                        Ok(_) => match crate::arena::trust_axioms::reduce_bool_decl_pin(st)
+                        Ok(_) => match crate::arena::trust_axioms::reduce_bool_decl_pin(pers, st)
                         {
                             Err(e) => Err(e),
                             Ok(_) => Ok(()),
@@ -1473,8 +1511,9 @@ mod tests {
     /// pins interned (task #97-P6-4a).  Every subject below reads a pin
     /// somewhere, so this is the only state they can run in.
     fn pinned_state() -> AState {
+        let pers: &PersTier = &PersTier::empty();
         let mut st = AState::init(EStore::empty());
-        match crate::arena::pins::intern_reserved_pins(&mut st) {
+        match crate::arena::pins::intern_reserved_pins(pers, &mut st) {
             Ok(()) => st,
             Err(_) => panic!("the reserved-name pins must intern"),
         }
@@ -1564,8 +1603,8 @@ mod tests {
     /// values — and needs no second readback.  It is also slightly stronger:
     /// it compares the install-computed fields (`ctorParams`, `fire`, the
     /// reducibility hint) that a readback compares too but a `canon` would not.
-    fn env_agrees(st: &mut AState, fe: &IFEnv, env: &Env) -> bool {
-        let want = ok(intern_ci_list(st, &unshare(&env.consts)));
+    fn env_agrees(pers: &PersTier, st: &mut AState, fe: &IFEnv, env: &Env) -> bool {
+        let want = ok(intern_ci_list(pers, st, &unshare(&env.consts)));
         let got = &fe.env.consts;
         if want.len() != got.len() {
             return false;
@@ -1584,9 +1623,10 @@ mod tests {
 
     /// Intern a declaration list and run the arena's `check_decls_pure` on it.
     fn run_decls(ds_cl: &Vec<Declaration>) -> (AState, Result<IFEnv, CheckError>) {
+        let pers: &PersTier = &PersTier::empty();
         let mut st = pinned_state();
-        let ds = ok(intern_decls(&mut st, ds_cl));
-        let r = check_decls_pure(&mut st, &mu(), &no_pins_i(), &ds);
+        let ds = ok(intern_decls(pers, &mut st, ds_cl));
+        let r = check_decls_pure(pers, &mut st, &mu(), &no_pins_i(), &ds);
         (st, r)
     }
 
@@ -1602,9 +1642,10 @@ mod tests {
     /// The arena's `check_decls_pure` against con-ron-core's, over the WHOLE
     /// outcome: the same environment, constant for constant, or the same error.
     fn chk_decls(ds_cl: &Vec<Declaration>) -> bool {
+        let pers: &PersTier = &PersTier::empty();
         let (mut st, r) = run_decls(ds_cl);
         match (r, core_decls(ds_cl)) {
-            (Ok(fe), Ok(env)) => env_agrees(&mut st, &fe, &env),
+            (Ok(fe), Ok(env)) => env_agrees(pers, &mut st, &fe, &env),
             (Err(a), Err(b)) => err_eq(&a, &b),
             _ => false,
         }
@@ -1615,18 +1656,19 @@ mod tests {
     /// con-ron-core's side and by interning ITS result on the arena's, so the
     /// two calls see the same environment and the check is about the STEP.
     fn chk_decl(env_cl: &Env, d_cl: &Declaration) -> bool {
+        let pers: &PersTier = &PersTier::empty();
         let mut st = pinned_state();
-        let cs = ok(intern_ci_list(&mut st, &unshare(&env_cl.consts)));
+        let cs = ok(intern_ci_list(pers, &mut st, &unshare(&env_cl.consts)));
         let mut ds1: Vec<Declaration> = Vec::with_capacity(1);
         ds1.push(con_ron_core::frontend::export_c::declaration_dup(d_cl));
-        let ds = ok(intern_decls(&mut st, &ds1));
+        let ds = ok(intern_decls(pers, &mut st, &ds1));
         let fe0: IFEnv = mk_ifenv(crate::arena::env::IEnv { consts: cs });
-        let arena = check_decl(&mut st, &mu(), &no_pins_i(), fe0, &ds[0]);
+        let arena = check_decl(pers, &mut st, &mu(), &no_pins_i(), fe0, &ds[0]);
         let mut cst: CState = state_c::cstate_new();
         let fe_cl = fenv::mk_fenv(con_ron_core::kernel::env::env_dup(env_cl));
         let core = ckr::check_decl(&mu(), &no_pins(), &mut cst, fe_cl, d_cl);
         match (arena, core) {
-            (Ok(fe), Ok(fe2)) => env_agrees(&mut st, &fe, &fe2.env),
+            (Ok(fe), Ok(fe2)) => env_agrees(pers, &mut st, &fe, &fe2.env),
             (Err(a), Err(b)) => err_eq(&a, &b),
             _ => false,
         }
@@ -1642,12 +1684,13 @@ mod tests {
     /// leaked out of the scratch tier would make the installed environment
     /// compare unequal to con-ron-core's.
     fn chk_install(ds_cl: &Vec<Declaration>) -> bool {
+        let pers: &PersTier = &PersTier::empty();
         let mut st = pinned_state();
-        let ds = ok(intern_decls(&mut st, ds_cl));
-        let pins = ok(intern_all_pins(&mut st, &no_pins()));
-        let arena = install_then_check(&mut st, &mu(), &pins, &ds);
+        let ds = ok(intern_decls(pers, &mut st, ds_cl));
+        let pins = ok(intern_all_pins(pers, &mut st, &no_pins()));
+        let arena = install_then_check(pers, &mut st, &mu(), &pins, &ds);
         match (arena, core_decls(ds_cl)) {
-            (Ok(fe), Ok(env)) => env_agrees(&mut st, &fe, &env),
+            (Ok(fe), Ok(env)) => env_agrees(pers, &mut st, &fe, &env),
             (Err((a, _)), Err(b)) => err_eq(&a, &b),
             _ => false,
         }
@@ -2051,11 +2094,12 @@ mod tests {
 
     /// The arena's `std_axiom_ok` against con-ron-core's.
     fn chk_std_axiom(env_cl: &Env, c: &ConstantVal) -> bool {
+        let pers: &PersTier = &PersTier::empty();
         let mut st = pinned_state();
-        let cs = ok(intern_ci_list(&mut st, &unshare(&env_cl.consts)));
-        let icv = ok(intern_cv(&mut st, c));
+        let cs = ok(intern_ci_list(pers, &mut st, &unshare(&env_cl.consts)));
+        let icv = ok(intern_cv(pers, &mut st, c));
         let fe: IFEnv = mk_ifenv(crate::arena::env::IEnv { consts: cs });
-        let got = ok(crate::arena::decl_check::std_axiom_ok(&mut st, &fe, &icv));
+        let got = ok(crate::arena::decl_check::std_axiom_ok(pers, &mut st, &fe, &icv));
         let fe_cl = fenv::mk_fenv(con_ron_core::kernel::env::env_dup(env_cl));
         got == cstd::std_axiom_ok(&fe_cl, c)
     }
@@ -2079,10 +2123,11 @@ mod tests {
     /// that differs in its type (which it does not), and on one that differs in
     /// its level parameters.
     fn chk_matches_pin(c: &ConstantVal, pin: &ConstantVal) -> bool {
+        let pers: &PersTier = &PersTier::empty();
         let mut st = pinned_state();
-        let a = ok(intern_cv(&mut st, c));
-        let b = ok(intern_cv(&mut st, pin));
-        let got = ok(i_constant_val_matches_pin(&st, &a, &b));
+        let a = ok(intern_cv(pers, &mut st, c));
+        let b = ok(intern_cv(pers, &mut st, pin));
+        let got = ok(i_constant_val_matches_pin(pers, &st, &a, &b));
         got == cstd::matches_pin_fast(c, pin)
     }
 
@@ -2124,10 +2169,11 @@ mod tests {
     /// The arena's `canonEqList` against con-ron-core's, on the pinned blocks
     /// and on a block that is not one.
     fn chk_canon_list(xs: &Vec<ConstantInfo>, ys: &Vec<ConstantInfo>) -> bool {
+        let pers: &PersTier = &PersTier::empty();
         let mut st = pinned_state();
-        let a = ok(intern_ci_list(&mut st, xs));
-        let b = ok(intern_ci_list(&mut st, ys));
-        let got = ok(crate::arena::canon::canon_eq_list(&mut st, &a, &b, 0));
+        let a = ok(intern_ci_list(pers, &mut st, xs));
+        let b = ok(intern_ci_list(pers, &mut st, ys));
+        let got = ok(crate::arena::canon::canon_eq_list(pers, &mut st, &a, &b, 0));
         got == ccanon::canon_eq_list(xs, ys)
     }
 
@@ -2146,9 +2192,10 @@ mod tests {
 
     /// The arena's `basisPinHit` against con-ron-core's.
     fn chk_basis_pin_hit(block: &Vec<ConstantInfo>) -> bool {
+        let pers: &PersTier = &PersTier::empty();
         let mut st = pinned_state();
-        let b = ok(intern_ci_list(&mut st, block));
-        let got = ok(basis_pin_hit(&mut st, &b));
+        let b = ok(intern_ci_list(pers, &mut st, block));
+        let got = ok(basis_pin_hit(pers, &mut st, &b));
         let want = basis_raw::basis_pin_hit(block);
         match (got, want) {
             (None, None) => true,
@@ -2187,26 +2234,27 @@ mod tests {
     /// tests this from outside, through `chkInstall`'s readback.
     #[test]
     fn the_startup_walk_interns_into_the_persistent_tier() {
+        let pers: &PersTier = &PersTier::empty();
         let mut st = pinned_state();
-        let _ = ok(intern_all_pins(&mut st, &no_pins()));
-        let n0 = st.store.pers_count();
+        let _ = ok(intern_all_pins(pers, &mut st, &no_pins()));
+        let n0 = st.store.pers_count(pers);
         assert!(n0 > 0);
         // a scratch tier, and the same names again: nothing new is appended
         // and every handle is persistent
         enter_scratch(&mut st);
-        let eqn = ok(pin(&mut st, &basis_names::eq_name()));
+        let eqn = ok(pin(pers, &mut st, &basis_names::eq_name()));
         assert!(eqn.is_persistent());
-        let blk = ok(basis_kind_decls_a(&mut st, &BasisKind::EqK));
+        let blk = ok(basis_kind_decls_a(pers, &mut st, &BasisKind::EqK));
         let mut i: usize = 0;
         while i < blk.len() {
-            let cvv = ok(crate::arena::env::i_constant_info_to_constant_val(
+            let cvv = ok(crate::arena::env::i_constant_info_to_constant_val(pers,
                 &mut st.store,
                 &blk[i],
             ));
             assert!(cvv.ty.is_persistent());
             i += 1;
         }
-        assert_eq!(st.store.pers_count(), n0);
+        assert_eq!(st.store.pers_count(pers), n0);
         drop_scratch(&mut st);
     }
 
@@ -2241,13 +2289,14 @@ mod tests {
         let h = std::thread::Builder::new()
             .stack_size(1 << 30)
             .spawn(|| {
+                let pers: &PersTier = &PersTier::empty();
                 let pins = match con_ron_core::kernel::pins_decode::decode_embedded() {
                     Ok(v) => v,
                     Err(_) => panic!("the embedded pin text must decode"),
                 };
                 assert!(pins.len() > 0);
                 let mut st = pinned_state();
-                let ip = ok(intern_all_pins(&mut st, &pins));
+                let ip = ok(intern_all_pins(pers, &mut st, &pins));
                 assert_eq!(ip.len(), pins.len());
                 // every interned pin is a PERSISTENT handle — the startup walk
                 // runs before the first `enter_scratch`, which is what makes a
@@ -2259,7 +2308,7 @@ mod tests {
                     assert!(ip[i].div_proofs.len() > 0);
                     i += 1;
                 }
-                st.store.node_count()
+                st.store.node_count(pers)
             })
             .unwrap()
             .join()

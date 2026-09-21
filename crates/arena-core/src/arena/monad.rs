@@ -75,6 +75,7 @@ use con_ron_core::ron::hashmap::{Dup, Eq2, Hashable};
 // reads as it did.  `ron::hashmap::HashMap` is still what `crates/con-ron`
 // uses, and is still the one with proofs.
 use con_ron_core::ron::hashmap2::HashMap2 as HashMap;
+use crate::arena::store::PersTier;
 
 // ---------------------------------------------------------------------------
 // The messages of this module's declines
@@ -317,8 +318,8 @@ pub fn fail<T>(e: CheckError) -> Result<T, CheckError> {
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:138-142 view` — decode a handle.
 /// A dangling handle is an internal error: the checker never builds one, and
 /// the bridge claims nothing on failure.
-pub fn view(st: &AState, h: &EIdx) -> Result<ENodeView, CheckError> {
-    match st.store.view(h) {
+pub fn view(pers: &PersTier, st: &AState, h: &EIdx) -> Result<ENodeView, CheckError> {
+    match st.store.view(pers, h) {
         Some(v) => Ok(v),
         None => fail(CheckError::Internal(code_points(&M_DANGLING_E))),
     }
@@ -329,8 +330,8 @@ pub fn view(st: &AState, h: &EIdx) -> Result<ENodeView, CheckError> {
 /// derived word of a handle (the `data` computed field, lines 357-402), read
 /// in `O(1)` off the derived column.  No path fails, so the Rust returns the
 /// word rather than a `Result` (module note).
-pub fn derived_e(st: &AState, h: &EIdx) -> u64 {
-    st.store.derived(h)
+pub fn derived_e(pers: &PersTier, st: &AState, h: &EIdx) -> u64 {
+    st.store.derived(pers, h)
 }
 
 /// con-leche: none — hash-cons an expression node
@@ -346,8 +347,8 @@ pub fn derived_e(st: &AState, h: &EIdx) -> u64 {
 /// `Result<EIdx, CheckError>` with the same `Native` decline on the same
 /// condition — so the wrapper is a delegation and the branch is one layer
 /// down.  Same test, same error kind, same store.
-pub fn intern_e(st: &mut AState, v: ENodeView) -> Result<EIdx, CheckError> {
-    st.store.intern(v)
+pub fn intern_e(pers: &PersTier, st: &mut AState, v: ENodeView) -> Result<EIdx, CheckError> {
+    st.store.intern(pers, v)
 }
 
 // ---------------------------------------------------------------------------
@@ -357,8 +358,8 @@ pub fn intern_e(st: &mut AState, v: ENodeView) -> Result<EIdx, CheckError> {
 /// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:170-174 viewN` — decode a name
 /// handle.
-pub fn view_n(st: &AState, h: &NIdx) -> Result<NNodeView, CheckError> {
-    match st.store.ns().view(h) {
+pub fn view_n(pers: &PersTier, st: &AState, h: &NIdx) -> Result<NNodeView, CheckError> {
+    match st.store.ns().view(pers, h) {
         Some(v) => Ok(v),
         None => fail(CheckError::Internal(code_points(&M_DANGLING_N))),
     }
@@ -367,8 +368,8 @@ pub fn view_n(st: &AState, h: &NIdx) -> Result<NNodeView, CheckError> {
 /// con-leche: none — hash-cons a name node, through the nesting
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:177-188 internNNode` (the
 /// capacity test is one layer down here; see `intern_e`).
-pub fn intern_n_node(st: &mut AState, v: NNodeView) -> Result<NIdx, CheckError> {
-    st.store.intern_name(v)
+pub fn intern_n_node(pers: &PersTier, st: &mut AState, v: NNodeView) -> Result<NIdx, CheckError> {
+    st.store.intern_name(pers, v)
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
@@ -376,18 +377,18 @@ pub fn intern_n_node(st: &mut AState, v: NNodeView) -> Result<NIdx, CheckError> 
 /// fuel-indexed readback of a name handle.  Shipped, not test-only: the level
 /// readback below is a shipped function of `Monad.lean` and it needs this one
 /// (module note).
-pub fn denote_n_aux(st: &NStore, fuel: u64, h: &NIdx) -> Option<Name> {
+pub fn denote_n_aux(pers: &PersTier, st: &NStore, fuel: u64, h: &NIdx) -> Option<Name> {
     if fuel == 0 {
         None
     } else {
-        match st.view(h) {
+        match st.view(pers, h) {
             None => None,
             Some(NNodeView::Anonymous) => Some(name::anonymous()),
-            Some(NNodeView::Str(p, s)) => match denote_n_aux(st, fuel - 1, &p) {
+            Some(NNodeView::Str(p, s)) => match denote_n_aux(pers, st, fuel - 1, &p) {
                 Some(q) => Some(name::mk_str(q, s)),
                 None => None,
             },
-            Some(NNodeView::Num(p, n)) => match denote_n_aux(st, fuel - 1, &p) {
+            Some(NNodeView::Num(p, n)) => match denote_n_aux(pers, st, fuel - 1, &p) {
                 Some(q) => Some(name::mk_num(q, n)),
                 None => None,
             },
@@ -398,8 +399,8 @@ pub fn denote_n_aux(st: &NStore, fuel: u64, h: &NIdx) -> Option<Name> {
 /// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
 /// Lean twin: `proof/ConRon/Arena/Denote.lean:87-88 denoteN` — the readback of
 /// a name handle, at the store's own node count as fuel.
-pub fn denote_n(st: &NStore, h: &NIdx) -> Option<Name> {
-    denote_n_aux(st, st.node_count() as u64 + 1, h)
+pub fn denote_n(pers: &PersTier, st: &NStore, h: &NIdx) -> Option<Name> {
+    denote_n_aux(pers, st, st.node_count(pers) as u64 + 1, h)
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
@@ -407,8 +408,8 @@ pub fn denote_n(st: &NStore, h: &NIdx) -> Option<Name> {
 /// back out of the store as a transient `Name`.  Names are compared by handle
 /// throughout the checker (DESIGN.md §8.3), so this is the error-text and
 /// level-substitution path only, and the readback IS the denotation.
-pub fn read_name(st: &AState, h: &NIdx) -> Result<Name, CheckError> {
-    match denote_n(st.store.ns(), h) {
+pub fn read_name(pers: &PersTier, st: &AState, h: &NIdx) -> Result<Name, CheckError> {
+    match denote_n(pers, st.store.ns(), h) {
         Some(x) => Ok(x),
         None => fail(CheckError::Internal(code_points(&M_DANGLING_N))),
     }
@@ -420,14 +421,15 @@ pub fn read_name(st: &AState, h: &NIdx) -> Result<Name, CheckError> {
 /// helper because `ks.mapM readName` is a closure (DESIGN.md §3.4); the Rust
 /// spells the same recursion over a `Vec` by a cursor, which is §3.4's own
 /// rule and `-loops-to-rec`'s shape.
-pub fn read_names(st: &AState, ks: &Vec<NIdx>) -> Result<Vec<Name>, CheckError> {
-    read_names_from(st, ks, 0, Vec::new())
+pub fn read_names(pers: &PersTier, st: &AState, ks: &Vec<NIdx>) -> Result<Vec<Name>, CheckError> {
+    read_names_from(pers, st, ks, 0, Vec::new())
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:204-209 readNames` — the cursor
 /// recursion behind `read_names`.
 pub fn read_names_from(
+    pers: &PersTier,
     st: &AState,
     ks: &Vec<NIdx>,
     i: usize,
@@ -436,11 +438,11 @@ pub fn read_names_from(
     if i >= ks.len() {
         Ok(out)
     } else {
-        match read_name(st, &ks[i]) {
+        match read_name(pers, st, &ks[i]) {
             Ok(x) => {
                 let mut out2 = out;
                 out2.push(x);
-                read_names_from(st, ks, i + 1, out2)
+                read_names_from(pers, st, ks, i + 1, out2)
             }
             Err(e) => Err(e),
         }
@@ -451,15 +453,15 @@ pub fn read_names_from(
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:213-221 internName` — intern a
 /// transient name.  Structural on `Name`, so no fuel: the tree is a value, not
 /// a DAG.
-pub fn intern_name(st: &mut AState, n: &Name) -> Result<NIdx, CheckError> {
+pub fn intern_name(pers: &PersTier, st: &mut AState, n: &Name) -> Result<NIdx, CheckError> {
     match &n.0.kind {
-        name::NameKind::Anonymous => intern_n_node(st, NNodeView::Anonymous),
-        name::NameKind::Str(p, s) => match intern_name(st, p) {
-            Ok(hp) => intern_n_node(st, NNodeView::Str(hp, expr::str_copy(s))),
+        name::NameKind::Anonymous => intern_n_node(pers, st, NNodeView::Anonymous),
+        name::NameKind::Str(p, s) => match intern_name(pers, st, p) {
+            Ok(hp) => intern_n_node(pers, st, NNodeView::Str(hp, expr::str_copy(s))),
             Err(e) => Err(e),
         },
-        name::NameKind::Num(p, k) => match intern_name(st, p) {
-            Ok(hp) => intern_n_node(st, NNodeView::Num(hp, *k)),
+        name::NameKind::Num(p, k) => match intern_name(pers, st, p) {
+            Ok(hp) => intern_n_node(pers, st, NNodeView::Num(hp, *k)),
             Err(e) => Err(e),
         },
     }
@@ -472,8 +474,8 @@ pub fn intern_name(st: &mut AState, n: &Name) -> Result<NIdx, CheckError> {
 /// con-leche: ConLeche/Kernel/Expr.lean:40-53 Level
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:226-230 viewL` — decode a level
 /// handle.
-pub fn view_l(st: &AState, h: &LIdx) -> Result<LNodeView, CheckError> {
-    match st.store.ls().view(h) {
+pub fn view_l(pers: &PersTier, st: &AState, h: &LIdx) -> Result<LNodeView, CheckError> {
+    match st.store.ls().view(pers, h) {
         Some(v) => Ok(v),
         None => fail(CheckError::Internal(code_points(&M_DANGLING_L))),
     }
@@ -483,46 +485,46 @@ pub fn view_l(st: &AState, h: &LIdx) -> Result<LNodeView, CheckError> {
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:235-237 derivedL` — the level's
 /// derived pair (its 32-bit hash and its `hasParam` bit, the computed field at
 /// lines 47-53), read in `O(1)`.  Total, so no `Result` (module note).
-pub fn derived_l(st: &AState, h: &LIdx) -> LDer {
-    st.store.lder(h)
+pub fn derived_l(pers: &PersTier, st: &AState, h: &LIdx) -> LDer {
+    st.store.lder(pers, h)
 }
 
 /// con-leche: none — hash-cons a level node, through the nesting
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:240-251 internLNode` (the
 /// capacity test is one layer down here; see `intern_e`).
-pub fn intern_l_node(st: &mut AState, v: LNodeView) -> Result<LIdx, CheckError> {
-    st.store.intern_level(v)
+pub fn intern_l_node(pers: &PersTier, st: &mut AState, v: LNodeView) -> Result<LIdx, CheckError> {
+    st.store.intern_level(pers, v)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:40-45 Level
 /// Lean twin: `proof/ConRon/Arena/Denote.lean:118-128 denoteLAux` — the
 /// fuel-indexed readback of a level handle.
-pub fn denote_l_aux(st: &LStore, fuel: u64, h: &LIdx) -> Option<Level> {
+pub fn denote_l_aux(pers: &PersTier, st: &LStore, fuel: u64, h: &LIdx) -> Option<Level> {
     if fuel == 0 {
         None
     } else {
-        match st.view(h) {
+        match st.view(pers, h) {
             None => None,
             Some(LNodeView::Zero) => Some(level::zero()),
-            Some(LNodeView::Succ(u)) => match denote_l_aux(st, fuel - 1, &u) {
+            Some(LNodeView::Succ(u)) => match denote_l_aux(pers, st, fuel - 1, &u) {
                 Some(a) => Some(level::succ(a)),
                 None => None,
             },
-            Some(LNodeView::Max(u, v)) => match denote_l_aux(st, fuel - 1, &u) {
-                Some(a) => match denote_l_aux(st, fuel - 1, &v) {
+            Some(LNodeView::Max(u, v)) => match denote_l_aux(pers, st, fuel - 1, &u) {
+                Some(a) => match denote_l_aux(pers, st, fuel - 1, &v) {
                     Some(b) => Some(level::max(a, b)),
                     None => None,
                 },
                 None => None,
             },
-            Some(LNodeView::Imax(u, v)) => match denote_l_aux(st, fuel - 1, &u) {
-                Some(a) => match denote_l_aux(st, fuel - 1, &v) {
+            Some(LNodeView::Imax(u, v)) => match denote_l_aux(pers, st, fuel - 1, &u) {
+                Some(a) => match denote_l_aux(pers, st, fuel - 1, &v) {
                     Some(b) => Some(level::imax(a, b)),
                     None => None,
                 },
                 None => None,
             },
-            Some(LNodeView::Param(n)) => match denote_n(&st.ns, &n) {
+            Some(LNodeView::Param(n)) => match denote_n(pers, &st.ns, &n) {
                 Some(q) => Some(level::param(q)),
                 None => None,
             },
@@ -533,22 +535,23 @@ pub fn denote_l_aux(st: &LStore, fuel: u64, h: &LIdx) -> Option<Level> {
 /// con-leche: ConLeche/Kernel/Expr.lean:40-45 Level
 /// Lean twin: `proof/ConRon/Arena/Denote.lean:131-132 denoteL` — the readback
 /// of a level handle, at the store's own node count as fuel.
-pub fn denote_l(st: &LStore, h: &LIdx) -> Option<Level> {
-    denote_l_aux(st, st.node_count() as u64 + 1, h)
+pub fn denote_l(pers: &PersTier, st: &LStore, h: &LIdx) -> Option<Level> {
+    denote_l_aux(pers, st, st.node_count(pers) as u64 + 1, h)
 }
 
 /// con-leche: none — `denoteL` mapped over a level-handle list
 /// Lean twin: `proof/ConRon/Arena/Denote.lean:169-171 denoteLList` — a list
 /// node's children are level handles only, so there is no recursion through
 /// `LsIdx` and no fuel.  The `List` recursion is a cursor over the `Vec`.
-pub fn denote_l_list(st: &LStore, us: &Vec<LIdx>) -> Option<Vec<Level>> {
-    denote_l_list_from(st, us, 0, Vec::new())
+pub fn denote_l_list(pers: &PersTier, st: &LStore, us: &Vec<LIdx>) -> Option<Vec<Level>> {
+    denote_l_list_from(pers, st, us, 0, Vec::new())
 }
 
 /// con-leche: none — `denoteL` mapped over a level-handle list
 /// Lean twin: `proof/ConRon/Arena/Denote.lean:169-171 denoteLList` — the
 /// cursor recursion behind `denote_l_list`.
 pub fn denote_l_list_from(
+    pers: &PersTier,
     st: &LStore,
     us: &Vec<LIdx>,
     i: usize,
@@ -557,12 +560,12 @@ pub fn denote_l_list_from(
     if i >= us.len() {
         Some(out)
     } else {
-        match denote_l(st, &us[i]) {
+        match denote_l(pers, st, &us[i]) {
             None => None,
             Some(l) => {
                 let mut out2 = out;
                 out2.push(l);
-                denote_l_list_from(st, us, i + 1, out2)
+                denote_l_list_from(pers, st, us, i + 1, out2)
             }
         }
     }
@@ -570,10 +573,10 @@ pub fn denote_l_list_from(
 
 /// con-leche: none — the readback of an interned universe-argument list
 /// Lean twin: `proof/ConRon/Arena/Denote.lean:174-177 denoteLs`.
-pub fn denote_ls(st: &LsStore, h: &LsIdx) -> Option<Vec<Level>> {
-    match st.view(h) {
+pub fn denote_ls(pers: &PersTier, st: &LsStore, h: &LsIdx) -> Option<Vec<Level>> {
+    match st.view(pers, h) {
         None => None,
-        Some(us) => denote_l_list(&st.ls, &us),
+        Some(us) => denote_l_list(pers, &st.ls, &us),
     }
 }
 
@@ -583,8 +586,8 @@ pub fn denote_ls(st: &LsStore, h: &LsIdx) -> Option<Vec<Level>> {
 /// algorithm"): a level ALGORITHM runs on a transient `Level` tree read out of
 /// the store, never on handles.  The readback is `denote_l` itself, so the
 /// later spec theorem for this primitive is an equation and not a simulation.
-pub fn read_level(st: &AState, h: &LIdx) -> Result<Level, CheckError> {
-    match denote_l(st.store.ls(), h) {
+pub fn read_level(pers: &PersTier, st: &AState, h: &LIdx) -> Result<Level, CheckError> {
+    match denote_l(pers, st.store.ls(), h) {
         Some(l) => Ok(l),
         None => fail(CheckError::Internal(code_points(&M_DANGLING_L))),
     }
@@ -593,29 +596,29 @@ pub fn read_level(st: &AState, h: &LIdx) -> Result<Level, CheckError> {
 /// con-leche: ConLeche/Kernel/Expr.lean:40-53 Level
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:266-278 internLevel` — intern a
 /// transient level tree.  Structural on `Level`, so no fuel.
-pub fn intern_level(st: &mut AState, l: &Level) -> Result<LIdx, CheckError> {
+pub fn intern_level(pers: &PersTier, st: &mut AState, l: &Level) -> Result<LIdx, CheckError> {
     match &l.0.kind {
-        level::LevelKind::Zero => intern_l_node(st, LNodeView::Zero),
-        level::LevelKind::Succ(u) => match intern_level(st, u) {
-            Ok(hu) => intern_l_node(st, LNodeView::Succ(hu)),
+        level::LevelKind::Zero => intern_l_node(pers, st, LNodeView::Zero),
+        level::LevelKind::Succ(u) => match intern_level(pers, st, u) {
+            Ok(hu) => intern_l_node(pers, st, LNodeView::Succ(hu)),
             Err(e) => Err(e),
         },
-        level::LevelKind::Max(u, v) => match intern_level(st, u) {
-            Ok(hu) => match intern_level(st, v) {
-                Ok(hv) => intern_l_node(st, LNodeView::Max(hu, hv)),
+        level::LevelKind::Max(u, v) => match intern_level(pers, st, u) {
+            Ok(hu) => match intern_level(pers, st, v) {
+                Ok(hv) => intern_l_node(pers, st, LNodeView::Max(hu, hv)),
                 Err(e) => Err(e),
             },
             Err(e) => Err(e),
         },
-        level::LevelKind::Imax(u, v) => match intern_level(st, u) {
-            Ok(hu) => match intern_level(st, v) {
-                Ok(hv) => intern_l_node(st, LNodeView::Imax(hu, hv)),
+        level::LevelKind::Imax(u, v) => match intern_level(pers, st, u) {
+            Ok(hu) => match intern_level(pers, st, v) {
+                Ok(hv) => intern_l_node(pers, st, LNodeView::Imax(hu, hv)),
                 Err(e) => Err(e),
             },
             Err(e) => Err(e),
         },
-        level::LevelKind::Param(n) => match intern_name(st, n) {
-            Ok(hn) => intern_l_node(st, LNodeView::Param(hn)),
+        level::LevelKind::Param(n) => match intern_name(pers, st, n) {
+            Ok(hn) => intern_l_node(pers, st, LNodeView::Param(hn)),
             Err(e) => Err(e),
         },
     }
@@ -628,8 +631,8 @@ pub fn intern_level(st: &mut AState, l: &Level) -> Result<LIdx, CheckError> {
 /// con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:287-291 viewLs` — decode a
 /// universe-argument list handle (the `const` node's second field, line 347).
-pub fn view_ls(st: &AState, h: &LsIdx) -> Result<LsNodeView, CheckError> {
-    match st.store.ls_s().view(h) {
+pub fn view_ls(pers: &PersTier, st: &AState, h: &LsIdx) -> Result<LsNodeView, CheckError> {
+    match st.store.ls_s().view(pers, h) {
         Some(v) => Ok(v),
         None => fail(CheckError::Internal(code_points(&M_DANGLING_LS))),
     }
@@ -638,15 +641,19 @@ pub fn view_ls(st: &AState, h: &LsIdx) -> Result<LsNodeView, CheckError> {
 /// con-leche: none — hash-cons a universe-argument list
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:294-305 internLsNode` (the
 /// capacity test is one layer down here; see `intern_e`).
-pub fn intern_ls_node(st: &mut AState, v: LsNodeView) -> Result<LsIdx, CheckError> {
-    st.store.intern_levels(v)
+pub fn intern_ls_node(
+    pers: &PersTier,
+    st: &mut AState,
+    v: LsNodeView,
+) -> Result<LsIdx, CheckError>  {
+    st.store.intern_levels(pers, v)
 }
 
 /// con-leche: ConLeche/Kernel/Level.lean:26-37 subst
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:309-313 readLevels` — read a
 /// universe argument list back as transient `Level` trees.
-pub fn read_levels(st: &AState, h: &LsIdx) -> Result<Vec<Level>, CheckError> {
-    match denote_ls(st.store.ls_s(), h) {
+pub fn read_levels(pers: &PersTier, st: &AState, h: &LsIdx) -> Result<Vec<Level>, CheckError> {
+    match denote_ls(pers, st.store.ls_s(), h) {
         Some(us) => Ok(us),
         None => fail(CheckError::Internal(code_points(&M_DANGLING_LS))),
     }
@@ -654,14 +661,19 @@ pub fn read_levels(st: &AState, h: &LsIdx) -> Result<Vec<Level>, CheckError> {
 
 /// con-leche: none — intern a list of transient levels, one handle each
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:316-320 internLevelList`.
-pub fn intern_level_list(st: &mut AState, us: &Vec<Level>) -> Result<Vec<LIdx>, CheckError> {
-    intern_level_list_from(st, us, 0, Vec::new())
+pub fn intern_level_list(
+    pers: &PersTier,
+    st: &mut AState,
+    us: &Vec<Level>,
+) -> Result<Vec<LIdx>, CheckError>  {
+    intern_level_list_from(pers, st, us, 0, Vec::new())
 }
 
 /// con-leche: none — intern a list of transient levels, one handle each
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:316-320 internLevelList` — the
 /// cursor recursion behind `intern_level_list`.
 pub fn intern_level_list_from(
+    pers: &PersTier,
     st: &mut AState,
     us: &Vec<Level>,
     i: usize,
@@ -670,11 +682,11 @@ pub fn intern_level_list_from(
     if i >= us.len() {
         Ok(out)
     } else {
-        match intern_level(st, &us[i]) {
+        match intern_level(pers, st, &us[i]) {
             Ok(hu) => {
                 let mut out2 = out;
                 out2.push(hu);
-                intern_level_list_from(st, us, i + 1, out2)
+                intern_level_list_from(pers, st, us, i + 1, out2)
             }
             Err(e) => Err(e),
         }
@@ -683,9 +695,13 @@ pub fn intern_level_list_from(
 
 /// con-leche: none — intern a list of transient levels and hash-cons the list node
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:325-327 internLevels`.
-pub fn intern_levels(st: &mut AState, us: &Vec<Level>) -> Result<LsIdx, CheckError> {
-    match intern_level_list(st, us) {
-        Ok(hs) => intern_ls_node(st, hs),
+pub fn intern_levels(
+    pers: &PersTier,
+    st: &mut AState,
+    us: &Vec<Level>,
+) -> Result<LsIdx, CheckError>  {
+    match intern_level_list(pers, st, us) {
+        Ok(hs) => intern_ls_node(pers, st, hs),
         Err(e) => Err(e),
     }
 }
@@ -707,29 +723,45 @@ pub fn intern_levels(st: &mut AState, us: &Vec<Level>) -> Result<LsIdx, CheckErr
 
 /// con-leche: none — arena infrastructure; hash-cons an expression node into the persistent tier
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:348-358 internPersistentE`.
-pub fn intern_persistent_e(st: &mut AState, v: ENodeView) -> Result<EIdx, CheckError> {
-    st.store.intern_persistent(v)
+pub fn intern_persistent_e(
+    pers: &PersTier,
+    st: &mut AState,
+    v: ENodeView,
+) -> Result<EIdx, CheckError>  {
+    st.store.intern_persistent(pers, v)
 }
 
 /// con-leche: none — arena infrastructure; hash-cons a name node into the persistent tier
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:361-371 internPersistentN`, through
 /// the nesting.
-pub fn intern_persistent_n(st: &mut AState, v: NNodeView) -> Result<NIdx, CheckError> {
-    st.store.intern_name_persistent(v)
+pub fn intern_persistent_n(
+    pers: &PersTier,
+    st: &mut AState,
+    v: NNodeView,
+) -> Result<NIdx, CheckError>  {
+    st.store.intern_name_persistent(pers, v)
 }
 
 /// con-leche: none — arena infrastructure; hash-cons a level node into the persistent tier
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:374-384 internPersistentL`, through
 /// the nesting.
-pub fn intern_persistent_l(st: &mut AState, v: LNodeView) -> Result<LIdx, CheckError> {
-    st.store.intern_level_persistent(v)
+pub fn intern_persistent_l(
+    pers: &PersTier,
+    st: &mut AState,
+    v: LNodeView,
+) -> Result<LIdx, CheckError>  {
+    st.store.intern_level_persistent(pers, v)
 }
 
 /// con-leche: none — arena infrastructure; hash-cons a universe-argument list into the persistent tier
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:387-397 internPersistentLs`, through
 /// the nesting.
-pub fn intern_persistent_ls(st: &mut AState, v: LsNodeView) -> Result<LsIdx, CheckError> {
-    st.store.intern_levels_persistent(v)
+pub fn intern_persistent_ls(
+    pers: &PersTier,
+    st: &mut AState,
+    v: LsNodeView,
+) -> Result<LsIdx, CheckError>  {
+    st.store.intern_levels_persistent(pers, v)
 }
 
 // ---------------------------------------------------------------------------

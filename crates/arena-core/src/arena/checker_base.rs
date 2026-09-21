@@ -92,6 +92,7 @@ use con_ron_core::ron::hashmap::{Dup, Eq2};
 // reads as it did.  `ron::hashmap::HashMap` is still what `crates/con-ron`
 // uses, and is still the one with proofs.
 use con_ron_core::ron::hashmap2::HashMap2 as HashMap;
+use crate::arena::store::PersTier;
 
 // ---------------------------------------------------------------------------
 // The messages of this module's declines (con-ron-core's own spellings, so
@@ -464,9 +465,9 @@ pub fn nidx_contains_from(ns: &Vec<NIdx>, i: usize, n: &NIdx) -> bool {
 /// con-leche: ConLeche/Kernel/Level.lean:218-221 Name.isModelSuffix
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:157-160 NIdx.isModelSuffix`
 /// — is this a `_model`-suffixed name (the shape of model companions)?
-pub fn nidx_is_model_suffix(st: &AState, n: &NIdx) -> Result<bool, CheckError> {
+pub fn nidx_is_model_suffix(pers: &PersTier, st: &AState, n: &NIdx) -> Result<bool, CheckError> {
     const S: [u32; 6] = [95, 109, 111, 100, 101, 108];
-    match view_n(st, n) {
+    match view_n(pers, st, n) {
         Err(e) => Err(e),
         Ok(NNodeView::Str(_, s)) => Ok(name::str_eq(&s, &code_points(&S))),
         Ok(_) => Ok(false),
@@ -478,12 +479,12 @@ pub fn nidx_is_model_suffix(st: &AState, n: &NIdx) -> Result<bool, CheckError> {
 /// — is this shaped like an installed projection function's name
 /// (`(T.proj).i`) or a projection table's (`(T.projTable).0`)?  Both shapes
 /// are reserved for the checker's own installs.
-pub fn nidx_is_proj_fn_shape(st: &AState, n: &NIdx) -> Result<bool, CheckError> {
+pub fn nidx_is_proj_fn_shape(pers: &PersTier, st: &AState, n: &NIdx) -> Result<bool, CheckError> {
     const P: [u32; 4] = [112, 114, 111, 106];
     const T: [u32; 9] = [112, 114, 111, 106, 84, 97, 98, 108, 101];
-    match view_n(st, n) {
+    match view_n(pers, st, n) {
         Err(e) => Err(e),
-        Ok(NNodeView::Num(p, _)) => match view_n(st, &p) {
+        Ok(NNodeView::Num(p, _)) => match view_n(pers, st, &p) {
             Err(e) => Err(e),
             Ok(NNodeView::Str(_, s)) => {
                 Ok(name::str_eq(&s, &code_points(&P)) || name::str_eq(&s, &code_points(&T)))
@@ -517,6 +518,7 @@ pub fn memo_b_get(memo: &HashMap<EIdx, bool>, k: &EIdx) -> Option<bool> {
 /// node, which is what makes a shared subterm cost one probe.  It is threaded
 /// as a `&mut` where the twin threads it as an argument and a result.
 pub fn all_level_params_defined_go(
+    pers: &PersTier,
     st: &AState,
     params: &Vec<Name>,
     memo: &mut HashMap<EIdx, bool>,
@@ -528,7 +530,7 @@ pub fn all_level_params_defined_go(
     } else {
         match memo_b_get(memo, h) {
             Some(r) => Ok(r),
-            None => match all_level_params_defined_node(st, params, memo, fuel - 1, h) {
+            None => match all_level_params_defined_node(pers, st, params, memo, fuel - 1, h) {
                 Err(e) => Err(e),
                 Ok(r) => {
                     memo.insert(h.dup2(), r);
@@ -543,55 +545,56 @@ pub fn all_level_params_defined_go(
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:193-225
 /// allLevelParamsDefinedGo` — the arms, past the probe.
 pub fn all_level_params_defined_node(
+    pers: &PersTier,
     st: &AState,
     params: &Vec<Name>,
     memo: &mut HashMap<EIdx, bool>,
     fuel: u64,
     h: &EIdx,
 ) -> Result<bool, CheckError> {
-    match view(st, h) {
+    match view(pers, st, h) {
         Err(e) => Err(e),
         Ok(ENodeView::BVar(_)) => Ok(true),
         Ok(ENodeView::Lit(_)) => Ok(true),
-        Ok(ENodeView::Sort(u)) => match read_level(st, &u) {
+        Ok(ENodeView::Sort(u)) => match read_level(pers, st, &u) {
             Err(e) => Err(e),
             Ok(l) => Ok(level::all_params_defined(params, &l)),
         },
-        Ok(ENodeView::Const(_, us)) => match read_levels(st, &us) {
+        Ok(ENodeView::Const(_, us)) => match read_levels(pers, st, &us) {
             Err(e) => Err(e),
             Ok(ls) => Ok(all_params_defined_list(params, &ls, 0)),
         },
-        Ok(ENodeView::FVar(_, t)) => all_level_params_defined_go(st, params, memo, fuel, &t),
-        Ok(ENodeView::App(f, a)) => match all_level_params_defined_go(st, params, memo, fuel, &f) {
+        Ok(ENodeView::FVar(_, t)) => all_level_params_defined_go(pers, st, params, memo, fuel, &t),
+        Ok(ENodeView::App(f, a)) => match all_level_params_defined_go(pers, st, params, memo, fuel, &f) {
             Err(e) => Err(e),
             Ok(b1) => {
                 if b1 {
-                    all_level_params_defined_go(st, params, memo, fuel, &a)
+                    all_level_params_defined_go(pers, st, params, memo, fuel, &a)
                 } else {
                     Ok(false)
                 }
             }
         },
         Ok(ENodeView::Lam(t, b, m)) => {
-            all_level_params_defined_binder(st, params, memo, fuel, &t, &b, &m)
+            all_level_params_defined_binder(pers, st, params, memo, fuel, &t, &b, &m)
         }
         Ok(ENodeView::ForallE(t, b, m)) => {
-            all_level_params_defined_binder(st, params, memo, fuel, &t, &b, &m)
+            all_level_params_defined_binder(pers, st, params, memo, fuel, &t, &b, &m)
         }
         Ok(ENodeView::LetE(t, v, b)) => {
-            match all_level_params_defined_go(st, params, memo, fuel, &t) {
+            match all_level_params_defined_go(pers, st, params, memo, fuel, &t) {
                 Err(e) => Err(e),
                 Ok(b1) => {
                     if !b1 {
                         Ok(false)
                     } else {
-                        match all_level_params_defined_go(st, params, memo, fuel, &v) {
+                        match all_level_params_defined_go(pers, st, params, memo, fuel, &v) {
                             Err(e) => Err(e),
                             Ok(b2) => {
                                 if !b2 {
                                     Ok(false)
                                 } else {
-                                    all_level_params_defined_go(st, params, memo, fuel, &b)
+                                    all_level_params_defined_go(pers, st, params, memo, fuel, &b)
                                 }
                             }
                         }
@@ -599,7 +602,7 @@ pub fn all_level_params_defined_node(
                 }
             }
         }
-        Ok(ENodeView::Proj(_, _, e)) => all_level_params_defined_go(st, params, memo, fuel, &e),
+        Ok(ENodeView::Proj(_, _, e)) => all_level_params_defined_go(pers, st, params, memo, fuel, &e),
     }
 }
 
@@ -608,6 +611,7 @@ pub fn all_level_params_defined_node(
 /// allLevelParamsDefinedGo` — the twin's one `.lam | .forallE` clause, which
 /// additionally reads the binder's `pw` datum.
 pub fn all_level_params_defined_binder(
+    pers: &PersTier,
     st: &AState,
     params: &Vec<Name>,
     memo: &mut HashMap<EIdx, bool>,
@@ -616,13 +620,13 @@ pub fn all_level_params_defined_binder(
     b: &EIdx,
     m: &BinderMeta,
 ) -> Result<bool, CheckError> {
-    match all_level_params_defined_go(st, params, memo, fuel, t) {
+    match all_level_params_defined_go(pers, st, params, memo, fuel, t) {
         Err(e) => Err(e),
         Ok(b1) => {
             if !b1 {
                 Ok(false)
             } else {
-                match all_level_params_defined_go(st, params, memo, fuel, b) {
+                match all_level_params_defined_go(pers, st, params, memo, fuel, b) {
                     Err(e) => Err(e),
                     Ok(b2) => Ok(b2 && prop_when::params_defined(params, &m.pw)),
                 }
@@ -649,15 +653,16 @@ pub fn all_params_defined_list(params: &Vec<Name>, ls: &Vec<Level>, i: usize) ->
 /// — the executed `allLevelParamsDefined`: one memoized DAG walk, at the
 /// parameter list read back once.
 pub fn all_level_params_defined(
+    pers: &PersTier,
     st: &AState,
     lps: &Vec<NIdx>,
     e: &EIdx,
 ) -> Result<bool, CheckError> {
-    match read_names(st, lps) {
+    match read_names(pers, st, lps) {
         Err(err) => Err(err),
         Ok(ks) => {
             let mut memo: HashMap<EIdx, bool> = HashMap::new();
-            all_level_params_defined_go(st, &ks, &mut memo, CORE_WALK_FUEL, e)
+            all_level_params_defined_go(pers, st, &ks, &mut memo, CORE_WALK_FUEL, e)
         }
     }
 }
@@ -678,6 +683,7 @@ pub fn all_level_params_defined(
 /// task #210 Part B, `tests/e2e/tower_struct.ndjson`; task #97d met the same
 /// thing on eight fixtures and it is what made them time out).
 pub fn consts_resolve_f_go(
+    pers: &PersTier,
     st: &mut AState,
     fe: &IFEnv,
     memo: &mut HashMap<EIdx, bool>,
@@ -687,15 +693,15 @@ pub fn consts_resolve_f_go(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_CRF)))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::BVar(_)) => consts_resolve(st, fe, CORE_WALK_FUEL, h),
-            Ok(ENodeView::Sort(_)) => consts_resolve(st, fe, CORE_WALK_FUEL, h),
-            Ok(ENodeView::Lit(_)) => consts_resolve(st, fe, CORE_WALK_FUEL, h),
-            Ok(ENodeView::Const(_, _)) => consts_resolve(st, fe, CORE_WALK_FUEL, h),
+            Ok(ENodeView::BVar(_)) => consts_resolve(pers, st, fe, CORE_WALK_FUEL, h),
+            Ok(ENodeView::Sort(_)) => consts_resolve(pers, st, fe, CORE_WALK_FUEL, h),
+            Ok(ENodeView::Lit(_)) => consts_resolve(pers, st, fe, CORE_WALK_FUEL, h),
+            Ok(ENodeView::Const(_, _)) => consts_resolve(pers, st, fe, CORE_WALK_FUEL, h),
             Ok(v) => match memo_b_get(memo, h) {
                 Some(r) => Ok(r),
-                None => match consts_resolve_f_node(st, fe, memo, fuel - 1, v) {
+                None => match consts_resolve_f_node(pers, st, fe, memo, fuel - 1, v) {
                     Err(e) => Err(e),
                     Ok(r) => {
                         memo.insert(h.dup2(), r);
@@ -712,6 +718,7 @@ pub fn consts_resolve_f_go(
 /// the six memoized arms, past the probe.  The `.proj` arm's `fe.find? s` is
 /// the structure's own resolution, as the twin has it.
 pub fn consts_resolve_f_node(
+    pers: &PersTier,
     st: &mut AState,
     fe: &IFEnv,
     memo: &mut HashMap<EIdx, bool>,
@@ -719,20 +726,20 @@ pub fn consts_resolve_f_node(
     v: ENodeView,
 ) -> Result<bool, CheckError> {
     match v {
-        ENodeView::FVar(_, ty) => consts_resolve_f_go(st, fe, memo, fuel, &ty),
-        ENodeView::App(f, a) => consts_resolve_f_two(st, fe, memo, fuel, &f, &a),
-        ENodeView::Lam(ty, body, _) => consts_resolve_f_two(st, fe, memo, fuel, &ty, &body),
-        ENodeView::ForallE(ty, body, _) => consts_resolve_f_two(st, fe, memo, fuel, &ty, &body),
+        ENodeView::FVar(_, ty) => consts_resolve_f_go(pers, st, fe, memo, fuel, &ty),
+        ENodeView::App(f, a) => consts_resolve_f_two(pers, st, fe, memo, fuel, &f, &a),
+        ENodeView::Lam(ty, body, _) => consts_resolve_f_two(pers, st, fe, memo, fuel, &ty, &body),
+        ENodeView::ForallE(ty, body, _) => consts_resolve_f_two(pers, st, fe, memo, fuel, &ty, &body),
         ENodeView::LetE(ty, val, body) => {
-            match consts_resolve_f_two(st, fe, memo, fuel, &ty, &val) {
+            match consts_resolve_f_two(pers, st, fe, memo, fuel, &ty, &val) {
                 Err(e) => Err(e),
-                Ok(b12) => match consts_resolve_f_go(st, fe, memo, fuel, &body) {
+                Ok(b12) => match consts_resolve_f_go(pers, st, fe, memo, fuel, &body) {
                     Err(e) => Err(e),
                     Ok(b3) => Ok(b12 && b3),
                 },
             }
         }
-        ENodeView::Proj(s, _, sub) => match consts_resolve_f_go(st, fe, memo, fuel, &sub) {
+        ENodeView::Proj(s, _, sub) => match consts_resolve_f_go(pers, st, fe, memo, fuel, &sub) {
             Err(e) => Err(e),
             Ok(b) => Ok(ifenv_find(fe, &s).is_some() && b),
         },
@@ -745,6 +752,7 @@ pub fn consts_resolve_f_node(
 /// walked**, as the twin walks them: the conjunction is not short-circuited,
 /// because the memo the second walk fills is part of the state.
 pub fn consts_resolve_f_two(
+    pers: &PersTier,
     st: &mut AState,
     fe: &IFEnv,
     memo: &mut HashMap<EIdx, bool>,
@@ -752,9 +760,9 @@ pub fn consts_resolve_f_two(
     a: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    match consts_resolve_f_go(st, fe, memo, fuel, a) {
+    match consts_resolve_f_go(pers, st, fe, memo, fuel, a) {
         Err(e) => Err(e),
-        Ok(b1) => match consts_resolve_f_go(st, fe, memo, fuel, b) {
+        Ok(b1) => match consts_resolve_f_go(pers, st, fe, memo, fuel, b) {
             Err(e) => Err(e),
             Ok(b2) => Ok(b1 && b2),
         },
@@ -765,9 +773,14 @@ pub fn consts_resolve_f_two(
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:285-286 constsResolveFFast`
 /// — the executed `constsResolve` (one memoized DAG walk), which is what every
 /// front door below calls.
-pub fn consts_resolve_f_fast(st: &mut AState, fe: &IFEnv, e: &EIdx) -> Result<bool, CheckError> {
+pub fn consts_resolve_f_fast(
+    pers: &PersTier,
+    st: &mut AState,
+    fe: &IFEnv,
+    e: &EIdx,
+) -> Result<bool, CheckError>  {
     let mut memo: HashMap<EIdx, bool> = HashMap::new();
-    consts_resolve_f_go(st, fe, &mut memo, CORE_WALK_FUEL, e)
+    consts_resolve_f_go(pers, st, fe, &mut memo, CORE_WALK_FUEL, e)
 }
 
 /// con-leche: none — `xs.map Expr.fvarTypeD` over a list of handles
@@ -775,6 +788,7 @@ pub fn consts_resolve_f_fast(st: &mut AState, fe: &IFEnv, e: &EIdx) -> Result<bo
 /// forbids the closure `List.map` takes, and its rule for a `List` recursion
 /// is a helper.
 pub fn fvar_type_ds(
+    pers: &PersTier,
     st: &AState,
     hs: &Vec<EIdx>,
     i: usize,
@@ -783,12 +797,12 @@ pub fn fvar_type_ds(
     if i >= hs.len() {
         Ok(out)
     } else {
-        match fvar_type_d(st, &hs[i]) {
+        match fvar_type_d(pers, st, &hs[i]) {
             Err(e) => Err(e),
             Ok(t) => {
                 let mut out2 = out;
                 out2.push(t);
-                fvar_type_ds(st, hs, i + 1, out2)
+                fvar_type_ds(pers, st, hs, i + 1, out2)
             }
         }
     }
@@ -806,10 +820,14 @@ pub fn fvar_type_ds(
 /// feature); anything else is an unknown constant and REJECTS.  Monadic here
 /// because the walk reads the store; the twin's `where_ : String` argument only
 /// names the slot in the message, and §3.1 drops the interpolation.
-pub fn unresolved_consts_error(st: &mut AState, e: &EIdx) -> Result<CheckError, CheckError> {
+pub fn unresolved_consts_error(
+    pers: &PersTier,
+    st: &mut AState,
+    e: &EIdx,
+) -> Result<CheckError, CheckError>  {
     match pin_sorry_ax(st) {
         Err(err) => Err(err),
-        Ok(sa) => match crate::arena::inductives::struct_parts::mentions_const(st, &sa, e) {
+        Ok(sa) => match crate::arena::inductives::struct_parts::mentions_const(pers, st, &sa, e) {
             Err(err) => Err(err),
             Ok(r) => {
                 if r {
@@ -838,16 +856,17 @@ pub fn unresolved_consts_error(st: &mut AState, e: &EIdx) -> Result<CheckError, 
 /// "readback happens only for the environment index's error text"); the port
 /// drops the interpolation, so the readbacks go with it.
 pub fn check_constant_val(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
     cv: &IConstantVal,
 ) -> Result<IConstantVal, CheckError> {
-    match check_constant_val_guards(st, fe, cv) {
+    match check_constant_val_guards(pers, st, fe, cv) {
         Err(e) => Err(e),
-        Ok(()) => match annotate_core(st, mode, fe, CHECK_FUEL, 0, &cv.ty) {
+        Ok(()) => match annotate_core(pers, st, mode, fe, CHECK_FUEL, 0, &cv.ty) {
             Err(e) => Err(e),
-            Ok(ty) => check_constant_val_after_annot(st, mode, fe, cv, ty),
+            Ok(ty) => check_constant_val_after_annot(pers, st, mode, fe, cv, ty),
         },
     }
 }
@@ -860,6 +879,7 @@ pub fn check_constant_val(
 /// `arena::checker_split::install_constant_val`, which the twin writes out
 /// clause for clause a second time (as con-leche does).
 pub fn check_constant_val_guards(
+    pers: &PersTier,
     st: &mut AState,
     fe: &IFEnv,
     cv: &IConstantVal,
@@ -873,7 +893,7 @@ pub fn check_constant_val_guards(
                 if nidx_contains_from(&rs, 0, &cv.name) {
                     fail(CheckError::Invalid(code_points(&M_RESERVED_BASIS)))
                 } else {
-                    check_constant_val_guards_rest(st, cv)
+                    check_constant_val_guards_rest(pers, st, cv)
                 }
             }
         }
@@ -884,10 +904,11 @@ pub fn check_constant_val_guards(
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:332-354 checkConstantVal` —
 /// the four guards past the reserved-name test.
 pub fn check_constant_val_guards_rest(
+    pers: &PersTier,
     st: &mut AState,
     cv: &IConstantVal,
 ) -> Result<(), CheckError> {
-    match nidx_is_proj_fn_shape(st, &cv.name) {
+    match nidx_is_proj_fn_shape(pers, st, &cv.name) {
         Err(e) => Err(e),
         Ok(p) => {
             if p {
@@ -895,13 +916,13 @@ pub fn check_constant_val_guards_rest(
             } else if !name_nodup(&cv.level_params) {
                 fail(CheckError::Invalid(code_points(&M_DUP_UNIV)))
             } else {
-                match loose_bvars_bounded_fast(st, CORE_WALK_FUEL, 0, &cv.ty) {
+                match loose_bvars_bounded_fast(pers, st, CORE_WALK_FUEL, 0, &cv.ty) {
                     Err(e) => Err(e),
                     Ok(b) => {
                         if !b {
                             fail(CheckError::Invalid(code_points(&M_LOOSE_TYPE)))
                         } else {
-                            match has_fvar_fast(st, CORE_WALK_FUEL, &cv.ty) {
+                            match has_fvar_fast(pers, st, CORE_WALK_FUEL, &cv.ty) {
                                 Err(e) => Err(e),
                                 Ok(f) => {
                                     if f {
@@ -925,17 +946,18 @@ pub fn check_constant_val_guards_rest(
 /// the tail past the annotation: the two guards on the ANNOTATED type, the
 /// type's own sort, and the record update `{ cv with type := type }`.
 pub fn check_constant_val_after_annot(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
     cv: &IConstantVal,
     ty: EIdx,
 ) -> Result<IConstantVal, CheckError> {
-    match install_constant_val_tail(st, fe, cv, ty) {
+    match install_constant_val_tail(pers, st, fe, cv, ty) {
         Err(e) => Err(e),
-        Ok(cv_a) => match infer_type_core(st, mode, fe, CHECK_FUEL, 0, &cv_a.ty) {
+        Ok(cv_a) => match infer_type_core(pers, st, mode, fe, CHECK_FUEL, 0, &cv_a.ty) {
             Err(e) => Err(e),
-            Ok(stype) => match ensure_sort_core(st, mode, fe, CHECK_FUEL, 0, &stype) {
+            Ok(stype) => match ensure_sort_core(pers, st, mode, fe, CHECK_FUEL, 0, &stype) {
                 Err(e) => Err(e),
                 Ok(_u) => Ok(cv_a),
             },
@@ -951,22 +973,23 @@ pub fn check_constant_val_after_annot(
 /// This is exactly the install half's tail, so the two twins share it here
 /// where the Lean writes it twice.
 pub fn install_constant_val_tail(
+    pers: &PersTier,
     st: &mut AState,
     fe: &IFEnv,
     cv: &IConstantVal,
     ty: EIdx,
 ) -> Result<IConstantVal, CheckError> {
-    match all_level_params_defined(st, &cv.level_params, &ty) {
+    match all_level_params_defined(pers, st, &cv.level_params, &ty) {
         Err(e) => Err(e),
         Ok(d) => {
             if !d {
                 fail(CheckError::Invalid(code_points(&M_UNDECL_TYPE)))
             } else {
-                match consts_resolve_f_fast(st, fe, &ty) {
+                match consts_resolve_f_fast(pers, st, fe, &ty) {
                     Err(e) => Err(e),
                     Ok(r) => {
                         if !r {
-                            match unresolved_consts_error(st, &ty) {
+                            match unresolved_consts_error(pers, st, &ty) {
                                 Err(e) => Err(e),
                                 Ok(e) => fail(e),
                             }
@@ -1040,6 +1063,7 @@ pub fn doms_match_aux_from(
 /// fvar's type is the binder domain, instantiated with the earlier fvars).
 /// Structural on `n`, so no fuel of its own.
 pub fn open_pis_at_fvars(
+    pers: &PersTier,
     st: &mut AState,
     n: u64,
     h: &EIdx,
@@ -1048,13 +1072,13 @@ pub fn open_pis_at_fvars(
     if n == 0 {
         Ok(Some((Vec::new(), h.dup2())))
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::ForallE(dom, body, _)) => match intern_e(st, ENodeView::FVar(i, dom)) {
+            Ok(ENodeView::ForallE(dom, body, _)) => match intern_e(pers, st, ENodeView::FVar(i, dom)) {
                 Err(e) => Err(e),
-                Ok(fv) => match instantiate1_fast(st, CORE_WALK_FUEL, &body, &fv, 0) {
+                Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &fv, 0) {
                     Err(e) => Err(e),
-                    Ok(b) => match open_pis_at_fvars(st, n - 1, &b, i + 1) {
+                    Ok(b) => match open_pis_at_fvars(pers, st, n - 1, &b, i + 1) {
                         Err(e) => Err(e),
                         Ok(Some((fvs, e2))) => Ok(Some((cons_eidx(&fv, &fvs), e2))),
                         Ok(None) => Ok(None),
@@ -1072,6 +1096,7 @@ pub fn open_pis_at_fvars(
 /// binder first.  One `instantiateList` pass per domain instead of one
 /// whole-telescope `instantiate1` pass per binder.
 pub fn open_pis_at_fvars_f_go(
+    pers: &PersTier,
     st: &mut AState,
     acc: &Vec<EIdx>,
     n: u64,
@@ -1079,21 +1104,21 @@ pub fn open_pis_at_fvars_f_go(
     i: u64,
 ) -> Result<Option<(Vec<EIdx>, EIdx)>, CheckError> {
     if n == 0 {
-        match instantiate_list_fast(st, CORE_WALK_FUEL, h, acc, 0) {
+        match instantiate_list_fast(pers, st, CORE_WALK_FUEL, h, acc, 0) {
             Err(e) => Err(e),
             Ok(b) => Ok(Some((Vec::new(), b))),
         }
     } else {
-        match view(st, h) {
+        match view(pers, st, h) {
             Err(e) => Err(e),
             Ok(ENodeView::ForallE(dom, body, _)) => {
-                match instantiate_list_fast(st, CORE_WALK_FUEL, &dom, acc, 0) {
+                match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &dom, acc, 0) {
                     Err(e) => Err(e),
-                    Ok(d) => match intern_e(st, ENodeView::FVar(i, d)) {
+                    Ok(d) => match intern_e(pers, st, ENodeView::FVar(i, d)) {
                         Err(e) => Err(e),
                         Ok(fv) => {
                             let acc2: Vec<EIdx> = cons_eidx(&fv, acc);
-                            match open_pis_at_fvars_f_go(st, &acc2, n - 1, &body, i + 1) {
+                            match open_pis_at_fvars_f_go(pers, st, &acc2, n - 1, &body, i + 1) {
                                 Err(e) => Err(e),
                                 Ok(Some((fvs, e2))) => Ok(Some((cons_eidx(&fv, &fvs), e2))),
                                 Ok(None) => Ok(None),
@@ -1112,15 +1137,16 @@ pub fn open_pis_at_fvars_f_go(
 /// one-pass `openPisAtFvars` (the fallback covers telescopes whose binders only
 /// appear after substitution).  **The executed one.**
 pub fn open_pis_at_fvars_f(
+    pers: &PersTier,
     st: &mut AState,
     n: u64,
     e: &EIdx,
     i: u64,
 ) -> Result<Option<(Vec<EIdx>, EIdx)>, CheckError> {
-    match open_pis_at_fvars_f_go(st, &Vec::new(), n, e, i) {
+    match open_pis_at_fvars_f_go(pers, st, &Vec::new(), n, e, i) {
         Err(err) => Err(err),
         Ok(Some(r)) => Ok(Some(r)),
-        Ok(None) => open_pis_at_fvars(st, n, e, i),
+        Ok(None) => open_pis_at_fvars(pers, st, n, e, i),
     }
 }
 
@@ -1130,6 +1156,7 @@ pub fn open_pis_at_fvars_f(
 /// type (definitionally); throws on a length mismatch.  The cited two-`List`
 /// recursion is one index recursion.
 pub fn check_typed_list(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -1143,13 +1170,13 @@ pub fn check_typed_list(
     } else if i >= xs.len() || i >= ts.len() {
         fail(CheckError::NotImplemented(code_points(&M_NESTED_PIN_ARITY)))
     } else {
-        match infer_type_core(st, mode, fe, CHECK_FUEL, depth, &xs[i]) {
+        match infer_type_core(pers, st, mode, fe, CHECK_FUEL, depth, &xs[i]) {
             Err(e) => Err(e),
-            Ok(ty) => match is_def_eq_core(st, mode, fe, CHECK_FUEL, depth, &ty, &ts[i]) {
+            Ok(ty) => match is_def_eq_core(pers, st, mode, fe, CHECK_FUEL, depth, &ty, &ts[i]) {
                 Err(e) => Err(e),
                 Ok(ok) => {
                     if ok {
-                        check_typed_list(st, mode, fe, depth, xs, ts, i + 1)
+                        check_typed_list(pers, st, mode, fe, depth, xs, ts, i + 1)
                     } else {
                         fail(CheckError::NotImplemented(code_points(&M_NESTED_PIN_TYPE)))
                     }
@@ -1164,6 +1191,7 @@ pub fn check_typed_list(
 /// check that each expression is a fixed point of the annotation pass in the
 /// given context.
 pub fn check_annot_list(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -1174,11 +1202,11 @@ pub fn check_annot_list(
     if i >= xs.len() {
         Ok(())
     } else {
-        match annotate_core(st, mode, fe, CHECK_FUEL, depth, &xs[i]) {
+        match annotate_core(pers, st, mode, fe, CHECK_FUEL, depth, &xs[i]) {
             Err(e) => Err(e),
             Ok(a_a) => {
                 if a_a.eq2(&xs[i]) {
-                    check_annot_list(st, mode, fe, depth, xs, i + 1)
+                    check_annot_list(pers, st, mode, fe, depth, xs, i + 1)
                 } else {
                     fail(CheckError::NotImplemented(code_points(&M_NESTED_PIN_ANNOT)))
                 }
@@ -1190,14 +1218,14 @@ pub fn check_annot_list(
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:208-211 isEqHead
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:440-445 isEqHead` — is the
 /// expression the pinned equality former at one level?
-pub fn is_eq_head(st: &mut AState, h: &EIdx) -> Result<bool, CheckError> {
-    match view(st, h) {
+pub fn is_eq_head(pers: &PersTier, st: &mut AState, h: &EIdx) -> Result<bool, CheckError> {
+    match view(pers, st, h) {
         Err(e) => Err(e),
         Ok(ENodeView::Const(c, us)) => match pin_eq(st) {
             Err(e) => Err(e),
             Ok(en) => {
                 if c.eq2(&en) {
-                    match view_ls(st, &us) {
+                    match view_ls(pers, st, &us) {
                         Err(e) => Err(e),
                         Ok(l) => Ok(l.len() == 1),
                     }
@@ -1214,10 +1242,10 @@ pub fn is_eq_head(st: &mut AState, h: &EIdx) -> Result<bool, CheckError> {
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:450-456 eqHeadLevel` — the
 /// level an equality head carries.  Off shape it is `.zero`, which `isEqHead`
 /// has already rejected wherever the result is used.
-pub fn eq_head_level(st: &mut AState, h: &EIdx) -> Result<LIdx, CheckError> {
-    match view(st, h) {
+pub fn eq_head_level(pers: &PersTier, st: &mut AState, h: &EIdx) -> Result<LIdx, CheckError> {
+    match view(pers, st, h) {
         Err(e) => Err(e),
-        Ok(ENodeView::Const(_, us)) => eq_head_level_at(st, &us),
+        Ok(ENodeView::Const(_, us)) => eq_head_level_at(pers, st, &us),
         Ok(_) => zero_level(st),
     }
 }
@@ -1226,8 +1254,8 @@ pub fn eq_head_level(st: &mut AState, h: &EIdx) -> Result<LIdx, CheckError> {
 /// The cited `match ← viewLs us with | [l] => pure l | _ => zeroLevel`, as its
 /// own function so the list's borrow ends before the state is taken mutably
 /// again (task #97-P4c's extraction rule 5's reason).
-pub fn eq_head_level_at(st: &mut AState, us: &LsIdx) -> Result<LIdx, CheckError> {
-    match view_ls(st, us) {
+pub fn eq_head_level_at(pers: &PersTier, st: &mut AState, us: &LsIdx) -> Result<LIdx, CheckError> {
+    match view_ls(pers, st, us) {
         Err(e) => Err(e),
         Ok(l) => {
             if l.len() == 1 {
@@ -1244,6 +1272,7 @@ pub fn eq_head_level_at(st: &mut AState, us: &LsIdx) -> Result<LIdx, CheckError>
 /// pairwise definitional-equality check of two spines (throws on any mismatch,
 /// including a length difference).
 pub fn check_def_eq_list(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -1257,11 +1286,11 @@ pub fn check_def_eq_list(
     } else if i >= xs.len() || i >= ys.len() {
         fail(CheckError::NotImplemented(code_points(&M_IOTA_COMP_ARITY)))
     } else {
-        match is_def_eq_core(st, mode, fe, CHECK_FUEL, depth, &xs[i], &ys[i]) {
+        match is_def_eq_core(pers, st, mode, fe, CHECK_FUEL, depth, &xs[i], &ys[i]) {
             Err(e) => Err(e),
             Ok(ok) => {
                 if ok {
-                    check_def_eq_list(st, mode, fe, depth, xs, ys, i + 1)
+                    check_def_eq_list(pers, st, mode, fe, depth, xs, ys, i + 1)
                 } else {
                     fail(CheckError::NotImplemented(code_points(
                         &M_IOTA_COMP_MISMATCH,
@@ -1289,6 +1318,7 @@ pub fn unwrap_or<T>(o: Option<T>, err: CheckError) -> Result<T, CheckError> {
 /// constant is COPIED before the state is taken mutably (task #14's rule,
 /// task #97-P4c's row).
 pub fn ifenv_find_cv(
+    pers: &PersTier,
     st: &mut AState,
     fe: &IFEnv,
     n: &NIdx,
@@ -1296,7 +1326,7 @@ pub fn ifenv_find_cv(
     match ifenv_find(fe, n) {
         Some(ci) => {
             let c = i_constant_info_dup(ci);
-            match i_constant_info_to_constant_val(&mut st.store, &c) {
+            match i_constant_info_to_constant_val(pers, &mut st.store, &c) {
                 Err(e) => Err(e),
                 Ok(cv) => Ok(Some(cv)),
             }
@@ -1308,10 +1338,10 @@ pub fn ifenv_find_cv(
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:249-254 piResultSort
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:487-490 piResultSort` — the
 /// result sort of a syntactic pi telescope, if it ends in a sort at all.
-pub fn pi_result_sort(st: &AState, e: &EIdx) -> Result<Option<LIdx>, CheckError> {
-    match pi_result(st, CORE_WALK_FUEL, e) {
+pub fn pi_result_sort(pers: &PersTier, st: &AState, e: &EIdx) -> Result<Option<LIdx>, CheckError> {
+    match pi_result(pers, st, CORE_WALK_FUEL, e) {
         Err(err) => Err(err),
-        Ok(r) => match view(st, &r) {
+        Ok(r) => match view(pers, st, &r) {
             Err(err) => Err(err),
             Ok(ENodeView::Sort(u)) => Ok(Some(u)),
             Ok(_) => Ok(None),
@@ -1325,19 +1355,20 @@ pub fn pi_result_sort(st: &AState, e: &EIdx) -> Result<Option<LIdx>, CheckError>
 /// constructor's, and the constructor's residual is the family applied to
 /// exactly the parameters.
 pub fn check_proj_shape(
+    pers: &PersTier,
     st: &AState,
     pty: &EIdx,
     ctor_ty: &EIdx,
     n_p: u64,
     n_f: u64,
 ) -> Result<(), CheckError> {
-    match strip_pis(st, n_p, pty) {
+    match strip_pis(pers, st, n_p, pty) {
         Err(e) => Err(e),
         Ok(None) => fail(CheckError::NotImplemented(code_points(&M_PROJ_TYPE_TELE))),
-        Ok(Some(_)) => match strip_pis(st, n_p + n_f, ctor_ty) {
+        Ok(Some(_)) => match strip_pis(pers, st, n_p + n_f, ctor_ty) {
             Err(e) => Err(e),
             Ok(None) => fail(CheckError::NotImplemented(code_points(&M_PROJ_CTOR_TELE))),
-            Ok(Some((_, cbody))) => check_proj_shape_residual(st, &cbody, n_p),
+            Ok(Some((_, cbody))) => check_proj_shape_residual(pers, st, &cbody, n_p),
         },
     }
 }
@@ -1345,16 +1376,21 @@ pub fn check_proj_shape(
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:257-272 checkProjShape
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:496-505 checkProjShape` —
 /// the residual's arity and head, past the two telescopes.
-pub fn check_proj_shape_residual(st: &AState, cbody: &EIdx, n_p: u64) -> Result<(), CheckError> {
-    match get_app_args(st, CORE_WALK_FUEL, cbody) {
+pub fn check_proj_shape_residual(
+    pers: &PersTier,
+    st: &AState,
+    cbody: &EIdx,
+    n_p: u64,
+) -> Result<(), CheckError>  {
+    match get_app_args(pers, st, CORE_WALK_FUEL, cbody) {
         Err(e) => Err(e),
         Ok(args) => {
             if args.len() as u64 != n_p {
                 fail(CheckError::NotImplemented(code_points(&M_PROJ_CTOR_ARITY)))
             } else {
-                match get_app_fn(st, CORE_WALK_FUEL, cbody) {
+                match get_app_fn(pers, st, CORE_WALK_FUEL, cbody) {
                     Err(e) => Err(e),
-                    Ok(f) => match view(st, &f) {
+                    Ok(f) => match view(pers, st, &f) {
                         Err(e) => Err(e),
                         Ok(ENodeView::Const(_, _)) => Ok(()),
                         Ok(_) => fail(CheckError::NotImplemented(code_points(&M_PROJ_CTOR_HEAD))),
@@ -1373,6 +1409,7 @@ pub fn check_proj_shape_residual(st: &AState, cbody: &EIdx, n_p: u64) -> Result<
 /// `do` block is six functions here, split at its own `let`-boundaries
 /// (task #97-P4c's rule).
 pub fn check_proj_rule(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -1383,12 +1420,12 @@ pub fn check_proj_rule(
     n_f: u64,
     i: u64,
 ) -> Result<EIdx, CheckError> {
-    match intern_e(st, ENodeView::BVar(sub_nat(n_f, 1 + i))) {
+    match intern_e(pers, st, ENodeView::BVar(sub_nat(n_f, 1 + i))) {
         Err(e) => Err(e),
-        Ok(bv) => match pis_to_lams(st, n_p + n_f, &cvj.ty, &bv) {
+        Ok(bv) => match pis_to_lams(pers, st, n_p + n_f, &cvj.ty, &bv) {
             Err(e) => Err(e),
             Ok(None) => fail(CheckError::NotImplemented(code_points(&M_PROJ_RULE_TELE))),
-            Ok(Some(rhs)) => check_proj_rule_scoped(st, mode, fe, pty, cvj, lps, n_p, n_f, bv, rhs),
+            Ok(Some(rhs)) => check_proj_rule_scoped(pers, st, mode, fe, pty, cvj, lps, n_p, n_f, bv, rhs),
         },
     }
 }
@@ -1399,6 +1436,7 @@ pub fn check_proj_rule(
 /// computed**, as the twin's `unless !(← hasFvarFast …) && (← looseBVars…) do`
 /// computes them (task #97-P4c's "Lean's `do` does not short-circuit").
 pub fn check_proj_rule_scoped(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -1410,9 +1448,9 @@ pub fn check_proj_rule_scoped(
     bv: EIdx,
     rhs: EIdx,
 ) -> Result<EIdx, CheckError> {
-    match has_fvar_fast(st, CORE_WALK_FUEL, &rhs) {
+    match has_fvar_fast(pers, st, CORE_WALK_FUEL, &rhs) {
         Err(e) => Err(e),
-        Ok(f) => match loose_bvars_bounded_fast(st, CORE_WALK_FUEL, 0, &rhs) {
+        Ok(f) => match loose_bvars_bounded_fast(pers, st, CORE_WALK_FUEL, 0, &rhs) {
             Err(e) => Err(e),
             Ok(b) => {
                 if f || !b {
@@ -1420,10 +1458,10 @@ pub fn check_proj_rule_scoped(
                         &M_PROJ_RULE_SCOPING,
                     )))
                 } else {
-                    match annotate_core(st, mode, fe, CHECK_FUEL, 0, &rhs) {
+                    match annotate_core(pers, st, mode, fe, CHECK_FUEL, 0, &rhs) {
                         Err(e) => Err(e),
                         Ok(rhs_a) => {
-                            check_proj_rule_wf(st, mode, fe, pty, cvj, lps, n_p, n_f, bv, rhs_a)
+                            check_proj_rule_wf(pers, st, mode, fe, pty, cvj, lps, n_p, n_f, bv, rhs_a)
                         }
                     }
                 }
@@ -1436,6 +1474,7 @@ pub fn check_proj_rule_scoped(
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:511-543 checkProjRule` —
 /// the annotated rule's well-formedness gate.
 pub fn check_proj_rule_wf(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -1447,13 +1486,13 @@ pub fn check_proj_rule_wf(
     bv: EIdx,
     rhs_a: EIdx,
 ) -> Result<EIdx, CheckError> {
-    match proj_rule_wf(st, fe, &rhs_a, lps) {
+    match proj_rule_wf(pers, st, fe, &rhs_a, lps) {
         Err(e) => Err(e),
         Ok(ok) => {
             if !ok {
                 fail(CheckError::NotImplemented(code_points(&M_PROJ_RULE_WF)))
             } else {
-                check_proj_rule_shape(st, mode, fe, pty, cvj, n_p, n_f, bv, rhs_a)
+                check_proj_rule_shape(pers, st, mode, fe, pty, cvj, n_p, n_f, bv, rhs_a)
             }
         }
     }
@@ -1465,18 +1504,19 @@ pub fn check_proj_rule_wf(
 /// … do`: **all four are computed**, as the twin's `do` computes them, and the
 /// conjunction is taken at the end.
 pub fn proj_rule_wf(
+    pers: &PersTier,
     st: &mut AState,
     fe: &IFEnv,
     rhs_a: &EIdx,
     lps: &Vec<NIdx>,
 ) -> Result<bool, CheckError> {
-    match all_level_params_defined(st, lps, rhs_a) {
+    match all_level_params_defined(pers, st, lps, rhs_a) {
         Err(e) => Err(e),
-        Ok(d) => match consts_resolve_f_fast(st, fe, rhs_a) {
+        Ok(d) => match consts_resolve_f_fast(pers, st, fe, rhs_a) {
             Err(e) => Err(e),
-            Ok(r) => match loose_bvars_bounded_fast(st, CORE_WALK_FUEL, 0, rhs_a) {
+            Ok(r) => match loose_bvars_bounded_fast(pers, st, CORE_WALK_FUEL, 0, rhs_a) {
                 Err(e) => Err(e),
-                Ok(b) => match has_fvar_fast(st, CORE_WALK_FUEL, rhs_a) {
+                Ok(b) => match has_fvar_fast(pers, st, CORE_WALK_FUEL, rhs_a) {
                     Err(e) => Err(e),
                     Ok(f) => Ok(d && r && b && !f),
                 },
@@ -1490,6 +1530,7 @@ pub fn proj_rule_wf(
 /// the syntactic stage past the annotation: the rule's λ telescope, its body
 /// `bvar (nF - 1 - i)`, and its domains against the constructor's.
 pub fn check_proj_rule_shape(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -1500,21 +1541,21 @@ pub fn check_proj_rule_shape(
     bv: EIdx,
     rhs_a: EIdx,
 ) -> Result<EIdx, CheckError> {
-    match strip_lams(st, n_p + n_f, &rhs_a) {
+    match strip_lams(pers, st, n_p + n_f, &rhs_a) {
         Err(e) => Err(e),
         Ok(None) => fail(CheckError::NotImplemented(code_points(&M_PROJ_RULE_TELE))),
         Ok(Some((rbinders, rrbody))) => {
             if !rrbody.eq2(&bv) {
                 fail(CheckError::NotImplemented(code_points(&M_PROJ_RULE_BODY)))
             } else {
-                match strip_pis(st, n_p + n_f, &cvj.ty) {
+                match strip_pis(pers, st, n_p + n_f, &cvj.ty) {
                     Err(e) => Err(e),
                     Ok(None) => fail(CheckError::NotImplemented(code_points(&M_PROJ_CTOR_TELE))),
                     Ok(Some((cbinders_r, _))) => {
                         if !doms_match_aux(&rbinders, &cbinders_r, 0, 0, n_p + n_f) {
                             fail(CheckError::NotImplemented(code_points(&M_PROJ_RULE_DOMAIN)))
                         } else {
-                            check_proj_rule_certs(st, mode, fe, pty, cvj, n_p, n_f, rhs_a)
+                            check_proj_rule_certs(pers, st, mode, fe, pty, cvj, n_p, n_f, rhs_a)
                         }
                     }
                 }
@@ -1529,6 +1570,7 @@ pub fn check_proj_rule_shape(
 /// the frame walks and the definitional parameter/domain pins, then the rule's
 /// own inference.
 pub fn check_proj_rule_certs(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -1538,19 +1580,19 @@ pub fn check_proj_rule_certs(
     n_f: u64,
     rhs_a: EIdx,
 ) -> Result<EIdx, CheckError> {
-    match open_pis_at_fvars_f(st, n_p, pty, 0) {
+    match open_pis_at_fvars_f(pers, st, n_p, pty, 0) {
         Err(e) => Err(e),
         Ok(None) => fail(CheckError::NotImplemented(code_points(&M_PROJ_TYPE_TELE))),
-        Ok(Some((fvs_p, _))) => match inst_pis_at_f(st, CORE_WALK_FUEL, &fvs_p, &cvj.ty) {
+        Ok(Some((fvs_p, _))) => match inst_pis_at_f(pers, st, CORE_WALK_FUEL, &fvs_p, &cvj.ty) {
             Err(e) => Err(e),
             Ok(None) => fail(CheckError::NotImplemented(code_points(&M_PROJ_CTOR_TELE))),
-            Ok(Some((cdoms_p, crest_p))) => match fvar_type_ds(st, &fvs_p, 0, Vec::new()) {
+            Ok(Some((cdoms_p, crest_p))) => match fvar_type_ds(pers, st, &fvs_p, 0, Vec::new()) {
                 Err(e) => Err(e),
                 Ok(ptypes) => {
-                    match check_def_eq_list(st, mode, fe, n_p + n_f, &ptypes, &cdoms_p, 0) {
+                    match check_def_eq_list(pers, st, mode, fe, n_p + n_f, &ptypes, &cdoms_p, 0) {
                         Err(e) => Err(e),
                         Ok(()) => {
-                            check_proj_rule_frame(st, mode, fe, n_p, n_f, fvs_p, crest_p, rhs_a)
+                            check_proj_rule_frame(pers, st, mode, fe, n_p, n_f, fvs_p, crest_p, rhs_a)
                         }
                     }
                 }
@@ -1563,6 +1605,7 @@ pub fn check_proj_rule_certs(
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:511-543 checkProjRule` —
 /// the field frame, the λ-tower's instantiated domains, and the inference.
 pub fn check_proj_rule_frame(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -1572,20 +1615,20 @@ pub fn check_proj_rule_frame(
     crest_p: EIdx,
     rhs_a: EIdx,
 ) -> Result<EIdx, CheckError> {
-    match open_pis_at_fvars_f(st, n_f, &crest_p, n_p) {
+    match open_pis_at_fvars_f(pers, st, n_f, &crest_p, n_p) {
         Err(e) => Err(e),
         Ok(None) => fail(CheckError::NotImplemented(code_points(&M_PROJ_CTOR_TELE))),
         Ok(Some((x_fvs, _))) => {
             let frame: Vec<EIdx> = append_eidx(fvs_p, &x_fvs);
-            match inst_lams_at_f(st, CORE_WALK_FUEL, &frame, &rhs_a) {
+            match inst_lams_at_f(pers, st, CORE_WALK_FUEL, &frame, &rhs_a) {
                 Err(e) => Err(e),
                 Ok(None) => fail(CheckError::NotImplemented(code_points(&M_PROJ_RULE_TELE))),
-                Ok(Some((ldoms, _))) => match fvar_type_ds(st, &frame, 0, Vec::new()) {
+                Ok(Some((ldoms, _))) => match fvar_type_ds(pers, st, &frame, 0, Vec::new()) {
                     Err(e) => Err(e),
                     Ok(ftypes) => {
-                        match check_def_eq_list(st, mode, fe, n_p + n_f, &ftypes, &ldoms, 0) {
+                        match check_def_eq_list(pers, st, mode, fe, n_p + n_f, &ftypes, &ldoms, 0) {
                             Err(e) => Err(e),
-                            Ok(()) => match infer_type_core(st, mode, fe, CHECK_FUEL, 0, &rhs_a) {
+                            Ok(()) => match infer_type_core(pers, st, mode, fe, CHECK_FUEL, 0, &rhs_a) {
                                 Err(e) => Err(e),
                                 Ok(_rhs_ty) => Ok(rhs_a),
                             },
@@ -1650,6 +1693,7 @@ pub fn all_rec_info(block: &Vec<IConstantInfo>, i: usize) -> bool {
 /// (con-leche's task #228).  Both halves are one-sided on purpose: `false`
 /// means official rejects.
 pub fn ind_params_ok(
+    pers: &PersTier,
     st: &mut AState,
     n_p: u64,
     block: &Vec<IConstantInfo>,
@@ -1658,11 +1702,11 @@ pub fn ind_params_ok(
     if i >= block.len() {
         Ok(true)
     } else {
-        match ind_params_ok_at(st, n_p, &block[i]) {
+        match ind_params_ok_at(pers, st, n_p, &block[i]) {
             Err(e) => Err(e),
             Ok(ok) => {
                 if ok {
-                    ind_params_ok(st, n_p, block, i + 1)
+                    ind_params_ok(pers, st, n_p, block, i + 1)
                 } else {
                     Ok(false)
                 }
@@ -1676,10 +1720,15 @@ pub fn ind_params_ok(
 /// member's test: a type former's Π-telescope is at least `nP` long, a
 /// constructor's own parameter count is exactly `nP`, and everything else
 /// passes.
-pub fn ind_params_ok_at(st: &mut AState, n_p: u64, ci: &IConstantInfo) -> Result<bool, CheckError> {
+pub fn ind_params_ok_at(
+    pers: &PersTier,
+    st: &mut AState,
+    n_p: u64,
+    ci: &IConstantInfo,
+) -> Result<bool, CheckError>  {
     match ci {
         IConstantInfo::IndInfo(cv_t, _) => {
-            match crate::arena::env::pi_sort_tele_len(&st.store, CORE_WALK_FUEL, &cv_t.ty) {
+            match crate::arena::env::pi_sort_tele_len(pers, &st.store, CORE_WALK_FUEL, &cv_t.ty) {
                 Err(e) => Err(e),
                 Ok(Some(n)) => Ok(n_p <= n),
                 Ok(None) => Ok(true),

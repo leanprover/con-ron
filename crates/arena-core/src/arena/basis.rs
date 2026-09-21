@@ -28,15 +28,17 @@ use con_ron_core::kernel::basis_tables;
 use con_ron_core::kernel::core_types::CheckError;
 use con_ron_core::kernel::env as cenv;
 use con_ron_core::kernel::env::{BasisKind, QuotKind};
+use crate::arena::store::PersTier;
 
 /// con-leche: ConLeche/Kernel/Basis.lean:40-47 BasisKind.decls
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:36-37 BasisKind.decls` — the RAW
 /// constants of one basis block, in dependency order, interned.
 pub fn basis_kind_decls(
+    pers: &PersTier,
     st: &mut AState,
     k: &BasisKind,
 ) -> Result<Vec<IConstantInfo>, CheckError> {
-    intern_ci_list(st, &basis_raw::basis_kind_decls(k))
+    intern_ci_list(pers, st, &basis_raw::basis_kind_decls(k))
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:50-57 BasisKind.declsA
@@ -44,10 +46,11 @@ pub fn basis_kind_decls(
 /// ANNOTATED constants of one basis block, in dependency order, interned.
 /// This is what `check_basis_decl` installs.
 pub fn basis_kind_decls_a(
+    pers: &PersTier,
     st: &mut AState,
     k: &BasisKind,
 ) -> Result<Vec<IConstantInfo>, CheckError> {
-    intern_ci_list(st, &basis_tables::basis_decls_a(k))
+    intern_ci_list(pers, st, &basis_tables::basis_decls_a(k))
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:60-71 basisPinHit
@@ -76,6 +79,7 @@ pub fn block_names(block: &Vec<IConstantInfo>, i: usize, out: Vec<NIdx>) -> Vec<
 /// canonical comparison — i.e. a name match that fails the comparison is
 /// `none`, not "try the next kind", which is what the `then` branch spells.
 pub fn basis_pin_hit_go(
+    pers: &PersTier,
     st: &mut AState,
     block: &Vec<IConstantInfo>,
     ks: &Vec<BasisKind>,
@@ -84,7 +88,7 @@ pub fn basis_pin_hit_go(
     if i >= ks.len() {
         Ok(None)
     } else {
-        match basis_kind_decls(st, &ks[i]) {
+        match basis_kind_decls(pers, st, &ks[i]) {
             Err(e) => Err(e),
             Ok(pinned) => {
                 if !crate::arena::canon::nidx_vec_beq(
@@ -92,9 +96,9 @@ pub fn basis_pin_hit_go(
                     &block_names(block, 0, Vec::new()),
                     0,
                 ) {
-                    basis_pin_hit_go(st, block, ks, i + 1)
+                    basis_pin_hit_go(pers, st, block, ks, i + 1)
                 } else {
-                    match crate::arena::canon::canon_eq_list(st, block, &pinned, 0) {
+                    match crate::arena::canon::canon_eq_list(pers, st, block, &pinned, 0) {
                         Err(e) => Err(e),
                         Ok(r) => {
                             if r {
@@ -117,11 +121,12 @@ pub fn basis_pin_hit_go(
 /// `quot_pin_hit` decides); the list is
 /// `con_ron_core::kernel::basis_raw::block_pin_kinds`, the same literal.
 pub fn basis_pin_hit(
+    pers: &PersTier,
     st: &mut AState,
     block: &Vec<IConstantInfo>,
 ) -> Result<Option<BasisKind>, CheckError> {
     let ks: Vec<BasisKind> = basis_raw::block_pin_kinds();
-    basis_pin_hit_go(st, block, &ks, 0)
+    basis_pin_hit_go(pers, st, block, &ks, 0)
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:73-78 quotPinHit
@@ -132,20 +137,21 @@ pub fn basis_pin_hit(
 /// members `quot_kind_slot` indexes, so the `none` arm is unreachable and is
 /// `false`, as the twin's is.
 pub fn quot_pin_hit(
+    pers: &PersTier,
     st: &mut AState,
     k: &QuotKind,
     cv: &IConstantVal,
 ) -> Result<bool, CheckError> {
-    match basis_kind_decls(st, &BasisKind::QuotK) {
+    match basis_kind_decls(pers, st, &BasisKind::QuotK) {
         Err(e) => Err(e),
         Ok(blk) => {
             let slot: u64 = cenv::quot_kind_slot(k);
             if slot >= blk.len() as u64 {
                 Ok(false)
             } else {
-                match i_constant_info_to_constant_val(&mut st.store, &blk[slot as usize]) {
+                match i_constant_info_to_constant_val(pers, &mut st.store, &blk[slot as usize]) {
                     Err(e) => Err(e),
-                    Ok(pcv) => crate::arena::canon::i_constant_val_canon_eq(st, cv, &pcv),
+                    Ok(pcv) => crate::arena::canon::i_constant_val_canon_eq(pers, st, cv, &pcv),
                 }
             }
         }

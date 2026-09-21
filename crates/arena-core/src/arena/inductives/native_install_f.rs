@@ -16,12 +16,14 @@ use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
 use crate::arena::monad::AState;
 use con_ron_core::kernel::core_types::CheckError;
 use con_ron_core::kernel::env::CheckMode;
+use crate::arena::store::PersTier;
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:22-59 nativeOpenedOkF
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstallF.lean:18 nativeOpenedOkF`
 /// — `nativeOpenedOk` through the index; the same function.
 #[allow(clippy::too_many_arguments)]
 pub fn native_opened_ok_f(
+    pers: &PersTier,
     st: &mut AState,
     fe0: &IFEnv,
     t: &NIdx,
@@ -32,7 +34,7 @@ pub fn native_opened_ok_f(
     n_f: u64,
     ks: &Vec<RecFieldKind>,
 ) -> Result<bool, CheckError> {
-    native_install::native_opened_ok(st, fe0, t, lps, n_p, n_idx, cty, n_f, ks)
+    native_install::native_opened_ok(pers, st, fe0, t, lps, n_p, n_idx, cty, n_f, ks)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:61-69 nativeFieldsOkF
@@ -40,6 +42,7 @@ pub fn native_opened_ok_f(
 /// — `nativeFieldsOk` through the index; the same function.
 #[allow(clippy::too_many_arguments)]
 pub fn native_fields_ok_f(
+    pers: &PersTier,
     st: &mut AState,
     fe0: &IFEnv,
     t: &NIdx,
@@ -49,7 +52,7 @@ pub fn native_fields_ok_f(
     ctors_a: &Vec<(IConstantVal, u64)>,
     kinds: &Vec<Vec<RecFieldKind>>,
 ) -> Result<bool, CheckError> {
-    native_install::native_fields_ok(st, fe0, t, lps, n_p, n_idx, ctors_a, kinds)
+    native_install::native_fields_ok(pers, st, fe0, t, lps, n_p, n_idx, ctors_a, kinds)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:71-85 checkNativeRulesF
@@ -57,6 +60,7 @@ pub fn native_fields_ok_f(
 /// — `checkNativeRules` through the index; the same function.
 #[allow(clippy::too_many_arguments)]
 pub fn check_native_rules_f(
+    pers: &PersTier,
     st: &mut AState,
     fe_r: &IFEnv,
     rlps: &Vec<NIdx>,
@@ -74,7 +78,7 @@ pub fn check_native_rules_f(
     j: u64,
     out: Vec<EIdx>,
 ) -> Result<Vec<EIdx>, CheckError> {
-    native_install::check_native_rules(
+    native_install::check_native_rules(pers,
         st, fe_r, rlps, t, lps, elim, large, n_p, n_idx, tty, ctors, rec_c, rlvls, k, j, out,
     )
 }
@@ -83,6 +87,7 @@ pub fn check_native_rules_f(
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstallF.lean:30 checkNativeRecF`
 /// — `checkNativeRec` through the index; the same function.
 pub fn check_native_rec_f(
+    pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: &mut IFEnv,
@@ -90,18 +95,19 @@ pub fn check_native_rec_f(
     cv_ta: &IConstantVal,
     ctors_a: &Vec<(IConstantVal, u64)>,
 ) -> Result<(IConstantVal, Vec<EIdx>), CheckError> {
-    native_install::check_native_rec(st, mode, fe, p, cv_ta, ctors_a)
+    native_install::check_native_rec(pers, st, mode, fe, p, cv_ta, ctors_a)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:117-126 checkNativeTableF
 /// Lean twin: `proof/ConRon/Arena/Inductives/NativeInstallF.lean:34 checkNativeTableF`
 /// — `checkNativeTable` through the index; the same function.
 pub fn check_native_table_f(
+    pers: &PersTier,
     st: &mut AState,
     p: &NativeParts,
     ctors_a: &Vec<(IConstantVal, u64)>,
     sortss: &Vec<Vec<LIdx>>,
     fe: IFEnv,
 ) -> Result<IFEnv, CheckError> {
-    native_install::check_native_table(st, p, ctors_a, sortss, fe)
+    native_install::check_native_table(pers, st, p, ctors_a, sortss, fe)
 }

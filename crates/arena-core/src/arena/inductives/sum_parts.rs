@@ -22,6 +22,7 @@ use crate::arena::handle::{EIdx, LIdx, NIdx};
 use crate::arena::monad::AState;
 use con_ron_core::kernel::core_types::CheckError;
 use con_ron_core::ron::hashmap::Dup;
+use crate::arena::store::PersTier;
 
 /// con-leche: ConLeche/Kernel/Inductives/SumParts.lean:78-101 InductiveShape
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumParts.lean:24-45 InductiveShape`
@@ -159,13 +160,14 @@ pub fn sum_split_from(
 /// definition.  The record is taken by value and returned, which is the cited
 /// `{ p with … }` exactly.
 pub fn with_sort(
+    pers: &PersTier,
     st: &mut AState,
     p: InductiveShape,
     s: LIdx,
 ) -> Result<InductiveShape, CheckError> {
     match core::zero_level(st) {
         Err(e) => Err(e),
-        Ok(z) => match core::lvl_eq(st, &s, &z) {
+        Ok(z) => match core::lvl_eq(pers, st, &s, &z) {
             Err(e) => Err(e),
             Ok(eq) => {
                 let is_prop: bool = match eq {
