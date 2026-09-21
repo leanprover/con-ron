@@ -173,9 +173,21 @@ impl DerDefault for u64 {
 /// derived array beside it (lesson 1: derived data never lives inside the
 /// cons key).  One constructor's array of one tier: the node records, the
 /// parallel derived words, and the cons table from record to handle.
+/// **The node record and its derived word are ONE column** (task #97-P6-5,
+/// lever 3).  They were two parallel `Vec`s, so a `view` that needs both —
+/// which is every substituting walk, whose cutoff reads `der` and whose body
+/// then reads the record — paid two independent indexed loads into two
+/// arrays, i.e. two cache misses on a cold node.  Mathlib's persistent tier
+/// is 110 M expression nodes over a 32 MB L3, so those misses are the run's
+/// cost rather than a constant factor: the profile of task #97-P6-5 puts
+/// `ETables::der_at` + `::get` + `EStore::der_of_view` at 7.6 % of a Mathlib
+/// prefix on top of what the walks pay inline.  Interleaving costs no memory
+/// (the derived word rides in the padding the record already had in every one
+/// of the eighteen instantiations) and no hole; the twin's `Tbl` keeps its two
+/// fields and the refinement reads `rows.map (·.1)` for `nodes` and
+/// `rows.map (·.2)` for `der`.
 pub struct Tbl<A, I, D> {
-    pub nodes: Vec<A>,
-    pub der: Vec<D>,
+    pub rows: Vec<(A, D)>,
     pub cons: HashMap<A, I>,
 }
 
@@ -191,33 +203,33 @@ where
 {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:74 Tbl.empty
     pub fn empty() -> Tbl<A, I, D> {
-        Tbl { nodes: Vec::new(), der: Vec::new(), cons: HashMap::new() }
+        Tbl { rows: Vec::new(), cons: HashMap::new() }
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:79 Tbl.size
     /// How many nodes this constructor has in this tier.
     pub fn size(&self) -> usize {
-        self.nodes.len()
+        self.rows.len()
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:82 Tbl.node?
     /// Read one node record.  The Lean writes `t.nodes[n]?`; the bound test is
     /// explicit here because Aeneas models indexing and `len`, not `Vec::get`.
     pub fn node(&self, n: usize) -> Option<&A> {
-        if n >= self.nodes.len() {
+        if n >= self.rows.len() {
             None
         } else {
-            Some(&self.nodes[n])
+            Some(&self.rows[n].0)
         }
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:87-88 Tbl.derAt
     /// Read one derived word (`der_default` out of range).
     pub fn der_at(&self, n: usize) -> D {
-        if n >= self.der.len() {
+        if n >= self.rows.len() {
             D::der_default()
         } else {
-            self.der[n].dup2()
+            self.rows[n].1.dup2()
         }
     }
 
@@ -237,8 +249,7 @@ where
     /// and `push` copies it into the table.
     pub fn push(&mut self, a: A, d: D, i: I) {
         self.cons.insert(a.dup2(), i);
-        self.nodes.push(a);
-        self.der.push(d);
+        self.rows.push((a, d));
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin:
@@ -249,16 +260,16 @@ where
     /// `Init`, and task #97-P4f measured the bucket arrays growing back from
     /// `MIN_CAPACITY` at 15.6 % of the run.
     ///
-    /// The two node columns are *not* kept, and that is deliberate: Aeneas
+    /// The node column is *not* kept, and that is deliberate: Aeneas
     /// models neither `Vec::clear` nor `Vec::truncate` (task #97-P4a's third
-    /// extraction rule), so keeping them would cost an external hole, and
-    /// what it would buy is the columns' re-growth alone — under the 0.9 %
+    /// extraction rule), so keeping it would cost an external hole, and
+    /// what it would buy is the column's re-growth alone — under the 0.9 %
     /// the same profile attributes to `RawVec::finish_grow` over the whole
     /// run, persistent tier included.  `Vec::new` allocates nothing.
     ///
     /// **Nor are they PRE-SIZED, and that is measured** (task #97-P6-4a,
     /// §8.6's item 4: "size `enter_scratch` from the previous declaration's
-    /// high-water mark").  `Vec::with_capacity(self.nodes.len())` here needs
+    /// high-water mark").  `Vec::with_capacity(self.rows.len())` here needs
     /// no hole — `with_capacity` is modelled and is `[]` abstractly — and a
     /// tier that shrinks would still shrink, the size being the last LENGTH
     /// and never the last capacity.  It was worth −0.08 % of `Init`'s
@@ -268,8 +279,7 @@ where
     /// per table per declaration and the ladder is three or four rungs from
     /// zero.  So the lever stays priced and untaken.
     pub fn reset(&mut self) {
-        self.nodes = Vec::new();
-        self.der = Vec::new();
+        self.rows = Vec::new();
         reset_map(&mut self.cons)
     }
 }
