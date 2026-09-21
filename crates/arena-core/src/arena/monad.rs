@@ -217,6 +217,17 @@ pub struct Memos {
     pub bvar_b_c: HashMap<EIdx, u64>,
     /// `fvarRange` (`ExprOps.lean:1397-1422`).
     pub fvar_b_c: HashMap<EIdx, u64>,
+    /// con-leche: none — arena infrastructure (task #97-P6-13)
+    /// **The level substitution at a LEVEL handle**, for `instLPGo`'s `.sort`
+    /// arm: `ks` and `us` are fixed for the whole `instLPFast` call, so the
+    /// handle alone is the key — DESIGN.md §8.3's own idiom, "cleared at every
+    /// top-level call, so the substitution vector is not in the key".  A hit
+    /// is one `u32`, where a miss reads the level back, substitutes and
+    /// re-interns.
+    pub inst_lp_l_c: HashMap<LIdx, LIdx>,
+    /// con-leche: none — arena infrastructure (task #97-P6-13)
+    /// The same at a universe-argument LIST handle, for the `.const` arm.
+    pub inst_lp_ls_c: HashMap<LsIdx, LsIdx>,
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:182-184 instantiate1Fast
@@ -240,6 +251,8 @@ impl Memos {
             inst_lp_c: HashMap::new(),
             bvar_b_c: HashMap::new(),
             fvar_b_c: HashMap::new(),
+            inst_lp_l_c: HashMap::new(),
+            inst_lp_ls_c: HashMap::new(),
         }
     }
 
@@ -1252,7 +1265,40 @@ pub fn inst_lp_set(st: &mut AState, k: EIdxNat, r: &EIdx) {
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:503-505 instLPClear` — drop the
 /// level-substitution memo (it depends on `ks` and `us`).
 pub fn inst_lp_clear(st: &mut AState) {
-    reset_map(&mut st.memos.inst_lp_c)
+    reset_map(&mut st.memos.inst_lp_c);
+    reset_map(&mut st.memos.inst_lp_l_c);
+    reset_map(&mut st.memos.inst_lp_ls_c)
+}
+
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo
+/// Lean twin: OWED (task #97-P6-13) — probe the level-handle substitution
+/// memo.
+pub fn inst_lp_l_get(st: &AState, h: &LIdx) -> Option<LIdx> {
+    match st.memos.inst_lp_l_c.get(h) {
+        Some(r) => Some(r.dup2()),
+        None => None,
+    }
+}
+
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo
+/// Lean twin: OWED (task #97-P6-13) — record a level-handle substitution.
+pub fn inst_lp_l_set(st: &mut AState, h: LIdx, r: &LIdx) {
+    st.memos.inst_lp_l_c.insert(h, r.dup2());
+}
+
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo
+/// Lean twin: OWED (task #97-P6-13) — probe the level-LIST substitution memo.
+pub fn inst_lp_ls_get(st: &AState, h: &LsIdx) -> Option<LsIdx> {
+    match st.memos.inst_lp_ls_c.get(h) {
+        Some(r) => Some(r.dup2()),
+        None => None,
+    }
+}
+
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo
+/// Lean twin: OWED (task #97-P6-13) — record a level-LIST substitution.
+pub fn inst_lp_ls_set(st: &mut AState, h: LsIdx, r: &LsIdx) {
+    st.memos.inst_lp_ls_c.insert(h, r.dup2());
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1370-1394 bvarBoundGo

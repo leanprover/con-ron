@@ -81,7 +81,7 @@ use crate::arena::handle::{
     e_tag_is_bind, EIdx, LIdx, LsIdx, NIdx, ETAG_APP, ETAG_BVAR, ETAG_FORALL_E, ETAG_FVAR,
     ETAG_LAM, ETAG_LET_E, ETAG_PROJ,
 };
-use crate::arena::monad::{abs1_clear, abs1_get, abs1_set, bvar_b_clear, bvar_b_get, bvar_b_set, derived_e, derived_l, eidx_nat_key, fail, fvar_b_clear, fvar_b_get, fvar_b_set, inst1_clear, inst1_get, inst1_l_clear, inst1_l_get, inst1_l_set, inst1_set, inst_l_clear, inst_l_get, inst_l_set, inst_lp_clear, inst_lp_get, inst_lp_set, intern_e, intern_level, intern_levels, lift_clear, lift_get, lift_set, lower_clear, lower_get, lower_set, rename_clear, rename_get, rename_set, reset_clear, reset_get, reset_set, view, view_app, view_bind, view_bvar, view_fvar_idx, view_fvar_ty, view_let, view_proj, AState, EIdxNat, fail_dangling_e, read_level_m, read_levels_m, read_names_m};
+use crate::arena::monad::{abs1_clear, abs1_get, abs1_set, bvar_b_clear, bvar_b_get, bvar_b_set, derived_e, derived_l, eidx_nat_key, fail, fvar_b_clear, fvar_b_get, fvar_b_set, inst1_clear, inst1_get, inst1_l_clear, inst1_l_get, inst1_l_set, inst1_set, inst_l_clear, inst_l_get, inst_l_set, inst_lp_clear, inst_lp_get, inst_lp_set, intern_e, intern_level, intern_levels, lift_clear, lift_get, lift_set, lower_clear, lower_get, lower_set, rename_clear, rename_get, rename_set, reset_clear, reset_get, reset_set, view, view_app, view_bind, view_bvar, view_fvar_idx, view_fvar_ty, view_let, view_proj, AState, EIdxNat, fail_dangling_e, read_level_m, read_levels_m, read_names_m, inst_lp_l_get, inst_lp_l_set, inst_lp_ls_get, inst_lp_ls_set};
 use crate::arena::store::{e_bind_view, ENodeView};
 use con_ron_core::kernel::core_types::{code_points, CheckError};
 use con_ron_core::kernel::expr;
@@ -4371,6 +4371,73 @@ pub fn subst_level_list_from(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo
+/// Lean twin: OWED (task #97-P6-13) — `substLevelAt`, `instLPGo`'s `.sort`
+/// arm's level work behind a memo on the level handle.
+///
+/// `ks` and `us` are fixed for the whole `instLPFast` call, so a level handle
+/// determines its own answer and the substitution vector is not in the key —
+/// DESIGN.md §8.3's own rule for the per-call memos, and `inst_lp_clear` is
+/// what makes it true.  A hit is one `u32`; a miss reads the level back (now
+/// itself memoised per declaration), runs `Level.subst` on the transient tree
+/// and re-interns.  A `.sort` node recurs once per OCCURRENCE in a term and
+/// the same universe occurs over and over.
+pub fn subst_level_at(
+    pers: &PersTier,
+    st: &mut AState,
+    ks: &Vec<Name>,
+    us: &Vec<Level>,
+    u: &LIdx,
+) -> Result<LIdx, CheckError> {
+    match inst_lp_l_get(st, u) {
+        Some(r) => Ok(r),
+        None => match read_level_m(pers, st, u) {
+            Err(e) => Err(e),
+            Ok(l) => {
+                let l2: Level = level::subst(ks, us, &l);
+                match intern_level(pers, st, &l2) {
+                    Err(e) => Err(e),
+                    Ok(hl) => {
+                        inst_lp_l_set(st, u.dup2(), &hl);
+                        Ok(hl)
+                    }
+                }
+            }
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo
+/// Lean twin: OWED (task #97-P6-13) — `substLevelsAt`, the `.const` arm's
+/// twin of `substLevelAt` at an interned universe-argument LIST.  The list is
+/// one interned object, so the memo saves the readback, the per-element
+/// substitution, the re-interning AND the two `Vec<Level>` copies the
+/// readback memo would otherwise hand out and drop.
+pub fn subst_levels_at(
+    pers: &PersTier,
+    st: &mut AState,
+    ks: &Vec<Name>,
+    us: &Vec<Level>,
+    vs: &LsIdx,
+) -> Result<LsIdx, CheckError> {
+    match inst_lp_ls_get(st, vs) {
+        Some(r) => Ok(r),
+        None => match read_levels_m(pers, st, vs) {
+            Err(e) => Err(e),
+            Ok(ls) => {
+                let ls2: Vec<Level> = subst_level_list(ks, us, &ls);
+                match intern_levels(pers, st, &ls2) {
+                    Err(e) => Err(e),
+                    Ok(vs2) => {
+                        inst_lp_ls_set(st, vs.dup2(), &vs2);
+                        Ok(vs2)
+                    }
+                }
+            }
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1411-1481 instLPGo` —
 /// substitute level parameters throughout an expression, with con-leche's own
 /// `hasLP = false` cutoff (the whole subtree is level-parameter free, so the
@@ -4396,30 +4463,18 @@ pub fn inst_lp_go(
                 Err(e) => Err(e),
                 Ok(ENodeView::BVar(_)) => Ok(h.dup2()),
                 Ok(ENodeView::Lit(_)) => Ok(h.dup2()),
-                Ok(ENodeView::Sort(u)) => match read_level_m(pers, st, &u) {
+                Ok(ENodeView::Sort(u)) => match subst_level_at(pers, st, ks, us, &u) {
                     Err(e) => Err(e),
-                    Ok(l) => {
-                        let l2: Level = level::subst(ks, us, &l);
-                        match intern_level(pers, st, &l2) {
-                            Err(e) => Err(e),
-                            Ok(hl) => {
-                                let same: bool = hl.eq2(&u);
-                                intern_rebuilt(pers, st, h, same, ENodeView::Sort(hl))
-                            }
-                        }
+                    Ok(hl) => {
+                        let same: bool = hl.eq2(&u);
+                        intern_rebuilt(pers, st, h, same, ENodeView::Sort(hl))
                     }
                 },
-                Ok(ENodeView::Const(n, vs)) => match read_levels_m(pers, st, &vs) {
+                Ok(ENodeView::Const(n, vs)) => match subst_levels_at(pers, st, ks, us, &vs) {
                     Err(e) => Err(e),
-                    Ok(ls) => {
-                        let ls2: Vec<Level> = subst_level_list(ks, us, &ls);
-                        match intern_levels(pers, st, &ls2) {
-                            Err(e) => Err(e),
-                            Ok(vs2) => {
-                                let same: bool = vs2.eq2(&vs);
-                                intern_rebuilt(pers, st, h, same, ENodeView::Const(n, vs2))
-                            }
-                        }
+                    Ok(vs2) => {
+                        let same: bool = vs2.eq2(&vs);
+                        intern_rebuilt(pers, st, h, same, ENodeView::Const(n, vs2))
                     }
                 },
                 Ok(ENodeView::FVar(i, ty)) => {

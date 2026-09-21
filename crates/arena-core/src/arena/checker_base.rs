@@ -318,6 +318,8 @@ pub fn memos_dup(m: &Memos) -> Memos {
         inst_lp_c: m.inst_lp_c.dup(),
         bvar_b_c: m.bvar_b_c.dup(),
         fvar_b_c: m.fvar_b_c.dup(),
+        inst_lp_l_c: m.inst_lp_l_c.dup(),
+        inst_lp_ls_c: m.inst_lp_ls_c.dup(),
     }
 }
 
