@@ -231,6 +231,7 @@ where
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:82 Tbl.node?
     /// Read one node record.  The Lean writes `t.nodes[n]?`; the bound test is
     /// explicit here because Aeneas models indexing and `len`, not `Vec::get`.
+    #[inline(always)]
     pub fn node(&self, n: usize) -> Option<&A> {
         if n >= self.rows.len() {
             None
@@ -241,6 +242,7 @@ where
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:87-88 Tbl.derAt
     /// Read one derived word (`der_default` out of range).
+    #[inline(always)]
     pub fn der_at(&self, n: usize) -> D {
         if n >= self.rows.len() {
             D::der_default()
@@ -2037,6 +2039,24 @@ impl LsTables {
         }
     }
 
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-10) — `LsTables.getLen`, the LENGTH projection of
+    /// `LsTables.get`.  `get` copies the whole `Vec<LIdx>` out of the node
+    /// (Lean shares the list where the Rust must copy it, DESIGN.md §3.2);
+    /// most callers only compare the length with a declaration's level-
+    /// parameter count, and that is one `Vec::len` off the record.
+    #[inline(always)]
+    pub fn get_len(&self, i: &LsIdx) -> Option<usize> {
+        if i.tag() == LSTAG_LIST {
+            match self.lists.node(i.idx_nat()) {
+                None => None,
+                Some(r) => Some(r.us.len()),
+            }
+        } else {
+            None
+        }
+    }
+
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:692-693 LsTables.derAt
     pub fn der_at(&self, i: &LsIdx) -> LDer {
         if i.tag() == LSTAG_LIST {
@@ -2173,6 +2193,30 @@ impl LsStore {
             self.pers_get(pers, i)
         } else if self.scratch_on {
             self.scr.get(i)
+        } else {
+            None
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-10); Lean twin: OWED
+    fn pers_get_len(&self, pers: &PersTier, i: &LsIdx) -> Option<usize> {
+        if self.shared_on {
+            pers.ls.get_len(i)
+        } else {
+            self.pers.get_len(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-10) — `LsStore.viewLen`, the length projection of
+    /// `LsStore.view`: `viewLen h = (view h).map List.length`, which is the
+    /// exactness lemma the bridge owes.
+    #[inline(always)]
+    pub fn view_len(&self, pers: &PersTier, i: &LsIdx) -> Option<usize> {
+        if i.is_persistent() {
+            self.pers_get_len(pers, i)
+        } else if self.scratch_on {
+            self.scr.get_len(i)
         } else {
             None
         }
@@ -2349,6 +2393,7 @@ impl ETables {
     /// Decode one handle against this tier's arrays: read the tag, index one
     /// array, build the view.  There is no node enum in the store (DESIGN.md
     /// §8.3).
+    #[inline(always)]
     pub fn get(&self, i: &EIdx) -> Option<ENodeView> {
         if i.tag() == ETAG_BVAR {
             match self.bvars.node(i.idx_nat()) {
@@ -2413,7 +2458,88 @@ impl ETables {
         }
     }
 
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-10) — `ETables.getApp`, the `app` PROJECTION of `ETables.get`.
+    ///
+    /// `get` decodes a handle of any tag into a 32-byte `ENodeView`; this
+    /// reads the two fields of an `app` node and nothing else.  A caller that
+    /// has already decided the tag (off the handle word, which carries it —
+    /// DESIGN.md §8.3) wants only this, and it saves the callee's ten-way tag
+    /// jump table, the sret view, the second dispatch on the same tag and the
+    /// view's drop.  `None` is the same "out of range" this tier's `get`
+    /// reports, i.e. a dangling handle.
+    #[inline(always)]
+    pub fn get_app(&self, i: &EIdx) -> Option<(EIdx, EIdx)> {
+        match self.apps.node(i.idx_nat()) {
+            None => None,
+            Some(r) => Some((r.f.dup2(), r.a.dup2())),
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-10) — `ETables.getBVar`, the `bvar` projection of `ETables.get`.
+    #[inline(always)]
+    pub fn get_bvar(&self, i: &EIdx) -> Option<u64> {
+        match self.bvars.node(i.idx_nat()) {
+            None => None,
+            Some(r) => Some(r.i),
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-10) — `ETables.getFVarIdx`, the de Bruijn LEVEL of an `fvar`
+    /// node.  The binder type beside it is not read: `abstract1Go`'s `fvar`
+    /// arm does not descend into the annotation, so it wants the index alone
+    /// and copying the type handle out would be work for nothing.
+    #[inline(always)]
+    pub fn get_fvar_idx(&self, i: &EIdx) -> Option<u64> {
+        match self.fvars.node(i.idx_nat()) {
+            None => None,
+            Some(r) => Some(r.idx),
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-10) — `ETables.getBind`, the `lam`/`forallE` projection of
+    /// `ETables.get`.  The tag picks the array, as it does in `get`; the two
+    /// binder constructors have the same record shape.
+    #[inline(always)]
+    pub fn get_bind(&self, i: &EIdx) -> Option<(EIdx, EIdx, BinderMeta)> {
+        if i.tag() == ETAG_LAM {
+            match self.lams.node(i.idx_nat()) {
+                None => None,
+                Some(r) => Some((r.ty.dup2(), r.body.dup2(), expr::binder_meta_dup(&r.m))),
+            }
+        } else {
+            match self.foralls.node(i.idx_nat()) {
+                None => None,
+                Some(r) => Some((r.ty.dup2(), r.body.dup2(), expr::binder_meta_dup(&r.m))),
+            }
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-10) — `ETables.getLet`, the `letE` projection of `ETables.get`.
+    #[inline(always)]
+    pub fn get_let(&self, i: &EIdx) -> Option<(EIdx, EIdx, EIdx)> {
+        match self.lets.node(i.idx_nat()) {
+            None => None,
+            Some(r) => Some((r.ty.dup2(), r.val.dup2(), r.body.dup2())),
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-10) — `ETables.getProj`, the `proj` projection of `ETables.get`.
+    #[inline(always)]
+    pub fn get_proj(&self, i: &EIdx) -> Option<(NIdx, u64, EIdx)> {
+        match self.projs.node(i.idx_nat()) {
+            None => None,
+            Some(r) => Some((r.n.dup2(), r.i, r.e.dup2())),
+        }
+    }
+
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:824-835 ETables.derAt
+    #[inline(always)]
     pub fn der_at(&self, i: &EIdx) -> u64 {
         if i.tag() == ETAG_BVAR {
             self.bvars.der_at(i.idx_nat())
@@ -2610,6 +2736,21 @@ pub fn der_of_let(dt: u64, dv: u64, db: u64) -> u64 {
     )
 }
 
+/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// Lean twin: OWED (task #97-P6-10) — `eBindView`, the inverse of
+/// `EStore.viewBind`: rebuild the binder view a walk decoded with `viewBind`,
+/// at the tag it decoded it at.  `lam` and `forallE` have one record shape and
+/// the projection reads either; this is the one place the two arms are told
+/// apart again, so the walks that dispatch on the handle's own tag keep the
+/// two clauses of the twin as one clause each.
+pub fn e_bind_view(tag: u32, ty: EIdx, body: EIdx, m: BinderMeta) -> ENodeView {
+    if tag == ETAG_LAM {
+        ENodeView::Lam(ty, body, m)
+    } else {
+        ENodeView::ForallE(ty, body, m)
+    }
+}
+
 /// con-leche: none — arena infrastructure (task #97-P6-1); Lean twin: none —
 /// **a tier test on the children, not a decode**: does any child handle of
 /// this view name the scratch tier?
@@ -2707,6 +2848,7 @@ impl EStore {
     /// persistent tier and the shared `PersTier` is made HERE and a value
     /// comes back, so no borrow ever leaves the choice and no region enters
     /// the record every function of the crate threads as `&mut`.
+    #[inline(always)]
     fn pers_get(&self, pers: &PersTier, i: &EIdx) -> Option<ENodeView> {
         if self.shared_on {
             pers.e.get(i)
@@ -2723,6 +2865,7 @@ impl EStore {
     /// persistent tier and the shared `PersTier` is made HERE and a value
     /// comes back, so no borrow ever leaves the choice and no region enters
     /// the record every function of the crate threads as `&mut`.
+    #[inline(always)]
     fn pers_der_at(&self, pers: &PersTier, i: &EIdx) -> u64 {
         if self.shared_on {
             pers.e.der_at(i)
@@ -2821,6 +2964,7 @@ impl EStore {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:952-954 EStore.view
     /// Decode an expression handle: the tier bit selects the array set, the
     /// tag selects the array, the index reads it.
+    #[inline(always)]
     pub fn view(&self, pers: &PersTier, i: &EIdx) -> Option<ENodeView> {
         if i.is_persistent() {
             self.pers_get(pers, i)
@@ -2831,10 +2975,154 @@ impl EStore {
         }
     }
 
+    /// con-leche: none — arena infrastructure (task #97-P6-10); Lean twin:
+    /// OWED — the persistent arm of `EStore.viewApp`.
+    #[inline(always)]
+    fn pers_get_app(&self, pers: &PersTier, i: &EIdx) -> Option<(EIdx, EIdx)> {
+        if self.shared_on {
+            pers.e.get_app(i)
+        } else {
+            self.pers.get_app(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-10) — `EStore.viewApp`, the `app` projection of `EStore.view`:
+    /// the tier bit selects the array set, the `app` array is read, the two
+    /// children come back.  `view h = some (.app f a) ↔ viewApp h = some (f, a)`
+    /// whenever `h.tag = app`, which is the exactness lemma the bridge owes.
+    #[inline(always)]
+    pub fn view_app(&self, pers: &PersTier, i: &EIdx) -> Option<(EIdx, EIdx)> {
+        if i.is_persistent() {
+            self.pers_get_app(pers, i)
+        } else if self.scratch_on {
+            self.scr.get_app(i)
+        } else {
+            None
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-10); Lean twin:
+    /// OWED — the persistent arms of the four projections below.
+    #[inline(always)]
+    fn pers_get_bvar(&self, pers: &PersTier, i: &EIdx) -> Option<u64> {
+        if self.shared_on {
+            pers.e.get_bvar(i)
+        } else {
+            self.pers.get_bvar(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-10); Lean twin: OWED
+    #[inline(always)]
+    fn pers_get_bind(&self, pers: &PersTier, i: &EIdx) -> Option<(EIdx, EIdx, BinderMeta)> {
+        if self.shared_on {
+            pers.e.get_bind(i)
+        } else {
+            self.pers.get_bind(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-10); Lean twin: OWED
+    #[inline(always)]
+    fn pers_get_let(&self, pers: &PersTier, i: &EIdx) -> Option<(EIdx, EIdx, EIdx)> {
+        if self.shared_on {
+            pers.e.get_let(i)
+        } else {
+            self.pers.get_let(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-10); Lean twin: OWED
+    #[inline(always)]
+    fn pers_get_proj(&self, pers: &PersTier, i: &EIdx) -> Option<(NIdx, u64, EIdx)> {
+        if self.shared_on {
+            pers.e.get_proj(i)
+        } else {
+            self.pers.get_proj(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-10); Lean twin: OWED
+    #[inline(always)]
+    fn pers_get_fvar_idx(&self, pers: &PersTier, i: &EIdx) -> Option<u64> {
+        if self.shared_on {
+            pers.e.get_fvar_idx(i)
+        } else {
+            self.pers.get_fvar_idx(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-10) — `EStore.viewFVarIdx`, the `fvar` index projection.
+    #[inline(always)]
+    pub fn view_fvar_idx(&self, pers: &PersTier, i: &EIdx) -> Option<u64> {
+        if i.is_persistent() {
+            self.pers_get_fvar_idx(pers, i)
+        } else if self.scratch_on {
+            self.scr.get_fvar_idx(i)
+        } else {
+            None
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-10) — `EStore.viewBVar`, the `bvar` projection of `EStore.view`.
+    #[inline(always)]
+    pub fn view_bvar(&self, pers: &PersTier, i: &EIdx) -> Option<u64> {
+        if i.is_persistent() {
+            self.pers_get_bvar(pers, i)
+        } else if self.scratch_on {
+            self.scr.get_bvar(i)
+        } else {
+            None
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-10) — `EStore.viewBind`, the binder projection of `EStore.view`.
+    #[inline(always)]
+    pub fn view_bind(&self, pers: &PersTier, i: &EIdx) -> Option<(EIdx, EIdx, BinderMeta)> {
+        if i.is_persistent() {
+            self.pers_get_bind(pers, i)
+        } else if self.scratch_on {
+            self.scr.get_bind(i)
+        } else {
+            None
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-10) — `EStore.viewLet`, the `letE` projection of `EStore.view`.
+    #[inline(always)]
+    pub fn view_let(&self, pers: &PersTier, i: &EIdx) -> Option<(EIdx, EIdx, EIdx)> {
+        if i.is_persistent() {
+            self.pers_get_let(pers, i)
+        } else if self.scratch_on {
+            self.scr.get_let(i)
+        } else {
+            None
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-10) — `EStore.viewProj`, the `proj` projection of `EStore.view`.
+    #[inline(always)]
+    pub fn view_proj(&self, pers: &PersTier, i: &EIdx) -> Option<(NIdx, u64, EIdx)> {
+        if i.is_persistent() {
+            self.pers_get_proj(pers, i)
+        } else if self.scratch_on {
+            self.scr.get_proj(i)
+        } else {
+            None
+        }
+    }
+
     /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
     /// Lean twin: `proof/ConRon/Arena/Store.lean:958-960 EStore.derived` — the
     /// `data` computed field, lines 357-402: the packed derived word of an
     /// expression handle, an `O(1)` column read.
+    #[inline(always)]
     pub fn derived(&self, pers: &PersTier, i: &EIdx) -> u64 {
         if i.is_persistent() {
             self.pers_der_at(pers, i)

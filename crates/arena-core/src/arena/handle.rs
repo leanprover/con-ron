@@ -507,6 +507,16 @@ pub const ETAG_LIT: u32 = 8;
 /// constructor, line 353.
 pub const ETAG_PROJ: u32 = 9;
 
+/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// Lean twin: OWED (task #97-P6-10) — `ETag.isBind`: `lam` or `forallE`, the
+/// two constructors that share the `BindNode` record shape.  A named predicate
+/// rather than the disjunction written at the use site: a two-way `||` inside
+/// a `match` arm that still holds loans is what task #97-P4a's extraction rule
+/// 2 is about, and the walks that dispatch on this tag hold the handle.
+pub fn e_tag_is_bind(t: u32) -> bool {
+    t == ETAG_LAM || t == ETAG_FORALL_E
+}
+
 /// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:243 NTag.anonymous` — the
 /// `anonymous` constructor, line 35.

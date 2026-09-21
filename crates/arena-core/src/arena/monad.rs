@@ -71,6 +71,7 @@ use crate::arena::store::{
 };
 use con_ron_core::kernel::core_types::{code_points, CheckError};
 use con_ron_core::kernel::expr;
+use con_ron_core::kernel::expr::BinderMeta;
 use con_ron_core::kernel::level;
 use con_ron_core::kernel::level::Level;
 use con_ron_core::kernel::name;
@@ -324,6 +325,7 @@ pub fn fail<T>(e: CheckError) -> Result<T, CheckError> {
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:138-142 view` — decode a handle.
 /// A dangling handle is an internal error: the checker never builds one, and
 /// the bridge claims nothing on failure.
+#[inline(always)]
 pub fn view(pers: &PersTier, st: &AState, h: &EIdx) -> Result<ENodeView, CheckError> {
     match st.store.view(pers, h) {
         Some(v) => Ok(v),
@@ -331,11 +333,71 @@ pub fn view(pers: &PersTier, st: &AState, h: &EIdx) -> Result<ENodeView, CheckEr
     }
 }
 
+/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:138-142 view` — the `none` arm of
+/// `view`, spelled once so that a caller of the projections below declines a
+/// dangling handle with `view`'s own error and not a second one.
+pub fn fail_dangling_e<T>() -> Result<T, CheckError> {
+    fail(CheckError::Internal(code_points(&M_DANGLING_E)))
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// Lean twin: OWED (task #97-P6-10) — `viewApp`, the `app` PROJECTION of
+/// `view`.  A walk that has already read the tag off the handle word wants
+/// only the two children; going through `view` would cost the store's ten-way
+/// tag jump table, a 32-byte `ENodeView` returned through an sret slot, a
+/// second dispatch on the tag the caller already knows, and the view's drop.
+///
+/// It returns `Option`, not `Result`, for the same reason the store's readers
+/// do: a `Result<(EIdx, EIdx), CheckError>` is a 32-byte sret value, and
+/// `Option<(EIdx, EIdx)>` comes back in registers.  The caller spells the
+/// dangling-handle decline itself, with `view`'s own error.
+#[inline(always)]
+pub fn view_app(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(EIdx, EIdx)> {
+    st.store.view_app(pers, h)
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// Lean twin: OWED (task #97-P6-10) — `viewBVar`, the `bvar` projection.
+#[inline(always)]
+pub fn view_bvar(pers: &PersTier, st: &AState, h: &EIdx) -> Option<u64> {
+    st.store.view_bvar(pers, h)
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// Lean twin: OWED (task #97-P6-10) — `viewFVarIdx`, the `fvar` index.
+#[inline(always)]
+pub fn view_fvar_idx(pers: &PersTier, st: &AState, h: &EIdx) -> Option<u64> {
+    st.store.view_fvar_idx(pers, h)
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// Lean twin: OWED (task #97-P6-10) — `viewBind`, the binder projection.
+#[inline(always)]
+pub fn view_bind(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(EIdx, EIdx, BinderMeta)> {
+    st.store.view_bind(pers, h)
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// Lean twin: OWED (task #97-P6-10) — `viewLet`, the `letE` projection.
+#[inline(always)]
+pub fn view_let(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(EIdx, EIdx, EIdx)> {
+    st.store.view_let(pers, h)
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
+/// Lean twin: OWED (task #97-P6-10) — `viewProj`, the `proj` projection.
+#[inline(always)]
+pub fn view_proj(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(NIdx, u64, EIdx)> {
+    st.store.view_proj(pers, h)
+}
+
 /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:147-149 derivedE` — the packed
 /// derived word of a handle (the `data` computed field, lines 357-402), read
 /// in `O(1)` off the derived column.  No path fails, so the Rust returns the
 /// word rather than a `Result` (module note).
+#[inline(always)]
 pub fn derived_e(pers: &PersTier, st: &AState, h: &EIdx) -> u64 {
     st.store.derived(pers, h)
 }
@@ -633,6 +695,24 @@ pub fn intern_level(pers: &PersTier, st: &mut AState, l: &Level) -> Result<LIdx,
 // ---------------------------------------------------------------------------
 // The level-list store's primitives (`Monad.lean:289-330`)
 // ---------------------------------------------------------------------------
+
+/// con-leche: ConLeche/Kernel/Expr.lean:41-54 Level
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:287-291 viewLs` — the `none` arm
+/// of `viewLs`, spelled once so that a caller of the length projection below
+/// declines a dangling handle with `viewLs`'s own error and not a second one.
+pub fn fail_dangling_ls<T>() -> Result<T, CheckError> {
+    fail(CheckError::Internal(code_points(&M_DANGLING_LS)))
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:41-54 Level
+/// Lean twin: OWED (task #97-P6-10) — `viewLsLen`, the LENGTH projection of
+/// `viewLs`.  Decoding a level-list handle copies its whole `Vec<LIdx>` out of
+/// the node (Lean shares the list; DESIGN.md §3.2); the callers that only
+/// compare the length with a declaration's level-parameter count want this.
+#[inline(always)]
+pub fn view_ls_len(pers: &PersTier, st: &AState, h: &LsIdx) -> Option<usize> {
+    st.store.ls_s().view_len(pers, h)
+}
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:287-291 viewLs` — decode a
