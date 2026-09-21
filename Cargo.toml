@@ -23,3 +23,9 @@ exclude = ["crates/arena-spike"]
 # describe it (task #7).
 [profile.release]
 overflow-checks = true
+# Task #97-P6-8b: fat LTO with one codegen unit is -11.6 % instructions on
+# Init (413.8 -> 365.7 G) -- it removes the GOT-indirect calls between the
+# arena's walks and the store.  A build setting: Charon never reads it, the
+# model and the verdicts are unchanged.
+lto = "fat"
+codegen-units = 1
