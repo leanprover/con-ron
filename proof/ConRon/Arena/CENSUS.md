@@ -3,6 +3,17 @@
 Task #97 P2, 2026-09-20.  DESIGN.md §8 is the design; this is the WORK
 LIST it implies, at con-leche pin `c431b1ca1b7a93486dd3e0440d3ee82abe90ccd0`.
 
+> **This document is P2's census and is not maintained past it.**  It lists
+> the con-leche declarations (B) had to mirror in the first place, at the pin
+> it was written against; it does not track the P6 performance round, whose
+> twins are NOT con-leche declarations at all but the arena's own (the
+> projections, the per-constructor interns, the binder-datum store, the
+> batched telescope loops).  Those are listed, row by row and with their
+> con-leche citations, in **DESIGN.md's `Task #97-LC — the Lean twin
+> catch-up`**, which is the document to read for "what does the twin owe the
+> Rust".  The current pin is `78ded4b6` (task #98); `scripts/provenance.py
+> check` is what keeps the citations honest at it, not this file.
+
 It exists so that P2b–P2e can be handed out with exact contents: every
 top-level definition of every con-leche module (B) must mirror, with its
 line range at that pin, its signature, what class of work it is, and —
