@@ -9303,13 +9303,14 @@ pub fn defeq_binders(
         Ok(true) => match intern_e_fvar(pers, st, depth, ty2.dup2()) {
             Err(e) => Err(e),
             Ok(fv) => {
-                let fvs: Vec<EIdx> = cons_eidx(&fv, &Vec::new());
+                let mut fvs: Vec<EIdx> = Vec::new();
+                fvs.push(fv);
                 let mm: bool = con_ron_core::kernel::env::verified_checks(mode)
                     && !prop_when::beq(&m1.pw, &m2.pw);
                 let ml: bool = if mm { is_lam } else { false };
                 defeq_peel(
                     pers, vis, st, mode, lane, fuel, fe, depth, PEEL_FUEL, body1, body2, 1,
-                    &fvs, mm, ml,
+                    fvs, mm, ml,
                 )
             }
         },
@@ -9402,7 +9403,7 @@ pub fn defeq_peel(
     a: &EIdx,
     b: &EIdx,
     k: u64,
-    fvs: &Vec<EIdx>,
+    fvs: Vec<EIdx>,
     mism: bool,
     mism_lam: bool,
 ) -> Result<bool, CheckError> {
@@ -9434,13 +9435,13 @@ pub fn defeq_peel(
                     // two RAW domains are the same handle, and the chain's own
                     // `a == b` arm decides them `true`; one open, no knot call.
                     let same_dom: bool = pa.0.eq2(&pb.0);
-                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &pa.0, fvs, 0) {
+                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &pa.0, &fvs, 0) {
                         Err(e) => Err(e),
                         Ok(t1) => {
                             let t2r: Result<EIdx, CheckError> = if same_dom {
                                 Ok(t1.dup2())
                             } else {
-                                instantiate_list_fast(pers, st, CORE_WALK_FUEL, &pb.0, fvs, 0)
+                                instantiate_list_fast(pers, st, CORE_WALK_FUEL, &pb.0, &fvs, 0)
                             };
                             match t2r {
                                 Err(e) => Err(e),
@@ -9456,14 +9457,11 @@ pub fn defeq_peel(
                                         Err(e) => Err(e),
                                         Ok(false) => Ok(false),
                                         Ok(true) => {
-                                            match intern_e(
-                                                pers,
-                                                st,
-                                                ENodeView::FVar(d + k, t2.dup2()),
-                                            ) {
+                                            match intern_e_fvar(pers, st, d + k, t2.dup2()) {
                                                 Err(e) => Err(e),
                                                 Ok(fv) => {
-                                                    let fvs2: Vec<EIdx> = cons_eidx(&fv, fvs);
+                                                    let mut fvs2: Vec<EIdx> = fvs;
+                                                    fvs2.push(fv);
                                                     let mm: bool =
                                                         con_ron_core::kernel::env::verified_checks(
                                                             mode,
@@ -9476,7 +9474,7 @@ pub fn defeq_peel(
                                                     };
                                                     defeq_peel(
                                                         pers, vis, st, mode, lane, fuel, fe, d,
-                                                        peel - 1, &pa.1, &pb.1, k + 1, &fvs2,
+                                                        peel - 1, &pa.1, &pb.1, k + 1, fvs2,
                                                         m2, ml2,
                                                     )
                                                 }
@@ -9512,13 +9510,13 @@ pub fn defeq_peel_leaf(
     a: &EIdx,
     b: &EIdx,
     k: u64,
-    fvs: &Vec<EIdx>,
+    fvs: Vec<EIdx>,
     mism: bool,
     mism_lam: bool,
 ) -> Result<bool, CheckError> {
-    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, a, fvs, 0) {
+    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, a, &fvs, 0) {
         Err(e) => Err(e),
-        Ok(o1) => match instantiate_list_fast(pers, st, CORE_WALK_FUEL, b, fvs, 0) {
+        Ok(o1) => match instantiate_list_fast(pers, st, CORE_WALK_FUEL, b, &fvs, 0) {
             Err(e) => Err(e),
             Ok(o2) => match knot_defeq(pers, vis, st, mode, lane, fuel, fe, d + k, &o1, &o2) {
                 Err(e) => Err(e),
