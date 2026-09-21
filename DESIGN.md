@@ -2635,6 +2635,18 @@ own cached tier proves (`instantiateList` = the fold of `instantiate1`) —
 find and cite con-leche's lemma.  Lever for the resumed P6 (Rust-first,
 twin ledger).
 
+**Ruling (maintainer, 2026-09-21, at nanoda parity on Mathlib):** keep
+going at the *natural* tweaks — no inventive new ideas.  One natural tweak
+named: `isApp`/`isLam`/`isForallE`/… are readable off the `u32` handle
+alone (the tag bits), with no node read at all; exploit that on every code
+path that is effectively a Lean `if let` — a match with one constructor arm
+and a fallthrough — so the wrong constructor is passed over without
+touching the store.  (Task #97-P6-10's projections did this for the seven
+hottest walks; the ruling extends it to every such site.)  The remaining
+known levers (`ETables::find`, the per-declaration readback memo, the
+`BinderMeta` column, handle-vector copies) are natural and stay in the
+queue; anything beyond them is not.
+
 ### 8.7 Open questions (maintainer)
 
   * `LsIdx` (interned level lists) vs. a flat `Array LIdx` slice — P2a
