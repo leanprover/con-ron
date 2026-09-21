@@ -2390,6 +2390,17 @@ the index so a worker copies no environment.  Design (B), a process-global
 not extract).  The `Pers` enum / borrow-field designs are dead ends and are
 not to be retried.  Scheduled as P6-6b after P6-7 lands (same files).
 
+**Deferred optimisation (maintainer, 2026-09-21), for AFTER the catch-up
+with nanoda — not before, since a lever taken early can offset and hide
+other areas of improvement:** with one dense array per constructor, `app`
+nodes could carry an eagerly cached side column for `getAppFn` (the spine's
+head, computed at intern time from the child's own entry: `head(app f a) =
+head(f)`, `head(x) = x` otherwise — O(1) per intern, like the derived word).
+Worth it only if many `getAppFn` calls do NOT also want the argument list
+(`getAppArgs` walks the spine anyway); count both before deciding.
+Expressible in the twin as a derived column with an exactness lemma; a
+sibling `getAppNumArgs` column has the same shape.
+
 ### 8.7 Open questions (maintainer)
 
   * `LsIdx` (interned level lists) vs. a flat `Array LIdx` slice — P2a
