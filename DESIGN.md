@@ -2691,6 +2691,43 @@ the persistent tier (the byte recogniser is unchanged).
         extraction's holes unchanged.  What is left in the check phase is the
         untagged bucket, 56.9 % of the prefix's new nodes, and no telescope.
 
+        15. **the node record built once, and the accumulators pushed** —
+        the two levers task #97-P6-13 §9 named and left as tasks.  **DONE**
+        (task #97-P6-15).  `EStore::intern` built the node record THREE times
+        (the persistent probe, the scratch probe, the push) behind FIVE
+        dispatches on the same tag, with `binder_meta_dup` at three of them;
+        it is now a ten-arm dispatch over `intern_<ctor>` paths that build it
+        once and share `&r` with all four clauses, `der_of_view`'s ten arms
+        are ten `der_of_*` functions of the arm's own fields (inlined into
+        their one caller), and the `ENodeView` is not built at all at **276 of
+        the 280 `intern_e` sites** nor at the twenty-three hotter
+        `intern_rebuilt` ones — which takes `EStore::intern`, `pers_find`,
+        `der_of_view`, `ETables::push` and `drop_glue::<ENodeView>` out of the
+        profile entirely (−4.1 % of `Init`).  Then the **`cons_eidx`
+        accumulators**, under the maintainer's ruling that a `::` chain
+        mirrored as a `Vec` prepend is quadratic and silly: the thirteen
+        substitution accumulators (`beta_peel`, `iota_certs_aux`, the two
+        `infer_spine`s, the four binder telescopes and their leaves,
+        `open_pis_at_fvars_f_go`, and task #97-P6-14's `defeq_peel`) take an
+        OWNED `Vec` and `push`, and `instantiate_list` reads its vector from
+        the END — `eidx_copy_upto`, 4.3 % of `Init`, leaves the top thirty of
+        both profiles (−2.5 % of `Init`).  `Init` is **232.24 → 217.07 G
+        (−6.53 %)**, the prefix **912.06 → 856.91 G (−6.05 %)** and Mathlib
+        **4 229.37 → 3 973.09 G (−6.06 %)** at 2 140.85 G cycles, 506.3 s and
+        7.19 GB — **0.527× `con-ron` at master on instructions, 0.951× on peak
+        RSS, and 0.656× nanoda**, from 0.699×, with `Init` **under nanoda for
+        the first time** (0.939×).  383/383 fixtures at `--verified` and
+        `--trusted`; the extraction's holes unchanged.  The twin owes the ten
+        per-constructor interns, the nine `der_of_*`, twenty-one monadic
+        wrappers and — the one CLAUSE change, by the ruling — the
+        accumulators as an `Array` with `Array.push`.  **The task's verdict on
+        P6**: two natural levers are left with a price on them (the
+        `BinderMeta` column, 2–3 % of `Init`; §8's deferred `getAppFn` side
+        column, now unblocked at nanoda parity, ≈4 % of `Init`), and below
+        them every symbol above 1 % is either the hash-consing the design is
+        built on or a walk that already carries every cutoff and memo
+        con-leche itself has — so P6 should end after one more task.
+
 Branch `arena`; master stays shippable until (C) passes the gates and the
 fixtures.  Budget from con-leche's record, scaled: (B) ~12 k lines,
 Theorem 1 ~40–50 k lines (con-leche's core tower was 34.5 k for the core
@@ -33773,3 +33810,333 @@ absorbed — it is §2.3, and therefore part of the owed lemma.
     `Init`, is now one more caller heavier: `defeq_peel` builds one `Vec` per
     peeled level as the annotation and inference loops do.  Its fix is the
     representation change that task already priced as a task of its own.
+
+### Task #97-P6-15 — the node record built once, and the accumulators pushed (2026-09-21, Opus under Fable)
+
+Phase P6 item 15 of §8.6: the two levers task #97-P6-13 §9 named and did not
+take.  RUST-FIRST under §8.6, twin ledger in §6; NATURAL tweaks only (the
+maintainer's ruling before §8.7).  Branch `p6-15` off `arena`'s tip
+`bf3f656f`; **`arena` moved twice under it** — the accumulator ruling
+(`0ef505e0`) and then task #97-P6-14's batched defeq binder descent
+(`043f75a4`) — and both were merged in, so **§5's table is the MERGED pair**:
+the merged `arena` tip's `crates/` against this branch's, one tree, one
+`[profile.release]`, both binaries `md5sum`ed against a fresh build of their
+own tree.  The per-lever table of §4 is the PRE-merge sequence, where each
+lever was measured on its own.  The scratch and the profiles are
+`_tmp/t97-p6-15/`.
+
+**The measure.**  `perf stat -e instructions:u,cycles:u` of `--verified
+--jobs=1 --progress=1000000`, `ulimit -v` 8 GiB for `Init`, 12 GiB for the
+Mathlib 25 % prefix (`head -26948621`) and 27 GiB for Mathlib.  **Read the
+instruction column**: the cycles of one pass move by up to 5 % at load on this
+machine, while the instruction count of two passes of the same binary agrees
+to nine digits (every `Init` row below is two passes).  Task #97-P6-13's
+operational trap was respected with its own harness (`_tmp/t97-p6-15/try.sh`,
+which aborts on a failed build and `md5sum`s the binary it copies) — and it
+earned its keep: the `#[inline(always)]` probe on the ten `intern_e_*`
+wrappers produced a **byte-identical binary** (LLVM inlines a one-line
+delegation inside the crate anyway), which the `md5sum` named as a third pass
+of the previous variant rather than a null result.
+
+#### 1. Lever 1 — `EStore::intern` builds the node record three times
+
+Task #97-P6-13 §9: *"`intern` builds it twice for the two tier probes and once
+more for the `push` … dispatching `intern` on the view ONCE, into ten
+per-constructor paths that build the record once, is the next lever."*  The
+three constructions, found:
+
+| # | where | what it built |
+|---|---|---|
+| 1 | `pers_find_maybe` → `pers_find` → `ETables::find` | the record, from the view, behind a ten-arm dispatch |
+| 2 | `self.scr.find(&v)` → `ETables::find` | the SAME record again, another ten-arm dispatch |
+| 3 | `ETables::push` | the record a third time, a fourth ten-arm dispatch — and `Tbl::push` then copies it once more into the cons table, which is the twin's own double store |
+
+with `der_of_view`'s dispatch between 2 and 3 and `e_view_has_scratch_child`'s
+before 1: **five dispatches on the same tag** and, for a binder,
+`binder_meta_dup` at three of them.
+
+`EStore::intern` is now a ten-arm dispatch over
+`intern_bvar`/`intern_fvar`/`intern_sort`/`intern_const`/`intern_app`/
+`intern_lam`/`intern_forall_e`/`intern_let_e`/`intern_lit`/`intern_proj`, each
+of which builds its record ONCE and hands the same `&r` to the persistent
+probe, the scratch probe, the capacity test and the push — `intern`'s own
+clauses, in `intern`'s order.  `der_of_view`'s ten arms become ten `der_of_*`
+functions of the arm's own fields (the same bodies, the same order, the same
+imported `expr::` arithmetic), called from the paths and from `der_of_view`,
+which survives for `intern_persistent` and `arena::promote`.  **`Init`
+233.260 → 226.681 G, −2.82 %.**
+
+**Lever 1a, the view at the call sites.**  Every caller still BUILT an
+`ENodeView` — 32 bytes with a `BinderMeta` in it, passed by value, taken apart
+by the dispatch and dropped; `drop_glue::<ENodeView>` alone was 1.0 % of
+`Init`'s cycles.  `monad::intern_e_<ctor>` takes the arm's fields, and a
+balanced-paren rewriter converted **276 of the 280 `intern_e(…,
+ENodeView::C(…))` sites** and REPORTED the four it could not match rather than
+guessing (they pass a view in a variable).  −0.53 % of `Init` and, with lever
+1, −3.25 % of the prefix.
+
+**Lever 1b, the arms inlined.**  With `intern_app` split out, the profile put
+`der_of_app` at 2.5 % of `Init` as an out-of-line call — one per cons-table
+MISS, the record's fields spilled to it.  Each arm has exactly one hot caller,
+so `#[inline(always)]` on the nine joins its arithmetic to the path that
+already holds them: **−0.71 % of `Init`, −0.74 % of the prefix.**
+
+**Lever 1c, `intern_rebuilt`.**  The 276 did not include the twenty-three
+sites that go through `intern_rebuilt` (task #97-P6-5's upward cutoff), which
+are the hottest interns in the crate — the rebuild of every node of
+`instantiate1`, `instantiate_list`, `abstract1`, `abstract_range` and
+`instLPGo`.  `intern_rebuilt_<ctor>` plus `intern_rebuilt_bind` (for the two
+walks that carry the binder tag in a variable) take the fields.  Small, and
+expected to be: LLVM was already sinking most of the view construction into
+the non-`same` branch.  **−0.09 % of `Init`, −0.40 % of the prefix** at
+−1.3 % of its cycles — kept as the strictly smaller spelling and reported as
+a near-null result.
+
+#### 2. Lever 2 — the `cons_eidx` accumulators, and the ruling that shaped them
+
+Task #97-P6-13 §5 left this as *"a task, not a lever"*: `cons_eidx(&a, acc)`
+allocates a fresh `Vec` and copies the whole tail into it, so one telescope of
+`n` binders is `n` allocations and `n²/2` handle copies, and `eidx_copy_upto`
+was **4.3 % of `Init`**.  Its own note listed the candidate spellings and
+judged every one of them either outside the extraction's `Vec` subset or a
+representation change.
+
+**Maintainer's ruling (2026-09-21, now §8's own paragraph):** *"a `List`
+accumulator built by `::` in the Lean twin, mirrored as an insert-at-front on
+a `Vec`, is quadratic and silly.  The twin uses `Array` with `Array.push` and
+the Rust `Vec::push` — idiomatic in both tiers, the same denotation as the
+reversed list — and reads the accumulator from the end where the algorithm
+consumed the list's head.  A twin clause change (owed to the Lean catch-up),
+not a representation absorbed by the refinement."*
+
+So the thirteen substitution accumulators take an **owned** `Vec<EIdx>` and
+`push` — which is the shape the `stk` beside them in the very same loops
+already had — and the `instantiate_list` family reads its vector from the END.
+The census first; `acc`/`fvs` turned out to be used in exactly three ways and
+nothing else, which is what made the change mechanical:
+
+| use | sites |
+|---|---|
+| `instantiate_list_fast(…, acc, 0)` | 26 |
+| `cons_eidx(&x, acc)` — the step | 13 |
+| `acc.len() == 0` | 1 |
+
+The thirteen: `beta_peel`, `iota_certs_aux`, `infer_spine`, `infer_spine_io`,
+`infer_lams` and `infer_lams_leaf`, `infer_pis` and `infer_pis_leaf`,
+`annotate_lams` and `annotate_lams_leaf`, `annotate_pis` and
+`annotate_pis_leaf`, `open_pis_at_fvars_f_go` — and, after the merge,
+task #97-P6-14's `defeq_peel`/`defeq_peel_leaf`, which is the same shape and
+whose conversion was not optional: the family reads its vector backwards now,
+so leaving that one alone would have been WRONG and not merely slow.
+
+Three consequences, each small and each the point:
+
+  * `instantiate_list`'s `bvar` arm reads `vs[vs.len() - 1 - i]` for the
+    twin's `vs[i]`, and `last_eidx k` — a suffix — for the twin's
+    `vs.take k`.  Nothing else in the family touches `vs` but `vs.len()`.
+  * `proj_entry_type_at`'s `pe :: targs.reverse` is `targs ++ [pe]`, one sized
+    `push` where it was a reverse and a cons of the whole argument vector.
+  * `inst_pis_at_f_go` and `inst_lams_at_f_go` are the ONLY two that cannot
+    own their accumulator — they read it again AFTER the recursive call — so
+    they keep a copying step (`snoc_eidx_of`, moved beside `cons_eidx`).  Task
+    #97-P6-9 measured the pair at 260 calls and 0 interns on the whole of
+    `Init`.
+
+**`Init` 225.475 → 219.759 G, −2.53 %**, the prefix −1.83 %, and
+`eidx_copy_upto` leaves the top thirty of both profiles.
+
+`t_instantiate_list` gained the case that tells the two orders apart.  The
+test had compared the pure `instantiate_list` against the arena's on `big`,
+`let_t` and `b2` — and **every one of those reaches entry 0 only**, so it
+passed under either convention; `app (bvar 0) (bvar 1)` against `[cf, s1]`
+uses both, and it fails when the vector is handed over in list order (checked,
+by handing it over in list order).
+
+#### 3. The profile after
+
+`perf record -F 99` of the final binary on the Mathlib 25 % prefix, the
+campaign's iteration benchmark.  `check-0` is the check-phase worker and
+`bin-d1` the main thread (phase A, the parse and the installs), so the two
+`intern_app` rows are one symbol.
+
+| # | symbol | share | what it is |
+|---|---|---:|---|
+| 1 | `EStore::intern_app` | **13.00 %** (9.33 + 3.67) | hash-consing itself: two open-addressed probes into tables of millions of entries over a 32 MB L3 |
+| 2 | `expr_ops::instantiate_list_go` | 7.80 % | the memoised bulk substitution |
+| 3 | `expr_ops::inst_lp_go` | 5.68 % | level-parameter substitution |
+| 4 | `HashMap2<EIdxNat, EIdx>::insert_no_resize` | 3.06 % | the per-call memo tables |
+| 5 | `core::whnf_app` | 2.09 % | the spine walk |
+| 6 | `expr_ops::instantiate_list` | 1.92 % | the unmemoised walk the `bvar` arm calls |
+| 7 | `core::get_app_spine_go` | 1.80 % | the head-and-arguments walk |
+| 8 | `scan_fast::next_member` | 1.43 % | the parser |
+| 9 | `expr_ops::abstract_range_go` | 1.39 % | the binder loops' abstraction |
+| 10 | `scan_fast::scan_line_loop` | 1.35 % | the parser |
+
+with `HashMap2<EIdxNat,·>::insert` 1.20 %, `HashMap2<EIdx,bool>::
+insert_no_resize` 1.08 % and `::move_slots` 0.83 %, `str_copy_from` 1.21 %,
+`all_level_params_defined_go` 1.06 %.  On `Init` the order is `intern_app`
+13.33 % (10.84 + 2.49), `instantiate_list_go` 10.62 %, `whnf_app` 4.77 %,
+`knot_whnf_core` 3.18 %, `get_app_spine_go` 2.90 %, `instantiate_list`
+2.88 %, the `EIdxNat` memo 2.22 %, `inst_lp_go` 2.16 %, `scan_line_loop`
+1.95 %, `get_app_args_go` 1.49 %.
+
+What is NOT in either list any more: `EStore::intern` (the dispatch),
+`EStore::pers_find`, `EStore::der_of_view`, `ETables::push`,
+`drop_glue::<ENodeView>` and `eidx_copy_upto` — the six symbols the two levers
+were aimed at.
+
+#### 4. The per-lever table
+
+The PRE-merge sequence, each lever measured on its own, `--verified
+--jobs=1`; both columns are two passes on `Init` and they agree to nine digits
+on instructions.
+
+| step | `Init` instructions | Δ | prefix instructions | Δ |
+|---|---:|---:|---:|---:|
+| the `arena` tip `bf3f656f` (task #97-P6-13 merged) | 233 260 075 286 | — | 931 028 632 443 | — |
+| + lever 1 — `intern` dispatched once, over the record | 226 681 231 114 | **−2.82 %** | — | |
+| + lever 1a — the view gone at 276 call sites | 225 474 828 876 | −0.53 % | 900 771 988 052 | **−3.25 %** |
+| + lever 2 — the accumulators built with `push` | 219 758 586 012 | **−2.53 %** | 884 294 645 294 | **−1.83 %** |
+| + lever 1b — the nine `der_of_*` arms inlined | 218 202 803 818 | −0.71 % | 877 784 093 217 | −0.74 % |
+| | | **−6.45 %** | | **−5.72 %** |
+
+then the merge with task #97-P6-14 and lever 1c (`Init` −0.09 %, prefix
+−0.40 %).  The declined probes: `#[inline(always)]` on `EStore::pers_find`,
+`pers_find_maybe` and `e_view_has_scratch_child` is **+0.52 % of `Init`** and
+is not taken (the record still had to be rebuilt for the second probe, so the
+inline bought only code); the same attribute on the ten `intern_e_*` wrappers
+is a byte-identical binary.
+
+#### 5. The table, beside `con-ron` at master and nanoda
+
+| export | | `arena` tip `043f75a4` | **this branch** | Δ | `con-ron` master | nanoda |
+|---|---|---:|---:|---:|---:|---:|
+| `Init`, 57 977 | instructions:u | 232 243 770 133 | **217 071 612 109** | **−6.53 %** | 412 284 710 704 | 231 248 123 456 |
+| | cycles:u | 109.28 / 109.37 G | 99.88 / 100.93 G | −8.2 % | | 112.28 G |
+| | wall | 25.00 / 25.04 s | 22.79 / 23.12 s | −8.3 % | | |
+| | peak RSS | 631.5 MB | 631.6 MB | ±0 | | |
+| Mathlib 25 % prefix, 155 288 | instructions:u | 912 057 183 120 | **856 906 803 547** | **−6.05 %** | — | 1 187 196 874 884 |
+| | cycles:u | 442.97 G | 408.02 G | −7.9 % | | |
+| | wall | 101.2 s | 93.1 s | −8.0 % | | |
+| | peak RSS | 1 979.4 MB | 1 983.6 MB | +0.2 % | | |
+| **Mathlib, 691 128** | instructions:u | 4 229 374 977 466 | **3 973 089 368 261** | **−6.06 %** | 7 541 754 140 806 | ≈6 054 G |
+| | cycles:u | 2 382.98 G | **2 140 852 064 194** | −10.2 % | | |
+| | wall | 565.3 s | **506.3 s** | −10.4 % | | |
+| | peak RSS | 7.17 GB | **7.19 GB** | +0.2 % | 7.56 GB | |
+
+(the tip's Mathlib row is task #97-P6-14's measurement, quoted, not re-run
+here; the `Init` and prefix rows ARE re-run in this session on this machine,
+and the tip's `Init` reproduces task #97-P6-14's 232.24 G exactly, so the two
+tasks measure the same binary on the same file.)  The verdicts are unchanged
+at every size: `accepted 57977`, `accepted 155288`, `accepted 691128`.
+
+| export | `arena` tip | **this branch** | vs master | vs nanoda |
+|---|---:|---:|---:|---:|
+| `Init` | 232.24 G | **217.07 G** | 0.563× → **0.527×** | 1.004× → **0.939×** |
+| Mathlib 25 % prefix | 912.06 G | **856.91 G** | — | 0.768× → **0.722×** |
+| **Mathlib** | 4 229.37 G | **3 973.09 G** | 0.561× → **0.527×** | 0.699× → **0.656×** |
+| Mathlib peak RSS | 7.17 GB | **7.19 GB** | 0.948× → **0.951×** | — |
+
+**The arena checks Mathlib in 66 % of nanoda's instructions and 53 % of
+`con-ron` at master's**, and `Init` is under nanoda for the first time
+(0.939×, from 1.004× at the tip).  Peak RSS is flat and inside CLAUDE.md's
+3× budget at every size.
+
+#### 6. The twin ledger (§8.6's P6 rule)
+
+| arena item | what it is | the twin's clause | owed or absorbed |
+|---|---|---|---|
+| `EStore::intern_{bvar,fvar,sort,const,app,lam,forall_e,let_e,lit,proj}` | `intern`'s clauses over the node RECORD, one per constructor | OWED, ten `def`s | owed and cheap: `internC r = intern (viewOf r)` per constructor, each `rfl` after the `match`; the clause ORDER is `intern`'s own (persistent probe, scratch probe, cap, push) and the persistent skip is `eViewHasScratchChild`'s arm spelled on the record |
+| `EStore::der_of_{bvar,fvar,sort,const,app,lit,proj}`, `der_of_bind_at`, `der_of_let_at` | the ten arms of `derOfView` as functions of the arm's fields | OWED, nine `def`s | owed; `derOfView` is their dispatch and the equation is `rfl` per arm.  The bodies are unchanged — still `con_ron_core::kernel::expr`'s own smart-constructor arithmetic, imported |
+| `monad::intern_e_<ctor>` (ten) | `internE` over the arm's fields | OWED, ten `def`s | owed; `internEC … = internE (.C …)`, `rfl` |
+| `expr_ops::intern_rebuilt_<ctor>` (ten) and `intern_rebuilt_bind` | `internRebuilt` over the arm's fields | OWED, eleven `def`s | owed, same shape; `intern_rebuilt_bind` is the two binder arms at a tag the caller carries, which is `eBindView`'s own choice made one step earlier |
+| **the thirteen substitution accumulators: `List` + `::` → `Array` + `Array.push`** | `betaPeelI`, `iotaCertsIAux`, `inferSpineI`, `inferSpineIOI`, `inferLamsI`(+leaf), `inferPisI`(+leaf), `annotateLamsI`(+leaf), `annotatePisI`(+leaf), `openPisAtFvarsFGo`, `defeqPeel`(+leaf) | **OWED — a CLAUSE change**, by the maintainer's ruling: the twin's accumulator becomes an `Array` built with `Array.push` | owed; the denotation is the reverse of the list the `::` chain built, so each clause's own soundness statement is unchanged once `instantiateList` reads the array backwards |
+| `instantiate_list`'s `vs[vs.len() - 1 - j]` and `last_eidx k` | the reversed read of a push-order vector | OWED, with the accumulators above | owed; two equations, `(revList xs)[j] = xs[xs.size - 1 - j]` and `((revList xs).take k) = revList (lastEidx xs k)` |
+| `proj_entry_type_at`'s `targs ++ [pe]` for `pe :: targs.reverse` | the same list in push order | OWED, with the above | owed; `reverse (pe :: reverse targs) = targs ++ [pe]`, a `List` lemma |
+| `snoc_eidx_of` moved from `arena::core` to `arena::expr_ops`, and used as the copying accumulator step at `instPisAtFGo`/`instLamsAtFGo` | `xs ++ [y]` at a borrowed `xs`, sized once | — | **absorbed**: a capacity and an elided copy of a list Lean shares by value (§3.2), already ledgered by task #97-P6-13 |
+| `#[inline(always)]` on the nine `der_of_*` | a codegen attribute | — | **absorbed**: Charon does not read attributes; the extraction is hole-for-hole identical |
+| the accumulators' `&Vec<EIdx>` → `Vec<EIdx>` (ownership) | a borrow made a move | — | **absorbed**: Lean's value semantics has no borrow, and the twin's `Array` is threaded linearly the way `stk` already is in the same loops |
+
+Nothing here is a different algorithm.  The interns are the same clauses read
+off the record instead of off the view; the accumulators are the same lists
+with the `Vec` growing the other way; the one genuinely new equation is the
+reversed read, and it is two `List` lemmas.
+
+#### 7. Gates
+
+| gate | |
+|---|---|
+| `cargo build --release` / `cargo test --release`, `RUSTFLAGS="-D warnings"` | clean, 0 failures |
+| `scripts/lint-rust-style.sh crates/arena-core/src` | clean |
+| `scripts/provenance.py check` | **0 findings** — `6695 item(s) (4942 Rust, 1753 arena Lean), 4941 citation(s), all current at pin 78ded4b6` |
+| `scripts/extract-arena.sh --dry` | **0 errors, 5 type + 211 function holes** — the tip's own count, unchanged by 4 300 lines of new Rust |
+| `scripts/diff-e2e.sh --bin=target/release/con-ron-arena --jobs=1` | **383/383 agree**, 0 differ, 0 timed out, at `--verified` and at `--trusted` |
+| the diff | `arena/{store,monad,expr_ops,core,checker_base,decl_check,pins,promote,trust_axioms}.rs`, `arena/inductives/*.rs`, `frontend/proj_rec.rs` — nothing else under `crates/` |
+
+`proof/`, `crates/con-ron`, `crates/con-ron-core`, `OVERVIEW.md` and
+`README.md` are untouched.
+
+#### 8. What is left — and the verdict on P6
+
+**Two NATURAL levers remain, both already priced, and below them what is left
+is algorithmic or lives in `con-ron-core`.**
+
+Still natural, still on the queue:
+
+  * **The `BinderMeta` column** (task #97-P6-10 §3, priced at 2–3 % of `Init`
+    and untaken twice since).  It is the shape the derived word already has —
+    a parallel column on the binder tables — and it takes `binder_meta_dup`
+    off every binder visit that does not want the metadata.  A `Tbl`
+    representation change with an exactness lemma, i.e. the same kind of
+    obligation §8.3's derived column already carries.
+  * **§8.6's own deferred optimisation, now unblocked**: the eagerly cached
+    `getAppFn` / `getAppNumArgs` side columns on the `app` table, which the
+    maintainer deferred *"for AFTER the catch-up with nanoda — not before,
+    since a lever taken early can offset and hide other areas of
+    improvement"*.  The catch-up is passed at every size now (0.939× on
+    `Init`, 0.656× on Mathlib), and the profile prices it: `get_app_spine_go`
+    2.90 % of `Init` and 1.80 % of the prefix, `get_app_args_go` 1.49 % of
+    `Init`, `get_app_fn` ≈1 %.  Its own instruction stands — *"worth it only
+    if many `getAppFn` calls do NOT also want the argument list; count both
+    before deciding"*.
+
+Two smaller ones, named by earlier tasks and still open: `env::
+eidx_vec_dup_from`, whose caller task #97-P6-13 could not find with a
+frame-pointer profile (a per-call-site counter answers it in an hour); and
+`residual_pw` / `all_level_params_defined_node`, which hold only `&AState` and
+so keep the unmemoised readback (`all_level_params_defined_go`, 1.06 % of the
+prefix).
+
+**And the rest of the profile is not a lever.**  Symbol by symbol:
+
+  * `EStore::intern_app`, 13.0 % and the largest, is hash-consing itself.  The
+    record is built once now, the hash is a `pack2` (task #97-P6-13), both
+    probes share both, and the persistent probe is skipped whenever a child is
+    scratch.  What is left is two open-addressed probes into tables of
+    millions of entries over a 32 MB L3 — cache misses, not instructions.
+    Fewer of them means interning fewer nodes, which is an algorithm, or a
+    different table, which is `ron::hashmap2` in `con-ron-core`.
+  * `instantiate_list_go` (7.8 %) and `instantiate_list` (1.9 %) already carry
+    the derived-word cutoff, the per-call memo, con-leche's batched list and
+    now an `O(n)` accumulator.
+  * `inst_lp_go` (5.7 %) already carries con-leche's own `hasLP = false`
+    cutoff, the per-call expression memo AND task #97-P6-13's per-handle
+    `LIdx ↦ LIdx` / `LsIdx ↦ LsIdx` memos.  What is left is Mathlib's
+    genuinely level-parametric subtrees.
+  * The `EIdxNat` memo tables (≈5.2 % of the prefix across `insert`,
+    `insert_no_resize`, `move_slots` and `clear_fit`) are sized by task
+    #97-P6-7's `clear_fit` already; shrinking the `(EIdx, u64)` key or
+    changing the probe is a `ron::hashmap2` change, i.e. `con-ron-core`, and
+    outside this task's files.
+  * The parser (`scan_line_loop` + `next_member`, ≈2.8 % of the prefix) is
+    phase A, ported one-to-one, and is now a visible share only because the
+    check phase shrank around it.
+
+**So: P6 should end after ONE more task** — the `BinderMeta` column and the
+`getAppFn` side column, which are the last two natural levers with a price on
+them, together worth perhaps 5 % of `Init`.  After those, the next honest step
+is not another tweak but §8.6's P3/P5, the proofs: the campaign has taken the
+arena from 1.91× nanoda at task #97-P6-3's baseline to 0.656×, and every
+symbol still above 1 % of the profile is either the hash-consing the design is
+built on or a walk that already carries every cutoff and every memo con-leche
+itself has.
