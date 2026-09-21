@@ -33,6 +33,35 @@ namespace ConRon.Arena
 open ConLeche
 
 /-- con-leche: ConLeche/Kernel/CoreGated.lean:61-115 whnfCoreBodyGated —
+**the gated `.app` clause**, named so that task #97-P6-7's upward cutoff has a
+subject here too: the node the reduction rebuilds is the one the spine already
+has whenever the head did not move (`internAppRebuilt`), and the stuck step is
+`Core.lean`'s `whnfCoreStuckApp`.
+
+The gated lane is **not** batched: it is class (S), it is not executed, and
+con-leche's cached tier has no gated twin of `whnfAppI` either (task
+#97-P6-9's ledger).  So this clause stays the chained one, and
+`whnfCoreStuckApp` survives for it. -/
+def whnfCoreAppGated (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (h : EIdx) (same : Bool) (fp a : EIdx) : AM EIdx := do
+  if fp.tag == ETag.lam then
+    match ← viewBind fp with
+    | none => failDanglingE
+    | some (ty, body, mb) => do
+      -- **THE β SITE.**  The gate wraps the test only; both arms are
+      -- `whnfCoreBody`'s verbatim.
+      let ok ←
+        if mode.verifiedChecks && mb.pw.isNever then pure true
+        else do
+          let ta ← r.infer depth a
+          r.defeq depth ta ty
+      if ok then do
+        let b ← instantiate1Fast coreWalkFuel body a 0
+        r.whnfCore depth b
+      else internAppRebuilt h same fp a
+  else whnfCoreStuckApp mode r fe depth h same fp a
+
+/-- con-leche: ConLeche/Kernel/CoreGated.lean:61-115 whnfCoreBodyGated —
 **the gated head-normalization body**: `whnfCoreBody` with the `.app`
 clause's β certificate skipped at a `.never` binder under
 `mode.verifiedChecks`.  The projection certificate is NOT gated — the
@@ -46,24 +75,7 @@ def whnfCoreBodyGated (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
     | .lit _ => pure e
     | .app f a => do
       let f' ← r.whnfCore depth f
-      match ← view f' with
-      | .lam ty body mb => do
-        -- **THE β SITE.**  The gate wraps the test only; both arms are
-        -- `whnfCoreBody`'s verbatim.
-        let ok ←
-          if mode.verifiedChecks && mb.pw.isNever then pure true
-          else do
-            let ta ← r.infer depth a
-            r.defeq depth ta ty
-        if ok then do
-          let b ← instantiate1Fast coreWalkFuel body a 0
-          r.whnfCore depth b
-        else internE (.app f' a)
-      | _ => do
-        let ap ← internE (.app f' a)
-        match ← iotaRec mode r fe depth ap with
-        | some e'' => r.whnfCore depth e''
-        | none => pure ap
+      whnfCoreAppGated mode r fe depth e (f' == f) f' a
     | .proj sn i pe => do
       let e0 ← r.whnf depth pe
       let e' ← projLitToCtor r fe depth e0
