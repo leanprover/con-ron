@@ -941,7 +941,7 @@ theorem not_proof_fast_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {a : expr.
 
 /-- `prop_read::is_proof_fast` refines `isProofFast` at `lfe.find?`
 (`PropRead.lean:148-153`): the yes arm, the one the squash-regime licence of
-`ConLeche/Model/Steps/IrrelFast.lean` reads. -/
+`ConLeche/Model/Rules/DefEqSoundKit.lean` reads. -/
 theorem is_proof_fast_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv} {a : expr.Expr}
     {c : Bool} (hfe : FindAgree fe lfe) (hwf : FindWF fe) (ha : ExprWF a)
     (h : prop_read.is_proof_fast fe a = ok c) :

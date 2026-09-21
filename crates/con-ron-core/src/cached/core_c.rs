@@ -335,7 +335,6 @@ pub fn reduce_nat_lits_i(
 
 /// con-leche: ConLeche/Cached/CoreC.lean:154-193 iotaCertsIAux
 /// con-leche: ConLeche/Kernel/Core.lean:210-243 iotaCerts
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove crates/con-ron-core/src/cached/core_c.rs_refines, then delete this line
 /// **The bulk telescope certificate** (con-leche's task #50): peel the raw
 /// telescope while accumulating the certified arguments, substituting only
 /// each binder's *domain* (small, and through the `instC` memo) instead of
@@ -411,7 +410,6 @@ pub fn iota_certs_i_aux(
 
 /// con-leche: ConLeche/Cached/CoreC.lean:195-199 iotaCertsI
 /// con-leche: ConLeche/Kernel/Core.lean:210-243 iotaCerts
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove core_c::iota_certs_i_refines, then delete this line
 /// Certify a spine against a recursor telescope: the accumulator loop at the
 /// empty accumulator and the first argument.
 pub fn iota_certs_i(
@@ -657,7 +655,6 @@ pub fn prop_legs_i(
 
 /// con-leche: ConLeche/Cached/CoreC.lean:328-354 propIrrelI
 /// con-leche: ConLeche/Kernel/Core.lean:307-349 propIrrel
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove core_c::prop_irrel_i_refines, then delete this line
 /// **The hoisted proof-irrelevance test**: the `Prop` branch of
 /// `proof_irrel_i` alone, with the two head-symbol fast arms in front — the
 /// "not a proof" arm (`prop_read::not_proof_fast` on either side refuses the

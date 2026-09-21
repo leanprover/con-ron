@@ -2430,8 +2430,7 @@ pub fn rev_append_exprs(out: Vec<Expr>, targs: &Vec<Expr>, k: usize) -> Vec<Expr
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1896-1928 betaGateFires
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove core_k::beta_gate_fires_refines, then delete this line
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:981-1013 betaGateFires
 /// **THE β SITE'S GATE**: at `mode.betaGate` a λ-binder whose *validated*
 /// annotation datum is `.never` licenses skipping the certificate.  Mode and
 /// datum only — no expression is read and no computation is run, which is
