@@ -83,6 +83,21 @@ check_unsafe() {
 }
 check_unsafe
 check "std::collections" 'std::collections'
+# The counted-pointer API, and what the rule is actually about.  The banned
+# names all let the count or the pointee ESCAPE into a value the model cannot
+# see: `get_mut`/`make_mut` mutate THROUGH a share, which is exactly what "an
+# `Arc` is its contents" cannot express; `strong_count` puts the count itself
+# into a number a program can compute with; the raw-pointer and `Weak` names
+# hand out identities.  A *read of the count that only selects an equivalent
+# path* is a different thing and is allowed — `ron::tagged::Raw::is_exclusive`,
+# the port of con-leche's `withExclusive` (task #98), whose answer never
+# reaches a value and whose model is `false`, the branch that always memoises
+# (OVERVIEW.md §8.1's row argues it).  It is deliberately NOT spelled
+# `Arc::strong_count`: it is one method on the crate's own handle, `pub(crate)`
+# like the rest of `tagged.rs`, reachable from the core through the single
+# `ron::node::is_exclusive`, and the names below stay banned so that nothing
+# reads an `Arc`'s count -- `Name`, `Level`, `PropWhen` and `ConstantInfo`
+# are still `Arc` and nothing needs their counts.
 check "P/Rc/Arc API beyond new/clone/deref/ptr_eq" '\b(P|Rc|Arc)::(get_mut|make_mut|downgrade|try_unwrap|into_raw|from_raw|as_ptr|strong_count|weak_count|increment_strong_count|decrement_strong_count)|RefCell|Cell<'
 check "panics as control flow" '\b(panic!|unwrap\(\)|expect\(|unreachable!|todo!|unimplemented!)'
 exit $fail

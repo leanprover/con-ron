@@ -5,7 +5,24 @@
 //!
 //! The block's records are ordinary inductive records; every record below is
 //! checked by the fold as a stream declaration, and a wrong one rejects or
-//! declines, never accepts.  Declines name the residual.
+//! declines, never accepts.  Declines name the residual: nested members (B3),
+//! a field mentioning the block other than as a member application under the
+//! field's own block-free binders (a nested or non-positive occurrence), a
+//! `Prop` block with a large eliminator (the auxiliary family has ≥ 2
+//! constructors, so it eliminates into `Prop` only).
+//!
+//! **Reflexive members are this rung's.**  The export's `is_reflexive` flag
+//! used to be a decline here, a shortcut con-leche took from
+//! lean-inductive-models: the tool never looked at the flag (it handed the
+//! auxiliary family to Lean's kernel, which minted the recursor with the
+//! reflexive hypotheses itself), while `Kit`'s private recursor generator had
+//! no field telescopes.  `kit::rec_ty`/`rec_rhs` are now the fixpoint route's
+//! own generators, `spec_fam` rewrites a member occurrence under a reflexive
+//! field's own binders too (`∀ a⃗, T_m' p⃗ e⃗` becoming
+//! `∀ a⃗, aux p⃗ (tag.m' p⃗ e⃗)`), and the iota theorems pass
+//! `λ a⃗, T_m'.rec._model p⃗ M⃗ S⃗ e⃗(a⃗) (f a⃗)` at a reflexive field.  The
+//! block this declined was con-leche's own rules tier, whose premises are
+//! guarded (`(g = .full → Infer …)`) — i.e. the self-check.
 //!
 //! Deviations beyond `kit`'s three:
 //!
@@ -25,6 +42,7 @@ use con_ron_core::kernel::env::{ConstantInfo, ConstantVal, RecRule};
 use con_ron_core::kernel::expr;
 use con_ron_core::kernel::expr::{Expr, ExprView};
 use con_ron_core::kernel::expr_ops;
+use con_ron_core::kernel::inductives::native_parts;
 use con_ron_core::kernel::inductives::struct_parts;
 use con_ron_core::kernel::level;
 use con_ron_core::kernel::level::Level;
@@ -48,7 +66,7 @@ use crate::in_model::kit::{
 // order are unchanged, so nothing below this line had to move.
 pub use con_ron_core::frontend::in_model_rec::{BlockRec, IndCtorRec, IndRecRec, IndTypeRec};
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:101-108 Ctx
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:117-124 Ctx
 /// What the generator reads besides the block: the declared types of the
 /// constants so far, the definitional heights, and the parsed inductive
 /// blocks so far by member type name (the nested rung reads a container's
@@ -59,7 +77,7 @@ pub struct Ctx<'a> {
     pub blocks: &'a dyn Fn(&Name) -> Option<&'a BlockRec>,
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:110-116 MCtor
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:126-132 MCtor
 /// A constructor of member `m`, classified: its record, its recursive field
 /// positions with the target member of each.
 pub struct MCtor<'a> {
@@ -68,7 +86,7 @@ pub struct MCtor<'a> {
     pub rec_fields: Vec<(u64, u64)>,
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:118-131 memberApp?
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:134-147 memberApp?
 /// Is `e` member `m'` of the block applied to the parameter variables (`o`
 /// binders below the parameter frame) and `nIdx_{m'}` index expressions?
 /// Returns the member.
@@ -100,11 +118,16 @@ pub fn member_app(
     }
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:133-153 classifyCtor
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:149-180 classifyCtor
 /// Classify one constructor's fields: each domain is ordinary (no member
-/// mentioned) or exactly a member at the parameters and some index
-/// expressions (`T_{m'} p⃗ e⃗`); anything else is not this rung's (nested,
-/// reflexive, non-positive).  `members` lists `(T, m, nIdx)`.
+/// mentioned) or, under its own `∀`-telescope whose domains do not mention
+/// the block (empty at a finitary field), exactly a member at the parameters
+/// and some index expressions (`∀ a⃗, T_{m'} p⃗ e⃗`) — official
+/// `check_positivity`'s telescope walk, syntactically; anything else is not
+/// this rung's (nested, non-positive).  `members` lists `(T, m, nIdx)`.  A
+/// recursive field is recorded by position and target member; its telescope
+/// is read off the constructor's type again where it is needed
+/// (`native_parts::struct_field_tele_of`, the iota right-hand sides).
 pub fn classify_ctor<'a>(
     members: &[(Name, u64, u64)],
     lps: &[Name],
@@ -124,16 +147,29 @@ pub fn classify_ctor<'a>(
     let mut rec_fields: Vec<(u64, u64)> = Vec::new();
     for i in 0..c.n_f {
         let d = get_d(&pi_binders(&bs), n_p + i);
-        match member_app(members, lps, n_p, i, &d) {
-            Some(m2) => rec_fields.push((i, m2)),
-            None => {
-                if mentions_any(&member_names, &d) {
+        if mentions_any(&member_names, &d) {
+            let (tele, body) = native_parts::pi_binders(&d);
+            for b in tele.iter() {
+                if mentions_any(&member_names, &b.0) {
                     return Err(format!(
-                        "field {} of {} mentions the block other than as a plain \
-                         member application (nested, reflexive or non-positive occurrence)",
+                        "field {} of {}: non-positive occurrence (the block in the \
+                         domain of the field's own binder)",
                         i,
                         name_str(&c.cv.name)
                     ));
+                }
+            }
+            // the parameters sit `i + tele.length` binders up at the residual
+            match member_app(members, lps, n_p, i + tele.len() as u64, &body) {
+                Some(m2) => rec_fields.push((i, m2)),
+                None => {
+                    return Err(format!(
+                        "field {} of {} mentions the block other than as a plain \
+                         member application under the field's own binders (nested or \
+                         non-positive occurrence)",
+                        i,
+                        name_str(&c.cv.name)
+                    ))
                 }
             }
         }
@@ -145,13 +181,13 @@ pub fn classify_ctor<'a>(
     })
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:155-158 need
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:182-185 need
 /// Unwrap a generator step that cannot fail on a well-formed block.
 pub fn need<T>(what: &str, o: Option<T>) -> Result<T, String> {
     o.ok_or_else(|| format!("internal shape failure: {}", what))
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:160-452 genMutual
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:187-484 genMutual
 /// **The mutual rung** (B1 index-free, B2 indexed).  The records, in stream
 /// order: the tag block, the auxiliary block, the member/constructor/recursor
 /// models, the iota theorems, the projection artifacts.
@@ -167,9 +203,6 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
     for t in b.types.iter() {
         if t.num_nested != 0 {
             return Err(format!("nested member {} (B3)", name_str(&t.cv.name)));
-        }
-        if t.is_reflexive {
-            return Err(format!("reflexive member {}", name_str(&t.cv.name)));
         }
         if !con_ron_core::frontend::export::names_beq(&t.cv.level_params, &lps) || t.n_p != n_p {
             return Err(format!(
@@ -799,16 +832,25 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
             );
             let mut rhs_args = dup_all(&fields);
             for (i, tgt) in mc.rec_fields.iter() {
-                // the recursive field's index expressions, lifted from its
-                // binder to the statement frame
-                let idx_i: Vec<Expr> = expr_ops::get_app_args(&expr_ops::lift_loose_bvars(
+                // the recursive field's domain `∀ a⃗, T_tgt p⃗ e⃗(a⃗)`, lifted
+                // from its binder to the statement frame; the hypothesis'
+                // value is `λ a⃗, T_tgt.rec._model p⃗ M⃗ S⃗ e⃗(a⃗) (f_i a⃗)`
+                // (official `mk_rec_rules`; at a finitary field `a⃗` is empty
+                // and this is the recursor at the field)
+                let (tele, body) = native_parts::pi_binders(&expr_ops::lift_loose_bvars(
                     sub(n_f, *i),
                     0,
                     &get_d(&doms, *i),
-                ))
-                .into_iter()
-                .skip(n_p as usize)
-                .collect();
+                ));
+                let a = tele.len() as u64;
+                let idx_i: Vec<Expr> = expr_ops::get_app_args(&body)
+                    .into_iter()
+                    .skip(n_p as usize)
+                    .collect();
+                let mut prefix_a: Vec<Expr> = Vec::new();
+                for v in prefix_vars.iter() {
+                    prefix_a.push(expr_ops::lift_loose_bvars(a, 0, v));
+                }
                 let rec_model = model_name(&kit::nstr(
                     match member_names.get(*tgt as usize) {
                         Some(nm) => name::dup(nm),
@@ -816,13 +858,17 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
                     },
                     "rec",
                 ));
-                rhs_args.push(expr_ops::mk_app_n(
+                let ih = expr_ops::mk_app_n(
                     expr::mk_const(rec_model, rlvls.iter().map(level::dup).collect()),
                     &app2(
-                        app2(dup_all(&prefix_vars), &idx_i),
-                        &[expr::bvar(sub(sub(n_f, 1), *i))],
+                        app2(prefix_a, &idx_i),
+                        &[expr_ops::mk_app_n(
+                            expr::bvar(sub(sub(n_f, 1), *i) + a),
+                            &native_parts::struct_tele_vars(a),
+                        )],
                     ),
-                ));
+                );
+                rhs_args.push(native_parts::mk_lams_of(&tele, ih));
             }
             let rhs = expr_ops::mk_app_n(expr::bvar(sub(sub(n_f + n, 1), big_j)), &rhs_args);
             let stmt = mk_pis(
@@ -1054,7 +1100,7 @@ pub fn gen_mutual(ctx: &Ctx, b: &BlockRec) -> Result<Vec<Declaration>, String> {
     Ok(out)
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:160-452 genMutual
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:187-484 genMutual
 /// con-leche: ConLeche/Frontend/InModel/Nested.lean:400-1316 genNested
 /// The `hOf` of both generators: the height of a constant, the definitions
 /// emitted by this block first (they are not in `ctx` yet), else the parse

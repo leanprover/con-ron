@@ -35,6 +35,7 @@ from its children, and equal children give an equal call.
 -/
 import ConRon.Refine.Level
 import ConRon.Refine.PropWhen
+import ConRon.Refine.Excl
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel

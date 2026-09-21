@@ -175,7 +175,8 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_cutoff hwfe hm hbb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind,
+        is_exclusive_eq, memo1_get_if_false] at h
       obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hk
@@ -203,9 +204,8 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
         subst eg1; subst eg2
         obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihf memo memo2 d f2 hm hf2
         obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := iha memo2 memo1 d a2 hm2 ha2
-        obtain ⟨e1, hdup, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memo4⟩ := p3
+        obtain ⟨memo4, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨e1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have e1' : r = r0 := (congrArg Prod.fst e0).symm
         have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm
@@ -226,7 +226,8 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_cutoff hwfe hm hbb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind,
+        is_exclusive_eq, memo1_get_if_false] at h
       obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hk
@@ -256,9 +257,8 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
         subst eg1; subst eg2
         obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 d t hm ht
         obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihbo memo2 memo1 dd b hm2 hb
-        obtain ⟨e1, hdup, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memo4⟩ := p3
+        obtain ⟨memo4, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨e1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have e1' : r = r0 := (congrArg Prod.fst e0).symm
         have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm
@@ -280,7 +280,8 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_cutoff hwfe hm hbb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind,
+        is_exclusive_eq, memo1_get_if_false] at h
       obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hk
@@ -310,9 +311,8 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
         subst eg1; subst eg2
         obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 d t hm ht
         obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihbo memo2 memo1 dd b hm2 hb
-        obtain ⟨e1, hdup, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memo4⟩ := p3
+        obtain ⟨memo4, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨e1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have e1' : r = r0 := (congrArg Prod.fst e0).symm
         have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm
@@ -334,7 +334,8 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_cutoff hwfe hm hbb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind,
+        is_exclusive_eq, memo1_get_if_false] at h
       obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hk
@@ -366,9 +367,8 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
         obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 d t hm ht
         obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihw memo2 memo3 d w2 hm2 hv2
         obtain ⟨⟨hwf4, habs4⟩, hm4⟩ := ihbo memo3 memo1 dd b hm3 hb
-        obtain ⟨e1, hdup, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p4, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memo5⟩ := p4
+        obtain ⟨memo5, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨e1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have e1' : r = r0 := (congrArg Prod.fst e0).symm
         have e2' : memo' = memo5 := (congrArg Prod.snd e0).symm
@@ -389,7 +389,8 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
     obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_cutoff hwfe hm hbb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind,
+        is_exclusive_eq, memo1_get_if_false] at h
       obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hk
@@ -415,9 +416,8 @@ theorem instantiate1_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
         have eg2 : r0 = r1 := (congrArg Prod.snd eg).symm
         subst eg1; subst eg2
         obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ih memo memo1 d u hm hu
-        obtain ⟨e1, hdup, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memo4⟩ := p3
+        obtain ⟨memo4, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨e1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have e1' : r = r0 := (congrArg Prod.fst e0).symm
         have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm
@@ -461,456 +461,22 @@ theorem instantiate1_refines {e v r : expr.Expr} {d : Std.U64} (he : ExprWF e)
       instantiate1_go_refines hv he memo memo' d r0 (new_memo_inv hnew) hgo
     exact ⟨habs, hwf⟩
 
-/-! ## `instantiate1Lift` (`ExprOpsC.lean:167-273`)
+/-! ## `instantiate1Lift` (`ExprOpsC.lean:294-341`)
 
-The capture-avoiding substitution, and the one operation of this module with
-*three* layers: the `bvarB` cutoff, a **budgeted plain descent** at 4096 nodes
-(no memo -- a table would be a tax on the small terms that are the common
-case), and the memoised walk past the budget.  The memoised layer is
-`expr_ops::instantiate1_lift_go` node for node, so its lemma is task #47's with
-the `.bvar` arm's two constructors changed (`expr::mk_bvar` and `expr::dup`
-where `expr_ops` writes `expr::bvar`); the budgeted layer is new.
+The capture-avoiding substitution: the `bvarB` cutoff, then the walk.  The
+walk is `expr_ops::instantiate1_lift_go` node for node, so its lemma is task
+#47's with the `.bvar` arm's two constructors changed (`expr::mk_bvar` and
+`expr::dup` where `expr_ops` writes `expr::bvar`).
 
-`instantiate1_lift_b_compound` is entered only from the budget test in
-`instantiate1_lift_b`, i.e. never at a `.bvar` node (whose arm answers on the
-spot).  Its catch-all `_ =>` arm returns the node itself, which *is*
-`instantiate1Lift`'s value at every other kind, so `NotBvar` is the one
-hypothesis its lemma needs -- and the two lemmas are proved **together**: the
-`_b` clause at a node needs the `_b_compound` clause at the *same* node (the
-budget test is a tail call into it), and the `_b_compound` clause needs the
-`_b` clause at the node's *children*, which is what the `ExprWF` induction
-supplies. -/
-
-/-- The node kinds `instantiate1_lift_b_compound` is reachable at: everything
-but `.bvar`. -/
-def NotBvar (e : expr.Expr) : Prop := ∀ i : Std.U64, e._0.kind ≠ expr.ExprKind.Bvar i
-
-/-- The budgeted descent's cutoff branch: a node bounded at or below the cursor
-is returned itself (`Expr.instantiate1Lift_of_bvarBound_le`). -/
-theorem lift_b_cutoff {v : expr.Expr} {d bb fuel fuel' : Std.U64} {e r : expr.Expr}
-    (hwfe : ExprWF e) (hbb : expr_ops.bvar_b e = ok bb) (hle : bb.val ≤ d.val)
-    (h : (do let c ← expr.dup e; ok (some c, fuel)) = ok (some r, fuel')) :
-    ExprWF r ∧
-      absExpr r = ConLeche.Expr.instantiate1Lift (absExpr e) (absExpr v) d.val := by
-  simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq, Option.some.injEq] at h
-  obtain ⟨c, hdup, hr, -⟩ := h
-  rw [Expr.dup_eq hdup] at hr
-  subst hr
-  refine ⟨hwfe, ?_⟩
-  have hbnd : (absExpr e).bvarBound ≤ d.val := by
-    rw [← ConLeche.Expr.bvarB_eq, ← bvar_b_refines hwfe hbb]; exact hle
-  rw [ConLeche.Expr.instantiate1Lift_of_bvarBound_le _ _ _ hbnd]
-
-/-- The catch-all arm of `instantiate1_lift_b_compound` at a non-`.bvar` atom:
-the node itself, which is what `instantiate1Lift` gives there. -/
-theorem lift_b_self {v : expr.Expr} {d fuel fuel' : Std.U64} {e r : expr.Expr}
-    (hwfe : ExprWF e)
-    (hself : ConLeche.Expr.instantiate1Lift (absExpr e) (absExpr v) d.val = absExpr e)
-    (h : (do let c ← expr.dup e; ok (some c, fuel)) = ok (some r, fuel')) :
-    ExprWF r ∧
-      absExpr r = ConLeche.Expr.instantiate1Lift (absExpr e) (absExpr v) d.val := by
-  simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq, Option.some.injEq] at h
-  obtain ⟨c, hdup, hr, -⟩ := h
-  rw [Expr.dup_eq hdup] at hr
-  subst hr
-  exact ⟨hwfe, hself.symm⟩
-
-/-- **`expr_ops_c::instantiate1_lift_b` and
-`expr_ops_c::instantiate1_lift_b_compound` refine `Expr.instantiate1Lift`**
-(con-leche's `instantiate1LiftB`, `ExprOpsC.lean:167-211`, soundness
-`instantiate1LiftB_spec`, `Verify/Cached/OpsC.lean:2066`): *wherever the budget
-suffices*, the plain rebuild is the substitution.  Nothing is claimed when the
-budget runs out -- the cited `(none, 0)` keeps nothing it built, and the
-wrapper falls back to the memoised walk. -/
-theorem instantiate1_lift_b_pair {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
-    (he : ExprWF e) :
-    (∀ (fuel d fuel' : Std.U64) (r : expr.Expr),
-        cached.expr_ops_c.instantiate1_lift_b v fuel e d = ok (some r, fuel') →
-        ExprWF r ∧
-          absExpr r = ConLeche.Expr.instantiate1Lift (absExpr e) (absExpr v) d.val) ∧
-      (NotBvar e → ∀ (fuel d fuel' : Std.U64) (r : expr.Expr),
-        cached.expr_ops_c.instantiate1_lift_b_compound v fuel e d = ok (some r, fuel') →
-        ExprWF r ∧
-          absExpr r = ConLeche.Expr.instantiate1Lift (absExpr e) (absExpr v) d.val) := by
-  induction he with
-  | @bvar i e h1 =>
-    have hwfe : ExprWF e := ExprWF.bvar h1
-    obtain ⟨d1, rfl, -, -, -⟩ := Expr.bvar_inv h1
-    refine ⟨?_, fun hc => absurd (node_kind d1 (expr.ExprKind.Bvar i)) (hc i)⟩
-    intro fuel d fuel' r h
-    rw [cached.expr_ops_c.instantiate1_lift_b.eq_def] at h
-    obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
-    split at h
-    · exact lift_b_cutoff hwfe hbb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-      split at h
-      · rename_i hid
-        have hid2 : i.val = d.val := by scalar_tac
-        simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq,
-          Option.some.injEq] at h
-        obtain ⟨x, hx, hr, -⟩ := h
-        subst hr
-        obtain ⟨habs, hwf⟩ := lift_loose_bvars_refines hv hx
-        refine ⟨hwf, ?_⟩
-        rw [habs]
-        simp only [absExpr_mk, absExprKind, ConLeche.Expr.instantiate1Lift]
-        rw [if_pos hid2, Expr.val_zero]
-      · rename_i hid
-        have hid2 : i.val ≠ d.val := fun hc => hid (Std.UScalar.eq_of_val_eq hc)
-        split at h
-        · rename_i hgt
-          have hgt2 : d.val < i.val := by scalar_tac
-          simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq,
-            Option.some.injEq] at h
-          obtain ⟨i2, hi2, x, hx, hr, -⟩ := h
-          subst hr
-          refine ⟨Expr.mk_bvar_wf hx, ?_⟩
-          rw [Expr.mk_bvar_refines hx, ConLeche.Expr.mkBvar_eq,
-            HashMap.uscalar_sub_eq hi2]
-          simp only [absExpr_mk, absExprKind, ConLeche.Expr.instantiate1Lift]
-          rw [if_neg hid2, if_pos (by omega)]
-          congr 1
-        · rename_i hgt
-          have hgt2 : ¬ (d.val < i.val) := fun hc => hgt (by scalar_tac)
-          simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq,
-            Option.some.injEq] at h
-          obtain ⟨x, hx, hr, -⟩ := h
-          rw [Expr.dup_eq hx] at hr
-          subst hr
-          refine ⟨hwfe, ?_⟩
-          simp only [absExpr_mk, absExprKind, ConLeche.Expr.instantiate1Lift]
-          rw [if_neg hid2, if_neg (by omega)]
-  | @fvar idx ty e hty h1 ih =>
-    have hwfe : ExprWF e := ExprWF.fvar hty h1
-    obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
-    have hself : ∀ (d : Std.U64),
-        ConLeche.Expr.instantiate1Lift
-          (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Fvar idx ty))))
-          (absExpr v) d.val
-        = absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Fvar idx ty))) := by
-      intro d; simp [ConLeche.Expr.instantiate1Lift]
-    refine ⟨?_, ?_⟩
-    · intro fuel d fuel' r h
-      rw [cached.expr_ops_c.instantiate1_lift_b.eq_def] at h
-      obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
-      split at h
-      · exact lift_b_cutoff hwfe hbb (by scalar_tac) h
-      · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-        exact lift_b_self hwfe (hself d) h
-    · intro _ fuel d fuel' r h
-      rw [cached.expr_ops_c.instantiate1_lift_b_compound.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-      exact lift_b_self hwfe (hself d) h
-  | @sort u e hu h1 =>
-    have hwfe : ExprWF e := ExprWF.sort hu h1
-    obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.sort_inv h1
-    have hself : ∀ (d : Std.U64),
-        ConLeche.Expr.instantiate1Lift
-          (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Sort u))))
-          (absExpr v) d.val
-        = absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Sort u))) := by
-      intro d; simp [ConLeche.Expr.instantiate1Lift]
-    refine ⟨?_, ?_⟩
-    · intro fuel d fuel' r h
-      rw [cached.expr_ops_c.instantiate1_lift_b.eq_def] at h
-      obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
-      split at h
-      · exact lift_b_cutoff hwfe hbb (by scalar_tac) h
-      · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-        exact lift_b_self hwfe (hself d) h
-    · intro _ fuel d fuel' r h
-      rw [cached.expr_ops_c.instantiate1_lift_b_compound.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-      exact lift_b_self hwfe (hself d) h
-  | @mk_const n us e hn hus h1 =>
-    have hwfe : ExprWF e := ExprWF.mk_const hn hus h1
-    obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
-    have hself : ∀ (d : Std.U64),
-        ConLeche.Expr.instantiate1Lift
-          (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Const n us))))
-          (absExpr v) d.val
-        = absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Const n us))) := by
-      intro d; simp [ConLeche.Expr.instantiate1Lift]
-    refine ⟨?_, ?_⟩
-    · intro fuel d fuel' r h
-      rw [cached.expr_ops_c.instantiate1_lift_b.eq_def] at h
-      obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
-      split at h
-      · exact lift_b_cutoff hwfe hbb (by scalar_tac) h
-      · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-        exact lift_b_self hwfe (hself d) h
-    · intro _ fuel d fuel' r h
-      rw [cached.expr_ops_c.instantiate1_lift_b_compound.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-      exact lift_b_self hwfe (hself d) h
-  | @lit l e hl h1 =>
-    have hwfe : ExprWF e := ExprWF.lit hl h1
-    obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
-    have hself : ∀ (d : Std.U64),
-        ConLeche.Expr.instantiate1Lift
-          (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Lit l))))
-          (absExpr v) d.val
-        = absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Lit l))) := by
-      intro d; simp [ConLeche.Expr.instantiate1Lift]
-    refine ⟨?_, ?_⟩
-    · intro fuel d fuel' r h
-      rw [cached.expr_ops_c.instantiate1_lift_b.eq_def] at h
-      obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
-      split at h
-      · exact lift_b_cutoff hwfe hbb (by scalar_tac) h
-      · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-        exact lift_b_self hwfe (hself d) h
-    · intro _ fuel d fuel' r h
-      rw [cached.expr_ops_c.instantiate1_lift_b_compound.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-      exact lift_b_self hwfe (hself d) h
-  | @app f a e hf ha h1 ihf iha =>
-    have hwfe : ExprWF e := ExprWF.app hf ha h1
-    obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
-    have hcomp : ∀ (fuel d fuel' : Std.U64) (r : expr.Expr),
-        cached.expr_ops_c.instantiate1_lift_b_compound v fuel
-            (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.App f a))) d
-          = ok (some r, fuel') →
-        ExprWF r ∧ absExpr r = ConLeche.Expr.instantiate1Lift
-          (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.App f a))))
-          (absExpr v) d.val := by
-      intro fuel d fuel' r h
-      rw [cached.expr_ops_c.instantiate1_lift_b_compound.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-      obtain ⟨p1, hp1, h⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨o1, fu1⟩ := p1
-      cases o1 with
-      | none => simp at h
-      | some f2 =>
-        obtain ⟨p2, hp2, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨o2, fu2⟩ := p2
-        cases o2 with
-        | none => simp at h
-        | some a2 =>
-          obtain ⟨x, happ, h⟩ := bind_eq_ok_iff.mp h
-          have hxr : x = r := Option.some_injective _ (congrArg Prod.fst
-            (Result.ok_injective (α := Option expr.Expr × Std.U64) h))
-          subst hxr
-          obtain ⟨hwf2, habs2⟩ := ihf.1 fuel d fu1 f2 hp1
-          obtain ⟨hwf3, habs3⟩ := iha.1 fu1 d fu2 a2 hp2
-          refine ⟨Expr.app_wf hwf2 hwf3 happ, ?_⟩
-          rw [Expr.app_refines happ, habs2, habs3]
-          simp [ConLeche.Expr.instantiate1Lift]
-    refine ⟨?_, fun _ => hcomp⟩
-    intro fuel d fuel' r h
-    rw [cached.expr_ops_c.instantiate1_lift_b.eq_def] at h
-    obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
-    split at h
-    · exact lift_b_cutoff hwfe hbb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-      split at h
-      · simp at h
-      · obtain ⟨f1, hf1, h⟩ := bind_eq_ok_iff.mp h
-        exact hcomp f1 d fuel' r h
-  | @lam ty bo m e hty hbo hm0 h1 ihty ihbo =>
-    have hwfe : ExprWF e := ExprWF.lam hty hbo hm0 h1
-    obtain ⟨d1, rfl, -, -, -⟩ := Expr.lam_inv h1
-    have hcomp : ∀ (fuel d fuel' : Std.U64) (r : expr.Expr),
-        cached.expr_ops_c.instantiate1_lift_b_compound v fuel
-            (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Lam ty bo m))) d
-          = ok (some r, fuel') →
-        ExprWF r ∧ absExpr r = ConLeche.Expr.instantiate1Lift
-          (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Lam ty bo m))))
-          (absExpr v) d.val := by
-      intro fuel d fuel' r h
-      rw [cached.expr_ops_c.instantiate1_lift_b_compound.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-      obtain ⟨p1, hp1, h⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨o1, fu1⟩ := p1
-      cases o1 with
-      | none => simp at h
-      | some t =>
-        obtain ⟨dd, hdd, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p2, hp2, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨o2, fu2⟩ := p2
-        cases o2 with
-        | none => simp at h
-        | some b =>
-          obtain ⟨bm, hbm, h⟩ := bind_eq_ok_iff.mp h
-          obtain ⟨x, hlam, h⟩ := bind_eq_ok_iff.mp h
-          have hxr : x = r := Option.some_injective _ (congrArg Prod.fst
-            (Result.ok_injective (α := Option expr.Expr × Std.U64) h))
-          subst hxr
-          obtain ⟨hwf2, habs2⟩ := ihty.1 fuel d fu1 t hp1
-          obtain ⟨hwf3, habs3⟩ := ihbo.1 fu1 dd fu2 b hp2
-          refine ⟨Expr.lam_wf hwf2 hwf3 (Expr.binder_meta_dup_eq hbm ▸ hm0) hlam, ?_⟩
-          rw [Expr.lam_refines hlam, habs2, habs3, Expr.binder_meta_dup_eq hbm,
-            HashMap.uscalar_add_eq hdd]
-          simp [ConLeche.Expr.instantiate1Lift]
-    refine ⟨?_, fun _ => hcomp⟩
-    intro fuel d fuel' r h
-    rw [cached.expr_ops_c.instantiate1_lift_b.eq_def] at h
-    obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
-    split at h
-    · exact lift_b_cutoff hwfe hbb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-      split at h
-      · simp at h
-      · obtain ⟨f1, hf1, h⟩ := bind_eq_ok_iff.mp h
-        exact hcomp f1 d fuel' r h
-  | @forall_e ty bo m e hty hbo hm0 h1 ihty ihbo =>
-    have hwfe : ExprWF e := ExprWF.forall_e hty hbo hm0 h1
-    obtain ⟨d1, rfl, -, -, -⟩ := Expr.forall_e_inv h1
-    have hcomp : ∀ (fuel d fuel' : Std.U64) (r : expr.Expr),
-        cached.expr_ops_c.instantiate1_lift_b_compound v fuel
-            (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.ForallE ty bo m))) d
-          = ok (some r, fuel') →
-        ExprWF r ∧ absExpr r = ConLeche.Expr.instantiate1Lift
-          (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.ForallE ty bo m))))
-          (absExpr v) d.val := by
-      intro fuel d fuel' r h
-      rw [cached.expr_ops_c.instantiate1_lift_b_compound.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-      obtain ⟨p1, hp1, h⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨o1, fu1⟩ := p1
-      cases o1 with
-      | none => simp at h
-      | some t =>
-        obtain ⟨dd, hdd, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p2, hp2, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨o2, fu2⟩ := p2
-        cases o2 with
-        | none => simp at h
-        | some b =>
-          obtain ⟨bm, hbm, h⟩ := bind_eq_ok_iff.mp h
-          obtain ⟨x, hfa, h⟩ := bind_eq_ok_iff.mp h
-          have hxr : x = r := Option.some_injective _ (congrArg Prod.fst
-            (Result.ok_injective (α := Option expr.Expr × Std.U64) h))
-          subst hxr
-          obtain ⟨hwf2, habs2⟩ := ihty.1 fuel d fu1 t hp1
-          obtain ⟨hwf3, habs3⟩ := ihbo.1 fu1 dd fu2 b hp2
-          refine ⟨Expr.forall_e_wf hwf2 hwf3 (Expr.binder_meta_dup_eq hbm ▸ hm0) hfa, ?_⟩
-          rw [Expr.forall_e_refines hfa, habs2, habs3, Expr.binder_meta_dup_eq hbm,
-            HashMap.uscalar_add_eq hdd]
-          simp [ConLeche.Expr.instantiate1Lift]
-    refine ⟨?_, fun _ => hcomp⟩
-    intro fuel d fuel' r h
-    rw [cached.expr_ops_c.instantiate1_lift_b.eq_def] at h
-    obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
-    split at h
-    · exact lift_b_cutoff hwfe hbb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-      split at h
-      · simp at h
-      · obtain ⟨f1, hf1, h⟩ := bind_eq_ok_iff.mp h
-        exact hcomp f1 d fuel' r h
-  | @let_e ty w bo e hty hw hbo h1 ihty ihw ihbo =>
-    have hwfe : ExprWF e := ExprWF.let_e hty hw hbo h1
-    obtain ⟨d1, rfl, -, -, -⟩ := Expr.let_e_inv h1
-    have hcomp : ∀ (fuel d fuel' : Std.U64) (r : expr.Expr),
-        cached.expr_ops_c.instantiate1_lift_b_compound v fuel
-            (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.LetE ty w bo))) d
-          = ok (some r, fuel') →
-        ExprWF r ∧ absExpr r = ConLeche.Expr.instantiate1Lift
-          (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.LetE ty w bo))))
-          (absExpr v) d.val := by
-      intro fuel d fuel' r h
-      rw [cached.expr_ops_c.instantiate1_lift_b_compound.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-      obtain ⟨p1, hp1, h⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨o1, fu1⟩ := p1
-      cases o1 with
-      | none => simp at h
-      | some t =>
-        obtain ⟨p2, hp2, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨o2, fu2⟩ := p2
-        cases o2 with
-        | none => simp at h
-        | some w2 =>
-          obtain ⟨dd, hdd, h⟩ := bind_eq_ok_iff.mp h
-          obtain ⟨p3, hp3, h⟩ := bind_eq_ok_iff.mp h
-          obtain ⟨o3, fu3⟩ := p3
-          cases o3 with
-          | none => simp at h
-          | some b =>
-            obtain ⟨x, hlet, h⟩ := bind_eq_ok_iff.mp h
-            have hxr : x = r := Option.some_injective _ (congrArg Prod.fst
-            (Result.ok_injective (α := Option expr.Expr × Std.U64) h))
-            subst hxr
-            obtain ⟨hwf2, habs2⟩ := ihty.1 fuel d fu1 t hp1
-            obtain ⟨hwf3, habs3⟩ := ihw.1 fu1 d fu2 w2 hp2
-            obtain ⟨hwf4, habs4⟩ := ihbo.1 fu2 dd fu3 b hp3
-            refine ⟨Expr.let_e_wf hwf2 hwf3 hwf4 hlet, ?_⟩
-            rw [Expr.let_e_refines hlet, habs2, habs3, habs4,
-              HashMap.uscalar_add_eq hdd]
-            simp [ConLeche.Expr.instantiate1Lift]
-    refine ⟨?_, fun _ => hcomp⟩
-    intro fuel d fuel' r h
-    rw [cached.expr_ops_c.instantiate1_lift_b.eq_def] at h
-    obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
-    split at h
-    · exact lift_b_cutoff hwfe hbb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-      split at h
-      · simp at h
-      · obtain ⟨f1, hf1, h⟩ := bind_eq_ok_iff.mp h
-        exact hcomp f1 d fuel' r h
-  | @proj s i x e hs hx h1 ih =>
-    have hwfe : ExprWF e := ExprWF.proj hs hx h1
-    obtain ⟨d1, rfl, -, -, -⟩ := Expr.proj_inv h1
-    have hcomp : ∀ (fuel d fuel' : Std.U64) (r : expr.Expr),
-        cached.expr_ops_c.instantiate1_lift_b_compound v fuel
-            (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Proj s i x))) d
-          = ok (some r, fuel') →
-        ExprWF r ∧ absExpr r = ConLeche.Expr.instantiate1Lift
-          (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Proj s i x))))
-          (absExpr v) d.val := by
-      intro fuel d fuel' r h
-      rw [cached.expr_ops_c.instantiate1_lift_b_compound.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-      obtain ⟨p1, hp1, h⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨o1, fu1⟩ := p1
-      cases o1 with
-      | none => simp at h
-      | some s2 =>
-        obtain ⟨n2, hn2, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨x2, hproj, h⟩ := bind_eq_ok_iff.mp h
-        have hxr : x2 = r := Option.some_injective _ (congrArg Prod.fst
-            (Result.ok_injective (α := Option expr.Expr × Std.U64) h))
-        subst hxr
-        have hsn : n2 = s := Result.ok_injective (hn2.symm.trans (name_dup_eq s))
-        subst hsn
-        obtain ⟨hwf2, habs2⟩ := ih.1 fuel d fu1 s2 hp1
-        refine ⟨Expr.proj_wf hs hwf2 hproj, ?_⟩
-        rw [Expr.proj_refines hproj, habs2]
-        simp [ConLeche.Expr.instantiate1Lift]
-    refine ⟨?_, fun _ => hcomp⟩
-    intro fuel d fuel' r h
-    rw [cached.expr_ops_c.instantiate1_lift_b.eq_def] at h
-    obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
-    split at h
-    · exact lift_b_cutoff hwfe hbb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-      split at h
-      · simp at h
-      · obtain ⟨f1, hf1, h⟩ := bind_eq_ok_iff.mp h
-        exact hcomp f1 d fuel' r h
-
-/-- **`expr_ops_c::instantiate1_lift_b` refines `Expr.instantiate1Lift`** where
-the budget suffices (the first half of `instantiate1_lift_b_pair`). -/
-theorem instantiate1_lift_b_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.Expr}
-    (he : ExprWF e) {fuel d fuel' : Std.U64} {r : expr.Expr}
-    (h : cached.expr_ops_c.instantiate1_lift_b v fuel e d = ok (some r, fuel')) :
-    ExprWF r ∧
-      absExpr r = ConLeche.Expr.instantiate1Lift (absExpr e) (absExpr v) d.val :=
-  (instantiate1_lift_b_pair hv he).1 fuel d fuel' r h
-
-/-- **`expr_ops_c::instantiate1_lift_b_compound` refines
-`Expr.instantiate1Lift`** at the five compound kinds it is reachable at (the
-second half of `instantiate1_lift_b_pair`). -/
-theorem instantiate1_lift_b_compound_refines {v : expr.Expr} (hv : ExprWF v)
-    {e : expr.Expr} (he : ExprWF e) (hnb : NotBvar e) {fuel d fuel' : Std.U64}
-    {r : expr.Expr}
-    (h : cached.expr_ops_c.instantiate1_lift_b_compound v fuel e d
-      = ok (some r, fuel')) :
-    ExprWF r ∧
-      absExpr r = ConLeche.Expr.instantiate1Lift (absExpr e) (absExpr v) d.val :=
-  (instantiate1_lift_b_pair hv he).2 hnb fuel d fuel' r h
+**The budgeted plain descent is gone** (task #98).  Until con-leche's own task
+#317 this operation had a third layer between the two -- a memo-free rebuild
+on a 4 096-node budget, on the argument that a table is a tax on the small
+terms that are the common case -- and `NotBvar`, `lift_b_cutoff`,
+`lift_b_self`, `instantiate1_lift_b_pair` and the two `_refines` corollaries
+drawn from it were its proof.  Upstream's ruling retired the budget as a
+heuristic cutoff, and the memo discipline that replaced it (`Refine/Excl.lean`)
+already spends nothing on a small term, because it spends nothing on an
+unshared node.  The 440 lines went with the two functions. -/
 
 /-- **`expr_ops_c::instantiate1_lift_go` refines `Expr.instantiate1Lift`**
 (con-leche's `instantiate1LiftGo`, `ExprOpsC.lean:213-265`, soundness
@@ -1034,7 +600,8 @@ theorem instantiate1_lift_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.E
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_lift_cutoff hwfe hm hfb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, is_exclusive_eq, memo1_get_if_false] at h
       obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
@@ -1063,9 +630,8 @@ theorem instantiate1_lift_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.E
         subst eg1; subst eg2
         obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihf memo memo2 d f2 hm hgf
         obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := iha memo2 memo1 d a2 hm2 hga
-        obtain ⟨x1, hdup, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨x1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have er : r = r0 := (congrArg Prod.fst e0).symm
         have em : memo' = memoZ := (congrArg Prod.snd e0).symm
@@ -1085,7 +651,8 @@ theorem instantiate1_lift_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.E
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_lift_cutoff hwfe hm hfb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, is_exclusive_eq, memo1_get_if_false] at h
       obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
@@ -1116,9 +683,8 @@ theorem instantiate1_lift_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.E
         subst eg1; subst eg2
         obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 d t hm hgt
         obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihbo memo2 memo1 cc b hm2 hgb
-        obtain ⟨x1, hdup, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨x1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have er : r = r0 := (congrArg Prod.fst e0).symm
         have em : memo' = memoZ := (congrArg Prod.snd e0).symm
@@ -1139,7 +705,8 @@ theorem instantiate1_lift_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.E
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_lift_cutoff hwfe hm hfb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, is_exclusive_eq, memo1_get_if_false] at h
       obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
@@ -1170,9 +737,8 @@ theorem instantiate1_lift_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.E
         subst eg1; subst eg2
         obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 d t hm hgt
         obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihbo memo2 memo1 cc b hm2 hgb
-        obtain ⟨x1, hdup, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨x1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have er : r = r0 := (congrArg Prod.fst e0).symm
         have em : memo' = memoZ := (congrArg Prod.snd e0).symm
@@ -1193,7 +759,8 @@ theorem instantiate1_lift_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.E
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_lift_cutoff hwfe hm hfb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, is_exclusive_eq, memo1_get_if_false] at h
       obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
@@ -1226,9 +793,8 @@ theorem instantiate1_lift_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.E
         obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 d t hm hgt
         obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihw memo2 memo3 d w3 hm2 hgv
         obtain ⟨⟨hwf4, habs4⟩, hm4⟩ := ihbo memo3 memo1 cc b hm3 hgb
-        obtain ⟨x1, hdup, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨x1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have er : r = r0 := (congrArg Prod.fst e0).symm
         have em : memo' = memoZ := (congrArg Prod.snd e0).symm
@@ -1249,7 +815,8 @@ theorem instantiate1_lift_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.E
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact instantiate1_lift_cutoff hwfe hm hfb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, is_exclusive_eq, memo1_get_if_false] at h
       obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
@@ -1279,9 +846,8 @@ theorem instantiate1_lift_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.E
         have hsn : s = n2 :=
           (Result.ok_injective (hn2.symm.trans (name_dup_eq s))).symm
         subst hsn
-        obtain ⟨x1, hdup, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨x1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have er : r = r0 := (congrArg Prod.fst e0).symm
         have em : memo' = memoZ := (congrArg Prod.snd e0).symm
@@ -1297,9 +863,8 @@ theorem instantiate1_lift_go_refines {v : expr.Expr} (hv : ExprWF v) {e : expr.E
 
 
 /-- **`expr_ops_c::instantiate1_lift` refines `Expr.instantiate1LiftC`**
-(`ExprOpsC.lean:267-273`): the cutoff, the budgeted descent at 4096 nodes, the
-memoised walk when the budget runs out.  `instantiate1Lift_spec`
-(`Verify/Cached/OpsC.lean:2256`) is the same three-way split on the Lean side. -/
+(`ExprOpsC.lean:338-341`): the cutoff, then the walk.  `instantiate1Lift_spec`
+is the same split on the Lean side. -/
 theorem instantiate1_lift_refines {e v r : expr.Expr} {d : Std.U64} (he : ExprWF e)
     (hv : ExprWF v) (h : cached.expr_ops_c.instantiate1_lift e v d = ok r) :
     absExpr r = ConLeche.Expr.instantiate1LiftC (absExpr e) (absExpr v) d.val ∧
@@ -1313,23 +878,14 @@ theorem instantiate1_lift_refines {e v r : expr.Expr} {d : Std.U64} (he : ExprWF
       rw [← ConLeche.Expr.bvarB_eq, ← bvar_b_refines he hbb]; scalar_tac
     rw [Expr.dup_eq h, ConLeche.Expr.instantiate1Lift_of_bvarBound_le _ _ _ hbnd]
     exact ⟨rfl, he⟩
-  · obtain ⟨p, hb, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨o, fu⟩ := p
-    cases o with
-    | some w =>
-      have hr : w = r := Result.ok_injective h
-      subst hr
-      obtain ⟨hwf, habs⟩ := instantiate1_lift_b_refines hv he hb
-      exact ⟨habs, hwf⟩
-    | none =>
-      obtain ⟨memo, hnew, h⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨q, hgo, h⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨r0, memo'⟩ := q
-      have hr : r0 = r := Result.ok_injective h
-      subst hr
-      obtain ⟨⟨hwf, habs⟩, -⟩ :=
-        instantiate1_lift_go_refines hv he memo memo' d r0 (new_memo_inv hnew) hgo
-      exact ⟨habs, hwf⟩
+  · obtain ⟨memo, hnew, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨q, hgo, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨r0, memo'⟩ := q
+    have hr : r0 = r := Result.ok_injective h
+    subst hr
+    obtain ⟨⟨hwf, habs⟩, -⟩ :=
+      instantiate1_lift_go_refines hv he memo memo' d r0 (new_memo_inv hnew) hgo
+    exact ⟨habs, hwf⟩
 
 /-! ## The bulk substitutions (`ExprOpsC.lean:279-445`)
 
@@ -1626,7 +1182,8 @@ theorem instantiate_list_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+            ron.node.ExprView.ofKind, is_exclusive_eq, memo1_get_if_false] at h
           obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
           have hkk := expr_nat_key_eq hkey
@@ -1655,9 +1212,8 @@ theorem instantiate_list_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs
             subst eg1; subst eg2
             obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihf memo memo2 k d f2 hK hk hm hf2
             obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := iha memo2 memo1 k d a2 hK hk hm2 ha2
-            obtain ⟨e1, hdup, h⟩ := bind_eq_ok_iff.mp h
-            obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-            obtain ⟨oldv, memo4⟩ := p3
+            obtain ⟨memo4, hrec, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨e1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
             have e0 := Result.ok_injective (α := expr.Expr × _) h
             have e1' : r = r0 := (congrArg Prod.fst e0).symm
             have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm
@@ -1685,7 +1241,8 @@ theorem instantiate_list_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+            ron.node.ExprView.ofKind, is_exclusive_eq, memo1_get_if_false] at h
           obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
           have hkk := expr_nat_key_eq hkey
@@ -1716,9 +1273,8 @@ theorem instantiate_list_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs
             subst eg1; subst eg2
             obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 k d t hK hk hm ht
             obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihbo memo2 memo1 k dd b hK hk hm2 hb
-            obtain ⟨e1, hdup, h⟩ := bind_eq_ok_iff.mp h
-            obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-            obtain ⟨oldv, memo4⟩ := p3
+            obtain ⟨memo4, hrec, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨e1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
             have e0 := Result.ok_injective (α := expr.Expr × _) h
             have e1' : r = r0 := (congrArg Prod.fst e0).symm
             have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm
@@ -1748,7 +1304,8 @@ theorem instantiate_list_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+            ron.node.ExprView.ofKind, is_exclusive_eq, memo1_get_if_false] at h
           obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
           have hkk := expr_nat_key_eq hkey
@@ -1779,9 +1336,8 @@ theorem instantiate_list_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs
             subst eg1; subst eg2
             obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 k d t hK hk hm ht
             obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihbo memo2 memo1 k dd b hK hk hm2 hb
-            obtain ⟨e1, hdup, h⟩ := bind_eq_ok_iff.mp h
-            obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-            obtain ⟨oldv, memo4⟩ := p3
+            obtain ⟨memo4, hrec, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨e1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
             have e0 := Result.ok_injective (α := expr.Expr × _) h
             have e1' : r = r0 := (congrArg Prod.fst e0).symm
             have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm
@@ -1811,7 +1367,8 @@ theorem instantiate_list_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+            ron.node.ExprView.ofKind, is_exclusive_eq, memo1_get_if_false] at h
           obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
           have hkk := expr_nat_key_eq hkey
@@ -1844,9 +1401,8 @@ theorem instantiate_list_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs
             obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 k d t hK hk hm ht
             obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihvv memo2 memo3 k d w2 hK hk hm2 hw2
             obtain ⟨⟨hwf4, habs4⟩, hm4⟩ := ihbo memo3 memo1 k dd b hK hk hm3 hb
-            obtain ⟨e1, hdup, h⟩ := bind_eq_ok_iff.mp h
-            obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-            obtain ⟨oldv, memo6⟩ := p3
+            obtain ⟨memo6, hrec, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨e1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
             have e0 := Result.ok_injective (α := expr.Expr × _) h
             have e1' : r = r0 := (congrArg Prod.fst e0).symm
             have e2' : memo' = memo6 := (congrArg Prod.snd e0).symm
@@ -1876,7 +1432,8 @@ theorem instantiate_list_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+            ron.node.ExprView.ofKind, is_exclusive_eq, memo1_get_if_false] at h
           obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
           have hkk := expr_nat_key_eq hkey
@@ -1906,9 +1463,8 @@ theorem instantiate_list_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs
             have hsn : s = n2 :=
               (Result.ok_injective (hn2.symm.trans (name_dup_eq s))).symm
             subst hsn
-            obtain ⟨e1, hdup, h⟩ := bind_eq_ok_iff.mp h
-            obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-            obtain ⟨oldv, memo4⟩ := p3
+            obtain ⟨memo4, hrec, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨e1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
             have e0 := Result.ok_injective (α := expr.Expr × _) h
             have e1' : r = r0 := (congrArg Prod.fst e0).symm
             have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm
@@ -2236,7 +1792,8 @@ theorem instantiate_rev_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs)
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+            ron.node.ExprView.ofKind, is_exclusive_eq, memo1_get_if_false] at h
           obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
           have hkk := expr_nat_key_eq hkey
@@ -2265,9 +1822,8 @@ theorem instantiate_rev_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs)
             subst eg1; subst eg2
             obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihf memo memo2 k d f2 hK hk hm hf2
             obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := iha memo2 memo1 k d a2 hK hk hm2 ha2
-            obtain ⟨e1, hdup, h⟩ := bind_eq_ok_iff.mp h
-            obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-            obtain ⟨oldv, memo4⟩ := p3
+            obtain ⟨memo4, hrec, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨e1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
             have e0 := Result.ok_injective (α := expr.Expr × _) h
             have e1' : r = r0 := (congrArg Prod.fst e0).symm
             have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm
@@ -2295,7 +1851,8 @@ theorem instantiate_rev_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs)
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+            ron.node.ExprView.ofKind, is_exclusive_eq, memo1_get_if_false] at h
           obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
           have hkk := expr_nat_key_eq hkey
@@ -2326,9 +1883,8 @@ theorem instantiate_rev_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs)
             subst eg1; subst eg2
             obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 k d t hK hk hm ht
             obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihbo memo2 memo1 k dd b hK hk hm2 hb
-            obtain ⟨e1, hdup, h⟩ := bind_eq_ok_iff.mp h
-            obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-            obtain ⟨oldv, memo4⟩ := p3
+            obtain ⟨memo4, hrec, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨e1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
             have e0 := Result.ok_injective (α := expr.Expr × _) h
             have e1' : r = r0 := (congrArg Prod.fst e0).symm
             have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm
@@ -2358,7 +1914,8 @@ theorem instantiate_rev_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs)
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+            ron.node.ExprView.ofKind, is_exclusive_eq, memo1_get_if_false] at h
           obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
           have hkk := expr_nat_key_eq hkey
@@ -2389,9 +1946,8 @@ theorem instantiate_rev_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs)
             subst eg1; subst eg2
             obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 k d t hK hk hm ht
             obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihbo memo2 memo1 k dd b hK hk hm2 hb
-            obtain ⟨e1, hdup, h⟩ := bind_eq_ok_iff.mp h
-            obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-            obtain ⟨oldv, memo4⟩ := p3
+            obtain ⟨memo4, hrec, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨e1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
             have e0 := Result.ok_injective (α := expr.Expr × _) h
             have e1' : r = r0 := (congrArg Prod.fst e0).symm
             have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm
@@ -2421,7 +1977,8 @@ theorem instantiate_rev_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs)
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+            ron.node.ExprView.ofKind, is_exclusive_eq, memo1_get_if_false] at h
           obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
           have hkk := expr_nat_key_eq hkey
@@ -2454,9 +2011,8 @@ theorem instantiate_rev_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs)
             obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 k d t hK hk hm ht
             obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihvv memo2 memo3 k d w2 hK hk hm2 hw2
             obtain ⟨⟨hwf4, habs4⟩, hm4⟩ := ihbo memo3 memo1 k dd b hK hk hm3 hb
-            obtain ⟨e1, hdup, h⟩ := bind_eq_ok_iff.mp h
-            obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-            obtain ⟨oldv, memo6⟩ := p3
+            obtain ⟨memo6, hrec, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨e1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
             have e0 := Result.ok_injective (α := expr.Expr × _) h
             have e1' : r = r0 := (congrArg Prod.fst e0).symm
             have e2' : memo' = memo6 := (congrArg Prod.snd e0).symm
@@ -2486,7 +2042,8 @@ theorem instantiate_rev_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs)
       · obtain ⟨bb, hbb, h⟩ := bind_eq_ok_iff.mp h
         split at h
         · exact instL_dup_ret hwfe hm (instL_cutoff_self hwfe hbb (by scalar_tac)) h
-        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+        · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+            ron.node.ExprView.ofKind, is_exclusive_eq, memo1_get_if_false] at h
           obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
           have hkk := expr_nat_key_eq hkey
@@ -2516,9 +2073,8 @@ theorem instantiate_rev_go_aux {vs : alloc.vec.Vec expr.Expr} (hvs : ExprsWF vs)
             have hsn : s = n2 :=
               (Result.ok_injective (hn2.symm.trans (name_dup_eq s))).symm
             subst hsn
-            obtain ⟨e1, hdup, h⟩ := bind_eq_ok_iff.mp h
-            obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-            obtain ⟨oldv, memo4⟩ := p3
+            obtain ⟨memo4, hrec, h⟩ := bind_eq_ok_iff.mp h
+            obtain ⟨e1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
             have e0 := Result.ok_injective (α := expr.Expr × _) h
             have e1' : r = r0 := (congrArg Prod.fst e0).symm
             have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm

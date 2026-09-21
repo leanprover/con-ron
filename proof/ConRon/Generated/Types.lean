@@ -717,7 +717,7 @@ structure kernel.inductives.modeled.ProjFwd where
   n_f : Std.U64
 
 /-- Trait declaration: [con_ron_core::kernel::expr_ops::NameToName]
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1092:0-1095:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1177:0-1180:1
     Visibility: public -/
 structure kernel.expr_ops.NameToName (Self : Type) where
   rename : Self → kernel.name.Name → Result kernel.name.Name

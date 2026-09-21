@@ -43,7 +43,7 @@ use crate::kernel::prop_when;
 use crate::ron::hashmap::HashMap;
 use crate::ron::ptr::P;
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:65-74 IndTypeRec
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:81-90 IndTypeRec
 /// One inductive type of a parsed block, with the export's shape data.
 pub struct IndTypeRec {
     pub cv: ConstantVal,
@@ -69,7 +69,7 @@ pub fn ind_type_rec_dup(t: &IndTypeRec) -> IndTypeRec {
     }
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:76-81 IndCtorRec
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:92-97 IndCtorRec
 /// One constructor of a parsed block.
 pub struct IndCtorRec {
     pub cv: ConstantVal,
@@ -86,7 +86,7 @@ pub fn ind_ctor_rec_dup(c: &IndCtorRec) -> IndCtorRec {
     }
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:83-92 IndRecRec
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:99-108 IndRecRec
 /// One recursor of a parsed block (`numParams`, `numMotives`, `numMinors`,
 /// `numIndices` as exported).
 pub struct IndRecRec {
@@ -110,7 +110,7 @@ pub fn ind_rec_rec_dup(r: &IndRecRec) -> IndRecRec {
     }
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:94-99 BlockRec
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:110-115 BlockRec
 /// A parsed inductive block.
 pub struct BlockRec {
     pub types: Vec<IndTypeRec>,
@@ -178,7 +178,7 @@ fn ind_rec_recs_dup(rs: &Vec<IndRecRec>) -> Vec<IndRecRec> {
     out
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:608-611 hintHeight
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:522-525 hintHeight
 /// The height a hint records.  It is `InModel`'s, and the parse needs it at
 /// one place only — `export_c::note_decl_entries`, which books a pushed
 /// definition's height for the generator's hint arithmetic — so the seam
@@ -209,7 +209,7 @@ pub fn wants(b: &BlockRec) -> bool {
     false
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:101-108 Ctx
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:117-124 Ctx
 /// What the generator reads besides the block: the declared types of the
 /// constants so far, the definitional heights, and the parsed inductive
 /// blocks so far by member type name (the nested rung reads a container's

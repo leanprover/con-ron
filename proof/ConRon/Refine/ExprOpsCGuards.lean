@@ -6,8 +6,8 @@ level-parameter definedness of
 `ConRon/Refine/ExprOpsC.lean`).
 
 Four `Bool`-valued memoised walks live here, and they share a shape the
-substitution walks do not have: **the memo is probed before the match**, so
-every node kind gets an entry, and **the conjunctions short-circuit**, which is
+substitution walks do not have: **the memo is probed before the match**, and
+**the conjunctions short-circuit**, which is
 memo policy -- they write *fewer* entries than an unconditional `&&` would, so
 task #24's `expr_ops::bool_and` is deliberately not applied to them and each
 branching arm is lifted into a one-line callee (`wscoped_b_pair` and friends).
@@ -15,6 +15,18 @@ Those callees are mutually recursive with the walk in the generated model, so
 each is inverted *inside* the walk's own `ExprWF` induction (there is no
 separate induction to run: the callee's arguments are the node's children) and
 then restated as a corollary of the walk's lemma, which is what a caller wants.
+
+Since con-leche's tasks #317/#319 the probe and the record are *gated*
+(`cached::expr_ops_c::memo_skip`, task #98): a node is memoised only when a
+reference-count read reports it SHARED, and a `Bool` walk additionally skips
+the LEAVES, which it decides on the spot.  `ron::node::is_exclusive` is a hole
+modelled `ok false`, so in the model the leaf test is the whole gate: the
+compound arms below open with `memo_skip_eq`/`is_compound_f` reducing `skip` to
+`false` and read exactly as they did, while `.bvar`/`.sort`/`.const`/`.lit`
+lose their memo-hit case entirely -- the probe is `ok none` and the record
+hands the table straight back, so the invariant travels on `hm` rather than on
+`MemoInv.set`.  `fvar_leaves_go` is untouched: its table is a visited *set*,
+which con-leche deliberately left out of the idiom.
 
 Two mechanical notes that shaped the proofs:
 
@@ -146,29 +158,17 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
     split at h
     · rename_i hzc
       exact wscoped_b_cutoff hwfe hm hfb (by rw [hzc]; scalar_tac) h
-    · obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
-      have hkk := expr_nat_key_eq hkey
-      subst hkk
-      cases o with
-      | some wv =>
-        have e0 := Result.ok_injective (α := Bool × _) h
-        have ea : wv = b := congrArg Prod.fst e0
-        have eb : memo = memo' := congrArg Prod.snd e0
-        rw [← ea, ← eb]
-        exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey) (Q := WScQ)
-          key_exact hm (keyWF_mk hwfe) (memo_b1_get_hit ho), hm⟩
-      | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
-        have e0 := Result.ok_injective (α := Bool × _) h
-        have er : true = b := congrArg Prod.fst e0
-        have em : memoZ = memo' := congrArg Prod.snd e0
-        have hans : WScQ (absKey ⟨expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Bvar i)), d⟩) true := by
-          simp [WScQ, ConLeche.Expr.wscopedB]
-        rw [← er, ← em]
-        exact ⟨hans, MemoInv.set key_exact hm (keyWF_mk hwfe) hans hins⟩
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_false, memo_b1_get_if_true, memo_b1_insert_if_true] at h
+      obtain ⟨_, _, h⟩ := bind_eq_ok_iff.mp h
+      have e0 := Result.ok_injective (α := Bool × _) h
+      have er : true = b := congrArg Prod.fst e0
+      have em : memo = memo' := congrArg Prod.snd e0
+      have hans : WScQ (absKey ⟨expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Bvar i)), d⟩) true := by
+        simp [WScQ, ConLeche.Expr.wscopedB]
+      rw [← er, ← em]
+      exact ⟨hans, hm⟩
   | @fvar idx ty e hty h1 ih =>
     have hwfe : ExprWF e := ExprWF.fvar hty h1
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
@@ -178,7 +178,10 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
     split at h
     · rename_i hzc
       exact wscoped_b_cutoff hwfe hm hfb (by rw [hzc]; scalar_tac) h
-    · obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_true, memo_b1_get_if_false] at h
+      obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
       subst hkk
@@ -191,11 +194,10 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
         exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey) (Q := WScQ)
           key_exact hm (keyWF_mk hwfe) (memo_b1_get_hit ho), hm⟩
       | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨oldv, hins⟩ := memo_b1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := Bool × _) h
         have er : r0 = b := congrArg Prod.fst e0
         have em : memoZ = memo' := congrArg Prod.snd e0
@@ -239,29 +241,17 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
     split at h
     · rename_i hzc
       exact wscoped_b_cutoff hwfe hm hfb (by rw [hzc]; scalar_tac) h
-    · obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
-      have hkk := expr_nat_key_eq hkey
-      subst hkk
-      cases o with
-      | some wv =>
-        have e0 := Result.ok_injective (α := Bool × _) h
-        have ea : wv = b := congrArg Prod.fst e0
-        have eb : memo = memo' := congrArg Prod.snd e0
-        rw [← ea, ← eb]
-        exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey) (Q := WScQ)
-          key_exact hm (keyWF_mk hwfe) (memo_b1_get_hit ho), hm⟩
-      | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
-        have e0 := Result.ok_injective (α := Bool × _) h
-        have er : true = b := congrArg Prod.fst e0
-        have em : memoZ = memo' := congrArg Prod.snd e0
-        have hans : WScQ (absKey ⟨expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.«Sort» u)), d⟩) true := by
-          simp [WScQ, ConLeche.Expr.wscopedB]
-        rw [← er, ← em]
-        exact ⟨hans, MemoInv.set key_exact hm (keyWF_mk hwfe) hans hins⟩
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_false, memo_b1_get_if_true, memo_b1_insert_if_true] at h
+      obtain ⟨_, _, h⟩ := bind_eq_ok_iff.mp h
+      have e0 := Result.ok_injective (α := Bool × _) h
+      have er : true = b := congrArg Prod.fst e0
+      have em : memo = memo' := congrArg Prod.snd e0
+      have hans : WScQ (absKey ⟨expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.«Sort» u)), d⟩) true := by
+        simp [WScQ, ConLeche.Expr.wscopedB]
+      rw [← er, ← em]
+      exact ⟨hans, hm⟩
   | @mk_const n vs e hn hvs h1 =>
     have hwfe : ExprWF e := ExprWF.mk_const hn hvs h1
     obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
@@ -271,29 +261,17 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
     split at h
     · rename_i hzc
       exact wscoped_b_cutoff hwfe hm hfb (by rw [hzc]; scalar_tac) h
-    · obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
-      have hkk := expr_nat_key_eq hkey
-      subst hkk
-      cases o with
-      | some wv =>
-        have e0 := Result.ok_injective (α := Bool × _) h
-        have ea : wv = b := congrArg Prod.fst e0
-        have eb : memo = memo' := congrArg Prod.snd e0
-        rw [← ea, ← eb]
-        exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey) (Q := WScQ)
-          key_exact hm (keyWF_mk hwfe) (memo_b1_get_hit ho), hm⟩
-      | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
-        have e0 := Result.ok_injective (α := Bool × _) h
-        have er : true = b := congrArg Prod.fst e0
-        have em : memoZ = memo' := congrArg Prod.snd e0
-        have hans : WScQ (absKey ⟨expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Const n vs)), d⟩) true := by
-          simp [WScQ, ConLeche.Expr.wscopedB]
-        rw [← er, ← em]
-        exact ⟨hans, MemoInv.set key_exact hm (keyWF_mk hwfe) hans hins⟩
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_false, memo_b1_get_if_true, memo_b1_insert_if_true] at h
+      obtain ⟨_, _, h⟩ := bind_eq_ok_iff.mp h
+      have e0 := Result.ok_injective (α := Bool × _) h
+      have er : true = b := congrArg Prod.fst e0
+      have em : memo = memo' := congrArg Prod.snd e0
+      have hans : WScQ (absKey ⟨expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Const n vs)), d⟩) true := by
+        simp [WScQ, ConLeche.Expr.wscopedB]
+      rw [← er, ← em]
+      exact ⟨hans, hm⟩
   | @lit l e hl h1 =>
     have hwfe : ExprWF e := ExprWF.lit hl h1
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
@@ -303,29 +281,17 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
     split at h
     · rename_i hzc
       exact wscoped_b_cutoff hwfe hm hfb (by rw [hzc]; scalar_tac) h
-    · obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
-      have hkk := expr_nat_key_eq hkey
-      subst hkk
-      cases o with
-      | some wv =>
-        have e0 := Result.ok_injective (α := Bool × _) h
-        have ea : wv = b := congrArg Prod.fst e0
-        have eb : memo = memo' := congrArg Prod.snd e0
-        rw [← ea, ← eb]
-        exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey) (Q := WScQ)
-          key_exact hm (keyWF_mk hwfe) (memo_b1_get_hit ho), hm⟩
-      | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
-        have e0 := Result.ok_injective (α := Bool × _) h
-        have er : true = b := congrArg Prod.fst e0
-        have em : memoZ = memo' := congrArg Prod.snd e0
-        have hans : WScQ (absKey ⟨expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Lit l)), d⟩) true := by
-          simp [WScQ, ConLeche.Expr.wscopedB]
-        rw [← er, ← em]
-        exact ⟨hans, MemoInv.set key_exact hm (keyWF_mk hwfe) hans hins⟩
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_false, memo_b1_get_if_true, memo_b1_insert_if_true] at h
+      obtain ⟨_, _, h⟩ := bind_eq_ok_iff.mp h
+      have e0 := Result.ok_injective (α := Bool × _) h
+      have er : true = b := congrArg Prod.fst e0
+      have em : memo = memo' := congrArg Prod.snd e0
+      have hans : WScQ (absKey ⟨expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Lit l)), d⟩) true := by
+        simp [WScQ, ConLeche.Expr.wscopedB]
+      rw [← er, ← em]
+      exact ⟨hans, hm⟩
   | @app f a e hf ha h1 ihf iha =>
     have hwfe : ExprWF e := ExprWF.app hf ha h1
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
@@ -335,7 +301,10 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
     split at h
     · rename_i hzc
       exact wscoped_b_cutoff hwfe hm hfb (by rw [hzc]; scalar_tac) h
-    · obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_true, memo_b1_get_if_false] at h
+      obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
       subst hkk
@@ -348,11 +317,10 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
         exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey) (Q := WScQ)
           key_exact hm (keyWF_mk hwfe) (memo_b1_get_hit ho), hm⟩
       | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨oldv, hins⟩ := memo_b1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := Bool × _) h
         have er : r0 = b := congrArg Prod.fst e0
         have em : memoZ = memo' := congrArg Prod.snd e0
@@ -391,7 +359,10 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
     split at h
     · rename_i hzc
       exact wscoped_b_cutoff hwfe hm hfb (by rw [hzc]; scalar_tac) h
-    · obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_true, memo_b1_get_if_false] at h
+      obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
       subst hkk
@@ -404,11 +375,10 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
         exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey) (Q := WScQ)
           key_exact hm (keyWF_mk hwfe) (memo_b1_get_hit ho), hm⟩
       | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨oldv, hins⟩ := memo_b1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := Bool × _) h
         have er : r0 = b := congrArg Prod.fst e0
         have em : memoZ = memo' := congrArg Prod.snd e0
@@ -447,7 +417,10 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
     split at h
     · rename_i hzc
       exact wscoped_b_cutoff hwfe hm hfb (by rw [hzc]; scalar_tac) h
-    · obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_true, memo_b1_get_if_false] at h
+      obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
       subst hkk
@@ -460,11 +433,10 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
         exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey) (Q := WScQ)
           key_exact hm (keyWF_mk hwfe) (memo_b1_get_hit ho), hm⟩
       | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨oldv, hins⟩ := memo_b1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := Bool × _) h
         have er : r0 = b := congrArg Prod.fst e0
         have em : memoZ = memo' := congrArg Prod.snd e0
@@ -503,7 +475,10 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
     split at h
     · rename_i hzc
       exact wscoped_b_cutoff hwfe hm hfb (by rw [hzc]; scalar_tac) h
-    · obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_true, memo_b1_get_if_false] at h
+      obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
       subst hkk
@@ -516,11 +491,10 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
         exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey) (Q := WScQ)
           key_exact hm (keyWF_mk hwfe) (memo_b1_get_hit ho), hm⟩
       | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨oldv, hins⟩ := memo_b1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := Bool × _) h
         have er : r0 = b := congrArg Prod.fst e0
         have em : memoZ = memo' := congrArg Prod.snd e0
@@ -567,7 +541,10 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
     split at h
     · rename_i hzc
       exact wscoped_b_cutoff hwfe hm hfb (by rw [hzc]; scalar_tac) h
-    · obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_true, memo_b1_get_if_false] at h
+      obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
       subst hkk
@@ -580,11 +557,10 @@ theorem wscoped_b_go_refines {e : expr.Expr} (he : ExprWF e) :
         exact ⟨MemoInv.hit (KWF := KeyWF) (absK := absKey) (Q := WScQ)
           key_exact hm (keyWF_mk hwfe) (memo_b1_get_hit ho), hm⟩
       | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨oldv, hins⟩ := memo_b1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := Bool × _) h
         have er : r0 = b := congrArg Prod.fst e0
         have em : memoZ = memo' := congrArg Prod.snd e0
@@ -1541,29 +1517,17 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
     split at h
     · rename_i hzc
       exact leaves_sub_cutoff hwfe hm hfb (by rw [hzc]; scalar_tac) h
-    · obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
-      cases o with
-      | some wv =>
-        have e0 := Result.ok_injective (α := Bool × _) h
-        have ea : wv = b := congrArg Prod.fst e0
-        have eb : memo = memo' := congrArg Prod.snd e0
-        rw [← ea, ← eb]
-        exact ⟨MemoInv.hit (KWF := ExprWF) (absK := absExpr)
-          (Q := LeafSubQ (absLeaves bl)) expr_key_exact hm hwfe (memo_b_get_hit ho), hm⟩
-      | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
-        have e0 := Result.ok_injective (α := Bool × _) h
-        have er : true = b := congrArg Prod.fst e0
-        have em : memoZ = memo' := congrArg Prod.snd e0
-        have hans : LeafSubQ (absLeaves bl)
-            (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Bvar i)))) true := by
-          simp [LeafSubQ, fvl_bvar]
-        rw [Expr.dup_eq hd1] at hins
-        rw [← er, ← em]
-        exact ⟨hans, MemoInv.set expr_key_exact hm hwfe hans hins⟩
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_false, memo_b_probe_true, memo_b_record_true] at h
+      have e0 := Result.ok_injective (α := Bool × _) h
+      have er : true = b := congrArg Prod.fst e0
+      have em : memo = memo' := congrArg Prod.snd e0
+      have hans : LeafSubQ (absLeaves bl)
+          (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Bvar i)))) true := by
+        simp [LeafSubQ, fvl_bvar]
+      rw [← er, ← em]
+      exact ⟨hans, hm⟩
   | @fvar idx ty e hty h1 ih =>
     have hwfe : ExprWF e := ExprWF.fvar hty h1
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.fvar_inv h1
@@ -1573,7 +1537,10 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
     split at h
     · rename_i hzc
       exact leaves_sub_cutoff hwfe hm hfb (by rw [hzc]; scalar_tac) h
-    · obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_true, memo_b_probe_false] at h
+      obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some wv =>
         have e0 := Result.ok_injective (α := Bool × _) h
@@ -1583,12 +1550,10 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
         exact ⟨MemoInv.hit (KWF := ExprWF) (absK := absExpr)
           (Q := LeafSubQ (absLeaves bl)) expr_key_exact hm hwfe (memo_b_get_hit ho), hm⟩
       | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨e1, hd1, oldv, hins⟩ := memo_b_record_inv hrec
         have e0 := Result.ok_injective (α := Bool × _) h
         have er : r0 = b := congrArg Prod.fst e0
         have em : memoZ = memo' := congrArg Prod.snd e0
@@ -1630,29 +1595,17 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
     split at h
     · rename_i hzc
       exact leaves_sub_cutoff hwfe hm hfb (by rw [hzc]; scalar_tac) h
-    · obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
-      cases o with
-      | some wv =>
-        have e0 := Result.ok_injective (α := Bool × _) h
-        have ea : wv = b := congrArg Prod.fst e0
-        have eb : memo = memo' := congrArg Prod.snd e0
-        rw [← ea, ← eb]
-        exact ⟨MemoInv.hit (KWF := ExprWF) (absK := absExpr)
-          (Q := LeafSubQ (absLeaves bl)) expr_key_exact hm hwfe (memo_b_get_hit ho), hm⟩
-      | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
-        have e0 := Result.ok_injective (α := Bool × _) h
-        have er : true = b := congrArg Prod.fst e0
-        have em : memoZ = memo' := congrArg Prod.snd e0
-        have hans : LeafSubQ (absLeaves bl)
-            (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.«Sort» u)))) true := by
-          simp [LeafSubQ, fvl_sort]
-        rw [Expr.dup_eq hd1] at hins
-        rw [← er, ← em]
-        exact ⟨hans, MemoInv.set expr_key_exact hm hwfe hans hins⟩
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_false, memo_b_probe_true, memo_b_record_true] at h
+      have e0 := Result.ok_injective (α := Bool × _) h
+      have er : true = b := congrArg Prod.fst e0
+      have em : memo = memo' := congrArg Prod.snd e0
+      have hans : LeafSubQ (absLeaves bl)
+          (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.«Sort» u)))) true := by
+        simp [LeafSubQ, fvl_sort]
+      rw [← er, ← em]
+      exact ⟨hans, hm⟩
   | @mk_const n vs e hn hvs h1 =>
     have hwfe : ExprWF e := ExprWF.mk_const hn hvs h1
     obtain ⟨d1, b0, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1
@@ -1662,29 +1615,17 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
     split at h
     · rename_i hzc
       exact leaves_sub_cutoff hwfe hm hfb (by rw [hzc]; scalar_tac) h
-    · obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
-      cases o with
-      | some wv =>
-        have e0 := Result.ok_injective (α := Bool × _) h
-        have ea : wv = b := congrArg Prod.fst e0
-        have eb : memo = memo' := congrArg Prod.snd e0
-        rw [← ea, ← eb]
-        exact ⟨MemoInv.hit (KWF := ExprWF) (absK := absExpr)
-          (Q := LeafSubQ (absLeaves bl)) expr_key_exact hm hwfe (memo_b_get_hit ho), hm⟩
-      | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
-        have e0 := Result.ok_injective (α := Bool × _) h
-        have er : true = b := congrArg Prod.fst e0
-        have em : memoZ = memo' := congrArg Prod.snd e0
-        have hans : LeafSubQ (absLeaves bl)
-            (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Const n vs)))) true := by
-          simp [LeafSubQ, fvl_const]
-        rw [Expr.dup_eq hd1] at hins
-        rw [← er, ← em]
-        exact ⟨hans, MemoInv.set expr_key_exact hm hwfe hans hins⟩
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_false, memo_b_probe_true, memo_b_record_true] at h
+      have e0 := Result.ok_injective (α := Bool × _) h
+      have er : true = b := congrArg Prod.fst e0
+      have em : memo = memo' := congrArg Prod.snd e0
+      have hans : LeafSubQ (absLeaves bl)
+          (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Const n vs)))) true := by
+        simp [LeafSubQ, fvl_const]
+      rw [← er, ← em]
+      exact ⟨hans, hm⟩
   | @lit l e hl h1 =>
     have hwfe : ExprWF e := ExprWF.lit hl h1
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.lit_inv h1
@@ -1694,29 +1635,17 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
     split at h
     · rename_i hzc
       exact leaves_sub_cutoff hwfe hm hfb (by rw [hzc]; scalar_tac) h
-    · obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
-      cases o with
-      | some wv =>
-        have e0 := Result.ok_injective (α := Bool × _) h
-        have ea : wv = b := congrArg Prod.fst e0
-        have eb : memo = memo' := congrArg Prod.snd e0
-        rw [← ea, ← eb]
-        exact ⟨MemoInv.hit (KWF := ExprWF) (absK := absExpr)
-          (Q := LeafSubQ (absLeaves bl)) expr_key_exact hm hwfe (memo_b_get_hit ho), hm⟩
-      | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
-        have e0 := Result.ok_injective (α := Bool × _) h
-        have er : true = b := congrArg Prod.fst e0
-        have em : memoZ = memo' := congrArg Prod.snd e0
-        have hans : LeafSubQ (absLeaves bl)
-            (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Lit l)))) true := by
-          simp [LeafSubQ, fvl_lit]
-        rw [Expr.dup_eq hd1] at hins
-        rw [← er, ← em]
-        exact ⟨hans, MemoInv.set expr_key_exact hm hwfe hans hins⟩
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_false, memo_b_probe_true, memo_b_record_true] at h
+      have e0 := Result.ok_injective (α := Bool × _) h
+      have er : true = b := congrArg Prod.fst e0
+      have em : memo = memo' := congrArg Prod.snd e0
+      have hans : LeafSubQ (absLeaves bl)
+          (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Lit l)))) true := by
+        simp [LeafSubQ, fvl_lit]
+      rw [← er, ← em]
+      exact ⟨hans, hm⟩
   | @app f a e hf ha h1 ihf iha =>
     have hwfe : ExprWF e := ExprWF.app hf ha h1
     obtain ⟨d1, rfl, -, -, -⟩ := Expr.app_inv h1
@@ -1726,7 +1655,10 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
     split at h
     · rename_i hzc
       exact leaves_sub_cutoff hwfe hm hfb (by rw [hzc]; scalar_tac) h
-    · obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_true, memo_b_probe_false] at h
+      obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some wv =>
         have e0 := Result.ok_injective (α := Bool × _) h
@@ -1736,12 +1668,10 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
         exact ⟨MemoInv.hit (KWF := ExprWF) (absK := absExpr)
           (Q := LeafSubQ (absLeaves bl)) expr_key_exact hm hwfe (memo_b_get_hit ho), hm⟩
       | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨e1, hd1, oldv, hins⟩ := memo_b_record_inv hrec
         have e0 := Result.ok_injective (α := Bool × _) h
         have er : r0 = b := congrArg Prod.fst e0
         have em : memoZ = memo' := congrArg Prod.snd e0
@@ -1782,7 +1712,10 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
     split at h
     · rename_i hzc
       exact leaves_sub_cutoff hwfe hm hfb (by rw [hzc]; scalar_tac) h
-    · obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_true, memo_b_probe_false] at h
+      obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some wv =>
         have e0 := Result.ok_injective (α := Bool × _) h
@@ -1792,12 +1725,10 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
         exact ⟨MemoInv.hit (KWF := ExprWF) (absK := absExpr)
           (Q := LeafSubQ (absLeaves bl)) expr_key_exact hm hwfe (memo_b_get_hit ho), hm⟩
       | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨e1, hd1, oldv, hins⟩ := memo_b_record_inv hrec
         have e0 := Result.ok_injective (α := Bool × _) h
         have er : r0 = b := congrArg Prod.fst e0
         have em : memoZ = memo' := congrArg Prod.snd e0
@@ -1838,7 +1769,10 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
     split at h
     · rename_i hzc
       exact leaves_sub_cutoff hwfe hm hfb (by rw [hzc]; scalar_tac) h
-    · obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_true, memo_b_probe_false] at h
+      obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some wv =>
         have e0 := Result.ok_injective (α := Bool × _) h
@@ -1848,12 +1782,10 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
         exact ⟨MemoInv.hit (KWF := ExprWF) (absK := absExpr)
           (Q := LeafSubQ (absLeaves bl)) expr_key_exact hm hwfe (memo_b_get_hit ho), hm⟩
       | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨e1, hd1, oldv, hins⟩ := memo_b_record_inv hrec
         have e0 := Result.ok_injective (α := Bool × _) h
         have er : r0 = b := congrArg Prod.fst e0
         have em : memoZ = memo' := congrArg Prod.snd e0
@@ -1894,7 +1826,10 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
     split at h
     · rename_i hzc
       exact leaves_sub_cutoff hwfe hm hfb (by rw [hzc]; scalar_tac) h
-    · obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_true, memo_b_probe_false] at h
+      obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some wv =>
         have e0 := Result.ok_injective (α := Bool × _) h
@@ -1904,12 +1839,10 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
         exact ⟨MemoInv.hit (KWF := ExprWF) (absK := absExpr)
           (Q := LeafSubQ (absLeaves bl)) expr_key_exact hm hwfe (memo_b_get_hit ho), hm⟩
       | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨e1, hd1, oldv, hins⟩ := memo_b_record_inv hrec
         have e0 := Result.ok_injective (α := Bool × _) h
         have er : r0 = b := congrArg Prod.fst e0
         have em : memoZ = memo' := congrArg Prod.snd e0
@@ -1958,7 +1891,10 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
     split at h
     · rename_i hzc
       exact leaves_sub_cutoff hwfe hm hfb (by rw [hzc]; scalar_tac) h
-    · obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_true, memo_b_probe_false] at h
+      obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some wv =>
         have e0 := Result.ok_injective (α := Bool × _) h
@@ -1968,12 +1904,10 @@ theorem leaves_sub_go_refines {bl : alloc.vec.Vec (Std.U64 × expr.Expr)}
         exact ⟨MemoInv.hit (KWF := ExprWF) (absK := absExpr)
           (Q := LeafSubQ (absLeaves bl)) expr_key_exact hm hwfe (memo_b_get_hit ho), hm⟩
       | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨e1, hd1, oldv, hins⟩ := memo_b_record_inv hrec
         have e0 := Result.ok_injective (α := Bool × _) h
         have er : r0 = b := congrArg Prod.fst e0
         have em : memoZ = memo' := congrArg Prod.snd e0
@@ -2285,24 +2219,17 @@ theorem all_level_params_defined_go_refines {params : alloc.vec.Vec name.Name}
     rw [cached.expr_ops_c.all_level_params_defined_go.eq_def] at h
     obtain ⟨b0, hlp, h⟩ := bind_eq_ok_iff.mp h
     split at h
-    · obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
-      cases o with
-      | some w => exact alpd_hit hwfe hm ho h
-      | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memo3⟩ := p3
-        have e0 := Result.ok_injective (α := Bool × _) h
-        have ea : true = b := congrArg Prod.fst e0
-        have eb : memo3 = memo' := congrArg Prod.snd e0
-        have hans : ALPDQ (absNames params)
-            (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Bvar i)))) true := by
-          simp [ALPDQ, ConLeche.Expr.allLevelParamsDefined]
-        rw [← ea, ← eb]
-        refine ⟨hans, ?_⟩
-        rw [Expr.dup_eq hd1] at hins
-        exact MemoInv.set expr_key_exact hm hwfe hans hins
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_false, memo_b_probe_true, memo_b_record_true] at h
+      have e0 := Result.ok_injective (α := Bool × _) h
+      have ea : true = b := congrArg Prod.fst e0
+      have eb : memo = memo' := congrArg Prod.snd e0
+      have hans : ALPDQ (absNames params)
+          (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Bvar i)))) true := by
+        simp [ALPDQ, ConLeche.Expr.allLevelParamsDefined]
+      rw [← ea, ← eb]
+      exact ⟨hans, hm⟩
     · rename_i hcut
       have hb0 : b0 = false := by simpa using hcut
       subst hb0
@@ -2314,24 +2241,17 @@ theorem all_level_params_defined_go_refines {params : alloc.vec.Vec name.Name}
     rw [cached.expr_ops_c.all_level_params_defined_go.eq_def] at h
     obtain ⟨b0, hlp, h⟩ := bind_eq_ok_iff.mp h
     split at h
-    · obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
-      cases o with
-      | some w => exact alpd_hit hwfe hm ho h
-      | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memo3⟩ := p3
-        have e0 := Result.ok_injective (α := Bool × _) h
-        have ea : true = b := congrArg Prod.fst e0
-        have eb : memo3 = memo' := congrArg Prod.snd e0
-        have hans : ALPDQ (absNames params)
-            (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Lit l)))) true := by
-          simp [ALPDQ, ConLeche.Expr.allLevelParamsDefined]
-        rw [← ea, ← eb]
-        refine ⟨hans, ?_⟩
-        rw [Expr.dup_eq hd1] at hins
-        exact MemoInv.set expr_key_exact hm hwfe hans hins
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_false, memo_b_probe_true, memo_b_record_true] at h
+      have e0 := Result.ok_injective (α := Bool × _) h
+      have ea : true = b := congrArg Prod.fst e0
+      have eb : memo = memo' := congrArg Prod.snd e0
+      have hans : ALPDQ (absNames params)
+          (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Lit l)))) true := by
+        simp [ALPDQ, ConLeche.Expr.allLevelParamsDefined]
+      rw [← ea, ← eb]
+      exact ⟨hans, hm⟩
     · rename_i hcut
       have hb0 : b0 = false := by simpa using hcut
       subst hb0
@@ -2343,36 +2263,29 @@ theorem all_level_params_defined_go_refines {params : alloc.vec.Vec name.Name}
     rw [cached.expr_ops_c.all_level_params_defined_go.eq_def] at h
     obtain ⟨b0, hlp, h⟩ := bind_eq_ok_iff.mp h
     split at h
-    · obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
-      cases o with
-      | some w => exact alpd_hit hwfe hm ho h
-      | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-        obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨memo1, r0⟩ := q
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memo3⟩ := p3
-        have e0 := Result.ok_injective (α := Bool × _) h
-        have ea : r0 = b := congrArg Prod.fst e0
-        have eb : memo3 = memo' := congrArg Prod.snd e0
-        obtain ⟨hans, hmF⟩ :
-            ALPDQ (absNames params)
-              (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.«Sort» u)))) r0 ∧
-              MemoInv ExprWF absExpr (ALPDQ (absNames params)) memo1 := by
-          obtain ⟨r1, hr1, hq⟩ := bind_eq_ok_iff.mp hq
-          have eq1 := Result.ok_injective
-            (α := ron.hashmap.HashMap expr.Expr Bool × Bool) hq
-          have em1 : memo = memo1 := congrArg Prod.fst eq1
-          have er1 : r1 = r0 := congrArg Prod.snd eq1
-          refine ⟨?_, by rw [← em1]; exact hm⟩
-          simp only [ALPDQ, absExpr_mk, absExprKind]
-          rw [← er1, all_params_defined_refines hps u hu r1 hr1]
-          simp [ConLeche.Expr.allLevelParamsDefined]
-        rw [← ea, ← eb]
-        refine ⟨hans, ?_⟩
-        rw [Expr.dup_eq hd1] at hins
-        exact MemoInv.set expr_key_exact hmF hwfe hans hins
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_false, memo_b_probe_true, memo_b_record_true] at h
+      obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨memo1, r0⟩ := q
+      have e0 := Result.ok_injective (α := Bool × _) h
+      have ea : r0 = b := congrArg Prod.fst e0
+      have eb : memo1 = memo' := congrArg Prod.snd e0
+      obtain ⟨hans, hmF⟩ :
+          ALPDQ (absNames params)
+            (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.«Sort» u)))) r0 ∧
+            MemoInv ExprWF absExpr (ALPDQ (absNames params)) memo1 := by
+        obtain ⟨r1, hr1, hq⟩ := bind_eq_ok_iff.mp hq
+        have eq1 := Result.ok_injective
+          (α := ron.hashmap.HashMap expr.Expr Bool × Bool) hq
+        have em1 : memo = memo1 := congrArg Prod.fst eq1
+        have er1 : r1 = r0 := congrArg Prod.snd eq1
+        refine ⟨?_, by rw [← em1]; exact hm⟩
+        simp only [ALPDQ, absExpr_mk, absExprKind]
+        rw [← er1, all_params_defined_refines hps u hu r1 hr1]
+        simp [ConLeche.Expr.allLevelParamsDefined]
+      rw [← ea, ← eb]
+      exact ⟨hans, hmF⟩
     · rename_i hcut
       have hb0 : b0 = false := by simpa using hcut
       subst hb0
@@ -2384,37 +2297,30 @@ theorem all_level_params_defined_go_refines {params : alloc.vec.Vec name.Name}
     rw [cached.expr_ops_c.all_level_params_defined_go.eq_def] at h
     obtain ⟨b0, hlp, h⟩ := bind_eq_ok_iff.mp h
     split at h
-    · obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
-      cases o with
-      | some w => exact alpd_hit hwfe hm ho h
-      | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
-        obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨memo1, r0⟩ := q
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memo3⟩ := p3
-        have e0 := Result.ok_injective (α := Bool × _) h
-        have ea : r0 = b := congrArg Prod.fst e0
-        have eb : memo3 = memo' := congrArg Prod.snd e0
-        obtain ⟨hans, hmF⟩ :
-            ALPDQ (absNames params)
-              (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Const n us)))) r0 ∧
-              MemoInv ExprWF absExpr (ALPDQ (absNames params)) memo1 := by
-          obtain ⟨r1, hr1, hq⟩ := bind_eq_ok_iff.mp hq
-          have eq1 := Result.ok_injective
-            (α := ron.hashmap.HashMap expr.Expr Bool × Bool) hq
-          have em1 : memo = memo1 := congrArg Prod.fst eq1
-          have er1 : r1 = r0 := congrArg Prod.snd eq1
-          refine ⟨?_, by rw [← em1]; exact hm⟩
-          simp only [ALPDQ, absExpr_mk, absExprKind]
-          rw [← er1, levels_all_params_defined_refines hps hus us.val.length 0#usize r1
-            (by scalar_tac) hr1]
-          simp [ConLeche.Expr.allLevelParamsDefined, absLevels]
-        rw [← ea, ← eb]
-        refine ⟨hans, ?_⟩
-        rw [Expr.dup_eq hd1] at hins
-        exact MemoInv.set expr_key_exact hmF hwfe hans hins
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_false, memo_b_probe_true, memo_b_record_true] at h
+      obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨memo1, r0⟩ := q
+      have e0 := Result.ok_injective (α := Bool × _) h
+      have ea : r0 = b := congrArg Prod.fst e0
+      have eb : memo1 = memo' := congrArg Prod.snd e0
+      obtain ⟨hans, hmF⟩ :
+          ALPDQ (absNames params)
+            (absExpr (expr.Expr.mk (expr.ExprNode.mk d1 (expr.ExprKind.Const n us)))) r0 ∧
+            MemoInv ExprWF absExpr (ALPDQ (absNames params)) memo1 := by
+        obtain ⟨r1, hr1, hq⟩ := bind_eq_ok_iff.mp hq
+        have eq1 := Result.ok_injective
+          (α := ron.hashmap.HashMap expr.Expr Bool × Bool) hq
+        have em1 : memo = memo1 := congrArg Prod.fst eq1
+        have er1 : r1 = r0 := congrArg Prod.snd eq1
+        refine ⟨?_, by rw [← em1]; exact hm⟩
+        simp only [ALPDQ, absExpr_mk, absExprKind]
+        rw [← er1, levels_all_params_defined_refines hps hus us.val.length 0#usize r1
+          (by scalar_tac) hr1]
+        simp [ConLeche.Expr.allLevelParamsDefined, absLevels]
+      rw [← ea, ← eb]
+      exact ⟨hans, hmF⟩
     · rename_i hcut
       have hb0 : b0 = false := by simpa using hcut
       subst hb0
@@ -2426,16 +2332,17 @@ theorem all_level_params_defined_go_refines {params : alloc.vec.Vec name.Name}
     rw [cached.expr_ops_c.all_level_params_defined_go.eq_def] at h
     obtain ⟨b0, hlp, h⟩ := bind_eq_ok_iff.mp h
     split at h
-    · obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_true, memo_b_probe_false] at h
+      obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some w => exact alpd_hit hwfe hm ho h
       | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memo3⟩ := p3
+        obtain ⟨memo3, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨e1, hd1, oldv, hins⟩ := memo_b_record_inv hrec
         have e0 := Result.ok_injective (α := Bool × _) h
         have ea : r0 = b := congrArg Prod.fst e0
         have eb : memo3 = memo' := congrArg Prod.snd e0
@@ -2472,16 +2379,17 @@ theorem all_level_params_defined_go_refines {params : alloc.vec.Vec name.Name}
     rw [cached.expr_ops_c.all_level_params_defined_go.eq_def] at h
     obtain ⟨b0, hlp, h⟩ := bind_eq_ok_iff.mp h
     split at h
-    · obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_true, memo_b_probe_false] at h
+      obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some w => exact alpd_hit hwfe hm ho h
       | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memo3⟩ := p3
+        obtain ⟨memo3, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨e1, hd1, oldv, hins⟩ := memo_b_record_inv hrec
         have e0 := Result.ok_injective (α := Bool × _) h
         have ea : r0 = b := congrArg Prod.fst e0
         have eb : memo3 = memo' := congrArg Prod.snd e0
@@ -2518,16 +2426,17 @@ theorem all_level_params_defined_go_refines {params : alloc.vec.Vec name.Name}
     rw [cached.expr_ops_c.all_level_params_defined_go.eq_def] at h
     obtain ⟨b0, hlp, h⟩ := bind_eq_ok_iff.mp h
     split at h
-    · obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_true, memo_b_probe_false] at h
+      obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some w => exact alpd_hit hwfe hm ho h
       | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memo3⟩ := p3
+        obtain ⟨memo3, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨e1, hd1, oldv, hins⟩ := memo_b_record_inv hrec
         have e0 := Result.ok_injective (α := Bool × _) h
         have ea : r0 = b := congrArg Prod.fst e0
         have eb : memo3 = memo' := congrArg Prod.snd e0
@@ -2571,16 +2480,17 @@ theorem all_level_params_defined_go_refines {params : alloc.vec.Vec name.Name}
     rw [cached.expr_ops_c.all_level_params_defined_go.eq_def] at h
     obtain ⟨b0, hlp, h⟩ := bind_eq_ok_iff.mp h
     split at h
-    · obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_true, memo_b_probe_false] at h
+      obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some w => exact alpd_hit hwfe hm ho h
       | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memo3⟩ := p3
+        obtain ⟨memo3, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨e1, hd1, oldv, hins⟩ := memo_b_record_inv hrec
         have e0 := Result.ok_injective (α := Bool × _) h
         have ea : r0 = b := congrArg Prod.fst e0
         have eb : memo3 = memo' := congrArg Prod.snd e0
@@ -2626,16 +2536,17 @@ theorem all_level_params_defined_go_refines {params : alloc.vec.Vec name.Name}
     rw [cached.expr_ops_c.all_level_params_defined_go.eq_def] at h
     obtain ⟨b0, hlp, h⟩ := bind_eq_ok_iff.mp h
     split at h
-    · obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_true, memo_b_probe_false] at h
+      obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some w => exact alpd_hit hwfe hm ho h
       | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memo3⟩ := p3
+        obtain ⟨memo3, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨e1, hd1, oldv, hins⟩ := memo_b_record_inv hrec
         have e0 := Result.ok_injective (α := Bool × _) h
         have ea : r0 = b := congrArg Prod.fst e0
         have eb : memo3 = memo' := congrArg Prod.snd e0
@@ -2681,16 +2592,17 @@ theorem all_level_params_defined_go_refines {params : alloc.vec.Vec name.Name}
     rw [cached.expr_ops_c.all_level_params_defined_go.eq_def] at h
     obtain ⟨b0, hlp, h⟩ := bind_eq_ok_iff.mp h
     split at h
-    · obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, cached.expr_ops_c.is_compound_f, memo_skip_eq,
+        Bool.not_true, memo_b_probe_false] at h
+      obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some w => exact alpd_hit hwfe hm ho h
       | none =>
-        simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨memo1, r0⟩ := q
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memo3⟩ := p3
+        obtain ⟨memo3, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨e1, hd1, oldv, hins⟩ := memo_b_record_inv hrec
         have e0 := Result.ok_injective (α := Bool × _) h
         have ea : r0 = b := congrArg Prod.fst e0
         have eb : memo3 = memo' := congrArg Prod.snd e0

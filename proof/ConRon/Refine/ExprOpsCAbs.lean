@@ -135,7 +135,8 @@ theorem abstract1_go_refines {d : Std.U64} {e : expr.Expr}
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact abstract1_cutoff hwfe hm hfb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, is_exclusive_eq, memo1_get_if_false] at h
       obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
@@ -164,9 +165,8 @@ theorem abstract1_go_refines {d : Std.U64} {e : expr.Expr}
         subst eg1; subst eg2
         obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihf memo memo2 k f2 hm hgf
         obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := iha memo2 memo1 k a2 hm2 hga
-        obtain ⟨x1, hdup, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨x1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have er : r = r0 := (congrArg Prod.fst e0).symm
         have em : memo' = memoZ := (congrArg Prod.snd e0).symm
@@ -186,7 +186,8 @@ theorem abstract1_go_refines {d : Std.U64} {e : expr.Expr}
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact abstract1_cutoff hwfe hm hfb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, is_exclusive_eq, memo1_get_if_false] at h
       obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
@@ -217,9 +218,8 @@ theorem abstract1_go_refines {d : Std.U64} {e : expr.Expr}
         subst eg1; subst eg2
         obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 k t hm hgt
         obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihbo memo2 memo1 cc b hm2 hgb
-        obtain ⟨x1, hdup, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨x1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have er : r = r0 := (congrArg Prod.fst e0).symm
         have em : memo' = memoZ := (congrArg Prod.snd e0).symm
@@ -240,7 +240,8 @@ theorem abstract1_go_refines {d : Std.U64} {e : expr.Expr}
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact abstract1_cutoff hwfe hm hfb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, is_exclusive_eq, memo1_get_if_false] at h
       obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
@@ -271,9 +272,8 @@ theorem abstract1_go_refines {d : Std.U64} {e : expr.Expr}
         subst eg1; subst eg2
         obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 k t hm hgt
         obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihbo memo2 memo1 cc b hm2 hgb
-        obtain ⟨x1, hdup, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨x1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have er : r = r0 := (congrArg Prod.fst e0).symm
         have em : memo' = memoZ := (congrArg Prod.snd e0).symm
@@ -294,7 +294,8 @@ theorem abstract1_go_refines {d : Std.U64} {e : expr.Expr}
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact abstract1_cutoff hwfe hm hfb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, is_exclusive_eq, memo1_get_if_false] at h
       obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
@@ -327,9 +328,8 @@ theorem abstract1_go_refines {d : Std.U64} {e : expr.Expr}
         obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 k t hm hgt
         obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihw memo2 memo3 k w3 hm2 hgv
         obtain ⟨⟨hwf4, habs4⟩, hm4⟩ := ihbo memo3 memo1 cc b hm3 hgb
-        obtain ⟨x1, hdup, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨x1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have er : r = r0 := (congrArg Prod.fst e0).symm
         have em : memo' = memoZ := (congrArg Prod.snd e0).symm
@@ -350,7 +350,8 @@ theorem abstract1_go_refines {d : Std.U64} {e : expr.Expr}
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact abstract1_cutoff hwfe hm hfb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, is_exclusive_eq, memo1_get_if_false] at h
       obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
@@ -380,9 +381,8 @@ theorem abstract1_go_refines {d : Std.U64} {e : expr.Expr}
         have hsn : s = n2 :=
           (Result.ok_injective (hn2.symm.trans (name_dup_eq s))).symm
         subst hsn
-        obtain ⟨x1, hdup, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨x1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have er : r = r0 := (congrArg Prod.fst e0).symm
         have em : memo' = memoZ := (congrArg Prod.snd e0).symm
@@ -583,7 +583,8 @@ theorem abstract_range_go_refines {d k : Std.U64} {e : expr.Expr}
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact abstract_range_cutoff hwfe hm hfb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, is_exclusive_eq, memo1_get_if_false] at h
       obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
@@ -612,9 +613,8 @@ theorem abstract_range_go_refines {d k : Std.U64} {e : expr.Expr}
         subst eg1; subst eg2
         obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihf memo memo2 c f2 hm hgf
         obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := iha memo2 memo1 c a2 hm2 hga
-        obtain ⟨x1, hdup, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨x1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have er : r = r0 := (congrArg Prod.fst e0).symm
         have em : memo' = memoZ := (congrArg Prod.snd e0).symm
@@ -634,7 +634,8 @@ theorem abstract_range_go_refines {d k : Std.U64} {e : expr.Expr}
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact abstract_range_cutoff hwfe hm hfb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, is_exclusive_eq, memo1_get_if_false] at h
       obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
@@ -665,9 +666,8 @@ theorem abstract_range_go_refines {d k : Std.U64} {e : expr.Expr}
         subst eg1; subst eg2
         obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 c t hm hgt
         obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihbo memo2 memo1 cc b hm2 hgb
-        obtain ⟨x1, hdup, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨x1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have er : r = r0 := (congrArg Prod.fst e0).symm
         have em : memo' = memoZ := (congrArg Prod.snd e0).symm
@@ -688,7 +688,8 @@ theorem abstract_range_go_refines {d k : Std.U64} {e : expr.Expr}
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact abstract_range_cutoff hwfe hm hfb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, is_exclusive_eq, memo1_get_if_false] at h
       obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
@@ -719,9 +720,8 @@ theorem abstract_range_go_refines {d k : Std.U64} {e : expr.Expr}
         subst eg1; subst eg2
         obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 c t hm hgt
         obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihbo memo2 memo1 cc b hm2 hgb
-        obtain ⟨x1, hdup, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨x1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have er : r = r0 := (congrArg Prod.fst e0).symm
         have em : memo' = memoZ := (congrArg Prod.snd e0).symm
@@ -742,7 +742,8 @@ theorem abstract_range_go_refines {d k : Std.U64} {e : expr.Expr}
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact abstract_range_cutoff hwfe hm hfb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, is_exclusive_eq, memo1_get_if_false] at h
       obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
@@ -775,9 +776,8 @@ theorem abstract_range_go_refines {d k : Std.U64} {e : expr.Expr}
         obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 c t hm hgt
         obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihw memo2 memo3 c w3 hm2 hgv
         obtain ⟨⟨hwf4, habs4⟩, hm4⟩ := ihbo memo3 memo1 cc b hm3 hgb
-        obtain ⟨x1, hdup, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨x1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have er : r = r0 := (congrArg Prod.fst e0).symm
         have em : memo' = memoZ := (congrArg Prod.snd e0).symm
@@ -798,7 +798,8 @@ theorem abstract_range_go_refines {d k : Std.U64} {e : expr.Expr}
     obtain ⟨fb, hfb, h⟩ := bind_eq_ok_iff.mp h
     split at h
     · exact abstract_range_cutoff hwfe hm hfb (by scalar_tac) h
-    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind, ron.node.ExprView.ofKind] at h
+    · simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, node_kind,
+        ron.node.ExprView.ofKind, is_exclusive_eq, memo1_get_if_false] at h
       obtain ⟨key, hkey, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       have hkk := expr_nat_key_eq hkey
@@ -828,9 +829,8 @@ theorem abstract_range_go_refines {d k : Std.U64} {e : expr.Expr}
         have hsn : s = n2 :=
           (Result.ok_injective (hn2.symm.trans (name_dup_eq s))).symm
         subst hsn
-        obtain ⟨x1, hdup, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨x1, hdup, oldv, hins⟩ := memo1_insert_if_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have er : r = r0 := (congrArg Prod.fst e0).symm
         have em : memo' = memoZ := (congrArg Prod.snd e0).symm
@@ -918,7 +918,8 @@ theorem inst_level_params_go_refines {ks : alloc.vec.Vec name.Name}
       subst hr; subst hmm
       exact ⟨ilp_cutoff hwfe hb hdup, hm⟩
     | true =>
-      simp only [if_true] at h
+      simp only [if_true, is_exclusive_eq, bind_tc_ok,
+        memo_e_probe_false] at h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some w =>
@@ -936,10 +937,8 @@ theorem inst_level_params_go_refines {ks : alloc.vec.Vec name.Name}
         simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at hgo
         obtain ⟨c0, hc0, hmm1, hr0⟩ := hgo
         subst hmm1
-        obtain ⟨x1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨x2, hd2, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨x1, hd1, x2, hd2, oldv, hins⟩ := memo_e_record_inv hrec
         have e1 := Result.ok_injective (α := expr.Expr × _) h
         have er : r = r0 := (congrArg Prod.fst e1).symm
         have em : memo' = memoZ := (congrArg Prod.snd e1).symm
@@ -965,7 +964,8 @@ theorem inst_level_params_go_refines {ks : alloc.vec.Vec name.Name}
       subst hr; subst hmm
       exact ⟨ilp_cutoff hwfe hb hdup, hm⟩
     | true =>
-      simp only [if_true] at h
+      simp only [if_true, is_exclusive_eq, bind_tc_ok,
+        memo_e_probe_false] at h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some w =>
@@ -983,10 +983,8 @@ theorem inst_level_params_go_refines {ks : alloc.vec.Vec name.Name}
         simp only [bind_eq_ok_iff, Result.ok.injEq, Prod.mk.injEq] at hgo
         obtain ⟨c0, hc0, hmm1, hr0⟩ := hgo
         subst hmm1
-        obtain ⟨x1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨x2, hd2, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨x1, hd1, x2, hd2, oldv, hins⟩ := memo_e_record_inv hrec
         have e1 := Result.ok_injective (α := expr.Expr × _) h
         have er : r = r0 := (congrArg Prod.fst e1).symm
         have em : memo' = memoZ := (congrArg Prod.snd e1).symm
@@ -1012,7 +1010,8 @@ theorem inst_level_params_go_refines {ks : alloc.vec.Vec name.Name}
       subst hr; subst hmm
       exact ⟨ilp_cutoff hwfe hb hdup, hm⟩
     | true =>
-      simp only [if_true] at h
+      simp only [if_true, is_exclusive_eq, bind_tc_ok,
+        memo_e_probe_false] at h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some w =>
@@ -1031,10 +1030,8 @@ theorem inst_level_params_go_refines {ks : alloc.vec.Vec name.Name}
         obtain ⟨l0, hl0, c0, hc0, hmm1, hr0⟩ := hgo
         subst hmm1
         obtain ⟨habsl, hwfl⟩ := Level.subst_refines hu hks hus hl0
-        obtain ⟨x1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨x2, hd2, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨x1, hd1, x2, hd2, oldv, hins⟩ := memo_e_record_inv hrec
         have e1 := Result.ok_injective (α := expr.Expr × _) h
         have er : r = r0 := (congrArg Prod.fst e1).symm
         have em : memo' = memoZ := (congrArg Prod.snd e1).symm
@@ -1063,7 +1060,8 @@ theorem inst_level_params_go_refines {ks : alloc.vec.Vec name.Name}
       subst hr; subst hmm
       exact ⟨ilp_cutoff hwfe hb hdup, hm⟩
     | true =>
-      simp only [if_true] at h
+      simp only [if_true, is_exclusive_eq, bind_tc_ok,
+        memo_e_probe_false] at h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some w =>
@@ -1083,10 +1081,8 @@ theorem inst_level_params_go_refines {ks : alloc.vec.Vec name.Name}
         obtain ⟨v0, hv0, c0, hc0, hmm1, hr0⟩ := hgo
         subst hmm1
         obtain ⟨habsv, hwfv⟩ := levels_subst_refines hks hus hvs hv0
-        obtain ⟨x1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨x2, hd2, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p9, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memoZ⟩ := p9
+        obtain ⟨memoZ, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨x1, hd1, x2, hd2, oldv, hins⟩ := memo_e_record_inv hrec
         have e1 := Result.ok_injective (α := expr.Expr × _) h
         have er : r = r0 := (congrArg Prod.fst e1).symm
         have em : memo' = memoZ := (congrArg Prod.snd e1).symm
@@ -1114,7 +1110,8 @@ theorem inst_level_params_go_refines {ks : alloc.vec.Vec name.Name}
       subst hr; subst hmm
       exact ⟨ilp_cutoff hwfe hb hdup, hm⟩
     | true =>
-      simp only [if_true] at h
+      simp only [if_true, is_exclusive_eq, bind_tc_ok,
+        memo_e_probe_false] at h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some w =>
@@ -1138,10 +1135,8 @@ theorem inst_level_params_go_refines {ks : alloc.vec.Vec name.Name}
         have eg2 : r0 = r1 := (congrArg Prod.snd eg).symm
         subst eg1; subst eg2
         obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ih memo memo1 t hm ht
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨e2, hd2, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memo3⟩ := p3
+        obtain ⟨memo3, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨e1, hd1, e2, hd2, oldv, hins⟩ := memo_e_record_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have e1' : r = r0 := (congrArg Prod.fst e0).symm
         have e2' : memo' = memo3 := (congrArg Prod.snd e0).symm
@@ -1168,7 +1163,8 @@ theorem inst_level_params_go_refines {ks : alloc.vec.Vec name.Name}
       subst hr; subst hmm
       exact ⟨ilp_cutoff hwfe hb hdup, hm⟩
     | true =>
-      simp only [if_true] at h
+      simp only [if_true, is_exclusive_eq, bind_tc_ok,
+        memo_e_probe_false] at h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some w =>
@@ -1195,10 +1191,8 @@ theorem inst_level_params_go_refines {ks : alloc.vec.Vec name.Name}
         subst eg1; subst eg2
         obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihf memo memo2 f2 hm hf2
         obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := iha memo2 memo1 a2 hm2 ha2
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨e2, hd2, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memo4⟩ := p3
+        obtain ⟨memo4, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨e1, hd1, e2, hd2, oldv, hins⟩ := memo_e_record_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have e1' : r = r0 := (congrArg Prod.fst e0).symm
         have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm
@@ -1225,7 +1219,8 @@ theorem inst_level_params_go_refines {ks : alloc.vec.Vec name.Name}
       subst hr; subst hmm
       exact ⟨ilp_cutoff hwfe hb hdup, hm⟩
     | true =>
-      simp only [if_true] at h
+      simp only [if_true, is_exclusive_eq, bind_tc_ok,
+        memo_e_probe_false] at h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some w =>
@@ -1256,10 +1251,8 @@ theorem inst_level_params_go_refines {ks : alloc.vec.Vec name.Name}
         obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 t hm ht
         obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihbo memo2 memo1 b1 hm2 hbb
         obtain ⟨habspw, hwfpw⟩ := subst_pw_refines hks hus hm0 hpw
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨e2, hd2, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memo4⟩ := p3
+        obtain ⟨memo4, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨e1, hd1, e2, hd2, oldv, hins⟩ := memo_e_record_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have e1' : r = r0 := (congrArg Prod.fst e0).symm
         have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm
@@ -1286,7 +1279,8 @@ theorem inst_level_params_go_refines {ks : alloc.vec.Vec name.Name}
       subst hr; subst hmm
       exact ⟨ilp_cutoff hwfe hb hdup, hm⟩
     | true =>
-      simp only [if_true] at h
+      simp only [if_true, is_exclusive_eq, bind_tc_ok,
+        memo_e_probe_false] at h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some w =>
@@ -1317,10 +1311,8 @@ theorem inst_level_params_go_refines {ks : alloc.vec.Vec name.Name}
         obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 t hm ht
         obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihbo memo2 memo1 b1 hm2 hbb
         obtain ⟨habspw, hwfpw⟩ := subst_pw_refines hks hus hm0 hpw
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨e2, hd2, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memo4⟩ := p3
+        obtain ⟨memo4, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨e1, hd1, e2, hd2, oldv, hins⟩ := memo_e_record_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have e1' : r = r0 := (congrArg Prod.fst e0).symm
         have e2' : memo' = memo4 := (congrArg Prod.snd e0).symm
@@ -1347,7 +1339,8 @@ theorem inst_level_params_go_refines {ks : alloc.vec.Vec name.Name}
       subst hr; subst hmm
       exact ⟨ilp_cutoff hwfe hb hdup, hm⟩
     | true =>
-      simp only [if_true] at h
+      simp only [if_true, is_exclusive_eq, bind_tc_ok,
+        memo_e_probe_false] at h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some w' =>
@@ -1377,10 +1370,8 @@ theorem inst_level_params_go_refines {ks : alloc.vec.Vec name.Name}
         obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ihty memo memo2 t hm ht
         obtain ⟨⟨hwf3, habs3⟩, hm3⟩ := ihw memo2 memo3 w2 hm2 hv2
         obtain ⟨⟨hwf4, habs4⟩, hm4⟩ := ihbo memo3 memo1 b1 hm3 hbb
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨e2, hd2, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p4, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memo5⟩ := p4
+        obtain ⟨memo5, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨e1, hd1, e2, hd2, oldv, hins⟩ := memo_e_record_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have e1' : r = r0 := (congrArg Prod.fst e0).symm
         have e2' : memo' = memo5 := (congrArg Prod.snd e0).symm
@@ -1407,7 +1398,8 @@ theorem inst_level_params_go_refines {ks : alloc.vec.Vec name.Name}
       subst hr; subst hmm
       exact ⟨ilp_cutoff hwfe hb hdup, hm⟩
     | true =>
-      simp only [if_true] at h
+      simp only [if_true, is_exclusive_eq, bind_tc_ok,
+        memo_e_probe_false] at h
       obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
       cases o with
       | some w =>
@@ -1432,10 +1424,8 @@ theorem inst_level_params_go_refines {ks : alloc.vec.Vec name.Name}
         have eg2 : r0 = r1 := (congrArg Prod.snd eg).symm
         subst eg1; subst eg2
         obtain ⟨⟨hwf2, habs2⟩, hm2⟩ := ih memo memo1 u2 hm hu2
-        obtain ⟨e1, hd1, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨e2, hd2, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨p3, hins, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨oldv, memo3⟩ := p3
+        obtain ⟨memo3, hrec, h⟩ := bind_eq_ok_iff.mp h
+        obtain ⟨e1, hd1, e2, hd2, oldv, hins⟩ := memo_e_record_inv hrec
         have e0 := Result.ok_injective (α := expr.Expr × _) h
         have e1' : r = r0 := (congrArg Prod.fst e0).symm
         have e2' : memo' = memo3 := (congrArg Prod.snd e0).symm
@@ -1472,7 +1462,8 @@ theorem inst_level_params_refines {ks : alloc.vec.Vec name.Name}
     obtain ⟨hwf, habs⟩ := ilp_cutoff he hb h
     exact ⟨habs, hwf⟩
   | true =>
-    simp only [if_true] at h
+    simp only [if_true, is_exclusive_eq, bind_tc_ok,
+      memo_e_probe_false] at h
     obtain ⟨memo, hnew, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨p, hgo, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨r0, memo'⟩ := p
