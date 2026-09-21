@@ -71,31 +71,32 @@ theorem insert_no_resize_spec_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
     Inv0 HashableInst m' ∧ old = toFun m key ∧
     (∀ k', toFun m' k' = if k' = key then some value else toFun m k') ∧
     m'.slots.val.length = m.slots.val.length ∧
-    m'.max_load = m.max_load ∧ m'.saturated = m.saturated ∧ m'.epoch = m.epoch ∧
+    m'.max_load = m.max_load ∧ m'.epoch = m.epoch ∧
     m'.num_entries.val = m.num_entries.val + (if old.isSome then 0 else 1) ∧
     (sl_v m').length = (sl_v m).length + (if old.isSome then 0 else 1) ∧
     (old = none → (sl_v m').Perm ((key, value) :: sl_v m)) ∧ KeysOk P m' :=
   insert_no_resize_spec heq hinv hkeys hk hpos h
 
 /-- `try_resize` is the one operation that needs the table to be *allocated*
-(it doubles `slots.len()`, and `0` doubled is still `0`) and the one that can
-saturate; `insert` supplies `hpos` from `ensure_slots_spec` (task #35) and
-`hcap` from its own. -/
+(it doubles `slots.len()`, and `0` doubled is still `0`); `insert` supplies
+`hpos` from `ensure_slots_spec` (task #35).  It used to need a second
+hypothesis, "the table can still double" — task #97-P6-17 took the saturating
+arm out of the Rust, so the `ok` premise supplies it. -/
 theorem try_resize_spec_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
     (hinv : Inv0 HashableInst m) (hkeys : KeysOk P m) (hpos : 0 < m.slots.val.length)
-    (hcap : 2 * m.slots.val.length ≤ Std.Usize.max) {m' : ron.hashmap2.HashMap2 K V}
+    {m' : ron.hashmap2.HashMap2 K V}
     (h : ron.hashmap2.HashMap2.try_resize HashableInst Eq2Inst m = ok m') :
     Inv HashableInst m' ∧ KeysOk P m' ∧ (∀ k, toFun m' k = toFun m k) :=
-  try_resize_spec heq hinv hkeys hpos hcap h
+  try_resize_spec heq hinv hkeys hpos h
 
 theorem insert_refines_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
     (hinv : Inv HashableInst m) (hkeys : KeysOk P m) {key : K} {value : V} (hk : P key)
-    (hcap : 2 * m.slots.val.length ≤ Std.Usize.max) {old : Option V}
+    {old : Option V}
     {m' : ron.hashmap2.HashMap2 K V}
     (h : ron.hashmap2.HashMap2.insert HashableInst Eq2Inst m key value = ok (old, m')) :
     Inv HashableInst m' ∧ old = toFun m key ∧
     toFun m' = Function.update (toFun m) key (some value) ∧ KeysOk P m' :=
-  insert_refines_gen heq hinv hkeys hk hcap h
+  insert_refines_gen heq hinv hkeys hk h
 
 theorem remove_refines_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
     (hinv : Inv HashableInst m) (hkeys : KeysOk P m) {key : K} (hk : P key)
@@ -155,11 +156,11 @@ theorem Rel_insert_wf [LawfulBEq K'] [LawfulHashable K'] {P : K → Prop}
     {s : _root_.Std.HashMap K' V'} (heq : Eq2Fwd Eq2Inst P)
     (hinj : ∀ a b, P a → P b → absK a = absK b → a = b) (hinv : Inv HashableInst m)
     (hkeys : KeysOk P m) (hrel : RelOn P m s absK absV)
-    (hcap : 2 * m.slots.val.length ≤ Std.Usize.max) {key : K} {value : V} (hk : P key)
+    {key : K} {value : V} (hk : P key)
     {old : Option V} {m' : ron.hashmap2.HashMap2 K V}
     (h : ron.hashmap2.HashMap2.insert HashableInst Eq2Inst m key value = ok (old, m')) :
     RelOn P m' (s.insert (absK key) (absV value)) absK absV ∧ KeysOk P m' := by
-  obtain ⟨-, -, hupd, hkeys'⟩ := insert_refines_wf heq hinv hkeys hk hcap h
+  obtain ⟨-, -, hupd, hkeys'⟩ := insert_refines_wf heq hinv hkeys hk h
   refine ⟨?_, hkeys'⟩
   intro k' hk'
   rw [hupd, Function.update_apply, _root_.Std.HashMap.getElem?_insert]

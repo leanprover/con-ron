@@ -94,13 +94,17 @@ pub enum Slot<K, V> {
 /// con-leche: none — arena infrastructure (task #97-P6-4b)
 /// An open-addressed hash map with linear probing and an epoch stamp.
 ///
-/// Invariants (the Lean side of them is owed, see the module note):
+/// Invariants (`proof/ConRon/Refine/HashMap2.lean`'s `Inv`, proved):
 /// `slots.len()` is either zero — the unallocated table `new` returns, task
 /// #35's lazy allocation, kept — or a power of two at least `MIN_CAPACITY`;
 /// `epoch` is at least 1; every live key is reachable from its home slot by a
 /// run of live slots with no free slot in between; live keys are pairwise
 /// distinct; `num_entries` counts the live slots and is at most `max_load`
-/// after an `insert` returns unless the table is `saturated`.
+/// when an `insert` returns.
+///
+/// **That last clause is unconditional since task #97-P6-17.**  It used to
+/// end "unless the table is `saturated`", and the exception was a port bug:
+/// see `try_resize` and `is_saturated_full`.
 pub struct HashMap2<K, V> {
     /// The number of live entries.
     num_entries: usize,
@@ -109,8 +113,6 @@ pub struct HashMap2<K, V> {
     /// The stamp a slot must carry to be live.  At least 1, so that the `0`
     /// an `allocate_slots` slot would carry can never be current.
     epoch: u32,
-    /// `true` once the table cannot grow any further.
-    saturated: bool,
     /// con-leche: none — arena infrastructure (task #97-P6-7)
     /// **The decaying high-water mark of `num_entries`**, maintained by
     /// `clear_fit` alone and read by nothing else: the size the next round is
@@ -243,16 +245,11 @@ fn pow2_at_least(n: usize, cap: usize, fuel: usize) -> usize {
 /// slot of the run — the slot an `insert` writes.
 ///
 /// `fuel` is the slot count, which is enough because `num_entries <= max_load
-/// < slots.len()`, so a run always ends in a free slot and the arm below can
-/// **not** be reached on a well-formed table — discharging that from the
-/// invariant is one of the owed lemmas (DESIGN.md's `Task #97-P6-4b`).  The
-/// answer it gives is nevertheless the safe one: `(i, false)` reports a free
-/// slot, an `insert` there overwrites a live entry at worst, and an
-/// overwritten entry is a **lost row**, never a wrong answer for a live key.
-/// A lost memo row is a cache miss; a lost cons-table row is a duplicate node,
-/// which §8.3 and task #97-P6-1's lever 4 argue is the safe direction (it
-/// costs `defeqBody`'s `a == b` shortcut and cannot make two different terms
-/// share a handle).  The recursion is in tail position.
+/// < slots.len()`, so a run always ends in a free slot and the arm below
+/// **cannot** be reached on a well-formed table — `probe_spec` discharges it
+/// from `Inv.fit` (task #97-HM2 §2), and since task #97-P6-17 `Inv.fit` holds
+/// of every table `insert` returns, with no saturation exception.  The
+/// recursion is in tail position.
 fn probe<K, V>(
     slots: &Vec<Slot<K, V>>,
     epoch: u32,
@@ -329,7 +326,6 @@ impl<K, V> HashMap2<K, V> {
             num_entries: 0,
             max_load: max_load_for(capacity),
             epoch: 1,
-            saturated: false,
             fit_hw: 0,
             slots,
         }
@@ -344,7 +340,6 @@ impl<K, V> HashMap2<K, V> {
             num_entries: 0,
             max_load: 0,
             epoch: 1,
-            saturated: false,
             fit_hw: 0,
             slots: Vec::new(),
         }
@@ -494,7 +489,6 @@ impl<K, V> HashMap2<K, V> {
             self.num_entries = 0;
             self.max_load = table.max_load;
             self.epoch = 1;
-            self.saturated = false;
             self.slots = table.slots
         }
     }
@@ -550,17 +544,54 @@ where
         }
     }
 
-    /// con-leche: none — arena infrastructure (task #97-P6-4b)
+    /// con-leche: none — arena infrastructure (task #97-P6-4b, amended by
+    /// task #97-P6-17)
     /// Bind `key` to `value`, returning the previous value if there was one.
+    ///
+    /// **Precondition: `!self.is_saturated_full()`** — see there and
+    /// `try_resize`.  It used to be `if !self.saturated { self.try_resize() }`
+    /// here, i.e. an `insert` past the limit quietly went on writing into a
+    /// full table; now the limit is the caller's to respect, and the one
+    /// arithmetic step that cannot be taken past it — `capacity * 2` — is
+    /// where the model stops.
     pub fn insert(&mut self, key: K, value: V) -> Option<V> {
         self.ensure_slots();
         let old = self.insert_no_resize(key, value);
         if self.num_entries > self.max_load {
-            if !self.saturated {
-                self.try_resize()
-            }
+            self.try_resize()
         }
         old
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-17)
+    /// **The table can take no further key**: it is at its load limit *and*
+    /// its slot vector cannot double.  `insert` must not be called on such a
+    /// table; the arena's cons tables test this (`Tbl::full`) and decline with
+    /// `Native`, exactly as they decline at `IDX_CAP`.
+    ///
+    /// **Why it exists** (task #97-HM2 §4, DESIGN.md §3.5's "a strengthening
+    /// that turns out false is a port bug; fix the Rust").  `try_resize` used
+    /// to set a `saturated` flag when the slot count passed `usize::MAX / 2`,
+    /// and `insert` then stopped resizing: `num_entries` could climb to
+    /// `slots.len()`, `probe`'s `fuel == 0` arm became reachable, and an
+    /// `insert` **overwrote a live entry**.  For a memo that is a lost cache
+    /// row; for a cons table it is two handles denoting one term, which is
+    /// exactly what §8.3 makes `denote`'s injectivity a *soundness*
+    /// obligation about.  A silent drop is no better for the same reason.  So
+    /// the flag is gone, `try_resize` always doubles, and the limit is a
+    /// declared precondition with a query to test it.
+    ///
+    /// It needs a table of `2^63` slots (`2^63 · 20` bytes, 184 exabytes) and
+    /// cannot be reached; what it buys is that the *model* has no such state
+    /// at all — `try_resize`'s `capacity * 2` fails there, so every refinement
+    /// lemma is about a table that could still grow and none of them carries
+    /// the `2 * slots.len() <= usize::MAX` hypothesis any more.
+    pub fn is_saturated_full(&self) -> bool {
+        if self.num_entries < self.max_load {
+            false
+        } else {
+            self.slots.len() > usize::MAX / 2
+        }
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-4b)
@@ -584,22 +615,25 @@ where
         }
     }
 
-    /// con-leche: none — arena infrastructure (task #97-P6-4b)
-    /// Double the slot count and rehash, or mark the table saturated.  The new
-    /// table inherits the epoch, so the entries `move_slots` carries over are
-    /// live in it and the stale ones are dropped on the floor — which is the
-    /// only place the epoch scheme ever frees the memory a cleared entry held.
+    /// con-leche: none — arena infrastructure (task #97-P6-4b, amended by
+    /// task #97-P6-17)
+    /// Double the slot count and rehash.  The new table inherits the epoch, so
+    /// the entries `move_slots` carries over are live in it and the stale ones
+    /// are dropped on the floor — which is the only place the epoch scheme
+    /// ever frees the memory a cleared entry held.
+    ///
+    /// **Unconditional since task #97-P6-17.**  The `else` arm used to set a
+    /// `saturated` flag (`is_saturated_full`'s note has the bug that cost);
+    /// what is left is `capacity * 2`, whose overflow is the module's limit —
+    /// the same kind of limit `self.slots[i]`'s bound already is, discharged
+    /// the same way, by the caller's precondition and by the invariant.
     fn try_resize(&mut self) {
         let capacity = self.slots.len();
-        if capacity <= usize::MAX / 2 {
-            let mut ntable = HashMap2::new_with_capacity_pow2(capacity * 2);
-            ntable.epoch = self.epoch;
-            HashMap2::move_slots(&mut ntable, &mut self.slots, 0, capacity, self.epoch);
-            self.max_load = ntable.max_load;
-            self.slots = ntable.slots;
-        } else {
-            self.saturated = true
-        }
+        let mut ntable = HashMap2::new_with_capacity_pow2(capacity * 2);
+        ntable.epoch = self.epoch;
+        HashMap2::move_slots(&mut ntable, &mut self.slots, 0, capacity, self.epoch);
+        self.max_load = ntable.max_load;
+        self.slots = ntable.slots;
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-4b)
@@ -751,7 +785,6 @@ where
             num_entries: self.num_entries,
             max_load: self.max_load,
             epoch: self.epoch,
-            saturated: self.saturated,
             fit_hw: self.fit_hw,
             slots,
         }
@@ -1074,6 +1107,28 @@ mod tests {
             assert_eq!(d.get(&i), None);
             i += 1;
         }
+    }
+
+    /// `is_saturated_full` is the precondition `insert` now declares, and
+    /// nothing short of a `2^63`-slot table makes it true: the tables the
+    /// checker builds are always able to double.  (The true branch cannot be
+    /// exercised at all — it needs 184 exabytes of slots — which is the whole
+    /// point of task #97-P6-17: the state exists in the *model* and nowhere
+    /// else, and `try_resize`'s `capacity * 2` is where the model stops.)
+    #[test]
+    fn a_growing_table_is_never_saturated_full() {
+        let m: HashMap2<u64, u64> = HashMap2::new();
+        assert!(!m.is_saturated_full());
+        let mut m: HashMap2<u64, u64> = HashMap2::new();
+        let mut i: u64 = 0;
+        while i < 5_000 {
+            m.insert(i.wrapping_mul(0x9e3779b97f4a7c15), i);
+            assert!(!m.is_saturated_full());
+            assert!(m.len() <= m.capacity() * 3 / 4);
+            i += 1;
+        }
+        m.clear_fit();
+        assert!(!m.is_saturated_full());
     }
 
     #[test]

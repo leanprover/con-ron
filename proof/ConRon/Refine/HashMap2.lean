@@ -62,16 +62,26 @@ priced despite `remove` costing half again what it thought:
 sits where *this* function puts it.  Task #97-P6-4b's `home_index` finalizer
 is therefore invisible here, as its section predicted.
 
-**The saturation corner.**  `try_resize` sets `saturated := true` when the
-slot count exceeds `usize::MAX / 2`; from then on `insert` never resizes, so
-`num_entries` can reach `slots.len()`, the probe's `fuel == 0` arm becomes
-reachable and an `insert` overwrites a live entry — i.e. the specification is
-*false* in that corner.  It needs a table of `2^63` slots (`2^63 · 20` bytes)
-and is unreachable, but it is a model state, so the growing operations
-(`try_resize_spec`, `insert_refines`) carry the hypothesis
-`2 * m.slots.val.length ≤ Usize.max` — "the table can still double" — which
-is exactly what excludes it.  Every non-growing operation is unconditional.
-See DESIGN.md's `Task #97-HM2` section.
+**The saturation corner, and how it was closed** (task #97-HM2 §4, fixed by
+task #97-P6-17).  `try_resize` used to set `saturated := true` when the slot
+count exceeded `usize::MAX / 2`; from then on `insert` never resized, so
+`num_entries` could reach `slots.len()`, the probe's `fuel == 0` arm became
+reachable and an `insert` **overwrote a live entry** — i.e. the specification
+was *false* in that corner, and the five growing statements had to carry
+`2 * m.slots.val.length ≤ Usize.max` to exclude it.  A table of `2^63` slots
+is unreachable, but it was a model state, and DESIGN.md §3.5's rule is that a
+strengthening which turns out false is a **port bug**.
+
+The Rust is fixed: the `saturated` field is gone, `try_resize` doubles
+unconditionally, and its `capacity * 2` is the module's limit — the same kind
+of limit `slots[i]`'s bound already is.  So the model has no saturated state
+at all: `try_resize m = ok m'` *implies* `2 * m.slots.val.length ≤ Usize.max`,
+and the hypothesis is **dropped from all five statements**
+(`try_resize_spec`, `insert_refines_gen`, `insert_refines`, `Rel_insert`, and
+their `_wf` siblings in `HashMap2WF.lean`).  `Inv` correspondingly loses its
+`sat` clause.  **Every operation of the module is now unconditional.**  The
+port declares the limit as `HashMap2::is_saturated_full` and the arena tests
+it in `Tbl::full`, beside `IDX_CAP`'s own; see DESIGN.md's `Task #97-P6-17`.
 
 Naming: `Refine/README.md`'s rule — the public entry points get
 `<fn>_refines`, the private Rust helpers `<fn>_spec`.
@@ -288,8 +298,6 @@ The five clauses `HashMap.lean`'s `Inv` has, with `slot_inv` replaced by
 * `max_load_eq`, `fit` — `num_entries ≤ max_load = 3·⌊n/4⌋`, hence
   `num_entries < n`: **there is always a free slot**, which is what makes
   `probe`'s `fuel == 0` arm unreachable;
-* `sat` — the table has not saturated (`try_resize`'s `usize::MAX / 2`
-  branch); see the module note;
 * `epoch_pos`, `stamps` — the epoch is at least 1 and no slot carries a stamp
   above it, which is exactly what makes `clear`'s `epoch += 1` empty the
   table;
@@ -306,7 +314,6 @@ structure Inv0 (HashableInst : ron.hashmap.Hashable K) (m : ron.hashmap2.HashMap
   pow2 : 0 < m.slots.val.length → ∃ e, m.slots.val.length = 2 ^ e
   min_cap : 0 < m.slots.val.length → 32 ≤ m.slots.val.length
   max_load_eq : 0 < m.slots.val.length → m.max_load.val = 3 * (m.slots.val.length / 4)
-  sat : m.saturated = false
   epoch_pos : 1 ≤ m.epoch.val
   stamps : ∀ (j : Nat) (g : Std.U32) (k : K) (v : V),
       m.slots.val[j]! = .Live g k v → g.val ≤ m.epoch.val
@@ -1017,13 +1024,13 @@ theorem new_with_capacity_pow2_spec {c : Std.Usize} {m' : ron.hashmap2.HashMap2 
     (h : ron.hashmap2.HashMap2.new_with_capacity_pow2 K V c = ok m') :
     m'.slots.val = List.replicate c.val ron.hashmap2.Slot.Vacant ∧
     m'.num_entries = 0#usize ∧ m'.max_load.val = 3 * (c.val / 4) ∧
-    m'.epoch = 1#u32 ∧ m'.saturated = false ∧ m'.fit_hw = 0#usize := by
+    m'.epoch = 1#u32 ∧ m'.fit_hw = 0#usize := by
   rw [ron.hashmap2.HashMap2.new_with_capacity_pow2] at h
   simp only [bind_eq_ok_iff] at h
   obtain ⟨slots, hs, i, hi, hm⟩ := h
   have hsv := allocate_slots_spec c.val _ _ c rfl hs
   rw [← Result.ok_injective hm]
-  refine ⟨?_, rfl, max_load_for_spec hi, rfl, rfl, rfl⟩
+  refine ⟨?_, rfl, max_load_for_spec hi, rfl, rfl⟩
   simpa [alloc.vec.Vec.with_capacity] using hsv
 
 omit [DecidableEq K] in
@@ -1049,10 +1056,10 @@ theorem dead_table_inv {m' : ron.hashmap2.HashMap2 K V}
     (hpow : 0 < m'.slots.val.length → ∃ e, m'.slots.val.length = 2 ^ e)
     (hmin : 0 < m'.slots.val.length → 32 ≤ m'.slots.val.length)
     (hml : 0 < m'.slots.val.length → m'.max_load.val = 3 * (m'.slots.val.length / 4))
-    (hsat : m'.saturated = false) (hep : 1 ≤ m'.epoch.val) :
+    (hep : 1 ≤ m'.epoch.val) :
     Inv HashableInst m' ∧ sl_v m' = [] ∧ ∀ k, toFun m' k = none := by
   have hsl : sl_v m' = [] := sl_v_eq_nil_of_no_live hdead
-  refine ⟨⟨⟨hpow, hmin, hml, hsat, hep, hstamps, ?_, ?_, ?_⟩, by omega⟩, hsl,
+  refine ⟨⟨⟨hpow, hmin, hml, hep, hstamps, ?_, ?_, ?_⟩, by omega⟩, hsl,
     fun k => by simp [toFun, hsl]⟩
   · rw [hsl]; simp
   · rw [hsl, hn]; simp
@@ -1066,23 +1073,23 @@ theorem vacant_table_inv {m' : ron.hashmap2.HashMap2 K V}
     (hpow : 0 < m'.slots.val.length → ∃ e, m'.slots.val.length = 2 ^ e)
     (hmin : 0 < m'.slots.val.length → 32 ≤ m'.slots.val.length)
     (hml : 0 < m'.slots.val.length → m'.max_load.val = 3 * (m'.slots.val.length / 4))
-    (hsat : m'.saturated = false) (hep : 1 ≤ m'.epoch.val) :
+    (hep : 1 ≤ m'.epoch.val) :
     Inv HashableInst m' ∧ sl_v m' = [] ∧ ∀ k, toFun m' k = none :=
   dead_table_inv (fun j => by rw [slotKV, hs j]; rfl)
-    (fun j g k v hx => by rw [hs j] at hx; simp at hx) hn hfit hpow hmin hml hsat hep
+    (fun j g k v hx => by rw [hs j] at hx; simp at hx) hn hfit hpow hmin hml hep
 
 theorem empty_table_inv {c : Std.Usize} {m' : ron.hashmap2.HashMap2 K V}
     (hc2 : ∃ e, c.val = 2 ^ e) (hc32 : 32 ≤ c.val)
     (h : ron.hashmap2.HashMap2.new_with_capacity_pow2 K V c = ok m') :
     Inv HashableInst m' ∧ sl_v m' = [] ∧ (∀ k, toFun m' k = none) ∧
       m'.slots.val.length = c.val := by
-  obtain ⟨hs, hn, hml, hep, hsat, -⟩ := new_with_capacity_pow2_spec h
+  obtain ⟨hs, hn, hml, hep, -⟩ := new_with_capacity_pow2_spec h
   have hlen : m'.slots.val.length = c.val := by rw [hs]; simp
   have hsl : sl_v m' = [] := by rw [sl_v, hs]; simp
   obtain ⟨hinv, h1, h2⟩ := vacant_table_inv (HashableInst := HashableInst)
     (fun j => by rw [hs]; exact getElem!_replicate_vacant _ _) hsl (by rw [hn]; rfl) (by omega)
     (fun _ => by rw [hlen]; exact hc2) (fun _ => by rw [hlen]; exact hc32)
-    (fun _ => by rw [hml, hlen]) hsat (by rw [hep]; rfl)
+    (fun _ => by rw [hml, hlen]) (by rw [hep]; rfl)
   exact ⟨hinv, h1, h2, hlen⟩
 
 /-- An **unallocated** table — `slots = []` — satisfies `Inv` and denotes `∅`.
@@ -1090,11 +1097,11 @@ This is `new`'s table (task #35's lazy allocation, kept): `pow2`, `min_cap`
 and `max_load_eq` are the three clauses the empty capacity needs the
 `0 < length` guard for, and the rest hold outright. -/
 theorem unallocated_inv (hs : m.slots.val = []) (hn : m.num_entries.val = 0)
-    (hml : m.max_load.val = 0) (hsat : m.saturated = false) (hep : 1 ≤ m.epoch.val) :
+    (hml : m.max_load.val = 0) (hep : 1 ≤ m.epoch.val) :
     Inv HashableInst m ∧ sl_v m = [] ∧ ∀ k, toFun m k = none := by
   refine vacant_table_inv (fun j => ?_) (sl_v_of_slots_nil hs) hn (by omega)
     (fun hp => by rw [hs] at hp; simp at hp) (fun hp => by rw [hs] at hp; simp at hp)
-    (fun hp => by rw [hs] at hp; simp at hp) hsat hep
+    (fun hp => by rw [hs] at hp; simp at hp) hep
   rw [hs, List.getElem!_eq_getElem?_getD]; rfl
 
 theorem new_refines {m' : ron.hashmap2.HashMap2 K V}
@@ -1102,19 +1109,18 @@ theorem new_refines {m' : ron.hashmap2.HashMap2 K V}
     Inv HashableInst m' ∧ sl_v m' = [] ∧ ∀ k, toFun m' k = none := by
   rw [ron.hashmap2.HashMap2.new] at h
   have hm := Result.ok_injective h
-  refine unallocated_inv (HashableInst := HashableInst) ?_ ?_ ?_ ?_ ?_ <;> rw [← hm] <;> rfl
+  refine unallocated_inv (HashableInst := HashableInst) ?_ ?_ ?_ ?_ <;> rw [← hm] <;> rfl
 
 /-- `ensure_slots` gives an unallocated table its slots and leaves an
-allocated one alone; either way the abstract map, the entry count, the epoch
-and the `saturated` flag are untouched, and the result *is* allocated — which
-is the hypothesis `try_resize_spec` needs.  **The epoch is not reset**: a
+allocated one alone; either way the abstract map, the entry count and the
+epoch are untouched, and the result *is* allocated — which is the hypothesis
+`try_resize_spec` needs.  **The epoch is not reset**: a
 table cleared before its first insert must not make its stale nothing live
 again. -/
 theorem ensure_slots_spec (hinv : Inv HashableInst m) {m' : ron.hashmap2.HashMap2 K V}
     (h : ron.hashmap2.HashMap2.ensure_slots m = ok m') :
     Inv HashableInst m' ∧ 0 < m'.slots.val.length ∧ sl_v m' = sl_v m ∧
-      m'.num_entries = m.num_entries ∧ m'.saturated = m.saturated ∧
-      m'.epoch = m.epoch ∧
+      m'.num_entries = m.num_entries ∧ m'.epoch = m.epoch ∧
       (m'.slots.val.length = 32 ∨ m'.slots.val.length = m.slots.val.length) := by
   rw [ron.hashmap2.HashMap2.ensure_slots] at h
   split at h
@@ -1123,11 +1129,10 @@ theorem ensure_slots_spec (hinv : Inv HashableInst m) {m' : ron.hashmap2.HashMap
     have hav : sl_v m = [] := sl_v_of_slots_nil hs
     have hn : m.num_entries.val = 0 := by rw [hinv.entries, hav]; simp
     obtain ⟨t, ht, hok⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨hts, htn, html, -, -, -⟩ := new_with_capacity_pow2_spec ht
+    obtain ⟨hts, htn, html, -, -⟩ := new_with_capacity_pow2_spec ht
     have hm := Result.ok_injective hok
     have hslots : m'.slots = t.slots := by rw [← hm]
     have hent : m'.num_entries = m.num_entries := by rw [← hm]
-    have hsat : m'.saturated = m.saturated := by rw [← hm]
     have hep : m'.epoch = m.epoch := by rw [← hm]
     have hmlv : m'.max_load = t.max_load := by rw [← hm]
     have hcap : (ron.hashmap2.MIN_CAPACITY : Std.Usize).val = 32 := by
@@ -1138,9 +1143,9 @@ theorem ensure_slots_spec (hinv : Inv HashableInst m) {m' : ron.hashmap2.HashMap
       (fun j => by rw [hslots, hts]; exact getElem!_replicate_vacant _ _) hsl
       (by rw [hent, hn]) (by omega)
       (fun _ => ⟨5, by rw [hlen]; norm_num⟩) (fun _ => by omega)
-      (fun _ => by rw [hmlv, html, hcap, hlen]) (by rw [hsat]; exact hinv.sat)
+      (fun _ => by rw [hmlv, html, hcap, hlen])
       (by rw [hep]; exact hinv.epoch_pos)
-    exact ⟨hinv', by omega, by rw [hsl, hav], hent, hsat, hep, Or.inl hlen⟩
+    exact ⟨hinv', by omega, by rw [hsl, hav], hent, hep, Or.inl hlen⟩
   · rename_i h0
     have hm := Result.ok_injective h
     subst hm
@@ -1148,7 +1153,7 @@ theorem ensure_slots_spec (hinv : Inv HashableInst m) {m' : ron.hashmap2.HashMap
       rcases Nat.eq_zero_or_pos m.slots.val.length with hz | hp
       · exact absurd (vec_len_eq_zero_iff.mpr (List.eq_nil_of_length_eq_zero hz)) h0
       · exact hp
-    exact ⟨hinv, hpos, rfl, rfl, rfl, rfl, Or.inr rfl⟩
+    exact ⟨hinv, hpos, rfl, rfl, rfl, Or.inr rfl⟩
 
 omit [DecidableEq K] in
 /-- Verbatim from `HashMap.lean`: `pow2_at_least` is the same function under
@@ -1273,7 +1278,7 @@ omit [DecidableEq K] in
 is in no clause of `Inv` and in no equation of `toFun`. -/
 theorem Inv_fit_hw {m' : ron.hashmap2.HashMap2 K V} (h : Inv HashableInst m')
     (w : Std.Usize) : Inv HashableInst { m' with fit_hw := w } :=
-  ⟨⟨h.pow2, h.min_cap, h.max_load_eq, h.sat, h.epoch_pos, h.stamps, h.nodup,
+  ⟨⟨h.pow2, h.min_cap, h.max_load_eq, h.epoch_pos, h.stamps, h.nodup,
     h.entries, h.run⟩, h.fit⟩
 
 omit [DecidableEq K] in
@@ -1296,7 +1301,6 @@ theorem clear_refines (hinv : Inv HashableInst m) {m' : ron.hashmap2.HashMap2 K 
     have hslots : m'.slots = v := by rw [← Result.ok_injective hm]
     have hent : m'.num_entries.val = 0 := by rw [← Result.ok_injective hm]; rfl
     have hep : m'.epoch = 1#u32 := by rw [← Result.ok_injective hm]
-    have hsat : m'.saturated = m.saturated := by rw [← Result.ok_injective hm]
     have hml : m'.max_load = m.max_load := by rw [← Result.ok_injective hm]
     have hlen' : m'.slots.val.length = m.slots.val.length := by rw [hslots]; exact hlen
     have hvac : ∀ j : Nat, m'.slots.val[j]! = ron.hashmap2.Slot.Vacant := by
@@ -1308,7 +1312,7 @@ theorem clear_refines (hinv : Inv HashableInst m) {m' : ron.hashmap2.HashMap2 K 
       · rw [List.getElem!_eq_getElem?_getD, List.getElem?_eq_none (by omega)]; rfl
     exact vacant_table_inv hvac (sl_v_eq_nil_of_no_live (fun j => by rw [slotKV, hvac j]; rfl))
       hent (by omega) (by rw [hlen']; exact hinv.pow2) (by rw [hlen']; exact hinv.min_cap)
-      (by rw [hlen', hml]; exact hinv.max_load_eq) (by rw [hsat]; exact hinv.sat)
+      (by rw [hlen', hml]; exact hinv.max_load_eq)
       (by rw [hep]; rfl)
   · -- the common path: `epoch += 1`, and no slot carries the new stamp
     rename_i h0
@@ -1318,7 +1322,6 @@ theorem clear_refines (hinv : Inv HashableInst m) {m' : ron.hashmap2.HashMap2 K 
     have hslots : m'.slots = m.slots := by rw [← Result.ok_injective hm]
     have hent : m'.num_entries.val = 0 := by rw [← Result.ok_injective hm]; rfl
     have hep : m'.epoch = i := by rw [← Result.ok_injective hm]
-    have hsat : m'.saturated = m.saturated := by rw [← Result.ok_injective hm]
     have hml : m'.max_load = m.max_load := by rw [← Result.ok_injective hm]
     have hstamps : ∀ (j : Nat) (g : Std.U32) (k : K) (v : V),
         m'.slots.val[j]! = .Live g k v → g.val ≤ m'.epoch.val := by
@@ -1328,7 +1331,7 @@ theorem clear_refines (hinv : Inv HashableInst m) {m' : ron.hashmap2.HashMap2 K 
       rw [hep, hiv]; omega
     refine dead_table_inv ?_ hstamps hent (by omega) (by rw [hslots]; exact hinv.pow2)
       (by rw [hslots]; exact hinv.min_cap) (by rw [hslots, hml]; exact hinv.max_load_eq)
-      (by rw [hsat]; exact hinv.sat) (by rw [hep, hiv]; omega)
+      (by rw [hep, hiv]; omega)
     intro j
     rw [slotKV]
     cases hsc : m'.slots.val[j]! with
@@ -1356,11 +1359,11 @@ theorem clear_fit_refines (hinv : Inv HashableInst m) {m' : ron.hashmap2.HashMap
   have hremake : ∀ {t : ron.hashmap2.HashMap2 K V},
       ron.hashmap2.HashMap2.new_with_capacity_pow2 K V want = ok t →
       ok (α := ron.hashmap2.HashMap2 K V)
-        { t with num_entries := 0#usize, epoch := 1#u32, saturated := false, fit_hw := hw }
+        { t with num_entries := 0#usize, epoch := 1#u32, fit_hw := hw }
         = ok m' →
       Inv HashableInst m' ∧ sl_v m' = [] ∧ ∀ k, toFun m' k = none := by
     intro t ht hok
-    obtain ⟨hts, -, html, -, -, -⟩ := new_with_capacity_pow2_spec ht
+    obtain ⟨hts, -, html, -, -⟩ := new_with_capacity_pow2_spec ht
     have hslots : m'.slots.val = List.replicate want.val ron.hashmap2.Slot.Vacant := by
       rw [← Result.ok_injective hok]; exact hts
     have hlen : m'.slots.val.length = want.val := by rw [hslots]; simp
@@ -1368,7 +1371,7 @@ theorem clear_fit_refines (hinv : Inv HashableInst m) {m' : ron.hashmap2.HashMap
     refine vacant_table_inv (fun j => by rw [hslots]; exact getElem!_replicate_vacant _ _)
       (by rw [sl_v, hslots]; simp) (by rw [← Result.ok_injective hok]; rfl) (by omega)
       (fun _ => by rw [hlen]; exact hw2) (fun _ => by rw [hlen]; exact hw32)
-      (fun _ => by rw [hmlv, html, hlen]) (by rw [← Result.ok_injective hok])
+      (fun _ => by rw [hmlv, html, hlen])
       (by rw [← Result.ok_injective hok]; rfl)
   split at h
   · exact clear_refines (Inv_fit_hw hinv hw) h
@@ -1514,7 +1517,7 @@ theorem insert_no_resize_spec {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
     Inv0 HashableInst m' ∧ old = toFun m key ∧
     (∀ k', toFun m' k' = if k' = key then some value else toFun m k') ∧
     m'.slots.val.length = m.slots.val.length ∧
-    m'.max_load = m.max_load ∧ m'.saturated = m.saturated ∧ m'.epoch = m.epoch ∧
+    m'.max_load = m.max_load ∧ m'.epoch = m.epoch ∧
     m'.num_entries.val = m.num_entries.val + (if old.isSome then 0 else 1) ∧
     (sl_v m').length = (sl_v m).length + (if old.isSome then 0 else 1) ∧
     (old = none → (sl_v m').Perm ((key, value) :: sl_v m)) ∧ KeysOk P m' := by
@@ -1534,7 +1537,7 @@ theorem insert_no_resize_spec {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
   have hXlive : liveAt m.epoch X = some (key, value) := by rw [hX]; simp
   -- the shape of the result, in both arms
   have key0 : m'.slots.val = m.slots.val.set i2.val X ∧ m'.max_load = m.max_load ∧
-      m'.saturated = m.saturated ∧ m'.epoch = m.epoch ∧ m'.num_entries.val =
+      m'.epoch = m.epoch ∧ m'.num_entries.val =
         m.num_entries.val + (if old.isSome then 0 else 1) ∧
       old = (slotKV m i2.val).map Prod.snd := by
     by_cases hb : b = true
@@ -1551,7 +1554,7 @@ theorem insert_no_resize_spec {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
         have es : m' = { m with slots := alloc.vec.Vec.set m.slots i2 X } :=
           (congrArg Prod.snd e).symm
         refine ⟨by rw [es]; exact alloc.vec.Vec.set_val_eq _ _ _, by rw [es], by rw [es],
-          by rw [es], by rw [es, eold]; simp, ?_⟩
+          by rw [es, eold]; simp, ?_⟩
         rw [eold, slotKV, ← hseq, hsc]
         simp [hge]
     · have hbf : b = false := by simpa using hb
@@ -1565,10 +1568,10 @@ theorem insert_no_resize_spec {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
           { m with num_entries := i3, slots := alloc.vec.Vec.set m.slots i2 X } :=
         (congrArg Prod.snd e).symm
       refine ⟨by rw [es]; exact alloc.vec.Vec.set_val_eq _ _ _, by rw [es], by rw [es],
-        by rw [es], ?_, by rw [eold, hnone]; rfl⟩
+        ?_, by rw [eold, hnone]; rfl⟩
       rw [es, eold]
       simpa using uscalar_add_eq hi3
-  obtain ⟨hsv, hml, hsat, hep, hent, hold⟩ := key0
+  obtain ⟨hsv, hml, hep, hent, hold⟩ := key0
   have hlen : m'.slots.val.length = m.slots.val.length := by rw [hsv, List.length_set]
   have hlenv : alloc.vec.Vec.len m'.slots = alloc.vec.Vec.len m.slots := vec_len_congr hlen
   set R := rest m i2.val with hR
@@ -1652,12 +1655,11 @@ theorem insert_no_resize_spec {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
   have hlen1 : (sl_v m').length = R.length + 1 := by rw [PM'.length_eq]; simp
   have hlen2 : (sl_v m).length = (slotKV m i2.val).toList.length + R.length := by
     rw [PM.length_eq]; simp
-  refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, NDnew, ?_, ?_⟩, hOld, hToFun, hlen, hml, hsat, hep,
+  refine ⟨⟨?_, ?_, ?_, ?_, ?_, NDnew, ?_, ?_⟩, hOld, hToFun, hlen, hml, hep,
     hent, ?_, ?_, ?_⟩
   · rw [hlen]; exact hinv.pow2
   · rw [hlen]; exact hinv.min_cap
   · rw [hlen, hml]; exact hinv.max_load_eq
-  · rw [hsat]; exact hinv.sat
   · rw [hep]; exact hinv.epoch_pos
   · intro j g k0 v0 hx
     rw [hep]
@@ -1788,7 +1790,7 @@ theorem move_slots_spec {P : K → Prop} (heq : Eq2Fwd Eq2Inst P) (N : Nat) :
       Inv0 HashableInst nt' ∧ KeysOk P nt' ∧
       (sl_v nt').Perm (slotsLive slots.val epoch lo.val (hi.val - lo.val) ++ sl_v nt) ∧
       nt'.slots.val.length = nt.slots.val.length ∧
-      nt'.max_load = nt.max_load ∧ nt'.saturated = nt.saturated ∧ nt'.epoch = nt.epoch ∧
+      nt'.max_load = nt.max_load ∧ nt'.epoch = nt.epoch ∧
       nt'.num_entries.val ≤ nt.num_entries.val + (hi.val - lo.val) ∧
       slots'.val.length = slots.val.length ∧
       (∀ j, (j < lo.val ∨ hi.val ≤ j) → slots'.val[j]! = slots.val[j]!) := by
@@ -1834,7 +1836,7 @@ theorem move_slots_spec {P : K → Prop} (heq : Eq2Fwd Eq2Inst P) (N : Nat) :
           obtain ⟨hl1, hl2⟩ := hfin nt esl
           rw [hflat, ← hseq]
           subst ent
-          exact ⟨hinv, hkeys, by simp, rfl, rfl, rfl, rfl, by omega, hl1, hl2⟩
+          exact ⟨hinv, hkeys, by simp, rfl, rfl, rfl, by omega, hl1, hl2⟩
         | Live g k v =>
           rw [hsc] at h hseq
           rcases ite_eq_ok h with ⟨hg, h⟩ | ⟨hg, h⟩
@@ -1845,7 +1847,7 @@ theorem move_slots_spec {P : K → Prop} (heq : Eq2Fwd Eq2Inst P) (N : Nat) :
             obtain ⟨q, hins, hok⟩ := bind_eq_ok_iff.mp h
             obtain ⟨o, nt1⟩ := q
             have hinvF : Inv HashableInst nt := ⟨hinv, by omega⟩
-            obtain ⟨hinv1, hold, htf, hlen1, hml1, hsat1, hep1, hent1, -, hperm1, hkeys1⟩ :=
+            obtain ⟨hinv1, hold, htf, hlen1, hml1, hep1, hent1, -, hperm1, hkeys1⟩ :=
               insert_no_resize_spec heq hinvF hkeys (hP (k, v) (by simp)) hpos hins
             have hknt : k ∉ (sl_v nt).map Prod.fst := hdisj (k, v) (by simp)
             have honone : o = none := by
@@ -1857,7 +1859,7 @@ theorem move_slots_spec {P : K → Prop} (heq : Eq2Fwd Eq2Inst P) (N : Nat) :
               (congrArg Prod.snd e).symm
             obtain ⟨hl1, hl2⟩ := hfin nt1 esl
             subst ent
-            refine ⟨hinv1, hkeys1, by simpa using P1, hlen1, hml1, hsat1, ?_, ?_, hl1, hl2⟩
+            refine ⟨hinv1, hkeys1, by simpa using P1, hlen1, hml1, ?_, ?_, hl1, hl2⟩
             · rw [hep1, hne]
             · rw [hent1, honone]; simp; omega
           · -- a stale entry: dropped
@@ -1870,7 +1872,7 @@ theorem move_slots_spec {P : K → Prop} (heq : Eq2Fwd Eq2Inst P) (N : Nat) :
             obtain ⟨hl1, hl2⟩ := hfin nt esl
             rw [hflat, hlive]
             subst ent
-            exact ⟨hinv, hkeys, by simp, rfl, rfl, rfl, rfl, by omega, hl1, hl2⟩
+            exact ⟨hinv, hkeys, by simp, rfl, rfl, rfl, by omega, hl1, hl2⟩
       · -- two halves
         rename_i h1
         have hn2 : 2 ≤ n.val := by
@@ -1894,7 +1896,7 @@ theorem move_slots_spec {P : K → Prop} (heq : Eq2Fwd Eq2Inst P) (N : Nat) :
             slotsLive_add, show lo.val + (mid.val - lo.val) = mid.val by omega]
         rw [hsplit, List.map_append, List.nodup_append] at hnd
         obtain ⟨ND1, ND2, NDd⟩ := hnd
-        obtain ⟨hinv1, hkeys1, P1, hlenA, hmlA, hsatA, hepA, hentA, hlen1, f1⟩ :=
+        obtain ⟨hinv1, hkeys1, P1, hlenA, hmlA, hepA, hentA, hlen1, f1⟩ :=
           ih (mid.val - lo.val) (by omega) nt nt1 slots slots1 lo mid epoch rfl (by omega)
             hne hinv hkeys hpos (by omega)
             (fun x hx => hP x (by rw [hsplit]; exact List.mem_append_left _ hx)) ND1
@@ -1920,12 +1922,12 @@ theorem move_slots_spec {P : K → Prop} (heq : Eq2Fwd Eq2Inst P) (N : Nat) :
           exact fun x hx => hP x (by rw [hsplit]; exact List.mem_append_right _ hx)
         have hND2 : ((slotsLive slots1.val epoch mid.val
             (hi.val - mid.val)).map Prod.fst).Nodup := by rw [hF2]; exact ND2
-        obtain ⟨hinv', hkeys', P2, hlenB, hmlB, hsatB, hepB, hentB, hlen2, f2⟩ :=
+        obtain ⟨hinv', hkeys', P2, hlenB, hmlB, hepB, hentB, hlen2, f2⟩ :=
           ih (hi.val - mid.val) (by omega) nt1 nt' slots1 slots' mid hi epoch rfl
             (by omega) (by rw [hepA, hne]) hinv1 hkeys1 (by rw [hlenA]; exact hpos)
             (by rw [hmlA]; omega) hP2 hND2 hdisj2 h2
         refine ⟨hinv', hkeys', ?_, by rw [hlenB, hlenA], by rw [hmlB, hmlA],
-          by rw [hsatB, hsatA], by rw [hepB, hepA], by omega, by rw [hlen2, hlen1], ?_⟩
+          by rw [hepB, hepA], by omega, by rw [hlen2, hlen1], ?_⟩
         · rw [hsplit]
           refine P2.trans ?_
           rw [hF2]
@@ -1940,21 +1942,21 @@ theorem move_slots_spec {P : K → Prop} (heq : Eq2Fwd Eq2Inst P) (N : Nat) :
       have ent : nt = nt' := congrArg Prod.fst e
       have esl : slots = slots' := congrArg Prod.snd e
       subst ent; subst esl
-      refine ⟨hinv, hkeys, ?_, rfl, rfl, rfl, rfl, by omega, rfl, fun _ _ => rfl⟩
+      refine ⟨hinv, hkeys, ?_, rfl, rfl, rfl, by omega, rfl, fun _ _ => rfl⟩
       rw [show hi.val - lo.val = 0 by omega, slotsLive_zero]
       simp
 
 omit [DecidableEq K] in
-/-- `Inv0` depends on the table only through the five fields it mentions. -/
+/-- `Inv0` depends on the table only through the four fields it mentions. -/
 theorem Inv0_congr {m1 m2 : ron.hashmap2.HashMap2 K V} (h : Inv0 HashableInst m1)
     (hs : m2.slots = m1.slots) (he : m2.epoch = m1.epoch) (hml : m2.max_load = m1.max_load)
-    (hsat : m2.saturated = m1.saturated) (hn : m2.num_entries = m1.num_entries) :
+    (hn : m2.num_entries = m1.num_entries) :
     Inv0 HashableInst m2 := by
   have hsl : sl_v m2 = sl_v m1 := by rw [sl_v, sl_v, hs, he]
   have hkv : ∀ j : Nat, slotKV m2 j = slotKV m1 j := fun j => by rw [slotKV, slotKV, hs, he]
   have hlv : ∀ j : Nat, isLive m2 j ↔ isLive m1 j := fun j => by rw [isLive, isLive, hkv]
   refine ⟨by rw [hs]; exact h.pow2, by rw [hs]; exact h.min_cap,
-    by rw [hs, hml]; exact h.max_load_eq, by rw [hsat]; exact h.sat,
+    by rw [hs, hml]; exact h.max_load_eq,
     by rw [he]; exact h.epoch_pos, ?_, by rw [hsl]; exact h.nodup,
     by rw [hn, hsl]; exact h.entries, ?_⟩
   · intro j g k v hx
@@ -1973,148 +1975,132 @@ theorem usize_max_ge_64 : 64 ≤ Std.Usize.max := by
   rcases Std.Usize.bounds_eq with hb | hb <;> rw [hb] <;>
     simp [Std.U32.max, Std.U64.max, Std.U32.numBits, Std.U64.numBits]
 
-/-- **Doubling and rehashing.**  The `saturated` arm — the table cannot grow
-past `usize::MAX / 2` — is what the `2 * n ≤ usize::MAX` hypothesis excludes;
-see the module note. -/
+/-- **Doubling and rehashing**, and **unconditional since task #97-P6-17**.
+The old body had a second arm — set `saturated := true` when the slot count
+passed `usize::MAX / 2` — which broke `fit` and made the whole module's
+specification false in that corner (task #97-HM2 §4); it is gone, and what is
+left is `capacity * 2`, whose `ok` *is* the `2 * n ≤ usize::MAX` the statement
+used to assume.  So the hypothesis is discharged by the premise, here and at
+every consumer. -/
 theorem try_resize_spec {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
     (hinv : Inv0 HashableInst m) (hkeys : KeysOk P m) (hpos : 0 < m.slots.val.length)
-    (hcap : 2 * m.slots.val.length ≤ Std.Usize.max) {m' : ron.hashmap2.HashMap2 K V}
+    {m' : ron.hashmap2.HashMap2 K V}
     (h : ron.hashmap2.HashMap2.try_resize HashableInst Eq2Inst m = ok m') :
     Inv HashableInst m' ∧ KeysOk P m' ∧ (∀ k, toFun m' k = toFun m k) := by
   rw [ron.hashmap2.HashMap2.try_resize] at h
-  obtain ⟨lim, hlim, h⟩ := bind_eq_ok_iff.mp h
   have hcapv : (alloc.vec.Vec.len m.slots).val = m.slots.val.length :=
     alloc.vec.Vec.len_val _
-  have hlimv : lim.val = Std.Usize.max / 2 := by
-    rw [uscalar_div_eq hlim, show (2#usize : Std.Usize).val = 2 by scalar_tac]
-    congr 1
-  rcases ite_eq_ok h with ⟨hle, h⟩ | ⟨hgt, h⟩
-  · obtain ⟨cap2, hcap2, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨nt, hnt, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨q, hmv, hok⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨nt1, sl1⟩ := q
-    have hcap2v : cap2.val = m.slots.val.length * 2 := by
-      rw [uscalar_mul_eq hcap2, hcapv, show (2#usize : Std.Usize).val = 2 by scalar_tac]
-    obtain ⟨e0, he0⟩ := hinv.pow2 hpos
-    have h32 := hinv.min_cap hpos
-    obtain ⟨hdiv, -⟩ := cap_div_four (hinv.pow2 hpos) h32
-    have hc2pow : ∃ e, cap2.val = 2 ^ e := ⟨e0 + 1, by rw [hcap2v, he0]; ring⟩
-    have hc232 : 32 ≤ cap2.val := by omega
-    obtain ⟨hts, htn, html, htep, htsat, -⟩ := new_with_capacity_pow2_spec hnt
-    have htlen : nt.slots.val.length = cap2.val := by rw [hts]; simp
-    -- the fresh table, with this table's epoch
-    set nt0 : ron.hashmap2.HashMap2 K V := { nt with epoch := m.epoch } with hnt0
-    have hnt0s : nt0.slots.val = List.replicate cap2.val ron.hashmap2.Slot.Vacant := hts
-    have hsl0 : sl_v nt0 = [] := by rw [sl_v, hnt0s]; simp
-    obtain ⟨hinv0, -, -⟩ := vacant_table_inv (HashableInst := HashableInst)
-      (fun j => by rw [hnt0s]; exact getElem!_replicate_vacant _ _) hsl0
-      (by rw [hnt0, htn]; rfl) (by omega)
-      (fun _ => by rw [show nt0.slots.val.length = cap2.val by rw [hnt0s]; simp]; exact hc2pow)
-      (fun _ => by rw [show nt0.slots.val.length = cap2.val by rw [hnt0s]; simp]; exact hc232)
-      (fun _ => by
-        rw [show nt0.max_load = nt.max_load from rfl, html,
-          show nt0.slots.val.length = cap2.val by rw [hnt0s]; simp])
-      (by rw [hnt0]; exact htsat) hinv.epoch_pos
-    have hroom : nt0.num_entries.val + ((alloc.vec.Vec.len m.slots).val
-        - (0#usize : Std.Usize).val) ≤ nt0.max_load.val := by
-      have h0 : nt0.num_entries.val = 0 := by
-        rw [show nt0.num_entries = 0#usize from htn]; rfl
-      have hz : (0#usize : Std.Usize).val = 0 := by scalar_tac
-      have hmlv0 : nt0.max_load.val = 3 * (cap2.val / 4) := by
-        rw [show nt0.max_load = nt.max_load from rfl, html]
-      rw [h0, hz, hcapv, hmlv0, hcap2v]
-      omega
-    have hflat : slotsLive m.slots.val m.epoch 0 ((alloc.vec.Vec.len m.slots).val - 0)
-        = sl_v m := by
-      rw [hcapv, Nat.sub_zero, sl_v]
-      exact slotsLive_all
-    obtain ⟨hinv1, hkeys1, P1, hlenA, hmlA, hsatA, hepA, -, -, -⟩ :=
-      move_slots_spec heq ((alloc.vec.Vec.len m.slots).val - (0#usize : Std.Usize).val)
-        nt0 nt1 m.slots sl1 0#usize (alloc.vec.Vec.len m.slots) m.epoch rfl (by rw [hcapv])
-        rfl hinv0.toInv0 (by intro p hp; rw [hsl0] at hp; simp at hp)
-        (by rw [show nt0.slots.val.length = cap2.val by rw [hnt0s]; simp]; omega)
-        hroom
-        (by rw [show (0#usize : Std.Usize).val = 0 by scalar_tac, hflat]; exact hkeys)
-        (by rw [show (0#usize : Std.Usize).val = 0 by scalar_tac, hflat]; exact hinv.nodup)
-        (by rw [show (0#usize : Std.Usize).val = 0 by scalar_tac, hflat, hsl0]; simp) hmv
-    rw [show (0#usize : Std.Usize).val = 0 by scalar_tac, hflat, hsl0] at P1
-    have Pfin : (sl_v nt1).Perm (sl_v m) := by simpa using P1
-    -- the result is `nt1`'s slot vector under this table's other fields
-    have hslots : m'.slots = nt1.slots := by rw [← Result.ok_injective hok]
-    have hmlv : m'.max_load = nt1.max_load := by rw [← Result.ok_injective hok]
-    have hent : m'.num_entries = m.num_entries := by rw [← Result.ok_injective hok]
-    have hep : m'.epoch = m.epoch := by rw [← Result.ok_injective hok]
-    have hsatv : m'.saturated = m.saturated := by rw [← Result.ok_injective hok]
-    have hepnt1 : nt1.epoch = m.epoch := by rw [hepA]
-    have hslv : sl_v m' = sl_v nt1 := by rw [sl_v, sl_v, hslots, hep, hepnt1]
-    have hnumeq : m'.num_entries = nt1.num_entries := by
-      refine UScalar.val_eq_imp _ _ ?_
-      rw [hent, hinv.entries, hinv1.entries, Pfin.length_eq]
-    have hlen1 : nt1.slots.val.length = cap2.val := by
-      rw [hlenA, show nt0.slots.val.length = cap2.val by rw [hnt0s]; simp]
-    have hsatf : m'.saturated = nt1.saturated := by
-      rw [hsatv, hsatA, hinv.sat]; exact htsat.symm
-    refine ⟨⟨Inv0_congr hinv1 hslots (by rw [hep, hepnt1]) hmlv hsatf hnumeq, ?_⟩, ?_, ?_⟩
-    · -- `fit`: the doubled table has room for everything the old one held
-      rw [hent, hinv.entries, hmlv, hmlA,
-        show nt0.max_load = nt.max_load from rfl, html, hcap2v]
-      have hle2 : (sl_v m).length ≤ m.slots.val.length := length_filterMap_le
-      have : m.slots.val.length * 2 / 4 = m.slots.val.length / 2 := by omega
-      omega
-    · intro p hp
-      rw [hslv] at hp
-      exact hkeys p (Pfin.mem_iff.1 hp)
-    · intro k
-      rw [toFun, toFun, hslv, lookupK_perm Pfin hinv1.nodup]
-  · exfalso
-    have : lim.val < (alloc.vec.Vec.len m.slots).val := by scalar_tac
+  obtain ⟨cap2, hcap2, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨nt, hnt, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨q, hmv, hok⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨nt1, sl1⟩ := q
+  have hcap2v : cap2.val = m.slots.val.length * 2 := by
+    rw [uscalar_mul_eq hcap2, hcapv, show (2#usize : Std.Usize).val = 2 by scalar_tac]
+  obtain ⟨e0, he0⟩ := hinv.pow2 hpos
+  have h32 := hinv.min_cap hpos
+  obtain ⟨hdiv, -⟩ := cap_div_four (hinv.pow2 hpos) h32
+  have hc2pow : ∃ e, cap2.val = 2 ^ e := ⟨e0 + 1, by rw [hcap2v, he0]; ring⟩
+  have hc232 : 32 ≤ cap2.val := by omega
+  obtain ⟨hts, htn, html, htep, -⟩ := new_with_capacity_pow2_spec hnt
+  have htlen : nt.slots.val.length = cap2.val := by rw [hts]; simp
+  -- the fresh table, with this table's epoch
+  set nt0 : ron.hashmap2.HashMap2 K V := { nt with epoch := m.epoch } with hnt0
+  have hnt0s : nt0.slots.val = List.replicate cap2.val ron.hashmap2.Slot.Vacant := hts
+  have hsl0 : sl_v nt0 = [] := by rw [sl_v, hnt0s]; simp
+  obtain ⟨hinv0, -, -⟩ := vacant_table_inv (HashableInst := HashableInst)
+    (fun j => by rw [hnt0s]; exact getElem!_replicate_vacant _ _) hsl0
+    (by rw [hnt0, htn]; rfl) (by omega)
+    (fun _ => by rw [show nt0.slots.val.length = cap2.val by rw [hnt0s]; simp]; exact hc2pow)
+    (fun _ => by rw [show nt0.slots.val.length = cap2.val by rw [hnt0s]; simp]; exact hc232)
+    (fun _ => by
+      rw [show nt0.max_load = nt.max_load from rfl, html,
+        show nt0.slots.val.length = cap2.val by rw [hnt0s]; simp])
+    hinv.epoch_pos
+  have hroom : nt0.num_entries.val + ((alloc.vec.Vec.len m.slots).val
+      - (0#usize : Std.Usize).val) ≤ nt0.max_load.val := by
+    have h0 : nt0.num_entries.val = 0 := by
+      rw [show nt0.num_entries = 0#usize from htn]; rfl
+    have hz : (0#usize : Std.Usize).val = 0 := by scalar_tac
+    have hmlv0 : nt0.max_load.val = 3 * (cap2.val / 4) := by
+      rw [show nt0.max_load = nt.max_load from rfl, html]
+    rw [h0, hz, hcapv, hmlv0, hcap2v]
     omega
+  have hflat : slotsLive m.slots.val m.epoch 0 ((alloc.vec.Vec.len m.slots).val - 0)
+      = sl_v m := by
+    rw [hcapv, Nat.sub_zero, sl_v]
+    exact slotsLive_all
+  obtain ⟨hinv1, hkeys1, P1, hlenA, hmlA, hepA, -, -, -⟩ :=
+    move_slots_spec heq ((alloc.vec.Vec.len m.slots).val - (0#usize : Std.Usize).val)
+      nt0 nt1 m.slots sl1 0#usize (alloc.vec.Vec.len m.slots) m.epoch rfl (by rw [hcapv])
+      rfl hinv0.toInv0 (by intro p hp; rw [hsl0] at hp; simp at hp)
+      (by rw [show nt0.slots.val.length = cap2.val by rw [hnt0s]; simp]; omega)
+      hroom
+      (by rw [show (0#usize : Std.Usize).val = 0 by scalar_tac, hflat]; exact hkeys)
+      (by rw [show (0#usize : Std.Usize).val = 0 by scalar_tac, hflat]; exact hinv.nodup)
+      (by rw [show (0#usize : Std.Usize).val = 0 by scalar_tac, hflat, hsl0]; simp) hmv
+  rw [show (0#usize : Std.Usize).val = 0 by scalar_tac, hflat, hsl0] at P1
+  have Pfin : (sl_v nt1).Perm (sl_v m) := by simpa using P1
+  -- the result is `nt1`'s slot vector under this table's other fields
+  have hslots : m'.slots = nt1.slots := by rw [← Result.ok_injective hok]
+  have hmlv : m'.max_load = nt1.max_load := by rw [← Result.ok_injective hok]
+  have hent : m'.num_entries = m.num_entries := by rw [← Result.ok_injective hok]
+  have hep : m'.epoch = m.epoch := by rw [← Result.ok_injective hok]
+  have hepnt1 : nt1.epoch = m.epoch := by rw [hepA]
+  have hslv : sl_v m' = sl_v nt1 := by rw [sl_v, sl_v, hslots, hep, hepnt1]
+  have hnumeq : m'.num_entries = nt1.num_entries := by
+    refine UScalar.val_eq_imp _ _ ?_
+    rw [hent, hinv.entries, hinv1.entries, Pfin.length_eq]
+  have hlen1 : nt1.slots.val.length = cap2.val := by
+    rw [hlenA, show nt0.slots.val.length = cap2.val by rw [hnt0s]; simp]
+  refine ⟨⟨Inv0_congr hinv1 hslots (by rw [hep, hepnt1]) hmlv hnumeq, ?_⟩, ?_, ?_⟩
+  · -- `fit`: the doubled table has room for everything the old one held
+    rw [hent, hinv.entries, hmlv, hmlA,
+      show nt0.max_load = nt.max_load from rfl, html, hcap2v]
+    have hle2 : (sl_v m).length ≤ m.slots.val.length := length_filterMap_le
+    have : m.slots.val.length * 2 / 4 = m.slots.val.length / 2 := by omega
+    omega
+  · intro p hp
+    rw [hslv] at hp
+    exact hkeys p (Pfin.mem_iff.1 hp)
+  · intro k
+    rw [toFun, toFun, hslv, lookupK_perm Pfin hinv1.nodup]
 
 
 /-! ## `insert`
 
 Three steps and no surprises: allocate if the table has no slots (task #35),
-write the entry, and grow if the load is past the threshold. -/
+write the entry, and grow if the load is past the threshold.  Since task
+#97-P6-17 the third step is unconditional — there is no `saturated` arm to
+exclude — so this is a statement about *every* table the invariant admits. -/
 
 theorem insert_refines_gen {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
     (hinv : Inv HashableInst m) (hkeys : KeysOk P m) {key : K} {value : V} (hk : P key)
-    (hcap : 2 * m.slots.val.length ≤ Std.Usize.max)
     {old : Option V} {m' : ron.hashmap2.HashMap2 K V}
     (h : ron.hashmap2.HashMap2.insert HashableInst Eq2Inst m key value = ok (old, m')) :
     Inv HashableInst m' ∧ old = toFun m key ∧
     toFun m' = Function.update (toFun m) key (some value) ∧ KeysOk P m' := by
   rw [ron.hashmap2.HashMap2.insert] at h
   obtain ⟨m0, hens, h⟩ := bind_eq_ok_iff.mp h
-  obtain ⟨hinv0, hpos0, hav0, hent0, hsat0, hep0, hcase0⟩ := ensure_slots_spec hinv hens
+  obtain ⟨hinv0, hpos0, hav0, hent0, hep0, -⟩ := ensure_slots_spec hinv hens
   have htf0 : toFun m0 = toFun m := by funext k'; rw [toFun, toFun, hav0]
   have hkeys0 : KeysOk P m0 := by intro p hp; rw [hav0] at hp; exact hkeys p hp
-  have hcap0 : 2 * m0.slots.val.length ≤ Std.Usize.max := by
-    rcases hcase0 with h32 | heq
-    · rw [h32]; exact usize_max_ge_64
-    · rw [heq]; exact hcap
   obtain ⟨q, hins, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨old0, m1⟩ := q
-  obtain ⟨hinv1, hold0, htf, hlen1, hml1, hsat1, hep1, hent1, -, -, hkeys1⟩ :=
+  obtain ⟨hinv1, hold0, htf, hlen1, hml1, hep1, hent1, -, -, hkeys1⟩ :=
     insert_no_resize_spec heq hinv0 hkeys0 hk hpos0 hins
   have hold : old0 = toFun m key := by rw [hold0, htf0]
   have hpos1 : 0 < m1.slots.val.length := by rw [hlen1]; exact hpos0
-  have hcap1 : 2 * m1.slots.val.length ≤ Std.Usize.max := by rw [hlen1]; exact hcap0
   have hupd : toFun m1 = Function.update (toFun m) key (some value) := by
     funext k'; rw [htf k', htf0, Function.update_apply]
   rcases ite_eq_ok h with ⟨hover, h⟩ | ⟨hunder, h⟩
-  · rcases ite_eq_ok h with ⟨hsatt, h⟩ | ⟨-, h⟩
-    · -- saturated: excluded by `hcap`, since `try_resize` is what sets the flag
-      exfalso
-      rw [hsat1, hsat0] at hsatt
-      exact absurd hinv.sat (by simp [hsatt])
-    · obtain ⟨m2, hres, hok⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨hinv2, hkeys2, htf2⟩ := try_resize_spec heq hinv1 hkeys1 hpos1 hcap1 hres
-      have e := Result.ok_injective hok
-      have e1 : old = old0 := (congrArg Prod.fst e).symm
-      have e2 : m' = m2 := (congrArg Prod.snd e).symm
-      rw [e1, e2]
-      refine ⟨hinv2, hold, ?_, hkeys2⟩
-      rw [← hupd]; funext k'; exact htf2 k'
+  · obtain ⟨m2, hres, hok⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hinv2, hkeys2, htf2⟩ := try_resize_spec heq hinv1 hkeys1 hpos1 hres
+    have e := Result.ok_injective hok
+    have e1 : old = old0 := (congrArg Prod.fst e).symm
+    have e2 : m' = m2 := (congrArg Prod.snd e).symm
+    rw [e1, e2]
+    refine ⟨hinv2, hold, ?_, hkeys2⟩
+    rw [← hupd]; funext k'; exact htf2 k'
   · have e := Result.ok_injective h
     have e1 : old = old0 := (congrArg Prod.fst e).symm
     have e2 : m' = m1 := (congrArg Prod.snd e).symm
@@ -2197,7 +2183,6 @@ structure InvNoRun (HashableInst : ron.hashmap.Hashable K)
   min_cap : 0 < t.slots.val.length → 32 ≤ t.slots.val.length
   max_load_eq : 0 < t.slots.val.length → t.max_load.val = 3 * (t.slots.val.length / 4)
   fit : t.num_entries.val ≤ t.max_load.val
-  sat : t.saturated = false
   epoch_pos : 1 ≤ t.epoch.val
   stamps : ∀ (p : Nat) (g : Std.U32) (k : K) (v : V),
       t.slots.val[p]! = .Live g k v → g.val ≤ t.epoch.val
@@ -2207,7 +2192,7 @@ structure InvNoRun (HashableInst : ron.hashmap.Hashable K)
 omit [DecidableEq K] in
 theorem InvNoRun.of_Inv {t : ron.hashmap2.HashMap2 K V} (h : Inv HashableInst t) :
     InvNoRun HashableInst t :=
-  ⟨h.pow2, h.min_cap, h.max_load_eq, h.fit, h.sat, h.epoch_pos, h.stamps, h.nodup, h.entries⟩
+  ⟨h.pow2, h.min_cap, h.max_load_eq, h.fit, h.epoch_pos, h.stamps, h.nodup, h.entries⟩
 
 omit [DecidableEq K] in
 theorem Inv.of_InvNoRun {t : ron.hashmap2.HashMap2 K V} (h : InvNoRun HashableInst t)
@@ -2218,7 +2203,7 @@ theorem Inv.of_InvNoRun {t : ron.hashmap2.HashMap2 K V} (h : InvNoRun HashableIn
       ∃ D, D < t.slots.val.length ∧ p = idx t.slots.val.length i.val D ∧
         ∀ d, d < D → isLive t (idx t.slots.val.length i.val d)) :
     Inv HashableInst t :=
-  ⟨⟨h.pow2, h.min_cap, h.max_load_eq, h.sat, h.epoch_pos, h.stamps, h.nodup, h.entries,
+  ⟨⟨h.pow2, h.min_cap, h.max_load_eq, h.epoch_pos, h.stamps, h.nodup, h.entries,
     hrun⟩, h.fit⟩
 
 omit [DecidableEq K] in
@@ -2315,7 +2300,7 @@ theorem repair_spec (F : Nat) :
       ron.hashmap2.HashMap2.repair HashableInst Eq2Inst t hole j n fuel = ok t' →
       Inv HashableInst t' ∧ (sl_v t').Perm (sl_v t) ∧
         t'.slots.val.length = t.slots.val.length ∧
-        t'.max_load = t.max_load ∧ t'.saturated = t.saturated ∧
+        t'.max_load = t.max_load ∧
         t'.epoch = t.epoch ∧ t'.num_entries = t.num_entries := by
   induction F using Nat.strong_induction_on with
   | _ F ih =>
@@ -2465,7 +2450,7 @@ theorem repair_spec (F : Nat) :
           -- the invariant clauses the walk does not touch
           have hinv1 : InvNoRun HashableInst t1 := by
             refine ⟨by rw [hlen1]; exact hinv.pow2, by rw [hlen1]; exact hinv.min_cap,
-              by rw [hlen1]; exact hinv.max_load_eq, hinv.fit, hinv.sat, hinv.epoch_pos,
+              by rw [hlen1]; exact hinv.max_load_eq, hinv.fit, hinv.epoch_pos,
               ?_, ?_, ?_⟩
             · intro p g k v hx
               rw [ht1e]
@@ -2552,11 +2537,11 @@ theorem repair_spec (F : Nat) :
                 rw [hidx1] at hstep
                 rw [hlen1]
                 omega
-          obtain ⟨hinv', hperm', hlenB, hmlB, hsatB, hepB, hentB⟩ :=
+          obtain ⟨hinv', hperm', hlenB, hmlB, hepB, hentB⟩ :=
             ih f1.val (by omega) t1 t' j i2 n f1 1 rfl (by rw [hhomelen]; exact hn)
               (by rw [hlen1]; omega) hinv1 hrep1 h
           exact ⟨hinv', hperm'.trans hperm, by rw [hlenB, hlen1],
-            by rw [hmlB], by rw [hsatB], by rw [hepB], by rw [hentB]⟩
+            by rw [hmlB], by rw [hepB], by rw [hentB]⟩
         · -- `act = 2`: the entry's home is cyclically inside `(hole, j]`, so
           -- moving it back would break its own run; it stays, and the scan
           -- moves on with `hole` where it was
@@ -2641,7 +2626,7 @@ theorem repair_spec (F : Nat) :
         rcases ite_eq_ok h with ⟨-, h⟩ | ⟨hne, h⟩
         · have ht : t' = t := (Result.ok_injective h).symm
           rw [ht]
-          refine ⟨Inv.of_InvNoRun hinv ?_, List.Perm.refl _, rfl, rfl, rfl, rfl, rfl⟩
+          refine ⟨Inv.of_InvNoRun hinv ?_, List.Perm.refl _, rfl, rfl, rfl, rfl⟩
           intro p k v i hp hslotp hhome
           obtain ⟨hilt, hrun⟩ := hrep.runs p k v i hp hslotp hhome
           refine ⟨hilt, run_of_cyc hpos hilt hp ?_⟩
@@ -2770,7 +2755,7 @@ theorem remove_refines_gen {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
       -- the invariant clauses `repair` carries through
       have hinv0 : InvNoRun HashableInst t0 := by
         refine ⟨by rw [ht0len]; exact hinv.pow2, by rw [ht0len]; exact hinv.min_cap,
-          by rw [ht0len]; exact hinv.max_load_eq, ?_, hinv.sat, hinv.epoch_pos, ?_, ?_, ?_⟩
+          by rw [ht0len]; exact hinv.max_load_eq, ?_, hinv.epoch_pos, ?_, ?_, ?_⟩
         · rw [show t0.num_entries = i3 from rfl, show t0.max_load = m.max_load from rfl, hi3v]
           have := hinv.fit; omega
         · intro p g k v hx
@@ -2816,7 +2801,7 @@ theorem remove_refines_gen {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
         · rw [ht0len]
           have := cyc_lt (n := m.slots.val.length) (a := i4.val) (b := q) hpos
           omega
-      obtain ⟨hinvf, hpermf, hlenf, -, -, -, -⟩ :=
+      obtain ⟨hinvf, hpermf, hlenf, -, -, -⟩ :=
         repair_spec (alloc.vec.Vec.len m.slots).val t0 m' i2 i4
           (alloc.vec.Vec.len m.slots) (alloc.vec.Vec.len m.slots) 1 rfl
           (by rw [show alloc.vec.Vec.len t0.slots = alloc.vec.Vec.len m.slots from
@@ -2872,13 +2857,13 @@ theorem contains_key_refines (heq : Eq2Spec Eq2Inst) (hinv : Inv HashableInst m)
   contains_key_refines_gen (Eq2Fwd_of_Eq2Spec heq) hinv KeysOk_true trivial h
 
 theorem insert_refines (heq : Eq2Spec Eq2Inst) (hinv : Inv HashableInst m)
-    (hcap : 2 * m.slots.val.length ≤ Std.Usize.max) {key : K} {value : V}
+    {key : K} {value : V}
     {old : Option V} {m' : ron.hashmap2.HashMap2 K V}
     (h : ron.hashmap2.HashMap2.insert HashableInst Eq2Inst m key value = ok (old, m')) :
     Inv HashableInst m' ∧ old = toFun m key ∧
     toFun m' = Function.update (toFun m) key (some value) := by
   obtain ⟨h1, h2, h3, -⟩ :=
-    insert_refines_gen (Eq2Fwd_of_Eq2Spec heq) hinv KeysOk_true trivial hcap h
+    insert_refines_gen (Eq2Fwd_of_Eq2Spec heq) hinv KeysOk_true trivial h
   exact ⟨h1, h2, h3⟩
 
 theorem remove_refines (heq : Eq2Spec Eq2Inst) (hinv : Inv HashableInst m) {key : K}
@@ -2922,11 +2907,11 @@ theorem Rel_get {s : _root_.Std.HashMap K' V'} (heq : Eq2Spec Eq2Inst)
 
 theorem Rel_insert [LawfulBEq K'] [LawfulHashable K'] {s : _root_.Std.HashMap K' V'}
     (heq : Eq2Spec Eq2Inst) (hinj : Function.Injective absK) (hinv : Inv HashableInst m)
-    (hcap : 2 * m.slots.val.length ≤ Std.Usize.max) (hrel : Rel m s absK absV)
+    (hrel : Rel m s absK absV)
     {key : K} {value : V} {old : Option V} {m' : ron.hashmap2.HashMap2 K V}
     (h : ron.hashmap2.HashMap2.insert HashableInst Eq2Inst m key value = ok (old, m')) :
     Rel m' (s.insert (absK key) (absV value)) absK absV := by
-  obtain ⟨-, -, hupd⟩ := insert_refines heq hinv hcap h
+  obtain ⟨-, -, hupd⟩ := insert_refines heq hinv h
   intro k'
   rw [hupd, Function.update_apply, _root_.Std.HashMap.getElem?_insert]
   by_cases hk : k' = key

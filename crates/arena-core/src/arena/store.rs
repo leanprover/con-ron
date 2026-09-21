@@ -254,6 +254,20 @@ where
         }
     }
 
+    /// con-leche: none — arena infrastructure (task #97-P6-17)
+    /// **This constructor's array of this tier has no room for another node.**
+    /// Two limits, and the first is the one that can be approached: the handle
+    /// word gives the index 27 bits (`IDX_CAP`, §8.3), and the cons table's
+    /// own slot vector cannot double past `usize::MAX / 2`
+    /// (`HashMap2::is_saturated_full`, task #97-HM2 §4).
+    pub fn full(&self) -> bool {
+        if self.rows.len() >= IDX_CAP as usize {
+            true
+        } else {
+            self.cons.is_saturated_full()
+        }
+    }
+
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:91 Tbl.find?
     /// The cons-table probe.
     pub fn find(&self, a: &A) -> Option<I> {
@@ -1388,6 +1402,17 @@ impl NTables {
         }
     }
 
+    /// con-leche: none — arena infrastructure (task #97-P6-17)
+    /// `Tbl::full` at the constructor array `v` would land in — the capacity
+    /// test, dispatched exactly as `size_of` is.
+    pub fn full_of(&self, v: &NNodeView) -> bool {
+        match v {
+            NNodeView::Anonymous => self.anons.full(),
+            NNodeView::Str(_, _) => self.strs.full(),
+            NNodeView::Num(_, _) => self.nums.full(),
+        }
+    }
+
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:409-426 NTables.push
     /// Append a node to this tier, returning its handle.
     pub fn push(&mut self, v: NNodeView, d: u64, tier: u32) -> NIdx {
@@ -1472,19 +1497,15 @@ impl NStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure (task #97-P6-6b); Lean twin:
-    /// `proof/ConRon/Arena/Store.lean` — the persistent arm of `NStore.capOK`
-    ///
-    /// One of the five **value-returning persistent readers** task #97-P6-6's
-    /// design (A) is written around: the choice between this store's own
-    /// persistent tier and the shared `PersTier` is made HERE and a value
-    /// comes back, so no borrow ever leaves the choice and no region enters
-    /// the record every function of the crate threads as `&mut`.
-    fn pers_size_of(&self, pers: &PersTier, v: &NNodeView) -> usize {
+
+    /// con-leche: none — arena infrastructure (task #97-P6-17)
+    /// The persistent arm of the capacity test, a value-returning persistent
+    /// reader beside `pers_size_of` (task #97-P6-6b's design (A)).
+    fn pers_full_of(&self, pers: &PersTier, v: &NNodeView) -> bool {
         if self.shared_on {
-            pers.n.size_of(v)
+            pers.n.full_of(v)
         } else {
-            self.pers.size_of(v)
+            self.pers.full_of(v)
         }
     }
 
@@ -1637,7 +1658,7 @@ impl NStore {
                     match self.scr.strs.find(&node) {
                         Some(i) => Ok(i),
                         None => {
-                            if self.scr.strs.size() >= IDX_CAP as usize {
+                            if self.scr.strs.full() {
                                 Err(CheckError::Native(code_points(&M_N_CAP)))
                             } else {
                                 let i: NIdx =
@@ -1649,7 +1670,7 @@ impl NStore {
                     }
                 } else if self.shared_on {
                     Err(CheckError::Internal(code_points(&M_FROZEN)))
-                } else if self.pers.strs.size() >= IDX_CAP as usize {
+                } else if self.pers.strs.full() {
                     Err(CheckError::Native(code_points(&M_N_CAP)))
                 } else {
                     let i: NIdx = NIdx::pack(NTAG_STR, TIER_P, self.pers.strs.size() as u32);
@@ -1672,7 +1693,7 @@ impl NStore {
                     match self.scr.find(&v) {
                         Some(i) => Ok(i),
                         None => {
-                            if self.scr.size_of(&v) >= IDX_CAP as usize {
+                            if self.scr.full_of(&v) {
                                 Err(CheckError::Native(code_points(&M_N_CAP)))
                             } else {
                                 let d = self.der_of_view(pers, &v);
@@ -1682,7 +1703,7 @@ impl NStore {
                     }
                 } else if self.shared_on {
                     Err(CheckError::Internal(code_points(&M_FROZEN)))
-                } else if self.pers_size_of(pers, &v) >= IDX_CAP as usize {
+                } else if self.pers_full_of(pers, &v) {
                     Err(CheckError::Native(code_points(&M_N_CAP)))
                 } else {
                     let d = self.der_of_view(pers, &v);
@@ -1713,9 +1734,9 @@ impl NStore {
     /// node.
     pub fn cap_ok(&self, pers: &PersTier, v: &NNodeView) -> bool {
         if self.scratch_on {
-            self.scr.size_of(v) < IDX_CAP as usize
+            !self.scr.full_of(v)
         } else {
-            self.pers_size_of(pers, v) < IDX_CAP as usize
+            !self.pers_full_of(pers, v)
         }
     }
 }
@@ -1828,6 +1849,19 @@ impl LTables {
         }
     }
 
+    /// con-leche: none — arena infrastructure (task #97-P6-17)
+    /// `Tbl::full` at the constructor array `v` would land in — the capacity
+    /// test, dispatched exactly as `size_of` is.
+    pub fn full_of(&self, v: &LNodeView) -> bool {
+        match v {
+            LNodeView::Zero => self.zeros.full(),
+            LNodeView::Succ(_) => self.succs.full(),
+            LNodeView::Max(_, _) => self.maxs.full(),
+            LNodeView::Imax(_, _) => self.imaxs.full(),
+            LNodeView::Param(_) => self.params.full(),
+        }
+    }
+
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:562-589 LTables.push
     pub fn push(&mut self, v: LNodeView, d: LDer, tier: u32) -> LIdx {
         match v {
@@ -1922,19 +1956,15 @@ impl LStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure (task #97-P6-6b); Lean twin:
-    /// `proof/ConRon/Arena/Store.lean` — the persistent arm of `LStore.capOK`
-    ///
-    /// One of the five **value-returning persistent readers** task #97-P6-6's
-    /// design (A) is written around: the choice between this store's own
-    /// persistent tier and the shared `PersTier` is made HERE and a value
-    /// comes back, so no borrow ever leaves the choice and no region enters
-    /// the record every function of the crate threads as `&mut`.
-    fn pers_size_of(&self, pers: &PersTier, v: &LNodeView) -> usize {
+
+    /// con-leche: none — arena infrastructure (task #97-P6-17)
+    /// The persistent arm of the capacity test, a value-returning persistent
+    /// reader beside `pers_size_of` (task #97-P6-6b's design (A)).
+    fn pers_full_of(&self, pers: &PersTier, v: &LNodeView) -> bool {
         if self.shared_on {
-            pers.l.size_of(v)
+            pers.l.full_of(v)
         } else {
-            self.pers.size_of(v)
+            self.pers.full_of(v)
         }
     }
 
@@ -2040,7 +2070,7 @@ impl LStore {
                     match self.scr.find(&v) {
                         Some(i) => Ok(i),
                         None => {
-                            if self.scr.size_of(&v) >= IDX_CAP as usize {
+                            if self.scr.full_of(&v) {
                                 Err(CheckError::Native(code_points(&M_L_CAP)))
                             } else {
                                 let d = self.der_of_view(pers, &v);
@@ -2050,7 +2080,7 @@ impl LStore {
                     }
                 } else if self.shared_on {
                     Err(CheckError::Internal(code_points(&M_FROZEN)))
-                } else if self.pers_size_of(pers, &v) >= IDX_CAP as usize {
+                } else if self.pers_full_of(pers, &v) {
                     Err(CheckError::Native(code_points(&M_L_CAP)))
                 } else {
                     let d = self.der_of_view(pers, &v);
@@ -2079,9 +2109,9 @@ impl LStore {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:669-670 LStore.capOK
     pub fn cap_ok(&self, pers: &PersTier, v: &LNodeView) -> bool {
         if self.scratch_on {
-            self.scr.size_of(v) < IDX_CAP as usize
+            !self.scr.full_of(v)
         } else {
-            self.pers_size_of(pers, v) < IDX_CAP as usize
+            !self.pers_full_of(pers, v)
         }
     }
 
@@ -2167,6 +2197,13 @@ impl LsTables {
         self.lists.size()
     }
 
+    /// con-leche: none — arena infrastructure (task #97-P6-17)
+    /// `Tbl::full` at the constructor array `v` would land in — the capacity
+    /// test, dispatched exactly as `size_of` is.
+    pub fn full_of(&self, _v: &LsNodeView) -> bool {
+        self.lists.full()
+    }
+
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:702-707 LsTables.push
     pub fn push(&mut self, v: LsNodeView, d: LDer, tier: u32) -> LsIdx {
         let i: LsIdx = LsIdx::pack(LSTAG_LIST, tier, self.lists.size() as u32);
@@ -2237,19 +2274,15 @@ impl LsStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure (task #97-P6-6b); Lean twin:
-    /// `proof/ConRon/Arena/Store.lean` — the persistent arm of `LsStore.capOK`
-    ///
-    /// One of the five **value-returning persistent readers** task #97-P6-6's
-    /// design (A) is written around: the choice between this store's own
-    /// persistent tier and the shared `PersTier` is made HERE and a value
-    /// comes back, so no borrow ever leaves the choice and no region enters
-    /// the record every function of the crate threads as `&mut`.
-    fn pers_size_of(&self, pers: &PersTier, v: &LsNodeView) -> usize {
+
+    /// con-leche: none — arena infrastructure (task #97-P6-17)
+    /// The persistent arm of the capacity test, a value-returning persistent
+    /// reader beside `pers_size_of` (task #97-P6-6b's design (A)).
+    fn pers_full_of(&self, pers: &PersTier, v: &LsNodeView) -> bool {
         if self.shared_on {
-            pers.ls.size_of(v)
+            pers.ls.full_of(v)
         } else {
-            self.pers.size_of(v)
+            self.pers.full_of(v)
         }
     }
 
@@ -2373,7 +2406,7 @@ impl LsStore {
                     match self.scr.find(&v) {
                         Some(i) => Ok(i),
                         None => {
-                            if self.scr.size_of(&v) >= IDX_CAP as usize {
+                            if self.scr.full_of(&v) {
                                 Err(CheckError::Native(code_points(&M_LS_CAP)))
                             } else {
                                 let d = self.der_of_view(pers, &v);
@@ -2383,7 +2416,7 @@ impl LsStore {
                     }
                 } else if self.shared_on {
                     Err(CheckError::Internal(code_points(&M_FROZEN)))
-                } else if self.pers_size_of(pers, &v) >= IDX_CAP as usize {
+                } else if self.pers_full_of(pers, &v) {
                     Err(CheckError::Native(code_points(&M_LS_CAP)))
                 } else {
                     let d = self.der_of_view(pers, &v);
@@ -2410,9 +2443,9 @@ impl LsStore {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:785-786 LsStore.capOK
     pub fn cap_ok(&self, pers: &PersTier, v: &LsNodeView) -> bool {
         if self.scratch_on {
-            self.scr.size_of(v) < IDX_CAP as usize
+            !self.scr.full_of(v)
         } else {
-            self.pers_size_of(pers, v) < IDX_CAP as usize
+            !self.pers_full_of(pers, v)
         }
     }
 
@@ -2795,6 +2828,24 @@ impl ETables {
         }
     }
 
+    /// con-leche: none — arena infrastructure (task #97-P6-17)
+    /// `Tbl::full` at the constructor array `v` would land in — the capacity
+    /// test, dispatched exactly as `size_of` is.
+    pub fn full_of(&self, v: &ENodeView) -> bool {
+        match v {
+            ENodeView::BVar(_) => self.bvars.full(),
+            ENodeView::FVar(_, _) => self.fvars.full(),
+            ENodeView::Sort(_) => self.sorts.full(),
+            ENodeView::Const(_, _) => self.consts.full(),
+            ENodeView::App(_, _) => self.apps.full(),
+            ENodeView::Lam(_, _, _) => self.lams.full(),
+            ENodeView::ForallE(_, _, _) => self.foralls.full(),
+            ENodeView::LetE(_, _, _) => self.lets.full(),
+            ENodeView::Lit(_) => self.lits.full(),
+            ENodeView::Proj(_, _, _) => self.projs.full(),
+        }
+    }
+
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:866-918 ETables.push
     pub fn push(&mut self, v: ENodeView, d: u64, mi: BMIdx, tier: u32) -> EIdx {
         match v {
@@ -3069,19 +3120,15 @@ impl EStore {
         }
     }
 
-    /// con-leche: none — arena infrastructure (task #97-P6-6b); Lean twin:
-    /// `proof/ConRon/Arena/Store.lean` — the persistent arm of `EStore.capOK`
-    ///
-    /// One of the five **value-returning persistent readers** task #97-P6-6's
-    /// design (A) is written around: the choice between this store's own
-    /// persistent tier and the shared `PersTier` is made HERE and a value
-    /// comes back, so no borrow ever leaves the choice and no region enters
-    /// the record every function of the crate threads as `&mut`.
-    fn pers_size_of(&self, pers: &PersTier, v: &ENodeView) -> usize {
+
+    /// con-leche: none — arena infrastructure (task #97-P6-17)
+    /// The persistent arm of the capacity test, a value-returning persistent
+    /// reader beside `pers_size_of` (task #97-P6-6b's design (A)).
+    fn pers_full_of(&self, pers: &PersTier, v: &ENodeView) -> bool {
         if self.shared_on {
-            pers.e.size_of(v)
+            pers.e.full_of(v)
         } else {
-            self.pers.size_of(v)
+            self.pers.full_of(v)
         }
     }
 
@@ -3515,7 +3562,7 @@ impl EStore {
                     match self.scr.bms.find(&r) {
                         Some(hs) => Ok(hs),
                         None => {
-                            if self.scr.bms.size() >= IDX_CAP as usize {
+                            if self.scr.bms.full() {
                                 Err(CheckError::Native(code_points(&M_E_CAP)))
                             } else {
                                 let d: u64 = prop_when::hash_pw(&r.pw);
@@ -3528,7 +3575,7 @@ impl EStore {
                     }
                 } else if self.shared_on {
                     Err(CheckError::Internal(code_points(&M_FROZEN)))
-                } else if self.pers.bms.size() >= IDX_CAP as usize {
+                } else if self.pers.bms.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
                     let d: u64 = prop_when::hash_pw(&r.pw);
@@ -3560,7 +3607,7 @@ impl EStore {
             None => {
                 if self.shared_on {
                     Err(CheckError::Internal(code_points(&M_FROZEN)))
-                } else if self.pers.bms.size() >= IDX_CAP as usize {
+                } else if self.pers.bms.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
                     let d: u64 = prop_when::hash_pw(&r.pw);
@@ -3948,7 +3995,7 @@ impl EStore {
                     match self.scr.bvars.find(&r) {
                         Some(hs) => Ok(hs),
                         None => {
-                            if self.scr.bvars.size() >= IDX_CAP as usize {
+                            if self.scr.bvars.full() {
                                 Err(CheckError::Native(code_points(&M_E_CAP)))
                             } else {
                                 let d: u64 = self.der_of_bvar(r.i);
@@ -3961,7 +4008,7 @@ impl EStore {
                     }
                 } else if self.shared_on {
                     Err(CheckError::Internal(code_points(&M_FROZEN)))
-                } else if self.pers.bvars.size() >= IDX_CAP as usize {
+                } else if self.pers.bvars.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
                     let d: u64 = self.der_of_bvar(r.i);
@@ -4002,7 +4049,7 @@ impl EStore {
                     match self.scr.fvars.find(&r) {
                         Some(hs) => Ok(hs),
                         None => {
-                            if self.scr.fvars.size() >= IDX_CAP as usize {
+                            if self.scr.fvars.full() {
                                 Err(CheckError::Native(code_points(&M_E_CAP)))
                             } else {
                                 let d: u64 = self.der_of_fvar(pers, r.idx, &r.ty);
@@ -4015,7 +4062,7 @@ impl EStore {
                     }
                 } else if self.shared_on {
                     Err(CheckError::Internal(code_points(&M_FROZEN)))
-                } else if self.pers.fvars.size() >= IDX_CAP as usize {
+                } else if self.pers.fvars.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
                     let d: u64 = self.der_of_fvar(pers, r.idx, &r.ty);
@@ -4056,7 +4103,7 @@ impl EStore {
                     match self.scr.sorts.find(&r) {
                         Some(hs) => Ok(hs),
                         None => {
-                            if self.scr.sorts.size() >= IDX_CAP as usize {
+                            if self.scr.sorts.full() {
                                 Err(CheckError::Native(code_points(&M_E_CAP)))
                             } else {
                                 let d: u64 = self.der_of_sort(pers, &r.u);
@@ -4069,7 +4116,7 @@ impl EStore {
                     }
                 } else if self.shared_on {
                     Err(CheckError::Internal(code_points(&M_FROZEN)))
-                } else if self.pers.sorts.size() >= IDX_CAP as usize {
+                } else if self.pers.sorts.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
                     let d: u64 = self.der_of_sort(pers, &r.u);
@@ -4114,7 +4161,7 @@ impl EStore {
                     match self.scr.consts.find(&r) {
                         Some(hs) => Ok(hs),
                         None => {
-                            if self.scr.consts.size() >= IDX_CAP as usize {
+                            if self.scr.consts.full() {
                                 Err(CheckError::Native(code_points(&M_E_CAP)))
                             } else {
                                 let d: u64 = self.der_of_const(pers, &r.n, &r.us);
@@ -4127,7 +4174,7 @@ impl EStore {
                     }
                 } else if self.shared_on {
                     Err(CheckError::Internal(code_points(&M_FROZEN)))
-                } else if self.pers.consts.size() >= IDX_CAP as usize {
+                } else if self.pers.consts.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
                     let d: u64 = self.der_of_const(pers, &r.n, &r.us);
@@ -4172,7 +4219,7 @@ impl EStore {
                     match self.scr.apps.find(&r) {
                         Some(hs) => Ok(hs),
                         None => {
-                            if self.scr.apps.size() >= IDX_CAP as usize {
+                            if self.scr.apps.full() {
                                 Err(CheckError::Native(code_points(&M_E_CAP)))
                             } else {
                                 let d: u64 = self.der_of_app(pers, &r.f, &r.a);
@@ -4185,7 +4232,7 @@ impl EStore {
                     }
                 } else if self.shared_on {
                     Err(CheckError::Internal(code_points(&M_FROZEN)))
-                } else if self.pers.apps.size() >= IDX_CAP as usize {
+                } else if self.pers.apps.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
                     let d: u64 = self.der_of_app(pers, &r.f, &r.a);
@@ -4251,7 +4298,7 @@ impl EStore {
                     match self.scr.lams.find(&r) {
                         Some(hs) => Ok(hs),
                         None => {
-                            if self.scr.lams.size() >= IDX_CAP as usize {
+                            if self.scr.lams.full() {
                                 Err(CheckError::Native(code_points(&M_E_CAP)))
                             } else {
                                 let d: u64 = self.der_of_bind_at_i(pers, 19, &r.ty, &r.body, &r.m);
@@ -4264,7 +4311,7 @@ impl EStore {
                     }
                 } else if self.shared_on {
                     Err(CheckError::Internal(code_points(&M_FROZEN)))
-                } else if self.pers.lams.size() >= IDX_CAP as usize {
+                } else if self.pers.lams.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
                     let d: u64 = self.der_of_bind_at_i(pers, 19, &r.ty, &r.body, &r.m);
@@ -4330,7 +4377,7 @@ impl EStore {
                     match self.scr.foralls.find(&r) {
                         Some(hs) => Ok(hs),
                         None => {
-                            if self.scr.foralls.size() >= IDX_CAP as usize {
+                            if self.scr.foralls.full() {
                                 Err(CheckError::Native(code_points(&M_E_CAP)))
                             } else {
                                 let d: u64 = self.der_of_bind_at_i(pers, 23, &r.ty, &r.body, &r.m);
@@ -4343,7 +4390,7 @@ impl EStore {
                     }
                 } else if self.shared_on {
                     Err(CheckError::Internal(code_points(&M_FROZEN)))
-                } else if self.pers.foralls.size() >= IDX_CAP as usize {
+                } else if self.pers.foralls.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
                     let d: u64 = self.der_of_bind_at_i(pers, 23, &r.ty, &r.body, &r.m);
@@ -4392,7 +4439,7 @@ impl EStore {
                     match self.scr.lets.find(&r) {
                         Some(hs) => Ok(hs),
                         None => {
-                            if self.scr.lets.size() >= IDX_CAP as usize {
+                            if self.scr.lets.full() {
                                 Err(CheckError::Native(code_points(&M_E_CAP)))
                             } else {
                                 let d: u64 = self.der_of_let_at(pers, &r.ty, &r.val, &r.body);
@@ -4405,7 +4452,7 @@ impl EStore {
                     }
                 } else if self.shared_on {
                     Err(CheckError::Internal(code_points(&M_FROZEN)))
-                } else if self.pers.lets.size() >= IDX_CAP as usize {
+                } else if self.pers.lets.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
                     let d: u64 = self.der_of_let_at(pers, &r.ty, &r.val, &r.body);
@@ -4442,7 +4489,7 @@ impl EStore {
                     match self.scr.lits.find(&r) {
                         Some(hs) => Ok(hs),
                         None => {
-                            if self.scr.lits.size() >= IDX_CAP as usize {
+                            if self.scr.lits.full() {
                                 Err(CheckError::Native(code_points(&M_E_CAP)))
                             } else {
                                 let d: u64 = self.der_of_lit(&r.l);
@@ -4455,7 +4502,7 @@ impl EStore {
                     }
                 } else if self.shared_on {
                     Err(CheckError::Internal(code_points(&M_FROZEN)))
-                } else if self.pers.lits.size() >= IDX_CAP as usize {
+                } else if self.pers.lits.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
                     let d: u64 = self.der_of_lit(&r.l);
@@ -4500,7 +4547,7 @@ impl EStore {
                     match self.scr.projs.find(&r) {
                         Some(hs) => Ok(hs),
                         None => {
-                            if self.scr.projs.size() >= IDX_CAP as usize {
+                            if self.scr.projs.full() {
                                 Err(CheckError::Native(code_points(&M_E_CAP)))
                             } else {
                                 let d: u64 = self.der_of_proj(pers, &r.n, r.i, &r.e);
@@ -4513,7 +4560,7 @@ impl EStore {
                     }
                 } else if self.shared_on {
                     Err(CheckError::Internal(code_points(&M_FROZEN)))
-                } else if self.pers.projs.size() >= IDX_CAP as usize {
+                } else if self.pers.projs.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
                     let d: u64 = self.der_of_proj(pers, &r.n, r.i, &r.e);
@@ -4547,9 +4594,9 @@ impl EStore {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1067-1068 EStore.capOK
     pub fn cap_ok(&self, pers: &PersTier, v: &ENodeView) -> bool {
         if self.scratch_on {
-            self.scr.size_of(v) < IDX_CAP as usize
+            !self.scr.full_of(v)
         } else {
-            self.pers_size_of(pers, v) < IDX_CAP as usize
+            !self.pers_full_of(pers, v)
         }
     }
 
@@ -4612,7 +4659,7 @@ impl NStore {
             None => {
                 if self.shared_on {
                     Err(CheckError::Internal(code_points(&M_FROZEN)))
-                } else if self.pers_size_of(pers, &v) >= IDX_CAP as usize {
+                } else if self.pers_full_of(pers, &v) {
                     Err(CheckError::Native(code_points(&M_N_CAP)))
                 } else {
                     let d = self.der_of_view(pers, &v);
@@ -4626,7 +4673,7 @@ impl NStore {
     /// `intern_persistent`'s capacity precondition, as a test rather than a
     /// `Prop`: the constructor's PERSISTENT array has room for one more node.
     pub fn cap_ok_persistent(&self, pers: &PersTier, v: &NNodeView) -> bool {
-        self.pers_size_of(pers, v) < IDX_CAP as usize
+        !self.pers_full_of(pers, v)
     }
 }
 
@@ -4641,7 +4688,7 @@ impl LStore {
             None => {
                 if self.shared_on {
                     Err(CheckError::Internal(code_points(&M_FROZEN)))
-                } else if self.pers_size_of(pers, &v) >= IDX_CAP as usize {
+                } else if self.pers_full_of(pers, &v) {
                     Err(CheckError::Native(code_points(&M_L_CAP)))
                 } else {
                     let d = self.der_of_view(pers, &v);
@@ -4654,7 +4701,7 @@ impl LStore {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1201-1202 LStore.capOKPersistent
     /// The level store's capacity precondition for `intern_persistent`.
     pub fn cap_ok_persistent(&self, pers: &PersTier, v: &LNodeView) -> bool {
-        self.pers_size_of(pers, v) < IDX_CAP as usize
+        !self.pers_full_of(pers, v)
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1245-1251 LStore.internNamePersistent
@@ -4683,7 +4730,7 @@ impl LsStore {
             None => {
                 if self.shared_on {
                     Err(CheckError::Internal(code_points(&M_FROZEN)))
-                } else if self.pers_size_of(pers, &v) >= IDX_CAP as usize {
+                } else if self.pers_full_of(pers, &v) {
                     Err(CheckError::Native(code_points(&M_LS_CAP)))
                 } else {
                     let d = self.der_of_view(pers, &v);
@@ -4696,7 +4743,7 @@ impl LsStore {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1218-1219 LsStore.capOKPersistent
     /// The level-list store's capacity precondition for `intern_persistent`.
     pub fn cap_ok_persistent(&self, pers: &PersTier, v: &LsNodeView) -> bool {
-        self.pers_size_of(pers, v) < IDX_CAP as usize
+        !self.pers_full_of(pers, v)
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1255-1261 LsStore.internNamePersistent
@@ -4734,7 +4781,7 @@ impl EStore {
                 None => {
                     if self.shared_on {
                         Err(CheckError::Internal(code_points(&M_FROZEN)))
-                    } else if self.pers_size_of(pers, &v) >= IDX_CAP as usize {
+                    } else if self.pers_full_of(pers, &v) {
                         Err(CheckError::Native(code_points(&M_E_CAP)))
                     } else {
                         let d = self.der_of_view(pers, &v);
@@ -4748,7 +4795,7 @@ impl EStore {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1235-1236 EStore.capOKPersistent
     /// The expression store's capacity precondition for `intern_persistent`.
     pub fn cap_ok_persistent(&self, pers: &PersTier, v: &ENodeView) -> bool {
-        self.pers_size_of(pers, v) < IDX_CAP as usize
+        !self.pers_full_of(pers, v)
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1275-1281 EStore.internNamePersistent
