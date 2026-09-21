@@ -88,7 +88,10 @@ use crate::arena::expr_ops::{
     lam_pw, leaf_guard, loose_bvars_bounded_fast, mk_app_n, pi_result, rec_rule_plain, strip_pis,
     take_eidx, wscoped_b_fast,
 };
-use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx, ETAG_FORALL_E, ETAG_LAM, ETAG_LIT, ETAG_SORT};
+use crate::arena::handle::{
+    EIdx, LIdx, LsIdx, NIdx, ETAG_APP, ETAG_BVAR, ETAG_FORALL_E, ETAG_FVAR, ETAG_LAM, ETAG_LET_E,
+    ETAG_LIT, ETAG_PROJ, ETAG_SORT,
+};
 use crate::arena::monad::{
     fail, intern_e, intern_l_node, intern_ls_node, intern_n_node, intern_level, intern_name,
     read_level, read_levels, read_name, read_names, view, view_ls, AState,
@@ -6501,6 +6504,8 @@ pub fn whnf_core_app(
     fuel: u64,
     fe: &IFEnv,
     depth: u64,
+    h: &EIdx,
+    same: bool,
     fp: &EIdx,
     a: &EIdx,
 ) -> Result<EIdx, CheckError> {
@@ -6530,14 +6535,12 @@ pub fn whnf_core_app(
                                 Ok(b) => knot_whnf_core(st, mode, lane, fuel, fe, depth, &b),
                             }
                         }
-                        Ok(false) => {
-                            intern_e(st, ENodeView::App(fp.dup2(), a.dup2()))
-                        }
+                        Ok(false) => intern_app_rebuilt(st, h, same, fp, a),
                     },
                 }
             }
         }
-        Ok(_) => whnf_core_stuck_app(st, mode, lane, fuel, fe, depth, fp, a),
+        Ok(_) => whnf_core_stuck_app(st, mode, lane, fuel, fe, depth, h, same, fp, a),
     }
 }
 
@@ -6547,6 +6550,36 @@ pub fn whnf_core_app(
 /// gated β arm end in it.
 pub fn intern_app(st: &mut AState, f: &EIdx, a: &EIdx) -> Result<EIdx, CheckError> {
     intern_e(st, ENodeView::App(f.dup2(), a.dup2()))
+}
+
+/// con-leche: none — `internE (.app f' a)`, the twin's one-line rebuild
+/// Lean twin: OWED (task #97-P6-7's twin ledger) — **the UPWARD cutoff at the
+/// stuck application**, `expr_ops::intern_rebuilt`'s clause where task
+/// #97-P6-5's lever 2 could not reach.
+///
+/// `whnfCore` of an application head-normalizes the function and re-interns
+/// `.app f' a`.  When `f'` IS `f` — the head was already in normal form — the
+/// node it re-interns is the node it started from, so the whole hash, cons
+/// probe and (at Mathlib scale) guaranteed cache miss buy back a handle the
+/// caller already holds.  On the Mathlib 25 % prefix **58.2 M of `whnfCore`'s
+/// application and projection misses answer with their own argument**.
+///
+/// Handle-identical for the same reason task #97-P6-5 gives: the store is
+/// hash-consed, `denoteE` is injective, and §8.3's cross-tier probe order
+/// makes `intern` of a node's own view that node and not a twin of it in the
+/// other tier.
+pub fn intern_app_rebuilt(
+    st: &mut AState,
+    h: &EIdx,
+    same: bool,
+    f: &EIdx,
+    a: &EIdx,
+) -> Result<EIdx, CheckError> {
+    if same {
+        Ok(h.dup2())
+    } else {
+        intern_app(st, f, a)
+    }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1930-2019 whnfCoreBody
@@ -6563,10 +6596,12 @@ pub fn whnf_core_stuck_app(
     fuel: u64,
     fe: &IFEnv,
     depth: u64,
+    h: &EIdx,
+    same: bool,
     fp: &EIdx,
     a: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match intern_app(st, fp, a) {
+    match intern_app_rebuilt(st, h, same, fp, a) {
         Err(e) => Err(e),
         Ok(ap) => match iota_rec(st, mode, lane, fuel, fe, depth, &ap) {
             Err(e) => Err(e),
@@ -6603,7 +6638,10 @@ pub fn whnf_core_body(
         Ok(ENodeView::App(f, a)) => {
             match knot_whnf_core(st, mode, lane, fuel, fe, depth, &f) {
                 Err(er) => Err(er),
-                Ok(fp) => whnf_core_app(st, mode, lane, fuel, fe, depth, &fp, &a),
+                Ok(fp) => {
+                    let same: bool = fp.eq2(&f);
+                    whnf_core_app(st, mode, lane, fuel, fe, depth, e, same, &fp, &a)
+                }
             }
         }
         Ok(ENodeView::Proj(sn, i, pe)) => {
@@ -8648,7 +8686,15 @@ pub fn annotate_body(
                 Err(er) => Err(er),
                 Ok(fp) => match knot_annotate(st, mode, lane, fuel, fe, depth, &a) {
                     Err(er) => Err(er),
-                    Ok(ap) => intern_e(st, ENodeView::App(fp, ap)),
+                    Ok(ap) => {
+                        let same: bool = fp.eq2(&f) && ap.eq2(&a);
+                        crate::arena::expr_ops::intern_rebuilt(
+                            st,
+                            e,
+                            same,
+                            ENodeView::App(fp, ap),
+                        )
+                    }
                 },
             }
         }
@@ -8682,6 +8728,73 @@ pub fn annotate_body(
 // (DESIGN.md §8.3's lesson 10) and the journal (`arena::core_state`'s module
 // note) are in each recorder.
 // ---------------------------------------------------------------------------
+
+/// con-leche: ConLeche/Kernel/Core.lean:1930-2019 whnfCoreBody
+/// Lean twin: OWED (task #97-P6-7's twin ledger) — **the head kinds
+/// `whnfCoreBody` answers with its own argument**, read off the handle's
+/// constructor tag without decoding the node.
+///
+/// `whnfCoreBody`'s first six clauses are `pure e` (`sort`, `fvar`, `forallE`,
+/// `lam`, `const`, `lit`); only `app` and `proj` reduce, and `letE`/`bvar`
+/// fail.  The knot's slot therefore spends a memo probe, a `view` decode, a
+/// `dup` and a memo insert to learn the tag it already had in its hand.  On
+/// the Mathlib 25 % prefix that is **61.25 M of the 164.95 M `whnfCore` misses
+/// (37.1 %) and 9.57 M of the 33.85 M hits (28.3 %)**, and those 61.25 M rows
+/// were also 37 % of the biggest per-declaration table.
+///
+/// The answer is `e` ITSELF, not a handle denoting the same term, so the
+/// clause is handle-identical and the memo it bypasses could only ever have
+/// answered `e` too.  It is the same six kinds in `CoreGated`'s body
+/// (`core_gated::whnf_core_body_gated`, its first six clauses), which is why
+/// the test sits above the lane split rather than inside one arm.
+pub fn whnf_core_stuck_tag(e: &EIdx) -> bool {
+    let t: u32 = e.tag();
+    if t == ETAG_APP {
+        false
+    } else if t == ETAG_PROJ {
+        false
+    } else if t == ETAG_LET_E {
+        false
+    } else if t == ETAG_BVAR {
+        false
+    } else {
+        true
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:2040-2055 whnfStep
+/// Lean twin: OWED (task #97-P6-7's twin ledger) — **the head kinds `whnfBody`
+/// answers with its own argument**, again off the tag alone.
+///
+/// One iteration of the reduction loop is `whnfCore`, then `reduceNat`, then
+/// `unfoldDefinition`, and it stops when the last two decline.  At `sort`,
+/// `fvar`, `lam`, `forallE` and `lit`: `whnfCore` is the identity (above);
+/// `reduceNat` matches only an `app`, so it is `none`; and `unfoldDefinition`
+/// takes the head of the application spine, which for a non-`app` is the node
+/// itself, and matches only a `const`, so it is `none` too.  The loop returns
+/// its argument at the first step.
+///
+/// **`const` is NOT in this set** — that is exactly the node
+/// `unfoldDefinition` unfolds — and `app`/`proj` are not, and `letE`/`bvar`
+/// must still reach `whnfCore`'s failure.  On the prefix the five kinds are
+/// **23.16 M of the 28.08 M `whnf` misses (82.5 %) and 11.07 M of the 12.41 M
+/// hits (89.3 %)**.
+pub fn whnf_stuck_tag(e: &EIdx) -> bool {
+    let t: u32 = e.tag();
+    if t == ETAG_SORT {
+        true
+    } else if t == ETAG_FVAR {
+        true
+    } else if t == ETAG_LAM {
+        true
+    } else if t == ETAG_FORALL_E {
+        true
+    } else if t == ETAG_LIT {
+        true
+    } else {
+        false
+    }
+}
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1877-1890 memoEI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2732-2737 whnfCoreSet` — record a
@@ -8840,6 +8953,8 @@ pub fn knot_whnf_core(
 ) -> Result<EIdx, CheckError> {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_WHNF_CORE)))
+    } else if whnf_core_stuck_tag(e) {
+        Ok(e.dup2())
     } else if lane == LANE_GATED {
         whnf_core_body_gated(st, mode, lane, fuel - 1, fe, depth, e)
     } else {
@@ -8873,6 +8988,8 @@ pub fn knot_whnf(
 ) -> Result<EIdx, CheckError> {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_WHNF)))
+    } else if whnf_stuck_tag(e) {
+        Ok(e.dup2())
     } else if lane == LANE_GATED {
         whnf_body(st, mode, lane, fuel - 1, fe, depth, e)
     } else {
@@ -10148,12 +10265,19 @@ mod tests {
     fn the_declaration_bracket_drops_the_scratch_rows() {
         let mut f = build_fx();
         let m = mu();
-        // an entry whose VALUE is a scratch handle does not survive
+        // an entry whose VALUE is a scratch handle does not survive.  The
+        // subject is an APPLICATION and not the literal it was until task
+        // #97-P6-7: `whnf` of a literal now answers off the constructor tag
+        // and never reaches the memo (`whnf_stuck_tag`), so a literal would
+        // test nothing here.  `Nat 123456` is stuck — no beta, no iota, and
+        // `Nat` is an inductive and not a definition to unfold — so `whnf`
+        // answers it with itself and records that answer.
         enter_scratch(&mut f.st);
-        let h = ok(intern_e(
+        let lit = ok(intern_e(
             &mut f.st,
             ENodeView::Lit(expr::literal_nat(nat::from_u64(123456))),
         ));
+        let h = ok(intern_e(&mut f.st, ENodeView::App(f.nat.dup2(), lit)));
         let _ = whnf(&mut f.st, &m, &f.fe, F, 0, &h);
         let inside = f.st.caches.whnf_c.contains_key(&h);
         let scratch = !h.is_persistent();

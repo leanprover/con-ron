@@ -31,7 +31,7 @@
 //! (`r.inferIO`, con-leche's task #172 B4).  Kept verbatim.
 
 use crate::arena::core::{
-    ensure_sort, intern_app, knot_defeq, knot_infer, knot_whnf, knot_whnf_core,
+    ensure_sort, intern_app_rebuilt, knot_defeq, knot_infer, knot_whnf, knot_whnf_core,
     whnf_core_proj, whnf_core_stuck_app, CORE_WALK_FUEL, LANE_GATED, M_BVAR_WHNF,
     M_LET_WHNF,
 };
@@ -43,7 +43,7 @@ use crate::arena::store::ENodeView;
 use con_ron_core::kernel::core_types::{code_points, CheckError};
 use con_ron_core::kernel::env::CheckMode;
 use con_ron_core::kernel::prop_when;
-use con_ron_core::ron::hashmap::Dup;
+use con_ron_core::ron::hashmap::{Dup, Eq2};
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:61-115 whnfCoreBodyGated
 /// Lean twin: `proof/ConRon/Arena/CoreGated.lean:50-66 whnfCoreBodyGated` —
@@ -60,6 +60,8 @@ pub fn whnf_core_app_gated(
     fuel: u64,
     fe: &IFEnv,
     depth: u64,
+    h: &EIdx,
+    same: bool,
     fp: &EIdx,
     a: &EIdx,
 ) -> Result<EIdx, CheckError> {
@@ -82,10 +84,10 @@ pub fn whnf_core_app_gated(
                     Err(e) => Err(e),
                     Ok(b) => knot_whnf_core(st, mode, lane, fuel, fe, depth, &b),
                 },
-                Ok(false) => intern_app(st, fp, a),
+                Ok(false) => intern_app_rebuilt(st, h, same, fp, a),
             }
         }
-        Ok(_) => whnf_core_stuck_app(st, mode, lane, fuel, fe, depth, fp, a),
+        Ok(_) => whnf_core_stuck_app(st, mode, lane, fuel, fe, depth, h, same, fp, a),
     }
 }
 
@@ -117,7 +119,10 @@ pub fn whnf_core_body_gated(
         Ok(ENodeView::App(f, a)) => {
             match knot_whnf_core(st, mode, lane, fuel, fe, depth, &f) {
                 Err(er) => Err(er),
-                Ok(fp) => whnf_core_app_gated(st, mode, lane, fuel, fe, depth, &fp, &a),
+                Ok(fp) => {
+                    let same: bool = fp.eq2(&f);
+                    whnf_core_app_gated(st, mode, lane, fuel, fe, depth, e, same, &fp, &a)
+                }
             }
         }
         Ok(ENodeView::Proj(sn, i, pe)) => {
