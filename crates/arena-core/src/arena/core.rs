@@ -96,7 +96,7 @@ use crate::arena::handle::{
 };
 use crate::arena::monad::{
     fail, intern_e, intern_l_node, intern_ls_node, intern_n_node, intern_level, intern_name,
-    read_level, read_levels, read_name, read_names, view, view_app, view_ls, view_ls_len,
+    read_level, read_levels, read_name, read_names, view, view_app, view_bind, view_ls, view_ls_len,
     AState, fail_dangling_e, fail_dangling_ls,
 };
 use crate::arena::prop_read::{is_proof_fast, not_proof_fast, proof_pw, type_sort_pw};
@@ -8358,12 +8358,18 @@ pub fn infer_lams(
     fvs: &Vec<EIdx>,
     stk: Vec<(EIdx, BinderMeta)>,
 ) -> Result<EIdx, CheckError> {
-    if peel == 0 {
+    // The peel's test is a tag read off the handle word and the binder
+    // PROJECTION (task #97-P6-10): the loop asks "is this still a λ?" once per
+    // binder and wants only the three fields when it is.
+    if peel == 0 || t.tag() != ETAG_LAM {
         infer_lams_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk)
     } else {
-        match view(pers, st, t) {
-            Err(e) => Err(e),
-            Ok(ENodeView::Lam(ty, body, mb)) => {
+        match view_bind(pers, st, t) {
+            None => fail_dangling_e(),
+            Some(p) => {
+                let ty: EIdx = p.0;
+                let body: EIdx = p.1;
+                let mb: BinderMeta = p.2;
                 match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, fvs, 0) {
                     Err(e) => Err(e),
                     Ok(tyo) => {
@@ -8402,7 +8408,6 @@ pub fn infer_lams(
                     }
                 }
             }
-            Ok(_) => infer_lams_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk),
         }
     }
 }
@@ -8513,12 +8518,17 @@ pub fn infer_pis(
     fvs: &Vec<EIdx>,
     stk: Vec<(LIdx, PropWhen)>,
 ) -> Result<EIdx, CheckError> {
-    if peel == 0 {
+    // The peel's test is a tag read off the handle word and the binder
+    // PROJECTION (task #97-P6-10), as `infer_lams`' is.
+    if peel == 0 || t.tag() != ETAG_FORALL_E {
         infer_pis_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk)
     } else {
-        match view(pers, st, t) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(ty, body, mb)) => {
+        match view_bind(pers, st, t) {
+            None => fail_dangling_e(),
+            Some(p) => {
+                let ty: EIdx = p.0;
+                let body: EIdx = p.1;
+                let mb: BinderMeta = p.2;
                 match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, fvs, 0) {
                     Err(e) => Err(e),
                     Ok(tyo) => {
@@ -8557,7 +8567,6 @@ pub fn infer_pis(
                     }
                 }
             }
-            Ok(_) => infer_pis_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk),
         }
     }
 }
