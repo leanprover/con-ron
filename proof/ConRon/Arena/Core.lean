@@ -2911,6 +2911,151 @@ def defeqNoFvars (a b : EIdx) : AM Bool := do
     let y ← hasFvarFast coreWalkFuel b
     pure !y
 
+/-! ### The batched defeq binder descent
+
+DESIGN §8.6 item 14, and **the one lever of the P6 campaign that is the
+PORT's own algorithm** rather than a clause copied from con-leche's cached
+tier: `Cached/CoreC.lean:1456-1623 defeqStepI` keeps its `.forallE`/`.lam`
+arms chained, so there is nothing upstream to mirror and the bridge owes its
+own identification lemma.  Licensed by the maintainer's ruling before
+DESIGN §8.7 ("do it here — with its own identification lemma against the pure
+tier's chained arms owed by the bridge (P3)"). -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1441-1701 defeqStep — the peel's
+OUTWARD step, the arm's trailing annotation test: the chain tests the binder
+data on the way out, innermost binder first, and only once the body's
+comparison has returned `true`.  The loop carries the INNERMOST mismatching
+level in two scalars (`mism`, with `mismLam` for the message that level would
+raise) and raises it here. -/
+def defeqPeelDone (mism mismLam : Bool) : AM Bool :=
+  if mism then
+    if mismLam then fail (.notImplemented "sort-annotation mismatch (defeq-lam)")
+    else fail (.notImplemented "sort-annotation mismatch (defeq-forall)")
+  else pure true
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1441-1701 defeqStep — the batched
+descent's LEAF: open both residuals ONCE against the whole `fvs` and hand the
+pair back to the knot, which is the chain's own next step. -/
+def defeqPeelLeaf (r : CoreFnsA) (d : Nat) (a b : EIdx) (k : Nat)
+    (fvs : Array EIdx) (mism mismLam : Bool) : AM Bool := do
+  let o1 ← instantiateListFast coreWalkFuel a fvs 0
+  let o2 ← instantiateListFast coreWalkFuel b fvs 0
+  if !(← r.defeq (d + k) o1 o2) then pure false
+  else defeqPeelDone mism mismLam
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1441-1701 defeqStep — **the batched
+defeq binder descent**.
+
+`a` and `b` are the two RAW bodies of the binders peeled so far — never
+opened — `fvs` holds the `k` free variables the peel has introduced, innermost
+first, and `d + k` is the depth the next binder sits at.  While both handles
+carry the SAME binder tag the loop peels one more level: each domain is opened
+against the accumulated `fvs` in ONE `instantiateList`, the two opened domains
+are compared with the knot exactly where the chain compares them, the fresh
+`fvar (d + k) ty₂'` is pushed, and the two raw bodies go round again.
+
+**The identification the bridge owes** — *batched descent = the pure chain*,
+on every input, by `Expr.instantiateList_cons` (`Verify/InstList.lean:54-117`)
+and the per-binder domain check.  Its four parts, which are what makes the
+loop's guard what it is:
+
+1. *The opens agree.*  The chain's `k`-fold `instantiate1` of a domain at
+   cursors `k-1, …, 0` is one `instantiateList` against the same free
+   variables at cursor 0 — con-leche's `instantiateList_cons`, the equation
+   tasks #97-P6-9, -11 and -12 already cite.  The same equation identifies the
+   leaf's single open with the chain's last one.
+2. *The chain really reaches this arm at every peeled level.*  At level `j`
+   the chain runs a WHOLE `defeqStep` on the opened pair, so the peel is sound
+   only because every earlier arm is a no-op on a pair of same-kind binder
+   nodes: `whnfCore` is the identity on `.forallE` and `.lam` (its first four
+   clauses), `isBoolTrue` is `false` off any non-`.const`, the hoisted proof
+   irrelevance is skipped because `quickPair` holds of two `∀`s and of two
+   `λ`s, `reduceNat` is `none` off any non-`.app`, and `unfoldableHead` is
+   `false` on both sides because `getAppFn` of a binder is the binder — so
+   lazy delta falls straight through to the structural stage and its binder
+   arm.  The guard peels only when both handles carry the same binder tag, and
+   stopping EARLIER is always safe: the leaf hands the pair to the knot, which
+   is the chain's own next step.
+3. *A failure lands at the same binder.*  The domain comparison at level `j`
+   runs before the descent past `j`, in the chain's order, so a domain that is
+   not defeq returns the same `false` (and an erroring domain the same error)
+   at the same `k` the chain returns it at.  The annotation-data check is the
+   other way round — see `defeqPeelDone`.  Deeper mismatches, past the peel,
+   are raised inside that call, before this one looks at its own flag, which is
+   again the chain's order.
+4. *The caches see less, and that is all.*  The chain probes and writes the
+   `defeq` memo at each of the `k` intermediate opened pairs; the batch never
+   builds those pairs, so it neither probes nor writes them.  A probe that
+   would have hit returns the memo's stored verdict, which is the verdict of
+   recomputing it (the memo's own soundness obligation, unchanged here), so the
+   result is the same; a write that does not happen only turns a later hit into
+   a later miss.  The one asymmetry that is NOT a cache: the batch spends one
+   unit of knot fuel where the chain spends `k`, so it can return a verdict
+   where the chain runs out.  Fuel exhaustion is an `Internal` error and never
+   a verdict, and the bridge's statement is existential in the fuel (`∃ F`), so
+   this is the same latitude `peelFuel` itself has.
+
+The stack the chain would hold is two scalars because the only per-level datum
+the outward pass needs is that innermost mismatch; the domains and the binder
+kinds are not revisited.
+
+Two equality short-circuits ride with it, and both are `defeqStep`'s own first
+arm one level up: the peel returns at `a == b` (the chain opens these two
+residuals against the same free variables and hands the pair to the knot,
+whose `a == b` test then decides `true`), and the domain's knot call is
+skipped when the two RAW domains are the same handle. -/
+def defeqPeel (mode : CheckMode) (r : CoreFnsA) (d : Nat) :
+    Nat → EIdx → EIdx → Nat → Array EIdx → Bool → Bool → AM Bool
+  | peel, a, b, k, fvs, mism, mismLam => do
+    -- The peel's test is a tag read off the two handle words (the ruling
+    -- before §8.7) and the binder PROJECTION (task #97-P6-10).
+    let ta := a.tag
+    if a == b then defeqPeelDone mism mismLam
+    else if peel = 0 || ta != b.tag || !(ETag.isBind ta) then
+      defeqPeelLeaf r d a b k fvs mism mismLam
+    else
+      match ← viewBindI a with
+      | none => failDanglingE
+      | some (da, ba, ma) =>
+        match ← viewBindI b with
+        | none => failDanglingE
+        | some (db, bb, mb) => do
+          -- The domains are the same walk of the same input when the two RAW
+          -- domains are the same handle, and the chain's own `a == b` arm
+          -- decides them `true`; one open, no knot call.
+          let sameDom := da == db
+          let t1 ← instantiateListFast coreWalkFuel da fvs 0
+          let t2 ← if sameDom then pure t1
+                   else instantiateListFast coreWalkFuel db fvs 0
+          let dq ← if sameDom then pure true else r.defeq (d + k) t1 t2
+          if !dq then pure false
+          else do
+            let fv ← internFVarE (d + k) t2
+            -- The annotation test is the datum HANDLES (task #97-P6-16): the
+            -- binder datum is interned, so `BMIdx` equality IS `PropWhen`
+            -- equality — the cons table's own exactness — and the
+            -- innermost-first order of the chain's test is unchanged.
+            let mm := mode.verifiedChecks && !(ma == mb)
+            let m2 := mism || mm
+            let ml2 := if mm then ta == ETag.lam else mismLam
+            match peel with
+            | 0 => defeqPeelLeaf r d ba bb (k + 1) (fvs.push fv) m2 ml2
+            | p + 1 => defeqPeel mode r d p ba bb (k + 1) (fvs.push fv) m2 ml2
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1441-1701 defeqStep — `defeqStep`'s
+`.forallE`/`.lam` binder-congruence arm: con-leche's clause for the FIRST
+binder (the domains are compared and the fresh free variable is made), then
+the batched descent for the rest of the two telescopes. -/
+def defeqBinders (mode : CheckMode) (r : CoreFnsA) (depth : Nat)
+    (ty1 body1 : EIdx) (m1 : BinderMeta) (ty2 body2 : EIdx) (m2 : BinderMeta)
+    (isLam : Bool) : AM Bool := do
+  if !(← r.defeq depth ty1 ty2) then pure false
+  else do
+    let fv ← internFVarE depth ty2
+    let mm := mode.verifiedChecks && !(m1.pw == m2.pw)
+    let ml := if mm then isLam else false
+    defeqPeel mode r depth peelFuel body1 body2 1 #[fv] mm ml
+
 /-- con-leche: ConLeche/Kernel/Core.lean:1441-1701 defeqStep — the
 definitional-equality body: syntactic fast path, head normalization of both
 sides (**no delta**), proof irrelevance, then the *lazy delta* strategy of
@@ -3047,25 +3192,12 @@ def defeqStep (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
         if ← liftFueled "level comparison" (← lvlsEq? us us') then pure true
         else stuckIrrel mode r fe depth a' b'
       else stuckIrrel mode r fe depth a' b'
-    | .forallE ty₁ body₁ m₁, .forallE ty₂ body₂ m₂ => do
-      -- binder congruence; the annotation comparison runs LAST
-      if !(← r.defeq depth ty₁ ty₂) then pure false else do
-        let fv ← internE (.fvar depth ty₂)
-        let o₁ ← instantiate1Fast coreWalkFuel body₁ fv 0
-        let o₂ ← instantiate1Fast coreWalkFuel body₂ fv 0
-        if !(← r.defeq (depth + 1) o₁ o₂) then pure false else do
-          if mode.verifiedChecks && !(m₁.pw == m₂.pw) then
-            fail (.notImplemented "sort-annotation mismatch (defeq-forall)")
-          else pure true
-    | .lam ty₁ body₁ m₁, .lam ty₂ body₂ m₂ => do
-      if !(← r.defeq depth ty₁ ty₂) then pure false else do
-        let fv ← internE (.fvar depth ty₂)
-        let o₁ ← instantiate1Fast coreWalkFuel body₁ fv 0
-        let o₂ ← instantiate1Fast coreWalkFuel body₂ fv 0
-        if !(← r.defeq (depth + 1) o₁ o₂) then pure false else do
-          if mode.verifiedChecks && !(m₁.pw == m₂.pw) then
-            fail (.notImplemented "sort-annotation mismatch (defeq-lam)")
-          else pure true
+    -- binder congruence, BATCHED (task #97-P6-14); the annotation comparison
+    -- runs LAST, innermost binder first
+    | .forallE ty₁ body₁ m₁, .forallE ty₂ body₂ m₂ =>
+      defeqBinders mode r depth ty₁ body₁ m₁ ty₂ body₂ m₂ false
+    | .lam ty₁ body₁ m₁, .lam ty₂ body₂ m₂ =>
+      defeqBinders mode r depth ty₁ body₁ m₁ ty₂ body₂ m₂ true
     | .app _ _, .app _ _ => do
       -- stuck applications: **spine-wise** congruence (official's
       -- `is_def_eq_app`), never a recursion on the partial applications
