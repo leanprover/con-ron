@@ -28740,7 +28740,7 @@ the twin already has.
 
 | | |
 |---|---|
-| `cargo build --release` / `cargo test`, `RUSTFLAGS="-D warnings"` | green; **120 tests in `arena-core`** (up from 115: the five of `arena::pins`), 428 in the workspace |
+| `cargo build --release` / `cargo test`, `RUSTFLAGS="-D warnings"` | green; **120 tests in `arena-core`** (up from 115: the five of `arena::pins`), 422 in the workspace |
 | `cargo build --release --examples` | green (`arena_parse` interns the pins as the driver does) |
 | `scripts/lint-rust-style.sh` over both verified trees | clean |
 | `scripts/provenance.py check` | **0 findings** (6 501 items — 4 748 Rust, 1 753 arena Lean — and 4 859 citations, all current at pin `c431b1ca`) |
