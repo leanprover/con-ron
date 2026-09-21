@@ -2435,9 +2435,16 @@ sibling `getAppNumArgs` column has the same shape.
 **Ruling (maintainer, 2026-09-21) on task #97-P6-8a's finding:** the
 per-argument `instantiate1` loops in con-leche's spine/telescope
 instantiation (`instSpine`/`instPisAt`), which make the arena build 2.5×
-nanoda's nodes, are to be fixed **in con-leche first** — one
-multi-substitution walk upstream, then followed here at the next bump.  Not
-a port-side deviation.  The maintainer relays it upstream.
+nanoda's nodes, were first ruled "fix in con-leche first" — then
+**revised the same day**: con-leche already has the `instantiateList`
+optimisation between its PURE and its CACHED tier, i.e. the multi-
+substitution walk is a tier-crossing optimisation con-leche itself makes,
+so it is **fair game between the pure tier and the interned tier**.  The
+arena may substitute the whole argument vector in one walk where the pure
+checker loops `instantiate1`; the bridge owes the same equation con-leche's
+own cached tier proves (`instantiateList` = the fold of `instantiate1`) —
+find and cite con-leche's lemma.  Lever for the resumed P6 (Rust-first,
+twin ledger).
 
 ### 8.7 Open questions (maintainer)
 
