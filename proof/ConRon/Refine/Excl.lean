@@ -105,6 +105,48 @@ the verdict is a literal `if` on a `Bool` the model has already decided. -/
             expr_ops.ExprNatKey.Insts.Con_ron_coreRonHashmapEq2 memo k r
         ok memo1) := rfl
 
+/-! ## The skipped branch
+
+A node the gate skips — an exclusive one, or (for the `Bool` walks) a leaf —
+is not probed and not recorded: the probe is a miss and the record hands the
+table straight back. -/
+
+@[simp] theorem memo1_get_if_true
+    (memo : ron.hashmap.HashMap expr_ops.ExprNatKey expr.Expr)
+    (k : expr_ops.ExprNatKey) :
+    expr_ops.memo1_get_if memo true k = ok none := rfl
+
+@[simp] theorem memo1_insert_if_true
+    (memo : ron.hashmap.HashMap expr_ops.ExprNatKey expr.Expr)
+    (k : expr_ops.ExprNatKey) (r : expr.Expr) :
+    expr_ops.memo1_insert_if memo true k r = ok memo := rfl
+
+@[simp] theorem memo_e_probe_true
+    (memo : ron.hashmap.HashMap expr.Expr expr.Expr) (e : expr.Expr) :
+    expr_ops.memo_e_probe memo true e = ok none := rfl
+
+@[simp] theorem memo_e_record_true
+    (memo : ron.hashmap.HashMap expr.Expr expr.Expr) (e r : expr.Expr) :
+    expr_ops.memo_e_record memo true e r = ok memo := rfl
+
+@[simp] theorem memo_b_probe_true
+    (memo : ron.hashmap.HashMap expr.Expr Bool) (e : expr.Expr) :
+    expr_ops.memo_b_probe memo true e = ok none := rfl
+
+@[simp] theorem memo_b_record_true
+    (memo : ron.hashmap.HashMap expr.Expr Bool) (e : expr.Expr) (r : Bool) :
+    expr_ops.memo_b_record memo true e r = ok memo := rfl
+
+@[simp] theorem memo_b1_get_if_true
+    (memo : ron.hashmap.HashMap expr_ops.ExprNatKey Bool)
+    (k : expr_ops.ExprNatKey) :
+    cached.expr_ops_c.memo_b1_get_if memo true k = ok none := rfl
+
+@[simp] theorem memo_b1_insert_if_true
+    (memo : ron.hashmap.HashMap expr_ops.ExprNatKey Bool)
+    (k : expr_ops.ExprNatKey) (r : Bool) :
+    cached.expr_ops_c.memo_b1_insert_if memo true k r = ok memo := rfl
+
 /-! ## Reading a record back
 
 The gated `insert` is a *function call* where the walk used to write the
