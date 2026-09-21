@@ -29555,8 +29555,8 @@ the hit rate does not see that.  Kept.
 this machine (task #97-P6-3's: AMD EPYC 9455, 125 GiB, the flake's
 Charon-pinned `rustc`).  **Every row is this session's own run** — the
 `arena` tip, `con-ron` at master and `nanoda` alike — because the `cycles:u`
-and wall columns are not session-independent and the campaign's earlier
-readings were taken on a quieter machine (§8's note).  `con-ron` is built
+and wall columns are not session-independent, and this session reads the
+TIP 8 % above task #97-P6-5's on both (§8's note).  `con-ron` is built
 from this tree, which differs from master in `crates/con-ron-core` by
 `ron/hashmap2.rs` (a module `con-ron` does not use) and one added
 `HashMap::capacity`.
@@ -29567,7 +29567,7 @@ from this tree, which differs from master in `crates/con-ron-core` by
 | **`con-ron` @ master** | **542.01 G** | 269.52 G | 2.01 | 61.30 / 61.44 / 61.60 | 0.45 GB | accepted 57 977 |
 | `con-ron-arena`, `arena` tip b25e10ad | 404.88 G | 239.47 G | 1.69 | 55.79 / 57.71 / 61.26 | 0.58 GB | accepted 57 977 |
 | **`con-ron-arena`, after P6-7** | **413.83 G** | **208.64 G** | **1.98** | **46.61 / 46.67 / 47.41** | 0.59 GB | accepted 57 977 |
-| | +2.2 % | **−12.9 %** | | **−17.5 %** | +2.9 % | |
+| | +2.2 % | **−12.9 %** | | **−19.5 %** | +2.9 % | |
 | ratio to `con-ron` @ master | **0.76×** | **0.77×** | | **0.76×** | 1.31× | |
 | ratio to nanoda | 1.79× | 1.96× | | 1.93× | 1.71× | |
 
@@ -29606,12 +29606,13 @@ and `core`'s instructions, cycles and wall too; what is still above 1.00× is
 the two small exports' peak RSS (1.31× and 1.05×), which is §8.7's untaken
 lever and not this task's.
 
-**And the gap to nanoda is now a third of what it was on the columns that
-are time.**  Mathlib is **1.27× nanoda on cycles and 1.28× on wall**, from
-1.98× and 1.97× at the tip; on instructions it is 1.85×, from 1.81×, because
-the levers trade 2 % of the instructions for 36 % of the cycles.  "On par
-with nanoda would be good" (§8.1) is within a quarter on the two columns a
-user feels.
+**And the gap to nanoda has fallen by three quarters on the columns that are
+time.**  Mathlib is **1.27× nanoda on cycles and 1.28× on wall**, from 1.98×
+and 2.02× at the tip — the excess over nanoda goes 98 % → 27 % and 102 % →
+28 %.  On instructions it is 1.85×, from 1.81×, because the levers trade 2 %
+of the instructions for 36 % of the cycles.  "On par with nanoda would be
+good" (§8.1) is now within a quarter on the two columns a user feels, and the
+instruction count is what a further round has to be about.
 
 **The IPC is the whole story in one number.**  Mathlib's was 1.25 at the tip
 — below both baselines' 1.37 — and is **2.00** now, half again as high as
