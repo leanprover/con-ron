@@ -143,8 +143,8 @@ def lvlEq? (u v : LIdx) : AM (Option Bool) := do
   match s.caches.lvlEqC[(u, v)]? with
   | some r => pure (some r)
   | none => do
-    let lu ← readLevel u
-    let lv ← readLevel v
+    let lu ← readLevelM u
+    let lv ← readLevelM v
     match Level.isEquiv lu lv with
     | some r => do
       let s ← get
@@ -163,8 +163,8 @@ def lvlsEq? (us vs : LsIdx) : AM (Option Bool) := do
   match s.caches.lvlsEqC[(us, vs)]? with
   | some r => pure (some r)
   | none => do
-    let lu ← readLevels us
-    let lv ← readLevels vs
+    let lu ← readLevelsM us
+    let lv ← readLevelsM vs
     match Level.isEquivList lu lv with
     | some r => do
       let s ← get
@@ -245,7 +245,7 @@ def unknownConstError (n : NIdx) : AM CheckError := do
   let sa ← pin sorryAxName
   if n == sa then pure (.notImplemented "use of the sorryAx axiom")
   else do
-    let x ← readName n
+    let x ← readNameM n
     pure (.invalid s!"unknown constant {x}")
 
 /-! ## The record of mutually recursive entry points -/
@@ -309,7 +309,7 @@ result-sort zero-ness datum of an inductive's type** (`IndCaps.sortZ`). -/
 def piResultZ (e : EIdx) : AM PropWhen := do
   match ← view (← piResult coreWalkFuel e) with
   | .sort u => do
-    let l ← readLevel u
+    let l ← readLevelM u
     pure (Level.zeronessOf l)
   | _ => pure (.ifAllZero [])
 
@@ -319,9 +319,9 @@ provably nonzero (official `is_never_zero`)? -/
 def piResultNeverZero (lps : List NIdx) (us : LsIdx) (e : EIdx) : AM Bool := do
   match ← view (← piResult coreWalkFuel e) with
   | .sort u => do
-    let ks ← readNames lps
-    let vs ← readLevels us
-    let l ← readLevel u
+    let ks ← readNamesM lps
+    let vs ← readLevelsM us
+    let l ← readLevelM u
     pure (Level.subst ks vs l).isNeverZero
   | _ => pure false
 
@@ -329,8 +329,8 @@ def piResultNeverZero (lps : List NIdx) (us : LsIdx) (e : EIdx) : AM Bool := do
 question read off the STORED datum, which is what the checker runs. -/
 def capsNeverZero (lps : List NIdx) (us : LsIdx) (caps : IIndCaps) :
     AM Bool := do
-  let ks ← readNames lps
-  let vs ← readLevels us
+  let ks ← readNamesM lps
+  let vs ← readLevelsM us
   pure (Level.substPW ks vs caps.sortZ).isNever
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:97-134 isUnitLikeTy — is this
@@ -1161,7 +1161,7 @@ def reduceNat (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (e : EIdx) :
               | some _ => do
                 match ← rawNatLit? (← r.whnf depth b) with
                 | some _ => do
-                  let nm ← readName c
+                  let nm ← readNameM c
                   fail (.notImplemented
                     s!"native Nat computation on literals ({nm})")
                 | none => pure none
@@ -1178,29 +1178,53 @@ con-leche's `Core.lean`:865-1310.  Every one of these recurses structurally
 on a LIST (an argument spine, a slot index list), so none of them takes
 fuel; what they call into the store does. -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:210-243 iotaCerts — certify a spine
-against a recursor telescope: each argument's inferred type is defeq to the
-corresponding (instantiated) domain.  **The ι-slot licence**: at a
+/-- con-leche: ConLeche/Cached/DiscC1.lean:154-193 iotaCertsIAux — certify a
+spine against a recursor telescope: each argument's inferred type is defeq to
+the corresponding (instantiated) domain.  **The ι-slot licence**: at a
 *licensed* walk (`lic = true`) a slot whose ∀-binder datum is `.never` is
-skipped. -/
-def iotaCerts (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (lic : Bool) :
-    EIdx → List EIdx → AM Bool
-  | _, [] => pure true
-  | h, arg :: rest => do
+skipped.
+
+**Batched** (task #97-P6-9), which is con-leche's own CACHED-tier clause: the
+chained spec runs one `instantiate1` per slot down the telescope; this carries
+the pending substitutions in an accumulator and opens each domain in ONE
+`instantiateList`.  The equation the bridge cites is
+`Verify/Cached/DiscC1.lean:131 iotaCertsCAux_sim` — `iotaCertsIAux ty acc args`
+simulates `iotaCerts (ty.instantiateList acc) args`.
+
+The accumulator is an `Array` in PUSH order (task #97-P6-15). -/
+def iotaCertsAux (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (lic : Bool)
+    (h : EIdx) (acc : Array EIdx) (args : Array EIdx) (i : Nat) : AM Bool := do
+  if hi : i < args.size then do
     match ← view h with
-    | .forallE ty body mb =>
-      if lic && mb.pw.isNever then do
-        let b ← instantiate1Fast coreWalkFuel body arg 0
-        iotaCerts r fe depth lic b rest
+    | .forallE ty body mb => do
+      let arg := args[i]
+      if lic && mb.pw.isNever then
+        iotaCertsAux r fe depth lic body (acc.push arg) args (i + 1)
       else do
+        let ty2 ← instantiateListFast coreWalkFuel ty acc 0
         -- con-leche's task #172 B4: the spine certificate's inference at
         -- the io grade
         let ta ← r.inferIO depth arg
-        if ← r.defeq depth ta ty then do
-          let b ← instantiate1Fast coreWalkFuel body arg 0
-          iotaCerts r fe depth lic b rest
+        if ← r.defeq depth ta ty2 then
+          iotaCertsAux r fe depth lic body (acc.push arg) args (i + 1)
         else pure false
+    | .bvar _ => do
+      -- The telescope ran out of syntactic binders with a pending
+      -- substitution: flush it and look again.  This is `iotaCertsIAux`'s own
+      -- re-entry clause and is why the measure is lexicographic.
+      if acc.size = 0 then pure false
+      else do
+        let ty2 ← instantiateListFast coreWalkFuel h acc 0
+        iotaCertsAux r fe depth lic ty2 #[] args i
     | _ => pure false
+  else pure true
+termination_by (args.size - i, acc.size)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:210-243 iotaCerts — the
+empty-accumulator entry of `iotaCertsAux`. -/
+def iotaCerts (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (lic : Bool)
+    (h : EIdx) (args : List EIdx) : AM Bool :=
+  iotaCertsAux r fe depth lic h #[] args.toArray 0
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:702-707 piResidual — peel a
 ∀-telescope along an argument list. -/
@@ -1563,9 +1587,9 @@ def IProjEntry.fireOk (entry : IProjEntry) (us : LsIdx) : AM Bool := do
   let z ← zeroLevel
   if !((← lvlEq? entry.structSort z) == some true) then pure true
   else do
-    let ks ← readNames entry.levelParams
-    let vs ← readLevels us
-    let fs ← readLevel entry.fieldSort
+    let ks ← readNamesM entry.levelParams
+    let vs ← readLevelsM us
+    let fs ← readLevelM entry.fieldSort
     pure (Level.isEquiv (Level.subst ks vs fs) .zero == some true)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:796-809 andRescueSlotsOf — the
@@ -1799,7 +1823,7 @@ def recRuleEtaOf (fe : IFEnv) (recName ctor : NIdx) : AM Bool := do
     | .const T _ =>
       match fe.find? T with
       | some (.indInfo cvT caps) => do
-        let rn ← readName recName
+        let rn ← readNameM recName
         pure (caps.eta && caps.etaCtor == ctor && !Name.isProjFnShape rn &&
           cvj.levelParams == cvT.levelParams)
       | _ => pure false
@@ -1855,7 +1879,7 @@ def substLevelsAt (ks : List ConLeche.Name) (vs : List Level) :
     List LIdx → AM (List LIdx)
   | [] => pure []
   | u :: us => do
-    let l ← readLevel u
+    let l ← readLevelM u
     let h ← internLevel (Level.subst ks vs l)
     let rest ← substLevelsAt ks vs us
     pure (h :: rest)
@@ -1867,7 +1891,7 @@ def substParamLevels (ks : List ConLeche.Name) (vs : List Level) :
     List NIdx → AM (List LIdx)
   | [] => pure []
   | p :: ps => do
-    let pn ← readName p
+    let pn ← readNameM p
     let h ← internLevel (Level.subst ks vs (.param pn))
     let rest ← substParamLevels ks vs ps
     pure (h :: rest)
@@ -1892,15 +1916,15 @@ def recFireComparands (rl : IRecRule) (lps : List NIdx) (us : LsIdx)
     AM (LsIdx × List EIdx) := do
   match rl.fire with
   | .nested lvls pins => do
-    let ks ← readNames lps
-    let vs ← readLevels us
+    let ks ← readNamesM lps
+    let vs ← readLevelsM us
     let ls ← substLevelsAt ks vs lvls
     let lsh ← internLsNode ls
     let ps ← instSpinePins lps us args rP pins
     pure (lsh, ps)
   | _ => do
-    let ks ← readNames lps
-    let vs ← readLevels us
+    let ks ← readNamesM lps
+    let vs ← readLevelsM us
     let ls ← substParamLevels ks vs cvjLps
     let lsh ← internLsNode ls
     pure (lsh, args.take rl.ctorParams)
@@ -2365,6 +2389,104 @@ def inferLamResult (ty bt : EIdx) (depth : Nat) (mb : BinderMeta) : AM EIdx := d
   let ab ← abstract1Fast coreWalkFuel bt depth 0
   internE (.forallE ty ab mb)
 
+/-! ### The application spine's inference
+
+con-leche's own CACHED-tier clauses `Cached/CoreC.lean:1011-1042 inferSpineI`
+and `:1044-1091 inferSpineIOI` (task #97-P6-9).  The spec-shaped `.app` clause
+infers the type of every PREFIX of the spine and `whnf`s it, which is `O(n²)`
+node work down a long application; these walk the head's type once and carry
+the pending substitutions in an accumulator, opening each domain in ONE
+`instantiateList`.  The bridge cites `Verify/BetaSpine.lean:1566
+inferSpine_sound` and `:1576 inferSpine_sound_body`.
+
+The `whnf` re-entry at a non-∀ head is where the chained clause's own `whnf`
+sits, and it RESETS the accumulator, because the reduct is already the opened
+type. -/
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1011-1042 inferSpineI — walk the
+head's type down the argument vector at the FULL grade. -/
+def inferSpine (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (ty : EIdx) (acc : Array EIdx) (args : Array EIdx) (i : Nat) : AM EIdx := do
+  if hi : i < args.size then do
+    let a := args[i]
+    if ty.tag == ETag.forallE then
+      match ← viewBind ty with
+      | none => failDanglingE
+      | some (dom, body, _) => do
+        let dom2 ← instantiateListFast coreWalkFuel dom acc 0
+        let ta ← r.infer depth a
+        if !(← r.defeq depth ta dom2) then
+          fail (.invalid "application type mismatch")
+        else inferSpine mode r fe depth body (acc.push a) args (i + 1)
+    else do
+      let ty2 ← instantiateListFast coreWalkFuel ty acc 0
+      let w ← r.whnf depth ty2
+      if w.tag == ETag.forallE then
+        match ← viewBind w with
+        | none => failDanglingE
+        | some (dom, body, _) => do
+          let ta ← r.infer depth a
+          if !(← r.defeq depth ta dom) then
+            fail (.invalid "application type mismatch")
+          else inferSpine mode r fe depth body #[a] args (i + 1)
+      else fail (.invalid "function expected")
+  else instantiateListFast coreWalkFuel ty acc 0
+termination_by args.size - i
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1292-1389 inferBodyI — the `.app`
+clause: the head is inferred ONCE and the whole argument vector is run through
+`inferSpine`. -/
+def inferApp (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (e : EIdx) : AM EIdx := do
+  let hv ← headAndArgs e
+  let tf ← r.infer depth hv.1
+  inferSpine mode r fe depth tf #[] hv.2 0
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1044-1091 inferSpineIOI — the io
+lane's spine walk: `inferSpine` with the per-argument certificate skipped when
+the ∀'s validated annotation licenses it (`CheckMode.ioSkip`). -/
+def inferSpineIO (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (ty : EIdx) (acc : Array EIdx) (args : Array EIdx) (i : Nat) : AM EIdx := do
+  if hi : i < args.size then do
+    let a := args[i]
+    if ty.tag == ETag.forallE then
+      match ← viewBind ty with
+      | none => failDanglingE
+      | some (dom, body, mt) => do
+        let cert ←
+          if mode.ioSkip mt.pw then pure true
+          else do
+            let dom2 ← instantiateListFast coreWalkFuel dom acc 0
+            let ta ← r.infer depth a
+            r.defeq depth ta dom2
+        if !cert then fail (.invalid "application type mismatch")
+        else inferSpineIO mode r fe depth body (acc.push a) args (i + 1)
+    else do
+      let ty2 ← instantiateListFast coreWalkFuel ty acc 0
+      let w ← r.whnf depth ty2
+      if w.tag == ETag.forallE then
+        match ← viewBind w with
+        | none => failDanglingE
+        | some (dom, body, mt) => do
+          let cert ←
+            if mode.ioSkip mt.pw then pure true
+            else do
+              let ta ← r.infer depth a
+              r.defeq depth ta dom
+          if !cert then fail (.invalid "application type mismatch")
+          else inferSpineIO mode r fe depth body #[a] args (i + 1)
+      else fail (.invalid "function expected")
+  else instantiateListFast coreWalkFuel ty acc 0
+termination_by args.size - i
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:1391-1448 inferBodyIOI — the io
+lane's `.app` clause. -/
+def inferAppIOAt (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (e : EIdx) : AM EIdx := do
+  let hv ← headAndArgs e
+  let tf ← r.infer depth hv.1
+  inferSpineIO mode r fe depth tf #[] hv.2 0
+
 /-- con-leche: ConLeche/Kernel/Core.lean:1109-1274 inferBody — the inference
 body.  The `.const` clause reads the stored type through `constTyAt`, so a
 constant inferred twice at the same levels pays the level substitution
@@ -2388,13 +2510,13 @@ def inferBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
       | some ci => do
         -- a projection table is not a term (con-leche's task #175 W4c)
         if ci.isTowerEntry then do
-          let x ← readName n
+          let x ← readNameM n
           fail (.invalid s!"projection table entry used as a constant {x}")
         else do
           let cv ← ci.toConstantVal
           let usl ← viewLs us
           if usl.length != cv.levelParams.length then do
-            let x ← readName n
+            let x ← readNameM n
             fail (.invalid s!"incorrect number of universe levels for {x}")
           else constTyAt cv us
     | .lit (.natVal _) => do
@@ -2416,7 +2538,7 @@ def inferBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
         let v ← ensureSort r fe (depth + 1) (← r.infer (depth + 1) ob)
         let ok ←
           if mode.verifiedChecks then do
-            let lv ← readLevel v
+            let lv ← readLevelM v
             pure (Level.zeronessOf lv == mb.pw)
           else pure true
         if !ok then
@@ -2443,22 +2565,15 @@ def inferBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
             -- the innermost binder: the task-#152 codomain-sort computation
             let btt ← r.inferIO (depth + 1) bt
             let vb ← ensureSort r fe (depth + 1) btt
-            let lvb ← readLevel vb
+            let lvb ← readLevelM vb
             if !(Level.zeronessOf lvb == mb.pw) then
               fail (.notImplemented "sort-annotation mismatch (lam-cod-leaf)")
             else inferLamResult ty bt depth mb
         else inferLamResult ty bt depth mb
       | _ => fail (.invalid "expected a sort")
-    | .app f a => do
-      let tf ← r.infer depth f
-      match ← view (← r.whnf depth tf) with
-      | .forallE ty body _mt => do
-        -- per-argument re-check (con-leche's task #100 de-gating)
-        let ta ← r.infer depth a
-        if !(← r.defeq depth ta ty) then
-          fail (.invalid "application type mismatch")
-        else instantiate1Fast coreWalkFuel body a 0
-      | _ => fail (.invalid "function expected")
+    -- **The batched spine** (task #97-P6-9), con-leche's own
+    -- `Cached/CoreC.lean:1292-1389 inferBodyI`.
+    | .app _ _ => inferApp mode r fe depth e
     | .proj sn i pe => do
       let te ← r.whnf depth (← r.infer depth pe)
       match ← view (← getAppFn coreWalkFuel te) with
@@ -2473,9 +2588,9 @@ def inferBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
               usl.length = entry.levelParams.length then do
             let z ← zeroLevel
             if (← lvlEq? entry.structSort z) == some true then do
-              let ks ← readNames entry.levelParams
-              let vs ← readLevels us
-              let fs ← readLevel entry.fieldSort
+              let ks ← readNamesM entry.levelParams
+              let vs ← readLevelsM us
+              let fs ← readLevelM entry.fieldSort
               if !(Level.isEquiv (Level.subst ks vs fs) .zero == some true) then
                 fail (.invalid
                   "projection from a propositional structure must be a proposition")
@@ -2511,13 +2626,13 @@ def inferBodyIO (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
         fail err
       | some ci => do
         if ci.isTowerEntry then do
-          let x ← readName n
+          let x ← readNameM n
           fail (.invalid s!"projection table entry used as a constant {x}")
         else do
           let cv ← ci.toConstantVal
           let usl ← viewLs us
           if usl.length != cv.levelParams.length then do
-            let x ← readName n
+            let x ← readNameM n
             fail (.invalid s!"incorrect number of universe levels for {x}")
           else constTyAt cv us
     | .lit (.natVal _) => do
@@ -2539,7 +2654,7 @@ def inferBodyIO (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
         let v ← ensureSort r fe (depth + 1) (← r.infer (depth + 1) ob)
         let ok ←
           if mode.verifiedChecks then do
-            let lv ← readLevel v
+            let lv ← readLevelM v
             pure (Level.zeronessOf lv == mb.pw)
           else pure true
         if !ok then
@@ -2562,25 +2677,17 @@ def inferBodyIO (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
         | none => do
           let btt ← r.infer (depth + 1) bt
           let vb ← ensureSort r fe (depth + 1) btt
-          let lvb ← readLevel vb
+          let lvb ← readLevelM vb
           if !(Level.zeronessOf lvb == mb.pw) then
             fail (.notImplemented "sort-annotation mismatch (lam-cod-leaf)")
           else inferLamResult ty bt depth mb
       else inferLamResult ty bt depth mb
-    | .app f a => do
-      let tf ← r.infer depth f
-      match ← view (← r.whnf depth tf) with
-      | .forallE ty body mt => do
-        -- **THE io SITE.**  At a ∀ whose datum is `never` the certificate is
-        -- dead weight; the read is the DATUM ALONE (the licence ruling of
-        -- 2026-09-06), never the mode.
-        if !mode.ioSkip mt.pw then do
-          let ta ← r.infer depth a
-          if !(← r.defeq depth ta ty) then
-            fail (.invalid "application type mismatch")
-          else instantiate1Fast coreWalkFuel body a 0
-        else instantiate1Fast coreWalkFuel body a 0
-      | _ => fail (.invalid "function expected")
+    -- **The batched spine at the io grade** (task #97-P6-9), con-leche's own
+    -- `Cached/CoreC.lean:1391-1448 inferBodyIOI`.  **THE io SITE** is inside
+    -- `inferSpineIO`: at a ∀ whose datum is `never` the certificate is dead
+    -- weight; the read is the DATUM ALONE (the licence ruling of
+    -- 2026-09-06), never the mode.
+    | .app _ _ => inferAppIOAt mode r fe depth e
     | .proj sn i pe => do
       let te ← r.whnf depth (← r.infer depth pe)
       match ← view (← getAppFn coreWalkFuel te) with
@@ -2593,9 +2700,9 @@ def inferBodyIO (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
               usl.length = entry.levelParams.length then do
             let z ← zeroLevel
             if (← lvlEq? entry.structSort z) == some true then do
-              let ks ← readNames entry.levelParams
-              let vs ← readLevels us
-              let fs ← readLevel entry.fieldSort
+              let ks ← readNamesM entry.levelParams
+              let vs ← readLevelsM us
+              let fs ← readLevelM entry.fieldSort
               if !(Level.isEquiv (Level.subst ks vs fs) .zero == some true) then
                 fail (.invalid
                   "projection from a propositional structure must be a proposition")
@@ -2890,7 +2997,7 @@ def annotPwPi (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (body' : EIdx) :
   | none => do
     -- io grade: `body'` is already annotated (bottom-up)
     let v ← ensureSort r fe depth (← r.inferIO depth body')
-    let lv ← readLevel v
+    let lv ← readLevelM v
     pure (Level.zeronessOf lv)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1779-1793 annotPwLam — the λ node's
@@ -2902,7 +3009,7 @@ def annotPwLam (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (body' : EIdx) :
   | none => do
     let bt ← r.inferIO depth body'
     let vb ← ensureSort r fe depth (← r.inferIO depth bt)
-    let lvb ← readLevel vb
+    let lvb ← readLevelM vb
     pure (Level.zeronessOf lvb)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1795-1915 annotateBody — the
