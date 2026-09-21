@@ -69,10 +69,9 @@ use crate::arena::expr_ops::{
     instantiate1_fast, instantiate_list_fast, loose_bvars_bounded_fast, pi_result, pis_to_lams,
     strip_lams, strip_pis,
 };
-use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
+use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx, ETAG_CONST, ETAG_FORALL_E, ETAG_SORT, NTAG_STR, NTAG_NUM};
 use crate::arena::monad::{
-    fail, intern_e, read_level, read_levels, read_names, view, view_ls, view_n, AState, Memos,
-};
+    fail, intern_e, read_level, read_levels, read_names, view, view_ls, view_n, AState, Memos, fail_dangling_e, view_bind, view_const, view_const_name, view_sort};
 use crate::arena::store::{
     ENodeView, NNodeView,
 };
@@ -319,6 +318,8 @@ pub fn memos_dup(m: &Memos) -> Memos {
         inst_lp_c: m.inst_lp_c.dup(),
         bvar_b_c: m.bvar_b_c.dup(),
         fvar_b_c: m.fvar_b_c.dup(),
+        inst_lp_l_c: m.inst_lp_l_c.dup(),
+        inst_lp_ls_c: m.inst_lp_ls_c.dup(),
     }
 }
 
@@ -337,6 +338,16 @@ pub fn caches_dup(c: &Caches) -> Caches {
         const_ty_c: c.const_ty_c.dup(),
         const_val_c: c.const_val_c.dup(),
         rule_rhs_c: c.rule_rhs_c.dup(),
+        // The readback memo (task #97-P6-13) is NOT copied: a snapshot that
+        // restores it empty loses cache rows and nothing else, which is the
+        // same argument DESIGN.md §8.3 makes for the per-declaration flush —
+        // `denoteL`/`denoteN`/`denoteLs` are functions of the store, and the
+        // store is what a failed attempt does not roll back.  `attempt_snapshot`
+        // runs eight times on the whole of `Init` (task #97-P6-4a §4), so
+        // there is nothing to weigh against the three `Vec` copies avoided.
+        read_l_c: HashMap::new(),
+        read_n_c: HashMap::new(),
+        read_ls_c: HashMap::new(),
     }
 }
 
@@ -467,10 +478,14 @@ pub fn nidx_contains_from(ns: &Vec<NIdx>, i: usize, n: &NIdx) -> bool {
 /// — is this a `_model`-suffixed name (the shape of model companions)?
 pub fn nidx_is_model_suffix(pers: &PersTier, st: &AState, n: &NIdx) -> Result<bool, CheckError> {
     const S: [u32; 6] = [95, 109, 111, 100, 101, 108];
-    match view_n(pers, st, n) {
-        Err(e) => Err(e),
-        Ok(NNodeView::Str(_, s)) => Ok(name::str_eq(&s, &code_points(&S))),
-        Ok(_) => Ok(false),
+    if n.tag() == NTAG_STR {
+        match view_n(pers, st, n) {
+            Err(e) => Err(e),
+            Ok(NNodeView::Str(_, s)) => Ok(name::str_eq(&s, &code_points(&S))),
+            Ok(_) => Ok(false),
+        }
+    } else {
+        Ok(false)
     }
 }
 
@@ -482,16 +497,25 @@ pub fn nidx_is_model_suffix(pers: &PersTier, st: &AState, n: &NIdx) -> Result<bo
 pub fn nidx_is_proj_fn_shape(pers: &PersTier, st: &AState, n: &NIdx) -> Result<bool, CheckError> {
     const P: [u32; 4] = [112, 114, 111, 106];
     const T: [u32; 9] = [112, 114, 111, 106, 84, 97, 98, 108, 101];
-    match view_n(pers, st, n) {
-        Err(e) => Err(e),
-        Ok(NNodeView::Num(p, _)) => match view_n(pers, st, &p) {
+    if n.tag() == NTAG_NUM {
+        match view_n(pers, st, n) {
             Err(e) => Err(e),
-            Ok(NNodeView::Str(_, s)) => {
-                Ok(name::str_eq(&s, &code_points(&P)) || name::str_eq(&s, &code_points(&T)))
+            Ok(NNodeView::Num(p, _)) => {
+                if p.tag() == NTAG_STR {
+                    match view_n(pers, st, &p) {
+                        Err(e) => Err(e),
+                        Ok(NNodeView::Str(_, s)) => Ok(name::str_eq(&s, &code_points(&P))
+                            || name::str_eq(&s, &code_points(&T))),
+                        Ok(_) => Ok(false),
+                    }
+                } else {
+                    Ok(false)
+                }
             }
             Ok(_) => Ok(false),
-        },
-        Ok(_) => Ok(false),
+        }
+    } else {
+        Ok(false)
     }
 }
 
@@ -1080,20 +1104,23 @@ pub fn open_pis_at_fvars(
     if n == 0 {
         Ok(Some((Vec::new(), h.dup2())))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(dom, body, _)) => match intern_e(pers, st, ENodeView::FVar(i, dom)) {
-                Err(e) => Err(e),
-                Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &fv, 0) {
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((dom, body, _)) => match intern_e(pers, st, ENodeView::FVar(i, dom)) {
                     Err(e) => Err(e),
-                    Ok(b) => match open_pis_at_fvars(pers, st, n - 1, &b, i + 1) {
+                    Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &fv, 0) {
                         Err(e) => Err(e),
-                        Ok(Some((fvs, e2))) => Ok(Some((cons_eidx(&fv, &fvs), e2))),
-                        Ok(None) => Ok(None),
+                        Ok(b) => match open_pis_at_fvars(pers, st, n - 1, &b, i + 1) {
+                            Err(e) => Err(e),
+                            Ok(Some((fvs, e2))) => Ok(Some((cons_eidx(&fv, &fvs), e2))),
+                            Ok(None) => Ok(None),
+                        },
                     },
                 },
-            },
-            Ok(_) => Ok(None),
+            }
+        } else {
+            Ok(None)
         }
     }
 }
@@ -1117,25 +1144,28 @@ pub fn open_pis_at_fvars_f_go(
             Ok(b) => Ok(Some((Vec::new(), b))),
         }
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(dom, body, _)) => {
-                match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &dom, acc, 0) {
-                    Err(e) => Err(e),
-                    Ok(d) => match intern_e(pers, st, ENodeView::FVar(i, d)) {
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((dom, body, _)) => {
+                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &dom, acc, 0) {
                         Err(e) => Err(e),
-                        Ok(fv) => {
-                            let acc2: Vec<EIdx> = cons_eidx(&fv, acc);
-                            match open_pis_at_fvars_f_go(pers, st, &acc2, n - 1, &body, i + 1) {
-                                Err(e) => Err(e),
-                                Ok(Some((fvs, e2))) => Ok(Some((cons_eidx(&fv, &fvs), e2))),
-                                Ok(None) => Ok(None),
+                        Ok(d) => match intern_e(pers, st, ENodeView::FVar(i, d)) {
+                            Err(e) => Err(e),
+                            Ok(fv) => {
+                                let acc2: Vec<EIdx> = cons_eidx(&fv, acc);
+                                match open_pis_at_fvars_f_go(pers, st, &acc2, n - 1, &body, i + 1) {
+                                    Err(e) => Err(e),
+                                    Ok(Some((fvs, e2))) => Ok(Some((cons_eidx(&fv, &fvs), e2))),
+                                    Ok(None) => Ok(None),
+                                }
                             }
-                        }
-                    },
-                }
+                        },
+                    }
+                },
             }
-            Ok(_) => Ok(None),
+        } else {
+            Ok(None)
         }
     }
 }
@@ -1229,22 +1259,25 @@ pub fn check_annot_list(
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:440-445 isEqHead` — is the
 /// expression the pinned equality former at one level?
 pub fn is_eq_head(pers: &PersTier, st: &mut AState, h: &EIdx) -> Result<bool, CheckError> {
-    match view(pers, st, h) {
-        Err(e) => Err(e),
-        Ok(ENodeView::Const(c, us)) => match pin_eq(st) {
-            Err(e) => Err(e),
-            Ok(en) => {
-                if c.eq2(&en) {
-                    match view_ls(pers, st, &us) {
-                        Err(e) => Err(e),
-                        Ok(l) => Ok(l.len() == 1),
+    if h.tag() == ETAG_CONST {
+        match view_const(pers, st, h) {
+            None => fail_dangling_e(),
+            Some((c, us)) => match pin_eq(st) {
+                Err(e) => Err(e),
+                Ok(en) => {
+                    if c.eq2(&en) {
+                        match view_ls(pers, st, &us) {
+                            Err(e) => Err(e),
+                            Ok(l) => Ok(l.len() == 1),
+                        }
+                    } else {
+                        Ok(false)
                     }
-                } else {
-                    Ok(false)
                 }
-            }
-        },
-        Ok(_) => Ok(false),
+            },
+        }
+    } else {
+        Ok(false)
     }
 }
 
@@ -1253,10 +1286,13 @@ pub fn is_eq_head(pers: &PersTier, st: &mut AState, h: &EIdx) -> Result<bool, Ch
 /// level an equality head carries.  Off shape it is `.zero`, which `isEqHead`
 /// has already rejected wherever the result is used.
 pub fn eq_head_level(pers: &PersTier, st: &mut AState, h: &EIdx) -> Result<LIdx, CheckError> {
-    match view(pers, st, h) {
-        Err(e) => Err(e),
-        Ok(ENodeView::Const(_, us)) => eq_head_level_at(pers, st, &us),
-        Ok(_) => zero_level(st),
+    if h.tag() == ETAG_CONST {
+        match view_const(pers, st, h) {
+            None => fail_dangling_e(),
+            Some((_, us)) => eq_head_level_at(pers, st, &us),
+        }
+    } else {
+        zero_level(st)
     }
 }
 
@@ -1353,10 +1389,13 @@ pub fn ifenv_find_cv(
 pub fn pi_result_sort(pers: &PersTier, st: &AState, e: &EIdx) -> Result<Option<LIdx>, CheckError> {
     match pi_result(pers, st, CORE_WALK_FUEL, e) {
         Err(err) => Err(err),
-        Ok(r) => match view(pers, st, &r) {
-            Err(err) => Err(err),
-            Ok(ENodeView::Sort(u)) => Ok(Some(u)),
-            Ok(_) => Ok(None),
+        Ok(r) => if r.tag() == ETAG_SORT {
+            match view_sort(pers, st, &r) {
+                None => fail_dangling_e(),
+                Some(u) => Ok(Some(u)),
+            }
+        } else {
+            Ok(None)
         },
     }
 }
@@ -1402,10 +1441,13 @@ pub fn check_proj_shape_residual(
             } else {
                 match get_app_fn(pers, st, CORE_WALK_FUEL, cbody) {
                     Err(e) => Err(e),
-                    Ok(f) => match view(pers, st, &f) {
-                        Err(e) => Err(e),
-                        Ok(ENodeView::Const(_, _)) => Ok(()),
-                        Ok(_) => fail(CheckError::NotImplemented(code_points(&M_PROJ_CTOR_HEAD))),
+                    Ok(f) => if f.tag() == ETAG_CONST {
+                        match view_const_name(pers, st, &f) {
+                            None => fail_dangling_e(),
+                            Some(_) => Ok(()),
+                        }
+                    } else {
+                        fail(CheckError::NotImplemented(code_points(&M_PROJ_CTOR_HEAD)))
                     },
                 }
             }

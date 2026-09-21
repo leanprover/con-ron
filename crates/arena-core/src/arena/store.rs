@@ -844,7 +844,7 @@ pub struct ProjNode {
 impl Hashable for BVarNode {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:252-254 BVarNode
     fn hash64(&self) -> u64 {
-        name::mix_hash(0, name::nat_hash(self.i))
+        name::nat_hash(self.i)
     }
 }
 
@@ -852,15 +852,46 @@ impl Hashable for BVarNode {
 impl Hashable for FVarNode {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:258-261 FVarNode
     fn hash64(&self) -> u64 {
-        name::mix_hash(name::mix_hash(0, name::nat_hash(self.idx)), self.ty.hash64())
+        fold3(self.ty.hash64(), name::nat_hash(self.idx))
     }
+}
+
+/// con-leche: none — arena infrastructure (task #97-P6-13); Lean twin: OWED
+/// **The cons-table hash of a node: the fields PACKED, not mixed.**
+///
+/// A hash is verdict-neutral (DESIGN.md §3.2: any function of the value will
+/// do, and `ron::hashmap2`'s own note says the refinement never looks inside
+/// one — the owed `Inv` says only that a key sits where `home_index` puts
+/// it).  So the question is what is cheapest that the table's FINALIZER can
+/// still spread, and `home_index` is already a multiply-xor avalanche over
+/// the whole word.  A handle is a `u32`, so two of them are one `u64`
+/// INJECTIVELY and the packing loses nothing at all, where `Lean.mixHash` was
+/// five instructions per field on top — paid on every probe of every intern
+/// attempt, twice per attempt for the two tiers.
+///
+/// **Measured** (`Init`, task #97-P6-13 §4): the bare packing is 233.32 G
+/// against 242.31 G for the `mixHash` chains, and wrapping the packed word in
+/// ONE `mixHash` — better avalanche, five more instructions — is 235.94 G and
+/// 110.1 G cycles against the bare packing's 108.5–109.9 G, i.e. the extra
+/// mixing costs on both columns and buys no shorter probe.  Two handle words
+/// as one `u64`: one `or` and one shift.
+fn pack2(a: u32, b: u32) -> u64 {
+    (a as u64) | ((b as u64) << 32)
+}
+
+/// con-leche: none — arena infrastructure (task #97-P6-13); Lean twin: OWED
+/// A third datum folded into a packed pair.  The pair already fills the word,
+/// so a third field is the one place that needs mixing; the constant is
+/// `home_index`'s own.
+fn fold3(ab: u64, c: u64) -> u64 {
+    ab ^ c.wrapping_mul(0x9e3779b97f4a7c15)
 }
 
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:265-267 SortNode
 impl Hashable for SortNode {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:265-267 SortNode
     fn hash64(&self) -> u64 {
-        name::mix_hash(0, self.u.hash64())
+        self.u.hash64()
     }
 }
 
@@ -868,7 +899,7 @@ impl Hashable for SortNode {
 impl Hashable for ConstNode {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:271-274 ConstNode
     fn hash64(&self) -> u64 {
-        name::mix_hash(name::mix_hash(0, self.n.hash64()), self.us.hash64())
+        pack2(self.n.word, self.us.word)
     }
 }
 
@@ -876,7 +907,7 @@ impl Hashable for ConstNode {
 impl Hashable for AppNode {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:278-281 AppNode
     fn hash64(&self) -> u64 {
-        name::mix_hash(name::mix_hash(0, self.f.hash64()), self.a.hash64())
+        pack2(self.f.word, self.a.word)
     }
 }
 
@@ -884,10 +915,7 @@ impl Hashable for AppNode {
 impl Hashable for BindNode {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:286-290 BindNode
     fn hash64(&self) -> u64 {
-        name::mix_hash(
-            name::mix_hash(name::mix_hash(0, self.ty.hash64()), self.body.hash64()),
-            expr::binder_meta_hash(&self.m),
-        )
+        fold3(pack2(self.ty.word, self.body.word), expr::binder_meta_hash(&self.m))
     }
 }
 
@@ -895,10 +923,7 @@ impl Hashable for BindNode {
 impl Hashable for LetNode {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:294-298 LetNode
     fn hash64(&self) -> u64 {
-        name::mix_hash(
-            name::mix_hash(name::mix_hash(0, self.ty.hash64()), self.val.hash64()),
-            self.body.hash64(),
-        )
+        fold3(pack2(self.ty.word, self.val.word), self.body.hash64())
     }
 }
 
@@ -906,7 +931,7 @@ impl Hashable for LetNode {
 impl Hashable for LitNode {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:302-304 LitNode
     fn hash64(&self) -> u64 {
-        name::mix_hash(0, expr::literal_hash(&self.l))
+        expr::literal_hash(&self.l)
     }
 }
 
@@ -914,10 +939,7 @@ impl Hashable for LitNode {
 impl Hashable for ProjNode {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:308-312 ProjNode
     fn hash64(&self) -> u64 {
-        name::mix_hash(
-            name::mix_hash(name::mix_hash(0, self.n.hash64()), name::nat_hash(self.i)),
-            self.e.hash64(),
-        )
+        fold3(pack2(self.n.word, self.e.word), name::nat_hash(self.i))
     }
 }
 
@@ -2477,6 +2499,43 @@ impl ETables {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-13) — `ETables.getSort`, the `sort` projection of
+    /// `ETables.get`.  The sibling of `getApp` at the one-field constructor:
+    /// a caller that has read `ETag.sort` off the handle word wants the level
+    /// handle and nothing else.
+    #[inline(always)]
+    pub fn get_sort(&self, i: &EIdx) -> Option<LIdx> {
+        match self.sorts.node(i.idx_nat()) {
+            None => None,
+            Some(r) => Some(r.u.dup2()),
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-13) — `ETables.getConst`, the `const` projection of
+    /// `ETables.get`.
+    #[inline(always)]
+    pub fn get_const(&self, i: &EIdx) -> Option<(NIdx, LsIdx)> {
+        match self.consts.node(i.idx_nat()) {
+            None => None,
+            Some(r) => Some((r.n.dup2(), r.us.dup2())),
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-13) — `ETables.getConstName`, the NAME of a `const` node.  The
+    /// level arguments beside it are not read: most of the crate's `const`
+    /// tests compare the head name alone, and the `LsIdx` copy is work for
+    /// nothing there.  The sibling of `getFVarIdx`.
+    #[inline(always)]
+    pub fn get_const_name(&self, i: &EIdx) -> Option<NIdx> {
+        match self.consts.node(i.idx_nat()) {
+            None => None,
+            Some(r) => Some(r.n.dup2()),
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
     /// #97-P6-10) — `ETables.getBVar`, the `bvar` projection of `ETables.get`.
     #[inline(always)]
     pub fn get_bvar(&self, i: &EIdx) -> Option<u64> {
@@ -2496,6 +2555,31 @@ impl ETables {
         match self.fvars.node(i.idx_nat()) {
             None => None,
             Some(r) => Some(r.idx),
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-13) — `ETables.getFVarTy`, the binder TYPE of an `fvar` node,
+    /// the other half of `getFVarIdx`.  `fvarTypeD` wants the annotation and
+    /// not the de Bruijn level.
+    #[inline(always)]
+    pub fn get_fvar_ty(&self, i: &EIdx) -> Option<EIdx> {
+        match self.fvars.node(i.idx_nat()) {
+            None => None,
+            Some(r) => Some(r.ty.dup2()),
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-13) — `ETables.getLit`, the `lit` projection of `ETables.get`.
+    /// The one projection whose payload is not a handle: `Literal` is the
+    /// datum `ENodeView::Lit` carries, and `literal_dup` is the copy the view
+    /// makes anyway.
+    #[inline(always)]
+    pub fn get_lit(&self, i: &EIdx) -> Option<Literal> {
+        match self.lits.node(i.idx_nat()) {
+            None => None,
+            Some(r) => Some(expr::literal_dup(&r.l)),
         }
     }
 
@@ -2567,6 +2651,15 @@ impl ETables {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:838-849 ETables.find?
+    ///
+    /// **`#[inline(always)]`** (task #97-P6-13): `EStore::intern` calls this
+    /// twice with the SAME view, once per tier, and out of line each call
+    /// re-dispatched on the view's tag, rebuilt the node record and re-hashed
+    /// it.  Inlined, the two probes share all three.  −1.62 % of `Init` on
+    /// its own; plain `#[inline]` is declined by LLVM on a ten-arm jump table
+    /// and is worth nothing (measured).  `ETables::push` given the same
+    /// attribute is +3.8 % cycles and is not taken.
+    #[inline(always)]
     pub fn find(&self, v: &ENodeView) -> Option<EIdx> {
         match v {
             ENodeView::BVar(i) => self.bvars.find(&BVarNode { i: *i }),
@@ -3002,6 +3095,79 @@ impl EStore {
         }
     }
 
+    /// con-leche: none — arena infrastructure (task #97-P6-13); Lean twin:
+    /// OWED — the persistent arm of `EStore.viewSort`.
+    #[inline(always)]
+    fn pers_get_sort(&self, pers: &PersTier, i: &EIdx) -> Option<LIdx> {
+        if self.shared_on {
+            pers.e.get_sort(i)
+        } else {
+            self.pers.get_sort(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-13) — `EStore.viewSort`, the `sort` projection of `EStore.view`.
+    #[inline(always)]
+    pub fn view_sort(&self, pers: &PersTier, i: &EIdx) -> Option<LIdx> {
+        if i.is_persistent() {
+            self.pers_get_sort(pers, i)
+        } else if self.scratch_on {
+            self.scr.get_sort(i)
+        } else {
+            None
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-13); Lean twin:
+    /// OWED — the persistent arm of `EStore.viewConst`.
+    #[inline(always)]
+    fn pers_get_const(&self, pers: &PersTier, i: &EIdx) -> Option<(NIdx, LsIdx)> {
+        if self.shared_on {
+            pers.e.get_const(i)
+        } else {
+            self.pers.get_const(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-13) — `EStore.viewConst`, the `const` projection of
+    /// `EStore.view`.
+    #[inline(always)]
+    pub fn view_const(&self, pers: &PersTier, i: &EIdx) -> Option<(NIdx, LsIdx)> {
+        if i.is_persistent() {
+            self.pers_get_const(pers, i)
+        } else if self.scratch_on {
+            self.scr.get_const(i)
+        } else {
+            None
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-13); Lean twin:
+    /// OWED — the persistent arm of `EStore.viewConstName`.
+    #[inline(always)]
+    fn pers_get_const_name(&self, pers: &PersTier, i: &EIdx) -> Option<NIdx> {
+        if self.shared_on {
+            pers.e.get_const_name(i)
+        } else {
+            self.pers.get_const_name(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-13) — `EStore.viewConstName`, the head NAME of a `const` node.
+    #[inline(always)]
+    pub fn view_const_name(&self, pers: &PersTier, i: &EIdx) -> Option<NIdx> {
+        if i.is_persistent() {
+            self.pers_get_const_name(pers, i)
+        } else if self.scratch_on {
+            self.scr.get_const_name(i)
+        } else {
+            None
+        }
+    }
+
     /// con-leche: none — arena infrastructure (task #97-P6-10); Lean twin:
     /// OWED — the persistent arms of the four projections below.
     #[inline(always)]
@@ -3061,6 +3227,54 @@ impl EStore {
             self.pers_get_fvar_idx(pers, i)
         } else if self.scratch_on {
             self.scr.get_fvar_idx(i)
+        } else {
+            None
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-13); Lean twin:
+    /// OWED — the persistent arm of `EStore.viewFVarTy`.
+    #[inline(always)]
+    fn pers_get_fvar_ty(&self, pers: &PersTier, i: &EIdx) -> Option<EIdx> {
+        if self.shared_on {
+            pers.e.get_fvar_ty(i)
+        } else {
+            self.pers.get_fvar_ty(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-13) — `EStore.viewFVarTy`, the `fvar` binder-type projection.
+    #[inline(always)]
+    pub fn view_fvar_ty(&self, pers: &PersTier, i: &EIdx) -> Option<EIdx> {
+        if i.is_persistent() {
+            self.pers_get_fvar_ty(pers, i)
+        } else if self.scratch_on {
+            self.scr.get_fvar_ty(i)
+        } else {
+            None
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-13); Lean twin:
+    /// OWED — the persistent arm of `EStore.viewLit`.
+    #[inline(always)]
+    fn pers_get_lit(&self, pers: &PersTier, i: &EIdx) -> Option<Literal> {
+        if self.shared_on {
+            pers.e.get_lit(i)
+        } else {
+            self.pers.get_lit(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-13) — `EStore.viewLit`, the `lit` projection of `EStore.view`.
+    #[inline(always)]
+    pub fn view_lit(&self, pers: &PersTier, i: &EIdx) -> Option<Literal> {
+        if i.is_persistent() {
+            self.pers_get_lit(pers, i)
+        } else if self.scratch_on {
+            self.scr.get_lit(i)
         } else {
             None
         }

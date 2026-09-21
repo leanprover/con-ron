@@ -37,8 +37,8 @@ use crate::arena::core::{
 };
 use crate::arena::env::IFEnv;
 use crate::arena::expr_ops::instantiate1_fast;
-use crate::arena::handle::{EIdx, LIdx};
-use crate::arena::monad::{fail, view, AState};
+use crate::arena::handle::{EIdx, LIdx, ETAG_LAM};
+use crate::arena::monad::{fail, view, AState, fail_dangling_e, view_bind};
 use crate::arena::store::ENodeView;
 use con_ron_core::kernel::core_types::{code_points, CheckError};
 use con_ron_core::kernel::env::CheckMode;
@@ -68,29 +68,32 @@ pub fn whnf_core_app_gated(
     fp: &EIdx,
     a: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match view(pers, st, fp) {
-        Err(e) => Err(e),
-        Ok(ENodeView::Lam(ty, body, mb)) => {
-            let ok = if con_ron_core::kernel::env::verified_checks(mode)
-                && prop_when::is_never(&mb.pw)
-            {
-                Ok(true)
-            } else {
-                match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, a) {
+    if fp.tag() == ETAG_LAM {
+        match view_bind(pers, st, fp) {
+            None => fail_dangling_e(),
+            Some((ty, body, mb)) => {
+                let ok = if con_ron_core::kernel::env::verified_checks(mode)
+                    && prop_when::is_never(&mb.pw)
+                {
+                    Ok(true)
+                } else {
+                    match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, a) {
+                        Err(e) => Err(e),
+                        Ok(ta) => knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &ta, &ty),
+                    }
+                };
+                match ok {
                     Err(e) => Err(e),
-                    Ok(ta) => knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &ta, &ty),
+                    Ok(true) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, a, 0) {
+                        Err(e) => Err(e),
+                        Ok(b) => knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, &b),
+                    },
+                    Ok(false) => intern_app_rebuilt(pers, st, h, same, fp, a),
                 }
-            };
-            match ok {
-                Err(e) => Err(e),
-                Ok(true) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, a, 0) {
-                    Err(e) => Err(e),
-                    Ok(b) => knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, &b),
-                },
-                Ok(false) => intern_app_rebuilt(pers, st, h, same, fp, a),
-            }
+            },
         }
-        Ok(_) => whnf_core_stuck_app(pers, vis, st, mode, lane, fuel, fe, depth, h, same, fp, a),
+    } else {
+        whnf_core_stuck_app(pers, vis, st, mode, lane, fuel, fe, depth, h, same, fp, a)
     }
 }
 

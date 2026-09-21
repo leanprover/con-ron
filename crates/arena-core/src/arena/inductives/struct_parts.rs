@@ -41,10 +41,9 @@ use crate::arena::core;
 use crate::arena::core::CORE_WALK_FUEL;
 use crate::arena::env::IConstantVal;
 use crate::arena::expr_ops;
-use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
+use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx, ETAG_FORALL_E, ETAG_SORT};
 use crate::arena::monad::{
-    eidx_nat_key, fail, intern_e, intern_l_node, intern_ls_node, view, AState, EIdxNat,
-};
+    eidx_nat_key, fail, intern_e, intern_l_node, intern_ls_node, view, AState, EIdxNat, fail_dangling_e, view_bind, view_sort};
 use crate::arena::store::{ENodeView, LNodeView};
 use con_ron_core::kernel::core_types::{code_points, CheckError};
 use con_ron_core::kernel::expr;
@@ -329,20 +328,23 @@ pub fn replace_pis_pw(
     if k == 0 {
         Ok(Some(b.dup2()))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(ty, rest, _)) => match replace_pis_pw(pers, st, pw, k - 1, &rest, b) {
-                Err(e) => Err(e),
-                Ok(None) => Ok(None),
-                Ok(Some(r)) => {
-                    let m: BinderMeta = expr::binder_meta(prop_when::dup(pw));
-                    match intern_e(pers, st, ENodeView::ForallE(ty, r, m)) {
-                        Err(e) => Err(e),
-                        Ok(n) => Ok(Some(n)),
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((ty, rest, _)) => match replace_pis_pw(pers, st, pw, k - 1, &rest, b) {
+                    Err(e) => Err(e),
+                    Ok(None) => Ok(None),
+                    Ok(Some(r)) => {
+                        let m: BinderMeta = expr::binder_meta(prop_when::dup(pw));
+                        match intern_e(pers, st, ENodeView::ForallE(ty, r, m)) {
+                            Err(e) => Err(e),
+                            Ok(n) => Ok(Some(n)),
+                        }
                     }
-                }
-            },
-            Ok(_) => Ok(None),
+                },
+            }
+        } else {
+            Ok(None)
         }
     }
 }
@@ -362,20 +364,23 @@ pub fn pis_to_lams_pw(
     if k == 0 {
         Ok(Some(b.dup2()))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(ty, rest, _)) => match pis_to_lams_pw(pers, st, pw, k - 1, &rest, b) {
-                Err(e) => Err(e),
-                Ok(None) => Ok(None),
-                Ok(Some(r)) => {
-                    let m: BinderMeta = expr::binder_meta(prop_when::dup(pw));
-                    match intern_e(pers, st, ENodeView::Lam(ty, r, m)) {
-                        Err(e) => Err(e),
-                        Ok(n) => Ok(Some(n)),
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((ty, rest, _)) => match pis_to_lams_pw(pers, st, pw, k - 1, &rest, b) {
+                    Err(e) => Err(e),
+                    Ok(None) => Ok(None),
+                    Ok(Some(r)) => {
+                        let m: BinderMeta = expr::binder_meta(prop_when::dup(pw));
+                        match intern_e(pers, st, ENodeView::Lam(ty, r, m)) {
+                            Err(e) => Err(e),
+                            Ok(n) => Ok(Some(n)),
+                        }
                     }
-                }
-            },
-            Ok(_) => Ok(None),
+                },
+            }
+        } else {
+            Ok(None)
         }
     }
 }
@@ -540,12 +545,15 @@ pub fn struct_shape(
             Ok(Some(cq)) => match expr_ops::strip_pis(pers, st, n_p + 3, rty) {
                 Err(e) => Err(e),
                 Ok(None) => Ok(false),
-                Ok(Some(rq)) => match view(pers, st, &tq.1) {
-                    Err(e) => Err(e),
-                    Ok(ENodeView::Sort(_)) => {
-                        struct_shape_at(pers, st, t, c, lps, elim, large, n_p, n_f, &cq.1, &rq.0, &rq.1)
+                Ok(Some(rq)) => if tq.1.tag() == ETAG_SORT {
+                    match view_sort(pers, st, &tq.1) {
+                        None => fail_dangling_e(),
+                        Some(_) => {
+                            struct_shape_at(pers, st, t, c, lps, elim, large, n_p, n_f, &cq.1, &rq.0, &rq.1)
+                        },
                     }
-                    Ok(_) => Ok(false),
+                } else {
+                    Ok(false)
                 },
             },
         },
@@ -618,20 +626,26 @@ pub fn struct_shape_motive(
         Ok(false)
     } else {
         let mdom: EIdx = rbs[n_p as usize].0.dup2();
-        match view(pers, st, &mdom) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(mmaj, mcod, _)) => match view(pers, st, &mcod) {
-                Err(e) => Err(e),
-                Ok(ENodeView::Sort(s2)) => match struct_elim_level(pers, st, elim, large) {
-                    Err(e) => Err(e),
-                    Ok(want) => match struct_fam(pers, st, t, lps, n_p, 0) {
-                        Err(e) => Err(e),
-                        Ok(fam0) => Ok(s2.eq2(&want) && mmaj.eq2(&fam0)),
-                    },
+        if mdom.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, &mdom) {
+                None => fail_dangling_e(),
+                Some((mmaj, mcod, _)) => if mcod.tag() == ETAG_SORT {
+                    match view_sort(pers, st, &mcod) {
+                        None => fail_dangling_e(),
+                        Some(s2) => match struct_elim_level(pers, st, elim, large) {
+                            Err(e) => Err(e),
+                            Ok(want) => match struct_fam(pers, st, t, lps, n_p, 0) {
+                                Err(e) => Err(e),
+                                Ok(fam0) => Ok(s2.eq2(&want) && mmaj.eq2(&fam0)),
+                            },
+                        },
+                    }
+                } else {
+                    Ok(false)
                 },
-                Ok(_) => Ok(false),
-            },
-            Ok(_) => Ok(false),
+            }
+        } else {
+            Ok(false)
         }
     }
 }
@@ -809,23 +823,26 @@ pub fn struct_parts_core_sort(
     match expr_ops::strip_pis(pers, st, n_p, &cv_t.ty) {
         Err(e) => Err(e),
         Ok(None) => Ok(None),
-        Ok(Some(q)) => match view(pers, st, &q.1) {
-            Err(e) => Err(e),
-            Ok(ENodeView::Sort(s)) => match core::zero_level(st) {
-                Err(e) => Err(e),
-                Ok(z) => match core::lvl_eq(pers, st, &s, &z) {
+        Ok(Some(q)) => if q.1.tag() == ETAG_SORT {
+            match view_sort(pers, st, &q.1) {
+                None => fail_dangling_e(),
+                Some(s) => match core::zero_level(st) {
                     Err(e) => Err(e),
-                    Ok(eq) => {
-                        let is_prop: bool = match eq {
-                            Some(true) => true,
-                            Some(false) => false,
-                            None => false,
-                        };
-                        struct_parts_core_elim(pers, st, cv_t, cv_c, n_p, n_f, cv_r, rule, &s, is_prop)
-                    }
+                    Ok(z) => match core::lvl_eq(pers, st, &s, &z) {
+                        Err(e) => Err(e),
+                        Ok(eq) => {
+                            let is_prop: bool = match eq {
+                                Some(true) => true,
+                                Some(false) => false,
+                                None => false,
+                            };
+                            struct_parts_core_elim(pers, st, cv_t, cv_c, n_p, n_f, cv_r, rule, &s, is_prop)
+                        }
+                    },
                 },
-            },
-            Ok(_) => Ok(None),
+            }
+        } else {
+            Ok(None)
         },
     }
 }
@@ -1333,20 +1350,23 @@ pub fn struct_proj_bodies_go(
     if k == 0 {
         Ok(Some(out))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(fdom, body, _)) => match struct_proj_arg_p(pers, st, t, i) {
-                Err(e) => Err(e),
-                Ok(a) => match expr_ops::instantiate1_lift_fast(pers, st, CORE_WALK_FUEL, &body, &a, 0) {
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((fdom, body, _)) => match struct_proj_arg_p(pers, st, t, i) {
                     Err(e) => Err(e),
-                    Ok(b) => {
-                        let mut o: Vec<EIdx> = out;
-                        o.push(fdom);
-                        struct_proj_bodies_go(pers, st, t, k - 1, i + 1, &b, o)
-                    }
+                    Ok(a) => match expr_ops::instantiate1_lift_fast(pers, st, CORE_WALK_FUEL, &body, &a, 0) {
+                        Err(e) => Err(e),
+                        Ok(b) => {
+                            let mut o: Vec<EIdx> = out;
+                            o.push(fdom);
+                            struct_proj_bodies_go(pers, st, t, k - 1, i + 1, &b, o)
+                        }
+                    },
                 },
-            },
-            Ok(_) => Ok(None),
+            }
+        } else {
+            Ok(None)
         }
     }
 }

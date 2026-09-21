@@ -78,18 +78,10 @@
 //!   column and nothing else.
 
 use crate::arena::handle::{
-    e_tag_is_bind, EIdx, LIdx, LsIdx, NIdx, ETAG_APP, ETAG_BVAR, ETAG_FVAR, ETAG_LET_E,
-    ETAG_PROJ,
+    e_tag_is_bind, EIdx, LIdx, LsIdx, NIdx, ETAG_APP, ETAG_BVAR, ETAG_FORALL_E, ETAG_FVAR,
+    ETAG_LAM, ETAG_LET_E, ETAG_PROJ,
 };
-use crate::arena::monad::{
-    abs1_clear, abs1_get, abs1_set, bvar_b_clear, bvar_b_get, bvar_b_set, derived_e, derived_l,
-    eidx_nat_key, fail, fvar_b_clear, fvar_b_get, fvar_b_set, inst1_clear, inst1_get, inst1_l_clear,
-    inst1_l_get, inst1_l_set, inst1_set, inst_l_clear, inst_l_get, inst_l_set, inst_lp_clear,
-    inst_lp_get, inst_lp_set, intern_e, intern_level, intern_levels, lift_clear, lift_get, lift_set,
-    lower_clear, lower_get, lower_set, read_level, read_levels, read_names, rename_clear,
-    rename_get, rename_set, reset_clear, reset_get, reset_set, view, view_app, view_bind,
-    view_bvar, view_fvar_idx, view_let, view_proj, AState, EIdxNat, fail_dangling_e,
-};
+use crate::arena::monad::{abs1_clear, abs1_get, abs1_set, bvar_b_clear, bvar_b_get, bvar_b_set, derived_e, derived_l, eidx_nat_key, fail, fvar_b_clear, fvar_b_get, fvar_b_set, inst1_clear, inst1_get, inst1_l_clear, inst1_l_get, inst1_l_set, inst1_set, inst_l_clear, inst_l_get, inst_l_set, inst_lp_clear, inst_lp_get, inst_lp_set, intern_e, intern_level, intern_levels, lift_clear, lift_get, lift_set, lower_clear, lower_get, lower_set, rename_clear, rename_get, rename_set, reset_clear, reset_get, reset_set, view, view_app, view_bind, view_bvar, view_fvar_idx, view_fvar_ty, view_let, view_proj, AState, EIdxNat, fail_dangling_e, read_level_m, read_levels_m, read_names_m, inst_lp_l_get, inst_lp_l_set, inst_lp_ls_get, inst_lp_ls_set};
 use crate::arena::store::{e_bind_view, ENodeView};
 use con_ron_core::kernel::core_types::{code_points, CheckError};
 use con_ron_core::kernel::expr;
@@ -2173,10 +2165,13 @@ pub fn loose_bvars_bounded(
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:600-603 isLam` — is the
 /// expression a λ?
 pub fn is_lam(pers: &PersTier, st: &AState, h: &EIdx) -> Result<bool, CheckError> {
-    match view(pers, st, h) {
-        Err(e) => Err(e),
-        Ok(ENodeView::Lam(_, _, _)) => Ok(true),
-        Ok(_) => Ok(false),
+    if h.tag() == ETAG_LAM {
+        match view_bind(pers, st, h) {
+            None => fail_dangling_e(),
+            Some((_, _, _)) => Ok(true),
+        }
+    } else {
+        Ok(false)
     }
 }
 
@@ -2185,10 +2180,13 @@ pub fn is_lam(pers: &PersTier, st: &AState, h: &EIdx) -> Result<bool, CheckError
 /// prop-ness annotation, `none` off λs.  `PropWhen` is a value and not a term,
 /// so it crosses the signature unchanged.
 pub fn lam_pw(pers: &PersTier, st: &AState, h: &EIdx) -> Result<Option<PropWhen>, CheckError> {
-    match view(pers, st, h) {
-        Err(e) => Err(e),
-        Ok(ENodeView::Lam(_, _, m)) => Ok(Some(m.pw)),
-        Ok(_) => Ok(None),
+    if h.tag() == ETAG_LAM {
+        match view_bind(pers, st, h) {
+            None => fail_dangling_e(),
+            Some((_, _, m)) => Ok(Some(m.pw)),
+        }
+    } else {
+        Ok(None)
     }
 }
 
@@ -2196,10 +2194,13 @@ pub fn lam_pw(pers: &PersTier, st: &AState, h: &EIdx) -> Result<Option<PropWhen>
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:615-618 forallPw` — the ∀ twin
 /// of `lam_pw`.
 pub fn forall_pw(pers: &PersTier, st: &AState, h: &EIdx) -> Result<Option<PropWhen>, CheckError> {
-    match view(pers, st, h) {
-        Err(e) => Err(e),
-        Ok(ENodeView::ForallE(_, _, m)) => Ok(Some(m.pw)),
-        Ok(_) => Ok(None),
+    if h.tag() == ETAG_FORALL_E {
+        match view_bind(pers, st, h) {
+            None => fail_dangling_e(),
+            Some((_, _, m)) => Ok(Some(m.pw)),
+        }
+    } else {
+        Ok(None)
     }
 }
 
@@ -2577,14 +2578,17 @@ pub fn strip_lams(
     if k == 0 {
         Ok(Some((Vec::new(), h.dup2())))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::Lam(ty, b, m)) => match strip_lams(pers, st, k - 1, &b) {
-                Err(e) => Err(e),
-                Ok(Some(p)) => Ok(Some((cons_binder(&ty, &m, &p.0), p.1))),
-                Ok(None) => Ok(None),
-            },
-            Ok(_) => Ok(None),
+        if h.tag() == ETAG_LAM {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((ty, b, m)) => match strip_lams(pers, st, k - 1, &b) {
+                    Err(e) => Err(e),
+                    Ok(Some(p)) => Ok(Some((cons_binder(&ty, &m, &p.0), p.1))),
+                    Ok(None) => Ok(None),
+                },
+            }
+        } else {
+            Ok(None)
         }
     }
 }
@@ -2601,14 +2605,17 @@ pub fn strip_pis(
     if k == 0 {
         Ok(Some((Vec::new(), h.dup2())))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(ty, b, m)) => match strip_pis(pers, st, k - 1, &b) {
-                Err(e) => Err(e),
-                Ok(Some(p)) => Ok(Some((cons_binder(&ty, &m, &p.0), p.1))),
-                Ok(None) => Ok(None),
-            },
-            Ok(_) => Ok(None),
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((ty, b, m)) => match strip_pis(pers, st, k - 1, &b) {
+                    Err(e) => Err(e),
+                    Ok(Some(p)) => Ok(Some((cons_binder(&ty, &m, &p.0), p.1))),
+                    Ok(None) => Ok(None),
+                },
+            }
+        } else {
+            Ok(None)
         }
     }
 }
@@ -2620,10 +2627,13 @@ pub fn pi_result(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<EI
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_PI_RESULT)))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(_, b, _)) => pi_result(pers, st, fuel - 1, &b),
-            Ok(_) => Ok(h.dup2()),
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((_, b, _)) => pi_result(pers, st, fuel - 1, &b),
+            }
+        } else {
+            Ok(h.dup2())
         }
     }
 }
@@ -2657,16 +2667,19 @@ pub fn inst_pis_from(
     if i >= args.len() {
         Ok(Some(e.dup2()))
     } else {
-        match view(pers, st, e) {
-            Err(er) => Err(er),
-            Ok(ENodeView::ForallE(_, body, _)) => {
-                let a: EIdx = args[i].dup2();
-                match instantiate1_fast(pers, st, fuel, &body, &a, 0) {
-                    Err(er) => Err(er),
-                    Ok(b) => inst_pis_from(pers, st, fuel, &b, args, i + 1),
-                }
+        if e.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, e) {
+                None => fail_dangling_e(),
+                Some((_, body, _)) => {
+                    let a: EIdx = args[i].dup2();
+                    match instantiate1_fast(pers, st, fuel, &body, &a, 0) {
+                        Err(er) => Err(er),
+                        Ok(b) => inst_pis_from(pers, st, fuel, &b, args, i + 1),
+                    }
+                },
             }
-            Ok(_) => Ok(None),
+        } else {
+            Ok(None)
         }
     }
 }
@@ -2702,20 +2715,23 @@ pub fn inst_pis_at_from(
     if i >= args.len() {
         Ok(Some((Vec::new(), h.dup2())))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(dom, body, _)) => {
-                let a: EIdx = args[i].dup2();
-                match instantiate1_fast(pers, st, fuel, &body, &a, 0) {
-                    Err(e) => Err(e),
-                    Ok(b) => match inst_pis_at_from(pers, st, fuel, args, i + 1, &b) {
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((dom, body, _)) => {
+                    let a: EIdx = args[i].dup2();
+                    match instantiate1_fast(pers, st, fuel, &body, &a, 0) {
                         Err(e) => Err(e),
-                        Ok(Some(p)) => Ok(Some((cons_eidx(&dom, &p.0), p.1))),
-                        Ok(None) => Ok(None),
-                    },
-                }
+                        Ok(b) => match inst_pis_at_from(pers, st, fuel, args, i + 1, &b) {
+                            Err(e) => Err(e),
+                            Ok(Some(p)) => Ok(Some((cons_eidx(&dom, &p.0), p.1))),
+                            Ok(None) => Ok(None),
+                        },
+                    }
+                },
             }
-            Ok(_) => Ok(None),
+        } else {
+            Ok(None)
         }
     }
 }
@@ -2747,20 +2763,23 @@ pub fn inst_lams_at_from(
     if i >= args.len() {
         Ok(Some((Vec::new(), h.dup2())))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::Lam(dom, body, _)) => {
-                let a: EIdx = args[i].dup2();
-                match instantiate1_fast(pers, st, fuel, &body, &a, 0) {
-                    Err(e) => Err(e),
-                    Ok(b) => match inst_lams_at_from(pers, st, fuel, args, i + 1, &b) {
+        if h.tag() == ETAG_LAM {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((dom, body, _)) => {
+                    let a: EIdx = args[i].dup2();
+                    match instantiate1_fast(pers, st, fuel, &body, &a, 0) {
                         Err(e) => Err(e),
-                        Ok(Some(p)) => Ok(Some((cons_eidx(&dom, &p.0), p.1))),
-                        Ok(None) => Ok(None),
-                    },
-                }
+                        Ok(b) => match inst_lams_at_from(pers, st, fuel, args, i + 1, &b) {
+                            Err(e) => Err(e),
+                            Ok(Some(p)) => Ok(Some((cons_eidx(&dom, &p.0), p.1))),
+                            Ok(None) => Ok(None),
+                        },
+                    }
+                },
             }
-            Ok(_) => Ok(None),
+        } else {
+            Ok(None)
         }
     }
 }
@@ -2791,20 +2810,23 @@ pub fn inst_pis_at_f_go(
             Ok(r) => Ok(Some((Vec::new(), r))),
         }
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(dom, body, _)) => {
-                let acc2: Vec<EIdx> = cons_eidx(&args[i], acc);
-                match inst_pis_at_f_go(pers, st, fuel, &acc2, args, i + 1, &body) {
-                    Err(e) => Err(e),
-                    Ok(Some(p)) => match instantiate_list_fast(pers, st, fuel, &dom, acc, 0) {
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((dom, body, _)) => {
+                    let acc2: Vec<EIdx> = cons_eidx(&args[i], acc);
+                    match inst_pis_at_f_go(pers, st, fuel, &acc2, args, i + 1, &body) {
                         Err(e) => Err(e),
-                        Ok(d) => Ok(Some((cons_eidx(&d, &p.0), p.1))),
-                    },
-                    Ok(None) => Ok(None),
-                }
+                        Ok(Some(p)) => match instantiate_list_fast(pers, st, fuel, &dom, acc, 0) {
+                            Err(e) => Err(e),
+                            Ok(d) => Ok(Some((cons_eidx(&d, &p.0), p.1))),
+                        },
+                        Ok(None) => Ok(None),
+                    }
+                },
             }
-            Ok(_) => Ok(None),
+        } else {
+            Ok(None)
         }
     }
 }
@@ -2846,20 +2868,23 @@ pub fn inst_lams_at_f_go(
             Ok(r) => Ok(Some((Vec::new(), r))),
         }
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::Lam(dom, body, _)) => {
-                let acc2: Vec<EIdx> = cons_eidx(&args[i], acc);
-                match inst_lams_at_f_go(pers, st, fuel, &acc2, args, i + 1, &body) {
-                    Err(e) => Err(e),
-                    Ok(Some(p)) => match instantiate_list_fast(pers, st, fuel, &dom, acc, 0) {
+        if h.tag() == ETAG_LAM {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((dom, body, _)) => {
+                    let acc2: Vec<EIdx> = cons_eidx(&args[i], acc);
+                    match inst_lams_at_f_go(pers, st, fuel, &acc2, args, i + 1, &body) {
                         Err(e) => Err(e),
-                        Ok(d) => Ok(Some((cons_eidx(&d, &p.0), p.1))),
-                    },
-                    Ok(None) => Ok(None),
-                }
+                        Ok(Some(p)) => match instantiate_list_fast(pers, st, fuel, &dom, acc, 0) {
+                            Err(e) => Err(e),
+                            Ok(d) => Ok(Some((cons_eidx(&d, &p.0), p.1))),
+                        },
+                        Ok(None) => Ok(None),
+                    }
+                },
             }
-            Ok(_) => Ok(None),
+        } else {
+            Ok(None)
         }
     }
 }
@@ -2886,10 +2911,13 @@ pub fn inst_lams_at_f(
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:908-911 fvarTypeD` — the type
 /// annotation of a free-variable leaf (the expression itself otherwise).
 pub fn fvar_type_d(pers: &PersTier, st: &AState, h: &EIdx) -> Result<EIdx, CheckError> {
-    match view(pers, st, h) {
-        Err(e) => Err(e),
-        Ok(ENodeView::FVar(_, ty)) => Ok(ty),
-        Ok(_) => Ok(h.dup2()),
+    if h.tag() == ETAG_FVAR {
+        match view_fvar_ty(pers, st, h) {
+            None => fail_dangling_e(),
+            Some(ty) => Ok(ty),
+        }
+    } else {
+        Ok(h.dup2())
     }
 }
 
@@ -2977,16 +3005,19 @@ pub fn rec_rule_plain(
         match strip_pis(pers, st, m_i, rec_ty) {
             Err(e) => Err(e),
             Ok(None) => Ok(false),
-            Ok(Some(p)) => match view(pers, st, &p.1) {
-                Err(e) => Err(e),
-                Ok(ENodeView::ForallE(dom, _, _)) => match get_app_args(pers, st, fuel, &dom) {
-                    Err(e) => Err(e),
-                    Ok(args) => match bvar_range(pers, st, m_i, cn_p, 0) {
+            Ok(Some(p)) => if p.1.tag() == ETAG_FORALL_E {
+                match view_bind(pers, st, &p.1) {
+                    None => fail_dangling_e(),
+                    Some((dom, _, _)) => match get_app_args(pers, st, fuel, &dom) {
                         Err(e) => Err(e),
-                        Ok(want) => Ok(eidx_take_beq(&args, &want)),
+                        Ok(args) => match bvar_range(pers, st, m_i, cn_p, 0) {
+                            Err(e) => Err(e),
+                            Ok(want) => Ok(eidx_take_beq(&args, &want)),
+                        },
                     },
-                },
-                Ok(_) => Ok(false),
+                }
+            } else {
+                Ok(false)
             },
         }
     } else {
@@ -3009,20 +3040,23 @@ pub fn pis_to_lams(
     if k == 0 {
         Ok(Some(body.dup2()))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(ty, rest, _)) => match pis_to_lams(pers, st, k - 1, &rest, body) {
-                Err(e) => Err(e),
-                Ok(Some(b)) => {
-                    let m: BinderMeta = expr::binder_meta(prop_when::never());
-                    match intern_e(pers, st, ENodeView::Lam(ty, b, m)) {
-                        Err(e) => Err(e),
-                        Ok(r) => Ok(Some(r)),
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((ty, rest, _)) => match pis_to_lams(pers, st, k - 1, &rest, body) {
+                    Err(e) => Err(e),
+                    Ok(Some(b)) => {
+                        let m: BinderMeta = expr::binder_meta(prop_when::never());
+                        match intern_e(pers, st, ENodeView::Lam(ty, b, m)) {
+                            Err(e) => Err(e),
+                            Ok(r) => Ok(Some(r)),
+                        }
                     }
-                }
-                Ok(None) => Ok(None),
-            },
-            Ok(_) => Ok(None),
+                    Ok(None) => Ok(None),
+                },
+            }
+        } else {
+            Ok(None)
         }
     }
 }
@@ -3041,20 +3075,23 @@ pub fn replace_pi_body(
     if k == 0 {
         Ok(Some(b.dup2()))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(ty, rest, m)) => match replace_pi_body(pers, st, k - 1, &rest, b) {
-                Err(e) => Err(e),
-                Ok(Some(r)) => {
-                    let m2: BinderMeta = expr::binder_meta(m.pw);
-                    match intern_e(pers, st, ENodeView::ForallE(ty, r, m2)) {
-                        Err(e) => Err(e),
-                        Ok(x) => Ok(Some(x)),
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((ty, rest, m)) => match replace_pi_body(pers, st, k - 1, &rest, b) {
+                    Err(e) => Err(e),
+                    Ok(Some(r)) => {
+                        let m2: BinderMeta = expr::binder_meta(m.pw);
+                        match intern_e(pers, st, ENodeView::ForallE(ty, r, m2)) {
+                            Err(e) => Err(e),
+                            Ok(x) => Ok(Some(x)),
+                        }
                     }
-                }
-                Ok(None) => Ok(None),
-            },
-            Ok(_) => Ok(None),
+                    Ok(None) => Ok(None),
+                },
+            }
+        } else {
+            Ok(None)
         }
     }
 }
@@ -3066,13 +3103,16 @@ pub fn pi_arity(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<u64
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_PI_ARITY)))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(_, b, _)) => match pi_arity(pers, st, fuel - 1, &b) {
-                Err(e) => Err(e),
-                Ok(n) => Ok(n + 1),
-            },
-            Ok(_) => Ok(0),
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((_, b, _)) => match pi_arity(pers, st, fuel - 1, &b) {
+                    Err(e) => Err(e),
+                    Ok(n) => Ok(n + 1),
+                },
+            }
+        } else {
+            Ok(0)
         }
     }
 }
@@ -4238,16 +4278,19 @@ pub fn inst_pis_at_lift_from(
     if i >= args.len() {
         Ok(Some(h.dup2()))
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(_, body, _)) => {
-                let a: EIdx = args[i].dup2();
-                match instantiate1_lift_fast(pers, st, fuel, &body, &a, 0) {
-                    Err(e) => Err(e),
-                    Ok(b) => inst_pis_at_lift_from(pers, st, fuel, args, i + 1, &b),
-                }
+        if h.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some((_, body, _)) => {
+                    let a: EIdx = args[i].dup2();
+                    match instantiate1_lift_fast(pers, st, fuel, &body, &a, 0) {
+                        Err(e) => Err(e),
+                        Ok(b) => inst_pis_at_lift_from(pers, st, fuel, args, i + 1, &b),
+                    }
+                },
             }
-            Ok(_) => Ok(None),
+        } else {
+            Ok(None)
         }
     }
 }
@@ -4328,6 +4371,73 @@ pub fn subst_level_list_from(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo
+/// Lean twin: OWED (task #97-P6-13) — `substLMemoAt`, `instLPGo`'s `.sort`
+/// arm's level work behind a memo on the level handle.
+///
+/// `ks` and `us` are fixed for the whole `instLPFast` call, so a level handle
+/// determines its own answer and the substitution vector is not in the key —
+/// DESIGN.md §8.3's own rule for the per-call memos, and `inst_lp_clear` is
+/// what makes it true.  A hit is one `u32`; a miss reads the level back (now
+/// itself memoised per declaration), runs `Level.subst` on the transient tree
+/// and re-interns.  A `.sort` node recurs once per OCCURRENCE in a term and
+/// the same universe occurs over and over.
+pub fn subst_l_memo_at(
+    pers: &PersTier,
+    st: &mut AState,
+    ks: &Vec<Name>,
+    us: &Vec<Level>,
+    u: &LIdx,
+) -> Result<LIdx, CheckError> {
+    match inst_lp_l_get(st, u) {
+        Some(r) => Ok(r),
+        None => match read_level_m(pers, st, u) {
+            Err(e) => Err(e),
+            Ok(l) => {
+                let l2: Level = level::subst(ks, us, &l);
+                match intern_level(pers, st, &l2) {
+                    Err(e) => Err(e),
+                    Ok(hl) => {
+                        inst_lp_l_set(st, u.dup2(), &hl);
+                        Ok(hl)
+                    }
+                }
+            }
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo
+/// Lean twin: OWED (task #97-P6-13) — `substLsMemoAt`, the `.const` arm's
+/// twin of `substLMemoAt` at an interned universe-argument LIST.  The list is
+/// one interned object, so the memo saves the readback, the per-element
+/// substitution, the re-interning AND the two `Vec<Level>` copies the
+/// readback memo would otherwise hand out and drop.
+pub fn subst_ls_memo_at(
+    pers: &PersTier,
+    st: &mut AState,
+    ks: &Vec<Name>,
+    us: &Vec<Level>,
+    vs: &LsIdx,
+) -> Result<LsIdx, CheckError> {
+    match inst_lp_ls_get(st, vs) {
+        Some(r) => Ok(r),
+        None => match read_levels_m(pers, st, vs) {
+            Err(e) => Err(e),
+            Ok(ls) => {
+                let ls2: Vec<Level> = subst_level_list(ks, us, &ls);
+                match intern_levels(pers, st, &ls2) {
+                    Err(e) => Err(e),
+                    Ok(vs2) => {
+                        inst_lp_ls_set(st, vs.dup2(), &vs2);
+                        Ok(vs2)
+                    }
+                }
+            }
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1411-1481 instLPGo` —
 /// substitute level parameters throughout an expression, with con-leche's own
 /// `hasLP = false` cutoff (the whole subtree is level-parameter free, so the
@@ -4353,30 +4463,18 @@ pub fn inst_lp_go(
                 Err(e) => Err(e),
                 Ok(ENodeView::BVar(_)) => Ok(h.dup2()),
                 Ok(ENodeView::Lit(_)) => Ok(h.dup2()),
-                Ok(ENodeView::Sort(u)) => match read_level(pers, st, &u) {
+                Ok(ENodeView::Sort(u)) => match subst_l_memo_at(pers, st, ks, us, &u) {
                     Err(e) => Err(e),
-                    Ok(l) => {
-                        let l2: Level = level::subst(ks, us, &l);
-                        match intern_level(pers, st, &l2) {
-                            Err(e) => Err(e),
-                            Ok(hl) => {
-                                let same: bool = hl.eq2(&u);
-                                intern_rebuilt(pers, st, h, same, ENodeView::Sort(hl))
-                            }
-                        }
+                    Ok(hl) => {
+                        let same: bool = hl.eq2(&u);
+                        intern_rebuilt(pers, st, h, same, ENodeView::Sort(hl))
                     }
                 },
-                Ok(ENodeView::Const(n, vs)) => match read_levels(pers, st, &vs) {
+                Ok(ENodeView::Const(n, vs)) => match subst_ls_memo_at(pers, st, ks, us, &vs) {
                     Err(e) => Err(e),
-                    Ok(ls) => {
-                        let ls2: Vec<Level> = subst_level_list(ks, us, &ls);
-                        match intern_levels(pers, st, &ls2) {
-                            Err(e) => Err(e),
-                            Ok(vs2) => {
-                                let same: bool = vs2.eq2(&vs);
-                                intern_rebuilt(pers, st, h, same, ENodeView::Const(n, vs2))
-                            }
-                        }
+                    Ok(vs2) => {
+                        let same: bool = vs2.eq2(&vs);
+                        intern_rebuilt(pers, st, h, same, ENodeView::Const(n, vs2))
                     }
                 },
                 Ok(ENodeView::FVar(i, ty)) => {
@@ -4557,9 +4655,9 @@ pub fn inst_lp_fast(
     if !expr::lp_of_data(derived_e(pers, st, e)) {
         Ok(e.dup2())
     } else {
-        match read_names(pers, st, ks) {
+        match read_names_m(pers, st, ks) {
             Err(er) => Err(er),
-            Ok(ks_p) => match read_levels(pers, st, us) {
+            Ok(ks_p) => match read_levels_m(pers, st, us) {
                 Err(er) => Err(er),
                 Ok(us_p) => {
                     inst_lp_clear(st);

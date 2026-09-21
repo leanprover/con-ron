@@ -25,7 +25,7 @@
 use crate::arena::env::IConstantVal;
 use crate::arena::handle::{EIdx, NIdx};
 use crate::arena::intern::{intern_cv, intern_expr};
-use crate::arena::monad::{intern_e, read_name, AState};
+use crate::arena::monad::{intern_e, AState, read_name_m};
 use crate::arena::store::ENodeView;
 use con_ron_core::kernel::core_types::CheckError;
 use con_ron_core::kernel::trust_axioms as ctrust;
@@ -179,7 +179,7 @@ pub fn reduce_op_raw(
     st: &mut AState,
     c: &NIdx,
 ) -> Result<IConstantVal, CheckError>  {
-    match read_name(pers, st, c) {
+    match read_name_m(pers, st, c) {
         Err(e) => Err(e),
         Ok(n) => intern_cv(pers, st, &ctrust::reduce_op_raw(&n)),
     }
@@ -193,7 +193,7 @@ pub fn of_reduce_raw(
     st: &mut AState,
     n: &NIdx,
 ) -> Result<IConstantVal, CheckError>  {
-    match read_name(pers, st, n) {
+    match read_name_m(pers, st, n) {
         Err(e) => Err(e),
         Ok(k) => intern_cv(pers, st, &ctrust::of_reduce_raw(&k)),
     }

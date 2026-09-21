@@ -47,8 +47,8 @@ use crate::arena::env;
 use crate::arena::env::{IConstantInfo, IConstantVal, IFEnv, IIndCaps, IRecRule, IRecRuleFire};
 use crate::arena::expr_ops;
 use crate::arena::expr_ops::NIdxToNIdx;
-use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
-use crate::arena::monad::{fail, intern_e, intern_n_node, read_name, view, view_ls, AState};
+use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx, ETAG_APP, ETAG_CONST, ETAG_FORALL_E};
+use crate::arena::monad::{fail, intern_e, intern_n_node, view_ls, AState, fail_dangling_e, view_app, view_bind, view_const, view_const_name, read_name_m};
 use crate::arena::std_axioms;
 use crate::arena::store::{ENodeView, NNodeView};
 use con_ron_core::kernel::core_k;
@@ -724,31 +724,43 @@ pub fn eq_app3(
     st: &AState,
     h: &EIdx,
 ) -> Result<Option<(NIdx, LIdx, EIdx, EIdx, EIdx)>, CheckError> {
-    match view(pers, st, h) {
-        Err(e) => Err(e),
-        Ok(ENodeView::App(f1, r)) => match view(pers, st, &f1) {
-            Err(e) => Err(e),
-            Ok(ENodeView::App(f2, l)) => match view(pers, st, &f2) {
-                Err(e) => Err(e),
-                Ok(ENodeView::App(f3, ty)) => match view(pers, st, &f3) {
-                    Err(e) => Err(e),
-                    Ok(ENodeView::Const(c, us)) => match view_ls(pers, st, &us) {
-                        Err(e) => Err(e),
-                        Ok(ls) => {
-                            if ls.len() == 1 {
-                                Ok(Some((c, ls[0].dup2(), ty, l, r)))
+    if h.tag() == ETAG_APP {
+        match view_app(pers, st, h) {
+            None => fail_dangling_e(),
+            Some((f1, r)) => if f1.tag() == ETAG_APP {
+                match view_app(pers, st, &f1) {
+                    None => fail_dangling_e(),
+                    Some((f2, l)) => if f2.tag() == ETAG_APP {
+                        match view_app(pers, st, &f2) {
+                            None => fail_dangling_e(),
+                            Some((f3, ty)) => if f3.tag() == ETAG_CONST {
+                                match view_const(pers, st, &f3) {
+                                    None => fail_dangling_e(),
+                                    Some((c, us)) => match view_ls(pers, st, &us) {
+                                        Err(e) => Err(e),
+                                        Ok(ls) => {
+                                            if ls.len() == 1 {
+                                                Ok(Some((c, ls[0].dup2(), ty, l, r)))
+                                            } else {
+                                                Ok(None)
+                                            }
+                                        }
+                                    },
+                                }
                             } else {
                                 Ok(None)
-                            }
+                            },
                         }
+                    } else {
+                        Ok(None)
                     },
-                    Ok(_) => Ok(None),
-                },
-                Ok(_) => Ok(None),
+                }
+            } else {
+                Ok(None)
             },
-            Ok(_) => Ok(None),
-        },
-        Ok(_) => Ok(None),
+        }
+    } else {
+        Ok(None)
     }
 }
 
@@ -1477,23 +1489,29 @@ pub fn nested_rule_shape_at(
     match expr_ops::strip_pis(pers, st, m_i, ty_a) {
         Err(e) => Err(e),
         Ok(None) => Ok(None),
-        Ok(Some(q)) => match view(pers, st, &q.1) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(dom, _, _)) => {
-                match expr_ops::get_app_fn(pers, st, CORE_WALK_FUEL, &dom) {
-                    Err(e) => Err(e),
-                    Ok(hd) => match view(pers, st, &hd) {
+        Ok(Some(q)) => if q.1.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, &q.1) {
+                None => fail_dangling_e(),
+                Some((dom, _, _)) => {
+                    match expr_ops::get_app_fn(pers, st, CORE_WALK_FUEL, &dom) {
                         Err(e) => Err(e),
-                        Ok(ENodeView::Const(_, lvls_idx)) => nested_rule_shape_args(
-                            pers,
-                            vis,
-                            st, fe_self, lps, m_i, r_p, cn_p, &dom, &lvls_idx,
-                        ),
-                        Ok(_) => Ok(None),
-                    },
-                }
+                        Ok(hd) => if hd.tag() == ETAG_CONST {
+                            match view_const(pers, st, &hd) {
+                                None => fail_dangling_e(),
+                                Some((_, lvls_idx)) => nested_rule_shape_args(
+                                    pers,
+                                    vis,
+                                    st, fe_self, lps, m_i, r_p, cn_p, &dom, &lvls_idx,
+                                ),
+                            }
+                        } else {
+                            Ok(None)
+                        },
+                    }
+                },
             }
-            Ok(_) => Ok(None),
+        } else {
+            Ok(None)
         },
     }
 }
@@ -1926,49 +1944,52 @@ pub fn check_iota_thm_n_ctor(
         Ok(None) => fail(core_types::not_implemented(code_points(&M_IOTA_CTELE))),
         Ok(Some(q)) => match expr_ops::get_app_fn(pers, st, CORE_WALK_FUEL, &q.1) {
             Err(e) => Err(e),
-            Ok(hd) => match view(pers, st, &hd) {
-                Err(e) => Err(e),
-                Ok(ENodeView::Const(_, _)) => {
-                    match expr_ops::inst_lp_fast(
-                        pers,
-                        st,
-                        CORE_WALK_FUEL,
-                        &cvj.level_params,
-                        lvls_idx,
-                        &cvj.ty,
-                    ) {
-                        Err(e) => Err(e),
-                        Ok(cty_l) => {
-                            match expr_ops::rename_consts_fast(pers, st, CORE_WALK_FUEL, f, &cty_l) {
-                                Err(e) => Err(e),
-                                Ok(cty_r) => {
-                                    let spine: Vec<EIdx> =
-                                        core::append_eidx(env::eidx_vec_dup(pins_f), x_fvs);
-                                    match expr_ops::inst_pis_at_f(
-                                        pers,
-                                        st,
-                                        CORE_WALK_FUEL,
-                                        &spine,
-                                        &cty_r,
-                                    ) {
-                                        Err(e) => Err(e),
-                                        Ok(None) => fail(core_types::not_implemented(code_points(
-                                            &M_IOTA_CTELE,
-                                        ))),
-                                        Ok(Some(cq)) => check_iota_thm_n_idx(
+            Ok(hd) => if hd.tag() == ETAG_CONST {
+                match view_const_name(pers, st, &hd) {
+                    None => fail_dangling_e(),
+                    Some(_) => {
+                        match expr_ops::inst_lp_fast(
+                            pers,
+                            st,
+                            CORE_WALK_FUEL,
+                            &cvj.level_params,
+                            lvls_idx,
+                            &cvj.ty,
+                        ) {
+                            Err(e) => Err(e),
+                            Ok(cty_l) => {
+                                match expr_ops::rename_consts_fast(pers, st, CORE_WALK_FUEL, f, &cty_l) {
+                                    Err(e) => Err(e),
+                                    Ok(cty_r) => {
+                                        let spine: Vec<EIdx> =
+                                            core::append_eidx(env::eidx_vec_dup(pins_f), x_fvs);
+                                        match expr_ops::inst_pis_at_f(
                                             pers,
-                                            vis,
-                                            st, mode, fe_self, f, ty_a, m_i, r_p, cvj, cn_p, cn_f,
-                                            rhs_a, fvs, x_fvs, largs, targs, rhs_s, l_a, b0,
-                                            lvls_idx, pins, &cq.0, &cq.1,
-                                        ),
+                                            st,
+                                            CORE_WALK_FUEL,
+                                            &spine,
+                                            &cty_r,
+                                        ) {
+                                            Err(e) => Err(e),
+                                            Ok(None) => fail(core_types::not_implemented(code_points(
+                                                &M_IOTA_CTELE,
+                                            ))),
+                                            Ok(Some(cq)) => check_iota_thm_n_idx(
+                                                pers,
+                                                vis,
+                                                st, mode, fe_self, f, ty_a, m_i, r_p, cvj, cn_p, cn_f,
+                                                rhs_a, fvs, x_fvs, largs, targs, rhs_s, l_a, b0,
+                                                lvls_idx, pins, &cq.0, &cq.1,
+                                            ),
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
+                    },
                 }
-                Ok(_) => fail(core_types::not_implemented(code_points(&M_IOTA_RHEAD))),
+            } else {
+                fail(core_types::not_implemented(code_points(&M_IOTA_RHEAD)))
             },
         },
     }
@@ -2486,7 +2507,7 @@ pub fn check_member_val(
         Err(e) => Err(e),
         Ok(f) => match checker_base::check_constant_val(pers, vis, st, mode, fe2, cv) {
             Err(e) => Err(e),
-            Ok(cv_a) => match read_name(pers, st, &cv_a.name) {
+            Ok(cv_a) => match read_name_m(pers, st, &cv_a.name) {
                 Err(e) => Err(e),
                 Ok(an) => {
                     if level::name_is_model_suffix(&an) {
