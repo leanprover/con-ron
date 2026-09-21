@@ -378,8 +378,10 @@ def unfoldableHead (fe : IFEnv) (e : EIdx) : AM Bool := do
   | .const n us =>
     match fe.find? n with
     | some (.defnInfo cv _ _) => do
-      let usl ← viewLs us
-      pure (usl.length == cv.levelParams.length)
+      match ← viewLsLen us with
+      | none => failDanglingLs
+      | some usl =>
+      pure (usl == cv.levelParams.length)
     | _ => pure false
   | _ => pure false
 
@@ -1425,14 +1427,16 @@ def structEtaCertWith (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv)
           | some (.indInfo cvT caps) => do
             let targs ← getAppArgs coreWalkFuel wtb
             let reserved ← reservedBasisNames
-            let uslen ← viewLs us'
+            match ← viewLsLen us' with
+            | none => failDanglingLs
+            | some uslen =>
             let slots ←
               if ← towerSlotsAll fe T caps.etaFields then pure true
               else recSlotsAll fe T caps.etaFields
             if caps.eta = true ∧ caps.etaCtor = c ∧
                 reserved.contains T = false ∧ reserved.contains c = false ∧
                 targs.length = caps.etaParams ∧
-                uslen.length = cvT.levelParams.length ∧
+                uslen = cvT.levelParams.length ∧
                 cvc.levelParams = cvT.levelParams ∧ slots = true then do
               if ← liftFueled "level comparison" (← lvlsEq? us us') then do
                 -- the type-former telescope certificate and the per-slot
@@ -1516,10 +1520,12 @@ def structUnitCert (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv)
     | some (.indInfo cvT caps) => do
       let targs ← getAppArgs coreWalkFuel wta
       let reserved ← reservedBasisNames
-      let uslen ← viewLs us'
+      match ← viewLsLen us' with
+      | none => failDanglingLs
+      | some uslen =>
       if caps.unitlike = true ∧ reserved.contains T = false ∧
           targs.length = caps.unitParams ∧
-          uslen.length = cvT.levelParams.length then do
+          uslen = cvT.levelParams.length then do
         let tb ← r.inferIO depth b
         let wtb ← r.whnf depth tb
         if ← r.defeq depth wta wtb then do
@@ -1738,11 +1744,13 @@ def majorToCtor (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
               let tmaj ← r.whnf depth (← r.inferIO depth major)
               match ← view (← getAppFn coreWalkFuel tmaj) with
               | .const T' ust => do
-                let ustl ← viewLs ust
+                match ← viewLsLen ust with
+                | none => failDanglingLs
+                | some ustl =>
                 let targs ← getAppArgs coreWalkFuel tmaj
                 let ars ← andRescueSlots fe rl.ctor cnP ust
                 if T' = T ∧ targs.length = cnP ∧
-                    cvj.levelParams.length = ustl.length ∧ ars = true then do
+                    cvj.levelParams.length = ustl ∧ ars = true then do
                   let p0 ← internE (.proj T 0 major)
                   let p1 ← internE (.proj T 1 major)
                   let fabArgs := targs ++ [p0, p1]
@@ -2312,11 +2320,13 @@ def whnfCoreBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
         match ← view (← getAppFn coreWalkFuel e') with
         | .const c us => do
           let args ← getAppArgs coreWalkFuel e'
-          let usl ← viewLs us
+          match ← viewLsLen us with
+          | none => failDanglingLs
+          | some usl =>
           let fok ← entry.fireOk us
           if c = entry.ctor ∧ i < entry.numFields ∧
               args.length = entry.numParams + entry.numFields ∧
-              usl.length = entry.levelParams.length ∧ fok = true then do
+              usl = entry.levelParams.length ∧ fok = true then do
             let b0 ← internE (.bvar 0)
             let arg := args.getD (entry.numParams + i) b0
             if ← projCertAt r fe depth mode.verifiedChecks mode.betaGate c us
@@ -2733,11 +2743,13 @@ def inferBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
         match ← fe.findProj? T i with
         | some entry => do
           let targs ← getAppArgs coreWalkFuel te
-          let usl ← viewLs us
+          match ← viewLsLen us with
+          | none => failDanglingLs
+          | some usl =>
           -- con-leche's task #175 wiring W5: the node's struct name must be
           -- the subject type's head
           if T = sn ∧ targs.length = entry.numParams ∧
-              usl.length = entry.levelParams.length then do
+              usl = entry.levelParams.length then do
             let z ← zeroLevel
             if (← lvlEq? entry.structSort z) == some true then do
               let ks ← readNamesM entry.levelParams
@@ -2782,8 +2794,10 @@ def inferBodyIO (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
           fail (.invalid s!"projection table entry used as a constant {x}")
         else do
           let cv ← ci.toConstantVal
-          let usl ← viewLs us
-          if usl.length != cv.levelParams.length then do
+          match ← viewLsLen us with
+          | none => failDanglingLs
+          | some usl =>
+          if usl != cv.levelParams.length then do
             let x ← readNameM n
             fail (.invalid s!"incorrect number of universe levels for {x}")
           else constTyAt cv us
@@ -2847,9 +2861,11 @@ def inferBodyIO (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
         match ← fe.findProj? T i with
         | some entry => do
           let targs ← getAppArgs coreWalkFuel te
-          let usl ← viewLs us
+          match ← viewLsLen us with
+          | none => failDanglingLs
+          | some usl =>
           if T = sn ∧ targs.length = entry.numParams ∧
-              usl.length = entry.levelParams.length then do
+              usl = entry.levelParams.length then do
             let z ← zeroLevel
             if (← lvlEq? entry.structSort z) == some true then do
               let ks ← readNamesM entry.levelParams

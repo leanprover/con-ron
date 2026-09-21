@@ -86,14 +86,23 @@ def headTypePW (fe : IFEnv) : EIdx → Nat → AM (Option PropWhen)
       | some ci =>
         if ci.isTowerEntry then pure none else do
           let cv ← ci.toConstantVal
-          let usl ← viewLs us
-          if usl.length = cv.levelParams.length then do
+          match ← viewLsLen us with
+          | none => failDanglingLs
+          | some usl =>
+          if usl = cv.levelParams.length then do
             let res ← peelNeverPis n cv.type
             match ← residualPW res with
             | some pw => do
-              let ks ← readNames cv.levelParams
-              let vs ← readLevels us
-              pure (some (Level.substPW ks vs pw))
+              -- **The cutoff hoisted over the readback** (task #97-P6-10):
+              -- `Level.substPW ks vs pw = pw` when `pw` names no parameter
+              -- (its `never` and `always` arms are exactly where `bindZ` is
+              -- the identity), so on a parameter-free datum both readbacks
+              -- would be computed and dropped.
+              if !pw.hasParams then pure (some pw)
+              else do
+                let ks ← readNamesM cv.levelParams
+                let vs ← readLevelsM us
+                pure (some (Level.substPW ks vs pw))
             | none => pure none
           else pure none
       | none => pure none
@@ -126,13 +135,18 @@ def headProofPW (fe : IFEnv) (fuel : Nat) : EIdx → AM (Option PropWhen)
       | some ci =>
         if ci.isTowerEntry then pure none else do
           let cv ← ci.toConstantVal
-          let usl ← viewLs us
-          if usl.length = cv.levelParams.length then do
+          match ← viewLsLen us with
+          | none => failDanglingLs
+          | some usl =>
+          if usl = cv.levelParams.length then do
             match ← typeSortPW fe fuel cv.type with
             | some pw => do
-              let ks ← readNames cv.levelParams
-              let vs ← readLevels us
-              pure (some (Level.substPW ks vs pw))
+              -- the same cutoff as `headTypePW`'s (task #97-P6-10)
+              if !pw.hasParams then pure (some pw)
+              else do
+                let ks ← readNamesM cv.levelParams
+                let vs ← readLevelsM us
+                pure (some (Level.substPW ks vs pw))
             | none => pure none
           else pure none
       | none => pure none

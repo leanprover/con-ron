@@ -2014,11 +2014,19 @@ def instLPGo (ks : List ConLeche.Name) (us : List Level) : Nat → EIdx → AM E
 top-level entry: read the substitution back out of the store once, walk, drop
 the memo. -/
 def instLPFast (fuel : Nat) (ks : List NIdx) (us : LsIdx) (e : EIdx) : AM EIdx := do
-  let ksP ← readNames ks
-  let usP ← readLevels us
-  instLPClear
-  let r ← instLPGo ksP usP fuel e
-  instLPClear
-  pure r
+  -- **The cutoff hoisted over the readback** (task #97-P6-10), the shape task
+  -- #97-P6-9's item 5 has at `instantiateList`'s `.bvar` clause.  `instLPGo`'s
+  -- own first act is `hasLP e = false → e`, and the walk is the only consumer
+  -- of `ksP`/`usP`; so on a level-parameter-free term both readbacks are
+  -- computed and dropped.  Deciding the cutoff FIRST is the same value by the
+  -- walk's own equation, in `O(1)` off the derived word.
+  if !(lpOfData (← derivedE e)) then pure e
+  else do
+    let ksP ← readNamesM ks
+    let usP ← readLevelsM us
+    instLPClear
+    let r ← instLPGo ksP usP fuel e
+    instLPClear
+    pure r
 
 end ConRon.Arena

@@ -72,11 +72,13 @@ def whnfCoreBodyGated (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
         match ← view (← getAppFn coreWalkFuel e') with
         | .const c us => do
           let args ← getAppArgs coreWalkFuel e'
-          let usl ← viewLs us
+          match ← viewLsLen us with
+          | none => failDanglingLs
+          | some usl =>
           let fok ← entry.fireOk us
           if c = entry.ctor ∧ i < entry.numFields ∧
               args.length = entry.numParams + entry.numFields ∧
-              usl.length = entry.levelParams.length ∧ fok = true then do
+              usl = entry.levelParams.length ∧ fok = true then do
             let b0 ← internE (.bvar 0)
             let arg := args.getD (entry.numParams + i) b0
             if ← projCertAt r fe depth mode.verifiedChecks mode.betaGate c us
