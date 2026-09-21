@@ -2318,6 +2318,29 @@ the persistent tier (the byte recogniser is unchanged).
         install phase is 504.1 → 92.9 s; `Init` is 404.88 G (0.75× master) and
         `core` 882.34 G (0.76×).  The twin owes ONE clause, `internRebuilt`.
 
+        7. the check-phase round toward nanoda — task #97-P6-5 left the check
+        phase at ~95 % of Mathlib and its own next lever asked for counters
+        rather than a fifth sampling profile.  **DONE** (task #97-P6-7): the
+        check phase was instrumented arm by arm (every cache's hit and miss,
+        every memo's clear and its size at the clear, `defeq` by outcome and
+        by deciding arm, `whnf` by head kind, `instantiate1_go` node by node)
+        and the table priced four of §8.6's candidate levers OUT before any
+        code was written — the unordered `defeq` key would gain 1.0 % of the
+        misses, the failure cache has 22 045 failures to cache in the whole
+        prefix, the congruence-failure cache has 11 369, and nanoda's
+        `dsubst_cache` already exists here as `constTyAt`/`constValAt`/
+        `ruleRhsAt`.  What it found instead is that **an O(1) `clear` is a
+        ratchet**: task #97-P6-4b's epoch stamp keeps the slot vector at the
+        high-water mark of the largest round of the run, so `instantiate1`'s
+        per-call memo probed a **98 185-slot array to hold 7.84 entries** and
+        two thirds of the declarations met a 42 MB `lam` cons table — set by
+        ONE declaration that pushes four million `app` nodes.
+        `HashMap2::clear_fit`, a decaying high-water mark, is **−25.6 % of the
+        prefix's cycles on its own**; two more levers answer the "the answer
+        IS the argument" counts (72 % of `whnfCore`'s misses, 84 % of
+        `whnf`'s, 91 % of `annotate`'s).  Mathlib is ****accepted 691 128 at 11 167.67 G instructions, 5 595.68 G cycles, 1 289.5 s, 7.41 GB** — 0.97× / **0.66×** / **0.67×** / 0.91× `con-ron` at master, and **1.27× nanoda on cycles and 1.28× on wall**, from 1.98× and 1.97×; the check phase is 1 868 → 1 169 s and the IPC 1.25 → 2.00**.  The
+        twin owes two clauses at six sites.
+
 Branch `arena`; master stays shippable until (C) passes the gates and the
 fixtures.  Budget from con-leche's record, scaled: (B) ~12 k lines,
 Theorem 1 ~40–50 k lines (con-leche's core tower was 34.5 k for the core
@@ -29207,3 +29230,517 @@ task's full-Mathlib profile had `EStore::empty` at 9.18 % and
 and `ETables::find` in a later build.  Keep a copy of the binary that was
 recorded and report against it with `--symfs`, which is what
 `_tmp/t97-p6-5/symfs/` is.
+
+### Task #97-P6-7 — the check phase, instrumented (2026-09-21, Opus under Fable)
+
+Phase P6 item 7 of §8.6, Rust-first: task #97-P6-5 left the install phase at
+5.0 % of Mathlib's wall and the **check phase at ~95 %**, which is where the
+1.81× to nanoda lives, and its own "next levers" asked for counters rather
+than another sampling profile — "the profile cannot say more than that
+without a call-graph … one instrumented build with counters per arm is the
+next honest step".  This task built that, wrote the table down first, and
+took the levers the table asked for.
+
+The table's biggest single number is not about the checker at all: **the
+per-round hash tables were sized by the largest round of the whole run**, so
+`instantiate1`'s memo probed a 98 185-slot array to hold 7.84 entries.
+Fixing that is a quarter of the prefix's cycles.
+
+Baseline is the `arena` tip `b25e10ad`, rebuilt here.  Every cell is
+`--verified --jobs=1 --progress=1000000` under `ulimit -v` (8 GB on `Init`,
+5 GB on `core`, 27 GB on Mathlib, CLAUDE.md's caps), instructions and cycles
+from one `perf stat -e instructions:u,cycles:u`.  The iteration benchmark is
+task #97-P6-5's validated proxy, `head -26948621 _tmp/corpus/mathlib.ndjson`
+(156 945 fold records, `accepted 155288`).  Raw `.perf`/`.time`/`.out`, the
+two profiles, the instrumentation patch and the binaries: `_tmp/t97-p6-7/`.
+
+#### 1. The instrumentation
+
+`crates/arena-core/src/instr.rs`, an atomic counter array bumped from the
+cache probes, the memo probes, `defeq`'s arms, `whnf`'s head kinds, the
+walks' exits and every table's reset, dumped by `con-ron-arena` at exit.
+**Not committed** — it is `_tmp/t97-p6-7/instrumentation.patch` plus
+`instr.rs`, which re-apply to `b25e10ad`.  Four rounds of it were run; every
+number below is one run of the prefix.
+
+**The eleven per-declaration caches** (`arena::core_state::Caches`).
+`Caches::reset` runs **478 530** times over the prefix and the declaration
+bracket opens **310 227** times — the install phase's 156 945 declarations
+plus the check phase's 153 282, exactly, which is `enter_scratch`'s and
+`Memos::reset`'s count:
+
+| cache | hits | misses | hit rate | avg entries at flush |
+|---|---:|---:|---:|---:|
+| `whnfCore` | 33 851 220 | **164 953 774** | 17.03 % | 344.71 |
+| `whnf` | 12 405 486 | 28 083 738 | 30.64 % | 58.69 |
+| `infer` | 22 001 186 | 35 647 609 | 38.16 % | 74.49 |
+| `inferIO` | 1 631 033 | 3 398 304 | 32.43 % | 7.10 |
+| `annotate` | 25 339 509 | 44 612 953 | 36.22 % | 93.23 |
+| `defeq` | 26 002 430 | 26 434 439 | 49.59 % | 27.90 |
+| `lvlEq` | 3 461 222 | 796 924 | 81.28 % | 1.67 |
+| `lvlsEq` | 1 685 730 | 386 412 | 81.35 % | 0.81 |
+| `constTyAt` | 4 624 745 | 6 545 530 | 41.40 % | 13.68 |
+| `constValAt` | 10 011 393 | 4 281 002 | 70.05 % | 8.95 |
+| `ruleRhsAt` | 1 033 576 | 123 986 | 89.29 % | 0.26 |
+
+**The eleven per-call memos** (`arena::monad::Memos`), cleared twice per
+top-level call:
+
+| memo | hits | misses | hit rate | clears | avg entries at clear |
+|---|---:|---:|---:|---:|---:|
+| `instantiate1` | 158 073 006 | **1 576 644 054** | 9.11 % | 201 021 604 | **7.84** |
+| `abstract1` | 53 710 572 | 246 981 556 | 17.86 % | 11 440 282 | 21.59 |
+| `instLP` | 13 331 147 | 247 150 445 | 5.12 % | 22 186 448 | 11.14 |
+| `instantiateList` | 144 281 | 1 895 314 | 7.07 % | 654 774 | 2.89 |
+| `liftLooseBVars` | 114 403 | 1 192 520 | 8.75 % | 485 276 | 2.46 |
+| `resetMeta` | 119 517 | 1 472 958 | 7.51 % | 256 842 | 5.73 |
+| `instantiate1Lift` | 169 780 | 1 300 359 | 11.55 % | 36 464 | 35.66 |
+| `renameConsts` | 14 094 | 271 032 | 4.94 % | 4 080 | 66.43 |
+| `lowerBVars` | 0 | 114 | — | 320 | 0.36 |
+| `bvarBound`, `fvarRange` | 0 | 0 | — | 0 | — |
+
+**`defeq`, by outcome and by the arm that decided.**  39 087 900 calls of
+the knot's slot; the memo answers 25 738 931 of them:
+
+| | count |
+|---|---:|
+| knot calls | 39 087 900 |
+| — answered `true` from the memo | 25 723 557 |
+| — answered `false` from the memo | **15 374** |
+| — computed `true` | 13 326 924 |
+| — computed `false` | **22 045** |
+| — an error | 0 |
+| `defeqStep` calls | 18 451 035 |
+| — the index-equality shortcut `a == b` | 6 939 648 |
+| — the `Bool.true` shortcut | 343 |
+| — `a' == b'` after both `whnfCore`s | 1 723 959 |
+| — reached `defeqAfterWhnf` | 9 787 085 |
+| proof irrelevance said `true` | 386 863 |
+| a side was `reduceNat`-accelerated | 41 732 |
+| reached lazy delta | 9 358 490 |
+| — both sides unfoldable | 3 335 638 |
+| — the simultaneous unfolding | 2 054 548 |
+| reached the structural arm | 3 671 431 |
+| — spine-wise congruence (`defeqApps`) | 1 771 937, `true` 1 760 568 |
+| — the eta arm | 5 414, `true` 4 876 |
+| — `defeqSpine` (the cheap congruence) | 645 861 |
+| — `defeqBinders` | 1 295 016 |
+| `quickPair` | `true` 1 454 484, `false` 4 411 933 |
+
+**`whnf` and `whnfCore` by the argument's head kind** (miss, hit):
+
+| kind | `whnf` miss | `whnf` hit | `whnfCore` miss | `whnfCore` hit |
+|---|---:|---:|---:|---:|
+| `fvar` | 130 137 | 36 086 | 212 560 | 304 094 |
+| `sort` | 2 246 973 | 4 294 504 | 2 432 768 | 687 791 |
+| `const` | 192 851 | 55 606 | 7 412 481 | 4 608 216 |
+| `app` | 4 485 250 | 1 245 556 | 98 993 613 | 23 833 379 |
+| `lam` | 0 | 0 | 28 405 018 | 3 260 471 |
+| `forallE` | 20 759 926 | 6 623 934 | 22 752 096 | 521 441 |
+| `lit` | 20 802 | 120 249 | 38 123 | 183 543 |
+| `proj` | 247 799 | 29 551 | 4 707 115 | 452 285 |
+
+and the count that made levers 2 and 4: **the answer IS the argument** in
+119 439 563 of `whnfCore`'s 164 953 774 misses (72.4 %), 23 739 089 of
+`whnf`'s 28 083 738 (84.5 %) and 40 803 616 of `annotate`'s 44 612 953
+(91.5 %).
+
+**`instantiate1_go`, node by node**: 100 510 802 top-level calls;
+**3 249 407 005 visits**, of which 1 201 790 306 (37.0 %) take the downward
+cutoff and 2 047 616 699 descend; 1 734 717 060 memo probes with 158 073 006
+hits; and **1 576 644 054 `intern`s — one per memo miss, and 66.8 % of the
+whole run's 2 360 960 293**.  `abstract1_go` visits 499 620 734 with
+168 637 833 cutoffs; `inst_lp_go` 505 369 474 with 161 420 921.  Task
+#97-P6-5's `internRebuilt` fires 48 866 654 times at 579 071 920 rebuild
+sites (8.4 %).  Of the 2 360 960 293 `intern`s a cons table answers
+1 224 356 633 (51.86 %), 275 858 235 of them from the persistent tier.
+
+**And the table that turned out to matter**: the capacity of each per-round
+table at its own reset.
+
+| table | resets | avg capacity | avg entries |
+|---|---:|---:|---:|
+| `instantiate1`'s memo | 201 021 604 | **98 184.6** | **7.84** |
+| `abstract1`'s memo | 11 440 282 | 69 176.3 | 21.59 |
+| `instLP`'s memo | 22 186 448 | 4 945.2 | 11.14 |
+| `whnfCore`'s cache | 478 530 | **216 049.9** | **344.71** |
+| `whnf`'s cache | 478 530 | 20 117.7 | 58.69 |
+| `infer`'s cache | 478 530 | 29 510.3 | 74.49 |
+| `annotate`'s cache | 478 530 | 29 511.7 | 93.23 |
+| `defeq`'s cache | 478 530 | 12 030.2 | 27.90 |
+| the scratch `app` cons table | 310 227 | **1 226 970.6** | 2 653.30 |
+| the scratch `lam` cons table | 310 227 | **1 384 140.1** | 393.15 |
+| the scratch `forallE` cons table | 310 227 | 350 630.3 | 481.13 |
+| the scratch `proj` cons table | 310 227 | 6 890.5 | — |
+| the scratch `const` cons table | 310 227 | 5 922.7 | — |
+
+with the entries-per-round histograms that say a CAP would not have fixed it:
+
+    instantiate1's memo  0 entries 63.34 % | ≤14 89.15 % | ≤126 99.13 % | max 65 534
+    the scratch apps     0 entries  2.51 % | ≤126 42.53 % | ≤8 190 93.46 % | max ~4 000 000
+    the scratch lams     0 entries 26.87 % | ≤126 74.60 % | ≤8 190 99.27 % | max ~2 000 000
+    whnfCore's cache     0 entries 63.72 % | ≤126 80.09 % | ≤8 190 99.28 % | max ~524 000
+
+**ONE declaration of the prefix pushes four million `app` nodes**, and the
+other 310 226 then probe a four-million-slot array.
+
+#### 2. What the table answered before any code was written
+
+Four of the candidate levers §8.6's brief named are **priced out by the
+counters alone**, which is what an instrumented run is for:
+
+  * **the positive `defeq` result cached on the UNORDERED pair** (nanoda's
+    `eq_cache`).  Instrumented directly — at every `defeq` miss the SWAPPED
+    key was probed too — the swapped key is present in **260 593 + 2 906 of
+    the 26 434 439 misses, 1.0 %**.  Task #97c's reason for the ordered key
+    (the arms are not symmetric) stands, and a symmetric lookup is not worth
+    a second probe on 26 M misses to save 0.26 M.  It would in any case have
+    been a memo-POLICY change and not a twin clause: the verdict stored is
+    the same verdict, and `SortedPair` is a key normalisation.
+  * **a per-declaration `defeq` FAILURE cache** (nanoda's
+    `defeq_fail_cache`).  There is already one — task #97c's `defeqC` stores
+    the verdict at both signs — and it is nearly dead: **22 045 computed
+    `false` verdicts in the whole prefix and 15 374 memo hits on them**,
+    against 13.3 M `true`s.  A second table has nothing to cache.
+  * **the lazy-delta `congr_fail_cache`.**  `defeqApps` runs 1 771 937 times
+    and answers `true` 1 760 568 times: **11 369 congruence failures in the
+    prefix**.  Nothing to cache.
+  * **`instLP`'s memo living per DECLARATION** (nanoda's `dsubst_cache`,
+    whose `(e, ks, vs)` key is complete).  It already does, under another
+    name: `instLP`'s 11 093 224 top-level calls are **exactly** the misses of
+    `constTyAt` + `constValAt` + `ruleRhsAt` (6 545 530 + 4 281 002 +
+    123 986 = 10 950 518; the remainder is the install phase's), so §8.3's
+    three instantiated-constant caches already ARE the declaration-lifetime
+    memo of whole `instantiateLevelParams` calls.  A fourth table keyed on
+    `(e, ks, vs)` would serve the same queries twice.
+
+Two more were coded and declined; they are §4.  A fifth candidate, the
+`whnf_no_unfolding`-style cache split, is the arena's `whnfCoreC`/`whnfC`
+pair and has been there since task #97c.  The level-verdict caches keyed on
+`(LIdx, LIdx)` and `(LsIdx, LsIdx)` are there too (task #97c again) and are
+not a lever: `lvlEq` and `lvlsEq` hit 81 % of the time over **1.18 M misses
+between them, against `whnfCore`'s 164.95 M** — con-leche's lesson that level
+ops belong on transient trees behind a verdict cache was taken at P2c and
+there is nothing left of it to win.  What the table DID ask for is §3.
+
+#### 3. The levers
+
+| | lever | prefix instructions:u | Δ | prefix cycles:u | Δ | wall |
+|---|---|---:|---:|---:|---:|---:|
+| — | `arena` tip b25e10ad | 2 294.04 G | — | 1 505.97 G | — | 351.7 s |
+| 1 | the per-round tables stop **ratcheting** | 2 349.17 G | +2.4 % | 1 121.21 G | **−25.6 %** | 255.0 s |
+| 2 | `whnfCore`/`whnf` answer the **stuck head kinds off the tag** | 2 324.86 G | −1.0 % | 1 104.76 G | −1.5 % | 251.6 s |
+| 4 | the **upward cutoff** at `whnfCore`'s and `annotate`'s rebuilds | 2 314.65 G | −0.4 % | 1 098.79 G | −0.5 % | 250.9 s |
+| | **cumulative** | **2 314.65 G** | **+0.90 %** | **1 098.79 G** | **−27.0 %** | **−28.7 %** |
+
+(Lever 3 is §4's, declined; the numbering follows the order they were tried.
+Peak RSS moves 2 018 → 2 090 MB, +3.6 %.)
+
+**Lever 1 — `clear_fit`: an O(1) `clear` is a RATCHET.**  Task #97-P6-4b
+made `clear` an epoch bump, which is right, and left the slot vector at the
+high-water mark of the largest round the table had ever seen, which on
+`Init` costs nothing and on Mathlib costs a quarter of the run: §1's
+capacity table is a memo of 98 185 slots holding eight entries — 2.4 MB of
+DRAM for every probe of every `instantiate1` call — and two thirds of the
+declarations meeting a 42 MB `lam` cons table.
+
+`ron::hashmap2::HashMap2::clear_fit` is `clear` with a capacity policy: a
+**decaying high-water mark** `fit_hw = max(this round's entries, the
+previous mark less a `FIT_DECAY`th)`, and the table re-made with `2 · fit_hw`
+slots whenever it is smaller than that or more than `FIT_SLACK` times
+bigger.  The abstract value is `clear`'s — the empty map, the twin's `:= ∅`
+— so the twin owes nothing.  Three properties, each of them a measurement:
+
+  * **the steady state neither grows nor shrinks**: a table sized to twice
+    its rounds' entries is at a quarter load, `insert` never resizes and
+    `clear_fit` re-makes nothing, so the common case is still the epoch bump;
+  * **an outlier must decay, not be cut**.  Sizing to the LAST round alone
+    re-grows the table from 32 slots at every round bigger than its
+    predecessor: that first attempt read **3 676.01 G instructions (+60.2 %)**
+    against the tip's 2 294.04 G, with `allocate_slots` at 8.4 % + 4.3 % +
+    1.9 % of the cycles across three instantiations and `move_slots` at
+    another 4.8 %.  Its cycles still fell 13 % — which is how large the cache
+    effect underneath is, and the reason the attempt was worth repairing
+    rather than reverting;
+  * **the growth is taken in one step, before the round starts**, while the
+    table is empty, so `insert`'s doubling-and-moving does not run inside a
+    round at all.
+
+`allocate_slots` also stopped being a per-slot double function call: the
+halving push recursion peels a BLOCK OF EIGHT per leaf now, a quarter of a
+call per slot where it used to be two.  (`Vec::resize` would be one call and
+a store loop, and it is what Aeneas models, but it asks its filler for
+`Clone` and three of this map's key/value types have no `Dup` to write one
+from.)
+
+The two constants were swept on the prefix:
+
+| `FIT_SLACK` (at `FIT_DECAY = 8`) | instructions:u | cycles:u | wall |
+|---:|---:|---:|---:|
+| no `clear_fit` | 2 294.04 G | 1 505.97 G | 351.7 s |
+| 4 | 2 512.78 G | 1 246.10 G | 284.8 s |
+| 16 | 2 406.29 G | 1 158.75 G | 263.5 s |
+| **64** | **2 349.17 G** | **1 121.21 G** | **255.0 s** |
+| 256 | 2 317.24 G | 1 191.00 G | 271.5 s |
+| 64, `FIT_DECAY = 4` | 2 380.82 G | 1 139.61 G | 259.8 s |
+
+Sixty-four is the minimum of the cycles AND of the wall.  Past it the
+instruction count keeps falling — that is the re-makes going away — while
+the tables stay oversized long enough to lose the cache again, which is the
+whole lever in one row.
+
+**Lever 2 — the stuck head kinds, off the tag.**  `whnfCoreBody`'s first six
+clauses are `pure e` (`sort`, `fvar`, `forallE`, `lam`, `const`, `lit`); only
+`app` and `proj` reduce and only `letE`/`bvar` fail.  The knot's slot spent a
+memo probe, a `view` decode, a `dup` and a memo insert to learn the
+constructor tag it already held: **61.25 M of `whnfCore`'s 164.95 M misses
+(37.1 %) and 9.57 M of its 33.85 M hits**, and those rows were 37 % of the
+biggest per-declaration table.  One level up, `whnf` is the identity at
+`sort`, `fvar`, `lam`, `forallE` and `lit` — `reduceNat` matches only an
+`app` and `unfoldDefinition` only a `const`, so the reduction loop returns
+its argument at the first step — which is **23.16 M of its 28.08 M misses
+(82.5 %) and 11.07 M of its 12.41 M hits**.  `const` is deliberately NOT in
+the `whnf` set: that is the node `unfoldDefinition` unfolds.  The test sits
+above the lane split because `CoreGated`'s body has the same six clauses.
+
+**Lever 4 — the upward cutoff, where task #97-P6-5's lever 2 could not
+reach.**  `whnfCore` of an application head-normalizes the function and
+re-interns `.app f' a`; when `f'` IS `f` the node it re-interns is the node
+it started from.  **58.2 M of `whnfCore`'s 103.7 M `app`/`proj` misses answer
+with their own argument.**  `annotate`'s `.app` clause is the same shape, and
+**91.5 % of `annotate`'s misses answer with their argument**.
+Handle-identical for task #97-P6-5's reason: hash-consing, `denoteE`'s
+injectivity and §8.3's cross-tier probe order make `intern` of a node's own
+view that node and not a twin of it in the other tier.
+
+#### 4. Priced and declined
+
+| lever | prefix instructions:u | prefix cycles:u | verdict |
+|---|---:|---:|---|
+| the cons probe asks the SCRATCH table first | 2 329.05 G (+0.18 %) | 1 107.93 G (+0.29 %) | **declined** |
+| `HashMap2`'s load factor 3/4 → 1/2 | 2 342.24 G (+0.75 %) | 1 109.26 G (+0.41 %) | **declined**, and peak RSS 2 090 → 3 198 MB |
+| mimalloc's own `GlobalAlloc` for `MiMallocTight` | 2 375.49 G (+2.2 %) | 1 146.20 G (+3.8 %) | **declined** |
+| `instantiate1`'s per-call memo deleted | — | — | **declined**, and see below |
+
+**The probe order.**  §8.3's cross-tier rule is maintained by the APPEND
+(nothing enters the scratch tier until the persistent tier has been asked),
+so a *lookup* may ask either tier first: by that rule at most one of them
+answers.  948 M of the prefix's 1 224 M cons-table hits come from the scratch
+tier, whose table is now in cache (lever 1 is what makes that true), against
+a persistent table of 27 M nodes where every probe is a miss to DRAM — so
+asking the small table first should turn 948 M cold misses into warm hits.
+It does not move the run, because task #97-P6-1's `pers_find_maybe` already
+skips the persistent probe whenever the view has a scratch child, which is
+most of what a check builds.  Reverted.
+
+**The allocator.**  `MiMallocTight` (task #92: enter mimalloc by `mi_malloc`
+rather than `mi_malloc_aligned`) wins on all four columns at Mathlib scale
+too, and not only on `Init` where it was chosen.  mimalloc's own share of the
+prefix after the levers is **2.3 % of the cycles** (`mi_free` 1.3 %,
+`_mi_theap_malloc_zero` 1.0 %) — which is also the answer to "the allocator's
+share": it is not where the run is.
+
+**And the one that proves a hit rate is not a memo's value.**
+`instantiate1`'s per-call memo answers **9.11 %** of its probes and costs
+1 735 M probes and 1 577 M inserts — `inst1_get` 2.8 % plus
+`HashMap2<EIdxNat, EIdx>::insert*` 6.6 % of the profile.  Deleting it was
+tried.  The 348 fixtures stopped finishing: `tower_recfield`, **0.1 s with
+the memo, still running after ten minutes without it**.  A memo whose hits
+are rare can still be the only thing between a shared DAG and its tree, and
+the hit rate does not see that.  Kept.
+
+#### 5. The table, beside `con-ron` at master and nanoda
+
+`--verified --jobs=1 --progress=1000000`, mimalloc, under CLAUDE.md's caps,
+this machine (task #97-P6-3's: AMD EPYC 9455, 125 GiB, the flake's
+Charon-pinned `rustc`).  **Every row is this session's own run** — the
+`arena` tip, `con-ron` at master and `nanoda` alike — because the `cycles:u`
+and wall columns are not session-independent and the campaign's earlier
+readings were taken on a quieter machine (§8's note).  `con-ron` is built
+from this tree, which differs from master in `crates/con-ron-core` by
+`ron/hashmap2.rs` (a module `con-ron` does not use) and one added
+`HashMap::capacity`.
+
+| `Init` | instructions:u | cycles:u | IPC | wall (3 runs) | peak RSS | verdict |
+|---|---:|---:|---:|---|---:|---|
+| nanoda | 231.04 G | 106.43 G | 2.17 | 24.19 / 24.22 / 24.59 | 0.35 GB | Checked 59 433 |
+| **`con-ron` @ master** | **542.01 G** | 269.52 G | 2.01 | 61.30 / 61.44 / 61.60 | 0.45 GB | accepted 57 977 |
+| `con-ron-arena`, `arena` tip b25e10ad | 404.88 G | 239.47 G | 1.69 | 55.79 / 57.71 / 61.26 | 0.58 GB | accepted 57 977 |
+| **`con-ron-arena`, after P6-7** | **413.83 G** | **208.64 G** | **1.98** | **46.61 / 46.67 / 47.41** | 0.59 GB | accepted 57 977 |
+| | +2.2 % | **−12.9 %** | | **−17.5 %** | +2.9 % | |
+| ratio to `con-ron` @ master | **0.76×** | **0.77×** | | **0.76×** | 1.31× | |
+| ratio to nanoda | 1.79× | 1.96× | | 1.93× | 1.71× | |
+
+| `core` (`Init`+`Std`+`Lean`) | instructions:u | cycles:u | IPC | wall | peak RSS | verdict |
+|---|---:|---:|---:|---|---:|---|
+| nanoda | 444.76 G | 234.85 G | 1.89 | 53.62 s | 0.73 GB | Checked 171 002 |
+| **`con-ron` @ master** | **1 162.12 G** | 651.03 G | 1.79 | 147.80 s | 1.28 GB | accepted 163 396 |
+| `con-ron-arena`, `arena` tip b25e10ad | 882.30 G | 585.51 G | 1.51 | 133.77 s | 1.34 GB | accepted 163 396 |
+| **`con-ron-arena`, after P6-7** | **922.30 G** | **462.56 G** | **1.99** | **106.52 s** | 1.34 GB | accepted 163 396 |
+| | +4.5 % | **−21.0 %** | | **−20.4 %** | +0.5 % | |
+| ratio to `con-ron` @ master | **0.79×** | **0.71×** | | **0.72×** | 1.05× | |
+| ratio to nanoda | 2.07× | 1.97× | | 1.99× | 1.84× | |
+
+| **Mathlib** | instructions:u | cycles:u | IPC | wall | peak RSS | verdict |
+|---|---:|---:|---:|---|---:|---|
+| nanoda | 6 051.14 G | 4 418.68 G | 1.37 | 1 004.78 s | 6.80 GB | Checked 707 508 |
+| **`con-ron` @ master** | **11 534.89 G** | 8 446.98 G | 1.37 | 1 937.27 s | 8.10 GB | accepted 691 128 |
+| `con-ron-arena`, `arena` tip b25e10ad | 10 941.02 G | 8 749.75 G | 1.25 | 2 025.57 s | 7.06 GB | accepted 691 128 |
+| **`con-ron-arena`, after P6-7** | **11 167.67 G** | **5 595.68 G** | **2.00** | **1 289.54 s** | 7.41 GB | **accepted 691 128** |
+| | +2.1 % | **−36.1 %** | | **−36.3 %** | +4.9 % | |
+| **ratio to `con-ron` @ master** | **0.97×** | **0.66×** | | **0.67×** | **0.91×** | |
+| ratio to nanoda | 1.85× | **1.27×** | | **1.28×** | 1.09× | |
+
+(The tip's rows reproduce task #97-P6-5's instruction counts to 0.01 %
+— 404.88 / 882.30 / 10 941.02 G against its 404.88 / 882.34 / 10 942.50 G —
+and nanoda's and master's reproduce task #97-P6-3's to under 1 %.  The
+CYCLES and WALL columns do not: the tip's Mathlib reads 8 749.75 G and
+2 025.57 s here against task #97-P6-5's 8 109.66 G and 1 862 s for the same
+binary on the same input, which is why every row above was re-measured.)
+
+**§8.1's goal is met on Mathlib on every column and by a much larger
+margin**: 0.97× instructions, **0.66× cycles**, **0.67× wall** and 0.91× peak
+RSS against `con-ron` at master, where task #97-P6-5 left 0.95× / 1.04× /
+1.05× / 0.87× on the same machine's re-measurement.  It is met on `Init`'s
+and `core`'s instructions, cycles and wall too; what is still above 1.00× is
+the two small exports' peak RSS (1.31× and 1.05×), which is §8.7's untaken
+lever and not this task's.
+
+**And the gap to nanoda is now a third of what it was on the columns that
+are time.**  Mathlib is **1.27× nanoda on cycles and 1.28× on wall**, from
+1.98× and 1.97× at the tip; on instructions it is 1.85×, from 1.81×, because
+the levers trade 2 % of the instructions for 36 % of the cycles.  "On par
+with nanoda would be good" (§8.1) is within a quarter on the two columns a
+user feels.
+
+**The IPC is the whole story in one number.**  Mathlib's was 1.25 at the tip
+— below both baselines' 1.37 — and is **2.00** now, half again as high as
+either.  A checker that spends its time waiting for a 2.4 MB array to answer
+an eight-entry question has a low IPC by construction; the levers did not
+make it do less, they made what it does hit cache.
+
+**Mathlib's phases: parse 55.55 → 42.14 s, install 100.92 → 77.52 s, check
+1 868.06 → 1 169.46 s (−37.4 %).**  Unlike task #97-P6-5's round, where all of
+the win was the install phase, **this one is the check phase** — which is
+what P6 item 7 was for.
+
+And the prefix's profile, re-recorded at both ends with one bucketing (self
+cycles; the absolute columns are the share times that run's `cycles:u`):
+
+| bucket | tip, share | tip | after, share | after | Δ |
+|---|---:|---:|---:|---:|---:|
+| `arena::store` (decode, intern, derived, cons probe) | 27.14 % | 409 G | 35.45 % | 390 G | −5 % |
+| `arena::expr_ops` (the substituting walks) | 31.44 % | 473 G | 20.65 % | **227 G** | **−52 %** |
+| `ron::hashmap2` (the caches and memos) | 17.97 % | 271 G | 15.36 % | **169 G** | **−38 %** |
+| `arena::core` + `core_state` + `monad` | 10.05 % | 151 G | 11.11 % | 122 G | −19 % |
+| `con_ron_core::kernel` | 6.11 % | 92 G | 7.88 % | 87 G | −6 % |
+| mimalloc | 2.29 % | 34 G | 3.03 % | 33 G | −3 % |
+| the frontend (parse) | 1.15 % | 17 G | 1.25 % | 14 G | −21 % |
+| drop glue, `Vec` growth, libc `mem*` | 1.14 % | 17 G | 1.59 % | 17 G | +2 % |
+| `arena::checker` + `decl_check` + `inductives` | 0.95 % | 14 G | 1.12 % | 12 G | −14 % |
+| the environment copy | 0.30 % | 5 G | 0.35 % | 4 G | −15 % |
+
+**Half of `expr_ops` is gone and more than a third of the map**, and nothing
+about either was made to do less work — `instantiate1_go` performs the same
+3.25 G visits and the same 1.58 G interns.  What changed is where the arrays
+it probes live.
+
+#### 6. The twin ledger (§8.6's P6 rule)
+
+| change | Lean must mirror | absorbed by the refinement |
+|---|---|---|
+| lever 1: `HashMap2::clear_fit`, the `fit_hw` field, `FIT_SLACK`/`FIT_DECAY` | — | **yes**, a capacity: the value is `Std.HashMap.empty`, exactly what the twin's `Caches.empty` / `Memos.empty` / `Tbl.reset` assign.  `fit_hw` is not part of the map's abstract value, as `ron::HashMap`'s bucket count is not |
+| lever 1: `allocate_slots` peels eight slots per leaf | — | **yes**: the same vector of `Vacant` slots |
+| lever 2: `whnfCoreStuckTag` / `whnfStuckTag` in the knot's slots | **YES**: two clauses, `if stuckTag e then pure e else <the memo probe>`, in `coreKnot`'s `whnfCore` and `whnf` slots | — |
+| lever 4: `internAppRebuilt` at `whnfCoreApp`, `whnfCoreStuckApp`, `whnfCoreAppGated` and `annotateBody`'s `.app` | **YES**: task #97-P6-5's `internRebuilt` clause at four more sites, and `whnfCoreApp` and its two callers take the original handle and the head's `same` | — |
+| lever 4: `core.rs`'s bracket test moves its subject from a literal to an application | — | **yes**, a test |
+
+**Lever 2's obligation**, per kind: `whnfCoreBody st e = pure e` for the six
+tags, which is the body's own first six clauses under `viewE`'s totality on
+a WF store; and `whnfBody st e = pure e` for the five, which adds
+`reduceNat st e = none` (its `match` is on `.app`) and `unfoldDefinition st
+e = none` (`getAppFn` of a non-`app` is the node itself, and the `match` is
+on `.const`).  The twin's clause skips the `viewE` the body would have done,
+so the obligation is stated on a WF store, where `viewE` is total — the same
+shape as `pers_find_maybe`'s owed lemma (task #97-P6-1).
+
+**Lever 4's obligation** is task #97-P6-5's, verbatim: `internRebuilt st h
+same v = if same then pure h else internE st v`, with `same` the conjunction
+of the rewritten children's handle equalities; the proof is `intern_spec`'s
+idempotence on a hash-consed store plus `denoteE_inj`.
+
+Carried forward, the Lean catch-up task now owes: task #97-P6-4a's `Pins`
+and `internAllPins`, task #97-P6-5's `internRebuilt` at four walks, and this
+task's two clauses at six sites.
+
+#### 7. The next levers, with expected value
+
+The profile after the levers is §5's last table; what it leaves is:
+
+
+1. **Interning IS the run now.**  `ETables::find` 10.0 %, `EStore::intern`
+   5.1 %, `der_of_view` 2.6 %, `ETables::push` 1.2 % and the four cons
+   tables' own `get`/`insert_no_resize` — about **22 % of the cycles between
+   them**, over **2 360 960 293 `intern`s of which `instantiate1_go` performs
+   1 576 644 054 (66.8 %)**.  Half of them (51.86 %) find the node already
+   there.  Nothing about the hash table is left to fix here; the lever is
+   FEWER REBUILDS, and lever 4 is the first instalment of it.  The two arms
+   `annotate` still rebuilds unconditionally are the binder ones
+   (`annotateBinder`, 3.63 M misses) and `annotateLet`/`annotateProj`; they
+   need the original handle plus `expr::binder_meta_beq`, which exists.
+   **91.5 % of `annotate`'s misses answer with their argument** and lever 4
+   only took the `.app` share of that.
+2. **A packed memo key.**  `EIdxNat` is `(EIdx, u64)` — twelve bytes that
+   pad to sixteen, so a `Slot<EIdxNat, EIdx>` is 24 and two share a cache
+   line.  The depth never exceeds the binder nesting and the handle is
+   already a `u32`, so a single `u64` key would make the slot 16 bytes and
+   four per line.  It is a key ENCODING, so the twin change is a `Hashable`
+   instance and nothing else, and it applies to all three hot memos at once
+   (`instantiate1` 1 735 M probes, `abstract1` 301 M, `instLP` 260 M).
+3. **`str_copy_from` is still 1.1 % of the prefix** — task #97-P6-5's own
+   next-lever 5, `proj_table_name` interning a reserved name per projection
+   lookup, and still a `Pins` job.
+4. **Memory.**  Peak RSS is up 3.6 % on the prefix and 0.5 % on `core`:
+   `clear_fit`'s re-make allocates the new slot vector before dropping the
+   old, so a re-make of a four-million-slot table peaks at both.  Sizing the
+   new table first and swapping would remove that; it was not worth a run
+   here.  The big memory lever is unchanged and is §8.7's: 103 M of Mathlib's
+   110 M nodes are the export parse DAG.
+5. **The `instantiate1` memo's REPLACEMENT, not its removal.**  §4 shows it
+   cannot go; what it could become is a memo that is not consulted at all
+   below a size, if a node ever carries one.  The derived word is full
+   (hash 32 | bvarB 15 | fvarB 15 | hasLP 1) and a size field would be a
+   store change, which is why this task did not try it.
+6. **nanoda**, whose instruction count is what is left: 1.85× on Mathlib,
+   1.79× on `Init`, 2.07× on `core`, and essentially unmoved by this task
+   because this task bought cycles with instructions.  Its 6 051 G against
+   this checker's 11 168 G is the next thing a round would have to be about,
+   and §1's counters say where to look: **2.36 G `intern`s and 3.25 G
+   `instantiate1_go` visits** are the two numbers that have to come down, and
+   neither is a cache effect.
+
+#### 8. Gates
+
+| | |
+|---|---|
+| `cargo build --release` / `cargo test --release`, `RUSTFLAGS="-D warnings"` | green; 120 tests in `arena-core`, 422 in the workspace, 0 failures |
+| `scripts/lint-rust-style.sh` over both verified trees | clean |
+| `scripts/provenance.py check` | **0 findings** (6 514 items — 4 761 Rust, 1 753 arena Lean — 4 867 citations, all current at pin `c431b1ca`) |
+| `scripts/extract-arena.sh --dry` | zero errors, 65 025 lines of model, **5 type and 209 function holes** — byte-identical to the `arena` tip's list at every lever |
+| `scripts/extract.sh --check` | not re-run: nothing of `crates/con-ron`, `crates/con-ron-dump` or `proof/` moved, and the one file of `crates/con-ron-core` this task touches (`ron/hashmap2.rs`) is task #97-P6-4b's unproved sibling, which the committed model does not contain |
+| `scripts/holes.sh --check` | 2 types, 20 functions, all in OVERVIEW §8.1, OK |
+| `scripts/provenance-selftest.py`, `scripts/overview-links.sh` | green (67 links, 36 files) |
+| `scripts/diff-e2e.sh --bin=target/release/con-ron-arena` | **348/348 `--verified`, 348/348 `--trusted`**, at every lever; `--no-pins` reads the documented **331 agree / 17 decline** |
+| `con-ron-arena --verified _tmp/corpus/init.ndjson` | accepted **57 977** |
+| `con-ron-arena --verified _tmp/corpus/core.ndjson` | accepted **163 396** |
+| `con-ron-arena --verified _tmp/corpus/mathlib.ndjson` | accepted **691 128** |
+| `cd proof && lake build` | NOT run: this task writes no Lean (§8.6's P6 rule) |
+
+**One note for whoever tunes next**, beside task #97-P6-5's `--symfs` one.
+`cycles:u` is NOT load-independent the way `instructions:u` is: this session's
+tip reading of the prefix is 1 505.97 G where task #97-P6-5's controlled A/B
+read 1 438.99 G for the same binary on the same input, because another agent
+was building on the machine.  Every ratio in §3 and §4 is between runs of the
+same session on the same benchmark, and the tip's rows of §5 were re-measured
+here for exactly that reason.  A cycles number copied across task sections is
+not a comparison.
