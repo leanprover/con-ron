@@ -2111,6 +2111,132 @@ theorem insert_refines_gen {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
     exact ⟨⟨hinv1, hle⟩, hold, hupd, hkeys1⟩
 
 
+/-! ## The fused find-or-insert (task #97-survey's N2)
+
+`find_slot` and `insert_at` are `insert` taken apart at the probe.  The arena's
+cons tables answer an interning **miss** with `Tbl::find` and then `Tbl::push`,
+and `push`'s `insert` used to hash the record and walk the probe run a second
+time — 372 M times on the Mathlib 25 % prefix, 1.7 % of the run.  Between the
+two probes the caller computes only the derived word and the handle, so the
+slot the first probe found is still the slot the second would find.
+
+**The specification costs one lemma, not a second development.**
+`find_slot_spec` says what the probe answered *and* hands back the equation
+`find_slot` then `insert_at` = `insert`, after which every consumer reads
+`insert_refines_gen`.  The equation is a computation: `find_slot` begins with
+the same `ensure_slots`, and then computes the same hash, the same home index
+and the same probe on the same table as `insert_no_resize` does; `insert_at`'s
+write, counter bump and load test are that function's `b = false` arm followed
+by `insert`'s own tail. -/
+
+section Fused
+
+variable {DupV : ron.hashmap.Dup V}
+
+/-- **`find_slot` is `get` with the slot, on the allocated table.**  Its last
+component is the fused pair's identification with `insert`; see the section
+note. -/
+theorem find_slot_spec {P : K → Prop} (hV : DupId DupV) (heq : Eq2Fwd Eq2Inst P)
+    (hinv : Inv HashableInst m) (hkeys : KeysOk P m) {key : K} (hk : P key)
+    {at1 : Std.Usize} {o : Option V} {m1 : ron.hashmap2.HashMap2 K V}
+    (h : ron.hashmap2.HashMap2.find_slot HashableInst Eq2Inst DupV m key
+          = ok ((at1, o), m1)) :
+    Inv HashableInst m1 ∧ KeysOk P m1 ∧ toFun m1 = toFun m ∧
+      0 < m1.slots.val.length ∧ o = toFun m key ∧
+      (o = none → ∀ (value : V) (m2 : ron.hashmap2.HashMap2 K V),
+        ron.hashmap2.HashMap2.insert_at HashableInst Eq2Inst m1 at1 key value = ok m2 →
+        ron.hashmap2.HashMap2.insert HashableInst Eq2Inst m key value = ok (none, m2)) := by
+  rw [ron.hashmap2.HashMap2.find_slot] at h
+  obtain ⟨m0, hens, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨hinv0, hpos0, hav0, -, -, -⟩ := ensure_slots_spec hinv hens
+  have htf0 : toFun m0 = toFun m := by funext k'; rw [toFun, toFun, hav0]
+  have hkeys0 : KeysOk P m0 := by intro q hq; rw [hav0] at hq; exact hkeys q hq
+  obtain ⟨hv, hhash, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨i1, hbi, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨q, hprobe, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨at2, b⟩ := q
+  have hhome : homeAt HashableInst (alloc.vec.Vec.len m0.slots) key = ok i1 := by
+    simp only [homeAt, bind_eq_ok_iff]; exact ⟨hv, hhash, hbi⟩
+  obtain ⟨hatlt, -, htrue, hfalse⟩ := probe_spec heq hinv0 hkeys0 hk hpos0 hhome hprobe
+  rcases ite_eq_ok h with ⟨hbt, h⟩ | ⟨hbf, h⟩
+  · -- the key is live at `at2`: the answer is its value and the table is unchanged
+    subst hbt
+    obtain ⟨w, hslot, htfw⟩ := htrue rfl
+    obtain ⟨sv, hsv, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨-, hsve⟩ := vec_index_eq hsv
+    have hlive : sv = ron.hashmap2.Slot.Live m0.epoch key w := by
+      rw [hsve]; exact liveAt_inv hslot
+    rw [hlive] at h
+    obtain ⟨t, ht, hok⟩ := bind_eq_ok_iff.mp h
+    have e := Result.ok_injective hok
+    have ho : o = some t := (congrArg Prod.snd (congrArg Prod.fst e)).symm
+    have hm1 : m1 = m0 := (congrArg Prod.snd e).symm
+    subst hm1
+    refine ⟨hinv0, hkeys0, htf0, hpos0, ?_, ?_⟩
+    · rw [ho, hV _ _ ht, ← htf0, htfw]
+    · intro hn
+      exact absurd (ho.symm.trans hn) (by simp)
+  · -- no live slot for the key: `at2` is free, and this is `insert`'s own probe
+    have hbfv : b = false := by simpa using hbf
+    subst hbfv
+    obtain ⟨hfree, htfn, -⟩ := hfalse rfl
+    have e := Result.ok_injective h
+    have hat : at1 = at2 := (congrArg Prod.fst (congrArg Prod.fst e)).symm
+    have ho : o = (none : Option V) := (congrArg Prod.snd (congrArg Prod.fst e)).symm
+    have hm1 : m1 = m0 := (congrArg Prod.snd e).symm
+    subst hm1
+    subst hat
+    refine ⟨hinv0, hkeys0, htf0, hpos0, by rw [ho, ← htf0, htfn], ?_⟩
+    intro _ value m2 h2
+    rw [ron.hashmap2.HashMap2.insert_at] at h2
+    obtain ⟨pr, hmut, h2⟩ := bind_eq_ok_iff.mp h2
+    obtain ⟨sv, back⟩ := pr
+    obtain ⟨-, -, hback⟩ := vec_index_mut_eq hmut
+    subst hback
+    obtain ⟨i3, hi3, h2⟩ := bind_eq_ok_iff.mp h2
+    set mw : ron.hashmap2.HashMap2 K V := { m1 with num_entries := i3, slots := alloc.vec.Vec.set m1.slots at1 (ron.hashmap2.Slot.Live m1.epoch key value) } with hmw
+    have hinr : ron.hashmap2.HashMap2.insert_no_resize HashableInst Eq2Inst m1 key value
+        = ok (none, mw) := by
+      rw [ron.hashmap2.HashMap2.insert_no_resize]
+      refine bind_eq_ok_iff.mpr ⟨hv, hhash, ?_⟩
+      refine bind_eq_ok_iff.mpr ⟨i1, hbi, ?_⟩
+      refine bind_eq_ok_iff.mpr ⟨(at1, false), hprobe, ?_⟩
+      refine bind_eq_ok_iff.mpr ⟨(sv, alloc.vec.Vec.set m1.slots at1), hmut, ?_⟩
+      exact bind_eq_ok_iff.mpr ⟨i3, hi3, rfl⟩
+    have htail : (if mw.num_entries > mw.max_load then
+          (do let m3 ← ron.hashmap2.HashMap2.try_resize HashableInst Eq2Inst mw
+              ok ((none : Option V), m3))
+        else ok ((none : Option V), mw)) = ok (none, m2) := by
+      rcases ite_eq_ok h2 with ⟨hover, h2⟩ | ⟨hunder, h2⟩
+      · rw [if_pos (show mw.num_entries > mw.max_load from hover), bind_eq_ok_iff]
+        exact ⟨m2, h2, rfl⟩
+      · rw [if_neg (show ¬ (mw.num_entries > mw.max_load) from hunder),
+          ← Result.ok_injective h2]
+    rw [ron.hashmap2.HashMap2.insert]
+    refine bind_eq_ok_iff.mpr ⟨m1, hens, ?_⟩
+    exact bind_eq_ok_iff.mpr ⟨(none, mw), hinr, htail⟩
+
+/-- **The fused pair refines `insert`.**  The arena's ten `intern_<ctor>`
+paths probe once and write at the slot they found; this is the lemma that says
+the pair means what `insert` means, and it is `insert_refines_gen` read through
+`find_slot_spec`'s own identification. -/
+theorem find_or_insert_refines {P : K → Prop} (hV : DupId DupV) (heq : Eq2Fwd Eq2Inst P)
+    (hinv : Inv HashableInst m) (hkeys : KeysOk P m) {key : K} (hk : P key)
+    {at1 : Std.Usize} {m1 : ron.hashmap2.HashMap2 K V}
+    (h1 : ron.hashmap2.HashMap2.find_slot HashableInst Eq2Inst DupV m key
+            = ok ((at1, none), m1))
+    {value : V} {m2 : ron.hashmap2.HashMap2 K V}
+    (h2 : ron.hashmap2.HashMap2.insert_at HashableInst Eq2Inst m1 at1 key value = ok m2) :
+    Inv HashableInst m2 ∧ toFun m key = none ∧
+    toFun m2 = Function.update (toFun m) key (some value) ∧ KeysOk P m2 := by
+  obtain ⟨-, -, -, -, hnone, hid⟩ := find_slot_spec hV heq hinv hkeys hk h1
+  obtain ⟨hinv2, -, hupd, hkeys2⟩ :=
+    insert_refines_gen heq hinv hkeys hk (hid rfl value m2 h2)
+  exact ⟨hinv2, hnone.symm, hupd, hkeys2⟩
+
+end Fused
+
+
 /-! ## `remove`
 
 **Backward-shift deletion** (Knuth, *TAOCP* 6.4 algorithm R).  The hole the
@@ -2949,6 +3075,12 @@ in particular **both fuel obligations are discharged, not assumed** —
 
 /-- info: 'ConRon.Refine.HashMap2.insert_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ConRon.Refine.HashMap2.insert_refines
+
+/-- info: 'ConRon.Refine.HashMap2.find_slot_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ConRon.Refine.HashMap2.find_slot_spec
+
+/-- info: 'ConRon.Refine.HashMap2.find_or_insert_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ConRon.Refine.HashMap2.find_or_insert_refines
 
 /-- info: 'ConRon.Refine.HashMap2.get_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ConRon.Refine.HashMap2.get_refines

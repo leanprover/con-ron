@@ -615,6 +615,27 @@ where
         }
     }
 
+    /// con-leche: none — arena infrastructure (task #97-P6-17)
+    /// **Write a new entry at the slot `find_slot` just returned**, and grow
+    /// if that put the table past its load threshold.  The second half of the
+    /// fused find-or-insert; see `find_slot`.
+    ///
+    /// **Preconditions**, both of them the caller's: `at` is the free slot
+    /// `find_slot` returned for this very `key` on this very table, with no
+    /// operation on the table in between; and `!self.is_saturated_full()`.
+    /// Under them `find_slot` followed by `insert_at` is `insert` at a key the
+    /// table does not hold — which is the equation `Refine/HashMap2.lean`'s
+    /// `find_slot_insert_at` proves, and the reason the fused pair costs the
+    /// specification one lemma rather than a second development.
+    pub fn insert_at(&mut self, at: usize, key: K, value: V) {
+        let e = self.epoch;
+        self.slots[at] = Slot::Live(e, key, value);
+        self.num_entries += 1;
+        if self.num_entries > self.max_load {
+            self.try_resize()
+        }
+    }
+
     /// con-leche: none — arena infrastructure (task #97-P6-4b, amended by
     /// task #97-P6-17)
     /// Double the slot count and rehash.  The new table inherits the epoch, so
@@ -765,6 +786,46 @@ fn wraps_past(h: usize, hole: usize, j: usize, n: usize) -> bool {
     let dh = (j + n - h) % n;
     let dk = (j + n - hole) % n;
     dh >= dk
+}
+
+impl<K, V> HashMap2<K, V>
+where
+    K: Hashable + Eq2,
+    V: Dup,
+{
+    /// con-leche: none — arena infrastructure (task #97-P6-17)
+    /// **The fused probe**: one hash and one probe run that answer both "is
+    /// the key here?" and "where would it go?".  Returns `(at, hit)`: `hit`
+    /// is the value bound to `key`, and when it is `None`, `at` is the free
+    /// slot an `insert_at` must write.  The table is allocated on the way in,
+    /// so `at` is always a real slot.
+    ///
+    /// **Why** (task #97-survey's N1/N2, still-nanoda's `cache-study-port`
+    /// `289d48d`, which does the same thing with `IndexMap`'s `Entry`): the
+    /// arena's cons tables answer an interning MISS with `Tbl::find` followed
+    /// by `Tbl::push`, and `push`'s `insert` then hashes the record and walks
+    /// the probe run a second time — 372 M times on the Mathlib 25 % prefix.
+    /// Nothing about the table changes between the two, because the caller
+    /// only computes the derived word and the handle in between, so the slot
+    /// the first probe found is still the slot the second would find.
+    ///
+    /// `get` is `find_slot`'s second component and nothing else; the two are
+    /// kept apart because `get` is a `&self` reader on a table that may never
+    /// have been allocated, and this one is the insert path's own.
+    pub fn find_slot(&mut self, key: &K) -> (usize, Option<V>) {
+        self.ensure_slots();
+        let n = self.slots.len();
+        let i = home_index(key.hash64(), n);
+        let r = probe(&self.slots, self.epoch, key, i, n, n);
+        if r.1 {
+            match &self.slots[r.0] {
+                Slot::Vacant => (r.0, None),
+                Slot::Live(_, _, v) => (r.0, Some(v.dup2())),
+            }
+        } else {
+            (r.0, None)
+        }
+    }
 }
 
 impl<K, V> HashMap2<K, V>

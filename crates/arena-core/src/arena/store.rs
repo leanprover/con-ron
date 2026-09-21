@@ -277,6 +277,26 @@ where
         }
     }
 
+    /// con-leche: none — arena infrastructure (task #97-P6-17); Lean twin:
+    /// OWED — `Tbl.findSlot`, the cons-table probe that also hands back the
+    /// slot a miss would be written at.  `find?` is its second component.
+    ///
+    /// It is what makes an interning miss cost ONE hash and ONE probe run
+    /// instead of two (task #97-survey's N2): `find` then `push` probed the
+    /// same table for the same record twice, and between the two the caller
+    /// only computes the derived word and the handle.
+    pub fn find_slot(&mut self, a: &A) -> (usize, Option<I>) {
+        self.cons.find_slot(a)
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-17); Lean twin:
+    /// OWED — `Tbl.pushAt`, `Tbl.push` with the cons row written at the slot
+    /// `find_slot` returned.  Same value as `push`; see `find_slot`.
+    pub fn push_at(&mut self, at: usize, a: A, d: D, i: I) {
+        self.cons.insert_at(at, a.dup2(), i);
+        self.rows.push((a, d));
+    }
+
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:96-100 Tbl.push
     /// Append a node with its derived word and register it in the cons table.
     /// The record is stored twice, as the Lean stores it twice — once as the
@@ -3559,7 +3579,8 @@ impl EStore {
             Some(hp) => Ok(hp),
             None => {
                 if self.scratch_on {
-                    match self.scr.bms.find(&r) {
+                    let at: (usize, Option<BMIdx>) = self.scr.bms.find_slot(&r);
+                    match at.1 {
                         Some(hs) => Ok(hs),
                         None => {
                             if self.scr.bms.full() {
@@ -3568,7 +3589,7 @@ impl EStore {
                                 let d: u64 = prop_when::hash_pw(&r.pw);
                                 let h: BMIdx =
                                     BMIdx::pack(TIER_S, self.scr.bms.size() as u32);
-                                self.scr.bms.push(r, d, h.dup2());
+                                self.scr.bms.push_at(at.0, r, d, h.dup2());
                                 Ok(h)
                             }
                         }
@@ -3992,7 +4013,8 @@ impl EStore {
             Some(hp) => Ok(hp),
             None => {
                 if self.scratch_on {
-                    match self.scr.bvars.find(&r) {
+                    let at: (usize, Option<EIdx>) = self.scr.bvars.find_slot(&r);
+                    match at.1 {
                         Some(hs) => Ok(hs),
                         None => {
                             if self.scr.bvars.full() {
@@ -4001,7 +4023,7 @@ impl EStore {
                                 let d: u64 = self.der_of_bvar(r.i);
                                 let h: EIdx =
                                     EIdx::pack(ETAG_BVAR, TIER_S, self.scr.bvars.size() as u32);
-                                self.scr.bvars.push(r, d, h.dup2());
+                                self.scr.bvars.push_at(at.0, r, d, h.dup2());
                                 Ok(h)
                             }
                         }
@@ -4046,7 +4068,8 @@ impl EStore {
             Some(hp) => Ok(hp),
             None => {
                 if self.scratch_on {
-                    match self.scr.fvars.find(&r) {
+                    let at: (usize, Option<EIdx>) = self.scr.fvars.find_slot(&r);
+                    match at.1 {
                         Some(hs) => Ok(hs),
                         None => {
                             if self.scr.fvars.full() {
@@ -4055,7 +4078,7 @@ impl EStore {
                                 let d: u64 = self.der_of_fvar(pers, r.idx, &r.ty);
                                 let h: EIdx =
                                     EIdx::pack(ETAG_FVAR, TIER_S, self.scr.fvars.size() as u32);
-                                self.scr.fvars.push(r, d, h.dup2());
+                                self.scr.fvars.push_at(at.0, r, d, h.dup2());
                                 Ok(h)
                             }
                         }
@@ -4100,7 +4123,8 @@ impl EStore {
             Some(hp) => Ok(hp),
             None => {
                 if self.scratch_on {
-                    match self.scr.sorts.find(&r) {
+                    let at: (usize, Option<EIdx>) = self.scr.sorts.find_slot(&r);
+                    match at.1 {
                         Some(hs) => Ok(hs),
                         None => {
                             if self.scr.sorts.full() {
@@ -4109,7 +4133,7 @@ impl EStore {
                                 let d: u64 = self.der_of_sort(pers, &r.u);
                                 let h: EIdx =
                                     EIdx::pack(ETAG_SORT, TIER_S, self.scr.sorts.size() as u32);
-                                self.scr.sorts.push(r, d, h.dup2());
+                                self.scr.sorts.push_at(at.0, r, d, h.dup2());
                                 Ok(h)
                             }
                         }
@@ -4158,7 +4182,8 @@ impl EStore {
             Some(hp) => Ok(hp),
             None => {
                 if self.scratch_on {
-                    match self.scr.consts.find(&r) {
+                    let at: (usize, Option<EIdx>) = self.scr.consts.find_slot(&r);
+                    match at.1 {
                         Some(hs) => Ok(hs),
                         None => {
                             if self.scr.consts.full() {
@@ -4167,7 +4192,7 @@ impl EStore {
                                 let d: u64 = self.der_of_const(pers, &r.n, &r.us);
                                 let h: EIdx =
                                     EIdx::pack(ETAG_CONST, TIER_S, self.scr.consts.size() as u32);
-                                self.scr.consts.push(r, d, h.dup2());
+                                self.scr.consts.push_at(at.0, r, d, h.dup2());
                                 Ok(h)
                             }
                         }
@@ -4216,7 +4241,8 @@ impl EStore {
             Some(hp) => Ok(hp),
             None => {
                 if self.scratch_on {
-                    match self.scr.apps.find(&r) {
+                    let at: (usize, Option<EIdx>) = self.scr.apps.find_slot(&r);
+                    match at.1 {
                         Some(hs) => Ok(hs),
                         None => {
                             if self.scr.apps.full() {
@@ -4225,7 +4251,7 @@ impl EStore {
                                 let d: u64 = self.der_of_app(pers, &r.f, &r.a);
                                 let h: EIdx =
                                     EIdx::pack(ETAG_APP, TIER_S, self.scr.apps.size() as u32);
-                                self.scr.apps.push(r, d, h.dup2());
+                                self.scr.apps.push_at(at.0, r, d, h.dup2());
                                 Ok(h)
                             }
                         }
@@ -4295,7 +4321,8 @@ impl EStore {
             Some(hp) => Ok(hp),
             None => {
                 if self.scratch_on {
-                    match self.scr.lams.find(&r) {
+                    let at: (usize, Option<EIdx>) = self.scr.lams.find_slot(&r);
+                    match at.1 {
                         Some(hs) => Ok(hs),
                         None => {
                             if self.scr.lams.full() {
@@ -4304,7 +4331,7 @@ impl EStore {
                                 let d: u64 = self.der_of_bind_at_i(pers, 19, &r.ty, &r.body, &r.m);
                                 let h: EIdx =
                                     EIdx::pack(ETAG_LAM, TIER_S, self.scr.lams.size() as u32);
-                                self.scr.lams.push(r, d, h.dup2());
+                                self.scr.lams.push_at(at.0, r, d, h.dup2());
                                 Ok(h)
                             }
                         }
@@ -4374,7 +4401,8 @@ impl EStore {
             Some(hp) => Ok(hp),
             None => {
                 if self.scratch_on {
-                    match self.scr.foralls.find(&r) {
+                    let at: (usize, Option<EIdx>) = self.scr.foralls.find_slot(&r);
+                    match at.1 {
                         Some(hs) => Ok(hs),
                         None => {
                             if self.scr.foralls.full() {
@@ -4383,7 +4411,7 @@ impl EStore {
                                 let d: u64 = self.der_of_bind_at_i(pers, 23, &r.ty, &r.body, &r.m);
                                 let h: EIdx =
                                     EIdx::pack(ETAG_FORALL_E, TIER_S, self.scr.foralls.size() as u32);
-                                self.scr.foralls.push(r, d, h.dup2());
+                                self.scr.foralls.push_at(at.0, r, d, h.dup2());
                                 Ok(h)
                             }
                         }
@@ -4436,7 +4464,8 @@ impl EStore {
             Some(hp) => Ok(hp),
             None => {
                 if self.scratch_on {
-                    match self.scr.lets.find(&r) {
+                    let at: (usize, Option<EIdx>) = self.scr.lets.find_slot(&r);
+                    match at.1 {
                         Some(hs) => Ok(hs),
                         None => {
                             if self.scr.lets.full() {
@@ -4445,7 +4474,7 @@ impl EStore {
                                 let d: u64 = self.der_of_let_at(pers, &r.ty, &r.val, &r.body);
                                 let h: EIdx =
                                     EIdx::pack(ETAG_LET_E, TIER_S, self.scr.lets.size() as u32);
-                                self.scr.lets.push(r, d, h.dup2());
+                                self.scr.lets.push_at(at.0, r, d, h.dup2());
                                 Ok(h)
                             }
                         }
@@ -4486,7 +4515,8 @@ impl EStore {
             Some(hp) => Ok(hp),
             None => {
                 if self.scratch_on {
-                    match self.scr.lits.find(&r) {
+                    let at: (usize, Option<EIdx>) = self.scr.lits.find_slot(&r);
+                    match at.1 {
                         Some(hs) => Ok(hs),
                         None => {
                             if self.scr.lits.full() {
@@ -4495,7 +4525,7 @@ impl EStore {
                                 let d: u64 = self.der_of_lit(&r.l);
                                 let h: EIdx =
                                     EIdx::pack(ETAG_LIT, TIER_S, self.scr.lits.size() as u32);
-                                self.scr.lits.push(r, d, h.dup2());
+                                self.scr.lits.push_at(at.0, r, d, h.dup2());
                                 Ok(h)
                             }
                         }
@@ -4544,7 +4574,8 @@ impl EStore {
             Some(hp) => Ok(hp),
             None => {
                 if self.scratch_on {
-                    match self.scr.projs.find(&r) {
+                    let at: (usize, Option<EIdx>) = self.scr.projs.find_slot(&r);
+                    match at.1 {
                         Some(hs) => Ok(hs),
                         None => {
                             if self.scr.projs.full() {
@@ -4553,7 +4584,7 @@ impl EStore {
                                 let d: u64 = self.der_of_proj(pers, &r.n, r.i, &r.e);
                                 let h: EIdx =
                                     EIdx::pack(ETAG_PROJ, TIER_S, self.scr.projs.size() as u32);
-                                self.scr.projs.push(r, d, h.dup2());
+                                self.scr.projs.push_at(at.0, r, d, h.dup2());
                                 Ok(h)
                             }
                         }
