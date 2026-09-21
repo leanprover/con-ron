@@ -1912,90 +1912,295 @@ def findRule : List IRecRule → NIdx → Option IRecRule
   | [], _ => none
   | rl :: rs, c => if rl.ctor == c then some rl else findRule rs c
 
+/-- con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec — **one iota step at
+a spine the caller already holds** (task #97-P6-9's hoist).  `iotaRec`'s own
+first two steps are `getAppFn` and `getAppArgs`, and the batched β asks for an
+iota step at every reduction step of a spine it is already walking: this entry
+takes the head and the argument vector instead of re-walking them, which is
+`getAppFn (mkAppN h as) = h` and `getAppArgsC (mkAppN h as) = as` — the
+equation the bridge owes and the only thing OWED here that is not con-leche's
+own clause.
+
+The arity conjunct is moved in FRONT of the level-list read and of the
+recursor's value copies (task #97-P6-10): both sides of `n = mI + 1` are pure
+tests of the same conjunction and this one is `O(1)`.  con-leche's own
+`iotaArityOk` is the same guard inside its `whnfAppI`. -/
+def iotaRecAt (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (hd : EIdx) (sargs : Array EIdx) (n : Nat) : AM (Option EIdx) := do
+  if hd.tag == ETag.const then
+    match ← viewConst hd with
+    | none => failDanglingE
+    | some (c, us) =>
+      match fe.find? c with
+      | some (.recInfo cv mI rP rules) => do
+        if n ≠ mI + 1 then pure none
+        else do
+        let args := (takeEidx sargs n).toList
+        match ← viewLsLen us with
+        | none => failDanglingLs
+        | some usl =>
+        -- checker change #9: the recursor's level arity, guarded as
+        -- `unfoldDefinition` guards it
+        if args.length = mI + 1 ∧ usl = cv.levelParams.length then do
+          let b0 ← internE (.bvar 0)
+          let major ← prepareMajor mode r fe depth c rules (args.getD mI b0)
+          match ← view (← getAppFn coreWalkFuel major) with
+          | .const cj usj =>
+            match fe.find? cj with
+            | some (.ctorInfo cvj _ _) =>
+              match findRule rules cj with
+              | some rl => do
+                let margs ← getAppArgs coreWalkFuel major
+                if margs.length = rl.ctorParams + rl.nfields then do
+                  -- a matched *inert* rule is a positive detection of an
+                  -- unsupported feature
+                  if rl.fire = .inert then
+                    fail (.notImplemented
+                      "iota reduction over a nested auxiliary recursor rule")
+                  else do
+                    let cmp ← recFireComparands rl cv.levelParams us
+                      cvj.levelParams args rP
+                    if ← liftFueled "level comparison" (← lvlsEq? usj cmp.1) then do
+                      -- the parameter comparison is verdict-relevant for a
+                      -- nested rule (the comparands ARE the pins) and for a
+                      -- projection-function rule, and a certificate family for
+                      -- every other plain rule: `Cached/CoreC.lean:797`'s
+                      -- `certUnlessI` with exactly that `keep`
+                      let pOk ←
+                        if rl.compareParams then do
+                          let keep ←
+                            match rl.fire with
+                            | .nested _ _ => pure true
+                            | _ => do pure (Name.isProjFnShape (← readNameM c))
+                          if mode.certs || keep then
+                            defEqList r fe depth (margs.take rl.ctorParams) cmp.2
+                          else pure true
+                        else pure true
+                      if pOk then do
+                        -- ONE certificate family: the two *licensed* telescope
+                        -- runs and the canonical-index comparison.  Nothing
+                        -- here is read outside the family, so the whole block
+                        -- is what `.trusted` omits, the two type lookups
+                        -- included (`Cached/CoreC.lean:814`)
+                        let fam ←
+                          if mode.certs then do
+                            let tyR ← constTyAt cv us
+                            if ← iotaCerts r fe depth mode.betaGate tyR
+                                (args.take mI ++ [major]) then do
+                              let tyC ← constTyAt cvj usj
+                              if ← iotaCerts r fe depth mode.betaGate tyC margs then
+                                iotaIndexOk r fe depth mI rP rl.ctorParams tyC
+                                  margs ((args.take mI).drop rP)
+                              else pure false
+                            else pure false
+                          else pure true
+                        if fam then do
+                          let rhs ← ruleRhsAt c rl.ctor cv.levelParams rl.rhs us
+                          let x ← mkAppN rhs
+                            (args.take rP ++ margs.drop rl.ctorParams)
+                          pure (some x)
+                        else pure none
+                      else pure none
+                    else pure none
+                else pure none
+              | none => pure none
+            | _ => pure none
+          | _ => pure none
+        else pure none
+      | _ => pure none
+  else pure none
+
 /-- con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec — **one iota
 step**: the expression is a stored recursor applied to exactly its telescope,
 the major premise whnfs to a fully applied constructor with a matching rule,
 and the spine is certified against the recursor's own (pinned, annotated)
-type. -/
+type.  The walk-it-yourself entry of `iotaRecAt`. -/
 def iotaRec (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     (e : EIdx) : AM (Option EIdx) := do
-  match ← view (← getAppFn coreWalkFuel e) with
-  | .const c us =>
-    match fe.find? c with
-    | some (.recInfo cv mI rP rules) => do
-      let args ← getAppArgs coreWalkFuel e
-      let usl ← viewLs us
-      -- checker change #9: the recursor's level arity, guarded as
-      -- `unfoldDefinition` guards it
-      if args.length = mI + 1 ∧ usl.length = cv.levelParams.length then do
-        let b0 ← internE (.bvar 0)
-        let major ← prepareMajor mode r fe depth c rules (args.getD mI b0)
-        match ← view (← getAppFn coreWalkFuel major) with
-        | .const cj usj =>
-          match fe.find? cj with
-          | some (.ctorInfo cvj _ _) =>
-            match findRule rules cj with
-            | some rl => do
-              let margs ← getAppArgs coreWalkFuel major
-              if margs.length = rl.ctorParams + rl.nfields then do
-                -- a matched *inert* rule is a positive detection of an
-                -- unsupported feature
-                if rl.fire = .inert then
-                  fail (.notImplemented
-                    "iota reduction over a nested auxiliary recursor rule")
-                else do
-                  let cmp ← recFireComparands rl cv.levelParams us
-                    cvj.levelParams args rP
-                  if ← liftFueled "level comparison" (← lvlsEq? usj cmp.1) then do
-                    -- the parameter comparison is verdict-relevant for a
-                    -- nested rule (the comparands ARE the pins) and for a
-                    -- projection-function rule, and a certificate family for
-                    -- every other plain rule: `Cached/CoreC.lean:797`'s
-                    -- `certUnlessI` with exactly that `keep`
-                    let pOk ←
-                      if rl.compareParams then do
-                        let keep ←
-                          match rl.fire with
-                          | .nested _ _ => pure true
-                          | _ => do pure (Name.isProjFnShape (← readName c))
-                        if mode.certs || keep then
-                          defEqList r fe depth (margs.take rl.ctorParams) cmp.2
-                        else pure true
-                      else pure true
-                    if pOk then do
-                      -- ONE certificate family: the two *licensed* telescope
-                      -- runs and the canonical-index comparison.  Nothing
-                      -- here is read outside the family, so the whole block
-                      -- is what `.trusted` omits, the two type lookups
-                      -- included (`Cached/CoreC.lean:814`)
-                      let fam ←
-                        if mode.certs then do
-                          let tyR ← constTyAt cv us
-                          if ← iotaCerts r fe depth mode.betaGate tyR
-                              (args.take mI ++ [major]) then do
-                            let tyC ← constTyAt cvj usj
-                            if ← iotaCerts r fe depth mode.betaGate tyC margs then
-                              iotaIndexOk r fe depth mI rP rl.ctorParams tyC
-                                margs ((args.take mI).drop rP)
-                            else pure false
-                          else pure false
-                        else pure true
-                      if fam then do
-                        let rhs ← ruleRhsAt c rl.ctor cv.levelParams rl.rhs us
-                        let x ← mkAppN rhs
-                          (args.take rP ++ margs.drop rl.ctorParams)
-                        pure (some x)
-                      else pure none
-                    else pure none
-                  else pure none
-              else pure none
-            | none => pure none
-          | _ => pure none
-        | _ => pure none
-      else pure none
-    | _ => pure none
-  | _ => pure none
+  let hd ← getAppFn coreWalkFuel e
+  let args ← getAppArgs coreWalkFuel e
+  iotaRecAt mode r fe depth hd args.toArray args.length
 
+/-! ## The application spine, the batched β, and the two stuck tags
+
+DESIGN §8.6 item 9 (`whnfAppI` / `betaPeelI`) and item 7 (the stuck tags). -/
+
+/-- con-leche: none — `internE` with task #97-P6-5's upward cutoff at the
+`.app` node the reduction rebuilds: applying one more argument to a spine
+whose head did not move is the node the spine already has. -/
+@[inline] def internAppRebuilt (h : EIdx) (same : Bool) (f a : EIdx) : AM EIdx :=
+  if same then pure h else internE (.app f a)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:915-918 getAppFn
+con-leche: ConLeche/Kernel/ExprOps.lean:920-923 getAppArgs
+The head, the argument vector AND the spine's own `.app` NODES, in ONE walk —
+the third result is the arena's own and is what carries `internAppRebuilt`'s
+`same` (the node the reduction may hand back unchanged). -/
+def getAppSpineGo : Nat → EIdx → AM (EIdx × Array EIdx × Array EIdx)
+  | 0, _ => fail (.internal "fuel exhausted: getAppSpine")
+  | fuel + 1, h => do
+    if h.tag == ETag.app then
+      match ← viewApp h with
+      | none => failDanglingE
+      | some (f, a) => do
+        let t ← getAppSpineGo fuel f
+        pure (t.1, t.2.1.push a, t.2.2.push h)
+    else pure (h, #[], #[])
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:915-923 getAppFn — the spine walk's
+entry. -/
+def getAppSpine (fuel : Nat) (h : EIdx) : AM (EIdx × Array EIdx × Array EIdx) :=
+  getAppSpineGo fuel h
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:915-923 getAppFn — the head and the
+argument vector of a reduct, which is what `whnfApp` re-enters on.  A
+non-application is its own head with no arguments. -/
+def headAndArgs (v : EIdx) : AM (EIdx × Array EIdx) := do
+  if v.tag == ETag.app then do
+    let hd ← getAppFn coreWalkFuel v
+    let va ← getAppArgs coreWalkFuel v
+    pure (hd, va.toArray)
+  else pure (v, #[])
+
+/-- con-leche: ConLeche/Kernel/Core.lean:963-1052 whnfCoreBody — **the head
+kinds `whnfCoreBody` returns unchanged, off the handle's TAG** (task
+#97-P6-7's lever 2): `sort`, `fvar`, `forallE`, `lam`, `const` and `lit` are
+the body's own first six clauses, and a handle carries the tag of its own view
+on a well-formed store, so the memo probe and the node read are both skipped.
+The obligation is `whnfCoreBody e = pure e` for the six tags. -/
+@[inline] def whnfCoreStuckTag (e : EIdx) : Bool :=
+  let t := e.tag
+  if t == ETag.app then false
+  else if t == ETag.proj then false
+  else if t == ETag.letE then false
+  else if t == ETag.bvar then false
+  else true
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1090-1108 whnfBody — **the head kinds
+`whnfBody` returns unchanged**, the same lever one rung up: `sort`, `fvar`,
+`lam`, `forallE` and `lit`.  The obligation adds `reduceNat e = none` (its
+`match` is on `.app`) and `unfoldDefinition e = none` (`getAppFn` of a
+non-`app` is the node itself and the `match` is on `.const`). -/
+@[inline] def whnfStuckTag (e : EIdx) : Bool :=
+  let t := e.tag
+  if t == ETag.sort then true
+  else if t == ETag.fvar then true
+  else if t == ETag.lam then true
+  else if t == ETag.forallE then true
+  else if t == ETag.lit then true
+  else false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:963-1052 whnfCoreBody — the STUCK
+application step: rebuild the node (or hand back the one the spine already
+has, task #97-P6-7's lever 4) and try one iota step on it.  The gated lane's
+`.app` clause is its only caller since the batched β landed. -/
+def whnfCoreStuckApp (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (h : EIdx) (same : Bool) (fp a : EIdx) : AM EIdx := do
+  let ap ← internAppRebuilt h same fp a
+  match ← iotaRec mode r fe depth ap with
+  | some e2 => r.whnfCore depth e2
+  | none => pure ap
+
+/-! ### The batched β spine
+
+con-leche's own CACHED-tier clauses (`Cached/CoreC.lean:857-900 whnfAppI` and
+`:902-938 betaPeelI`), whose identification with the chained spec bodies
+con-leche proves in `Verify/BetaSpine.lean` (`whnfApp_sound:900`,
+`betaPeel_snoc:722`) over `Expr.instantiateList_cons`.  The spec-shaped clause
+they replace re-entered the knot once per argument; these peel a consecutive
+run of λ binders into ONE `instantiateList` walk.
+
+The accumulator is an `Array` in PUSH order (task #97-P6-15's clause change),
+which `instantiateList` reads from the end — the same list con-leche's `::`
+chain builds, the other way round. -/
+
+mutual
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:857-900 whnfAppI — walk the spine's
+arguments, applying each to the head's reduct: a λ head opens a peel group, a
+stuck head applies the argument and tries one iota step at the spine the walk
+already holds. -/
+def whnfApp (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (v hd : EIdx) (vargs : Array EIdx) (same : Bool)
+    (args nodes : Array EIdx) (i : Nat) : AM EIdx := do
+  if hi : i < args.size then do
+    let a := args[i]
+    let node := nodes[i]!
+    if v.tag == ETag.lam then
+      match ← viewBind v with
+      | none => failDanglingE
+      | some (ty, body, mb) => do
+        -- **THE β SITE'S GATE**: the EXECUTED core reads `CheckMode.betaSkip`
+        -- (`Cached/CoreC.lean:876`/`:918`).
+        if mode.betaSkip mb.pw then
+          betaPeel mode r fe depth body #[a] args nodes (i + 1)
+        else do
+          -- con-leche's task #172 B4: the certificate's inference runs at the
+          -- io grade.
+          let ta ← r.inferIO depth a
+          if ← r.defeq depth ta ty then
+            betaPeel mode r fe depth body #[a] args nodes (i + 1)
+          else do
+            -- The certificate failed: the redex is stuck.  ι cannot fire under
+            -- a λ head, so the rest is re-applied without another ι attempt.
+            let fa ← internAppRebuilt node same v a
+            mkAppNFrom fa args (i + 1)
+    else do
+      let ap ← internAppRebuilt node same v a
+      let same2 := ap == node
+      let va := vargs.push a
+      let step ←
+        if hd.tag == ETag.const then iotaRecAt mode r fe depth hd va va.size
+        -- `iotaRec`'s own first two steps are `getAppFn` and a `.const` match,
+        -- so a spine whose head is anything else answers `none` from every
+        -- prefix: con-leche's `iotaArityOk` guard, off the handle's tag.
+        else pure none
+      match step with
+      | none => whnfApp mode r fe depth ap hd va same2 args nodes (i + 1)
+      | some e2 => do
+        let v2 ← r.whnfCore depth e2
+        let hv ← headAndArgs v2
+        whnfApp mode r fe depth v2 hv.1 hv.2 false args nodes (i + 1)
+  else pure v
+termination_by (args.size - i, 0)
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:902-938 betaPeelI — peel a
+consecutive run of λ binders, collecting their arguments, and substitute the
+whole run in ONE `instantiateList`. -/
+def betaPeel (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (t : EIdx) (acc : Array EIdx) (args nodes : Array EIdx) (i : Nat) :
+    AM EIdx := do
+  if hi : i < args.size then do
+    let a := args[i]
+    if t.tag == ETag.lam then
+      match ← viewBind t with
+      | none => failDanglingE
+      | some (ty, body, mb) => do
+        if mode.betaSkip mb.pw then
+          betaPeel mode r fe depth body (acc.push a) args nodes (i + 1)
+        else do
+          let ty2 ← instantiateListFast coreWalkFuel ty acc 0
+          let ta ← r.inferIO depth a
+          if ← r.defeq depth ta ty2 then
+            betaPeel mode r fe depth body (acc.push a) args nodes (i + 1)
+          else do
+            let f2 ← instantiateListFast coreWalkFuel t acc 0
+            let fa ← internE (.app f2 a)
+            mkAppNFrom fa args (i + 1)
+    else do
+      let e2 ← instantiateListFast coreWalkFuel t acc 0
+      let v2 ← r.whnfCore depth e2
+      -- The peeled group is over and the spine is not: re-enter `whnfApp` at
+      -- the SAME argument.  A β has happened, so the accumulated head is no
+      -- longer the original prefix and the upward cutoff is OFF.
+      let hv ← headAndArgs v2
+      whnfApp mode r fe depth v2 hv.1 hv.2 false args nodes i
+  else do
+    let e2 ← instantiateListFast coreWalkFuel t acc 0
+    r.whnfCore depth e2
+termination_by (args.size - i, 1)
+
+end
 
 /-! ## The projection certificate and the reduction bodies
 
@@ -2062,26 +2267,18 @@ def whnfCoreBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
     match ← view e with
     | .sort _ | .fvar _ _ | .forallE _ _ _ | .lam _ _ _ | .const _ _
     | .lit _ => pure e
-    | .app f a => do
-      let f' ← r.whnfCore depth f
-      match ← view f' with
-      | .lam ty body mb => do
-        if mode.betaSkip mb.pw then do
-          let b ← instantiate1Fast coreWalkFuel body a 0
-          r.whnfCore depth b
-        else do
-          -- con-leche's task #172 B4: the certificate's inference runs at
-          -- the io grade
-          let ta ← r.inferIO depth a
-          if ← r.defeq depth ta ty then do
-            let b ← instantiate1Fast coreWalkFuel body a 0
-            r.whnfCore depth b
-          else internE (.app f' a)
-      | _ => do
-        let ap ← internE (.app f' a)
-        match ← iotaRec mode r fe depth ap with
-        | some e'' => r.whnfCore depth e''
-        | none => pure ap
+    -- **The batched β spine** (task #97-P6-9), con-leche's
+    -- `Cached/CoreC.lean:942-996 whnfCoreStepI`'s own `.app` clause: the
+    -- spine's head is normalized once and the whole argument vector is run
+    -- through `whnfApp`, which batches a consecutive run of λ binders into
+    -- ONE `instantiateList` walk.  The spec-shaped clause this replaces
+    -- re-entered the knot per argument.
+    | .app _ _ => do
+      let sp ← getAppSpine coreWalkFuel e
+      let v ← r.whnfCore depth sp.1
+      let same := v == sp.1
+      let hv ← headAndArgs v
+      whnfApp mode r fe depth v hv.1 hv.2 same sp.2.1 sp.2.2 0
     | .proj sn i pe => do
       let e0 ← r.whnf depth pe
       -- a string-literal scrutinee first expands to its reduced
@@ -2889,6 +3086,13 @@ def coreKnot (mode : CheckMode) (fe : IFEnv) (wrap : CoreFnsA → CoreFnsA) :
   | fuel + 1 =>
     wrap
       { whnfCore := fun d e => do
+          -- **The answer IS the argument, off the tag** (task #97-P6-7's
+          -- lever 2): the six head kinds `whnfCoreBody` returns unchanged are
+          -- read off the handle word, so neither the memo nor the store is
+          -- touched — and neither is the memo WRITTEN, which is what keeps the
+          -- table small enough for `clear_fit`'s high-water mark to settle.
+          if whnfCoreStuckTag e then pure e
+          else
           match (← get).caches.whnfCoreC[e]? with
           | some x => pure x
           | none => do
@@ -2896,6 +3100,8 @@ def coreKnot (mode : CheckMode) (fe : IFEnv) (wrap : CoreFnsA → CoreFnsA) :
             whnfCoreSet e x
             pure x
         whnf := fun d e => do
+          if whnfStuckTag e then pure e
+          else
           match (← get).caches.whnfC[e]? with
           | some x => pure x
           | none => do

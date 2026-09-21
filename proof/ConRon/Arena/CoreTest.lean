@@ -652,9 +652,13 @@ truncates the scratch tier of the store. -/
 /- And a row whose VALUE is a scratch handle certainly goes: this is the one
 the bracket must not leave behind, because the handle it names is about to be
 reused by the next declaration. -/
+-- (The subject is a scratch APPLICATION, not a scratch literal: since task
+-- #97-P6-7's stuck-tag lever the knot answers a `lit` off the handle's tag
+-- and never writes the memo at all, which is the point of that lever.)
 #guard runB (do
   enterScratch
-  let h ← internE (.lit (.natVal 123456))
+  let l ← internE (.lit (.natVal 123456))
+  let h ← internE (.app FX.ax l)
   let _ ← whnf MU FX.fe F 0 h
   let inside := (← get).caches.whnfC.contains h
   let scratch := !h.isPersistent

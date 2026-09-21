@@ -1072,6 +1072,18 @@ def mkAppN (f : EIdx) : List EIdx → AM EIdx
     let g ← internE (.app f a)
     mkAppN g as
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:925-928 mkAppN — apply to the
+entries of a push-order array from `i` on, which is what the batched β and the
+spine walks hold.  §3.4's standing `List`-as-cursor deviation, at an
+`Array`. -/
+def mkAppNFrom (f : EIdx) (args : Array EIdx) (i : Nat) : AM EIdx := do
+  if h : i < args.size then do
+    let g ← internAppE f args[i]
+    mkAppNFrom g args (i + 1)
+  else pure f
+termination_by args.size - i
+decreasing_by omega
+
 /-! ## `renameConsts` — `ExprOps.lean:930-956`, `:999-1036`, `:1109-1111`
 
 The renaming is a function on NAME HANDLES, not on names: the census's
