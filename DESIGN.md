@@ -2295,6 +2295,29 @@ the persistent tier (the byte recogniser is unchanged).
         1 900–2 300 Lean lines against today's 2 595, against the SAME
         mathematical specification.
 
+        5. the Mathlib-profile-driven Rust round — item 3 of task
+        #97-P6-4a's "next levers": "Mathlib's own ratio is the thing to chase
+        next, not `Init`'s … the honest next measurement is a Mathlib
+        PROFILE, which nothing in P6 has taken".  **DONE** (task #97-P6-5):
+        the full Mathlib run WAS profiled (`perf record -F 99`, 231 860
+        samples) and a 25 % prefix validated against it bucket by bucket as
+        the iteration benchmark.  The profile found what no `Init` measurement
+        could: **`ifenv_dup` deep-copies the whole environment once per
+        inductive block — 14.7 % of the Mathlib run and 66 % of its install
+        phase, against 2.4 % of `Init`** — and three of the five levers are
+        that item (the index row becomes a slot rather than a second copy of
+        the constant; the recursor's self-environment becomes a bracket; the
+        native pass MOVES the environment and recovers the pre-block view from
+        the visibility bound).  The other two are §8's own item 1 (the upward
+        cutoff, which is a CYCLES lever: +0.41 % instructions, −2.11 % cycles
+        on the prefix) and item 2 (the node record and its derived word
+        interleaved into one column).  Mathlib is **accepted 691 128 at
+        10 942.50 G instructions, 8 109.66 G cycles, 1 862 s, 7.19 GB** —
+        **0.95× / 0.93× / 0.93× / 0.86× `con-ron` at master, every column
+        under 1.00× for the first time**, and 1.81× nanoda, from 2.12×.  The
+        install phase is 512.0 → 92.9 s; `Init` is 404.88 G (0.75× master) and
+        `core` 882.34 G (0.76×).  The twin owes ONE clause, `internRebuilt`.
+
 Branch `arena`; master stays shippable until (C) passes the gates and the
 fixtures.  Budget from con-leche's record, scaled: (B) ~12 k lines,
 Theorem 1 ~40–50 k lines (con-leche's core tower was 34.5 k for the core
@@ -28754,3 +28777,425 @@ the twin already has.
 
 Raw `.perf`/`.time`/`.out`/`.err` files, the three profiles and the hole
 lists: `_tmp/t97-p6-4a/`.
+
+### Task #97-P6-5 — the Mathlib profile, and the environment copy (2026-09-21, Opus under Fable)
+
+Phase P6 item 5 of §8.6, Rust-first.  Task #97-P6-4a closed with "**Mathlib
+has never been profiled** … it is the only way to tell a cache-miss lever from
+an instruction lever at that size", and that is this task: profile Mathlib
+first, then take the levers the profile asks for.  It found one item nobody
+had looked for — **the environment is deep-copied once per inductive block,
+14.7 % of the whole Mathlib run and 66 % of the install phase** — and three of
+the five levers are that item.
+
+Baseline is the `arena` tip `9fe6607e`, rebuilt here.  Every cell is
+`--verified --jobs=1 --progress=1000000`, under `ulimit -v` (8 GB on `Init`,
+5 GB on `core`, **27 GB on Mathlib**, CLAUDE.md's caps), instructions and
+cycles from one `perf stat -e instructions:u,cycles:u`.  Raw
+`.perf`/`.time`/`.out`/`.err`, the five profiles and the sample dumps:
+`_tmp/t97-p6-5/`.
+
+#### 1. The profile: a full Mathlib run, and a prefix validated against it
+
+**The full run is affordable and was taken.**  `perf record -F 99` over the
+whole of `_tmp/corpus/mathlib.ndjson` at the tip: **231 860 samples,
+10 181.88 G cycles, `accepted 691128`**, phases **parse 36.9 s / install
+512.0 s / check 1 780.4 s** (1.6 % / 22.0 % / 76.4 % of the wall, and 1.6 % /
+21.9 % / 76.5 % of the cycles).
+
+**The prefix is the working benchmark**, because 40 minutes a run is too slow
+to iterate on: `head -26948621`, the first 25 % of the file's 107 794 484
+lines, which is 156 945 fold records and `accepted 155288` in 420 s at the
+tip.  It cuts at a line boundary and the export's index space is monotone, so
+a prefix is a well-formed stream.  **Validated against the full run before
+anything was touched** — the same `perf record -F 99`, the same bucketing:
+
+| bucket, self cycles | `Init` | **Mathlib 25 % prefix** | **Mathlib, full** |
+|---|---:|---:|---:|
+| `arena::store` (decode, intern, derived, cons probe) | 42.40 % | 32.52 % | 32.61 % |
+| `arena::expr_ops` (the substituting walks) | 21.05 % | 24.91 % | 27.70 % |
+| **the environment copy** (`ifenv_dup` and its drops) | **2.39 %** | **17.13 %** | **14.66 %** |
+| `arena::core` + `core_state` + `monad` | 13.92 % | 7.90 % | 7.95 % |
+| `ron::hashmap2` (the caches and memos) | 8.97 % | 4.02 % | 4.63 % |
+| `con_ron_core::kernel` (name, level, expr, `PropWhen`) | 3.91 % | 4.41 % | 3.75 % |
+| mimalloc | 2.66 % | 4.25 % | 4.26 % |
+| drop glue, `Vec` growth, libc `mem*` | 1.17 % | 2.43 % | 1.88 % |
+| the frontend (parse) | 1.48 % | 0.85 % | 0.67 % |
+| `arena::checker` + `decl_check` + `inductives` | 1.14 % | 0.68 % | 0.54 % |
+
+Every bucket of the prefix is within three points of the full run's, and the
+phase split matches too (prefix 2.1 / 25.6 / 72.3 %, full 1.6 / 22.0 /
+76.4 %).  **The prefix is a faithful proxy and `Init` is not**, which is the
+first result of this task and the reason task #97-P6-4a's levers read −14.9 %
+on `Init` and −2.6 % on Mathlib.
+
+**The top twenty of the full Mathlib run**, `perf report --no-children`, self:
+
+| | share | what it is |
+|---|---:|---|
+| `expr_ops::instantiate1_go` | 21.03 % | the checker body |
+| `ETables::find` | 7.89 % | the cons-table probe, the map's `get` inlined |
+| `HashMap2<BindNode, EIdx>::insert_no_resize` | 6.04 % | the `lam`/`forallE` cons append |
+| `EStore::intern` | 3.37 % | the hash-cons |
+| `HashMap2<NIdx, (u64, IConstantInfo)>::dup_slots` | 3.30 % | **the environment index, copied** |
+| `env::nidx_vec_dup_from` | 3.30 % | **a constant's `level_params`, copied** |
+| `env::i_constant_info_dup` | 3.01 % | **a stored constant, copied** |
+| `expr_ops::inst_lp_go` | 2.99 % | `instantiateLevelParams` |
+| `ETables::der_at` | 2.96 % | the derived-word read |
+| `ETables::get` | 2.91 % | the decode |
+| `env::i_constant_infos_dup_from` | 2.43 % | **`env.consts`, copied** |
+| `HashMap2<EIdxNat, EIdx>::insert` | 2.17 % | a walk memo write |
+| `expr_ops::abstract1_go` | 2.12 % | `abstract1` |
+| `_mi_theap_malloc_zero` | 1.61 % | |
+| `EStore::der_of_view` | 1.58 % | the derived word at intern time |
+| `monad::inst1_get` | 1.47 % | the `instantiate1` memo probe |
+| `drop_glue::<IConstantInfo>` | 1.38 % | **the copies, freed** |
+| `mi_free` | 1.28 % | |
+| `HashMap2<EIdxNat, EIdx>::insert_no_resize` | 1.07 % | |
+| `HashMap2<BindNode, EIdx>::get` | 0.97 % | |
+
+**Five of the twenty are one thing**, and the phase split says where it lives:
+
+| the full Mathlib run, by phase | install (21.9 % of the cycles) | check (76.5 %) |
+|---|---:|---:|
+| **the environment copy** | **66.39 %** | 0.09 % |
+| `arena::store` | 8.38 % | 39.22 % |
+| `arena::expr_ops` | 5.69 % | 34.56 % |
+| mimalloc | 8.78 % | 3.03 % |
+| `arena::core` + `core_state` + `monad` | 1.33 % | 10.00 % |
+| `ron::hashmap2` | 2.36 % | 5.37 % |
+| `con_ron_core::kernel` | 0.46 % | 4.66 % |
+
+**IPC.**  `Init` 1.62 at the tip (413.74 G / 255.13 G), the Mathlib prefix
+1.45 (2 744.78 G / 1 899.62 G), full Mathlib 1.24 (task #97-P6-4a's
+12 824.40 G / 10 378.09 G).  It falls with the export because the working set
+does: the persistent tier is 6.1 M expression nodes on `Init` and **110 M** on
+Mathlib, over a 32 MB L3, so the cons probe that `Init` mostly hits in cache
+is a guaranteed miss at Mathlib scale.  That, and the environment copy taking
+fifteen points away from everything else, is the whole shape difference
+between the three columns above.
+
+#### 2. What the environment copy is, and why nobody saw it
+
+`IFEnv` is con-leche's `FEnv` over handles: `env : IEnv` (a
+`Vec<IConstantInfo>`, oldest first), `idx : HashMap NIdx …` (DESIGN.md §8.3
+lesson 13's `O(1)` index) and `visible_below`.  Lean shares a record for free,
+so the twin writes `fe₂ := fe.push stored` and goes on reading `fe`; the port
+spells that `ifenv_push(ifenv_dup(fe), stored)`, and **`ifenv_dup` is
+`O(environment)` with a `Vec<NIdx>` malloc per constant.**
+`arena::inductives` does it three times per inductive block —
+`check_native_pass` (once, twice if the `isRec` guess does not settle),
+`check_native_rec_rules` (once), `modeled.rs` (twice, for the 2 072
+in-process blocks) — and Mathlib has **6 720 inductive records over an
+environment that ends at 691 128 constants**.
+
+It is invisible on `Init` (2.4 % of the run) because the environment there is
+58 k constants, and it is quadratic in the export: blocks × environment size.
+Task #97-P6-4a saw the *symptom* — "install is 24 % of Mathlib's wall against
+7 % of `Init`'s" — and attributed it to the modelled blocks and the projection
+rewrites.  Those are 0.5 % of the run; the copy is 15 %.
+
+#### 3. The five levers
+
+Each is its own commit with its own A/B.  "prefix" is the 25 % Mathlib
+prefix, one `perf stat` run per cell.
+
+| | lever | prefix instructions:u | Δ | `Init` instructions:u | Δ |
+|---|---|---:|---:|---:|---:|
+| — | `arena` tip 9fe6607e | 2 744.78 G | — | 413.74 G | — |
+| 1 | the index row is a **slot**, not a second copy of the constant | 2 575.32 G | **−6.2 %** | 410.79 G | −0.7 % |
+| 2 | the **upward cutoff** in the inexact substituting walks | 2 584.76 G | +0.4 % | 412.06 G | +0.3 % |
+| 3 | the node record and its derived word are **one column** | 2 574.94 G | −0.4 % | 410.79 G | −0.3 % |
+| 4 | the recursor's self-environment is a **bracket** | 2 434.42 G | **−5.5 %** | 407.82 G | −0.7 % |
+| 5 | the native pass **moves** the environment | 2 294.34 G | **−5.8 %** | 404.90 G | −0.7 % |
+| | **cumulative** | **2 294.34 G** | **−16.4 %** | **404.88 G** | **−2.1 %** |
+
+**Lever 1 — the index row is `(counter, slot)` and not `(counter,
+IConstantInfo)`.**  `IFEnv` stored every constant TWICE, once in `env.consts`
+and once inside the index row, so `ifenv_dup` deep-copied the environment
+twice.  The row is now the constant's slot in `env.consts`: the map is a POD
+and `dup` is a slot memcpy.  Four writers keep the two in step (`ifenv_push`
+pushes then indexes, `promote::index_promoted` writes the slot back and
+re-indexes it, `promote::erase_installed` only removes, `mk_ifenv_go` indexes
+by position) and `ifenv_find` reads `env.consts[s]`.  This is memory too:
+Mathlib stops holding 691 128 constants twice.
+
+**Lever 2 — the upward cutoff, and it is a CYCLES lever.**  §8's own item 1:
+"a substituting walk rebuilds a binder's node even when the substitution
+changed nothing under it … what it does not have is the UPWARD half, `if
+child' == child then return e`."  `intern_rebuilt` is that clause, applied to
+the four walks whose DOWNWARD cutoff is inexact and where it can therefore
+fire: `abstract1Go` (the cutoff is `fvarB ≤ d`, "no `fvar` of index `≥ d`",
+where the arm abstracts the index `= d`), `instLPGo` (the cutoff is the
+`hasLP` bit, and a substitution touching none of the parameters present is the
+identity), `resetMetaGo` (no downward cutoff at all) and `renameConstsGo`.
+**It is NOT applied to `instantiate1Go`, `instantiateListGo`,
+`liftLooseBVarsGo`, `lowerBVarsGo` or `instantiate1LiftGo`**, and that is
+reasoned rather than measured-and-reverted: their cutoff is `bvarB ≤ d`
+against a field that is EXACT below saturation (`expr::sat_range()` = 32 767,
+which no term of the corpus reaches), so past the cutoff a loose `bvar` at or
+above `d` really is present and really does move.
+
+Returning the original handle is exactly what `intern` would answer — the
+store is hash-consed, `denoteE` is injective, and §8.3's cross-tier rule makes
+the answer that handle and not a twin of it in the other tier — so the clause
+is handle-identical and not merely denotation-identical.
+
+On instructions it is a small LOSS, which is what a table of instruction
+counts hides.  A clean A/B — the two binaries started together on the same
+machine, one differing file — says what it really does:
+
+| Mathlib prefix, levers 1+3+4+5 ± lever 2 | instructions:u | cycles:u | IPC | wall |
+|---|---:|---:|---:|---:|
+| without lever 2 | 2 284.61 G | 1 470.02 G | 1.554 | 333.4 s |
+| **with lever 2** | 2 294.04 G | **1 438.99 G** | **1.594** | **327.2 s** |
+| | +0.41 % | **−2.11 %** | | −1.9 % |
+
+**+0.41 % of the instructions and −2.11 % of the cycles**: the comparisons
+cost more than the probes, and the probes were cache misses against a
+10⁸-entry table.  That is task #97-P6-1's lever 4 again, at a tenth of the
+size.  Kept — and the reason it is in this section at length is that a
+campaign measured on `instructions:u` will otherwise throw levers of this
+shape away.
+
+**Lever 3 — the node and its derived word interleaved.**  §8's item 2.  `Tbl`
+is `rows : Vec<(A, D)>` instead of two parallel `Vec`s, so the walk that reads
+the derived word for its cutoff and then the record pays one indexed load
+instead of two.  No memory cost (the word rides in padding every one of the
+eighteen instantiations already had), no hole, and the six `Tbl` methods are
+the only readers of either field in the crate.  −0.4 % of the prefix's
+instructions, which pays lever 2's +0.4 % back exactly.
+
+**Lever 4 — the recursor's self-environment is a bracket.**
+`check_native_rec_rules` spells the twin's `fe_r := fe.push stored` as
+`ifenv_push(ifenv_dup(fe), stored)` for a constant that is visible only while
+the iota rules are generated.  The port pushes in place and pops afterwards.
+The pop is EXACT and needs no side condition about the name being fresh:
+`HashMap2::insert` hands back the row it displaced, so `ifenv_pop_temp` puts
+that row back.  `check_native_rec` and its three continuations take
+`fe : &mut IFEnv`.
+
+**Lever 5 — the native pass moves the environment.**  The last `ifenv_dup` on
+the hot path.  The pass extends the environment by **exactly one constant** —
+`checkSumIndAt`'s `IndInfo` type former — which is what makes the copy
+avoidable.  `check_native` takes `fe` by value (its caller `check_ind_decl`
+owns it and drops it) and moves it in.  The one place that wants the
+pre-block environment afterwards is `check_native_tail_kinds`, whose
+`nativeFieldsOk` infers against it; it **lowers `env1`'s visibility bound by
+one** for that call and puts it back, which is exactly the twin's `fe` — the
+former's row is the only one `env1.idx` does not share with `fe`, its counter
+is the bound being lowered past, and the row it displaced (if any) was
+already at or above the bound, hence already invisible; and
+`check_constant_val_guards` rejects a name the environment already shows, so
+a redeclaration cannot make it visible either.  The rare second pass recovers
+`fe` with `ifenv_pop_temp` against the row read before the push (`ifenv_row`,
+which reads *through* the visibility bound on purpose).
+
+**One extraction detail that changed the code.**  `ifenv_pop_temp` shrinks
+`env.consts` with **`Vec::resize` and not `Vec::pop`**: Aeneas models the
+first (`Aeneas/Std/Vec.lean:439`, `resize_spec`) and not the second, and task
+#97-P4a's rule is that every hole is a `con-ron-core` boundary function — with
+`pop` the list grew to 210 with a new `alloc::vec::Vec::pop`, with `resize` it
+is the tip's 209.  The price is a hand-written `core::clone::Clone for
+IConstantInfo` (it *is* `i_constant_info_dup`; no `#[derive]`, §3.4) and an
+`i_constant_info_dummy` filler a shrink never reads.  **Leaving the slot in
+`consts` was considered and rejected**: the running checker would never see it
+(`i_env_find` has no production caller, and `promote_new` counts from the top,
+so an abandoned slot below `start` is untouched) — but `denoteEnv` would, and
+Theorem 1 is stated at `denoteEnv st`.
+
+#### 4. The profile after
+
+`perf record -F 99` over the prefix with all five levers, same bucketing:
+
+| bucket | prefix, tip | prefix, after | `Init`, tip |
+|---|---:|---:|---:|
+| `arena::store` | 32.52 % | **40.91 %** | 42.40 % |
+| `arena::expr_ops` | 24.91 % | **31.30 %** | 21.05 % |
+| **the environment copy** | **17.13 %** | **0.35 %** | 2.39 % |
+| `arena::core` + `core_state` + `monad` | 7.90 % | 9.86 % | 13.92 % |
+| `con_ron_core::kernel` | 4.41 % | 5.24 % | 3.91 % |
+| `ron::hashmap2` | 4.02 % | 4.73 % | 8.97 % |
+| mimalloc | 4.25 % | 2.73 % | 2.66 % |
+| drop glue, `Vec` growth, libc `mem*` | 2.43 % | 1.69 % | 1.17 % |
+
+**The environment copy is 17.13 % → 0.35 %, and the prefix's install phase is
+107.5 s → 20.8 s (5.2×).**  On the full export the install phase is
+**512.0 s → 92.9 s, 5.5×**.  The shape is now `Init`'s, which is the shape a
+checker should have: the store and the walks are 72 % of the run between them
+and everything else is under 10 %.
+
+The top of the prefix after: `instantiate1_go` 22.68 %,
+`HashMap2<BindNode, EIdx>::insert_no_resize` 8.77 %, `ETables::find` 8.45 %,
+`EStore::intern` 3.84 %, `ETables::get` 3.65 %, `inst_lp_go` 3.25 %,
+`ETables::der_at` 3.13 %, `abstract1_go` 2.80 %, `der_of_view` 2.64 %.
+
+#### 5. The table, beside `con-ron` at master and nanoda
+
+`--verified --jobs=1 --progress=1000000`, mimalloc, under CLAUDE.md's caps,
+this machine (task #97-P6-3's: AMD EPYC 9455, 125 GiB, the flake's
+Charon-pinned `rustc`).  The `arena` tip's rows are **re-measured in this
+session** with the binary this task started from; `con-ron @ master` and
+`nanoda` are task #97-P6-3's same-machine baselines.  `Init`'s wall is three
+runs, `core`'s and Mathlib's is one and is indicative only.
+
+| `Init` | instructions:u | cycles:u | IPC | wall | peak RSS | verdict |
+|---|---:|---:|---:|---|---:|---|
+| nanoda (#97-P6-3) | 231.04 G | 108.51 G | 2.13 | 24.78 s | 0.35 GB | Checked 59 433 |
+| **`con-ron` @ master** (#97-P6-3) | **542.01 G** | 273.04 G | 1.99 | 62.19 s | 0.46 GB | accepted 57 977 |
+| con-leche (OVERVIEW §7.2) | 585.9 G | — | — | 56 s | 0.48 GB | accepted 57 977 |
+| `con-ron-arena`, `arena` tip 9fe6607e | 413.74 G | 255.13 G | 1.62 | 56.79 / 57.43 / 59.02 | 0.58 GB | accepted 57 977 |
+| **`con-ron-arena`, after P6-5** | **404.88 G** | **238.92 G** | **1.69** | **54.17 / 54.83 / 55.03** | 0.58 GB | accepted 57 977 |
+| | −2.14 % | −6.35 % | | −4.6 % | ± noise | |
+| ratio to `con-ron` @ master | **0.75×** | **0.88×** | | **0.88×** | 1.26× | |
+| ratio to nanoda | 1.75× | 2.20× | | 2.21× | 1.66× | |
+
+| `core` (`Init`+`Std`+`Lean`) | instructions:u | cycles:u | IPC | wall | peak RSS | verdict |
+|---|---:|---:|---:|---|---:|---|
+| nanoda (#97-P6-3) | 444.76 G | 248.84 G | 1.79 | 56.63 s | 0.73 GB | Checked 171 002 |
+| **`con-ron` @ master** (#97-P6-3) | **1 162.12 G** | 657.22 G | 1.77 | 150.52 s | 1.26 GB | accepted 163 396 |
+| con-leche (OVERVIEW §7.2) | 1 176.3 G | — | — | 122 s | 1.22 GB | accepted 163 396 |
+| `con-ron-arena`, `arena` tip 9fe6607e | 1 037.55 G | 697.60 G | 1.49 | 158.4 s | 1.41 GB | accepted 163 396 |
+| **`con-ron-arena`, after P6-5** | **882.34 G** | **618.12 G** | **1.43** | **143.7 s** | **1.33 GB** | accepted 163 396 |
+| | −15.0 % | −11.4 % | | −9.3 % | −5.6 % | |
+| ratio to `con-ron` @ master | **0.76×** | **0.94×** | | **0.95×** | 1.06× | |
+| ratio to nanoda | 1.98× | 2.48× | | 2.54× | 1.83× | |
+
+| **Mathlib** | instructions:u | cycles:u | IPC | wall | peak RSS | verdict |
+|---|---:|---:|---:|---|---:|---|
+| nanoda (#97-P6-3) | 6 053.88 G | 4 536.30 G | 1.33 | 1 048 s | 6.80 GB | Checked 707 508 |
+| **`con-ron` @ master** (#97-P6-3) | **11 535.07 G** | 8 675.69 G | 1.33 | 2 012 s | 8.39 GB | accepted 691 128 |
+| con-leche (OVERVIEW §7.2) | 12 792.4 G | — | — | 1 220 s | 8.75 GB | accepted 691 128 |
+| `con-ron-arena`, `arena` tip (#97-P6-4a) | 12 824.40 G | 10 378.09 G | 1.24 | 2 390 s | 7.57 GB | accepted 691 128 |
+| **`con-ron-arena`, after P6-5** | **10 942.50 G** | **8 109.66 G** | **1.35** | **1 862 s** | **7.19 GB** | **accepted 691 128** |
+| | **−14.7 %** | **−21.9 %** | | **−22.1 %** | −5.0 % | |
+| **ratio to `con-ron` @ master** | **0.95×** | **0.93×** | | **0.93×** | **0.86×** | |
+| ratio to nanoda | **1.81×** | 1.79× | | 1.78× | 1.06× | |
+
+**§8.1's goal is met on Mathlib on every column, and by a margin.**  "The
+target is to beat today's con-ron on all three numbers": Mathlib is 0.95×
+instructions, 0.93× cycles, 0.93× wall and 0.86× peak RSS, where task
+#97-P6-4a left 1.11× / 1.20× / 1.19× / 0.90×.  It is met on instructions
+everywhere (0.75× / 0.76× / 0.95×) and on `Init`'s and `core`'s wall; what is
+left is the two small exports' peak RSS (1.26× and 1.06×), which is §8.7's
+untaken lever and not this task's.
+
+**And the IPC turned around.**  Mathlib's was 1.24 at the tip — below both
+baselines' 1.33 — and is now **1.35**, above them.  That is what removing a
+copy whose working set is the whole environment does: the check phase's
+cache behaviour was never the problem at Mathlib scale, the install phase's
+was.
+
+**Mathlib's phases: parse 36.9 → 49.6 s, install 512.0 → 92.9 s (5.5×),
+check 1 780.4 → 1 719.5 s.**  Install is 22.0 % of the tip's wall and **5.0 %
+of the new one**; the check phase moves 3.4 %, which is levers 2 and 3.  (The
+parse's two readings are one run each of a phase that is I/O-bound on a 6.1 GB
+file and differ by page-cache state, not by code: no lever touches the
+frontend.)
+
+**nanoda is 1.81× away on Mathlib**, from 3.04× at task #97-P6-4a's first
+arena run and 2.12× at its last.  On the two small exports it is 1.75× and
+1.98×, from this tip's 1.79× and 2.33×.
+
+#### 6. The twin ledger (§8.6's P6 rule)
+
+| change | Lean must mirror | absorbed by the refinement |
+|---|---|---|
+| lever 1: the index row is `(counter, slot)` | — | **yes**, with a changed `IFEnv` relation: `idx[n] = (c, s) ∧ consts[s] = ci` where the twin has `idx[n] = (c, ci)`.  `find?` answers the same constant, `push`/`erase`/`indexPromoted` keep the two columns in step, and no clause of `Arena/Env.lean` or `Arena/Promote.lean` moves |
+| lever 2: `internRebuilt` at the four inexact walks | **YES**: one clause per rebuild site of `abstract1Go`, `instLPGo`, `resetMetaGo`, `renameConstsGo` — `if child' == child then pure h else internE v` | — |
+| lever 3: `Tbl` is one column of pairs | — | **yes**: `nodes = rows.map (·.1)`, `der = rows.map (·.2)`, and the six `Tbl` operations are the only readers |
+| lever 4: the recursor's bracket | — | **yes**, "a borrowed view": `ifenvPopTemp (ifenvPushTemp fe ci) = fe` is an equation, because the push hands back the row it displaced |
+| lever 5: the pass moves the environment | — | **yes**, two obligations (below) |
+| lever 5: `Vec::resize` in place of `Vec::pop` | — | **yes**: `Aeneas/Std/Vec.lean:439`'s `resize_spec` is `v.val.resize new_len value`, and `new_len < length` drops the tail |
+| lever 5: `Clone for IConstantInfo`, `iConstantInfoDummy` | — | **yes**: `clone = i_constant_info_dup`, already related; the dummy is a value a shrink never reads |
+
+**The one clause the Lean owes** is lever 2's, and it is the cheapest kind:
+`internRebuilt st h same v = if same then pure h else internE st v`, with
+`same` the conjunction of the rewritten children's handle equalities.  Its
+obligation is `denoteE st h = denoteE st' (internE st v).1` **at the same
+handle**, which is `intern_spec`'s idempotence on a hash-consed store plus
+`denoteE_inj`: if every child came back unchanged then `v` IS `viewE st h`,
+and `intern` of a node's own view is that node.
+
+**What lever 5 owes the Theorem-2 side, stated precisely.**  Two lemmas, both
+about `IFEnv` and neither about terms:
+
+1. `ifenvFind (fe.push ci |>.restrictTo fe.visibleBelow) n = ifenvFind fe n`
+   for every `n`, given `ifenvFind fe ci.name = none` (which
+   `checkConstantValGuards` has already established at the push).  This is
+   `check_native_tail_kinds`'s visibility juggle, and the proof is the case
+   split on `n = ci.name`: at `ci.name` both sides are `none` (the new row's
+   counter is the bound; the displaced row, if any, was at or above it), and
+   elsewhere the two indices agree row for row.
+2. `ifenvPopTemp (fst (ifenvPushTemp fe ci)) ci.name (snd (ifenvPushTemp fe
+   ci)) = fe`, the retry path's restore — an equation on all three fields,
+   given the `Vec::resize` spec for the third.
+
+Neither is conditional on anything the checker does not already check, and
+both failure directions are the safe one in §1's sense: a lost row is a
+constant the environment no longer shows, which is a decline.
+
+#### 7. The next levers, with expected value
+
+1. **`instantiate1_go` is 22.7 % of the prefix and 21.0 % of full Mathlib, and
+   it is now the run by a factor of two and a half.**  The profile cannot say
+   more than that without a call-graph, and this task's `perf record` had no
+   frame pointers to build one from — `-C force-frame-pointers=yes` on the
+   release profile, or one instrumented build with counters per arm, is the
+   next honest step.  The three things worth counting first: how many visits
+   the memo saves against how many it costs (the `EIdxNat` tables are 2.4 %
+   between them), how deep the recursion goes per top-level call, and how many
+   of the interns it performs are HITS on the persistent tier (i.e. paid cache
+   misses that produce no node).
+2. **The `lam`/`forallE` cons table, 8.8 % of the prefix in
+   `insert_no_resize` alone** (plus 1.1 % `get`).  These are genuinely new
+   binder nodes, one per binder opened by `abstract1`/`instantiate1` per
+   declaration.  Two hypotheses, neither tested here: the scratch table keeps
+   whatever capacity the largest declaration of the run forced on it (task
+   #97-P6-4b removed the shrink deliberately, and an epoch clear keeps the
+   array), so a small declaration probes a sparse multi-megabyte array; and
+   `BindNode` carries a `BinderMeta`, so its hash and its equality are wider
+   than the other constructors'.  A capacity histogram at `enter_scratch`
+   would settle the first in one instrumented run.
+3. **Memory on the two small exports**: 1.26× `con-ron` at master on `Init`,
+   1.06× on `core`, **0.86× on Mathlib** — a ratio that keeps falling as the
+   export grows.  §8.7's open question (drop the export parse DAG once the
+   environment is built) is the lever, and Mathlib is where it is worth the
+   most: 103 M of the run's 110 M nodes are the parse DAG.
+4. **The `modeled.rs` environment copies**, the two `ifenv_dup`s this task did
+   not take: they are 2 072 blocks of Mathlib's 6 720 + 2 072 and they run the
+   same `O(environment)` copy, which the profile now shows as the whole of the
+   remaining 0.35 %.  Worth taking with lever 5's recipe when someone is next
+   in that file; not worth a task.
+5. **`str_copy_from` is back at 1.0 % of the prefix** after the pins lever
+   removed most of it.  What is left is `proj_table_name`, which interns a
+   reserved name per projection lookup; the `Pins` record is the place for it.
+6. **The pool** (§8.6 P4f deviation 4), unchanged: one `while`.
+7. **`examples/bench.rs` still has no `Core`, `Checker` or inductive shapes**,
+   which is the eighth task to say so.
+
+#### 8. Gates
+
+| | |
+|---|---|
+| `cargo build --release` / `cargo test --release`, `RUSTFLAGS="-D warnings"` | green; 120 tests in `arena-core`, 422 in the workspace, 0 failures |
+| `scripts/lint-rust-style.sh` over both verified trees | clean |
+| `scripts/provenance.py check` | **0 findings** (6 505 items — 4 752 Rust, 1 753 arena Lean — 4 862 citations, all current at pin `c431b1ca`) |
+| `scripts/extract-arena.sh --dry` | zero errors, 64 953 lines of model, **5 type and 209 function holes** — byte-identical to the `arena` tip's list.  `Vec::pop` would have made it 210, which is why `ifenv_pop_temp` shrinks with `Vec::resize` (§3) |
+| `scripts/extract.sh --check` | not re-run: `git diff 9fe6607e -- crates/con-ron-core crates/con-ron crates/con-ron-dump proof` is EMPTY, so the committed model of `con-ron-core` cannot have moved |
+| `scripts/holes.sh --check` | 2 types, 20 functions, all in OVERVIEW §8.1, OK |
+| `scripts/provenance-selftest.py`, `scripts/overview-links.sh` | green |
+| `scripts/diff-e2e.sh --bin=target/release/con-ron-arena` | **348/348 `--verified`, 348/348 `--trusted`**, at every one of the five levers |
+| `con-ron-arena --verified _tmp/corpus/init.ndjson` | accepted **57 977** |
+| `con-ron-arena --verified _tmp/corpus/core.ndjson` | accepted **163 396** |
+| `con-ron-arena --verified _tmp/corpus/mathlib.ndjson` | accepted **691 128** |
+| `cd proof && lake build` | NOT run: this task writes no Lean (the P4b/P4c/P4d/P4f ruling) |
+
+One note for whoever profiles next.  **`perf report` resolves symbols against
+the binary on disk at REPORT time**, so a `cargo build` between the `record`
+and the `report` silently renames every symbol — the first reading of this
+task's full-Mathlib profile had `EStore::empty` at 9.18 % and
+`inst_lams_at_f_go` at 20.63 %, which are the addresses of `instantiate1_go`
+and `ETables::find` in a later build.  Keep a copy of the binary that was
+recorded and report against it with `--symfs`, which is what
+`_tmp/t97-p6-5/symfs/` is.
