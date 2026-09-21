@@ -31842,7 +31842,7 @@ The verdicts are unchanged at every size: `accepted 57 977`, `accepted
 
 | gate | |
 |---|---|
-| `cargo build --release` / `cargo test`, `RUSTFLAGS="-D warnings"` | clean, 0 failures |
+| `cargo build --release` / `cargo test`, `RUSTFLAGS="-D warnings"` | clean, **428 tests, 0 failures** |
 | `scripts/lint-rust-style.sh crates/arena-core/src` | clean |
 | `scripts/provenance.py check` | **0 findings** — `6567 item(s) … all current at pin 78ded4b6` |
 | `scripts/overview-links.sh`, `scripts/holes.sh --check` | OK |
