@@ -2556,7 +2556,14 @@ the persistent tier (the byte recogniser is unchanged).
         and 0.95× on peak RSS, and 1.12× nanoda** from 1.23×.  383/383
         fixtures at one and four workers and at `--trusted`; the extraction's
         holes unchanged.  The twin owes the projections and three hoists; the
-        next round is `ETables::find`, now 15.3 % of `Init`.
+        next round is `ETables::find`, now 15.3 % of `Init`.  **Merged with
+        item 11** (which landed on `arena` while this ran; the two compose,
+        and `abstract_range_go` was given the same tag dispatch): `Init`
+        **275.20 G (−17.58 % from the tip)** and Mathlib **6 148.02 G
+        (−17.39 %)** at 2 963.49 G cycles, 694 s and 7.20 GB — **0.815×
+        `con-ron` at master and 1.016× nanoda**, i.e. the arena is within
+        1.6 % of nanoda's instruction count on Mathlib, from 1.91× at task
+        #97-P6-3's baseline.
         11. the annotation's binder-telescope loops — item 9's own "what is
         left".  **DONE** (task #97-P6-11): con-leche's cached-tier
         `annotatePisI`/`annotateLamsI` with `annotateBindersOutI`'s outward
@@ -32280,6 +32287,48 @@ of a copy the twin does not have.
     batches, and the Lean shares every one of those lists by value.
   * `inst_lp_go` did not get the tag dispatch of §1 and neither did the
     inductive modules' `view` sites; both are under 1 % each.
+
+#### 10. After the merge with task #97-P6-11
+
+`arena` moved under this branch while it ran — task #97-P6-11's annotation
+loops, the concurrent agent's — and the two were merged here and re-gated.
+They touch the same two files and compose almost exactly: P6-11 builds fewer
+nodes, this task makes each touch cheaper, and neither takes the other's
+saving away.
+
+`abstract_range_go`, P6-11's executed `abstractRange` and now the
+annotation's rebuild walk, arrived written against `view`; it was given
+lever 1's treatment in the merge commit's successor, which is `Init`
+275.733 → **275.196 G instructions** (−0.19 %) and 126.45 → 125.37 G cycles
+(−0.85 %), two passes each.  Its ledger row is `abstract1_go`'s — the walk it
+generalises.
+
+| `Init`, instructions | | |
+|---|---:|---:|
+| the `arena` tip `70272634` | 333.91 G | — |
+| task #97-P6-11 alone (its own section, quoted) | 316.32 G | −5.3 % |
+| this task alone | 291.93 G | −12.57 % |
+| **both, merged** | **275.20 G** | **−17.58 %** |
+
+and the landing run, `--verified --jobs=1` under `ulimit -v 27000000`:
+
+| Mathlib, 691 128 | `arena` tip | P6-11 alone | this alone | **merged** |
+|---|---:|---:|---:|---:|
+| instructions:u | 7 442.26 G | 6 807.76 G | 6 749.65 G | **6 148.02 G** |
+| cycles:u | 3 614.33 G | — | 3 256.94 G | **2 963.49 G** |
+| wall | — | — | 772.4 s | **694.2 s** |
+| peak RSS | 7.21 GB | 7.18 GB | 7.18 GB | **7.20 GB** |
+| vs `con-ron` at master | 0.99× | 0.90× | 0.90× | **0.815×** |
+| vs nanoda (quoted) | 1.23× | 1.13× | 1.12× | **1.016×** |
+
+`accepted 691128` at every point.  **The arena is within 1.6 % of nanoda's
+instruction count on Mathlib**, from 1.91× at task #97-P6-3's baseline, and
+the gates below were re-run on the merged tree: 383/383 at `--jobs=1`,
+`--jobs=4` and `--trusted`, 428 tests, the lint and the citation gate clean
+(`6607 item(s) … all current at pin 78ded4b6`), and
+`scripts/extract-arena.sh --dry` at **0 errors and the tip's own 5 type and
+209 function holes**.
+
 ### Task #97-P6-11 — the annotation's binder-telescope loops (2026-09-21, Opus under Fable)
 
 Phase P6 item 11 of §8.6, and the lever task #97-P6-9 left named: *"the
