@@ -12,7 +12,7 @@ the tier *above* the index rather than in the low bit (con-leche's lesson 6,
 `_tmp/t97/conleche-arena-history.md` §6.6) — a persistent handle's bits never
 change when the scratch tier comes and goes.
 
-Four handle kinds share one implementation through a phantom type parameter,
+Five handle kinds share one implementation through a phantom type parameter,
 which is nanoda's `Ptr<A>` (`util.rs:35-46`, `_tmp/t97/nanoda-design.md` §1)
 with `PhantomData<A>` spelled as an index: `Idx k` is a one-field structure
 over `UInt32`, so the kind is erased at runtime and the four types stay
@@ -51,6 +51,7 @@ inductive IdxKind where
   | name
   | level
   | levels
+  | bm
   deriving DecidableEq, Repr, Inhabited
 
 /-- con-leche: none — the arena handle.  con-leche's arena era used a bare
@@ -69,6 +70,17 @@ abbrev NIdx := Idx .name
 abbrev LIdx := Idx .level
 /-- con-leche: none — level-list handle (DESIGN §8.3). -/
 abbrev LsIdx := Idx .levels
+/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — a handle into the
+**binder datum store** (task #97-P6-16): the same word layout as the other
+four (the tier bit and the index), for a store with ONE constructor and so no
+tag to spend — `BMIdx.pack` passes tag `0`.
+
+DESIGN §8.3 gives `lam`/`forallE` a `BinderMeta` INSIDE the node record, which
+makes the record carry a `PropWhen`; with the datum interned the record is
+three handles and its cons key is three words.  `Idx` is already generic in
+its kind, so `mk`, `ofWord`, `tier`, `index`, `isPersistent` and `idxNat` —
+and the four roundtrip lemmas — come with the fifth kind at no cost. -/
+abbrev BMIdx := Idx .bm
 
 namespace Idx
 
@@ -234,6 +246,15 @@ def lit : UInt32 := 8
 /-- con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr — the `proj`
 constructor, line 353. -/
 def proj : UInt32 := 9
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr — `lam` (line 349) or
+`forallE` (line 350), the two constructors that share the `BindNode` record
+shape (task #97-P6-10).  A named predicate rather than the disjunction written
+at the use site: the walks that dispatch on the handle's own tag hold the
+handle while they test it, and task #97-P4a's extraction rule 2 asks for the
+name so that a two-way `||` never sits inside a `match` arm that still holds
+loans. -/
+@[inline] def isBind (t : UInt32) : Bool := t == lam || t == forallE
 end ETag
 
 /-! The three name-constructor tags. -/
