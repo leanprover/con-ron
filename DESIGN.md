@@ -34443,7 +34443,11 @@ The deliverable's test — *a consumer can swap `HashMap` for `HashMap2` in a
 relation statement without changing the statement* — is met: `Rel`,
 `Rel_empty`, `Rel_get`, `Rel_insert`, `Rel_remove`, `RelOn`, `RelOn_of_Rel`,
 `RelOn_empty`, `Rel_get_wf`, `Rel_insert_wf` are the same text over the new
-`toFun`, and `Rel_remove_wf` is one `HashMapWF.lean` does not have.
+`toFun`, and `Rel_remove_wf` is one `HashMapWF.lean` does not have.  The one
+difference is a *hypothesis*, not a statement: the four growing lemmas
+(`insert_refines`, `insert_refines_wf`, `Rel_insert`, `Rel_insert_wf`) take
+§4's `2 * m.slots.val.length ≤ Usize.max`, and a call site that reads a
+conclusion is unchanged.
 
 #### 4. The saturation corner: a real (unreachable) port bug
 

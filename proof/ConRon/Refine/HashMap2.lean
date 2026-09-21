@@ -35,9 +35,9 @@ What moves, and only what moves:
   invariant and `repair_spec` its three-arm step analysis; `RepairInv.stop`
   is `repair`'s own `fuel == 0` obligation, the module's second.
 
-**Two deliberate departures from `Refine/HashMap.lean`'s own shape**, both of
-which make this file *smaller* than the 1 900–2 300 lines task #97-P6-4b
-priced:
+**Two deliberate departures from `Refine/HashMap.lean`'s own shape**, and
+both are what keeps this file near the 1 900–2 300 lines task #97-P6-4b
+priced despite `remove` costing half again what it thought:
 
 1. **The `Eq2Fwd`/`KeysOk` form is proved once and the `Eq2Spec` form is a
    corollary.**  `HashMap.lean` proves the unrestricted form and
@@ -52,7 +52,10 @@ priced:
    every slot strictly closer to the home is live", which is `cyc`-free and
    therefore `omega`-friendly.  `cyc`/`wraps_past` appear only in the
    `remove`/`repair` section, which is the one place the code computes a
-   cyclic distance.
+   cyclic distance — and `RepairInv` carries its scan distance the same way,
+   as a parameter with `1 ≤ D ≤ n`, because `cyc n hole j` is *wrong* at the
+   wrap: it reads `0` when `j` comes back round to `hole`, which is precisely
+   where the scan ends.
 
 **No assumption whatsoever is made about `hash64`** — exactly as in
 `HashMap.lean`, and for the same reason: the invariant says only that a key
