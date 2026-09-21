@@ -2528,6 +2528,35 @@ the persistent tier (the byte recogniser is unchanged).
         holes unchanged.  The twin owes eight clauses, all of them con-leche's own cached tier, plus one hoist of `iotaRec`'s spine walks; the annotation's binder
         loops (`annotatePisI`/`annotateLamsI`, 17 % of the prefix's new nodes)
         are the lever left.
+        10. the per-touch SHAPE round — task #97-P6-8b's decomposition of the
+        102-instruction node touch.  **DONE** (task #97-P6-10).  Lever 1 (the
+        read): `#[inline(always)]` on the ten store readers — plain `#[inline]`
+        is declined by LLVM on a ten-arm jump table and is worth −0.11 % —
+        and then the view's PROJECTIONS, `view_app` / `view_bind` / `view_bvar`
+        / `view_fvar_idx` / `view_let` / `view_proj` / `view_ls_len`, with the
+        seven hottest walks dispatching on the handle's own tag (`h.tag()`, a
+        register shift) instead of on the decoded view; that is **−9.50 % of
+        `Init`** and it takes out the store's tag jump table, the 32-byte
+        `ENodeView` sret, the second dispatch and `binder_meta_dup` on every
+        non-binder visit.  Lever 2 (non-`Result` returns) is **counted and
+        measured and NOT taken**: exactly ONE of the crate's 1 132
+        `Result`-returning functions is transitively non-failing, and the
+        register-returning `Result<EIdx, u32>` form of the three hot walks is
+        −0.15 % instructions and **+0.71 % cycles**.  Lever 3 (the POD view) is
+        half-taken by lever 1 and the rest priced at 2–3 % — the `BinderMeta`
+        column is a task, not a lever.  Lever 4 answers P6-8b's open question
+        2: **the 262 M name interns are 0.49 % of the run and there is nothing
+        to fix there**; the name store's cost is the READBACK (4.56 % of
+        `Init`), and three "cutoff hoisted over the copy" moves plus the
+        length projection take **−3.40 %**.  A node touch is **110.5 → 88.3
+        instructions** (nanoda 36.3, quoted), `Init` **333.91 → 291.93 G
+        (−12.57 %)** at −20.4 % cycles and −20.4 % wall, the prefix **1 601.11
+        → 1 451.38 G (−9.35 %)** and Mathlib **7 442.26 → 6 749.65 G
+        (−9.31 %)** at 7.18 GB — **0.90× `con-ron` at master on instructions
+        and 0.95× on peak RSS, and 1.12× nanoda** from 1.23×.  383/383
+        fixtures at one and four workers and at `--trusted`; the extraction's
+        holes unchanged.  The twin owes the projections and three hoists; the
+        next round is `ETables::find`, now 15.3 % of `Init`.
 
 Branch `arena`; master stays shippable until (C) passes the gates and the
 fixtures.  Budget from con-leche's record, scaled: (B) ~12 k lines,
@@ -31912,3 +31941,317 @@ function survives the `.app` clause's rewrite.
     task-#97-P6-7-shaped question nobody has asked yet.
   * The wall column of §4 is not usable and a quiet-machine re-run would be
     worth one hour.
+
+### Task #97-P6-10 — the per-touch shape (2026-09-21, Opus under Fable)
+
+Phase P6 item 10 of §8.6, the round task #97-P6-8b's decomposition asked for:
+*a node touch costs the arena 102 instructions against nanoda's 36*, and the
+three causes it named were (1) the read is a call, (2) `Result<EIdx,
+CheckError>` is a 24-byte sret plus a 32-byte `ENodeView` copy plus a second
+tag dispatch, (3) the calls are GOT-indirect — which fat LTO already fixed —
+with a fourth, `ENodeView` not being a POD.  RUST-FIRST under §8.6, with the
+twin ledger in §8.  Branch `p6-10` off `arena`'s tip `70272634`; the scratch,
+the profiles and the instrumented trees are `_tmp/t97-p6-10/`.
+
+**The measure.**  `perf stat -e instructions:u,cycles:u` of `--verified
+--jobs=1 --progress=1000000`, `ulimit -v` 8 GiB for `Init`, 12 GiB for the
+Mathlib 25 % prefix (`head -26948621`) and 27 GiB for Mathlib.  Another agent
+was benchmarking on the same machine for part of the session (the one-minute
+load average reached 26), so **read the instruction column** and treat the
+intermediate cycles as indicative.  The two `Init` rows of §6 are the
+exception: they are two passes each on a quiet machine (load 5), and they
+agree to nine digits on instructions, to 0.8 % on cycles and to 0.7 % on
+wall.
+
+#### 1. Lever 1 — the read inlined, then the view projected
+
+Fat LTO (task #97-P6-8b's build setting, landed) made the store's readers
+DIRECT calls but did not inline them: `instantiate1_go` still left its body
+twice per visit, and the two exits re-did the tier select independently.
+
+  * **`#[inline]` is not enough** — LLVM declines a ten-arm jump table.  Plain
+    `#[inline]` on the whole read chain is **−0.11 %** on `Init`.
+    `#[inline(always)]` on the same ten functions (`Tbl::{node,der_at}`,
+    `ETables::{get,der_at}`, `EStore::{pers_get,pers_der_at,view,derived}`,
+    `monad::{view,derived_e}`) is **−1.68 % instructions and −7.34 % cycles**:
+    the tier select is CSE'd between the derived read and the decode, and the
+    call and its argument setup go.  Adding `inst_list_cutoff` and
+    `intern_rebuilt` is another **−1.17 %**.  `instantiate1_go` grows from 460
+    to 1 055 instructions of text, which is the whole price.
+  * **The view's PROJECTIONS, and the walk dispatching on the handle.**  The
+    handle word carries the constructor tag (§8.3), so `h.tag()` is a register
+    shift with no memory access at all; the walk can dispatch on it and then
+    read only the fields of that one constructor.  `view_app`, `view_bind`,
+    `view_bvar`, `view_fvar_idx`, `view_let`, `view_proj` in `arena::store`
+    (as `ETables::get_*`, `EStore::pers_get_*` / `view_*`) and in
+    `arena::monad`, each returning `Option` — a `Result<(EIdx, EIdx),
+    CheckError>` is a 32-byte sret where `Option<(EIdx, EIdx)>` comes back in
+    registers — with `monad::fail_dangling_e` spelling `view`'s own `none` arm
+    at the call site, `store::e_bind_view` rebuilding the binder view at the
+    tag it was decoded at, and `handle::e_tag_is_bind` naming the two-way tag
+    test.
+
+    What that removes from a visit: the store's ten-way tag jump table (the
+    caller's own dispatch replaces it), the 32-byte `ENodeView` through the
+    sret slot, the **second** dispatch on the tag the callee had just
+    dispatched on, the view's drop flag, and `binder_meta_dup` on every
+    non-binder visit.  A leaf tag answers with no memory read at all.
+
+    | taken at | `Init`, instructions | Δ |
+    |---|---:|---:|
+    | the `arena` tip `70272634` | 333 911 950 187 | — |
+    | `#[inline(always)]` on the read chain | 328 290 768 080 | −1.68 % |
+    | + `inst_list_cutoff`, `intern_rebuilt` | 324 456 051 065 | −1.17 % |
+    | + `get_app_fn`, `get_app_args_go`, `get_app_spine_go` | 313 525 302 231 | **−3.37 %** |
+    | + `instantiate1_go` | 310 458 570 856 | −0.98 % |
+    | + `instantiate_list_go`, `instantiate_list` | 303 451 191 701 | −2.26 % |
+    | + `abstract1_go` | **302 209 117 718** | −0.41 % |
+    | | | **−9.50 %** |
+
+    One reordering travels with it and is a lever of its own: the **memo probe
+    now comes before the node read**, so a hit decodes nothing.  It is why the
+    decode count falls 15.6 % (§5) while the derived-word count does not move.
+    `inst_lp_go` was left alone: its `.sort` and `.const` arms need the level
+    payload, its `hasLP` cutoff takes most visits, and it is 0.9 % of `Init`.
+
+#### 2. Lever 2 — non-`Result` returns: counted, measured, NOT TAKEN
+
+The brief asked for the count of `Result`-returning walk functions whose
+bodies have no failure path.  Over `crates/arena-core/src`, with the
+"failing" relation closed transitively (a function fails if its body has
+`fail`/`Err`, or if it calls a failing function): **1 132 functions return
+`Result`, and exactly ONE is transitively non-failing** — `core::
+nat_op_deps_stored`, which is cold.  Everything else bottoms out in `view` (a
+dangling handle), in `intern_e` (the `2^27` cap) or in a fuel test, so "a walk
+that only reads never fails" does not describe this crate: the reads
+themselves are the `Except`.
+
+So the lever, if there is one, is the brief's second half — a narrower error
+so the return fits in registers.  Measured exactly, and
+**semantics-preserving**: the three failures reachable inside
+`instantiate1_go` / `instantiate_list_go` / `instantiate_list` are three
+CONSTANTS, so the walks can return `Result<EIdx, u32>` (8 bytes, in `%eax`)
+with the codes mapped back to the identical `CheckError` values at
+`instantiate1_fast` / `instantiate_list_fast`.  The sret does disappear from
+the disassembly (no `mov %rdi,%rbx` at entry) and the frame grows 0x68 → 0x78:
+
+| `Init` | instructions:u | Δ | cycles:u | Δ |
+|---|---:|---:|---:|---:|
+| `Result<EIdx, CheckError>` (kept) | 297 726 843 381 | — | 136 614 277 233 | — |
+| `Result<EIdx, u32>`, mapper not inlined | 300 279 890 725 | +0.86 % | 139 917 510 718 | +2.42 % |
+| `Result<EIdx, u32>`, mapper `#[inline(always)]` | 297 291 169 105 | **−0.15 %** | 137 584 299 916 | **+0.71 %** |
+
+A wash on instructions and worse on cycles.  The brief's own rule — "take it
+only if the A/B is clearly positive" — says no, and the twin keeps one
+`Except CheckError` throughout.  *Why P6-8b's static count over-promised:* the
+fifteen instructions per rebuild it attributed to the discriminant tests are
+not fifteen instructions of WORK — they are three predictable, dependency-free
+tests per call that the machine retires alongside the loads, and the register
+form spills more of the frame instead.
+
+#### 3. Lever 3 — the POD view: lever 1 took the half that was free
+
+Lever 1 removes `BinderMeta` from every visit that is not a binder, which is
+where P6-8b measured its 2.12 %: `binder_meta_dup` +
+`drop_glue::<BinderMeta>` + `drop_glue::<ENodeView>` +
+`Arc<NameNode>::drop_slow` are **1.46 % of `Init` after**, against that 2.12 %
+before, and the `ENodeView` drop is now reached only by `view` proper (the
+`lit` arm and the inductive modules).
+
+What is left is the brief's own suggestion — the binder arms carrying an INDEX
+into a per-tier `Vec<BinderMeta>` column — and it is **priced and not taken**,
+at that 1.46 % plus part of the binder cons probe (`Tbl<BindNode>::find`
+1.94 %, `::push` 0.80 %, whose `Eq2` is `prop_when::beq` and whose hash is
+`hash_pw`, where a `u32` column would make `BindNode` three words of POD).
+Call it 2–3 % of `Init`.  It is not a local change: `ENodeView::Lit(Literal)`
+keeps the view droppable anyway, so the column has to be a second interning
+table with its own cons discipline, a `der_of_view` that fetches the datum
+back, and every producer and consumer of the two binder arms rewritten.  That
+is a task, not a lever, and it is recorded here as the priced successor.
+
+#### 4. Lever 4 — who touches the name store, and three cutoffs hoisted
+
+Task #97-P6-8b's open question 2 was *who performs the prefix's 262 481 212
+name interns*.  Answered with a **frame-pointer profile** (`-C
+force-frame-pointers=yes`, `perf record --call-graph=fp`, 157 011 samples on
+`Init`) rather than a per-call-site counter, because the actionable quantity
+is instructions and not calls — and the answer corrects the premise:
+
+  * **the interns are not the cost.**  `NStore::intern` is **0.49 % of `Init`**
+    and the whole intern path under 1 %.  P6-8b's 3.21 % "name store" bucket is
+    mostly `expr::str_copy_from`, and **1.66 of its 1.96 % is under
+    `NStore::view`** — the DECODE of a name handle copying the node's
+    `Vec<u32>` out, not the intern.  262 M interns at well under four
+    instructions each is what an identity-hashed cons table costs, and there is
+    nothing to fix there;
+  * **the cost is the READBACK.**  `read_level` / `read_names` →
+    `denote_l_aux` / `denote_n_aux` → `NStore::view` → `str_copy_from` is
+    **4.56 % of `Init`**, and its consumers are `inst_lp_go` (2.17 %),
+    `prop_read::proof_pw` (1.12 %), `core::rec_fire_comparands_plain` (0.51 %)
+    and `inst_lp_fast` (0.44 %).  §8.3's "memoised readback per declaration"
+    was never implemented; §9 prices it.
+
+Three "cutoff hoisted over the copy" moves — the shape task #97-P6-9's item 5
+has at `instantiate_list`'s `.bvar` clause — plus one more projection:
+
+  1. **`inst_lp_fast` tests `hasLP` before reading `ks` and `us` back.**
+     `inst_lp_go`'s own first act is `hasLP e = false → e`, and the walk is the
+     only consumer of the two readbacks, so on a level-parameter-free term a
+     `Vec<Name>` and a `Vec<Level>` were built out of the name and level stores
+     and dropped for a walk that returns immediately.
+  2. **`prop_read::head_proof_pw` and `head_type_pw` test
+     `PropWhen.hasParams`** before the same two readbacks: `Level.substPW ks vs
+     pw = pw` when `pw` names no parameter.
+  3. **`core::iota_rec_at` tests the arity before the copies.**  It copied the
+     recursor's `IConstantVal` and its whole `Vec<IRecRule>` — Lean shares both
+     by value, the Rust copies (§3.2) — and then answered `none` at the wrong
+     arity.  `whnf_app` asks it at every reduction step; the copies were 0.69 %
+     of `Init` on their own.  That function's own note already makes the same
+     move for the level-list read.
+  4. **`view_ls_len`, the LENGTH projection of `viewLs`** (`LsStore::view_len`
+     / `LsTables::get_len`).  Decoding a level-list handle copies its whole
+     `Vec<LIdx>` (1.02 % of `Init` inside `LsStore::view` alone), and nine of
+     the eleven call sites only compare the length with a declaration's
+     level-parameter count.
+
+| | `Init`, instructions | Δ |
+|---|---:|---:|
+| after lever 1 | 302 209 117 718 | — |
+| + 1 and 2 (the readback cutoffs) | 297 726 843 381 | −1.48 % |
+| + 4 (`view_ls_len`) | 294 805 078 451 | −0.98 % |
+| + 3 (`iota_rec_at`'s arity) | **291 933 184 500** | −0.98 % |
+| | | **−3.40 %** |
+
+#### 5. The per-touch number, by task #97-P6-8b's own method
+
+Touch counts from an atomic counter in `EStore::view*` and `EStore::derived`,
+applied to both trees under `_tmp/t97-p6-10/{tip,cur}` (throwaway copies, the
+worktree untouched); instruction buckets from `_tmp/t97-p6-8b/fine.py` over a
+`perf record -c 2000000` of the CLEAN binaries.  The read buckets vanish into
+the walk bucket after, by construction — that is what lever 1 is.
+
+| `Init` | `arena` tip | this branch |
+|---|---:|---:|
+| decodes (`view` and its projections) | 1 024 433 185 | **864 851 659** (−15.6 %) |
+| derived-word reads | 835 710 835 | 837 170 271 |
+| **touches** | **1 860 144 020** | **1 702 021 930** |
+| the walk bodies | 177.64 G | **150.23 G** |
+| the derived-word read (`der_at`) | 14.76 G | inlined |
+| the decode (`get`, `view`) | 13.22 G | inlined |
+| the memo probe | 2.57 G | inlined |
+| **walk + read, per touch** | **110.5** | **88.3** |
+| against nanoda's 36.3 (quoted, P6-8b) | 3.05× | **2.43×** |
+
+and the rest of the bucketing, which says where the round moved the weight:
+
+| bucket | tip | this branch |
+|---|---:|---:|
+| the walk bodies (and, after, the reads inside them) | 53.20 % / 177.64 G | 51.46 % / 150.23 G |
+| cons — the tables | 15.40 % / 51.42 G | **19.94 % / 58.21 G** |
+| the allocator | 6.74 % / 22.51 G | 8.54 % / 24.93 G |
+| the memo insert and clear | 6.55 % / 21.87 G | 7.98 % / 23.30 G |
+| cons — `intern`, `derOfView` | 3.40 % / 11.35 G | 5.58 % / 16.29 G |
+| the parse | 3.30 % / 11.02 G | 3.81 % / 11.12 G |
+| the name store | 1.83 % / 6.11 G | 2.18 % / 6.36 G |
+
+The absolute G columns are what to read: everything except the walk is within
+a few per cent of where it was in instructions, and the cons tables' SHARE
+rises only because the walk shrank.  **`ETables::find` is now the single
+largest symbol of the run at 15.3 %**, and is the round after this one (§9).
+
+#### 6. The instruction table
+
+| export | | `arena` tip | **this branch** | Δ | `con-ron` master | nanoda |
+|---|---|---:|---:|---:|---:|---:|
+| `Init`, 57 977 | instructions:u | 333 911 950 187 | **291 933 184 500** | **−12.57 %** | 412 284 710 704 | 231 248 123 456 |
+| | cycles:u | 162.24 / 163.57 G | 129.60 / 129.75 G | −20.4 % | | 112.28 G |
+| | wall | 37.06 / 37.31 s | 29.52 / 29.55 s | −20.4 % | | |
+| | peak RSS | 631.1 MB | 631.8 MB | ±0 | | |
+| Mathlib 25 % prefix, 155 288 | instructions:u | 1 601 109 214 606 | **1 451 377 940 423** | **−9.35 %** | — | 1 187 196 874 884 |
+| | cycles:u | 744.15 G | 638.10 G | −14.3 % | | 737.44 G |
+| | peak RSS | 1 952.2 MB | 1 931.8 MB | −1.0 % | | |
+| Mathlib, 691 128 | instructions:u | 7 442 256 620 408 | **6 749 649 468 935** | **−9.31 %** | 7 541 754 140 806 | ≈6 054 G |
+| | cycles:u | 3 614.33 G | 3 256.94 G | −9.9 % | | |
+| | wall | — | 772.4 s | | | |
+| | peak RSS | 7.21 GB | **7.18 GB** | −0.4 % | 7.56 GB | |
+
+(the `arena` tip's Mathlib row is task #97-P6-9's measurement, not re-run here;
+its `Init` and prefix rows ARE re-run, in this session, on this binary, which
+is why the cycles column differs from that task's — the machine was quieter.)
+Against the two reference columns:
+
+| export | `arena` tip | **this branch** | vs master | vs nanoda |
+|---|---:|---:|---:|---:|
+| `Init` | 333.91 G | **291.93 G** | 0.81× → **0.71×** | 1.44× → **1.26×** |
+| Mathlib 25 % prefix | 1 601.11 G | **1 451.38 G** | — | 1.35× → **1.22×** |
+| **Mathlib** | 7 442.26 G | **6 749.65 G** | 0.99× → **0.90×** | 1.23× → **1.12×** |
+| Mathlib peak RSS | 7.21 GB | **7.18 GB** | 0.95× → **0.95×** | — |
+
+The verdicts are unchanged at every size: `accepted 57977`, `accepted 155288`,
+`accepted 691128`.
+
+#### 7. Gates
+
+| gate | |
+|---|---|
+| `cargo build --release` / `cargo test`, `RUSTFLAGS="-D warnings"` | clean, fifteen test binaries, 0 failures |
+| `scripts/lint-rust-style.sh crates/arena-core/src` | clean |
+| `scripts/provenance.py check` | **0 findings** — `6599 item(s) … all current at pin 78ded4b6` |
+| `scripts/extract-arena.sh --dry` | **0 errors, 5 type + 209 function holes** — the tip's own count, unchanged |
+| `scripts/diff-e2e.sh --bin=target/release/con-ron-arena` | **383/383 agree** at `--jobs=1`, at `--jobs=4` and at `--trusted`, 0 differ, 0 timed out |
+| the diff | `arena/{store,monad,handle,expr_ops,core,prop_read}.rs` — nothing else under `crates/` |
+
+`proof/`, `crates/con-ron`, `crates/con-ron-core`, `OVERVIEW.md` and
+`README.md` are untouched.
+
+#### 8. The twin ledger
+
+| arena item | what it is | the twin's clause | owed or absorbed |
+|---|---|---|---|
+| `#[inline(always)]` on the ten readers | a codegen attribute | — | **absorbed**: Charon does not read attributes, and the extraction is hole-for-hole identical |
+| `ETables::{get_app,get_bind,get_bvar,get_fvar_idx,get_let,get_proj}`, `LsTables::get_len` | per-constructor projections of `ETables.get` / `LsTables.get` | OWED, one `def` each | owed; exactness is `getApp t i = (t.get i).bind appParts` and its six siblings — a `match` over the same `if` chain, `rfl` in the twin |
+| `EStore::{pers_get_*,view_*,view_len}`, `monad::{view_app,view_bind,view_bvar,view_fvar_idx,view_let,view_proj,view_ls_len}` | the tier select over those | OWED, one `def` each | owed; `viewApp h = (view h).bind …`, the tier test being the twin's own |
+| `store::e_bind_view` | the inverse of `viewBind` at the tag | OWED, one `def` | owed |
+| `handle::e_tag_is_bind` | `t = .lam ∨ t = .forallE`, named | OWED, one `def` | owed (and it is P4a's extraction rule 2 that asks for the name) |
+| `monad::fail_dangling_e`, `fail_dangling_ls` | the `none` arm of `view` / `viewLs`, named once | OWED, one `def` each | owed |
+| `instantiate1Go`, `instantiateListGo`, `instantiateList`, `abstract1Go`, `getAppFn`, `getAppArgs`, `getAppSpine` dispatching on `h.tag` | the same clauses, selected by the handle's tag instead of by the decoded view | OWED — but the SAME shape task #97-P6-9 already landed at `head_and_args` and `iota_rec_at` (`v.tag() == ETAG_APP`) and ledgered there | owed; sound because a handle in a WF store carries the tag of its own view — `StoreWF`'s `intern`/`push` clause — and the two forms differ only on a DANGLING handle, where the `else` arm answers `h` and `view` would fail: a state the checker never builds and `StoreWF` excludes |
+| the memo probe before the node read | `instantiate1Go`'s, `instantiateListGo`'s and `abstract1Go`'s memo arms | OWED: two reads of the state commute | owed, one `simp` step per arm |
+| `inst_lp_fast`'s `hasLP` test before the readback | `instLPFast` | OWED: `hasLP e = false → instLPGo ks us e = e`, which the twin already carries as `instLPGo`'s own cutoff | owed; it differs from the spec only at `fuel = 0`, where the entry never is |
+| `head_proof_pw` / `head_type_pw`'s `hasParams` test | `headProofPW`, `headTypePW` | OWED: `¬pw.hasParams → Level.substPW ks vs pw = pw` (its `never` and `always` arms are exactly where `bindZ` is the identity) | owed, one `PropWhen` lemma |
+| `iota_rec_at`'s arity test before the copies | `iotaRecAt` | — | **absorbed**: `i_constant_val_dup` / `i_rec_rules_dup` are the Rust's own copies of values Lean shares (§3.2); the twin's clause order already tests the arity first |
+| `usl.len()` becoming `usl` at eleven sites | a length where a list stood | — | **absorbed**, under the projection's exactness lemma above |
+
+Nothing here is a different algorithm: every clause is the same clause read
+through the handle's own tag, or a test the twin already makes moved in front
+of a copy the twin does not have.
+
+#### 9. What is left
+
+  * **`ETables::find` is 15.3 % of `Init`** — the single largest symbol of the
+    run, and the cons-table probe is now a bigger bucket than the walks' own
+    reads ever were.  Two probes per intern attempt (persistent, then scratch),
+    ≈70 instructions each: build the node record with its `dup2`s, hash it,
+    probe `HashMap2`, compare.  Note that `der_of_view` computes a hash of the
+    SAME node a few instructions later on a miss; whether `HashMap2` should
+    take a precomputed hash so that the two become one is the obvious question
+    and nobody has measured it.
+  * **The readback memo §8.3 promised.**  "Level ops run on transient `Level`
+    trees read back from `LIdx` (**memoised readback per declaration**)" — the
+    memo does not exist.  `inst_lp_go`'s `.sort` and `.const` arms read a level
+    back, run `Level.subst` and re-intern once per occurrence; a
+    per-`inst_lp_fast` memo `LIdx ↦ LIdx` (and `LsIdx ↦ LsIdx`) would fold the
+    2.17 % of readback under `inst_lp_go`, `level::subst_go`'s 0.98 % and most
+    of the 1.9 % spent dropping transient `Level` trees into a handle compare.
+    con-leche's cached tier has no counterpart — it memoises `instLevelParams`
+    per `Expr` node and substitutes levels per occurrence — so the twin clause
+    would be the arena's own.
+  * **Lever 3's remainder**, priced in §3: the `BinderMeta` column, 2–3 % of
+    `Init`, a task rather than a lever.
+  * **The handle-vector copies**, 6.3 % of `Init` and untouched here:
+    `eidx_copy_upto` 3.64 % (under `beta_peel` 1.53 %, `iota_certs_aux` 0.75 %,
+    `cons_eidx` 0.54 %) and `env::eidx_vec_dup_from` 2.17 % (1.02 % of it
+    inside `LsStore::view`, which `view_ls_len` relieves only where a length is
+    all that is wanted).  These are P6-9's batched walks paying for their
+    batches, and the Lean shares every one of those lists by value.
+  * `inst_lp_go` did not get the tag dispatch of §1 and neither did the
+    inductive modules' `view` sites; both are under 1 % each.
