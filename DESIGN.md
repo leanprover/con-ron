@@ -1633,7 +1633,8 @@ do not care whether the manifest has caught up.  Keep `update`'s output in
 you.
 
 **3. Classify the findings before touching a line.**  Most of a large bump is
-one or two upstream renames applied everywhere.  Write a thirty-line script
+one or two upstream renames, one or two upstream FILE MOVES, and a docstring
+sweep — applied everywhere.  Write a thirty-line script
 that parses `update`'s unified diffs, applies the renames you know about to
 the *old* side, and buckets each record: *rename-only*, *doc-only*,
 *whitespace*, *real*.  Task #83's 500 `CHANGED` findings came out 253
@@ -1642,6 +1643,25 @@ citation-only markers mechanically (match each marker against the citation
 line above it, keyed by Rust file and cited range) took minutes and left a
 legible work order.  Do this before opening a Rust file; it is the difference
 between a day and a week.
+
+Task #98 (`c431b1ca` → `78ded4b6`, 150 upstream commits) had **193 findings,
+150 `GONE` and 43 `CHANGED`**, and the classifier cut them to **43 real** in
+two passes:
+
+| bucket | count | what it cost |
+|---|---:|---|
+| a FILE MOVE, byte-identical (`Kernel/Core.lean` → `Kernel/CoreDefs.lean`) | 114 | a scripted citation repoint |
+| doc-only (`Model/Steps/*` → `Model/Rules/*` in the docstrings) | 5 | nothing |
+| deleted upstream | 35 | the port |
+| really changed | 39 | the port |
+
+The two mechanical buckets are found by **comparing the block text, not the
+line numbers**: for a `GONE` finding, hunt the declaration by name across the
+whole new `ConLeche/` tree and compare the old cited block with what you find
+(`provenance.py`'s own `locate_decl` and `lean_text(path, old)` are the two
+pieces; forty lines).  For a `CHANGED` finding, strip every comment line from
+both blocks and compare what is left — `provenance.py`'s `comment_lines` is
+that function — and a docstring sweep comes out as zero work.
 
 While you are there, run `scripts/progress.py --summary` **once, before
 deleting a single marker**: its `stale (CHANGED marker)` count is only
@@ -1661,6 +1681,15 @@ rename or a move and nine were a genuine deletion — and a deletion is never a
 citation edit: it is Rust and proof code to remove, and `check` stays red
 until it is gone.
 
+**And check where `update` put the citations it DID relocate.**
+`names_compatible` lets a citation of `Expr.beqGo` match a block that
+declares `Expr` — the rule that makes a namespace-qualified citation work —
+so when upstream renames `Expr.beqGo` to `Expr.beqGoX`, `locate_decl` can
+land the citation on the `Expr` INDUCTIVE instead of failing, and `check`
+then passes on a citation that points at the wrong thing.  Task #98 had
+eleven of those and no other kind.  The scan is ten lines: every citation
+whose declared head is a strict PREFIX of the cited name is suspect.
+
 **5. Port in dependency order, and mind the crate boundary.**
 `crates/con-ron-core/src` is inside the style lint (§3.4) and inside the
 extraction; `crates/con-ron/src` is inside neither, and only inside the
@@ -1669,6 +1698,21 @@ the kernel — con-leche's task #293 moved the basis-pin match there — is not 
 move for the port but a rewrite: closures, iterators and `for` loops have to
 go, every item needs a citation the gate accepts, and the generated Lean grows
 by the whole module.  Budget for that separately from the porting itself.
+
+**A REDESIGN upstream is not "re-port the arms".**  Task #98 absorbed
+con-leche's #313–#319, which rewrote every traversal memo: one walk became
+three declarations (`<name>P` the plain descent, `enter<X>P` the child step,
+`<name>XP` the walk), the key went from structural to an address, and the
+entries became self-proving.  The first thing to establish is whether the
+COMPUTATION moved at all — compare the old walk's arms, memo plumbing
+stripped, against the new `<name>P` — because if it did not, the port's own
+walk is still correct and the only question is which parts of the new design
+to mirror and what to cite.  There the answer was: mirror the discipline (the
+exclusivity read and the compound test), keep the structural key and the
+inlined walk, cite `<name>XP` with the deviation written down, and put every
+`<name>P`/`enter<X>P`/`PEnt`/`Squash` declaration on the skip list with its
+reason.  Twelve walks, no arm changed, 43 real findings — and the port got
+23 % faster.
 
 **6. A rename-only marker is still proof work.**  The Rust needs nothing when
 only a con-leche *name* changed, but every statement in `proof/ConRon/Refine/`
@@ -1684,7 +1728,19 @@ crate split across agents on **disjoint files** (`con-ron-core/src/kernel`,
 binaries); then `scripts/extract.sh`; only then `cd proof && lake build`,
 whose error list is the real proof work order.  Do not start the proofs before
 the model is regenerated: a statement about a generated definition that no
-longer has that shape wastes the whole edit.  The tree does not build between
+longer has that shape wastes the whole edit.
+
+**The shape of a ported helper decides the proof cost, and it is worth one
+iteration to find the cheap one.**  Task #98's gate began as a pair of
+helpers that took the node and the cursor and built the memo key themselves —
+tidy Rust, and it cost the key twice on the memoising path *and* moved a bind
+that every arm of every walk destructures, which is 75 proof sites. The
+shipped shape takes the key the walk already built, so each helper is a
+`rfl`-unfolding of the operation it replaced and the proof delta is one extra
+`simp only` argument per arm plus one "read the record back" lemma per memo.
+The rule: **a change that only adds a decision should leave the generated
+model's bind structure alone**, and when it cannot, the one bind it does add
+is worth a lemma rather than seventy-five edits.  The tree does not build between
 the first Rust edit and the last — say so in every WIP commit message.
 
 **8. Two operational traps.**  `lake build` of con-leche's package under a

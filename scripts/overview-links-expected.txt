@@ -471,6 +471,11 @@
    359          defeq_c: HashMap::new(),
    360          annot_c: HashMap::new(),
 
+== crates/con-ron-core/src/ron/node.rs#L437-L439
+   437  pub fn is_exclusive(e: &Expr) -> bool {
+   438      e.0.is_exclusive()
+   439  }
+
 == crates/con-ron-core/src/cached/core_c.rs#L5086-L5117
   5086  pub fn whnf_core(
   5087      mode: &CheckMode,

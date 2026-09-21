@@ -226,6 +226,21 @@ specifications.  The memo state is fourteen such maps
 ([`CState`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/cached/state_c.rs#L326-L360)),
 one per con-leche memo table, with the same keys and the same policy.
 
+The per-call memos of the term walks — substitution, abstraction, level
+instantiation, the scope and definedness guards, and `beq`'s pair memo —
+follow con-leche's one discipline for all of them: **memoise only what is
+shared**.  Past each walk's cutoff, a node is probed and recorded only if it
+is compound (a leaf is decided on the spot, so an entry for it could never
+save a descent) and only if
+[`ron::node::is_exclusive`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/ron/node.rs#L437-L439)
+reports its reference count above one.  A node with one reference is
+reachable from one place, so the walk that is inside its only parent meets it
+once: the key, the hash, the bucket and the stored handle are pure loss.  The
+official kernel caches on the same test.  The count read is the one thing in
+the core that looks at a reference count; §8.1's row says what the model
+makes of it, and DESIGN.md §3.4 says why it is not the counted-pointer API
+the lint bans.
+
 ### 4.4 The knot, fuel, and the pins
 
 con-leche's core is a knot of six mutually recursive operations
@@ -403,7 +418,7 @@ the fold, the frontend, and the capstones of §3.
 
 Beside the proof, the port is checked against con-leche on data.
 `scripts/diff-e2e.sh` runs the whole binary on every one of con-leche's own
-fixtures (its `tests/arena`, `tests/e2e` and `tests/annot` suites, 348
+fixtures (its `tests/arena`, `tests/e2e` and `tests/annot` suites, 383
 streams) and compares the exit code against con-leche's committed
 expectation, in both modes, with and without the embedded pin list, and at
 several worker counts.  This is what tests the parts the proof does not
@@ -418,15 +433,15 @@ behaviour is in the lines it rejects.
 
 | | |
 |---|---|
-| con-leche core (`Kernel`, `Cached`) lines to port | 14 077, all ported, 92 % verified (the rest deliberately skipped, listed with reasons) |
+| con-leche core (`Kernel`, `Cached`) lines to port | 14 136, all ported, 91 % verified (the rest deliberately skipped, listed with reasons) |
 | con-leche frontend lines to port | 4 441, all ported into the verified crate, 59 % verified by lemma citation (the capstone covers the whole path) |
-| con-leche modeller and driver lines to port | 2 975, all ported, unverified by design |
-| Rust, verified crate | 50 788 lines (28 300 of them two generated text constants), 1 884 functions, every item cited |
-| Rust, unverified crates | 11 336 lines |
-| generated Lean model | 73 410 lines |
-| proofs | 189 811 lines, 5 475 theorems; 1 614 `_refines` lemmas |
+| con-leche modeller and driver lines to port | 2 902, all ported, unverified by design |
+| Rust, verified crate | 50 964 lines (28 300 of them two generated text constants), 1 894 functions, every item cited |
+| Rust, unverified crates | 11 235 lines |
+| generated Lean model | 73 269 lines |
+| proofs | 189 574 lines, 5 494 theorems; 1 612 `_refines` lemmas |
 
-The Rust is 2.75× the Lean it ports, the model 1.45× the Rust, the proofs
+The Rust is 2.75× the Lean it ports, the model 1.44× the Rust, the proofs
 3.7× the Rust.
 
 ### 7.2 Performance
@@ -584,7 +599,7 @@ functions are `abs*`, the relations `*Rel`, the well-formedness predicates
 | `crates/con-ron/src/` | the modeller (`in_model`), the driver, the pool, the binary |
 | `crates/con-ron-dump/` | the `con-ron-pins/1` reader and writer, the allocator |
 | `proof/ConRon/Generated/` | the committed Aeneas model and the hand-written models of the holes |
-| `proof/ConRon/Refine/` | the proofs: `Abs`, `State`, `FEnv` (abstractions and relations); one file per Rust module; `Core/` (the knot); `Ind*` (the inductive routes); `Pins*` (the decoder); `Frontend/` (the parser); `Installed`; `Main` (the capstones) |
+| `proof/ConRon/Refine/` | the proofs: `Abs`, `State`, `FEnv` (abstractions and relations), `Excl` (the exclusivity read's model); one file per Rust module; `Core/` (the knot); `Ind*` (the inductive routes); `Pins*` (the decoder); `Frontend/` (the parser); `Installed`; `Main` (the capstones) |
 | `proof/ConRon/Refine/README.md` | the proof tier's own map: naming, the hypothesis table, how to write a lemma |
 | `vendor/aeneas/` | Aeneas, as a submodule, for its Lean library and documentation |
 | `scripts/` | the gates and the tooling of §5 |
