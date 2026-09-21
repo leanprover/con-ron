@@ -3797,7 +3797,7 @@ pub fn iota_certs_aux(
                 }
             }
             Ok(ENodeView::BVar(_)) => {
-                if acc.is_empty() {
+                if acc.len() == 0 {
                     Ok(false)
                 } else {
                     match instantiate_list_fast(pers, st, CORE_WALK_FUEL, h, acc, 0) {
@@ -8093,7 +8093,7 @@ pub fn infer_spine(
     }
 }
 
-/// con-leche: ConLeche/Cached/CoreC.lean:1344-1353 inferBodyI
+/// con-leche: ConLeche/Cached/CoreC.lean:1292-1389 inferBodyI
 /// Lean twin: OWED (task #97-P6-9's ledger) — the `.app` clause of the cached
 /// inference body: the spine's head is inferred once and its Π-telescope is
 /// walked against the whole spine.
