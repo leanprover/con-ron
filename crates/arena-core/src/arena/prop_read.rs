@@ -34,7 +34,9 @@ use crate::arena::env;
 use crate::arena::env::IFEnv;
 use crate::arena::handle::EIdx;
 use crate::arena::expr_ops::get_app_fn;
-use crate::arena::monad::{fail, read_levels, read_names, view, view_ls, AState};
+use crate::arena::monad::{
+    fail, fail_dangling_ls, read_levels, read_names, view, view_ls_len, AState,
+};
 use crate::arena::monad::read_level;
 use crate::arena::store::ENodeView;
 use con_ron_core::kernel::core_types::{code_points, CheckError};
@@ -142,23 +144,37 @@ pub fn head_type_pw(
                 } else {
                     match env::i_constant_info_to_constant_val(pers, &mut st.store, ci) {
                         Err(e) => Err(e),
-                        Ok(cv) => match view_ls(pers, st, &us) {
-                            Err(e) => Err(e),
-                            Ok(usl) => {
-                                if usl.len() == cv.level_params.len() {
+                        Ok(cv) => match view_ls_len(pers, st, &us) {
+                            None => fail_dangling_ls(),
+                            Some(usl) => {
+                                if usl == cv.level_params.len() {
                                     match peel_never_pis(pers, st, n, &cv.ty) {
                                         Err(e) => Err(e),
                                         Ok(res) => match residual_pw(pers, st, res) {
                                             Err(e) => Err(e),
+                                            // The cutoff hoisted over the
+                                            // readback, as in `head_proof_pw`.
                                             Ok(Some(pw)) => {
-                                                match read_names(pers, st, &cv.level_params) {
-                                                    Err(e) => Err(e),
-                                                    Ok(ks) => match read_levels(pers, st, &us) {
+                                                if !prop_when::has_params(&pw) {
+                                                    Ok(Some(pw))
+                                                } else {
+                                                    match read_names(
+                                                        pers,
+                                                        st,
+                                                        &cv.level_params,
+                                                    ) {
                                                         Err(e) => Err(e),
-                                                        Ok(vs) => Ok(Some(
-                                                            level::subst_pw(&ks, &vs, &pw),
-                                                        )),
-                                                    },
+                                                        Ok(ks) => {
+                                                            match read_levels(pers, st, &us) {
+                                                                Err(e) => Err(e),
+                                                                Ok(vs) => Ok(Some(
+                                                                    level::subst_pw(
+                                                                        &ks, &vs, &pw,
+                                                                    ),
+                                                                )),
+                                                            }
+                                                        }
+                                                    }
                                                 }
                                             }
                                             Ok(None) => Ok(None),
@@ -230,21 +246,37 @@ pub fn head_proof_pw(
                 } else {
                     match env::i_constant_info_to_constant_val(pers, &mut st.store, ci) {
                         Err(e) => Err(e),
-                        Ok(cv) => match view_ls(pers, st, &us) {
-                            Err(e) => Err(e),
-                            Ok(usl) => {
-                                if usl.len() == cv.level_params.len() {
+                        Ok(cv) => match view_ls_len(pers, st, &us) {
+                            None => fail_dangling_ls(),
+                            Some(usl) => {
+                                if usl == cv.level_params.len() {
                                     match type_sort_pw(pers, vis, st, fe, fuel, &cv.ty) {
                                         Err(e) => Err(e),
+                                        // **The cutoff hoisted over the
+                                        // readback** (task #97-P6-10), the
+                                        // shape task #97-P6-9's item 5 has.
+                                        // `Level.substPW ks vs pw = pw` when
+                                        // `pw` names no parameter (its `never`
+                                        // and `always` arms are what
+                                        // `PropWhen.hasParams` is false on,
+                                        // and `bindZ` is the identity there),
+                                        // so on a parameter-free datum — which
+                                        // is what a `Prop`-or-never head
+                                        // carries — both readbacks are
+                                        // computed and dropped.
                                         Ok(Some(pw)) => {
-                                            match read_names(pers, st, &cv.level_params) {
-                                                Err(e) => Err(e),
-                                                Ok(ks) => match read_levels(pers, st, &us) {
+                                            if !prop_when::has_params(&pw) {
+                                                Ok(Some(pw))
+                                            } else {
+                                                match read_names(pers, st, &cv.level_params) {
                                                     Err(e) => Err(e),
-                                                    Ok(vs) => Ok(Some(level::subst_pw(
-                                                        &ks, &vs, &pw,
-                                                    ))),
-                                                },
+                                                    Ok(ks) => match read_levels(pers, st, &us) {
+                                                        Err(e) => Err(e),
+                                                        Ok(vs) => Ok(Some(level::subst_pw(
+                                                            &ks, &vs, &pw,
+                                                        ))),
+                                                    },
+                                                }
                                             }
                                         }
                                         Ok(None) => Ok(None),

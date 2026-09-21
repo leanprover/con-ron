@@ -2039,6 +2039,24 @@ impl LsTables {
         }
     }
 
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-10) — `LsTables.getLen`, the LENGTH projection of
+    /// `LsTables.get`.  `get` copies the whole `Vec<LIdx>` out of the node
+    /// (Lean shares the list where the Rust must copy it, DESIGN.md §3.2);
+    /// most callers only compare the length with a declaration's level-
+    /// parameter count, and that is one `Vec::len` off the record.
+    #[inline(always)]
+    pub fn get_len(&self, i: &LsIdx) -> Option<usize> {
+        if i.tag() == LSTAG_LIST {
+            match self.lists.node(i.idx_nat()) {
+                None => None,
+                Some(r) => Some(r.us.len()),
+            }
+        } else {
+            None
+        }
+    }
+
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:692-693 LsTables.derAt
     pub fn der_at(&self, i: &LsIdx) -> LDer {
         if i.tag() == LSTAG_LIST {
@@ -2175,6 +2193,30 @@ impl LsStore {
             self.pers_get(pers, i)
         } else if self.scratch_on {
             self.scr.get(i)
+        } else {
+            None
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-10); Lean twin: OWED
+    fn pers_get_len(&self, pers: &PersTier, i: &LsIdx) -> Option<usize> {
+        if self.shared_on {
+            pers.ls.get_len(i)
+        } else {
+            self.pers.get_len(i)
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-10) — `LsStore.viewLen`, the length projection of
+    /// `LsStore.view`: `viewLen h = (view h).map List.length`, which is the
+    /// exactness lemma the bridge owes.
+    #[inline(always)]
+    pub fn view_len(&self, pers: &PersTier, i: &LsIdx) -> Option<usize> {
+        if i.is_persistent() {
+            self.pers_get_len(pers, i)
+        } else if self.scratch_on {
+            self.scr.get_len(i)
         } else {
             None
         }

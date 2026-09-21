@@ -696,6 +696,24 @@ pub fn intern_level(pers: &PersTier, st: &mut AState, l: &Level) -> Result<LIdx,
 // The level-list store's primitives (`Monad.lean:289-330`)
 // ---------------------------------------------------------------------------
 
+/// con-leche: ConLeche/Kernel/Expr.lean:41-54 Level
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:287-291 viewLs` — the `none` arm
+/// of `viewLs`, spelled once so that a caller of the length projection below
+/// declines a dangling handle with `viewLs`'s own error and not a second one.
+pub fn fail_dangling_ls<T>() -> Result<T, CheckError> {
+    fail(CheckError::Internal(code_points(&M_DANGLING_LS)))
+}
+
+/// con-leche: ConLeche/Kernel/Expr.lean:41-54 Level
+/// Lean twin: OWED (task #97-P6-10) — `viewLsLen`, the LENGTH projection of
+/// `viewLs`.  Decoding a level-list handle copies its whole `Vec<LIdx>` out of
+/// the node (Lean shares the list; DESIGN.md §3.2); the callers that only
+/// compare the length with a declaration's level-parameter count want this.
+#[inline(always)]
+pub fn view_ls_len(pers: &PersTier, st: &AState, h: &LsIdx) -> Option<usize> {
+    st.store.ls_s().view_len(pers, h)
+}
+
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:287-291 viewLs` — decode a
 /// universe-argument list handle (the `const` node's second field, line 347).

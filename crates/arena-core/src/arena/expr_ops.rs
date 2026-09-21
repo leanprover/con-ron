@@ -4284,21 +4284,33 @@ pub fn inst_lp_fast(
     us: &LsIdx,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match read_names(pers, st, ks) {
-        Err(er) => Err(er),
-        Ok(ks_p) => match read_levels(pers, st, us) {
+    // **The cutoff hoisted over the readback** (task #97-P6-10), the shape
+    // task #97-P6-9's item 5 has at `instantiate_list`'s `.bvar` clause.
+    // `inst_lp_go`'s own first act is `hasLP e = false → e`, and the walk is
+    // the only consumer of `ks_p`/`us_p`; so on a level-parameter-free term
+    // both readbacks — a `Vec<Name>` out of the name store, node by node and
+    // string by string, and a `Vec<Level>` out of the level store — are
+    // computed and dropped.  Deciding the cutoff FIRST is the same value by
+    // the walk's own equation, in `O(1)` off the derived word.
+    if !expr::lp_of_data(derived_e(pers, st, e)) {
+        Ok(e.dup2())
+    } else {
+        match read_names(pers, st, ks) {
             Err(er) => Err(er),
-            Ok(us_p) => {
-                inst_lp_clear(st);
-                match inst_lp_go(pers, st, &ks_p, &us_p, fuel, e) {
-                    Err(er) => Err(er),
-                    Ok(r) => {
-                        inst_lp_clear(st);
-                        Ok(r)
+            Ok(ks_p) => match read_levels(pers, st, us) {
+                Err(er) => Err(er),
+                Ok(us_p) => {
+                    inst_lp_clear(st);
+                    match inst_lp_go(pers, st, &ks_p, &us_p, fuel, e) {
+                        Err(er) => Err(er),
+                        Ok(r) => {
+                            inst_lp_clear(st);
+                            Ok(r)
+                        }
                     }
                 }
-            }
-        },
+            },
+        }
     }
 }
 

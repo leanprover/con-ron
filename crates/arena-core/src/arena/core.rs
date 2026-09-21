@@ -96,8 +96,8 @@ use crate::arena::handle::{
 };
 use crate::arena::monad::{
     fail, intern_e, intern_l_node, intern_ls_node, intern_n_node, intern_level, intern_name,
-    read_level, read_levels, read_name, read_names, view, view_app, view_ls, AState,
-    fail_dangling_e,
+    read_level, read_levels, read_name, read_names, view, view_app, view_ls, view_ls_len,
+    AState, fail_dangling_e, fail_dangling_ls,
 };
 use crate::arena::prop_read::{is_proof_fast, not_proof_fast, proof_pw, type_sort_pw};
 use crate::arena::store::{ENodeView, LNodeView, NNodeView};
@@ -1025,10 +1025,10 @@ pub fn unfold_definition(
                 Some(IConstantInfo::DefnInfo(cv, value, _)) => {
                     let lps: Vec<NIdx> = env::nidx_vec_dup(&cv.level_params);
                     let val: EIdx = value.dup2();
-                    match view_ls(pers, st, &us) {
-                        Err(er) => Err(er),
-                        Ok(usl) => {
-                            if usl.len() == lps.len() {
+                    match view_ls_len(pers, st, &us) {
+                        None => fail_dangling_ls(),
+                        Some(usl) => {
+                            if usl == lps.len() {
                                 match const_val_at(pers, st, &n, &lps, &val, &us) {
                                     Err(er) => Err(er),
                                     Ok(v) => match get_app_args(pers, st, CORE_WALK_FUEL, e) {
@@ -1071,9 +1071,9 @@ pub fn unfoldable_head(
             Ok(ENodeView::Const(n, us)) => match env::ifenv_find(vis, fe, &n) {
                 Some(IConstantInfo::DefnInfo(cv, _, _)) => {
                     let k = cv.level_params.len();
-                    match view_ls(pers, st, &us) {
-                        Err(er) => Err(er),
-                        Ok(usl) => Ok(usl.len() == k),
+                    match view_ls_len(pers, st, &us) {
+                        None => fail_dangling_ls(),
+                        Some(usl) => Ok(usl == k),
                     }
                 }
                 Some(_) => Ok(false),
@@ -6642,19 +6642,28 @@ pub fn iota_rec_at(
             Err(er) => Err(er),
             Ok(ENodeView::Const(c, us)) => match env::ifenv_find(vis, fe, &c) {
                 Some(IConstantInfo::RecInfo(cv0, m_i0, r_p0, rules0)) => {
-                    let cv: IConstantVal = env::i_constant_val_dup(cv0);
                     let m_i: u64 = *m_i0;
-                    let r_p: u64 = *r_p0;
-                    let rules: Vec<IRecRule> = env::i_rec_rules_dup(rules0);
+                    // **The arity test hoisted over the copies** (task
+                    // #97-P6-10), the move this function's note already makes
+                    // for the level-list read.  `whnf_app` asks `iota_rec_at`
+                    // at every reduction step and the answer is `none` at the
+                    // wrong arity, so copying the recursor's `IConstantVal`
+                    // and its whole rule vector first — Lean shares both by
+                    // value; the Rust copies (DESIGN.md §3.2) — is work for a
+                    // branch that reads neither.  Both are pure tests of the
+                    // same conjunction and this one is `O(1)`.
                     if n as u64 != m_i + 1 {
                         Ok(None)
                     } else {
+                        let cv: IConstantVal = env::i_constant_val_dup(cv0);
+                        let r_p: u64 = *r_p0;
+                        let rules: Vec<IRecRule> = env::i_rec_rules_dup(rules0);
                         let args: Vec<EIdx> = take_eidx(sargs, n);
-                        match view_ls(pers, st, &us) {
-                            Err(er) => Err(er),
-                            Ok(usl) => {
+                        match view_ls_len(pers, st, &us) {
+                            None => fail_dangling_ls(),
+                            Some(usl) => {
                                 if args.len() as u64 == m_i + 1
-                                    && usl.len() == cv.level_params.len()
+                                    && usl == cv.level_params.len()
                                 {
                                     match intern_e(pers, st, ENodeView::BVar(0)) {
                                         Err(er) => Err(er),
@@ -6866,16 +6875,16 @@ pub fn whnf_core_proj_at(
             Err(e) => Err(e),
             Ok(ENodeView::Const(c, us)) => match get_app_args(pers, st, CORE_WALK_FUEL, ep) {
                 Err(e) => Err(e),
-                Ok(args) => match view_ls(pers, st, &us) {
-                    Err(e) => Err(e),
-                    Ok(usl) => match proj_entry_fire_ok(pers, st, entry, &us) {
+                Ok(args) => match view_ls_len(pers, st, &us) {
+                    None => fail_dangling_ls(),
+                    Some(usl) => match proj_entry_fire_ok(pers, st, entry, &us) {
                         Err(e) => Err(e),
                         Ok(fok) => {
                             if c.eq2(&entry.ctor)
                                 && i < entry.num_fields
                                 && args.len() as u64
                                     == entry.num_params + entry.num_fields
-                                && usl.len() == entry.level_params.len()
+                                && usl == entry.level_params.len()
                                 && fok
                             {
                                 whnf_core_proj_fire(
@@ -7605,10 +7614,10 @@ pub fn infer_const(
             } else {
                 match env::i_constant_info_to_constant_val(pers, &mut st.store, ci) {
                     Err(e) => Err(e),
-                    Ok(cv) => match view_ls(pers, st, us) {
-                        Err(e) => Err(e),
-                        Ok(usl) => {
-                            if usl.len() != cv.level_params.len() {
+                    Ok(cv) => match view_ls_len(pers, st, us) {
+                        None => fail_dangling_ls(),
+                        Some(usl) => {
+                            if usl != cv.level_params.len() {
                                 fail(CheckError::Invalid(code_points(&M_LEVELS)))
                             } else {
                                 const_ty_at(pers, st, &cv, us)
@@ -7819,12 +7828,12 @@ pub fn infer_proj_at(
 ) -> Result<EIdx, CheckError> {
     match get_app_args(pers, st, CORE_WALK_FUEL, te) {
         Err(e) => Err(e),
-        Ok(targs) => match view_ls(pers, st, us) {
-            Err(e) => Err(e),
-            Ok(usl) => {
+        Ok(targs) => match view_ls_len(pers, st, us) {
+            None => fail_dangling_ls(),
+            Some(usl) => {
                 if t.eq2(sn)
                     && targs.len() as u64 == entry.num_params
-                    && usl.len() == entry.level_params.len()
+                    && usl == entry.level_params.len()
                 {
                     match zero_level(st) {
                         Err(e) => Err(e),
