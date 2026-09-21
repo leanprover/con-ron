@@ -316,10 +316,54 @@ pub fn take_eidx(xs: &Vec<EIdx>, k: usize) -> Vec<EIdx> {
 /// con-leche: none — `x :: xs` over a `Vec<EIdx>`
 /// Lean conses in `O(1)` and shares the tail; a `Vec` has no cons, so the
 /// tail is copied.  Every call site is a telescope arity, not a term size.
+///
+/// **Not the substitution accumulators any more** (task #97-P6-15).  They
+/// consed once per binder and each cons copied the whole tail, so a telescope
+/// of `n` binders paid `n` allocations and `n²/2` handle copies —
+/// `eidx_copy_upto` was 4.3 % of `Init`.  Those accumulators are now built in
+/// PUSH order by `Vec::push` on an OWNED vector and read from the end
+/// (`last_eidx`, `instantiate_list`'s `bvar` arm); what is left here is the
+/// lists that are genuinely built on the way OUT of a recursion, where the
+/// answer is a cons of a value the recursion produced.
 pub fn cons_eidx(a: &EIdx, xs: &Vec<EIdx>) -> Vec<EIdx> {
     let mut out: Vec<EIdx> = Vec::with_capacity(xs.len() + 1);
     out.push(a.dup2());
     eidx_copy_upto(xs, xs.len(), 0, out)
+}
+
+/// con-leche: none — `xs ++ [y]` on a `Vec<EIdx>`, at a BORROWED `xs`
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1295 structEtaProjCerts` — the
+/// cited `targs ++ [b]` (task #97-P6-13; moved here from `arena::core` by
+/// task #97-P6-15, which needs it beside `cons_eidx`).
+///
+/// `snoc_eidx(eidx_vec_dup(targs), b)` is what the call sites wrote, and it
+/// is TWO allocations and `2n` handle copies: `eidx_vec_dup` allocates
+/// exactly `n` and fills it, and the `push` then overflows that capacity and
+/// re-allocates and copies again.  Sized once, it is one allocation and
+/// `n + 1` copies.  A capacity, so the refinement absorbs it (DESIGN.md §3.2).
+///
+/// It is also the push-order accumulator's step at the two sites that cannot
+/// own their accumulator — `inst_pis_at_f_go` and `inst_lams_at_f_go` read it
+/// again AFTER the recursive call — which task #97-P6-9 measured at 260 calls
+/// and 0 interns on the whole of `Init`.
+pub fn snoc_eidx_of(xs: &Vec<EIdx>, y: &EIdx) -> Vec<EIdx> {
+    let out: Vec<EIdx> = Vec::with_capacity(xs.len() + 1);
+    let mut out = eidx_copy_upto(xs, xs.len(), 0, out);
+    out.push(y.dup2());
+    out
+}
+
+/// con-leche: none — `List.take` over a PUSH-ORDER `Vec<EIdx>`
+/// The last `k` entries of `xs`, in `xs`' own order (task #97-P6-15).
+///
+/// A substitution vector is built by `Vec::push` and read from the END — its
+/// entry for `bvar (d + j)` is `xs[xs.len() - 1 - j]` — so the twin's
+/// `vs.take k`, the first `k` of the list, is this SUFFIX of the vector.
+/// `take_eidx` is the same function on a vector that is in list order, and
+/// both are `eidx_copy_upto` over a window.
+pub fn last_eidx(xs: &Vec<EIdx>, k: usize) -> Vec<EIdx> {
+    let n: usize = if k < xs.len() { xs.len() - k } else { 0 };
+    eidx_copy_upto(xs, xs.len(), n, Vec::with_capacity(xs.len() - n))
 }
 
 /// con-leche: none — `==` on `List EIdx`, elementwise
@@ -669,6 +713,16 @@ pub fn inst_list_cutoff(pers: &PersTier, st: &AState, h: &EIdx, k: u64) -> bool 
 /// `instantiate_list_go`'s `bvar` arm calls this one, because that arm
 /// recurses into the replacement with a *shorter* list and the memo is keyed
 /// for the outer one.
+///
+/// **`vs` is in PUSH order** (task #97-P6-15, the maintainer's ruling): the
+/// callers build their substitution accumulator with `Vec::push` on an OWNED
+/// vector — `O(1)` amortised — instead of consing a fresh `Vec` per binder,
+/// which was `n` allocations and `n^2/2` handle copies over a telescope
+/// (`eidx_copy_upto`, 4.3 % of `Init`).  The LIST this function is about is
+/// unchanged; it is read from the end — `vs[vs.len() - 1 - j]` for the twin's
+/// `vs[j]`, `last_eidx k` for `vs.take k`.  The twin's clause changes with
+/// it: those accumulators become an `Array` built with `Array.push`, whose
+/// denotation is the reverse of the list the `::` chain built.
 pub fn instantiate_list(
     pers: &PersTier,
     st: &mut AState,
@@ -759,7 +813,13 @@ pub fn instantiate_list(
                         let n: u64 = vs.len() as u64;
                         if j - d < n {
                             let i: usize = (j - d) as usize;
-                            let vi: EIdx = vs[i].dup2();
+                            // **`vs` is in PUSH order** (task #97-P6-15): the
+                            // accumulator is built by `Vec::push`, so the
+                            // twin's `vs[j - d]` — the innermost binder's
+                            // argument first — is this vector's entry `j - d`
+                            // FROM THE END.  The two are the same list; only
+                            // the direction the `Vec` grows changed.
+                            let vi: EIdx = vs[vs.len() - 1 - i].dup2();
                             // **The cutoff hoisted over the prefix copy** (task
                             // #97-P6-9).  The recursion into the replacement is
                             // con-leche's own `instantiateList vs[j-d]
@@ -776,7 +836,7 @@ pub fn instantiate_list(
                             if inst_list_cutoff(pers, st, &vi, d) {
                                 Ok(vi)
                             } else {
-                                let pre: Vec<EIdx> = take_eidx(vs, i);
+                                let pre: Vec<EIdx> = last_eidx(vs, i);
                                 instantiate_list(pers, st, &pre, fuel - 1, &vi, d)
                             }
                         } else {
@@ -2788,9 +2848,13 @@ pub fn inst_lams_at_from(
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1181-1190 instPisAtFGo
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:858-871 instPisAtFGo` — the
-/// core of `inst_pis_at_f`: `acc` holds the pending substitutions, innermost
-/// binder first, so each domain receives them in one `instantiateList` pass
-/// instead of one `instantiate1` pass per argument.
+/// core of `inst_pis_at_f`: `acc` holds the pending substitutions — the list
+/// `instantiate_list` takes at cursor 0, in PUSH order (task #97-P6-15) —
+/// so each domain receives them in one `instantiateList` pass instead of one
+/// `instantiate1` pass per argument.  This is the ONE accumulator that is
+/// still copied per step (`snoc_eidx_of`, not an owned `push`), because it is
+/// read again AFTER the recursive call; task #97-P6-9 measured the pair at
+/// 260 calls and 0 interns on the whole of `Init`.
 ///
 /// **The domain is instantiated AFTER the recursive call**, as the twin does
 /// it (`con_ron_core::kernel::expr_ops::inst_pis_at_f_go` does it before,
@@ -2816,7 +2880,7 @@ pub fn inst_pis_at_f_go(
             match view_bind(pers, st, h) {
                 None => fail_dangling_e(),
                 Some((dom, body, _)) => {
-                    let acc2: Vec<EIdx> = cons_eidx(&args[i], acc);
+                    let acc2: Vec<EIdx> = snoc_eidx_of(acc, &args[i]);
                     match inst_pis_at_f_go(pers, st, fuel, &acc2, args, i + 1, &body) {
                         Err(e) => Err(e),
                         Ok(Some(p)) => match instantiate_list_fast(pers, st, fuel, &dom, acc, 0) {
@@ -2874,7 +2938,7 @@ pub fn inst_lams_at_f_go(
             match view_bind(pers, st, h) {
                 None => fail_dangling_e(),
                 Some((dom, body, _)) => {
-                    let acc2: Vec<EIdx> = cons_eidx(&args[i], acc);
+                    let acc2: Vec<EIdx> = snoc_eidx_of(acc, &args[i]);
                     match inst_lams_at_f_go(pers, st, fuel, &acc2, args, i + 1, &body) {
                         Err(e) => Err(e),
                         Ok(Some(p)) => match instantiate_list_fast(pers, st, fuel, &dom, acc, 0) {
@@ -5310,7 +5374,11 @@ mod tests {
         let fv0 = den(pers, &st, &fx.fv0);
         let b2 = den(pers, &st, &fx.b2);
         let two = vec![expr::dup(&cf), expr::dup(&s1)];
-        let hs2 = vec![fx.cf.dup2(), fx.s1.dup2()];
+        // **The vector is the list REVERSED** (task #97-P6-15): the arena's
+        // substitution vectors are built by `Vec::push` and read from the
+        // end, so `two`'s head — the replacement for `bvar d` — is this
+        // vector's LAST entry.
+        let hs2 = vec![fx.s1.dup2(), fx.cf.dup2()];
 
         let w = core_ops::instantiate_list(&big, &two, 0);
         let r = ok(instantiate_list_fast(pers, &mut st, F, &fx.big, &hs2, 0));
@@ -5331,6 +5399,16 @@ mod tests {
         let b0 = den(pers, &st, &fx.b0);
         let w = core_ops::instantiate_list(&b0, &vec![expr::dup(&cf)], 0);
         let r = ok(instantiate_list(pers, &mut st, &vec![fx.cf.dup2()], F, &fx.b0, 0));
+        assert!(eq_e(pers, &st, &r, &w));
+        // The ORDER, which nothing above distinguishes (`big` and `let_t`
+        // reach entry 0 only): `app (bvar 0) (bvar 1)` uses both entries and
+        // so tells `[cf, s1]` from `[s1, cf]`.
+        let apbb = ok(intern_e_app(pers, &mut st, fx.b0.dup2(), fx.b1.dup2()));
+        let apbb_d = expr::app(expr::bvar(0), expr::bvar(1));
+        let w = core_ops::instantiate_list(&apbb_d, &two, 0);
+        let r = ok(instantiate_list_fast(pers, &mut st, F, &apbb, &hs2, 0));
+        assert!(eq_e(pers, &st, &r, &w));
+        let r = ok(instantiate_list(pers, &mut st, &hs2, F, &apbb, 0));
         assert!(eq_e(pers, &st, &r, &w));
     }
 

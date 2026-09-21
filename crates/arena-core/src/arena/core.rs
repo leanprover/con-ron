@@ -86,7 +86,7 @@ use crate::arena::expr_ops::{
     abstract1_fast, abstract_range_fast, bvar_b, cons_eidx, get_app_args, get_app_fn,
     has_fvar_fast, instantiate1_fast, instantiate_list_fast, inst_lp_fast, inst_spine,
     lam_pw, leaf_guard, loose_bvars_bounded_fast, mk_app_n, mk_app_n_from, pi_result,
-    rec_rule_plain, strip_pis,
+    rec_rule_plain, snoc_eidx_of, strip_pis,
     take_eidx, wscoped_b_fast,
 };
 use crate::arena::handle::{
@@ -3565,22 +3565,6 @@ pub fn snoc_eidx(xs: Vec<EIdx>, y: &EIdx) -> Vec<EIdx> {
     xs
 }
 
-/// con-leche: none — `xs ++ [y]` on a `Vec`, WITHOUT copying `xs` first
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1295 structEtaProjCerts` — the
-/// same `targs ++ [b]`, at a borrowed `targs` (task #97-P6-13).
-///
-/// `snoc_eidx(eidx_vec_dup(targs), b)` is what the call sites wrote, and it
-/// is TWO allocations and `2n` handle copies: `eidx_vec_dup` allocates
-/// exactly `n` and fills it, and the `push` then overflows that capacity and
-/// re-allocates and copies again.  Sized once, it is one allocation and
-/// `n + 1` copies.  A capacity, so the refinement absorbs it (DESIGN.md §3.2).
-pub fn snoc_eidx_of(xs: &Vec<EIdx>, y: &EIdx) -> Vec<EIdx> {
-    let out: Vec<EIdx> = Vec::with_capacity(xs.len() + 1);
-    let mut out = crate::arena::expr_ops::eidx_copy_upto(xs, xs.len(), 0, out);
-    out.push(y.dup2());
-    out
-}
-
 /// con-leche: none — `xs ++ [y] ++ [z]` on a `Vec`, sized once
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1295 structEtaProjCerts` — the
 /// two-element case of `snoc_eidx_of` (task #97-P6-13); nested `snoc_eidx`
@@ -3853,7 +3837,7 @@ pub fn iota_certs(
     i: usize,
 ) -> Result<bool, CheckError> {
     let acc: Vec<EIdx> = Vec::new();
-    iota_certs_aux(pers, vis, st, mode, lane, fuel, fe, depth, lic, h, &acc, args, i)
+    iota_certs_aux(pers, vis, st, mode, lane, fuel, fe, depth, lic, h, acc, args, i)
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:154-193 iotaCertsIAux
@@ -3863,8 +3847,11 @@ pub fn iota_certs(
 /// **The batched instantiation lever** (task #97-P6-9), the certificate half:
 /// peel the RAW telescope while the certified arguments accumulate, and
 /// substitute only each binder's DOMAIN (small) instead of copying the whole
-/// residual telescope per argument.  `acc` is innermost-first, the list
-/// `instantiate_list` takes at cursor 0; the identification with the chain of
+/// residual telescope per argument.  `acc` is the list `instantiate_list`
+/// takes at cursor 0, built in PUSH order on an OWNED vector (task
+/// #97-P6-15): `Vec::push` where the list conses, read from the end, so the
+/// denotation is the same list and the walk is `O(n)` where the cons chain
+/// was `O(n^2)`.  The identification with the chain of
 /// `instantiate1` the spec-shaped body ran is `Expr.instantiateList_cons`
 /// (`ConLeche/Verify/InstList.lean`).
 ///
@@ -3883,7 +3870,7 @@ pub fn iota_certs_aux(
     depth: u64,
     lic: bool,
     h: &EIdx,
-    acc: &Vec<EIdx>,
+    acc: Vec<EIdx>,
     args: &Vec<EIdx>,
     i: usize,
 ) -> Result<bool, CheckError> {
@@ -3895,13 +3882,14 @@ pub fn iota_certs_aux(
             Ok(ENodeView::ForallE(ty, body, mb)) => {
                 let arg: EIdx = args[i].dup2();
                 if lic && prop_when::is_never(&mb.pw) {
-                    let acc2: Vec<EIdx> = cons_eidx(&arg, acc);
+                    let mut acc2: Vec<EIdx> = acc;
+                    acc2.push(arg);
                     iota_certs_aux(
-                        pers, vis, st, mode, lane, fuel, fe, depth, lic, &body, &acc2, args,
+                        pers, vis, st, mode, lane, fuel, fe, depth, lic, &body, acc2, args,
                         i + 1,
                     )
                 } else {
-                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, acc, 0) {
+                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, &acc, 0) {
                         Err(e) => Err(e),
                         Ok(ty2) => {
                             match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, &arg) {
@@ -3912,10 +3900,11 @@ pub fn iota_certs_aux(
                                     Err(e) => Err(e),
                                     Ok(false) => Ok(false),
                                     Ok(true) => {
-                                        let acc2: Vec<EIdx> = cons_eidx(&arg, acc);
+                                        let mut acc2: Vec<EIdx> = acc;
+                                        acc2.push(arg);
                                         iota_certs_aux(
                                             pers, vis, st, mode, lane, fuel, fe, depth, lic,
-                                            &body, &acc2, args, i + 1,
+                                            &body, acc2, args, i + 1,
                                         )
                                     }
                                 },
@@ -3928,12 +3917,12 @@ pub fn iota_certs_aux(
                 if acc.len() == 0 {
                     Ok(false)
                 } else {
-                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, h, acc, 0) {
+                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, h, &acc, 0) {
                         Err(e) => Err(e),
                         Ok(ty2) => {
                             let acc2: Vec<EIdx> = Vec::new();
                             iota_certs_aux(
-                                pers, vis, st, mode, lane, fuel, fe, depth, lic, &ty2, &acc2,
+                                pers, vis, st, mode, lane, fuel, fe, depth, lic, &ty2, acc2,
                                 args, i,
                             )
                         }
@@ -6921,7 +6910,11 @@ pub fn proj_entry_type_at(
     match inst_lp_fast(pers, st, CORE_WALK_FUEL, &entry.level_params, us, &entry.body) {
         Err(e) => Err(e),
         Ok(b) => {
-            let vs: Vec<EIdx> = cons_eidx(pe, &rev_eidx(targs));
+            // `instantiate_list`'s vector is in PUSH order (task #97-P6-15),
+            // and the twin's list here is `pe :: targs.reverse` — so the
+            // vector is `targs ++ [pe]`, which is one sized `push` where the
+            // reverse-then-cons was two copies of the whole argument vector.
+            let vs: Vec<EIdx> = snoc_eidx_of(targs, pe);
             instantiate_list_fast(pers, st, CORE_WALK_FUEL, &b, &vs, 0)
         }
     }
@@ -7273,9 +7266,10 @@ pub fn whnf_app(
                     // `.trusted`.  The two agree at `.verified`, the mode the
                     // bridge is stated at.
                     if con_ron_core::kernel::env::beta_skip(mode, &mb.pw) {
-                        let acc: Vec<EIdx> = cons_eidx(&a, &Vec::new());
+                        let mut acc: Vec<EIdx> = Vec::new();
+                        acc.push(a);
                         beta_peel(
-                            pers, vis, st, mode, lane, fuel, fe, depth, &body, &acc, args, nodes,
+                            pers, vis, st, mode, lane, fuel, fe, depth, &body, acc, args, nodes,
                             i + 1,
                         )
                     } else {
@@ -7287,9 +7281,10 @@ pub fn whnf_app(
                                 match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &ta, &ty) {
                                     Err(e) => Err(e),
                                     Ok(true) => {
-                                        let acc: Vec<EIdx> = cons_eidx(&a, &Vec::new());
+                                        let mut acc: Vec<EIdx> = Vec::new();
+                                        acc.push(a);
                                         beta_peel(
-                                            pers, vis, st, mode, lane, fuel, fe, depth, &body, &acc,
+                                            pers, vis, st, mode, lane, fuel, fe, depth, &body, acc,
                                             args, nodes, i + 1,
                                         )
                                     }
@@ -7360,8 +7355,9 @@ pub fn whnf_app(
 /// Lean twin: OWED (task #97-P6-9's ledger) — the peel loop of `whnf_app`.
 ///
 /// `t` is the RAW (unsubstituted) λ body after the binders consumed so far and
-/// `acc` their arguments, innermost first — so `acc` is exactly the list
-/// `instantiate_list` takes at cursor `0`, and `instantiateList e (v :: vs) d =
+/// `acc` their arguments — the list `instantiate_list` takes at cursor `0`,
+/// built in PUSH order on an OWNED vector (task #97-P6-15: `Vec::push` where
+/// the list conses, read from the end) — and `instantiateList e (v :: vs) d =
 /// (instantiateList e vs (d + 1)).instantiate1 v d`
 /// (`ConLeche/Verify/InstList.lean`'s `instantiateList_cons`) is the equation
 /// that identifies one peeled group with the chain of `instantiate1` the
@@ -7377,13 +7373,13 @@ pub fn beta_peel(
     fe: &IFEnv,
     depth: u64,
     t: &EIdx,
-    acc: &Vec<EIdx>,
+    acc: Vec<EIdx>,
     args: &Vec<EIdx>,
     nodes: &Vec<EIdx>,
     i: usize,
 ) -> Result<EIdx, CheckError> {
     if i >= args.len() {
-        match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, acc, 0) {
+        match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, &acc, 0) {
             Err(e) => Err(e),
             Ok(e2) => knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, &e2),
         }
@@ -7394,13 +7390,14 @@ pub fn beta_peel(
                 None => fail_dangling_e(),
                 Some((ty, body, mb)) => {
                     if con_ron_core::kernel::env::beta_skip(mode, &mb.pw) {
-                        let acc2: Vec<EIdx> = cons_eidx(&a, acc);
+                        let mut acc2: Vec<EIdx> = acc;
+                        acc2.push(a);
                         beta_peel(
-                            pers, vis, st, mode, lane, fuel, fe, depth, &body, &acc2, args, nodes,
+                            pers, vis, st, mode, lane, fuel, fe, depth, &body, acc2, args, nodes,
                             i + 1,
                         )
                     } else {
-                        match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, acc, 0) {
+                        match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, &acc, 0) {
                             Err(e) => Err(e),
                             Ok(ty2) => {
                                 match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, &a) {
@@ -7410,15 +7407,16 @@ pub fn beta_peel(
                                     ) {
                                         Err(e) => Err(e),
                                         Ok(true) => {
-                                            let acc2: Vec<EIdx> = cons_eidx(&a, acc);
+                                            let mut acc2: Vec<EIdx> = acc;
+                                            acc2.push(a);
                                             beta_peel(
                                                 pers, vis, st, mode, lane, fuel, fe, depth, &body,
-                                                &acc2, args, nodes, i + 1,
+                                                acc2, args, nodes, i + 1,
                                             )
                                         }
                                         Ok(false) => {
                                             match instantiate_list_fast(
-                                                pers, st, CORE_WALK_FUEL, t, acc, 0,
+                                                pers, st, CORE_WALK_FUEL, t, &acc, 0,
                                             ) {
                                                 Err(e) => Err(e),
                                                 Ok(f2) => match intern_app(pers, st, &f2, &a) {
@@ -7437,7 +7435,7 @@ pub fn beta_peel(
                 },
             }
         } else {
-            match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, acc, 0) {
+            match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, &acc, 0) {
                 Err(e) => Err(e),
                 Ok(e2) => match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, &e2) {
                     Err(e) => Err(e),
@@ -7894,12 +7892,13 @@ pub fn infer_forall(
                         match intern_e_fvar(pers, st, depth, ty.dup2()) {
                             Err(e) => Err(e),
                             Ok(fv) => {
-                                let fvs: Vec<EIdx> = cons_eidx(&fv, &Vec::new());
+                                let mut fvs: Vec<EIdx> = Vec::new();
+                                fvs.push(fv);
                                 let mut stk: Vec<(LIdx, PropWhen)> = Vec::new();
                                 stk.push((u, prop_when::dup(&mb.pw)));
                                 infer_pis(
                                     pers, vis, st, mode, lane, fuel, fe, depth, PEEL_FUEL, body,
-                                    1, &fvs, stk,
+                                    1, fvs, stk,
                                 )
                             }
                         }
@@ -8066,11 +8065,12 @@ pub fn infer_lam(
                 match intern_e_fvar(pers, st, depth, ty.dup2()) {
                     Err(e) => Err(e),
                     Ok(fv) => {
-                        let fvs: Vec<EIdx> = cons_eidx(&fv, &Vec::new());
+                        let mut fvs: Vec<EIdx> = Vec::new();
+                        fvs.push(fv);
                         let mut stk: Vec<(EIdx, BinderMeta)> = Vec::new();
                         stk.push((ty.dup2(), expr::binder_meta_dup(mb)));
                         infer_lams(
-                            pers, vis, st, mode, lane, fuel, fe, depth, PEEL_FUEL, body, 1, &fvs,
+                            pers, vis, st, mode, lane, fuel, fe, depth, PEEL_FUEL, body, 1, fvs,
                             stk,
                         )
                     }
@@ -8201,8 +8201,9 @@ pub fn infer_lam_cod(
 /// the spine and substituted one argument into it per level — so the residual
 /// Π-telescope, binders and all, was rebuilt once per argument, which is where
 /// task #97-P6-8a's 5.15× `forallE` excess comes from.  This walks the RAW
-/// telescope structurally with the arguments accumulated in `acc` (innermost
-/// first, the list `instantiate_list` takes at cursor 0) and substitutes each
+/// telescope structurally with the arguments accumulated in `acc` (the list
+/// `instantiate_list` takes at cursor 0, in PUSH order on an OWNED vector —
+/// task #97-P6-15) and substitutes each
 /// domain, and the residual, in ONE walk.  con-leche makes the same move
 /// between its PURE and its CACHED tier and proves the two equal:
 /// `ConLeche/Verify/BetaSpine.lean` (`inferSpine_sound`), whose per-argument
@@ -8222,19 +8223,19 @@ pub fn infer_spine(
     fe: &IFEnv,
     depth: u64,
     ty: &EIdx,
-    acc: &Vec<EIdx>,
+    acc: Vec<EIdx>,
     args: &Vec<EIdx>,
     i: usize,
 ) -> Result<EIdx, CheckError> {
     if i >= args.len() {
-        instantiate_list_fast(pers, st, CORE_WALK_FUEL, ty, acc, 0)
+        instantiate_list_fast(pers, st, CORE_WALK_FUEL, ty, &acc, 0)
     } else {
         let a: EIdx = args[i].dup2();
         if ty.tag() == ETAG_FORALL_E {
             match view_bind(pers, st, ty) {
                 None => fail_dangling_e(),
                 Some((dom, body, _)) => {
-                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &dom, acc, 0) {
+                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &dom, &acc, 0) {
                         Err(e) => Err(e),
                         Ok(dom2) => {
                             match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, &a) {
@@ -8247,9 +8248,10 @@ pub fn infer_spine(
                                         fail(CheckError::Invalid(code_points(&M_APP_MISMATCH)))
                                     }
                                     Ok(true) => {
-                                        let acc2: Vec<EIdx> = cons_eidx(&a, acc);
+                                        let mut acc2: Vec<EIdx> = acc;
+                                        acc2.push(a);
                                         infer_spine(
-                                            pers, vis, st, mode, lane, fuel, fe, depth, &body, &acc2,
+                                            pers, vis, st, mode, lane, fuel, fe, depth, &body, acc2,
                                             args, i + 1,
                                         )
                                     }
@@ -8260,7 +8262,7 @@ pub fn infer_spine(
                 },
             }
         } else {
-            match instantiate_list_fast(pers, st, CORE_WALK_FUEL, ty, acc, 0) {
+            match instantiate_list_fast(pers, st, CORE_WALK_FUEL, ty, &acc, 0) {
                 Err(e) => Err(e),
                 Ok(ty2) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &ty2) {
                     Err(e) => Err(e),
@@ -8278,10 +8280,11 @@ pub fn infer_spine(
                                             fail(CheckError::Invalid(code_points(&M_APP_MISMATCH)))
                                         }
                                         Ok(true) => {
-                                            let acc2: Vec<EIdx> = cons_eidx(&a, &Vec::new());
+                                            let mut acc2: Vec<EIdx> = Vec::new();
+                                            acc2.push(a);
                                             infer_spine(
                                                 pers, vis, st, mode, lane, fuel, fe, depth, &body,
-                                                &acc2, args, i + 1,
+                                                acc2, args, i + 1,
                                             )
                                         }
                                     },
@@ -8318,7 +8321,7 @@ pub fn infer_app(
             Err(er) => Err(er),
             Ok(tf) => {
                 let acc: Vec<EIdx> = Vec::new();
-                infer_spine(pers, vis, st, mode, lane, fuel, fe, depth, &tf, &acc, &hv.1, 0)
+                infer_spine(pers, vis, st, mode, lane, fuel, fe, depth, &tf, acc, &hv.1, 0)
             }
         },
     }
@@ -8346,9 +8349,11 @@ pub fn infer_app(
 // where con-leche conses a `List` innermost-first and consumes its head — so
 // `stk[j]` is the binder at level `d + j` and `j` is exactly the
 // `abstract_range` width its domain wants, and `stk[n - 1]` is con-leche's
-// `stk` head; and `fvs` is built innermost-first with `cons_eidx` and read by
-// `instantiate_list` at cursor 0, where con-leche pushes outermost-first and
-// reads with `instantiateRev`.
+// `stk` head; and `fvs` is built with `Vec::push` and read by
+// `instantiate_list` at cursor 0 FROM THE END (task #97-P6-15), where
+// con-leche pushes outermost-first and reads with `instantiateRev` — the two
+// vectors now grow the same way, and the twin's clause changes with the Rust
+// (`List` with `::` becomes `Array` with `Array.push`).
 //
 // **Only the full grade loops.**  con-leche's `inferBodyIOI` keeps BOTH binder
 // clauses chained on purpose ("the loops are the front door's optimization, and
@@ -8486,10 +8491,10 @@ pub fn infer_lams_leaf(
     d: u64,
     t: &EIdx,
     k: u64,
-    fvs: &Vec<EIdx>,
+    fvs: Vec<EIdx>,
     stk: &Vec<(EIdx, BinderMeta)>,
 ) -> Result<EIdx, CheckError> {
-    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, fvs, 0) {
+    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, &fvs, 0) {
         Err(e) => Err(e),
         Ok(ob) => match knot_infer(pers, vis, st, mode, lane, fuel, fe, d + k, &ob) {
             Err(e) => Err(e),
@@ -8534,8 +8539,9 @@ pub fn infer_lams_leaf(
 /// Lean twin: OWED (task #97-P6-12's ledger) — the λ-telescope inference loop:
 /// peel the raw λ-chain, checking each opened domain to be a type on the way
 /// in.  `k >= 1` counts the opened binders (the first is peeled by
-/// `infer_lam`'s own clause) and `fvs` holds their free variables
-/// innermost-first, which is the list `instantiate_list` takes at cursor 0.
+/// `infer_lam`'s own clause) and `fvs` holds their free variables — the list
+/// `instantiate_list` takes at cursor 0, in PUSH order on an OWNED vector
+/// (task #97-P6-15).
 ///
 /// One peeled domain is ONE `instantiate_list` walk over the domain alone,
 /// where the per-binder clause substituted into the whole residual telescope
@@ -8554,7 +8560,7 @@ pub fn infer_lams(
     peel: u64,
     t: &EIdx,
     k: u64,
-    fvs: &Vec<EIdx>,
+    fvs: Vec<EIdx>,
     stk: Vec<(EIdx, BinderMeta)>,
 ) -> Result<EIdx, CheckError> {
     // The peel's test is a tag read off the handle word and the binder
@@ -8569,7 +8575,7 @@ pub fn infer_lams(
                 let ty: EIdx = p.0;
                 let body: EIdx = p.1;
                 let mb: BinderMeta = p.2;
-                match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, fvs, 0) {
+                match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, &fvs, 0) {
                     Err(e) => Err(e),
                     Ok(tyo) => {
                         match knot_infer(pers, vis, st, mode, lane, fuel, fe, d + k, &tyo) {
@@ -8584,12 +8590,13 @@ pub fn infer_lams(
                                                 match intern_e_fvar(pers, st, d + k, tyo.dup2()) {
                                                     Err(e) => Err(e),
                                                     Ok(fv) => {
-                                                        let fvs2: Vec<EIdx> = cons_eidx(&fv, fvs);
+                                                        let mut fvs2: Vec<EIdx> = fvs;
+                                                        fvs2.push(fv);
                                                         let mut stk2: Vec<(EIdx, BinderMeta)> = stk;
                                                         stk2.push((tyo, mb));
                                                         infer_lams(
                                                             pers, vis, st, mode, lane, fuel, fe, d,
-                                                            peel - 1, &body, k + 1, &fvs2, stk2,
+                                                            peel - 1, &body, k + 1, fvs2, stk2,
                                                         )
                                                     }
                                                 }
@@ -8665,10 +8672,10 @@ pub fn infer_pis_leaf(
     d: u64,
     t: &EIdx,
     k: u64,
-    fvs: &Vec<EIdx>,
+    fvs: Vec<EIdx>,
     stk: &Vec<(LIdx, PropWhen)>,
 ) -> Result<EIdx, CheckError> {
-    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, fvs, 0) {
+    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, &fvs, 0) {
         Err(e) => Err(e),
         Ok(ob) => match knot_infer(pers, vis, st, mode, lane, fuel, fe, d + k, &ob) {
             Err(e) => Err(e),
@@ -8713,7 +8720,7 @@ pub fn infer_pis(
     peel: u64,
     t: &EIdx,
     k: u64,
-    fvs: &Vec<EIdx>,
+    fvs: Vec<EIdx>,
     stk: Vec<(LIdx, PropWhen)>,
 ) -> Result<EIdx, CheckError> {
     // The peel's test is a tag read off the handle word and the binder
@@ -8727,7 +8734,7 @@ pub fn infer_pis(
                 let ty: EIdx = p.0;
                 let body: EIdx = p.1;
                 let mb: BinderMeta = p.2;
-                match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, fvs, 0) {
+                match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, &fvs, 0) {
                     Err(e) => Err(e),
                     Ok(tyo) => {
                         match knot_infer(pers, vis, st, mode, lane, fuel, fe, d + k, &tyo) {
@@ -8742,12 +8749,13 @@ pub fn infer_pis(
                                                 match intern_e_fvar(pers, st, d + k, tyo.dup2()) {
                                                     Err(e) => Err(e),
                                                     Ok(fv) => {
-                                                        let fvs2: Vec<EIdx> = cons_eidx(&fv, fvs);
+                                                        let mut fvs2: Vec<EIdx> = fvs;
+                                                        fvs2.push(fv);
                                                         let mut stk2: Vec<(LIdx, PropWhen)> = stk;
                                                         stk2.push((u, prop_when::dup(&mb.pw)));
                                                         infer_pis(
                                                             pers, vis, st, mode, lane, fuel, fe, d,
-                                                            peel - 1, &body, k + 1, &fvs2, stk2,
+                                                            peel - 1, &body, k + 1, fvs2, stk2,
                                                         )
                                                     }
                                                 }
@@ -8986,7 +8994,7 @@ pub fn infer_app_io_at(
                 Ok(tf) => {
                     let acc: Vec<EIdx> = Vec::new();
                     infer_spine_io(
-                        pers, vis, st, mode, lane, io, fuel, fe, depth, &tf, &acc, &hv.1, 0,
+                        pers, vis, st, mode, lane, io, fuel, fe, depth, &tf, acc, &hv.1, 0,
                     )
                 }
             }
@@ -9016,12 +9024,12 @@ pub fn infer_spine_io(
     fe: &IFEnv,
     depth: u64,
     ty: &EIdx,
-    acc: &Vec<EIdx>,
+    acc: Vec<EIdx>,
     args: &Vec<EIdx>,
     i: usize,
 ) -> Result<EIdx, CheckError> {
     if i >= args.len() {
-        instantiate_list_fast(pers, st, CORE_WALK_FUEL, ty, acc, 0)
+        instantiate_list_fast(pers, st, CORE_WALK_FUEL, ty, &acc, 0)
     } else {
         let a: EIdx = args[i].dup2();
         if ty.tag() == ETAG_FORALL_E {
@@ -9031,7 +9039,7 @@ pub fn infer_spine_io(
                     let cert = if con_ron_core::kernel::env::io_skip(mode, &mt.pw) {
                         Ok(true)
                     } else {
-                        match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &dom, acc, 0) {
+                        match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &dom, &acc, 0) {
                             Err(e) => Err(e),
                             Ok(dom2) => {
                                 match knot_infer_at(
@@ -9049,9 +9057,10 @@ pub fn infer_spine_io(
                         Err(e) => Err(e),
                         Ok(false) => fail(CheckError::Invalid(code_points(&M_APP_MISMATCH))),
                         Ok(true) => {
-                            let acc2: Vec<EIdx> = cons_eidx(&a, acc);
+                            let mut acc2: Vec<EIdx> = acc;
+                            acc2.push(a);
                             infer_spine_io(
-                                pers, vis, st, mode, lane, io, fuel, fe, depth, &body, &acc2, args,
+                                pers, vis, st, mode, lane, io, fuel, fe, depth, &body, acc2, args,
                                 i + 1,
                             )
                         }
@@ -9059,7 +9068,7 @@ pub fn infer_spine_io(
                 },
             }
         } else {
-            match instantiate_list_fast(pers, st, CORE_WALK_FUEL, ty, acc, 0) {
+            match instantiate_list_fast(pers, st, CORE_WALK_FUEL, ty, &acc, 0) {
                 Err(e) => Err(e),
                 Ok(ty2) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &ty2) {
                     Err(e) => Err(e),
@@ -9085,10 +9094,11 @@ pub fn infer_spine_io(
                                         fail(CheckError::Invalid(code_points(&M_APP_MISMATCH)))
                                     }
                                     Ok(true) => {
-                                        let acc2: Vec<EIdx> = cons_eidx(&a, &Vec::new());
+                                        let mut acc2: Vec<EIdx> = Vec::new();
+                                        acc2.push(a);
                                         infer_spine_io(
                                             pers, vis, st, mode, lane, io, fuel, fe, depth, &body,
-                                            &acc2, args, i + 1,
+                                            acc2, args, i + 1,
                                         )
                                     }
                                 }
@@ -10247,10 +10257,10 @@ pub fn annotate_pis_leaf(
     d: u64,
     t: &EIdx,
     k: u64,
-    fvs: &Vec<EIdx>,
+    fvs: Vec<EIdx>,
     stk: &Vec<(EIdx, BinderMeta)>,
 ) -> Result<EIdx, CheckError> {
-    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, fvs, 0) {
+    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, &fvs, 0) {
         Err(e) => Err(e),
         Ok(to) => match knot_annotate(pers, vis, st, mode, lane, fuel, fe, d + k, &to) {
             Err(e) => Err(e),
@@ -10274,8 +10284,9 @@ pub fn annotate_pis_leaf(
 /// Lean twin: OWED (task #97-P6-11's ledger) — the ∀-telescope annotation
 /// loop: peel the raw ∀-chain, annotating each opened domain on the way in.
 /// `k >= 1` counts the opened binders (the first is peeled by
-/// `annotate_body`'s own clause) and `fvs` holds their free variables
-/// innermost-first, which is the list `instantiate_list` takes at cursor 0.
+/// `annotate_body`'s own clause) and `fvs` holds their free variables — the
+/// list `instantiate_list` takes at cursor 0, in PUSH order on an OWNED
+/// vector (task #97-P6-15).
 ///
 /// One peeled domain is ONE `instantiate_list` walk over the domain alone,
 /// where the per-binder clause substituted into the whole residual telescope
@@ -10294,7 +10305,7 @@ pub fn annotate_pis(
     peel: u64,
     t: &EIdx,
     k: u64,
-    fvs: &Vec<EIdx>,
+    fvs: Vec<EIdx>,
     stk: Vec<(EIdx, BinderMeta)>,
 ) -> Result<EIdx, CheckError> {
     if peel == 0 {
@@ -10304,7 +10315,7 @@ pub fn annotate_pis(
             match view_bind(pers, st, t) {
                 None => fail_dangling_e(),
                 Some((ty, body, mb)) => {
-                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, fvs, 0) {
+                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, &fvs, 0) {
                         Err(e) => Err(e),
                         Ok(tyo) => {
                             match knot_annotate(pers, vis, st, mode, lane, fuel, fe, d + k, &tyo) {
@@ -10313,12 +10324,13 @@ pub fn annotate_pis(
                                     match intern_e_fvar(pers, st, d + k, typ.dup2()) {
                                         Err(e) => Err(e),
                                         Ok(fv) => {
-                                            let fvs2: Vec<EIdx> = cons_eidx(&fv, fvs);
+                                            let mut fvs2: Vec<EIdx> = fvs;
+                                            fvs2.push(fv);
                                             let mut stk2: Vec<(EIdx, BinderMeta)> = stk;
                                             stk2.push((typ, mb));
                                             annotate_pis(
                                                 pers, vis, st, mode, lane, fuel, fe, d, peel - 1,
-                                                &body, k + 1, &fvs2, stk2,
+                                                &body, k + 1, fvs2, stk2,
                                             )
                                         }
                                     }
@@ -10350,10 +10362,10 @@ pub fn annotate_lams_leaf(
     d: u64,
     t: &EIdx,
     k: u64,
-    fvs: &Vec<EIdx>,
+    fvs: Vec<EIdx>,
     stk: &Vec<(EIdx, BinderMeta)>,
 ) -> Result<EIdx, CheckError> {
-    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, fvs, 0) {
+    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, &fvs, 0) {
         Err(e) => Err(e),
         Ok(to) => match knot_annotate(pers, vis, st, mode, lane, fuel, fe, d + k, &to) {
             Err(e) => Err(e),
@@ -10391,7 +10403,7 @@ pub fn annotate_lams(
     peel: u64,
     t: &EIdx,
     k: u64,
-    fvs: &Vec<EIdx>,
+    fvs: Vec<EIdx>,
     stk: Vec<(EIdx, BinderMeta)>,
 ) -> Result<EIdx, CheckError> {
     if peel == 0 {
@@ -10401,7 +10413,7 @@ pub fn annotate_lams(
             match view_bind(pers, st, t) {
                 None => fail_dangling_e(),
                 Some((ty, body, mb)) => {
-                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, fvs, 0) {
+                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, &fvs, 0) {
                         Err(e) => Err(e),
                         Ok(tyo) => {
                             match knot_annotate(pers, vis, st, mode, lane, fuel, fe, d + k, &tyo) {
@@ -10410,12 +10422,13 @@ pub fn annotate_lams(
                                     match intern_e_fvar(pers, st, d + k, typ.dup2()) {
                                         Err(e) => Err(e),
                                         Ok(fv) => {
-                                            let fvs2: Vec<EIdx> = cons_eidx(&fv, fvs);
+                                            let mut fvs2: Vec<EIdx> = fvs;
+                                            fvs2.push(fv);
                                             let mut stk2: Vec<(EIdx, BinderMeta)> = stk;
                                             stk2.push((typ, mb));
                                             annotate_lams(
                                                 pers, vis, st, mode, lane, fuel, fe, d, peel - 1,
-                                                &body, k + 1, &fvs2, stk2,
+                                                &body, k + 1, fvs2, stk2,
                                             )
                                         }
                                     }
@@ -10721,12 +10734,13 @@ pub fn annotate_body(
                 Ok(typ) => match intern_e_fvar(pers, st, depth, typ.dup2()) {
                     Err(er) => Err(er),
                     Ok(fv) => {
-                        let fvs: Vec<EIdx> = cons_eidx(&fv, &Vec::new());
+                        let mut fvs: Vec<EIdx> = Vec::new();
+                        fvs.push(fv);
                         let mut stk: Vec<(EIdx, BinderMeta)> = Vec::new();
                         stk.push((typ, mb));
                         annotate_pis(
                             pers, vis, st, mode, lane, fuel, fe, depth, PEEL_FUEL, &body, 1,
-                            &fvs, stk,
+                            fvs, stk,
                         )
                     }
                 },
@@ -10746,12 +10760,13 @@ pub fn annotate_body(
                         Ok(typ) => match intern_e_fvar(pers, st, depth, typ.dup2()) {
                             Err(er) => Err(er),
                             Ok(fv) => {
-                                let fvs: Vec<EIdx> = cons_eidx(&fv, &Vec::new());
+                                let mut fvs: Vec<EIdx> = Vec::new();
+                                fvs.push(fv);
                                 let mut stk: Vec<(EIdx, BinderMeta)> = Vec::new();
                                 stk.push((typ, mb));
                                 annotate_lams(
                                     pers, vis, st, mode, lane, fuel, fe, depth, PEEL_FUEL,
-                                    &body, 1, &fvs, stk,
+                                    &body, 1, fvs, stk,
                                 )
                             }
                         },

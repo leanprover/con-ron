@@ -1128,19 +1128,21 @@ pub fn open_pis_at_fvars(
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:153-167 openPisAtFvarsFGo
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:391-402 openPisAtFvarsFGo` —
-/// core of `openPisAtFvarsF`: `acc` holds the already-created fvars, innermost
-/// binder first.  One `instantiateList` pass per domain instead of one
-/// whole-telescope `instantiate1` pass per binder.
+/// core of `openPisAtFvarsF`: `acc` holds the already-created fvars — the list
+/// `instantiate_list` takes at cursor 0, in PUSH order on an OWNED vector
+/// (task #97-P6-15).  One `instantiateList` pass per domain instead of one
+/// whole-telescope `instantiate1` pass per binder.  The list this function
+/// RETURNS is a different one and keeps its cons: it is built on the way out.
 pub fn open_pis_at_fvars_f_go(
     pers: &PersTier,
     st: &mut AState,
-    acc: &Vec<EIdx>,
+    acc: Vec<EIdx>,
     n: u64,
     h: &EIdx,
     i: u64,
 ) -> Result<Option<(Vec<EIdx>, EIdx)>, CheckError> {
     if n == 0 {
-        match instantiate_list_fast(pers, st, CORE_WALK_FUEL, h, acc, 0) {
+        match instantiate_list_fast(pers, st, CORE_WALK_FUEL, h, &acc, 0) {
             Err(e) => Err(e),
             Ok(b) => Ok(Some((Vec::new(), b))),
         }
@@ -1149,13 +1151,14 @@ pub fn open_pis_at_fvars_f_go(
             match view_bind(pers, st, h) {
                 None => fail_dangling_e(),
                 Some((dom, body, _)) => {
-                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &dom, acc, 0) {
+                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &dom, &acc, 0) {
                         Err(e) => Err(e),
                         Ok(d) => match intern_e_fvar(pers, st, i, d) {
                             Err(e) => Err(e),
                             Ok(fv) => {
-                                let acc2: Vec<EIdx> = cons_eidx(&fv, acc);
-                                match open_pis_at_fvars_f_go(pers, st, &acc2, n - 1, &body, i + 1) {
+                                let mut acc2: Vec<EIdx> = acc;
+                                acc2.push(fv.dup2());
+                                match open_pis_at_fvars_f_go(pers, st, acc2, n - 1, &body, i + 1) {
                                     Err(e) => Err(e),
                                     Ok(Some((fvs, e2))) => Ok(Some((cons_eidx(&fv, &fvs), e2))),
                                     Ok(None) => Ok(None),
@@ -1182,7 +1185,7 @@ pub fn open_pis_at_fvars_f(
     e: &EIdx,
     i: u64,
 ) -> Result<Option<(Vec<EIdx>, EIdx)>, CheckError> {
-    match open_pis_at_fvars_f_go(pers, st, &Vec::new(), n, e, i) {
+    match open_pis_at_fvars_f_go(pers, st, Vec::new(), n, e, i) {
         Err(err) => Err(err),
         Ok(Some(r)) => Ok(Some(r)),
         Ok(None) => open_pis_at_fvars(pers, st, n, e, i),
