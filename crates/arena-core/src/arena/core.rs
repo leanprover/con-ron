@@ -6552,7 +6552,42 @@ pub fn iota_rec(
 ) -> Result<Option<EIdx>, CheckError> {
     match get_app_fn(pers, st, CORE_WALK_FUEL, e) {
         Err(er) => Err(er),
-        Ok(hd) => match view(pers, st, &hd) {
+        Ok(hd) => match get_app_args(pers, st, CORE_WALK_FUEL, e) {
+            Err(er) => Err(er),
+            Ok(args) => {
+                let n: usize = args.len();
+                iota_rec_at(pers, vis, st, mode, lane, fuel, fe, depth, &hd, &args, n)
+            }
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:1719-1832 iotaRec
+/// Lean twin: OWED (task #97-P6-9's ledger) — `iotaRec` with its two spine
+/// walks HOISTED: the head and the argument vector are the caller's, and `n`
+/// says how many of `sargs` the expression `e` applies.
+///
+/// `whnf_app` (task #97-P6-9) has both already — it walked the spine once —
+/// and the spec-shaped body it replaces called `iotaRec` on every prefix of
+/// the spine, so `getAppFn`+`getAppArgs` were walked once per argument: a
+/// quadratic that neither checker's shape needs.  The arity test moves in
+/// front of the level-list read for the same reason (both are pure tests of
+/// the same conjunction, and the arity one is O(1) here).
+pub fn iota_rec_at(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    hd: &EIdx,
+    sargs: &Vec<EIdx>,
+    n: usize,
+) -> Result<Option<EIdx>, CheckError> {
+    {
+        match view(pers, st, hd) {
             Err(er) => Err(er),
             Ok(ENodeView::Const(c, us)) => match env::ifenv_find(vis, fe, &c) {
                 Some(IConstantInfo::RecInfo(cv0, m_i0, r_p0, rules0)) => {
@@ -6560,9 +6595,11 @@ pub fn iota_rec(
                     let m_i: u64 = *m_i0;
                     let r_p: u64 = *r_p0;
                     let rules: Vec<IRecRule> = env::i_rec_rules_dup(rules0);
-                    match get_app_args(pers, st, CORE_WALK_FUEL, e) {
-                        Err(er) => Err(er),
-                        Ok(args) => match view_ls(pers, st, &us) {
+                    if n as u64 != m_i + 1 {
+                        Ok(None)
+                    } else {
+                        let args: Vec<EIdx> = take_eidx(sargs, n);
+                        match view_ls(pers, st, &us) {
                             Err(er) => Err(er),
                             Ok(usl) => {
                                 if args.len() as u64 == m_i + 1
@@ -6593,14 +6630,14 @@ pub fn iota_rec(
                                     Ok(None)
                                 }
                             }
-                        },
+                        }
                     }
                 }
                 Some(_) => Ok(None),
                 None => Ok(None),
             },
             Ok(_) => Ok(None),
-        },
+        }
     }
 }
 
@@ -6885,29 +6922,30 @@ pub fn get_app_spine(
     }
 }
 
-/// con-leche: ConLeche/Cached/CoreC.lean:857-900 whnfAppI
-/// Lean twin: OWED (task #97-P6-9's ledger) — con-leche's own `iotaArityOk`
-/// guard, in the one form the arena can spell without the environment: **ι
-/// fires only on a `.const` head**.  `iotaRec`'s own first two steps are
-/// `getAppFn` and a `.const` match, so a spine whose head is anything else
-/// returns `none` from every prefix; testing the head ONCE (off the handle's
-/// own tag, and off `get_app_fn` only when the normalized head is itself an
-/// application) replaces one `getAppFn` walk per argument, which over a spine
-/// of `n` is quadratic.
-pub fn spine_head_is_const(
+/// con-leche: none — `getAppFn e` and `getAppArgsC e` in one place
+/// Lean twin: OWED (task #97-P6-9's ledger) — the head and the argument vector
+/// of a term, as `whnf_app` needs them for its ι step.
+///
+/// `whnf_app` carries the head and the arguments of the application it has
+/// accumulated so that `iota_rec_at` is O(1) per argument; when a reduction
+/// replaces that application wholesale, the two have to be read off the new
+/// term, which is what this does.  The handle's own tag makes the common
+/// case — the reduct is not an application — one comparison and no walk.
+pub fn head_and_args(
     pers: &PersTier,
     st: &AState,
     v: &EIdx,
-) -> Result<bool, CheckError> {
-    if v.tag() == ETAG_CONST {
-        Ok(true)
-    } else if v.tag() == ETAG_APP {
+) -> Result<(EIdx, Vec<EIdx>), CheckError> {
+    if v.tag() == ETAG_APP {
         match get_app_fn(pers, st, CORE_WALK_FUEL, v) {
             Err(e) => Err(e),
-            Ok(hd) => Ok(hd.tag() == ETAG_CONST),
+            Ok(hd) => match get_app_args(pers, st, CORE_WALK_FUEL, v) {
+                Err(e) => Err(e),
+                Ok(va) => Ok((hd, va)),
+            },
         }
     } else {
-        Ok(false)
+        Ok((v.dup2(), Vec::new()))
     }
 }
 
@@ -6927,11 +6965,14 @@ pub fn spine_head_is_const(
 /// `whnfApp_sound_body`, whose per-argument decomposition is
 /// `Expr.instantiateList_cons` (`ConLeche/Verify/InstList.lean`).
 ///
-/// `i` is the cursor into `args` (the twin's list pattern); `same` says that
-/// `v` still IS the function part of `nodes[i]`, which is task #97-P6-5's
-/// upward cutoff (`intern_app_rebuilt`) — the spec-shaped body read it off its
-/// own recursion, and a loop has to carry it.  `ic` is `spine_head_is_const`
-/// of the current head, recomputed only where the head can change.
+/// Three things travel with `v`, and all three are bookkeeping the spec-shaped
+/// body got for free from its own recursion:
+///   * `same` — `v` still IS the function part of `nodes[i]`, which is task
+///     #97-P6-5's upward cutoff (`intern_app_rebuilt`);
+///   * `hd` and `vargs` — `v = mkAppN hd vargs`, so that the ι step is
+///     `iota_rec_at` and not a fresh `getAppFn`/`getAppArgs` walk per argument
+///     (the spec shape's is quadratic in the spine);
+///   * `i` — the cursor into `args`, which is the twin's list pattern.
 pub fn whnf_app(
     pers: &PersTier,
     vis: u64,
@@ -6942,8 +6983,9 @@ pub fn whnf_app(
     fe: &IFEnv,
     depth: u64,
     v: &EIdx,
+    hd: &EIdx,
+    vargs: Vec<EIdx>,
     same: bool,
-    ic: bool,
     args: &Vec<EIdx>,
     nodes: &Vec<EIdx>,
     i: usize,
@@ -6998,44 +7040,48 @@ pub fn whnf_app(
                     }
                 }
             }
-            Ok(_) => {
-                if ic {
-                    match whnf_core_stuck_app(
-                        pers, vis, st, mode, lane, fuel, fe, depth, &node, same, v, &a,
-                    ) {
+            // The stuck step: `whnf_core_stuck_app`'s two lines, opened up so
+            // that the head and the argument vector can be carried rather than
+            // re-walked — applying one more argument to a spine does NOT move
+            // its head, and its argument vector is one `push`.
+            Ok(_) => match intern_app_rebuilt(pers, st, &node, same, v, &a) {
+                Err(e) => Err(e),
+                Ok(ap) => {
+                    let same2: bool = ap.eq2(&node);
+                    let mut va: Vec<EIdx> = vargs;
+                    va.push(a);
+                    let n: usize = va.len();
+                    let step = if hd.tag() == ETAG_CONST {
+                        iota_rec_at(pers, vis, st, mode, lane, fuel, fe, depth, hd, &va, n)
+                    } else {
+                        // `iotaRec`'s own first two steps are `getAppFn` and a
+                        // `.const` match, so a spine whose head is anything
+                        // else returns `none` from every prefix: con-leche's
+                        // `iotaArityOk` guard, in the form the arena can spell
+                        // off the handle's tag.
+                        Ok(None)
+                    };
+                    match step {
                         Err(e) => Err(e),
-                        Ok(v2) => {
-                            let same2: bool = v2.eq2(&node);
-                            // ι fired iff the step did not return the rebuilt
-                            // application; then the head is whatever the reduct
-                            // normalized to and has to be looked at again.
-                            let ic2 = if same2 {
-                                Ok(true)
-                            } else {
-                                spine_head_is_const(pers, st, &v2)
-                            };
-                            match ic2 {
+                        Ok(None) => whnf_app(
+                            pers, vis, st, mode, lane, fuel, fe, depth, &ap, hd, va, same2,
+                            args, nodes, i + 1,
+                        ),
+                        Ok(Some(e2)) => {
+                            match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, &e2) {
                                 Err(e) => Err(e),
-                                Ok(c2) => whnf_app(
-                                    pers, vis, st, mode, lane, fuel, fe, depth, &v2, same2, c2,
-                                    args, nodes, i + 1,
-                                ),
+                                Ok(v2) => match head_and_args(pers, st, &v2) {
+                                    Err(e) => Err(e),
+                                    Ok(hv) => whnf_app(
+                                        pers, vis, st, mode, lane, fuel, fe, depth, &v2, &hv.0,
+                                        hv.1, false, args, nodes, i + 1,
+                                    ),
+                                },
                             }
                         }
                     }
-                } else {
-                    match intern_app_rebuilt(pers, st, &node, same, v, &a) {
-                        Err(e) => Err(e),
-                        Ok(ap) => {
-                            let same2: bool = ap.eq2(&node);
-                            whnf_app(
-                                pers, vis, st, mode, lane, fuel, fe, depth, &ap, same2, false,
-                                args, nodes, i + 1,
-                            )
-                        }
-                    }
                 }
-            }
+            },
         }
     }
 }
@@ -7126,11 +7172,11 @@ pub fn beta_peel(
                     // re-enters `whnfAppI` at the SAME argument.  A β has
                     // happened, so the accumulated head is no longer the
                     // original prefix and the upward cutoff is OFF.
-                    Ok(v2) => match spine_head_is_const(pers, st, &v2) {
+                    Ok(v2) => match head_and_args(pers, st, &v2) {
                         Err(e) => Err(e),
-                        Ok(c2) => whnf_app(
-                            pers, vis, st, mode, lane, fuel, fe, depth, &v2, false, c2, args,
-                            nodes, i,
+                        Ok(hv) => whnf_app(
+                            pers, vis, st, mode, lane, fuel, fe, depth, &v2, &hv.0, hv.1, false,
+                            args, nodes, i,
                         ),
                     },
                 },
@@ -7257,11 +7303,11 @@ pub fn whnf_core_body(
                         Err(er) => Err(er),
                         Ok(v) => {
                             let same: bool = v.eq2(&hd);
-                            match spine_head_is_const(pers, st, &v) {
+                            match head_and_args(pers, st, &v) {
                                 Err(er) => Err(er),
-                                Ok(ic) => whnf_app(
-                                    pers, vis, st, mode, lane, fuel, fe, depth, &v, same, ic,
-                                    &args, &nodes, 0,
+                                Ok(hv) => whnf_app(
+                                    pers, vis, st, mode, lane, fuel, fe, depth, &v, &hv.0, hv.1,
+                                    same, &args, &nodes, 0,
                                 ),
                             }
                         }
