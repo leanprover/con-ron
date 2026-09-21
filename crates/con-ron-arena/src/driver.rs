@@ -311,6 +311,13 @@ pub fn check_decls_driver<O: PhaseObserver + Send>(
         Ok(o) => o,
         Err(e) => e.into_inner(),
     };
+    // AND THE TIER GOES BACK.  Everything after the fold — the verdict line's
+    // declaration label, the failing record's name, the receipts — reads a
+    // handle back out of `st`, and a state left frozen over a tier that has
+    // gone out of scope answers `None` to every one of them (the first
+    // version of this printed `at theorem ?` where the tip printed `at
+    // theorem addOk`).  `thaw_tier` is `freeze_tier` inverted.
+    thaw_tier(&mut st.store, tier);
     match r {
         Err((e, pos)) => {
             obs.check_failed(pos);
@@ -347,6 +354,23 @@ pub fn freeze_tier(ar: &mut EStore) -> PersTier {
     ar.lss.ls.shared_on = true;
     ar.lss.ls.ns.shared_on = true;
     tier
+}
+
+/// con-leche: none — the phase boundary, which con-leche has no tier to make
+/// **`freeze_tier` inverted**: the tier back into the store and the flags
+/// down, so that everything after phase B — the verdict line's label, the
+/// failing record's name, the receipts — reads the handles it was given.
+/// `thaw_tier(ar, freeze_tier(ar))` leaves `ar` as it found it, which is what
+/// makes the boundary invisible to every reader outside phase B.
+pub fn thaw_tier(ar: &mut EStore, tier: PersTier) {
+    ar.lss.ls.ns.pers = tier.n;
+    ar.lss.ls.pers = tier.l;
+    ar.lss.pers = tier.ls;
+    ar.pers = tier.e;
+    ar.shared_on = false;
+    ar.lss.shared_on = false;
+    ar.lss.ls.shared_on = false;
+    ar.lss.ls.ns.shared_on = false;
 }
 
 /// con-leche: none — the pin table is handles, so a worker's copy is a memcpy
@@ -796,5 +820,47 @@ mod tests {
         assert_eq!(workers_for(8, 3), 3);
         assert_eq!(workers_for(1, 0), 1);
         assert_eq!(workers_for(8, 100), con_ron::driver::workers_for(8, 100));
+    }
+
+    /// **The phase boundary is invisible to every reader outside phase B**
+    /// (task #97-P6-6b).  `freeze_tier` takes the persistent tier out of the
+    /// store and `thaw_tier` puts it back; between them a worker reads the
+    /// tier it was handed, and after them the store answers exactly as it did
+    /// before — which is what the verdict line needs, because it renders the
+    /// failing record's NAME out of the store after the fold has returned.
+    /// The first version of the pool dropped the tier at the end of the
+    /// driver and printed `at theorem ?`; this is the regression.
+    #[test]
+    fn freezing_and_thawing_leave_every_handle_readable() {
+        let empty: &PersTier = &PersTier::empty();
+        let mut st = AState::init(EStore::empty());
+        let anon = match arena_core::arena::monad::intern_n_node(
+            empty,
+            &mut st,
+            arena_core::arena::store::NNodeView::Anonymous,
+        ) {
+            Ok(h) => h,
+            Err(_) => panic!("the anonymous name interns"),
+        };
+        let n = match arena_core::arena::monad::intern_n_node(
+            empty,
+            &mut st,
+            arena_core::arena::store::NNodeView::Str(anon, vec![0x61, 0x64, 0x64]),
+        ) {
+            Ok(h) => h,
+            Err(_) => panic!("`add` interns"),
+        };
+        assert_eq!(name_of(empty, &st.store, &n), "add");
+        // frozen: the store's own tier is empty and the shared one answers
+        let tier = freeze_tier(&mut st.store);
+        assert!(st.store.shared_on);
+        assert_eq!(name_of(&tier, &st.store, &n), "add");
+        // and a worker, whose store is its own, reads it too
+        let w = crate::pool::worker_state(&st.pins);
+        assert_eq!(name_of(&tier, &w.store, &n), "add");
+        // thawed: the store is what phase A left
+        thaw_tier(&mut st.store, tier);
+        assert!(!st.store.shared_on);
+        assert_eq!(name_of(empty, &st.store, &n), "add");
     }
 }
