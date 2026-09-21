@@ -6504,6 +6504,8 @@ pub fn whnf_core_app(
     fuel: u64,
     fe: &IFEnv,
     depth: u64,
+    h: &EIdx,
+    same: bool,
     fp: &EIdx,
     a: &EIdx,
 ) -> Result<EIdx, CheckError> {
@@ -6533,14 +6535,12 @@ pub fn whnf_core_app(
                                 Ok(b) => knot_whnf_core(st, mode, lane, fuel, fe, depth, &b),
                             }
                         }
-                        Ok(false) => {
-                            intern_e(st, ENodeView::App(fp.dup2(), a.dup2()))
-                        }
+                        Ok(false) => intern_app_rebuilt(st, h, same, fp, a),
                     },
                 }
             }
         }
-        Ok(_) => whnf_core_stuck_app(st, mode, lane, fuel, fe, depth, fp, a),
+        Ok(_) => whnf_core_stuck_app(st, mode, lane, fuel, fe, depth, h, same, fp, a),
     }
 }
 
@@ -6550,6 +6550,36 @@ pub fn whnf_core_app(
 /// gated β arm end in it.
 pub fn intern_app(st: &mut AState, f: &EIdx, a: &EIdx) -> Result<EIdx, CheckError> {
     intern_e(st, ENodeView::App(f.dup2(), a.dup2()))
+}
+
+/// con-leche: none — `internE (.app f' a)`, the twin's one-line rebuild
+/// Lean twin: OWED (task #97-P6-7's twin ledger) — **the UPWARD cutoff at the
+/// stuck application**, `expr_ops::intern_rebuilt`'s clause where task
+/// #97-P6-5's lever 2 could not reach.
+///
+/// `whnfCore` of an application head-normalizes the function and re-interns
+/// `.app f' a`.  When `f'` IS `f` — the head was already in normal form — the
+/// node it re-interns is the node it started from, so the whole hash, cons
+/// probe and (at Mathlib scale) guaranteed cache miss buy back a handle the
+/// caller already holds.  On the Mathlib 25 % prefix **58.2 M of `whnfCore`'s
+/// application and projection misses answer with their own argument**.
+///
+/// Handle-identical for the same reason task #97-P6-5 gives: the store is
+/// hash-consed, `denoteE` is injective, and §8.3's cross-tier probe order
+/// makes `intern` of a node's own view that node and not a twin of it in the
+/// other tier.
+pub fn intern_app_rebuilt(
+    st: &mut AState,
+    h: &EIdx,
+    same: bool,
+    f: &EIdx,
+    a: &EIdx,
+) -> Result<EIdx, CheckError> {
+    if same {
+        Ok(h.dup2())
+    } else {
+        intern_app(st, f, a)
+    }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1930-2019 whnfCoreBody
@@ -6566,10 +6596,12 @@ pub fn whnf_core_stuck_app(
     fuel: u64,
     fe: &IFEnv,
     depth: u64,
+    h: &EIdx,
+    same: bool,
     fp: &EIdx,
     a: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match intern_app(st, fp, a) {
+    match intern_app_rebuilt(st, h, same, fp, a) {
         Err(e) => Err(e),
         Ok(ap) => match iota_rec(st, mode, lane, fuel, fe, depth, &ap) {
             Err(e) => Err(e),
@@ -6606,7 +6638,10 @@ pub fn whnf_core_body(
         Ok(ENodeView::App(f, a)) => {
             match knot_whnf_core(st, mode, lane, fuel, fe, depth, &f) {
                 Err(er) => Err(er),
-                Ok(fp) => whnf_core_app(st, mode, lane, fuel, fe, depth, &fp, &a),
+                Ok(fp) => {
+                    let same: bool = fp.eq2(&f);
+                    whnf_core_app(st, mode, lane, fuel, fe, depth, e, same, &fp, &a)
+                }
             }
         }
         Ok(ENodeView::Proj(sn, i, pe)) => {
@@ -8651,7 +8686,15 @@ pub fn annotate_body(
                 Err(er) => Err(er),
                 Ok(fp) => match knot_annotate(st, mode, lane, fuel, fe, depth, &a) {
                     Err(er) => Err(er),
-                    Ok(ap) => intern_e(st, ENodeView::App(fp, ap)),
+                    Ok(ap) => {
+                        let same: bool = fp.eq2(&f) && ap.eq2(&a);
+                        crate::arena::expr_ops::intern_rebuilt(
+                            st,
+                            e,
+                            same,
+                            ENodeView::App(fp, ap),
+                        )
+                    }
                 },
             }
         }
