@@ -34340,6 +34340,7 @@ A4, A5 and A6 are not to be taken.  The strongest takeaway is the negative one:
 **the two forks' published wins are 5 %, 10 % and 35 % — the first is an
 ordering we can test in an afternoon, the second is already the arena's `sk`
 filter, and the third is a different checker.**
+
 ### Task #97-HM2 — the `HashMap2` spec tier (2026-09-21, Opus under Fable)
 
 Task #97-P6-4b landed `ron::HashMap2` — the open-addressed, epoch-stamped,
