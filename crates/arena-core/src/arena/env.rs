@@ -57,12 +57,17 @@
 //!   the back, which is con-ron-core's `kernel::env::Env` deviation (task
 //!   #50): `Vec::push` appends and the Aeneas subset has no `cons`.  The
 //!   cited (newest-first) order is what is scanned either way.
-//! * **the index copies the record** where Lean's value semantics share it.
-//!   con-ron-core stores a `P<ConstantInfo>` in both `Env` and `FEnv`; DESIGN
-//!   §8.5 says the arena has **no `ron::ptr`** at all, so `IFEnv`'s index
-//!   holds its own copy — which for a handle-shaped record is a `Vec` spine
-//!   and no term at all.  Whether that is what P2c wants of the index is
-//!   P2c's measurement, not part 1's.
+//! * **the index holds a SLOT where the twin's holds the record.**  Lean's
+//!   value semantics share a `ConstantInfo` between `Env` and `FEnv` for
+//!   nothing; con-ron-core stores a `P<ConstantInfo>` in both, and DESIGN §8.5
+//!   says the arena has **no `ron::ptr`** at all.  Part 1 therefore gave the
+//!   index its own COPY of every constant and left the question to a
+//!   measurement — and task #97-P6-5 took it: on a Mathlib prefix the second
+//!   copy was 19 % of the whole run, because `arena::inductives` duplicates
+//!   the environment per inductive block and every duplicate copied both.  The
+//!   index row is now `(counter, slot)` into `env.consts`, which is a POD; the
+//!   refinement relation reads `idx[n] = (c, s) ∧ consts[s] = ci` where the
+//!   twin reads `idx[n] = (c, ci)`, and no twin clause moves.
 //!
 //! ## `Monad.lean`'s primitives live at the bottom of this file, for now
 //!
@@ -784,9 +789,29 @@ pub fn i_env_find_proj(
 /// with its `O(1)` index (DESIGN.md §8.3 lesson 13).  Entries with counter
 /// `< visible_below` are visible; `visible_below` doubles as the next counter
 /// `push` hands out.
+///
+/// **The index row is `(counter, SLOT)` and not `(counter, IConstantInfo)`**
+/// (task #97-P6-5, lever 1).  The twin's row carries the constant itself,
+/// which in Lean is a shared value; in Rust it was a SECOND full copy of
+/// every stored constant — `env.consts[s]` and `idx[name].1` held the same
+/// record twice, both of them deep — and `ifenv_dup` therefore copied the
+/// environment twice, each copy a `Vec<NIdx>` malloc per constant.  The
+/// Mathlib profile of task #97-P6-5 put that at **19 % of the whole run**
+/// (72 % of the install phase), because `arena::inductives` copies the
+/// environment three times per inductive block and Mathlib has 6 720 of them
+/// over a 691 128-entry environment.
+///
+/// The row is now the constant's SLOT in `env.consts`, so the map is a POD
+/// and `dup` is a slot memcpy.  Every writer keeps the two in step —
+/// `ifenv_push` pushes then indexes, `promote::index_promoted` writes the
+/// slot back and re-indexes it, `promote::erase_installed` only removes — and
+/// `ifenv_find` reads `env.consts[s]`.  The refinement relation for `IFEnv`
+/// says `idx[n] = (c, s) ∧ consts[s] = ci` where the twin says
+/// `idx[n] = (c, ci)`; no twin clause moves and `find?` answers the same
+/// constant (task #97-P6-5's twin ledger).
 pub struct IFEnv {
     pub env: IEnv,
-    pub idx: HashMap<NIdx, (u64, IConstantInfo)>,
+    pub idx: HashMap<NIdx, (u64, u64)>,
     pub visible_below: u64,
 }
 
@@ -800,16 +825,13 @@ pub fn mk_ifenv_go(
     cs: &Vec<IConstantInfo>,
     i: usize,
     c: u64,
-    m: HashMap<NIdx, (u64, IConstantInfo)>,
-) -> (u64, HashMap<NIdx, (u64, IConstantInfo)>) {
+    m: HashMap<NIdx, (u64, u64)>,
+) -> (u64, HashMap<NIdx, (u64, u64)>) {
     if i >= cs.len() {
         (c, m)
     } else {
         let mut m = m;
-        m.insert(
-            i_constant_info_name(&cs[i]),
-            (c, i_constant_info_dup(&cs[i])),
-        );
+        m.insert(i_constant_info_name(&cs[i]), (c, i as u64));
         mk_ifenv_go(cs, i + 1, c + 1, m)
     }
 }
@@ -833,8 +855,8 @@ pub fn mk_ifenv(env: IEnv) -> IFEnv {
 pub fn ifenv_find<'a>(fe: &'a IFEnv, n: &NIdx) -> Option<&'a IConstantInfo> {
     match fe.idx.get(n) {
         Some(e) => {
-            if e.0 < fe.visible_below {
-                Some(&e.1)
+            if e.0 < fe.visible_below && (e.1 as usize) < fe.env.consts.len() {
+                Some(&fe.env.consts[e.1 as usize])
             } else {
                 None
             }
@@ -861,8 +883,8 @@ pub fn ifenv_restrict_to(fe: IFEnv, k: u64) -> IFEnv {
 pub fn ifenv_push(fe: IFEnv, ci: IConstantInfo) -> IFEnv {
     let mut fe = fe;
     let c = fe.visible_below;
-    fe.idx
-        .insert(i_constant_info_name(&ci), (c, i_constant_info_dup(&ci)));
+    let s = fe.env.consts.len() as u64;
+    fe.idx.insert(i_constant_info_name(&ci), (c, s));
     fe.env.consts.push(ci);
     fe.visible_below = c + 1;
     fe
@@ -925,7 +947,12 @@ pub fn i_env_dup(e: &IEnv) -> IEnv {
 /// con-leche: ConLeche/Kernel/FEnv.lean:29-49 FEnv
 /// Lean twin: `proof/ConRon/Arena/Env.lean:309-312 IFEnv` — the indexed
 /// environment's copy: the constants, the index and the visibility bound.
-/// `O(size)`, as `con_ron_core::kernel::fenv::dup` is, and for the same reason.
+/// `O(size)`, as `con_ron_core::kernel::fenv::dup` is, and for the same reason
+/// — but since task #97-P6-5's lever 1 the index half is a **slot memcpy**
+/// and not a second deep copy of every constant, so the cost is one
+/// `IConstantInfo` copy per constant instead of two.  The five callers are
+/// all in `arena::inductives`, where a block is checked against an extended
+/// environment while the original has to survive.
 pub fn ifenv_dup(fe: &IFEnv) -> IFEnv {
     IFEnv {
         env: i_env_dup(&fe.env),

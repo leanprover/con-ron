@@ -1063,10 +1063,11 @@ pub fn index_promoted(
             Err(e) => Err(e),
             Ok((m2, ci)) => {
                 let mut fe2: IFEnv = fe;
-                fe2.idx.insert(
-                    env::i_constant_info_name(&ci),
-                    (c - 1, env::i_constant_info_dup(&ci)),
-                );
+                // The index row is the SLOT (task #97-P6-5's lever 1), so the
+                // re-index is the slot the promoted record is written into and
+                // the two stay in step without a second copy.
+                fe2.idx
+                    .insert(env::i_constant_info_name(&ci), (c - 1, (j - 1) as u64));
                 fe2.env.consts[j - 1] = ci;
                 index_promoted(st, m2, fuel, fe2, start, j - 1, c - 1)
             }
