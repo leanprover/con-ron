@@ -1998,7 +1998,8 @@ pub fn order_block_ctors(
     let n = ty_names.len();
     let mut t_at = 0usize;
     while t_at < n {
-        match order_type_ctors(pers,
+        match order_type_ctors(
+            pers,
             ar,
             fuel,
             st,
@@ -2335,7 +2336,8 @@ pub fn check_rec_records(
     let n = rcs.len();
     let mut i = 0usize;
     while i < n {
-        match check_one_rec(pers,
+        match check_one_rec(
+            pers,
             ar, fuel, st, &rcs[i], ty_names, ty_types, n_pd, n_types, n_ctors, k_exp,
         ) {
             Err(e) => return Err(e),
@@ -2435,7 +2437,8 @@ pub fn validate_ind_d(
         Ok(v) => v,
     };
     if !nested {
-        match check_rec_records(pers,
+        match check_rec_records(
+            pers,
             ar, fuel, st, rcs, &ty_names, &ty_types, n_pd, n_types, n_ctors, &k_exp,
         ) {
             Err(e) => return Err(e),

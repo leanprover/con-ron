@@ -838,6 +838,7 @@ pub fn proj_model_name(
 /// expression headed by a stored constructor?
 pub fn is_ctor_app(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     e: &EIdx,
@@ -846,7 +847,7 @@ pub fn is_ctor_app(
         Err(er) => Err(er),
         Ok(h) => match view(pers, st, &h) {
             Err(er) => Err(er),
-            Ok(ENodeView::Const(c, _)) => match env::ifenv_find(fe, &c) {
+            Ok(ENodeView::Const(c, _)) => match env::ifenv_find(vis, fe, &c) {
                 Some(IConstantInfo::CtorInfo(_, _, _)) => Ok(true),
                 Some(_) => Ok(false),
                 None => Ok(false),
@@ -950,6 +951,7 @@ pub fn caps_never_zero(
 /// short-circuits after one comparison at every other head.
 pub fn is_unit_like_ty(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     h: &EIdx,
@@ -962,11 +964,11 @@ pub fn is_unit_like_ty(
                 if !c.eq2(&pu) {
                     Ok(false)
                 } else {
-                    match env::ifenv_find(fe, &pu) {
+                    match env::ifenv_find(vis, fe, &pu) {
                         Some(IConstantInfo::IndInfo(_, _)) => {
                             match pin_punit_rec(st) {
                                 Err(e) => Err(e),
-                                Ok(pr) => match env::ifenv_find(fe, &pr) {
+                                Ok(pr) => match env::ifenv_find(vis, fe, &pr) {
                                     Some(IConstantInfo::RecInfo(_, m_i, r_p, rules)) => {
                                         if rules.len() == 1 {
                                             if *m_i == *r_p {
@@ -1000,6 +1002,7 @@ pub fn is_unit_like_ty(
 /// same levels pays the substitution once.
 pub fn unfold_definition(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     e: &EIdx,
@@ -1008,7 +1011,7 @@ pub fn unfold_definition(
         Err(er) => Err(er),
         Ok(h) => match view(pers, st, &h) {
             Err(er) => Err(er),
-            Ok(ENodeView::Const(n, us)) => match env::ifenv_find(fe, &n) {
+            Ok(ENodeView::Const(n, us)) => match env::ifenv_find(vis, fe, &n) {
                 Some(IConstantInfo::DefnInfo(cv, value, _)) => {
                     let lps: Vec<NIdx> = env::nidx_vec_dup(&cv.level_params);
                     let val: EIdx = value.dup2();
@@ -1046,6 +1049,7 @@ pub fn unfold_definition(
 /// DECISION, taken before the unfolding is materialized.
 pub fn unfoldable_head(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     e: &EIdx,
@@ -1054,7 +1058,7 @@ pub fn unfoldable_head(
         Err(er) => Err(er),
         Ok(h) => match view(pers, st, &h) {
             Err(er) => Err(er),
-            Ok(ENodeView::Const(n, us)) => match env::ifenv_find(fe, &n) {
+            Ok(ENodeView::Const(n, us)) => match env::ifenv_find(vis, fe, &n) {
                 Some(IConstantInfo::DefnInfo(cv, _, _)) => {
                     let k = cv.level_params.len();
                     match view_ls(pers, st, &us) {
@@ -1075,6 +1079,7 @@ pub fn unfoldable_head(
 /// reducibility hint of the constant at the head of `e`.
 pub fn head_hint(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     e: &EIdx,
@@ -1083,7 +1088,7 @@ pub fn head_hint(
         Err(er) => Err(er),
         Ok(h) => match view(pers, st, &h) {
             Err(er) => Err(er),
-            Ok(ENodeView::Const(n, _)) => match env::ifenv_find(fe, &n) {
+            Ok(ENodeView::Const(n, _)) => match env::ifenv_find(vis, fe, &n) {
                 Some(IConstantInfo::DefnInfo(_, _, hint)) => {
                     Ok(con_ron_core::kernel::env::reducibility_hint_dup(hint))
                 }
@@ -1268,20 +1273,25 @@ pub fn nat_succ_ok(
 /// Lean twin: `proof/ConRon/Arena/Core.lean:460-466 natLitSupported` — whether
 /// the environment supports `Nat` literals.  One twin for con-leche's two
 /// spellings (deviation 1).
-pub fn nat_lit_supported(pers: &PersTier, st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
+pub fn nat_lit_supported(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+) -> Result<bool, CheckError>  {
     match pin_nat(st) {
         Err(e) => Err(e),
-        Ok(nt) => match nat_ind_ok(st, env::ifenv_find(fe, &nt)) {
+        Ok(nt) => match nat_ind_ok(st, env::ifenv_find(vis, fe, &nt)) {
             Err(e) => Err(e),
             Ok(false) => Ok(false),
             Ok(true) => match pin_nat_zero(st) {
                 Err(e) => Err(e),
-                Ok(nz) => match nat_zero_ok(pers, st, env::ifenv_find(fe, &nz)) {
+                Ok(nz) => match nat_zero_ok(pers, st, env::ifenv_find(vis, fe, &nz)) {
                     Err(e) => Err(e),
                     Ok(false) => Ok(false),
                     Ok(true) => match pin_nat_succ(st) {
                         Err(e) => Err(e),
-                        Ok(ns) => nat_succ_ok(pers, st, env::ifenv_find(fe, &ns)),
+                        Ok(ns) => nat_succ_ok(pers, st, env::ifenv_find(vis, fe, &ns)),
                     },
                 },
             },
@@ -1293,8 +1303,8 @@ pub fn nat_lit_supported(pers: &PersTier, st: &mut AState, fe: &IFEnv) -> Result
 /// Lean twin: `proof/ConRon/Arena/Core.lean:482 constsResolve` — `(fe.find?
 /// n).isSome`, as its own function so the two literal arms below read as the
 /// twin's conjunctions do.
-pub fn stored(fe: &IFEnv, n: &NIdx) -> bool {
-    match env::ifenv_find(fe, n) {
+pub fn stored(vis: u64, fe: &IFEnv, n: &NIdx) -> bool {
+    match env::ifenv_find(vis, fe, n) {
         Some(_) => true,
         None => false,
     }
@@ -1305,14 +1315,14 @@ pub fn stored(fe: &IFEnv, n: &NIdx) -> bool {
 /// `.lit (.natVal _)` arm's three `find?`s, as its own function
 /// (`con_ron_core::kernel::core_k::nat_trio_stored`'s reason: the `String`
 /// arm repeats them).
-pub fn nat_trio_stored(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
+pub fn nat_trio_stored(vis: u64, st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
     match pin_nat(st) {
         Err(e) => Err(e),
         Ok(nt) => match pin_nat_zero(st) {
             Err(e) => Err(e),
             Ok(nz) => match pin_nat_succ(st) {
                 Err(e) => Err(e),
-                Ok(ns) => Ok(stored(fe, &nt) && stored(fe, &nz) && stored(fe, &ns)),
+                Ok(ns) => Ok(stored(vis, fe, &nt) && stored(vis, fe, &nz) && stored(vis, fe, &ns)),
             },
         },
     }
@@ -1321,7 +1331,7 @@ pub fn nat_trio_stored(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> 
 /// con-leche: ConLeche/Kernel/Core.lean:344-369 Expr.constsResolve
 /// Lean twin: `proof/ConRon/Arena/Core.lean:484-499 constsResolve` — the
 /// `.lit (.strVal _)` arm's seven further `find?`s.
-pub fn str_support_stored(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
+pub fn str_support_stored(vis: u64, st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
     match pin_string(st) {
         Err(e) => Err(e),
         Ok(a1) => match pin_string_of_list(st) {
@@ -1336,13 +1346,13 @@ pub fn str_support_stored(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckErro
                             Err(e) => Err(e),
                             Ok(a6) => match pin_char_of_nat(st) {
                                 Err(e) => Err(e),
-                                Ok(a7) => Ok(stored(fe, &a1)
-                                    && stored(fe, &a2)
-                                    && stored(fe, &a3)
-                                    && stored(fe, &a4)
-                                    && stored(fe, &a5)
-                                    && stored(fe, &a6)
-                                    && stored(fe, &a7)),
+                                Ok(a7) => Ok(stored(vis, fe, &a1)
+                                    && stored(vis, fe, &a2)
+                                    && stored(vis, fe, &a3)
+                                    && stored(vis, fe, &a4)
+                                    && stored(vis, fe, &a5)
+                                    && stored(vis, fe, &a6)
+                                    && stored(vis, fe, &a7)),
                             },
                         },
                     },
@@ -1360,6 +1370,7 @@ pub fn str_support_stored(st: &mut AState, fe: &IFEnv) -> Result<bool, CheckErro
 /// con-leche's does not.
 pub fn consts_resolve(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     fuel: u64,
@@ -1372,52 +1383,52 @@ pub fn consts_resolve(
             Err(e) => Err(e),
             Ok(ENodeView::BVar(_)) => Ok(true),
             Ok(ENodeView::Sort(_)) => Ok(true),
-            Ok(ENodeView::Lit(Literal::NatVal(_))) => nat_trio_stored(st, fe),
+            Ok(ENodeView::Lit(Literal::NatVal(_))) => nat_trio_stored(vis, st, fe),
             // **Both halves run**: the twin's `.strVal` arm `pin`s all ten
             // names and *then* takes one conjunction, so short-circuiting the
             // string half would leave seven names uninterned and the store
             // behind the twin's (see the evaluation-order note in DESIGN.md's
             // task #97-P4c section).
-            Ok(ENodeView::Lit(Literal::StrVal(_))) => match nat_trio_stored(st, fe) {
+            Ok(ENodeView::Lit(Literal::StrVal(_))) => match nat_trio_stored(vis, st, fe) {
                 Err(e) => Err(e),
-                Ok(nats) => match str_support_stored(st, fe) {
+                Ok(nats) => match str_support_stored(vis, st, fe) {
                     Err(e) => Err(e),
                     Ok(strs) => Ok(nats && strs),
                 },
             },
-            Ok(ENodeView::Const(n, _)) => Ok(stored(fe, &n)),
-            Ok(ENodeView::FVar(_, ty)) => consts_resolve(pers, st, fe, fuel - 1, &ty),
-            Ok(ENodeView::App(f, a)) => match consts_resolve(pers, st, fe, fuel - 1, &f) {
+            Ok(ENodeView::Const(n, _)) => Ok(stored(vis, fe, &n)),
+            Ok(ENodeView::FVar(_, ty)) => consts_resolve(pers, vis, st, fe, fuel - 1, &ty),
+            Ok(ENodeView::App(f, a)) => match consts_resolve(pers, vis, st, fe, fuel - 1, &f) {
                 Err(e) => Err(e),
-                Ok(true) => consts_resolve(pers, st, fe, fuel - 1, &a),
+                Ok(true) => consts_resolve(pers, vis, st, fe, fuel - 1, &a),
                 Ok(false) => Ok(false),
             },
-            Ok(ENodeView::Lam(ty, body, _)) => match consts_resolve(pers, st, fe, fuel - 1, &ty) {
+            Ok(ENodeView::Lam(ty, body, _)) => match consts_resolve(pers, vis, st, fe, fuel - 1, &ty) {
                 Err(e) => Err(e),
-                Ok(true) => consts_resolve(pers, st, fe, fuel - 1, &body),
+                Ok(true) => consts_resolve(pers, vis, st, fe, fuel - 1, &body),
                 Ok(false) => Ok(false),
             },
             Ok(ENodeView::ForallE(ty, body, _)) => {
-                match consts_resolve(pers, st, fe, fuel - 1, &ty) {
+                match consts_resolve(pers, vis, st, fe, fuel - 1, &ty) {
                     Err(e) => Err(e),
-                    Ok(true) => consts_resolve(pers, st, fe, fuel - 1, &body),
+                    Ok(true) => consts_resolve(pers, vis, st, fe, fuel - 1, &body),
                     Ok(false) => Ok(false),
                 }
             }
             Ok(ENodeView::LetE(ty, val, body)) => {
-                match consts_resolve(pers, st, fe, fuel - 1, &ty) {
+                match consts_resolve(pers, vis, st, fe, fuel - 1, &ty) {
                     Err(e) => Err(e),
                     Ok(false) => Ok(false),
-                    Ok(true) => match consts_resolve(pers, st, fe, fuel - 1, &val) {
+                    Ok(true) => match consts_resolve(pers, vis, st, fe, fuel - 1, &val) {
                         Err(e) => Err(e),
-                        Ok(true) => consts_resolve(pers, st, fe, fuel - 1, &body),
+                        Ok(true) => consts_resolve(pers, vis, st, fe, fuel - 1, &body),
                         Ok(false) => Ok(false),
                     },
                 }
             }
             Ok(ENodeView::Proj(s, _, sub)) => {
-                if stored(fe, &s) {
-                    consts_resolve(pers, st, fe, fuel - 1, &sub)
+                if stored(vis, fe, &s) {
+                    consts_resolve(pers, vis, st, fe, fuel - 1, &sub)
                 } else {
                     Ok(false)
                 }
@@ -1431,6 +1442,7 @@ pub fn consts_resolve(
 /// `Nat`-literal major premise to constructor form, one layer.
 pub fn lit_to_ctor_if_nat(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     h: &EIdx,
@@ -1439,7 +1451,7 @@ pub fn lit_to_ctor_if_nat(
         Err(e) => Err(e),
         Ok(ENodeView::Lit(Literal::NatVal(n))) => {
             let m: Nat = nat::clone(&n);
-            match nat_lit_supported(pers, st, fe) {
+            match nat_lit_supported(pers, vis, st, fe) {
                 Err(e) => Err(e),
                 Ok(true) => nat_lit_to_constructor(pers, st, &m),
                 Ok(false) => Ok(h.dup2()),
@@ -1590,7 +1602,8 @@ pub fn str_lit_to_constructor(
                                         match intern_e(pers, st, ENodeView::App(ln, ch_c.dup2()))
                                         {
                                             Err(e) => Err(e),
-                                            Ok(nil_e) => str_lit_to_constructor_rest(pers,
+                                            Ok(nil_e) => str_lit_to_constructor_rest(
+                                                pers,
                                                 st, s, &zs, &ch_c, &nil_e,
                                             ),
                                         }
@@ -1774,7 +1787,8 @@ pub fn list_nil_ty_ok(
                                         Ok(ps) => {
                                             match pin_list(st) {
                                                 Err(e) => Err(e),
-                                                Ok(li) => list_nil_ty_body(pers,
+                                                Ok(li) => list_nil_ty_body(
+                                                    pers,
                                                     st, &cv.ty, &sort, &ps, &li,
                                                 ),
                                             }
@@ -1874,7 +1888,8 @@ pub fn list_cons_ty_at(
                                         Ok(b2) => {
                                             match intern_e(pers, st, ENodeView::Const(li, ps)) {
                                                 Err(e) => Err(e),
-                                                Ok(l1) => list_cons_ty_body(pers,
+                                                Ok(l1) => list_cons_ty_body(
+                                                    pers,
                                                     st, ty, &sort, &b0, &l1, &b1, &b2,
                                                 ),
                                             }
@@ -2043,35 +2058,37 @@ pub fn string_of_list_ty_ok(
 /// `Char.ofNat`), split off so the nesting stays readable.
 pub fn str_lit_supported_rest(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
 ) -> Result<bool, CheckError>  {
     match pin_list(st) {
         Err(e) => Err(e),
-        Ok(li) => match list_ty_ok(pers, st, env::ifenv_find(fe, &li)) {
+        Ok(li) => match list_ty_ok(pers, st, env::ifenv_find(vis, fe, &li)) {
             Err(e) => Err(e),
             Ok(false) => Ok(false),
             Ok(true) => match pin_list_nil(st) {
                 Err(e) => Err(e),
-                Ok(ln) => match list_nil_ty_ok(pers, st, env::ifenv_find(fe, &ln)) {
+                Ok(ln) => match list_nil_ty_ok(pers, st, env::ifenv_find(vis, fe, &ln)) {
                     Err(e) => Err(e),
                     Ok(false) => Ok(false),
                     Ok(true) => match pin_list_cons(st) {
                         Err(e) => Err(e),
-                        Ok(lc) => match list_cons_ty_ok(pers, st, env::ifenv_find(fe, &lc)) {
+                        Ok(lc) => match list_cons_ty_ok(pers, st, env::ifenv_find(vis, fe, &lc)) {
                             Err(e) => Err(e),
                             Ok(false) => Ok(false),
                             Ok(true) => match pin_char(st) {
                                 Err(e) => Err(e),
-                                Ok(ch) => match char_ty_ok(pers, st, env::ifenv_find(fe, &ch)) {
+                                Ok(ch) => match char_ty_ok(pers, st, env::ifenv_find(vis, fe, &ch)) {
                                     Err(e) => Err(e),
                                     Ok(false) => Ok(false),
                                     Ok(true) => {
                                         match pin_char_of_nat(st) {
                                             Err(e) => Err(e),
-                                            Ok(co) => char_of_nat_ty_ok(pers,
+                                            Ok(co) => char_of_nat_ty_ok(
+                                                pers,
                                                 st,
-                                                env::ifenv_find(fe, &co),
+                                                env::ifenv_find(vis, fe, &co),
                                             ),
                                         }
                                     }
@@ -2090,21 +2107,26 @@ pub fn str_lit_supported_rest(
 /// Lean twin: `proof/ConRon/Arena/Core.lean:708-723 strLitSupported` — whether
 /// the environment supports `String` literals: the `Nat` literal guard plus
 /// the seven string-support declarations at exactly the expected types.
-pub fn str_lit_supported(pers: &PersTier, st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
-    match nat_lit_supported(pers, st, fe) {
+pub fn str_lit_supported(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+) -> Result<bool, CheckError>  {
+    match nat_lit_supported(pers, vis, st, fe) {
         Err(e) => Err(e),
         Ok(false) => Ok(false),
         Ok(true) => match pin_string(st) {
             Err(e) => Err(e),
-            Ok(stn) => match string_ty_ok(pers, st, env::ifenv_find(fe, &stn)) {
+            Ok(stn) => match string_ty_ok(pers, st, env::ifenv_find(vis, fe, &stn)) {
                 Err(e) => Err(e),
                 Ok(false) => Ok(false),
                 Ok(true) => match pin_string_of_list(st) {
                     Err(e) => Err(e),
-                    Ok(sl) => match string_of_list_ty_ok(pers, st, env::ifenv_find(fe, &sl)) {
+                    Ok(sl) => match string_of_list_ty_ok(pers, st, env::ifenv_find(vis, fe, &sl)) {
                         Err(e) => Err(e),
                         Ok(false) => Ok(false),
-                        Ok(true) => str_lit_supported_rest(pers, st, fe),
+                        Ok(true) => str_lit_supported_rest(pers, vis, st, fe),
                     },
                 },
             },
@@ -2985,6 +3007,7 @@ pub fn bool_const(pers: &PersTier, st: &mut AState, b: bool) -> Result<Option<EI
 /// recursion into a cursor.
 pub fn nat_op_deps_stored(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     ns: &Vec<NIdx>,
@@ -2993,10 +3016,10 @@ pub fn nat_op_deps_stored(
     if i >= ns.len() {
         Ok(true)
     } else {
-        match env::ifenv_find(fe, &ns[i]) {
+        match env::ifenv_find(vis, fe, &ns[i]) {
             Some(IConstantInfo::DefnInfo(cv, _, _)) => {
                 if cv.level_params.len() == 0 {
-                    nat_op_deps_stored(pers, st, fe, ns, i + 1)
+                    nat_op_deps_stored(pers, vis, st, fe, ns, i + 1)
                 } else {
                     Ok(false)
                 }
@@ -3012,17 +3035,18 @@ pub fn nat_op_deps_stored(
 /// `Bool` constructors stored at no level parameters, the guard's tail.
 pub fn bool_ctors_lp_empty(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
 ) -> Result<bool, CheckError>  {
     match bool_true_name(st) {
         Err(e) => Err(e),
-        Ok(bt) => match lp_empty(pers, st, fe, &bt) {
+        Ok(bt) => match lp_empty(pers, vis, st, fe, &bt) {
             Err(e) => Err(e),
             Ok(false) => Ok(false),
             Ok(true) => match bool_false_name(st) {
                 Err(e) => Err(e),
-                Ok(bf) => lp_empty(pers, st, fe, &bf),
+                Ok(bf) => lp_empty(pers, vis, st, fe, &bf),
             },
         },
     }
@@ -3034,11 +3058,12 @@ pub fn bool_ctors_lp_empty(
 /// name.
 pub fn lp_empty(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     n: &NIdx,
 ) -> Result<bool, CheckError>  {
-    match env::ifenv_find(fe, n) {
+    match env::ifenv_find(vis, fe, n) {
         Some(ci) => match env::i_constant_info_to_constant_val(pers, &mut st.store, ci) {
             Err(e) => Err(e),
             Ok(cv) => Ok(cv.level_params.len() == 0),
@@ -3055,16 +3080,17 @@ pub fn lp_empty(
 /// `div`/`mod`) the `Bool` constructors stored.
 pub fn nat_op_guard(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     c: &NIdx,
 ) -> Result<bool, CheckError>  {
-    match nat_lit_supported(pers, st, fe) {
+    match nat_lit_supported(pers, vis, st, fe) {
         Err(e) => Err(e),
         Ok(false) => Ok(false),
         Ok(true) => match nat_op_deps(st, c) {
             Err(e) => Err(e),
-            Ok(deps) => match nat_op_deps_stored(pers, st, fe, &deps, 0) {
+            Ok(deps) => match nat_op_deps_stored(pers, vis, st, fe, &deps, 0) {
                 Err(e) => Err(e),
                 Ok(false) => Ok(false),
                 Ok(true) => match nat_beq_name(st) {
@@ -3076,7 +3102,7 @@ pub fn nat_op_guard(
                             Ok(dm) => {
                                 if c.eq2(&be) || c.eq2(&bl) || env::nidx_vec_contains(&dm, c)
                                 {
-                                    bool_ctors_lp_empty(pers, st, fe)
+                                    bool_ctors_lp_empty(pers, vis, st, fe)
                                 } else {
                                     Ok(true)
                                 }
@@ -3203,6 +3229,7 @@ pub fn subst_const_all(
 /// otherwise.
 pub fn nat_op_cod(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     c: &NIdx,
@@ -3222,7 +3249,7 @@ pub fn nat_op_cod(
                                 if !e.eq2(&bc) {
                                     Ok(false)
                                 } else {
-                                    bool_ty_ok(pers, st, fe, &bn)
+                                    bool_ty_ok(pers, vis, st, fe, &bn)
                                 }
                             }
                         },
@@ -3246,11 +3273,12 @@ pub fn nat_op_cod(
 /// `Bool` declaration at no level parameters and type `Sort 1`.
 pub fn bool_ty_ok(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     bn: &NIdx,
 ) -> Result<bool, CheckError>  {
-    match env::ifenv_find(fe, bn) {
+    match env::ifenv_find(vis, fe, bn) {
         Some(ci) => match env::i_constant_info_to_constant_val(pers, &mut st.store, ci) {
             Err(e) => Err(e),
             Ok(cv) => match sort_one(st) {
@@ -3275,6 +3303,7 @@ pub fn bool_ty_ok(
 /// for the comparisons.
 pub fn nat_op_ty_pinned(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     c: &NIdx,
@@ -3292,7 +3321,7 @@ pub fn nat_op_ty_pinned(
                             Err(er) => Err(er),
                             Ok(ENodeView::ForallE(dom, body, _)) => {
                                 if dom.eq2(&nc) {
-                                    nat_op_cod(pers, st, fe, c, &body)
+                                    nat_op_cod(pers, vis, st, fe, c, &body)
                                 } else {
                                     Ok(false)
                                 }
@@ -3306,7 +3335,7 @@ pub fn nat_op_ty_pinned(
                                 Err(er) => Err(er),
                                 Ok(ENodeView::ForallE(dom2, body, _)) => {
                                     if dom.eq2(&nc) && dom2.eq2(&nc) {
-                                        nat_op_cod(pers, st, fe, c, &body)
+                                        nat_op_cod(pers, vis, st, fe, c, &body)
                                     } else {
                                         Ok(false)
                                     }
@@ -3327,15 +3356,16 @@ pub fn nat_op_ty_pinned(
 /// is stored as a level-monomorphic definition with the pinned type.
 pub fn nat_op_stored_ok(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     n: &NIdx,
 ) -> Result<bool, CheckError> {
-    match env::ifenv_find(fe, n) {
+    match env::ifenv_find(vis, fe, n) {
         Some(IConstantInfo::DefnInfo(cv, _, _)) => {
             if cv.level_params.len() == 0 {
                 let ty: EIdx = cv.ty.dup2();
-                nat_op_ty_pinned(pers, st, fe, n, &ty)
+                nat_op_ty_pinned(pers, vis, st, fe, n, &ty)
             } else {
                 Ok(false)
             }
@@ -3351,8 +3381,8 @@ pub fn nat_op_stored_ok(
 /// reduction-time test for a certified `Nat` operation** (con-leche's task #161
 /// item B3): is `c` stored as a definition at all?  The full `natOpGuard` is
 /// carried by the install fold invariant.
-pub fn nat_op_stored(fe: &IFEnv, c: &NIdx) -> bool {
-    match env::ifenv_find(fe, c) {
+pub fn nat_op_stored(vis: u64, fe: &IFEnv, c: &NIdx) -> bool {
+    match env::ifenv_find(vis, fe, c) {
         Some(IConstantInfo::DefnInfo(_, _, _)) => true,
         Some(_) => false,
         None => false,
@@ -3464,6 +3494,7 @@ pub fn get_d_eidx(xs: &Vec<EIdx>, i: u64, dflt: &EIdx) -> EIdx {
 /// fails WITHOUT touching the second.
 pub fn reduce_nat(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -3477,12 +3508,12 @@ pub fn reduce_nat(
         Ok(ENodeView::App(f, b)) => match view(pers, st, &f) {
             Err(er) => Err(er),
             Ok(ENodeView::Const(c, us)) => {
-                reduce_nat_succ(pers, st, mode, lane, fuel, fe, depth, &c, &us, &b)
+                reduce_nat_succ(pers, vis, st, mode, lane, fuel, fe, depth, &c, &us, &b)
             }
             Ok(ENodeView::App(g, a)) => match view(pers, st, &g) {
                 Err(er) => Err(er),
                 Ok(ENodeView::Const(c, us)) => {
-                    reduce_nat_bin(pers, st, mode, lane, fuel, fe, depth, &c, &us, &a, &b)
+                    reduce_nat_bin(pers, vis, st, mode, lane, fuel, fe, depth, &c, &us, &a, &b)
                 }
                 Ok(_) => Ok(None),
             },
@@ -3497,6 +3528,7 @@ pub fn reduce_nat(
 /// `.app (.const c []) a` arm: `Nat.succ` at a literal argument.
 pub fn reduce_nat_succ(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -3520,11 +3552,11 @@ pub fn reduce_nat_succ(
                     // `c == ns && …` to a `let` before the `if`.
                     // `natLitSupported` interns, so running it only when
                     // `c == ns` would leave the store a node behind the twin's.
-                    Ok(ns) => match nat_lit_supported(pers, st, fe) {
+                    Ok(ns) => match nat_lit_supported(pers, vis, st, fe) {
                         Err(er) => Err(er),
                         Ok(nls) => {
                             if c.eq2(&ns) && nls {
-                                match knot_whnf(pers, st, mode, lane, fuel, fe, depth, b) {
+                                match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, b) {
                                     Err(er) => Err(er),
                                     Ok(w) => match raw_nat_lit(pers, st, &w) {
                                         Err(er) => Err(er),
@@ -3551,6 +3583,7 @@ pub fn reduce_nat_succ(
 /// literal arguments, or the WF-recursive safety net's decline.
 pub fn reduce_nat_bin(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -3571,14 +3604,14 @@ pub fn reduce_nat_bin(
                 match nat_bin_op_name(st, c) {
                     Err(er) => Err(er),
                     Ok(bin) => {
-                        if bin && nat_op_stored(fe, c) {
-                            match knot_whnf(pers, st, mode, lane, fuel, fe, depth, a) {
+                        if bin && nat_op_stored(vis, fe, c) {
+                            match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, a) {
                                 Err(er) => Err(er),
                                 Ok(wa) => match raw_nat_lit(pers, st, &wa) {
                                     Err(er) => Err(er),
                                     Ok(None) => Ok(None),
                                     Ok(Some(n1)) => {
-                                        match knot_whnf(pers, st, mode, lane, fuel, fe, depth, b)
+                                        match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, b)
                                         {
                                             Err(er) => Err(er),
                                             Ok(wb) => match raw_nat_lit(pers, st, &wb) {
@@ -3593,7 +3626,7 @@ pub fn reduce_nat_bin(
                                 },
                             }
                         } else {
-                            reduce_nat_wf(pers, st, mode, lane, fuel, fe, depth, c, a, b)
+                            reduce_nat_wf(pers, vis, st, mode, lane, fuel, fe, depth, c, a, b)
                         }
                     }
                 }
@@ -3608,6 +3641,7 @@ pub fn reduce_nat_bin(
 /// positively detected unsupported feature, not a reduction.
 pub fn reduce_nat_wf(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -3622,17 +3656,17 @@ pub fn reduce_nat_wf(
         Err(er) => Err(er),
         // Both conjuncts again (see `reduce_nat_succ`): the twin's condition is
         // `wf.contains c && (← natLitSupported fe)`, and the `←` is lifted.
-        Ok(wf) => match nat_lit_supported(pers, st, fe) {
+        Ok(wf) => match nat_lit_supported(pers, vis, st, fe) {
             Err(er) => Err(er),
             Ok(nls) => {
                 if env::nidx_vec_contains(&wf, c) && nls {
-                    match knot_whnf(pers, st, mode, lane, fuel, fe, depth, a) {
+                    match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, a) {
                         Err(er) => Err(er),
                         Ok(wa) => match raw_nat_lit(pers, st, &wa) {
                             Err(er) => Err(er),
                             Ok(None) => Ok(None),
                             Ok(Some(_)) => {
-                                match knot_whnf(pers, st, mode, lane, fuel, fe, depth, b) {
+                                match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, b) {
                                     Err(er) => Err(er),
                                     Ok(wb) => match raw_nat_lit(pers, st, &wb) {
                                         Err(er) => Err(er),
@@ -3669,6 +3703,7 @@ pub fn reduce_nat_wf(
 /// skipped.  The twin's `List` recursion is a cursor over the `Vec`.
 pub fn iota_certs(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -3691,21 +3726,23 @@ pub fn iota_certs(
                     match instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &arg, 0) {
                         Err(e) => Err(e),
                         Ok(b) => {
-                            iota_certs(pers, st, mode, lane, fuel, fe, depth, lic, &b, args, i + 1)
+                            iota_certs(pers, vis, st, mode, lane, fuel, fe, depth, lic, &b, args, i + 1)
                         }
                     }
                 } else {
-                    match knot_infer_io(pers, st, mode, lane, fuel, fe, depth, &arg) {
+                    match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, &arg) {
                         Err(e) => Err(e),
                         Ok(ta) => {
-                            match knot_defeq(pers, st, mode, lane, fuel, fe, depth, &ta, &ty) {
+                            match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &ta, &ty) {
                                 Err(e) => Err(e),
                                 Ok(false) => Ok(false),
                                 Ok(true) => {
                                     match instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &arg, 0)
                                     {
                                         Err(e) => Err(e),
-                                        Ok(b) => iota_certs(pers,
+                                        Ok(b) => iota_certs(
+                                            pers,
+                                            vis,
                                             st, mode, lane, fuel, fe, depth, lic, &b, args,
                                             i + 1,
                                         ),
@@ -3754,6 +3791,7 @@ pub fn pi_residual(
 /// catch-all is the length test.
 pub fn def_eq_list(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -3775,9 +3813,9 @@ pub fn def_eq_list(
     } else {
         let a: EIdx = xs[i].dup2();
         let b: EIdx = ys[i].dup2();
-        match knot_defeq(pers, st, mode, lane, fuel, fe, depth, &a, &b) {
+        match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &a, &b) {
             Err(e) => Err(e),
-            Ok(true) => def_eq_list(pers, st, mode, lane, fuel, fe, depth, xs, ys, i + 1),
+            Ok(true) => def_eq_list(pers, vis, st, mode, lane, fuel, fe, depth, xs, ys, i + 1),
             Ok(false) => Ok(false),
         }
     }
@@ -3788,6 +3826,7 @@ pub fn def_eq_list(
 /// canonical-index comparison of a firing ι redex.
 pub fn iota_index_ok(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -3810,7 +3849,7 @@ pub fn iota_index_ok(
                 Err(e) => Err(e),
                 Ok(args) => {
                     let rest: Vec<EIdx> = drop_eidx(&args, cn_p as usize);
-                    def_eq_list(pers, st, mode, lane, fuel, fe, depth, &rest, idx, 0)
+                    def_eq_list(pers, vis, st, mode, lane, fuel, fe, depth, &rest, idx, 0)
                 }
             },
             Ok(None) => Ok(false),
@@ -3825,6 +3864,7 @@ pub fn iota_index_ok(
 /// inference here is at the io grade.
 pub fn proof_irrel(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -3834,20 +3874,20 @@ pub fn proof_irrel(
     a: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    match knot_infer_io(pers, st, mode, lane, fuel, fe, depth, a) {
+    match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, a) {
         Err(e) => Err(e),
-        Ok(ta) => match knot_whnf(pers, st, mode, lane, fuel, fe, depth, &ta) {
+        Ok(ta) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &ta) {
             Err(e) => Err(e),
-            Ok(wta) => match is_unit_like_ty(pers, st, fe, &wta) {
+            Ok(wta) => match is_unit_like_ty(pers, vis, st, fe, &wta) {
                 Err(e) => Err(e),
-                Ok(true) => match knot_infer_io(pers, st, mode, lane, fuel, fe, depth, b) {
+                Ok(true) => match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, b) {
                     Err(e) => Err(e),
-                    Ok(tb) => match knot_whnf(pers, st, mode, lane, fuel, fe, depth, &tb) {
+                    Ok(tb) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tb) {
                         Err(e) => Err(e),
-                        Ok(wtb) => is_unit_like_ty(pers, st, fe, &wtb),
+                        Ok(wtb) => is_unit_like_ty(pers, vis, st, fe, &wtb),
                     },
                 },
-                Ok(false) => prop_sorts_zero(pers, st, mode, lane, fuel, fe, depth, &ta, b),
+                Ok(false) => prop_sorts_zero(pers, vis, st, mode, lane, fuel, fe, depth, &ta, b),
             },
         },
     }
@@ -3864,6 +3904,7 @@ pub fn proof_irrel(
 /// the port writes them once.
 pub fn prop_sorts_zero(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -3873,9 +3914,9 @@ pub fn prop_sorts_zero(
     ta: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    match knot_infer_io(pers, st, mode, lane, fuel, fe, depth, ta) {
+    match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, ta) {
         Err(e) => Err(e),
-        Ok(tta) => match knot_whnf(pers, st, mode, lane, fuel, fe, depth, &tta) {
+        Ok(tta) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tta) {
             Err(e) => Err(e),
             Ok(wa) => match view(pers, st, &wa) {
                 Err(e) => Err(e),
@@ -3886,9 +3927,11 @@ pub fn prop_sorts_zero(
                         Ok(o) => match lift_fueled(o) {
                             Err(e) => Err(e),
                             Ok(ok_a) => {
-                                match knot_infer_io(pers, st, mode, lane, fuel, fe, depth, b) {
+                                match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, b) {
                                     Err(e) => Err(e),
-                                    Ok(tb) => prop_sorts_zero_right(pers,
+                                    Ok(tb) => prop_sorts_zero_right(
+                                        pers,
+                                        vis,
                                         st, mode, lane, fuel, fe, depth, ok_a, &tb,
                                     ),
                                 }
@@ -3907,6 +3950,7 @@ pub fn prop_sorts_zero(
 /// side of `prop_sorts_zero`.
 pub fn prop_sorts_zero_right(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -3916,9 +3960,9 @@ pub fn prop_sorts_zero_right(
     ok_a: bool,
     tb: &EIdx,
 ) -> Result<bool, CheckError> {
-    match knot_infer_io(pers, st, mode, lane, fuel, fe, depth, tb) {
+    match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, tb) {
         Err(e) => Err(e),
-        Ok(ttb) => match knot_whnf(pers, st, mode, lane, fuel, fe, depth, &ttb) {
+        Ok(ttb) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &ttb) {
             Err(e) => Err(e),
             Ok(wb) => match view(pers, st, &wb) {
                 Err(e) => Err(e),
@@ -3945,6 +3989,7 @@ pub fn prop_sorts_zero_right(
 /// both fast arms before any inference.
 pub fn prop_irrel(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -3959,27 +4004,31 @@ pub fn prop_irrel(
     // the readers touch the state (a stored constant's `toConstantVal` may
     // intern), so short-circuiting either pair would leave the store behind the
     // twin's.
-    match not_proof_fast(pers, st, fe, CORE_WALK_FUEL, a) {
+    match not_proof_fast(pers, vis, st, fe, CORE_WALK_FUEL, a) {
         Err(e) => Err(e),
-        Ok(na) => match not_proof_fast(pers, st, fe, CORE_WALK_FUEL, b) {
+        Ok(na) => match not_proof_fast(pers, vis, st, fe, CORE_WALK_FUEL, b) {
             Err(e) => Err(e),
             Ok(nb) => {
                 if na || nb {
                     Ok(false)
                 } else {
-                    match is_proof_fast(pers, st, fe, CORE_WALK_FUEL, a) {
+                    match is_proof_fast(pers, vis, st, fe, CORE_WALK_FUEL, a) {
                         Err(e) => Err(e),
-                        Ok(pa) => match is_proof_fast(pers, st, fe, CORE_WALK_FUEL, b) {
+                        Ok(pa) => match is_proof_fast(pers, vis, st, fe, CORE_WALK_FUEL, b) {
                             Err(e) => Err(e),
                             Ok(pb) => {
                                 if pa && pb {
                                     Ok(true)
                                 } else {
-                                    match knot_infer_io(pers,
+                                    match knot_infer_io(
+                                        pers,
+                                        vis,
                                         st, mode, lane, fuel, fe, depth, a,
                                     ) {
                                         Err(e) => Err(e),
-                                        Ok(ta) => prop_sorts_zero(pers,
+                                        Ok(ta) => prop_sorts_zero(
+                                            pers,
+                                            vis,
                                             st, mode, lane, fuel, fe, depth, &ta, b,
                                         ),
                                     }
@@ -4001,6 +4050,7 @@ pub fn prop_irrel(
 /// `towerSlotsAllGo` already is.
 pub fn struct_eta_proj_certs(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -4020,7 +4070,7 @@ pub fn struct_eta_proj_certs(
     } else {
         match env::proj_fn_name(pers, &mut st.store, t, j) {
             Err(e) => Err(e),
-            Ok(nm) => match env::ifenv_find(fe, &nm) {
+            Ok(nm) => match env::ifenv_find(vis, fe, &nm) {
                 Some(IConstantInfo::RecInfo(cvp, _, _, _)) => {
                     let cvp_lps: Vec<NIdx> = env::nidx_vec_dup(&cvp.level_params);
                     let cvp_ty: EIdx = cvp.ty.dup2();
@@ -4042,13 +4092,17 @@ pub fn struct_eta_proj_certs(
                                     Ok(ty) => {
                                         let spine: Vec<EIdx> =
                                             snoc_eidx(env::eidx_vec_dup(targs), b);
-                                        match iota_certs(pers,
+                                        match iota_certs(
+                                            pers,
+                                            vis,
                                             st, mode, lane, fuel, fe, depth, false, &ty,
                                             &spine, 0,
                                         ) {
                                             Err(e) => Err(e),
                                             Ok(false) => Ok(false),
-                                            Ok(true) => struct_eta_proj_certs(pers,
+                                            Ok(true) => struct_eta_proj_certs(
+                                                pers,
+                                                vis,
                                                 st,
                                                 mode,
                                                 lane,
@@ -4107,6 +4161,7 @@ pub fn nidx_vec_beq_from(a: &Vec<NIdx>, b: &Vec<NIdx>, i: usize) -> bool {
 /// §3.4's rule turns the closure into a counted recursion.
 pub fn tower_slots_all_go(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     t: &NIdx,
@@ -4116,9 +4171,9 @@ pub fn tower_slots_all_go(
     if n == 0 {
         Ok(true)
     } else {
-        match env::ifenv_find_proj(pers, &mut st.store, fe, t, j) {
+        match env::ifenv_find_proj(pers, vis, &mut st.store, fe, t, j) {
             Err(e) => Err(e),
-            Ok(Some(_)) => tower_slots_all_go(pers, st, fe, t, n - 1, j + 1),
+            Ok(Some(_)) => tower_slots_all_go(pers, vis, st, fe, t, n - 1, j + 1),
             Ok(None) => Ok(false),
         }
     }
@@ -4130,12 +4185,13 @@ pub fn tower_slots_all_go(
 /// `nF` projection slots of `T` table entries?
 pub fn tower_slots_all(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     t: &NIdx,
     n_f: u64,
 ) -> Result<bool, CheckError> {
-    tower_slots_all_go(pers, st, fe, t, n_f, 0)
+    tower_slots_all_go(pers, vis, st, fe, t, n_f, 0)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1044-1052 recSlotsAll
@@ -4143,6 +4199,7 @@ pub fn tower_slots_all(
 /// projection-function slot walk, as a counted recursion.
 pub fn rec_slots_all_go(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     t: &NIdx,
@@ -4154,9 +4211,9 @@ pub fn rec_slots_all_go(
     } else {
         match env::proj_fn_name(pers, &mut st.store, t, j) {
             Err(e) => Err(e),
-            Ok(nm) => match env::ifenv_find(fe, &nm) {
+            Ok(nm) => match env::ifenv_find(vis, fe, &nm) {
                 Some(IConstantInfo::RecInfo(_, _, _, _)) => {
-                    rec_slots_all_go(pers, st, fe, t, n - 1, j + 1)
+                    rec_slots_all_go(pers, vis, st, fe, t, n - 1, j + 1)
                 }
                 Some(_) => Ok(false),
                 None => Ok(false),
@@ -4171,12 +4228,13 @@ pub fn rec_slots_all_go(
 /// `nF` projection slots of `T` recursor-backed projection functions?
 pub fn rec_slots_all(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     t: &NIdx,
     n_f: u64,
 ) -> Result<bool, CheckError> {
-    rec_slots_all_go(pers, st, fe, t, n_f, 0)
+    rec_slots_all_go(pers, vis, st, fe, t, n_f, 0)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1054-1064 etaProjs
@@ -4245,6 +4303,7 @@ pub fn proj_apps_go(
 /// applications.
 pub fn eta_projs(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     t: &NIdx,
@@ -4253,7 +4312,7 @@ pub fn eta_projs(
     b: &EIdx,
     n_f: u64,
 ) -> Result<Vec<EIdx>, CheckError> {
-    match tower_slots_all(pers, st, fe, t, n_f) {
+    match tower_slots_all(pers, vis, st, fe, t, n_f) {
         Err(e) => Err(e),
         Ok(true) => proj_nodes_go(pers, st, t, b, n_f, 0),
         Ok(false) => proj_apps_go(pers, st, t, us, targs, b, n_f, 0),
@@ -4287,6 +4346,7 @@ pub fn reserved_basis_names(st: &AState) -> Result<Vec<NIdx>, CheckError> {
 /// comparison against the fabricated projections.
 pub fn struct_eta_cert_tail(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -4304,19 +4364,21 @@ pub fn struct_eta_cert_tail(
     eta_fields: u64,
 ) -> Result<bool, CheckError> {
     let head: Vec<EIdx> = take_eidx(aargs, eta_params as usize);
-    match def_eq_list(pers, st, mode, lane, fuel, fe, depth, &head, targs, 0) {
+    match def_eq_list(pers, vis, st, mode, lane, fuel, fe, depth, &head, targs, 0) {
         Err(e) => Err(e),
         Ok(false) => Ok(false),
         Ok(true) => {
             let tt = if con_ron_core::kernel::env::tt_checks(mode) {
                 match const_ty_at(pers, st, cvc, us) {
                     Err(e) => Err(e),
-                    Ok(ty_c) => match eta_projs(pers, st, fe, t, us2, targs, b, eta_fields) {
+                    Ok(ty_c) => match eta_projs(pers, vis, st, fe, t, us2, targs, b, eta_fields) {
                         Err(e) => Err(e),
                         Ok(projs) => {
                             let spine: Vec<EIdx> =
                                 append_eidx(env::eidx_vec_dup(targs), &projs);
-                            iota_certs(pers,
+                            iota_certs(
+                                pers,
+                                vis,
                                 st, mode, lane, fuel, fe, depth, false, &ty_c, &spine, 0,
                             )
                         }
@@ -4328,11 +4390,11 @@ pub fn struct_eta_cert_tail(
             match tt {
                 Err(e) => Err(e),
                 Ok(false) => Ok(false),
-                Ok(true) => match eta_projs(pers, st, fe, t, us2, targs, b, eta_fields) {
+                Ok(true) => match eta_projs(pers, vis, st, fe, t, us2, targs, b, eta_fields) {
                     Err(e) => Err(e),
                     Ok(projs) => {
                         let rest: Vec<EIdx> = drop_eidx(aargs, eta_params as usize);
-                        def_eq_list(pers, st, mode, lane, fuel, fe, depth, &rest, &projs, 0)
+                        def_eq_list(pers, vis, st, mode, lane, fuel, fe, depth, &rest, &projs, 0)
                     }
                 },
             }
@@ -4349,6 +4411,7 @@ pub fn struct_eta_cert_tail(
 /// the lookup INSIDE the branch.
 pub fn struct_eta_cert_fam(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -4365,7 +4428,7 @@ pub fn struct_eta_cert_fam(
         match const_ty_at(pers, st, cvt, us2) {
             Err(e) => Err(e),
             Ok(ty_t) => {
-                iota_certs(pers, st, mode, lane, fuel, fe, depth, false, &ty_t, targs, 0)
+                iota_certs(pers, vis, st, mode, lane, fuel, fe, depth, false, &ty_t, targs, 0)
             }
         }
     }
@@ -4378,6 +4441,7 @@ pub fn struct_eta_cert_fam(
 /// does not have) and the tail above.
 pub fn struct_eta_cert_certs(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -4405,7 +4469,9 @@ pub fn struct_eta_cert_certs(
             // neither), so `mode.certs` gates them both (task #97f, P2f;
             // `Cached/CoreC.lean:437` and `:440`).  At `.trusted` the two type
             // lookups do not happen either: they are read nowhere else.
-            Ok(true) => match struct_eta_cert_fam(pers,
+            Ok(true) => match struct_eta_cert_fam(
+                pers,
+                vis,
                 st, mode, lane, fuel, fe, depth, cvt, us2, targs,
             ) {
                 Err(e) => Err(e),
@@ -4414,10 +4480,12 @@ pub fn struct_eta_cert_certs(
                     let percerts = if !con_ron_core::kernel::env::certs(mode) {
                         Ok(true)
                     } else {
-                        match tower_slots_all(pers, st, fe, t, eta_fields) {
+                        match tower_slots_all(pers, vis, st, fe, t, eta_fields) {
                             Err(e) => Err(e),
                             Ok(true) => Ok(true),
-                            Ok(false) => struct_eta_proj_certs(pers,
+                            Ok(false) => struct_eta_proj_certs(
+                                pers,
+                                vis,
                                 st,
                                 mode,
                                 lane,
@@ -4437,7 +4505,9 @@ pub fn struct_eta_cert_certs(
                     match percerts {
                         Err(e) => Err(e),
                         Ok(false) => Ok(false),
-                        Ok(true) => struct_eta_cert_tail(pers,
+                        Ok(true) => struct_eta_cert_tail(
+                            pers,
+                            vis,
                             st, mode, lane, fuel, fe, depth, cvc, us, t, us2, targs, b,
                             aargs, eta_params, eta_fields,
                         ),
@@ -4455,6 +4525,7 @@ pub fn struct_eta_cert_certs(
 /// with matching arities and level parameters.
 pub fn struct_eta_cert_at(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -4472,7 +4543,7 @@ pub fn struct_eta_cert_at(
         Err(e) => Err(e),
         Ok(hd) => match view(pers, st, &hd) {
             Err(e) => Err(e),
-            Ok(ENodeView::Const(t, us2)) => match env::ifenv_find(fe, &t) {
+            Ok(ENodeView::Const(t, us2)) => match env::ifenv_find(vis, fe, &t) {
                 Some(IConstantInfo::IndInfo(cvt0, caps0)) => {
                     let cvt: IConstantVal = env::i_constant_val_dup(cvt0);
                     let caps: IIndCaps = env::i_ind_caps_dup(caps0);
@@ -4484,11 +4555,11 @@ pub fn struct_eta_cert_at(
                                 Err(e) => Err(e),
                                 Ok(uslen) => {
                                     let slots =
-                                        match tower_slots_all(pers, st, fe, &t, caps.eta_fields) {
+                                        match tower_slots_all(pers, vis, st, fe, &t, caps.eta_fields) {
                                             Err(e) => Err(e),
                                             Ok(true) => Ok(true),
                                             Ok(false) => {
-                                                rec_slots_all(pers, st, fe, &t, caps.eta_fields)
+                                                rec_slots_all(pers, vis, st, fe, &t, caps.eta_fields)
                                             }
                                         };
                                     match slots {
@@ -4506,7 +4577,9 @@ pub fn struct_eta_cert_at(
                                                 )
                                                 && sl
                                             {
-                                                struct_eta_cert_certs(pers,
+                                                struct_eta_cert_certs(
+                                                    pers,
+                                                    vis,
                                                     st,
                                                     mode,
                                                     lane,
@@ -4548,6 +4621,7 @@ pub fn struct_eta_cert_at(
 /// stuck side.
 pub fn struct_eta_cert_with(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -4562,7 +4636,7 @@ pub fn struct_eta_cert_with(
         Err(e) => Err(e),
         Ok(hd) => match view(pers, st, &hd) {
             Err(e) => Err(e),
-            Ok(ENodeView::Const(c, us)) => match env::ifenv_find(fe, &c) {
+            Ok(ENodeView::Const(c, us)) => match env::ifenv_find(vis, fe, &c) {
                 Some(IConstantInfo::CtorInfo(cvc0, cn_p, cn_f)) => {
                     let cvc: IConstantVal = env::i_constant_val_dup(cvc0);
                     let want: u64 = *cn_p + *cn_f;
@@ -4570,7 +4644,9 @@ pub fn struct_eta_cert_with(
                         Err(e) => Err(e),
                         Ok(aargs) => {
                             if aargs.len() as u64 == want {
-                                struct_eta_cert_at(pers,
+                                struct_eta_cert_at(
+                                    pers,
+                                    vis,
                                     st, mode, lane, fuel, fe, depth, &cvc, &c, &us, b,
                                     wtb, &aargs,
                                 )
@@ -4595,6 +4671,7 @@ pub fn struct_eta_cert_with(
 /// its parameters and fields.
 pub fn eta_ctor_shape(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     a: &EIdx,
@@ -4603,7 +4680,7 @@ pub fn eta_ctor_shape(
         Err(e) => Err(e),
         Ok(hd) => match view(pers, st, &hd) {
             Err(e) => Err(e),
-            Ok(ENodeView::Const(c, _)) => match env::ifenv_find(fe, &c) {
+            Ok(ENodeView::Const(c, _)) => match env::ifenv_find(vis, fe, &c) {
                 Some(IConstantInfo::CtorInfo(_, cn_p, cn_f)) => {
                     let want: u64 = *cn_p + *cn_f;
                     match get_app_args(pers, st, CORE_WALK_FUEL, a) {
@@ -4625,6 +4702,7 @@ pub fn eta_ctor_shape(
 /// constructor-shape test comes FIRST (the divergence audit's D13).
 pub fn struct_eta_cert(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -4634,15 +4712,15 @@ pub fn struct_eta_cert(
     a: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    match eta_ctor_shape(pers, st, fe, a) {
+    match eta_ctor_shape(pers, vis, st, fe, a) {
         Err(e) => Err(e),
         Ok(false) => Ok(false),
-        Ok(true) => match knot_infer_io(pers, st, mode, lane, fuel, fe, depth, b) {
+        Ok(true) => match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, b) {
             Err(e) => Err(e),
-            Ok(tb) => match knot_whnf(pers, st, mode, lane, fuel, fe, depth, &tb) {
+            Ok(tb) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tb) {
                 Err(e) => Err(e),
                 Ok(wtb) => {
-                    struct_eta_cert_with(pers, st, mode, lane, fuel, fe, depth, a, b, &wtb)
+                    struct_eta_cert_with(pers, vis, st, mode, lane, fuel, fe, depth, a, b, &wtb)
                 }
             },
         },
@@ -4655,6 +4733,7 @@ pub fn struct_eta_cert(
 /// whnf'd types are defeq and the structure's telescope is certified.
 pub fn struct_unit_cert_tail(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -4667,11 +4746,11 @@ pub fn struct_unit_cert_tail(
     wta: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    match knot_infer_io(pers, st, mode, lane, fuel, fe, depth, b) {
+    match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, b) {
         Err(e) => Err(e),
-        Ok(tb) => match knot_whnf(pers, st, mode, lane, fuel, fe, depth, &tb) {
+        Ok(tb) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tb) {
             Err(e) => Err(e),
-            Ok(wtb) => match knot_defeq(pers, st, mode, lane, fuel, fe, depth, wta, &wtb) {
+            Ok(wtb) => match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, wta, &wtb) {
                 Err(e) => Err(e),
                 Ok(false) => Ok(false),
                 // the type-former telescope certificate is a certificate
@@ -4686,7 +4765,9 @@ pub fn struct_unit_cert_tail(
                     } else {
                         match const_ty_at(pers, st, cvt, us2) {
                             Err(e) => Err(e),
-                            Ok(ty_t) => iota_certs(pers,
+                            Ok(ty_t) => iota_certs(
+                                pers,
+                                vis,
                                 st, mode, lane, fuel, fe, depth, false, &ty_t, targs, 0,
                             ),
                         }
@@ -4703,6 +4784,7 @@ pub fn struct_unit_cert_tail(
 /// family.
 pub fn struct_unit_cert(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -4712,15 +4794,15 @@ pub fn struct_unit_cert(
     a: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    match knot_infer_io(pers, st, mode, lane, fuel, fe, depth, a) {
+    match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, a) {
         Err(e) => Err(e),
-        Ok(ta) => match knot_whnf(pers, st, mode, lane, fuel, fe, depth, &ta) {
+        Ok(ta) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &ta) {
             Err(e) => Err(e),
             Ok(wta) => match get_app_fn(pers, st, CORE_WALK_FUEL, &wta) {
                 Err(e) => Err(e),
                 Ok(hd) => match view(pers, st, &hd) {
                     Err(e) => Err(e),
-                    Ok(ENodeView::Const(t, us2)) => match env::ifenv_find(fe, &t) {
+                    Ok(ENodeView::Const(t, us2)) => match env::ifenv_find(vis, fe, &t) {
                         Some(IConstantInfo::IndInfo(cvt0, caps0)) => {
                             let cvt: IConstantVal = env::i_constant_val_dup(cvt0);
                             let caps: IIndCaps = env::i_ind_caps_dup(caps0);
@@ -4736,7 +4818,9 @@ pub fn struct_unit_cert(
                                                 && targs.len() as u64 == caps.unit_params
                                                 && uslen.len() == cvt.level_params.len()
                                             {
-                                                struct_unit_cert_tail(pers,
+                                                struct_unit_cert_tail(
+                                                    pers,
+                                                    vis,
                                                     st, mode, lane, fuel, fe, depth, &cvt,
                                                     &us2, &targs, &wta, b,
                                                 )
@@ -4763,6 +4847,7 @@ pub fn struct_unit_cert(
 /// certification for a one-sided λ against a stuck term `b`.
 pub fn eta_cert(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -4774,18 +4859,18 @@ pub fn eta_cert(
     m1: &BinderMeta,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    match knot_infer_io(pers, st, mode, lane, fuel, fe, depth, b) {
+    match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, b) {
         Err(e) => Err(e),
-        Ok(tb) => match knot_whnf(pers, st, mode, lane, fuel, fe, depth, &tb) {
+        Ok(tb) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tb) {
             Err(e) => Err(e),
             Ok(w) => match view(pers, st, &w) {
                 Err(e) => Err(e),
                 Ok(ENodeView::ForallE(ty2, _, m2)) => {
-                    match knot_defeq(pers, st, mode, lane, fuel, fe, depth, &ty2, ty1) {
+                    match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &ty2, ty1) {
                         Err(e) => Err(e),
                         Ok(false) => Ok(false),
                         Ok(true) => {
-                            eta_cert_body(pers, st, mode, lane, fuel, fe, depth, ty1, body1, m1,
+                            eta_cert_body(pers, vis, st, mode, lane, fuel, fe, depth, ty1, body1, m1,
                                 &m2, b)
                         }
                     }
@@ -4802,6 +4887,7 @@ pub fn eta_cert(
 /// variable, compare against `b` applied to it, then compare the annotations.
 pub fn eta_cert_body(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -4821,7 +4907,7 @@ pub fn eta_cert_body(
             Ok(lhs) => match intern_e(pers, st, ENodeView::App(b.dup2(), fv.dup2())) {
                 Err(e) => Err(e),
                 Ok(rhs) => {
-                    match knot_defeq(pers, st, mode, lane, fuel, fe, depth + 1, &lhs, &rhs) {
+                    match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth + 1, &lhs, &rhs) {
                         Err(e) => Err(e),
                         Ok(false) => Ok(false),
                         Ok(true) => {
@@ -4846,6 +4932,7 @@ pub fn eta_cert_body(
 /// direction, unit-likeness, else proof irrelevance.
 pub fn stuck_irrel(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -4855,16 +4942,16 @@ pub fn stuck_irrel(
     a: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    match struct_eta_cert(pers, st, mode, lane, fuel, fe, depth, a, b) {
+    match struct_eta_cert(pers, vis, st, mode, lane, fuel, fe, depth, a, b) {
         Err(e) => Err(e),
         Ok(true) => Ok(true),
-        Ok(false) => match struct_eta_cert(pers, st, mode, lane, fuel, fe, depth, b, a) {
+        Ok(false) => match struct_eta_cert(pers, vis, st, mode, lane, fuel, fe, depth, b, a) {
             Err(e) => Err(e),
             Ok(true) => Ok(true),
-            Ok(false) => match struct_unit_cert(pers, st, mode, lane, fuel, fe, depth, a, b) {
+            Ok(false) => match struct_unit_cert(pers, vis, st, mode, lane, fuel, fe, depth, a, b) {
                 Err(e) => Err(e),
                 Ok(true) => Ok(true),
-                Ok(false) => proof_irrel(pers, st, mode, lane, fuel, fe, depth, a, b),
+                Ok(false) => proof_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a, b),
             },
         },
     }
@@ -4894,6 +4981,7 @@ pub fn eta_fab_args(
 /// `etaFabArgs` at the entry kind: the projections are `etaProjs`'.
 pub fn eta_fab_args_e(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     t: &NIdx,
@@ -4902,7 +4990,7 @@ pub fn eta_fab_args_e(
     major: &EIdx,
     n_f: u64,
 ) -> Result<Vec<EIdx>, CheckError> {
-    match eta_projs(pers, st, fe, t, ust, targs, major, n_f) {
+    match eta_projs(pers, vis, st, fe, t, ust, targs, major, n_f) {
         Err(e) => Err(e),
         Ok(ps) => Ok(append_eidx(env::eidx_vec_dup(targs), &ps)),
     }
@@ -4952,6 +5040,7 @@ pub fn proj_entry_fire_ok(
 /// condition, so it runs whatever the three arity tests say, and so does this.
 pub fn and_rescue_slots_go(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     an: &NIdx,
@@ -4964,7 +5053,7 @@ pub fn and_rescue_slots_go(
     if n == 0 {
         Ok(true)
     } else {
-        match env::ifenv_find_proj(pers, &mut st.store, fe, an, j) {
+        match env::ifenv_find_proj(pers, vis, &mut st.store, fe, an, j) {
             Err(e) => Err(e),
             Ok(Some(entry)) => match proj_entry_fire_ok(pers, st, &entry, ust) {
                 Err(e) => Err(e),
@@ -4974,7 +5063,7 @@ pub fn and_rescue_slots_go(
                         && entry.num_fields == 2
                         && fok
                     {
-                        and_rescue_slots_go(pers, st, fe, an, ctor, n_p, ust, n - 1, j + 1)
+                        and_rescue_slots_go(pers, vis, st, fe, an, ctor, n_p, ust, n - 1, j + 1)
                     } else {
                         Ok(false)
                     }
@@ -4993,6 +5082,7 @@ pub fn and_rescue_slots_go(
 /// three spellings (deviation 1).
 pub fn and_rescue_slots(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     ctor: &NIdx,
@@ -5001,7 +5091,7 @@ pub fn and_rescue_slots(
 ) -> Result<bool, CheckError> {
     match pin_and(st) {
         Err(e) => Err(e),
-        Ok(an) => and_rescue_slots_go(pers, st, fe, &an, ctor, n_p, ust, 2, 0),
+        Ok(an) => and_rescue_slots_go(pers, vis, st, fe, &an, ctor, n_p, ust, 2, 0),
     }
 }
 
@@ -5089,6 +5179,7 @@ pub fn fab_scope_ok(
 /// official `to_cnstr_when_K` type check and proof irrelevance.
 pub fn major_to_ctor_certs(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -5110,12 +5201,12 @@ pub fn major_to_ctor_certs(
         // `Cached/CoreC.lean:576` and `:654`), and so is the `proofIrrel`
         // below the official `to_cnstr_when_K` type check (`:588`, `:658`).
         // The type check itself runs at both modes.
-        Ok(true) => match iota_certs_fam(pers, st, mode, lane, fuel, fe, depth, cvj, ust, spine) {
+        Ok(true) => match iota_certs_fam(pers, vis, st, mode, lane, fuel, fe, depth, cvj, ust, spine) {
             Err(e) => Err(e),
             Ok(false) => Ok(major.dup2()),
-            Ok(true) => match knot_infer_io(pers, st, mode, lane, fuel, fe, depth, fab) {
+            Ok(true) => match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, fab) {
                 Err(e) => Err(e),
-                Ok(tfab) => match knot_defeq(pers, st, mode, lane, fuel, fe, depth, tmaj, &tfab)
+                Ok(tfab) => match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, tmaj, &tfab)
                 {
                     Err(e) => Err(e),
                     Ok(false) => Ok(major.dup2()),
@@ -5123,7 +5214,7 @@ pub fn major_to_ctor_certs(
                         let ir = if !con_ron_core::kernel::env::certs(mode) {
                             Ok(true)
                         } else {
-                            proof_irrel(pers, st, mode, lane, fuel, fe, depth, fab, major)
+                            proof_irrel(pers, vis, st, mode, lane, fuel, fe, depth, fab, major)
                         };
                         match ir {
                             Err(e) => Err(e),
@@ -5145,6 +5236,7 @@ pub fn major_to_ctor_certs(
 /// the lookup INSIDE the branch — and because the three rescues spell it.
 pub fn iota_certs_fam(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -5160,7 +5252,7 @@ pub fn iota_certs_fam(
     } else {
         match const_ty_at(pers, st, cvj, ust) {
             Err(e) => Err(e),
-            Ok(tyj) => iota_certs(pers, st, mode, lane, fuel, fe, depth, false, &tyj, spine, 0),
+            Ok(tyj) => iota_certs(pers, vis, st, mode, lane, fuel, fe, depth, false, &tyj, spine, 0),
         }
     }
 }
@@ -5172,6 +5264,7 @@ pub fn iota_certs_fam(
 /// leading parameters.
 pub fn major_to_ctor_k(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -5184,9 +5277,9 @@ pub fn major_to_ctor_k(
     t: &NIdx,
     major: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match knot_infer_io(pers, st, mode, lane, fuel, fe, depth, major) {
+    match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, major) {
         Err(e) => Err(e),
-        Ok(tm) => match knot_whnf(pers, st, mode, lane, fuel, fe, depth, &tm) {
+        Ok(tm) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tm) {
             Err(e) => Err(e),
             Ok(tmaj) => match get_app_fn(pers, st, CORE_WALK_FUEL, &tmaj) {
                 Err(e) => Err(e),
@@ -5202,7 +5295,8 @@ pub fn major_to_ctor_k(
                                         if cn_p <= targs.len() as u64 {
                                             let spine: Vec<EIdx> =
                                                 take_eidx(&targs, cn_p as usize);
-                                            match intern_e(pers,
+                                            match intern_e(
+                                                pers,
                                                 st,
                                                 ENodeView::Const(ctor.dup2(), ust.dup2()),
                                             ) {
@@ -5210,7 +5304,9 @@ pub fn major_to_ctor_k(
                                                 Ok(hd) => {
                                                     match mk_app_n(pers, st, &hd, &spine) {
                                                         Err(e) => Err(e),
-                                                        Ok(fab) => major_to_ctor_certs(pers,
+                                                        Ok(fab) => major_to_ctor_certs(
+                                                            pers,
+                                                            vis,
                                                             st, mode, lane, fuel, fe,
                                                             depth, cvj, &ust, &spine,
                                                             &fab, &tmaj, major,
@@ -5241,6 +5337,7 @@ pub fn major_to_ctor_k(
 /// 0-field fallback for the pinned basis `PUnit`.
 pub fn major_to_ctor_eta_certs(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -5262,18 +5359,22 @@ pub fn major_to_ctor_eta_certs(
         // `Cached/CoreC.lean:621`).  The structure-eta certificate below it is
         // the VERDICT, not a family, and runs at both modes.
         Ok(true) => {
-            match iota_certs_fam(pers, st, mode, lane, fuel, fe, depth, cvj, ust, fab_args) {
+            match iota_certs_fam(pers, vis, st, mode, lane, fuel, fe, depth, cvj, ust, fab_args) {
                     Err(e) => Err(e),
                     Ok(false) => Ok(major.dup2()),
                     Ok(true) => {
-                        match struct_eta_cert_with(pers,
+                        match struct_eta_cert_with(
+                            pers,
+                            vis,
                             st, mode, lane, fuel, fe, depth, fab, major, tmaj,
                         ) {
                             Err(e) => Err(e),
                             Ok(true) => Ok(fab.dup2()),
                             Ok(false) => {
                                 if eta_fields == 0 {
-                                    match proof_irrel(pers,
+                                    match proof_irrel(
+                                        pers,
+                                        vis,
                                         st, mode, lane, fuel, fe, depth, fab, major,
                                     ) {
                                         Err(e) => Err(e),
@@ -5298,6 +5399,7 @@ pub fn major_to_ctor_eta_certs(
 /// The *instantiated* non-`Prop` test is con-leche's task #61.
 pub fn major_to_ctor_eta(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -5310,9 +5412,9 @@ pub fn major_to_ctor_eta(
     t: &NIdx,
     major: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match knot_infer_io(pers, st, mode, lane, fuel, fe, depth, major) {
+    match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, major) {
         Err(e) => Err(e),
-        Ok(tm) => match knot_whnf(pers, st, mode, lane, fuel, fe, depth, &tm) {
+        Ok(tm) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tm) {
             Err(e) => Err(e),
             Ok(tmaj) => match get_app_fn(pers, st, CORE_WALK_FUEL, &tmaj) {
                 Err(e) => Err(e),
@@ -5331,7 +5433,9 @@ pub fn major_to_ctor_eta(
                                             && ustl.len() == cvt.level_params.len()
                                             && nz
                                         {
-                                            major_to_ctor_eta_build(pers,
+                                            major_to_ctor_eta_build(
+                                                pers,
+                                                vis,
                                                 st, mode, lane, fuel, fe, depth, cvj,
                                                 caps, t, &ust, &targs, &tmaj, major,
                                             )
@@ -5355,6 +5459,7 @@ pub fn major_to_ctor_eta(
 /// branch's fabrication: the argument spine and the constructor application.
 pub fn major_to_ctor_eta_build(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -5369,14 +5474,16 @@ pub fn major_to_ctor_eta_build(
     tmaj: &EIdx,
     major: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match eta_fab_args_e(pers, st, fe, t, ust, targs, major, caps.eta_fields) {
+    match eta_fab_args_e(pers, vis, st, fe, t, ust, targs, major, caps.eta_fields) {
         Err(e) => Err(e),
         Ok(fab_args) => {
             match intern_e(pers, st, ENodeView::Const(caps.eta_ctor.dup2(), ust.dup2())) {
                 Err(e) => Err(e),
                 Ok(hd) => match mk_app_n(pers, st, &hd, &fab_args) {
                     Err(e) => Err(e),
-                    Ok(fab) => major_to_ctor_eta_certs(pers,
+                    Ok(fab) => major_to_ctor_eta_certs(
+                        pers,
+                        vis,
                         st,
                         mode,
                         lane,
@@ -5403,6 +5510,7 @@ pub fn major_to_ctor_eta_build(
 /// fabricated major is `And.intro` at the two `.proj` nodes of the stuck one.
 pub fn major_to_ctor_and(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -5415,9 +5523,9 @@ pub fn major_to_ctor_and(
     t: &NIdx,
     major: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match knot_infer_io(pers, st, mode, lane, fuel, fe, depth, major) {
+    match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, major) {
         Err(e) => Err(e),
-        Ok(tm) => match knot_whnf(pers, st, mode, lane, fuel, fe, depth, &tm) {
+        Ok(tm) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tm) {
             Err(e) => Err(e),
             Ok(tmaj) => match get_app_fn(pers, st, CORE_WALK_FUEL, &tmaj) {
                 Err(e) => Err(e),
@@ -5428,7 +5536,7 @@ pub fn major_to_ctor_and(
                         Ok(ustl) => match get_app_args(pers, st, CORE_WALK_FUEL, &tmaj) {
                             Err(e) => Err(e),
                             Ok(targs) => {
-                                match and_rescue_slots(pers, st, fe, ctor, cn_p, &ust) {
+                                match and_rescue_slots(pers, vis, st, fe, ctor, cn_p, &ust) {
                                     Err(e) => Err(e),
                                     Ok(ars) => {
                                         if t2.eq2(t)
@@ -5436,7 +5544,9 @@ pub fn major_to_ctor_and(
                                             && cvj.level_params.len() == ustl.len()
                                             && ars
                                         {
-                                            major_to_ctor_and_build(pers,
+                                            major_to_ctor_and_build(
+                                                pers,
+                                                vis,
                                                 st, mode, lane, fuel, fe, depth, cvj,
                                                 ctor, t, &ust, &targs, &tmaj, major,
                                             )
@@ -5460,6 +5570,7 @@ pub fn major_to_ctor_and(
 /// branch's fabrication and its certificate chain.
 pub fn major_to_ctor_and_build(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -5485,7 +5596,9 @@ pub fn major_to_ctor_and_build(
                     Err(e) => Err(e),
                     Ok(hd) => match mk_app_n(pers, st, &hd, &fab_args) {
                         Err(e) => Err(e),
-                        Ok(fab) => major_to_ctor_certs(pers,
+                        Ok(fab) => major_to_ctor_certs(
+                            pers,
+                            vis,
                             st, mode, lane, fuel, fe, depth, cvj, ust, &fab_args, &fab,
                             tmaj, major,
                         ),
@@ -5502,6 +5615,7 @@ pub fn major_to_ctor_and_build(
 /// and its inductive have been found.
 pub fn major_to_ctor_at(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -5519,15 +5633,17 @@ pub fn major_to_ctor_at(
     major: &EIdx,
 ) -> Result<EIdx, CheckError> {
     if k {
-        major_to_ctor_k(pers, st, mode, lane, fuel, fe, depth, cvj, cn_p, ctor, t, major)
+        major_to_ctor_k(pers, vis, st, mode, lane, fuel, fe, depth, cvj, cn_p, ctor, t, major)
     } else if eta {
-        major_to_ctor_eta(pers, st, mode, lane, fuel, fe, depth, cvj, cvt, caps, t, major)
+        major_to_ctor_eta(pers, vis, st, mode, lane, fuel, fe, depth, cvj, cvt, caps, t, major)
     } else {
         match pin_and(st) {
             Err(e) => Err(e),
             Ok(an) => {
                 if t.eq2(&an) {
-                    major_to_ctor_and(pers,
+                    major_to_ctor_and(
+                        pers,
+                        vis,
                         st, mode, lane, fuel, fe, depth, cvj, cn_p, ctor, t, major,
                     )
                 } else {
@@ -5546,6 +5662,7 @@ pub fn major_to_ctor_at(
 /// An uncertified major stays put.
 pub fn major_to_ctor(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -5556,7 +5673,7 @@ pub fn major_to_ctor(
     rules: &Vec<IRecRule>,
     major: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match is_ctor_app(pers, st, fe, major) {
+    match is_ctor_app(pers, vis, st, fe, major) {
         Err(e) => Err(e),
         Ok(true) => Ok(major.dup2()),
         Ok(false) => {
@@ -5566,7 +5683,7 @@ pub fn major_to_ctor(
                 let ctor: NIdx = rules[0].ctor.dup2();
                 let k: bool = rules[0].k;
                 let eta: bool = rules[0].eta;
-                match env::ifenv_find(fe, &ctor) {
+                match env::ifenv_find(vis, fe, &ctor) {
                     Some(IConstantInfo::CtorInfo(cvj0, cn_p0, _)) => {
                         let cvj: IConstantVal = env::i_constant_val_dup(cvj0);
                         let cn_p: u64 = *cn_p0;
@@ -5577,13 +5694,15 @@ pub fn major_to_ctor(
                                 Ok(hd) => match view(pers, st, &hd) {
                                     Err(e) => Err(e),
                                     Ok(ENodeView::Const(t, _)) => {
-                                        match env::ifenv_find(fe, &t) {
+                                        match env::ifenv_find(vis, fe, &t) {
                                             Some(IConstantInfo::IndInfo(cvt0, caps0)) => {
                                                 let cvt: IConstantVal =
                                                     env::i_constant_val_dup(cvt0);
                                                 let caps: IIndCaps =
                                                     env::i_ind_caps_dup(caps0);
-                                                major_to_ctor_at(pers,
+                                                major_to_ctor_at(
+                                                    pers,
+                                                    vis,
                                                     st, mode, lane, fuel, fe, depth,
                                                     &cvj, cn_p, &ctor, k, eta, &cvt,
                                                     &caps, &t, major,
@@ -5612,6 +5731,7 @@ pub fn major_to_ctor(
 /// `String` literal to its *reduced* constructor form.
 pub fn lit_major_to_ctor(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -5624,16 +5744,16 @@ pub fn lit_major_to_ctor(
         Err(e) => Err(e),
         Ok(ENodeView::Lit(Literal::StrVal(s))) => {
             let cs: Vec<u32> = expr::str_copy(&s);
-            match str_lit_supported(pers, st, fe) {
+            match str_lit_supported(pers, vis, st, fe) {
                 Err(e) => Err(e),
                 Ok(false) => Ok(h.dup2()),
                 Ok(true) => match str_lit_to_constructor(pers, st, &cs) {
                     Err(e) => Err(e),
-                    Ok(c) => knot_whnf(pers, st, mode, lane, fuel, fe, depth, &c),
+                    Ok(c) => knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &c),
                 },
             }
         }
-        Ok(_) => lit_to_ctor_if_nat(pers, st, fe, h),
+        Ok(_) => lit_to_ctor_if_nat(pers, vis, st, fe, h),
     }
 }
 
@@ -5642,6 +5762,7 @@ pub fn lit_major_to_ctor(
 /// a string-literal projection scrutinee to its *reduced* constructor form.
 pub fn proj_lit_to_ctor(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -5654,12 +5775,12 @@ pub fn proj_lit_to_ctor(
         Err(e) => Err(e),
         Ok(ENodeView::Lit(Literal::StrVal(s))) => {
             let cs: Vec<u32> = expr::str_copy(&s);
-            match str_lit_supported(pers, st, fe) {
+            match str_lit_supported(pers, vis, st, fe) {
                 Err(e) => Err(e),
                 Ok(false) => Ok(h.dup2()),
                 Ok(true) => match str_lit_to_constructor(pers, st, &cs) {
                     Err(e) => Err(e),
-                    Ok(c) => knot_whnf(pers, st, mode, lane, fuel, fe, depth, &c),
+                    Ok(c) => knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &c),
                 },
             }
         }
@@ -5673,11 +5794,12 @@ pub fn proj_lit_to_ctor(
 /// belongs to an inductive stored with the K capability.
 pub fn rec_rule_k_of(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     ctor: &NIdx,
 ) -> Result<bool, CheckError> {
-    match env::ifenv_find(fe, ctor) {
+    match env::ifenv_find(vis, fe, ctor) {
         Some(IConstantInfo::CtorInfo(cvj, _, cn_f0)) => {
             let ty: EIdx = cvj.ty.dup2();
             let cn_f: u64 = *cn_f0;
@@ -5687,7 +5809,7 @@ pub fn rec_rule_k_of(
                     Err(e) => Err(e),
                     Ok(hd) => match view(pers, st, &hd) {
                         Err(e) => Err(e),
-                        Ok(ENodeView::Const(t, _)) => match env::ifenv_find(fe, &t) {
+                        Ok(ENodeView::Const(t, _)) => match env::ifenv_find(vis, fe, &t) {
                             Some(IConstantInfo::IndInfo(_, caps)) => {
                                 Ok(caps.rule_k && cn_f == 0)
                             }
@@ -5711,12 +5833,13 @@ pub fn rec_rule_k_of(
 /// an install-time path, never a reduction-time one.
 pub fn rec_rule_eta_of(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     rec_name: &NIdx,
     ctor: &NIdx,
 ) -> Result<bool, CheckError> {
-    match env::ifenv_find(fe, ctor) {
+    match env::ifenv_find(vis, fe, ctor) {
         Some(IConstantInfo::CtorInfo(cvj, _, _)) => {
             let ty: EIdx = cvj.ty.dup2();
             let cvj_lps: Vec<NIdx> = env::nidx_vec_dup(&cvj.level_params);
@@ -5726,7 +5849,7 @@ pub fn rec_rule_eta_of(
                     Err(e) => Err(e),
                     Ok(hd) => match view(pers, st, &hd) {
                         Err(e) => Err(e),
-                        Ok(ENodeView::Const(t, _)) => match env::ifenv_find(fe, &t) {
+                        Ok(ENodeView::Const(t, _)) => match env::ifenv_find(vis, fe, &t) {
                             Some(IConstantInfo::IndInfo(cvt, caps)) => {
                                 let eta: bool = caps.eta;
                                 let eta_ctor: NIdx = caps.eta_ctor.dup2();
@@ -5759,14 +5882,15 @@ pub fn rec_rule_eta_of(
 /// conditions are decided.  Lean's `{ rl with … }` is a rebuilt record here.
 pub fn rec_rule_bits(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     rec_name: &NIdx,
     rl: IRecRule,
 ) -> Result<IRecRule, CheckError> {
-    match rec_rule_k_of(pers, st, fe, &rl.ctor) {
+    match rec_rule_k_of(pers, vis, st, fe, &rl.ctor) {
         Err(e) => Err(e),
-        Ok(k) => match rec_rule_eta_of(pers, st, fe, rec_name, &rl.ctor) {
+        Ok(k) => match rec_rule_eta_of(pers, vis, st, fe, rec_name, &rl.ctor) {
             Err(e) => Err(e),
             Ok(eta) => Ok(IRecRule {
                 ctor: rl.ctor,
@@ -5788,6 +5912,7 @@ pub fn rec_rule_bits(
 /// recursor's single rule, with the two rescue bits stamped by `recRuleBits`.
 pub fn proj_fn_rule(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     t: &NIdx,
@@ -5818,7 +5943,7 @@ pub fn proj_fn_rule(
                     eta: false,
                     params_blind: false,
                 };
-                rec_rule_bits(pers, st, fe, &nm, rl)
+                rec_rule_bits(pers, vis, st, fe, &nm, rl)
             }
         },
     }
@@ -5842,6 +5967,7 @@ pub fn rec_rule_k(rules: &Vec<IRecRule>) -> bool {
 /// the major is head-normalized first.
 pub fn prepare_major(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -5853,22 +5979,24 @@ pub fn prepare_major(
     major: &EIdx,
 ) -> Result<EIdx, CheckError> {
     if rec_rule_k(rules) {
-        match major_to_ctor(pers, st, mode, lane, fuel, fe, depth, rec_name, rules, major) {
+        match major_to_ctor(pers, vis, st, mode, lane, fuel, fe, depth, rec_name, rules, major) {
             Err(e) => Err(e),
-            Ok(major_k) => match knot_whnf(pers, st, mode, lane, fuel, fe, depth, &major_k) {
+            Ok(major_k) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &major_k) {
                 Err(e) => Err(e),
                 Ok(major0) => {
-                    lit_major_to_ctor(pers, st, mode, lane, fuel, fe, depth, &major0)
+                    lit_major_to_ctor(pers, vis, st, mode, lane, fuel, fe, depth, &major0)
                 }
             },
         }
     } else {
-        match knot_whnf(pers, st, mode, lane, fuel, fe, depth, major) {
+        match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, major) {
             Err(e) => Err(e),
             Ok(major0) => {
-                match lit_major_to_ctor(pers, st, mode, lane, fuel, fe, depth, &major0) {
+                match lit_major_to_ctor(pers, vis, st, mode, lane, fuel, fe, depth, &major0) {
                     Err(e) => Err(e),
-                    Ok(major1) => major_to_ctor(pers,
+                    Ok(major1) => major_to_ctor(
+                        pers,
+                        vis,
                         st, mode, lane, fuel, fe, depth, rec_name, rules, &major1,
                     ),
                 }
@@ -6008,7 +6136,8 @@ pub fn rec_fire_comparands(
                             Ok(ls) => match intern_ls_node(pers, st, ls) {
                                 Err(e) => Err(e),
                                 Ok(lsh) => {
-                                    match inst_spine_pins(pers,
+                                    match inst_spine_pins(
+                                        pers,
                                         st,
                                         lps,
                                         us,
@@ -6088,6 +6217,7 @@ pub fn find_rule(rules: &Vec<IRecRule>, c: &NIdx, i: usize) -> Option<usize> {
 /// right-hand side's application.
 pub fn iota_rec_fire(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -6115,7 +6245,9 @@ pub fn iota_rec_fire(
                 Ok(false) => Ok(None),
                 Ok(true) => {
                     let p_ok = if env::i_rec_rule_compare_params(rl) {
-                        iota_rec_params(pers,
+                        iota_rec_params(
+                            pers,
+                            vis,
                             st, mode, lane, fuel, fe, depth, rl, rec_c, margs, &cmp.1,
                         )
                     } else {
@@ -6124,7 +6256,9 @@ pub fn iota_rec_fire(
                     match p_ok {
                         Err(e) => Err(e),
                         Ok(false) => Ok(None),
-                        Ok(true) => iota_rec_certs(pers,
+                        Ok(true) => iota_rec_certs(
+                            pers,
+                            vis,
                             st, mode, lane, fuel, fe, depth, cv, cvj, rl, rec_c, us, usj,
                             m_i, r_p, args, margs, major,
                         ),
@@ -6147,6 +6281,7 @@ pub fn iota_rec_fire(
 /// handle.
 pub fn iota_rec_params(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -6170,7 +6305,7 @@ pub fn iota_rec_params(
         Ok(k) => {
             if con_ron_core::kernel::env::certs(mode) || k {
                 let head: Vec<EIdx> = take_eidx(margs, rl.ctor_params as usize);
-                def_eq_list(pers, st, mode, lane, fuel, fe, depth, &head, comparands, 0)
+                def_eq_list(pers, vis, st, mode, lane, fuel, fe, depth, &head, comparands, 0)
             } else {
                 Ok(true)
             }
@@ -6186,6 +6321,7 @@ pub fn iota_rec_params(
 /// (task #97f, P2f; `Cached/CoreC.lean:814`).  Then the reduct.
 pub fn iota_rec_certs(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -6204,7 +6340,9 @@ pub fn iota_rec_certs(
     margs: &Vec<EIdx>,
     major: &EIdx,
 ) -> Result<Option<EIdx>, CheckError> {
-    match iota_rec_fam(pers,
+    match iota_rec_fam(
+        pers,
+        vis,
         st, mode, lane, fuel, fe, depth, cv, cvj, rl, us, usj, m_i, r_p, args, margs,
         major,
     ) {
@@ -6220,6 +6358,7 @@ pub fn iota_rec_certs(
 #[allow(clippy::too_many_arguments)]
 pub fn iota_rec_fam(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -6245,13 +6384,15 @@ pub fn iota_rec_fam(
             Err(e) => Err(e),
             Ok(ty_r) => {
                 let spine: Vec<EIdx> = snoc_eidx(take_eidx(args, m_i as usize), major);
-                match iota_certs(pers, st, mode, lane, fuel, fe, depth, lic, &ty_r, &spine, 0) {
+                match iota_certs(pers, vis, st, mode, lane, fuel, fe, depth, lic, &ty_r, &spine, 0) {
                     Err(e) => Err(e),
                     Ok(false) => Ok(false),
                     Ok(true) => match const_ty_at(pers, st, cvj, usj) {
                         Err(e) => Err(e),
                         Ok(ty_c) => {
-                            match iota_certs(pers,
+                            match iota_certs(
+                                pers,
+                                vis,
                                 st, mode, lane, fuel, fe, depth, lic, &ty_c, margs, 0,
                             ) {
                                 Err(e) => Err(e),
@@ -6261,7 +6402,9 @@ pub fn iota_rec_fam(
                                         &take_eidx(args, m_i as usize),
                                         r_p as usize,
                                     );
-                                    iota_index_ok(pers,
+                                    iota_index_ok(
+                                        pers,
+                                        vis,
                                         st,
                                         mode,
                                         lane,
@@ -6320,6 +6463,7 @@ pub fn iota_rec_reduct(
 /// feature.
 pub fn iota_rec_major(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -6339,7 +6483,7 @@ pub fn iota_rec_major(
         Err(e) => Err(e),
         Ok(hd) => match view(pers, st, &hd) {
             Err(e) => Err(e),
-            Ok(ENodeView::Const(cj, usj)) => match env::ifenv_find(fe, &cj) {
+            Ok(ENodeView::Const(cj, usj)) => match env::ifenv_find(vis, fe, &cj) {
                 Some(IConstantInfo::CtorInfo(cvj0, _, _)) => {
                     let cvj: IConstantVal = env::i_constant_val_dup(cvj0);
                     match find_rule(rules, &cj, 0) {
@@ -6358,7 +6502,9 @@ pub fn iota_rec_major(
                                                     code_points(&M_NESTED_RULE),
                                                 ))
                                             }
-                                            _ => iota_rec_fire(pers,
+                                            _ => iota_rec_fire(
+                                                pers,
+                                                vis,
                                                 st, mode, lane, fuel, fe, depth, cv,
                                                 &cvj, &rl, rec_c, us, &usj, m_i, r_p,
                                                 args, &margs, major,
@@ -6386,6 +6532,7 @@ pub fn iota_rec_major(
 /// (pinned, annotated) type.
 pub fn iota_rec(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -6398,7 +6545,7 @@ pub fn iota_rec(
         Err(er) => Err(er),
         Ok(hd) => match view(pers, st, &hd) {
             Err(er) => Err(er),
-            Ok(ENodeView::Const(c, us)) => match env::ifenv_find(fe, &c) {
+            Ok(ENodeView::Const(c, us)) => match env::ifenv_find(vis, fe, &c) {
                 Some(IConstantInfo::RecInfo(cv0, m_i0, r_p0, rules0)) => {
                     let cv: IConstantVal = env::i_constant_val_dup(cv0);
                     let m_i: u64 = *m_i0;
@@ -6416,12 +6563,16 @@ pub fn iota_rec(
                                         Err(er) => Err(er),
                                         Ok(b0) => {
                                             let maj0: EIdx = get_d_eidx(&args, m_i, &b0);
-                                            match prepare_major(pers,
+                                            match prepare_major(
+                                                pers,
+                                                vis,
                                                 st, mode, lane, fuel, fe, depth, &c,
                                                 &rules, &maj0,
                                             ) {
                                                 Err(er) => Err(er),
-                                                Ok(major) => iota_rec_major(pers,
+                                                Ok(major) => iota_rec_major(
+                                                    pers,
+                                                    vis,
                                                     st, mode, lane, fuel, fe, depth, &cv,
                                                     &rules, &c, &us, m_i, r_p, &args,
                                                     &major,
@@ -6498,6 +6649,7 @@ pub fn proj_entry_type_at(
 /// the redex's own levels.
 pub fn proj_cert(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -6509,12 +6661,12 @@ pub fn proj_cert(
     us: &LsIdx,
     args: &Vec<EIdx>,
 ) -> Result<bool, CheckError> {
-    match env::ifenv_find(fe, c) {
+    match env::ifenv_find(vis, fe, c) {
         Some(IConstantInfo::CtorInfo(cvc0, _, _)) => {
             let cvc: IConstantVal = env::i_constant_val_dup(cvc0);
             match const_ty_at(pers, st, &cvc, us) {
                 Err(e) => Err(e),
-                Ok(ty) => iota_certs(pers, st, mode, lane, fuel, fe, depth, lic, &ty, args, 0),
+                Ok(ty) => iota_certs(pers, vis, st, mode, lane, fuel, fe, depth, lic, &ty, args, 0),
             }
         }
         Some(_) => Ok(false),
@@ -6528,6 +6680,7 @@ pub fn proj_cert(
 /// spine; the parity core is the official kernel's, which certifies nothing.
 pub fn proj_cert_at(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -6541,7 +6694,7 @@ pub fn proj_cert_at(
     args: &Vec<EIdx>,
 ) -> Result<bool, CheckError> {
     if verified {
-        proj_cert(pers, st, mode, lane, fuel, fe, depth, lic, c, us, args)
+        proj_cert(pers, vis, st, mode, lane, fuel, fe, depth, lic, c, us, args)
     } else {
         Ok(true)
     }
@@ -6566,6 +6719,7 @@ pub fn beta_gate_fires(mode: &CheckMode, pw: &PropWhen) -> bool {
 /// the port writes them once and both bodies call it.
 pub fn whnf_core_proj(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -6576,14 +6730,14 @@ pub fn whnf_core_proj(
     i: u64,
     pe: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match knot_whnf(pers, st, mode, lane, fuel, fe, depth, pe) {
+    match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, pe) {
         Err(e) => Err(e),
-        Ok(e0) => match proj_lit_to_ctor(pers, st, mode, lane, fuel, fe, depth, &e0) {
+        Ok(e0) => match proj_lit_to_ctor(pers, vis, st, mode, lane, fuel, fe, depth, &e0) {
             Err(e) => Err(e),
-            Ok(ep) => match env::ifenv_find_proj(pers, &mut st.store, fe, sn, i) {
+            Ok(ep) => match env::ifenv_find_proj(pers, vis, &mut st.store, fe, sn, i) {
                 Err(e) => Err(e),
                 Ok(Some(entry)) => {
-                    whnf_core_proj_at(pers, st, mode, lane, fuel, fe, depth, sn, i, &ep, &entry)
+                    whnf_core_proj_at(pers, vis, st, mode, lane, fuel, fe, depth, sn, i, &ep, &entry)
                 }
                 Ok(None) => intern_e(pers, st, ENodeView::Proj(sn.dup2(), i, ep)),
             },
@@ -6597,6 +6751,7 @@ pub fn whnf_core_proj(
 /// constructor at the right arities, and the fire certificate must hold.
 pub fn whnf_core_proj_at(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -6626,7 +6781,9 @@ pub fn whnf_core_proj_at(
                                 && usl.len() == entry.level_params.len()
                                 && fok
                             {
-                                whnf_core_proj_fire(pers,
+                                whnf_core_proj_fire(
+                                    pers,
+                                    vis,
                                     st, mode, lane, fuel, fe, depth, sn, i, ep, entry,
                                     &c, &us, &args,
                                 )
@@ -6647,6 +6804,7 @@ pub fn whnf_core_proj_at(
 /// itself: the selected field, behind the mode's certificate.
 pub fn whnf_core_proj_fire(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -6667,11 +6825,13 @@ pub fn whnf_core_proj_fire(
             let arg: EIdx = get_d_eidx(args, entry.num_params + i, &b0);
             let verified: bool = con_ron_core::kernel::env::verified_checks(mode);
             let lic: bool = con_ron_core::kernel::env::beta_gate(mode);
-            match proj_cert_at(pers,
+            match proj_cert_at(
+                pers,
+                vis,
                 st, mode, lane, fuel, fe, depth, verified, lic, c, us, args,
             ) {
                 Err(e) => Err(e),
-                Ok(true) => knot_whnf_core(pers, st, mode, lane, fuel, fe, depth, &arg),
+                Ok(true) => knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, &arg),
                 Ok(false) => intern_e(pers, st, ENodeView::Proj(sn.dup2(), i, ep.dup2())),
             }
         }
@@ -6684,6 +6844,7 @@ pub fn whnf_core_proj_fire(
 /// the per-redex argument certificate, gated by `betaGateFires`), ι otherwise.
 pub fn whnf_core_app(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -6706,19 +6867,19 @@ pub fn whnf_core_app(
             if con_ron_core::kernel::env::beta_skip(mode, &mb.pw) {
                 match instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, a, 0) {
                     Err(e) => Err(e),
-                    Ok(b) => knot_whnf_core(pers, st, mode, lane, fuel, fe, depth, &b),
+                    Ok(b) => knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, &b),
                 }
             } else {
                 // con-leche's task #172 B4: the certificate's inference runs at
                 // the io grade.
-                match knot_infer_io(pers, st, mode, lane, fuel, fe, depth, a) {
+                match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, a) {
                     Err(e) => Err(e),
-                    Ok(ta) => match knot_defeq(pers, st, mode, lane, fuel, fe, depth, &ta, &ty) {
+                    Ok(ta) => match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &ta, &ty) {
                         Err(e) => Err(e),
                         Ok(true) => {
                             match instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, a, 0) {
                                 Err(e) => Err(e),
-                                Ok(b) => knot_whnf_core(pers, st, mode, lane, fuel, fe, depth, &b),
+                                Ok(b) => knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, &b),
                             }
                         }
                         Ok(false) => intern_app_rebuilt(pers, st, h, same, fp, a),
@@ -6726,7 +6887,7 @@ pub fn whnf_core_app(
                 }
             }
         }
-        Ok(_) => whnf_core_stuck_app(pers, st, mode, lane, fuel, fe, depth, h, same, fp, a),
+        Ok(_) => whnf_core_stuck_app(pers, vis, st, mode, lane, fuel, fe, depth, h, same, fp, a),
     }
 }
 
@@ -6783,6 +6944,7 @@ pub fn intern_app_rebuilt(
 /// once.
 pub fn whnf_core_stuck_app(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -6796,9 +6958,9 @@ pub fn whnf_core_stuck_app(
 ) -> Result<EIdx, CheckError> {
     match intern_app_rebuilt(pers, st, h, same, fp, a) {
         Err(e) => Err(e),
-        Ok(ap) => match iota_rec(pers, st, mode, lane, fuel, fe, depth, &ap) {
+        Ok(ap) => match iota_rec(pers, vis, st, mode, lane, fuel, fe, depth, &ap) {
             Err(e) => Err(e),
-            Ok(Some(e2)) => knot_whnf_core(pers, st, mode, lane, fuel, fe, depth, &e2),
+            Ok(Some(e2)) => knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, &e2),
             Ok(None) => Ok(ap),
         },
     }
@@ -6813,6 +6975,7 @@ pub fn whnf_core_stuck_app(
 /// same node.
 pub fn whnf_core_body(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -6830,16 +6993,16 @@ pub fn whnf_core_body(
         Ok(ENodeView::Const(_, _)) => Ok(e.dup2()),
         Ok(ENodeView::Lit(_)) => Ok(e.dup2()),
         Ok(ENodeView::App(f, a)) => {
-            match knot_whnf_core(pers, st, mode, lane, fuel, fe, depth, &f) {
+            match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, &f) {
                 Err(er) => Err(er),
                 Ok(fp) => {
                     let same: bool = fp.eq2(&f);
-                    whnf_core_app(pers, st, mode, lane, fuel, fe, depth, e, same, &fp, &a)
+                    whnf_core_app(pers, vis, st, mode, lane, fuel, fe, depth, e, same, &fp, &a)
                 }
             }
         }
         Ok(ENodeView::Proj(sn, i, pe)) => {
-            whnf_core_proj(pers, st, mode, lane, fuel, fe, depth, &sn, i, &pe)
+            whnf_core_proj(pers, vis, st, mode, lane, fuel, fe, depth, &sn, i, &pe)
         }
         // **Unreachable by construction** (con-leche's task #241): annotate
         // output is let-free.
@@ -6877,6 +7040,7 @@ pub const WHNF_LOOP_FUEL: u64 = 100000;
 /// passes.
 pub fn whnf_step(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -6886,14 +7050,14 @@ pub fn whnf_step(
     n: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match knot_whnf_core(pers, st, mode, lane, fuel, fe, depth, e) {
+    match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, e) {
         Err(er) => Err(er),
-        Ok(e1) => match reduce_nat(pers, st, mode, lane, fuel, fe, depth, &e1) {
+        Ok(e1) => match reduce_nat(pers, vis, st, mode, lane, fuel, fe, depth, &e1) {
             Err(er) => Err(er),
-            Ok(Some(e2)) => whnf_loop(pers, st, mode, lane, fuel, fe, depth, n, &e2),
-            Ok(None) => match unfold_definition(pers, st, fe, &e1) {
+            Ok(Some(e2)) => whnf_loop(pers, vis, st, mode, lane, fuel, fe, depth, n, &e2),
+            Ok(None) => match unfold_definition(pers, vis, st, fe, &e1) {
                 Err(er) => Err(er),
-                Ok(Some(e2)) => whnf_loop(pers, st, mode, lane, fuel, fe, depth, n, &e2),
+                Ok(Some(e2)) => whnf_loop(pers, vis, st, mode, lane, fuel, fe, depth, n, &e2),
                 Ok(None) => Ok(e1),
             },
         },
@@ -6906,6 +7070,7 @@ pub fn whnf_step(
 /// one knot level however many steps it takes.
 pub fn whnf_loop(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -6918,7 +7083,7 @@ pub fn whnf_loop(
     if n == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_WHNF_LOOP)))
     } else {
-        whnf_step(pers, st, mode, lane, fuel, fe, depth, n - 1, e)
+        whnf_step(pers, vis, st, mode, lane, fuel, fe, depth, n - 1, e)
     }
 }
 
@@ -6927,6 +7092,7 @@ pub fn whnf_loop(
 /// loop's body: run `whnfLoop` at its own step budget.
 pub fn whnf_body(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -6935,7 +7101,7 @@ pub fn whnf_body(
     depth: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    whnf_loop(pers, st, mode, lane, fuel, fe, depth, WHNF_LOOP_FUEL, e)
+    whnf_loop(pers, vis, st, mode, lane, fuel, fe, depth, WHNF_LOOP_FUEL, e)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:2068-2074 ensureSort
@@ -6943,6 +7109,7 @@ pub fn whnf_body(
 /// (the type of some expression) is a sort, returning its level.
 pub fn ensure_sort(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -6951,7 +7118,7 @@ pub fn ensure_sort(
     depth: u64,
     e: &EIdx,
 ) -> Result<LIdx, CheckError> {
-    match knot_whnf(pers, st, mode, lane, fuel, fe, depth, e) {
+    match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, e) {
         Err(er) => Err(er),
         Ok(w) => match view(pers, st, &w) {
             Err(er) => Err(er),
@@ -6987,7 +7154,8 @@ pub fn infer_lam_result(
 ) -> Result<EIdx, CheckError> {
     match abstract1_fast(pers, st, CORE_WALK_FUEL, bt, depth, 0) {
         Err(e) => Err(e),
-        Ok(ab) => intern_e(pers,
+        Ok(ab) => intern_e(
+            pers,
             st,
             ENodeView::ForallE(ty.dup2(), ab, expr::binder_meta_dup(mb)),
         ),
@@ -7030,12 +7198,13 @@ pub fn infer_fvar(idx: u64, ty: &EIdx, depth: u64) -> Result<EIdx, CheckError> {
 /// (con-leche's task #175 W4c).
 pub fn infer_const(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     n: &NIdx,
     us: &LsIdx,
 ) -> Result<EIdx, CheckError> {
-    match env::ifenv_find(fe, n) {
+    match env::ifenv_find(vis, fe, n) {
         None => match unknown_const_error(st, n) {
             Err(e) => Err(e),
             Ok(err) => fail(err),
@@ -7067,8 +7236,13 @@ pub fn infer_const(
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2129-2133 inferBody`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2252-2256 inferBodyIO`
 /// The `.lit (.natVal _)` clause, which both bodies write identically.
-pub fn infer_lit_nat(pers: &PersTier, st: &mut AState, fe: &IFEnv) -> Result<EIdx, CheckError> {
-    match nat_lit_supported(pers, st, fe) {
+pub fn infer_lit_nat(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+) -> Result<EIdx, CheckError>  {
+    match nat_lit_supported(pers, vis, st, fe) {
         Err(e) => Err(e),
         Ok(true) => match pin_nat(st) {
             Err(e) => Err(e),
@@ -7083,8 +7257,13 @@ pub fn infer_lit_nat(pers: &PersTier, st: &mut AState, fe: &IFEnv) -> Result<EId
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2134-2139 inferBody`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2257-2262 inferBodyIO`
 /// The `.lit (.strVal _)` clause, which both bodies write identically.
-pub fn infer_lit_str(pers: &PersTier, st: &mut AState, fe: &IFEnv) -> Result<EIdx, CheckError> {
-    match str_lit_supported(pers, st, fe) {
+pub fn infer_lit_str(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+) -> Result<EIdx, CheckError>  {
+    match str_lit_supported(pers, vis, st, fe) {
         Err(e) => Err(e),
         Ok(true) => match pin_string(st) {
             Err(e) => Err(e),
@@ -7102,6 +7281,7 @@ pub fn infer_lit_str(pers: &PersTier, st: &mut AState, fe: &IFEnv) -> Result<EId
 /// sort, the opened codomain's sort, the validated annotation and `imax`.
 pub fn infer_forall(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -7112,14 +7292,14 @@ pub fn infer_forall(
     body: &EIdx,
     mb: &BinderMeta,
 ) -> Result<EIdx, CheckError> {
-    match knot_infer(pers, st, mode, lane, fuel, fe, depth, ty) {
+    match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, ty) {
         Err(e) => Err(e),
-        Ok(tty) => match knot_whnf(pers, st, mode, lane, fuel, fe, depth, &tty) {
+        Ok(tty) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tty) {
             Err(e) => Err(e),
             Ok(w) => match view(pers, st, &w) {
                 Err(e) => Err(e),
                 Ok(ENodeView::Sort(u)) => {
-                    infer_forall_at(pers, st, mode, lane, fuel, fe, depth, ty, body, mb, &u)
+                    infer_forall_at(pers, vis, st, mode, lane, fuel, fe, depth, ty, body, mb, &u)
                 }
                 Ok(_) => fail(CheckError::Invalid(code_points(&M_SORT))),
             },
@@ -7132,6 +7312,7 @@ pub fn infer_forall(
 /// clause's body, once the domain's sort is known.
 pub fn infer_forall_at(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -7147,10 +7328,10 @@ pub fn infer_forall_at(
         Err(e) => Err(e),
         Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body, &fv, 0) {
             Err(e) => Err(e),
-            Ok(ob) => match knot_infer(pers, st, mode, lane, fuel, fe, depth + 1, &ob) {
+            Ok(ob) => match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth + 1, &ob) {
                 Err(e) => Err(e),
                 Ok(tb) => {
-                    match ensure_sort(pers, st, mode, lane, fuel, fe, depth + 1, &tb) {
+                    match ensure_sort(pers, vis, st, mode, lane, fuel, fe, depth + 1, &tb) {
                         Err(e) => Err(e),
                         Ok(v) => {
                             let ok = if con_ron_core::kernel::env::verified_checks(mode) {
@@ -7170,7 +7351,8 @@ pub fn infer_forall_at(
                                     code_points(&M_COD),
                                 )),
                                 Ok(true) => {
-                                    match intern_l_node(pers,
+                                    match intern_l_node(
+                                        pers,
                                         st,
                                         LNodeView::Imax(u.dup2(), v.dup2()),
                                     ) {
@@ -7195,6 +7377,7 @@ pub fn infer_forall_at(
 /// W5), and a projection out of a propositional structure must land in `Prop`.
 pub fn infer_proj(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -7205,16 +7388,16 @@ pub fn infer_proj(
     i: u64,
     pe: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match knot_infer(pers, st, mode, lane, fuel, fe, depth, pe) {
+    match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, pe) {
         Err(e) => Err(e),
-        Ok(tp) => match knot_whnf(pers, st, mode, lane, fuel, fe, depth, &tp) {
+        Ok(tp) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tp) {
             Err(e) => Err(e),
             Ok(te) => match get_app_fn(pers, st, CORE_WALK_FUEL, &te) {
                 Err(e) => Err(e),
                 Ok(hd) => match view(pers, st, &hd) {
                     Err(e) => Err(e),
                     Ok(ENodeView::Const(t, us)) => {
-                        match env::ifenv_find_proj(pers, &mut st.store, fe, &t, i) {
+                        match env::ifenv_find_proj(pers, vis, &mut st.store, fe, &t, i) {
                             Err(e) => Err(e),
                             Ok(Some(entry)) => {
                                 infer_proj_at(pers, st, &te, sn, pe, &t, &us, &entry)
@@ -7311,6 +7494,7 @@ pub fn infer_proj_prop(
 /// codomain-sort computation.
 pub fn infer_lam(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -7321,14 +7505,14 @@ pub fn infer_lam(
     body: &EIdx,
     mb: &BinderMeta,
 ) -> Result<EIdx, CheckError> {
-    match knot_infer(pers, st, mode, lane, fuel, fe, depth, ty) {
+    match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, ty) {
         Err(e) => Err(e),
-        Ok(tty) => match knot_whnf(pers, st, mode, lane, fuel, fe, depth, &tty) {
+        Ok(tty) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tty) {
             Err(e) => Err(e),
             Ok(w) => match view(pers, st, &w) {
                 Err(e) => Err(e),
                 Ok(ENodeView::Sort(_)) => {
-                    infer_lam_open(pers, st, mode, lane, fuel, fe, depth, ty, body, mb, false)
+                    infer_lam_open(pers, vis, st, mode, lane, fuel, fe, depth, ty, body, mb, false)
                 }
                 Ok(_) => fail(CheckError::Invalid(code_points(&M_SORT))),
             },
@@ -7348,6 +7532,7 @@ pub fn infer_lam(
 /// nothing else.
 pub fn infer_lam_open(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -7367,12 +7552,14 @@ pub fn infer_lam_open(
                 // `r.infer` in both bodies.  In the full body `io` is `false`
                 // and `knot_infer_at` IS `knot_infer`; in the io body it is the
                 // knot's `ioView` substitution.
-                let bt = knot_infer_at(pers, st, mode, lane, io, fuel, fe, depth + 1, &ob);
+                let bt = knot_infer_at(pers, vis, st, mode, lane, io, fuel, fe, depth + 1, &ob);
                 match bt {
                     Err(e) => Err(e),
                     Ok(bt) => {
                         if con_ron_core::kernel::env::verified_checks(mode) {
-                            infer_lam_cod(pers,
+                            infer_lam_cod(
+                                pers,
+                                vis,
                                 st, mode, lane, fuel, fe, depth, ty, body, mb, &bt,
                             )
                         } else {
@@ -7393,6 +7580,7 @@ pub fn infer_lam_open(
 /// body, the codomain-sort computation at the innermost binder.
 pub fn infer_lam_cod(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -7421,10 +7609,10 @@ pub fn infer_lam_cod(
             // writes `r.infer (depth+1) bt`; both resolve to this knot's io
             // slot — in the io body because its record IS the io view (or, at
             // `LANE_IO`, because the knot's two infer slots are one function.
-            let btt = knot_infer_io(pers, st, mode, lane, fuel, fe, depth + 1, bt);
+            let btt = knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth + 1, bt);
             match btt {
                 Err(e) => Err(e),
-                Ok(btt) => match ensure_sort(pers, st, mode, lane, fuel, fe, depth + 1, &btt) {
+                Ok(btt) => match ensure_sort(pers, vis, st, mode, lane, fuel, fe, depth + 1, &btt) {
                     Err(e) => Err(e),
                     Ok(vb) => match read_level(pers, st, &vb) {
                         Err(e) => Err(e),
@@ -7447,6 +7635,7 @@ pub fn infer_lam_cod(
 /// clause, with the per-argument re-check (con-leche's task #100 de-gating).
 pub fn infer_app(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -7456,17 +7645,17 @@ pub fn infer_app(
     f: &EIdx,
     a: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match knot_infer(pers, st, mode, lane, fuel, fe, depth, f) {
+    match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, f) {
         Err(e) => Err(e),
-        Ok(tf) => match knot_whnf(pers, st, mode, lane, fuel, fe, depth, &tf) {
+        Ok(tf) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tf) {
             Err(e) => Err(e),
             Ok(w) => match view(pers, st, &w) {
                 Err(e) => Err(e),
                 Ok(ENodeView::ForallE(ty, body, _)) => {
-                    match knot_infer(pers, st, mode, lane, fuel, fe, depth, a) {
+                    match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, a) {
                         Err(e) => Err(e),
                         Ok(ta) => {
-                            match knot_defeq(pers, st, mode, lane, fuel, fe, depth, &ta, &ty) {
+                            match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &ta, &ty) {
                                 Err(e) => Err(e),
                                 Ok(false) => fail(CheckError::Invalid(code_points(
                                     &M_APP_MISMATCH,
@@ -7490,6 +7679,7 @@ pub fn infer_app(
 /// inference body.
 pub fn infer_body(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -7502,18 +7692,18 @@ pub fn infer_body(
         Err(er) => Err(er),
         Ok(ENodeView::Sort(u)) => infer_sort(pers, st, &u),
         Ok(ENodeView::FVar(idx, ty)) => infer_fvar(idx, &ty, depth),
-        Ok(ENodeView::Const(n, us)) => infer_const(pers, st, fe, &n, &us),
-        Ok(ENodeView::Lit(Literal::NatVal(_))) => infer_lit_nat(pers, st, fe),
-        Ok(ENodeView::Lit(Literal::StrVal(_))) => infer_lit_str(pers, st, fe),
+        Ok(ENodeView::Const(n, us)) => infer_const(pers, vis, st, fe, &n, &us),
+        Ok(ENodeView::Lit(Literal::NatVal(_))) => infer_lit_nat(pers, vis, st, fe),
+        Ok(ENodeView::Lit(Literal::StrVal(_))) => infer_lit_str(pers, vis, st, fe),
         Ok(ENodeView::ForallE(ty, body, mb)) => {
-            infer_forall(pers, st, mode, lane, fuel, fe, depth, &ty, &body, &mb)
+            infer_forall(pers, vis, st, mode, lane, fuel, fe, depth, &ty, &body, &mb)
         }
         Ok(ENodeView::Lam(ty, body, mb)) => {
-            infer_lam(pers, st, mode, lane, fuel, fe, depth, &ty, &body, &mb)
+            infer_lam(pers, vis, st, mode, lane, fuel, fe, depth, &ty, &body, &mb)
         }
-        Ok(ENodeView::App(f, a)) => infer_app(pers, st, mode, lane, fuel, fe, depth, &f, &a),
+        Ok(ENodeView::App(f, a)) => infer_app(pers, vis, st, mode, lane, fuel, fe, depth, &f, &a),
         Ok(ENodeView::Proj(sn, i, pe)) => {
-            infer_proj(pers, st, mode, lane, fuel, fe, depth, &sn, i, &pe)
+            infer_proj(pers, vis, st, mode, lane, fuel, fe, depth, &sn, i, &pe)
         }
         Ok(ENodeView::LetE(_, _, _)) => {
             fail(CheckError::Internal(code_points(&M_LET_INFER)))
@@ -7537,6 +7727,7 @@ pub fn infer_body(
 /// plain record).
 pub fn infer_body_io(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -7550,21 +7741,21 @@ pub fn infer_body_io(
         Err(er) => Err(er),
         Ok(ENodeView::Sort(u)) => infer_sort(pers, st, &u),
         Ok(ENodeView::FVar(idx, ty)) => infer_fvar(idx, &ty, depth),
-        Ok(ENodeView::Const(n, us)) => infer_const(pers, st, fe, &n, &us),
-        Ok(ENodeView::Lit(Literal::NatVal(_))) => infer_lit_nat(pers, st, fe),
-        Ok(ENodeView::Lit(Literal::StrVal(_))) => infer_lit_str(pers, st, fe),
+        Ok(ENodeView::Const(n, us)) => infer_const(pers, vis, st, fe, &n, &us),
+        Ok(ENodeView::Lit(Literal::NatVal(_))) => infer_lit_nat(pers, vis, st, fe),
+        Ok(ENodeView::Lit(Literal::StrVal(_))) => infer_lit_str(pers, vis, st, fe),
         Ok(ENodeView::ForallE(ty, body, mb)) => {
-            infer_forall_io(pers, st, mode, lane, io, fuel, fe, depth, &ty, &body, &mb)
+            infer_forall_io(pers, vis, st, mode, lane, io, fuel, fe, depth, &ty, &body, &mb)
         }
         // con-leche's task #168 stage 2: no domain-sort run at the io grade
         Ok(ENodeView::Lam(ty, body, mb)) => {
-            infer_lam_open(pers, st, mode, lane, fuel, fe, depth, &ty, &body, &mb, io)
+            infer_lam_open(pers, vis, st, mode, lane, fuel, fe, depth, &ty, &body, &mb, io)
         }
         Ok(ENodeView::App(f, a)) => {
-            infer_app_io_at(pers, st, mode, lane, io, fuel, fe, depth, &f, &a)
+            infer_app_io_at(pers, vis, st, mode, lane, io, fuel, fe, depth, &f, &a)
         }
         Ok(ENodeView::Proj(sn, i, pe)) => {
-            infer_proj_io(pers, st, mode, lane, io, fuel, fe, depth, &sn, i, &pe)
+            infer_proj_io(pers, vis, st, mode, lane, io, fuel, fe, depth, &sn, i, &pe)
         }
         Ok(ENodeView::LetE(_, _, _)) => {
             fail(CheckError::Internal(code_points(&M_LET_INFER)))
@@ -7580,6 +7771,7 @@ pub fn infer_body_io(
 /// body's ∀ clause: `inferBody`'s, with `r.infer` resolved through this lane.
 pub fn infer_forall_io(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -7591,13 +7783,15 @@ pub fn infer_forall_io(
     body: &EIdx,
     mb: &BinderMeta,
 ) -> Result<EIdx, CheckError> {
-    match knot_infer_at(pers, st, mode, lane, io, fuel, fe, depth, ty) {
+    match knot_infer_at(pers, vis, st, mode, lane, io, fuel, fe, depth, ty) {
         Err(e) => Err(e),
-        Ok(tty) => match knot_whnf(pers, st, mode, lane, fuel, fe, depth, &tty) {
+        Ok(tty) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tty) {
             Err(e) => Err(e),
             Ok(w) => match view(pers, st, &w) {
                 Err(e) => Err(e),
-                Ok(ENodeView::Sort(u)) => infer_forall_io_at(pers,
+                Ok(ENodeView::Sort(u)) => infer_forall_io_at(
+                    pers,
+                    vis,
                     st, mode, lane, io, fuel, fe, depth, ty, body, mb, &u,
                 ),
                 Ok(_) => fail(CheckError::Invalid(code_points(&M_SORT))),
@@ -7611,6 +7805,7 @@ pub fn infer_forall_io(
 /// body's ∀ clause, once the domain's sort is known.
 pub fn infer_forall_io_at(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -7628,10 +7823,10 @@ pub fn infer_forall_io_at(
         Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body, &fv, 0) {
             Err(e) => Err(e),
             Ok(ob) => {
-                match knot_infer_at(pers, st, mode, lane, io, fuel, fe, depth + 1, &ob) {
+                match knot_infer_at(pers, vis, st, mode, lane, io, fuel, fe, depth + 1, &ob) {
                     Err(e) => Err(e),
                     Ok(tb) => {
-                        match ensure_sort(pers, st, mode, lane, fuel, fe, depth + 1, &tb) {
+                        match ensure_sort(pers, vis, st, mode, lane, fuel, fe, depth + 1, &tb) {
                             Err(e) => Err(e),
                             Ok(v) => {
                                 let ok =
@@ -7652,7 +7847,8 @@ pub fn infer_forall_io_at(
                                         code_points(&M_COD),
                                     )),
                                     Ok(true) => {
-                                        match intern_l_node(pers,
+                                        match intern_l_node(
+                                            pers,
                                             st,
                                             LNodeView::Imax(u.dup2(), v.dup2()),
                                         ) {
@@ -7675,6 +7871,7 @@ pub fn infer_forall_io_at(
 /// body's `.app` clause, with `r.infer` resolved through this lane.
 pub fn infer_app_io_at(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -7685,9 +7882,9 @@ pub fn infer_app_io_at(
     f: &EIdx,
     a: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match knot_infer_at(pers, st, mode, lane, io, fuel, fe, depth, f) {
+    match knot_infer_at(pers, vis, st, mode, lane, io, fuel, fe, depth, f) {
         Err(e) => Err(e),
-        Ok(tf) => match knot_whnf(pers, st, mode, lane, fuel, fe, depth, &tf) {
+        Ok(tf) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tf) {
             Err(e) => Err(e),
             Ok(w) => match view(pers, st, &w) {
                 Err(e) => Err(e),
@@ -7697,10 +7894,10 @@ pub fn infer_app_io_at(
                     // `!mode.certs` (the io-grade argument certificate is a
                     // certificate FAMILY).  The two agree at `.verified`.
                     if !con_ron_core::kernel::env::io_skip(mode, &mt.pw) {
-                        match knot_infer_at(pers, st, mode, lane, io, fuel, fe, depth, a) {
+                        match knot_infer_at(pers, vis, st, mode, lane, io, fuel, fe, depth, a) {
                             Err(e) => Err(e),
                             Ok(ta) => {
-                                match knot_defeq(pers, st, mode, lane, fuel, fe, depth, &ta, &ty)
+                                match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &ta, &ty)
                                 {
                                     Err(e) => Err(e),
                                     Ok(false) => fail(CheckError::Invalid(code_points(
@@ -7727,6 +7924,7 @@ pub fn infer_app_io_at(
 /// body's `.proj` clause, with `r.infer` resolved through this lane.
 pub fn infer_proj_io(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -7738,16 +7936,16 @@ pub fn infer_proj_io(
     i: u64,
     pe: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match knot_infer_at(pers, st, mode, lane, io, fuel, fe, depth, pe) {
+    match knot_infer_at(pers, vis, st, mode, lane, io, fuel, fe, depth, pe) {
         Err(e) => Err(e),
-        Ok(tp) => match knot_whnf(pers, st, mode, lane, fuel, fe, depth, &tp) {
+        Ok(tp) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tp) {
             Err(e) => Err(e),
             Ok(te) => match get_app_fn(pers, st, CORE_WALK_FUEL, &te) {
                 Err(e) => Err(e),
                 Ok(hd) => match view(pers, st, &hd) {
                     Err(e) => Err(e),
                     Ok(ENodeView::Const(t, us)) => {
-                        match env::ifenv_find_proj(pers, &mut st.store, fe, &t, i) {
+                        match env::ifenv_find_proj(pers, vis, &mut st.store, fe, &t, i) {
                             Err(e) => Err(e),
                             Ok(Some(entry)) => {
                                 infer_proj_at(pers, st, &te, sn, pe, &t, &us, &entry)
@@ -7774,6 +7972,7 @@ pub fn infer_proj_io(
 /// head-normalised and the verdict is `true` iff the reduct is `Bool.true`.
 pub fn bool_true_shortcut(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -7782,7 +7981,7 @@ pub fn bool_true_shortcut(
     depth: u64,
     a: &EIdx,
 ) -> Result<bool, CheckError> {
-    match knot_whnf(pers, st, mode, lane, fuel, fe, depth, a) {
+    match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, a) {
         Err(e) => Err(e),
         Ok(w) => is_bool_true(pers, st, &w),
     }
@@ -7795,6 +7994,7 @@ pub fn bool_true_shortcut(
 /// `try_eq_const_app`).
 pub fn defeq_spine(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -7820,7 +8020,9 @@ pub fn defeq_spine(
                                 if n.eq2(&n2) && aa.len() == bb.len() {
                                     match lvls_eq(pers, st, &us, &us2) {
                                         Err(e) => Err(e),
-                                        Ok(Some(true)) => def_eq_list(pers,
+                                        Ok(Some(true)) => def_eq_list(
+                                            pers,
+                                            vis,
                                             st, mode, lane, fuel, fe, depth, &aa, &bb, 0,
                                         ),
                                         Ok(_) => Ok(false),
@@ -7867,6 +8069,7 @@ pub fn defeq_no_fvars(
 /// `is_lam` selects it.
 pub fn defeq_binders(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -7881,7 +8084,7 @@ pub fn defeq_binders(
     m2: &BinderMeta,
     is_lam: bool,
 ) -> Result<bool, CheckError> {
-    match knot_defeq(pers, st, mode, lane, fuel, fe, depth, ty1, ty2) {
+    match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, ty1, ty2) {
         Err(e) => Err(e),
         Ok(false) => Ok(false),
         Ok(true) => match intern_e(pers, st, ENodeView::FVar(depth, ty2.dup2())) {
@@ -7891,7 +8094,7 @@ pub fn defeq_binders(
                 Ok(o1) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body2, &fv, 0) {
                     Err(e) => Err(e),
                     Ok(o2) => {
-                        match knot_defeq(pers, st, mode, lane, fuel, fe, depth + 1, &o1, &o2) {
+                        match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth + 1, &o1, &o2) {
                             Err(e) => Err(e),
                             Ok(false) => Ok(false),
                             Ok(true) => {
@@ -7930,6 +8133,7 @@ pub fn defeq_binders(
 /// which is what this arm does.
 pub fn defeq_lit_app(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -7946,7 +8150,7 @@ pub fn defeq_lit_app(
     match l {
         Literal::NatVal(nn) => {
             if nat::is_zero(nn) {
-                stuck_irrel(pers, st, mode, lane, fuel, fe, depth, a2, b2)
+                stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
             } else {
                 let k2: Nat = nat::pred(nn);
                 match view(pers, st, f) {
@@ -7957,19 +8161,24 @@ pub fn defeq_lit_app(
                             Err(e) => Err(e),
                             Ok(ns) => {
                                 if c.eq2(&ns) && us.eq2(&el) {
-                                    match intern_e(pers,
+                                    match intern_e(
+                                        pers,
                                         st,
                                         ENodeView::Lit(expr::literal_nat(k2)),
                                     ) {
                                         Err(e) => Err(e),
                                         Ok(lh) => {
                                             if flipped {
-                                                knot_defeq(pers,
+                                                knot_defeq(
+                                                    pers,
+                                                    vis,
                                                     st, mode, lane, fuel, fe, depth, x,
                                                     &lh,
                                                 )
                                             } else {
-                                                knot_defeq(pers,
+                                                knot_defeq(
+                                                    pers,
+                                                    vis,
                                                     st, mode, lane, fuel, fe, depth, &lh,
                                                     x,
                                                 )
@@ -7977,12 +8186,12 @@ pub fn defeq_lit_app(
                                         }
                                     }
                                 } else {
-                                    stuck_irrel(pers, st, mode, lane, fuel, fe, depth, a2, b2)
+                                    stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
                                 }
                             }
                         },
                     },
-                    Ok(_) => stuck_irrel(pers, st, mode, lane, fuel, fe, depth, a2, b2),
+                    Ok(_) => stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2),
                 }
             }
         }
@@ -7994,7 +8203,7 @@ pub fn defeq_lit_app(
                     Err(e) => Err(e),
                     Ok(el) => match pin_string_of_list(st) {
                         Err(e) => Err(e),
-                        Ok(sl) => match str_lit_supported(pers, st, fe) {
+                        Ok(sl) => match str_lit_supported(pers, vis, st, fe) {
                             Err(e) => Err(e),
                             Ok(sup) => {
                                 if c_o.eq2(&sl) && us_o.eq2(&el) && sup {
@@ -8002,12 +8211,16 @@ pub fn defeq_lit_app(
                                         Err(e) => Err(e),
                                         Ok(ce) => {
                                             if flipped {
-                                                knot_defeq(pers,
+                                                knot_defeq(
+                                                    pers,
+                                                    vis,
                                                     st, mode, lane, fuel, fe, depth, a2,
                                                     &ce,
                                                 )
                                             } else {
-                                                knot_defeq(pers,
+                                                knot_defeq(
+                                                    pers,
+                                                    vis,
                                                     st, mode, lane, fuel, fe, depth, &ce,
                                                     b2,
                                                 )
@@ -8015,13 +8228,13 @@ pub fn defeq_lit_app(
                                         }
                                     }
                                 } else {
-                                    stuck_irrel(pers, st, mode, lane, fuel, fe, depth, a2, b2)
+                                    stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
                                 }
                             }
                         },
                     },
                 },
-                Ok(_) => stuck_irrel(pers, st, mode, lane, fuel, fe, depth, a2, b2),
+                Ok(_) => stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2),
             }
         }
     }
@@ -8033,6 +8246,7 @@ pub fn defeq_lit_app(
 /// against a constructor form, compared shape-directed.
 pub fn defeq_lit_const(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -8053,7 +8267,7 @@ pub fn defeq_lit_const(
                 if c.eq2(&nz) && us.eq2(&el) {
                     Ok(nat::is_zero(n))
                 } else {
-                    stuck_irrel(pers, st, mode, lane, fuel, fe, depth, a2, b2)
+                    stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
                 }
             }
         },
@@ -8067,6 +8281,7 @@ pub fn defeq_lit_const(
 /// `defeq_lit_app`).
 pub fn defeq_struct(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -8090,23 +8305,23 @@ pub fn defeq_struct(
                 }
                 (ENodeView::Lit(Literal::NatVal(n)), ENodeView::Const(c, us)) => {
                     let m: Nat = nat::clone(&n);
-                    defeq_lit_const(pers, st, mode, lane, fuel, fe, depth, &m, &c, &us, a2, b2)
+                    defeq_lit_const(pers, vis, st, mode, lane, fuel, fe, depth, &m, &c, &us, a2, b2)
                 }
                 (ENodeView::Const(c, us), ENodeView::Lit(Literal::NatVal(n))) => {
                     let m: Nat = nat::clone(&n);
-                    defeq_lit_const(pers, st, mode, lane, fuel, fe, depth, &m, &c, &us, a2, b2)
+                    defeq_lit_const(pers, vis, st, mode, lane, fuel, fe, depth, &m, &c, &us, a2, b2)
                 }
                 (ENodeView::Lit(l), ENodeView::App(f, x)) => {
-                    defeq_lit_app(pers, st, mode, lane, fuel, fe, depth, &l, &f, &x, a2, b2, false)
+                    defeq_lit_app(pers, vis, st, mode, lane, fuel, fe, depth, &l, &f, &x, a2, b2, false)
                 }
                 (ENodeView::App(f, x), ENodeView::Lit(l)) => {
-                    defeq_lit_app(pers, st, mode, lane, fuel, fe, depth, &l, &f, &x, a2, b2, true)
+                    defeq_lit_app(pers, vis, st, mode, lane, fuel, fe, depth, &l, &f, &x, a2, b2, true)
                 }
                 (ENodeView::FVar(i, _), ENodeView::FVar(j, _)) => {
                     if i == j {
                         Ok(true)
                     } else {
-                        stuck_irrel(pers, st, mode, lane, fuel, fe, depth, a2, b2)
+                        stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
                     }
                 }
                 (ENodeView::Const(n, us), ENodeView::Const(n2, us2)) => {
@@ -8117,60 +8332,64 @@ pub fn defeq_struct(
                                 Err(e) => Err(e),
                                 Ok(true) => Ok(true),
                                 Ok(false) => {
-                                    stuck_irrel(pers, st, mode, lane, fuel, fe, depth, a2, b2)
+                                    stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
                                 }
                             },
                         }
                     } else {
-                        stuck_irrel(pers, st, mode, lane, fuel, fe, depth, a2, b2)
+                        stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
                     }
                 }
                 (
                     ENodeView::ForallE(ty1, body1, m1),
                     ENodeView::ForallE(ty2, body2, m2),
-                ) => defeq_binders(pers,
+                ) => defeq_binders(
+                    pers,
+                    vis,
                     st, mode, lane, fuel, fe, depth, &ty1, &body1, &m1, &ty2, &body2,
                     &m2, false,
                 ),
                 (ENodeView::Lam(ty1, body1, m1), ENodeView::Lam(ty2, body2, m2)) => {
-                    defeq_binders(pers,
+                    defeq_binders(
+                        pers,
+                        vis,
                         st, mode, lane, fuel, fe, depth, &ty1, &body1, &m1, &ty2, &body2,
                         &m2, true,
                     )
                 }
                 (ENodeView::App(_, _), ENodeView::App(_, _)) => {
-                    defeq_apps(pers, st, mode, lane, fuel, fe, depth, a2, b2)
+                    defeq_apps(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
                 }
                 (ENodeView::Proj(s1, i1, e1), ENodeView::Proj(s2, i2, e2)) => {
                     if s1.eq2(&s2) && i1 == i2 {
-                        match knot_defeq(pers, st, mode, lane, fuel, fe, depth, &e1, &e2) {
+                        match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &e1, &e2) {
                             Err(e) => Err(e),
                             Ok(true) => Ok(true),
                             Ok(false) => {
-                                stuck_irrel(pers, st, mode, lane, fuel, fe, depth, a2, b2)
+                                stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
                             }
                         }
                     } else {
-                        stuck_irrel(pers, st, mode, lane, fuel, fe, depth, a2, b2)
+                        stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
                     }
                 }
                 (ENodeView::Lam(ty1, body1, m1), _) => {
-                    match eta_cert(pers, st, mode, lane, fuel, fe, depth, &ty1, &body1, &m1, b2)
+                    match eta_cert(pers, vis, st, mode, lane, fuel, fe, depth, &ty1, &body1, &m1, b2)
                     {
                         Err(e) => Err(e),
                         Ok(true) => Ok(true),
-                        Ok(false) => stuck_irrel(pers, st, mode, lane, fuel, fe, depth, a2, b2),
+                        Ok(false) => stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2),
                     }
                 }
                 (_, ENodeView::Lam(ty2, body2, m2)) => {
-                    match eta_cert(pers, st, mode, lane, fuel, fe, depth, &ty2, &body2, &m2, a2)
+                    match eta_cert(pers, vis, st, mode, lane, fuel, fe, depth, &ty2, &body2, &m2, a2)
                     {
                         Err(e) => Err(e),
                         Ok(true) => Ok(true),
-                        Ok(false) => stuck_irrel(pers, st, mode, lane, fuel, fe, depth, a2, b2),
+                        Ok(false) => stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2),
                     }
                 }
-                (_, _) => stuck_irrel(pers, st, mode, lane, fuel, fe, depth, a2, b2),
+                (_, _) => stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2),
             },
         },
     }
@@ -8182,6 +8401,7 @@ pub fn defeq_struct(
 /// a recursion on the partial applications.
 pub fn defeq_apps(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -8202,19 +8422,25 @@ pub fn defeq_apps(
                         Ok(fa) => match get_app_fn(pers, st, CORE_WALK_FUEL, b2) {
                             Err(e) => Err(e),
                             Ok(fb) => {
-                                match knot_defeq(pers, st, mode, lane, fuel, fe, depth, &fa, &fb)
+                                match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &fa, &fb)
                                 {
                                     Err(e) => Err(e),
-                                    Ok(false) => stuck_irrel(pers,
+                                    Ok(false) => stuck_irrel(
+                                        pers,
+                                        vis,
                                         st, mode, lane, fuel, fe, depth, a2, b2,
                                     ),
                                     Ok(true) => {
-                                        match def_eq_list(pers,
+                                        match def_eq_list(
+                                            pers,
+                                            vis,
                                             st, mode, lane, fuel, fe, depth, &aa, &bb, 0,
                                         ) {
                                             Err(e) => Err(e),
                                             Ok(true) => Ok(true),
-                                            Ok(false) => stuck_irrel(pers,
+                                            Ok(false) => stuck_irrel(
+                                                pers,
+                                                vis,
                                                 st, mode, lane, fuel, fe, depth, a2, b2,
                                             ),
                                         }
@@ -8224,7 +8450,7 @@ pub fn defeq_apps(
                         },
                     }
                 } else {
-                    stuck_irrel(pers, st, mode, lane, fuel, fe, depth, a2, b2)
+                    stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
                 }
             }
         },
@@ -8237,6 +8463,7 @@ pub fn defeq_apps(
 /// *regular* hints, then the simultaneous unfolding.
 pub fn defeq_unfold_both(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -8247,13 +8474,13 @@ pub fn defeq_unfold_both(
     a2: &EIdx,
     b2: &EIdx,
 ) -> Result<bool, CheckError> {
-    match unfold_definition(pers, st, fe, a2) {
+    match unfold_definition(pers, vis, st, fe, a2) {
         Err(e) => Err(e),
-        Ok(ua) => match unfold_definition(pers, st, fe, b2) {
+        Ok(ua) => match unfold_definition(pers, vis, st, fe, b2) {
             Err(e) => Err(e),
             Ok(ub) => match (ua, ub) {
                 (Some(a3), Some(b3)) => {
-                    defeq_loop(pers, st, mode, lane, fuel, fe, depth, n, false, &a3, &b3)
+                    defeq_loop(pers, vis, st, mode, lane, fuel, fe, depth, n, false, &a3, &b3)
                 }
                 (_, _) => Ok(false),
             },
@@ -8266,6 +8493,7 @@ pub fn defeq_unfold_both(
 /// both-unfoldable case: the hint comparison decides which side unfolds.
 pub fn defeq_delta_both(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -8276,24 +8504,24 @@ pub fn defeq_delta_both(
     a2: &EIdx,
     b2: &EIdx,
 ) -> Result<bool, CheckError> {
-    match head_hint(pers, st, fe, a2) {
+    match head_hint(pers, vis, st, fe, a2) {
         Err(e) => Err(e),
-        Ok(ha) => match head_hint(pers, st, fe, b2) {
+        Ok(ha) => match head_hint(pers, vis, st, fe, b2) {
             Err(e) => Err(e),
             Ok(hb) => {
                 if con_ron_core::kernel::env::reducibility_hint_lt(&hb, &ha) {
-                    match unfold_definition(pers, st, fe, a2) {
+                    match unfold_definition(pers, vis, st, fe, a2) {
                         Err(e) => Err(e),
                         Ok(Some(a3)) => {
-                            defeq_loop(pers, st, mode, lane, fuel, fe, depth, n, false, &a3, b2)
+                            defeq_loop(pers, vis, st, mode, lane, fuel, fe, depth, n, false, &a3, b2)
                         }
                         Ok(None) => Ok(false),
                     }
                 } else if con_ron_core::kernel::env::reducibility_hint_lt(&ha, &hb) {
-                    match unfold_definition(pers, st, fe, b2) {
+                    match unfold_definition(pers, vis, st, fe, b2) {
                         Err(e) => Err(e),
                         Ok(Some(b3)) => {
-                            defeq_loop(pers, st, mode, lane, fuel, fe, depth, n, false, a2, &b3)
+                            defeq_loop(pers, vis, st, mode, lane, fuel, fe, depth, n, false, a2, &b3)
                         }
                         Ok(None) => Ok(false),
                     }
@@ -8310,16 +8538,20 @@ pub fn defeq_delta_both(
                                 &ha, &hb,
                             ) && sch
                             {
-                                match defeq_spine(pers, st, mode, lane, fuel, fe, depth, a2, b2)
+                                match defeq_spine(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
                                 {
                                     Err(e) => Err(e),
                                     Ok(true) => Ok(true),
-                                    Ok(false) => defeq_unfold_both(pers,
+                                    Ok(false) => defeq_unfold_both(
+                                        pers,
+                                        vis,
                                         st, mode, lane, fuel, fe, depth, n, a2, b2,
                                     ),
                                 }
                             } else {
-                                defeq_unfold_both(pers,
+                                defeq_unfold_both(
+                                    pers,
+                                    vis,
                                     st, mode, lane, fuel, fe, depth, n, a2, b2,
                                 )
                             }
@@ -8337,6 +8569,7 @@ pub fn defeq_delta_both(
 /// only the chosen side is unfolded.
 pub fn defeq_delta(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -8347,31 +8580,31 @@ pub fn defeq_delta(
     a2: &EIdx,
     b2: &EIdx,
 ) -> Result<bool, CheckError> {
-    match unfoldable_head(pers, st, fe, a2) {
+    match unfoldable_head(pers, vis, st, fe, a2) {
         Err(e) => Err(e),
-        Ok(ua) => match unfoldable_head(pers, st, fe, b2) {
+        Ok(ua) => match unfoldable_head(pers, vis, st, fe, b2) {
             Err(e) => Err(e),
             Ok(ub) => {
                 if ua && !ub {
-                    match unfold_definition(pers, st, fe, a2) {
+                    match unfold_definition(pers, vis, st, fe, a2) {
                         Err(e) => Err(e),
                         Ok(Some(a3)) => {
-                            defeq_loop(pers, st, mode, lane, fuel, fe, depth, n, false, &a3, b2)
+                            defeq_loop(pers, vis, st, mode, lane, fuel, fe, depth, n, false, &a3, b2)
                         }
                         Ok(None) => Ok(false),
                     }
                 } else if !ua && ub {
-                    match unfold_definition(pers, st, fe, b2) {
+                    match unfold_definition(pers, vis, st, fe, b2) {
                         Err(e) => Err(e),
                         Ok(Some(b3)) => {
-                            defeq_loop(pers, st, mode, lane, fuel, fe, depth, n, false, a2, &b3)
+                            defeq_loop(pers, vis, st, mode, lane, fuel, fe, depth, n, false, a2, &b3)
                         }
                         Ok(None) => Ok(false),
                     }
                 } else if ua && ub {
-                    defeq_delta_both(pers, st, mode, lane, fuel, fe, depth, n, a2, b2)
+                    defeq_delta_both(pers, vis, st, mode, lane, fuel, fe, depth, n, a2, b2)
                 } else {
-                    defeq_struct(pers, st, mode, lane, fuel, fe, depth, a2, b2)
+                    defeq_struct(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
                 }
             }
         },
@@ -8385,6 +8618,7 @@ pub fn defeq_delta(
 /// literal acceleration of either side.
 pub fn defeq_after_whnf(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -8397,7 +8631,7 @@ pub fn defeq_after_whnf(
     b2: &EIdx,
 ) -> Result<bool, CheckError> {
     let pir = if pi && !quick_pair(a2, b2) {
-        prop_irrel(pers, st, mode, lane, fuel, fe, depth, a2, b2)
+        prop_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
     } else {
         Ok(false)
     };
@@ -8408,28 +8642,30 @@ pub fn defeq_after_whnf(
             Err(e) => Err(e),
             Ok(nf) => {
                 let ra = if nf {
-                    reduce_nat(pers, st, mode, lane, fuel, fe, depth, a2)
+                    reduce_nat(pers, vis, st, mode, lane, fuel, fe, depth, a2)
                 } else {
                     Ok(None)
                 };
                 match ra {
                     Err(e) => Err(e),
                     Ok(Some(a3)) => {
-                        defeq_loop(pers, st, mode, lane, fuel, fe, depth, n, true, &a3, b2)
+                        defeq_loop(pers, vis, st, mode, lane, fuel, fe, depth, n, true, &a3, b2)
                     }
                     Ok(None) => {
                         let rb = if nf {
-                            reduce_nat(pers, st, mode, lane, fuel, fe, depth, b2)
+                            reduce_nat(pers, vis, st, mode, lane, fuel, fe, depth, b2)
                         } else {
                             Ok(None)
                         };
                         match rb {
                             Err(e) => Err(e),
-                            Ok(Some(b3)) => defeq_loop(pers,
+                            Ok(Some(b3)) => defeq_loop(
+                                pers,
+                                vis,
                                 st, mode, lane, fuel, fe, depth, n, true, a2, &b3,
                             ),
                             Ok(None) => {
-                                defeq_delta(pers, st, mode, lane, fuel, fe, depth, n, a2, b2)
+                                defeq_delta(pers, vis, st, mode, lane, fuel, fe, depth, n, a2, b2)
                             }
                         }
                     }
@@ -8453,6 +8689,7 @@ pub fn defeq_after_whnf(
 /// empty level list; `hasFvarFast` writes the fvar-range memo).
 pub fn defeq_step(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -8473,7 +8710,7 @@ pub fn defeq_step(
                 Err(e) => Err(e),
                 Ok(hf) => {
                     let sc = if pi && ibt && !hf {
-                        bool_true_shortcut(pers, st, mode, lane, fuel, fe, depth, a)
+                        bool_true_shortcut(pers, vis, st, mode, lane, fuel, fe, depth, a)
                     } else {
                         Ok(false)
                     };
@@ -8481,17 +8718,19 @@ pub fn defeq_step(
                         Err(e) => Err(e),
                         Ok(true) => Ok(true),
                         Ok(false) => {
-                            match knot_whnf_core(pers, st, mode, lane, fuel, fe, depth, a) {
+                            match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, a) {
                                 Err(e) => Err(e),
                                 Ok(a2) => {
-                                    match knot_whnf_core(pers, st, mode, lane, fuel, fe, depth, b)
+                                    match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, b)
                                     {
                                         Err(e) => Err(e),
                                         Ok(b2) => {
                                             if a2.eq2(&b2) {
                                                 Ok(true)
                                             } else {
-                                                defeq_after_whnf(pers,
+                                                defeq_after_whnf(
+                                                    pers,
+                                                    vis,
                                                     st, mode, lane, fuel, fe, depth, n,
                                                     pi, &a2, &b2,
                                                 )
@@ -8513,6 +8752,7 @@ pub fn defeq_step(
 /// lazy-delta loop: iterate `defeqStep` on its own step budget.
 pub fn defeq_loop(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -8527,7 +8767,7 @@ pub fn defeq_loop(
     if n == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_DEFEQ_LOOP)))
     } else {
-        defeq_step(pers, st, mode, lane, fuel, fe, depth, n - 1, pi, a, b)
+        defeq_step(pers, vis, st, mode, lane, fuel, fe, depth, n - 1, pi, a, b)
     }
 }
 
@@ -8542,6 +8782,7 @@ pub const DEFEQ_LOOP_FUEL: u64 = 100000;
 /// definitional-equality body: the lazy-delta loop at its own step budget.
 pub fn defeq_body(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -8551,7 +8792,7 @@ pub fn defeq_body(
     a: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    defeq_loop(pers, st, mode, lane, fuel, fe, depth, DEFEQ_LOOP_FUEL, true, a, b)
+    defeq_loop(pers, vis, st, mode, lane, fuel, fe, depth, DEFEQ_LOOP_FUEL, true, a, b)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:2688-2697 isPropType
@@ -8559,6 +8800,7 @@ pub fn defeq_body(
 /// (raw) type is a `Prop` by annotating it and inferring its sort.
 pub fn is_prop_type(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -8567,12 +8809,12 @@ pub fn is_prop_type(
     depth: u64,
     ty: &EIdx,
 ) -> Result<bool, CheckError> {
-    match knot_annotate(pers, st, mode, lane, fuel, fe, depth, ty) {
+    match knot_annotate(pers, vis, st, mode, lane, fuel, fe, depth, ty) {
         Err(e) => Err(e),
         // io grade: `ty'` is the pass's own output, already annotated
-        Ok(typ) => match knot_infer_io(pers, st, mode, lane, fuel, fe, depth, &typ) {
+        Ok(typ) => match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, &typ) {
             Err(e) => Err(e),
-            Ok(t) => match ensure_sort(pers, st, mode, lane, fuel, fe, depth, &t) {
+            Ok(t) => match ensure_sort(pers, vis, st, mode, lane, fuel, fe, depth, &t) {
                 Err(e) => Err(e),
                 Ok(s) => match zero_level(st) {
                     Err(e) => Err(e),
@@ -8622,6 +8864,7 @@ pub fn annot_binder_meta(pw: Option<PropWhen>, mb: &BinderMeta) -> BinderMeta {
 /// read.
 pub fn annot_pw_pi(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -8630,13 +8873,13 @@ pub fn annot_pw_pi(
     depth: u64,
     body: &EIdx,
 ) -> Result<PropWhen, CheckError> {
-    match type_sort_pw(pers, st, fe, CORE_WALK_FUEL, body) {
+    match type_sort_pw(pers, vis, st, fe, CORE_WALK_FUEL, body) {
         Err(e) => Err(e),
         Ok(Some(pw)) => Ok(pw),
         // io grade: `body'` is already annotated (bottom-up)
-        Ok(None) => match knot_infer_io(pers, st, mode, lane, fuel, fe, depth, body) {
+        Ok(None) => match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, body) {
             Err(e) => Err(e),
-            Ok(t) => match ensure_sort(pers, st, mode, lane, fuel, fe, depth, &t) {
+            Ok(t) => match ensure_sort(pers, vis, st, mode, lane, fuel, fe, depth, &t) {
                 Err(e) => Err(e),
                 Ok(v) => match read_level(pers, st, &v) {
                     Err(e) => Err(e),
@@ -8652,6 +8895,7 @@ pub fn annot_pw_pi(
 /// datum: the zero-ness of the sort of the *body's type*.
 pub fn annot_pw_lam(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -8660,14 +8904,14 @@ pub fn annot_pw_lam(
     depth: u64,
     body: &EIdx,
 ) -> Result<PropWhen, CheckError> {
-    match proof_pw(pers, st, fe, CORE_WALK_FUEL, body) {
+    match proof_pw(pers, vis, st, fe, CORE_WALK_FUEL, body) {
         Err(e) => Err(e),
         Ok(Some(pw)) => Ok(pw),
-        Ok(None) => match knot_infer_io(pers, st, mode, lane, fuel, fe, depth, body) {
+        Ok(None) => match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, body) {
             Err(e) => Err(e),
-            Ok(bt) => match knot_infer_io(pers, st, mode, lane, fuel, fe, depth, &bt) {
+            Ok(bt) => match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, &bt) {
                 Err(e) => Err(e),
-                Ok(t) => match ensure_sort(pers, st, mode, lane, fuel, fe, depth, &t) {
+                Ok(t) => match ensure_sort(pers, vis, st, mode, lane, fuel, fe, depth, &t) {
                     Err(e) => Err(e),
                     Ok(vb) => match read_level(pers, st, &vb) {
                         Err(e) => Err(e),
@@ -8685,6 +8929,7 @@ pub fn annot_pw_lam(
 /// datum computation they run when the input annotation is a placeholder.
 pub fn annotate_binder(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -8696,23 +8941,27 @@ pub fn annotate_binder(
     mb: &BinderMeta,
     is_lam: bool,
 ) -> Result<EIdx, CheckError> {
-    match knot_annotate(pers, st, mode, lane, fuel, fe, depth, ty) {
+    match knot_annotate(pers, vis, st, mode, lane, fuel, fe, depth, ty) {
         Err(e) => Err(e),
         Ok(typ) => match intern_e(pers, st, ENodeView::FVar(depth, typ.dup2())) {
             Err(e) => Err(e),
             Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body, &fv, 0) {
                 Err(e) => Err(e),
                 Ok(ob) => {
-                    match knot_annotate(pers, st, mode, lane, fuel, fe, depth + 1, &ob) {
+                    match knot_annotate(pers, vis, st, mode, lane, fuel, fe, depth + 1, &ob) {
                         Err(e) => Err(e),
                         Ok(bodyp) => {
                             let pw = if !pw_written(&mb.pw) {
                                 if is_lam {
-                                    annot_pw_lam(pers,
+                                    annot_pw_lam(
+                                        pers,
+                                        vis,
                                         st, mode, lane, fuel, fe, depth + 1, &bodyp,
                                     )
                                 } else {
-                                    annot_pw_pi(pers,
+                                    annot_pw_pi(
+                                        pers,
+                                        vis,
                                         st, mode, lane, fuel, fe, depth + 1, &bodyp,
                                     )
                                 }
@@ -8722,7 +8971,8 @@ pub fn annotate_binder(
                             match pw {
                                 Err(e) => Err(e),
                                 Ok(pw) => {
-                                    match abstract1_fast(pers,
+                                    match abstract1_fast(
+                                        pers,
                                         st,
                                         CORE_WALK_FUEL,
                                         &bodyp,
@@ -8733,12 +8983,14 @@ pub fn annotate_binder(
                                         Ok(ab) => {
                                             let m = expr::binder_meta(pw);
                                             if is_lam {
-                                                intern_e(pers,
+                                                intern_e(
+                                                    pers,
                                                     st,
                                                     ENodeView::Lam(typ, ab, m),
                                                 )
                                             } else {
-                                                intern_e(pers,
+                                                intern_e(
+                                                    pers,
                                                     st,
                                                     ENodeView::ForallE(typ, ab, m),
                                                 )
@@ -8762,6 +9014,7 @@ pub fn annotate_binder(
 /// `let`.
 pub fn annotate_let(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -8772,18 +9025,18 @@ pub fn annotate_let(
     v: &EIdx,
     b: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match knot_annotate(pers, st, mode, lane, fuel, fe, depth, ty) {
+    match knot_annotate(pers, vis, st, mode, lane, fuel, fe, depth, ty) {
         Err(e) => Err(e),
-        Ok(typ) => match knot_infer(pers, st, mode, lane, fuel, fe, depth, &typ) {
+        Ok(typ) => match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, &typ) {
             Err(e) => Err(e),
-            Ok(t) => match ensure_sort(pers, st, mode, lane, fuel, fe, depth, &t) {
+            Ok(t) => match ensure_sort(pers, vis, st, mode, lane, fuel, fe, depth, &t) {
                 Err(e) => Err(e),
-                Ok(_) => match knot_annotate(pers, st, mode, lane, fuel, fe, depth, v) {
+                Ok(_) => match knot_annotate(pers, vis, st, mode, lane, fuel, fe, depth, v) {
                     Err(e) => Err(e),
-                    Ok(vp) => match knot_infer(pers, st, mode, lane, fuel, fe, depth, &vp) {
+                    Ok(vp) => match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, &vp) {
                         Err(e) => Err(e),
                         Ok(tv) => {
-                            match knot_defeq(pers, st, mode, lane, fuel, fe, depth, &tv, &typ) {
+                            match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &tv, &typ) {
                                 Err(e) => Err(e),
                                 Ok(false) => {
                                     fail(CheckError::Invalid(code_points(&M_LET_VALUE)))
@@ -8791,7 +9044,9 @@ pub fn annotate_let(
                                 Ok(true) => {
                                     match instantiate1_fast(pers, st, CORE_WALK_FUEL, b, v, 0) {
                                         Err(e) => Err(e),
-                                        Ok(bz) => knot_annotate(pers,
+                                        Ok(bz) => knot_annotate(
+                                            pers,
+                                            vis,
                                             st, mode, lane, fuel, fe, depth, &bz,
                                         ),
                                     }
@@ -8811,6 +9066,7 @@ pub fn annotate_let(
 /// structure name, official's `infer_proj` premise, here.
 pub fn annotate_proj(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -8821,18 +9077,18 @@ pub fn annotate_proj(
     i: u64,
     pe: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match knot_annotate(pers, st, mode, lane, fuel, fe, depth, pe) {
+    match knot_annotate(pers, vis, st, mode, lane, fuel, fe, depth, pe) {
         Err(e) => Err(e),
-        Ok(ep) => match knot_infer_io(pers, st, mode, lane, fuel, fe, depth, &ep) {
+        Ok(ep) => match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, &ep) {
             Err(e) => Err(e),
-            Ok(t) => match knot_whnf(pers, st, mode, lane, fuel, fe, depth, &t) {
+            Ok(t) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &t) {
                 Err(e) => Err(e),
                 Ok(te) => match get_app_fn(pers, st, CORE_WALK_FUEL, &te) {
                     Err(e) => Err(e),
                     Ok(hd) => match view(pers, st, &hd) {
                         Err(e) => Err(e),
                         Ok(ENodeView::Const(tn, _)) => {
-                            annotate_proj_at(pers, st, fe, sn, i, &ep, &te, &tn)
+                            annotate_proj_at(pers, vis, st, fe, sn, i, &ep, &te, &tn)
                         }
                         Ok(_) => {
                             fail(CheckError::NotImplemented(code_points(&M_NONSTRUCT)))
@@ -8849,6 +9105,7 @@ pub fn annotate_proj(
 /// `.proj` clause's body, once the subject type's head is known.
 pub fn annotate_proj_at(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     sn: &NIdx,
@@ -8857,7 +9114,7 @@ pub fn annotate_proj_at(
     te: &EIdx,
     tn: &NIdx,
 ) -> Result<EIdx, CheckError> {
-    match env::ifenv_find_proj(pers, &mut st.store, fe, tn, i) {
+    match env::ifenv_find_proj(pers, vis, &mut st.store, fe, tn, i) {
         Err(e) => Err(e),
         Ok(Some(entry)) => {
             if !tn.eq2(sn) {
@@ -8875,7 +9132,7 @@ pub fn annotate_proj_at(
                 }
             }
         }
-        Ok(None) => match env::ifenv_find_proj(pers, &mut st.store, fe, tn, 0) {
+        Ok(None) => match env::ifenv_find_proj(pers, vis, &mut st.store, fe, tn, 0) {
             Err(e) => Err(e),
             Ok(Some(_)) => fail(CheckError::Invalid(code_points(&M_RANGE))),
             Ok(None) => {
@@ -8891,6 +9148,7 @@ pub fn annotate_proj_at(
 /// bottom-up, by real inference on the opened (already annotated) body.
 pub fn annotate_body(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -8912,25 +9170,26 @@ pub fn annotate_body(
         }
         Ok(ENodeView::Sort(_)) => Ok(e.dup2()),
         Ok(ENodeView::Const(_, _)) => Ok(e.dup2()),
-        Ok(ENodeView::Lit(Literal::NatVal(_))) => match nat_lit_supported(pers, st, fe) {
+        Ok(ENodeView::Lit(Literal::NatVal(_))) => match nat_lit_supported(pers, vis, st, fe) {
             Err(er) => Err(er),
             Ok(true) => Ok(e.dup2()),
             Ok(false) => fail(CheckError::Invalid(code_points(&M_NAT))),
         },
-        Ok(ENodeView::Lit(Literal::StrVal(_))) => match str_lit_supported(pers, st, fe) {
+        Ok(ENodeView::Lit(Literal::StrVal(_))) => match str_lit_supported(pers, vis, st, fe) {
             Err(er) => Err(er),
             Ok(true) => Ok(e.dup2()),
             Ok(false) => fail(CheckError::NotImplemented(code_points(&M_STR))),
         },
         // structural (con-leche's task #100 stage 6)
         Ok(ENodeView::App(f, a)) => {
-            match knot_annotate(pers, st, mode, lane, fuel, fe, depth, &f) {
+            match knot_annotate(pers, vis, st, mode, lane, fuel, fe, depth, &f) {
                 Err(er) => Err(er),
-                Ok(fp) => match knot_annotate(pers, st, mode, lane, fuel, fe, depth, &a) {
+                Ok(fp) => match knot_annotate(pers, vis, st, mode, lane, fuel, fe, depth, &a) {
                     Err(er) => Err(er),
                     Ok(ap) => {
                         let same: bool = fp.eq2(&f) && ap.eq2(&a);
-                        crate::arena::expr_ops::intern_rebuilt(pers,
+                        crate::arena::expr_ops::intern_rebuilt(
+                            pers,
                             st,
                             e,
                             same,
@@ -8941,16 +9200,16 @@ pub fn annotate_body(
             }
         }
         Ok(ENodeView::ForallE(ty, body, mb)) => {
-            annotate_binder(pers, st, mode, lane, fuel, fe, depth, &ty, &body, &mb, false)
+            annotate_binder(pers, vis, st, mode, lane, fuel, fe, depth, &ty, &body, &mb, false)
         }
         Ok(ENodeView::Lam(ty, body, mb)) => {
-            annotate_binder(pers, st, mode, lane, fuel, fe, depth, &ty, &body, &mb, true)
+            annotate_binder(pers, vis, st, mode, lane, fuel, fe, depth, &ty, &body, &mb, true)
         }
         Ok(ENodeView::LetE(ty, v, b)) => {
-            annotate_let(pers, st, mode, lane, fuel, fe, depth, &ty, &v, &b)
+            annotate_let(pers, vis, st, mode, lane, fuel, fe, depth, &ty, &v, &b)
         }
         Ok(ENodeView::Proj(sn, i, pe)) => {
-            annotate_proj(pers, st, mode, lane, fuel, fe, depth, &sn, i, &pe)
+            annotate_proj(pers, vis, st, mode, lane, fuel, fe, depth, &sn, i, &pe)
         }
     }
 }
@@ -9186,6 +9445,7 @@ pub fn defeq_probe(st: &AState, k: &EIdxPair) -> Option<bool> {
 /// would let one lane's table answer the other lane's query.
 pub fn knot_whnf_core(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -9199,11 +9459,11 @@ pub fn knot_whnf_core(
     } else if whnf_core_stuck_tag(e) {
         Ok(e.dup2())
     } else if lane == LANE_GATED {
-        whnf_core_body_gated(pers, st, mode, lane, fuel - 1, fe, depth, e)
+        whnf_core_body_gated(pers, vis, st, mode, lane, fuel - 1, fe, depth, e)
     } else {
         match whnf_core_probe(st, e) {
             Some(r) => Ok(r),
-            None => match whnf_core_body(pers, st, mode, LANE_FULL, fuel - 1, fe, depth, e) {
+            None => match whnf_core_body(pers, vis, st, mode, LANE_FULL, fuel - 1, fe, depth, e) {
                 Err(er) => Err(er),
                 Ok(r) => {
                     whnf_core_set(st, e, &r);
@@ -9222,6 +9482,7 @@ pub fn knot_whnf_core(
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:43 coreKnotIO` — the `whnf` slot.
 pub fn knot_whnf(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -9235,11 +9496,11 @@ pub fn knot_whnf(
     } else if whnf_stuck_tag(e) {
         Ok(e.dup2())
     } else if lane == LANE_GATED {
-        whnf_body(pers, st, mode, lane, fuel - 1, fe, depth, e)
+        whnf_body(pers, vis, st, mode, lane, fuel - 1, fe, depth, e)
     } else {
         match whnf_probe(st, e) {
             Some(r) => Ok(r),
-            None => match whnf_body(pers, st, mode, LANE_FULL, fuel - 1, fe, depth, e) {
+            None => match whnf_body(pers, vis, st, mode, LANE_FULL, fuel - 1, fe, depth, e) {
                 Err(er) => Err(er),
                 Ok(r) => {
                     whnf_set(st, e, &r);
@@ -9262,6 +9523,7 @@ pub fn knot_whnf(
 /// `inferBodyIO` tied to the io knot, unmemoized (the leaf lane).
 pub fn knot_infer(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -9273,13 +9535,13 @@ pub fn knot_infer(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_INFER)))
     } else if lane == LANE_GATED {
-        infer_body(pers, st, mode, lane, fuel - 1, fe, depth, e)
+        infer_body(pers, vis, st, mode, lane, fuel - 1, fe, depth, e)
     } else if lane == LANE_IO {
-        infer_body_io(pers, st, mode, lane, false, fuel - 1, fe, depth, e)
+        infer_body_io(pers, vis, st, mode, lane, false, fuel - 1, fe, depth, e)
     } else {
         match infer_probe(st, e) {
             Some(r) => Ok(r),
-            None => match infer_body(pers, st, mode, LANE_FULL, fuel - 1, fe, depth, e) {
+            None => match infer_body(pers, vis, st, mode, LANE_FULL, fuel - 1, fe, depth, e) {
                 Err(er) => Err(er),
                 Ok(r) => {
                     infer_set(st, e, &r);
@@ -9306,6 +9568,7 @@ pub fn knot_infer(
 /// comment), and `LANE_IO`'s is its `infer` slot again.
 pub fn knot_infer_io(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -9317,14 +9580,14 @@ pub fn knot_infer_io(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_INFER)))
     } else if lane == LANE_GATED {
-        infer_body(pers, st, mode, lane, fuel - 1, fe, depth, e)
+        infer_body(pers, vis, st, mode, lane, fuel - 1, fe, depth, e)
     } else if lane == LANE_IO {
-        infer_body_io(pers, st, mode, lane, false, fuel - 1, fe, depth, e)
+        infer_body_io(pers, vis, st, mode, lane, false, fuel - 1, fe, depth, e)
     } else if con_ron_core::kernel::env::io_gate(mode) {
         match infer_io_probe(st, e) {
             Some(r) => Ok(r),
             None => {
-                match infer_body_io(pers, st, mode, LANE_FULL, true, fuel - 1, fe, depth, e) {
+                match infer_body_io(pers, vis, st, mode, LANE_FULL, true, fuel - 1, fe, depth, e) {
                     Err(er) => Err(er),
                     Ok(r) => {
                         infer_io_set(st, e, &r);
@@ -9336,7 +9599,7 @@ pub fn knot_infer_io(
     } else {
         match infer_probe(st, e) {
             Some(r) => Ok(r),
-            None => match infer_body(pers, st, mode, LANE_FULL, fuel - 1, fe, depth, e) {
+            None => match infer_body(pers, vis, st, mode, LANE_FULL, fuel - 1, fe, depth, e) {
                 Err(er) => Err(er),
                 Ok(r) => {
                     infer_set(st, e, &r);
@@ -9357,6 +9620,7 @@ pub fn knot_infer_io(
 /// record whose `infer` field can be rebound.
 pub fn knot_infer_at(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -9367,9 +9631,9 @@ pub fn knot_infer_at(
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
     if io {
-        knot_infer_io(pers, st, mode, lane, fuel, fe, depth, e)
+        knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, e)
     } else {
-        knot_infer(pers, st, mode, lane, fuel, fe, depth, e)
+        knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, e)
     }
 }
 
@@ -9382,6 +9646,7 @@ pub fn knot_infer_at(
 /// slot, memoized at the ORDERED pair.
 pub fn knot_defeq(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -9394,12 +9659,12 @@ pub fn knot_defeq(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_DEFEQ)))
     } else if lane == LANE_GATED {
-        defeq_body(pers, st, mode, lane, fuel - 1, fe, depth, a, b)
+        defeq_body(pers, vis, st, mode, lane, fuel - 1, fe, depth, a, b)
     } else {
         let k: EIdxPair = eidx_pair(a, b);
         match defeq_probe(st, &k) {
             Some(r) => Ok(r),
-            None => match defeq_body(pers, st, mode, LANE_FULL, fuel - 1, fe, depth, a, b) {
+            None => match defeq_body(pers, vis, st, mode, LANE_FULL, fuel - 1, fe, depth, a, b) {
                 Err(er) => Err(er),
                 Ok(r) => {
                     defeq_set(st, a, b, r);
@@ -9419,6 +9684,7 @@ pub fn knot_defeq(
 /// slot.
 pub fn knot_annotate(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -9430,11 +9696,11 @@ pub fn knot_annotate(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_ANNOTATE)))
     } else if lane == LANE_GATED {
-        annotate_body(pers, st, mode, lane, fuel - 1, fe, depth, e)
+        annotate_body(pers, vis, st, mode, lane, fuel - 1, fe, depth, e)
     } else {
         match annot_probe(st, e) {
             Some(r) => Ok(r),
-            None => match annotate_body(pers, st, mode, LANE_FULL, fuel - 1, fe, depth, e) {
+            None => match annotate_body(pers, vis, st, mode, LANE_FULL, fuel - 1, fe, depth, e) {
                 Err(er) => Err(er),
                 Ok(r) => {
                     annot_set(st, e, &r);
@@ -9468,6 +9734,7 @@ pub const CHECK_FUEL: u64 = 100000;
 /// normalization without delta (fueled).
 pub fn whnf_core(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -9475,7 +9742,7 @@ pub fn whnf_core(
     depth: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    knot_whnf_core(pers, st, mode, LANE_FULL, fuel, fe, depth, e)
+    knot_whnf_core(pers, vis, st, mode, LANE_FULL, fuel, fe, depth, e)
 }
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:31-33 whnf
@@ -9483,6 +9750,7 @@ pub fn whnf_core(
 /// reduction loop (fueled).
 pub fn whnf(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -9490,7 +9758,7 @@ pub fn whnf(
     depth: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    knot_whnf(pers, st, mode, LANE_FULL, fuel, fe, depth, e)
+    knot_whnf(pers, vis, st, mode, LANE_FULL, fuel, fe, depth, e)
 }
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:35-38 inferTypeCore
@@ -9498,6 +9766,7 @@ pub fn whnf(
 /// full-grade type inference (fueled): the declaration front door's entry.
 pub fn infer_type_core(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -9505,7 +9774,7 @@ pub fn infer_type_core(
     depth: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    knot_infer(pers, st, mode, LANE_FULL, fuel, fe, depth, e)
+    knot_infer(pers, vis, st, mode, LANE_FULL, fuel, fe, depth, e)
 }
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:40-46 inferTypeIO
@@ -9514,6 +9783,7 @@ pub fn infer_type_core(
 /// runs.
 pub fn infer_type_io(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -9521,7 +9791,7 @@ pub fn infer_type_io(
     depth: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    knot_infer_io(pers, st, mode, LANE_FULL, fuel, fe, depth, e)
+    knot_infer_io(pers, vis, st, mode, LANE_FULL, fuel, fe, depth, e)
 }
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:48-50 isDefEqCore
@@ -9529,6 +9799,7 @@ pub fn infer_type_io(
 /// definitional equality (fueled).
 pub fn is_def_eq_core(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -9537,7 +9808,7 @@ pub fn is_def_eq_core(
     a: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    knot_defeq(pers, st, mode, LANE_FULL, fuel, fe, depth, a, b)
+    knot_defeq(pers, vis, st, mode, LANE_FULL, fuel, fe, depth, a, b)
 }
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:52-54 annotateCore
@@ -9545,6 +9816,7 @@ pub fn is_def_eq_core(
 /// annotation pass (fueled).
 pub fn annotate_core(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -9552,7 +9824,7 @@ pub fn annotate_core(
     depth: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    knot_annotate(pers, st, mode, LANE_FULL, fuel, fe, depth, e)
+    knot_annotate(pers, vis, st, mode, LANE_FULL, fuel, fe, depth, e)
 }
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:56-58 ensureSortCore
@@ -9560,6 +9832,7 @@ pub fn annotate_core(
 /// `ensureSort` over the knot (fueled).
 pub fn ensure_sort_core(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -9567,7 +9840,7 @@ pub fn ensure_sort_core(
     depth: u64,
     e: &EIdx,
 ) -> Result<LIdx, CheckError> {
-    ensure_sort(pers, st, mode, LANE_FULL, fuel, fe, depth, e)
+    ensure_sort(pers, vis, st, mode, LANE_FULL, fuel, fe, depth, e)
 }
 
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:23-25 pureFns
@@ -10177,7 +10450,7 @@ mod tests {
         assert!(expr::beq(&denote_e(pers, &f.st.store, &f.succ3).unwrap(), &f.t.succ3));
         assert!(f.fe.env.consts.len() == 8);
         let last = env::i_constant_info_name(&f.fe.env.consts[7]);
-        assert!(env::ifenv_find(&f.fe, &last).is_some());
+        assert!(env::ifenv_find(f.fe.visible_below, &f.fe, &last).is_some());
     }
 
     // --- 2. the positive outcomes, pinned by hand (7) ------------------------
@@ -10229,23 +10502,23 @@ mod tests {
         let pers: &PersTier = &PersTier::empty();
         let mut f = build_fx();
         let m = mu();
-        let two = ok(whnf(pers, &mut f.st, &m, &f.fe, F, 0, &f.two));
+        let two = ok(whnf(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, 0, &f.two));
         assert!(expr::beq(
             &denote_e(pers, &f.st.store, &two).unwrap(),
             &expr::lit(expr::literal_nat(nat::from_u64(2)))
         ));
-        let four = ok(whnf(pers, &mut f.st, &m, &f.fe, F, 0, &f.beta_succ));
+        let four = ok(whnf(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, 0, &f.beta_succ));
         assert!(expr::beq(
             &denote_e(pers, &f.st.store, &four).unwrap(),
             &expr::lit(expr::literal_nat(nat::from_u64(4)))
         ));
-        let t7 = ok(infer_type_core(pers, &mut f.st, &m, &f.fe, F, 0, &f.lit7));
+        let t7 = ok(infer_type_core(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, 0, &f.lit7));
         assert!(expr::beq(&denote_e(pers, &f.st.store, &t7).unwrap(), &f.t.nat_ty));
-        let tid = ok(infer_type_core(pers, &mut f.st, &m, &f.fe, F, 0, &f.id_nat));
+        let tid = ok(infer_type_core(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, 0, &f.id_nat));
         assert!(expr::beq(&denote_e(pers, &f.st.store, &tid).unwrap(), &f.t.pi_nat));
-        assert!(ok(is_def_eq_core(pers, &mut f.st, &m, &f.fe, F, 0, &f.pf_a, &f.pf_b)));
-        assert!(!ok(is_def_eq_core(pers, &mut f.st, &m, &f.fe, F, 0, &f.two, &f.lit7)));
-        let ann = ok(annotate_core(pers, &mut f.st, &m, &f.fe, F, 0, &f.id_prop));
+        assert!(ok(is_def_eq_core(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, 0, &f.pf_a, &f.pf_b)));
+        assert!(!ok(is_def_eq_core(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, 0, &f.two, &f.lit7)));
+        let ann = ok(annotate_core(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, 0, &f.id_prop));
         assert!(expr::beq(
             &denote_e(pers, &f.st.store, &ann).unwrap(),
             &expr::lam(
@@ -10278,7 +10551,7 @@ mod tests {
             (f.nat.dup2(), expr::dup(&f.t.nat_ty), 0),
         ];
         for (h, e, d) in subjects.iter() {
-            let got = whnf(pers, &mut f.st, &m, &f.fe, F, *d, h);
+            let got = whnf(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, *d, h);
             let want = core_c::whnf(&m, F, &mut f.cst, &f.cfe, *d, e);
             assert!(chk_e(pers, &f.st, got, want), "whnf disagreed");
         }
@@ -10298,12 +10571,12 @@ mod tests {
             (f.pi_pi.dup2(), expr::dup(&f.t.pi_pi)),
         ];
         for (h, e) in subjects.iter() {
-            let got = whnf_core(pers, &mut f.st, &m, &f.fe, F, 0, h);
+            let got = whnf_core(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, 0, h);
             let want = core_c::whnf_core(&m, F, &mut f.cst, &f.cfe, 0, e);
             assert!(chk_e(pers, &f.st, got, want));
         }
         // `whnfCore` must NOT unfold `two`, where `whnf` does
-        let wc = ok(whnf_core(pers, &mut f.st, &m, &f.fe, F, 0, &f.two));
+        let wc = ok(whnf_core(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, 0, &f.two));
         assert!(expr::beq(
             &denote_e(pers, &f.st.store, &wc).unwrap(),
             &f.t.two
@@ -10334,7 +10607,7 @@ mod tests {
             (f.fv0.dup2(), expr::dup(&f.t.fv0), 0),
         ];
         for (h, e, d) in subjects.iter() {
-            let got = infer_type_core(pers, &mut f.st, &m, &f.fe, F, *d, h);
+            let got = infer_type_core(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, *d, h);
             let want = core_c::infer(&m, F, &mut f.cst, &f.cfe, *d, e);
             assert!(chk_e(pers, &f.st, got, want));
         }
@@ -10353,7 +10626,7 @@ mod tests {
             (f.succ3.dup2(), expr::dup(&f.t.succ3)),
         ];
         for (h, e) in subjects.iter() {
-            let got = infer_type_io(pers, &mut f.st, &m, &f.fe, F, 0, h);
+            let got = infer_type_io(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, 0, h);
             let want = core_c::infer_io(&m, F, &mut f.cst, &f.cfe, 0, e);
             assert!(chk_e(pers, &f.st, got, want));
         }
@@ -10416,7 +10689,7 @@ mod tests {
             ),
         ];
         for (ha, hb, ea, eb) in pairs.iter() {
-            let got = is_def_eq_core(pers, &mut f.st, &m, &f.fe, F, 0, ha, hb);
+            let got = is_def_eq_core(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, 0, ha, hb);
             let want = core_c::defeq(&m, F, &mut f.cst, &f.cfe, 0, ea, eb);
             assert!(chk_b(got, want));
         }
@@ -10446,7 +10719,7 @@ mod tests {
             (f.fv0.dup2(), expr::dup(&f.t.fv0)),
         ];
         for (h, e) in subjects.iter() {
-            let got = annotate_core(pers, &mut f.st, &m, &f.fe, F, 0, h);
+            let got = annotate_core(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, 0, h);
             let want = core_c::annotate(&m, F, &mut f.cst, &f.cfe, 0, e);
             assert!(chk_e(pers, &f.st, got, want));
         }
@@ -10465,7 +10738,7 @@ mod tests {
             (f.two.dup2(), expr::dup(&f.t.two)),
         ];
         for (h, e) in subjects.iter() {
-            let got = ensure_sort_core(pers, &mut f.st, &m, &f.fe, F, 0, h);
+            let got = ensure_sort_core(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, 0, h);
             let want = core_c::ensure_sort_i(&m, F, &mut f.cst, &f.cfe, 0, e);
             assert!(chk_l(pers, &f.st, got, want));
         }
@@ -10481,16 +10754,16 @@ mod tests {
         // the `whnf` table is empty before the first call and carries the
         // subject afterwards
         let before = f.st.caches.whnf_c.contains_key(&f.two);
-        let r1 = ok(whnf(pers, &mut f.st, &m, &f.fe, F, 0, &f.two));
+        let r1 = ok(whnf(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, 0, &f.two));
         let after = f.st.caches.whnf_c.contains_key(&f.two);
         assert!(!before);
         assert!(after);
         // the second call returns the same handle as the first
-        let r2 = ok(whnf(pers, &mut f.st, &m, &f.fe, F, 0, &f.two));
+        let r2 = ok(whnf(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, 0, &f.two));
         assert!(r1.eq2(&r2));
         // …and the second call is a HIT: it is answered from the table
         let hit = whnf_probe(&f.st, &f.two).unwrap();
-        let r3 = ok(whnf(pers, &mut f.st, &m, &f.fe, F, 0, &f.two));
+        let r3 = ok(whnf(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, 0, &f.two));
         assert!(hit.eq2(&r3));
         // the three infer grades keep three tables: a `whnf` run populates
         // `whnfC` and `whnfCoreC`, never `annotC`
@@ -10500,17 +10773,17 @@ mod tests {
         // a full-grade `infer` populates `inferC`; the io grade populates
         // `inferIOC` (DESIGN.md §8.3, lesson 9)
         let mut g = build_fx();
-        let _ = infer_type_core(pers, &mut g.st, &m, &g.fe, F, 0, &g.succ3);
+        let _ = infer_type_core(pers, g.fe.visible_below, &mut g.st, &m, &g.fe, F, 0, &g.succ3);
         assert!(g.st.caches.infer_c.len() > 0);
         let mut h = build_fx();
-        let _ = infer_type_io(pers, &mut h.st, &m, &h.fe, F, 0, &h.succ3);
+        let _ = infer_type_io(pers, h.fe.visible_below, &mut h.st, &m, &h.fe, F, 0, &h.succ3);
         assert!(h.st.caches.infer_io_c.len() > 0);
         // the `defeq` table stores the verdict at the ordered pair, both
         // signs: a `false` answer is memoized too
         let mut k = build_fx();
-        let v1 = ok(is_def_eq_core(pers, &mut k.st, &m, &k.fe, F, 0, &k.two, &k.lit7));
+        let v1 = ok(is_def_eq_core(pers, k.fe.visible_below, &mut k.st, &m, &k.fe, F, 0, &k.two, &k.lit7));
         let probe = defeq_probe(&k.st, &eidx_pair(&k.two, &k.lit7));
-        let v2 = ok(is_def_eq_core(pers, &mut k.st, &m, &k.fe, F, 0, &k.two, &k.lit7));
+        let v2 = ok(is_def_eq_core(pers, k.fe.visible_below, &mut k.st, &m, &k.fe, F, 0, &k.two, &k.lit7));
         assert!(probe == Some(v1) && v1 == v2 && !v1);
     }
 
@@ -10522,7 +10795,7 @@ mod tests {
         // the caches go whole, persistent rows included: `drop_scratch` is
         // con-leche's `flushC` (task #97f, P2f — DESIGN.md §8.3's survivor
         // policy is amended, and the twin's `#guard` says the same)
-        let _ = whnf(pers, &mut f.st, &m, &f.fe, F, 0, &f.two);
+        let _ = whnf(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, 0, &f.two);
         let before = f.st.caches.whnf_c.len();
         enter_scratch(&mut f.st);
         drop_scratch(&mut f.st);
@@ -10536,7 +10809,7 @@ mod tests {
         // #97-P6-1; the predicate is what P3 states `flushC`'s soundness
         // against, and the twin's `Caches.dropScratchEntries` is where.)
         let mut g = build_fx();
-        let r = ok(whnf(pers, &mut g.st, &m, &g.fe, F, 0, &g.two));
+        let r = ok(whnf(pers, g.fe.visible_below, &mut g.st, &m, &g.fe, F, 0, &g.two));
         assert!(crate::arena::core_state::keep_e(&g.two, &r));
     }
 
@@ -10553,12 +10826,13 @@ mod tests {
         // `Nat` is an inductive and not a definition to unfold — so `whnf`
         // answers it with itself and records that answer.
         enter_scratch(&mut f.st);
-        let lit = ok(intern_e(pers,
+        let lit = ok(intern_e(
+            pers,
             &mut f.st,
             ENodeView::Lit(expr::literal_nat(nat::from_u64(123456))),
         ));
         let h = ok(intern_e(pers, &mut f.st, ENodeView::App(f.nat.dup2(), lit)));
-        let _ = whnf(pers, &mut f.st, &m, &f.fe, F, 0, &h);
+        let _ = whnf(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, 0, &h);
         let inside = f.st.caches.whnf_c.contains_key(&h);
         let scratch = !h.is_persistent();
         drop_scratch(&mut f.st);
@@ -10584,27 +10858,27 @@ mod tests {
         let pers: &PersTier = &PersTier::empty();
         let mut f = build_fx();
         let m = mu();
-        let got = core_gated::whnf_core_gated(pers, &mut f.st, &m, &f.fe, F, 0, &f.beta_two);
+        let got = core_gated::whnf_core_gated(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, 0, &f.beta_two);
         let want = core_c::whnf_core(&m, F, &mut f.cst, &f.cfe, 0, &f.t.beta_two);
         assert!(chk_e(pers, &f.st, got, want));
 
-        let got = core_gated::whnf_gated(pers, &mut f.st, &m, &f.fe, F, 0, &f.two);
+        let got = core_gated::whnf_gated(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, 0, &f.two);
         let want = core_c::whnf(&m, F, &mut f.cst, &f.cfe, 0, &f.t.two);
         assert!(chk_e(pers, &f.st, got, want));
 
-        let got = core_gated::infer_type_core_gated(pers, &mut f.st, &m, &f.fe, F, 0, &f.succ3);
+        let got = core_gated::infer_type_core_gated(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, 0, &f.succ3);
         let want = core_c::infer(&m, F, &mut f.cst, &f.cfe, 0, &f.t.succ3);
         assert!(chk_e(pers, &f.st, got, want));
 
-        let got = core_io::infer_type_core_io(pers, &mut f.st, &m, &f.fe, F, 0, &f.succ3);
+        let got = core_io::infer_type_core_io(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, 0, &f.succ3);
         let want = core_c::infer_io(&m, F, &mut f.cst, &f.cfe, 0, &f.t.succ3);
         assert!(chk_e(pers, &f.st, got, want));
 
-        let got = core_gated::annotate_core_gated(pers, &mut f.st, &m, &f.fe, F, 0, &f.id_prop);
+        let got = core_gated::annotate_core_gated(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, 0, &f.id_prop);
         let want = core_c::annotate(&m, F, &mut f.cst, &f.cfe, 0, &f.t.id_prop);
         assert!(chk_e(pers, &f.st, got, want));
 
-        let got = core_gated::is_def_eq_core_gated(pers, &mut f.st, &m, &f.fe, F, 0, &f.pf_a, &f.pf_b);
+        let got = core_gated::is_def_eq_core_gated(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, 0, &f.pf_a, &f.pf_b);
         let want = core_c::defeq(&m, F, &mut f.cst, &f.cfe, 0, &f.t.pf_a, &f.t.pf_b);
         assert!(chk_b(got, want));
     }

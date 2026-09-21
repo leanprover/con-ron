@@ -549,7 +549,8 @@ pub fn mk_lams_from(
     } else {
         match mk_lams_from(pers, st, bs, i + 1, body) {
             Err(e) => Err(e),
-            Ok(acc) => intern_e(pers,
+            Ok(acc) => intern_e(
+                pers,
                 st,
                 ENodeView::Lam(bs[i].0.dup2(), acc, expr::binder_meta_dup(&bs[i].1)),
             ),
@@ -695,7 +696,8 @@ pub fn mk_proj_motive_at(
             Err(e) => Err(e),
             Ok(true) => match expr_ops::lift_loose_bvars_fast(pers, st, fuel, 1, 1, &pb.r) {
                 Err(e) => Err(e),
-                Ok(rl) => match intern_e(pers,
+                Ok(rl) => match intern_e(
+                    pers,
                     st,
                     ENodeView::Lam(bs[0].0.dup2(), rl, expr::binder_meta_dup(&bs[0].1)),
                 ) {
@@ -703,7 +705,8 @@ pub fn mk_proj_motive_at(
                     Ok(r) => Ok(Some(r)),
                 },
             },
-            Ok(false) => match intern_e(pers,
+            Ok(false) => match intern_e(
+                pers,
                 st,
                 ENodeView::Lam(
                     bs[0].0.dup2(),
@@ -1062,7 +1065,8 @@ pub fn proj_rec_value_binders(
             match build_binders(pers, st, &ProjBinderKind::Minor, &pb, fuel, o.num_minors, &mrt.1) {
                 Err(e) => Err(e),
                 Ok(None) => Ok(None),
-                Ok(Some(nrt)) => proj_rec_value_major(pers,
+                Ok(Some(nrt)) => proj_rec_value_major(
+                    pers,
                     st, fuel, o, lbs, us, params, &mrt.0, &nrt.0, &nrt.1,
                 ),
             }
@@ -2381,7 +2385,8 @@ mod tests {
         let pers: &PersTier = &PersTier::empty();
         let (fx, mut st) = build();
         let o = &fx.owner;
-        let got = ok(proj_rec_value(pers,
+        let got = ok(proj_rec_value(
+            pers,
             &mut st,
             F,
             o,
@@ -2390,12 +2395,14 @@ mod tests {
             &fx.proj_val0,
             0,
         ));
-        assert!(same_oe(pers,
+        assert!(same_oe(
+            pers,
             &st,
             got,
             tree::proj_rec_value(&owner_p(), &pu(), &proj_ty(), &proj_val(0), 0)
         ));
-        let got = ok(proj_rec_value(pers,
+        let got = ok(proj_rec_value(
+            pers,
             &mut st,
             F,
             o,
@@ -2404,12 +2411,14 @@ mod tests {
             &fx.proj_val1,
             1,
         ));
-        assert!(same_oe(pers,
+        assert!(same_oe(
+            pers,
             &st,
             got,
             tree::proj_rec_value(&owner_p(), &pu(), &proj_ty(), &proj_val(1), 1)
         ));
-        let got = ok(proj_rec_value(pers,
+        let got = ok(proj_rec_value(
+            pers,
             &mut st,
             F,
             o,
@@ -2418,12 +2427,14 @@ mod tests {
             &fx.bad_val_h,
             0,
         ));
-        assert!(same_oe(pers,
+        assert!(same_oe(
+            pers,
             &st,
             got,
             tree::proj_rec_value(&owner_p(), &pu(), &proj_ty(), &bad_val(), 0)
         ));
-        let got = ok(proj_rec_value(pers,
+        let got = ok(proj_rec_value(
+            pers,
             &mut st,
             F,
             o,
@@ -2432,12 +2443,14 @@ mod tests {
             &fx.proj_val0,
             5,
         ));
-        assert!(same_oe(pers,
+        assert!(same_oe(
+            pers,
             &st,
             got,
             tree::proj_rec_value(&owner_p(), &pu(), &proj_ty(), &proj_val(0), 5)
         ));
-        let got = ok(proj_rec_value(pers,
+        let got = ok(proj_rec_value(
+            pers,
             &mut st,
             F,
             o,
@@ -2446,7 +2459,8 @@ mod tests {
             &fx.rec_ty_h,
             0,
         ));
-        assert!(same_oe(pers,
+        assert!(same_oe(
+            pers,
             &st,
             got,
             tree::proj_rec_value(&owner_p(), &pu(), &proj_ty(), &rec_ty(), 0)
@@ -2466,7 +2480,8 @@ mod tests {
     fn the_owner_census_agrees_at_both_blocks() {
         let pers: &PersTier = &PersTier::empty();
         let (fx, mut st) = build();
-        let got = ok(proj_rec_owners(pers,
+        let got = ok(proj_rec_owners(
+            pers,
             &mut st,
             F,
             &fx.block,
@@ -2479,7 +2494,8 @@ mod tests {
             got.iter().map(|o| den_owner(pers, &st, o)).collect();
         assert!(beq_owners(&got_d, &want));
 
-        let got = ok(proj_rec_owners(pers,
+        let got = ok(proj_rec_owners(
+            pers,
             &mut st,
             F,
             &fx.block_d,

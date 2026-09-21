@@ -24,6 +24,7 @@ use crate::arena::store::PersTier;
 /// — `checkSumTele` through the index; the same function.
 pub fn check_sum_tele_f(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -31,7 +32,7 @@ pub fn check_sum_tele_f(
     n: u64,
     cv_ta0: &IConstantVal,
 ) -> Result<(IConstantVal, LIdx), CheckError> {
-    sum_install::check_sum_tele(pers, st, mode, fe, cv, n, cv_ta0)
+    sum_install::check_sum_tele(pers, vis, st, mode, fe, cv, n, cv_ta0)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:32-43 checkSumIndF
@@ -54,6 +55,7 @@ pub fn check_sum_ind_f(
 #[allow(clippy::too_many_arguments)]
 pub fn check_struct_field_sorts_i_f(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -65,7 +67,7 @@ pub fn check_struct_field_sorts_i_f(
     idx_args: &Vec<EIdx>,
     k: u64,
 ) -> Result<Vec<LIdx>, CheckError> {
-    sum_install::check_struct_field_sorts_i(pers, st, mode, fe, is_prop, large, s, n_p, fvs, idx_args, k)
+    sum_install::check_struct_field_sorts_i(pers, vis, st, mode, fe, is_prop, large, s, n_p, fvs, idx_args, k)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:63-81 checkStructFieldSortsIFA
@@ -75,6 +77,7 @@ pub fn check_struct_field_sorts_i_f(
 #[allow(clippy::too_many_arguments)]
 pub fn check_struct_field_sorts_i_fa(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -86,7 +89,7 @@ pub fn check_struct_field_sorts_i_fa(
     idx_args: &Vec<EIdx>,
     k: u64,
 ) -> Result<Vec<LIdx>, CheckError> {
-    sum_install::check_struct_field_sorts_i(pers, st, mode, fe, is_prop, large, s, n_p, fvs, idx_args, k)
+    sum_install::check_struct_field_sorts_i(pers, vis, st, mode, fe, is_prop, large, s, n_p, fvs, idx_args, k)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:83-95 normCtorValF
@@ -95,6 +98,7 @@ pub fn check_struct_field_sorts_i_fa(
 #[allow(clippy::too_many_arguments)]
 pub fn norm_ctor_val_f(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -104,7 +108,7 @@ pub fn norm_ctor_val_f(
     cv_c: &IConstantVal,
     cv_ca: &IConstantVal,
 ) -> Result<IConstantVal, CheckError> {
-    sum_install::norm_ctor_val(pers, st, mode, fe, t, n_p, n_f, cv_c, cv_ca)
+    sum_install::norm_ctor_val(pers, vis, st, mode, fe, t, n_p, n_f, cv_c, cv_ca)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:97-128 checkSumCtorF
@@ -128,7 +132,8 @@ pub fn check_sum_ctor_f(
     n_f: u64,
     cv_ta: &IConstantVal,
 ) -> Result<(IConstantVal, Vec<LIdx>), CheckError> {
-    sum_install::check_sum_ctor(pers,
+    sum_install::check_sum_ctor(
+        pers,
         st, mode, fe0, fe, t, lps, n_p, n_idx, res_sort, is_prop, large, cv_c, n_f, cv_ta,
     )
 }
@@ -156,7 +161,8 @@ pub fn check_sum_ctors_f(
     out: Vec<(IConstantVal, u64)>,
     sout: Vec<Vec<LIdx>>,
 ) -> Result<(Vec<(IConstantVal, u64)>, Vec<Vec<LIdx>>), CheckError> {
-    sum_install::check_sum_ctors(pers,
+    sum_install::check_sum_ctors(
+        pers,
         st, mode, fe0, fe, t, lps, n_p, n_idx, res_sort, is_prop, large, cv_ta, ctors, i, out, sout,
     )
 }

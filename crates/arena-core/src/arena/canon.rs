@@ -414,7 +414,8 @@ pub fn i_constant_val_canon_eq(
     if cv.name.eq2(&cv2.name) && cv.level_params.len() == cv2.level_params.len() {
         match canon_names(pers, st, cv.level_params.len() as u64) {
             Err(e) => Err(e),
-            Ok(cs) => canon_expr_eq(pers,
+            Ok(cs) => canon_expr_eq(
+                pers,
                 st,
                 &cv.level_params,
                 &cv2.level_params,
@@ -628,7 +629,8 @@ pub fn canon_eq_cv_and_value(
             } else {
                 match canon_names(pers, st, cv.level_params.len() as u64) {
                     Err(e) => Err(e),
-                    Ok(cs) => canon_expr_eq(pers,
+                    Ok(cs) => canon_expr_eq(
+                        pers,
                         st,
                         &cv.level_params,
                         &cv2.level_params,
@@ -662,7 +664,8 @@ pub fn canon_eq_cv_and_rules(
             } else {
                 match canon_names(pers, st, cv.level_params.len() as u64) {
                     Err(e) => Err(e),
-                    Ok(cs) => canon_rules_eq(pers,
+                    Ok(cs) => canon_rules_eq(
+                        pers,
                         st,
                         &cv.level_params,
                         &cv2.level_params,

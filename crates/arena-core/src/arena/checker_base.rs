@@ -684,6 +684,7 @@ pub fn all_level_params_defined(
 /// thing on eight fixtures and it is what made them time out).
 pub fn consts_resolve_f_go(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     memo: &mut HashMap<EIdx, bool>,
@@ -695,13 +696,13 @@ pub fn consts_resolve_f_go(
     } else {
         match view(pers, st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::BVar(_)) => consts_resolve(pers, st, fe, CORE_WALK_FUEL, h),
-            Ok(ENodeView::Sort(_)) => consts_resolve(pers, st, fe, CORE_WALK_FUEL, h),
-            Ok(ENodeView::Lit(_)) => consts_resolve(pers, st, fe, CORE_WALK_FUEL, h),
-            Ok(ENodeView::Const(_, _)) => consts_resolve(pers, st, fe, CORE_WALK_FUEL, h),
+            Ok(ENodeView::BVar(_)) => consts_resolve(pers, vis, st, fe, CORE_WALK_FUEL, h),
+            Ok(ENodeView::Sort(_)) => consts_resolve(pers, vis, st, fe, CORE_WALK_FUEL, h),
+            Ok(ENodeView::Lit(_)) => consts_resolve(pers, vis, st, fe, CORE_WALK_FUEL, h),
+            Ok(ENodeView::Const(_, _)) => consts_resolve(pers, vis, st, fe, CORE_WALK_FUEL, h),
             Ok(v) => match memo_b_get(memo, h) {
                 Some(r) => Ok(r),
-                None => match consts_resolve_f_node(pers, st, fe, memo, fuel - 1, v) {
+                None => match consts_resolve_f_node(pers, vis, st, fe, memo, fuel - 1, v) {
                     Err(e) => Err(e),
                     Ok(r) => {
                         memo.insert(h.dup2(), r);
@@ -719,6 +720,7 @@ pub fn consts_resolve_f_go(
 /// the structure's own resolution, as the twin has it.
 pub fn consts_resolve_f_node(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     memo: &mut HashMap<EIdx, bool>,
@@ -726,22 +728,22 @@ pub fn consts_resolve_f_node(
     v: ENodeView,
 ) -> Result<bool, CheckError> {
     match v {
-        ENodeView::FVar(_, ty) => consts_resolve_f_go(pers, st, fe, memo, fuel, &ty),
-        ENodeView::App(f, a) => consts_resolve_f_two(pers, st, fe, memo, fuel, &f, &a),
-        ENodeView::Lam(ty, body, _) => consts_resolve_f_two(pers, st, fe, memo, fuel, &ty, &body),
-        ENodeView::ForallE(ty, body, _) => consts_resolve_f_two(pers, st, fe, memo, fuel, &ty, &body),
+        ENodeView::FVar(_, ty) => consts_resolve_f_go(pers, vis, st, fe, memo, fuel, &ty),
+        ENodeView::App(f, a) => consts_resolve_f_two(pers, vis, st, fe, memo, fuel, &f, &a),
+        ENodeView::Lam(ty, body, _) => consts_resolve_f_two(pers, vis, st, fe, memo, fuel, &ty, &body),
+        ENodeView::ForallE(ty, body, _) => consts_resolve_f_two(pers, vis, st, fe, memo, fuel, &ty, &body),
         ENodeView::LetE(ty, val, body) => {
-            match consts_resolve_f_two(pers, st, fe, memo, fuel, &ty, &val) {
+            match consts_resolve_f_two(pers, vis, st, fe, memo, fuel, &ty, &val) {
                 Err(e) => Err(e),
-                Ok(b12) => match consts_resolve_f_go(pers, st, fe, memo, fuel, &body) {
+                Ok(b12) => match consts_resolve_f_go(pers, vis, st, fe, memo, fuel, &body) {
                     Err(e) => Err(e),
                     Ok(b3) => Ok(b12 && b3),
                 },
             }
         }
-        ENodeView::Proj(s, _, sub) => match consts_resolve_f_go(pers, st, fe, memo, fuel, &sub) {
+        ENodeView::Proj(s, _, sub) => match consts_resolve_f_go(pers, vis, st, fe, memo, fuel, &sub) {
             Err(e) => Err(e),
-            Ok(b) => Ok(ifenv_find(fe, &s).is_some() && b),
+            Ok(b) => Ok(ifenv_find(vis, fe, &s).is_some() && b),
         },
         _ => Ok(false),
     }
@@ -753,6 +755,7 @@ pub fn consts_resolve_f_node(
 /// because the memo the second walk fills is part of the state.
 pub fn consts_resolve_f_two(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     memo: &mut HashMap<EIdx, bool>,
@@ -760,9 +763,9 @@ pub fn consts_resolve_f_two(
     a: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    match consts_resolve_f_go(pers, st, fe, memo, fuel, a) {
+    match consts_resolve_f_go(pers, vis, st, fe, memo, fuel, a) {
         Err(e) => Err(e),
-        Ok(b1) => match consts_resolve_f_go(pers, st, fe, memo, fuel, b) {
+        Ok(b1) => match consts_resolve_f_go(pers, vis, st, fe, memo, fuel, b) {
             Err(e) => Err(e),
             Ok(b2) => Ok(b1 && b2),
         },
@@ -775,12 +778,13 @@ pub fn consts_resolve_f_two(
 /// front door below calls.
 pub fn consts_resolve_f_fast(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     e: &EIdx,
 ) -> Result<bool, CheckError>  {
     let mut memo: HashMap<EIdx, bool> = HashMap::new();
-    consts_resolve_f_go(pers, st, fe, &mut memo, CORE_WALK_FUEL, e)
+    consts_resolve_f_go(pers, vis, st, fe, &mut memo, CORE_WALK_FUEL, e)
 }
 
 /// con-leche: none — `xs.map Expr.fvarTypeD` over a list of handles
@@ -857,16 +861,17 @@ pub fn unresolved_consts_error(
 /// drops the interpolation, so the readbacks go with it.
 pub fn check_constant_val(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
     cv: &IConstantVal,
 ) -> Result<IConstantVal, CheckError> {
-    match check_constant_val_guards(pers, st, fe, cv) {
+    match check_constant_val_guards(pers, vis, st, fe, cv) {
         Err(e) => Err(e),
-        Ok(()) => match annotate_core(pers, st, mode, fe, CHECK_FUEL, 0, &cv.ty) {
+        Ok(()) => match annotate_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &cv.ty) {
             Err(e) => Err(e),
-            Ok(ty) => check_constant_val_after_annot(pers, st, mode, fe, cv, ty),
+            Ok(ty) => check_constant_val_after_annot(pers, vis, st, mode, fe, cv, ty),
         },
     }
 }
@@ -880,11 +885,12 @@ pub fn check_constant_val(
 /// clause for clause a second time (as con-leche does).
 pub fn check_constant_val_guards(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     cv: &IConstantVal,
 ) -> Result<(), CheckError> {
-    if ifenv_find(fe, &cv.name).is_some() {
+    if ifenv_find(vis, fe, &cv.name).is_some() {
         fail(CheckError::Invalid(code_points(&M_DUP_DECL)))
     } else {
         match reserved_basis_names(st) {
@@ -947,17 +953,18 @@ pub fn check_constant_val_guards_rest(
 /// type's own sort, and the record update `{ cv with type := type }`.
 pub fn check_constant_val_after_annot(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
     cv: &IConstantVal,
     ty: EIdx,
 ) -> Result<IConstantVal, CheckError> {
-    match install_constant_val_tail(pers, st, fe, cv, ty) {
+    match install_constant_val_tail(pers, vis, st, fe, cv, ty) {
         Err(e) => Err(e),
-        Ok(cv_a) => match infer_type_core(pers, st, mode, fe, CHECK_FUEL, 0, &cv_a.ty) {
+        Ok(cv_a) => match infer_type_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &cv_a.ty) {
             Err(e) => Err(e),
-            Ok(stype) => match ensure_sort_core(pers, st, mode, fe, CHECK_FUEL, 0, &stype) {
+            Ok(stype) => match ensure_sort_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &stype) {
                 Err(e) => Err(e),
                 Ok(_u) => Ok(cv_a),
             },
@@ -974,6 +981,7 @@ pub fn check_constant_val_after_annot(
 /// where the Lean writes it twice.
 pub fn install_constant_val_tail(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     cv: &IConstantVal,
@@ -985,7 +993,7 @@ pub fn install_constant_val_tail(
             if !d {
                 fail(CheckError::Invalid(code_points(&M_UNDECL_TYPE)))
             } else {
-                match consts_resolve_f_fast(pers, st, fe, &ty) {
+                match consts_resolve_f_fast(pers, vis, st, fe, &ty) {
                     Err(e) => Err(e),
                     Ok(r) => {
                         if !r {
@@ -1157,6 +1165,7 @@ pub fn open_pis_at_fvars_f(
 /// recursion is one index recursion.
 pub fn check_typed_list(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -1170,13 +1179,13 @@ pub fn check_typed_list(
     } else if i >= xs.len() || i >= ts.len() {
         fail(CheckError::NotImplemented(code_points(&M_NESTED_PIN_ARITY)))
     } else {
-        match infer_type_core(pers, st, mode, fe, CHECK_FUEL, depth, &xs[i]) {
+        match infer_type_core(pers, vis, st, mode, fe, CHECK_FUEL, depth, &xs[i]) {
             Err(e) => Err(e),
-            Ok(ty) => match is_def_eq_core(pers, st, mode, fe, CHECK_FUEL, depth, &ty, &ts[i]) {
+            Ok(ty) => match is_def_eq_core(pers, vis, st, mode, fe, CHECK_FUEL, depth, &ty, &ts[i]) {
                 Err(e) => Err(e),
                 Ok(ok) => {
                     if ok {
-                        check_typed_list(pers, st, mode, fe, depth, xs, ts, i + 1)
+                        check_typed_list(pers, vis, st, mode, fe, depth, xs, ts, i + 1)
                     } else {
                         fail(CheckError::NotImplemented(code_points(&M_NESTED_PIN_TYPE)))
                     }
@@ -1192,6 +1201,7 @@ pub fn check_typed_list(
 /// given context.
 pub fn check_annot_list(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -1202,11 +1212,11 @@ pub fn check_annot_list(
     if i >= xs.len() {
         Ok(())
     } else {
-        match annotate_core(pers, st, mode, fe, CHECK_FUEL, depth, &xs[i]) {
+        match annotate_core(pers, vis, st, mode, fe, CHECK_FUEL, depth, &xs[i]) {
             Err(e) => Err(e),
             Ok(a_a) => {
                 if a_a.eq2(&xs[i]) {
-                    check_annot_list(pers, st, mode, fe, depth, xs, i + 1)
+                    check_annot_list(pers, vis, st, mode, fe, depth, xs, i + 1)
                 } else {
                     fail(CheckError::NotImplemented(code_points(&M_NESTED_PIN_ANNOT)))
                 }
@@ -1273,6 +1283,7 @@ pub fn eq_head_level_at(pers: &PersTier, st: &mut AState, us: &LsIdx) -> Result<
 /// including a length difference).
 pub fn check_def_eq_list(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -1286,11 +1297,11 @@ pub fn check_def_eq_list(
     } else if i >= xs.len() || i >= ys.len() {
         fail(CheckError::NotImplemented(code_points(&M_IOTA_COMP_ARITY)))
     } else {
-        match is_def_eq_core(pers, st, mode, fe, CHECK_FUEL, depth, &xs[i], &ys[i]) {
+        match is_def_eq_core(pers, vis, st, mode, fe, CHECK_FUEL, depth, &xs[i], &ys[i]) {
             Err(e) => Err(e),
             Ok(ok) => {
                 if ok {
-                    check_def_eq_list(pers, st, mode, fe, depth, xs, ys, i + 1)
+                    check_def_eq_list(pers, vis, st, mode, fe, depth, xs, ys, i + 1)
                 } else {
                     fail(CheckError::NotImplemented(code_points(
                         &M_IOTA_COMP_MISMATCH,
@@ -1319,11 +1330,12 @@ pub fn unwrap_or<T>(o: Option<T>, err: CheckError) -> Result<T, CheckError> {
 /// task #97-P4c's row).
 pub fn ifenv_find_cv(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     n: &NIdx,
 ) -> Result<Option<IConstantVal>, CheckError> {
-    match ifenv_find(fe, n) {
+    match ifenv_find(vis, fe, n) {
         Some(ci) => {
             let c = i_constant_info_dup(ci);
             match i_constant_info_to_constant_val(pers, &mut st.store, &c) {
@@ -1410,6 +1422,7 @@ pub fn check_proj_shape_residual(
 /// (task #97-P4c's rule).
 pub fn check_proj_rule(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -1425,7 +1438,7 @@ pub fn check_proj_rule(
         Ok(bv) => match pis_to_lams(pers, st, n_p + n_f, &cvj.ty, &bv) {
             Err(e) => Err(e),
             Ok(None) => fail(CheckError::NotImplemented(code_points(&M_PROJ_RULE_TELE))),
-            Ok(Some(rhs)) => check_proj_rule_scoped(pers, st, mode, fe, pty, cvj, lps, n_p, n_f, bv, rhs),
+            Ok(Some(rhs)) => check_proj_rule_scoped(pers, vis, st, mode, fe, pty, cvj, lps, n_p, n_f, bv, rhs),
         },
     }
 }
@@ -1437,6 +1450,7 @@ pub fn check_proj_rule(
 /// computes them (task #97-P4c's "Lean's `do` does not short-circuit").
 pub fn check_proj_rule_scoped(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -1458,10 +1472,10 @@ pub fn check_proj_rule_scoped(
                         &M_PROJ_RULE_SCOPING,
                     )))
                 } else {
-                    match annotate_core(pers, st, mode, fe, CHECK_FUEL, 0, &rhs) {
+                    match annotate_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &rhs) {
                         Err(e) => Err(e),
                         Ok(rhs_a) => {
-                            check_proj_rule_wf(pers, st, mode, fe, pty, cvj, lps, n_p, n_f, bv, rhs_a)
+                            check_proj_rule_wf(pers, vis, st, mode, fe, pty, cvj, lps, n_p, n_f, bv, rhs_a)
                         }
                     }
                 }
@@ -1475,6 +1489,7 @@ pub fn check_proj_rule_scoped(
 /// the annotated rule's well-formedness gate.
 pub fn check_proj_rule_wf(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -1486,13 +1501,13 @@ pub fn check_proj_rule_wf(
     bv: EIdx,
     rhs_a: EIdx,
 ) -> Result<EIdx, CheckError> {
-    match proj_rule_wf(pers, st, fe, &rhs_a, lps) {
+    match proj_rule_wf(pers, vis, st, fe, &rhs_a, lps) {
         Err(e) => Err(e),
         Ok(ok) => {
             if !ok {
                 fail(CheckError::NotImplemented(code_points(&M_PROJ_RULE_WF)))
             } else {
-                check_proj_rule_shape(pers, st, mode, fe, pty, cvj, n_p, n_f, bv, rhs_a)
+                check_proj_rule_shape(pers, vis, st, mode, fe, pty, cvj, n_p, n_f, bv, rhs_a)
             }
         }
     }
@@ -1505,6 +1520,7 @@ pub fn check_proj_rule_wf(
 /// conjunction is taken at the end.
 pub fn proj_rule_wf(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     rhs_a: &EIdx,
@@ -1512,7 +1528,7 @@ pub fn proj_rule_wf(
 ) -> Result<bool, CheckError> {
     match all_level_params_defined(pers, st, lps, rhs_a) {
         Err(e) => Err(e),
-        Ok(d) => match consts_resolve_f_fast(pers, st, fe, rhs_a) {
+        Ok(d) => match consts_resolve_f_fast(pers, vis, st, fe, rhs_a) {
             Err(e) => Err(e),
             Ok(r) => match loose_bvars_bounded_fast(pers, st, CORE_WALK_FUEL, 0, rhs_a) {
                 Err(e) => Err(e),
@@ -1531,6 +1547,7 @@ pub fn proj_rule_wf(
 /// `bvar (nF - 1 - i)`, and its domains against the constructor's.
 pub fn check_proj_rule_shape(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -1555,7 +1572,7 @@ pub fn check_proj_rule_shape(
                         if !doms_match_aux(&rbinders, &cbinders_r, 0, 0, n_p + n_f) {
                             fail(CheckError::NotImplemented(code_points(&M_PROJ_RULE_DOMAIN)))
                         } else {
-                            check_proj_rule_certs(pers, st, mode, fe, pty, cvj, n_p, n_f, rhs_a)
+                            check_proj_rule_certs(pers, vis, st, mode, fe, pty, cvj, n_p, n_f, rhs_a)
                         }
                     }
                 }
@@ -1571,6 +1588,7 @@ pub fn check_proj_rule_shape(
 /// own inference.
 pub fn check_proj_rule_certs(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -1589,10 +1607,10 @@ pub fn check_proj_rule_certs(
             Ok(Some((cdoms_p, crest_p))) => match fvar_type_ds(pers, st, &fvs_p, 0, Vec::new()) {
                 Err(e) => Err(e),
                 Ok(ptypes) => {
-                    match check_def_eq_list(pers, st, mode, fe, n_p + n_f, &ptypes, &cdoms_p, 0) {
+                    match check_def_eq_list(pers, vis, st, mode, fe, n_p + n_f, &ptypes, &cdoms_p, 0) {
                         Err(e) => Err(e),
                         Ok(()) => {
-                            check_proj_rule_frame(pers, st, mode, fe, n_p, n_f, fvs_p, crest_p, rhs_a)
+                            check_proj_rule_frame(pers, vis, st, mode, fe, n_p, n_f, fvs_p, crest_p, rhs_a)
                         }
                     }
                 }
@@ -1606,6 +1624,7 @@ pub fn check_proj_rule_certs(
 /// the field frame, the λ-tower's instantiated domains, and the inference.
 pub fn check_proj_rule_frame(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -1626,9 +1645,9 @@ pub fn check_proj_rule_frame(
                 Ok(Some((ldoms, _))) => match fvar_type_ds(pers, st, &frame, 0, Vec::new()) {
                     Err(e) => Err(e),
                     Ok(ftypes) => {
-                        match check_def_eq_list(pers, st, mode, fe, n_p + n_f, &ftypes, &ldoms, 0) {
+                        match check_def_eq_list(pers, vis, st, mode, fe, n_p + n_f, &ftypes, &ldoms, 0) {
                             Err(e) => Err(e),
-                            Ok(()) => match infer_type_core(pers, st, mode, fe, CHECK_FUEL, 0, &rhs_a) {
+                            Ok(()) => match infer_type_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &rhs_a) {
                                 Err(e) => Err(e),
                                 Ok(_rhs_ty) => Ok(rhs_a),
                             },

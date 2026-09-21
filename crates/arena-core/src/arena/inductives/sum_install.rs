@@ -188,6 +188,7 @@ pub const M_CTOR_IDX: [u32; 50] = [
 /// the way out; the port pushes on the way in, at the same order of effects.
 pub fn whnf_telescope(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -196,7 +197,7 @@ pub fn whnf_telescope(
     e: &EIdx,
     out: Vec<(EIdx, BinderMeta)>,
 ) -> Result<(Vec<(EIdx, BinderMeta)>, LIdx), CheckError> {
-    match core::whnf(pers, st, mode, fe, core::CHECK_FUEL, i, e) {
+    match core::whnf(pers, vis, st, mode, fe, core::CHECK_FUEL, i, e) {
         Err(er) => Err(er),
         Ok(e2) => match view(pers, st, &e2) {
             Err(er) => Err(er),
@@ -219,7 +220,7 @@ pub fn whnf_telescope(
                                 Ok(b) => {
                                     let mut o: Vec<(EIdx, BinderMeta)> = out;
                                     o.push((dom, bm));
-                                    whnf_telescope(pers, st, mode, fe, i + 1, n - 1, &b, o)
+                                    whnf_telescope(pers, vis, st, mode, fe, i + 1, n - 1, &b, o)
                                 }
                             }
                         }
@@ -276,6 +277,7 @@ pub fn close_telescope(
 /// former's type in its place.
 pub fn check_sum_tele(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -288,9 +290,9 @@ pub fn check_sum_tele(
         Ok(Some(q)) => match view(pers, st, &q.1) {
             Err(e) => Err(e),
             Ok(ENodeView::Sort(s)) => Ok((env::i_constant_val_dup(cv_ta0), s)),
-            Ok(_) => check_sum_tele_slow(pers, st, mode, fe, cv, n, cv_ta0),
+            Ok(_) => check_sum_tele_slow(pers, vis, st, mode, fe, cv, n, cv_ta0),
         },
-        Ok(None) => check_sum_tele_slow(pers, st, mode, fe, cv, n, cv_ta0),
+        Ok(None) => check_sum_tele_slow(pers, vis, st, mode, fe, cv, n, cv_ta0),
     }
 }
 
@@ -301,6 +303,7 @@ pub fn check_sum_tele(
 /// whnf loop.
 pub fn check_sum_tele_slow(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -308,7 +311,7 @@ pub fn check_sum_tele_slow(
     n: u64,
     cv_ta0: &IConstantVal,
 ) -> Result<(IConstantVal, LIdx), CheckError> {
-    match whnf_telescope(pers, st, mode, fe, 0, n, &cv_ta0.ty, Vec::new()) {
+    match whnf_telescope(pers, vis, st, mode, fe, 0, n, &cv_ta0.ty, Vec::new()) {
         Err(e) => Err(e),
         Ok(q) => match intern_e(pers, st, ENodeView::Sort(q.1.dup2())) {
             Err(e) => Err(e),
@@ -320,7 +323,7 @@ pub fn check_sum_tele_slow(
                         level_params: env::nidx_vec_dup(&cv.level_params),
                         ty,
                     };
-                    match checker_base::check_constant_val(pers, st, mode, fe, &cv2) {
+                    match checker_base::check_constant_val(pers, vis, st, mode, fe, &cv2) {
                         Err(e) => Err(e),
                         Ok(cv_ta) => Ok((cv_ta, q.1)),
                     }
@@ -380,9 +383,9 @@ pub fn check_sum_ind(
     p: &InductiveShape,
     is_rec: bool,
 ) -> Result<(IFEnv, IConstantVal, InductiveShape), CheckError> {
-    match checker_base::check_constant_val(pers, st, mode, &fe, &p.cv_t) {
+    match checker_base::check_constant_val(pers, fe.visible_below, st, mode, &fe, &p.cv_t) {
         Err(e) => Err(e),
-        Ok(cv_ta0) => match check_sum_tele(pers, st, mode, &fe, &p.cv_t, p.n_p + p.n_idx, &cv_ta0) {
+        Ok(cv_ta0) => match check_sum_tele(pers, fe.visible_below, st, mode, &fe, &p.cv_t, p.n_p + p.n_idx, &cv_ta0) {
             Err(e) => Err(e),
             Ok(q) => check_sum_ind_at(pers, st, fe, p, is_rec, q.0, q.1),
         },
@@ -457,6 +460,7 @@ pub fn eidx_contains(xs: &Vec<EIdx>, x: &EIdx, i: usize) -> bool {
 #[allow(clippy::too_many_arguments)]
 pub fn check_struct_field_sorts_i(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -482,10 +486,12 @@ pub fn check_struct_field_sorts_i(
             Ok(fv) => match expr_ops::fvar_type_d(pers, st, &fv) {
                 Err(e) => Err(e),
                 Ok(fvt) => {
-                    match core::infer_type_core(pers, st, mode, fe, core::CHECK_FUEL, n_p + j, &fvt) {
+                    match core::infer_type_core(pers, vis, st, mode, fe, core::CHECK_FUEL, n_p + j, &fvt) {
                         Err(e) => Err(e),
                         Ok(ty) => {
-                            match core::ensure_sort_core(pers,
+                            match core::ensure_sort_core(
+                                pers,
+                                vis,
                                 st,
                                 mode,
                                 fe,
@@ -498,7 +504,9 @@ pub fn check_struct_field_sorts_i(
                                     match field_sort_bound(pers, st, is_prop, large, s, &u, &fv, idx_args)
                                     {
                                         Err(e) => Err(e),
-                                        Ok(()) => match check_struct_field_sorts_i(pers,
+                                        Ok(()) => match check_struct_field_sorts_i(
+                                            pers,
+                                            vis,
                                             st, mode, fe, is_prop, large, s, n_p, fvs, idx_args, j,
                                         ) {
                                             Err(e) => Err(e),
@@ -579,6 +587,7 @@ pub fn field_sort_bound(
 /// binders.
 pub fn norm_pos_dom(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -593,12 +602,12 @@ pub fn norm_pos_dom(
         match struct_parts::mentions_const(pers, st, t, e) {
             Err(er) => Err(er),
             Ok(false) => Ok(e.dup2()),
-            Ok(true) => match core::whnf(pers, st, mode, fe, core::CHECK_FUEL, d, e) {
+            Ok(true) => match core::whnf(pers, vis, st, mode, fe, core::CHECK_FUEL, d, e) {
                 Err(er) => Err(er),
                 Ok(w) => match struct_parts::mentions_const(pers, st, t, &w) {
                     Err(er) => Err(er),
                     Ok(false) => Ok(w),
-                    Ok(true) => norm_pos_dom_at(pers, st, mode, fe, t, d, fuel - 1, &w),
+                    Ok(true) => norm_pos_dom_at(pers, vis, st, mode, fe, t, d, fuel - 1, &w),
                 },
             },
         }
@@ -611,6 +620,7 @@ pub fn norm_pos_dom(
 /// non-positive occurrence, and the body is normalised one frame down.
 pub fn norm_pos_dom_at(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -628,7 +638,7 @@ pub fn norm_pos_dom_at(
                 Err(er) => Err(er),
                 Ok(fv) => match expr_ops::instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &fv, 0) {
                     Err(er) => Err(er),
-                    Ok(opened) => match norm_pos_dom(pers, st, mode, fe, t, d + 1, fuel, &opened) {
+                    Ok(opened) => match norm_pos_dom(pers, vis, st, mode, fe, t, d + 1, fuel, &opened) {
                         Err(er) => Err(er),
                         Ok(body2) => {
                             match expr_ops::abstract1_fast(pers, st, CORE_WALK_FUEL, &body2, d, 0) {
@@ -656,6 +666,7 @@ pub const POS_WALK_FUEL: u64 = 1024;
 #[allow(clippy::too_many_arguments)]
 pub fn norm_field_doms(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -671,7 +682,7 @@ pub fn norm_field_doms(
         match view(pers, st, h) {
             Err(e) => Err(e),
             Ok(ENodeView::ForallE(dom, body, bm)) => {
-                match norm_pos_dom(pers, st, mode, fe, t, i, POS_WALK_FUEL, &dom) {
+                match norm_pos_dom(pers, vis, st, mode, fe, t, i, POS_WALK_FUEL, &dom) {
                     Err(e) => Err(e),
                     Ok(dom2) => match intern_e(pers, st, ENodeView::FVar(i, dom)) {
                         Err(e) => Err(e),
@@ -681,7 +692,7 @@ pub fn norm_field_doms(
                                 Ok(opened) => {
                                     let mut o: Vec<(EIdx, BinderMeta)> = out;
                                     o.push((dom2, bm));
-                                    norm_field_doms(pers, st, mode, fe, t, i + 1, n - 1, &opened, o)
+                                    norm_field_doms(pers, vis, st, mode, fe, t, i + 1, n - 1, &opened, o)
                                 }
                             }
                         }
@@ -729,6 +740,7 @@ pub fn zip_fvar_doms(
 #[allow(clippy::too_many_arguments)]
 pub fn norm_ctor_val(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -746,7 +758,7 @@ pub fn norm_ctor_val(
             Ok(None) => fail(core_types::not_implemented(code_points(&M_CTOR_TELE))),
             Ok(Some(pq)) => match zip_fvar_doms(pers, st, &pq.0, &cq.0, 0, Vec::new()) {
                 Err(e) => Err(e),
-                Ok(pbs) => match norm_field_doms(pers, st, mode, fe, t, n_p, n_f, &pq.1, Vec::new()) {
+                Ok(pbs) => match norm_field_doms(pers, vis, st, mode, fe, t, n_p, n_f, &pq.1, Vec::new()) {
                     Err(e) => Err(e),
                     Ok(fq) => {
                         let all: Vec<(EIdx, BinderMeta)> =
@@ -762,7 +774,7 @@ pub fn norm_ctor_val(
                                         level_params: env::nidx_vec_dup(&cv_c.level_params),
                                         ty: ty2,
                                     };
-                                    checker_base::check_constant_val(pers, st, mode, fe, &cv2)
+                                    checker_base::check_constant_val(pers, vis, st, mode, fe, &cv2)
                                 }
                             }
                         }
@@ -798,9 +810,9 @@ pub fn check_sum_ctor(
     n_f: u64,
     cv_ta: &IConstantVal,
 ) -> Result<(IConstantVal, Vec<LIdx>), CheckError> {
-    match checker_base::check_constant_val(pers, st, mode, fe, cv_c) {
+    match checker_base::check_constant_val(pers, fe.visible_below, st, mode, fe, cv_c) {
         Err(e) => Err(e),
-        Ok(cv_ca0) => match norm_ctor_val(pers, st, mode, fe, t, n_p, n_f, cv_c, &cv_ca0) {
+        Ok(cv_ca0) => match norm_ctor_val(pers, fe.visible_below, st, mode, fe, t, n_p, n_f, cv_c, &cv_ca0) {
             Err(e) => Err(e),
             Ok(cv_ca) => match expr_ops::strip_pis(pers, st, n_p + n_f, &cv_ca.ty) {
                 Err(e) => Err(e),
@@ -809,7 +821,8 @@ pub fn check_sum_ctor(
                     match struct_parts::struct_ctor_resid_ok(pers, st, t, lps, n_p, n_f, n_idx, &cq.1) {
                         Err(e) => Err(e),
                         Ok(false) => fail(core_types::invalid(code_points(&M_CTOR_RET))),
-                        Ok(true) => check_sum_ctor_frames(pers,
+                        Ok(true) => check_sum_ctor_frames(
+                            pers,
                             st, mode, fe0, fe, t, lps, n_p, n_idx, res_sort, is_prop, large, n_f,
                             cv_ta, cv_ca,
                         ),
@@ -852,7 +865,7 @@ pub fn check_sum_ctor_frames(
             Ok(Some(tq)) => match checker_base::fvar_type_ds(pers, st, &tq.0, 0, Vec::new()) {
                 Err(e) => Err(e),
                 Ok(tdoms) => {
-                    match struct_install::check_struct_doms_at(pers, st, mode, fe, 0, &cq.0, &tdoms, n_p)
+                    match struct_install::check_struct_doms_at(pers, fe.visible_below, st, mode, fe, 0, &cq.0, &tdoms, n_p)
                     {
                         Err(e) => Err(e),
                         Ok(()) => match checker_base::open_pis_at_fvars_f(pers, st, n_f, &cq.1, n_p) {
@@ -860,7 +873,8 @@ pub fn check_sum_ctor_frames(
                             Ok(None) => {
                                 fail(core_types::not_implemented(code_points(&M_FIELD_TELE)))
                             }
-                            Ok(Some(xq)) => check_sum_ctor_resid(pers,
+                            Ok(Some(xq)) => check_sum_ctor_resid(
+                                pers,
                                 st, mode, fe0, fe, t, lps, n_p, n_idx, res_sort, is_prop, large,
                                 n_f, cv_ca, &cq.0, &xq.0, &xq.1,
                             ),
@@ -914,7 +928,8 @@ pub fn check_sum_ctor_resid(
                             fail(core_types::not_implemented(code_points(&M_CTOR_RESID)))
                         } else {
                             let idx_args: Vec<EIdx> = core::drop_eidx(&xargs, n_p as usize);
-                            check_sum_ctor_sorts(pers,
+                            check_sum_ctor_sorts(
+                                pers,
                                 st, mode, fe0, fe, n_p, res_sort, is_prop, large, n_f, cv_ca,
                                 x_fvs, &idx_args,
                             )
@@ -946,13 +961,13 @@ pub fn check_sum_ctor_sorts(
     x_fvs: &Vec<EIdx>,
     idx_args: &Vec<EIdx>,
 ) -> Result<(IConstantVal, Vec<LIdx>), CheckError> {
-    match field_doms_resolve(pers, st, fe0, x_fvs, 0) {
+    match field_doms_resolve(pers, fe0.visible_below, st, fe0, x_fvs, 0) {
         Err(e) => Err(e),
         Ok(false) => fail(core_types::not_implemented(code_points(&M_CTOR_DOM))),
-        Ok(true) => match idx_args_resolve(pers, st, fe0, idx_args, 0) {
+        Ok(true) => match idx_args_resolve(pers, fe0.visible_below, st, fe0, idx_args, 0) {
             Err(e) => Err(e),
             Ok(false) => fail(core_types::invalid(code_points(&M_CTOR_IDX))),
-            Ok(true) => match check_struct_field_sorts_i(pers,
+            Ok(true) => match check_struct_field_sorts_i(pers, fe.visible_below,
                 st, mode, fe, is_prop, large, res_sort, n_p, x_fvs, idx_args, n_f,
             ) {
                 Err(e) => Err(e),
@@ -967,6 +982,7 @@ pub fn check_sum_ctor_sorts(
 /// — every field domain resolves at the PRE-BLOCK environment.
 pub fn field_doms_resolve(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe0: &IFEnv,
     x_fvs: &Vec<EIdx>,
@@ -977,10 +993,10 @@ pub fn field_doms_resolve(
     } else {
         match expr_ops::fvar_type_d(pers, st, &x_fvs[i]) {
             Err(e) => Err(e),
-            Ok(t) => match checker_base::consts_resolve_f_fast(pers, st, fe0, &t) {
+            Ok(t) => match checker_base::consts_resolve_f_fast(pers, vis, st, fe0, &t) {
                 Err(e) => Err(e),
                 Ok(false) => Ok(false),
-                Ok(true) => field_doms_resolve(pers, st, fe0, x_fvs, i + 1),
+                Ok(true) => field_doms_resolve(pers, vis, st, fe0, x_fvs, i + 1),
             },
         }
     }
@@ -991,6 +1007,7 @@ pub fn field_doms_resolve(
 /// — the index expressions never mention the block.
 pub fn idx_args_resolve(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe0: &IFEnv,
     idx_args: &Vec<EIdx>,
@@ -1000,10 +1017,10 @@ pub fn idx_args_resolve(
         Ok(true)
     } else {
         let e: EIdx = idx_args[i].dup2();
-        match checker_base::consts_resolve_f_fast(pers, st, fe0, &e) {
+        match checker_base::consts_resolve_f_fast(pers, vis, st, fe0, &e) {
             Err(er) => Err(er),
             Ok(false) => Ok(false),
-            Ok(true) => idx_args_resolve(pers, st, fe0, idx_args, i + 1),
+            Ok(true) => idx_args_resolve(pers, vis, st, fe0, idx_args, i + 1),
         }
     }
 }
@@ -1036,7 +1053,8 @@ pub fn check_sum_ctors(
     if i >= ctors.len() {
         Ok((out, sout))
     } else {
-        match check_sum_ctor(pers,
+        match check_sum_ctor(
+            pers,
             st,
             mode,
             fe0,
@@ -1058,7 +1076,8 @@ pub fn check_sum_ctors(
                 o.push((q.0, ctors[i].1));
                 let mut so: Vec<Vec<LIdx>> = sout;
                 so.push(q.1);
-                check_sum_ctors(pers,
+                check_sum_ctors(
+                    pers,
                     st,
                     mode,
                     fe0,
@@ -1105,6 +1124,7 @@ pub fn cons_sum_ctors(n_p: u64, ctors: &Vec<(IConstantVal, u64)>, i: usize, fe: 
 #[allow(clippy::too_many_arguments)]
 pub fn sum_rules(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     rec_name: &NIdx,
@@ -1138,12 +1158,14 @@ pub fn sum_rules(
                     eta: false,
                     params_blind: true,
                 };
-                match core::rec_rule_bits(pers, st, fe, rec_name, rl) {
+                match core::rec_rule_bits(pers, vis, st, fe, rec_name, rl) {
                     Err(e) => Err(e),
                     Ok(r) => {
                         let mut o: Vec<IRecRule> = out;
                         o.push(r);
-                        sum_rules(pers,
+                        sum_rules(
+                            pers,
+                            vis,
                             st,
                             fe,
                             rec_name,

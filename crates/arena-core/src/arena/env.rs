@@ -806,6 +806,11 @@ pub fn i_env_find_proj(
 /// `< visible_below` are visible; `visible_below` doubles as the next counter
 /// `push` hands out.
 ///
+/// **The READERS take the bound as a scalar** (`vis: u64`, task #97-P6-6b),
+/// and this field is what phase A — which threads the record by value and
+/// pushes into it — passes them.  Phase B passes `pc.vis` and never touches
+/// the record, which is what lets `n` workers share one `&IFEnv`.
+///
 /// **The index row is `(counter, SLOT)` and not `(counter, IConstantInfo)`**
 /// (task #97-P6-5, lever 1).  The twin's row carries the constant itself,
 /// which in Lean is a shared value; in Rust it was a SECOND full copy of
@@ -868,10 +873,20 @@ pub fn mk_ifenv(env: IEnv) -> IFEnv {
 /// con-leche: ConLeche/Kernel/FEnv.lean:70-75 FEnv.find?
 /// Lean twin: `proof/ConRon/Arena/Env.lean:331-334 IFEnv.find?` — indexed
 /// lookup, bounded by the visibility counter.
-pub fn ifenv_find<'a>(fe: &'a IFEnv, n: &NIdx) -> Option<&'a IConstantInfo> {
+///
+/// **The bound is a PARAMETER and not the record's field** (task #97-P6-6b).
+/// The twin reads `fe.visibleBelow`; the Rust reads `vis`, because phase B's
+/// `n` workers hold ONE `&IFEnv` between them and each checks its record at
+/// its own prefix view (`pc.vis`).  Splitting the scalar out of the index is
+/// what makes that possible: `check_pending` no longer takes the index by
+/// value to restrict it, so a worker copies no environment at all.  Every
+/// caller that still threads an environment BY VALUE — phase A's installs —
+/// passes that record's own `visible_below`, so the function's answer is the
+/// twin's `FEnv.find?` verbatim wherever the twin is what runs.
+pub fn ifenv_find<'a>(vis: u64, fe: &'a IFEnv, n: &NIdx) -> Option<&'a IConstantInfo> {
     match fe.idx.get(n) {
         Some(e) => {
-            if e.0 < fe.visible_below && (e.1 as usize) < fe.env.consts.len() {
+            if e.0 < vis && (e.1 as usize) < fe.env.consts.len() {
                 Some(&fe.env.consts[e.1 as usize])
             } else {
                 None
@@ -1000,6 +1015,7 @@ pub fn ifenv_row(fe: &IFEnv, n: &NIdx) -> Option<(u64, u64)> {
 /// projection-table lookup.
 pub fn ifenv_find_proj(
     pers: &PersTier,
+    vis: u64,
     ar: &mut EStore,
     fe: &IFEnv,
     t: &NIdx,
@@ -1007,7 +1023,7 @@ pub fn ifenv_find_proj(
 ) -> Result<Option<IProjEntry>, CheckError> {
     match proj_table_name(pers, ar, t) {
         Err(e) => Err(e),
-        Ok(tn) => match ifenv_find(fe, &tn) {
+        Ok(tn) => match ifenv_find(vis, fe, &tn) {
             Some(IConstantInfo::ProjInfo(tbl)) => {
                 if i < tbl.num_fields {
                     Ok(Some(i_proj_table_entry(tbl, i)))
@@ -1075,8 +1091,8 @@ pub fn ifenv_dup(fe: &IFEnv) -> IFEnv {
 /// contexts"*, `interp/Interp.ml:617`), which is task #97-P4c's extraction
 /// rule 5 at an `ifenv_find` rather than at a `HashMap::get`.  So the copy is
 /// one function and is never inlined.
-pub fn find_ci(fe: &IFEnv, n: &NIdx) -> Option<IConstantInfo> {
-    match ifenv_find(fe, n) {
+pub fn find_ci(vis: u64, fe: &IFEnv, n: &NIdx) -> Option<IConstantInfo> {
+    match ifenv_find(vis, fe, n) {
         Some(ci) => Some(i_constant_info_dup(ci)),
         None => None,
     }

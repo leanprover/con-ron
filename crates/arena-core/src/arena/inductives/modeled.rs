@@ -490,11 +490,16 @@ where
 /// guard, factored out because three call sites make it.  `eq_basis_ci` is the
 /// comparand: the same `ConstantInfo` through the same store, hence the same
 /// handle (`denoteE`/`denoteN` are injective, task #97a).
-pub fn eq_basis_stored(pers: &PersTier, st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
+pub fn eq_basis_stored(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+) -> Result<bool, CheckError>  {
     match crate::arena::pins::pin_eq(st) {
         Err(e) => Err(e),
         Ok(en) => {
-            let found: Option<IConstantInfo> = env::find_ci(fe, &en);
+            let found: Option<IConstantInfo> = env::find_ci(vis, fe, &en);
             match found {
                 Some(ci) => match std_axioms::eq_a(pers, st) {
                     Err(e) => Err(e),
@@ -759,6 +764,7 @@ pub fn eq_app3(
 /// (con-leche's task #147) and is skipped unless `mode.ttChecks`.
 pub fn check_iota_sides_ty(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe_self: &IFEnv,
@@ -768,16 +774,18 @@ pub fn check_iota_sides_ty(
     rhs_s: &EIdx,
     l_a: &LIdx,
 ) -> Result<(), CheckError> {
-    match core::infer_type_core(pers, st, mode, fe_self, core::CHECK_FUEL, depth, lhs_s) {
+    match core::infer_type_core(pers, vis, st, mode, fe_self, core::CHECK_FUEL, depth, lhs_s) {
         Err(e) => Err(e),
         Ok(tl) => {
-            match core::is_def_eq_core(pers, st, mode, fe_self, core::CHECK_FUEL, depth, &tl, alpha_s) {
+            match core::is_def_eq_core(pers, vis, st, mode, fe_self, core::CHECK_FUEL, depth, &tl, alpha_s) {
                 Err(e) => Err(e),
                 Ok(false) => fail(core_types::not_implemented(code_points(&M_IOTA_LHS))),
                 Ok(true) => {
-                    match core::infer_type_core(pers, st, mode, fe_self, core::CHECK_FUEL, depth, rhs_s) {
+                    match core::infer_type_core(pers, vis, st, mode, fe_self, core::CHECK_FUEL, depth, rhs_s) {
                         Err(e) => Err(e),
-                        Ok(tr) => match core::is_def_eq_core(pers,
+                        Ok(tr) => match core::is_def_eq_core(
+                            pers,
+                            vis,
                             st,
                             mode,
                             fe_self,
@@ -790,7 +798,7 @@ pub fn check_iota_sides_ty(
                             Ok(false) => {
                                 fail(core_types::not_implemented(code_points(&M_IOTA_RHS)))
                             }
-                            Ok(true) => check_iota_slot_ty(pers, st, mode, fe_self, depth, alpha_s, l_a),
+                            Ok(true) => check_iota_slot_ty(pers, vis, st, mode, fe_self, depth, alpha_s, l_a),
                         },
                     }
                 }
@@ -805,6 +813,7 @@ pub fn check_iota_sides_ty(
 /// `if mode.ttChecks` branch is one call.
 pub fn check_iota_slot_ty(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe_self: &IFEnv,
@@ -815,12 +824,12 @@ pub fn check_iota_slot_ty(
     if !con_ron_core::kernel::env::tt_checks(mode) {
         Ok(())
     } else {
-        match core::infer_type_core(pers, st, mode, fe_self, core::CHECK_FUEL, depth, alpha_s) {
+        match core::infer_type_core(pers, vis, st, mode, fe_self, core::CHECK_FUEL, depth, alpha_s) {
             Err(e) => Err(e),
             Ok(ta) => match intern_e(pers, st, ENodeView::Sort(l_a.dup2())) {
                 Err(e) => Err(e),
                 Ok(s) => {
-                    match core::is_def_eq_core(pers, st, mode, fe_self, core::CHECK_FUEL, depth, &ta, &s)
+                    match core::is_def_eq_core(pers, vis, st, mode, fe_self, core::CHECK_FUEL, depth, &ta, &s)
                     {
                         Err(e) => Err(e),
                         Ok(false) => fail(core_types::not_implemented(code_points(&M_IOTA_SLOT))),
@@ -874,6 +883,7 @@ pub fn last_d_eidx(xs: &Vec<EIdx>, dflt: &EIdx) -> EIdx {
 /// three arguments and the head's level.
 pub fn iota_stmt_open(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe2: &IFEnv,
     cv_name: &NIdx,
@@ -883,7 +893,7 @@ pub fn iota_stmt_open(
 ) -> Result<(Vec<EIdx>, Vec<EIdx>, LIdx), CheckError> {
     match iota_thm_name(pers, st, cv_name, j) {
         Err(e) => Err(e),
-        Ok(tn) => match checker_base::ifenv_find_cv(pers, st, fe2, &tn) {
+        Ok(tn) => match checker_base::ifenv_find_cv(pers, vis, st, fe2, &tn) {
             Err(e) => Err(e),
             Ok(o) => {
                 match checker_base::unwrap_or(
@@ -1006,7 +1016,7 @@ pub fn check_iota_thm(
     rhs_a: &EIdx,
 ) -> Result<(), CheckError> {
     let depth: u64 = r_p + cn_f;
-    match iota_stmt_open(pers, st, fe2, cv_name, lps, depth, j) {
+    match iota_stmt_open(pers, fe2.visible_below, st, fe2, cv_name, lps, depth, j) {
         Err(e) => Err(e),
         Ok(oq) => {
             let fvs: Vec<EIdx> = oq.0;
@@ -1022,21 +1032,23 @@ pub fn check_iota_thm(
                         Err(e) => Err(e),
                         Ok(largs) => match expr_ops::get_app_fn(pers, st, CORE_WALK_FUEL, &lhs_s) {
                             Err(e) => Err(e),
-                            Ok(lfn) => match iota_lhs_prefix_ok(pers,
+                            Ok(lfn) => match iota_lhs_prefix_ok(
+                                pers,
                                 st, f, cv_name, lps, m_i, r_p, &fvs, &lfn, &largs,
                             ) {
                                 Err(e) => Err(e),
                                 Ok(false) => {
                                     fail(core_types::not_implemented(code_points(&M_IOTA_HEAD)))
                                 }
-                                Ok(true) => match check_iota_major(pers,
+                                Ok(true) => match check_iota_major(
+                                    pers,
                                     st, f, r, cvj, cn_p, &fvs, &x_fvs, &largs, &b0,
                                 ) {
                                     Err(e) => Err(e),
                                     Ok(false) => {
                                         fail(core_types::not_implemented(code_points(&M_IOTA_MAJ)))
                                     }
-                                    Ok(true) => check_iota_thm_ctor(pers,
+                                    Ok(true) => check_iota_thm_ctor(pers, fe_self.visible_below,
                                         st, mode, fe_self, f, ty_a, m_i, r_p, cvj, cn_p, cn_f,
                                         rhs_a, &fvs, &x_fvs, &largs, &targs, &rhs_s, &l_a, &b0,
                                     ),
@@ -1094,6 +1106,7 @@ pub fn check_iota_major(
 /// prefix domains against the recursor's (renamed).
 pub fn check_iota_thm_ctor(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe_self: &IFEnv,
@@ -1125,7 +1138,9 @@ pub fn check_iota_thm_ctor(
                 match expr_ops::inst_pis_at_f(pers, st, CORE_WALK_FUEL, &spine, &cty_r) {
                     Err(e) => Err(e),
                     Ok(None) => fail(core_types::not_implemented(code_points(&M_IOTA_CTELE))),
-                    Ok(Some(cq)) => check_iota_thm_idx(pers,
+                    Ok(Some(cq)) => check_iota_thm_idx(
+                        pers,
+                        vis,
                         st, mode, fe_self, f, ty_a, m_i, r_p, cvj, cn_p, depth, rhs_a, fvs, x_fvs,
                         largs, targs, rhs_s, l_a, b0, &cq.0, &cq.1,
                     ),
@@ -1141,6 +1156,7 @@ pub fn check_iota_thm_ctor(
 /// statement's prefix domains against the renamed recursor's.
 pub fn check_iota_thm_idx(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe_self: &IFEnv,
@@ -1172,17 +1188,21 @@ pub fn check_iota_thm_idx(
                 let lidx: Vec<EIdx> =
                     expr_ops::take_eidx(&core::drop_eidx(largs, r_p as usize), k as usize);
                 let cidx: Vec<EIdx> = core::drop_eidx(&cargs, cn_p as usize);
-                match checker_base::check_def_eq_list(pers, st, mode, fe_self, depth, &lidx, &cidx, 0) {
+                match checker_base::check_def_eq_list(pers, vis, st, mode, fe_self, depth, &lidx, &cidx, 0) {
                     Err(e) => Err(e),
                     Ok(()) => match checker_base::fvar_type_ds(pers, st, x_fvs, 0, Vec::new()) {
                         Err(e) => Err(e),
                         Ok(xdoms) => {
                             let cdom_tail: Vec<EIdx> = core::drop_eidx(cdoms, cn_p as usize);
-                            match checker_base::check_def_eq_list(pers,
+                            match checker_base::check_def_eq_list(
+                                pers,
+                                vis,
                                 st, mode, fe_self, depth, &xdoms, &cdom_tail, 0,
                             ) {
                                 Err(e) => Err(e),
-                                Ok(()) => check_iota_thm_prefix(pers,
+                                Ok(()) => check_iota_thm_prefix(
+                                    pers,
+                                    vis,
                                     st, mode, fe_self, f, ty_a, r_p, cvj, cn_p, depth, rhs_a, fvs,
                                     targs, rhs_s, l_a, b0,
                                 ),
@@ -1200,6 +1220,7 @@ pub fn check_iota_thm_idx(
 /// — the statement's prefix domains are the recursor's (renamed).
 pub fn check_iota_thm_prefix(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe_self: &IFEnv,
@@ -1226,11 +1247,15 @@ pub fn check_iota_thm_prefix(
                 Ok(Some(rq)) => match checker_base::fvar_type_ds(pers, st, &pfx, 0, Vec::new()) {
                     Err(e) => Err(e),
                     Ok(pdoms) => {
-                        match checker_base::check_def_eq_list(pers,
+                        match checker_base::check_def_eq_list(
+                            pers,
+                            vis,
                             st, mode, fe_self, depth, &pdoms, &rq.0, 0,
                         ) {
                             Err(e) => Err(e),
-                            Ok(()) => check_iota_thm_frames(pers,
+                            Ok(()) => check_iota_thm_frames(
+                                pers,
+                                vis,
                                 st, mode, fe_self, f, ty_a, r_p, cvj, cn_p, depth, rhs_a, fvs,
                                 targs, rhs_s, l_a, b0,
                             ),
@@ -1251,6 +1276,7 @@ pub fn check_iota_thm_prefix(
 /// built.
 pub fn check_iota_thm_frames(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe_self: &IFEnv,
@@ -1280,7 +1306,9 @@ pub fn check_iota_thm_frames(
                 Ok(Some(cq)) => match checker_base::fvar_type_ds(pers, st, &pfx, 0, Vec::new()) {
                     Err(e) => Err(e),
                     Ok(pdoms) => {
-                        match checker_base::check_def_eq_list(pers,
+                        match checker_base::check_def_eq_list(
+                            pers,
+                            vis,
                             st, mode, fe_self, depth, &pdoms, &cq.0, 0,
                         ) {
                             Err(e) => Err(e),
@@ -1292,7 +1320,9 @@ pub fn check_iota_thm_frames(
                                 }
                                 Ok(Some(xq)) => {
                                     let all: Vec<EIdx> = core::append_eidx(fvs_p, &xq.0);
-                                    check_iota_thm_lams(pers,
+                                    check_iota_thm_lams(
+                                        pers,
+                                        vis,
                                         st, mode, fe_self, f, depth, rhs_a, fvs, targs, rhs_s, l_a,
                                         b0, &all,
                                     )
@@ -1311,6 +1341,7 @@ pub fn check_iota_thm_frames(
 /// — the rule's λ-domains against the opened frame.
 pub fn check_iota_thm_lams(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe_self: &IFEnv,
@@ -1330,9 +1361,11 @@ pub fn check_iota_thm_lams(
         Ok(Some(lq)) => match checker_base::fvar_type_ds(pers, st, all, 0, Vec::new()) {
             Err(e) => Err(e),
             Ok(ldoms) => {
-                match checker_base::check_def_eq_list(pers, st, mode, fe_self, depth, &ldoms, &lq.0, 0) {
+                match checker_base::check_def_eq_list(pers, vis, st, mode, fe_self, depth, &ldoms, &lq.0, 0) {
                     Err(e) => Err(e),
-                    Ok(()) => check_iota_thm_rhs(pers,
+                    Ok(()) => check_iota_thm_rhs(
+                        pers,
+                        vis,
                         st, mode, fe_self, f, depth, rhs_a, fvs, targs, rhs_s, l_a, b0,
                     ),
                 }
@@ -1347,6 +1380,7 @@ pub fn check_iota_thm_lams(
 /// applied to the whole opened frame, and both sides inhabit the type slot.
 pub fn check_iota_thm_rhs(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe_self: &IFEnv,
@@ -1364,7 +1398,9 @@ pub fn check_iota_thm_rhs(
         Ok(rhs_r) => match expr_ops::mk_app_n(pers, st, &rhs_r, fvs) {
             Err(e) => Err(e),
             Ok(applied) => {
-                match core::is_def_eq_core(pers,
+                match core::is_def_eq_core(
+                    pers,
+                    vis,
                     st,
                     mode,
                     fe_self,
@@ -1378,7 +1414,7 @@ pub fn check_iota_thm_rhs(
                     Ok(true) => {
                         let alpha: EIdx = core::get_d_eidx(targs, 0, b0);
                         let lhs_s: EIdx = core::get_d_eidx(targs, 1, b0);
-                        check_iota_sides_ty(pers, st, mode, fe_self, depth, &alpha, &lhs_s, rhs_s, l_a)
+                        check_iota_sides_ty(pers, vis, st, mode, fe_self, depth, &alpha, &lhs_s, rhs_s, l_a)
                     }
                 }
             }
@@ -1410,13 +1446,13 @@ pub fn nested_rule_shape(
 ) -> Result<Option<(Vec<LIdx>, Vec<EIdx>)>, CheckError> {
     match iota_thm_name(pers, st, cv_name, j) {
         Err(e) => Err(e),
-        Ok(thm) => match checker_base::ifenv_find_cv(pers, st, fe2, &thm) {
+        Ok(thm) => match checker_base::ifenv_find_cv(pers, fe2.visible_below, st, fe2, &thm) {
             Err(e) => Err(e),
             Ok(o) => {
                 if !(o.is_some() && r_p <= m_i) {
                     Ok(None)
                 } else {
-                    nested_rule_shape_at(pers, st, fe_self, lps, ty_a, m_i, r_p, cn_p)
+                    nested_rule_shape_at(pers, fe_self.visible_below, st, fe_self, lps, ty_a, m_i, r_p, cn_p)
                 }
             }
         },
@@ -1429,6 +1465,7 @@ pub fn nested_rule_shape(
 /// parameter pins lowered out of the index frame.
 pub fn nested_rule_shape_at(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe_self: &IFEnv,
     lps: &Vec<NIdx>,
@@ -1447,7 +1484,9 @@ pub fn nested_rule_shape_at(
                     Err(e) => Err(e),
                     Ok(hd) => match view(pers, st, &hd) {
                         Err(e) => Err(e),
-                        Ok(ENodeView::Const(_, lvls_idx)) => nested_rule_shape_args(pers,
+                        Ok(ENodeView::Const(_, lvls_idx)) => nested_rule_shape_args(
+                            pers,
+                            vis,
                             st, fe_self, lps, m_i, r_p, cn_p, &dom, &lvls_idx,
                         ),
                         Ok(_) => Ok(None),
@@ -1466,6 +1505,7 @@ pub fn nested_rule_shape_at(
 /// the index spine, and the pins are scoped, resolving and level-closed.
 pub fn nested_rule_shape_args(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe_self: &IFEnv,
     lps: &Vec<NIdx>,
@@ -1493,7 +1533,7 @@ pub fn nested_rule_shape_args(
                                 Ok(lvls) => match crate::arena::monad::read_levels(pers, st, lvls_idx) {
                                     Err(e) => Err(e),
                                     Ok(lvl_vals) => {
-                                        match nested_pins_ok(pers, st, fe_self, lps, r_p, &pins, 0) {
+                                        match nested_pins_ok(pers, vis, st, fe_self, lps, r_p, &pins, 0) {
                                             Err(e) => Err(e),
                                             Ok(pins_ok) => {
                                                 if args.len() as u64 == cn_p + k
@@ -1585,6 +1625,7 @@ pub fn lift_bvars_list(
 /// first pin that fails, which is `List.allM`.
 pub fn nested_pins_ok(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe_self: &IFEnv,
     lps: &Vec<NIdx>,
@@ -1600,13 +1641,13 @@ pub fn nested_pins_ok(
             Err(e) => Err(e),
             Ok(w1) => match expr_ops::loose_bvars_bounded_fast(pers, st, CORE_WALK_FUEL, r_p, &p) {
                 Err(e) => Err(e),
-                Ok(w2) => match checker_base::consts_resolve_f_fast(pers, st, fe_self, &p) {
+                Ok(w2) => match checker_base::consts_resolve_f_fast(pers, vis, st, fe_self, &p) {
                     Err(e) => Err(e),
                     Ok(w3) => match checker_base::all_level_params_defined(pers, st, lps, &p) {
                         Err(e) => Err(e),
                         Ok(w4) => {
                             if !w1 && w2 && w3 && w4 {
-                                nested_pins_ok(pers, st, fe_self, lps, r_p, pins, i + 1)
+                                nested_pins_ok(pers, vis, st, fe_self, lps, r_p, pins, i + 1)
                             } else {
                                 Ok(false)
                             }
@@ -1708,7 +1749,8 @@ pub fn check_iota_thm_n(
         Ok(Some(sh)) => {
             let lvls: Vec<LIdx> = sh.0;
             let pins: Vec<EIdx> = sh.1;
-            match check_iota_thm_n_at(pers,
+            match check_iota_thm_n_at(
+                pers,
                 st, mode, fe2, fe_self, f, cv_name, lps, ty_a, m_i, r_p, j, r, cvj, cn_p, cn_f,
                 rhs_a, &lvls, &pins,
             ) {
@@ -1746,7 +1788,7 @@ pub fn check_iota_thm_n_at(
     pins: &Vec<EIdx>,
 ) -> Result<(), CheckError> {
     let depth: u64 = r_p + cn_f;
-    match iota_stmt_open(pers, st, fe2, cv_name, lps, depth, j) {
+    match iota_stmt_open(pers, fe2.visible_below, st, fe2, cv_name, lps, depth, j) {
         Err(e) => Err(e),
         Ok(oq) => {
             let fvs: Vec<EIdx> = oq.0;
@@ -1766,14 +1808,15 @@ pub fn check_iota_thm_n_at(
                             Err(e) => Err(e),
                             Ok(largs) => match expr_ops::get_app_fn(pers, st, CORE_WALK_FUEL, &lhs_s) {
                                 Err(e) => Err(e),
-                                Ok(lfn) => match iota_lhs_prefix_ok(pers,
+                                Ok(lfn) => match iota_lhs_prefix_ok(
+                                    pers,
                                     st, f, cv_name, lps, m_i, r_p, &fvs, &lfn, &largs,
                                 ) {
                                     Err(e) => Err(e),
                                     Ok(false) => {
                                         fail(core_types::not_implemented(code_points(&M_IOTA_HEAD)))
                                     }
-                                    Ok(true) => check_iota_thm_n_major(pers,
+                                    Ok(true) => check_iota_thm_n_major(pers, fe_self.visible_below,
                                         st, mode, fe_self, f, ty_a, m_i, r_p, cvj, cn_p, cn_f,
                                         rhs_a, &fvs, &x_fvs, &largs, &targs, &rhs_s, &l_a, &b0,
                                         lvls, pins, &pins_f, r,
@@ -1794,6 +1837,7 @@ pub fn check_iota_thm_n_at(
 /// instantiated pins and the field variables.
 pub fn check_iota_thm_n_major(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe_self: &IFEnv,
@@ -1832,7 +1876,9 @@ pub fn check_iota_thm_n_major(
                             if !major.eq2(&want) {
                                 fail(core_types::not_implemented(code_points(&M_IOTA_MAJ)))
                             } else {
-                                check_iota_thm_n_ctor(pers,
+                                check_iota_thm_n_ctor(
+                                    pers,
+                                    vis,
                                     st, mode, fe_self, f, ty_a, m_i, r_p, cvj, cn_p, cn_f, rhs_a,
                                     fvs, x_fvs, largs, targs, rhs_s, l_a, b0, &lvls_idx, pins,
                                     pins_f,
@@ -1852,6 +1898,7 @@ pub fn check_iota_thm_n_major(
 /// instantiated at the pins and the field variables.
 pub fn check_iota_thm_n_ctor(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe_self: &IFEnv,
@@ -1882,7 +1929,8 @@ pub fn check_iota_thm_n_ctor(
             Ok(hd) => match view(pers, st, &hd) {
                 Err(e) => Err(e),
                 Ok(ENodeView::Const(_, _)) => {
-                    match expr_ops::inst_lp_fast(pers,
+                    match expr_ops::inst_lp_fast(
+                        pers,
                         st,
                         CORE_WALK_FUEL,
                         &cvj.level_params,
@@ -1896,7 +1944,8 @@ pub fn check_iota_thm_n_ctor(
                                 Ok(cty_r) => {
                                     let spine: Vec<EIdx> =
                                         core::append_eidx(env::eidx_vec_dup(pins_f), x_fvs);
-                                    match expr_ops::inst_pis_at_f(pers,
+                                    match expr_ops::inst_pis_at_f(
+                                        pers,
                                         st,
                                         CORE_WALK_FUEL,
                                         &spine,
@@ -1906,7 +1955,9 @@ pub fn check_iota_thm_n_ctor(
                                         Ok(None) => fail(core_types::not_implemented(code_points(
                                             &M_IOTA_CTELE,
                                         ))),
-                                        Ok(Some(cq)) => check_iota_thm_n_idx(pers,
+                                        Ok(Some(cq)) => check_iota_thm_n_idx(
+                                            pers,
+                                            vis,
                                             st, mode, fe_self, f, ty_a, m_i, r_p, cvj, cn_p, cn_f,
                                             rhs_a, fvs, x_fvs, largs, targs, rhs_s, l_a, b0,
                                             lvls_idx, pins, &cq.0, &cq.1,
@@ -1929,6 +1980,7 @@ pub fn check_iota_thm_n_ctor(
 /// statement's prefix domains against the renamed recursor's.
 pub fn check_iota_thm_n_idx(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe_self: &IFEnv,
@@ -1963,17 +2015,21 @@ pub fn check_iota_thm_n_idx(
                 let lidx: Vec<EIdx> =
                     expr_ops::take_eidx(&core::drop_eidx(largs, r_p as usize), k as usize);
                 let cidx: Vec<EIdx> = core::drop_eidx(&cargs, cn_p as usize);
-                match checker_base::check_def_eq_list(pers, st, mode, fe_self, depth, &lidx, &cidx, 0) {
+                match checker_base::check_def_eq_list(pers, vis, st, mode, fe_self, depth, &lidx, &cidx, 0) {
                     Err(e) => Err(e),
                     Ok(()) => match checker_base::fvar_type_ds(pers, st, x_fvs, 0, Vec::new()) {
                         Err(e) => Err(e),
                         Ok(xdoms) => {
                             let cdom_tail: Vec<EIdx> = core::drop_eidx(cdoms, cn_p as usize);
-                            match checker_base::check_def_eq_list(pers,
+                            match checker_base::check_def_eq_list(
+                                pers,
+                                vis,
                                 st, mode, fe_self, depth, &xdoms, &cdom_tail, 0,
                             ) {
                                 Err(e) => Err(e),
-                                Ok(()) => check_iota_thm_n_prefix(pers,
+                                Ok(()) => check_iota_thm_n_prefix(
+                                    pers,
+                                    vis,
                                     st, mode, fe_self, f, ty_a, m_i, r_p, cvj, cn_p, cn_f, rhs_a,
                                     fvs, targs, rhs_s, l_a, b0, lvls_idx, pins,
                                 ),
@@ -1991,6 +2047,7 @@ pub fn check_iota_thm_n_idx(
 /// — the statement's prefix domains are the recursor's (renamed).
 pub fn check_iota_thm_n_prefix(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe_self: &IFEnv,
@@ -2021,11 +2078,15 @@ pub fn check_iota_thm_n_prefix(
                 Ok(Some(rq)) => match checker_base::fvar_type_ds(pers, st, &pfx, 0, Vec::new()) {
                     Err(e) => Err(e),
                     Ok(pdoms) => {
-                        match checker_base::check_def_eq_list(pers,
+                        match checker_base::check_def_eq_list(
+                            pers,
+                            vis,
                             st, mode, fe_self, depth, &pdoms, &rq.0, 0,
                         ) {
                             Err(e) => Err(e),
-                            Ok(()) => check_iota_thm_n_frames(pers,
+                            Ok(()) => check_iota_thm_n_frames(
+                                pers,
+                                vis,
                                 st, mode, fe_self, f, ty_a, m_i, r_p, cvj, cn_p, cn_f, rhs_a, fvs,
                                 targs, rhs_s, l_a, b0, lvls_idx, pins,
                             ),
@@ -2045,6 +2106,7 @@ pub fn check_iota_thm_n_prefix(
 /// residual's arity, and the rule's λ-domains.
 pub fn check_iota_thm_n_frames(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe_self: &IFEnv,
@@ -2074,9 +2136,10 @@ pub fn check_iota_thm_n_frames(
             match inst_spine_list(pers, st, &pfx, sub_nat(r_p, 1), pins, 0, Vec::new()) {
                 Err(e) => Err(e),
                 Ok(pins_p) => {
-                    match checker_base::check_annot_list(pers, st, mode, fe_self, depth, &pins_p, 0) {
+                    match checker_base::check_annot_list(pers, vis, st, mode, fe_self, depth, &pins_p, 0) {
                         Err(e) => Err(e),
-                        Ok(()) => match expr_ops::inst_lp_fast(pers,
+                        Ok(()) => match expr_ops::inst_lp_fast(
+                            pers,
                             st,
                             CORE_WALK_FUEL,
                             &cvj.level_params,
@@ -2091,11 +2154,15 @@ pub fn check_iota_thm_n_frames(
                                     Ok(None) => fail(core_types::not_implemented(code_points(
                                         &M_IOTA_CTELE,
                                     ))),
-                                    Ok(Some(cq)) => match checker_base::check_typed_list(pers,
+                                    Ok(Some(cq)) => match checker_base::check_typed_list(
+                                        pers,
+                                        vis,
                                         st, mode, fe_self, depth, &pins_p, &cq.0, 0,
                                     ) {
                                         Err(e) => Err(e),
-                                        Ok(()) => check_iota_thm_n_fields(pers,
+                                        Ok(()) => check_iota_thm_n_fields(
+                                            pers,
+                                            vis,
                                             st, mode, fe_self, f, m_i, r_p, cn_p, cn_f, rhs_a, fvs,
                                             targs, rhs_s, l_a, b0, &fvs_p, &cq.1,
                                         ),
@@ -2116,6 +2183,7 @@ pub fn check_iota_thm_n_frames(
 /// arity, and the rule's λ-domains against the whole frame.
 pub fn check_iota_thm_n_fields(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe_self: &IFEnv,
@@ -2144,7 +2212,9 @@ pub fn check_iota_thm_n_fields(
                     fail(core_types::not_implemented(code_points(&M_IOTA_CARITY)))
                 } else {
                     let all: Vec<EIdx> = core::append_eidx(env::eidx_vec_dup(fvs_p), &xq.0);
-                    check_iota_thm_lams(pers,
+                    check_iota_thm_lams(
+                        pers,
+                        vis,
                         st, mode, fe_self, f, depth, rhs_a, fvs, targs, rhs_s, l_a, b0, &all,
                     )
                 }
@@ -2175,13 +2245,14 @@ pub fn check_iota_rule(
     j: u64,
     r: &IRecRule,
 ) -> Result<IRecRule, CheckError> {
-    let found: Option<IConstantInfo> = env::find_ci(fe2, &r.ctor);
+    let found: Option<IConstantInfo> = env::find_ci(fe2.visible_below, fe2, &r.ctor);
     match found {
         Some(IConstantInfo::CtorInfo(cvj, cn_p, cn_f)) => {
             if r.nfields != cn_f {
                 fail(core_types::invalid(code_points(&M_RULE_NF)))
             } else {
-                check_iota_rule_wf(pers,
+                check_iota_rule_wf(
+                    pers,
                     st, mode, fe2, fe_self, f, cv_name, lps, ty_a, m_i, r_p, j, r, &cvj, cn_p, cn_f,
                 )
             }
@@ -2220,9 +2291,10 @@ pub fn check_iota_rule_wf(
             Err(e) => Err(e),
             Ok(true) => fail(core_types::invalid(code_points(&M_RULE_FVAR))),
             Ok(false) => {
-                match core::annotate_core(pers, st, mode, fe_self, core::CHECK_FUEL, 0, &r.rhs) {
+                match core::annotate_core(pers, fe_self.visible_below, st, mode, fe_self, core::CHECK_FUEL, 0, &r.rhs) {
                     Err(e) => Err(e),
-                    Ok(rhs_a) => check_iota_rule_fire(pers,
+                    Ok(rhs_a) => check_iota_rule_fire(
+                        pers,
                         st, mode, fe2, fe_self, f, cv_name, lps, ty_a, m_i, r_p, j, r, cvj, cn_p,
                         cn_f, rhs_a,
                     ),
@@ -2260,7 +2332,7 @@ pub fn check_iota_rule_fire(
     match checker_base::all_level_params_defined(pers, st, lps, &rhs_a) {
         Err(e) => Err(e),
         Ok(false) => fail(core_types::invalid(code_points(&M_RULE_LPS))),
-        Ok(true) => match checker_base::consts_resolve_f_fast(pers, st, fe_self, &rhs_a) {
+        Ok(true) => match checker_base::consts_resolve_f_fast(pers, fe_self.visible_below, st, fe_self, &rhs_a) {
             Err(e) => Err(e),
             Ok(false) => match checker_base::unresolved_consts_error(pers, st, &rhs_a) {
                 Err(e) => Err(e),
@@ -2270,18 +2342,19 @@ pub fn check_iota_rule_fire(
                 Err(e) => Err(e),
                 Ok(None) => fail(core_types::not_implemented(code_points(&M_IOTA_RULE))),
                 Ok(Some(_)) => {
-                    match core::infer_type_core(pers, st, mode, fe_self, core::CHECK_FUEL, 0, &rhs_a) {
+                    match core::infer_type_core(pers, fe_self.visible_below, st, mode, fe_self, core::CHECK_FUEL, 0, &rhs_a) {
                         Err(e) => Err(e),
                         Ok(_rhs_ty) => {
                             match expr_ops::rec_rule_plain(pers, st, CORE_WALK_FUEL, ty_a, m_i, r_p, cn_p)
                             {
                                 Err(e) => Err(e),
-                                Ok(true) => match check_iota_thm(pers,
+                                Ok(true) => match check_iota_thm(
+                                    pers,
                                     st, mode, fe2, fe_self, f, cv_name, lps, ty_a, m_i, r_p, j, r,
                                     cvj, cn_p, cn_f, &rhs_a,
                                 ) {
                                     Err(e) => Err(e),
-                                    Ok(()) => check_iota_rule_bits(pers,
+                                    Ok(()) => check_iota_rule_bits(pers, fe2.visible_below,
                                         st,
                                         fe2,
                                         cv_name,
@@ -2291,13 +2364,14 @@ pub fn check_iota_rule_fire(
                                         IRecRuleFire::Plain,
                                     ),
                                 },
-                                Ok(false) => match check_iota_thm_n(pers,
+                                Ok(false) => match check_iota_thm_n(
+                                    pers,
                                     st, mode, fe2, fe_self, f, cv_name, lps, ty_a, m_i, r_p, j, r,
                                     cvj, cn_p, cn_f, &rhs_a,
                                 ) {
                                     Err(e) => Err(e),
                                     Ok(fire) => {
-                                        check_iota_rule_bits(pers, st, fe2, cv_name, r, cn_p, rhs_a, fire)
+                                        check_iota_rule_bits(pers, fe2.visible_below, st, fe2, cv_name, r, cn_p, rhs_a, fire)
                                     }
                                 },
                             }
@@ -2315,6 +2389,7 @@ pub fn check_iota_rule_fire(
 /// paramsBlind := false }`, with the two rescue bits stamped by `recRuleBits`.
 pub fn check_iota_rule_bits(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe2: &IFEnv,
     cv_name: &NIdx,
@@ -2333,7 +2408,7 @@ pub fn check_iota_rule_bits(
         eta: r.eta,
         params_blind: false,
     };
-    core::rec_rule_bits(pers, st, fe2, cv_name, rl)
+    core::rec_rule_bits(pers, vis, st, fe2, cv_name, rl)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Modeled.lean:362-371 checkIotaRules
@@ -2361,14 +2436,16 @@ pub fn check_iota_rules(
     if i >= rules.len() {
         Ok(out)
     } else {
-        match check_iota_rule(pers,
+        match check_iota_rule(
+            pers,
             st, mode, fe2, fe_self, f, cv_name, lps, ty_a, m_i, r_p, j, &rules[i],
         ) {
             Err(e) => Err(e),
             Ok(r2) => {
                 let mut o: Vec<IRecRule> = out;
                 o.push(r2);
-                check_iota_rules(pers,
+                check_iota_rules(
+                    pers,
                     st,
                     mode,
                     fe2,
@@ -2398,6 +2475,7 @@ pub fn check_iota_rules(
 /// — check a block member's constant against its `_model` counterpart.
 pub fn check_member_val(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     block_names: &Vec<NIdx>,
@@ -2406,7 +2484,7 @@ pub fn check_member_val(
 ) -> Result<IConstantVal, CheckError> {
     match block_rename_table(pers, st, block_names) {
         Err(e) => Err(e),
-        Ok(f) => match checker_base::check_constant_val(pers, st, mode, fe2, cv) {
+        Ok(f) => match checker_base::check_constant_val(pers, vis, st, mode, fe2, cv) {
             Err(e) => Err(e),
             Ok(cv_a) => match read_name(pers, st, &cv_a.name) {
                 Err(e) => Err(e),
@@ -2414,7 +2492,7 @@ pub fn check_member_val(
                     if level::name_is_model_suffix(&an) {
                         fail(core_types::invalid(code_points(&M_MODEL_NAME)))
                     } else {
-                        check_member_model(pers, st, &f, fe2, cv_a)
+                        check_member_model(pers, vis, st, &f, fe2, cv_a)
                     }
                 }
             },
@@ -2428,6 +2506,7 @@ pub fn check_member_val(
 /// its type is the member's under the block renaming.
 pub fn check_member_model(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     f: &RenameBy,
     fe2: &IFEnv,
@@ -2436,7 +2515,7 @@ pub fn check_member_model(
     match model_name(pers, st, &cv_a.name) {
         Err(e) => Err(e),
         Ok(mn) => {
-            let found: Option<IConstantInfo> = env::find_ci(fe2, &mn);
+            let found: Option<IConstantInfo> = env::find_ci(vis, fe2, &mn);
             match found {
                 Some(IConstantInfo::DefnInfo(cvm, _, _)) => {
                     if !core::nidx_vec_beq(&cvm.level_params, &cv_a.level_params) {
@@ -2483,7 +2562,7 @@ pub fn check_ind_member(
     core::flush_caches(st);
     match env::i_constant_info_to_constant_val(pers, &mut st.store, ci) {
         Err(e) => Err(e),
-        Ok(cv) => match check_member_val(pers, st, mode, block_names, &fe2, &cv) {
+        Ok(cv) => match check_member_val(pers, fe2.visible_below, st, mode, block_names, &fe2, &cv) {
             Err(e) => Err(e),
             Ok(cv_a) => match ci {
                 IConstantInfo::IndInfo(_, _) => Ok(env::ifenv_push(
@@ -2555,7 +2634,7 @@ pub fn provision_recs(
                 core::flush_caches(st);
                 match env::i_constant_info_to_constant_val(pers, &mut st.store, &recs[i]) {
                     Err(e) => Err(e),
-                    Ok(cv) => match check_member_val(pers, st, mode, block_names, &fe_acc, &cv) {
+                    Ok(cv) => match check_member_val(pers, fe_acc.visible_below, st, mode, block_names, &fe_acc, &cv) {
                         Err(e) => Err(e),
                         Ok(cv_a) => {
                             let stored = IConstantInfo::RecInfo(
@@ -2566,7 +2645,8 @@ pub fn provision_recs(
                             );
                             let mut o: Vec<(IConstantVal, u64, u64, Vec<IRecRule>)> = out;
                             o.push((cv_a, m, rp, rl));
-                            provision_recs(pers,
+                            provision_recs(
+                                pers,
                                 st,
                                 mode,
                                 block_names,
@@ -2602,7 +2682,8 @@ pub fn install_ind_recs(
         Ok(acc)
     } else {
         let c: &(IConstantVal, u64, u64, Vec<IRecRule>) = &checked[i];
-        match check_iota_rules(pers,
+        match check_iota_rules(
+            pers,
             st,
             mode,
             fe2,
@@ -2622,7 +2703,8 @@ pub fn install_ind_recs(
             Ok(rules2) => {
                 let stored =
                     IConstantInfo::RecInfo(env::i_constant_val_dup(&c.0), c.1, c.2, rules2);
-                install_ind_recs(pers,
+                install_ind_recs(
+                    pers,
                     st,
                     mode,
                     fe2,
@@ -2658,12 +2740,13 @@ pub fn check_ind_recs(
     } else {
         match block_rename_table(pers, st, block_names) {
             Err(e) => Err(e),
-            Ok(f) => match eq_basis_stored(pers, st, &fe2) {
+            Ok(f) => match eq_basis_stored(pers, fe2.visible_below, st, &fe2) {
                 Err(e) => Err(e),
                 Ok(false) => fail(core_types::not_implemented(code_points(&M_EQ_BASIS))),
                 Ok(true) => {
                     let fe_env: IFEnv = env::ifenv_dup(&fe2);
-                    match provision_recs(pers,
+                    match provision_recs(
+                        pers,
                         st,
                         mode,
                         block_names,
@@ -2694,6 +2777,7 @@ pub fn check_ind_recs(
 /// — stage 1 of `checkProjFn`: the stored constants the projection depends on.
 pub fn check_proj_lookups(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe2: &IFEnv,
     t: &NIdx,
@@ -2703,13 +2787,13 @@ pub fn check_proj_lookups(
     n_f: u64,
     i: u64,
 ) -> Result<(IConstantVal, IConstantVal), CheckError> {
-    let found: Option<IConstantInfo> = env::find_ci(fe2, ctor_name);
+    let found: Option<IConstantInfo> = env::find_ci(vis, fe2, ctor_name);
     match found {
         Some(IConstantInfo::CtorInfo(cvj, cn_p, cn_f)) => {
             if !(cn_p == n_p && cn_f == n_f) {
                 fail(core_types::not_implemented(code_points(&M_PL_ARITY)))
             } else {
-                check_proj_lookups_model(pers, st, fe2, t, lps, i, cvj)
+                check_proj_lookups_model(pers, vis, st, fe2, t, lps, i, cvj)
             }
         }
         _ => fail(core_types::not_implemented(code_points(&M_PL_CTOR))),
@@ -2722,6 +2806,7 @@ pub fn check_proj_lookups(
 /// pinned `Eq` basis.
 pub fn check_proj_lookups_model(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe2: &IFEnv,
     t: &NIdx,
@@ -2732,7 +2817,7 @@ pub fn check_proj_lookups_model(
     match core::proj_model_name(pers, st, t, i) {
         Err(e) => Err(e),
         Ok(pmn) => {
-            let found: Option<IConstantInfo> = env::find_ci(fe2, &pmn);
+            let found: Option<IConstantInfo> = env::find_ci(vis, fe2, &pmn);
             match found {
                 Some(IConstantInfo::DefnInfo(mcv, _, _)) => {
                     if !core::nidx_vec_beq(&mcv.level_params, lps) {
@@ -2741,12 +2826,12 @@ pub fn check_proj_lookups_model(
                         match env::proj_fn_name(pers, &mut st.store, t, i) {
                             Err(e) => Err(e),
                             Ok(pn) => {
-                                if env::ifenv_find(fe2, &pn).is_some() {
+                                if env::ifenv_find(vis, fe2, &pn).is_some() {
                                     fail(core_types::invalid(code_points(&M_PL_TAKEN)))
-                                } else if env::ifenv_find(fe2, t).is_none() {
+                                } else if env::ifenv_find(vis, fe2, t).is_none() {
                                     fail(core_types::not_implemented(code_points(&M_PL_PARENT)))
                                 } else {
-                                    match eq_basis_stored(pers, st, fe2) {
+                                    match eq_basis_stored(pers, vis, st, fe2) {
                                         Err(e) => Err(e),
                                         Ok(false) => {
                                             fail(core_types::not_implemented(code_points(&M_PL_EQ)))
@@ -2771,6 +2856,7 @@ pub fn check_proj_lookups_model(
 /// conjuncts of the well-formedness test run**, as the twin's `do` does.
 pub fn check_proj_ty(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe2: &IFEnv,
     t: &NIdx,
@@ -2792,7 +2878,7 @@ pub fn check_proj_ty(
                         if !round.eq2(mty) {
                             fail(core_types::not_implemented(code_points(&M_PT_ROUND)))
                         } else {
-                            check_proj_ty_wf(pers, st, fe2, lps, n_p, pty)
+                            check_proj_ty_wf(pers, vis, st, fe2, lps, n_p, pty)
                         }
                     }
                 },
@@ -2806,13 +2892,14 @@ pub fn check_proj_ty(
 /// — the public type's resolution, well-formedness and parameter telescope.
 pub fn check_proj_ty_wf(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe2: &IFEnv,
     lps: &Vec<NIdx>,
     n_p: u64,
     pty: EIdx,
 ) -> Result<EIdx, CheckError> {
-    match checker_base::consts_resolve_f_fast(pers, st, fe2, &pty) {
+    match checker_base::consts_resolve_f_fast(pers, vis, st, fe2, &pty) {
         Err(e) => Err(e),
         Ok(false) => fail(core_types::not_implemented(code_points(&M_PT_RES))),
         Ok(true) => match expr_ops::loose_bvars_bounded_fast(pers, st, CORE_WALK_FUEL, 0, &pty) {
@@ -2863,13 +2950,13 @@ pub fn check_proj_iota(
         Ok(pmn) => match intern_n_node(pers, st, NNodeView::Str(pmn.dup2(), code_points(&IOTA))) {
             Err(e) => Err(e),
             Ok(itn) => {
-                let found: Option<IConstantInfo> = env::find_ci(fe2, &itn);
+                let found: Option<IConstantInfo> = env::find_ci(fe2.visible_below, fe2, &itn);
                 match found {
                     Some(IConstantInfo::ThmInfo(tcv, _)) => {
                         if !core::nidx_vec_beq(&tcv.level_params, lps) {
                             fail(core_types::not_implemented(code_points(&M_PI_LPS)))
                         } else {
-                            check_proj_iota_doms(pers,
+                            check_proj_iota_doms(pers, fe_self.visible_below,
                                 st, mode, fe_self, t, ctor_name, lps, cvj, n_p, n_f, i, &pmn,
                                 &tcv.ty,
                             )
@@ -2888,6 +2975,7 @@ pub fn check_proj_iota(
 /// forward renaming.
 pub fn check_proj_iota_doms(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe_self: &IFEnv,
@@ -2912,7 +3000,9 @@ pub fn check_proj_iota_doms(
                 Ok(fwd) => match doms_match_renamed(pers, st, &fwd, &sq.0, &cq.0, 0, 0, n_p + n_f) {
                     Err(e) => Err(e),
                     Ok(false) => fail(core_types::not_implemented(code_points(&M_PI_DOM))),
-                    Ok(true) => check_proj_iota_body(pers,
+                    Ok(true) => check_proj_iota_body(
+                        pers,
+                        vis,
                         st, mode, fe_self, ctor_name, lps, cvj, n_p, n_f, i, pmn, tty, &sq.1,
                     ),
                 },
@@ -2927,6 +3017,7 @@ pub fn check_proj_iota_doms(
 /// equation sides are certified against the statement's type slot.
 pub fn check_proj_iota_body(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe_self: &IFEnv,
@@ -2955,7 +3046,9 @@ pub fn check_proj_iota_body(
                                 core::append_eidx(env::eidx_vec_dup(&p_args), &x_args);
                             match expr_ops::mk_app_n(pers, st, &c_hd, &spine) {
                                 Err(e) => Err(e),
-                                Ok(mk_spine) => check_proj_iota_lhs(pers,
+                                Ok(mk_spine) => check_proj_iota_lhs(
+                                    pers,
+                                    vis,
                                     st, mode, fe_self, lps, n_p, n_f, i, pmn, tty, sbody, &p_args,
                                     &mk_spine,
                                 ),
@@ -2973,6 +3066,7 @@ pub fn check_proj_iota_body(
 /// — the expected redex, and the three pins the statement's body must meet.
 pub fn check_proj_iota_lhs(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe_self: &IFEnv,
@@ -3005,7 +3099,9 @@ pub fn check_proj_iota_lhs(
                                 } else if !q.3.eq2(&lhs_s) {
                                     fail(core_types::not_implemented(code_points(&M_PI_REDEX)))
                                 } else {
-                                    check_proj_iota_field(pers,
+                                    check_proj_iota_field(
+                                        pers,
+                                        vis,
                                         st, mode, fe_self, n_p, n_f, i, tty, sbody, &q.4,
                                     )
                                 }
@@ -3024,6 +3120,7 @@ pub fn check_proj_iota_lhs(
 /// statement's type slot (the telescope opened at free variables).
 pub fn check_proj_iota_field(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe_self: &IFEnv,
@@ -3056,7 +3153,9 @@ pub fn check_proj_iota_field(
                                         let a0 = core::get_d_eidx(&targs_o, 0, &b0);
                                         let a1 = core::get_d_eidx(&targs_o, 1, &b0);
                                         let a2 = core::get_d_eidx(&targs_o, 2, &b0);
-                                        check_iota_sides_ty(pers,
+                                        check_iota_sides_ty(
+                                            pers,
+                                            vis,
                                             st, mode, fe_self, depth, &a0, &a1, &a2, &l_a,
                                         )
                                     }
@@ -3087,12 +3186,12 @@ pub fn check_proj_fn(
     n_f: u64,
     i: u64,
 ) -> Result<IFEnv, CheckError> {
-    match check_proj_lookups(pers, st, &fe2, t, ctor_name, lps, n_p, n_f, i) {
+    match check_proj_lookups(pers, fe2.visible_below, st, &fe2, t, ctor_name, lps, n_p, n_f, i) {
         Err(e) => Err(e),
         Ok(q) => {
             let cvj: IConstantVal = q.0;
             let mcv: IConstantVal = q.1;
-            match check_proj_ty(pers, st, &fe2, t, ctor_name, lps, &mcv.ty, n_p, n_f) {
+            match check_proj_ty(pers, fe2.visible_below, st, &fe2, t, ctor_name, lps, &mcv.ty, n_p, n_f) {
                 Err(e) => Err(e),
                 Ok(pty) => match checker_base::check_proj_shape(pers, st, &pty, &cvj.ty, n_p, n_f) {
                     Err(e) => Err(e),
@@ -3100,7 +3199,8 @@ pub fn check_proj_fn(
                         if i >= n_f {
                             fail(core_types::invalid(code_points(&M_PROJ_RANGE)))
                         } else {
-                            check_proj_fn_rule(pers,
+                            check_proj_fn_rule(
+                                pers,
                                 st, mode, fe2, t, ctor_name, lps, &cvj, n_p, n_f, i, pty,
                             )
                         }
@@ -3128,7 +3228,7 @@ pub fn check_proj_fn_rule(
     i: u64,
     pty: EIdx,
 ) -> Result<IFEnv, CheckError> {
-    match checker_base::check_proj_rule(pers, st, mode, &fe2, &pty, cvj, lps, n_p, n_f, i) {
+    match checker_base::check_proj_rule(pers, fe2.visible_below, st, mode, &fe2, &pty, cvj, lps, n_p, n_f, i) {
         Err(e) => Err(e),
         Ok(rhs_a) => {
             match check_proj_iota(pers, st, mode, &fe2, &fe2, t, ctor_name, lps, cvj, n_p, n_f, i) {
@@ -3136,7 +3236,7 @@ pub fn check_proj_fn_rule(
                 Ok(()) => match env::proj_fn_name(pers, &mut st.store, t, i) {
                     Err(e) => Err(e),
                     Ok(pn) => {
-                        match core::proj_fn_rule(pers, st, &fe2, t, ctor_name, &pty, n_p, n_f, i, &rhs_a)
+                        match core::proj_fn_rule(pers, fe2.visible_below, st, &fe2, t, ctor_name, &pty, n_p, n_f, i, &rhs_a)
                         {
                             Err(e) => Err(e),
                             Ok(rule) => {
@@ -3170,6 +3270,7 @@ pub fn check_proj_fn_rule(
 /// — a `T._model.eta` theorem with the pinned statement?
 pub fn check_eta_thm(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe2: &IFEnv,
@@ -3187,15 +3288,17 @@ pub fn check_eta_thm(
             Ok(etn) => match model_name(pers, st, ctor_name) {
                 Err(e) => Err(e),
                 Ok(cm) => {
-                    let a: Option<IConstantInfo> = env::find_ci(fe2, &etn);
-                    let b: Option<IConstantInfo> = env::find_ci(fe2, &tm);
-                    let c: Option<IConstantInfo> = env::find_ci(fe2, &cm);
+                    let a: Option<IConstantInfo> = env::find_ci(vis, fe2, &etn);
+                    let b: Option<IConstantInfo> = env::find_ci(vis, fe2, &tm);
+                    let c: Option<IConstantInfo> = env::find_ci(vis, fe2, &cm);
                     match (a, b, c) {
                         (
                             Some(IConstantInfo::ThmInfo(tcv, _)),
                             Some(IConstantInfo::DefnInfo(cvm_t, _, _)),
                             Some(IConstantInfo::DefnInfo(cvm_c, _, _)),
-                        ) => check_eta_thm_at(pers,
+                        ) => check_eta_thm_at(
+                            pers,
+                            vis,
                             st, mode, fe2, t, lps, n_p, n_f, &tm, &cm, &tcv, &cvm_t, &cvm_c,
                         ),
                         _ => Ok(false),
@@ -3212,6 +3315,7 @@ pub fn check_eta_thm(
 /// models' own level parameters.
 pub fn check_eta_thm_at(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe2: &IFEnv,
@@ -3225,7 +3329,7 @@ pub fn check_eta_thm_at(
     cvm_t: &IConstantVal,
     cvm_c: &IConstantVal,
 ) -> Result<bool, CheckError> {
-    match eq_basis_stored(pers, st, fe2) {
+    match eq_basis_stored(pers, vis, st, fe2) {
         Err(e) => Err(e),
         Ok(false) => Ok(false),
         Ok(true) => {
@@ -3235,7 +3339,7 @@ pub fn check_eta_thm_at(
             {
                 Ok(false)
             } else {
-                match proj_models_ok(pers, st, fe2, t, lps, n_f, 0) {
+                match proj_models_ok(pers, vis, st, fe2, t, lps, n_f, 0) {
                     Err(e) => Err(e),
                     Ok(false) => Ok(false),
                     Ok(true) => {
@@ -3252,6 +3356,7 @@ pub fn check_eta_thm_at(
 /// — the projection models exist at the family's level parameters.
 pub fn proj_models_ok(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe2: &IFEnv,
     t: &NIdx,
@@ -3265,11 +3370,11 @@ pub fn proj_models_ok(
         match core::proj_model_name(pers, st, t, j) {
             Err(e) => Err(e),
             Ok(pmn) => {
-                let found: Option<IConstantInfo> = env::find_ci(fe2, &pmn);
+                let found: Option<IConstantInfo> = env::find_ci(vis, fe2, &pmn);
                 match found {
                     Some(IConstantInfo::DefnInfo(cvmj, _, _)) => {
                         if core::nidx_vec_beq(&cvmj.level_params, lps) {
-                            proj_models_ok(pers, st, fe2, t, lps, n_f, j + 1)
+                            proj_models_ok(pers, vis, st, fe2, t, lps, n_f, j + 1)
                         } else {
                             Ok(false)
                         }
@@ -3313,7 +3418,8 @@ pub fn check_eta_thm_shape(
                         Err(e) => Err(e),
                         Ok(us) => match intern_e(pers, st, ENodeView::Const(tm.dup2(), us)) {
                             Err(e) => Err(e),
-                            Ok(t_hd) => check_eta_thm_body(pers,
+                            Ok(t_hd) => check_eta_thm_body(
+                                pers,
                                 st, mode, t, lps, n_p, n_f, &t_hd, cm, &sq.0, &sq.1, &tq.1,
                             ),
                         },
@@ -3358,7 +3464,8 @@ pub fn check_eta_thm_body(
                         Err(e) => Err(e),
                         Ok(ps_hi) => match expr_ops::mk_app_n(pers, st, t_hd, &ps_hi) {
                             Err(e) => Err(e),
-                            Ok(fam_hi) => check_eta_thm_eq(pers,
+                            Ok(fam_hi) => check_eta_thm_eq(
+                                pers,
                                 st, mode, t, lps, n_f, cm, sbody, tbody_m, &ps_hi, &fam_hi,
                             ),
                         },
@@ -3471,6 +3578,7 @@ pub fn eta_proj_args(
 /// `∀ p⃗ (x y : T._model p⃗), x = y`?
 pub fn check_unit_thm(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe2: &IFEnv,
@@ -3484,13 +3592,15 @@ pub fn check_unit_thm(
         Ok(tm) => match intern_n_node(pers, st, NNodeView::Str(tm.dup2(), code_points(&UL))) {
             Err(e) => Err(e),
             Ok(utn) => {
-                let a: Option<IConstantInfo> = env::find_ci(fe2, &utn);
-                let b: Option<IConstantInfo> = env::find_ci(fe2, &tm);
+                let a: Option<IConstantInfo> = env::find_ci(vis, fe2, &utn);
+                let b: Option<IConstantInfo> = env::find_ci(vis, fe2, &tm);
                 match (a, b) {
                     (
                         Some(IConstantInfo::ThmInfo(tcv, _)),
                         Some(IConstantInfo::DefnInfo(cvm_t, _, _)),
-                    ) => check_unit_thm_at(pers,
+                    ) => check_unit_thm_at(
+                        pers,
+                        vis,
                         st,
                         mode,
                         fe2,
@@ -3515,6 +3625,7 @@ pub fn check_unit_thm(
 /// shape.
 pub fn check_unit_thm_at(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe2: &IFEnv,
@@ -3526,7 +3637,7 @@ pub fn check_unit_thm_at(
     mtty: &EIdx,
     mlps: &Vec<NIdx>,
 ) -> Result<bool, CheckError> {
-    match eq_basis_stored(pers, st, fe2) {
+    match eq_basis_stored(pers, vis, st, fe2) {
         Err(e) => Err(e),
         Ok(false) => Ok(false),
         Ok(true) => {
@@ -3698,7 +3809,7 @@ pub fn install_proj_fn_step(
     match core::proj_model_name(pers, st, t, i) {
         Err(er) => Err(er),
         Ok(pmn) => {
-            if env::ifenv_find(&e, &pmn).is_some() {
+            if env::ifenv_find(e.visible_below, &e, &pmn).is_some() {
                 core::flush_caches(st);
                 check_proj_fn(pers, st, mode, e, t, ctor_name, lps, n_p, n_f, i)
             } else {
@@ -3742,6 +3853,7 @@ pub fn install_proj_fns(
 /// store several names behind the twin's.
 pub fn ind_block_caps(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -3751,7 +3863,9 @@ pub fn ind_block_caps(
     n_f: u64,
 ) -> Result<IIndCaps, CheckError> {
     let lps_eq: bool = core::nidx_vec_beq(&cv_c.level_params, &cv_t.level_params);
-    match check_eta_thm(pers,
+    match check_eta_thm(
+        pers,
+        vis,
         st,
         mode,
         fe,
@@ -3764,7 +3878,7 @@ pub fn ind_block_caps(
         Err(e) => Err(e),
         Ok(thm) => {
             let eta: bool = lps_eq && thm;
-            match check_unit_thm(pers, st, mode, fe, &cv_t.name, &cv_t.level_params, n_p) {
+            match check_unit_thm(pers, vis, st, mode, fe, &cv_t.name, &cv_t.level_params, n_p) {
                 Err(e) => Err(e),
                 Ok(unitlike) => match core::pi_result_is_prop(pers, st, &cv_t.ty) {
                     Err(e) => Err(e),
@@ -3793,6 +3907,7 @@ pub fn ind_block_caps(
 /// family applied to its parameters.**  The subject is the STORED constant.
 pub fn ctor_residual_ok(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe2: &IFEnv,
@@ -3806,7 +3921,7 @@ pub fn ctor_residual_ok(
     if !con_ron_core::kernel::env::tt_checks(mode) || !eta {
         Ok(true)
     } else {
-        let found: Option<IConstantInfo> = env::find_ci(fe2, ctor_name);
+        let found: Option<IConstantInfo> = env::find_ci(vis, fe2, ctor_name);
         match found {
             Some(IConstantInfo::CtorInfo(cv_ca, _, _)) => {
                 match expr_ops::strip_pis(pers, st, n_p + n_f, &cv_ca.ty) {
@@ -3932,7 +4047,8 @@ pub fn check_modeled(
     } else {
         let block_names: Vec<NIdx> = block_names_of(block, 0, Vec::new());
         match single_ind_ctor(block) {
-            Some(sq) => check_modeled_struct(pers,
+            Some(sq) => check_modeled_struct(
+                pers,
                 st,
                 mode,
                 fe,
@@ -3974,7 +4090,7 @@ pub fn check_modeled_struct(
     n_p: u64,
     n_f: u64,
 ) -> Result<IFEnv, CheckError> {
-    match ind_block_caps(pers, st, mode, &fe, cv_t, cv_c, n_p, n_f) {
+    match ind_block_caps(pers, fe.visible_below, st, mode, &fe, cv_t, cv_c, n_p, n_f) {
         Err(e) => Err(e),
         Ok(caps) => {
             let eta: bool = caps.eta;
@@ -4004,7 +4120,7 @@ pub fn check_modeled_projs(
     n_f: u64,
     eta: bool,
 ) -> Result<IFEnv, CheckError> {
-    match ctor_residual_ok(pers,
+    match ctor_residual_ok(pers, fe3.visible_below,
         st,
         mode,
         &fe3,
@@ -4017,14 +4133,15 @@ pub fn check_modeled_projs(
     ) {
         Err(e) => Err(e),
         Ok(false) => fail(core_types::not_implemented(code_points(&M_ETA_RESID))),
-        Ok(true) => match proj_fn_family_free(pers, st, &fe3, &cv_t.name, n_f, 0) {
+        Ok(true) => match proj_fn_family_free(pers, fe3.visible_below, st, &fe3, &cv_t.name, n_f, 0) {
             Err(e) => Err(e),
             Ok(false) => fail(core_types::invalid(code_points(&M_FAM_TAKEN))),
             Ok(true) => {
                 match ctor_targets_fam(pers, st, &cv_c.ty, &cv_t.name, &cv_t.level_params, n_p, n_f) {
                     Err(e) => Err(e),
                     Ok(false) => Ok(fe3),
-                    Ok(true) => install_proj_fns(pers,
+                    Ok(true) => install_proj_fns(
+                        pers,
                         st,
                         mode,
                         &cv_t.name,
@@ -4049,6 +4166,7 @@ pub fn check_modeled_projs(
 /// recursion.
 pub fn proj_fn_family_free(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     t: &NIdx,
@@ -4061,8 +4179,8 @@ pub fn proj_fn_family_free(
         match env::proj_fn_name(pers, &mut st.store, t, j) {
             Err(e) => Err(e),
             Ok(pn) => {
-                if env::ifenv_find(fe, &pn).is_none() {
-                    proj_fn_family_free(pers, st, fe, t, n_f, j + 1)
+                if env::ifenv_find(vis, fe, &pn).is_none() {
+                    proj_fn_family_free(pers, vis, st, fe, t, n_f, j + 1)
                 } else {
                     Ok(false)
                 }

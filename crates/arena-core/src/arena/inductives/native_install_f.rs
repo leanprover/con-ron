@@ -24,6 +24,7 @@ use crate::arena::store::PersTier;
 #[allow(clippy::too_many_arguments)]
 pub fn native_opened_ok_f(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe0: &IFEnv,
     t: &NIdx,
@@ -34,7 +35,7 @@ pub fn native_opened_ok_f(
     n_f: u64,
     ks: &Vec<RecFieldKind>,
 ) -> Result<bool, CheckError> {
-    native_install::native_opened_ok(pers, st, fe0, t, lps, n_p, n_idx, cty, n_f, ks)
+    native_install::native_opened_ok(pers, vis, st, fe0, t, lps, n_p, n_idx, cty, n_f, ks)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:61-69 nativeFieldsOkF
@@ -43,6 +44,7 @@ pub fn native_opened_ok_f(
 #[allow(clippy::too_many_arguments)]
 pub fn native_fields_ok_f(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe0: &IFEnv,
     t: &NIdx,
@@ -52,7 +54,7 @@ pub fn native_fields_ok_f(
     ctors_a: &Vec<(IConstantVal, u64)>,
     kinds: &Vec<Vec<RecFieldKind>>,
 ) -> Result<bool, CheckError> {
-    native_install::native_fields_ok(pers, st, fe0, t, lps, n_p, n_idx, ctors_a, kinds)
+    native_install::native_fields_ok(pers, vis, st, fe0, t, lps, n_p, n_idx, ctors_a, kinds)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/NativeInstallF.lean:71-85 checkNativeRulesF
@@ -61,6 +63,7 @@ pub fn native_fields_ok_f(
 #[allow(clippy::too_many_arguments)]
 pub fn check_native_rules_f(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe_r: &IFEnv,
     rlps: &Vec<NIdx>,
@@ -78,7 +81,9 @@ pub fn check_native_rules_f(
     j: u64,
     out: Vec<EIdx>,
 ) -> Result<Vec<EIdx>, CheckError> {
-    native_install::check_native_rules(pers,
+    native_install::check_native_rules(
+        pers,
+        vis,
         st, fe_r, rlps, t, lps, elim, large, n_p, n_idx, tty, ctors, rec_c, rlvls, k, j, out,
     )
 }

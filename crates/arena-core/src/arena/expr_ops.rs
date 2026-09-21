@@ -1157,7 +1157,8 @@ pub fn reset_meta_go(
                                 Ok(b2) => {
                                     let same: bool =
                                         t.eq2(&ty) && w.eq2(&val) && b2.eq2(&body);
-                                    match intern_rebuilt(pers,
+                                    match intern_rebuilt(
+                                        pers,
                                         st,
                                         h,
                                         same,
@@ -3274,7 +3275,8 @@ pub fn abstract1_go(
                                         Err(e) => Err(e),
                                         Ok(a2) => {
                                             let same: bool = f2.eq2(&f) && a2.eq2(&a);
-                                            match intern_rebuilt(pers,
+                                            match intern_rebuilt(
+                                                pers,
                                                 st,
                                                 h,
                                                 same,
@@ -3301,7 +3303,8 @@ pub fn abstract1_go(
                                         Err(e) => Err(e),
                                         Ok(b2) => {
                                             let same: bool = t.eq2(&ty) && b2.eq2(&body);
-                                            match intern_rebuilt(pers,
+                                            match intern_rebuilt(
+                                                pers,
                                                 st,
                                                 h,
                                                 same,
@@ -3328,7 +3331,8 @@ pub fn abstract1_go(
                                         Err(e) => Err(e),
                                         Ok(b2) => {
                                             let same: bool = t.eq2(&ty) && b2.eq2(&body);
-                                            match intern_rebuilt(pers,
+                                            match intern_rebuilt(
+                                                pers,
                                                 st,
                                                 h,
                                                 same,
@@ -3360,7 +3364,8 @@ pub fn abstract1_go(
                                                     let same: bool = t.eq2(&ty)
                                                         && w.eq2(&val)
                                                         && b2.eq2(&body);
-                                                    match intern_rebuilt(pers,
+                                                    match intern_rebuilt(
+                                                        pers,
                                                         st,
                                                         h,
                                                         same,
@@ -3387,7 +3392,8 @@ pub fn abstract1_go(
                                     Err(e) => Err(e),
                                     Ok(u) => {
                                         let same: bool = u.eq2(&sub);
-                                        match intern_rebuilt(pers,
+                                        match intern_rebuilt(
+                                            pers,
                                             st,
                                             h,
                                             same,
@@ -3732,7 +3738,8 @@ pub fn instantiate1_lift_go(
                                         match instantiate1_lift_go(pers, st, v, fuel - 1, &val, d) {
                                             Err(e) => Err(e),
                                             Ok(w) => {
-                                                match instantiate1_lift_go(pers,
+                                                match instantiate1_lift_go(
+                                                    pers,
                                                     st,
                                                     v,
                                                     fuel - 1,
@@ -3741,7 +3748,8 @@ pub fn instantiate1_lift_go(
                                                 ) {
                                                     Err(e) => Err(e),
                                                     Ok(b) => {
-                                                        match intern_e(pers,
+                                                        match intern_e(
+                                                            pers,
                                                             st,
                                                             ENodeView::LetE(t, w, b),
                                                         ) {
@@ -4052,7 +4060,8 @@ pub fn inst_lp_go(
                                     let same: bool = t.eq2(&ty)
                                         && b2.eq2(&body)
                                         && expr::binder_meta_beq(&m2, &m);
-                                    match intern_rebuilt(pers,
+                                    match intern_rebuilt(
+                                        pers,
                                         st,
                                         h,
                                         same,
@@ -4082,7 +4091,8 @@ pub fn inst_lp_go(
                                     Ok(b2) => {
                                         let same: bool =
                                             t.eq2(&ty) && w.eq2(&val) && b2.eq2(&body);
-                                        match intern_rebuilt(pers,
+                                        match intern_rebuilt(
+                                            pers,
                                             st,
                                             h,
                                             same,
@@ -4488,7 +4498,8 @@ mod tests {
         let b0 = ok(intern_e(pers, &mut st, ENodeView::BVar(0)));
         let b1 = ok(intern_e(pers, &mut st, ENodeView::BVar(1)));
         let b2 = ok(intern_e(pers, &mut st, ENodeView::BVar(2)));
-        let lit7 = ok(intern_e(pers,
+        let lit7 = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::Lit(expr::literal_nat(nat::from_u64(7))),
         ));
@@ -4496,57 +4507,69 @@ mod tests {
         let fv1 = ok(intern_e(pers, &mut st, ENodeView::FVar(1, s1.dup2())));
         let ap1 = ok(intern_e(pers, &mut st, ENodeView::App(cf.dup2(), b0.dup2())));
         let pj = ok(intern_e(pers, &mut st, ENodeView::Proj(foo.dup2(), 0, ap1.dup2())));
-        let lam_t = ok(intern_e(pers,
+        let lam_t = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::Lam(s0.dup2(), ap1.dup2(), nev()),
         ));
         let apbf = ok(intern_e(pers, &mut st, ENodeView::App(b1.dup2(), fv0.dup2())));
-        let all_t = ok(intern_e(pers,
+        let all_t = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::ForallE(s0.dup2(), apbf.dup2(), nev()),
         ));
         let apbb = ok(intern_e(pers, &mut st, ENodeView::App(b0.dup2(), b1.dup2())));
-        let let_t = ok(intern_e(pers,
+        let let_t = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::LetE(s0.dup2(), cf.dup2(), apbb.dup2()),
         ));
         let apcb = ok(intern_e(pers, &mut st, ENodeView::App(cb.dup2(), b0.dup2())));
         let apfv = ok(intern_e(pers, &mut st, ENodeView::App(fv1.dup2(), b0.dup2())));
         let apb2 = ok(intern_e(pers, &mut st, ENodeView::App(b2.dup2(), apfv.dup2())));
-        let pj2 = ok(intern_e(pers,
+        let pj2 = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::Proj(foo.dup2(), 0, apb2.dup2()),
         ));
-        let inner = ok(intern_e(pers,
+        let inner = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::ForallE(s1.dup2(), pj2.dup2(), nev()),
         ));
-        let let_b = ok(intern_e(pers,
+        let let_b = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::LetE(su.dup2(), apcb.dup2(), inner.dup2()),
         ));
-        let big = ok(intern_e(pers,
+        let big = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::Lam(s0.dup2(), let_b.dup2(), nev()),
         ));
         let apb10 = ok(intern_e(pers, &mut st, ENodeView::App(b1.dup2(), b0.dup2())));
-        let pi_in = ok(intern_e(pers,
+        let pi_in = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::ForallE(s1.dup2(), apb10.dup2(), nev()),
         ));
-        let pi_t = ok(intern_e(pers,
+        let pi_t = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::ForallE(s0.dup2(), pi_in.dup2(), nev()),
         ));
-        let pi_s = ok(intern_e(pers,
+        let pi_s = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::ForallE(s0.dup2(), s1.dup2(), nev()),
         ));
-        let lam_in = ok(intern_e(pers,
+        let lam_in = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::Lam(s1.dup2(), apb10.dup2(), nev()),
         ));
-        let lam_t2 = ok(intern_e(pers,
+        let lam_t2 = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::Lam(s0.dup2(), lam_in.dup2(), nev()),
         ));
@@ -4639,22 +4662,26 @@ mod tests {
         let nu = name::mk_str(name::anonymous(), cp("u"));
         let nev = || expr::binder_meta(prop_when::never());
         assert!(eq_e(pers, &st, &fx.s0, &expr::sort(core_level::zero())));
-        assert!(eq_e(pers,
+        assert!(eq_e(
+            pers,
             &st,
             &fx.s1,
             &expr::sort(core_level::succ(core_level::zero()))
         ));
-        assert!(eq_e(pers,
+        assert!(eq_e(
+            pers,
             &st,
             &fx.su,
             &expr::sort(core_level::param(name::dup(&nu)))
         ));
-        assert!(eq_e(pers,
+        assert!(eq_e(
+            pers,
             &st,
             &fx.cf,
             &expr::mk_const(name::dup(&nfoo), vec![core_level::zero()])
         ));
-        assert!(eq_e(pers,
+        assert!(eq_e(
+            pers,
             &st,
             &fx.cb,
             &expr::mk_const(
@@ -4662,17 +4689,20 @@ mod tests {
                 vec![core_level::param(name::dup(&nu))]
             )
         ));
-        assert!(eq_e(pers,
+        assert!(eq_e(
+            pers,
             &st,
             &fx.fv1,
             &expr::fvar(1, expr::sort(core_level::succ(core_level::zero())))
         ));
-        assert!(eq_e(pers,
+        assert!(eq_e(
+            pers,
             &st,
             &fx.lit7,
             &expr::lit(expr::literal_nat(nat::from_u64(7)))
         ));
-        assert!(eq_e(pers,
+        assert!(eq_e(
+            pers,
             &st,
             &fx.lam_t,
             &expr::lam(
@@ -4684,7 +4714,8 @@ mod tests {
                 nev()
             )
         ));
-        assert!(eq_e(pers,
+        assert!(eq_e(
+            pers,
             &st,
             &fx.big,
             &expr::lam(
@@ -4720,7 +4751,8 @@ mod tests {
                 nev()
             )
         ));
-        assert!(eq_e(pers,
+        assert!(eq_e(
+            pers,
             &st,
             &fx.pi_t,
             &expr::forall_e(
@@ -5091,7 +5123,8 @@ mod tests {
             expr::dup(&cf),
             &vec![expr::dup(&fv0), expr::dup(&b0)],
         );
-        let r = ok(mk_app_n(pers,
+        let r = ok(mk_app_n(
+            pers,
             &mut st,
             &fx.cf,
             &vec![fx.fv0.dup2(), fx.b0.dup2()],
@@ -5146,32 +5179,38 @@ mod tests {
         let pi_s = den(pers, &st, &fx.pi_s);
         let s1 = den(pers, &st, &fx.s1);
 
-        assert!(eq_binders(pers,
+        assert!(eq_binders(
+            pers,
             &st,
             &ok(strip_lams(pers, &st, 2, &fx.lam_t2)),
             &core_ops::strip_lams(2, &lam_t2)
         ));
-        assert!(eq_binders(pers,
+        assert!(eq_binders(
+            pers,
             &st,
             &ok(strip_lams(pers, &st, 0, &fx.lam_t2)),
             &core_ops::strip_lams(0, &lam_t2)
         ));
-        assert!(eq_binders(pers,
+        assert!(eq_binders(
+            pers,
             &st,
             &ok(strip_lams(pers, &st, 3, &fx.lam_t2)),
             &core_ops::strip_lams(3, &lam_t2)
         ));
-        assert!(eq_binders(pers,
+        assert!(eq_binders(
+            pers,
             &st,
             &ok(strip_pis(pers, &st, 2, &fx.pi_t)),
             &core_ops::strip_pis(2, &pi_t)
         ));
-        assert!(eq_binders(pers,
+        assert!(eq_binders(
+            pers,
             &st,
             &ok(strip_pis(pers, &st, 1, &fx.pi_t)),
             &core_ops::strip_pis(1, &pi_t)
         ));
-        assert!(eq_binders(pers,
+        assert!(eq_binders(
+            pers,
             &st,
             &ok(strip_pis(pers, &st, 3, &fx.pi_t)),
             &core_ops::strip_pis(3, &pi_t)
@@ -5183,17 +5222,20 @@ mod tests {
         assert!(eq_e(pers, &st, &ok(pi_result(pers, &st, F, &fx.cf)), &w));
         assert_eq!(ok(pi_arity(pers, &st, F, &fx.pi_t)), core_ops::pi_arity(&pi_t));
         assert_eq!(ok(pi_arity(pers, &st, F, &fx.cf)), core_ops::pi_arity(&cf));
-        assert!(eq_ol(pers,
+        assert!(eq_ol(
+            pers,
             &st,
             &ok(result_sort(pers, &st, F, &fx.pi_s)),
             &core_ops::result_sort(&pi_s)
         ));
-        assert!(eq_ol(pers,
+        assert!(eq_ol(
+            pers,
             &st,
             &ok(result_sort(pers, &st, F, &fx.pi_t)),
             &core_ops::result_sort(&pi_t)
         ));
-        assert!(eq_ol(pers,
+        assert!(eq_ol(
+            pers,
             &st,
             &ok(result_sort(pers, &st, F, &fx.s1)),
             &core_ops::result_sort(&s1)
@@ -5252,7 +5294,8 @@ mod tests {
             &pi_t,
             Vec::new(),
         );
-        let r = ok(inst_pis_at_f_go(pers,
+        let r = ok(inst_pis_at_f_go(
+            pers,
             &mut st,
             F,
             &vec![fx.fv0.dup2()],
@@ -5268,7 +5311,8 @@ mod tests {
         let r = ok(inst_pis_at_f(pers, &mut st, F, &hs1, &fx.lam_t2));
         assert!(eq_pair(pers, &st, &r, &w));
         let w = core_ops::inst_lams_at_f_go(&Vec::new(), &two, 0, &lam_t2, Vec::new());
-        let r = ok(inst_lams_at_f_go(pers,
+        let r = ok(inst_lams_at_f_go(
+            pers,
             &mut st,
             F,
             &Vec::new(),
@@ -5510,7 +5554,8 @@ mod tests {
         assert!(eq_e(pers, &st, &r, &w));
 
         let w = core_ops::inst_pis_at_lift(&vec![expr::dup(&cf), expr::dup(&b0)], &pi_t);
-        let r = ok(inst_pis_at_lift(pers,
+        let r = ok(inst_pis_at_lift(
+            pers,
             &mut st,
             F,
             &vec![fx.cf.dup2(), fx.b0.dup2()],
@@ -5553,7 +5598,8 @@ mod tests {
         );
         // interning is hash-consing, so a rebuilt node is the SAME handle and
         // the index test is the structural test (`denoteE_inj`, task #97a)
-        let r = ok(intern_e(pers,
+        let r = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::App(fx.cf.dup2(), fx.b0.dup2()),
         ));

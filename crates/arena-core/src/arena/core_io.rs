@@ -58,6 +58,7 @@ pub const CORE_KNOT_IO: u32 = LANE_IO;
 /// point.
 pub fn infer_type_core_io(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -65,5 +66,5 @@ pub fn infer_type_core_io(
     depth: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    knot_infer(pers, st, mode, CORE_KNOT_IO, fuel, fe, depth, e)
+    knot_infer(pers, vis, st, mode, CORE_KNOT_IO, fuel, fe, depth, e)
 }

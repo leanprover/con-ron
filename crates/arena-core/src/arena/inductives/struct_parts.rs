@@ -740,7 +740,8 @@ pub fn struct_parts_core_at(
     const REC: [u32; 3] = [114, 101, 99];
     let t: NIdx = cv_t.name.dup2();
     let c: NIdx = cv_c.name.dup2();
-    match crate::arena::monad::intern_n_node(pers,
+    match crate::arena::monad::intern_n_node(
+        pers,
         st,
         crate::arena::store::NNodeView::Str(t.dup2(), code_points(&REC)),
     ) {
@@ -857,7 +858,8 @@ pub fn struct_parts_core_elim(
             let relps: Vec<NIdx> = nidx_vec_tail(&cv_r.level_params);
             if core::nidx_vec_beq(&relps, lps) && !crate::arena::env::nidx_vec_contains(lps, &elim)
             {
-                match struct_shape(pers,
+                match struct_shape(
+                    pers,
                     st, &cv_t.name, &cv_c.name, lps, &elim, true, n_p, n_f, &cv_t.ty, &cv_c.ty,
                     &cv_r.ty,
                 ) {
@@ -906,7 +908,8 @@ pub fn struct_parts_core_small(
         Err(e) => Err(e),
         Ok(anon) => {
             if core::nidx_vec_beq(&cv_r.level_params, &cv_t.level_params) {
-                match struct_shape(pers,
+                match struct_shape(
+                    pers,
                     st,
                     &cv_t.name,
                     &cv_c.name,

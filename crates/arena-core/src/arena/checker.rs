@@ -178,7 +178,7 @@ pub fn check_basis_decl(
     kind: &BasisKind,
 ) -> Result<IFEnv, CheckError> {
     match kind {
-        BasisKind::QuotK => match crate::arena::decl_check::eq_basis_pinned(pers, st, &fe) {
+        BasisKind::QuotK => match crate::arena::decl_check::eq_basis_pinned(pers, fe.visible_below, st, &fe) {
             Err(e) => Err(e),
             Ok(b) => {
                 if !b {
@@ -258,7 +258,7 @@ pub fn check_defn_decl(
     hint: &ReducibilityHint,
 ) -> Result<IFEnv, CheckError> {
     let k_pre: u64 = fe.visible_below;
-    match check_constant_val(pers, st, mode, &fe, cv) {
+    match check_constant_val(pers, fe.visible_below, st, mode, &fe, cv) {
         Err(e) => Err(e),
         Ok(cv_a) => match check_defn_val(pers, st, mode, fe, &cv_a, value, hint) {
             Err(e) => Err(e),
@@ -333,11 +333,11 @@ pub fn check_structural_nat_pin(
     k_pre: u64,
     n: &NIdx,
 ) -> Result<IFEnv, CheckError> {
-    match nat_op_guard(pers, st, &fe2, n) {
+    match nat_op_guard(pers, fe2.visible_below, st, &fe2, n) {
         Err(e) => Err(e),
         Ok(g) => match nat_op_deps(st, n) {
             Err(e) => Err(e),
-            Ok(deps) => match nat_op_stored_ok_all(pers, st, &fe2, &deps, 0) {
+            Ok(deps) => match nat_op_stored_ok_all(pers, fe2.visible_below, st, &fe2, &deps, 0) {
                 Err(e) => Err(e),
                 Ok(d) => {
                     if !g || !d {
@@ -362,7 +362,7 @@ pub fn check_structural_nat_pin_eqs(
     k_pre: u64,
     n: &NIdx,
 ) -> Result<IFEnv, CheckError> {
-    match defn_value(&fe2, n) {
+    match defn_value(fe2.visible_below, &fe2, n) {
         None => fail(CheckError::Internal(code_points(&M_NAT_NOT_STORED))),
         Some(value2) => match nat_op_equations(pers, st, 0, n) {
             Err(e) => Err(e),
@@ -388,7 +388,7 @@ pub fn check_structural_nat_pin_certify(
 ) -> Result<IFEnv, CheckError> {
     let k2: u64 = fe2.visible_below;
     let fe_pre: IFEnv = ifenv_restrict_to(fe2, k_pre);
-    let r: Result<bool, CheckError> = certify_nat_eqs(pers, st, mode, &fe_pre, seqs, 0);
+    let r: Result<bool, CheckError> = certify_nat_eqs(pers, fe_pre.visible_below, st, mode, &fe_pre, seqs, 0);
     let fe3: IFEnv = ifenv_restrict_to(fe_pre, k2);
     match r {
         Err(e) => Err(e),
@@ -413,7 +413,7 @@ pub fn check_thm_decl(
     cv: &IConstantVal,
     value: &EIdx,
 ) -> Result<IFEnv, CheckError> {
-    match check_constant_val(pers, st, mode, &fe, cv) {
+    match check_constant_val(pers, fe.visible_below, st, mode, &fe, cv) {
         Err(e) => Err(e),
         Ok(cv_a) => check_thm_val(pers, st, mode, fe, &cv_a, value),
     }
@@ -432,7 +432,7 @@ pub fn check_opaque_decl(
     value: &EIdx,
 ) -> Result<IFEnv, CheckError> {
     let k_pre: u64 = fe.visible_below;
-    match check_constant_val(pers, st, mode, &fe, cv) {
+    match check_constant_val(pers, fe.visible_below, st, mode, &fe, cv) {
         Err(e) => Err(e),
         Ok(cv_a) => match check_opaque_val(pers, st, mode, fe, &cv_a, value) {
             Err(e) => Err(e),
@@ -544,9 +544,9 @@ pub fn check_axiom_decl_std(
     fe: IFEnv,
     cv: &IConstantVal,
 ) -> Result<IFEnv, CheckError> {
-    match check_constant_val(pers, st, mode, &fe, cv) {
+    match check_constant_val(pers, fe.visible_below, st, mode, &fe, cv) {
         Err(e) => Err(e),
-        Ok(cv_a) => match std_axiom_ok(pers, st, &fe, &cv_a) {
+        Ok(cv_a) => match std_axiom_ok(pers, fe.visible_below, st, &fe, &cv_a) {
             Err(e) => Err(e),
             Ok(ok) => {
                 if ok {
@@ -577,7 +577,7 @@ pub fn check_axiom_decl_trust(
         Err(e) => Err(e),
         Ok(tn) => {
             if cv_a.name.eq2(&tn) {
-                match trust_compiler_ok(pers, st, &fe, &cv_a) {
+                match trust_compiler_ok(pers, fe.visible_below, st, &fe, &cv_a) {
                     Err(e) => Err(e),
                     Ok(ok) => {
                         if ok {
@@ -616,7 +616,7 @@ pub fn check_axiom_decl_of_reduce(
             Err(e) => Err(e),
             Ok(ob) => {
                 if cv_a.name.eq2(&on) || cv_a.name.eq2(&ob) {
-                    match of_reduce_ax_ok(pers, st, &fe, &cv_a) {
+                    match of_reduce_ax_ok(pers, fe.visible_below, st, &fe, &cv_a) {
                         Err(e) => Err(e),
                         Ok(ok) => {
                             if ok {
@@ -694,7 +694,8 @@ pub fn check_ind_decl(
     match basis_pin_hit(pers, st, block) {
         Err(e) => Err(e),
         Ok(Some(kind)) => check_basis_decl(pers, st, fe, &kind),
-        Ok(None) => crate::arena::inductives::check_ind_decl(pers,
+        Ok(None) => crate::arena::inductives::check_ind_decl(
+            pers,
             cenv::check_mode_dup(mode),
             fe,
             i_constant_infos_dup(block),
@@ -1021,9 +1022,9 @@ pub fn annot_step_defn_install(
     value: &EIdx,
     hint: &ReducibilityHint,
 ) -> Result<(IFEnv, Option<ValueGroup>), CheckError> {
-    match install_constant_val(pers, st, mode, &fe, cv) {
+    match install_constant_val(pers, fe.visible_below, st, mode, &fe, cv) {
         Err(e) => Err(e),
-        Ok(cv_a) => match install_value(pers, st, mode, &fe, &cv_a, value) {
+        Ok(cv_a) => match install_value(pers, fe.visible_below, st, mode, &fe, &cv_a, value) {
             Err(e) => Err(e),
             Ok(jv) => {
                 let fe2: IFEnv = crate::arena::env::ifenv_push(
@@ -1056,7 +1057,7 @@ pub fn annot_step_thm(
     cv: &IConstantVal,
     value: &EIdx,
 ) -> Result<(IFEnv, Option<ValueGroup>), CheckError> {
-    match install_constant_val(pers, st, mode, &fe, cv) {
+    match install_constant_val(pers, fe.visible_below, st, mode, &fe, cv) {
         Err(e) => Err(e),
         Ok(cv_a) => {
             let fe2: IFEnv = crate::arena::env::ifenv_push(
@@ -1113,9 +1114,9 @@ pub fn annot_step_opaque_install(
     cv: &IConstantVal,
     value: &EIdx,
 ) -> Result<(IFEnv, Option<ValueGroup>), CheckError> {
-    match install_constant_val(pers, st, mode, &fe, cv) {
+    match install_constant_val(pers, fe.visible_below, st, mode, &fe, cv) {
         Err(e) => Err(e),
-        Ok(cv_a) => match install_value(pers, st, mode, &fe, &cv_a, value) {
+        Ok(cv_a) => match install_value(pers, fe.visible_below, st, mode, &fe, &cv_a, value) {
             Err(e) => Err(e),
             Ok(jv) => {
                 let fe2: IFEnv = crate::arena::env::ifenv_push(
@@ -1208,24 +1209,26 @@ pub fn annot_fold(
 /// dropped.  Deviation: the twin's `throw` skips its `dropScratch` and the
 /// caller restores the pre-record state instead; the port drops the tier on
 /// BOTH paths, which lands in the same place (scratch off, persistent
-/// untouched) without a snapshot.  The index comes in at the installed bound
-/// and goes back out there, the twin's `restrictTo` happening in between.
+/// untouched) without a snapshot.
+///
+/// **The index comes in by REFERENCE and the twin's `restrictTo` is the scalar
+/// `pc.vis`** (task #97-P6-6b).  It used to come in by value, be restricted to
+/// the record's prefix bound and be handed back at the installed one, which is
+/// exactly what forbade a pool: `n` workers cannot each own the environment
+/// (`ifenv_dup` is ≈1.4 GB a worker on Mathlib) and cannot each restrict a
+/// shared one.  With the bound a parameter this function borrows the index,
+/// mutates nothing outside `st`, and is what a worker runs.
 pub fn check_pending(
     pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
-    fe: IFEnv,
+    fe: &IFEnv,
     pc: &PendingCheck,
-) -> Result<IFEnv, CheckError> {
+) -> Result<(), CheckError> {
     enter_scratch(st);
-    let k: u64 = fe.visible_below;
-    let fe_v: IFEnv = ifenv_restrict_to(fe, pc.vis);
-    let r: Result<(), CheckError> = check_value_group(pers, st, mode, &fe_v, &pc.vg);
+    let r: Result<(), CheckError> = check_value_group(pers, pc.vis, st, mode, fe, &pc.vg);
     drop_scratch(st);
-    match r {
-        Err(e) => Err(e),
-        Ok(()) => Ok(ifenv_restrict_to(fe_v, k)),
-    }
+    r
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:429-436 checkPendingList
@@ -1236,16 +1239,16 @@ pub fn check_pending_list(
     pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
-    fe: IFEnv,
+    fe: &IFEnv,
     pend: &Vec<PendingCheck>,
     i: usize,
-) -> Result<IFEnv, (CheckError, u64)> {
+) -> Result<(), (CheckError, u64)> {
     if i >= pend.len() {
-        Ok(fe)
+        Ok(())
     } else {
         match check_pending(pers, st, mode, fe, &pend[i]) {
             Err(e) => Err((e, pend[i].pos)),
-            Ok(fe2) => check_pending_list(pers, st, mode, fe2, pend, i + 1),
+            Ok(()) => check_pending_list(pers, st, mode, fe, pend, i + 1),
         }
     }
 }
@@ -1268,7 +1271,8 @@ pub fn install_then_check(
     pins: &Vec<INatOpPinSet>,
     ds: &Vec<IDeclaration>,
 ) -> Result<IFEnv, (CheckError, u64)> {
-    match annot_fold(pers,
+    match annot_fold(
+        pers,
         st,
         mode,
         pins,
@@ -1277,7 +1281,10 @@ pub fn install_then_check(
         0,
     ) {
         Err(e) => Err(e),
-        Ok(p) => check_pending_list(pers, st, mode, p.1, &p.2, 0),
+        Ok(p) => match check_pending_list(pers, st, mode, &p.1, &p.2, 0) {
+            Err(e) => Err(e),
+            Ok(()) => Ok(p.1),
+        },
     }
 }
 
@@ -2099,7 +2106,7 @@ mod tests {
         let cs = ok(intern_ci_list(pers, &mut st, &unshare(&env_cl.consts)));
         let icv = ok(intern_cv(pers, &mut st, c));
         let fe: IFEnv = mk_ifenv(crate::arena::env::IEnv { consts: cs });
-        let got = ok(crate::arena::decl_check::std_axiom_ok(pers, &mut st, &fe, &icv));
+        let got = ok(crate::arena::decl_check::std_axiom_ok(pers, fe.visible_below, &mut st, &fe, &icv));
         let fe_cl = fenv::mk_fenv(con_ron_core::kernel::env::env_dup(env_cl));
         got == cstd::std_axiom_ok(&fe_cl, c)
     }
@@ -2247,7 +2254,8 @@ mod tests {
         let blk = ok(basis_kind_decls_a(pers, &mut st, &BasisKind::EqK));
         let mut i: usize = 0;
         while i < blk.len() {
-            let cvv = ok(crate::arena::env::i_constant_info_to_constant_val(pers,
+            let cvv = ok(crate::arena::env::i_constant_info_to_constant_val(
+                pers,
                 &mut st.store,
                 &blk[i],
             ));

@@ -167,16 +167,17 @@ pub struct ValueGroup {
 /// impossible.
 pub fn install_constant_val(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
     cv: &IConstantVal,
 ) -> Result<IConstantVal, CheckError> {
-    match check_constant_val_guards(pers, st, fe, cv) {
+    match check_constant_val_guards(pers, vis, st, fe, cv) {
         Err(e) => Err(e),
-        Ok(()) => match annotate_core(pers, st, mode, fe, CHECK_FUEL, 0, &cv.ty) {
+        Ok(()) => match annotate_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &cv.ty) {
             Err(e) => Err(e),
-            Ok(ty) => install_constant_val_tail(pers, st, fe, cv, ty),
+            Ok(ty) => install_constant_val_tail(pers, vis, st, fe, cv, ty),
         },
     }
 }
@@ -187,6 +188,7 @@ pub fn install_constant_val(
 /// and the annotation of the value.
 pub fn install_value(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -205,9 +207,9 @@ pub fn install_value(
                         if f {
                             fail(CheckError::Invalid(code_points(&M_FVAR_VALUE)))
                         } else {
-                            match annotate_core(pers, st, mode, fe, CHECK_FUEL, 0, value) {
+                            match annotate_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, value) {
                                 Err(e) => Err(e),
-                                Ok(value_a) => install_value_tail(pers, st, fe, cv, value_a),
+                                Ok(value_a) => install_value_tail(pers, vis, st, fe, cv, value_a),
                             }
                         }
                     }
@@ -223,6 +225,7 @@ pub fn install_value(
 /// ANNOTATED value.
 pub fn install_value_tail(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     cv: &IConstantVal,
@@ -234,7 +237,7 @@ pub fn install_value_tail(
             if !d {
                 fail(CheckError::Invalid(code_points(&M_UNDECL_VALUE)))
             } else {
-                match consts_resolve_f_fast(pers, st, fe, &value_a) {
+                match consts_resolve_f_fast(pers, vis, st, fe, &value_a) {
                     Err(e) => Err(e),
                     Ok(r) => {
                         if !r {
@@ -265,16 +268,17 @@ pub fn install_value_tail(
 /// and `check{Defn,Thm,Opaque}Val`, in their order, with their messages.
 pub fn check_value_group(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
     g: &ValueGroup,
 ) -> Result<(), CheckError> {
-    match infer_type_core(pers, st, mode, fe, CHECK_FUEL, 0, &g.cv_a.ty) {
+    match infer_type_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &g.cv_a.ty) {
         Err(e) => Err(e),
-        Ok(stype) => match ensure_sort_core(pers, st, mode, fe, CHECK_FUEL, 0, &stype) {
+        Ok(stype) => match ensure_sort_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &stype) {
             Err(e) => Err(e),
-            Ok(u) => check_value_group_value(pers, st, mode, fe, g, &u),
+            Ok(u) => check_value_group_value(pers, vis, st, mode, fe, g, &u),
         },
     }
 }
@@ -287,6 +291,7 @@ pub fn check_value_group(
 /// and is taken as it is.
 pub fn check_value_group_value(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -302,9 +307,9 @@ pub fn check_value_group_value(
                     Err(e) => Err(e),
                     Ok(is_prop) => {
                         if is_prop {
-                            match install_value(pers, st, mode, fe, &g.cv_a, &g.jv) {
+                            match install_value(pers, vis, st, mode, fe, &g.cv_a, &g.jv) {
                                 Err(e) => Err(e),
-                                Ok(jv) => check_value_group_tail(pers, st, mode, fe, g, jv),
+                                Ok(jv) => check_value_group_tail(pers, vis, st, mode, fe, g, jv),
                             }
                         } else {
                             fail(CheckError::Invalid(code_points(&M_THM_NOT_PROP)))
@@ -314,7 +319,7 @@ pub fn check_value_group_value(
             },
         }
     } else {
-        check_value_group_tail(pers, st, mode, fe, g, g.jv.dup2())
+        check_value_group_tail(pers, vis, st, mode, fe, g, g.jv.dup2())
     }
 }
 
@@ -325,16 +330,17 @@ pub fn check_value_group_value(
 /// tail calls.
 pub fn check_value_group_tail(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
     g: &ValueGroup,
     jv: EIdx,
 ) -> Result<(), CheckError> {
-    match infer_type_core(pers, st, mode, fe, CHECK_FUEL, 0, &jv) {
+    match infer_type_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &jv) {
         Err(e) => Err(e),
         Ok(vtype) => {
-            match is_def_eq_core(pers, st, mode, fe, CHECK_FUEL, 0, &vtype, &g.cv_a.ty) {
+            match is_def_eq_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &vtype, &g.cv_a.ty) {
                 Err(e) => Err(e),
                 Ok(ok) => {
                     if ok {

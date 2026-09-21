@@ -407,7 +407,8 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // parsed and dropped, so neither a wholesale text buffer nor a scratch
     // file exists.  What comes out is the FILE's records as HANDLES into the
     // store above (plus the in-process modeller's).
-    let parsed: ParseResultD = match driver::parse_export_stream_d(pers,
+    let parsed: ParseResultD = match driver::parse_export_stream_d(
+        pers,
         &modeller,
         &mut st,
         file,
@@ -573,7 +574,8 @@ fn check_main(a: &Args, file: &str) -> u8 {
                         .map(|o| driver::name_of(pers, &st.store, o))
                 })
             });
-            driver::verdict_failure(pers,
+            driver::verdict_failure(
+                pers,
                 &st.store,
                 &prepared.decls,
                 e,

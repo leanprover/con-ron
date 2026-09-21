@@ -80,7 +80,8 @@ pub fn intern_pin_set(
                                 Err(e) => Err(e),
                                 Ok(slp) => match intern_expr(pers, st, &ps.shift_right_pin) {
                                     Err(e) => Err(e),
-                                    Ok(srp) => intern_pin_set_proofs(pers,
+                                    Ok(srp) => intern_pin_set_proofs(
+                                        pers,
                                         st, ps, dp, mp, gp, lap, lop, xp, slp, srp,
                                     ),
                                 },

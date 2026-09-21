@@ -37,6 +37,7 @@ use crate::arena::store::PersTier;
 /// — `checkStructDomsAt` through the index; the same function (module note).
 pub fn check_struct_doms_at_f(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -45,7 +46,7 @@ pub fn check_struct_doms_at_f(
     doms: &Vec<EIdx>,
     k: u64,
 ) -> Result<(), CheckError> {
-    struct_install::check_struct_doms_at(pers, st, mode, fe, off, fvs, doms, k)
+    struct_install::check_struct_doms_at(pers, vis, st, mode, fe, off, fvs, doms, k)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:38-48 checkStructDomsAtFA
@@ -54,6 +55,7 @@ pub fn check_struct_doms_at_f(
 /// and over a `Vec` there is nothing left to distinguish.
 pub fn check_struct_doms_at_fa(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -62,7 +64,7 @@ pub fn check_struct_doms_at_fa(
     doms: &Vec<EIdx>,
     k: u64,
 ) -> Result<(), CheckError> {
-    struct_install::check_struct_doms_at(pers, st, mode, fe, off, fvs, doms, k)
+    struct_install::check_struct_doms_at(pers, vis, st, mode, fe, off, fvs, doms, k)
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:73-95 checkStructProjTableF
@@ -83,7 +85,8 @@ pub fn check_struct_proj_table_f(
     cv_ca: &IConstantVal,
     fe: IFEnv,
 ) -> Result<IFEnv, CheckError> {
-    struct_install::check_struct_proj_table(pers,
+    struct_install::check_struct_proj_table(
+        pers,
         st, t, c, lps, n_p, n_f, res_sort, guards, off, cv_ca, fe,
     )
 }

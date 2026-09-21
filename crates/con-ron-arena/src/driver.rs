@@ -260,7 +260,7 @@ pub fn check_decls_driver<O: PhaseObserver>(
     }
     let pend: Vec<PendingCheck> = p.2;
     let m = pend.len();
-    let mut fe: IFEnv = p.1;
+    let fe: IFEnv = p.1;
     obs.install_done(pers, &st.store, total, m);
     let workers = workers_for(jobs, m);
     obs.phase_b_workers(workers);
@@ -270,12 +270,12 @@ pub fn check_decls_driver<O: PhaseObserver>(
     // installed index threaded through.
     let mut j = 0usize;
     while j < m {
-        match checker::check_pending(pers, st, mode, fe, &pend[j]) {
+        match checker::check_pending(pers, st, mode, &fe, &pend[j]) {
             Err(e) => {
                 obs.check_failed(pend[j].pos);
                 return Err((e, pend[j].pos));
             }
-            Ok(fe2) => fe = fe2,
+            Ok(()) => (),
         }
         j += 1;
         obs.check_after(pers, &st.store, j, m, &pend[j - 1]);

@@ -127,6 +127,7 @@ pub fn residual_pw(
 /// `n` syntactic binders is read by `residual_pw`.
 pub fn head_type_pw(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     h: &EIdx,
@@ -134,7 +135,7 @@ pub fn head_type_pw(
 ) -> Result<Option<PropWhen>, CheckError> {
     match view(pers, st, h) {
         Err(e) => Err(e),
-        Ok(ENodeView::Const(i, us)) => match env::ifenv_find(fe, &i) {
+        Ok(ENodeView::Const(i, us)) => match env::ifenv_find(vis, fe, &i) {
             Some(ci) => {
                 if env::i_constant_info_is_tower_entry(ci) {
                     Ok(None)
@@ -187,6 +188,7 @@ pub fn head_type_pw(
 /// con-leche's last arm rebinds the scrutinee; the twin keeps the handle.
 pub fn type_sort_pw(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     fuel: u64,
@@ -200,7 +202,7 @@ pub fn type_sort_pw(
             Err(e) => Err(e),
             Ok(fnh) => match num_args(pers, st, fuel, t) {
                 Err(e) => Err(e),
-                Ok(n) => head_type_pw(pers, st, fe, &fnh, n),
+                Ok(n) => head_type_pw(pers, vis, st, fe, &fnh, n),
             },
         },
     }
@@ -213,6 +215,7 @@ pub fn type_sort_pw(
 /// are never proofs.
 pub fn head_proof_pw(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     fuel: u64,
@@ -220,7 +223,7 @@ pub fn head_proof_pw(
 ) -> Result<Option<PropWhen>, CheckError> {
     match view(pers, st, h) {
         Err(e) => Err(e),
-        Ok(ENodeView::Const(c, us)) => match env::ifenv_find(fe, &c) {
+        Ok(ENodeView::Const(c, us)) => match env::ifenv_find(vis, fe, &c) {
             Some(ci) => {
                 if env::i_constant_info_is_tower_entry(ci) {
                     Ok(None)
@@ -231,7 +234,7 @@ pub fn head_proof_pw(
                             Err(e) => Err(e),
                             Ok(usl) => {
                                 if usl.len() == cv.level_params.len() {
-                                    match type_sort_pw(pers, st, fe, fuel, &cv.ty) {
+                                    match type_sort_pw(pers, vis, st, fe, fuel, &cv.ty) {
                                         Err(e) => Err(e),
                                         Ok(Some(pw)) => {
                                             match read_names(pers, st, &cv.level_params) {
@@ -256,7 +259,7 @@ pub fn head_proof_pw(
             }
             None => Ok(None),
         },
-        Ok(ENodeView::FVar(_, ty)) => type_sort_pw(pers, st, fe, fuel, &ty),
+        Ok(ENodeView::FVar(_, ty)) => type_sort_pw(pers, vis, st, fe, fuel, &ty),
         Ok(ENodeView::Sort(_)) => Ok(Some(prop_when::never())),
         Ok(ENodeView::ForallE(_, _, _)) => Ok(Some(prop_when::never())),
         Ok(ENodeView::Lit(_)) => Ok(Some(prop_when::never())),
@@ -270,6 +273,7 @@ pub fn head_proof_pw(
 /// off `a`'s head symbol at any arity.
 pub fn proof_pw(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     fuel: u64,
@@ -280,7 +284,7 @@ pub fn proof_pw(
         Ok(ENodeView::Lam(_, _, m)) => Ok(Some(m.pw)),
         Ok(_) => match get_app_fn(pers, st, fuel, a) {
             Err(e) => Err(e),
-            Ok(fnh) => head_proof_pw(pers, st, fe, fuel, &fnh),
+            Ok(fnh) => head_proof_pw(pers, vis, st, fe, fuel, &fnh),
         },
     }
 }
@@ -292,12 +296,13 @@ pub fn proof_pw(
 /// `!pw.isProp` is an `if` nest, as `con_ron_core::kernel::prop_read`'s is.
 pub fn not_proof_fast(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     fuel: u64,
     a: &EIdx,
 ) -> Result<bool, CheckError> {
-    match proof_pw(pers, st, fe, fuel, a) {
+    match proof_pw(pers, vis, st, fe, fuel, a) {
         Err(e) => Err(e),
         Ok(Some(pw)) => {
             if prop_read::is_prop(&pw) {
@@ -316,12 +321,13 @@ pub fn not_proof_fast(
 /// squash-regime licence, con-leche's `prf_of_isProofFast`).
 pub fn is_proof_fast(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     fuel: u64,
     a: &EIdx,
 ) -> Result<bool, CheckError> {
-    match proof_pw(pers, st, fe, fuel, a) {
+    match proof_pw(pers, vis, st, fe, fuel, a) {
         Err(e) => Err(e),
         Ok(Some(pw)) => Ok(prop_read::is_prop(&pw)),
         Ok(None) => Ok(false),

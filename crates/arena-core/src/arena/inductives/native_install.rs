@@ -429,6 +429,7 @@ pub fn mentions_fvar(
 #[allow(clippy::too_many_arguments)]
 pub fn native_opened_ok(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe0: &IFEnv,
     t: &NIdx,
@@ -453,10 +454,12 @@ pub fn native_opened_ok(
                         Err(e) => Err(e),
                         Ok(xargs) => {
                             let idx: Vec<EIdx> = core::drop_eidx(&xargs, n_p as usize);
-                            match sum_install::idx_args_resolve(pers, st, fe0, &idx, 0) {
+                            match sum_install::idx_args_resolve(pers, vis, st, fe0, &idx, 0) {
                                 Err(e) => Err(e),
                                 Ok(false) => Ok(false),
-                                Ok(true) => native_fields_at(pers,
+                                Ok(true) => native_fields_at(
+                                    pers,
+                                    vis,
                                     st, fe0, n_p, n_idx, n_f, ks, &pq.0, &xq.0, &xq.1, &hd, 0,
                                 ),
                             }
@@ -475,6 +478,7 @@ pub fn native_opened_ok(
 #[allow(clippy::too_many_arguments)]
 pub fn native_fields_at(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe0: &IFEnv,
     n_p: u64,
@@ -496,10 +500,12 @@ pub fn native_fields_at(
         match native_parts::kind_get_d(ks, i) {
             RecFieldKind::Ordinary => match expr_ops::fvar_type_d(pers, st, &x) {
                 Err(e) => Err(e),
-                Ok(xt) => match checker_base::consts_resolve_f_fast(pers, st, fe0, &xt) {
+                Ok(xt) => match checker_base::consts_resolve_f_fast(pers, vis, st, fe0, &xt) {
                     Err(e) => Err(e),
                     Ok(false) => Ok(false),
-                    Ok(true) => native_fields_at(pers,
+                    Ok(true) => native_fields_at(
+                        pers,
+                        vis,
                         st,
                         fe0,
                         n_p,
@@ -515,10 +521,12 @@ pub fn native_fields_at(
                 },
             },
             RecFieldKind::Recursive => {
-                match native_field_recursive(pers, st, fe0, n_p, n_idx, fvs_p, x_fvs, xrest, hd, i) {
+                match native_field_recursive(pers, vis, st, fe0, n_p, n_idx, fvs_p, x_fvs, xrest, hd, i) {
                     Err(e) => Err(e),
                     Ok(false) => Ok(false),
-                    Ok(true) => native_fields_at(pers,
+                    Ok(true) => native_fields_at(
+                        pers,
+                        vis,
                         st,
                         fe0,
                         n_p,
@@ -534,10 +542,12 @@ pub fn native_fields_at(
                 }
             }
             RecFieldKind::Reflexive => {
-                match native_field_reflexive(pers, st, fe0, n_p, n_idx, fvs_p, x_fvs, xrest, hd, i) {
+                match native_field_reflexive(pers, vis, st, fe0, n_p, n_idx, fvs_p, x_fvs, xrest, hd, i) {
                     Err(e) => Err(e),
                     Ok(false) => Ok(false),
-                    Ok(true) => native_fields_at(pers,
+                    Ok(true) => native_fields_at(
+                        pers,
+                        vis,
                         st,
                         fe0,
                         n_p,
@@ -565,6 +575,7 @@ pub fn native_fields_at(
 #[allow(clippy::too_many_arguments)]
 pub fn native_field_recursive(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe0: &IFEnv,
     n_p: u64,
@@ -578,7 +589,7 @@ pub fn native_field_recursive(
     let x: EIdx = x_fvs[i as usize].dup2();
     match expr_ops::fvar_type_d(pers, st, &x) {
         Err(e) => Err(e),
-        Ok(xt) => match native_fam_app_ok(pers, st, fe0, n_p, n_idx, fvs_p, &xt, hd) {
+        Ok(xt) => match native_fam_app_ok(pers, vis, st, fe0, n_p, n_idx, fvs_p, &xt, hd) {
             Err(e) => Err(e),
             Ok(false) => Ok(false),
             Ok(true) => native_field_unused_later(pers, st, n_p, x_fvs, xrest, i),
@@ -594,6 +605,7 @@ pub fn native_field_recursive(
 #[allow(clippy::too_many_arguments)]
 pub fn native_field_reflexive(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe0: &IFEnv,
     n_p: u64,
@@ -618,11 +630,11 @@ pub fn native_field_reflexive(
                         if aq.0.len() == 0 {
                             Ok(false)
                         } else {
-                            match sum_install::field_doms_resolve(pers, st, fe0, &aq.0, 0) {
+                            match sum_install::field_doms_resolve(pers, vis, st, fe0, &aq.0, 0) {
                                 Err(e) => Err(e),
                                 Ok(false) => Ok(false),
                                 Ok(true) => {
-                                    match native_fam_app_ok(pers, st, fe0, n_p, n_idx, fvs_p, &aq.1, hd) {
+                                    match native_fam_app_ok(pers, vis, st, fe0, n_p, n_idx, fvs_p, &aq.1, hd) {
                                         Err(e) => Err(e),
                                         Ok(false) => Ok(false),
                                         Ok(true) => {
@@ -646,6 +658,7 @@ pub fn native_field_reflexive(
 #[allow(clippy::too_many_arguments)]
 pub fn native_fam_app_ok(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe0: &IFEnv,
     n_p: u64,
@@ -667,7 +680,7 @@ pub fn native_fam_app_ok(
                     Ok(false)
                 } else {
                     let idx: Vec<EIdx> = core::drop_eidx(&args, n_p as usize);
-                    sum_install::idx_args_resolve(pers, st, fe0, &idx, 0)
+                    sum_install::idx_args_resolve(pers, vis, st, fe0, &idx, 0)
                 }
             }
         },
@@ -729,6 +742,7 @@ pub fn later_mentions(
 #[allow(clippy::too_many_arguments)]
 pub fn native_fields_ok(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe0: &IFEnv,
     t: &NIdx,
@@ -741,7 +755,7 @@ pub fn native_fields_ok(
     if ctors_a.len() != kinds.len() {
         Ok(false)
     } else {
-        native_fields_ok_from(pers, st, fe0, t, lps, n_p, n_idx, ctors_a, kinds, 0)
+        native_fields_ok_from(pers, vis, st, fe0, t, lps, n_p, n_idx, ctors_a, kinds, 0)
     }
 }
 
@@ -751,6 +765,7 @@ pub fn native_fields_ok(
 #[allow(clippy::too_many_arguments)]
 pub fn native_fields_ok_from(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe0: &IFEnv,
     t: &NIdx,
@@ -767,10 +782,10 @@ pub fn native_fields_ok_from(
         Ok(false)
     } else {
         let cty: EIdx = ctors_a[j].0.ty.dup2();
-        match native_opened_ok(pers, st, fe0, t, lps, n_p, n_idx, &cty, ctors_a[j].1, &kinds[j]) {
+        match native_opened_ok(pers, vis, st, fe0, t, lps, n_p, n_idx, &cty, ctors_a[j].1, &kinds[j]) {
             Err(e) => Err(e),
             Ok(false) => Ok(false),
-            Ok(true) => native_fields_ok_from(pers, st, fe0, t, lps, n_p, n_idx, ctors_a, kinds, j + 1),
+            Ok(true) => native_fields_ok_from(pers, vis, st, fe0, t, lps, n_p, n_idx, ctors_a, kinds, j + 1),
         }
     }
 }
@@ -788,6 +803,7 @@ pub fn native_fields_ok_from(
 #[allow(clippy::too_many_arguments)]
 pub fn check_native_rules(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe_r: &IFEnv,
     rlps: &Vec<NIdx>,
@@ -808,20 +824,23 @@ pub fn check_native_rules(
     if k == 0 {
         Ok(out)
     } else {
-        match native_parts::struct_rec_rhs_r(pers,
+        match native_parts::struct_rec_rhs_r(
+            pers,
             st, t, lps, elim, large, n_p, n_idx, tty, ctors, rec_c, rlvls, j,
         ) {
             Err(e) => Err(e),
             Ok(o) => {
                 match checker_base::unwrap_or(o, core_types::internal(code_points(&M_REC_RULE))) {
                     Err(e) => Err(e),
-                    Ok(rhs) => match native_rule_scoped(pers, st, fe_r, rlps, &rhs) {
+                    Ok(rhs) => match native_rule_scoped(pers, vis, st, fe_r, rlps, &rhs) {
                         Err(e) => Err(e),
                         Ok(false) => fail(core_types::internal(code_points(&M_REC_RULE_SCOPE))),
                         Ok(true) => {
                             let mut o2: Vec<EIdx> = out;
                             o2.push(rhs);
-                            check_native_rules(pers,
+                            check_native_rules(
+                                pers,
+                                vis,
                                 st,
                                 fe_r,
                                 rlps,
@@ -853,6 +872,7 @@ pub fn check_native_rules(
 /// fvar-free.  **All four conjuncts run**, as the twin's `unless` does.
 pub fn native_rule_scoped(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     fe_r: &IFEnv,
     rlps: &Vec<NIdx>,
@@ -860,7 +880,7 @@ pub fn native_rule_scoped(
 ) -> Result<bool, CheckError> {
     match checker_base::all_level_params_defined(pers, st, rlps, rhs) {
         Err(e) => Err(e),
-        Ok(w1) => match checker_base::consts_resolve_f_fast(pers, st, fe_r, rhs) {
+        Ok(w1) => match checker_base::consts_resolve_f_fast(pers, vis, st, fe_r, rhs) {
             Err(e) => Err(e),
             Ok(w2) => match expr_ops::loose_bvars_bounded_fast(pers, st, CORE_WALK_FUEL, 0, rhs) {
                 Err(e) => Err(e),
@@ -900,7 +920,7 @@ pub fn check_native_rec(
             } else if !p.rec_pinned {
                 fail(core_types::invalid(code_points(&M_REC_PIN)))
             } else {
-                match checker_base::check_constant_val(pers, st, mode, fe, &p.shape.cv_r) {
+                match checker_base::check_constant_val(pers, fe.visible_below, st, mode, fe, &p.shape.cv_r) {
                     Err(e) => Err(e),
                     Ok(cv_ri) => check_native_rec_ty(pers, st, mode, fe, p, cv_ta, ctors_a, &cv_ri.ty),
                 }
@@ -928,7 +948,8 @@ pub fn check_native_rec_ty(
     let lps: Vec<NIdx> = env::nidx_vec_dup(&p.shape.cv_t.level_params);
     let ctors: Vec<(NIdx, u64, EIdx, Vec<u64>)> =
         native_parts::native_ctors4(ctors_a, &p.kinds, 0, Vec::new());
-    match native_parts::struct_rec_ty_r(pers,
+    match native_parts::struct_rec_ty_r(
+        pers,
         st,
         &t,
         &lps,
@@ -942,7 +963,7 @@ pub fn check_native_rec_ty(
         Err(e) => Err(e),
         Ok(o) => match checker_base::unwrap_or(o, core_types::internal(code_points(&M_REC_TY))) {
             Err(e) => Err(e),
-            Ok(rec_ty) => match native_rule_scoped(pers, st, fe, &p.shape.cv_r.level_params, &rec_ty) {
+            Ok(rec_ty) => match native_rule_scoped(pers, fe.visible_below, st, fe, &p.shape.cv_r.level_params, &rec_ty) {
                 Err(e) => Err(e),
                 Ok(false) => fail(core_types::internal(code_points(&M_REC_TYSC))),
                 Ok(true) => {
@@ -969,12 +990,12 @@ pub fn check_native_rec_defeq(
     stream_ty: &EIdx,
     rec_ty: EIdx,
 ) -> Result<(IConstantVal, Vec<EIdx>), CheckError> {
-    match core::infer_type_core(pers, st, mode, fe, core::CHECK_FUEL, 0, &rec_ty) {
+    match core::infer_type_core(pers, fe.visible_below, st, mode, fe, core::CHECK_FUEL, 0, &rec_ty) {
         Err(e) => Err(e),
-        Ok(sty) => match core::ensure_sort_core(pers, st, mode, fe, core::CHECK_FUEL, 0, &sty) {
+        Ok(sty) => match core::ensure_sort_core(pers, fe.visible_below, st, mode, fe, core::CHECK_FUEL, 0, &sty) {
             Err(e) => Err(e),
             Ok(_u) => {
-                match core::is_def_eq_core(pers, st, mode, fe, core::CHECK_FUEL, 0, stream_ty, &rec_ty) {
+                match core::is_def_eq_core(pers, fe.visible_below, st, mode, fe, core::CHECK_FUEL, 0, stream_ty, &rec_ty) {
                     Err(e) => Err(e),
                     Ok(false) => fail(core_types::invalid(code_points(&M_REC_DEFEQ))),
                     Ok(true) => check_native_rec_rules(pers, st, fe, p, cv_ta, ctors, rec_ty),
@@ -1022,7 +1043,7 @@ pub fn check_native_rec_rules(
         Ok(rlvls) => {
             let t: NIdx = p.shape.cv_t.name.dup2();
             let lps: Vec<NIdx> = env::nidx_vec_dup(&p.shape.cv_t.level_params);
-            match check_native_rules(pers,
+            match check_native_rules(pers, fe.visible_below,
                 st,
                 fe,
                 &p.shape.cv_r.level_params,
@@ -1073,7 +1094,8 @@ pub fn check_native_table(
         let n_f: u64 = ctors_a[0].1;
         match struct_parts::struct_proj_guards(pers, st, &cty, p.shape.n_p, n_f, &sortss[0]) {
             Err(e) => Err(e),
-            Ok(guards) => struct_install::check_struct_proj_table(pers,
+            Ok(guards) => struct_install::check_struct_proj_table(
+                pers,
                 st,
                 &p.shape.cv_t.name,
                 &ctors_a[0].0.name,
@@ -1234,7 +1256,8 @@ pub fn check_native_pass(
             let p_c: NativeParts = native_parts::complete(p0, p1);
             // The flush at the environment transition (task #97g item 4).
             core::flush_caches(st);
-            match sum_install::check_sum_ctors(pers,
+            match sum_install::check_sum_ctors(
+                pers,
                 st,
                 mode,
                 &fe1,
@@ -1345,7 +1368,7 @@ pub fn check_native_tail_sorts(
                 Ok(tq) => {
                     let idx_fvs: Vec<EIdx> = core::drop_eidx(&tq.0, q.p.shape.n_p as usize);
                     let none: Vec<EIdx> = Vec::new();
-                    match sum_install::check_struct_field_sorts_i(pers,
+                    match sum_install::check_struct_field_sorts_i(pers, q.env1.visible_below,
                         st,
                         mode,
                         &q.env1,
@@ -1390,7 +1413,9 @@ pub fn check_native_tail_kinds(
     let mut q: NativePass = q;
     let vis: u64 = q.env1.visible_below;
     q.env1.visible_below = vis - 1;
-    let fields = native_fields_ok(pers,
+    let fields = native_fields_ok(
+        pers,
+        vis,
         st,
         &q.env1,
         &t,
@@ -1408,7 +1433,8 @@ pub fn check_native_tail_kinds(
             Err(e) => Err(e),
             Ok(rlvls) => {
                 let pw = prop_when::never();
-                match native_parts::native_rules_ok(pers,
+                match native_parts::native_rules_ok(
+                    pers,
                     st,
                     &q.p.shape.cv_r.name,
                     &rlvls,
@@ -1451,7 +1477,7 @@ pub fn check_native_tail_install(
         Ok(rq) => {
             let cv_ra: IConstantVal = rq.0;
             let rhss: Vec<EIdx> = rq.1;
-            match sum_install::sum_rules(pers,
+            match sum_install::sum_rules(pers, fe2.visible_below,
                 st,
                 &fe2,
                 &cv_ra.name,

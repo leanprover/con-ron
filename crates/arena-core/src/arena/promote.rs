@@ -1180,7 +1180,8 @@ mod tests {
     /// A name `anonymous.str s`, interned in whatever tier is live.
     fn nm(pers: &PersTier, st: &mut AState, s: &str) -> NIdx {
         let a = ok(intern_n_node(pers, st, NNodeView::Anonymous));
-        ok(intern_n_node(pers,
+        ok(intern_n_node(
+            pers,
             st,
             NNodeView::Str(a, s.chars().map(|c| c as u32).collect()),
         ))
@@ -1252,7 +1253,8 @@ mod tests {
         let u = nm(pers, &mut st, "u");
         let p = ok(intern_l_node(pers, &mut st, LNodeView::Param(u)));
         let s = ok(intern_e(pers, &mut st, ENodeView::Sort(p.dup2())));
-        let lit = ok(intern_e(pers,
+        let lit = ok(intern_e(
+            pers,
             &mut st,
             ENodeView::Lit(Literal::NatVal(P::new(nat::from_u64(7)))),
         ));
@@ -1291,16 +1293,16 @@ mod tests {
                 ty,
             }),
         );
-        assert!(ifenv_find(&fe1, &n).is_some(), "found under the scratch key");
+        assert!(ifenv_find(fe1.visible_below, &fe1, &n).is_some(), "found under the scratch key");
         let (_, fe2) = ok(promote_new(pers, &mut st, PMemo::empty(), CORE_WALK_FUEL, 1, fe1));
         assert_eq!(fe2.env.consts.len(), 1);
         assert_eq!(fe2.visible_below, 1);
         let n2: NIdx = env::i_constant_info_name(&fe2.env.consts[0]);
         assert!(n2.is_persistent(), "the stored name is persistent now");
         assert!(!n2.eq2(&n), "and it moved");
-        assert!(ifenv_find(&fe2, &n2).is_some(), "found under the new key");
+        assert!(ifenv_find(fe2.visible_below, &fe2, &n2).is_some(), "found under the new key");
         assert!(
-            ifenv_find(&fe2, &n).is_none(),
+            ifenv_find(fe2.visible_below, &fe2, &n).is_none(),
             "and the stale scratch row is gone"
         );
         match &fe2.env.consts[0] {

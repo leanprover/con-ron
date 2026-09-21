@@ -835,7 +835,8 @@ pub fn struct_ih_app(
                                         );
                                         match expr_ops::mk_app_n(pers, st, &hd, &args) {
                                             Err(e) => Err(e),
-                                            Ok(body) => match struct_tele_at(pers,
+                                            Ok(body) => match struct_tele_at(
+                                                pers,
                                                 st,
                                                 n_f,
                                                 n + 1,
@@ -884,7 +885,8 @@ pub fn struct_rule_body_r(
         Err(e) => Err(e),
         Ok(hd) => match struct_parts::bvars_desc(pers, st, n_f) {
             Err(e) => Err(e),
-            Ok(fs) => match struct_ih_list(pers,
+            Ok(fs) => match struct_ih_list(
+                pers,
                 st,
                 rec_c,
                 rlvls,
@@ -981,7 +983,8 @@ pub fn struct_ih_pis(
                         Ok(motive) => {
                             match struct_idx_list(pers, st, n_f, o, i, l, m, &idx, 0, Vec::new()) {
                                 Err(e) => Err(e),
-                                Ok(idx2) => struct_ih_pis_at(pers,
+                                Ok(idx2) => struct_ih_pis_at(
+                                    pers,
                                     st, n_f, o, n_p, pw, cty, is, k, l, body, &tele, &idx2,
                                     &motive, i, m,
                                 ),
@@ -1032,7 +1035,8 @@ pub fn struct_ih_pis_at(
                                 Ok(tl) => match mk_pis_of(pers, st, &tl, 0, &concl) {
                                     Err(e) => Err(e),
                                     Ok(dom) => {
-                                        match struct_ih_pis(pers,
+                                        match struct_ih_pis(
+                                            pers,
                                             st,
                                             n_f,
                                             o,
@@ -1126,7 +1130,8 @@ pub fn struct_minor_ty_at(
                             let cargs: Vec<EIdx> = core::snoc_eidx(idx, &spine);
                             match expr_ops::mk_app_n(pers, st, &motive, &cargs) {
                                 Err(e) => Err(e),
-                                Ok(concl0) => struct_minor_ty_close(pers,
+                                Ok(concl0) => struct_minor_ty_close(
+                                    pers,
                                     st, n_f, o, n_p, pw, cty, rec_idx, q2, &concl0,
                                 ),
                             }
@@ -1324,7 +1329,8 @@ pub fn struct_rec_ty_r(
                         match struct_parts::struct_motive_ty_i(pers, st, t, lps, n_p, n_idx, &l, &q.1) {
                             Err(e) => Err(e),
                             Ok(None) => Ok(None),
-                            Ok(Some(motive_ty)) => struct_rec_ty_at(pers,
+                            Ok(Some(motive_ty)) => struct_rec_ty_at(
+                                pers,
                                 st, t, lps, n_p, n_idx, tty, ctors, &pw, n, &q.1, &motive_ty,
                             ),
                         }
@@ -1369,7 +1375,8 @@ pub fn struct_rec_ty_at(
                                 let bm: BinderMeta = expr::binder_meta(prop_when::dup(pw));
                                 match intern_e(pers, st, ENodeView::ForallE(fam, concl, bm)) {
                                     Err(e) => Err(e),
-                                    Ok(major_body) => struct_rec_ty_close(pers,
+                                    Ok(major_body) => struct_rec_ty_close(
+                                        pers,
                                         st,
                                         lps,
                                         n_p,
@@ -1465,7 +1472,8 @@ pub fn struct_rec_rhs_r(
                     let n_f: u64 = ctors[j as usize].1;
                     let cty: EIdx = ctors[j as usize].2.dup2();
                     let rec_idx: Vec<u64> = u64_vec_dup(&ctors[j as usize].3, 0, Vec::new());
-                    struct_rec_rhs_at(pers,
+                    struct_rec_rhs_at(
+                        pers,
                         st, t, lps, n_p, n_idx, tty, ctors, rec_c, rlvls, j, &pw, n, n_f, &cty,
                         &rec_idx, &l,
                     )
@@ -1511,7 +1519,8 @@ pub fn struct_rec_rhs_at(
                 Ok(Some(cq)) => {
                     match struct_rule_body_r(pers, st, rec_c, rlvls, pw, n_p, n, n_f, j, rec_idx, cty) {
                         Err(e) => Err(e),
-                        Ok(body) => struct_rec_rhs_close(pers,
+                        Ok(body) => struct_rec_rhs_close(
+                            pers,
                             st, lps, n_p, tty, ctors, pw, n, n_f, &cq.1, &body, &motive_ty,
                         ),
                     }
@@ -1775,7 +1784,8 @@ pub fn native_rules_ok_from(
                 Ok(true) => match native_rule_prefix_ok(pers, st, rec_ty, n_p, n, j, n_f, &rhs) {
                     Err(e) => Err(e),
                     Ok(false) => Ok(false),
-                    Ok(true) => native_rules_ok_from(pers,
+                    Ok(true) => native_rules_ok_from(
+                        pers,
                         st,
                         rec_c,
                         rlvls,

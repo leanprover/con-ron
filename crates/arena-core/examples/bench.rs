@@ -93,7 +93,8 @@ fn mk_spine(pers: &PersTier, st: &mut AState, arg: &EIdx, n: u64, acc: EIdx) -> 
 fn mk_tele(pers: &PersTier, st: &mut AState, dom: &EIdx, n: u64, body: EIdx) -> EIdx {
     let mut b = body;
     for _ in 0..n {
-        b = take(intern_e(pers,
+        b = take(intern_e(
+            pers,
             st,
             ENodeView::ForallE(dom.dup2(), b, expr::binder_meta(prop_when::never())),
         ));
@@ -215,7 +216,8 @@ fn run() {
         abstract1_fast(pers, s, BENCH_FUEL, &fx.spine, 0, 0).map(|r| r.word as u64)
     });
     timed("instLPFast        ", &mut st, |s| {
-        inst_lp_fast(pers,
+        inst_lp_fast(
+            pers,
             s,
             BENCH_FUEL,
             &vec![fx.u_name.dup2()],
@@ -257,7 +259,8 @@ fn run() {
         instantiate1_lift_fast(pers, s, BENCH_FUEL, &fx.tower, &fx.sub, 1).map(|r| r.word as u64)
     });
     timed("instLPFast        ", &mut st, |s| {
-        inst_lp_fast(pers,
+        inst_lp_fast(
+            pers,
             s,
             BENCH_FUEL,
             &vec![fx.u_name.dup2()],
@@ -286,7 +289,8 @@ fn run() {
         abstract1_fast(pers, s, BENCH_FUEL, &fx.plain, 7, 0).map(|r| r.word as u64)
     });
     timed("instLP       (cut)", &mut st, |s| {
-        inst_lp_fast(pers,
+        inst_lp_fast(
+            pers,
             s,
             BENCH_FUEL,
             &vec![fx.u_name.dup2()],
@@ -303,7 +307,8 @@ fn run() {
         abstract1_fast(pers, s, BENCH_FUEL, &fx.spine, 0, 0).map(|r| r.word as u64)
     });
     timed("instLP       (run)", &mut st, |s| {
-        inst_lp_fast(pers,
+        inst_lp_fast(
+            pers,
             s,
             BENCH_FUEL,
             &vec![fx.u_name.dup2()],

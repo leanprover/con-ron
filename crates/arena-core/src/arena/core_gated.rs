@@ -56,6 +56,7 @@ use crate::arena::store::PersTier;
 /// io grade.
 pub fn whnf_core_app_gated(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -75,21 +76,21 @@ pub fn whnf_core_app_gated(
             {
                 Ok(true)
             } else {
-                match knot_infer(pers, st, mode, lane, fuel, fe, depth, a) {
+                match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, a) {
                     Err(e) => Err(e),
-                    Ok(ta) => knot_defeq(pers, st, mode, lane, fuel, fe, depth, &ta, &ty),
+                    Ok(ta) => knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &ta, &ty),
                 }
             };
             match ok {
                 Err(e) => Err(e),
                 Ok(true) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, a, 0) {
                     Err(e) => Err(e),
-                    Ok(b) => knot_whnf_core(pers, st, mode, lane, fuel, fe, depth, &b),
+                    Ok(b) => knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, &b),
                 },
                 Ok(false) => intern_app_rebuilt(pers, st, h, same, fp, a),
             }
         }
-        Ok(_) => whnf_core_stuck_app(pers, st, mode, lane, fuel, fe, depth, h, same, fp, a),
+        Ok(_) => whnf_core_stuck_app(pers, vis, st, mode, lane, fuel, fe, depth, h, same, fp, a),
     }
 }
 
@@ -103,6 +104,7 @@ pub fn whnf_core_app_gated(
 /// called and not copied.
 pub fn whnf_core_body_gated(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
@@ -120,16 +122,16 @@ pub fn whnf_core_body_gated(
         Ok(ENodeView::Const(_, _)) => Ok(e.dup2()),
         Ok(ENodeView::Lit(_)) => Ok(e.dup2()),
         Ok(ENodeView::App(f, a)) => {
-            match knot_whnf_core(pers, st, mode, lane, fuel, fe, depth, &f) {
+            match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, &f) {
                 Err(er) => Err(er),
                 Ok(fp) => {
                     let same: bool = fp.eq2(&f);
-                    whnf_core_app_gated(pers, st, mode, lane, fuel, fe, depth, e, same, &fp, &a)
+                    whnf_core_app_gated(pers, vis, st, mode, lane, fuel, fe, depth, e, same, &fp, &a)
                 }
             }
         }
         Ok(ENodeView::Proj(sn, i, pe)) => {
-            whnf_core_proj(pers, st, mode, lane, fuel, fe, depth, &sn, i, &pe)
+            whnf_core_proj(pers, vis, st, mode, lane, fuel, fe, depth, &sn, i, &pe)
         }
         Ok(ENodeView::LetE(_, _, _)) => {
             fail(CheckError::Internal(code_points(&M_LET_WHNF)))
@@ -157,6 +159,7 @@ pub const CORE_KNOT_GATED: u32 = LANE_GATED;
 /// normalization with the β-cert gate (fueled).
 pub fn whnf_core_gated(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -164,7 +167,7 @@ pub fn whnf_core_gated(
     depth: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    knot_whnf_core(pers, st, mode, CORE_KNOT_GATED, fuel, fe, depth, e)
+    knot_whnf_core(pers, vis, st, mode, CORE_KNOT_GATED, fuel, fe, depth, e)
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:161-163 whnfGated
@@ -172,6 +175,7 @@ pub fn whnf_core_gated(
 /// reduction loop over the gated knot (fueled).
 pub fn whnf_gated(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -179,7 +183,7 @@ pub fn whnf_gated(
     depth: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    knot_whnf(pers, st, mode, CORE_KNOT_GATED, fuel, fe, depth, e)
+    knot_whnf(pers, vis, st, mode, CORE_KNOT_GATED, fuel, fe, depth, e)
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:165-168 inferTypeCoreGated
@@ -187,6 +191,7 @@ pub fn whnf_gated(
 /// type inference over the gated knot (fueled).
 pub fn infer_type_core_gated(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -194,7 +199,7 @@ pub fn infer_type_core_gated(
     depth: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    knot_infer(pers, st, mode, CORE_KNOT_GATED, fuel, fe, depth, e)
+    knot_infer(pers, vis, st, mode, CORE_KNOT_GATED, fuel, fe, depth, e)
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:170-173 isDefEqCoreGated
@@ -202,6 +207,7 @@ pub fn infer_type_core_gated(
 /// definitional equality over the gated knot (fueled).
 pub fn is_def_eq_core_gated(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -210,7 +216,7 @@ pub fn is_def_eq_core_gated(
     a: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    knot_defeq(pers, st, mode, CORE_KNOT_GATED, fuel, fe, depth, a, b)
+    knot_defeq(pers, vis, st, mode, CORE_KNOT_GATED, fuel, fe, depth, a, b)
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:175-178 annotateCoreGated
@@ -218,6 +224,7 @@ pub fn is_def_eq_core_gated(
 /// the annotation pass over the gated knot (fueled).
 pub fn annotate_core_gated(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -225,7 +232,7 @@ pub fn annotate_core_gated(
     depth: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    crate::arena::core::knot_annotate(pers, st, mode, CORE_KNOT_GATED, fuel, fe, depth, e)
+    crate::arena::core::knot_annotate(pers, vis, st, mode, CORE_KNOT_GATED, fuel, fe, depth, e)
 }
 
 /// con-leche: ConLeche/Kernel/CoreGated.lean:180-183 ensureSortCoreGated
@@ -233,6 +240,7 @@ pub fn annotate_core_gated(
 /// `ensureSort` over the gated knot (fueled).
 pub fn ensure_sort_core_gated(
     pers: &PersTier,
+    vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
@@ -240,5 +248,5 @@ pub fn ensure_sort_core_gated(
     depth: u64,
     e: &EIdx,
 ) -> Result<LIdx, CheckError> {
-    ensure_sort(pers, st, mode, CORE_KNOT_GATED, fuel, fe, depth, e)
+    ensure_sort(pers, vis, st, mode, CORE_KNOT_GATED, fuel, fe, depth, e)
 }
