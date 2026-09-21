@@ -671,9 +671,26 @@ pub fn instantiate_list(
                     let n: u64 = vs.len() as u64;
                     if j - d < n {
                         let i: usize = (j - d) as usize;
-                        let pre: Vec<EIdx> = take_eidx(vs, i);
                         let vi: EIdx = vs[i].dup2();
-                        instantiate_list(pers, st, &pre, fuel - 1, &vi, d)
+                        // **The cutoff hoisted over the prefix copy** (task
+                        // #97-P6-9).  The recursion into the replacement is
+                        // con-leche's own `instantiateList vs[j-d]
+                        // (vs.take (j-d)) d`, and its own note says it "is the
+                        // identity on `bvar`-closed replacements (every checker
+                        // call site)" — which is exactly what `inst_list_cutoff`
+                        // decides, in O(1), off the handle's derived word.
+                        // Testing it BEFORE `take_eidx` is the same value by
+                        // the cutoff's own equation (`looseBVarsBounded d e →
+                        // instantiateList e vs d = e`, for every `vs`), and it
+                        // takes the prefix copy off the batched β path, which
+                        // hits this clause once per bound variable of every
+                        // peeled group.
+                        if inst_list_cutoff(pers, st, &vi, d) {
+                            Ok(vi)
+                        } else {
+                            let pre: Vec<EIdx> = take_eidx(vs, i);
+                            instantiate_list(pers, st, &pre, fuel - 1, &vi, d)
+                        }
                     } else {
                         intern_e(pers, st, ENodeView::BVar(j - n))
                     }

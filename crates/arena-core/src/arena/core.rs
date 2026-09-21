@@ -85,11 +85,13 @@ use crate::arena::env::{
 use crate::arena::expr_ops::{
     abstract1_fast, cons_eidx, get_app_args, get_app_fn,
     has_fvar_fast, instantiate1_fast, instantiate_list_fast, inst_lp_fast, inst_spine,
-    lam_pw, leaf_guard, loose_bvars_bounded_fast, mk_app_n, pi_result, rec_rule_plain, strip_pis,
+    lam_pw, leaf_guard, loose_bvars_bounded_fast, mk_app_n, mk_app_n_from, pi_result,
+    rec_rule_plain, strip_pis,
     take_eidx, wscoped_b_fast,
 };
 use crate::arena::handle::{
-    EIdx, LIdx, LsIdx, NIdx, ETAG_APP, ETAG_BVAR, ETAG_FORALL_E, ETAG_FVAR, ETAG_LAM, ETAG_LET_E,
+    EIdx, LIdx, LsIdx, NIdx, ETAG_APP, ETAG_BVAR, ETAG_CONST, ETAG_FORALL_E, ETAG_FVAR, ETAG_LAM,
+    ETAG_LET_E,
     ETAG_LIT, ETAG_PROJ, ETAG_SORT,
 };
 use crate::arena::monad::{
@@ -119,6 +121,13 @@ use crate::arena::store::PersTier;
 // ---------------------------------------------------------------------------
 // The messages of this module's declines
 // ---------------------------------------------------------------------------
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"fuel exhausted: getAppSpine"`, as code points.
+pub const M_FUEL_WHNF_SPINE: [u32; 27] = [
+    102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 103, 101,
+    116, 65, 112, 112, 83, 112, 105, 110, 101
+];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"fuel exhausted: level comparison"`, as code points.
@@ -6838,11 +6847,92 @@ pub fn whnf_core_proj_fire(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1930-2019 whnfCoreBody
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1991-2010 whnfCoreBody` — the
-/// `.app` clause's tail once the head has been normalized: β at a λ head (with
-/// the per-redex argument certificate, gated by `betaGateFires`), ι otherwise.
-pub fn whnf_core_app(
+/// con-leche: none — `getAppFn` and `getAppArgsC` in one descent, plus the
+/// spine's own application NODES (the arena's upward cutoff needs them)
+/// Lean twin: OWED (task #97-P6-9's ledger) — `Expr.getAppFn e`,
+/// `Expr.getAppArgsC e` and the list of prefixes `e` is built from.
+///
+/// The three results of one walk down an application spine: the head, the
+/// arguments outermost-last (`get_app_args`'s order), and `nodes`, where
+/// `nodes[i]` is the ORIGINAL application node that applies `args[i]` to the
+/// prefix before it.  `nodes` is what keeps task #97-P6-5's upward cutoff
+/// (`intern_app_rebuilt`) alive in the batched loop: the spec-shaped body got
+/// the original node for free from its own recursion, and a loop does not.
+pub fn get_app_spine(
+    pers: &PersTier,
+    st: &AState,
+    fuel: u64,
+    h: &EIdx,
+) -> Result<(EIdx, Vec<EIdx>, Vec<EIdx>), CheckError> {
+    if fuel == 0 {
+        fail(CheckError::Internal(code_points(&M_FUEL_WHNF_SPINE)))
+    } else {
+        match view(pers, st, h) {
+            Err(e) => Err(e),
+            Ok(ENodeView::App(f, a)) => match get_app_spine(pers, st, fuel - 1, &f) {
+                Err(e) => Err(e),
+                Ok(t) => {
+                    let hd: EIdx = t.0;
+                    let mut args: Vec<EIdx> = t.1;
+                    let mut nodes: Vec<EIdx> = t.2;
+                    args.push(a);
+                    nodes.push(h.dup2());
+                    Ok((hd, args, nodes))
+                }
+            },
+            Ok(_) => Ok((h.dup2(), Vec::new(), Vec::new())),
+        }
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:857-900 whnfAppI
+/// Lean twin: OWED (task #97-P6-9's ledger) — con-leche's own `iotaArityOk`
+/// guard, in the one form the arena can spell without the environment: **ι
+/// fires only on a `.const` head**.  `iotaRec`'s own first two steps are
+/// `getAppFn` and a `.const` match, so a spine whose head is anything else
+/// returns `none` from every prefix; testing the head ONCE (off the handle's
+/// own tag, and off `get_app_fn` only when the normalized head is itself an
+/// application) replaces one `getAppFn` walk per argument, which over a spine
+/// of `n` is quadratic.
+pub fn spine_head_is_const(
+    pers: &PersTier,
+    st: &AState,
+    v: &EIdx,
+) -> Result<bool, CheckError> {
+    if v.tag() == ETAG_CONST {
+        Ok(true)
+    } else if v.tag() == ETAG_APP {
+        match get_app_fn(pers, st, CORE_WALK_FUEL, v) {
+            Err(e) => Err(e),
+            Ok(hd) => Ok(hd.tag() == ETAG_CONST),
+        }
+    } else {
+        Ok(false)
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:857-900 whnfAppI
+/// Lean twin: OWED (task #97-P6-9's ledger) — the cached tier's bulk-β
+/// argument loop, the EXECUTED checker's own `.app` clause.
+///
+/// **The batched instantiation lever** (task #97-P6-9, DESIGN §8's ruling
+/// before §8.7).  The spec-shaped body this replaces re-entered the knot once
+/// per argument, so a λ-chain of `n` binders applied to `n` arguments cost `n`
+/// substitution walks and interned `n − 1` intermediate λ nodes; this loop
+/// consumes the whole spine against the whnf'd head `v` and hands a
+/// consecutive run of λ binders to `beta_peel`, which substitutes the
+/// accumulated argument vector in ONE `instantiate_list` walk.  con-leche
+/// makes the same move between its PURE and its CACHED tier and proves the two
+/// equal: `ConLeche/Verify/BetaSpine.lean`'s `whnfApp_sound` /
+/// `whnfApp_sound_body`, whose per-argument decomposition is
+/// `Expr.instantiateList_cons` (`ConLeche/Verify/InstList.lean`).
+///
+/// `i` is the cursor into `args` (the twin's list pattern); `same` says that
+/// `v` still IS the function part of `nodes[i]`, which is task #97-P6-5's
+/// upward cutoff (`intern_app_rebuilt`) — the spec-shaped body read it off its
+/// own recursion, and a loop has to carry it.  `ic` is `spine_head_is_const`
+/// of the current head, recomputed only where the head can change.
+pub fn whnf_app(
     pers: &PersTier,
     vis: u64,
     st: &mut AState,
@@ -6851,43 +6941,201 @@ pub fn whnf_core_app(
     fuel: u64,
     fe: &IFEnv,
     depth: u64,
-    h: &EIdx,
+    v: &EIdx,
     same: bool,
-    fp: &EIdx,
-    a: &EIdx,
+    ic: bool,
+    args: &Vec<EIdx>,
+    nodes: &Vec<EIdx>,
+    i: usize,
 ) -> Result<EIdx, CheckError> {
-    match view(pers, st, fp) {
-        Err(e) => Err(e),
-        Ok(ENodeView::Lam(ty, body, mb)) => {
-            // **THE β SITE'S GATE** (task #97f, P2f): the EXECUTED core reads
-            // `CheckMode.betaSkip` (`Cached/CoreC.lean:876`/`:918`), which is
-            // `beta_gate_fires` weakened by `!mode.certs` — the β certificate
-            // is a certificate FAMILY, skipped wholesale at `.trusted`.  The
-            // two agree at `.verified`, the mode the bridge is stated at.
-            if con_ron_core::kernel::env::beta_skip(mode, &mb.pw) {
-                match instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, a, 0) {
-                    Err(e) => Err(e),
-                    Ok(b) => knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, &b),
-                }
-            } else {
-                // con-leche's task #172 B4: the certificate's inference runs at
-                // the io grade.
-                match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, a) {
-                    Err(e) => Err(e),
-                    Ok(ta) => match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &ta, &ty) {
+    if i >= args.len() {
+        Ok(v.dup2())
+    } else {
+        let a: EIdx = args[i].dup2();
+        let node: EIdx = nodes[i].dup2();
+        match view(pers, st, v) {
+            Err(e) => Err(e),
+            Ok(ENodeView::Lam(ty, body, mb)) => {
+                // **THE β SITE'S GATE** (task #97f, P2f): the EXECUTED core
+                // reads `CheckMode.betaSkip` (`Cached/CoreC.lean:868`), which
+                // is `beta_gate_fires` weakened by `!mode.certs` — the β
+                // certificate is a certificate FAMILY, skipped wholesale at
+                // `.trusted`.  The two agree at `.verified`, the mode the
+                // bridge is stated at.
+                if con_ron_core::kernel::env::beta_skip(mode, &mb.pw) {
+                    let acc: Vec<EIdx> = cons_eidx(&a, &Vec::new());
+                    beta_peel(
+                        pers, vis, st, mode, lane, fuel, fe, depth, &body, &acc, args, nodes,
+                        i + 1,
+                    )
+                } else {
+                    // con-leche's task #172 B4: the certificate's inference
+                    // runs at the io grade.
+                    match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, &a) {
                         Err(e) => Err(e),
-                        Ok(true) => {
-                            match instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, a, 0) {
+                        Ok(ta) => {
+                            match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &ta, &ty) {
                                 Err(e) => Err(e),
-                                Ok(b) => knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, &b),
+                                Ok(true) => {
+                                    let acc: Vec<EIdx> = cons_eidx(&a, &Vec::new());
+                                    beta_peel(
+                                        pers, vis, st, mode, lane, fuel, fe, depth, &body, &acc,
+                                        args, nodes, i + 1,
+                                    )
+                                }
+                                // The certificate failed: the redex is stuck.
+                                // ι cannot fire under a λ head, so the twin's
+                                // `mkAppNM fa rest` re-applies the rest without
+                                // another ι attempt, and so does this.
+                                Ok(false) => {
+                                    match intern_app_rebuilt(pers, st, &node, same, v, &a) {
+                                        Err(e) => Err(e),
+                                        Ok(fa) => mk_app_n_from(pers, st, &fa, args, i + 1),
+                                    }
+                                }
                             }
                         }
-                        Ok(false) => intern_app_rebuilt(pers, st, h, same, fp, a),
-                    },
+                    }
+                }
+            }
+            Ok(_) => {
+                if ic {
+                    match whnf_core_stuck_app(
+                        pers, vis, st, mode, lane, fuel, fe, depth, &node, same, v, &a,
+                    ) {
+                        Err(e) => Err(e),
+                        Ok(v2) => {
+                            let same2: bool = v2.eq2(&node);
+                            // ι fired iff the step did not return the rebuilt
+                            // application; then the head is whatever the reduct
+                            // normalized to and has to be looked at again.
+                            let ic2 = if same2 {
+                                Ok(true)
+                            } else {
+                                spine_head_is_const(pers, st, &v2)
+                            };
+                            match ic2 {
+                                Err(e) => Err(e),
+                                Ok(c2) => whnf_app(
+                                    pers, vis, st, mode, lane, fuel, fe, depth, &v2, same2, c2,
+                                    args, nodes, i + 1,
+                                ),
+                            }
+                        }
+                    }
+                } else {
+                    match intern_app_rebuilt(pers, st, &node, same, v, &a) {
+                        Err(e) => Err(e),
+                        Ok(ap) => {
+                            let same2: bool = ap.eq2(&node);
+                            whnf_app(
+                                pers, vis, st, mode, lane, fuel, fe, depth, &ap, same2, false,
+                                args, nodes, i + 1,
+                            )
+                        }
+                    }
                 }
             }
         }
-        Ok(_) => whnf_core_stuck_app(pers, vis, st, mode, lane, fuel, fe, depth, h, same, fp, a),
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:902-938 betaPeelI
+/// Lean twin: OWED (task #97-P6-9's ledger) — the peel loop of `whnf_app`.
+///
+/// `t` is the RAW (unsubstituted) λ body after the binders consumed so far and
+/// `acc` their arguments, innermost first — so `acc` is exactly the list
+/// `instantiate_list` takes at cursor `0`, and `instantiateList e (v :: vs) d =
+/// (instantiateList e vs (d + 1)).instantiate1 v d`
+/// (`ConLeche/Verify/InstList.lean`'s `instantiateList_cons`) is the equation
+/// that identifies one peeled group with the chain of `instantiate1` the
+/// spec-shaped body ran.  Each binder's certificate substitutes only its
+/// DOMAIN; the body is substituted once, when peeling stops.
+pub fn beta_peel(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    t: &EIdx,
+    acc: &Vec<EIdx>,
+    args: &Vec<EIdx>,
+    nodes: &Vec<EIdx>,
+    i: usize,
+) -> Result<EIdx, CheckError> {
+    if i >= args.len() {
+        match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, acc, 0) {
+            Err(e) => Err(e),
+            Ok(e2) => knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, &e2),
+        }
+    } else {
+        let a: EIdx = args[i].dup2();
+        match view(pers, st, t) {
+            Err(e) => Err(e),
+            Ok(ENodeView::Lam(ty, body, mb)) => {
+                if con_ron_core::kernel::env::beta_skip(mode, &mb.pw) {
+                    let acc2: Vec<EIdx> = cons_eidx(&a, acc);
+                    beta_peel(
+                        pers, vis, st, mode, lane, fuel, fe, depth, &body, &acc2, args, nodes,
+                        i + 1,
+                    )
+                } else {
+                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, acc, 0) {
+                        Err(e) => Err(e),
+                        Ok(ty2) => {
+                            match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, &a) {
+                                Err(e) => Err(e),
+                                Ok(ta) => match knot_defeq(
+                                    pers, vis, st, mode, lane, fuel, fe, depth, &ta, &ty2,
+                                ) {
+                                    Err(e) => Err(e),
+                                    Ok(true) => {
+                                        let acc2: Vec<EIdx> = cons_eidx(&a, acc);
+                                        beta_peel(
+                                            pers, vis, st, mode, lane, fuel, fe, depth, &body,
+                                            &acc2, args, nodes, i + 1,
+                                        )
+                                    }
+                                    Ok(false) => {
+                                        match instantiate_list_fast(
+                                            pers, st, CORE_WALK_FUEL, t, acc, 0,
+                                        ) {
+                                            Err(e) => Err(e),
+                                            Ok(f2) => match intern_app(pers, st, &f2, &a) {
+                                                Err(e) => Err(e),
+                                                Ok(fa) => {
+                                                    mk_app_n_from(pers, st, &fa, args, i + 1)
+                                                }
+                                            },
+                                        }
+                                    }
+                                },
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(_) => match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, acc, 0) {
+                Err(e) => Err(e),
+                Ok(e2) => match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, &e2) {
+                    Err(e) => Err(e),
+                    // The peeled group is over and the spine is not: the twin
+                    // re-enters `whnfAppI` at the SAME argument.  A β has
+                    // happened, so the accumulated head is no longer the
+                    // original prefix and the upward cutoff is OFF.
+                    Ok(v2) => match spine_head_is_const(pers, st, &v2) {
+                        Err(e) => Err(e),
+                        Ok(c2) => whnf_app(
+                            pers, vis, st, mode, lane, fuel, fe, depth, &v2, false, c2, args,
+                            nodes, i,
+                        ),
+                    },
+                },
+            },
+        }
     }
 }
 
@@ -6992,12 +7240,32 @@ pub fn whnf_core_body(
         Ok(ENodeView::Lam(_, _, _)) => Ok(e.dup2()),
         Ok(ENodeView::Const(_, _)) => Ok(e.dup2()),
         Ok(ENodeView::Lit(_)) => Ok(e.dup2()),
-        Ok(ENodeView::App(f, a)) => {
-            match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, &f) {
+        // **The batched β spine** (task #97-P6-9), con-leche's
+        // `Cached/CoreC.lean:942-996 whnfCoreStepI`'s own `.app` clause: the
+        // spine's head is normalized once and the whole argument vector is run
+        // through `whnf_app`, which batches a consecutive run of λ binders into
+        // ONE `instantiate_list` walk.  The spec-shaped clause this replaces
+        // re-entered the knot per argument.
+        Ok(ENodeView::App(_, _)) => {
+            match get_app_spine(pers, st, CORE_WALK_FUEL, e) {
                 Err(er) => Err(er),
-                Ok(fp) => {
-                    let same: bool = fp.eq2(&f);
-                    whnf_core_app(pers, vis, st, mode, lane, fuel, fe, depth, e, same, &fp, &a)
+                Ok(sp) => {
+                    let hd: EIdx = sp.0;
+                    let args: Vec<EIdx> = sp.1;
+                    let nodes: Vec<EIdx> = sp.2;
+                    match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, &hd) {
+                        Err(er) => Err(er),
+                        Ok(v) => {
+                            let same: bool = v.eq2(&hd);
+                            match spine_head_is_const(pers, st, &v) {
+                                Err(er) => Err(er),
+                                Ok(ic) => whnf_app(
+                                    pers, vis, st, mode, lane, fuel, fe, depth, &v, same, ic,
+                                    &args, &nodes, 0,
+                                ),
+                            }
+                        }
+                    }
                 }
             }
         }
