@@ -34680,9 +34680,14 @@ Branch `p6-16` off `arena`'s tip `fb7b1975`.  The scratch, the counting build
 and the profiles are `_tmp/t97-p6-16/`.
 
 **The measure.**  `perf stat -e instructions:u,cycles:u` of `--verified
---jobs=1 --progress=1000000`, `ulimit -v` 8 GiB for `Init`, 12 GiB for
-`Init+Std+Lean` and for the Mathlib 25 % prefix (`head -26948621`), 27 GiB for
-Mathlib.  **Read the instruction column**: every `Init` row below is two
+--jobs=1 --progress=1000000`, every run under `timeout` and under `ulimit -v`
+— 8 388 608 KB for `Init`, 12 582 912 KB for `Init+Std+Lean` and for the
+Mathlib 25 % prefix (`head -26948621`), 27 648 000 KB for Mathlib in this
+task's own harness, and `scripts/bench-baselines.sh`'s own 2 726 400 /
+5 242 880 / 28 311 552 KB for the two baselines of the closing table.  **No
+run came within a factor of four of its cap** (the largest peak anywhere is
+8.53 GB, `con-ron` on Mathlib), so the two sets of caps are not comparing
+anything.  **Read the instruction column**: every `Init` row below is two
 passes and they agree to nine digits, while the cycles and the wall of one
 pass move by up to 5 % at load.  Task #97-P6-13's re-uplift trap was
 respected with the same harness discipline task #97-P6-15 used
@@ -34744,9 +34749,11 @@ sibling.
 | **A2** — … the spine's head back off its own walk, which is free there | 216 819 859 190 | **−0.12 %** | 859 922 805 244 | **+0.35 %** |
 
 and the peak RSS, which is the other half of the verdict: `Init` 631.6 →
-691.0 MB (**+9.4 %**), the prefix 1 909.5 → 2 121.4 MB (**+11.1 %**) — which
-on Mathlib is 7.19 GB going to about 8.0 GB, i.e. **above** `con-ron` at
-master, the column the campaign has held under 1.00× since task #97-P6-5.
+691.0 MB (**+9.4 %**), the prefix 1 909.5 → 2 121.4 MB (**+11.1 %**).  Eight
+bytes per `app` node is what that is, and on Mathlib it would put the peak at
+roughly 7.9 GB against the tip's 7.17 — still under `con-ron`'s 8.53, but
+giving back most of what the campaign's memory work bought and giving it back
+for nothing, since the instruction column does not move.
 
 **The decomposition is the finding.**  A3 and A4 take the lever apart: the
 `Vec::push` of the column entry is **+0.39 % of `Init`** and the read of `f`'s
@@ -34991,7 +34998,11 @@ defines, and the walks are the same walks.
 | the diff | `arena/{handle,store,monad,expr_ops,core}.rs` — nothing else under `crates/` |
 
 `proof/`, `crates/con-ron`, `crates/con-ron-core`, `OVERVIEW.md` and
-`README.md` are untouched.
+`README.md` are untouched by this task.  (`arena` moved under the branch
+while it ran — tasks #97-survey and #97-HM2, `DESIGN.md` and `proof/` only,
+no `crates/` change — and was merged in; CLAUDE.md's merge discipline asks for
+the gates again after a merge *unless what moved cannot touch them*, and a
+`proof/` tier and a research section cannot.)
 
 One extraction lesson, recorded because it cost a rebuild: Charon answered
 `Unreachable` on the first spelling of `EStore::find_bm`, which built a
@@ -35060,12 +35071,14 @@ Single-threaded is `--verified --jobs=1 --progress=1000000` for both con-ron
 binaries and `"num_threads": 0` for nanoda; the `--jobs=8` row is the same
 binary with eight phase-B workers (task #97-P6-6b's pool).  One run is
 `time -v` around `perf stat -e instructions:u,cycles:u` around `timeout`, in a
-subshell with `ulimit -v` set to the export's cap (2.6 / 5 / 27 GB).  **Every
-cell below was taken in one session on a machine running nothing else**, with
-`scripts/bench-baselines.sh` for the two baselines and
+subshell with `ulimit -v` set (2.6 / 5 / 27 GB for the baselines' own harness,
+8 / 12 / 26.4 GB for the arena's; nothing came within a factor of four of
+either).  **Every cell below was taken in one session on a machine running
+nothing else**, with `scripts/bench-baselines.sh` for the two baselines and
 `_tmp/t97-p6-16/run.sh` for the arena; `Init` is three runs for the baselines
-and two for the arena, the larger exports one each, so their wall is
-indicative (CLAUDE.md).  nanoda checks 59 433 / 171 002 / 707 508
+and two for the arena, Mathlib two for each arena binary and one for each
+baseline, `Init+Std+Lean` one each, so a single-run wall is indicative
+(CLAUDE.md).  nanoda checks 59 433 / 171 002 / 707 508
 declarations where con-ron accepts 57 977 / 163 396 / 691 128 — nanoda counts
 the constructors and recursors it generates, con-ron counts the export's
 declarations; the inputs and the work are the same.
@@ -35144,9 +35157,9 @@ with room.**  On Mathlib this branch is **0.542×
 `con-ron`'s instructions, 0.336× its cycles, 0.346× its wall and 0.783× its
 peak RSS**; on `Init+Std+Lean` 0.495× / 0.387× / 0.393× / 0.897×; on `Init`
 0.554× / 0.484× / 0.491× and **1.30× on peak RSS**, the one cell above 1.00×
-anywhere in the table — `Init`'s persistent tier is small enough that the
-arena's fixed per-tier cost (ten cons tables and their bucket arrays, twice)
-shows, and it stops showing by `Init+Std+Lean`.  Every column is inside
+anywhere in the table — and it falls to 0.897× by `Init+Std+Lean` and 0.783×
+on Mathlib, so whatever fixed cost `Init` is paying, it amortises.  Every
+column is inside
 CLAUDE.md's 3× budget with room: 0.64 / 1.17 / 6.6 GB against con-leche's
 0.48 / 1.22 / 8.75.
 
@@ -35155,8 +35168,11 @@ numbers: `ron::tagged`, the atomic reference counts and the tree-shaped memo
 keys are gone from the arena crate, there is no `unsafe` in it, and with task
 #97-P6-16's lever B no node record holds an `Arc` at all.
 
-**4. What the campaign cost, item by item** (instructions on `Init`, each
-against its own predecessor; the Mathlib column is the same task's):
+**4. What the campaign cost, item by item** (each task's own reported figure;
+the row order is the item numbering and not the landing order, which is why
+P6-2's `Init` number is above P6-3's baseline and P6-7's Mathlib number above
+P6-5's — the tasks crossed, and each section says what its own predecessor
+was):
 
 | item | what it was | `Init` | Mathlib |
 |---|---|---:|---:|
