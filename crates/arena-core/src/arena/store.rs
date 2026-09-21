@@ -3359,6 +3359,15 @@ impl EStore {
     /// of that arm's own fields, called from both — the same bodies, in the
     /// same order, with `data(&child)` still replaced by the derived column.
     /// The twin writes the arms out inline, as it does today.
+    ///
+    /// **`#[inline(always)]` on all nine** (task #97-P6-15): the arms are
+    /// called from ONE per-constructor path each, on the miss branch, and out
+    /// of line each miss paid a call with the record's fields spilled to it.
+    /// Inlined, the arm's arithmetic joins the path that already holds them —
+    /// −0.71 % of `Init` and −0.74 % of the Mathlib prefix.  `der_of_view`'s
+    /// own ten-arm dispatch keeps them out of line where it is the caller,
+    /// which is the cold `intern_persistent`/`promote` path.
+    #[inline(always)]
     pub fn der_of_bvar(&self, i: u64) -> u64 {
         let h: u64 = expr::hash32(name::mix_hash(3, name::nat_hash(i)));
         expr::pack_data(h, expr::sat_succ(i), 0, false)
@@ -3368,6 +3377,7 @@ impl EStore {
     /// Lean twin: `proof/ConRon/Arena/Store.lean:974-1023 EStore.derOfView` —
     /// the `fvar` arm (`con_ron_core::kernel::expr::fvar`'s body).  See
     /// `der_of_bvar`'s note.
+    #[inline(always)]
     pub fn der_of_fvar(&self, pers: &PersTier, idx: u64, ty: &EIdx) -> u64 {
         let dt: u64 = self.derived(pers, ty);
         let h: u64 = expr::hash32(name::mix_hash(
@@ -3381,6 +3391,7 @@ impl EStore {
     /// Lean twin: `proof/ConRon/Arena/Store.lean:974-1023 EStore.derOfView` —
     /// the `sort` arm (`con_ron_core::kernel::expr::sort`'s body).  See
     /// `der_of_bvar`'s note.
+    #[inline(always)]
     pub fn der_of_sort(&self, pers: &PersTier, u: &LIdx) -> u64 {
         let du = self.lder(pers, u);
         let h: u64 = expr::hash32(name::mix_hash(7, du.hash));
@@ -3391,6 +3402,7 @@ impl EStore {
     /// Lean twin: `proof/ConRon/Arena/Store.lean:974-1023 EStore.derOfView` —
     /// the `const` arm (`con_ron_core::kernel::expr::mk_const`'s body).  See
     /// `der_of_bvar`'s note.
+    #[inline(always)]
     pub fn der_of_const(&self, pers: &PersTier, n: &NIdx, us: &LsIdx) -> u64 {
         let dus = self.lsder(pers, us);
         let h: u64 =
@@ -3402,6 +3414,7 @@ impl EStore {
     /// Lean twin: `proof/ConRon/Arena/Store.lean:974-1023 EStore.derOfView` —
     /// the `app` arm (`con_ron_core::kernel::expr::app`'s body).  See
     /// `der_of_bvar`'s note.
+    #[inline(always)]
     pub fn der_of_app(&self, pers: &PersTier, f: &EIdx, a: &EIdx) -> u64 {
         let df: u64 = self.derived(pers, f);
         let da: u64 = self.derived(pers, a);
@@ -3422,6 +3435,7 @@ impl EStore {
     /// the `lam` (hash tag 19) and `forallE` (23) arms, whose arithmetic is
     /// `der_of_bind`'s (see that function's note for why it is a function of
     /// five scalars and not the arm itself).  See `der_of_bvar`'s note.
+    #[inline(always)]
     pub fn der_of_bind_at(
         &self,
         pers: &PersTier,
@@ -3443,6 +3457,7 @@ impl EStore {
     /// Lean twin: `proof/ConRon/Arena/Store.lean:974-1023 EStore.derOfView` —
     /// the `letE` arm, whose arithmetic is `der_of_let`'s.  See
     /// `der_of_bvar`'s note.
+    #[inline(always)]
     pub fn der_of_let_at(&self, pers: &PersTier, ty: &EIdx, val: &EIdx, b: &EIdx) -> u64 {
         der_of_let(self.derived(pers, ty), self.derived(pers, val), self.derived(pers, b))
     }
@@ -3451,6 +3466,7 @@ impl EStore {
     /// Lean twin: `proof/ConRon/Arena/Store.lean:974-1023 EStore.derOfView` —
     /// the `lit` arm (`con_ron_core::kernel::expr::lit`'s body).  See
     /// `der_of_bvar`'s note.
+    #[inline(always)]
     pub fn der_of_lit(&self, l: &Literal) -> u64 {
         let h: u64 = expr::hash32(name::mix_hash(31, expr::literal_hash(l)));
         expr::pack_data(h, 0, 0, false)
@@ -3460,6 +3476,7 @@ impl EStore {
     /// Lean twin: `proof/ConRon/Arena/Store.lean:974-1023 EStore.derOfView` —
     /// the `proj` arm (`con_ron_core::kernel::expr::proj`'s body).  See
     /// `der_of_bvar`'s note.
+    #[inline(always)]
     pub fn der_of_proj(&self, pers: &PersTier, s: &NIdx, i: u64, e: &EIdx) -> u64 {
         let de: u64 = self.derived(pers, e);
         let h: u64 = expr::hash32(name::mix_hash(
