@@ -37,10 +37,11 @@
 //!
 //! ## What is pinned
 //!
-//! The forty-nine names below, plus the three interned values every `pin`
-//! site around them needs: the empty universe-argument list, the level `0`
-//! and the expression `Sort 1` (`arena::core`'s `empty_levels`, `zero_level`
-//! and `sort_one`, which now read this record instead of interning).
+//! The forty-nine names below and `basis_names::reserved_basis_names()`'s
+//! nineteen, plus the three interned values every `pin` site around them
+//! needs: the empty universe-argument list, the level `0` and the expression
+//! `Sort 1` (`arena::core`'s `empty_levels`, `zero_level` and `sort_one`,
+//! which now read this record instead of interning).
 //!
 //! All of them go into the PERSISTENT tier, because `intern_reserved_pins` runs
 //! before the parse, while the scratch tier is closed.  That matters twice:
@@ -56,8 +57,11 @@
 //! What changes is only WHEN the intern happens, and how many times.
 //!
 //! Lean twin: OWED (DESIGN.md §8.6's twin ledger, task #97-P6-4a) — `AState`
-//! gains a `pins : Pins` field and `internAllPins` fills it, and the twenty-odd
-//! `pin` clauses become field reads.  Nothing about the DENOTATION moves.
+//! gains a `pins : Pins` field and `internAllPins` fills it, and the hundred-odd
+//! `pin` clauses become field reads.  Nothing about the DENOTATION moves, and
+//! the one obligation is an instance of `intern_spec`: `intern` is idempotent
+//! on a hash-consed store, so the pinned handle IS the handle the clause it
+//! replaces computed.
 
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
 use crate::arena::env::nidx_vec_dup;
