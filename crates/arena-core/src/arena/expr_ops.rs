@@ -82,12 +82,13 @@ use crate::arena::handle::{
     ETAG_LAM, ETAG_LET_E, ETAG_PROJ,
 };
 use crate::arena::monad::{
-    AState, EIdxNat, abs1_clear, abs1_get, abs1_set, bvar_b_clear, bvar_b_get, bvar_b_set, derived_e, derived_l, eidx_nat_key, fail, fail_dangling_e, fvar_b_clear, fvar_b_get, fvar_b_set, inst1_clear, inst1_get, inst1_l_clear, inst1_l_get, inst1_l_set, inst1_set, inst_l_clear, inst_l_get, inst_l_set, inst_lp_clear, inst_lp_get, inst_lp_l_get, inst_lp_l_set, inst_lp_ls_get, inst_lp_ls_set, inst_lp_set, intern_e, intern_e_app, intern_e_bvar, intern_e_const, intern_e_forall_e, intern_e_fvar, intern_e_lam, intern_e_let_e, intern_e_proj, intern_level, intern_levels, lift_clear, lift_get, lift_set, lower_clear, lower_get, lower_set, read_level_m, read_levels_m, read_names_m, rename_clear, rename_get, rename_set, reset_clear, reset_get, reset_set, view, view_app, view_bind, view_bvar, view_fvar_idx, view_fvar_ty, view_let, view_proj,
+    AState, EIdxNat, abs1_clear, abs1_get, abs1_set, bvar_b_clear, bvar_b_get, bvar_b_set, derived_e, derived_l, eidx_nat_key, fail, fail_dangling_e, fvar_b_clear, fvar_b_get, fvar_b_set, inst1_clear, inst1_get, inst1_l_clear, inst1_l_get, inst1_l_set, inst1_set, inst_l_clear, inst_l_get, inst_l_set, inst_lp_clear, inst_lp_get, inst_lp_l_get, inst_lp_l_set, inst_lp_ls_get, inst_lp_ls_set, inst_lp_set, intern_e, intern_e_app, intern_e_bvar, intern_e_const, intern_e_forall_e, intern_e_fvar, intern_e_lam, intern_e_let_e, intern_e_lit, intern_e_proj, intern_e_sort, intern_level, intern_levels, lift_clear, lift_get, lift_set, lower_clear, lower_get, lower_set, read_level_m, read_levels_m, read_names_m, rename_clear, rename_get, rename_set, reset_clear, reset_get, reset_set, view, view_app, view_bind, view_bvar, view_fvar_idx, view_fvar_ty, view_let, view_proj,
 };
 use crate::arena::store::{e_bind_view, ENodeView};
 use con_ron_core::kernel::core_types::{code_points, CheckError};
 use con_ron_core::kernel::expr;
 use con_ron_core::kernel::expr::BinderMeta;
+use con_ron_core::kernel::expr::Literal;
 use con_ron_core::kernel::expr_ops::sub_nat;
 use con_ron_core::kernel::level;
 use con_ron_core::kernel::level::Level;
@@ -489,6 +490,261 @@ pub fn intern_rebuilt(
         Ok(h.dup2())
     } else {
         intern_e(pers, st, v)
+    }
+}
+
+/// con-leche: none — `internE` with task #97-P6-5's upward cutoff
+/// Lean twin: OWED (task #97-P6-15) — `internRebuiltBVar`, the `bvar`
+/// arm of `intern_rebuilt`: the same cutoff, over the arm's FIELDS.
+///
+/// `intern_rebuilt` takes an `ENodeView`, so the twenty-three substituting
+/// walks that call it built one per rebuilt node and `EStore::intern`
+/// dispatched on its tag again — the two things task #97-P6-15's lever 1 took
+/// out of the other 276 intern sites.  These are the hottest of them all.
+pub fn intern_rebuilt_bvar(
+    pers: &PersTier,
+    st: &mut AState,
+    h: &EIdx,
+    same: bool,
+    i: u64,
+) -> Result<EIdx, CheckError> {
+    if same {
+        Ok(h.dup2())
+    } else {
+        intern_e_bvar(pers, st, i)
+    }
+}
+
+/// con-leche: none — `internE` with task #97-P6-5's upward cutoff
+/// Lean twin: OWED (task #97-P6-15) — `internRebuiltFVar`, the `fvar`
+/// arm of `intern_rebuilt`: the same cutoff, over the arm's FIELDS.
+///
+/// `intern_rebuilt` takes an `ENodeView`, so the twenty-three substituting
+/// walks that call it built one per rebuilt node and `EStore::intern`
+/// dispatched on its tag again — the two things task #97-P6-15's lever 1 took
+/// out of the other 276 intern sites.  These are the hottest of them all.
+pub fn intern_rebuilt_fvar(
+    pers: &PersTier,
+    st: &mut AState,
+    h: &EIdx,
+    same: bool,
+    idx: u64,
+    ty: EIdx,
+) -> Result<EIdx, CheckError> {
+    if same {
+        Ok(h.dup2())
+    } else {
+        intern_e_fvar(pers, st, idx, ty)
+    }
+}
+
+/// con-leche: none — `internE` with task #97-P6-5's upward cutoff
+/// Lean twin: OWED (task #97-P6-15) — `internRebuiltSort`, the `sort`
+/// arm of `intern_rebuilt`: the same cutoff, over the arm's FIELDS.
+///
+/// `intern_rebuilt` takes an `ENodeView`, so the twenty-three substituting
+/// walks that call it built one per rebuilt node and `EStore::intern`
+/// dispatched on its tag again — the two things task #97-P6-15's lever 1 took
+/// out of the other 276 intern sites.  These are the hottest of them all.
+pub fn intern_rebuilt_sort(
+    pers: &PersTier,
+    st: &mut AState,
+    h: &EIdx,
+    same: bool,
+    u: LIdx,
+) -> Result<EIdx, CheckError> {
+    if same {
+        Ok(h.dup2())
+    } else {
+        intern_e_sort(pers, st, u)
+    }
+}
+
+/// con-leche: none — `internE` with task #97-P6-5's upward cutoff
+/// Lean twin: OWED (task #97-P6-15) — `internRebuiltConst`, the `const`
+/// arm of `intern_rebuilt`: the same cutoff, over the arm's FIELDS.
+///
+/// `intern_rebuilt` takes an `ENodeView`, so the twenty-three substituting
+/// walks that call it built one per rebuilt node and `EStore::intern`
+/// dispatched on its tag again — the two things task #97-P6-15's lever 1 took
+/// out of the other 276 intern sites.  These are the hottest of them all.
+pub fn intern_rebuilt_const(
+    pers: &PersTier,
+    st: &mut AState,
+    h: &EIdx,
+    same: bool,
+    n: NIdx,
+    us: LsIdx,
+) -> Result<EIdx, CheckError> {
+    if same {
+        Ok(h.dup2())
+    } else {
+        intern_e_const(pers, st, n, us)
+    }
+}
+
+/// con-leche: none — `internE` with task #97-P6-5's upward cutoff
+/// Lean twin: OWED (task #97-P6-15) — `internRebuiltApp`, the `app`
+/// arm of `intern_rebuilt`: the same cutoff, over the arm's FIELDS.
+///
+/// `intern_rebuilt` takes an `ENodeView`, so the twenty-three substituting
+/// walks that call it built one per rebuilt node and `EStore::intern`
+/// dispatched on its tag again — the two things task #97-P6-15's lever 1 took
+/// out of the other 276 intern sites.  These are the hottest of them all.
+pub fn intern_rebuilt_app(
+    pers: &PersTier,
+    st: &mut AState,
+    h: &EIdx,
+    same: bool,
+    f: EIdx,
+    a: EIdx,
+) -> Result<EIdx, CheckError> {
+    if same {
+        Ok(h.dup2())
+    } else {
+        intern_e_app(pers, st, f, a)
+    }
+}
+
+/// con-leche: none — `internE` with task #97-P6-5's upward cutoff
+/// Lean twin: OWED (task #97-P6-15) — `internRebuiltLam`, the `lam`
+/// arm of `intern_rebuilt`: the same cutoff, over the arm's FIELDS.
+///
+/// `intern_rebuilt` takes an `ENodeView`, so the twenty-three substituting
+/// walks that call it built one per rebuilt node and `EStore::intern`
+/// dispatched on its tag again — the two things task #97-P6-15's lever 1 took
+/// out of the other 276 intern sites.  These are the hottest of them all.
+pub fn intern_rebuilt_lam(
+    pers: &PersTier,
+    st: &mut AState,
+    h: &EIdx,
+    same: bool,
+    ty: EIdx,
+    body: EIdx,
+    m: BinderMeta,
+) -> Result<EIdx, CheckError> {
+    if same {
+        Ok(h.dup2())
+    } else {
+        intern_e_lam(pers, st, ty, body, m)
+    }
+}
+
+/// con-leche: none — `internE` with task #97-P6-5's upward cutoff
+/// Lean twin: OWED (task #97-P6-15) — `internRebuiltForallE`, the `forall_e`
+/// arm of `intern_rebuilt`: the same cutoff, over the arm's FIELDS.
+///
+/// `intern_rebuilt` takes an `ENodeView`, so the twenty-three substituting
+/// walks that call it built one per rebuilt node and `EStore::intern`
+/// dispatched on its tag again — the two things task #97-P6-15's lever 1 took
+/// out of the other 276 intern sites.  These are the hottest of them all.
+pub fn intern_rebuilt_forall_e(
+    pers: &PersTier,
+    st: &mut AState,
+    h: &EIdx,
+    same: bool,
+    ty: EIdx,
+    body: EIdx,
+    m: BinderMeta,
+) -> Result<EIdx, CheckError> {
+    if same {
+        Ok(h.dup2())
+    } else {
+        intern_e_forall_e(pers, st, ty, body, m)
+    }
+}
+
+/// con-leche: none — `internE` with task #97-P6-5's upward cutoff
+/// Lean twin: OWED (task #97-P6-15) — `internRebuiltLetE`, the `let_e`
+/// arm of `intern_rebuilt`: the same cutoff, over the arm's FIELDS.
+///
+/// `intern_rebuilt` takes an `ENodeView`, so the twenty-three substituting
+/// walks that call it built one per rebuilt node and `EStore::intern`
+/// dispatched on its tag again — the two things task #97-P6-15's lever 1 took
+/// out of the other 276 intern sites.  These are the hottest of them all.
+pub fn intern_rebuilt_let_e(
+    pers: &PersTier,
+    st: &mut AState,
+    h: &EIdx,
+    same: bool,
+    ty: EIdx,
+    val: EIdx,
+    body: EIdx,
+) -> Result<EIdx, CheckError> {
+    if same {
+        Ok(h.dup2())
+    } else {
+        intern_e_let_e(pers, st, ty, val, body)
+    }
+}
+
+/// con-leche: none — `internE` with task #97-P6-5's upward cutoff
+/// Lean twin: OWED (task #97-P6-15) — `internRebuiltLit`, the `lit`
+/// arm of `intern_rebuilt`: the same cutoff, over the arm's FIELDS.
+///
+/// `intern_rebuilt` takes an `ENodeView`, so the twenty-three substituting
+/// walks that call it built one per rebuilt node and `EStore::intern`
+/// dispatched on its tag again — the two things task #97-P6-15's lever 1 took
+/// out of the other 276 intern sites.  These are the hottest of them all.
+pub fn intern_rebuilt_lit(
+    pers: &PersTier,
+    st: &mut AState,
+    h: &EIdx,
+    same: bool,
+    l: Literal,
+) -> Result<EIdx, CheckError> {
+    if same {
+        Ok(h.dup2())
+    } else {
+        intern_e_lit(pers, st, l)
+    }
+}
+
+/// con-leche: none — `internE` with task #97-P6-5's upward cutoff
+/// Lean twin: OWED (task #97-P6-15) — `internRebuiltProj`, the `proj`
+/// arm of `intern_rebuilt`: the same cutoff, over the arm's FIELDS.
+///
+/// `intern_rebuilt` takes an `ENodeView`, so the twenty-three substituting
+/// walks that call it built one per rebuilt node and `EStore::intern`
+/// dispatched on its tag again — the two things task #97-P6-15's lever 1 took
+/// out of the other 276 intern sites.  These are the hottest of them all.
+pub fn intern_rebuilt_proj(
+    pers: &PersTier,
+    st: &mut AState,
+    h: &EIdx,
+    same: bool,
+    n: NIdx,
+    i: u64,
+    e: EIdx,
+) -> Result<EIdx, CheckError> {
+    if same {
+        Ok(h.dup2())
+    } else {
+        intern_e_proj(pers, st, n, i, e)
+    }
+}
+
+/// con-leche: none — `internE` with task #97-P6-5's upward cutoff
+/// Lean twin: OWED (task #97-P6-15) — `internRebuiltBind`, the two binder arms
+/// of `intern_rebuilt` at a tag the caller carries (`e_bind_view`'s own
+/// choice), for the two walks whose binder clause is shared between `lam` and
+/// `forallE`.
+pub fn intern_rebuilt_bind(
+    pers: &PersTier,
+    st: &mut AState,
+    h: &EIdx,
+    same: bool,
+    tag: u32,
+    ty: EIdx,
+    body: EIdx,
+    m: BinderMeta,
+) -> Result<EIdx, CheckError> {
+    if same {
+        Ok(h.dup2())
+    } else if tag == ETAG_LAM {
+        intern_e_lam(pers, st, ty, body, m)
+    } else {
+        intern_e_forall_e(pers, st, ty, body, m)
     }
 }
 
@@ -1202,7 +1458,7 @@ pub fn reset_meta_go(
                         Err(e) => Err(e),
                         Ok(t) => {
                             let same: bool = t.eq2(&ty);
-                            match intern_rebuilt(pers, st, h, same, ENodeView::FVar(i, t)) {
+                            match intern_rebuilt_fvar(pers, st, h, same, i, t) {
                                 Err(e) => Err(e),
                                 Ok(r) => {
                                     reset_set(st, k, &r);
@@ -1223,7 +1479,7 @@ pub fn reset_meta_go(
                             Err(e) => Err(e),
                             Ok(a2) => {
                                 let same: bool = f2.eq2(&f) && a2.eq2(&a);
-                                match intern_rebuilt(pers, st, h, same, ENodeView::App(f2, a2)) {
+                                match intern_rebuilt_app(pers, st, h, same, f2, a2) {
                                     Err(e) => Err(e),
                                     Ok(r) => {
                                         reset_set(st, k, &r);
@@ -1248,7 +1504,7 @@ pub fn reset_meta_go(
                                 let same: bool = t.eq2(&ty)
                                     && b2.eq2(&body)
                                     && expr::binder_meta_beq(&m2, &m0);
-                                match intern_rebuilt(pers, st, h, same, ENodeView::Lam(t, b2, m2)) {
+                                match intern_rebuilt_lam(pers, st, h, same, t, b2, m2) {
                                     Err(e) => Err(e),
                                     Ok(r) => {
                                         reset_set(st, k, &r);
@@ -1273,7 +1529,7 @@ pub fn reset_meta_go(
                                 let same: bool = t.eq2(&ty)
                                     && b2.eq2(&body)
                                     && expr::binder_meta_beq(&m2, &m0);
-                                match intern_rebuilt(pers, st, h, same, ENodeView::ForallE(t, b2, m2)) {
+                                match intern_rebuilt_forall_e(pers, st, h, same, t, b2, m2) {
                                     Err(e) => Err(e),
                                     Ok(r) => {
                                         reset_set(st, k, &r);
@@ -1298,13 +1554,7 @@ pub fn reset_meta_go(
                                 Ok(b2) => {
                                     let same: bool =
                                         t.eq2(&ty) && w.eq2(&val) && b2.eq2(&body);
-                                    match intern_rebuilt(
-                                        pers,
-                                        st,
-                                        h,
-                                        same,
-                                        ENodeView::LetE(t, w, b2),
-                                    ) {
+                                    match intern_rebuilt_let_e(pers, st, h, same, t, w, b2) {
                                         Err(e) => Err(e),
                                         Ok(r) => {
                                             reset_set(st, k, &r);
@@ -1325,7 +1575,7 @@ pub fn reset_meta_go(
                         Err(e) => Err(e),
                         Ok(u) => {
                             let same: bool = u.eq2(&sub);
-                            match intern_rebuilt(pers, st, h, same, ENodeView::Proj(n, i, u)) {
+                            match intern_rebuilt_proj(pers, st, h, same, n, i, u) {
                                 Err(e) => Err(e),
                                 Ok(r) => {
                                     reset_set(st, k, &r);
@@ -3504,13 +3754,7 @@ pub fn abstract1_go(
                                             Err(e) => Err(e),
                                             Ok(a2) => {
                                                 let same: bool = f2.eq2(&f) && a2.eq2(&a);
-                                                match intern_rebuilt(
-                                                    pers,
-                                                    st,
-                                                    h,
-                                                    same,
-                                                    ENodeView::App(f2, a2),
-                                                ) {
+                                                match intern_rebuilt_app(pers, st, h, same, f2, a2) {
                                                     Err(e) => Err(e),
                                                     Ok(r) => {
                                                         abs1_set(st, ky, &r);
@@ -3542,9 +3786,9 @@ pub fn abstract1_go(
                                                 Ok(b2) => {
                                                     let same: bool =
                                                         t.eq2(&ty) && b2.eq2(&body);
-                                                    let nv: ENodeView =
-                                                        e_bind_view(tg, t, b2, m);
-                                                    match intern_rebuilt(pers, st, h, same, nv) {
+                                                    match intern_rebuilt_bind(
+                                                        pers, st, h, same, tg, t, b2, m,
+                                                    ) {
                                                         Err(e) => Err(e),
                                                         Ok(r) => {
                                                             abs1_set(st, ky, &r);
@@ -3598,13 +3842,7 @@ pub fn abstract1_go(
                                                         let same: bool = t.eq2(&ty)
                                                             && w.eq2(&val)
                                                             && b2.eq2(&body);
-                                                        match intern_rebuilt(
-                                                            pers,
-                                                            st,
-                                                            h,
-                                                            same,
-                                                            ENodeView::LetE(t, w, b2),
-                                                        ) {
+                                                        match intern_rebuilt_let_e(pers, st, h, same, t, w, b2) {
                                                             Err(e) => Err(e),
                                                             Ok(r) => {
                                                                 abs1_set(st, ky, &r);
@@ -3633,13 +3871,7 @@ pub fn abstract1_go(
                                         Err(e) => Err(e),
                                         Ok(u) => {
                                             let same: bool = u.eq2(&sub);
-                                            match intern_rebuilt(
-                                                pers,
-                                                st,
-                                                h,
-                                                same,
-                                                ENodeView::Proj(n, i, u),
-                                            ) {
+                                            match intern_rebuilt_proj(pers, st, h, same, n, i, u) {
                                                 Err(e) => Err(e),
                                                 Ok(r) => {
                                                     abs1_set(st, ky, &r);
@@ -3749,13 +3981,7 @@ pub fn abstract_range_go(
                                                 Err(e) => Err(e),
                                                 Ok(a2) => {
                                                     let same: bool = f2.eq2(&f) && a2.eq2(&a);
-                                                    match intern_rebuilt(
-                                                        pers,
-                                                        st,
-                                                        h,
-                                                        same,
-                                                        ENodeView::App(f2, a2),
-                                                    ) {
+                                                    match intern_rebuilt_app(pers, st, h, same, f2, a2) {
                                                         Err(e) => Err(e),
                                                         Ok(r) => {
                                                             abs1_set(st, ky, &r);
@@ -3794,8 +4020,9 @@ pub fn abstract_range_go(
                                                 Err(e) => Err(e),
                                                 Ok(b2) => {
                                                     let same: bool = t.eq2(&ty) && b2.eq2(&body);
-                                                    let nv: ENodeView = e_bind_view(tg, t, b2, m);
-                                                    match intern_rebuilt(pers, st, h, same, nv) {
+                                                    match intern_rebuilt_bind(
+                                                        pers, st, h, same, tg, t, b2, m,
+                                                    ) {
                                                         Err(e) => Err(e),
                                                         Ok(r) => {
                                                             abs1_set(st, ky, &r);
@@ -3851,13 +4078,7 @@ pub fn abstract_range_go(
                                                             let same: bool = t.eq2(&ty)
                                                                 && w.eq2(&val)
                                                                 && b2.eq2(&body);
-                                                            match intern_rebuilt(
-                                                                pers,
-                                                                st,
-                                                                h,
-                                                                same,
-                                                                ENodeView::LetE(t, w, b2),
-                                                            ) {
+                                                            match intern_rebuilt_let_e(pers, st, h, same, t, w, b2) {
                                                                 Err(e) => Err(e),
                                                                 Ok(r) => {
                                                                     abs1_set(st, ky, &r);
@@ -3887,13 +4108,7 @@ pub fn abstract_range_go(
                                         Err(e) => Err(e),
                                         Ok(u) => {
                                             let same: bool = u.eq2(&sub);
-                                            match intern_rebuilt(
-                                                pers,
-                                                st,
-                                                h,
-                                                same,
-                                                ENodeView::Proj(n, i, u),
-                                            ) {
+                                            match intern_rebuilt_proj(pers, st, h, same, n, i, u) {
                                                 Err(e) => Err(e),
                                                 Ok(r) => {
                                                     abs1_set(st, ky, &r);
@@ -4529,14 +4744,14 @@ pub fn inst_lp_go(
                     Err(e) => Err(e),
                     Ok(hl) => {
                         let same: bool = hl.eq2(&u);
-                        intern_rebuilt(pers, st, h, same, ENodeView::Sort(hl))
+                        intern_rebuilt_sort(pers, st, h, same, hl)
                     }
                 },
                 Ok(ENodeView::Const(n, vs)) => match subst_ls_memo_at(pers, st, ks, us, &vs) {
                     Err(e) => Err(e),
                     Ok(vs2) => {
                         let same: bool = vs2.eq2(&vs);
-                        intern_rebuilt(pers, st, h, same, ENodeView::Const(n, vs2))
+                        intern_rebuilt_const(pers, st, h, same, n, vs2)
                     }
                 },
                 Ok(ENodeView::FVar(i, ty)) => {
@@ -4547,7 +4762,7 @@ pub fn inst_lp_go(
                             Err(e) => Err(e),
                             Ok(t) => {
                                 let same: bool = t.eq2(&ty);
-                                match intern_rebuilt(pers, st, h, same, ENodeView::FVar(i, t)) {
+                                match intern_rebuilt_fvar(pers, st, h, same, i, t) {
                                     Err(e) => Err(e),
                                     Ok(r) => {
                                         inst_lp_set(st, k, &r);
@@ -4568,7 +4783,7 @@ pub fn inst_lp_go(
                                 Err(e) => Err(e),
                                 Ok(a2) => {
                                     let same: bool = f2.eq2(&f) && a2.eq2(&a);
-                                    match intern_rebuilt(pers, st, h, same, ENodeView::App(f2, a2)) {
+                                    match intern_rebuilt_app(pers, st, h, same, f2, a2) {
                                         Err(e) => Err(e),
                                         Ok(r) => {
                                             inst_lp_set(st, k, &r);
@@ -4594,7 +4809,7 @@ pub fn inst_lp_go(
                                     let same: bool = t.eq2(&ty)
                                         && b2.eq2(&body)
                                         && expr::binder_meta_beq(&m2, &m);
-                                    match intern_rebuilt(pers, st, h, same, ENodeView::Lam(t, b2, m2)) {
+                                    match intern_rebuilt_lam(pers, st, h, same, t, b2, m2) {
                                         Err(e) => Err(e),
                                         Ok(r) => {
                                             inst_lp_set(st, k, &r);
@@ -4620,13 +4835,7 @@ pub fn inst_lp_go(
                                     let same: bool = t.eq2(&ty)
                                         && b2.eq2(&body)
                                         && expr::binder_meta_beq(&m2, &m);
-                                    match intern_rebuilt(
-                                        pers,
-                                        st,
-                                        h,
-                                        same,
-                                        ENodeView::ForallE(t, b2, m2),
-                                    ) {
+                                    match intern_rebuilt_forall_e(pers, st, h, same, t, b2, m2) {
                                         Err(e) => Err(e),
                                         Ok(r) => {
                                             inst_lp_set(st, k, &r);
@@ -4651,13 +4860,7 @@ pub fn inst_lp_go(
                                     Ok(b2) => {
                                         let same: bool =
                                             t.eq2(&ty) && w.eq2(&val) && b2.eq2(&body);
-                                        match intern_rebuilt(
-                                            pers,
-                                            st,
-                                            h,
-                                            same,
-                                            ENodeView::LetE(t, w, b2),
-                                        ) {
+                                        match intern_rebuilt_let_e(pers, st, h, same, t, w, b2) {
                                             Err(e) => Err(e),
                                             Ok(r) => {
                                                 inst_lp_set(st, k, &r);
@@ -4678,7 +4881,7 @@ pub fn inst_lp_go(
                             Err(e) => Err(e),
                             Ok(u2) => {
                                 let same: bool = u2.eq2(&sub);
-                                match intern_rebuilt(pers, st, h, same, ENodeView::Proj(n, i, u2)) {
+                                match intern_rebuilt_proj(pers, st, h, same, n, i, u2) {
                                     Err(e) => Err(e),
                                     Ok(r) => {
                                         inst_lp_set(st, k, &r);

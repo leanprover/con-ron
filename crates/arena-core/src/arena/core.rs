@@ -10933,13 +10933,7 @@ pub fn annotate_body(
                     Err(er) => Err(er),
                     Ok(ap) => {
                         let same: bool = fp.eq2(&f) && ap.eq2(&a);
-                        crate::arena::expr_ops::intern_rebuilt(
-                            pers,
-                            st,
-                            e,
-                            same,
-                            ENodeView::App(fp, ap),
-                        )
+                        crate::arena::expr_ops::intern_rebuilt_app(pers, st, e, same, fp, ap)
                     }
                 },
             }
