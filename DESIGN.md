@@ -19868,3 +19868,199 @@ mended (a link edit, within the README rule).
 **Gates.**  Fast gates green; the link expectation regenerated (67 links,
 36 files); `holes.sh --check` 22/22.  Extraction and the proofs are
 untouched.
+
+### Task #98 — con-leche bumped to master 78ded4b6, and `withExclusive` ported (2026-09-21, Opus under Fable)
+
+con-leche goes from `c431b1ca` (its task #304) to **`78ded4b6`**, 150 commits
+ahead, on the same toolchain.  Most of those commits are its own proof tier —
+task #305 rebuilt the soundness argument as a *rules* tier and deleted
+`ConLeche/Model/Steps/*` for `ConLeche/Model/Rules/*` — and the port must not
+mirror any of it.  What the port does absorb is one campaign and one fix:
+
+| upstream | what it did | executed checker? |
+|---|---|---|
+| #305 (and its prep) | the rules tier; `Kernel/Core.lean`'s fuel-free helpers move to the new `Kernel/CoreDefs.lean` | no — a file move and a docstring sweep |
+| #306–#312 | design studies, spikes and rulings; nothing landed | no |
+| **#313–#317** | the substitution walks' memo redesigned: a plain descent `<name>P`, a child step `enter<X>P` reading `withExclusive`, a walk `<name>XP` carrying its own proof; the budgeted descents and the always-memoising `*GoC` walks deleted | **yes** |
+| **#318, #319** | the same discipline in `Expr.beq` and the four `Bool` traversal walks; `beqBudget` deleted; the leaves no longer recorded | **yes** |
+| #320 | PERF.md re-measured | no |
+| **`78ded4b6`** | **the mutual rung takes reflexive members**: the in-process modeller's private recursor generator is replaced by the fixpoint route's own, and `classifyCtor` walks a field's ∀-telescope | **yes** (the modeller) |
+
+#### 1. The findings, classified before a line was edited
+
+`provenance.py update` (no `--old`: the pin was bumped and not committed):
+**193 findings, 150 `GONE` and 43 `CHANGED`**, on `progress.py`'s
+`stale (CHANGED marker) 17`.  Two mechanical passes cut that to 43 real:
+
+| bucket | count | what it cost |
+|---|---:|---|
+| a byte-identical FILE MOVE (`Kernel/Core.lean` → `Kernel/CoreDefs.lean`) | 114 | a scripted citation repoint |
+| doc-only (`Model/Steps/*` → `Model/Rules/*` inside docstrings) | 5 | nothing |
+| deleted upstream | 35 | the port |
+| really changed | 39 | the port |
+
+The file-move bucket is found by hunting each `GONE` declaration by name
+across the whole new tree and comparing the block text; the doc-only bucket
+by stripping every comment line from both blocks and comparing what is left.
+§7's step 3 and step 4 now say so, along with the third thing this bump
+found: `update` had relocated **eleven** citations of `Expr.beqGo` onto the
+`Expr` INDUCTIVE, because `names_compatible` lets a citation of `Expr.beqGo`
+match a block declaring `Expr`.  `check` passes on those.  A ten-line scan
+finds them and found no others.
+
+**Markers: 193 before, 0 after.**  `provenance.py check` ends at 2 368 items
+/ 2 386 citations, all current at `78ded4b6`; `coverage` at **937/937 covered
+(100 %), 0 uncovered, 133 deliberately skipped** — 43 entries added for
+upstream's new proof plumbing (every `<name>P`, `enter<X>P`, `PEnt`, `BEnt`,
+`Squash` carrier and the address key) and four retired with `beqBudget`,
+`BeqRes` and `BeqOut`.
+
+#### 2. `withExclusive` is portable, and this is the port
+
+**What it is.**  `withExclusive a k h` runs its continuation on whether `a` is
+*exclusive* — reference count exactly one, so no other reference to it exists.
+In the logic it is `k false`; compiled, `@[implemented_by]` substitutes
+`k (isExclusiveUnsafe a)`, the count read off the object header.  What
+licenses the substitution is the obligation `h : k true = k false`: the
+continuation's value does not depend on the answer, so a caller may use it to
+choose *how* to compute a value, never *which*.  con-leche's walks use it for
+one thing: a node with one reference cannot be reached twice by the walk that
+is inside its only parent, so memoising it is pure loss — the key, the probe,
+the entry.  The official kernel's `replace_fn` caches on exactly that test
+(`!is_likely_unshared`), and `expr_eq_fn` on `is_shared(a) && is_shared(b)`.
+
+**The decision: portable.**  `ron::tagged::Raw::is_exclusive` is a `Relaxed`
+load of the block's own count against one, and `ron::node::is_exclusive`
+exposes it for `Expr`.  §3.4's lint bans `Arc::get_mut`, `Arc::make_mut` and
+`Arc::strong_count`, and the reason it bans them is the reason this is
+allowed: those let the count or the pointee escape into a VALUE — mutation
+through a share is invisible to "an `Arc` is its contents", and a count in a
+number is a value the model has not got — whereas this answer is consumed by
+one `if` that chooses between two ways of computing the same result.  The
+rule the lint now states is *a count read may select a path, never produce a
+value*, and what keeps it is that there is exactly one such function, it
+returns `bool`, and every caller is a memo gate.  `Arc::strong_count` stays
+banned: `Name`, `Level`, `PropWhen` and `ConstantInfo` are still `Arc` and
+nothing needs their counts.
+
+**The hole.**  `ron.node.is_exclusive` is hole #23, modelled `ok false` —
+"not known to be exclusive", the conservative answer and the one that always
+memoises.  So the generated model is the walk this port already had, and
+every `_refines` lemma is about it unchanged.  OVERVIEW §8.1 carries the row,
+and its claim is **weaker than `ptr_eq`'s**, which was already accepted: a
+skipped memo stores and reads nothing, where a pointer hit asserts an
+equality.
+
+**The sites**, all of them con-leche's: the six cursored substitution walks
+and `inst_level_params_go` (`enter1P`, `enterLiftP`, `enterListP`,
+`enterRevP`, `enterAbs1P`, `enterAbsRP`, `enterLPP` — the last with no
+compound test, as upstream has none there); the four `Bool` walks
+(`wscoped_b_go`, `leaves_sub_go`, `all_level_params_defined_go`,
+`state_c::consts_resolve_fc_go`) through `memo_skip`, which folds in the
+compound test their `enter*` steps also make, so a LEAF is no longer recorded
+either; and `expr::beq_go` through `beq_memoise`, a pair being memoised only
+if it is recursive and **both** sides are shared.  `fvar_leaves_go` is the
+exception on both sides: its memo is a visited SET whose entries speak about
+the accumulator, not about the node, so it has no self-proving entry to drop.
+
+**The one shape decision.**  The first cut had the gated probe and record
+build the `(node, cursor)` key themselves, so an exclusive node paid nothing
+at all.  It cost the key twice on the memoising path and — the real price —
+moved a bind that every arm of every walk destructures, 75 proof sites.  What
+ships is the read, then the key ONCE, then `memo1_get_if`/`memo1_insert_if`,
+each a `rfl`-unfolding of the operation it replaced.  A skipped node still
+pays the key's `dup` and its drop, which con-leche's address key does not,
+and skips the hash, the bucket walk, the entry, the entry's `dup` and the
+table's growth.  The key is still built AFTER the read, which is con-leche's
+borrowed-parameter requirement in the one shape Rust can violate it:
+`expr_nat_key` takes the node by a `dup`, and a key above the read would make
+the read answer `false` everywhere.
+
+**Deleted with con-leche's own**: `instantiate1_lift_b` and
+`instantiate1_lift_b_compound`, the budgeted plain descent at 4 096 nodes
+(upstream's #317 ruling: a node budget is a heuristic cutoff, and a
+discipline that spends nothing on an unshared node spends nothing on a small
+term), with 440 lines of their proofs; and `state_c::memo_b_get`, unused.
+
+#### 3. The measurement
+
+`perf stat -e instructions:u,cycles:u` is the measure of record; wall time
+and peak RSS beside it, every run under `timeout` and `ulimit -v`.  Two
+con-ron binaries, both release with mimalloc, from the same tree but for the
+gate: `master` is `3f5ebd55`, `excl` is this branch.  The exports are task
+#29's corpus.
+
+**What `withExclusive` bought the port** (`--jobs=1`):
+
+| export | con-ron master | con-ron with the gate | Δ |
+|---|---:|---:|---:|
+| `Init` (57 977 declarations) | 539.8 G | **412.3 G** | **−23.6 %** |
+| `Init`+`Std`+`Lean` (163 396) | 1 154.5 G | **896.9 G** | **−22.3 %** |
+
+and at eight workers, 545.5 G → 416.5 G (−23.7 %) and 1 161.1 G → 902.5 G
+(−22.3 %).  Wall, from three runs each: `Init` 61.1 ± 0.2 s → 48.6 ± 0.3 s
+(−20.5 %); `Init`+`Std`+`Lean`, one run each, 150.9 s → 122.9 s (−18.5 %).
+Peak RSS does not move (0.48 GB either way on `Init`, 1.32 → 1.33 GB on
+core): the memo was never the peak, the term graph is.
+
+For scale: con-leche's own campaign claimed −13.1 % (#317) and −10.8 %
+(#319) on `init-full`, which compounds to −22.5 % — the same number, reached
+the same way.  The port's own numbers below therefore compare two moving
+binaries.
+
+#### 4. The proofs
+
+`Refine/Excl.lean` is the whole of what the gate costs the proof tier: with
+`is_exclusive` modelled `ok false`, every verdict in the model is `false` and
+each gated `get`/`insert` is definitionally its unguarded predecessor.
+Sixteen `rfl`s (each gate at `false` and at `true`), two case splits for the
+gates that combine the read with a test the model *can* see (`memo_skip`,
+`beq_memoise`), and four "read a record back" lemmas for the one bind the
+gated record adds.  An arm then names them in the `simp only` that opens it
+and reads exactly as it did.
+
+| file | what it took |
+|---|---|
+| `Refine/Expr.lean` | nothing — `beq_memoise_eq` is a global `@[simp]` and the gate reduces to `beq_recursive` where it stands |
+| `Refine/ExprOpsCSubst.lean` | 15 arm-opening `simp only`s, 16 record sites; and 440 lines deleted with the budgeted descent |
+| `Refine/ExprOpsCAbs.lean` | 10 + 10 for the cursored walks, 11 + 10 for `instLevelParams` |
+| `Refine/ExprOpsCGuards.lean` | 18 compound arms by the recipe; **12 leaf arms restructured** — the gate is `true` at a leaf, so the `some`/`none` split goes and the memo invariant comes out of the incoming hypothesis |
+| `Refine/StateCResolve.lean` | the internal statements **re-based**: upstream deleted `Cached.constsResolveFCGo`, so there is no memo-threading reference function left for the port's table to denote.  `MemoBOk` is now `MemoInv … (ResolveQ lfe)` and the walk's lemma concludes against the plain descent.  **The exported `consts_resolve_fc_refines` is unchanged**, statement and hypotheses, closed through `constsResolveFC.eq_def` and `Expr.resBool_eq` |
+| `Refine/DeclCheck.lean` | the two-table relation moves here, its last consumer: `Kernel/DeclCheck.lean`'s `Expr.constsResolveFGo` is still the memo-threading walk |
+
+#### 5. The mutual rung's reflexive members
+
+The port of `78ded4b6`, clause for clause, in the unverified crate.
+`in_model::kit`'s six private recursor generators (`rec_prefix_at`,
+`rec_field_idx`, `ih_pis`, `minor_ty`, `minors_pis`, `minors_lams`) are
+deleted with their Lean counterparts; `rec_ty` and `rec_rhs` are one call
+each of the core's own fixpoint-route generators
+(`inductives::native_parts::struct_rec_ty_r`/`struct_rec_rhs_r`), with
+`expr_ops::reset_meta` on the rule.  `mutual::classify_ctor` walks a field's
+own ∀-telescope (official `check_positivity`, syntactically);
+`mutual::gen_mutual` drops the `reflexive member` decline and builds the iota
+rule's recursive hypothesis as `λ a⃗, T_tgt.rec._model p⃗ M⃗ S⃗ e⃗(a⃗) (f_i a⃗)`
+over that telescope — at a finitary field `a⃗` is empty and the expression is
+the old one exactly.  Upstream's new fixture `e2e/inmodel_mutual_refl` is 0
+in both modes and `mutual_struct_proj` goes 2 → 0, which is what the fix is
+for.
+
+#### 6. The gates
+
+`scripts/gates.sh` all green.  `scripts/diff-e2e.sh` **383/383 agree** at
+`--jobs=1` and at `--jobs=4` — the fixture set moved with upstream, from 348
+to 383.  `provenance.py check` 2 368 items / 2 386 citations;
+`coverage` 937/937 (100 %); `holes.sh --check` 23/23; the link gate
+regenerated, including README's con-leche anchor repointed to the new pin at
+the same `#L90-L117` (`MainTheorem.lean`'s cited text is unchanged).
+`progress.py`: verified core 14 136 lines, all ported, 91 % verified; the
+parser 4 441, all ported, 59 % verified; `stale (CHANGED marker) 0`.
+
+**One process deviation, recorded because §7 asks for it.**  Step 9 says the
+pin is the LAST commit of a bump, so that every commit before it reproduces
+with `provenance.py update` and no `--old`.  Here it went in with the sixth
+of ten commits (`cdeb2d1c`), swept up by an `add` of the whole `proof/`
+directory.  Nothing is wrong with the tree — every commit of the branch is
+marked WIP and the branch lands as a whole — but the commits after it no
+longer reproduce that way, and the next porter should stage the two pin
+files by name and nothing else.

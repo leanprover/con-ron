@@ -1086,6 +1086,13 @@ pub fn wscoped_b(d: u64, e: &Expr) -> bool {
 /// the annotations, each node visited once — the `seen` set is inserted into
 /// *before* the match, so a shared sub-DAG is walked once.
 ///
+/// **The one walk of this file whose memo is not the shared-only idiom**, and
+/// con-leche's is the same exception (the cited docstring argues it at
+/// length): `seen` is a visited SET whose entries mean *"this node's leaves
+/// are already in `acc`"* — a statement about the ACCUMULATOR and about the
+/// walk's own descent path, not about the node — so there is no self-proving
+/// entry to drop and skipping one would be wrong, not merely wasteful.
+///
 /// Deviations: the accumulator is threaded by value and returned (task #6's
 /// rule), and the cited `(idx, ty) :: acc` front cons becomes a push, so the
 /// list comes out in the reverse order.  Its only consumer is `leafMem`, a
