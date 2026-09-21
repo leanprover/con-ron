@@ -31167,6 +31167,13 @@ The wind-down state, for whoever resumes:
     (item 2); and a quiet-machine re-run of §6's wall column, which every row
     above carries a caveat for.
 
+**THE PAUSE IS LIFTED** (task #97-catchup, 2026-09-21, the last section of
+this log): master's con-leche sync landed, the branch is merged across to
+`78ded4b6` and gated there, and `Init` is 422.31 G against this section's
+422.34 G — the same number.  What §9 calls "the Lean catch-up (§8 item 1)" is
+still owed and is still a different task: the twin catching up with the
+Rust-first ledger, not with con-leche.
+
 ### Task #98 — con-leche bumped to master 78ded4b6, and `withExclusive` ported (2026-09-21, Opus under Fable)
 
 con-leche goes from `c431b1ca` (its task #304) to **`78ded4b6`**, 150 commits
@@ -31389,3 +31396,191 @@ directory.  Nothing is wrong with the tree — every commit of the branch is
 marked WIP and the branch lands as a whole — but the commits after it no
 longer reproduce that way, and the next porter should stage the two pin
 files by name and nothing else.
+
+### Task #97-catchup — the arena at con-leche 78ded4b6 (2026-09-21, Opus under Fable)
+
+§8's branch `arena` was paused at task #97-P6-6b "until the con-leche sync on
+master finishes" (its §9).  Task #98 finished it — `c431b1ca` → `78ded4b6`,
+150 upstream commits — and this task carries the branch across, under the
+merge discipline CLAUDE.md now states: the agent merges master into its
+branch, runs the gates THERE, and the landing is a fast-forward.
+
+`arena` was at `c77b04bc`, master at `613194b9`.
+
+#### 1. The merge
+
+**One conflict, and it was the task log.**  Both sides appended sections to
+DESIGN.md's task log; both are kept, the arena's `#97t … #97-P6-6b` first and
+master's `#98` after.  Nothing else conflicted, which is exactly what task
+#97-P6-6b's wind-down note predicted: nothing outside `crates/arena-core`,
+`crates/con-ron-arena` and `proof/ConRon/Arena/**` had moved on this branch.
+
+So the five things the brief asked to be reconciled came out:
+
+1. **`crates/con-ron-core`**: master's `withExclusive` memo discipline, hole
+   #23 (`ron::node::is_exclusive`) and the skip list, beside the branch's own
+   `ron/hashmap2.rs` and `HashMap::capacity` — disjoint files, both kept,
+   `cargo test` green at 428 tests.
+2. **The Lean twin and its Rust transliteration**: §2 below.  The file move
+   `Kernel/Core.lean` → `Kernel/CoreDefs.lean` is 209 of the arena's
+   citations; the 39 real upstream changes touch four arena twins and **not
+   one clause of one of them**.
+3. **The modeller**: `con-ron-arena` delegates to `crates/con-ron`'s
+   `in_model`, so `78ded4b6`'s reflexive-members fix arrives for free.
+   Verified, not assumed: upstream's new fixture `e2e/inmodel_mutual_refl` is
+   **0 in both modes** (accepted 78, three blocks modelled in process) and
+   `e2e/mutual_struct_proj` is **0 in both modes** (accepted 117), on
+   `con-ron-arena` AND on `con-ron-lean`, whose `Arena/Frontend/InModel.lean`
+   delegates to con-leche's own `InModel.generate` in the same way.
+4. **`Arena/Main.lean` / `con-ron-lean`**: `lake build` and `lake build
+   con-ron-lean` are clean against the new con-leche with **no source change
+   at all** — the `Frontend/InModel*` seam's signatures did not move.
+5. **The gates**: §4.
+
+#### 2. The citations, classified before a line was edited
+
+`provenance.py update --old c431b1ca`, over the arena roots only (master's
+own roots were reconciled by task #98 and re-marking them would have undone
+that work — a trap worth writing down: `update --old` marks every citation
+whose cited TEXT moved, reconciled or not, so a catch-up must name its roots).
+
+**659 relocated, 232 `CHANGED` markers.**  Classified by comparing the cited
+BLOCK TEXT, old pin against new, with DESIGN §7 step 3's two passes:
+
+| bucket | markers | what it cost |
+|---|---:|---|
+| a byte-identical FILE MOVE, `Kernel/Core.lean` → `Kernel/CoreDefs.lean` | 207 | a scripted citation repoint |
+| the same move with a docstring edit (`betaGateFires`) | 2 | the same |
+| doc-only in place (`iotaCerts`, `propIrrel`, `Expr.peelNeverPis`) | 7 | nothing |
+| upstream's #313–#319 walk redesign, `Cached/ExprOpsC.lean` | 16 | a repoint and a note |
+| **really changed, needing a re-twin** | **0** | — |
+
+The last row is the finding.  The sixteen are four upstream declarations —
+`wscopedBGoC`, `wscopedBC`, `leavesSubGo`, `leafGuard` — across the arena's
+`ExprOps.lean` twins and their `arena::expr_ops` transliterations.  Upstream
+#313–#319 split each walk into three declarations (`<name>P` the plain
+descent, `enter<X>P` the child step, `<name>XP` the walk, keyed on an
+address, with the entry carrying its own proof), so `wscopedBGoC` is now
+`wscopedBXP` and `leavesSubGo` is now `leavesSubXP` — the same repoint
+task #98 made in `cached/expr_ops_c.rs`.  Compared clause for clause against
+the new plain descents `wscopedBP` and `leavesSubP`, **no arm of either arena
+walk changed**, and the cutoff upstream moved out into the wrappers
+`wscopedBC` / `leavesSubC` is still made at the head of every recursive call
+here, exactly where `enterWSP` / `enterLSub` make it.  So this is a citation
+edit and a module note in each of the two files, and no code.
+
+**Nothing of con-leche #319's `withExclusive` idiom is owed to this tier, and
+that is a property of the representation, not a deferral.**  The idiom asks
+whether an `Expr` node's reference count is one and skips the memo when it is
+— a node with a single parent cannot be reached twice by the walk inside that
+parent.  The arena has no reference counts: a term is a `u32` handle into a
+per-constructor array, shared by construction, and the question has no answer.
+The idiom also lives in con-leche's CACHED tier, which the arena does not
+mirror (§8.2: the arena's bridge is to the PURE tier), and §8.3's memo policy
+— per-call tables, handle keys, a cutoff off the derived word — is the arena's
+own.  `con-ron-core`'s `ron::node::is_exclusive`, hole #23, is the `Expr`-tier
+port's answer to that same upstream change; the arena tier needs none.
+
+**The `beqGo` trap, scanned for.**  Task #98 found eleven citations that
+`update` had silently relocated onto an enclosing block, because
+`names_compatible` lets a citation of `Expr.beqGo` match a block declaring
+`Expr`.  The same scan over all **4 881** arena citations — every citation
+whose matched declaration is a strict dotted PREFIX of the cited name —
+reports **0 suspects**.
+
+`provenance.py check` ends at **6 557 items (4 804 Rust, 1 753 arena Lean),
+4 881 citations, all current at `78ded4b6`**; `progress.py`'s
+`stale (CHANGED marker)` is 0 (it was the 232 above before the sweep).
+`coverage`'s arena group reads 577/937 twinned (61.6 %) with 16 REDUNDANT
+skip-list findings, all of them pre-existing on the branch (the arena cites
+`CoreGated`/`CoreIO`/`CheckerGated` declarations the RUST port skips
+file-wide) and none of them a bump finding.
+
+#### 3. The stale model the gate found
+
+`scripts/extract.sh --check` failed on the merged tree, and **not because of
+the merge**: the committed model was stale ON THIS BRANCH.  Task #97-P6-7's
+`clear_fit` added `fit_hw`, `FIT_DECAY` and `FIT_SLACK` to
+`ron::hashmap2` and never regenerated `proof/ConRon/Generated/` — that task
+read the standing "nothing under `con-ron-core` moved" ruling of P4b/P4c/P4d,
+and `ron/hashmap2.rs` IS under `con-ron-core`.  `scripts/extract.sh` puts the
+four declarations in; **nothing of master's own regeneration moves**, which is
+the check that the two halves of the merge agree on the model.  The rule for
+the rest of P6: a change to `ron/hashmap2.rs` is a change to the extracted
+crate, and `extract.sh` runs with it.
+
+The same sweep re-pointed the **72** `Lean twin:` line references that the
+marker deletions and the new module note shifted (`arena::expr_ops`, and one
+in `frontend::export_c`); `Core.lean`'s 305 did not move, because `update`
+inserted and this task deleted the same 95 lines.
+
+#### 4. The gates, and the differentials
+
+`scripts/gates.sh`, **all 12 OK**, on this branch, on the committed tree:
+
+| # | gate | |
+|---:|---|---|
+| 1 | `cargo build --release`, `RUSTFLAGS="-D warnings"` | OK (3 s) |
+| 2 | `cargo test --release`, same | OK (8 s), **428 tests**, 0 failures |
+| 3 | `scripts/lint-rust-style.sh` over `con-ron-core` and `arena-core` | OK — including master's new rule, that a count read may select a path and never produce a value |
+| 4 | `scripts/provenance.py check` | OK — 6 557 items, 4 881 citations, all current at `78ded4b6` |
+| 5 | `scripts/provenance-selftest.py` | OK |
+| 6 | `scripts/overview-links.sh` | OK, 70 links, 36 files |
+| 7 | `scripts/holes.sh --check` | OK, 2 types and **21 functions** (hole #23 arrived with master) |
+| 8 | `scripts/gen-pins.sh --check` | OK, **26 721 records / 532 456 bytes** — the same numbers task #98 read, which is what says the bump did not move a pin VALUE |
+| 9 | `scripts/gen-prelude.sh --check` | OK, 267 records / 16 922 bytes |
+| 10 | `scripts/gen-prelude-lean.sh --check` | OK, the same bytes |
+| 11 | `scripts/extract.sh --check` | OK after §3's regeneration |
+| 12 | `cd proof && lake build` | OK (518 s at `LAKE_JOBS=4`) — `ConRon`, `ConRonSpike` and `ConRonArena`, 2 703 jobs |
+
+and `lake build con-ron-lean` on top of it, clean.
+
+**The differentials, all at 383 fixtures** — upstream's set grew from 348 with
+the bump, and the sweep reads the expectation files, so it found the new
+count by itself:
+
+| sweep | |
+|---|---|
+| `diff-e2e.sh --bin=target/release/con-ron-arena --jobs=1` | **383 agree, 0 differ** |
+| same, `--jobs=8` | **383 agree, 0 differ** |
+| same, `--trusted --jobs=8` | **383 agree, 0 differ** |
+| `diff-e2e.sh --bin=proof/.lake/build/bin/con-ron-lean` | **383 agree, 0 differ** |
+
+Task #97-P6-6b's own rows were 348/348; the 35 new fixtures are upstream's,
+and both arena binaries take them without a single edit.
+
+#### 5. `Init`, the regression check
+
+This is a sync, not an optimisation, so `Init` is measured once and nothing
+else is: `perf stat -e instructions:u,cycles:u` around one
+`--verified --jobs=1` run under CLAUDE.md's caps, against task #97-P6-6b's
+own `--jobs=1` row.
+
+| `Init`, `--jobs=1` | instructions:u | cycles:u | wall | peak RSS | verdict |
+|---|---:|---:|---:|---:|---|
+| task #97-P6-6b, before the merge | 422.34 G | 267.19 G | 67.49 s | 0.63 GB | accepted 57 977 |
+| this tree, after it | **422.31 G** | 208.23 G | 47.52 s | 0.63 GB | **accepted 57 977** |
+
+**−0.01 % on the measure of record**, which is the same number: the merge
+changed no computation of the arena, and the citation sweep changed no code.
+(The cycles and wall columns are not comparable — task #97-P6-6b's row was
+taken at load 85–160 and this one on a much quieter machine — which is the
+reason `instructions:u` is the measure of record at all.  Peak RSS is
+662 760 kB either side.)  Raw `.perf`/`.time`: `_tmp/t97catchup/`.
+
+#### 6. What is still owed
+
+Unchanged by this task, and listed again so the resumed P6 has it in one
+place:
+
+1. **The Lean catch-up of the Rust-first ledger** (§8.6 P6's rule, task
+   #97-P6-6b §8 item 1): the `ReaderT PersTier` monad and its four sibling
+   items, task #97-P6-4a's `Pins`/`internAllPins`, task #97-P6-5's
+   `internRebuilt`, task #97-P6-7's two clauses.  That is a different
+   catch-up from this one — it is the twin catching up with the Rust, not
+   with con-leche — and it still belongs before P3/P5.
+2. §8.6's deferred levers: the `shared_on` hoist, the `getAppFn` side column,
+   the `instantiateList` multi-substitution the maintainer ruled fair game.
+3. `scripts/diff-e2e.sh`'s header still says "348 fixtures" in prose, as it
+   does on master; the sweep itself reads the expectation files and counts
+   383.
