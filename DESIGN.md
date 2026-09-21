@@ -2380,7 +2380,18 @@ the persistent tier (the byte recogniser is unchanged).
         3.9× today's con-ron, which is P6's brief and which that task's
         section profiles.
     P5  Theorem 2 campaign.
-    P6  performance vs today's con-ron; the OVERVIEW numbers.
+    P6  performance vs today's con-ron; the OVERVIEW numbers.  **DONE**
+        (task #97-P6-16, 2026-09-21): sixteen items, from the first Rust
+        pass to the last two priced levers.  The campaign took the arena
+        from task #97-P6-3's baseline — 1.51× `con-ron` at master's
+        instructions on `Init`, 4.0× its peak RSS, and no finish at all on
+        `Init+Std+Lean` or Mathlib — to **0.542× con-ron and 0.657× nanoda
+        on Mathlib's instructions, 0.351× / 0.479× on cycles, at 0.771×
+        con-ron's peak RSS**, checking Mathlib in 528 s single-threaded and
+        142 s at eight workers against con-ron's 1 433 s and nanoda's 1 054 s.  The
+        item list is exhausted and the closing table is the section "P6
+        closing table" at the end of the task log; the OVERVIEW numbers
+        are a post-merge task of their own (§7.x).
         2. §8.3's promotion, a twin change.  **DONE, both halves** (task
         #97-P6-2, Lean then Rust, 2026-09-20): phase A runs in the scratch
         tier and promotes what the environment keeps; `Arena/Promote.lean`
@@ -2727,6 +2738,48 @@ the persistent tier (the byte recogniser is unchanged).
         them every symbol above 1 % is either the hash-consing the design is
         built on or a walk that already carries every cutoff and memo
         con-leche itself has — so P6 should end after one more task.
+
+        16. **the last round: the two natural levers task #97-P6-15's
+        verdict left.**  **DONE** (task #97-P6-16), and **P6 ENDS HERE**.
+        Lever A, §8's own deferred `getAppFn`/`getAppNumArgs` side column, is
+        **priced and NOT TAKEN**: the count its own instruction asked for says
+        the lever is licensed — **49.5 % of `Init`'s 35 508 994 `getAppFn`
+        calls and 50.3 % of the prefix's 83 705 364 want the head and nothing
+        else**, and at the other half the head walk is a second descent of the
+        spine the argument walk descends anyway, so the column removes ALL of
+        `getAppFn`'s 111.2 M (`Init`) and 291.8 M (prefix) app-node steps —
+        but the A/B says it does not pay: **maintaining the column is
+        +1.22 % of `Init` (the `push` +0.39 %, the read of the child's entry
+        +0.83 %) against −1.32 % for reading it**, net −0.12 % on `Init` and
+        **+0.35 % on the prefix**, at **+9.4 % / +11.1 % peak RSS**.  The
+        number that explains it: the arena **builds 76 684 305 `app` nodes on
+        `Init` and 298 507 653 on the prefix**, i.e. 2.2 and 3.6 nodes per head
+        ASKED, so a dense eager column pays per node built and saves per
+        question asked and the first is the larger.  Lever B, task #97-P6-10
+        §3's `BinderMeta` column, is **TAKEN**: `BinderMeta` leaves the
+        `lam`/`forallE` record and is hash-consed in a store of its own inside
+        `ETables` (`handle::BMIdx`, `store::BMNode`, `EStore::intern_bm` with
+        `intern`'s own persistent-then-scratch clauses), so the record is three
+        `u32`s of POD — `hash64` is `pack2`-shaped, `eq2` three word
+        comparisons, `dup2` a register move — and `defeq_peel`'s annotation
+        test is `BMIdx` equality, which IS `PropWhen` equality by the datum
+        store's cons exactness.  `view_bind` keeps its signature, so no reader
+        moves; `view_bind_i` / `intern_{lam,forall_e}_i` are what the
+        REBUILDING walks take.  It is a **memory and representation lever, not
+        an instruction one**: `Init` **217.075 → 216.184 G (−0.41 %)**,
+        `Init+Std+Lean` **423.316 → 421.403 G (−0.45 %)**, the prefix
+        **+0.16 %** and Mathlib **+0.12 %**, against **peak RSS −9.6 %
+        (`Init+Std+Lean`), −3.0 % (prefix) and −6.1 % (Mathlib, 7.17 →
+        6.73 GB)** — and it takes the last `Arc` out of a node record, which is
+        what §8.5 asks the representation for.  383/383 fixtures at
+        `--verified` and at `--trusted`; the extraction is 0 errors at 5 type
+        and **210** function holes, one FEWER than the tip's 211
+        (`expr::binder_meta_hash` has no caller left).  The task's own verdict:
+        **every remaining symbol above 1 % of the profile is either the
+        hash-consing the design is built on, a walk already as short as
+        con-leche's own, or `con-ron-core`** — see "P6 closing table" for the
+        campaign's numbers beside nanoda and `con-ron` at master at all three
+        sizes.
 
 Branch `arena`; master stays shippable until (C) passes the gates and the
 fixtures.  Budget from con-leche's record, scaled: (B) ~12 k lines,
@@ -34615,3 +34668,520 @@ Note for the ledger: **no gate fails on a `sorry` in the proof tier** —
 `lake build` reports it as a warning.  The `#print axioms` checks of §6 are
 what makes an owed statement visible, and a committed `sorryAx` line is the
 marker to grep for; this tier has none.
+
+### Task #97-P6-16 — the last two levers: the `getAppFn` column priced and declined, the binder datum interned (2026-09-21, Opus under Fable)
+
+Phase P6 item 16 of §8.6, **the last optimisation round**: the two natural
+levers task #97-P6-15's verdict left, each with a price already on it —
+§8.6's own deferred `getAppFn`/`getAppNumArgs` side column (lever A, unblocked
+by the nanoda catch-up) and task #97-P6-10 §3's `BinderMeta` column (lever B,
+priced there at 2–3 % of `Init`).  RUST-FIRST under §8.6, twin ledger in §7.
+Branch `p6-16` off `arena`'s tip `fb7b1975`.  The scratch, the counting build
+and the profiles are `_tmp/t97-p6-16/`.
+
+**The measure.**  `perf stat -e instructions:u,cycles:u` of `--verified
+--jobs=1 --progress=1000000`, `ulimit -v` 8 GiB for `Init`, 12 GiB for
+`Init+Std+Lean` and for the Mathlib 25 % prefix (`head -26948621`), 27 GiB for
+Mathlib.  **Read the instruction column**: every `Init` row below is two
+passes and they agree to nine digits, while the cycles and the wall of one
+pass move by up to 5 % at load.  Task #97-P6-13's re-uplift trap was
+respected with the same harness discipline task #97-P6-15 used
+(`_tmp/t97-p6-16/try.sh` aborts on a failed build and `md5sum`s the binary it
+copies; every variant below has a distinct sum).  The tip's own `Init` and
+prefix rows reproduce task #97-P6-15's to five digits (217 075 339 783 against
+217 071 612 109; 856 904 804 916 against 856 906 803 547), so the two tasks
+measure the same binary on the same files.
+
+#### 1. Lever A — the count first, because the maintainer's instruction says so
+
+§8.6's deferred paragraph is explicit: the `app` table may carry an eagerly
+cached side column for `getAppFn`, *"worth it only if many `getAppFn` calls do
+NOT also want the argument list (`getAppArgs` walks the spine anyway); count
+both before deciding"*.  So the count came first, from a throwaway tree
+(`_tmp/t97-p6-16/count/`) in which `get_app_fn`, `get_app_args`,
+`get_app_spine` and `head_and_args` are `#[track_caller]` wrappers around
+their real bodies — the recursion is not counted, so each row is one EXTERNAL
+call — recording per call site the number of calls and the number of `app`
+nodes the walk is about to visit.
+
+| family member | `Init` calls | `Init` app-node steps | prefix calls | prefix steps |
+|---|---:|---:|---:|---:|
+| `get_app_fn` | 35 508 994 | 111 199 103 | 83 705 364 | 291 845 255 |
+| — of which the site wants the HEAD and nothing else | **17 567 001 (49.5 %)** | **50 377 327 (45.3 %)** | **42 097 424 (50.3 %)** | **136 303 836 (46.7 %)** |
+| `get_app_args` | 16 380 651 | 57 320 497 | 35 680 223 | 138 115 466 |
+| `head_and_args` (a head walk AND an argument walk) | 26 551 975 | 17 539 202 | 49 981 654 | 43 334 595 |
+| `get_app_spine` (head, arguments and the spine's nodes) | 19 788 683 | 73 887 816 | 35 470 566 | 139 024 666 |
+| **the family's app-node steps** | | **242 407 416** | | **568 985 387** |
+
+Read against the instruction: **half of `getAppFn`'s calls want the head
+alone** — `unfoldable_head` (9.25 M calls on `Init`), `head_hint` (2.35 M),
+`proof_pw` (2.81 M), `is_ctor_app` (1.60 M), `same_const_heads` (1.36 M) — and
+at the OTHER half the head walk is a *second* descent of the spine the
+argument walk descends anyway (`unfold_definition`, `head_and_args`,
+`iota_rec_major`, `defeq_apps`, `defeq_spine`, `whnf_core_proj_at`).  So a
+head column removes **all** of `get_app_fn`'s steps: 111.2 M of `Init`'s
+242.4 M (45.9 %) and 291.8 M of the prefix's 569.0 M (51.3 %).  On the count
+alone the lever is licensed, and the mean spine walked is 3.13 nodes on `Init`
+and 3.49 on the prefix.
+
+#### 2. Lever A — built, measured, decomposed, and NOT TAKEN
+
+The column is a per-tier `Vec<(EIdx, u32)>` on the `app` constructor only —
+the head handle and the argument count, one entry per `apps` row, written at
+`intern` from the child's own entry (`head (app f a) = head f`, `head x = x`,
+`numArgs (app f a) = numArgs f + 1`), i.e. O(1) per intern exactly as the
+derived word is, and a SEPARATE column rather than a second field of the row
+so that a head-only read touches eight bytes per node instead of the row's
+sixteen.  `get_app_fn` becomes one indexed load; `get_app_num_args` is its
+sibling.
+
+| variant | `Init` instructions | Δ vs tip | prefix instructions | Δ vs tip |
+|---|---:|---:|---:|---:|
+| the `arena` tip `fb7b1975` | 217 075 339 783 | — | 856 904 804 916 | — |
+| **A3** — the column maintained, never read | 219 727 927 239 | **+1.22 %** | 867 147 880 961 | **+1.20 %** |
+| **A4** — … its entry a CONSTANT (the `push` alone, no read of `f`) | 217 926 082 602 | +0.39 % | — | |
+| **A1** — maintained and read by `get_app_fn` *and* `get_app_spine` | 217 507 595 735 | +0.20 % | 861 200 596 292 | +0.50 % |
+| **A2** — … the spine's head back off its own walk, which is free there | 216 819 859 190 | **−0.12 %** | 859 922 805 244 | **+0.35 %** |
+
+and the peak RSS, which is the other half of the verdict: `Init` 631.6 →
+691.0 MB (**+9.4 %**), the prefix 1 909.5 → 2 121.4 MB (**+11.1 %**) — which
+on Mathlib is 7.19 GB going to about 8.0 GB, i.e. **above** `con-ron` at
+master, the column the campaign has held under 1.00× since task #97-P6-5.
+
+**The decomposition is the finding.**  A3 and A4 take the lever apart: the
+`Vec::push` of the column entry is **+0.39 % of `Init`** and the read of `f`'s
+own entry at every `app` intern is another **+0.83 %**, for a maintenance
+charge of +1.22 %; reading the column instead of walking is worth −1.32 % on
+`Init` and −0.83 % on the prefix.  The two cancel.
+
+**Why they cancel, in one number.**  A counter in the two `intern_app` pushes
+and in `ETables::push`'s `app` arm says the arena builds **76 684 305 `app`
+nodes on `Init` and 298 507 653 on the prefix** — against 35 508 994 and
+83 705 364 `getAppFn` calls.  **The arena interns 2.2 `app` nodes per head it
+is asked for on `Init` and 3.6 on the prefix**, and the column has to be
+written at every one of them while the walk it replaces is 3.1–3.5 nodes long.
+A dense eager column pays per NODE BUILT and saves per QUESTION ASKED, and in
+this checker the first number is the larger one — which is exactly the risk
+the maintainer's own caveat named, arriving from the side the caveat did not
+name (not "the callers want the arguments too", but "there are more nodes than
+callers").
+
+Interleaving the column into the `app` row instead of beside it was considered
+and not built: it would remove the separate `push` (+0.39 %) and leave the
+read (+0.83 %), so the best case is about −0.5 % of `Init` — for the same
++8 bytes per `app` node, and at the cost of taking the hot `app` row from
+sixteen bytes to twenty-four, which every argument walk, every cons probe and
+`instantiate_list_go` would pay for in cache.  **Lever A is priced and not
+taken**, and nothing of it is landed: this section is its record, and the
+patch that produced the A-rows lived only in `_tmp/t97-p6-16/leverA.patch`
+for the session.
+
+#### 3. Lever B — the binder datum interned, and the node record POD
+
+Task #97-P6-10 §3 left this as *"a task, not a lever"*: `BinderMeta` is a
+`PropWhen`, sixteen bytes and `Arc`-carrying at `one`/`two`/`many`, so
+`BindNode` was twenty-four bytes with a reference count inside it —
+`Tbl<BindNode>::dup2` was a `binder_meta_dup`, its `eq2` a `prop_when::beq`
+and its `hash64` a `hash_pw`, at every probe of the two hottest cons tables
+after `apps`.  Its own note prescribed the shape and this task builds it:
+**intern the datum into a store of its own with its own cons table and keep a
+`u32` in the record**.
+
+  * `handle::BMIdx` — a fifth handle kind with the same word layout as the
+    other four (tag `0`, the tier bit, the index): the store has one
+    constructor and so no tag to spend.
+  * `store::BMNode { pw }`, and `ETables::bms: Tbl<BMNode, BMIdx, u64>` — the
+    datum table rides INSIDE `ETables`, because it lives and dies with the
+    tier exactly as the ten node arrays do, and its derived column holds
+    `PropWhen.hash`, which with a tag test on the record is everything
+    `derOfBind` asks of the datum (`der_of_bind_at_i`).
+  * `EStore::intern_bm` is `intern`'s own clause sequence at a one-constructor
+    store — persistent probe, scratch probe, capacity test, append — so the
+    cross-tier discipline is the store's own and **`BMIdx` equality IS
+    `PropWhen` equality**, which is what keeps `denote` injective on
+    `lam`/`forallE` now that the record names the datum instead of holding it.
+    `intern_bm_persistent` is its promote-intern, so `arena::promote` keeps
+    working over the view.
+  * `BindNode` is now `{ ty: EIdx, body: EIdx, m: BMIdx }`: three `u32`s of
+    POD, hashed `pack2`-style like `LetNode` and `ProjNode`, compared with
+    three word comparisons, copied with a register move.
+
+**None of the sixty-odd readers move**, because `EStore::view_bind` keeps its
+signature and fetches the datum back.  What moves is the REBUILDING walks,
+which never look inside the datum — they only carry it across — and for them
+`view_bind_i` / `intern_lam_i` / `intern_forall_e_i` / `intern_e_bind_i` /
+`intern_rebuilt_bind_i` stop at the handle: `instantiate1_go`,
+`instantiate_list`, `instantiate_list_go`, `abstract1_go`,
+`abstract_range_go`, and `is_lam` / `pi_result`, which discard it.  And
+`defeq_peel`'s annotation test — task #97-P6-14's innermost-first
+`m₁.pw == m₂.pw` — becomes `pa.2.eq2(&pb.2)`, a word comparison.
+
+One structural consequence worth recording: **a scratch binder may name a
+PERSISTENT datum** (the datum probe is persistent-first, like every other
+probe), so one tier cannot resolve a binder on its own.  `ETables::get`'s two
+binder arms are therefore gone and `EStore::view` dispatches them through
+`view_bind`, which selects the tier for the record and for the datum
+separately.
+
+| variant | `Init` instructions | Δ | prefix instructions | Δ |
+|---|---:|---:|---:|---:|
+| the `arena` tip `fb7b1975` | 217 075 339 783 | — | 856 904 804 916 | — |
+| **B1** — the datum interned, every reader unchanged | 218 910 005 230 | +0.85 % | 862 542 315 566 | +0.66 % |
+| **B2** — the five hot rebuilding walks carry the `BMIdx` | 216 193 009 191 | **−1.24 %** | 858 335 658 178 | **−0.49 %** |
+| **B3** — `defeq_peel`'s annotation test on the handles | 216 183 139 218 | −0.00 % | 858 278 312 189 | −0.01 % |
+| **B4** — `find_bm` split so Charon takes it (§6) | 216 183 546 996 | ±0 | 858 282 679 886 | ±0 |
+| | | **−0.41 %** | | **+0.16 %** |
+
+B1 alone is a REGRESSION and says why the rest of the lever is the interesting
+half: interning the datum adds a cons probe at every binder intern, and the
+smaller record does not pay for it until the walks that rebuild binders stop
+interning the datum at all.  What is left of the +0.85 % after B2 is the
+binder interns whose datum is genuinely NEW — `inst_lp_go`'s `subst_pw`, the
+annotation's `annot_binder_meta`, the inference telescopes' `imax` fold — and
+those must intern whatever the representation is.
+
+The instruction column is a wash; the other three are not.  **Peak RSS**
+`Init` 631.6 → 574–642 MB (the allocator's high-water mark is not stable to
+better than 10 % here, and the tip's is), `Init+Std+Lean` 1 329.0 →
+1 201.8 MB (**−9.6 %**), the prefix 1 909.5 → 1 851.7 MB (**−3.0 %**);
+**cycles** −1.5 % on `Init` and −1.4 % on the prefix at −1.4 % wall.  And the
+**extraction loses a hole**: 5 type and **210** function holes against the
+tip's 211, because `expr::binder_meta_hash` has no caller left in the crate.
+
+**Taken**, on three grounds beyond the instruction column: the memory, which
+is the column the arena reports against master; the design, since §8.5 asks
+for a representation with *"no `Arc`"* and the binder record was the last node
+record holding one; and the cons tables, whose keys are now POD at every one
+of the ten constructors.
+
+#### 4. Lever B — measured at every size, and what it is a lever FOR
+
+The `arena` tip `fb7b1975` against this branch, one tree, one
+`[profile.release]`, both binaries `md5sum`ed against a fresh build of their
+own tree, every pair run back to back on an otherwise idle machine.  **Mathlib
+is two passes per binary**, because the first pair disagreed with the second
+on the cycles and the wall by more than the effect: that is CLAUDE.md's rule
+about one run of a large benchmark, and it earned its keep here (see the note
+after the table).
+
+| export | | `arena` tip | **this branch** | Δ |
+|---|---|---:|---:|---:|
+| `Init`, 57 977 | instructions:u | 217 075 339 783 | **216 183 546 996** | **−0.41 %** |
+| | cycles:u | 101.12 / 101.14 G | 99.96 / 100.21 G | −1.1 % |
+| | wall | 23.14 / 23.12 s | 22.94 / 23.19 s | ±0 |
+| | peak RSS | 631.6 MB (twice) | 639.7 / 641.8 MB | +1.4 % |
+| `Init+Std+Lean`, 163 396 | instructions:u | 423 316 347 832 | **421 403 160 317** | **−0.45 %** |
+| | cycles:u | 208.72 G | 200.63 G | −3.9 % |
+| | wall | 51.15 s | 46.30 s | −9.5 % |
+| | peak RSS | 1 329.0 MB | **1 201.8 MB** | **−9.6 %** |
+| Mathlib 25 % prefix, 155 288 | instructions:u | 856 904 804 916 | 858 282 679 886 | +0.16 % |
+| | peak RSS | 1 909.5 MB | **1 851.7 MB** | **−3.0 %** |
+| **Mathlib, 691 128** | instructions:u | 3 973 088 968 966 / 3 973 084 999 777 | 3 978 018 461 637 / 3 978 005 371 949 | **+0.12 %** |
+| | cycles:u | 2 178.01 / 2 099.17 G | 2 195.05 / 2 007.37 G | overlapping |
+| | wall | 511.70 / 491.14 s | 527.72 / 464.17 s | overlapping |
+| | peak RSS | 7 003.0 / 7 186.8 MB | **6 573.9 / 6 776.5 MB** | **−6.1 % / −5.7 %** |
+| Mathlib, `--jobs=8` | instructions:u | 3 998 552 991 627 / 3 997 769 546 225 | 4 001 823 500 031 / 4 001 384 480 559 | +0.09 % |
+| | cycles:u | 2 578.08 / 2 484.61 G | **2 307.44 / 2 156.63 G** | **−10.5 % / −13.2 %** |
+| | wall | 181.41 / 141.27 s | **142.35 / 125.48 s** | **−21.5 % / −11.2 %** |
+| | peak RSS | 6 817.1 / 7 489.4 MB | 7 182.2 / 7 085.3 MB | scheduling noise |
+
+The verdicts are unchanged at every size, in both modes and at both worker
+counts: `accepted 57977`, `accepted 163396`, `accepted 155288`, `accepted
+691128`.
+
+**Read it as a memory and cache lever, because that is what it is.**  The
+instruction column is a wash — `Init` and `Init+Std+Lean` −0.4 %, the Mathlib
+prefix +0.16 %, Mathlib +0.12 % — and the reason is the B1 row of §3: the
+smaller record is paid for with a cons probe of the datum, and what escapes
+the probe is only what §3's second half converted.  What is NOT a wash is the
+peak RSS and, once the L3 is contended, the cycles:
+
+  * **peak RSS −9.6 % on `Init+Std+Lean` and −6 % on Mathlib**, the Mathlib
+    figure reproduced in both passes (7 003.0 → 6 573.9 and 7 186.8 →
+    6 776.5 MB, 440 and 410 MB).  That is what a twelve-byte binder record
+    instead of a twenty-four-byte one buys on an export with tens of millions
+    of binder nodes, and it is the column the arena reports against `con-ron`:
+    Mathlib's peak goes from 0.82× master to **0.771×**.
+  * **at `--jobs=8`, −10.5 % and −13.2 % of the cycles and −21.5 % / −11.2 %
+    of the wall**, at +0.09 % instructions.  Eight workers share one 32 MB L3,
+    so the record's width is worth more there than anywhere else; both passes
+    agree on the direction and the size of the cycles delta.
+  * single-threaded on Mathlib the cycles and the wall are **inside the
+    noise**: the two passes bracket each other (the tip 2 178.01 / 2 099.17 G
+    and 511.70 / 491.14 s, this branch 2 195.05 / 2 007.37 G and 527.72 /
+    464.17 s).  The first pass alone would have read "+3.1 % wall" and the
+    second alone "−5.5 %"; neither is a result, and this is why the table has
+    two passes.
+  * `Init`'s peak RSS is the one cell that moves the wrong way (+1.4 %) and
+    the one that is least stable: this branch's own passes over the session
+    read anywhere from 574 to 642 MB against the tip's 631.6 twice, so the
+    allocator's high-water mark on the small export moves by 10 % between runs
+    of one binary.  The three larger exports are stable and all three move the
+    same way.
+
+#### 5. The profile after — and the binder tables leaving it
+
+`perf record -F 99` of the final binary, on `Init` and on the Mathlib 25 %
+prefix (the campaign's iteration benchmark), symbols merged over the main
+thread and the check-phase worker.
+
+| # | symbol | `Init` | prefix | what it is |
+|---|---|---:|---:|---|
+| 1 | `EStore::intern_app` | **12.01 %** | **13.04 %** | hash-consing itself: two open-addressed probes into tables of millions of entries over a 32 MB L3 |
+| 2 | `expr_ops::instantiate_list_go` | 10.73 % | 8.39 % | the memoised bulk substitution |
+| 3 | `core::whnf_app` | 4.67 % | 2.12 % | the spine walk |
+| 4 | `core::get_app_spine_go` | 3.58 % | 1.65 % | the head-and-arguments-and-nodes walk |
+| 5 | `core::knot_whnf_core` | 2.97 % | 1.24 % | the knot's `whnfCore` arm |
+| 6 | `HashMap2<EIdxNat, EIdx>::insert_no_resize` | 2.74 % | 3.79 % | the per-call memo tables |
+| 7 | `expr_ops::instantiate_list` | 2.52 % | 2.33 % | the unmemoised walk the `bvar` arm calls |
+| 8 | `expr_ops::inst_lp_go` | 2.05 % | 6.01 % | level-parameter substitution |
+| 9 | `EStore::intern_lam_i` | 1.87 % | 1.17 % | the `lam` intern over the POD record (with `ETables::find` inlined into it) |
+| 10 | `HashMap2<AppNode, EIdx>::insert_no_resize` | 1.71 % | 1.16 % | the `app` cons table's insert |
+
+with, below them, `core::beta_peel` 1.53 %, `checker_base::consts_resolve_f_go`
+1.42 %, `expr_ops::get_app_args_go` 1.42 %, `abstract_range_go` 1.37 %,
+`scan_line_loop` 1.35 %, `get_app_fn` 1.30 % on `Init`; and
+`all_level_params_defined_go` 1.45 %, `EStore::intern_forall_e_i` 1.21 %,
+`clear_fit` 1.07 %, `env::eidx_vec_dup_from` 1.03 % on the prefix.
+
+**What lever B took out of the profile.**  At the tip, the binder tables cost
+`Init` **3.17 % of its cycles** across six symbols — `Tbl<BindNode>::find`
+1.72 %, `HashMap2<BindNode, EIdx>::insert_no_resize` 0.59 %,
+`Tbl<BindNode>::push` 0.25 %, `Tbl<BindNode>::reset` 0.22 %,
+`expr::binder_meta_dup` 0.22 % and `prop_when::beq` 0.17 %.  In the profile
+above **not one of those six appears at all** (the report's floor is 0.30 %):
+the probe is inlined into `intern_lam_i` / `intern_forall_e_i`, the key is
+three `u32`s, and the only binder-datum symbol left anywhere is
+`prop_when::dup` at **0.31 % of `Init`** — the datum store's own key build and
+`view_bm`'s hand-back.  That the instruction column did not move by 3 % while
+this happened is the whole story of §3 and §4: the datum's own cons probe is
+what the record's width paid for.
+
+#### 6. The twin ledger (§8.6's P6 rule)
+
+Lever A is **not landed**, so it owes the twin nothing.  Lever B's entries:
+
+| arena item | what it is | the twin's clause | owed or absorbed |
+|---|---|---|---|
+| `handle::BMIdx` | a fifth handle kind: tag `0`, the tier bit, the index, with `pack`/`ofWord`/`isPersistent`/`idxNat` | OWED, one `structure` and five `def`s | owed and mechanical: `Idx` at a fifth kind, the four roundtrip lemmas `Handle.lean` already proves for the others, instantiated |
+| `store::BMNode`, `ETables.bms`, `ETables.getBM`/`getBMDer`/`findBM` | the binder-datum store: one record, one cons table, one derived column (`PropWhen.hash`) | OWED, one `structure` and four `def`s | owed; it is `Tbl` at a new instantiation, so `Tbl`'s own six lemmas transfer unchanged |
+| `EStore.viewBM` / `bmDer` / `findBM` / `internBM` / `internBMPersistent` / `internBMOfViewPersistent` | the datum's tier-selecting readers and its hash-cons, `intern`'s and `internPersistent`'s clauses at a one-constructor store | OWED, six `def`s | owed; each is the corresponding `EStore` clause with `bms` for the ten arrays.  **The exactness lemma the bridge owes is `denoteBM` injective**: `internBM` probes persistent before scratch, so two handles denote one `PropWhen` only if they are equal — the same argument `denoteE`'s injectivity already runs, at a store with no children |
+| `BindNode.m : BMIdx` (was `BinderMeta`), and its `hash64`/`eq2`/`dup2` | the node record names the datum instead of holding it | OWED — a REPRESENTATION change with one obligation | owed; `denote (lam ty body m) = .lam (denote ty) (denote body) (denoteBM m)`, after which `BindNode` equality is `Expr` equality by `denoteBM`'s injectivity.  The hash is `Expr.data`'s own formula still, because the derived column stores `PropWhen.hash` verbatim |
+| `EStore.derOfBindAtI` | `derOfBindAt` over the datum's HANDLE | OWED, one `def` | owed; `derOfBindAtI … m = derOfBindAt … (denoteBM m)` by the derived column's exactness, the same shape `derived_exact` has for the node arrays |
+| `EStore.viewBindI`, `internLamI`, `internForallEI`, `internEBindI`, `internRebuiltBindI`, `monad.viewBindI` | the binder projection and the binder interns that stop at the datum's handle | OWED, six `def`s | owed and cheap: `viewBindI h = some (ty, body, m) ↔ viewBind h = some (ty, body, denoteBM m)`, and each intern is `internLam` with the datum already interned |
+| the five rebuilding walks carrying `BMIdx` (`instantiate1Go`, `instantiateList`, `instantiateListGo`, `abstract1Go`, `abstractRangeGo`), and `isLam` / `piResult` | the same clauses with the datum threaded as a handle | — | **absorbed**: the twin's clause is `view` + `intern` at the same node with the same datum; what changes is only which of the two spellings of the datum crosses the recursion, and `viewBindI`/`internLamI`'s equations above rewrite one into the other |
+| `defeqPeel`'s `pa.2 == pb.2` for `pa.2.pw == pb.2.pw` | the annotation test on the datum handles | OWED, one clause equation | owed; it is `denoteBM` injectivity again — `m₁ = m₂ ↔ denoteBM m₁ = denoteBM m₂` — applied to task #97-P6-14's innermost-first test, whose ORDER is unchanged |
+| `ETables.get`'s two binder arms deleted; `EStore.view` dispatches them through `viewBind` | one tier cannot resolve a binder, because a scratch binder may name a persistent datum | OWED, one clause move | owed; `view`'s binder arm becomes `viewBind` + `eBindView`, which is the equation `view h = some (.lam ty body m) ↔ viewBind h = some (ty, body, m)` the twin already owes from task #97-P6-10 |
+| `expr_ops::intern_rebuilt_bind` (task #97-P6-15's) left in place with no caller | both of its call sites take the `_i` form now | — | **kept**: it is `internRebuilt`'s binder arm over a `BinderMeta` and the twin's clause stands; removing it would have re-opened the whole measurement campaign for a ten-line deletion |
+| `prop_when::dup` at the datum store's key, `Vec` capacities, `#[inline(always)]` | copies Lean's value semantics hides, and a codegen attribute | — | **absorbed** (§3.2, and Charon reads no attributes) |
+
+Nothing here is a different algorithm: the binder node is the same node, the
+cons key is the same key up to a bijection the datum store's cons table
+defines, and the walks are the same walks.
+
+#### 7. Gates
+
+| gate | |
+|---|---|
+| `cargo build --release` / `cargo test --release`, `RUSTFLAGS="-D warnings"` | clean, 0 failures |
+| `scripts/lint-rust-style.sh crates/arena-core/src` | clean |
+| `scripts/provenance.py check` | **0 findings** — `6732 item(s) (4979 Rust, 1753 arena Lean), 4966 citation(s), all current at pin 78ded4b6` |
+| `scripts/extract-arena.sh --dry` | **0 errors, 5 type + 210 function holes** — one FEWER than the tip's 211 |
+| `scripts/diff-e2e.sh --bin=target/release/con-ron-arena` | **383/383 agree**, 0 differ, 0 timed out — at `--jobs=1` in both modes and at `--jobs=4` |
+| the diff | `arena/{handle,store,monad,expr_ops,core}.rs` — nothing else under `crates/` |
+
+`proof/`, `crates/con-ron`, `crates/con-ron-core`, `OVERVIEW.md` and
+`README.md` are untouched.
+
+One extraction lesson, recorded because it cost a rebuild: Charon answered
+`Unreachable` on the first spelling of `EStore::find_bm`, which built a
+droppable local (`BMNode`, a `PropWhen` inside) and then branched over three
+tier arms while holding it.  Split so that the record is built inside a leaf
+with no branch — `ETables::find_bm` — and the tier choice is a separate
+`pers_find_bm`, exactly the shape `find`/`pers_find` already had, it
+translates.  The rule this is an instance of: **do not hold a droppable local
+across a multi-arm branch**; hand the branch a reference and build the value
+in the leaf.
+
+#### 8. What P6 ends with
+
+Both of task #97-P6-15's "two natural levers with a price on them" are now
+built and measured, and **neither is an instruction lever**: A costs +1.22 %
+to maintain and saves 1.32 %, B buys a record with a datum probe.  That is not
+an accident of these two — it is what the profile has been saying since task
+#97-P6-13.  `EStore::intern_app` is 13 % of the run and is hash-consing
+itself; `instantiate_list_go`, `inst_lp_go` and `abstract_range_go` carry
+every cutoff and every memo con-leche has; the `EIdxNat` memo tables are
+`ron::hashmap2` and live in `con-ron-core`; the parser is phase A, ported one
+to one.  **Every remaining symbol above 1 % is either the hash-consing the
+design is built on, a walk already as short as con-leche's own, or
+`con-ron-core`.**  §8.6's P6 item list is therefore exhausted and P6 is marked
+DONE; the next step is §8.6's P3/P5, the proofs, which is what task
+#97-P6-15's verdict said and what this round confirms by emptying the queue.
+
+For the record, the levers this round leaves NOT taken, with their prices, so
+that nobody re-prices them:
+
+  * **the `getAppFn`/`getAppNumArgs` column** — +1.22 % maintenance against
+    −1.32 % reading, +9–11 % peak RSS; the ratio that kills it is 2.2–3.6
+    `app` nodes BUILT per head ASKED (§2 above).  Interleaved into the row
+    instead of beside it: best case about −0.5 % of `Init`, the same memory,
+    and a sixteen-byte `app` row becomes twenty-four.
+  * **`env::eidx_vec_dup_from`** and **`all_level_params_defined_go`**, task
+    #97-P6-15 §8's two smaller ones, ≈1 % of the prefix between them; the
+    second needs a memo on a function that holds only `&AState`.
+  * **`ron::hashmap2`'s probe and key width** (≈5 % of the prefix across the
+    `EIdxNat` tables) — a `con-ron-core` change, outside every P6 task's files.
+
+**And one list that is NOT P6's**: task #97-survey landed on `arena` while
+this ran and classified the two nanoda forks' techniques.  Its N1 (probe the
+scratch tier first when the persistent probe can hit), N2 (a fused
+find-or-push, one hash and one probe per interning miss), N4 (a def-eq memo
+admission filter) and N5 (PGO in the release build) are live candidates with
+its own "counters first" verdict, and N2 is the only item on either list with
+a mechanism the arena visibly lacks.  They are a **separately schedulable
+queue for the maintainer**, not P6 items: N2 and N4 reach into `con-ron-core`
+and into the owed `HashMap2` re-proof, N5 is a build setting, and N1's sign is
+unknown by its own account.  P6 closes on its own list.
+
+### P6 closing table (task #97-P6-16, 2026-09-21)
+
+**What P6 was**: DESIGN §8.6's performance phase, sixteen items from task
+#97-P6-1 to this one, RUST-FIRST since the maintainer's 2026-09-21 ruling,
+with a twin ledger per task and a Lean catch-up owed once before P3/P5.  It
+began at task #97-P6-3's baseline, where `con-ron-arena` did **1.51×
+`con-ron` at master's instructions on `Init` at 4.0× its peak RSS** and could
+not finish `Init+Std+Lean` or Mathlib at all.
+
+**The lane and the machine.**  AMD EPYC 9455 (48 cores, 96 threads), 125 GiB,
+Linux 6.12.100; the flake's Charon-pinned `rustc 1.100.0-nightly`; the exports
+are `_tmp/corpus/{init,core,mathlib}.ndjson`, unchanged since task #29.
+Single-threaded is `--verified --jobs=1 --progress=1000000` for both con-ron
+binaries and `"num_threads": 0` for nanoda; the `--jobs=8` row is the same
+binary with eight phase-B workers (task #97-P6-6b's pool).  One run is
+`time -v` around `perf stat -e instructions:u,cycles:u` around `timeout`, in a
+subshell with `ulimit -v` set to the export's cap (2.6 / 5 / 27 GB).  **Every
+cell below was taken in one session on a machine running nothing else**, with
+`scripts/bench-baselines.sh` for the two baselines and
+`_tmp/t97-p6-16/run.sh` for the arena; `Init` is three runs for the baselines
+and two for the arena, the larger exports one each, so their wall is
+indicative (CLAUDE.md).  nanoda checks 59 433 / 171 002 / 707 508
+declarations where con-ron accepts 57 977 / 163 396 / 691 128 — nanoda counts
+the constructors and recursors it generates, con-ron counts the export's
+declarations; the inputs and the work are the same.
+
+#### The table
+
+`Init` is three runs for nanoda and `con-ron`, two for the arena; Mathlib is
+two runs for each arena binary and one for each baseline; `Init+Std+Lean` is
+one run each.  Instruction counts are deterministic to nine digits, so one
+number is given; **cycles, wall and peak RSS are given as the range over the
+runs there are**, and a single-run cell carries the ±5 % a Mathlib pass moves
+by on this machine (measured, §4 of the task section).  nanoda has no
+`--jobs`; its row is absent from the `--jobs=8` block by construction.
+
+| export | binary | instructions:u | cycles:u | wall | peak RSS | verdict |
+|---|---|---:|---:|---:|---:|---|
+| `Init` | nanoda | 231 036 202 585 | 108.29–110.95 G | 24.70–25.27 s | 356 MB | Checked 59 433 |
+| | `con-ron` (master's source) | 390 101 035 158 | 205.36–206.89 G | 46.71–47.18 s | 491 MB | accepted 57 977 |
+| | `con-ron-arena`, `arena` tip | 217 075 339 783 | 101.12–101.14 G | 23.12–23.14 s | 632 MB | accepted 57 977 |
+| | **`con-ron-arena`, this branch** | **216 183 546 996** | **99.96–100.21 G** | **22.94–23.19 s** | 640 MB | accepted 57 977 |
+| `Init+Std+Lean` | nanoda | 444 755 602 860 | 234.22 G | 53.50 s | 746 MB | Checked 171 002 |
+| | `con-ron` (master's source) | 851 290 873 540 | 518.56 G | 117.91 s | 1 308 MB | accepted 163 396 |
+| | `con-ron-arena`, `arena` tip | 423 316 347 832 | 208.72 G | 51.15 s | 1 298 MB | accepted 163 396 |
+| | **`con-ron-arena`, this branch** | **421 403 160 317** | **200.63 G** | **46.30 s** | **1 174 MB** | accepted 163 396 |
+| **Mathlib** | nanoda | 6 053 881 171 452 | 4 582.86 G | 1 054.01 s | 6 954 MB | Checked 707 508 |
+| | `con-ron` (master's source) | 7 336 854 370 831 | 6 245.46 G | 1 432.68 s | 8 526 MB | accepted 691 128 |
+| | `con-ron-arena`, `arena` tip | 3 973 084 999 777 | 2 099.17–2 178.01 G | 491.14–511.70 s | 7 003–7 187 MB | accepted 691 128 |
+| | **`con-ron-arena`, this branch** | **3 978 005 371 949** | **2 007.37–2 195.05 G** | **464.17–527.72 s** | **6 574–6 777 MB** | accepted 691 128 |
+| Mathlib, `--jobs=8` | `con-ron-arena`, `arena` tip | 3 997 769 546 225 | 2 484.61–2 578.08 G | 141.27–181.41 s | 6 817–7 489 MB | accepted 691 128 |
+| | **`con-ron-arena`, this branch** | **4 001 384 480 559** | **2 156.63–2 307.44 G** | **125.48–142.35 s** | 7 085–7 182 MB | accepted 691 128 |
+
+**One caveat on the `con-ron` row, and it is in the arena's disfavour.**  The
+`arena` branch's `[profile.release]` carries task #97-P6-8b's `lto = "fat"` /
+`codegen-units = 1`, and it applies to BOTH binaries in this tree — so the
+`con-ron` row above is master's SOURCE built with the arena's build settings,
+which is the comparison that isolates the representation from the compiler.
+Master as it ships (its own two-line `[profile.release]`) is **412 284 710 704
+instructions on `Init`** (task #98's own measurement), 5.7 % dearer than the
+row above, and every ratio below is correspondingly better against the shipped
+binary.
+
+#### The ratios, this branch against both
+
+Mathlib's cycles, wall and RSS are the mean of this branch's two passes
+against the baselines' single runs; read the last digit as indicative.
+
+| export | | vs `con-ron` | vs nanoda |
+|---|---|---:|---:|
+| `Init` | instructions | **0.554×** | 0.936× |
+| | cycles | 0.484× | 0.924× |
+| | wall | 0.491× | 0.933× |
+| | peak RSS | 1.30× | 1.80× |
+| `Init+Std+Lean` | instructions | **0.495×** | 0.948× |
+| | cycles | 0.387× | 0.857× |
+| | wall | 0.393× | 0.865× |
+| | peak RSS | 0.897× | 1.57× |
+| **Mathlib** | instructions | **0.542×** | **0.657×** |
+| | cycles | 0.336× | **0.459×** |
+| | wall | 0.346× | **0.471×** |
+| | peak RSS | **0.783×** | 0.960× |
+
+#### What the table says
+
+**1. §8.1's target is met and passed at every size.**  The maintainer's brief
+was *"faster code (on par with nanoda would be good)"*, and task #97-P6-3
+answered that nanoda was 1.91× cheaper than con-ron on Mathlib, not the other
+way round.  The arena is now **0.657× nanoda's instructions on Mathlib**,
+0.936× on `Init` and 0.948× on `Init+Std+Lean` — and because the
+representation is dense handles rather than counted pointers, the IPC gap is
+wider still: **0.459× nanoda's cycles and 0.471× its wall on Mathlib**.  It
+checks Mathlib in **464–528 s single-threaded and 125–142 s at eight
+workers**, against nanoda's 1 054 s and `con-ron`'s 1 433 s.
+
+**2. §8.1's floor — beating today's con-ron on all three numbers — is met
+with room.**  On Mathlib this branch is **0.542×
+`con-ron`'s instructions, 0.336× its cycles, 0.346× its wall and 0.783× its
+peak RSS**; on `Init+Std+Lean` 0.495× / 0.387× / 0.393× / 0.897×; on `Init`
+0.554× / 0.484× / 0.491× and **1.30× on peak RSS**, the one cell above 1.00×
+anywhere in the table — `Init`'s persistent tier is small enough that the
+arena's fixed per-tier cost (ten cons tables and their bucket arrays, twice)
+shows, and it stops showing by `Init+Std+Lean`.  Every column is inside
+CLAUDE.md's 3× budget with room: 0.64 / 1.17 / 6.6 GB against con-leche's
+0.48 / 1.22 / 8.75.
+
+**3. The two properties the rewrite was FOR are in the code**, not just the
+numbers: `ron::tagged`, the atomic reference counts and the tree-shaped memo
+keys are gone from the arena crate, there is no `unsafe` in it, and with task
+#97-P6-16's lever B no node record holds an `Arc` at all.
+
+**4. What the campaign cost, item by item** (instructions on `Init`, each
+against its own predecessor; the Mathlib column is the same task's):
+
+| item | what it was | `Init` | Mathlib |
+|---|---|---:|---:|
+| P6-3 | the baseline | 816.07 G | — (aborts) |
+| P6-2 | phase A in the scratch tier, with promotion | 825.0 G | — |
+| P6-1, 4a, 4b | the first Rust pass, the pins, `HashMap2` | 414.05 G | — |
+| P6-4a | the first Mathlib run | — | 12 824.40 G |
+| P6-5 | the Mathlib profile: `ifenv_dup`, the upward cutoff | 404.88 G | 10 942.50 G |
+| P6-6b | the reader parameter and the worker pool | — | — |
+| P6-7 | the check phase instrumented; `clear_fit` | — | 11 167.67 G |
+| P6-9 | the batched instantiation | 333.91 G | 7 442.26 G |
+| P6-10, 11 | the per-touch shape; the annotation telescopes | 275.20 G | 6 148.02 G |
+| P6-12 | the inference telescopes | 262.61 G | 5 703.69 G |
+| P6-13 | the tag-only test, the readback memo, `ETables::find` | 233.26 G | 4 316.98 G |
+| P6-14 | the batched defeq binder descent | 232.24 G | 4 229.37 G |
+| P6-15 | the node record built once, the accumulators pushed | 217.07 G | 3 973.09 G |
+| **P6-16** | **the two last levers: A declined, B taken** | **216.18 G** | **3 978.02 G** |
+
+— a factor of **3.8× on `Init`** and **3.2× on Mathlib** across the phase,
+with peak RSS falling from 1.94 GB to 0.63 GB on `Init` and the two larger
+exports going from "does not finish" to comfortably inside CLAUDE.md's 3×
+budget.
+
+**5. What is not done.**  The Lean twin is a round behind: every P6 task since
+the RUST-FIRST ruling keeps a twin ledger, and the Lean catch-up that consumes
+them all runs once before P3/P5.  The OVERVIEW numbers are a post-merge task
+of their own (§7.x).  And task #97-survey's N1/N2/N4/N5 are a separate queue
+the maintainer may schedule — they are not P6 items.
