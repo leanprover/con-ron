@@ -107,7 +107,7 @@ pub struct ProjRecOwner {
 // it is (the scanner is reused, not twinned).
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:65-74 IndTypeRec
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:81-90 IndTypeRec
 /// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:92-100 MIndTypeRec` —
 /// one type former of a parsed block, resolved.
 pub struct MIndTypeRec {
@@ -120,7 +120,7 @@ pub struct MIndTypeRec {
     pub num_nested: u64,
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:76-81 IndCtorRec
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:92-97 IndCtorRec
 /// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:104-108 MIndCtorRec` —
 /// one constructor of a parsed block, resolved.
 pub struct MIndCtorRec {
@@ -129,7 +129,7 @@ pub struct MIndCtorRec {
     pub n_f: u64,
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:83-92 IndRecRec
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:99-108 IndRecRec
 /// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:112-119 MIndRecRec` —
 /// one recursor of a parsed block, resolved.
 pub struct MIndRecRec {
@@ -141,7 +141,7 @@ pub struct MIndRecRec {
     pub rules: Vec<IRecRule>,
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:94-99 BlockRec
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:110-115 BlockRec
 /// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:123-127 BlockRec` — a
 /// parsed inductive block.
 pub struct BlockRec {
@@ -154,7 +154,7 @@ pub struct BlockRec {
 // What the generator reads besides the block (`Types.lean:129-147` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:454-455 ConstTable
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:368-369 ConstTable
 /// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:131 ConstTable` — the
 /// declared types of the constants pushed so far, by name.
 ///
@@ -164,7 +164,7 @@ pub struct BlockRec {
 /// `con_ron_core::frontend::in_model_rec::ModelCtx`'s own deviation.
 pub type ConstTable = HashMap<NIdx, (Vec<NIdx>, EIdx)>;
 
-/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:101-108 Ctx
+/// con-leche: ConLeche/Frontend/InModel/Mutual.lean:117-124 Ctx
 /// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:135-138 Ctx` — what the
 /// generator reads besides the block.  The three function fields become three
 /// borrows (the [`ConstTable`] deviation); a lifetime-parameterised struct is
@@ -197,7 +197,7 @@ pub fn ctx_block<'a>(ctx: &'a ModelCtx<'a>, n: &NIdx) -> Option<&'a BlockRec> {
     ctx.blocks.get(n)
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:608-611 hintHeight
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:522-525 hintHeight
 /// Lean twin: `proof/ConRon/Arena/Frontend/Types.lean:142-144 hintHeight` —
 /// the definitional height a reducibility hint carries.  It is `InModel`'s,
 /// and the parse needs it at one place only (`export_c::note_decl`, which

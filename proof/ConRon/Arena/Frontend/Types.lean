@@ -90,7 +90,7 @@ carry an `M` prefix to keep them apart from `ConLeche.Frontend.IndTypeRec`,
 which `Arena/Frontend/ExportC.lean` uses as it is (the scanner is reused, not
 twinned). -/
 
-/-- con-leche: ConLeche/Frontend/InModel/Mutual.lean:65-74 IndTypeRec — one
+/-- con-leche: ConLeche/Frontend/InModel/Mutual.lean:81-90 IndTypeRec — one
 type former of a parsed block, resolved. -/
 structure MIndTypeRec where
   cv : IConstantVal
@@ -102,7 +102,7 @@ structure MIndTypeRec where
   numNested : Nat
   deriving Repr, Inhabited
 
-/-- con-leche: ConLeche/Frontend/InModel/Mutual.lean:76-81 IndCtorRec — one
+/-- con-leche: ConLeche/Frontend/InModel/Mutual.lean:92-97 IndCtorRec — one
 constructor of a parsed block, resolved. -/
 structure MIndCtorRec where
   cv : IConstantVal
@@ -110,7 +110,7 @@ structure MIndCtorRec where
   nF : Nat
   deriving Repr, Inhabited
 
-/-- con-leche: ConLeche/Frontend/InModel/Mutual.lean:83-92 IndRecRec — one
+/-- con-leche: ConLeche/Frontend/InModel/Mutual.lean:99-108 IndRecRec — one
 recursor of a parsed block, resolved. -/
 structure MIndRecRec where
   cv : IConstantVal
@@ -121,7 +121,7 @@ structure MIndRecRec where
   rules : List IRecRule
   deriving Repr, Inhabited
 
-/-- con-leche: ConLeche/Frontend/InModel/Mutual.lean:94-99 BlockRec — a parsed
+/-- con-leche: ConLeche/Frontend/InModel/Mutual.lean:110-115 BlockRec — a parsed
 inductive block. -/
 structure BlockRec where
   types : List MIndTypeRec
@@ -129,18 +129,18 @@ structure BlockRec where
   recs : List MIndRecRec
   deriving Repr, Inhabited
 
-/-- con-leche: ConLeche/Frontend/InModel/Kit.lean:454-455 ConstTable — the
+/-- con-leche: ConLeche/Frontend/InModel/Kit.lean:368-369 ConstTable — the
 declared types of the constants pushed so far, by name. -/
 abbrev ConstTable := NIdx → Option (List NIdx × EIdx)
 
-/-- con-leche: ConLeche/Frontend/InModel/Mutual.lean:101-108 Ctx — what the
+/-- con-leche: ConLeche/Frontend/InModel/Mutual.lean:117-124 Ctx — what the
 generator reads besides the block. -/
 structure Ctx where
   tbl : ConstTable
   heights : NIdx → Nat
   blocks : NIdx → Option BlockRec := fun _ => none
 
-/-- con-leche: ConLeche/Frontend/InModel/Kit.lean:608-611 hintHeight — the
+/-- con-leche: ConLeche/Frontend/InModel/Kit.lean:522-525 hintHeight — the
 definitional height a reducibility hint carries. -/
 def hintHeight : ReducibilityHint → Nat
   | .regular n => n

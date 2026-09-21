@@ -627,7 +627,7 @@ def wscopedB : Nat → Nat → EIdx → AM Bool
     | .proj _ _ sub => wscopedB fuel d sub
     | .bvar _ | .sort _ | .const _ _ | .lit _ => pure true
 
-/-! ## The scope queries, MEMOIZED — `Cached/ExprOpsC.lean:632-728`
+/-! ## The scope queries, MEMOIZED — `Cached/ExprOpsC.lean:997-1268`
 
 The three walks above (`fvarLeaves`, `wscopedB`, and `Core.lean`'s leaf-subset
 test) are `Kernel/ExprOps.lean`'s, and over an arena they are the wrong ones.
@@ -649,9 +649,33 @@ state-carried table would need a clear at every entry anyway.
 
 The `fvarB == 0` short-circuit at the head of each is con-leche's, and it is
 the RAW packed field: on the saturated branch the field is `satRange ≠ 0`, so
-the test simply does not fire and the walk proceeds — no recomputation. -/
+the test simply does not fire and the walk proceeds — no recomputation.
 
-/-- con-leche: ConLeche/Cached/ExprOpsC.lean:634-658 wscopedBGoC — the
+**Where these citations point since con-leche `78ded4b6` (task #97-catchup).**
+Upstream's tasks #313–#319 rewrote every traversal memo in its CACHED tier:
+one walk became three declarations — `<name>P`, the memo-free plain descent
+that is the specification; `enter<X>P`, the child step, which makes the cutoff
+and the compound test and reads `withExclusive`; and `<name>XP`, the walk that
+carries its own proof over an ADDRESS key.  `wscopedBGoC` is now `wscopedBXP`
+and `leavesSubGo` is now `leavesSubXP`, and that is the whole of what this bump
+costs these twins: **no arm of any walk below changed**, compared clause for
+clause against upstream's new `wscopedBP` / `leavesSubP`.  The cutoff that
+upstream moved out into `wscopedBC` / `leavesSubC` is still made at the head of
+each recursive call here, exactly as `enterWSP` / `enterLSub` make it, so the
+computation is the same one.
+
+**And nothing of #319's `withExclusive` gate is owed to this twin.**  That
+idiom is the CACHED tier's: it asks whether an `Expr` node's reference count
+is one and skips the memo when it is, because a node with a single parent
+cannot be reached twice.  The arena has no reference counts — a term is an
+`EIdx` into a per-constructor array, shared by construction — so the question
+has no answer here, and the memo policy of DESIGN §8.3 (per-call tables,
+handle keys, a cutoff off the derived word) is the arena's own and unchanged.
+`crates/con-ron-core`'s `ron::node::is_exclusive` (hole #23, task #98) is the
+`Expr`-tier port's answer to the same upstream change; the arena tier has and
+needs none. -/
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1029-1088 wscopedBXP — the
 memoized scope walk.  `fvar` annotations are descended (at the annotation's
 own index, not `d`), so the cached fvar range does not decide it and the memo
 key carries `d`. -/
@@ -688,13 +712,13 @@ def wscopedBGo : Std.HashMap (EIdx × Nat) Bool → Nat → Nat → EIdx →
           | .proj _ _ sub => wscopedBGo memo fuel d sub
         pure (r, memo'.insert (h, d) r)
 
-/-- con-leche: ConLeche/Cached/ExprOpsC.lean:661 wscopedBC — the executed
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1090-1095 wscopedBC — the executed
 `wscopedB`: one memoized DAG walk from the empty memo. -/
 def wscopedBFast (fuel d : Nat) (h : EIdx) : AM Bool := do
   let p ← wscopedBGo ∅ fuel d h
   pure p.1
 
-/-- con-leche: ConLeche/Cached/ExprOpsC.lean:664-686 fvarLeavesGoC — the
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1130-1152 fvarLeavesGoC — the
 reachable `fvar` leaves, accumulated with a `seen` set so a shared subterm is
 walked once.  The accumulation order is con-leche's (its `acc` is consed on
 the way in), and the result is used only as a membership base. -/
@@ -726,13 +750,13 @@ def fvarLeavesGo : List (Nat × EIdx) → Std.HashMap EIdx Unit → Nat → EIdx
           fvarLeavesGo acc seen fuel body
         | .proj _ _ sub => fvarLeavesGo acc seen fuel sub
 
-/-- con-leche: ConLeche/Cached/ExprOpsC.lean:688-689 fvarLeavesC — the
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1154-1155 fvarLeavesC — the
 executed `fvarLeaves`. -/
 def fvarLeavesFast (fuel : Nat) (h : EIdx) : AM (List (Nat × EIdx)) := do
   let p ← fvarLeavesGo [] ∅ fuel h
   pure p.1
 
-/-- con-leche: ConLeche/Cached/ExprOpsC.lean:693-696 leafMem — is `(idx, ty)`
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1159-1162 leafMem — is `(idx, ty)`
 in the base leaf list?  con-leche compares the annotation with `Expr.beq`;
 over handles it is handle equality, which is the same test (`denoteE` is
 injective, DESIGN §8.3). -/
@@ -741,7 +765,7 @@ def leafMem : List (Nat × EIdx) → Nat → EIdx → Bool
   | (i, t) :: rest, idx, ty =>
     (i == idx && t == ty) || leafMem rest idx ty
 
-/-- con-leche: ConLeche/Cached/ExprOpsC.lean:699-723 leavesSubGo — the
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1197-1256 leavesSubXP — the
 fabrication-side leaf-subset test: every reachable `fvar` leaf of the walked
 term is one of `bl`.  Memoized on the node, because `bl` is fixed for the
 call. -/
@@ -778,7 +802,7 @@ def leavesSubGo : List (Nat × EIdx) → Std.HashMap EIdx Bool → Nat → EIdx 
           | .proj _ _ sub => leavesSubGo bl memo fuel sub
         pure (r, memo'.insert h r)
 
-/-- con-leche: ConLeche/Cached/ExprOpsC.lean:729-730 leafGuard — **the
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1264-1268 leafGuard — **the
 fabrication leaf guard**: every `fvar` leaf of `fab` is a leaf of `base`.
 Short-circuits on an `fvar`-free fabrication off the packed range, and
 otherwise walks `fab` ONCE against `base`'s leaf list — never building
@@ -903,7 +927,7 @@ con-leche's own (`renameConsts (f : Name → Name)`); what the Rust passes
 there is P2d's to decide. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:930-956 renameConsts
-con-leche: ConLeche/Kernel/ExprOps.lean:999-1036 renameConstsGo
+con-leche: ConLeche/Kernel/ExprOps.lean:1001-1038 renameConstsGo
 Rename constants throughout; levels, binders and `proj` struct names
 untouched (task #175 wiring W5).  The `const` arm is a leaf here as it is in
 con-leche — it rebuilds one node and does not recurse — so it is not
@@ -970,7 +994,7 @@ def renameConstsGo (f : NIdx → NIdx) : Nat → EIdx → AM EIdx
         renameSet (h, 0) r
         pure r
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1109-1111 renameConstsFast — the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1111-1113 renameConstsFast — the
 top-level entry. -/
 def renameConstsFast (fuel : Nat) (f : NIdx → NIdx) (e : EIdx) : AM EIdx := do
   renameClear
@@ -980,7 +1004,7 @@ def renameConstsFast (fuel : Nat) (f : NIdx → NIdx) (e : EIdx) : AM EIdx := do
 
 /-! ## Telescopes -/
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1118-1124 stripLams — strip `k`
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1120-1126 stripLams — strip `k`
 leading λs.  The recursion is structural on `k`, so no fuel. -/
 def stripLams : Nat → EIdx → AM (Option (List (EIdx × BinderMeta) × EIdx))
   | 0, h => pure (some ([], h))
@@ -992,7 +1016,7 @@ def stripLams : Nat → EIdx → AM (Option (List (EIdx × BinderMeta) × EIdx))
       | none => pure none
     | _ => pure none
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1126-1132 stripPis — strip `k`
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1128-1134 stripPis — strip `k`
 leading `∀`s. -/
 def stripPis : Nat → EIdx → AM (Option (List (EIdx × BinderMeta) × EIdx))
   | 0, h => pure (some ([], h))
@@ -1004,7 +1028,7 @@ def stripPis : Nat → EIdx → AM (Option (List (EIdx × BinderMeta) × EIdx))
       | none => pure none
     | _ => pure none
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1134-1138 piResult — the body of a
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1136-1140 piResult — the body of a
 syntactic `∀`-telescope. -/
 def piResult : Nat → EIdx → AM EIdx
   | 0, _ => fail (.internal "fuel exhausted: piResult")
@@ -1013,7 +1037,7 @@ def piResult : Nat → EIdx → AM EIdx
     | .forallE _ b _ => piResult fuel b
     | _ => pure h
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1140-1144 instPis — instantiate a
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1142-1146 instPis — instantiate a
 `∀`-telescope with arguments, in order.  Structural on the argument list; the
 fuel is the one `instantiate1Fast` needs. -/
 def instPis (fuel : Nat) : EIdx → List EIdx → AM (Option EIdx)
@@ -1025,7 +1049,7 @@ def instPis (fuel : Nat) : EIdx → List EIdx → AM (Option EIdx)
       instPis fuel b as
     | _ => pure none
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1146-1154 instPisAt — instantiate
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1148-1156 instPisAt — instantiate
 the leading `∀`-binders at the given arguments, returning each binder's
 domain with the fully instantiated residual.  con-leche's `Option.map` over a
 pure body becomes an explicit `match`: the body is monadic here. -/
@@ -1040,7 +1064,7 @@ def instPisAt (fuel : Nat) : List EIdx → EIdx → AM (Option (List EIdx × EId
       | none => pure none
     | _ => pure none
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1156-1162 instLamsAt — `instPisAt`
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1158-1164 instLamsAt — `instPisAt`
 for λ-binders. -/
 def instLamsAt (fuel : Nat) : List EIdx → EIdx → AM (Option (List EIdx × EIdx))
   | [], e => pure (some ([], e))
@@ -1053,7 +1077,7 @@ def instLamsAt (fuel : Nat) : List EIdx → EIdx → AM (Option (List EIdx × EI
       | none => pure none
     | _ => pure none
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1179-1188 instPisAtFGo — the core
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1181-1190 instPisAtFGo — the core
 of `instPisAtF`: `acc` holds the pending substitutions, innermost binder
 first. -/
 def instPisAtFGo (fuel : Nat) :
@@ -1071,7 +1095,7 @@ def instPisAtFGo (fuel : Nat) :
       | none => pure none
     | _ => pure none
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1190-1194 instPisAtF — one-pass
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1192-1196 instPisAtF — one-pass
 `instPisAt`. -/
 def instPisAtF (fuel : Nat) (args : List EIdx) (e : EIdx) :
     AM (Option (List EIdx × EIdx)) := do
@@ -1079,7 +1103,7 @@ def instPisAtF (fuel : Nat) (args : List EIdx) (e : EIdx) :
   | some r => pure (some r)
   | none => instPisAt fuel args e
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1196-1202 instLamsAtFGo — the λ
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1198-1204 instLamsAtFGo — the λ
 counterpart of `instPisAtFGo`. -/
 def instLamsAtFGo (fuel : Nat) :
     List EIdx → List EIdx → EIdx → AM (Option (List EIdx × EIdx))
@@ -1096,7 +1120,7 @@ def instLamsAtFGo (fuel : Nat) :
       | none => pure none
     | _ => pure none
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1204-1208 instLamsAtF — one-pass
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1206-1210 instLamsAtF — one-pass
 `instLamsAt`. -/
 def instLamsAtF (fuel : Nat) (args : List EIdx) (e : EIdx) :
     AM (Option (List EIdx × EIdx)) := do
@@ -1104,14 +1128,14 @@ def instLamsAtF (fuel : Nat) (args : List EIdx) (e : EIdx) :
   | some r => pure (some r)
   | none => instLamsAt fuel args e
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1210-1215 fvarTypeD — the type
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1212-1217 fvarTypeD — the type
 annotation of a free-variable leaf (the expression itself otherwise). -/
 def fvarTypeD (h : EIdx) : AM EIdx := do
   match ← view h with
   | .fvar _ ty => pure ty
   | _ => pure h
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1217-1225 instSpine — instantiate
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1219-1227 instSpine — instantiate
 a telescope-context expression at an argument spine. -/
 def instSpine (fuel : Nat) : List EIdx → Nat → EIdx → AM EIdx
   | [], _, e => pure e
@@ -1119,7 +1143,7 @@ def instSpine (fuel : Nat) : List EIdx → Nat → EIdx → AM EIdx
     let e' ← instantiate1Fast fuel e a t
     instSpine fuel as (t - 1) e'
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1227-1242 recRulePlain — the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1229-1244 recRulePlain — the
 comparand `(List.range cnP).map (fun k => Expr.bvar (mI - 1 - k))`, interned.
 Structural on the count, so no fuel. -/
 def bvarRange (mI : Nat) : Nat → Nat → AM (List EIdx)
@@ -1129,7 +1153,7 @@ def bvarRange (mI : Nat) : Nat → Nat → AM (List EIdx)
     let rest ← bvarRange mI n (k + 1)
     pure (b :: rest)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1227-1242 recRulePlain — a
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1229-1244 recRulePlain — a
 recursor rule is canonical when its constructor's parameters are exactly the
 recursor's own leading arguments.  The `==` on the argument prefix is index
 equality (the `==` inventory's line 1240): exactness makes it the structural
@@ -1148,7 +1172,7 @@ def recRulePlain (fuel : Nat) (recTy : EIdx) (mI rP cnP : Nat) : AM Bool := do
       | _ => pure false
     | none => pure false
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1244-1259 pisToLams — convert the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1246-1261 pisToLams — convert the
 first `k` `∀`-binders into λ-binders over a body; the copied binder metadata
 keeps only the display info, so the result carries the parse placeholder and
 every consumer must annotate it. -/
@@ -1164,7 +1188,7 @@ def pisToLams : Nat → EIdx → EIdx → AM (Option EIdx)
       | none => pure none
     | _ => pure none
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1261-1267 replacePiBody — replace
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1263-1269 replacePiBody — replace
 the body under the first `k` `∀`-binders, domains and prop-ness data kept. -/
 def replacePiBody : Nat → EIdx → EIdx → AM (Option EIdx)
   | 0, _, b => pure (some b)
@@ -1178,7 +1202,7 @@ def replacePiBody : Nat → EIdx → EIdx → AM (Option EIdx)
       | none => pure none
     | _ => pure none
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1269-1272 piArity — the length of
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1271-1274 piArity — the length of
 the leading `∀`-telescope. -/
 def piArity : Nat → EIdx → AM Nat
   | 0, _ => fail (.internal "fuel exhausted: piArity")
@@ -1189,7 +1213,7 @@ def piArity : Nat → EIdx → AM Nat
       pure (n + 1)
     | _ => pure 0
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1274-1278 resultSort — the result
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1276-1280 resultSort — the result
 sort at the end of a `∀`-telescope. -/
 def resultSort : Nat → EIdx → AM (Option LIdx)
   | 0, _ => fail (.internal "fuel exhausted: resultSort")
@@ -1206,8 +1230,8 @@ arena reads both ranges in `O(1)` off the derived column; only on the
 saturated branch (a bound at or above `satRange = 32767`) does it walk, and
 that walk is memoized exactly as con-leche's is. -/
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1293-1303 Expr.bvarBound
-con-leche: ConLeche/Kernel/ExprOps.lean:1368-1392 bvarBoundGo
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1295-1305 Expr.bvarBound
+con-leche: ConLeche/Kernel/ExprOps.lean:1370-1394 bvarBoundGo
 The memoized exact loose-bvar bound.  con-leche's `bvarBound` is the pure
 specification and `bvarBoundGo` the memoized walk; the arena has one
 function.  The memo is probed for every node, leaves included, as con-leche
@@ -1239,7 +1263,7 @@ def bvarBoundGo : Nat → EIdx → AM Nat
       bvarBSet h r
       pure r
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1394-1395 bvarBoundMemo — the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1396-1397 bvarBoundMemo — the
 top-level entry of the memoized walk. -/
 def bvarBoundMemo (fuel : Nat) (e : EIdx) : AM Nat := do
   bvarBClear
@@ -1247,8 +1271,8 @@ def bvarBoundMemo (fuel : Nat) (e : EIdx) : AM Nat := do
   bvarBClear
   pure r
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1312-1323 Expr.fvarRange
-con-leche: ConLeche/Kernel/ExprOps.lean:1397-1422 fvarRangeGo
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1314-1325 Expr.fvarRange
+con-leche: ConLeche/Kernel/ExprOps.lean:1399-1424 fvarRangeGo
 The memoized exact fvar range (`fvar` annotations are not descended into,
 matching the abstraction traversals). -/
 def fvarRangeGo : Nat → EIdx → AM Nat
@@ -1278,7 +1302,7 @@ def fvarRangeGo : Nat → EIdx → AM Nat
       fvarBSet h r
       pure r
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1424-1425 fvarRangeMemo — the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1426-1427 fvarRangeMemo — the
 top-level entry of the memoized walk. -/
 def fvarRangeMemo (fuel : Nat) (e : EIdx) : AM Nat := do
   fvarBClear
@@ -1286,7 +1310,7 @@ def fvarRangeMemo (fuel : Nat) (e : EIdx) : AM Nat := do
   fvarBClear
   pure r
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1427-1432 bvarB — **the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1429-1434 bvarB — **the
 loose-bvar bound the checker reads**: the packed field, or — on the saturated
 branch alone — the exact memoized recomputation.  `==` on `Nat`, so the `==`
 inventory's line 1432 is not a handle comparison. -/
@@ -1295,7 +1319,7 @@ def bvarB (fuel : Nat) (e : EIdx) : AM Nat := do
   let r := (bvarOfData der).toNat
   if r == satRange then bvarBoundMemo fuel e else pure r
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1434-1439 fvarB — **the fvar range
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1436-1441 fvarB — **the fvar range
 the checker reads**: the packed field, or the exact memoized recomputation on
 the saturated branch. -/
 def fvarB (fuel : Nat) (e : EIdx) : AM Nat := do
@@ -1303,13 +1327,13 @@ def fvarB (fuel : Nat) (e : EIdx) : AM Nat := do
   let r := (fvarOfData der).toNat
   if r == satRange then fvarRangeMemo fuel e else pure r
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1707-1708 hasFvarFast — the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1709-1710 hasFvarFast — the
 executed `hasFvar`: the fvar-range field read. -/
 def hasFvarFast (fuel : Nat) (e : EIdx) : AM Bool := do
   let r ← fvarB fuel e
   pure (r != 0)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1716-1717 looseBVarsBoundedFast —
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1718-1719 looseBVarsBoundedFast —
 the executed `looseBVarsBounded`: the loose-bvar field read. -/
 def looseBVarsBoundedFast (fuel k : Nat) (e : EIdx) : AM Bool := do
   let r ← bvarB fuel e
@@ -1321,7 +1345,7 @@ The fvar-range cutoff comes first: a node whose whole subtree mentions no
 `fvar` at or above `d` is its own abstraction. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:760-776 abstract1
-con-leche: ConLeche/Kernel/ExprOps.lean:1789-1833 abstract1Go
+con-leche: ConLeche/Kernel/ExprOps.lean:1791-1835 abstract1Go
 Close a binder body: replace `fvar d …` leaves by `bvar k`, bumping `k` under
 binders.  `fvar` annotations are not descended into. -/
 def abstract1Go (d : Nat) : Nat → EIdx → Nat → AM EIdx
@@ -1383,7 +1407,7 @@ def abstract1Go (d : Nat) : Nat → EIdx → Nat → AM EIdx
           abs1Set (h, k) r
           pure r
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1927-1929 abstract1Fast — the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1929-1931 abstract1Fast — the
 top-level entry. -/
 def abstract1Fast (fuel : Nat) (e : EIdx) (d : Nat) (k : Nat := 0) : AM EIdx := do
   abs1Clear
@@ -1394,7 +1418,7 @@ def abstract1Fast (fuel : Nat) (e : EIdx) (d : Nat) (k : Nat := 0) : AM EIdx := 
 /-! ## `lowerBVars` — `ExprOps.lean:694-716`, `:2012-2049`, `:2144-2146` -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:694-716 lowerBVars
-con-leche: ConLeche/Kernel/ExprOps.lean:2012-2049 lowerBVarsGo
+con-leche: ConLeche/Kernel/ExprOps.lean:2014-2051 lowerBVarsGo
 Lower every loose bound variable `≥ cutoff + amount` by `amount`, with
 con-leche's own `bvarB ≤ c + amount` cutoff. -/
 def lowerBVarsGo (amount : Nat) : Nat → EIdx → Nat → AM EIdx
@@ -1456,7 +1480,7 @@ def lowerBVarsGo (amount : Nat) : Nat → EIdx → Nat → AM EIdx
           lowerSet (h, c) r
           pure r
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2144-2146 lowerBVarsFast — the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2146-2148 lowerBVarsFast — the
 top-level entry. -/
 def lowerBVarsFast (fuel amount c : Nat) (e : EIdx) : AM EIdx := do
   lowerClear
@@ -1473,7 +1497,7 @@ NESTED walk — its `bvar` arm runs `liftLooseBVars`, which is why the two have
 separate memo tables. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:718-739 instantiate1Lift
-con-leche: ConLeche/Kernel/ExprOps.lean:2222-2261 instantiate1LiftGo
+con-leche: ConLeche/Kernel/ExprOps.lean:2224-2263 instantiate1LiftGo
 Replace `bvar d` by `v`, lifting `v`'s loose `bvar`s past the binders crossed
 on the way, with con-leche's own `bvarB ≤ d` cutoff. -/
 def instantiate1LiftGo (v : EIdx) : Nat → EIdx → Nat → AM EIdx
@@ -1538,7 +1562,7 @@ def instantiate1LiftGo (v : EIdx) : Nat → EIdx → Nat → AM EIdx
           inst1LSet (h, d) r
           pure r
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2356-2358 instantiate1LiftFast —
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2358-2360 instantiate1LiftFast —
 the top-level entry. -/
 def instantiate1LiftFast (fuel : Nat) (e v : EIdx) (d : Nat := 0) : AM EIdx := do
   inst1LClear
@@ -1546,7 +1570,7 @@ def instantiate1LiftFast (fuel : Nat) (e v : EIdx) (d : Nat := 0) : AM EIdx := d
   inst1LClear
   pure r
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2365-2378 instPisAtLift —
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2367-2380 instPisAtLift —
 instantiate the leading `∀`-binders at *open* arguments. -/
 def instPisAtLift (fuel : Nat) : List EIdx → EIdx → AM (Option EIdx)
   | [], e => pure (some e)
@@ -1557,7 +1581,7 @@ def instPisAtLift (fuel : Nat) : List EIdx → EIdx → AM (Option EIdx)
       instPisAtLift fuel as b
     | _ => pure none
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2382-2388 exprPtrBEq — structural
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2384-2390 exprPtrBEq — structural
 expression equality with a physical-equality shortcut.  In the arena it IS
 index equality: `denoteE` is injective (`denoteE_inj`, task #97a), so two
 handles denote one term exactly when they are the same handle, and the
@@ -1567,7 +1591,7 @@ mechanical `AM Bool` is too crude here, as it says of every derived-word
 predicate. -/
 def exprPtrBEq (a b : EIdx) : Bool := a == b
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2399-2406 Level.hasParam — whether
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2401-2408 Level.hasParam — whether
 a level mentions any parameter.  con-leche walks the level; the arena reads
 the bit the level store already carries (`LDer.hasParam`, exact by
 `LStore.derived_exact`), which is DESIGN §8.3's level-substitution cutoff in
@@ -1576,7 +1600,7 @@ def LIdx.hasParam (h : LIdx) : AM Bool := do
   let d ← derivedL h
   pure d.hasParam
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2420-2435 Expr.hasLevelParam —
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2422-2437 Expr.hasLevelParam —
 whether an expression mentions any level parameter.  Again a field read: this
 is exactly the `hasLP` bit of the packed derived word, and `Expr.hasLP_eq` is
 con-leche's own proof that the two agree. -/
@@ -1603,7 +1627,7 @@ def substLevelList (ks : List ConLeche.Name) (us : List Level) :
   | [] => []
   | u :: rest => Level.subst ks us u :: substLevelList ks us rest
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2564-2603 Expr.instLPGo —
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo —
 substitute level parameters throughout an expression, with con-leche's own
 `hasLP = false` cutoff (the whole subtree is level-parameter free, so the
 substitution is the identity on it).  `.sort` and `.const` read their levels
@@ -1681,7 +1705,7 @@ def instLPGo (ks : List ConLeche.Name) (us : List Level) : Nat → EIdx → AM E
           instLPSet (h, 0) r
           pure r
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2718-2720 Expr.instLPFast — the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2720-2722 Expr.instLPFast — the
 top-level entry: read the substitution back out of the store once, walk, drop
 the memo. -/
 def instLPFast (fuel : Nat) (ks : List NIdx) (us : LsIdx) (e : EIdx) : AM EIdx := do
