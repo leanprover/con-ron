@@ -2507,6 +2507,27 @@ the persistent tier (the byte recogniser is unchanged).
         IS the argument" counts (72 % of `whnfCore`'s misses, 84 % of
         `whnf`'s, 91 % of `annotate`'s).  Mathlib is ****accepted 691 128 at 11 167.67 G instructions, 5 595.68 G cycles, 1 289.5 s, 7.41 GB** — 0.97× / **0.66×** / **0.67×** / 0.91× `con-ron` at master, and **1.27× nanoda on cycles and 1.28× on wall**, from 1.98× and 1.97×; the check phase is 1 868 → 1 169 s and the IPC 1.25 → 2.00**.  The
         twin owes two clauses at six sites.
+        9. the batched instantiation lever — the ruling before §8.7, which
+        made the multi-substitution walk fair game between the pure tier and
+        the interned tier because con-leche itself makes that move between its
+        PURE and its CACHED tier.  **DONE** (task #97-P6-9): the per-argument
+        `instantiate1` loops that actually build the nodes are NOT the
+        `instSpine`/`instPisAt` helpers task #97-P6-8a's §7 named (those are
+        cold — 260 calls and 0 interns on the whole of `Init`) but **β at the
+        `.app` clause, the ι-certificate walk and the application-inference
+        telescope**, and all three are replaced by con-leche's own CACHED-tier
+        clauses (`whnfAppI`/`betaPeelI`, `iotaCertsIAux`,
+        `inferSpineI`/`inferSpineIOI`), whose identification with the chained
+        spec bodies con-leche proves in `Verify/BetaSpine.lean` over
+        `Expr.instantiateList_cons`.  `Init`'s new nodes fall **190.47 M →
+        116.44 M (−38.9 %)** with `forallE` −67.5 % and `lam` −67.0 %, which
+        is task #97-P6-8a's 5.15×/3.89× binder excess against nanoda going to
+        1.73× and 1.48× on the prefix (`app` 2.43× → 1.30×, the whole 2.50× → 1.25×); `Init` is **374.25 → 333.91 G instructions (−10.8 %)**,
+        `Init`+`Std`+`Lean` **823.52 → 698.96 G (−15.1 %)** and Mathlib
+        **10 197.93 → 7 442.26 G (−27.0 %)** at 7.21 GB, which is **0.99× `con-ron` at master on instructions and 0.95× on peak RSS**, and 1.23× nanoda from 1.68×.  383/383 fixtures at one and four workers, the extraction's
+        holes unchanged.  The twin owes eight clauses, all of them con-leche's own cached tier, plus one hoist of `iotaRec`'s spine walks; the annotation's binder
+        loops (`annotatePisI`/`annotateLamsI`, 17 % of the prefix's new nodes)
+        are the lever left.
 
 Branch `arena`; master stays shippable until (C) passes the gates and the
 fixtures.  Budget from con-leche's record, scaled: (B) ~12 k lines,
@@ -31599,3 +31620,295 @@ place:
 3. `scripts/diff-e2e.sh`'s header still says "348 fixtures" in prose, as it
    does on master; the sweep itself reads the expectation files and counts
    383.
+
+### Task #97-P6-9 — the batched instantiation lever (2026-09-21, Opus under Fable)
+
+Phase P6 item 9 of §8.6, and the lever the ruling before §8.7 opened: *con-leche
+already has the `instantiateList` optimisation between its PURE and its CACHED
+tier, so the multi-substitution walk is fair game between the pure tier and the
+interned tier; the bridge owes the same equation con-leche's own cached tier
+proves.*  Task #97-P6-8a had found the arena building **2.5× nanoda's nodes**,
+`instantiate1_go` making 77 % of the new ones, and the excess sitting in the
+binders — `forallE` 5.15×, `lam` 3.89× against `app`'s 2.43× — because the
+spine and telescope loops call `instantiate1` once per argument.
+
+RUST-FIRST under §8.6, with the twin ledger in §6.  Branch `p6-9` off `arena`;
+`arena` moved twice underneath (task #97-P6-8b's fat-LTO build setting, then
+the whole task-#97-catchup merge of master and con-leche `78ded4b6`) and both
+were merged in before the final measurement, so **every number below is one
+tree, one `[profile.release]` (`lto = "fat"`, `codegen-units = 1`,
+`overflow-checks = true`) and one con-leche pin on both sides**.  The scratch,
+the instrumentation and the raw dumps are `_tmp/t97-p6-9/`.
+
+#### 1. What the counts said, before a line was written
+
+P6-8a's caller tag is the innermost *walk*, which cannot say who CALLS
+`instantiate1`.  This task's instrumentation (`_tmp/t97-p6-9/instr3.rs` +
+`apply2.py`, applied in place and reverted; it keys sites by enclosing function
+and occurrence, so the same script runs on both sides of the A/B) tags every
+`EStore::intern` by the innermost **substitution call site** — a guard around
+each `instantiate1_fast` / `instantiate_list_fast` / `instantiate1_lift_fast` /
+`abstract1_fast` call of the crate — and counts attempts and new nodes per
+site.  Its totals reproduce P6-8a's to four digits (`Init` 378.01 M attempts /
+190.47 M new against P6-8a's 378.36 / 190.82, the difference being
+`intern_persistent`, which P6-8a counted and this does not).
+
+**The Mathlib 25 % prefix, by substitution site, before** (calls / attempts /
+NEW; every site above 1 % of the new nodes):
+
+| site | calls | attempts | NEW | share |
+|---|---:|---:|---:|---:|
+| `whnf_core_app`, β | 36 762 080 | 502 450 728 | **381 519 545** | **33.6 %** |
+| — (no substitution above) | — | 414 391 176 | 211 595 276 | 18.6 % |
+| `iota_certs` | 26 265 617 | 400 492 620 | **162 574 958** | **14.3 %** |
+| `annotate_binder`, the open | 3 628 089 | 198 342 657 | **153 386 651** | **13.5 %** |
+| `infer_app` / `infer_app_io_at` | 27 460 283 | 220 155 759 | **126 472 104** | **11.1 %** |
+| `annotate_binder`, the abstract | 3 628 089 | 221 695 080 | 41 317 168 | 3.6 % |
+| `infer_forall_at`, the open | 1 513 640 | 43 171 555 | 37 602 313 | 3.3 % |
+| `infer_lam_open`, the open | 2 068 496 | 157 780 746 | 10 123 090 | 0.9 % |
+| `infer_lam_result`, the abstract | 2 068 496 | 54 882 585 | 6 064 290 | 0.5 % |
+| **TOTAL** | | **2 272 043 675** | **1 136 476 620** | |
+
+**This is the table that chose the lever, and it corrects P6-8a's §7.**  That
+task named `instSpine` / `instPisAt` / `instLamsAt` as the shape to fix; the
+counts say those are *cold* — `inst_spine_from` makes 260 calls and 0 interns
+on the whole of `Init`, `inst_pis_at_f_go` 191 attempts — and that the
+per-argument `instantiate1` loops which actually build the nodes are **β at the
+`.app` clause, the ι-certificate walk, the annotation's binder loop and the
+application-inference telescope**.  The first, second and fourth are taken
+here; the third is the one left (§7).
+
+#### 2. The lever, site by site — and it is con-leche's own cached tier
+
+Every clause taken is con-leche's CACHED-tier clause, which con-leche itself
+proves equal to its pure tier.  **The equation the bridge will cite is
+`ConLeche.Expr.instantiateList_cons`** (`ConLeche/Verify/InstList.lean:54-116`):
+
+```
+e.instantiateList (v :: vs) d = (e.instantiateList vs (d + 1)).instantiate1 v d
+```
+
+— unconditional, by induction on `(vs.length, sizeOf e)`, with
+`instantiateList_nil`, `instantiateList_append_one` and
+`instSpine_eq_instantiateList` beside it in the same file.  That IS "the
+batched form equals the fold of `instantiate1`", and it is what
+`ConLeche/Verify/BetaSpine.lean` spends to prove con-leche's own loops sound
+against the chained spec bodies (`whnfApp_sound`, `inferSpine_sound`).
+
+  1. **β, the spine loop.**  `arena::core::whnf_core_body`'s `.app` clause
+     becomes con-leche's `whnfCoreStepI`'s (`Cached/CoreC.lean:942-996`): walk
+     the spine once (`get_app_spine`), normalize the HEAD once, then run
+     `whnf_app` (`whnfAppI`, `:857-900`) over the whole argument vector, whose
+     λ head hands a consecutive run of binders to `beta_peel` (`betaPeelI`,
+     `:902-938`).  A group of `k` binders is ONE `instantiate_list` walk and no
+     intermediate λ node, where the spec shape was `k` walks and `k − 1`
+     interned λs.
+  2. **ι certificates.**  `arena::core::iota_certs` delegates to
+     `iota_certs_aux`, con-leche's `iotaCertsIAux` (`Cached/CoreC.lean:154-193`):
+     peel the RAW recursor telescope with the certified arguments accumulating
+     and substitute only each binder's *domain*, instead of copying the whole
+     residual telescope per argument.
+  3. **Application inference.**  `arena::core::infer_app` / `infer_app_io_at`
+     become con-leche's `inferBodyI`'s `.app` clause
+     (`Cached/CoreC.lean:1292-1389`) over `inferSpineI` / `inferSpineIOI`
+     (`:1011-1042`, `:1044-1091`): infer the spine head ONCE and walk its raw
+     Π-telescope against the whole spine with deferred substitution, instead of
+     inferring the type of every prefix and rebuilding the residual telescope
+     per argument.
+
+Three cost-control changes came with them, all forced by the loops and none a
+clause of the batching itself:
+
+  4. **`iota_rec_at`** — `iotaRec` with its two spine walks hoisted.  The
+     spec-shaped body called `iotaRec` on every prefix of a spine and each call
+     re-walked `getAppFn`+`getAppArgs`, which is quadratic in the spine;
+     `whnf_app` has the head and the arguments already and passes them, and
+     tests the head's tag first, which is con-leche's own `iotaArityOk` guard
+     in the form the arena can spell.  **On its own this was the largest
+     instruction win of the task** — `Init` 412.4 → 387.2 G on the pre-merge
+     tree, −6.1 % — and it is a consequence of the loop, not of the batching.
+  5. **The cutoff hoisted over the prefix copy** in
+     `expr_ops::instantiate_list`'s `.bvar` clause.  con-leche's own note says
+     the recursion into the replacement "is the identity on `bvar`-closed
+     replacements (every checker call site)"; the arena decides exactly that in
+     O(1) off the derived word, so testing `inst_list_cutoff` BEFORE building
+     `vs.take (j − d)` takes an allocation and a copy off the batched path,
+     which meets this clause once per bound variable of every peeled group.
+  6. **The spine vectors pre-sized.**  `get_app_spine_go` and `get_app_args_go`
+     carry the count seen on the way DOWN and spend it as the vectors' capacity
+     at the head; `take_eidx` and `cons_eidx` likewise.  A `Vec` grown from
+     empty reallocates once per doubling, and after item 1 this is on every
+     reduction step: **without it the lever was −7.9 % instructions but +4.4 %
+     CYCLES** (IPC 2.04 → 1.80), and with it the cycles move with the
+     instructions.  This is the lesson to keep: *a batched walk that allocates
+     its batch can be an instruction win and a cycle loss.*
+
+#### 3. Nodes: the count after
+
+Same instrumentation, same two inputs, the two sides of the A/B.
+
+| `Init` | before | after | Δ |
+|---|---:|---:|---:|
+| construction attempts | 378 012 158 | 293 922 204 | −22.2 % |
+| **NEW nodes** | **190 473 192** | **116 435 849** | **−38.9 %** |
+
+| Mathlib 25 % prefix | before | after | Δ |
+|---|---:|---:|---:|
+| construction attempts | 2 272 043 675 | 1 407 448 448 | −38.1 % |
+| **NEW nodes** | **1 136 476 620** | **568 206 141** | **−50.0 %** |
+
+**The binder ratios, which is what the lever was for** — the prefix's NEW
+nodes per constructor, with nanoda's from task #97-P6-8a beside:
+
+| constructor | arena before | arena after | nanoda | before | **after** |
+|---|---:|---:|---:|---:|---:|
+| `app` | 845 326 873 | 453 385 874 | 347 760 822 | 2.43× | **1.30×** |
+| `forallE` | 150 496 689 | **50 789 154** | 29 440 824 | 5.11× | **1.73×** |
+| `lam` | 123 838 329 | **47 354 846** | 31 921 043 | 3.88× | **1.48×** |
+| `const` | 5 684 126 | 5 684 126 | 4 986 028 | 1.14× | 1.14× |
+| `proj` | 5 206 998 | 5 068 536 | 7 530 912 | 0.69× | 0.67× |
+| `sort` / `fvar` / `letE` / `lit` / `bvar` | unchanged | unchanged | | | |
+| **TOTAL** | **1 136 476 620** | **568 206 141** | **455 381 184** | **2.50×** | **1.25×** |
+
+On `Init` the same table reads `forallE` 21 873 032 → 7 108 877 (−67.5 %),
+`lam` 36 710 278 → 12 098 296 (−67.0 %), `app` 129 129 970 → 94 624 626
+(−26.7 %), and the whole against nanoda **2.04× → 1.25×**.
+
+By site (the prefix; calls / attempts / NEW):
+
+| site | before | after |
+|---|---|---|
+| β — `whnf_core_app` → `whnf_app` + `beta_peel` | 36 762 080 / 502 450 728 / **381 519 545** | 17 296 411 / 167 718 484 / **86 633 768** (−77.3 %) |
+| ι certificates — `iota_certs` → `iota_certs_aux` | 26 265 617 / 400 492 620 / **162 574 958** | 149 606 / 195 006 / **59 869** (−99.96 %) |
+| application inference — `infer_app`(`_io_at`) → `infer_spine`(`_io`) | 27 460 283 / 220 155 759 / **126 472 104** | 42 326 860 / 89 760 283 / **14 326 414** (−88.7 %) |
+| the annotation's binder loop — NOT taken | 7 256 178 / 420 037 737 / 194 703 819 | 7 256 178 / 420 037 737 / 195 123 877 |
+
+The ι row is the surprise, and it is not a rounding artefact: in the
+accumulating form a *licensed* slot (`lic && pw.isNever`) substitutes nothing
+at all — it conses its argument — so a recursor spine whose slots are all
+licensed does no substitution, where the chained form rebuilt the whole
+residual telescope once per slot.  That single clause is 14.3 % of the prefix's
+new nodes, and it goes to 0.01 %.
+
+#### 4. The instruction table
+
+`perf stat -e instructions:u,cycles:u` of `--verified --jobs=1
+--progress=1000000`, under `ulimit -v` (8 GiB for `Init`, 12 GiB for
+`Init`+`Std`+`Lean`, 27 GiB for the two Mathlib runs), both binaries built from
+this merged tree, the `arena` tip's `crates/` against this branch's.  **Another
+agent was benchmarking on the same machine for most of the session** (the
+one-minute load average reached 154), so read the instruction column, which
+does not depend on that, and treat cycles as indicative and wall as
+uninformative — the `Init` rows are two passes each and are the only ones with
+a spread.
+
+| export | | `arena` tip | **this branch** | Δ | `con-ron` master (task #98) | nanoda |
+|---|---|---:|---:|---:|---:|---:|
+| `Init`, 57 977 | instructions:u | 374 249 432 683 | **333 912 786 625** | **−10.78 %** | 412 284 710 704 | 231 248 123 456 |
+| | cycles:u | 185.97 / 186.44 G | 161.80 / 165.16 G | −12.1 % | | 112 283 332 084 |
+| | peak RSS | 685.5 MB | 631.0 MB | −8.0 % | | |
+| `Init`+`Std`+`Lean`, 163 396 | instructions:u | 823 520 754 927 | **698 961 725 549** | **−15.12 %** | 896 862 049 579 | ≈445 G |
+| | cycles:u | 412.04 G | 361.29 G | −12.3 % | | |
+| | peak RSS | 1 386.1 MB | 1 294.8 MB | −6.6 % | | |
+| Mathlib 25 % prefix, 155 288 | instructions:u | 2 111 865 875 959 | **1 601 109 490 066** | **−24.18 %** | — | 1 187 196 874 884 |
+| | cycles:u | 1 104.96 G | 845.80 G | −23.5 % | | 737 444 963 047 |
+| | peak RSS | 2 208.6 MB | 1 916.1 MB | −13.2 % | | |
+| Mathlib, 691 128 | instructions:u | 10 197 925 758 400 | **7 442 256 620 408** | **−27.02 %** | 7 541 754 140 806 | ≈6 054 G |
+| | cycles:u | 5 301.97 G | 3 614.33 G | −31.8 % | | |
+| | peak RSS | 7.68 GB | **7.21 GB** | −6.2 % | **7.56 GB** | |
+
+**Where that leaves the campaign.**  Against `con-ron` at master (task #98's
+own numbers, the row §8.1's target is about) and against nanoda's
+`instructions:u` as task #97-P6-8a measured them — nanoda was NOT re-run in
+this session, so its column is quoted, not measured:
+
+| export | `arena` tip | **this branch** | vs master | vs nanoda |
+|---|---:|---:|---:|---:|
+| `Init` | 374.25 G | **333.91 G** | 0.91× → **0.81×** | 1.62× → **1.44×** |
+| `Init`+`Std`+`Lean` | 823.52 G | **698.96 G** | 0.92× → **0.78×** | 1.85× → **1.57×** |
+| Mathlib 25 % prefix | 2 111.87 G | **1 601.11 G** | — | 1.78× → **1.35×** |
+| **Mathlib** | 10 197.93 G | **7 442.26 G** | 1.35× → **0.99×** | 1.68× → **1.23×** |
+| Mathlib peak RSS | 7.68 GB | **7.21 GB** | 1.02× → **0.95×** | — |
+
+Mathlib is the row that matters.  Task #98 made `con-ron` at master 3.3×
+cheaper on it, which left the `arena` tip at **1.35× master** on instructions;
+this branch puts the arena back **under 1.00× on instructions and on peak RSS
+at the same time**, and at **1.23× nanoda** from 1.68×.
+
+The verdicts are unchanged at every size: `accepted 57 977`, `accepted
+163 396`, `accepted 155 288`, `accepted 691 128`.
+
+#### 5. Gates
+
+| gate | |
+|---|---|
+| `cargo build --release` / `cargo test`, `RUSTFLAGS="-D warnings"` | clean, 0 failures |
+| `scripts/lint-rust-style.sh crates/arena-core/src` | clean |
+| `scripts/provenance.py check` | **0 findings** — `6567 item(s) … all current at pin 78ded4b6` |
+| `scripts/overview-links.sh`, `scripts/holes.sh --check` | OK |
+| `scripts/extract-arena.sh --dry` | **0 errors, 5 type + 209 function holes** — the tip's own count (task #97-P6-6b), unchanged |
+| `scripts/diff-e2e.sh --bin=target/release/con-ron-arena` | **383/383 agree** at `--jobs=1` and at `--jobs=4`, 0 differ, 0 timed out |
+| the diff | `crates/arena-core/src/arena/core.rs` (+668/−120) and `.../expr_ops.rs` (+41/−6) — nothing else under `crates/` |
+
+`proof/`, `crates/con-ron`, `crates/con-ron-core`, `OVERVIEW.md` and
+`README.md` are untouched.
+
+One hole was briefly gained and given back: `Vec::is_empty` is an Aeneas hole
+and `Vec::len` is not, so `acc.len() == 0` is what `iota_certs_aux` spells.
+
+#### 6. The twin ledger
+
+Every clause below is **con-leche's own cached-tier clause**, so the Lean
+catch-up copies it rather than inventing it, and the bridge is a theorem
+con-leche already proves.
+
+| arena item | what it replaces | the twin's clause | the equation the bridge cites |
+|---|---|---|---|
+| `core::whnf_core_body`'s `.app` clause | `fp ← whnfCore f; whnfCoreApp e (fp == f) fp a` | `Cached/CoreC.lean:942-996 whnfCoreStepI`'s `.app` | `Verify/BetaSpine.lean:900 whnfApp_sound` |
+| `core::whnf_app` (new) | `core::whnf_core_app` (deleted) | `:857-900 whnfAppI` | `whnfApp_sound`, `:566 whnfApp_snoc` |
+| `core::beta_peel` (new) | — | `:902-938 betaPeelI` | `:722 betaPeel_snoc`, over `Expr.instantiateList_cons` |
+| `core::infer_app` (rewritten to head + spine) | the `.app` clause's per-prefix `infer` | `:1292-1389 inferBodyI`'s `.app` | `Verify/BetaSpine.lean:1576 inferSpine_sound_body` |
+| `core::infer_spine` (new) | — | `:1011-1042 inferSpineI` | `:1566 inferSpine_sound` |
+| `core::infer_app_io_at` (rewritten), `core::infer_spine_io` (new) | — | `:1044-1091 inferSpineIOI` | as above, at the io grade |
+| `core::iota_certs_aux` (new; `iota_certs` is the empty-accumulator entry) | the per-argument `instantiate1` body | `:154-193 iotaCertsIAux` | `Verify/Cached/DiscC1.lean:131 iotaCertsCAux_sim` (a port of `iotaCertsIAux_sim`): `iotaCertsIAux ty acc args` simulates `iotaCerts (ty.instantiateList acc) args` |
+| `core::iota_rec_at` (new; `iota_rec` is the walk-it-yourself entry) | `iotaRec`'s own `getAppFn`/`getAppArgs`, once per prefix | **OWED, and NOT con-leche's**: a hoist — `getAppFn (mkAppN h as) = h`, `getAppArgsC (mkAppN h as) = as` — plus the arity conjunct moved in front of the level-list length | con-leche's `iotaArityOk` is the same guard inside its `whnfAppI` |
+| `core::get_app_spine`/`_go`, `core::head_and_args` (new) | — | `Expr.getAppFn` + `Expr.getAppArgsC`; the third result `nodes` is the arena's own and carries `internRebuilt`'s `same` | — |
+| `expr_ops::instantiate_list`'s `.bvar` clause | `vs.take (j−d)` built before the recursion | the cutoff tested first | `looseBVarsBounded d e → instantiateList e vs d = e`, which the twin already states for `inst_list_cutoff` |
+
+**Absorbed by the refinement — no Lean change at all:** the `Vec::with_capacity`
+in `get_app_spine_go`, `get_app_args_go`, `take_eidx` and `cons_eidx` (a
+capacity); `hd`, `vargs` and `same` threaded through `whnf_app` (values the twin
+recomputes); and `acc.len() == 0` where `Vec::is_empty` would have been.
+
+The gated lane (`core_gated::whnf_core_app_gated`) is **not** batched: it is
+class (S), it is not executed, and con-leche's cached tier has no gated twin of
+`whnfAppI` either.  It still calls `whnf_core_stuck_app`, which is why that
+function survives the `.app` clause's rewrite.
+
+#### 7. What is left, and what this task did not take
+
+  * **The annotation's binder loops are the largest node source left.**
+    `annotate_binder` builds 194.7 M of the prefix's new nodes (17.1 %: 153.4 M
+    at its open, 41.3 M at its abstract) and is still one binder at a time
+    through the knot.  con-leche's cached tier has the loops —
+    `annotatePisI` / `annotateLamsI`, with `inferLamsI` / `inferPisI` beside
+    them — and `ConLeche/Verify/BinderLoop.lean` proves all four sound against
+    the chained bodies (`annotatePis_sound:1612`, `annotateLams_sound:1714`,
+    `inferLams_sound:917`, `inferPis_sound:1210`).  They are a bigger port than
+    anything here: a peel phase, a leaf phase and an outward rebuild with
+    `abstractRange`, with task #161's prop-ness chain check threaded through
+    the rebuild.  `inferLamsI`/`inferPisI` would take another 53.8 M (4.7 %).
+  * **`piResidual` is priced out.**  con-leche's cached tier has its bulk form
+    (`Cached/ExprOpsC.lean`'s `piResidualAcc`), but `core::pi_residual` makes
+    35 705 calls and builds **zero** new nodes on the whole prefix.
+  * **`instSpine` / `instPisAt` / `instLamsAt` are cold** and were not touched,
+    against what P6-8a's §7 expected: `inst_spine_from` is 260 calls and 0
+    interns on `Init`, `inst_pis_at_f_go` 191 attempts.  The excess P6-8a
+    measured is real; it comes from the four *callers* §1's table names, not
+    from those three helpers.
+  * `instantiate_list` is now the hot substituting walk and its memo
+    (`inst_l_*`) is a second `HashMap2` beside `inst1_*` with the same
+    per-call clear discipline; whether the two should share one table is a
+    task-#97-P6-7-shaped question nobody has asked yet.
+  * The wall column of §4 is not usable and a quiet-machine re-run would be
+    worth one hour.
