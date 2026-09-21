@@ -1,7 +1,12 @@
 //! `ConLeche/Frontend/InModel/Kit.lean` — the in-process modeller's kit:
 //! the naming scheme, telescope helpers over `Expr`, the family rewrite
 //! `spec_fam`, the kernel-shape recursor of an indexed recursive family with
-//! inductive hypotheses, a syntactic sort inferer, and definitional heights.
+//! inductive hypotheses — the direct fixpoint route's own generators
+//! (`native_parts::struct_rec_ty_r`/`struct_rec_rhs_r`), which read a
+//! recursive field's own `∀`-telescope off the constructor, so a REFLEXIVE
+//! field `f : ∀ a⃗, T p⃗ e⃗(a⃗)` gets the hypothesis `∀ a⃗, motive e⃗(a⃗) (f a⃗)`
+//! and the rule passes `λ a⃗, T.rec … e⃗(a⃗) (f a⃗)` — a syntactic sort
+//! inferer, and definitional heights.
 //!
 //! Three deviations, all of them local:
 //!
@@ -31,13 +36,13 @@ use con_ron_core::kernel::expr;
 use con_ron_core::kernel::expr::{BinderMeta, Expr, ExprView, Literal};
 use con_ron_core::kernel::expr_ops;
 use con_ron_core::kernel::expr_ops::NameToName;
+use con_ron_core::kernel::inductives::native_parts;
 use con_ron_core::kernel::inductives::struct_parts;
 use con_ron_core::kernel::level;
 use con_ron_core::kernel::level::{Level, LevelKind};
 use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::{Name, NameKind};
 use con_ron_core::kernel::prop_when;
-use con_ron_core::kernel::prop_when::PropWhen;
 
 use crate::keys::ExprKey;
 
@@ -525,7 +530,7 @@ pub fn mentions_any(ns: &[Name], e: &Expr) -> bool {
 }
 
 // ---------------------------------------------------------------------------
-// The kernel-shape recursor of an indexed recursive family (`Kit.lean:320-442`)
+// The kernel-shape recursor of an indexed recursive family (`Kit.lean:325-356`)
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — a constructor of a generated family as the cited Lean's
@@ -539,159 +544,40 @@ pub struct KCtor {
     pub rec_idx: Vec<u64>,
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:332-336 recPrefixAt
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove kit::rec_prefix_at_refines, then delete this line
-/// The recursor's leading spine `p⃗ motive m⃗` as seen from under the `nF`
-/// fields and `e` further binders.
-pub fn rec_prefix_at(n_p: u64, n: u64, n_f: u64, e: u64) -> Vec<Expr> {
-    let mut out = struct_parts::struct_ps_at(e + n_f + n + 1, n_p);
-    out.push(expr::bvar(e + n_f + n));
-    for l in 0..n {
-        out.push(expr::bvar(sub(e + n_f + n, 1 + l)));
+/// con-leche: none — the other half of `KCtor`'s deviation: the core's
+/// generators take the cited four-component tuples, so the list is handed
+/// back in that shape at the two call sites below.
+pub fn ctor_tuples(ctors: &[KCtor]) -> Vec<(Name, u64, Expr, Vec<u64>)> {
+    let mut out: Vec<(Name, u64, Expr, Vec<u64>)> = Vec::new();
+    for c in ctors.iter() {
+        out.push((
+            name::dup(&c.name),
+            c.n_f,
+            expr::dup(&c.ty),
+            c.rec_idx.to_vec(),
+        ));
     }
     out
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:338-342 recFieldIdx
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove kit::rec_field_idx_refines, then delete this line
-/// The index arguments of recursive field `i` (domain `T p⃗ e⃗_i`, spelled at
-/// the field's own binder) lifted to the frame `l` binders below the last
-/// field.
-pub fn rec_field_idx(n_p: u64, n_f: u64, i: u64, l: u64, doms: &[Expr]) -> Vec<Expr> {
-    let d = expr_ops::lift_loose_bvars(sub(n_f, i) + l, 0, &get_d(doms, i));
-    expr_ops::get_app_args(&d)
-        .into_iter()
-        .skip(n_p as usize)
-        .collect()
-}
-
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:344-353 ihPis
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove kit::ih_pis_refines, then delete this line
-/// The `ih` binders of a minor premise: for each recursive field position
-/// (ascending) `motive e⃗_i f_i`, under the `l` earlier `ih` binders; the
-/// motive sits `nF + o - 1` binders above the fields.
-pub fn ih_pis(
-    n_p: u64,
-    n_f: u64,
-    o: u64,
-    pw: &PropWhen,
-    doms: &[Expr],
-    is: &[u64],
-    l: u64,
-    body: Expr,
-) -> Expr {
-    match is.split_first() {
-        None => body,
-        Some((i, rest)) => {
-            let dom = expr_ops::mk_app_n(
-                expr::bvar(sub(n_f + o, 1) + l),
-                &app2(
-                    rec_field_idx(n_p, n_f, *i, l, doms),
-                    &[expr::bvar(sub(sub(n_f, 1), *i) + l)],
-                ),
-            );
-            expr::forall_e(
-                dom,
-                ih_pis(n_p, n_f, o, pw, doms, rest, l + 1, body),
-                expr::binder_meta(prop_when::dup(pw)),
-            )
-        }
-    }
-}
-
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:355-372 minorTy
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove kit::minor_ty_refines, then delete this line
-/// Constructor `C`'s minor premise: the field telescope lifted under the `o`
-/// extras (every field datum reset to the elimination datum), the `ih`
-/// binders, and `motive e⃗_C (C p⃗ f⃗)` lifted above the `ih`s.  The residual's
-/// index expressions are read off the once-lifted telescope, so unlike
-/// `structMinorTyI` they are lifted only above the `ih`s here.
-pub fn minor_ty(
-    c: &Name,
-    lps: &[Name],
-    n_p: u64,
-    n_f: u64,
-    o: u64,
-    pw: &PropWhen,
-    cty: &Expr,
-    rec_idx: &[u64],
-) -> Option<Expr> {
-    let (_, q) = expr_ops::strip_pis(n_p, cty)?;
-    let tele = expr_ops::lift_loose_bvars(o, 0, &q);
-    let (rbs, rresid) = expr_ops::strip_pis(n_f, &tele)?;
-    let doms = pi_binders(&rbs);
-    let n_ih = rec_idx.len() as u64;
-    let idx: Vec<Expr> = expr_ops::get_app_args(&rresid)
-        .into_iter()
-        .skip(n_p as usize)
-        .map(|e| expr_ops::lift_loose_bvars(n_ih, 0, &e))
-        .collect();
-    let spine = expr_ops::lift_loose_bvars(
-        n_ih,
-        0,
-        &struct_parts::struct_ctor_spine_at(c, &dup_names(lps), o, n_p, n_f),
-    );
-    let head = expr_ops::mk_app_n(expr::bvar(sub(n_f + o, 1) + n_ih), &app2(idx, &[spine]));
-    let body = ih_pis(n_p, n_f, o, pw, &doms, rec_idx, 0, head);
-    struct_parts::replace_pis_pw(pw, n_f, &tele, &body)
-}
-
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:374-382 minorsPis
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove kit::minors_pis_refines, then delete this line
-/// The minors' `∀`-telescope over `body`, one per constructor, the first
-/// sitting `o` binders below the parameters.
-pub fn minors_pis(
-    lps: &[Name],
-    n_p: u64,
-    pw: &PropWhen,
-    cs: &[KCtor],
-    o: u64,
-    body: Expr,
-) -> Option<Expr> {
-    match cs.split_first() {
-        None => Some(body),
-        Some((c, rest)) => {
-            let mty = minor_ty(&c.name, lps, n_p, c.n_f, o, pw, &c.ty, &c.rec_idx)?;
-            let inner = minors_pis(lps, n_p, pw, rest, o + 1, body)?;
-            Some(expr::forall_e(
-                mty,
-                inner,
-                expr::binder_meta(prop_when::dup(pw)),
-            ))
-        }
-    }
-}
-
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:384-391 minorsLams
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove kit::minors_lams_refines, then delete this line
-/// The `λ` twin of `minors_pis`.
-pub fn minors_lams(
-    lps: &[Name],
-    n_p: u64,
-    pw: &PropWhen,
-    cs: &[KCtor],
-    o: u64,
-    body: Expr,
-) -> Option<Expr> {
-    match cs.split_first() {
-        None => Some(body),
-        Some((c, rest)) => {
-            let mty = minor_ty(&c.name, lps, n_p, c.n_f, o, pw, &c.ty, &c.rec_idx)?;
-            let inner = minors_lams(lps, n_p, pw, rest, o + 1, body)?;
-            Some(expr::lam(
-                mty,
-                inner,
-                expr::binder_meta(prop_when::dup(pw)),
-            ))
-        }
-    }
-}
-
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:341-344 recTy
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove kit::rec_ty_refines, then delete this line
-/// **The recursor type** `∀ p⃗ {motive} (minor_C …)… ı⃗ (t : T p⃗ ı⃗),
-/// motive ı⃗ t` over the former's type `tty = ∀ p⃗ ı⃗, Sort w` (`structRecTyI`
-/// with inductive hypotheses).
+/// **The recursor type** of a recursive family — the direct fixpoint route's
+/// own generator `native_parts::struct_rec_ty_r`, not a private copy:
+///
+/// ```text
+/// ∀ p⃗ {motive : ∀ ı⃗ (t : T p⃗ ı⃗), Sort ℓ}
+///   (minor_C : ∀ f⃗ (ih⃗ : ∀ a⃗, motive e⃗_i(a⃗) (f_i a⃗))…, motive e⃗_C (C p⃗ f⃗))…
+///   ı⃗ (t : T p⃗ ı⃗), motive ı⃗ t
+/// ```
+///
+/// over the former's type `tty = ∀ p⃗ ı⃗, Sort w`.  Each `ih` runs over the
+/// recursive field's OWN `∀`-telescope `a⃗` (empty at a finitary field, where
+/// it is the old `motive e⃗_i f_i`), its index expressions read off the
+/// domain `∀ a⃗, T p⃗ e⃗_i(a⃗)` — which is what a REFLEXIVE field needs, and
+/// what the private copy this replaced could not spell.  The route
+/// regenerates the auxiliary family's recursor and compares it against
+/// exactly these generators by one `isDefEq`, so emitting their output makes
+/// that comparison hold by construction.
 pub fn rec_ty(
     t: &Name,
     lps: &[Name],
@@ -702,43 +588,28 @@ pub fn rec_ty(
     tty: &Expr,
     ctors: &[KCtor],
 ) -> Option<Expr> {
-    let l = struct_parts::struct_elim_level(elim, large);
-    let pw = level::zeroness_of(&l);
-    let n = ctors.len() as u64;
-    let (_, q) = expr_ops::strip_pis(n_p, tty)?;
-    let motive_ty = struct_parts::struct_motive_ty_i(t, &dup_names(lps), n_p, n_idx, &l, &q)?;
-    let major_body = expr_ops::mk_app_n(
-        expr::bvar(n_idx + n + 1),
-        &app2(struct_parts::struct_ps_at(1, n_idx), &[expr::bvar(0)]),
-    );
-    let major = struct_parts::replace_pis_pw(
-        &pw,
-        n_idx,
-        &expr_ops::lift_loose_bvars(n + 1, 0, &q),
-        &expr::forall_e(
-            struct_parts::struct_fam_i(t, &dup_names(lps), n_p, n_idx, n + 1, 0),
-            major_body,
-            expr::binder_meta(prop_when::dup(&pw)),
-        ),
-    )?;
-    let minors = minors_pis(lps, n_p, &pw, ctors, 1, major)?;
-    struct_parts::replace_pis_pw(
-        &pw,
+    native_parts::struct_rec_ty_r(
+        t,
+        &dup_names(lps),
+        elim,
+        large,
         n_p,
+        n_idx,
         tty,
-        &expr::forall_e(
-            motive_ty,
-            minors,
-            expr::binder_meta(prop_when::dup(&pw)),
-        ),
+        &ctor_tuples(ctors),
     )
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:346-356 recRhs
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove kit::rec_rhs_refines, then delete this line
 /// **The rule** of constructor `j`:
-/// `λ p⃗ motive m⃗ f⃗, minor_j f⃗ (T.rec p⃗ motive m⃗ e⃗_i f_i)…` (`recC`,
-/// `rlvls`: the recursor's name and its level parameters as levels).
+/// `λ p⃗ motive m⃗ f⃗, minor_j f⃗ (λ a⃗, T.rec p⃗ motive m⃗ e⃗_i(a⃗) (f_i a⃗))…`
+/// (`native_parts::struct_rec_rhs_r`; `rec_c`, `rlvls`: the recursor's name
+/// and its level parameters as levels), at the parse placeholder's binder
+/// data throughout (`expr_ops::reset_meta`): the route compares a stream
+/// rule's body SYNTACTICALLY with the generator's output reset to the
+/// placeholder, as a parsed stream carries it everywhere — and a reflexive
+/// hypothesis `λ a⃗, T.rec … (f a⃗)` is where a generated body has binders of
+/// its own.
 pub fn rec_rhs(
     t: &Name,
     lps: &[Name],
@@ -752,47 +623,24 @@ pub fn rec_rhs(
     rlvls: &[Level],
     j: u64,
 ) -> Option<Expr> {
-    let l = struct_parts::struct_elim_level(elim, large);
-    let pw = level::zeroness_of(&l);
-    let n = ctors.len() as u64;
-    let c = ctors.get(j as usize)?;
-    let n_f = c.n_f;
-    let (_, tq) = expr_ops::strip_pis(n_p, tty)?;
-    let motive_ty = struct_parts::struct_motive_ty_i(t, &dup_names(lps), n_p, n_idx, &l, &tq)?;
-    let (_, q) = expr_ops::strip_pis(n_p, &c.ty)?;
-    let tele = expr_ops::lift_loose_bvars(n + 1, 0, &q);
-    let (rbs, _) = expr_ops::strip_pis(n_f, &tele)?;
-    let doms = pi_binders(&rbs);
-    let mut args: Vec<Expr> = (0..n_f).map(|k| expr::bvar(sub(sub(n_f, 1), k))).collect();
-    for i in c.rec_idx.iter() {
-        args.push(expr_ops::mk_app_n(
-            expr::mk_const(name::dup(rec_c), rlvls.iter().map(level::dup).collect()),
-            &app2(
-                app2(
-                    rec_prefix_at(n_p, n, n_f, 0),
-                    &rec_field_idx(n_p, n_f, *i, 0, &doms),
-                ),
-                &[expr::bvar(sub(sub(n_f, 1), *i))],
-            ),
-        ));
-    }
-    let body = expr_ops::mk_app_n(expr::bvar(sub(sub(n_f + n, 1), j)), &args);
-    let inner = struct_parts::pis_to_lams_pw(&pw, n_f, &tele, &body)?;
-    let minors = minors_lams(lps, n_p, &pw, ctors, 1, inner)?;
-    struct_parts::pis_to_lams_pw(
-        &pw,
+    let rhs = native_parts::struct_rec_rhs_r(
+        t,
+        &dup_names(lps),
+        elim,
+        large,
         n_p,
+        n_idx,
         tty,
-        &expr::lam(
-            motive_ty,
-            minors,
-            expr::binder_meta(prop_when::dup(&pw)),
-        ),
-    )
+        &ctor_tuples(ctors),
+        rec_c,
+        &rlvls.iter().map(level::dup).collect(),
+        j,
+    )?;
+    Some(expr_ops::reset_meta(&rhs))
 }
 
 // ---------------------------------------------------------------------------
-// A syntactic sort inferer (`Kit.lean:444-557`)
+// A syntactic sort inferer (`Kit.lean:358-471`)
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:368-369 ConstTable
@@ -935,7 +783,7 @@ pub fn idx_sort(tbl: ConstTable, ctx: &[Expr], e: &Expr) -> Option<Level> {
 }
 
 // ---------------------------------------------------------------------------
-// Definitional heights (`Kit.lean:559-611`)
+// Definitional heights (`Kit.lean:473-527`)
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:475-510 maxHeightGo
