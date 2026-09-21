@@ -113,7 +113,7 @@ pub enum LineErr {
     Verdict(RecordVerdict),
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:47-66 CheckError
+/// con-leche: ConLeche/Kernel/Core.lean:53-72 CheckError
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:125-126 fail` — the one failure
 /// primitive, lifted into the parse's merged channel.
 pub fn fail<T>(e: CheckError) -> Result<T, LineErr> {
@@ -1144,8 +1144,8 @@ pub fn ind_pi_tele_len(pers: &PersTier, ar: &EStore, fuel: u64, h: &EIdx) -> Res
     merr(core_types::code_points(&M_FUEL_TELE))
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1134-1138 piResult
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:784-789 piResult` — the body of
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1136-1140 piResult
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:808-813 piResult` — the body of
 /// a syntactic `∀`-telescope.  `validate_ind_d`'s `is_K_target` is its one
 /// caller in the frontend; the `ExprOps` twin proper is `arena/expr_ops.rs`,
 /// which task #97 P4b writes, and this call site moves to it then.  Three

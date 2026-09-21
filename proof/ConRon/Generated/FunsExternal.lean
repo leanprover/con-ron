@@ -141,6 +141,21 @@ def ron.node.dup (e : kernel.expr.Expr) : Result kernel.expr.Expr := ok e
 @[rust_fun "con_ron_core::ron::node::ptr_eq"]
 def ron.node.ptr_eq (_a _b : kernel.expr.Expr) : Result Bool := ok false
 
+/- Modeled as `false` — "not known to be exclusive", the conservative answer
+   and the one that always memoises, so the model is the walk that records
+   every compound node it meets: the walk this port had before con-leche's
+   tasks #317/#319 and the one every `_refines` lemma below is about.  The
+   binary may answer `true` instead and then rebuild the node with its table
+   untouched, which spends no key, no probe and no entry on a node that has
+   one reference and so cannot be met again.  That is a choice of HOW, never
+   of WHAT: the fast path stores and reads nothing, where `ptr_eq`'s fast path
+   at least asserts an equality.  OVERVIEW.md §8.1 carries the argument. -/
+/-- [con_ron_core::ron::node::is_exclusive]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 437:0-439:1
+    Visibility: public -/
+@[rust_fun "con_ron_core::ron::node::is_exclusive"]
+def ron.node.is_exclusive (_e : kernel.expr.Expr) : Result Bool := ok false
+
 /-- [con_ron_core::ron::node::alloc_bvar]:
     Source: 'crates/con-ron-core/src/ron/node.rs', lines 402:0-404:1
     Visibility: public -/

@@ -113,7 +113,7 @@ theorem denoteNAux_mono (st : NStore) :
 
 /-! ## Levels -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:40-45 Level — the fuel-indexed
+/-- con-leche: ConLeche/Kernel/Expr.lean:41-46 Level — the fuel-indexed
 readback of a level handle. -/
 def denoteLAux (st : LStore) : Nat → LIdx → Option Level
   | 0, _ => none
@@ -126,7 +126,7 @@ def denoteLAux (st : LStore) : Nat → LIdx → Option Level
       | .imax u v => opt2 Level.imax (denoteLAux st f u) (denoteLAux st f v)
       | .param n => (denoteN st.ns n).map Level.param
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:40-45 Level — the readback of a level
+/-- con-leche: ConLeche/Kernel/Expr.lean:41-46 Level — the readback of a level
 handle. -/
 def denoteL (st : LStore) (i : LIdx) : Option Level :=
   denoteLAux st (st.nodeCount + 1) i
@@ -178,7 +178,7 @@ def denoteLs (st : LsStore) (i : LsIdx) : Option (List Level) :=
 
 /-! ## Expressions -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — the fuel-indexed
+/-- con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr — the fuel-indexed
 readback of an expression handle. -/
 def denoteEAux (st : EStore) : Nat → EIdx → Option Expr
   | 0, _ => none
@@ -200,7 +200,7 @@ def denoteEAux (st : EStore) : Nat → EIdx → Option Expr
       | .proj n k e =>
         opt2 (fun nm x => Expr.proj nm k x) (denoteN st.ns n) (denoteEAux st f e)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — the readback of an
+/-- con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr — the readback of an
 expression handle, at the store's own node count as fuel. -/
 def denoteE (st : EStore) (i : EIdx) : Option Expr :=
   denoteEAux st (st.nodeCount + 1) i

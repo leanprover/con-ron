@@ -62,10 +62,18 @@ section for every task you land.
   supports a private destination) rather than sharing it for the campaign's
   duration, and only merge the result back through the normal commit, not
   by touching the shared directory.
-* **Disk.** Landing an agent branch is three steps: merge it, run the gates
-  on master, then `scripts/drop-worktree.sh <its worktree path>` — which
-  removes exactly that worktree, its branch and its per-checkout scratch
-  under `_tmp/`, and refuses a branch that is not merged.  Nothing sweeps
+* **Landing a branch (merge discipline).**  The *agent* merges master into
+  its branch and runs the gates there; the landing is then a fast-forward
+  merge of that branch into master.  If master moved in between so the
+  merge is not a fast-forward, the agent merges master again and re-runs
+  the gates — unless what moved on master since the last gated state is
+  clearly irrelevant (documentation only, a script the gates do not run),
+  in which case skip the gates, or the gates the change cannot touch, to
+  keep development velocity.  The gates are not run a second time on master
+  after a fast-forward.  Landing then finishes with
+  `scripts/drop-worktree.sh <its worktree path>` — which removes exactly
+  that worktree, its branch and its per-checkout scratch under `_tmp/`, and
+  refuses a branch that is not merged.  Nothing sweeps
   worktrees automatically (an agent may be working in one).  Task scratch
   under `_tmp/` is deleted once its numbers are in DESIGN.md; the corpus and
   `_tmp/aeneas-lean` stay.

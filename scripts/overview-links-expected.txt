@@ -410,7 +410,7 @@
    492      node::alloc_app(d, f, a)
    493  }
    494  
-   495  /// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+   495  /// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
 
 == crates/con-ron-core/src/ron/nat.rs#L1-L8
      1  //! con-leche: none — replaces the runtime's `Nat` (GMP); no Lean source to cite.
@@ -471,6 +471,11 @@
    359          defeq_c: HashMap::new(),
    360          annot_c: HashMap::new(),
 
+== crates/con-ron-core/src/ron/node.rs#L437-L439
+   437  pub fn is_exclusive(e: &Expr) -> bool {
+   438      e.0.is_exclusive()
+   439  }
+
 == crates/con-ron-core/src/cached/core_c.rs#L5086-L5117
   5086  pub fn whnf_core(
   5087      mode: &CheckMode,
@@ -501,7 +506,7 @@
   5112  }
   5113  
   5114  /// con-leche: ConLeche/Cached/CoreC.lean:1906-1976 coreKnotI
-  5115  /// con-leche: ConLeche/Kernel/Core.lean:2897-2936 coreKnot
+  5115  /// con-leche: ConLeche/Kernel/Core.lean:1919-1958 coreKnot
   5116  /// `(coreKnotI mode fe fuel).whnf d e`, memoized in `whnfC`.
   5117  pub fn whnf(
 
@@ -939,12 +944,24 @@
    410      ExprHandle::ptr_eq(&a.0, &b.0)
    411  }
 
-== proof/ConRon/Generated/FunsExternal.lean#L145-L149
-   145      Source: 'crates/con-ron-core/src/ron/node.rs', lines 402:0-404:1
-   146      Visibility: public -/
-   147  @[rust_fun "con_ron_core::ron::node::alloc_bvar"]
-   148  def ron.node.alloc_bvar (data i : Std.U64) : Result kernel.expr.Expr :=
-   149    ok (.mk (.mk data (.Bvar i)))
+== proof/ConRon/Generated/FunsExternal.lean#L153-L157
+   153  /-- [con_ron_core::ron::node::is_exclusive]:
+   154      Source: 'crates/con-ron-core/src/ron/node.rs', lines 437:0-439:1
+   155      Visibility: public -/
+   156  @[rust_fun "con_ron_core::ron::node::is_exclusive"]
+   157  def ron.node.is_exclusive (_e : kernel.expr.Expr) : Result Bool := ok false
+
+== crates/con-ron-core/src/ron/node.rs#L437-L439
+   437  pub fn is_exclusive(e: &Expr) -> bool {
+   438      e.0.is_exclusive()
+   439  }
+
+== proof/ConRon/Generated/FunsExternal.lean#L160-L164
+   160      Source: 'crates/con-ron-core/src/ron/node.rs', lines 402:0-404:1
+   161      Visibility: public -/
+   162  @[rust_fun "con_ron_core::ron::node::alloc_bvar"]
+   163  def ron.node.alloc_bvar (data i : Std.U64) : Result kernel.expr.Expr :=
+   164    ok (.mk (.mk data (.Bvar i)))
 
 == crates/con-ron-core/src/ron/node.rs#L272-L274
    272  pub fn alloc_bvar(data: u64, i: u64) -> Expr {

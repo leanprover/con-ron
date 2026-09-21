@@ -717,7 +717,7 @@ structure kernel.inductives.modeled.ProjFwd where
   n_f : Std.U64
 
 /-- Trait declaration: [con_ron_core::kernel::expr_ops::NameToName]
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1092:0-1095:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1177:0-1180:1
     Visibility: public -/
 structure kernel.expr_ops.NameToName (Self : Type) where
   rename : Self → kernel.name.Name → Result kernel.name.Name
@@ -1273,13 +1273,14 @@ inductive ron.hashmap2.Slot (K : Type) (V : Type) where
 | Live : Std.U32 → K → V → ron.hashmap2.Slot K V
 
 /-- [con_ron_core::ron::hashmap2::HashMap2]
-    Source: 'crates/con-ron-core/src/ron/hashmap2.rs', lines 104:0-116:1
+    Source: 'crates/con-ron-core/src/ron/hashmap2.rs', lines 104:0-123:1
     Visibility: public -/
 structure ron.hashmap2.HashMap2 (K : Type) (V : Type) where
   num_entries : Std.Usize
   max_load : Std.Usize
   epoch : Std.U32
   saturated : Bool
+  fit_hw : Std.Usize
   slots : alloc.vec.Vec (ron.hashmap2.Slot K V)
 
 end ConRon.Generated

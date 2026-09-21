@@ -457,52 +457,52 @@ impl Dup for LsIdx {
 // that a reader can line the two up by eye.  Each tag cites the parent
 // inductive and names the constructor it stands for.
 
-/// con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:209 ETag.bvar` — the `bvar`
 /// constructor, line 344.
 pub const ETAG_BVAR: u32 = 0;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:212 ETag.fvar` — the `fvar`
 /// constructor, line 345.
 pub const ETAG_FVAR: u32 = 1;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:215 ETag.sort` — the `sort`
 /// constructor, line 346.
 pub const ETAG_SORT: u32 = 2;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:218 ETag.const` — the `const`
 /// constructor, line 347.
 pub const ETAG_CONST: u32 = 3;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:221 ETag.app` — the `app`
 /// constructor, line 348.
 pub const ETAG_APP: u32 = 4;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:224 ETag.lam` — the `lam`
 /// constructor, line 349.
 pub const ETAG_LAM: u32 = 5;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:227 ETag.forallE` — the
 /// `forallE` constructor, line 350.
 pub const ETAG_FORALL_E: u32 = 6;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:230 ETag.letE` — the `letE`
 /// constructor, line 351.
 pub const ETAG_LET_E: u32 = 7;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:233 ETag.lit` — the `lit`
 /// constructor, line 352.
 pub const ETAG_LIT: u32 = 8;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:236 ETag.proj` — the `proj`
 /// constructor, line 353.
 pub const ETAG_PROJ: u32 = 9;
@@ -522,27 +522,27 @@ pub const NTAG_STR: u32 = 1;
 /// constructor, line 37.
 pub const NTAG_NUM: u32 = 2;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:40-45 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:41-46 Level
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:256 LTag.zero` — the `zero`
 /// constructor, line 41.
 pub const LTAG_ZERO: u32 = 0;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:40-45 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:41-46 Level
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:259 LTag.succ` — the `succ`
 /// constructor, line 42.
 pub const LTAG_SUCC: u32 = 1;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:40-45 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:41-46 Level
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:262 LTag.max` — the `max`
 /// constructor, line 43.
 pub const LTAG_MAX: u32 = 2;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:40-45 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:41-46 Level
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:265 LTag.imax` — the `imax`
 /// constructor, line 44.
 pub const LTAG_IMAX: u32 = 3;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:40-45 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:41-46 Level
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:268 LTag.param` — the `param`
 /// constructor, line 45.
 pub const LTAG_PARAM: u32 = 4;

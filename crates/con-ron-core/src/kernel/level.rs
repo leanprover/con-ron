@@ -24,7 +24,7 @@ use crate::kernel::prop_when::PropWhen;
 use crate::ron::ptr;
 use crate::ron::ptr::P;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:36-55 Level
 /// The five constructors of `inductive Level`; the cached hash sits in
 /// `LevelNode` (DESIGN.md §3.2).
 pub enum LevelKind {
@@ -35,7 +35,7 @@ pub enum LevelKind {
     Param(Name),
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:36-55 Level
 /// The heap node of a `Level`: the cited inductive's `@[computed_field]
 /// hashData` beside the constructor data.
 pub struct LevelNode {
@@ -43,44 +43,44 @@ pub struct LevelNode {
     pub kind: LevelKind,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:36-55 Level
 /// A universe level, as a `P` tree.
 pub struct Level(pub P<LevelNode>);
 
-/// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:36-55 Level
 /// The cached hash, an `O(1)` field read.
 pub fn hash_data(u: &Level) -> u64 {
     u.0.hash
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:36-55 Level
 /// `Level.zero`, hash `1`.
 pub fn zero() -> Level {
     Level(ptr::new(LevelNode { hash: 1, kind: LevelKind::Zero }))
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:36-55 Level
 /// `Level.succ`, hash `mixHash 3 u.hashData`.
 pub fn succ(u: Level) -> Level {
     let h: u64 = name::mix_hash(3, hash_data(&u));
     Level(ptr::new(LevelNode { hash: h, kind: LevelKind::Succ(u) }))
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:36-55 Level
 /// `Level.max`, hash `mixHash 5 (mixHash u.hashData v.hashData)`.
 pub fn max(u: Level, v: Level) -> Level {
     let h: u64 = name::mix_hash(5, name::mix_hash(hash_data(&u), hash_data(&v)));
     Level(ptr::new(LevelNode { hash: h, kind: LevelKind::Max(u, v) }))
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:36-55 Level
 /// `Level.imax`, hash `mixHash 7 (mixHash u.hashData v.hashData)`.
 pub fn imax(u: Level, v: Level) -> Level {
     let h: u64 = name::mix_hash(7, name::mix_hash(hash_data(&u), hash_data(&v)));
     Level(ptr::new(LevelNode { hash: h, kind: LevelKind::Imax(u, v) }))
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:35-54 Level
+/// con-leche: ConLeche/Kernel/Expr.lean:36-55 Level
 /// `Level.param`, hash `mixHash 11 (hash n)`.
 pub fn param(n: Name) -> Level {
     let h: u64 = name::mix_hash(11, name::hash_data(&n));
@@ -93,15 +93,15 @@ pub fn dup(u: &Level) -> Level {
     Level(ptr::clone(&u.0))
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:60-67 Level.beqPtr
+/// con-leche: ConLeche/Kernel/Expr.lean:61-68 Level.beqPtr
 /// The pointer test behind the cited `withPtrEq`; modeled as `false` in
 /// the generated Lean (DESIGN.md §3.2).
 pub fn ptr_eq(a: &Level, b: &Level) -> bool {
     ptr::ptr_eq(&a.0, &b.0)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:60-67 Level.beqPtr
-/// con-leche: ConLeche/Kernel/Expr.lean:76-79 Level.beq
+/// con-leche: ConLeche/Kernel/Expr.lean:61-68 Level.beqPtr
+/// con-leche: ConLeche/Kernel/Expr.lean:77-80 Level.beq
 /// `Level.beqPtr` is the *executed* `Level.beq` (`@[csimp]`-substituted):
 /// pointer, cached hash, structural walk.  Deviation: the pointer fast
 /// path is kept at every level of the descent.
@@ -142,8 +142,8 @@ pub fn is_one_kind(u: &Level) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:114-122 levelHasParam
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2399-2406 Level.hasParam
+/// con-leche: ConLeche/Kernel/Expr.lean:115-123 levelHasParam
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2401-2408 Level.hasParam
 /// `levelHasParam`.  The second citation is the same recurrence written as
 /// the *spec* function `Level.hasParam` in `ExprOps.lean`; the cited file's
 /// `levelHasParam_eq` (`:2524-2527`) is the equation between them, so one
@@ -158,13 +158,13 @@ pub fn level_has_param(u: &Level) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:124-127 levelsHaveParam
+/// con-leche: ConLeche/Kernel/Expr.lean:125-128 levelsHaveParam
 /// `levelsHaveParam`.
 pub fn levels_have_param(us: &Vec<Level>) -> bool {
     levels_have_param_from(us, 0)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:124-127 levelsHaveParam
+/// con-leche: ConLeche/Kernel/Expr.lean:125-128 levelsHaveParam
 /// The index recursion the cited `List` recursion becomes (DESIGN.md §3.3).
 pub fn levels_have_param_from(us: &Vec<Level>, i: usize) -> bool {
     if i >= us.len() {
@@ -174,19 +174,19 @@ pub fn levels_have_param_from(us: &Vec<Level>, i: usize) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:129-134 levelHash
+/// con-leche: ConLeche/Kernel/Expr.lean:130-135 levelHash
 /// `levelHash`.
 pub fn level_hash(u: &Level) -> u64 {
     hash_data(u)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:136-139 levelsHash
+/// con-leche: ConLeche/Kernel/Expr.lean:137-140 levelsHash
 /// `levelsHash`.
 pub fn levels_hash(us: &Vec<Level>) -> u64 {
     levels_hash_from(us, 0)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:136-139 levelsHash
+/// con-leche: ConLeche/Kernel/Expr.lean:137-140 levelsHash
 /// The index recursion the cited `List` recursion becomes.
 pub fn levels_hash_from(us: &Vec<Level>, i: usize) -> u64 {
     if i >= us.len() {
@@ -649,24 +649,24 @@ pub fn name_is_proj_fn_shape(n: &Name) -> bool {
 // The hash-map dictionaries (`crate::ron::hashmap`'s own traits, task #7)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Expr.lean:55-57 _
+/// con-leche: ConLeche/Kernel/Expr.lean:56-58 _
 /// The cited `instance : Hashable Level := ⟨Level.hashData⟩`, as the key
 /// dictionary of `crate::ron::hashmap` — this is what the `lsimpC`, `lnzC` and
 /// `eqvC` memo tables will probe with.
 impl Hashable for Level {
-    /// con-leche: ConLeche/Kernel/Expr.lean:55-57 _
+    /// con-leche: ConLeche/Kernel/Expr.lean:56-58 _
     /// The stored word, an `O(1)` field read.
     fn hash64(&self) -> u64 {
         hash_data(self)
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:86 _
+/// con-leche: ConLeche/Kernel/Expr.lean:87 _
 /// The cited `instance : BEq Level := ⟨Level.beq⟩`, as the key dictionary of
 /// `crate::ron::hashmap`.  Deviation: `Eq2` is our own one-method trait, so the
 /// instance is `beq` with its pointer and hash fast paths (DESIGN.md §3.2).
 impl Eq2 for Level {
-    /// con-leche: ConLeche/Kernel/Expr.lean:76-79 Level.beq
+    /// con-leche: ConLeche/Kernel/Expr.lean:77-80 Level.beq
     /// `Level.beq`, i.e. the `@[csimp]`-substituted `Level.beqPtr`.
     fn eq2(&self, other: &Self) -> bool {
         beq(self, other)

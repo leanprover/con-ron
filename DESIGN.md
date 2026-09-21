@@ -136,6 +136,22 @@ Lean side by con-leche's `Verify/Cached/*`.  Any deviation in memo behaviour
 allowed only where they are *semantically transparent by a local lemma*
 (§3.2, pointer fast paths).
 
+**The rule is about `CState`, and a MISS is not a hit** (task #98).  The
+constraint above is on the fourteen tables of `cached::state_c`, whose
+abstract state the refinement relates at every step.  The term walks'
+memos are per-call and local — nothing outside the call can observe one —
+and since con-leche's tasks #317/#319 both sides skip a node the runtime
+reports unshared, and a leaf, rather than recording it.  In the model that
+skip does not happen (`ron::node::is_exclusive` is a hole modelled `ok
+false`, §3.2), so the binary takes a MISS where the model takes a hit: it
+rebuilds a node instead of reading an answer it has already computed for
+that very node.  That direction costs time and can change no value, which
+is a weaker claim than the pointer fast path's — that one asserts an
+equality and needs its reflexivity lemma; this one asserts nothing.
+OVERVIEW.md §8.1's row is where the argument is written down, and
+`ron::node::is_exclusive`'s docstring is where the borrowed-parameter
+requirement that makes the read mean anything is written down.
+
 **Cached, not pure — and why (maintainer's question, 2026-09-12).**  The
 alternative was to port the *pure* fueled checker and prove whatever
 caching the Rust does sound in the Rust world.  That decouples Rust
@@ -503,7 +519,14 @@ and fails (task #4).
 
 The first four are the same model Aeneas already uses for `Box`; they are
 faithful because the port never uses `Arc::get_mut`, `make_mut`, weak
-pointers or interior mutability (a `grep` gate enforces this).
+pointers or interior mutability (a `grep` gate enforces this).  Task #98
+added the one thing that *reads* the count, `ron::node::is_exclusive` (the
+port of con-leche's `withExclusive`): it does not break the rule above —
+it mutates nothing through the share and yields no value, only the choice
+of whether to spend a memo entry on a node that cannot be reached twice —
+and it is modeled `false` exactly as `ptr_eq` is, so the model is the
+branch that always memoises.  It is a method on the crate's own handle,
+not `Arc::strong_count`, which stays banned.
 
 **`ptr_eq` is modeled as `false`**, so the model always takes the slow path.
 The real program may take the fast path; the two agree iff every walk that
@@ -598,8 +621,23 @@ equality, hashing and `String.toList`/`Char.ofNat` for literal reduction);
   generated Lean shaped like con-leche's `do` blocks); no `loop`/`while`
   except where the next bullet allows it; no generic instantiated
   with `&mut`; no `unsafe` (one exemption, below); no `std::collections`; no
-  counted-pointer API beyond `new/clone/deref/ptr_eq`; `&mut` only for the
-  state parameter.
+  counted-pointer API beyond `new/clone/deref/ptr_eq` and the count *read*
+  of the bullet after next; `&mut` only for the state parameter.
+* **The count read, and why it is not the banned API (2026-09-21, task
+  #98).**  `ron::tagged::Raw::is_exclusive` loads the block's own count and
+  compares it with one; `ron::node::is_exclusive` is its one caller in the
+  core's reach.  The lint keeps banning `Arc::get_mut`, `Arc::make_mut` and
+  `Arc::strong_count`, and the reason it bans them is the reason this is
+  allowed: those let the count or the pointee escape into a VALUE — mutation
+  through a share is invisible to "an `Arc` is its contents", and a count in
+  a number is a value the model has not got — whereas this answer is
+  consumed by one `if` that chooses between two ways of computing the same
+  result, and is modeled `false`, the way that always memoises.  The rule is
+  therefore *a count read may select a path, never produce a value*, and what
+  keeps it is that there is exactly one such function, it returns `bool`, and
+  every caller is a memo gate (`expr::beq_memoise`, `expr_ops_c::memo_skip`
+  and the six `memo*_probe`/`memo*_record` helpers).  OVERVIEW.md §8.1's hole
+  row carries the trust argument.
 * **Loops, the one exemption (2026-09-14, task #84).**
   `crates/con-ron-core/src/frontend/` — the ported export parser, and only
   that directory — may use `while`, `loop` and `for … in a..b` where the cited
@@ -1663,7 +1701,8 @@ do not care whether the manifest has caught up.  Keep `update`'s output in
 you.
 
 **3. Classify the findings before touching a line.**  Most of a large bump is
-one or two upstream renames applied everywhere.  Write a thirty-line script
+one or two upstream renames, one or two upstream FILE MOVES, and a docstring
+sweep — applied everywhere.  Write a thirty-line script
 that parses `update`'s unified diffs, applies the renames you know about to
 the *old* side, and buckets each record: *rename-only*, *doc-only*,
 *whitespace*, *real*.  Task #83's 500 `CHANGED` findings came out 253
@@ -1672,6 +1711,25 @@ citation-only markers mechanically (match each marker against the citation
 line above it, keyed by Rust file and cited range) took minutes and left a
 legible work order.  Do this before opening a Rust file; it is the difference
 between a day and a week.
+
+Task #98 (`c431b1ca` → `78ded4b6`, 150 upstream commits) had **193 findings,
+150 `GONE` and 43 `CHANGED`**, and the classifier cut them to **43 real** in
+two passes:
+
+| bucket | count | what it cost |
+|---|---:|---|
+| a FILE MOVE, byte-identical (`Kernel/Core.lean` → `Kernel/CoreDefs.lean`) | 114 | a scripted citation repoint |
+| doc-only (`Model/Steps/*` → `Model/Rules/*` in the docstrings) | 5 | nothing |
+| deleted upstream | 35 | the port |
+| really changed | 39 | the port |
+
+The two mechanical buckets are found by **comparing the block text, not the
+line numbers**: for a `GONE` finding, hunt the declaration by name across the
+whole new `ConLeche/` tree and compare the old cited block with what you find
+(`provenance.py`'s own `locate_decl` and `lean_text(path, old)` are the two
+pieces; forty lines).  For a `CHANGED` finding, strip every comment line from
+both blocks and compare what is left — `provenance.py`'s `comment_lines` is
+that function — and a docstring sweep comes out as zero work.
 
 While you are there, run `scripts/progress.py --summary` **once, before
 deleting a single marker**: its `stale (CHANGED marker)` count is only
@@ -1691,6 +1749,15 @@ rename or a move and nine were a genuine deletion — and a deletion is never a
 citation edit: it is Rust and proof code to remove, and `check` stays red
 until it is gone.
 
+**And check where `update` put the citations it DID relocate.**
+`names_compatible` lets a citation of `Expr.beqGo` match a block that
+declares `Expr` — the rule that makes a namespace-qualified citation work —
+so when upstream renames `Expr.beqGo` to `Expr.beqGoX`, `locate_decl` can
+land the citation on the `Expr` INDUCTIVE instead of failing, and `check`
+then passes on a citation that points at the wrong thing.  Task #98 had
+eleven of those and no other kind.  The scan is ten lines: every citation
+whose declared head is a strict PREFIX of the cited name is suspect.
+
 **5. Port in dependency order, and mind the crate boundary.**
 `crates/con-ron-core/src` is inside the style lint (§3.4) and inside the
 extraction; `crates/con-ron/src` is inside neither, and only inside the
@@ -1699,6 +1766,21 @@ the kernel — con-leche's task #293 moved the basis-pin match there — is not 
 move for the port but a rewrite: closures, iterators and `for` loops have to
 go, every item needs a citation the gate accepts, and the generated Lean grows
 by the whole module.  Budget for that separately from the porting itself.
+
+**A REDESIGN upstream is not "re-port the arms".**  Task #98 absorbed
+con-leche's #313–#319, which rewrote every traversal memo: one walk became
+three declarations (`<name>P` the plain descent, `enter<X>P` the child step,
+`<name>XP` the walk), the key went from structural to an address, and the
+entries became self-proving.  The first thing to establish is whether the
+COMPUTATION moved at all — compare the old walk's arms, memo plumbing
+stripped, against the new `<name>P` — because if it did not, the port's own
+walk is still correct and the only question is which parts of the new design
+to mirror and what to cite.  There the answer was: mirror the discipline (the
+exclusivity read and the compound test), keep the structural key and the
+inlined walk, cite `<name>XP` with the deviation written down, and put every
+`<name>P`/`enter<X>P`/`PEnt`/`Squash` declaration on the skip list with its
+reason.  Twelve walks, no arm changed, 43 real findings — and the port got
+23 % faster.
 
 **6. A rename-only marker is still proof work.**  The Rust needs nothing when
 only a con-leche *name* changed, but every statement in `proof/ConRon/Refine/`
@@ -1714,7 +1796,19 @@ crate split across agents on **disjoint files** (`con-ron-core/src/kernel`,
 binaries); then `scripts/extract.sh`; only then `cd proof && lake build`,
 whose error list is the real proof work order.  Do not start the proofs before
 the model is regenerated: a statement about a generated definition that no
-longer has that shape wastes the whole edit.  The tree does not build between
+longer has that shape wastes the whole edit.
+
+**The shape of a ported helper decides the proof cost, and it is worth one
+iteration to find the cheap one.**  Task #98's gate began as a pair of
+helpers that took the node and the cursor and built the memo key themselves —
+tidy Rust, and it cost the key twice on the memoising path *and* moved a bind
+that every arm of every walk destructures, which is 75 proof sites. The
+shipped shape takes the key the walk already built, so each helper is a
+`rfl`-unfolding of the operation it replaced and the proof delta is one extra
+`simp only` argument per arm plus one "read the record back" lemma per memo.
+The rule: **a change that only adds a decision should leave the generated
+model's bind structure alone**, and when it cannot, the one bind it does add
+is worth a lemma rather than seventy-five edits.  The tree does not build between
 the first Rust edit and the last — say so in every WIP commit message.
 
 **8. Two operational traps.**  `lake build` of con-leche's package under a
@@ -31072,3 +31166,436 @@ The wind-down state, for whoever resumes:
     which is a Lean task and belongs after the sync; the `shared_on` hoist
     (item 2); and a quiet-machine re-run of §6's wall column, which every row
     above carries a caveat for.
+
+**THE PAUSE IS LIFTED** (task #97-catchup, 2026-09-21, the last section of
+this log): master's con-leche sync landed, the branch is merged across to
+`78ded4b6` and gated there, and `Init` is 422.31 G against this section's
+422.34 G — the same number.  What §9 calls "the Lean catch-up (§8 item 1)" is
+still owed and is still a different task: the twin catching up with the
+Rust-first ledger, not with con-leche.
+
+### Task #98 — con-leche bumped to master 78ded4b6, and `withExclusive` ported (2026-09-21, Opus under Fable)
+
+con-leche goes from `c431b1ca` (its task #304) to **`78ded4b6`**, 150 commits
+ahead, on the same toolchain.  Most of those commits are its own proof tier —
+task #305 rebuilt the soundness argument as a *rules* tier and deleted
+`ConLeche/Model/Steps/*` for `ConLeche/Model/Rules/*` — and the port must not
+mirror any of it.  What the port does absorb is one campaign and one fix:
+
+| upstream | what it did | executed checker? |
+|---|---|---|
+| #305 (and its prep) | the rules tier; `Kernel/Core.lean`'s fuel-free helpers move to the new `Kernel/CoreDefs.lean` | no — a file move and a docstring sweep |
+| #306–#312 | design studies, spikes and rulings; nothing landed | no |
+| **#313–#317** | the substitution walks' memo redesigned: a plain descent `<name>P`, a child step `enter<X>P` reading `withExclusive`, a walk `<name>XP` carrying its own proof; the budgeted descents and the always-memoising `*GoC` walks deleted | **yes** |
+| **#318, #319** | the same discipline in `Expr.beq` and the four `Bool` traversal walks; `beqBudget` deleted; the leaves no longer recorded | **yes** |
+| #320 | PERF.md re-measured | no |
+| **`78ded4b6`** | **the mutual rung takes reflexive members**: the in-process modeller's private recursor generator is replaced by the fixpoint route's own, and `classifyCtor` walks a field's ∀-telescope | **yes** (the modeller) |
+
+#### 1. The findings, classified before a line was edited
+
+`provenance.py update` (no `--old`: the pin was bumped and not committed):
+**193 findings, 150 `GONE` and 43 `CHANGED`**, on `progress.py`'s
+`stale (CHANGED marker) 17`.  Two mechanical passes cut that to 43 real:
+
+| bucket | count | what it cost |
+|---|---:|---|
+| a byte-identical FILE MOVE (`Kernel/Core.lean` → `Kernel/CoreDefs.lean`) | 114 | a scripted citation repoint |
+| doc-only (`Model/Steps/*` → `Model/Rules/*` inside docstrings) | 5 | nothing |
+| deleted upstream | 35 | the port |
+| really changed | 39 | the port |
+
+The file-move bucket is found by hunting each `GONE` declaration by name
+across the whole new tree and comparing the block text; the doc-only bucket
+by stripping every comment line from both blocks and comparing what is left.
+§7's step 3 and step 4 now say so, along with the third thing this bump
+found: `update` had relocated **eleven** citations of `Expr.beqGo` onto the
+`Expr` INDUCTIVE, because `names_compatible` lets a citation of `Expr.beqGo`
+match a block declaring `Expr`.  `check` passes on those.  A ten-line scan
+finds them and found no others.
+
+**Markers: 193 before, 0 after.**  `provenance.py check` ends at 2 368 items
+/ 2 386 citations, all current at `78ded4b6`; `coverage` at **937/937 covered
+(100 %), 0 uncovered, 133 deliberately skipped** — 43 entries added for
+upstream's new proof plumbing (every `<name>P`, `enter<X>P`, `PEnt`, `BEnt`,
+`Squash` carrier and the address key) and four retired with `beqBudget`,
+`BeqRes` and `BeqOut`.
+
+#### 2. `withExclusive` is portable, and this is the port
+
+**What it is.**  `withExclusive a k h` runs its continuation on whether `a` is
+*exclusive* — reference count exactly one, so no other reference to it exists.
+In the logic it is `k false`; compiled, `@[implemented_by]` substitutes
+`k (isExclusiveUnsafe a)`, the count read off the object header.  What
+licenses the substitution is the obligation `h : k true = k false`: the
+continuation's value does not depend on the answer, so a caller may use it to
+choose *how* to compute a value, never *which*.  con-leche's walks use it for
+one thing: a node with one reference cannot be reached twice by the walk that
+is inside its only parent, so memoising it is pure loss — the key, the probe,
+the entry.  The official kernel's `replace_fn` caches on exactly that test
+(`!is_likely_unshared`), and `expr_eq_fn` on `is_shared(a) && is_shared(b)`.
+
+**The decision: portable.**  `ron::tagged::Raw::is_exclusive` is a `Relaxed`
+load of the block's own count against one, and `ron::node::is_exclusive`
+exposes it for `Expr`.  §3.4's lint bans `Arc::get_mut`, `Arc::make_mut` and
+`Arc::strong_count`, and the reason it bans them is the reason this is
+allowed: those let the count or the pointee escape into a VALUE — mutation
+through a share is invisible to "an `Arc` is its contents", and a count in a
+number is a value the model has not got — whereas this answer is consumed by
+one `if` that chooses between two ways of computing the same result.  The
+rule the lint now states is *a count read may select a path, never produce a
+value*, and what keeps it is that there is exactly one such function, it
+returns `bool`, and every caller is a memo gate.  `Arc::strong_count` stays
+banned: `Name`, `Level`, `PropWhen` and `ConstantInfo` are still `Arc` and
+nothing needs their counts.
+
+**The hole.**  `ron.node.is_exclusive` is hole #23, modelled `ok false` —
+"not known to be exclusive", the conservative answer and the one that always
+memoises.  So the generated model is the walk this port already had, and
+every `_refines` lemma is about it unchanged.  OVERVIEW §8.1 carries the row,
+and its claim is **weaker than `ptr_eq`'s**, which was already accepted: a
+skipped memo stores and reads nothing, where a pointer hit asserts an
+equality.
+
+**The sites**, all of them con-leche's: the six cursored substitution walks
+and `inst_level_params_go` (`enter1P`, `enterLiftP`, `enterListP`,
+`enterRevP`, `enterAbs1P`, `enterAbsRP`, `enterLPP` — the last with no
+compound test, as upstream has none there); the four `Bool` walks
+(`wscoped_b_go`, `leaves_sub_go`, `all_level_params_defined_go`,
+`state_c::consts_resolve_fc_go`) through `memo_skip`, which folds in the
+compound test their `enter*` steps also make, so a LEAF is no longer recorded
+either; and `expr::beq_go` through `beq_memoise`, a pair being memoised only
+if it is recursive and **both** sides are shared.  `fvar_leaves_go` is the
+exception on both sides: its memo is a visited SET whose entries speak about
+the accumulator, not about the node, so it has no self-proving entry to drop.
+
+**The one shape decision.**  The first cut had the gated probe and record
+build the `(node, cursor)` key themselves, so an exclusive node paid nothing
+at all.  It cost the key twice on the memoising path and — the real price —
+moved a bind that every arm of every walk destructures, 75 proof sites.  What
+ships is the read, then the key ONCE, then `memo1_get_if`/`memo1_insert_if`,
+each a `rfl`-unfolding of the operation it replaced.  A skipped node still
+pays the key's `dup` and its drop, which con-leche's address key does not,
+and skips the hash, the bucket walk, the entry, the entry's `dup` and the
+table's growth.  The key is still built AFTER the read, which is con-leche's
+borrowed-parameter requirement in the one shape Rust can violate it:
+`expr_nat_key` takes the node by a `dup`, and a key above the read would make
+the read answer `false` everywhere.
+
+**Deleted with con-leche's own**: `instantiate1_lift_b` and
+`instantiate1_lift_b_compound`, the budgeted plain descent at 4 096 nodes
+(upstream's #317 ruling: a node budget is a heuristic cutoff, and a
+discipline that spends nothing on an unshared node spends nothing on a small
+term), with 440 lines of their proofs; and `state_c::memo_b_get`, unused.
+
+#### 3. What the gate bought, A/B
+
+`instructions:u` is the number, because it is load-blind.  Two con-ron
+binaries, release with mimalloc, from the same tree but for the gate:
+`master` is `3f5ebd55`, `excl` is this branch.  The exports are task #29's
+corpus; every run under `timeout` and `ulimit -v`, the driver's own
+`--verified --jobs=1` lane.
+
+| export | without the gate | with it | Δ |
+|---|---:|---:|---:|
+| `Init` (57 977 declarations) | 539 823 477 952 | **412 284 710 704** | **−23.6 %** |
+| `Init`+`Std`+`Lean` (163 396) | 1 154 530 881 380 | **896 862 049 579** | **−22.3 %** |
+
+Repeats agree to six significant figures (`Init` 539 816 266 606 /
+412 283 777 287 on a second run), which is what one expects of a
+deterministic checker counted at user level.  At eight workers the same two
+deltas read −23.7 % and −22.3 %, so the gain is the walk's and not the
+pool's.  Peak RSS does not move — 0.48 GB either way on `Init`, 1.32 → 1.33
+GB on core: the memo was never the peak, the term graph is.
+
+For scale, con-leche's own campaign claimed −13.1 % (#317) and −10.8 %
+(#319) on `init-full`, which compounds to −22.5 % — the same number, reached
+the same way.
+
+**The Mathlib landing run** (§12's rule: anything that touches memory is run
+on the Mathlib export under `ulimit -v 27000000` before it lands), one run,
+`--verified --jobs=1`, 691 128 declarations:
+
+| | verdict | `instructions:u` | peak RSS |
+|---|---|---:|---:|
+| con-ron with the gate | **accepts 691 128 declarations** (exit 0) | 7 541 754 140 806 | **7.56 GB** |
+
+which is **−32.5 %** of the same binary without it (11 178 500 615 391,
+8.38 GB) — half as much again as the core exports, and the shape of the
+input showing through: a bigger export means longer walks over terms whose interior nodes
+are mostly reached once, and every one of those used to buy an entry.  The
+cap is not approached; CLAUDE.md's budget is 3× con-leche's 8.6 GB.
+
+#### 4. The proofs
+
+`Refine/Excl.lean` is the whole of what the gate costs the proof tier: with
+`is_exclusive` modelled `ok false`, every verdict in the model is `false` and
+each gated `get`/`insert` is definitionally its unguarded predecessor.
+Sixteen `rfl`s (each gate at `false` and at `true`), two case splits for the
+gates that combine the read with a test the model *can* see (`memo_skip`,
+`beq_memoise`), and four "read a record back" lemmas for the one bind the
+gated record adds.  An arm then names them in the `simp only` that opens it
+and reads exactly as it did.
+
+| file | what it took |
+|---|---|
+| `Refine/Expr.lean` | nothing — `beq_memoise_eq` is a global `@[simp]` and the gate reduces to `beq_recursive` where it stands |
+| `Refine/ExprOpsCSubst.lean` | 15 arm-opening `simp only`s, 16 record sites; and 440 lines deleted with the budgeted descent |
+| `Refine/ExprOpsCAbs.lean` | 10 + 10 for the cursored walks, 11 + 10 for `instLevelParams` |
+| `Refine/ExprOpsCGuards.lean` | 18 compound arms by the recipe; **12 leaf arms restructured** — the gate is `true` at a leaf, so the `some`/`none` split goes and the memo invariant comes out of the incoming hypothesis |
+| `Refine/StateCResolve.lean` | the internal statements **re-based**: upstream deleted `Cached.constsResolveFCGo`, so there is no memo-threading reference function left for the port's table to denote.  `MemoBOk` is now `MemoInv … (ResolveQ lfe)` and the walk's lemma concludes against the plain descent.  **The exported `consts_resolve_fc_refines` is unchanged**, statement and hypotheses, closed through `constsResolveFC.eq_def` and `Expr.resBool_eq` |
+| `Refine/DeclCheck.lean` | the two-table relation moves here, its last consumer: `Kernel/DeclCheck.lean`'s `Expr.constsResolveFGo` is still the memo-threading walk |
+
+#### 5. The mutual rung's reflexive members
+
+The port of `78ded4b6`, clause for clause, in the unverified crate.
+`in_model::kit`'s six private recursor generators (`rec_prefix_at`,
+`rec_field_idx`, `ih_pis`, `minor_ty`, `minors_pis`, `minors_lams`) are
+deleted with their Lean counterparts; `rec_ty` and `rec_rhs` are one call
+each of the core's own fixpoint-route generators
+(`inductives::native_parts::struct_rec_ty_r`/`struct_rec_rhs_r`), with
+`expr_ops::reset_meta` on the rule.  `mutual::classify_ctor` walks a field's
+own ∀-telescope (official `check_positivity`, syntactically);
+`mutual::gen_mutual` drops the `reflexive member` decline and builds the iota
+rule's recursive hypothesis as `λ a⃗, T_tgt.rec._model p⃗ M⃗ S⃗ e⃗(a⃗) (f_i a⃗)`
+over that telescope — at a finitary field `a⃗` is empty and the expression is
+the old one exactly.  Upstream's new fixture `e2e/inmodel_mutual_refl` is 0
+in both modes and `mutual_struct_proj` goes 2 → 0, which is what the fix is
+for.
+
+#### 6. The gates
+
+`scripts/gates.sh` **all 10 OK** (`cargo build`/`cargo test` under
+`-D warnings`, the style lint, `provenance check`, the link gate, the hole
+gate, `gen-pins --check`, `gen-prelude --check`, `extract.sh --check`, `lake
+build`); `gen-pins --check` green at the **same 26 721 records / 532 456
+bytes**, which is the measurement that the bump did not touch the pin
+*values*.  `scripts/diff-e2e.sh` **383/383 agree** at `--jobs=1` and at
+`--jobs=4` — the fixture set moved with upstream, from 348 to 383.  `provenance.py check` 2 368 items / 2 386 citations;
+`coverage` 937/937 (100 %); `holes.sh --check` 23/23; the link gate
+regenerated, including README's con-leche anchor repointed to the new pin at
+the same `#L90-L117` (`MainTheorem.lean`'s cited text is unchanged).
+`progress.py`: verified core 14 136 lines, all ported, 91 % verified; the
+parser 4 441, all ported, 59 % verified; `stale (CHANGED marker) 0`.
+
+**What this task deliberately does not do** (maintainer's ruling, mid-task):
+OVERVIEW §7.2's performance table is NOT updated here.  A bump measures the
+A/B of what it lands and runs the Mathlib landing check; re-reading the
+whole comparison table — which needs con-leche's own binary re-measured at
+the new pin, since its tasks #313–#319 moved that side too — is its own
+task, after the merge.  What OVERVIEW does take from this bump is the parts
+a gate or a falsehood forces: §8.1's twenty-third hole row and its count
+(`holes.sh --check` reads that table), §6.4's fixture count, §7.1's ledger,
+§4.3's description of the new memo discipline, §11's module map, and
+README's con-leche anchor at the new pin.
+
+**One process deviation, recorded because §7 asks for it.**  Step 9 says the
+pin is the LAST commit of a bump, so that every commit before it reproduces
+with `provenance.py update` and no `--old`.  Here it went in with the sixth
+of ten commits (`cdeb2d1c`), swept up by an `add` of the whole `proof/`
+directory.  Nothing is wrong with the tree — every commit of the branch is
+marked WIP and the branch lands as a whole — but the commits after it no
+longer reproduce that way, and the next porter should stage the two pin
+files by name and nothing else.
+
+### Task #97-catchup — the arena at con-leche 78ded4b6 (2026-09-21, Opus under Fable)
+
+§8's branch `arena` was paused at task #97-P6-6b "until the con-leche sync on
+master finishes" (its §9).  Task #98 finished it — `c431b1ca` → `78ded4b6`,
+150 upstream commits — and this task carries the branch across, under the
+merge discipline CLAUDE.md now states: the agent merges master into its
+branch, runs the gates THERE, and the landing is a fast-forward.
+
+`arena` was at `c77b04bc`, master at `613194b9`.
+
+#### 1. The merge
+
+**One conflict, and it was the task log.**  Both sides appended sections to
+DESIGN.md's task log; both are kept, the arena's `#97t … #97-P6-6b` first and
+master's `#98` after.  Nothing else conflicted, which is exactly what task
+#97-P6-6b's wind-down note predicted: nothing outside `crates/arena-core`,
+`crates/con-ron-arena` and `proof/ConRon/Arena/**` had moved on this branch.
+
+**And a second merge**, because `arena` moved under the task: task
+#97-P6-8b (`77f93e0e`, fat LTO and one codegen unit, a six-line
+`[profile.release]` change) landed on the branch while this one was running.
+It is merged in, and everything it can touch was re-run on top of it —
+`cargo build`, `cargo test` (428, 0 failures), both `con-ron-arena` fixture
+sweeps and the `Init` measurement (§5's third row).  It cannot touch the rest:
+Charon never reads the release profile, so the extraction, the model, the Lean
+build and every text gate are the ones §4 reports, and OVERVIEW's two
+`Cargo.toml` line anchors still land on `overflow-checks`, which the new lines
+follow.
+
+So the five things the brief asked to be reconciled came out:
+
+1. **`crates/con-ron-core`**: master's `withExclusive` memo discipline, hole
+   #23 (`ron::node::is_exclusive`) and the skip list, beside the branch's own
+   `ron/hashmap2.rs` and `HashMap::capacity` — disjoint files, both kept,
+   `cargo test` green at 428 tests.
+2. **The Lean twin and its Rust transliteration**: §2 below.  The file move
+   `Kernel/Core.lean` → `Kernel/CoreDefs.lean` is 209 of the arena's
+   citations; the 39 real upstream changes touch four arena twins and **not
+   one clause of one of them**.
+3. **The modeller**: `con-ron-arena` delegates to `crates/con-ron`'s
+   `in_model`, so `78ded4b6`'s reflexive-members fix arrives for free.
+   Verified, not assumed: upstream's new fixture `e2e/inmodel_mutual_refl` is
+   **0 in both modes** (accepted 78, three blocks modelled in process) and
+   `e2e/mutual_struct_proj` is **0 in both modes** (accepted 117), on
+   `con-ron-arena` AND on `con-ron-lean`, whose `Arena/Frontend/InModel.lean`
+   delegates to con-leche's own `InModel.generate` in the same way.
+4. **`Arena/Main.lean` / `con-ron-lean`**: `lake build` and `lake build
+   con-ron-lean` are clean against the new con-leche with **no source change
+   at all** — the `Frontend/InModel*` seam's signatures did not move.
+5. **The gates**: §4.
+
+#### 2. The citations, classified before a line was edited
+
+`provenance.py update --old c431b1ca`, over the arena roots only (master's
+own roots were reconciled by task #98 and re-marking them would have undone
+that work — a trap worth writing down: `update --old` marks every citation
+whose cited TEXT moved, reconciled or not, so a catch-up must name its roots).
+
+**659 relocated, 232 `CHANGED` markers.**  Classified by comparing the cited
+BLOCK TEXT, old pin against new, with DESIGN §7 step 3's two passes:
+
+| bucket | markers | what it cost |
+|---|---:|---|
+| a byte-identical FILE MOVE, `Kernel/Core.lean` → `Kernel/CoreDefs.lean` | 207 | a scripted citation repoint |
+| the same move with a docstring edit (`betaGateFires`) | 2 | the same |
+| doc-only in place (`iotaCerts`, `propIrrel`, `Expr.peelNeverPis`) | 7 | nothing |
+| upstream's #313–#319 walk redesign, `Cached/ExprOpsC.lean` | 16 | a repoint and a note |
+| **really changed, needing a re-twin** | **0** | — |
+
+The last row is the finding.  The sixteen are four upstream declarations —
+`wscopedBGoC`, `wscopedBC`, `leavesSubGo`, `leafGuard` — across the arena's
+`ExprOps.lean` twins and their `arena::expr_ops` transliterations.  Upstream
+#313–#319 split each walk into three declarations (`<name>P` the plain
+descent, `enter<X>P` the child step, `<name>XP` the walk, keyed on an
+address, with the entry carrying its own proof), so `wscopedBGoC` is now
+`wscopedBXP` and `leavesSubGo` is now `leavesSubXP` — the same repoint
+task #98 made in `cached/expr_ops_c.rs`.  Compared clause for clause against
+the new plain descents `wscopedBP` and `leavesSubP`, **no arm of either arena
+walk changed**, and the cutoff upstream moved out into the wrappers
+`wscopedBC` / `leavesSubC` is still made at the head of every recursive call
+here, exactly where `enterWSP` / `enterLSub` make it.  So this is a citation
+edit and a module note in each of the two files, and no code.
+
+**Nothing of con-leche #319's `withExclusive` idiom is owed to this tier, and
+that is a property of the representation, not a deferral.**  The idiom asks
+whether an `Expr` node's reference count is one and skips the memo when it is
+— a node with a single parent cannot be reached twice by the walk inside that
+parent.  The arena has no reference counts: a term is a `u32` handle into a
+per-constructor array, shared by construction, and the question has no answer.
+The idiom also lives in con-leche's CACHED tier, which the arena does not
+mirror (§8.2: the arena's bridge is to the PURE tier), and §8.3's memo policy
+— per-call tables, handle keys, a cutoff off the derived word — is the arena's
+own.  `con-ron-core`'s `ron::node::is_exclusive`, hole #23, is the `Expr`-tier
+port's answer to that same upstream change; the arena tier needs none.
+
+**The `beqGo` trap, scanned for.**  Task #98 found eleven citations that
+`update` had silently relocated onto an enclosing block, because
+`names_compatible` lets a citation of `Expr.beqGo` match a block declaring
+`Expr`.  The same scan over all **4 881** arena citations — every citation
+whose matched declaration is a strict dotted PREFIX of the cited name —
+reports **0 suspects**.
+
+`provenance.py check` ends at **6 557 items (4 804 Rust, 1 753 arena Lean),
+4 881 citations, all current at `78ded4b6`**; `progress.py`'s
+`stale (CHANGED marker)` is 0 (it was the 232 above before the sweep).
+`coverage`'s arena group reads 577/937 twinned (61.6 %) with 16 REDUNDANT
+skip-list findings, all of them pre-existing on the branch (the arena cites
+`CoreGated`/`CoreIO`/`CheckerGated` declarations the RUST port skips
+file-wide) and none of them a bump finding.
+
+#### 3. The stale model the gate found
+
+`scripts/extract.sh --check` failed on the merged tree, and **not because of
+the merge**: the committed model was stale ON THIS BRANCH.  Task #97-P6-7's
+`clear_fit` added `fit_hw`, `FIT_DECAY` and `FIT_SLACK` to
+`ron::hashmap2` and never regenerated `proof/ConRon/Generated/` — that task
+read the standing "nothing under `con-ron-core` moved" ruling of P4b/P4c/P4d,
+and `ron/hashmap2.rs` IS under `con-ron-core`.  `scripts/extract.sh` puts the
+four declarations in; **nothing of master's own regeneration moves**, which is
+the check that the two halves of the merge agree on the model.  The rule for
+the rest of P6: a change to `ron/hashmap2.rs` is a change to the extracted
+crate, and `extract.sh` runs with it.
+
+The same sweep re-pointed the **72** `Lean twin:` line references that the
+marker deletions and the new module note shifted (`arena::expr_ops`, and one
+in `frontend::export_c`); `Core.lean`'s 305 did not move, because `update`
+inserted and this task deleted the same 95 lines.
+
+#### 4. The gates, and the differentials
+
+`scripts/gates.sh`, **all 12 OK**, on this branch, on the committed tree:
+
+| # | gate | |
+|---:|---|---|
+| 1 | `cargo build --release`, `RUSTFLAGS="-D warnings"` | OK (3 s) |
+| 2 | `cargo test --release`, same | OK (8 s), **428 tests**, 0 failures |
+| 3 | `scripts/lint-rust-style.sh` over `con-ron-core` and `arena-core` | OK — including master's new rule, that a count read may select a path and never produce a value |
+| 4 | `scripts/provenance.py check` | OK — 6 557 items, 4 881 citations, all current at `78ded4b6` |
+| 5 | `scripts/provenance-selftest.py` | OK |
+| 6 | `scripts/overview-links.sh` | OK, 70 links, 36 files |
+| 7 | `scripts/holes.sh --check` | OK, 2 types and **21 functions** (hole #23 arrived with master) |
+| 8 | `scripts/gen-pins.sh --check` | OK, **26 721 records / 532 456 bytes** — the same numbers task #98 read, which is what says the bump did not move a pin VALUE |
+| 9 | `scripts/gen-prelude.sh --check` | OK, 267 records / 16 922 bytes |
+| 10 | `scripts/gen-prelude-lean.sh --check` | OK, the same bytes |
+| 11 | `scripts/extract.sh --check` | OK after §3's regeneration |
+| 12 | `cd proof && lake build` | OK (518 s at `LAKE_JOBS=4`) — `ConRon`, `ConRonSpike` and `ConRonArena`, 2 703 jobs |
+
+and `lake build con-ron-lean` on top of it, clean.
+
+**The differentials, all at 383 fixtures** — upstream's set grew from 348 with
+the bump, and the sweep reads the expectation files, so it found the new
+count by itself:
+
+| sweep | |
+|---|---|
+| `diff-e2e.sh --bin=target/release/con-ron-arena --jobs=1` | **383 agree, 0 differ** |
+| same, `--jobs=8` | **383 agree, 0 differ** |
+| same, `--trusted --jobs=8` | **383 agree, 0 differ** |
+| `diff-e2e.sh --bin=proof/.lake/build/bin/con-ron-lean` | **383 agree, 0 differ** |
+
+Task #97-P6-6b's own rows were 348/348; the 35 new fixtures are upstream's,
+and both arena binaries take them without a single edit.
+
+#### 5. `Init`, the regression check
+
+This is a sync, not an optimisation, so `Init` is measured once and nothing
+else is: `perf stat -e instructions:u,cycles:u` around one
+`--verified --jobs=1` run under CLAUDE.md's caps, against task #97-P6-6b's
+own `--jobs=1` row.
+
+| `Init`, `--jobs=1` | instructions:u | cycles:u | wall | peak RSS | verdict |
+|---|---:|---:|---:|---:|---|
+| task #97-P6-6b, before the merge | 422.34 G | 267.19 G | 67.49 s | 0.63 GB | accepted 57 977 |
+| this tree, after it | **422.31 G** | 208.23 G | 47.52 s | 0.63 GB | **accepted 57 977** |
+| and again with task #97-P6-8b's LTO (§1) | **374.25 G** | 185.59 G | 42.43 s | 0.65 GB | **accepted 57 977** |
+
+The second row is the check this task owes: **−0.01 % on the measure of
+record**, which is the same number.  The merge changed no computation of the
+arena, and the citation sweep changed no code.  The third row is the same
+binary rebuilt after §1's second merge, and it reproduces task #97-P6-8b's
+374.4 G to 0.04 %, which is what says that commit's setting survived the
+catch-up intact.  (The cycles and wall columns are not comparable with
+#97-P6-6b's — that row was taken at load 85–160 and these on a much quieter
+machine — which is the reason `instructions:u` is the measure of record at
+all.)  Raw `.perf`/`.time`: `_tmp/t97catchup/`.
+
+#### 6. What is still owed
+
+Unchanged by this task, and listed again so the resumed P6 has it in one
+place:
+
+1. **The Lean catch-up of the Rust-first ledger** (§8.6 P6's rule, task
+   #97-P6-6b §8 item 1): the `ReaderT PersTier` monad and its four sibling
+   items, task #97-P6-4a's `Pins`/`internAllPins`, task #97-P6-5's
+   `internRebuilt`, task #97-P6-7's two clauses.  That is a different
+   catch-up from this one — it is the twin catching up with the Rust, not
+   with con-leche — and it still belongs before P3/P5.
+2. §8.6's deferred levers: the `shared_on` hoist, the `getAppFn` side column,
+   the `instantiateList` multi-substitution the maintainer ruled fair game.
+3. `scripts/diff-e2e.sh`'s header still says "348 fixtures" in prose, as it
+   does on master; the sweep itself reads the expectation files and counts
+   383.

@@ -42,7 +42,7 @@ open ConLeche
 
 /-! ## The error -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:47-66 CheckError — the checker's
+/-- con-leche: ConLeche/Kernel/Core.lean:53-72 CheckError — the checker's
 error, verbatim (census class (P)), plus the fourth constructor the arena
 needs: DESIGN §8.3's handle word runs out at 2^27 nodes per constructor per
 tier and the checker `throw`s `native` there, exactly as the Rust port's
@@ -123,7 +123,7 @@ structure AState where
   caches : Caches
 
 /-- con-leche: ConLeche/Cached/StateC.lean:164-166 CheckCM
-con-leche: ConLeche/Kernel/Core.lean:74 CheckM
+con-leche: ConLeche/Kernel/Core.lean:80 CheckM
 The one monad of (B)
 (DESIGN §8.4: "`AM := StateT AState (Except CheckError)` and nothing
 else"). -/
@@ -132,7 +132,7 @@ abbrev AM := StateT AState (Except CheckError)
 /-- con-leche: none — the initial state over a given arena. -/
 def AState.init (st : EStore) : AState := ⟨st, .empty, .empty⟩
 
-/-- con-leche: ConLeche/Kernel/Core.lean:47-66 CheckError — **the one failure
+/-- con-leche: ConLeche/Kernel/Core.lean:53-72 CheckError — **the one failure
 primitive of (B)** (task #97s template rule 7).  Written as a bare `throw`,
 the `MonadExceptOf` instance path through `StateT` leaves `mvcgen` with
 universe metavariables (`Spec.throw_Except.{?u, ?u, 0}`) and no spec applies;
@@ -141,7 +141,7 @@ def fail {α : Type} (e : CheckError) : AM α := throwThe CheckError e
 
 /-! ## The expression store's primitives -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — decode a handle.  A
+/-- con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr — decode a handle.  A
 dangling handle is an internal error: the checker never builds one, and the
 bridge claims nothing on failure. -/
 @[inline] def view (h : EIdx) : AM ENodeView := do
@@ -150,7 +150,7 @@ bridge claims nothing on failure. -/
   | some v => pure v
   | none => fail (.internal "arena: dangling expression handle")
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:343-402 Expr — the packed derived
+/-- con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr — the packed derived
 word of a handle (the `data` computed field, lines 357-402), read in `O(1)`
 off the derived column. -/
 @[inline] def derivedE (h : EIdx) : AM UInt64 := do
@@ -230,7 +230,7 @@ def internName : ConLeche.Name → AM NIdx
 
 /-! ## The level store's primitives -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:40-53 Level — decode a level
+/-- con-leche: ConLeche/Kernel/Expr.lean:41-54 Level — decode a level
 handle. -/
 @[inline] def viewL (h : LIdx) : AM LNodeView := do
   let s ← get
@@ -238,7 +238,7 @@ handle. -/
   | some v => pure v
   | none => fail (.internal "arena: dangling level handle")
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:40-53 Level — the level's derived
+/-- con-leche: ConLeche/Kernel/Expr.lean:41-54 Level — the level's derived
 pair (its 32-bit hash and its `hasParam` bit, the computed field at lines
 47-53), read in `O(1)`. -/
 @[inline] def derivedL (h : LIdx) : AM LDer := do
@@ -270,7 +270,7 @@ def readLevel (h : LIdx) : AM Level := do
   | some l => pure l
   | none => fail (.internal "arena: dangling level handle")
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:40-53 Level — intern a transient
+/-- con-leche: ConLeche/Kernel/Expr.lean:41-54 Level — intern a transient
 level tree.  Structural on `Level`, so no fuel. -/
 def internLevel : Level → AM LIdx
   | .zero => internLNode .zero
@@ -291,7 +291,7 @@ def internLevel : Level → AM LIdx
 
 /-! ## The level-list store's primitives -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:343-353 Expr — decode a
+/-- con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr — decode a
 universe-argument list handle (the `const` node's second field, line 347). -/
 @[inline] def viewLs (h : LsIdx) : AM LsNodeView := do
   let s ← get
@@ -480,12 +480,12 @@ the `liftLooseBVars` memo (it depends on `amount`). -/
   let s ← get
   set { s with memos := { s.memos with resetC := ∅ } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:999-1036 renameConstsGo — probe
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1001-1038 renameConstsGo — probe
 the `renameConsts` memo. -/
 @[inline] def renameGet (k : EIdx × Nat) : AM (Option EIdx) := do
   let s ← get; pure s.memos.renameC[k]?
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:999-1036 renameConstsGo — record a
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1001-1038 renameConstsGo — record a
 `renameConsts` answer. -/
 @[noinline] def renameSet (k : EIdx × Nat) (r : EIdx) : AM Unit := do
   let s ← get
@@ -493,18 +493,18 @@ the `renameConsts` memo. -/
   let s := { s with memos := { s.memos with renameC := ∅ } }
   set { s with memos := { s.memos with renameC := mp.insert k r } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1109-1111 renameConstsFast — drop
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1111-1113 renameConstsFast — drop
 the `renameConsts` memo (it depends on the renaming). -/
 @[noinline] def renameClear : AM Unit := do
   let s ← get
   set { s with memos := { s.memos with renameC := ∅ } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1789-1833 abstract1Go — probe the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1791-1835 abstract1Go — probe the
 `abstract1` memo. -/
 @[inline] def abs1Get (k : EIdx × Nat) : AM (Option EIdx) := do
   let s ← get; pure s.memos.abs1C[k]?
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1789-1833 abstract1Go — record an
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1791-1835 abstract1Go — record an
 `abstract1` answer. -/
 @[noinline] def abs1Set (k : EIdx × Nat) (r : EIdx) : AM Unit := do
   let s ← get
@@ -512,18 +512,18 @@ the `renameConsts` memo (it depends on the renaming). -/
   let s := { s with memos := { s.memos with abs1C := ∅ } }
   set { s with memos := { s.memos with abs1C := mp.insert k r } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1927-1929 abstract1Fast — drop the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1929-1931 abstract1Fast — drop the
 `abstract1` memo (it depends on `d`). -/
 @[noinline] def abs1Clear : AM Unit := do
   let s ← get
   set { s with memos := { s.memos with abs1C := ∅ } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2012-2049 lowerBVarsGo — probe the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2014-2051 lowerBVarsGo — probe the
 `lowerBVars` memo. -/
 @[inline] def lowerGet (k : EIdx × Nat) : AM (Option EIdx) := do
   let s ← get; pure s.memos.lowerC[k]?
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2012-2049 lowerBVarsGo — record a
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2014-2051 lowerBVarsGo — record a
 `lowerBVars` answer. -/
 @[noinline] def lowerSet (k : EIdx × Nat) (r : EIdx) : AM Unit := do
   let s ← get
@@ -531,18 +531,18 @@ the `renameConsts` memo (it depends on the renaming). -/
   let s := { s with memos := { s.memos with lowerC := ∅ } }
   set { s with memos := { s.memos with lowerC := mp.insert k r } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2144-2146 lowerBVarsFast — drop
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2146-2148 lowerBVarsFast — drop
 the `lowerBVars` memo (it depends on `amount`). -/
 @[noinline] def lowerClear : AM Unit := do
   let s ← get
   set { s with memos := { s.memos with lowerC := ∅ } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2222-2261 instantiate1LiftGo —
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2224-2263 instantiate1LiftGo —
 probe the `instantiate1Lift` memo. -/
 @[inline] def inst1LGet (k : EIdx × Nat) : AM (Option EIdx) := do
   let s ← get; pure s.memos.inst1LC[k]?
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2222-2261 instantiate1LiftGo —
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2224-2263 instantiate1LiftGo —
 record an `instantiate1Lift` answer. -/
 @[noinline] def inst1LSet (k : EIdx × Nat) (r : EIdx) : AM Unit := do
   let s ← get
@@ -550,18 +550,18 @@ record an `instantiate1Lift` answer. -/
   let s := { s with memos := { s.memos with inst1LC := ∅ } }
   set { s with memos := { s.memos with inst1LC := mp.insert k r } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2356-2358 instantiate1LiftFast —
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2358-2360 instantiate1LiftFast —
 drop the `instantiate1Lift` memo (it depends on `v`). -/
 @[noinline] def inst1LClear : AM Unit := do
   let s ← get
   set { s with memos := { s.memos with inst1LC := ∅ } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2564-2603 Expr.instLPGo — probe
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo — probe
 the level-substitution memo. -/
 @[inline] def instLPGet (k : EIdx × Nat) : AM (Option EIdx) := do
   let s ← get; pure s.memos.instLPC[k]?
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2564-2603 Expr.instLPGo — record a
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo — record a
 level-substitution answer. -/
 @[noinline] def instLPSet (k : EIdx × Nat) (r : EIdx) : AM Unit := do
   let s ← get
@@ -569,18 +569,18 @@ level-substitution answer. -/
   let s := { s with memos := { s.memos with instLPC := ∅ } }
   set { s with memos := { s.memos with instLPC := mp.insert k r } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2718-2720 Expr.instLPFast — drop
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2720-2722 Expr.instLPFast — drop
 the level-substitution memo (it depends on `ks` and `us`). -/
 @[noinline] def instLPClear : AM Unit := do
   let s ← get
   set { s with memos := { s.memos with instLPC := ∅ } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1368-1392 bvarBoundGo — probe the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1370-1394 bvarBoundGo — probe the
 loose-bvar-bound memo. -/
 @[inline] def bvarBGet (k : EIdx) : AM (Option Nat) := do
   let s ← get; pure s.memos.bvarBC[k]?
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1368-1392 bvarBoundGo — record a
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1370-1394 bvarBoundGo — record a
 loose-bvar bound. -/
 @[noinline] def bvarBSet (k : EIdx) (r : Nat) : AM Unit := do
   let s ← get
@@ -588,18 +588,18 @@ loose-bvar bound. -/
   let s := { s with memos := { s.memos with bvarBC := ∅ } }
   set { s with memos := { s.memos with bvarBC := mp.insert k r } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1394-1395 bvarBoundMemo — drop the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1396-1397 bvarBoundMemo — drop the
 loose-bvar-bound memo. -/
 @[noinline] def bvarBClear : AM Unit := do
   let s ← get
   set { s with memos := { s.memos with bvarBC := ∅ } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1397-1422 fvarRangeGo — probe the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1399-1424 fvarRangeGo — probe the
 fvar-range memo. -/
 @[inline] def fvarBGet (k : EIdx) : AM (Option Nat) := do
   let s ← get; pure s.memos.fvarBC[k]?
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1397-1422 fvarRangeGo — record an
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1399-1424 fvarRangeGo — record an
 fvar range. -/
 @[noinline] def fvarBSet (k : EIdx) (r : Nat) : AM Unit := do
   let s ← get
@@ -607,7 +607,7 @@ fvar range. -/
   let s := { s with memos := { s.memos with fvarBC := ∅ } }
   set { s with memos := { s.memos with fvarBC := mp.insert k r } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1424-1425 fvarRangeMemo — drop the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1426-1427 fvarRangeMemo — drop the
 fvar-range memo. -/
 @[noinline] def fvarBClear : AM Unit := do
   let s ← get
