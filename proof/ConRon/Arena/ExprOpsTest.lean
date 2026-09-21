@@ -215,6 +215,18 @@ private def chkE (c : AM EIdx) (expect : Expr) : Bool :=
   | .ok (r, s') => denoteE s'.store r == some expect
   | .error _ => false
 
+/-- con-leche: none — two handle-valued twins agree on the DENOTATION: what an
+executed walk owes its spec (task #97-P6-11's `abstractRangeC = abstractRange`).
+Each runs from the same initial store, so the two handles may differ; the
+denotations may not. -/
+private def chkSame (a b : AM EIdx) : Bool :=
+  match a.run S0, b.run S0 with
+  | .ok (x, s), .ok (y, t) =>
+    match denoteE s.store x, denoteE t.store y with
+    | some u, some v => u == v
+    | _, _ => false
+  | _, _ => false
+
 /-- con-leche: none — an `Option EIdx`-valued twin. -/
 private def chkOE (c : AM (Option EIdx)) (expect : Option Expr) : Bool :=
   match c.run S0, expect with
@@ -292,17 +304,29 @@ private def chkBinders (c : AM (Option (List (EIdx × BinderMeta) × EIdx)))
 
 /-! ## `instantiateList` — `ExprOps.lean:191-235`, `:267-303`, `:371-373` -/
 
-#guard chkE (instantiateListFast F fx.big [fx.cf, fx.s1] 0)
+-- **The accumulator is an `Array` in PUSH order** (task #97-P6-15's clause
+-- change, the maintainer's ruling): the array denotes the REVERSED list, so
+-- con-leche's `[cf, s1]` is the twin's `#[s1, cf]`.  These guards are the
+-- reversal's own test.
+#guard chkE (instantiateListFast F fx.big #[fx.s1, fx.cf] 0)
   ((E fx.big).instantiateList [E fx.cf, E fx.s1] 0)
-#guard chkE (instantiateListFast F fx.big [fx.cf, fx.s1] 1)
+#guard chkE (instantiateListFast F fx.big #[fx.s1, fx.cf] 1)
   ((E fx.big).instantiateList [E fx.cf, E fx.s1] 1)
-#guard chkE (instantiateListFast F fx.letT [fx.fv0] 0)
+#guard chkE (instantiateListFast F fx.letT #[fx.fv0] 0)
   ((E fx.letT).instantiateList [E fx.fv0] 0)
-#guard chkE (instantiateListFast F fx.b2 [fx.cf] 0) ((E fx.b2).instantiateList [E fx.cf] 0)
+#guard chkE (instantiateListFast F fx.b2 #[fx.cf] 0) ((E fx.b2).instantiateList [E fx.cf] 0)
 -- the unmemoized walk (the one `instantiateListGo`'s `bvar` arm calls)
-#guard chkE (instantiateList [fx.cf, fx.s1] F fx.big 0)
+#guard chkE (instantiateList #[fx.s1, fx.cf] F fx.big 0)
   ((E fx.big).instantiateList [E fx.cf, E fx.s1] 0)
-#guard chkE (instantiateList [fx.cf] F fx.b0 0) ((E fx.b0).instantiateList [E fx.cf] 0)
+#guard chkE (instantiateList #[fx.cf] F fx.b0 0) ((E fx.b0).instantiateList [E fx.cf] 0)
+-- the executed `abstractRange` against the spec descent it is proved from
+#guard chkSame (abstractRangeFast F fx.big 0 1 0) (abstractRange F fx.big 0 1 0)
+#guard chkSame (abstractRangeFast F fx.big 0 2 0) (abstractRange F fx.big 0 2 0)
+#guard chkSame (abstractRangeFast F fx.letT 0 1 0) (abstractRange F fx.letT 0 1 0)
+-- `k = 0` is the identity, even on a term that HAS free variables
+#guard chkSame (abstractRangeFast F fx.fv0 0 0 0) (pure fx.fv0)
+-- and at `k = 1` it is `abstract1` (con-leche's `abstractRange_succ`)
+#guard chkSame (abstractRangeFast F fx.big 0 1 0) (abstract1Fast F fx.big 0 0)
 
 /-! ## `liftLooseBVars` — `ExprOps.lean:380-400`, `:430-466`, `:532-534` -/
 
@@ -457,14 +481,14 @@ private def renP (n : ConLeche.Name) : ConLeche.Name :=
   (Expr.instLamsAt [E fx.cf, E fx.s1] (E fx.lamT2))
 #guard chkPair (instLamsAt F [fx.cf] fx.piT) (Expr.instLamsAt [E fx.cf] (E fx.piT))
 
-#guard chkPair (instPisAtFGo F [] [fx.cf, fx.s1] fx.piT)
+#guard chkPair (instPisAtFGo F #[] [fx.cf, fx.s1] fx.piT)
   (Expr.instPisAtFGo [] [E fx.cf, E fx.s1] (E fx.piT))
-#guard chkPair (instPisAtFGo F [fx.fv0] [fx.cf] fx.piT)
+#guard chkPair (instPisAtFGo F #[fx.fv0] [fx.cf] fx.piT)
   (Expr.instPisAtFGo [E fx.fv0] [E fx.cf] (E fx.piT))
 #guard chkPair (instPisAtF F [fx.cf, fx.s1] fx.piT)
   (Expr.instPisAtF [E fx.cf, E fx.s1] (E fx.piT))
 #guard chkPair (instPisAtF F [fx.cf] fx.lamT2) (Expr.instPisAtF [E fx.cf] (E fx.lamT2))
-#guard chkPair (instLamsAtFGo F [] [fx.cf, fx.s1] fx.lamT2)
+#guard chkPair (instLamsAtFGo F #[] [fx.cf, fx.s1] fx.lamT2)
   (Expr.instLamsAtFGo [] [E fx.cf, E fx.s1] (E fx.lamT2))
 #guard chkPair (instLamsAtF F [fx.cf, fx.s1] fx.lamT2)
   (Expr.instLamsAtF [E fx.cf, E fx.s1] (E fx.lamT2))

@@ -2009,7 +2009,10 @@ variables in ONE traversal. -/
 def IProjEntry.typeAt (entry : IProjEntry) (us : LsIdx) (targs : List EIdx)
     (pe : EIdx) : AM EIdx := do
   let b ← instLPFast coreWalkFuel entry.levelParams us entry.body
-  instantiateListFast coreWalkFuel b (pe :: targs.reverse) 0
+  -- push order (task #97-P6-15): `pe :: targs.reverse` as a list is
+  -- `targs ++ [pe]` as a push-order array, which is what the accumulator
+  -- ruling makes every substituting site look like.
+  instantiateListFast coreWalkFuel b (targs.toArray.push pe) 0
 
 /-- con-leche: ConLeche/Kernel/Core.lean:912-947 projCert — **the
 structural projection's certificate**: the redex `proj_i (C p⃗ x⃗)` fires only

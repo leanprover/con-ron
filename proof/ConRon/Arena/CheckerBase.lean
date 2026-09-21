@@ -388,7 +388,7 @@ def openPisAtFvars : Nat → EIdx → Nat → AM (Option (List EIdx × EIdx))
 core of `openPisAtFvarsF`: `acc` holds the already-created fvars, innermost
 binder first.  One `instantiateList` pass per domain instead of one
 whole-telescope `instantiate1` pass per binder. -/
-def openPisAtFvarsFGo (acc : List EIdx) :
+def openPisAtFvarsFGo (acc : Array EIdx) :
     Nat → EIdx → Nat → AM (Option (List EIdx × EIdx))
   | 0, e, _ => do pure (some ([], ← instantiateListFast coreWalkFuel e acc 0))
   | n + 1, h, i => do
@@ -396,7 +396,7 @@ def openPisAtFvarsFGo (acc : List EIdx) :
     | .forallE dom body _ => do
       let d ← instantiateListFast coreWalkFuel dom acc 0
       let fv ← internE (.fvar i d)
-      match ← openPisAtFvarsFGo (fv :: acc) n body (i + 1) with
+      match ← openPisAtFvarsFGo (acc.push fv) n body (i + 1) with
       | some (fvs, e) => pure (some (fv :: fvs, e))
       | none => pure none
     | _ => pure none
@@ -406,7 +406,7 @@ one-pass `openPisAtFvars` (the fallback covers telescopes whose binders only
 appear after substitution). -/
 def openPisAtFvarsF (n : Nat) (e : EIdx) (i : Nat) :
     AM (Option (List EIdx × EIdx)) := do
-  match ← openPisAtFvarsFGo [] n e i with
+  match ← openPisAtFvarsFGo #[] n e i with
   | some r => pure (some r)
   | none => openPisAtFvars n e i
 
