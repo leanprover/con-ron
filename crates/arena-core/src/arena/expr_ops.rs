@@ -3625,160 +3625,138 @@ pub fn abstract_range_go(
                 if fb <= d {
                     Ok(h.dup2())
                 } else {
-                    match view(pers, st, h) {
-                        Err(e) => Err(e),
-                        Ok(ENodeView::BVar(_)) => Ok(h.dup2()),
-                        Ok(ENodeView::FVar(idx, _)) => {
-                            if d <= idx && idx < d + k {
-                                intern_e(pers, st, ENodeView::BVar(c + (d + k - 1 - idx)))
-                            } else {
-                                Ok(h.dup2())
-                            }
-                        }
-                        Ok(ENodeView::Sort(_)) => Ok(h.dup2()),
-                        Ok(ENodeView::Const(_, _)) => Ok(h.dup2()),
-                        Ok(ENodeView::Lit(_)) => Ok(h.dup2()),
-                        Ok(ENodeView::App(f, a)) => {
-                            let ky: EIdxNat = eidx_nat_key(h, c);
-                            match abs1_get(st, &ky) {
-                                Some(r) => Ok(r),
-                                None => match abstract_range_go(pers, st, d, k, fuel - 1, &f, c) {
-                                    Err(e) => Err(e),
-                                    Ok(f2) => {
-                                        match abstract_range_go(pers, st, d, k, fuel - 1, &a, c) {
-                                            Err(e) => Err(e),
-                                            Ok(a2) => {
-                                                let same: bool = f2.eq2(&f) && a2.eq2(&a);
-                                                match intern_rebuilt(
-                                                    pers,
-                                                    st,
-                                                    h,
-                                                    same,
-                                                    ENodeView::App(f2, a2),
-                                                ) {
-                                                    Err(e) => Err(e),
-                                                    Ok(r) => {
-                                                        abs1_set(st, ky, &r);
-                                                        Ok(r)
+                    let tg: u32 = h.tag();
+                    if tg == ETAG_APP {
+                        let ky: EIdxNat = eidx_nat_key(h, c);
+                        match abs1_get(st, &ky) {
+                            Some(r) => Ok(r),
+                            None => match view_app(pers, st, h) {
+                                None => fail_dangling_e(),
+                                Some(p) => {
+                                    let f: EIdx = p.0;
+                                    let a: EIdx = p.1;
+                                    match abstract_range_go(pers, st, d, k, fuel - 1, &f, c) {
+                                        Err(e) => Err(e),
+                                        Ok(f2) => {
+                                            match abstract_range_go(pers, st, d, k, fuel - 1, &a, c)
+                                            {
+                                                Err(e) => Err(e),
+                                                Ok(a2) => {
+                                                    let same: bool = f2.eq2(&f) && a2.eq2(&a);
+                                                    match intern_rebuilt(
+                                                        pers,
+                                                        st,
+                                                        h,
+                                                        same,
+                                                        ENodeView::App(f2, a2),
+                                                    ) {
+                                                        Err(e) => Err(e),
+                                                        Ok(r) => {
+                                                            abs1_set(st, ky, &r);
+                                                            Ok(r)
+                                                        }
                                                     }
                                                 }
                                             }
                                         }
                                     }
-                                },
-                            }
+                                }
+                            },
                         }
-                        Ok(ENodeView::Lam(ty, body, m)) => {
-                            let ky: EIdxNat = eidx_nat_key(h, c);
-                            match abs1_get(st, &ky) {
-                                Some(r) => Ok(r),
-                                None => match abstract_range_go(pers, st, d, k, fuel - 1, &ty, c) {
-                                    Err(e) => Err(e),
-                                    Ok(t) => {
-                                        match abstract_range_go(
-                                            pers,
-                                            st,
-                                            d,
-                                            k,
-                                            fuel - 1,
-                                            &body,
-                                            c + 1,
-                                        ) {
-                                            Err(e) => Err(e),
-                                            Ok(b2) => {
-                                                let same: bool = t.eq2(&ty) && b2.eq2(&body);
-                                                match intern_rebuilt(
-                                                    pers,
-                                                    st,
-                                                    h,
-                                                    same,
-                                                    ENodeView::Lam(t, b2, m),
-                                                ) {
-                                                    Err(e) => Err(e),
-                                                    Ok(r) => {
-                                                        abs1_set(st, ky, &r);
-                                                        Ok(r)
+                    } else if e_tag_is_bind(tg) {
+                        let ky: EIdxNat = eidx_nat_key(h, c);
+                        match abs1_get(st, &ky) {
+                            Some(r) => Ok(r),
+                            None => match view_bind(pers, st, h) {
+                                None => fail_dangling_e(),
+                                Some(p) => {
+                                    let ty: EIdx = p.0;
+                                    let body: EIdx = p.1;
+                                    let m: BinderMeta = p.2;
+                                    match abstract_range_go(pers, st, d, k, fuel - 1, &ty, c) {
+                                        Err(e) => Err(e),
+                                        Ok(t) => {
+                                            match abstract_range_go(
+                                                pers,
+                                                st,
+                                                d,
+                                                k,
+                                                fuel - 1,
+                                                &body,
+                                                c + 1,
+                                            ) {
+                                                Err(e) => Err(e),
+                                                Ok(b2) => {
+                                                    let same: bool = t.eq2(&ty) && b2.eq2(&body);
+                                                    let nv: ENodeView = e_bind_view(tg, t, b2, m);
+                                                    match intern_rebuilt(pers, st, h, same, nv) {
+                                                        Err(e) => Err(e),
+                                                        Ok(r) => {
+                                                            abs1_set(st, ky, &r);
+                                                            Ok(r)
+                                                        }
                                                     }
                                                 }
                                             }
                                         }
                                     }
-                                },
+                                }
+                            },
+                        }
+                    } else if tg == ETAG_FVAR {
+                        match view_fvar_idx(pers, st, h) {
+                            None => fail_dangling_e(),
+                            Some(idx) => {
+                                if d <= idx && idx < d + k {
+                                    intern_e(pers, st, ENodeView::BVar(c + (d + k - 1 - idx)))
+                                } else {
+                                    Ok(h.dup2())
+                                }
                             }
                         }
-                        Ok(ENodeView::ForallE(ty, body, m)) => {
-                            let ky: EIdxNat = eidx_nat_key(h, c);
-                            match abs1_get(st, &ky) {
-                                Some(r) => Ok(r),
-                                None => match abstract_range_go(pers, st, d, k, fuel - 1, &ty, c) {
-                                    Err(e) => Err(e),
-                                    Ok(t) => {
-                                        match abstract_range_go(
-                                            pers,
-                                            st,
-                                            d,
-                                            k,
-                                            fuel - 1,
-                                            &body,
-                                            c + 1,
-                                        ) {
-                                            Err(e) => Err(e),
-                                            Ok(b2) => {
-                                                let same: bool = t.eq2(&ty) && b2.eq2(&body);
-                                                match intern_rebuilt(
-                                                    pers,
-                                                    st,
-                                                    h,
-                                                    same,
-                                                    ENodeView::ForallE(t, b2, m),
-                                                ) {
-                                                    Err(e) => Err(e),
-                                                    Ok(r) => {
-                                                        abs1_set(st, ky, &r);
-                                                        Ok(r)
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                },
-                            }
-                        }
-                        Ok(ENodeView::LetE(ty, val, body)) => {
-                            let ky: EIdxNat = eidx_nat_key(h, c);
-                            match abs1_get(st, &ky) {
-                                Some(r) => Ok(r),
-                                None => match abstract_range_go(pers, st, d, k, fuel - 1, &ty, c) {
-                                    Err(e) => Err(e),
-                                    Ok(t) => {
-                                        match abstract_range_go(pers, st, d, k, fuel - 1, &val, c) {
-                                            Err(e) => Err(e),
-                                            Ok(w) => {
-                                                match abstract_range_go(
-                                                    pers,
-                                                    st,
-                                                    d,
-                                                    k,
-                                                    fuel - 1,
-                                                    &body,
-                                                    c + 1,
-                                                ) {
-                                                    Err(e) => Err(e),
-                                                    Ok(b2) => {
-                                                        let same: bool = t.eq2(&ty)
-                                                            && w.eq2(&val)
-                                                            && b2.eq2(&body);
-                                                        match intern_rebuilt(
-                                                            pers,
-                                                            st,
-                                                            h,
-                                                            same,
-                                                            ENodeView::LetE(t, w, b2),
-                                                        ) {
-                                                            Err(e) => Err(e),
-                                                            Ok(r) => {
-                                                                abs1_set(st, ky, &r);
-                                                                Ok(r)
+                    } else if tg == ETAG_LET_E {
+                        let ky: EIdxNat = eidx_nat_key(h, c);
+                        match abs1_get(st, &ky) {
+                            Some(r) => Ok(r),
+                            None => match view_let(pers, st, h) {
+                                None => fail_dangling_e(),
+                                Some(p) => {
+                                    let ty: EIdx = p.0;
+                                    let val: EIdx = p.1;
+                                    let body: EIdx = p.2;
+                                    match abstract_range_go(pers, st, d, k, fuel - 1, &ty, c) {
+                                        Err(e) => Err(e),
+                                        Ok(t) => {
+                                            match abstract_range_go(pers, st, d, k, fuel - 1, &val, c)
+                                            {
+                                                Err(e) => Err(e),
+                                                Ok(w) => {
+                                                    match abstract_range_go(
+                                                        pers,
+                                                        st,
+                                                        d,
+                                                        k,
+                                                        fuel - 1,
+                                                        &body,
+                                                        c + 1,
+                                                    ) {
+                                                        Err(e) => Err(e),
+                                                        Ok(b2) => {
+                                                            let same: bool = t.eq2(&ty)
+                                                                && w.eq2(&val)
+                                                                && b2.eq2(&body);
+                                                            match intern_rebuilt(
+                                                                pers,
+                                                                st,
+                                                                h,
+                                                                same,
+                                                                ENodeView::LetE(t, w, b2),
+                                                            ) {
+                                                                Err(e) => Err(e),
+                                                                Ok(r) => {
+                                                                    abs1_set(st, ky, &r);
+                                                                    Ok(r)
+                                                                }
                                                             }
                                                         }
                                                     }
@@ -3786,34 +3764,43 @@ pub fn abstract_range_go(
                                             }
                                         }
                                     }
-                                },
-                            }
+                                }
+                            },
                         }
-                        Ok(ENodeView::Proj(n, i, sub)) => {
-                            let ky: EIdxNat = eidx_nat_key(h, c);
-                            match abs1_get(st, &ky) {
-                                Some(r) => Ok(r),
-                                None => match abstract_range_go(pers, st, d, k, fuel - 1, &sub, c) {
-                                    Err(e) => Err(e),
-                                    Ok(u) => {
-                                        let same: bool = u.eq2(&sub);
-                                        match intern_rebuilt(
-                                            pers,
-                                            st,
-                                            h,
-                                            same,
-                                            ENodeView::Proj(n, i, u),
-                                        ) {
-                                            Err(e) => Err(e),
-                                            Ok(r) => {
-                                                abs1_set(st, ky, &r);
-                                                Ok(r)
+                    } else if tg == ETAG_PROJ {
+                        let ky: EIdxNat = eidx_nat_key(h, c);
+                        match abs1_get(st, &ky) {
+                            Some(r) => Ok(r),
+                            None => match view_proj(pers, st, h) {
+                                None => fail_dangling_e(),
+                                Some(p) => {
+                                    let n: NIdx = p.0;
+                                    let i: u64 = p.1;
+                                    let sub: EIdx = p.2;
+                                    match abstract_range_go(pers, st, d, k, fuel - 1, &sub, c) {
+                                        Err(e) => Err(e),
+                                        Ok(u) => {
+                                            let same: bool = u.eq2(&sub);
+                                            match intern_rebuilt(
+                                                pers,
+                                                st,
+                                                h,
+                                                same,
+                                                ENodeView::Proj(n, i, u),
+                                            ) {
+                                                Err(e) => Err(e),
+                                                Ok(r) => {
+                                                    abs1_set(st, ky, &r);
+                                                    Ok(r)
+                                                }
                                             }
                                         }
                                     }
-                                },
-                            }
+                                }
+                            },
                         }
+                    } else {
+                        Ok(h.dup2())
                     }
                 }
             }
