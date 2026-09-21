@@ -95,7 +95,7 @@ use crate::arena::handle::{
     ETAG_LIT, ETAG_PROJ, ETAG_SORT,
 };
 use crate::arena::monad::{
-    AState, fail, fail_dangling_e, fail_dangling_ls, intern_e_app, intern_e_bvar, intern_e_const, intern_e_forall_e, intern_e_fvar, intern_e_lam, intern_e_let_e, intern_e_lit, intern_e_proj, intern_e_sort, intern_l_node, intern_level, intern_ls_node, intern_n_node, intern_name, read_level_m, read_levels_m, read_name_m, read_names_m, view, view_app, view_bind, view_bvar, view_const, view_const_name, view_lit, view_ls, view_ls_len, view_sort,
+    AState, fail, fail_dangling_e, fail_dangling_ls, intern_e_app, intern_e_bvar, intern_e_const, intern_e_forall_e, intern_e_fvar, intern_e_lam, intern_e_let_e, intern_e_lit, intern_e_proj, intern_e_sort, intern_l_node, intern_level, intern_ls_node, intern_n_node, intern_name, read_level_m, read_levels_m, read_name_m, read_names_m, view, view_app, view_bind, view_bind_i, view_bvar, view_const, view_const_name, view_lit, view_ls, view_ls_len, view_sort,
 };
 use crate::arena::prop_read::{is_proof_fast, not_proof_fast, proof_pw, type_sort_pw};
 use crate::arena::store::{ENodeView, LNodeView, NNodeView};
@@ -9426,9 +9426,9 @@ pub fn defeq_peel(
             pers, vis, st, mode, lane, fuel, fe, d, a, b, k, fvs, mism, mism_lam,
         )
     } else {
-        match view_bind(pers, st, a) {
+        match view_bind_i(pers, st, a) {
             None => fail_dangling_e(),
-            Some(pa) => match view_bind(pers, st, b) {
+            Some(pa) => match view_bind_i(pers, st, b) {
                 None => fail_dangling_e(),
                 Some(pb) => {
                     // The domains are the same walk of the same input when the
@@ -9462,10 +9462,21 @@ pub fn defeq_peel(
                                                 Ok(fv) => {
                                                     let mut fvs2: Vec<EIdx> = fvs;
                                                     fvs2.push(fv);
+                                                    // The annotation test is
+                                                    // the datum HANDLES (task
+                                                    // #97-P6-16): the binder
+                                                    // datum is interned, so
+                                                    // `BMIdx` equality IS
+                                                    // `PropWhen` equality — the
+                                                    // cons table's own
+                                                    // exactness — and the
+                                                    // innermost-first order of
+                                                    // the chain's test is
+                                                    // unchanged.
                                                     let mm: bool =
                                                         con_ron_core::kernel::env::verified_checks(
                                                             mode,
-                                                        ) && !prop_when::beq(&pa.2.pw, &pb.2.pw);
+                                                        ) && !pa.2.eq2(&pb.2);
                                                     let m2: bool = mism || mm;
                                                     let ml2: bool = if mm {
                                                         ta == ETAG_LAM

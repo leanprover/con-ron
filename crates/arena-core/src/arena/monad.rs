@@ -64,7 +64,8 @@
 
 use crate::arena::core_state::reset_map;
 use crate::arena::core_state::Caches;
-use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
+use crate::arena::handle::{BMIdx, EIdx, LIdx, LsIdx, NIdx};
+use crate::arena::handle::ETAG_LAM;
 use crate::arena::pins::Pins;
 use crate::arena::store::{
     ENodeView, EStore, LDer, LNodeView, LStore, LsNodeView, LsStore, NNodeView, NStore,
@@ -442,6 +443,14 @@ pub fn view_bind(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(EIdx, EIdx, 
     st.store.view_bind(pers, h)
 }
 
+/// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
+/// Lean twin: OWED (task #97-P6-16) — `viewBindI`, the binder projection that
+/// stops at the datum's HANDLE (see `EStore::view_bind_i`).
+#[inline(always)]
+pub fn view_bind_i(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(EIdx, EIdx, BMIdx)> {
+    st.store.view_bind_i(pers, h)
+}
+
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
 /// Lean twin: OWED (task #97-P6-10) — `viewLet`, the `letE` projection.
 #[inline(always)]
@@ -594,6 +603,54 @@ pub fn intern_e_lam(
     m: BinderMeta,
 ) -> Result<EIdx, CheckError> {
     st.store.intern_lam(pers, ty, body, m)
+}
+
+/// con-leche: none — hash-cons an expression node
+/// Lean twin: OWED (task #97-P6-16) — `internLamIE`, the `lam` arm of
+/// `internE` at a binder datum the caller already holds as a HANDLE.
+#[inline(always)]
+pub fn intern_e_lam_i(
+    pers: &PersTier,
+    st: &mut AState,
+    ty: EIdx,
+    body: EIdx,
+    m: BMIdx,
+) -> Result<EIdx, CheckError> {
+    st.store.intern_lam_i(pers, ty, body, m)
+}
+
+/// con-leche: none — hash-cons an expression node
+/// Lean twin: OWED (task #97-P6-16) — `internForallEIE`, the `forall_e` arm of
+/// `internE` at a binder datum the caller already holds as a HANDLE.
+#[inline(always)]
+pub fn intern_e_forall_e_i(
+    pers: &PersTier,
+    st: &mut AState,
+    ty: EIdx,
+    body: EIdx,
+    m: BMIdx,
+) -> Result<EIdx, CheckError> {
+    st.store.intern_forall_e_i(pers, ty, body, m)
+}
+
+/// con-leche: none — hash-cons an expression node
+/// Lean twin: OWED (task #97-P6-16) — `internBindIE`, the two binder arms at a
+/// tag the caller carries and a datum it holds as a handle: the shape the
+/// rebuilding walks want, where `e_bind_view` + `internE` stood.
+#[inline(always)]
+pub fn intern_e_bind_i(
+    pers: &PersTier,
+    st: &mut AState,
+    tag: u32,
+    ty: EIdx,
+    body: EIdx,
+    m: BMIdx,
+) -> Result<EIdx, CheckError> {
+    if tag == ETAG_LAM {
+        st.store.intern_lam_i(pers, ty, body, m)
+    } else {
+        st.store.intern_forall_e_i(pers, ty, body, m)
+    }
 }
 
 /// con-leche: none — hash-cons an expression node
