@@ -91,7 +91,7 @@
 
 use crate::arena::env::nidx_vec_dup;
 use crate::arena::expr_ops;
-use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx, ETAG_BVAR, ETAG_CONST, ETAG_FORALL_E, ETAG_LAM, ETAG_PROJ, ETAG_SORT};
+use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx, ETAG_BVAR, ETAG_CONST, ETAG_FORALL_E, ETAG_LAM, ETAG_PROJ, ETAG_SORT, NTAG_STR};
 use crate::arena::inductives::native_parts;
 use crate::arena::inductives::struct_parts;
 use crate::arena::monad::{fail, intern_e, intern_l_node, intern_ls_node, intern_n_node, intern_name, view, view_ls, view_n, AState, fail_dangling_e, view_bind, view_bvar, view_const, view_const_name, view_proj, view_sort, read_level_m};
@@ -223,16 +223,20 @@ pub fn proj_iota_name(
 /// — is `n` of the shape `X._model.proj_i.iota`?  The cheap pre-filter for the
 /// theorem records; the last component decides before anything is compared.
 pub fn is_proj_iota_name(pers: &PersTier, st: &AState, n: &NIdx) -> Result<bool, CheckError> {
-    match view_n(pers, st, n) {
-        Err(e) => Err(e),
-        Ok(NNodeView::Str(p1, last)) => {
-            if !text::cps_beq(&last, &M_IOTA) {
-                Ok(false)
-            } else {
-                is_proj_iota_pre(pers, st, &p1)
+    if n.tag() == NTAG_STR {
+        match view_n(pers, st, n) {
+            Err(e) => Err(e),
+            Ok(NNodeView::Str(p1, last)) => {
+                if !text::cps_beq(&last, &M_IOTA) {
+                    Ok(false)
+                } else {
+                    is_proj_iota_pre(pers, st, &p1)
+                }
             }
+            Ok(_) => Ok(false),
         }
-        Ok(_) => Ok(false),
+    } else {
+        Ok(false)
     }
 }
 
@@ -242,16 +246,26 @@ pub fn is_proj_iota_name(pers: &PersTier, st: &AState, n: &NIdx) -> Result<bool,
 /// function so that the outer `view_n`'s loan is dead where the next one is
 /// taken (extraction rule 5).
 pub fn is_proj_iota_pre(pers: &PersTier, st: &AState, p1: &NIdx) -> Result<bool, CheckError> {
-    match view_n(pers, st, p1) {
-        Err(e) => Err(e),
-        Ok(NNodeView::Str(p2, s)) => match view_n(pers, st, &p2) {
+    if p1.tag() == NTAG_STR {
+        match view_n(pers, st, p1) {
             Err(e) => Err(e),
-            Ok(NNodeView::Str(_, m)) => {
-                Ok(text::cps_beq(&m, &M_MODEL) && cps_starts_with(&s, &M_PROJ))
+            Ok(NNodeView::Str(p2, s)) => {
+                if p2.tag() == NTAG_STR {
+                    match view_n(pers, st, &p2) {
+                        Err(e) => Err(e),
+                        Ok(NNodeView::Str(_, m)) => {
+                            Ok(text::cps_beq(&m, &M_MODEL) && cps_starts_with(&s, &M_PROJ))
+                        }
+                        Ok(_) => Ok(false),
+                    }
+                } else {
+                    Ok(false)
+                }
             }
             Ok(_) => Ok(false),
-        },
-        Ok(_) => Ok(false),
+        }
+    } else {
+        Ok(false)
     }
 }
 
@@ -1414,10 +1428,12 @@ pub fn proj_rec_candidate_at(
         Ok(None) => return Ok(None),
         Ok(Some(b)) => b.1,
     };
-    let s = match view(pers, st, &body) {
-        Err(e) => return Err(e),
-        Ok(ENodeView::Sort(s)) => s,
-        Ok(_) => return Ok(None),
+    if body.tag() != ETAG_SORT {
+        return Ok(None);
+    }
+    let s = match view_sort(pers, st, &body) {
+        None => return fail_dangling_e(),
+        Some(s) => s,
     };
     let s_p = match read_level_m(pers, st, &s) {
         Err(e) => return Err(e),

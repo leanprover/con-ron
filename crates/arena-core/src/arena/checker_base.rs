@@ -69,7 +69,7 @@ use crate::arena::expr_ops::{
     instantiate1_fast, instantiate_list_fast, loose_bvars_bounded_fast, pi_result, pis_to_lams,
     strip_lams, strip_pis,
 };
-use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx, ETAG_CONST, ETAG_FORALL_E, ETAG_SORT};
+use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx, ETAG_CONST, ETAG_FORALL_E, ETAG_SORT, NTAG_STR, NTAG_NUM};
 use crate::arena::monad::{
     fail, intern_e, read_level, read_levels, read_names, view, view_ls, view_n, AState, Memos, fail_dangling_e, view_bind, view_const, view_const_name, view_sort};
 use crate::arena::store::{
@@ -478,10 +478,14 @@ pub fn nidx_contains_from(ns: &Vec<NIdx>, i: usize, n: &NIdx) -> bool {
 /// — is this a `_model`-suffixed name (the shape of model companions)?
 pub fn nidx_is_model_suffix(pers: &PersTier, st: &AState, n: &NIdx) -> Result<bool, CheckError> {
     const S: [u32; 6] = [95, 109, 111, 100, 101, 108];
-    match view_n(pers, st, n) {
-        Err(e) => Err(e),
-        Ok(NNodeView::Str(_, s)) => Ok(name::str_eq(&s, &code_points(&S))),
-        Ok(_) => Ok(false),
+    if n.tag() == NTAG_STR {
+        match view_n(pers, st, n) {
+            Err(e) => Err(e),
+            Ok(NNodeView::Str(_, s)) => Ok(name::str_eq(&s, &code_points(&S))),
+            Ok(_) => Ok(false),
+        }
+    } else {
+        Ok(false)
     }
 }
 
@@ -493,16 +497,25 @@ pub fn nidx_is_model_suffix(pers: &PersTier, st: &AState, n: &NIdx) -> Result<bo
 pub fn nidx_is_proj_fn_shape(pers: &PersTier, st: &AState, n: &NIdx) -> Result<bool, CheckError> {
     const P: [u32; 4] = [112, 114, 111, 106];
     const T: [u32; 9] = [112, 114, 111, 106, 84, 97, 98, 108, 101];
-    match view_n(pers, st, n) {
-        Err(e) => Err(e),
-        Ok(NNodeView::Num(p, _)) => match view_n(pers, st, &p) {
+    if n.tag() == NTAG_NUM {
+        match view_n(pers, st, n) {
             Err(e) => Err(e),
-            Ok(NNodeView::Str(_, s)) => {
-                Ok(name::str_eq(&s, &code_points(&P)) || name::str_eq(&s, &code_points(&T)))
+            Ok(NNodeView::Num(p, _)) => {
+                if p.tag() == NTAG_STR {
+                    match view_n(pers, st, &p) {
+                        Err(e) => Err(e),
+                        Ok(NNodeView::Str(_, s)) => Ok(name::str_eq(&s, &code_points(&P))
+                            || name::str_eq(&s, &code_points(&T))),
+                        Ok(_) => Ok(false),
+                    }
+                } else {
+                    Ok(false)
+                }
             }
             Ok(_) => Ok(false),
-        },
-        Ok(_) => Ok(false),
+        }
+    } else {
+        Ok(false)
     }
 }
 
