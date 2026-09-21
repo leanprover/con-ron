@@ -81,16 +81,7 @@ use crate::arena::handle::{
     e_tag_is_bind, EIdx, LIdx, LsIdx, NIdx, ETAG_APP, ETAG_BVAR, ETAG_FORALL_E, ETAG_FVAR,
     ETAG_LAM, ETAG_LET_E, ETAG_PROJ,
 };
-use crate::arena::monad::{
-    abs1_clear, abs1_get, abs1_set, bvar_b_clear, bvar_b_get, bvar_b_set, derived_e, derived_l,
-    eidx_nat_key, fail, fvar_b_clear, fvar_b_get, fvar_b_set, inst1_clear, inst1_get, inst1_l_clear,
-    inst1_l_get, inst1_l_set, inst1_set, inst_l_clear, inst_l_get, inst_l_set, inst_lp_clear,
-    inst_lp_get, inst_lp_set, intern_e, intern_level, intern_levels, lift_clear, lift_get, lift_set,
-    lower_clear, lower_get, lower_set, read_level, read_levels, read_names, rename_clear,
-    rename_get, rename_set, reset_clear, reset_get, reset_set, view, view_app, view_bind,
-    view_bvar, view_fvar_idx, view_fvar_ty, view_let, view_proj, AState, EIdxNat,
-    fail_dangling_e,
-};
+use crate::arena::monad::{abs1_clear, abs1_get, abs1_set, bvar_b_clear, bvar_b_get, bvar_b_set, derived_e, derived_l, eidx_nat_key, fail, fvar_b_clear, fvar_b_get, fvar_b_set, inst1_clear, inst1_get, inst1_l_clear, inst1_l_get, inst1_l_set, inst1_set, inst_l_clear, inst_l_get, inst_l_set, inst_lp_clear, inst_lp_get, inst_lp_set, intern_e, intern_level, intern_levels, lift_clear, lift_get, lift_set, lower_clear, lower_get, lower_set, rename_clear, rename_get, rename_set, reset_clear, reset_get, reset_set, view, view_app, view_bind, view_bvar, view_fvar_idx, view_fvar_ty, view_let, view_proj, AState, EIdxNat, fail_dangling_e, read_level_m, read_levels_m, read_names_m};
 use crate::arena::store::{e_bind_view, ENodeView};
 use con_ron_core::kernel::core_types::{code_points, CheckError};
 use con_ron_core::kernel::expr;
@@ -4405,7 +4396,7 @@ pub fn inst_lp_go(
                 Err(e) => Err(e),
                 Ok(ENodeView::BVar(_)) => Ok(h.dup2()),
                 Ok(ENodeView::Lit(_)) => Ok(h.dup2()),
-                Ok(ENodeView::Sort(u)) => match read_level(pers, st, &u) {
+                Ok(ENodeView::Sort(u)) => match read_level_m(pers, st, &u) {
                     Err(e) => Err(e),
                     Ok(l) => {
                         let l2: Level = level::subst(ks, us, &l);
@@ -4418,7 +4409,7 @@ pub fn inst_lp_go(
                         }
                     }
                 },
-                Ok(ENodeView::Const(n, vs)) => match read_levels(pers, st, &vs) {
+                Ok(ENodeView::Const(n, vs)) => match read_levels_m(pers, st, &vs) {
                     Err(e) => Err(e),
                     Ok(ls) => {
                         let ls2: Vec<Level> = subst_level_list(ks, us, &ls);
@@ -4609,9 +4600,9 @@ pub fn inst_lp_fast(
     if !expr::lp_of_data(derived_e(pers, st, e)) {
         Ok(e.dup2())
     } else {
-        match read_names(pers, st, ks) {
+        match read_names_m(pers, st, ks) {
             Err(er) => Err(er),
-            Ok(ks_p) => match read_levels(pers, st, us) {
+            Ok(ks_p) => match read_levels_m(pers, st, us) {
                 Err(er) => Err(er),
                 Ok(us_p) => {
                     inst_lp_clear(st);

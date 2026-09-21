@@ -34,8 +34,7 @@ use crate::arena::env;
 use crate::arena::env::IFEnv;
 use crate::arena::handle::{EIdx, ETAG_APP, ETAG_FORALL_E, ETAG_LAM, ETAG_SORT};
 use crate::arena::expr_ops::get_app_fn;
-use crate::arena::monad::{
-    fail, fail_dangling_ls, read_levels, read_names, view, view_ls_len, AState, fail_dangling_e, view_app, view_bind, view_sort};
+use crate::arena::monad::{fail, fail_dangling_ls, view, view_ls_len, AState, fail_dangling_e, view_app, view_bind, view_sort, read_levels_m, read_names_m};
 use crate::arena::monad::read_level;
 use crate::arena::store::ENodeView;
 use con_ron_core::kernel::core_types::{code_points, CheckError};
@@ -166,14 +165,14 @@ pub fn head_type_pw(
                                                 if !prop_when::has_params(&pw) {
                                                     Ok(Some(pw))
                                                 } else {
-                                                    match read_names(
+                                                    match read_names_m(
                                                         pers,
                                                         st,
                                                         &cv.level_params,
                                                     ) {
                                                         Err(e) => Err(e),
                                                         Ok(ks) => {
-                                                            match read_levels(pers, st, &us) {
+                                                            match read_levels_m(pers, st, &us) {
                                                                 Err(e) => Err(e),
                                                                 Ok(vs) => Ok(Some(
                                                                     level::subst_pw(
@@ -276,9 +275,9 @@ pub fn head_proof_pw(
                                             if !prop_when::has_params(&pw) {
                                                 Ok(Some(pw))
                                             } else {
-                                                match read_names(pers, st, &cv.level_params) {
+                                                match read_names_m(pers, st, &cv.level_params) {
                                                     Err(e) => Err(e),
-                                                    Ok(ks) => match read_levels(pers, st, &us) {
+                                                    Ok(ks) => match read_levels_m(pers, st, &us) {
                                                         Err(e) => Err(e),
                                                         Ok(vs) => Ok(Some(level::subst_pw(
                                                             &ks, &vs, &pw,

@@ -36,7 +36,7 @@ use crate::arena::env;
 use crate::arena::env::{IConstantInfo, IConstantVal, IRecRule};
 use crate::arena::expr_ops;
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx, ETAG_CONST, ETAG_FORALL_E, ETAG_SORT};
-use crate::arena::monad::{fail, intern_e, read_level, AState, fail_dangling_e, view_bind, view_const_name, view_sort};
+use crate::arena::monad::{fail, intern_e, AState, fail_dangling_e, view_bind, view_const_name, view_sort, read_level_m};
 use crate::arena::store::ENodeView;
 use con_ron_core::kernel::core_types;
 use con_ron_core::kernel::core_types::{code_points, CheckError};
@@ -1326,7 +1326,7 @@ pub fn struct_rec_ty_r(
 ) -> Result<Option<EIdx>, CheckError> {
     match struct_parts::struct_elim_level(pers, st, elim, large) {
         Err(e) => Err(e),
-        Ok(l) => match read_level(pers, st, &l) {
+        Ok(l) => match read_level_m(pers, st, &l) {
             Err(e) => Err(e),
             Ok(lv) => {
                 let pw: PropWhen = level::zeroness_of(&lv);
@@ -1470,7 +1470,7 @@ pub fn struct_rec_rhs_r(
 ) -> Result<Option<EIdx>, CheckError> {
     match struct_parts::struct_elim_level(pers, st, elim, large) {
         Err(e) => Err(e),
-        Ok(l) => match read_level(pers, st, &l) {
+        Ok(l) => match read_level_m(pers, st, &l) {
             Err(e) => Err(e),
             Ok(lv) => {
                 let pw: PropWhen = level::zeroness_of(&lv);

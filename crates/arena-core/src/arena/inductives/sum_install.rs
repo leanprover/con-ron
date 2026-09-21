@@ -36,7 +36,7 @@ use crate::arena::env;
 use crate::arena::env::{IConstantInfo, IConstantVal, IFEnv, IIndCaps, IRecRule, IRecRuleFire};
 use crate::arena::expr_ops;
 use crate::arena::handle::{EIdx, LIdx, NIdx, ETAG_FORALL_E, ETAG_SORT};
-use crate::arena::monad::{fail, intern_e, read_level, view, AState, fail_dangling_e, view_bind, view_sort};
+use crate::arena::monad::{fail, intern_e, view, AState, fail_dangling_e, view_bind, view_sort, read_level_m};
 use crate::arena::store::ENodeView;
 use con_ron_core::kernel::core_types;
 use con_ron_core::kernel::core_types::{code_points, CheckError};
@@ -357,7 +357,7 @@ pub fn native_caps_at(
         // is what Aeneas cannot join (task #97-P4a's second extraction rule)
         let c_name: NIdx = p.ctors[0].0.name.dup2();
         let c_fields: u64 = p.ctors[0].1;
-        match read_level(pers, st, &p.res_sort) {
+        match read_level_m(pers, st, &p.res_sort) {
             Err(e) => Err(e),
             Ok(l) => Ok(IIndCaps {
                 eta: p.n_idx == 0 && !p.is_prop && !is_rec,
@@ -547,9 +547,9 @@ pub fn field_sort_bound(
     idx_args: &Vec<EIdx>,
 ) -> Result<(), CheckError> {
     if !is_prop {
-        match read_level(pers, st, u) {
+        match read_level_m(pers, st, u) {
             Err(e) => Err(e),
-            Ok(lu) => match read_level(pers, st, s) {
+            Ok(lu) => match read_level_m(pers, st, s) {
                 Err(e) => Err(e),
                 Ok(ls) => match core::lift_fueled(level::leq(&lu, &ls)) {
                     Err(e) => Err(e),

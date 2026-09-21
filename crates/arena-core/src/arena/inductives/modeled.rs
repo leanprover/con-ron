@@ -48,7 +48,7 @@ use crate::arena::env::{IConstantInfo, IConstantVal, IFEnv, IIndCaps, IRecRule, 
 use crate::arena::expr_ops;
 use crate::arena::expr_ops::NIdxToNIdx;
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx, ETAG_APP, ETAG_CONST, ETAG_FORALL_E};
-use crate::arena::monad::{fail, intern_e, intern_n_node, read_name, view_ls, AState, fail_dangling_e, view_app, view_bind, view_const, view_const_name};
+use crate::arena::monad::{fail, intern_e, intern_n_node, view_ls, AState, fail_dangling_e, view_app, view_bind, view_const, view_const_name, read_name_m};
 use crate::arena::std_axioms;
 use crate::arena::store::{ENodeView, NNodeView};
 use con_ron_core::kernel::core_k;
@@ -2507,7 +2507,7 @@ pub fn check_member_val(
         Err(e) => Err(e),
         Ok(f) => match checker_base::check_constant_val(pers, vis, st, mode, fe2, cv) {
             Err(e) => Err(e),
-            Ok(cv_a) => match read_name(pers, st, &cv_a.name) {
+            Ok(cv_a) => match read_name_m(pers, st, &cv_a.name) {
                 Err(e) => Err(e),
                 Ok(an) => {
                     if level::name_is_model_suffix(&an) {

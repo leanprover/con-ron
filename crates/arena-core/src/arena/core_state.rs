@@ -49,6 +49,9 @@ use con_ron_core::ron::hashmap::{Dup, Eq2, Hashable};
 // uses, and is still the one with proofs.
 use con_ron_core::ron::hashmap2::HashMap2 as HashMap;
 use con_ron_core::kernel::name;
+use con_ron_core::kernel::level::Level;
+use con_ron_core::kernel::name::Name;
+use std::vec::Vec;
 
 // ---------------------------------------------------------------------------
 // The composite keys
@@ -328,6 +331,23 @@ pub struct Caches {
     /// instantiation, keyed by the recursor, the rule's constructor and the
     /// levels — the three data that determine it.
     pub rule_rhs_c: HashMap<NNLsKey, EIdx>,
+    /// con-leche: none — arena infrastructure (task #97-P6-13)
+    /// **The readback memo DESIGN.md §8.3 promised** and nobody had built:
+    /// "`Level` ops … run on transient `Level` trees read back from `LIdx`
+    /// (*memoised readback per declaration*; levels are small)".  A level
+    /// handle's denotation is a function of the handle and of the tier it
+    /// names, so it is stable for exactly as long as the other ten tables
+    /// are, and `Caches::reset` is what makes that true.  The value is an
+    /// `Arc` tree, so a hit is one reference bump where a miss rebuilds the
+    /// whole tree node by node.
+    pub read_l_c: HashMap<LIdx, Level>,
+    /// con-leche: none — arena infrastructure (task #97-P6-13)
+    /// The same for a NAME handle (`readName`).
+    pub read_n_c: HashMap<NIdx, Name>,
+    /// con-leche: none — arena infrastructure (task #97-P6-13)
+    /// The same for an interned universe-argument LIST (`readLevels`).  A hit
+    /// is one `Vec` allocation and `n` reference bumps.
+    pub read_ls_c: HashMap<LsIdx, Vec<Level>>,
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:131-156 CState
@@ -353,6 +373,9 @@ impl Caches {
             const_ty_c: HashMap::new(),
             const_val_c: HashMap::new(),
             rule_rhs_c: HashMap::new(),
+            read_l_c: HashMap::new(),
+            read_n_c: HashMap::new(),
+            read_ls_c: HashMap::new(),
         }
     }
 }
@@ -517,6 +540,9 @@ impl Caches {
         reset_map(&mut self.lvls_eq_c);
         reset_map(&mut self.const_ty_c);
         reset_map(&mut self.const_val_c);
-        reset_map(&mut self.rule_rhs_c)
+        reset_map(&mut self.rule_rhs_c);
+        reset_map(&mut self.read_l_c);
+        reset_map(&mut self.read_n_c);
+        reset_map(&mut self.read_ls_c)
     }
 }

@@ -338,6 +338,20 @@ pub fn view(pers: &PersTier, st: &AState, h: &EIdx) -> Result<ENodeView, CheckEr
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:138-142 view` — the `none` arm of
 /// `view`, spelled once so that a caller of the projections below declines a
 /// dangling handle with `view`'s own error and not a second one.
+///
+/// **`#[cold]` and `#[inline(never)]`, and they are worth 4.7 % of `Init`**
+/// (task #97-P6-13).  This is the arm a *well-formed store never takes*
+/// (`StoreWF` excludes a dangling handle), and after the tag-only constructor
+/// test it is spelled at 135 more call sites than it was.  Inlined, each of
+/// them carries `code_points`'s 33-word copy into the middle of a hot walk:
+/// `core.rs`'s conversion alone went from −5.7 G to **+6.9 G** on `Init`
+/// because the growth pushed `instantiate1_go` past LLVM's inlining threshold
+/// (measured, four quarters of the file, each a win on its own).  With the
+/// two attributes the same 135 sites are −2.30 % instructions and −1.3 %
+/// cycles.  A codegen attribute: Charon does not read it and the extraction
+/// is unchanged.
+#[cold]
+#[inline(never)]
 pub fn fail_dangling_e<T>() -> Result<T, CheckError> {
     fail(CheckError::Internal(code_points(&M_DANGLING_E)))
 }
@@ -737,6 +751,8 @@ pub fn intern_level(pers: &PersTier, st: &mut AState, l: &Level) -> Result<LIdx,
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:287-291 viewLs` — the `none` arm
 /// of `viewLs`, spelled once so that a caller of the length projection below
 /// declines a dangling handle with `viewLs`'s own error and not a second one.
+#[cold]
+#[inline(never)]
 pub fn fail_dangling_ls<T>() -> Result<T, CheckError> {
     fail(CheckError::Internal(code_points(&M_DANGLING_LS)))
 }
@@ -779,6 +795,127 @@ pub fn read_levels(pers: &PersTier, st: &AState, h: &LsIdx) -> Result<Vec<Level>
     match denote_ls(pers, st.store.ls_s(), h) {
         Some(us) => Ok(us),
         None => fail(CheckError::Internal(code_points(&M_DANGLING_LS))),
+    }
+}
+
+/// con-leche: none — a value copy of a read-back universe-argument list
+/// Lean twin: OWED (task #97-P6-13) — the `Vec` copy Lean's value semantics
+/// hides (DESIGN.md §3.2): `Level` is a `P` tree, so this is `n` reference
+/// bumps and one allocation.
+pub fn level_list_dup(us: &Vec<Level>) -> Vec<Level> {
+    level_list_dup_from(us, 0, Vec::new())
+}
+
+/// con-leche: none — the cursor recursion behind `level_list_dup`
+/// Lean twin: OWED (task #97-P6-13).
+pub fn level_list_dup_from(us: &Vec<Level>, i: usize, out: Vec<Level>) -> Vec<Level> {
+    if i >= us.len() {
+        out
+    } else {
+        let mut out2 = out;
+        out2.push(level::dup(&us[i]));
+        level_list_dup_from(us, i + 1, out2)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The readback memo (task #97-P6-13; DESIGN.md §8.3's "memoised readback per
+// declaration", which nothing had built)
+// ---------------------------------------------------------------------------
+//
+// `readLevel`/`readNames`/`readLevels` rebuild a transient tree node by node
+// out of the store every time they are asked, and the checker asks per
+// OCCURRENCE: `instLPGo`'s `.sort` and `.const` arms, `Level.isEquiv`'s two
+// misses, `proofPW`'s substitution and the recursor's comparands.  The
+// denotation of a handle is a function of the handle and of the tier it names,
+// so it is constant for exactly as long as the other ten cache tables are —
+// `drop_scratch` flushes the caches and drops the tier in one operation
+// (`core::drop_scratch`), which is what makes a stale row impossible.  A hit
+// is a reference bump.
+
+/// con-leche: ConLeche/Kernel/Level.lean:26-37 subst
+/// Lean twin: OWED (task #97-P6-13) — `readLevelM`, the memoised `readLevel`.
+/// Same value, same failure: a hit answers with the row the miss stored, and
+/// `denoteL` is a function of the store.
+pub fn read_level_m(pers: &PersTier, st: &mut AState, h: &LIdx) -> Result<Level, CheckError> {
+    match st.caches.read_l_c.get(h) {
+        Some(l) => Ok(level::dup(l)),
+        None => match denote_l(pers, st.store.ls(), h) {
+            None => fail(CheckError::Internal(code_points(&M_DANGLING_L))),
+            Some(l) => {
+                st.caches.read_l_c.insert(h.dup2(), level::dup(&l));
+                Ok(l)
+            }
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
+/// Lean twin: OWED (task #97-P6-13) — `readNameM`, the memoised `readName`.
+pub fn read_name_m(pers: &PersTier, st: &mut AState, h: &NIdx) -> Result<Name, CheckError> {
+    match st.caches.read_n_c.get(h) {
+        Some(x) => Ok(name::dup(x)),
+        None => match denote_n(pers, st.store.ns(), h) {
+            None => fail(CheckError::Internal(code_points(&M_DANGLING_N))),
+            Some(x) => {
+                st.caches.read_n_c.insert(h.dup2(), name::dup(&x));
+                Ok(x)
+            }
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
+/// Lean twin: OWED (task #97-P6-13) — `readNamesM`, the memoised `readNames`.
+pub fn read_names_m(
+    pers: &PersTier,
+    st: &mut AState,
+    ks: &Vec<NIdx>,
+) -> Result<Vec<Name>, CheckError> {
+    read_names_m_from(pers, st, ks, 0, Vec::new())
+}
+
+/// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
+/// Lean twin: OWED (task #97-P6-13) — the cursor recursion behind
+/// `read_names_m`.
+pub fn read_names_m_from(
+    pers: &PersTier,
+    st: &mut AState,
+    ks: &Vec<NIdx>,
+    i: usize,
+    out: Vec<Name>,
+) -> Result<Vec<Name>, CheckError> {
+    if i >= ks.len() {
+        Ok(out)
+    } else {
+        match read_name_m(pers, st, &ks[i]) {
+            Err(e) => Err(e),
+            Ok(x) => {
+                let mut out2 = out;
+                out2.push(x);
+                read_names_m_from(pers, st, ks, i + 1, out2)
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Level.lean:26-37 subst
+/// Lean twin: OWED (task #97-P6-13) — `readLevelsM`, the memoised
+/// `readLevels`.
+pub fn read_levels_m(
+    pers: &PersTier,
+    st: &mut AState,
+    h: &LsIdx,
+) -> Result<Vec<Level>, CheckError> {
+    match st.caches.read_ls_c.get(h) {
+        Some(us) => Ok(level_list_dup(us)),
+        None => match denote_ls(pers, st.store.ls_s(), h) {
+            None => fail(CheckError::Internal(code_points(&M_DANGLING_LS))),
+            Some(us) => {
+                st.caches.read_ls_c.insert(h.dup2(), level_list_dup(&us));
+                Ok(us)
+            }
+        },
     }
 }
 

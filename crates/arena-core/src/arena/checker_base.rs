@@ -336,6 +336,16 @@ pub fn caches_dup(c: &Caches) -> Caches {
         const_ty_c: c.const_ty_c.dup(),
         const_val_c: c.const_val_c.dup(),
         rule_rhs_c: c.rule_rhs_c.dup(),
+        // The readback memo (task #97-P6-13) is NOT copied: a snapshot that
+        // restores it empty loses cache rows and nothing else, which is the
+        // same argument DESIGN.md §8.3 makes for the per-declaration flush —
+        // `denoteL`/`denoteN`/`denoteLs` are functions of the store, and the
+        // store is what a failed attempt does not roll back.  `attempt_snapshot`
+        // runs eight times on the whole of `Init` (task #97-P6-4a §4), so
+        // there is nothing to weigh against the three `Vec` copies avoided.
+        read_l_c: HashMap::new(),
+        read_n_c: HashMap::new(),
+        read_ls_c: HashMap::new(),
     }
 }
 

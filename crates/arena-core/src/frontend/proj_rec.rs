@@ -94,9 +94,7 @@ use crate::arena::expr_ops;
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx, ETAG_BVAR, ETAG_CONST, ETAG_FORALL_E, ETAG_LAM, ETAG_PROJ, ETAG_SORT};
 use crate::arena::inductives::native_parts;
 use crate::arena::inductives::struct_parts;
-use crate::arena::monad::{
-    fail, intern_e, intern_l_node, intern_ls_node, intern_n_node, intern_name, read_level,
-    view, view_ls, view_n, AState, fail_dangling_e, view_bind, view_bvar, view_const, view_const_name, view_proj, view_sort};
+use crate::arena::monad::{fail, intern_e, intern_l_node, intern_ls_node, intern_n_node, intern_name, view, view_ls, view_n, AState, fail_dangling_e, view_bind, view_bvar, view_const, view_const_name, view_proj, view_sort, read_level_m};
 use crate::arena::store::{ENodeView, LNodeView, NNodeView};
 use crate::frontend::types::ProjRecOwner;
 use con_ron_core::frontend::text;
@@ -1421,7 +1419,7 @@ pub fn proj_rec_candidate_at(
         Ok(ENodeView::Sort(s)) => s,
         Ok(_) => return Ok(None),
     };
-    let s_p = match read_level(pers, st, &s) {
+    let s_p = match read_level_m(pers, st, &s) {
         Err(e) => return Err(e),
         Ok(v) => v,
     };

@@ -94,10 +94,7 @@ use crate::arena::handle::{
     ETAG_LET_E,
     ETAG_LIT, ETAG_PROJ, ETAG_SORT,
 };
-use crate::arena::monad::{
-    fail, intern_e, intern_l_node, intern_ls_node, intern_n_node, intern_level, intern_name,
-    read_level, read_levels, read_name, read_names, view, view_app, view_bind, view_ls, view_ls_len,
-    AState, fail_dangling_e, fail_dangling_ls, view_bvar, view_const, view_const_name, view_lit, view_sort};
+use crate::arena::monad::{fail, intern_e, intern_l_node, intern_ls_node, intern_n_node, intern_level, intern_name, view, view_app, view_bind, view_ls, view_ls_len, AState, fail_dangling_e, fail_dangling_ls, view_bvar, view_const, view_const_name, view_lit, view_sort, read_level_m, read_levels_m, read_name_m, read_names_m};
 use crate::arena::prop_read::{is_proof_fast, not_proof_fast, proof_pw, type_sort_pw};
 use crate::arena::store::{ENodeView, LNodeView, NNodeView};
 use crate::arena::pins::{pin_and, pin_reserved, pin_bool, pin_bool_false, pin_bool_true, pin_char, pin_char_of_nat, pin_empty_levels, pin_list, pin_list_cons, pin_list_nil, pin_nat, pin_nat_add, pin_nat_beq, pin_nat_ble, pin_nat_div, pin_nat_gcd, pin_nat_land, pin_nat_lor, pin_nat_mod, pin_nat_mul, pin_nat_pow, pin_nat_pred, pin_nat_shift_left, pin_nat_shift_right, pin_nat_sub, pin_nat_succ, pin_nat_xor, pin_nat_zero, pin_punit, pin_punit_rec, pin_sorry_ax, pin_sort_one, pin_string, pin_string_of_list, pin_zero_level};
@@ -551,9 +548,9 @@ pub fn lvl_eq(
     let k: LIdxPair = lidx_pair(u, v);
     match lvl_eq_probe(st, &k) {
         Some(r) => Ok(Some(r)),
-        None => match read_level(pers, st, u) {
+        None => match read_level_m(pers, st, u) {
             Err(e) => Err(e),
-            Ok(lu) => match read_level(pers, st, v) {
+            Ok(lu) => match read_level_m(pers, st, v) {
                 Err(e) => Err(e),
                 Ok(lv) => match level::is_equiv(&lu, &lv) {
                     Some(r) => {
@@ -607,9 +604,9 @@ pub fn lvls_eq(
     let k: LsIdxPair = lsidx_pair(us, vs);
     match lvls_eq_probe(st, &k) {
         Some(r) => Ok(Some(r)),
-        None => match read_levels(pers, st, us) {
+        None => match read_levels_m(pers, st, us) {
             Err(e) => Err(e),
-            Ok(lu) => match read_levels(pers, st, vs) {
+            Ok(lu) => match read_levels_m(pers, st, vs) {
                 Err(e) => Err(e),
                 Ok(lv) => match level::is_equiv_list(&lu, &lv) {
                     Some(r) => {
@@ -902,7 +899,7 @@ pub fn pi_result_z(pers: &PersTier, st: &mut AState, e: &EIdx) -> Result<PropWhe
         Ok(h) => if h.tag() == ETAG_SORT {
             match view_sort(pers, st, &h) {
                 None => fail_dangling_e(),
-                Some(u) => match read_level(pers, st, &u) {
+                Some(u) => match read_level_m(pers, st, &u) {
                     Err(er) => Err(er),
                     Ok(l) => Ok(level::zeroness_of(&l)),
                 },
@@ -929,11 +926,11 @@ pub fn pi_result_never_zero(
         Ok(h) => if h.tag() == ETAG_SORT {
             match view_sort(pers, st, &h) {
                 None => fail_dangling_e(),
-                Some(u) => match read_names(pers, st, lps) {
+                Some(u) => match read_names_m(pers, st, lps) {
                     Err(er) => Err(er),
-                    Ok(ks) => match read_levels(pers, st, us) {
+                    Ok(ks) => match read_levels_m(pers, st, us) {
                         Err(er) => Err(er),
-                        Ok(vs) => match read_level(pers, st, &u) {
+                        Ok(vs) => match read_level_m(pers, st, &u) {
                             Err(er) => Err(er),
                             Ok(l) => Ok(level::is_never_zero(&level::subst(&ks, &vs, &l))),
                         },
@@ -956,9 +953,9 @@ pub fn caps_never_zero(
     us: &LsIdx,
     caps: &IIndCaps,
 ) -> Result<bool, CheckError> {
-    match read_names(pers, st, lps) {
+    match read_names_m(pers, st, lps) {
         Err(er) => Err(er),
-        Ok(ks) => match read_levels(pers, st, us) {
+        Ok(ks) => match read_levels_m(pers, st, us) {
             Err(er) => Err(er),
             Ok(vs) => Ok(prop_when::is_never(&level::subst_pw(&ks, &vs, &caps.sort_z))),
         },
@@ -5186,11 +5183,11 @@ pub fn proj_entry_fire_ok(
         Err(e) => Err(e),
         Ok(z) => match lvl_eq(pers, st, &entry.struct_sort, &z) {
             Err(e) => Err(e),
-            Ok(Some(true)) => match read_names(pers, st, &entry.level_params) {
+            Ok(Some(true)) => match read_names_m(pers, st, &entry.level_params) {
                 Err(e) => Err(e),
-                Ok(ks) => match read_levels(pers, st, us) {
+                Ok(ks) => match read_levels_m(pers, st, us) {
                     Err(e) => Err(e),
-                    Ok(vs) => match read_level(pers, st, &entry.field_sort) {
+                    Ok(vs) => match read_level_m(pers, st, &entry.field_sort) {
                         Err(e) => Err(e),
                         Ok(fs) => {
                             let s = level::subst(&ks, &vs, &fs);
@@ -6054,7 +6051,7 @@ pub fn rec_rule_eta_of(
                                     let eta_ctor: NIdx = caps.eta_ctor.dup2();
                                     let cvt_lps: Vec<NIdx> =
                                         env::nidx_vec_dup(&cvt.level_params);
-                                    match read_name(pers, st, rec_name) {
+                                    match read_name_m(pers, st, rec_name) {
                                         Err(e) => Err(e),
                                         Ok(rn) => Ok(eta
                                             && eta_ctor.eq2(ctor)
@@ -6222,7 +6219,7 @@ pub fn subst_levels_at(
     if i >= us.len() {
         Ok(out)
     } else {
-        match read_level(pers, st, &us[i]) {
+        match read_level_m(pers, st, &us[i]) {
             Err(e) => Err(e),
             Ok(l) => {
                 let s = level::subst(ks, vs, &l);
@@ -6255,7 +6252,7 @@ pub fn subst_param_levels(
     if i >= ps.len() {
         Ok(out)
     } else {
-        match read_name(pers, st, &ps[i]) {
+        match read_name_m(pers, st, &ps[i]) {
             Err(e) => Err(e),
             Ok(pn) => {
                 let s = level::subst(ks, vs, &level::param(pn));
@@ -6327,9 +6324,9 @@ pub fn rec_fire_comparands(
         IRecRuleFire::Nested(lvls, pins) => {
             let lvls2: Vec<LIdx> = env::lidx_vec_dup(lvls);
             let pins2: Vec<EIdx> = env::eidx_vec_dup(pins);
-            match read_names(pers, st, lps) {
+            match read_names_m(pers, st, lps) {
                 Err(e) => Err(e),
-                Ok(ks) => match read_levels(pers, st, us) {
+                Ok(ks) => match read_levels_m(pers, st, us) {
                     Err(e) => Err(e),
                     Ok(vs) => {
                         match subst_levels_at(pers, st, &ks, &vs, &lvls2, 0, Vec::new()) {
@@ -6381,9 +6378,9 @@ pub fn rec_fire_comparands_plain(
     cvj_lps: &Vec<NIdx>,
     args: &Vec<EIdx>,
 ) -> Result<(LsIdx, Vec<EIdx>), CheckError> {
-    match read_names(pers, st, lps) {
+    match read_names_m(pers, st, lps) {
         Err(e) => Err(e),
-        Ok(ks) => match read_levels(pers, st, us) {
+        Ok(ks) => match read_levels_m(pers, st, us) {
             Err(e) => Err(e),
             Ok(vs) => match subst_param_levels(pers, st, &ks, &vs, cvj_lps, 0, Vec::new()) {
                 Err(e) => Err(e),
@@ -6496,7 +6493,7 @@ pub fn iota_rec_params(
 ) -> Result<bool, CheckError> {
     let keep: Result<bool, CheckError> = match rl.fire {
         IRecRuleFire::Nested(_, _) => Ok(true),
-        _ => match read_name(pers, st, rec_c) {
+        _ => match read_name_m(pers, st, rec_c) {
             Err(e) => Err(e),
             Ok(n) => Ok(con_ron_core::kernel::level::name_is_proj_fn_shape(&n)),
         },
@@ -7984,11 +7981,11 @@ pub fn infer_proj_prop(
     targs: &Vec<EIdx>,
     pe: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match read_names(pers, st, &entry.level_params) {
+    match read_names_m(pers, st, &entry.level_params) {
         Err(e) => Err(e),
-        Ok(ks) => match read_levels(pers, st, us) {
+        Ok(ks) => match read_levels_m(pers, st, us) {
             Err(e) => Err(e),
-            Ok(vs) => match read_level(pers, st, &entry.field_sort) {
+            Ok(vs) => match read_level_m(pers, st, &entry.field_sort) {
                 Err(e) => Err(e),
                 Ok(fs) => {
                     let s = level::subst(&ks, &vs, &fs);
@@ -8148,7 +8145,7 @@ pub fn infer_lam_cod(
                 Err(e) => Err(e),
                 Ok(btt) => match ensure_sort(pers, vis, st, mode, lane, fuel, fe, depth + 1, &btt) {
                     Err(e) => Err(e),
-                    Ok(vb) => match read_level(pers, st, &vb) {
+                    Ok(vb) => match read_level_m(pers, st, &vb) {
                         Err(e) => Err(e),
                         Ok(lvb) => {
                             if !prop_when::beq(&level::zeroness_of(&lvb), &mb.pw) {
@@ -8418,7 +8415,7 @@ pub fn infer_lams_leaf_check(
                     if n == 0 {
                         Ok(())
                     } else {
-                        match read_level(pers, st, &vb) {
+                        match read_level_m(pers, st, &vb) {
                             Err(e) => Err(e),
                             Ok(lvb) => {
                                 if prop_when::beq(&level::zeroness_of(&lvb), &stk[n - 1].1.pw) {
@@ -8650,7 +8647,7 @@ pub fn infer_pis_leaf(
             Err(e) => Err(e),
             Ok(bt) => match ensure_sort(pers, vis, st, mode, lane, fuel, fe, d + k, &bt) {
                 Err(e) => Err(e),
-                Ok(v) => match read_level(pers, st, &v) {
+                Ok(v) => match read_level_m(pers, st, &v) {
                     Err(e) => Err(e),
                     Ok(lv) => {
                         let pv: PropWhen = level::zeroness_of(&lv);
@@ -8908,7 +8905,7 @@ pub fn infer_forall_io_at(
                             Ok(v) => {
                                 let ok =
                                     if con_ron_core::kernel::env::verified_checks(mode) {
-                                        match read_level(pers, st, &v) {
+                                        match read_level_m(pers, st, &v) {
                                             Err(e) => Err(e),
                                             Ok(lv) => Ok(prop_when::beq(
                                                 &level::zeroness_of(&lv),
@@ -10060,7 +10057,7 @@ pub fn annot_pw_pi(
             Err(e) => Err(e),
             Ok(t) => match ensure_sort(pers, vis, st, mode, lane, fuel, fe, depth, &t) {
                 Err(e) => Err(e),
-                Ok(v) => match read_level(pers, st, &v) {
+                Ok(v) => match read_level_m(pers, st, &v) {
                     Err(e) => Err(e),
                     Ok(lv) => Ok(level::zeroness_of(&lv)),
                 },
@@ -10092,7 +10089,7 @@ pub fn annot_pw_lam(
                 Err(e) => Err(e),
                 Ok(t) => match ensure_sort(pers, vis, st, mode, lane, fuel, fe, depth, &t) {
                     Err(e) => Err(e),
-                    Ok(vb) => match read_level(pers, st, &vb) {
+                    Ok(vb) => match read_level_m(pers, st, &vb) {
                         Err(e) => Err(e),
                         Ok(lvb) => Ok(level::zeroness_of(&lvb)),
                     },

@@ -44,7 +44,7 @@ use crate::arena::env;
 use crate::arena::env::{IConstantInfo, IConstantVal, IFEnv, IIndCaps};
 use crate::arena::expr_ops;
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
-use crate::arena::monad::{fail, intern_e, intern_n_node, read_level, view, AState};
+use crate::arena::monad::{fail, intern_e, intern_n_node, view, AState, read_level_m};
 use crate::arena::store::{ENodeView, NNodeView};
 use con_ron_core::kernel::core_types;
 use con_ron_core::kernel::core_types::{code_points, CheckError};
@@ -1337,7 +1337,7 @@ pub fn check_native_tail(
     mode: &CheckMode,
     q: NativePass,
 ) -> Result<IFEnv, CheckError> {
-    match read_level(pers, st, &q.p.shape.res_sort) {
+    match read_level_m(pers, st, &q.p.shape.res_sort) {
         Err(e) => Err(e),
         Ok(rs) => {
             let never_zero: bool = level::is_never_zero(&rs);
