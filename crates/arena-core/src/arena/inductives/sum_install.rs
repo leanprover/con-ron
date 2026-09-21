@@ -36,7 +36,9 @@ use crate::arena::env;
 use crate::arena::env::{IConstantInfo, IConstantVal, IFEnv, IIndCaps, IRecRule, IRecRuleFire};
 use crate::arena::expr_ops;
 use crate::arena::handle::{EIdx, LIdx, NIdx, ETAG_FORALL_E, ETAG_SORT};
-use crate::arena::monad::{fail, intern_e, view, AState, fail_dangling_e, view_bind, view_sort, read_level_m};
+use crate::arena::monad::{
+    AState, fail, fail_dangling_e, intern_e_const, intern_e_forall_e, intern_e_fvar, intern_e_sort, read_level_m, view, view_bind, view_sort,
+};
 use crate::arena::store::ENodeView;
 use con_ron_core::kernel::core_types;
 use con_ron_core::kernel::core_types::{code_points, CheckError};
@@ -212,7 +214,7 @@ pub fn whnf_telescope(
                 if n == 0 {
                     fail(core_types::invalid(code_points(&M_TELE_SORT)))
                 } else {
-                    match intern_e(pers, st, ENodeView::FVar(i, dom.dup2())) {
+                    match intern_e_fvar(pers, st, i, dom.dup2()) {
                         Err(er) => Err(er),
                         Ok(fv) => {
                             match expr_ops::instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &fv, 0) {
@@ -261,7 +263,7 @@ pub fn close_telescope(
                 Ok(closed) => {
                     let dom: EIdx = bs[k].0.dup2();
                     let bm: BinderMeta = expr::binder_meta_dup(&bs[k].1);
-                    intern_e(pers, st, ENodeView::ForallE(dom, closed, bm))
+                    intern_e_forall_e(pers, st, dom, closed, bm)
                 }
             },
         }
@@ -316,7 +318,7 @@ pub fn check_sum_tele_slow(
 ) -> Result<(IConstantVal, LIdx), CheckError> {
     match whnf_telescope(pers, vis, st, mode, fe, 0, n, &cv_ta0.ty, Vec::new()) {
         Err(e) => Err(e),
-        Ok(q) => match intern_e(pers, st, ENodeView::Sort(q.1.dup2())) {
+        Ok(q) => match intern_e_sort(pers, st, q.1.dup2()) {
             Err(e) => Err(e),
             Ok(sort_s) => match close_telescope(pers, st, &q.0, 0, 0, &sort_s) {
                 Err(e) => Err(e),
@@ -411,7 +413,7 @@ pub fn check_sum_ind_at(
     match expr_ops::strip_pis(pers, st, p.n_p + p.n_idx, &cv_ta.ty) {
         Err(e) => Err(e),
         Ok(None) => fail(core_types::internal(code_points(&M_IND_TELE))),
-        Ok(Some(q)) => match intern_e(pers, st, ENodeView::Sort(s.dup2())) {
+        Ok(Some(q)) => match intern_e_sort(pers, st, s.dup2()) {
             Err(e) => Err(e),
             Ok(sort_s) => {
                 if !q.1.eq2(&sort_s) {
@@ -638,7 +640,7 @@ pub fn norm_pos_dom_at(
             Some((dom, body, bm)) => match struct_parts::mentions_const(pers, st, t, &dom) {
                 Err(er) => Err(er),
                 Ok(true) => fail(core_types::invalid(code_points(&M_POS_NEG))),
-                Ok(false) => match intern_e(pers, st, ENodeView::FVar(d, dom.dup2())) {
+                Ok(false) => match intern_e_fvar(pers, st, d, dom.dup2()) {
                     Err(er) => Err(er),
                     Ok(fv) => match expr_ops::instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &fv, 0) {
                         Err(er) => Err(er),
@@ -647,7 +649,7 @@ pub fn norm_pos_dom_at(
                             Ok(body2) => {
                                 match expr_ops::abstract1_fast(pers, st, CORE_WALK_FUEL, &body2, d, 0) {
                                     Err(er) => Err(er),
-                                    Ok(closed) => intern_e(pers, st, ENodeView::ForallE(dom, closed, bm)),
+                                    Ok(closed) => intern_e_forall_e(pers, st, dom, closed, bm),
                                 }
                             }
                         },
@@ -691,7 +693,7 @@ pub fn norm_field_doms(
                 Some((dom, body, bm)) => {
                     match norm_pos_dom(pers, vis, st, mode, fe, t, i, POS_WALK_FUEL, &dom) {
                         Err(e) => Err(e),
-                        Ok(dom2) => match intern_e(pers, st, ENodeView::FVar(i, dom)) {
+                        Ok(dom2) => match intern_e_fvar(pers, st, i, dom) {
                             Err(e) => Err(e),
                             Ok(fv) => {
                                 match expr_ops::instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &fv, 0) {
@@ -922,7 +924,7 @@ pub fn check_sum_ctor_resid(
 ) -> Result<(IConstantVal, Vec<LIdx>), CheckError> {
     match struct_parts::param_levels(pers, st, lps) {
         Err(e) => Err(e),
-        Ok(us) => match intern_e(pers, st, ENodeView::Const(t.dup2(), us)) {
+        Ok(us) => match intern_e_const(pers, st, t.dup2(), us) {
             Err(e) => Err(e),
             Ok(hd) => match expr_ops::get_app_fn(pers, st, CORE_WALK_FUEL, xrest) {
                 Err(e) => Err(e),

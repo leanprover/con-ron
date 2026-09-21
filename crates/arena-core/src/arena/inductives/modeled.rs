@@ -48,9 +48,11 @@ use crate::arena::env::{IConstantInfo, IConstantVal, IFEnv, IIndCaps, IRecRule, 
 use crate::arena::expr_ops;
 use crate::arena::expr_ops::NIdxToNIdx;
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx, ETAG_APP, ETAG_CONST, ETAG_FORALL_E};
-use crate::arena::monad::{fail, intern_e, intern_n_node, view_ls, AState, fail_dangling_e, view_app, view_bind, view_const, view_const_name, read_name_m};
+use crate::arena::monad::{
+    AState, fail, fail_dangling_e, intern_e_bvar, intern_e_const, intern_e_sort, intern_n_node, read_name_m, view_app, view_bind, view_const, view_const_name, view_ls,
+};
 use crate::arena::std_axioms;
-use crate::arena::store::{ENodeView, NNodeView};
+use crate::arena::store::NNodeView;
 use con_ron_core::kernel::core_k;
 use con_ron_core::kernel::core_types;
 use con_ron_core::kernel::core_types::{code_points, code_points_from, CheckError};
@@ -838,7 +840,7 @@ pub fn check_iota_slot_ty(
     } else {
         match core::infer_type_core(pers, vis, st, mode, fe_self, core::CHECK_FUEL, depth, alpha_s) {
             Err(e) => Err(e),
-            Ok(ta) => match intern_e(pers, st, ENodeView::Sort(l_a.dup2())) {
+            Ok(ta) => match intern_e_sort(pers, st, l_a.dup2()) {
                 Err(e) => Err(e),
                 Ok(s) => {
                     match core::is_def_eq_core(pers, vis, st, mode, fe_self, core::CHECK_FUEL, depth, &ta, &s)
@@ -984,7 +986,7 @@ pub fn iota_lhs_prefix_ok(
         Err(e) => Err(e),
         Ok(lus) => {
             let rn: NIdx = f.rename(cv_name);
-            match intern_e(pers, st, ENodeView::Const(rn, lus)) {
+            match intern_e_const(pers, st, rn, lus) {
                 Err(e) => Err(e),
                 Ok(want_hd) => {
                     if !lfn.eq2(&want_hd) {
@@ -1034,7 +1036,7 @@ pub fn check_iota_thm(
             let fvs: Vec<EIdx> = oq.0;
             let targs: Vec<EIdx> = oq.1;
             let l_a: LIdx = oq.2;
-            match intern_e(pers, st, ENodeView::BVar(0)) {
+            match intern_e_bvar(pers, st, 0) {
                 Err(e) => Err(e),
                 Ok(b0) => {
                     let lhs_s: EIdx = core::get_d_eidx(&targs, 1, &b0);
@@ -1095,7 +1097,7 @@ pub fn check_iota_major(
         Err(e) => Err(e),
         Ok(cus) => {
             let rn: NIdx = f.rename(&r.ctor);
-            match intern_e(pers, st, ENodeView::Const(rn, cus)) {
+            match intern_e_const(pers, st, rn, cus) {
                 Err(e) => Err(e),
                 Ok(c_hd) => {
                     let spine: Vec<EIdx> =
@@ -1812,7 +1814,7 @@ pub fn check_iota_thm_n_at(
             let fvs: Vec<EIdx> = oq.0;
             let targs: Vec<EIdx> = oq.1;
             let l_a: LIdx = oq.2;
-            match intern_e(pers, st, ENodeView::BVar(0)) {
+            match intern_e_bvar(pers, st, 0) {
                 Err(e) => Err(e),
                 Ok(b0) => {
                     let lhs_s: EIdx = core::get_d_eidx(&targs, 1, &b0);
@@ -1884,7 +1886,7 @@ pub fn check_iota_thm_n_major(
         Err(e) => Err(e),
         Ok(lvls_idx) => {
             let rn: NIdx = f.rename(&r.ctor);
-            match intern_e(pers, st, ENodeView::Const(rn, lvls_idx.dup2())) {
+            match intern_e_const(pers, st, rn, lvls_idx.dup2()) {
                 Err(e) => Err(e),
                 Ok(c_hd) => {
                     let spine: Vec<EIdx> = core::append_eidx(env::eidx_vec_dup(pins_f), x_fvs);
@@ -3060,7 +3062,7 @@ pub fn check_proj_iota_body(
                 Err(e) => Err(e),
                 Ok(cmn) => match struct_parts::param_levels(pers, st, &cvj.level_params) {
                     Err(e) => Err(e),
-                    Ok(cus) => match intern_e(pers, st, ENodeView::Const(cmn, cus)) {
+                    Ok(cus) => match intern_e_const(pers, st, cmn, cus) {
                         Err(e) => Err(e),
                         Ok(c_hd) => {
                             let spine: Vec<EIdx> =
@@ -3103,7 +3105,7 @@ pub fn check_proj_iota_lhs(
 ) -> Result<(), CheckError> {
     match struct_parts::param_levels(pers, st, lps) {
         Err(e) => Err(e),
-        Ok(pus) => match intern_e(pers, st, ENodeView::Const(pmn.dup2(), pus)) {
+        Ok(pus) => match intern_e_const(pers, st, pmn.dup2(), pus) {
             Err(e) => Err(e),
             Ok(p_hd) => {
                 let args: Vec<EIdx> = core::snoc_eidx(env::eidx_vec_dup(p_args), mk_spine);
@@ -3153,7 +3155,7 @@ pub fn check_proj_iota_field(
     rhs_c: &EIdx,
 ) -> Result<(), CheckError> {
     let depth: u64 = n_p + n_f;
-    match intern_e(pers, st, ENodeView::BVar(sub_nat(sub_nat(n_f, 1), i))) {
+    match intern_e_bvar(pers, st, sub_nat(sub_nat(n_f, 1), i)) {
         Err(e) => Err(e),
         Ok(fld) => {
             if !rhs_c.eq2(&fld) {
@@ -3164,7 +3166,7 @@ pub fn check_proj_iota_field(
                     Ok(None) => fail(core_types::not_implemented(code_points(&M_PI_TELE))),
                     Ok(Some(oq)) => match expr_ops::get_app_args(pers, st, CORE_WALK_FUEL, &oq.1) {
                         Err(e) => Err(e),
-                        Ok(targs_o) => match intern_e(pers, st, ENodeView::BVar(0)) {
+                        Ok(targs_o) => match intern_e_bvar(pers, st, 0) {
                             Err(e) => Err(e),
                             Ok(b0) => match expr_ops::get_app_fn(pers, st, CORE_WALK_FUEL, sbody) {
                                 Err(e) => Err(e),
@@ -3437,7 +3439,7 @@ pub fn check_eta_thm_shape(
                 } else {
                     match struct_parts::param_levels(pers, st, lps) {
                         Err(e) => Err(e),
-                        Ok(us) => match intern_e(pers, st, ENodeView::Const(tm.dup2(), us)) {
+                        Ok(us) => match intern_e_const(pers, st, tm.dup2(), us) {
                             Err(e) => Err(e),
                             Ok(t_hd) => check_eta_thm_body(
                                 pers,
@@ -3517,11 +3519,11 @@ pub fn check_eta_thm_eq(
     match eq_app3(pers, st, sbody) {
         Err(e) => Err(e),
         Ok(None) => Ok(false),
-        Ok(Some(q)) => match intern_e(pers, st, ENodeView::BVar(0)) {
+        Ok(Some(q)) => match intern_e_bvar(pers, st, 0) {
             Err(e) => Err(e),
             Ok(b0) => match struct_parts::param_levels(pers, st, lps) {
                 Err(e) => Err(e),
-                Ok(us) => match intern_e(pers, st, ENodeView::Const(cm.dup2(), us)) {
+                Ok(us) => match intern_e_const(pers, st, cm.dup2(), us) {
                     Err(e) => Err(e),
                     Ok(c_hd) => match eta_proj_args(pers, st, t, lps, ps_hi, &b0, n_f, 0, Vec::new()) {
                         Err(e) => Err(e),
@@ -3530,7 +3532,7 @@ pub fn check_eta_thm_eq(
                                 core::append_eidx(env::eidx_vec_dup(ps_hi), &proj_args);
                             match expr_ops::mk_app_n(pers, st, &c_hd, &spine) {
                                 Err(e) => Err(e),
-                                Ok(want_rhs) => match intern_e(pers, st, ENodeView::Sort(q.1.dup2())) {
+                                Ok(want_rhs) => match intern_e_sort(pers, st, q.1.dup2()) {
                                     Err(e) => Err(e),
                                     Ok(sort_a) => match crate::arena::pins::pin_eq(st) {
                                         Err(e) => Err(e),
@@ -3573,7 +3575,7 @@ pub fn eta_proj_args(
             Err(e) => Err(e),
             Ok(pmn) => match struct_parts::param_levels(pers, st, lps) {
                 Err(e) => Err(e),
-                Ok(us) => match intern_e(pers, st, ENodeView::Const(pmn, us)) {
+                Ok(us) => match intern_e_const(pers, st, pmn, us) {
                     Err(e) => Err(e),
                     Ok(p_hd) => {
                         let args: Vec<EIdx> = core::snoc_eidx(env::eidx_vec_dup(ps_hi), b0);
@@ -3702,7 +3704,7 @@ pub fn check_unit_thm_shape(
 ) -> Result<bool, CheckError> {
     match struct_parts::param_levels(pers, st, lps) {
         Err(e) => Err(e),
-        Ok(us) => match intern_e(pers, st, ENodeView::Const(tm.dup2(), us)) {
+        Ok(us) => match intern_e_const(pers, st, tm.dup2(), us) {
             Err(e) => Err(e),
             Ok(t_hd) => match fam_at(pers, st, &t_hd, 0, n_p) {
                 Err(e) => Err(e),
@@ -3764,11 +3766,11 @@ pub fn check_unit_thm_eq(
     match eq_app3(pers, st, sbody) {
         Err(e) => Err(e),
         Ok(None) => Ok(false),
-        Ok(Some(q)) => match intern_e(pers, st, ENodeView::BVar(0)) {
+        Ok(Some(q)) => match intern_e_bvar(pers, st, 0) {
             Err(e) => Err(e),
-            Ok(b0) => match intern_e(pers, st, ENodeView::BVar(1)) {
+            Ok(b0) => match intern_e_bvar(pers, st, 1) {
                 Err(e) => Err(e),
-                Ok(b1) => match intern_e(pers, st, ENodeView::Sort(q.1.dup2())) {
+                Ok(b1) => match intern_e_sort(pers, st, q.1.dup2()) {
                     Err(e) => Err(e),
                     Ok(sort_a) => match crate::arena::pins::pin_eq(st) {
                         Err(e) => Err(e),

@@ -94,7 +94,9 @@ use crate::arena::expr_ops;
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx, ETAG_BVAR, ETAG_CONST, ETAG_FORALL_E, ETAG_LAM, ETAG_PROJ, ETAG_SORT, NTAG_STR};
 use crate::arena::inductives::native_parts;
 use crate::arena::inductives::struct_parts;
-use crate::arena::monad::{fail, intern_e, intern_l_node, intern_ls_node, intern_n_node, intern_name, view, view_ls, view_n, AState, fail_dangling_e, view_bind, view_bvar, view_const, view_const_name, view_proj, view_sort, read_level_m};
+use crate::arena::monad::{
+    AState, fail, fail_dangling_e, intern_e_bvar, intern_e_const, intern_e_lam, intern_l_node, intern_ls_node, intern_n_node, intern_name, read_level_m, view, view_bind, view_bvar, view_const, view_const_name, view_ls, view_n, view_proj, view_sort,
+};
 use crate::arena::store::{ENodeView, LNodeView, NNodeView};
 use crate::frontend::types::ProjRecOwner;
 use con_ron_core::frontend::text;
@@ -569,11 +571,7 @@ pub fn mk_lams_from(
     } else {
         match mk_lams_from(pers, st, bs, i + 1, body) {
             Err(e) => Err(e),
-            Ok(acc) => intern_e(
-                pers,
-                st,
-                ENodeView::Lam(bs[i].0.dup2(), acc, expr::binder_meta_dup(&bs[i].1)),
-            ),
+            Ok(acc) => intern_e_lam(pers, st, bs[i].0.dup2(), acc, expr::binder_meta_dup(&bs[i].1)),
         }
     }
 }
@@ -725,24 +723,12 @@ pub fn mk_proj_motive_at(
             Err(e) => Err(e),
             Ok(true) => match expr_ops::lift_loose_bvars_fast(pers, st, fuel, 1, 1, &pb.r) {
                 Err(e) => Err(e),
-                Ok(rl) => match intern_e(
-                    pers,
-                    st,
-                    ENodeView::Lam(bs[0].0.dup2(), rl, expr::binder_meta_dup(&bs[0].1)),
-                ) {
+                Ok(rl) => match intern_e_lam(pers, st, bs[0].0.dup2(), rl, expr::binder_meta_dup(&bs[0].1)) {
                     Err(e) => Err(e),
                     Ok(r) => Ok(Some(r)),
                 },
             },
-            Ok(false) => match intern_e(
-                pers,
-                st,
-                ENodeView::Lam(
-                    bs[0].0.dup2(),
-                    pb.punit_c.dup2(),
-                    expr::binder_meta_dup(&bs[0].1),
-                ),
-            ) {
+            Ok(false) => match intern_e_lam(pers, st, bs[0].0.dup2(), pb.punit_c.dup2(), expr::binder_meta_dup(&bs[0].1)) {
                 Err(e) => Err(e),
                 Ok(r) => Ok(Some(r)),
             },
@@ -801,7 +787,7 @@ pub fn mk_proj_minor_at(
             if pb.i >= bs.len() as u64 {
                 Ok(None)
             } else {
-                match intern_e(pers, st, ENodeView::BVar(bs.len() as u64 - 1 - pb.i)) {
+                match intern_e_bvar(pers, st, bs.len() as u64 - 1 - pb.i) {
                     Err(e) => Err(e),
                     Ok(b) => match mk_lams(pers, st, bs, &b) {
                         Err(e) => Err(e),
@@ -1081,11 +1067,11 @@ pub fn proj_rec_value_binders(
         Err(e) => return Err(e),
         Ok(v) => v,
     };
-    let punit_c = match intern_e(pers, st, ENodeView::Const(punit_h, ls_one.dup2())) {
+    let punit_c = match intern_e_const(pers, st, punit_h, ls_one.dup2()) {
         Err(e) => return Err(e),
         Ok(v) => v,
     };
-    let punit_unit_c = match intern_e(pers, st, ENodeView::Const(punit_u_h, ls_one)) {
+    let punit_unit_c = match intern_e_const(pers, st, punit_u_h, ls_one) {
         Err(e) => return Err(e),
         Ok(v) => v,
     };
@@ -1168,11 +1154,11 @@ pub fn proj_rec_value_app(
     motives: &Vec<EIdx>,
     minors: &Vec<EIdx>,
 ) -> Result<Option<EIdx>, CheckError> {
-    let rc = match intern_e(pers, st, ENodeView::Const(o.rec_name.dup2(), us.dup2())) {
+    let rc = match intern_e_const(pers, st, o.rec_name.dup2(), us.dup2()) {
         Err(e) => return Err(e),
         Ok(v) => v,
     };
-    let b0 = match intern_e(pers, st, ENodeView::BVar(0)) {
+    let b0 = match intern_e_bvar(pers, st, 0) {
         Err(e) => return Err(e),
         Ok(v) => v,
     };

@@ -58,8 +58,7 @@ use crate::arena::env::{
 use crate::arena::checker_split::ValueGroup;
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
 use crate::arena::monad::{
-    fail, intern_persistent_e, intern_persistent_l, intern_persistent_ls, intern_persistent_n,
-    view, view_l, view_ls, view_n, AState,
+    AState, fail, intern_persistent_e, intern_persistent_l, intern_persistent_ls, intern_persistent_n, view, view_l, view_ls, view_n,
 };
 use crate::arena::store::{ENodeView, LNodeView, NNodeView};
 use con_ron_core::kernel::core_types::{code_points, CheckError};
@@ -1163,7 +1162,10 @@ mod tests {
     use super::*;
     use crate::arena::core::{drop_scratch, enter_scratch, CORE_WALK_FUEL};
     use crate::arena::env::{i_env_empty, ifenv_find, ifenv_push, mk_ifenv, IEnv};
-    use crate::arena::monad::{intern_e, intern_l_node, intern_ls_node, intern_n_node};
+    use crate::arena::monad::{
+        intern_e_app, intern_e_const, intern_e_lit, intern_e_sort, intern_l_node,
+        intern_ls_node, intern_n_node,
+    };
     use crate::arena::store::EStore;
     use con_ron_core::kernel::expr::Literal;
     use con_ron_core::ron::hashmap::Eq2;
@@ -1191,7 +1193,7 @@ mod tests {
     fn cst(pers: &PersTier, st: &mut AState, s: &str) -> EIdx {
         let n = nm(pers, st, s);
         let us = ok(intern_ls_node(pers, st, Vec::new()));
-        ok(intern_e(pers, st, ENodeView::Const(n, us)))
+        ok(intern_e_const(pers, st, n, us))
     }
 
     /// A persistent handle promotes to ITSELF, by one tier-bit test and no
@@ -1223,7 +1225,7 @@ mod tests {
         let f = cst(pers, &mut st, "f");
         let a = cst(pers, &mut st, "a");
         enter_scratch(&mut st);
-        let app = ok(intern_e(pers, &mut st, ENodeView::App(f.dup2(), a.dup2())));
+        let app = ok(intern_e_app(pers, &mut st, f.dup2(), a.dup2()));
         assert!(!app.is_persistent(), "the fixture must be a scratch node");
         let (m, r) = ok(promote_e(pers, &mut st, PMemo::empty(), CORE_WALK_FUEL, &app));
         assert!(r.is_persistent(), "the promotion is persistent");
@@ -1235,7 +1237,7 @@ mod tests {
         assert!(r2.eq2(&r), "the memo answers the second promotion");
         assert_eq!(st.store.pers_count(pers), n1, "and appends nothing");
         drop_scratch(&mut st);
-        let again = ok(intern_e(pers, &mut st, ENodeView::App(f, a)));
+        let again = ok(intern_e_app(pers, &mut st, f, a));
         assert!(
             again.eq2(&r),
             "the promoted handle IS what the persistent tier hands out"
@@ -1252,13 +1254,9 @@ mod tests {
         enter_scratch(&mut st);
         let u = nm(pers, &mut st, "u");
         let p = ok(intern_l_node(pers, &mut st, LNodeView::Param(u)));
-        let s = ok(intern_e(pers, &mut st, ENodeView::Sort(p.dup2())));
-        let lit = ok(intern_e(
-            pers,
-            &mut st,
-            ENodeView::Lit(Literal::NatVal(P::new(nat::from_u64(7)))),
-        ));
-        let pair = ok(intern_e(pers, &mut st, ENodeView::App(s.dup2(), lit)));
+        let s = ok(intern_e_sort(pers, &mut st, p.dup2()));
+        let lit = ok(intern_e_lit(pers, &mut st, Literal::NatVal(P::new(nat::from_u64(7)))));
+        let pair = ok(intern_e_app(pers, &mut st, s.dup2(), lit));
         assert!(!pair.is_persistent());
         let (m, r) = ok(promote_e(pers, &mut st, PMemo::empty(), CORE_WALK_FUEL, &pair));
         assert!(r.is_persistent(), "the application");

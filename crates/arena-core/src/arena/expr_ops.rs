@@ -81,7 +81,9 @@ use crate::arena::handle::{
     e_tag_is_bind, EIdx, LIdx, LsIdx, NIdx, ETAG_APP, ETAG_BVAR, ETAG_FORALL_E, ETAG_FVAR,
     ETAG_LAM, ETAG_LET_E, ETAG_PROJ,
 };
-use crate::arena::monad::{abs1_clear, abs1_get, abs1_set, bvar_b_clear, bvar_b_get, bvar_b_set, derived_e, derived_l, eidx_nat_key, fail, fvar_b_clear, fvar_b_get, fvar_b_set, inst1_clear, inst1_get, inst1_l_clear, inst1_l_get, inst1_l_set, inst1_set, inst_l_clear, inst_l_get, inst_l_set, inst_lp_clear, inst_lp_get, inst_lp_set, intern_e, intern_level, intern_levels, lift_clear, lift_get, lift_set, lower_clear, lower_get, lower_set, rename_clear, rename_get, rename_set, reset_clear, reset_get, reset_set, view, view_app, view_bind, view_bvar, view_fvar_idx, view_fvar_ty, view_let, view_proj, AState, EIdxNat, fail_dangling_e, read_level_m, read_levels_m, read_names_m, inst_lp_l_get, inst_lp_l_set, inst_lp_ls_get, inst_lp_ls_set};
+use crate::arena::monad::{
+    AState, EIdxNat, abs1_clear, abs1_get, abs1_set, bvar_b_clear, bvar_b_get, bvar_b_set, derived_e, derived_l, eidx_nat_key, fail, fail_dangling_e, fvar_b_clear, fvar_b_get, fvar_b_set, inst1_clear, inst1_get, inst1_l_clear, inst1_l_get, inst1_l_set, inst1_set, inst_l_clear, inst_l_get, inst_l_set, inst_lp_clear, inst_lp_get, inst_lp_l_get, inst_lp_l_set, inst_lp_ls_get, inst_lp_ls_set, inst_lp_set, intern_e, intern_e_app, intern_e_bvar, intern_e_const, intern_e_forall_e, intern_e_fvar, intern_e_lam, intern_e_let_e, intern_e_proj, intern_level, intern_levels, lift_clear, lift_get, lift_set, lower_clear, lower_get, lower_set, read_level_m, read_levels_m, read_names_m, rename_clear, rename_get, rename_set, reset_clear, reset_get, reset_set, view, view_app, view_bind, view_bvar, view_fvar_idx, view_fvar_ty, view_let, view_proj,
+};
 use crate::arena::store::{e_bind_view, ENodeView};
 use con_ron_core::kernel::core_types::{code_points, CheckError};
 use con_ron_core::kernel::expr;
@@ -490,7 +492,7 @@ pub fn instantiate1_go(
                                 Err(e) => Err(e),
                                 Ok(f2) => match instantiate1_go(pers, st, v, fuel - 1, &a, d) {
                                     Err(e) => Err(e),
-                                    Ok(a2) => match intern_e(pers, st, ENodeView::App(f2, a2)) {
+                                    Ok(a2) => match intern_e_app(pers, st, f2, a2) {
                                         Err(e) => Err(e),
                                         Ok(r) => {
                                             inst1_set(st, k, &r);
@@ -540,7 +542,7 @@ pub fn instantiate1_go(
                         if i == d {
                             Ok(v.dup2())
                         } else if i > d {
-                            intern_e(pers, st, ENodeView::BVar(i - 1))
+                            intern_e_bvar(pers, st, i - 1)
                         } else {
                             Ok(h.dup2())
                         }
@@ -564,7 +566,7 @@ pub fn instantiate1_go(
                                         match instantiate1_go(pers, st, v, fuel - 1, &body, d + 1) {
                                             Err(e) => Err(e),
                                             Ok(b2) => {
-                                                match intern_e(pers, st, ENodeView::LetE(t2, w, b2))
+                                                match intern_e_let_e(pers, st, t2, w, b2)
                                                 {
                                                     Err(e) => Err(e),
                                                     Ok(r) => {
@@ -592,7 +594,7 @@ pub fn instantiate1_go(
                             let sub: EIdx = p.2;
                             match instantiate1_go(pers, st, v, fuel - 1, &sub, d) {
                                 Err(e) => Err(e),
-                                Ok(u) => match intern_e(pers, st, ENodeView::Proj(n, i, u)) {
+                                Ok(u) => match intern_e_proj(pers, st, n, i, u) {
                                     Err(e) => Err(e),
                                     Ok(r) => {
                                         inst1_set(st, k, &r);
@@ -691,7 +693,7 @@ pub fn instantiate_list(
                         Err(e) => Err(e),
                         Ok(f2) => match instantiate_list(pers, st, vs, fuel - 1, &a, d) {
                             Err(e) => Err(e),
-                            Ok(a2) => intern_e(pers, st, ENodeView::App(f2, a2)),
+                            Ok(a2) => intern_e_app(pers, st, f2, a2),
                         },
                     }
                 }
@@ -728,7 +730,7 @@ pub fn instantiate_list(
                             Err(e) => Err(e),
                             Ok(w) => match instantiate_list(pers, st, vs, fuel - 1, &body, d + 1) {
                                 Err(e) => Err(e),
-                                Ok(b) => intern_e(pers, st, ENodeView::LetE(t2, w, b)),
+                                Ok(b) => intern_e_let_e(pers, st, t2, w, b),
                             },
                         },
                     }
@@ -743,7 +745,7 @@ pub fn instantiate_list(
                     let sub: EIdx = p.2;
                     match instantiate_list(pers, st, vs, fuel - 1, &sub, d) {
                         Err(e) => Err(e),
-                        Ok(u) => intern_e(pers, st, ENodeView::Proj(n, i, u)),
+                        Ok(u) => intern_e_proj(pers, st, n, i, u),
                     }
                 }
             }
@@ -778,7 +780,7 @@ pub fn instantiate_list(
                                 instantiate_list(pers, st, &pre, fuel - 1, &vi, d)
                             }
                         } else {
-                            intern_e(pers, st, ENodeView::BVar(j - n))
+                            intern_e_bvar(pers, st, j - n)
                         }
                     }
                 }
@@ -820,7 +822,7 @@ pub fn instantiate_list_go(
                             Err(e) => Err(e),
                             Ok(f2) => match instantiate_list_go(pers, st, vs, fuel - 1, &a, d) {
                                 Err(e) => Err(e),
-                                Ok(a2) => match intern_e(pers, st, ENodeView::App(f2, a2)) {
+                                Ok(a2) => match intern_e_app(pers, st, f2, a2) {
                                     Err(e) => Err(e),
                                     Ok(r) => {
                                         inst_l_set(st, k, &r);
@@ -884,7 +886,7 @@ pub fn instantiate_list_go(
                                     {
                                         Err(e) => Err(e),
                                         Ok(b) => {
-                                            match intern_e(pers, st, ENodeView::LetE(t2, w, b)) {
+                                            match intern_e_let_e(pers, st, t2, w, b) {
                                                 Err(e) => Err(e),
                                                 Ok(r) => {
                                                     inst_l_set(st, k, &r);
@@ -911,7 +913,7 @@ pub fn instantiate_list_go(
                         let sub: EIdx = p.2;
                         match instantiate_list_go(pers, st, vs, fuel - 1, &sub, d) {
                             Err(e) => Err(e),
-                            Ok(u) => match intern_e(pers, st, ENodeView::Proj(n, i, u)) {
+                            Ok(u) => match intern_e_proj(pers, st, n, i, u) {
                                 Err(e) => Err(e),
                                 Ok(r) => {
                                     inst_l_set(st, k, &r);
@@ -974,7 +976,7 @@ pub fn lift_loose_bvars_go(
             Err(e) => Err(e),
             Ok(ENodeView::BVar(i)) => {
                 if i >= c {
-                    intern_e(pers, st, ENodeView::BVar(i + amount))
+                    intern_e_bvar(pers, st, i + amount)
                 } else {
                     Ok(h.dup2())
                 }
@@ -991,7 +993,7 @@ pub fn lift_loose_bvars_go(
                         Err(e) => Err(e),
                         Ok(a2) => match lift_loose_bvars_go(pers, st, amount, fuel - 1, &b, c) {
                             Err(e) => Err(e),
-                            Ok(b2) => match intern_e(pers, st, ENodeView::App(a2, b2)) {
+                            Ok(b2) => match intern_e_app(pers, st, a2, b2) {
                                 Err(e) => Err(e),
                                 Ok(r) => {
                                     lift_set(st, k, &r);
@@ -1010,7 +1012,7 @@ pub fn lift_loose_bvars_go(
                         Err(e) => Err(e),
                         Ok(t) => match lift_loose_bvars_go(pers, st, amount, fuel - 1, &body, c + 1) {
                             Err(e) => Err(e),
-                            Ok(b) => match intern_e(pers, st, ENodeView::Lam(t, b, m)) {
+                            Ok(b) => match intern_e_lam(pers, st, t, b, m) {
                                 Err(e) => Err(e),
                                 Ok(r) => {
                                     lift_set(st, k, &r);
@@ -1029,7 +1031,7 @@ pub fn lift_loose_bvars_go(
                         Err(e) => Err(e),
                         Ok(t) => match lift_loose_bvars_go(pers, st, amount, fuel - 1, &body, c + 1) {
                             Err(e) => Err(e),
-                            Ok(b) => match intern_e(pers, st, ENodeView::ForallE(t, b, m)) {
+                            Ok(b) => match intern_e_forall_e(pers, st, t, b, m) {
                                 Err(e) => Err(e),
                                 Ok(r) => {
                                     lift_set(st, k, &r);
@@ -1051,7 +1053,7 @@ pub fn lift_loose_bvars_go(
                             Ok(w) => {
                                 match lift_loose_bvars_go(pers, st, amount, fuel - 1, &body, c + 1) {
                                     Err(e) => Err(e),
-                                    Ok(b) => match intern_e(pers, st, ENodeView::LetE(t, w, b)) {
+                                    Ok(b) => match intern_e_let_e(pers, st, t, w, b) {
                                         Err(e) => Err(e),
                                         Ok(r) => {
                                             lift_set(st, k, &r);
@@ -1070,7 +1072,7 @@ pub fn lift_loose_bvars_go(
                     Some(r) => Ok(r),
                     None => match lift_loose_bvars_go(pers, st, amount, fuel - 1, &sub, c) {
                         Err(e) => Err(e),
-                        Ok(u) => match intern_e(pers, st, ENodeView::Proj(n, i, u)) {
+                        Ok(u) => match intern_e_proj(pers, st, n, i, u) {
                             Err(e) => Err(e),
                             Ok(r) => {
                                 lift_set(st, k, &r);
@@ -1376,7 +1378,7 @@ pub fn abstract_range(
             Ok(ENodeView::BVar(_)) => Ok(h.dup2()),
             Ok(ENodeView::FVar(idx, _)) => {
                 if d <= idx && idx < d + k {
-                    intern_e(pers, st, ENodeView::BVar(c + (d + k - 1 - idx)))
+                    intern_e_bvar(pers, st, c + (d + k - 1 - idx))
                 } else {
                     Ok(h.dup2())
                 }
@@ -1388,14 +1390,14 @@ pub fn abstract_range(
                 Err(e) => Err(e),
                 Ok(f2) => match abstract_range(pers, st, fuel - 1, &a, d, k, c) {
                     Err(e) => Err(e),
-                    Ok(a2) => intern_e(pers, st, ENodeView::App(f2, a2)),
+                    Ok(a2) => intern_e_app(pers, st, f2, a2),
                 },
             },
             Ok(ENodeView::Lam(ty, body, m)) => match abstract_range(pers, st, fuel - 1, &ty, d, k, c) {
                 Err(e) => Err(e),
                 Ok(t) => match abstract_range(pers, st, fuel - 1, &body, d, k, c + 1) {
                     Err(e) => Err(e),
-                    Ok(b) => intern_e(pers, st, ENodeView::Lam(t, b, m)),
+                    Ok(b) => intern_e_lam(pers, st, t, b, m),
                 },
             },
             Ok(ENodeView::ForallE(ty, body, m)) => {
@@ -1403,7 +1405,7 @@ pub fn abstract_range(
                     Err(e) => Err(e),
                     Ok(t) => match abstract_range(pers, st, fuel - 1, &body, d, k, c + 1) {
                         Err(e) => Err(e),
-                        Ok(b) => intern_e(pers, st, ENodeView::ForallE(t, b, m)),
+                        Ok(b) => intern_e_forall_e(pers, st, t, b, m),
                     },
                 }
             }
@@ -1413,13 +1415,13 @@ pub fn abstract_range(
                     Err(e) => Err(e),
                     Ok(w) => match abstract_range(pers, st, fuel - 1, &body, d, k, c + 1) {
                         Err(e) => Err(e),
-                        Ok(b) => intern_e(pers, st, ENodeView::LetE(t, w, b)),
+                        Ok(b) => intern_e_let_e(pers, st, t, w, b),
                     },
                 },
             },
             Ok(ENodeView::Proj(n, i, sub)) => match abstract_range(pers, st, fuel - 1, &sub, d, k, c) {
                 Err(e) => Err(e),
-                Ok(u) => intern_e(pers, st, ENodeView::Proj(n, i, u)),
+                Ok(u) => intern_e_proj(pers, st, n, i, u),
             },
         }
     }
@@ -2368,7 +2370,7 @@ pub fn mk_app_n_from(
     if i >= args.len() {
         Ok(f.dup2())
     } else {
-        match intern_e(pers, st, ENodeView::App(f.dup2(), args[i].dup2())) {
+        match intern_e_app(pers, st, f.dup2(), args[i].dup2()) {
             Err(e) => Err(e),
             Ok(g) => mk_app_n_from(pers, st, &g, args, i + 1),
         }
@@ -2421,7 +2423,7 @@ where
             Ok(ENodeView::Lit(_)) => Ok(h.dup2()),
             Ok(ENodeView::Const(n, us)) => {
                 let n2: NIdx = f.rename(&n);
-                intern_e(pers, st, ENodeView::Const(n2, us))
+                intern_e_const(pers, st, n2, us)
             }
             Ok(ENodeView::FVar(i, ty)) => {
                 let k: EIdxNat = eidx_nat_key(h, 0);
@@ -2429,7 +2431,7 @@ where
                     Some(r) => Ok(r),
                     None => match rename_consts_go(pers, st, f, fuel - 1, &ty) {
                         Err(e) => Err(e),
-                        Ok(t) => match intern_e(pers, st, ENodeView::FVar(i, t)) {
+                        Ok(t) => match intern_e_fvar(pers, st, i, t) {
                             Err(e) => Err(e),
                             Ok(r) => {
                                 rename_set(st, k, &r);
@@ -2447,7 +2449,7 @@ where
                         Err(e) => Err(e),
                         Ok(a2) => match rename_consts_go(pers, st, f, fuel - 1, &b) {
                             Err(e) => Err(e),
-                            Ok(b2) => match intern_e(pers, st, ENodeView::App(a2, b2)) {
+                            Ok(b2) => match intern_e_app(pers, st, a2, b2) {
                                 Err(e) => Err(e),
                                 Ok(r) => {
                                     rename_set(st, k, &r);
@@ -2466,7 +2468,7 @@ where
                         Err(e) => Err(e),
                         Ok(t) => match rename_consts_go(pers, st, f, fuel - 1, &body) {
                             Err(e) => Err(e),
-                            Ok(b) => match intern_e(pers, st, ENodeView::Lam(t, b, m)) {
+                            Ok(b) => match intern_e_lam(pers, st, t, b, m) {
                                 Err(e) => Err(e),
                                 Ok(r) => {
                                     rename_set(st, k, &r);
@@ -2485,7 +2487,7 @@ where
                         Err(e) => Err(e),
                         Ok(t) => match rename_consts_go(pers, st, f, fuel - 1, &body) {
                             Err(e) => Err(e),
-                            Ok(b) => match intern_e(pers, st, ENodeView::ForallE(t, b, m)) {
+                            Ok(b) => match intern_e_forall_e(pers, st, t, b, m) {
                                 Err(e) => Err(e),
                                 Ok(r) => {
                                     rename_set(st, k, &r);
@@ -2506,7 +2508,7 @@ where
                             Err(e) => Err(e),
                             Ok(w) => match rename_consts_go(pers, st, f, fuel - 1, &body) {
                                 Err(e) => Err(e),
-                                Ok(b) => match intern_e(pers, st, ENodeView::LetE(t, w, b)) {
+                                Ok(b) => match intern_e_let_e(pers, st, t, w, b) {
                                     Err(e) => Err(e),
                                     Ok(r) => {
                                         rename_set(st, k, &r);
@@ -2524,7 +2526,7 @@ where
                     Some(r) => Ok(r),
                     None => match rename_consts_go(pers, st, f, fuel - 1, &sub) {
                         Err(e) => Err(e),
-                        Ok(u) => match intern_e(pers, st, ENodeView::Proj(n, i, u)) {
+                        Ok(u) => match intern_e_proj(pers, st, n, i, u) {
                             Err(e) => Err(e),
                             Ok(r) => {
                                 rename_set(st, k, &r);
@@ -2974,7 +2976,7 @@ pub fn bvar_range(
     if n == 0 {
         Ok(Vec::new())
     } else {
-        match intern_e(pers, st, ENodeView::BVar(sub_nat(sub_nat(m_i, 1), k))) {
+        match intern_e_bvar(pers, st, sub_nat(sub_nat(m_i, 1), k)) {
             Err(e) => Err(e),
             Ok(b) => match bvar_range(pers, st, m_i, n - 1, k + 1) {
                 Err(e) => Err(e),
@@ -3047,7 +3049,7 @@ pub fn pis_to_lams(
                     Err(e) => Err(e),
                     Ok(Some(b)) => {
                         let m: BinderMeta = expr::binder_meta(prop_when::never());
-                        match intern_e(pers, st, ENodeView::Lam(ty, b, m)) {
+                        match intern_e_lam(pers, st, ty, b, m) {
                             Err(e) => Err(e),
                             Ok(r) => Ok(Some(r)),
                         }
@@ -3082,7 +3084,7 @@ pub fn replace_pi_body(
                     Err(e) => Err(e),
                     Ok(Some(r)) => {
                         let m2: BinderMeta = expr::binder_meta(m.pw);
-                        match intern_e(pers, st, ENodeView::ForallE(ty, r, m2)) {
+                        match intern_e_forall_e(pers, st, ty, r, m2) {
                             Err(e) => Err(e),
                             Ok(x) => Ok(Some(x)),
                         }
@@ -3497,7 +3499,7 @@ pub fn abstract1_go(
                             None => fail_dangling_e(),
                             Some(idx) => {
                                 if idx == d {
-                                    intern_e(pers, st, ENodeView::BVar(k))
+                                    intern_e_bvar(pers, st, k)
                                 } else {
                                     Ok(h.dup2())
                                 }
@@ -3748,7 +3750,7 @@ pub fn abstract_range_go(
                             None => fail_dangling_e(),
                             Some(idx) => {
                                 if d <= idx && idx < d + k {
-                                    intern_e(pers, st, ENodeView::BVar(c + (d + k - 1 - idx)))
+                                    intern_e_bvar(pers, st, c + (d + k - 1 - idx))
                                 } else {
                                     Ok(h.dup2())
                                 }
@@ -3907,7 +3909,7 @@ pub fn lower_bvars_go(
                         Err(e) => Err(e),
                         Ok(ENodeView::BVar(i)) => {
                             if i >= c + amount {
-                                intern_e(pers, st, ENodeView::BVar(i - amount))
+                                intern_e_bvar(pers, st, i - amount)
                             } else {
                                 Ok(h.dup2())
                             }
@@ -3924,7 +3926,7 @@ pub fn lower_bvars_go(
                                     Err(e) => Err(e),
                                     Ok(f2) => match lower_bvars_go(pers, st, amount, fuel - 1, &a, c) {
                                         Err(e) => Err(e),
-                                        Ok(a2) => match intern_e(pers, st, ENodeView::App(f2, a2)) {
+                                        Ok(a2) => match intern_e_app(pers, st, f2, a2) {
                                             Err(e) => Err(e),
                                             Ok(r) => {
                                                 lower_set(st, k, &r);
@@ -3945,7 +3947,7 @@ pub fn lower_bvars_go(
                                         match lower_bvars_go(pers, st, amount, fuel - 1, &body, c + 1) {
                                             Err(e) => Err(e),
                                             Ok(b) => {
-                                                match intern_e(pers, st, ENodeView::Lam(t, b, m)) {
+                                                match intern_e_lam(pers, st, t, b, m) {
                                                     Err(e) => Err(e),
                                                     Ok(r) => {
                                                         lower_set(st, k, &r);
@@ -3968,7 +3970,7 @@ pub fn lower_bvars_go(
                                         match lower_bvars_go(pers, st, amount, fuel - 1, &body, c + 1) {
                                             Err(e) => Err(e),
                                             Ok(b) => {
-                                                match intern_e(pers, st, ENodeView::ForallE(t, b, m)) {
+                                                match intern_e_forall_e(pers, st, t, b, m) {
                                                     Err(e) => Err(e),
                                                     Ok(r) => {
                                                         lower_set(st, k, &r);
@@ -3994,7 +3996,7 @@ pub fn lower_bvars_go(
                                             {
                                                 Err(e) => Err(e),
                                                 Ok(b) => {
-                                                    match intern_e(pers, st, ENodeView::LetE(t, w, b)) {
+                                                    match intern_e_let_e(pers, st, t, w, b) {
                                                         Err(e) => Err(e),
                                                         Ok(r) => {
                                                             lower_set(st, k, &r);
@@ -4014,7 +4016,7 @@ pub fn lower_bvars_go(
                                 Some(r) => Ok(r),
                                 None => match lower_bvars_go(pers, st, amount, fuel - 1, &sub, c) {
                                     Err(e) => Err(e),
-                                    Ok(u) => match intern_e(pers, st, ENodeView::Proj(n, i, u)) {
+                                    Ok(u) => match intern_e_proj(pers, st, n, i, u) {
                                         Err(e) => Err(e),
                                         Ok(r) => {
                                             lower_set(st, k, &r);
@@ -4090,7 +4092,7 @@ pub fn instantiate1_lift_go(
                             if i == d {
                                 lift_loose_bvars_fast(pers, st, fuel - 1, d, 0, v)
                             } else if i > d {
-                                intern_e(pers, st, ENodeView::BVar(i - 1))
+                                intern_e_bvar(pers, st, i - 1)
                             } else {
                                 Ok(h.dup2())
                             }
@@ -4109,7 +4111,7 @@ pub fn instantiate1_lift_go(
                                         match instantiate1_lift_go(pers, st, v, fuel - 1, &a, d) {
                                             Err(e) => Err(e),
                                             Ok(a2) => {
-                                                match intern_e(pers, st, ENodeView::App(f2, a2)) {
+                                                match intern_e_app(pers, st, f2, a2) {
                                                     Err(e) => Err(e),
                                                     Ok(r) => {
                                                         inst1_l_set(st, k, &r);
@@ -4132,7 +4134,7 @@ pub fn instantiate1_lift_go(
                                         match instantiate1_lift_go(pers, st, v, fuel - 1, &body, d + 1) {
                                             Err(e) => Err(e),
                                             Ok(b) => {
-                                                match intern_e(pers, st, ENodeView::Lam(t, b, m)) {
+                                                match intern_e_lam(pers, st, t, b, m) {
                                                     Err(e) => Err(e),
                                                     Ok(r) => {
                                                         inst1_l_set(st, k, &r);
@@ -4155,7 +4157,7 @@ pub fn instantiate1_lift_go(
                                         match instantiate1_lift_go(pers, st, v, fuel - 1, &body, d + 1) {
                                             Err(e) => Err(e),
                                             Ok(b) => {
-                                                match intern_e(pers, st, ENodeView::ForallE(t, b, m)) {
+                                                match intern_e_forall_e(pers, st, t, b, m) {
                                                     Err(e) => Err(e),
                                                     Ok(r) => {
                                                         inst1_l_set(st, k, &r);
@@ -4188,11 +4190,7 @@ pub fn instantiate1_lift_go(
                                                 ) {
                                                     Err(e) => Err(e),
                                                     Ok(b) => {
-                                                        match intern_e(
-                                                            pers,
-                                                            st,
-                                                            ENodeView::LetE(t, w, b),
-                                                        ) {
+                                                        match intern_e_let_e(pers, st, t, w, b) {
                                                             Err(e) => Err(e),
                                                             Ok(r) => {
                                                                 inst1_l_set(st, k, &r);
@@ -4213,7 +4211,7 @@ pub fn instantiate1_lift_go(
                                 Some(r) => Ok(r),
                                 None => match instantiate1_lift_go(pers, st, v, fuel - 1, &sub, d) {
                                     Err(e) => Err(e),
-                                    Ok(u) => match intern_e(pers, st, ENodeView::Proj(n, i, u)) {
+                                    Ok(u) => match intern_e_proj(pers, st, n, i, u) {
                                         Err(e) => Err(e),
                                         Ok(r) => {
                                             inst1_l_set(st, k, &r);
@@ -4703,7 +4701,7 @@ pub fn inst_lp_fast(
 mod tests {
     use super::*;
     use crate::arena::monad::{
-        denote_l, denote_ls, denote_n, intern_l_node, intern_n_node, intern_ls_node, AState,
+        AState, denote_l, denote_ls, denote_n, intern_e_lit, intern_e_sort, intern_l_node, intern_ls_node, intern_n_node,
     };
     use crate::arena::store::{EStore, LNodeView, NNodeView};
     use con_ron_core::kernel::expr::Expr;
@@ -4823,46 +4821,46 @@ mod tests {
     /// arena.
     fn intern_expr(pers: &PersTier, st: &mut AState, e: &Expr) -> EIdx {
         match expr::view(e) {
-            expr::ExprView::Bvar(i) => ok(intern_e(pers, st, ENodeView::BVar(*i))),
+            expr::ExprView::Bvar(i) => ok(intern_e_bvar(pers, st, *i)),
             expr::ExprView::Fvar(i, ty) => {
                 let t = intern_expr(pers, st, ty);
-                ok(intern_e(pers, st, ENodeView::FVar(*i, t)))
+                ok(intern_e_fvar(pers, st, *i, t))
             }
             expr::ExprView::Sort(u) => {
                 let hu = ok(crate::arena::monad::intern_level(pers, st, u));
-                ok(intern_e(pers, st, ENodeView::Sort(hu)))
+                ok(intern_e_sort(pers, st, hu))
             }
             expr::ExprView::Const(n, us) => {
                 let hn = ok(crate::arena::monad::intern_name(pers, st, n));
                 let hus = ok(crate::arena::monad::intern_levels(pers, st, us));
-                ok(intern_e(pers, st, ENodeView::Const(hn, hus)))
+                ok(intern_e_const(pers, st, hn, hus))
             }
             expr::ExprView::App(f, a) => {
                 let hf = intern_expr(pers, st, f);
                 let ha = intern_expr(pers, st, a);
-                ok(intern_e(pers, st, ENodeView::App(hf, ha)))
+                ok(intern_e_app(pers, st, hf, ha))
             }
             expr::ExprView::Lam(ty, b, m) => {
                 let ht = intern_expr(pers, st, ty);
                 let hb = intern_expr(pers, st, b);
-                ok(intern_e(pers, st, ENodeView::Lam(ht, hb, expr::binder_meta_dup(m))))
+                ok(intern_e_lam(pers, st, ht, hb, expr::binder_meta_dup(m)))
             }
             expr::ExprView::ForallE(ty, b, m) => {
                 let ht = intern_expr(pers, st, ty);
                 let hb = intern_expr(pers, st, b);
-                ok(intern_e(pers, st, ENodeView::ForallE(ht, hb, expr::binder_meta_dup(m))))
+                ok(intern_e_forall_e(pers, st, ht, hb, expr::binder_meta_dup(m)))
             }
             expr::ExprView::LetE(ty, v, b) => {
                 let ht = intern_expr(pers, st, ty);
                 let hv = intern_expr(pers, st, v);
                 let hb = intern_expr(pers, st, b);
-                ok(intern_e(pers, st, ENodeView::LetE(ht, hv, hb)))
+                ok(intern_e_let_e(pers, st, ht, hv, hb))
             }
-            expr::ExprView::Lit(l) => ok(intern_e(pers, st, ENodeView::Lit(expr::literal_dup(l)))),
+            expr::ExprView::Lit(l) => ok(intern_e_lit(pers, st, expr::literal_dup(l))),
             expr::ExprView::Proj(n, i, sub) => {
                 let hn = ok(crate::arena::monad::intern_name(pers, st, n));
                 let hs = intern_expr(pers, st, sub);
-                ok(intern_e(pers, st, ENodeView::Proj(hn, *i, hs)))
+                ok(intern_e_proj(pers, st, hn, *i, hs))
             }
         }
     }
@@ -5000,91 +4998,39 @@ mod tests {
         let pu = ok(intern_l_node(pers, &mut st, LNodeView::Param(u_n.dup2())));
         let us_z = ok(intern_ls_node(pers, &mut st, vec![z.dup2()]));
         let us_u = ok(intern_ls_node(pers, &mut st, vec![pu.dup2()]));
-        let s0 = ok(intern_e(pers, &mut st, ENodeView::Sort(z.dup2())));
-        let s1 = ok(intern_e(pers, &mut st, ENodeView::Sort(one.dup2())));
-        let su = ok(intern_e(pers, &mut st, ENodeView::Sort(pu.dup2())));
-        let cf = ok(intern_e(pers, &mut st, ENodeView::Const(foo.dup2(), us_z.dup2())));
-        let cb = ok(intern_e(pers, &mut st, ENodeView::Const(bar.dup2(), us_u.dup2())));
-        let b0 = ok(intern_e(pers, &mut st, ENodeView::BVar(0)));
-        let b1 = ok(intern_e(pers, &mut st, ENodeView::BVar(1)));
-        let b2 = ok(intern_e(pers, &mut st, ENodeView::BVar(2)));
-        let lit7 = ok(intern_e(
-            pers,
-            &mut st,
-            ENodeView::Lit(expr::literal_nat(nat::from_u64(7))),
-        ));
-        let fv0 = ok(intern_e(pers, &mut st, ENodeView::FVar(0, s0.dup2())));
-        let fv1 = ok(intern_e(pers, &mut st, ENodeView::FVar(1, s1.dup2())));
-        let ap1 = ok(intern_e(pers, &mut st, ENodeView::App(cf.dup2(), b0.dup2())));
-        let pj = ok(intern_e(pers, &mut st, ENodeView::Proj(foo.dup2(), 0, ap1.dup2())));
-        let lam_t = ok(intern_e(
-            pers,
-            &mut st,
-            ENodeView::Lam(s0.dup2(), ap1.dup2(), nev()),
-        ));
-        let apbf = ok(intern_e(pers, &mut st, ENodeView::App(b1.dup2(), fv0.dup2())));
-        let all_t = ok(intern_e(
-            pers,
-            &mut st,
-            ENodeView::ForallE(s0.dup2(), apbf.dup2(), nev()),
-        ));
-        let apbb = ok(intern_e(pers, &mut st, ENodeView::App(b0.dup2(), b1.dup2())));
-        let let_t = ok(intern_e(
-            pers,
-            &mut st,
-            ENodeView::LetE(s0.dup2(), cf.dup2(), apbb.dup2()),
-        ));
-        let apcb = ok(intern_e(pers, &mut st, ENodeView::App(cb.dup2(), b0.dup2())));
-        let apfv = ok(intern_e(pers, &mut st, ENodeView::App(fv1.dup2(), b0.dup2())));
-        let apb2 = ok(intern_e(pers, &mut st, ENodeView::App(b2.dup2(), apfv.dup2())));
-        let pj2 = ok(intern_e(
-            pers,
-            &mut st,
-            ENodeView::Proj(foo.dup2(), 0, apb2.dup2()),
-        ));
-        let inner = ok(intern_e(
-            pers,
-            &mut st,
-            ENodeView::ForallE(s1.dup2(), pj2.dup2(), nev()),
-        ));
-        let let_b = ok(intern_e(
-            pers,
-            &mut st,
-            ENodeView::LetE(su.dup2(), apcb.dup2(), inner.dup2()),
-        ));
-        let big = ok(intern_e(
-            pers,
-            &mut st,
-            ENodeView::Lam(s0.dup2(), let_b.dup2(), nev()),
-        ));
-        let apb10 = ok(intern_e(pers, &mut st, ENodeView::App(b1.dup2(), b0.dup2())));
-        let pi_in = ok(intern_e(
-            pers,
-            &mut st,
-            ENodeView::ForallE(s1.dup2(), apb10.dup2(), nev()),
-        ));
-        let pi_t = ok(intern_e(
-            pers,
-            &mut st,
-            ENodeView::ForallE(s0.dup2(), pi_in.dup2(), nev()),
-        ));
-        let pi_s = ok(intern_e(
-            pers,
-            &mut st,
-            ENodeView::ForallE(s0.dup2(), s1.dup2(), nev()),
-        ));
-        let lam_in = ok(intern_e(
-            pers,
-            &mut st,
-            ENodeView::Lam(s1.dup2(), apb10.dup2(), nev()),
-        ));
-        let lam_t2 = ok(intern_e(
-            pers,
-            &mut st,
-            ENodeView::Lam(s0.dup2(), lam_in.dup2(), nev()),
-        ));
-        let sp1 = ok(intern_e(pers, &mut st, ENodeView::App(cf.dup2(), fv0.dup2())));
-        let spine = ok(intern_e(pers, &mut st, ENodeView::App(sp1.dup2(), b0.dup2())));
+        let s0 = ok(intern_e_sort(pers, &mut st, z.dup2()));
+        let s1 = ok(intern_e_sort(pers, &mut st, one.dup2()));
+        let su = ok(intern_e_sort(pers, &mut st, pu.dup2()));
+        let cf = ok(intern_e_const(pers, &mut st, foo.dup2(), us_z.dup2()));
+        let cb = ok(intern_e_const(pers, &mut st, bar.dup2(), us_u.dup2()));
+        let b0 = ok(intern_e_bvar(pers, &mut st, 0));
+        let b1 = ok(intern_e_bvar(pers, &mut st, 1));
+        let b2 = ok(intern_e_bvar(pers, &mut st, 2));
+        let lit7 = ok(intern_e_lit(pers, &mut st, expr::literal_nat(nat::from_u64(7))));
+        let fv0 = ok(intern_e_fvar(pers, &mut st, 0, s0.dup2()));
+        let fv1 = ok(intern_e_fvar(pers, &mut st, 1, s1.dup2()));
+        let ap1 = ok(intern_e_app(pers, &mut st, cf.dup2(), b0.dup2()));
+        let pj = ok(intern_e_proj(pers, &mut st, foo.dup2(), 0, ap1.dup2()));
+        let lam_t = ok(intern_e_lam(pers, &mut st, s0.dup2(), ap1.dup2(), nev()));
+        let apbf = ok(intern_e_app(pers, &mut st, b1.dup2(), fv0.dup2()));
+        let all_t = ok(intern_e_forall_e(pers, &mut st, s0.dup2(), apbf.dup2(), nev()));
+        let apbb = ok(intern_e_app(pers, &mut st, b0.dup2(), b1.dup2()));
+        let let_t = ok(intern_e_let_e(pers, &mut st, s0.dup2(), cf.dup2(), apbb.dup2()));
+        let apcb = ok(intern_e_app(pers, &mut st, cb.dup2(), b0.dup2()));
+        let apfv = ok(intern_e_app(pers, &mut st, fv1.dup2(), b0.dup2()));
+        let apb2 = ok(intern_e_app(pers, &mut st, b2.dup2(), apfv.dup2()));
+        let pj2 = ok(intern_e_proj(pers, &mut st, foo.dup2(), 0, apb2.dup2()));
+        let inner = ok(intern_e_forall_e(pers, &mut st, s1.dup2(), pj2.dup2(), nev()));
+        let let_b = ok(intern_e_let_e(pers, &mut st, su.dup2(), apcb.dup2(), inner.dup2()));
+        let big = ok(intern_e_lam(pers, &mut st, s0.dup2(), let_b.dup2(), nev()));
+        let apb10 = ok(intern_e_app(pers, &mut st, b1.dup2(), b0.dup2()));
+        let pi_in = ok(intern_e_forall_e(pers, &mut st, s1.dup2(), apb10.dup2(), nev()));
+        let pi_t = ok(intern_e_forall_e(pers, &mut st, s0.dup2(), pi_in.dup2(), nev()));
+        let pi_s = ok(intern_e_forall_e(pers, &mut st, s0.dup2(), s1.dup2(), nev()));
+        let lam_in = ok(intern_e_lam(pers, &mut st, s1.dup2(), apb10.dup2(), nev()));
+        let lam_t2 = ok(intern_e_lam(pers, &mut st, s0.dup2(), lam_in.dup2(), nev()));
+        let sp1 = ok(intern_e_app(pers, &mut st, cf.dup2(), fv0.dup2()));
+        let spine = ok(intern_e_app(pers, &mut st, sp1.dup2(), b0.dup2()));
         let fx = Fx {
             z,
             one,
@@ -6131,11 +6077,7 @@ mod tests {
         );
         // interning is hash-consing, so a rebuilt node is the SAME handle and
         // the index test is the structural test (`denoteE_inj`, task #97a)
-        let r = ok(intern_e(
-            pers,
-            &mut st,
-            ENodeView::App(fx.cf.dup2(), fx.b0.dup2()),
-        ));
+        let r = ok(intern_e_app(pers, &mut st, fx.cf.dup2(), fx.b0.dup2()));
         assert!(expr_ptr_beq(&r, &fx.ap1));
 
         assert_eq!(

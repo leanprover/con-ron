@@ -50,7 +50,9 @@ use crate::arena::env::{
 };
 use crate::arena::expr_ops::{has_fvar_fast, loose_bvars_bounded_fast};
 use crate::arena::handle::{EIdx, NIdx};
-use crate::arena::monad::{fail, intern_e, intern_l_node, intern_ls_node, AState};
+use crate::arena::monad::{
+    AState, fail, intern_e_app, intern_e_const, intern_e_fvar, intern_l_node, intern_ls_node,
+};
 use crate::arena::nat_op_pin_set::INatOpPinSet;
 use crate::arena::std_axioms::{
     choice_name, choice_raw, eq_a, i_constant_val_matches_pin, iff_intro_name,
@@ -58,7 +60,7 @@ use crate::arena::std_axioms::{
     nonempty_intro_raw, nonempty_name, nonempty_raw, nonempty_rec_name, nonempty_rec_raw,
     propext_name, propext_raw,
 };
-use crate::arena::store::{ENodeView, LNodeView};
+use crate::arena::store::LNodeView;
 use crate::arena::trust_axioms::{
     bool_cv_a, of_reduce_op, of_reduce_pin_a, reduce_cert_var, reduce_decl_pin,
     reduce_nat_name, reduce_op_cv_a, true_cv_a, true_intro_cv_a, true_intro_name, true_name,
@@ -1032,13 +1034,13 @@ pub fn eq_at1_app(
 ) -> Result<EIdx, CheckError> {
     match pin_eq(st) {
         Err(e) => Err(e),
-        Ok(en) => match intern_e(pers, st, ENodeView::Const(en, hus)) {
+        Ok(en) => match intern_e_const(pers, st, en, hus) {
             Err(e) => Err(e),
-            Ok(e0) => match intern_e(pers, st, ENodeView::App(e0, ty.dup2())) {
+            Ok(e0) => match intern_e_app(pers, st, e0, ty.dup2()) {
                 Err(e) => Err(e),
-                Ok(e1) => match intern_e(pers, st, ENodeView::App(e1, a.dup2())) {
+                Ok(e1) => match intern_e_app(pers, st, e1, a.dup2()) {
                     Err(e) => Err(e),
-                    Ok(e2) => intern_e(pers, st, ENodeView::App(e2, b.dup2())),
+                    Ok(e2) => intern_e_app(pers, st, e2, b.dup2()),
                 },
             },
         },
@@ -1069,7 +1071,7 @@ pub fn nat_var(pers: &PersTier, st: &mut AState, i: u64) -> Result<EIdx, CheckEr
         Err(e) => Err(e),
         Ok(nt) => match const_e(pers, st, &nt) {
             Err(e) => Err(e),
-            Ok(ty) => intern_e(pers, st, ENodeView::FVar(i, ty)),
+            Ok(ty) => intern_e_fvar(pers, st, i, ty),
         },
     }
 }
@@ -1899,9 +1901,9 @@ pub fn div_mod_cert_applied(
         Err(e) => Err(e),
         Ok(x) => match nat_var(pers, st, 1) {
             Err(e) => Err(e),
-            Ok(y) => match intern_e(pers, st, ENodeView::App(proof_s.dup2(), x)) {
+            Ok(y) => match intern_e_app(pers, st, proof_s.dup2(), x) {
                 Err(e) => Err(e),
-                Ok(b1) => match intern_e(pers, st, ENodeView::App(b1, y)) {
+                Ok(b1) => match intern_e_app(pers, st, b1, y) {
                     Err(e) => Err(e),
                     Ok(base) => div_mod_cert_applied_hyps(pers, st, base, hyps),
                 },
@@ -1920,18 +1922,18 @@ pub fn div_mod_cert_applied_hyps(
     hyps: &Vec<EIdx>,
 ) -> Result<EIdx, CheckError> {
     if hyps.len() == 1 {
-        match intern_e(pers, st, ENodeView::FVar(2, hyps[0].dup2())) {
+        match intern_e_fvar(pers, st, 2, hyps[0].dup2()) {
             Err(e) => Err(e),
-            Ok(f2) => intern_e(pers, st, ENodeView::App(base, f2)),
+            Ok(f2) => intern_e_app(pers, st, base, f2),
         }
     } else if hyps.len() == 2 {
-        match intern_e(pers, st, ENodeView::FVar(2, hyps[0].dup2())) {
+        match intern_e_fvar(pers, st, 2, hyps[0].dup2()) {
             Err(e) => Err(e),
-            Ok(f2) => match intern_e(pers, st, ENodeView::App(base, f2)) {
+            Ok(f2) => match intern_e_app(pers, st, base, f2) {
                 Err(e) => Err(e),
-                Ok(a1) => match intern_e(pers, st, ENodeView::FVar(3, hyps[1].dup2())) {
+                Ok(a1) => match intern_e_fvar(pers, st, 3, hyps[1].dup2()) {
                     Err(e) => Err(e),
-                    Ok(f3) => intern_e(pers, st, ENodeView::App(a1, f3)),
+                    Ok(f3) => intern_e_app(pers, st, a1, f3),
                 },
             },
         }
@@ -2726,7 +2728,7 @@ pub fn check_reduce_identity(
 ) -> Result<(), CheckError> {
     match reduce_cert_var(pers, st, c) {
         Err(e) => Err(e),
-        Ok(x) => match intern_e(pers, st, ENodeView::App(val_a.dup2(), x.dup2())) {
+        Ok(x) => match intern_e_app(pers, st, val_a.dup2(), x.dup2()) {
             Err(e) => Err(e),
             Ok(ax) => match is_def_eq_core(pers, vis, st, mode, fe, CHECK_FUEL, 1, &ax, &x) {
                 Err(e) => Err(e),

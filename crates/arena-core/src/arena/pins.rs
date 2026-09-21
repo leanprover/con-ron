@@ -66,8 +66,10 @@
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
 use crate::arena::env::nidx_vec_dup;
 use crate::arena::intern::intern_name_list;
-use crate::arena::monad::{fail, intern_e, intern_l_node, intern_ls_node, AState};
-use crate::arena::store::{ENodeView, LNodeView};
+use crate::arena::monad::{
+    AState, fail, intern_e_sort, intern_l_node, intern_ls_node,
+};
+use crate::arena::store::LNodeView;
 use con_ron_core::kernel::basis_names;
 use con_ron_core::kernel::core_k;
 use con_ron_core::kernel::core_types::{code_points, CheckError};
@@ -337,7 +339,7 @@ pub fn intern_reserved_pins(pers: &PersTier, st: &mut AState) -> Result<(), Chec
                 Err(e) => Err(e),
                 Ok(z) => match intern_l_node(pers, st, LNodeView::Succ(z.dup2())) {
                     Err(e) => Err(e),
-                    Ok(o) => match intern_e(pers, st, ENodeView::Sort(o)) {
+                    Ok(o) => match intern_e_sort(pers, st, o) {
                         Err(e) => Err(e),
                         Ok(s1) => {
                             st.pins = Pins {
@@ -823,7 +825,7 @@ mod tests {
         let us = ok(intern_ls_node(pers, &mut st, Vec::new()));
         let z = ok(intern_l_node(pers, &mut st, LNodeView::Zero));
         let o = ok(intern_l_node(pers, &mut st, LNodeView::Succ(z.dup2())));
-        let s1 = ok(intern_e(pers, &mut st, ENodeView::Sort(o)));
+        let s1 = ok(intern_e_sort(pers, &mut st, o));
         assert!(us.eq2(&ok(pin_empty_levels(&st))));
         assert!(z.eq2(&ok(pin_zero_level(&st))));
         assert!(s1.eq2(&ok(pin_sort_one(&st))));

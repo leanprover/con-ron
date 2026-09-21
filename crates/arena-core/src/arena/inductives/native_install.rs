@@ -44,7 +44,9 @@ use crate::arena::env;
 use crate::arena::env::{IConstantInfo, IConstantVal, IFEnv, IIndCaps};
 use crate::arena::expr_ops;
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
-use crate::arena::monad::{fail, intern_e, intern_n_node, view, AState, read_level_m};
+use crate::arena::monad::{
+    AState, fail, intern_e_const, intern_n_node, read_level_m, view,
+};
 use crate::arena::store::{ENodeView, NNodeView};
 use con_ron_core::kernel::core_types;
 use con_ron_core::kernel::core_types::{code_points, CheckError};
@@ -448,7 +450,7 @@ pub fn native_opened_ok(
             Ok(None) => Ok(false),
             Ok(Some(xq)) => match struct_parts::param_levels(pers, st, lps) {
                 Err(e) => Err(e),
-                Ok(us) => match intern_e(pers, st, ENodeView::Const(t.dup2(), us)) {
+                Ok(us) => match intern_e_const(pers, st, t.dup2(), us) {
                     Err(e) => Err(e),
                     Ok(hd) => match expr_ops::get_app_args(pers, st, CORE_WALK_FUEL, &xq.1) {
                         Err(e) => Err(e),

@@ -94,7 +94,9 @@ use crate::arena::handle::{
     ETAG_LET_E,
     ETAG_LIT, ETAG_PROJ, ETAG_SORT,
 };
-use crate::arena::monad::{fail, intern_e, intern_l_node, intern_ls_node, intern_n_node, intern_level, intern_name, view, view_app, view_bind, view_ls, view_ls_len, AState, fail_dangling_e, fail_dangling_ls, view_bvar, view_const, view_const_name, view_lit, view_sort, read_level_m, read_levels_m, read_name_m, read_names_m};
+use crate::arena::monad::{
+    AState, fail, fail_dangling_e, fail_dangling_ls, intern_e_app, intern_e_bvar, intern_e_const, intern_e_forall_e, intern_e_fvar, intern_e_lam, intern_e_let_e, intern_e_lit, intern_e_proj, intern_e_sort, intern_l_node, intern_level, intern_ls_node, intern_n_node, intern_name, read_level_m, read_levels_m, read_name_m, read_names_m, view, view_app, view_bind, view_bvar, view_const, view_const_name, view_lit, view_ls, view_ls_len, view_sort,
+};
 use crate::arena::prop_read::{is_proof_fast, not_proof_fast, proof_pw, type_sort_pw};
 use crate::arena::store::{ENodeView, LNodeView, NNodeView};
 use crate::arena::pins::{pin_and, pin_reserved, pin_bool, pin_bool_false, pin_bool_true, pin_char, pin_char_of_nat, pin_empty_levels, pin_list, pin_list_cons, pin_list_nil, pin_nat, pin_nat_add, pin_nat_beq, pin_nat_ble, pin_nat_div, pin_nat_gcd, pin_nat_land, pin_nat_lor, pin_nat_mod, pin_nat_mul, pin_nat_pow, pin_nat_pred, pin_nat_shift_left, pin_nat_shift_right, pin_nat_sub, pin_nat_succ, pin_nat_xor, pin_nat_zero, pin_punit, pin_punit_rec, pin_sorry_ax, pin_sort_one, pin_string, pin_string_of_list, pin_zero_level};
@@ -511,7 +513,7 @@ pub fn sort_one(st: &AState) -> Result<EIdx, CheckError> {
 pub fn const_e(pers: &PersTier, st: &mut AState, n: &NIdx) -> Result<EIdx, CheckError> {
     match empty_levels(st) {
         Err(e) => Err(e),
-        Ok(us) => intern_e(pers, st, ENodeView::Const(n.dup2(), us)),
+        Ok(us) => intern_e_const(pers, st, n.dup2(), us),
     }
 }
 
@@ -1204,9 +1206,9 @@ pub fn nat_lit_to_constructor(
             Ok(s) => match const_e(pers, st, &s) {
                 Err(e) => Err(e),
                 Ok(sc) => {
-                    match intern_e(pers, st, ENodeView::Lit(expr::literal_nat(nat::pred(n)))) {
+                    match intern_e_lit(pers, st, expr::literal_nat(nat::pred(n))) {
                         Err(e) => Err(e),
-                        Ok(l) => intern_e(pers, st, ENodeView::App(sc, l)),
+                        Ok(l) => intern_e_app(pers, st, sc, l),
                     }
                 }
             },
@@ -1561,13 +1563,13 @@ pub fn str_lit_cons_spine(
             Err(e) => Err(e),
             Ok(rest) => {
                 let c: u64 = s[i] as u64;
-                match intern_e(pers, st, ENodeView::Lit(expr::literal_nat(nat::from_u64(c)))) {
+                match intern_e_lit(pers, st, expr::literal_nat(nat::from_u64(c))) {
                     Err(e) => Err(e),
-                    Ok(lit) => match intern_e(pers, st, ENodeView::App(of_nat.dup2(), lit)) {
+                    Ok(lit) => match intern_e_app(pers, st, of_nat.dup2(), lit) {
                         Err(e) => Err(e),
-                        Ok(ch) => match intern_e(pers, st, ENodeView::App(cons.dup2(), ch)) {
+                        Ok(ch) => match intern_e_app(pers, st, cons.dup2(), ch) {
                             Err(e) => Err(e),
-                            Ok(f) => intern_e(pers, st, ENodeView::App(f, rest)),
+                            Ok(f) => intern_e_app(pers, st, f, rest),
                         },
                     },
                 }
@@ -1591,9 +1593,9 @@ pub fn str_lit_to_constructor_rest(
 ) -> Result<EIdx, CheckError> {
     match pin_list_cons(st) {
         Err(e) => Err(e),
-        Ok(lc_n) => match intern_e(pers, st, ENodeView::Const(lc_n, zs.dup2())) {
+        Ok(lc_n) => match intern_e_const(pers, st, lc_n, zs.dup2()) {
             Err(e) => Err(e),
-            Ok(lc) => match intern_e(pers, st, ENodeView::App(lc, ch_c.dup2())) {
+            Ok(lc) => match intern_e_app(pers, st, lc, ch_c.dup2()) {
                 Err(e) => Err(e),
                 Ok(cons) => match pin_char_of_nat(st) {
                     Err(e) => Err(e),
@@ -1608,7 +1610,7 @@ pub fn str_lit_to_constructor_rest(
                                         Ok(sl_n) => match const_e(pers, st, &sl_n) {
                                             Err(e) => Err(e),
                                             Ok(sl) => {
-                                                intern_e(pers, st, ENodeView::App(sl, spine))
+                                                intern_e_app(pers, st, sl, spine)
                                             }
                                         },
                                     }
@@ -1645,10 +1647,10 @@ pub fn str_lit_to_constructor(
                         Ok(ch_c) => match pin_list_nil(st) {
                             Err(e) => Err(e),
                             Ok(ln_n) => {
-                                match intern_e(pers, st, ENodeView::Const(ln_n, zs.dup2())) {
+                                match intern_e_const(pers, st, ln_n, zs.dup2()) {
                                     Err(e) => Err(e),
                                     Ok(ln) => {
-                                        match intern_e(pers, st, ENodeView::App(ln, ch_c.dup2()))
+                                        match intern_e_app(pers, st, ln, ch_c.dup2())
                                         {
                                             Err(e) => Err(e),
                                             Ok(nil_e) => str_lit_to_constructor_rest(
@@ -1740,7 +1742,7 @@ pub fn list_ty_ok(
                         Err(e) => Err(e),
                         Ok(pl) => match intern_l_node(pers, st, LNodeView::Succ(pl)) {
                             Err(e) => Err(e),
-                            Ok(sp) => match intern_e(pers, st, ENodeView::Sort(sp)) {
+                            Ok(sp) => match intern_e_sort(pers, st, sp) {
                                 Err(e) => Err(e),
                                 Ok(sort) => if cv.ty.tag() == ETAG_FORALL_E {
                                     match view_bind(pers, st, &cv.ty) {
@@ -1842,7 +1844,7 @@ pub fn list_nil_ty_ok(
                         Err(e) => Err(e),
                         Ok(pl) => match intern_l_node(pers, st, LNodeView::Succ(pl.dup2())) {
                             Err(e) => Err(e),
-                            Ok(sp) => match intern_e(pers, st, ENodeView::Sort(sp)) {
+                            Ok(sp) => match intern_e_sort(pers, st, sp) {
                                 Err(e) => Err(e),
                                 Ok(sort) => {
                                     let mut pv: Vec<LIdx> = Vec::new();
@@ -1883,9 +1885,9 @@ pub fn list_cons_ty_body(
     b1: &EIdx,
     b2: &EIdx,
 ) -> Result<bool, CheckError> {
-    match intern_e(pers, st, ENodeView::App(l1.dup2(), b1.dup2())) {
+    match intern_e_app(pers, st, l1.dup2(), b1.dup2()) {
         Err(e) => Err(e),
-        Ok(dom3) => match intern_e(pers, st, ENodeView::App(l1.dup2(), b2.dup2())) {
+        Ok(dom3) => match intern_e_app(pers, st, l1.dup2(), b2.dup2()) {
             Err(e) => Err(e),
             Ok(cod3) => if ty.tag() == ETAG_FORALL_E {
                 match view_bind(pers, st, ty) {
@@ -1944,7 +1946,7 @@ pub fn list_cons_ty_at(
         Err(e) => Err(e),
         Ok(pl) => match intern_l_node(pers, st, LNodeView::Succ(pl.dup2())) {
             Err(e) => Err(e),
-            Ok(sp) => match intern_e(pers, st, ENodeView::Sort(sp)) {
+            Ok(sp) => match intern_e_sort(pers, st, sp) {
                 Err(e) => Err(e),
                 Ok(sort) => {
                     let mut pv: Vec<LIdx> = Vec::new();
@@ -1953,14 +1955,14 @@ pub fn list_cons_ty_at(
                         Err(e) => Err(e),
                         Ok(ps) => match pin_list(st) {
                             Err(e) => Err(e),
-                            Ok(li) => match intern_e(pers, st, ENodeView::BVar(0)) {
+                            Ok(li) => match intern_e_bvar(pers, st, 0) {
                                 Err(e) => Err(e),
-                                Ok(b0) => match intern_e(pers, st, ENodeView::BVar(1)) {
+                                Ok(b0) => match intern_e_bvar(pers, st, 1) {
                                     Err(e) => Err(e),
-                                    Ok(b1) => match intern_e(pers, st, ENodeView::BVar(2)) {
+                                    Ok(b1) => match intern_e_bvar(pers, st, 2) {
                                         Err(e) => Err(e),
                                         Ok(b2) => {
-                                            match intern_e(pers, st, ENodeView::Const(li, ps)) {
+                                            match intern_e_const(pers, st, li, ps) {
                                                 Err(e) => Err(e),
                                                 Ok(l1) => list_cons_ty_body(
                                                     pers,
@@ -2068,13 +2070,13 @@ pub fn string_of_list_ty_body(
                 Err(e) => Err(e),
                 Ok(zs) => match pin_list(st) {
                     Err(e) => Err(e),
-                    Ok(li) => match intern_e(pers, st, ENodeView::Const(li, zs)) {
+                    Ok(li) => match intern_e_const(pers, st, li, zs) {
                         Err(e) => Err(e),
                         Ok(lc) => match pin_char(st) {
                             Err(e) => Err(e),
                             Ok(ch) => match const_e(pers, st, &ch) {
                                 Err(e) => Err(e),
-                                Ok(cc) => match intern_e(pers, st, ENodeView::App(lc, cc)) {
+                                Ok(cc) => match intern_e_app(pers, st, lc, cc) {
                                     Err(e) => Err(e),
                                     Ok(dom) => {
                                         match pin_string(st) {
@@ -2674,7 +2676,7 @@ pub fn nat_op_deps(st: &mut AState, c: &NIdx) -> Result<Vec<NIdx>, CheckError> {
 pub fn nat_ap1(pers: &PersTier, st: &mut AState, n: &NIdx, a: &EIdx) -> Result<EIdx, CheckError> {
     match const_e(pers, st, n) {
         Err(e) => Err(e),
-        Ok(f) => intern_e(pers, st, ENodeView::App(f, a.dup2())),
+        Ok(f) => intern_e_app(pers, st, f, a.dup2()),
     }
 }
 
@@ -2689,7 +2691,7 @@ pub fn nat_ap2(
 ) -> Result<EIdx, CheckError> {
     match nat_ap1(pers, st, n, a) {
         Err(e) => Err(e),
-        Ok(f) => intern_e(pers, st, ENodeView::App(f, b.dup2())),
+        Ok(f) => intern_e_app(pers, st, f, b.dup2()),
     }
 }
 
@@ -2725,9 +2727,9 @@ pub fn nat_eq_ctx(pers: &PersTier, st: &mut AState, d: u64) -> Result<NatEqCtx, 
         Err(e) => Err(e),
         Ok(n_n) => match const_e(pers, st, &n_n) {
             Err(e) => Err(e),
-            Ok(nat_ty) => match intern_e(pers, st, ENodeView::FVar(d, nat_ty.dup2())) {
+            Ok(nat_ty) => match intern_e_fvar(pers, st, d, nat_ty.dup2()) {
                 Err(e) => Err(e),
-                Ok(x) => match intern_e(pers, st, ENodeView::FVar(d + 1, nat_ty)) {
+                Ok(x) => match intern_e_fvar(pers, st, d + 1, nat_ty) {
                     Err(e) => Err(e),
                     Ok(y) => match pin_nat_zero(st) {
                         Err(e) => Err(e),
@@ -3059,7 +3061,7 @@ pub fn nat_op_result(
 /// Lean twin: `proof/ConRon/Arena/Core.lean:922 natOpResult` — `internE (.lit
 /// (.natVal …))` wrapped in `some`, which every arithmetic arm above ends in.
 pub fn lit_nat(pers: &PersTier, st: &mut AState, n: Nat) -> Result<Option<EIdx>, CheckError> {
-    match intern_e(pers, st, ENodeView::Lit(expr::literal_nat(n))) {
+    match intern_e_lit(pers, st, expr::literal_nat(n)) {
         Err(e) => Err(e),
         Ok(x) => Ok(Some(x)),
     }
@@ -3229,7 +3231,7 @@ pub fn subst_const0(
                 Err(e) => Err(e),
                 Ok(f2) => match subst_const0(pers, st, n, r, fuel - 1, &a) {
                     Err(e) => Err(e),
-                    Ok(a2) => intern_e(pers, st, ENodeView::App(f2, a2)),
+                    Ok(a2) => intern_e_app(pers, st, f2, a2),
                 },
             },
             Ok(_) => Ok(h.dup2()),
@@ -3268,14 +3270,14 @@ pub fn subst_const_all(
                 Err(e) => Err(e),
                 Ok(f2) => match subst_const_all(pers, st, n, r, fuel - 1, &a) {
                     Err(e) => Err(e),
-                    Ok(a2) => intern_e(pers, st, ENodeView::App(f2, a2)),
+                    Ok(a2) => intern_e_app(pers, st, f2, a2),
                 },
             },
             Ok(ENodeView::Lam(ty, b, mb)) => match subst_const_all(pers, st, n, r, fuel - 1, &ty) {
                 Err(e) => Err(e),
                 Ok(t2) => match subst_const_all(pers, st, n, r, fuel - 1, &b) {
                     Err(e) => Err(e),
-                    Ok(b2) => intern_e(pers, st, ENodeView::Lam(t2, b2, mb)),
+                    Ok(b2) => intern_e_lam(pers, st, t2, b2, mb),
                 },
             },
             Ok(ENodeView::ForallE(ty, b, mb)) => {
@@ -3283,7 +3285,7 @@ pub fn subst_const_all(
                     Err(e) => Err(e),
                     Ok(t2) => match subst_const_all(pers, st, n, r, fuel - 1, &b) {
                         Err(e) => Err(e),
-                        Ok(b2) => intern_e(pers, st, ENodeView::ForallE(t2, b2, mb)),
+                        Ok(b2) => intern_e_forall_e(pers, st, t2, b2, mb),
                     },
                 }
             }
@@ -3293,13 +3295,13 @@ pub fn subst_const_all(
                     Err(e) => Err(e),
                     Ok(v2) => match subst_const_all(pers, st, n, r, fuel - 1, &b) {
                         Err(e) => Err(e),
-                        Ok(b2) => intern_e(pers, st, ENodeView::LetE(t2, v2, b2)),
+                        Ok(b2) => intern_e_let_e(pers, st, t2, v2, b2),
                     },
                 },
             },
             Ok(ENodeView::Proj(s, i, e2)) => match subst_const_all(pers, st, n, r, fuel - 1, &e2) {
                 Err(er) => Err(er),
-                Ok(x) => intern_e(pers, st, ENodeView::Proj(s, i, x)),
+                Ok(x) => intern_e_proj(pers, st, s, i, x),
             },
             Ok(_) => Ok(h.dup2()),
         }
@@ -4445,7 +4447,7 @@ pub fn proj_nodes_go(
     if n == 0 {
         Ok(Vec::new())
     } else {
-        match intern_e(pers, st, ENodeView::Proj(t.dup2(), j, b.dup2())) {
+        match intern_e_proj(pers, st, t.dup2(), j, b.dup2()) {
             Err(e) => Err(e),
             Ok(p) => match proj_nodes_go(pers, st, t, b, n - 1, j + 1) {
                 Err(e) => Err(e),
@@ -4473,7 +4475,7 @@ pub fn proj_apps_go(
     } else {
         match env::proj_fn_name(pers, &mut st.store, t, j) {
             Err(e) => Err(e),
-            Ok(nm) => match intern_e(pers, st, ENodeView::Const(nm, us.dup2())) {
+            Ok(nm) => match intern_e_const(pers, st, nm, us.dup2()) {
                 Err(e) => Err(e),
                 Ok(f) => {
                     let spine: Vec<EIdx> = snoc_eidx_of(targs, b);
@@ -5109,11 +5111,11 @@ pub fn eta_cert_body(
     m2: &BinderMeta,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    match intern_e(pers, st, ENodeView::FVar(depth, ty1.dup2())) {
+    match intern_e_fvar(pers, st, depth, ty1.dup2()) {
         Err(e) => Err(e),
         Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body1, &fv, 0) {
             Err(e) => Err(e),
-            Ok(lhs) => match intern_e(pers, st, ENodeView::App(b.dup2(), fv.dup2())) {
+            Ok(lhs) => match intern_e_app(pers, st, b.dup2(), fv.dup2()) {
                 Err(e) => Err(e),
                 Ok(rhs) => {
                     match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth + 1, &lhs, &rhs) {
@@ -5505,11 +5507,7 @@ pub fn major_to_ctor_k(
                                             if cn_p <= targs.len() as u64 {
                                                 let spine: Vec<EIdx> =
                                                     take_eidx(&targs, cn_p as usize);
-                                                match intern_e(
-                                                    pers,
-                                                    st,
-                                                    ENodeView::Const(ctor.dup2(), ust.dup2()),
-                                                ) {
+                                                match intern_e_const(pers, st, ctor.dup2(), ust.dup2()) {
                                                     Err(e) => Err(e),
                                                     Ok(hd) => {
                                                         match mk_app_n(pers, st, &hd, &spine) {
@@ -5692,7 +5690,7 @@ pub fn major_to_ctor_eta_build(
     match eta_fab_args_e(pers, vis, st, fe, t, ust, targs, major, caps.eta_fields) {
         Err(e) => Err(e),
         Ok(fab_args) => {
-            match intern_e(pers, st, ENodeView::Const(caps.eta_ctor.dup2(), ust.dup2())) {
+            match intern_e_const(pers, st, caps.eta_ctor.dup2(), ust.dup2()) {
                 Err(e) => Err(e),
                 Ok(hd) => match mk_app_n(pers, st, &hd, &fab_args) {
                     Err(e) => Err(e),
@@ -5803,14 +5801,14 @@ pub fn major_to_ctor_and_build(
     tmaj: &EIdx,
     major: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match intern_e(pers, st, ENodeView::Proj(t.dup2(), 0, major.dup2())) {
+    match intern_e_proj(pers, st, t.dup2(), 0, major.dup2()) {
         Err(e) => Err(e),
-        Ok(p0) => match intern_e(pers, st, ENodeView::Proj(t.dup2(), 1, major.dup2())) {
+        Ok(p0) => match intern_e_proj(pers, st, t.dup2(), 1, major.dup2()) {
             Err(e) => Err(e),
             Ok(p1) => {
                 let fab_args: Vec<EIdx> =
                     snoc2_eidx_of(targs, &p0, &p1);
-                match intern_e(pers, st, ENodeView::Const(ctor.dup2(), ust.dup2())) {
+                match intern_e_const(pers, st, ctor.dup2(), ust.dup2()) {
                     Err(e) => Err(e),
                     Ok(hd) => match mk_app_n(pers, st, &hd, &fab_args) {
                         Err(e) => Err(e),
@@ -6844,7 +6842,7 @@ pub fn iota_rec_at(
                                     if args.len() as u64 == m_i + 1
                                         && usl == cv.level_params.len()
                                     {
-                                        match intern_e(pers, st, ENodeView::BVar(0)) {
+                                        match intern_e_bvar(pers, st, 0) {
                                             Err(er) => Err(er),
                                             Ok(b0) => {
                                                 let maj0: EIdx = get_d_eidx(&args, m_i, &b0);
@@ -7026,7 +7024,7 @@ pub fn whnf_core_proj(
                 Ok(Some(entry)) => {
                     whnf_core_proj_at(pers, vis, st, mode, lane, fuel, fe, depth, sn, i, &ep, &entry)
                 }
-                Ok(None) => intern_e(pers, st, ENodeView::Proj(sn.dup2(), i, ep)),
+                Ok(None) => intern_e_proj(pers, st, sn.dup2(), i, ep),
             },
         },
     }
@@ -7076,7 +7074,7 @@ pub fn whnf_core_proj_at(
                                         &c, &us, &args,
                                     )
                                 } else {
-                                    intern_e(pers, st, ENodeView::Proj(sn.dup2(), i, ep.dup2()))
+                                    intern_e_proj(pers, st, sn.dup2(), i, ep.dup2())
                                 }
                             }
                         },
@@ -7084,7 +7082,7 @@ pub fn whnf_core_proj_at(
                 },
             }
         } else {
-            intern_e(pers, st, ENodeView::Proj(sn.dup2(), i, ep.dup2()))
+            intern_e_proj(pers, st, sn.dup2(), i, ep.dup2())
         },
     }
 }
@@ -7109,7 +7107,7 @@ pub fn whnf_core_proj_fire(
     us: &LsIdx,
     args: &Vec<EIdx>,
 ) -> Result<EIdx, CheckError> {
-    match intern_e(pers, st, ENodeView::BVar(0)) {
+    match intern_e_bvar(pers, st, 0) {
         Err(e) => Err(e),
         Ok(b0) => {
             let arg: EIdx = get_d_eidx(args, entry.num_params + i, &b0);
@@ -7122,7 +7120,7 @@ pub fn whnf_core_proj_fire(
             ) {
                 Err(e) => Err(e),
                 Ok(true) => knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, depth, &arg),
-                Ok(false) => intern_e(pers, st, ENodeView::Proj(sn.dup2(), i, ep.dup2())),
+                Ok(false) => intern_e_proj(pers, st, sn.dup2(), i, ep.dup2()),
             }
         }
     }
@@ -7470,7 +7468,7 @@ pub fn intern_app(
     f: &EIdx,
     a: &EIdx,
 ) -> Result<EIdx, CheckError>  {
-    intern_e(pers, st, ENodeView::App(f.dup2(), a.dup2()))
+    intern_e_app(pers, st, f.dup2(), a.dup2())
 }
 
 /// con-leche: none — `internE (.app f' a)`, the twin's one-line rebuild
@@ -7746,11 +7744,7 @@ pub fn infer_lam_result(
 ) -> Result<EIdx, CheckError> {
     match abstract1_fast(pers, st, CORE_WALK_FUEL, bt, depth, 0) {
         Err(e) => Err(e),
-        Ok(ab) => intern_e(
-            pers,
-            st,
-            ENodeView::ForallE(ty.dup2(), ab, expr::binder_meta_dup(mb)),
-        ),
+        Ok(ab) => intern_e_forall_e(pers, st, ty.dup2(), ab, expr::binder_meta_dup(mb)),
     }
 }
 
@@ -7762,7 +7756,7 @@ pub fn infer_lam_result(
 pub fn infer_sort(pers: &PersTier, st: &mut AState, u: &LIdx) -> Result<EIdx, CheckError> {
     match intern_l_node(pers, st, LNodeView::Succ(u.dup2())) {
         Err(e) => Err(e),
-        Ok(su) => intern_e(pers, st, ENodeView::Sort(su)),
+        Ok(su) => intern_e_sort(pers, st, su),
     }
 }
 
@@ -7897,7 +7891,7 @@ pub fn infer_forall(
                 match view_sort(pers, st, &w) {
                     None => fail_dangling_e(),
                     Some(u) => {
-                        match intern_e(pers, st, ENodeView::FVar(depth, ty.dup2())) {
+                        match intern_e_fvar(pers, st, depth, ty.dup2()) {
                             Err(e) => Err(e),
                             Ok(fv) => {
                                 let fvs: Vec<EIdx> = cons_eidx(&fv, &Vec::new());
@@ -8069,7 +8063,7 @@ pub fn infer_lam(
                 // and a one-entry stack.  The codomain sort itself is not read:
                 // the `.lam` case wants only that the type's whnf IS a sort,
                 // which the handle's own tag says (task #97-P6-13).
-                match intern_e(pers, st, ENodeView::FVar(depth, ty.dup2())) {
+                match intern_e_fvar(pers, st, depth, ty.dup2()) {
                     Err(e) => Err(e),
                     Ok(fv) => {
                         let fvs: Vec<EIdx> = cons_eidx(&fv, &Vec::new());
@@ -8112,7 +8106,7 @@ pub fn infer_lam_open(
     mb: &BinderMeta,
     io: bool,
 ) -> Result<EIdx, CheckError> {
-    match intern_e(pers, st, ENodeView::FVar(depth, ty.dup2())) {
+    match intern_e_fvar(pers, st, depth, ty.dup2()) {
         Err(e) => Err(e),
         Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body, &fv, 0) {
             Err(e) => Err(e),
@@ -8406,7 +8400,7 @@ pub fn infer_lams_out(
                 Ok(ty_abs) => {
                     let m: BinderMeta = expr::binder_meta_dup(&stk[j].1);
                     let pw2: PropWhen = prop_when::dup(&m.pw);
-                    match intern_e(pers, st, ENodeView::ForallE(ty_abs, cur.dup2(), m)) {
+                    match intern_e_forall_e(pers, st, ty_abs, cur.dup2(), m) {
                         Err(e) => Err(e),
                         Ok(nd) => infer_lams_out(pers, st, mode, d, stk, j, &nd, &pw2),
                     }
@@ -8587,11 +8581,7 @@ pub fn infer_lams(
                                         match view_sort(pers, st, &w) {
                                             None => fail_dangling_e(),
                                             Some(_) => {
-                                                match intern_e(
-                                                    pers,
-                                                    st,
-                                                    ENodeView::FVar(d + k, tyo.dup2()),
-                                                ) {
+                                                match intern_e_fvar(pers, st, d + k, tyo.dup2()) {
                                                     Err(e) => Err(e),
                                                     Ok(fv) => {
                                                         let fvs2: Vec<EIdx> = cons_eidx(&fv, fvs);
@@ -8691,7 +8681,7 @@ pub fn infer_pis_leaf(
                         let n: usize = stk.len();
                         match infer_pis_out(pers, st, mode, stk, n, &v, &pv) {
                             Err(e) => Err(e),
-                            Ok(iv) => intern_e(pers, st, ENodeView::Sort(iv)),
+                            Ok(iv) => intern_e_sort(pers, st, iv),
                         }
                     }
                 },
@@ -8749,11 +8739,7 @@ pub fn infer_pis(
                                         match view_sort(pers, st, &w) {
                                             None => fail_dangling_e(),
                                             Some(u) => {
-                                                match intern_e(
-                                                    pers,
-                                                    st,
-                                                    ENodeView::FVar(d + k, tyo.dup2()),
-                                                ) {
+                                                match intern_e_fvar(pers, st, d + k, tyo.dup2()) {
                                                     Err(e) => Err(e),
                                                     Ok(fv) => {
                                                         let fvs2: Vec<EIdx> = cons_eidx(&fv, fvs);
@@ -8929,7 +8915,7 @@ pub fn infer_forall_io_at(
     mb: &BinderMeta,
     u: &LIdx,
 ) -> Result<EIdx, CheckError> {
-    match intern_e(pers, st, ENodeView::FVar(depth, ty.dup2())) {
+    match intern_e_fvar(pers, st, depth, ty.dup2()) {
         Err(e) => Err(e),
         Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body, &fv, 0) {
             Err(e) => Err(e),
@@ -8964,7 +8950,7 @@ pub fn infer_forall_io_at(
                                             LNodeView::Imax(u.dup2(), v.dup2()),
                                         ) {
                                             Err(e) => Err(e),
-                                            Ok(iu) => intern_e(pers, st, ENodeView::Sort(iu)),
+                                            Ok(iu) => intern_e_sort(pers, st, iu),
                                         }
                                     }
                                 }
@@ -9294,7 +9280,7 @@ pub fn defeq_binders(
     match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, ty1, ty2) {
         Err(e) => Err(e),
         Ok(false) => Ok(false),
-        Ok(true) => match intern_e(pers, st, ENodeView::FVar(depth, ty2.dup2())) {
+        Ok(true) => match intern_e_fvar(pers, st, depth, ty2.dup2()) {
             Err(e) => Err(e),
             Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body1, &fv, 0) {
                 Err(e) => Err(e),
@@ -9369,11 +9355,7 @@ pub fn defeq_lit_app(
                                 Err(e) => Err(e),
                                 Ok(ns) => {
                                     if c.eq2(&ns) && us.eq2(&el) {
-                                        match intern_e(
-                                            pers,
-                                            st,
-                                            ENodeView::Lit(expr::literal_nat(k2)),
-                                        ) {
+                                        match intern_e_lit(pers, st, expr::literal_nat(k2)) {
                                             Err(e) => Err(e),
                                             Ok(lh) => {
                                                 if flipped {
@@ -10231,9 +10213,9 @@ pub fn annotate_binders_out(
                     None
                 };
                 let node = if is_lam {
-                    intern_e(pers, st, ENodeView::Lam(ty_abs, cur.dup2(), m))
+                    intern_e_lam(pers, st, ty_abs, cur.dup2(), m)
                 } else {
-                    intern_e(pers, st, ENodeView::ForallE(ty_abs, cur.dup2(), m))
+                    intern_e_forall_e(pers, st, ty_abs, cur.dup2(), m)
                 };
                 match node {
                     Err(e) => Err(e),
@@ -10328,7 +10310,7 @@ pub fn annotate_pis(
                             match knot_annotate(pers, vis, st, mode, lane, fuel, fe, d + k, &tyo) {
                                 Err(e) => Err(e),
                                 Ok(typ) => {
-                                    match intern_e(pers, st, ENodeView::FVar(d + k, typ.dup2())) {
+                                    match intern_e_fvar(pers, st, d + k, typ.dup2()) {
                                         Err(e) => Err(e),
                                         Ok(fv) => {
                                             let fvs2: Vec<EIdx> = cons_eidx(&fv, fvs);
@@ -10425,7 +10407,7 @@ pub fn annotate_lams(
                             match knot_annotate(pers, vis, st, mode, lane, fuel, fe, d + k, &tyo) {
                                 Err(e) => Err(e),
                                 Ok(typ) => {
-                                    match intern_e(pers, st, ENodeView::FVar(d + k, typ.dup2())) {
+                                    match intern_e_fvar(pers, st, d + k, typ.dup2()) {
                                         Err(e) => Err(e),
                                         Ok(fv) => {
                                             let fvs2: Vec<EIdx> = cons_eidx(&fv, fvs);
@@ -10478,7 +10460,7 @@ pub fn annotate_binder(
 ) -> Result<EIdx, CheckError> {
     match knot_annotate(pers, vis, st, mode, lane, fuel, fe, depth, ty) {
         Err(e) => Err(e),
-        Ok(typ) => match intern_e(pers, st, ENodeView::FVar(depth, typ.dup2())) {
+        Ok(typ) => match intern_e_fvar(pers, st, depth, typ.dup2()) {
             Err(e) => Err(e),
             Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body, &fv, 0) {
                 Err(e) => Err(e),
@@ -10518,17 +10500,9 @@ pub fn annotate_binder(
                                         Ok(ab) => {
                                             let m = expr::binder_meta(pw);
                                             if is_lam {
-                                                intern_e(
-                                                    pers,
-                                                    st,
-                                                    ENodeView::Lam(typ, ab, m),
-                                                )
+                                                intern_e_lam(pers, st, typ, ab, m)
                                             } else {
-                                                intern_e(
-                                                    pers,
-                                                    st,
-                                                    ENodeView::ForallE(typ, ab, m),
-                                                )
+                                                intern_e_forall_e(pers, st, typ, ab, m)
                                             }
                                         }
                                     }
@@ -10664,7 +10638,7 @@ pub fn annotate_proj_at(
                         if targs.len() as u64 != entry.num_params {
                             fail(CheckError::Invalid(code_points(&M_PARAMS)))
                         } else {
-                            intern_e(pers, st, ENodeView::Proj(tn.dup2(), i, ep.dup2()))
+                            intern_e_proj(pers, st, tn.dup2(), i, ep.dup2())
                         }
                     }
                 }
@@ -10744,7 +10718,7 @@ pub fn annotate_body(
         Ok(ENodeView::ForallE(ty, body, mb)) => {
             match knot_annotate(pers, vis, st, mode, lane, fuel, fe, depth, &ty) {
                 Err(er) => Err(er),
-                Ok(typ) => match intern_e(pers, st, ENodeView::FVar(depth, typ.dup2())) {
+                Ok(typ) => match intern_e_fvar(pers, st, depth, typ.dup2()) {
                     Err(er) => Err(er),
                     Ok(fv) => {
                         let fvs: Vec<EIdx> = cons_eidx(&fv, &Vec::new());
@@ -10769,7 +10743,7 @@ pub fn annotate_body(
                 if b == 0 {
                     match knot_annotate(pers, vis, st, mode, lane, fuel, fe, depth, &ty) {
                         Err(er) => Err(er),
-                        Ok(typ) => match intern_e(pers, st, ENodeView::FVar(depth, typ.dup2())) {
+                        Ok(typ) => match intern_e_fvar(pers, st, depth, typ.dup2()) {
                             Err(er) => Err(er),
                             Ok(fv) => {
                                 let fvs: Vec<EIdx> = cons_eidx(&fv, &Vec::new());
@@ -11586,46 +11560,46 @@ mod tests {
     /// Intern a whole `Expr` tree, node by node (the twin's `internExprT`).
     fn intern_expr(pers: &PersTier, st: &mut AState, e: &Expr) -> EIdx {
         match expr::view(e) {
-            expr::ExprView::Bvar(i) => ok(intern_e(pers, st, ENodeView::BVar(*i))),
+            expr::ExprView::Bvar(i) => ok(intern_e_bvar(pers, st, *i)),
             expr::ExprView::Fvar(i, ty) => {
                 let t = intern_expr(pers, st, ty);
-                ok(intern_e(pers, st, ENodeView::FVar(*i, t)))
+                ok(intern_e_fvar(pers, st, *i, t))
             }
             expr::ExprView::Sort(u) => {
                 let hu = ok(crate::arena::monad::intern_level(pers, st, u));
-                ok(intern_e(pers, st, ENodeView::Sort(hu)))
+                ok(intern_e_sort(pers, st, hu))
             }
             expr::ExprView::Const(n, us) => {
                 let hn = ok(intern_name(pers, st, n));
                 let hus = ok(intern_levels(pers, st, us));
-                ok(intern_e(pers, st, ENodeView::Const(hn, hus)))
+                ok(intern_e_const(pers, st, hn, hus))
             }
             expr::ExprView::App(f, a) => {
                 let hf = intern_expr(pers, st, f);
                 let ha = intern_expr(pers, st, a);
-                ok(intern_e(pers, st, ENodeView::App(hf, ha)))
+                ok(intern_e_app(pers, st, hf, ha))
             }
             expr::ExprView::Lam(ty, b, m) => {
                 let ht = intern_expr(pers, st, ty);
                 let hb = intern_expr(pers, st, b);
-                ok(intern_e(pers, st, ENodeView::Lam(ht, hb, expr::binder_meta_dup(m))))
+                ok(intern_e_lam(pers, st, ht, hb, expr::binder_meta_dup(m)))
             }
             expr::ExprView::ForallE(ty, b, m) => {
                 let ht = intern_expr(pers, st, ty);
                 let hb = intern_expr(pers, st, b);
-                ok(intern_e(pers, st, ENodeView::ForallE(ht, hb, expr::binder_meta_dup(m))))
+                ok(intern_e_forall_e(pers, st, ht, hb, expr::binder_meta_dup(m)))
             }
             expr::ExprView::LetE(ty, v, b) => {
                 let ht = intern_expr(pers, st, ty);
                 let hv = intern_expr(pers, st, v);
                 let hb = intern_expr(pers, st, b);
-                ok(intern_e(pers, st, ENodeView::LetE(ht, hv, hb)))
+                ok(intern_e_let_e(pers, st, ht, hv, hb))
             }
-            expr::ExprView::Lit(l) => ok(intern_e(pers, st, ENodeView::Lit(expr::literal_dup(l)))),
+            expr::ExprView::Lit(l) => ok(intern_e_lit(pers, st, expr::literal_dup(l))),
             expr::ExprView::Proj(n, i, sub) => {
                 let hn = ok(intern_name(pers, st, n));
                 let hs = intern_expr(pers, st, sub);
-                ok(intern_e(pers, st, ENodeView::Proj(hn, *i, hs)))
+                ok(intern_e_proj(pers, st, hn, *i, hs))
             }
         }
     }
@@ -12410,12 +12384,8 @@ mod tests {
         // `Nat` is an inductive and not a definition to unfold — so `whnf`
         // answers it with itself and records that answer.
         enter_scratch(&mut f.st);
-        let lit = ok(intern_e(
-            pers,
-            &mut f.st,
-            ENodeView::Lit(expr::literal_nat(nat::from_u64(123456))),
-        ));
-        let h = ok(intern_e(pers, &mut f.st, ENodeView::App(f.nat.dup2(), lit)));
+        let lit = ok(intern_e_lit(pers, &mut f.st, expr::literal_nat(nat::from_u64(123456))));
+        let h = ok(intern_e_app(pers, &mut f.st, f.nat.dup2(), lit));
         let _ = whnf(pers, f.fe.visible_below, &mut f.st, &m, &f.fe, F, 0, &h);
         let inside = f.st.caches.whnf_c.contains_key(&h);
         let scratch = !h.is_persistent();

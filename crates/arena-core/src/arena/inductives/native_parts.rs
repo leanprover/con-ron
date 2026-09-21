@@ -36,8 +36,9 @@ use crate::arena::env;
 use crate::arena::env::{IConstantInfo, IConstantVal, IRecRule};
 use crate::arena::expr_ops;
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx, ETAG_CONST, ETAG_FORALL_E, ETAG_SORT};
-use crate::arena::monad::{fail, intern_e, AState, fail_dangling_e, view_bind, view_const_name, view_sort, read_level_m};
-use crate::arena::store::ENodeView;
+use crate::arena::monad::{
+    AState, fail, fail_dangling_e, intern_e_bvar, intern_e_const, intern_e_forall_e, intern_e_lam, read_level_m, view_bind, view_const_name, view_sort,
+};
 use con_ron_core::kernel::core_types;
 use con_ron_core::kernel::core_types::{code_points, CheckError};
 use con_ron_core::kernel::expr;
@@ -172,7 +173,7 @@ pub fn rec_fam_ok(
 ) -> Result<bool, CheckError> {
     match struct_parts::param_levels(pers, st, lps) {
         Err(er) => Err(er),
-        Ok(us) => match intern_e(pers, st, ENodeView::Const(t.dup2(), us)) {
+        Ok(us) => match intern_e_const(pers, st, t.dup2(), us) {
             Err(er) => Err(er),
             Ok(hd) => match expr_ops::get_app_fn(pers, st, CORE_WALK_FUEL, e) {
                 Err(er) => Err(er),
@@ -281,7 +282,7 @@ pub fn rec_positivity_at(
 ) -> Result<RecFieldKind, CheckError> {
     match struct_parts::param_levels(pers, st, lps) {
         Err(e) => Err(e),
-        Ok(us) => match intern_e(pers, st, ENodeView::Const(t.dup2(), us)) {
+        Ok(us) => match intern_e_const(pers, st, t.dup2(), us) {
             Err(e) => Err(e),
             Ok(hd) => match expr_ops::get_app_fn(pers, st, CORE_WALK_FUEL, h) {
                 Err(e) => Err(e),
@@ -652,7 +653,7 @@ pub fn struct_rec_prefix_at(
 ) -> Result<Vec<EIdx>, CheckError> {
     match struct_parts::struct_ps_at(pers, st, e + n_f + n + 1, n_p) {
         Err(er) => Err(er),
-        Ok(ps) => match intern_e(pers, st, ENodeView::BVar(e + n_f + n)) {
+        Ok(ps) => match intern_e_bvar(pers, st, e + n_f + n) {
             Err(er) => Err(er),
             Ok(motive) => match struct_parts::struct_ps_at(pers, st, e + n_f, n) {
                 Err(er) => Err(er),
@@ -743,7 +744,7 @@ pub fn mk_pis_of(
             Ok(rest) => {
                 let ty: EIdx = tele[k].0.dup2();
                 let mt: BinderMeta = expr::binder_meta_dup(&tele[k].1);
-                intern_e(pers, st, ENodeView::ForallE(ty, rest, mt))
+                intern_e_forall_e(pers, st, ty, rest, mt)
             }
         }
     }
@@ -767,7 +768,7 @@ pub fn mk_lams_of(
             Ok(rest) => {
                 let ty: EIdx = tele[k].0.dup2();
                 let mt: BinderMeta = expr::binder_meta_dup(&tele[k].1);
-                intern_e(pers, st, ENodeView::Lam(ty, rest, mt))
+                intern_e_lam(pers, st, ty, rest, mt)
             }
         }
     }
@@ -823,7 +824,7 @@ pub fn struct_ih_app(
     idx: &Vec<EIdx>,
 ) -> Result<EIdx, CheckError> {
     let m: u64 = tele.len() as u64;
-    match intern_e(pers, st, ENodeView::Const(rec_c.dup2(), rlvls.dup2())) {
+    match intern_e_const(pers, st, rec_c.dup2(), rlvls.dup2()) {
         Err(e) => Err(e),
         Ok(hd) => match struct_rec_prefix_at(pers, st, n_p, n, n_f, m) {
             Err(e) => Err(e),
@@ -831,7 +832,7 @@ pub fn struct_ih_app(
                 match struct_idx_list(pers, st, n_f, n + 1, i, 0, m, idx, 0, Vec::new()) {
                     Err(e) => Err(e),
                     Ok(idx2) => {
-                        match intern_e(pers, st, ENodeView::BVar(sub_nat(sub_nat(n_f, 1), i) + m)) {
+                        match intern_e_bvar(pers, st, sub_nat(sub_nat(n_f, 1), i) + m) {
                             Err(e) => Err(e),
                             Ok(fvar) => match struct_tele_vars(pers, st, m) {
                                 Err(e) => Err(e),
@@ -890,7 +891,7 @@ pub fn struct_rule_body_r(
     rec_idx: &Vec<u64>,
     cty: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match intern_e(pers, st, ENodeView::BVar(sub_nat(sub_nat(n_f + n, 1), j))) {
+    match intern_e_bvar(pers, st, sub_nat(sub_nat(n_f + n, 1), j)) {
         Err(e) => Err(e),
         Ok(hd) => match struct_parts::bvars_desc(pers, st, n_f) {
             Err(e) => Err(e),
@@ -987,7 +988,7 @@ pub fn struct_ih_pis(
                 Err(e) => Err(e),
                 Ok(idx) => {
                     let m: u64 = tele.len() as u64;
-                    match intern_e(pers, st, ENodeView::BVar(sub_nat(n_f + o, 1) + l + m)) {
+                    match intern_e_bvar(pers, st, sub_nat(n_f + o, 1) + l + m) {
                         Err(e) => Err(e),
                         Ok(motive) => {
                             match struct_idx_list(pers, st, n_f, o, i, l, m, &idx, 0, Vec::new()) {
@@ -1028,7 +1029,7 @@ pub fn struct_ih_pis_at(
     i: u64,
     m: u64,
 ) -> Result<EIdx, CheckError> {
-    match intern_e(pers, st, ENodeView::BVar(sub_nat(sub_nat(n_f, 1), i) + l + m)) {
+    match intern_e_bvar(pers, st, sub_nat(sub_nat(n_f, 1), i) + l + m) {
         Err(e) => Err(e),
         Ok(fvar) => match struct_tele_vars(pers, st, m) {
             Err(e) => Err(e),
@@ -1061,7 +1062,7 @@ pub fn struct_ih_pis_at(
                                             Ok(rest) => {
                                                 let bm: BinderMeta =
                                                     expr::binder_meta(prop_when::dup(pw));
-                                                intern_e(pers, st, ENodeView::ForallE(dom, rest, bm))
+                                                intern_e_forall_e(pers, st, dom, rest, bm)
                                             }
                                         }
                                     }
@@ -1125,7 +1126,7 @@ pub fn struct_minor_ty_at(
     q2: &EIdx,
     r2: &EIdx,
 ) -> Result<Option<EIdx>, CheckError> {
-    match intern_e(pers, st, ENodeView::BVar(sub_nat(n_f + o, 1))) {
+    match intern_e_bvar(pers, st, sub_nat(n_f + o, 1)) {
         Err(e) => Err(e),
         Ok(motive) => match expr_ops::get_app_args(pers, st, CORE_WALK_FUEL, r2) {
             Err(e) => Err(e),
@@ -1228,9 +1229,9 @@ pub fn intern_binder(
 ) -> Result<EIdx, CheckError> {
     let bm: BinderMeta = expr::binder_meta(prop_when::dup(pw));
     if is_lam {
-        intern_e(pers, st, ENodeView::Lam(ty, body, bm))
+        intern_e_lam(pers, st, ty, body, bm)
     } else {
-        intern_e(pers, st, ENodeView::ForallE(ty, body, bm))
+        intern_e_forall_e(pers, st, ty, body, bm)
     }
 }
 
@@ -1370,11 +1371,11 @@ pub fn struct_rec_ty_at(
 ) -> Result<Option<EIdx>, CheckError> {
     match struct_parts::struct_fam_i(pers, st, t, lps, n_p, n_idx, n + 1, 0) {
         Err(e) => Err(e),
-        Ok(fam) => match intern_e(pers, st, ENodeView::BVar(n_idx + n + 1)) {
+        Ok(fam) => match intern_e_bvar(pers, st, n_idx + n + 1) {
             Err(e) => Err(e),
             Ok(motive_var) => match struct_parts::struct_ps_at(pers, st, 1, n_idx) {
                 Err(e) => Err(e),
-                Ok(idx_vars) => match intern_e(pers, st, ENodeView::BVar(0)) {
+                Ok(idx_vars) => match intern_e_bvar(pers, st, 0) {
                     Err(e) => Err(e),
                     Ok(b0) => {
                         let cargs: Vec<EIdx> = core::snoc_eidx(idx_vars, &b0);
@@ -1382,7 +1383,7 @@ pub fn struct_rec_ty_at(
                             Err(e) => Err(e),
                             Ok(concl) => {
                                 let bm: BinderMeta = expr::binder_meta(prop_when::dup(pw));
-                                match intern_e(pers, st, ENodeView::ForallE(fam, concl, bm)) {
+                                match intern_e_forall_e(pers, st, fam, concl, bm) {
                                     Err(e) => Err(e),
                                     Ok(major_body) => struct_rec_ty_close(
                                         pers,
@@ -1438,7 +1439,7 @@ pub fn struct_rec_ty_close(
                     Ok(None) => Ok(None),
                     Ok(Some(minors)) => {
                         let bm: BinderMeta = expr::binder_meta(prop_when::dup(pw));
-                        match intern_e(pers, st, ENodeView::ForallE(motive_ty.dup2(), minors, bm)) {
+                        match intern_e_forall_e(pers, st, motive_ty.dup2(), minors, bm) {
                             Err(e) => Err(e),
                             Ok(body) => struct_parts::replace_pis_pw(pers, st, pw, n_p, tty, &body),
                         }
@@ -1567,7 +1568,7 @@ pub fn struct_rec_rhs_close(
                 Ok(None) => Ok(None),
                 Ok(Some(minors)) => {
                     let bm: BinderMeta = expr::binder_meta(prop_when::dup(pw));
-                    match intern_e(pers, st, ENodeView::Lam(motive_ty.dup2(), minors, bm)) {
+                    match intern_e_lam(pers, st, motive_ty.dup2(), minors, bm) {
                         Err(e) => Err(e),
                         Ok(lam) => struct_parts::pis_to_lams_pw(pers, st, pw, n_p, tty, &lam),
                     }

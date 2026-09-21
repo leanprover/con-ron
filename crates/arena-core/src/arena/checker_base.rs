@@ -71,7 +71,8 @@ use crate::arena::expr_ops::{
 };
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx, ETAG_CONST, ETAG_FORALL_E, ETAG_SORT, NTAG_STR, NTAG_NUM};
 use crate::arena::monad::{
-    fail, intern_e, read_level, read_levels, read_names, view, view_ls, view_n, AState, Memos, fail_dangling_e, view_bind, view_const, view_const_name, view_sort};
+    AState, Memos, fail, fail_dangling_e, intern_e_bvar, intern_e_fvar, read_level, read_levels, read_names, view, view_bind, view_const, view_const_name, view_ls, view_n, view_sort,
+};
 use crate::arena::store::{
     ENodeView, NNodeView,
 };
@@ -1107,7 +1108,7 @@ pub fn open_pis_at_fvars(
         if h.tag() == ETAG_FORALL_E {
             match view_bind(pers, st, h) {
                 None => fail_dangling_e(),
-                Some((dom, body, _)) => match intern_e(pers, st, ENodeView::FVar(i, dom)) {
+                Some((dom, body, _)) => match intern_e_fvar(pers, st, i, dom) {
                     Err(e) => Err(e),
                     Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &fv, 0) {
                         Err(e) => Err(e),
@@ -1150,7 +1151,7 @@ pub fn open_pis_at_fvars_f_go(
                 Some((dom, body, _)) => {
                     match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &dom, acc, 0) {
                         Err(e) => Err(e),
-                        Ok(d) => match intern_e(pers, st, ENodeView::FVar(i, d)) {
+                        Ok(d) => match intern_e_fvar(pers, st, i, d) {
                             Err(e) => Err(e),
                             Ok(fv) => {
                                 let acc2: Vec<EIdx> = cons_eidx(&fv, acc);
@@ -1475,7 +1476,7 @@ pub fn check_proj_rule(
     n_f: u64,
     i: u64,
 ) -> Result<EIdx, CheckError> {
-    match intern_e(pers, st, ENodeView::BVar(sub_nat(n_f, 1 + i))) {
+    match intern_e_bvar(pers, st, sub_nat(n_f, 1 + i)) {
         Err(e) => Err(e),
         Ok(bv) => match pis_to_lams(pers, st, n_p + n_f, &cvj.ty, &bv) {
             Err(e) => Err(e),

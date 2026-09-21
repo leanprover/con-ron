@@ -25,8 +25,9 @@
 use crate::arena::env::IConstantVal;
 use crate::arena::handle::{EIdx, NIdx};
 use crate::arena::intern::{intern_cv, intern_expr};
-use crate::arena::monad::{intern_e, AState, read_name_m};
-use crate::arena::store::ENodeView;
+use crate::arena::monad::{
+    AState, intern_e_fvar, read_name_m,
+};
 use con_ron_core::kernel::core_types::CheckError;
 use con_ron_core::kernel::trust_axioms as ctrust;
 use con_ron_core::kernel::trust_pins;
@@ -305,6 +306,6 @@ pub fn reduce_decl_pin(pers: &PersTier, st: &mut AState, c: &NIdx) -> Result<EId
 pub fn reduce_cert_var(pers: &PersTier, st: &mut AState, c: &NIdx) -> Result<EIdx, CheckError> {
     match reduce_elem_ty(pers, st, c) {
         Err(e) => Err(e),
-        Ok(ty) => intern_e(pers, st, ENodeView::FVar(0, ty)),
+        Ok(ty) => intern_e_fvar(pers, st, 0, ty),
     }
 }

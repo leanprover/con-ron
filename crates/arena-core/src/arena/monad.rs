@@ -483,6 +483,197 @@ pub fn intern_e(pers: &PersTier, st: &mut AState, v: ENodeView) -> Result<EIdx, 
     st.store.intern(pers, v)
 }
 
+/// con-leche: none — hash-cons an expression node
+/// Lean twin: OWED (task #97-P6-15) — `internBVarE`, the `bvar` arm of
+/// `proof/ConRon/Arena/Monad.lean:155-166 internE`.
+///
+/// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
+/// value with a `BinderMeta` in it, passed by value, taken apart again by
+/// `EStore::intern`'s dispatch and dropped.  This wrapper takes the arm's
+/// fields and goes straight to `EStore::intern_bvar`, so the view is never
+/// built at all.  Same store operation, same decline; see `intern_e`'s note
+/// for where the capacity test lives.
+pub fn intern_e_bvar(
+    pers: &PersTier,
+    st: &mut AState,
+    i: u64,
+) -> Result<EIdx, CheckError> {
+    st.store.intern_bvar(pers, i)
+}
+
+/// con-leche: none — hash-cons an expression node
+/// Lean twin: OWED (task #97-P6-15) — `internFVarE`, the `fvar` arm of
+/// `proof/ConRon/Arena/Monad.lean:155-166 internE`.
+///
+/// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
+/// value with a `BinderMeta` in it, passed by value, taken apart again by
+/// `EStore::intern`'s dispatch and dropped.  This wrapper takes the arm's
+/// fields and goes straight to `EStore::intern_fvar`, so the view is never
+/// built at all.  Same store operation, same decline; see `intern_e`'s note
+/// for where the capacity test lives.
+pub fn intern_e_fvar(
+    pers: &PersTier,
+    st: &mut AState,
+    idx: u64,
+    ty: EIdx,
+) -> Result<EIdx, CheckError> {
+    st.store.intern_fvar(pers, idx, ty)
+}
+
+/// con-leche: none — hash-cons an expression node
+/// Lean twin: OWED (task #97-P6-15) — `internSortE`, the `sort` arm of
+/// `proof/ConRon/Arena/Monad.lean:155-166 internE`.
+///
+/// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
+/// value with a `BinderMeta` in it, passed by value, taken apart again by
+/// `EStore::intern`'s dispatch and dropped.  This wrapper takes the arm's
+/// fields and goes straight to `EStore::intern_sort`, so the view is never
+/// built at all.  Same store operation, same decline; see `intern_e`'s note
+/// for where the capacity test lives.
+pub fn intern_e_sort(
+    pers: &PersTier,
+    st: &mut AState,
+    u: LIdx,
+) -> Result<EIdx, CheckError> {
+    st.store.intern_sort(pers, u)
+}
+
+/// con-leche: none — hash-cons an expression node
+/// Lean twin: OWED (task #97-P6-15) — `internConstE`, the `const` arm of
+/// `proof/ConRon/Arena/Monad.lean:155-166 internE`.
+///
+/// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
+/// value with a `BinderMeta` in it, passed by value, taken apart again by
+/// `EStore::intern`'s dispatch and dropped.  This wrapper takes the arm's
+/// fields and goes straight to `EStore::intern_const`, so the view is never
+/// built at all.  Same store operation, same decline; see `intern_e`'s note
+/// for where the capacity test lives.
+pub fn intern_e_const(
+    pers: &PersTier,
+    st: &mut AState,
+    n: NIdx,
+    us: LsIdx,
+) -> Result<EIdx, CheckError> {
+    st.store.intern_const(pers, n, us)
+}
+
+/// con-leche: none — hash-cons an expression node
+/// Lean twin: OWED (task #97-P6-15) — `internAppE`, the `app` arm of
+/// `proof/ConRon/Arena/Monad.lean:155-166 internE`.
+///
+/// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
+/// value with a `BinderMeta` in it, passed by value, taken apart again by
+/// `EStore::intern`'s dispatch and dropped.  This wrapper takes the arm's
+/// fields and goes straight to `EStore::intern_app`, so the view is never
+/// built at all.  Same store operation, same decline; see `intern_e`'s note
+/// for where the capacity test lives.
+pub fn intern_e_app(
+    pers: &PersTier,
+    st: &mut AState,
+    f: EIdx,
+    a: EIdx,
+) -> Result<EIdx, CheckError> {
+    st.store.intern_app(pers, f, a)
+}
+
+/// con-leche: none — hash-cons an expression node
+/// Lean twin: OWED (task #97-P6-15) — `internLamE`, the `lam` arm of
+/// `proof/ConRon/Arena/Monad.lean:155-166 internE`.
+///
+/// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
+/// value with a `BinderMeta` in it, passed by value, taken apart again by
+/// `EStore::intern`'s dispatch and dropped.  This wrapper takes the arm's
+/// fields and goes straight to `EStore::intern_lam`, so the view is never
+/// built at all.  Same store operation, same decline; see `intern_e`'s note
+/// for where the capacity test lives.
+pub fn intern_e_lam(
+    pers: &PersTier,
+    st: &mut AState,
+    ty: EIdx,
+    body: EIdx,
+    m: BinderMeta,
+) -> Result<EIdx, CheckError> {
+    st.store.intern_lam(pers, ty, body, m)
+}
+
+/// con-leche: none — hash-cons an expression node
+/// Lean twin: OWED (task #97-P6-15) — `internForallEE`, the `forall_e` arm of
+/// `proof/ConRon/Arena/Monad.lean:155-166 internE`.
+///
+/// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
+/// value with a `BinderMeta` in it, passed by value, taken apart again by
+/// `EStore::intern`'s dispatch and dropped.  This wrapper takes the arm's
+/// fields and goes straight to `EStore::intern_forall_e`, so the view is never
+/// built at all.  Same store operation, same decline; see `intern_e`'s note
+/// for where the capacity test lives.
+pub fn intern_e_forall_e(
+    pers: &PersTier,
+    st: &mut AState,
+    ty: EIdx,
+    body: EIdx,
+    m: BinderMeta,
+) -> Result<EIdx, CheckError> {
+    st.store.intern_forall_e(pers, ty, body, m)
+}
+
+/// con-leche: none — hash-cons an expression node
+/// Lean twin: OWED (task #97-P6-15) — `internLetEE`, the `let_e` arm of
+/// `proof/ConRon/Arena/Monad.lean:155-166 internE`.
+///
+/// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
+/// value with a `BinderMeta` in it, passed by value, taken apart again by
+/// `EStore::intern`'s dispatch and dropped.  This wrapper takes the arm's
+/// fields and goes straight to `EStore::intern_let_e`, so the view is never
+/// built at all.  Same store operation, same decline; see `intern_e`'s note
+/// for where the capacity test lives.
+pub fn intern_e_let_e(
+    pers: &PersTier,
+    st: &mut AState,
+    ty: EIdx,
+    val: EIdx,
+    body: EIdx,
+) -> Result<EIdx, CheckError> {
+    st.store.intern_let_e(pers, ty, val, body)
+}
+
+/// con-leche: none — hash-cons an expression node
+/// Lean twin: OWED (task #97-P6-15) — `internLitE`, the `lit` arm of
+/// `proof/ConRon/Arena/Monad.lean:155-166 internE`.
+///
+/// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
+/// value with a `BinderMeta` in it, passed by value, taken apart again by
+/// `EStore::intern`'s dispatch and dropped.  This wrapper takes the arm's
+/// fields and goes straight to `EStore::intern_lit`, so the view is never
+/// built at all.  Same store operation, same decline; see `intern_e`'s note
+/// for where the capacity test lives.
+pub fn intern_e_lit(
+    pers: &PersTier,
+    st: &mut AState,
+    l: Literal,
+) -> Result<EIdx, CheckError> {
+    st.store.intern_lit(pers, l)
+}
+
+/// con-leche: none — hash-cons an expression node
+/// Lean twin: OWED (task #97-P6-15) — `internProjE`, the `proj` arm of
+/// `proof/ConRon/Arena/Monad.lean:155-166 internE`.
+///
+/// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
+/// value with a `BinderMeta` in it, passed by value, taken apart again by
+/// `EStore::intern`'s dispatch and dropped.  This wrapper takes the arm's
+/// fields and goes straight to `EStore::intern_proj`, so the view is never
+/// built at all.  Same store operation, same decline; see `intern_e`'s note
+/// for where the capacity test lives.
+pub fn intern_e_proj(
+    pers: &PersTier,
+    st: &mut AState,
+    n: NIdx,
+    i: u64,
+    e: EIdx,
+) -> Result<EIdx, CheckError> {
+    st.store.intern_proj(pers, n, i, e)
+}
+
 // ---------------------------------------------------------------------------
 // The name store's primitives (`Monad.lean:168-222`)
 // ---------------------------------------------------------------------------

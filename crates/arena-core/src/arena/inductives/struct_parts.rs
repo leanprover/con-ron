@@ -43,7 +43,8 @@ use crate::arena::env::IConstantVal;
 use crate::arena::expr_ops;
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx, ETAG_FORALL_E, ETAG_SORT};
 use crate::arena::monad::{
-    eidx_nat_key, fail, intern_e, intern_l_node, intern_ls_node, view, AState, EIdxNat, fail_dangling_e, view_bind, view_sort};
+    AState, EIdxNat, eidx_nat_key, fail, fail_dangling_e, intern_e_app, intern_e_bvar, intern_e_const, intern_e_forall_e, intern_e_lam, intern_e_proj, intern_e_sort, intern_l_node, intern_ls_node, view, view_bind, view_sort,
+};
 use crate::arena::store::{ENodeView, LNodeView};
 use con_ron_core::kernel::core_types::{code_points, CheckError};
 use con_ron_core::kernel::expr;
@@ -176,7 +177,7 @@ pub fn struct_ps_at_from(
     if k >= n_p {
         Ok(out)
     } else {
-        match intern_e(pers, st, ENodeView::BVar(o + n_p - 1 - k)) {
+        match intern_e_bvar(pers, st, o + n_p - 1 - k) {
             Err(e) => Err(e),
             Ok(b) => {
                 let mut o2: Vec<EIdx> = out;
@@ -209,7 +210,7 @@ pub fn struct_fam(
 ) -> Result<EIdx, CheckError> {
     match param_levels(pers, st, lps) {
         Err(e) => Err(e),
-        Ok(us) => match intern_e(pers, st, ENodeView::Const(t.dup2(), us)) {
+        Ok(us) => match intern_e_const(pers, st, t.dup2(), us) {
             Err(e) => Err(e),
             Ok(hd) => match struct_ps_at(pers, st, o, n_p) {
                 Err(e) => Err(e),
@@ -234,7 +235,7 @@ pub fn struct_ctor_spine(
 ) -> Result<EIdx, CheckError> {
     match param_levels(pers, st, lps) {
         Err(e) => Err(e),
-        Ok(us) => match intern_e(pers, st, ENodeView::Const(c.dup2(), us)) {
+        Ok(us) => match intern_e_const(pers, st, c.dup2(), us) {
             Err(e) => Err(e),
             Ok(hd) => match struct_ps_at(pers, st, n_f + 1, n_p) {
                 Err(e) => Err(e),
@@ -255,7 +256,7 @@ pub fn struct_ctor_spine(
 /// — the recursor rule's right-hand side body: the minor premise applied to
 /// the field variables.
 pub fn struct_rule_body(pers: &PersTier, st: &mut AState, n_f: u64) -> Result<EIdx, CheckError> {
-    match intern_e(pers, st, ENodeView::BVar(n_f)) {
+    match intern_e_bvar(pers, st, n_f) {
         Err(e) => Err(e),
         Ok(hd) => match bvars_desc(pers, st, n_f) {
             Err(e) => Err(e),
@@ -297,7 +298,7 @@ pub fn struct_ctor_spine_at(
 ) -> Result<EIdx, CheckError> {
     match param_levels(pers, st, lps) {
         Err(e) => Err(e),
-        Ok(us) => match intern_e(pers, st, ENodeView::Const(c.dup2(), us)) {
+        Ok(us) => match intern_e_const(pers, st, c.dup2(), us) {
             Err(e) => Err(e),
             Ok(hd) => match struct_ps_at(pers, st, o + n_f, n_p) {
                 Err(e) => Err(e),
@@ -336,7 +337,7 @@ pub fn replace_pis_pw(
                     Ok(None) => Ok(None),
                     Ok(Some(r)) => {
                         let m: BinderMeta = expr::binder_meta(prop_when::dup(pw));
-                        match intern_e(pers, st, ENodeView::ForallE(ty, r, m)) {
+                        match intern_e_forall_e(pers, st, ty, r, m) {
                             Err(e) => Err(e),
                             Ok(n) => Ok(Some(n)),
                         }
@@ -372,7 +373,7 @@ pub fn pis_to_lams_pw(
                     Ok(None) => Ok(None),
                     Ok(Some(r)) => {
                         let m: BinderMeta = expr::binder_meta(prop_when::dup(pw));
-                        match intern_e(pers, st, ENodeView::Lam(ty, r, m)) {
+                        match intern_e_lam(pers, st, ty, r, m) {
                             Err(e) => Err(e),
                             Ok(n) => Ok(Some(n)),
                         }
@@ -404,7 +405,7 @@ pub fn struct_fam_i(
 ) -> Result<EIdx, CheckError> {
     match param_levels(pers, st, lps) {
         Err(er) => Err(er),
-        Ok(us) => match intern_e(pers, st, ENodeView::Const(t.dup2(), us)) {
+        Ok(us) => match intern_e_const(pers, st, t.dup2(), us) {
             Err(er) => Err(er),
             Ok(hd) => match struct_ps_at(pers, st, o + e + n_idx, n_p) {
                 Err(er) => Err(er),
@@ -437,7 +438,7 @@ pub fn struct_ctor_resid_ok(
 ) -> Result<bool, CheckError> {
     match param_levels(pers, st, lps) {
         Err(e) => Err(e),
-        Ok(us) => match intern_e(pers, st, ENodeView::Const(t.dup2(), us)) {
+        Ok(us) => match intern_e_const(pers, st, t.dup2(), us) {
             Err(e) => Err(e),
             Ok(hd) => match expr_ops::get_app_fn(pers, st, CORE_WALK_FUEL, cbody) {
                 Err(e) => Err(e),
@@ -470,11 +471,11 @@ pub fn struct_motive_ty_i(
 ) -> Result<Option<EIdx>, CheckError> {
     match struct_fam_i(pers, st, t, lps, n_p, n_idx, 0, 0) {
         Err(e) => Err(e),
-        Ok(fam) => match intern_e(pers, st, ENodeView::Sort(l.dup2())) {
+        Ok(fam) => match intern_e_sort(pers, st, l.dup2()) {
             Err(e) => Err(e),
             Ok(s) => {
                 let m: BinderMeta = expr::binder_meta(prop_when::never());
-                match intern_e(pers, st, ENodeView::ForallE(fam, s, m)) {
+                match intern_e_forall_e(pers, st, fam, s, m) {
                     Err(e) => Err(e),
                     Ok(body) => {
                         let pw: PropWhen = prop_when::never();
@@ -581,11 +582,11 @@ pub fn struct_shape_at(
 ) -> Result<bool, CheckError> {
     match struct_fam(pers, st, t, lps, n_p, n_f) {
         Err(e) => Err(e),
-        Ok(fam) => match intern_e(pers, st, ENodeView::BVar(2)) {
+        Ok(fam) => match intern_e_bvar(pers, st, 2) {
             Err(e) => Err(e),
-            Ok(b2) => match intern_e(pers, st, ENodeView::BVar(0)) {
+            Ok(b2) => match intern_e_bvar(pers, st, 0) {
                 Err(e) => Err(e),
-                Ok(b0) => match intern_e(pers, st, ENodeView::App(b2, b0)) {
+                Ok(b0) => match intern_e_app(pers, st, b2, b0) {
                     Err(e) => Err(e),
                     Ok(want) => {
                         if !(cbody.eq2(&fam) && rbody.eq2(&want)) {
@@ -669,11 +670,11 @@ pub fn struct_shape_minor(
         match expr_ops::strip_pis(pers, st, n_f, &mindom) {
             Err(e) => Err(e),
             Ok(None) => Ok(false),
-            Ok(Some(q)) => match intern_e(pers, st, ENodeView::BVar(n_f)) {
+            Ok(Some(q)) => match intern_e_bvar(pers, st, n_f) {
                 Err(e) => Err(e),
                 Ok(hd) => match struct_ctor_spine(pers, st, c, lps, n_p, n_f) {
                     Err(e) => Err(e),
-                    Ok(sp) => match intern_e(pers, st, ENodeView::App(hd, sp)) {
+                    Ok(sp) => match intern_e_app(pers, st, hd, sp) {
                         Err(e) => Err(e),
                         Ok(want) => Ok(q.1.eq2(&want)),
                     },
@@ -983,9 +984,9 @@ pub fn struct_proj_arg_p(
     t: &NIdx,
     j: u64,
 ) -> Result<EIdx, CheckError>  {
-    match intern_e(pers, st, ENodeView::BVar(0)) {
+    match intern_e_bvar(pers, st, 0) {
         Err(e) => Err(e),
-        Ok(b) => intern_e(pers, st, ENodeView::Proj(t.dup2(), j, b)),
+        Ok(b) => intern_e_proj(pers, st, t.dup2(), j, b),
     }
 }
 

@@ -3349,98 +3349,169 @@ impl EStore {
 
     /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
     /// Lean twin: `proof/ConRon/Arena/Store.lean:974-1023 EStore.derOfView` —
+    /// the `bvar` arm, which is `con_ron_core::kernel::expr::bvar`'s own body.
+    ///
+    /// **One function per arm** (task #97-P6-15).  `der_of_view` used to be
+    /// the only caller and wrote the ten arms inline; `intern`'s ten
+    /// per-constructor paths need the same arithmetic off the node RECORD,
+    /// and a `match` on a view they have already taken apart is exactly the
+    /// dispatch that task's lever removes.  Each arm is therefore a function
+    /// of that arm's own fields, called from both — the same bodies, in the
+    /// same order, with `data(&child)` still replaced by the derived column.
+    /// The twin writes the arms out inline, as it does today.
+    pub fn der_of_bvar(&self, i: u64) -> u64 {
+        let h: u64 = expr::hash32(name::mix_hash(3, name::nat_hash(i)));
+        expr::pack_data(h, expr::sat_succ(i), 0, false)
+    }
+
+    /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:974-1023 EStore.derOfView` —
+    /// the `fvar` arm (`con_ron_core::kernel::expr::fvar`'s body).  See
+    /// `der_of_bvar`'s note.
+    pub fn der_of_fvar(&self, pers: &PersTier, idx: u64, ty: &EIdx) -> u64 {
+        let dt: u64 = self.derived(pers, ty);
+        let h: u64 = expr::hash32(name::mix_hash(
+            5,
+            name::mix_hash(name::nat_hash(idx), expr::hash_of_data(dt)),
+        ));
+        expr::pack_data(h, 0, expr::sat_succ(idx), expr::lp_of_data(dt))
+    }
+
+    /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:974-1023 EStore.derOfView` —
+    /// the `sort` arm (`con_ron_core::kernel::expr::sort`'s body).  See
+    /// `der_of_bvar`'s note.
+    pub fn der_of_sort(&self, pers: &PersTier, u: &LIdx) -> u64 {
+        let du = self.lder(pers, u);
+        let h: u64 = expr::hash32(name::mix_hash(7, du.hash));
+        expr::pack_data(h, 0, 0, du.has_param)
+    }
+
+    /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:974-1023 EStore.derOfView` —
+    /// the `const` arm (`con_ron_core::kernel::expr::mk_const`'s body).  See
+    /// `der_of_bvar`'s note.
+    pub fn der_of_const(&self, pers: &PersTier, n: &NIdx, us: &LsIdx) -> u64 {
+        let dus = self.lsder(pers, us);
+        let h: u64 =
+            expr::hash32(name::mix_hash(11, name::mix_hash(self.nder(pers, n), dus.hash)));
+        expr::pack_data(h, 0, 0, dus.has_param)
+    }
+
+    /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:974-1023 EStore.derOfView` —
+    /// the `app` arm (`con_ron_core::kernel::expr::app`'s body).  See
+    /// `der_of_bvar`'s note.
+    pub fn der_of_app(&self, pers: &PersTier, f: &EIdx, a: &EIdx) -> u64 {
+        let df: u64 = self.derived(pers, f);
+        let da: u64 = self.derived(pers, a);
+        let h: u64 = expr::hash32(name::mix_hash(
+            17,
+            name::mix_hash(expr::hash_of_data(df), expr::hash_of_data(da)),
+        ));
+        expr::pack_data(
+            h,
+            expr::max_u64(expr::bvar_of_data(df), expr::bvar_of_data(da)),
+            expr::max_u64(expr::fvar_of_data(df), expr::fvar_of_data(da)),
+            expr::lp_of_data(df) || expr::lp_of_data(da),
+        )
+    }
+
+    /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:992-1005 EStore.derOfView` —
+    /// the `lam` (hash tag 19) and `forallE` (23) arms, whose arithmetic is
+    /// `der_of_bind`'s (see that function's note for why it is a function of
+    /// five scalars and not the arm itself).  See `der_of_bvar`'s note.
+    pub fn der_of_bind_at(
+        &self,
+        pers: &PersTier,
+        tag: u64,
+        ty: &EIdx,
+        b: &EIdx,
+        m: &BinderMeta,
+    ) -> u64 {
+        der_of_bind(
+            tag,
+            self.derived(pers, ty),
+            self.derived(pers, b),
+            prop_when::hash_pw(&m.pw),
+            prop_when::has_params(&m.pw),
+        )
+    }
+
+    /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:974-1023 EStore.derOfView` —
+    /// the `letE` arm, whose arithmetic is `der_of_let`'s.  See
+    /// `der_of_bvar`'s note.
+    pub fn der_of_let_at(&self, pers: &PersTier, ty: &EIdx, val: &EIdx, b: &EIdx) -> u64 {
+        der_of_let(self.derived(pers, ty), self.derived(pers, val), self.derived(pers, b))
+    }
+
+    /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:974-1023 EStore.derOfView` —
+    /// the `lit` arm (`con_ron_core::kernel::expr::lit`'s body).  See
+    /// `der_of_bvar`'s note.
+    pub fn der_of_lit(&self, l: &Literal) -> u64 {
+        let h: u64 = expr::hash32(name::mix_hash(31, expr::literal_hash(l)));
+        expr::pack_data(h, 0, 0, false)
+    }
+
+    /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:974-1023 EStore.derOfView` —
+    /// the `proj` arm (`con_ron_core::kernel::expr::proj`'s body).  See
+    /// `der_of_bvar`'s note.
+    pub fn der_of_proj(&self, pers: &PersTier, s: &NIdx, i: u64, e: &EIdx) -> u64 {
+        let de: u64 = self.derived(pers, e);
+        let h: u64 = expr::hash32(name::mix_hash(
+            37,
+            name::mix_hash(
+                self.nder(pers, s),
+                name::mix_hash(name::nat_hash(i), expr::hash_of_data(de)),
+            ),
+        ));
+        expr::pack_data(
+            h,
+            expr::bvar_of_data(de),
+            expr::fvar_of_data(de),
+            expr::lp_of_data(de),
+        )
+    }
+
+    /// con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr
+    /// Lean twin: `proof/ConRon/Arena/Store.lean:974-1023 EStore.derOfView` —
     /// the `data` computed field, lines 357-402.
     ///
     /// **Not re-derived.**  Each arm is the body of the corresponding smart
     /// constructor of `con_ron_core::kernel::expr`
     /// (`bvar`/`fvar`/`sort`/`mk_const`/`app`/`lam`/`forall_e`/`let_e`/`lit`/
-    /// `proj`), with `data(&child)` replaced by `self.derived(pers, h)`, the level
-    /// reads by the level store's derived column (`level_hash u ↦
-    /// self.lder(pers, u).hash`, `level_has_param u ↦ self.lder(pers, u).has_param`), the
-    /// name read by `self.nder(pers, n)` (the `Hashable Name` instance *is*
-    /// `Name.hashData`) and `levels_hash us ↦ self.lsder(pers, us).hash`.  Every
-    /// `pack_data`, `hash32`, `mix_hash`, `sat_succ`, `sat_pred` and `max_u64`
-    /// call below is that crate's, imported and not copied, which is what
-    /// makes the arena's word and `expr::data`'s word the same function of
-    /// the same term — the equality `mod tests` checks per constructor.
+    /// `proj`), with `data(&child)` replaced by `self.derived(pers, h)`, the
+    /// level reads by the level store's derived column (`level_hash u ↦
+    /// self.lder(pers, u).hash`, `level_has_param u ↦
+    /// self.lder(pers, u).has_param`), the name read by `self.nder(pers, n)`
+    /// (the `Hashable Name` instance *is* `Name.hashData`) and `levels_hash us
+    /// ↦ self.lsder(pers, us).hash`.  Every `pack_data`, `hash32`, `mix_hash`,
+    /// `sat_succ`, `sat_pred` and `max_u64` call is that crate's, imported and
+    /// not copied, which is what makes the arena's word and `expr::data`'s
+    /// word the same function of the same term — the equality `mod tests`
+    /// checks per constructor.
+    ///
+    /// **The arms are `der_of_*` since task #97-P6-15** (see `der_of_bvar`),
+    /// because `intern`'s per-constructor paths want the same arithmetic off
+    /// the node record.  This function is what the paths that still hold an
+    /// `ENodeView` call — `intern_persistent` and `arena::promote` — and it is
+    /// the twin's `derOfView` unchanged.
     pub fn der_of_view(&self, pers: &PersTier, v: &ENodeView) -> u64 {
         match v {
-            ENodeView::BVar(i) => {
-                let h: u64 = expr::hash32(name::mix_hash(3, name::nat_hash(*i)));
-                expr::pack_data(h, expr::sat_succ(*i), 0, false)
-            }
-            ENodeView::FVar(idx, ty) => {
-                let dt: u64 = self.derived(pers, ty);
-                let h: u64 = expr::hash32(name::mix_hash(
-                    5,
-                    name::mix_hash(name::nat_hash(*idx), expr::hash_of_data(dt)),
-                ));
-                expr::pack_data(h, 0, expr::sat_succ(*idx), expr::lp_of_data(dt))
-            }
-            ENodeView::Sort(u) => {
-                let du = self.lder(pers, u);
-                let h: u64 = expr::hash32(name::mix_hash(7, du.hash));
-                expr::pack_data(h, 0, 0, du.has_param)
-            }
-            ENodeView::Const(n, us) => {
-                let dus = self.lsder(pers, us);
-                let h: u64 = expr::hash32(name::mix_hash(
-                    11,
-                    name::mix_hash(self.nder(pers, n), dus.hash),
-                ));
-                expr::pack_data(h, 0, 0, dus.has_param)
-            }
-            ENodeView::App(f, a) => {
-                let df: u64 = self.derived(pers, f);
-                let da: u64 = self.derived(pers, a);
-                let h: u64 = expr::hash32(name::mix_hash(
-                    17,
-                    name::mix_hash(expr::hash_of_data(df), expr::hash_of_data(da)),
-                ));
-                expr::pack_data(
-                    h,
-                    expr::max_u64(expr::bvar_of_data(df), expr::bvar_of_data(da)),
-                    expr::max_u64(expr::fvar_of_data(df), expr::fvar_of_data(da)),
-                    expr::lp_of_data(df) || expr::lp_of_data(da),
-                )
-            }
-            ENodeView::Lam(ty, b, m) => der_of_bind(
-                19,
-                self.derived(pers, ty),
-                self.derived(pers, b),
-                prop_when::hash_pw(&m.pw),
-                prop_when::has_params(&m.pw),
-            ),
-            ENodeView::ForallE(ty, b, m) => der_of_bind(
-                23,
-                self.derived(pers, ty),
-                self.derived(pers, b),
-                prop_when::hash_pw(&m.pw),
-                prop_when::has_params(&m.pw),
-            ),
-            ENodeView::LetE(ty, val, b) => {
-                der_of_let(self.derived(pers, ty), self.derived(pers, val), self.derived(pers, b))
-            }
-            ENodeView::Lit(l) => {
-                let h: u64 = expr::hash32(name::mix_hash(31, expr::literal_hash(l)));
-                expr::pack_data(h, 0, 0, false)
-            }
-            ENodeView::Proj(s, i, e) => {
-                let de: u64 = self.derived(pers, e);
-                let h: u64 = expr::hash32(name::mix_hash(
-                    37,
-                    name::mix_hash(
-                        self.nder(pers, s),
-                        name::mix_hash(name::nat_hash(*i), expr::hash_of_data(de)),
-                    ),
-                ));
-                expr::pack_data(
-                    h,
-                    expr::bvar_of_data(de),
-                    expr::fvar_of_data(de),
-                    expr::lp_of_data(de),
-                )
-            }
+            ENodeView::BVar(i) => self.der_of_bvar(*i),
+            ENodeView::FVar(idx, ty) => self.der_of_fvar(pers, *idx, ty),
+            ENodeView::Sort(u) => self.der_of_sort(pers, u),
+            ENodeView::Const(n, us) => self.der_of_const(pers, n, us),
+            ENodeView::App(f, a) => self.der_of_app(pers, f, a),
+            ENodeView::Lam(ty, b, m) => self.der_of_bind_at(pers, 19, ty, b, m),
+            ENodeView::ForallE(ty, b, m) => self.der_of_bind_at(pers, 23, ty, b, m),
+            ENodeView::LetE(ty, val, b) => self.der_of_let_at(pers, ty, val, b),
+            ENodeView::Lit(l) => self.der_of_lit(l),
+            ENodeView::Proj(s, i, e) => self.der_of_proj(pers, s, *i, e),
         }
     }
 
@@ -3483,29 +3554,592 @@ impl EStore {
     /// scratch one, then append to the tier the store is in (DESIGN.md §8.3).
     /// The cap test is the Lean's `capOK` turned into the `Native` decline
     /// §8.3 puts here.
+    ///
+    /// **Dispatched ONCE** (task #97-P6-15).  The body below used to run the
+    /// whole sequence over the `ENodeView`, and each of its four steps
+    /// dispatched on the view's tag again and built the node record again:
+    /// the persistent probe built it (inside `ETables::find`), the scratch
+    /// probe built it a second time, `der_of_view` re-dispatched to compute
+    /// the derived word, and `ETables::push` re-dispatched and built it a
+    /// third time to append it.  A binder paid `binder_meta_dup` at each of
+    /// the three.  So the tag is read once here and the ten per-constructor
+    /// paths below each build their record ONCE and hand the same `&r` to the
+    /// two probes, to the capacity test and to the push — the same clauses in
+    /// the same order, with the dispatch and the two rebuilds gone.
+    ///
+    /// The twin's `intern` is one `def` over `ENodeView`; what is owed is the
+    /// ten-arm spelling and `internC v = intern (view of C)` per constructor,
+    /// each of them `rfl` after the `match`.
     pub fn intern(&mut self, pers: &PersTier, v: ENodeView) -> Result<EIdx, CheckError> {
-        match self.pers_find_maybe(pers, &v) {
-            Some(i) => Ok(i),
+        match v {
+            ENodeView::BVar(i) => self.intern_bvar(pers, i),
+            ENodeView::FVar(idx, ty) => self.intern_fvar(pers, idx, ty),
+            ENodeView::Sort(u) => self.intern_sort(pers, u),
+            ENodeView::Const(n, us) => self.intern_const(pers, n, us),
+            ENodeView::App(f, a) => self.intern_app(pers, f, a),
+            ENodeView::Lam(ty, body, m) => self.intern_lam(pers, ty, body, m),
+            ENodeView::ForallE(ty, body, m) => self.intern_forall_e(pers, ty, body, m),
+            ENodeView::LetE(ty, val, body) => self.intern_let_e(pers, ty, val, body),
+            ENodeView::Lit(l) => self.intern_lit(pers, l),
+            ENodeView::Proj(n, i, e) => self.intern_proj(pers, n, i, e),
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-15) — `EStore.internBVar`, the `bvar` arm of
+    /// `EStore.intern`, over the node RECORD rather than over the view.
+    ///
+    /// The clauses are `intern`'s own, in `intern`'s order — the persistent
+    /// probe (skipped when a child is scratch, `e_view_has_scratch_child`'s
+    /// own arm), the scratch probe, the capacity test, the append — with the
+    /// node record built ONCE and shared by all four.  See `intern`'s note.
+    pub fn intern_bvar(&mut self, pers: &PersTier, i: u64) -> Result<EIdx, CheckError> {
+        let r: BVarNode = BVarNode { i };
+        let sk: bool = false;
+        let hit: Option<EIdx> = if sk {
+            None
+        } else if self.shared_on {
+            pers.e.bvars.find(&r)
+        } else {
+            self.pers.bvars.find(&r)
+        };
+        match hit {
+            Some(hp) => Ok(hp),
             None => {
                 if self.scratch_on {
-                    match self.scr.find(&v) {
-                        Some(i) => Ok(i),
+                    match self.scr.bvars.find(&r) {
+                        Some(hs) => Ok(hs),
                         None => {
-                            if self.scr.size_of(&v) >= IDX_CAP as usize {
+                            if self.scr.bvars.size() >= IDX_CAP as usize {
                                 Err(CheckError::Native(code_points(&M_E_CAP)))
                             } else {
-                                let d = self.der_of_view(pers, &v);
-                                Ok(self.scr.push(v, d, TIER_S))
+                                let d: u64 = self.der_of_bvar(r.i);
+                                let h: EIdx =
+                                    EIdx::pack(ETAG_BVAR, TIER_S, self.scr.bvars.size() as u32);
+                                self.scr.bvars.push(r, d, h.dup2());
+                                Ok(h)
                             }
                         }
                     }
                 } else if self.shared_on {
                     Err(CheckError::Internal(code_points(&M_FROZEN)))
-                } else if self.pers_size_of(pers, &v) >= IDX_CAP as usize {
+                } else if self.pers.bvars.size() >= IDX_CAP as usize {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
-                    let d = self.der_of_view(pers, &v);
-                    Ok(self.pers.push(v, d, TIER_P))
+                    let d: u64 = self.der_of_bvar(r.i);
+                    let h: EIdx = EIdx::pack(ETAG_BVAR, TIER_P, self.pers.bvars.size() as u32);
+                    self.pers.bvars.push(r, d, h.dup2());
+                    Ok(h)
+                }
+            }
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-15) — `EStore.internFVar`, the `fvar` arm of
+    /// `EStore.intern`, over the node RECORD rather than over the view.
+    ///
+    /// The clauses are `intern`'s own, in `intern`'s order — the persistent
+    /// probe (skipped when a child is scratch, `e_view_has_scratch_child`'s
+    /// own arm), the scratch probe, the capacity test, the append — with the
+    /// node record built ONCE and shared by all four.  See `intern`'s note.
+    pub fn intern_fvar(&mut self, pers: &PersTier, idx: u64, ty: EIdx) -> Result<EIdx, CheckError> {
+        let r: FVarNode = FVarNode { idx, ty };
+        let sk: bool = if self.scratch_on {
+            !r.ty.is_persistent()
+        } else {
+            false
+        };
+        let hit: Option<EIdx> = if sk {
+            None
+        } else if self.shared_on {
+            pers.e.fvars.find(&r)
+        } else {
+            self.pers.fvars.find(&r)
+        };
+        match hit {
+            Some(hp) => Ok(hp),
+            None => {
+                if self.scratch_on {
+                    match self.scr.fvars.find(&r) {
+                        Some(hs) => Ok(hs),
+                        None => {
+                            if self.scr.fvars.size() >= IDX_CAP as usize {
+                                Err(CheckError::Native(code_points(&M_E_CAP)))
+                            } else {
+                                let d: u64 = self.der_of_fvar(pers, r.idx, &r.ty);
+                                let h: EIdx =
+                                    EIdx::pack(ETAG_FVAR, TIER_S, self.scr.fvars.size() as u32);
+                                self.scr.fvars.push(r, d, h.dup2());
+                                Ok(h)
+                            }
+                        }
+                    }
+                } else if self.shared_on {
+                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                } else if self.pers.fvars.size() >= IDX_CAP as usize {
+                    Err(CheckError::Native(code_points(&M_E_CAP)))
+                } else {
+                    let d: u64 = self.der_of_fvar(pers, r.idx, &r.ty);
+                    let h: EIdx = EIdx::pack(ETAG_FVAR, TIER_P, self.pers.fvars.size() as u32);
+                    self.pers.fvars.push(r, d, h.dup2());
+                    Ok(h)
+                }
+            }
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-15) — `EStore.internSort`, the `sort` arm of
+    /// `EStore.intern`, over the node RECORD rather than over the view.
+    ///
+    /// The clauses are `intern`'s own, in `intern`'s order — the persistent
+    /// probe (skipped when a child is scratch, `e_view_has_scratch_child`'s
+    /// own arm), the scratch probe, the capacity test, the append — with the
+    /// node record built ONCE and shared by all four.  See `intern`'s note.
+    pub fn intern_sort(&mut self, pers: &PersTier, u: LIdx) -> Result<EIdx, CheckError> {
+        let r: SortNode = SortNode { u };
+        let sk: bool = if self.scratch_on {
+            !r.u.is_persistent()
+        } else {
+            false
+        };
+        let hit: Option<EIdx> = if sk {
+            None
+        } else if self.shared_on {
+            pers.e.sorts.find(&r)
+        } else {
+            self.pers.sorts.find(&r)
+        };
+        match hit {
+            Some(hp) => Ok(hp),
+            None => {
+                if self.scratch_on {
+                    match self.scr.sorts.find(&r) {
+                        Some(hs) => Ok(hs),
+                        None => {
+                            if self.scr.sorts.size() >= IDX_CAP as usize {
+                                Err(CheckError::Native(code_points(&M_E_CAP)))
+                            } else {
+                                let d: u64 = self.der_of_sort(pers, &r.u);
+                                let h: EIdx =
+                                    EIdx::pack(ETAG_SORT, TIER_S, self.scr.sorts.size() as u32);
+                                self.scr.sorts.push(r, d, h.dup2());
+                                Ok(h)
+                            }
+                        }
+                    }
+                } else if self.shared_on {
+                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                } else if self.pers.sorts.size() >= IDX_CAP as usize {
+                    Err(CheckError::Native(code_points(&M_E_CAP)))
+                } else {
+                    let d: u64 = self.der_of_sort(pers, &r.u);
+                    let h: EIdx = EIdx::pack(ETAG_SORT, TIER_P, self.pers.sorts.size() as u32);
+                    self.pers.sorts.push(r, d, h.dup2());
+                    Ok(h)
+                }
+            }
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-15) — `EStore.internConst`, the `const` arm of
+    /// `EStore.intern`, over the node RECORD rather than over the view.
+    ///
+    /// The clauses are `intern`'s own, in `intern`'s order — the persistent
+    /// probe (skipped when a child is scratch, `e_view_has_scratch_child`'s
+    /// own arm), the scratch probe, the capacity test, the append — with the
+    /// node record built ONCE and shared by all four.  See `intern`'s note.
+    pub fn intern_const(&mut self, pers: &PersTier, n: NIdx, us: LsIdx) -> Result<EIdx, CheckError> {
+        let r: ConstNode = ConstNode { n, us };
+        let sk: bool = if self.scratch_on {
+            if r.n.is_persistent() {
+                !r.us.is_persistent()
+            } else {
+                true
+            }
+        } else {
+            false
+        };
+        let hit: Option<EIdx> = if sk {
+            None
+        } else if self.shared_on {
+            pers.e.consts.find(&r)
+        } else {
+            self.pers.consts.find(&r)
+        };
+        match hit {
+            Some(hp) => Ok(hp),
+            None => {
+                if self.scratch_on {
+                    match self.scr.consts.find(&r) {
+                        Some(hs) => Ok(hs),
+                        None => {
+                            if self.scr.consts.size() >= IDX_CAP as usize {
+                                Err(CheckError::Native(code_points(&M_E_CAP)))
+                            } else {
+                                let d: u64 = self.der_of_const(pers, &r.n, &r.us);
+                                let h: EIdx =
+                                    EIdx::pack(ETAG_CONST, TIER_S, self.scr.consts.size() as u32);
+                                self.scr.consts.push(r, d, h.dup2());
+                                Ok(h)
+                            }
+                        }
+                    }
+                } else if self.shared_on {
+                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                } else if self.pers.consts.size() >= IDX_CAP as usize {
+                    Err(CheckError::Native(code_points(&M_E_CAP)))
+                } else {
+                    let d: u64 = self.der_of_const(pers, &r.n, &r.us);
+                    let h: EIdx = EIdx::pack(ETAG_CONST, TIER_P, self.pers.consts.size() as u32);
+                    self.pers.consts.push(r, d, h.dup2());
+                    Ok(h)
+                }
+            }
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-15) — `EStore.internApp`, the `app` arm of
+    /// `EStore.intern`, over the node RECORD rather than over the view.
+    ///
+    /// The clauses are `intern`'s own, in `intern`'s order — the persistent
+    /// probe (skipped when a child is scratch, `e_view_has_scratch_child`'s
+    /// own arm), the scratch probe, the capacity test, the append — with the
+    /// node record built ONCE and shared by all four.  See `intern`'s note.
+    pub fn intern_app(&mut self, pers: &PersTier, f: EIdx, a: EIdx) -> Result<EIdx, CheckError> {
+        let r: AppNode = AppNode { f, a };
+        let sk: bool = if self.scratch_on {
+            if r.f.is_persistent() {
+                !r.a.is_persistent()
+            } else {
+                true
+            }
+        } else {
+            false
+        };
+        let hit: Option<EIdx> = if sk {
+            None
+        } else if self.shared_on {
+            pers.e.apps.find(&r)
+        } else {
+            self.pers.apps.find(&r)
+        };
+        match hit {
+            Some(hp) => Ok(hp),
+            None => {
+                if self.scratch_on {
+                    match self.scr.apps.find(&r) {
+                        Some(hs) => Ok(hs),
+                        None => {
+                            if self.scr.apps.size() >= IDX_CAP as usize {
+                                Err(CheckError::Native(code_points(&M_E_CAP)))
+                            } else {
+                                let d: u64 = self.der_of_app(pers, &r.f, &r.a);
+                                let h: EIdx =
+                                    EIdx::pack(ETAG_APP, TIER_S, self.scr.apps.size() as u32);
+                                self.scr.apps.push(r, d, h.dup2());
+                                Ok(h)
+                            }
+                        }
+                    }
+                } else if self.shared_on {
+                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                } else if self.pers.apps.size() >= IDX_CAP as usize {
+                    Err(CheckError::Native(code_points(&M_E_CAP)))
+                } else {
+                    let d: u64 = self.der_of_app(pers, &r.f, &r.a);
+                    let h: EIdx = EIdx::pack(ETAG_APP, TIER_P, self.pers.apps.size() as u32);
+                    self.pers.apps.push(r, d, h.dup2());
+                    Ok(h)
+                }
+            }
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-15) — `EStore.internLam`, the `lam` arm of
+    /// `EStore.intern`, over the node RECORD rather than over the view.
+    ///
+    /// The clauses are `intern`'s own, in `intern`'s order — the persistent
+    /// probe (skipped when a child is scratch, `e_view_has_scratch_child`'s
+    /// own arm), the scratch probe, the capacity test, the append — with the
+    /// node record built ONCE and shared by all four.  See `intern`'s note.
+    pub fn intern_lam(&mut self, pers: &PersTier, ty: EIdx, body: EIdx, m: BinderMeta) -> Result<EIdx, CheckError> {
+        let r: BindNode = BindNode { ty, body, m };
+        let sk: bool = if self.scratch_on {
+            if r.ty.is_persistent() {
+                !r.body.is_persistent()
+            } else {
+                true
+            }
+        } else {
+            false
+        };
+        let hit: Option<EIdx> = if sk {
+            None
+        } else if self.shared_on {
+            pers.e.lams.find(&r)
+        } else {
+            self.pers.lams.find(&r)
+        };
+        match hit {
+            Some(hp) => Ok(hp),
+            None => {
+                if self.scratch_on {
+                    match self.scr.lams.find(&r) {
+                        Some(hs) => Ok(hs),
+                        None => {
+                            if self.scr.lams.size() >= IDX_CAP as usize {
+                                Err(CheckError::Native(code_points(&M_E_CAP)))
+                            } else {
+                                let d: u64 = self.der_of_bind_at(pers, 19, &r.ty, &r.body, &r.m);
+                                let h: EIdx =
+                                    EIdx::pack(ETAG_LAM, TIER_S, self.scr.lams.size() as u32);
+                                self.scr.lams.push(r, d, h.dup2());
+                                Ok(h)
+                            }
+                        }
+                    }
+                } else if self.shared_on {
+                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                } else if self.pers.lams.size() >= IDX_CAP as usize {
+                    Err(CheckError::Native(code_points(&M_E_CAP)))
+                } else {
+                    let d: u64 = self.der_of_bind_at(pers, 19, &r.ty, &r.body, &r.m);
+                    let h: EIdx = EIdx::pack(ETAG_LAM, TIER_P, self.pers.lams.size() as u32);
+                    self.pers.lams.push(r, d, h.dup2());
+                    Ok(h)
+                }
+            }
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-15) — `EStore.internForallE`, the `forall_e` arm of
+    /// `EStore.intern`, over the node RECORD rather than over the view.
+    ///
+    /// The clauses are `intern`'s own, in `intern`'s order — the persistent
+    /// probe (skipped when a child is scratch, `e_view_has_scratch_child`'s
+    /// own arm), the scratch probe, the capacity test, the append — with the
+    /// node record built ONCE and shared by all four.  See `intern`'s note.
+    pub fn intern_forall_e(&mut self, pers: &PersTier, ty: EIdx, body: EIdx, m: BinderMeta) -> Result<EIdx, CheckError> {
+        let r: BindNode = BindNode { ty, body, m };
+        let sk: bool = if self.scratch_on {
+            if r.ty.is_persistent() {
+                !r.body.is_persistent()
+            } else {
+                true
+            }
+        } else {
+            false
+        };
+        let hit: Option<EIdx> = if sk {
+            None
+        } else if self.shared_on {
+            pers.e.foralls.find(&r)
+        } else {
+            self.pers.foralls.find(&r)
+        };
+        match hit {
+            Some(hp) => Ok(hp),
+            None => {
+                if self.scratch_on {
+                    match self.scr.foralls.find(&r) {
+                        Some(hs) => Ok(hs),
+                        None => {
+                            if self.scr.foralls.size() >= IDX_CAP as usize {
+                                Err(CheckError::Native(code_points(&M_E_CAP)))
+                            } else {
+                                let d: u64 = self.der_of_bind_at(pers, 23, &r.ty, &r.body, &r.m);
+                                let h: EIdx =
+                                    EIdx::pack(ETAG_FORALL_E, TIER_S, self.scr.foralls.size() as u32);
+                                self.scr.foralls.push(r, d, h.dup2());
+                                Ok(h)
+                            }
+                        }
+                    }
+                } else if self.shared_on {
+                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                } else if self.pers.foralls.size() >= IDX_CAP as usize {
+                    Err(CheckError::Native(code_points(&M_E_CAP)))
+                } else {
+                    let d: u64 = self.der_of_bind_at(pers, 23, &r.ty, &r.body, &r.m);
+                    let h: EIdx = EIdx::pack(ETAG_FORALL_E, TIER_P, self.pers.foralls.size() as u32);
+                    self.pers.foralls.push(r, d, h.dup2());
+                    Ok(h)
+                }
+            }
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-15) — `EStore.internLetE`, the `let_e` arm of
+    /// `EStore.intern`, over the node RECORD rather than over the view.
+    ///
+    /// The clauses are `intern`'s own, in `intern`'s order — the persistent
+    /// probe (skipped when a child is scratch, `e_view_has_scratch_child`'s
+    /// own arm), the scratch probe, the capacity test, the append — with the
+    /// node record built ONCE and shared by all four.  See `intern`'s note.
+    pub fn intern_let_e(&mut self, pers: &PersTier, ty: EIdx, val: EIdx, body: EIdx) -> Result<EIdx, CheckError> {
+        let r: LetNode = LetNode { ty, val, body };
+        let sk: bool = if self.scratch_on {
+            if r.ty.is_persistent() {
+                if r.val.is_persistent() {
+                    !r.body.is_persistent()
+                } else {
+                    true
+                }
+            } else {
+                true
+            }
+        } else {
+            false
+        };
+        let hit: Option<EIdx> = if sk {
+            None
+        } else if self.shared_on {
+            pers.e.lets.find(&r)
+        } else {
+            self.pers.lets.find(&r)
+        };
+        match hit {
+            Some(hp) => Ok(hp),
+            None => {
+                if self.scratch_on {
+                    match self.scr.lets.find(&r) {
+                        Some(hs) => Ok(hs),
+                        None => {
+                            if self.scr.lets.size() >= IDX_CAP as usize {
+                                Err(CheckError::Native(code_points(&M_E_CAP)))
+                            } else {
+                                let d: u64 = self.der_of_let_at(pers, &r.ty, &r.val, &r.body);
+                                let h: EIdx =
+                                    EIdx::pack(ETAG_LET_E, TIER_S, self.scr.lets.size() as u32);
+                                self.scr.lets.push(r, d, h.dup2());
+                                Ok(h)
+                            }
+                        }
+                    }
+                } else if self.shared_on {
+                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                } else if self.pers.lets.size() >= IDX_CAP as usize {
+                    Err(CheckError::Native(code_points(&M_E_CAP)))
+                } else {
+                    let d: u64 = self.der_of_let_at(pers, &r.ty, &r.val, &r.body);
+                    let h: EIdx = EIdx::pack(ETAG_LET_E, TIER_P, self.pers.lets.size() as u32);
+                    self.pers.lets.push(r, d, h.dup2());
+                    Ok(h)
+                }
+            }
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-15) — `EStore.internLit`, the `lit` arm of
+    /// `EStore.intern`, over the node RECORD rather than over the view.
+    ///
+    /// The clauses are `intern`'s own, in `intern`'s order — the persistent
+    /// probe (skipped when a child is scratch, `e_view_has_scratch_child`'s
+    /// own arm), the scratch probe, the capacity test, the append — with the
+    /// node record built ONCE and shared by all four.  See `intern`'s note.
+    pub fn intern_lit(&mut self, pers: &PersTier, l: Literal) -> Result<EIdx, CheckError> {
+        let r: LitNode = LitNode { l };
+        let sk: bool = false;
+        let hit: Option<EIdx> = if sk {
+            None
+        } else if self.shared_on {
+            pers.e.lits.find(&r)
+        } else {
+            self.pers.lits.find(&r)
+        };
+        match hit {
+            Some(hp) => Ok(hp),
+            None => {
+                if self.scratch_on {
+                    match self.scr.lits.find(&r) {
+                        Some(hs) => Ok(hs),
+                        None => {
+                            if self.scr.lits.size() >= IDX_CAP as usize {
+                                Err(CheckError::Native(code_points(&M_E_CAP)))
+                            } else {
+                                let d: u64 = self.der_of_lit(&r.l);
+                                let h: EIdx =
+                                    EIdx::pack(ETAG_LIT, TIER_S, self.scr.lits.size() as u32);
+                                self.scr.lits.push(r, d, h.dup2());
+                                Ok(h)
+                            }
+                        }
+                    }
+                } else if self.shared_on {
+                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                } else if self.pers.lits.size() >= IDX_CAP as usize {
+                    Err(CheckError::Native(code_points(&M_E_CAP)))
+                } else {
+                    let d: u64 = self.der_of_lit(&r.l);
+                    let h: EIdx = EIdx::pack(ETAG_LIT, TIER_P, self.pers.lits.size() as u32);
+                    self.pers.lits.push(r, d, h.dup2());
+                    Ok(h)
+                }
+            }
+        }
+    }
+
+    /// con-leche: none — arena infrastructure; Lean twin: OWED (task
+    /// #97-P6-15) — `EStore.internProj`, the `proj` arm of
+    /// `EStore.intern`, over the node RECORD rather than over the view.
+    ///
+    /// The clauses are `intern`'s own, in `intern`'s order — the persistent
+    /// probe (skipped when a child is scratch, `e_view_has_scratch_child`'s
+    /// own arm), the scratch probe, the capacity test, the append — with the
+    /// node record built ONCE and shared by all four.  See `intern`'s note.
+    pub fn intern_proj(&mut self, pers: &PersTier, n: NIdx, i: u64, e: EIdx) -> Result<EIdx, CheckError> {
+        let r: ProjNode = ProjNode { n, i, e };
+        let sk: bool = if self.scratch_on {
+            if r.n.is_persistent() {
+                !r.e.is_persistent()
+            } else {
+                true
+            }
+        } else {
+            false
+        };
+        let hit: Option<EIdx> = if sk {
+            None
+        } else if self.shared_on {
+            pers.e.projs.find(&r)
+        } else {
+            self.pers.projs.find(&r)
+        };
+        match hit {
+            Some(hp) => Ok(hp),
+            None => {
+                if self.scratch_on {
+                    match self.scr.projs.find(&r) {
+                        Some(hs) => Ok(hs),
+                        None => {
+                            if self.scr.projs.size() >= IDX_CAP as usize {
+                                Err(CheckError::Native(code_points(&M_E_CAP)))
+                            } else {
+                                let d: u64 = self.der_of_proj(pers, &r.n, r.i, &r.e);
+                                let h: EIdx =
+                                    EIdx::pack(ETAG_PROJ, TIER_S, self.scr.projs.size() as u32);
+                                self.scr.projs.push(r, d, h.dup2());
+                                Ok(h)
+                            }
+                        }
+                    }
+                } else if self.shared_on {
+                    Err(CheckError::Internal(code_points(&M_FROZEN)))
+                } else if self.pers.projs.size() >= IDX_CAP as usize {
+                    Err(CheckError::Native(code_points(&M_E_CAP)))
+                } else {
+                    let d: u64 = self.der_of_proj(pers, &r.n, r.i, &r.e);
+                    let h: EIdx = EIdx::pack(ETAG_PROJ, TIER_P, self.pers.projs.size() as u32);
+                    self.pers.projs.push(r, d, h.dup2());
+                    Ok(h)
                 }
             }
         }
