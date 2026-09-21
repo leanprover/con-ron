@@ -403,12 +403,39 @@ pub fn dup(e: &Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:984-989 Expr.beqMemo
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove node::ptr_eq_refines, then delete this line
 /// Do the two handles point at the same cell?  Modeled as `false`
 /// (DESIGN.md §3.2), so each fast path needs its reflexivity lemma.
 #[inline]
 pub fn ptr_eq(a: &Expr, b: &Expr) -> bool {
     ExprHandle::ptr_eq(&a.0, &b.0)
+}
+
+/// con-leche: ConLeche/Kernel/Exclusive.lean:98-110 withExclusive
+/// Is this term the only share of its node — reference count exactly one, so
+/// that no other handle to it exists and the walk below cannot reach it
+/// again?  `lean_is_exclusive_obj`, which the cited `withExclusive`
+/// substitutes into its continuation, and the official kernel's
+/// `is_likely_unshared` (`src/kernel/replace_fn.cpp`) and `is_shared`
+/// (`src/kernel/expr_eq_fn.cpp`) in front of their caches.
+///
+/// **Modeled as `false`** (`Generated/FunsExternal.lean`, OVERVIEW §8.1), the
+/// answer that always memoises: the model is the walk that records every
+/// compound node, which is the walk the refinement lemmas are about and the
+/// one this port had before.  The fast path the binary may take instead —
+/// rebuild the node with the table untouched — is a *path*, not a value: it
+/// spends no key, no probe and no entry on a node that is reachable from one
+/// place only.  §8.1's row argues that, and it is a weaker claim than
+/// `ptr_eq`'s row already makes, since `ptr_eq`'s fast path asserts an
+/// equality where this one asserts nothing at all.
+///
+/// The term is **borrowed**, and that is load-bearing: a `dup` anywhere above
+/// this read — building the memo key, say — is a second share, and the answer
+/// would then be `false` at every node.  con-leche states the same
+/// requirement for the same reason (`ConLeche/Kernel/Exclusive.lean`, "The
+/// borrowed-parameter requirement").
+#[inline]
+pub fn is_exclusive(e: &Expr) -> bool {
+    e.0.is_exclusive()
 }
 
 /// con-leche: none — `Arc`'s `Drop`, through the table's `release` (DESIGN.md §3.2)

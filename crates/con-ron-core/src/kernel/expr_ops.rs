@@ -151,6 +151,87 @@ pub fn memo_n_get(memo: &HashMap<Expr, u64>, k: &Expr) -> Option<u64> {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Memoise only what is shared (`ExprOpsC.lean`, "The memo"; `Exclusive.lean`)
+// ---------------------------------------------------------------------------
+//
+// The six functions below are the whole of con-leche's task #317/#319 memo
+// discipline as this port expresses it: a walk reads the exclusivity of the
+// BORROWED node it is about to rebuild (`ron::node::is_exclusive`) and hands
+// the answer to a probe and a record, which spend nothing at all on an
+// exclusive node — no key, no hash, no bucket, no stored `dup`.  A node with
+// one reference cannot be reached twice by the walk that is inside its only
+// parent, so an entry for it can never be read.
+//
+// **They exist so that the key is built on the shared path only.**  A
+// `KEY = expr_nat_key(e, d)` in front of the branch would be a second share
+// of `e` (`expr_nat_key` takes the node by a `dup`), and the exclusivity read
+// above it would then be answering about the key rather than about the term —
+// con-leche's borrowed-parameter requirement, in the one shape Rust can
+// violate it.  Hence `e` and the cursor, never a prebuilt key.
+//
+// **In the model `excl` is `false`** (`ron::node::is_exclusive` is modelled
+// `ok false`, OVERVIEW §8.1), so each of these is definitionally its
+// unguarded predecessor and the walks' refinement lemmas are the ones this
+// port already had.
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:231-248 MemoXP.shared
+/// The cursored node→node probe, `excl`-gated: an exclusive node is not
+/// looked up.  `memo1_get`'s contract otherwise (the answer is owned, so the
+/// map's borrow ends here).
+pub fn memo1_probe(memo: &HashMap<ExprNatKey, Expr>, excl: bool, e: &Expr, d: u64) -> Option<Expr> {
+    if excl {
+        None
+    } else {
+        memo1_get(memo, &expr_nat_key(e, d))
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:223-229 MemoXP.insert
+/// The cursored node→node record, `excl`-gated: an exclusive node is not
+/// stored.
+pub fn memo1_record(memo: &mut HashMap<ExprNatKey, Expr>, excl: bool, e: &Expr, d: u64, r: &Expr) {
+    if !excl {
+        memo.insert(expr_nat_key(e, d), expr::dup(r));
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:256-258 MemoXP0.shared
+/// The cursor-free node→node probe, `excl`-gated (`instLevelParams`).
+pub fn memo_e_probe(memo: &HashMap<Expr, Expr>, excl: bool, e: &Expr) -> Option<Expr> {
+    if excl {
+        None
+    } else {
+        memo_e_get(memo, e)
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:223-229 MemoXP.insert
+/// The cursor-free node→node record, `excl`-gated.
+pub fn memo_e_record(memo: &mut HashMap<Expr, Expr>, excl: bool, e: &Expr, r: &Expr) {
+    if !excl {
+        memo.insert(expr::dup(e), expr::dup(r));
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:978-980 MemoB0.shared
+/// The cursor-free node→`Bool` probe, `excl`-gated (the `Bool` walks).
+pub fn memo_b_probe(memo: &HashMap<Expr, bool>, excl: bool, e: &Expr) -> Option<bool> {
+    if excl {
+        None
+    } else {
+        memo_b_get(memo, e)
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:945-951 MemoB.insert
+/// The cursor-free node→`Bool` record, `excl`-gated.
+pub fn memo_b_record(memo: &mut HashMap<Expr, bool>, excl: bool, e: &Expr, r: bool) {
+    if !excl {
+        memo.insert(expr::dup(e), r);
+    }
+}
+
 /// con-leche: none — `List.take`/`List.append` over a `Vec<Expr>`
 /// The first `k` entries of `xs`, appended to `out`.  Lean's lists are
 /// shared, a `Vec` has to copy — task #9's deviation 5; the entries

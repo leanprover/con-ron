@@ -17,23 +17,40 @@
 //!    result shares memory with the input and a later `ptr_eq` on it is
 //!    `O(1)`.  `expr_ops`' twins have no such cutoff (the cited header's
 //!    "two structural consequences").
-//! 2. **Only compound nodes are memoised, and the key is built once.**  The
-//!    probe and the insert sit inside the `app`/`lam`/`forallE`/`letE`/`proj`
-//!    arms; a node with no children is answered on the spot.  The cited
-//!    header's memo-discipline section (con-leche task #177) is the argument,
-//!    and the exceptions prove the rule: `instLevelParamsGo`, `wscopedBGo`,
-//!    `leavesSubGo` and `allLevelParamsDefinedGo` probe *before* the match,
-//!    so every node kind gets an entry — the port follows each function's own
-//!    shape, because a probe or an insert the Lean does not do is exactly
-//!    what §3.1 forbids.
-//! 3. **The bulk key carries no live prefix.**  `instantiateListGo`'s and
-//!    `instantiateRevGo`'s key is `(node, cursor)`, not `(node, cursor,
+//! 2. **Memoise only what is shared** (con-leche's tasks #317 and #319 — ONE
+//!    memo discipline for every traversal memo in the tree, `expr::beq_go`
+//!    included).  Past the cutoff, a node is probed and recorded only if it is
+//!    COMPOUND — a node with no children is answered on the spot, so an entry
+//!    for it can never save a descent — and only if
+//!    `ron::node::is_exclusive` reports it SHARED.  A node with one reference
+//!    is reachable from one place, so the walk that is inside its only parent
+//!    meets it once and an entry for it can never be read; skipping it saves
+//!    the key, the hash, the bucket and the stored `dup`.  The official
+//!    kernel's `replace_fn` caches on exactly that test
+//!    (`!is_likely_unshared(e)`).
+//!
+//!    The two tests are the cited `enter*P` steps, and this port spends them
+//!    through `expr_ops::memo1_probe`/`memo1_record` and their four siblings,
+//!    which take the verdict and build the key themselves: a key built above
+//!    the read would be a second share of the node and the read would answer
+//!    `false` everywhere (con-leche's borrowed-parameter requirement,
+//!    `ConLeche/Kernel/Exclusive.lean`).  For the four `Bool` walks the
+//!    verdict is `memo_skip` below, which folds in the compound test; the
+//!    substitution walks make it in their match, as they always did.
+//!
+//!    `fvar_leaves_go` is **the exception**, and con-leche's is the same one:
+//!    its memo is a visited SET whose entries say something about the
+//!    accumulator rather than about the node, so it has no self-proving entry
+//!    to drop and keeps recording every node it meets (the cited
+//!    `fvarLeavesGoC` docstring argues it at length).
+//! 3. **The bulk key carries no live prefix.**  `instantiateListXP`'s and
+//!    `instantiateRevXP`'s key is `(node, cursor)`, not `(node, cursor,
 //!    prefix)`: `k` is invariant over the life of one table, and the `bvar`
 //!    arm's re-entry — the one place it shrinks — runs under a **fresh**
 //!    table (the cited `MemoNL` docstring).  So `instantiate_list_go` and
 //!    `instantiate_rev_go` allocate a table in that arm and nowhere else.
-//! 4. **Short-circuiting is memo policy.**  `wscopedBGo`, `leavesSubGo` and
-//!    `allLevelParamsDefinedGo` stop at the first `false` and therefore write
+//! 4. **Short-circuiting is memo policy.**  `wscopedBXP`, `leavesSubXP` and
+//!    `allLevelParamsDefinedXP` stop at the first `false` and therefore write
 //!    *fewer* entries than an unconditional `&&` would.  Task #24's
 //!    `expr_ops::bool_and` fix is deliberately **not** applied to those
 //!    conjunctions: it computes both operands, which would be a hit where the
@@ -42,7 +59,7 @@
 //!    `&mut`-threaded match still ends in a call, which is the shape Aeneas
 //!    accepts (task #24's rule) — same branch, same entries, one more stack
 //!    frame.  Where the Lean has already computed both sides
-//!    (`allLevelParamsDefinedGo`'s binder arms, `rb && m.pw.paramsDefined`),
+//!    (`allLevelParamsDefinedXP`'s binder arms, `rb && m.pw.paramsDefined`),
 //!    `bool_and` is used, as task #24 asks.
 //!
 //! ## `ExprC` is `Expr`, and `mk*` are the constructors
@@ -85,6 +102,7 @@ use crate::kernel::name::Name;
 use crate::kernel::prop_when;
 use crate::kernel::prop_when::PropWhen;
 use crate::ron::hashmap::HashMap;
+use crate::ron::node;
 use std::vec::Vec;
 
 // ---------------------------------------------------------------------------
@@ -163,25 +181,33 @@ pub fn mk_app_n_from(f: Expr, args: &Vec<Expr>, i: usize) -> Expr {
 // The memo table types, and the helpers with no Lean counterpart
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:71-72 MemoN
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::MemoN_refines, then delete this line
-/// Memo table for cursored node→node traversals.  The key dictionaries are
-/// `expr_ops::ExprNatKey`'s — Lean's derived `Hashable`/`BEq` on
-/// `(ExprC × Nat)` at the same components (task #14's point 6).  Erased
-/// before Charon, as `core_types::CheckM` is; it is here so a ported
-/// signature can say what con-leche says.
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:214-216 MemoXP
+/// Memo table for cursored node→node traversals.
+///
+/// **Deviation: the key is structural, con-leche's is the node's ADDRESS**
+/// packed with the cursor (`pkey`, con-leche task #316).  `expr_ops::
+/// ExprNatKey` is the `(ExprC × Nat)` dictionary pair — Lean's own derived
+/// `Hashable`/`BEq` at the same components (task #14's point 6) — which is
+/// what the cited table used before that task and what the model can see; an
+/// address is not a value here any more than it is in `beq`'s memo, whose key
+/// deviates the same way and for the same reason (`expr::beq_key`).  The
+/// discipline the key serves — probe and record only a shared compound node —
+/// is the cited one exactly.  Also deviating: the cited `Option (HTab s)`,
+/// absent until the first shared node, is a table allocated by the wrapper,
+/// as it was before; the wrapper's own cutoff already keeps a decided-outright
+/// call away from it.  Erased before Charon, as `core_types::CheckM` is.
 pub type MemoN = HashMap<ExprNatKey, Expr>;
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:74-81 MemoNL
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::MemoNL_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:214-216 MemoXP
 /// Memo table for the bulk traversals, `(node, cursor)` — **the live prefix
 /// `k` is not part of the key** (module note 3).  The same Rust type as
 /// `MemoN`, as it is the same Lean type; the two names are kept because the
-/// cited invariant (`MemoLInv ws k memo`) is stated of this one.
+/// two walks that use it are the bulk ones.  (con-leche's own `MemoNL` went
+/// with the structural key at its task #317; the entries of the table that
+/// replaced it carry their own proofs, so no invariant is stated of either.)
 pub type MemoNL = HashMap<ExprNatKey, Expr>;
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:564-565 Memo0
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::Memo0_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:250-252 MemoXP0
 /// Memo table for cursor-free node→node traversals.
 pub type Memo0 = HashMap<Expr, Expr>;
 
@@ -211,6 +237,73 @@ pub fn memo_b1_get(memo: &HashMap<ExprNatKey, bool>, k: &ExprNatKey) -> Option<b
     }
 }
 
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:905-910 isCompoundF
+/// The nodes a `Bool` memo entry can save a descent of: the compound nodes,
+/// and `fvar` — every walk of this section descends into the ANNOTATION, so
+/// the cached fvar range does not decide an `fvar` node.
+pub fn is_compound_f(e: &Expr) -> bool {
+    match expr::view(e) {
+        ExprView::Fvar(_, _) => true,
+        ExprView::App(_, _) => true,
+        ExprView::Lam(_, _, _) => true,
+        ExprView::ForallE(_, _, _) => true,
+        ExprView::LetE(_, _, _) => true,
+        ExprView::Proj(_, _, _) => true,
+        _ => false,
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1017-1027 enterWSP
+/// **The `Bool` walks' memo gate** (con-leche's task #319), the two tests its
+/// `enter*` steps make past the cutoff, as one predicate: a LEAF is decided
+/// on the spot, so an entry for it can never save a descent, and an
+/// EXCLUSIVE node — one reference, hence one place it is reachable from —
+/// cannot be met again by this walk.  Either way the node costs no key, no
+/// probe, no bucket and no stored `dup`.
+///
+/// Before this the guards recorded every node they decided, leaves included,
+/// which is what con-leche measured away.  In the model `is_exclusive` is
+/// `false`, so this is `!is_compound_f e` and the leaves are the only nodes
+/// the model skips.
+pub fn memo_skip(e: &Expr) -> bool {
+    if !is_compound_f(e) {
+        true
+    } else {
+        node::is_exclusive(e)
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:953-970 MemoB.shared
+/// The cursored `Bool` probe, `excl`-gated: an exclusive node is not looked
+/// up, so it costs neither the key (which would be a second share of the
+/// node — `kernel::expr_ops`'s note on the six helpers) nor the bucket walk.
+pub fn memo_b1_probe(
+    memo: &HashMap<ExprNatKey, bool>,
+    excl: bool,
+    e: &Expr,
+    d: u64,
+) -> Option<bool> {
+    if excl {
+        None
+    } else {
+        memo_b1_get(memo, &expr_ops::expr_nat_key(e, d))
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:945-951 MemoB.insert
+/// The cursored `Bool` record, `excl`-gated.
+pub fn memo_b1_record(
+    memo: &mut HashMap<ExprNatKey, bool>,
+    excl: bool,
+    e: &Expr,
+    d: u64,
+    r: bool,
+) {
+    if !excl {
+        memo.insert(expr_ops::expr_nat_key(e, d), r);
+    }
+}
+
 /// con-leche: none — `Std.HashMap.getElem?` at an `ExprC` key, `Unit` values
 /// The `seen` set of `fvarLeavesGo`, probed so the borrow ends at the call.
 pub fn seen_get(seen: &HashMap<Expr, ()>, k: &Expr) -> Option<()> {
@@ -224,8 +317,7 @@ pub fn seen_get(seen: &HashMap<Expr, ()>, k: &Expr) -> Option<()> {
 // `instantiate1` (`ExprOpsC.lean:83-151`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:83-137 instantiate1GoC
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::instantiate1_go_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:373-404 instantiate1XP
 /// Core of `instantiate1`: replace `bvar d` by `v`, lowering the loose
 /// `bvar`s above `d` by one.  The `bvarB ≤ d` cutoff returns the node itself;
 /// the five atom kinds are answered on the spot; the five compound kinds
@@ -249,8 +341,8 @@ pub fn instantiate1_go(v: &Expr, memo: &mut MemoN, e: &Expr, d: u64) -> Expr {
             ExprView::Const(_, _) => expr::dup(e),
             ExprView::Lit(_) => expr::dup(e),
             _ => {
-                let key: ExprNatKey = expr_ops::expr_nat_key(e, d);
-                match expr_ops::memo1_get(memo, &key) {
+                let excl: bool = node::is_exclusive(e);
+                match expr_ops::memo1_probe(memo, excl, e, d) {
                     Some(r) => r,
                     None => {
                         let r: Expr = match expr::view(&e) {
@@ -281,7 +373,7 @@ pub fn instantiate1_go(v: &Expr, memo: &mut MemoN, e: &Expr, d: u64) -> Expr {
                             }
                             _ => expr::dup(e),
                         };
-                        memo.insert(key, expr::dup(&r));
+                        expr_ops::memo1_record(memo, excl, e, d, &r);
                         r
                     }
                 }
@@ -294,102 +386,7 @@ pub fn instantiate1_go(v: &Expr, memo: &mut MemoN, e: &Expr, d: u64) -> Expr {
 // `instantiate1Lift` (`ExprOpsC.lean:153-273`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:153-197 instantiate1LiftBC
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::instantiate1_lift_b_refines, then delete this line
-/// The budgeted plain descent of the capture-avoiding substitution: the
-/// rebuild on a node budget, `none` when it runs out (nothing built is kept).
-/// A memo would be a tax on the small terms that are the common case, so it
-/// appears only past the budget (the cited section header).
-///
-/// Deviation: the cited `match fuel, e with` puts the atom arms *before*
-/// `| 0, _ => (none, 0)`, so they answer at an exhausted budget too; the port
-/// matches on the node first and tests the budget only on the compound kinds,
-/// which is the same clause order.  The `| r => r` arms are `(None, fuel)`
-/// spelled out, because there is no pair to forward.
-pub fn instantiate1_lift_b(v: &Expr, fuel: u64, e: &Expr, d: u64) -> (Option<Expr>, u64) {
-    if expr_ops::bvar_b(e) <= d {
-        (Some(expr::dup(e)), fuel)
-    } else {
-        match expr::view(&e) {
-            ExprView::Bvar(i) => {
-                if *i == d {
-                    (Some(expr_ops::lift_loose_bvars(d, 0, v)), fuel)
-                } else if *i > d {
-                    (Some(expr::mk_bvar(*i - 1)), fuel)
-                } else {
-                    (Some(expr::dup(e)), fuel)
-                }
-            }
-            ExprView::Fvar(_, _) => (Some(expr::dup(e)), fuel),
-            ExprView::Sort(_) => (Some(expr::dup(e)), fuel),
-            ExprView::Const(_, _) => (Some(expr::dup(e)), fuel),
-            ExprView::Lit(_) => (Some(expr::dup(e)), fuel),
-            _ => {
-                if fuel == 0 {
-                    (None, 0)
-                } else {
-                    instantiate1_lift_b_compound(v, fuel - 1, e, d)
-                }
-            }
-        }
-    }
-}
-
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:153-197 instantiate1LiftBC
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::instantiate1_lift_b_compound_refines, then delete this line
-/// The five compound arms at the decremented budget.  Split off so the budget
-/// test above is a tail call and every arm here ends in a constructor or a
-/// call (task #24's rule).
-pub fn instantiate1_lift_b_compound(
-    v: &Expr,
-    fuel: u64,
-    e: &Expr,
-    d: u64,
-) -> (Option<Expr>, u64) {
-    match expr::view(&e) {
-        ExprView::App(f, a) => match instantiate1_lift_b(v, fuel, f, d) {
-            (Some(f2), fuel) => match instantiate1_lift_b(v, fuel, a, d) {
-                (Some(a2), fuel) => (Some(expr::app(f2, a2)), fuel),
-                (None, fuel) => (None, fuel),
-            },
-            (None, fuel) => (None, fuel),
-        },
-        ExprView::Lam(ty, body, m) => match instantiate1_lift_b(v, fuel, ty, d) {
-            (Some(t), fuel) => match instantiate1_lift_b(v, fuel, body, d + 1) {
-                (Some(b), fuel) => (Some(expr::lam(t, b, expr::binder_meta_dup(m))), fuel),
-                (None, fuel) => (None, fuel),
-            },
-            (None, fuel) => (None, fuel),
-        },
-        ExprView::ForallE(ty, body, m) => match instantiate1_lift_b(v, fuel, ty, d) {
-            (Some(t), fuel) => match instantiate1_lift_b(v, fuel, body, d + 1) {
-                (Some(b), fuel) => {
-                    (Some(expr::forall_e(t, b, expr::binder_meta_dup(m))), fuel)
-                }
-                (None, fuel) => (None, fuel),
-            },
-            (None, fuel) => (None, fuel),
-        },
-        ExprView::LetE(ty, val, body) => match instantiate1_lift_b(v, fuel, ty, d) {
-            (Some(t), fuel) => match instantiate1_lift_b(v, fuel, val, d) {
-                (Some(w), fuel) => match instantiate1_lift_b(v, fuel, body, d + 1) {
-                    (Some(b), fuel) => (Some(expr::let_e(t, w, b)), fuel),
-                    (None, fuel) => (None, fuel),
-                },
-                (None, fuel) => (None, fuel),
-            },
-            (None, fuel) => (None, fuel),
-        },
-        ExprView::Proj(sn, i, sub) => match instantiate1_lift_b(v, fuel, sub, d) {
-            (Some(s2), fuel) => (Some(expr::proj(name::dup(sn), *i, s2)), fuel),
-            (None, fuel) => (None, fuel),
-        },
-        _ => (Some(expr::dup(e)), fuel),
-    }
-}
-
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:199-251 instantiate1LiftGoC
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::instantiate1_lift_go_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:305-336 instantiate1LiftXP
 /// The memoised descent, in `instantiate1Go`'s shape: the `bvar` arm lifts
 /// `v`'s own loose variables past the binders crossed on the way, which is
 /// what `instantiate1` may not do.
@@ -412,8 +409,8 @@ pub fn instantiate1_lift_go(v: &Expr, memo: &mut MemoN, e: &Expr, d: u64) -> Exp
             ExprView::Const(_, _) => expr::dup(e),
             ExprView::Lit(_) => expr::dup(e),
             _ => {
-                let key: ExprNatKey = expr_ops::expr_nat_key(e, d);
-                match expr_ops::memo1_get(memo, &key) {
+                let excl: bool = node::is_exclusive(e);
+                match expr_ops::memo1_probe(memo, excl, e, d) {
                     Some(r) => r,
                     None => {
                         let r: Expr = match expr::view(&e) {
@@ -444,7 +441,7 @@ pub fn instantiate1_lift_go(v: &Expr, memo: &mut MemoN, e: &Expr, d: u64) -> Exp
                             }
                             _ => expr::dup(e),
                         };
-                        memo.insert(key, expr::dup(&r));
+                        expr_ops::memo1_record(memo, excl, e, d, &r);
                         r
                     }
                 }
@@ -454,27 +451,24 @@ pub fn instantiate1_lift_go(v: &Expr, memo: &mut MemoN, e: &Expr, d: u64) -> Exp
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:338-341 instantiate1LiftC
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::instantiate1_lift_refines, then delete this line
-/// `Expr.instantiate1Lift` on `ExprC`: the cutoff, the budgeted plain descent
-/// at 4096 nodes, the memoised one past the budget.  Deviation: the cited
+/// `Expr.instantiate1Lift` on `ExprC`: the cutoff, then the walk.  The
+/// budgeted plain descent at 4 096 nodes that used to stand in front of it is
+/// gone with con-leche's own (its task #317 ruling: a node budget is a
+/// heuristic cutoff, and the memo discipline that replaced it spends nothing
+/// on a small term because it spends nothing on an unshared node).
+/// Deviation: the cited
 /// `(d : Nat := 0)` default is an explicit argument (Rust has no field or
 /// parameter defaults, task #14's point 2).
 pub fn instantiate1_lift(e: &Expr, v: &Expr, d: u64) -> Expr {
     if expr_ops::bvar_b(e) <= d {
         expr::dup(e)
     } else {
-        match instantiate1_lift_b(v, 4096, e, d) {
-            (Some(r), _) => r,
-            (None, _) => {
-                let mut memo: MemoN = HashMap::new();
-                instantiate1_lift_go(v, &mut memo, e, d)
-            }
-        }
+        let mut memo: MemoN = HashMap::new();
+        instantiate1_lift_go(v, &mut memo, e, d)
     }
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:406-409 instantiate1C
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::instantiate1_refines, then delete this line
 /// `Expr.instantiate1` on `ExprC` (fresh per-call memo).
 pub fn instantiate1(e: &Expr, v: &Expr, d: u64) -> Expr {
     if expr_ops::bvar_b(e) <= d {
@@ -489,8 +483,7 @@ pub fn instantiate1(e: &Expr, v: &Expr, d: u64) -> Expr {
 // `instantiateList` (`ExprOpsC.lean:279-368`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:265-346 instantiateListGoC
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::instantiate_list_go_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:455-504 instantiateListXP
 /// Core of the bulk instantiation: `vs` innermost binder first, `k` the live
 /// prefix length.  The `bvar` arm re-enters at the replacement with the
 /// shorter prefix `i - d` and under a **fresh** table, which is what keeps
@@ -525,8 +518,8 @@ pub fn instantiate_list_go(vs: &Vec<Expr>, memo: &mut MemoNL, e: &Expr, k: u64, 
             ExprView::Const(_, _) => expr::dup(e),
             ExprView::Lit(_) => expr::dup(e),
             _ => {
-                let key: ExprNatKey = expr_ops::expr_nat_key(e, d);
-                match expr_ops::memo1_get(memo, &key) {
+                let excl: bool = node::is_exclusive(e);
+                match expr_ops::memo1_probe(memo, excl, e, d) {
                     Some(r) => r,
                     None => {
                         let r: Expr = match expr::view(&e) {
@@ -557,7 +550,7 @@ pub fn instantiate_list_go(vs: &Vec<Expr>, memo: &mut MemoNL, e: &Expr, k: u64, 
                             }
                             _ => expr::dup(e),
                         };
-                        memo.insert(key, expr::dup(&r));
+                        expr_ops::memo1_record(memo, excl, e, d, &r);
                         r
                     }
                 }
@@ -566,8 +559,7 @@ pub fn instantiate_list_go(vs: &Vec<Expr>, memo: &mut MemoNL, e: &Expr, k: u64, 
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:265-346 instantiateListGoC
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::instantiate_list_bvar_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:455-504 instantiateListXP
 /// The `.bvar` arm's inner block at `j = i - d`, which the cited code reaches
 /// under `j < k`: the replacement, guarded, and the re-entry under a fresh
 /// table.  Lifted into a callee so the arm above ends in a call while the
@@ -590,7 +582,6 @@ pub fn instantiate_list_bvar(vs: &Vec<Expr>, e: &Expr, j: u64, d: u64) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:506-513 instantiateListC
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::instantiate_list_refines, then delete this line
 /// `Expr.instantiateList` on `ExprC` (bulk, one memoised DAG pass).  The
 /// cited `vs.toArray` is the `Vec` itself, and `a.size` its length.
 pub fn instantiate_list(e: &Expr, vs: &Vec<Expr>, d: u64) -> Expr {
@@ -606,8 +597,7 @@ pub fn instantiate_list(e: &Expr, vs: &Vec<Expr>, d: u64) -> Expr {
 // `instantiateRev` (`ExprOpsC.lean:370-445`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:356-425 instantiateRevGo
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::instantiate_rev_go_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:559-609 instantiateRevXP
 /// As `instantiateListGo`, but the replacement array holds the innermost
 /// binder **last** (the binder loops' push order — lean4lean's
 /// `instantiateRev`).  Same key, same fresh table on re-entry, same
@@ -633,8 +623,8 @@ pub fn instantiate_rev_go(vs: &Vec<Expr>, memo: &mut MemoNL, e: &Expr, k: u64, d
             ExprView::Const(_, _) => expr::dup(e),
             ExprView::Lit(_) => expr::dup(e),
             _ => {
-                let key: ExprNatKey = expr_ops::expr_nat_key(e, d);
-                match expr_ops::memo1_get(memo, &key) {
+                let excl: bool = node::is_exclusive(e);
+                match expr_ops::memo1_probe(memo, excl, e, d) {
                     Some(r) => r,
                     None => {
                         let r: Expr = match expr::view(&e) {
@@ -665,7 +655,7 @@ pub fn instantiate_rev_go(vs: &Vec<Expr>, memo: &mut MemoNL, e: &Expr, k: u64, d
                             }
                             _ => expr::dup(e),
                         };
-                        memo.insert(key, expr::dup(&r));
+                        expr_ops::memo1_record(memo, excl, e, d, &r);
                         r
                     }
                 }
@@ -674,8 +664,7 @@ pub fn instantiate_rev_go(vs: &Vec<Expr>, memo: &mut MemoNL, e: &Expr, k: u64, d
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:356-425 instantiateRevGo
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::instantiate_rev_bvar_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:559-609 instantiateRevXP
 /// The `.bvar` arm's inner block, reading the replacement from the **end** of
 /// the array (`vs[vs.size - 1 - j]`).  Lifted into a callee as
 /// `instantiate_list_bvar` is.
@@ -696,7 +685,6 @@ pub fn instantiate_rev_bvar(vs: &Vec<Expr>, e: &Expr, j: u64, d: u64) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:611-616 instantiateRev
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::instantiate_rev_refines, then delete this line
 /// Bulk instantiation on a reversed accumulator array.
 pub fn instantiate_rev(e: &Expr, vs: &Vec<Expr>, d: u64) -> Expr {
     if vs.len() == 0 {
@@ -713,8 +701,7 @@ pub fn instantiate_rev(e: &Expr, vs: &Vec<Expr>, d: u64) -> Expr {
 // Abstraction (`ExprOpsC.lean:447-574`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:435-494 abstract1GoC
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::abstract1_go_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:647-677 abstract1XP
 /// Core of `abstract1`: replace `fvar d` by `bvar k`.  The cutoff is the
 /// cached fvar range (a node with `fvarB ≤ d` cannot contain `fvar d`) — the
 /// cited documented deviation from the retired arena twin, the same value
@@ -736,8 +723,8 @@ pub fn abstract1_go(d: u64, memo: &mut MemoN, e: &Expr, k: u64) -> Expr {
             ExprView::Const(_, _) => expr::dup(e),
             ExprView::Lit(_) => expr::dup(e),
             _ => {
-                let key: ExprNatKey = expr_ops::expr_nat_key(e, k);
-                match expr_ops::memo1_get(memo, &key) {
+                let excl: bool = node::is_exclusive(e);
+                match expr_ops::memo1_probe(memo, excl, e, k) {
                     Some(r) => r,
                     None => {
                         let r: Expr = match expr::view(&e) {
@@ -768,7 +755,7 @@ pub fn abstract1_go(d: u64, memo: &mut MemoN, e: &Expr, k: u64) -> Expr {
                             }
                             _ => expr::dup(e),
                         };
-                        memo.insert(key, expr::dup(&r));
+                        expr_ops::memo1_record(memo, excl, e, k, &r);
                         r
                     }
                 }
@@ -778,7 +765,6 @@ pub fn abstract1_go(d: u64, memo: &mut MemoN, e: &Expr, k: u64) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:679-682 abstract1C
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::abstract1_refines, then delete this line
 /// `Expr.abstract1` on `ExprC`.
 pub fn abstract1(e: &Expr, d: u64, k: u64) -> Expr {
     if expr_ops::fvar_b(e) <= d {
@@ -789,8 +775,7 @@ pub fn abstract1(e: &Expr, d: u64, k: u64) -> Expr {
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:500-553 abstractRangeGoC
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::abstract_range_go_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:715-746 abstractRangeXP
 /// Core of `abstractRange`: abstract the block `fvar d … fvar (d + k - 1)`,
 /// outermost first.  Same memo discipline as `abstract1Go`.  Deviation: the
 /// `.fvar` arm's `d ≤ idx ∧ idx < d + k` is an `if` nest (task #3's
@@ -816,8 +801,8 @@ pub fn abstract_range_go(d: u64, k: u64, memo: &mut MemoN, e: &Expr, c: u64) -> 
             ExprView::Const(_, _) => expr::dup(e),
             ExprView::Lit(_) => expr::dup(e),
             _ => {
-                let key: ExprNatKey = expr_ops::expr_nat_key(e, c);
-                match expr_ops::memo1_get(memo, &key) {
+                let excl: bool = node::is_exclusive(e);
+                match expr_ops::memo1_probe(memo, excl, e, c) {
                     Some(r) => r,
                     None => {
                         let r: Expr = match expr::view(&e) {
@@ -848,7 +833,7 @@ pub fn abstract_range_go(d: u64, k: u64, memo: &mut MemoN, e: &Expr, c: u64) -> 
                             }
                             _ => expr::dup(e),
                         };
-                        memo.insert(key, expr::dup(&r));
+                        expr_ops::memo1_record(memo, excl, e, c, &r);
                         r
                     }
                 }
@@ -858,7 +843,6 @@ pub fn abstract_range_go(d: u64, k: u64, memo: &mut MemoN, e: &Expr, c: u64) -> 
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:748-755 abstractRangeC
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::abstract_range_refines, then delete this line
 /// `Expr.abstractRange` on `ExprC`; `k = 0` is the identity and skips the
 /// traversal, as in the retired arena.
 pub fn abstract_range(e: &Expr, d: u64, k: u64, c: u64) -> Expr {
@@ -876,8 +860,7 @@ pub fn abstract_range(e: &Expr, d: u64, k: u64, c: u64) -> Expr {
 // Level instantiation (`ExprOpsC.lean:576-642`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:567-603 instLevelParamsGo
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::inst_level_params_go_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:795-831 instLevelParamsXP
 /// Core of `instantiateLevelParams` on `ExprC`: nodes without a level
 /// parameter are returned unchanged (the `hasLP` cutoff), and **every other
 /// node kind is memoised** — the probe and the insert sit around the whole
@@ -893,7 +876,8 @@ pub fn inst_level_params_go(
     if !expr::has_lp(e) {
         expr::dup(e)
     } else {
-        match expr_ops::memo_e_get(memo, e) {
+        let excl: bool = node::is_exclusive(e);
+        match expr_ops::memo_e_probe(memo, excl, e) {
             Some(r) => r,
             None => {
                 let r: Expr = match expr::view(&e) {
@@ -937,7 +921,7 @@ pub fn inst_level_params_go(
                         expr::proj(name::dup(sn), *i, s2)
                     }
                 };
-                memo.insert(expr::dup(e), expr::dup(&r));
+                expr_ops::memo_e_record(memo, excl, e, &r);
                 r
             }
         }
@@ -945,7 +929,6 @@ pub fn inst_level_params_go(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:833-837 instLevelParams
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::inst_level_params_refines, then delete this line
 /// `Expr.instantiateLevelParams` on `ExprC`.
 pub fn inst_level_params(ks: &Vec<Name>, us: &Vec<Level>, e: &Expr) -> Expr {
     if !expr::has_lp(e) {
@@ -997,8 +980,7 @@ pub fn loose_bvars_bounded(k: u64, e: &Expr) -> bool {
     expr_ops::bvar_b(e) <= k
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:632-658 wscopedBGoC
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::wscoped_b_go_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1029-1088 wscopedBXP
 /// Core of `wscopedB`: every reachable `fvar` index is below `d`,
 /// hereditarily through the annotations — so the cached fvar range does not
 /// decide it and the `fvar` children are descended.  The memo is probed
@@ -1014,8 +996,8 @@ pub fn wscoped_b_go(memo: &mut HashMap<ExprNatKey, bool>, d: u64, e: &Expr) -> b
     if expr_ops::fvar_b(e) == 0 {
         true
     } else {
-        let key: ExprNatKey = expr_ops::expr_nat_key(e, d);
-        match memo_b1_get(memo, &key) {
+        let skip: bool = memo_skip(e);
+        match memo_b1_probe(memo, skip, e, d) {
             Some(r) => r,
             None => {
                 let r: bool = match expr::view(&e) {
@@ -1030,15 +1012,14 @@ pub fn wscoped_b_go(memo: &mut HashMap<ExprNatKey, bool>, d: u64, e: &Expr) -> b
                     ExprView::LetE(ty, val, body) => wscoped_b_triple(memo, d, ty, val, body),
                     ExprView::Proj(_, _, sub) => wscoped_b_go(memo, d, sub),
                 };
-                memo.insert(key, r);
+                memo_b1_record(memo, skip, e, d, r);
                 r
             }
         }
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:632-658 wscopedBGoC
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::wscoped_b_fvar_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1029-1088 wscopedBXP
 /// The `.fvar` arm: an index in scope licenses its annotation, which is
 /// checked at the *index's own* bound.
 pub fn wscoped_b_fvar(memo: &mut HashMap<ExprNatKey, bool>, d: u64, idx: u64, ty: &Expr) -> bool {
@@ -1049,8 +1030,7 @@ pub fn wscoped_b_fvar(memo: &mut HashMap<ExprNatKey, bool>, d: u64, idx: u64, ty
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:632-658 wscopedBGoC
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::wscoped_b_pair_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1029-1088 wscopedBXP
 /// The two-child arms' short-circuit: the second child is walked only when
 /// the first answered `true`.
 pub fn wscoped_b_pair(
@@ -1066,8 +1046,7 @@ pub fn wscoped_b_pair(
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:632-658 wscopedBGoC
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::wscoped_b_triple_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1029-1088 wscopedBXP
 /// The `.letE` arm's three-child short-circuit.
 pub fn wscoped_b_triple(
     memo: &mut HashMap<ExprNatKey, bool>,
@@ -1084,7 +1063,6 @@ pub fn wscoped_b_triple(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1090-1095 wscopedBC
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::wscoped_b_refines, then delete this line
 /// `Expr.wscopedB d` on `ExprC` (one memoised DAG walk).
 pub fn wscoped_b(d: u64, e: &Expr) -> bool {
     let mut memo: HashMap<ExprNatKey, bool> = HashMap::new();
@@ -1092,7 +1070,6 @@ pub fn wscoped_b(d: u64, e: &Expr) -> bool {
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1097-1151 fvarLeavesGoC
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::fvar_leaves_go_refines, then delete this line
 /// Core of `fvarLeaves`: the reachable `fvar` leaves, hereditarily through
 /// the annotations, each node visited once — the `seen` set is inserted into
 /// *before* the match, so a shared sub-DAG is walked once.
@@ -1181,8 +1158,7 @@ pub fn leaf_mem_from(bl: &Vec<(u64, Expr)>, i: usize, idx: u64, ty: &Expr) -> bo
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:698-724 leavesSubGo
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::leaves_sub_go_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1197-1256 leavesSubXP
 /// Core of the fabrication-side leaf-subset test (con-leche task #86): every
 /// `fvar` leaf of the walked term is one of `bl`.  Memo probed before the
 /// match, the branching arms lifted into callees, as in `wscopedBGo`.
@@ -1190,7 +1166,8 @@ pub fn leaves_sub_go(bl: &Vec<(u64, Expr)>, memo: &mut HashMap<Expr, bool>, e: &
     if expr_ops::fvar_b(e) == 0 {
         true
     } else {
-        match expr_ops::memo_b_get(memo, e) {
+        let skip: bool = memo_skip(e);
+        match expr_ops::memo_b_probe(memo, skip, e) {
             Some(r) => r,
             None => {
                 let r: bool = match expr::view(&e) {
@@ -1205,15 +1182,14 @@ pub fn leaves_sub_go(bl: &Vec<(u64, Expr)>, memo: &mut HashMap<Expr, bool>, e: &
                     ExprView::LetE(ty, val, body) => leaves_sub_triple(bl, memo, ty, val, body),
                     ExprView::Proj(_, _, sub) => leaves_sub_go(bl, memo, sub),
                 };
-                memo.insert(expr::dup(e), r);
+                expr_ops::memo_b_record(memo, skip, e, r);
                 r
             }
         }
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:698-724 leavesSubGo
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::leaves_sub_fvar_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1197-1256 leavesSubXP
 /// The `.fvar` arm: a leaf in the base list licenses its annotation.
 pub fn leaves_sub_fvar(
     bl: &Vec<(u64, Expr)>,
@@ -1228,8 +1204,7 @@ pub fn leaves_sub_fvar(
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:698-724 leavesSubGo
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::leaves_sub_pair_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1197-1256 leavesSubXP
 /// The two-child arms' short-circuit.
 pub fn leaves_sub_pair(
     bl: &Vec<(u64, Expr)>,
@@ -1244,8 +1219,7 @@ pub fn leaves_sub_pair(
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:698-724 leavesSubGo
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::leaves_sub_triple_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1197-1256 leavesSubXP
 /// The `.letE` arm's three-child short-circuit.
 pub fn leaves_sub_triple(
     bl: &Vec<(u64, Expr)>,
@@ -1262,7 +1236,6 @@ pub fn leaves_sub_triple(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1264-1268 leafGuard
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::leaf_guard_refines, then delete this line
 /// The fabrication leaf guard: every `fvar` leaf of `fab` is one of `base`.
 /// `O(1)` off the cached range on an `fvar`-free fabrication, which is why
 /// the cited disjunction is spelled here as the early return.
@@ -1354,8 +1327,7 @@ pub fn pi_residual(e: &Expr, args: &Vec<Expr>) -> Option<Expr> {
 // Level-parameter definedness (`ExprOpsC.lean:789-828`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:773-805 allLevelParamsDefinedGoC
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::all_level_params_defined_go_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1351-1421 allLevelParamsDefinedXP
 /// Core of `allLevelParamsDefined`: nodes without a level parameter are
 /// `true` without traversal (the `hasLP` cutoff), everything else is memoised
 /// before the match.  The binder arms' `rb && m.pw.paramsDefined params` is
@@ -1371,7 +1343,8 @@ pub fn all_level_params_defined_go(
     if !expr::has_lp(e) {
         true
     } else {
-        match expr_ops::memo_b_get(memo, e) {
+        let skip: bool = memo_skip(e);
+        match expr_ops::memo_b_probe(memo, skip, e) {
             Some(r) => r,
             None => {
                 let r: bool = match expr::view(&e) {
@@ -1392,15 +1365,14 @@ pub fn all_level_params_defined_go(
                         all_level_params_defined_go(params, memo, sub)
                     }
                 };
-                memo.insert(expr::dup(e), r);
+                expr_ops::memo_b_record(memo, skip, e, r);
                 r
             }
         }
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:773-805 allLevelParamsDefinedGoC
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::alpd_pair_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1351-1421 allLevelParamsDefinedXP
 /// The `.app` arm's short-circuit.
 pub fn alpd_pair(
     params: &Vec<Name>,
@@ -1415,8 +1387,7 @@ pub fn alpd_pair(
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:773-805 allLevelParamsDefinedGoC
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::alpd_binder_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1351-1421 allLevelParamsDefinedXP
 /// The two binder arms: the domain short-circuits, and the body's answer is
 /// conjoined with the binder datum's *without* short-circuiting, because the
 /// cited `(rb && m.pw.paramsDefined params, memo)` has already run both.
@@ -1436,8 +1407,7 @@ pub fn alpd_binder(
     }
 }
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:773-805 allLevelParamsDefinedGoC
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::alpd_triple_refines, then delete this line
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1351-1421 allLevelParamsDefinedXP
 /// The `.letE` arm's three-child short-circuit.
 pub fn alpd_triple(
     params: &Vec<Name>,
@@ -1454,7 +1424,6 @@ pub fn alpd_triple(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:1423-1427 allLevelParamsDefinedC
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr_ops_c::all_level_params_defined_refines, then delete this line
 /// `Expr.allLevelParamsDefined params` on `ExprC` (one memoised DAG walk).
 pub fn all_level_params_defined(params: &Vec<Name>, e: &Expr) -> bool {
     let mut memo: HashMap<Expr, bool> = HashMap::new();
@@ -1508,16 +1477,19 @@ mod tests {
         expr::binder_meta(prop_when::never())
     }
 
-    /// **The memo of `instantiate1Go` is hit exactly where con-leche's is.**
+    /// **The memo of `instantiate1XP` is hit exactly where con-leche's is.**
     /// The subject is `f s s` with one *shared* `s = (λ _ : A. bvar 1)`
-    /// occurring twice, so the second visit to `s` is a hit; and `s` itself
-    /// has three compound nodes on the cutoff's far side.  The assertions are
-    /// on the table, not just the answer: the number of entries is the number
-    /// of *distinct compound nodes above the cutoff*, an atom is never
-    /// recorded (module note 2), and the two occurrences come back as the
-    /// same value.
+    /// occurring twice, so the second visit to `s` is a hit.  The assertions
+    /// are on the table, not just the answer, and they are the statement of
+    /// module note 2's discipline: the only node recorded is `s`, the one node
+    /// the walk can meet twice.  The two `.app` nodes are compound and above
+    /// the cutoff, but each has exactly one reference — the outer one is held
+    /// by `e` alone and the inner one by the outer one alone — so
+    /// `ron::node::is_exclusive` reports them unshared and they cost no entry;
+    /// `A`, `f` and the `.bvar`s are atoms or below the cutoff.  Both
+    /// occurrences of `s` still come back as the same value.
     #[test]
-    fn instantiate1_memoises_compound_nodes_only() {
+    fn instantiate1_memoises_shared_compound_nodes_only() {
         // s = λ (_ : A). bvar 1   — its body is loose at 1, so bvarB s = 1
         let a = expr::mk_const(nm("A"), Vec::new());
         let s = expr::lam(expr::dup(&a), expr::bvar(1), never());
@@ -1531,11 +1503,11 @@ mod tests {
         let mut memo: expr_ops_c::MemoN = HashMap::new();
         let r = expr_ops_c::instantiate1_go(&v, &mut memo, &e, 0);
 
-        // Three distinct compound nodes sit above the cutoff at their own
-        // cursor: the outer `.app`, the inner `.app`, and `s` (once — the
-        // second occurrence is the memo hit).  `A`, `f` and the `.bvar`s are
-        // atoms or below the cutoff and are never recorded.
-        assert_eq!(memo.len(), 3);
+        // ONE entry: `s`, which the local binding and the two occurrences in
+        // `e` share.  The two `.app`s are exclusive and are rebuilt with the
+        // table untouched; `A`, `f` and the `.bvar`s are atoms or below the
+        // cutoff and were never candidates.
+        assert_eq!(memo.len(), 1);
         // the result: both occurrences of `s` became `λ (_ : A). v`
         let s2 = expr::lam(expr::dup(&a), expr::dup(&v), never());
         let want = expr::app(
@@ -1544,16 +1516,26 @@ mod tests {
         );
         assert!(expr::beq(&r, &want));
 
-        // A second call on a *fresh* table writes the same three entries —
-        // the count is a property of the term, not of the history — and a
-        // second call on the *same* table writes nothing more and answers the
-        // same term (the hit).
+        // A second call on a *fresh* table writes the same one entry — the
+        // count is a property of the term, not of the history — and a second
+        // call on the *same* table writes nothing more and answers the same
+        // term (the hit).
         let mut memo2: expr_ops_c::MemoN = HashMap::new();
         let _ = expr_ops_c::instantiate1_go(&v, &mut memo2, &e, 0);
-        assert_eq!(memo2.len(), 3);
+        assert_eq!(memo2.len(), 1);
         let r2 = expr_ops_c::instantiate1_go(&v, &mut memo, &e, 0);
-        assert_eq!(memo.len(), 3);
+        assert_eq!(memo.len(), 1);
         assert!(expr::beq(&r2, &want));
+
+        // And the discipline is about SHARING, not about the shape: hold a
+        // second reference to the inner `.app` and it is recorded too, while
+        // the walk's answer does not move.
+        let inner = expr::app(expr::mk_const(nm("f"), Vec::new()), expr::dup(&s));
+        let e2 = expr::app(expr::dup(&inner), expr::dup(&s));
+        let mut memo3: expr_ops_c::MemoN = HashMap::new();
+        let r3 = expr_ops_c::instantiate1_go(&v, &mut memo3, &e2, 0);
+        assert_eq!(memo3.len(), 2, "`s` and the inner `.app`, which `inner` holds");
+        assert!(expr::beq(&r3, &want));
 
         // The cutoff: a term closed at the cursor is returned *itself*, with
         // no table at all — `instantiate1`'s `bvarB ≤ d` guard.

@@ -647,8 +647,39 @@ pub fn beq_recursive(e: &Expr) -> bool {
     }
 }
 
+/// con-leche: ConLeche/Kernel/Expr.lean:849-876 Expr.enterBeq
+/// **Memoise only what is shared** (con-leche's task #319): the pair memo is
+/// consulted and written only at a recursive node whose *two* sides are
+/// SHARED — reference count above one, so that some other reference to them
+/// exists.  A pair with an exclusive side cannot be asked again within this
+/// comparison (the walk that is inside a node's only reference meets it
+/// once), so an entry for it can never be read, and every one of them costs a
+/// probe, a bucket and the two stored `dup`s.  This is the official kernel's
+/// `expr_eq_fn::check_cache` guard, `if (is_shared(a) && is_shared(b))`
+/// (`src/kernel/expr_eq_fn.cpp`), which the cited `enterBeq` reads through
+/// `withExclusive`.
+///
+/// `a` and `b` are **borrowed**, which is what makes the counts the counts of
+/// the references inside the terms; `beq_key` is pure `u64` arithmetic over
+/// the two cached hash words and shares nothing, so it may stand where it
+/// does (`ron::node::is_exclusive`, and `kernel::expr_ops`'s note on the
+/// walks' probe/record helpers, say why that matters).
+///
+/// In the model `is_exclusive` is `false`, so this is `beq_recursive a` and
+/// `beq_go` is the descent `Refine/Expr.lean` proves exact, unchanged.
+pub fn beq_memoise(a: &Expr, b: &Expr) -> bool {
+    if !beq_recursive(a) {
+        false
+    } else if node::is_exclusive(a) {
+        false
+    } else if node::is_exclusive(b) {
+        false
+    } else {
+        true
+    }
+}
+
 /// con-leche: ConLeche/Kernel/Expr.lean:984-989 Expr.beqMemo
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr::ptr_eq_refines, then delete this line
 /// The pointer test behind the cited `withPtrEq`.  Deviation: modeled as
 /// `false` in the generated Lean (DESIGN.md §3.2), where the reflexivity of
 /// the walk is what discharges the fast path.
@@ -817,8 +848,7 @@ pub fn exprs_beq_from(xs: &Vec<Expr>, ys: &Vec<Expr>, i: usize) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr.beqGo
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove crates/con-ron-core/src/kernel/expr.rs_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Expr.lean:878-977 Expr.beqGoX
 /// The memoised structural descent, in the cited shape: pointer identity,
 /// then the computed word (a mismatch *is* an inequality), then the memo
 /// probe, then the constructor cases in the cited arm order, then the
@@ -853,7 +883,7 @@ pub fn beq_go(m: BeqMap, a: &Expr, b: &Expr) -> (bool, BeqMap) {
     } else if data(a) != data(b) {
         (false, m)
     } else {
-        let rec: bool = beq_recursive(a);
+        let rec: bool = beq_memoise(a, b);
         let key: u64 = beq_key(hash(a), hash(b));
         if rec && probe_hit(&m, key, a, b) {
             (true, m)
@@ -864,8 +894,7 @@ pub fn beq_go(m: BeqMap, a: &Expr, b: &Expr) -> (bool, BeqMap) {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr.beqGo
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr::beq_arm_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Expr.lean:878-977 Expr.beqGoX
 /// `beqGo`'s constructor cases, in the cited arm order: the ten diagonal
 /// pairs and the wildcard, each one expression (the helpers below are why —
 /// see `beq_when`).  Its own function for two reasons.  It is where the
@@ -899,8 +928,7 @@ pub fn beq_arm(m: BeqMap, a: &Expr, b: &Expr) -> (bool, BeqMap) {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr.beqGo
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr::beq_finish_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Expr.lean:878-977 Expr.beqGoX
 /// `beqGo`'s `finish`: a completed `true` at a recursive node is recorded,
 /// everything else passes through.
 ///
@@ -930,8 +958,7 @@ pub fn beq_finish(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr.beqGo
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr::beq_record_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Expr.lean:878-977 Expr.beqGoX
 /// `beqGo`'s `finish`, the write-back: record a completed `true` at a
 /// recursive node in its key's bucket (task #38 — the bucket is `BeqMap`'s
 /// note).  Its own function so that the table's `mut` binding is short and
@@ -958,8 +985,7 @@ pub fn beq_record(m: BeqMap, key: u64, a: &Expr, b: &Expr) -> BeqMap {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr.beqGo
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr::beq_extend_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Expr.lean:878-977 Expr.beqGoX
 /// The growing half of the write-back: the key already held `old`, so the
 /// bucket becomes `old` with the new pair appended and the one-element bucket
 /// `beq_record` has just stored is replaced by it.  `insert` on a key the
@@ -973,8 +999,7 @@ pub fn beq_extend(m: BeqMap, key: u64, old: BeqBucket, a: &Expr, b: &Expr) -> Be
     m
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr.beqGo
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr::beq_when_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Expr.lean:878-977 Expr.beqGoX
 /// The cited `.fvar`/`.proj` arms' shape: a field comparison that decides
 /// the arm on its own, then the one recursive call.
 ///
@@ -996,8 +1021,7 @@ pub fn beq_when(m: BeqMap, cond: bool, x: &Expr, y: &Expr) -> (bool, BeqMap) {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr.beqGo
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr::beq_both_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Expr.lean:878-977 Expr.beqGoX
 /// The cited `.app` arm: the two children in order, aborting on the first
 /// `false` (which is what keeps an unequal pair out of the memo).
 pub fn beq_both(m: BeqMap, x1: &Expr, y1: &Expr, x2: &Expr, y2: &Expr) -> (bool, BeqMap) {
@@ -1009,8 +1033,7 @@ pub fn beq_both(m: BeqMap, x1: &Expr, y1: &Expr, x2: &Expr, y2: &Expr) -> (bool,
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr.beqGo
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr::beq_both_when_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Expr.lean:878-977 Expr.beqGoX
 /// The cited `.lam`/`.forallE` arms: the binder datum decides the arm, then
 /// the domain and the body.
 pub fn beq_both_when(
@@ -1028,8 +1051,7 @@ pub fn beq_both_when(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr.beqGo
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr::beq_three_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Expr.lean:878-977 Expr.beqGoX
 /// The cited `.letE` arm: the type, the value, the body.
 pub fn beq_three(
     m: BeqMap,
@@ -1048,8 +1070,7 @@ pub fn beq_three(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr.beqGo
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr::const_beq_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Expr.lean:878-977 Expr.beqGoX
 /// The cited `.const` arm's `n == m && us == vs`, as one `bool` so that the
 /// arm is a single expression (see `beq_when`).  Neither conjunct recurses.
 pub fn const_beq(n: &Name, us: &Vec<Level>, n2: &Name, vs: &Vec<Level>) -> bool {
@@ -1060,8 +1081,7 @@ pub fn const_beq(n: &Name, us: &Vec<Level>, n2: &Name, vs: &Vec<Level>) -> bool 
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr.beqGo
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr::proj_head_beq_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Expr.lean:878-977 Expr.beqGoX
 /// The cited `.proj` arm's `s == s' && i == i'`, the part that decides the
 /// arm before its one recursive call (see `beq_when`).
 pub fn proj_head_beq(s1: &Name, i1: u64, s2: &Name, i2: u64) -> bool {
@@ -1073,9 +1093,7 @@ pub fn proj_head_beq(s1: &Name, i1: u64, s2: &Name, i2: u64) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:979-982 Expr.beqDec
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr::beq_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Expr.lean:984-989 Expr.beqMemo
-/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove expr::beq_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Expr.lean:1001-1005 Expr.beq
 /// `Expr.beqMemo` is the *executed* `Expr.beq` (`@[csimp]`-substituted):
 /// the pointer test, the computed-word test, then `beqDec`, which is the
@@ -1084,8 +1102,9 @@ pub fn proj_head_beq(s1: &Name, i1: u64, s2: &Name, i2: u64) -> bool {
 /// makes "the entry holds the two objects" true for the life of the
 /// comparison (the module note) — and the two guards run *first*, so a
 /// comparison decided by identity or by the word allocates no table at all.
-/// That placement is the cited `withPtrEq a b (fun _ => a.data == b.data &&
-/// …)`, and it is what the port has instead of `beqBudget`.
+/// That placement is the cited `withPtrEq a b (fun _ => if a.data == b.data
+/// then … else false)`, and it is what the port has instead of the
+/// `beqBudget` con-leche itself retired at its task #319.
 pub fn beq(a: &Expr, b: &Expr) -> bool {
     if ptr_eq(a, b) {
         true
@@ -1700,8 +1719,9 @@ mod tests {
     }
 
     #[test]
-    fn beq_go_records_only_recursive_nodes_and_only_true() {
-        // `beq_recursive` is the memo's gate and a `false` is never stored.
+    fn beq_go_records_only_shared_recursive_nodes_and_only_true() {
+        // `beq_memoise` is the memo's gate: a leaf pair, a pair with an
+        // exclusive side, and a completed `false` are all never stored.
         let m: expr::BeqMap = HashMap::new();
         let l1 = expr::bvar(7);
         let l2 = expr::bvar(7);
@@ -1710,21 +1730,47 @@ mod tests {
         assert_eq!(m.len(), 0, "a leaf pair is never recorded");
         let a = expr::app(expr::bvar(0), expr::bvar(1));
         let b = expr::app(expr::bvar(0), expr::bvar(1));
+        // `a` and `b` are held by these bindings alone: exclusive, so the
+        // comparison cannot meet them again and records nothing.
         let (r, m) = expr::beq_go(m, &a, &b);
+        assert!(r);
+        assert_eq!(m.len(), 0, "an exclusive pair is never recorded");
+        // The same pair, now SHARED (a second handle to each), is recorded —
+        // and only it, not its leaves.
+        let a2 = expr::dup(&a);
+        let b2 = expr::dup(&b);
+        let (r, m) = expr::beq_go(m, &a2, &b2);
         assert!(r);
         assert_eq!(m.len(), 1, "one entry: the `app` pair, not its leaves");
         assert!(expr::probe_hit(
             &m,
-            expr::beq_key(expr::hash(&a), expr::hash(&b)),
-            &a,
-            &b
+            expr::beq_key(expr::hash(&a2), expr::hash(&b2)),
+            &a2,
+            &b2
         ));
-        // A completed `false` stores nothing.
+        // A completed `false` stores nothing, shared or not.
         let m2: expr::BeqMap = HashMap::new();
         let c = expr::app(expr::bvar(0), expr::bvar(2));
-        let (r2, m2) = expr::beq_go(m2, &a, &c);
+        let c2 = expr::dup(&c);
+        let (r2, m2) = expr::beq_go(m2, &a2, &c2);
         assert!(!r2);
         assert_eq!(m2.len(), 0);
+    }
+
+    /// The gate itself: a leaf is out whatever its count, and a recursive
+    /// node is in only when BOTH sides are shared.
+    #[test]
+    fn beq_memoise_is_recursive_and_shared_on_both_sides() {
+        let leaf = expr::bvar(3);
+        let leaf2 = expr::dup(&leaf);
+        assert!(!expr::beq_memoise(&leaf, &leaf2), "a leaf is never memoised");
+        let a = expr::app(expr::bvar(0), expr::bvar(1));
+        let b = expr::app(expr::bvar(0), expr::bvar(1));
+        assert!(!expr::beq_memoise(&a, &b), "both sides exclusive");
+        let a2 = expr::dup(&a);
+        assert!(!expr::beq_memoise(&a2, &b), "the right side is exclusive");
+        let b2 = expr::dup(&b);
+        assert!(expr::beq_memoise(&a2, &b2), "both shared");
     }
 
     // -----------------------------------------------------------------------
