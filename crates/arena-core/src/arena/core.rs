@@ -3724,6 +3724,41 @@ pub fn iota_certs(
     args: &Vec<EIdx>,
     i: usize,
 ) -> Result<bool, CheckError> {
+    let acc: Vec<EIdx> = Vec::new();
+    iota_certs_aux(pers, vis, st, mode, lane, fuel, fe, depth, lic, h, &acc, args, i)
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:154-193 iotaCertsIAux
+/// Lean twin: OWED (task #97-P6-9's ledger) — the cached tier's bulk form of
+/// `iotaCerts`.
+///
+/// **The batched instantiation lever** (task #97-P6-9), the certificate half:
+/// peel the RAW telescope while the certified arguments accumulate, and
+/// substitute only each binder's DOMAIN (small) instead of copying the whole
+/// residual telescope per argument.  `acc` is innermost-first, the list
+/// `instantiate_list` takes at cursor 0; the identification with the chain of
+/// `instantiate1` the spec-shaped body ran is `Expr.instantiateList_cons`
+/// (`ConLeche/Verify/InstList.lean`).
+///
+/// A raw `bvar` body — whose substitution could expose further `∀`-binders,
+/// which is the fold's semantics — substitutes the accumulator and re-enters
+/// at the same argument, exactly as the twin does; every other non-`forallE`
+/// view is `false`, as it is in the spec.
+pub fn iota_certs_aux(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    lic: bool,
+    h: &EIdx,
+    acc: &Vec<EIdx>,
+    args: &Vec<EIdx>,
+    i: usize,
+) -> Result<bool, CheckError> {
     if i >= args.len() {
         Ok(true)
     } else {
@@ -3732,32 +3767,47 @@ pub fn iota_certs(
             Ok(ENodeView::ForallE(ty, body, mb)) => {
                 let arg: EIdx = args[i].dup2();
                 if lic && prop_when::is_never(&mb.pw) {
-                    match instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &arg, 0) {
+                    let acc2: Vec<EIdx> = cons_eidx(&arg, acc);
+                    iota_certs_aux(
+                        pers, vis, st, mode, lane, fuel, fe, depth, lic, &body, &acc2, args,
+                        i + 1,
+                    )
+                } else {
+                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, acc, 0) {
                         Err(e) => Err(e),
-                        Ok(b) => {
-                            iota_certs(pers, vis, st, mode, lane, fuel, fe, depth, lic, &b, args, i + 1)
+                        Ok(ty2) => {
+                            match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, &arg) {
+                                Err(e) => Err(e),
+                                Ok(ta) => match knot_defeq(
+                                    pers, vis, st, mode, lane, fuel, fe, depth, &ta, &ty2,
+                                ) {
+                                    Err(e) => Err(e),
+                                    Ok(false) => Ok(false),
+                                    Ok(true) => {
+                                        let acc2: Vec<EIdx> = cons_eidx(&arg, acc);
+                                        iota_certs_aux(
+                                            pers, vis, st, mode, lane, fuel, fe, depth, lic,
+                                            &body, &acc2, args, i + 1,
+                                        )
+                                    }
+                                },
+                            }
                         }
                     }
+                }
+            }
+            Ok(ENodeView::BVar(_)) => {
+                if acc.is_empty() {
+                    Ok(false)
                 } else {
-                    match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, &arg) {
+                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, h, acc, 0) {
                         Err(e) => Err(e),
-                        Ok(ta) => {
-                            match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &ta, &ty) {
-                                Err(e) => Err(e),
-                                Ok(false) => Ok(false),
-                                Ok(true) => {
-                                    match instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &arg, 0)
-                                    {
-                                        Err(e) => Err(e),
-                                        Ok(b) => iota_certs(
-                                            pers,
-                                            vis,
-                                            st, mode, lane, fuel, fe, depth, lic, &b, args,
-                                            i + 1,
-                                        ),
-                                    }
-                                }
-                            }
+                        Ok(ty2) => {
+                            let acc2: Vec<EIdx> = Vec::new();
+                            iota_certs_aux(
+                                pers, vis, st, mode, lane, fuel, fe, depth, lic, &ty2, &acc2,
+                                args, i,
+                            )
                         }
                     }
                 }
