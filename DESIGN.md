@@ -1994,6 +1994,17 @@ takes that prefix from 213 s to 124 s.  The predicate stays in the code
 is, which is what P3 needs to state that flushing is sound.  Parallel
 checking (Rust): the persistent tier is
 immutable in phase B, each worker owns a scratch tier — no atomics anywhere.
+**Verified in the code and AMENDED on the Rust side (task #97-P6-6)**: phase
+B really does append to nothing but its scratch tier (`check_pending` is the
+bracket; `intern_persistent`'s only caller is `arena::promote`, which is phase
+A's), so the design holds — but the Rust cannot express the sharing the way
+this sentence assumes.  **A region inside `AState` is outside Aeneas's
+subset**: a bare `&u64` field on it costs five function bodies with nothing
+else in the crate touched, and the borrow of the tier costs sixteen.  The
+sharing has to arrive as a reader PARAMETER (`&PersTier` beside `&mut
+AState`, the shape `fe: &IFEnv` already has), which makes the twin's monad a
+`ReaderT` over §8.4's `AM` and is the maintainer's ruling to make.  Task
+#97-P6-6 has the five measurements and prices the alternatives.
 
 **Phase A runs in the scratch tier too, with promotion (coordinator, after
 task #97-P4f's measurement).**  The install phase (annotate the type and the
@@ -2317,6 +2328,25 @@ the persistent tier (the byte recogniser is unchanged).
         under 1.00× for the first time**, and 1.81× nanoda, from 2.12×.  The
         install phase is 504.1 → 92.9 s; `Init` is 404.88 G (0.75× master) and
         `core` 882.34 G (0.76×).  The twin owes ONE clause, `internRebuilt`.
+
+        6. §8.3's worker pool, `con_ron::pool` over the arena.  **NOT
+        LANDED** (task #97-P6-6): the pool itself is driver-crate code and
+        needs nothing from `arena-core` except a way for `n` worker states to
+        read ONE persistent tier — and every way of writing that with a
+        borrow INSIDE the state is outside Aeneas's subset.  Measured eight
+        ways: the `arena` tip extracts at 0 errors, a two-constructor `Pers`
+        field costs 21 function bodies, the two-field-and-a-flag form 16, and
+        **a bare `&'a u64` field on `AState`, with no other change at all,
+        costs 5** (`expr_ops::bvar_bound_go`, `fvar_range_go`,
+        `core_gated::whnf_core_app_gated`, `core::defeq_after_whnf`,
+        `nat_op_ground::used_consts_rules`); everything else the split needs —
+        the two-tier field layout, the value-returning readers, the
+        frozen-tier guards — extracts at 0 errors without it.  The design
+        that remains is a reader parameter, 1 155 signatures of
+        `arena-core`'s 1 750 functions and a `ReaderT` in §8.4's monad; it is
+        priced in that task's section and wants the maintainer's ruling and a
+        window with no other agent in the crate.  Phase B is **87–93 % of the
+        wall** at every size, so this is the largest lever left in P6.
 
 Branch `arena`; master stays shippable until (C) passes the gates and the
 fixtures.  Budget from con-leche's record, scaled: (B) ~12 k lines,
@@ -29207,3 +29237,249 @@ task's full-Mathlib profile had `EStore::empty` at 9.18 % and
 and `ETables::find` in a later build.  Keep a copy of the binary that was
 recorded and report against it with `--symfs`, which is what
 `_tmp/t97-p6-5/symfs/` is.
+### Task #97-P6-6 — the worker pool: what phase B needs, and what Aeneas will not take (2026-09-21, Opus under Fable)
+
+Phase P6 item 6 of §8.6, Rust-first: **phase B on a pool of workers**, the
+arena's `con_ron::pool`.  §8.3 has said since P1 what the pool would be — "the
+persistent tier is immutable in phase B, each worker owns a scratch tier —
+**no atomics anywhere**" — and §8.6 P4f's deviation 4 has said since P4f
+that the loop is "shaped so a pool slots in".  Both are right.  What is not
+right is the assumption underneath them: **the state split the pool needs is
+outside Aeneas's subset**, measured eight ways below.  **No pool landed**, and
+`crates/arena-core` and `crates/con-ron-arena` are unchanged at the `arena`
+tip `b25e10ad`; what this task produces is the finding, the price of phase B
+(87–93 % of the wall at every size) and the two designs that remain.
+
+#### 1. What phase B needs, and why it is a state change at all
+
+§8.3's claim — phase B never appends to the persistent tier — is **true, and
+was read out of the code before anything was designed**:
+
+  * `checker::check_pending` is `enter_scratch; check_value_group;
+    drop_scratch`, so the store is in the scratch tier for the whole of a
+    record's check, and `EStore::intern` appends "to the tier the store is
+    IN" — every `intern` of a check goes to scratch;
+  * the one route that appends persistently whatever tier the store is in is
+    `intern_persistent`, and its only caller is `arena::promote`, which runs
+    inside `annot_step` and `check_decl_step` — **phase A's brackets**, never
+    phase B's;
+  * `intern_all_pins` runs once before the fold with the scratch tier off
+    (P4f's module note, item 2), i.e. before the boundary;
+  * the caches and the memos are flushed per declaration (`flush_caches`
+    inside both `enter_scratch` and `drop_scratch`), so no worker's tables
+    ever have to agree with another's.
+
+So a worker needs its own scratch tier, its own `Memos`, `Caches` and `Pins`
+(sixty-eight handles, a copy), its own `IFEnv` (`con_ron::pool`'s one
+deviation — `check_pending` takes the index by value), and **read access to
+one persistent tier shared by all of them**.  That tier is 6.5 M expression
+nodes on `Init` and **109.5 M** on Mathlib; copying it per worker is out of
+the question (CLAUDE.md's 3× budget on Mathlib is 21.6 GB and one copy is most
+of the 7.19 GB), so it has to be shared — and `arena-core` may use neither
+`Arc` nor atomics nor `unsafe` (§8.5).
+
+In safe Rust under those rules the only sharing primitive is `&`.  The obvious
+design, and the one `con_ron::pool` uses with `&FEnv`, is therefore: **the
+driver holds the persistent tier and each worker's `AState` borrows it**.
+
+#### 2. The finding: a region inside the threaded state is outside the subset
+
+Eight configurations, each a full `scripts/extract-arena.sh --dry` (Charon +
+Aeneas over the whole crate, ~3.5 min a run).  "Errors" is Aeneas's own count
+of function bodies it could not translate, and it is one error per body.
+
+| configuration of `crates/arena-core` | errors |
+|---|---:|
+| the `arena` tip `b25e10ad`, untouched — the baseline | **0** |
+| `enum Pers<'a, T> { Own(T), Shared(&'a T) }` as the `pers` field of all four stores | 21 |
+| `pers: XTables` + `shared: &'a XTables` + `shared_on: bool` in all four stores, read through a projection that returns `&XTables` | 16 |
+| the same, with the five reads returning VALUES (`pers_find`, `pers_get`, `pers_der_at`, `pers_size_of`, `pers_strs_find`) and no borrow leaving the choice | **16** |
+| the same with `&'static` for `&'a`, so that no store carries a lifetime parameter at all | worse, not better |
+| the borrow field gone but a `&'static PersTier` PARAMETER left on two constructors | 6 |
+| **a bare `pub marker: &'a u64` field on `AState`** (plus the `&'a u64` argument `AState::init` needs to fill it) — the stores untouched, no other change in the crate | **5** |
+| everything the split needs EXCEPT the borrow: the two-tier field layout, the `shared_on` flag, the five value-returning readers, the frozen-tier guards, `PersTier` | **0** |
+
+The last two rows are the result.  **One `&u64` in `AState` costs five
+function bodies** — `expr_ops::bvar_bound_go`, `expr_ops::fvar_range_go`,
+`core_gated::whnf_core_app_gated`, `core::defeq_after_whnf`,
+`nat_op_ground::used_consts_rules` — with nothing else changed, and the
+control row shows every other part of the split is free (0 errors, and the
+tip's own 5 type and 209 function holes, at 65 242 lines of model against the
+tip's 64 953).  It is not the shape of the borrow, not what it points at and
+not how it is read: it is **the region itself, in the record 1 155 of the
+crate's 1 750 functions thread as `&mut`**.  Putting the region in the four
+stores as well takes it from five bodies to sixteen, nine of them in
+`frontend/export_c.rs`, which threads `ar: &mut EStore` and `st: &mut StateD`
+together.
+
+Aeneas's errors are of three kinds — `Could not match the contexts`
+(`interp/Interp.ml:617`, the error task #97-P4c's extraction rule 5 already
+works around), `Unreachable`, and `Internal error, please file an issue` — and
+the last lands on code that mentions no borrow at all: the span it reports for
+`EStore::der_of_view` is
+`expr::max_u64(expr::fvar_of_data(df), expr::fvar_of_data(da))`, four `u64`s
+and not a reference in sight.  These are not sixteen idioms to rewrite; this
+is region bookkeeping failing at scale.
+
+**And it IS scale, not a rule about borrows in types.**  A 200-line faithful
+miniature of the store — two nested stores, each with an owned tier, a
+borrowed tier and a flag, the value-returning projections, a `der_of_view`
+that calls `derived` twice inside a constructor, an `intern` that appends
+through `&mut self`, and a `walk` recursing on `&mut State` — extracts
+**clean**.  So does `frontend::types::ModelCtx`, which has carried three
+shared borrows in a struct since P4e part 1.  What does not survive is a
+region in the record that every function in the crate threads.
+
+A second finding from the same runs, smaller and sharper: **`enum` + borrow is
+out of the subset outright, at any scale.**  A 30-line crate with
+
+```rust
+pub enum Pers<'a, T> { Own(T), Shared(&'a T) }
+pub fn get<'b, T>(p: &'b Pers<'_, T>) -> &'b T {
+    match p { Pers::Own(t) => t, Pers::Shared(t) => t }
+}
+```
+
+fails with `Unreachable`; so does the same `match` returning a `usize` (with
+no borrow leaving it at all), and so does `struct { own: T, shared: Option<&'a
+T> }` matched on the `Option`.  The struct-field-plus-`if` form passes the
+same test.  Aeneas's own translation reference documents `&T` and `&mut T` in
+**parameter** position only; a borrow inside a type has no row in it.
+
+#### 3. What the pool is worth, measured
+
+The tip at `--jobs=1`, `--verified --progress`, one run each, under `ulimit
+-v` (8 GB on `Init` and `core`, 24 GB on Mathlib); raw output in
+`_tmp/a97p66/`:
+
+| | parse | install (A) | **check (B)** | total | B's share | instructions |
+|---|---:|---:|---:|---:|---:|---:|
+| `Init` | 1.95 s | 2.34 s | **49.97 s** | 54.26 s | **92.1 %** | 404.88 G |
+| `core` | 5.09 s | 11.66 s | **116.92 s** | 133.67 s | **87.5 %** | 882.30 G |
+| Mathlib | 48.05 s | 94.03 s | **1 776.80 s** | 1 918.88 s | **92.6 %** | 10 940.98 G |
+
+The instruction counts are task #97-P6-5's to within 0.02 % (404.88 / 882.34 /
+10 942.50 G there), so this is the tree it measured.  Mathlib's wall is 3 %
+over its 1 862 s and its cycles 8 340.60 G against 8 109.66 G, because the
+first four minutes of this run overlapped two `extract-arena` runs of §2;
+instructions, the measure of record, do not notice.
+
+Phase B is the run.  Amdahl on those splits, against `con-ron` at master and
+con-leche (OVERVIEW §7.2):
+
+| | arena `--jobs=1` | arena at 8, projected | arena at 16, projected | `con-ron` master at 8 | con-leche at 8 |
+|---|---:|---:|---:|---:|---:|
+| `Init` | 54.3 s | **10.5 s** | 7.4 s | 20 s | 12 s |
+| `core` | 133.7 s | **31.4 s** | 24.1 s | 73 s | 37 s |
+| Mathlib | 1 918.9 s | **364 s** | 253 s | 929 s | 337 s |
+
+The arena is already under 1.00× `con-ron` at master on instructions, cycles
+and peak RSS at every size (task #97-P6-5); **wall clock is the only column it
+loses, and it loses it only because `con-ron` runs eight workers**.  The
+projection says a pool would not merely close that gap but put the arena at
+between a third and a half of `con-ron`'s eight-worker wall (0.53× / 0.43× /
+0.39×) — and near con-leche's own, which
+is the right expectation: OVERVIEW §7.2 blames con-ron's poor scaling on its
+atomic reference counts, and **the arena has no reference counts at all**.
+
+#### 4. The two designs that remain, priced
+
+**(A) The tier becomes a READER PARAMETER.**  The state keeps §2's control-row
+layout — an owned persistent tier, a `shared_on` flag, the five
+value-returning readers — and the shared tier arrives as an ordinary
+`&PersTier` argument beside the state, exactly as `fe: &IFEnv` and `mode:
+&CheckMode` already do:
+
+```rust
+pub fn whnf_core(pt: &PersTier, st: &mut AState, mode: &CheckMode, fe: &IFEnv, …)
+```
+
+Phase A passes an EMPTY `PersTier` (it owns its own tier, `shared_on` false);
+each phase-B worker is handed the driver's (`shared_on` true).  No region ever
+enters a record, so this is **provably inside the subset**: §2's control row
+is this crate minus the parameter and extracts at zero errors with the tip's
+own hole list, and `&IFEnv` proves the parameter shape itself.
+
+Cost: **1 155 signatures of `arena-core`'s 1 750 functions**, and every call
+site of each.  The compiler finds all of them, so it is mechanical rather than
+delicate — but it rewrites `arena/core.rs` (260 of the sites),
+`arena/decl_check.rs` (88), `arena/inductives/modeled.rs` (84) and
+`arena/expr_ops.rs` (81), which is why it cannot run while another agent is
+tuning those files.  Twin cost: **§8.4's "the monad is `AM := StateT AState
+(Except CheckError)` and nothing else" becomes `ReaderT PersTier (StateT
+AState (Except CheckError))`** — one transformer, uniform, with the Rust's
+two-halves-and-a-flag refining the twin's one `pers` field.  That is a §8.4
+change and the maintainer's to rule on.
+
+**It also fixes the pool's memory**, which is the part of the brief nobody has
+priced.  `con_ron::pool` gives each worker one `fenv::dup` of the installed
+index, and OVERVIEW §7.2's Mathlib cells put that at **≈1.4 GB a worker**
+(7.80 → 17.8 GB over seven extra workers; those cells are stale, §7.2 says
+so).  The arena's `ifenv_dup` is *worse* than con-ron's, because con-ron
+shares the stored constants through `Arc` and the arena copies them —
+task #97-P6-5 measured that copy at 14.66 % of the whole Mathlib run when it
+ran per inductive block.  But `check_pending` takes the index by value for
+ONE reason, to set `visible_below`; split `IFEnv` into the immutable
+`(env, idx)` and that one scalar, and the same reader parameter carries the
+environment too and **a worker costs no environment copy at all**.  Any pool
+task should do the two together.
+
+**(B) A process-global `OnceLock<PersTier>` in `arena-core`.**  No signature
+change: the readers consult the global when `shared_on`.  Cost: new function
+holes and a global of a non-scalar type in the *verified* crate — a channel
+no refinement statement mentions, which is the opposite of what §8.3's
+"the state is one value" discipline is for.  It is also **not known to
+extract**: `OnceLock::get` hands back a `&'static PersTier`, and `&'static` in
+parameter position on its own cost six bodies in §2's table.  Recommended
+against.
+
+(C) is to leave phase B single-lane and keep the wall-clock column, which is
+what the tip does today and what §3 prices.
+
+**Recommendation: (A), as its own task, with the maintainer's ruling on §8.4
+first and a window in which nothing else is open in `arena-core`.**  It is the
+only design that keeps the crate free of `Arc`, atomics, `unsafe` and new
+holes, and §2's control row has already proved everything in it except the
+parameter.
+
+#### 5. What is left
+
+1. **The pool itself** is unchanged from the brief and is driver-crate code:
+   `con_ron::pool` transliterated into `crates/con-ron-arena/src/pool.rs` —
+   `std::thread::scope`, a shared `AtomicUsize` claim counter and a `limit` a
+   failure lowers, results merged by record index and walked in record order
+   so that the verdict and the record a rejection names are the sequential
+   walk's at every `--jobs`, `STACK_BYTES` (1 GiB) a worker, `--progress`
+   under a `Mutex`, `workers_for = max(1, min(jobs, m))`, the default
+   `min(hardware threads, 16)`, and
+   `pool_reports_the_first_failure_at_every_jobs` over five worker counts.
+   None of it needs `arena-core` to change once the tier can be shared.
+2. **`--jobs=<n>` is still accepted and clamped to 1** and the binary still
+   says so on stderr (P4f deviation 4), so `scripts/diff-e2e.sh --bin=…
+   --jobs=N` still measures the single lane whatever `N` is.  The `--jobs`
+   matrix the brief asks for is meaningless until (A) lands.
+3. **The `ulimit -v` arithmetic for a pooled run** is CLAUDE.md's 3× plus
+   1 GiB of address space a worker (`con_ron::driver::JOBS_DEFAULT_CAP`'s
+   note); on Mathlib at 8 workers that is 21.6 + 8 GB before a single
+   per-worker byte of resident set, which is why §4's `IFEnv` item is part of
+   the same task and not a follow-up.
+4. **The `Pers` enum is a dead end and should not be tried again** — §2's
+   30-line reduction is the citation.
+
+#### 6. Gates
+
+**No source file changed**, in any crate: this task's whole diff is DESIGN.md
+(§8.3's amendment, §8.6's P6 item 6, this section).  The gates were run all
+the same, on the tree as committed:
+
+| | |
+|---|---|
+| `cargo build --release` / `cargo test --release`, `RUSTFLAGS="-D warnings"` | green, 422 tests, 0 failures |
+| `scripts/lint-rust-style.sh` over both verified trees | clean |
+| `scripts/provenance.py check` | 0 findings (6 508 items, 4 865 citations, pin `c431b1ca`) |
+| `scripts/extract-arena.sh --dry` | 0 errors, 64 953 lines, 5 type and 209 function holes — the tip's list |
+| `scripts/holes.sh --check` | 2 types, 20 functions, all in OVERVIEW §8.1 |
+| `scripts/overview-links.sh`, `scripts/provenance-selftest.py` | green |
+| `scripts/diff-e2e.sh --bin=target/release/con-ron-arena` | 348/348 `--verified`, 348/348 `--trusted` |
+| `con-ron-arena --verified _tmp/corpus/{init,core,mathlib}.ndjson` | accepted 57 977 / 163 396 / 691 128 — §3's runs |
+| `scripts/extract.sh --check`, `cd proof && lake build` | not run: nothing under `crates/con-ron-core` or `proof/` moved |
