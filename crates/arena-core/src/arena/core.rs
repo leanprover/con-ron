@@ -9585,7 +9585,7 @@ pub fn annotate_binders_out(
 /// free-variable vector, annotate it ONCE, compute the telescope's datum once,
 /// close the leaf with ONE `abstract_range`, then rebuild outward.
 ///
-/// `annotatePisPwI` (`:1698-1702`) is the `some (annotPwPiI …)` line, inlined:
+/// `annotatePisPwI` (`:1693-1702`) is the `some (annotPwPiI …)` line, inlined:
 /// the write is UNGATED in con-leche since 2026-09-06 — writing the datum is
 /// part of the real checker's algorithm and only VALIDATING it is
 /// certification-only work — so both modes compute it here.
@@ -9782,6 +9782,15 @@ pub fn annotate_lams(
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2664-2683 annotateBody` — the two
 /// binder clauses, which differ only in the node they rebuild and in which
 /// datum computation they run when the input annotation is a placeholder.
+///
+/// Since task #97-P6-11 this is the **λ RESIDUAL** and nothing else:
+/// `annotate_body`'s binder clauses run the telescope loops above, and
+/// con-leche's cached `annotateBodyI` keeps this single-binder clause for the
+/// one case its λ loop does not cover — a λ node whose `bvarB` is not zero.
+/// `is_lam = false` is therefore unreachable, exactly as it is in con-leche
+/// (whose `.forallE` clause has no such fallback), and on `Init` and on the
+/// Mathlib 25 % prefix this function is entered ZERO times: every λ node the
+/// annotation pass meets there is `bvar`-closed.
 pub fn annotate_binder(
     pers: &PersTier,
     vis: u64,
