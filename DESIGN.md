@@ -19998,31 +19998,43 @@ the read answer `false` everywhere.
 discipline that spends nothing on an unshared node spends nothing on a small
 term), with 440 lines of their proofs; and `state_c::memo_b_get`, unused.
 
-#### 3. The measurement
+#### 3. What the gate bought, A/B
 
-`perf stat -e instructions:u,cycles:u` is the measure of record; wall time
-and peak RSS beside it, every run under `timeout` and `ulimit -v`.  Two
-con-ron binaries, both release with mimalloc, from the same tree but for the
-gate: `master` is `3f5ebd55`, `excl` is this branch.  The exports are task
-#29's corpus.
+`instructions:u` is the number, because it is load-blind.  Two con-ron
+binaries, release with mimalloc, from the same tree but for the gate:
+`master` is `3f5ebd55`, `excl` is this branch.  The exports are task #29's
+corpus; every run under `timeout` and `ulimit -v`, the driver's own
+`--verified --jobs=1` lane.
 
-**What `withExclusive` bought the port** (`--jobs=1`):
-
-| export | con-ron master | con-ron with the gate | Δ |
+| export | without the gate | with it | Δ |
 |---|---:|---:|---:|
-| `Init` (57 977 declarations) | 539.8 G | **412.3 G** | **−23.6 %** |
-| `Init`+`Std`+`Lean` (163 396) | 1 154.5 G | **896.9 G** | **−22.3 %** |
+| `Init` (57 977 declarations) | 539 823 477 952 | **412 284 710 704** | **−23.6 %** |
+| `Init`+`Std`+`Lean` (163 396) | 1 154 530 881 380 | **896 862 049 579** | **−22.3 %** |
 
-and at eight workers, 545.5 G → 416.5 G (−23.7 %) and 1 161.1 G → 902.5 G
-(−22.3 %).  Wall, from three runs each: `Init` 61.1 ± 0.2 s → 48.6 ± 0.3 s
-(−20.5 %); `Init`+`Std`+`Lean`, one run each, 150.9 s → 122.9 s (−18.5 %).
-Peak RSS does not move (0.48 GB either way on `Init`, 1.32 → 1.33 GB on
-core): the memo was never the peak, the term graph is.
+Repeats agree to six significant figures (`Init` 539 816 266 606 /
+412 283 777 287 on a second run), which is what one expects of a
+deterministic checker counted at user level.  At eight workers the same two
+deltas read −23.7 % and −22.3 %, so the gain is the walk's and not the
+pool's.  Peak RSS does not move — 0.48 GB either way on `Init`, 1.32 → 1.33
+GB on core: the memo was never the peak, the term graph is.
 
-For scale: con-leche's own campaign claimed −13.1 % (#317) and −10.8 %
+For scale, con-leche's own campaign claimed −13.1 % (#317) and −10.8 %
 (#319) on `init-full`, which compounds to −22.5 % — the same number, reached
-the same way.  The port's own numbers below therefore compare two moving
-binaries.
+the same way.
+
+**The Mathlib landing run** (§12's rule: anything that touches memory is run
+on the Mathlib export under `ulimit -v 27000000` before it lands), one run,
+`--verified --jobs=1`, 691 128 declarations:
+
+| | verdict | `instructions:u` | peak RSS |
+|---|---|---:|---:|
+| con-ron with the gate | **accepts 691 128 declarations** (exit 0) | 7 541 754 140 806 | **7.56 GB** |
+
+which is **−32.5 %** of the same binary without it (11 178 500 615 391,
+8.38 GB) — half as much again as the core exports, and the shape of the
+input showing through: a bigger export means longer walks over terms whose interior nodes
+are mostly reached once, and every one of those used to buy an entry.  The
+cap is not approached; CLAUDE.md's budget is 3× con-leche's 8.6 GB.
 
 #### 4. The proofs
 
@@ -20063,14 +20075,29 @@ for.
 
 #### 6. The gates
 
-`scripts/gates.sh` all green.  `scripts/diff-e2e.sh` **383/383 agree** at
-`--jobs=1` and at `--jobs=4` — the fixture set moved with upstream, from 348
-to 383.  `provenance.py check` 2 368 items / 2 386 citations;
+`scripts/gates.sh` **all 10 OK** (`cargo build`/`cargo test` under
+`-D warnings`, the style lint, `provenance check`, the link gate, the hole
+gate, `gen-pins --check`, `gen-prelude --check`, `extract.sh --check`, `lake
+build`); `gen-pins --check` green at the **same 26 721 records / 532 456
+bytes**, which is the measurement that the bump did not touch the pin
+*values*.  `scripts/diff-e2e.sh` **383/383 agree** at `--jobs=1` and at
+`--jobs=4` — the fixture set moved with upstream, from 348 to 383.  `provenance.py check` 2 368 items / 2 386 citations;
 `coverage` 937/937 (100 %); `holes.sh --check` 23/23; the link gate
 regenerated, including README's con-leche anchor repointed to the new pin at
 the same `#L90-L117` (`MainTheorem.lean`'s cited text is unchanged).
 `progress.py`: verified core 14 136 lines, all ported, 91 % verified; the
 parser 4 441, all ported, 59 % verified; `stale (CHANGED marker) 0`.
+
+**What this task deliberately does not do** (maintainer's ruling, mid-task):
+OVERVIEW §7.2's performance table is NOT updated here.  A bump measures the
+A/B of what it lands and runs the Mathlib landing check; re-reading the
+whole comparison table — which needs con-leche's own binary re-measured at
+the new pin, since its tasks #313–#319 moved that side too — is its own
+task, after the merge.  What OVERVIEW does take from this bump is the parts
+a gate or a falsehood forces: §8.1's twenty-third hole row and its count
+(`holes.sh --check` reads that table), §6.4's fixture count, §7.1's ledger,
+§4.3's description of the new memo discipline, §11's module map, and
+README's con-leche anchor at the new pin.
 
 **One process deviation, recorded because §7 asks for it.**  Step 9 says the
 pin is the LAST commit of a bump, so that every commit before it reproduces

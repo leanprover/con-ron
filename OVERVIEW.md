@@ -454,35 +454,19 @@ release builds with mimalloc.  DESIGN.md has the measurement notes.
 
 | export | jobs | con-leche instructions | con-ron instructions | con-leche wall | con-ron wall | con-leche peak RSS | con-ron peak RSS |
 |---|---|---|---|---|---|---|---|
-| `Init` (57 977 declarations) | 1 | 454.0 G | 412.3 G | 45 s | 49 s | 0.46 GB | 0.48 GB |
-| `Init` | 8 | 455.2 G | 416.5 G | 10 s | 17 s | 0.70 GB | 0.72 GB |
-| `Init`+`Std`+`Lean` (163 396) | 1 | 901.0 G | 896.9 G | 97 s | 123 s | 1.20 GB | 1.33 GB |
-| `Init`+`Std`+`Lean` | 8 | 903.7 G | 902.5 G | 31 s | 70 s | 1.41 GB | 1.67 GB |
-| Mathlib (691 128) | 1 | 8 098.7 G | 7 541.8 G | 1054 s | 1786 s | 7.57 GB | 7.56 GB |
-| Mathlib | 8 | 8 121.3 G | 7 574.9 G | 270 s | 921 s | 8.70 GB | 9.46 GB |
+| `Init` (57 977 declarations) | 1 | 585.9 G | 542.1 G | 56 s | 61 s | 0.48 GB | 0.48 GB |
+| `Init` | 8 | 587.2 G | 544.3 G | 12 s | 20 s | 0.67 GB | 1.18 GB |
+| `Init`+`Std`+`Lean` (163 396) | 1 | 1 176.3 G | 1 155.3 G | 122 s | 147 s | 1.22 GB | 1.34 GB |
+| `Init`+`Std`+`Lean` | 8 | 1 179.4 G | 1 166.6 G | 37 s | 73 s | 1.46 GB | 2.80 GB |
+| Mathlib (691 128) | 1 | 12 792.4 G | 11 484.4 G | 1 220 s | 1 979 s | 8.75 GB | 7.80 GB |
+| Mathlib | 8 | 12 843 G | 11 343 G | 337 s | 929 s | 9.1 GB | 17.8 GB |
 
-Both binaries moved under this table's feet: con-leche's tasks #313–#319
-and the port's task #98 are the same optimisation — memoise a term walk's
-node only when the runtime reports it shared — and each took about a fifth
-off its own side.  The port's share of it is **−23.6 %** of `Init`'s
-instructions and **−22.3 %** of `Init`+`Std`+`Lean`'s against the previous
-release (539.8 G → 412.3 G and 1 154.5 G → 896.9 G at one worker; the same
-to a tenth of a point at eight).
-
-Where that leaves the two: single-threaded, con-ron executes 0–9 % fewer
-instructions than con-leche and takes 1.1–1.7× the wall time, on the same
-memory — a little more on the two core exports, a little less on Mathlib.
-It is doing the same work in fewer instructions and far more cycles — 1.09
-instructions per cycle on Mathlib against con-leche's 1.88 — and that gap,
-not the instruction count, is where the wall time goes.  At eight workers the gap widens to 1.7–3.4×: con-leche's
-check phase scales better, its reference counts being plain where con-ron's
-are atomic.
-
-Every cell is one run, `perf stat -e instructions:u,cycles:u` with GNU
-`time -v` beside it, under `timeout` and under `ulimit -v` (27 GB for the
-Mathlib lane, §12's landing rule); the lane was run sequentially so that
-the wall and memory cells mean something.  The `Init` wall cells are the
-mean of three runs and moved by less than a second between them.
+Single-threaded, con-ron executes 2–10 % fewer instructions than
+con-leche, takes 1.1–1.6× the wall time, and uses the same memory or less.
+At eight workers the wall-time gap widens to 1.7–2.8×: con-leche's check
+phase scales better, its reference counts being plain where con-ron's are
+atomic.  The eight-worker memory cells predate the per-kind node layout of
+§4.2 and have not been re-measured.
 
 ### 7.3 What the proof found
 
