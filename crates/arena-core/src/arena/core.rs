@@ -7944,9 +7944,109 @@ pub fn infer_lam_cod(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2181-2190 inferBody` — the `.app`
-/// clause, with the per-argument re-check (con-leche's task #100 de-gating).
+/// con-leche: ConLeche/Cached/CoreC.lean:1011-1042 inferSpineI
+/// Lean twin: OWED (task #97-P6-9's ledger) — the cached tier's
+/// application-inference spine loop, the EXECUTED checker's own `.app` clause.
+///
+/// **The batched instantiation lever** (task #97-P6-9), the telescope half.
+/// The spec-shaped clause this replaces inferred the type of every PREFIX of
+/// the spine and substituted one argument into it per level — so the residual
+/// Π-telescope, binders and all, was rebuilt once per argument, which is where
+/// task #97-P6-8a's 5.15× `forallE` excess comes from.  This walks the RAW
+/// telescope structurally with the arguments accumulated in `acc` (innermost
+/// first, the list `instantiate_list` takes at cursor 0) and substitutes each
+/// domain, and the residual, in ONE walk.  con-leche makes the same move
+/// between its PURE and its CACHED tier and proves the two equal:
+/// `ConLeche/Verify/BetaSpine.lean` (`inferSpine_sound`), whose per-argument
+/// decomposition is `Expr.instantiateList_cons`
+/// (`ConLeche/Verify/InstList.lean`).
+///
+/// The non-`forallE` arm is the twin's: substitute, `whnf`, and restart the
+/// accumulator — a telescope step the raw term did not have is exactly the
+/// spec's `whnf`-then-`instantiate1` level.
+pub fn infer_spine(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    ty: &EIdx,
+    acc: &Vec<EIdx>,
+    args: &Vec<EIdx>,
+    i: usize,
+) -> Result<EIdx, CheckError> {
+    if i >= args.len() {
+        instantiate_list_fast(pers, st, CORE_WALK_FUEL, ty, acc, 0)
+    } else {
+        let a: EIdx = args[i].dup2();
+        match view(pers, st, ty) {
+            Err(e) => Err(e),
+            Ok(ENodeView::ForallE(dom, body, _)) => {
+                match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &dom, acc, 0) {
+                    Err(e) => Err(e),
+                    Ok(dom2) => {
+                        match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, &a) {
+                            Err(e) => Err(e),
+                            Ok(ta) => match knot_defeq(
+                                pers, vis, st, mode, lane, fuel, fe, depth, &ta, &dom2,
+                            ) {
+                                Err(e) => Err(e),
+                                Ok(false) => {
+                                    fail(CheckError::Invalid(code_points(&M_APP_MISMATCH)))
+                                }
+                                Ok(true) => {
+                                    let acc2: Vec<EIdx> = cons_eidx(&a, acc);
+                                    infer_spine(
+                                        pers, vis, st, mode, lane, fuel, fe, depth, &body, &acc2,
+                                        args, i + 1,
+                                    )
+                                }
+                            },
+                        }
+                    }
+                }
+            }
+            Ok(_) => match instantiate_list_fast(pers, st, CORE_WALK_FUEL, ty, acc, 0) {
+                Err(e) => Err(e),
+                Ok(ty2) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &ty2) {
+                    Err(e) => Err(e),
+                    Ok(w) => match view(pers, st, &w) {
+                        Err(e) => Err(e),
+                        Ok(ENodeView::ForallE(dom, body, _)) => {
+                            match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, &a) {
+                                Err(e) => Err(e),
+                                Ok(ta) => match knot_defeq(
+                                    pers, vis, st, mode, lane, fuel, fe, depth, &ta, &dom,
+                                ) {
+                                    Err(e) => Err(e),
+                                    Ok(false) => {
+                                        fail(CheckError::Invalid(code_points(&M_APP_MISMATCH)))
+                                    }
+                                    Ok(true) => {
+                                        let acc2: Vec<EIdx> = cons_eidx(&a, &Vec::new());
+                                        infer_spine(
+                                            pers, vis, st, mode, lane, fuel, fe, depth, &body,
+                                            &acc2, args, i + 1,
+                                        )
+                                    }
+                                },
+                            }
+                        }
+                        Ok(_) => fail(CheckError::Invalid(code_points(&M_FN))),
+                    },
+                },
+            },
+        }
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:1344-1353 inferBodyI
+/// Lean twin: OWED (task #97-P6-9's ledger) — the `.app` clause of the cached
+/// inference body: the spine's head is inferred once and its Π-telescope is
+/// walked against the whole spine.
 pub fn infer_app(
     pers: &PersTier,
     vis: u64,
@@ -7956,33 +8056,16 @@ pub fn infer_app(
     fuel: u64,
     fe: &IFEnv,
     depth: u64,
-    f: &EIdx,
-    a: &EIdx,
+    e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, f) {
-        Err(e) => Err(e),
-        Ok(tf) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tf) {
-            Err(e) => Err(e),
-            Ok(w) => match view(pers, st, &w) {
-                Err(e) => Err(e),
-                Ok(ENodeView::ForallE(ty, body, _)) => {
-                    match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, a) {
-                        Err(e) => Err(e),
-                        Ok(ta) => {
-                            match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &ta, &ty) {
-                                Err(e) => Err(e),
-                                Ok(false) => fail(CheckError::Invalid(code_points(
-                                    &M_APP_MISMATCH,
-                                ))),
-                                Ok(true) => {
-                                    instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, a, 0)
-                                }
-                            }
-                        }
-                    }
-                }
-                Ok(_) => fail(CheckError::Invalid(code_points(&M_FN))),
-            },
+    match head_and_args(pers, st, e) {
+        Err(er) => Err(er),
+        Ok(hv) => match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, &hv.0) {
+            Err(er) => Err(er),
+            Ok(tf) => {
+                let acc: Vec<EIdx> = Vec::new();
+                infer_spine(pers, vis, st, mode, lane, fuel, fe, depth, &tf, &acc, &hv.1, 0)
+            }
         },
     }
 }
@@ -8015,7 +8098,7 @@ pub fn infer_body(
         Ok(ENodeView::Lam(ty, body, mb)) => {
             infer_lam(pers, vis, st, mode, lane, fuel, fe, depth, &ty, &body, &mb)
         }
-        Ok(ENodeView::App(f, a)) => infer_app(pers, vis, st, mode, lane, fuel, fe, depth, &f, &a),
+        Ok(ENodeView::App(_, _)) => infer_app(pers, vis, st, mode, lane, fuel, fe, depth, e),
         Ok(ENodeView::Proj(sn, i, pe)) => {
             infer_proj(pers, vis, st, mode, lane, fuel, fe, depth, &sn, i, &pe)
         }
@@ -8065,8 +8148,8 @@ pub fn infer_body_io(
         Ok(ENodeView::Lam(ty, body, mb)) => {
             infer_lam_open(pers, vis, st, mode, lane, fuel, fe, depth, &ty, &body, &mb, io)
         }
-        Ok(ENodeView::App(f, a)) => {
-            infer_app_io_at(pers, vis, st, mode, lane, io, fuel, fe, depth, &f, &a)
+        Ok(ENodeView::App(_, _)) => {
+            infer_app_io_at(pers, vis, st, mode, lane, io, fuel, fe, depth, e)
         }
         Ok(ENodeView::Proj(sn, i, pe)) => {
             infer_proj_io(pers, vis, st, mode, lane, io, fuel, fe, depth, &sn, i, &pe)
@@ -8193,43 +8276,124 @@ pub fn infer_app_io_at(
     fuel: u64,
     fe: &IFEnv,
     depth: u64,
-    f: &EIdx,
-    a: &EIdx,
+    e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match knot_infer_at(pers, vis, st, mode, lane, io, fuel, fe, depth, f) {
-        Err(e) => Err(e),
-        Ok(tf) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tf) {
+    match head_and_args(pers, st, e) {
+        Err(er) => Err(er),
+        Ok(hv) => {
+            match knot_infer_at(pers, vis, st, mode, lane, io, fuel, fe, depth, &hv.0) {
+                Err(er) => Err(er),
+                Ok(tf) => {
+                    let acc: Vec<EIdx> = Vec::new();
+                    infer_spine_io(
+                        pers, vis, st, mode, lane, io, fuel, fe, depth, &tf, &acc, &hv.1, 0,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:1044-1091 inferSpineIOI
+/// Lean twin: OWED (task #97-P6-9's ledger) — `infer_spine` with the
+/// per-argument certificate gated: **THE io SITE** (task #97f, P2f), where the
+/// executed core reads `CheckMode.ioSkip` — the datum weakened by
+/// `!mode.certs`, the io-grade argument certificate being a certificate
+/// FAMILY.  The two agree at `.verified`, the mode the bridge is stated at.
+///
+/// A syntactic `.forallE` is its own whnf, so the syntactic step's datum is
+/// the datum the pure io body reads off the whnf'd type (con-leche's own note
+/// on `inferSpineIOI`); the returned type is the same telescope walk either
+/// way, so the lane stays annotation-blind in its results.
+pub fn infer_spine_io(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    io: bool,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    ty: &EIdx,
+    acc: &Vec<EIdx>,
+    args: &Vec<EIdx>,
+    i: usize,
+) -> Result<EIdx, CheckError> {
+    if i >= args.len() {
+        instantiate_list_fast(pers, st, CORE_WALK_FUEL, ty, acc, 0)
+    } else {
+        let a: EIdx = args[i].dup2();
+        match view(pers, st, ty) {
             Err(e) => Err(e),
-            Ok(w) => match view(pers, st, &w) {
+            Ok(ENodeView::ForallE(dom, body, mt)) => {
+                let cert = if con_ron_core::kernel::env::io_skip(mode, &mt.pw) {
+                    Ok(true)
+                } else {
+                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &dom, acc, 0) {
+                        Err(e) => Err(e),
+                        Ok(dom2) => {
+                            match knot_infer_at(
+                                pers, vis, st, mode, lane, io, fuel, fe, depth, &a,
+                            ) {
+                                Err(e) => Err(e),
+                                Ok(ta) => knot_defeq(
+                                    pers, vis, st, mode, lane, fuel, fe, depth, &ta, &dom2,
+                                ),
+                            }
+                        }
+                    }
+                };
+                match cert {
+                    Err(e) => Err(e),
+                    Ok(false) => fail(CheckError::Invalid(code_points(&M_APP_MISMATCH))),
+                    Ok(true) => {
+                        let acc2: Vec<EIdx> = cons_eidx(&a, acc);
+                        infer_spine_io(
+                            pers, vis, st, mode, lane, io, fuel, fe, depth, &body, &acc2, args,
+                            i + 1,
+                        )
+                    }
+                }
+            }
+            Ok(_) => match instantiate_list_fast(pers, st, CORE_WALK_FUEL, ty, acc, 0) {
                 Err(e) => Err(e),
-                Ok(ENodeView::ForallE(ty, body, mt)) => {
-                    // **THE io SITE** (task #97f, P2f): the executed core reads
-                    // `CheckMode.ioSkip`, which is the datum weakened by
-                    // `!mode.certs` (the io-grade argument certificate is a
-                    // certificate FAMILY).  The two agree at `.verified`.
-                    if !con_ron_core::kernel::env::io_skip(mode, &mt.pw) {
-                        match knot_infer_at(pers, vis, st, mode, lane, io, fuel, fe, depth, a) {
-                            Err(e) => Err(e),
-                            Ok(ta) => {
-                                match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &ta, &ty)
-                                {
+                Ok(ty2) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &ty2) {
+                    Err(e) => Err(e),
+                    Ok(w) => match view(pers, st, &w) {
+                        Err(e) => Err(e),
+                        Ok(ENodeView::ForallE(dom, body, mt)) => {
+                            let cert = if con_ron_core::kernel::env::io_skip(mode, &mt.pw) {
+                                Ok(true)
+                            } else {
+                                match knot_infer_at(
+                                    pers, vis, st, mode, lane, io, fuel, fe, depth, &a,
+                                ) {
                                     Err(e) => Err(e),
-                                    Ok(false) => fail(CheckError::Invalid(code_points(
-                                        &M_APP_MISMATCH,
-                                    ))),
-                                    Ok(true) => {
-                                        instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, a, 0)
-                                    }
+                                    Ok(ta) => knot_defeq(
+                                        pers, vis, st, mode, lane, fuel, fe, depth, &ta, &dom,
+                                    ),
+                                }
+                            };
+                            match cert {
+                                Err(e) => Err(e),
+                                Ok(false) => {
+                                    fail(CheckError::Invalid(code_points(&M_APP_MISMATCH)))
+                                }
+                                Ok(true) => {
+                                    let acc2: Vec<EIdx> = cons_eidx(&a, &Vec::new());
+                                    infer_spine_io(
+                                        pers, vis, st, mode, lane, io, fuel, fe, depth, &body,
+                                        &acc2, args, i + 1,
+                                    )
                                 }
                             }
                         }
-                    } else {
-                        instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, a, 0)
-                    }
-                }
-                Ok(_) => fail(CheckError::Invalid(code_points(&M_FN))),
+                        Ok(_) => fail(CheckError::Invalid(code_points(&M_FN))),
+                    },
+                },
             },
-        },
+        }
     }
 }
 
