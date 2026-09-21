@@ -83,7 +83,7 @@ use crate::arena::env::{
     IConstantInfo, IConstantVal, IFEnv, IIndCaps, IProjEntry, IRecRule, IRecRuleFire,
 };
 use crate::arena::expr_ops::{
-    abstract1_fast, cons_eidx, get_app_args, get_app_fn,
+    abstract1_fast, abstract_range_fast, bvar_b, cons_eidx, get_app_args, get_app_fn,
     has_fvar_fast, instantiate1_fast, instantiate_list_fast, inst_lp_fast, inst_spine,
     lam_pw, leaf_guard, loose_bvars_bounded_fast, mk_app_n, mk_app_n_from, pi_result,
     rec_rule_plain, strip_pis,
@@ -9471,6 +9471,313 @@ pub fn annot_pw_lam(
     }
 }
 
+// ---------------------------------------------------------------------------
+// The annotation's binder-telescope loops (`Cached/CoreC.lean:1636-1779`)
+//
+// **The batched instantiation lever, the annotation half** (task #97-P6-11),
+// under the ruling before DESIGN.md §8.7: con-leche itself makes the
+// multi-substitution move between its PURE and its CACHED tier, so the arena
+// may substitute a whole accumulated vector in one walk where the pure
+// checker loops `instantiate1` — and the bridge owes the equation con-leche
+// already proves.
+//
+// The spec-shaped clause (`annotate_binder`, which survives below as the λ
+// residual) opens the body of EVERY binder of a ∀/λ telescope against one
+// fresh free variable and abstracts the annotated result back, so a telescope
+// of `k` binders walks its own tail `k` times and re-interns every binder
+// under it once per level.  That is task #97-P6-8a's binder excess against
+// nanoda, and 17.1 % of the Mathlib prefix's new nodes after task #97-P6-9.
+//
+// con-leche's cached tier peels the whole telescope instead
+// (`annotatePisI`/`annotateLamsI`, its own task #72): each domain is opened
+// against the free variables accumulated so far in ONE `instantiateList`, the
+// residual leaf is opened once and annotated once, and the outward rebuild
+// closes each domain with ONE `abstractRange`.  `ConLeche/Verify/BinderLoop.lean`
+// proves both loops sound against the chained bodies
+// (`annotatePis_sound:1612`, `annotateLams_sound:1714`), and
+// `ConLeche/Verify/Cached/BinderLoopC.lean` relates the cached spelling to
+// those pure mirrors clause by clause; §6 of the task section is the ledger.
+//
+// Two shapes are the arena's rather than con-leche's, for DESIGN.md §3.4's
+// reasons and no other:
+//
+//   * `annotateBindersOutI` takes the node builder `mk` as a function
+//     argument.  A closure is what §3.4 rules out, so the arena passes
+//     `is_lam : bool` and branches — the same collapse `annotate_binder`
+//     already makes over con-leche's two `annotateBody` binder clauses.
+//   * the stack is a `Vec<(EIdx, BinderMeta)>` pushed OUTERMOST-first and
+//     consumed by a count `n` counting down, where con-leche conses a `List`
+//     innermost-first and consumes its head: `stk[j]` is then the binder at
+//     level `d + j`, and `j` is exactly the `abstractRange` width its domain
+//     wants.  `annotatePisPwI`/`annotateLamsPwI` — the one-line `Option`
+//     wrappers around the datum computation — are inlined at the two leaves.
+// ---------------------------------------------------------------------------
+
+/// con-leche: ConLeche/Cached/StateC.lean:168-172 peelFuel
+/// Lean twin: OWED (task #97-P6-11's ledger) — the fuel of the two telescope
+/// peels, con-leche's number verbatim.  Exhaustion is not an error: the loop
+/// falls through to its leaf phase with the binders peeled so far, which is
+/// con-leche's own `| 0, t, k, fvs, stk => …LeafI` clause.
+pub const PEEL_FUEL: u64 = 16777216;
+
+/// con-leche: ConLeche/Cached/CoreC.lean:1649-1676 annotateBindersOutI
+/// Lean twin: OWED (task #97-P6-11's ledger) — the outward rebuild of both
+/// annotation telescope loops: fold the stack innermost binder first,
+/// rebuilding one binder node per entry.
+///
+/// `stk[j]` is the binder at level `d + j` and its annotated domain may mention
+/// the `j` free variables below it, so `abstract_range ty' d j` is what closes
+/// it — where the per-binder clause spent one whole-body `abstract1` per level.
+/// `j = 0` (the outermost binder) is `abstract_range_fast`'s own identity clause
+/// and costs nothing.
+///
+/// con-leche's task #161 P5 (the untrusted write): `pw` is the datum written
+/// just below, threaded outward — `zeronessOf (imax u v) = zeronessOf v` makes
+/// every ∀ node's codomain-sort zero-ness its inner neighbour's, and the λ
+/// chain rule says the same of λ nodes, so the telescope pays ONE computation,
+/// in the leaf phase, and every node above reads.  A binder whose input datum
+/// is a real annotation (`pw_written`) is left alone, and it is that datum that
+/// travels on.
+pub fn annotate_binders_out(
+    pers: &PersTier,
+    st: &mut AState,
+    is_lam: bool,
+    d: u64,
+    pw: Option<PropWhen>,
+    stk: &Vec<(EIdx, BinderMeta)>,
+    n: usize,
+    cur: &EIdx,
+) -> Result<EIdx, CheckError> {
+    if n == 0 {
+        Ok(cur.dup2())
+    } else {
+        let j: usize = n - 1;
+        match abstract_range_fast(pers, st, CORE_WALK_FUEL, &stk[j].0, d, j as u64, 0) {
+            Err(e) => Err(e),
+            Ok(ty_abs) => {
+                let written: bool = match pw {
+                    Some(_) => true,
+                    None => false,
+                };
+                let m: BinderMeta = annot_binder_meta(pw, &stk[j].1);
+                let pw2: Option<PropWhen> = if written {
+                    Some(prop_when::dup(&m.pw))
+                } else {
+                    None
+                };
+                let node = if is_lam {
+                    intern_e(pers, st, ENodeView::Lam(ty_abs, cur.dup2(), m))
+                } else {
+                    intern_e(pers, st, ENodeView::ForallE(ty_abs, cur.dup2(), m))
+                };
+                match node {
+                    Err(e) => Err(e),
+                    Ok(nd) => annotate_binders_out(pers, st, is_lam, d, pw2, stk, j, &nd),
+                }
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:1704-1713 annotatePisLeafI
+/// Lean twin: OWED (task #97-P6-11's ledger) — the leaf phase of the ∀
+/// telescope loop: bulk-open the residual body against the whole accumulated
+/// free-variable vector, annotate it ONCE, compute the telescope's datum once,
+/// close the leaf with ONE `abstract_range`, then rebuild outward.
+///
+/// `annotatePisPwI` (`:1698-1702`) is the `some (annotPwPiI …)` line, inlined:
+/// the write is UNGATED in con-leche since 2026-09-06 — writing the datum is
+/// part of the real checker's algorithm and only VALIDATING it is
+/// certification-only work — so both modes compute it here.
+pub fn annotate_pis_leaf(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    d: u64,
+    t: &EIdx,
+    k: u64,
+    fvs: &Vec<EIdx>,
+    stk: &Vec<(EIdx, BinderMeta)>,
+) -> Result<EIdx, CheckError> {
+    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, fvs, 0) {
+        Err(e) => Err(e),
+        Ok(to) => match knot_annotate(pers, vis, st, mode, lane, fuel, fe, d + k, &to) {
+            Err(e) => Err(e),
+            Ok(leafp) => {
+                match annot_pw_pi(pers, vis, st, mode, lane, fuel, fe, d + k, &leafp) {
+                    Err(e) => Err(e),
+                    Ok(p) => match abstract_range_fast(pers, st, CORE_WALK_FUEL, &leafp, d, k, 0) {
+                        Err(e) => Err(e),
+                        Ok(cur) => {
+                            let n: usize = stk.len();
+                            annotate_binders_out(pers, st, false, d, Some(p), stk, n, &cur)
+                        }
+                    },
+                }
+            }
+        },
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:1715-1730 annotatePisI
+/// Lean twin: OWED (task #97-P6-11's ledger) — the ∀-telescope annotation
+/// loop: peel the raw ∀-chain, annotating each opened domain on the way in.
+/// `k >= 1` counts the opened binders (the first is peeled by
+/// `annotate_body`'s own clause) and `fvs` holds their free variables
+/// innermost-first, which is the list `instantiate_list` takes at cursor 0.
+///
+/// One peeled domain is ONE `instantiate_list` walk over the domain alone,
+/// where the per-binder clause substituted into the whole residual telescope
+/// once per level; `Expr.instantiateList_cons`
+/// (`ConLeche/Verify/InstList.lean:54-116`) is the equation that identifies the
+/// batch with the chain of `instantiate1` the spec-shaped body ran.
+pub fn annotate_pis(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    d: u64,
+    peel: u64,
+    t: &EIdx,
+    k: u64,
+    fvs: &Vec<EIdx>,
+    stk: Vec<(EIdx, BinderMeta)>,
+) -> Result<EIdx, CheckError> {
+    if peel == 0 {
+        annotate_pis_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk)
+    } else {
+        match view(pers, st, t) {
+            Err(e) => Err(e),
+            Ok(ENodeView::ForallE(ty, body, mb)) => {
+                match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, fvs, 0) {
+                    Err(e) => Err(e),
+                    Ok(tyo) => {
+                        match knot_annotate(pers, vis, st, mode, lane, fuel, fe, d + k, &tyo) {
+                            Err(e) => Err(e),
+                            Ok(typ) => {
+                                match intern_e(pers, st, ENodeView::FVar(d + k, typ.dup2())) {
+                                    Err(e) => Err(e),
+                                    Ok(fv) => {
+                                        let fvs2: Vec<EIdx> = cons_eidx(&fv, fvs);
+                                        let mut stk2: Vec<(EIdx, BinderMeta)> = stk;
+                                        stk2.push((typ, mb));
+                                        annotate_pis(
+                                            pers, vis, st, mode, lane, fuel, fe, d, peel - 1,
+                                            &body, k + 1, &fvs2, stk2,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(_) => annotate_pis_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk),
+        }
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:1753-1762 annotateLamsLeafI
+/// Lean twin: OWED (task #97-P6-11's ledger) — `annotate_pis_leaf` rebuilding
+/// λ nodes, with the λ chain's datum (`annotPwLamI`: the zero-ness of the sort
+/// of the innermost body's TYPE) in place of the ∀ telescope's.
+/// `annotateLamsPwI` (`:1747-1751`) is inlined with it.
+pub fn annotate_lams_leaf(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    d: u64,
+    t: &EIdx,
+    k: u64,
+    fvs: &Vec<EIdx>,
+    stk: &Vec<(EIdx, BinderMeta)>,
+) -> Result<EIdx, CheckError> {
+    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, fvs, 0) {
+        Err(e) => Err(e),
+        Ok(to) => match knot_annotate(pers, vis, st, mode, lane, fuel, fe, d + k, &to) {
+            Err(e) => Err(e),
+            Ok(leafp) => {
+                match annot_pw_lam(pers, vis, st, mode, lane, fuel, fe, d + k, &leafp) {
+                    Err(e) => Err(e),
+                    Ok(p) => match abstract_range_fast(pers, st, CORE_WALK_FUEL, &leafp, d, k, 0) {
+                        Err(e) => Err(e),
+                        Ok(cur) => {
+                            let n: usize = stk.len();
+                            annotate_binders_out(pers, st, true, d, Some(p), stk, n, &cur)
+                        }
+                    },
+                }
+            }
+        },
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:1764-1777 annotateLamsI
+/// Lean twin: OWED (task #97-P6-11's ledger) — the λ twin of `annotate_pis`.
+/// Its caller guards it with `bvar_b e == 0` (`annotate_body`'s λ clause):
+/// con-leche's own note says the λ loop is chain-identical only on
+/// `bvar`-closed nodes, because the chained tails re-open exactly what they
+/// closed, and the derived word decides that in O(1).
+pub fn annotate_lams(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    d: u64,
+    peel: u64,
+    t: &EIdx,
+    k: u64,
+    fvs: &Vec<EIdx>,
+    stk: Vec<(EIdx, BinderMeta)>,
+) -> Result<EIdx, CheckError> {
+    if peel == 0 {
+        annotate_lams_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk)
+    } else {
+        match view(pers, st, t) {
+            Err(e) => Err(e),
+            Ok(ENodeView::Lam(ty, body, mb)) => {
+                match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, fvs, 0) {
+                    Err(e) => Err(e),
+                    Ok(tyo) => {
+                        match knot_annotate(pers, vis, st, mode, lane, fuel, fe, d + k, &tyo) {
+                            Err(e) => Err(e),
+                            Ok(typ) => {
+                                match intern_e(pers, st, ENodeView::FVar(d + k, typ.dup2())) {
+                                    Err(e) => Err(e),
+                                    Ok(fv) => {
+                                        let fvs2: Vec<EIdx> = cons_eidx(&fv, fvs);
+                                        let mut stk2: Vec<(EIdx, BinderMeta)> = stk;
+                                        stk2.push((typ, mb));
+                                        annotate_lams(
+                                            pers, vis, st, mode, lane, fuel, fe, d, peel - 1,
+                                            &body, k + 1, &fvs2, stk2,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(_) => annotate_lams_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk),
+        }
+    }
+}
+
 /// con-leche: ConLeche/Kernel/Core.lean:1795-1915 annotateBody
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2664-2683 annotateBody` — the two
 /// binder clauses, which differ only in the node they rebuild and in which
@@ -9747,12 +10054,58 @@ pub fn annotate_body(
                 },
             }
         }
+        // Binder-telescope loop (con-leche's task #72, `annotateBodyI`'s
+        // `.forallE` case): peel the whole ∀-chain, open in bulk, rebuild with
+        // `abstract_range`.  The first binder is peeled here, which is why
+        // `annotate_pis` starts at `k = 1` with one free variable.
         Ok(ENodeView::ForallE(ty, body, mb)) => {
-            annotate_binder(pers, vis, st, mode, lane, fuel, fe, depth, &ty, &body, &mb, false)
+            match knot_annotate(pers, vis, st, mode, lane, fuel, fe, depth, &ty) {
+                Err(er) => Err(er),
+                Ok(typ) => match intern_e(pers, st, ENodeView::FVar(depth, typ.dup2())) {
+                    Err(er) => Err(er),
+                    Ok(fv) => {
+                        let fvs: Vec<EIdx> = cons_eidx(&fv, &Vec::new());
+                        let mut stk: Vec<(EIdx, BinderMeta)> = Vec::new();
+                        stk.push((typ, mb));
+                        annotate_pis(
+                            pers, vis, st, mode, lane, fuel, fe, depth, PEEL_FUEL, &body, 1,
+                            &fvs, stk,
+                        )
+                    }
+                },
+            }
         }
-        Ok(ENodeView::Lam(ty, body, mb)) => {
-            annotate_binder(pers, vis, st, mode, lane, fuel, fe, depth, &ty, &body, &mb, true)
-        }
+        // con-leche's `annotateBodyI`'s `.lam` case: "the λ-loop is chain-
+        // identical only on bvar-closed nodes (the chained tails re-open
+        // exactly what they closed); disciplined inputs always are, and the
+        // cached bound decides in O(1)".  Otherwise the spec-shaped
+        // single-binder clause below runs, unchanged.
+        Ok(ENodeView::Lam(ty, body, mb)) => match bvar_b(pers, st, CORE_WALK_FUEL, e) {
+            Err(er) => Err(er),
+            Ok(b) => {
+                if b == 0 {
+                    match knot_annotate(pers, vis, st, mode, lane, fuel, fe, depth, &ty) {
+                        Err(er) => Err(er),
+                        Ok(typ) => match intern_e(pers, st, ENodeView::FVar(depth, typ.dup2())) {
+                            Err(er) => Err(er),
+                            Ok(fv) => {
+                                let fvs: Vec<EIdx> = cons_eidx(&fv, &Vec::new());
+                                let mut stk: Vec<(EIdx, BinderMeta)> = Vec::new();
+                                stk.push((typ, mb));
+                                annotate_lams(
+                                    pers, vis, st, mode, lane, fuel, fe, depth, PEEL_FUEL,
+                                    &body, 1, &fvs, stk,
+                                )
+                            }
+                        },
+                    }
+                } else {
+                    annotate_binder(
+                        pers, vis, st, mode, lane, fuel, fe, depth, &ty, &body, &mb, true,
+                    )
+                }
+            }
+        },
         Ok(ENodeView::LetE(ty, v, b)) => {
             annotate_let(pers, vis, st, mode, lane, fuel, fe, depth, &ty, &v, &b)
         }

@@ -3493,6 +3493,281 @@ pub fn abstract1_fast(
 }
 
 // ---------------------------------------------------------------------------
+// `abstractRange`, the EXECUTED form — `Cached/ExprOpsC.lean:684-755`
+//
+// `abstract_range` above is con-leche's `Kernel/ExprOps.lean:791` spec: a bare
+// structural descent.  The cached tier's `abstractRangeC` is the one the
+// checker runs, and it is the same three devices `abstract1_go`/`abstract1C`
+// already have here — the `fvarB <= d` cutoff at the node AND at every child
+// (`abstractRangeP`'s first line, `enterAbsRP`), the per-call memo keyed by
+// `(node, cursor)` (`abstractRangeXP`'s `MemoXP`), and the `k = 0` identity
+// that skips the traversal outright (`abstractRangeC`'s own first clause).
+//
+// Task #97-P6-11 is what needed it: the annotation's binder-telescope loop
+// calls `abstractRange` once per binder domain and once at the leaf, so the
+// bare descent became the hottest walk of the run — on `Init` it turned
+// 33.7 M construction attempts into 2 090.7 M, of which 99.9 % were cons-table
+// hits.  With the three devices it is 27.4 M.
+// ---------------------------------------------------------------------------
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:684-700 abstractRangeP
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:715-746 abstractRangeXP
+/// Lean twin: OWED (task #97-P6-11's ledger) — the memoized `abstractRange`
+/// walk: close the `k` free variables `d .. d + k - 1` into `bvar`s at cursor
+/// `c`, innermost binder to the lowest index.  The `fvar_b <= d` cutoff is
+/// `abstractRangeP`'s own first line and `enterAbsRP`'s; the `(h, c)` memo is
+/// `abstractRangeXP`'s, on the compound arms only, exactly as
+/// `abstract1_go`'s is.
+///
+/// The memo table is `abstract1`'s (`abs1_*`).  The two walks never nest — both
+/// are leaf walks over the store, calling nothing but `fvar_b`, `view` and
+/// `intern` — and each entry point clears the table before and after itself, so
+/// within one call the key `(h, c)` determines the result at the call's own
+/// fixed `d` and `k`.
+pub fn abstract_range_go(
+    pers: &PersTier,
+    st: &mut AState,
+    d: u64,
+    k: u64,
+    fuel: u64,
+    h: &EIdx,
+    c: u64,
+) -> Result<EIdx, CheckError> {
+    if fuel == 0 {
+        fail(CheckError::Internal(code_points(&M_FUEL_ABS_RANGE)))
+    } else {
+        match fvar_b(pers, st, fuel - 1, h) {
+            Err(e) => Err(e),
+            Ok(fb) => {
+                if fb <= d {
+                    Ok(h.dup2())
+                } else {
+                    match view(pers, st, h) {
+                        Err(e) => Err(e),
+                        Ok(ENodeView::BVar(_)) => Ok(h.dup2()),
+                        Ok(ENodeView::FVar(idx, _)) => {
+                            if d <= idx && idx < d + k {
+                                intern_e(pers, st, ENodeView::BVar(c + (d + k - 1 - idx)))
+                            } else {
+                                Ok(h.dup2())
+                            }
+                        }
+                        Ok(ENodeView::Sort(_)) => Ok(h.dup2()),
+                        Ok(ENodeView::Const(_, _)) => Ok(h.dup2()),
+                        Ok(ENodeView::Lit(_)) => Ok(h.dup2()),
+                        Ok(ENodeView::App(f, a)) => {
+                            let ky: EIdxNat = eidx_nat_key(h, c);
+                            match abs1_get(st, &ky) {
+                                Some(r) => Ok(r),
+                                None => match abstract_range_go(pers, st, d, k, fuel - 1, &f, c) {
+                                    Err(e) => Err(e),
+                                    Ok(f2) => {
+                                        match abstract_range_go(pers, st, d, k, fuel - 1, &a, c) {
+                                            Err(e) => Err(e),
+                                            Ok(a2) => {
+                                                let same: bool = f2.eq2(&f) && a2.eq2(&a);
+                                                match intern_rebuilt(
+                                                    pers,
+                                                    st,
+                                                    h,
+                                                    same,
+                                                    ENodeView::App(f2, a2),
+                                                ) {
+                                                    Err(e) => Err(e),
+                                                    Ok(r) => {
+                                                        abs1_set(st, ky, &r);
+                                                        Ok(r)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                            }
+                        }
+                        Ok(ENodeView::Lam(ty, body, m)) => {
+                            let ky: EIdxNat = eidx_nat_key(h, c);
+                            match abs1_get(st, &ky) {
+                                Some(r) => Ok(r),
+                                None => match abstract_range_go(pers, st, d, k, fuel - 1, &ty, c) {
+                                    Err(e) => Err(e),
+                                    Ok(t) => {
+                                        match abstract_range_go(
+                                            pers,
+                                            st,
+                                            d,
+                                            k,
+                                            fuel - 1,
+                                            &body,
+                                            c + 1,
+                                        ) {
+                                            Err(e) => Err(e),
+                                            Ok(b2) => {
+                                                let same: bool = t.eq2(&ty) && b2.eq2(&body);
+                                                match intern_rebuilt(
+                                                    pers,
+                                                    st,
+                                                    h,
+                                                    same,
+                                                    ENodeView::Lam(t, b2, m),
+                                                ) {
+                                                    Err(e) => Err(e),
+                                                    Ok(r) => {
+                                                        abs1_set(st, ky, &r);
+                                                        Ok(r)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                            }
+                        }
+                        Ok(ENodeView::ForallE(ty, body, m)) => {
+                            let ky: EIdxNat = eidx_nat_key(h, c);
+                            match abs1_get(st, &ky) {
+                                Some(r) => Ok(r),
+                                None => match abstract_range_go(pers, st, d, k, fuel - 1, &ty, c) {
+                                    Err(e) => Err(e),
+                                    Ok(t) => {
+                                        match abstract_range_go(
+                                            pers,
+                                            st,
+                                            d,
+                                            k,
+                                            fuel - 1,
+                                            &body,
+                                            c + 1,
+                                        ) {
+                                            Err(e) => Err(e),
+                                            Ok(b2) => {
+                                                let same: bool = t.eq2(&ty) && b2.eq2(&body);
+                                                match intern_rebuilt(
+                                                    pers,
+                                                    st,
+                                                    h,
+                                                    same,
+                                                    ENodeView::ForallE(t, b2, m),
+                                                ) {
+                                                    Err(e) => Err(e),
+                                                    Ok(r) => {
+                                                        abs1_set(st, ky, &r);
+                                                        Ok(r)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                            }
+                        }
+                        Ok(ENodeView::LetE(ty, val, body)) => {
+                            let ky: EIdxNat = eidx_nat_key(h, c);
+                            match abs1_get(st, &ky) {
+                                Some(r) => Ok(r),
+                                None => match abstract_range_go(pers, st, d, k, fuel - 1, &ty, c) {
+                                    Err(e) => Err(e),
+                                    Ok(t) => {
+                                        match abstract_range_go(pers, st, d, k, fuel - 1, &val, c) {
+                                            Err(e) => Err(e),
+                                            Ok(w) => {
+                                                match abstract_range_go(
+                                                    pers,
+                                                    st,
+                                                    d,
+                                                    k,
+                                                    fuel - 1,
+                                                    &body,
+                                                    c + 1,
+                                                ) {
+                                                    Err(e) => Err(e),
+                                                    Ok(b2) => {
+                                                        let same: bool = t.eq2(&ty)
+                                                            && w.eq2(&val)
+                                                            && b2.eq2(&body);
+                                                        match intern_rebuilt(
+                                                            pers,
+                                                            st,
+                                                            h,
+                                                            same,
+                                                            ENodeView::LetE(t, w, b2),
+                                                        ) {
+                                                            Err(e) => Err(e),
+                                                            Ok(r) => {
+                                                                abs1_set(st, ky, &r);
+                                                                Ok(r)
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                            }
+                        }
+                        Ok(ENodeView::Proj(n, i, sub)) => {
+                            let ky: EIdxNat = eidx_nat_key(h, c);
+                            match abs1_get(st, &ky) {
+                                Some(r) => Ok(r),
+                                None => match abstract_range_go(pers, st, d, k, fuel - 1, &sub, c) {
+                                    Err(e) => Err(e),
+                                    Ok(u) => {
+                                        let same: bool = u.eq2(&sub);
+                                        match intern_rebuilt(
+                                            pers,
+                                            st,
+                                            h,
+                                            same,
+                                            ENodeView::Proj(n, i, u),
+                                        ) {
+                                            Err(e) => Err(e),
+                                            Ok(r) => {
+                                                abs1_set(st, ky, &r);
+                                                Ok(r)
+                                            }
+                                        }
+                                    }
+                                },
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:748-755 abstractRangeC
+/// Lean twin: OWED (task #97-P6-11's ledger) — the top-level entry of the
+/// executed `abstractRange`: `k = 0` is the identity and skips the traversal
+/// (con-leche's own clause, and what makes the annotation telescope's OUTERMOST
+/// binder domain cost nothing), then the per-call memo is cleared around the
+/// walk exactly as `abstract1_fast` clears it.
+pub fn abstract_range_fast(
+    pers: &PersTier,
+    st: &mut AState,
+    fuel: u64,
+    e: &EIdx,
+    d: u64,
+    k: u64,
+    c: u64,
+) -> Result<EIdx, CheckError> {
+    if k == 0 {
+        Ok(e.dup2())
+    } else {
+        abs1_clear(st);
+        match abstract_range_go(pers, st, d, k, fuel, e, c) {
+            Err(er) => Err(er),
+            Ok(r) => {
+                abs1_clear(st);
+                Ok(r)
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // `lowerBVars` — `ExprOps.lean:694-716`, `:2012-2049`, `:2144-2146`
 // ---------------------------------------------------------------------------
 
@@ -5006,6 +5281,29 @@ mod tests {
         let w = core_ops::abstract_range(&all_t, 0, 3, 1);
         let r = ok(abstract_range(pers, &mut st, F, &fx.all_t, 0, 3, 1));
         assert!(eq_e(pers, &st, &r, &w));
+
+        // task #97-P6-11: the EXECUTED `abstractRange` (the cutoff, the memo
+        // and the `k = 0` identity) against the spec walk beside it, on the
+        // same three subjects plus the identity and a `letE`.
+        let r0 = ok(abstract_range(pers, &mut st, F, &fx.big, 0, 2, 0));
+        let r1 = ok(abstract_range_fast(pers, &mut st, F, &fx.big, 0, 2, 0));
+        assert!(r0.eq2(&r1));
+        let r0 = ok(abstract_range(pers, &mut st, F, &fx.big, 1, 1, 0));
+        let r1 = ok(abstract_range_fast(pers, &mut st, F, &fx.big, 1, 1, 0));
+        assert!(r0.eq2(&r1));
+        let r0 = ok(abstract_range(pers, &mut st, F, &fx.all_t, 0, 3, 1));
+        let r1 = ok(abstract_range_fast(pers, &mut st, F, &fx.all_t, 0, 3, 1));
+        assert!(r0.eq2(&r1));
+        let r0 = ok(abstract_range(pers, &mut st, F, &fx.let_t, 0, 2, 0));
+        let r1 = ok(abstract_range_fast(pers, &mut st, F, &fx.let_t, 0, 2, 0));
+        assert!(r0.eq2(&r1));
+        // `k = 0` is the identity, on a term that HAS free variables
+        let r1 = ok(abstract_range_fast(pers, &mut st, F, &fx.big, 0, 0, 0));
+        assert!(r1.eq2(&fx.big));
+        // one binder is `abstract1` (con-leche's `abstractRange_succ` at k = 1)
+        let r0 = ok(abstract1_fast(pers, &mut st, F, &fx.big, 0, 0));
+        let r1 = ok(abstract_range_fast(pers, &mut st, F, &fx.big, 0, 1, 0));
+        assert!(r0.eq2(&r1));
 
         let w = core_ops::fvar_leaves(&big);
         let r = ok(fvar_leaves(pers, &st, F, &fx.big));
