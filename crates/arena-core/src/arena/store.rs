@@ -255,10 +255,21 @@ where
     /// what it would buy is the columns' re-growth alone — under the 0.9 %
     /// the same profile attributes to `RawVec::finish_grow` over the whole
     /// run, persistent tier included.  `Vec::new` allocates nothing.
+    ///
+    /// **Nor are they PRE-SIZED, and that is measured** (task #97-P6-4a,
+    /// §8.6's item 4: "size `enter_scratch` from the previous declaration's
+    /// high-water mark").  `Vec::with_capacity(self.nodes.len())` here needs
+    /// no hole — `with_capacity` is modelled and is `[]` abstractly — and a
+    /// tier that shrinks would still shrink, the size being the last LENGTH
+    /// and never the last capacity.  It was worth −0.08 % of `Init`'s
+    /// instructions against `ron::hashmap`'s chained table and **+0.08 %**
+    /// against `ron::hashmap2`'s (413.74 G without it, 414.05 G with, on the
+    /// same tree), because it trades the doubling ladder for one allocation
+    /// per table per declaration and the ladder is three or four rungs from
+    /// zero.  So the lever stays priced and untaken.
     pub fn reset(&mut self) {
-        let n: usize = self.nodes.len();
-        self.nodes = Vec::with_capacity(n);
-        self.der = Vec::with_capacity(n);
+        self.nodes = Vec::new();
+        self.der = Vec::new();
         reset_map(&mut self.cons)
     }
 }
