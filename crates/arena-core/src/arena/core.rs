@@ -7682,72 +7682,26 @@ pub fn infer_forall(
             Err(e) => Err(e),
             Ok(w) => match view(pers, st, &w) {
                 Err(e) => Err(e),
+                // Binder-telescope loop (con-leche's task #72, `inferBodyI`'s
+                // `.forallE` case): peel the whole ∀-chain, open in bulk, fold
+                // `imax` outward.  The first binder is peeled here, which is why
+                // `infer_pis` starts at `k = 1` with one free variable and a
+                // one-entry stack.
                 Ok(ENodeView::Sort(u)) => {
-                    infer_forall_at(pers, vis, st, mode, lane, fuel, fe, depth, ty, body, mb, &u)
-                }
-                Ok(_) => fail(CheckError::Invalid(code_points(&M_SORT))),
-            },
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:1109-1274 inferBody
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2142-2155 inferBody` — the ∀
-/// clause's body, once the domain's sort is known.
-pub fn infer_forall_at(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    depth: u64,
-    ty: &EIdx,
-    body: &EIdx,
-    mb: &BinderMeta,
-    u: &LIdx,
-) -> Result<EIdx, CheckError> {
-    match intern_e(pers, st, ENodeView::FVar(depth, ty.dup2())) {
-        Err(e) => Err(e),
-        Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body, &fv, 0) {
-            Err(e) => Err(e),
-            Ok(ob) => match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth + 1, &ob) {
-                Err(e) => Err(e),
-                Ok(tb) => {
-                    match ensure_sort(pers, vis, st, mode, lane, fuel, fe, depth + 1, &tb) {
+                    match intern_e(pers, st, ENodeView::FVar(depth, ty.dup2())) {
                         Err(e) => Err(e),
-                        Ok(v) => {
-                            let ok = if con_ron_core::kernel::env::verified_checks(mode) {
-                                match read_level(pers, st, &v) {
-                                    Err(e) => Err(e),
-                                    Ok(lv) => Ok(prop_when::beq(
-                                        &level::zeroness_of(&lv),
-                                        &mb.pw,
-                                    )),
-                                }
-                            } else {
-                                Ok(true)
-                            };
-                            match ok {
-                                Err(e) => Err(e),
-                                Ok(false) => fail(CheckError::NotImplemented(
-                                    code_points(&M_COD),
-                                )),
-                                Ok(true) => {
-                                    match intern_l_node(
-                                        pers,
-                                        st,
-                                        LNodeView::Imax(u.dup2(), v.dup2()),
-                                    ) {
-                                        Err(e) => Err(e),
-                                        Ok(iu) => intern_e(pers, st, ENodeView::Sort(iu)),
-                                    }
-                                }
-                            }
+                        Ok(fv) => {
+                            let fvs: Vec<EIdx> = cons_eidx(&fv, &Vec::new());
+                            let mut stk: Vec<(LIdx, PropWhen)> = Vec::new();
+                            stk.push((u, prop_when::dup(&mb.pw)));
+                            infer_pis(
+                                pers, vis, st, mode, lane, fuel, fe, depth, PEEL_FUEL, body, 1,
+                                &fvs, stk,
+                            )
                         }
                     }
                 }
+                Ok(_) => fail(CheckError::Invalid(code_points(&M_SORT))),
             },
         },
     }
@@ -7895,8 +7849,24 @@ pub fn infer_lam(
             Err(e) => Err(e),
             Ok(w) => match view(pers, st, &w) {
                 Err(e) => Err(e),
+                // Binder-telescope loop (con-leche's task #72, `inferBodyI`'s
+                // `.lam` case): peel the whole λ-chain, open in bulk, rebuild
+                // with `abstract_range`.  The first binder is peeled here, which
+                // is why `infer_lams` starts at `k = 1` with one free variable
+                // and a one-entry stack.
                 Ok(ENodeView::Sort(_)) => {
-                    infer_lam_open(pers, vis, st, mode, lane, fuel, fe, depth, ty, body, mb, false)
+                    match intern_e(pers, st, ENodeView::FVar(depth, ty.dup2())) {
+                        Err(e) => Err(e),
+                        Ok(fv) => {
+                            let fvs: Vec<EIdx> = cons_eidx(&fv, &Vec::new());
+                            let mut stk: Vec<(EIdx, BinderMeta)> = Vec::new();
+                            stk.push((ty.dup2(), expr::binder_meta_dup(mb)));
+                            infer_lams(
+                                pers, vis, st, mode, lane, fuel, fe, depth, PEEL_FUEL, body, 1,
+                                &fvs, stk,
+                            )
+                        }
+                    }
                 }
                 Ok(_) => fail(CheckError::Invalid(code_points(&M_SORT))),
             },
@@ -8140,6 +8110,442 @@ pub fn infer_app(
     }
 }
 
+// ---------------------------------------------------------------------------
+// The inference binder-telescope loops (con-leche's task #72,
+// `Cached/CoreC.lean:1140-1290`) — task #97-P6-12.
+//
+// The spec-shaped clauses these replace opened ONE binder against ONE fresh
+// free variable, inferred the whole residual telescope under it, and closed it
+// again with one whole-body `abstract1` — so a chain of `k` binders walked its
+// own tail `k` times.  con-leche's cached tier peels the whole chain:
+// each domain is opened against the free variables accumulated so far in ONE
+// `instantiate_list`, the residual leaf is opened once and inferred once, and
+// the rebuild closes each domain with ONE `abstract_range`.  The identification
+// with the chained spec bodies is `ConLeche/Verify/BinderLoop.lean`
+// (`inferLams_sound`, `inferPis_sound`), over `Expr.instantiateList_cons`
+// (`ConLeche/Verify/InstList.lean:54-116`) and `abstractRange_succ`
+// (`ConLeche/Verify/AbstractRange.lean:29-55`).
+//
+// The two shapes that are the arena's rather than con-leche's are the same two
+// `annotate_pis` / `annotate_lams` already carry (task #97-P6-11): the stack is
+// a `Vec` pushed OUTERMOST-first and consumed by a count `n` counting down,
+// where con-leche conses a `List` innermost-first and consumes its head — so
+// `stk[j]` is the binder at level `d + j` and `j` is exactly the
+// `abstract_range` width its domain wants, and `stk[n - 1]` is con-leche's
+// `stk` head; and `fvs` is built innermost-first with `cons_eidx` and read by
+// `instantiate_list` at cursor 0, where con-leche pushes outermost-first and
+// reads with `instantiateRev`.
+//
+// **Only the full grade loops.**  con-leche's `inferBodyIOI` keeps BOTH binder
+// clauses chained on purpose ("the loops are the front door's optimization, and
+// looping the io lane would owe the whole loop-identification walk family a
+// second, io-graded instance for a lane whose subjects are internal
+// re-inferences"), so `infer_lam_open` / `infer_lam_cod` / `infer_lam_result`
+// survive as the io body's λ clause and are unchanged.
+// ---------------------------------------------------------------------------
+
+/// con-leche: ConLeche/Cached/CoreC.lean:1142-1160 inferLamsOutI
+/// Lean twin: OWED (task #97-P6-12's ledger) — the outward rebuild of the λ
+/// telescope loop: fold the stack innermost binder first, rebuilding one `∀`
+/// node per entry.
+///
+/// `stk[j]` is the binder at level `d + j` and its opened domain may mention
+/// the `j` free variables below it, so `abstract_range ty d j` is what closes
+/// it — where the per-binder clause spent one whole-body `abstract1` per level.
+/// `j = 0` (the outermost binder) is `abstract_range_fast`'s own identity
+/// clause and costs nothing.
+///
+/// con-leche's task #161 chain rule, threaded: a node's prop-ness annotation
+/// must agree with its inner neighbour's, and `prev_pw` is that neighbour's
+/// datum — the leaf phase supplies the first one (§`infer_lams_leaf`), so the
+/// innermost step compares the entry with itself and is vacuously true.  The
+/// intermediate `∀`-node inferences of the chained body are value-determined by
+/// the peel phase's domain sorts and the leaf phase's body-type sort and cannot
+/// fail (con-leche's task #100 stage 6).
+pub fn infer_lams_out(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    d: u64,
+    stk: &Vec<(EIdx, BinderMeta)>,
+    n: usize,
+    cur: &EIdx,
+    prev_pw: &PropWhen,
+) -> Result<EIdx, CheckError> {
+    if n == 0 {
+        Ok(cur.dup2())
+    } else {
+        let j: usize = n - 1;
+        if con_ron_core::kernel::env::verified_checks(mode)
+            && !prop_when::beq(&stk[j].1.pw, prev_pw)
+        {
+            fail(CheckError::NotImplemented(code_points(&M_CHAIN)))
+        } else {
+            match abstract_range_fast(pers, st, CORE_WALK_FUEL, &stk[j].0, d, j as u64, 0) {
+                Err(e) => Err(e),
+                Ok(ty_abs) => {
+                    let m: BinderMeta = expr::binder_meta_dup(&stk[j].1);
+                    let pw2: PropWhen = prop_when::dup(&m.pw);
+                    match intern_e(pers, st, ENodeView::ForallE(ty_abs, cur.dup2(), m)) {
+                        Err(e) => Err(e),
+                        Ok(nd) => infer_lams_out(pers, st, mode, d, stk, j, &nd, &pw2),
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:1162-1206 inferLamsLeafI
+/// Lean twin: OWED (task #97-P6-12's ledger) — the `match t with | .lam .. =>
+/// pure () | _ => if mode.verifiedChecks then …` statement of the λ loop's leaf
+/// phase, which the arena names so that the leaf's common tail is written once.
+///
+/// con-leche's task #152: at the verified modes the chain's body type is
+/// sort-checked here — the spec's codomain check (`infer_lam_cod`'s
+/// `lam_pw = none` branch), which fires at the innermost binder of a λ chain,
+/// i.e. exactly when the peel stops on a non-λ residual.  The guard is the same
+/// one the spec uses, on the same term, and the datum it validates is the
+/// innermost binder's, `stk`'s head.
+pub fn infer_lams_leaf_check(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    d: u64,
+    k: u64,
+    stk: &Vec<(EIdx, BinderMeta)>,
+    bt: &EIdx,
+) -> Result<(), CheckError> {
+    if !con_ron_core::kernel::env::verified_checks(mode) {
+        Ok(())
+    } else {
+        match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, d + k, bt) {
+            Err(e) => Err(e),
+            Ok(btt) => match ensure_sort(pers, vis, st, mode, lane, fuel, fe, d + k, &btt) {
+                Err(e) => Err(e),
+                Ok(vb) => {
+                    let n: usize = stk.len();
+                    if n == 0 {
+                        Ok(())
+                    } else {
+                        match read_level(pers, st, &vb) {
+                            Err(e) => Err(e),
+                            Ok(lvb) => {
+                                if prop_when::beq(&level::zeroness_of(&lvb), &stk[n - 1].1.pw) {
+                                    Ok(())
+                                } else {
+                                    fail(CheckError::NotImplemented(code_points(&M_LEAF)))
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+        }
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:1162-1206 inferLamsLeafI
+/// Lean twin: OWED (task #97-P6-12's ledger) — the leaf phase of the λ
+/// telescope loop: bulk-open the residual body against the whole accumulated
+/// free-variable vector, infer it ONCE, run the innermost binder's codomain
+/// check, close the leaf with ONE `abstract_range`, then rebuild outward.
+///
+/// The fold's initial neighbour is con-leche's own: a λ residual (the
+/// fuel-exhausted path) supplies its own annotation — the head entry's chain
+/// check then compares against it, exactly as the spec's per-node clause does;
+/// a non-λ residual makes the head entry's step vacuous, its codomain fact
+/// being `infer_lams_leaf_check` above.  `lam_pw` is `Expr.lamPw`, an O(1) read
+/// of the node's own stored datum, and it decides both.
+pub fn infer_lams_leaf(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    d: u64,
+    t: &EIdx,
+    k: u64,
+    fvs: &Vec<EIdx>,
+    stk: &Vec<(EIdx, BinderMeta)>,
+) -> Result<EIdx, CheckError> {
+    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, fvs, 0) {
+        Err(e) => Err(e),
+        Ok(ob) => match knot_infer(pers, vis, st, mode, lane, fuel, fe, d + k, &ob) {
+            Err(e) => Err(e),
+            Ok(bt) => match lam_pw(pers, st, t) {
+                Err(e) => Err(e),
+                Ok(lpw) => {
+                    let chk: Result<(), CheckError> = match &lpw {
+                        Some(_) => Ok(()),
+                        None => infer_lams_leaf_check(
+                            pers, vis, st, mode, lane, fuel, fe, d, k, stk, &bt,
+                        ),
+                    };
+                    match chk {
+                        Err(e) => Err(e),
+                        Ok(()) => {
+                            let n: usize = stk.len();
+                            let prev_pw: PropWhen = match lpw {
+                                Some(p) => p,
+                                None => {
+                                    if n == 0 {
+                                        prop_when::never()
+                                    } else {
+                                        prop_when::dup(&stk[n - 1].1.pw)
+                                    }
+                                }
+                            };
+                            match abstract_range_fast(pers, st, CORE_WALK_FUEL, &bt, d, k, 0) {
+                                Err(e) => Err(e),
+                                Ok(cur) => {
+                                    infer_lams_out(pers, st, mode, d, stk, n, &cur, &prev_pw)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+        },
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:1208-1228 inferLamsI
+/// Lean twin: OWED (task #97-P6-12's ledger) — the λ-telescope inference loop:
+/// peel the raw λ-chain, checking each opened domain to be a type on the way
+/// in.  `k >= 1` counts the opened binders (the first is peeled by
+/// `infer_lam`'s own clause) and `fvs` holds their free variables
+/// innermost-first, which is the list `instantiate_list` takes at cursor 0.
+///
+/// One peeled domain is ONE `instantiate_list` walk over the domain alone,
+/// where the per-binder clause substituted into the whole residual telescope
+/// once per level; `Expr.instantiateList_cons`
+/// (`ConLeche/Verify/InstList.lean:54-116`) is the equation that identifies the
+/// batch with the chain of `instantiate1` the spec-shaped body ran.
+pub fn infer_lams(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    d: u64,
+    peel: u64,
+    t: &EIdx,
+    k: u64,
+    fvs: &Vec<EIdx>,
+    stk: Vec<(EIdx, BinderMeta)>,
+) -> Result<EIdx, CheckError> {
+    if peel == 0 {
+        infer_lams_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk)
+    } else {
+        match view(pers, st, t) {
+            Err(e) => Err(e),
+            Ok(ENodeView::Lam(ty, body, mb)) => {
+                match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, fvs, 0) {
+                    Err(e) => Err(e),
+                    Ok(tyo) => {
+                        match knot_infer(pers, vis, st, mode, lane, fuel, fe, d + k, &tyo) {
+                            Err(e) => Err(e),
+                            Ok(tty) => {
+                                match knot_whnf(pers, vis, st, mode, lane, fuel, fe, d + k, &tty) {
+                                    Err(e) => Err(e),
+                                    Ok(w) => match view(pers, st, &w) {
+                                        Err(e) => Err(e),
+                                        Ok(ENodeView::Sort(_)) => {
+                                            match intern_e(
+                                                pers,
+                                                st,
+                                                ENodeView::FVar(d + k, tyo.dup2()),
+                                            ) {
+                                                Err(e) => Err(e),
+                                                Ok(fv) => {
+                                                    let fvs2: Vec<EIdx> = cons_eidx(&fv, fvs);
+                                                    let mut stk2: Vec<(EIdx, BinderMeta)> = stk;
+                                                    stk2.push((tyo, mb));
+                                                    infer_lams(
+                                                        pers, vis, st, mode, lane, fuel, fe, d,
+                                                        peel - 1, &body, k + 1, &fvs2, stk2,
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        Ok(_) => {
+                                            fail(CheckError::Invalid(code_points(&M_SORT)))
+                                        }
+                                    },
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(_) => infer_lams_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk),
+        }
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:1230-1254 inferPisOutI
+/// Lean twin: OWED (task #97-P6-12's ledger) — the outward fold of the ∀
+/// telescope loop: fold the accumulated domain sorts by `imax`, innermost
+/// binder first, which is exactly the chained `∀`-rule's result value.
+///
+/// con-leche's task #272 (its GitHub issue #9): the codomain sort's zero-ness
+/// datum is **threaded, not recomputed**.  `zeronessOf (imax u v) = zeronessOf
+/// v` holds definitionally, so every node of a ∀ telescope shares the leaf's
+/// datum, and the fold pays ONE `read_level` in the leaf phase where the
+/// per-binder clause paid one per binder — and where con-leche's own pre-#272
+/// fold walked `zeronessOf` down a growing right spine, `O(k²)` in the
+/// telescope depth.  `pv` is that leaf datum; the pure mirror
+/// (`Verify/BinderLoop.lean:156-163 inferPisOut`) recomputes it at every step
+/// and `Verify/Cached/BinderLoopC.lean:359-404 inferPisOutC_sim` is where the
+/// two are identified.
+pub fn infer_pis_out(
+    pers: &PersTier,
+    st: &mut AState,
+    mode: &CheckMode,
+    stk: &Vec<(LIdx, PropWhen)>,
+    n: usize,
+    v: &LIdx,
+    pv: &PropWhen,
+) -> Result<LIdx, CheckError> {
+    if n == 0 {
+        Ok(v.dup2())
+    } else {
+        let j: usize = n - 1;
+        if con_ron_core::kernel::env::verified_checks(mode) && !prop_when::beq(pv, &stk[j].1) {
+            fail(CheckError::NotImplemented(code_points(&M_COD)))
+        } else {
+            match intern_l_node(pers, st, LNodeView::Imax(stk[j].0.dup2(), v.dup2())) {
+                Err(e) => Err(e),
+                Ok(v2) => infer_pis_out(pers, st, mode, stk, j, &v2, pv),
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:1256-1267 inferPisLeafI
+/// Lean twin: OWED (task #97-P6-12's ledger) — the leaf phase of the ∀
+/// telescope loop: bulk-open the residual body against the whole accumulated
+/// free-variable vector, infer its sort ONCE, then fold the domain sorts
+/// outward.  The telescope's zero-ness datum is read HERE, once, and threaded.
+pub fn infer_pis_leaf(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    d: u64,
+    t: &EIdx,
+    k: u64,
+    fvs: &Vec<EIdx>,
+    stk: &Vec<(LIdx, PropWhen)>,
+) -> Result<EIdx, CheckError> {
+    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, fvs, 0) {
+        Err(e) => Err(e),
+        Ok(ob) => match knot_infer(pers, vis, st, mode, lane, fuel, fe, d + k, &ob) {
+            Err(e) => Err(e),
+            Ok(bt) => match ensure_sort(pers, vis, st, mode, lane, fuel, fe, d + k, &bt) {
+                Err(e) => Err(e),
+                Ok(v) => match read_level(pers, st, &v) {
+                    Err(e) => Err(e),
+                    Ok(lv) => {
+                        let pv: PropWhen = level::zeroness_of(&lv);
+                        let n: usize = stk.len();
+                        match infer_pis_out(pers, st, mode, stk, n, &v, &pv) {
+                            Err(e) => Err(e),
+                            Ok(iv) => intern_e(pers, st, ENodeView::Sort(iv)),
+                        }
+                    }
+                },
+            },
+        },
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:1269-1290 inferPisI
+/// Lean twin: OWED (task #97-P6-12's ledger) — the ∀-telescope inference loop
+/// (con-leche's task #100 stage 6: the `∀`-rule INFERS its codomain sort, the
+/// stored annotation is not read): peel the raw ∀-chain, checking each opened
+/// domain to be a type on the way in and accumulating its sort, infer the
+/// bulk-opened leaf's sort once, and fold `imax` outward.
+///
+/// The stack carries `(LIdx, PropWhen)` and no expression at all — a ∀
+/// telescope's inference builds no binder node, only the folded level and the
+/// one `sort` around it, which is why this loop takes the whole per-level
+/// `instantiate1` of the residual telescope off the run and puts nothing back.
+pub fn infer_pis(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    d: u64,
+    peel: u64,
+    t: &EIdx,
+    k: u64,
+    fvs: &Vec<EIdx>,
+    stk: Vec<(LIdx, PropWhen)>,
+) -> Result<EIdx, CheckError> {
+    if peel == 0 {
+        infer_pis_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk)
+    } else {
+        match view(pers, st, t) {
+            Err(e) => Err(e),
+            Ok(ENodeView::ForallE(ty, body, mb)) => {
+                match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, fvs, 0) {
+                    Err(e) => Err(e),
+                    Ok(tyo) => {
+                        match knot_infer(pers, vis, st, mode, lane, fuel, fe, d + k, &tyo) {
+                            Err(e) => Err(e),
+                            Ok(tty) => {
+                                match knot_whnf(pers, vis, st, mode, lane, fuel, fe, d + k, &tty) {
+                                    Err(e) => Err(e),
+                                    Ok(w) => match view(pers, st, &w) {
+                                        Err(e) => Err(e),
+                                        Ok(ENodeView::Sort(u)) => {
+                                            match intern_e(
+                                                pers,
+                                                st,
+                                                ENodeView::FVar(d + k, tyo.dup2()),
+                                            ) {
+                                                Err(e) => Err(e),
+                                                Ok(fv) => {
+                                                    let fvs2: Vec<EIdx> = cons_eidx(&fv, fvs);
+                                                    let mut stk2: Vec<(LIdx, PropWhen)> = stk;
+                                                    stk2.push((u, prop_when::dup(&mb.pw)));
+                                                    infer_pis(
+                                                        pers, vis, st, mode, lane, fuel, fe, d,
+                                                        peel - 1, &body, k + 1, &fvs2, stk2,
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        Ok(_) => {
+                                            fail(CheckError::Invalid(code_points(&M_SORT)))
+                                        }
+                                    },
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(_) => infer_pis_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk),
+        }
+    }
+}
 
 /// con-leche: ConLeche/Kernel/Core.lean:1109-1274 inferBody
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2101-2219 inferBody` — the
