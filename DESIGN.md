@@ -2557,6 +2557,31 @@ the persistent tier (the byte recogniser is unchanged).
         fixtures at one and four workers and at `--trusted`; the extraction's
         holes unchanged.  The twin owes the projections and three hoists; the
         next round is `ETables::find`, now 15.3 % of `Init`.
+        11. the annotation's binder-telescope loops — item 9's own "what is
+        left".  **DONE** (task #97-P6-11): con-leche's cached-tier
+        `annotatePisI`/`annotateLamsI` with `annotateBindersOutI`'s outward
+        rebuild and its task #161 P5 datum threading, in place of the
+        per-binder `annotate_binder` clause — which survives as the λ residual
+        con-leche also keeps and which is entered **zero times** on `Init` and
+        on the prefix.  It needed the EXECUTED `abstractRange` as well
+        (`abstractRangeC`: the `fvarB ≤ d` cutoff, the per-call memo and the
+        `k = 0` identity), because the bare spec descent the rebuild calls
+        turned `Init`'s 293.9 M construction attempts into **2 333.3 M**.  The
+        prefix's new nodes fall **568.21 M → 498.89 M (−12.2 %)** with the
+        annotation's own share **195.12 M → 41.96 M (−78.5 %)**, which is
+        `forallE` 1.73× → **1.36×** and `lam` 1.48× → **1.19×** against nanoda
+        (the whole 1.25× → **1.10×**); `Init` is **333.91 → 316.32 G
+        instructions (−5.3 %)**, `Init`+`Std`+`Lean` **698.96 → 643.09 G
+        (−8.0 %)** and Mathlib **7 442.29 → 6 807.76 G (−8.5 %)** at 7.18 GB,
+        which is **0.90× `con-ron` at master on instructions and 0.95× on peak
+        RSS**, and **1.13× nanoda** from 1.23×.  383/383 fixtures at one and
+        four workers and at `--trusted`, the extraction's holes unchanged; the
+        twin owes eleven clauses, nine of them con-leche's own cached tier.
+        The task's own finding is that **the saving MOVES**: 83.9 M of the
+        prefix's 153.2 M go to `inferBody`'s own binder clauses, which the
+        spec-shaped annotation used to hash-cons for them, so
+        `inferLamsI`/`inferPisI` are now **26.4 % of the prefix's new nodes**
+        and the largest lever left in the check phase.
 
 Branch `arena`; master stays shippable until (C) passes the gates and the
 fixtures.  Budget from con-leche's record, scaled: (B) ~12 k lines,
@@ -32255,3 +32280,276 @@ of a copy the twin does not have.
     batches, and the Lean shares every one of those lists by value.
   * `inst_lp_go` did not get the tag dispatch of §1 and neither did the
     inductive modules' `view` sites; both are under 1 % each.
+### Task #97-P6-11 — the annotation's binder-telescope loops (2026-09-21, Opus under Fable)
+
+Phase P6 item 11 of §8.6, and the lever task #97-P6-9 left named: *"the
+annotation's binder loops (`annotatePisI`/`annotateLamsI`, 17 % of the prefix's
+new nodes) are the lever left … a bigger port than anything here"*.  Same
+ruling as P6-9's (the one before §8.7): con-leche already makes the
+multi-substitution move between its PURE and its CACHED tier, so it is fair
+game between the pure tier and the interned tier, and the bridge owes the
+equation con-leche itself proves.
+
+RUST-FIRST under §8.6, twin ledger in §6.  Branch `p6-11` off `arena`
+(`70272634`); the scratch, the instrumentation and the raw dumps are
+`_tmp/t97-p6-11/`.  Every number below is one tree and one
+`[profile.release]`, the `arena` tip's `crates/` against this branch's.
+
+#### 1. What the counts said, before a line was written
+
+Task #97-P6-9's call-site instrumentation, rebuilt (`instr.rs` + `apply.py` in
+the scratch; it keys sites by enclosing function and occurrence, so the same
+script runs on both sides of the A/B even though the annotation's call sites
+move).  Its totals reproduce P6-9's to the node on both inputs — `Init`
+293 922 204 attempts / 116 435 849 new, the Mathlib 25 % prefix
+1 407 448 448 / 568 206 141 — so the two tasks are counting the same events.
+
+After P6-9 took β, ι and the application telescope, **the annotation's binder
+clause is the largest single source of new nodes in the run**: on the prefix
+195 123 877 of 568 206 141, **34.3 %** (P6-9 quotes 17.1 %, which is the same
+195.1 M against its own *pre-lever* total).  On `Init` it is 31 630 457 of
+116 435 849, 27.2 %.
+
+#### 2. The lever — con-leche's own cached tier, and one thing it needed
+
+`annotate_binder` is `Kernel/Core.lean`'s spec clause: annotate the domain,
+open the body against ONE fresh free variable, annotate it, compute the datum,
+`abstract1` it back, rebuild.  A telescope of `k` binders therefore walks its
+own tail `k` times and re-interns every binder under it once per level.
+
+con-leche's cached tier peels the whole telescope
+(`Cached/CoreC.lean:1715-1730 annotatePisI`, `:1764-1777 annotateLamsI`, its
+own task #72): each domain is opened against the free variables accumulated so
+far in ONE `instantiateList`, the residual leaf is opened once and annotated
+once, the telescope's datum is computed once at the leaf and threaded outward
+(con-leche's task #161 P5 chain rule), and the rebuild closes each domain with
+ONE `abstractRange`.  That is what landed, clause for clause:
+`annotate_pis` / `annotate_pis_leaf` / `annotate_lams` / `annotate_lams_leaf` /
+`annotate_binders_out`, plus `PEEL_FUEL` (con-leche's `peelFuel`, 16 777 216 —
+exhaustion is not an error, the loop falls through to its leaf).
+
+Two shapes are the arena's and neither is a clause: `annotateBindersOutI` takes
+its node builder `mk` as a function argument, which §3.4 rules out, so the
+arena passes `is_lam : bool` (the collapse `annotate_binder` already makes);
+and the stack is a `Vec` pushed OUTERMOST-first, consumed by a count counting
+down, where con-leche conses a `List` innermost-first — `stk[j]` is then the
+binder at level `d + j` and `j` is exactly the `abstractRange` width its domain
+wants.
+
+**`annotate_binder` survives as the λ RESIDUAL**, which is con-leche's own
+structure: `annotateBodyI`'s `.lam` clause runs the loop only when
+`bvarBound e = 0` ("the λ-loop is chain-identical only on bvar-closed nodes …
+the cached bound decides in O(1)"), and its `.forallE` clause has no fallback
+at all.  Measured: on `Init` and on the prefix that fallback is entered **zero
+times** — every λ node the annotation pass meets is `bvar`-closed.
+
+**And the rebuild needed the EXECUTED `abstractRange`.**  `expr_ops::
+abstract_range` was `Kernel/ExprOps.lean:791`'s bare structural descent, cited
+only by a unit test until now; con-leche's `Cached/ExprOpsC.lean:748-755
+abstractRangeC` is the one its checker runs, and it has the same three devices
+`abstract1C` has — the `fvarB ≤ d` cutoff at the node AND at every child, a
+per-call memo keyed by `(node, cursor)`, and a `k = 0` identity that skips the
+traversal outright.  Without them the first build of this lever was a
+**measured disaster**: `Init`'s construction attempts went 293.9 M → **2 333.3 M**
+and the annotation's abstract site alone 33.7 M → 2 090.7 M, of which 99.9 %
+were cons-table hits.  `abstract_range_go` / `abstract_range_fast` are that
+form, and with them the same site is 16.3 M.  The memo table is `abstract1`'s
+(`abs1_*`): the two walks never nest — both are leaf walks over the store,
+calling nothing but `fvar_b`, `view` and `intern` — and each entry point clears
+it before and after itself, so within one call the key `(h, c)` determines the
+result at that call's own fixed `d` and `k`.  `k = 0` is what makes the
+telescope's OUTERMOST binder domain cost nothing at all.
+
+#### 3. Nodes: the count after
+
+| `Init` | before | after | Δ |
+|---|---:|---:|---:|
+| construction attempts | 293 922 204 | 258 902 391 | −11.9 % |
+| **NEW nodes** | **116 435 849** | **109 099 910** | **−6.3 %** |
+
+| Mathlib 25 % prefix | before | after | Δ |
+|---|---:|---:|---:|
+| construction attempts | 1 407 448 448 | 1 131 189 456 | −19.6 % |
+| **NEW nodes** | **568 206 141** | **498 890 285** | **−12.2 %** |
+
+**The binder ratios**, the prefix's NEW nodes per constructor with nanoda's
+(task #97-P6-8a, quoted — nanoda was not re-run) and P6-9's ratios beside:
+
+| constructor | P6-9 | **this branch** | nanoda | P6-9 | **after** |
+|---|---:|---:|---:|---:|---:|
+| `app` | 453 385 874 | **404 489 200** | 347 760 822 | 1.30× | **1.16×** |
+| `forallE` | 50 789 154 | **40 036 987** | 29 440 824 | 1.73× | **1.36×** |
+| `lam` | 47 354 846 | **37 930 917** | 31 921 043 | 1.48× | **1.19×** |
+| `const` | 5 684 126 | 5 684 126 | 4 986 028 | 1.14× | 1.14× |
+| `proj` | 5 068 536 | 5 065 023 | 7 530 912 | 0.67× | 0.67× |
+| `fvar` | 3 691 079 | 3 694 913 | 4 725 357 | 0.78× | 0.78× |
+| `sort` | 1 711 549 | 1 711 549 | 2 207 057 | 0.78× | 0.78× |
+| `letE` | 515 912 | 272 505 | 1 042 401 | 0.49× | 0.26× |
+| `lit` / `bvar` | unchanged | unchanged | | | |
+| **TOTAL** | **568 206 141** | **498 890 285** | **455 381 184** | **1.25×** | **1.10×** |
+
+On `Init` the same table reads `forallE` 7 108 877 → 5 567 619 (−21.7 %), `lam`
+12 098 296 → 10 521 031 (−13.0 %) and `app` 94 624 626 → 90 442 215 (−4.4 %).
+
+By site (the prefix; calls / attempts / NEW):
+
+| site | before | after |
+|---|---|---|
+| `annotate_binder`, the open | 3 628 089 / 198 342 657 / **153 762 224** | **0 / 0 / 0** (unreachable) |
+| the abstract (`abstract1` → `abstract_range`) | 3 628 089 / 221 695 080 / **41 361 653** | 5 101 365 / 83 405 488 / **8 540 362** |
+| the leaf open (new) | — | 1 443 670 / 49 804 590 / **29 417 033** |
+| the domain open (new) | — | 2 214 025 / 10 509 237 / **4 003 645** |
+| **the annotation, all of it** | **7 256 178 / 420 037 737 / 195 123 877** | **8 759 060 / 143 719 315 / 41 961 040** (**−78.5 %**) |
+
+On `Init` the annotation's own total is 1 898 586 / 64 336 452 / 31 630 457
+before and 2 375 728 / 29 295 501 / **10 956 303** after (−65.4 %).
+
+#### 4. The finding this task owes the next one: the saving MOVES, it does not all land
+
+The annotation's own new nodes fall by 153.2 M on the prefix and the run's
+total falls by only 69.3 M.  The difference is not lost — it is **83.9 M nodes
+that `inferBody`'s own binder clauses now build instead**, and the counts name
+the site exactly:
+
+| site (prefix, NEW) | before | after | Δ |
+|---|---:|---:|---:|
+| `infer_lam_open`, the open | 10 131 808 | **92 746 137** | **+82.6 M** |
+| `infer_forall_at`, the open | 37 603 260 | 38 847 315 | +1.2 M |
+| `infer_lam_result`, the abstract | 6 714 790 | 6 724 940 | +0.0 M |
+
+Its attempts do not move at all (157 780 746 before and after at
+`infer_lam_open`); what changes is the OUTCOME.  The reason is hash-consing:
+the spec-shaped annotation opened each binder body against `fvar (depth + j)`
+one level at a time, and `inferBody`'s λ clause later opens the *same* bodies
+against the *same* free variables — so those were cons-table hits on nodes the
+annotation had already built.  The batched annotation never builds the
+per-level opens, so inference builds them.
+
+**The lever that recovers it is the matching one**, and it is the same
+con-leche section and the same proof file: `Cached/CoreC.lean:1208-1228
+inferLamsI` and `:1269-1290 inferPisI`, with `:1142-1160 inferLamsOutI` /
+`:1230-1254 inferPisOutI` and the two leaf phases, proved in `ConLeche/Verify/BinderLoop.lean`
+(`inferLams_sound:917`, `inferPis_sound:1210`).  After this task those two
+sites hold **131.6 M of the prefix's 498.9 M new nodes, 26.4 %** — the largest
+remaining source by a wide margin, where P6-9 priced them at 53.8 M / 4.7 %.
+They are a bigger port than this one: `inferLamsOutI` threads con-leche's task
+#161 prop-ness chain check through the rebuild and its leaf phase carries the
+`(lam-cod-leaf)` sort check, and `inferPisOutI` folds `imax` over accumulated
+domain sorts (which over handles means interning the folded level), so neither
+is a transliteration of what landed here.
+
+#### 5. The instruction table
+
+`perf stat -e instructions:u,cycles:u` of `--verified --jobs=1
+--progress=1000000` under `ulimit -v` (8 GiB `Init`, 12 GiB `Init`+`Std`+`Lean`
+and the prefix, 27 GiB Mathlib), both binaries built from this tree.  The
+`Init` rows are two passes each.
+
+| export | | `arena` tip | **this branch** | Δ | `con-ron` master (task #98) | nanoda |
+|---|---|---:|---:|---:|---:|---:|
+| `Init`, 57 977 | instructions:u | 333 910 486 307 / 333 910 637 211 | **316 324 335 421 / 316 326 088 546** | **−5.27 %** | 412 284 710 704 | 231 248 123 456 |
+| | cycles:u | 164.55 / 164.83 G | 155.24 / 157.00 G | −5.2 % | | 112 283 332 084 |
+| | wall | 37.6 / 37.6 s | 35.3 / 35.8 s | −5.6 % | | |
+| | peak RSS | 631.8 MB | 631.3 MB | −0.1 % | | |
+| `Init`+`Std`+`Lean`, 163 396 | instructions:u | 698 958 452 632 | **643 087 910 431** | **−7.99 %** | 896 862 049 579 | ≈445 G |
+| | cycles:u | 339.63 G | 322.07 G | −5.2 % | | |
+| | peak RSS | 1 315.6 MB | 1 280.8 MB | −2.6 % | | |
+| Mathlib 25 % prefix, 155 288 | instructions:u | 1 601 107 937 405 | **1 458 365 230 526** | **−8.92 %** | — | 1 187 196 874 884 |
+| | cycles:u | 725.73 G | 685.53 G | −5.5 % | | 737 444 963 047 |
+| | peak RSS | 1 943.7 MB | 1 891.9 MB | −2.7 % | | |
+| Mathlib, 691 128 | instructions:u | 7 442 288 796 554 | **6 807 756 304 016** | **−8.53 %** | 7 541 754 140 806 | ≈6 054 G |
+| | cycles:u | 3 791.51 G | 3 423.00 G | −9.7 % | | |
+| | wall | 15:05.7 | 13:22.9 | −11.4 % | | |
+| | peak RSS | 7.20 GB | **7.18 GB** | −0.3 % | **7.56 GB** | |
+
+The `arena` tip's Mathlib row reproduces task #97-P6-9's to six digits
+(7 442 288 796 554 against its 7 442 256 620 408), so the two tasks measure the
+same binary on the same file.  Another agent (task #97-P6-10) was benchmarking
+on this machine during the Mathlib pair, so read the instruction column, which
+does not depend on that; the cycle and wall columns are one run each and are
+indicative.
+
+Against `con-ron` at master (task #98's own numbers, the row §8.1's target is
+about) and against nanoda's `instructions:u` as task #97-P6-8a measured them
+(nanoda was NOT re-run in this session, so its column is quoted, not measured):
+
+| export | `arena` tip | **this branch** | vs master | vs nanoda |
+|---|---:|---:|---:|---:|
+| `Init` | 333.91 G | **316.32 G** | 0.81× → **0.77×** | 1.44× → **1.37×** |
+| `Init`+`Std`+`Lean` | 698.96 G | **643.09 G** | 0.78× → **0.72×** | 1.57× → **1.45×** |
+| Mathlib 25 % prefix | 1 601.11 G | **1 458.37 G** | — | 1.35× → **1.23×** |
+| **Mathlib** | 7 442.29 G | **6 807.76 G** | 0.99× → **0.90×** | 1.23× → **1.13×** |
+| Mathlib peak RSS | 7.20 GB | **7.18 GB** | 0.95× → **0.95×** | — |
+
+#### 6. The twin ledger
+
+Every clause is con-leche's own cached-tier clause, so the Lean catch-up copies
+it rather than inventing it, and the bridge is a theorem con-leche already
+proves.  `ConLeche/Verify/BinderLoop.lean` proves the two loops sound against
+the chained bodies; `ConLeche/Verify/Cached/BinderLoopC.lean` relates the
+cached spelling to those pure mirrors walk by walk.
+
+| arena item | what it replaces | the twin's clause | the equation the bridge cites |
+|---|---|---|---|
+| `core::annotate_body`'s `.forallE` clause (rewritten) | the per-binder `annotate_binder` call | `Cached/CoreC.lean:1779-1867 annotateBodyI`'s `.forallE` | `Verify/Cached/BinderLoopC.lean:1270-1347 annotatePisC_tail_sim` |
+| `core::annotate_body`'s `.lam` clause (rewritten; the `bvar_b e = 0` guard) | as above | `annotateBodyI`'s `.lam`, both branches | `:1375-1450 annotateLamsC_tail_sim` |
+| `core::annotate_pis` (new) | — | `Cached/CoreC.lean:1715-1730 annotatePisI` | `Verify/BinderLoop.lean:1610-1669 annotatePis_sound`, over `Expr.instantiateList_cons` (`Verify/InstList.lean:54-117`) |
+| `core::annotate_pis_leaf` (new) | — | `:1704-1713 annotatePisLeafI`, with `:1693-1702 annotatePisPwI` inlined | `Verify/Cached/BinderLoopC.lean:1037-1062 annotatePisLeafC_sim` |
+| `core::annotate_lams` (new) | — | `:1764-1777 annotateLamsI` | `Verify/BinderLoop.lean:1712-1771 annotateLams_sound` |
+| `core::annotate_lams_leaf` (new) | — | `:1753-1762 annotateLamsLeafI`, with `:1747-1751 annotateLamsPwI` inlined | `Verify/Cached/BinderLoopC.lean:1138-1163 annotateLamsLeafC_sim` |
+| `core::annotate_binders_out` (new; `is_lam` for con-leche's `mk`) | the per-binder `abstract1` and rebuild | `:1649-1676 annotateBindersOutI` | `Verify/Cached/BinderLoopC.lean:890-941 annotateBindersOutC_sim`, over `abstractRange_succ` / `abstractRange_zero` (`Verify/AbstractRange.lean:29-55`, `:22-27`) — the fold this pass implements |
+| `core::PEEL_FUEL` (new) | — | `Cached/StateC.lean:168-172 peelFuel` | none: con-leche's own note says the peel fuel is semantically transparent — on exhaustion the leaf phase hands the residual chain back to the knot, which is the chained spec's next step |
+| `expr_ops::abstract_range_go` (new) | `expr_ops::abstract_range`, the spec descent | `Cached/ExprOpsC.lean:684-700 abstractRangeP` + `:715-746 abstractRangeXP` | `Verify/Cached/OpsC.lean:849-859 abstractRangeC_spec`: `abstractRangeC = abstractRange` |
+| `expr_ops::abstract_range_fast` (new) | — | `:748-755 abstractRangeC` | as above; its `k = 0` clause is `Verify/AbstractRange.lean:22-27 abstractRange_zero` |
+| `core::annotate_binder` (kept, now the λ residual only) | — | `annotateBodyI`'s `.lam` else-branch | unchanged |
+
+**Absorbed by the refinement — no Lean change at all:** the stack is a `Vec`
+pushed outermost-first and consumed by a count counting down, where con-leche
+conses a `List` innermost-first and consumes its head (the same entries in the
+same order, and `stk[j]`'s index IS con-leche's `j`); `fvs` is built
+innermost-first with `cons_eidx` and read by `instantiate_list` at cursor 0,
+where con-leche pushes outermost-first and reads with `instantiateRev`
+(`instantiateRevP` reads `vs[vs.size - 1 - (i - d)]`, i.e. the reversed list —
+the same convention P6-9's `beta_peel` already uses); `is_lam : bool` in place
+of the `mk` function argument (§3.4); `intern_rebuilt`'s `same` inside
+`abstract_range_go`, the arena's own upward cutoff, already twinned; and the
+`abs1_*` memo table shared by `abstract1_go` and `abstract_range_go` (the two
+walks never nest and each entry point clears it, so it is one table identity,
+not a clause).
+
+#### 7. Gates
+
+| gate | |
+|---|---|
+| `cargo build --release` / `cargo test`, `RUSTFLAGS="-D warnings"` | clean, **428 tests, 0 failures** |
+| `scripts/lint-rust-style.sh crates/arena-core/src` | clean |
+| `scripts/provenance.py check` | **0 findings** — `6575 item(s) (4822 Rust, 1753 arena Lean), 4896 citation(s), all current at pin 78ded4b6` (6567 at P6-9; the eight new items are the six loop functions, `PEEL_FUEL` and the two `abstract_range` halves, less one) |
+| `scripts/overview-links.sh`, `scripts/holes.sh --check` | OK |
+| `scripts/extract-arena.sh --dry` | **0 errors, 5 type + 209 function holes** — the tip's own count, unchanged |
+| `scripts/diff-e2e.sh --bin=target/release/con-ron-arena` | **383/383 agree** at `--jobs=1`, at `--jobs=4` and at `--trusted`; 0 differ, 0 timed out |
+| the diff | `crates/arena-core/src/arena/core.rs` and `.../expr_ops.rs` — nothing else under `crates/` |
+
+`proof/`, `crates/con-ron`, `crates/con-ron-core`, `OVERVIEW.md` and
+`README.md` are untouched.  The verdicts are unchanged at every size:
+`accepted 57 977`, `accepted 163 396`, `accepted 155 288`, `accepted 691 128`.
+
+The unit tests gained six checks in `expr_ops`'s `t_measures_and_scope`: the
+executed `abstract_range_fast` against the spec `abstract_range` on four
+subjects, the `k = 0` identity on a term that HAS free variables, and
+`abstract_range_fast … 1` against `abstract1_fast` (con-leche's
+`abstractRange_succ` at `k = 1`).
+
+#### 8. What is left
+
+  * **`inferLamsI` / `inferPisI` — §4, and it is now the largest lever in the
+    check phase**: 26.4 % of the prefix's new nodes, and 83.9 M of them are
+    this task's own displacement.
+  * `annotate_binder` is dead on both corpora and is kept only because
+    con-leche's cached `annotateBodyI` keeps it; if a corpus ever exercises it,
+    it is one `bvar_b` test away.
+  * `abstract_range` (the spec descent) now has no caller but its own unit
+    test.  It stays as the statement subject the bridge needs — the executed
+    form is proved against it, exactly as `abstract1_go` is against
+    `Kernel/ExprOps.lean`'s `abstract1`.
+  * `piResidual` is still priced out (P6-9's §7) and `instSpine`/`instPisAt`/
+    `instLamsAt` are still cold.
