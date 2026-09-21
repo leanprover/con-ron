@@ -2729,6 +2729,14 @@ is licensed as a port-side lever, with its own identification lemma against
 the pure tier's chained arms owed by the bridge (P3); if it is impactful,
 con-leche may adopt it too.  Task #97-P6-14.
 
+**Ruling (maintainer, 2026-09-21) on the accumulator prepend:** a `List`
+accumulator built by `::` in the Lean twin, mirrored as an insert-at-front
+on a `Vec`, is quadratic and silly.  The twin uses `Array` with `Array.push`
+and the Rust `Vec::push` — idiomatic in both tiers, the same denotation as
+the reversed list — and reads the accumulator from the end where the
+algorithm consumed the list's head.  A twin clause change (owed to the Lean
+catch-up), not a representation absorbed by the refinement.
+
 ### 8.7 Open questions (maintainer)
 
   * `LsIdx` (interned level lists) vs. a flat `Array LIdx` slice — P2a
