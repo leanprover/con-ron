@@ -77,16 +77,20 @@
 //!   `exprPtrBEq`, `LIdx.hasParam` and `Expr.hasLevelParam` read the derived
 //!   column and nothing else.
 
-use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
+use crate::arena::handle::{
+    e_tag_is_bind, EIdx, LIdx, LsIdx, NIdx, ETAG_APP, ETAG_BVAR, ETAG_FVAR, ETAG_LET_E,
+    ETAG_PROJ,
+};
 use crate::arena::monad::{
     abs1_clear, abs1_get, abs1_set, bvar_b_clear, bvar_b_get, bvar_b_set, derived_e, derived_l,
     eidx_nat_key, fail, fvar_b_clear, fvar_b_get, fvar_b_set, inst1_clear, inst1_get, inst1_l_clear,
     inst1_l_get, inst1_l_set, inst1_set, inst_l_clear, inst_l_get, inst_l_set, inst_lp_clear,
     inst_lp_get, inst_lp_set, intern_e, intern_level, intern_levels, lift_clear, lift_get, lift_set,
     lower_clear, lower_get, lower_set, read_level, read_levels, read_names, rename_clear,
-    rename_get, rename_set, reset_clear, reset_get, reset_set, view, AState, EIdxNat,
+    rename_get, rename_set, reset_clear, reset_get, reset_set, view, view_app, view_bind,
+    view_bvar, view_fvar_idx, view_let, view_proj, AState, EIdxNat, fail_dangling_e,
 };
-use crate::arena::store::ENodeView;
+use crate::arena::store::{e_bind_view, ENodeView};
 use con_ron_core::kernel::core_types::{code_points, CheckError};
 use con_ron_core::kernel::expr;
 use con_ron_core::kernel::expr::BinderMeta;
@@ -435,6 +439,7 @@ pub fn fvl_append(x: &Vec<(u64, EIdx)>, y: &Vec<(u64, EIdx)>) -> Vec<(u64, EIdx)
 /// saturation (`expr::sat_range()`, 32 767, which no term of the corpus
 /// reaches), so past the cutoff a loose `bvar` at or above `d` really is
 /// present and really does move — the test could only ever cost.
+#[inline(always)]
 pub fn intern_rebuilt(
     pers: &PersTier,
     st: &mut AState,
@@ -479,89 +484,21 @@ pub fn instantiate1_go(
         if b < expr::sat_range() && b <= d {
             Ok(h.dup2())
         } else {
-            match view(pers, st, h) {
-                Err(e) => Err(e),
-                Ok(ENodeView::BVar(i)) => {
-                    if i == d {
-                        Ok(v.dup2())
-                    } else if i > d {
-                        intern_e(pers, st, ENodeView::BVar(i - 1))
-                    } else {
-                        Ok(h.dup2())
-                    }
-                }
-                Ok(ENodeView::FVar(_, _)) => Ok(h.dup2()),
-                Ok(ENodeView::Sort(_)) => Ok(h.dup2()),
-                Ok(ENodeView::Const(_, _)) => Ok(h.dup2()),
-                Ok(ENodeView::Lit(_)) => Ok(h.dup2()),
-                Ok(ENodeView::App(f, a)) => {
-                    let k: EIdxNat = eidx_nat_key(h, d);
-                    match inst1_get(st, &k) {
-                        Some(r) => Ok(r),
-                        None => match instantiate1_go(pers, st, v, fuel - 1, &f, d) {
-                            Err(e) => Err(e),
-                            Ok(f2) => match instantiate1_go(pers, st, v, fuel - 1, &a, d) {
+            let t: u32 = h.tag();
+            if t == ETAG_APP {
+                let k: EIdxNat = eidx_nat_key(h, d);
+                match inst1_get(st, &k) {
+                    Some(r) => Ok(r),
+                    None => match view_app(pers, st, h) {
+                        None => fail_dangling_e(),
+                        Some(p) => {
+                            let f: EIdx = p.0;
+                            let a: EIdx = p.1;
+                            match instantiate1_go(pers, st, v, fuel - 1, &f, d) {
                                 Err(e) => Err(e),
-                                Ok(a2) => match intern_e(pers, st, ENodeView::App(f2, a2)) {
+                                Ok(f2) => match instantiate1_go(pers, st, v, fuel - 1, &a, d) {
                                     Err(e) => Err(e),
-                                    Ok(r) => {
-                                        inst1_set(st, k, &r);
-                                        Ok(r)
-                                    }
-                                },
-                            },
-                        },
-                    }
-                }
-                Ok(ENodeView::Lam(ty, body, m)) => {
-                    let k: EIdxNat = eidx_nat_key(h, d);
-                    match inst1_get(st, &k) {
-                        Some(r) => Ok(r),
-                        None => match instantiate1_go(pers, st, v, fuel - 1, &ty, d) {
-                            Err(e) => Err(e),
-                            Ok(t) => match instantiate1_go(pers, st, v, fuel - 1, &body, d + 1) {
-                                Err(e) => Err(e),
-                                Ok(b2) => match intern_e(pers, st, ENodeView::Lam(t, b2, m)) {
-                                    Err(e) => Err(e),
-                                    Ok(r) => {
-                                        inst1_set(st, k, &r);
-                                        Ok(r)
-                                    }
-                                },
-                            },
-                        },
-                    }
-                }
-                Ok(ENodeView::ForallE(ty, body, m)) => {
-                    let k: EIdxNat = eidx_nat_key(h, d);
-                    match inst1_get(st, &k) {
-                        Some(r) => Ok(r),
-                        None => match instantiate1_go(pers, st, v, fuel - 1, &ty, d) {
-                            Err(e) => Err(e),
-                            Ok(t) => match instantiate1_go(pers, st, v, fuel - 1, &body, d + 1) {
-                                Err(e) => Err(e),
-                                Ok(b2) => match intern_e(pers, st, ENodeView::ForallE(t, b2, m)) {
-                                    Err(e) => Err(e),
-                                    Ok(r) => {
-                                        inst1_set(st, k, &r);
-                                        Ok(r)
-                                    }
-                                },
-                            },
-                        },
-                    }
-                }
-                Ok(ENodeView::LetE(ty, val, body)) => {
-                    let k: EIdxNat = eidx_nat_key(h, d);
-                    match inst1_get(st, &k) {
-                        Some(r) => Ok(r),
-                        None => match instantiate1_go(pers, st, v, fuel - 1, &ty, d) {
-                            Err(e) => Err(e),
-                            Ok(t) => match instantiate1_go(pers, st, v, fuel - 1, &val, d) {
-                                Err(e) => Err(e),
-                                Ok(w) => match instantiate1_go(pers, st, v, fuel - 1, &body, d + 1) {
-                                    Err(e) => Err(e),
-                                    Ok(b2) => match intern_e(pers, st, ENodeView::LetE(t, w, b2)) {
+                                    Ok(a2) => match intern_e(pers, st, ENodeView::App(f2, a2)) {
                                         Err(e) => Err(e),
                                         Ok(r) => {
                                             inst1_set(st, k, &r);
@@ -569,26 +506,113 @@ pub fn instantiate1_go(
                                         }
                                     },
                                 },
-                            },
-                        },
-                    }
+                            }
+                        }
+                    },
                 }
-                Ok(ENodeView::Proj(n, i, sub)) => {
-                    let k: EIdxNat = eidx_nat_key(h, d);
-                    match inst1_get(st, &k) {
-                        Some(r) => Ok(r),
-                        None => match instantiate1_go(pers, st, v, fuel - 1, &sub, d) {
-                            Err(e) => Err(e),
-                            Ok(u) => match intern_e(pers, st, ENodeView::Proj(n, i, u)) {
+            } else if e_tag_is_bind(t) {
+                let k: EIdxNat = eidx_nat_key(h, d);
+                match inst1_get(st, &k) {
+                    Some(r) => Ok(r),
+                    None => match view_bind(pers, st, h) {
+                        None => fail_dangling_e(),
+                        Some(p) => {
+                            let ty: EIdx = p.0;
+                            let body: EIdx = p.1;
+                            let m: BinderMeta = p.2;
+                            match instantiate1_go(pers, st, v, fuel - 1, &ty, d) {
                                 Err(e) => Err(e),
-                                Ok(r) => {
-                                    inst1_set(st, k, &r);
-                                    Ok(r)
+                                Ok(t2) => {
+                                    match instantiate1_go(pers, st, v, fuel - 1, &body, d + 1) {
+                                        Err(e) => Err(e),
+                                        Ok(b2) => {
+                                            let nv: ENodeView = e_bind_view(t, t2, b2, m);
+                                            match intern_e(pers, st, nv) {
+                                                Err(e) => Err(e),
+                                                Ok(r) => {
+                                                    inst1_set(st, k, &r);
+                                                    Ok(r)
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
-                            },
-                        },
+                            }
+                        }
+                    },
+                }
+            } else if t == ETAG_BVAR {
+                match view_bvar(pers, st, h) {
+                    None => fail_dangling_e(),
+                    Some(i) => {
+                        if i == d {
+                            Ok(v.dup2())
+                        } else if i > d {
+                            intern_e(pers, st, ENodeView::BVar(i - 1))
+                        } else {
+                            Ok(h.dup2())
+                        }
                     }
                 }
+            } else if t == ETAG_LET_E {
+                let k: EIdxNat = eidx_nat_key(h, d);
+                match inst1_get(st, &k) {
+                    Some(r) => Ok(r),
+                    None => match view_let(pers, st, h) {
+                        None => fail_dangling_e(),
+                        Some(p) => {
+                            let ty: EIdx = p.0;
+                            let val: EIdx = p.1;
+                            let body: EIdx = p.2;
+                            match instantiate1_go(pers, st, v, fuel - 1, &ty, d) {
+                                Err(e) => Err(e),
+                                Ok(t2) => match instantiate1_go(pers, st, v, fuel - 1, &val, d) {
+                                    Err(e) => Err(e),
+                                    Ok(w) => {
+                                        match instantiate1_go(pers, st, v, fuel - 1, &body, d + 1) {
+                                            Err(e) => Err(e),
+                                            Ok(b2) => {
+                                                match intern_e(pers, st, ENodeView::LetE(t2, w, b2))
+                                                {
+                                                    Err(e) => Err(e),
+                                                    Ok(r) => {
+                                                        inst1_set(st, k, &r);
+                                                        Ok(r)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                            }
+                        }
+                    },
+                }
+            } else if t == ETAG_PROJ {
+                let k: EIdxNat = eidx_nat_key(h, d);
+                match inst1_get(st, &k) {
+                    Some(r) => Ok(r),
+                    None => match view_proj(pers, st, h) {
+                        None => fail_dangling_e(),
+                        Some(p) => {
+                            let n: NIdx = p.0;
+                            let i: u64 = p.1;
+                            let sub: EIdx = p.2;
+                            match instantiate1_go(pers, st, v, fuel - 1, &sub, d) {
+                                Err(e) => Err(e),
+                                Ok(u) => match intern_e(pers, st, ENodeView::Proj(n, i, u)) {
+                                    Err(e) => Err(e),
+                                    Ok(r) => {
+                                        inst1_set(st, k, &r);
+                                        Ok(r)
+                                    }
+                                },
+                            }
+                        }
+                    },
+                }
+            } else {
+                Ok(h.dup2())
             }
         }
     }
@@ -636,6 +660,7 @@ pub fn instantiate1_fast(
 ///
 /// P2f's gate is what forced it: `tests/e2e/proj_share.ndjson` does not finish
 /// without these two cutoffs, with 18 % of its cycles in `instantiateList`.
+#[inline(always)]
 pub fn inst_list_cutoff(pers: &PersTier, st: &AState, h: &EIdx, k: u64) -> bool {
     let der: u64 = derived_e(pers, st, h);
     let b: u64 = expr::bvar_of_data(der);
@@ -663,83 +688,111 @@ pub fn instantiate_list(
     } else if inst_list_cutoff(pers, st, h, d) {
         Ok(h.dup2())
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::BVar(j)) => {
-                if j < d {
-                    Ok(h.dup2())
-                } else {
-                    let n: u64 = vs.len() as u64;
-                    if j - d < n {
-                        let i: usize = (j - d) as usize;
-                        let vi: EIdx = vs[i].dup2();
-                        // **The cutoff hoisted over the prefix copy** (task
-                        // #97-P6-9).  The recursion into the replacement is
-                        // con-leche's own `instantiateList vs[j-d]
-                        // (vs.take (j-d)) d`, and its own note says it "is the
-                        // identity on `bvar`-closed replacements (every checker
-                        // call site)" — which is exactly what `inst_list_cutoff`
-                        // decides, in O(1), off the handle's derived word.
-                        // Testing it BEFORE `take_eidx` is the same value by
-                        // the cutoff's own equation (`looseBVarsBounded d e →
-                        // instantiateList e vs d = e`, for every `vs`), and it
-                        // takes the prefix copy off the batched β path, which
-                        // hits this clause once per bound variable of every
-                        // peeled group.
-                        if inst_list_cutoff(pers, st, &vi, d) {
-                            Ok(vi)
-                        } else {
-                            let pre: Vec<EIdx> = take_eidx(vs, i);
-                            instantiate_list(pers, st, &pre, fuel - 1, &vi, d)
-                        }
-                    } else {
-                        intern_e(pers, st, ENodeView::BVar(j - n))
+        let t: u32 = h.tag();
+        if t == ETAG_APP {
+            match view_app(pers, st, h) {
+                None => fail_dangling_e(),
+                Some(p) => {
+                    let f: EIdx = p.0;
+                    let a: EIdx = p.1;
+                    match instantiate_list(pers, st, vs, fuel - 1, &f, d) {
+                        Err(e) => Err(e),
+                        Ok(f2) => match instantiate_list(pers, st, vs, fuel - 1, &a, d) {
+                            Err(e) => Err(e),
+                            Ok(a2) => intern_e(pers, st, ENodeView::App(f2, a2)),
+                        },
                     }
                 }
             }
-            Ok(ENodeView::FVar(_, _)) => Ok(h.dup2()),
-            Ok(ENodeView::Sort(_)) => Ok(h.dup2()),
-            Ok(ENodeView::Const(_, _)) => Ok(h.dup2()),
-            Ok(ENodeView::Lit(_)) => Ok(h.dup2()),
-            Ok(ENodeView::App(f, a)) => match instantiate_list(pers, st, vs, fuel - 1, &f, d) {
-                Err(e) => Err(e),
-                Ok(f2) => match instantiate_list(pers, st, vs, fuel - 1, &a, d) {
-                    Err(e) => Err(e),
-                    Ok(a2) => intern_e(pers, st, ENodeView::App(f2, a2)),
-                },
-            },
-            Ok(ENodeView::Lam(ty, body, m)) => match instantiate_list(pers, st, vs, fuel - 1, &ty, d) {
-                Err(e) => Err(e),
-                Ok(t) => match instantiate_list(pers, st, vs, fuel - 1, &body, d + 1) {
-                    Err(e) => Err(e),
-                    Ok(b) => intern_e(pers, st, ENodeView::Lam(t, b, m)),
-                },
-            },
-            Ok(ENodeView::ForallE(ty, body, m)) => {
-                match instantiate_list(pers, st, vs, fuel - 1, &ty, d) {
-                    Err(e) => Err(e),
-                    Ok(t) => match instantiate_list(pers, st, vs, fuel - 1, &body, d + 1) {
+        } else if e_tag_is_bind(t) {
+            match view_bind(pers, st, h) {
+                None => fail_dangling_e(),
+                Some(p) => {
+                    let ty: EIdx = p.0;
+                    let body: EIdx = p.1;
+                    let m: BinderMeta = p.2;
+                    match instantiate_list(pers, st, vs, fuel - 1, &ty, d) {
                         Err(e) => Err(e),
-                        Ok(b) => intern_e(pers, st, ENodeView::ForallE(t, b, m)),
-                    },
-                }
-            }
-            Ok(ENodeView::LetE(ty, val, body)) => {
-                match instantiate_list(pers, st, vs, fuel - 1, &ty, d) {
-                    Err(e) => Err(e),
-                    Ok(t) => match instantiate_list(pers, st, vs, fuel - 1, &val, d) {
-                        Err(e) => Err(e),
-                        Ok(w) => match instantiate_list(pers, st, vs, fuel - 1, &body, d + 1) {
+                        Ok(t2) => match instantiate_list(pers, st, vs, fuel - 1, &body, d + 1) {
                             Err(e) => Err(e),
-                            Ok(b) => intern_e(pers, st, ENodeView::LetE(t, w, b)),
+                            Ok(b) => {
+                                let nv: ENodeView = e_bind_view(t, t2, b, m);
+                                intern_e(pers, st, nv)
+                            }
                         },
-                    },
+                    }
                 }
             }
-            Ok(ENodeView::Proj(n, i, sub)) => match instantiate_list(pers, st, vs, fuel - 1, &sub, d) {
-                Err(e) => Err(e),
-                Ok(u) => intern_e(pers, st, ENodeView::Proj(n, i, u)),
-            },
+        } else if t == ETAG_LET_E {
+            match view_let(pers, st, h) {
+                None => fail_dangling_e(),
+                Some(p) => {
+                    let ty: EIdx = p.0;
+                    let val: EIdx = p.1;
+                    let body: EIdx = p.2;
+                    match instantiate_list(pers, st, vs, fuel - 1, &ty, d) {
+                        Err(e) => Err(e),
+                        Ok(t2) => match instantiate_list(pers, st, vs, fuel - 1, &val, d) {
+                            Err(e) => Err(e),
+                            Ok(w) => match instantiate_list(pers, st, vs, fuel - 1, &body, d + 1) {
+                                Err(e) => Err(e),
+                                Ok(b) => intern_e(pers, st, ENodeView::LetE(t2, w, b)),
+                            },
+                        },
+                    }
+                }
+            }
+        } else if t == ETAG_PROJ {
+            match view_proj(pers, st, h) {
+                None => fail_dangling_e(),
+                Some(p) => {
+                    let n: NIdx = p.0;
+                    let i: u64 = p.1;
+                    let sub: EIdx = p.2;
+                    match instantiate_list(pers, st, vs, fuel - 1, &sub, d) {
+                        Err(e) => Err(e),
+                        Ok(u) => intern_e(pers, st, ENodeView::Proj(n, i, u)),
+                    }
+                }
+            }
+        } else if t == ETAG_BVAR {
+            match view_bvar(pers, st, h) {
+                None => fail_dangling_e(),
+                Some(j) => {
+                    if j < d {
+                        Ok(h.dup2())
+                    } else {
+                        let n: u64 = vs.len() as u64;
+                        if j - d < n {
+                            let i: usize = (j - d) as usize;
+                            let vi: EIdx = vs[i].dup2();
+                            // **The cutoff hoisted over the prefix copy** (task
+                            // #97-P6-9).  The recursion into the replacement is
+                            // con-leche's own `instantiateList vs[j-d]
+                            // (vs.take (j-d)) d`, and its own note says it "is the
+                            // identity on `bvar`-closed replacements (every checker
+                            // call site)" — which is exactly what `inst_list_cutoff`
+                            // decides, in O(1), off the handle's derived word.
+                            // Testing it BEFORE `take_eidx` is the same value by
+                            // the cutoff's own equation (`looseBVarsBounded d e →
+                            // instantiateList e vs d = e`, for every `vs`), and it
+                            // takes the prefix copy off the batched β path, which
+                            // hits this clause once per bound variable of every
+                            // peeled group.
+                            if inst_list_cutoff(pers, st, &vi, d) {
+                                Ok(vi)
+                            } else {
+                                let pre: Vec<EIdx> = take_eidx(vs, i);
+                                instantiate_list(pers, st, &pre, fuel - 1, &vi, d)
+                            }
+                        } else {
+                            intern_e(pers, st, ENodeView::BVar(j - n))
+                        }
+                    }
+                }
+            }
+        } else {
+            Ok(h.dup2())
         }
     }
 }
@@ -761,81 +814,21 @@ pub fn instantiate_list_go(
     } else if inst_list_cutoff(pers, st, h, d) {
         Ok(h.dup2())
     } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::BVar(_)) => instantiate_list(pers, st, vs, fuel - 1, h, d),
-            Ok(ENodeView::FVar(_, _)) => Ok(h.dup2()),
-            Ok(ENodeView::Sort(_)) => Ok(h.dup2()),
-            Ok(ENodeView::Const(_, _)) => Ok(h.dup2()),
-            Ok(ENodeView::Lit(_)) => Ok(h.dup2()),
-            Ok(ENodeView::App(f, a)) => {
-                let k: EIdxNat = eidx_nat_key(h, d);
-                match inst_l_get(st, &k) {
-                    Some(r) => Ok(r),
-                    None => match instantiate_list_go(pers, st, vs, fuel - 1, &f, d) {
-                        Err(e) => Err(e),
-                        Ok(f2) => match instantiate_list_go(pers, st, vs, fuel - 1, &a, d) {
+        let t: u32 = h.tag();
+        if t == ETAG_APP {
+            let k: EIdxNat = eidx_nat_key(h, d);
+            match inst_l_get(st, &k) {
+                Some(r) => Ok(r),
+                None => match view_app(pers, st, h) {
+                    None => fail_dangling_e(),
+                    Some(p) => {
+                        let f: EIdx = p.0;
+                        let a: EIdx = p.1;
+                        match instantiate_list_go(pers, st, vs, fuel - 1, &f, d) {
                             Err(e) => Err(e),
-                            Ok(a2) => match intern_e(pers, st, ENodeView::App(f2, a2)) {
+                            Ok(f2) => match instantiate_list_go(pers, st, vs, fuel - 1, &a, d) {
                                 Err(e) => Err(e),
-                                Ok(r) => {
-                                    inst_l_set(st, k, &r);
-                                    Ok(r)
-                                }
-                            },
-                        },
-                    },
-                }
-            }
-            Ok(ENodeView::Lam(ty, body, m)) => {
-                let k: EIdxNat = eidx_nat_key(h, d);
-                match inst_l_get(st, &k) {
-                    Some(r) => Ok(r),
-                    None => match instantiate_list_go(pers, st, vs, fuel - 1, &ty, d) {
-                        Err(e) => Err(e),
-                        Ok(t) => match instantiate_list_go(pers, st, vs, fuel - 1, &body, d + 1) {
-                            Err(e) => Err(e),
-                            Ok(b) => match intern_e(pers, st, ENodeView::Lam(t, b, m)) {
-                                Err(e) => Err(e),
-                                Ok(r) => {
-                                    inst_l_set(st, k, &r);
-                                    Ok(r)
-                                }
-                            },
-                        },
-                    },
-                }
-            }
-            Ok(ENodeView::ForallE(ty, body, m)) => {
-                let k: EIdxNat = eidx_nat_key(h, d);
-                match inst_l_get(st, &k) {
-                    Some(r) => Ok(r),
-                    None => match instantiate_list_go(pers, st, vs, fuel - 1, &ty, d) {
-                        Err(e) => Err(e),
-                        Ok(t) => match instantiate_list_go(pers, st, vs, fuel - 1, &body, d + 1) {
-                            Err(e) => Err(e),
-                            Ok(b) => match intern_e(pers, st, ENodeView::ForallE(t, b, m)) {
-                                Err(e) => Err(e),
-                                Ok(r) => {
-                                    inst_l_set(st, k, &r);
-                                    Ok(r)
-                                }
-                            },
-                        },
-                    },
-                }
-            }
-            Ok(ENodeView::LetE(ty, val, body)) => {
-                let k: EIdxNat = eidx_nat_key(h, d);
-                match inst_l_get(st, &k) {
-                    Some(r) => Ok(r),
-                    None => match instantiate_list_go(pers, st, vs, fuel - 1, &ty, d) {
-                        Err(e) => Err(e),
-                        Ok(t) => match instantiate_list_go(pers, st, vs, fuel - 1, &val, d) {
-                            Err(e) => Err(e),
-                            Ok(w) => match instantiate_list_go(pers, st, vs, fuel - 1, &body, d + 1) {
-                                Err(e) => Err(e),
-                                Ok(b) => match intern_e(pers, st, ENodeView::LetE(t, w, b)) {
+                                Ok(a2) => match intern_e(pers, st, ENodeView::App(f2, a2)) {
                                     Err(e) => Err(e),
                                     Ok(r) => {
                                         inst_l_set(st, k, &r);
@@ -843,26 +836,102 @@ pub fn instantiate_list_go(
                                     }
                                 },
                             },
-                        },
-                    },
-                }
+                        }
+                    }
+                },
             }
-            Ok(ENodeView::Proj(n, i, sub)) => {
-                let k: EIdxNat = eidx_nat_key(h, d);
-                match inst_l_get(st, &k) {
-                    Some(r) => Ok(r),
-                    None => match instantiate_list_go(pers, st, vs, fuel - 1, &sub, d) {
-                        Err(e) => Err(e),
-                        Ok(u) => match intern_e(pers, st, ENodeView::Proj(n, i, u)) {
+        } else if e_tag_is_bind(t) {
+            let k: EIdxNat = eidx_nat_key(h, d);
+            match inst_l_get(st, &k) {
+                Some(r) => Ok(r),
+                None => match view_bind(pers, st, h) {
+                    None => fail_dangling_e(),
+                    Some(p) => {
+                        let ty: EIdx = p.0;
+                        let body: EIdx = p.1;
+                        let m: BinderMeta = p.2;
+                        match instantiate_list_go(pers, st, vs, fuel - 1, &ty, d) {
                             Err(e) => Err(e),
-                            Ok(r) => {
-                                inst_l_set(st, k, &r);
-                                Ok(r)
+                            Ok(t2) => {
+                                match instantiate_list_go(pers, st, vs, fuel - 1, &body, d + 1) {
+                                    Err(e) => Err(e),
+                                    Ok(b) => {
+                                        let nv: ENodeView = e_bind_view(t, t2, b, m);
+                                        match intern_e(pers, st, nv) {
+                                            Err(e) => Err(e),
+                                            Ok(r) => {
+                                                inst_l_set(st, k, &r);
+                                                Ok(r)
+                                            }
+                                        }
+                                    }
+                                }
                             }
-                        },
-                    },
-                }
+                        }
+                    }
+                },
             }
+        } else if t == ETAG_BVAR {
+            instantiate_list(pers, st, vs, fuel - 1, h, d)
+        } else if t == ETAG_LET_E {
+            let k: EIdxNat = eidx_nat_key(h, d);
+            match inst_l_get(st, &k) {
+                Some(r) => Ok(r),
+                None => match view_let(pers, st, h) {
+                    None => fail_dangling_e(),
+                    Some(p) => {
+                        let ty: EIdx = p.0;
+                        let val: EIdx = p.1;
+                        let body: EIdx = p.2;
+                        match instantiate_list_go(pers, st, vs, fuel - 1, &ty, d) {
+                            Err(e) => Err(e),
+                            Ok(t2) => match instantiate_list_go(pers, st, vs, fuel - 1, &val, d) {
+                                Err(e) => Err(e),
+                                Ok(w) => {
+                                    match instantiate_list_go(pers, st, vs, fuel - 1, &body, d + 1)
+                                    {
+                                        Err(e) => Err(e),
+                                        Ok(b) => {
+                                            match intern_e(pers, st, ENodeView::LetE(t2, w, b)) {
+                                                Err(e) => Err(e),
+                                                Ok(r) => {
+                                                    inst_l_set(st, k, &r);
+                                                    Ok(r)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                        }
+                    }
+                },
+            }
+        } else if t == ETAG_PROJ {
+            let k: EIdxNat = eidx_nat_key(h, d);
+            match inst_l_get(st, &k) {
+                Some(r) => Ok(r),
+                None => match view_proj(pers, st, h) {
+                    None => fail_dangling_e(),
+                    Some(p) => {
+                        let n: NIdx = p.0;
+                        let i: u64 = p.1;
+                        let sub: EIdx = p.2;
+                        match instantiate_list_go(pers, st, vs, fuel - 1, &sub, d) {
+                            Err(e) => Err(e),
+                            Ok(u) => match intern_e(pers, st, ENodeView::Proj(n, i, u)) {
+                                Err(e) => Err(e),
+                                Ok(r) => {
+                                    inst_l_set(st, k, &r);
+                                    Ok(r)
+                                }
+                            },
+                        }
+                    }
+                },
+            }
+        } else {
+            Ok(h.dup2())
         }
     }
 }
@@ -2212,12 +2281,13 @@ pub fn has_fvar(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<boo
 pub fn get_app_fn(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<EIdx, CheckError> {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_APP_FN)))
-    } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::App(f, _)) => get_app_fn(pers, st, fuel - 1, &f),
-            Ok(_) => Ok(h.dup2()),
+    } else if h.tag() == ETAG_APP {
+        match view_app(pers, st, h) {
+            None => fail_dangling_e(),
+            Some(p) => get_app_fn(pers, st, fuel - 1, &p.0),
         }
+    } else {
+        Ok(h.dup2())
     }
 }
 
@@ -2250,19 +2320,24 @@ pub fn get_app_args_go(
 ) -> Result<Vec<EIdx>, CheckError>  {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_APP_ARGS)))
-    } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::App(f, a)) => match get_app_args_go(pers, st, fuel - 1, &f, k + 1) {
-                Err(e) => Err(e),
-                Ok(args) => {
-                    let mut out: Vec<EIdx> = args;
-                    out.push(a);
-                    Ok(out)
+    } else if h.tag() == ETAG_APP {
+        match view_app(pers, st, h) {
+            None => fail_dangling_e(),
+            Some(p) => {
+                let f: EIdx = p.0;
+                let a: EIdx = p.1;
+                match get_app_args_go(pers, st, fuel - 1, &f, k + 1) {
+                    Err(e) => Err(e),
+                    Ok(args) => {
+                        let mut out: Vec<EIdx> = args;
+                        out.push(a);
+                        Ok(out)
+                    }
                 }
-            },
-            Ok(_) => Ok(Vec::with_capacity(k)),
+            }
         }
+    } else {
+        Ok(Vec::with_capacity(k))
     }
 }
 
@@ -3307,125 +3382,63 @@ pub fn abstract1_go(
                 if fb <= d {
                     Ok(h.dup2())
                 } else {
-                    match view(pers, st, h) {
-                        Err(e) => Err(e),
-                        Ok(ENodeView::BVar(_)) => Ok(h.dup2()),
-                        Ok(ENodeView::FVar(idx, _)) => {
-                            if idx == d {
-                                intern_e(pers, st, ENodeView::BVar(k))
-                            } else {
-                                Ok(h.dup2())
-                            }
-                        }
-                        Ok(ENodeView::Sort(_)) => Ok(h.dup2()),
-                        Ok(ENodeView::Const(_, _)) => Ok(h.dup2()),
-                        Ok(ENodeView::Lit(_)) => Ok(h.dup2()),
-                        Ok(ENodeView::App(f, a)) => {
-                            let ky: EIdxNat = eidx_nat_key(h, k);
-                            match abs1_get(st, &ky) {
-                                Some(r) => Ok(r),
-                                None => match abstract1_go(pers, st, d, fuel - 1, &f, k) {
-                                    Err(e) => Err(e),
-                                    Ok(f2) => match abstract1_go(pers, st, d, fuel - 1, &a, k) {
+                    let tg: u32 = h.tag();
+                    if tg == ETAG_APP {
+                        let ky: EIdxNat = eidx_nat_key(h, k);
+                        match abs1_get(st, &ky) {
+                            Some(r) => Ok(r),
+                            None => match view_app(pers, st, h) {
+                                None => fail_dangling_e(),
+                                Some(p) => {
+                                    let f: EIdx = p.0;
+                                    let a: EIdx = p.1;
+                                    match abstract1_go(pers, st, d, fuel - 1, &f, k) {
                                         Err(e) => Err(e),
-                                        Ok(a2) => {
-                                            let same: bool = f2.eq2(&f) && a2.eq2(&a);
-                                            match intern_rebuilt(
-                                                pers,
-                                                st,
-                                                h,
-                                                same,
-                                                ENodeView::App(f2, a2),
-                                            ) {
-                                                Err(e) => Err(e),
-                                                Ok(r) => {
-                                                    abs1_set(st, ky, &r);
-                                                    Ok(r)
+                                        Ok(f2) => match abstract1_go(pers, st, d, fuel - 1, &a, k) {
+                                            Err(e) => Err(e),
+                                            Ok(a2) => {
+                                                let same: bool = f2.eq2(&f) && a2.eq2(&a);
+                                                match intern_rebuilt(
+                                                    pers,
+                                                    st,
+                                                    h,
+                                                    same,
+                                                    ENodeView::App(f2, a2),
+                                                ) {
+                                                    Err(e) => Err(e),
+                                                    Ok(r) => {
+                                                        abs1_set(st, ky, &r);
+                                                        Ok(r)
+                                                    }
                                                 }
                                             }
-                                        }
-                                    },
-                                },
-                            }
+                                        },
+                                    }
+                                }
+                            },
                         }
-                        Ok(ENodeView::Lam(ty, body, m)) => {
-                            let ky: EIdxNat = eidx_nat_key(h, k);
-                            match abs1_get(st, &ky) {
-                                Some(r) => Ok(r),
-                                None => match abstract1_go(pers, st, d, fuel - 1, &ty, k) {
-                                    Err(e) => Err(e),
-                                    Ok(t) => match abstract1_go(pers, st, d, fuel - 1, &body, k + 1) {
+                    } else if e_tag_is_bind(tg) {
+                        let ky: EIdxNat = eidx_nat_key(h, k);
+                        match abs1_get(st, &ky) {
+                            Some(r) => Ok(r),
+                            None => match view_bind(pers, st, h) {
+                                None => fail_dangling_e(),
+                                Some(p) => {
+                                    let ty: EIdx = p.0;
+                                    let body: EIdx = p.1;
+                                    let m: BinderMeta = p.2;
+                                    match abstract1_go(pers, st, d, fuel - 1, &ty, k) {
                                         Err(e) => Err(e),
-                                        Ok(b2) => {
-                                            let same: bool = t.eq2(&ty) && b2.eq2(&body);
-                                            match intern_rebuilt(
-                                                pers,
-                                                st,
-                                                h,
-                                                same,
-                                                ENodeView::Lam(t, b2, m),
-                                            ) {
-                                                Err(e) => Err(e),
-                                                Ok(r) => {
-                                                    abs1_set(st, ky, &r);
-                                                    Ok(r)
-                                                }
-                                            }
-                                        }
-                                    },
-                                },
-                            }
-                        }
-                        Ok(ENodeView::ForallE(ty, body, m)) => {
-                            let ky: EIdxNat = eidx_nat_key(h, k);
-                            match abs1_get(st, &ky) {
-                                Some(r) => Ok(r),
-                                None => match abstract1_go(pers, st, d, fuel - 1, &ty, k) {
-                                    Err(e) => Err(e),
-                                    Ok(t) => match abstract1_go(pers, st, d, fuel - 1, &body, k + 1) {
-                                        Err(e) => Err(e),
-                                        Ok(b2) => {
-                                            let same: bool = t.eq2(&ty) && b2.eq2(&body);
-                                            match intern_rebuilt(
-                                                pers,
-                                                st,
-                                                h,
-                                                same,
-                                                ENodeView::ForallE(t, b2, m),
-                                            ) {
-                                                Err(e) => Err(e),
-                                                Ok(r) => {
-                                                    abs1_set(st, ky, &r);
-                                                    Ok(r)
-                                                }
-                                            }
-                                        }
-                                    },
-                                },
-                            }
-                        }
-                        Ok(ENodeView::LetE(ty, val, body)) => {
-                            let ky: EIdxNat = eidx_nat_key(h, k);
-                            match abs1_get(st, &ky) {
-                                Some(r) => Ok(r),
-                                None => match abstract1_go(pers, st, d, fuel - 1, &ty, k) {
-                                    Err(e) => Err(e),
-                                    Ok(t) => match abstract1_go(pers, st, d, fuel - 1, &val, k) {
-                                        Err(e) => Err(e),
-                                        Ok(w) => {
-                                            match abstract1_go(pers, st, d, fuel - 1, &body, k + 1) {
+                                        Ok(t) => {
+                                            match abstract1_go(pers, st, d, fuel - 1, &body, k + 1)
+                                            {
                                                 Err(e) => Err(e),
                                                 Ok(b2) => {
-                                                    let same: bool = t.eq2(&ty)
-                                                        && w.eq2(&val)
-                                                        && b2.eq2(&body);
-                                                    match intern_rebuilt(
-                                                        pers,
-                                                        st,
-                                                        h,
-                                                        same,
-                                                        ENodeView::LetE(t, w, b2),
-                                                    ) {
+                                                    let same: bool =
+                                                        t.eq2(&ty) && b2.eq2(&body);
+                                                    let nv: ENodeView =
+                                                        e_bind_view(tg, t, b2, m);
+                                                    match intern_rebuilt(pers, st, h, same, nv) {
                                                         Err(e) => Err(e),
                                                         Ok(r) => {
                                                             abs1_set(st, ky, &r);
@@ -3435,35 +3448,105 @@ pub fn abstract1_go(
                                                 }
                                             }
                                         }
-                                    },
-                                },
+                                    }
+                                }
+                            },
+                        }
+                    } else if tg == ETAG_FVAR {
+                        match view_fvar_idx(pers, st, h) {
+                            None => fail_dangling_e(),
+                            Some(idx) => {
+                                if idx == d {
+                                    intern_e(pers, st, ENodeView::BVar(k))
+                                } else {
+                                    Ok(h.dup2())
+                                }
                             }
                         }
-                        Ok(ENodeView::Proj(n, i, sub)) => {
-                            let ky: EIdxNat = eidx_nat_key(h, k);
-                            match abs1_get(st, &ky) {
-                                Some(r) => Ok(r),
-                                None => match abstract1_go(pers, st, d, fuel - 1, &sub, k) {
-                                    Err(e) => Err(e),
-                                    Ok(u) => {
-                                        let same: bool = u.eq2(&sub);
-                                        match intern_rebuilt(
-                                            pers,
-                                            st,
-                                            h,
-                                            same,
-                                            ENodeView::Proj(n, i, u),
-                                        ) {
+                    } else if tg == ETAG_LET_E {
+                        let ky: EIdxNat = eidx_nat_key(h, k);
+                        match abs1_get(st, &ky) {
+                            Some(r) => Ok(r),
+                            None => match view_let(pers, st, h) {
+                                None => fail_dangling_e(),
+                                Some(p) => {
+                                    let ty: EIdx = p.0;
+                                    let val: EIdx = p.1;
+                                    let body: EIdx = p.2;
+                                    match abstract1_go(pers, st, d, fuel - 1, &ty, k) {
+                                        Err(e) => Err(e),
+                                        Ok(t) => match abstract1_go(pers, st, d, fuel - 1, &val, k)
+                                        {
                                             Err(e) => Err(e),
-                                            Ok(r) => {
-                                                abs1_set(st, ky, &r);
-                                                Ok(r)
+                                            Ok(w) => {
+                                                match abstract1_go(
+                                                    pers,
+                                                    st,
+                                                    d,
+                                                    fuel - 1,
+                                                    &body,
+                                                    k + 1,
+                                                ) {
+                                                    Err(e) => Err(e),
+                                                    Ok(b2) => {
+                                                        let same: bool = t.eq2(&ty)
+                                                            && w.eq2(&val)
+                                                            && b2.eq2(&body);
+                                                        match intern_rebuilt(
+                                                            pers,
+                                                            st,
+                                                            h,
+                                                            same,
+                                                            ENodeView::LetE(t, w, b2),
+                                                        ) {
+                                                            Err(e) => Err(e),
+                                                            Ok(r) => {
+                                                                abs1_set(st, ky, &r);
+                                                                Ok(r)
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        },
+                                    }
+                                }
+                            },
+                        }
+                    } else if tg == ETAG_PROJ {
+                        let ky: EIdxNat = eidx_nat_key(h, k);
+                        match abs1_get(st, &ky) {
+                            Some(r) => Ok(r),
+                            None => match view_proj(pers, st, h) {
+                                None => fail_dangling_e(),
+                                Some(p) => {
+                                    let n: NIdx = p.0;
+                                    let i: u64 = p.1;
+                                    let sub: EIdx = p.2;
+                                    match abstract1_go(pers, st, d, fuel - 1, &sub, k) {
+                                        Err(e) => Err(e),
+                                        Ok(u) => {
+                                            let same: bool = u.eq2(&sub);
+                                            match intern_rebuilt(
+                                                pers,
+                                                st,
+                                                h,
+                                                same,
+                                                ENodeView::Proj(n, i, u),
+                                            ) {
+                                                Err(e) => Err(e),
+                                                Ok(r) => {
+                                                    abs1_set(st, ky, &r);
+                                                    Ok(r)
+                                                }
                                             }
                                         }
                                     }
-                                },
-                            }
+                                }
+                            },
                         }
+                    } else {
+                        Ok(h.dup2())
                     }
                 }
             }

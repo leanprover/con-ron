@@ -96,7 +96,8 @@ use crate::arena::handle::{
 };
 use crate::arena::monad::{
     fail, intern_e, intern_l_node, intern_ls_node, intern_n_node, intern_level, intern_name,
-    read_level, read_levels, read_name, read_names, view, view_ls, AState,
+    read_level, read_levels, read_name, read_names, view, view_app, view_ls, AState,
+    fail_dangling_e,
 };
 use crate::arena::prop_read::{is_proof_fast, not_proof_fast, proof_pw, type_sort_pw};
 use crate::arena::store::{ENodeView, LNodeView, NNodeView};
@@ -6973,22 +6974,27 @@ pub fn get_app_spine_go(
 ) -> Result<(EIdx, Vec<EIdx>, Vec<EIdx>), CheckError> {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_WHNF_SPINE)))
-    } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::App(f, a)) => match get_app_spine_go(pers, st, fuel - 1, &f, k + 1) {
-                Err(e) => Err(e),
-                Ok(t) => {
-                    let hd: EIdx = t.0;
-                    let mut args: Vec<EIdx> = t.1;
-                    let mut nodes: Vec<EIdx> = t.2;
-                    args.push(a);
-                    nodes.push(h.dup2());
-                    Ok((hd, args, nodes))
+    } else if h.tag() == ETAG_APP {
+        match view_app(pers, st, h) {
+            None => fail_dangling_e(),
+            Some(p) => {
+                let f: EIdx = p.0;
+                let a: EIdx = p.1;
+                match get_app_spine_go(pers, st, fuel - 1, &f, k + 1) {
+                    Err(e) => Err(e),
+                    Ok(t) => {
+                        let hd: EIdx = t.0;
+                        let mut args: Vec<EIdx> = t.1;
+                        let mut nodes: Vec<EIdx> = t.2;
+                        args.push(a);
+                        nodes.push(h.dup2());
+                        Ok((hd, args, nodes))
+                    }
                 }
-            },
-            Ok(_) => Ok((h.dup2(), Vec::with_capacity(k), Vec::with_capacity(k))),
+            }
         }
+    } else {
+        Ok((h.dup2(), Vec::with_capacity(k), Vec::with_capacity(k)))
     }
 }
 
