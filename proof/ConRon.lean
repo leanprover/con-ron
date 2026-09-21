@@ -15,6 +15,7 @@ import ConRon.Generated
 import ConRon.Refine.Abs
 import ConRon.Refine.Name
 import ConRon.Refine.Level
+import ConRon.Refine.Excl
 import ConRon.Refine.PropWhen
 import ConRon.Refine.Expr
 import ConRon.Refine.ExprOps

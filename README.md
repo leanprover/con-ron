@@ -6,7 +6,7 @@ This was written by AI under supervision from Joachim Breitner at the [Lean FRO]
 
 ## Goal
 
-The point of this exercise is that with `con-leche` having a [formal consistency proof](https://github.com/leanprover/con-leche/blob/c431b1ca1b7a93486dd3e0440d3ee82abe90ccd0/ConLeche/MainTheorem.lean#L90-L117), any remaining unsoundness bugs are most likely found in Lean’s compiler or runtime (including the bignum library used). Such a bug will very unlikely exist in the Rust compiler or runtime at the same time, so by checking a proof with both `con-leche` and `con-ron`, you gain a high level of protection against that class of bugs.
+The point of this exercise is that with `con-leche` having a [formal consistency proof](https://github.com/leanprover/con-leche/blob/78ded4b6fc9a4d9ab809e8ca2c75c56537c41bff/ConLeche/MainTheorem.lean#L90-L117), any remaining unsoundness bugs are most likely found in Lean’s compiler or runtime (including the bignum library used). Such a bug will very unlikely exist in the Rust compiler or runtime at the same time, so by checking a proof with both `con-leche` and `con-ron`, you gain a high level of protection against that class of bugs.
 
 ## Method
 

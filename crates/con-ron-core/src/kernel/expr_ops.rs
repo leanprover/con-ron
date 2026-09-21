@@ -151,6 +151,91 @@ pub fn memo_n_get(memo: &HashMap<Expr, u64>, k: &Expr) -> Option<u64> {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Memoise only what is shared (`ExprOpsC.lean`, "The memo"; `Exclusive.lean`)
+// ---------------------------------------------------------------------------
+//
+// The six functions below are the whole of con-leche's task #317/#319 memo
+// discipline as this port expresses it: a walk reads the exclusivity of the
+// BORROWED node it is about to rebuild (`ron::node::is_exclusive`) and hands
+// the answer to a probe and a record, which spend nothing at all on an
+// exclusive node — no key, no hash, no bucket, no stored `dup`.  A node with
+// one reference cannot be reached twice by the walk that is inside its only
+// parent, so an entry for it can never be read.
+//
+// **They exist so that the key is built on the shared path only.**  A
+// `KEY = expr_nat_key(e, d)` in front of the branch would be a second share
+// of `e` (`expr_nat_key` takes the node by a `dup`), and the exclusivity read
+// above it would then be answering about the key rather than about the term —
+// con-leche's borrowed-parameter requirement, in the one shape Rust can
+// violate it.  Hence `e` and the cursor, never a prebuilt key.
+//
+// **In the model `excl` is `false`** (`ron::node::is_exclusive` is modelled
+// `ok false`, OVERVIEW §8.1), so each of these is definitionally its
+// unguarded predecessor and the walks' refinement lemmas are the ones this
+// port already had.
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:231-248 MemoXP.shared
+/// The cursored node→node probe, `excl`-gated: an exclusive node is not
+/// looked up, so it pays neither the hash nor the bucket walk.  `memo1_get`'s
+/// contract otherwise (the answer is owned, so the map's borrow ends here).
+pub fn memo1_get_if(memo: &HashMap<ExprNatKey, Expr>, excl: bool, k: &ExprNatKey) -> Option<Expr> {
+    if excl {
+        None
+    } else {
+        memo1_get(memo, k)
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:223-229 MemoXP.insert
+/// The cursored node→node record, `excl`-gated: an exclusive node is not
+/// stored, so it pays neither the entry, nor the `dup` the entry would hold,
+/// nor the table's growth.  The key is **consumed either way** — that is the
+/// whole reason this is a function and not an `if` at each of the six call
+/// sites: the drop of an unused key belongs in one place, and the model of
+/// the `false` branch is then the bare insert the walks' proofs read.
+pub fn memo1_insert_if(memo: &mut HashMap<ExprNatKey, Expr>, excl: bool, k: ExprNatKey, r: &Expr) {
+    if !excl {
+        memo.insert(k, expr::dup(r));
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:256-258 MemoXP0.shared
+/// The cursor-free node→node probe, `excl`-gated (`instLevelParams`).
+pub fn memo_e_probe(memo: &HashMap<Expr, Expr>, excl: bool, e: &Expr) -> Option<Expr> {
+    if excl {
+        None
+    } else {
+        memo_e_get(memo, e)
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:223-229 MemoXP.insert
+/// The cursor-free node→node record, `excl`-gated.
+pub fn memo_e_record(memo: &mut HashMap<Expr, Expr>, excl: bool, e: &Expr, r: &Expr) {
+    if !excl {
+        memo.insert(expr::dup(e), expr::dup(r));
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:978-980 MemoB0.shared
+/// The cursor-free node→`Bool` probe, `excl`-gated (the `Bool` walks).
+pub fn memo_b_probe(memo: &HashMap<Expr, bool>, excl: bool, e: &Expr) -> Option<bool> {
+    if excl {
+        None
+    } else {
+        memo_b_get(memo, e)
+    }
+}
+
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:945-951 MemoB.insert
+/// The cursor-free node→`Bool` record, `excl`-gated.
+pub fn memo_b_record(memo: &mut HashMap<Expr, bool>, excl: bool, e: &Expr, r: bool) {
+    if !excl {
+        memo.insert(expr::dup(e), r);
+    }
+}
+
 /// con-leche: none — `List.take`/`List.append` over a `Vec<Expr>`
 /// The first `k` entries of `xs`, appended to `out`.  Lean's lists are
 /// shared, a `Vec` has to copy — task #9's deviation 5; the entries
@@ -557,7 +642,7 @@ pub fn reset_meta(e: &Expr) -> Expr {
 // `lowerBVars` (`ExprOps.lean:694-716`, memoized at `:2012-2151`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2012-2049 lowerBVarsGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2014-2051 lowerBVarsGo
 /// con-leche: ConLeche/Kernel/ExprOps.lean:694-716 lowerBVars
 /// The memoized walk behind `lowerBVars`: lower every loose bound variable
 /// `≥ cutoff + amount` by `amount`, leaving the window
@@ -627,9 +712,9 @@ pub fn lower_bvars_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2144-2146 lowerBVarsFast
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2146-2148 lowerBVarsFast
 /// con-leche: ConLeche/Kernel/ExprOps.lean:694-716 lowerBVars
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2148-2151 lowerBVars_eq_lowerBVarsFast
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2150-2153 lowerBVars_eq_lowerBVarsFast
 /// The executed `lowerBVars`.
 pub fn lower_bvars(amount: u64, c: u64, e: &Expr) -> Expr {
     let mut memo: HashMap<ExprNatKey, Expr> = HashMap::new();
@@ -640,7 +725,7 @@ pub fn lower_bvars(amount: u64, c: u64, e: &Expr) -> Expr {
 // `instantiate1Lift` (`ExprOps.lean:718-739`, memoized at `:2222-2363`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2222-2261 instantiate1LiftGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2224-2263 instantiate1LiftGo
 /// con-leche: ConLeche/Kernel/ExprOps.lean:718-739 instantiate1Lift
 /// The memoized walk behind `instantiate1Lift`: the general
 /// capture-avoiding substitution, which lifts `v`'s own loose `bvar`s past
@@ -711,9 +796,9 @@ pub fn instantiate1_lift_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2356-2358 instantiate1LiftFast
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2358-2360 instantiate1LiftFast
 /// con-leche: ConLeche/Kernel/ExprOps.lean:718-739 instantiate1Lift
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2360-2363 instantiate1Lift_eq_instantiate1LiftFast
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2362-2365 instantiate1Lift_eq_instantiate1LiftFast
 /// The executed `instantiate1Lift`.
 pub fn instantiate1_lift(e: &Expr, v: &Expr, d: u64) -> Expr {
     let mut memo: HashMap<ExprNatKey, Expr> = HashMap::new();
@@ -745,7 +830,7 @@ pub fn size_b(e: &Expr) -> u64 {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1789-1833 abstract1Go
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1791-1835 abstract1Go
 /// con-leche: ConLeche/Kernel/ExprOps.lean:760-776 abstract1
 /// The memoized walk behind `abstract1`: close a binder body by replacing
 /// the `fvar d` leaves with `bvar k`, bumping `k` under binders.  The
@@ -811,9 +896,9 @@ pub fn abstract1_go(d: u64, memo: &mut HashMap<ExprNatKey, Expr>, e: &Expr, k: u
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1927-1929 abstract1Fast
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1929-1931 abstract1Fast
 /// con-leche: ConLeche/Kernel/ExprOps.lean:760-776 abstract1
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1931-1934 abstract1_eq_abstract1Fast
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1933-1936 abstract1_eq_abstract1Fast
 /// The executed `abstract1`: the inverse of `instantiate1` at a fresh
 /// variable.
 pub fn abstract1(e: &Expr, d: u64, k: u64) -> Expr {
@@ -980,9 +1065,9 @@ pub fn wscoped_b(d: u64, e: &Expr) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1716-1717 looseBVarsBoundedFast
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1718-1719 looseBVarsBoundedFast
 /// con-leche: ConLeche/Kernel/ExprOps.lean:863-877 looseBVarsBounded
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1719-1729 looseBVarsBounded_eq_looseBVarsBoundedFast
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1721-1731 looseBVarsBounded_eq_looseBVarsBoundedFast
 /// Are all bound-variable references bound within the expression (below `k`
 /// at the root)?  The executed member is not a walk at all: it is the `O(1)`
 /// `bvarB` read, and the cited `@[csimp]` lemma — proved from `bvarB_eq` and
@@ -1018,9 +1103,9 @@ pub fn forall_pw(e: &Expr) -> Option<PropWhen> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1707-1708 hasFvarFast
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1709-1710 hasFvarFast
 /// con-leche: ConLeche/Kernel/ExprOps.lean:904-913 hasFvar
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1710-1714 hasFvar_eq_hasFvarFast
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1712-1716 hasFvar_eq_hasFvarFast
 /// Does the expression contain a free variable?  As with
 /// `looseBVarsBounded`, the executed member is the `O(1)` field read and the
 /// cited `@[csimp]` lemma (via `fvarB_eq` and `fvarRange_bne_zero`) is what
@@ -1094,7 +1179,7 @@ pub trait NameToName {
     fn rename(&self, n: &Name) -> Name;
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:999-1036 renameConstsGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1001-1038 renameConstsGo
 /// con-leche: ConLeche/Kernel/ExprOps.lean:930-956 renameConsts
 /// The memoized walk behind `renameConsts`: rename constants throughout,
 /// including inside `fvar` type annotations.  A `.proj` node's structure
@@ -1151,9 +1236,9 @@ where
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1109-1111 renameConstsFast
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1111-1113 renameConstsFast
 /// con-leche: ConLeche/Kernel/ExprOps.lean:930-956 renameConsts
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1113-1116 renameConsts_eq_renameConstsFast
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1115-1118 renameConsts_eq_renameConstsFast
 /// The executed `renameConsts`.
 pub fn rename_consts<F>(f: &F, e: &Expr) -> Expr
 where
@@ -1167,14 +1252,14 @@ where
 // Telescopes (`ExprOps.lean:1118-1278`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1118-1124 stripLams
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1120-1126 stripLams
 /// Strip `k` leading lambdas: the binder list (outermost first) and the
 /// body.  The `out = []` wrapper of the accumulator recursion below.
 pub fn strip_lams(k: u64, e: &Expr) -> Option<(Vec<(Expr, BinderMeta)>, Expr)> {
     strip_lams_go(k, e, Vec::new())
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1118-1124 stripLams
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1120-1126 stripLams
 /// The accumulator recursion behind `strip_lams`.  Deviation: Lean conses
 /// the binder on the way *out* of the recursion; a `Vec` has no cons, so the
 /// port pushes on the way *in*, which produces the same outermost-first list
@@ -1197,13 +1282,13 @@ pub fn strip_lams_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1126-1132 stripPis
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1128-1134 stripPis
 /// Strip `k` leading `∀`s.  The `out = []` wrapper of the recursion below.
 pub fn strip_pis(k: u64, e: &Expr) -> Option<(Vec<(Expr, BinderMeta)>, Expr)> {
     strip_pis_go(k, e, Vec::new())
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1126-1132 stripPis
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1128-1134 stripPis
 /// The accumulator recursion behind `strip_pis` (see `strip_lams_go`).
 pub fn strip_pis_go(
     k: u64,
@@ -1247,7 +1332,7 @@ pub fn dom_at_n_from(doms: &Vec<(Expr, BinderMeta)>, i: u64, j: usize) -> Option
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1134-1138 piResult
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1136-1140 piResult
 /// The body of a syntactic `∀`-telescope.
 pub fn pi_result(e: &Expr) -> Expr {
     match expr::view(&e) {
@@ -1256,14 +1341,14 @@ pub fn pi_result(e: &Expr) -> Expr {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1140-1144 instPis
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1142-1146 instPis
 /// Instantiate a `∀`-telescope with arguments, in order.  The `i = 0`
 /// wrapper of the index recursion below.
 pub fn inst_pis(e: &Expr, args: &Vec<Expr>) -> Option<Expr> {
     inst_pis_from(e, args, 0)
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1140-1144 instPis
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1142-1146 instPis
 /// The index recursion behind `inst_pis`.
 pub fn inst_pis_from(e: &Expr, args: &Vec<Expr>, i: usize) -> Option<Expr> {
     if i >= args.len() {
@@ -1279,14 +1364,14 @@ pub fn inst_pis_from(e: &Expr, args: &Vec<Expr>, i: usize) -> Option<Expr> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1146-1154 instPisAt
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1148-1156 instPisAt
 /// Instantiate the leading `∀`-binders at the given arguments, returning
 /// each binder's progressively instantiated domain with the residual.
 pub fn inst_pis_at(args: &Vec<Expr>, e: &Expr) -> Option<(Vec<Expr>, Expr)> {
     inst_pis_at_from(args, 0, e, Vec::new())
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1146-1154 instPisAt
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1148-1156 instPisAt
 /// The index recursion behind `inst_pis_at`; the domain list is accumulated
 /// on the way in, as in `strip_pis_go`.
 pub fn inst_pis_at_from(
@@ -1309,13 +1394,13 @@ pub fn inst_pis_at_from(
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1156-1162 instLamsAt
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1158-1164 instLamsAt
 /// `instPisAt` for `λ`-binders.
 pub fn inst_lams_at(args: &Vec<Expr>, e: &Expr) -> Option<(Vec<Expr>, Expr)> {
     inst_lams_at_from(args, 0, e, Vec::new())
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1156-1162 instLamsAt
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1158-1164 instLamsAt
 /// The index recursion behind `inst_lams_at`.
 pub fn inst_lams_at_from(
     args: &Vec<Expr>,
@@ -1337,7 +1422,7 @@ pub fn inst_lams_at_from(
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1179-1188 instPisAtFGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1181-1190 instPisAtFGo
 /// Core of `instPisAtF`: `acc` holds the pending substitutions, innermost
 /// binder first, and each domain receives them in one `instantiateList` pass
 /// instead of one `instantiate1` pass per argument.
@@ -1362,7 +1447,7 @@ pub fn inst_pis_at_f_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1190-1194 instPisAtF
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1192-1196 instPisAtF
 /// One-pass `instPisAt`, with the cited fall-back to the sequential
 /// definition when the raw telescope is shorter than the argument list.
 pub fn inst_pis_at_f(args: &Vec<Expr>, e: &Expr) -> Option<(Vec<Expr>, Expr)> {
@@ -1373,7 +1458,7 @@ pub fn inst_pis_at_f(args: &Vec<Expr>, e: &Expr) -> Option<(Vec<Expr>, Expr)> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1196-1202 instLamsAtFGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1198-1204 instLamsAtFGo
 /// Core of `instLamsAtF` (the `λ` counterpart of `inst_pis_at_f_go`).
 pub fn inst_lams_at_f_go(
     acc: &Vec<Expr>,
@@ -1396,7 +1481,7 @@ pub fn inst_lams_at_f_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1204-1208 instLamsAtF
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1206-1210 instLamsAtF
 /// One-pass `instLamsAt`.
 pub fn inst_lams_at_f(args: &Vec<Expr>, e: &Expr) -> Option<(Vec<Expr>, Expr)> {
     let acc: Vec<Expr> = Vec::new();
@@ -1406,7 +1491,7 @@ pub fn inst_lams_at_f(args: &Vec<Expr>, e: &Expr) -> Option<(Vec<Expr>, Expr)> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1210-1215 fvarTypeD
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1212-1217 fvarTypeD
 /// The type annotation of a free-variable leaf (the expression itself
 /// otherwise).
 pub fn fvar_type_d(e: &Expr) -> Expr {
@@ -1416,14 +1501,14 @@ pub fn fvar_type_d(e: &Expr) -> Expr {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1217-1225 instSpine
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1219-1227 instSpine
 /// Instantiate a telescope-context expression at an argument spine.  The
 /// `i = 0` wrapper of the index recursion below.
 pub fn inst_spine(args: &Vec<Expr>, t: u64, e: &Expr) -> Expr {
     inst_spine_from(args, 0, t, e)
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1217-1225 instSpine
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1219-1227 instSpine
 /// The index recursion behind `inst_spine`; the cursor's `t - 1` is Lean's
 /// truncated `Nat` subtraction, hence `sub_nat`.
 pub fn inst_spine_from(args: &Vec<Expr>, i: usize, t: u64, e: &Expr) -> Expr {
@@ -1435,7 +1520,7 @@ pub fn inst_spine_from(args: &Vec<Expr>, i: usize, t: u64, e: &Expr) -> Expr {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1227-1242 recRulePlain
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1229-1244 recRulePlain
 /// Is a recursor rule *canonical* — are the constructor's parameters exactly
 /// the recursor's own leading arguments?  Deviations: the cited
 /// `decide (cnP ≤ rP) && decide (rP ≤ mI) && …` becomes an `if` nest
@@ -1464,7 +1549,7 @@ pub fn rec_rule_plain(rec_ty: &Expr, m_i: u64, r_p: u64, cn_p: u64) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1227-1242 recRulePlain
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1229-1244 recRulePlain
 /// The index recursion behind `rec_rule_plain`'s list comparison.
 pub fn rec_rule_args_eq(args: &Vec<Expr>, m_i: u64, cn_p: u64, k: u64) -> bool {
     if k >= cn_p {
@@ -1481,7 +1566,7 @@ pub fn rec_rule_args_eq(args: &Vec<Expr>, m_i: u64, cn_p: u64, k: u64) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1244-1259 pisToLams
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1246-1261 pisToLams
 /// Convert the first `k` `∀`-binders into `λ`-binders over a body, at the
 /// parse placeholder `.never` (the cited comment: a ∀'s `pw` claims the
 /// codomain's prop-ness, which is not the λ's claim, so every consumer must
@@ -1504,7 +1589,7 @@ pub fn pis_to_lams(k: u64, e: &Expr, body: &Expr) -> Option<Expr> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1261-1267 replacePiBody
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1263-1269 replacePiBody
 /// Replace the body under the first `k` `∀`-binders, domains and binder data
 /// kept.
 pub fn replace_pi_body(k: u64, e: &Expr, b: &Expr) -> Option<Expr> {
@@ -1521,7 +1606,7 @@ pub fn replace_pi_body(k: u64, e: &Expr, b: &Expr) -> Option<Expr> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1269-1272 piArity
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1271-1274 piArity
 /// The length of the leading `∀`-telescope.
 pub fn pi_arity(e: &Expr) -> u64 {
     match expr::view(&e) {
@@ -1530,7 +1615,7 @@ pub fn pi_arity(e: &Expr) -> u64 {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1274-1278 resultSort
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1276-1280 resultSort
 /// The result sort at the end of a `∀`-telescope.
 pub fn result_sort(e: &Expr) -> Option<Level> {
     match expr::view(&e) {
@@ -1545,7 +1630,7 @@ pub fn result_sort(e: &Expr) -> Option<Level> {
 // (`ExprOps.lean:1293-1439`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1293-1303 Expr.bvarBound
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1295-1305 Expr.bvarBound
 /// The least `k` with `looseBVarsBounded k` — the specification of the
 /// packed word's `bvarB` field.  Unmemoized, as in the cited code; nothing
 /// in the port calls it (the checker reads `bvar_b`, whose saturated branch
@@ -1572,7 +1657,7 @@ pub fn bvar_bound(e: &Expr) -> u64 {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1312-1323 Expr.fvarRange
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1314-1325 Expr.fvarRange
 /// The least `d` with `fvarsBelow d` — the specification of the packed
 /// word's `fvarB` field.  `fvar` type annotations are not descended into,
 /// matching the abstraction traversals.  Unmemoized and uncalled, as
@@ -1595,7 +1680,7 @@ pub fn fvar_range(e: &Expr) -> u64 {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1368-1392 bvarBoundGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1370-1394 bvarBoundGo
 /// Memoized `bvarBound`: the saturated branch's exact recomputation.  The
 /// memo keeps the fallback linear in the DAG rather than in the unfolded
 /// tree — con-leche's standing "no unmemoized traversals in executable
@@ -1639,15 +1724,15 @@ pub fn bvar_bound_go(memo: &mut HashMap<Expr, u64>, e: &Expr) -> u64 {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1394-1395 bvarBoundMemo
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1569-1572 bvarBoundMemo_eq
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1396-1397 bvarBoundMemo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1571-1574 bvarBoundMemo_eq
 /// One memoized `bvarBound` walk, the memo dropped on return.
 pub fn bvar_bound_memo(e: &Expr) -> u64 {
     let mut memo: HashMap<Expr, u64> = HashMap::new();
     bvar_bound_go(&mut memo, e)
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1397-1422 fvarRangeGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1399-1424 fvarRangeGo
 /// Memoized `fvarRange`, the `fvar` twin of `bvar_bound_go`.
 pub fn fvar_range_go(memo: &mut HashMap<Expr, u64>, e: &Expr) -> u64 {
     match memo_n_get(memo, e) {
@@ -1688,16 +1773,16 @@ pub fn fvar_range_go(memo: &mut HashMap<Expr, u64>, e: &Expr) -> u64 {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1424-1425 fvarRangeMemo
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1690-1693 fvarRangeMemo_eq
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1426-1427 fvarRangeMemo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1692-1695 fvarRangeMemo_eq
 /// One memoized `fvarRange` walk.
 pub fn fvar_range_memo(e: &Expr) -> u64 {
     let mut memo: HashMap<Expr, u64> = HashMap::new();
     fvar_range_go(&mut memo, e)
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1427-1432 bvarB
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1574-1584 bvarB_eq
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1429-1434 bvarB
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1576-1586 bvarB_eq
 /// **The loose-bvar bound the checker reads**: the packed 15-bit field, or —
 /// on the saturated branch alone — the exact memoized recomputation.  The
 /// cited `bvarB_eq` is what keeps it equal to `Expr.bvarBound`
@@ -1711,8 +1796,8 @@ pub fn bvar_b(e: &Expr) -> u64 {
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1434-1439 fvarB
-/// con-leche: ConLeche/Kernel/ExprOps.lean:1695-1705 fvarB_eq
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1436-1441 fvarB
+/// con-leche: ConLeche/Kernel/ExprOps.lean:1697-1707 fvarB_eq
 /// **The fvar range the checker reads**, the `fvar` twin of `bvar_b`.
 pub fn fvar_b(e: &Expr) -> u64 {
     let r: u64 = expr::fvar_b_raw(e);
@@ -1728,7 +1813,7 @@ pub fn fvar_b(e: &Expr) -> u64 {
 // (`ExprOps.lean:2365-2388`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2365-2378 instPisAtLift
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2367-2380 instPisAtLift
 /// con-leche: ConLeche/Cached/CheckerC.lean:31-35 instPisAtLiftC
 /// Instantiate the leading `∀`-binders at *open* arguments, by the general
 /// capture-avoiding substitution.  The `i = 0` wrapper of the recursion
@@ -1743,7 +1828,7 @@ pub fn inst_pis_at_lift(args: &Vec<Expr>, e: &Expr) -> Option<Expr> {
     inst_pis_at_lift_from(args, 0, e)
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2365-2378 instPisAtLift
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2367-2380 instPisAtLift
 /// con-leche: ConLeche/Cached/CheckerC.lean:31-35 instPisAtLiftC
 /// The index recursion behind `inst_pis_at_lift`.
 pub fn inst_pis_at_lift_from(args: &Vec<Expr>, i: usize, e: &Expr) -> Option<Expr> {
@@ -1760,7 +1845,7 @@ pub fn inst_pis_at_lift_from(args: &Vec<Expr>, i: usize, e: &Expr) -> Option<Exp
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2382-2388 exprPtrBEq
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2384-2390 exprPtrBEq
 /// Structural expression equality with a physical-equality shortcut.
 /// Deviation (DESIGN.md §3.2): the cited `withPtrEq`'s pointer test is
 /// modeled as `false`, so the model always takes the `beq` branch; the
@@ -1781,8 +1866,8 @@ pub fn expr_ptr_beq(a: &Expr, b: &Expr) -> bool {
 // (`ExprOps.lean:2399-2724`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2420-2435 Expr.hasLevelParam
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2537-2542 Expr.hasLP_eq
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2422-2437 Expr.hasLevelParam
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2539-2544 Expr.hasLP_eq
 /// Whether an expression mentions any level parameter — the specification of
 /// the packed word's `hasLP` bit, binder prop-ness data included.  The
 /// *executed* reading is `expr::has_lp`, the `O(1)` field read, and the
@@ -1835,7 +1920,7 @@ pub fn levels_subst(ks: &Vec<Name>, us: &Vec<Level>, vs: &Vec<Level>) -> Vec<Lev
     levels_subst_from(ks, us, vs, 0, Vec::new())
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2564-2603 Expr.instLPGo
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo
 /// con-leche: ConLeche/Kernel/Level.lean:232-249 Expr.instantiateLevelParams
 /// The memoized walk behind `instantiateLevelParams`: substitute level
 /// parameters throughout, binder prop-ness data included.  The `!hasLP`
@@ -1906,8 +1991,8 @@ pub fn instantiate_level_params_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2718-2720 Expr.instLPFast
-/// con-leche: ConLeche/Kernel/ExprOps.lean:2722-2725 Expr.instantiateLevelParams_eq_instLPFast
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2720-2722 Expr.instLPFast
+/// con-leche: ConLeche/Kernel/ExprOps.lean:2724-2727 Expr.instantiateLevelParams_eq_instLPFast
 /// con-leche: ConLeche/Kernel/Level.lean:232-249 Expr.instantiateLevelParams
 /// The executed `instantiateLevelParams`.
 pub fn instantiate_level_params(ks: &Vec<Name>, us: &Vec<Level>, e: &Expr) -> Expr {

@@ -77,7 +77,7 @@ and the install routes — is task #57's (`Refine/Ind*.lean`), as are the
 `ctorResidualOkF` (`:419`) stand on `ConLeche/Kernel/Inductives/*` and are task
 #57's (`inductives::modeled`).  `CRFMemoInv` (`:71`) and its two lemmas are
 `Prop`s — Charon erases them; the port's restatement of the memo invariant is
-`Refine/StateCResolve.lean`'s `StateC.MemoBOk`, which this file reuses.
+`Refine/StateCResolve.lean`'s `MemoBOk`, which this file reuses.
 
 ## The knot, and the two hypotheses that travel
 
@@ -348,12 +348,48 @@ theorem consts_resolve_f_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     simp only [absExpr, absExprNode, absExprKind, ConLeche.Expr.constsResolveF]
     exact and_step (by rw [find_isSome hfe hs ho]) h (fun c' h' => ih c' h')
 
+/-! ## The call-local memo
+
+`Expr.constsResolveFGo` threads a `Std.HashMap Expr Bool`, and `MemoBOk` is
+the relation between it and the port's `ron::HashMap`: `Refine/State.lean`'s
+three table facts (`Inv`, `KeysOk`, `RelOn`) at the `Expr`-keyed dictionary
+with `Bool` values.
+
+It lived in `Refine/StateCResolve.lean` until task #98.  con-leche's own task
+#319 replaced the *cached* guard walk (`Cached.constsResolveFCGo`) with a
+proof-carrying one that threads no reference table at all, so that file's
+`MemoBOk` became a memo *invariant* over one table; this walk is the last one
+with two, and the relation is this file's now. -/
+
+/-- `ConLeche/Kernel/DeclCheck.lean:89` — a well-formed `ron::HashMap` holding
+only well-formed keys, whose lookups agree with con-leche's under `absExpr`. -/
+structure MemoBOk (memo : ron.hashmap.HashMap expr.Expr Bool)
+    (lmemo : _root_.Std.HashMap ConLeche.Expr Bool) : Prop where
+  inv : HashMap.Inv hExpr memo
+  keys : HashMap.KeysOk ExprWF memo
+  rel : HashMap.RelOn ExprWF memo lmemo absExpr id
+
+/-- A fresh memo relates to con-leche's `{}`. -/
+theorem memo_b_new {memo : ron.hashmap.HashMap expr.Expr Bool}
+    (h : ron.hashmap.HashMap.new expr.Expr Bool = ok memo) :
+    MemoBOk memo (∅ : _root_.Std.HashMap ConLeche.Expr Bool) :=
+  ⟨new_inv h, new_keys h, new_rel h⟩
+
+/-- `ConLeche/Kernel/DeclCheck.lean:124` — the walk's `memo.insert e r`. -/
+theorem memo_b_insert {memo memo' : ron.hashmap.HashMap expr.Expr Bool}
+    {lmemo : _root_.Std.HashMap ConLeche.Expr Bool} {e : expr.Expr} {b : Bool}
+    {old : Option Bool} (hm : MemoBOk memo lmemo) (he : ExprWF e)
+    (h : ron.hashmap.HashMap.insert hExpr eExpr memo e b = ok (old, memo')) :
+    MemoBOk memo' (lmemo.insert (absExpr e) b) := by
+  obtain ⟨h1, h2, -, h4⟩ := insert_step (Q := fun _ => True) exprKey hm.inv
+    hm.keys (fun _ _ => trivial) hm.rel he trivial h
+  exact ⟨h1, h2, h4⟩
+
 /-- `ConLeche/Kernel/DeclCheck.lean:99` — `expr_ops::memo_b_get` is the cited
-`memo[e]?` (the same owning probe as `cached::state_c::memo_b_get`, whose
-relation `StateC.MemoBOk` this file reuses). -/
+`memo[e]?`. -/
 theorem memo_b_get_refines {memo : ron.hashmap.HashMap expr.Expr Bool}
     {lmemo : _root_.Std.HashMap ConLeche.Expr Bool} {e : expr.Expr}
-    {o : Option Bool} (hm : StateC.MemoBOk memo lmemo) (he : ExprWF e)
+    {o : Option Bool} (hm : MemoBOk memo lmemo) (he : ExprWF e)
     (h : expr_ops.memo_b_get memo e = ok o) : o = lmemo[absExpr e]? := by
   rw [expr_ops.memo_b_get] at h
   obtain ⟨o', hget, h⟩ := bind_eq_ok_iff.mp h
@@ -378,10 +414,10 @@ theorem consts_resolve_f_go_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
     {e : expr.Expr} (he : ExprWF e) :
     ∀ (memo memo' : ron.hashmap.HashMap expr.Expr Bool)
       (lmemo : _root_.Std.HashMap ConLeche.Expr Bool) (b : Bool),
-      StateC.MemoBOk memo lmemo →
+      MemoBOk memo lmemo →
       decl_check.consts_resolve_f_go fe memo e = ok (b, memo') →
       ∃ lmemo', ConLeche.Expr.constsResolveFGo lfe lmemo (absExpr e)
-          = (b, lmemo') ∧ StateC.MemoBOk memo' lmemo' := by
+          = (b, lmemo') ∧ MemoBOk memo' lmemo' := by
   induction he with
   | @bvar i e h1 =>
     have hwfe : ExprWF e := ExprWF.bvar h1
@@ -466,7 +502,7 @@ theorem consts_resolve_f_go_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
       refine ⟨lm1.insert (ConLeche.Expr.fvar idx (absExpr ty)) r1, ?_,
         ?_⟩
       · simp only [hl1]
-      · have := StateC.memo_b_insert hm1 hwfe hins
+      · have := memo_b_insert hm1 hwfe hins
         simpa only [absExpr_mk, absExprKind] using this
   | @app f a e hf ha h1 ihf iha =>
     have hwfe : ExprWF e := ExprWF.app hf ha h1
@@ -502,7 +538,7 @@ theorem consts_resolve_f_go_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
       refine ⟨lm2.insert (ConLeche.Expr.app (absExpr f) (absExpr a)) (b1 && b2),
         ?_, ?_⟩
       · simp only [hl1, hl2]
-      · have := StateC.memo_b_insert hm2 hwfe hins
+      · have := memo_b_insert hm2 hwfe hins
         simpa only [absExpr_mk, absExprKind] using this
   | @lam ty bo m e hty hbo hm0 h1 ihty ihbo =>
     have hwfe : ExprWF e := ExprWF.lam hty hbo hm0 h1
@@ -539,7 +575,7 @@ theorem consts_resolve_f_go_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
         (ConLeche.Expr.lam (absExpr ty) (absExpr bo) (absBinderMeta m)) (b1 && b2),
         ?_, ?_⟩
       · simp only [hl1, hl2]
-      · have := StateC.memo_b_insert hm2 hwfe hins
+      · have := memo_b_insert hm2 hwfe hins
         simpa only [absExpr_mk, absExprKind] using this
   | @forall_e ty bo m e hty hbo hm0 h1 ihty ihbo =>
     have hwfe : ExprWF e := ExprWF.forall_e hty hbo hm0 h1
@@ -576,7 +612,7 @@ theorem consts_resolve_f_go_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
         (ConLeche.Expr.forallE (absExpr ty) (absExpr bo) (absBinderMeta m))
         (b1 && b2), ?_, ?_⟩
       · simp only [hl1, hl2]
-      · have := StateC.memo_b_insert hm2 hwfe hins
+      · have := memo_b_insert hm2 hwfe hins
         simpa only [absExpr_mk, absExprKind] using this
   | @let_e ty v bo e hty hv hbo h1 ihty ihv ihbo =>
     have hwfe : ExprWF e := ExprWF.let_e hty hv hbo h1
@@ -616,7 +652,7 @@ theorem consts_resolve_f_go_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
         (ConLeche.Expr.letE (absExpr ty) (absExpr v) (absExpr bo))
         (b1 && b2 && b3), ?_, ?_⟩
       · simp only [hl1, hl2, hl3]
-      · have := StateC.memo_b_insert hm3 hwfe hins
+      · have := memo_b_insert hm3 hwfe hins
         simpa only [absExpr_mk, absExprKind] using this
   | @proj sn i x e hs hx h1 ih =>
     have hwfe : ExprWF e := ExprWF.proj hs hx h1
@@ -654,7 +690,7 @@ theorem consts_resolve_f_go_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
         ((lfe.find? (absName sn)).isSome && b1), ?_, ?_⟩
       · simp only [hl1, hofv]
       · rw [← hofv]
-        have := StateC.memo_b_insert hm1 hwfe hins
+        have := memo_b_insert hm1 hwfe hins
         simpa only [absExpr_mk, absExprKind] using this
 
 /-- `ConLeche/Kernel/DeclCheck.lean:197-199 Expr.constsResolveFFast`
@@ -674,7 +710,7 @@ theorem consts_resolve_f_fast_refines {fe : fenv.FEnv} {lfe : ConLeche.FEnv}
   have hb : b0 = b := by simpa using h
   subst hb
   obtain ⟨lmemo', hl, -⟩ :=
-    consts_resolve_f_go_refines hp hfe he memo memo' ∅ b0 (StateC.memo_b_new hnew) hgo
+    consts_resolve_f_go_refines hp hfe he memo memo' ∅ b0 (memo_b_new hnew) hgo
   have hspec := (ConLeche.Expr.constsResolveFGo_spec (fe := lfe) (absExpr e) ∅
     ConLeche.CRFMemoInv.empty).1
   rw [hl] at hspec

@@ -70,7 +70,7 @@ axiom ron.node.dup : kernel.expr.Expr → Result kernel.expr.Expr
 axiom ron.node.view : kernel.expr.Expr → Result ron.node.ExprView
 
 /-- [con_ron_core::ron::node::{impl core::ops::drop::Drop for con_ron_core::kernel::expr::Expr}::drop]:
-    Source: 'crates/con-ron-core/src/ron/node.rs', lines 420:4-422:5
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 448:4-450:5
     Visibility: public -/
 axiom kernel.expr.Expr.Insts.CoreOpsDropDrop.drop
   : kernel.expr.Expr → Result kernel.expr.Expr
@@ -79,6 +79,11 @@ axiom kernel.expr.Expr.Insts.CoreOpsDropDrop.drop
     Source: 'crates/con-ron-core/src/ron/node.rs', lines 409:0-411:1
     Visibility: public -/
 axiom ron.node.ptr_eq : kernel.expr.Expr → kernel.expr.Expr → Result Bool
+
+/-- [con_ron_core::ron::node::is_exclusive]:
+    Source: 'crates/con-ron-core/src/ron/node.rs', lines 437:0-439:1
+    Visibility: public -/
+axiom ron.node.is_exclusive : kernel.expr.Expr → Result Bool
 
 /-- [con_ron_core::ron::node::data]:
     Source: 'crates/con-ron-core/src/ron/node.rs', lines 394:0-396:1

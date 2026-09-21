@@ -435,6 +435,27 @@ impl<M: Model> Raw<M> {
         a.p.addr() == b.p.addr()
     }
 
+    /// con-leche: ConLeche/Kernel/Exclusive.lean:98-110 withExclusive
+    /// Is this the only share of the block — count exactly one, so that no
+    /// other handle to it exists?  `lean_is_exclusive_obj`'s test, which is
+    /// what the cited `withExclusive` substitutes into its continuation; the
+    /// count is `Arc`'s and this is the one operation on it besides the
+    /// increment and the decrement.
+    ///
+    /// **A read of the count, never a write through it.**  §3.4's lint bans
+    /// `Arc::get_mut`, `Arc::make_mut` and `Arc::strong_count` because
+    /// mutation *through* a share is what the model — in which a pointer is
+    /// its contents — cannot see.  This is the other thing: the answer never
+    /// reaches a value, only the choice of *how* to compute one (whether to
+    /// spend a memo entry on a node that cannot be reached twice), and the
+    /// model's `false` is the branch that always memoises.  `Relaxed` is
+    /// enough for the same reason: a stale answer costs a rebuild, never a
+    /// verdict, so no other memory need be ordered against this load.
+    #[inline]
+    pub(crate) fn is_exclusive(&self) -> bool {
+        self.header().count.load(Ordering::Relaxed) == 1
+    }
+
     /// con-leche: none — the handle as an integer, for an address-keyed table
     /// Outside the verified core's reach: nothing in `kernel/` or `cached/`
     /// calls it, and the model has no address at all.  `con-ron`'s frontend

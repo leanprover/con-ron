@@ -80,10 +80,10 @@ ConLeche/Cached/Installed.lean checkRecordResult `checkRecord` tagged as a worke
 # ---------------------------------------------------------------------------
 
 ConLeche/Kernel/Expr.lean EqPair.dflt The default a probe reads on a miss; the port's `probe_hit` reads an `Option` from `ron::HashMap`, so it needs no default.
-ConLeche/Kernel/Expr.lean beqBudget The node budget before the memo table is materialised; the port's `beq` runs the identity and computed-word guards BEFORE it allocates, so the budget has nothing left to buy (task #30 measured it).
-ConLeche/Kernel/Expr.lean BeqRes The raw result of one node's comparison, carrying a `Decidable (a = b)`; the port returns a `bool` and its decision is proved, not carried.
-ConLeche/Kernel/Expr.lean BeqOut `Squash (BeqRes …)` — the subsingleton wrapper that makes `withPtrAddr`'s side condition discharge; a `bool` here.
-ConLeche/Kernel/Expr.lean BeqOut.mk The constructor of that wrapper.
+ConLeche/Kernel/Expr.lean BeqResX The raw result of one node's comparison, carrying a `Decidable (a = b)`; the port returns a `bool` and its decision is proved, not carried.  (`beqBudget`, `BeqRes` and `BeqOut` were the pre-#319 spelling and are gone upstream: the budget went with the walks' at con-leche's task #317/#319 ruling, and this port never had it — `beq` runs the identity and computed-word guards BEFORE it allocates, so there was nothing left for a budget to buy, task #30.)
+ConLeche/Kernel/Expr.lean BeqOutX `Squash (BeqResX …)` — the subsingleton wrapper that makes `withPtrAddr`'s side condition discharge; a `bool` here.
+ConLeche/Kernel/Expr.lean BeqOutX.mk The constructor of that wrapper.
+ConLeche/Kernel/Expr.lean BeqMap.record The write-back into an `Option BeqMap` absent until the first recorded pair; the port's table is allocated by `beq` itself behind its two guards, so `beq_record` writes into a table that always exists.
 ConLeche/Kernel/Expr.lean withAddr `withPtrAddr` into a subsingleton — an address primitive Aeneas cannot model; `expr::ptr_eq` (§3.2's `Rc` axiom) is what the port has instead.
 ConLeche/Kernel/Expr.lean ptrDec Identity decided by the pointer test; `expr::ptr_eq` is both this and `withAddr`.
 
@@ -156,3 +156,63 @@ ConLeche/Frontend/Scan/Naive.lean indFields A field table, as `strNameFields`.
 # (task #84).
 ConLeche/Frontend/Prepare.lean pickSpec The `List` specification of `pick`, which con-leche proves `pick` equal to; no caller on the run path, and its `d :: ds'` is `Vec::insert` (task #50). `prepare.rs`'s test module carries it as an executable check of `pick_idx`.
 ConLeche/Frontend/Prepare.lean frontSpec The `List` specification of `frontOf`, as `pickSpec`.
+
+# ---------------------------------------------------------------------------
+# The walks' plain descents, child steps and proof carriers (task #98,
+# con-leche's #317/#319: ONE memo discipline for every traversal memo)
+# ---------------------------------------------------------------------------
+#
+# Upstream now writes each walk three times: `<name>P`, the memo-free plain
+# descent, which is the SPECIFICATION the memoised walk carries its proof
+# against; `enter<X>P`, the child step (cutoff, compound test, exclusivity
+# read); and `<name>XP`, the walk.  The port has ONE function per walk, which
+# is what it cites: the child step's two tests are made in the walk's own
+# match and by `ron::node::is_exclusive`, and the plain descent has no
+# counterpart here at all, because the port's specification is
+# `ConLeche.Expr`'s own function and `Verify/Cached/OpsC.lean` is the bridge
+# (`Refine/ExprOpsC*.lean`'s module note).  The `Squash`/`PEnt`/`BEnt`
+# machinery is Lean's proof plumbing: an entry that carries its own equation,
+# a quotient that makes the memo unobservable, and the address key
+# `withPtrAddr` gives it — where the port's entry is a value, its result is a
+# `bool` or an `Expr`, and its key is the structural one this port has always
+# used (`cached/expr_ops_c.rs`'s `MemoN` note).
+
+ConLeche/Cached/ExprOpsC.lean isCompound The substitution walks' child-step test; the port's walks make it in their own match, which answers the five atom kinds on the spot (`cached/expr_ops_c.rs`, module note 2).
+ConLeche/Cached/ExprOpsC.lean resTerm Reads the rebuilt term out of a walk's `Squash`; the port's walks return the term.
+ConLeche/Cached/ExprOpsC.lean resBool The `Bool` twin of `resTerm`.
+ConLeche/Cached/ExprOpsC.lean pkey The packed ADDRESS-and-cursor memo key; the port keys structurally (`expr_ops::ExprNatKey`), which is the key con-leche itself used before its task #316 and the only one the model can see.
+ConLeche/Cached/ExprOpsC.lean PKey That key under a mixing hash instance.
+ConLeche/Cached/ExprOpsC.lean PEnt A self-proving memo entry: the node, its rebuild, the cursor and the equation between them; the port's entry is the rebuilt term, and the equation is the `_refines` lemma.
+ConLeche/Cached/ExprOpsC.lean PEnt.hit Validates such an entry by cursor and pointer identity; the port's `memo1_get` returns the stored value and `MemoInv` is what makes it right.
+ConLeche/Cached/ExprOpsC.lean HTab The `Std.HashMap PKey (PEnt s)` behind `MemoXP`; the port's is `ron::HashMap` at the structural key.
+ConLeche/Cached/ExprOpsC.lean ResXP A walk's result: the term fixed by its proof, beside the memo; the port returns `(Expr, MemoN)`.
+ConLeche/Cached/ExprOpsC.lean ResXP0 The cursor-free instance of it.
+ConLeche/Cached/ExprOpsC.lean BEnt The `Bool` walks' self-proving entry; as `PEnt`.
+ConLeche/Cached/ExprOpsC.lean BEnt.hit Validates one; as `PEnt.hit`.
+ConLeche/Cached/ExprOpsC.lean BTab The `Bool` walks' table; as `HTab`.
+ConLeche/Cached/ExprOpsC.lean ResB A `Bool` walk's result; as `ResXP`.
+ConLeche/Cached/ExprOpsC.lean ResB0 The cursor-free instance of it.
+ConLeche/Cached/ExprOpsC.lean instantiate1P The plain descent `instantiate1XP` carries its proof against; the port's specification is `ConLeche.Expr.instantiate1` itself.
+ConLeche/Cached/ExprOpsC.lean instantiate1LiftP As `instantiate1P`, for the capture-avoiding substitution.
+ConLeche/Cached/ExprOpsC.lean instantiateListP As `instantiate1P`, for the bulk substitution.
+ConLeche/Cached/ExprOpsC.lean instantiateRevP As `instantiate1P`, on the reversed accumulator array.
+ConLeche/Cached/ExprOpsC.lean abstract1P As `instantiate1P`, for the single abstraction.
+ConLeche/Cached/ExprOpsC.lean abstractRangeP As `instantiate1P`, for the range abstraction.
+ConLeche/Cached/ExprOpsC.lean instLevelParamsP As `instantiate1P`, for level instantiation.
+ConLeche/Cached/ExprOpsC.lean wscopedBP As `instantiate1P`, for the scope guard.
+ConLeche/Cached/ExprOpsC.lean leavesSubP As `instantiate1P`, for the leaf-subset guard.
+ConLeche/Cached/ExprOpsC.lean allLevelParamsDefinedP As `instantiate1P`, for the definedness guard.
+ConLeche/Cached/ExprOpsC.lean enter1P The child step of `instantiate1XP`; the port's walk makes its cutoff and compound test itself and reads `ron::node::is_exclusive` where this reads `withExclusive`.
+ConLeche/Cached/ExprOpsC.lean enterLiftP As `enter1P`.
+ConLeche/Cached/ExprOpsC.lean enterListP As `enter1P`.
+ConLeche/Cached/ExprOpsC.lean enterRevP As `enter1P`.
+ConLeche/Cached/ExprOpsC.lean enterAbs1P As `enter1P`.
+ConLeche/Cached/ExprOpsC.lean enterAbsRP As `enter1P`.
+ConLeche/Cached/ExprOpsC.lean enterLPP As `enter1P`, with no compound test (a `const` with level parameters is worth recording) — the port's `inst_level_params_go` likewise gates on the read alone.
+ConLeche/Cached/ExprOpsC.lean enterLSub As `enter1P`, through `expr_ops_c::memo_skip`.
+ConLeche/Cached/ExprOpsC.lean enterLPD As `enter1P`, through `expr_ops_c::memo_skip`.
+ConLeche/Cached/ExprOpsC.lean leavesSubC The cutoff-and-walk wrapper of the leaf-subset guard; the port has only its one caller, `leaf_guard`, which is what the cited `leafGuard` calls (`cached/expr_ops_c.rs`'s `leaves_sub_go` note).
+ConLeche/Cached/StateC.lean constsResolveFP The plain descent `constsResolveFXP` carries its proof against; as `instantiate1P`.
+ConLeche/Cached/StateC.lean enterCRF The child step of `constsResolveFXP`; as `enter1P`, through `expr_ops_c::memo_skip`.
+ConLeche/Kernel/Exclusive.lean withExclusiveUnsafe The `@[implemented_by]` half of `withExclusive`: `k (isExclusiveUnsafe a)`, Lean's own `unsafe` count read.  The port's `ron::node::is_exclusive` IS that read, and it cites `withExclusive`, the logical half.
+ConLeche/Kernel/Exclusive.lean withExcl `withExclusive` into a subsingleton, so that the obligation `k true = k false` is `Subsingleton.elim`.  The port has no obligation to discharge: `is_exclusive` is an external hole modelled `ok false`, and OVERVIEW §8.1's row is what stands where the obligation stands here.
