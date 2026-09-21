@@ -2589,6 +2589,34 @@ the persistent tier (the byte recogniser is unchanged).
         spec-shaped annotation used to hash-cons for them, so
         `inferLamsI`/`inferPisI` are now **26.4 % of the prefix's new nodes**
         and the largest lever left in the check phase.
+        12. the inference binder-telescope loops — item 11's own "what is
+        left".  **DONE** (task #97-P6-12): con-leche's cached-tier
+        `inferLamsI`/`inferPisI` with `inferLamsOutI`'s `abstractRange` rebuild
+        and its task #161 chain check, and `inferPisOutI`'s `imax` fold with the
+        task-#272 THREADED zero-ness datum (one `read_level` per ∀ telescope
+        where the chained clause paid one per binder), in place of
+        `inferBody`'s two per-binder clauses.  The io grade keeps its chained
+        clauses because `inferBodyIOI` does, so `infer_lam_open`/`_cod`/
+        `_result` survive as that lane's λ clause (8.3 % of the λ calls) and
+        `infer_forall_at`, which had no io caller, is deleted.  The two clauses'
+        own new nodes fall **138.3 M → 13.4 M (−90.3 %)** on the prefix and the
+        run's **498.89 M → 398.12 M (−20.2 %)**, which puts the arena **BELOW
+        nanoda on nodes built** — `app` 0.91×, `lam` 0.90×, `sort` 0.37×, the
+        whole **0.87×** from 1.10× (only `forallE`, 1.23×, is still above);
+        `Init` is **275.20 → 262.61 G instructions (−4.6 %)**,
+        `Init`+`Std`+`Lean` **567.04 → 524.09 G (−7.6 %)** and Mathlib
+        **6 148.04 → 5 703.69 G (−7.2 %)** at 604 s — **0.76× `con-ron` at
+        master and 0.942× nanoda, i.e. §8.1's "on par with nanoda" is met and
+        passed on instructions**, at 0.95× master's peak RSS (7.18 GB, up
+        1.4 % from the tip's 7.08 — the loops' own live `fvs`/`stk` vectors,
+        inside budget).  383/383 fixtures at one and four workers and at
+        `--trusted`, the extraction's holes unchanged; the twin owes eleven
+        clauses, all of them con-leche's own cached tier.  The task's own
+        finding is that **the saving moves AGAIN and this time out of reach**:
+        24.3 M of the prefix's 124.9 M go to `defeqStep`'s binder-congruence
+        arms at unchanged attempts (now 7.0 % of the run's new nodes) — and
+        con-leche's `defeqStepI` is CHAINED there too, so the ruling before
+        §8.7 licenses copying nothing and the next lever needs a ruling first.
 
 Branch `arena`; master stays shippable until (C) passes the gates and the
 fixtures.  Budget from con-leche's record, scaled: (B) ~12 k lines,
@@ -2646,6 +2674,17 @@ hottest walks; the ruling extends it to every such site.)  The remaining
 known levers (`ETables::find`, the per-declaration readback memo, the
 `BinderMeta` column, handle-vector copies) are natural and stay in the
 queue; anything beyond them is not.
+
+**Blocked lever, needs a ruling (from task #97-P6-12):** after the
+inference binder loops were batched, 24.3 M of the prefix's new nodes moved
+to `defeqStep`'s binder-congruence arms (`defeq_binders` 3.7 M → 28.0 M, at
+unchanged attempts — inference used to hash-cons those opens for defeq).
+con-leche's CACHED tier keeps `defeqStepI`'s `.forallE`/`.lam` arms chained
+(`Cached/CoreC.lean:1456-1623`), so there is no cached-tier clause to copy,
+and the ruling before this one does not license a port-side batched defeq
+binder descent: it would be the arena's own algorithm with its own
+identification to prove.  By the maintainer's earlier ruling on
+`instantiate1`, the natural home is con-leche first; relayed.
 
 ### 8.7 Open questions (maintainer)
 
@@ -32614,3 +32653,340 @@ subjects, the `k = 0` identity on a term that HAS free variables, and
     `Kernel/ExprOps.lean`'s `abstract1`.
   * `piResidual` is still priced out (P6-9's §7) and `instSpine`/`instPisAt`/
     `instLamsAt` are still cold.
+
+### Task #97-P6-12 — the inference binder-telescope loops (2026-09-21, Opus under Fable)
+
+Phase P6 item 12 of §8.6, and the lever task #97-P6-11 named in its own "what
+is left": *"`inferLamsI` / `inferPisI` — §4, and it is now the largest lever in
+the check phase: 26.4 % of the prefix's new nodes, and 83.9 M of them are this
+task's own displacement."*  Same ruling as P6-9's and P6-11's (the one before
+§8.7): con-leche already makes the multi-substitution move between its PURE and
+its CACHED tier, so it is fair game between the pure tier and the interned
+tier, and the bridge owes the equation con-leche itself proves.
+
+RUST-FIRST under §8.6, twin ledger in §6.  Branch `p6-12` off `arena`
+(`30486b17`); **`arena` moved to `82e307fd` under it** — task #97-P6-10's view
+projections and tag dispatch — and was merged in before any number below was
+taken, so every one of them is ONE tree, one `[profile.release]` and one
+con-leche pin on both sides: the merged `arena` tip's `crates/` against this
+branch's.  The scratch, the instrumentation and the raw dumps are
+`_tmp/t97-p6-12/`.
+
+#### 1. What the counts said, before a line was written
+
+Task #97-P6-9's call-site instrumentation, rebuilt a second time
+(`instr.rs` + `apply.py` in the scratch; it keys sites by enclosing function and
+occurrence, so the same script runs on both sides of the A/B even though the
+call sites move).  Its totals and its every site reproduce task #97-P6-11's
+**to the node** on both inputs — `Init` 258 902 391 attempts / 109 099 910 new,
+the Mathlib 25 % prefix 1 131 189 456 / 498 890 285, `infer_lam_open` 92 746 137
+— so the three tasks are counting the same events.  Run on the merged tip and
+on task #97-P6-11's tip it also gives **the same counts to the node**, which is
+the check that task #97-P6-10 changed how a node is touched and not how many
+are built.
+
+`inferBody`'s two binder clauses, before (the prefix; calls / attempts / NEW):
+
+| site | calls | attempts | NEW | share |
+|---|---:|---:|---:|---:|
+| `infer_lam_open`, the open | 2 068 496 | 157 780 746 | **92 746 137** | 18.6 % |
+| `infer_forall_at`, the open | 1 513 640 | 43 171 555 | **38 847 315** | 7.8 % |
+| `infer_lam_result`, the abstract | 2 068 496 | 54 882 585 | 6 724 940 | 1.3 % |
+| **the two clauses, all of it** | **5 650 632** | **255 834 886** | **138 318 392** | **27.7 %** |
+
+On `Init` the same three are 555 640 / 27 181 646 / 14 986 676, 387 462 /
+3 568 395 / 3 213 535 and 555 640 / 4 741 522 / 456 077 — 18 656 288 of
+`Init`'s 109 099 910, **17.1 %**.
+
+#### 2. The lever — con-leche's own cached tier, and the ONE clause it does NOT touch
+
+`inferBody`'s λ clause opens ONE binder against ONE fresh free variable, infers
+the whole residual λ chain under it, and closes the result with one whole-body
+`abstract1`; its ∀ clause does the same and folds one `imax` per level, reading
+the codomain sort back with `read_level` at every level to check the stored
+annotation.  A telescope of `k` binders therefore walks its own tail `k` times.
+
+con-leche's cached tier peels the whole telescope (`Cached/CoreC.lean:1208-1228
+inferLamsI`, `:1269-1290 inferPisI`, its own task #72): each domain is opened
+against the free variables accumulated so far in ONE `instantiateList`, the
+residual leaf is opened once and inferred once, and the rebuild closes each
+domain with ONE `abstractRange`.  That is what landed, clause for clause:
+`infer_lams` / `infer_lams_leaf` / `infer_lams_out` and `infer_pis` /
+`infer_pis_leaf` / `infer_pis_out`, on task #97-P6-11's `PEEL_FUEL` and its
+`abstract_range_fast` (exhaustion is not an error — the loop falls through to
+its leaf phase, which is con-leche's own `| 0, t, k, fvs, stk => …LeafI`
+clause).
+
+Three things are worth naming.
+
+  * **The ∀ loop's stack carries no expression at all** — `(LIdx, PropWhen)`,
+    con-leche's own `List (Level × PropWhen)`.  A ∀ telescope's inference
+    builds no binder node: it produces one folded level and the `sort` around
+    it.  So this loop takes the per-level `instantiate1` of the residual
+    telescope off the run and puts almost nothing back.
+  * **The codomain sort's zero-ness datum is THREADED** (con-leche's task #272,
+    its GitHub issue #9): `zeronessOf (imax u v) = zeronessOf v` holds
+    definitionally, so every node of a ∀ telescope shares the leaf's datum and
+    the fold pays ONE `read_level` where the chained clause paid one per
+    binder.  con-leche's own pure mirror (`Verify/BinderLoop.lean:155-162
+    inferPisOut`) recomputes it at every step and
+    `Verify/Cached/BinderLoopC.lean:356-403 inferPisOutC_sim` is where the two
+    are identified — so the threading is a step the bridge already has.  It
+    also makes the arena MORE faithful than before: `infer_forall_at` computed
+    the datum only under `verifiedChecks`, where con-leche computes it
+    unconditionally and gates only the comparison.
+  * **The io grade keeps its chained clauses, because con-leche's does.**
+    `inferBodyIOI` writes both binder clauses out one binder at a time on
+    purpose — *"the loops are the front door's optimization, and looping the io
+    lane would owe the whole loop-identification walk family a second,
+    io-graded instance for a lane whose subjects are internal re-inferences"* —
+    so `infer_lam_open` / `infer_lam_cod` / `infer_lam_result` survive
+    unchanged as that lane's λ clause.  Measured, that lane is 8.3 % of the λ
+    clause's calls on the prefix (170 654 of 2 068 496) and 7.2 % on `Init`.
+    `infer_forall_at` had no io caller at all — the io body's ∀ clause is the
+    arena's own `infer_forall_io_at` — so it is **deleted**.
+
+Two shapes are the arena's and neither is a clause, and both are task
+#97-P6-11's already: the stack is a `Vec` pushed OUTERMOST-first and consumed
+by a count counting down, where con-leche conses a `List` innermost-first
+(`stk[j]` is then the binder at level `d + j`, `j` is exactly the
+`abstractRange` width its domain wants, and `stk[n-1]` is con-leche's list
+head); and `fvs` is built innermost-first with `cons_eidx` and read by
+`instantiate_list` at cursor 0, where con-leche pushes outermost-first and reads
+with `instantiateRev`.  The peels dispatch on `h.tag()` and read task
+#97-P6-10's `view_bind` PROJECTION rather than the full view, which is that
+task's idiom applied to two new walks.
+
+#### 3. Nodes: the count after
+
+| `Init` | before | after | Δ |
+|---|---:|---:|---:|
+| construction attempts | 258 902 391 | 239 033 263 | −7.7 % |
+| **NEW nodes** | **109 099 910** | **93 539 579** | **−14.3 %** |
+
+| Mathlib 25 % prefix | before | after | Δ |
+|---|---:|---:|---:|
+| construction attempts | 1 131 189 456 | 959 680 973 | −15.2 % |
+| **NEW nodes** | **498 890 285** | **398 124 785** | **−20.2 %** |
+
+**The binder ratios**, the prefix's NEW nodes per constructor with nanoda's
+(task #97-P6-8a, quoted — nanoda was not re-run) and task #97-P6-11's beside:
+
+| constructor | P6-11 | **this branch** | nanoda | P6-11 | **after** |
+|---|---:|---:|---:|---:|---:|
+| `app` | 404 489 200 | **317 878 719** | 347 760 822 | 1.16× | **0.91×** |
+| `forallE` | 40 036 987 | **36 143 558** | 29 440 824 | 1.36× | **1.23×** |
+| `lam` | 37 930 917 | **28 572 891** | 31 921 043 | 1.19× | **0.90×** |
+| `const` | 5 684 126 | 5 684 126 | 4 986 028 | 1.14× | 1.14× |
+| `proj` | 5 065 023 | 5 051 096 | 7 530 912 | 0.67× | 0.67× |
+| `fvar` | 3 694 913 | 3 695 281 | 4 725 357 | 0.78× | 0.78× |
+| `sort` | 1 711 549 | **821 544** | 2 207 057 | 0.78× | **0.37×** |
+| `letE` | 272 505 | 272 505 | 1 042 401 | 0.26× | 0.26× |
+| `lit` / `bvar` | unchanged | unchanged | | | |
+| **TOTAL** | **498 890 285** | **398 124 785** | **455 381 184** | **1.10×** | **0.87×** |
+
+**The arena now builds fewer new nodes than nanoda on the prefix** — 0.87×,
+from 2.50× at task #97-P6-8a's measurement — and `app`, `lam`, `sort`, `proj`,
+`fvar` and `letE` are each under 1.00×.  `forallE` at 1.23× is the one
+constructor still above, and §4 says where its excess now is.
+
+On `Init` the same table reads `app` 90 442 215 → 77 435 564 (−14.4 %), `lam`
+10 521 031 → 8 880 167 (−15.6 %), `forallE` 5 567 619 → 4 847 544 (−12.9 %) and
+`sort` 394 014 → 206 343 (−47.6 %).
+
+By site (the prefix; calls / attempts / NEW):
+
+| site | before | after |
+|---|---|---|
+| `infer_lam_open`, the open | 2 068 496 / 157 780 746 / **92 746 137** | 170 654 / 2 595 233 / **1 416 438** (the io lane only) |
+| `infer_forall_at`, the open | 1 513 640 / 43 171 555 / **38 847 315** | **deleted** |
+| `infer_lam_result`, the abstract | 2 068 496 / 54 882 585 / **6 724 940** | 170 654 / 1 067 344 / **357 514** (the io lane only) |
+| `infer_lams`, the domain open (new) | — | 1 079 120 / 5 103 932 / **90 130** |
+| `infer_lams_leaf`, the leaf open (new) | — | 824 426 / 42 166 850 / **2 372 837** |
+| `infer_lams_leaf`, the leaf close (new) | — | 824 426 / 13 441 989 / **835 068** |
+| `infer_lams_out`, the domain close (new) | — | 1 903 546 / 8 346 266 / **0** |
+| `infer_pis`, the domain open (new) | — | 1 078 980 / 5 455 884 / **3 290 843** |
+| `infer_pis_leaf`, the leaf open (new) | — | 462 429 / 7 134 795 / **5 083 770** |
+| **the two clauses, all of it** | **5 650 632 / 255 834 886 / 138 318 392** | **6 514 235 / 85 312 293 / 13 446 600** (**−90.3 %**) |
+
+`infer_lams_out`'s domain close builds **zero** new nodes on either corpus:
+`abstract_range … k = 0` is the identity at the outermost binder and every
+inner domain's closure is a cons-table hit on a node the peel's own
+`instantiate_list` already built.  (The rebuild's own `∀` nodes are not in this
+column — the site tag covers the substitution walk, so they fall in the
+untagged bucket, exactly where `infer_lam_result`'s did before.  That bucket
+barely moves: 211 764 334 → 211 211 095.)
+
+On `Init` the two clauses' own total is 5 650 632 / 255 834 886 / 18 656 288
+before (17.1 % of the run's new nodes) and 1 682 987 / 15 975 632 /
+**2 004 794** after, **−89.3 %**, 2.1 % of the run.
+
+#### 4. The finding this task owes the next one: the saving moves AGAIN, and this time con-leche has no loop for it
+
+The two clauses' own new nodes fall by 124.9 M on the prefix and the run's total
+falls by only 100.8 M.  The difference is **24.3 M nodes that `defeqStep`'s
+binder-congruence arms now build instead**, and the counts name the site
+exactly:
+
+| site (prefix, NEW) | before | after | Δ |
+|---|---:|---:|---:|
+| `defeq_binders`, the first open | 1 574 153 | **19 049 230** | **+17.5 M** |
+| `defeq_binders`, the second open | 2 103 456 | **8 922 678** | **+6.8 M** |
+
+Its attempts do not move at all (27 964 128 / 24 253 711 before, 27 964 211 /
+24 253 792 after); what changes is the OUTCOME, which is exactly the shape task
+#97-P6-11 found at this very clause one round earlier.  The reason is the same:
+`defeqStep` opens a pair of binder bodies against `fvar (depth, ty₂)` one level
+at a time, and until this task `inferBody`'s λ clause opened the *same* bodies
+against the *same* free variables first — so defeq's opens were cons-table hits
+on nodes inference had already built.  The batched inference never builds the
+per-level opens, so defeq builds them.  (On `Init` the same movement is
++1.18 M of a 16.65 M saving.)
+
+**But the matching lever is NOT the same kind of move, and it is a maintainer
+question, not a task.**  `Cached/CoreC.lean:1456-1623 defeqStepI`'s `.forallE`
+and `.lam` arms are **chained in con-leche's cached tier too** — one binder, one
+`inst1M` per side, `r.defeq (depth+1)` — so there is no cached-tier clause to
+copy and the ruling before §8.7 (which licenses exactly the moves con-leche
+itself makes between its PURE and its CACHED tier) does not reach it.  A batched
+defeq binder descent would be the arena's own algorithm and would owe its own
+identification with the chained spec; §8.6's "not allowed: a change with no
+expressible twin" is not violated by it, but the cheap bridge this campaign has
+been buying is.  The honest statement of where the campaign stands is therefore:
+`defeq_binders` is **28.0 M of the prefix's 398.1 M new nodes, 7.0 %**, it is
+the third-largest substituting site after β (86.7 M, 21.8 %) and the annotation
+(43.1 M, 10.8 %), and taking it needs a ruling first.
+
+The two sites this campaign can still reach without one are β
+(`whnf_core_app` → `whnf_app` + `beta_peel`, already batched at task #97-P6-9
+and still the largest single source) and everything outside a substitution
+walk — 212.5 M, 53.4 % of the run, of which the untagged bucket alone is
+211.2 M: every `intern` that is not inside one of them: the
+rebuilds of `whnfCore`, the annotation's `intern_rebuilt`, the binder loops' own
+node construction and the parse.  Neither is a telescope loop.
+
+#### 5. The instruction table
+
+`perf stat -e instructions:u,cycles:u` of `--verified --jobs=1
+--progress=1000000` under `ulimit -v` (8 GiB `Init`, 12 GiB `Init`+`Std`+`Lean`
+and the prefix, 27 GiB Mathlib), both binaries built from this merged tree.  The
+`Init` rows are two passes each; the machine was quiet for all of them.
+
+| export | | `arena` tip (`82e307fd`) | **this branch** | Δ | `con-ron` master (task #98) | nanoda |
+|---|---|---:|---:|---:|---:|---:|
+| `Init`, 57 977 | instructions:u | 275 197 891 865 / 275 197 680 656 | **262 612 049 705 / 262 611 650 786** | **−4.57 %** | 412 284 710 704 | 231 248 123 456 |
+| | cycles:u | 131.72 / 127.18 G | 120.21 / 119.26 G | −7.6 % | | 112 283 332 084 |
+| | wall | 30.28 / 29.33 s | 27.55 / 27.42 s | −7.9 % | | |
+| | peak RSS | 632.8 / 632.0 MB | 632.5 / 631.4 MB | −0.1 % | | |
+| `Init`+`Std`+`Lean`, 163 396 | instructions:u | 567 039 375 590 | **524 088 518 400** | **−7.58 %** | 896 862 049 579 | ≈445 G |
+| | cycles:u | 260.89 G | 238.62 G | −8.5 % | | |
+| | peak RSS | 1 305.0 MB | 1 313.7 MB | +0.7 % | | |
+| Mathlib 25 % prefix, 155 288 | instructions:u | 1 316 060 270 019 | **1 213 628 017 709** | **−7.78 %** | — | 1 187 196 874 884 |
+| | cycles:u | 575.13 G | 534.89 G | −7.0 % | | 737 444 963 047 |
+| | peak RSS | 1 940.5 MB | 1 923.0 MB | −0.9 % | | |
+| Mathlib, 691 128 | instructions:u | 6 148 036 087 817 | **5 703 689 964 748** | **−7.23 %** | 7 541 754 140 806 | ≈6 054 G |
+| | cycles:u | 2 975.01 G | 2 623.94 G | −11.8 % | | |
+| | wall | 704.6 s | 604.0 s | −14.3 % | | |
+| | peak RSS | 7.08 GB | **7.18 GB** | **+1.4 %** | 7.56 GB | |
+
+The tip's `Init` row reproduces task #97-P6-10's merged figure to six digits
+(275 197.89 M against its 275 200 M) and its Mathlib row to seven
+(6 148 036 087 817 against its 6 148.02 G), so the two tasks measure the same
+binary on the same files.
+
+Against `con-ron` at master (task #98's own numbers, the row §8.1's target is
+about) and against nanoda's `instructions:u` as task #97-P6-8a and #97-P6-3
+measured them (nanoda was NOT re-run in this session, so its column is quoted,
+not measured):
+
+| export | `arena` tip | **this branch** | vs master | vs nanoda |
+|---|---:|---:|---:|---:|
+| `Init` | 275.20 G | **262.61 G** | 0.67× → **0.64×** | 1.19× → **1.14×** |
+| `Init`+`Std`+`Lean` | 567.04 G | **524.09 G** | 0.63× → **0.58×** | 1.27× → **1.18×** |
+| Mathlib 25 % prefix | 1 316.06 G | **1 213.63 G** | — | 1.11× → **1.02×** |
+| **Mathlib** | 6 148.04 G | **5 703.69 G** | 0.82× → **0.76×** | 1.016× → **0.942×** |
+| Mathlib peak RSS | 7.08 GB | **7.18 GB** | 0.94× → **0.95×** | — |
+
+**Mathlib is the row that matters, and it crosses.**  §8.1's target — the
+maintainer's "on par with nanoda would be good", which task #97-P6-3 priced at
+1.91× away — is met and passed: the arena does **0.94× nanoda's instructions**
+on Mathlib and **0.76× `con-ron` at master's**, at 0.95× master's peak RSS.
+
+The one number that goes the wrong way is Mathlib's peak RSS, **+1.4 %** (7.08
+→ 7.18 GB), one run each.  It is the loops' own `fvs` and `stk` vectors: a λ or
+∀ telescope now holds one `Vec<EIdx>` and one stack of `k` entries live across
+the whole peel, where the chained clause held one opened body at a time.  It is
+inside CLAUDE.md's 3× budget (con-leche needs 8.6 GB), it is below `con-ron` at
+master (7.56 GB) and below the tip's own figure at task #97-P6-11 (7.18 GB), and
+the prefix moved the other way (−0.9 %), so it is noted and not chased.
+
+The verdicts are unchanged at every size: `accepted 57 977`, `accepted 163 396`,
+`accepted 155 288`, `accepted 691 128`.
+
+#### 6. The twin ledger
+
+Every clause is con-leche's own cached-tier clause, so the Lean catch-up copies
+it rather than inventing it, and the bridge is a theorem con-leche already
+proves.  `ConLeche/Verify/BinderLoop.lean` proves the two loops sound against the
+chained bodies; `ConLeche/Verify/Cached/BinderLoopC.lean` relates the cached
+spelling to those pure mirrors walk by walk.
+
+| arena item | what it replaces | the twin's clause | the equation the bridge cites |
+|---|---|---|---|
+| `core::infer_forall`'s `.sort` arm (rewritten) | the `infer_forall_at` call | `Cached/CoreC.lean:1292-1389 inferBodyI`'s `.forallE` | `Verify/Cached/BinderLoopC.lean:788-879 inferPisC_tail_sim` |
+| `core::infer_lam`'s `.sort` arm (rewritten) | the `infer_lam_open (io = false)` call | `inferBodyI`'s `.lam` | `Verify/Cached/BinderLoopC.lean:592-786 inferLamsC_tail_sim` |
+| `core::infer_lams` (new) | — | `Cached/CoreC.lean:1208-1228 inferLamsI` | `Verify/BinderLoop.lean:915-1054 inferLams_sound`, over `Expr.instantiateList_cons` (`Verify/InstList.lean:54-117`); `Verify/Cached/BinderLoopC.lean:264-344 inferLamsC_sim` |
+| `core::infer_lams_leaf` (new) | — | `:1162-1206 inferLamsLeafI` | `Verify/BinderLoop.lean:833-913 inferLamsLeaf_sound`; `Verify/Cached/BinderLoopC.lean:168-262 inferLamsLeafC_sim` |
+| `core::infer_lams_leaf_check` (new) | — | `inferLamsLeafI`'s `match t with \| .lam .. => pure () \| _ => …` statement, which the arena names so the leaf's common tail is written once | as above — the split is textual, not a clause |
+| `core::infer_lams_out` (new) | the per-binder `abstract1` and `∀` rebuild of `infer_lam_result` | `:1142-1160 inferLamsOutI` | `Verify/Cached/BinderLoopC.lean:117-166 inferLamsOutC_sim`, over `abstractRange_succ` / `abstractRange_zero` (`Verify/AbstractRange.lean:29-55`, `:22-27`) — the fold this pass implements |
+| `core::infer_pis` (new) | — | `Cached/CoreC.lean:1269-1290 inferPisI` | `Verify/BinderLoop.lean:1208-1292 inferPis_sound`; `Verify/Cached/BinderLoopC.lean:436-519 inferPisC_sim` |
+| `core::infer_pis_leaf` (new) | — | `:1256-1267 inferPisLeafI` | `Verify/BinderLoop.lean:1135-1206 inferPisLeaf_sound`; `Verify/Cached/BinderLoopC.lean:405-434 inferPisLeafC_sim` |
+| `core::infer_pis_out` (new; the THREADED datum) | `infer_forall_at`'s per-binder `read_level` + `zeronessOf` + `imax` | `:1230-1254 inferPisOutI` | `Verify/Cached/BinderLoopC.lean:356-403 inferPisOutC_sim` — precisely the identification of the threaded `pv` with the pure mirror's recomputed `Level.zeronessOf v` (`Verify/BinderLoop.lean:155-162 inferPisOut`) |
+| `core::infer_forall_at` (**deleted**) | — | none: `inferBodyI`'s `.forallE` clause IS the loop, and `inferBodyIOI`'s chained ∀ clause is the arena's own `infer_forall_io_at`, untouched | — |
+| `core::infer_lam_open` / `infer_lam_cod` / `infer_lam_result` (kept, now the io lane only) | — | `Cached/CoreC.lean:1391-1448 inferBodyIOI`'s `.lam`, which con-leche leaves chained on purpose | unchanged |
+
+**Absorbed by the refinement — no Lean change at all:** the stack is a `Vec`
+pushed outermost-first and consumed by a count counting down where con-leche
+conses a `List` innermost-first (`stk[j]`'s index IS con-leche's `j` and
+`stk[n-1]` IS its list head); `fvs` is built innermost-first with `cons_eidx`
+and read by `instantiate_list` at cursor 0 where con-leche pushes
+outermost-first and reads with `instantiateRev` — both already twinned by task
+#97-P6-11; `h.tag()` + `view_bind` in the two peels in place of the full view
+(task #97-P6-10's projection, already twinned); `PEEL_FUEL` and
+`abstract_range_fast` reused from task #97-P6-11 (no new item); and
+`infer_lams_leaf_check`'s `Result<(), CheckError>` where con-leche writes a
+`do`-block statement.
+
+#### 7. Gates
+
+| gate | |
+|---|---|
+| `cargo build --release` / `cargo test`, `RUSTFLAGS="-D warnings"` | clean, **428 tests, 0 failures** |
+| `scripts/lint-rust-style.sh crates/arena-core/src` | clean |
+| `scripts/provenance.py check` | **0 findings** — `6613 item(s) (4860 Rust, 1753 arena Lean), 4913 citation(s), all current at pin 78ded4b6` (the merged tip is 6607; the six are seven new functions less the deleted `infer_forall_at`) |
+| `scripts/overview-links.sh`, `scripts/holes.sh --check` | OK |
+| `scripts/extract-arena.sh --dry` | **0 errors, 5 type + 209 function holes** — the tip's own count, unchanged |
+| `scripts/diff-e2e.sh --bin=target/release/con-ron-arena` | **383/383 agree** at `--jobs=1`, at `--jobs=4` and at `--trusted`; 0 differ, 0 timed out |
+| the diff | `crates/arena-core/src/arena/core.rs` — nothing else under `crates/` |
+
+`proof/`, `crates/con-ron`, `crates/con-ron-core`, `OVERVIEW.md` and
+`README.md` are untouched.
+
+#### 8. What is left
+
+  * **`defeqStep`'s binder congruence is where the saving went, and it needs a
+    ruling before it is a task** (§4): 28.0 M of the prefix's 398.1 M new nodes,
+    7.0 %, at unchanged attempts — and con-leche's `defeqStepI` is chained
+    there too, so the ruling before §8.7 does not license copying anything.
+  * **β is the largest substituting site again** — `beta_peel` 86.7 M, 21.8 % of
+    the prefix's new nodes — and it is already con-leche's batched
+    `betaPeelI`/`whnfAppI`.  What is left there is not a telescope loop.
+  * `annotate_binder` is still dead on both corpora (task #97-P6-11), and
+    `infer_forall_at` is now gone for the same reason one rung up: the io lane's
+    ∀ clause was always its own function.
+  * The λ loop's io-lane residual (`infer_lam_open`) is 8.3 % of the λ clause's
+    calls and is the only chained binder inference left; con-leche's B4 seal
+    records looping it as a measured-need follow-up, and the measured need is
+    1.4 M of 398.1 M new nodes, i.e. none.
+  * **Mathlib's peak RSS rose 1.4 %** (§5), the loops' own live `fvs`/`stk`
+    vectors.  Noted, inside budget, not chased.
