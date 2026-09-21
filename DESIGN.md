@@ -2617,6 +2617,45 @@ the persistent tier (the byte recogniser is unchanged).
         arms at unchanged attempts (now 7.0 % of the run's new nodes) — and
         con-leche's `defeqStepI` is CHAINED there too, so the ruling before
         §8.7 licenses copying nothing and the next lever needs a ruling first.
+        13. **the maintainer's "natural tweaks" ruling before §8.7, and the
+        three levers task #97-P6-10 §9 left queued.**  **DONE** (task
+        #97-P6-13).  The CENSUS first: 202 `match view*` sites outside the
+        tests, of which **137 are one constructor plus a fallthrough** — the
+        Lean `if let`s — and all 137 now test `h.tag()` BEFORE any store read,
+        through six new projections (`view_sort`, `view_const`,
+        `view_const_name`, `view_fvar_ty`, `view_lit` and their `ETables`
+        halves); the other 65 are genuine dispatches and are left alone.  The
+        pass on its own is a **REGRESSION** (+2.54 % of `Init`) and the reason
+        is the finding: the dangling-handle decline, an arm `StoreWF`
+        excludes, was inlined at 137 more call sites and pushed the hot walks
+        past LLVM's inlining threshold — each QUARTER of `core.rs` measured a
+        win alone (−1.0, −0.6, −3.9, −0.1 G) and all four together +6.9 G.
+        `#[cold]` + `#[inline(never)]` on `fail_dangling_e`/`_ls` turns it
+        into −2.30 %.  Then §8.3's **promised readback memo**, which nothing
+        had built (`read_l_c`/`read_n_c`/`read_ls_c` in `Caches`, 48 call
+        sites): **−4.35 %**, plus a per-call `LIdx ↦ LIdx` / `LsIdx ↦ LsIdx`
+        memo for `instLPGo`'s level substitution, −1.26 %.  Then
+        **`ETables::find`**, 13.4 % of `Init`: `#[inline(always)]` so that
+        `intern`'s two tier probes share the dispatch, the record and the hash
+        (−1.62 %), and the node hash **PACKED rather than mixed** — two
+        handles are one `u64` injectively and `home_index` is already the
+        avalanche (−2.12 %; one `mixHash` over the packed word was measured
+        and is worse on both columns).  The **handle-vector copies** are the
+        one lever that is NOT taken beyond a null result: the six
+        `snoc_eidx(eidx_vec_dup(x), y)` sites are re-spelled to size once (two
+        allocations to one) and are worth nothing measurable on `Init`, and
+        the 4.3 % that is left is `cons_eidx`'s `O(n²)` prepend in the batched
+        walks, whose fix is a representation change and a task.  `Init` is
+        **262.61 → 233.26 G (−11.18 %)**, the Mathlib 25 % prefix **1 213.63 →
+        931.19 G (−23.27 %)** and Mathlib **5 703.69 → 4 316.98 G
+        (−24.31 %)** at 2 356.38 G cycles, 560.9 s and **7.17 GB** — **0.572×
+        `con-ron` at master on instructions, 0.948× on peak RSS, and 0.713×
+        nanoda**, from 0.942× — with `Init` at 1.009× nanoda.  383/383
+        fixtures at one and four workers and at `--trusted`; the extraction is
+        0 errors at 5 type and 211 function holes (209 plus the two
+        crate-boundary axioms for `con_ron_core::kernel::{level,name}::dup`,
+        which con-ron-core's own model translates).  The twin owes the 137
+        tag clauses, six projections, two memos and the node hashes.
 
 Branch `arena`; master stays shippable until (C) passes the gates and the
 fixtures.  Budget from con-leche's record, scaled: (B) ~12 k lines,
@@ -32994,3 +33033,311 @@ outermost-first and reads with `instantiateRev` — both already twinned by task
     1.4 M of 398.1 M new nodes, i.e. none.
   * **Mathlib's peak RSS rose 1.4 %** (§5), the loops' own live `fvs`/`stk`
     vectors.  Noted, inside budget, not chased.
+
+### Task #97-P6-13 — the tag-only constructor test, the readback memo, and the cons probe (2026-09-21, Opus under Fable)
+
+Phase P6 item 13 of §8.6, and the maintainer's own ruling before §8.7: *"keep
+going at the natural tweaks — no inventive new ideas.  One natural tweak
+named: `isApp`/`isLam`/`isForallE`/… are readable off the `u32` handle alone
+(the tag bits), with no node read at all; exploit that on every code path that
+is effectively a Lean `if let`."*  The three levers task #97-P6-10 §9 left
+queued — the per-declaration readback memo §8.3 promised, `ETables::find`, the
+handle-vector copies — ride with it.  RUST-FIRST under §8.6, twin ledger
+below.  Branch `p6-13` off `arena`'s tip; the scratch, the variant trees and
+the profiles are `_tmp/t97-p6-13/`.
+
+**The measure.**  `perf stat -e instructions:u,cycles:u` of `--verified
+--jobs=1 --progress=1000000`, `ulimit -v` 8 GiB for `Init`, 12 GiB for the
+Mathlib 25 % prefix (`head -26948621`) and 27 GiB for Mathlib.  **Read the
+instruction column.**  This session measured the same binary at 108.47, 109.90
+and 113.73 G cycles on `Init` — a 4.8 % spread at load 3–10 — while its
+instruction count moved by 0.0002 %; every cycles figure below that decides
+anything is two passes or more.
+
+**And one operational trap, which cost this task an hour.**  `cargo test
+--release` re-uplifts `target/release/con-ron-arena` from its OWN cached
+artifact, so a binary copied after `cargo test` can be the PREVIOUS build.
+Two measurements were taken that way and both read "no change" for a change
+that was real (in the first the two sides were byte-identical; `md5sum` said
+so).  **Copy the binary immediately after `cargo build --release`, and
+`md5sum` the two sides of an A/B before believing a null result.**
+`_tmp/t97-p6-13/try.sh` now aborts when the build fails, which is the other
+half of the same trap: a failed build leaves the previous binary in place and
+the harness measured it.
+
+#### 1. Lever 1 — the census, and the 137 sites
+
+Every `match view*(…)` site of `crates/arena-core/src` outside the tests, on
+the `arena` tip:
+
+| shape | sites |
+|---|---:|
+| `match view(…)` | 179 |
+| `match view_ls(…)` | 13 |
+| `match view_n(…)` | 7 |
+| `match view_l(…)` | 3 |
+| **total** | **202** |
+
+and by how many constructor arms each has:
+
+| arms | sites | what they are |
+|---|---:|---|
+| **one constructor + a fallthrough** | **137** | the Lean `if let`s — this lever |
+| no `ENodeView` arm at all | 27 | the level and level-list views, whose `view` has one constructor |
+| two | 8 | genuine two-way dispatches |
+| four / five / six / seven | 3 / 3 / 1 / 1 | |
+| ten | 22 | the full dispatches (`whnfCore`, `infer`, `annotate`, `denote`, …) |
+
+The 137, per file: `arena/core.rs` 70, `expr_ops.rs` 17, `frontend/proj_rec.rs`
+14, `checker_base.rs` 9, `inductives/modeled.rs` 7, `inductives/struct_parts.rs`
+7, `inductives/native_parts.rs` 5, `prop_read.rs` 4, `inductives/sum_install.rs`
+3, `core_gated.rs` 1.  By constructor: `ForallE` 45, `Const` 39, `Sort` 21,
+`Lam` 11, `App` 8, `Str` 5, `Lit` 3, `BVar` 2, `Num` 1, `FVar` 1, `Proj` 1.
+
+**All 137 are converted; 65 multi-constructor dispatches are left alone.**  128
+mechanically — the shape is uniform (`Err(e) => Err(e)`, `Ok(ENodeView::C(…))
+=> BODY`, `Ok(_) => FALL`), so a rewriter did them and REPORTED every site it
+could not match rather than guessing — three by hand (task #97-P6-12's two
+binder-telescope entries, where a comment sits between the `Err` arm and the
+constructor arm, and `proj_rec_candidate_at`, which spells its arms with
+`return`), and six by hand at the NAME store, which has no projections — its
+`Str` payload is the `Vec<u32>` the view copies either way — so those six keep
+the inner `match view_n` behind an `NTAG_STR`/`NTAG_NUM` test.
+
+Six new projections carry the constructors task #97-P6-10 did not reach, each
+the shape of its `get_app`: `get_sort`/`view_sort`, `get_const`/`view_const`,
+`get_const_name`/`view_const_name` (39 of the 137 want the head name and not
+the level arguments), `get_fvar_ty`/`view_fvar_ty`, `get_lit`/`view_lit`.
+
+#### 2. Lever 1's own finding: the decline has to be cold, and why
+
+**The 137 tag tests on their own are a REGRESSION**: `Init` 262.61 → 269.28 G,
+**+2.54 %**.  Everything outside `core.rs` is a small win (−0.08 %); `core.rs`
+alone is +6.89 G.  And each QUARTER of `core.rs`, converted on its own, is a
+win:
+
+| converted in `core.rs` | sites | `Init` instructions | Δ vs the rest-converted tree |
+|---|---:|---:|---:|
+| nothing (every other file converted) | 0 | 262 395 154 579 | — |
+| lines ≤ 2300 | 25 | 261 396 252 730 | −1.00 G |
+| lines 2301–5500 | 15 | 261 753 443 062 | −0.64 G |
+| lines 5501–8100 | 15 | 258 463 172 146 | −3.93 G |
+| lines 8101– | 13 | 262 294 620 798 | −0.10 G |
+| **all 68 at once** | **68** | **269 284 078 074** | **+6.89 G** |
+
+Five wins that sum to −5.7 G, and +6.9 G together: a codegen cliff.  The
+profile names it — `instantiate1_go` is INLINED in the tip and out of line
+after, and `instantiate_list_go`'s 9.82 % + nothing becomes 8.23 % + 2.85 %.
+What crosses the threshold is the **decline**: `fail_dangling_e()` is
+`Err(CheckError::Internal(code_points(&M_DANGLING_E)))`, a 33-word copy, and
+the conversion spells it at 137 more call sites, inline, in the middle of the
+hot walks.  It is the arm a well-formed store NEVER takes (`StoreWF` excludes
+a dangling handle).
+
+`#[cold]` and `#[inline(never)]` on `fail_dangling_e` and `fail_dangling_ls`
+— two attributes, no other change — turn the pass from +2.54 % into **−2.30 %
+instructions and −1.3 % cycles on `Init`**, and −1.08 % on the prefix.
+
+#### 3. Lever 2 — the readback memo §8.3 promised
+
+*"`Level` ops … run on transient `Level` trees read back from `LIdx`
+(**memoised readback per declaration**; levels are small)"* — the memo did not
+exist, and task #97-P6-10 §4 measured the readback at 4.56 % of `Init`.
+
+`Caches` gains `read_l_c : LIdx ↦ Level`, `read_n_c : NIdx ↦ Name` and
+`read_ls_c : LsIdx ↦ Vec<Level>`, reset with the other ten tables.  **A stale
+row is impossible** and the code says why: `core::drop_scratch` flushes the
+caches and drops the tier in ONE operation, and a handle's denotation is a
+function of the handle and of the tier it names.  `read_level_m`,
+`read_name_m`, `read_names_m` and `read_levels_m` go in at the **48 call sites
+whose enclosing function already holds `&mut AState`** (`residual_pw` and
+`all_level_params_defined_node` hold only `&AState` and keep the unmemoised
+readback).  A hit is a reference bump — `Level` and `Name` are `P` trees —
+where a miss rebuilt the tree node by node.  **`Init` 256.56 → 245.39 G,
+−4.35 %.**
+
+**Lever 2b, which the profile after asked for.**  The memo left
+`level_list_dup_from` at 0.96 % and `drop_glue::<Vec<Level>>` at 1.02 %: a
+`Vec<Level>` handed out and dropped per occurrence.  `instLPGo`'s `.sort` and
+`.const` arms did their level work per OCCURRENCE — read back, `Level.subst`,
+re-intern — and `ks`/`us` are fixed for the whole `instLPFast` call, so **the
+level handle determines its own answer and the substitution vector is not in
+the key**, which is §8.3's own rule for the per-call memos.
+`Memos.inst_lp_l_c : LIdx ↦ LIdx` and `inst_lp_ls_c : LsIdx ↦ LsIdx`, cleared
+by `inst_lp_clear`, probed by `subst_l_memo_at`/`subst_ls_memo_at`.  A hit is
+one `u32` where a miss was a readback, a substitution, an interning and two
+`Vec<Level>` copies: **245.39 → 242.31 G, −1.26 %**.
+
+#### 4. Lever 4 — `ETables::find`, 13.4 % of `Init` and the largest symbol
+
+Two changes, neither a new data structure.
+
+**`#[inline(always)]` on `ETables::find`.**  `EStore::intern` calls it twice
+with the SAME view, once per tier, and out of line each call re-dispatched on
+the view's tag, rebuilt the node record and re-hashed it.  Inlined, the two
+probes share all three: **−1.62 % of `Init` and −1.61 % of the prefix, on both
+columns** (prefix cycles −1.90 %).  Plain `#[inline]` is declined by LLVM on a
+ten-arm jump table and is worth **nothing** (242 306 090 514 against
+242 306 262 491, which is one binary's own run-to-run noise).  The same
+attribute on `ETables::push` is +3.8 % cycles and is **not** taken.
+
+**The node hash PACKED rather than mixed.**  A hash is verdict-neutral
+(§3.2: any function of the value will do, and `ron::hashmap2`'s own note says
+the refinement never looks inside one — the owed `Inv` says only that a key
+sits where `home_index` puts it), and `home_index` is already a multiply-xor
+avalanche over the whole word.  A handle is a `u32`, so two of them are one
+`u64` INJECTIVELY and `pack2` loses nothing, where each `Lean.mixHash` was a
+multiply, a shift, two xors and a second multiply — paid on every probe of
+every intern attempt, twice per attempt for the two tiers.  Measured against
+the obvious alternative, ONE `mixHash` over the packed word:
+
+| the cons-table hash | `Init` instructions | `Init` cycles |
+|---|---:|---:|
+| `mixHash` chains (the tip's) | 242 306 M | 109.18 / 109.50 G |
+| one `mixHash` over the packed word | 235 936 M | 110.09 / 110.14 G |
+| **the bare packing** | **233 320 M** | **108.47 / 109.90 G** |
+
+The extra mixing costs on both columns and buys no shorter probe, so the bare
+packing stands: with the inline, **`Init` 242.31 → 233.32 G (−3.71 %)** and the
+prefix 966.60 → 931.19 G (−3.66 %) at −0.97 % cycles.
+
+#### 5. Lever 3 — the handle-vector copies: priced, taken, and worth nothing here
+
+Task #97-P6-10 §9 put them at 6.3 % of `Init` (`eidx_copy_upto` 3.64 %,
+`env::eidx_vec_dup_from` 2.17 %).  The brief's lever is the narrow one — a
+`Vec<EIdx>` cloned to be passed by value — and there is exactly one shape of
+it in the hot files: **`snoc_eidx(eidx_vec_dup(targs), b)` is TWO allocations
+and `2n` copies**, because `eidx_vec_dup` sizes the `Vec` at exactly `n` and
+the `push` then overflows that capacity and re-allocates.  `snoc_eidx_of`,
+`snoc2_eidx_of` and `append_eidx_of` size once, at the six sites of `core.rs`'s
+recursor and projection reductions (one of which was `snoc_eidx(snoc_eidx(dup
+…)…)`, three allocations).
+
+**Worth nothing measurable on `Init`** — 233 320 291 498 before,
+233 319 886 267 after — because those six sites are not hot there.  It is kept
+as the strictly smaller spelling, and reported as a null result.
+
+What lever 3 does NOT reach, and this is the finding: `eidx_copy_upto`'s
+remaining 4.3 % is `cons_eidx(&a, acc)` in the batched walks (`beta_peel`,
+`iota_certs_aux`, the inference telescopes), where the Lean's `a :: acc` is
+`O(1)` with sharing and the `Vec`'s prepend is `O(n)` — `O(n²)` over a
+telescope.  Every cheaper spelling is outside the extraction's `Vec` subset
+(`insert`, `extend_from_slice`) or is a REPRESENTATION change (keep the
+accumulator in append order and index it backwards, which moves
+`instantiate_list`'s indexing and its memo keys).  That is a task, not a lever,
+and it is the priced successor.  `#[inline(always)]` on `eidx_copy_upto` was
+tried and is +0.18 %.
+
+#### 6. The instruction table
+
+Every row `--verified --jobs=1`; the `Init` rows are two passes and agree to
+nine digits on instructions.
+
+| step | `Init` instructions | Δ |
+|---|---:|---:|
+| the `arena` tip `37a3ac0c` (task #97-P6-12 merged) | 262 610 657 618 | — |
+| lever 1 alone — the 137 tag tests | 269 284 078 074 | **+2.54 %** |
+| + `#[cold]`/`#[inline(never)]` on the dangling decline | 256 558 501 175 | −2.30 % |
+| + lever 2 — the readback memo | 245 390 038 835 | −4.35 % |
+| + lever 2b — the level substitution at the handle | 242 306 240 088 | −1.26 % |
+| + lever 4a — `ETables::find` `#[inline(always)]` | 238 369 929 517 | −1.62 % |
+| + lever 4b — the packed cons hash | 233 320 075 623 | −2.12 % |
+| + lever 3 — the sized spine builders | 233 319 886 267 | ±0.00 % |
+| + the name store's six | **233 262 612 883** | −0.02 % |
+| | | **−11.17 %** |
+
+The three exports, end to end:
+
+| export | | `arena` tip `37a3ac0c` | **this branch** | Δ | `con-ron` master | nanoda |
+|---|---|---:|---:|---:|---:|---:|
+| `Init`, 57 977 | instructions:u | 262 610 456 424 | **233 261 684 731** | **−11.18 %** | 412 284 710 704 | 231 248 123 456 |
+| | cycles:u | 116.92 / 117.69 G | 108.71 / 109.01 G | −6.8 % | | 112.28 G |
+| | wall | 26.64 / 26.94 s | 24.86 / 24.96 s | −6.8 % | | |
+| | peak RSS | 598.8 / 631.6 MB | 631.6 MB | ±0 | | |
+| Mathlib 25 % prefix, 155 288 | instructions:u | 1 213 627 522 963 | **931 192 613 159** | **−23.27 %** | — | 1 187 196 874 884 |
+| | cycles:u | 524.80 G | 447.24 G | −14.8 % | | |
+| | wall | 120.36 s | 102.50 s | −14.8 % | | |
+| | peak RSS | 1 900.2 MB | 1 924.6 MB | +1.3 % | | |
+| **Mathlib, 691 128** | instructions:u | 5 703 690 000 000 | **4 316 977 431 915** | **−24.31 %** | 7 541 754 140 806 | ≈6 054 G |
+| | cycles:u | — | 2 356 380 779 994 | | | |
+| | wall | 604 s | **560.9 s** | −7.1 % | | |
+| | peak RSS | 7.18 GB | **7.17 GB** | −0.1 % | 7.56 GB | |
+
+(the tip's Mathlib row is task #97-P6-12's measurement, quoted, not re-run
+here; the `Init` and prefix rows ARE re-run, in this session, on this machine.
+`Init` is two passes on both sides and the two agree to nine digits on
+instructions.)  The verdicts are unchanged at every size: `accepted 57977`,
+`accepted 155288`, `accepted 691128`.
+
+Against the two reference columns:
+
+| export | `arena` tip | **this branch** | vs master | vs nanoda |
+|---|---:|---:|---:|---:|
+| `Init` | 262.61 G | **233.26 G** | 0.637× → **0.566×** | 1.136× → **1.009×** |
+| Mathlib 25 % prefix | 1 213.63 G | **931.19 G** | — | 1.022× → **0.784×** |
+| **Mathlib** | 5 703.69 G | **4 316.98 G** | 0.756× → **0.572×** | 0.942× → **0.713×** |
+| Mathlib peak RSS | 7.18 GB | **7.17 GB** | 0.95× → **0.948×** | — |
+
+**The arena checks Mathlib in 71 % of nanoda's instructions and 57 % of
+`con-ron` at master's**, from 1.91× nanoda at task #97-P6-3's baseline; `Init`
+is within 0.9 % of nanoda for the first time.  The margin here is not the tag
+tests — those are a fifth of it — but the readback memo and the cons probe,
+and the prefix is where they show: **−23.3 %** against `Init`'s −11.2 %,
+because Mathlib's declarations carry the level parameters `Init`'s do not.
+
+#### 7. Gates
+
+| gate | |
+|---|---|
+| `cargo build --release` / `cargo test --release`, `RUSTFLAGS="-D warnings"` | clean, 428 tests, 0 failures |
+| `scripts/lint-rust-style.sh crates/arena-core/src` | clean |
+| `scripts/provenance.py check` | **0 findings** — `6651 item(s) (4898 Rust, 1753 arena Lean), 4929 citation(s), all current at pin 78ded4b6` |
+| `scripts/extract-arena.sh --dry` | **0 errors, 5 type + 211 function holes** — 209 plus `con_ron_core::kernel::{level,name}::dup`, two more CRATE-BOUNDARY axioms (the script's own note: "`charon cargo` does not descend into a path dependency, so every `con_ron_core::…` item this crate calls comes out as an axiom").  Both are ordinary translated definitions in con-ron-core's own model — `scripts/holes.sh` lists neither — so the trust surface is unchanged and the two go away with the crate merge |
+| `scripts/diff-e2e.sh --bin=target/release/con-ron-arena` | **383/383 agree** at `--jobs=1`, at `--jobs=4` and at `--trusted`, 0 differ, 0 timed out |
+| the diff | `arena/{store,monad,handle,core,core_state,core_gated,checker_base,expr_ops,prop_read,trust_axioms}.rs`, `arena/inductives/*.rs`, `frontend/proj_rec.rs` — nothing else under `crates/` |
+
+`proof/`, `crates/con-ron`, `crates/con-ron-core`, `OVERVIEW.md` and
+`README.md` are untouched.
+
+#### 8. The twin ledger (§8.6's P6 rule)
+
+| arena item | what it is | the twin's clause | owed or absorbed |
+|---|---|---|---|
+| the 137 `if let` sites dispatching on `h.tag()` | the same clause, selected by the handle's tag instead of by the decoded view | OWED — the SAME shape task #97-P6-10 ledgered for its seven walks, now crate-wide | owed; sound because a handle in a WF store carries the tag of its own view (`StoreWF`'s `intern`/`push` clause), and the two forms differ only on a DANGLING handle, where the `else` arm answers the fallthrough and `view` would fail — a state the checker never builds and `StoreWF` excludes |
+| `ETables::{get_sort,get_const,get_const_name,get_fvar_ty,get_lit}` and their `EStore`/`monad` tier selects | per-constructor projections of `get`/`view` | OWED, one `def` each | owed; exactness is `getSort t i = (t.get i).bind sortPart` and its four siblings — a `match` over the same `if` chain, `rfl` in the twin |
+| `#[cold]`/`#[inline(never)]` on `fail_dangling_e`/`_ls` | codegen attributes | — | **absorbed**: Charon does not read attributes; the extraction is hole-for-hole identical |
+| `#[inline(always)]` on `ETables::find` | a codegen attribute | — | **absorbed**, same reason |
+| `Caches.{read_l_c,read_n_c,read_ls_c}` and `readLevelM`/`readNameM`/`readNamesM`/`readLevelsM` | a per-declaration memo of the readback | OWED, three fields and four `def`s | owed; the obligation is a MEMO obligation and not a new algorithm — `denoteL`/`denoteN`/`denoteLs` are functions of the store, the tables are reset by `Caches.reset`, and `dropScratch` does the reset and the truncation in one step, so a row is valid exactly while the tier it names is |
+| `caches_dup` leaving the three new tables EMPTY | the attempt snapshot | — | **absorbed**: a restored-empty memo loses cache rows and nothing else, which is §8.3's own argument for the per-declaration flush; `attempt_snapshot` runs eight times on the whole of `Init` (task #97-P6-4a §4) |
+| `Memos.{inst_lp_l_c,inst_lp_ls_c}`, `substLMemoAt`/`substLsMemoAt` | a PER-CALL memo of `instLPGo`'s level work, keyed on the level handle alone | OWED, two fields and two `def`s | owed; the key omits `ks`/`us` for the reason §8.3 already gives for `instantiate`/`abstract`/`instantiateLevelParams` — the table is cleared at every top-level call (`instLPClear`), so within one call the vectors are constants |
+| the node hashes PACKED (`pack2`/`fold3`) | a different hash function | OWED, one `Hashable` instance per node type | owed and CHEAP: §3.2 makes a hash verdict-neutral and `ron::hashmap2`'s `Inv` only says a key sits where `homeIndex` puts it, so the whole obligation is that the twin's instance is the same function |
+| `snoc_eidx_of`, `snoc2_eidx_of`, `append_eidx_of` | `xs ++ [y]` and `xs ++ ys` at a BORROWED `xs`, sized once | — | **absorbed**: a capacity and an elided copy of a list Lean shares by value (§3.2) |
+| `level_list_dup`, `level_list_dup_from` | the `Vec<Level>` copy Lean's value semantics hides | — | **absorbed**, same reason |
+| `read_level_m`'s and `read_name_m`'s use of `level::dup`/`name::dup` | the `P` reference bump | — | **absorbed**: both are modelled as the identity in con-ron-core's own Lean, which is where they live |
+
+Nothing here is a different algorithm: every clause is the same clause read
+through the handle's own tag, a memo of a function of the store, or a hash the
+refinement never looks inside.
+
+#### 9. What is left
+
+  * **`EStore::intern` is now the largest symbol** (11.7 % of `Init`, with
+    `find` inlined into it and into `pers_find`, 4.7 % more).  What is still
+    redundant there is the node RECORD: `intern` builds it twice for the two
+    tier probes and once more for the `push`, and for a binder that is a
+    `binder_meta_dup` each time.  Dispatching `intern` on the view ONCE, into
+    ten per-constructor paths that build the record once and carry its hash,
+    is the next lever and it is a task-sized rewrite (ten arms, and
+    `der_of_view` wants `&self` where the push wants `&mut self.scr`).
+  * **The `cons_eidx` accumulators**, §5: `eidx_copy_upto` is 4.3 % of `Init`
+    and the fix is a representation change, not a lever.
+  * **`env::eidx_vec_dup_from` is still 1.07 %** and this task did not find its
+    caller: a frame-pointer profile collapses through the deep recursions, and
+    the static callers (`find_ci`, `i_proj_table_dup`,
+    `rec_fire_comparands`'s nested arm) are all supposed to be cold.  A
+    per-call-site counter would answer it in an hour.
+  * **Lever 3's remainder and the `BinderMeta` column** (task #97-P6-10 §3,
+    2–3 % of `Init`) are still priced and untaken.
+  * `residual_pw` and `all_level_params_defined_node` hold only `&AState` and
+    so keep the unmemoised readback; `all_level_params_defined_go` is 0.73 % of
+    `Init`.
