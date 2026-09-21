@@ -31,7 +31,9 @@ What moves, and only what moves:
   clause does the work; the wrap arm reuses the vacate walk.
 * **`remove_refines` grows**: backward-shift deletion has to be shown to
   preserve the run clause, a cyclic-interval argument (`wraps_past`) the
-  chained map never needed.
+  chained map never needed.  `RepairInv` is Knuth algorithm R's loop
+  invariant and `repair_spec` its three-arm step analysis; `RepairInv.stop`
+  is `repair`'s own `fuel == 0` obligation, the module's second.
 
 **Two deliberate departures from `Refine/HashMap.lean`'s own shape**, both of
 which make this file *smaller* than the 1 900–2 300 lines task #97-P6-4b
@@ -223,6 +225,18 @@ theorem liveAt_epoch {e g : Std.U32} {k : K} {v : V} {p : K × V}
   · rename_i hg; exact ⟨hg, by simpa using h.symm⟩
   · simp at h
 
+omit [DecidableEq K] in
+/-- A slot that reads live at `e` *is* a `Live` slot stamped `e`. -/
+theorem liveAt_inv {e : Std.U32} {s : ron.hashmap2.Slot K V} {k : K} {v : V}
+    (h : liveAt e s = some (k, v)) : s = .Live e k v := by
+  cases s with
+  | Vacant => simp at h
+  | Live g k' v' =>
+    obtain ⟨hge, hkv⟩ := liveAt_epoch h
+    have h1 : k = k' := congrArg Prod.fst hkv
+    have h2 : v = v' := congrArg Prod.snd hkv
+    rw [hge, h1, h2]
+
 /-- **The whole table as one association list**: the live slots, in index
 order.  The replacement for `al_v`, and the only place the representation is
 mentioned. -/
@@ -328,7 +342,7 @@ computing it, so nothing below has to reduce a `%` that `omega` cannot see. -/
 
 section Cyc
 
-variable {n a d d' : Nat}
+variable {n a b c d d' : Nat}
 
 theorem idx_lt (hn : 0 < n) : idx n a d < n := Nat.mod_lt _ hn
 
@@ -365,6 +379,59 @@ theorem idx_surj {j : Nat} (hn : 0 < n) (hj : j < n) : ∃ d, d < n ∧ idx n a 
       Nat.add_mod_right, Nat.mod_eq_of_lt hj]
   · refine ⟨j - a % n, by omega, ?_⟩
     rw [idx, ← Nat.mod_add_mod, show a % n + (j - a % n) = j by omega, Nat.mod_eq_of_lt hj]
+
+/-! `cyc` is the same distance `idx` counts, computed instead of named — it is
+what `wraps_past` compares, so the `remove`/`repair` section needs the two
+round-trips and the triangle identity below, and nothing else. -/
+
+theorem cyc_lt (hn : 0 < n) : cyc n a b < n := Nat.mod_lt _ hn
+
+theorem cyc_self (ha : a < n) : cyc n a a = 0 := by
+  rw [cyc, show a + n - a = n by omega, Nat.mod_self]
+
+theorem idx_cyc (ha : a < n) (hb : b < n) : idx n a (cyc n a b) = b := by
+  rw [idx, cyc, Nat.add_mod_mod, show a + (b + n - a) = b + n by omega,
+    Nat.add_mod_right, Nat.mod_eq_of_lt hb]
+
+theorem cyc_idx (hn : 0 < n) (ha : a < n) (hd : d < n) : cyc n a (idx n a d) = d :=
+  idx_inj hn (cyc_lt hn) hd (by rw [idx_cyc ha (idx_lt hn)])
+
+theorem cyc_eq_zero (ha : a < n) (hb : b < n) (h : cyc n a b = 0) : a = b := by
+  have hi := idx_cyc ha hb
+  rwa [h, idx_zero ha] at hi
+
+/-- **The triangle identity.**  Going `a → c` is going `a → b` then `b → c`,
+modulo one wrap; `cyc_cases` is the `omega`-shaped form every step of the
+repair walk uses. -/
+theorem cyc_trans (ha : a < n) (hb : b < n) (_hc : c < n) :
+    cyc n a c = (cyc n a b + cyc n b c) % n := by
+  have e : (b + n - a) + (c + n - b) = (c + n - a) + n := by omega
+  calc cyc n a c = ((c + n - a) + n) % n := by rw [cyc, Nat.add_mod_right]
+    _ = ((b + n - a) + (c + n - b)) % n := by rw [e]
+    _ = ((b + n - a) % n + (c + n - b) % n) % n := by rw [Nat.add_mod]
+    _ = (cyc n a b + cyc n b c) % n := rfl
+
+theorem cyc_cases (hn : 0 < n) (ha : a < n) (hb : b < n) (hc : c < n) :
+    cyc n a c = cyc n a b + cyc n b c ∨ cyc n a c + n = cyc n a b + cyc n b c := by
+  have h1 : cyc n a b < n := cyc_lt hn
+  have h2 : cyc n b c < n := cyc_lt hn
+  have h3 : cyc n a c < n := cyc_lt hn
+  have ht := cyc_trans (n := n) ha hb hc
+  rcases Nat.lt_or_ge (cyc n a b + cyc n b c) n with hlt | hge
+  · exact Or.inl (by rw [ht, Nat.mod_eq_of_lt hlt])
+  · right
+    rw [ht, Nat.mod_eq_sub_mod hge, Nat.mod_eq_of_lt (by omega)] at h3 ⊢
+    omega
+
+/-- One step forward moves every other slot one step closer. -/
+theorem cyc_step (hn : 1 < n) {j q : Nat} (hj : j < n) (hq : q < n) (hne : q ≠ j) :
+    cyc n (idx n j 1) q + 1 = cyc n j q := by
+  have h1 : cyc n j (idx n j 1) = 1 := cyc_idx (by omega) hj (by omega)
+  have h2 : cyc n j q < n := cyc_lt (by omega)
+  have h3 : cyc n (idx n j 1) q < n := cyc_lt (by omega)
+  have hz : cyc n j q ≠ 0 := fun hc => hne (cyc_eq_zero hj hq hc).symm
+  rcases cyc_cases (n := n) (b := idx n j 1) (by omega) hj
+    (idx_lt (a := j) (d := 1) (by omega)) hq with he | he <;> omega
 
 /-- The capacity is a multiple of four and `max_load` is strictly below it:
 this is the arithmetic behind "there is always a free slot". -/
@@ -2068,6 +2135,109 @@ argument, the only one in this file, and the only place `cyc` and
 `wraps_past` are used.  `probe_spec` is not enough for it, because the run
 clause has to be re-established rather than read off. -/
 
+omit [DecidableEq K] in
+theorem uscalar_rem_eq {ty : UScalarTy} {x y z : UScalar ty} (h : x % y = ok z) :
+    z.val = x.val % y.val := by
+  by_cases hy : y.val = 0
+  · exfalso
+    rw [show x % y = UScalar.rem x y from rfl, UScalar.rem, if_neg (by simp [hy])] at h
+    simp at h
+  · rw [show x % y = UScalar.rem x y from rfl, UScalar.rem, if_pos (by simp [hy])] at h
+    rw [← Result.ok_injective h]
+    simp only [UScalar.val]
+    exact BitVec.toNat_umod
+
+omit [DecidableEq K] in
+/-- The three scalar-returning reads `repair` uses so that its loans die at
+the join (`hashmap2.rs`'s note on task #97-P4a's second extraction rule). -/
+theorem slot_live_spec {s : ron.hashmap2.Slot K V} {e : Std.U32} {bl : Bool}
+    (h : ron.hashmap2.slot_live s e = ok bl) : bl = (liveAt e s).isSome := by
+  rw [ron.hashmap2.slot_live.eq_def] at h
+  cases hsc : s with
+  | Vacant => rw [hsc] at h; simp only at h; rw [← Result.ok_injective h]; simp
+  | Live g k v =>
+    rw [hsc] at h
+    simp only at h
+    rw [← Result.ok_injective h]
+    by_cases hg : g = e <;> simp [hg, liveAt]
+
+omit [DecidableEq K] in
+theorem slot_home_spec {s : ron.hashmap2.Slot K V} {g : Std.U32} {k : K} {v : V}
+    {n i : Std.Usize} (hsc : s = .Live g k v)
+    (h : ron.hashmap2.slot_home HashableInst s n = ok i) : homeAt HashableInst n k = ok i := by
+  rw [ron.hashmap2.slot_home.eq_def, hsc] at h
+  exact h
+
+omit [DecidableEq K] in
+/-- **Algorithm R's test**, read as a cyclic comparison: the entry at `j`,
+whose home is `hh`, may be moved back into `hole` exactly when `hh` is *not*
+cyclically inside `(hole, j]`. -/
+theorem wraps_past_spec {hh hole j n : Std.Usize} {bl : Bool}
+    (h : ron.hashmap2.wraps_past hh hole j n = ok bl) :
+    (bl = true ↔ cyc n.val hole.val j.val ≤ cyc n.val hh.val j.val) := by
+  rw [ron.hashmap2.wraps_past] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨i, hi, i1, hi1, dh, hdh, i2, hi2, dk, hdk, hok⟩ := h
+  have hiv : i.val = j.val + n.val := uscalar_add_eq hi
+  have hdhv : dh.val = cyc n.val hh.val j.val := by
+    rw [uscalar_rem_eq hdh, uscalar_sub_eq hi1, hiv, cyc]
+  have hdkv : dk.val = cyc n.val hole.val j.val := by
+    rw [uscalar_rem_eq hdk, uscalar_sub_eq hi2, hiv, cyc]
+  rw [← Result.ok_injective hok]
+  simp only [decide_eq_true_eq, ge_iff_le, UScalar.le_equiv, hdhv, hdkv]
+
+/-- Everything `Inv` asks for except the run clause — what `repair` carries
+through untouched while it is rebuilding the run clause. -/
+structure InvNoRun (HashableInst : ron.hashmap.Hashable K)
+    (t : ron.hashmap2.HashMap2 K V) : Prop where
+  pow2 : 0 < t.slots.val.length → ∃ e, t.slots.val.length = 2 ^ e
+  min_cap : 0 < t.slots.val.length → 32 ≤ t.slots.val.length
+  max_load_eq : 0 < t.slots.val.length → t.max_load.val = 3 * (t.slots.val.length / 4)
+  fit : t.num_entries.val ≤ t.max_load.val
+  sat : t.saturated = false
+  epoch_pos : 1 ≤ t.epoch.val
+  stamps : ∀ (p : Nat) (g : Std.U32) (k : K) (v : V),
+      t.slots.val[p]! = .Live g k v → g.val ≤ t.epoch.val
+  nodup : ((sl_v t).map Prod.fst).Nodup
+  entries : t.num_entries.val = (sl_v t).length
+
+omit [DecidableEq K] in
+theorem InvNoRun.of_Inv {t : ron.hashmap2.HashMap2 K V} (h : Inv HashableInst t) :
+    InvNoRun HashableInst t :=
+  ⟨h.pow2, h.min_cap, h.max_load_eq, h.fit, h.sat, h.epoch_pos, h.stamps, h.nodup, h.entries⟩
+
+omit [DecidableEq K] in
+theorem Inv.of_InvNoRun {t : ron.hashmap2.HashMap2 K V} (h : InvNoRun HashableInst t)
+    (hrun : ∀ (p : Nat) (k : K) (v : V) (i : Std.Usize),
+      p < t.slots.val.length → slotKV t p = some (k, v) →
+      homeAt HashableInst (alloc.vec.Vec.len t.slots) k = ok i →
+      i.val < t.slots.val.length ∧
+      ∃ D, D < t.slots.val.length ∧ p = idx t.slots.val.length i.val D ∧
+        ∀ d, d < D → isLive t (idx t.slots.val.length i.val d)) :
+    Inv HashableInst t :=
+  ⟨⟨h.pow2, h.min_cap, h.max_load_eq, h.sat, h.epoch_pos, h.stamps, h.nodup, h.entries,
+    hrun⟩, h.fit⟩
+
+omit [DecidableEq K] in
+/-- `Inv0.run`'s named distance, read as a cyclic one, and back.  `Inv` uses
+the first form (it is `omega`-friendly); `RepairInv` uses the second (it is
+what `wraps_past` compares). -/
+theorem run_of_cyc {n a p : Nat} (hn : 0 < n) (ha : a < n) (hp : p < n)
+    {Q : Nat → Prop} (h : ∀ q, q < n → cyc n a q < cyc n a p → Q q) :
+    ∃ D, D < n ∧ p = idx n a D ∧ ∀ d, d < D → Q (idx n a d) := by
+  have hcn : cyc n a p < n := cyc_lt hn
+  refine ⟨cyc n a p, hcn, (idx_cyc ha hp).symm, fun d hd => ?_⟩
+  exact h (idx n a d) (idx_lt hn) (by rw [cyc_idx hn ha (by omega)]; exact hd)
+
+omit [DecidableEq K] in
+theorem cyc_of_run {n a p D : Nat} (hn : 0 < n) (ha : a < n) {Q : Nat → Prop}
+    (hD : D < n) (hpD : p = idx n a D) (h : ∀ d, d < D → Q (idx n a d)) :
+    ∀ q, q < n → cyc n a q < cyc n a p → Q q := by
+  intro q hq hlt
+  have hcp : cyc n a p = D := by rw [hpD, cyc_idx hn ha hD]
+  rw [← idx_cyc ha hq]
+  exact h (cyc n a q) (by omega)
+
 /-- **Algorithm R's loop invariant**, at `repair hole j` with `fuel` left.
 
 * `free` — the hole is free;
@@ -2091,29 +2261,29 @@ When the scan stops (slot `j` is not live) the exception in `runs` is vacuous
 — an entry whose run crossed the hole would have to have `j` in its run — and
 `runs` becomes `Inv0.run`. -/
 structure RepairInv (HashableInst : ron.hashmap.Hashable K)
-    (t : ron.hashmap2.HashMap2 K V) (hole j fuel : Nat) : Prop where
+    (t : ron.hashmap2.HashMap2 K V) (hole j D fuel : Nat) : Prop where
   free : ¬ isLive t hole
   hole_lt : hole < t.slots.val.length
   j_lt : j < t.slots.val.length
-  scanned : ∀ p, p < t.slots.val.length → 0 < cyc t.slots.val.length hole p →
-      cyc t.slots.val.length hole p < cyc t.slots.val.length hole j → isLive t p
+  dist_pos : 0 < D
+  dist_le : D ≤ t.slots.val.length
+  dist_eq : j = idx t.slots.val.length hole D
+  scanned : ∀ d, 0 < d → d < D → isLive t (idx t.slots.val.length hole d)
   runs : ∀ (p : Nat) (k : K) (v : V) (i : Std.Usize),
       p < t.slots.val.length → slotKV t p = some (k, v) →
       homeAt HashableInst (alloc.vec.Vec.len t.slots) k = ok i →
       i.val < t.slots.val.length ∧
       ∀ q, q < t.slots.val.length →
         cyc t.slots.val.length i.val q < cyc t.slots.val.length i.val p →
-        isLive t q ∨
-          (q = hole ∧ cyc t.slots.val.length hole j ≤ cyc t.slots.val.length hole p)
+        isLive t q ∨ (q = hole ∧ D ≤ cyc t.slots.val.length hole p)
   stop : ∃ q, q < t.slots.val.length ∧ q ≠ hole ∧ ¬ isLive t q ∧
       cyc t.slots.val.length j q < fuel
 
+omit [DecidableEq K] in
 /-- **The cluster repair.**  `repair` preserves the entries of the table as a
-multiset and restores the run clause.
-
-**PROOF OWED** (task #97-HM2): the statement is committed, the proof is not.
-What is missing is exactly the step analysis of `RepairInv` under the three
-arms of `repair`:
+multiset and restores the run clause.  This is task #97-P6-4b's "expensive
+one", and the whole of it is the step analysis of `RepairInv` under the three
+arms:
 
 * `act = 0` (slot `j` is not live) — the scan stops, and `RepairInv`'s
   exception becomes vacuous: a live entry whose run crossed `hole` has
@@ -2128,35 +2298,402 @@ arms of `repair`:
   run was already live and is untouched, and every other entry's run gains a
   live slot at the old `hole` and may only break at the new one, which is `j`.
 
-plus the `fuel == 0` arm, which `RepairInv.stop` makes unreachable.
+plus the `fuel == 0` arm, which `RepairInv.stop` makes unreachable — the
+second fuel obligation of the module, and the reason `stop` is a clause at
+all.
 
 The three together are the cyclic-interval argument, and `idx_cases` /
-`idx_inj` / `idx_surj` above are the arithmetic they run on. -/
-theorem repair_spec {P : K → Prop} (heq : Eq2Fwd Eq2Inst P) (F : Nat) :
-    ∀ (t t' : ron.hashmap2.HashMap2 K V) (hole j n fuel : Std.Usize),
-      fuel.val = F → n.val = t.slots.val.length → 0 < n.val →
-      t.num_entries.val + 1 ≤ t.max_load.val →
-      (0 < t.slots.val.length → ∃ e, t.slots.val.length = 2 ^ e) →
-      (0 < t.slots.val.length → 32 ≤ t.slots.val.length) →
-      (0 < t.slots.val.length → t.max_load.val = 3 * (t.slots.val.length / 4)) →
-      t.saturated = false → 1 ≤ t.epoch.val →
-      (∀ (p : Nat) (g : Std.U32) (k : K) (v : V),
-        t.slots.val[p]! = .Live g k v → g.val ≤ t.epoch.val) →
-      ((sl_v t).map Prod.fst).Nodup → t.num_entries.val = (sl_v t).length →
-      RepairInv HashableInst t hole.val j.val fuel.val →
+`idx_inj` / `idx_surj` / `cyc_cases` above are the arithmetic they run on. -/
+theorem repair_spec (F : Nat) :
+    ∀ (t t' : ron.hashmap2.HashMap2 K V) (hole j n fuel : Std.Usize) (D : Nat),
+      fuel.val = F → n = alloc.vec.Vec.len t.slots → 2 ≤ t.slots.val.length →
+      InvNoRun HashableInst t →
+      RepairInv HashableInst t hole.val j.val D fuel.val →
       ron.hashmap2.HashMap2.repair HashableInst Eq2Inst t hole j n fuel = ok t' →
       Inv HashableInst t' ∧ (sl_v t').Perm (sl_v t) ∧
         t'.slots.val.length = t.slots.val.length ∧
         t'.max_load = t.max_load ∧ t'.saturated = t.saturated ∧
         t'.epoch = t.epoch ∧ t'.num_entries = t.num_entries := by
-  sorry
+  induction F using Nat.strong_induction_on with
+  | _ F ih =>
+    intro t t' hole j n fuel D hF hn h2 hinv hrep h
+    have hlenv : n.val = t.slots.val.length := by rw [hn]; exact alloc.vec.Vec.len_val _
+    have hpos : 0 < t.slots.val.length := by omega
+    have hholelt := hrep.hole_lt
+    have hjlt := hrep.j_lt
+    have hDpos := hrep.dist_pos
+    have hDle := hrep.dist_le
+    rw [ron.hashmap2.HashMap2.repair.eq_def] at h
+    rcases ite_eq_ok h with ⟨hf0, h⟩ | ⟨hf0, h⟩
+    · -- the fuel is gone: `RepairInv.stop` says the scan met a free slot first
+      exfalso
+      obtain ⟨q, -, -, -, hqc⟩ := hrep.stop
+      have hfz : fuel.val = 0 := by scalar_tac
+      omega
+    · have hfne : fuel.val ≠ 0 := by
+        intro hc
+        exact hf0 (UScalar.val_eq_imp _ _ (by rw [hc]; rfl))
+      obtain ⟨s, hs, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨-, hseq⟩ := vec_index_eq hs
+      obtain ⟨bl, hbl, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨act, hact, h⟩ := bind_eq_ok_iff.mp h
+      have hslot : liveAt t.epoch s = slotKV t j.val := by rw [slotKV, hseq]
+      have hblv : bl = (slotKV t j.val).isSome := by rw [slot_live_spec hbl, hslot]
+      have hcycj : cyc t.slots.val.length hole.val j.val
+          = if D = t.slots.val.length then 0 else D := by
+        rw [hrep.dist_eq]
+        split
+        · rename_i hD
+          rw [hD, show idx t.slots.val.length hole.val t.slots.val.length = hole.val by
+            rw [idx, Nat.add_mod_right, Nat.mod_eq_of_lt hholelt], cyc_self hholelt]
+        · rename_i hD
+          exact cyc_idx hpos hholelt (by have := hrep.dist_le; omega)
+      rcases ite_eq_ok hact with ⟨hbt, hact⟩ | ⟨hbf, hact⟩
+      · -- slot `j` is live: decide whether its entry may move back
+        obtain ⟨hh, hhh, hact⟩ := bind_eq_ok_iff.mp hact
+        obtain ⟨b1, hb1, hact⟩ := bind_eq_ok_iff.mp hact
+        have hlivej : (slotKV t j.val).isSome := by rw [← hblv]; exact hbt
+        have hjne : j.val ≠ hole.val := by
+          intro hc
+          rw [hc] at hlivej
+          exact hrep.free hlivej
+        have hDlt : D < t.slots.val.length := by
+          have := hrep.dist_le
+          rcases Nat.lt_or_ge D t.slots.val.length with hd | hd
+          · exact hd
+          · exfalso
+            apply hjne
+            rw [hrep.dist_eq, show D = t.slots.val.length by omega, idx,
+              Nat.add_mod_right, Nat.mod_eq_of_lt hholelt]
+        have hcycjD : cyc t.slots.val.length hole.val j.val = D := by
+          rw [hcycj, if_neg (by omega)]
+        rcases ite_eq_ok hact with ⟨hb1t, hact⟩ | ⟨hb1f, hact⟩
+        · -- `act = 1`: the home of the entry at `j` is *not* cyclically inside
+          -- `(hole, j]`, so the entry may be pulled back into the hole; `j`
+          -- becomes the new hole and the scan restarts one slot on
+          have hacte : act = 1#i32 := (Result.ok_injective hact).symm
+          obtain ⟨kj, vj, hkv⟩ : ∃ kj vj, slotKV t j.val = some (kj, vj) := by
+            cases hc : slotKV t j.val with
+            | none => rw [hc] at hlivej; simp at hlivej
+            | some pw => exact ⟨pw.1, pw.2, rfl⟩
+          have hsl2 : liveAt t.epoch s = some (kj, vj) := by rw [hslot]; exact hkv
+          have hscj : s = ron.hashmap2.Slot.Live t.epoch kj vj := liveAt_inv hsl2
+          have hhome : homeAt HashableInst (alloc.vec.Vec.len t.slots) kj = ok hh := by
+            rw [← hn]; exact slot_home_spec hscj hhh
+          obtain ⟨hhlt, hrunj⟩ := hrep.runs j.val kj vj hh hjlt hkv hhome
+          have hw : D ≤ cyc t.slots.val.length hh.val j.val := by
+            have hb1v := wraps_past_spec hb1
+            rw [hlenv] at hb1v
+            have hc := hb1v.1 (by simpa using hb1t)
+            rw [hcycjD] at hc
+            exact hc
+          -- the hole lies strictly inside the moved entry's run
+          have huv : cyc t.slots.val.length hh.val hole.val
+              < cyc t.slots.val.length hh.val j.val := by
+            have e := cyc_cases (n := t.slots.val.length) (a := hh.val) (b := hole.val)
+              (c := j.val) hpos hhlt hholelt hjlt
+            rw [hcycjD] at e
+            have b1 : cyc t.slots.val.length hh.val hole.val < t.slots.val.length :=
+              cyc_lt hpos
+            have b2 : cyc t.slots.val.length hh.val j.val < t.slots.val.length := cyc_lt hpos
+            omega
+          -- peel the two writes
+          have hne0 : ¬ (act = 0#i32) := by rw [hacte]; simp
+          replace h := ((ite_eq_ok h).resolve_left (fun hc => hne0 hc.1)).2
+          replace h := ((ite_eq_ok h).resolve_right (fun hc => hc.1 hacte)).2
+          obtain ⟨p1, hidx1, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨s1, back⟩ := p1
+          obtain ⟨-, hs1eq, hback⟩ := vec_index_mut_eq hidx1
+          subst hback
+          obtain ⟨p2, hidx2, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨sh, back1⟩ := p2
+          obtain ⟨-, -, hback1⟩ := vec_index_mut_eq hidx2
+          subst hback1
+          obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨f1, hf1, h⟩ := bind_eq_ok_iff.mp h
+          have hs1 : s1 = s := by rw [hs1eq, hseq]
+          subst hs1
+          -- the new table
+          set lb : List (ron.hashmap2.Slot K V) := t.slots.val.set j.val .Vacant with hlb
+          set t1 : ron.hashmap2.HashMap2 K V :=
+            { t with slots := alloc.vec.Vec.set (alloc.vec.Vec.set t.slots j .Vacant) hole s1 }
+            with ht1
+          have hjlb : j.val < lb.length := by rw [hlb, List.length_set]; omega
+          have hholelb : hole.val < lb.length := by rw [hlb, List.length_set]; omega
+          have ht1s : t1.slots.val = lb.set hole.val s1 := by
+            rw [ht1, hlb]
+            simp only [alloc.vec.Vec.set_val_eq]
+          have hlen1 : t1.slots.val.length = t.slots.val.length := by
+            rw [ht1s, List.length_set, hlb, List.length_set]
+          have ht1e : t1.epoch = t.epoch := rfl
+          -- what each slot of the new table reads
+          have hkvhole : slotKV t1 hole.val = some (kj, vj) := by
+            rw [slotKV, ht1s, getElem!_set_self _ hholelb, ht1e, hscj]
+            simp
+          have hkvj : slotKV t1 j.val = none := by
+            rw [slotKV, ht1s, getElem!_set_ne _ hjne, hlb, getElem!_set_self _ (by omega)]
+            rfl
+          have hkvo : ∀ p : Nat, p ≠ j.val → p ≠ hole.val → slotKV t1 p = slotKV t p := by
+            intro p hpj hph
+            rw [slotKV, slotKV, ht1s, getElem!_set_ne _ hph, hlb, getElem!_set_ne _ hpj, ht1e]
+          -- the entries are preserved as a multiset
+          have hperm : (sl_v t1).Perm (sl_v t) := by
+            have e1 : (sl_v t).Perm ((kj, vj) :: lb.filterMap (liveAt t.epoch)) := by
+              have := filterMap_perm (l := t.slots.val) (f := liveAt t.epoch)
+                (i := j.val) (by omega) .Vacant rfl
+              rw [show liveAt t.epoch t.slots.val[j.val]! = some (kj, vj) from hkv] at this
+              exact this
+            have e2 : (lb.filterMap (liveAt t.epoch)).Perm
+                ((lb.set hole.val .Vacant).filterMap (liveAt t.epoch)) := by
+              have := filterMap_perm (l := lb) (f := liveAt t.epoch) (i := hole.val)
+                hholelb .Vacant rfl
+              rw [show liveAt t.epoch lb[hole.val]! = none by
+                rw [hlb, getElem!_set_ne _ (Ne.symm hjne)]
+                exact Option.not_isSome_iff_eq_none.mp hrep.free] at this
+              simpa using this
+            have e3 : (sl_v t1).Perm ((kj, vj) ::
+                (lb.set hole.val .Vacant).filterMap (liveAt t.epoch)) := by
+              have := filterMap_set_perm (l := lb) (f := liveAt t.epoch) (i := hole.val)
+                hholelb s1 .Vacant rfl
+              rw [show liveAt t.epoch s1 = some (kj, vj) from hsl2] at this
+              rw [sl_v, ht1s, ht1e]
+              simpa using this
+            exact e3.trans (((e2.trans (List.Perm.refl _)).cons (kj, vj)).symm.trans e1.symm)
+          -- the invariant clauses the walk does not touch
+          have hinv1 : InvNoRun HashableInst t1 := by
+            refine ⟨by rw [hlen1]; exact hinv.pow2, by rw [hlen1]; exact hinv.min_cap,
+              by rw [hlen1]; exact hinv.max_load_eq, hinv.fit, hinv.sat, hinv.epoch_pos,
+              ?_, ?_, ?_⟩
+            · intro p g k v hx
+              rw [ht1e]
+              by_cases hph : p = hole.val
+              · subst hph
+                rw [ht1s, getElem!_set_self _ hholelb, hscj] at hx
+                injection hx with e1 e2 e3
+                have he : t.epoch.val = g.val := by rw [e1]
+                omega
+              · by_cases hpj : p = j.val
+                · subst hpj
+                  rw [ht1s, getElem!_set_ne _ hjne, hlb,
+                    getElem!_set_self (l := t.slots.val) (i := j.val) _ hjlt] at hx
+                  simp at hx
+                · rw [ht1s, getElem!_set_ne _ hph, hlb, getElem!_set_ne _ hpj] at hx
+                  exact hinv.stamps p g k v hx
+            · exact (hperm.map Prod.fst).nodup_iff.2 hinv.nodup
+            · rw [show t1.num_entries = t.num_entries from rfl, hinv.entries,
+                hperm.length_eq]
+          have hi2v : i2.val = (j.val + 1) % t.slots.val.length := by
+            rw [next_index_spec (by omega) hi2, hlenv]
+          have hf1v : f1.val = fuel.val - 1 := by rw [uscalar_sub_eq hf1]; simp
+          have hhomelen : alloc.vec.Vec.len t1.slots = alloc.vec.Vec.len t.slots :=
+            vec_len_congr hlen1
+          -- the repair invariant, one hole on
+          have hrep1 : RepairInv HashableInst t1 j.val i2.val 1 f1.val := by
+            refine ⟨by simp [isLive, hkvj], by rw [hlen1]; omega,
+              by rw [hlen1, hi2v]; exact Nat.mod_lt _ hpos, by omega, by rw [hlen1]; omega,
+              by rw [hlen1, hi2v, idx], ?_, ?_, ?_⟩
+            · intro d hd0 hd; omega
+            · -- `runs`: the moved entry's run shortened, and every other run
+              -- gained the old hole back
+              intro p k v i0 hp hslotp hhome0
+              rw [hlen1] at hp
+              rw [hhomelen] at hhome0
+              have hpj : p ≠ j.val := by
+                intro hc; rw [hc, hkvj] at hslotp; simp at hslotp
+              by_cases hph : p = hole.val
+              · -- the moved entry
+                subst hph
+                rw [hkvhole] at hslotp
+                have hkk : k = kj := (congrArg Prod.fst (Option.some.inj hslotp)).symm
+                subst hkk
+                have hi0 : i0 = hh := Result.ok_injective (hhome0.symm.trans hhome)
+                subst hi0
+                refine ⟨by rw [hlen1]; exact hhlt, fun q hq hqlt => ?_⟩
+                rw [hlen1] at hq hqlt ⊢
+                by_cases hqj : q = j.val
+                · exact Or.inr ⟨hqj, by
+                    have : cyc t.slots.val.length j.val hole.val ≠ 0 := fun hc =>
+                      hjne (cyc_eq_zero hjlt hholelt hc)
+                    omega⟩
+                · refine Or.inl ?_
+                  have hqlt2 : cyc t.slots.val.length i0.val q
+                      < cyc t.slots.val.length i0.val j.val := by omega
+                  rcases hrunj q hq hqlt2 with hl | ⟨hqh, -⟩
+                  · rw [isLive, hkvo q hqj (by intro hc; rw [hc] at hqlt; omega)]
+                    exact hl
+                  · exact absurd hqlt (by rw [hqh]; omega)
+              · -- every other entry
+                rw [hkvo p hpj hph] at hslotp
+                obtain ⟨hi0, hrun⟩ := hrep.runs p k v i0 hp hslotp hhome0
+                refine ⟨by rw [hlen1]; exact hi0, fun q hq hqlt => ?_⟩
+                rw [hlen1] at hq hqlt ⊢
+                by_cases hqj : q = j.val
+                · refine Or.inr ⟨hqj, ?_⟩
+                  have : cyc t.slots.val.length j.val p ≠ 0 := fun hc =>
+                    hpj (cyc_eq_zero hjlt hp hc).symm
+                  omega
+                rcases hrun q hq hqlt with hl | ⟨hqh, -⟩
+                · refine Or.inl ?_
+                  by_cases hqh2 : q = hole.val
+                  · rw [isLive, hqh2, hkvhole]; simp
+                  · rw [isLive, hkvo q hqj hqh2]; exact hl
+                · exact Or.inl (by rw [isLive, hqh, hkvhole]; simp)
+            · -- `stop`: the witness is neither of the two slots that changed
+              obtain ⟨q, hq, hqh, hql, hqc⟩ := hrep.stop
+              have hqj : q ≠ j.val := by
+                intro hc; rw [hc] at hql; exact hql hlivej
+              refine ⟨q, by rw [hlen1]; exact hq, hqj, ?_, ?_⟩
+              · rw [isLive, hkvo q hqj hqh]; exact hql
+              · have hstep := cyc_step (n := t.slots.val.length) (by omega) hjlt hq hqj
+                have hidx1 : idx t.slots.val.length j.val 1 = i2.val := by rw [idx, hi2v]
+                rw [hidx1] at hstep
+                rw [hlen1]
+                omega
+          obtain ⟨hinv', hperm', hlenB, hmlB, hsatB, hepB, hentB⟩ :=
+            ih f1.val (by omega) t1 t' j i2 n f1 1 rfl (by rw [hhomelen]; exact hn)
+              (by rw [hlen1]; omega) hinv1 hrep1 h
+          exact ⟨hinv', hperm'.trans hperm, by rw [hlenB, hlen1],
+            by rw [hmlB], by rw [hsatB], by rw [hepB], by rw [hentB]⟩
+        · -- `act = 2`: the entry's home is cyclically inside `(hole, j]`, so
+          -- moving it back would break its own run; it stays, and the scan
+          -- moves on with `hole` where it was
+          have hacte : act = 2#i32 := (Result.ok_injective hact).symm
+          obtain ⟨kj, vj, hkv⟩ : ∃ kj vj, slotKV t j.val = some (kj, vj) := by
+            cases hc : slotKV t j.val with
+            | none => rw [hc] at hlivej; simp at hlivej
+            | some pw => exact ⟨pw.1, pw.2, rfl⟩
+          have hsl2 : liveAt t.epoch s = some (kj, vj) := by rw [hslot]; exact hkv
+          have hscj : s = ron.hashmap2.Slot.Live t.epoch kj vj := liveAt_inv hsl2
+          have hhome : homeAt HashableInst (alloc.vec.Vec.len t.slots) kj = ok hh := by
+            rw [← hn]; exact slot_home_spec hscj hhh
+          obtain ⟨hhlt, -⟩ := hrep.runs j.val kj vj hh hjlt hkv hhome
+          have hnw : cyc t.slots.val.length hh.val j.val < D := by
+            have hb1v := wraps_past_spec hb1
+            rw [hlenv] at hb1v
+            have hc : ¬ (cyc t.slots.val.length hole.val j.val
+                ≤ cyc t.slots.val.length hh.val j.val) := fun hc => hb1f (hb1v.2 hc)
+            rw [hcycjD] at hc
+            omega
+          rcases ite_eq_ok h with ⟨h0, -⟩ | ⟨-, h⟩
+          · exfalso; rw [hacte] at h0; simp at h0
+          rcases ite_eq_ok h with ⟨h1, -⟩ | ⟨-, h⟩
+          · exfalso; rw [hacte] at h1; simp at h1
+          obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
+          obtain ⟨f1, hf1, h⟩ := bind_eq_ok_iff.mp h
+          have hi2v : i2.val = (j.val + 1) % t.slots.val.length := by
+            rw [next_index_spec (by omega) hi2, hlenv]
+          have hf1v : f1.val = fuel.val - 1 := by rw [uscalar_sub_eq hf1]; simp
+          have hidxs : i2.val = idx t.slots.val.length hole.val (D + 1) := by
+            rw [idx_succ, ← hrep.dist_eq, hi2v]
+          refine ih f1.val (by omega) t t' hole i2 n f1 (D + 1) rfl hn h2 hinv ?_ h
+          refine ⟨hrep.free, hholelt, by rw [hi2v]; exact Nat.mod_lt _ hpos, by omega,
+            by omega, hidxs, ?_, ?_, ?_⟩
+          · -- `scanned` grows by the slot just examined
+            intro d hd0 hd
+            rcases Nat.lt_or_ge d D with hlt | hge
+            · exact hrep.scanned d hd0 hlt
+            · rw [show d = D by omega, ← hrep.dist_eq]
+              exact hlivej
+          · -- `runs`: the entry at `j` cannot itself have the hole in its run
+            intro p k v i0 hp hslotp hhome0
+            obtain ⟨hi0, hrun⟩ := hrep.runs p k v i0 hp hslotp hhome0
+            refine ⟨hi0, fun q hq hqlt => ?_⟩
+            rcases hrun q hq hqlt with hl | ⟨hqh, hDle'⟩
+            · exact Or.inl hl
+            refine Or.inr ⟨hqh, ?_⟩
+            rcases Nat.lt_or_ge D (cyc t.slots.val.length hole.val p) with hlt | hge
+            · omega
+            exfalso
+            have hcp : cyc t.slots.val.length hole.val p = D := by omega
+            have hpj : p = j.val := by
+              rw [← idx_cyc (a := hole.val) hholelt hp, hcp, ← hrep.dist_eq]
+            have hkk : k = kj := by
+              rw [hpj, hkv] at hslotp
+              exact (congrArg Prod.fst (Option.some.inj hslotp)).symm
+            have hi0h : i0 = hh := by
+              rw [hkk] at hhome0
+              exact Result.ok_injective (hhome0.symm.trans hhome)
+            rw [hqh, hpj, hi0h] at hqlt
+            have e := cyc_cases (n := t.slots.val.length) (a := hh.val) (b := hole.val)
+              (c := j.val) hpos hhlt hholelt hjlt
+            rw [hcycjD] at e
+            have b1 : cyc t.slots.val.length hh.val hole.val < t.slots.val.length :=
+              cyc_lt hpos
+            have b2 : cyc t.slots.val.length hh.val j.val < t.slots.val.length := cyc_lt hpos
+            omega
+          · -- `stop`: one slot closer, one unit of fuel less
+            obtain ⟨q, hq, hqh, hql, hqc⟩ := hrep.stop
+            refine ⟨q, hq, hqh, hql, ?_⟩
+            have hqj : q ≠ j.val := by
+              intro hc; rw [hc] at hql; exact hql hlivej
+            have hstep := cyc_step (n := t.slots.val.length) (by omega) hjlt hq hqj
+            have hidx1 : idx t.slots.val.length j.val 1 = i2.val := by
+              rw [idx, hi2v]
+            rw [hidx1] at hstep
+            omega
+      · -- `act = 0`: slot `j` is not live, the scan stops, and the run clause
+        -- is restored
+        have hnl : ¬ (slotKV t j.val).isSome := by rw [← hblv]; simpa using hbf
+        have hacte : act = 0#i32 := (Result.ok_injective hact).symm
+        rcases ite_eq_ok h with ⟨-, h⟩ | ⟨hne, h⟩
+        · have ht : t' = t := (Result.ok_injective h).symm
+          rw [ht]
+          refine ⟨Inv.of_InvNoRun hinv ?_, List.Perm.refl _, rfl, rfl, rfl, rfl, rfl⟩
+          intro p k v i hp hslotp hhome
+          obtain ⟨hilt, hrun⟩ := hrep.runs p k v i hp hslotp hhome
+          refine ⟨hilt, run_of_cyc hpos hilt hp ?_⟩
+          intro q hq hqlt
+          rcases hrun q hq hqlt with hlive | ⟨hqh, hD⟩
+          · exact hlive
+          · exfalso
+            subst hqh
+            -- the hole is inside `p`'s run and the scan has reached at least `p`
+            have hcp : cyc t.slots.val.length hole.val p < t.slots.val.length :=
+              cyc_lt hpos
+            have hDlt : D < t.slots.val.length := by omega
+            have hjne : j.val ≠ hole.val := by
+              intro hc
+              have hc0 : idx t.slots.val.length hole.val D
+                  = idx t.slots.val.length hole.val 0 := by
+                rw [← hrep.dist_eq, idx_zero hholelt]; exact hc
+              have := idx_inj hpos hDlt hpos hc0
+              omega
+            have hcycjD : cyc t.slots.val.length hole.val j.val = D := by
+              rw [hcycj, if_neg (by omega)]
+            -- `cyc i hole + cyc hole p = cyc i p`, and likewise through `j`
+            have e1 := cyc_cases (n := t.slots.val.length) (a := i.val) (b := hole.val)
+              (c := p) hpos hilt hholelt hp
+            have e2 := cyc_cases (n := t.slots.val.length) (a := i.val) (b := hole.val)
+              (c := j.val) hpos hilt hholelt hjlt
+            have b1 : cyc t.slots.val.length i.val hole.val < t.slots.val.length :=
+              cyc_lt hpos
+            have b2 : cyc t.slots.val.length i.val p < t.slots.val.length := cyc_lt hpos
+            have b3 : cyc t.slots.val.length i.val j.val < t.slots.val.length := cyc_lt hpos
+            rw [hcycjD] at e2
+            have hlt2 : cyc t.slots.val.length i.val j.val
+                ≤ cyc t.slots.val.length i.val p := by omega
+            rcases Nat.lt_or_ge (cyc t.slots.val.length i.val j.val)
+                (cyc t.slots.val.length i.val p) with hstrict | hge
+            · rcases hrun j.val hjlt hstrict with hlivej | ⟨hjh, -⟩
+              · exact hnl hlivej
+              · exact hjne hjh
+            · -- `j = p`, but `p` is live and `j` is not
+              have hjp : j.val = p := by
+                have := idx_cyc (a := i.val) (b := j.val) hilt hjlt
+                have h2' := idx_cyc (a := i.val) (b := p) hilt hp
+                rw [show cyc t.slots.val.length i.val j.val
+                  = cyc t.slots.val.length i.val p by omega] at this
+                rw [← this, h2']
+              rw [hjp] at hnl
+              exact hnl (by rw [hslotp]; simp)
+        · exact absurd (by rw [hacte]) hne
 
 /-- **`remove` unbinds the key.**  The `slots.len() == 0` guard is the
 unallocated table, exactly as in `get`; a probe that does not find the key
 leaves the table alone; and otherwise the slot is vacated and `repair` closes
-the hole.
-
-**PROOF OWED** (task #97-HM2): `repair_spec` above. -/
+the hole.  The vacated table is `∅` at that slot and the *same* multiset of
+entries less one, which is the whole of the abstract step; `repair_spec` does
+the representation work. -/
 theorem remove_refines_gen {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
     (hinv : Inv HashableInst m) (hkeys : KeysOk P m) {key : K} (hk : P key)
     {old : Option V} {m' : ron.hashmap2.HashMap2 K V}
@@ -2186,8 +2723,115 @@ theorem remove_refines_gen {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
       simp only [homeAt, bind_eq_ok_iff]; exact ⟨hw, hhash, hbi⟩
     obtain ⟨hatlt, hilt, htrue, hfalse⟩ := probe_spec heq hinv hkeys hk hpos hhome hprobe
     rcases ite_eq_ok h with ⟨hb, h⟩ | ⟨hb, h⟩
-    · -- the key is live at `i2`: vacate the slot and repair the cluster
-      sorry
+    · -- the key is live at `i2`: vacate the slot, then close the hole
+      obtain ⟨w, hslot, htf⟩ := htrue (by simpa using hb)
+      have hlenv : (alloc.vec.Vec.len m.slots).val = m.slots.val.length :=
+        alloc.vec.Vec.len_val _
+      obtain ⟨p1, hidx, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨sl, back⟩ := p1
+      obtain ⟨-, hseq, hback⟩ := vec_index_mut_eq hidx
+      subst hback
+      obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
+      obtain ⟨self1, hrepair, hok⟩ := bind_eq_ok_iff.mp h
+      have hsl2 : liveAt m.epoch sl = some (key, w) := by rw [hseq, ← slotKV]; exact hslot
+      have hscj : sl = ron.hashmap2.Slot.Live m.epoch key w := liveAt_inv hsl2
+      rw [hscj] at hok
+      have e := Result.ok_injective hok
+      have eold : old = some w := (congrArg Prod.fst e).symm
+      have em : m' = self1 := (congrArg Prod.snd e).symm
+      subst em
+      -- the table with the key's slot vacated
+      set t0 : ron.hashmap2.HashMap2 K V :=
+        { m with num_entries := i3, slots := alloc.vec.Vec.set m.slots i2 .Vacant } with ht0
+      have ht0s : t0.slots.val = m.slots.val.set i2.val .Vacant := by
+        rw [ht0]; exact alloc.vec.Vec.set_val_eq _ _ _
+      have ht0e : t0.epoch = m.epoch := rfl
+      have ht0len : t0.slots.val.length = m.slots.val.length := by
+        rw [ht0s, List.length_set]
+      have ht0sl : sl_v t0 = rest m i2.val := by rw [sl_v, ht0s, ht0e, rest]
+      have hi3v : i3.val = m.num_entries.val - 1 := by rw [uscalar_sub_eq hi3]; simp
+      have hPM : (sl_v m).Perm ((key, w) :: sl_v t0) := by
+        have := sl_v_perm_rest (m := m) hatlt
+        rw [hslot] at this
+        rw [ht0sl]
+        simpa using this
+      have hND := hinv.nodup
+      rw [(hPM.map Prod.fst).nodup_iff, List.map_cons, List.nodup_cons] at hND
+      obtain ⟨hkeyR, hNDR⟩ := hND
+      have hfreei2 : slotKV t0 i2.val = none := by
+        rw [slotKV, ht0e, ht0s, getElem!_set_self _ hatlt]; rfl
+      have hother : ∀ p : Nat, p ≠ i2.val → slotKV t0 p = slotKV m p := by
+        intro p hp
+        rw [slotKV, slotKV, ht0e, ht0s, getElem!_set_ne _ hp]
+      -- the invariant clauses `repair` carries through
+      have hinv0 : InvNoRun HashableInst t0 := by
+        refine ⟨by rw [ht0len]; exact hinv.pow2, by rw [ht0len]; exact hinv.min_cap,
+          by rw [ht0len]; exact hinv.max_load_eq, ?_, hinv.sat, hinv.epoch_pos, ?_, ?_, ?_⟩
+        · rw [show t0.num_entries = i3 from rfl, show t0.max_load = m.max_load from rfl, hi3v]
+          have := hinv.fit; omega
+        · intro p g k v hx
+          rw [ht0e]
+          by_cases hp : p = i2.val
+          · subst hp; rw [ht0s, getElem!_set_self _ hatlt] at hx; simp at hx
+          · rw [ht0s, getElem!_set_ne _ hp] at hx
+            exact hinv.stamps p g k v hx
+        · exact hNDR
+        · rw [show t0.num_entries = i3 from rfl, hi3v, hinv.entries, hPM.length_eq,
+            List.length_cons, ht0sl]
+          omega
+      have hi4v : i4.val = (i2.val + 1) % m.slots.val.length := by
+        rw [next_index_spec (by omega) hi4, hlenv]
+      have hrep : RepairInv HashableInst t0 i2.val i4.val 1 (alloc.vec.Vec.len m.slots).val := by
+        obtain ⟨q, hq, hqfree⟩ := exists_free_slot hinv hpos
+        have hqi2 : q ≠ i2.val := by
+          intro hc; rw [hc, hslot] at hqfree; simp at hqfree
+        refine ⟨by rw [isLive, hfreei2]; simp, by rw [ht0len]; exact hatlt,
+          by rw [ht0len, hi4v]; exact Nat.mod_lt _ hpos, by omega, by rw [ht0len]; omega,
+          by rw [ht0len, hi4v, idx], by intro d hd0 hd; omega, ?_,
+          ⟨q, by rw [ht0len]; exact hq, hqi2, ?_, ?_⟩⟩
+        · -- every run of the old table survives, save at the vacated slot
+          intro p k v i0 hp hslotp hhome0
+          rw [ht0len] at hp
+          rw [show alloc.vec.Vec.len t0.slots = alloc.vec.Vec.len m.slots from
+            vec_len_congr ht0len] at hhome0
+          have hpi2 : p ≠ i2.val := by
+            intro hc; rw [hc, hfreei2] at hslotp; simp at hslotp
+          rw [hother p hpi2] at hslotp
+          obtain ⟨hi0, D, hD, hpD, hrun⟩ := hinv.run p k v i0 hp hslotp hhome0
+          refine ⟨by rw [ht0len]; exact hi0, fun q' hq' hqlt => ?_⟩
+          rw [ht0len] at hq' hqlt ⊢
+          by_cases hq'i : q' = i2.val
+          · refine Or.inr ⟨hq'i, ?_⟩
+            have : cyc m.slots.val.length i2.val p ≠ 0 := fun hc =>
+              hpi2 (cyc_eq_zero hatlt hp hc).symm
+            omega
+          · refine Or.inl ?_
+            rw [isLive, hother q' hq'i]
+            exact cyc_of_run hpos hi0 hD hpD hrun q' hq' hqlt
+        · rw [isLive, hother q hqi2, hqfree]; simp
+        · rw [ht0len]
+          have := cyc_lt (n := m.slots.val.length) (a := i4.val) (b := q) hpos
+          omega
+      obtain ⟨hinvf, hpermf, hlenf, -, -, -, -⟩ :=
+        repair_spec (alloc.vec.Vec.len m.slots).val t0 m' i2 i4
+          (alloc.vec.Vec.len m.slots) (alloc.vec.Vec.len m.slots) 1 rfl
+          (by rw [show alloc.vec.Vec.len t0.slots = alloc.vec.Vec.len m.slots from
+            vec_len_congr ht0len])
+          (by rw [ht0len]; have := hinv.min_cap hpos; omega) hinv0 hrep hrepair
+      have hlk : ∀ k', lookupK (sl_v m') k' = lookupK (sl_v t0) k' :=
+        fun k' => lookupK_perm hpermf hinvf.nodup k'
+      refine ⟨hinvf, by rw [eold, htf], ?_, ?_⟩
+      · funext k'
+        rw [Function.update_apply, toFun, toFun, hlk, lookupK_perm hPM hinv.nodup,
+          lookupK_cons]
+        by_cases hk' : k' = key
+        · subst hk'; simp [lookupK_eq_none_of_not_mem hkeyR]
+        · rw [if_neg (Ne.symm hk'), if_neg hk']
+      · intro p hp
+        have hx : p ∈ sl_v t0 := hpermf.mem_iff.1 hp
+        rw [ht0sl] at hx
+        exact hkeys p (rest_subset hx)
     · -- the key is not in the table: nothing moves
       obtain ⟨-, htf, -⟩ := hfalse (by simpa using hb)
       have e := Result.ok_injective h
@@ -2309,12 +2953,11 @@ end ConRon.Refine.HashMap2
 
 /-! ## Axiom census
 
-Nothing but Lean's own three axioms on everything that is proved: no
+Nothing but Lean's own three axioms, on every statement: no `sorry`, no
 assumption about `hash64`, nothing from the `Arc` model (DESIGN.md §3.2), and
-in particular **`probe`'s `fuel == 0` arm is discharged, not assumed**.
-
-The two `remove` statements run through `repair_spec`, which is stated and not
-proved (task #97-HM2); they are the file's only `sorryAx`. -/
+in particular **both fuel obligations are discharged, not assumed** —
+`probe`'s `fuel == 0` arm (from `Inv.fit`, through `probe_spec`) and
+`repair`'s (from `RepairInv.stop`, through `repair_spec`). -/
 
 /-- info: 'ConRon.Refine.HashMap2.insert_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ConRon.Refine.HashMap2.insert_refines
@@ -2352,6 +2995,12 @@ proved (task #97-HM2); they are the file's only `sorryAx`. -/
 /-- info: 'ConRon.Refine.HashMap2.probe_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ConRon.Refine.HashMap2.probe_spec
 
-/-- info: 'ConRon.Refine.HashMap2.remove_refines' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound] -/
+/-- info: 'ConRon.Refine.HashMap2.remove_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ConRon.Refine.HashMap2.remove_refines
+
+/-- info: 'ConRon.Refine.HashMap2.repair_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ConRon.Refine.HashMap2.repair_spec
+
+/-- info: 'ConRon.Refine.HashMap2.Rel_remove' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ConRon.Refine.HashMap2.Rel_remove
 

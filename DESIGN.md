@@ -34146,9 +34146,9 @@ itself has.
 Task #97-P6-4b landed `ron::HashMap2` — the open-addressed, epoch-stamped,
 flat-slot map the arena's twenty-two tables now use — marked **PROOF OWED**,
 and priced the owed proof in its §4.  This task writes it:
-`proof/ConRon/Refine/HashMap2.lean` (**2 357 lines**) and
-`proof/ConRon/Refine/HashMap2WF.lean` (**208**), against `ron::hashmap`'s
-1 823 + 772.  Nothing in `crates/` is touched, `Refine/HashMap*.lean` is not
+`proof/ConRon/Refine/HashMap2.lean` (**3 006 lines**) and
+`proof/ConRon/Refine/HashMap2WF.lean` (**211**), against `ron::hashmap`'s
+1 823 + 772.  **The tier is `sorry`-free.**  Nothing in `crates/` is touched, `Refine/HashMap*.lean` is not
 edited, and the two files are new leaves of `ConRon.lean`'s import graph.
 
 #### 1. What survived, and what moved
@@ -34173,18 +34173,21 @@ lookupK ⟦table⟧ k` is the same equation over a different `⟦·⟧`.
 | `clear_slots_spec`/`clear_refines` | ~110 | **~130** for `vacate_slots_spec` + `clear_refines` + **`clear_fit_refines`**, which `ron::hashmap` has no counterpart to |
 | `insert_no_resize_spec` | ~135 | **~200** |
 | `move_elements*`/`try_resize`/`insert_refines` | ~290 | **~330** |
-| `remove_refines` | ~135 | **stated, not proved** — see §5 |
+| `remove_refines` | ~135 | **~500**: `RepairInv`, `repair_spec` and `remove`'s own branch — see §5 |
 | `dup` | ~150 | **~105**, simpler (no `AList` recursion) |
 | `Rel`/`RelOn` and the `*_wf` variants | ~330 | **~200**, because they are not re-proved (see §3) |
 | cyclic index arithmetic (new) | — | 55 (`idx`, `cyc`, `idx_cases`, `idx_inj`, `idx_surj`, `cap_div_four`) |
 
 **Against the estimate.**  Task #97-P6-4b priced 1 900–2 300 lines; the
-delivered tier is 2 565 with `remove` *missing*, so the estimate is low, and
-by roughly the amount `remove` was priced at (~350).  The two places it was
-wrong in the other direction are that `probe_spec` came in at 175 rather than
-~120 (the walk and the invariant-level lemma are two lemmas, not one) and that
-the `Eq2Fwd` deduplication of §3 saved about 500 lines the estimate had
-budgeted twice.
+delivered tier is **3 217**, so the estimate is low by about 40 %.  Three
+lines of its table account for nearly all of the gap and they go both ways:
+`remove_refines` was priced at ~350 and came in at ~500 (the loop invariant
+has six clauses, not three, and the `fuel` clause was not foreseen at all);
+`probe_spec` was priced at ~120 and came in at 175 (the walk and the
+invariant-level lemma are two lemmas, not one); and the `Eq2Fwd`
+deduplication of §3 saved about 500 lines the estimate had budgeted twice.
+Netting those, the *proof* content is close to the estimate and the overrun
+is documentation and the two obligations neither section had named.
 
 #### 2. The invariant, and the clauses that are new
 
@@ -34272,51 +34275,72 @@ next edits `hashmap2.rs`; with that guard the hypothesis disappears from all
 five statements.  This is DESIGN.md §3.5's own rule — *"a strengthening that
 turns out false is a port bug; fix the Rust"* — deferred, not waived.
 
-#### 5. What is owed: `repair_spec`
+#### 5. `remove`, and the second fuel obligation
 
-`remove_refines` is **stated in full and carries a `sorry`**, and so does the
-lemma it needs, `repair_spec`.  Those two are the tier's only `sorry`s.  What
-is stated — and therefore what is left — is precise:
+`remove_refines` is **proved**, through `repair_spec` and Knuth algorithm R's
+loop invariant, `RepairInv HashableInst t hole j D fuel`:
 
-* `RepairInv HashableInst t hole j fuel` — Knuth algorithm R's loop
-  invariant, six clauses: the hole is free (`free`); the slots strictly
-  between `hole` and `j` are live (`scanned`); every live entry's run from its
-  home is live **except** that it may be broken at `hole`, and only for
-  entries at or past the scan point (`runs`); and `stop`, which is `repair`'s
-  *own* `fuel == 0` obligation — there is a free slot other than the hole
-  within the remaining fuel, so the scan meets one and returns.  `remove`
-  supplies `stop` from `Inv.fit`: the table it hands `repair` has at least two
-  free slots, the one it has just vacated and one more.
-* `repair_spec` — `repair` preserves the entries as a multiset and restores
-  the run clause.  Its docstring carries the step analysis of all three arms
-  (`act = 0` stop, `act = 2` keep, `act = 1` move) and of the `fuel == 0` arm.
+* `free` — the hole is free;
+* `scanned` — every slot strictly between `hole` and `j` is live; these are
+  the entries the scan examined and kept;
+* `runs` — every live entry's run from its home is live **except** that it
+  may be broken at `hole`, and only for entries at or past the scan point;
+* `stop` — **`repair`'s own `fuel == 0` obligation**, the module's second.
+  There is a free slot other than the hole within the remaining fuel, so the
+  scan meets one and returns before the fuel does.  It survives a step
+  because the witness is neither `j` (live whenever the scan goes on) nor
+  `hole` (excluded outright), so neither of the two writes an `act = 1` step
+  performs can fill it, and the scan moves one slot closer while the fuel
+  drops by one.  `remove` supplies it from `Inv.fit`: the table it hands
+  `repair` has at least two free slots, the one just vacated and one more.
 
-The argument was worked out on paper and is sound; what is missing is the Lean
-text and the cyclic-interval algebra it needs on top of what is landed
-(`idx_cases`/`idx_inj`/`idx_surj`): a transitivity lemma
-`cyc n a c = (cyc n a b + cyc n b c) % n` and the two `idx`/`cyc` round-trips.
-Estimated at **300–400 lines**, i.e. task #97-P6-4b's ~350 for
-`remove_refines` — the one line of its table that this task's other numbers
-say was right.
+**The scan distance is a parameter, not a `cyc`.**  The first version of
+`RepairInv` measured "how far the scan has gone" as `cyc n hole j`, and that
+is *wrong at the wrap*: when `j` comes back round to `hole` the distance reads
+`0` rather than `n`, and `runs`' exception — "only for entries at or past the
+scan point" — becomes available to every entry, which makes the invariant
+useless exactly where the scan ends.  Carrying `D` with `1 ≤ D ≤ n` and
+`j = idx n hole D` is what fixes it, and `D = n` is then the case in which the
+exception is vacuous because `cyc n hole p < n` always.
 
-**Nothing in the arena depends on it today.**  `remove` has one caller in the
-whole checker (`arena::promote::erase_installed`), the capstones do not reach
-`hashmap2` until §8.6's swap makes `arena-core` the verified crate, and the
-other twelve entry points are green.
+The three step arms are the cyclic-interval argument:
+
+* `act = 0` — the scan stops.  A live entry whose run crossed `hole` has `j`
+  strictly inside `[home, p)` (or is `p = j` itself), so `j` would have to be
+  live; `runs` becomes `Inv0.run`.
+* `act = 2` — the entry at `j` stays.  `scanned` grows by `j`, and `runs`
+  keeps its exception because the entry at `j` cannot itself have the hole in
+  its run: `cyc h_j hole + D = cyc h_j j`, and `act = 2` says
+  `cyc h_j j < D`.
+* `act = 1` — the entry moves back into `hole`, `j` becomes the new hole and
+  `D` resets to `1`.  Its run shortens by exactly `D`, every slot of the
+  shorter run was already live and is untouched; every other entry's run
+  gains a live slot at the old hole and may only break at the new one, which
+  is `j` — and `D = 1` makes that exception free for every entry but `j`,
+  which is not live.
+
+The arithmetic it runs on is `cyc_trans`
+(`cyc n a c = (cyc n a b + cyc n b c) % n`), its `omega`-shaped corollary
+`cyc_cases`, the two `idx`/`cyc` round-trips and `cyc_step`; all of it is
+55 lines, and every cyclic argument above is then `omega` over `cyc_cases`.
 
 #### 6. The axiom check, and the lemma table
 
-Fifteen `#guard_msgs in #print axioms` at the foot of the two files.  Fourteen
-read `[propext, Classical.choice, Quot.sound]`:
+**The tier is `sorry`-free.**  Twenty `#guard_msgs in #print axioms` at the
+foot of the two files, every one of them
+`[propext, Classical.choice, Quot.sound]`:
 
-`insert_refines`, `get_refines`, `contains_key_refines`, `new_refines`,
-`with_capacity_refines`, `clear_refines`, `clear_fit_refines`, `len_refines`,
-`is_empty_refines`, `capacity_refines`, `dup_spec`, `probe_spec`, and — in
-`HashMap2WF.lean` — `insert_refines_wf`, `get_refines_wf`, `Rel_insert_wf`.
+`insert_refines`, `get_refines`, `contains_key_refines`, `remove_refines`,
+`new_refines`, `with_capacity_refines`, `clear_refines`, `clear_fit_refines`,
+`len_refines`, `is_empty_refines`, `capacity_refines`, `dup_spec`,
+`probe_spec`, `repair_spec`, `Rel_remove`, and — in `HashMap2WF.lean` —
+`insert_refines_wf`, `get_refines_wf`, `remove_refines_wf`, `Rel_insert_wf`,
+`Rel_remove_wf`.
 
-One reads `[propext, sorryAx, Classical.choice, Quot.sound]` —
-`remove_refines` — and the check is committed in *that* form, so that the day
-it goes green is a diff and not a discovery.
+In particular **both fuel obligations are discharged, not assumed**:
+`probe`'s `fuel == 0` arm from `Inv.fit`, and `repair`'s from
+`RepairInv.stop`.  Task #97-P6-4b §9 named the first; the second was not
+named anywhere and is the one genuinely new obligation this task found.
 
 The API, against `HashMap.lean`'s:
 
@@ -34334,11 +34358,12 @@ The API, against `HashMap.lean`'s:
 | `insert_no_resize_spec` / `_wf` | same | proved |
 | `move_elements_spec` | `move_slots_spec` | proved |
 | `try_resize_spec` / `_wf` | same | proved, under §4's hypothesis |
-| `remove_refines` / `_wf` | same | **owed** (`repair_spec`) |
+| `remove_refines` / `_wf` | same | proved (`repair_spec`, `RepairInv`) |
 | `dup_spec`, `dup_toFun`, `dup_al_v`, `dup_inv` | `dup_spec`, `dup_toFun`, `dup_sl_v`, `dup_inv` | proved |
-| `Rel`, `Rel_empty`, `Rel_get`, `Rel_insert`, `Rel_remove` | same | proved (`Rel_remove` owed through `remove_refines`) |
+| `Rel`, `Rel_empty`, `Rel_get`, `Rel_insert`, `Rel_remove` | same | proved |
 | `RelOn`, `RelOn_of_Rel`, `RelOn_empty`, `Rel_get_wf`, `Rel_insert_wf` | same, plus `Rel_remove_wf` | proved |
 | `list_get_spec`, `list_insert_spec`, `list_remove_spec` | `probe_walk`, `probe_spec` | proved |
+| — | `RepairInv`, `repair_spec` | proved (new; algorithm R) |
 | `Inv` (5 clauses) | `Inv0` (9) + `Inv` (10) | — |
 
 **`clear_fit` is invisible to the specification**, which is the thing task
@@ -34349,9 +34374,9 @@ all denote `∅`.  A capacity choice is a representation choice (§3.2).
 
 #### 7. Build, and the two `lake` notes
 
-`lake build ConRon.Refine.HashMap2WF` from a warm dependency cache: **9.2 s**
-wall for the two files (`HashMap2` ~6 s, `HashMap2WF` 1.5 s) at
-`LEAN_NUM_THREADS=4`.  `lake build ConRon` whole-library: **5 m 23 s** wall,
+`lake build ConRon.Refine.HashMap2WF` from a warm dependency cache: **10.6 s**
+wall for the two files (`HashMap2` ~7 s, `HashMap2WF` 1.4 s) at
+`LEAN_NUM_THREADS=4`.  `lake build ConRon` whole-library: 5 m 23 s wall,
 37 m 31 s CPU, exit 0.
 
 Two mechanical notes that cost real time and are worth writing down, because
@@ -34373,15 +34398,16 @@ every future proof over generated Aeneas code will meet them:
 
 #### 8. Gates
 
-`LEAN_NUM_THREADS=4 LAKE_JOBS=8 scripts/gates.sh`: **all 12 OK** in 2 m 25 s
-(`cargo-build` 3 s, `cargo-test` 8 s, `lint-rust` 2 s, `provenance` 1 s,
-`provenance-self`, `overview-links`, `holes`, `gen-pins`, `gen-prelude`,
-`gen-prelude-lean` 0–1 s, `extract-check` 74 s, `lake-build` 52 s).  Nothing
+`LEAN_NUM_THREADS=4 LAKE_JOBS=8 scripts/gates.sh`: **all 12 OK** (2 m 25 s
+cold on the proof library, 1 m 31 s on the re-run: `cargo-build` 3 s,
+`cargo-test` 8 s, `lint-rust` 2 s, `provenance` 1 s, `provenance-self`,
+`overview-links`, `holes`, `gen-pins`, `gen-prelude`, `gen-prelude-lean`
+0–1 s, `extract-check` 76 s, `lake-build` 52 s cold).  Nothing
 in `crates/` and nothing generated changed, so the first eleven are the arena
-tip's own; `lake-build` is the one this task moves, and it is green with the
-two `sorry` warnings of §5.
+tip's own; `lake-build` is the one this task moves, and it is green with no
+warnings at all.
 
 Note for the ledger: **no gate fails on a `sorry` in the proof tier** —
 `lake build` reports it as a warning.  The `#print axioms` checks of §6 are
-what makes the two owed statements visible, and `remove_refines`' committed
-`sorryAx` line is the marker to grep for.
+what makes an owed statement visible, and a committed `sorryAx` line is the
+marker to grep for; this tier has none.

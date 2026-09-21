@@ -97,7 +97,6 @@ theorem insert_refines_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
     toFun m' = Function.update (toFun m) key (some value) ∧ KeysOk P m' :=
   insert_refines_gen heq hinv hkeys hk hcap h
 
-/-- **PROOF OWED** — `Refine/HashMap2.lean`'s `repair_spec`, task #97-HM2. -/
 theorem remove_refines_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
     (hinv : Inv HashableInst m) (hkeys : KeysOk P m) {key : K} (hk : P key)
     {old : Option V} {m' : ron.hashmap2.HashMap2 K V}
@@ -170,7 +169,6 @@ theorem Rel_insert_wf [LawfulBEq K'] [LawfulHashable K'] {P : K → Prop}
     rw [if_neg hkk, if_neg (by simpa using hne)]
     exact hrel k' hk'
 
-/-- **PROOF OWED** — through `remove_refines_wf`. -/
 theorem Rel_remove_wf [LawfulBEq K'] [LawfulHashable K'] {P : K → Prop}
     {s : _root_.Std.HashMap K' V'} (heq : Eq2Fwd Eq2Inst P)
     (hinj : ∀ a b, P a → P b → absK a = absK b → a = b) (hinv : Inv HashableInst m)
@@ -194,9 +192,8 @@ end ConRon.Refine.HashMap2
 
 /-! ## Axiom census
 
-As in `HashMap2.lean`: nothing but Lean's own three axioms on everything that
-is proved, and `sorryAx` on exactly the two `remove` statements, which run
-through `repair_spec`. -/
+As in `HashMap2.lean`: nothing but Lean's own three axioms, on every
+statement. -/
 
 /-- info: 'ConRon.Refine.HashMap2.insert_refines_wf' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ConRon.Refine.HashMap2.insert_refines_wf
@@ -206,3 +203,9 @@ through `repair_spec`. -/
 
 /-- info: 'ConRon.Refine.HashMap2.Rel_insert_wf' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ConRon.Refine.HashMap2.Rel_insert_wf
+
+/-- info: 'ConRon.Refine.HashMap2.remove_refines_wf' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ConRon.Refine.HashMap2.remove_refines_wf
+
+/-- info: 'ConRon.Refine.HashMap2.Rel_remove_wf' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ConRon.Refine.HashMap2.Rel_remove_wf
