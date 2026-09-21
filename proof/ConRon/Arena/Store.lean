@@ -1482,6 +1482,16 @@ def capOKBM (st : EStore) : Prop :=
 `internBMPersistent`'s capacity precondition. -/
 def capOKBMPersistent (st : EStore) : Prop := st.pers.bmSize < Idx.idxCap
 
+/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — does interning
+this view also intern a binder DATUM?  Only the two binder arms do, and they
+are the only ones whose capacity test must also look at `bms` — which is why
+`internE`'s wrapper tests `capOKBM` exactly here (the Rust's `intern_bm` makes
+the same test inside itself, and raises the same `Native`). -/
+@[inline] def eViewNeedsBM : ENodeView → Bool
+  | .lam _ _ _ => true
+  | .forallE _ _ _ => true
+  | _ => false
+
 /-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — the datum handle
 a view's cons key needs, PROBED and not interned: a binder whose datum has
 never been interned is in neither table, so `none` here is `none` for the whole

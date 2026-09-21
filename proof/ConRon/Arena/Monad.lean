@@ -177,7 +177,13 @@ and `EStore.intern_spec`'s `capOK` hypothesis is discharged by this branch. -/
 def internE (v : ENodeView) : AM EIdx := do
   let s ← get
   let n := if s.store.scratchOn then s.store.scr.sizeOf v else s.store.pers.sizeOf v
-  if n < Idx.idxCap then
+  -- **The binder datum's own array is part of the test** (task #97-P6-16): a
+  -- `lam`/`forallE` view interns a `BMNode` too, and a `BMIdx` past `idxCap`
+  -- would wrap into the tier bit.  Only the two binder arms reach the datum
+  -- store, so only they are tested — which is where the Rust's `intern_bm`
+  -- makes the same test, and raises the same `Native`.
+  let nbm := if s.store.scratchOn then s.store.scr.bmSize else s.store.pers.bmSize
+  if n < Idx.idxCap && (!EStore.eViewNeedsBM v || nbm < Idx.idxCap) then
     let st := s.store
     let s := { s with store := EStore.empty }
     let (st, h) := st.intern v
@@ -593,7 +599,8 @@ one at the same place, against the persistent array; the error is the same
 the persistent tier. -/
 def internPersistentE (v : ENodeView) : AM EIdx := do
   let s ← get
-  if s.store.pers.sizeOf v < Idx.idxCap then
+  if s.store.pers.sizeOf v < Idx.idxCap &&
+      (!EStore.eViewNeedsBM v || s.store.pers.bmSize < Idx.idxCap) then
     let st := s.store
     let s := { s with store := EStore.empty }
     let (st, h) := st.internPersistent v
