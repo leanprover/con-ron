@@ -2260,6 +2260,25 @@ the persistent tier (the byte recogniser is unchanged).
         accepted 163 396, 1 878.3 G, 299 s, 1.67 GB, where it used to abort
         with a stack overflow.  Peak RSS against con-ron at master is
         1.46× / 1.25×, where P4f measured 3.9×.
+        4a. the reserved-name pins (item 2 of task #97-P6-1's list, task
+        #97c's deferred `Pins` record), the variant attempt's snapshot
+        (item 1) and the pre-size (item 4) — and **the first Mathlib run
+        of the arena checker**, which task #97-P6-3 could only record as an
+        `ABORT`.  **DONE** (task #97-P6-4a): Mathlib **accepted 691 128** at
+        the `arena` tip (18 410.19 G instructions, 2 523 s, 9.29 GB) and at
+        **12 824.40 G / 2 390 s / 7.57 GB** with task #97-P6-4b's map
+        underneath — **1.11× `con-ron` at master on instructions and 0.90×
+        on peak RSS**, the first time the arena is under master on memory at
+        any size.  `arena::pins` interns the forty-nine reserved names, the
+        nineteen `reservedBasisNames` and the three nullary values ONCE at
+        the driver, which is **735.02 → 626.00 G on `Init` (−14.8 %)** on
+        its own and **414.05 G together with 4b** (0.76× master); `core` is
+        1 038.13 G (0.89× master).  The snapshot item is void — task
+        #97-P6-2's item 6 already took it, and `attempt_snapshot` runs
+        **8 times on the whole of `Init`** — and the pre-size is priced and
+        untaken (−0.08 % against the chained map, +0.08 % against
+        `HashMap2`).  The twin owes `Pins` and `internAllPins`, one
+        `intern_spec` instance.
         4b. `ron::HashMap`'s representation, which task #97-P6-1's "what is
         left" listed third at **21.8 % of `Init`**.  **DONE** (task
         #97-P6-4b): the profile says the chains are fine (98.8 % of 1.23 G
@@ -28331,3 +28350,407 @@ Lean error — four Lean threads reserve more *virtual* address space than a
 60 GB cap allows.  `scripts/gates.sh` sets no `ulimit` for its `lake build`
 step and that is why; CLAUDE.md's `ulimit` rule is about *checker* runs on an
 export, where a runaway must die, and not about the elaborator.
+
+### Task #97-P6-4a — the pins, and the first Mathlib run (2026-09-21, Opus under Fable)
+
+Phase P6 item 4a of §8.6, Rust-first: **Mathlib under CLAUDE.md's cap first**,
+then the levers task #97-P6-1's "what is left" priced — the reserved-name
+pins, the variant attempt's snapshot, the pre-size — each measured on `Init`,
+each with its twin-ledger line.  Task #97-P6-4b ran concurrently on
+`ron::HashMap`'s representation and landed first; this section's sixth table
+is the two tasks together, on the merged tree, and says which part is whose.
+
+Baseline is the `arena` tip `316fd7fe`, re-measured here and reproducing the
+brief's number to six figures: **735 023 376 299 instructions:u**, 342.18 G
+cycles, 79.01 / 79.09 / 78.66 s, 731 608 KB peak RSS, `accepted 57977`,
+348/348 fixtures in both modes.
+
+Every `Init` cell below is `_tmp/corpus/init.ndjson`, `--verified --jobs=1
+--progress=1000000`, under `ulimit -v 8000000`, instructions and cycles from
+one `perf stat -e instructions:u,cycles:u` and wall from three plain runs.
+**The machine was shared throughout** — a sibling agent measuring on it, and
+this task's own Mathlib runs in the background for most of the session — so
+`instructions:u` is the measure of record.  How much that matters is
+measurable here: two `perf stat` runs of the SAME binary read
+**625 502 421 239** and **625 503 428 763** instructions (one part in 6·10⁵)
+and **308.24 G** and **311.06 G** cycles (0.9 % apart).  Cycles are therefore
+read at the 10 % scale below and never at the 1 % scale.
+
+#### 1. Mathlib, first: it runs, it accepts, and it fits
+
+`con-ron-arena` on `_tmp/corpus/mathlib.ndjson`, under CLAUDE.md's cap
+(`ulimit -v 27000000`, `timeout 7200`, the driver lane, detached and polled):
+
+| Mathlib, `--verified --jobs=1` | verdict | instructions:u | cycles:u | wall | peak RSS |
+|---|---|---:|---:|---:|---:|
+| con-leche (OVERVIEW §7.2) | accepted 691 128 | 12 792.4 G | — | 1 220 s | 8.75 GB |
+| **nanoda** (task #97-P6-3) | Checked 707 508 | **6 053.88 G** | 4 536.30 G | 1 048 s | 6.80 GB |
+| **con-ron @ master** (task #97-P6-3) | accepted 691 128 | **11 535.07 G** | 8 675.69 G | 2 012 s | 8.39 GB |
+| **con-ron-arena**, `arena` tip 316fd7fe | **accepted 691 128** | **18 410.19 G** | 10 756.42 G | 2 523 s | 9.29 GB |
+| con-ron-arena, + this task's levers | accepted 691 128 | 17 938.58 G | 10 497.08 G | 2 440 s | 9.23 GB |
+| **con-ron-arena, + task #97-P6-4b** | **accepted 691 128** | **12 824.40 G** | 10 378.09 G | 2 390 s | **7.57 GB** |
+
+**The last row is the headline of the whole P6-4 round**: with task
+#97-P6-4b's map underneath, con-ron-arena checks Mathlib at **1.11× con-ron
+at master's instructions and 0.90× its peak RSS** — below con-leche's 8.75 GB
+too — where the same tree read 1.60× and 1.11× an hour earlier.  Against the
+`arena` tip that is **−30.3 % instructions, −18.5 % peak RSS, −5.3 % wall**.
+
+**And it is the first Mathlib run of the arena checker that finishes**, which
+needed nothing: task #97-P6-3's row for this cell was `ABORT (exit 134)` — a
+stack overflow in the install phase at `Nat.mod` — and task #97-P6-2's item 6
+fixed that without ever running Mathlib.  No diagnosis and no Rust fix were
+owed before the levers.
+
+Three readings of the tip's row.
+
+1. **The memory rule is met with room.**  9.29 GB against CLAUDE.md's budget
+   of 3× con-leche's 8.6 GB, and **1.11× con-ron at master** — where task
+   #97-P4f measured 3.9× on `Init` and task #97-P6-3 could not measure this
+   cell at all.  The parse's 103 127 802 expression nodes plus phase A's
+   6 420 790 (**+6.2 %**, the promotion holding on an export 17× `Init`'s)
+   are the 9.3 GB, and the peak is in the INSTALL phase, not the check
+   (9.16 GB resident during install, 7.65 GB during the check).
+2. **Instructions are 1.60× con-ron at master and 3.04× nanoda**, worse than
+   `Init`'s 1.36× and `core`'s 1.43× at the same tip.  The direction is the
+   DAG: Mathlib's persistent cons tables are ~10⁸ entries over a 32 MB L3, so
+   the probe that `Init` mostly hits in cache is a guaranteed miss here.
+3. **The phases**: parse 62.5 s, install 611.5 s, check 1 845.2 s.  Install is
+   24 % of Mathlib's wall against 7 % of `Init`'s, because Mathlib is where
+   the modelled inductive blocks and the projection rewrites are (2 072
+   records generated in process, against `Init`'s 30).
+
+**And Mathlib is where the pins matter least**: this task's levers are
+−14.9 % on `Init` and **−2.6 % on Mathlib**, because the pin traffic is per
+literal and per declaration while Mathlib's cost is per declaration's *size*.
+The same asymmetry is worth expecting from any lever priced on `Init`.
+
+#### 2. Lever 1 — the reserved-name pins (§8.6's item 2, task #97c's deferred fix)
+
+Task #97c wrote the design and declined to build it — "the `Pins` record that
+is NOT here" — for want of a number and for an initialisation-order hazard:
+"a pin read before it is filled compares against the zero word and silently
+says *not `Nat`*".  Task #97-P6-1's counter produced the number: **140 083 646
+`NStore::intern` calls on `Init`, of which 88 854 033 are probes of a `str`
+node built purely to be compared and dropped** — tens of millions of rebuilds
+of about forty constants, in `natLitSupported`'s three probes per literal, in
+the `natOpNames` family, in `strLitToConstructor`.
+
+`crates/arena-core/src/arena/pins.rs` is the record: **forty-nine reserved
+names** (sixteen `basis_names`, the eighteen `Nat`/`Bool` operation names of
+`core_k`, eight `std_axioms`, seven `trust_axioms`) plus the three interned
+values every pin site needs — the empty universe-argument list, the level `0`
+and `Sort 1`.  `intern_reserved_pins` fills it ONCE, at the driver, before the
+prelude and before the parse, so the scratch tier is closed and every pinned
+handle is persistent.  `arena::core`'s `empty_levels`, `zero_level` and
+`sort_one` read the record instead of interning (37 call sites, unchanged at
+the call), and the 107 `pin(st, &X::y_name())` sites become `pin_x(st)`.
+
+**The table is a `Vec`, and that is what kills task #97c's hazard.**  A record
+of handle FIELDS has it, because every 32-bit word is a syntactically valid
+handle and an unset field compares unequal to everything, quietly.  A
+`Vec<NIdx>` does not: before `intern_reserved_pins` runs the table is EMPTY,
+so `pin_at` takes its bounds branch and raises `CheckError::Internal` — a loud
+stop, never a wrong answer.  The cost is one `len` compare per read, against
+the interning walk it replaces.  Five tests in the module state that, and the
+other three facts the change rests on: a pin is the handle `intern_name` of
+the same `Name` would have given; re-interning that name afterwards appends
+nothing; and every pin is persistent and survives
+`enter_scratch`/`drop_scratch`.
+
+The change found its own call sites: **thirty-five tests** across `checker`,
+`core`, `inductives`, `proj_rec` and `prelude` build their state directly,
+failed, and had to be given the driver's `pinned_state()` — the honest signal
+that `intern_reserved_pins` is a precondition of the checker and not an
+optimisation switch.
+
+| `Init` | instructions:u | cycles:u | wall, 3 runs | peak RSS |
+|---|---:|---:|---:|---:|
+| `arena` tip 316fd7fe | 735.02 G | 342.18 G | 79.01 / 79.09 / 78.66 | 731 608 KB |
+| **after lever 1** | **629.06 G** | 307.22 G | 72.05 / 73.15 / 72.38 | 720 928 KB |
+| | **−14.4 %** | −10.2 % | −8.4 % | −1.5 % |
+
+#### 3. Lever 2 — `reservedBasisNames` joins the table
+
+The profile after lever 1 still had `basis_names::reserved_basis_names` at
+**1.08 % of `Init`'s cycles in the `Name` CONSTRUCTION alone**, before the
+interning walk that followed it: `check_constant_val_guards` calls it once per
+declaration installed and `struct_eta_cert` once per structure-eta
+certificate, and each call built nineteen `Name` values and interned all
+nineteen to compare handles.  `Pins` gains a `reserved` column and
+`arena::core::reserved_basis_names` is a copy of it; the cursor
+`reserved_basis_names_from` is deleted, the walk it spelled being
+`intern_name_list` at the driver now.
+
+| `Init` | instructions:u | cycles:u | wall, 3 runs | peak RSS |
+|---|---:|---:|---:|---:|
+| after lever 1 | 629.06 G | 307.22 G | 72.05 / 73.15 / 72.38 | 720 928 KB |
+| **after lever 2** | **626.00 G** | 302.80 G | 68.60 / 70.41 / 70.64 | 733 028 KB |
+| | −0.49 % | (noise) | | (noise) |
+
+The prelude's node-count test — task #97e's lockstep claim, "the Lean twin's
+own 196 expression, 5 level, 55 name nodes to the node" — becomes a
+DIFFERENCE, and says what the pins and the prelude share: the pins' one
+expression node (`Sort 1`) and both their level nodes are the prelude's too,
+and 24 of their 64 name nodes are.  So the prelude ADDS 195 / 3 / 31, and the
+union is still exactly the twin's 196 and 5 on the two stores whose pinned
+nodes the prelude re-declares.  That is hash-consing observed from outside,
+and it is a slightly stronger statement than the one it replaces.
+
+#### 4. Item 3 — `attempt_snapshot` is already free, and here is the count
+
+§8.6's item 3 asks for the `Vec::resize` truncation task #97-P6-1's report
+proposes for `astate_dup`, which that profile put at **6.38 % of the cycles in
+the copying alone**.  **It is not taken, because the premise is void on the
+merged tip**: task #97-P6-1 measured `0fa122ee`, and task #97-P6-2's item 6 —
+which landed in between — replaced `astate_dup` with `attempt_snapshot`, a
+copy of the per-call memos and the per-declaration caches with the store left
+alone.  An instrumented build counts what that snapshot now does over the
+whole of `Init`:
+
+| `attempt_snapshot` on `Init` | |
+|---|---:|
+| calls | **8** |
+| rows copied, all calls together | **682** |
+| rows copied, largest single call | 67 |
+
+and `perf record` over 14 000 samples of the same run attributes **zero** of
+them to `attempt_snapshot`, `caches_dup` or `memos_dup`.  Eight calls is the
+`Nat.div`/`Nat.mod` pin-variant route; it is a property of the pin set, not of
+the export, so the count does not grow with the store.
+
+Taking the item would be a REGRESSION of the twin ledger, not a performance
+change.  Truncating the store back to a mark is the closer twin of
+`Arena/CheckerBase.lean`'s current `orElseAttempt` — which is exactly why task
+#97-P6-2 listed the OPPOSITE as the Lean's owed change: the store is
+append-only and hash-consed, so a node interned during a failed attempt is a
+valid node, every handle that existed before denotes what it denoted, and a
+later `intern` of one of those views is answered by the cons probe with the
+handle it would otherwise have appended.  Restoring it copies nothing
+observable, and truncating it would additionally have to drop the cons rows
+above the mark — else the table points at nodes that are gone — a second
+`O(appended)` walk for the same nothing.  **The ledger entry stands as task
+#97-P6-2 wrote it**; this task's measurement is the evidence that the Rust
+side is where it should be.
+
+#### 5. Item 4 — the pre-size, priced twice and untaken
+
+§8.6's item 4 has two halves, both no-ops on the abstract state, and **task
+#97-P6-4b's `ron::HashMap2` took both of them away**:
+
+* **`reset_map`'s shrink branch.**  Against `ron::hashmap`'s chained table it
+  was worth pre-sizing: the branch hands the bucket array back when the last
+  round used less than a sixteenth of it, and the next round then climbs the
+  doubling ladder from `MIN_CAPACITY` with a `move_elements` rehash at every
+  rung, so handing back `HashMap::with_capacity(n + n/2)` instead — the last
+  round's rows, which IS "`enter_scratch` sized from the previous
+  declaration's high-water mark" — saves the ladder.  Measured at −0.14 % of
+  `Init`'s instructions.  `HashMap2::clear` is an **epoch bump** that keeps
+  the capacity, so the branch itself is gone (task #97-P6-4b deleted it with
+  `RESET_KEEP_FLOOR` and `RESET_KEEP_SLACK`), and the lever with it.
+* **`Tbl::reset`'s two node columns.**  `Vec::with_capacity(self.nodes.len())`
+  needs no hole — `with_capacity` is modelled and is `[]` abstractly — and a
+  tier that shrinks still shrinks, the size being the last LENGTH and never
+  the last capacity.  It was **−0.08 % against the chained map and +0.08 %
+  against `HashMap2`** (413 738 488 242 instructions without it,
+  414 049 090 149 with, on the same merged tree), because it trades a three-
+  or four-rung doubling ladder from zero for one allocation per table per
+  declaration.  Reverted; the measurement is in `Tbl::reset`'s doc comment so
+  the next reader does not re-derive it.
+
+Why so little in either direction: filling a bucket array is `O(capacity)`
+however the capacity is reached, so what a pre-size can remove is only the
+ladder's constant factor and the rehash — and the ladder was already short,
+because `reset_map`'s common branch kept the array.  **The representation, not
+the sizing, was the cost**, which is what task #97-P6-4b's result says from
+the other side.
+
+The **parse→install boundary** half of task #97-P6-1's lever 2 is not taken
+either, and the reason is task #97-P6-2's promotion: phase A now adds 370 746
+nodes to `Init`'s 6 137 973 (+6.0 %) and 6 420 790 to Mathlib's 103 127 802
+(+6.2 %), where task #97-P4f measured +82 %.  A pre-size at the boundary
+cannot remove the one rehash that crossing the load factor forces; it can only
+move it earlier.  What task #97-P6-1 priced there — "≈400 MB of transient on
+top of a 1.88 GB peak" — was the 5.06 M-node phase A that no longer exists.
+
+#### 6. The table, beside `con-ron` and nanoda
+
+`--verified --jobs=1`, mimalloc, `ulimit -v 8000000`, this machine.
+con-leche's, `con-ron`'s and nanoda's rows are task #97-P6-3's same-session
+baselines.  The last rows are the two P6-4 tasks separately and together:
+**4b alone** is task #97-P6-4b's own measurement at `c5ab643a`, and
+**merged** is this worktree after `git merge arena`.
+
+| `Init` | instructions:u | cycles:u | wall | peak RSS | verdict |
+|---|---:|---:|---:|---:|---|
+| nanoda | 231.04 G | 108.51 G | 24.78 s | 0.35 GB | Checked 59 433 |
+| **con-ron @ master** | **542.01 G** | 273.04 G | 62.19 s | 0.46 GB | accepted 57 977 |
+| con-leche (OVERVIEW §7.2) | 585.9 G | — | 56 s | 0.48 GB | accepted 57 977 |
+| con-ron-arena, `arena` tip 316fd7fe | 735.02 G | 342.18 G | 78.9 s | 0.70 GB | accepted 57 977 |
+| con-ron-arena, **4a alone** | 625.50 G | ~309 G | 69.1 / 69.0 / 76.3 s | 0.68 GB | accepted 57 977 |
+| con-ron-arena, **4b alone** (#97-P6-4b) | 525.22 G | 291.4 / 303.4 G | 66.2 / 69.0 s | — | accepted 57 977 |
+| **con-ron-arena, 4a + 4b** | **414.05 G** | **257.51 G** | **61.2 / 58.4 / 56.6 s** | **0.58 GB** | accepted 57 977 |
+| merged vs the tip | **−43.7 %** | −24.7 % | −27 % | −17.5 % | |
+| **merged vs con-ron @ master** | **0.76×** | 0.94× | 0.95× | 1.25× | |
+| merged vs nanoda | 1.79× | 2.37× | 2.40× | 1.65× | |
+
+| `core` (`Init`+`Std`+`Lean`) | instructions:u | cycles:u | wall | peak RSS | verdict |
+|---|---:|---:|---:|---:|---|
+| nanoda | 444.76 G | 248.84 G | 56.63 s | 0.73 GB | Checked 171 002 |
+| **con-ron @ master** | **1 162.12 G** | 657.22 G | 150.52 s | 1.26 GB | accepted 163 396 |
+| con-ron-arena, `arena` tip | 1 659.28 G | 901.34 G | 213.0 s | 1.67 GB | accepted 163 396 |
+| con-ron-arena, 4a alone | 1 489.10 G | 795.41 G | 184.2 s | 1.68 GB | accepted 163 396 |
+| **con-ron-arena, 4a + 4b** | **1 038.13 G** | **752.58 G** | **173.1 s** | **1.42 GB** | accepted 163 396 |
+| merged vs the tip | **−37.4 %** | −16.5 % | −18.7 % | −15.1 % | |
+| **merged vs con-ron @ master** | **0.89×** | 1.15× | 1.15× | 1.12× | |
+
+**The arena is under `con-ron` at master on instructions, on both exports** —
+0.76× on `Init` and 0.89× on `core`, where task #97-P4f measured 1.51× and
+task #97-P6-1 left 1.36×.  Cycles and wall are at parity on `Init` and 1.15×
+on `core`; peak RSS is 1.25× / 1.12× on the two small exports and **0.90× on
+Mathlib** — a ratio that falls as the export grows, which is the promotion
+and the hash-consed DAG doing what §8.3 said they would, and which means the
+arena is already the cheaper of the two on the only export whose memory
+matters.
+
+§8.1's goal — "the target is to beat today's con-ron on all three numbers" —
+is **met on Mathlib, all three**, met on instructions everywhere, met on
+`Init`'s wall and within 15 % on `core`'s; what is left is the two small
+exports' peak RSS, where the arena's fixed per-node cost is not yet amortised
+and §8.7's un-taken lever (drop the export parse DAG once the environment is
+built) is the answer.  nanoda is 1.79× away on `Init`, from 3.18× at the tip,
+and 2.12× on Mathlib, from 3.04×.
+
+#### 7. The top ten after, and what each one is
+
+`perf record -F 199`, the whole run on the merged tree, self time.
+
+| | share | what it is |
+|---|---:|---|
+| `expr_ops::instantiate1_go` | 15.12 % | **the checker body, and it is first now** |
+| `HashMap2<BindNode, EIdx>::insert_no_resize` | 9.22 % | the cons-table append for `lam`/`forallE` |
+| `ETables::find` | 8.14 % | the cons-table probe, with the map's `get` inlined |
+| `ETables::get` | 5.23 % | the decode |
+| `EStore::intern` | 4.40 % | the hash-cons |
+| `ETables::der_at` | 3.91 % | the derived-word read, one indexed load per decode |
+| `HashMap2<EIdxNat, EIdx>::insert` | 2.72 % | a memo write |
+| `EStore::der_of_view` | 2.49 % | the derived word computed at intern time |
+| `expr_ops::get_app_fn` | 2.18 % | the spine walk |
+| `core::knot_whnf_core` | 2.04 % | the knot's dispatch |
+
+By bucket, disjointly, before and after task #97-P6-4b's map:
+
+| bucket | tip + 4a (chained map) | merged (`HashMap2`) |
+|---|---:|---:|
+| `con_ron_core::ron::hashmap*` | **38.18 %** | **21.21 %** |
+| `arena::store` (decode, intern, derived — the probe inlined) | 25.78 % | 29.54 % |
+| `arena::expr_ops` | 12.11 % | **22.31 %** |
+| `arena::core` + `arena::core_state` | 8.18 % | 11.02 % |
+| mimalloc | 3.01 % | 2.38 % |
+| `core::ptr::drop_glue` | 3.17 % | 2.09 % |
+
+**That is the shape a checker should have.**  Before the two P6-4 tasks the
+first line of *work* was fourth and the map was 38 % of the run; now the
+checker body is first, `expr_ops` has nearly doubled its share without growing
+in absolute terms, and what is left of the map is mostly inserts.
+
+(One caveat on reading any per-instantiation row: the linker merges identical
+generic instantiations, so `perf` names an arbitrary member of each merged
+set — on the chained map `clear_slots` and `allocate_slots` swapped shares
+between builds of the same source.  The buckets above are summed over every
+instantiation and do not depend on that.)
+
+#### 8. The next levers, with expected value
+
+1. **The cons-table insert, 9.2 % + 2.7 % of what is left of `HashMap2`'s
+   21 %.**  Every `intern` that misses inserts, and `BindNode`'s table is the
+   one a declaration fills fastest (one node per binder entered).  The lever
+   is not the map any more — it is the *number of interns*: a substituting
+   walk rebuilds a binder's node even when the substitution changed nothing
+   under it.  The arena has con-leche's DOWNWARD cutoffs (§8.3's lesson 20:
+   `instantiate` returns at `bvarB ≤ offset`, `abstract` at `fvarB = 0`);
+   what it does not have is the UPWARD half, `if child' == child then return
+   e`, which keeps a rebuilt spine from becoming a new node at all.  Expected
+   5–8 % on `Init` and more on Mathlib; a pure `arena::expr_ops` change with
+   a twin clause of its own, and one whose denotation is trivially the same
+   (the returned handle denotes what the rebuilt one would).
+2. **`der_at` + `get` + `der_of_view` = 11.6 %: two columns, two loads.**
+   Every decode reads `nodes[i]` and `der[i]` from two different arrays, so a
+   `view` that needs both pays two cache misses on a cold node.  Interleaving
+   them (one `Vec<(A, D)>` per constructor) halves that, costs no hole, and is
+   a representation change the refinement absorbs — `denote` and `derived`
+   read the same values.  Expected 3–5 % on `Init` and more on Mathlib, where
+   the DAG does not fit in L3.  A `Tbl` change, so a ledger line rather than a
+   clause change.
+3. **Mathlib's own ratio is the thing to chase next, not `Init`'s.**  This
+   task's levers are −14.9 % on `Init` and −2.6 % on Mathlib, and every
+   remaining item above is a per-node cost Mathlib pays 17× more often.  The
+   honest next measurement is a Mathlib PROFILE, which nothing in P6 has
+   taken: `perf record -F 99` over a run that now finishes is affordable, and
+   it is the only way to tell a cache-miss lever from an instruction lever at
+   that size.
+4. **Memory, where §8.1's goal is now met on Mathlib and not on the small
+   exports**: 1.25× con-ron at master on `Init`, 1.12× on `core`, **0.90× on
+   Mathlib**.  The two small ratios are a fixed per-node cost that has not
+   amortised, and §8.7's open question — drop the export parse DAG once the
+   environment is built — is worth ~0.3 GB on `Init` by task #97-P6-2's
+   estimate and much more on Mathlib, where the parse DAG is 103 M of the
+   110 M nodes the run ends with.
+5. **The pool** (§8.6 P4f deviation 4), unchanged: one `while`.
+6. **`examples/bench.rs` still has no `Core`, `Checker` or inductive shapes**,
+   which is the seventh task to say so.  Task #97-P6-4b added
+   `examples/map_bench.rs` for the map — the first time a P6 task had a
+   microbenchmark to argue from; the checker still has none.
+
+#### The twin ledger (§8.6's P6 rule)
+
+| change | Lean must mirror | absorbed by the refinement |
+|---|---|---|
+| `arena::pins` — `Pins` in `AState`, `internAllPins` at the driver, the `pin_*` readers | **YES**: one new structure, one new `def`, and the ~110 `pin (X.yName)` clauses become field reads | — |
+| `emptyLevels` / `zeroLevel` / `sortOne` read the record | **YES**, same change, three clauses | — |
+| `reservedBasisNames` reads the record; its cursor deleted | **YES**, and the cursor's body moves into `internAllPins` as `internNameList` | — |
+| `attempt_snapshot` | (task #97-P6-2's OWED entry, unchanged — see §4) | — |
+| the pre-size, both halves | — | not taken (§5) |
+
+**What the Lean catch-up owes, stated precisely, and why the denotation does
+not move.**  `Pins` is `{ names : Array NIdx, reserved : Array NIdx,
+emptyLevels : LsIdx, zeroLevel : LIdx, sortOne : EIdx }`, and `internAllPins`
+is `internNameList pinNames`, then `internNameList reservedBasisNames`, then
+the three value interns, run once before the parse.  The obligation is one
+lemma and it is an instance of `intern_spec`:
+
+    pinsOK st →  st.pins.names[PIN_NAT] = (internName st natName).1
+
+i.e. the pinned handle is the handle the old clause computed — which holds
+because `intern` is IDEMPOTENT on a hash-consed store (the second call probes
+and finds) and `denoteN` is injective, so pre-interning a name the export also
+carries hands the export's parse the very same handle.  Nothing downstream of
+a pin sees a different word, a different tier or a different denotation; what
+changes is only WHEN the intern happens, and how many times.
+
+Three Rust-only details the refinement absorbs and the twin need not carry:
+the table is a `Vec` with a bounds branch rather than a record of fields (§2's
+reason — and the `Internal` decline it raises has no twin clause, because the
+twin's record is filled by construction); `pin_reserved` COPIES the nineteen
+handles where the twin's `Array` is a value; and `reservedBasisNamesFrom`
+disappears on the Rust side because its walk is `intern_name_list`'s, which
+the twin already has.
+
+#### Gates
+
+| | |
+|---|---|
+| `cargo build --release` / `cargo test`, `RUSTFLAGS="-D warnings"` | green; **120 tests in `arena-core`** (up from 115: the five of `arena::pins`), 428 in the workspace |
+| `cargo build --release --examples` | green (`arena_parse` interns the pins as the driver does) |
+| `scripts/lint-rust-style.sh` over both verified trees | clean |
+| `scripts/provenance.py check` | **0 findings** (6 501 items — 4 748 Rust, 1 753 arena Lean — and 4 859 citations, all current at pin `c431b1ca`) |
+| `scripts/extract-arena.sh --dry` | zero errors, 64 647 lines of model, **5 type holes and 209 function holes, every one of them the `con-ron-core` boundary** plus the two standing ones (`Arc::deref`, `str::as_bytes`).  Before the merge this task's own tree read 4 and 210 — a list **byte-identical to the `arena` tip's**, checked by extracting both — so **no hole is this task's**; the change since is task #97-P6-4b's `HashMap` → `HashMap2` at that boundary.  (Task #97-P6-2's section records 208; the tip already read 210, so that figure was stale before either P6-4 task.) |
+| `scripts/extract.sh --check` | not re-run: this task changes no `crates/con-ron-core` file, and the generated `Funs.lean` in the merge is task #97-P6-4b's, regenerated and committed there |
+| `scripts/diff-e2e.sh --bin=target/release/con-ron-arena` | **348/348 `--verified`, 348/348 `--trusted`**, unchanged at every lever and after the merge; `--no-pins` reads the documented **331 agree / 17 decline** |
+| `con-ron-arena --verified _tmp/corpus/init.ndjson` | accepted **57 977** |
+| `con-ron-arena --verified _tmp/corpus/core.ndjson` | accepted **163 396** |
+| `con-ron-arena --verified _tmp/corpus/mathlib.ndjson` | accepted **691 128** — the first Mathlib runs of the arena checker, three of them |
+| `cd proof && lake build` | NOT run: this task writes no Lean, and `proof/` is another agent's (the P4b/P4c/P4d/P4f ruling) |
+
+Raw `.perf`/`.time`/`.out`/`.err` files, the three profiles and the hole
+lists: `_tmp/t97-p6-4a/`.
