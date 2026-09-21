@@ -136,6 +136,22 @@ Lean side by con-leche's `Verify/Cached/*`.  Any deviation in memo behaviour
 allowed only where they are *semantically transparent by a local lemma*
 (§3.2, pointer fast paths).
 
+**The rule is about `CState`, and a MISS is not a hit** (task #98).  The
+constraint above is on the fourteen tables of `cached::state_c`, whose
+abstract state the refinement relates at every step.  The term walks'
+memos are per-call and local — nothing outside the call can observe one —
+and since con-leche's tasks #317/#319 both sides skip a node the runtime
+reports unshared, and a leaf, rather than recording it.  In the model that
+skip does not happen (`ron::node::is_exclusive` is a hole modelled `ok
+false`, §3.2), so the binary takes a MISS where the model takes a hit: it
+rebuilds a node instead of reading an answer it has already computed for
+that very node.  That direction costs time and can change no value, which
+is a weaker claim than the pointer fast path's — that one asserts an
+equality and needs its reflexivity lemma; this one asserts nothing.
+OVERVIEW.md §8.1's row is where the argument is written down, and
+`ron::node::is_exclusive`'s docstring is where the borrowed-parameter
+requirement that makes the read mean anything is written down.
+
 **Cached, not pure — and why (maintainer's question, 2026-09-12).**  The
 alternative was to port the *pure* fueled checker and prove whatever
 caching the Rust does sound in the Rust world.  That decouples Rust
