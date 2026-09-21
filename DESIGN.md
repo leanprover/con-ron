@@ -31415,6 +31415,17 @@ master's `#98` after.  Nothing else conflicted, which is exactly what task
 #97-P6-6b's wind-down note predicted: nothing outside `crates/arena-core`,
 `crates/con-ron-arena` and `proof/ConRon/Arena/**` had moved on this branch.
 
+**And a second merge**, because `arena` moved under the task: task
+#97-P6-8b (`77f93e0e`, fat LTO and one codegen unit, a six-line
+`[profile.release]` change) landed on the branch while this one was running.
+It is merged in, and everything it can touch was re-run on top of it —
+`cargo build`, `cargo test` (428, 0 failures), both `con-ron-arena` fixture
+sweeps and the `Init` measurement (§5's third row).  It cannot touch the rest:
+Charon never reads the release profile, so the extraction, the model, the Lean
+build and every text gate are the ones §4 reports, and OVERVIEW's two
+`Cargo.toml` line anchors still land on `overflow-checks`, which the new lines
+follow.
+
 So the five things the brief asked to be reconciled came out:
 
 1. **`crates/con-ron-core`**: master's `withExclusive` memo discipline, hole
@@ -31560,13 +31571,17 @@ own `--jobs=1` row.
 |---|---:|---:|---:|---:|---|
 | task #97-P6-6b, before the merge | 422.34 G | 267.19 G | 67.49 s | 0.63 GB | accepted 57 977 |
 | this tree, after it | **422.31 G** | 208.23 G | 47.52 s | 0.63 GB | **accepted 57 977** |
+| and again with task #97-P6-8b's LTO (§1) | **374.25 G** | 185.59 G | 42.43 s | 0.65 GB | **accepted 57 977** |
 
-**−0.01 % on the measure of record**, which is the same number: the merge
-changed no computation of the arena, and the citation sweep changed no code.
-(The cycles and wall columns are not comparable — task #97-P6-6b's row was
-taken at load 85–160 and this one on a much quieter machine — which is the
-reason `instructions:u` is the measure of record at all.  Peak RSS is
-662 760 kB either side.)  Raw `.perf`/`.time`: `_tmp/t97catchup/`.
+The second row is the check this task owes: **−0.01 % on the measure of
+record**, which is the same number.  The merge changed no computation of the
+arena, and the citation sweep changed no code.  The third row is the same
+binary rebuilt after §1's second merge, and it reproduces task #97-P6-8b's
+374.4 G to 0.04 %, which is what says that commit's setting survived the
+catch-up intact.  (The cycles and wall columns are not comparable with
+#97-P6-6b's — that row was taken at load 85–160 and these on a much quieter
+machine — which is the reason `instructions:u` is the measure of record at
+all.)  Raw `.perf`/`.time`: `_tmp/t97catchup/`.
 
 #### 6. What is still owed
 
