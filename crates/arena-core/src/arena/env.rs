@@ -890,6 +890,29 @@ pub fn ifenv_push(fe: IFEnv, ci: IConstantInfo) -> IFEnv {
     fe
 }
 
+/// con-leche: ConLeche/Kernel/Env.lean:460-486 ConstantInfo
+/// Lean twin: none — the `Inhabited IConstantInfo` the twin gets for free
+/// (task #97-P6-5, lever 5).  `Vec::resize` takes a filler it never reads when
+/// it shrinks; this is that filler, and nothing else may use it.
+pub fn i_constant_info_dummy() -> IConstantInfo {
+    IConstantInfo::AxiomInfo(IConstantVal {
+        name: NIdx::of_word(0),
+        level_params: Vec::new(),
+        ty: EIdx::of_word(0),
+    })
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:460-486 ConstantInfo
+/// Lean twin: none — `core::clone::Clone` for `IConstantInfo`, which
+/// `Vec::resize`'s signature demands (task #97-P6-5, lever 5).  It is
+/// `i_constant_info_dup` and nothing else; no `#[derive]` (DESIGN.md §3.4).
+impl core::clone::Clone for IConstantInfo {
+    /// con-leche: ConLeche/Kernel/Env.lean:460-486 ConstantInfo
+    fn clone(&self) -> IConstantInfo {
+        i_constant_info_dup(self)
+    }
+}
+
 /// con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push
 /// Lean twin: `proof/ConRon/Arena/Env.lean:344-346 IFEnv.push` — **the push of
 /// a TEMPORARY extension, with what it displaced** (task #97-P6-5, lever 4).
@@ -921,7 +944,17 @@ pub fn ifenv_push_temp(fe: &mut IFEnv, ci: IConstantInfo) -> Option<(u64, u64)> 
 /// of `ifenv_push_temp`: the constant popped, the displaced index row put
 /// back, the visibility bound restored.  See that function's note.
 pub fn ifenv_pop_temp(fe: &mut IFEnv, n: &NIdx, prev: Option<(u64, u64)>) {
-    let _ = fe.env.consts.pop();
+    // `Vec::resize` and NOT `Vec::pop`: Aeneas models the first
+    // (`Aeneas/Std/Vec.lean:439`, `resize_spec`, `v.val.resize new_len value`)
+    // and not the second, and task #97-P4a's rule is that every extraction
+    // hole is a `con-ron-core` boundary function.  Shrinking never reads the
+    // filler, so `i_constant_info_dummy` is a value and not a meaning.
+    let m: usize = fe.env.consts.len();
+    if m == 0 {
+        ()
+    } else {
+        fe.env.consts.resize(m - 1, i_constant_info_dummy());
+    }
     match prev {
         Some(row) => {
             let _ = fe.idx.insert(n.dup2(), row);
@@ -931,6 +964,19 @@ pub fn ifenv_pop_temp(fe: &mut IFEnv, n: &NIdx, prev: Option<(u64, u64)>) {
         }
     }
     fe.visible_below = fe.visible_below - 1;
+}
+
+/// con-leche: ConLeche/Kernel/FEnv.lean:29-49 FEnv
+/// Lean twin: none — a representation read (task #97-P6-5, lever 5).  The raw
+/// index row under a name, VISIBLE OR NOT, which is what `ifenv_pop_temp` has
+/// to put back when the caller pushed over it.  `ifenv_find` cannot serve: it
+/// hides a row whose counter is at or above the visibility bound, and a hidden
+/// row is exactly the one a naive pop would lose.
+pub fn ifenv_row(fe: &IFEnv, n: &NIdx) -> Option<(u64, u64)> {
+    match fe.idx.get(n) {
+        Some(e) => Some(*e),
+        None => None,
+    }
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:91-95 FEnv.findProj?

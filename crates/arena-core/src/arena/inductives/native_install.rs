@@ -1179,11 +1179,17 @@ pub fn kinds_any(ks: &Vec<RecFieldKind>, k: &RecFieldKind, i: usize) -> bool {
 pub fn check_native_pass(
     st: &mut AState,
     mode: &CheckMode,
-    fe: &IFEnv,
+    fe: IFEnv,
     p0: &NativeParts,
     is_rec: bool,
 ) -> Result<(NativePass, bool), CheckError> {
-    match sum_install::check_sum_ind(st, mode, env::ifenv_dup(fe), &p0.shape, is_rec) {
+    // **`fe` is MOVED, not copied** (task #97-P6-5, lever 5).  The pass
+    // extends the environment by exactly one constant — `checkSumIndAt`'s
+    // `IndInfo` type former — and `check_native` recovers the pre-block
+    // environment from `env1` with `ifenv_pop_temp` on the rare retry and with
+    // the visibility bound on `nativeFieldsOk`.  The `ifenv_dup` this
+    // replaced was `O(environment)` once per inductive block.
+    match sum_install::check_sum_ind(st, mode, fe, &p0.shape, is_rec) {
         Err(e) => Err(e),
         Ok(q) => {
             let fe1: IFEnv = q.0;
@@ -1268,7 +1274,6 @@ pub fn check_native_pass_kinds(
 pub fn check_native_tail(
     st: &mut AState,
     mode: &CheckMode,
-    fe: &IFEnv,
     q: NativePass,
 ) -> Result<IFEnv, CheckError> {
     match read_level(st, &q.p.shape.res_sort) {
@@ -1278,7 +1283,7 @@ pub fn check_native_tail(
             if q.p.shape.large && !never_zero && q.p.shape.ctors.len() >= 2 {
                 fail(core_types::invalid(code_points(&M_TAIL_ELIM)))
             } else {
-                check_native_tail_sorts(st, mode, fe, q)
+                check_native_tail_sorts(st, mode, q)
             }
         }
     }
@@ -1291,7 +1296,6 @@ pub fn check_native_tail(
 pub fn check_native_tail_sorts(
     st: &mut AState,
     mode: &CheckMode,
-    fe: &IFEnv,
     q: NativePass,
 ) -> Result<IFEnv, CheckError> {
     match checker_base::open_pis_at_fvars_f(st, q.p.shape.n_p + q.p.shape.n_idx, &q.cv_ta.ty, 0) {
@@ -1315,7 +1319,7 @@ pub fn check_native_tail_sorts(
                         q.p.shape.n_idx,
                     ) {
                         Err(e) => Err(e),
-                        Ok(_isorts) => check_native_tail_kinds(st, mode, fe, q),
+                        Ok(_isorts) => check_native_tail_kinds(st, mode, q),
                     }
                 }
             }
@@ -1330,21 +1334,34 @@ pub fn check_native_tail_sorts(
 pub fn check_native_tail_kinds(
     st: &mut AState,
     mode: &CheckMode,
-    fe: &IFEnv,
     q: NativePass,
 ) -> Result<IFEnv, CheckError> {
     let t: NIdx = q.p.shape.cv_t.name.dup2();
     let lps: Vec<NIdx> = env::nidx_vec_dup(&q.p.shape.cv_t.level_params);
-    match native_fields_ok(
+    // The twin reads the PRE-BLOCK environment here, and `env1` is that
+    // environment plus the type former at counter `vis - 1` (task #97-P6-5,
+    // lever 5).  Lowering the visibility bound by one hides exactly that row
+    // and nothing else, so `find?` answers what the twin's `fe` answers for
+    // every name: the former's row is the only one `env1.idx` does not share
+    // with `fe`, and the row it displaced — if there was one — was already at
+    // or above the bound, hence already invisible.  A redeclaration cannot
+    // make it visible either: `check_constant_val_guards` rejects a name the
+    // environment already shows before the push happens.
+    let mut q: NativePass = q;
+    let vis: u64 = q.env1.visible_below;
+    q.env1.visible_below = vis - 1;
+    let fields = native_fields_ok(
         st,
-        fe,
+        &q.env1,
         &t,
         &lps,
         q.p.shape.n_p,
         q.p.shape.n_idx,
         &q.ctors_a,
         &q.p.kinds,
-    ) {
+    );
+    q.env1.visible_below = vis;
+    match fields {
         Err(e) => Err(e),
         Ok(false) => fail(core_types::internal(code_points(&M_TAIL_KINDS))),
         Ok(true) => match struct_parts::param_levels(st, &q.p.shape.cv_r.level_params) {
@@ -1432,28 +1449,37 @@ pub fn check_native_tail_install(
 pub fn check_native(
     st: &mut AState,
     mode: &CheckMode,
-    fe: &IFEnv,
+    fe: IFEnv,
     p0: &NativeParts,
 ) -> Result<IFEnv, CheckError> {
     if !ctor_names_nodup(&p0.shape.ctors, 0) {
         fail(core_types::invalid(code_points(&M_NAT_DUP)))
     } else {
         core::flush_caches(st);
+        // The bracket token for the rare second pass (task #97-P6-5, lever 5):
+        // the type former's name and the index row it is about to displace, so
+        // that `ifenv_pop_temp` restores `fe` EXACTLY when the first pass's
+        // verdict does not settle.
+        let former: NIdx = p0.shape.cv_t.name.dup2();
+        let prev: Option<(u64, u64)> = env::ifenv_row(&fe, &former);
         match native_raw_rec(st, p0) {
             Err(e) => Err(e),
             Ok(raw) => match check_native_pass(st, mode, fe, p0, raw) {
                 Err(e) => Err(e),
                 Ok(q) => {
                     if q.1 {
-                        check_native_tail(st, mode, fe, q.0)
+                        check_native_tail(st, mode, q.0)
                     } else {
                         let again: bool = native_is_rec(&q.0.p.kinds);
                         core::flush_caches(st);
-                        match check_native_pass(st, mode, fe, p0, again) {
+                        let mut q1: NativePass = q.0;
+                        env::ifenv_pop_temp(&mut q1.env1, &former, prev);
+                        let fe0: IFEnv = q1.env1;
+                        match check_native_pass(st, mode, fe0, p0, again) {
                             Err(e) => Err(e),
                             Ok(q2) => {
                                 if q2.1 {
-                                    check_native_tail(st, mode, fe, q2.0)
+                                    check_native_tail(st, mode, q2.0)
                                 } else {
                                     fail(core_types::internal(code_points(&M_NAT_SETTLE)))
                                 }

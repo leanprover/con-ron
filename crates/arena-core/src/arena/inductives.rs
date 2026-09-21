@@ -88,7 +88,7 @@ pub fn check_ind_decl(
         Ok(false) => fail(core_types::invalid(code_points(&M_NUM_PARAMS))),
         Ok(true) => match native_parts::native_parts(st, num_params, &block) {
             Err(e) => Err(e),
-            Ok(Some(p)) => native_install::check_native(st, &mode, &fe, &p),
+            Ok(Some(p)) => native_install::check_native(st, &mode, fe, &p),
             Ok(None) => modeled::check_modeled(st, &mode, fe, &block),
         },
     }
