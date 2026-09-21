@@ -9186,7 +9186,16 @@ pub fn defeq_peel(
     // the binder PROJECTION (task #97-P6-10), as `infer_pis`' and
     // `annotate_pis`' are.
     let ta: u32 = a.tag();
-    if peel == 0 || ta != b.tag() || (ta != ETAG_FORALL_E && ta != ETAG_LAM) {
+    if a.eq2(b) {
+        // `defeqStep`'s OWN first arm, one level up: the chain opens these two
+        // residuals against the same free variables and hands the pair to the
+        // knot, whose `a == b` test then decides `true` — so the peel may stop
+        // here without opening anything.  (Equal handles are equal nodes, so
+        // every binder inside carries the same annotation datum on both sides
+        // and the checks the chain skips with it all hold.)  The outward
+        // annotation pass of the binders ALREADY peeled still runs.
+        defeq_peel_done(mism, mism_lam)
+    } else if peel == 0 || ta != b.tag() || (ta != ETAG_FORALL_E && ta != ETAG_LAM) {
         defeq_peel_leaf(
             pers, vis, st, mode, lane, fuel, fe, d, a, b, k, fvs, mism, mism_lam,
         )
@@ -9196,15 +9205,29 @@ pub fn defeq_peel(
             Some(pa) => match view_bind(pers, st, b) {
                 None => fail_dangling_e(),
                 Some(pb) => {
+                    // The domains are the same walk of the same input when the
+                    // two RAW domains are the same handle, and the chain's own
+                    // `a == b` arm decides them `true`; one open, no knot call.
+                    let same_dom: bool = pa.0.eq2(&pb.0);
                     match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &pa.0, fvs, 0) {
                         Err(e) => Err(e),
                         Ok(t1) => {
-                            match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &pb.0, fvs, 0) {
+                            let t2r: Result<EIdx, CheckError> = if same_dom {
+                                Ok(t1.dup2())
+                            } else {
+                                instantiate_list_fast(pers, st, CORE_WALK_FUEL, &pb.0, fvs, 0)
+                            };
+                            match t2r {
                                 Err(e) => Err(e),
                                 Ok(t2) => {
-                                    match knot_defeq(
-                                        pers, vis, st, mode, lane, fuel, fe, d + k, &t1, &t2,
-                                    ) {
+                                    let dq: Result<bool, CheckError> = if same_dom {
+                                        Ok(true)
+                                    } else {
+                                        knot_defeq(
+                                            pers, vis, st, mode, lane, fuel, fe, d + k, &t1, &t2,
+                                        )
+                                    };
+                                    match dq {
                                         Err(e) => Err(e),
                                         Ok(false) => Ok(false),
                                         Ok(true) => {
@@ -9275,19 +9298,27 @@ pub fn defeq_peel_leaf(
             Ok(o2) => match knot_defeq(pers, vis, st, mode, lane, fuel, fe, d + k, &o1, &o2) {
                 Err(e) => Err(e),
                 Ok(false) => Ok(false),
-                Ok(true) => {
-                    if mism {
-                        if mism_lam {
-                            fail(CheckError::NotImplemented(code_points(&M_DEFEQ_LAM)))
-                        } else {
-                            fail(CheckError::NotImplemented(code_points(&M_DEFEQ_PI)))
-                        }
-                    } else {
-                        Ok(true)
-                    }
-                }
+                Ok(true) => defeq_peel_done(mism, mism_lam),
             },
         },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:1441-1701 defeqStep
+/// Lean twin: OWED (task #97-P6-14's ledger) — the batched descent's OUTWARD
+/// annotation pass, reached once the residual pair has come back `true`: the
+/// chain tests `m₁.pw == m₂.pw` on the way out, innermost binder first, and
+/// raises at the first mismatch, so the one the peel recorded is the one that
+/// fires and `mism_lam` is the message of the binder kind it sat at.
+pub fn defeq_peel_done(mism: bool, mism_lam: bool) -> Result<bool, CheckError> {
+    if mism {
+        if mism_lam {
+            fail(CheckError::NotImplemented(code_points(&M_DEFEQ_LAM)))
+        } else {
+            fail(CheckError::NotImplemented(code_points(&M_DEFEQ_PI)))
+        }
+    } else {
+        Ok(true)
     }
 }
 
