@@ -78,14 +78,14 @@ use crate::ron::tagged::Header;
 // The ten cells
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
 /// `Expr.bvar i`.
 #[repr(C)]
 pub(crate) struct NodeBvar {
     pub(crate) i: u64,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
 /// `Expr.fvar idx ty`.
 #[repr(C)]
 pub(crate) struct NodeFvar {
@@ -93,14 +93,14 @@ pub(crate) struct NodeFvar {
     pub(crate) ty: Expr,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
 /// `Expr.sort u`.
 #[repr(C)]
 pub(crate) struct NodeSort {
     pub(crate) u: Level,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
 /// `Expr.const n us`; the level list is behind a handle as it was in
 /// `ExprKind::Const` (task #38).
 #[repr(C)]
@@ -109,7 +109,7 @@ pub(crate) struct NodeConst {
     pub(crate) us: P<Vec<Level>>,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
 /// `Expr.app f a` — 65 % of the live nodes of a real term (task #88's
 /// census), and the reason this module exists: 32 bytes rather than 64.
 #[repr(C)]
@@ -118,7 +118,7 @@ pub(crate) struct NodeApp {
     pub(crate) a: Expr,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
 /// `Expr.lam ty body m`.
 #[repr(C)]
 pub(crate) struct NodeLam {
@@ -127,7 +127,7 @@ pub(crate) struct NodeLam {
     pub(crate) m: BinderMeta,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
 /// `Expr.forallE ty body m`: [`NodeLam`]'s fields under its own name, so that
 /// the table keys the cast on the constructor rather than on a shared struct.
 #[repr(C)]
@@ -137,7 +137,7 @@ pub(crate) struct NodeForallE {
     pub(crate) m: BinderMeta,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
 /// `Expr.letE ty value body`.
 #[repr(C)]
 pub(crate) struct NodeLetE {
@@ -146,14 +146,14 @@ pub(crate) struct NodeLetE {
     pub(crate) body: Expr,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
 /// `Expr.lit l`.
 #[repr(C)]
 pub(crate) struct NodeLit {
     pub(crate) l: Literal,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
 /// `Expr.proj n idx e`.
 #[repr(C)]
 pub(crate) struct NodeProj {
@@ -193,7 +193,7 @@ crate::ron::tagged::tagged_kinds! {
 // The view
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
 /// The ten constructors as a **borrowed** enum: what a reader matches on.
 ///
 /// Every arm holds references, including the scalar ones (`&u64`), so that a
@@ -216,7 +216,7 @@ pub enum ExprView<'a> {
     Proj(&'a Name, &'a u64, &'a Expr),
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
 /// Look at a term's constructor: the `match` every reader of the core does.
 ///
 /// Safe code: the arm names are the table's own `pub const`s, `Raw::cast` is
@@ -266,70 +266,70 @@ pub fn view(e: &Expr) -> ExprView<'_> {
 // Allocation
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
 /// `Expr.bvar`'s cell, with the packed word its smart constructor computed.
 #[inline]
 pub fn alloc_bvar(data: u64, i: u64) -> Expr {
     Expr(ExprHandle::alloc(data, NodeBvar { i }))
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
 /// `Expr.fvar`'s cell.
 #[inline]
 pub fn alloc_fvar(data: u64, idx: u64, ty: Expr) -> Expr {
     Expr(ExprHandle::alloc(data, NodeFvar { idx, ty }))
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
 /// `Expr.sort`'s cell.
 #[inline]
 pub fn alloc_sort(data: u64, u: Level) -> Expr {
     Expr(ExprHandle::alloc(data, NodeSort { u }))
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
 /// `Expr.const`'s cell; the level list arrives already behind its handle.
 #[inline]
 pub fn alloc_const(data: u64, n: Name, us: P<Vec<Level>>) -> Expr {
     Expr(ExprHandle::alloc(data, NodeConst { n, us }))
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
 /// `Expr.app`'s cell — the hot one.
 #[inline]
 pub fn alloc_app(data: u64, f: Expr, a: Expr) -> Expr {
     Expr(ExprHandle::alloc(data, NodeApp { f, a }))
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
 /// `Expr.lam`'s cell.
 #[inline]
 pub fn alloc_lam(data: u64, ty: Expr, body: Expr, m: BinderMeta) -> Expr {
     Expr(ExprHandle::alloc(data, NodeLam { ty, body, m }))
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
 /// `Expr.forallE`'s cell.
 #[inline]
 pub fn alloc_forall_e(data: u64, ty: Expr, body: Expr, m: BinderMeta) -> Expr {
     Expr(ExprHandle::alloc(data, NodeForallE { ty, body, m }))
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
 /// `Expr.letE`'s cell.
 #[inline]
 pub fn alloc_let_e(data: u64, ty: Expr, value: Expr, body: Expr) -> Expr {
     Expr(ExprHandle::alloc(data, NodeLetE { ty, value, body }))
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
 /// `Expr.lit`'s cell.
 #[inline]
 pub fn alloc_lit(data: u64, l: Literal) -> Expr {
     Expr(ExprHandle::alloc(data, NodeLit { l }))
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
 /// `Expr.proj`'s cell.
 #[inline]
 pub fn alloc_proj(data: u64, n: Name, idx: u64, e: Expr) -> Expr {
@@ -387,7 +387,7 @@ pub fn expr_block_bytes() -> usize {
 // The pointer operations (DESIGN.md §3.2)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Expr.lean:285-403 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:286-404 Expr
 /// The cached `@[computed_field] data`, an `O(1)` field read: the header is at
 /// the cell's address whatever the tag, so this needs no dispatch.
 #[inline]
@@ -402,7 +402,8 @@ pub fn dup(e: &Expr) -> Expr {
     Expr(e.0.bump())
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:955-960 Expr.beqMemo
+/// con-leche: ConLeche/Kernel/Expr.lean:984-989 Expr.beqMemo
+/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove node::ptr_eq_refines, then delete this line
 /// Do the two handles point at the same cell?  Modeled as `false`
 /// (DESIGN.md §3.2), so each fast path needs its reflexivity lemma.
 #[inline]

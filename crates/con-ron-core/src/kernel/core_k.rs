@@ -133,7 +133,7 @@ use std::vec::Vec;
 // `Vec` helpers for the `List` operations the Lean uses for free
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Core.lean:76-96 unknownConstError
+/// con-leche: ConLeche/Kernel/Core.lean:82-102 unknownConstError
 /// **The verdict at a constant the environment does not know.**  `sorryAx`
 /// is the one axiom the checker tolerates as a *declaration* and installs
 /// nothing for (`basis_names::sorry_ax_name`), so a *use* of it is a
@@ -250,7 +250,7 @@ pub fn leaf_contains_from(ys: &Vec<(u64, Expr)>, i: u64, ty: &Expr, j: usize) ->
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1311-1493 majorToCtor
+/// con-leche: ConLeche/Kernel/Core.lean:544-726 majorToCtor
 /// The scope guard's third conjunct,
 /// `fab.fvarLeaves.all (fun l => major.fvarLeaves.contains l)` — a closure
 /// over a `List.all`, so it becomes the index recursion below.  All three of
@@ -259,7 +259,7 @@ pub fn fvar_leaves_subset(xs: &Vec<(u64, Expr)>, ys: &Vec<(u64, Expr)>) -> bool 
     fvar_leaves_subset_from(xs, ys, 0)
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1311-1493 majorToCtor
+/// con-leche: ConLeche/Kernel/Core.lean:544-726 majorToCtor
 /// The index recursion behind `fvar_leaves_subset`.
 pub fn fvar_leaves_subset_from(
     xs: &Vec<(u64, Expr)>,
@@ -275,7 +275,7 @@ pub fn fvar_leaves_subset_from(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:150-153 projModelName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:41-44 projModelName
 /// `toString i` for a `Nat` index: the decimal code points, most significant
 /// digit first, `0` for zero.  Lean's `Nat.toString` is the runtime's; on the
 /// `u64` of DESIGN.md §3.3 this is the recursion that produces it.
@@ -283,7 +283,7 @@ pub fn nat_to_dec(i: u64) -> Vec<u32> {
     nat_to_dec_go(i, Vec::new())
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:150-153 projModelName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:41-44 projModelName
 /// The digit recursion behind `nat_to_dec`: the quotient's digits are pushed
 /// before the last one, so the result is most-significant first.
 pub fn nat_to_dec_go(i: u64, out: Vec<u32>) -> Vec<u32> {
@@ -303,8 +303,8 @@ pub fn nat_to_dec_go(i: u64, out: Vec<u32>) -> Vec<u32> {
 // across a branch that touches the state)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Core.lean:245-264 unfoldDefinition
-/// con-leche: ConLeche/Kernel/Core.lean:281-290 headHint
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:136-155 unfoldDefinition
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:172-181 headHint
 /// The `some (.defnInfo cv value hint)` destructuring, as an owning probe:
 /// the borrow of the index dies at the call boundary and the caller works on
 /// copies, which is what Lean's value semantics hands its pattern variables.
@@ -320,8 +320,8 @@ pub fn defn_probe(fe: &FEnv, n: &Name) -> Option<(ConstantVal, Expr, Reducibilit
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1311-1493 majorToCtor
-/// con-leche: ConLeche/Kernel/Core.lean:1066-1138 structEtaCertWith
+/// con-leche: ConLeche/Kernel/Core.lean:544-726 majorToCtor
+/// con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith
 /// The `some (.ctorInfo cv cnP cnF)` destructuring, as an owning probe (see
 /// `defn_probe`).
 pub fn ctor_probe(fe: &FEnv, n: &Name) -> Option<(ConstantVal, u64, u64)> {
@@ -334,8 +334,8 @@ pub fn ctor_probe(fe: &FEnv, n: &Name) -> Option<(ConstantVal, u64, u64)> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1311-1493 majorToCtor
-/// con-leche: ConLeche/Kernel/Core.lean:1066-1138 structEtaCertWith
+/// con-leche: ConLeche/Kernel/Core.lean:544-726 majorToCtor
+/// con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith
 /// The `some (.indInfo cvT caps)` destructuring, as an owning probe (see
 /// `defn_probe`).
 pub fn ind_probe(fe: &FEnv, n: &Name) -> Option<(ConstantVal, IndCaps)> {
@@ -348,8 +348,8 @@ pub fn ind_probe(fe: &FEnv, n: &Name) -> Option<(ConstantVal, IndCaps)> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1719-1832 iotaRec
-/// con-leche: ConLeche/Kernel/Core.lean:1012-1035 structEtaProjCerts
+/// con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec
+/// con-leche: ConLeche/Kernel/Core.lean:351-374 structEtaProjCerts
 /// The `some (.recInfo cv mI rP rules)` destructuring, as an owning probe
 /// (see `defn_probe`).  The rule list is copied spine-wise —
 /// `iotaRec` reads it after several state-touching calls.
@@ -366,7 +366,7 @@ pub fn rec_probe(fe: &FEnv, n: &Name) -> Option<(ConstantVal, u64, u64, Vec<RecR
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:693-709 natOpGuard
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:584-600 natOpGuard
 /// con-leche: ConLeche/Kernel/FEnv.lean:132-145 natOpGuardF
 /// `match env.find? n with | some ci => ci.toConstantVal.levelParams.isEmpty
 /// | none => false` — the level-monomorphism test `natOpGuard` runs on the
@@ -382,7 +382,7 @@ pub fn lp_empty(fe: &FEnv, n: &Name) -> bool {
 // `liftFueled` and the small readers (`Core.lean:109-206`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Core.lean:145-148 liftFueled
+/// con-leche: ConLeche/Kernel/Core.lean:151-154 liftFueled
 /// Lift a fuel-style partial result; `none` is an internal error.
 ///
 /// Deviations: monomorphic at `Option Bool`, because every call site in
@@ -401,7 +401,7 @@ pub fn lift_fueled(o: Option<bool>) -> CheckM<bool> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:150-153 projModelName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:41-44 projModelName
 /// The model-side name of field `i`'s projection for `T`:
 /// `(T.str "_model").str ("proj_" ++ toString i)`.
 pub fn proj_model_name(t: &Name, i: u64) -> Name {
@@ -414,7 +414,7 @@ pub fn proj_model_name(t: &Name, i: u64) -> Name {
     name::mk_str(head, s)
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:155-162 isCtorApp
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:46-53 isCtorApp
 /// con-leche: ConLeche/Cached/StateC.lean:62-69 isCtorAppC
 /// Is the expression headed by a stored constructor?
 pub fn is_ctor_app(fe: &FEnv, e: &Expr) -> bool {
@@ -428,7 +428,7 @@ pub fn is_ctor_app(fe: &FEnv, e: &Expr) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:164-171 piResultIsProp
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:55-62 piResultIsProp
 /// Does the syntactic pi telescope end in a (normalized) `Prop`?
 pub fn pi_result_is_prop(e: &Expr) -> bool {
     let r = expr_ops::pi_result(e);
@@ -442,7 +442,7 @@ pub fn pi_result_is_prop(e: &Expr) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:173-181 piResultZ
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:64-72 piResultZ
 /// The result-sort zero-ness datum of an inductive's type (`IndCaps.sortZ`,
 /// computed at the block's install).  A telescope that does not end in a
 /// sort gets `ifAllZero []` — "zero at every valuation".
@@ -454,7 +454,7 @@ pub fn pi_result_z(e: &Expr) -> PropWhen {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:183-191 piResultNeverZero
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:74-82 piResultNeverZero
 /// The *specification* of `caps_never_zero`: the walk down the family's type
 /// that the stored datum replaces.  Nothing executable calls it; ported so
 /// the provenance gate stays in step with its source (task #11's
@@ -467,14 +467,14 @@ pub fn pi_result_never_zero(lps: &Vec<Name>, us: &Vec<Level>, e: &Expr) -> bool 
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:193-204 capsNeverZero
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:84-95 capsNeverZero
 /// Is a stored inductive's result sort, at the given level instantiation,
 /// provably nonzero?  Read off the stored datum.
 pub fn caps_never_zero(lps: &Vec<Name>, us: &Vec<Level>, caps: &IndCaps) -> bool {
     prop_when::is_never(&level::subst_pw(lps, us, &caps.sort_z))
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:206-243 isUnitLikeTy
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:97-134 isUnitLikeTy
 /// con-leche: ConLeche/Cached/StateC.lean:48-60 isUnitLikeTyC
 /// Is this (whnf'd) type expression a unit-like inductive type?  The
 /// head-name comparison against the single pin that can pass (`PUnit`) comes
@@ -498,7 +498,7 @@ pub fn is_unit_like_ty(fe: &FEnv, e: &Expr) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:206-243 isUnitLikeTy
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:97-134 isUnitLikeTy
 /// The cited `match env.find? punitName with | some (.indInfo _ _) => true |
 /// _ => false`, factored out (task #14's probe rule).
 pub fn is_punit_ind(fe: &FEnv) -> bool {
@@ -509,7 +509,7 @@ pub fn is_punit_ind(fe: &FEnv) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:206-243 isUnitLikeTy
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:97-134 isUnitLikeTy
 /// The cited `match env.find? punitRecName with | some (.recInfo _ mI rP [r])
 /// => mI == rP && r.nfields == 0 | _ => false`, factored out.
 pub fn is_punit_rec_shape(fe: &FEnv) -> bool {
@@ -530,7 +530,7 @@ pub fn is_punit_rec_shape(fe: &FEnv) -> bool {
 // Delta (`Core.lean:217-266`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Core.lean:266-279 unfoldableHead
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:157-170 unfoldableHead
 /// con-leche: ConLeche/Cached/StateC.lean:80-87 unfoldableHeadC
 /// May the delta step unfold `e`'s head?  The *decision* the lazy delta step
 /// takes; the unfolding itself is materialized only inside the branch that
@@ -548,7 +548,7 @@ pub fn unfoldable_head(fe: &FEnv, e: &Expr) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:281-290 headHint
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:172-181 headHint
 /// con-leche: ConLeche/Cached/StateC.lean:71-78 headHintC
 /// The reducibility hint of the constant at the head of `e` (`opaque` when
 /// the head is not a stored definition — a theorem included).
@@ -563,7 +563,7 @@ pub fn head_hint(fe: &FEnv, e: &Expr) -> ReducibilityHint {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:292-301 sameConstHeads
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:183-192 sameConstHeads
 /// con-leche: ConLeche/Cached/StateC.lean:89-96 sameConstHeadsC
 /// Are `a` and `b` applications of the *same* constant (the lazy delta
 /// same-head short-circuit)?  Both sides must actually be applications.
@@ -591,7 +591,7 @@ pub fn same_const_heads(a: &Expr, b: &Expr) -> bool {
 // `Nat` literals (`Core.lean:269-346`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Core.lean:303-309 natLitToConstructor
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:194-200 natLitToConstructor
 /// The constructor form of a `Nat` literal, one layer: `n + 1` becomes
 /// `Nat.succ (lit n)`, `0` becomes `Nat.zero`.  The cited `match n with | 0 |
 /// k + 1` is `nat::is_zero` plus `nat::pred` on the bignum (§3.3).
@@ -606,7 +606,7 @@ pub fn nat_lit_to_constructor(n: &Nat) -> Expr {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:311-315 natIndOk
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:202-206 natIndOk
 /// The stored `Nat` declaration has the expected shape.
 pub fn nat_ind_ok(ci: Option<&ConstantInfo>) -> bool {
     match ci {
@@ -622,7 +622,7 @@ pub fn nat_ind_ok(ci: Option<&ConstantInfo>) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:317-321 natZeroOk
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:208-212 natZeroOk
 /// The stored `Nat.zero` declaration has the expected shape.
 pub fn nat_zero_ok(ci: Option<&ConstantInfo>) -> bool {
     match ci {
@@ -641,7 +641,7 @@ pub fn nat_zero_ok(ci: Option<&ConstantInfo>) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:323-332 natSuccOk
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:214-223 natSuccOk
 /// The stored `Nat.succ` declaration has the expected (annotated) shape.
 pub fn nat_succ_ok(ci: Option<&ConstantInfo>) -> bool {
     match ci {
@@ -673,7 +673,7 @@ pub fn nat_succ_ok(ci: Option<&ConstantInfo>) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:334-342 natLitSupported
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:225-233 natLitSupported
 /// con-leche: ConLeche/Kernel/FEnv.lean:116-119 natLitSupportedF
 /// Whether the environment supports `Nat` literals: `Nat`, `Nat.zero` and
 /// `Nat.succ` are stored with exactly the expected kinds, level parameters
@@ -690,7 +690,7 @@ pub fn nat_lit_supported(fe: &FEnv) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:344-369 Expr.constsResolve
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:235-260 Expr.constsResolve
 /// Do all constants referenced in `e` (including inside `fvar` type
 /// annotations) resolve in the environment?  A `Nat` literal implicitly
 /// references the `Nat` basis constants, a `String` literal additionally the
@@ -752,7 +752,7 @@ pub fn consts_resolve(fe: &FEnv, e: &Expr) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:344-369 Expr.constsResolve
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:235-260 Expr.constsResolve
 /// The `.lit (.natVal _)` arm's three `isSome` tests, factored out (the
 /// `.strVal` arm opens with the same three).
 pub fn nat_trio_stored(fe: &FEnv) -> bool {
@@ -767,7 +767,7 @@ pub fn nat_trio_stored(fe: &FEnv) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:344-369 Expr.constsResolve
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:235-260 Expr.constsResolve
 /// The `.lit (.strVal _)` arm's seven further `isSome` tests.
 pub fn str_support_stored(fe: &FEnv) -> bool {
     if fenv::find(fe, &basis_names::string_name()).is_some() {
@@ -797,7 +797,7 @@ pub fn str_support_stored(fe: &FEnv) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:371-376 litToCtorIfNat
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:262-267 litToCtorIfNat
 /// con-leche: ConLeche/Cached/CoreC.lean:84-90 litToCtorIfNatI
 /// Convert a `Nat`-literal major premise to constructor form, one layer;
 /// anything else passes through.
@@ -814,7 +814,7 @@ pub fn lit_to_ctor_if_nat(fe: &FEnv, e: &Expr) -> Expr {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:378-383 rawNatLit?
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:269-274 rawNatLit?
 /// con-leche: ConLeche/Cached/StateC.lean:98-103 rawNatLitC?
 /// A `Nat` literal reading of a whnf'd expression: literals and the
 /// `Nat.zero` constant (the official kernel's `rawNatLitExt?`).
@@ -836,7 +836,7 @@ pub fn raw_nat_lit(e: &Expr) -> Option<Nat> {
 // String literals (`Core.lean:365-475`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Core.lean:397-408 strLitToConstructor
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:288-299 strLitToConstructor
 /// The constructor form of a `String` literal:
 /// `String.ofList (List.cons.{0} Char (Char.ofNat (lit c₁)) (… (List.nil.{0}
 /// Char)))`.  The cited `s.toList.foldr` becomes the downward index
@@ -852,7 +852,7 @@ pub fn str_lit_to_constructor(s: &Vec<u32>) -> Expr {
     )
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:397-408 strLitToConstructor
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:288-299 strLitToConstructor
 /// The `foldr` of `str_lit_to_constructor`, downwards from the end: `acc` is
 /// the list built from `s[i..]`, so `i = s.len()` is the `init` and each step
 /// conses `s[i - 1]`.
@@ -882,7 +882,7 @@ pub fn str_lit_cons_from(s: &Vec<u32>, i: usize, acc: Expr) -> Expr {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:410-416 stringTyOk
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:301-307 stringTyOk
 /// The stored `String` declaration has the expected shape (`String : Type`,
 /// no level parameters; any constant kind).
 pub fn string_ty_ok(ci: Option<&ConstantInfo>) -> bool {
@@ -899,7 +899,7 @@ pub fn string_ty_ok(ci: Option<&ConstantInfo>) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:418-424 charTyOk
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:309-315 charTyOk
 /// The stored `Char` declaration has the expected shape (`Char : Type`).
 pub fn char_ty_ok(ci: Option<&ConstantInfo>) -> bool {
     match ci {
@@ -915,7 +915,7 @@ pub fn char_ty_ok(ci: Option<&ConstantInfo>) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:426-437 listTyOk
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:317-328 listTyOk
 /// The stored `List` declaration has the expected (annotated) shape
 /// `List.{p} : Type p → Type p`.
 pub fn list_ty_ok(ci: Option<&ConstantInfo>) -> bool {
@@ -945,7 +945,7 @@ pub fn list_ty_ok(ci: Option<&ConstantInfo>) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:439-450 listNilTyOk
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:330-341 listNilTyOk
 /// The stored `List.nil` declaration has the expected (annotated) shape
 /// `List.nil.{p} : ∀ (α : Type p), List.{p} α`.
 pub fn list_nil_ty_ok(ci: Option<&ConstantInfo>) -> bool {
@@ -996,7 +996,7 @@ pub fn list_nil_ty_ok(ci: Option<&ConstantInfo>) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:452-469 listConsTyOk
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:343-360 listConsTyOk
 /// The stored `List.cons` declaration has the expected (annotated) shape
 /// `List.cons.{p} : ∀ (α : Type p) (head : α) (tail : List.{p} α), List.{p} α`.
 /// The cited four-deep binder pattern is spelled as a nested `match`; the
@@ -1033,7 +1033,7 @@ pub fn list_cons_ty_ok(ci: Option<&ConstantInfo>) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:452-469 listConsTyOk
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:343-360 listConsTyOk
 /// The innermost two slots of `list_cons_ty_ok`'s pattern —
 /// `.forallE (.app (.const l1 us1) (.bvar 1)) (.app (.const l2 us2) (.bvar 2))`
 /// and the four comparisons — as their own function, so the nesting stays
@@ -1074,7 +1074,7 @@ pub fn list_cons_tail_ok(u1: &Level, d3: &Expr, b3: &Expr, p: &Name) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:471-480 charOfNatTyOk
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:362-371 charOfNatTyOk
 /// The stored `Char.ofNat` declaration has the expected (annotated) shape
 /// `Char.ofNat : Nat → Char`.
 pub fn char_of_nat_ty_ok(ci: Option<&ConstantInfo>) -> bool {
@@ -1107,7 +1107,7 @@ pub fn char_of_nat_ty_ok(ci: Option<&ConstantInfo>) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:482-492 stringOfListTyOk
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:373-383 stringOfListTyOk
 /// The stored `String.ofList` declaration has the expected (annotated) shape
 /// `String.ofList : List.{0} Char → String`.
 pub fn string_of_list_ty_ok(ci: Option<&ConstantInfo>) -> bool {
@@ -1160,7 +1160,7 @@ pub fn string_of_list_ty_ok(ci: Option<&ConstantInfo>) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:494-512 strLitSupported
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:385-403 strLitSupported
 /// con-leche: ConLeche/Kernel/FEnv.lean:121-130 strLitSupportedF
 /// Whether the environment supports `String` literals: the `Nat` literal
 /// guard plus the seven string-support declarations at exactly the expected
@@ -1204,7 +1204,7 @@ pub fn str_lit_supported(fe: &FEnv) -> bool {
 // The certified structural-`Nat` operations (`Core.lean:505-775`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Core.lean:155-162 isCtorApp
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:46-53 isCtorApp
 /// The cited `match env.find? c with | some (.ctorInfo _ _ _) => true | _ =>
 /// false`.  `env::is_rec_info` is `env.rs`'s twin of this (task #14); the
 /// constructor test has no other consumer, so it lives here.
@@ -1215,133 +1215,133 @@ pub fn is_ctor_info(ci: &ConstantInfo) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:542 natPredName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:433 natPredName
 /// `Nat.pred`.
 pub fn nat_pred_name() -> Name {
     const S: [u32; 4] = [112, 114, 101, 100];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:543 natAddName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:434 natAddName
 /// `Nat.add`.
 pub fn nat_add_name() -> Name {
     const S: [u32; 3] = [97, 100, 100];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:544 natSubName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:435 natSubName
 /// `Nat.sub`.
 pub fn nat_sub_name() -> Name {
     const S: [u32; 3] = [115, 117, 98];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:545 natMulName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:436 natMulName
 /// `Nat.mul`.
 pub fn nat_mul_name() -> Name {
     const S: [u32; 3] = [109, 117, 108];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:546 natPowName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:437 natPowName
 /// `Nat.pow`.
 pub fn nat_pow_name() -> Name {
     const S: [u32; 3] = [112, 111, 119];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:547 natBeqName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:438 natBeqName
 /// `Nat.beq`.
 pub fn nat_beq_name() -> Name {
     const S: [u32; 3] = [98, 101, 113];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:548 natBleName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:439 natBleName
 /// `Nat.ble`.
 pub fn nat_ble_name() -> Name {
     const S: [u32; 3] = [98, 108, 101];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:549 natDivName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:440 natDivName
 /// `Nat.div`.
 pub fn nat_div_name() -> Name {
     const S: [u32; 3] = [100, 105, 118];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:550 natModName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:441 natModName
 /// `Nat.mod`.
 pub fn nat_mod_name() -> Name {
     const S: [u32; 3] = [109, 111, 100];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:551 natGcdName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:442 natGcdName
 /// `Nat.gcd`.
 pub fn nat_gcd_name() -> Name {
     const S: [u32; 3] = [103, 99, 100];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:552 natLandName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:443 natLandName
 /// `Nat.land`.
 pub fn nat_land_name() -> Name {
     const S: [u32; 4] = [108, 97, 110, 100];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:553 natLorName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:444 natLorName
 /// `Nat.lor`.
 pub fn nat_lor_name() -> Name {
     const S: [u32; 3] = [108, 111, 114];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:554 natXorName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:445 natXorName
 /// `Nat.xor`.
 pub fn nat_xor_name() -> Name {
     const S: [u32; 3] = [120, 111, 114];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:555 natShiftLeftName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:446 natShiftLeftName
 /// `Nat.shiftLeft`.
 pub fn nat_shift_left_name() -> Name {
     const S: [u32; 9] = [115, 104, 105, 102, 116, 76, 101, 102, 116];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:556 natShiftRightName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:447 natShiftRightName
 /// `Nat.shiftRight`.
 pub fn nat_shift_right_name() -> Name {
     const S: [u32; 10] = [115, 104, 105, 102, 116, 82, 105, 103, 104, 116];
     name::mk_str(basis_names::nat_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:557 boolName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:448 boolName
 /// `Bool`.
 pub fn bool_name() -> Name {
     const S: [u32; 4] = [66, 111, 111, 108];
     name::mk_str(name::anonymous(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:558 boolTrueName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:449 boolTrueName
 /// `Bool.true`.
 pub fn bool_true_name() -> Name {
     const S: [u32; 4] = [116, 114, 117, 101];
     name::mk_str(bool_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:559 boolFalseName
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:450 boolFalseName
 /// `Bool.false`.
 pub fn bool_false_name() -> Name {
     const S: [u32; 5] = [102, 97, 108, 115, 101];
     name::mk_str(bool_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:561-566 Expr.isBoolTrue
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:452-457 Expr.isBoolTrue
 /// Is `e` the constant `Bool.true` — the name, no universe levels?
 pub fn is_bool_true(e: &Expr) -> bool {
     match expr::view(&e) {
@@ -1356,7 +1356,7 @@ pub fn is_bool_true(e: &Expr) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:568-580 Expr.quickPair
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:459-471 Expr.quickPair
 /// The pairs official's `quick_is_def_eq` decides by itself: two sorts, two
 /// literals, two `∀`s, two `λ`s.  Charon expands the cited wildcard arm, as
 /// in `expr::beq_go` (task #11's note).
@@ -1370,7 +1370,7 @@ pub fn quick_pair(a: &Expr, b: &Expr) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:568-580 Expr.quickPair
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:459-471 Expr.quickPair
 /// The four one-constructor tests `quick_pair`'s second slot needs; Rust has
 /// no `.sort _` pattern outside a `match`, so each is a named function
 /// (`expr_ops::is_lam` is the `Expr.isLam` of `ExprOps.lean`, a different
@@ -1382,7 +1382,7 @@ pub fn is_sort(e: &Expr) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:568-580 Expr.quickPair
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:459-471 Expr.quickPair
 /// See `is_sort`.
 pub fn is_lit(e: &Expr) -> bool {
     match expr::view(&e) {
@@ -1391,7 +1391,7 @@ pub fn is_lit(e: &Expr) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:568-580 Expr.quickPair
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:459-471 Expr.quickPair
 /// See `is_sort`.
 pub fn is_forall(e: &Expr) -> bool {
     match expr::view(&e) {
@@ -1400,7 +1400,7 @@ pub fn is_forall(e: &Expr) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:568-580 Expr.quickPair
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:459-471 Expr.quickPair
 /// See `is_sort`.
 pub fn is_lam_k(e: &Expr) -> bool {
     match expr::view(&e) {
@@ -1409,7 +1409,7 @@ pub fn is_lam_k(e: &Expr) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:582-590 natOpNames
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:473-481 natOpNames
 /// The certified structural-`Nat` operations.
 pub fn nat_op_names() -> Vec<Name> {
     let mut ns: Vec<Name> = Vec::new();
@@ -1423,7 +1423,7 @@ pub fn nat_op_names() -> Vec<Name> {
     ns
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:592-607 natDivModNames
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:483-498 natDivModNames
 /// The WF-recursive operations with a *pinned-declaration* certified fast
 /// path.
 pub fn nat_div_mod_names() -> Vec<Name> {
@@ -1439,7 +1439,7 @@ pub fn nat_div_mod_names() -> Vec<Name> {
     ns
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:609-632 natOpDeps
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:500-523 natOpDeps
 /// The operations (transitively) involved in `c`'s recurrences.  The cited
 /// `if … else if …` chain, arm for arm; the empty tail is `[]`.
 pub fn nat_op_deps(c: &Name) -> Vec<Name> {
@@ -1512,26 +1512,26 @@ pub fn nat_op_deps(c: &Name) -> Vec<Name> {
     ns
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:634-663 natOpEquations
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:525-554 natOpEquations
 /// The `s : Expr → Expr` local of the cited `let`-block: `Nat.succ ·`.
 /// §3.4 forbids closures, so the three spine builders are named functions.
 pub fn nat_eq_s(a: Expr) -> Expr {
     expr::app(expr::mk_const(basis_names::nat_succ_name(), Vec::new()), a)
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:634-663 natOpEquations
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:525-554 natOpEquations
 /// The `ap1 : Name → Expr → Expr` local.
 pub fn nat_eq_ap1(n: &Name, a: Expr) -> Expr {
     expr::app(expr::mk_const(name::dup(n), Vec::new()), a)
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:634-663 natOpEquations
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:525-554 natOpEquations
 /// The `ap2 : Name → Expr → Expr → Expr` local.
 pub fn nat_eq_ap2(n: &Name, a: Expr, b: Expr) -> Expr {
     expr::app(expr::app(expr::mk_const(name::dup(n), Vec::new()), a), b)
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:634-663 natOpEquations
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:525-554 natOpEquations
 /// The defining recurrence equations of a structural-`Nat` operation, over
 /// constructor forms with free variables `d`, `d + 1` (binder-free, so the
 /// equation sides carry no annotations).  Run by the install
@@ -1619,7 +1619,7 @@ pub fn nat_op_equations(d: u64, c: &Name) -> Vec<(Expr, Expr)> {
     eqs
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:665-691 natOpResult
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:556-582 natOpResult
 /// The reduct of op `c` on literal arguments (`pred` ignores the second
 /// slot).  The arithmetic is `ron::Nat`'s (DESIGN.md §3.3).
 ///
@@ -1698,7 +1698,7 @@ pub fn nat_op_result(c: &Name, a: &Nat, b: &Nat) -> CheckM<Option<Expr>> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:693-709 natOpGuard
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:584-600 natOpGuard
 /// con-leche: ConLeche/Kernel/FEnv.lean:132-145 natOpGuardF
 /// The cited `(natOpDeps c).all (fun n => match env.find? n with | some
 /// (.defnInfo cv _ _) => cv.levelParams.isEmpty | _ => false)` predicate, at
@@ -1711,7 +1711,7 @@ pub fn defn_lp_empty(fe: &FEnv, n: &Name) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:693-709 natOpGuard
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:584-600 natOpGuard
 /// con-leche: ConLeche/Kernel/FEnv.lean:132-145 natOpGuardF
 /// The `List.all` of `nat_op_guard`, as an index recursion.
 pub fn deps_all_stored(fe: &FEnv, deps: &Vec<Name>, i: usize) -> bool {
@@ -1724,7 +1724,7 @@ pub fn deps_all_stored(fe: &FEnv, deps: &Vec<Name>, i: usize) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:693-709 natOpGuard
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:584-600 natOpGuard
 /// con-leche: ConLeche/Kernel/FEnv.lean:132-145 natOpGuardF
 /// Stored-constant guards for op `c`: the `Nat` basis, every dependency
 /// stored as a level-monomorphic definition, and (for the `Bool`-valued ops
@@ -1753,7 +1753,7 @@ pub fn nat_op_guard(fe: &FEnv, c: &Name) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:711-721 natOpWfNames
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:602-612 natOpWfNames
 /// The pin-certified WF-recursive `Nat` operations, as a *safety net*: the
 /// same eight names as `natDivModNames`, spelled separately in the Lean and
 /// separately here.
@@ -1770,7 +1770,7 @@ pub fn nat_op_wf_names() -> Vec<Name> {
     ns
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:723-729 Expr.substConst0
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:614-620 Expr.substConst0
 /// Substitute the level-monomorphic constant `n` by `r` through an
 /// application spine (the certification equations' self-references; the
 /// equation sides are binder-free, so only `app` recurses).
@@ -1788,7 +1788,7 @@ pub fn subst_const0(n: &Name, r: &Expr, e: &Expr) -> Expr {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:731-747 Expr.substConstAll
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:622-638 Expr.substConstAll
 /// Substitute the level-monomorphic constant `n` by the *closed* term `r`
 /// everywhere, including under binders.  `fvar` annotations are not entered:
 /// the substitution runs on closed input terms only.
@@ -1822,7 +1822,7 @@ pub fn subst_const_all(n: &Name, r: &Expr, e: &Expr) -> Expr {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:749-759 natOpCod
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:640-650 natOpCod
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:209-217 natOpCodF
 /// The pinned codomain of a structural-`Nat` operation: `Bool` (itself
 /// stored level-monomorphically at type `Sort 1`) for the comparisons, `Nat`
@@ -1839,7 +1839,7 @@ pub fn nat_op_cod(fe: &FEnv, c: &Name, e: &Expr) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:749-759 natOpCod
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:640-650 natOpCod
 /// The cited `match env.find? boolName with | some ci =>
 /// ci.toConstantVal.levelParams.isEmpty ∧ ci.toConstantVal.type == .sort
 /// (.succ .zero) | none => false`, factored out.
@@ -1857,7 +1857,7 @@ pub fn bool_stored_ok(fe: &FEnv) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:761-776 natOpTyPinned
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:652-667 natOpTyPinned
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:219-231 natOpTyPinnedF
 /// The pinned type of a certified `Nat` operation: `Nat → Nat` for the unary
 /// `pred`, `Nat → Nat → Nat` for the arithmetic operations, `Nat → Nat →
@@ -1892,7 +1892,7 @@ pub fn nat_op_ty_pinned(fe: &FEnv, c: &Name, ty: &Expr) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:778-784 natOpStoredOk
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:669-675 natOpStoredOk
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:233-238 natOpStoredOkF
 /// con-leche: ConLeche/Kernel/FEnv.lean:147-151 natOpStoredF
 /// Op `n` is stored as a level-monomorphic definition with the pinned type.
@@ -1909,7 +1909,7 @@ pub fn nat_op_stored_ok(fe: &FEnv, n: &Name) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:786-809 natOpStored
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:677-700 natOpStored
 /// con-leche: ConLeche/Kernel/FEnv.lean:147-151 natOpStoredF
 /// **The reduction-time test for a certified `Nat` operation**: is `c`
 /// stored as a definition at all?  The install fold invariant carries
@@ -1923,7 +1923,7 @@ pub fn nat_op_stored(fe: &FEnv, c: &Name) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:811-863 reduceNat
+/// con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat
 /// The fourteen binary operations the cited `∨`-chain names, as their own
 /// predicate.
 pub fn is_nat_bin_op(c: &Name) -> bool {
@@ -1947,14 +1947,14 @@ pub fn is_nat_bin_op(c: &Name) -> bool {
 // Telescope certificates and proof irrelevance (`Core.lean:848-981`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Core.lean:899-904 piResidual
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:702-707 piResidual
 /// Peel a `∀`-telescope along an argument list (the residual type of a fully
 /// applied telescope).  The `i = 0` wrapper of the index recursion below.
 pub fn pi_residual(e: &Expr, args: &Vec<Expr>) -> Option<Expr> {
     pi_residual_from(e, args, 0)
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:899-904 piResidual
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:702-707 piResidual
 /// The index recursion behind `pi_residual`.
 pub fn pi_residual_from(e: &Expr, args: &Vec<Expr>, i: usize) -> Option<Expr> {
     if i >= args.len() {
@@ -1982,7 +1982,7 @@ pub fn expr_singleton(e: &Expr) -> Vec<Expr> {
     v
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1054-1064 etaProjs
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:726-736 etaProjs
 /// The fabricated projections of a structure-eta spine: `.proj T j b` nodes
 /// when every slot has a table entry (the direct install's structures — the
 /// node is what the table types and reduces), else the modeled path's
@@ -2000,7 +2000,7 @@ pub fn eta_projs(
     eta_projs_from(tower, t, us, targs, b, n_f, 0, Vec::new())
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1054-1064 etaProjs
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:726-736 etaProjs
 /// The index recursion behind `eta_projs` (the cited
 /// `(List.range nF).map`), with the slot kind decided once by the caller.
 pub fn eta_projs_from(
@@ -2030,7 +2030,7 @@ pub fn eta_projs_from(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1066-1138 structEtaCertWith
+/// con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith
 /// The cited syntactic conjunction block: the η capability and its
 /// constructor, neither name reserved, the parameter count, the level count,
 /// the constructor's own level parameters, and the one-kind slot discipline
@@ -2065,7 +2065,7 @@ pub fn struct_eta_shape_ok(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1140-1151 etaCtorShape
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:738-749 etaCtorShape
 /// con-leche: ConLeche/Cached/StateC.lean:105-112 etaCtorShapeC
 /// The constructor shape official's `try_eta_struct_core` tests before
 /// inferring anything: the candidate's head is a stored constructor applied
@@ -2084,7 +2084,7 @@ pub fn eta_ctor_shape(fe: &FEnv, a: &Expr) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1178-1206 structUnitCert
+/// con-leche: ConLeche/Kernel/Core.lean:475-503 structUnitCert
 /// The cited syntactic conjunction: the unit-like capability, the name not
 /// reserved, the parameter count and the level count.
 pub fn unit_shape_ok(
@@ -2105,7 +2105,7 @@ pub fn unit_shape_ok(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1247-1255 etaFabArgs
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:751-759 etaFabArgs
 /// The eta-rescue fabrication's argument spine: the reduced type's arguments
 /// followed by the installed projection functions applied to the stuck
 /// major.  Nothing executable calls it — `etaFabArgsE` is what `majorToCtor`
@@ -2122,7 +2122,7 @@ pub fn eta_fab_args(
     append_exprs(env::exprs_copy(targs), &projs)
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1257-1262 etaFabArgsE
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:761-766 etaFabArgsE
 /// `eta_fab_args` at the entry kind: the projections are `eta_projs`' —
 /// `.proj` nodes at an all-tower slot family, the modeled spelling otherwise.
 pub fn eta_fab_args_e(
@@ -2137,7 +2137,7 @@ pub fn eta_fab_args_e(
     append_exprs(env::exprs_copy(targs), &projs)
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1264-1290 ProjEntry.fireOk
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:768-794 ProjEntry.fireOk
 /// **The tower-fire guard**: at a `Prop`-declared structure the field's guard
 /// level must be a proposition at this instantiation; at every other family
 /// the rule fires unconditionally.
@@ -2159,8 +2159,8 @@ pub fn proj_entry_fire_ok(entry: &ProjEntry, us: &Vec<Level>) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1292-1305 andRescueSlotsOf
-/// con-leche: ConLeche/Kernel/Core.lean:1307-1309 andRescueSlots
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:796-809 andRescueSlotsOf
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:811-813 andRescueSlots
 /// con-leche: ConLeche/Kernel/FEnv.lean:101-103 andRescueSlotsF
 /// **The pinned `And`'s projection slots, ready to fire**: the two tower
 /// entries of `And` are stored, name the rule's constructor at the major's
@@ -2172,7 +2172,7 @@ pub fn and_rescue_slots(fe: &FEnv, ctor: &Name, n_p: u64, ust: &Vec<Level>) -> b
     and_rescue_slots_from(fe, ctor, n_p, ust, 0)
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1292-1305 andRescueSlotsOf
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:796-809 andRescueSlotsOf
 /// The `(List.range 2).all` of `and_rescue_slots`, as an index recursion.
 pub fn and_rescue_slots_from(
     fe: &FEnv,
@@ -2190,7 +2190,7 @@ pub fn and_rescue_slots_from(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1292-1305 andRescueSlotsOf
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:796-809 andRescueSlotsOf
 /// The per-slot test (task #14's per-element rule), so the entry's borrow
 /// dies inside the callee.
 pub fn and_rescue_slot_ok(
@@ -2220,7 +2220,7 @@ pub fn and_rescue_slot_ok(
 // The stuck-major rescue (`Core.lean:1287-1487`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Core.lean:1311-1493 majorToCtor
+/// con-leche: ConLeche/Kernel/Core.lean:544-726 majorToCtor
 /// The scope guard all three rescue branches run on their fabrication
 /// (cf. `annotateProjElim`): the fabricated major is well-scoped at the
 /// ambient depth, closed under loose `bvar`s, and introduces no free
@@ -2240,7 +2240,7 @@ pub fn fab_scope_ok(fab: &Expr, major: &Expr, depth: u64) -> bool {
 // The install-time rule bits (`Core.lean:1494-1621`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Core.lean:1525-1540 recRuleKOf
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:815-830 recRuleKOf
 /// **The K bit at install** (`RecRule.k`): the rule's constructor has no
 /// fields and belongs to an inductive stored with the K capability.  Together
 /// with a singleton rule list this is the official kernel's
@@ -2262,7 +2262,7 @@ pub fn rec_rule_k_of(fe: &FEnv, ctor: &Name) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1542-1568 recRuleEtaOf
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:832-858 recRuleEtaOf
 /// **The η-rescue bit at install** (`RecRule.eta`): the rule's constructor is
 /// the η constructor of a stored η-capable inductive, carries that
 /// inductive's own level parameters, and the recursor is not itself a
@@ -2295,7 +2295,7 @@ pub fn rec_rule_eta_of(fe: &FEnv, rec_name: &Name, ctor: &Name) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1570-1580 recRuleBits
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:860-870 recRuleBits
 /// **Stamp a rule's two rescue bits at install** — the one place the K and
 /// η-rescue conditions are decided.  The cited `{ rl with … }` takes the
 /// record by value and rewrites the two fields.
@@ -2308,7 +2308,7 @@ pub fn rec_rule_bits(fe: &FEnv, rec_name: &Name, rl: RecRule) -> RecRule {
     rl
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1619-1631 projFnRule
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:909-921 projFnRule
 /// The stored rule of a projection function, with its bits stamped by
 /// `rec_rule_bits`.  The cited record literal leaves `k`/`eta` at their
 /// `false` defaults, which `rec_rule_bits` then overwrites.
@@ -2340,7 +2340,7 @@ pub fn proj_fn_rule(
     rec_rule_bits(fe, &env::proj_fn_name(t, i), rl)
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1649-1656 recRuleK
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:939-946 recRuleK
 /// Is a recursor K-flagged?  The stored bit of its single rule.
 pub fn rec_rule_k(rules: &Vec<RecRule>) -> bool {
     if rules.len() == 1 {
@@ -2354,7 +2354,7 @@ pub fn rec_rule_k(rules: &Vec<RecRule>) -> bool {
 // Iota (`Core.lean:1695-1800`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Core.lean:1719-1832 iotaRec
+/// con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec
 /// `args.getD i (.bvar 0)` — Lean's out-of-range default is
 /// `Inhabited Expr`'s `.bvar 0` (`env::default_expr`).
 pub fn get_d_expr(args: &Vec<Expr>, i: u64) -> Expr {
@@ -2365,7 +2365,7 @@ pub fn get_d_expr(args: &Vec<Expr>, i: u64) -> Expr {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1719-1832 iotaRec
+/// con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec
 /// `rules.find? (fun r' => r'.ctor == cj)`, as an index recursion returning
 /// the position (§3.4 forbids closures; an index keeps the rule list's borrow
 /// out of the state-touching cascade below).
@@ -2380,7 +2380,7 @@ pub fn rules_find(rules: &Vec<RecRule>, cj: &Name, i: usize) -> Option<usize> {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:193-237 RecRuleFire
-/// con-leche: ConLeche/Kernel/Core.lean:1719-1832 iotaRec
+/// con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec
 /// The cited `rl.fire = .inert` test; Rust has no equality on the enum
 /// (§3.4 keeps `derive` off the core types), so it is a one-arm match.
 pub fn fire_is_inert(f: &RecRuleFire) -> bool {
@@ -2394,8 +2394,8 @@ pub fn fire_is_inert(f: &RecRuleFire) -> bool {
 // Projections (`Core.lean:1803-1888`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Core.lean:1834-1843 ProjEntry.typeAt
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:609-628 ProjEntry.typeAtI
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:970-979 ProjEntry.typeAt
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:839-858 ProjEntry.typeAtI
 /// **The type of a `.proj` node at a tower-backed entry**: the stored body
 /// level-instantiated at the subject type's levels, with the subject type's
 /// arguments and the subject substituted for its `numParams + 1` loose
@@ -2417,7 +2417,7 @@ pub fn proj_entry_type_at(
     expr_ops::instantiate_list_fast(&body, &vs, 0)
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1834-1843 ProjEntry.typeAt
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:970-979 ProjEntry.typeAt
 /// `out ++ targs.reverse`, as the downward index recursion `targs[k - 1]`,
 /// `targs[k - 2]`, ….
 pub fn rev_append_exprs(out: Vec<Expr>, targs: &Vec<Expr>, k: usize) -> Vec<Expr> {
@@ -2431,6 +2431,7 @@ pub fn rev_append_exprs(out: Vec<Expr>, targs: &Vec<Expr>, k: usize) -> Vec<Expr
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1896-1928 betaGateFires
+/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove core_k::beta_gate_fires_refines, then delete this line
 /// **THE β SITE'S GATE**: at `mode.betaGate` a λ-binder whose *validated*
 /// annotation datum is `.never` licenses skipping the certificate.  Mode and
 /// datum only — no expression is read and no computation is run, which is
@@ -2443,7 +2444,7 @@ pub fn beta_gate_fires(mode: &CheckMode, pw: &PropWhen) -> bool {
 // `whnfCore` (`Core.lean:1898-1990`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Core.lean:1930-2019 whnfCoreBody
+/// con-leche: ConLeche/Kernel/Core.lean:963-1052 whnfCoreBody
 /// The cited five-conjunct fire guard of the `.proj` arm, as an `if` nest:
 /// the head is the entry's constructor, the field index is in range, the
 /// spine is exactly parameters plus fields, the level count matches, and the
@@ -2468,7 +2469,7 @@ pub fn proj_fire_shape_ok(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:2021-2029 whnfCoreLoopFuel
+/// con-leche: ConLeche/Kernel/Core.lean:1054-1062 whnfCoreLoopFuel
 /// Step budget of the `whnfCore` head-normalization loop (con-leche's task
 /// #106).  Nothing in this module reads it — the *interned* `whnfCoreLoopI`
 /// does (`Cached/CoreC.lean`, task #19) — but it is ported so the provenance
@@ -2477,7 +2478,7 @@ pub fn whnf_core_loop_fuel() -> u64 {
     1000000
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:2031-2038 whnfLoopFuel
+/// con-leche: ConLeche/Kernel/Core.lean:1064-1071 whnfLoopFuel
 /// Step budget of the `whnf` reduction loop (lean4lean's `FuelConfig.whnf`,
 /// same value).  Literal-acceleration and delta steps are *iteration*, not
 /// recursion.
@@ -2489,8 +2490,8 @@ pub fn whnf_loop_fuel() -> u64 {
 // Inference (`Core.lean:2042-2337`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
-/// con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO
+/// con-leche: ConLeche/Kernel/Core.lean:1109-1274 inferBody
+/// con-leche: ConLeche/Kernel/Core.lean:1276-1404 inferBodyIO
 /// A `Nat` literal types as `Nat`, and without the basis declarations it is
 /// *invalid* (not merely unimplemented).
 pub fn infer_lit_nat(fe: &FEnv) -> CheckM<Expr> {
@@ -2506,8 +2507,8 @@ pub fn infer_lit_nat(fe: &FEnv) -> CheckM<Expr> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
-/// con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO
+/// con-leche: ConLeche/Kernel/Core.lean:1109-1274 inferBody
+/// con-leche: ConLeche/Kernel/Core.lean:1276-1404 inferBodyIO
 /// A string literal types as `String`; without the pinned support
 /// declarations this is a positively detected unsupported feature — decline.
 pub fn infer_lit_str(fe: &FEnv) -> CheckM<Expr> {
@@ -2523,8 +2524,8 @@ pub fn infer_lit_str(fe: &FEnv) -> CheckM<Expr> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
-/// con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO
+/// con-leche: ConLeche/Kernel/Core.lean:1109-1274 inferBody
+/// con-leche: ConLeche/Kernel/Core.lean:1276-1404 inferBodyIO
 /// The `.fvar` arm's scope check at the leaf of a traversal that happens
 /// anyway (`O(1)`, never a fresh walk): a free variable must refer to an
 /// enclosing opened binder.  On raw (closed) input at depth 0 this rejects
@@ -2541,8 +2542,8 @@ pub fn infer_fvar(idx: u64, ty: &Expr, depth: u64) -> CheckM<Expr> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
-/// con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO
+/// con-leche: ConLeche/Kernel/Core.lean:1109-1274 inferBody
+/// con-leche: ConLeche/Kernel/Core.lean:1276-1404 inferBodyIO
 /// The cited propositional-structure restriction of the two `.proj` arms
 /// (official `infer_proj`'s task #175 W4c/O4 test): at a `Prop`-declared
 /// structure the field must be a proposition at this instantiation.  The two
@@ -2580,8 +2581,8 @@ pub fn proj_type_at_checked(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:2076-2241 inferBody
-/// con-leche: ConLeche/Kernel/Core.lean:2243-2371 inferBodyIO
+/// con-leche: ConLeche/Kernel/Core.lean:1109-1274 inferBody
+/// con-leche: ConLeche/Kernel/Core.lean:1276-1404 inferBodyIO
 /// The table lookup and the checks of the two `.proj` clauses, on the already
 /// reduced type of the subject — byte-identical in the two bodies, so one
 /// function here.
@@ -2617,7 +2618,7 @@ pub fn infer_proj_at(
 // Definitional equality (`Core.lean:2346-2660`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Core.lean:2408-2668 defeqStep
+/// con-leche: ConLeche/Kernel/Core.lean:1441-1701 defeqStep
 /// The cited `match nn, f with | k + 1, .const c [] => if c = natSuccName …`
 /// of the packed-literal-against-`Nat.succ` arms: the predecessor, when the
 /// literal is positive and the function part is the bare `Nat.succ`.
@@ -2638,7 +2639,7 @@ pub fn succ_of(nn: &Nat, f: &Expr) -> Option<Nat> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:2408-2668 defeqStep
+/// con-leche: ConLeche/Kernel/Core.lean:1441-1701 defeqStep
 /// The cited `cO = stringOfListName ∧ usO = [] ∧ strLitSupported env` guard
 /// of the string-literal expansion arms — the reference kernels'
 /// `tryStringLitExpansion`, which fires exactly when the other side's
@@ -2656,7 +2657,7 @@ pub fn str_expansion_fires(fe: &FEnv, f: &Expr) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:2677-2681 defeqLoopFuel
+/// con-leche: ConLeche/Kernel/Core.lean:1710-1714 defeqLoopFuel
 /// Step budget of the lazy-delta loop (lean4lean's `FuelConfig.lazyDelta`,
 /// generously sized here because this loop also absorbs the
 /// literal-acceleration re-entries).  Exhaustion is an internal error, never
@@ -2669,7 +2670,7 @@ pub fn defeq_loop_fuel() -> u64 {
 // The annotation pass (`Core.lean:2677-2858`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Core.lean:2713-2714 pwWritten
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:1015-1016 pwWritten
 /// Is this datum a real (non-placeholder) input annotation?  The parser's
 /// placeholder for an absent `"pw"` field is `.never`, which is also a
 /// legitimate value, so the pass recomputes over `.never` unconditionally.
@@ -2685,7 +2686,7 @@ pub fn pw_written(pw: &PropWhen) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:2716-2722 annotBinderMeta
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:1018-1024 annotBinderMeta
 /// con-leche: ConLeche/Cached/CoreC.lean:1643-1647 annotBinderMetaI
 /// The datum a rebuilt binder ends up with: the one threaded in from the node
 /// below (the chain rule), unless it carries a real input annotation — those
@@ -2705,7 +2706,7 @@ pub fn annot_binder_meta(pw: Option<PropWhen>, mb: &BinderMeta) -> BinderMeta {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:2773-2893 annotateBody
+/// con-leche: ConLeche/Kernel/Core.lean:1795-1915 annotateBody
 /// The table lookup of `annotate_proj` and its three verdicts: the checked
 /// node, the out-of-range index on a projectable structure (invalid), and the
 /// shape without any projection support (decline).
@@ -2757,7 +2758,7 @@ pub fn annotate_proj_entry(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:2938-2941 checkFuel
+/// con-leche: ConLeche/Kernel/Core.lean:1960-1963 checkFuel
 /// The shared fuel for the checker core: bounds the recursion depth of
 /// reduction, inference and definitional equality.  Exhaustion is an internal
 /// error, never a verdict.

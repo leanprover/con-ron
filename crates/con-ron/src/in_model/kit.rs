@@ -122,31 +122,31 @@ pub fn dup_names(ns: &[Name]) -> Vec<Name> {
 // Names (`Kit.lean:42-81`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:44-45 implName
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:49-50 implName
 /// `T._model._impl.<s>`.
 pub fn impl_name(t: &Name, s: &str) -> Name {
     nstr(nstr(nstr(name::dup(t), "_model"), "_impl"), s)
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:47-48 tagName
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:52-53 tagName
 /// The tag family `T._model._impl.tag` of the block owned by `T`.
 pub fn tag_name(t: &Name) -> Name {
     impl_name(t, "tag")
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:50-51 tagCtorName
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:55-56 tagCtorName
 /// The tag constructor of member `k`: `T._model._impl.tag.k`.
 pub fn tag_ctor_name(t: &Name, k: u64) -> Name {
     name::mk_num(tag_name(t), k)
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:53-54 auxName
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:58-59 auxName
 /// The auxiliary family `T._model._impl.aux`.
 pub fn aux_name(t: &Name) -> Name {
     impl_name(t, "aux")
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:56-62 auxCtorName
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:61-67 auxCtorName
 /// The auxiliary constructor of member `k`'s constructor `C`:
 /// `T._model._impl.aux.k.<last component of C>`.
 pub fn aux_ctor_name(t: &Name, k: u64, c: &Name) -> Name {
@@ -158,19 +158,19 @@ pub fn aux_ctor_name(t: &Name, k: u64, c: &Name) -> Name {
     }
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:64-65 modelName
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:69-70 modelName
 /// The model companion of a block member: `X._model`.
 pub fn model_name(n: &Name) -> Name {
     nstr(name::dup(n), "_model")
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:67-69 iotaName
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:72-74 iotaName
 /// The iota theorem of rule `j` of a modeled recursor `R`: `R._model.iota_j`.
 pub fn iota_name(r: &Name, j: u64) -> Name {
     nstr(model_name(r), &format!("iota_{}", j))
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:71-81 freshLevelName
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:76-86 freshLevelName
 /// A level-parameter name not among `lps`: `u`, then `u_1`, `u_2`, … — the
 /// official kernel's `mk_fresh_lvl_name` convention for a recursor's
 /// elimination level, so a generated recursor's level parameters are the ones
@@ -195,7 +195,7 @@ pub fn fresh_level_name(lps: &[Name]) -> Name {
 // Binders and frames (`Kit.lean:83-122`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:85-88 bm
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:90-93 bm
 /// The default binder datum of a generated binder: `.never` — what the
 /// frontend gives every parsed binder (the annotate pass recomputes the datum
 /// before it is validated).
@@ -203,7 +203,7 @@ pub fn bm() -> BinderMeta {
     expr::binder_meta(prop_when::never())
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:90-92 mkLams
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:95-97 mkLams
 /// `λ`-telescope over domains (outermost first).
 pub fn mk_lams(bs: &[Expr], body: Expr) -> Expr {
     let mut acc = body;
@@ -213,7 +213,7 @@ pub fn mk_lams(bs: &[Expr], body: Expr) -> Expr {
     acc
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:94-96 mkPis
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:99-101 mkPis
 /// `∀`-telescope over domains (outermost first).
 pub fn mk_pis(bs: &[Expr], body: Expr) -> Expr {
     let mut acc = body;
@@ -223,26 +223,26 @@ pub fn mk_pis(bs: &[Expr], body: Expr) -> Expr {
     acc
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:98-100 varsAt
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:103-105 varsAt
 /// The variables `bvar (o + n - 1 - k)`, `k < n`: a telescope of `n` binders
 /// seen from `o` binders below it (`structPsAt`).
 pub fn vars_at(o: u64, n: u64) -> Vec<Expr> {
     struct_parts::struct_ps_at(o, n)
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:102-103 constP
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:107-108 constP
 /// A constant at its level parameters.
 pub fn const_p(n: &Name, lps: &[Name]) -> Expr {
     expr::mk_const(name::dup(n), params_of(lps))
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:105-107 piBinders
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:110-112 piBinders
 /// The domains of a `∀`-telescope's binder list.
 pub fn pi_binders(bs: &[(Expr, BinderMeta)]) -> Vec<Expr> {
     bs.iter().map(|b| expr::dup(&b.0)).collect()
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:109-122 overFirstParams
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:114-127 overFirstParams
 /// A member's or constructor's telescope `ty` re-spelled over the FIRST
 /// member's parameter binders: the first `nP` binders of `former` with `ty`'s
 /// residual after its own `nP` parameter binders under them.  The re-spelling
@@ -257,7 +257,7 @@ pub fn over_first_params(n_p: u64, former: &Expr, ty: &Expr) -> Option<Expr> {
 // Family occurrences (`Kit.lean:124-270`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:128-199 specFamGo
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:133-204 specFamGo
 /// Rewrite every occurrence `T_m a⃗` (exactly `nP + nIdx_m` arguments) of a
 /// member of the block into `aux a⃗_P (tag.m a⃗_P a⃗_I)`.  `members` lists
 /// `(T_m, m, nIdx_m)`.  An occurrence with any other arity is left alone (the
@@ -300,7 +300,7 @@ pub fn spec_fam_go(
     }
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:128-199 specFamGo
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:133-204 specFamGo
 /// The compound arm of `spec_fam_go`, i.e. the body the memo wraps.
 pub fn spec_fam_arm(
     t: &Name,
@@ -371,7 +371,7 @@ pub fn spec_fam_arm(
     }
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:201-209 specFamGoList
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:206-214 specFamGoList
 /// `spec_fam_go` over a list, threading the memo.
 pub fn spec_fam_go_list(
     t: &Name,
@@ -386,14 +386,14 @@ pub fn spec_fam_go_list(
         .collect()
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:213-216 specFam
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:218-221 specFam
 /// `spec_fam_go` at a fresh memo.
 pub fn spec_fam(t: &Name, lps: &[Name], n_p: u64, members: &[(Name, u64, u64)], e: &Expr) -> Expr {
     let mut memo: HashMap<ExprKey, Expr> = HashMap::new();
     spec_fam_go(t, lps, n_p, members, &mut memo, e)
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:218-270 substParams
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:223-275 substParams
 /// Simultaneous substitution of a parameter block: under `d` binders,
 /// `bvar (d + j)` (`j < n`, innermost first) becomes `vals[n - 1 - j]`
 /// (`vals` outermost first, spelled at the frame `d` binders below the
@@ -406,7 +406,7 @@ pub fn subst_params(d: u64, n: u64, vals: &[Expr], e: &Expr) -> Expr {
     subst_params_go(d, n, vals, &mut memo, 0, e)
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:218-270 substParams
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:223-275 substParams
 /// The memoized rebuild behind `subst_params`, keyed by the node and the
 /// binder cursor `k` (which shifts under binders).  As everywhere in the
 /// modeller, no spec lemma: it is untrusted, and what it emits is checked.
@@ -476,7 +476,7 @@ pub fn subst_params_go(
     }
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:272-315 mentionsAnyGo
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:277-320 mentionsAnyGo
 /// Does `e` mention any of the names?  One memoized DAG walk: the answer at a
 /// node is a function of the node and `ns`, and `ns` is fixed for the walk, so
 /// the memo is keyed by the node alone and dropped after each call.  No spec
@@ -517,7 +517,7 @@ pub fn mentions_any_go(ns: &[Name], memo: &mut HashMap<ExprKey, bool>, e: &Expr)
     }
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:317-318 mentionsAny
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:322-323 mentionsAny
 /// `mentions_any_go` at a fresh memo.
 pub fn mentions_any(ns: &[Name], e: &Expr) -> bool {
     let mut memo: HashMap<ExprKey, bool> = HashMap::new();
@@ -540,6 +540,7 @@ pub struct KCtor {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:332-336 recPrefixAt
+/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove kit::rec_prefix_at_refines, then delete this line
 /// The recursor's leading spine `p⃗ motive m⃗` as seen from under the `nF`
 /// fields and `e` further binders.
 pub fn rec_prefix_at(n_p: u64, n: u64, n_f: u64, e: u64) -> Vec<Expr> {
@@ -552,6 +553,7 @@ pub fn rec_prefix_at(n_p: u64, n: u64, n_f: u64, e: u64) -> Vec<Expr> {
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:338-342 recFieldIdx
+/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove kit::rec_field_idx_refines, then delete this line
 /// The index arguments of recursive field `i` (domain `T p⃗ e⃗_i`, spelled at
 /// the field's own binder) lifted to the frame `l` binders below the last
 /// field.
@@ -564,6 +566,7 @@ pub fn rec_field_idx(n_p: u64, n_f: u64, i: u64, l: u64, doms: &[Expr]) -> Vec<E
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:344-353 ihPis
+/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove kit::ih_pis_refines, then delete this line
 /// The `ih` binders of a minor premise: for each recursive field position
 /// (ascending) `motive e⃗_i f_i`, under the `l` earlier `ih` binders; the
 /// motive sits `nF + o - 1` binders above the fields.
@@ -597,6 +600,7 @@ pub fn ih_pis(
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:355-372 minorTy
+/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove kit::minor_ty_refines, then delete this line
 /// Constructor `C`'s minor premise: the field telescope lifted under the `o`
 /// extras (every field datum reset to the elimination datum), the `ih`
 /// binders, and `motive e⃗_C (C p⃗ f⃗)` lifted above the `ih`s.  The residual's
@@ -633,6 +637,7 @@ pub fn minor_ty(
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:374-382 minorsPis
+/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove kit::minors_pis_refines, then delete this line
 /// The minors' `∀`-telescope over `body`, one per constructor, the first
 /// sitting `o` binders below the parameters.
 pub fn minors_pis(
@@ -658,6 +663,7 @@ pub fn minors_pis(
 }
 
 /// con-leche: ConLeche/Frontend/InModel/Kit.lean:384-391 minorsLams
+/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove kit::minors_lams_refines, then delete this line
 /// The `λ` twin of `minors_pis`.
 pub fn minors_lams(
     lps: &[Name],
@@ -681,7 +687,8 @@ pub fn minors_lams(
     }
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:393-414 recTy
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:341-344 recTy
+/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove kit::rec_ty_refines, then delete this line
 /// **The recursor type** `∀ p⃗ {motive} (minor_C …)… ı⃗ (t : T p⃗ ı⃗),
 /// motive ı⃗ t` over the former's type `tty = ∀ p⃗ ı⃗, Sort w` (`structRecTyI`
 /// with inductive hypotheses).
@@ -727,7 +734,8 @@ pub fn rec_ty(
     )
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:416-442 recRhs
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:346-356 recRhs
+/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove kit::rec_rhs_refines, then delete this line
 /// **The rule** of constructor `j`:
 /// `λ p⃗ motive m⃗ f⃗, minor_j f⃗ (T.rec p⃗ motive m⃗ e⃗_i f_i)…` (`recC`,
 /// `rlvls`: the recursor's name and its level parameters as levels).
@@ -787,13 +795,13 @@ pub fn rec_rhs(
 // A syntactic sort inferer (`Kit.lean:444-557`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:454-455 ConstTable
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:368-369 ConstTable
 /// The declared type of a constant: its level parameters and type.  A trait
 /// object where con-leche has a `Name → Option (List Name × Expr)` (the module
 /// note's deviation 1).
 pub type ConstTable<'a> = &'a dyn Fn(&Name) -> Option<(Vec<Name>, Expr)>;
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:457-463 betaHead
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:371-377 betaHead
 /// Head β-reduction only.
 pub fn beta_head(e: &Expr) -> Expr {
     match expr::view(&e) {
@@ -808,7 +816,7 @@ pub fn beta_head(e: &Expr) -> Expr {
     }
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:465-490 inferTy
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:379-404 inferTy
 /// `infer_ty tbl ctx e` computes the type of `e` from the declared types of
 /// the constants it mentions (`tbl`) and the binder domains of the context
 /// (`ctx`, innermost first, each spelled at its own frame), β-reducing only
@@ -869,7 +877,7 @@ pub fn cons_ctx(d: &Expr, ctx: &[Expr]) -> Vec<Expr> {
     out
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:492-494 sortOf
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:406-408 sortOf
 /// The sort of a type at a context.  `inferTy`'s own `where`-clause
 /// `sortOf` (`Kit.lean:484-490`, inside `inferTy`'s cited block) is this same
 /// function: the public wrapper there just calls it, and the two are one here.
@@ -881,7 +889,7 @@ pub fn sort_of(tbl: ConstTable, ctx: &[Expr], e: &Expr) -> Option<Level> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:534-551 sortCeil
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:448-465 sortCeil
 /// A level at least the sort of `d` (the cited section header's four cases).
 /// Nothing here is trusted: a ceiling for an ill-sorted domain is a level like
 /// any other, and the tag family the modeller then emits fails the fold's own
@@ -919,7 +927,7 @@ pub fn sort_ceil(tbl: ConstTable, fuel: u64, ctx: &[Expr], d: &Expr) -> Option<L
     }
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:553-557 idxSort
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:467-471 idxSort
 /// A ceiling for the sort of an index domain at a context (`sort_ceil`), at a
 /// fuel no `∀` telescope or type tower of a real stream reaches.
 pub fn idx_sort(tbl: ConstTable, ctx: &[Expr], e: &Expr) -> Option<Level> {
@@ -930,7 +938,7 @@ pub fn idx_sort(tbl: ConstTable, ctx: &[Expr], e: &Expr) -> Option<Level> {
 // Definitional heights (`Kit.lean:559-611`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:561-596 maxHeightGo
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:475-510 maxHeightGo
 /// The highest definitional height of a constant mentioned by `e` (`heights`:
 /// the height of every definition declared so far; `0` for anything else).
 /// One memoized DAG walk, keyed by the node — and, like `mentionsAnyGo`, with
@@ -975,21 +983,21 @@ pub fn max_height_go(
     }
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:598-600 maxHeight
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:512-514 maxHeight
 /// `max_height_go` at a fresh memo.
 pub fn max_height(heights: &dyn Fn(&Name) -> u64, e: &Expr) -> u64 {
     let mut memo: HashMap<ExprKey, u64> = HashMap::new();
     max_height_go(heights, &mut memo, e)
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:602-606 hintFor
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:516-520 hintFor
 /// The reducibility hint of a generated definition: one above the highest
 /// constant its value mentions (the kernel's `getMaxHeight` rule).
 pub fn hint_for(heights: &dyn Fn(&Name) -> u64, value: &Expr) -> ReducibilityHint {
     ReducibilityHint::Regular(max_height(heights, value) + 1)
 }
 
-/// con-leche: ConLeche/Frontend/InModel/Kit.lean:608-611 hintHeight
+/// con-leche: ConLeche/Frontend/InModel/Kit.lean:522-525 hintHeight
 /// The height a hint records.
 pub fn hint_height(h: &ReducibilityHint) -> u64 {
     match h {

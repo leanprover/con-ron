@@ -413,7 +413,8 @@ pub fn bvar_bound_m(e: &Expr) -> u64 {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:181-184 inst1M
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:261-263 instantiate1C
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:406-409 instantiate1C
+/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove state_c::inst1_m_refines, then delete this line
 /// `ExprC.instantiate1`; the identity — the same node, by reference — when
 /// the target has no loose bvar at or above the cursor (the cited
 /// `bvarB ≤ d` cutoff, which `expr_ops::instantiate1` does not have).
@@ -490,7 +491,8 @@ pub fn inst_list_m_reset(s: &mut CState) {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:201-205 instListRevM
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:427-431 instantiateRev
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:611-616 instantiateRev
+/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove state_c::inst_list_rev_m_refines, then delete this line
 /// **Bulk instantiation on a reversed accumulator array**, deliberately not
 /// memoized in `CState`.  `ExprC.instantiateRev` indexes the array from its
 /// end (`instantiateRevGo`'s `vs[vs.size - 1 - (i - d)]` where
@@ -505,7 +507,8 @@ pub fn inst_list_rev_m(e: &Expr, vs: &Vec<Expr>, d: u64) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:207-208 abstract1M
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:496-498 abstract1C
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:679-682 abstract1C
+/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove state_c::abstract1_m_refines, then delete this line
 /// `ExprC.abstract1` at the binder cursor `0` (the cited `(k : Nat := 0)`
 /// default, which Rust has no spelling for).
 pub fn abstract1_m(e: &Expr, d: u64) -> Expr {
@@ -513,7 +516,8 @@ pub fn abstract1_m(e: &Expr, d: u64) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:210-211 abstractRangeM
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:555-560 abstractRangeC
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:748-755 abstractRangeC
+/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove state_c::abstract_range_m_refines, then delete this line
 /// `ExprC.abstractRange` at the binder cursor `0`.
 pub fn abstract_range_m(e: &Expr, d: u64, k: u64) -> Expr {
     expr_ops_c::abstract_range(e, d, k, 0)
@@ -528,7 +532,7 @@ pub fn mk_app_n_m(f: Expr, args: &Vec<Expr>) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:216-218 instSpineM
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:739-743 instSpineC
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:1277-1281 instSpineC
 /// `ExprC.instSpine`: the one bulk pass when the spine spans the telescope
 /// context, the `instantiate1` chain otherwise.
 pub fn inst_spine_m(args: &Vec<Expr>, t: u64, e: &Expr) -> Expr {
@@ -536,7 +540,8 @@ pub fn inst_spine_m(args: &Vec<Expr>, t: u64, e: &Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:224-226 instLevelParamsM
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:605-607 instLevelParams
+/// con-leche: ConLeche/Cached/ExprOpsC.lean:833-837 instLevelParams
+/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove state_c::inst_level_params_m_refines, then delete this line
 /// `ExprC.instLevelParams`.
 pub fn inst_level_params_m(ks: &Vec<Name>, us: &Vec<Level>, e: &Expr) -> Expr {
     expr_ops_c::inst_level_params(ks, us, e)
@@ -991,7 +996,7 @@ pub fn flush_c(s: &mut CState) {
     flushed(s)
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:452-460 recordCConst
+/// con-leche: ConLeche/Cached/StateC.lean:521-529 recordCConst
 /// Record an accepted constant's converted type/value, tagged with the very
 /// `Expr` objects pushed into the environment.
 pub fn record_c_const(
@@ -1009,6 +1014,7 @@ pub fn record_c_const(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/StateC.lean:409-446 constsResolveFCGo
+/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove state_c::consts_resolve_fc_go_refines, then delete this line
 /// Core of `consts_resolve_fc`: `Expr.constsResolveF` as a **memoized DAG
 /// walk**.  The memo is local to the call (the result depends on the
 /// environment), so it is a `&mut HashMap` accumulator, exactly as
@@ -1032,6 +1038,7 @@ pub fn consts_resolve_fc_go(fe: &FEnv, memo: &mut HashMap<Expr, bool>, e: &Expr)
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:409-446 constsResolveFCGo
+/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove state_c::memo_b_get_refines, then delete this line
 /// The cited `memo[e]?` probe, as its own function so the map's borrow ends
 /// before the miss branch writes to it.
 pub fn memo_b_get(memo: &HashMap<Expr, bool>, k: &Expr) -> Option<bool> {
@@ -1042,6 +1049,7 @@ pub fn memo_b_get(memo: &HashMap<Expr, bool>, k: &Expr) -> Option<bool> {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:409-446 constsResolveFCGo
+/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove state_c::consts_resolve_fc_node_refines, then delete this line
 /// The cited inner `match e with …`: the node's own answer, computed on a
 /// memo miss and inserted by `consts_resolve_fc_go`.
 pub fn consts_resolve_fc_node(fe: &FEnv, memo: &mut HashMap<Expr, bool>, e: &Expr) -> bool {
@@ -1100,7 +1108,8 @@ pub fn consts_resolve_fc_node(fe: &FEnv, memo: &mut HashMap<Expr, bool>, e: &Exp
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:448-450 constsResolveFC
+/// con-leche: ConLeche/Cached/StateC.lean:517-519 constsResolveFC
+/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove state_c::consts_resolve_fc_refines, then delete this line
 /// `Expr.constsResolveF fe` on `ExprC` — one memoized DAG walk.
 pub fn consts_resolve_fc(fe: &FEnv, e: &Expr) -> bool {
     let mut memo: HashMap<Expr, bool> = HashMap::new();

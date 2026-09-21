@@ -34,6 +34,7 @@ use crate::kernel::prop_when::PropWhen;
 use std::vec::Vec;
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:44-56 Expr.peelNeverPis
+/// con-leche: CHANGED since c431b1ca — re-port, re-test, re-prove prop_read::peel_never_pis_refines, then delete this line
 /// The residual after peeling `k` *syntactic* ∀ binders whose data are all
 /// `.never` (no substitution — the residual may mention the peeled binders;
 /// the readers only look at its head shape).
