@@ -32084,9 +32084,9 @@ annotation had already built.  The batched annotation never builds the
 per-level opens, so inference builds them.
 
 **The lever that recovers it is the matching one**, and it is the same
-con-leche section and the same proof file: `Cached/CoreC.lean:1213-1227
-inferLamsI` and `:1274-1288 inferPisI`, with `inferLamsOutI` / `inferPisOutI` /
-the two leaf phases, proved in `ConLeche/Verify/BinderLoop.lean`
+con-leche section and the same proof file: `Cached/CoreC.lean:1208-1228
+inferLamsI` and `:1269-1290 inferPisI`, with `:1142-1160 inferLamsOutI` /
+`:1230-1254 inferPisOutI` and the two leaf phases, proved in `ConLeche/Verify/BinderLoop.lean`
 (`inferLams_sound:917`, `inferPis_sound:1210`).  After this task those two
 sites hold **131.6 M of the prefix's 498.9 M new nodes, 26.4 %** — the largest
 remaining source by a wide margin, where P6-9 priced them at 53.8 M / 4.7 %.
