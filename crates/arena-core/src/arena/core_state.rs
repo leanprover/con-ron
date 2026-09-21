@@ -485,8 +485,18 @@ pub fn keep_nn_ls(k: &NNLsKey, v: &EIdx) -> bool {
 /// `RESET_KEEP_FLOOR` and `RESET_KEEP_SLACK` are gone with the guards; the
 /// numbers task #97-P6-1's section records for them stand as the measurement
 /// of the map they were measured against.
+///
+/// **And the shrink came back at task #97-P6-7, from the other end.**  An
+/// epoch-stamped `clear` keeps the slot vector at the high-water mark of the
+/// largest round the table has ever seen, and on Mathlib — where `Init` has
+/// no outliers to speak of and the prefix has several — that mark is set by a
+/// handful of declarations and paid for by every other one: `instantiate1`'s
+/// memo averages **98 185 slots holding 7.84 entries**.  `HashMap2::clear_fit`
+/// is `clear` with a capacity policy (its own note has the measurements and
+/// the two constants); the value it leaves is still the empty map, which is
+/// still the twin's `:= ∅`.
 pub fn reset_map<K, V>(m: &mut HashMap<K, V>) {
-    m.clear()
+    m.clear_fit()
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:394-398 CState.flushed

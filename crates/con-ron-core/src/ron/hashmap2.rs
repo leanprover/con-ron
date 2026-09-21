@@ -111,6 +111,13 @@ pub struct HashMap2<K, V> {
     epoch: u32,
     /// `true` once the table cannot grow any further.
     saturated: bool,
+    /// con-leche: none — arena infrastructure (task #97-P6-7)
+    /// **The decaying high-water mark of `num_entries`**, maintained by
+    /// `clear_fit` alone and read by nothing else: the size the next round is
+    /// expected to need.  It is not part of the map's abstract value (the
+    /// map is `slots` and `epoch`); it is the capacity policy's one word of
+    /// state.  See `clear_fit`.
+    fit_hw: usize,
     /// The slots; `slots.len()` is a power of two.
     slots: Vec<Slot<K, V>>,
 }
@@ -128,6 +135,37 @@ const LOAD_DEN: usize = 4;
 
 /// Fuel for `pow2_at_least`: a `usize` has at most 64 bits.
 const POW2_FUEL: usize = 64;
+
+/// con-leche: none — arena infrastructure (task #97-P6-7)
+/// `clear_fit`'s decay rate: the high-water mark loses a `FIT_DECAY`th of
+/// itself at every round that does not renew it.  Eight (12.5 % a round) is
+/// slow enough that a run of similar rounds keeps its table and fast enough
+/// that a single outlier is forgotten in tens of rounds, not thousands.
+/// Four (25 % a round) was measured on the prefix at `FIT_SLACK = 64` and is
+/// worse on both columns: 2 380.82 G instructions and 1 139.61 G cycles
+/// against eight's 2 349.17 G and 1 121.21 G.
+const FIT_DECAY: usize = 8;
+
+/// con-leche: none — arena infrastructure (task #97-P6-7)
+/// How far above the mark a table may sit before `clear_fit` re-makes it.
+/// A table that is too SMALL is always re-made, because the alternative is
+/// `insert`'s doubling and moving inside the round; a table that is too big
+/// is re-made only past this factor, which is what keeps the decay from
+/// re-making at every power of two it crosses.  **Measured**, on the Mathlib
+/// 25 % prefix, at `FIT_DECAY = 8`:
+///
+/// | `FIT_SLACK` | instructions:u | cycles:u | wall |
+/// |---:|---:|---:|---:|
+/// | (no `clear_fit` at all) | 2 294.04 G | 1 505.97 G | 351.7 s |
+/// | 4 | 2 512.78 G | 1 246.10 G | 284.8 s |
+/// | 16 | 2 406.29 G | 1 158.75 G | 263.5 s |
+/// | **64** | **2 349.17 G** | **1 121.21 G** | **255.0 s** |
+/// | 256 | 2 317.24 G | 1 191.00 G | 271.5 s |
+///
+/// Sixty-four is the minimum of the cycles and of the wall; past it the
+/// tables stay oversized long enough to lose the cache again, and the
+/// instruction count keeps falling because that is the re-makes going away.
+const FIT_SLACK: usize = 64;
 
 /// The largest stamp.  `clear` at this value vacates the slots and restarts
 /// the epoch at 1 rather than overflowing (the crate builds with
@@ -245,20 +283,40 @@ where
 }
 
 impl<K, V> HashMap2<K, V> {
-    /// con-leche: none — arena infrastructure (task #97-P6-4b)
-    /// Push `n` `Vacant` slots onto `slots`.  Split in half rather than peeled
-    /// one at a time, so the recursion is `log2 n` deep (`ron::hashmap`'s note
-    /// on recursion depth applies here word for word).
+    /// con-leche: none — arena infrastructure (task #97-P6-4b, rewritten by #97-P6-7)
+    /// Push `n` `Vacant` slots onto `slots`.
+    ///
+    /// **It was a halving push recursion** ("split in half rather than peeled
+    /// one at a time, so the recursion is `log2 n` deep"), which is two
+    /// function calls and one bounds-checked `push` per slot.  Task #97-P6-7
+    /// made the slot vector track the table's size rather than its high-water
+    /// mark, which turns this from a once-per-table cost into a hot one:
+    /// the first attempt read `allocate_slots` at **8.4 % + 4.3 % + 1.9 % of
+    /// the Mathlib prefix's cycles** across the three hottest instantiations.
+    /// The fix that needs no new hole and no new bound is to make the leaf a
+    /// BLOCK: eight pushes per call instead of one, so the recursion costs a
+    /// quarter of a call per slot where it used to cost two.  (`Vec::resize`
+    /// would be one call and a store loop, and it is what Aeneas models — but
+    /// it asks its filler for `Clone`, and three of this map's key and value
+    /// types have no `Dup` to write one from.)
     fn allocate_slots(mut slots: Vec<Slot<K, V>>, n: usize) -> Vec<Slot<K, V>> {
-        if n == 0 {
-            slots
-        } else if n == 1 {
+        if n >= 8 {
             slots.push(Slot::Vacant);
+            slots.push(Slot::Vacant);
+            slots.push(Slot::Vacant);
+            slots.push(Slot::Vacant);
+            slots.push(Slot::Vacant);
+            slots.push(Slot::Vacant);
+            slots.push(Slot::Vacant);
+            slots.push(Slot::Vacant);
+            let half: usize = (n - 8) / 2;
+            let slots = HashMap2::allocate_slots(slots, half);
+            HashMap2::allocate_slots(slots, n - 8 - half)
+        } else if n == 0 {
             slots
         } else {
-            let half = n / 2;
-            let slots = HashMap2::allocate_slots(slots, half);
-            HashMap2::allocate_slots(slots, n - half)
+            slots.push(Slot::Vacant);
+            HashMap2::allocate_slots(slots, n - 1)
         }
     }
 
@@ -272,6 +330,7 @@ impl<K, V> HashMap2<K, V> {
             max_load: max_load_for(capacity),
             epoch: 1,
             saturated: false,
+            fit_hw: 0,
             slots,
         }
     }
@@ -286,6 +345,7 @@ impl<K, V> HashMap2<K, V> {
             max_load: 0,
             epoch: 1,
             saturated: false,
+            fit_hw: 0,
             slots: Vec::new(),
         }
     }
@@ -352,6 +412,90 @@ impl<K, V> HashMap2<K, V> {
             self.epoch = 1
         } else {
             self.epoch = self.epoch + 1
+        }
+    }
+
+    /// con-leche: none — arena infrastructure (task #97-P6-7)
+    /// **Empty the table and give the slots back when the round that just
+    /// ended did not need them.**  Same abstract value as `clear` — the empty
+    /// map — and the same value the caller's `:= ∅` assigns; what differs is
+    /// the capacity the next round starts from, which is a representation
+    /// choice and nothing else (DESIGN.md §3.2).
+    ///
+    /// **Why it exists.**  An epoch-stamped `clear` is `O(1)` but it is also
+    /// a RATCHET: the slot vector keeps the high-water mark of the largest
+    /// round the table has ever seen, for the rest of the run.  Task #97-P6-7
+    /// measured what that costs on the Mathlib 25 % prefix, at the reset of
+    /// each per-declaration and per-call table:
+    ///
+    /// | table | resets | avg capacity | avg entries |
+    /// |---|---:|---:|---:|
+    /// | `instantiate1`'s per-call memo | 201 021 604 | 98 184.6 | **7.84** |
+    /// | `whnfCore`'s per-declaration memo | 478 530 | 216 049.9 | **344.71** |
+    /// | `abstract1`'s per-call memo | 11 440 282 | 69 176.3 | 21.59 |
+    /// | the scratch `lam` cons table | 310 227 | 1 384 140.1 | — |
+    /// | the scratch `app` cons table | 310 227 | 1 226 970.6 | — |
+    ///
+    /// A table of 98 185 slots holding eight entries is 2.4 MB of DRAM per
+    /// lookup: the home slot is a guaranteed cache miss and the eight entries
+    /// never share a line.  Two thirds of the prefix's declarations met a
+    /// `lam` cons table of 2^21 slots (42 MB).
+    ///
+    /// **The ratchet is set by a handful of outlier rounds**, which is why a
+    /// cap would not do.  The same run's histogram of entries per round:
+    ///
+    /// | table | rounds with 0 entries | ≤ 126 | the largest round |
+    /// |---|---:|---:|---:|
+    /// | `instantiate1`'s memo | 63.3 % | 99.1 % | 65 534 |
+    /// | the scratch `app` cons table | 2.5 % | 42.5 % | ~4 000 000 |
+    /// | the scratch `lam` cons table | 26.9 % | 74.6 % | ~2 000 000 |
+    ///
+    /// ONE declaration of the prefix pushes four million `app` nodes, and the
+    /// other 310 226 then probe a four-million-slot array.
+    ///
+    /// **The policy: size the next round to a DECAYING HIGH-WATER MARK.**
+    /// `fit_hw` is `max(this round's entries, the previous mark less a
+    /// `FIT_DECAY`th)`, and the table is re-made with `2 · fit_hw` slots
+    /// rounded up to a power of two whenever that is not the size it already
+    /// has.  Three properties, and each is a measurement of this task's:
+    ///
+    ///  * **the steady state neither grows nor shrinks** — a table sized to
+    ///    twice its rounds' entries is at a quarter load, so `insert` never
+    ///    resizes and `clear_fit` re-makes nothing: the common case is
+    ///    `clear`'s epoch bump, as before;
+    ///  * **an outlier decays instead of being cut** — sizing to the LAST
+    ///    round's entries alone re-grows the table from 32 slots at every
+    ///    round that is bigger than its predecessor, which is what the first
+    ///    attempt did: `+60 % instructions` on the prefix, `allocate_slots`
+    ///    and `move_slots` 21 % of the cycles.  At `FIT_DECAY = 8` an outlier
+    ///    of four million decays to a thousand over about sixty rounds, in
+    ///    eleven halvings whose total is four million pushed slots — once per
+    ///    outlier, not once per round;
+    ///  * **the growth is taken in one step, before the round starts** —
+    ///    when the mark is above the current size the table is re-made LARGER
+    ///    here, while it is empty, so `insert`'s doubling-and-moving does not
+    ///    run inside the round at all.
+    ///
+    /// The unallocated table (`new`, task #35's lazy allocation) is left
+    /// unallocated: a table that has never held anything must not be given
+    /// slots by its own reset.
+    pub fn clear_fit(&mut self) {
+        let n: usize = self.slots.len();
+        let used: usize = self.num_entries;
+        let hw0: usize = self.fit_hw;
+        let decayed: usize = hw0 - hw0 / FIT_DECAY;
+        let hw: usize = if used > decayed { used } else { decayed };
+        self.fit_hw = hw;
+        let want: usize = pow2_at_least(hw + hw + 1, MIN_CAPACITY, POW2_FUEL);
+        if n == 0 || (want <= n && n / FIT_SLACK <= want) {
+            self.clear()
+        } else {
+            let table: HashMap2<K, V> = HashMap2::new_with_capacity_pow2(want);
+            self.num_entries = 0;
+            self.max_load = table.max_load;
+            self.epoch = 1;
+            self.saturated = false;
+            self.slots = table.slots
         }
     }
 
@@ -608,6 +752,7 @@ where
             max_load: self.max_load,
             epoch: self.epoch,
             saturated: self.saturated,
+            fit_hw: self.fit_hw,
             slots,
         }
     }
