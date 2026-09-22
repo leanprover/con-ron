@@ -196,6 +196,36 @@ def EqPairsDenote (st : EStore) :
       EqPairsDenote st ps qs
   | _, _ => False
 
+/-- con-leche: none — the pairing survives an arena extension; `denote_ext`
+at each of the two components. -/
+theorem EqPairsDenote.mono {st st' : EStore} (hx : Ext st st') :
+    ∀ {ps : List (EIdx × EIdx)} {qs : List (Expr × Expr)},
+      EqPairsDenote st ps qs → EqPairsDenote st' ps qs := by
+  intro ps
+  induction ps with
+  | nil =>
+    intro qs h
+    cases qs with
+    | nil => exact h
+    | cons q qs => exact absurd h (by simp [EqPairsDenote])
+  | cons p ps ih =>
+    intro qs h
+    cases qs with
+    | nil => exact absurd h (by simp [EqPairsDenote])
+    | cons q qs =>
+      obtain ⟨h1, h2, h3⟩ := h
+      exact ⟨denote_ext h1 hx, denote_ext h2 hx, ih h3⟩
+
+/-- con-leche: ConLeche/Kernel/Checker.lean:110-125 certifyNatEqs — the cons
+step, on the pure side: an accepted head and an accepted tail are an accepted
+list, at ONE fuel. -/
+theorem certifyNatEqs_cons_pure {μ : CheckMode} {env : Env} {F : Nat}
+    {q : Expr × Expr} {qs : List (Expr × Expr)}
+    (h1 : (ConLeche.fueledOps μ F).isDefEq env 2 q.1 q.2 = .ok true)
+    (h2 : ConLeche.certifyNatEqs (ConLeche.fueledOps μ F) env qs = .ok true) :
+    ConLeche.certifyNatEqs (ConLeche.fueledOps μ F) env (q :: qs) = .ok true := by
+  simp only [ConLeche.certifyNatEqs, h1, h2, if_true, bind, Except.bind]
+
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:475-481 natOpNames — the seven
 structural fast-path operations, off the pin table.
 
@@ -495,10 +525,64 @@ theorem substConst0Pairs_run {cn : NIdx} {nm : ConLeche.Name} {rh : EIdx}
 recurrence equations, certified by definitional equality in the pre-insertion
 environment.
 
-`sorry`: a list induction over `KnotSpec.defeq`, plus
-`substConst0Pairs` and `natOpEquations`' exactness (both are pinned-term
-constructions, so both are `Bridge/Checker/Basis.lean`'s shape).  Task
-#97-P3-Checker's sorry list, item 23. -/
+**PROVED** (task #97-P3-Checker round 5): a list induction over
+`KnotSpec.defeq`, at `Bridge/Checker/Base.lean`'s `checkDefEqList_bridge`
+shape — one `max` over the head's fuel and the tail's, `isDefEqCore_mono` and
+`certifyNatEqs_mono` to raise each.  The equations' own exactness
+(`natOpEquations_run`, `substConst0Pairs_run`) is NOT part of it: this theorem
+takes the pairing as `hden` and the well-scopedness as `hws`, so it is
+independent of how the pinned terms were built.  Task #97-P3-Checker's sorry
+list, item 23, closed. -/
+theorem certifyNatEqs_bridge_aux {μ : CheckMode} {env : Env} {fe : IFEnv}
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) :
+    ∀ (eqs : List (EIdx × EIdx)) (xs : List (Expr × Expr)) (r : Bool)
+      (s s' : AState), CheckOK μ env fe s → EqPairsDenote s.store eqs xs →
+      (∀ q ∈ xs, Expr.WScoped 2 q.1 ∧ Expr.WScoped 2 q.2) →
+      certifyNatEqs μ fe eqs s = .ok (r, s') →
+      CoreStep μ env fe s s' ∧
+        (r = true → ∃ F, ConLeche.certifyNatEqs (ConLeche.fueledOps μ F) env xs
+          = .ok true) := by
+  have hknot := hk.knot env fe henv
+  intro eqs
+  induction eqs with
+  | nil =>
+    intro xs r s s' hok hden _ hrun
+    cases xs with
+    | cons q qs => exact absurd hden (by simp [EqPairsDenote])
+    | nil =>
+      simp only [Arena.certifyNatEqs] at hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+      exact ⟨CoreStep.refl hok, fun _ => ⟨0, rfl⟩⟩
+  | cons e es ih =>
+    intro xs r s s' hok hden hws hrun
+    cases xs with
+    | nil => exact absurd hden (by simp [EqPairsDenote])
+    | cons q qs =>
+      obtain ⟨hd1, hd2, hdt⟩ := hden
+      obtain ⟨hw1, hw2⟩ := hws q (by simp)
+      simp only [Arena.certifyNatEqs] at hrun
+      obtain ⟨b1, s1, g1, r1⟩ := AM.bind_ok hrun
+      obtain ⟨hok1, hx1, hp1, hsim1⟩ := AM.of_run (P := fun u => u = s)
+        (Q := fun x u => CheckOK μ env fe u ∧ Ext s.store u.store ∧
+          u.pins = s.pins ∧
+          Core.SimV (ConLeche.isDefEqCore μ env) 2 q.1 q.2 x)
+        rfl g1 (hknot.defeq s 2 e.1 e.2 q.1 q.2 hok hd1 hd2 hw1 hw2)
+      obtain ⟨F1, hF1⟩ := hsim1
+      rcases AM.ite_ok r1 with ⟨hb, r2⟩ | ⟨hb, r2⟩
+      · subst hb
+        obtain ⟨hstep2, hpure2⟩ := ih qs r s1 s' hok1
+          (EqPairsDenote.mono hx1 hdt)
+          (fun z hz => hws z (by simp [hz])) r2
+        refine ⟨⟨hstep2.ok, hx1.trans hstep2.ext, by rw [hstep2.pins, hp1]⟩,
+          fun hr => ?_⟩
+        obtain ⟨F2, hF2⟩ := hpure2 hr
+        refine ⟨max F1 F2, ?_⟩
+        exact certifyNatEqs_cons_pure
+          (ConLeche.isDefEqCore_mono (Nat.le_max_left F1 F2) hF1)
+          (certifyNatEqs_mono (Nat.le_max_right F1 F2) hF2)
+      · obtain ⟨rfl, rfl⟩ := AM.pure_ok r2
+        exact ⟨⟨hok1, hx1, hp1⟩, fun hr => absurd hr (by simp)⟩
+
 theorem certifyNatEqs_bridge {μ : CheckMode} {env : Env}
     {fe : IFEnv} {eqs : List (EIdx × EIdx)} {xs : List (Expr × Expr)}
     {r : Bool} {s s' : AState} (hμ : μ.verifiedChecks = true)
@@ -508,8 +592,8 @@ theorem certifyNatEqs_bridge {μ : CheckMode} {env : Env}
     (hrun : certifyNatEqs μ fe eqs s = .ok (r, s')) :
     CoreStep μ env fe s s' ∧
       (r = true → ∃ F, ConLeche.certifyNatEqs (ConLeche.fueledOps μ F) env xs
-        = .ok true) := by
-  sorry
+        = .ok true) :=
+  certifyNatEqs_bridge_aux hk hok.envWF eqs xs r s s' hok.check hden hws hrun
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:110-125 certifyNatEqs — the
 substituted recurrence equations are well scoped at the depth the certifier
