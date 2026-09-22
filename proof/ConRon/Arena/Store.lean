@@ -1682,9 +1682,19 @@ def dropScratch (st : EStore) : EStore :=
 /-- con-leche: none — `intern`'s capacity precondition (2^27 nodes per
 constructor per tier).  The checker tier (P2c) tests it and raises `Native`;
 the pure store op assumes it, which is what keeps `intern`'s signature
-total. -/
+total.
+
+**The datum store is part of it** (task #97-LC finding 1, made good here):
+`intern` of a `lam`/`forallE` view also pushes a binder DATUM, and a datum
+array at `Idx.idxCap` would hand back a `BMIdx` whose index has wrapped into
+the TIER bit — a persistent handle reading as scratch, which breaks
+`bmConsP` and, with it, `view` of the node just interned.  `eViewNeedsBM`
+names the two arms that reach the datum store, and `Monad.lean`'s `internE`
+tests `bmSize` at exactly those (`Monad.lean:186`), which is what discharges
+this conjunct. -/
 def capOK (st : EStore) (v : ENodeView) : Prop :=
   (if st.scratchOn then st.scr.sizeOf v else st.pers.sizeOf v) < Idx.idxCap
+    ∧ (eViewNeedsBM v = true → st.capOKBM)
 
 end EStore
 
@@ -1851,9 +1861,11 @@ def EStore.internPersistent (st : EStore) (v : ENodeView) : EStore × EIdx :=
     ({ st with pers := tb }, i)
 
 /-- con-leche: none — arena infrastructure; the expression store's capacity
-precondition for `internPersistent`. -/
+precondition for `internPersistent`, the datum store included for the reason
+`EStore.capOK` states. -/
 def EStore.capOKPersistent (st : EStore) (v : ENodeView) : Prop :=
   st.pers.sizeOf v < Idx.idxCap
+    ∧ (EStore.eViewNeedsBM v = true → st.capOKBMPersistent)
 
 /-! ### The same, through the nesting
 
