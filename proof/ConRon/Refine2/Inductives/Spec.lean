@@ -62,7 +62,11 @@ def paramLevelsGoSpec : List NIdx → AM (List LIdx)
 /-- The owed equation: `paramLevels` IS its `go` interned. -/
 theorem paramLevels_unfold (lps : List NIdx) :
     paramLevels lps = (do internLsNode (← paramLevelsGoSpec lps)) := by
-  sorry
+  have hgo : ∀ ns, paramLevels.go ns = paramLevelsGoSpec ns := by
+    intro ns; induction ns with
+    | nil => rfl
+    | cons n ns ih => simp only [paramLevels.go, paramLevelsGoSpec, ih]
+  simp only [paramLevels, hgo]
 
 /-- `structPsAt`'s inner `go` (`Arena/Inductives/StructParts.lean:66-77`): `n`
 parameter variables from the `k`-th on, `p_k = bvar (o + nP - 1 - k)`. -/
@@ -76,7 +80,11 @@ def structPsAtGoSpec (o nP : Nat) : Nat → Nat → AM (List EIdx)
 /-- The owed equation: `structPsAt o nP` IS its `go` at `(nP, 0)`. -/
 theorem structPsAt_unfold (o nP : Nat) :
     structPsAt o nP = structPsAtGoSpec o nP nP 0 := by
-  sorry
+  have hgo : ∀ n k, structPsAt.go o nP n k = structPsAtGoSpec o nP n k := by
+    intro n; induction n with
+    | zero => intro k; rfl
+    | succ n ih => intro k; simp only [structPsAt.go, structPsAtGoSpec, ih]
+  simp only [structPsAt, hgo]
 
 /-! ## `structShape`'s four pieces
 
@@ -275,7 +283,19 @@ theorem hasLooseBVarBGo_unfold (memo : Std.HashMap (EIdx × Nat) Bool) (i fuel :
         | none => do
           let r ← hasLooseBVarBNodeSpec memo i fuel v
           pure (hasLooseBVarBIns h i r)) := by
-  sorry
+  rw [hasLooseBVarBGo]
+  refine am_bind_congr _ ?_
+  intro bb
+  split
+  · rfl
+  refine am_bind_congr _ ?_
+  intro v
+  cases v <;> twin_reduce [hasLooseBVarBNodeSpec] <;>
+    (first
+      | rfl
+      | (cases hm : memo[(h, i)]? with
+         | some r => rfl
+         | none => pair_peel))
 
 /-- `mentionsConstGo`'s arm dispatch below the probe
 (`Arena/Inductives/StructParts.lean:482-523`). -/
@@ -318,7 +338,15 @@ theorem mentionsConstGo_unfold (T : NIdx) (memo : Std.HashMap EIdx Bool) (fuel :
         | none => do
           let (r, memo) ← mentionsConstNodeSpec T memo fuel v
           pure (r, memo.insert h r)) := by
-  sorry
+  rw [mentionsConstGo]
+  refine am_bind_congr _ ?_
+  intro v
+  cases v <;> twin_reduce [mentionsConstNodeSpec] <;>
+    (first
+      | rfl
+      | (cases hm : memo[h]? with
+         | some r => rfl
+         | none => pair_peel))
 
 /-! ## `structProjGuards`' two inner `let rec`s -/
 
@@ -350,7 +378,20 @@ theorem structProjGuards_unfold (cty : EIdx) (nP nF : Nat) (sorts : List LIdx) :
       let z ← zeroLevel
       let used ← structUsedLaterList cty nP ∅ nF 0
       structProjGuardsRowSpec used sorts z 0 nF) := by
-  sorry
+  have hcol : ∀ (used : List Bool) (z : LIdx) j k acc,
+      structProjGuards.col sorts z used j k acc
+        = structProjGuardsColSpec used sorts z j k acc := by
+    intro used z j k
+    induction k generalizing j with
+    | zero => intro acc; rfl
+    | succ k ih => intro acc; simp only [structProjGuards.col, structProjGuardsColSpec, ih]
+  have hrow : ∀ (used : List Bool) (z : LIdx) i k,
+      structProjGuards.row sorts z used i k = structProjGuardsRowSpec used sorts z i k := by
+    intro used z i k
+    induction k generalizing i with
+    | zero => rfl
+    | succ k ih => simp only [structProjGuards.row, structProjGuardsRowSpec, hcol, ih]
+  simp only [structProjGuards, hrow]
 
 /-! # `arena::inductives::struct_install` -/
 
@@ -403,7 +444,24 @@ theorem checkStructProjTable_unfold (T C : NIdx) (lps : List NIdx) (nP nF : Nat)
       unless bodies.size = nF ∧ scopedOk do
         fail (.internal "direct structure: projection body scoping")
       checkStructProjTableNamesSpec T C lps nP nF resSort guards off bodies fe) := by
-  sorry
+  have hall := list_allM_counted (fun b => do
+      let w1 ← hasFvarFast coreWalkFuel b
+      let w2 ← allLevelParamsDefined lps b
+      let w3 ← constsResolveFFast fe b
+      let w4 ← looseBVarsBoundedFast coreWalkFuel (nP + 1) b
+      pure (!w1 && w2 && w3 && w4))
+    (projBodiesScopedSpec fe lps nP) rfl
+    (by intro a l; twin_reduce [projBodiesScopedSpec])
+  have hfam := range_allM_counted (fun j => do
+      let pn ← projFnName T j
+      pure (fe.find? pn).isNone)
+    (projFnFamilyFreeSpec fe T) (fun i => rfl)
+    (by intro m i; twin_reduce [projFnFamilyFreeSpec]
+        try (refine am_bind_congr _ ?_
+             intro pn
+             cases (fe.find? pn).isNone <;> rfl))
+  twin_reduce [checkStructProjTable, hall, checkStructProjTableNamesSpec,
+    List.range_eq_range', hfam]
 
 /-! # `arena::inductives::sum_install` -/
 
@@ -429,7 +487,7 @@ theorem checkSumInd_unfold (mode : ConLeche.CheckMode) (fe : IFEnv) (p : Inducti
       let cvTa₀ ← checkConstantVal mode fe p.cvT
       let (cvTa, s) ← checkSumTele mode fe p.cvT (p.nP + p.nIdx) cvTa₀
       checkSumIndAtSpec fe p isRec cvTa s) := by
-  sorry
+  rfl
 
 /-- `checkStructFieldSortsI`'s per-field universe bound: official's `leq`
 against the family's sort at a non-propositional family, and the large
@@ -473,7 +531,7 @@ theorem normPosDom_unfold (mode : ConLeche.CheckMode) (fe : IFEnv) (T : NIdx) (d
       let w ← whnf mode fe checkFuel d e
       if !(← mentionsConst T w) then pure w else
       normPosDomAtSpec mode fe T d fuel w) := by
-  sorry
+  rfl
 
 /-- `checkSumCtor`'s third stage: the field domains resolve at the PRE-BLOCK
 environment. -/
@@ -545,7 +603,12 @@ theorem checkSumCtor_unfold (mode : ConLeche.CheckMode) (fe₀ fe : IFEnv) (T : 
         fail (.invalid "direct sum: invalid constructor return type")
       checkSumCtorFramesSpec mode fe₀ fe T lps nP nIdx resSort isProp large nF
         cvTa cvCa) := by
-  sorry
+  have hdoms := list_allM_counted (fun x => do constsResolveFFast fe₀ (← fvarTypeD x))
+    (fieldDomsResolveSpec fe₀) rfl (by intro a l; twin_reduce [fieldDomsResolveSpec])
+  have hidx := list_allM_counted (fun e => constsResolveFFast fe₀ e)
+    (idxArgsResolveSpec fe₀) rfl (by intro a l; twin_reduce [idxArgsResolveSpec])
+  twin_reduce [checkSumCtor, checkSumCtorFramesSpec, checkSumCtorResidSpec,
+    checkSumCtorSortsSpec, hdoms, hidx]
 
 /-! # `arena::inductives::native_parts` -/
 
@@ -586,7 +649,7 @@ theorem recPositivity_unfold (T : NIdx) (lps : List NIdx) (nP nIdx o fuel : Nat)
         if ← mentionsConst T dom then pure .negative
         else recPositivity T lps nP nIdx o fuel body (k + 1)
       | _ => recPositivityAtSpec T lps nP nIdx o h k) := by
-  sorry
+  rfl
 
 /-- `recCtorKinds`' per-field post-step: a recursive or reflexive field a LATER
 binder mentions is marked unsupported. -/
@@ -930,7 +993,15 @@ theorem mentionsFvarGo_unfold (q : Nat) (memo : Std.HashMap EIdx Bool) (fuel : N
         | none => do
           let r ← mentionsFvarNodeSpec q memo fuel v
           pure (mentionsFvarIns h r)) := by
-  sorry
+  rw [mentionsFvarGo]
+  refine am_bind_congr _ ?_
+  intro v
+  cases v <;> twin_reduce [mentionsFvarNodeSpec] <;>
+    (first
+      | rfl
+      | (cases hm : memo[h]? with
+         | some r => rfl
+         | none => pair_peel))
 
 /-- `nativeOpenedOk`'s "no later field and not the residual" test. -/
 def laterMentionsSpec (q : Nat) : List EIdx → AM Bool
@@ -1131,6 +1202,6 @@ theorem checkNativeTail_unfold (mode : ConLeche.CheckMode) (fe : IFEnv)
         fail (.invalid "direct rec: large eliminator on a multi-constructor \
           inductive whose sort may be Prop")
       else checkNativeTailSortsSpec mode fe q) := by
-  sorry
+  rfl
 
 end ConRon.Refine2
