@@ -43371,6 +43371,218 @@ headlines, which still name **neither `CoreSpec` nor `IndSpec` nor
 | `scripts/gates.sh` | all 13 OK, on the merge of `arena`'s `65a2aa9e` |
 | the diff | `proof/ConRon/Bridge/Frontend/{ProjRec,Lines,Shared,Prepare,Axioms}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml`, no other `Bridge/` module |
 
+#### Round 5 — finding 16 repaired, both halves, and the prelude's front
+
+Off `arena`'s tip `6e4ff12e`, merged forward to `aa4c7a76`, on the same nine
+modules.  Brief: execute round 4's **finding 16** — repair the frame half as a
+correction, repair the name half by strengthening the seam's promise once
+rather than propagating a side condition through eight statements — and then
+take `Lines.lean` or `Prepare.lean` to zero.
+
+**Both halves are repaired and five of the sixteen closed.**  Neither module
+reached zero, and §4 says exactly what stands in the way of each.  The round's
+real result, though, is the third half of finding 16 that round 4 did not see,
+and the two corrections the ruling needed; they are §2.
+
+##### 1. Finding 16(a) — the frame, corrected
+
+`IConstantInfo.toConstantVal`'s `.projInfo` arm interns (`Arena/Env.lean:224-230`:
+`internLNode .zero`, `internLNode (.succ z)`, `internE (.sort one)`, because
+con-leche's `ConstantInfo.toConstantVal` builds the closed dummy type `Sort 1`
+as a VALUE, `ConLeche/Kernel/Env.lean:642`), so five statements said `s' = s`
+of a run that moves the store.  All five are restated at `ParseStep s s'`, with
+their answers read at `s'.store`: `noteDecl_run`, `pushDecl_run`,
+`usedConsts_run`, `hoistTargets_run`, `hoistNatOpGround_run`.  This is round
+4's own finding 15 one module over, and `preparePrelude_run`'s proof — the one
+closed theorem that consumed two of them — needed only `ParseStep.trans` and
+`denoteDeclArray_ext` to follow.
+
+##### 2. Finding 16(b) — the name, and the three things the ruling needed
+
+The ruling was *"strengthen the seam's promise once; the obligation lands where
+it is already proved, because the concrete modeller is the inductives install
+and `projTableOK_of_install` establishes `IProjTableOK`"*, with an instruction
+to check that last step rather than trust it.  Checked, it is **wrong in two
+ways and short by one**, and the conclusion survives all three.
+
+**First, the Inductives tier's three lemmas do not give it for free.**  Round
+4's note pointed at `denoteCI_name`/`denoteCI_name_proj`/`denoteCI_name_of`
+(now landed in `Bridge/StateOK.lean` and therefore on this tier's cone).
+`denoteCI_name_proj` takes `IProjTableOK st t` — it is exactly the statement
+that the fact is NOT free — so they relocate the question, they do not answer
+it.
+
+**Correction 1 — the concrete modeller is NOT the inductives install.**
+`Arena/Frontend/InModel.lean`'s `inProcessModeller` reads the block back,
+calls `ConLeche.Frontend.InModel.generate` and runs `internDecls ∅ ds` on what
+it returns.  `projTableOK_of_install` (`Bridge/Checker/Inv.lean:722`) is the
+CHECKER tier's lemma about `checkStructProjTable` pushing a table into the
+environment; it is not on this path at all.
+
+**Correction 2 — the full `IProjTableOK` clause is not dischargeable there,
+and the half the eight need is.**  `IProjTableOK` has three clauses and only
+`named` is what a name equation reads.  `internProjTable`
+(`Arena/Frontend/Readback.lean:583-590`) INTERNS the reserved name itself
+(`let sn ← internName t.structName; let tn ← projTableName sn`), so `named` is
+true of its answer by construction — that is the whole of the new
+`projTableName_istep` conjunct and of `internProjTable_istep`'s.  The two SIZE
+clauses (`bodies.size = numFields`, `guards.length = numFields`) are a fact
+about con-leche's OWN `ProjTable` and nothing states them; the only other
+route to them is to prove that `genMutual`/`genNested` never emit a
+`.projInfo` — true (both push `.indInfo ++ .ctorInfo* ++ [.recInfo]`) but a
+several-hundred-line lemma about an explicitly unverified generator.  So the
+clause the seam promises is `IProjNamed`, which is `IProjTableOK.named`
+standing alone, and asking for less of an unverified modeller is the better
+side of that trade anyway.
+
+**Correction 3 — the seam clause alone is NOT enough, and the missing piece is
+`IFEnvOK.proj` one module over.**  `Bridge/Frontend/Prepare.lean`'s six
+theorems do not receive records from the modeller: they receive `r.decls` from
+the PARSE, at the capstone.  So the fact has to travel out of the parse, and
+the shape that carries it is the one `Bridge/StateOK.lean` already chose for
+exactly this gap: a clause on the RELATION.  `StateDRel` and `ParseResultRel`
+gain
+
+    projNamed : DeclsProjNamed st sd.decls
+
+**and that is what makes "one place, not eight" true.**  The streaming fold
+only ever TRANSPORTS the relation, so the clause costs the ten closed theorems
+of `Chunks.lean` and `Lines.lean` nothing at all: `StateDRel.ext` and
+`ParseResultRel.ext` gain one `.mono` line, `ParseResultRel.ofState` one
+projection, `StateD_init_run` one field (`DeclsProjNamed.empty`), and every
+other closed proof compiles unchanged because it passes the relation rather
+than builds it.  The clause has exactly two debtors, and they are the two
+places a record ENTERS the stream: `pushDecl` (the parse — a record it builds
+itself is one of the five `.…Decl`s, vacuously, or an `.indDecl` block of
+`.indInfo`/`.ctorInfo`/`.recInfo`, also vacuously) and `pushGenList` (the
+modeller — `ModellerWF`'s new clause).  **Nothing propagates to the
+capstone**: `Arena.no_False_declaration` and its two siblings take the same
+hypotheses they took in round 4.
+
+##### 3. The vocabulary, and where it went
+
+`Bridge/Frontend/Rel.lean`:
+
+* **`IProjNamed st t`** — `IProjTableOK.named` alone, with `.mono` and
+  `IProjTableOK.toNamed`;
+* **`CIProjNamed`**, **`DeclProjNamed`**, **`DeclsProjNamed`** — the same at a
+  stored constant, a record and a stream, with `.mono`, `.empty`, `.push` and
+  the six vacuous `DeclProjNamed.of_…Decl` introductions;
+* **`ciName_denote_proj`, `ciName_denote_of`, `ciNames_denote`,
+  `declNames_denote`** — the name equations the clause buys.  `declNames_denote`
+  is the one round 4's finding named: *a record that denotes has
+  `IDeclaration.names`' exactness, given `DeclProjNamed` and nothing more*.
+
+`Bridge/Frontend/Shared.lean`: `projTableName_istep` gains the denotation
+conjunct, and `internProjTable_istep`/`internCI_istep`/`internCIList_istep`/
+`internDecl_istep`/`internDecls_istep` each gain the clause — six of
+`internCI_istep`'s seven arms are `CIProjNamed.of_ne (by simp)`.
+
+`Bridge/Frontend/Modeller.lean`: `ModellerWF` gains
+`∀ d ∈ hs, DeclProjNamed s'.store d`, and `inProcessModeller_wf` discharges it
+from `internDecls_istep`'s new conjunct.  **The seam's promise is the only
+statement in the tier that grew a clause**, which is what the ruling asked for.
+
+##### 4. What closed, and what stops each module
+
+| item | declarations | |
+|---|---|---|
+| 6 | `noteDecl_run`, `pushDecl_run` | the declaration table, on `toConstantVal_run` (the `.projInfo` arm's three interns), `noteBlock_run` (the block `mapM`) and `noteFold_rel` (`MapRel.insert` at `constTypes` and `heights`) |
+| 20 | `preludeKey_run`, `pick_denote`, `frontOf_run` | the prelude's front, on `declNames_denote` and four new list facts |
+
+Eleven new closed results beside them: `IProjNamed.mono`, `CIProjNamed.{mono,
+of_ne,of_proj}`, `DeclProjNamed.{mono,of_indDecl}`, `DeclsProjNamed.{mono,
+empty,push}`, `denoteNList_contains`, `declares_denote`,
+`denoteDecls_{getElem?,eraseIdx,findIdx}`, `mem_eraseIdxIfInBounds`.
+**`denoteNList_contains` is where `denoteN_inj` is load-bearing in
+`Prepare.lean`** — `declares` is a handle test where con-leche's is a name
+test, and only injectivity rules out a twin hit at a con-leche miss.
+
+**`Lines.lean` is at three** — `validateIndD_run`, `installIndD_run`,
+`processLineCoreD_run` — and it cannot reach zero from here: `installIndD_run`
+waits on `registerProjOwners_run`, which is `ProjRec.lean`'s, and
+`processLineCoreD_run` waits on `installIndD_run`.
+
+**`Prepare.lean` is at three** — `usedConsts_run`, `hoistTargets_run`,
+`hoistNatOpGround_run` — and the first of them is the GRAY `seen`-set fuel
+induction that `Bridge/ExprOps/Leaves.lean`'s `fvarLeavesGo_spec` is open on
+for the same reason, with `hoistTargets_run` (a worklist closure over a
+`Std.HashMap NIdx Nat`) behind it.  Neither is a round's work.
+
+##### 5. `occursConstFast`'s two con-leche-tier asks, stated
+
+Round 4 reported that `ConLeche/Verify/` mentions neither `occursConstB` nor
+`occursConstGo` — con-leche's own note says why (*"`occursConst` has exactly
+one caller and no proof depends on it […] the pure definition above stays as
+its specification"*) — so `occursConstFast_run` needs two facts con-leche does
+not have.  They are stated here in §5's **finding 6** shape,
+`clOccursConstB_eq` and `clOccursConstGo_eq`, with **`clOccursConstFast_eq`
+proved on top of them**: `ConLeche.Frontend.occursConstFast n e =
+ConLeche.Frontend.occursConst n e`.  So `occursConstFast_run`'s remaining gap
+is the ARENA side alone — the twin's memoised walk over handles against the
+pure `occursConst` over the denoted tree — and the con-leche side is a named
+ask rather than a hole in a proof.  `ProjRec.lean` is therefore at **seven**
+where round 4 left it at five: five proofs and two asks of con-leche.
+
+##### 6. A dedup the next round should take (not this lane)
+
+`Bridge/StateOK.lean`'s `denoteCI_name_proj` takes `IProjTableOK st t` and its
+proof opens with `obtain ⟨sn, hsn, htn⟩ := hok.named` — **it uses the `named`
+clause and nothing else.**  Weakening its hypothesis to `IProjNamed` (and
+`denoteCI_name_of`'s with it) would let `Bridge/Frontend/Rel.lean` drop its own
+`ciName_denote_proj`/`ciName_denote_of` and call the shared ones.  That file is
+the Inductives tier's and landed on `arena` while this round ran, so round 5
+left it alone and states the debt here.
+
+##### 7. Two tactic notes, both about `match`
+
+* **A pattern-matching lambda compiles to a per-declaration `match_N`
+  auxiliary**, so `noteDecl`'s fold step is a DIFFERENT term in
+  `Arena/Frontend/ExportC.lean`, in `noteFold_rel` and in `noteDecl_run` — and
+  `rw` fails across the three with "did not find an occurrence" on two terms
+  that print identically.  `exact` does not: `isDefEq` unfolds the auxiliaries.
+  The pattern that works is to state the fold lemma with the lambda written out
+  and to CONNECT it with `exact`, never with `rw`.
+* **`cases h : e` abstracts `e` in the GOAL as well as introducing `h`**, so at
+  the leaf of such a case split the remaining obligation is `rfl` and not `h` —
+  three proofs of this round were written with `exact h` first and all three
+  reported `type mismatch: some n = some {…}.name`.
+
+##### 8. The sorry list after round 5 — thirteen declarations
+
+| module | open | |
+|---|---:|---|
+| `ProjRec.lean` | 7 | `occursConstFast_run`, `projRecValue_run`, `projRewriteD_run`, `projRecOwners_run`, `registerProjOwners_run`, and the two con-leche-tier asks `clOccursConstB_eq`/`clOccursConstGo_eq` (§5) |
+| `Lines.lean` | 3 | `validateIndD_run`, `installIndD_run`, `processLineCoreD_run` |
+| `Prepare.lean` | 3 | `usedConsts_run`, `hoistTargets_run`, `hoistNatOpGround_run` |
+| `Rel`, `Shared`, `Modeller`, `Chunks`, `Capstone` | **0** | |
+
+The critical path is unchanged in shape and two nodes shorter:
+`processLineCoreD_run` → `installIndD_run` → `registerProjOwners_run` →
+`projRecOwners_run` → `occursConstFast_run`, and `noteDecl_run`/`pushDecl_run`
+are off it.
+
+##### 9. The axiom census after round 5
+
+`Bridge/Frontend/Axioms.lean`: **182 closed results** (was 153), every one
+within `[propext, Classical.choice, Quot.sound]`; the eighteen `sorryAx`
+entries are unchanged in kind (fourteen proved-but-resting-on-a-leaf and the
+four headlines, which still name **neither `CoreSpec` nor `IndSpec` nor
+`ModellerWF` nor `ModellerRefines`**).  `clOccursConstFast_eq` is deliberately
+NOT in the list: it is proved modulo an ask of con-leche, so it carries
+`sorryAx`, and the census's rule — *a result that carries `sorryAx` is not in
+this file* — is what makes that visible.
+
+##### 10. Gates, round 5
+
+| gate | |
+|---|---|
+| `cd proof && lake build ConRonBridge` | **0 errors**; 13 of this tier's declarations open |
+| `scripts/gates.sh` | all 13 OK, on the merge of `arena`'s `aa4c7a76` |
+| the diff | `proof/ConRon/Bridge/Frontend/{Rel,Shared,Modeller,Lines,Prepare,ProjRec,Capstone,Chunks,Axioms}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml`, no other `Bridge/` module — the seam's strengthening stayed inside `Bridge/Frontend/**`, which is what §2's correction 3 bought |
+
+The tier is **8 825 lines** (was 7 478) in nine modules plus the index.
+
 ### Task #97-P3-Ind — Theorem 1: the inductive tier, and what `IndSpec` actually says (2026-09-22, Opus under Fable)
 
 Phase **P3** of §8.6, the inductives round: DESIGN §8.2's **Theorem 1** at
