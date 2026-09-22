@@ -1519,6 +1519,17 @@ theorem piSortTeleLen?_spec : ∀ (fuel : Nat) (h : EIdx) (hP : Expr),
        | (obtain ⟨x, _, rfl⟩ := Option.map_eq_some_iff.mp hde; rfl)
        | (obtain rfl := Option.some.inj hde; rfl))
 
+/-- con-leche: none — **`denoteCI` preserves the constant's KIND**: a handle
+record that is not a constructor denotes a constant that is not one.  The
+shape a twin that DISPATCHES on the stored constant's kind needs at its
+fallthrough arm (`ctorResidualOk`'s `| _ => false`). -/
+theorem denoteCI_not_ctor {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
+    (h : Frontend.denoteCI st ci = some c)
+    (hne : ∀ v n1 n2, ci ≠ .ctorInfo v n1 n2) :
+    ∀ v n1 n2, c ≠ .ctorInfo v n1 n2 := by
+  cases ci <;>
+    simp_all [Frontend.denoteCI, Option.map_eq_some_iff] <;> grind
+
 /-! ## Two transports the spec layer does not have
 
 `Bridge/Rel.lean` stops at `denoteCI_ext`; `Bridge/Checker/Inv.lean` has the

@@ -1034,7 +1034,12 @@ theorem indBlockCaps_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:744-779 ctorResidualOk
 The eta capability's constructor returns the family (task #136).
 
-`sorry`: `ctorTargetsFam_spec` and `IFEnvOK`'s `hit` clause. -/
+**CLOSED** (task #97-P3-Ind round 5): the capability guard, `IFEnvOK`'s
+`hit`/`miss` pair at the stored constructor — the check reads the constant the
+way its consumers do, which is what makes the `find?` load-bearing —
+`stripPis_pstep`, `structFam_spec` and `beq_ehandle_eq`.  The six
+non-constructor kinds close on `denoteCI_not_ctor`: `denoteCI` preserves the
+kind, so the arena's fallthrough arm and con-leche's are the same arm. -/
 theorem ctorResidualOk_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
     (T ctorName : NIdx) (TP ctorNameP : ConLeche.Name) (lps : List NIdx)
     (lpsP : List ConLeche.Name) (nP nF : Nat) (eta : Bool) :
@@ -1045,7 +1050,66 @@ theorem ctorResidualOk_spec {μ : CheckMode} {env : Env} (fe' : IFEnv)
         denoteFEnv st fe' = some env)
       (Arena.ctorResidualOk μ fe' T ctorName lps nP nF eta)
       (RV (ConLeche.ctorResidualOk μ env TP ctorNameP lpsP nP nF eta)) := by
-  sorry
+  intro s₀ s' r hck hpre hrun
+  obtain ⟨hT, hct, hlps, _⟩ := hpre
+  simp only [Arena.ctorResidualOk] at hrun
+  split at hrun
+  case isTrue hg =>
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    refine ⟨CoreStep.refl hck, ?_⟩
+    show (true : Bool) = _
+    simp only [ConLeche.ctorResidualOk, hg]
+    simp
+  case isFalse hg =>
+    have hg' : (!μ.ttChecks || !eta) = false := by
+      simp only [Bool.not_eq_true] at hg; exact hg
+    cases hf : fe'.find? ctorName with
+    | none =>
+      rw [hf] at hrun
+      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      refine ⟨CoreStep.refl hck, ?_⟩
+      show (false : Bool) = _
+      have hmiss : env.find? ctorNameP = none :=
+        IFEnvOK.miss hck.state hck.ienv hct hf
+      simp only [ConLeche.ctorResidualOk, hg', hmiss]
+      simp
+    | some ci =>
+      obtain ⟨nm, c, hnm, hci, henv⟩ := hck.ienv.hit ctorName ci hf
+      obtain rfl := Option.some.inj (hnm.symm.trans hct)
+      cases ci
+      case ctorInfo cvCA nP' nF' =>
+        simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hci
+        obtain ⟨cvP, hcv, rfl⟩ := hci
+        rw [hf] at hrun
+        obtain ⟨sq, s1, k1, hrun2⟩ := bindOk hrun
+        obtain ⟨hs1, hsq⟩ := stripPis_pstep hck.state (denoteCV_type hcv) k1
+        rw [hs1] at hrun2
+        rcases sq with _ | ⟨sbs, sbody⟩
+        · obtain ⟨rfl, rfl⟩ := pureOk hrun2
+          refine ⟨CoreStep.refl hck, ?_⟩
+          show (false : Bool) = _
+          simp only [ConLeche.ctorResidualOk, hg', henv, stripPis_none hsq]
+          simp
+        obtain ⟨sxs, sbodyP, hsps, _, hsbody⟩ := denoteBP_someB hsq
+        obtain ⟨fam, s2, k2, hrun3⟩ := bindOk hrun2
+        obtain ⟨p2, hfam⟩ :=
+          structFam_spec T TP lps lpsP nP nF s₀ s2 fam hck.state ⟨hT, hlps⟩ k2
+        obtain ⟨rfl, rfl⟩ := pureOk hrun3
+        refine ⟨p2.toCore hck, ?_⟩
+        show (sbody == fam) = _
+        simp only [ConLeche.ctorResidualOk, hg', henv, hsps]
+        rw [beq_ehandle_eq p2.ok.wf (denote_ext hsbody p2.ext) hfam]
+        simp
+      all_goals
+        (rw [hf] at hrun
+         obtain ⟨rfl, rfl⟩ := pureOk hrun
+         refine ⟨CoreStep.refl hck, ?_⟩
+         show (false : Bool) = _
+         have hne := denoteCI_not_ctor hci (by simp)
+         simp only [ConLeche.ctorResidualOk, hg', henv]
+         cases c
+         case ctorInfo v n1 n2 => exact absurd rfl (hne v n1 n2)
+         all_goals simp)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Modeled.lean:781-834 checkModeled
 **THE MODELED ROUTE**, the second of `checkIndDecl`'s two dispatches: every
