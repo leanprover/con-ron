@@ -47696,3 +47696,38 @@ coordinator's call rather than this round's.
   The pattern that made that possible is the one round 2 named: copy the
   existing lemma verbatim, then change only the clauses the weakening touches,
   and let the build tell you which those were.
+
+#### 9. Elaboration and the gates
+
+| file | lines | `sorry` | note |
+|---|---:|---:|---|
+| `Arena/WF.lean` | 346 → **600** | 0 | the four weak structures, the `of_wf` arrows, the four `…ViewPers`, and §1's note |
+| `Arena/WFProofs.lean` | 9 236 → **10 763** | 0 | one append-only section, plus §4's one word per store in the four `wf_of_scr_empty` |
+| `Refine2/Specs.lean` | 12 056 → **12 660** | **5** (from 8) | `intern_persistent_{n,l,ls}_run` closed |
+| `Refine2/Promote/Intern.lean` | 330 → **391** | 24 | `PersUnfrozen`, `POutW`, `SimPMW`, `SimPMFW` |
+| `Refine2/Promote/Promote.lean` | 1 049 → **926** | **31** (from 29) | thirty statements restated; §7's two re-opened |
+
+**Net across the Refine2 tier: 739 → 738, −1 `sorry`** (three closed in `Specs.lean`, two
+re-opened in `Promote.lean`), and the two re-opened ones were already
+`sorryAx`-dependent through `intern_persistent_n_run`, so **no `#print axioms`
+row changed**.
+
+**Eight more `#print axioms` rows under `#guard_msgs`** in `Specs.lean`
+(`l{,s}store_intern_persistent_abs`, the three
+`estore_intern_*_persistent_abs`, and the three closed `_run`), every one
+`[propext, Classical.choice, Quot.sound]`.
+
+| gate | result |
+|---|---|
+| `cd proof && lake build ConRonBridge` | **green** — the whole point of the additive shape: `denoteN_inj` / `denoteE_inj` / `denoteL_inj` and their 27 consumer files are untouched, and not one `Bridge/**` file was edited; 616 jobs |
+| `cd proof && lake build ConRonRefine2` | **green** — 2 220 jobs |
+| `scripts/gates.sh` | **all 13 OK** (`extract-check` 87 s, `lake-build` 112 s; no Rust file and no generated file moved, so the first eleven are formalities) |
+| merged `arena` once (`95acf308`) | task #97-P3-Frame's landing; `DESIGN.md` and `Bridge/**` only, no overlap |
+| the diff | `proof/ConRon/Arena/{WF,WFProofs}.lean`, `proof/ConRon/Refine2/Specs.lean`, `proof/ConRon/Refine2/Promote/{Intern,Promote}.lean` and this section.  No Rust file, no generated model, no `Refine/`, no `RefineOld/`, **no `Bridge/`**, no `Refine2/Core/**` |
+
+**Lanes entered outside this task's own**: none.  `Refine2/Shape.lean` would
+have been the right home for `AStateRelW`/`AOutW`/`SimW` and
+`Refine2/Checker/Shape.lean` for `POutW`/`SimPMW`; both were another round's
+lane, so the definitions sit in `Refine2/Specs.lean` and
+`Refine2/Promote/Intern.lean` instead, additively, with a note at each saying
+where they belong.
