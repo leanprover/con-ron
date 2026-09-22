@@ -501,7 +501,7 @@ half of `pureOk`, for the fuel-exhaustion clause every walk of the tier
 opens with. -/
 theorem failOk {α : Type} {e : Arena.CheckError} {r : α} {s s' : AState}
     (h : (fail e : AM α) s = .ok (r, s')) : False := by
-  simp only [Arena.fail, throwThe, throw, MonadExceptOf.throw] at h
+  simp only [Arena.fail, throwThe, MonadExceptOf.throw] at h
   exact nomatch h
 
 /-- con-leche: none — **`view`, as a run**: it moves nothing and answers the
