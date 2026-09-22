@@ -84,12 +84,25 @@ an `intern`, which is what the streaming fold's induction rests on. -/
 #print axioms ParseResultRel.ofState
 #print axioms PersParseResult.ofState
 
-/-! ## The three table reads -/
+/-! ## The three table reads, and the two list reads -/
 
 #print axioms StateD_name_run
 #print axioms StateD_level_run
 #print axioms StateD_expr_run
 #print axioms getDeclD_run
+#print axioms readName_run
+#print axioms readNames_mapM_run
+#print axioms StateD_names_run
+
+/-! ## The record headers (round two)
+
+The three steps of items 5-6 that read the tables and nothing else; what is
+left of those items is the three INTERNING entry parsers and the two that
+write a `MapRel`. -/
+
+#print axioms parsePwD_run
+#print axioms parseCVD_run
+#print axioms parseRuleD_run
 
 /-! ## The readback -/
 

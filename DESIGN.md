@@ -40159,16 +40159,18 @@ modules and nothing else.  The brief was §7's critical path in §7's order —
 items 5-7 → 9 → 16 → 18, then everything the capstones consume — plus §5's
 finding 6 (`checkDeclsPure_thmDecl_const`) as an upstream ask.
 
-**Fourteen of the fifty-six closed, and the two that mattered most are
-sorry-FREE.**  The round did not reach the record-assembly steps (items 5-7);
-it went straight at what SITS ON them, so that the whole streaming fold and
-both assembled capstone letters now rest on named leaves rather than on a
-sorry each.
+**Seventeen of the fifty-six closed, and the two that mattered most are
+sorry-FREE.**  The round went at what SITS ON the record-assembly steps
+first — so that the whole streaming fold and both assembled capstone letters
+rest on named leaves rather than on a sorry each — and then took the three
+steps of items 5-6 that read the tables and nothing else.
 
 ##### 1. What closed
 
 | item | declarations | |
 |---|---|---|
+| 5 (part) | `parsePwD_run`, `parseCVD_run` | the two record headers that only READ; `StateD_names_run` is the table read at a list, `readNames_mapM_run` the readback at one |
+| 6 (part) | `parseRuleD_run` | one recursor rule; the install-computed fields carry con-leche's own parse placeholders on both sides |
 | 9 (half) | `applyLine_run` | six arms over the three entry parsers and `applyDeclD_run`; the `header`/`blank` arms are `rfl` on both sides |
 | 16 | `applyFinalLine_run`, `feedChunk_run` (+ `feedChunk_run_le`) | the loop's strong induction, at the twin's own measure |
 | 17 | `chunkStep_run`, `chunkFinish_run` | |
@@ -40179,11 +40181,21 @@ sorry each.
 | 24 | `checkDeclsPure_thmDecl_const`, `no_False_theorem_accepted_pure` | **`[propext, Classical.choice, Quot.sound]`** — no `sorryAx` |
 | 25 | `Arena.no_False_declaration`, `Arena.no_False_declaration_prelude` | the four steps of §6's table, composed |
 
-Eight new library results beside them, every one closed: `MapRel.insert`,
+Twelve new library results beside them, every one closed: `MapRel.insert`,
 `IdTableRel.empty`, `AM.{pure_ok,fail_ok}`, `denoteDeclArray_iff`,
 `denoteDecls_append`, `denoteDeclArray_append`, `annotateCore_const`,
-`checkDeclsPure_prefix`.  The tier is **143 declarations in 3 471 lines**
-(was 132 in 2 792), **42 open** (was 56).
+`checkDeclsPure_prefix`, `readName_run`, `readNames_mapM_run`,
+`StateD_names_run`.  The tier is **146 declarations in 3 604 lines**
+(was 132 in 2 792), **39 open** (was 56).
+
+**`AM.of_run` is the bridge nobody had used yet.**  `Bridge/Rel.lean:59`
+turns a `@[spec]` Hoare triple into the `f … s = .ok (x, s')` shape every
+theorem of this tier is stated in, in one line — `readName_run` is
+`AM.of_run rfl hrun (readName_spec s h)` and nothing else.  That is what makes
+the twenty-odd `@[spec]` theorems of `Bridge/Specs.lean` (`internNNode_spec`,
+`internLNode_spec`, `internE_spec`, the ten per-constructor faces, the three
+memoised readbacks) reachable from a tier that uses no `mvcgen`, and it is the
+route items 5, 10 and 11 should take.
 
 ##### 2. Finding 7 — the pure fold's PREFIX is a run, and that is the whole of §5's finding 6
 
@@ -40292,17 +40304,17 @@ of its own) is the baseline.
 
 | module | wall | net | raw | decls | open |
 |---|---:|---:|---:|---:|---:|
-| `Rel.lean` | 1.6 s | 0.84 s | 816 | 55 | 0 |
-| `Modeller.lean` | 0.79 s | 0.03 s | 147 | 5 | 2 |
-| `Shared.lean` | 0.86 s | 0.10 s | 237 | 16 | 10 |
-| `ProjRec.lean` | 0.89 s | 0.12 s | 234 | 10 | 10 |
-| `Lines.lean` | 1.00 s | 0.23 s | 458 | 23 | 12 |
-| `Chunks.lean` | 1.10 s | 0.34 s | 586 | 14 | 1 |
-| `Prepare.lean` | 0.89 s | 0.13 s | 299 | 11 | 6 |
-| `Capstone.lean` | 0.88 s | 0.12 s | 437 | 9 | 1 |
-| `Axioms.lean` | 0.77 s | 0.01 s | 182 | — | — |
-| the index module (baseline) | 0.76 s | — | 75 | — | — |
-| **the tier** | **~9 s** | **~2 s** | **3 471** | **143** | **42** |
+| `Rel.lean` | 1.2 s | 0.46 s | 816 | 55 | 0 |
+| `Modeller.lean` | 0.81 s | 0.07 s | 147 | 5 | 2 |
+| `Shared.lean` | 0.84 s | 0.10 s | 237 | 16 | 10 |
+| `ProjRec.lean` | 0.87 s | 0.13 s | 234 | 10 | 10 |
+| `Lines.lean` | 1.0 s | 0.26 s | 578 | 26 | 9 |
+| `Chunks.lean` | 1.1 s | 0.36 s | 586 | 14 | 1 |
+| `Prepare.lean` | 0.89 s | 0.15 s | 299 | 11 | 6 |
+| `Capstone.lean` | 0.92 s | 0.18 s | 437 | 9 | 1 |
+| `Axioms.lean` | 0.79 s | 0.05 s | 195 | — | — |
+| the index module (baseline) | 0.74 s | — | 75 | — | — |
+| **the tier** | **~9 s** | **~1.8 s** | **3 604** | **146** | **39** |
 
 **No theorem is anywhere near the 20 s flag, and none is within two orders of
 magnitude of it.**  `-Dprofiler=true -Dprofiler.threshold=20` over the two
@@ -40313,9 +40325,10 @@ elaboration.  The round's own additions did not move the tier's cost: it grew
 by 679 lines and the net elaboration is still about two seconds, for §1's
 reason (**no `grind`, no `mvcgen`**) and one more the round confirmed: the
 chunk tier is `AM.bind_ok` / `AM.pure_ok` and `simp only` with a named branch
-fact, never a search.
+fact, never a search.  (Wall times are from a loaded machine and move by
+±0.1 s between runs; the ordering and the conclusion do not.)
 
-##### 7. The sorry list, exactly — forty-two declarations, nineteen items
+##### 7. The sorry list, exactly — thirty-nine declarations, nineteen items
 
 Unchanged in shape from §7; the closed rows are struck from it.  What is left,
 by module:
@@ -40324,7 +40337,7 @@ by module:
 |---|---:|---|
 | `Shared.lean` | 10 | items 1-3: `denoteEGo_spec`, `denoteEShared_isSome`, `denoteCVGo_spec`, `denoteCIListGo_spec`, `readExpr_run`, `readCIList_run`, `internExpr_run`, `internDecls_run`, `denoteBlockRec_eq_of_rel`, `ctxOf_eq_of_rel` |
 | `ProjRec.lean` | 10 | items 10-13: `projIotaName_run`, `isProjIotaName_run`, `projIotaLevel_run`, `occursConstFast_run`, `stripPisAll_run`, `mkLams_run`, `projRecValue_run`, `projRewriteD_run`, `projRecOwners_run`, `registerProjOwners_run` |
-| `Lines.lean` | 12 | items 5-7, 9: `parseNameEntryD_run`, `parseLevelEntryD_run`, `parseExprEntryD_run`, `parsePwD_run`, `parseCVD_run`, `noteDecl_run`, `pushDecl_run`, `parseRuleD_run`, `blockRecOf_run`, `validateIndD_run`, `installIndD_run`, `processLineCoreD_run` |
+| `Lines.lean` | 9 | items 5-7, 9: `parseNameEntryD_run`, `parseLevelEntryD_run`, `parseExprEntryD_run`, `noteDecl_run`, `pushDecl_run`, `blockRecOf_run`, `validateIndD_run`, `installIndD_run`, `processLineCoreD_run` |
 | `Prepare.lean` | 6 | items 20-21: `preludeKey_run`, `pick_denote`, `frontOf_run`, `usedConsts_run`, `hoistTargets_run`, `hoistNatOpGround_run` |
 | `Modeller.lean` | 2 | item 8: `inProcessModeller_wf`, `inProcessModeller_refines` |
 | `Chunks.lean` | 1 | item 15: `StateD_init_run` (finding 9.1) |
@@ -40345,12 +40358,14 @@ someone has to write.
 `Bridge/Frontend/Axioms.lean` now has three sections instead of two, because
 the round made the distinction visible:
 
-* **the closed census** — 55 results, every one within
+* **the closed census** — 61 results, every one within
   `[propext, Classical.choice, Quot.sound]` and several at `[propext]` alone.
   It gained `MapRel.insert`, `IdTableRel.empty`, `AM.{pure_ok,fail_ok}`, the
   three `denoteDeclArray` lemmas, and — the headline —
   `annotateCore_const`, `checkDeclsPure_prefix`,
-  `checkDeclsPure_thmDecl_const` and `no_False_theorem_accepted_pure`;
+  `checkDeclsPure_thmDecl_const` and `no_False_theorem_accepted_pure`, plus
+  `readName_run`, `readNames_mapM_run`, `StateD_names_run`, `parsePwD_run`,
+  `parseCVD_run` and `parseRuleD_run`;
 * **PROVED, but resting on an open leaf** — thirteen results whose own proof
   is complete and which carry `sorryAx` only through a lemma of the sorry list
   they cite (`applyLine_run`, the seven chunk-tier theorems,
@@ -40368,6 +40383,6 @@ the round made the distinction visible:
 
 | gate | |
 |---|---|
-| `cd proof && lake build ConRonBridge` | **0 errors, 594 jobs**; 124 `sorry` warnings, of which 42 are this tier's |
+| `cd proof && lake build ConRonBridge` | **0 errors, 594 jobs**; 121 `sorry` warnings, of which 39 are this tier's |
 | `scripts/gates.sh` | **all 13 OK** (`extract-check` 95 s, `lake-build` 361 s) |
 | the diff | `proof/ConRon/Bridge/Frontend/{Rel,Lines,Chunks,Prepare,Capstone,Axioms}.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `Refine2/`, no `lakefile.toml`, no other `Bridge/` module |

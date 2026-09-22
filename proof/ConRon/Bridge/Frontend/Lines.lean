@@ -163,6 +163,76 @@ theorem getDeclD_run {s s' : AState} {sd : StateD}
       denoteE s.store h = some e :=
   StateD_expr_run hrel hrun
 
+/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — `readName` as a run.
+`Bridge/Specs.lean` states it as a Hoare triple (it is `mvcgen`'s vocabulary);
+`Bridge/Rel.lean`'s `AM.of_run` is the four-line bridge back to the shape
+every theorem of this tier is stated in. -/
+theorem readName_run {s s' : AState} {h : NIdx} {x : ConLeche.Name}
+    (hrun : readName h s = .ok (x, s')) :
+    s' = s ∧ denoteN s.store.ns h = some x :=
+  AM.of_run (P := fun t => t = s) rfl hrun (readName_spec s h)
+
+/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the readback at a LIST
+of handles, which is what `parsePwD` runs: `PropWhen` holds `ConLeche.Name`s,
+so the resolved handles are read BACK, and the readback IS `denoteN`. -/
+theorem readNames_mapM_run {s : AState} :
+    ∀ (hs : List NIdx) {xs : List ConLeche.Name} {s' : AState},
+      (hs.mapM readName) s = .ok (xs, s') →
+        s' = s ∧ denoteNList s.store.ns hs = some xs := by
+  intro hs
+  induction hs with
+  | nil =>
+    intro xs s' hrun
+    simp only [List.mapM_nil] at hrun
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+    subst hv; subst hst
+    exact ⟨rfl, rfl⟩
+  | cons h hs ih =>
+    intro xs s' hrun
+    simp only [List.mapM_cons] at hrun
+    obtain ⟨x, s₁, hone, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨hs1, hdx⟩ := readName_run hone
+    subst hs1
+    obtain ⟨ys, s₂, hmany, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨hs2, hdys⟩ := ih hmany
+    subst hs2
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
+    subst hv; subst hst
+    exact ⟨rfl, by simp only [denoteNList, hdx, hdys]⟩
+
+/-- con-leche: ConLeche/Frontend/ExportC.lean:164-167 StateD.name — the name
+table read at a LIST of stream indices: `parseCVD`'s level-parameter list and
+`parsePwD`'s `ifAllZero` one.  `List.mapM_cons` at `AM` on one side and at
+`Except String` on the other; neither side moves anything. -/
+theorem StateD_names_run {s : AState} {sd : StateD}
+    {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc) :
+    ∀ (is : List Nat) {hs : List NIdx} {s' : AState},
+      (is.mapM sd.name) s = .ok (hs, s') →
+        s' = s ∧ ∃ xs, is.mapM (ConLeche.Frontend.StateD.name sc) = .ok xs ∧
+          denoteNList s.store.ns hs = some xs := by
+  intro is
+  induction is with
+  | nil =>
+    intro hs s' hrun
+    simp only [List.mapM_nil] at hrun
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+    subst hv; subst hst
+    exact ⟨rfl, [], rfl, rfl⟩
+  | cons i is ih =>
+    intro hs s' hrun
+    simp only [List.mapM_cons] at hrun
+    obtain ⟨h, s₁, hone, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨hs1, n, hcln, hdn⟩ := StateD_name_run hrel hone
+    subst hs1
+    obtain ⟨hs', s₂, hmany, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨hs2, xs, hclxs, hdxs⟩ := ih hmany
+    subst hs2
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
+    subst hv; subst hst
+    refine ⟨rfl, n :: xs, ?_, by simp only [denoteNList, hdn, hdxs]⟩
+    simp only [List.mapM_cons, hcln, hclxs]
+    rfl
+
 /-! ## The three entry parsers -/
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:229 parseNameEntryD — a name
@@ -224,29 +294,66 @@ datum.  The twin resolves the handles and READS THEM BACK (`PropWhen` holds
 `ConLeche.Name`s, which the binder node carries as values), so the answer is
 literally con-leche's and the theorem is an equation, not a relation.
 
-`sorry`: `StateD_name_run` at the list, then `readName`'s exactness
-(`Bridge/Specs.lean`).  Task #97-P3-Frontend's sorry list, item 5. -/
+`StateD_names_run` at the list, then `readNames_mapM_run` — `readName`'s
+exactness (`Bridge/Specs.lean`) lifted over the list.  The two readbacks of a
+handle are the same `denoteN`, which is why the answer is an equation. -/
 theorem parsePwD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     {r : ConLeche.Frontend.PwRec} {pw : PropWhen}
     (hrun : parsePwD sd r s = .ok (pw, s')) :
     s' = s ∧ ConLeche.Frontend.parsePwD sc r = .ok pw := by
-  sorry
+  cases r with
+  | never =>
+    rw [parsePwD] at hrun
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrun
+    subst hv; subst hst
+    exact ⟨rfl, rfl⟩
+  | ifAllZero ns =>
+    rw [parsePwD] at hrun
+    obtain ⟨hs0, s₁, hnames, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨hs1, xs, hcl, hd⟩ := StateD_names_run hrel ns hnames
+    subst hs1
+    obtain ⟨xs', s₂, hread, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨hs2, hd2⟩ := readNames_mapM_run hs0 hread
+    subst hs2
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
+    subst hst
+    obtain rfl : xs' = xs := by
+      rw [hd] at hd2; exact (Option.some.injEq _ _ ▸ hd2).symm
+    subst hv
+    refine ⟨rfl, ?_⟩
+    rw [ConLeche.Frontend.parsePwD]
+    simp only [hcl]
+    rfl
 
 /-! ## The declaration records -/
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:284 parseCVD — a constant's
 header: a name, a level-parameter list and a type.
 
-`sorry`: three reads plus `denoteNList`'s list induction.  Task
-#97-P3-Frontend's sorry list, item 5. -/
+Three reads plus `StateD_names_run`'s list induction; nothing moves. -/
 theorem parseCVD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     {cvr : ConLeche.Frontend.CVRec} {cv : IConstantVal}
     (hrun : parseCVD sd cvr s = .ok (cv, s')) :
     s' = s ∧ ∃ c, ConLeche.Frontend.parseCVD sc cvr = .ok c ∧
       denoteCV s.store cv = some c := by
-  sorry
+  rw [parseCVD] at hrun
+  obtain ⟨nm, s₁, hname, h1⟩ := AM.bind_ok hrun
+  obtain ⟨hs1, n, hcln, hdn⟩ := StateD_name_run hrel hname
+  subst hs1
+  obtain ⟨ty, s₂, hty, h2⟩ := AM.bind_ok h1
+  obtain ⟨hs2, e, hclty, hdty⟩ := getDeclD_run hrel hty
+  subst hs2
+  obtain ⟨lps, s₃, hlps, h3⟩ := AM.bind_ok h2
+  obtain ⟨hs3, xs, hcllps, hdlps⟩ := StateD_names_run hrel cvr.levelParams hlps
+  subst hs3
+  obtain ⟨hv, hst⟩ := AM.pure_ok h3
+  subst hv; subst hst
+  refine ⟨rfl, ⟨n, xs, e⟩, ?_, by simp only [denoteCV, hdn, hdlps, hdty]⟩
+  rw [ConLeche.Frontend.parseCVD]
+  simp only [hcln, hclty, hcllps]
+  rfl
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:137-153 noteDecl — the
 declaration table, updated.  con-leche's is PURE and the twin's is monadic
@@ -278,15 +385,28 @@ theorem pushDecl_run {s s' : AState} (hok : StateOK s) {sd sd' : StateD}
 /-- con-leche: ConLeche/Frontend/ExportC.lean:347 parseRuleD — one recursor
 rule.
 
-`sorry`: `StateD_name_run` and `getDeclD_run`.  Task #97-P3-Frontend's sorry
-list, item 6. -/
+`StateD_name_run` and `getDeclD_run`; the install-computed fields carry
+con-leche's own parse placeholders on both sides. -/
 theorem parseRuleD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     {ru : ConLeche.Frontend.RuleRec} {rl : IRecRule}
     (hrun : parseRuleD sd ru s = .ok (rl, s')) :
     s' = s ∧ ∃ r, ConLeche.Frontend.parseRuleD sc ru = .ok r ∧
       denoteRule s.store rl = some r := by
-  sorry
+  rw [parseRuleD] at hrun
+  obtain ⟨c, s₁, hname, h1⟩ := AM.bind_ok hrun
+  obtain ⟨hs1, n, hcln, hdn⟩ := StateD_name_run hrel hname
+  subst hs1
+  obtain ⟨rh, s₂, hrhs, h2⟩ := AM.bind_ok h1
+  obtain ⟨hs2, e, hclr, hde⟩ := getDeclD_run hrel hrhs
+  subst hs2
+  obtain ⟨hv, hst⟩ := AM.pure_ok h2
+  subst hv; subst hst
+  refine ⟨rfl, RecRule.mk n ru.nfields 0 .inert e false false false, ?_,
+    by simp only [denoteRule, hdn, hde, denoteFire]⟩
+  rw [ConLeche.Frontend.parseRuleD]
+  simp only [hcln, hclr]
+  rfl
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:353-354 blockRecOf — the parsed
 block, resolved, which is what the modeller seam is handed.
