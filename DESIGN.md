@@ -46197,10 +46197,25 @@ Three readings:
 1. **One equation costs Θ(N).**  0.148 G at N=5 → 0.955 G at N=200.  The
    derivation for one member is proportional to the *whole block*, not to that
    member's body.
-2. **Nothing is shared between equations.**  The amortized per-equation cost in
-   the all-N runs (0.077 / 0.184 / 0.445 / 1.271 G) tracks the single-equation
-   cost minus the ~0.13 G constant of the elaborator command.  Realizing `f0`'s
-   equations buys nothing for `f1`.
+2. **Little is shared between equations — about a third, not nothing.**
+   (Corrected by the coordinator's control run, 2026-09-22; the first wording
+   here said "nothing is shared" and overstated it.)  The amortized
+   per-equation cost in the all-N runs (0.077 / 0.184 / 0.445 / 1.271 G) is
+   below the single-equation cost but stays proportional to N, so realizing
+   `f0`'s equations buys `f1` a constant factor and not an order.  Measured at
+   N = 50 in one process: 50 *distinct* members cost 15.218 G against 7.948 G
+   for one, i.e. ≈ 0.15 G amortized against ≈ 0.26 G alone — roughly 30–40 %
+   sharing.  The quadratic conclusion is unaffected; only the constant is.
+
+   **The control that rules out a measurement artefact**, since the obvious
+   suspicion about a "nothing is shared" number is that the equation cache is
+   not being hit at all: realizing the **same** constant fifty times in one
+   process costs 7.960 G against 7.948 G for realizing it once — **+0.15 %**.
+   The cache works; the per-constant derivations are genuinely distinct work.
+   Note also that the harness realizes through `Lean.Meta.getEqnsFor?` /
+   `getUnfoldEqnFor?` — what `rw` / `unfold` / `simp only` call, and what §1
+   measured to survive the `.olean` — never through `example` or
+   `#check @f.eq_def`, which realizes a different constant and does not.
 3. **Hence the total is quadratic**: 1.54 → 254.16 G for a 10× rise in N, i.e.
    ≈ N^2.2.  Even *defining* the block is worse than quadratic (1.25 → 186.9 G,
    ≈ N^2.2 with a steep tail: 6.6× for the last doubling).
