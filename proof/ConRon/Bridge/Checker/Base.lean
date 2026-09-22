@@ -101,15 +101,288 @@ def LPDMemoOK (params : List ConLeche.Name) (tbl : Std.HashMap EIdx Bool)
   ∀ k v, tbl[k]? = some v →
     ∃ e, denoteE st k = some e ∧ v = Expr.allLevelParamsDefined params e
 
+/-! ### The three read-only readers, in run form -/
+
+/-- con-leche: none — `readNames`'s inversion, off `Bridge/Specs.lean`'s
+triple. -/
+theorem readNames_run {hs : List NIdx} {xs : List ConLeche.Name}
+    {s s' : AState} (hr : readNames hs s = .ok (xs, s')) :
+    s' = s ∧ Frontend.denoteNList s.store.ns hs = some xs :=
+  AM.of_run (P := fun t => t = s)
+    (Q := fun r t => t = s ∧ Frontend.denoteNList s.store.ns hs = some r) rfl hr
+    (readNames_spec s hs)
+
+/-- con-leche: none — `readLevel`'s inversion. -/
+theorem readLevel_run {h : LIdx} {u : Level} {s s' : AState}
+    (hr : readLevel h s = .ok (u, s')) :
+    s' = s ∧ denoteL s.store.ls h = some u :=
+  AM.of_run (P := fun t => t = s)
+    (Q := fun r t => t = s ∧ denoteL s.store.ls h = some r) rfl hr
+    (readLevel_spec s h)
+
+/-- con-leche: none — `readLevels`'s inversion. -/
+theorem readLevels_run {h : LsIdx} {us : List Level} {s s' : AState}
+    (hr : readLevels h s = .ok (us, s')) :
+    s' = s ∧ denoteLs s.store.lss h = some us :=
+  AM.of_run (P := fun t => t = s)
+    (Q := fun r t => t = s ∧ denoteLs s.store.lss h = some r) rfl hr
+    (readLevels_spec s h)
+
+/-! ### The memo table's two laws
+
+The walk threads its table explicitly, so the invariant is a hypothesis AND a
+conclusion rather than a state clause: the empty table satisfies it, and an
+insert of a CORRECT answer preserves it. -/
+
+theorem LPDMemoOK.empty {params : List ConLeche.Name} {st : EStore} :
+    LPDMemoOK params ∅ st := by
+  intro k v hk; simp at hk
+
+theorem LPDMemoOK.insert {params : List ConLeche.Name} {st : EStore}
+    {tbl : Std.HashMap EIdx Bool} (hm : LPDMemoOK params tbl st) {h : EIdx}
+    {e : Expr} (hd : denoteE st h = some e) {b : Bool}
+    (hb : b = Expr.allLevelParamsDefined params e) :
+    LPDMemoOK params (tbl.insert h b) st := by
+  intro k v hk
+  rw [Std.HashMap.getElem?_insert] at hk
+  split at hk
+  · rename_i heq
+    obtain rfl := Option.some.inj hk
+    obtain rfl := eq_of_beq heq
+    exact ⟨e, hd, hb⟩
+  · exact hm k v hk
+
+/-- con-leche: none — **the memo insert is the last step of every arm**:
+Lean's `do` elaborator copies the continuation into each branch, so each arm
+ends "…, then record the answer".  Inverted once here rather than thirteen
+times. -/
+private theorem lpdClose {h : EIdx} {tbl' : Std.HashMap EIdx Bool} {b : Bool}
+    {X : AM (Bool × Std.HashMap EIdx Bool)} {s s' : AState}
+    (hk : (X >>= fun y =>
+        (pure (y.1, y.2.insert h y.1) : AM (Bool × Std.HashMap EIdx Bool))) s
+      = .ok ((b, tbl'), s')) :
+    ∃ t2 s2, X s = .ok ((b, t2), s2) ∧ s' = s2 ∧ tbl' = t2.insert h b := by
+  obtain ⟨q, s2, g, k⟩ := AM.bind_ok hk
+  obtain ⟨b0, t0⟩ := q
+  obtain ⟨hv, hs⟩ := AM.pure_ok k
+  simp only [Prod.mk.injEq] at hv
+  obtain ⟨rfl, rfl⟩ := hv
+  exact ⟨t0, s2, g, hs, rfl⟩
+
+/-- con-leche: ConLeche/Kernel/Level.lean:299-332
+Expr.allLevelParamsDefinedGo — **the memoised walk, one fuel level at a
+time**.  The twin short-circuits where con-leche writes `&&`, which agrees
+arm for arm, and the state never moves: `view`, `readLevel` and `readLevels`
+are all read-only. -/
+theorem allLevelParamsDefinedGo_run {params : List ConLeche.Name} :
+    ∀ (fuel : Nat) {tbl tbl' : Std.HashMap EIdx Bool} {h : EIdx} {e : Expr}
+      {b : Bool} {s s' : AState},
+      StateOK s → LPDMemoOK params tbl s.store → denoteE s.store h = some e →
+      allLevelParamsDefinedGo params tbl fuel h s = .ok ((b, tbl'), s') →
+      s' = s ∧ b = Expr.allLevelParamsDefined params e ∧
+        LPDMemoOK params tbl' s.store := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro tbl tbl' h e b s s' _ _ _ hrun
+    exact absurd hrun (AM.Never.fail _ _ _ _)
+  | succ fuel ih =>
+    intro tbl tbl' h e b s s' hok hm hd hrun
+    have hwf : StoreWF s.store := hok.wf
+    simp only [Arena.allLevelParamsDefinedGo] at hrun
+    cases hhit : tbl[h]? with
+    | some r =>
+      rw [hhit] at hrun
+      obtain ⟨hv, rfl⟩ := AM.pure_ok hrun
+      simp only [Prod.mk.injEq] at hv
+      obtain ⟨rfl, rfl⟩ := hv
+      obtain ⟨e', hd', hr'⟩ := hm h b hhit
+      rw [hd] at hd'
+      obtain rfl := Option.some.inj hd'
+      exact ⟨rfl, hr', hm⟩
+    | none =>
+      rw [hhit] at hrun
+      obtain ⟨v, s2, g2, k2⟩ := AM.bind_ok (α := ENodeView) hrun
+      obtain ⟨rfl, hv⟩ := viewE_run g2
+      cases v with
+      | bvar i =>
+        obtain rfl := denote_bvar_inv hwf hv hd
+        obtain ⟨t2, s3, gX, rfl, rfl⟩ := lpdClose k2
+        obtain ⟨hq, rfl⟩ := AM.pure_ok gX
+        simp only [Prod.mk.injEq] at hq
+        obtain ⟨rfl, rfl⟩ := hq
+        exact ⟨rfl, rfl, hm.insert hd rfl⟩
+      | lit l =>
+        obtain rfl := denote_lit_inv hwf hv hd
+        obtain ⟨t2, s3, gX, rfl, rfl⟩ := lpdClose k2
+        obtain ⟨hq, rfl⟩ := AM.pure_ok gX
+        simp only [Prod.mk.injEq] at hq
+        obtain ⟨rfl, rfl⟩ := hq
+        exact ⟨rfl, rfl, hm.insert hd rfl⟩
+      | sort u =>
+        obtain ⟨l, rfl, hl⟩ := denote_sort_inv hwf hv hd
+        obtain ⟨w, s3, g3, k3⟩ := AM.bind_ok (α := Level) k2
+        obtain ⟨rfl, hw⟩ := readLevel_run g3
+        rw [hl] at hw
+        obtain rfl := Option.some.inj hw
+        obtain ⟨t2, s4, gX, rfl, rfl⟩ := lpdClose k3
+        obtain ⟨hq, rfl⟩ := AM.pure_ok gX
+        simp only [Prod.mk.injEq] at hq
+        obtain ⟨rfl, rfl⟩ := hq
+        exact ⟨rfl, rfl, hm.insert hd rfl⟩
+      | const n us =>
+        obtain ⟨nm, ls, rfl, -, hls⟩ := denote_const_inv hwf hv hd
+        obtain ⟨w, s3, g3, k3⟩ := AM.bind_ok (α := List Level) k2
+        obtain ⟨rfl, hw⟩ := readLevels_run g3
+        rw [hls] at hw
+        obtain rfl := Option.some.inj hw
+        obtain ⟨t2, s4, gX, rfl, rfl⟩ := lpdClose k3
+        obtain ⟨hq, rfl⟩ := AM.pure_ok gX
+        simp only [Prod.mk.injEq] at hq
+        obtain ⟨rfl, rfl⟩ := hq
+        exact ⟨rfl, rfl, hm.insert hd rfl⟩
+      | fvar k t =>
+        obtain ⟨xt, rfl, hxt⟩ := denote_fvar_inv hwf hv hd
+        obtain ⟨t2, s3, gX, rfl, rfl⟩ := lpdClose k2
+        obtain ⟨rfl, hb, hm2⟩ := ih hok hm hxt gX
+        exact ⟨rfl, hb, hm2.insert hd hb⟩
+      | proj n i sub =>
+        obtain ⟨nm, xe, rfl, -, hxe⟩ := denote_proj_inv hwf hv hd
+        obtain ⟨t2, s3, gX, rfl, rfl⟩ := lpdClose k2
+        obtain ⟨rfl, hb, hm2⟩ := ih hok hm hxe gX
+        exact ⟨rfl, hb, hm2.insert hd hb⟩
+      | app f a =>
+        obtain ⟨xf, xa, rfl, hxf, hxa⟩ := denote_app_inv hwf hv hd
+        obtain ⟨q1, s3, g3, k3⟩ :=
+          AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k2
+        obtain ⟨b1, tb1⟩ := q1
+        obtain ⟨rfl, hb1, hm1⟩ := ih hok hm hxf g3
+        rcases AM.ite_ok k3 with ⟨hc, k4⟩ | ⟨hc, k4⟩
+        · obtain ⟨t2, s4, gX, rfl, rfl⟩ := lpdClose k4
+          obtain ⟨rfl, hb2, hm2⟩ := ih hok hm1 hxa gX
+          have hct : b1 = true := hc
+          have hres : b = Expr.allLevelParamsDefined params (.app xf xa) := by
+            simp only [Expr.allLevelParamsDefined, ← hb1, ← hb2, hct,
+              Bool.true_and]
+          exact ⟨rfl, hres, hm2.insert hd hres⟩
+        · obtain ⟨t2, s4, gX, rfl, rfl⟩ := lpdClose k4
+          obtain ⟨hq, rfl⟩ := AM.pure_ok gX
+          simp only [Prod.mk.injEq] at hq
+          obtain ⟨rfl, rfl⟩ := hq
+          have hbf : b1 = false := by simpa using hc
+          have hres : (false : Bool)
+              = Expr.allLevelParamsDefined params (.app xf xa) := by
+            simp only [Expr.allLevelParamsDefined, ← hb1, hbf, Bool.false_and]
+          exact ⟨rfl, hres, hm1.insert hd hres⟩
+      | lam t bd m =>
+        obtain ⟨xt, xb, rfl, hxt, hxb⟩ := denote_lam_inv hwf hv hd
+        obtain ⟨q1, s3, g3, k3⟩ :=
+          AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k2
+        obtain ⟨b1, tb1⟩ := q1
+        obtain ⟨rfl, hb1, hm1⟩ := ih hok hm hxt g3
+        rcases AM.ite_ok k3 with ⟨hc, k4⟩ | ⟨hc, k4⟩
+        · obtain ⟨t2, s4, gX, rfl, rfl⟩ := lpdClose k4
+          obtain ⟨hq, rfl⟩ := AM.pure_ok gX
+          simp only [Prod.mk.injEq] at hq
+          obtain ⟨rfl, rfl⟩ := hq
+          have hbf : b1 = false := by simpa using hc
+          have hres : (false : Bool)
+              = Expr.allLevelParamsDefined params (.lam xt xb m) := by
+            simp only [Expr.allLevelParamsDefined, ← hb1, hbf, Bool.false_and]
+          exact ⟨rfl, hres, hm1.insert hd hres⟩
+        · obtain ⟨q2, s4, g4, k5⟩ :=
+            AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k4
+          obtain ⟨b2, tb2⟩ := q2
+          obtain ⟨rfl, hb2, hm2⟩ := ih hok hm1 hxb g4
+          obtain ⟨t2, s5, gX, rfl, rfl⟩ := lpdClose k5
+          obtain ⟨hq, rfl⟩ := AM.pure_ok gX
+          simp only [Prod.mk.injEq] at hq
+          obtain ⟨rfl, rfl⟩ := hq
+          have hbt : b1 = true := by simpa using hc
+          have hres : (b2 && ConLeche.PropWhen.paramsDefined params m.pw)
+              = Expr.allLevelParamsDefined params (.lam xt xb m) := by
+            simp only [Expr.allLevelParamsDefined, ← hb1, ← hb2, hbt,
+              Bool.true_and]
+          exact ⟨rfl, hres, hm2.insert hd hres⟩
+      | forallE t bd m =>
+        obtain ⟨xt, xb, rfl, hxt, hxb⟩ := denote_forallE_inv hwf hv hd
+        obtain ⟨q1, s3, g3, k3⟩ :=
+          AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k2
+        obtain ⟨b1, tb1⟩ := q1
+        obtain ⟨rfl, hb1, hm1⟩ := ih hok hm hxt g3
+        rcases AM.ite_ok k3 with ⟨hc, k4⟩ | ⟨hc, k4⟩
+        · obtain ⟨t2, s4, gX, rfl, rfl⟩ := lpdClose k4
+          obtain ⟨hq, rfl⟩ := AM.pure_ok gX
+          simp only [Prod.mk.injEq] at hq
+          obtain ⟨rfl, rfl⟩ := hq
+          have hbf : b1 = false := by simpa using hc
+          have hres : (false : Bool)
+              = Expr.allLevelParamsDefined params (.forallE xt xb m) := by
+            simp only [Expr.allLevelParamsDefined, ← hb1, hbf, Bool.false_and]
+          exact ⟨rfl, hres, hm1.insert hd hres⟩
+        · obtain ⟨q2, s4, g4, k5⟩ :=
+            AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k4
+          obtain ⟨b2, tb2⟩ := q2
+          obtain ⟨rfl, hb2, hm2⟩ := ih hok hm1 hxb g4
+          obtain ⟨t2, s5, gX, rfl, rfl⟩ := lpdClose k5
+          obtain ⟨hq, rfl⟩ := AM.pure_ok gX
+          simp only [Prod.mk.injEq] at hq
+          obtain ⟨rfl, rfl⟩ := hq
+          have hbt : b1 = true := by simpa using hc
+          have hres : (b2 && ConLeche.PropWhen.paramsDefined params m.pw)
+              = Expr.allLevelParamsDefined params (.forallE xt xb m) := by
+            simp only [Expr.allLevelParamsDefined, ← hb1, ← hb2, hbt,
+              Bool.true_and]
+          exact ⟨rfl, hres, hm2.insert hd hres⟩
+      | letE t w bd =>
+        obtain ⟨xt, xw, xb, rfl, hxt, hxw, hxb⟩ := denote_letE_inv hwf hv hd
+        obtain ⟨q1, s3, g3, k3⟩ :=
+          AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k2
+        obtain ⟨b1, tb1⟩ := q1
+        obtain ⟨rfl, hb1, hm1⟩ := ih hok hm hxt g3
+        rcases AM.ite_ok k3 with ⟨hc, k4⟩ | ⟨hc, k4⟩
+        · obtain ⟨t2, s4, gX, rfl, rfl⟩ := lpdClose k4
+          obtain ⟨hq, rfl⟩ := AM.pure_ok gX
+          simp only [Prod.mk.injEq] at hq
+          obtain ⟨rfl, rfl⟩ := hq
+          have hbf : b1 = false := by simpa using hc
+          have hres : (false : Bool)
+              = Expr.allLevelParamsDefined params (.letE xt xw xb) := by
+            simp only [Expr.allLevelParamsDefined, ← hb1, hbf, Bool.false_and]
+          exact ⟨rfl, hres, hm1.insert hd hres⟩
+        · obtain ⟨q2, s4, g4, k5⟩ :=
+            AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k4
+          obtain ⟨b2, tb2⟩ := q2
+          obtain ⟨rfl, hb2, hm2⟩ := ih hok hm1 hxw g4
+          rcases AM.ite_ok k5 with ⟨hc2, k6⟩ | ⟨hc2, k6⟩
+          · obtain ⟨t2, s5, gX, rfl, rfl⟩ := lpdClose k6
+            obtain ⟨hq, rfl⟩ := AM.pure_ok gX
+            simp only [Prod.mk.injEq] at hq
+            obtain ⟨rfl, rfl⟩ := hq
+            have hbt : b1 = true := by simpa using hc
+            have hbf : b2 = false := by simpa using hc2
+            have hres : (false : Bool)
+                = Expr.allLevelParamsDefined params (.letE xt xw xb) := by
+              simp only [Expr.allLevelParamsDefined, ← hb1, ← hb2, hbt, hbf,
+                Bool.true_and, Bool.false_and]
+            exact ⟨rfl, hres, hm2.insert hd hres⟩
+          · obtain ⟨t2, s5, gX, rfl, rfl⟩ := lpdClose k6
+            obtain ⟨rfl, hb3, hm3⟩ := ih hok hm2 hxb gX
+            have hbt : b1 = true := by simpa using hc
+            have hbt2 : b2 = true := by simpa using hc2
+            have hres : b
+                = Expr.allLevelParamsDefined params (.letE xt xw xb) := by
+              simp only [Expr.allLevelParamsDefined, ← hb1, ← hb2, ← hb3, hbt,
+                hbt2, Bool.true_and]
+            exact ⟨rfl, hres, hm3.insert hd hres⟩
+
 /-- con-leche: ConLeche/Kernel/Level.lean:405-407
 Expr.allLevelParamsDefinedFast — **Theorem 1 for the front door's
 level-parameter guard**: the memoised DAG walk answers what con-leche's
 `allLevelParamsDefined` answers at the denoted parameter list.
 
-`sorry`: the fuel induction in `Bridge/ExprOps/Walks.lean`'s shape, with
-`LPDMemoOK` threaded (the walk's `memo` is an explicit argument-and-result
-pair, so the invariant is a hypothesis and a conclusion rather than a state
-clause).  Task #97-P3-Checker's sorry list, item 9. -/
+**PROVED** (task #97-P3-Checker round 4): `readNames_run` and then
+`allLevelParamsDefinedGo_run`'s fuel induction at the empty memo. -/
 theorem allLevelParamsDefined_run {lps : List NIdx} {ks : List ConLeche.Name}
     {e : EIdx} {x : Expr} {r : Bool} {s s' : AState} (hok : StateOK s)
     (hlps : Frontend.denoteNList s.store.ns lps = some ks)
@@ -117,7 +390,18 @@ theorem allLevelParamsDefined_run {lps : List NIdx} {ks : List ConLeche.Name}
     (hrun : allLevelParamsDefined lps e s = .ok (r, s')) :
     s'.store = s.store ∧ s'.caches = s.caches ∧ s'.pins = s.pins ∧
       r = Expr.allLevelParamsDefined ks x := by
-  sorry
+  simp only [Arena.allLevelParamsDefined] at hrun
+  obtain ⟨ks2, s1, g1, k1⟩ := AM.bind_ok (α := List ConLeche.Name) hrun
+  obtain ⟨rfl, hks⟩ := readNames_run g1
+  rw [hlps] at hks
+  obtain rfl := Option.some.inj hks
+  obtain ⟨p, s2, g2, k2⟩ :=
+    AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k1
+  obtain ⟨b, tb⟩ := p
+  obtain ⟨rfl, hb, -⟩ :=
+    allLevelParamsDefinedGo_run coreWalkFuel hok LPDMemoOK.empty hd g2
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
+  exact ⟨rfl, rfl, rfl, hb⟩
 
 /-- con-leche: ConLeche/Kernel/DeclCheck.lean:197-199 Expr.constsResolveFFast
 — **Theorem 1 for the front door's unresolved-constant guard**: the memoised

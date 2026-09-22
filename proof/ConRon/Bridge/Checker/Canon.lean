@@ -124,14 +124,6 @@ theorem viewL_run {h : LIdx} {s s' : AState} {v : LNodeView}
   AM.of_run (P := fun t => t = s)
     (Q := fun r t => t = s ∧ s.store.ls.view h = some r) rfl hr (viewL_spec s h)
 
-/-- con-leche: none — `view`'s inversion, off `Bridge/Specs.lean`'s triple.
-(`Bridge/Inductives/Rel.lean` has the same three lines under the name
-`view_run`, one tier ABOVE this one, so this tier carries its own.) -/
-theorem viewE_run {h : EIdx} {s s' : AState} {v : ENodeView}
-    (hr : view h s = .ok (v, s')) : s' = s ∧ s.store.view h = some v :=
-  AM.of_run (P := fun t => t = s)
-    (Q := fun r t => t = s ∧ s.store.view h = some r) rfl hr (view_spec s h)
-
 /-- con-leche: none — trade the fuel for the rank once, at the top of each
 level inversion. -/
 theorem denoteL_view_eq {st : LStore} (hwf : LStoreWF st) {i : LIdx}
