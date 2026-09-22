@@ -233,14 +233,98 @@ theorem StateD_names_run {s : AState} {sd : StateD}
     simp only [List.mapM_cons, hcln, hclxs]
     rfl
 
+/-! ## The three rebinding guards
+
+Each is `if table.bound i then fail else pure ()`, so a successful run is the
+guard's own answer — and `IdTableRel.bound` makes con-leche's guard answer the
+same thing at the same index. -/
+
+/-- con-leche: ConLeche/Frontend/ExportC.lean:211-220 StateD.freshName. -/
+theorem freshName_run {s s' : AState} {sd : StateD} {i : Nat} {u : Unit}
+    (hrun : sd.freshName i s = .ok (u, s')) :
+    s' = s ∧ sd.names.bound i = false := by
+  rw [ConRon.Arena.Frontend.StateD.freshName] at hrun
+  by_cases hb : sd.names.bound i = true
+  · rw [if_pos hb] at hrun; exact absurd (AM.fail_ok hrun) (by simp)
+  · rw [if_neg hb] at hrun
+    exact ⟨(AM.pure_ok hrun).2, by simpa using hb⟩
+
+/-- con-leche: ConLeche/Frontend/ExportC.lean:221-222 StateD.freshLevel. -/
+theorem freshLevel_run {s s' : AState} {sd : StateD} {i : Nat} {u : Unit}
+    (hrun : sd.freshLevel i s = .ok (u, s')) :
+    s' = s ∧ sd.levels.bound i = false := by
+  rw [ConRon.Arena.Frontend.StateD.freshLevel] at hrun
+  by_cases hb : sd.levels.bound i = true
+  · rw [if_pos hb] at hrun; exact absurd (AM.fail_ok hrun) (by simp)
+  · rw [if_neg hb] at hrun
+    exact ⟨(AM.pure_ok hrun).2, by simpa using hb⟩
+
+/-- con-leche: ConLeche/Frontend/ExportC.lean:223-224 StateD.freshExpr. -/
+theorem freshExpr_run {s s' : AState} {sd : StateD} {i : Nat} {u : Unit}
+    (hrun : sd.freshExpr i s = .ok (u, s')) :
+    s' = s ∧ sd.exprs.bound i = false := by
+  rw [ConRon.Arena.Frontend.StateD.freshExpr] at hrun
+  by_cases hb : sd.exprs.bound i = true
+  · rw [if_pos hb] at hrun; exact absurd (AM.fail_ok hrun) (by simp)
+  · rw [if_neg hb] at hrun
+    exact ⟨(AM.pure_ok hrun).2, by simpa using hb⟩
+
+/-! ## The three table writes
+
+`PersStateD` at an inserted index, once per table: the new handle is the
+intern's (persistent because the scratch tier is closed), and every other
+index is the old table's. -/
+
+theorem PersStateD.insertName {sd : StateD} (hp : PersStateD sd) {i : Nat}
+    {h : NIdx} (hh : PersN h) :
+    PersStateD { sd with names := sd.names.insert i h } where
+  names := by
+    intro j x hx
+    rw [ConLeche.Frontend.IdTable.get?_insert] at hx
+    split at hx
+    · rw [← Option.some.inj hx]; exact hh
+    · exact hp.names j x hx
+  levels := hp.levels
+  exprs := hp.exprs
+  decls := hp.decls
+
+theorem PersStateD.insertLevel {sd : StateD} (hp : PersStateD sd) {i : Nat}
+    {l : LIdx} (hl : PersL l) :
+    PersStateD { sd with levels := sd.levels.insert i l } where
+  names := hp.names
+  levels := by
+    intro j x hx
+    rw [ConLeche.Frontend.IdTable.get?_insert] at hx
+    split at hx
+    · rw [← Option.some.inj hx]; exact hl
+    · exact hp.levels j x hx
+  exprs := hp.exprs
+  decls := hp.decls
+
+theorem PersStateD.insertExpr {sd : StateD} (hp : PersStateD sd) {i : Nat}
+    {e : EIdx} (he : PersE e) :
+    PersStateD { sd with exprs := sd.exprs.insert i e } where
+  names := hp.names
+  levels := hp.levels
+  exprs := by
+    intro j x hx
+    rw [ConLeche.Frontend.IdTable.get?_insert] at hx
+    split at hx
+    · rw [← Option.some.inj hx]; exact he
+    · exact hp.exprs j x hx
+  decls := hp.decls
+
 /-! ## The three entry parsers -/
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:229 parseNameEntryD — a name
 entry: the rebinding guard (`IdTableRel.bound` makes it fire on the same
 indices), the parent read, the intern, the table insert.
 
-`sorry`: two arms over `Bridge/StoreNested.lean`'s `EStore.internName` spec
-and `IdTableRel.insert`.  Task #97-P3-Frontend's sorry list, item 5. -/
+Two arms, and they are the same four moves: `StateD_name_run` at the parent,
+`freshName_run` and `IdTableRel.bound` for the guard, `internNNode_istep`
+(`Bridge/Frontend/Shared.lean`) for the node, and `IdTableRel.insert` for the
+write — the whole of the rest of the relation moving across the append by
+`StateDRel.ext`. -/
 theorem parseNameEntryD_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {sd sd' : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
@@ -249,14 +333,65 @@ theorem parseNameEntryD_run {s s' : AState} (hok : StateOK s)
     ParseStep s s' ∧ PersStateD sd' ∧
       ∃ sc', ConLeche.Frontend.parseNameEntryD sc i r = .ok sc' ∧
         StateDRel s'.store sd' sc' := by
-  sorry
+  cases r with
+  | str pre str =>
+    rw [ConRon.Arena.Frontend.parseNameEntryD] at hrun
+    obtain ⟨p, s₁, hname, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨rfl, n, hcln, hdn⟩ := StateD_name_run hrel hname
+    obtain ⟨un, s₂, hfresh, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨rfl, hbound⟩ := freshName_run hfresh
+    obtain ⟨h, s₃, hin, hrest3⟩ := AM.bind_ok hrest2
+    obtain ⟨histep, hpn, hdh⟩ :=
+      internNNode_istep hok hoff
+        (by intro c hc
+            simp only [NNodeView.children, List.mem_singleton] at hc
+            subst hc; exact nview_isSome_of_denote hdn) hin
+    have hdh' : denoteN s₃.store.ns h = some (n.str str) := by
+      rw [hdh]
+      simp only [denoteNView, denoteN_ext hdn histep.ext, Option.map_some]
+    obtain ⟨hv, hs⟩ := AM.pure_ok hrest3
+    subst hs; subst hv
+    refine ⟨histep.toParse hoff, hp.insertName hpn,
+      { sc with names := sc.names.insert i (ConLeche.Name.str n str) }, ?_, ?_⟩
+    · rw [ConLeche.Frontend.parseNameEntryD]
+      simp only [hcln, ConLeche.Frontend.StateD.freshName,
+        ← hrel.names.bound i, hbound, Bool.false_eq_true, if_false]
+      rfl
+    · exact { StateDRel.ext histep.ext hrel with
+        names := (StateDRel.ext histep.ext hrel).names.insert hdh' }
+  | num pre k =>
+    rw [ConRon.Arena.Frontend.parseNameEntryD] at hrun
+    obtain ⟨p, s₁, hname, hrest⟩ := AM.bind_ok hrun
+    obtain ⟨rfl, n, hcln, hdn⟩ := StateD_name_run hrel hname
+    obtain ⟨un, s₂, hfresh, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨rfl, hbound⟩ := freshName_run hfresh
+    obtain ⟨h, s₃, hin, hrest3⟩ := AM.bind_ok hrest2
+    obtain ⟨histep, hpn, hdh⟩ :=
+      internNNode_istep hok hoff
+        (by intro c hc
+            simp only [NNodeView.children, List.mem_singleton] at hc
+            subst hc; exact nview_isSome_of_denote hdn) hin
+    have hdh' : denoteN s₃.store.ns h = some (n.num k) := by
+      rw [hdh]
+      simp only [denoteNView, denoteN_ext hdn histep.ext, Option.map_some]
+    obtain ⟨hv, hs⟩ := AM.pure_ok hrest3
+    subst hs; subst hv
+    refine ⟨histep.toParse hoff, hp.insertName hpn,
+      { sc with names := sc.names.insert i (ConLeche.Name.num n k) }, ?_, ?_⟩
+    · rw [ConLeche.Frontend.parseNameEntryD]
+      simp only [hcln, ConLeche.Frontend.StateD.freshName,
+        ← hrel.names.bound i, hbound, Bool.false_eq_true, if_false]
+      rfl
+    · exact { StateDRel.ext histep.ext hrel with
+        names := (StateDRel.ext histep.ext hrel).names.insert hdh' }
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:240 parseLevelEntryD — a level
 entry: four arms, each one `internLNode`.
 
-`sorry`: `Bridge/Specs.lean`'s `internLNode_spec` at four constructors plus
-`StateD_level_run` and `StateD_name_run` for the children.  Task
-#97-P3-Frontend's sorry list, item 5. -/
+The twin builds a level NODE where con-leche builds a `Level` constructor, so
+each arm is one `internLNode_istep` (`Bridge/Frontend/Shared.lean`) and one
+`denoteLView` unfolding; the children are table reads, and the guard is
+`IdTableRel.bound` as in `parseNameEntryD_run`. -/
 theorem parseLevelEntryD_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {sd sd' : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
@@ -265,7 +400,117 @@ theorem parseLevelEntryD_run {s s' : AState} (hok : StateOK s)
     ParseStep s s' ∧ PersStateD sd' ∧
       ∃ sc', ConLeche.Frontend.parseLevelEntryD sc i r = .ok sc' ∧
         StateDRel s'.store sd' sc' := by
-  sorry
+  rw [ConRon.Arena.Frontend.parseLevelEntryD] at hrun
+  obtain ⟨uf, s₀, hfresh, hrest⟩ := AM.bind_ok hrun
+  obtain ⟨hs0, hbound⟩ := freshLevel_run hfresh
+  rw [hs0] at hrest
+  -- the four arms differ only in the node they intern
+  have hcl : ∀ (l : LIdx) (s₃ : AState) (uP : Level), IStep s s₃ → PersL l →
+      denoteL s₃.store.ls l = some uP →
+      ∀ {x : StateD} {t : AState},
+        (pure { sd with levels := sd.levels.insert i l } : AM StateD) s₃
+          = .ok (x, t) →
+      (∃ lP, ConLeche.Frontend.parseLevelEntryD sc i r = .ok
+          { sc with levels := sc.levels.insert i lP } ∧ lP = uP) →
+      ParseStep s t ∧ PersStateD x ∧
+        ∃ sc', ConLeche.Frontend.parseLevelEntryD sc i r = .ok sc' ∧
+          StateDRel t.store x sc' := by
+    intro l s₃ uP histep hpl hdl x t hpure hcl
+    obtain ⟨hv, hs⟩ := AM.pure_ok hpure
+    subst hs; subst hv
+    obtain ⟨lP, hclP, rfl⟩ := hcl
+    exact ⟨histep.toParse hoff, hp.insertLevel hpl,
+      { sc with levels := sc.levels.insert i lP }, hclP,
+      { StateDRel.ext histep.ext hrel with
+        levels := (StateDRel.ext histep.ext hrel).levels.insert hdl }⟩
+  have hguard : ConLeche.Frontend.StateD.freshLevel sc i = .ok () := by
+    simp only [ConLeche.Frontend.StateD.freshLevel, ← hrel.levels.bound i,
+      hbound, Bool.false_eq_true, if_false]
+    rfl
+  cases r with
+  | succ u =>
+    obtain ⟨lu, s₁, hlu, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨hs1, uP, hclu, hdlu⟩ := StateD_level_run hrel hlu
+    rw [hs1] at hrest2
+    obtain ⟨l, s₂, hin, hrest3⟩ := AM.bind_ok hrest2
+    obtain ⟨histep, hpl, hdl⟩ :=
+      internLNode_istep hok hoff
+        (⟨by intro c hc
+             simp only [LNodeView.lchildren, List.mem_singleton] at hc
+             subst hc; exact lview_isSome_of_denote hdlu,
+          by intro c hc; simp only [LNodeView.nchildren] at hc; exact absurd hc (by simp)⟩) hin
+    refine hcl l s₂ uP.succ histep hpl ?_ hrest3 ⟨uP.succ, ?_, rfl⟩
+    · rw [hdl]
+      simp only [denoteLView, denoteL_ext hdlu histep.ext, Option.map_some]
+    · rw [ConLeche.Frontend.parseLevelEntryD]
+      simp only [hguard, hclu]
+      rfl
+  | max a b =>
+    obtain ⟨la, s₁, hla, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨hs1, aP, hcla, hdla⟩ := StateD_level_run hrel hla
+    rw [hs1] at hrest2
+    obtain ⟨lb, s₂, hlb, hrest3⟩ := AM.bind_ok hrest2
+    obtain ⟨hs2, bP, hclb, hdlb⟩ := StateD_level_run hrel hlb
+    rw [hs2] at hrest3
+    obtain ⟨l, s₃, hin, hrest4⟩ := AM.bind_ok hrest3
+    obtain ⟨histep, hpl, hdl⟩ :=
+      internLNode_istep hok hoff
+        (⟨by intro c hc
+             simp only [LNodeView.lchildren, List.mem_cons,
+               List.not_mem_nil, or_false] at hc
+             rcases hc with rfl | rfl
+             · exact lview_isSome_of_denote hdla
+             · exact lview_isSome_of_denote hdlb,
+          by intro c hc; simp only [LNodeView.nchildren] at hc; exact absurd hc (by simp)⟩) hin
+    refine hcl l s₃ (Level.max aP bP) histep hpl ?_ hrest4 ⟨Level.max aP bP, ?_, rfl⟩
+    · rw [hdl]
+      simp only [denoteLView, opt2_eq_some_iff]
+      exact ⟨aP, bP, denoteL_ext hdla histep.ext, denoteL_ext hdlb histep.ext, rfl⟩
+    · rw [ConLeche.Frontend.parseLevelEntryD]
+      simp only [hguard, hcla, hclb]
+      rfl
+  | imax a b =>
+    obtain ⟨la, s₁, hla, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨hs1, aP, hcla, hdla⟩ := StateD_level_run hrel hla
+    rw [hs1] at hrest2
+    obtain ⟨lb, s₂, hlb, hrest3⟩ := AM.bind_ok hrest2
+    obtain ⟨hs2, bP, hclb, hdlb⟩ := StateD_level_run hrel hlb
+    rw [hs2] at hrest3
+    obtain ⟨l, s₃, hin, hrest4⟩ := AM.bind_ok hrest3
+    obtain ⟨histep, hpl, hdl⟩ :=
+      internLNode_istep hok hoff
+        (⟨by intro c hc
+             simp only [LNodeView.lchildren, List.mem_cons,
+               List.not_mem_nil, or_false] at hc
+             rcases hc with rfl | rfl
+             · exact lview_isSome_of_denote hdla
+             · exact lview_isSome_of_denote hdlb,
+          by intro c hc; simp only [LNodeView.nchildren] at hc; exact absurd hc (by simp)⟩) hin
+    refine hcl l s₃ (Level.imax aP bP) histep hpl ?_ hrest4 ⟨Level.imax aP bP, ?_, rfl⟩
+    · rw [hdl]
+      simp only [denoteLView, opt2_eq_some_iff]
+      exact ⟨aP, bP, denoteL_ext hdla histep.ext, denoteL_ext hdlb histep.ext, rfl⟩
+    · rw [ConLeche.Frontend.parseLevelEntryD]
+      simp only [hguard, hcla, hclb]
+      rfl
+  | param n =>
+    obtain ⟨hn, s₁, hnm, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨hs1, nP, hcln, hdn⟩ := StateD_name_run hrel hnm
+    rw [hs1] at hrest2
+    obtain ⟨l, s₂, hin, hrest3⟩ := AM.bind_ok hrest2
+    obtain ⟨histep, hpl, hdl⟩ :=
+      internLNode_istep hok hoff
+        (⟨by intro c hc; simp only [LNodeView.lchildren] at hc; exact absurd hc (by simp),
+          by intro c hc
+             simp only [LNodeView.nchildren, List.mem_singleton] at hc
+             subst hc; exact nview_isSome_of_denote hdn⟩) hin
+    refine hcl l s₂ (Level.param nP) histep hpl ?_ hrest3 ⟨Level.param nP, ?_, rfl⟩
+    · rw [hdl]
+      have hdn' : denoteN s₂.store.ls.ns hn = some nP := denoteN_ext hdn histep.ext
+      simp only [denoteLView, hdn', Option.map_some]
+    · rw [ConLeche.Frontend.parseLevelEntryD]
+      simp only [hguard, hcln]
+      rfl
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:259 parseExprEntryD — **the
 expression entry, and the tier's real work**: ten constructors, each resolving
