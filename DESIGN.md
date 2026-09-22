@@ -46038,6 +46038,230 @@ bullets) and this section.  No Lean file, no Rust file, no script, no
 generated model — the gates cannot be affected by it, and the new environment
 variable is inert until something seeds the cache.
 
+### Task #97-SCC — the 100-function `partial_fixpoint` block: it really is one cycle, and the equations really are quadratic (2026-09-22, Opus under Fable)
+
+`Refine2/Core/Eqns.lean` pays ~1 020 s and 5.9 GB to derive 109
+`partial_fixpoint` unfolding equations at ≈ 9.4 s each, for a generated
+`mutual` block of **100** functions (`ConRon/Generated/Funs.lean:28309-34436`)
+plus a second of **9** (`:40250-40798`).  The question put to this task was the
+maintainer's: *"hard to believe that these 100 funcs are really mutually
+recursive."*  They are.  This section is the measurement that says so, the
+mechanism that explains why Aeneas emitted them as one block, the scaling law
+that makes 109 equations cost quadratically, and the one lever that is actually
+available to us.
+
+No proof file, no Rust file and no generated file was touched.  The diff is
+this section; the scratch, including a standalone Lean repro, is in
+`_tmp/a97scc/`.
+
+#### 1. The SCC computation — one component of exactly 100
+
+Two independent extractions, deliberately from different sources:
+
+* **From the generated Lean.**  Split `Funs.lean:28309-34436` on `^def `, take
+  each body up to its `partial_fixpoint`, tokenize on `[A-Za-z0-9_.']+`, and
+  keep every token that is one of the 100 defined names.  This is the graph
+  *Aeneas itself* works on (the pure-level call graph, §2), so it is the one
+  that decides the block.
+* **From the Rust.**  For each of the 100, locate the top-level `fn` in
+  `crates/con-ron-core/src/arena/{core,core_gated}.rs` by brace matching, strip
+  `//` comments, and take identifier occurrences.  This is the check that the
+  Lean graph has no edges Aeneas invented.
+
+Tarjan on each. **Both give one SCC of size 100 — no singletons, nothing
+outside the cycle.**  The second block is likewise one SCC of 9
+(`annotate_pis_leaf` … `knot_annotate`).  Restricting the Rust graph to the 100
+can only *lose* edges (a path through an excluded node disappears), so a
+100-SCC on the restricted graph is a lower bound: the true component is at
+least that big.
+
+The cycle is not diffuse.  A greedy feedback-vertex-set search finds that
+deleting **8** of the 100 makes the graph acyclic —
+`knot_whnf_core`, `knot_whnf`, `knot_infer`, `knot_infer_io`, `knot_defeq`,
+`whnf_step`, `whnf_app`, `defeq_loop` — and deleting just the **six `knot_*`
+dispatchers** leaves 87 components whose largest is **6**
+(`defeq_after_whnf`, `defeq_delta`, `defeq_delta_both`, `defeq_loop`,
+`defeq_step`, `defeq_unfold_both`), then 2 (`whnf_loop`/`whnf_step`) and 2
+(`beta_peel`/`whnf_app`).  Callers of the knots: `knot_whnf` 28,
+`knot_infer_io` 18, `knot_defeq` 17, `knot_infer` 11, `knot_whnf_core` 9.
+
+So the whole 100-cycle is the kernel's own knot, and it is the classic one —
+**whnf ↔ infer ↔ defeq**.  Witness paths (shortest, by BFS):
+
+```
+knot_whnf      → whnf_body → whnf_loop → whnf_step → knot_whnf_core
+               → whnf_core_body_gated → whnf_core_app_gated → knot_infer
+knot_infer     → infer_body → infer_app → infer_spine → knot_defeq
+knot_defeq     → defeq_body → defeq_loop → defeq_step → bool_true_shortcut → knot_whnf
+```
+
+`whnf` needs `defeq` (iota certificates, structural η), `infer` needs `defeq`
+(spine checking), `defeq` needs `whnf`.  That is what a kernel is.  The
+`knot_*` functions are where con-ron ties it (they are also the memo points and
+the lane dispatchers, `core.rs:11257-11496`), so every arm routes through them
+and the component is total.
+
+**Lane multiplexing is not the cause.**  One plausible story — that the three
+lanes (`LANE_FULL`, `LANE_GATED`, `LANE_IO`) are glued into one cycle because a
+single knot dispatches on `lane` at run time — accounts for almost nothing:
+only **7** of the 100 nodes are the IO lane (`infer_body_io`,
+`infer_forall_io`, `infer_forall_io_at`, `infer_app_io_at`, `infer_spine_io`,
+`infer_proj_io`, `knot_infer_io`) and **2** the gated lane
+(`whnf_core_body_gated`, `whnf_core_app_gated`).  Giving each lane its own knot
+would shave at most 9 nodes off a 91-node cycle.
+
+**Verdict on block size: no.**  There is no ordering, no module split and no
+Rust idiom that makes these smaller while keeping the model faithful, because
+the grouping is a fact about the call graph (§2) and the call graph is a fact
+about the kernel.  The only mechanisms that would shrink the block —
+`#[charon::opaque]` on the knots, or a builtin mapping — replace the body with
+an `axiom`, which is precisely the trust-surface move task #95 built a gate
+against.
+
+#### 2. Why Aeneas grouped them — it computed the SCCs, and it was right
+
+Read from the pinned Aeneas (`vendor/aeneas`, rev `505b6ca3`,
+`nightly-2026.09.09`; Charon `b104e24f`, supported version `0.1.254`):
+
+* **Charon** hands Aeneas the crate already partitioned into
+  `NonRecGroup`/`RecGroup` declaration groups, topologically ordered
+  (`Generated_FullAst.ml:255-285`).  Aeneas consumes that list verbatim
+  (`src/Translate.ml:1126`, `:1262-1268`); a `MixedGroup` is a hard error
+  (`:1257-1259` — this is F6 in `AENEAS_FINDINGS.md`).
+* **Aeneas then recomputes SCCs itself**, inside each Charon group, over the
+  *pure*-level nodes (a function plus its extracted loop functions):
+  `src/pure/ReorderDecls.ml:68` `group_reorder_fun_decls`, edges from
+  `compute_body_fun_deps` (`:24-55`), `let sccs = Scc.compute deps` (`:101`),
+  Tarjan via ocamlgraph in `src/utils/SCC.ml`.  The condensed DAG is built
+  explicitly (`sccs` + `scc_deps`, `SCC.ml:11-16`) and walked in dependency
+  order while preserving source order where possible.
+* **Distinct SCCs are never merged.**  There is no per-module, per-file or
+  per-translation-unit coalescing anywhere; `-split-files` only chooses which
+  output *file* a declaration lands in.  The containment is one-way: one Charon
+  `RecGroup` can be *split* into several Lean `mutual` blocks, never fused.
+* **Emission**: `mutual` is printed only when the SCC is recursive *and* has
+  more than one member (`src/extract/ExtractTypes.ml:141-149`); a
+  self-recursive singleton gets a bare `def … partial_fixpoint`.
+
+So our 100-block is Aeneas's own Tarjan output, and §1 reproduces it
+independently from two sources.  This closes the maintainer's question: Aeneas
+is not over-grouping.
+
+Two further facts worth having on record, because they close off the
+alternatives one would reach for next:
+
+* **`partial_fixpoint` is unconditional for the Lean backend.**  The entire
+  decision is `fun_decl_kind_to_post_qualif`
+  (`src/extract/ExtractBase.ml:1450-1458`): for Lean, every `SingleRec` /
+  `MutRec*` declaration gets `partial_fixpoint`, full stop.  There is no
+  termination analysis, no measure inference, and no Rust attribute that
+  changes it — Aeneas reads only `#[charon::rename]` / `#[aeneas::rename]`
+  (`ExtractBase.ml:249-257`).  Our `fuel: u64` decrements are invisible to it.
+* **`-decreases-clauses` is not usable here.**  `src/Main.ml:598-612` aborts
+  for the Lean backend if the crate contains *any* non-empty `RecGroup`, and
+  the measure and decreasing proof would have to be written by hand in a
+  generated `Clauses/Template.lean` anyway.  `-use-fuel` is rejected outright
+  for Lean (`Main.ml:526-529`).  Of Aeneas's full option list, **none** changes
+  recursive-group granularity.
+
+The only lever that moves block membership is restructuring the Rust call
+graph, which is what §1 rules out for this block.
+
+#### 3. The scaling law — one equation costs the whole block, so N of them are quadratic
+
+Synthetic, standalone, no Aeneas and no con-ron: a `mutual` block of N
+`partial_fixpoint` definitions over `Option Nat`, wired in a ring
+(`f i` calls `f (i+1 mod N)`) so the block is genuinely one SCC, with identical
+six-line bodies at every N — block size is the only variable.  Equations are
+realized exactly as `Eqns.lean` does it, through `Lean.Meta.getEqnsFor?` and
+`getUnfoldEqnFor?`.  Measure of record `perf stat -e instructions:u`, Lean
+**v4.33.0**, `LEAN_NUM_THREADS=1`, no `ulimit -v`.  "define" subtracts the
+1.919 G floor of `import Lean`; "all N" is (all − define).
+
+| N | define the block | one equation | all N equations | per-equation, amortized |
+|---|---|---|---|---|
+| 5 | 0.237 G | 0.148 G | — | — |
+| 10 | 0.506 G | 0.158 G | — | — |
+| 20 | 1.254 G | 0.180 G | **1.540 G** | 0.077 G |
+| 50 | 5.954 G | 0.263 G | **9.175 G** | 0.184 G |
+| 100 | 28.17 G | 0.479 G | **44.54 G** | 0.445 G |
+| 200 | 186.92 G | 0.955 G | **254.16 G** | 1.271 G |
+
+Wall (one run each, so indicative only): define 0.65 / 0.68 / 0.84 / 1.47 /
+4.47 / 28.67 s; all-N 1.22 / 2.06 / 6.84 / 34.88 s at N = 20/50/100/200.  Peak
+RSS 1.56 GB (the `import Lean` mmap floor) rising to 2.49 GB at N = 200 — the
+cost is time, not memory.
+
+Three readings:
+
+1. **One equation costs Θ(N).**  0.148 G at N=5 → 0.955 G at N=200.  The
+   derivation for one member is proportional to the *whole block*, not to that
+   member's body.
+2. **Nothing is shared between equations.**  The amortized per-equation cost in
+   the all-N runs (0.077 / 0.184 / 0.445 / 1.271 G) tracks the single-equation
+   cost minus the ~0.13 G constant of the elaborator command.  Realizing `f0`'s
+   equations buys nothing for `f1`.
+3. **Hence the total is quadratic**: 1.54 → 254.16 G for a 10× rise in N, i.e.
+   ≈ N^2.2.  Even *defining* the block is worse than quadratic (1.25 → 186.9 G,
+   ≈ N^2.2 with a steep tail: 6.6× for the last doubling).
+
+A second axis confirms that the linear term is block *size*, not block *count*:
+at fixed N = 50, widening each body from 1 to 8 recursive binds takes one
+equation from 0.259 G to 0.743 G; at N = 100, from 0.479 G (K=1) to 0.861 G
+(K=4).  So the cost is ≈ linear in the total term size of the block.
+
+Still present on **v4.34.0**, with a ~20 % smaller constant: all-N costs
+1.314 / 7.492 / 35.99 G at N = 20/50/100, ≈ N^2.05.
+
+**This is filable.**  Repro in `_tmp/a97scc/repro/` — `gen.py` (the generator),
+`measure.sh` (the sweep), `example_n50_one_equation.lean` (a checked-in
+instance that elaborates clean), `README.md` (the table above and the expected
+behaviour: derive the packed unfolding once per block and project each member's
+equation out of it, which would make the total linear).  Nothing in it mentions
+con-ron or Aeneas.
+
+The synthetic absolute is far below ours — 0.445 G ≈ 0.1 s per equation at
+N = 100 versus our measured 9.4 s — because our bodies are ~61 lines with 9–11
+parameters each in the `Result` monad, against six trivial lines.  The
+*shape* is what transfers: our 109 equations over a 100-block sit on the
+quadratic, and a hypothetical split into ten 10-blocks would cost about a tenth
+of the total.  §1 says we cannot have that split.
+
+#### 4. The one lever we do have: derive fewer equations
+
+Per-equation cost is linear in N and is not shared, so the total is exactly
+proportional to *how many* equations we realize.  Today `Eqns.lean` realizes
+**109**; counting occurrences of those names anywhere in hand-written
+`proof/ConRon/**` outside `Eqns.lean` itself, **25** are actually referenced.
+At 9.4 s each that is ~235 s of the ~1 020 s; the other **84** — the whole
+`annotate_*` block, most of `defeq_*`, all of `infer_*`, `iota_*`,
+`major_to_ctor_*` — are pre-derived speculatively.
+
+This is a snapshot, not a recommendation to cut to 25 today: the Core tier's
+arms are still being written and the set will grow.  The trade-off is sharp in
+both directions — a name that is in the list and unused wastes 9.4 s of
+`Eqns.lean`, and a name that is missing costs the *first arm file that rewrites
+with it* the same 9.4 s, in that file, un-cached for its siblings.  The right
+discipline is to keep the list equal to what the tier actually rewrites with
+and to re-check it when the tier closes; a script that diffs the `force_eqns`
+list against the names appearing in `rw`/`unfold`/`simp only` positions would
+make that cheap, and is the natural follow-up.
+
+#### 5. What this closes
+
+* "Hard to believe these 100 are really mutually recursive" — **they are**, by
+  two independent extractions, and Aeneas computed exactly that SCC with
+  Tarjan.  Smaller blocks would also not make for saner proofs here: the
+  87-component picture you get by deleting the six knots is what the *arms*
+  already reason about one at a time; the block is only ever monolithic at the
+  point where an unfolding equation is realized.
+* There is **no** Aeneas flag, Rust ordering, module split or attribute that
+  shrinks it without turning the knot into an axiom.
+* The Lean side **is** quadratic in block size, on 4.33 and 4.34, with a
+  self-contained repro ready to file.
+* The available saving is in the *number* of equations we derive, not in the
+  block.
+
 ### Task #97-P5-Specs — Theorem 2: finding 16's clause, and the eight readbacks (2026-09-22, Opus under Fable)
 
 Task #97-P5-3 round 3's **finding 16** said that `AOut` carried no
