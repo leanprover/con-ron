@@ -723,4 +723,98 @@ theorem CheckOK.mono {mode : CheckMode} {env : Env} {fe : IFEnv}
   pins := h.pins.mono hx hp
   ienv := h.ienv.mono hx
 
+/-! ### The LEVEL-VERDICT frame (task #97-P3-Frame)
+
+`CheckOK.mono` above wants `s'.caches = s.caches`, and that equation is FALSE
+of any call that compares two LEVEL handles.  `Arena/Core.lean`'s `lvlEq?` is
+a cached verdict walk: it probes `caches.lvlEqC`, and on a miss it reads both
+handles back through `readLevelM` — which writes `caches.readLC` — and records
+the verdict in `caches.lvlEqC`.  The Rust does exactly the same
+(`core.rs`'s `lvl_eq` → `read_level_m` twice → `lvl_eq_set`), so the port is
+not at fault and the frame is.
+
+`CacheFrame` is the honest frame, in `Bridge/Core/Walks/Frame.lean`'s
+`ReadbackFrame` shape:
+
+* **the record EQUATION** — the cache record afterwards is the record
+  beforehand with the two tables the call may write replaced.  One equation
+  rather than twelve: `rw` recovers each clause that did not move.
+* **two IMPLICATIONS** rather than facts, for the reason `ReadbackFrame`
+  gives: a `StateOK`-graded statement says nothing about cache CONTENTS, so a
+  frame that asserted `ReadLCacheOK` outright could not be proved there.  As
+  implications `.refl` is `id`, `.trans` composes, and a caller holding
+  `CheckOK` — which is where the two invariants live — gets them back.
+
+The second implication takes BOTH invariants, and that is not slack: on a
+miss the verdict inserted into `lvlEqC` is `Level.isEquiv` of whatever
+`readLevelM` answered, so a poisoned `readLC` poisons `lvlEqC`.  `LvlEqCacheOK`
+alone does not survive the call; the pair does. -/
+
+/-- con-leche: ConLeche/Verify/Cached/KnotC.lean:51 CSOK.insertWhnfCoreC —
+**the frame of a call that may compare LEVELS**: it moved `readLC` and
+`lvlEqC` and no other per-declaration table, and it kept their invariants. -/
+structure CacheFrame (s s' : AState) : Prop where
+  caches : s'.caches = { s.caches with
+    readLC := s'.caches.readLC, lvlEqC := s'.caches.lvlEqC }
+  readL : ReadLCacheOK s.caches.readLC s.store →
+    ReadLCacheOK s'.caches.readLC s'.store
+  lvlEq : ReadLCacheOK s.caches.readLC s.store →
+    LvlEqCacheOK s.caches.lvlEqC s.store →
+    LvlEqCacheOK s'.caches.lvlEqC s'.store
+
+/-- con-leche: none — the identity frame. -/
+theorem CacheFrame.refl (s : AState) : CacheFrame s s :=
+  ⟨rfl, id, fun _ h => h⟩
+
+/-- con-leche: none — frames compose. -/
+theorem CacheFrame.trans {a b c : AState} (h : CacheFrame a b)
+    (h' : CacheFrame b c) : CacheFrame a c where
+  caches := by rw [h'.caches, h.caches]
+  readL := fun x => h'.readL (h.readL x)
+  lvlEq := fun hr hl => h'.lvlEq (h.readL hr) (h.lvlEq hr hl)
+
+/-- con-leche: none — **the frame of a call that writes NO per-declaration
+table at all**, which is what the other ~110 twins of the inductive tier and
+every step of the parse but one deliver.  The two implications are the two
+invariants' own `mono` past the arena extension. -/
+theorem CacheFrame.of_eq {s s' : AState} (hc : s'.caches = s.caches)
+    (hx : Ext s.store s'.store) : CacheFrame s s' where
+  caches := by rw [hc]
+  readL := fun h => by rw [hc]; exact h.mono hx
+  lvlEq := fun _ h => by rw [hc]; exact h.mono hx
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **`CacheOK` past a level
+comparison**: twelve clauses that did not move, recovered from the one
+equation, and the two that did, carried by the frame itself. -/
+theorem CacheOK.monoF {mode : CheckMode} {env : Env} {s s' : AState}
+    (h : CacheOK mode env s) (hx : Ext s.store s'.store)
+    (hf : CacheFrame s s') : CacheOK mode env s' where
+  whnfCore := by rw [hf.caches]; exact h.whnfCore.mono hx
+  whnf := by rw [hf.caches]; exact h.whnf.mono hx
+  infer := by rw [hf.caches]; exact h.infer.mono hx
+  inferIO := by rw [hf.caches]; exact h.inferIO.mono hx
+  annot := by rw [hf.caches]; exact h.annot.mono hx
+  defeq := by rw [hf.caches]; exact h.defeq.mono hx
+  lvlEq := hf.lvlEq h.readL h.lvlEq
+  lvlsEq := by rw [hf.caches]; exact h.lvlsEq.mono hx
+  constTy := by rw [hf.caches]; exact h.constTy.mono hx
+  constVal := by rw [hf.caches]; exact h.constVal.mono hx
+  ruleRhs := by rw [hf.caches]; exact h.ruleRhs.mono hx
+  readL := hf.readL h.readL
+  readN := by rw [hf.caches]; exact h.readN.mono hx
+  readLs := by rw [hf.caches]; exact h.readLs.mono hx
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **`CheckOK` past a call
+that grows the arena and may compare levels**: `CheckOK.mono` with the cache
+equation replaced by the frame.  `CheckOK.mono` is the special case
+(`CacheFrame.of_eq`) and is kept because most callers still have it. -/
+theorem CheckOK.monoF {mode : CheckMode} {env : Env} {fe : IFEnv}
+    {s s' : AState} (h : CheckOK mode env fe s) (hok : StateOK s')
+    (hx : Ext s.store s'.store) (hf : CacheFrame s s')
+    (hp : s'.pins = s.pins) : CheckOK mode env fe s' where
+  state := hok
+  caches := h.caches.monoF hx hf
+  pins := h.pins.mono hx hp
+  ienv := h.ienv.mono hx
+
 end ConRon.Bridge

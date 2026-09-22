@@ -26,8 +26,16 @@ is why the tier's `Option` relation is not a one-sided implication.
 **No `sorry` in this module**, and it is the tier's first file at zero.
 `withSort_spec` moved from `PSpec` to `CSpec` on the way — round 2's finding,
 argued in `Bridge/Inductives/Rel.lean`'s frame section: `lvlEq?` fills two of
-the fourteen per-declaration cache tables, so `PStep`'s `caches` clause is
-false of any twin that calls it.
+the fourteen per-declaration cache tables.
+
+**It STAYS at `CSpec` after task #97-P3-Frame**, which widened `PStep`'s cache
+clause so that the FRAME is no longer what stands in the way
+(`Core.lvlEq?_frame` is closed at `StateOK`).  The ANSWER is.  `withSort`'s
+`isProp` field is `lvlEq?`'s verdict, `ShapeRel.isProp` is a conjunct of this
+statement, and a `lvlEqC` hit answers `Level.isEquiv` only because
+`LvlEqCacheOK` says so — an invariant `StateOK` does not carry.  At `PSpec`
+this theorem would be FALSE of a poisoned cache.  `CSpec` is the grade the
+answer lives at, not a weakening for convenience.
 -/
 import ConRon.Bridge.Inductives.StructParts
 

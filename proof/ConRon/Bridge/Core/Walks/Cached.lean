@@ -63,6 +63,7 @@ Read off `lvlEq?_spec` below; every cached walk follows it.
    every other group of the tier, and it is why this group is the cheap one.
 -/
 import ConRon.Bridge.Core.Walks.Frame
+import ConRon.Bridge.Promote.Pers
 
 namespace ConRon.Bridge.Core
 
@@ -402,6 +403,200 @@ theorem ruleRhsAt_spec (s₀ : AState) (recName ctor : NIdx) (lps : List NIdx)
   sorry
 
 
+
+/-! ## 4b. `lvlEq?`'s FRAME, with no cache-content hypothesis (task #97-P3-Frame)
+
+`lvlEq?_spec` above is the CORE grade's statement: `CheckOK` in, `CheckOK`
+out.  It is the right statement for a caller that needs the VERDICT, because
+the verdict a cache hit answers is `Level.isEquiv`'s only because
+`LvlEqCacheOK` says so.
+
+A caller at `StateOK` — `Bridge/Inductives/Rel.lean`'s `PStep`,
+`Bridge/Frontend/Rel.lean`'s `ParseStep` — needs something else, and something
+weaker: *which tables the call may have written*.  That is a fact about the
+program text and not about any invariant, and `lvlEq?_frame` is it.  It is
+what makes those two frames provable at `StateOK` now that task #97-P3-Frame
+has widened their cache clause to `Bridge/StateOK.lean`'s `CacheFrame`, and it
+is the concrete answer to "can the frame be carried at `StateOK`?": yes, and
+this is it.
+
+**Run form and not a triple, and the reason is the `[spec]` commitment.**
+`Bridge/Specs.lean`'s `readLevelM_spec` is registered `@[spec]`, so `mvcgen`
+applies it rather than unfolding `readLevelM`, and its hypothesis
+(`ReadLCacheOK s₀.caches.readLC s₀.store`) then appears as a verification
+condition a `StateOK`-graded proof cannot discharge.  A registered `[spec]`
+cannot be erased (`attribute [-spec]` is rejected) and `mvcgen` cannot be made
+to prefer a locally supplied theorem — `Frame.lean`'s note measured both.
+Taking the two do-blocks apart by hand costs twenty lines and commits to
+nothing.
+
+**Why the two implications' hypotheses are at the INITIAL state.**  The frame
+is NOT assembled as "the two readbacks, then the insert" by `CacheFrame.trans`,
+because the insert's own `lvlEq` obligation needs the two handles'
+DENOTATIONS, and those come from `readLevelM_spec` at `s` — a fact the
+intermediate state's `ReadLCacheOK` does not re-deliver.  So the whole miss
+branch is one `CacheFrame` whose implications quantify over `s`, and the
+readbacks' half of it is the only part that composes. -/
+
+section Frame
+
+/-- con-leche: none — `get` moves nothing and answers the state.  (The
+`ConRon.Bridge.Frontend` namespace has its own copy; this tier does not import
+that module.) -/
+theorem AM.get_ok {s s' t : AState} (h : (get : AM AState) s = .ok (t, s')) :
+    t = s ∧ s' = s := by
+  have he : ((s, s) : AState × AState) = (t, s') := Except.ok.inj h
+  exact ⟨(congrArg Prod.fst he).symm, (congrArg Prod.snd he).symm⟩
+
+/-- con-leche: none — `set` answers `()` at the state it was handed. -/
+theorem AM.set_ok {s s' t : AState} {u : Unit}
+    (h : (set t : AM Unit) s = .ok (u, s')) : s' = t := by
+  have he : (((), t) : Unit × AState) = (u, s') := Except.ok.inj h
+  exact (congrArg Prod.snd he).symm
+
+/-- con-leche: none — **`readLevelM`'s frame**, with no hypothesis: the
+memoised readback moves the readback memo and nothing else, whatever is in it.
+The `ReadLCacheOK` of `Bridge/Specs.lean`'s `readLevelM_spec` buys the
+DENOTATION, not the frame. -/
+theorem readLevelM_frame {s s' : AState} {h : LIdx} {l : Level}
+    (hrun : readLevelM h s = .ok (l, s')) :
+    s'.store = s.store ∧ s'.memos = s.memos ∧ s'.pins = s.pins ∧
+      s'.caches = { s.caches with readLC := s'.caches.readLC } := by
+  rw [readLevelM] at hrun
+  obtain ⟨t, s₁, hget, hrest⟩ := AM.bind_ok hrun
+  obtain ⟨ht, hs₁⟩ := AM.get_ok hget
+  rw [ht, hs₁] at hrest
+  cases hhit : s.caches.readLC[h]? with
+  | some x =>
+    rw [hhit] at hrest
+    obtain ⟨-, hs⟩ := AM.pure_ok hrest
+    rw [hs]
+    exact ⟨rfl, rfl, rfl, rfl⟩
+  | none =>
+    rw [hhit] at hrest
+    cases hd : denoteL s.store.ls h with
+    | none => rw [hd] at hrest; exact absurd hrest (AM.Never.fail _ _ _ _)
+    | some x =>
+      rw [hd] at hrest
+      obtain ⟨w, s₂, hset, hpure⟩ := AM.bind_ok hrest
+      have hs₂ := AM.set_ok hset
+      obtain ⟨-, hs⟩ := AM.pure_ok hpure
+      rw [hs, hs₂]
+      exact ⟨rfl, rfl, rfl, rfl⟩
+
+/-- con-leche: none — `readLevelM`'s two CONTENT conjuncts, read off
+`Bridge/Specs.lean`'s spec at a run.  Used only inside the implications of the
+two frames below, where the hypothesis is available. -/
+theorem readLevelM_denote {s s' : AState} {h : LIdx} {l : Level}
+    (hrl : ReadLCacheOK s.caches.readLC s.store)
+    (hrun : readLevelM h s = .ok (l, s')) :
+    denoteL s.store.ls h = some l ∧
+      ReadLCacheOK s'.caches.readLC s'.store := by
+  have hq := AM.of_run (P := fun t => t = s) rfl hrun (readLevelM_spec s h hrl)
+  exact ⟨hq.2.2.2.2.1, hq.2.2.2.2.2⟩
+
+/-- con-leche: none — a `readLevelM` call IS a `CacheFrame`: the record
+equation is the frame above, the `readL` implication is the spec's last
+conjunct, and `lvlEqC` did not move at all. -/
+theorem CacheFrame.ofReadLevelM {s s' : AState} {h : LIdx} {l : Level}
+    (hrun : readLevelM h s = .ok (l, s')) : CacheFrame s s' := by
+  obtain ⟨hst, -, -, hc⟩ := readLevelM_frame hrun
+  have hle : s'.caches.lvlEqC = s.caches.lvlEqC := by rw [hc]
+  exact
+    { caches := by rw [hle]; exact hc
+      readL := fun hrl => (readLevelM_denote hrl hrun).2
+      lvlEq := fun _ h' => by rw [hle, hst]; exact h' }
+
+/-- con-leche: ConLeche/Kernel/Level.lean:158-163 isEquiv — **`lvlEq?`'s
+FRAME**, `Bridge/StateOK.lean`'s `CacheFrame` at the one walk it was written
+for: the cached level comparison writes `readLC` (twice, through `readLevelM`)
+and `lvlEqC`, no other per-declaration table, and neither the store, the
+per-call memos nor the pin table.
+
+The `lvlEq` implication takes BOTH invariants, and that is not slack: the row
+the miss inserts is `Level.isEquiv` of what `readLevelM` answered, so a
+poisoned `readLC` would poison `lvlEqC`.  `CacheFrame`'s shape is forced by
+the program. -/
+theorem lvlEq?_frame {s s' : AState} {u v : LIdx} {r : Option Bool}
+    (hrun : lvlEq? u v s = .ok (r, s')) :
+    s'.store = s.store ∧ s'.memos = s.memos ∧ s'.pins = s.pins ∧
+      CacheFrame s s' := by
+  rw [lvlEq?] at hrun
+  obtain ⟨t, s₁, hget, hrest⟩ := AM.bind_ok hrun
+  obtain ⟨ht, hs₁⟩ := AM.get_ok hget
+  rw [ht, hs₁] at hrest
+  cases hhit : s.caches.lvlEqC[(u, v)]? with
+  | some b =>
+    -- the HIT: the probe writes nothing
+    rw [hhit] at hrest
+    obtain ⟨-, hs⟩ := AM.pure_ok hrest
+    rw [hs]
+    exact ⟨rfl, rfl, rfl, CacheFrame.refl _⟩
+  | none =>
+    rw [hhit] at hrest
+    obtain ⟨lu, s₂, hru, hrest2⟩ := AM.bind_ok hrest
+    obtain ⟨lv, s₃, hrv, hrest3⟩ := AM.bind_ok hrest2
+    obtain ⟨hst1, hm1, hp1, -⟩ := readLevelM_frame hru
+    obtain ⟨hst2, hm2, hp2, -⟩ := readLevelM_frame hrv
+    have hf12 : CacheFrame s s₃ :=
+      (CacheFrame.ofReadLevelM hru).trans (CacheFrame.ofReadLevelM hrv)
+    have hst : s₃.store = s.store := hst2.trans hst1
+    have hm : s₃.memos = s.memos := hm2.trans hm1
+    have hp : s₃.pins = s.pins := hp2.trans hp1
+    cases heq : Level.isEquiv lu lv with
+    | none =>
+      -- fuel exhaustion on the pure side: never cached
+      rw [heq] at hrest3
+      obtain ⟨-, hs⟩ := AM.pure_ok hrest3
+      rw [hs]
+      exact ⟨hst, hm, hp, hf12⟩
+    | some b =>
+      rw [heq] at hrest3
+      obtain ⟨t', s₄, hget', hrest4⟩ := AM.bind_ok hrest3
+      obtain ⟨ht', hs₄⟩ := AM.get_ok hget'
+      rw [ht', hs₄] at hrest4
+      obtain ⟨w, s₅, hset, hpure⟩ := AM.bind_ok hrest4
+      have hs₅ := AM.set_ok hset
+      obtain ⟨-, hs⟩ := AM.pure_ok hpure
+      rw [hs]
+      -- the insert's own projections, read off the `set`
+      have hstore5 : s₅.store = s₃.store := by rw [hs₅]
+      have hmemos5 : s₅.memos = s₃.memos := by rw [hs₅]
+      have hpins5 : s₅.pins = s₃.pins := by rw [hs₅]
+      have hread5 : s₅.caches.readLC = s₃.caches.readLC := by rw [hs₅]
+      have hlvl5 :
+          s₅.caches.lvlEqC =
+            (if s₃.caches.lvlEqC.size < cacheCap then s₃.caches.lvlEqC
+              else ∅).insert (u, v) b := by
+        rw [hs₅]
+      have hc5 :
+          s₅.caches =
+            { s₃.caches with
+              readLC := s₅.caches.readLC
+              lvlEqC := s₅.caches.lvlEqC } := by
+        rw [hs₅]
+      refine ⟨hstore5.trans hst, hmemos5.trans hm, hpins5.trans hp,
+        ?_, ?_, ?_⟩
+      · -- the record equation: the readbacks moved `readLC`, the insert
+        -- moved `lvlEqC`, and nothing else moved
+        refine hc5.trans ?_
+        rw [hf12.caches]
+      · -- `readLC` does not move across the insert
+        intro hrl
+        rw [hread5, hstore5]
+        exact hf12.readL hrl
+      · -- the row the insert writes IS the verdict at the two denotations,
+        -- which is where both hypotheses are spent
+        intro hrl hle
+        obtain ⟨hdu, hrl2⟩ := readLevelM_denote hrl hru
+        obtain ⟨hdv, -⟩ := readLevelM_denote hrl2 hrv
+        rw [hlvl5, hstore5]
+        exact LvlEqCacheOK.insert_capped (hf12.lvlEq hrl hle)
+          (by rw [hst]; exact hdu) (by rw [hst2]; exact hdv) heq
+
+end Frame
+
+
 /-! ## 5. The axiom census
 
 DESIGN §8's gate for every tier of this library, at this module's closed
@@ -432,6 +627,14 @@ section Census
 `Arena/Core.lean` with a theorem, and both sorry-free. -/
 #print axioms lvlEq?_spec
 #print axioms lvlsEq?_spec
+
+/-! **The frames task #97-P3-Frame owes `PStep` and `ParseStep`**, all four
+closed: the `StateOK`-graded answer to "which tables may a level comparison
+have written". -/
+#print axioms readLevelM_frame
+#print axioms readLevelM_denote
+#print axioms CacheFrame.ofReadLevelM
+#print axioms lvlEq?_frame
 
 /-! The three that are `sorry` — `sorryAx` is EXPECTED on exactly these
 (DESIGN §8's `### Task #97-P3-CoreWalks` §7). -/

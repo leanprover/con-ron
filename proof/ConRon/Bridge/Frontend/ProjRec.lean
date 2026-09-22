@@ -174,13 +174,34 @@ computes the `filterMap` first and the two guards only when it is non-empty,
 which is the same value because both guard branches return `[]` and an empty
 `filterMap` makes the whole function `[]` whatever the guards say.
 
+**THE ONE PLACE IN THE PARSE THAT MOVES A PER-DECLARATION CACHE** (task
+#97-P3-Frame).  Both guards are recognisers of the Inductives tier, and each
+computes its `isProp` field with `Arena/Core.lean`'s `lvlEq?` — a cached
+verdict walk that probes `lvlEqC` and on a miss writes `readLC` (twice,
+through `readLevelM`) and `lvlEqC`.  Round one's `ParseStep` said
+`s'.caches = s.caches`, which is false of this run; `ParseStep`'s cache clause
+is now `Bridge/StateOK.lean`'s `CacheFrame` and this statement is true as it
+stands.  Nothing here moves up to `CheckOK`, and nothing needs to:
+
+* the FRAME is `Core.lvlEq?_frame` (`Bridge/Core/Walks/Cached.lean`, closed),
+  which takes no cache-content hypothesis at all — the tables a call writes
+  are a fact about the program text;
+* the ANSWER does not depend on the verdict.  `isProp` fills a FIELD of a
+  record the recogniser has already decided to return, and this walk reads the
+  recognisers through `.isSome` alone, so a wrong `isProp` could not change
+  `os`.  (That is also why the two recognisers' own statements stay at `CSpec`
+  and this one does not have to follow them up: their `…Rel.isProp` conjunct
+  is what needs `LvlEqCacheOK`, and this walk never looks at it.  What it
+  needs from that tier is an `isSome`-only lemma at `StateOK`, named in the
+  `sorry` below.)
+
 `sorry`: `projRecCandidates_run` (the `filterMap`, a list induction over
 `findCtorRec_run` / `findRecRec_run`), then the reordering argument — a
 `cases` on the candidate list with the empty arm closing by `rfl` on both
-sides — and the two recognisers' exactness, which belongs to the Inductives
-tier (`Arena/Inductives/StructParts.lean`, `NativeParts.lean`) and is
-imported here as a hypothesis-free call once that tier states it.  Task
-#97-P3-Frontend's sorry list, item 13. -/
+sides — and the two recognisers' `isSome` exactness AT `StateOK`, which
+belongs to the Inductives tier (`Arena/Inductives/StructParts.lean`,
+`NativeParts.lean`) and is imported here as a hypothesis-free call once that
+tier states it.  Task #97-P3-Frontend's sorry list, item 13. -/
 theorem projRecOwners_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {fuel : Nat} {block : List IConstantInfo}
     {blockP : List ConstantInfo} (hb : denoteCIList s.store block = some blockP)

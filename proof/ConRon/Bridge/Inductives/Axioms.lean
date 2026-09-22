@@ -42,6 +42,7 @@ namespace ConRon.Bridge.Inductives
 -- the two frames and the bridge between them
 #print axioms PStep.refl
 #print axioms PStep.trans
+#print axioms PStep.of_caches
 #print axioms PStep.toCore
 #print axioms PSpec.toCSpec
 

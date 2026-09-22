@@ -552,10 +552,15 @@ con-leche recognises would take the other route.
 
 **CORE grade, not pure** (task #97-P3-Ind round 2's finding; the argument is
 in `Bridge/Inductives/Rel.lean`'s frame section).  The recogniser reads the
-former's result sort and asks `lvlEq? s z` for `isProp`, and `lvlEq?` fills
-two per-declaration cache tables — so `PStep`'s `caches` clause, which round 1
-stated here, is false of it.  `structShape` itself is untouched and stays
-pure: the `lvlEq?` call is in `structPartsCore?`'s own body.
+former's result sort and asks `lvlEq? s z` for `isProp`.  `structShape` itself
+is untouched and stays pure: the `lvlEq?` call is in `structPartsCore?`'s own
+body.
+
+**It stays here after task #97-P3-Frame.**  That task made `PStep`'s cache
+clause true of a `lvlEq?` call, so the FRAME no longer forces the grade — but
+`RSParts` carries `SPartsRel.isProp`, which is the verdict, and the verdict a
+cache hit answers is `Level.isEquiv`'s only under `LvlEqCacheOK`.  `StateOK`
+does not carry it, so the ANSWER forces the grade instead.
 
 `sorry`: `structShape_spec`, `stripLams`' and `stripPis`' specs, the reserved
 name table through `PinsOK`, `lvlEq?_spec` (closed) and `internNNode_spec` at

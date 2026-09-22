@@ -623,8 +623,10 @@ reads it.
 
 **CORE grade, not pure** (task #97-P3-Ind round 2's finding; the argument is
 in `Bridge/Inductives/Rel.lean`'s frame section).  Like `structPartsCore?`
-this recogniser asks `lvlEq? s z` for `isProp`, and `lvlEq?` moves two of the
-fourteen per-declaration cache tables, so `PStep` is the wrong frame.
+this recogniser asks `lvlEq? s z` for `isProp`.  Task #97-P3-Frame made the
+FRAME provable at `StateOK` and left the grade alone: `RShape` carries
+`ShapeRel.isProp`, so the ANSWER still needs `LvlEqCacheOK` and `StateOK` does
+not carry it.
 
 `sorry`: `sumSplit_spec` (closed), `nativeCounts?_spec`, `nativeRecPinOk_spec`,
 `nativeRecLpsOk_spec`, `lvlEq?_spec` (closed) and `internNNode_spec` at
@@ -643,7 +645,9 @@ else (task #219), so its two-sidedness is the soundness of the route choice.
 **CORE grade, not pure**, because `nativeShape?` is (task #97-P3-Ind round 2's
 finding).  This is the statement `checkIndDecl_bridge` consumes, so round 1's
 `PSpec` form was a false lemma UNDER A PROVED THEOREM — the one place in the
-tier where the defect was load-bearing rather than merely stated.
+tier where the defect was load-bearing rather than merely stated.  Task
+#97-P3-Frame left it at `CSpec` for the reason `nativeShape?_spec` gives: the
+answer, not the frame, is what needs the cache invariant.
 
 `sorry`: `nativeShape?_spec`, `recCtorKinds_spec` at each constructor and
 `withKinds_spec` (closed above). -/

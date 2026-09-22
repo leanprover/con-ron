@@ -15,9 +15,10 @@ Task #97-P3-0 §2's rule for the `ExprOps` tier — "`StateOK s` is `StoreWF
 s.store` and nothing else, the only clause the tier mentions" — applies to
 **two thirds of this tier**: `structFam`, `structPsAt`, `structRecTyR`,
 `nativeCtors4` and their ~70 siblings intern nodes and read the store and do
-nothing else.  Their frame is `PStep`: the store grows, the caches and the pin
-table stand still, and `CheckOK.mono` lifts the whole invariant across them
-whenever a caller needs it.
+nothing else.  Their frame is `PStep`: the store grows, the pin table stands
+still, the caches stand still up to the two tables a level comparison may
+write, and `CheckOK.monoF` lifts the whole invariant across them whenever a
+caller needs it.
 
 The other third calls the knot (`inferTypeCore`, `isDefEqCore`, `whnf`,
 `annotateCore` through `Arena/CheckerBase.lean`), so it flushes and fills the
@@ -27,34 +28,52 @@ already stated there for exactly this reason, and its statements take
 
 `PStep.toCore` is the one-line bridge between them.
 
-**FINDING (task #97-P3-Ind round 2): `lvlEq?` is a CORE-grade call, and four
-statements of this tier had it at the pure grade.**  `Arena/Core.lean`'s
-`lvlEq?` is a CACHED verdict walk: it probes `caches.lvlEqC`, and on a miss it
-reads both handles back through `readLevelM` (which writes `caches.readLC`)
-and records the verdict (which writes `caches.lvlEqC`).  So a twin that calls
-it moves TWO of the fourteen per-declaration cache tables, and `PStep`'s
-`caches : s'.caches = s.caches` is **false of it** — not hard to prove, false.
+**FINDING (task #97-P3-Ind round 2): `lvlEq?` is a CACHED call, and four
+statements of this tier had it at a frame that stands still.**
+`Arena/Core.lean`'s `lvlEq?` is a cached verdict walk: it probes
+`caches.lvlEqC`, and on a miss it reads both handles back through
+`readLevelM` (which writes `caches.readLC`) and records the verdict (which
+writes `caches.lvlEqC`).  So a twin that calls it moves TWO of the fourteen
+per-declaration cache tables, and round 1's `caches : s'.caches = s.caches`
+was **false of it** — not hard to prove, false.
+
+**RULING (task #97-P3-Frame): the STATEMENT was wrong, not the code.**  The
+Rust does exactly what the twin does — `core.rs`'s `lvl_eq` probes, then on a
+miss calls `read_level_m` twice and `lvl_eq_set`, and all three call sites
+(`sum_parts.rs:170`, `struct_parts.rs:832`, `native_parts.rs:2129`) are
+`zero_level` then `core::lvl_eq` — so changing the Lean twin to match
+con-leche's uncached `Level.isEquiv (← readLevel s) .zero` would CREATE a
+layer-B/layer-C divergence, and `Refine2/AbsState.lean`'s `CachesRel` relates
+the two tables pointwise.  `PStep`'s cache clause is therefore
+`Bridge/StateOK.lean`'s `CacheFrame`: the record equation that names the two
+tables allowed to move, plus their invariants as IMPLICATIONS — exactly the
+shape `Bridge/Specs.lean`'s three readback specs and
+`Bridge/Core/Walks/Frame.lean`'s `ReadbackFrame` already carry.
+`PStep.of_caches` is the constructor for the ~107 twins that move nothing.
 
 Three twins of this tier call `lvlEq?` — `InductiveShape.withSort`
 (`SumParts.lean:62`), `structPartsCore?` (`StructParts.lean:289`) and
 `nativeShape?` (`NativeParts.lean:505`), the last of which `nativeParts?`
-calls — and round 1 stated all four at `PSpec`.  They are now `CSpec`, which
-is the frame `lvlEq?_spec` (`Bridge/Core/Walks/Cached.lean`, CLOSED) actually
-delivers: `CheckOK` in, `CheckOK` out, the store and the pins untouched.  Note
-that `CSpec` is the WEAKER statement — `PSpec.toCSpec` derives it — so if the
-twins are ever changed to compute `isProp` the way con-leche writes it
-(`Level.isEquiv (← readLevel s) .zero`, no cache at all) the `PSpec` form
-becomes provable again and these four go back to it with no consumer change.
+calls — and round 1 stated all four at `PSpec`.  They are `CSpec`, and task
+#97-P3-Frame LEFT THEM THERE even though the corrected `PStep` makes their
+FRAME provable at `StateOK` (`Core.lvlEq?_frame`,
+`Bridge/Core/Walks/Cached.lean`, closed).  The frame was never what forced
+them up: their ANSWER is what forces them up.  `withSort`'s `isProp` field is
+the verdict `lvlEq?` returns, and a `lvlEqC` row is only the right verdict
+because `LvlEqCacheOK` says so — an invariant `StateOK` does not carry.  At
+`PSpec` a poisoned cache would make the twin answer a record the statement
+claims is `ConLeche.InductiveShape.withSort`'s, and it is not.  `CSpec` is not
+a weakening for convenience here; it is the grade the ANSWER lives at.
 
 Every consumer inside this tier has `CheckOK` where it needs them
 (`checkIndDecl_bridge` through `FoldOK.check`, `checkSumInd_spec` by its own
-grade), so the correction costs the tier nothing.  **It is not free outside
-it**: `Bridge/Frontend/ProjRec.lean`'s `projRecOwners_run` calls
-`structPartsCore?` AND `nativeParts?` (`Arena/Frontend/ProjRec.lean:510-515`)
-and concludes `ParseStep`, whose `caches` clause is the same false one, at a
-hypothesis (`StateOK`) too weak to reach `CheckOK`.  That is the Frontend
-tier's to decide and this tier cannot decide it for them; see the task
-section.
+grade), so the correction costs the tier nothing.  Outside it,
+`Bridge/Frontend/ProjRec.lean`'s `projRecOwners_run` calls `structPartsCore?`
+AND `nativeParts?` (`Arena/Frontend/ProjRec.lean:510-515`) and concludes
+`ParseStep` at `StateOK`.  Its frame is now true there — `lvlEq?_frame` needs
+no cache-content hypothesis — and its answer conjunct survives because
+neither recogniser's `isSome` depends on the verdict: `isProp` fills a FIELD
+of a record that is already `some`.
 
 ## The two statement shapes
 
@@ -101,25 +120,35 @@ open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 /-! ## The pure frame -/
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — **the frame of the tier's
-PURE grade**: the store grows (and with it the binder-datum store), the
-fourteen per-declaration caches and the pin table stand still.  The memo
-tables are NOT framed: every rebuilding walk of `Arena/ExprOps.lean` writes
-its own, and task #97-P3-0 §7's "per-call memo FRAME" is the item that would
-say which. -/
+PURE grade**: the store grows (and with it the binder-datum store), the pin
+table stands still, and the fourteen per-declaration caches stand still up to
+`readLC` and `lvlEqC` — the two a `lvlEq?` call may write (task #97-P3-Frame;
+`Bridge/StateOK.lean`'s `CacheFrame` is the clause, and `PStep.of_caches` is
+what a twin that writes neither uses).  The memo tables are NOT framed: every
+rebuilding walk of `Arena/ExprOps.lean` writes its own, and task #97-P3-0 §7's
+"per-call memo FRAME" is the item that would say which. -/
 structure PStep (s s' : AState) : Prop where
   ok : StateOK s'
   ext : Ext s.store s'.store
   bm : BMExt s.store s'.store
-  caches : s'.caches = s.caches
+  cframe : CacheFrame s s'
   pins : s'.pins = s.pins
 
 theorem PStep.refl {s : AState} (h : StateOK s) : PStep s s :=
-  ⟨h, Ext.refl _, BMExt.refl _, rfl, rfl⟩
+  ⟨h, Ext.refl _, BMExt.refl _, CacheFrame.refl _, rfl⟩
 
 theorem PStep.trans {a b c : AState} (h₁ : PStep a b) (h₂ : PStep b c) :
     PStep a c :=
   ⟨h₂.ok, h₁.ext.trans h₂.ext, h₁.bm.trans h₂.bm,
-    by rw [h₂.caches, h₁.caches], by rw [h₂.pins, h₁.pins]⟩
+    h₁.cframe.trans h₂.cframe, by rw [h₂.pins, h₁.pins]⟩
+
+/-- con-leche: none — the frame of a twin that writes no per-declaration
+table at all, which is what all but three of the tier's ~110 twins do.  The
+shape a proof reaches when it has the plain cache equation in hand. -/
+theorem PStep.of_caches {s s' : AState} (hok : StateOK s')
+    (hx : Ext s.store s'.store) (hbm : BMExt s.store s'.store)
+    (hc : s'.caches = s.caches) (hp : s'.pins = s.pins) : PStep s s' :=
+  ⟨hok, hx, hbm, CacheFrame.of_eq hc hx, hp⟩
 
 /-- con-leche: none — **the bridge between the two grades**: a pure step
 preserves the whole checking invariant, by `Bridge/StateOK.lean`'s
@@ -127,7 +156,7 @@ preserves the whole checking invariant, by `Bridge/StateOK.lean`'s
 and keep its own hypothesis. -/
 theorem PStep.toCore {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
     (h : PStep s s') (hc : CheckOK μ env fe s) : CoreStep μ env fe s s' :=
-  ⟨hc.mono h.ok h.ext h.caches h.pins, h.ext, h.pins⟩
+  ⟨hc.monoF h.ok h.ext h.cframe h.pins, h.ext, h.pins⟩
 
 /-! ## The two statement shapes -/
 
