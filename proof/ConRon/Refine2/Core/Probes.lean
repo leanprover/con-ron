@@ -101,6 +101,31 @@ theorem absEIdxPair_inj : Function.Injective absEIdxPair := by
   simp only [absEIdxPair, Prod.mk.injEq] at h
   simp [absEIdx_inj h.1, absEIdx_inj h.2]
 
+theorem absNIdx_surj : Function.Surjective absNIdx := by
+  intro i
+  obtain ⟨w⟩ := i
+  obtain ⟨x, hx⟩ := absU32_surj w
+  exact ⟨⟨x⟩, by simp [absNIdx, hx]⟩
+
+theorem absLsIdx_surj : Function.Surjective absLsIdx := by
+  intro i
+  obtain ⟨w⟩ := i
+  obtain ⟨x, hx⟩ := absU32_surj w
+  exact ⟨⟨x⟩, by simp [absLsIdx, hx]⟩
+
+/-- The `constTyC` / `constValC` key — task #97-P5-Core-2's, for the delta
+step's memo. -/
+theorem absNLsKey_surj : Function.Surjective absNLsKey := by
+  rintro ⟨n, us⟩
+  obtain ⟨x, hx⟩ := absNIdx_surj n
+  obtain ⟨y, hy⟩ := absLsIdx_surj us
+  exact ⟨⟨x, y⟩, by simp [absNLsKey, hx, hy]⟩
+
+theorem absNLsKey_inj : Function.Injective absNLsKey := by
+  rintro ⟨a, b⟩ ⟨c, d⟩ h
+  simp only [absNLsKey, Prod.mk.injEq] at h
+  simp [absNIdx_inj h.1, absLsIdx_inj h.2]
+
 /-! ## The size agreement
 
 The fact `RelOn` does not carry, and which the six capacity tests need. -/
@@ -380,6 +405,45 @@ theorem defeq_probe_abs (hrel : AStateRel pers st lst)
     have h2 : (some r) = o := Result.ok_injective hrun
     subst h2; rfl
 
+/-- `arena::core_state::nls_key` against the twin's `(n, us)` — the
+`constTyC` / `constValC` key, built by the port and written inline by the
+twin, `eidx_pair_abs` one store over. -/
+theorem nls_key_abs {n : arena.handle.NIdx} {us : arena.handle.LsIdx}
+    {k : arena.core_state.NLsKey} (h : arena.core_state.nls_key n us = ok k) :
+    absNLsKey k = (absNIdx n, absLsIdx us) := by
+  rw [arena.core_state.nls_key] at h
+  obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨y, hy, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have hk : arena.core_state.NLsKey.mk x y = k := Result.ok_injective h
+  subst hk
+  rw [dupId_nidx _ _ hx, dupId_lsidx _ _ hy]
+  rfl
+
+/-- `arena::core::const_val_probe` against `lst.caches.constValC[·]?` — the
+delta step's memo, the seventh probe of the tier (task #97-P5-Core-2). -/
+theorem const_val_probe_abs (hrel : AStateRel pers st lst)
+    (hinv : AStateInv pers st) {k : arena.core_state.NLsKey}
+    {o : Option arena.handle.EIdx}
+    (hrun : arena.core.const_val_probe st k = ok o) :
+    o.map absEIdx = lst.caches.constValC[absNLsKey k]? := by
+  rw [arena.core.const_val_probe] at hrun
+  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hto := ConRon.Refine.HashMap2.get_refines_wf nlsKey_eq2 hinv.caches.constValC
+    ConRon.Refine.HashMap2.KeysOk_true trivial hr
+  have hrelk := hrel.caches.constValC k trivial
+  rw [← hrelk, ← hto]
+  cases hrc : r with
+  | none =>
+    rw [hrc] at hrun
+    have h2 : (none : Option arena.handle.EIdx) = o := Result.ok_injective hrun
+    subst h2; rfl
+  | some r =>
+    rw [hrc] at hrun
+    obtain ⟨x, hx, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have h2 : some x = o := Result.ok_injective hrun
+    subst h2
+    rw [dupId_eidx _ _ hx]
+
 end Probes
 
 /-! ## The six memo writes
@@ -538,6 +602,36 @@ theorem defeq_set_run (hrel : AStateRel pers st lst)
     rfl { hrel with caches := { hrel.caches with defeqC := h1 } }
     { hinv with caches := { hinv.caches with defeqC := h2 } } (Ext.refl _)
 
+/-- **`arena::core::const_val_set`, as a STATE equation** (task
+#97-P5-Core-2).  The other six writes have a named twin (`Arena.whnfCoreSet`
+and its five siblings); the delta step's memo does not — the twin writes it
+INLINE in `constValAt` — so this one is stated as the pair of facts a caller
+actually consumes, and `const_val_at_refines` spells the twin's `do` block
+itself. -/
+theorem const_val_set_rel (hrel : AStateRel pers st lst)
+    (hinv : AStateInv pers st) {k : arena.core_state.NLsKey}
+    {r : arena.handle.EIdx} {st'}
+    (hrun : arena.core.const_val_set st k r = ok st') :
+    AStateRel pers st'
+        { lst with caches := { lst.caches with
+          constValC := (if lst.caches.constValC.size < cacheCap then
+            lst.caches.constValC else ∅).insert (absNLsKey k) (absEIdx r) } }
+      ∧ AStateInv pers st' := by
+  rw [arena.core.const_val_set] at hrun
+  obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨hm, hfit, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨old, hm2⟩ := p
+  rw [dupId_eidx _ _ he1] at hp
+  have hst : st' = { st with caches := { st.caches with const_val_c := hm2 } } :=
+    (Result.ok_injective hrun).symm
+  subst hst
+  obtain ⟨h1, h2⟩ := cache_insert_step nlsKey_eq2 absNLsKey_surj
+    absNLsKey_inj hinv.caches.constValC hrel.caches.constValC hn hfit hp
+  exact ⟨{ hrel with caches := { hrel.caches with constValC := h1 } },
+    { hinv with caches := { hinv.caches with constValC := h2 } }⟩
+
 end Writes
 
 /-! ## The axiom census
@@ -571,6 +665,12 @@ section Axioms
 
 /-- info: 'ConRon.Refine2.defeq_set_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms defeq_set_run
+
+/-- info: 'ConRon.Refine2.const_val_probe_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms const_val_probe_abs
+
+/-- info: 'ConRon.Refine2.const_val_set_rel' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms const_val_set_rel
 
 end Axioms
 
