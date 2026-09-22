@@ -449,8 +449,9 @@ pub fn fvl_append(x: &Vec<(u64, EIdx)>, y: &Vec<(u64, EIdx)>) -> Vec<(u64, EIdx)
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — DESIGN.md §8.3's lesson 20, the UPWARD half
-/// Lean twin: OWED (task #97-P6-5's twin ledger) — `internRebuilt`, one clause
-/// per rebuild site of the walks whose DOWNWARD cutoff is not exact.
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:139-143 internRebuilt` —
+/// `internRebuilt`, one clause per rebuild site of the walks whose DOWNWARD
+/// cutoff is not exact.
 ///
 /// **A rebuilt spine whose children did not change is the same node.**  `h`
 /// decodes to a view whose children this walk has just rewritten; if every
@@ -495,8 +496,9 @@ pub fn intern_rebuilt(
 }
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
-/// Lean twin: OWED (task #97-P6-15) — `internRebuiltBVar`, the `bvar`
-/// arm of `intern_rebuilt`: the same cutoff, over the arm's FIELDS.
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:144-145 internRebuiltBVar` —
+/// `internRebuiltBVar`, the `bvar` arm of `intern_rebuilt`: the same cutoff,
+/// over the arm's FIELDS.
 ///
 /// `intern_rebuilt` takes an `ENodeView`, so the twenty-three substituting
 /// walks that call it built one per rebuilt node and `EStore::intern`
@@ -517,8 +519,9 @@ pub fn intern_rebuilt_bvar(
 }
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
-/// Lean twin: OWED (task #97-P6-15) — `internRebuiltFVar`, the `fvar`
-/// arm of `intern_rebuilt`: the same cutoff, over the arm's FIELDS.
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:147-148 internRebuiltFVar` —
+/// `internRebuiltFVar`, the `fvar` arm of `intern_rebuilt`: the same cutoff,
+/// over the arm's FIELDS.
 ///
 /// `intern_rebuilt` takes an `ENodeView`, so the twenty-three substituting
 /// walks that call it built one per rebuilt node and `EStore::intern`
@@ -540,8 +543,9 @@ pub fn intern_rebuilt_fvar(
 }
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
-/// Lean twin: OWED (task #97-P6-15) — `internRebuiltSort`, the `sort`
-/// arm of `intern_rebuilt`: the same cutoff, over the arm's FIELDS.
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:150-151 internRebuiltSort` —
+/// `internRebuiltSort`, the `sort` arm of `intern_rebuilt`: the same cutoff,
+/// over the arm's FIELDS.
 ///
 /// `intern_rebuilt` takes an `ENodeView`, so the twenty-three substituting
 /// walks that call it built one per rebuilt node and `EStore::intern`
@@ -562,8 +566,9 @@ pub fn intern_rebuilt_sort(
 }
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
-/// Lean twin: OWED (task #97-P6-15) — `internRebuiltConst`, the `const`
-/// arm of `intern_rebuilt`: the same cutoff, over the arm's FIELDS.
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:153-154 internRebuiltConst` —
+/// `internRebuiltConst`, the `const` arm of `intern_rebuilt`: the same cutoff,
+/// over the arm's FIELDS.
 ///
 /// `intern_rebuilt` takes an `ENodeView`, so the twenty-three substituting
 /// walks that call it built one per rebuilt node and `EStore::intern`
@@ -585,8 +590,9 @@ pub fn intern_rebuilt_const(
 }
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
-/// Lean twin: OWED (task #97-P6-15) — `internRebuiltApp`, the `app`
-/// arm of `intern_rebuilt`: the same cutoff, over the arm's FIELDS.
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:156-157 internRebuiltApp` —
+/// `internRebuiltApp`, the `app` arm of `intern_rebuilt`: the same cutoff, over
+/// the arm's FIELDS.
 ///
 /// `intern_rebuilt` takes an `ENodeView`, so the twenty-three substituting
 /// walks that call it built one per rebuilt node and `EStore::intern`
@@ -608,8 +614,9 @@ pub fn intern_rebuilt_app(
 }
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
-/// Lean twin: OWED (task #97-P6-15) — `internRebuiltLam`, the `lam`
-/// arm of `intern_rebuilt`: the same cutoff, over the arm's FIELDS.
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:159-161 internRebuiltLam` —
+/// `internRebuiltLam`, the `lam` arm of `intern_rebuilt`: the same cutoff, over
+/// the arm's FIELDS.
 ///
 /// `intern_rebuilt` takes an `ENodeView`, so the twenty-three substituting
 /// walks that call it built one per rebuilt node and `EStore::intern`
@@ -632,8 +639,9 @@ pub fn intern_rebuilt_lam(
 }
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
-/// Lean twin: OWED (task #97-P6-15) — `internRebuiltForallE`, the `forall_e`
-/// arm of `intern_rebuilt`: the same cutoff, over the arm's FIELDS.
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:163-165 internRebuiltForallE` —
+/// `internRebuiltForallE`, the `forall_e` arm of `intern_rebuilt`: the same
+/// cutoff, over the arm's FIELDS.
 ///
 /// `intern_rebuilt` takes an `ENodeView`, so the twenty-three substituting
 /// walks that call it built one per rebuilt node and `EStore::intern`
@@ -656,8 +664,9 @@ pub fn intern_rebuilt_forall_e(
 }
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
-/// Lean twin: OWED (task #97-P6-15) — `internRebuiltLetE`, the `let_e`
-/// arm of `intern_rebuilt`: the same cutoff, over the arm's FIELDS.
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:167-168 internRebuiltLetE` —
+/// `internRebuiltLetE`, the `let_e` arm of `intern_rebuilt`: the same cutoff,
+/// over the arm's FIELDS.
 ///
 /// `intern_rebuilt` takes an `ENodeView`, so the twenty-three substituting
 /// walks that call it built one per rebuilt node and `EStore::intern`
@@ -680,8 +689,9 @@ pub fn intern_rebuilt_let_e(
 }
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
-/// Lean twin: OWED (task #97-P6-15) — `internRebuiltLit`, the `lit`
-/// arm of `intern_rebuilt`: the same cutoff, over the arm's FIELDS.
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:170-171 internRebuiltLit` —
+/// `internRebuiltLit`, the `lit` arm of `intern_rebuilt`: the same cutoff, over
+/// the arm's FIELDS.
 ///
 /// `intern_rebuilt` takes an `ENodeView`, so the twenty-three substituting
 /// walks that call it built one per rebuilt node and `EStore::intern`
@@ -702,8 +712,9 @@ pub fn intern_rebuilt_lit(
 }
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
-/// Lean twin: OWED (task #97-P6-15) — `internRebuiltProj`, the `proj`
-/// arm of `intern_rebuilt`: the same cutoff, over the arm's FIELDS.
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:173-178 internRebuiltProj` —
+/// `internRebuiltProj`, the `proj` arm of `intern_rebuilt`: the same cutoff,
+/// over the arm's FIELDS.
 ///
 /// `intern_rebuilt` takes an `ENodeView`, so the twenty-three substituting
 /// walks that call it built one per rebuilt node and `EStore::intern`
@@ -726,10 +737,10 @@ pub fn intern_rebuilt_proj(
 }
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
-/// Lean twin: OWED (task #97-P6-15) — `internRebuiltBind`, the two binder arms
-/// of `intern_rebuilt` at a tag the caller carries (`e_bind_view`'s own
-/// choice), for the two walks whose binder clause is shared between `lam` and
-/// `forallE`.
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:179-188 internRebuiltBind` —
+/// `internRebuiltBind`, the two binder arms of `intern_rebuilt` at a tag the
+/// caller carries (`e_bind_view`'s own choice), for the two walks whose binder
+/// clause is shared between `lam` and `forallE`.
 pub fn intern_rebuilt_bind(
     pers: &PersTier,
     st: &mut AState,
@@ -750,8 +761,9 @@ pub fn intern_rebuilt_bind(
 }
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
-/// Lean twin: OWED (task #97-P6-16) — `internRebuiltBindI`, `internRebuiltBind`
-/// at a binder datum the walk is CARRYING ACROSS rather than changing.
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:189-202 internRebuiltBindI` —
+/// `internRebuiltBindI`, `internRebuiltBind` at a binder datum the walk is
+/// CARRYING ACROSS rather than changing.
 ///
 /// A substituting walk takes a binder apart and puts it back with the same
 /// datum; since task #97-P6-16 the datum is interned and the walk carries its
@@ -3954,12 +3966,12 @@ pub fn abstract1_fast(
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:684-700 abstractRangeP
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:715-746 abstractRangeXP
-/// Lean twin: OWED (task #97-P6-11's ledger) — the memoized `abstractRange`
-/// walk: close the `k` free variables `d .. d + k - 1` into `bvar`s at cursor
-/// `c`, innermost binder to the lowest index.  The `fvar_b <= d` cutoff is
-/// `abstractRangeP`'s own first line and `enterAbsRP`'s; the `(h, c)` memo is
-/// `abstractRangeXP`'s, on the compound arms only, exactly as
-/// `abstract1_go`'s is.
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:669-702 abstractRange` — the
+/// memoized `abstractRange` walk: close the `k` free variables `d .. d + k - 1`
+/// into `bvar`s at cursor `c`, innermost binder to the lowest index. The
+/// `fvar_b <= d` cutoff is `abstractRangeP`'s own first line and
+/// `enterAbsRP`'s; the `(h, c)` memo is `abstractRangeXP`'s, on the compound
+/// arms only, exactly as `abstract1_go`'s is.
 ///
 /// The memo table is `abstract1`'s (`abs1_*`).  The two walks never nest — both
 /// are leaf walks over the store, calling nothing but `fvar_b`, `view` and
@@ -4151,11 +4163,12 @@ pub fn abstract_range_go(
 }
 
 /// con-leche: ConLeche/Cached/ExprOpsC.lean:748-755 abstractRangeC
-/// Lean twin: OWED (task #97-P6-11's ledger) — the top-level entry of the
-/// executed `abstractRange`: `k = 0` is the identity and skips the traversal
-/// (con-leche's own clause, and what makes the annotation telescope's OUTERMOST
-/// binder domain cost nothing), then the per-call memo is cleared around the
-/// walk exactly as `abstract1_fast` clears it.
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1686-1699 abstractRangeFast` —
+/// the top-level entry of the executed `abstractRange`: `k = 0` is the identity
+/// and skips the traversal (con-leche's own clause, and what makes the
+/// annotation telescope's OUTERMOST binder domain cost nothing), then the
+/// per-call memo is cleared around the walk exactly as `abstract1_fast` clears
+/// it.
 pub fn abstract_range_fast(
     pers: &PersTier,
     st: &mut AState,
@@ -4669,8 +4682,9 @@ pub fn subst_level_list_from(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo
-/// Lean twin: OWED (task #97-P6-13) — `substLMemoAt`, `instLPGo`'s `.sort`
-/// arm's level work behind a memo on the level handle.
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1914-1924 substLMemoAt` —
+/// `substLMemoAt`, `instLPGo`'s `.sort` arm's level work behind a memo on the
+/// level handle.
 ///
 /// `ks` and `us` are fixed for the whole `instLPFast` call, so a level handle
 /// determines its own answer and the substitution vector is not in the key —
@@ -4705,11 +4719,11 @@ pub fn subst_l_memo_at(
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo
-/// Lean twin: OWED (task #97-P6-13) — `substLsMemoAt`, the `.const` arm's
-/// twin of `substLMemoAt` at an interned universe-argument LIST.  The list is
-/// one interned object, so the memo saves the readback, the per-element
-/// substitution, the re-interning AND the two `Vec<Level>` copies the
-/// readback memo would otherwise hand out and drop.
+/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:1925-1940 substLsMemoAt` —
+/// `substLsMemoAt`, the `.const` arm's twin of `substLMemoAt` at an interned
+/// universe-argument LIST. The list is one interned object, so the memo saves
+/// the readback, the per-element substitution, the re-interning AND the two
+/// `Vec<Level>` copies the readback memo would otherwise hand out and drop.
 pub fn subst_ls_memo_at(
     pers: &PersTier,
     st: &mut AState,

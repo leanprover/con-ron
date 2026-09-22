@@ -371,11 +371,12 @@ pub fn fail_dangling_e<T>() -> Result<T, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
-/// Lean twin: OWED (task #97-P6-10) — `viewApp`, the `app` PROJECTION of
-/// `view`.  A walk that has already read the tag off the handle word wants
-/// only the two children; going through `view` would cost the store's ten-way
-/// tag jump table, a 32-byte `ENodeView` returned through an sret slot, a
-/// second dispatch on the tag the caller already knows, and the view's drop.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:223-224 viewApp` — `viewApp`, the
+/// `app` PROJECTION of `view`. A walk that has already read the tag off the
+/// handle word wants only the two children; going through `view` would cost the
+/// store's ten-way tag jump table, a 32-byte `ENodeView` returned through an
+/// sret slot, a second dispatch on the tag the caller already knows, and the
+/// view's drop.
 ///
 /// It returns `Option`, not `Result`, for the same reason the store's readers
 /// do: a `Result<(EIdx, EIdx), CheckError>` is a 32-byte sret value, and
@@ -387,79 +388,90 @@ pub fn view_app(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(EIdx, EIdx)> 
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
-/// Lean twin: OWED (task #97-P6-10) — `viewBVar`, the `bvar` projection.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:227-228 viewBVar` — `viewBVar`,
+/// the `bvar` projection.
 #[inline(always)]
 pub fn view_bvar(pers: &PersTier, st: &AState, h: &EIdx) -> Option<u64> {
     st.store.view_bvar(pers, h)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
-/// Lean twin: OWED (task #97-P6-13) — `viewSort`, the `sort` projection.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:231-232 viewSort` — `viewSort`,
+/// the `sort` projection.
 #[inline(always)]
 pub fn view_sort(pers: &PersTier, st: &AState, h: &EIdx) -> Option<LIdx> {
     st.store.view_sort(pers, h)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
-/// Lean twin: OWED (task #97-P6-13) — `viewConst`, the `const` projection.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:235-239 viewConst` — `viewConst`,
+/// the `const` projection.
 #[inline(always)]
 pub fn view_const(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(NIdx, LsIdx)> {
     st.store.view_const(pers, h)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
-/// Lean twin: OWED (task #97-P6-13) — `viewConstName`, the head NAME of a
-/// `const` node; the level arguments are left in the store.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:240-241 viewConstName` —
+/// `viewConstName`, the head NAME of a `const` node; the level arguments are
+/// left in the store.
 #[inline(always)]
 pub fn view_const_name(pers: &PersTier, st: &AState, h: &EIdx) -> Option<NIdx> {
     st.store.view_const_name(pers, h)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
-/// Lean twin: OWED (task #97-P6-10) — `viewFVarIdx`, the `fvar` index.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:244-248 viewFVarIdx` —
+/// `viewFVarIdx`, the `fvar` index.
 #[inline(always)]
 pub fn view_fvar_idx(pers: &PersTier, st: &AState, h: &EIdx) -> Option<u64> {
     st.store.view_fvar_idx(pers, h)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
-/// Lean twin: OWED (task #97-P6-13) — `viewFVarTy`, the `fvar` binder type.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:249-250 viewFVarTy` —
+/// `viewFVarTy`, the `fvar` binder type.
 #[inline(always)]
 pub fn view_fvar_ty(pers: &PersTier, st: &AState, h: &EIdx) -> Option<EIdx> {
     st.store.view_fvar_ty(pers, h)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
-/// Lean twin: OWED (task #97-P6-13) — `viewLit`, the `lit` projection.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:253-257 viewLit` — `viewLit`, the
+/// `lit` projection.
 #[inline(always)]
 pub fn view_lit(pers: &PersTier, st: &AState, h: &EIdx) -> Option<Literal> {
     st.store.view_lit(pers, h)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
-/// Lean twin: OWED (task #97-P6-10) — `viewBind`, the binder projection.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:258-263 viewBind` — `viewBind`,
+/// the binder projection.
 #[inline(always)]
 pub fn view_bind(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(EIdx, EIdx, BinderMeta)> {
     st.store.view_bind(pers, h)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
-/// Lean twin: OWED (task #97-P6-16) — `viewBindI`, the binder projection that
-/// stops at the datum's HANDLE (see `EStore::view_bind_i`).
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:264-268 viewBindI` — `viewBindI`,
+/// the binder projection that stops at the datum's HANDLE (see
+/// `EStore::view_bind_i`).
 #[inline(always)]
 pub fn view_bind_i(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(EIdx, EIdx, BMIdx)> {
     st.store.view_bind_i(pers, h)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
-/// Lean twin: OWED (task #97-P6-10) — `viewLet`, the `letE` projection.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:274-278 viewLet` — `viewLet`, the
+/// `letE` projection.
 #[inline(always)]
 pub fn view_let(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(EIdx, EIdx, EIdx)> {
     st.store.view_let(pers, h)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
-/// Lean twin: OWED (task #97-P6-10) — `viewProj`, the `proj` projection.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:279-287 viewProj` — `viewProj`,
+/// the `proj` projection.
 #[inline(always)]
 pub fn view_proj(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(NIdx, u64, EIdx)> {
     st.store.view_proj(pers, h)
@@ -493,8 +505,8 @@ pub fn intern_e(pers: &PersTier, st: &mut AState, v: ENodeView) -> Result<EIdx, 
 }
 
 /// con-leche: none — hash-cons an expression node
-/// Lean twin: OWED (task #97-P6-15) — `internBVarE`, the `bvar` arm of
-/// `proof/ConRon/Arena/Monad.lean:155-166 internE`.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:290 internBVarE` — `internBVarE`,
+/// the `bvar` arm of `proof/ConRon/Arena/Monad.lean:155-166 internE`.
 ///
 /// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
 /// value with a `BinderMeta` in it, passed by value, taken apart again by
@@ -511,8 +523,8 @@ pub fn intern_e_bvar(
 }
 
 /// con-leche: none — hash-cons an expression node
-/// Lean twin: OWED (task #97-P6-15) — `internFVarE`, the `fvar` arm of
-/// `proof/ConRon/Arena/Monad.lean:155-166 internE`.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:292 internFVarE` — `internFVarE`,
+/// the `fvar` arm of `proof/ConRon/Arena/Monad.lean:155-166 internE`.
 ///
 /// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
 /// value with a `BinderMeta` in it, passed by value, taken apart again by
@@ -530,8 +542,8 @@ pub fn intern_e_fvar(
 }
 
 /// con-leche: none — hash-cons an expression node
-/// Lean twin: OWED (task #97-P6-15) — `internSortE`, the `sort` arm of
-/// `proof/ConRon/Arena/Monad.lean:155-166 internE`.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:294 internSortE` — `internSortE`,
+/// the `sort` arm of `proof/ConRon/Arena/Monad.lean:155-166 internE`.
 ///
 /// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
 /// value with a `BinderMeta` in it, passed by value, taken apart again by
@@ -548,8 +560,9 @@ pub fn intern_e_sort(
 }
 
 /// con-leche: none — hash-cons an expression node
-/// Lean twin: OWED (task #97-P6-15) — `internConstE`, the `const` arm of
-/// `proof/ConRon/Arena/Monad.lean:155-166 internE`.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:296 internConstE` —
+/// `internConstE`, the `const` arm of `proof/ConRon/Arena/Monad.lean:155-166
+/// internE`.
 ///
 /// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
 /// value with a `BinderMeta` in it, passed by value, taken apart again by
@@ -567,8 +580,8 @@ pub fn intern_e_const(
 }
 
 /// con-leche: none — hash-cons an expression node
-/// Lean twin: OWED (task #97-P6-15) — `internAppE`, the `app` arm of
-/// `proof/ConRon/Arena/Monad.lean:155-166 internE`.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:298 internAppE` — `internAppE`,
+/// the `app` arm of `proof/ConRon/Arena/Monad.lean:155-166 internE`.
 ///
 /// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
 /// value with a `BinderMeta` in it, passed by value, taken apart again by
@@ -586,8 +599,9 @@ pub fn intern_e_app(
 }
 
 /// con-leche: none — hash-cons an expression node
-/// Lean twin: OWED (task #97-P6-15) — `internLamE`, the `lam` arm of
-/// `proof/ConRon/Arena/Monad.lean:155-166 internE`.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:300-301 internLamE` —
+/// `internLamE`, the `lam` arm of `proof/ConRon/Arena/Monad.lean:155-166
+/// internE`.
 ///
 /// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
 /// value with a `BinderMeta` in it, passed by value, taken apart again by
@@ -606,8 +620,9 @@ pub fn intern_e_lam(
 }
 
 /// con-leche: none — hash-cons an expression node
-/// Lean twin: OWED (task #97-P6-16) — `internLamIE`, the `lam` arm of
-/// `internE` at a binder datum the caller already holds as a HANDLE.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:316-329 internLamIE` —
+/// `internLamIE`, the `lam` arm of `internE` at a binder datum the caller
+/// already holds as a HANDLE.
 #[inline(always)]
 pub fn intern_e_lam_i(
     pers: &PersTier,
@@ -620,8 +635,9 @@ pub fn intern_e_lam_i(
 }
 
 /// con-leche: none — hash-cons an expression node
-/// Lean twin: OWED (task #97-P6-16) — `internForallEIE`, the `forall_e` arm of
-/// `internE` at a binder datum the caller already holds as a HANDLE.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:330-344 internForallEIE` —
+/// `internForallEIE`, the `forall_e` arm of `internE` at a binder datum the
+/// caller already holds as a HANDLE.
 #[inline(always)]
 pub fn intern_e_forall_e_i(
     pers: &PersTier,
@@ -634,9 +650,10 @@ pub fn intern_e_forall_e_i(
 }
 
 /// con-leche: none — hash-cons an expression node
-/// Lean twin: OWED (task #97-P6-16) — `internBindIE`, the two binder arms at a
-/// tag the caller carries and a datum it holds as a handle: the shape the
-/// rebuilding walks want, where `e_bind_view` + `internE` stood.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:345-346 internBindIE` —
+/// `internBindIE`, the two binder arms at a tag the caller carries and a datum
+/// it holds as a handle: the shape the rebuilding walks want, where
+/// `e_bind_view` + `internE` stood.
 #[inline(always)]
 pub fn intern_e_bind_i(
     pers: &PersTier,
@@ -654,7 +671,8 @@ pub fn intern_e_bind_i(
 }
 
 /// con-leche: none — hash-cons an expression node
-/// Lean twin: OWED (task #97-P6-15) — `internForallEE`, the `forall_e` arm of
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:303-304 internForallEE` —
+/// `internForallEE`, the `forall_e` arm of
 /// `proof/ConRon/Arena/Monad.lean:155-166 internE`.
 ///
 /// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
@@ -674,8 +692,8 @@ pub fn intern_e_forall_e(
 }
 
 /// con-leche: none — hash-cons an expression node
-/// Lean twin: OWED (task #97-P6-15) — `internLetEE`, the `let_e` arm of
-/// `proof/ConRon/Arena/Monad.lean:155-166 internE`.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:306 internLetEE` — `internLetEE`,
+/// the `let_e` arm of `proof/ConRon/Arena/Monad.lean:155-166 internE`.
 ///
 /// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
 /// value with a `BinderMeta` in it, passed by value, taken apart again by
@@ -694,8 +712,8 @@ pub fn intern_e_let_e(
 }
 
 /// con-leche: none — hash-cons an expression node
-/// Lean twin: OWED (task #97-P6-15) — `internLitE`, the `lit` arm of
-/// `proof/ConRon/Arena/Monad.lean:155-166 internE`.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:308 internLitE` — `internLitE`,
+/// the `lit` arm of `proof/ConRon/Arena/Monad.lean:155-166 internE`.
 ///
 /// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
 /// value with a `BinderMeta` in it, passed by value, taken apart again by
@@ -712,8 +730,9 @@ pub fn intern_e_lit(
 }
 
 /// con-leche: none — hash-cons an expression node
-/// Lean twin: OWED (task #97-P6-15) — `internProjE`, the `proj` arm of
-/// `proof/ConRon/Arena/Monad.lean:155-166 internE`.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:310-315 internProjE` —
+/// `internProjE`, the `proj` arm of `proof/ConRon/Arena/Monad.lean:155-166
+/// internE`.
 ///
 /// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
 /// value with a `BinderMeta` in it, passed by value, taken apart again by
@@ -1019,10 +1038,11 @@ pub fn fail_dangling_ls<T>() -> Result<T, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:41-54 Level
-/// Lean twin: OWED (task #97-P6-10) — `viewLsLen`, the LENGTH projection of
-/// `viewLs`.  Decoding a level-list handle copies its whole `Vec<LIdx>` out of
-/// the node (Lean shares the list; DESIGN.md §3.2); the callers that only
-/// compare the length with a declaration's level-parameter count want this.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:514-534 viewLsLen` — `viewLsLen`,
+/// the LENGTH projection of `viewLs`. Decoding a level-list handle copies its
+/// whole `Vec<LIdx>` out of the node (Lean shares the list; DESIGN.md §3.2);
+/// the callers that only compare the length with a declaration's
+/// level-parameter count want this.
 #[inline(always)]
 pub fn view_ls_len(pers: &PersTier, st: &AState, h: &LsIdx) -> Option<usize> {
     st.store.ls_s().view_len(pers, h)
@@ -1060,15 +1080,15 @@ pub fn read_levels(pers: &PersTier, st: &AState, h: &LsIdx) -> Result<Vec<Level>
 }
 
 /// con-leche: none — a value copy of a read-back universe-argument list
-/// Lean twin: OWED (task #97-P6-13) — the `Vec` copy Lean's value semantics
-/// hides (DESIGN.md §3.2): `Level` is a `P` tree, so this is `n` reference
-/// bumps and one allocation.
+/// Lean twin: none — Lean's value semantics need no copy (DESIGN.md §3.2) — the
+/// `Vec` copy Lean's value semantics hides (DESIGN.md §3.2): `Level` is a `P`
+/// tree, so this is `n` reference bumps and one allocation.
 pub fn level_list_dup(us: &Vec<Level>) -> Vec<Level> {
     level_list_dup_from(us, 0, Vec::new())
 }
 
 /// con-leche: none — the cursor recursion behind `level_list_dup`
-/// Lean twin: OWED (task #97-P6-13).
+/// Lean twin: none — Lean's value semantics need no copy (DESIGN.md §3.2).
 pub fn level_list_dup_from(us: &Vec<Level>, i: usize, out: Vec<Level>) -> Vec<Level> {
     if i >= us.len() {
         out
@@ -1095,9 +1115,10 @@ pub fn level_list_dup_from(us: &Vec<Level>, i: usize, out: Vec<Level>) -> Vec<Le
 // is a reference bump.
 
 /// con-leche: ConLeche/Kernel/Level.lean:26-37 subst
-/// Lean twin: OWED (task #97-P6-13) — `readLevelM`, the memoised `readLevel`.
-/// Same value, same failure: a hit answers with the row the miss stored, and
-/// `denoteL` is a function of the store.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:535-549 readLevelM` —
+/// `readLevelM`, the memoised `readLevel`. Same value, same failure: a hit
+/// answers with the row the miss stored, and `denoteL` is a function of the
+/// store.
 pub fn read_level_m(pers: &PersTier, st: &mut AState, h: &LIdx) -> Result<Level, CheckError> {
     match st.caches.read_l_c.get(h) {
         Some(l) => Ok(level::dup(l)),
@@ -1112,7 +1133,8 @@ pub fn read_level_m(pers: &PersTier, st: &mut AState, h: &LIdx) -> Result<Level,
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
-/// Lean twin: OWED (task #97-P6-13) — `readNameM`, the memoised `readName`.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:550-565 readNameM` — `readNameM`,
+/// the memoised `readName`.
 pub fn read_name_m(pers: &PersTier, st: &mut AState, h: &NIdx) -> Result<Name, CheckError> {
     match st.caches.read_n_c.get(h) {
         Some(x) => Ok(name::dup(x)),
@@ -1127,7 +1149,8 @@ pub fn read_name_m(pers: &PersTier, st: &mut AState, h: &NIdx) -> Result<Name, C
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
-/// Lean twin: OWED (task #97-P6-13) — `readNamesM`, the memoised `readNames`.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:566-574 readNamesM` —
+/// `readNamesM`, the memoised `readNames`.
 pub fn read_names_m(
     pers: &PersTier,
     st: &mut AState,
@@ -1137,8 +1160,8 @@ pub fn read_names_m(
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
-/// Lean twin: OWED (task #97-P6-13) — the cursor recursion behind
-/// `read_names_m`.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:566-574 readNamesM` — the cursor
+/// recursion behind `read_names_m`.
 pub fn read_names_m_from(
     pers: &PersTier,
     st: &mut AState,
@@ -1161,8 +1184,8 @@ pub fn read_names_m_from(
 }
 
 /// con-leche: ConLeche/Kernel/Level.lean:26-37 subst
-/// Lean twin: OWED (task #97-P6-13) — `readLevelsM`, the memoised
-/// `readLevels`.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:575-599 readLevelsM` —
+/// `readLevelsM`, the memoised `readLevels`.
 pub fn read_levels_m(
     pers: &PersTier,
     st: &mut AState,
@@ -1519,8 +1542,8 @@ pub fn inst_lp_clear(st: &mut AState) {
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo
-/// Lean twin: OWED (task #97-P6-13) — probe the level-handle substitution
-/// memo.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:832-836 instLPLGet` — probe the
+/// level-handle substitution memo.
 pub fn inst_lp_l_get(st: &AState, h: &LIdx) -> Option<LIdx> {
     match st.memos.inst_lp_l_c.get(h) {
         Some(r) => Some(r.dup2()),
@@ -1529,13 +1552,15 @@ pub fn inst_lp_l_get(st: &AState, h: &LIdx) -> Option<LIdx> {
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo
-/// Lean twin: OWED (task #97-P6-13) — record a level-handle substitution.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:837-844 instLPLSet` — record a
+/// level-handle substitution.
 pub fn inst_lp_l_set(st: &mut AState, h: LIdx, r: &LIdx) {
     st.memos.inst_lp_l_c.insert(h, r.dup2());
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo
-/// Lean twin: OWED (task #97-P6-13) — probe the level-LIST substitution memo.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:845-849 instLPLsGet` — probe the
+/// level-LIST substitution memo.
 pub fn inst_lp_ls_get(st: &AState, h: &LsIdx) -> Option<LsIdx> {
     match st.memos.inst_lp_ls_c.get(h) {
         Some(r) => Some(r.dup2()),
@@ -1544,7 +1569,8 @@ pub fn inst_lp_ls_get(st: &AState, h: &LsIdx) -> Option<LsIdx> {
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo
-/// Lean twin: OWED (task #97-P6-13) — record a level-LIST substitution.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:850-857 instLPLsSet` — record a
+/// level-LIST substitution.
 pub fn inst_lp_ls_set(st: &mut AState, h: LsIdx, r: &LsIdx) {
     st.memos.inst_lp_ls_c.insert(h, r.dup2());
 }

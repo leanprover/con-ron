@@ -162,9 +162,10 @@ pub struct LsIdx {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
-/// Lean twin: OWED (task #97-P6-16) — `BMIdx`, a handle into the **binder
-/// datum store**: the same word layout as the other four (tag 0, the tier
-/// bit, the index), for a store with ONE constructor and so no tag to spend.
+/// Lean twin: `proof/ConRon/Arena/Handle.lean:83-99 BMIdx` — `BMIdx`, a handle
+/// into the **binder datum store**: the same word layout as the other four (tag
+/// 0, the tier bit, the index), for a store with ONE constructor and so no tag
+/// to spend.
 ///
 /// DESIGN.md §8.3 gives `lam`/`forallE` a `BinderMeta` INSIDE the node
 /// record, which makes the record twenty-four bytes with a `PropWhen` — and
@@ -227,30 +228,34 @@ impl EIdx {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
-/// Lean twin: OWED (task #97-P6-16) — `Idx.mk`/`tier`/`index`/`isPersistent`/
-/// `idxNat` at the binder-datum store.  The tag field is always `0`: the
-/// store has one constructor.
+/// Lean twin: `proof/ConRon/Arena/Handle.lean:116-117 Idx.mk` —
+/// `Idx.mk`/`tier`/`index`/`isPersistent`/`idxNat` at the binder-datum store.
+/// The tag field is always `0`: the store has one constructor.
 impl BMIdx {
     /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
-    /// Lean twin: OWED (task #97-P6-16) — `Idx.mk` at the binder-datum store.
+    /// Lean twin: `proof/ConRon/Arena/Handle.lean:116-117 Idx.mk` — `Idx.mk` at
+    /// the binder-datum store.
     pub fn pack(tier: u32, idx: u32) -> BMIdx {
         BMIdx { word: word_mk(0, tier, idx) }
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
-    /// Lean twin: OWED (task #97-P6-16) — `Idx.ofWord` at the binder-datum store.
+    /// Lean twin: `proof/ConRon/Arena/Handle.lean:61 Idx.ofWord` — `Idx.ofWord`
+    /// at the binder-datum store.
     pub fn of_word(w: u32) -> BMIdx {
         BMIdx { word: w }
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
-    /// Lean twin: OWED (task #97-P6-16) — `Idx.isPersistent` at the binder-datum store.
+    /// Lean twin: `proof/ConRon/Arena/Handle.lean:130 Idx.isPersistent` —
+    /// `Idx.isPersistent` at the binder-datum store.
     pub fn is_persistent(&self) -> bool {
         word_is_persistent(self.word)
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta
-    /// Lean twin: OWED (task #97-P6-16) — `Idx.idxNat` at the binder-datum store.
+    /// Lean twin: `proof/ConRon/Arena/Handle.lean:133-139 Idx.idxNat` —
+    /// `Idx.idxNat` at the binder-datum store.
     pub fn idx_nat(&self) -> usize {
         word_idx_nat(self.word)
     }
@@ -571,11 +576,12 @@ pub const ETAG_LIT: u32 = 8;
 pub const ETAG_PROJ: u32 = 9;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr
-/// Lean twin: OWED (task #97-P6-10) — `ETag.isBind`: `lam` or `forallE`, the
-/// two constructors that share the `BindNode` record shape.  A named predicate
-/// rather than the disjunction written at the use site: a two-way `||` inside
-/// a `match` arm that still holds loans is what task #97-P4a's extraction rule
-/// 2 is about, and the walks that dispatch on this tag hold the handle.
+/// Lean twin: `proof/ConRon/Arena/Handle.lean:257-263 ETag.isBind` —
+/// `ETag.isBind`: `lam` or `forallE`, the two constructors that share the
+/// `BindNode` record shape. A named predicate rather than the disjunction
+/// written at the use site: a two-way `||` inside a `match` arm that still
+/// holds loans is what task #97-P4a's extraction rule 2 is about, and the walks
+/// that dispatch on this tag hold the handle.
 pub fn e_tag_is_bind(t: u32) -> bool {
     t == ETAG_LAM || t == ETAG_FORALL_E
 }

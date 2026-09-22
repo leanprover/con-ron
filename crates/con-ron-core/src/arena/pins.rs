@@ -56,12 +56,12 @@
 //! the export also carries hands the export's parse the very same handle.
 //! What changes is only WHEN the intern happens, and how many times.
 //!
-//! Lean twin: OWED (DESIGN.md §8.6's twin ledger, task #97-P6-4a) — `AState`
-//! gains a `pins : Pins` field and `internAllPins` fills it, and the hundred-odd
-//! `pin` clauses become field reads.  Nothing about the DENOTATION moves, and
-//! the one obligation is an instance of `intern_spec`: `intern` is idempotent
-//! on a hash-consed store, so the pinned handle IS the handle the clause it
-//! replaces computed.
+//! Lean twin: `proof/ConRon/Arena/Monad.lean:123-142 AState` (DESIGN.md §8.6's
+//! twin ledger, task #97-P6-4a) — `AState` gains a `pins : Pins` field and
+//! `internAllPins` fills it, and the hundred-odd `pin` clauses become field
+//! reads. Nothing about the DENOTATION moves, and the one obligation is an
+//! instance of `intern_spec`: `intern` is idempotent on a hash-consed store, so
+//! the pinned handle IS the handle the clause it replaces computed.
 
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
 use crate::arena::env::nidx_vec_dup;
@@ -327,7 +327,8 @@ pub fn pin_names() -> Vec<Name> {
 /// the prelude, so the scratch tier is closed and every handle below is
 /// persistent (the module note says why that matters).
 ///
-/// Lean twin: OWED — `internAllPins : AM Unit`, the same sequence.
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:224-239 internReservedPins` —
+/// `internAllPins : AM Unit`, the same sequence.
 pub fn intern_reserved_pins(pers: &PersTier, st: &mut AState) -> Result<(), CheckError> {
     match intern_name_list(pers, st, &pin_names()) {
         Err(e) => Err(e),

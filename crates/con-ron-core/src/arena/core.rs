@@ -3841,8 +3841,8 @@ pub fn iota_certs(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:154-193 iotaCertsIAux
-/// Lean twin: OWED (task #97-P6-9's ledger) — the cached tier's bulk form of
-/// `iotaCerts`.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1196-1225 iotaCertsAux` — the
+/// cached tier's bulk form of `iotaCerts`.
 ///
 /// **The batched instantiation lever** (task #97-P6-9), the certificate half:
 /// peel the RAW telescope while the certified arguments accumulate, and
@@ -6779,9 +6779,9 @@ pub fn iota_rec(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec
-/// Lean twin: OWED (task #97-P6-9's ledger) — `iotaRec` with its two spine
-/// walks HOISTED: the head and the argument vector are the caller's, and `n`
-/// says how many of `sargs` the expression `e` applies.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2049-2061 iotaRec` — `iotaRec` with
+/// its two spine walks HOISTED: the head and the argument vector are the
+/// caller's, and `n` says how many of `sargs` the expression `e` applies.
 ///
 /// `whnf_app` (task #97-P6-9) has both already — it walked the spine once —
 /// and the spec-shaped body it replaces called `iotaRec` on every prefix of
@@ -7121,8 +7121,9 @@ pub fn whnf_core_proj_fire(
 
 /// con-leche: none — `getAppFn` and `getAppArgsC` in one descent, plus the
 /// spine's own application NODES (the arena's upward cutoff needs them)
-/// Lean twin: OWED (task #97-P6-9's ledger) — `Expr.getAppFn e`,
-/// `Expr.getAppArgsC e` and the list of prefixes `e` is built from.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2083-2088 getAppSpine` —
+/// `Expr.getAppFn e`, `Expr.getAppArgsC e` and the list of prefixes `e` is
+/// built from.
 ///
 /// The three results of one walk down an application spine: the head, the
 /// arguments outermost-last (`get_app_args`'s order), and `nodes`, where
@@ -7141,8 +7142,8 @@ pub fn get_app_spine(
 
 /// con-leche: none — `getAppFn`/`getAppArgsC` in one descent (see
 /// `get_app_spine`)
-/// Lean twin: OWED (task #97-P6-9's ledger) — the cursor recursion behind
-/// `get_app_spine`.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2070-2082 getAppSpineGo` — the
+/// cursor recursion behind `get_app_spine`.
 ///
 /// `k` counts the arguments seen on the way DOWN and is spent at the head, as
 /// the two vectors' capacity: `whnf_core` meets an application spine on every
@@ -7183,8 +7184,8 @@ pub fn get_app_spine_go(
 }
 
 /// con-leche: none — `getAppFn e` and `getAppArgsC e` in one place
-/// Lean twin: OWED (task #97-P6-9's ledger) — the head and the argument vector
-/// of a term, as `whnf_app` needs them for its ι step.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2089-2101 headAndArgs` — the head
+/// and the argument vector of a term, as `whnf_app` needs them for its ι step.
 ///
 /// `whnf_app` carries the head and the arguments of the application it has
 /// accumulated so that `iota_rec_at` is O(1) per argument; when a reduction
@@ -7210,8 +7211,8 @@ pub fn head_and_args(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:857-900 whnfAppI
-/// Lean twin: OWED (task #97-P6-9's ledger) — the cached tier's bulk-β
-/// argument loop, the EXECUTED checker's own `.app` clause.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2154-2200 whnfApp` — the cached
+/// tier's bulk-β argument loop, the EXECUTED checker's own `.app` clause.
 ///
 /// **The batched instantiation lever** (task #97-P6-9, DESIGN §8's ruling
 /// before §8.7).  The spec-shaped body this replaces re-entered the knot once
@@ -7352,7 +7353,8 @@ pub fn whnf_app(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:902-938 betaPeelI
-/// Lean twin: OWED (task #97-P6-9's ledger) — the peel loop of `whnf_app`.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2201-2244 betaPeel` — the peel loop
+/// of `whnf_app`.
 ///
 /// `t` is the RAW (unsubstituted) λ body after the binders consumed so far and
 /// `acc` their arguments — the list `instantiate_list` takes at cursor `0`,
@@ -7470,9 +7472,9 @@ pub fn intern_app(
 }
 
 /// con-leche: none — `internE (.app f' a)`, the twin's one-line rebuild
-/// Lean twin: OWED (task #97-P6-7's twin ledger) — **the UPWARD cutoff at the
-/// stuck application**, `expr_ops::intern_rebuilt`'s clause where task
-/// #97-P6-5's lever 2 could not reach.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2062-2069 internAppRebuilt` — **the
+/// UPWARD cutoff at the stuck application**, `expr_ops::intern_rebuilt`'s
+/// clause where task #97-P6-5's lever 2 could not reach.
 ///
 /// `whnfCore` of an application head-normalizes the function and re-interns
 /// `.app f' a`.  When `f'` IS `f` — the head was already in normal form — the
@@ -8193,8 +8195,9 @@ pub fn infer_lam_cod(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1011-1042 inferSpineI
-/// Lean twin: OWED (task #97-P6-9's ledger) — the cached tier's
-/// application-inference spine loop, the EXECUTED checker's own `.app` clause.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2606-2636 inferSpine` — the cached
+/// tier's application-inference spine loop, the EXECUTED checker's own `.app`
+/// clause.
 ///
 /// **The batched instantiation lever** (task #97-P6-9), the telescope half.
 /// The spec-shaped clause this replaces inferred the type of every PREFIX of
@@ -8301,9 +8304,9 @@ pub fn infer_spine(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1292-1389 inferBodyI
-/// Lean twin: OWED (task #97-P6-9's ledger) — the `.app` clause of the cached
-/// inference body: the spine's head is inferred once and its Π-telescope is
-/// walked against the whole spine.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2637-2645 inferApp` — the `.app`
+/// clause of the cached inference body: the spine's head is inferred once and
+/// its Π-telescope is walked against the whole spine.
 pub fn infer_app(
     pers: &PersTier,
     vis: u64,
@@ -8364,9 +8367,9 @@ pub fn infer_app(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1142-1160 inferLamsOutI
-/// Lean twin: OWED (task #97-P6-12's ledger) — the outward rebuild of the λ
-/// telescope loop: fold the stack innermost binder first, rebuilding one `∀`
-/// node per entry.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2430-2447 inferLamsOut` — the
+/// outward rebuild of the λ telescope loop: fold the stack innermost binder
+/// first, rebuilding one `∀` node per entry.
 ///
 /// `stk[j]` is the binder at level `d + j` and its opened domain may mention
 /// the `j` free variables below it, so `abstract_range ty d j` is what closes
@@ -8416,9 +8419,10 @@ pub fn infer_lams_out(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1162-1206 inferLamsLeafI
-/// Lean twin: OWED (task #97-P6-12's ledger) — the `match t with | .lam .. =>
-/// pure () | _ => if mode.verifiedChecks then …` statement of the λ loop's leaf
-/// phase, which the arena names so that the leaf's common tail is written once.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2448-2464 inferLamsLeafCheck` — the
+/// `match t with | .lam .. => pure () | _ => if mode.verifiedChecks then …`
+/// statement of the λ loop's leaf phase, which the arena names so that the
+/// leaf's common tail is written once.
 ///
 /// con-leche's task #152: at the verified modes the chain's body type is
 /// sort-checked here — the spec's codomain check (`infer_lam_cod`'s
@@ -8469,10 +8473,11 @@ pub fn infer_lams_leaf_check(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1162-1206 inferLamsLeafI
-/// Lean twin: OWED (task #97-P6-12's ledger) — the leaf phase of the λ
-/// telescope loop: bulk-open the residual body against the whole accumulated
-/// free-variable vector, infer it ONCE, run the innermost binder's codomain
-/// check, close the leaf with ONE `abstract_range`, then rebuild outward.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2465-2485 inferLamsLeaf` — the leaf
+/// phase of the λ telescope loop: bulk-open the residual body against the whole
+/// accumulated free-variable vector, infer it ONCE, run the innermost binder's
+/// codomain check, close the leaf with ONE `abstract_range`, then rebuild
+/// outward.
 ///
 /// The fold's initial neighbour is con-leche's own: a λ residual (the
 /// fuel-exhausted path) supplies its own annotation — the head entry's chain
@@ -8536,12 +8541,12 @@ pub fn infer_lams_leaf(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1208-1228 inferLamsI
-/// Lean twin: OWED (task #97-P6-12's ledger) — the λ-telescope inference loop:
-/// peel the raw λ-chain, checking each opened domain to be a type on the way
-/// in.  `k >= 1` counts the opened binders (the first is peeled by
-/// `infer_lam`'s own clause) and `fvs` holds their free variables — the list
-/// `instantiate_list` takes at cursor 0, in PUSH order on an OWNED vector
-/// (task #97-P6-15).
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2486-2511 inferLams` — the
+/// λ-telescope inference loop: peel the raw λ-chain, checking each opened
+/// domain to be a type on the way in. `k >= 1` counts the opened binders (the
+/// first is peeled by `infer_lam`'s own clause) and `fvs` holds their free
+/// variables — the list `instantiate_list` takes at cursor 0, in PUSH order on
+/// an OWNED vector (task #97-P6-15).
 ///
 /// One peeled domain is ONE `instantiate_list` walk over the domain alone,
 /// where the per-binder clause substituted into the whole residual telescope
@@ -8618,9 +8623,10 @@ pub fn infer_lams(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1230-1254 inferPisOutI
-/// Lean twin: OWED (task #97-P6-12's ledger) — the outward fold of the ∀
-/// telescope loop: fold the accumulated domain sorts by `imax`, innermost
-/// binder first, which is exactly the chained `∀`-rule's result value.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2512-2527 inferPisOut` — the
+/// outward fold of the ∀ telescope loop: fold the accumulated domain sorts by
+/// `imax`, innermost binder first, which is exactly the chained `∀`-rule's
+/// result value.
 ///
 /// con-leche's task #272 (its GitHub issue #9): the codomain sort's zero-ness
 /// datum is **threaded, not recomputed**.  `zeronessOf (imax u v) = zeronessOf
@@ -8657,10 +8663,11 @@ pub fn infer_pis_out(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1256-1267 inferPisLeafI
-/// Lean twin: OWED (task #97-P6-12's ledger) — the leaf phase of the ∀
-/// telescope loop: bulk-open the residual body against the whole accumulated
-/// free-variable vector, infer its sort ONCE, then fold the domain sorts
-/// outward.  The telescope's zero-ness datum is read HERE, once, and threaded.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2528-2542 inferPisLeaf` — the leaf
+/// phase of the ∀ telescope loop: bulk-open the residual body against the whole
+/// accumulated free-variable vector, infer its sort ONCE, then fold the domain
+/// sorts outward. The telescope's zero-ness datum is read HERE, once, and
+/// threaded.
 pub fn infer_pis_leaf(
     pers: &PersTier,
     vis: u64,
@@ -8698,11 +8705,12 @@ pub fn infer_pis_leaf(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1269-1290 inferPisI
-/// Lean twin: OWED (task #97-P6-12's ledger) — the ∀-telescope inference loop
-/// (con-leche's task #100 stage 6: the `∀`-rule INFERS its codomain sort, the
-/// stored annotation is not read): peel the raw ∀-chain, checking each opened
-/// domain to be a type on the way in and accumulating its sort, infer the
-/// bulk-opened leaf's sort once, and fold `imax` outward.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2543-2566 inferPis` — the
+/// ∀-telescope inference loop (con-leche's task #100 stage 6: the `∀`-rule
+/// INFERS its codomain sort, the stored annotation is not read): peel the raw
+/// ∀-chain, checking each opened domain to be a type on the way in and
+/// accumulating its sort, infer the bulk-opened leaf's sort once, and fold
+/// `imax` outward.
 ///
 /// The stack carries `(LIdx, PropWhen)` and no expression at all — a ∀
 /// telescope's inference builds no binder node, only the folded level and the
@@ -9003,11 +9011,12 @@ pub fn infer_app_io_at(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1044-1091 inferSpineIOI
-/// Lean twin: OWED (task #97-P6-9's ledger) — `infer_spine` with the
-/// per-argument certificate gated: **THE io SITE** (task #97f, P2f), where the
-/// executed core reads `CheckMode.ioSkip` — the datum weakened by
-/// `!mode.certs`, the io-grade argument certificate being a certificate
-/// FAMILY.  The two agree at `.verified`, the mode the bridge is stated at.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2646-2681 inferSpineIO` —
+/// `infer_spine` with the per-argument certificate gated: **THE io SITE** (task
+/// #97f, P2f), where the executed core reads `CheckMode.ioSkip` — the datum
+/// weakened by `!mode.certs`, the io-grade argument certificate being a
+/// certificate FAMILY. The two agree at `.verified`, the mode the bridge is
+/// stated at.
 ///
 /// A syntactic `.forallE` is its own whnf, so the syntactic step's datum is
 /// the datum the pure io body reads off the whnf'd type (con-leche's own note
@@ -9318,12 +9327,12 @@ pub fn defeq_binders(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1441-1701 defeqStep
-/// Lean twin: OWED (task #97-P6-14's ledger) — **the batched defeq binder
-/// descent**, and the one lever of this campaign that is the PORT's own
-/// algorithm rather than a clause copied from con-leche's cached tier:
-/// `Cached/CoreC.lean:1456-1623 defeqStepI` keeps its `.forallE`/`.lam` arms
-/// chained, so there is nothing upstream to mirror and the bridge owes its own
-/// identification lemma.  Licensed by the maintainer's ruling before
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3022-3063 defeqPeel` — **the
+/// batched defeq binder descent**, and the one lever of this campaign that is
+/// the PORT's own algorithm rather than a clause copied from con-leche's cached
+/// tier: `Cached/CoreC.lean:1456-1623 defeqStepI` keeps its `.forallE`/`.lam`
+/// arms chained, so there is nothing upstream to mirror and the bridge owes its
+/// own identification lemma. Licensed by the maintainer's ruling before
 /// DESIGN.md §8.7 ("do it here — with its own identification lemma against the
 /// pure tier's chained arms owed by the bridge (P3)").
 ///
@@ -9503,12 +9512,13 @@ pub fn defeq_peel(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1441-1701 defeqStep
-/// Lean twin: OWED (task #97-P6-14's ledger) — the batched descent's LEAF
-/// phase: the two residuals are opened ONCE against the whole accumulated
-/// `fvs` and handed back to the knot at the depth the peel reached, which is
-/// the chain's own recursive call at its last binder; then, and only if that
-/// pair came back `true`, the innermost annotation-data mismatch the peel
-/// recorded is raised, with the message of the binder kind that level had.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2954-3021 defeqPeelLeaf` — the
+/// batched descent's LEAF phase: the two residuals are opened ONCE against the
+/// whole accumulated `fvs` and handed back to the knot at the depth the peel
+/// reached, which is the chain's own recursive call at its last binder; then,
+/// and only if that pair came back `true`, the innermost annotation-data
+/// mismatch the peel recorded is raised, with the message of the binder kind
+/// that level had.
 pub fn defeq_peel_leaf(
     pers: &PersTier,
     vis: u64,
@@ -9539,11 +9549,12 @@ pub fn defeq_peel_leaf(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1441-1701 defeqStep
-/// Lean twin: OWED (task #97-P6-14's ledger) — the batched descent's OUTWARD
-/// annotation pass, reached once the residual pair has come back `true`: the
-/// chain tests `m₁.pw == m₂.pw` on the way out, innermost binder first, and
-/// raises at the first mismatch, so the one the peel recorded is the one that
-/// fires and `mism_lam` is the message of the binder kind it sat at.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2945-2953 defeqPeelDone` — the
+/// batched descent's OUTWARD annotation pass, reached once the residual pair
+/// has come back `true`: the chain tests `m₁.pw == m₂.pw` on the way out,
+/// innermost binder first, and raises at the first mismatch, so the one the
+/// peel recorded is the one that fires and `mism_lam` is the message of the
+/// binder kind it sat at.
 pub fn defeq_peel_done(mism: bool, mism_lam: bool) -> Result<bool, CheckError> {
     if mism {
         if mism_lam {
@@ -10402,16 +10413,16 @@ pub fn annot_pw_lam(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/StateC.lean:168-172 peelFuel
-/// Lean twin: OWED (task #97-P6-11's ledger) — the fuel of the two telescope
-/// peels, con-leche's number verbatim.  Exhaustion is not an error: the loop
-/// falls through to its leaf phase with the binders peeled so far, which is
-/// con-leche's own `| 0, t, k, fvs, stk => …LeafI` clause.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2423-2429 peelFuel` — the fuel of
+/// the two telescope peels, con-leche's number verbatim. Exhaustion is not an
+/// error: the loop falls through to its leaf phase with the binders peeled so
+/// far, which is con-leche's own `| 0, t, k, fvs, stk => …LeafI` clause.
 pub const PEEL_FUEL: u64 = 16777216;
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1649-1676 annotateBindersOutI
-/// Lean twin: OWED (task #97-P6-11's ledger) — the outward rebuild of both
-/// annotation telescope loops: fold the stack innermost binder first,
-/// rebuilding one binder node per entry.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3330-3348 annotateBindersOut` — the
+/// outward rebuild of both annotation telescope loops: fold the stack innermost
+/// binder first, rebuilding one binder node per entry.
 ///
 /// `stk[j]` is the binder at level `d + j` and its annotated domain may mention
 /// the `j` free variables below it, so `abstract_range ty' d j` is what closes
@@ -10468,10 +10479,11 @@ pub fn annotate_binders_out(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1704-1713 annotatePisLeafI
-/// Lean twin: OWED (task #97-P6-11's ledger) — the leaf phase of the ∀
-/// telescope loop: bulk-open the residual body against the whole accumulated
-/// free-variable vector, annotate it ONCE, compute the telescope's datum once,
-/// close the leaf with ONE `abstract_range`, then rebuild outward.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3349-3359 annotatePisLeaf` — the
+/// leaf phase of the ∀ telescope loop: bulk-open the residual body against the
+/// whole accumulated free-variable vector, annotate it ONCE, compute the
+/// telescope's datum once, close the leaf with ONE `abstract_range`, then
+/// rebuild outward.
 ///
 /// `annotatePisPwI` (`:1693-1702`) is the `some (annotPwPiI …)` line, inlined:
 /// the write is UNGATED in con-leche since 2026-09-06 — writing the datum is
@@ -10512,11 +10524,11 @@ pub fn annotate_pis_leaf(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1715-1730 annotatePisI
-/// Lean twin: OWED (task #97-P6-11's ledger) — the ∀-telescope annotation
-/// loop: peel the raw ∀-chain, annotating each opened domain on the way in.
-/// `k >= 1` counts the opened binders (the first is peeled by
-/// `annotate_body`'s own clause) and `fvs` holds their free variables — the
-/// list `instantiate_list` takes at cursor 0, in PUSH order on an OWNED
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3360-3375 annotatePis` — the
+/// ∀-telescope annotation loop: peel the raw ∀-chain, annotating each opened
+/// domain on the way in. `k >= 1` counts the opened binders (the first is
+/// peeled by `annotate_body`'s own clause) and `fvs` holds their free variables
+/// — the list `instantiate_list` takes at cursor 0, in PUSH order on an OWNED
 /// vector (task #97-P6-15).
 ///
 /// One peeled domain is ONE `instantiate_list` walk over the domain alone,
@@ -10578,10 +10590,11 @@ pub fn annotate_pis(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1753-1762 annotateLamsLeafI
-/// Lean twin: OWED (task #97-P6-11's ledger) — `annotate_pis_leaf` rebuilding
-/// λ nodes, with the λ chain's datum (`annotPwLamI`: the zero-ness of the sort
-/// of the innermost body's TYPE) in place of the ∀ telescope's.
-/// `annotateLamsPwI` (`:1747-1751`) is inlined with it.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3376-3385 annotateLamsLeaf` —
+/// `annotate_pis_leaf` rebuilding λ nodes, with the λ chain's datum
+/// (`annotPwLamI`: the zero-ness of the sort of the innermost body's TYPE) in
+/// place of the ∀ telescope's. `annotateLamsPwI` (`:1747-1751`) is inlined with
+/// it.
 pub fn annotate_lams_leaf(
     pers: &PersTier,
     vis: u64,
@@ -10617,11 +10630,11 @@ pub fn annotate_lams_leaf(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1764-1777 annotateLamsI
-/// Lean twin: OWED (task #97-P6-11's ledger) — the λ twin of `annotate_pis`.
-/// Its caller guards it with `bvar_b e == 0` (`annotate_body`'s λ clause):
-/// con-leche's own note says the λ loop is chain-identical only on
-/// `bvar`-closed nodes, because the chained tails re-open exactly what they
-/// closed, and the derived word decides that in O(1).
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3386-3403 annotateLams` — the λ
+/// twin of `annotate_pis`. Its caller guards it with `bvar_b e == 0`
+/// (`annotate_body`'s λ clause): con-leche's own note says the λ loop is
+/// chain-identical only on `bvar`-closed nodes, because the chained tails
+/// re-open exactly what they closed, and the derived word decides that in O(1).
 pub fn annotate_lams(
     pers: &PersTier,
     vis: u64,
@@ -11029,9 +11042,9 @@ pub fn annotate_body(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Core.lean:963-1052 whnfCoreBody
-/// Lean twin: OWED (task #97-P6-7's twin ledger) — **the head kinds
-/// `whnfCoreBody` answers with its own argument**, read off the handle's
-/// constructor tag without decoding the node.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2102-2114 whnfCoreStuckTag` — **the
+/// head kinds `whnfCoreBody` answers with its own argument**, read off the
+/// handle's constructor tag without decoding the node.
 ///
 /// `whnfCoreBody`'s first six clauses are `pure e` (`sort`, `fvar`, `forallE`,
 /// `lam`, `const`, `lit`); only `app` and `proj` reduce, and `letE`/`bvar`
@@ -11062,8 +11075,8 @@ pub fn whnf_core_stuck_tag(e: &EIdx) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1073-1088 whnfStep
-/// Lean twin: OWED (task #97-P6-7's twin ledger) — **the head kinds `whnfBody`
-/// answers with its own argument**, again off the tag alone.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2382-2386 whnfBody` — **the head
+/// kinds `whnfBody` answers with its own argument**, again off the tag alone.
 ///
 /// One iteration of the reduction loop is `whnfCore`, then `reduceNat`, then
 /// `unfoldDefinition`, and it stops when the last two decline.  At `sort`,
