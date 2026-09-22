@@ -394,7 +394,13 @@ structure ETablesRel (rt : arena.store.ETables) (lt : ETables) : Prop where
   lets : TblRel LetNodeWF absLetNode absEIdx absU64 derObsE rt.lets lt.lets
   lits : TblRel LitNodeWF absLitNode absEIdx absU64 derObsE rt.lits lt.lits
   projs : TblRel ProjNodeWF absProjNode absEIdx absU64 derObsE rt.projs lt.projs
-  bms : TblRel BMNodeWF absBMNode absBMIdx absU64 derObsE rt.bms lt.bms
+  /-- **The binder datum's derived column leaves the relation whole** (task
+  #97-P5-2): it holds `hash m.pw` and nothing else — `getBMDer` reads the
+  has-a-parameter bit off the NODE (`r.pw.hasParams`), not off the column, and
+  the column's only other reader is the parent's own hash.  So `derObsN`, for
+  the reason §1 of task #97-P5-1 gives at the name tier: a hash cannot be in
+  the relation because `mixHash` is `opaque`. -/
+  bms : TblRel BMNodeWF absBMNode absBMIdx absU64 derObsN rt.bms lt.bms
 
 /-! ## The persistent arm: which of the two tiers holds it
 
