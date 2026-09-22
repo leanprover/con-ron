@@ -38402,6 +38402,263 @@ conflicted, and neither touches a statement this tier makes.  The gates and
 `lake build ConRonBridge` were re-run on the second merged state; the
 thirteenth gate (`twin-lines`) is #97-P3-Core-2's.
 
+#### Round 4 — the frames the tier under-stated (2026-09-22, Opus under Fable)
+
+Branch `p3-exprops-4` off `arena`'s tip `c80e9c34`, merged forward once
+(`65a2aa9e`, task #97-P3-Core round 3).  **Nothing outside
+`proof/ConRon/Bridge/ExprOps/**` and `proof/ConRon/Bridge/Specs.lean` is
+written except two `obtain` patterns and one moved lemma** (§5 says why they
+are forced).
+
+The round's subject is one defect repeated four times: **`Bridge/ExprOps`
+reached zero `sorry` first and then became the frame bottleneck for three
+other tiers, because a spec can be CLOSED and still under-state what its
+consumers need.**  Four instances were fixed and a fifth — the derived
+`match`-auxiliary clash — was given an owner.
+
+#### 1. `hbb`: two closed theorems nobody could call
+
+`ExprOps/Subst.lean`'s `instPisAtLift_spec` and `instantiate1LiftFast_spec`
+took `hbb : ∀ f, BvarBSpec (bvarB f)`, and the file promised *"one `exact`
+discharges it when the packed-range group's file lands"*.  It had landed and
+the `exact` did not go through: `BvarBSpec` asks for `memos.lowerC` and
+`memos.inst1LC` unchanged and **neither `bvarB_spec` nor
+`bvarBoundMemo_spec` stated them**.
+
+The statement is TRUE — `bvarB` is `derivedE` and, on the saturated branch,
+`bvarBClear; bvarBoundGo; bvarBClear`, and `bvarBGet`/`bvarBSet`/`bvarBClear`
+are the only memo primitives in it.  So the repair is the one the tier's own
+rule demands (a registered `@[spec]` is a commitment; `mvcgen` ignores a
+stronger theorem passed locally): the conjuncts go INTO the statements.
+`BvarBoundSpec`, `bvarBoundMemo_spec` and `bvarB_spec` each gained
+
+    s'.memos.lowerC = s₀.memos.lowerC ∧ s'.memos.inst1LC = s₀.memos.inst1LC
+
+and **every proof closed unchanged** — `bvarBSet_spec` and `bvarBClear_spec`
+hand back a whole-record update `{ memos with bvarBC := … }`, so each
+conjunct is one projection and `bridge_vcs` takes it.  The other two of
+`BvarBSpec`'s eight conjuncts (`StateOK s'`, `StoreWF s'.store`) are free:
+`Bridge/StateOK.lean`'s `StateOK` is the single field `StoreWF s.store`, so
+they are `hok` transported along `s'.store = s₁.store`.
+
+`ExprOps/Subst.lean` gains `import ConRon.Bridge.ExprOps.Ranges` and
+`bvarB_bvarBSpec`, six lines; **all eleven `hbb` binders are deleted**, so
+`lowerBVarsGo_spec`, `lowerBVarsFast_spec`/`_run`, `instantiate1LiftGo_spec`,
+`instantiate1LiftFast_spec`/`_run` and `instPisAtLift_spec` are callable with
+no hypothesis about `bvarB` at all.  `bvarB_run`'s STATEMENT is deliberately
+untouched — `Bridge/Inductives/StructParts.lean`'s `bvarB_pstep` destructures
+it five-wide, and that file is another tier's.
+
+**What `hbb` cost**: two conjuncts in three statements, one import, one
+six-line theorem, and no proof body anywhere.  It was a *statement* defect
+from the start.
+
+#### 2. `instLPFast_spec`'s cache frame, up the whole readback chain
+
+The Core round's ask.  `instLPFast_spec` framed no cache table at all, which
+blocked `constTyAt_spec`, `constValAt_spec`, `ruleRhsAt_spec` and
+`IProjEntry.typeAt_spec` — and through them `whnfBody_spec`'s delta half.  It
+now carries
+
+    s'.caches = { s₀.caches with readLC := …, readNC := …, readLsC := … }
+    ReadNCacheOK s'.caches.readNC s'.store
+
+The **record equation** is `readLevelM_spec`'s own spelling (`Bridge/
+Specs.lean`: *"a record EQUATION and not a table equation"*), and it is what
+makes this work at all: it names the three tables the call moves and frames
+the other eleven in one line, so `ReadNCacheOK` travels across `instLPGo` by
+`ReadNCacheOK.mono` along the walk's `Ext`.
+
+The same equation was stated one level down at each of `readLevelM_specF`,
+`readLevelsM_specF` (`ExprOps/MemoSpecs.lean`), `substLMemoAt_spec`,
+`substLsMemoAt_spec` (`ExprOps/InstLP.lean`), `readNameM_specF`,
+`readNamesM_specF`, `InstLPSpec` and `instLPGo_spec` (`ExprOps/Owed.lean`),
+each REPLACING the two sibling-table equations it used to carry — which are
+its projections.
+
+**The whole chain cost ONE lemma**: `ReadNCacheOK.mono` added to
+`instLPFast_spec`'s closer list.  Every other proof closed unchanged;
+`instLPGo_specS`'s fourteen structural blocks each gained one `by grind` or
+one `rfl`.  The one thing `grind` could NOT do on its own was compose the
+five record equations of `instLPFast`'s body (readback, readback, clear,
+walk, clear) into one — with `ReadNCacheOK.mono` in the list it does.
+
+#### 3. `BMExt` in `LiftSpec`, `LowerSpec` and `Inst1LSpec`
+
+The Core round's third ask.  `Bridge/Inductives/Rel.lean`'s `PStep` has a
+`bm` field, so **a `PSpec`-grade twin that lifts could not produce a frame at
+all**: `structIdxAt_spec` and, through it, the Inductives tier's group 3 (10
+items), group 4 (5) and `closeTelescope` (+4).
+
+`BMExt s₁.store s'.store` is now a conjunct of `LiftSpec`, `LowerSpec`,
+`Inst1LSpec` and of `liftLooseBVarsFast`, `lowerBVarsFast`,
+`instantiate1LiftFast`, `instantiateListFast` (spec and run form each) and
+`instPisAtLift_spec`.  **Cost: one `BMExt.refl _` or one
+`by grind only [BMExt.trans, BMExt.refl]` per verification condition and
+nothing else** — `Bridge/Specs.lean`'s intern specs have carried `BMExt`
+since task #97-P3-1 §3, so the fact was already in every arm's context; the
+records simply threw it away.
+
+#### 4. `internE_spec`'s `scratchOn`
+
+`internE_spec` was the only intern spec of `Bridge/Specs.lean` that did not
+carry `s'.store.scratchOn = s₀.store.scratchOn` — the three nested stores'
+specs, `internBindI` and `internRebuiltBindI` all do.  Without it
+`PersE_of_view` is unreachable at the post-call state and the persistence
+half of the intern is stuck; the Frontend tier proved
+`EStore.scratchOn_intern` / `internE_scratchOn` locally rather than widen a
+registered spec.
+
+The conjunct is now in **all twenty-three** statements of the `internE` and
+`internRebuilt` families (each entry plus its ten, resp. eleven,
+per-constructor faces), and `EStore.scratchOn_intern` **moves** from
+`Bridge/Frontend/Shared.lean` to `Bridge/Specs.lean`, where `internE_spec`'s
+own frame needs it.  It is three lines over `Bridge/StoreBind.lean`'s
+`EStore.scratchOn_internAt` and `Arena/WFProofs.lean`'s
+`EStore.internBMOfView_cases`; `Bridge/Frontend/Axioms.lean`'s
+`#print axioms EStore.scratchOn_intern` still resolves, because the NAME did
+not move.
+
+#### 5. What moved outside the lane, and why it was forced
+
+Three edits, all of them one token or one deletion:
+
+| file | edit | why |
+|---|---|---|
+| `Bridge/Frontend/Shared.lean` | `⟨hwf, hx, -, -, hm, …⟩` → one more `-` | `internE_spec` gained a conjunct |
+| `Bridge/Frontend/Shared.lean` | `EStore.scratchOn_intern` deleted | moved to `Bridge/Specs.lean` (same name) |
+| `Bridge/Inductives/Rel.lean` | `⟨h1, h2, h3, _h4, _h5, …⟩` → one more `_` | the same |
+
+**There is no way to widen a spec whose postcondition is destructured
+positionally without touching its consumers**, wherever the conjunct is
+inserted: nine `obtain` patterns against ten conjuncts bind the last pattern
+to a conjunction.  Seven sites inside the lane needed the same one-token fix
+(`ExprOps/Inst1.lean` ×1, `ExprOps/Subst.lean` ×6).
+
+#### 6. Finding 18 closed — the derived `match` auxiliary has an owner, and there were eleven walls, not two
+
+Task #97-P3-Core round 3's finding 18, booked *"the owner is whoever next
+touches `Bridge/Specs.lean`"*.  Closed here, and the sweep behind it found
+**five and a half times more walls than the two on record**.
+
+**The mechanism.**  `grind` derives a congruence auxiliary for an `Arena/**`
+definition's `match` ON DEMAND, into whatever module first needs it, under a
+deterministic PUBLIC name — `<f>.match_N.congr_eq_K` and
+`<f>.match_N.congr_eq_1._sparseCasesOn_2`.  Two modules that each derive the
+same one cannot then sit in one import closure.
+
+**The fix works, and it was measured, not assumed.**  A module carrying the
+REAL generator (`mvcgen [forallPw]`) and importing a module that carries only
+a forcing line re-uses the owner's auxiliary — `Environment.getModuleIdxFor?`
+names the owner — and adds nothing of its own.
+
+**The spelling matters** (the `Refine2/Core/Eqns.lean` precedent the
+coordinator named).  What forces the derivation is a `grind` on a goal whose
+head IS the matcher and which cannot be closed without splitting it:
+
+    theorem matchOwner_forallPw (x : ENodeView) :
+        ConRon.Arena.forallPw.match_1 (motive := fun _ => Nat) x
+          (fun _ _ _ => 1) (fun _ => 0) ≤ 1 := by
+      grind
+
+Three spellings that do NOT work, each measured: a `grind` on `f x = f x` or
+on a goal that is `True` closes by congruence before it ever looks at the
+match and derives nothing; and an `mvcgen` on a Hoare triple only works for a
+program every step of which this file already has a spec for — it works for
+`forallPw`, it does not for `piResultIsProp`, whose body calls `piResult`.
+The matcher form works for every matcher and does not care what the function
+around it does.
+
+**The sweep.**  For each of the 83 modules of `ConRon/Bridge/**`, one Lean
+process listing the `ConRon.Arena.*.congr_eq*` constants that module OWNS
+(`getModuleIdxFor?`), aggregated by name.  **Fifty auxiliary names, over
+twelve matchers of eleven Arena functions, had more than one owner:**
+
+| matcher | modules that each derived it |
+|---|---|
+| `resetMetaGo.match_1` (10 aux) | `ExprOps/{Leaves,Reset,Walks}` |
+| `liftLooseBVarsGo.match_1` (10) | `ExprOps/{Abs,Ranges,Walks}` |
+| `fvarLeaves.match_1` (10) | `ExprOps/{Leaves,Walks}` |
+| `instantiate1ArmApp.match_3` (2) | `ExprOps/{Abs,Inst1,Reset,Subst}` |
+| `instantiate1Arm{App,BVar,Bind,Let,Proj}.match_1` (2 each) | `ExprOps/{Abs,Inst1,Subst}` |
+| `isLam.match_1` (3) | `ExprOps/{Spine,Walks}` |
+| `isCtorApp.match_5` (3) | `Core/Walks/{Guards,Spine}` |
+| `denoteLs.match_1` (2) | `Frontend`, `Inductives` |
+| `forallPw.match_1` (3) | the `lakefile.toml` note's pair |
+| `piResultIsProp.match_1` (3) | `Core/EnsureSort` against `Core/Walks/Owed` |
+
+`Bridge/Specs.lean` now owns **all fourteen** (the twelve plus the two named
+ones), and the verification is the same `getModuleIdxFor?` run: every
+`congr_eq*` of each names `ConRon.Bridge.Specs`.  One `grind` derives all ten
+of a ten-way `ENodeView` dispatch.  **The file still elaborates in 10 s** —
+the fourteen theorems together cost under a second.
+
+**What this unblocks.**  `Arms/{InferIO,Annotate,Infer}` — all three ON the
+knot-facing chain and all three calling `ensureSort` — no longer meet the
+wall finding 18 predicted, and `Bridge/Core/Walks/Spine.lean`'s reason for
+existing as a sibling module is gone (the module can stay; nothing forces it
+any more).  `lakefile.toml`'s `ConRonBridge` note — *"two modules of the
+`ExprOps` tier cannot sit in ONE import closure"* — is no longer true, and
+the `globs` line it justifies can be revisited by whoever next touches it.
+
+**Where the next one will come from.**  A new clash appears as the same
+import error, and the auxiliary's name in it says which matcher to force; the
+recipe and the sweep are written above the fourteen theorems in
+`Bridge/Specs.lean`.
+
+#### 7. The sweep the coordinator asked for
+
+For every `…Spec` record and every `_spec` of `Bridge/ExprOps/**`: does the
+postcondition state each component of the frame its grade promises?
+
+**Complete**, after this round: every walk whose store STANDS STILL
+(`Ranges.lean`'s eight, `Walks.lean`'s eight, `Leaves.lean`'s three,
+`Guards.lean`'s four, the memo-set and readback specs) — `s'.store =
+s₀.store` gives the consumer `BMExt` by `BMExt.refl` and `Ext` by `Ext.refl`.
+Complete too: `Inst1.lean`'s record and its five arms, `Abs.lean`'s
+`Abs1Spec` and its five arms and five `_hop`s (they carry `BMExt` UNFOLDED,
+as `∀ mi m, viewBM …`, which is the `def`), `Subst.lean`'s `InstLPureSpec`,
+`InstLSpec` and — since §3 — `LiftSpec`, `LowerSpec`, `Inst1LSpec`.
+`InstLP.lean`'s three level interners and its two `substL*MemoAt_spec` frame
+`pers`, `scr` and `scratchOn`, from which `Bridge/Inductives/Rel.lean`'s
+`bmExt_of_nested` gives `BMExt` — so they are complete in substance.
+
+**Incomplete: twenty-six specs in five files still state `Ext` and no `BMExt`
+in any spelling.**  A `PSpec`-grade consumer of any of them is blocked the way
+`structIdxAt_spec` was:
+
+| file | specs |
+|---|---|
+| `Abs.lean` | `AbsRangeSpec` |
+| `Inst1.lean` | `instantiate1Fast_spec` (the ENTRY; its own record has it) |
+| `Owed.lean` | `abstract1Fast_spec`, `AbsRangeGoSpec`, `abstractRangeGo_spec`, `abstractRangeFast_spec`, `resetMetaFast_spec`, `RenameSpec`, `renameConstsGo_spec`, `renameConstsFast_spec`, `InstLPSpec`, `instLPGo_spec`, `instLPFast_spec` |
+| `Spine.lean` | `mkAppN_spec`, `mkAppNFrom_spec`, `bvarRange_spec`, `pisToLams_spec`, `replacePiBody_spec`, `instSpine_spec`, `instPis_spec`, `instPisAt_spec`, `instLamsAt_spec` |
+| `TelescopeF.lean` | `InstListSpec`, `instPisAtFGo_spec`, `instLamsAtFGo_spec`, `instPisAtF_spec`, `instLamsAtF_spec`, `recRulePlain_spec` |
+
+Every one of them is the SAME edit §3 made and at the same price: the fact is
+already in each arm's context (it comes out of `Bridge/Specs.lean`'s intern
+specs, or out of `ExprOps/MemoSpecs.lean`'s `_specV` family unfolded), and
+the record throws it away.  **This round did not make that edit** — it is
+twenty-six statements across five files, each a full re-elaboration of a
+slow module, and no tier has asked for them yet.  A round that is asked for
+one of them should take all twenty-six in the same pass.
+
+The other two frame components are complete: no spec of the tier writes a
+CACHE table without framing it (the readback chain of §2 was the last), and
+every memoised walk frames its own table (`§1` was the last memo gap).
+
+#### 8. The rule this round is worth
+
+**A tier is not "closed" at zero `sorry`.**  Three tiers were blocked by four
+statements that were true, proved, and too weak, and every one of the four
+cost one conjunct and no proof.  The check that would have caught all four is
+mechanical and takes a minute: for each `…Spec` record, list the components
+of the frame its consumers' grade needs (`PStep`: `StateOK`, `Ext`, `BMExt`,
+`CacheFrame`, `pins`) and confirm each is a conjunct.  §7 is that check run
+over this tier; it belongs in every tier's own round.
+
+#### 9. Gates
+
 ### Task #97-P3-Core — Theorem 1: the Core tier's knot, memo wrappers and arms (2026-09-22, Opus under Fable)
 
 Phase **P3** of §8.6, the Core round: DESIGN §8.2's **Theorem 1** at
