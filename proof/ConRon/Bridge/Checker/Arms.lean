@@ -438,7 +438,7 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
     have hnatP : ConLeche.natOpNames.contains cA.name = true := hcont3 ▸ hy3
     obtain ⟨deps, s4, g4, r4⟩ := AM.bind_ok hg3
     obtain ⟨hst4, hx4, hc4, hp4, hdeps⟩ :=
-      natOpDeps_run hok2.check.state hnm2 g4
+      natOpDeps_run hok2.check.state hok2.check.pins hnm2 g4
     have hok4 : FoldOK μ env fe s4 :=
       hok2.step (hok2.check.mono hst4 hx4 hc4 hp4) hx4 hp4
     have hnm4 : denoteN s4.store.ns cvA.name = some cA.name :=
