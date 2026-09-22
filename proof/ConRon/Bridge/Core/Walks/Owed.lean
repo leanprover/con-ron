@@ -1,5 +1,5 @@
 /-
-# `ConRon.Bridge.Core.Walks.Owed` — the sixteen statements the round did not reach
+# `ConRon.Bridge.Core.Walks.Owed` — the sixteen non-slot walks: SIX CLOSED, ten open
 
 Task #97-P3-CoreWalks.  DESIGN §8's `### Task #97-P3-Core` §6 ends with the
 round's own estimate of where the next tier's work is:
@@ -23,6 +23,24 @@ it is waiting on written at the site.
 This is `Bridge/ExprOps/Owed.lean`'s role one tier up: a statement is not a
 proof, but it is the interface, and the six body walks cannot be written
 against a walk that has no statement.
+
+## 0a. Round 3: six of the sixteen are CLOSED
+
+Task #97-P3-Core round 3 closed `unfoldableHead`, `headHint`,
+`sameConstHeads` (§1), `isPropType` (§5), `defEqList` and `defeqSpine` (§4),
+and the module is no longer only statements.  Three things made it possible,
+and none of them is about any one walk:
+
+1. **`Bridge/Core/**` imports the `ExprOps` tier.**  Its thirteen modules
+   reached zero `sorry` while round 2 ran, and task #97-P3-CoreWalks left
+   three walks here with the note *"until this tier imports the `ExprOps`
+   tier"*.  The import is `ConRon.Bridge.ExprOps.Spine` and it costs nothing:
+   no theorem of that tier is registered `@[spec]`, so `mvcgen` sees them
+   only where they are passed.
+2. **The knot's six slots in ANSWER shape** (`Bridge/Core/Knot.lean`, round
+   3): §0's rule, paid once at the knot instead of per site.
+3. **The fuel merge** (`Bridge/Core/Walks/Mono.lean`, round 2), which
+   `defEqList`'s cons arm and `isPropType`'s conclusion both spend.
 
 ## 0. The shape correction of task #97-P3-Core-2, and why it was forced
 
@@ -148,6 +166,10 @@ each.  Where the match is on a PAIR (`sameConstHeads`) the discharger does
 not fire and the arm needs `cases … <;> cases … <;> first | rfl | …`, which
 is the whole difference between the two shapes. -/
 
+/-- con-leche: none — the LENGTH projection of one tier's `LsTables.get`:
+the stored record's own length is the length of the list the handle decodes to
+in that tier.  Task #97-P6-10 wrote the projection and nothing related it to
+the list. -/
 theorem lsTables_getLen_eq (t : LsTables) (i : LsIdx) :
     t.getLen i = (t.get i).map List.length := by
   simp only [LsTables.getLen, LsTables.get]
@@ -157,6 +179,8 @@ theorem lsTables_getLen_eq (t : LsTables) (i : LsIdx) :
   · simp only [Bool.not_eq_true] at h
     simp [h]
 
+/-- con-leche: none — the same at the two-tier `LsStore`: one `if` chain
+over the other. -/
 theorem lsStore_viewLen_eq (st : LsStore) (i : LsIdx) :
     st.viewLen i = (st.view i).map List.length := by
   simp only [LsStore.viewLen, LsStore.view, LsStore.persGetLen,
@@ -169,6 +193,10 @@ theorem lsStore_viewLen_eq (st : LsStore) (i : LsIdx) :
     · simp only [Bool.not_eq_true] at hs
       simp [hp, hs]
 
+/-- con-leche: none — **the length projection agrees with the
+DENOTATION**: a level-list handle that denotes `us` answers `us.length`.  This
+is what a walk comparing `viewLsLen` against con-leche's `us.length` needs and
+what no tier had. -/
 theorem viewLen_of_denoteLs {st : LsStore} {i : LsIdx} {us : List Level}
     (h : denoteLs st i = some us) : st.viewLen i = some us.length := by
   simp only [denoteLs] at h
@@ -178,6 +206,9 @@ theorem viewLen_of_denoteLs {st : LsStore} {i : LsIdx} {us : List Level}
     rw [hv] at h
     rw [lsStore_viewLen_eq, hv, Option.map_some, denoteLList_len h]
 
+/-- con-leche: none — a denoting NAME-handle list keeps its length.
+`Bridge/Rel.lean` has this at expression and level handles
+(`denoteEList_len`, `denoteLList_len`) and not at names. -/
 theorem denoteNList_len {st : NStore} :
     ∀ {hs : List NIdx} {xs : List ConLeche.Name},
       Frontend.denoteNList st hs = some xs → xs.length = hs.length
@@ -196,6 +227,8 @@ theorem denoteNList_len {st : NStore} :
         obtain rfl := Option.some.inj h
         simp [denoteNList_len has]
 
+/-- con-leche: none — the denotation of a stored DEFINITION is a
+definition, with the same reducibility hint and a denoting value. -/
 theorem denoteCI_defnInfo_inv {st : EStore} {v : IConstantVal} {e : EIdx}
     {hint : ReducibilityHint} {c : ConstantInfo}
     (h : Frontend.denoteCI st (.defnInfo v e hint) = some c) :
@@ -212,6 +245,8 @@ theorem denoteCI_defnInfo_inv {st : EStore} {v : IConstantVal} {e : EIdx}
       exact ⟨cv, x, rfl, rfl, (Option.some.inj h).symm⟩
 
 
+/-- con-leche: none — the field-by-field inversion of `denoteCV`, which
+is where `cv.levelParams` on the two sides meet. -/
 theorem denoteCV_inv {st : EStore} {v : IConstantVal} {c : ConstantVal}
     (h : Frontend.denoteCV st v = some c) :
     denoteN st.ns v.name = some c.name ∧
@@ -231,6 +266,11 @@ theorem denoteCV_inv {st : EStore} {v : IConstantVal} {c : ConstantVal}
         obtain rfl := (Option.some.inj h).symm
         exact ⟨rfl, rfl, rfl⟩
 
+/-- con-leche: none — **and the other direction**: a stored constant that
+DENOTES a definition IS one.  DESIGN §8.3's "the denotation does not change a
+constant's constructor" (task #97-P3-Core-2 proved it at `projInfo`), here at
+`defnInfo` — and this is the half a walk that decides "is the head
+unfoldable?" needs, because it decides a GUARD. -/
 theorem denoteCI_defn_inv {st : EStore} {ci : IConstantInfo} {cv : ConstantVal}
     {x : Expr} {hint : ReducibilityHint}
     (h : Frontend.denoteCI st ci = some (.defnInfo cv x hint)) :
@@ -276,6 +316,9 @@ theorem denoteCI_defn_inv {st : EStore} {ci : IConstantInfo} {cv : ConstantVal}
       | none => rw [hv, hr] at h; simp at h
       | some rr => rw [hv, hr] at h; simp at h
 
+/-- con-leche: none — a handle whose VIEW is not a `.const` denotes an
+expression that is not a `.const`.  `Bridge/Core/Walks/Guards.lean`'s
+`isBoolTrue_of_not_const` with the conclusion left general. -/
 theorem denote_not_const {st : EStore} (hwf : StoreWF st) {h : EIdx}
     {e : Expr} {v : ENodeView} (hv : st.view h = some v)
     (he : denoteE st h = some e)
@@ -294,6 +337,9 @@ theorem denote_not_const {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | lit l => rw [denote_lit_inv hwf hv he]; simp
   | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; simp
 
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the index's HIT
+half at a definition**: a handle the index answers `defnInfo` at denotes a
+name the environment answers `defnInfo` at, with the same hint. -/
 theorem env_defn_of_index {s : AState} (hok : CheckOK mode env fe s)
     {c : NIdx} {nm : ConLeche.Name} {icv : IConstantVal} {value : EIdx}
     {hint : ReducibilityHint} (hn : denoteN s.store.ns c = some nm)
@@ -306,6 +352,10 @@ theorem env_defn_of_index {s : AState} (hok : CheckOK mode env fe s)
   obtain ⟨dcv, dval, hdcv, hdval, rfl⟩ := denoteCI_defnInfo_inv hci
   exact ⟨dcv, dval, hdcv, hdval, hfind⟩
 
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the index's MISS
+half**, which is `IFEnvOK.miss` at a `find?` miss and `denoteCI_defn_inv` at a
+hit on something that is not a definition.  A walk that decides whether the
+head unfolds needs exactly this. -/
 theorem env_not_defn_of_index {s : AState} (hok : CheckOK mode env fe s)
     {c : NIdx} {nm : ConLeche.Name} (hn : denoteN s.store.ns c = some nm)
     (hnd : ∀ cv value hint, fe.find? c ≠ some (.defnInfo cv value hint)) :
@@ -322,12 +372,18 @@ theorem env_not_defn_of_index {s : AState} (hok : CheckOK mode env fe s)
     exact hnd v' e' dh hf
 
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:157-170 unfoldableHead — the
+negative arm, in ONE `simp only`: a con-leche `def`'s match-equation lemma
+carries its negative side condition as a hypothesis and `simp` discharges it
+from the local context.  (The round's measured finding; see §0c.) -/
 theorem unfoldableHead_of_not_defn {env : Env} {nm : ConLeche.Name} {x : Expr}
     {ls : List Level} (hgf : x.getAppFn = .const nm ls)
     (h : ∀ cv val hint, env.find? nm ≠ some (.defnInfo cv val hint)) :
     ConLeche.unfoldableHead env x = false := by
   simp only [ConLeche.unfoldableHead, hgf]
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:157-170 unfoldableHead — the
+same at the outer match. -/
 theorem unfoldableHead_of_not_const {env : Env} {x : Expr}
     (h : ∀ n us, x.getAppFn ≠ .const n us) :
     ConLeche.unfoldableHead env x = false := by
@@ -397,11 +453,18 @@ theorem headHint_of_not_defn {env : Env} {nm : ConLeche.Name} {x : Expr}
     ConLeche.headHint env x = .opaque := by
   simp only [ConLeche.headHint, hgf]
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:172-181 headHint — the
+not-a-constant arm. -/
 theorem headHint_of_not_const {env : Env} {x : Expr}
     (h : ∀ n us, x.getAppFn ≠ .const n us) :
     ConLeche.headHint env x = .opaque := by
   simp only [ConLeche.headHint]
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:172-181 headHint — **THEOREM
+1 for `headHint`**: the reducibility hint of the constant at the head.
+**CLOSED** (round 3).  The answer type is one both tiers share, so the
+relation is `SimVOp`'s — here spelled as the equation it is, because
+con-leche's `headHint` takes no fuel.  Five verification conditions. -/
 theorem headHint_spec (s₀ : AState) (e : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store e = some x) :
     ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.headHint fe e
@@ -460,6 +523,9 @@ theorem denote_not_app {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | lit l => rw [denote_lit_inv hwf hv he]; simp
   | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; simp
 
+/-- con-leche: none — DESIGN §8.3's "index inequality IS structural
+inequality" at the NAME store, as a `Bool` equation: `denoteN`'s
+functionality one way, `denoteN_inj` the other. -/
 theorem beq_of_denoteN {st : NStore} (hwf : NStoreWF st) {n₁ n₂ : NIdx}
     {nm₁ nm₂ : ConLeche.Name} (h1 : denoteN st n₁ = some nm₁)
     (h2 : denoteN st n₂ = some nm₂) : (n₁ == n₂) = (nm₁ == nm₂) := by
@@ -474,6 +540,10 @@ theorem beq_of_denoteN {st : NStore} (hwf : NStoreWF st) {n₁ n₂ : NIdx}
       simp only [beq_eq_false_iff_ne]; exact hne
     rw [e1, e2]
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:183-192 sameConstHeads —
+**THEOREM 1 for `sameConstHeads`**: the lazy-delta same-head short-circuit.
+**CLOSED** (round 3).  Nine verification conditions, the most of the three,
+because the walk peels two subjects; `beq_of_denoteN` is the guard. -/
 theorem sameConstHeads_spec (s₀ : AState) (a b : EIdx) (x y : Expr)
     (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
     (hdb : denoteE s₀.store b = some y) :
@@ -716,6 +786,121 @@ theorem stuckIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         SimBOp (fun F => ConLeche.stuckIrrelFueled mode env F d x y) r⌝⦄ := by
   sorry
 
+/-! ### `etaCert`'s pure side, and the ExprOps slot in ANSWER shape
+
+The walk itself is not closed (its arm list is in the statement's note), but
+**its whole pure side is**, and so is the one callee rule whose published
+shape it cannot use.  Both are here because they are what the next round
+starts from and neither is about `etaCert` alone:
+
+* the four step equations below are con-leche's `etaCert` at its four exits,
+  each one `simp only` over the knot record's five slot equations;
+* `instantiate1Fast_specE` is **finding 5.2 at the `ExprOps` tier**.
+  `Bridge/ExprOps/Inst1.lean`'s `instantiate1Fast_spec` takes the
+  SUBSTITUTED VALUE's denotation as an explicit `(ve : Expr)` argument, and
+  `etaCert` substitutes a free variable it has just INTERNED — so `mvcgen`
+  guesses `ve` from the `Expr`s in scope (measured: it guesses the
+  comparand `y`) and leaves a false side goal.  The primed form is the same
+  four lines as `Bridge/Core/Knot.lean`'s six slots, and it is the shape
+  every interning caller of the substitution walks will want. -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:505-530 etaCert — the comparand's
+type does not reduce to a ∀, so there is nothing to η-expand against. -/
+theorem etaCertFueled_nf {F d : Nat} {t x : Expr} {m₁ : BinderMeta} {y : Expr}
+    {tb w : Expr}
+    (h1 : ConLeche.inferTypeIO mode env F d y = .ok tb)
+    (h2 : ConLeche.whnf mode env F d tb = .ok w)
+    (hw : ∀ p q m, w ≠ .forallE p q m) :
+    ConLeche.etaCertFueled mode env F d t x m₁ y = .ok false := by
+  have e1 : (ConLeche.pureFns mode env F).inferIO d y = .ok tb := h1
+  have e2 : (ConLeche.pureFns mode env F).whnf d tb = .ok w := h2
+  simp only [ConLeche.etaCertFueled, ConLeche.etaCert, e1, e2, bind,
+    Except.bind]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:505-530 etaCert — the ∀'s domain
+is not the λ's. -/
+theorem etaCertFueled_dom {F d : Nat} {t x : Expr} {m₁ : BinderMeta}
+    {y : Expr} {tb ty₂ bd₂ : Expr} {m₂ : BinderMeta}
+    (h1 : ConLeche.inferTypeIO mode env F d y = .ok tb)
+    (h2 : ConLeche.whnf mode env F d tb = .ok (.forallE ty₂ bd₂ m₂))
+    (h3 : ConLeche.isDefEqCore mode env F d ty₂ t = .ok false) :
+    ConLeche.etaCertFueled mode env F d t x m₁ y = .ok false := by
+  have e1 : (ConLeche.pureFns mode env F).inferIO d y = .ok tb := h1
+  have e2 : (ConLeche.pureFns mode env F).whnf d tb
+      = .ok (.forallE ty₂ bd₂ m₂) := h2
+  have e3 : (ConLeche.pureFns mode env F).defeq d ty₂ t = .ok false := h3
+  simp only [ConLeche.etaCertFueled, ConLeche.etaCert, e1, e2, e3, bind,
+    Except.bind]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:505-530 etaCert — the domains
+agree and the bodies do not. -/
+theorem etaCertFueled_body {F d : Nat} {t x : Expr} {m₁ : BinderMeta}
+    {y : Expr} {tb ty₂ bd₂ : Expr} {m₂ : BinderMeta}
+    (h1 : ConLeche.inferTypeIO mode env F d y = .ok tb)
+    (h2 : ConLeche.whnf mode env F d tb = .ok (.forallE ty₂ bd₂ m₂))
+    (h3 : ConLeche.isDefEqCore mode env F d ty₂ t = .ok true)
+    (h4 : ConLeche.isDefEqCore mode env F (d + 1)
+      (x.instantiate1 (.fvar d t)) (.app y (.fvar d t)) = .ok false) :
+    ConLeche.etaCertFueled mode env F d t x m₁ y = .ok false := by
+  have e1 : (ConLeche.pureFns mode env F).inferIO d y = .ok tb := h1
+  have e2 : (ConLeche.pureFns mode env F).whnf d tb
+      = .ok (.forallE ty₂ bd₂ m₂) := h2
+  have e3 : (ConLeche.pureFns mode env F).defeq d ty₂ t = .ok true := h3
+  have e4 : (ConLeche.pureFns mode env F).defeq (d + 1)
+      (x.instantiate1 (.fvar d t)) (.app y (.fvar d t)) = .ok false := h4
+  simp only [ConLeche.etaCertFueled, ConLeche.etaCert, e1, e2, e3, e4, bind,
+    Except.bind, if_true]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:505-530 etaCert — **the
+certificate**: the domains agree, the opened bodies agree, and (at a verified
+mode) the two `PropWhen` data agree.  Task #161's regime agreement is checked
+LAST on both sides, which is what makes the two call sequences the same. -/
+theorem etaCertFueled_yes {F d : Nat} {t x : Expr} {m₁ : BinderMeta}
+    {y : Expr} {tb ty₂ bd₂ : Expr} {m₂ : BinderMeta}
+    (h1 : ConLeche.inferTypeIO mode env F d y = .ok tb)
+    (h2 : ConLeche.whnf mode env F d tb = .ok (.forallE ty₂ bd₂ m₂))
+    (h3 : ConLeche.isDefEqCore mode env F d ty₂ t = .ok true)
+    (h4 : ConLeche.isDefEqCore mode env F (d + 1)
+      (x.instantiate1 (.fvar d t)) (.app y (.fvar d t)) = .ok true)
+    (h5 : (mode.verifiedChecks && !(m₁.pw == m₂.pw)) = false) :
+    ConLeche.etaCertFueled mode env F d t x m₁ y = .ok true := by
+  have e1 : (ConLeche.pureFns mode env F).inferIO d y = .ok tb := h1
+  have e2 : (ConLeche.pureFns mode env F).whnf d tb
+      = .ok (.forallE ty₂ bd₂ m₂) := h2
+  have e3 : (ConLeche.pureFns mode env F).defeq d ty₂ t = .ok true := h3
+  have e4 : (ConLeche.pureFns mode env F).defeq (d + 1)
+      (x.instantiate1 (.fvar d t)) (.app y (.fvar d t)) = .ok true := h4
+  simp only [ConLeche.etaCertFueled, ConLeche.etaCert, e1, e2, e3, e4, h5,
+    bind, Except.bind, if_true]
+  rfl
+
+/-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt —
+`Bridge/ExprOps/Inst1.lean`'s `instantiate1Fast_spec` with the substituted
+value's denotation moved out of the argument list: IN as an existential (here
+only `isSome`, since the walk does not need the value) and OUT as a
+universal.  Four lines, and without it a caller that INTERNS the value cannot
+apply the rule at all. -/
+theorem instantiate1Fast_specE (fuel : Nat) (s₀ : AState) (e v : EIdx)
+    (d : Nat) (hok : StateOK s₀) (hv : (denoteE s₀.store v).isSome = true)
+    (hden : (denoteE s₀.store e).isSome = true) :
+    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.instantiate1Fast fuel e v d
+    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+        s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+        s'.memos.inst1C = ∅ ∧
+        ∀ ve, denoteE s₀.store v = some ve →
+          ExprOps.Inst1At ve d s₀.store e s'.store r⌝⦄ := by
+  obtain ⟨ve, hve⟩ := Option.isSome_iff_exists.mp hv
+  have hb := ExprOps.instantiate1Fast_spec fuel s₀ e v d ve hok hve hden
+  mvcgen [hb]
+  intro h1 h2 h3 h4 h5 h6
+  refine ⟨h1, h2, h3, h4, h5, fun w hw => ?_⟩
+  rw [hve] at hw
+  obtain rfl := (Option.some.inj hw).symm
+  exact h6
+
 /-- con-leche: ConLeche/Kernel/Core.lean:505-530 etaCert — **THEOREM 1 for
 `etaCert`**: η at a λ against a non-λ.
 
@@ -756,10 +941,12 @@ walk rather than a slot — and `defEqList_spec` below is four lines over it.
 The rule generalises: *the ∃/∀ shape is not about knot slots, it is about
 every recursive call whose state has moved.* -/
 
+/-- con-leche: none — the empty handle list denotes the empty list. -/
 theorem denoteEList_nil_inv {st : EStore} {xs : List Expr}
     (h : Frontend.denoteEList st [] = some xs) : xs = [] := by
   simp only [Frontend.denoteEList] at h; exact (Option.some.inj h).symm
 
+/-- con-leche: none — a denoting cons is a cons of denotations. -/
 theorem denoteEList_cons_inv {st : EStore} {a : EIdx} {as : List EIdx}
     {xs : List Expr} (h : Frontend.denoteEList st (a :: as) = some xs) :
     ∃ x xs', denoteE st a = some x ∧ Frontend.denoteEList st as = some xs' ∧
@@ -772,15 +959,24 @@ theorem denoteEList_cons_inv {st : EStore} {a : EIdx} {as : List EIdx}
     | none => rw [ha, has] at h; simp at h
     | some xs' => rw [ha, has] at h; exact ⟨x, xs', rfl, rfl, (Option.some.inj h).symm⟩
 
+/-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — two empty
+spines agree. -/
 theorem defEqListFueled_nil {F d : Nat} :
     ConLeche.defEqListFueled mode env F d [] [] = .ok true := rfl
 
+/-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — a length
+mismatch declines (empty against a cons). -/
 theorem defEqListFueled_ln {F d : Nat} {y : Expr} {ys : List Expr} :
     ConLeche.defEqListFueled mode env F d [] (y :: ys) = .ok false := rfl
 
+/-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — and the
+other way round. -/
 theorem defEqListFueled_rn {F d : Nat} {x : Expr} {xs : List Expr} :
     ConLeche.defEqListFueled mode env F d (x :: xs) [] = .ok false := rfl
 
+/-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — the heads
+agree, so the verdict is the tails'.  **At ONE fuel**: the caller merges the
+head's and the tail's with `isDefEqCore_mono` and `defEqListFueled_mono`. -/
 theorem defEqListFueled_cons_true {F d : Nat} {x y : Expr}
     {xs ys : List Expr} {r : Bool}
     (h : ConLeche.isDefEqCore mode env F d x y = .ok true)
@@ -791,6 +987,8 @@ theorem defEqListFueled_cons_true {F d : Nat} {x y : Expr}
     Except.bind, if_true]
   exact ht
 
+/-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — the heads
+disagree, so the spines do. -/
 theorem defEqListFueled_cons_false {F d : Nat} {x y : Expr}
     {xs ys : List Expr}
     (h : ConLeche.isDefEqCore mode env F d x y = .ok false) :
@@ -800,6 +998,10 @@ theorem defEqListFueled_cons_false {F d : Nat} {x y : Expr}
     Except.bind]
   rfl
 
+/-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — **the
+induction**, in the ∃/∀ shape the recursive call forces (see the section
+note).  Four arms; the cons/cons arm has eight verification conditions and the
+fuel merge. -/
 theorem defEqList_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel) (d : Nat) :
     ∀ (as bs : List EIdx) (s₀ : AState),
       CheckOK mode env fe s₀ →
@@ -936,6 +1138,8 @@ strengthened to the equation), and `defEqList_go` (above).  Twenty
 verification conditions, sixteen of them the four `StateOK`/`isSome`
 preconditions of the four spine reads. -/
 
+/-- con-leche: none — `beq_of_denoteN` as a propositional equivalence,
+which is what a guard written with `=` rather than `==` needs. -/
 theorem name_eq_iff_of_denoteN {st : NStore} (hwf : NStoreWF st)
     {n₁ n₂ : NIdx} {nm₁ nm₂ : ConLeche.Name}
     (h1 : denoteN st n₁ = some nm₁) (h2 : denoteN st n₂ = some nm₂) :
@@ -944,6 +1148,9 @@ theorem name_eq_iff_of_denoteN {st : NStore} (hwf : NStoreWF st)
   · intro h; subst h; rw [h1] at h2; exact Option.some.inj h2
   · intro h; subst h; exact denoteN_inj hwf h1 h2
 
+/-- con-leche: ConLeche/Kernel/Core.lean:1420-1439 defeqSpine — both
+heads are the same constant, the spines have the same length and the universe
+arguments agree, so the verdict is the spines'. -/
 theorem defeqSpineFueled_const {F d : Nat} {x y : Expr} {n n' : ConLeche.Name}
     {us us' : List Level} {r : Bool}
     (hx : x.getAppFn = .const n us) (hy : y.getAppFn = .const n' us')
@@ -956,6 +1163,9 @@ theorem defeqSpineFueled_const {F d : Nat} {x y : Expr} {n n' : ConLeche.Name}
     if_pos hc, hlv]
   exact hr
 
+/-- con-leche: ConLeche/Kernel/Core.lean:1420-1439 defeqSpine — an
+INCONCLUSIVE level comparison declines, and so does a negative one: the
+caller falls back to unfolding, so `false` is never final. -/
 theorem defeqSpineFueled_lvl {F d : Nat} {x y : Expr} {n n' : ConLeche.Name}
     {us us' : List Level}
     (hx : x.getAppFn = .const n us) (hy : y.getAppFn = .const n' us')
@@ -971,6 +1181,8 @@ theorem defeqSpineFueled_lvl {F d : Nat} {x y : Expr} {n n' : ConLeche.Name}
     | true => exact absurd hl hlv
     | false => rfl
 
+/-- con-leche: ConLeche/Kernel/Core.lean:1420-1439 defeqSpine —
+different head names, or different spine lengths. -/
 theorem defeqSpineFueled_ne {F d : Nat} {x y : Expr} {n n' : ConLeche.Name}
     {us us' : List Level}
     (hx : x.getAppFn = .const n us) (hy : y.getAppFn = .const n' us')
@@ -980,6 +1192,8 @@ theorem defeqSpineFueled_ne {F d : Nat} {x y : Expr} {n n' : ConLeche.Name}
     if_neg hc]
   rfl
 
+/-- con-leche: ConLeche/Kernel/Core.lean:1420-1439 defeqSpine — the
+second head is not a constant. -/
 theorem defeqSpineFueled_nc_right {F d : Nat} {x y : Expr}
     {n : ConLeche.Name} {us : List Level} (hx : x.getAppFn = .const n us)
     (hy : ∀ m vs, y.getAppFn ≠ .const m vs) :
@@ -987,6 +1201,8 @@ theorem defeqSpineFueled_nc_right {F d : Nat} {x y : Expr}
   simp only [ConLeche.defeqSpineFueled, ConLeche.defeqSpine, hx]
   rfl
 
+/-- con-leche: ConLeche/Kernel/Core.lean:1420-1439 defeqSpine — nor is
+the first. -/
 theorem defeqSpineFueled_nc_left {F d : Nat} {x y : Expr}
     (hx : ∀ m vs, x.getAppFn ≠ .const m vs) :
     ConLeche.defeqSpineFueled mode env F d x y = .ok false := by

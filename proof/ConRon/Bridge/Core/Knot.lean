@@ -245,6 +245,8 @@ The primed forms do not replace the unprimed ones — a caller that holds the
 denotation should keep using the field, which leaves it one fewer `∀` to
 instantiate. -/
 
+/-- con-leche: ConLeche/Verify/Cached/DiscC1.lean:70 ssimC_zero — the
+whnfCore slot in ANSWER shape (see the section note). -/
 theorem KnotSpec.whnfCore' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
     (hsim : KnotSpec mode env fe f)
     (s₀ : AState) (d : Nat) (i : EIdx) (hok : CheckOK mode env fe s₀)
@@ -261,6 +263,8 @@ theorem KnotSpec.whnfCore' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
   refine ⟨h1, h2, h3, fun e he => ?_⟩
   rw [hd] at he; obtain rfl := (Option.some.inj he).symm; exact h4
 
+/-- con-leche: ConLeche/Verify/Cached/DiscC1.lean:70 ssimC_zero — the
+whnf slot in ANSWER shape. -/
 theorem KnotSpec.whnf' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
     (hsim : KnotSpec mode env fe f)
     (s₀ : AState) (d : Nat) (i : EIdx) (hok : CheckOK mode env fe s₀)
@@ -277,6 +281,8 @@ theorem KnotSpec.whnf' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
   refine ⟨h1, h2, h3, fun e he => ?_⟩
   rw [hd] at he; obtain rfl := (Option.some.inj he).symm; exact h4
 
+/-- con-leche: ConLeche/Verify/Cached/DiscC1.lean:70 ssimC_zero — the
+full-grade inference slot in ANSWER shape. -/
 theorem KnotSpec.infer' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
     (hsim : KnotSpec mode env fe f)
     (s₀ : AState) (d : Nat) (i : EIdx) (hok : CheckOK mode env fe s₀)
@@ -293,6 +299,8 @@ theorem KnotSpec.infer' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
   refine ⟨h1, h2, h3, fun e he => ?_⟩
   rw [hd] at he; obtain rfl := (Option.some.inj he).symm; exact h4
 
+/-- con-leche: ConLeche/Verify/Cached/DiscC1.lean:70 ssimC_zero — the
+annotation slot in ANSWER shape. -/
 theorem KnotSpec.annotate' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
     (hsim : KnotSpec mode env fe f)
     (s₀ : AState) (d : Nat) (i : EIdx) (hok : CheckOK mode env fe s₀)
@@ -309,6 +317,8 @@ theorem KnotSpec.annotate' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
   refine ⟨h1, h2, h3, fun e he => ?_⟩
   rw [hd] at he; obtain rfl := (Option.some.inj he).symm; exact h4
 
+/-- con-leche: ConLeche/Verify/Cached/DiscC1.lean:70 ssimC_zero — the io
+grade in ANSWER shape.  This is the one `isPropType` needs. -/
 theorem KnotSpec.inferIO' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
     (hsim : KnotSpec mode env fe f)
     (s₀ : AState) (d : Nat) (i : EIdx) (hok : CheckOK mode env fe s₀)
@@ -325,6 +335,8 @@ theorem KnotSpec.inferIO' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
   refine ⟨h1, h2, h3, fun e he => ?_⟩
   rw [hd] at he; obtain rfl := (Option.some.inj he).symm; exact h4
 
+/-- con-leche: ConLeche/Verify/Cached/DiscC1.lean:70 ssimC_zero — the
+defeq slot in ANSWER shape, at BOTH subjects. -/
 theorem KnotSpec.defeq' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
     (hsim : KnotSpec mode env fe f)
     (s₀ : AState) (d : Nat) (i j : EIdx) (hok : CheckOK mode env fe s₀)
