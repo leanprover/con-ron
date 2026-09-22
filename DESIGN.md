@@ -46157,10 +46157,13 @@ defect the campaign has found by trying to prove something**, after `IndSpec`,
 
 #### Round 3 — the three memoised walks, a seventh statement defect, and the `.projInfo` name gap (2026-09-22, Opus under Fable)
 
-Branch `p3-ind-3` off `arena`'s tip `57129e8d`, merged forward once.  The diff
-is `proof/ConRon/Bridge/Inductives/**` plus the two lifts round 2 named
-(`Bridge/Promote/Exact.lean` gains `mkIFEnvGo_counter_lt`) and this section:
-no Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/`, no
+Branch `p3-ind-3` off `arena`'s tip `57129e8d`, merged forward twice
+(`a063de72`, task #97-P3-Checker round 3, and `72f5994d`, task #97-P3-Frontend
+round 3; both textual for this tier — `Bridge/Checker/**` and
+`Bridge/Frontend/**` are above it and reach none of its modules).  The diff is
+five files: `Bridge/Inductives/{Rel,StructParts,NativeParts}.lean`,
+`Bridge/Promote/Exact.lean` (the lift round 2 named) and this section.  No
+Rust file, no generated model, no `Arena/`, no `Refine/`, no `Refine2/`, no
 `lakefile.toml`.
 
 **The tier went from 98 open `sorry` to 91** — nine statements closed and one
