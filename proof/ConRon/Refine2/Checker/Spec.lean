@@ -24,8 +24,23 @@ is that transcription, collected rather than scattered, so that
 
 **Every definition here is a transcription of a CONTIGUOUS run of clauses of
 one named twin, and every `_unfold` says exactly that.**  The `_unfold`s are
-the file's proof obligation and they are `rfl`-shaped: the twin is a `do`
-block and the transcription is its tail.
+the file's proof obligation.
+
+**They are NOT `rfl`-shaped** (task #97-P5-Checker-2, correcting that round's
+§6).  The `do` elaborator pushes a statement's continuation INTO the branches
+of the `if` above it — a join point — so a twin written `if c then fail e` and
+then `rest` is `if c then fail e else rest`, where a transcription that names
+the guard separately is `(if c then fail e else pure ()) >>= fun _ => rest`;
+and `StateT`'s `bind` matches on the inner `Except`, so the two are not
+definitionally equal at an opaque prefix.  **Rule 11**
+(`Refine2/Checker/Shape.lean`) is the four-lemma reduction that closes them:
+`bind_assoc`, `pure_bind`, `am_{ite,dite}_bind` and `am_fail_bind`, spelled
+`twin_reduce [...]`.  Where the twin groups at a `match` rather than an `if`,
+`am_bind_congr` peels the common prefix first — `congr 1` will NOT, because
+`AM α` is a function type and `congr 1` eta-expands it instead.
+
+Seven of the eight are closed; `divModCertStmts_unfold` is the exception and
+its note says why.
 -/
 import ConRon.Refine2.Checker.KnotHyp
 
@@ -238,7 +253,9 @@ theorem checkConstantVal_unfold (mode : CheckMode) (fe : IFEnv)
       checkConstantValGuardsSpec fe cv
       let type ← annotateCore mode fe checkFuel 0 cv.type
       checkConstantValAfterAnnotSpec mode fe cv type) := by
-  sorry
+  twin_reduce [checkConstantVal, checkConstantValGuardsSpec,
+    checkConstantValGuardsRestSpec, checkConstantValAfterAnnotSpec,
+    installConstantValTailSpec]
 
 /-- `installConstantVal` is the same guards and the install-side tail. -/
 theorem installConstantVal_unfold (mode : CheckMode) (fe : IFEnv)
@@ -247,7 +264,8 @@ theorem installConstantVal_unfold (mode : CheckMode) (fe : IFEnv)
       checkConstantValGuardsSpec fe cv
       let type ← annotateCore mode fe checkFuel 0 cv.type
       installConstantValTailSpec fe cv type) := by
-  sorry
+  twin_reduce [installConstantVal, checkConstantValGuardsSpec,
+    checkConstantValGuardsRestSpec, installConstantValTailSpec]
 
 /-- `installValue` is its guards, its annotation and its tail. -/
 theorem installValue_unfold (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
@@ -260,7 +278,7 @@ theorem installValue_unfold (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
           s!"unexpected free variable in value of {← readName cv.name}")
       let valueA ← annotateCore mode fe checkFuel 0 value
       installValueTailSpec fe cv valueA) := by
-  sorry
+  twin_reduce [installValue, installValueTailSpec]
 
 /-- `checkValueGroup` is its three pieces. -/
 theorem checkValueGroup_unfold (mode : CheckMode) (fe : IFEnv) (g : ValueGroup) :
@@ -268,7 +286,8 @@ theorem checkValueGroup_unfold (mode : CheckMode) (fe : IFEnv) (g : ValueGroup) 
       let stype ← inferTypeCore mode fe checkFuel 0 g.cvA.type
       let u ← ensureSortCore mode fe checkFuel 0 stype
       checkValueGroupValueSpec mode fe g u) := by
-  sorry
+  twin_reduce [checkValueGroup, checkValueGroupValueSpec,
+    checkValueGroupTailSpec]
 
 /-- `constsResolveFGo` is its probe and its node transcription. -/
 theorem constsResolveFGo_unfold (fe : IFEnv) (memo : Std.HashMap EIdx Bool)
@@ -283,14 +302,27 @@ theorem constsResolveFGo_unfold (fe : IFEnv) (memo : Std.HashMap EIdx Bool)
         | none => do
           let p ← constsResolveFNodeSpec fe memo fuel h (← view h)
           pure (p.1, p.2.insert h p.1)) := by
-  sorry
+  rw [constsResolveFGo]
+  refine ConRon.Refine2.am_bind_congr _ ?_
+  intro v
+  cases v <;> try rfl
+  all_goals
+    (cases hm : memo[h]? with
+     | some r => rfl
+     | none =>
+       refine ConRon.Refine2.am_bind_congr _ ?_
+       intro v2
+       cases v2 <;> twin_reduce [constsResolveFNodeSpec])
 
 /-- `indParamsOk` is its per-member test and the `&&` fold. -/
 theorem indParamsOk_unfold (nP : Nat) (ci : IConstantInfo)
     (rest : List IConstantInfo) :
     indParamsOk nP (ci :: rest) = (do
       if ← indParamsOkAtSpec nP ci then indParamsOk nP rest else pure false) := by
-  sorry
+  cases ci <;> twin_reduce [indParamsOk, indParamsOkAtSpec]
+  refine ConRon.Refine2.am_bind_congr _ ?_
+  intro x
+  cases x <;> twin_reduce
 
 /-- `checkProjRule` is its six pieces. -/
 theorem checkProjRule_unfold (mode : CheckMode) (fe : IFEnv) (pty : EIdx)
@@ -300,7 +332,15 @@ theorem checkProjRule_unfold (mode : CheckMode) (fe : IFEnv) (pty : EIdx)
       let some rhs ← pisToLams (nP + nF) cvj.type bv
         | fail (.notImplemented "projection rule telescope")
       checkProjRuleScopedSpec mode fe pty cvj lps nP nF bv rhs) := by
-  sorry
+  rw [checkProjRule]
+  refine ConRon.Refine2.am_bind_congr _ ?_
+  intro bv
+  refine ConRon.Refine2.am_bind_congr _ ?_
+  intro r
+  cases r <;>
+    twin_reduce [checkProjRuleScopedSpec, checkProjRuleWfSpec,
+      checkProjRuleShapeSpec, checkProjRuleCertsSpec, checkProjRuleFrameSpec] <;>
+    try rfl
 
 
 /-! ## `arena::decl_check`'s splits (finding 11)
@@ -733,7 +773,16 @@ def divModCertStmtsAtSpec (cx : CertCtxA) (c : NIdx) :
   else if c == cx.xorN then certXorSpec cx c
   else certDivModSpec cx c
 
-/-- `divModCertStmts` is its context and its dispatch. -/
+/-- `divModCertStmts` is its context and its dispatch.
+
+**The tier's one open `_unfold`, and it is a COST problem.**  The two sides
+are the same `do` block regrouped — twenty-one `let`s and a seven-way
+dispatch — but the single `twin_reduce` that spells out all fifteen
+`cert*Spec` definitions does not finish inside ten minutes on the resulting
+term.  The fix is to peel the twenty-one binders with `am_bind_congr` and
+`split` the dispatch, rather than to hand `simp` the whole thing at once;
+task #97-P5-Checker-2 left it rather than spend the round's last hour on
+it. -/
 theorem divModCertStmts_unfold (c : NIdx) :
     divModCertStmts c = (do divModCertStmtsAtSpec (← certCtxSpec) c) := by
   sorry
@@ -1001,5 +1050,23 @@ def internAllBasisSpec : List BasisKind → AM Unit
     let _ ← BasisKind.decls k
     let _ ← BasisKind.declsA k
     internAllBasisSpec ks
+
+/-! ## The axiom census
+
+**Task #97-P5-Checker-2**: the seven `_unfold`s that closed.  They are the
+only obligations of this file about the TWIN rather than the port, and rule
+11 (`Refine2/Checker/Shape.lean`'s `twin_reduce`) is what closes them. -/
+
+/-- info: 'ConRon.Arena.checkConstantVal_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms checkConstantVal_unfold
+
+/-- info: 'ConRon.Arena.checkValueGroup_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms checkValueGroup_unfold
+
+/-- info: 'ConRon.Arena.constsResolveFGo_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms constsResolveFGo_unfold
+
+/-- info: 'ConRon.Arena.checkProjRule_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms checkProjRule_unfold
 
 end ConRon.Arena

@@ -48,6 +48,82 @@ open ConRon.Arena
 open ConRon.Refine.HashMap (Eq2Fwd DupId)
 open ConRon.Refine.HashMap2 (Inv KeysOk RelOn toFun sl_v)
 
+/-! ## Rule 11 — the twin's `do` blocks, reduced (task #97-P5-Checker-2)
+
+Task #97-P5-Checker §6 left the eight `_unfold` equations of
+`Refine2/Checker/Spec.lean` and the three of `Refine2/Promote/Promote.lean`
+open, saying *"a `do`-block equation in `StateT σ (Except ε)` needs the same
+reduction discipline rule 10 names"*.  It needs THREE lemmas, and they are
+these.
+
+The obstruction is the `do` elaborator's **join point**.  A twin written
+
+    if c then fail e
+    rest
+
+elaborates to `if c then fail e else rest` — the continuation is pushed INTO
+the branch — where a transcription that names the guard separately is
+`(if c then fail e else pure ()) >>= fun _ => rest`.  `rfl` cannot bridge
+that: `StateT`'s `bind` matches on the inner `Except`, so `(a >>= f) >>= g` is
+not definitionally `a >>= fun x => f x >>= g` at an opaque `a`.  So the
+equation is a `simp only` over
+
+* `bind_assoc` and `pure_bind` — `AM` is a `LawfulMonad`;
+* `am_ite_bind` / `am_dite_bind` — push a continuation into an `if`, which is
+  what the join point did on the twin's side;
+* `am_fail_bind` — a throw swallows its continuation, which is what makes the
+  two `if` branches line up.
+
+`twin_reduce [...]` is the four of them plus the caller's own definitions, and
+it closes an `_unfold` whose only difference is the grouping.  Where the twin
+groups at a `match` rather than an `if` (`Refine2/Promote/Promote.lean`'s
+three) the `simp only` is not enough — a matcher with the continuation inlined
+is a DIFFERENT constant from the matcher without it — and the recipe is
+`split` / `cases` on the discriminant first and `twin_reduce` per arm. -/
+
+/-- A throw swallows its continuation. -/
+theorem am_fail_bind {α β : Type} (e : Arena.CheckError) (k : α → AM β) :
+    (Arena.fail e >>= k) = Arena.fail e := rfl
+
+/-- A continuation pushes into an `if` — the `do` elaborator's join point,
+undone. -/
+theorem am_ite_bind {α β : Type} (c : Prop) [Decidable c] (a b : AM α)
+    (k : α → AM β) : ((if c then a else b) >>= k) = if c then a >>= k else b >>= k := by
+  split <;> rfl
+
+/-- `Except.ok v >>= f = f v` — the step every composed run needs before
+`am_run_bind` can see the next bind. -/
+theorem except_ok_bind {ε α β : Type} (a : α) (f : α → Except ε β) :
+    (Except.ok a : Except ε α) >>= f = f a := rfl
+
+/-- **Peel a common `do` prefix.**  `congr 1` on `x >>= f = x >>= g` in `AM`
+eta-expands the FUNCTION (`AM α` is `AState → …`) instead of peeling the bind,
+which strands the goal at an applied state.  This is the peel that works, and
+every `_unfold` whose two sides group at a `match` rather than at an `if`
+needs it. -/
+theorem am_bind_congr {α β : Type} (x : AM α) {f g : α → AM β}
+    (h : ∀ a, f a = g a) : (x >>= f) = (x >>= g) := by
+  rw [funext h]
+
+/-- The same at a `dite`. -/
+theorem am_dite_bind {α β : Type} (c : Prop) [Decidable c] (a : c → AM α)
+    (b : ¬ c → AM α) (k : α → AM β) :
+    ((if h : c then a h else b h) >>= k) = if h : c then a h >>= k else b h >>= k := by
+  split <;> rfl
+
+/-- **Rule 11.**  Reduce a twin `do` block and its transcription to one
+normal form: the caller's own definitions, then the four monadic steps the
+join point needs. -/
+syntax "twin_reduce" "[" Lean.Parser.Tactic.simpLemma,* "]" : tactic
+macro_rules
+  | `(tactic| twin_reduce [$ts,*]) =>
+    `(tactic| simp only [$ts,*, bind_assoc, pure_bind,
+        am_fail_bind, am_ite_bind, am_dite_bind])
+
+/-- `twin_reduce` with no extra lemmas. -/
+macro "twin_reduce" : tactic =>
+  `(tactic| simp only [bind_assoc, pure_bind, am_fail_bind, am_ite_bind, am_dite_bind])
+
 /-! ## `SimRel` — `Sim` with the result RELATED rather than abstracted -/
 
 /-- `AOut` with the result related.  `WF` is gone: a relation says everything
@@ -104,6 +180,23 @@ theorem Sim.toSimRel {α β : Type} {A : α → β} {pers : arena.store.PersTier
   | Ok r =>
     rintro ⟨lst', hx, h1, h2, h3, -⟩
     exact ⟨A r, lst', hx, rfl, h1, h2, h3⟩
+
+/-- **The result relation, weakened.**  The fold's statements conclude
+`IFEnvRelI` (related AND well formed) because the next step needs both; the
+capstone's public conclusion is DESIGN §8.2's `IFEnvRel` alone, and this is
+the one step between them. -/
+theorem SimRel.mono {α β : Type} {R R' : α → β → Prop}
+    {pers : arena.store.PersTier} {lst : AState}
+    {o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState}
+    {x : AM β} (h : SimRel R pers lst o x) (hRR : ∀ r v, R r v → R' r v) :
+    SimRel R' pers lst o x := by
+  revert h
+  unfold SimRel AOutRel
+  cases o.1 with
+  | Err e => exact id
+  | Ok r =>
+    rintro ⟨v, lst', hx, hr, h1, h2, h3⟩
+    exact ⟨v, lst', hx, hRR _ _ hr, h1, h2, h3⟩
 
 /-! ## `SimRE` — a reader that can FAIL
 
@@ -365,9 +458,103 @@ attribute [simp] absNIdxL absEIdxL absLIdxL absNIdxLFrom absEIdxLFrom absLIdxLFr
 `HashMap2.toFun`, which is a specification of a well-formed table and says
 nothing about a malformed one.  Every other `RelOn` of this tower is paired
 with an `Inv` in `AStateInv`; the environment is not in the state, so its
-`Inv` travels with it. -/
+`Inv` travels with it.
+
+**Second clause, task #97-P5-Checker-2**: the visibility counter never runs
+past the constant list.  It is what discharges task #97-P5-Checker's **finding
+C** — `promote_new` DECLINES when `k > fe.env.consts.len()` where the twin
+promotes, and `check_decl_step`'s `k` is `fe'.visibleBelow - fe.visibleBelow`,
+so `k ≤ fe'.visibleBelow ≤ |fe'.consts|` is exactly the hypothesis the call
+site needs.  That finding predicted the clause would be *"Theorem 1's to
+carry"*; it is cheaper than that, because the port's own `IFEnv` maintains it:
+`mk_ifenv` sets the counter to the list's length and `ifenv_push` grows both
+by one.  It belongs here, beside the index's `Inv`, for the same reason the
+index's does. -/
 def IFEnvInv (rf : arena.env.IFEnv) : Prop :=
-  Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.idx
+  Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.idx ∧
+    rf.visible_below.val ≤ rf.env.consts.val.length ∧
+    ∀ n p, ConRon.Refine.HashMap2.toFun rf.idx n = some p → p.2.val ≤ Std.Usize.max
+
+theorem IFEnvInv.idxInv {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
+    Inv arena.handle.NIdx.Insts.Con_ron_coreRonHashmapHashable rf.idx := h.1
+
+/-- The counter is a bound on the constant list — finding C, at the call
+site. -/
+theorem IFEnvInv.visBound {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
+    rf.visible_below.val ≤ rf.env.consts.val.length := h.2.1
+
+/-- **Every position the index stores fits a `usize`** — task #97-P5-Core-2's
+`CoreCtx.idxPos`, which `ifenv_find_abs` is the only consumer of.
+
+It is an INVARIANT and not a platform assumption, and the write sites are why:
+every position ever stored is a `Vec` index or a `Vec` length cast up from
+`usize` — `arena::env::mk_ifenv_go` stores `i as u64` for the cursor `i`,
+`ifenv_push` and `ifenv_push_temp` store `fe.env.consts.len() as u64`,
+`arena::promote::index_promoted` stores `(j - 1) as u64` for its `usize`
+cursor, and `ifenv_pop_temp` puts back a row it took OUT of the index.  There
+is no other writer.  So the `pos as usize` in `ifenv_find` — which Aeneas
+models as a truncating cast — is the identity at every reachable row, and
+the Rust needs no test it does not already have. -/
+theorem IFEnvInv.idxPos {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
+    ∀ n p, ConRon.Refine.HashMap2.toFun rf.idx n = some p → p.2.val ≤ Std.Usize.max :=
+  h.2.2
+
+/-! ## The environment relation a FOLD has to carry (task #97-P5-Checker-2)
+
+`IFEnvRel` alone does not compose.  Every statement of this tier takes
+`hfe : IFEnvRel rf lf` **and** `hfinv : IFEnvInv rf` — the second because
+`IFEnvRel.idx` reads the port's index through `HashMap2.toFun`, which
+specifies a well-formed table and says nothing about a malformed one — and
+every one of them CONCLUDES `IFEnvRel` alone.  A fold then cannot take its own
+step twice: `check_decls_pure_go` feeds `check_decl_step`'s answer back into
+itself and has no `IFEnvInv` for it, and `install_then_check` hands
+`annot_fold`'s environment to `check_pending_list`, which demands one.
+
+So the RESULT relation of every `IFEnv`-returning statement on the fold's path
+is this pair.  It is not a new obligation in substance — the port builds the
+index with `HashMap2::insert`, which preserves `Inv` — but it has to be SAID,
+and task #97-P5-Checker's statements did not say it.  The two capstones keep
+their public conclusion at `IFEnvRel` alone (DESIGN §8.2's own sentence) and
+weaken this at the last step. -/
+
+/-- **The environment, related and well formed** — the result relation a fold
+step has to carry. -/
+def IFEnvRelI (rf : arena.env.IFEnv) (lf : IFEnv) : Prop :=
+  IFEnvRel rf lf ∧ IFEnvInv rf
+
+theorem IFEnvRelI.mk {rf : arena.env.IFEnv} {lf : IFEnv} (h : IFEnvRel rf lf)
+    (hi : IFEnvInv rf) : IFEnvRelI rf lf := ⟨h, hi⟩
+
+theorem IFEnvRelI.rel {rf : arena.env.IFEnv} {lf : IFEnv} (h : IFEnvRelI rf lf) :
+    IFEnvRel rf lf := h.1
+
+theorem IFEnvRelI.inv {rf : arena.env.IFEnv} {lf : IFEnv} (h : IFEnvRelI rf lf) :
+    IFEnvInv rf := h.2
+
+/-! ## The Inductives seam (task #97-P5-Checker's finding 14)
+
+**Moved down from `Refine2/Checker/Top.lean` by task #97-P5-Checker-2.**  The
+seam has to be declared BELOW the tier that discharges it: task #97-P5-Ind's
+`ind_rel : IndRel` is unconditional (`Refine2/Inductives/Top.lean`), and
+`Refine2/Checker/Top.lean`'s thirteen `hind : IndRel` binders can only go if
+that file may *import* the proof.  So `IndRel` lives here — in the shared base
+both `Refine2/Checker/**` and `Refine2/Inductives/**` already import — and
+`Refine2/Checker/Top.lean` imports `Refine2/Inductives/Top.lean` instead of
+the other way round.  Nothing about the statement changed. -/
+
+/-- **`arena::inductives`'s obligation as the declaration checker's seam.**
+The `.indDecl` arm of `check_decl` is the only place the declaration checker
+reaches the inductive routes, and they are 6 705 lines of their own tier.
+This is the seam in `KnotRel`'s shape: one clause, discharged by
+`Refine2/Inductives/Top.lean`'s `ind_rel`. -/
+structure IndRel : Prop where
+  checkIndDecl : ∀ {pers st lst rf lf mode block n_p o},
+    AStateRel pers st lst → AStateInv pers st →
+    IFEnvRel rf lf → IFEnvInv rf →
+    arena.inductives.check_ind_decl pers mode rf block n_p st = ok o →
+    SimRel (fun r v => IFEnvRel r v) pers lst o
+      (ConRon.Arena.Inductives.checkIndDecl (ConRon.Refine.absMode mode) lf
+        (absICIL block) (absU n_p))
 
 /-! ## `arena::checker_split`'s seam datum -/
 
@@ -438,5 +625,16 @@ def NatOpPinSetWF (p : kernel.nat_op_pins.NatOpPinSet) : Prop :=
 
 attribute [simp] absPendingCheck absPendingCheckL absPendingCheckLFrom
   absINatOpPinSet absINatOpPinSetL absINatOpPinSetLFrom
+
+/-! ## The axiom census — rule 11's four, and the relation's weakening -/
+
+/-- info: 'ConRon.Refine2.am_ite_bind' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms am_ite_bind
+
+/-- info: 'ConRon.Refine2.am_bind_congr' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms am_bind_congr
+
+/-- info: 'ConRon.Refine2.SimRel.mono' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms SimRel.mono
 
 end ConRon.Refine2

@@ -82,8 +82,47 @@ open ConRon.Arena
 /-- **The knot at the checker's own fuel, unconditionally.**  `checkFuel` is
 `Arena.checkFuel = 100000`, and `Refine2/Core/Arms.lean`'s `knotRel` gives
 `KnotRel` at every fuel — so the hypothesis the sixty-two statements of this
-tier carry is discharged here, once, and `#print axioms` on it reports the
-`sorryAx` that `bodyRel_of_knot` still stands on. -/
+tier USED to carry is discharged here, once.  **Task #97-P5-Checker-2 deleted
+all sixty-two binders**: a redundant hypothesis is not a seam, and a proof
+that needs the knot takes this theorem by name.  `#print axioms` on it reports
+the `sorryAx` that `bodyRel_of_knot` still stands on. -/
 theorem knotRel_checkFuel' : KnotRel Arena.checkFuel := knotRel _
+
+/-! ## `CoreCtx`, from the checker tier's own three facts
+
+**Task #97-P5-Checker-2, at task #97-P5-Core-2's request.**  Every Core entry
+takes `CoreCtx vis fe lfe`, and every checker-tier statement carries
+`IFEnvRel rf lf`, `IFEnvInv rf` and — at the sites where the port splits the
+counter out of the record (finding 10) — `absU vis = lf.visibleBelow`.  This
+is the one line that turns the three into the fourth.
+
+`Refine2/Core/KnotRel.lean` asked for exactly this: its `idxInv` and `idxPos`
+clauses say *"both belong to `IFEnvInv` and P3 supplies them; they are spelled
+here because the Core tier may not edit that file"*.  They are in `IFEnvInv`
+now (`Refine2/Checker/Shape.lean`), and `idxPos` is an INVARIANT rather than a
+platform assumption — that file's note walks the four write sites. -/
+
+/-- The Core tier's ambient argument, built from the checker tier's own. -/
+theorem IFEnvInv.coreCtx {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
+    (hvis : absU vis = lf.visibleBelow) : CoreCtx vis rf lf :=
+  ⟨hfe, hvis, hfinv.idxInv, hfinv.idxPos⟩
+
+/-- The same where the counter is the record's own field, which is every site
+that does not thread finding 10's scalar: `IFEnvRel.visibleBelow` IS the
+equation. -/
+theorem IFEnvInv.coreCtxSelf {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) :
+    CoreCtx rf.visible_below rf lf :=
+  IFEnvInv.coreCtx hfe hfinv hfe.visibleBelow.symm
+
+/-! ## The axiom census
+
+`knotRel_checkFuel'` reads `sorryAx` through `bodyRel_of_knot`, exactly as
+task #97-P5-Arms §7 records; `IFEnvInv.coreCtx` is this file's own and reads
+nothing. -/
+
+/-- info: 'ConRon.Refine2.IFEnvInv.coreCtx' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms IFEnvInv.coreCtx
 
 end ConRon.Refine2
