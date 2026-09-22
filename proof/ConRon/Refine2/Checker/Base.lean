@@ -124,7 +124,10 @@ cited checker never has. -/
 theorem or_else_attempt_refines {attempt} {o}
     (hrun : arena.checker_base.or_else_attempt attempt = ok o) :
     ∀ b, attempt = .Ok b → o = (if b then .Matched else .Continued) := by
-  sorry
+  intro b hb
+  subst hb
+  rw [arena.checker_base.or_else_attempt] at hrun
+  cases b <;> simp_all
 
 /-! ## The `Vec` duplications
 
@@ -203,7 +206,24 @@ theorem memo_b_get_refines {rm lm} {k : arena.handle.EIdx} {o}
     (hm : ExprOps.LMemoRel rm lm)
     (hrun : arena.checker_base.memo_b_get rm k = ok o) :
     o = lm[absEIdx k]? := by
-  sorry
+  rw [arena.checker_base.memo_b_get] at hrun
+  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨hmr, hminv⟩ := hm
+  have hto := ConRon.Refine.HashMap2.get_refines_wf eidx_eq2 hminv
+    ConRon.Refine.HashMap2.KeysOk_true trivial hr
+  have hrelk := hmr k trivial
+  rw [← hrelk, ← hto]
+  cases hrc : r with
+  | none =>
+    rw [hrc] at hrun
+    have h2 : (none : Option Bool) = o := Result.ok_injective hrun
+    subst h2
+    rfl
+  | some r =>
+    rw [hrc] at hrun
+    have h2 : some r = o := Result.ok_injective hrun
+    subst h2
+    rfl
 
 /-- `consts_resolve_f_go` ⊑ `constsResolveFGo`.  Finding 10's `hvis`. -/
 theorem consts_resolve_f_go_refines {pers st lst} {vis : Std.U64} {rf lf}
@@ -720,7 +740,12 @@ theorem check_proj_rule_refines {pers st lst} {vis : Std.U64} {rf lf}
 theorem is_rec_info_refines {ci : arena.env.IConstantInfo} {o : Bool}
     (hrun : arena.checker_base.is_rec_info ci = ok o) :
     o = isRecInfo (absIConstantInfo ci) := by
-  sorry
+  rw [arena.checker_base.is_rec_info.eq_def] at hrun
+  cases ci <;> (
+    simp only [] at hrun
+    have h2 := Result.ok_injective hrun
+    subst h2
+    rfl)
 
 /-- `all_rec_info` is `rest.all isRecInfo` from the cursor on. -/
 theorem all_rec_info_refines {block : alloc.vec.Vec arena.env.IConstantInfo}

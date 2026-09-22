@@ -45,6 +45,7 @@ of the tier.  `intern_reserved_pins` and the three `intern_pin_set*` wait on
 -/
 import ConRon.Refine2.Promote.Promote
 import ConRon.Refine.PinsAbs
+import ConRon.Refine.ExprOpsSubst
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -82,7 +83,25 @@ theorem pins_ready_refines {pers st lst} {o : Bool}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pins_ready st = ok o) :
     o = pinsReady lst := by
-  sorry
+  rw [arena.pins.pins_ready] at hrun
+  have hnames := hrel.pins.names
+  have hlen : lst.pins.names.size = st.pins.names.val.length := by
+    have h := congrArg List.length hnames
+    simpa using h
+  have h2 := Result.ok_injective hrun
+  subst h2
+  show _ = decide (lst.pins.names.size = Arena.pinCount)
+  rw [hlen]
+  have hcount : (arena.pins.PIN_COUNT).val = Arena.pinCount := by
+    rw [arena.pins.PIN_COUNT]; rfl
+  have : (alloc.vec.Vec.len st.pins.names).val = st.pins.names.val.length :=
+    alloc.vec.Vec.len_val _
+  simp only [decide_eq_decide]
+  constructor
+  · intro h; rw [← this, ← hcount, h]
+  · intro h
+    apply Aeneas.Std.UScalar.eq_imp
+    rw [this, hcount, h]
 
 /-- `pin_at` ⊑ `pinAt` — **the one lemma the forty-nine below are instances
 of**: the bounds branch and then `PinsRel.names`. -/
@@ -90,7 +109,61 @@ theorem pin_at_refines {pers st lst} {i : Std.Usize} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_at st i = ok o) :
     SimRE absNIdx lst o (pinAt (absSz i)) := by
-  sorry
+  rw [arena.pins.pin_at] at hrun
+  have hnames := hrel.pins.names
+  have hlen : lst.pins.names.size = st.pins.names.val.length := by
+    have h := congrArg List.length hnames
+    simpa using h
+  have hrun2 : (Arena.pinAt (absSz i)).run lst
+      = (if h : absSz i < lst.pins.names.size
+         then Except.ok (lst.pins.names[absSz i], lst)
+         else Except.error
+           (Arena.CheckError.internal "arena: reserved-name pins not interned")) := by
+    by_cases h : absSz i < lst.pins.names.size
+    · rw [dif_pos h]
+      show (Arena.pinAt (absSz i)) lst = _
+      rw [Arena.pinAt]
+      simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
+        Pure.pure, StateT.pure, Except.pure, Except.bind, dif_pos h]
+    · rw [dif_neg h]
+      show (Arena.pinAt (absSz i)) lst = _
+      rw [Arena.pinAt]
+      simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
+        Pure.pure, Except.pure, Except.bind, dif_neg h,
+        Arena.fail, throwThe, MonadExceptOf.throw,
+        Function.comp_apply, StateT.lift]
+  split at hrun
+  case isTrue hge =>
+    obtain ⟨sl, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨cps, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [arena.monad.fail] at hrun
+    have h2 : core.result.Result.Err (T := arena.handle.NIdx)
+        (kernel.core_types.CheckError.Internal cps) = o := Result.ok_injective hrun
+    subst h2
+    have hnl : ¬ (absSz i < lst.pins.names.size) := by
+      rw [hlen]
+      have hle : st.pins.names.val.length ≤ i.val := by scalar_tac
+      show ¬ (i.val < st.pins.names.val.length)
+      omega
+    exact AErrSim.internal (s := "arena: reserved-name pins not interned")
+      (by rw [hrun2, dif_neg hnl])
+  case isFalse hlt =>
+    obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨n1, hn1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have h2 : core.result.Result.Ok n1 = o := Result.ok_injective hrun
+    subst h2
+    rw [dupId_nidx _ _ hn1]
+    obtain ⟨hlt2, rfl⟩ := ConRon.Refine.ExprOps.vec_index_val hn
+    have hlt3 : absSz i < lst.pins.names.size := by rw [hlen]; exact hlt2
+    show (Arena.pinAt (absSz i)).run lst = _
+    rw [hrun2, dif_pos hlt3]
+    have hi : lst.pins.names.toList[absSz i]? =
+        (st.pins.names.val.map absNIdx)[absSz i]? := by rw [hnames]
+    simp only [List.getElem?_map, Array.getElem?_toList] at hi
+    have hsome : lst.pins.names[absSz i]? = some (absNIdx st.pins.names.val[absSz i]) := by
+      simpa [hlt2] using hi
+    rw [Array.getElem?_eq_getElem hlt3] at hsome
+    rw [Option.some_inj.mp hsome]
 
 /-- `pin_reserved` ⊑ `pinReserved` — the nineteen reserved basis names, off
 the table.  `arena::core`'s `reserved_basis_names` used to build and intern
@@ -107,21 +180,129 @@ theorem pin_empty_levels_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_empty_levels st = ok o) :
     SimRE absLsIdx lst o pinEmptyLevels := by
-  sorry
+  rw [arena.pins.pin_empty_levels] at hrun
+  obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hbr := pins_ready_refines hrel hinv hb
+  have hrun2 : (Arena.pinEmptyLevels).run lst
+      = (if Arena.pinsReady lst
+         then Except.ok (lst.pins.emptyLevels, lst)
+         else Except.error
+           (Arena.CheckError.internal "arena: reserved-name pins not interned")) := by
+    by_cases h : Arena.pinsReady lst = true
+    · rw [if_pos h]
+      show (Arena.pinEmptyLevels) lst = _
+      rw [Arena.pinEmptyLevels]
+      simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
+        Pure.pure, StateT.pure, Except.pure, Except.bind, if_pos h]
+    · simp only [Bool.not_eq_true] at h
+      rw [if_neg (by simp [h])]
+      show (Arena.pinEmptyLevels) lst = _
+      rw [Arena.pinEmptyLevels]
+      simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
+        Pure.pure, Except.pure, Except.bind, h, Bool.false_eq_true, if_false,
+        Arena.fail, throwThe, MonadExceptOf.throw, Function.comp_apply, StateT.lift]
+  split at hrun
+  case isTrue hbt =>
+    obtain ⟨l, hl, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have h2 := Result.ok_injective hrun
+    subst h2
+    rw [dupId_lsidx _ _ hl]
+    show (Arena.pinEmptyLevels).run lst = _
+    rw [hrun2, if_pos (by rw [← hbr, hbt]), hrel.pins.emptyLevels]
+  case isFalse hbf =>
+    obtain ⟨sl, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨cps, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [arena.monad.fail] at hrun
+    have h2 := Result.ok_injective hrun
+    subst h2
+    refine AErrSim.internal (s := "arena: reserved-name pins not interned") ?_
+    rw [hrun2, if_neg (by simp only [← hbr]; simpa using hbf)]
 
 /-- `pin_zero_level` ⊑ `pinZeroLevel`. -/
 theorem pin_zero_level_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_zero_level st = ok o) :
     SimRE absLIdx lst o pinZeroLevel := by
-  sorry
+  rw [arena.pins.pin_zero_level] at hrun
+  obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hbr := pins_ready_refines hrel hinv hb
+  have hrun2 : (Arena.pinZeroLevel).run lst
+      = (if Arena.pinsReady lst
+         then Except.ok (lst.pins.zeroLevel, lst)
+         else Except.error
+           (Arena.CheckError.internal "arena: reserved-name pins not interned")) := by
+    by_cases h : Arena.pinsReady lst = true
+    · rw [if_pos h]
+      show (Arena.pinZeroLevel) lst = _
+      rw [Arena.pinZeroLevel]
+      simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
+        Pure.pure, StateT.pure, Except.pure, Except.bind, if_pos h]
+    · simp only [Bool.not_eq_true] at h
+      rw [if_neg (by simp [h])]
+      show (Arena.pinZeroLevel) lst = _
+      rw [Arena.pinZeroLevel]
+      simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
+        Pure.pure, Except.pure, Except.bind, h, Bool.false_eq_true, if_false,
+        Arena.fail, throwThe, MonadExceptOf.throw, Function.comp_apply, StateT.lift]
+  split at hrun
+  case isTrue hbt =>
+    obtain ⟨l, hl, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have h2 := Result.ok_injective hrun
+    subst h2
+    rw [dupId_lidx _ _ hl]
+    show (Arena.pinZeroLevel).run lst = _
+    rw [hrun2, if_pos (by rw [← hbr, hbt]), hrel.pins.zeroLevel]
+  case isFalse hbf =>
+    obtain ⟨sl, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨cps, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [arena.monad.fail] at hrun
+    have h2 := Result.ok_injective hrun
+    subst h2
+    refine AErrSim.internal (s := "arena: reserved-name pins not interned") ?_
+    rw [hrun2, if_neg (by simp only [← hbr]; simpa using hbf)]
 
 /-- `pin_sort_one` ⊑ `pinSortOne`. -/
 theorem pin_sort_one_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_sort_one st = ok o) :
     SimRE absEIdx lst o pinSortOne := by
-  sorry
+  rw [arena.pins.pin_sort_one] at hrun
+  obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hbr := pins_ready_refines hrel hinv hb
+  have hrun2 : (Arena.pinSortOne).run lst
+      = (if Arena.pinsReady lst
+         then Except.ok (lst.pins.sortOne, lst)
+         else Except.error
+           (Arena.CheckError.internal "arena: reserved-name pins not interned")) := by
+    by_cases h : Arena.pinsReady lst = true
+    · rw [if_pos h]
+      show (Arena.pinSortOne) lst = _
+      rw [Arena.pinSortOne]
+      simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
+        Pure.pure, StateT.pure, Except.pure, Except.bind, if_pos h]
+    · simp only [Bool.not_eq_true] at h
+      rw [if_neg (by simp [h])]
+      show (Arena.pinSortOne) lst = _
+      rw [Arena.pinSortOne]
+      simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
+        Pure.pure, Except.pure, Except.bind, h, Bool.false_eq_true, if_false,
+        Arena.fail, throwThe, MonadExceptOf.throw, Function.comp_apply, StateT.lift]
+  split at hrun
+  case isTrue hbt =>
+    obtain ⟨l, hl, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have h2 := Result.ok_injective hrun
+    subst h2
+    rw [dupId_eidx _ _ hl]
+    show (Arena.pinSortOne).run lst = _
+    rw [hrun2, if_pos (by rw [← hbr, hbt]), hrel.pins.sortOne]
+  case isFalse hbf =>
+    obtain ⟨sl, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    obtain ⟨cps, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    rw [arena.monad.fail] at hrun
+    have h2 := Result.ok_injective hrun
+    subst h2
+    refine AErrSim.internal (s := "arena: reserved-name pins not interned") ?_
+    rw [hrun2, if_neg (by simp only [← hbr]; simpa using hbf)]
 
 /-! ## The forty-nine named readers, one per slot
 
@@ -134,343 +315,686 @@ theorem pin_eq_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_eq st = ok o) :
     SimRE absNIdx lst o pinEq := by
-  sorry
+  rw [arena.pins.pin_eq] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_EQ = Arena.PIN_EQ := by
+    show (arena.pins.PIN_EQ).val = _
+    rw [arena.pins.PIN_EQ]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_punit` ⊑ `pinPUnit`, at slot `PIN_PUNIT`. -/
 theorem pin_punit_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_punit st = ok o) :
     SimRE absNIdx lst o pinPUnit := by
-  sorry
+  rw [arena.pins.pin_punit] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_PUNIT = Arena.PIN_PUNIT := by
+    show (arena.pins.PIN_PUNIT).val = _
+    rw [arena.pins.PIN_PUNIT]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_punit_rec` ⊑ `pinPUnitRec`, at slot `PIN_PUNIT_REC`. -/
 theorem pin_punit_rec_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_punit_rec st = ok o) :
     SimRE absNIdx lst o pinPUnitRec := by
-  sorry
+  rw [arena.pins.pin_punit_rec] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_PUNIT_REC = Arena.PIN_PUNIT_REC := by
+    show (arena.pins.PIN_PUNIT_REC).val = _
+    rw [arena.pins.PIN_PUNIT_REC]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_nat` ⊑ `pinNat`, at slot `PIN_NAT`. -/
 theorem pin_nat_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_nat st = ok o) :
     SimRE absNIdx lst o pinNat := by
-  sorry
+  rw [arena.pins.pin_nat] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_NAT = Arena.PIN_NAT := by
+    show (arena.pins.PIN_NAT).val = _
+    rw [arena.pins.PIN_NAT]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_nat_zero` ⊑ `pinNatZero`, at slot `PIN_NAT_ZERO`. -/
 theorem pin_nat_zero_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_nat_zero st = ok o) :
     SimRE absNIdx lst o pinNatZero := by
-  sorry
+  rw [arena.pins.pin_nat_zero] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_NAT_ZERO = Arena.PIN_NAT_ZERO := by
+    show (arena.pins.PIN_NAT_ZERO).val = _
+    rw [arena.pins.PIN_NAT_ZERO]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_nat_succ` ⊑ `pinNatSucc`, at slot `PIN_NAT_SUCC`. -/
 theorem pin_nat_succ_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_nat_succ st = ok o) :
     SimRE absNIdx lst o pinNatSucc := by
-  sorry
+  rw [arena.pins.pin_nat_succ] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_NAT_SUCC = Arena.PIN_NAT_SUCC := by
+    show (arena.pins.PIN_NAT_SUCC).val = _
+    rw [arena.pins.PIN_NAT_SUCC]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_quot_sound` ⊑ `pinQuotSound`, at slot `PIN_QUOT_SOUND`. -/
 theorem pin_quot_sound_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_quot_sound st = ok o) :
     SimRE absNIdx lst o pinQuotSound := by
-  sorry
+  rw [arena.pins.pin_quot_sound] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_QUOT_SOUND = Arena.PIN_QUOT_SOUND := by
+    show (arena.pins.PIN_QUOT_SOUND).val = _
+    rw [arena.pins.PIN_QUOT_SOUND]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_string` ⊑ `pinString`, at slot `PIN_STRING`. -/
 theorem pin_string_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_string st = ok o) :
     SimRE absNIdx lst o pinString := by
-  sorry
+  rw [arena.pins.pin_string] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_STRING = Arena.PIN_STRING := by
+    show (arena.pins.PIN_STRING).val = _
+    rw [arena.pins.PIN_STRING]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_string_of_list` ⊑ `pinStringOfList`, at slot `PIN_STRING_OF_LIST`. -/
 theorem pin_string_of_list_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_string_of_list st = ok o) :
     SimRE absNIdx lst o pinStringOfList := by
-  sorry
+  rw [arena.pins.pin_string_of_list] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_STRING_OF_LIST = Arena.PIN_STRING_OF_LIST := by
+    show (arena.pins.PIN_STRING_OF_LIST).val = _
+    rw [arena.pins.PIN_STRING_OF_LIST]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_list` ⊑ `pinList`, at slot `PIN_LIST`. -/
 theorem pin_list_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_list st = ok o) :
     SimRE absNIdx lst o pinList := by
-  sorry
+  rw [arena.pins.pin_list] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_LIST = Arena.PIN_LIST := by
+    show (arena.pins.PIN_LIST).val = _
+    rw [arena.pins.PIN_LIST]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_list_nil` ⊑ `pinListNil`, at slot `PIN_LIST_NIL`. -/
 theorem pin_list_nil_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_list_nil st = ok o) :
     SimRE absNIdx lst o pinListNil := by
-  sorry
+  rw [arena.pins.pin_list_nil] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_LIST_NIL = Arena.PIN_LIST_NIL := by
+    show (arena.pins.PIN_LIST_NIL).val = _
+    rw [arena.pins.PIN_LIST_NIL]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_list_cons` ⊑ `pinListCons`, at slot `PIN_LIST_CONS`. -/
 theorem pin_list_cons_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_list_cons st = ok o) :
     SimRE absNIdx lst o pinListCons := by
-  sorry
+  rw [arena.pins.pin_list_cons] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_LIST_CONS = Arena.PIN_LIST_CONS := by
+    show (arena.pins.PIN_LIST_CONS).val = _
+    rw [arena.pins.PIN_LIST_CONS]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_char` ⊑ `pinChar`, at slot `PIN_CHAR`. -/
 theorem pin_char_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_char st = ok o) :
     SimRE absNIdx lst o pinChar := by
-  sorry
+  rw [arena.pins.pin_char] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_CHAR = Arena.PIN_CHAR := by
+    show (arena.pins.PIN_CHAR).val = _
+    rw [arena.pins.PIN_CHAR]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_and` ⊑ `pinAnd`, at slot `PIN_AND`. -/
 theorem pin_and_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_and st = ok o) :
     SimRE absNIdx lst o pinAnd := by
-  sorry
+  rw [arena.pins.pin_and] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_AND = Arena.PIN_AND := by
+    show (arena.pins.PIN_AND).val = _
+    rw [arena.pins.PIN_AND]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_char_of_nat` ⊑ `pinCharOfNat`, at slot `PIN_CHAR_OF_NAT`. -/
 theorem pin_char_of_nat_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_char_of_nat st = ok o) :
     SimRE absNIdx lst o pinCharOfNat := by
-  sorry
+  rw [arena.pins.pin_char_of_nat] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_CHAR_OF_NAT = Arena.PIN_CHAR_OF_NAT := by
+    show (arena.pins.PIN_CHAR_OF_NAT).val = _
+    rw [arena.pins.PIN_CHAR_OF_NAT]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_sorry_ax` ⊑ `pinSorryAx`, at slot `PIN_SORRY_AX`. -/
 theorem pin_sorry_ax_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_sorry_ax st = ok o) :
     SimRE absNIdx lst o pinSorryAx := by
-  sorry
+  rw [arena.pins.pin_sorry_ax] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_SORRY_AX = Arena.PIN_SORRY_AX := by
+    show (arena.pins.PIN_SORRY_AX).val = _
+    rw [arena.pins.PIN_SORRY_AX]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_nat_pred` ⊑ `pinNatPred`, at slot `PIN_NAT_PRED`. -/
 theorem pin_nat_pred_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_nat_pred st = ok o) :
     SimRE absNIdx lst o pinNatPred := by
-  sorry
+  rw [arena.pins.pin_nat_pred] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_NAT_PRED = Arena.PIN_NAT_PRED := by
+    show (arena.pins.PIN_NAT_PRED).val = _
+    rw [arena.pins.PIN_NAT_PRED]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_nat_add` ⊑ `pinNatAdd`, at slot `PIN_NAT_ADD`. -/
 theorem pin_nat_add_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_nat_add st = ok o) :
     SimRE absNIdx lst o pinNatAdd := by
-  sorry
+  rw [arena.pins.pin_nat_add] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_NAT_ADD = Arena.PIN_NAT_ADD := by
+    show (arena.pins.PIN_NAT_ADD).val = _
+    rw [arena.pins.PIN_NAT_ADD]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_nat_sub` ⊑ `pinNatSub`, at slot `PIN_NAT_SUB`. -/
 theorem pin_nat_sub_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_nat_sub st = ok o) :
     SimRE absNIdx lst o pinNatSub := by
-  sorry
+  rw [arena.pins.pin_nat_sub] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_NAT_SUB = Arena.PIN_NAT_SUB := by
+    show (arena.pins.PIN_NAT_SUB).val = _
+    rw [arena.pins.PIN_NAT_SUB]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_nat_mul` ⊑ `pinNatMul`, at slot `PIN_NAT_MUL`. -/
 theorem pin_nat_mul_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_nat_mul st = ok o) :
     SimRE absNIdx lst o pinNatMul := by
-  sorry
+  rw [arena.pins.pin_nat_mul] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_NAT_MUL = Arena.PIN_NAT_MUL := by
+    show (arena.pins.PIN_NAT_MUL).val = _
+    rw [arena.pins.PIN_NAT_MUL]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_nat_pow` ⊑ `pinNatPow`, at slot `PIN_NAT_POW`. -/
 theorem pin_nat_pow_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_nat_pow st = ok o) :
     SimRE absNIdx lst o pinNatPow := by
-  sorry
+  rw [arena.pins.pin_nat_pow] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_NAT_POW = Arena.PIN_NAT_POW := by
+    show (arena.pins.PIN_NAT_POW).val = _
+    rw [arena.pins.PIN_NAT_POW]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_nat_beq` ⊑ `pinNatBeq`, at slot `PIN_NAT_BEQ`. -/
 theorem pin_nat_beq_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_nat_beq st = ok o) :
     SimRE absNIdx lst o pinNatBeq := by
-  sorry
+  rw [arena.pins.pin_nat_beq] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_NAT_BEQ = Arena.PIN_NAT_BEQ := by
+    show (arena.pins.PIN_NAT_BEQ).val = _
+    rw [arena.pins.PIN_NAT_BEQ]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_nat_ble` ⊑ `pinNatBle`, at slot `PIN_NAT_BLE`. -/
 theorem pin_nat_ble_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_nat_ble st = ok o) :
     SimRE absNIdx lst o pinNatBle := by
-  sorry
+  rw [arena.pins.pin_nat_ble] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_NAT_BLE = Arena.PIN_NAT_BLE := by
+    show (arena.pins.PIN_NAT_BLE).val = _
+    rw [arena.pins.PIN_NAT_BLE]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_nat_div` ⊑ `pinNatDiv`, at slot `PIN_NAT_DIV`. -/
 theorem pin_nat_div_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_nat_div st = ok o) :
     SimRE absNIdx lst o pinNatDiv := by
-  sorry
+  rw [arena.pins.pin_nat_div] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_NAT_DIV = Arena.PIN_NAT_DIV := by
+    show (arena.pins.PIN_NAT_DIV).val = _
+    rw [arena.pins.PIN_NAT_DIV]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_nat_mod` ⊑ `pinNatMod`, at slot `PIN_NAT_MOD`. -/
 theorem pin_nat_mod_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_nat_mod st = ok o) :
     SimRE absNIdx lst o pinNatMod := by
-  sorry
+  rw [arena.pins.pin_nat_mod] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_NAT_MOD = Arena.PIN_NAT_MOD := by
+    show (arena.pins.PIN_NAT_MOD).val = _
+    rw [arena.pins.PIN_NAT_MOD]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_nat_gcd` ⊑ `pinNatGcd`, at slot `PIN_NAT_GCD`. -/
 theorem pin_nat_gcd_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_nat_gcd st = ok o) :
     SimRE absNIdx lst o pinNatGcd := by
-  sorry
+  rw [arena.pins.pin_nat_gcd] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_NAT_GCD = Arena.PIN_NAT_GCD := by
+    show (arena.pins.PIN_NAT_GCD).val = _
+    rw [arena.pins.PIN_NAT_GCD]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_nat_land` ⊑ `pinNatLand`, at slot `PIN_NAT_LAND`. -/
 theorem pin_nat_land_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_nat_land st = ok o) :
     SimRE absNIdx lst o pinNatLand := by
-  sorry
+  rw [arena.pins.pin_nat_land] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_NAT_LAND = Arena.PIN_NAT_LAND := by
+    show (arena.pins.PIN_NAT_LAND).val = _
+    rw [arena.pins.PIN_NAT_LAND]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_nat_lor` ⊑ `pinNatLor`, at slot `PIN_NAT_LOR`. -/
 theorem pin_nat_lor_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_nat_lor st = ok o) :
     SimRE absNIdx lst o pinNatLor := by
-  sorry
+  rw [arena.pins.pin_nat_lor] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_NAT_LOR = Arena.PIN_NAT_LOR := by
+    show (arena.pins.PIN_NAT_LOR).val = _
+    rw [arena.pins.PIN_NAT_LOR]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_nat_xor` ⊑ `pinNatXor`, at slot `PIN_NAT_XOR`. -/
 theorem pin_nat_xor_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_nat_xor st = ok o) :
     SimRE absNIdx lst o pinNatXor := by
-  sorry
+  rw [arena.pins.pin_nat_xor] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_NAT_XOR = Arena.PIN_NAT_XOR := by
+    show (arena.pins.PIN_NAT_XOR).val = _
+    rw [arena.pins.PIN_NAT_XOR]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_nat_shift_left` ⊑ `pinNatShiftLeft`, at slot `PIN_NAT_SHIFT_LEFT`. -/
 theorem pin_nat_shift_left_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_nat_shift_left st = ok o) :
     SimRE absNIdx lst o pinNatShiftLeft := by
-  sorry
+  rw [arena.pins.pin_nat_shift_left] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_NAT_SHIFT_LEFT = Arena.PIN_NAT_SHIFT_LEFT := by
+    show (arena.pins.PIN_NAT_SHIFT_LEFT).val = _
+    rw [arena.pins.PIN_NAT_SHIFT_LEFT]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_nat_shift_right` ⊑ `pinNatShiftRight`, at slot `PIN_NAT_SHIFT_RIGHT`. -/
 theorem pin_nat_shift_right_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_nat_shift_right st = ok o) :
     SimRE absNIdx lst o pinNatShiftRight := by
-  sorry
+  rw [arena.pins.pin_nat_shift_right] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_NAT_SHIFT_RIGHT = Arena.PIN_NAT_SHIFT_RIGHT := by
+    show (arena.pins.PIN_NAT_SHIFT_RIGHT).val = _
+    rw [arena.pins.PIN_NAT_SHIFT_RIGHT]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_bool` ⊑ `pinBool`, at slot `PIN_BOOL`. -/
 theorem pin_bool_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_bool st = ok o) :
     SimRE absNIdx lst o pinBool := by
-  sorry
+  rw [arena.pins.pin_bool] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_BOOL = Arena.PIN_BOOL := by
+    show (arena.pins.PIN_BOOL).val = _
+    rw [arena.pins.PIN_BOOL]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_bool_true` ⊑ `pinBoolTrue`, at slot `PIN_BOOL_TRUE`. -/
 theorem pin_bool_true_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_bool_true st = ok o) :
     SimRE absNIdx lst o pinBoolTrue := by
-  sorry
+  rw [arena.pins.pin_bool_true] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_BOOL_TRUE = Arena.PIN_BOOL_TRUE := by
+    show (arena.pins.PIN_BOOL_TRUE).val = _
+    rw [arena.pins.PIN_BOOL_TRUE]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_bool_false` ⊑ `pinBoolFalse`, at slot `PIN_BOOL_FALSE`. -/
 theorem pin_bool_false_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_bool_false st = ok o) :
     SimRE absNIdx lst o pinBoolFalse := by
-  sorry
+  rw [arena.pins.pin_bool_false] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_BOOL_FALSE = Arena.PIN_BOOL_FALSE := by
+    show (arena.pins.PIN_BOOL_FALSE).val = _
+    rw [arena.pins.PIN_BOOL_FALSE]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_propext` ⊑ `pinPropext`, at slot `PIN_PROPEXT`. -/
 theorem pin_propext_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_propext st = ok o) :
     SimRE absNIdx lst o pinPropext := by
-  sorry
+  rw [arena.pins.pin_propext] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_PROPEXT = Arena.PIN_PROPEXT := by
+    show (arena.pins.PIN_PROPEXT).val = _
+    rw [arena.pins.PIN_PROPEXT]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_choice` ⊑ `pinChoice`, at slot `PIN_CHOICE`. -/
 theorem pin_choice_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_choice st = ok o) :
     SimRE absNIdx lst o pinChoice := by
-  sorry
+  rw [arena.pins.pin_choice] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_CHOICE = Arena.PIN_CHOICE := by
+    show (arena.pins.PIN_CHOICE).val = _
+    rw [arena.pins.PIN_CHOICE]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_iff` ⊑ `pinIff`, at slot `PIN_IFF`. -/
 theorem pin_iff_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_iff st = ok o) :
     SimRE absNIdx lst o pinIff := by
-  sorry
+  rw [arena.pins.pin_iff] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_IFF = Arena.PIN_IFF := by
+    show (arena.pins.PIN_IFF).val = _
+    rw [arena.pins.PIN_IFF]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_iff_intro` ⊑ `pinIffIntro`, at slot `PIN_IFF_INTRO`. -/
 theorem pin_iff_intro_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_iff_intro st = ok o) :
     SimRE absNIdx lst o pinIffIntro := by
-  sorry
+  rw [arena.pins.pin_iff_intro] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_IFF_INTRO = Arena.PIN_IFF_INTRO := by
+    show (arena.pins.PIN_IFF_INTRO).val = _
+    rw [arena.pins.PIN_IFF_INTRO]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_iff_rec` ⊑ `pinIffRec`, at slot `PIN_IFF_REC`. -/
 theorem pin_iff_rec_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_iff_rec st = ok o) :
     SimRE absNIdx lst o pinIffRec := by
-  sorry
+  rw [arena.pins.pin_iff_rec] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_IFF_REC = Arena.PIN_IFF_REC := by
+    show (arena.pins.PIN_IFF_REC).val = _
+    rw [arena.pins.PIN_IFF_REC]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_nonempty` ⊑ `pinNonempty`, at slot `PIN_NONEMPTY`. -/
 theorem pin_nonempty_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_nonempty st = ok o) :
     SimRE absNIdx lst o pinNonempty := by
-  sorry
+  rw [arena.pins.pin_nonempty] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_NONEMPTY = Arena.PIN_NONEMPTY := by
+    show (arena.pins.PIN_NONEMPTY).val = _
+    rw [arena.pins.PIN_NONEMPTY]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_nonempty_intro` ⊑ `pinNonemptyIntro`, at slot `PIN_NONEMPTY_INTRO`. -/
 theorem pin_nonempty_intro_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_nonempty_intro st = ok o) :
     SimRE absNIdx lst o pinNonemptyIntro := by
-  sorry
+  rw [arena.pins.pin_nonempty_intro] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_NONEMPTY_INTRO = Arena.PIN_NONEMPTY_INTRO := by
+    show (arena.pins.PIN_NONEMPTY_INTRO).val = _
+    rw [arena.pins.PIN_NONEMPTY_INTRO]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_nonempty_rec` ⊑ `pinNonemptyRec`, at slot `PIN_NONEMPTY_REC`. -/
 theorem pin_nonempty_rec_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_nonempty_rec st = ok o) :
     SimRE absNIdx lst o pinNonemptyRec := by
-  sorry
+  rw [arena.pins.pin_nonempty_rec] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_NONEMPTY_REC = Arena.PIN_NONEMPTY_REC := by
+    show (arena.pins.PIN_NONEMPTY_REC).val = _
+    rw [arena.pins.PIN_NONEMPTY_REC]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_true` ⊑ `pinTrue`, at slot `PIN_TRUE`. -/
 theorem pin_true_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_true st = ok o) :
     SimRE absNIdx lst o pinTrue := by
-  sorry
+  rw [arena.pins.pin_true] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_TRUE = Arena.PIN_TRUE := by
+    show (arena.pins.PIN_TRUE).val = _
+    rw [arena.pins.PIN_TRUE]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_true_intro` ⊑ `pinTrueIntro`, at slot `PIN_TRUE_INTRO`. -/
 theorem pin_true_intro_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_true_intro st = ok o) :
     SimRE absNIdx lst o pinTrueIntro := by
-  sorry
+  rw [arena.pins.pin_true_intro] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_TRUE_INTRO = Arena.PIN_TRUE_INTRO := by
+    show (arena.pins.PIN_TRUE_INTRO).val = _
+    rw [arena.pins.PIN_TRUE_INTRO]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_trust_compiler` ⊑ `pinTrustCompiler`, at slot `PIN_TRUST_COMPILER`. -/
 theorem pin_trust_compiler_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_trust_compiler st = ok o) :
     SimRE absNIdx lst o pinTrustCompiler := by
-  sorry
+  rw [arena.pins.pin_trust_compiler] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_TRUST_COMPILER = Arena.PIN_TRUST_COMPILER := by
+    show (arena.pins.PIN_TRUST_COMPILER).val = _
+    rw [arena.pins.PIN_TRUST_COMPILER]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_reduce_nat` ⊑ `pinReduceNat`, at slot `PIN_REDUCE_NAT`. -/
 theorem pin_reduce_nat_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_reduce_nat st = ok o) :
     SimRE absNIdx lst o pinReduceNat := by
-  sorry
+  rw [arena.pins.pin_reduce_nat] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_REDUCE_NAT = Arena.PIN_REDUCE_NAT := by
+    show (arena.pins.PIN_REDUCE_NAT).val = _
+    rw [arena.pins.PIN_REDUCE_NAT]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_reduce_bool` ⊑ `pinReduceBool`, at slot `PIN_REDUCE_BOOL`. -/
 theorem pin_reduce_bool_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_reduce_bool st = ok o) :
     SimRE absNIdx lst o pinReduceBool := by
-  sorry
+  rw [arena.pins.pin_reduce_bool] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_REDUCE_BOOL = Arena.PIN_REDUCE_BOOL := by
+    show (arena.pins.PIN_REDUCE_BOOL).val = _
+    rw [arena.pins.PIN_REDUCE_BOOL]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_of_reduce_nat` ⊑ `pinOfReduceNat`, at slot `PIN_OF_REDUCE_NAT`. -/
 theorem pin_of_reduce_nat_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_of_reduce_nat st = ok o) :
     SimRE absNIdx lst o pinOfReduceNat := by
-  sorry
+  rw [arena.pins.pin_of_reduce_nat] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_OF_REDUCE_NAT = Arena.PIN_OF_REDUCE_NAT := by
+    show (arena.pins.PIN_OF_REDUCE_NAT).val = _
+    rw [arena.pins.PIN_OF_REDUCE_NAT]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-- `pin_of_reduce_bool` ⊑ `pinOfReduceBool`, at slot `PIN_OF_REDUCE_BOOL`. -/
 theorem pin_of_reduce_bool_refines {pers st lst} {o}
     (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.pins.pin_of_reduce_bool st = ok o) :
     SimRE absNIdx lst o pinOfReduceBool := by
-  sorry
+  rw [arena.pins.pin_of_reduce_bool] at hrun
+  have h := pin_at_refines hrel hinv hrun
+  have hc : absSz arena.pins.PIN_OF_REDUCE_BOOL = Arena.PIN_OF_REDUCE_BOOL := by
+    show (arena.pins.PIN_OF_REDUCE_BOOL).val = _
+    rw [arena.pins.PIN_OF_REDUCE_BOOL]
+    rfl
+  rw [hc] at h
+  exact h
 
 /-! ## `arena::nat_op_pin_set` — the `Nat`-operation pin variants
 
