@@ -134,13 +134,13 @@ theorem bvarBoundGo_spec : ∀ fuel, BvarBoundSpec (bvarBoundGo fuel) := by
   | zero =>
     constructor
     intro s₀ h _ _ _
-    mvcgen [bvarBoundGo]
+    mvcgen [bvarBoundGo_zero]
     all_goals bridge_vcs [Expr.bvarBound, RelV]
   | succ fuel ih =>
     constructor
     intro s₀ h hok hm hden
     have hrec := ih.run
-    mvcgen [bvarBoundGo, hrec]
+    mvcgen [bvarBoundGo_succ, bvarBoundArmApp, bvarBoundArmBind, bvarBoundArmLet, hrec]
     all_goals bridge_vcs [Expr.bvarBound, RelV]
 
 /-! ## `bvarBoundMemo` — `ExprOps.lean:1437`
@@ -185,13 +185,13 @@ theorem fvarRangeGo_spec : ∀ fuel, FvarRangeSpec (fvarRangeGo fuel) := by
   | zero =>
     constructor
     intro s₀ h _ _ _
-    mvcgen [fvarRangeGo]
+    mvcgen [fvarRangeGo_zero]
     all_goals bridge_vcs [Expr.fvarRange, RelV]
   | succ fuel ih =>
     constructor
     intro s₀ h hok hm hden
     have hrec := ih.run
-    mvcgen [fvarRangeGo, hrec]
+    mvcgen [fvarRangeGo_succ, fvarRangeArmApp, fvarRangeArmBind, fvarRangeArmLet, hrec]
     all_goals bridge_vcs [Expr.fvarRange, RelV]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1426-1427 fvarRangeMemo —

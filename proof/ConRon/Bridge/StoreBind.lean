@@ -48,7 +48,7 @@ it for whatever `findBM` answers, and `bmChildOK` carries it for whatever
 `viewBindI` answers — so a rebuilding walk, which got `mi` from `viewBindI`,
 has it in hand.
 -/
-import ConRon.Bridge.Rel
+import ConRon.Bridge.StoreBM
 
 namespace ConRon.Bridge
 
@@ -213,6 +213,7 @@ theorem EStore.internBindI_spec {st : EStore} {tag : UInt32} {ty b : EIdx}
               else st.pers.bindSizeOf tag) < Idx.idxCap) :
     StoreWF (st.internBindI tag ty b mi).1 ∧
       Ext st (st.internBindI tag ty b mi).1 ∧
+      BMExt st (st.internBindI tag ty b mi).1 ∧
       (st.internBindI tag ty b mi).1.lss = st.lss ∧
       (st.internBindI tag ty b mi).1.scratchOn = st.scratchOn ∧
       (st.internBindI tag ty b mi).1.view (st.internBindI tag ty b mi).2 =
@@ -251,7 +252,7 @@ theorem EStore.internBindI_spec {st : EStore} {tag : UInt32} {ty b : EIdx}
   obtain ⟨hwf', hview'⟩ :=
     EStore.internAt_wf_view hwf hwf.scratchSync hv hcap' hmi0 hbmok hfov
   obtain ⟨rk', hwf''⟩ := hwf'
-  exact ⟨⟨rk', hwf''⟩, EStore.internAt_ext st _ mi,
+  exact ⟨⟨rk', hwf''⟩, EStore.internAt_ext st _ mi, BMExt.internAt st _ mi,
     EStore.lss_internAt st _ mi, EStore.scratchOn_internAt st _ mi, hview',
     denoteE_unfold hwf'' hview'⟩
 

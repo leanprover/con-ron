@@ -113,14 +113,14 @@ theorem wscopedBGo_spec :
   | zero =>
     constructor
     intro s₀ tbl d h _ _ _
-    mvcgen [wscopedBGo]
+    mvcgen [wscopedBGo_zero]
     all_goals bridge_vcs [Expr.wscopedB, RelV, MemoVDOK.insert,
       MemoVDOK.of_empty, wscopedB_cut_of_derived]
   | succ fuel ih =>
     constructor
     intro s₀ tbl d h hok hm hden
     have hrec := ih.run
-    mvcgen [wscopedBGo, hrec]
+    mvcgen [wscopedBGo_succ, wscopedBGoArmApp, wscopedBGoArmBind, wscopedBGoArmLet, hrec]
     all_goals bridge_vcs [Expr.wscopedB, RelV, MemoVDOK.insert,
       MemoVDOK.of_empty, wscopedB_cut_of_derived]
 
@@ -309,13 +309,13 @@ theorem leavesSubGo_spec (bl : List (Nat × EIdx)) :
   | zero =>
     constructor
     intro s₀ tbl h _ _ _ _
-    mvcgen [leavesSubGo]
+    mvcgen [leavesSubGo_zero]
     all_goals bridge_vcs [RelV, LSubAt, LSubMemoA]
   | succ fuel ih =>
     constructor
     intro s₀ tbl h hok hbl hm hden
     have hrec := ih.run
-    mvcgen [leavesSubGo, hrec]
+    mvcgen [leavesSubGo_succ, leavesSubArmApp, leavesSubArmBind, leavesSubArmLet, hrec]
     all_goals bridge_vcs [RelV, leavesSub_cut_of_derived]
 
 /-! ## 4. `leafGuard` — `ExprOps.lean:962`

@@ -90,6 +90,54 @@ theorem EStore.viewBM_intern_mono (st : EStore) (w : ENodeView) {i : BMIdx}
   exact EStore.viewBM_internAt_mono _ w _
     (EStore.viewBM_internBMOfView_mono st w h)
 
+/-! ## `BMExt` — the binder-datum store's extension relation
+
+The four lemmas above say what one `intern` does; a walk needs the relation
+they generate, with `refl` and `trans`, so that it can be threaded through a
+spec's postcondition exactly as `Ext` is.  That threading is what closes the
+binder arm of every rebuilding walk (task #97-P3-1), and it is what the
+"what is left to do with them" paragraph above asked for. -/
+
+/-- con-leche: none — arena infrastructure: the binder-datum store's own
+extension relation, beside `Ext`.  `Ext` cannot say it (a `BMIdx` denotes
+nothing), so a rebuilding walk carries it as a second conjunct. -/
+def BMExt (st st' : EStore) : Prop :=
+  ∀ mi m, st.viewBM mi = some m → st'.viewBM mi = some m
+
+theorem BMExt.refl (st : EStore) : BMExt st st := fun _ _ h => h
+
+theorem BMExt.trans {a b c : EStore} (h₁ : BMExt a b) (h₂ : BMExt b c) :
+    BMExt a c := fun mi m h => h₂ mi m (h₁ mi m h)
+
+/-- con-leche: none — **the fact the binder arm needs**, as a `BMExt`. -/
+theorem BMExt.intern (st : EStore) (w : ENodeView) :
+    BMExt st (st.intern w).1 :=
+  fun _ _ h => EStore.viewBM_intern_mono st w h
+
+/-- con-leche: none — and at `internAt`, which is what `internBindIE` is
+(`Bridge/StoreBind.lean`'s `internBindIE_eq_internAt`). -/
+theorem BMExt.internAt (st : EStore) (w : ENodeView) (mi : BMIdx) :
+    BMExt st (st.internAt w mi).1 :=
+  fun _ _ h => EStore.viewBM_internAt_mono st w mi h
+
+/-- con-leche: none — **the forward rule**: a datum that decoded before an
+extension decodes the same after it.  `@[grind →]` with the `viewBM` read as
+its ematch pattern, so a rebuilding walk's binder arm never mentions `BMExt`
+at all — the closer chains it through however many `intern`s the two
+recursive calls did. -/
+@[grind →] theorem BMExt.get {st st' : EStore} {mi : BMIdx}
+    {m : ConLeche.BinderMeta} (h : BMExt st st') (hs : st.viewBM mi = some m) :
+    st'.viewBM mi = some m := h mi m hs
+
+/-- con-leche: none — `BMExt` at an `isSome`, which is the shape
+`internBindIE_spec'`'s precondition asks for. -/
+theorem BMExt.isSome {st st' : EStore} (h : BMExt st st') {mi : BMIdx}
+    (hs : (st.viewBM mi).isSome = true) : (st'.viewBM mi).isSome = true := by
+  obtain ⟨m, hm⟩ := Option.isSome_iff_exists.mp hs
+  rw [h mi m hm]; rfl
+
 #print axioms EStore.viewBM_intern_mono
+#print axioms BMExt.intern
+#print axioms BMExt.internAt
 
 end ConRon.Bridge
