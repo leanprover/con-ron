@@ -39425,3 +39425,340 @@ UNCONDITIONALLY, no `StoreWF`"*.  If that holds, the `StoreWF lst.store`
 half of §3's pair can come OUT of `KnotRel` and `BodyRel`'s thirteen fields
 and only `EResolves` stays; the Core tier's statements should be re-cut
 against it rather than keep a hypothesis that turns out to be free.
+### Task #97-P5-Checker — Theorem 2: the declaration-checker tier (2026-09-22, Opus under Fable)
+
+Phase **P5** of DESIGN §8.6, third round: DESIGN §8.2's **Theorem 2** at the
+tier the theorem is *named after* — *the Aeneas model of the Rust
+`check_decls` accepting implies (B) accepting with the abstracted
+state/result, over the whole outcome; the port's `Native` error claims
+nothing.*  Branch `p5-checker` off `arena`'s tip `7a92f794`.  **Nothing
+outside `proof/ConRon/Refine2/{Checker,Promote}/**` and
+`proof/ConRon/Refine2.lean` is touched.**
+
+Thirteen Rust modules, **424 `pub fn`s** — `checker_base`, `checker_split`,
+`decl_check`, `checker`, `checker_gated`, `canon`, `std_axioms`,
+`trust_axioms`, `basis`, `nat_op_pin_set`, `intern`, `pins`, `promote` — and
+the two capstones §8.2 asks for.  **Every one of the 424 statements exists and
+elaborates**; eighty-two are closed; the rest are `sorry`, and §6 says exactly
+what each is waiting on.
+
+#### 1. Five statement shapes the earlier rounds did not need
+
+Task #97-P5-0 fixed four (`Sim`, `SimR`, `SimP`, `SimS`) and task #97-P5-1
+added a fifth (`SimRO`).  This tier adds five more, and every one of them is
+forced by a return type the `ExprOps` tier does not have.
+`Refine2/Checker/Shape.lean` is the file (442 lines, and the shared base of
+both new directories — `Promote/**` imports it, which is why it lives under
+`Checker/` and is imported downward rather than up).
+
+| shape | the Rust it is forced by | why the four do not fit |
+|---|---|---|
+| `SimRel R` | `IFEnv` results, at **31 sites** | `IFEnvRel` composes the index probe with the array read (task #97-P6-5's lever 1); a `ron::HashMap2` is not recoverable from a `Std.HashMap`, so the result RELATES and does not abstract |
+| `SimRE A` | `arena::pins`' fifty-four readers and `canon`/`std_axioms`' pure comparisons — **60 sites** | `&AState -> Result<T, CheckError>`: **no state in the return at all**, and it can DECLINE.  `SimR` has no error arm and `Sim` wants a post-state |
+| `SimRelR R` | `decl_check::install_basis_decl` | the two put together: a reader whose answer is an `IFEnv` |
+| `SimPM` / `SimEM` / `SimBM` / `SimBR` | `promote`'s `PMemo`, `intern`'s `HashMap2<Expr,EIdx>`, `checker_base`'s two `HashMap2<EIdx,bool>` | task #97-P5-0's **finding 4** one tier down: a memo threaded as an argument-and-result pair abstracts only relationally, so the twin's post-memo is quantified beside its post-state |
+| `SimFold R` | `install_then_check`, `annot_decl_step`, `annot_fold`, `check_pending_list` | **finding 13**, below |
+
+`Sim.toSimRel` is the one bridge (six lines): the value equation is the
+stronger claim, so a `Sim` feeds a `SimRel` consumer without a second lemma.
+
+#### 2. The capstones, and their exact hypotheses
+
+`Refine2/Checker/Top.lean`:
+
+    theorem install_then_check_refines
+        (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+        (hknot : KnotRel checkFuel) (hind : IndRel)
+        (hrun : arena.checker.install_then_check pers st mode pins ds = ok o) :
+        SimFold (fun r v => IFEnvRel r v) pers lst o
+          (installThenCheck (absMode mode) (absINatOpPinSetL pins)
+            (absIDeclL ds).toArray)
+
+    theorem check_decls_pure_refines
+        (hrel : AStateRel pers st lst) (hinv : AStateInv pers st)
+        (hknot : KnotRel checkFuel) (hind : IndRel)
+        (hrun : arena.checker.check_decls_pure pers st mode pins ds = ok o) :
+        SimRel (fun r v => IFEnvRel r v) pers lst o
+          (checkDeclsPure (absMode mode) (absINatOpPinSetL pins) (absIDeclL ds))
+
+**Four hypotheses and no more.**  `AStateRel` / `AStateInv` are the tier's own
+(`Refine2/AbsState.lean`); `KnotRel checkFuel` is the Core tier's obligation
+(`Refine2/Checker/KnotHyp.lean`, §3); `IndRel` is the Inductives tier's
+(finding 14).  Neither statement mentions `StoreWF`, a capacity, or a
+well-formedness of the input: **the whole-outcome shape needs none**, because
+a port `Native` claims nothing and every other divergence this tier found is
+either inside `KnotRel`/`IndRel` or named below as a clause Theorem 1 owes.
+
+The driver's fold above these two is unverified and calls them per record;
+`scripts/holes.sh` is where that boundary is recorded, and it is unchanged by
+this round.
+
+#### 3. `KnotRel` and `IndRel`: two seams, one shape
+
+`Refine2/Checker/KnotHyp.lean` is task #97-P5-1 §8's prediction written out:
+a structure of **six clauses**, one per fuelled core entry (`annotate_core`,
+`infer_type_core`, `is_def_eq_core`, `ensure_sort_core`, `whnf`,
+`whnf_core`), each saying *at a related state, a related environment and a
+matching visibility counter, the port's entry at `F` refines the twin's*.
+
+It is stated at the six FRONT DOORS rather than against `CoreFnsA` because
+that is the form every lemma of this tier consumes: `Arena/CheckerBase.lean`'s
+module note 2 says the record "is the statement subject P3 needs, and the
+bodies call `Arena/Core.lean`'s entries by name", and they do — **sixty-two
+statements of this tier carry `KnotRel checkFuel`**, and not one of them holds
+the record.  P5-Core proves
+`∀ F, KnotRel F` by induction on `F`; the hypothesis then disappears from
+every statement of this tier at once.
+
+`IndRel` (`Refine2/Checker/Top.lean`) is the same shape with ONE clause, for
+`arena::inductives::check_ind_decl`.
+
+#### 4. Five findings
+
+**Finding 10 — `vis` out of the index is a hypothesis at seventy-one sites.**
+Task #97-P6-6b took the visibility counter out of the environment record's
+read path: `ifenv_find(vis, fe, n)` takes `vis : u64` beside `fe`, because
+reading `fe.visible_below` inside the call forced a copy of the record.  The
+twin's `IFEnv.find?` reads `fe.visibleBelow`.  So every statement whose Rust
+takes a `vis` parameter carries `hvis : absU vis = lf.visibleBelow`.  It is
+discharged at the top by `IFEnvRel.visibleBelow` — every call site passes
+`fe.visible_below` — but it must be THREADED, because inside the tier `vis` is
+an ordinary argument — **seventy-one statements of this tier carry it**.  Like
+task #97-P5-0's finding 3 it is a fact about the port's calling convention and
+not a divergence; unlike finding 3 it does not leave this tier, because
+`arena::core`'s own `vis` is inside `KnotRel`.
+
+**Finding 11 — the Rust is 2.9× the twin's granularity at `decl_check`, and
+`CertCtx` is why.**  Ninety-five `pub fn`s against thirty-three twin `def`s.
+Two thirds of the difference is ONE function: `divModCertStmts`, a
+hundred-line `do` block over twenty-one pinned handles, which DESIGN §3.4's
+rules split into **twenty-three** Rust functions plus a record, `CertCtx`, to
+carry the handles between them (a `let`-bound handle that outlives a `match`
+arm is a loan the Aeneas subset will not take).
+
+`CertCtx` has no twin and needs none.  The answer is
+`Refine2/Checker/Spec.lean`'s `CertCtxA` — a twin-side record of the same
+twenty-one handles, with `certCtxSpec` transcribing the twin's opening `let`s
+and one `*Spec` per Rust split.  **That file is the round's real
+infrastructure**: 1 005 lines of twin-side transcriptions plus eight
+`_unfold` equations tying them back to the named twins, collected in one
+place so that a reader checks them against `Arena/{CheckerBase,CheckerSplit,
+DeclCheck,Checker}.lean` clause for clause rather than hunting them across
+five files.  Nothing under `Arena/` was edited to make the refinement
+convenient, which is the standing rule for a twin (DESIGN §8.4).
+
+**Finding 12 — three Rust functions are READERS the twin does not have.**
+`decl_check::defn_value` is `fe.find? c` matched for `.defnInfo`, lifted out
+of three call sites so the borrow of `fe` is dead before the checker recurses;
+`decl_check::install_basis_decl` is `fe.push` and a duplicate test, with no
+state at all (only its DECLINE reads the store, for the name in the message);
+`checker_base::doms_match_aux` is pure because over handles a domain
+comparison is a handle comparison.  Each is stated as a bare equation or a
+`SimRelR`, and each is a place where the port is CHEAPER than the twin rather
+than merely different.
+
+**Finding 13 — the fold's error channel is a PAIR, and neither side throws.**
+`installThenCheck` and its two phases return
+`AM (Except (CheckError × Nat) IFEnv)`: the position travels as a VALUE
+because (B) has ONE monad (DESIGN §8.4), where con-leche changes monad to
+`StateT CState (Except (CheckError × Nat))`.  The port matches exactly —
+`Result<IFEnv, (CheckError, u64)>`.  So the refinement's shape at the fold is
+neither `Sim` (whose error arm is `AErrSim` on a THROW) nor `SimRel`: it is
+`SimFold`, whose error arm compares the pair — **the kind mirrored and the
+position equal**.  What is NOT compared is the state on that arm, and it must
+not be: `AState.abandoned` is what the twin hands back there deliberately
+(task #97g's item 5 — a second reference to the whole `AState` held across a
+step made every append inside it copy), and the port's `&mut` state is read by
+nothing after an `Err`.
+
+**Finding 14 — three divergences of `promote_new`, and one of them needs a
+hypothesis.**  (A) `erase_installed` and `index_promoted` walk the environment
+the other way — the twin's `consts` is newest-first and the port's `Vec` is
+oldest-first with a POSITION index — which is arithmetic, not a divergence.
+(B) `index_promoted` FUSES the twin's two passes (`promoteCIList` then
+`indexPromoted`), sound only because promotion reads no index; the statement
+is against the two passes composed.  (C) **`promote_new` DECLINES where the
+twin promotes**: the port answers `Ok (m, fe)` unchanged when
+`k as usize > fe.env.consts.len()`, and the twin's `consts.take k` at
+`k > length` is the whole list.  The port's arm is a guard on a `usize` cast,
+so "the twin does the same" is FALSE there and §8.2's success arm fails.  The
+hypothesis is `absU k ≤ rf.env.consts.val.length`, which every call site has
+(`k` is `fe.visibleBelow - n₀` for the counter read before the step, and every
+install route grows the environment by `IFEnv.push` alone) — so, like task
+#97-P5-0's finding 3 and task #97-P5-1's findings 7–8, **it is Theorem 1's
+clause to carry**, not this tier's to re-derive.
+
+#### 5. The tier's size, and what closed
+
+| file | lines | statements | closed | net elab |
+|---|---:|---:|---:|---:|
+| `Refine2/Checker/Shape.lean` | 442 | 10 | **10** | 0.24 s |
+| `Refine2/Checker/KnotHyp.lean` | 102 | — (`KnotRel`) | — | 0.02 s |
+| `Refine2/Checker/Spec.lean` | 1 005 | 8 `_unfold` | 0 | 1.07 s |
+| `Refine2/Promote/Intern.lean` | 322 | 25 | **1** | 0.12 s |
+| `Refine2/Promote/Promote.lean` | 729 | 42 | **8** | 0.30 s |
+| `Refine2/Checker/Pins.lean` | 1 091 | 60 | **54** | 0.28 s |
+| `Refine2/Checker/Canon.lean` | 409 | 30 | 0 | 0.17 s |
+| `Refine2/Checker/Axioms.lean` | 556 | 59 | 0 | 0.15 s |
+| `Refine2/Checker/Base.lean` | 897 | 65 | **4** | 0.19 s |
+| `Refine2/Checker/DeclCheck.lean` | 1 099 | 95 | **3** | 0.31 s |
+| `Refine2/Checker/Top.lean` | 752 | 48 | **2** | 0.27 s |
+| **the tier** | **7 404** | **442** | **82** | **3.12 s** |
+
+(442 = the 424 `pub fn`s + 8 `_unfold`s in `Checker/Spec.lean` + 10 shape
+lemmas in `Checker/Shape.lean`.  The `_from`/`_go` cursor companions are
+counted as the Rust functions they are; `Checker/Spec.lean`'s ~60 twin-side
+`def`s are transcriptions, not claims, and are not counted.)
+
+**What closed, and why those.**
+
+* **`arena::pins`' fifty-four readers** — `pin_at_refines` and its
+  **forty-nine wrappers**, `pins_ready`, `pin_empty_levels`, `pin_zero_level`,
+  `pin_sort_one`.  They are the cheapest group of the whole tower, exactly as
+  §4 of the P5-0 plan predicted: `PinsRel.names` plus a bounds test, and then
+  each of the forty-nine is `pin_at_refines` at its own `PIN_*` constant —
+  **seven lines each, and the same seven lines forty-nine times**.  The one
+  thing that is not free is the `run` reduction of a `dite` inside
+  `StateT σ (Except ε)`: `rfl` does not take it (the `Bind.bind` instance
+  projection blocks it), and the working spelling is `by_cases` then
+  `simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get,
+  StateT.get, Pure.pure, StateT.pure, Except.pure, Except.bind, dif_pos h]`.
+  That is **rule 10 of the idiom** and it is new: every `AM` action with a
+  branch at its head will want it.
+* **`arena::promote`'s eight memo primitives** — `pmemo_{get,set}_{e,n,l,ls}`,
+  which are `Refine2/Specs.lean`'s `memo_insert_step` and its `get` sibling at
+  another table, nine lines each.
+* **four of `checker_base`/`checker_split`'s** — `or_else_attempt` (the
+  four-way step is a pure function of the attempt's outcome on both sides),
+  `is_rec_info`, `is_thm` and `memo_b_get`.
+* **six more one-liners** — `cert_hyp1`, `cert_hyp2` and `cert_push` (the
+  statement list's three constructors, `Refine/Abs.lean`'s `vec_push_val`
+  each), `all_basis_kinds`, `at_decl` (the fold's failure with its position in
+  the text: the KIND is what the refinement claims, and the sixteen-way
+  `cases e <;> cases le` is what proves it) and `memo_empty`.
+
+#### 6. The sorry list, by what it waits on
+
+**360 open statements**, and not one of them waits on an idea.
+
+Counted by FILE, which is the honest axis (a statement usually waits on more
+than one thing, and every one of them waits on `Refine2/Specs.lean`'s
+twenty-four open `intern_*` somewhere below it):
+
+| file | open | what is under it |
+|---|---:|---|
+| `Promote/Intern.lean` | 24 | `Specs.lean`'s four transient walks and the `intern_e` family; nothing else |
+| `Promote/Promote.lean` | 34 | `Specs.lean`'s four `intern_persistent_*`; `view`/`view_n`/`view_l`/`view_ls` are closed |
+| `Checker/Axioms.lean` | 59 | `Promote/Intern.lean`'s four entries, and through them the same `intern_e` family |
+| `Checker/Canon.lean` | 30 | `Specs.lean`'s `intern_n_node`; its `view`s are closed |
+| `Checker/Pins.lean` | 6 | `Specs.lean`'s `intern_name`/`intern_ls_node`/`intern_l_node`/`intern_e_sort` (`intern_reserved_pins` and the three `intern_pin_set*`), plus `pin_names` |
+| `Checker/Spec.lean` | 8 | nothing — these are the `_unfold`s, and they are the only obligations of this round about the TWIN rather than the port |
+| `Checker/Base.lean` | 61 | `Refine2/ExprOps/**` (statements only so far) and `KnotRel` at 16 |
+| `Checker/DeclCheck.lean` | 92 | the same, and `KnotRel` at 18 |
+| `Checker/Top.lean` | 46 | the same, `KnotRel` at 28 and `IndRel` at 13 |
+
+Across the tier: **62 statements carry `KnotRel checkFuel`**, **13 carry
+`IndRel`**, **71 carry finding 10's `hvis`**.
+
+The eight `_unfold`s are `rfl`-shaped: each says a named twin IS its
+transcription composed.  They were left open because a `do`-block equation in
+`StateT σ (Except ε)` needs the same reduction discipline rule 10 names, and
+the pin readers were the better place to establish it.
+
+#### 7. The axiom census
+
+**Twenty-two `#print axioms` rows under `#guard_msgs`** across the tier —
+eight in `Checker/Pins.lean` (`pin_at` and the four wrappers/readers that
+stand for the fifty-four), four in `Promote/Promote.lean` (the memo
+primitives), four in `Checker/Base.lean`, three in `Checker/DeclCheck.lean`,
+two in `Checker/Top.lean` and one in `Promote/Intern.lean`.  Every one reads **`[propext, Classical.choice,
+Quot.sound]` and nothing else**: no `sorryAx` on a closed lemma, and still no
+`bv_decide` axiom anywhere in `Refine2/`.
+
+#### 8. Elaboration
+
+`LEAN_NUM_THREADS=1`, `lake env lean` on one file, two runs; "net" subtracts
+that file's OWN import block measured the same way.  Spread ≤ 0.06 s on every
+file but `Checker/Spec.lean` (3.20 / 2.78 s raw — the transcription file is
+the one with real elaboration in it and the one the machine's other load
+shows on).
+
+**No lemma is anywhere near the 20-second flag; the whole tier is 3.1 s net
+for 442 statements, ≈ 7 ms a statement.**  The reason is the same as task
+#97-P5-1 §6's: a `sorry`ed statement costs its own elaboration and nothing
+else, and the closed ones are `rw` chains and `simp only`s with `grind`
+nowhere in them.  `Checker/Spec.lean`'s 1.07 s is 1 005 lines of twin-side
+`do` blocks and is the tier's one real cost; the closed pin group is 0.28 s
+for sixty theorems, **4.7 ms a theorem**.
+
+#### 9. What the Inductives and Frontend tiers need
+
+* **`IndRel` is their capstone's shape.**  The Inductives tier's deliverable
+  is exactly `IndRel.checkIndDecl` proved — one `SimRel` at
+  `arena::inductives::check_ind_decl` — and everything under it is private to
+  that tier.  `Refine2/Checker/Top.lean` already consumes it at nine sites, so
+  the seam needs no negotiation: land the proof, delete the hypothesis.
+* **The four new shapes are theirs too.**  `arena::inductives` returns `IFEnv`
+  almost everywhere (every install route pushes), so `SimRel` is what its
+  statements will be written with; `arena::frontend`'s parser threads a memo
+  exactly as `arena::intern` does, so `SimEM` is already the right shape for
+  it, at `Frontend.EMemo` rather than `arena::intern`'s.
+* **Finding 10's `hvis` reaches them.**  `arena::inductives`' own functions
+  take `vis` beside `fe` for the same reason, so the clause travels; P3 should
+  carry it as a clause of `StateOK` (task #97-P5-1 §8's last bullet already
+  asks for findings 3, 7 and 8 to be carried that way, and this is a fourth).
+* **Finding 14C is Theorem 1's**, and it is the only NEW clause this round
+  puts on P3: `k ≤ |consts|` at `promoteNew`.
+* **`Refine2/Checker/Spec.lean` is the pattern for both.**  `arena::frontend`
+  and `arena::inductives` are split by DESIGN §3.4's rules exactly as
+  `decl_check` is, and the answer is the same: one collected transcription
+  file per tier, with `_unfold` equations, and no edit to the twin.
+
+#### 10. The gates
+
+| gate | result |
+|---|---|
+| `cd proof && lake build ConRonRefine2` | **green, 2 184 jobs**, 488 `sorry` (was 128; +360 new open statements, −0 regressions) and no errors |
+| `cd proof && lake build` | **green, 2 208 jobs** — the default targets are untouched (`ConRonRefine2` is deliberately not one) |
+| `scripts/provenance.py check` | 0 findings — `6 438 item(s) (4 099 Rust, 2 339 arena Lean), 4 200 citation(s), all current at pin 78ded4b6` (the arena-Lean count is the merge's, not this branch's) |
+| `scripts/overview-links.sh` | 48 links, 31 files, OK |
+| `scripts/holes.sh --check` | 1 type(s), 5 fn(s), OK |
+| the diff | `proof/ConRon/Refine2/{Checker,Promote}/**`, one lemma of `proof/ConRon/Refine2/Specs.lean` (§11), `proof/ConRon/Refine2.lean` and this section.  No Rust file, no generated model, no `Arena/`, no `Refine/`, no `RefineOld/`, no `ExprOps/`, no `Specs.lean` — so `cargo build`/`cargo test`/`lint-rust-style.sh`/`extract.sh --check`/`diff-e2e.sh` cannot be affected and are not re-run |
+
+#### 11. The merge, and the one repair it needed outside this tier
+
+`arena` moved under this branch while it ran — tasks **#97-P3-1**,
+**#97-P3-Core** and **#97-P3-Checker**, merged as `be5aab5d` — and was merged
+in.  The only textual conflict was this section against theirs at the end of
+the task log.  Every gate above was re-run after the merge and is the number
+reported there.  `ConRonBridge` is NOT among them and does not need to be:
+`ConRon.Bridge` imports `ConRon.Arena` and con-leche and nothing else, so no
+change of this branch — all of which is under `ConRon/Refine2/` — can reach
+it.
+
+**One semantic repair was needed, and it is task #97-P5-1's finding 9 coming
+true.**  That finding said *"the capacity test is on the wrong side of the
+probe in the twin … the proper fix is a one-line TWIN change (move the test
+into `internAt`'s miss arm, which is what the port does) … it belongs in the
+next twin catch-up"*.  Task #97-P3-1 made exactly that change:
+`Arena/Monad.lean`'s `internE` now probes `s.store.find?` BEFORE it tests the
+capacity.  So `Refine2/Specs.lean`'s `internE_run_of_cap` — whose proof was a
+`show` at the old body — no longer matched, and with it the two `#guard_msgs`
+axiom rows below it.
+
+The repair is confined to that one lemma and adds one private helper,
+`intern_eq_of_find_some` (*the twin's `intern` at a view its cons probe
+already finds is `(st, h)`* — sixteen lines over
+`EStore.{find?, intern, findAt, internAt}`), and gives `internE_run_of_cap` a
+HIT arm.  **The statement and all its callers are unchanged**, which is what
+makes the repair safe to land beside task #97-P5-2's work in the same file:
+the change is one proof body and one new private lemma, and the statement it
+proves is the one #97-P5-1 wrote.
+
+**What finding 9 is worth now**: the `hcap` hypothesis the twenty-five
+`intern_*` statements carry is no longer needed on the HIT path, because the
+twin no longer throws there.  It is still needed on the MISS path, and there
+it is free (if the twin's test fails then the port's `full` is true as well
+and the port raises `Native`, which claims nothing) — so those statements can
+drop it when task #97-P5-2 next touches them.  That is the one follow-up this
+round leaves in someone else's file.
